@@ -71,12 +71,12 @@ impl OrchestratorContext {
             ));
         }
         a4n_db::media::protected_image_publication_cleanup_paths(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             paths,
         )
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
     }
 
     pub async fn project_has_active_image_publication(
@@ -88,9 +88,9 @@ impl OrchestratorContext {
                 "图片 cleanup project_id 必须大于 0".to_string(),
             ));
         }
-        a4n_db::media::project_has_active_image_publication(self.database.connection(), project_id)
+        a4n_db::media::project_has_active_image_publication(self.database.executor(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     pub async fn create_image_publication_intent_for_user_validated(
@@ -628,9 +628,9 @@ impl ImagePublicationRecoveryReadPort for OrchestratorContext {
         image_id: i64,
     ) -> Result<Option<GeneratedImageIdentity>, AppError> {
         Ok(
-            a4n_db::video::read_models::generated_image_by_id(self.database.connection(), image_id)
+            a4n_db::video::read_models::generated_image_by_id(self.database.executor(), image_id)
                 .await
-                .map_err(AppError::Database)?
+                .map_err(AppError::from)?
                 .map(|image| GeneratedImageIdentity {
                     project_id: image.project_id,
                     file_path: image.file_path,

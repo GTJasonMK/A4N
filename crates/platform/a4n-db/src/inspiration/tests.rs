@@ -14,7 +14,7 @@ async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
 }
 
-async fn text_project(db: &DatabaseConnection, title: &str) -> novel_project::Model {
+async fn text_project(db: &impl crate::DbExecutor, title: &str) -> novel_project::Model {
     crate::project::create_project_record(
         db,
         crate::project::CreateProjectRecordInput {

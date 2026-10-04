@@ -474,7 +474,7 @@ impl OrchestratorContext {
             operation: error.to_string(),
         })?;
         let outcome = a4n_db::project::upsert_retrospective_chapter_outline_checked(
-            self.database.connection(),
+            self.database.executor(),
             input,
             chapter.source_snapshot(),
         )
@@ -781,7 +781,7 @@ impl OrchestratorContext {
             return Ok(());
         }
         a4n_db::transaction::run_in_transaction(
-            self.database.connection(),
+            self.database.executor(),
             "记录章节事实反馈",
             |tx| {
                 Box::pin(async move {
@@ -1206,7 +1206,7 @@ impl OrchestratorContext {
         business_key: &str,
     ) -> Result<Option<a4n_db::workflow::WorkflowRunSummary>, AppError> {
         let run = a4n_db::workflow::latest_workflow_run_by_business_key(
-            self.database.connection(),
+            self.database.executor(),
             business_key,
         )
         .await
@@ -1221,7 +1221,7 @@ impl OrchestratorContext {
         workflow_run_id: i64,
     ) -> Result<a4n_db::workflow::WorkflowRunSummary, AppError> {
         let run =
-            a4n_db::workflow::resume_workflow_run(self.database.connection(), workflow_run_id)
+            a4n_db::workflow::resume_workflow_run(self.database.executor(), workflow_run_id)
                 .await
                 .map_err(crate::workflow::workflow_write_app_error)?;
         a4n_db::workflow::workflow_run_summary_from_model(run)

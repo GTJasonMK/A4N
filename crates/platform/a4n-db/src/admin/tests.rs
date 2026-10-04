@@ -87,7 +87,7 @@ fn priority_rank_orders_semantic_task_priorities() {
 }
 
 async fn insert_theme(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     name: &str,
     user_id: Option<i64>,
     is_system_default: bool,
@@ -117,7 +117,7 @@ async fn insert_theme(
     .unwrap()
 }
 
-async fn insert_task(db: &DatabaseConnection, id: &str) {
+async fn insert_task(db: &impl crate::DbExecutor, id: &str) {
     let now = NaiveDate::from_ymd_opt(2026, 1, 1)
         .unwrap()
         .and_hms_opt(0, 0, 0)
@@ -145,12 +145,12 @@ async fn insert_task(db: &DatabaseConnection, id: &str) {
     .unwrap();
 }
 
-async fn insert_llm_usage_log(db: &DatabaseConnection, id: i64) {
+async fn insert_llm_usage_log(db: &impl crate::DbExecutor, id: i64) {
     insert_llm_usage_log_at(db, id, 1, Utc::now().naive_utc(), 10, 20, 30, true).await;
 }
 
 async fn insert_llm_usage_log_at(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     id: i64,
     user_id: i64,
     created_at: NaiveDateTime,

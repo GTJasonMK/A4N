@@ -22,13 +22,13 @@ pub(crate) fn project_delete_error_to_app_error(
         ProjectDeleteDbError::ProjectCleanup { source } => {
             project_cleanup_error_to_app_error(source)
         }
-        ProjectDeleteDbError::Database { source } => AppError::Database(source),
+        ProjectDeleteDbError::Database { source } => AppError::database(source),
         ProjectDeleteDbError::Generation { source } => match source {
             a4n_db::generation::GenerationDbError::InvalidArgument(message) => {
                 AppError::InvalidArgument(message)
             }
             a4n_db::generation::GenerationDbError::NotFound(message) => AppError::NotFound(message),
-            a4n_db::generation::GenerationDbError::Database(source) => AppError::Database(source),
+            a4n_db::generation::GenerationDbError::Database(source) => AppError::database(source),
         },
         ProjectDeleteDbError::Video { source } => match source {
             a4n_db::video::VideoDbError::InvalidArgument(message) => {
@@ -39,7 +39,7 @@ pub(crate) fn project_delete_error_to_app_error(
             }
             a4n_db::video::VideoDbError::NotFound(message) => AppError::NotFound(message),
             a4n_db::video::VideoDbError::Forbidden(message) => AppError::Forbidden(message),
-            a4n_db::video::VideoDbError::Database(source) => AppError::Database(source),
+            a4n_db::video::VideoDbError::Database(source) => AppError::database(source),
         },
     }
 }
@@ -53,7 +53,7 @@ pub(crate) fn project_cleanup_error_to_app_error(
         a4n_db::project::ProjectCleanupDbError::InvalidArgument(message) => {
             AppError::InvalidArgument(message)
         }
-        a4n_db::project::ProjectCleanupDbError::Database { source } => AppError::Database(source),
+        a4n_db::project::ProjectCleanupDbError::Database { source } => AppError::database(source),
         a4n_db::project::ProjectCleanupDbError::Video { source } => match source {
             a4n_db::video::VideoDbError::InvalidArgument(message) => {
                 AppError::InvalidArgument(message)
@@ -63,7 +63,7 @@ pub(crate) fn project_cleanup_error_to_app_error(
             }
             a4n_db::video::VideoDbError::NotFound(message) => AppError::NotFound(message),
             a4n_db::video::VideoDbError::Forbidden(message) => AppError::Forbidden(message),
-            a4n_db::video::VideoDbError::Database(source) => AppError::Database(source),
+            a4n_db::video::VideoDbError::Database(source) => AppError::database(source),
         },
     }
 }
@@ -80,7 +80,7 @@ pub(crate) fn chapter_content_edit_error_to_app_error(
         ChapterContentEditError::InvalidState { current, operation } => {
             AppError::InvalidState { current, operation }
         }
-        ChapterContentEditError::Database(error) => AppError::Database(error),
+        ChapterContentEditError::Database(error) => AppError::database(error),
     }
 }
 
@@ -106,7 +106,7 @@ pub(crate) fn freeform_generated_reset_error_to_app_error(
             crate::canvas::canvas_db_error(source)
         }
         a4n_db::project::FreeformGeneratedResetDbError::Database { source } => {
-            AppError::Database(source)
+            AppError::database(source)
         }
     }
 }

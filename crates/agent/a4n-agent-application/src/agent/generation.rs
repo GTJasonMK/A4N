@@ -72,7 +72,7 @@ impl AgentApplication {
         )
         .await?;
         agent::append_event(
-            self.connection(),
+            self.executor(),
             AgentEventInput {
                 thread_id: owner.thread_id,
                 turn_id: Some(owner.turn_id),
@@ -104,7 +104,7 @@ impl AgentApplication {
             return Ok(());
         };
         agent::append_event(
-            self.connection(),
+            self.executor(),
             AgentEventInput {
                 thread_id: owner.thread_id,
                 turn_id: Some(owner.turn_id),
@@ -132,21 +132,18 @@ impl AgentApplication {
         run_id: i64,
         key: &str,
     ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
-        execution::Entity::find()
-            .filter(execution::Column::RunId.eq(run_id))
-            .filter(execution::Column::ExecutionKey.eq(key))
-            .one(self.connection())
+        agent::execution_by_key(self.executor(), run_id, key)
             .await
+            .map_err(agent_db_error_to_app)
             .map(|row| row.map(super::snapshots::execution_snapshot))
-            .map_err(AppError::from)
     }
 
     pub async fn generation_owner(
         &self,
         task_id: &str,
         attempt: u32,
-    ) -> Result<Option<run::Model>, AppError> {
-        agent::generation_owner(self.connection(), task_id, attempt)
+    ) -> Result<Option<agent::AgentRunRecord>, AppError> {
+        agent::generation_owner(self.executor(), task_id, attempt)
             .await
             .map_err(agent_db_error_to_app)
     }
@@ -154,15 +151,17 @@ impl AgentApplication {
     pub async fn active_owned_generation_tasks(
         &self,
         after_task_id: &str,
-    ) -> Result<Vec<a4n_db_models::models::generation::generation_task_checkpoint::Model>, AppError>
-    {
-        agent::active_owned_generation_tasks(self.connection(), after_task_id)
+    ) -> Result<Vec<agent::AgentOwnedGenerationTaskRecord>, AppError> {
+        agent::active_owned_generation_tasks(self.executor(), after_task_id)
             .await
             .map_err(agent_db_error_to_app)
     }
 
-    pub async fn generation_owner_stopped(&self, owner: &run::Model) -> Result<bool, AppError> {
-        agent::generation_owner_stopped(self.connection(), owner)
+    pub async fn generation_owner_stopped(
+        &self,
+        owner: &agent::AgentRunRecord,
+    ) -> Result<bool, AppError> {
+        agent::generation_owner_stopped(self.executor(), owner)
             .await
             .map_err(agent_db_error_to_app)
     }
@@ -171,7 +170,7 @@ impl AgentApplication {
         &self,
         input: AgentTaskExecutionInput,
     ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
-        agent::create_task_execution(self.connection(), input)
+        agent::create_task_execution(self.executor(), input)
             .await
             .map(|execution| execution.map(super::snapshots::execution_snapshot))
             .map_err(agent_db_error_to_app)
@@ -185,7 +184,7 @@ impl AgentApplication {
         refs: Option<Value>,
         error: Option<String>,
     ) -> Result<(), AppError> {
-        agent::update_task_execution(self.connection(), task, execution_id, result, refs, error)
+        agent::update_task_execution(self.executor(), task, execution_id, result, refs, error)
             .await
             .map_err(agent_db_error_to_app)
     }
@@ -195,22 +194,22 @@ impl AgentApplication {
         origin: &AgentWorkflowOrigin,
         workflow_id: i64,
     ) -> Result<(), AppError> {
-        agent::bind_owned_workflow(self.connection(), origin, workflow_id)
+        agent::bind_owned_workflow(self.executor(), origin, workflow_id)
             .await
             .map_err(agent_db_error_to_app)
     }
 
-    pub async fn workflow_owner(&self, workflow_id: i64) -> Result<Option<run::Model>, AppError> {
-        agent::workflow_owner(self.connection(), workflow_id)
-            .await
-            .map_err(agent_db_error_to_app)
-    }
-
-    pub async fn active_owned_workflows(
+    pub async fn workflow_owner(
         &self,
-        after_id: i64,
-    ) -> Result<Vec<a4n_db_models::models::generation::workflow_run::Model>, AppError> {
-        agent::active_owned_workflows(self.connection(), after_id)
+        workflow_id: i64,
+    ) -> Result<Option<agent::AgentRunRecord>, AppError> {
+        agent::workflow_owner(self.executor(), workflow_id)
+            .await
+            .map_err(agent_db_error_to_app)
+    }
+
+    pub async fn active_owned_workflows(&self, after_id: i64) -> Result<Vec<i64>, AppError> {
+        agent::active_owned_workflows(self.executor(), after_id)
             .await
             .map_err(agent_db_error_to_app)
     }

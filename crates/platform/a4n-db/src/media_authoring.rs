@@ -1,5 +1,6 @@
 //! Versioned project artifacts. The domain owner validates its document before
 //! saving; this boundary owns lineage, source integrity and concurrent writes.
+use sea_orm::ConnectionTrait;
 
 use a4n_db_models::models::project::{
     media_authoring_document as document, novel_project, project_source_snapshot,
@@ -16,8 +17,8 @@ use a4n_domain::project::ProjectRecord;
 use a4n_domain::shooting_script::ChapterShootingScriptReferenceRecord;
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, DbErr,
-    EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait, sea_query::Expr,
+    ActiveModelTrait, ColumnTrait, Condition, DbErr, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set, sea_query::Expr,
 };
 use serde_json::Value;
 
@@ -265,7 +266,7 @@ pub async fn editable_authoring_document<C: ConnectionTrait>(
 }
 
 pub async fn save_authoring_document(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: SaveAuthoringDocument,
 ) -> Result<AuthoringDocumentRecord, AuthoringDocumentError> {
     let lineage = scope(
@@ -364,7 +365,7 @@ pub async fn save_authoring_document(
 }
 
 pub async fn adopt_authoring_document(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     record_id: i64,
     expected_revision: i32,

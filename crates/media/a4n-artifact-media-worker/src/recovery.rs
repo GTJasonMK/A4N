@@ -6,7 +6,8 @@ use a4n_db::cleanup_outbox::FileArtifactCleanupPayload;
 use a4n_domain::EXTERNAL_IMPORT_MODEL;
 use a4n_domain::media::{
     IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED,
-    IMAGE_PUBLICATION_STATUS_RECLAIMING, ImagePublicationFileFacts, ImagePublicationRecoveryRecord,
+    IMAGE_PUBLICATION_STATUS_RECLAIMING, ImagePublicationFileFacts, ImagePublicationRecord,
+    ImagePublicationRecoveryRecord,
 };
 use a4n_storage::{inspect_data_file_facts, promote_data_file};
 
@@ -18,7 +19,7 @@ impl WorkerState {
         request.validate().map_err(|error| error.to_string())?;
         let mut failures = Vec::new();
         let mut publications_examined = 0;
-        let publications = a4n_db::video::image_publications_for_recovery_for_model(
+        let publications = a4n_db::video::image_publication_recovery_records_for_model(
             self.db.connection(),
             usize::from(request.publication_limit),
             None,
@@ -55,21 +56,11 @@ impl WorkerState {
         })
     }
 
-    async fn recover_publication(
-        &self,
-        requested: a4n_db_models::models::media::image_publication::Model,
-    ) -> Result<(), String> {
-        let Some(publication) =
-            a4n_db::video::image_publication_by_id(self.db.connection(), &requested.publication_id)
-                .await
-                .map_err(|error| error.to_string())?
-        else {
-            return Ok(());
-        };
-        if publication.model != EXTERNAL_IMPORT_MODEL {
+    async fn recover_publication(&self, requested: ImagePublicationRecord) -> Result<(), String> {
+        if requested.model != EXTERNAL_IMPORT_MODEL {
             return Ok(());
         }
-        let publication = recovery_record(publication);
+        let publication = recovery_record(requested);
         match publication.status.as_str() {
             IMAGE_PUBLICATION_STATUS_PENDING => self.recover_pending(publication).await,
             IMAGE_PUBLICATION_STATUS_PUBLISHED => self.recover_published(publication).await,
@@ -235,7 +226,7 @@ impl WorkerState {
         publication: ImagePublicationRecoveryRecord,
         reason: &str,
     ) -> Result<(), String> {
-        let publication = a4n_db::video::mark_image_publication_reclaiming(
+        let publication = a4n_db::video::mark_image_publication_reclaiming_record(
             self.db.connection(),
             &publication.publication_id,
             publication.version,
@@ -261,7 +252,7 @@ impl WorkerState {
             }
         }
         if existing_paths.is_empty() {
-            a4n_db::video::mark_image_publication_reclaimed(
+            a4n_db::video::mark_image_publication_reclaimed_record(
                 self.db.connection(),
                 &publication.publication_id,
                 publication.version,
@@ -277,7 +268,7 @@ impl WorkerState {
                 .await
                 .map_err(|error| error.to_string())?;
         if unreferenced.len() < existing_paths.len() {
-            a4n_db::video::mark_image_publication_reclaimed(
+            a4n_db::video::mark_image_publication_reclaimed_record(
                 self.db.connection(),
                 &publication.publication_id,
                 publication.version,

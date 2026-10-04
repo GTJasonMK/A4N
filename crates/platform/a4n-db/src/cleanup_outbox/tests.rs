@@ -297,7 +297,7 @@ async fn expired_cleanup_lease_is_fenced_and_reclaimed() {
 #[tokio::test]
 async fn completed_cleanup_audit_ttl_prunes_only_expired_rows_in_batches() {
     async fn completed_audit(
-        db: &DatabaseConnection,
+        db: &impl crate::DbExecutor,
         project_id: i64,
         age_days: i64,
     ) -> cleanup_outbox::Model {

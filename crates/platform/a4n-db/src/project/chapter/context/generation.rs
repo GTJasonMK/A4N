@@ -3,10 +3,10 @@ use a4n_db_models::models::{
     character::protagonist_profile,
     project::{blueprint_character, blueprint_relationship, novel_blueprint},
 };
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 
 pub async fn chapter_generation_reference_context_rows(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_number: i32,
 ) -> Result<ChapterGenerationReferenceContextRows, ProjectChapterContextError> {

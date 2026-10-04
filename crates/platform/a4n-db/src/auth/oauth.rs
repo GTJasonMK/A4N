@@ -9,7 +9,7 @@ use sea_orm::QuerySelect;
 use std::collections::HashSet;
 
 pub async fn login_with_oauth2(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     provider: &str,
     provider_id: &str,
     email: Option<&str>,
@@ -25,7 +25,7 @@ pub async fn login_with_oauth2(
         .filter(user::Column::OauthSubject.eq(provider_id.as_str()))
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
     {
         if !user.is_active {
             return Err(AppError::Unauthorized("账户已被禁用".into()));
@@ -36,7 +36,7 @@ pub async fn login_with_oauth2(
         if let Some(value) = avatar_url {
             active.avatar_url = Set(Some(value.to_string()));
         }
-        active.update(db).await.map_err(AppError::Database)?;
+        active.update(db).await.map_err(AppError::from)?;
         return user_by_id(db, id).await;
     }
 
@@ -54,7 +54,7 @@ pub async fn login_with_oauth2(
             active.avatar_url = Set(Some(value.to_string()));
         }
         active.updated_at = Set(now);
-        active.update(db).await.map_err(AppError::Database)?;
+        active.update(db).await.map_err(AppError::from)?;
         return user_by_id(db, id).await;
     }
 
@@ -77,10 +77,10 @@ pub async fn login_with_oauth2(
     }
     .insert(db)
     .await
-    .map_err(AppError::Database)
+    .map_err(AppError::from)
 }
 
-async fn pick_unique_username(db: &DatabaseConnection, base: &str) -> Result<String, AppError> {
+async fn pick_unique_username(db: &impl crate::DbExecutor, base: &str) -> Result<String, AppError> {
     let sanitized: String = base
         .chars()
         .map(|c| {
@@ -116,7 +116,7 @@ async fn pick_unique_username(db: &DatabaseConnection, base: &str) -> Result<Str
         .into_tuple::<String>()
         .all(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .into_iter()
         .collect::<HashSet<_>>();
     if let Some(candidate) = candidates

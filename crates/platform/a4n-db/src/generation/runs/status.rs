@@ -3,7 +3,7 @@ use sea_orm::sea_query::{Alias, Expr};
 use std::collections::{HashMap, HashSet};
 
 pub async fn complete_runs_for_target(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     target_table: &str,
     target_id: i64,
     response_summary_json: Option<Value>,
@@ -20,7 +20,7 @@ pub async fn complete_runs_for_target(
 }
 
 pub async fn fail_runs_for_target(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     target_table: &str,
     target_id: i64,
     error_message: String,
@@ -38,7 +38,7 @@ pub async fn fail_runs_for_target(
 }
 
 pub async fn cancel_runs_for_target(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     target_table: &str,
     target_id: i64,
     message: String,
@@ -59,7 +59,7 @@ pub async fn cancel_runs_for_target(
 /// The returned pairs preserve the caller's target order and report all runs bound to each
 /// target, including runs that were already cancelled (the same count as the single-target API).
 pub async fn cancel_runs_for_targets(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     target_table: &str,
     target_ids: &[i64],
     message: String,
@@ -88,7 +88,7 @@ pub async fn cancel_runs_for_targets(
 }
 
 pub(crate) async fn interrupt_runs_for_targets(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     target_table: &str,
     target_ids: &[i64],
     message: String,
@@ -106,7 +106,7 @@ pub(crate) async fn interrupt_runs_for_targets(
 }
 
 async fn update_running_runs_for_target(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     target_table: &str,
     target_id: i64,
     status: &str,
@@ -132,7 +132,7 @@ struct TargetRunUpdates {
 }
 
 async fn update_running_runs_for_targets(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     target_table: &str,
     target_ids: &[i64],
     status: &str,

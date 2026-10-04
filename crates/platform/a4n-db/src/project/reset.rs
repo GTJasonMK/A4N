@@ -4,8 +4,7 @@ use a4n_db_models::models::project::novel_project;
 use a4n_domain::project::{CleanupAction, ProjectKind, ProjectStatus, rollback_actions};
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait,
-    QueryFilter, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DbErr, EntityTrait, PaginatorTrait, QueryFilter, Set,
 };
 
 use crate::character;
@@ -38,7 +37,7 @@ use a4n_domain::project_reset::{
 
 /// 重置项目生成态（含事务与状态写回）。事件发布仍由调用方负责。
 pub async fn reset_project_generated_data_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<ProjectGeneratedDataResetOutcome, ProjectResetDbError> {
     use a4n_db_models::models::chapter::{chapter_outline, part_outline};

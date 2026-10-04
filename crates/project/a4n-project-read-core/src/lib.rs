@@ -6,12 +6,12 @@ use a4n_db::project::ProjectFamilyMetadata;
 use a4n_domain::project::{
     ProjectKind, ProjectProgressSummary, ProjectSourceMode, ProjectStatus, ProjectSummaryRecord,
 };
-use sea_orm::DatabaseConnection;
+use anyhow::Error;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProjectSummaryError {
-    #[error(transparent)]
-    Database(#[from] sea_orm::DbErr),
+    #[error("{0}")]
+    Database(#[source] Error),
     #[error(transparent)]
     Progress(#[from] a4n_db::project::ProjectProgressReadError),
     #[error(transparent)]
@@ -21,7 +21,7 @@ pub enum ProjectSummaryError {
 }
 
 pub async fn project_summary_for_user(
-    database: &DatabaseConnection,
+    database: &impl a4n_db::DbExecutor,
     user_id: i64,
     project: &ProjectSummaryRecord,
 ) -> Result<ProjectSummary, ProjectSummaryError> {
@@ -50,7 +50,7 @@ pub async fn project_summary_for_user(
         async {
             a4n_db::fact_feedback::feedback_interval(database, project.id)
                 .await
-                .map_err(ProjectSummaryError::from)
+                .map_err(|error| ProjectSummaryError::Database(Error::new(error)))
         },
     )?;
     Ok(project_summary_from_parts(

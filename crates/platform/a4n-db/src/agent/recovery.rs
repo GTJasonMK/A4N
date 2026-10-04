@@ -1,11 +1,12 @@
 use super::*;
 use a4n_db_models::models::agent::inbox as inbox_model;
+use sea_orm::ConnectionTrait;
 
 pub async fn recover_expired_run(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     run_id: i64,
     error_message: Option<&str>,
-) -> Result<run::Model, AgentDbError> {
+) -> Result<AgentRunRecord, AgentDbError> {
     let current = run::Entity::find_by_id(run_id)
         .one(db)
         .await?
@@ -57,7 +58,7 @@ pub async fn recover_expired_run(
     if row.status == "recovery_required" && !row.is_active {
         let _ = refresh_thread_status_on(&tx, row.thread_id).await?;
         tx.commit().await?;
-        return Ok(row);
+        return Ok(row.into());
     }
     let timestamp = now();
     if !row.is_active
@@ -113,14 +114,17 @@ pub async fn recover_expired_run(
         let _ = refresh_thread_status_on(&tx, thread_id).await?;
     }
     tx.commit().await?;
-    Ok(row)
+    Ok(row.into())
 }
 
 /// Lists expired running leases for the recovery worker.
 ///
 /// This is deliberately a read-only scan: `recover_expired_run` performs the
 /// exclusive lock and revalidates expiry before changing durable state.
-pub async fn expired_running_runs<C>(db: &C, limit: u64) -> Result<Vec<run::Model>, AgentDbError>
+pub async fn expired_running_runs<C>(
+    db: &C,
+    limit: u64,
+) -> Result<Vec<AgentRunRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
@@ -138,26 +142,31 @@ where
         .limit(limit)
         .all(db)
         .await
-        .map_err(AgentDbError::Database)
+        .map(|rows| rows.into_iter().map(AgentRunRecord::from).collect())
+        .map_err(AgentDbError::from)
 }
 
 pub async fn cancel_run_tree(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     root_run_id: i64,
     error_message: Option<&str>,
-) -> Result<Vec<run::Model>, AgentDbError> {
-    control_run_tree(db, root_run_id, error_message, false).await
+) -> Result<Vec<AgentRunRecord>, AgentDbError> {
+    control_run_tree(db, root_run_id, error_message, false)
+        .await
+        .map(|rows| rows.into_iter().map(AgentRunRecord::from).collect())
 }
 
 pub async fn pause_run_tree(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     root_run_id: i64,
-) -> Result<Vec<run::Model>, AgentDbError> {
-    control_run_tree(db, root_run_id, Some("用户暂停 Agent run"), true).await
+) -> Result<Vec<AgentRunRecord>, AgentDbError> {
+    control_run_tree(db, root_run_id, Some("用户暂停 Agent run"), true)
+        .await
+        .map(|rows| rows.into_iter().map(AgentRunRecord::from).collect())
 }
 
 async fn control_run_tree(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     root_run_id: i64,
     error_message: Option<&str>,
     pause: bool,

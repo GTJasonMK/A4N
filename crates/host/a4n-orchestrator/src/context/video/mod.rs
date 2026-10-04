@@ -3,7 +3,6 @@
 //! 持有 `DbHandle`，封装视频提示词、生成图/视频记录与素材库相关数据库行为。
 //! LLM/预览/流水线编排仍在 `video/` 模块，但 DB 只经本 owner。
 
-use a4n_db::DatabaseConnection;
 use a4n_db::DbHandle;
 use a4n_db::generation::{
     RecordCompletedGenerationRunWithCheckpointInput, RecordStartedGenerationRunInput,
@@ -59,8 +58,8 @@ impl VideoApplication {
         }
     }
 
-    fn connection(&self) -> &DatabaseConnection {
-        self.database.connection()
+    fn connection(&self) -> &impl a4n_db::DbExecutor {
+        self.database.executor()
     }
 }
 

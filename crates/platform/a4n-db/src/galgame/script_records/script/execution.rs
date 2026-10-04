@@ -5,10 +5,10 @@ use crate::galgame::{
     delete_galgame_target_generation_media_graph_record,
 };
 use a4n_db_models::models::{galgame::galgame_script, project::novel_project};
-use sea_orm::{DatabaseConnection, EntityTrait, QuerySelect, TransactionTrait};
+use sea_orm::{EntityTrait, QuerySelect};
 
 pub async fn replace_galgame_script_for_project_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     input: PersistGalgameScriptRecordInput,
 ) -> Result<galgame_script::Model, GalgameScriptRecordError> {

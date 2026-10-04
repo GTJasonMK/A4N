@@ -199,7 +199,7 @@ pub async fn load_completed_llm_call_checkpoint(
 }
 
 pub async fn reject_completed_llm_call_checkpoint(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     workflow_run_id: i64,
     call_key: &str,
     input_fingerprint_json: &Value,

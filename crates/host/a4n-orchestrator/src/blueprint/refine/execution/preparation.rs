@@ -28,7 +28,7 @@ pub(super) async fn prepare_blueprint_refine(
     variables: &HashMap<String, Value>,
 ) -> Result<PreparedBlueprintRefine, AppError> {
     let source_rows = a4n_db::outline::load_outline_generation_source_rows(
-        context.database.connection(),
+        context.database.executor(),
         project_id,
     )
     .await?

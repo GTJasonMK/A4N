@@ -5,10 +5,10 @@ use crate::generation::{
     RecordCompletedGenerationRunWithCheckpointInput, RecordStartedGenerationRunInput,
 };
 use a4n_domain::generation::RecordCompletedGenerationRunInput;
-use sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, TransactionTrait};
+use sea_orm::ConnectionTrait;
 
 pub async fn record_completed_generation_run(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: RecordCompletedGenerationRunInput,
 ) -> Result<(), GenerationDbError> {
     record_completed_run_with_checkpoint_transaction(
@@ -23,7 +23,7 @@ pub async fn record_completed_generation_run(
 }
 
 pub async fn record_completed_generation_run_in_transaction(
-    db: &DatabaseTransaction,
+    db: &impl crate::DbTransactionExecutor,
     input: RecordCompletedGenerationRunInput,
 ) -> Result<i64, GenerationDbError> {
     record_completed_generation_run_with_checkpoint_in(
@@ -56,7 +56,7 @@ where
 }
 
 pub async fn record_completed_run_with_checkpoint_transaction(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: RecordCompletedGenerationRunWithCheckpointInput,
 ) -> Result<i64, GenerationDbError> {
     let tx = db.begin().await?;

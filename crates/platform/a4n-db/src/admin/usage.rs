@@ -1,8 +1,8 @@
 use a4n_db_models::models::user::llm_usage_log;
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
-    QuerySelect, sea_query::Expr,
+    ColumnTrait, EntityTrait, FromQueryResult, QueryFilter, QueryOrder, QuerySelect,
+    sea_query::Expr,
 };
 use serde_json::{Value, json};
 
@@ -28,7 +28,7 @@ struct TokenSummaryRow {
 }
 
 pub async fn usage_trends(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: UsageTrendsInput,
 ) -> Result<Vec<DailyUsagePoint>, AdminDbError> {
     let since = usage_trends_since(Utc::now().naive_utc(), input.days)?;
@@ -69,7 +69,7 @@ pub async fn usage_trends(
 }
 
 pub async fn usage_by_user(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
     limit: u64,
 ) -> Result<Vec<UsageLogSummary>, AdminDbError> {
@@ -84,7 +84,10 @@ pub async fn usage_by_user(
     Ok(logs.iter().map(usage_log_summary).collect())
 }
 
-pub async fn token_summary(db: &DatabaseConnection, user_id: i64) -> Result<Value, AdminDbError> {
+pub async fn token_summary(
+    db: &impl crate::DbExecutor,
+    user_id: i64,
+) -> Result<Value, AdminDbError> {
     validate_positive_i64(user_id, "user_id")?;
     let row = llm_usage_log::Entity::find()
         .select_only()

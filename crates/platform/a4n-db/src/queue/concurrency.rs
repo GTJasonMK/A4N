@@ -1,7 +1,7 @@
 use super::{DefaultProviderConcurrencyLimits, QueueDbError};
 use crate::DbHandle;
 use a4n_db_models::models::ai::{image_gen_config, llm_config, video_gen_config};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 
 pub async fn load_default_provider_concurrency_limits(
     db: &DbHandle,
@@ -26,7 +26,7 @@ pub(super) fn positive_concurrency(value: i32, label: &str) -> Result<usize, Que
         .ok_or_else(|| QueueDbError::InvalidConfig(format!("{label} max_concurrent 必须大于 0")))
 }
 
-async fn load_default_llm_concurrency(db: &DatabaseConnection) -> Result<usize, QueueDbError> {
+async fn load_default_llm_concurrency<C: ConnectionTrait>(db: &C) -> Result<usize, QueueDbError> {
     let config = llm_config::Entity::find()
         .select_only()
         .column(llm_config::Column::MaxConcurrent)
@@ -39,7 +39,7 @@ async fn load_default_llm_concurrency(db: &DatabaseConnection) -> Result<usize, 
         .unwrap_or(Ok(4))
 }
 
-async fn load_default_image_concurrency(db: &DatabaseConnection) -> Result<usize, QueueDbError> {
+async fn load_default_image_concurrency<C: ConnectionTrait>(db: &C) -> Result<usize, QueueDbError> {
     let config = image_gen_config::Entity::find()
         .select_only()
         .column(image_gen_config::Column::MaxConcurrent)
@@ -52,7 +52,7 @@ async fn load_default_image_concurrency(db: &DatabaseConnection) -> Result<usize
         .unwrap_or(Ok(2))
 }
 
-async fn load_default_video_concurrency(db: &DatabaseConnection) -> Result<usize, QueueDbError> {
+async fn load_default_video_concurrency<C: ConnectionTrait>(db: &C) -> Result<usize, QueueDbError> {
     let config = video_gen_config::Entity::find()
         .select_only()
         .column(video_gen_config::Column::MaxConcurrent)

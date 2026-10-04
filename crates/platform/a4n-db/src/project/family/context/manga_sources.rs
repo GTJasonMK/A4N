@@ -5,11 +5,11 @@ use a4n_db_models::models::{
     project::{source_snapshot_chapter, standalone_comic_text_source},
 };
 use a4n_domain::project::{ProjectKind, ProjectSourceMode};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashMap;
 
 pub async fn chapter_manga_source_by_id(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     chapter_id: i64,
     project_id: i64,
     require_content: bool,
@@ -42,7 +42,7 @@ pub async fn chapter_manga_source_by_id(
 }
 
 pub async fn chapter_manga_source_by_number(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_number: i32,
     require_content: bool,
@@ -98,7 +98,7 @@ pub async fn chapter_manga_source_by_number(
 }
 
 pub async fn chapter_manga_sources_by_ids(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_ids: &[i64],
     require_content: bool,
@@ -226,7 +226,7 @@ pub async fn chapter_manga_sources_by_ids(
 }
 
 async fn text_chapter_manga_source_by_id(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     chapter_id: i64,
     project_id: i64,
     require_content: bool,
@@ -273,7 +273,7 @@ fn text_chapter_manga_source_fields(
 }
 
 async fn comic_snapshot_manga_source_by_number(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project: &ProjectFamilyAccessRow,
     chapter_number: i32,
     require_content: bool,
@@ -299,7 +299,7 @@ async fn comic_snapshot_manga_source_by_number(
 }
 
 async fn comic_snapshot_manga_source_by_source_chapter(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project: &ProjectFamilyAccessRow,
     source_chapter_id: i64,
     require_content: bool,
@@ -348,7 +348,7 @@ fn invalid_comic_mode(project_id: i64) -> ProjectFamilyDbError {
 }
 
 async fn standalone_comic_manga_source_by_number(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project: &ProjectFamilyAccessRow,
     chapter_number: i32,
     require_content: bool,
@@ -368,7 +368,7 @@ async fn standalone_comic_manga_source_by_number(
 }
 
 async fn standalone_comic_manga_source_by_id(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project: &ProjectFamilyAccessRow,
     chapter_id: i64,
     require_content: bool,

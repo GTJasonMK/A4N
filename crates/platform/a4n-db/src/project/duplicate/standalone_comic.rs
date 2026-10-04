@@ -5,10 +5,8 @@ use a4n_db_models::models::{
 };
 use a4n_domain::project::{ProjectRecord, ProjectSourceMode};
 use chrono::Utc;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder, Set, TransactionTrait,
-};
+use sea_orm::ConnectionTrait;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 use std::collections::HashMap;
 
 use super::{
@@ -18,7 +16,7 @@ use super::{
 use crate::project::{project_record_from_model, project_record_into_model};
 
 pub async fn duplicate_standalone_comic_project_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     original: ProjectRecord,
     user_id: i64,
     new_title: &str,

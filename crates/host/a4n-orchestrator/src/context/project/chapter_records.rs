@@ -20,9 +20,9 @@ impl ProjectChapterRecordsApplication {
     }
 
     async fn chapter_by_id(&self, chapter_id: i64) -> Result<Option<ChapterRecord>, AppError> {
-        a4n_db::project::chapter_by_id(self.database.connection(), chapter_id)
+        a4n_db::project::chapter_by_id(self.database.executor(), chapter_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn chapter_by_project_number(
@@ -31,7 +31,7 @@ impl ProjectChapterRecordsApplication {
         chapter_number: i32,
     ) -> Result<Option<ChapterRecord>, AppError> {
         a4n_db::project::chapter_by_project_number(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             chapter_number,
         )
@@ -43,7 +43,7 @@ impl ProjectChapterRecordsApplication {
         &self,
         project_id: i64,
     ) -> Result<Vec<ChapterRecord>, AppError> {
-        a4n_db::project::import_analysis_chapter_candidates(self.database.connection(), project_id)
+        a4n_db::project::import_analysis_chapter_candidates(self.database.executor(), project_id)
             .await
             .map_err(project_chapter_context_error_to_app_error)
     }
@@ -52,13 +52,13 @@ impl ProjectChapterRecordsApplication {
         &self,
         project_id: i64,
     ) -> Result<Vec<ChapterRecord>, AppError> {
-        a4n_db::project::character_sync_chapter_records(self.database.connection(), project_id)
+        a4n_db::project::character_sync_chapter_records(self.database.executor(), project_id)
             .await
             .map_err(project_chapter_context_error_to_app_error)
     }
 
     async fn refresh_project_current_chapter(&self, project_id: i64) -> Result<(), AppError> {
-        a4n_db::project::refresh_project_current_chapter(self.database.connection(), project_id)
+        a4n_db::project::refresh_project_current_chapter(self.database.executor(), project_id)
             .await
             .map_err(project_chapter_context_error_to_app_error)
     }
@@ -69,7 +69,7 @@ impl ProjectChapterRecordsApplication {
         chapter_number: i32,
     ) -> Result<Vec<ChapterRecord>, AppError> {
         a4n_db::project::chapters_before_number(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             chapter_number,
         )
@@ -84,7 +84,7 @@ impl ProjectChapterRecordsApplication {
         source_chapter_id: i64,
     ) -> Result<Option<String>, AppError> {
         a4n_db::project::source_snapshot_chapter_content_by_snapshot_and_source(
-            self.database.connection(),
+            self.database.executor(),
             root_project_id,
             snapshot_id,
             source_chapter_id,

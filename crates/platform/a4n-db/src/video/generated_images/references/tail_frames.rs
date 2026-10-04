@@ -1,11 +1,11 @@
 use crate::video::VideoDbError;
 use a4n_db_models::models::ai::generated_image;
 use a4n_domain::image::IMAGE_TYPE_VIDEO_TAIL_FRAME;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 use serde_json::Value;
 
 pub async fn video_tail_frame_images(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
 ) -> Result<Vec<(i64, String, Option<Value>)>, VideoDbError> {
     generated_image::Entity::find()
         .select_only()

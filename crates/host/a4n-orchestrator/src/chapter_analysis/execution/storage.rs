@@ -31,7 +31,7 @@ impl OrchestratorContext {
         let input = chapter_analysis_workflow_run_input(chapter, current_step_key, active_task_id);
         crate::workflow::validate_begin_workflow_run_input(&input)
             .map_err(AppError::InvalidArgument)?;
-        run_in_transaction(self.database.connection(), "启动章节分析", |tx| {
+        run_in_transaction(self.database.executor(), "启动章节分析", |tx| {
             Box::pin(async move {
                 let result = async {
                     lock_chapter_analysis_source(&tx, &source)
@@ -81,7 +81,7 @@ impl OrchestratorContext {
         let analysis = run.analysis;
         let projection = chapter_analysis_storage_projection(&chapter, &analysis);
 
-        run_in_transaction(self.database.connection(), "章节分析替换", |tx| {
+        run_in_transaction(self.database.executor(), "章节分析替换", |tx| {
             Box::pin(async move {
                 let replacement = async {
                     let locked = lock_chapter_analysis_source(&tx, &source)

@@ -184,7 +184,7 @@ where
 
 /// Atomically persist the formal user/assistant messages and complete one chat turn.
 pub async fn complete_optimization_chat_turn(
-    tx: &sea_orm::DatabaseTransaction,
+    tx: &impl crate::DbTransactionExecutor,
     session_id: i64,
     turn_id: i64,
     user_text: &str,
@@ -246,7 +246,7 @@ pub async fn complete_optimization_chat_turn(
 
 /// Atomically persist one analysis result and expose the completed turn as the formal result.
 pub async fn complete_optimization_analysis_turn(
-    tx: &sea_orm::DatabaseTransaction,
+    tx: &impl crate::DbTransactionExecutor,
     session_id: i64,
     turn_id: i64,
     assistant_content: &str,
@@ -311,7 +311,7 @@ pub async fn complete_optimization_analysis_turn(
 
 /// Atomically persist one patch proposal, its review event and completed turn.
 pub async fn complete_optimization_patch_turn(
-    tx: &sea_orm::DatabaseTransaction,
+    tx: &impl crate::DbTransactionExecutor,
     input: CompleteOptimizationPatchTurnInput,
 ) -> Result<CompleteOptimizationPatchTurnResult, OptimizeDbError> {
     let (session, turn) =
@@ -413,7 +413,7 @@ pub async fn complete_optimization_patch_turn(
 }
 
 async fn locked_optimization_session_turn(
-    tx: &sea_orm::DatabaseTransaction,
+    tx: &impl crate::DbTransactionExecutor,
     session_id: i64,
     turn_id: i64,
 ) -> Result<(optimization_session::Model, optimization_turn::Model), OptimizeDbError> {

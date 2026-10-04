@@ -15,7 +15,7 @@ impl ProjectMutationApplication {
     }
 
     async fn import_analysis_progress(&self, project_id: i64) -> Result<Option<String>, AppError> {
-        a4n_db::project::project_import_analysis_progress(self.database.connection(), project_id)
+        a4n_db::project::project_import_analysis_progress(self.database.executor(), project_id)
             .await
             .map_err(project_basic_record_error_to_app_error)
     }
@@ -26,7 +26,7 @@ impl ProjectMutationApplication {
         progress: String,
     ) -> Result<(), AppError> {
         a4n_db::project::save_project_import_analysis_progress(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             progress,
         )

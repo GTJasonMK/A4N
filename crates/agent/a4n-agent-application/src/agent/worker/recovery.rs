@@ -10,13 +10,13 @@ impl AgentApplication {
         &self,
         limit: u64,
         error_message: Option<&str>,
-    ) -> Result<Vec<run::Model>, AppError> {
-        let rows = agent::expired_running_runs(self.connection(), limit)
+    ) -> Result<Vec<agent::AgentRunRecord>, AppError> {
+        let rows = agent::expired_running_runs(self.executor(), limit)
             .await
             .map_err(agent_db_error_to_app)?;
         let mut recovered = Vec::with_capacity(rows.len());
         for row in rows {
-            match agent::recover_expired_run(self.connection(), row.id, error_message).await {
+            match agent::recover_expired_run(self.executor(), row.id, error_message).await {
                 Ok(recovered_row) => recovered.push(recovered_row),
                 // Another worker may win the race between the read-only scan
                 // and the fenced recovery.  Surface all other failures.
@@ -31,9 +31,9 @@ impl AgentApplication {
         &self,
         claimed: &AgentWorkerRun,
         reason: impl Into<String>,
-    ) -> Result<run::Model, AppError> {
+    ) -> Result<agent::AgentRunRecord, AppError> {
         agent::recovery_required_for_lease(
-            self.connection(),
+            self.executor(),
             claimed.run.id,
             &claimed.lease_token,
             Some(reason.into()),
@@ -55,7 +55,7 @@ impl AgentApplication {
         })
         .await?;
         agent::recovery_required_for_lease(
-            self.connection(),
+            self.executor(),
             request.run_id,
             &request.lease.fence_token,
             Some(request.reason.clone()),

@@ -19,7 +19,7 @@ impl SceneProfileApplication {
         &self,
         project_id: i64,
     ) -> Result<Vec<SceneProfileRecord>, AppError> {
-        a4n_db::scene_profile::scene_profiles_by_project(self.database.connection(), project_id)
+        a4n_db::scene_profile::scene_profiles_by_project(self.database.executor(), project_id)
             .await
             .map_err(scene_profile_db_error)
     }
@@ -28,7 +28,7 @@ impl SceneProfileApplication {
         &self,
         scene_profile_id: i64,
     ) -> Result<SceneProfileRecord, AppError> {
-        a4n_db::scene_profile::scene_profile_by_id(self.database.connection(), scene_profile_id)
+        a4n_db::scene_profile::scene_profile_by_id(self.database.executor(), scene_profile_id)
             .await
             .map_err(scene_profile_db_error)
     }

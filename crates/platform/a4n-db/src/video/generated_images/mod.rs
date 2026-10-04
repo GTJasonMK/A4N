@@ -20,13 +20,13 @@ pub use publication::{
     ImagePublicationRequest, create_image_publication_intent,
     create_image_publication_intent_record, image_publication_by_id, image_publication_by_image_id,
     image_publication_record_by_id, image_publication_record_by_image_id,
-    image_publication_recovery_records, image_publications_for_recovery,
-    image_publications_for_recovery_for_model, mark_image_publication_reclaimed,
-    mark_image_publication_reclaimed_record, mark_image_publication_reclaiming,
-    mark_image_publication_reclaiming_record, publish_image_publication,
-    publish_image_publication_with_generation_run_checkpoint, update_image_publication_metadata,
-    update_image_publication_metadata_record, validate_image_publication_record_request,
-    validate_image_publication_request,
+    image_publication_recovery_records, image_publication_recovery_records_for_model,
+    image_publications_for_recovery, image_publications_for_recovery_for_model,
+    mark_image_publication_reclaimed, mark_image_publication_reclaimed_record,
+    mark_image_publication_reclaiming, mark_image_publication_reclaiming_record,
+    publish_image_publication, publish_image_publication_with_generation_run_checkpoint,
+    update_image_publication_metadata, update_image_publication_metadata_record,
+    validate_image_publication_record_request, validate_image_publication_request,
 };
 pub(crate) use records::clear_generated_image_references_record;
 pub(crate) use records::generated_images_for_chapter_by_id_desc;

@@ -236,7 +236,7 @@ pub(super) async fn save_chapter_visual_plan_draft_in<
 }
 
 pub async fn confirm_chapter_visual_plan(
-    db: &sea_orm::DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: ConfirmChapterVisualPlanInput,
 ) -> Result<ConfirmChapterVisualPlanOutcome, ChapterVisualPlanDbError> {
     if input.record_id <= 0 || input.expected_revision <= 0 {
@@ -350,7 +350,7 @@ pub async fn confirm_chapter_visual_plan(
 }
 
 pub async fn discard_chapter_visual_plan_draft(
-    db: &sea_orm::DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: DiscardChapterVisualPlanDraftInput,
 ) -> Result<(), ChapterVisualPlanDbError> {
     if input.record_id <= 0 || input.expected_revision <= 0 {

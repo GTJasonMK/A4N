@@ -1,4 +1,5 @@
 use a4n_db_models::models::chapter::chapter_shooting_script;
+use a4n_domain::shooting_script::ChapterShootingScriptRecordSummary;
 use a4n_domain::{chapter::ResolvedChapterSource, shooting_script::ChapterShootingScriptV2};
 use sea_orm::DbErr;
 
@@ -6,6 +7,18 @@ use sea_orm::DbErr;
 pub struct ParsedChapterShootingScript {
     pub record: chapter_shooting_script::Model,
     pub script: ChapterShootingScriptV2,
+}
+
+pub fn chapter_shooting_script_record_summary(
+    record: &ParsedChapterShootingScript,
+) -> ChapterShootingScriptRecordSummary {
+    ChapterShootingScriptRecordSummary {
+        id: record.record.id,
+        revision: record.record.revision,
+        visual_plan_id: record.record.visual_plan_id,
+        visual_plan_version: record.record.visual_plan_version,
+        visual_plan_sha256: record.record.visual_plan_sha256.clone(),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,8 +1,9 @@
 use super::*;
 use a4n_domain::galgame::GalgameSceneRecord;
+use sea_orm::ConnectionTrait;
 
 pub async fn update_galgame_scene_with_generation_cleanup_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     input: UpdateGalgameSceneRecordInput,
     delete_background: bool,

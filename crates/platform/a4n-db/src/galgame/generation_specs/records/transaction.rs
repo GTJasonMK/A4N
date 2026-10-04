@@ -13,14 +13,11 @@ use a4n_db_models::models::{generation::generation_spec, project::project_source
 use a4n_domain::galgame::GalgameAssetPlanSpecRecordInput;
 use chrono::Utc;
 use sea_orm::sea_query::{CaseStatement, Expr};
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, NotSet, QueryFilter, QuerySelect,
-    TransactionTrait,
-};
+use sea_orm::{ColumnTrait, EntityTrait, NotSet, QueryFilter, QuerySelect};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub async fn upsert_galgame_asset_plan_spec_records_transaction(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     inputs: Vec<GalgameAssetPlanSpecRecordInput>,
 ) -> Result<Vec<GalgameGenerationSpecUpsert>, GalgameAssetPlanSpecRecordError> {

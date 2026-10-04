@@ -33,7 +33,7 @@ impl OrchestratorContext {
         }
 
         a4n_db::optimize::update_optimization_session_record(
-            self.database.connection(),
+            self.database.executor(),
             OptimizationSessionRecordUpdateInput {
                 session,
                 status: Some("waiting_user".to_string()),
@@ -75,7 +75,7 @@ impl OrchestratorContext {
         session: OptimizationSessionRecord,
     ) -> Result<(), AppError> {
         a4n_db::optimize::update_optimization_session_record(
-            self.database.connection(),
+            self.database.executor(),
             OptimizationSessionRecordUpdateInput {
                 session,
                 status: Some("cancelled".to_string()),

@@ -5,12 +5,10 @@ use super::{
 use crate::project::validate_positive_i64;
 use a4n_db_models::models::chapter::{chapter, chapter_scene};
 use a4n_domain::chapter::{ChapterRecord, ChapterSceneRecord};
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 
 pub async fn chapter_by_project_number(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_number: i32,
 ) -> Result<Option<ChapterRecord>, ProjectChapterSceneRecordError> {
@@ -31,7 +29,7 @@ pub async fn chapter_by_project_number(
 }
 
 pub async fn chapter_scenes_by_chapter(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     chapter_id: i64,
 ) -> Result<Vec<ChapterSceneRecord>, ProjectChapterSceneRecordError> {
     validate_positive_i64(chapter_id, "chapter_id")
@@ -46,7 +44,7 @@ pub async fn chapter_scenes_by_chapter(
 }
 
 pub async fn chapter_scene_by_id(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     scene_id: i64,
 ) -> Result<Option<ChapterSceneRecord>, ProjectChapterSceneRecordError> {
     validate_positive_i64(scene_id, "scene_id")
@@ -59,7 +57,7 @@ pub async fn chapter_scene_by_id(
 }
 
 pub async fn update_chapter_scene_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: ProjectChapterSceneUpdateInput,
 ) -> Result<ChapterSceneRecord, ProjectChapterSceneRecordError> {
     validate_positive_i64(input.scene.id, "scene_id")
@@ -108,7 +106,7 @@ pub async fn update_chapter_scene_record(
 }
 
 pub async fn delete_chapter_scene_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     scene_id: i64,
 ) -> Result<u64, ProjectChapterSceneRecordError> {
     validate_positive_i64(scene_id, "scene_id")

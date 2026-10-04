@@ -84,7 +84,7 @@ impl WorkerState {
             verify_project_editor(&self.database, project_id, user_id).await?;
         }
         let runs = a4n_db::workflow::list_workflow_runs(
-            self.database.connection(),
+            self.database.executor(),
             a4n_db::workflow::ListWorkflowRunsInput {
                 project_id: input.project_id,
                 chapter_id: input.chapter_id,
@@ -105,7 +105,7 @@ impl WorkerState {
                 .filter_map(|run| run.project_id.or(run.root_project_id))
                 .collect::<Vec<_>>();
             let visible_project_ids = a4n_db::collaboration::project_ids_with_permission(
-                self.database.connection(),
+                self.database.executor(),
                 &project_ids,
                 user_id,
                 ProjectAccessRole::Editor,
@@ -138,7 +138,7 @@ impl WorkerState {
         }
         let user_id = user_id(&request)?;
         let detail = a4n_db::workflow::workflow_run_detail(
-            self.database.connection(),
+            self.database.executor(),
             a4n_db::workflow::GetWorkflowRunInput {
                 workflow_run_id: request.payload.workflow_run_id,
                 include_generation_runs: request.payload.include_generation_runs,
@@ -170,7 +170,7 @@ impl WorkerState {
             return Err(WorkerFailure::invalid_request("limit 必须大于 0"));
         }
         let tasks = a4n_db::workflow::persisted_task_history(
-            self.database.connection(),
+            self.database.executor(),
             input.project_id,
             input.offset,
             input.limit,
@@ -190,7 +190,7 @@ impl WorkerState {
         validate_request(&request, TASK_LOOKUP_BY_ID_OPERATION)?;
         require_service_principal(&request.principal)?;
         let persisted = a4n_db::workflow::persisted_task_by_id(
-            self.database.connection(),
+            self.database.executor(),
             &request.payload.task_id,
         )
         .await
@@ -211,7 +211,7 @@ impl WorkerState {
         validate_request(&request, TASK_LOOKUP_ACTIVE_OPERATION)?;
         require_service_principal(&request.principal)?;
         let persisted =
-            a4n_db::workflow::persisted_task_history(self.database.connection(), None, 0, 100)
+            a4n_db::workflow::persisted_task_history(self.database.executor(), None, 0, 100)
                 .await
                 .map_err(workflow_error)?;
         Ok(persisted
@@ -228,7 +228,7 @@ impl WorkerState {
         require_service_principal(&request.principal)?;
         Ok(
             a4n_db::workflow::workflow_run_access_record_by_active_task_id(
-                self.database.connection(),
+                self.database.executor(),
                 &request.payload.task_id,
             )
             .await
@@ -248,7 +248,7 @@ impl WorkerState {
         validate_request(&request, WORKFLOW_READ_RESUME_RECORD_OPERATION)?;
         require_service_principal(&request.principal)?;
         let run = a4n_db::workflow::workflow_run_resume_record_by_id(
-            self.database.connection(),
+            self.database.executor(),
             request.payload.workflow_run_id,
         )
         .await
@@ -275,7 +275,7 @@ impl WorkerState {
         validate_request(&request, WORKFLOW_READ_SUMMARY_OPERATION)?;
         require_service_principal(&request.principal)?;
         a4n_db::workflow::workflow_run_summary_by_id(
-            self.database.connection(),
+            self.database.executor(),
             request.payload.workflow_run_id,
         )
         .await
@@ -298,7 +298,7 @@ impl WorkerState {
             ));
         }
         a4n_db::workflow::workflow_progress_events(
-            self.database.connection(),
+            self.database.executor(),
             workflow_run_id,
             request.payload.limit,
         )

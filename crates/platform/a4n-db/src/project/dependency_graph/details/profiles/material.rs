@@ -32,7 +32,7 @@ where
         .order_by_asc(generated_image::Column::Id)
         .all(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
     Ok(images
         .into_iter()
         .filter(|image| {

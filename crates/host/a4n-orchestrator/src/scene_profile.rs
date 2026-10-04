@@ -31,7 +31,7 @@ pub(crate) fn scene_profile_db_error(
     error: a4n_db::scene_profile::SceneProfileDbError,
 ) -> AppError {
     match error {
-        a4n_db::scene_profile::SceneProfileDbError::Database(error) => AppError::Database(error),
+        a4n_db::scene_profile::SceneProfileDbError::Database(error) => AppError::database(error),
         a4n_db::scene_profile::SceneProfileDbError::NotFound(message) => {
             AppError::NotFound(message)
         }

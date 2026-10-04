@@ -39,7 +39,7 @@ impl OrchestratorContext {
         project_id: i64,
         outline_id: i64,
     ) -> Result<PreparedChapterOutlineRegeneration, AppError> {
-        let old = project_db::chapter_outline_by_id(self.database.connection(), outline_id)
+        let old = project_db::chapter_outline_by_id(self.database.executor(), outline_id)
             .await
             .map_err(crate::project::project_outline_record_error_to_app_error)?
             .ok_or_else(|| AppError::NotFound(format!("章节大纲不存在: {outline_id}")))?;
@@ -50,7 +50,7 @@ impl OrchestratorContext {
         }
         let chapter_number = old.chapter_number;
         let (context, no_other_outline) = futures::join!(
-            load_chapter_outline_generation_context(self.database.connection(), project_id),
+            load_chapter_outline_generation_context(self.database.executor(), project_id),
             self.ensure_no_other_outline_for_chapter(project_id, chapter_number, outline_id),
         );
         let context = context?;

@@ -1,6 +1,6 @@
 use super::*;
 pub async fn generation_cancel_targets(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     requested_by_user_id: i64,
     task_id: &str,
     attempt: u32,
@@ -147,7 +147,7 @@ ORDER BY task_id
 }
 
 pub async fn persist_generation_cancel_requested(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: PersistGenerationLifecycleInput,
 ) -> Result<PersistedGenerationCheckpoint, GenerationTaskLifecycleError> {
     validate_transition_input(db, &input, false)?;
@@ -165,7 +165,7 @@ pub async fn persist_generation_cancel_requested(
 }
 
 pub async fn persist_generation_cancel_requested_batch(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     inputs: Vec<PersistGenerationLifecycleInput>,
 ) -> Result<Vec<PersistedGenerationCheckpoint>, GenerationTaskLifecycleError> {
     let mut previous_task_id: Option<&str> = None;
@@ -385,7 +385,7 @@ pub async fn persist_generation_cancel_requested_batch(
 }
 
 pub async fn generation_interruption_batch_summary(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     task_id: &str,
 ) -> Result<Option<BatchSummary>, GenerationTaskLifecycleError> {
     if db.get_database_backend() != DbBackend::Postgres {
@@ -511,7 +511,7 @@ fn batch_summary_from_child_rows(
 }
 
 pub(super) async fn corrupt_recovery_batch_summary(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     checkpoint: &generation_task_checkpoint::Model,
 ) -> Result<Option<BatchSummary>, GenerationTaskLifecycleError> {
     let Some(policy) = checkpoint

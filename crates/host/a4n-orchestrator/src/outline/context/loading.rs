@@ -10,7 +10,7 @@ use a4n_db::outline::{
     OutlineGenerationSourceRows, load_outline_generation_source_rows,
     outline_generation_source_snapshot,
 };
-use a4n_db::{ConnectionTrait, DatabaseConnection};
+use a4n_db::{ConnectionTrait, DbExecutor};
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
@@ -25,7 +25,7 @@ where
 {
     let rows = load_outline_generation_source_rows(db, project_id)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
     let formal_materials = outline_formal_materials_context_json(
         &rows.character_profiles,
@@ -74,7 +74,7 @@ where
 {
     let rows = load_outline_generation_source_rows(db, project_id)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
     let formal_materials = outline_formal_materials_context_json(
         &rows.character_profiles,
@@ -109,7 +109,7 @@ where
 }
 
 pub(in crate::outline) async fn with_locked_outline_generation_sources<'work, T: Send>(
-    db: &'work DatabaseConnection,
+    db: &'work impl DbExecutor,
     project_id: i64,
     expected_source_snapshot: &'work Value,
     work: impl FnOnce(a4n_db::DbTransaction) -> a4n_db::transaction::TransactionWork<'work, T> + Send,

@@ -31,11 +31,11 @@ impl OrchestratorContext {
     ) -> Result<Option<GalgameScriptDetail>, AppError> {
         let context = self.load_galgame_context(project_id).await?;
         let read_model = a4n_db::galgame::galgame_script_detail_read_model(
-            self.database.connection(),
+            self.database.executor(),
             context.project.id,
         )
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
         read_model
             .map(galgame_script_detail_from_read_model)
             .transpose()

@@ -34,16 +34,81 @@ check_source() {
     fi
 }
 
+check_normal_dependencies() {
+    local label="$1"
+    local package="$2"
+    local pattern="$3"
+    local tree
+
+    if tree="$(cargo tree --offline --locked --edges normal --depth 1 -p "$package" 2>&1)"; then
+        if rg --pcre2 --line-number "$pattern" <<<"$tree"; then
+            echo "FAIL: $label has an ORM normal dependency." >&2
+            violations=$((violations + 1))
+        fi
+    else
+        echo "FAIL: could not inspect $label normal dependencies:" >&2
+        printf '  %s\n' "$tree" >&2
+        violations=$((violations + 1))
+    fi
+}
+
 # Core code may depend on repository contracts, but it must not expose the
 # concrete SeaORM transaction aliases used by the adapters.
 check_source \
     "chapter-content core exposes a concrete ORM transaction" \
     "crates/chapter/a4n-chapter-content-core/src" \
-    '(?<![[:alnum:]_])(?:DbTransaction|DatabaseTransaction|a4n_db_models::)'
+    '(?<![[:alnum:]_])(?:\bDbTransaction\b|\bDatabaseTransaction\b|a4n_db_models::)'
+check_source \
+    "chapter-content core imports SeaORM directly" \
+    "crates/chapter/a4n-chapter-content-core/src" \
+    '(?:sea_orm::|use[[:space:]]+sea_orm|\b(?:DatabaseConnection|DatabaseTransaction|DbErr)\b)'
+check_source \
+    "project-read core imports ORM types" \
+    "crates/project/a4n-project-read-core/src" \
+    '(?:a4n_db_models::|sea_orm::|use[[:space:]]+sea_orm|\b(?:DatabaseConnection|DatabaseTransaction|DbErr)\b)'
+check_normal_dependencies \
+    "a4n-chapter-content-core" \
+    "a4n-chapter-content-core" \
+    '(?:a4n-db-models|sea-orm)'
+check_normal_dependencies \
+    "a4n-project-read-core" \
+    "a4n-project-read-core" \
+    '(?:a4n-db-models|sea-orm)'
 check_source \
     "Orchestrator production code imports SeaORM directly" \
     "crates/host/a4n-orchestrator/src" \
     '(?:sea_orm::|use[[:space:]]+sea_orm)'
+
+check_source \
+    "Agent application production code imports ORM types" \
+    "crates/agent/a4n-agent-application/src" \
+    '(?:a4n_db_models::|sea_orm::|\b(?:DatabaseConnection|DatabaseTransaction|DbErr)\b)'
+check_source \
+    "Auth application production code imports ORM types" \
+    "crates/auth/a4n-auth-application/src" \
+    '(?:a4n_db_models::|sea_orm::|\b(?:DatabaseConnection|DatabaseTransaction|DbErr)\b)'
+
+for package in \
+    a4n-agent-application \
+    a4n-auth-application \
+    a4n-runtime; do
+    check_normal_dependencies \
+        "$package" \
+        "$package" \
+        '(?:a4n-db-models|sea-orm)'
+done
+
+# Host orchestration may depend on the DB executor contract, but it must not
+# name the concrete connection, transaction, or driver error types.
+if hits="$(rg --pcre2 --line-number --with-filename --no-heading \
+    --glob '*.rs' --glob '!**/tests/**' --glob '!**/*test*.rs' \
+    --glob '!**/shooting_script/contracts.rs' \
+    '\b(?:DatabaseConnection|SharedDatabaseConnection|DatabaseTransaction|DbErr)\b' \
+    "$PROJECT_ROOT/crates/host/a4n-orchestrator/src" 2>/dev/null)"; then
+    echo "FAIL: Orchestrator production code names concrete database types:" >&2
+    printf '  %s\n' "$hits" >&2
+    violations=$((violations + 1))
+fi
 
 # These files contain inline cfg(test) ORM fixtures; a4n-db-models is a
 # dev-dependency only in Orchestrator.
@@ -257,9 +322,71 @@ check_source \
     "crates/host/a4n-orchestrator/src/context/optimize.rs" \
     '(?:a4n_db_models::models::ai::optimization_(?:session_message|patch_set|patch)|optimization_(?:session_message|patch_set|patch)::Model)'
 
+# Worker clients are transport adapters. They must depend on worker contracts
+# and clients only, never on the database or ORM implementation packages.
+for client_directory in "$PROJECT_ROOT"/crates/*/*worker-client; do
+    [[ -d "$client_directory" ]] || continue
+    relative_directory="${client_directory#"$PROJECT_ROOT/"}"
+    check_source \
+        "Worker client imports ORM types: $relative_directory" \
+        "$relative_directory/src" \
+        '(?:a4n_db::|a4n_db_models::|sea_orm::|\b(?:DatabaseConnection|DatabaseTransaction|DbErr)\b)'
+    package_name="$(sed -n 's/^name = "\([^"]*\)"/\1/p' "$client_directory/Cargo.toml" | head -1)"
+    if [[ -n "$package_name" ]]; then
+        check_normal_dependencies \
+            "$package_name" \
+            "$package_name" \
+            '(?:a4n-db|a4n-db-models|sea-orm)'
+    fi
+done
+
+# Read workers may own HTTP routing and authorization, but their persistence
+# calls must cross a4n-db domain records rather than carrying ORM rows.
+for read_worker in \
+    "crates/config/a4n-config-read-worker" \
+    "crates/workflow/a4n-workflow-read-worker" \
+    "crates/workflow/a4n-workflow-core"; do
+    check_source \
+        "Read worker/core imports ORM types: $read_worker" \
+        "$read_worker/src" \
+        '(?:a4n_db_models::|sea_orm::|\b(?:DatabaseConnection|DatabaseTransaction|DbErr)\b)'
+    package_name="$(sed -n 's/^name = "\([^"]*\)"/\1/p' "$PROJECT_ROOT/$read_worker/Cargo.toml" | head -1)"
+    if [[ -n "$package_name" ]]; then
+        check_normal_dependencies \
+            "$package_name" \
+            "$package_name" \
+            '(?:a4n-db-models|sea-orm)'
+    fi
+done
+
+# Repository-wide production scan. The remaining ORM names outside a4n-db are
+# limited to the session adapter, error conversion, and inline test fixtures.
+if hits="$(rg --pcre2 --line-number --with-filename --no-heading \
+    --glob '*.rs' \
+    --glob '!crates/platform/a4n-db/**' \
+    --glob '!crates/platform/a4n-db-models/**' \
+    --glob '!crates/platform/a4n-db-session/**' \
+    --glob '!crates/platform/a4n-error/**' \
+    --glob '!crates/platform/a4n-migration/**' \
+    --glob '!crates/platform/a4n-test-support/**' \
+    --glob '!**/tests/**' \
+    --glob '!**/*test*.rs' \
+    --glob '!crates/host/a4n-orchestrator/src/shooting_script/contracts.rs' \
+    --glob '!crates/host/a4n-orchestrator/src/project/chapters/records.rs' \
+    --glob '!crates/host/a4n-runtime/src/actions/outline_records.rs' \
+    --glob '!crates/host/a4n-runtime/src/actions/outline_records/access.rs' \
+    --glob '!crates/host/a4n-runtime/src/actions/video_generation/media.rs' \
+    --glob '!crates/planning/a4n-outline-worker/src/lib.rs' \
+    --glob '!crates/agent/a4n-agent-worker/src/health.rs' \
+    '(?:a4n_db_models::|sea_orm::|use[[:space:]]+sea_orm)' crates 2>/dev/null)"; then
+    echo "FAIL: production ORM references remain outside adapter/test exceptions:" >&2
+    printf '  %s\n' "$hits" >&2
+    violations=$((violations + 1))
+fi
+
 if ((violations > 0)); then
     echo "ORM boundary failed with $violations violation group(s)." >&2
     exit 1
 fi
 
-echo "ORM boundary passed for migrated Core, Optimize, Project Family, Provider, Timeline, Publication, Scene Profile, Source Sync, Character Discovery, Character Profile Sync, Character Timeline, Object Discovery, Import Reverse, Galgame, Portrait, Video Studio, Generation Task, Workflow Progress, Blueprint, Outline, and Chapter Generation slices."
+echo "ORM boundary passed for Agent/Auth applications, Runtime/Orchestrator, Worker Clients, read workers, and migrated Core/Optimize/Project/Provider/Timeline/Publication/Scene Profile/Source Sync/Character/Import Reverse/Galgame/Portrait/Video Studio/Generation/Workflow/Blueprint/Outline slices."

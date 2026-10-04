@@ -15,9 +15,8 @@ use a4n_service_protocol::{
 };
 use chrono::{DateTime, NaiveDateTime, Utc};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DatabaseTransaction,
-    DbBackend, DbErr, EntityTrait, FromQueryResult, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set, Statement, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseTransaction, DbBackend, DbErr, EntityTrait,
+    FromQueryResult, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, Statement,
 };
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;

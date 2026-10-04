@@ -369,10 +369,9 @@ fn array_or_empty(value: &Value) -> Result<Value, FactFeedbackDbError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sea_orm::{DatabaseConnection, TransactionTrait};
 
     async fn observe(
-        db: &DatabaseConnection,
+        db: &impl crate::DbExecutor,
         chapter: &chapter::Model,
         id: i64,
         color: Option<&str>,
@@ -405,7 +404,7 @@ mod tests {
         .unwrap();
     }
 
-    async fn withdraw(db: &DatabaseConnection, project_id: i64, chapter: i32) {
+    async fn withdraw(db: &impl crate::DbExecutor, project_id: i64, chapter: i32) {
         let tx = db.begin().await.unwrap();
         super::super::invalidate_feedback_sources(&tx, project_id, chapter)
             .await

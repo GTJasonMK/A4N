@@ -1,4 +1,5 @@
 use super::*;
+use crate::DatabaseConnection;
 use sea_orm::{ActiveModelTrait, Set};
 use serde_json::json;
 

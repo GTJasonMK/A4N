@@ -293,7 +293,7 @@ impl OrchestratorContext {
             return Err(AppError::Cancelled);
         }
         let applied = a4n_db::fact_feedback::apply_consolidation(
-            self.database.connection(),
+            self.database.executor(),
             a4n_db::fact_feedback::ConsolidationApplyInput {
                 project_id,
                 workflow_run_id: run.id,

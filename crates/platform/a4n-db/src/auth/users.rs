@@ -8,9 +8,11 @@ pub use account::{change_password, login_user, update_profile};
 pub use admin::disable_user;
 pub(crate) use admin::lock_administrator_membership;
 pub use admin::update_user_role;
+#[cfg(test)]
+pub use read::current_user;
+pub(super) use read::user_summary_from_model;
 pub use read::{
-    current_user, current_user_summary, list_users, user_authorization_by_id, user_by_id,
-    user_summary_by_id,
+    current_user_summary, list_users, user_authorization_by_id, user_by_id, user_summary_by_id,
 };
 #[cfg(test)]
 pub use registration::{bootstrap_first_admin, register_user};

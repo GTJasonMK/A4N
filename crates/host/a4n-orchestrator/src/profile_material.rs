@@ -434,13 +434,13 @@ impl OrchestratorContext {
     ) -> Result<(), AppError> {
         let profile_project_id = match kind {
             ProfileMaterialKind::Scene => a4n_db::scene_profile::scene_profile_project_id(
-                self.database.connection(),
+                self.database.executor(),
                 profile_id,
             )
             .await
             .map_err(scene_profile_db_error)?,
             ProfileMaterialKind::Object => {
-                a4n_db::asset::object_profile_project_id(self.database.connection(), profile_id)
+                a4n_db::asset::object_profile_project_id(self.database.executor(), profile_id)
                     .await
                     .map_err(asset_error)?
             }

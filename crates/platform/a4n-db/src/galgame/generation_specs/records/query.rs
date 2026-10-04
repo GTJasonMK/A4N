@@ -1,14 +1,12 @@
 use crate::galgame::GalgameAssetPlanSpecRecordError;
 use a4n_db_models::models::generation::generation_spec;
 use a4n_domain::generation::GenerationSpecRecord;
-use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder,
-};
+use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashSet};
 
 pub async fn galgame_asset_generation_specs(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     target_kinds: &[&str],
     generation_spec_ids: &[i64],

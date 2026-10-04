@@ -14,7 +14,7 @@ impl AgentApplication {
         &self,
         claimed: &AgentWorkerRun,
     ) -> Result<AgentRunContext, AppError> {
-        let run_row = agent::run_by_id(self.connection(), claimed.run.id)
+        let run_row = agent::run_by_id(self.executor(), claimed.run.id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", claimed.run.id)))?;
@@ -28,7 +28,7 @@ impl AgentApplication {
                 operation: "加载 Agent worker context".into(),
             });
         }
-        agent::validate_live_run_lease(
+        agent::validate_live_run_lease_record(
             &run_row,
             &claimed.lease_token,
             chrono::Utc::now().naive_utc(),
@@ -40,16 +40,15 @@ impl AgentApplication {
             },
             other => agent_db_error_to_app(other),
         })?;
-        let thread_row = agent::thread_by_id(self.connection(), run_row.thread_id)
+        let thread_row = agent::thread_by_id(self.executor(), run_row.thread_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| {
                 AppError::NotFound(format!("Agent thread 不存在: {}", run_row.thread_id))
             })?;
-        let turn_row = turn::Entity::find_by_id(run_row.turn_id)
-            .one(self.connection())
+        let turn_row = agent::turn_by_id(self.executor(), run_row.turn_id)
             .await
-            .map_err(AppError::Database)?
+            .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent turn 不存在: {}", run_row.turn_id)))?;
         validate_model_override_json(turn_row.model_override_json.as_ref())?;
         let thread = thread_snapshot(thread_row.clone())?;
@@ -60,7 +59,7 @@ impl AgentApplication {
             .and_then(Value::as_i64)
             .unwrap_or(0);
         let messages = agent::messages_for_context(
-            self.connection(),
+            self.executor(),
             run_row.thread_id,
             run_row.id,
             covered_message_id,
@@ -80,14 +79,14 @@ impl AgentApplication {
             .cloned();
         let editor_source = match editor_source_value {
             Some(value) => {
-                Some(parse_persisted_editor_source(self.connection(), value, &thread_row).await?)
+                Some(parse_persisted_editor_source(self.executor(), value, &thread_row).await?)
             }
             None => None,
         };
-        let delegations = agent::delegations_by_thread(self.connection(), run_row.thread_id)
+        let delegations = agent::delegations_by_thread(self.executor(), run_row.thread_id)
             .await
             .map_err(agent_db_error_to_app)?;
-        let executions = agent::executions_by_runs(self.connection(), vec![run_row.id])
+        let executions = agent::executions_by_runs(self.executor(), vec![run_row.id])
             .await
             .map_err(agent_db_error_to_app)?;
         let runtime_snapshot_required = runtime_snapshot_required(&run_row.usage_json, run_row.id)?;
@@ -125,7 +124,7 @@ impl AgentApplication {
         )?
         .validate()?;
         agent::update_context_summary_for_run_lease(
-            self.connection(),
+            self.executor(),
             claimed.run.id,
             &claimed.lease_token,
             context_summary,

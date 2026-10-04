@@ -17,7 +17,7 @@ async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
 }
 
-async fn text_project(db: &DatabaseConnection, title: &str) -> novel_project::Model {
+async fn text_project(db: &impl crate::DbExecutor, title: &str) -> novel_project::Model {
     crate::project::create_project_record(
         db,
         crate::project::CreateProjectRecordInput {
@@ -32,7 +32,7 @@ async fn text_project(db: &DatabaseConnection, title: &str) -> novel_project::Mo
 }
 
 async fn chapter_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_number: i32,
     content: &str,
@@ -59,7 +59,7 @@ async fn chapter_record(
 }
 
 async fn video_project(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     root_project_id: i64,
     title: &str,
 ) -> novel_project::Model {
@@ -81,7 +81,10 @@ async fn video_project(
     .unwrap()
 }
 
-async fn object_profile_record(db: &DatabaseConnection, project_id: i64) -> object_profile::Model {
+async fn object_profile_record(
+    db: &impl crate::DbExecutor,
+    project_id: i64,
+) -> object_profile::Model {
     let now = Utc::now().naive_utc();
     object_profile::ActiveModel {
         project_id: Set(project_id),

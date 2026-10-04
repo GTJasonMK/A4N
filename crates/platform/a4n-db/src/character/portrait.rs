@@ -11,7 +11,8 @@ pub use records::{
     character_portrait_by_id, character_portrait_record_by_id,
     character_portrait_records_by_project, character_portrait_records_by_project_records,
     create_character_portrait_for_profile, create_character_portrait_record_for_profile,
-    primary_character_portrait_record, set_primary_character_portrait_record,
+    primary_character_portrait_record, primary_character_portrait_record_value,
+    set_primary_character_portrait_record,
 };
 pub use references::{
     missing_portrait_profile_records, missing_portrait_profiles, portrait_reference_images_by_ids,

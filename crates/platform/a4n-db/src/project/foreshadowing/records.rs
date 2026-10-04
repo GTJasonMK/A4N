@@ -1,11 +1,13 @@
+use sea_orm::ConnectionTrait;
 use std::collections::HashSet;
 
 use a4n_db_models::models::character::foreshadowing_index;
+use a4n_domain::character::ForeshadowingIndexRecord;
 use a4n_domain::character::ForeshadowingStatus;
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DbBackend, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+    Set,
 };
 use serde_json::Value;
 
@@ -13,7 +15,7 @@ use super::ForeshadowingDbError;
 use a4n_domain::character::ForeshadowingRecordInput;
 
 pub async fn foreshadowing_records_by_project(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<Vec<foreshadowing_index::Model>, ForeshadowingDbError> {
     foreshadowing_index::Entity::find()
@@ -25,8 +27,21 @@ pub async fn foreshadowing_records_by_project(
         .map_err(ForeshadowingDbError::Database)
 }
 
+pub async fn foreshadowing_index_records_by_project(
+    db: &impl crate::DbExecutor,
+    project_id: i64,
+) -> Result<Vec<ForeshadowingIndexRecord>, ForeshadowingDbError> {
+    foreshadowing_records_by_project(db, project_id)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(super::contracts::foreshadowing_index_record)
+                .collect()
+        })
+}
+
 pub async fn create_foreshadowing_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     input: ForeshadowingRecordInput,
 ) -> Result<foreshadowing_index::Model, ForeshadowingDbError> {
@@ -54,8 +69,18 @@ pub async fn create_foreshadowing_record(
     Ok(created)
 }
 
+pub async fn create_foreshadowing_read_record(
+    db: &impl crate::DbExecutor,
+    project_id: i64,
+    input: ForeshadowingRecordInput,
+) -> Result<ForeshadowingIndexRecord, ForeshadowingDbError> {
+    create_foreshadowing_record(db, project_id, input)
+        .await
+        .map(super::contracts::foreshadowing_index_record)
+}
+
 pub async fn update_foreshadowing_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     foreshadowing_id: i64,
     expected_updated_at: &str,
@@ -89,8 +114,20 @@ pub async fn update_foreshadowing_record(
     Ok(updated)
 }
 
+pub async fn update_foreshadowing_read_record(
+    db: &impl crate::DbExecutor,
+    project_id: i64,
+    foreshadowing_id: i64,
+    expected_updated_at: &str,
+    input: ForeshadowingRecordInput,
+) -> Result<ForeshadowingIndexRecord, ForeshadowingDbError> {
+    update_foreshadowing_record(db, project_id, foreshadowing_id, expected_updated_at, input)
+        .await
+        .map(super::contracts::foreshadowing_index_record)
+}
+
 pub async fn delete_foreshadowing_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     foreshadowing_id: i64,
     expected_updated_at: &str,

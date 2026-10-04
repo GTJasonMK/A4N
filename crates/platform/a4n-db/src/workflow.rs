@@ -8,8 +8,8 @@ use a4n_progress::ProgressMeta;
 use a4n_queue::priority::{TaskKind, TaskPriority, TaskStatus};
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, NotSet,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, NotSet, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};

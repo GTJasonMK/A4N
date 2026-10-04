@@ -2,7 +2,7 @@ use super::*;
 use std::collections::{HashMap, HashSet};
 
 use a4n_api_contract::image::GeneratedImageSummary;
-use a4n_domain::media::ImagePublicationRecoveryRecord;
+use a4n_domain::media::{ImagePublicationRecord, ImagePublicationRecoveryRecord};
 use a4n_worker_contract::{WorkerError, WorkerOperationStatus};
 
 pub(super) fn parse_payload<T: serde::de::DeserializeOwned>(payload: Value) -> Result<T, String> {
@@ -171,7 +171,7 @@ pub(super) async fn verify_image_permission(
 }
 
 pub(super) fn recovery_record(
-    publication: a4n_db_models::models::media::image_publication::Model,
+    publication: ImagePublicationRecord,
 ) -> ImagePublicationRecoveryRecord {
     ImagePublicationRecoveryRecord {
         publication_id: publication.publication_id,

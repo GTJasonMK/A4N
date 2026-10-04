@@ -11,7 +11,7 @@ impl WorkerState {
         let project_id = input.project_id;
         ensure_project_scope(request.project_id, project_id)?;
         self.verify_editor(project_id, user_id).await?;
-        let record = a4n_db::project::create_foreshadowing_record(
+        let record = a4n_db::project::create_foreshadowing_read_record(
             self.database.connection(),
             project_id,
             input.record,
@@ -34,7 +34,7 @@ impl WorkerState {
         let project_id = input.project_id;
         ensure_project_scope(request.project_id, project_id)?;
         self.verify_editor(project_id, user_id).await?;
-        let record = a4n_db::project::update_foreshadowing_record(
+        let record = a4n_db::project::update_foreshadowing_read_record(
             self.database.connection(),
             project_id,
             input.foreshadowing_id,

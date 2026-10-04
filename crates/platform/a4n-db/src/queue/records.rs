@@ -1,5 +1,5 @@
 use super::QueueDbError;
-use crate::DbHandle;
+use crate::{DbExecutor, DbHandle};
 use a4n_db_models::models::{
     generation::{generation_task_checkpoint, workflow_run},
     task::task_queue,
@@ -8,7 +8,7 @@ use a4n_domain::task_queue::PersistTaskQueueRecordInput;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, DbErr, EntityTrait, QueryFilter,
-    QuerySelect, QueryTrait, Set, TransactionTrait,
+    QuerySelect, QueryTrait, Set,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -58,7 +58,7 @@ pub async fn insert_task_queue_record(
 ) -> Result<(), QueueDbError> {
     let db = db.connection();
     let now = Utc::now().naive_utc();
-    let tx = db.begin().await?;
+    let tx = DbExecutor::begin_db_transaction(db).await?;
     if input.task_type == "llm_call"
         && let Some(workflow_run_id) = input.workflow_run_id
     {

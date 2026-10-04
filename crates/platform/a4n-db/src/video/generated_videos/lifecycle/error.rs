@@ -6,8 +6,8 @@ use a4n_db_models::models::{
 use a4n_domain::media::GeneratedVideoErrorStatusBatchInput;
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
-    FromQueryResult, QueryFilter, QuerySelect, Set, TransactionTrait, sea_query::Expr,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, FromQueryResult, QueryFilter,
+    QuerySelect, Set, TransactionTrait, sea_query::Expr,
 };
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -19,9 +19,9 @@ use super::context::{
     ensure_generated_video_status_mutable, generated_video_with_prompt_record,
     update_prompt_status_record,
 };
-use crate::DbHandle;
 use crate::video::VideoDbError;
 use crate::video::VideoProjectIdentity;
+use crate::{DbExecutor, DbHandle};
 
 #[derive(Debug, FromQueryResult)]
 struct StaleGeneratedVideoRow {
@@ -94,7 +94,7 @@ pub(super) fn normalize_generated_video_error_message(message: &str) -> Result<&
 /// 每个提示词仍复用原有项目/章节归属校验；只有读取和两类状态写入集合化。
 /// 返回本次请求中数据库不存在的视频 ID，调用方决定如何记录该缺失。
 pub async fn mark_generated_videos_error_status_and_prompt_records(
-    db: &DatabaseConnection,
+    db: &impl DbExecutor,
     inputs: &[GeneratedVideoErrorStatusBatchInput],
     message: &str,
 ) -> Result<Vec<i64>, VideoDbError> {

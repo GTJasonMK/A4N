@@ -1,4 +1,4 @@
-use a4n_db::DbTransaction as DatabaseTransaction;
+use a4n_db::DbTransaction;
 use a4n_db::blueprint::{
     NovelBlueprintUpsertInput, SyncProjectAfterBlueprintInput, blueprint_version_snapshot,
     next_blueprint_version_record, sync_project_after_blueprint_record,
@@ -49,7 +49,7 @@ pub(super) struct BlueprintCompletionOutcome {
 }
 
 pub(super) async fn persist_generated_blueprint_in_transaction(
-    tx: &DatabaseTransaction,
+    tx: &DbTransaction,
     input: BlueprintGenerationCompletionInput,
 ) -> Result<(BlueprintCompletionOutcome, Vec<ProgressEvent>), AppError> {
     let BlueprintGenerationCompletionInput {

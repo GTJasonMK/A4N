@@ -25,7 +25,7 @@ impl AgentApplication {
         input: WorkerExecutionInput,
     ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
         match agent::create_execution_for_run_lease(
-            self.connection(),
+            self.executor(),
             AgentExecutionInput {
                 run_id: input.run_id,
                 execution_key: input.execution_key,
@@ -119,7 +119,7 @@ impl AgentApplication {
         input: WorkerExecutionUpdate,
     ) -> Result<AgentExecutionSnapshot, AppError> {
         agent::update_execution_for_run_lease(
-            self.connection(),
+            self.executor(),
             input.run_id,
             &input.lease_token,
             input.execution_id,

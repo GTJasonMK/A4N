@@ -5,9 +5,7 @@ use a4n_db_models::models::{
     project::source_snapshot_chapter,
 };
 use a4n_domain::generation::GenerationSpecRecord;
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter, QuerySelect,
-};
+use sea_orm::{ColumnTrait, EntityTrait, FromQueryResult, QueryFilter, QuerySelect};
 
 use super::positions::{
     normalized_galgame_position, validate_galgame_portrait_position_samples,
@@ -46,7 +44,7 @@ struct PortraitSourceSnapshotChapterRecord {
 }
 
 pub(in crate::galgame) async fn validate_galgame_portrait_spec_source_lines(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     spec: &GenerationSpecRecord,
     input: &GalgamePortraitSpecTargetInput,
     project_id: i64,

@@ -36,7 +36,7 @@ impl OrchestratorContext {
         outline_id: i64,
     ) -> Result<(), AppError> {
         let conflicts = project_db::chapter_outlines_for_project_chapter_number(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             chapter_number,
         )

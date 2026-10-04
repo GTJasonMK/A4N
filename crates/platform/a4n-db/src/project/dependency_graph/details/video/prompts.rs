@@ -21,6 +21,6 @@ where
         .order_by_asc(chapter_video_prompt::Column::Id)
         .all(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
     Ok(prompts.into_iter().map(video_prompt_record).collect())
 }

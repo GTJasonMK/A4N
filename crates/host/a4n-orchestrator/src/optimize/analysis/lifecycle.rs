@@ -10,13 +10,9 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
         variables: &std::collections::HashMap<String, serde_json::Value>,
     ) -> Result<a4n_domain::project::OptimizationSessionRecord, AppError> {
-        let name = required_available_session_name(
-            self.database.connection(),
-            project_id,
-            chapter_id,
-            name,
-        )
-        .await?;
+        let name =
+            required_available_session_name(self.database.executor(), project_id, chapter_id, name)
+                .await?;
         let bundle = self
             .build_analysis_session_prompt_bundle(
                 project_id,
@@ -27,7 +23,7 @@ impl OrchestratorContext {
             )
             .await?;
         let session = a4n_db::optimize::create_optimization_session_record(
-            self.database.connection(),
+            self.database.executor(),
             OptimizationSessionCreateInput {
                 project_id,
                 chapter_id,
@@ -118,7 +114,7 @@ impl OrchestratorContext {
             .await?;
 
         a4n_db::optimize::update_optimization_session_record(
-            self.database.connection(),
+            self.database.executor(),
             a4n_db::optimize::OptimizationSessionRecordUpdateInput {
                 session,
                 status: Some("analyzing".to_string()),

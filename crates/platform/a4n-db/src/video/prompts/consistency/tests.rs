@@ -26,7 +26,7 @@ fn prompt_record(prompt: &chapter_video_prompt::Model) -> ChapterVideoPromptReco
     chapter_video_prompt_record_from_model(prompt.clone())
 }
 
-async fn insert_project(db: &DatabaseConnection) -> i64 {
+async fn insert_project(db: &impl crate::DbExecutor) -> i64 {
     crate::project::create_project_record(
         db,
         crate::project::CreateProjectRecordInput {
@@ -41,7 +41,7 @@ async fn insert_project(db: &DatabaseConnection) -> i64 {
     .id
 }
 
-async fn insert_chapter(db: &DatabaseConnection, project_id: i64) -> chapter::Model {
+async fn insert_chapter(db: &impl crate::DbExecutor, project_id: i64) -> chapter::Model {
     let now = chrono::Utc::now().naive_utc();
     chapter::ActiveModel {
         project_id: Set(project_id),
@@ -64,7 +64,7 @@ async fn insert_chapter(db: &DatabaseConnection, project_id: i64) -> chapter::Mo
 }
 
 async fn insert_prompt(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_id: i64,
 ) -> chapter_video_prompt::Model {
@@ -163,7 +163,7 @@ fn stage_metadata(source_hash: &str) -> serde_json::Value {
 }
 
 async fn update_prompt_stage(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     prompt: chapter_video_prompt::Model,
     prompt_type: &str,
     workflow_mode: &str,

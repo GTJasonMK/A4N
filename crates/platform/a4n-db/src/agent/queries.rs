@@ -1,10 +1,11 @@
 use super::*;
 use a4n_db_models::models::agent::inbox as inbox_model;
+use sea_orm::ConnectionTrait;
 
 pub async fn create_thread<C>(
     db: &C,
     input: AgentThreadCreateInput,
-) -> Result<thread::Model, AgentDbError>
+) -> Result<AgentThreadRecord, AgentDbError>
 where
     C: ConnectionTrait,
 {
@@ -39,23 +40,25 @@ where
     }
     .insert(db)
     .await
-    .map_err(AgentDbError::Database)
+    .map(AgentThreadRecord::from)
+    .map_err(AgentDbError::from)
 }
 
-pub async fn thread_by_id<C>(db: &C, id: i64) -> Result<Option<thread::Model>, AgentDbError>
+pub async fn thread_by_id<C>(db: &C, id: i64) -> Result<Option<AgentThreadRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
     thread::Entity::find_by_id(id)
         .one(db)
         .await
-        .map_err(AgentDbError::Database)
+        .map(|row| row.map(AgentThreadRecord::from))
+        .map_err(AgentDbError::from)
 }
 
 pub async fn list_threads_by_owner<C>(
     db: &C,
     owner_user_id: i64,
-) -> Result<Vec<thread::Model>, AgentDbError>
+) -> Result<Vec<AgentThreadRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
@@ -65,13 +68,14 @@ where
         .order_by_desc(thread::Column::Id)
         .all(db)
         .await
-        .map_err(AgentDbError::Database)
+        .map(|rows| rows.into_iter().map(AgentThreadRecord::from).collect())
+        .map_err(AgentDbError::from)
 }
 
 pub async fn default_thread_by_owner<C>(
     db: &C,
     owner_user_id: i64,
-) -> Result<Option<thread::Model>, AgentDbError>
+) -> Result<Option<AgentThreadRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
@@ -81,14 +85,15 @@ where
         .filter(thread::Column::ArchivedAt.is_null())
         .one(db)
         .await
-        .map_err(AgentDbError::Database)
+        .map(|row| row.map(AgentThreadRecord::from))
+        .map_err(AgentDbError::from)
 }
 
 pub async fn thread_by_canonical_binding<C>(
     db: &C,
     owner_user_id: i64,
     canonical_binding_key: &str,
-) -> Result<Option<thread::Model>, AgentDbError>
+) -> Result<Option<AgentThreadRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
@@ -98,7 +103,8 @@ where
         .filter(thread::Column::ArchivedAt.is_null())
         .one(db)
         .await
-        .map_err(AgentDbError::Database)
+        .map(|row| row.map(AgentThreadRecord::from))
+        .map_err(AgentDbError::from)
 }
 
 pub async fn messages_by_thread<C>(
@@ -106,7 +112,7 @@ pub async fn messages_by_thread<C>(
     thread_id: i64,
     before_id: Option<i64>,
     limit: u64,
-) -> Result<Vec<message::Model>, AgentDbError>
+) -> Result<Vec<AgentMessageRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
@@ -118,7 +124,7 @@ pub async fn messages_before<C: ConnectionTrait>(
     thread_id: i64,
     before: Option<i64>,
     limit: u64,
-) -> Result<Vec<message::Model>, AgentDbError> {
+) -> Result<Vec<AgentMessageRecord>, AgentDbError> {
     let mut query = message::Entity::find()
         .filter(message::Column::ThreadId.eq(thread_id))
         .order_by_desc(message::Column::Id)
@@ -126,22 +132,55 @@ pub async fn messages_before<C: ConnectionTrait>(
     if let Some(before) = before {
         query = query.filter(message::Column::Id.lt(before));
     }
-    let mut rows = query.all(db).await.map_err(AgentDbError::Database)?;
+    let mut rows = query.all(db).await.map_err(AgentDbError::from)?;
     rows.reverse();
-    Ok(rows)
+    Ok(rows.into_iter().map(AgentMessageRecord::from).collect())
 }
 
-pub async fn message_by_id<C>(db: &C, id: i64) -> Result<Option<message::Model>, AgentDbError>
+pub async fn message_by_id<C>(db: &C, id: i64) -> Result<Option<AgentMessageRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
     message::Entity::find_by_id(id)
         .one(db)
         .await
-        .map_err(AgentDbError::Database)
+        .map(|row| row.map(AgentMessageRecord::from))
+        .map_err(AgentDbError::from)
 }
 
-pub async fn messages_by_run<C>(db: &C, run_id: i64) -> Result<Vec<message::Model>, AgentDbError>
+pub async fn message_by_run_and_client_id<C: ConnectionTrait>(
+    db: &C,
+    run_id: i64,
+    client_message_id: &str,
+) -> Result<Option<AgentMessageRecord>, AgentDbError> {
+    message::Entity::find()
+        .filter(message::Column::RunId.eq(run_id))
+        .filter(message::Column::ClientMessageId.eq(client_message_id))
+        .one(db)
+        .await
+        .map(|row| row.map(AgentMessageRecord::from))
+        .map_err(AgentDbError::from)
+}
+
+pub async fn has_user_message_after<C: ConnectionTrait>(
+    db: &C,
+    run_id: i64,
+    message_id: i64,
+) -> Result<bool, AgentDbError> {
+    message::Entity::find()
+        .filter(message::Column::RunId.eq(run_id))
+        .filter(message::Column::Role.eq("user"))
+        .filter(message::Column::Id.gt(message_id))
+        .one(db)
+        .await
+        .map(|message| message.is_some())
+        .map_err(AgentDbError::from)
+}
+
+pub async fn messages_by_run<C>(
+    db: &C,
+    run_id: i64,
+) -> Result<Vec<AgentMessageRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
@@ -150,7 +189,8 @@ where
         .order_by_asc(message::Column::Id)
         .all(db)
         .await
-        .map_err(AgentDbError::Database)
+        .map(|rows| rows.into_iter().map(AgentMessageRecord::from).collect())
+        .map_err(AgentDbError::from)
 }
 
 /// Full unsummarized history plus the active Run's records needed for replay.
@@ -160,7 +200,7 @@ pub async fn messages_for_context<C: ConnectionTrait>(
     thread_id: i64,
     run_id: i64,
     covered_message_id: i64,
-) -> Result<Vec<message::Model>, AgentDbError> {
+) -> Result<Vec<AgentMessageRecord>, AgentDbError> {
     message::Entity::find()
         .filter(message::Column::ThreadId.eq(thread_id))
         .filter(
@@ -171,14 +211,15 @@ pub async fn messages_for_context<C: ConnectionTrait>(
         .order_by_asc(message::Column::Id)
         .all(db)
         .await
-        .map_err(AgentDbError::Database)
+        .map(|rows| rows.into_iter().map(AgentMessageRecord::from).collect())
+        .map_err(AgentDbError::from)
 }
 
 pub async fn turns_by_thread<C>(
     db: &C,
     thread_id: i64,
     limit: u64,
-) -> Result<Vec<turn::Model>, AgentDbError>
+) -> Result<Vec<AgentTurnRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
@@ -188,16 +229,27 @@ where
         .limit(limit)
         .all(db)
         .await
-        .map_err(AgentDbError::Database)?;
+        .map_err(AgentDbError::from)?;
     rows.reverse();
-    Ok(rows)
+    Ok(rows.into_iter().map(AgentTurnRecord::from).collect())
+}
+
+pub async fn turn_by_id<C: ConnectionTrait>(
+    db: &C,
+    id: i64,
+) -> Result<Option<AgentTurnRecord>, AgentDbError> {
+    turn::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .map(|row| row.map(AgentTurnRecord::from))
+        .map_err(AgentDbError::from)
 }
 
 pub async fn runs_by_thread<C>(
     db: &C,
     thread_id: i64,
     limit: u64,
-) -> Result<Vec<run::Model>, AgentDbError>
+) -> Result<Vec<AgentRunRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
@@ -208,15 +260,15 @@ where
         .limit(limit)
         .all(db)
         .await
-        .map_err(AgentDbError::Database)?;
+        .map_err(AgentDbError::from)?;
     rows.reverse();
-    Ok(rows)
+    Ok(rows.into_iter().map(AgentRunRecord::from).collect())
 }
 
 pub async fn active_runs_by_thread<C>(
     db: &C,
     thread_id: i64,
-) -> Result<Vec<run::Model>, AgentDbError>
+) -> Result<Vec<AgentRunRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
@@ -226,26 +278,28 @@ where
         .order_by_desc(run::Column::Id)
         .all(db)
         .await
-        .map_err(AgentDbError::Database)?
+        .map_err(AgentDbError::from)?
         .into_iter()
         .filter(|row| is_run_active(&row.status))
+        .map(AgentRunRecord::from)
         .collect())
 }
 
-pub async fn run_by_id<C>(db: &C, id: i64) -> Result<Option<run::Model>, AgentDbError>
+pub async fn run_by_id<C>(db: &C, id: i64) -> Result<Option<AgentRunRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
     run::Entity::find_by_id(id)
         .one(db)
         .await
-        .map_err(AgentDbError::Database)
+        .map(|row| row.map(AgentRunRecord::from))
+        .map_err(AgentDbError::from)
 }
 
 pub async fn executions_by_runs<C>(
     db: &C,
     run_ids: Vec<i64>,
-) -> Result<Vec<execution::Model>, AgentDbError>
+) -> Result<Vec<AgentExecutionRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
@@ -258,13 +312,39 @@ where
         .order_by_asc(execution::Column::Sequence)
         .all(db)
         .await
-        .map_err(AgentDbError::Database)
+        .map(|rows| rows.into_iter().map(AgentExecutionRecord::from).collect())
+        .map_err(AgentDbError::from)
+}
+
+pub async fn execution_by_id<C: ConnectionTrait>(
+    db: &C,
+    id: i64,
+) -> Result<Option<AgentExecutionRecord>, AgentDbError> {
+    execution::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .map(|row| row.map(AgentExecutionRecord::from))
+        .map_err(AgentDbError::from)
+}
+
+pub async fn execution_by_key<C: ConnectionTrait>(
+    db: &C,
+    run_id: i64,
+    key: &str,
+) -> Result<Option<AgentExecutionRecord>, AgentDbError> {
+    execution::Entity::find()
+        .filter(execution::Column::RunId.eq(run_id))
+        .filter(execution::Column::ExecutionKey.eq(key))
+        .one(db)
+        .await
+        .map(|row| row.map(AgentExecutionRecord::from))
+        .map_err(AgentDbError::from)
 }
 
 pub async fn delegations_by_thread<C>(
     db: &C,
     thread_id: i64,
-) -> Result<Vec<delegation::Model>, AgentDbError>
+) -> Result<Vec<AgentDelegationRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
@@ -277,24 +357,29 @@ where
         .order_by_asc(delegation::Column::CreatedAt)
         .all(db)
         .await
-        .map_err(AgentDbError::Database)
+        .map(|rows| rows.into_iter().map(AgentDelegationRecord::from).collect())
+        .map_err(AgentDbError::from)
 }
 
-pub async fn delegation_by_id<C>(db: &C, id: i64) -> Result<Option<delegation::Model>, AgentDbError>
+pub async fn delegation_by_id<C>(
+    db: &C,
+    id: i64,
+) -> Result<Option<AgentDelegationRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
     delegation::Entity::find_by_id(id)
         .one(db)
         .await
-        .map_err(AgentDbError::Database)
+        .map(|row| row.map(AgentDelegationRecord::from))
+        .map_err(AgentDbError::from)
 }
 
 pub async fn delegation_by_parent_and_key<C>(
     db: &C,
     parent_run_id: i64,
     delegation_key: &str,
-) -> Result<Option<delegation::Model>, AgentDbError>
+) -> Result<Option<AgentDelegationRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
@@ -303,13 +388,14 @@ where
         .filter(delegation::Column::DelegationKey.eq(delegation_key))
         .one(db)
         .await
-        .map_err(AgentDbError::Database)
+        .map(|row| row.map(AgentDelegationRecord::from))
+        .map_err(AgentDbError::from)
 }
 
 pub async fn inbox_by_thread<C>(
     db: &C,
     thread_id: i64,
-) -> Result<Vec<inbox_model::Model>, AgentDbError>
+) -> Result<Vec<AgentInboxRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
@@ -318,13 +404,40 @@ where
         .order_by_asc(inbox_model::Column::CreatedAt)
         .all(db)
         .await
-        .map_err(AgentDbError::Database)
+        .map(|rows| rows.into_iter().map(AgentInboxRecord::from).collect())
+        .map_err(AgentDbError::from)
+}
+
+pub async fn inbox_by_id<C: ConnectionTrait>(
+    db: &C,
+    id: i64,
+) -> Result<Option<AgentInboxRecord>, AgentDbError> {
+    inbox_model::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .map(|row| row.map(AgentInboxRecord::from))
+        .map_err(AgentDbError::from)
+}
+
+pub async fn latest_event_by_run_and_kind<C: ConnectionTrait>(
+    db: &C,
+    run_id: i64,
+    kind: &str,
+) -> Result<Option<AgentEventRecord>, AgentDbError> {
+    event::Entity::find()
+        .filter(event::Column::RunId.eq(run_id))
+        .filter(event::Column::Kind.eq(kind))
+        .order_by_desc(event::Column::Sequence)
+        .one(db)
+        .await
+        .map(|row| row.map(AgentEventRecord::from))
+        .map_err(AgentDbError::from)
 }
 
 pub async fn approvals_by_thread<C>(
     db: &C,
     thread_id: i64,
-) -> Result<Vec<approval::Model>, AgentDbError>
+) -> Result<Vec<AgentApprovalRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
@@ -333,15 +446,17 @@ where
         .order_by_asc(approval::Column::CreatedAt)
         .all(db)
         .await
-        .map_err(AgentDbError::Database)
+        .map(|rows| rows.into_iter().map(AgentApprovalRecord::from).collect())
+        .map_err(AgentDbError::from)
 }
 
-pub async fn approval_by_id<C>(db: &C, id: i64) -> Result<Option<approval::Model>, AgentDbError>
+pub async fn approval_by_id<C>(db: &C, id: i64) -> Result<Option<AgentApprovalRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
     approval::Entity::find_by_id(id)
         .one(db)
         .await
-        .map_err(AgentDbError::Database)
+        .map(|row| row.map(AgentApprovalRecord::from))
+        .map_err(AgentDbError::from)
 }

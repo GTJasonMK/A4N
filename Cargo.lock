@@ -221,14 +221,12 @@ dependencies = [
  "a4n-cleanup-contract",
  "a4n-config",
  "a4n-db",
- "a4n-db-models",
  "a4n-domain",
  "a4n-storage",
  "a4n-worker-contract",
  "anyhow",
  "axum 0.8.9",
  "chrono",
- "sea-orm",
  "serde",
  "serde_json",
  "tokio",
@@ -283,11 +281,9 @@ version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
  "a4n-db",
- "a4n-db-models",
  "a4n-domain",
  "a4n-error",
  "async-trait",
- "serde_json",
 ]
 
 [[package]]
@@ -385,7 +381,6 @@ dependencies = [
  "anyhow",
  "axum 0.8.9",
  "chrono",
- "sea-orm",
  "serde",
  "serde_json",
  "subtle",
@@ -450,7 +445,6 @@ dependencies = [
  "a4n-domain",
  "a4n-error",
  "chrono",
- "sea-orm",
  "serde_json",
  "uuid",
 ]
@@ -678,7 +672,6 @@ dependencies = [
  "a4n-config-read-core",
  "a4n-config-read-worker-contract",
  "a4n-db",
- "a4n-db-models",
  "a4n-domain",
  "a4n-error",
  "a4n-llm-config",
@@ -688,7 +681,6 @@ dependencies = [
  "anyhow",
  "axum 0.8.9",
  "chrono",
- "sea-orm",
  "serde",
  "serde_json",
  "subtle",
@@ -806,6 +798,8 @@ dependencies = [
  "a4n-db-models",
  "a4n-error",
  "anyhow",
+ "async-trait",
+ "futures",
  "sea-orm",
  "tokio",
 ]
@@ -2207,7 +2201,7 @@ dependencies = [
  "a4n-api-contract",
  "a4n-db",
  "a4n-domain",
- "sea-orm",
+ "anyhow",
  "thiserror 2.0.18",
  "tokio",
 ]
@@ -3190,7 +3184,6 @@ dependencies = [
  "a4n-db",
  "a4n-error",
  "a4n-video-contract",
- "sea-orm",
 ]
 
 [[package]]
@@ -3204,7 +3197,6 @@ dependencies = [
  "a4n-workflow-lifecycle-worker-contract",
  "anyhow",
  "axum 0.8.9",
- "sea-orm",
  "serde",
  "subtle",
  "tokio",
@@ -3252,7 +3244,6 @@ dependencies = [
  "anyhow",
  "axum 0.8.9",
  "chrono",
- "sea-orm",
  "serde",
  "subtle",
  "tokio",

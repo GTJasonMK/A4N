@@ -341,7 +341,7 @@ impl OrchestratorContext {
             .await?
         {
             let row = a4n_db::video::read_models::with_video_plan_source_sync(
-                self.database.connection(),
+                self.database.executor(),
                 row,
             )
             .await
@@ -778,7 +778,7 @@ impl OrchestratorContext {
             .current_video_source_hash(project_id, chapter_id)
             .await?;
         let prompt_id = a4n_db::video::completed_shared_segment_plan_id_for_source_hash(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             chapter_id,
             &current_source_hash,
@@ -799,7 +799,7 @@ impl OrchestratorContext {
             .current_video_source_hash(project_id, chapter_id)
             .await?;
         let prompt_id = a4n_db::video::completed_shared_segment_plan_id_for_source_hash(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             chapter_id,
             &current_source_hash,
@@ -840,7 +840,7 @@ impl OrchestratorContext {
         &self,
         row: ChapterVideoPromptRecord,
     ) -> Result<ChapterVideoPromptRecord, AppError> {
-        a4n_db::video::read_models::with_video_plan_source_sync(self.database.connection(), row)
+        a4n_db::video::read_models::with_video_plan_source_sync(self.database.executor(), row)
             .await
             .map_err(video_db_error)
     }
@@ -876,7 +876,7 @@ impl OrchestratorContext {
             ));
         }
         let current_prompt_id = a4n_db::video::completed_shared_segment_plan_id_for_source_hash(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             chapter_id,
             &current_source_hash,
@@ -912,7 +912,7 @@ impl OrchestratorContext {
         recipe: VideoSegmentExecutionRecipeV1,
     ) -> Result<Vec<VideoSegmentExecutionRecipeV1>, AppError> {
         let (project_id, chapter_id) =
-            a4n_db::video::chapter_video_prompt_scope_by_id(self.database.connection(), prompt_id)
+            a4n_db::video::chapter_video_prompt_scope_by_id(self.database.executor(), prompt_id)
                 .await
                 .map_err(video_db_error)?
                 .ok_or_else(|| AppError::NotFound("视频提示词不存在".to_string()))?;

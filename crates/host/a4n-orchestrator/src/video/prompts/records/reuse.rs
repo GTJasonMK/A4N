@@ -54,7 +54,7 @@ impl OrchestratorContext {
             exclude_running,
         } = query;
         let rows = a4n_db::video::read_models::chapter_video_prompt_workflow_records(
-            self.database.connection(),
+            self.database.executor(),
             context.project_id,
             context.chapter_id,
             context.prompt_type,
@@ -62,7 +62,7 @@ impl OrchestratorContext {
             exclude_running,
         )
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
 
         Ok(rows
             .into_iter()

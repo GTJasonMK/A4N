@@ -1,6 +1,4 @@
 use super::*;
-use sea_orm::{DatabaseConnection, TransactionTrait};
-
 pub(super) fn optimization_patch_set_record(
     patch_set: optimization_patch_set::Model,
 ) -> a4n_domain::project::OptimizationPatchSetRecord {
@@ -169,7 +167,7 @@ where
 }
 
 pub async fn discard_pending_optimization_patch_sets_and_record_event(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     session_id: i64,
 ) -> Result<(), OptimizeDbError> {
     if session_id <= 0 {
@@ -211,7 +209,7 @@ pub async fn discard_pending_optimization_patch_sets_and_record_event(
 }
 
 pub async fn discard_optimization_patch_set_and_record_event(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     session_id: i64,
     patch_set_id: i64,
 ) -> Result<(), OptimizeDbError> {

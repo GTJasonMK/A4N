@@ -1,6 +1,3 @@
-use a4n_domain::shooting_script::EditStoredChapterShootingScriptInput;
-use sea_orm::TransactionTrait;
-
 use super::{
     codec::stored_visual_plan_identity,
     contracts::{
@@ -9,9 +6,10 @@ use super::{
     mutations::update_chapter_shooting_script,
     queries::chapter_shooting_script_by_id,
 };
+use a4n_domain::shooting_script::EditStoredChapterShootingScriptInput;
 
 pub async fn edit_chapter_shooting_script_and_invalidate(
-    db: &sea_orm::DatabaseConnection,
+    db: &impl crate::DbExecutor,
     mut input: EditStoredChapterShootingScriptInput,
 ) -> Result<EditChapterShootingScriptOutcome, ShootingScriptDbError> {
     let tx = db.begin().await?;

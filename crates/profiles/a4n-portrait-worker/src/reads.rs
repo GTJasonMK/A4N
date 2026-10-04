@@ -15,7 +15,7 @@ impl WorkerState {
             a4n_domain::collaboration::ProjectAccessRole::Viewer,
         )
         .await?;
-        a4n_db::character::character_portrait_records_by_project(
+        a4n_db::character::character_portrait_records_by_project_records(
             self.database.connection(),
             project_id,
         )
@@ -47,7 +47,7 @@ impl WorkerState {
             a4n_domain::collaboration::ProjectAccessRole::Viewer,
         )
         .await?;
-        let portrait = a4n_db::character::primary_character_portrait_record(
+        let portrait = a4n_db::character::primary_character_portrait_record_value(
             self.database.connection(),
             profile_id,
         )
@@ -67,10 +67,12 @@ impl WorkerState {
         if portrait_id <= 0 {
             return Err(WorkerFailure::invalid_request("portrait_id 必须大于 0"));
         }
-        let Some(portrait) =
-            a4n_db::character::character_portrait_by_id(self.database.connection(), portrait_id)
-                .await
-                .map_err(database_error)?
+        let Some(portrait) = a4n_db::character::character_portrait_record_by_id(
+            self.database.connection(),
+            portrait_id,
+        )
+        .await
+        .map_err(database_error)?
         else {
             return Ok(PortraitLookupResponse { portrait: None });
         };
@@ -101,7 +103,7 @@ impl WorkerState {
             a4n_domain::collaboration::ProjectAccessRole::Editor,
         )
         .await?;
-        a4n_db::character::missing_portrait_profiles(self.database.connection(), project_id)
+        a4n_db::character::missing_portrait_profile_records(self.database.connection(), project_id)
             .await
             .map_err(database_error)?
             .iter()

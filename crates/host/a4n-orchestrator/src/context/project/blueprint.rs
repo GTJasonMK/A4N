@@ -23,14 +23,14 @@ impl ProjectBlueprintApplication {
         Self { database }
     }
 
-    fn connection(&self) -> &a4n_db::DatabaseConnection {
-        self.database.connection()
+    fn connection(&self) -> &impl a4n_db::DbExecutor {
+        self.database.executor()
     }
 
     async fn current(&self, project_id: i64) -> Result<Option<BlueprintRecord>, AppError> {
         a4n_db::project::novel_blueprint_for_project(self.connection(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn restore(
@@ -49,7 +49,7 @@ impl ProjectBlueprintApplication {
     ) -> Result<Vec<BlueprintCharacterRecord>, AppError> {
         a4n_db::project::blueprint_characters_for_project(self.connection(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn blueprint_relationships_for_project(
@@ -58,7 +58,7 @@ impl ProjectBlueprintApplication {
     ) -> Result<Vec<BlueprintRelationshipRecord>, AppError> {
         a4n_db::project::blueprint_relationships_for_project(self.connection(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 }
 

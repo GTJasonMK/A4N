@@ -20,7 +20,7 @@ impl AgentApplication {
             .unwrap_or_default()
             .to_lowercase();
         let mut memories =
-            agent::list_memory(self.connection(), thread_row.owner_user_id, None, None)
+            agent::list_memory(self.executor(), thread_row.owner_user_id, None, None)
                 .await
                 .map_err(agent_db_error_to_app)?;
         memories.retain(|row| {

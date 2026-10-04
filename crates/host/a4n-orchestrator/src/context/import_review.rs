@@ -31,9 +31,9 @@ impl ImportReviewApplication {
         &self,
         review_id: i64,
     ) -> Result<Option<ImportReviewRecord>, AppError> {
-        a4n_db::import_review::import_review_by_id(self.database.connection(), review_id)
+        a4n_db::import_review::import_review_by_id(self.database.executor(), review_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn import_review_project_ids_by_ids(
@@ -41,24 +41,24 @@ impl ImportReviewApplication {
         review_ids: &[i64],
     ) -> Result<Vec<(i64, i64)>, AppError> {
         a4n_db::import_review::import_review_project_ids_by_ids(
-            self.database.connection(),
+            self.database.executor(),
             review_ids,
         )
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
     }
 
     async fn create_import_reviews(
         &self,
         inputs: Vec<ImportReviewCreateInput>,
     ) -> Result<Vec<ImportReviewRecord>, AppError> {
-        a4n_db::import_review::create_import_reviews(self.database.connection(), inputs)
+        a4n_db::import_review::create_import_reviews(self.database.executor(), inputs)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn delete_import_review(&self, review_id: i64) -> Result<(), AppError> {
-        a4n_db::import_review::delete_import_review(self.database.connection(), review_id)
+        a4n_db::import_review::delete_import_review(self.database.executor(), review_id)
             .await
             .map_err(import_review_mutation_error)
     }
@@ -70,7 +70,7 @@ impl ImportReviewApplication {
         analysis_result: Option<Value>,
     ) -> Result<AcceptedImportReview, AppError> {
         a4n_db::import_review::accept_import_review(
-            self.database.connection(),
+            self.database.executor(),
             review_id,
             analysis_result,
         )
@@ -82,7 +82,7 @@ impl ImportReviewApplication {
         &self,
         review: ImportReviewRecord,
     ) -> Result<ImportReviewRecord, AppError> {
-        a4n_db::import_review::reject_import_review(self.database.connection(), review.id)
+        a4n_db::import_review::reject_import_review(self.database.executor(), review.id)
             .await
             .map_err(import_review_mutation_error)
     }
@@ -90,7 +90,7 @@ impl ImportReviewApplication {
 
 fn import_review_mutation_error(error: ImportReviewMutationError) -> AppError {
     match error {
-        ImportReviewMutationError::Database(error) => AppError::Database(error),
+        ImportReviewMutationError::Database(error) => AppError::database(error),
         ImportReviewMutationError::NotFound(message) => AppError::NotFound(message),
         ImportReviewMutationError::InvalidArgument(message) => AppError::InvalidArgument(message),
         ImportReviewMutationError::InvalidState { current, operation } => {

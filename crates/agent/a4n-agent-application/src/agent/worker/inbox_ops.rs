@@ -19,7 +19,7 @@ impl AgentApplication {
         thread_id: i64,
         message_id: i64,
     ) -> Result<AgentMessageSnapshot, AppError> {
-        let row = agent::message_by_id(self.connection(), message_id)
+        let row = agent::message_by_id(self.executor(), message_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent message 不存在: {message_id}")))?;
@@ -57,7 +57,7 @@ impl AgentApplication {
         &self,
         thread_id: i64,
     ) -> Result<Option<AgentInboxSnapshot>, AppError> {
-        agent::claim_inbox(self.connection(), Some(thread_id))
+        agent::claim_inbox(self.executor(), Some(thread_id))
             .await
             .map(|row| row.map(inbox_snapshot))
             .map_err(agent_db_error_to_app)
@@ -74,7 +74,7 @@ impl AgentApplication {
                 current: format!("inbox {} 缺少 claim token", row.id),
                 operation: "消费 Agent inbox".into(),
             })?;
-        agent::consume_inbox(self.connection(), row.id, token)
+        agent::consume_inbox(self.executor(), row.id, token)
             .await
             .map(inbox_snapshot)
             .map_err(agent_db_error_to_app)
@@ -101,7 +101,7 @@ impl AgentApplication {
                 operation: "持久化 Agent inbox".into(),
             })?;
         agent::consume_inbox_with_message(
-            self.connection(),
+            self.executor(),
             row.id,
             token,
             &claimed.lease_token,
@@ -166,10 +166,9 @@ impl AgentApplication {
                 lease: request.lease.clone(),
             })
             .await?;
-        let row = inbox::Entity::find_by_id(request.inbox_id)
-            .one(self.connection())
+        let row = agent::inbox_by_id(self.executor(), request.inbox_id)
             .await
-            .map_err(AppError::Database)?
+            .map_err(agent_db_error_to_app)?
             .ok_or_else(|| {
                 AppError::NotFound(format!("Agent inbox 不存在: {}", request.inbox_id))
             })?;
@@ -199,10 +198,9 @@ impl AgentApplication {
                 lease: request.lease.clone(),
             })
             .await?;
-        let row = inbox::Entity::find_by_id(request.inbox_id)
-            .one(self.connection())
+        let row = agent::inbox_by_id(self.executor(), request.inbox_id)
             .await
-            .map_err(AppError::Database)?
+            .map_err(agent_db_error_to_app)?
             .ok_or_else(|| {
                 AppError::NotFound(format!("Agent inbox 不存在: {}", request.inbox_id))
             })?;

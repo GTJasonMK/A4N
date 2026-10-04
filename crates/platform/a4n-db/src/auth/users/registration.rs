@@ -4,7 +4,7 @@ use a4n_domain::auth::ROLE_USER;
 use a4n_domain::auth::{ROLE_ADMIN, validate_user_role};
 use a4n_error::AppError;
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, DatabaseConnection, Set};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 
 use crate::auth::BootstrapAdminInput;
 
@@ -15,7 +15,7 @@ use crate::auth::rules::{
 
 #[cfg(test)]
 pub async fn register_user(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     username: &str,
     email: &str,
     password: &str,
@@ -24,7 +24,7 @@ pub async fn register_user(
 }
 
 pub async fn create_user(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     username: &str,
     email: &str,
     password: &str,
@@ -34,7 +34,7 @@ pub async fn create_user(
 }
 
 pub async fn bootstrap_first_admin(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     username: &str,
     email: &str,
     password: &str,
@@ -48,7 +48,7 @@ pub async fn bootstrap_first_admin(
 }
 
 pub async fn require_existing_user_or_bootstrap_admin(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     bootstrap: Option<BootstrapAdminInput<'_>>,
 ) -> Result<(), AppError> {
     if count_users(db).await? != 0 {
@@ -103,5 +103,5 @@ where
     }
     .insert(db)
     .await
-    .map_err(AppError::Database)
+    .map_err(AppError::from)
 }

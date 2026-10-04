@@ -10,13 +10,10 @@ use super::{
 use a4n_db_models::models::project::novel_project;
 use a4n_domain::project::ProjectStatus;
 use chrono::Utc;
-use sea_orm::{
-    ActiveModelTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, QuerySelect,
-    Set, TransactionTrait,
-};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, DbBackend, EntityTrait, QuerySelect, Set};
 
 pub async fn create_derived_project_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
     params: CreateDerivedProjectParams,
 ) -> Result<novel_project::Model, ProjectMutationError> {

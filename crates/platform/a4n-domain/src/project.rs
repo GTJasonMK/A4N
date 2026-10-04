@@ -40,6 +40,17 @@ pub struct ProjectSummaryRecord {
     pub updated_at: NaiveDateTime,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct BlueprintVersionRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub version: String,
+    pub change_description: Option<String>,
+    pub blueprint_data: Value,
+    pub created_at: NaiveDateTime,
+    pub created_by: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProjectRecord {
     pub id: i64,

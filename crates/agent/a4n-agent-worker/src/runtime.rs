@@ -7,7 +7,6 @@ use a4n_agent_application::agent::AgentApplication;
 use a4n_agent_runtime::{AgentRuntimeState, engine};
 use a4n_db::DbHandle;
 use reqwest::Client;
-use sea_orm::Database;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::oneshot;
 
@@ -28,8 +27,8 @@ async fn async_main() -> anyhow::Result<()> {
     let worker_token = a4n_config::required_non_empty_env_string("A4N_AGENT_WORKER_TOKEN")?;
     let database_url = a4n_config::required_non_empty_env_string("A4N_DATABASE_URL")?;
     a4n_config::validate_postgres_database_url("A4N_DATABASE_URL", &database_url)?;
-    let database = Database::connect(database_url).await?;
-    let application = Arc::new(AgentApplication::new(DbHandle::new(Arc::new(database))));
+    let database = DbHandle::connect_default(database_url).await?;
+    let application = Arc::new(AgentApplication::new(database));
     let client = Client::builder()
         .connect_timeout(Duration::from_secs(5))
         .build()?;

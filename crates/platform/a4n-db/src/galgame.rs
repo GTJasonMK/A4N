@@ -12,10 +12,7 @@ use a4n_domain::project::ProjectKind;
 use chrono::Utc;
 #[cfg(test)]
 use sea_orm::DbErr;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder, Set, TransactionTrait,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 #[cfg(test)]
 use std::collections::BTreeSet;
 

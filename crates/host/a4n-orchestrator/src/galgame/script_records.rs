@@ -19,7 +19,7 @@ impl OrchestratorContext {
             validate_positive_id(*line_id, "line_ids")?;
         }
         a4n_db::galgame::reorder_galgame_line_records_transaction(
-            self.database.connection(),
+            self.database.executor(),
             scene.id,
             input.line_ids,
         )
@@ -33,7 +33,7 @@ impl OrchestratorContext {
             .load_line_in_project(context.project.id, line_id)
             .await?;
         a4n_db::galgame::delete_galgame_line_with_generation_media_graph_record(
-            self.database.connection(),
+            self.database.executor(),
             context.project.id,
             line.id,
         )

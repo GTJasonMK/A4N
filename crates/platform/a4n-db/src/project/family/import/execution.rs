@@ -1,5 +1,5 @@
 use a4n_domain::project::ProjectRecord;
-use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement, TransactionTrait};
+use sea_orm::{ConnectionTrait, DbBackend, Statement};
 
 use crate::project::project_record_from_model;
 
@@ -10,7 +10,7 @@ use super::{
 use serde::{Serialize, de::DeserializeOwned};
 
 pub async fn import_project_family_package_rows<Importer>(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
     package: &ProjectFamilyImportPackage,
     media_importer: &mut Importer,
@@ -25,7 +25,7 @@ where
 }
 
 pub async fn import_project_family_package_rows_with_mappings<Importer>(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
     package: &ProjectFamilyImportPackage,
     media_importer: &mut Importer,

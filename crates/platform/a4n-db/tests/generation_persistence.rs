@@ -146,7 +146,7 @@ async fn set_generation_task_requester(
 async fn generation_reservation_resolves_derived_project_root() {
     let db = connect_generation_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
-    let user = a4n_db::auth::create_user(
+    let user = a4n_db::auth::create_user_summary(
         &db,
         &format!("generation_derived_{suffix}"),
         &format!("generation_derived_{suffix}@example.invalid"),
@@ -344,7 +344,7 @@ async fn generation_reservation_resolves_derived_project_root() {
 async fn generation_persistence_reservation_lease_checkpoint_and_gate_use_postgres() {
     let db = connect_generation_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
-    let user = a4n_db::auth::create_user(
+    let user = a4n_db::auth::create_user_summary(
         &db,
         &format!("generation_{suffix}"),
         &format!("generation_{suffix}@example.invalid"),
@@ -604,7 +604,7 @@ async fn generation_persistence_reservation_lease_checkpoint_and_gate_use_postgr
 async fn generation_cancel_batch_updates_checkpoints_and_queue_rows() {
     let db = connect_generation_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
-    let user = a4n_db::auth::create_user(
+    let user = a4n_db::auth::create_user_summary(
         &db,
         &format!("cancel_batch_{suffix}"),
         &format!("cancel_batch_{suffix}@example.invalid"),
@@ -687,7 +687,7 @@ async fn generation_cancel_batch_updates_checkpoints_and_queue_rows() {
 async fn generation_task_tree_ttl_waits_for_descendants_and_audit_before_deleting() {
     let db = connect_generation_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
-    let user = a4n_db::auth::create_user(
+    let user = a4n_db::auth::create_user_summary(
         &db,
         &format!("tree_{suffix}"),
         &format!("tree_{suffix}@example.invalid"),
@@ -874,7 +874,7 @@ WHERE id = $1
 async fn generation_task_lists_filter_access_before_cursor_and_limit() {
     let db = connect_generation_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
-    let owner = a4n_db::auth::create_user(
+    let owner = a4n_db::auth::create_user_summary(
         &db,
         &format!("list_owner_{suffix}"),
         &format!("list_owner_{suffix}@example.invalid"),
@@ -883,7 +883,7 @@ async fn generation_task_lists_filter_access_before_cursor_and_limit() {
     )
     .await
     .unwrap();
-    let member = a4n_db::auth::create_user(
+    let member = a4n_db::auth::create_user_summary(
         &db,
         &format!("list_member_{suffix}"),
         &format!("list_member_{suffix}@example.invalid"),
@@ -892,7 +892,7 @@ async fn generation_task_lists_filter_access_before_cursor_and_limit() {
     )
     .await
     .unwrap();
-    let outsider = a4n_db::auth::create_user(
+    let outsider = a4n_db::auth::create_user_summary(
         &db,
         &format!("list_outsider_{suffix}"),
         &format!("list_outsider_{suffix}@example.invalid"),

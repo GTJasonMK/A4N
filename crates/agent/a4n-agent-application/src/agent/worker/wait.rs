@@ -16,7 +16,7 @@ impl AgentApplication {
     ) -> Result<(), AppError> {
         validate_waiting_reason(reason)?;
         agent::wait_run_for_lease(
-            self.connection(),
+            self.executor(),
             claimed.run.id,
             &claimed.lease_token,
             reason,
@@ -40,7 +40,7 @@ impl AgentApplication {
         .await?;
         validate_waiting_reason(&request.reason)?;
         agent::wait_run_for_lease(
-            self.connection(),
+            self.executor(),
             request.run_id,
             &request.lease.fence_token,
             &request.reason,

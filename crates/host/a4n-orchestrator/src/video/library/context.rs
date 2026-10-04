@@ -62,21 +62,21 @@ impl OrchestratorContext {
                     return Ok::<Vec<GeneratedImageRecord>, AppError>(Vec::new());
                 }
                 a4n_db::video::read_models::video_library_explicit_image_records(
-                    self.database.connection(),
+                    self.database.executor(),
                     &allowed_project_ids,
                     &explicit_reference_ids,
                 )
                 .await
-                .map_err(AppError::Database)
+                .map_err(AppError::from)
             },
             async {
                 a4n_db::video::read_models::video_library_chapter_image_records(
-                    self.database.connection(),
+                    self.database.executor(),
                     &allowed_project_ids,
                     chapter_id,
                 )
                 .await
-                .map_err(AppError::Database)
+                .map_err(AppError::from)
             },
             self.relevant_profile_material_candidates(
                 &allowed_project_ids,
@@ -174,12 +174,10 @@ impl OrchestratorContext {
     ) -> Result<Vec<VideoAssetCandidate>, AppError> {
         let mut relevant_profiles = Vec::new();
         let source_text = source_relevance_text(source);
-        let read_model = a4n_db::video::video_profile_material_read_model(
-            self.database.connection(),
-            project_ids,
-        )
-        .await
-        .map_err(AppError::Database)?;
+        let read_model =
+            a4n_db::video::video_profile_material_read_model(self.database.executor(), project_ids)
+                .await
+                .map_err(AppError::from)?;
 
         for scene in read_model.scenes {
             if let Some(relevance_rank) =

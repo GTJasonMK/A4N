@@ -2,11 +2,11 @@ use super::contracts::{MangaCharacterPortraitRefSummary, ProjectFamilyDbError};
 use super::project_family_access_row;
 use a4n_db_models::models::character::{character_portrait, protagonist_profile};
 use a4n_domain::project::ProjectKind;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use std::collections::HashMap;
 
 pub async fn manga_character_portrait_refs(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<Vec<MangaCharacterPortraitRefSummary>, ProjectFamilyDbError> {
     let profile_project_id = manga_profile_project_id(db, project_id).await?;
@@ -106,7 +106,7 @@ fn portrait_index(
 }
 
 async fn manga_profile_project_id(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<i64, ProjectFamilyDbError> {
     let project = project_family_access_row(db, project_id).await?;

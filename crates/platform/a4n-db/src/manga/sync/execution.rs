@@ -6,13 +6,11 @@ use crate::manga::records::mapping::manga_page_prompt_record_from_model;
 use a4n_db_models::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
 use a4n_domain::manga::{MangaPagePromptRecord, MangaPagePromptSyncDraft};
 use sea_orm::sea_query::{CaseStatement, Expr};
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, TransactionTrait,
-};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use std::collections::HashMap;
 
 pub async fn sync_manga_page_prompts_by_chapter(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_id: i64,
     drafts: Vec<MangaPagePromptSyncDraft>,
@@ -29,7 +27,7 @@ pub async fn sync_manga_page_prompts_by_chapter(
 
 /// Upserts one page without deleting pages that are still running.
 pub async fn upsert_manga_page_prompt(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_id: i64,
     draft: MangaPagePromptSyncDraft,
@@ -52,7 +50,7 @@ pub async fn upsert_manga_page_prompt(
 }
 
 async fn sync_manga_page_prompts_by_chapter_inner(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_id: i64,
     drafts: Vec<MangaPagePromptSyncDraft>,

@@ -2,10 +2,7 @@ use super::ProjectStatusReadError;
 use crate::project::validate_positive_i64;
 use a4n_db_models::models::chapter::chapter;
 use a4n_domain::project::ProjectStatusArtifacts;
-use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait, QueryFilter,
-    QuerySelect, Statement,
-};
+use sea_orm::{ColumnTrait, DbBackend, DbErr, EntityTrait, QueryFilter, QuerySelect, Statement};
 
 const STATUS_ARTIFACT_FLAGS_SQL: &str = r#"
 SELECT
@@ -15,7 +12,7 @@ SELECT
 "#;
 
 pub async fn project_status_artifacts(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<ProjectStatusArtifacts, ProjectStatusReadError> {
     validate_positive_i64(project_id, "project_id")

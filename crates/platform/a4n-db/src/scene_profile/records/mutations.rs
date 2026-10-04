@@ -1,6 +1,5 @@
 use a4n_domain::profile_ownership::PROFILE_OWNERSHIP_USER;
 use a4n_domain::scene_profile::{SceneProfileRecord, SceneProfileRecordInput};
-use sea_orm::DatabaseConnection;
 
 use super::{
     read::{
@@ -12,7 +11,7 @@ use super::{
 use crate::scene_profile::{SceneProfileDbError, SceneProfileDbResult};
 
 pub async fn create_scene_profile_record_checked(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     input: SceneProfileRecordInput,
 ) -> SceneProfileDbResult<SceneProfileRecord> {
@@ -32,7 +31,7 @@ pub async fn create_scene_profile_record_checked(
 }
 
 pub async fn update_scene_profile_record_checked(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     scene_profile_id: i64,
     input: SceneProfileRecordInput,
 ) -> SceneProfileDbResult<SceneProfileRecord> {

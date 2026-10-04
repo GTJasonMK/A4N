@@ -61,7 +61,7 @@ impl OrchestratorContext {
         self.require_image_project_editor(user_id, input.project_id)
             .await?;
         if !a4n_db::project::project_source_snapshot_allowed(
-            self.database.connection(),
+            self.database.executor(),
             input.project_id,
             input.source_snapshot_id,
         )

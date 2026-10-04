@@ -21,7 +21,7 @@ const DEFAULT_LLM_STREAM_ERROR: &str = "测试 OrchestratorContext 未配置 LLM
 const DEFAULT_EMBEDDING_ERROR: &str = "测试 OrchestratorContext 未配置 embedding 响应";
 
 pub(crate) async fn create_test_user(db: &DatabaseConnection) -> i64 {
-    a4n_db::auth::create_user(
+    a4n_db::auth::create_user_summary(
         db,
         "orchestrator-test-user",
         "orchestrator-test-user@example.invalid",

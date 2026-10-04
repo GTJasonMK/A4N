@@ -2,11 +2,22 @@ use super::*;
 
 use super::rules::hash_refresh_token;
 use super::users::active_user;
+use a4n_domain::auth::UserSessionRecord;
 
 const SESSION_EXP_DAYS: i64 = 30;
 
+pub(super) fn session_record(session: user_session::Model) -> UserSessionRecord {
+    UserSessionRecord {
+        id: session.id,
+        user_agent: session.user_agent,
+        created_at: session.created_at,
+        expires_at: session.expires_at,
+        last_used_at: session.last_used_at,
+    }
+}
+
 pub async fn create_session(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
     refresh_token: &str,
     user_agent: Option<&str>,
@@ -26,11 +37,11 @@ pub async fn create_session(
     }
     .insert(db)
     .await
-    .map_err(AppError::Database)
+    .map_err(AppError::from)
 }
 
 pub async fn verify_session_refresh_token(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
     session_id: &str,
     refresh_token: &str,
@@ -43,7 +54,7 @@ pub async fn verify_session_refresh_token(
 }
 
 pub async fn verify_active_session(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
     session_id: &str,
 ) -> Result<user_session::Model, AppError> {
@@ -55,14 +66,14 @@ pub async fn verify_active_session(
         user::Entity::find_by_id(user_id).one(db),
     );
     let session = session_result
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .ok_or_else(|| AppError::Unauthorized("会话不存在或已失效".into()))?;
 
     if session.is_revoked || session.expires_at <= now {
         return Err(AppError::Unauthorized("会话已过期或已撤销".into()));
     }
     let user = user_result
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .ok_or_else(|| AppError::Unauthorized("会话不存在或已失效".into()))?;
     if !user.is_active {
         return Err(AppError::Unauthorized("账户已被禁用".into()));
@@ -71,7 +82,7 @@ pub async fn verify_active_session(
 }
 
 pub async fn rotate_session_refresh_token(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     session: user_session::Model,
     old_refresh_token: &str,
     new_refresh_token: &str,
@@ -95,7 +106,7 @@ pub async fn rotate_session_refresh_token(
         .filter(user_session::Column::RefreshTokenHash.eq(hash_refresh_token(old_refresh_token)))
         .exec(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
     if updated.rows_affected != 1 {
         return Err(AppError::Unauthorized(
             "刷新令牌已被轮换或会话已失效".into(),
@@ -104,12 +115,12 @@ pub async fn rotate_session_refresh_token(
     user_session::Entity::find_by_id(session_id)
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .ok_or_else(|| AppError::Unauthorized("会话不存在或已失效".into()))
 }
 
 pub async fn list_sessions(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
 ) -> Result<Vec<user_session::Model>, AppError> {
     active_user(db, user_id).await?;
@@ -121,11 +132,11 @@ pub async fn list_sessions(
         .order_by_desc(user_session::Column::LastUsedAt)
         .all(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
 }
 
 pub async fn revoke_session(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
     session_id: &str,
 ) -> Result<(), AppError> {
@@ -133,11 +144,11 @@ pub async fn revoke_session(
         .filter(user_session::Column::UserId.eq(user_id))
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .ok_or_else(|| AppError::NotFound("会话不存在".into()))?;
     let mut active: user_session::ActiveModel = session.into();
     active.is_revoked = Set(true);
     active.revoked_at = Set(Some(Utc::now().naive_utc()));
-    active.update(db).await.map_err(AppError::Database)?;
+    active.update(db).await.map_err(AppError::from)?;
     Ok(())
 }

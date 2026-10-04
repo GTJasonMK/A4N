@@ -7,10 +7,6 @@ license.workspace = true
 [dependencies]
 a4n-api-contract = { workspace = true }
 a4n-db = { workspace = true }
-a4n-db-models = { workspace = true }
 a4n-domain = { workspace = true }
 a4n-error = { workspace = true }
 async-trait = { workspace = true }
-
-[dev-dependencies]
-serde_json = { workspace = true }

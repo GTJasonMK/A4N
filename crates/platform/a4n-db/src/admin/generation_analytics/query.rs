@@ -128,7 +128,7 @@ impl From<GenerationRunAnalyticsRow> for generation_run::Model {
 }
 
 pub async fn generation_call_analytics(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: GenerationCallAnalyticsInput,
 ) -> Result<GenerationCallAnalytics, AdminDbError> {
     let (days, recent_limit) = validate_generation_call_analytics_input(input)?;

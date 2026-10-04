@@ -1,9 +1,7 @@
-use a4n_domain::project::{ProjectMediaFileCopier, ProjectRecord};
-use chrono::Utc;
-use sea_orm::{DatabaseConnection, TransactionTrait};
-
 use super::ProjectDuplicateError;
 use crate::project::{project_record_from_model, project_record_into_model};
+use a4n_domain::project::{ProjectMediaFileCopier, ProjectRecord};
+use chrono::Utc;
 
 mod assembly;
 mod generation;
@@ -14,7 +12,7 @@ pub(super) use generation::{
 };
 
 pub async fn duplicate_derived_project_record<Copier>(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     original: ProjectRecord,
     user_id: i64,
     new_title: &str,

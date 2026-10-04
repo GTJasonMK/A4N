@@ -2,7 +2,7 @@ use super::*;
 use a4n_domain::generation::PromptArtifactRecord;
 
 pub async fn mark_galgame_generation_spec_status_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     generation_spec_id: i64,
     status: &str,
 ) -> Result<(), GalgameGenerationRecordError> {
@@ -20,7 +20,7 @@ pub async fn mark_galgame_generation_spec_status_record(
 }
 
 pub async fn galgame_prompt_artifact_by_generation_spec(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     generation_spec_id: i64,
 ) -> Result<Option<PromptArtifactRecord>, GalgameGenerationRecordError> {
     validate_galgame_generation_id(generation_spec_id, "generation_spec_id")?;
@@ -31,7 +31,7 @@ pub async fn galgame_prompt_artifact_by_generation_spec(
 }
 
 async fn galgame_prompt_artifact_model_by_generation_spec(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     generation_spec_id: i64,
 ) -> Result<Option<prompt_artifact::Model>, sea_orm::DbErr> {
     prompt_artifact::Entity::find()
@@ -42,7 +42,7 @@ async fn galgame_prompt_artifact_model_by_generation_spec(
 }
 
 pub async fn upsert_galgame_prompt_artifact_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: GalgamePromptArtifactUpsertInput,
 ) -> Result<PromptArtifactRecord, GalgameGenerationRecordError> {
     validate_galgame_generation_id(input.generation_spec_id, "generation_spec_id")?;

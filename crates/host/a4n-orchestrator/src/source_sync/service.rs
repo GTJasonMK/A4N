@@ -56,7 +56,7 @@ impl OrchestratorContext {
     ) -> Result<SourceSyncPlanRecord, AppError> {
         if decisions.is_empty() {
             return a4n_db::source_sync::apply_unconflicted_source_sync_records_transaction(
-                self.database.connection(),
+                self.database.executor(),
                 sync_run_id,
             )
             .await
@@ -64,7 +64,7 @@ impl OrchestratorContext {
         }
         let prepared_context = if source_sync_decisions_require_galgame_preparation(&decisions) {
             let run = a4n_db::source_sync::load_source_sync_apply_run_domain_record(
-                self.database.connection(),
+                self.database.executor(),
                 sync_run_id,
             )
             .await
@@ -75,7 +75,7 @@ impl OrchestratorContext {
         };
         let prepared_decisions = prepared_source_sync_decisions(&decisions, &prepared_context)?;
         a4n_db::source_sync::apply_prepared_source_sync_decisions_records_transaction(
-            self.database.connection(),
+            self.database.executor(),
             sync_run_id,
             prepared_decisions,
         )

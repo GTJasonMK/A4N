@@ -1,12 +1,11 @@
 use super::super::{VideoDbError, validate_positive_video_ids};
 use a4n_db_models::models::ai::generated_image;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect,
+    ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
 };
 
 pub async fn generated_images_by_ids(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     image_ids: &[i64],
 ) -> Result<Vec<generated_image::Model>, VideoDbError> {
     validate_positive_video_ids(image_ids, "image_ids")?;

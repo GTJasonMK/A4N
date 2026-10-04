@@ -1,14 +1,12 @@
 use a4n_db_models::models::chapter::chapter::{self, STATUS_DRAFT};
 use chrono::Utc;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, QuerySelect, Set,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set};
 
 use super::{ChapterContentEditError, assign_chapter_content};
 use a4n_domain::chapter::{EditChapterContentInput, chapter_edit_revision};
 
 pub async fn save_chapter_content_edit_record(
-    db: &DatabaseTransaction,
+    db: &impl crate::DbTransactionExecutor,
     input: EditChapterContentInput,
 ) -> Result<chapter::Model, ChapterContentEditError> {
     if input.content.trim().is_empty() {

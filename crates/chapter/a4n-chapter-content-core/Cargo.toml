@@ -12,7 +12,6 @@ a4n-domain = { workspace = true }
 a4n-error = { workspace = true, features = ["database"], default-features = true }
 
 serde_json = { workspace = true }
-sea-orm = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]

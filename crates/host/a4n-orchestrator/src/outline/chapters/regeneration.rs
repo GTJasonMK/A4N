@@ -51,7 +51,7 @@ impl OrchestratorContext {
         let part_id =
             requested_part_for_chapter(&context.parts, chapter_number)?.map(|part| part.id);
         let updated = with_locked_outline_generation_sources(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             &context.source_snapshot,
             |tx| {

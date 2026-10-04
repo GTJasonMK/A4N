@@ -1,8 +1,9 @@
 use super::*;
 use a4n_db_models::models::generation::generation_task_checkpoint;
+use sea_orm::ConnectionTrait;
 use sea_orm::{DatabaseBackend, Statement};
 
-pub async fn generation_owner<C: ConnectionTrait>(
+async fn generation_owner_model<C: ConnectionTrait>(
     db: &C,
     task_id: &str,
     attempt: u32,
@@ -49,10 +50,20 @@ pub async fn generation_owner<C: ConnectionTrait>(
     Ok(rows.into_iter().next())
 }
 
+pub async fn generation_owner<C: ConnectionTrait>(
+    db: &C,
+    task_id: &str,
+    attempt: u32,
+) -> Result<Option<AgentRunRecord>, AgentDbError> {
+    generation_owner_model(db, task_id, attempt)
+        .await
+        .map(|owner| owner.map(AgentRunRecord::from))
+}
+
 pub async fn active_owned_generation_tasks(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     after_task_id: &str,
-) -> Result<Vec<generation_task_checkpoint::Model>, AgentDbError> {
+) -> Result<Vec<AgentOwnedGenerationTaskRecord>, AgentDbError> {
     // `generation_task_checkpoint` contains json columns, so DISTINCT cannot
     // be applied to its full row on PostgreSQL. EXISTS keeps the owner
     // predicate while avoiding duplicate rows from the association joins.
@@ -60,7 +71,7 @@ pub async fn active_owned_generation_tasks(
         .from_raw_sql(Statement::from_sql_and_values(
             DatabaseBackend::Postgres,
             r#"
-            SELECT g.*
+            SELECT g.task_id, g.attempt, g.requested_by_user_id, g.status
             FROM generation_task_checkpoint g
             WHERE g.completed_at IS NULL
               AND g.task_id > $1
@@ -77,6 +88,7 @@ pub async fn active_owned_generation_tasks(
             "#,
             [after_task_id.into()],
         ))
+        .into_model::<AgentOwnedGenerationTaskRecord>()
         .all(db)
         .await
         .map_err(AgentDbError::from)
@@ -111,8 +123,10 @@ impl AgentOwnedTask {
 
     async fn owner<C: ConnectionTrait>(&self, db: &C) -> Result<Option<run::Model>, AgentDbError> {
         match self {
-            Self::Generation { task_id, attempt } => generation_owner(db, task_id, *attempt).await,
-            Self::Workflow(id) => workflow::workflow_owner(db, *id).await,
+            Self::Generation { task_id, attempt } => {
+                generation_owner_model(db, task_id, *attempt).await
+            }
+            Self::Workflow(id) => workflow::workflow_owner_model(db, *id).await,
         }
     }
 
@@ -138,9 +152,9 @@ pub struct AgentTaskExecutionInput {
 /// Generation owns its execution permit while the Agent Run releases its
 /// lease. Fence inner work to the durable association and active Run state.
 pub async fn create_task_execution(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: AgentTaskExecutionInput,
-) -> Result<Option<execution::Model>, AgentDbError> {
+) -> Result<Option<AgentExecutionRecord>, AgentDbError> {
     let tx = db.begin().await?;
     let Some(owner) = input.task.owner(&tx).await? else {
         tx.commit().await?;
@@ -199,11 +213,11 @@ pub async fn create_task_execution(
         consume_observed_user_inbox_on(&tx, &owner, message_id).await?;
     }
     tx.commit().await?;
-    Ok(Some(row))
+    Ok(Some(row.into()))
 }
 
 pub async fn update_task_execution(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     task: &AgentOwnedTask,
     execution_id: i64,
     result: Option<Value>,
@@ -284,7 +298,7 @@ pub(super) async fn ensure_owner_active<C: ConnectionTrait>(
     db: &C,
     owner: &run::Model,
 ) -> Result<(), AgentDbError> {
-    if generation_owner_stopped(db, owner).await? {
+    if generation_owner_stopped_model(db, owner).await? {
         return Err(AgentDbError::Conflict(
             "Agent 或祖先 Run 已停止，不能继续生成".into(),
         ));
@@ -293,6 +307,17 @@ pub(super) async fn ensure_owner_active<C: ConnectionTrait>(
 }
 
 pub async fn generation_owner_stopped<C: ConnectionTrait>(
+    db: &C,
+    owner: &AgentRunRecord,
+) -> Result<bool, AgentDbError> {
+    let owner_model = run::Entity::find_by_id(owner.id)
+        .one(db)
+        .await?
+        .ok_or_else(|| AgentDbError::NotFound(format!("Agent run 不存在: {}", owner.id)))?;
+    generation_owner_stopped_model(db, &owner_model).await
+}
+
+async fn generation_owner_stopped_model<C: ConnectionTrait>(
     db: &C,
     owner: &run::Model,
 ) -> Result<bool, AgentDbError> {

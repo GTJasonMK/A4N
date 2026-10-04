@@ -3,10 +3,10 @@ use crate::collaboration::types::{INVITE_STATUS_EXPIRED, INVITE_STATUS_PENDING};
 use a4n_db_models::models::project::project_invite;
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 pub(in crate::collaboration) async fn expire_project_invites(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<(), CollaborationDbError> {
     project_invite::Entity::update_many()
@@ -28,7 +28,7 @@ pub(in crate::collaboration) async fn expire_project_invites(
 }
 
 pub(in crate::collaboration) async fn update_pending_invite_status(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     invite_id: i64,
     status: &str,
 ) -> Result<(), CollaborationDbError> {

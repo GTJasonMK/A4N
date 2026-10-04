@@ -19,7 +19,7 @@ where
         .order_by_asc(chapter::Column::ChapterNumber)
         .all(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
     Ok(chapters
         .into_iter()
         .map(|chapter| AssetLineageRecord {

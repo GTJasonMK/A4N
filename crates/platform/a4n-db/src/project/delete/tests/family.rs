@@ -81,7 +81,7 @@ async fn deleting_root_removes_historical_snapshots_after_derived_projects_are_g
 }
 
 async fn insert_setting(
-    db: &sea_orm::DatabaseConnection,
+    db: &impl crate::DbExecutor,
     key: String,
     category: &str,
 ) -> system_settings::Model {
@@ -98,7 +98,7 @@ async fn insert_setting(
     .unwrap()
 }
 
-async fn setting_keys(db: &sea_orm::DatabaseConnection) -> Vec<String> {
+async fn setting_keys(db: &impl crate::DbExecutor) -> Vec<String> {
     system_settings::Entity::find()
         .order_by_asc(system_settings::Column::Key)
         .all(db)

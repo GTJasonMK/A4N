@@ -54,7 +54,7 @@ impl ProjectDuplicationApplication {
         new_title: &str,
     ) -> Result<ProjectRecord, AppError> {
         a4n_db::project::duplicate_text_project_record(
-            self.database.connection(),
+            self.database.executor(),
             original,
             user_id,
             new_title,
@@ -74,7 +74,7 @@ impl ProjectDuplicationApplication {
         Copier: ProjectMediaFileCopier,
     {
         a4n_db::project::duplicate_derived_project_record(
-            self.database.connection(),
+            self.database.executor(),
             original,
             user_id,
             new_title,
@@ -95,7 +95,7 @@ impl ProjectDuplicationApplication {
         Copier: ProjectMediaFileCopier,
     {
         a4n_db::project::duplicate_freeform_project_record(
-            self.database.connection(),
+            self.database.executor(),
             original,
             user_id,
             new_title,
@@ -112,7 +112,7 @@ impl ProjectDuplicationApplication {
         new_title: &str,
     ) -> Result<ProjectRecord, AppError> {
         a4n_db::project::duplicate_standalone_comic_project_record(
-            self.database.connection(),
+            self.database.executor(),
             original,
             user_id,
             new_title,

@@ -19,7 +19,7 @@ impl crate::OrchestratorContext {
         documents: &[AuthoringDocumentView],
     ) -> Result<Vec<MediaAuthoringArtifactView>, AppError> {
         let sources = a4n_db::media_authoring::authoring_artifact_sources(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             target,
             chapter_id,

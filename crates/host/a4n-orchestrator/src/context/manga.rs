@@ -28,7 +28,7 @@ impl MangaApplication {
         chapter_id: i64,
     ) -> Result<u64, AppError> {
         a4n_db::manga::delete_manga_prompts_by_chapter(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             chapter_id,
         )
@@ -37,7 +37,7 @@ impl MangaApplication {
     }
 
     async fn delete_manga_prompt_record(&self, prompt_id: i64) -> Result<(), AppError> {
-        a4n_db::manga::delete_manga_prompt_record(self.database.connection(), prompt_id)
+        a4n_db::manga::delete_manga_prompt_record(self.database.executor(), prompt_id)
             .await
             .map_err(manga_prompt_record_error)
     }
@@ -49,7 +49,7 @@ impl MangaApplication {
         page_number: i32,
     ) -> Result<Option<MangaPagePromptRecord>, AppError> {
         a4n_db::manga::manga_page_prompt_for_image_generation(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             chapter_id,
             page_number,
@@ -65,7 +65,7 @@ impl MangaApplication {
         updated_at: MangaPromptUpdatedAt,
     ) -> Result<(), AppError> {
         a4n_db::manga::mark_manga_page_prompt_image_completed_with_image(
-            self.database.connection(),
+            self.database.executor(),
             page_prompt_id,
             image_id,
             updated_at,
@@ -78,7 +78,7 @@ impl MangaApplication {
         &self,
         prompt_id: i64,
     ) -> Result<Option<MangaPagePromptRecord>, AppError> {
-        a4n_db::manga::manga_page_prompt_by_id(self.database.connection(), prompt_id)
+        a4n_db::manga::manga_page_prompt_by_id(self.database.executor(), prompt_id)
             .await
             .map_err(manga_prompt_record_error)
     }
@@ -89,7 +89,7 @@ impl MangaApplication {
         chapter_id: i64,
     ) -> Result<Vec<MangaPagePromptRecord>, AppError> {
         a4n_db::manga::manga_page_prompts_by_chapter(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             chapter_id,
         )
@@ -103,7 +103,7 @@ impl MangaApplication {
         layout: Value,
     ) -> Result<MangaPagePromptRecord, AppError> {
         a4n_db::manga::update_manga_page_prompt_layout(
-            self.database.connection(),
+            self.database.executor(),
             page_prompt,
             layout,
         )
@@ -117,7 +117,7 @@ impl MangaApplication {
         image_prompt: String,
     ) -> Result<MangaPagePromptRecord, AppError> {
         a4n_db::manga::update_manga_page_prompt_image_prompt(
-            self.database.connection(),
+            self.database.executor(),
             page_prompt,
             image_prompt,
         )
@@ -132,7 +132,7 @@ impl MangaApplication {
         asset_id: i64,
     ) -> Result<MangaBoundReferenceAsset, AppError> {
         a4n_db::manga::manga_reference_bound_asset(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             asset_kind,
             asset_id,

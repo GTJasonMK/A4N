@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use a4n_db_models::models::project::project_member;
 use a4n_domain::auth::ROLE_READ_ONLY;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 
 use super::super::{
     CollaborationDbError, ProjectAccessRole, effective_role_for_root, find_user,
@@ -12,7 +12,7 @@ use super::super::{
 use super::roots::resolve_root_project;
 
 pub async fn verify_project_permission(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     user_id: i64,
     required: ProjectAccessRole,
@@ -33,7 +33,7 @@ pub async fn verify_project_permission(
 }
 
 pub async fn verify_project_permissions(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_ids: &[i64],
     user_id: i64,
     required: ProjectAccessRole,
@@ -140,7 +140,7 @@ pub async fn verify_project_permissions(
 /// 与 `verify_project_permissions` 不同，缺失或无权项目会被过滤，供列表查询保留
 /// 原有的“逐条不可见”语义；数据库和项目身份错误仍然向上返回。
 pub async fn project_ids_with_permission(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_ids: &[i64],
     user_id: i64,
     required: ProjectAccessRole,

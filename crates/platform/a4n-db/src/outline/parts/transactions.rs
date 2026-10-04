@@ -1,10 +1,8 @@
 use a4n_db_models::models::chapter::part_outline;
 use a4n_domain::chapter::PartOutlineRecord;
 use chrono::NaiveDateTime;
-use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    TransactionTrait,
-};
+use sea_orm::ConnectionTrait;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 
 use super::super::chapters::sync_chapter_outline_part_assignments;
 use super::super::record_mapping::part_outline_model_from_record;
@@ -33,7 +31,7 @@ where
 
 /// 原子更新单个分部，并按当前全部分部重新绑定现有章纲。
 pub async fn update_part_outline_and_rebind_chapters_transaction(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     existing: PartOutlineRecord,
     draft: PartOutlineSyncDraft,

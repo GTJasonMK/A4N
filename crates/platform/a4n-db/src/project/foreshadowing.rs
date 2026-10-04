@@ -7,8 +7,9 @@ pub use contracts::{
 
 mod records;
 pub use records::{
-    create_foreshadowing_record, delete_foreshadowing_record, foreshadowing_records_by_project,
-    update_foreshadowing_record,
+    create_foreshadowing_read_record, create_foreshadowing_record, delete_foreshadowing_record,
+    foreshadowing_index_records_by_project, foreshadowing_records_by_project,
+    update_foreshadowing_read_record, update_foreshadowing_record,
 };
 
 mod sync;

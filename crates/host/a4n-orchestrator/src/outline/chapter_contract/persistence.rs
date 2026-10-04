@@ -90,7 +90,7 @@ pub(in crate::outline) fn outline_db_error(error: OutlineDbError) -> AppError {
         OutlineDbError::InvalidState { current, operation } => {
             AppError::InvalidState { current, operation }
         }
-        OutlineDbError::Database(err) => AppError::Database(err),
+        OutlineDbError::Database(err) => AppError::database(err),
         OutlineDbError::Generation(err) => crate::generation::generation_error(err),
     }
 }

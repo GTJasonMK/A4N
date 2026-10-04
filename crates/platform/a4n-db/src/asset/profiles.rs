@@ -4,7 +4,8 @@ mod record;
 mod upsert;
 
 pub use mutations::{
-    create_object_profile_record, delete_object_profile_record, update_object_profile_record,
+    create_object_profile_read_record, create_object_profile_record, delete_object_profile_record,
+    update_object_profile_read_record, update_object_profile_record,
 };
 pub(in crate::asset) use read::ensure_object_profile_project_exists;
 pub(crate) use read::object_profile_record;

@@ -11,13 +11,11 @@ use a4n_db_models::models::{
     project::{source_snapshot_chapter, text_anchor},
 };
 use a4n_domain::galgame::GalgameLineRecord;
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
-};
+use sea_orm::{ColumnTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use std::collections::HashSet;
 
 pub async fn galgame_asset_planning_read_model(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<Option<GalgameAssetPlanningReadModel>, DbErr> {
     let Some((scenes, line_models)) = galgame_script_scene_lines(db, project_id).await? else {
@@ -51,7 +49,7 @@ pub async fn galgame_asset_planning_read_model(
 }
 
 pub async fn galgame_script_detail_read_model(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<Option<GalgameScriptDetailReadModel>, DbErr> {
     let Some((script, scenes, lines)) = galgame_script_detail_scene_lines(db, project_id).await?
@@ -140,7 +138,7 @@ pub async fn galgame_script_detail_read_model(
 }
 
 async fn galgame_script_detail_scene_lines(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<
     Option<(
@@ -195,7 +193,7 @@ async fn galgame_script_detail_scene_lines(
 }
 
 async fn galgame_script_scene_lines(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<
     Option<(

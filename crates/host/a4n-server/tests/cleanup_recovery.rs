@@ -238,7 +238,7 @@ impl FakeOpenAiImageProvider {
 async fn server_startup_restores_rejected_project_delete_gate() {
     let (db, database_url) = isolated_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
-    let owner = a4n_db::auth::create_user(
+    let owner = a4n_db::auth::create_user_summary(
         &db,
         &format!("delete_recovery_{suffix}"),
         &format!("delete_recovery_{suffix}@example.invalid"),
@@ -338,7 +338,7 @@ async fn server_startup_restores_rejected_project_delete_gate() {
 async fn server_process_recovers_only_registered_or_expired_cleanup() {
     let (db, database_url) = isolated_test_database().await;
 
-    let user = a4n_db::auth::create_user(
+    let user = a4n_db::auth::create_user_summary(
         &db,
         "cleanup_process_admin",
         "cleanup-process-admin@example.invalid",
@@ -494,7 +494,7 @@ async fn server_process_recovers_only_registered_or_expired_cleanup() {
 #[tokio::test]
 async fn server_process_keeps_referenced_file_artifact_during_cleanup() {
     let (db, database_url) = isolated_test_database().await;
-    let user = a4n_db::auth::create_user(
+    let user = a4n_db::auth::create_user_summary(
         &db,
         "cleanup_reference_admin",
         "cleanup-reference-admin@example.invalid",
@@ -1359,7 +1359,7 @@ async fn server_destructive_drain_releases_database_locks_before_waiting() {
     let (db, database_url) = isolated_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
     let username = format!("destructive_lock_owner_{suffix}");
-    let owner = a4n_db::auth::create_user(
+    let owner = a4n_db::auth::create_user_summary(
         &db,
         &username,
         &format!("{username}@example.invalid"),
@@ -1536,7 +1536,7 @@ ORDER BY relation.relname, held_lock.mode, held_lock.pid
 async fn server_process_recovers_snapshot_only_generation_subscription() {
     let (db, database_url) = isolated_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
-    let owner = a4n_db::auth::create_user(
+    let owner = a4n_db::auth::create_user_summary(
         &db,
         &format!("generation_process_owner_{suffix}"),
         &format!("generation_process_owner_{suffix}@example.invalid"),
@@ -1545,7 +1545,7 @@ async fn server_process_recovers_snapshot_only_generation_subscription() {
     )
     .await
     .unwrap();
-    a4n_db::auth::create_user(
+    a4n_db::auth::create_user_summary(
         &db,
         &format!("generation_process_outsider_{suffix}"),
         &format!("generation_process_outsider_{suffix}@example.invalid"),
@@ -2146,7 +2146,7 @@ async fn server_process_streams_chapter_generation_failure_terminal() {
     let (db, database_url) = isolated_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
     let username = format!("chapter_generation_owner_{suffix}");
-    let owner = a4n_db::auth::create_user(
+    let owner = a4n_db::auth::create_user_summary(
         &db,
         &username,
         &format!("{username}@example.invalid"),
@@ -2376,7 +2376,7 @@ async fn server_process_streams_outline_generation_failure_terminal() {
     let (db, database_url) = isolated_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
     let username = format!("outline_generation_owner_{suffix}");
-    let owner = a4n_db::auth::create_user(
+    let owner = a4n_db::auth::create_user_summary(
         &db,
         &username,
         &format!("{username}@example.invalid"),
@@ -2636,7 +2636,7 @@ async fn server_process_reconnects_inspiration_sse_ten_times_without_losing_one_
     let (db, database_url) = isolated_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
     let username = format!("inspiration_generation_success_owner_{suffix}");
-    let owner = a4n_db::auth::create_user(
+    let owner = a4n_db::auth::create_user_summary(
         &db,
         &username,
         &format!("{username}@example.invalid"),
@@ -2891,7 +2891,7 @@ async fn server_process_streams_image_generation_success_terminal() {
     let (db, database_url) = isolated_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
     let username = format!("image_generation_success_owner_{suffix}");
-    let owner = a4n_db::auth::create_user(
+    let owner = a4n_db::auth::create_user_summary(
         &db,
         &username,
         &format!("{username}@example.invalid"),
@@ -3084,7 +3084,7 @@ async fn server_process_streams_inspiration_generation_failure_terminal() {
     let (db, database_url) = isolated_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
     let username = format!("inspiration_generation_owner_{suffix}");
-    let owner = a4n_db::auth::create_user(
+    let owner = a4n_db::auth::create_user_summary(
         &db,
         &username,
         &format!("{username}@example.invalid"),
@@ -3238,7 +3238,7 @@ async fn server_process_streams_optimize_chat_generation_failure_terminal() {
     let (db, database_url) = isolated_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
     let username = format!("optimize_chat_generation_owner_{suffix}");
-    let owner = a4n_db::auth::create_user(
+    let owner = a4n_db::auth::create_user_summary(
         &db,
         &username,
         &format!("{username}@example.invalid"),

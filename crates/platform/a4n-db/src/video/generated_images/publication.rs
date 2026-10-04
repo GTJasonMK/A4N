@@ -679,6 +679,25 @@ where
     Ok(publications)
 }
 
+pub async fn image_publication_recovery_records_for_model<C>(
+    db: &C,
+    limit: usize,
+    published_after: Option<&str>,
+    model: Option<&str>,
+) -> Result<Vec<ImagePublicationRecord>, VideoDbError>
+where
+    C: ConnectionTrait,
+{
+    image_publications_for_recovery_for_model(db, limit, published_after, model)
+        .await
+        .map(|publications| {
+            publications
+                .into_iter()
+                .map(image_publication_record_from_model)
+                .collect()
+        })
+}
+
 pub async fn mark_image_publication_reclaiming<C>(
     db: &C,
     publication_id: &str,

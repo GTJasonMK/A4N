@@ -2,10 +2,10 @@ use super::contracts::ProjectChapterContextError;
 use a4n_db_models::models::{chapter::chapter, project::novel_project};
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 pub async fn refresh_project_current_chapter(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<(), ProjectChapterContextError> {
     let max_chapter = chapter::Entity::find()

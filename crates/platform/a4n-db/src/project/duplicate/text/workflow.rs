@@ -1,7 +1,7 @@
 use a4n_db_models::models::project::novel_project;
 use a4n_domain::project::ProjectRecord;
 use chrono::{NaiveDateTime, Utc};
-use sea_orm::{ConnectionTrait, DatabaseConnection, TransactionTrait};
+use sea_orm::ConnectionTrait;
 
 use crate::project::{
     PROJECT_KIND_TEXT,
@@ -18,7 +18,7 @@ use crate::project::{
 };
 
 pub async fn duplicate_text_project_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     original: ProjectRecord,
     user_id: i64,
     new_title: &str,

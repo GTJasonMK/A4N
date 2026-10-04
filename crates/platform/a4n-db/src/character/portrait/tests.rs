@@ -22,7 +22,7 @@ fn empty_profile_attributes() -> Value {
 }
 
 async fn project_and_profile(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     title: &str,
 ) -> (novel_project::Model, protagonist_profile::Model) {
     let project = crate::project::create_canvas_project_record(
@@ -72,7 +72,7 @@ async fn missing_portrait_profiles_returns_only_profiles_without_portraits() {
     );
 }
 
-async fn primary_ids(db: &DatabaseConnection, profile_id: i64) -> Vec<i64> {
+async fn primary_ids(db: &impl crate::DbExecutor, profile_id: i64) -> Vec<i64> {
     character_portrait::Entity::find()
         .filter(character_portrait::Column::ProfileId.eq(profile_id))
         .filter(character_portrait::Column::IsPrimary.eq(true))

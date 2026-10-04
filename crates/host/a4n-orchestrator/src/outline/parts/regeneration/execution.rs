@@ -69,7 +69,7 @@ impl OrchestratorContext {
             .await?;
         let now = Utc::now().naive_utc();
         let updated = with_locked_outline_generation_sources(
-            self.database.connection(),
+            self.database.executor(),
             prepared.project_id,
             &prepared.context.source_snapshot,
             |tx| {

@@ -45,5 +45,7 @@ pub mod video;
 pub mod workflow;
 
 pub type DatabaseConnection = sea_orm::DatabaseConnection;
-pub use a4n_db_session::{DbHandle, DbTransaction, SharedDatabaseConnection};
+pub use a4n_db_session::{
+    DbExecutor, DbHandle, DbTransaction, DbTransactionExecutor, SharedDatabaseConnection,
+};
 pub use sea_orm::{ConnectionTrait, DbErr, TransactionTrait};

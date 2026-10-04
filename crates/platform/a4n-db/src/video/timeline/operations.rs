@@ -1,9 +1,10 @@
+use sea_orm::ConnectionTrait;
 /// 在同一事务中提交插入片段提示词和时间线项。
 ///
 /// 草稿阶段不会触碰 canonical 表；只有这里成功后，提示词、时间线顺序和
 /// `timeline_item_id` 才会一起可见。
 pub async fn commit_inserted_timeline_item(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: CommitInsertedTimelineItemInput,
 ) -> Result<(), VideoDbError> {
     let txn = db.begin().await.map_err(VideoDbError::Database)?;
@@ -119,7 +120,7 @@ pub async fn commit_inserted_timeline_item(
 
 /// 获取或创建章节时间线。创建时为空，原生项由调用方随后同步。
 pub async fn ensure_chapter_video_timeline(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_id: i64,
     workflow_mode: &str,
@@ -184,7 +185,7 @@ where
 
 /// 读取并验证活动位置顺序；软删除项保留身份记录，但没有位置。
 pub async fn chapter_video_timeline_snapshot(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     timeline_id: i64,
 ) -> Result<VideoTimelineSnapshot, VideoDbError> {
     if timeline_id <= 0 {
@@ -238,7 +239,7 @@ fn inserted_timeline_item_model_by_workflow_run(
 
 /// 按共享规划的稳定来源键同步 native 项。
 pub async fn reconcile_native_timeline(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     timeline_id: i64,
     keys: &[NativeVideoTimelineKey],
 ) -> Result<VideoTimelineSnapshot, VideoDbError> {
@@ -549,7 +550,7 @@ pub async fn reconcile_native_timeline(
 }
 
 pub async fn move_inserted_timeline_item_persisted(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     timeline_id: i64,
     expected_revision: i64,
     item_id: i64,
@@ -589,7 +590,7 @@ pub async fn move_inserted_timeline_item_persisted(
 }
 
 pub async fn delete_inserted_timeline_item(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     timeline_id: i64,
     expected_revision: i64,
     item_id: i64,

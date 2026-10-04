@@ -9,8 +9,7 @@ use a4n_db_models::models::{
 use a4n_domain::{project::ProjectSourceMode, source_text_hash};
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use serde_json::json;
 
@@ -43,7 +42,7 @@ struct TextSection {
 }
 
 pub async fn prepare_standalone_comic_source_chapter(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: PrepareStandaloneComicSourceDbInput,
 ) -> Result<a4n_domain::chapter::ChapterRecord, StandaloneComicSourceDbError> {
     for (name, value) in [

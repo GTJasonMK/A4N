@@ -142,7 +142,7 @@ impl OrchestratorContext {
             )?;
         }
         let outlines = with_locked_outline_generation_sources(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             &prepared.context.source_snapshot,
             |tx| {

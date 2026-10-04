@@ -1,10 +1,10 @@
 use a4n_db_models::models::chapter::chapter_shooting_script;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, TransactionTrait};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 use super::contracts::{DeleteStoredChapterShootingScriptInput, ShootingScriptDbError};
 
 pub async fn delete_chapter_shooting_script_and_invalidate(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: DeleteStoredChapterShootingScriptInput,
 ) -> Result<(), ShootingScriptDbError> {
     if input.record_id <= 0 || input.expected_revision <= 0 {

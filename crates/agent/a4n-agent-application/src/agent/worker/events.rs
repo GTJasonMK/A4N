@@ -14,7 +14,7 @@ impl AgentApplication {
         status: &str,
         public_text: impl Into<String>,
         payload_json: Option<Value>,
-    ) -> Result<event::Model, AppError> {
+    ) -> Result<agent::AgentEventRecord, AppError> {
         self.append_worker_update_fields(
             RunLeaseFields {
                 run_id: claimed.run.id,
@@ -37,9 +37,9 @@ impl AgentApplication {
         status: String,
         public_text: String,
         payload_json: Option<Value>,
-    ) -> Result<event::Model, AppError> {
+    ) -> Result<agent::AgentEventRecord, AppError> {
         agent::append_event_for_run_lease(
-            self.connection(),
+            self.executor(),
             fields.run_id,
             fields.lease_token,
             AgentEventInput {
@@ -73,7 +73,7 @@ impl AgentApplication {
             lease: request.lease.clone(),
         })
         .await?;
-        let run = agent::run_by_id(self.connection(), request.run_id)
+        let run = agent::run_by_id(self.executor(), request.run_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", request.run_id)))?;

@@ -1,3 +1,4 @@
+use sea_orm::ConnectionTrait;
 use std::collections::BTreeSet;
 
 use a4n_domain::{
@@ -6,7 +7,6 @@ use a4n_domain::{
     scene_profile::{SceneProfileEvidenceRecordInput, SceneSyncRecordInput, SceneSyncRecordResult},
     text_anchor::{TextAnchorEvidenceInput, TextAnchorProfileKind},
 };
-use sea_orm::{ConnectionTrait, DatabaseConnection, TransactionTrait};
 
 use super::super::{SceneProfileDbError, SceneProfileDbResult};
 use super::replacement::replace_chapter_scene_sync_records;
@@ -17,7 +17,7 @@ use crate::project::chapter_source_snapshot_targets;
 use crate::text_anchor::EVIDENCE_ROLE_FIRST_SEEN;
 
 pub async fn replace_chapter_scene_sync_with_generation_run_records(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_id: i64,
     chapter_number: i32,

@@ -41,7 +41,7 @@ fn checkpoint_artifacts_with_flag(
     Ok(Value::Object(artifacts))
 }
 
-async fn canvas_project(db: &DatabaseConnection, title: &str) -> novel_project::Model {
+async fn canvas_project(db: &impl crate::DbExecutor, title: &str) -> novel_project::Model {
     crate::project::create_canvas_project_record(
         db,
         1,
@@ -54,7 +54,7 @@ async fn canvas_project(db: &DatabaseConnection, title: &str) -> novel_project::
     .unwrap()
 }
 
-async fn video_test_chapter(db: &DatabaseConnection, project_id: i64) -> chapter::Model {
+async fn video_test_chapter(db: &impl crate::DbExecutor, project_id: i64) -> chapter::Model {
     let now = Utc::now().naive_utc();
     chapter::ActiveModel {
         project_id: Set(project_id),
@@ -77,7 +77,7 @@ async fn video_test_chapter(db: &DatabaseConnection, project_id: i64) -> chapter
 }
 
 async fn shared_segment_plan(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_id: i64,
     source_content_sha256: &str,

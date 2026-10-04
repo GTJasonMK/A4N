@@ -278,7 +278,7 @@ impl OrchestratorContext {
                 AppError::InvalidArgument("应用补丁后的章节正文字符数超出 i32 范围".to_string())
             })?;
             let (written, sync_run) =
-                run_in_transaction(self.database.connection(), "应用局部补丁", |tx| {
+                run_in_transaction(self.database.executor(), "应用局部补丁", |tx| {
                     Box::pin(async move {
                         let result = async {
                             let written =
@@ -360,13 +360,11 @@ impl OrchestratorContext {
         user_id: i64,
         patch_set_id: i64,
     ) -> Result<(), AppError> {
-        let patch_set = a4n_db::optimize::optimization_patch_set_by_id(
-            self.database.connection(),
-            patch_set_id,
-        )
-        .await
-        .map_err(crate::optimize::optimize_db_error)?
-        .ok_or_else(|| AppError::NotFound(format!("优化补丁集不存在: {patch_set_id}")))?;
+        let patch_set =
+            a4n_db::optimize::optimization_patch_set_by_id(self.database.executor(), patch_set_id)
+                .await
+                .map_err(crate::optimize::optimize_db_error)?
+                .ok_or_else(|| AppError::NotFound(format!("优化补丁集不存在: {patch_set_id}")))?;
         self.optimize_session_for_user(user_id, patch_set.session_id)
             .await?;
         self.discard_optimization_patch_set(patch_set.session_id, patch_set.id)
@@ -559,7 +557,7 @@ impl OptimizeAgentToolApplicationPort for OrchestratorContext {
         let permissions =
             crate::optimize::permissions::optimization_permissions_from_session(&session)?;
         let turn = if let Some(existing) = a4n_db::optimize::optimization_turn_by_agent_turn_id(
-            self.database.connection(),
+            self.database.executor(),
             agent_turn_id,
         )
         .await
@@ -571,7 +569,7 @@ impl OptimizeAgentToolApplicationPort for OrchestratorContext {
                 ));
             }
             if let Some(patch_set) = a4n_db::optimize::optimization_patch_set_by_turn_id(
-                self.database.connection(),
+                self.database.executor(),
                 existing.id,
             )
             .await
@@ -647,12 +645,10 @@ async fn persisted_article_patch_result(
     context: &OrchestratorContext,
     patch_set: OptimizationPatchSetRecord,
 ) -> Result<serde_json::Value, AppError> {
-    let rows = a4n_db::optimize::optimization_patch_set_patches(
-        context.database.connection(),
-        patch_set.id,
-    )
-    .await
-    .map_err(crate::optimize::optimize_db_error)?;
+    let rows =
+        a4n_db::optimize::optimization_patch_set_patches(context.database.executor(), patch_set.id)
+            .await
+            .map_err(crate::optimize::optimize_db_error)?;
     let patches = rows
         .into_iter()
         .map(|patch| {

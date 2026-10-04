@@ -285,7 +285,7 @@ pub(crate) fn blueprint_db_error(error: a4n_db::blueprint::BlueprintDbError) -> 
             AppError::InvalidArgument(message)
         }
         a4n_db::blueprint::BlueprintDbError::NotFound(message) => AppError::NotFound(message),
-        a4n_db::blueprint::BlueprintDbError::Database(error) => AppError::Database(error),
+        a4n_db::blueprint::BlueprintDbError::Database(error) => AppError::database(error),
     }
 }
 
@@ -294,13 +294,13 @@ fn blueprint_sync_error(error: a4n_db::project::BlueprintSyncError) -> AppError 
         a4n_db::project::BlueprintSyncError::InvalidArgument(message) => {
             AppError::InvalidArgument(message)
         }
-        a4n_db::project::BlueprintSyncError::Database(error) => AppError::Database(error),
+        a4n_db::project::BlueprintSyncError::Database(error) => AppError::database(error),
     }
 }
 
 fn character_profile_seed_error(error: a4n_db::character::CharacterProfileSeedError) -> AppError {
     match error {
-        a4n_db::character::CharacterProfileSeedError::Database(error) => AppError::Database(error),
+        a4n_db::character::CharacterProfileSeedError::Database(error) => AppError::database(error),
         a4n_db::character::CharacterProfileSeedError::Internal(message) => {
             AppError::Internal(anyhow::anyhow!(message))
         }

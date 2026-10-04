@@ -26,7 +26,7 @@ where
         .order_by_asc(media_asset::Column::Id)
         .all(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
     if assets.is_empty() {
         return Ok(Vec::new());
     }
@@ -34,7 +34,7 @@ where
         .filter(media_provenance::Column::MediaAssetId.is_in(assets.iter().map(|asset| asset.id)))
         .all(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
     let provenance_by_asset = provenances
         .iter()
         .map(|provenance| (provenance.media_asset_id, provenance))
@@ -50,7 +50,7 @@ where
             .filter(prompt_artifact::Column::Id.is_in(artifact_ids.iter().copied()))
             .all(db)
             .await
-            .map_err(AppError::Database)?
+            .map_err(AppError::from)?
     };
     let artifact_by_id = artifacts
         .iter()

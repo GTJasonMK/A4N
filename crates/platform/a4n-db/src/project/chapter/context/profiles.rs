@@ -11,14 +11,11 @@ use a4n_db_models::models::{
 };
 use a4n_domain::profile_ownership::PROFILE_OWNERSHIP_USER;
 use a4n_domain::source_text_hash;
-use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect,
-};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use std::collections::HashMap;
 
 pub async fn object_profiles_before_chapter(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_number: i32,
 ) -> Result<Vec<ChapterObjectProfileContext>, ProjectChapterContextError> {
@@ -61,7 +58,7 @@ pub async fn object_profiles_before_chapter(
 }
 
 pub async fn scene_profiles_before_chapter(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_number: i32,
 ) -> Result<Vec<ChapterSceneProfileContext>, ProjectChapterContextError> {
@@ -112,7 +109,7 @@ pub async fn scene_profiles_before_chapter(
 }
 
 async fn object_evidence_before_chapter(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_number: i32,
     profile_ids: &[i64],
@@ -193,7 +190,7 @@ async fn object_evidence_before_chapter(
 }
 
 pub async fn protagonist_profiles_for_project(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<Vec<a4n_domain::character::CharacterProfileRecord>, ProjectChapterContextError> {
     protagonist_profiles_for_project_in(db, project_id)
@@ -222,7 +219,7 @@ where
 }
 
 pub async fn character_states_for_profiles_before_chapter(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     profile_ids: &[i64],
     chapter_number: i32,
     limit: u64,

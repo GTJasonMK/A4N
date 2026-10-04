@@ -46,7 +46,7 @@ impl OrchestratorContext {
         proposal: &OptimizationPatchProposal,
     ) -> Result<Option<OptimizationPatchSetRecord>, AppError> {
         if let Some(existing) =
-            a4n_db::optimize::optimization_patch_set_by_turn_id(self.database.connection(), turn_id)
+            a4n_db::optimize::optimization_patch_set_by_turn_id(self.database.executor(), turn_id)
                 .await
                 .map_err(optimize_db_error)?
         {
@@ -57,7 +57,7 @@ impl OrchestratorContext {
         }
 
         a4n_db::optimize::create_optimization_patch_set(
-            self.database.connection(),
+            self.database.executor(),
             OptimizationPatchSetCreateInput {
                 turn_id,
                 session_id: proposal.session_id,

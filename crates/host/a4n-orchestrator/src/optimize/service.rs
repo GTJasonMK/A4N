@@ -9,6 +9,6 @@ pub fn optimize_db_error(error: OptimizeDbError) -> AppError {
         OptimizeDbError::InvalidState { current, operation } => {
             AppError::InvalidState { current, operation }
         }
-        OptimizeDbError::Database(error) => AppError::Database(error),
+        OptimizeDbError::Database(error) => AppError::database(error),
     }
 }

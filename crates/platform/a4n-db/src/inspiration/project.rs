@@ -1,10 +1,9 @@
 use super::contracts::InspirationDbError;
 use crate::project::{ProjectMutationError, project_summary_by_id_record};
 use a4n_domain::project::ProjectSummaryRecord;
-use sea_orm::DatabaseConnection;
 
 async fn inspiration_project_by_id(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<Option<ProjectSummaryRecord>, InspirationDbError> {
     project_summary_by_id_record(db, project_id)
@@ -23,7 +22,7 @@ fn inspiration_project_read_error(error: ProjectMutationError) -> InspirationDbE
 }
 
 pub(super) async fn ensure_inspiration_project_exists(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<ProjectSummaryRecord, InspirationDbError> {
     inspiration_project_by_id(db, project_id)

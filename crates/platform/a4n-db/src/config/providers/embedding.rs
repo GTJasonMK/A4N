@@ -3,8 +3,7 @@ use a4n_domain::embedding::{CreateEmbeddingConfigParams, validate_embedding_conf
 use a4n_error::AppError;
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
-    PaginatorTrait, QueryFilter, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, Set,
 };
 
 pub struct EmbeddingConfigRecordInput {
@@ -36,17 +35,17 @@ pub fn validate_embedding_config_model(
 }
 
 pub async fn default_embedding_config_optional(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
 ) -> Result<Option<embedding_config::Model>, AppError> {
     embedding_config::Entity::find()
         .filter(embedding_config::Column::IsDefault.eq(true))
         .one(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
 }
 
 pub async fn default_embedding_config(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
 ) -> Result<embedding_config::Model, AppError> {
     default_embedding_config_optional(db)
         .await?
@@ -60,7 +59,7 @@ where
     embedding_config::Entity::find()
         .all(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
 }
 
 pub async fn embedding_config_by_id<C>(
@@ -73,7 +72,7 @@ where
     embedding_config::Entity::find_by_id(config_id)
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .ok_or_else(|| AppError::NotFound(format!("嵌入配置不存在: {config_id}")))
 }
 
@@ -114,7 +113,7 @@ where
     }
     .insert(db)
     .await
-    .map_err(AppError::Database)
+    .map_err(AppError::from)
 }
 
 pub async fn update_embedding_config_record<C>(
@@ -138,7 +137,7 @@ where
     active.local_model_path = Set(input.local_model_path);
     active.pricing_json = Set(input.pricing_json);
     active.updated_at = Set(Utc::now().naive_utc());
-    active.update(db).await.map_err(AppError::Database)
+    active.update(db).await.map_err(AppError::from)
 }
 
 pub async fn delete_embedding_config_record<C>(db: &C, config_id: i64) -> Result<(), AppError>
@@ -148,7 +147,7 @@ where
     embedding_config::Entity::delete_by_id(config_id)
         .exec(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
     Ok(())
 }
 
@@ -165,7 +164,7 @@ where
     if let Some(config_id) = except_id {
         query = query.filter(embedding_config::Column::Id.ne(config_id));
     }
-    let count = query.count(db).await.map_err(AppError::Database)?;
+    let count = query.count(db).await.map_err(AppError::from)?;
     if count > 0 {
         return Err(AppError::InvalidArgument(format!(
             "嵌入配置名称已存在: {name}"

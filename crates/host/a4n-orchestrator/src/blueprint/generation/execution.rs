@@ -496,7 +496,7 @@ async fn blueprint_generation_source_snapshot(
     project_id: i64,
 ) -> Result<Value, AppError> {
     let rows = a4n_db::outline::load_outline_generation_source_rows(
-        context.database.connection(),
+        context.database.executor(),
         project_id,
     )
     .await?

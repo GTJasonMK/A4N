@@ -27,7 +27,7 @@ impl OrchestratorContext {
             .ok_or_else(|| AppError::NotFound("项目没有原文章节".into()))?
             .root_project_id;
         let scripts =
-            records::video_reference_scripts(self.database.connection(), root, input.chapter_id)
+            records::video_reference_scripts(self.database.executor(), root, input.chapter_id)
                 .await?;
         let mut candidates = Vec::new();
         for (project, script) in scripts {
@@ -89,7 +89,7 @@ impl OrchestratorContext {
             ));
         }
         let record = records::video_reference_script(
-            self.database.connection(),
+            self.database.executor(),
             selection.video_project_id,
             selection.script_id,
         )
@@ -131,7 +131,7 @@ impl OrchestratorContext {
             .source_snapshot_id
             .ok_or_else(|| AppError::InvalidArgument("参考剧本缺少冻结原文".into()))?;
         let mut sources = a4n_db::project::resolve_snapshot_sources(
-            self.database.connection(),
+            self.database.executor(),
             record.project_id,
             record.root_project_id,
             snapshot_id,
@@ -172,7 +172,7 @@ impl OrchestratorContext {
             Err(error) => return Err(error),
         }
         let record = records::video_reference_script(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             reference.script_id,
         )

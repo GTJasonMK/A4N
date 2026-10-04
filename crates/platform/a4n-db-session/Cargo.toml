@@ -8,6 +8,8 @@ license.workspace = true
 a4n-db-models = { workspace = true }
 a4n-error = { workspace = true, features = ["database"], default-features = true }
 anyhow = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
 sea-orm = { workspace = true }
 
 [dev-dependencies]

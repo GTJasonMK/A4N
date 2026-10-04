@@ -43,8 +43,8 @@ impl GenerationApplication {
         }
     }
 
-    pub(super) fn connection(&self) -> &a4n_db::DatabaseConnection {
-        self.database.connection()
+    pub(super) fn connection(&self) -> &impl a4n_db::DbExecutor {
+        self.database.executor()
     }
 
     async fn initialize_reserved_task(

@@ -32,7 +32,8 @@ pub use portrait::{
     create_character_portrait_record_for_profile, missing_portrait_profile_records,
     missing_portrait_profiles, portrait_named_prompt_profile_rows, portrait_prompt_profile_rows,
     portrait_reference_images_by_ids, primary_character_portrait_record,
-    rollback_failed_portrait_creation_records, set_primary_character_portrait_record,
+    primary_character_portrait_record_value, rollback_failed_portrait_creation_records,
+    set_primary_character_portrait_record,
 };
 pub(crate) use profile::apply_profile_current_state;
 pub(crate) use profile::character_profile_record;

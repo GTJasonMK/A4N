@@ -148,7 +148,7 @@ impl OrchestratorContext {
         }
 
         let outcomes = a4n_db::character::persist_character_discovery_candidates(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             &source_chapters,
             candidates,

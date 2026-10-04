@@ -35,7 +35,7 @@ impl OrchestratorContext {
             ));
         }
         a4n_db::optimize::create_optimization_turn(
-            self.database.connection(),
+            self.database.executor(),
             OptimizationTurnCreateInput {
                 session_id,
                 agent_turn_id,
@@ -83,7 +83,7 @@ impl OrchestratorContext {
         }
 
         a4n_db::optimize::append_optimization_turn_event(
-            self.database.connection(),
+            self.database.executor(),
             OptimizationTurnEventAppendInput {
                 turn_id,
                 kind: kind.to_string(),
@@ -114,7 +114,7 @@ impl OrchestratorContext {
         }
         let turn = self.get_turn(turn_id).await?;
         a4n_db::optimize::update_optimization_turn(
-            self.database.connection(),
+            self.database.executor(),
             OptimizationTurnUpdateInput {
                 turn,
                 status: Some(status.to_string()),
@@ -127,7 +127,7 @@ impl OrchestratorContext {
     }
 
     pub(super) async fn get_turn(&self, turn_id: i64) -> Result<OptimizationTurnRecord, AppError> {
-        a4n_db::optimize::optimization_turn_by_id(self.database.connection(), turn_id)
+        a4n_db::optimize::optimization_turn_by_id(self.database.executor(), turn_id)
             .await
             .map_err(optimize_db_error)?
             .ok_or_else(|| AppError::NotFound(format!("优化 Turn 不存在: {turn_id}")))

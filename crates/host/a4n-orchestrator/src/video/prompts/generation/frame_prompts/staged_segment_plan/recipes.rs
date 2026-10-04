@@ -106,7 +106,7 @@ pub(in crate::video) async fn load_video_segment_plan_draft_checkpoints(
     workflow_run_id: i64,
 ) -> Result<Vec<VideoSegmentPlanDraftCheckpoint>, AppError> {
     a4n_db::video::video_segment_plan_draft_checkpoints(
-        service.database.connection(),
+        service.database.executor(),
         workflow_run_id,
         SEGMENT_PLAN_SHOT_CHECKPOINT_PREFIX,
     )
@@ -123,7 +123,7 @@ pub(in crate::video) async fn update_video_segment_plan_draft_recipe_checkpoint(
     recipe: VideoSegmentExecutionRecipeV1,
 ) -> Result<(), AppError> {
     a4n_workflow_core::update_video_segment_plan_draft_recipe_checkpoint(
-        service.database.connection(),
+        service.database.executor(),
         workflow_run_id,
         source_shot_id,
         segment_index_in_shot,

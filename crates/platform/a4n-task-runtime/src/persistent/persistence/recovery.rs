@@ -35,7 +35,7 @@ fn workflow_write_app_error(error: a4n_db::workflow::WorkflowWriteError) -> AppE
         a4n_db::workflow::WorkflowWriteError::StatusConflict { current, operation } => {
             AppError::InvalidState { current, operation }
         }
-        a4n_db::workflow::WorkflowWriteError::Database(error) => AppError::Database(error),
+        a4n_db::workflow::WorkflowWriteError::Database(error) => AppError::database(error),
     }
 }
 
@@ -47,6 +47,6 @@ fn video_db_error(error: a4n_db::video::VideoDbError) -> AppError {
         }
         a4n_db::video::VideoDbError::NotFound(message) => AppError::NotFound(message),
         a4n_db::video::VideoDbError::Forbidden(message) => AppError::Forbidden(message),
-        a4n_db::video::VideoDbError::Database(error) => AppError::Database(error),
+        a4n_db::video::VideoDbError::Database(error) => AppError::database(error),
     }
 }

@@ -7,8 +7,8 @@ use a4n_db_models::models::{
 };
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait, sea_query::Expr,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set, sea_query::Expr,
 };
 use serde_json::Value;
 const RUN_STATUS_RUNNING: &str = "running";

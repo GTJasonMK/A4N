@@ -17,9 +17,9 @@ impl OrchestratorContext {
         let filter_by_names = !character_names.is_empty();
         let mut context = Map::new();
         let read_model =
-            a4n_db::video::video_project_context_read_model(self.database.connection(), project_id)
+            a4n_db::video::video_project_context_read_model(self.database.executor(), project_id)
                 .await
-                .map_err(AppError::Database)?;
+                .map_err(AppError::from)?;
 
         if let Some(blueprint) = read_model.blueprint {
             context.insert("blueprint".to_string(), video_blueprint_context(&blueprint));

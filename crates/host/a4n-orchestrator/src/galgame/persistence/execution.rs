@@ -29,7 +29,7 @@ impl OrchestratorContext {
             .as_deref()
             .ok_or_else(|| AppError::InvalidArgument("场景缺少本地单元".into()))?;
         let record = a4n_db::media_authoring::authoring_document(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             plan_id,
         )
@@ -114,7 +114,7 @@ impl OrchestratorContext {
 
         let record_input = galgame_script_record_input(&context, plan, adaptations, branch_plan)?;
         a4n_db::galgame::replace_galgame_script_for_project_record(
-            self.database.connection(),
+            self.database.executor(),
             context.project.id,
             record_input,
         )

@@ -24,7 +24,7 @@ impl AssetApplication {
         &self,
         project_id: i64,
     ) -> Result<Vec<a4n_domain::object_profile::ObjectProfileRecord>, AppError> {
-        a4n_db::asset::object_profile_records_by_project(self.database.connection(), project_id)
+        a4n_db::asset::object_profile_records_by_project(self.database.executor(), project_id)
             .await
             .map_err(asset_error)
     }
@@ -33,7 +33,7 @@ impl AssetApplication {
         &self,
         object_profile_id: i64,
     ) -> Result<a4n_domain::object_profile::ObjectProfileRecord, AppError> {
-        a4n_db::asset::object_profile_record_by_id(self.database.connection(), object_profile_id)
+        a4n_db::asset::object_profile_record_by_id(self.database.executor(), object_profile_id)
             .await
             .map_err(asset_error)
     }
@@ -49,7 +49,7 @@ impl AssetApplication {
     ) -> Result<ObjectProfileUpsertRecordResult, AppError> {
         let inputs = normalize_object_profile_record_inputs(drafts)?;
         a4n_db::asset::upsert_object_profiles_with_generation_run_record(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             inputs,
             source_chapters,

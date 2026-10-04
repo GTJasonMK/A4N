@@ -43,7 +43,7 @@ pub(crate) fn character_db_error(error: a4n_db::character::CharacterDbError) -> 
         a4n_db::character::CharacterDbError::Internal(message) => {
             AppError::Internal(anyhow::anyhow!(message))
         }
-        a4n_db::character::CharacterDbError::Database(error) => AppError::Database(error),
+        a4n_db::character::CharacterDbError::Database(error) => AppError::database(error),
         a4n_db::character::CharacterDbError::Generation(error) => {
             crate::generation::generation_error(error)
         }
@@ -57,7 +57,7 @@ pub(crate) fn character_portrait_record_error(error: CharacterPortraitRecordErro
         CharacterPortraitRecordError::InvalidArgument(message) => {
             AppError::InvalidArgument(message)
         }
-        CharacterPortraitRecordError::Database(error) => AppError::Database(error),
+        CharacterPortraitRecordError::Database(error) => AppError::database(error),
     }
 }
 
@@ -68,7 +68,7 @@ pub(crate) fn character_profile_delete_error(error: CharacterProfileDeleteError)
             operation: "删除角色档案".to_string(),
         },
         CharacterProfileDeleteError::NotFound(message) => AppError::NotFound(message),
-        CharacterProfileDeleteError::Database(error) => AppError::Database(error),
+        CharacterProfileDeleteError::Database(error) => AppError::database(error),
         CharacterProfileDeleteError::Generation(error) => {
             crate::generation::generation_error(error)
         }

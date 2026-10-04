@@ -13,7 +13,6 @@ a4n-workflow-lifecycle-worker-contract = { workspace = true }
 
 anyhow = { workspace = true }
 axum = { workspace = true }
-sea-orm = { workspace = true }
 serde = { workspace = true }
 subtle = { workspace = true }
 tokio = { workspace = true }

@@ -145,7 +145,7 @@ async fn latest_reverse_engineering_candidate(
     let business_key =
         import_reverse_business_key(project_id, target).map_err(AppError::InvalidArgument)?;
     let Some(run) = a4n_db::workflow::latest_workflow_run_summary_by_business_key_with_status(
-        context.database.connection(),
+        context.database.executor(),
         &business_key,
         WORKFLOW_STATUS_COMPLETED,
     )
@@ -156,7 +156,7 @@ async fn latest_reverse_engineering_candidate(
     };
     validate_reverse_candidate_run(&run, project_id, target, WORKFLOW_STATUS_COMPLETED)?;
     let checkpoint = a4n_db::workflow::workflow_checkpoint_summary_by_step_in(
-        context.database.connection(),
+        context.database.executor(),
         run.id,
         prompt_name,
     )
@@ -222,12 +222,10 @@ async fn apply_reverse_engineering_checkpoint(
         ));
     }
 
-    let run = a4n_db::workflow::workflow_run_summary_by_id(
-        context.database.connection(),
-        workflow_run_id,
-    )
-    .await
-    .map_err(crate::workflow::workflow_read_app_error)?;
+    let run =
+        a4n_db::workflow::workflow_run_summary_by_id(context.database.executor(), workflow_run_id)
+            .await
+            .map_err(crate::workflow::workflow_read_app_error)?;
     let project_id = run
         .project_id
         .filter(|id| *id > 0)
@@ -255,7 +253,7 @@ async fn apply_reverse_engineering_checkpoint(
     }
     validate_reverse_candidate_run(&run, project_id, target, expected_run_status)?;
     let checkpoint = a4n_db::workflow::workflow_checkpoint_summary_by_step_in(
-        context.database.connection(),
+        context.database.executor(),
         workflow_run_id,
         &prompt_name,
     )
@@ -306,7 +304,7 @@ async fn apply_reverse_engineering_checkpoint(
             })?;
     let freshness_target = target;
     let result = a4n_db::import_reverse::apply_reverse_candidate_records(
-        context.database.connection(),
+        context.database.executor(),
         ReverseCandidateApplyInput {
             workflow_run_id,
             project_id,

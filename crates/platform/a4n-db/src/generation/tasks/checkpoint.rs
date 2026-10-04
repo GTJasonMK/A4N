@@ -1,7 +1,8 @@
 use super::*;
 use a4n_db_models::models::task::task_queue;
+use sea_orm::ConnectionTrait;
 pub async fn load_generation_task(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     task_id: &str,
 ) -> Result<PersistedGenerationTask, GenerationTaskPersistenceError> {
     let task_id = canonical_uuid_v4(task_id, "task_id")?;
@@ -10,7 +11,7 @@ pub async fn load_generation_task(
 
 /// 只读取 checkpoint 规范列；summary/list 需要在 snapshot 正文损坏时继续可用。
 pub async fn load_generation_task_checkpoint(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     task_id: &str,
 ) -> Result<GenerationTaskCheckpointRecord, GenerationTaskPersistenceError> {
     let task_id = canonical_uuid_v4(task_id, "task_id")?;
@@ -102,7 +103,7 @@ pub async fn bind_generation_task_to_workflow(
     Ok(())
 }
 pub async fn extend_generation_sequence_lease(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     task_id: &str,
     expected_checkpoint_revision: i64,
     expected_reserved_through_sequence: i64,
@@ -150,7 +151,7 @@ pub async fn extend_generation_sequence_lease(
 }
 
 pub async fn persist_generation_checkpoint(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: PersistGenerationCheckpointInput,
 ) -> Result<PersistedGenerationCheckpoint, GenerationTaskPersistenceError> {
     if db.get_database_backend() != DbBackend::Postgres {

@@ -57,7 +57,7 @@ impl AgentApplication {
         apply_subagent_capability_policy(&capability, &mut child_scope)?;
         inherit_subagent_allowlists(&parent_scope, &mut child_scope)?;
         apply_subagent_tool_policy(&capability, &mut child_scope)?;
-        let child_thread = agent::thread_by_id(self.connection(), input.child_thread_id)
+        let child_thread = agent::thread_by_id(self.executor(), input.child_thread_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| {
@@ -104,10 +104,9 @@ impl AgentApplication {
         child_scope.chapter_id = child_scope.chapter_id.or(chapter_id);
         child_scope.chapter_number = chapter_number;
         validate_subagent_resource(&capability, &child_scope, child_resource.as_ref())?;
-        let parent_turn = turn::Entity::find_by_id(claimed.run.turn_id)
-            .one(self.connection())
+        let parent_turn = agent::turn_by_id(self.executor(), claimed.run.turn_id)
             .await
-            .map_err(AppError::Database)?
+            .map_err(agent_db_error_to_app)?
             .ok_or_else(|| {
                 AppError::NotFound(format!("Agent parent turn 不存在: {}", claimed.run.turn_id))
             })?;
@@ -123,7 +122,7 @@ impl AgentApplication {
         let scope_json = serde_json::to_value(&child_scope)?;
         let client_message_id = format!("delegation:{}:{delegation_key}", claimed.run.id);
         let (delegation, child_turn, child_run, child_message) = agent::create_child_delegation(
-            self.connection(),
+            self.executor(),
             a4n_db::agent::AgentChildDelegationInput {
                 parent_lease_token: Some(claimed.lease_token.clone()),
                 delegation: AgentDelegationInput {

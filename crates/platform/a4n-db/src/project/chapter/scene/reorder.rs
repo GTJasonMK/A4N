@@ -2,9 +2,9 @@ use super::{ProjectChapterSceneWriteError, record::chapter_scene_record};
 use a4n_db_models::models::chapter::{chapter, chapter_scene};
 use a4n_domain::chapter::ChapterSceneRecord;
 use chrono::Utc;
+use sea_orm::ConnectionTrait;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect,
-    TransactionTrait,
+    ColumnTrait, EntityTrait, QueryFilter, QuerySelect,
     sea_query::{CaseStatement, Expr},
 };
 use std::collections::{HashMap, HashSet};
@@ -18,14 +18,14 @@ struct LoadedChapterSceneReorder {
 }
 
 pub async fn chapter_scene_reorder_project_id(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     order: &[(i64, i32)],
 ) -> Result<i64, ProjectChapterSceneWriteError> {
     Ok(load_chapter_scene_reorder(db, order).await?.project_id)
 }
 
 pub async fn reorder_chapter_scene_records(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     order: &[(i64, i32)],
 ) -> Result<Vec<ChapterSceneRecord>, ProjectChapterSceneWriteError> {
     let txn = db.begin().await?;

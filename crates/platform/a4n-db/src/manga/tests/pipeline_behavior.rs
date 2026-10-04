@@ -18,7 +18,7 @@ async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
 }
 
-async fn project_and_chapter(db: &DatabaseConnection, title: &str) -> (i64, i64) {
+async fn project_and_chapter(db: &impl crate::DbExecutor, title: &str) -> (i64, i64) {
     let project = crate::project::create_project_record(
         db,
         crate::project::CreateProjectRecordInput {
@@ -142,7 +142,7 @@ fn page_layout(page_number: i32) -> serde_json::Value {
 }
 
 async fn planned_drafts(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_id: i64,
 ) -> (

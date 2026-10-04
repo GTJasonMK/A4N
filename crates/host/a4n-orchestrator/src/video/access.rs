@@ -7,7 +7,7 @@ use super::{ChapterVideoPromptOptions, errors::video_db_error};
 
 impl OrchestratorContext {
     pub(crate) async fn get_chapter(&self, chapter_id: i64) -> Result<ChapterRecord, AppError> {
-        a4n_db::video::video_chapter_domain_record(self.database.connection(), chapter_id)
+        a4n_db::video::video_chapter_domain_record(self.database.executor(), chapter_id)
             .await
             .map_err(video_db_error)
     }
@@ -18,7 +18,7 @@ impl OrchestratorContext {
         chapter_id: i64,
     ) -> Result<(), AppError> {
         a4n_db::video::ensure_video_chapter_belongs_to_project_record(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             chapter_id,
         )

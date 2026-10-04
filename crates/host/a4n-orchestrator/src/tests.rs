@@ -1,5 +1,16 @@
 use super::{freeform_generated_reset_error_to_app_error, project_delete_error_to_app_error};
 
+fn app_database_error_message(error: a4n_error::AppError) -> Option<String> {
+    let a4n_error::AppError::Database(error) = error else {
+        return None;
+    };
+    let error = error.downcast_ref::<sea_orm::DbErr>()?;
+    match error {
+        sea_orm::DbErr::Custom(message) => Some(message.clone()),
+        other => Some(other.to_string()),
+    }
+}
+
 #[test]
 fn project_delete_error_keeps_typed_app_error_mapping() {
     let missing = project_delete_error_to_app_error(
@@ -16,11 +27,10 @@ fn project_delete_error_keeps_typed_app_error_mapping() {
             source: sea_orm::DbErr::Custom("delete failed".to_string()),
         },
     );
-    assert!(matches!(
-        database,
-        a4n_error::AppError::Database(sea_orm::DbErr::Custom(message))
-            if message == "delete failed"
-    ));
+    assert_eq!(
+        app_database_error_message(database).as_deref(),
+        Some("delete failed")
+    );
 
     let cleanup_database = project_delete_error_to_app_error(
         a4n_db::project::delete::ProjectDeleteDbError::ProjectCleanup {
@@ -29,11 +39,10 @@ fn project_delete_error_keeps_typed_app_error_mapping() {
             },
         },
     );
-    assert!(matches!(
-        cleanup_database,
-        a4n_error::AppError::Database(sea_orm::DbErr::Custom(message))
-            if message == "cleanup failed"
-    ));
+    assert_eq!(
+        app_database_error_message(cleanup_database).as_deref(),
+        Some("cleanup failed")
+    );
 }
 
 #[test]
@@ -60,9 +69,8 @@ fn freeform_generated_reset_error_keeps_typed_app_error_mapping() {
             source: sea_orm::DbErr::Custom("reset failed".to_string()),
         },
     );
-    assert!(matches!(
-        database,
-        a4n_error::AppError::Database(sea_orm::DbErr::Custom(message))
-            if message == "reset failed"
-    ));
+    assert_eq!(
+        app_database_error_message(database).as_deref(),
+        Some("reset failed")
+    );
 }

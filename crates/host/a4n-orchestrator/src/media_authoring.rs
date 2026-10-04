@@ -54,7 +54,7 @@ impl OrchestratorContext {
             AuthoringDocumentStatus::Adopted,
         ] {
             if let Some(record) = records::current_authoring_document(
-                self.database.connection(),
+                self.database.executor(),
                 source.requested_project_id,
                 authoring_source(source)?.source_snapshot_id,
                 Some(source.source_chapter_id),
@@ -106,7 +106,7 @@ impl OrchestratorContext {
         stream_reporter: Option<&MediaAuthoringStreamReporter<'_>>,
         cancel_token: Option<&CancellationToken>,
     ) -> Result<PreparedAdaptation, AppError> {
-        let db = self.database.connection();
+        let db = self.database.executor();
         if let Some(prepared) = self.load_current_adaptation(source, target).await? {
             if prepared.record.status == AuthoringDocumentStatus::Adopted {
                 return Ok(prepared);
@@ -221,7 +221,7 @@ impl OrchestratorContext {
             return Err(AppError::Cancelled);
         }
         let record = records::save_authoring_document(
-            self.database.connection(),
+            self.database.executor(),
             SaveAuthoringDocument {
                 project_id: source.requested_project_id,
                 source_snapshot_id: authoring_source(source)?.source_snapshot_id,
@@ -249,7 +249,7 @@ impl OrchestratorContext {
         let previous = match previous_plan_id {
             Some(id) => Some(
                 records::authoring_document(
-                    self.database.connection(),
+                    self.database.executor(),
                     source.requested_project_id,
                     id,
                 )
@@ -257,7 +257,7 @@ impl OrchestratorContext {
                 .map_err(authoring_error)?,
             ),
             None => records::current_authoring_document(
-                self.database.connection(),
+                self.database.executor(),
                 source.requested_project_id,
                 authoring_source(source)?.source_snapshot_id,
                 Some(source.source_chapter_id),
@@ -348,7 +348,7 @@ pub(crate) fn parse_adaptation(
 
 pub(crate) fn authoring_error(error: AuthoringDocumentError) -> AppError {
     match error {
-        AuthoringDocumentError::Database(error) => AppError::Database(error),
+        AuthoringDocumentError::Database(error) => AppError::database(error),
         AuthoringDocumentError::InvalidArgument(message) => AppError::InvalidArgument(message),
         AuthoringDocumentError::NotFound(id) => AppError::NotFound(format!("创作文档不存在: {id}")),
         error => AppError::InvalidState {

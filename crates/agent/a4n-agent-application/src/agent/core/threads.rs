@@ -9,7 +9,7 @@ impl AgentApplication {
         input: EnsureMainAgentThreadInput,
     ) -> Result<AgentThreadView, AppError> {
         validate_user_id(user_id)?;
-        if let Some(row) = agent::default_thread_by_owner(self.connection(), user_id)
+        if let Some(row) = agent::default_thread_by_owner(self.executor(), user_id)
             .await
             .map_err(agent_db_error_to_app)?
         {
@@ -29,11 +29,11 @@ impl AgentApplication {
             default_model_config_id: None,
             is_default: true,
         };
-        match agent::create_thread(self.connection(), create).await {
+        match agent::create_thread(self.executor(), create).await {
             Ok(row) => thread_view(row),
             Err(error @ AgentDbError::Database(_)) => {
                 // Concurrent ensure requests may race on the partial unique index.
-                match agent::default_thread_by_owner(self.connection(), user_id).await {
+                match agent::default_thread_by_owner(self.executor(), user_id).await {
                     Ok(Some(row)) => thread_view(row),
                     Ok(None) | Err(_) => Err(agent_db_error_to_app(error)),
                 }
@@ -65,7 +65,7 @@ impl AgentApplication {
         scope.project_id = scope.project_id.or(project_id);
         scope.chapter_id = scope.chapter_id.or(chapter_id);
         scope.chapter_number = chapter_number;
-        verify_director_source(self.connection(), &capability, &scope).await?;
+        verify_director_source(self.executor(), &capability, &scope).await?;
         if input.kind == AgentThreadKind::Subagent {
             validate_subagent_resource(&capability, &scope, bound_resource.as_ref())?;
             apply_subagent_capability_policy(&capability, &mut scope)?;
@@ -78,7 +78,7 @@ impl AgentApplication {
         let requested_scope = serde_json::to_value(&scope)?;
         if let Some(key) = canonical_binding_key.as_deref()
             && let Some(existing) =
-                agent::thread_by_canonical_binding(self.connection(), user_id, key)
+                agent::thread_by_canonical_binding(self.executor(), user_id, key)
                     .await
                     .map_err(agent_db_error_to_app)?
         {
@@ -94,7 +94,7 @@ impl AgentApplication {
             );
         }
         let row = agent::create_thread(
-            self.connection(),
+            self.executor(),
             AgentThreadCreateInput {
                 owner_user_id: user_id,
                 thread_kind: enum_value(input.kind),
@@ -116,10 +116,10 @@ impl AgentApplication {
             Ok(row) => row,
             Err(AgentDbError::Database(error)) if canonical_binding_key.is_some() => {
                 let key = canonical_binding_key.as_deref().expect("checked above");
-                let existing = agent::thread_by_canonical_binding(self.connection(), user_id, key)
+                let existing = agent::thread_by_canonical_binding(self.executor(), user_id, key)
                     .await
                     .map_err(agent_db_error_to_app)?
-                    .ok_or(AppError::Database(error))?;
+                    .ok_or(AppError::Database(anyhow::Error::from_boxed(error)))?;
                 self.reconcile_canonical_thread(
                     existing,
                     &capability,
@@ -185,11 +185,9 @@ impl AgentApplication {
     ) -> Result<AgentThreadView, AppError> {
         let thread_id = parse_id(&input.thread_id, "thread_id")?;
         validate_user_id(user_id)?;
-        let tx = self.connection().begin().await?;
-        let row = thread::Entity::find_by_id(thread_id)
-            .lock_exclusive()
-            .one(&tx)
-            .await?
+        let row = agent::thread_by_id(self.executor(), thread_id)
+            .await
+            .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound("Agent thread 不存在".into()))?;
         if row.owner_user_id != user_id {
             return Err(AppError::Forbidden(
@@ -216,15 +214,6 @@ impl AgentApplication {
                     "修改工具权限必须提供 expected_revision".into(),
                 ));
             }
-            if !agent::active_runs_by_thread(&tx, thread_id)
-                .await
-                .map_err(agent_db_error_to_app)?
-                .is_empty()
-            {
-                return Err(AppError::InvalidArgument(
-                    "Agent thread 存在活动 Run，不能修改工具权限".into(),
-                ));
-            }
             let mut scope: AgentScope =
                 from_json(row.scope_json.clone(), "agent_thread.scope_json")?;
             scope.allowed_tools = allowed_tools;
@@ -234,24 +223,33 @@ impl AgentApplication {
         } else {
             None
         };
-        let current_revision = row.revision;
-        let mut active: thread::ActiveModel = row.into();
-        if let Some(scope) = scope {
-            active.scope_json = Set(scope);
-        }
-        if let Some(title) = input.title {
-            active.title = Set(optional_text(Some(title), "title")?);
-        }
+        let title = input
+            .title
+            .map(|title| optional_text(Some(title), "title"))
+            .transpose()?;
         if let Some(model_config_id) = input.default_model_config_id {
             validate_optional_positive_id(Some(model_config_id), "default_model_config_id")?;
-            active.default_model_config_id = Set(Some(model_config_id));
         }
-        active.revision = Set(current_revision
-            .checked_add(1)
-            .ok_or_else(|| AppError::InvalidArgument("Agent thread revision 溢出".into()))?);
-        active.updated_at = Set(chrono::Utc::now().naive_utc());
-        let updated = active.update(&tx).await.map_err(AppError::Database)?;
-        tx.commit().await?;
+        let updated =
+            a4n_db::transaction::run_in_transaction(self.executor(), "更新 Agent thread", |tx| {
+                Box::pin(async move {
+                    let result = agent::update_thread_record(
+                        &tx,
+                        agent::AgentThreadUpdateRecordInput {
+                            thread_id,
+                            owner_user_id: user_id,
+                            expected_revision: row.revision,
+                            scope_json: scope,
+                            title,
+                            default_model_config_id: input.default_model_config_id,
+                        },
+                    )
+                    .await
+                    .map_err(agent_db_error_to_app);
+                    (tx, result)
+                })
+            })
+            .await?;
         thread_view(updated)
     }
 
@@ -262,34 +260,16 @@ impl AgentApplication {
     ) -> Result<AgentThreadView, AppError> {
         let thread_id = parse_id(&input.thread_id, "thread_id")?;
         validate_user_id(user_id)?;
-        let tx = self.connection().begin().await?;
-        let row = thread::Entity::find_by_id(thread_id)
-            .lock_exclusive()
-            .one(&tx)
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("Agent thread 不存在: {thread_id}")))?;
-        if row.owner_user_id != user_id {
-            return Err(AppError::Forbidden("无权访问此 Agent thread".into()));
-        }
-        let runs = agent::active_runs_by_thread(&tx, thread_id)
-            .await
-            .map_err(agent_db_error_to_app)?;
-        if !runs.is_empty() {
-            return Err(AppError::InvalidState {
-                current: "running".into(),
-                operation: "归档 Agent thread".into(),
-            });
-        }
-        let current_revision = row.revision;
-        let mut active: thread::ActiveModel = row.into();
-        active.status = Set("archived".into());
-        active.archived_at = Set(Some(chrono::Utc::now().naive_utc()));
-        active.revision = Set(current_revision
-            .checked_add(1)
-            .ok_or_else(|| AppError::InvalidArgument("Agent thread revision 溢出".into()))?);
-        active.updated_at = Set(chrono::Utc::now().naive_utc());
-        let updated = active.update(&tx).await.map_err(AppError::Database)?;
-        tx.commit().await?;
+        let updated =
+            a4n_db::transaction::run_in_transaction(self.executor(), "归档 Agent thread", |tx| {
+                Box::pin(async move {
+                    let result = agent::archive_thread_record(&tx, thread_id, user_id)
+                        .await
+                        .map_err(agent_db_error_to_app);
+                    (tx, result)
+                })
+            })
+            .await?;
         thread_view(updated)
     }
 
@@ -300,7 +280,7 @@ impl AgentApplication {
         &self,
         user_id: i64,
         input: EnsureCanonicalSubagentThreadInput,
-    ) -> Result<thread::Model, AppError> {
+    ) -> Result<agent::AgentThreadRecord, AppError> {
         validate_user_id(user_id)?;
         let key = required_text(input.canonical_binding_key, "canonical_binding_key")?;
         let capability = required_capability(input.capability)?;
@@ -320,7 +300,7 @@ impl AgentApplication {
         scope.chapter_number = chapter_number;
         validate_subagent_resource(&capability, &scope, bound_resource.as_ref())?;
         let requested_scope = serde_json::to_value(&scope)?;
-        if let Some(existing) = agent::thread_by_canonical_binding(self.connection(), user_id, &key)
+        if let Some(existing) = agent::thread_by_canonical_binding(self.executor(), user_id, &key)
             .await
             .map_err(agent_db_error_to_app)?
         {
@@ -350,13 +330,13 @@ impl AgentApplication {
             default_model_config_id: input.default_model_config_id,
             is_default: false,
         };
-        match agent::create_thread(self.connection(), create).await {
+        match agent::create_thread(self.executor(), create).await {
             Ok(row) => Ok(row),
             Err(AgentDbError::Database(error)) => {
-                let existing = agent::thread_by_canonical_binding(self.connection(), user_id, &key)
+                let existing = agent::thread_by_canonical_binding(self.executor(), user_id, &key)
                     .await
                     .map_err(agent_db_error_to_app)?
-                    .ok_or(AppError::Database(error))?;
+                    .ok_or(AppError::Database(anyhow::Error::from_boxed(error)))?;
                 self.reconcile_canonical_thread(
                     existing,
                     &capability,
@@ -387,7 +367,7 @@ impl AgentApplication {
             AGENT_THREADS_MAX_LIMIT,
             "limit",
         )? as usize;
-        agent::list_threads_by_owner(self.connection(), user_id)
+        agent::list_threads_by_owner(self.executor(), user_id)
             .await
             .map_err(agent_db_error_to_app)?
             .into_iter()
@@ -405,83 +385,55 @@ impl AgentApplication {
     ) -> Result<AgentThreadHistorySnapshot, AppError> {
         let thread_id = parse_id(thread_id, "thread_id")?;
         self.owned_thread(user_id, thread_id).await?;
-        let tx = self
-            .connection()
-            .begin_with_config(
-                Some(sea_orm::IsolationLevel::RepeatableRead),
-                Some(sea_orm::AccessMode::ReadOnly),
-            )
-            .await?;
-        let thread_row = agent::thread_by_id(&tx, thread_id)
-            .await
-            .map_err(agent_db_error_to_app)?
-            .ok_or_else(|| AppError::NotFound("Agent Thread 不存在".into()))?;
-        let messages = agent::messages_by_thread(&tx, thread_id, None, SNAPSHOT_LIMIT)
+        let history = agent::thread_history(self.executor(), user_id, thread_id, SNAPSHOT_LIMIT)
             .await
             .map_err(agent_db_error_to_app)?;
-        let turns = agent::turns_by_thread(&tx, thread_id, SNAPSHOT_LIMIT)
-            .await
-            .map_err(agent_db_error_to_app)?;
-        let mut runs = agent::runs_by_thread(&tx, thread_id, SNAPSHOT_LIMIT)
-            .await
-            .map_err(agent_db_error_to_app)?;
-        let executions = agent::executions_by_runs(&tx, runs.iter().map(|row| row.id).collect())
-            .await
-            .map_err(agent_db_error_to_app)?;
-        let delegations = agent::delegations_by_thread(&tx, thread_id)
-            .await
-            .map_err(agent_db_error_to_app)?;
-        let approvals = agent::approvals_by_thread(&tx, thread_id)
-            .await
-            .map_err(agent_db_error_to_app)?;
-        let inbox = agent::inbox_by_thread(&tx, thread_id)
-            .await
-            .map_err(agent_db_error_to_app)?;
-        let memories =
-            agent::list_memory(&tx, user_id, Some("thread"), Some(&thread_id.to_string()))
-                .await
-                .map_err(agent_db_error_to_app)?;
-        let events = agent::latest_events_by_thread(&tx, thread_id, SNAPSHOT_LIMIT)
-            .await
-            .map_err(agent_db_error_to_app)?;
-        for run in &mut runs {
-            run.usage_json = agent::run_budget_snapshot(&tx, run.id)
-                .await
-                .map_err(agent_db_error_to_app)?
-                .usage;
-        }
-        tx.commit().await?;
 
         Ok(AgentThreadHistorySnapshot {
             protocol_version: AGENT_API_PROTOCOL_VERSION,
-            thread: thread_view(thread_row)?,
-            messages: messages
+            thread: thread_view(history.thread)?,
+            messages: history
+                .messages
                 .into_iter()
                 .map(message_view)
                 .collect::<Result<_, _>>()?,
-            turns: turns.into_iter().map(turn_view).collect::<Result<_, _>>()?,
-            runs: runs.into_iter().map(run_view).collect::<Result<_, _>>()?,
-            executions: executions
+            turns: history
+                .turns
+                .into_iter()
+                .map(turn_view)
+                .collect::<Result<_, _>>()?,
+            runs: history
+                .runs
+                .into_iter()
+                .map(run_view)
+                .collect::<Result<_, _>>()?,
+            executions: history
+                .executions
                 .into_iter()
                 .map(execution_view)
                 .collect::<Result<_, _>>()?,
-            delegations: delegations
+            delegations: history
+                .delegations
                 .into_iter()
                 .map(delegation_view)
                 .collect::<Result<_, _>>()?,
-            approvals: approvals
+            approvals: history
+                .approvals
                 .into_iter()
                 .map(approval_view)
                 .collect::<Result<_, _>>()?,
-            inbox: inbox
+            inbox: history
+                .inbox
                 .into_iter()
                 .map(inbox_view)
                 .collect::<Result<_, _>>()?,
-            memories: memories
+            memories: history
+                .memories
                 .into_iter()
                 .map(memory_view)
                 .collect::<Result<_, _>>()?,
-            events: events
+            events: history
+                .events
                 .into_iter()
                 .map(event_view)
                 .collect::<Result<_, _>>()?,
@@ -506,7 +458,7 @@ impl AgentApplication {
             .as_deref()
             .map(|before| parse_id(before, "before"))
             .transpose()?;
-        let rows = agent::messages_by_thread(self.connection(), thread_id, before_id, limit as u64)
+        let rows = agent::messages_by_thread(self.executor(), thread_id, before_id, limit as u64)
             .await
             .map_err(agent_db_error_to_app)?;
         rows.into_iter()
@@ -522,7 +474,7 @@ impl AgentApplication {
         run_id: &str,
     ) -> Result<AgentRunView, AppError> {
         let run_id = parse_id(run_id, "run_id")?;
-        let mut run = agent::run_by_id(self.connection(), run_id)
+        let mut run = agent::run_by_id(self.executor(), run_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {run_id}")))?;

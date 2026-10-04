@@ -41,7 +41,7 @@ pub fn workflow_run_summary_to_api(
 }
 
 pub async fn update_video_segment_plan_draft_recipe_checkpoint(
-    db: &sea_orm::DatabaseConnection,
+    db: &impl a4n_db::DbExecutor,
     workflow_run_id: i64,
     source_shot_id: &str,
     segment_index_in_shot: i32,

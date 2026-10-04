@@ -12,13 +12,17 @@ fn blueprint_restore_error_mapping_preserves_structured_classification() {
         AppError::NotFound(message)
             if message == "蓝图版本不存在: project_id=7, version=v2"
     ));
+    let database = blueprint_restore_error_to_app(BlueprintRestoreError::CharacterSync {
+        source: a4n_db::project::BlueprintSyncError::Database(DbErr::Custom(
+            "sync failed".to_string(),
+        )),
+    });
     assert!(matches!(
-        blueprint_restore_error_to_app(BlueprintRestoreError::CharacterSync {
-            source: a4n_db::project::BlueprintSyncError::Database(DbErr::Custom(
-                "sync failed".to_string(),
-            )),
-        }),
-        AppError::Database(DbErr::Custom(message)) if message == "sync failed"
+        database,
+        AppError::Database(error)
+            if error
+                .downcast_ref::<DbErr>()
+                .is_some_and(|error| matches!(error, DbErr::Custom(message) if message == "sync failed"))
     ));
     assert!(matches!(
         blueprint_restore_error_to_app(BlueprintRestoreError::StatusWrite {

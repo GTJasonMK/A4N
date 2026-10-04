@@ -1,9 +1,9 @@
 use super::*;
 
 pub async fn list_external_task_waits(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     after_run_id: i64,
-) -> Result<Vec<(run::Model, thread::Model, execution::Model)>, AgentDbError> {
+) -> Result<Vec<AgentExternalTaskWaitRecord>, AgentDbError> {
     let runs = run::Entity::find()
         .filter(run::Column::Id.gt(after_run_id))
         .filter(run::Column::IsActive.eq(true))
@@ -24,7 +24,11 @@ pub async fn list_external_task_waits(
             .all(db)
             .await?;
         for execution in executions {
-            waits.push((run.clone(), owner.clone(), execution));
+            waits.push(AgentExternalTaskWaitRecord {
+                run: run.clone().into(),
+                thread: owner.clone().into(),
+                execution: execution.into(),
+            });
         }
     }
     Ok(waits)
@@ -34,10 +38,10 @@ pub async fn list_external_task_waits(
 /// above intentionally only returns runs still waiting; resumed runs need the
 /// same durable identity without weakening the execution-kind/status fence.
 pub async fn external_task_wait(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     run_id: i64,
     execution_id: i64,
-) -> Result<Option<(run::Model, thread::Model, execution::Model)>, AgentDbError> {
+) -> Result<Option<AgentExternalTaskWaitRecord>, AgentDbError> {
     let Some(run_row) = run::Entity::find_by_id(run_id).one(db).await? else {
         return Ok(None);
     };
@@ -58,12 +62,16 @@ pub async fn external_task_wait(
             "等待任务的 Agent Thread 不存在".into(),
         ));
     };
-    Ok(Some((run_row, thread_row, execution_row)))
+    Ok(Some(AgentExternalTaskWaitRecord {
+        run: run_row.into(),
+        thread: thread_row.into(),
+        execution: execution_row.into(),
+    }))
 }
 
 /// A stale task notification cannot release an editor wait or a newer wait.
 pub async fn wake_external_task_wait(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     run_id: i64,
     execution_id: i64,
 ) -> Result<(), AgentDbError> {

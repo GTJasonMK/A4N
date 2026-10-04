@@ -7,10 +7,8 @@ use super::{
 use a4n_db_models::models::{chapter::chapter, project::text_anchor};
 use a4n_domain::source_text_hash;
 use a4n_domain::text_anchor::TextAnchorRecord;
-use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, TransactionTrait,
-};
+use sea_orm::ConnectionTrait;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use std::collections::{HashMap, HashSet};
 
 fn text_anchor_record(model: text_anchor::Model) -> TextAnchorRecord {
@@ -33,7 +31,7 @@ fn text_anchor_record(model: text_anchor::Model) -> TextAnchorRecord {
 }
 
 pub async fn ensure_chapter_content_anchor_records_batch_records(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_ids: &[i64],
 ) -> TextAnchorDbResult<Vec<Vec<TextAnchorRecord>>> {
@@ -48,7 +46,7 @@ pub async fn ensure_chapter_content_anchor_records_batch_records(
 }
 
 pub async fn read_current_chapter_content_anchor_records_batch_records(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_ids: &[i64],
 ) -> TextAnchorDbResult<Vec<super::CurrentChapterContentAnchorRecordRows>> {
@@ -83,7 +81,7 @@ pub async fn delete_chapter_content_anchor_records<C: ConnectionTrait>(
 }
 
 pub async fn rebuild_chapter_content_anchor_records(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_id: i64,
 ) -> TextAnchorDbResult<Vec<text_anchor::Model>> {
@@ -92,7 +90,7 @@ pub async fn rebuild_chapter_content_anchor_records(
 }
 
 async fn rebuild_chapter_content_anchor_records_for_validated_project(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_id: i64,
 ) -> TextAnchorDbResult<Vec<text_anchor::Model>> {
@@ -136,7 +134,7 @@ async fn rebuild_chapter_content_anchor_records_for_validated_project(
 }
 
 pub async fn ensure_chapter_content_anchor_records_batch(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_ids: &[i64],
 ) -> TextAnchorDbResult<Vec<Vec<text_anchor::Model>>> {
@@ -259,7 +257,7 @@ pub async fn ensure_chapter_content_anchor_records_batch(
 }
 
 pub async fn read_current_chapter_content_anchor_records_batch(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_ids: &[i64],
 ) -> TextAnchorDbResult<Vec<CurrentChapterContentAnchorRows>> {

@@ -1,4 +1,4 @@
-use a4n_db::DbTransaction as DatabaseTransaction;
+use a4n_db::DbTransaction;
 use a4n_db::blueprint::{
     BlueprintRefinePatchInput, InsertBlueprintVersionInput, SyncProjectAfterBlueprintInput,
     apply_blueprint_refine_patch_record, blueprint_version_snapshot,
@@ -20,7 +20,7 @@ use crate::blueprint::{blueprint_db_error, blueprint_sync_error, character_profi
 use crate::context::inspiration_db_error_to_app;
 
 pub(super) async fn persist_blueprint_refinement_in_transaction(
-    tx: &DatabaseTransaction,
+    tx: &DbTransaction,
     project_id: i64,
     expected_source_snapshot: Value,
     parsed: a4n_domain::project::ParsedBlueprintOptimization,

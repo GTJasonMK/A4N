@@ -23,7 +23,7 @@ pub fn generation_public_snapshot_for_summary_record(
     }
 }
 pub async fn list_active_generation_task_checkpoints(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     requested_by_user_id: i64,
     project_id: Option<i64>,
 ) -> Result<GenerationTaskCheckpointPage, GenerationTaskPersistenceError> {
@@ -40,7 +40,7 @@ pub async fn list_active_generation_task_checkpoints(
 }
 
 pub async fn list_generation_task_history_checkpoints(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     requested_by_user_id: i64,
     project_id: Option<i64>,
     limit: u32,
@@ -64,7 +64,7 @@ pub async fn list_generation_task_history_checkpoints(
 }
 
 async fn list_generation_task_checkpoints(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     requested_by_user_id: i64,
     project_id: Option<i64>,
     statuses: &[&str],

@@ -1,9 +1,10 @@
 use super::*;
+use sea_orm::ConnectionTrait;
 
 use super::projections::workflow_checkpoint_summary;
 use super::queries::{locked_workflow_run_by_id, workflow_checkpoints};
 use super::validation::ensure_workflow_write_open;
-use crate::DbHandle;
+use crate::{DbExecutor, DbHandle};
 use sea_orm::{FromQueryResult, sea_query::extension::postgres::PgExpr};
 
 pub async fn upsert_workflow_checkpoint(
@@ -11,7 +12,9 @@ pub async fn upsert_workflow_checkpoint(
     input: UpsertWorkflowCheckpointInput,
 ) -> Result<WorkflowCheckpointSummary, WorkflowWriteError> {
     let db = db.connection();
-    let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
+    let tx = DbExecutor::begin_db_transaction(db)
+        .await
+        .map_err(WorkflowWriteError::Database)?;
     let checkpoint = upsert_workflow_checkpoint_in_transaction(&tx, input).await?;
     tx.commit().await.map_err(WorkflowWriteError::Database)?;
     Ok(checkpoint)
@@ -83,7 +86,7 @@ struct WorkflowCheckpointArtifactState {
 }
 
 pub async fn mutate_completed_workflow_checkpoint_artifacts_unless_step_exists<F>(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     workflow_run_id: i64,
     step_key: &str,
     blocking_step_key: &str,
@@ -100,7 +103,9 @@ where
             "step_key 与 blocking_step_key 不能相同".to_string(),
         ));
     }
-    let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
+    let tx = sea_orm::TransactionTrait::begin(db)
+        .await
+        .map_err(WorkflowWriteError::Database)?;
     let run = locked_workflow_run_by_id(&tx, workflow_run_id).await?;
     if !workflow_run_is_running_or_resumable(&run.status, run.can_resume) {
         return Err(WorkflowWriteError::StatusConflict {
@@ -173,7 +178,7 @@ where
 }
 
 async fn workflow_checkpoint_models(
-    db: &DatabaseConnection,
+    db: &impl ConnectionTrait,
     workflow_run_id: i64,
 ) -> Result<Vec<workflow_checkpoint::Model>, WorkflowReadError> {
     workflow_checkpoints(db, workflow_run_id).await
@@ -191,7 +196,7 @@ pub async fn workflow_checkpoint_summaries(
 }
 
 async fn workflow_checkpoint_models_for_runs(
-    db: &DatabaseConnection,
+    db: &impl ConnectionTrait,
     workflow_run_ids: &[i64],
 ) -> Result<Vec<workflow_checkpoint::Model>, WorkflowReadError> {
     for workflow_run_id in workflow_run_ids {
@@ -245,7 +250,7 @@ where
 }
 
 pub async fn workflow_checkpoint_statuses_for_runs(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     workflow_run_ids: &[i64],
 ) -> Result<Vec<(i64, String)>, WorkflowReadError> {
     for workflow_run_id in workflow_run_ids {
@@ -269,7 +274,7 @@ pub async fn workflow_checkpoint_statuses_for_runs(
 }
 
 pub async fn delete_workflow_checkpoints_by_keys(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     workflow_run_id: i64,
     step_keys: &[&str],
 ) -> Result<u64, WorkflowWriteError> {
@@ -281,7 +286,9 @@ pub async fn delete_workflow_checkpoints_by_keys(
     if step_keys.is_empty() {
         return Ok(0);
     }
-    let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
+    let tx = DbExecutor::begin_db_transaction(db)
+        .await
+        .map_err(WorkflowWriteError::Database)?;
     let run = locked_workflow_run_by_id(&tx, workflow_run_id).await?;
     ensure_workflow_write_open(&run.status, "删除工作流 checkpoint")?;
     let deleted = workflow_checkpoint::Entity::delete_many()

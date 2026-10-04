@@ -1,4 +1,5 @@
 use super::*;
+use sea_orm::ConnectionTrait;
 
 pub(super) fn approval_authorizes_execution(
     status: &str,
@@ -15,7 +16,7 @@ pub async fn approved_execution<C: ConnectionTrait>(
     db: &C,
     thread_id: i64,
     execution_id: i64,
-) -> Result<Option<approval::Model>, AgentDbError> {
+) -> Result<Option<AgentApprovalRecord>, AgentDbError> {
     let Some(grant) = approval::Entity::find()
         .filter(approval::Column::ThreadId.eq(thread_id))
         .filter(approval::Column::ExecutionId.eq(execution_id))
@@ -36,7 +37,7 @@ pub async fn approved_execution<C: ConnectionTrait>(
         execution.replay_policy.as_deref(),
         &execution.status,
     )
-    .then_some(grant))
+    .then_some(grant.into()))
 }
 
 #[cfg(test)]
@@ -98,7 +99,7 @@ where
     }
     .insert(db)
     .await
-    .map_err(AgentDbError::Database)
+    .map_err(AgentDbError::from)
 }
 
 /// Atomically requests user approval for a prepared write execution.
@@ -108,10 +109,10 @@ where
 /// This prevents an approval response from arriving between separate commits
 /// and being lost before the worker starts waiting.
 pub async fn request_approval_for_run_lease(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     lease_token: &str,
     input: AgentApprovalInput,
-) -> Result<(approval::Model, execution::Model, run::Model), AgentDbError> {
+) -> Result<(AgentApprovalRecord, AgentExecutionRecord, AgentRunRecord), AgentDbError> {
     if input.operation_digest.trim().is_empty() {
         return Err(AgentDbError::InvalidArgument(
             "Agent approval operation_digest 不能为空".into(),
@@ -202,7 +203,7 @@ pub async fn request_approval_for_run_lease(
     .await?;
     let _ = refresh_thread_status_on(&tx, run_row.thread_id).await?;
     tx.commit().await?;
-    Ok((approval_row, execution_row, run_row))
+    Ok((approval_row.into(), execution_row.into(), run_row.into()))
 }
 
 /// Resolves an approval while holding the related Run/Execution locks.
@@ -210,12 +211,12 @@ pub async fn request_approval_for_run_lease(
 /// rejected operations are terminally rejected.  A waiting parent Run is
 /// requeued in either case so it can make the next model decision.
 pub async fn resolve_approval_for_run(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     approval_id: i64,
     user_id: i64,
     approved: bool,
     reason: Option<String>,
-) -> Result<approval::Model, AgentDbError> {
+) -> Result<AgentApprovalRecord, AgentDbError> {
     if user_id <= 0 {
         return Err(AgentDbError::InvalidArgument("user_id 无效".into()));
     }
@@ -238,6 +239,7 @@ pub async fn resolve_approval_for_run(
     {
         return expire_pending_approval(db, approval_id)
             .await?
+            .map(Into::into)
             .ok_or_else(|| {
                 AgentDbError::Conflict(format!("Agent approval 已由其他请求处理: {approval_id}"))
             });
@@ -280,6 +282,7 @@ pub async fn resolve_approval_for_run(
         tx.rollback().await?;
         return expire_pending_approval(db, approval_id)
             .await?
+            .map(Into::into)
             .ok_or_else(|| {
                 AgentDbError::Conflict(format!("Agent approval 已由其他请求处理: {approval_id}"))
             });
@@ -356,16 +359,16 @@ pub async fn resolve_approval_for_run(
     )
     .await?;
     tx.commit().await?;
-    Ok(approval_row)
+    Ok(approval_row.into())
 }
 
 /// Expires pending approvals whose deadline has passed.  Expiry is processed
 /// as a durable workflow transition so a run cannot remain indefinitely in
 /// `waiting(approval)` when nobody opens the approval dialog.
 pub async fn expire_pending_approvals(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     limit: u64,
-) -> Result<Vec<approval::Model>, AgentDbError> {
+) -> Result<Vec<AgentApprovalRecord>, AgentDbError> {
     if limit == 0 {
         return Err(AgentDbError::InvalidArgument(
             "approval expiry limit 必须大于 0".into(),
@@ -389,13 +392,13 @@ pub async fn expire_pending_approvals(
             expired.push(row);
         }
     }
-    Ok(expired)
+    Ok(expired.into_iter().map(AgentApprovalRecord::from).collect())
 }
 
 /// Attempts one expiry transition.  `None` means another resolver won the
 /// race or the deadline was extended before the row was locked.
 pub(crate) async fn expire_pending_approval(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     approval_id: i64,
 ) -> Result<Option<approval::Model>, AgentDbError> {
     let identity = approval::Entity::find_by_id(approval_id)

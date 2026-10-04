@@ -74,6 +74,15 @@ pub struct UserAuthorizationRecord {
     pub is_active: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UserSessionRecord {
+    pub id: String,
+    pub user_agent: Option<String>,
+    pub created_at: chrono::NaiveDateTime,
+    pub expires_at: chrono::NaiveDateTime,
+    pub last_used_at: Option<chrono::NaiveDateTime>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

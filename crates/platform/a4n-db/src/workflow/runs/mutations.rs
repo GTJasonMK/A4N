@@ -1,4 +1,5 @@
 use super::*;
+use sea_orm::ConnectionTrait;
 
 use super::super::llm_checkpoint::inherit_completed_llm_call_checkpoints;
 use super::projections::workflow_run_summary;
@@ -107,7 +108,7 @@ where
 }
 
 pub async fn upsert_workflow_run(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: UpsertWorkflowRunInput,
 ) -> Result<workflow_run::Model, WorkflowWriteError> {
     let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
@@ -117,7 +118,7 @@ pub async fn upsert_workflow_run(
 }
 
 pub async fn upsert_workflow_run_summary(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: UpsertWorkflowRunInput,
 ) -> Result<WorkflowRunSummary, WorkflowWriteError> {
     upsert_workflow_run(db, input)
@@ -127,7 +128,7 @@ pub async fn upsert_workflow_run_summary(
 }
 
 pub async fn resume_or_upsert_workflow_run(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: UpsertWorkflowRunInput,
 ) -> Result<workflow_run::Model, WorkflowWriteError> {
     validate_workflow_run_input(&input)?;
@@ -167,7 +168,7 @@ pub async fn resume_or_upsert_workflow_run(
 }
 
 pub async fn resume_or_upsert_workflow_run_summary(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: UpsertWorkflowRunInput,
 ) -> Result<WorkflowRunSummary, WorkflowWriteError> {
     resume_or_upsert_workflow_run(db, input)
@@ -177,7 +178,7 @@ pub async fn resume_or_upsert_workflow_run_summary(
 }
 
 pub async fn continue_completed_workflow_run(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     source_run_id: i64,
     input: UpsertWorkflowRunInput,
 ) -> Result<workflow_run::Model, WorkflowWriteError> {
@@ -214,7 +215,7 @@ pub async fn continue_completed_workflow_run(
 }
 
 pub async fn continue_completed_workflow_run_summary(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     source_run_id: i64,
     input: UpsertWorkflowRunInput,
 ) -> Result<WorkflowRunSummary, WorkflowWriteError> {
@@ -384,7 +385,7 @@ pub async fn upsert_workflow_run_summary_in_transaction<C: ConnectionTrait>(
 }
 
 pub async fn mark_workflow_status(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     workflow_run_id: i64,
     status: &str,
     can_resume: bool,
@@ -438,7 +439,7 @@ pub async fn mark_workflow_status(
 }
 
 pub async fn mark_workflow_status_summary(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     workflow_run_id: i64,
     status: &str,
     can_resume: bool,
@@ -451,14 +452,14 @@ pub async fn mark_workflow_status_summary(
 }
 
 pub async fn resume_workflow_run(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     workflow_run_id: i64,
 ) -> Result<workflow_run::Model, WorkflowWriteError> {
     resume_workflow_run_inner(db, workflow_run_id, None).await
 }
 
 pub async fn resume_workflow_run_summary(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     workflow_run_id: i64,
 ) -> Result<WorkflowRunSummary, WorkflowWriteError> {
     resume_workflow_run(db, workflow_run_id)
@@ -473,7 +474,7 @@ pub async fn resume_workflow_run_summary(
 /// durable identity 绑定，否则接口返回时仍会读到旧终态，worker 随后又可能
 /// 把同一 workflow 当作重复启动。
 pub async fn resume_workflow_run_with_active_task(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     workflow_run_id: i64,
     active_task_id: &str,
 ) -> Result<workflow_run::Model, WorkflowWriteError> {
@@ -482,7 +483,7 @@ pub async fn resume_workflow_run_with_active_task(
 }
 
 pub async fn resume_workflow_run_with_active_task_summary(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     workflow_run_id: i64,
     active_task_id: &str,
 ) -> Result<WorkflowRunSummary, WorkflowWriteError> {
@@ -493,7 +494,7 @@ pub async fn resume_workflow_run_with_active_task_summary(
 }
 
 async fn resume_workflow_run_inner(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     workflow_run_id: i64,
     active_task_id: Option<&str>,
 ) -> Result<workflow_run::Model, WorkflowWriteError> {
@@ -632,7 +633,7 @@ mod tests {
 }
 
 pub async fn mark_workflow_current_step(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     workflow_run_id: i64,
     current_step_key: &str,
 ) -> Result<workflow_run::Model, WorkflowWriteError> {
@@ -654,7 +655,7 @@ pub async fn mark_workflow_current_step(
 }
 
 pub async fn mark_workflow_current_step_summary(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     workflow_run_id: i64,
     current_step_key: &str,
 ) -> Result<WorkflowRunSummary, WorkflowWriteError> {

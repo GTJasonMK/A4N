@@ -4,10 +4,7 @@ pub use contracts::ProjectRollbackImpactReadError;
 
 use a4n_db_models::models::chapter::{chapter_outline, part_outline};
 use a4n_domain::project::{CleanupAction, ProjectRollbackImpactSummary};
-use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait, QueryFilter,
-    QuerySelect, Statement,
-};
+use sea_orm::{ColumnTrait, DbBackend, DbErr, EntityTrait, QueryFilter, QuerySelect, Statement};
 
 const BLUEPRINT_ROLLBACK_COUNTS_SQL: &str = r#"
 SELECT
@@ -36,7 +33,7 @@ SELECT
 "#;
 
 pub async fn project_rollback_impacts(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     actions: &[CleanupAction],
 ) -> Result<Vec<ProjectRollbackImpactSummary>, ProjectRollbackImpactReadError> {
@@ -94,7 +91,7 @@ pub async fn project_rollback_impacts(
 }
 
 async fn chapter_rollback_impact(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<ProjectRollbackImpactSummary, ProjectRollbackImpactReadError> {
     let Some(row) = db
@@ -176,7 +173,7 @@ async fn chapter_rollback_impact(
 }
 
 async fn chapter_outline_rollback_impact(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<ProjectRollbackImpactSummary, ProjectRollbackImpactReadError> {
     let chapter_numbers = chapter_outline::Entity::find()
@@ -199,7 +196,7 @@ async fn chapter_outline_rollback_impact(
 }
 
 async fn part_outline_rollback_impact(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<ProjectRollbackImpactSummary, ProjectRollbackImpactReadError> {
     let part_numbers = part_outline::Entity::find()
@@ -222,7 +219,7 @@ async fn part_outline_rollback_impact(
 }
 
 async fn blueprint_rollback_impact(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<ProjectRollbackImpactSummary, ProjectRollbackImpactReadError> {
     let Some(row) = db

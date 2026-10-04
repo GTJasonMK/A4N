@@ -3,13 +3,13 @@ use a4n_db_models::models::character::protagonist_profile;
 use a4n_db_models::models::project::novel_project;
 use a4n_error::AppError;
 use a4n_export_contract::{ExportChapter, ExportDocument};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 #[cfg(test)]
 mod tests;
 
 async fn export_project_title(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<String, AppError> {
     novel_project::Entity::find_by_id(project_id)
@@ -18,24 +18,27 @@ async fn export_project_title(
         .into_tuple::<String>()
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))
 }
 
-async fn ensure_export_project(db: &DatabaseConnection, project_id: i64) -> Result<(), AppError> {
+async fn ensure_export_project(
+    db: &impl crate::DbExecutor,
+    project_id: i64,
+) -> Result<(), AppError> {
     novel_project::Entity::find_by_id(project_id)
         .select_only()
         .column(novel_project::Column::Id)
         .into_tuple::<i64>()
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
     Ok(())
 }
 
 async fn export_chapters(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<Vec<(i32, Option<String>, String)>, AppError> {
     chapter::Entity::find()
@@ -49,11 +52,11 @@ async fn export_chapters(
         .into_tuple::<(i32, Option<String>, String)>()
         .all(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
 }
 
 async fn export_parts(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<Vec<part_outline::Model>, AppError> {
     part_outline::Entity::find()
@@ -61,11 +64,11 @@ async fn export_parts(
         .order_by_asc(part_outline::Column::PartNumber)
         .all(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
 }
 
 async fn export_chapter_outlines(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<Vec<chapter_outline::Model>, AppError> {
     chapter_outline::Entity::find()
@@ -73,11 +76,11 @@ async fn export_chapter_outlines(
         .order_by_asc(chapter_outline::Column::ChapterNumber)
         .all(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
 }
 
 pub async fn export_document(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<ExportDocument, AppError> {
     let (title_result, chapters_result) = futures::join!(
@@ -113,7 +116,7 @@ pub async fn export_document(
 }
 
 pub async fn export_outline_json(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<serde_json::Value, AppError> {
     ensure_export_project(db, project_id).await?;
@@ -132,7 +135,7 @@ pub async fn export_outline_json(
 }
 
 pub async fn export_characters_json(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<serde_json::Value, AppError> {
     ensure_export_project(db, project_id).await?;
@@ -141,7 +144,7 @@ pub async fn export_characters_json(
         .filter(protagonist_profile::Column::ProjectId.eq(project_id))
         .all(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
 
     Ok(serde_json::json!({
         "project_id": project_id,

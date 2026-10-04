@@ -4,7 +4,7 @@ use a4n_db_models::models::{
     user::theme_config,
 };
 use a4n_error::AppError;
-use sea_orm::{DatabaseConnection, EntityTrait};
+use sea_orm::EntityTrait;
 
 use super::types::{
     SettingsAllConfigRows, SettingsAllEmbeddingConfigRow, SettingsAllImageConfigRow,
@@ -13,12 +13,12 @@ use super::types::{
 };
 
 pub async fn settings_all_config_rows(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
 ) -> Result<SettingsAllConfigRows, AppError> {
     let llm_configs = llm_config::Entity::find()
         .all(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .into_iter()
         .map(|row| SettingsAllLlmConfigRow {
             name: row.name,
@@ -39,7 +39,7 @@ pub async fn settings_all_config_rows(
     let embedding_configs = embedding_config::Entity::find()
         .all(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .into_iter()
         .map(|row| SettingsAllEmbeddingConfigRow {
             name: row.name,
@@ -57,7 +57,7 @@ pub async fn settings_all_config_rows(
     let image_configs = image_gen_config::Entity::find()
         .all(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .into_iter()
         .map(|row| {
             Ok(SettingsAllImageConfigRow {
@@ -78,7 +78,7 @@ pub async fn settings_all_config_rows(
     let video_configs = video_gen_config::Entity::find()
         .all(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .into_iter()
         .map(|row| {
             Ok(SettingsAllVideoConfigRow {
@@ -106,7 +106,7 @@ pub async fn settings_all_config_rows(
     let themes = theme_config::Entity::find()
         .all(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .into_iter()
         .map(|row| {
             Ok(SettingsAllThemeRow {
@@ -133,7 +133,7 @@ pub async fn settings_all_config_rows(
     let system_settings = system_settings::Entity::find()
         .all(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .into_iter()
         .filter(|row| !is_retired_system_setting_key(&row.key))
         .map(|row| SettingsAllSystemSettingRow {

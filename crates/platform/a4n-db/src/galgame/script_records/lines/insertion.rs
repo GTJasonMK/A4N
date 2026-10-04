@@ -2,14 +2,12 @@ use crate::galgame::{GalgameLineRecordError, InsertGalgameLineRecordInput};
 use a4n_db_models::models::galgame::galgame_line;
 use a4n_domain::galgame::GalgameLineRecord;
 use chrono::Utc;
+use sea_orm::ConnectionTrait;
 use sea_orm::sea_query::Expr;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    Set, TransactionTrait,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
 pub async fn insert_galgame_line_record_transaction(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: InsertGalgameLineRecordInput,
 ) -> Result<GalgameLineRecord, GalgameLineRecordError> {
     let tx = db.begin().await?;

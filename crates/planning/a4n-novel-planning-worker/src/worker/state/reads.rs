@@ -63,7 +63,7 @@ impl WorkerState {
         .await
         .map_err(shooting_script_error)?;
         Ok(ChapterShootingScriptView {
-            record: record_summary(record.record),
+            record: record_summary(&record),
             script: record.script,
             plan_sync,
         })
@@ -114,13 +114,7 @@ impl WorkerState {
 }
 
 fn record_summary(
-    record: a4n_db_models::models::chapter::chapter_shooting_script::Model,
+    record: &a4n_db::shooting_script::ParsedChapterShootingScript,
 ) -> ChapterShootingScriptRecordSummary {
-    ChapterShootingScriptRecordSummary {
-        id: record.id,
-        revision: record.revision,
-        visual_plan_id: record.visual_plan_id,
-        visual_plan_version: record.visual_plan_version,
-        visual_plan_sha256: record.visual_plan_sha256,
-    }
+    a4n_db::shooting_script::chapter_shooting_script_record_summary(record)
 }

@@ -219,7 +219,7 @@ impl OrchestratorContext {
             None => default_agent_permissions(),
         };
         build_content_optimization_context(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             chapter_id,
             &permissions,

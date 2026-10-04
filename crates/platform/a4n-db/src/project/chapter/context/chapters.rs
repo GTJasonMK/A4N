@@ -1,12 +1,10 @@
 use super::contracts::ProjectChapterContextError;
 use a4n_db_models::models::chapter::chapter;
 use a4n_domain::chapter::ChapterRecord;
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
-};
+use sea_orm::{ColumnTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 pub async fn chapter_by_id(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     chapter_id: i64,
 ) -> Result<Option<ChapterRecord>, DbErr> {
     chapter::Entity::find_current()
@@ -17,7 +15,7 @@ pub async fn chapter_by_id(
 }
 
 pub async fn chapter_project_id(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     chapter_id: i64,
 ) -> Result<Option<i64>, DbErr> {
     chapter::Entity::find_current()
@@ -30,7 +28,7 @@ pub async fn chapter_project_id(
 }
 
 pub async fn import_analysis_chapter_candidates(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<Vec<ChapterRecord>, ProjectChapterContextError> {
     chapter::Entity::find()
@@ -49,7 +47,7 @@ pub async fn import_analysis_chapter_candidates(
 }
 
 pub async fn character_sync_chapters(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<Vec<chapter::Model>, ProjectChapterContextError> {
     Ok(chapter::Entity::find_current()
@@ -64,7 +62,7 @@ pub async fn character_sync_chapters(
 }
 
 pub async fn character_sync_chapter_records(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<Vec<a4n_domain::chapter::ChapterRecord>, ProjectChapterContextError> {
     character_sync_chapters(db, project_id)
@@ -78,7 +76,7 @@ pub async fn character_sync_chapter_records(
 }
 
 pub async fn chapters_before_number(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_number: i32,
 ) -> Result<Vec<ChapterRecord>, ProjectChapterContextError> {

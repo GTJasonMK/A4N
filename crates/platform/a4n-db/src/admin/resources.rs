@@ -1,10 +1,7 @@
 use a4n_db_models::models::project::novel_project;
 use a4n_db_models::models::task::task_queue;
 use a4n_domain::project::{ProjectKind, ProjectStatus};
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
-    QuerySelect,
-};
+use sea_orm::{ColumnTrait, EntityTrait, FromQueryResult, QueryFilter, QueryOrder, QuerySelect};
 
 use super::{AdminDbError, AdminProjectSummary, TaskQueueSummary};
 
@@ -21,7 +18,9 @@ struct AdminProjectSummaryRow {
     total_chapters: Option<i32>,
 }
 
-pub async fn pending_tasks(db: &DatabaseConnection) -> Result<Vec<TaskQueueSummary>, AdminDbError> {
+pub async fn pending_tasks(
+    db: &impl crate::DbExecutor,
+) -> Result<Vec<TaskQueueSummary>, AdminDbError> {
     let mut tasks = task_queue::Entity::find()
         .filter(task_queue::Column::Status.eq("pending"))
         .all(db)
@@ -36,7 +35,7 @@ pub async fn pending_tasks(db: &DatabaseConnection) -> Result<Vec<TaskQueueSumma
 }
 
 pub async fn all_project_summaries(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
 ) -> Result<Vec<AdminProjectSummary>, AdminDbError> {
     let projects = novel_project::Entity::find()
         .select_only()

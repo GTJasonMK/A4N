@@ -1,5 +1,5 @@
 use a4n_db_models::models::chapter::{chapter_outline, part_outline};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use super::contracts::{
     OutlineGenerationProgressChapter, OutlineGenerationProgressPart, OutlineGenerationProgressRows,
@@ -7,7 +7,7 @@ use super::contracts::{
 };
 
 pub async fn outline_generation_progress_rows(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<OutlineGenerationProgressRows, ProjectOutlineRecordError> {
     let parts = part_outline::Entity::find()

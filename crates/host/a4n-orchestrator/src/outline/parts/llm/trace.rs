@@ -1,4 +1,4 @@
-use a4n_db::DbTransaction as DatabaseTransaction;
+use a4n_db::DbTransaction;
 use a4n_domain::chapter::PartOutlineRecord;
 use a4n_domain::generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput};
 use a4n_error::AppError;
@@ -13,7 +13,7 @@ use super::super::contracts::GeneratedPartOutline;
 impl OrchestratorContext {
     pub(in crate::outline::parts) async fn record_part_outline_generation_run(
         &self,
-        db: &DatabaseTransaction,
+        db: &DbTransaction,
         part: &PartOutlineRecord,
         generated: &GeneratedPartOutline,
         title: &str,

@@ -22,7 +22,7 @@ where
         .order_by_asc(generation_spec::Column::Id)
         .all(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
     if specs.is_empty() {
         return Ok(Vec::new());
     }
@@ -35,7 +35,7 @@ where
         .order_by_asc(prompt_artifact::Column::Id)
         .all(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
 
     Ok(artifacts
         .into_iter()

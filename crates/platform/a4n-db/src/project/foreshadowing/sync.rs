@@ -3,9 +3,10 @@ use a4n_db_models::models::{
 };
 use a4n_domain::character::ForeshadowingStatus;
 use chrono::Utc;
+use sea_orm::ConnectionTrait;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DatabaseTransaction,
-    EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set,
 };
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
@@ -17,7 +18,7 @@ use super::{
 use a4n_domain::chapter::ChapterSourceSnapshot;
 
 pub async fn sync_chapter_analysis_foreshadowing(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     source: ChapterSourceSnapshot,
     drafts: Vec<ForeshadowingAnalysisDraft>,
     updates: Vec<ForeshadowingFactUpdate>,

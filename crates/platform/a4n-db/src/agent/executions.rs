@@ -1,4 +1,5 @@
 use super::*;
+use sea_orm::ConnectionTrait;
 
 pub(crate) async fn create_execution_on<C>(
     db: &C,
@@ -82,10 +83,10 @@ where
 /// transaction as the execution insert, so an expired worker cannot enqueue a
 /// side effect after another worker has taken over recovery.
 pub async fn create_execution_for_run_lease(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: AgentExecutionInput,
     lease_token: &str,
-) -> Result<execution::Model, AgentDbError> {
+) -> Result<AgentExecutionRecord, AgentDbError> {
     if input.status != "prepared" {
         return Err(AgentDbError::InvalidArgument(
             "worker 只能创建 prepared Agent execution".into(),
@@ -114,7 +115,7 @@ pub async fn create_execution_for_run_lease(
     }
     let row = create_execution_on(&tx, input, run_row).await?;
     tx.commit().await?;
-    Ok(row)
+    Ok(row.into())
 }
 
 /// Updates an execution while fencing the write to the current Run lease.
@@ -123,7 +124,7 @@ pub async fn create_execution_for_run_lease(
 /// expired must not be able to overwrite the result after another worker has
 /// taken over recovery.
 pub async fn update_execution_for_run_lease(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     run_id: i64,
     lease_token: &str,
     execution_id: i64,
@@ -132,7 +133,7 @@ pub async fn update_execution_for_run_lease(
     result_summary: Option<String>,
     result_refs_json: Option<Value>,
     error_message: Option<String>,
-) -> Result<execution::Model, AgentDbError> {
+) -> Result<AgentExecutionRecord, AgentDbError> {
     validate_execution_status(status)?;
     let identity = run::Entity::find_by_id(run_id)
         .one(db)
@@ -226,5 +227,5 @@ pub async fn update_execution_for_run_lease(
     active.completed_at = Set(terminal.then_some(timestamp));
     let row = active.update(&tx).await?;
     tx.commit().await?;
-    Ok(row)
+    Ok(row.into())
 }

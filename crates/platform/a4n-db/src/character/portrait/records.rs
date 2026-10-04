@@ -74,6 +74,18 @@ where
         .await
 }
 
+pub async fn primary_character_portrait_record_value<C>(
+    db: &C,
+    profile_id: i64,
+) -> Result<Option<CharacterPortraitRecord>, sea_orm::DbErr>
+where
+    C: ConnectionTrait,
+{
+    primary_character_portrait_record(db, profile_id)
+        .await
+        .map(|row| row.map(super::record_mapping::character_portrait_record_from_model))
+}
+
 pub async fn create_character_portrait_for_profile<C>(
     db: &C,
     input: CharacterPortraitCreateInput,

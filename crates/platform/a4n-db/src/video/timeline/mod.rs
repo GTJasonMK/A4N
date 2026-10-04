@@ -14,8 +14,7 @@ use a4n_domain::video_timeline::{
 };
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
     sea_query::{CaseStatement, Expr, OnConflict},
 };
 use serde_json::{Value, json};

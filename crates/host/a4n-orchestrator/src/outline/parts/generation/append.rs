@@ -28,7 +28,7 @@ impl OrchestratorContext {
             workflow_run_id,
         } = input;
         let mut context = load_part_generation_context(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             part_count,
             chapters_per_part,
@@ -78,7 +78,7 @@ impl OrchestratorContext {
                 })
                 .await?;
             with_locked_outline_generation_sources(
-                self.database.connection(),
+                self.database.executor(),
                 project_id,
                 &context.source_snapshot,
                 |tx| {
@@ -111,7 +111,7 @@ impl OrchestratorContext {
             )
             .await?;
             context = load_part_generation_context(
-                self.database.connection(),
+                self.database.executor(),
                 project_id,
                 Some(context.requested_part_count),
                 Some(context.chapters_per_part),

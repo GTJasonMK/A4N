@@ -6,13 +6,12 @@ use a4n_db_models::models::user::{llm_usage_log, theme_config, user};
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, FromQueryResult, PaginatorTrait,
-    QueryFilter, QuerySelect,
+    ColumnTrait, EntityTrait, FromQueryResult, PaginatorTrait, QueryFilter, QuerySelect,
 };
 
 use super::{AdminDbError, AdminOverviewSummary, ThemeInfo};
 
-pub async fn check_database_health(db: &DatabaseConnection) -> Result<(), AdminDbError> {
+pub async fn check_database_health(db: &impl crate::DbExecutor) -> Result<(), AdminDbError> {
     db.execute(sea_orm::Statement::from_string(
         db.get_database_backend(),
         "SELECT 1",
@@ -23,7 +22,7 @@ pub async fn check_database_health(db: &DatabaseConnection) -> Result<(), AdminD
 }
 
 pub async fn admin_overview_summary(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
 ) -> Result<AdminOverviewSummary, AdminDbError> {
     macro_rules! count_rows {
         ($query:expr) => {
@@ -75,7 +74,7 @@ pub async fn admin_overview_summary(
     })
 }
 
-async fn daily_active_users(db: &DatabaseConnection) -> Result<u64, AdminDbError> {
+async fn daily_active_users(db: &impl crate::DbExecutor) -> Result<u64, AdminDbError> {
     let since = Utc::now().naive_utc() - chrono::Duration::hours(24);
     #[derive(Debug, FromQueryResult)]
     struct ActiveUserCount {
@@ -95,7 +94,7 @@ async fn daily_active_users(db: &DatabaseConnection) -> Result<u64, AdminDbError
 }
 
 pub(super) async fn find_active_global_theme(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
 ) -> Result<Option<ThemeInfo>, AdminDbError> {
     let theme = theme_config::Entity::find()
         .filter(theme_config::Column::UserId.is_null())

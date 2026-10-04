@@ -1,5 +1,6 @@
 use super::*;
 use a4n_domain::project::ProjectStatusHistoryInput;
+use sea_orm::ConnectionTrait;
 use sea_orm::QuerySelect;
 
 pub(super) async fn sync_project_after_blueprint_restore_record<C>(

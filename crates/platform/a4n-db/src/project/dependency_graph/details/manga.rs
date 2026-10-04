@@ -28,7 +28,7 @@ where
         .order_by_asc(chapter_manga_prompt::Column::Id)
         .all(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
     Ok(prompts
         .into_iter()
         .map(|prompt| manga_prompt_record(prompt, None))
@@ -56,8 +56,8 @@ where
             .order_by_asc(generated_image::Column::Id)
             .all(db),
     );
-    let prompts = prompts_result.map_err(AppError::Database)?;
-    let images = images_result.map_err(AppError::Database)?;
+    let prompts = prompts_result.map_err(AppError::from)?;
+    let images = images_result.map_err(AppError::from)?;
     let image_by_id = images
         .iter()
         .map(|image| (image.id, image))

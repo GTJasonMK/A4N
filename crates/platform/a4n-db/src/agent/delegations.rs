@@ -1,7 +1,18 @@
 use super::*;
 use a4n_db_models::models::agent::inbox as inbox_model;
+use sea_orm::ConnectionTrait;
 
 pub async fn create_delegation<C>(
+    db: &C,
+    input: AgentDelegationInput,
+) -> Result<AgentDelegationRecord, AgentDbError>
+where
+    C: ConnectionTrait,
+{
+    create_delegation_model(db, input).await.map(Into::into)
+}
+
+async fn create_delegation_model<C>(
     db: &C,
     input: AgentDelegationInput,
 ) -> Result<delegation::Model, AgentDbError>
@@ -54,7 +65,7 @@ where
     }
     .insert(db)
     .await
-    .map_err(AgentDbError::Database)
+    .map_err(AgentDbError::from)
 }
 
 /// Replaying a delegation key is only idempotent when it describes the same
@@ -91,6 +102,29 @@ pub async fn update_delegation<C>(
     result_refs_json: Option<Value>,
     result_summary: Option<String>,
     error_message: Option<String>,
+) -> Result<AgentDelegationRecord, AgentDbError>
+where
+    C: ConnectionTrait,
+{
+    update_delegation_model(
+        db,
+        id,
+        status,
+        result_refs_json,
+        result_summary,
+        error_message,
+    )
+    .await
+    .map(Into::into)
+}
+
+async fn update_delegation_model<C>(
+    db: &C,
+    id: i64,
+    status: &str,
+    result_refs_json: Option<Value>,
+    result_summary: Option<String>,
+    error_message: Option<String>,
 ) -> Result<delegation::Model, AgentDbError>
 where
     C: ConnectionTrait,
@@ -119,20 +153,20 @@ where
     } else {
         active.completed_at = Set(None);
     }
-    active.update(db).await.map_err(AgentDbError::Database)
+    active.update(db).await.map_err(AgentDbError::from)
 }
 
 pub async fn bind_delegation_child(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     id: i64,
     parent_run_id: i64,
     child_turn_id: i64,
     child_run_id: i64,
-) -> Result<delegation::Model, AgentDbError> {
+) -> Result<AgentDelegationRecord, AgentDbError> {
     let tx = db.begin().await?;
     let row = bind_delegation_child_on(&tx, id, parent_run_id, child_turn_id, child_run_id).await?;
     tx.commit().await?;
-    Ok(row)
+    Ok(row.into())
 }
 
 pub(crate) async fn bind_delegation_child_on<C>(
@@ -244,16 +278,24 @@ where
     active.child_turn_id = Set(Some(child_turn_id));
     active.child_run_id = Set(Some(child_run_id));
     active.updated_at = Set(timestamp);
-    active.update(db).await.map_err(AgentDbError::Database)
+    active.update(db).await.map_err(AgentDbError::from)
 }
 
 /// Creates the delegation and child Turn/Run, then binds lineage before the
 /// child can be claimed.  The existing primitives remain the single owners of
 /// writer admission and lineage validation.
 pub async fn create_child_delegation(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: AgentChildDelegationInput,
-) -> Result<(delegation::Model, turn::Model, run::Model, message::Model), AgentDbError> {
+) -> Result<
+    (
+        AgentDelegationRecord,
+        AgentTurnRecord,
+        AgentRunRecord,
+        AgentMessageRecord,
+    ),
+    AgentDbError,
+> {
     create_child_delegation_inner(
         db,
         input.delegation,
@@ -261,6 +303,9 @@ pub async fn create_child_delegation(
         input.parent_lease_token,
     )
     .await
+    .map(|(delegation, turn, run, message)| {
+        (delegation.into(), turn.into(), run.into(), message.into())
+    })
 }
 
 /// Creates a delegation requested directly by the owning user.  Unlike a
@@ -269,14 +314,26 @@ pub async fn create_child_delegation(
 /// wait for a child.  A stale parent worker is fenced by clearing its lease in
 /// the same transaction.
 pub async fn create_user_delegation(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: AgentUserDelegationInput,
-) -> Result<(delegation::Model, turn::Model, run::Model, message::Model), AgentDbError> {
-    create_child_delegation_inner(db, input.delegation, input.child_turn, None).await
+) -> Result<
+    (
+        AgentDelegationRecord,
+        AgentTurnRecord,
+        AgentRunRecord,
+        AgentMessageRecord,
+    ),
+    AgentDbError,
+> {
+    create_child_delegation_inner(db, input.delegation, input.child_turn, None)
+        .await
+        .map(|(delegation, turn, run, message)| {
+            (delegation.into(), turn.into(), run.into(), message.into())
+        })
 }
 
 pub(crate) async fn create_child_delegation_inner(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     delegation_input: AgentDelegationInput,
     child_turn_input: AgentTurnInput,
     parent_lease_token: Option<String>,
@@ -335,12 +392,11 @@ pub(crate) async fn create_child_delegation_inner(
                 input.delegation.parent_run_id
             ))
         })?;
-    if let Some(existing) = delegation_by_parent_and_key(
-        &tx,
-        input.delegation.parent_run_id,
-        &input.delegation.delegation_key,
-    )
-    .await?
+    if let Some(existing) = delegation::Entity::find()
+        .filter(delegation::Column::ParentRunId.eq(input.delegation.parent_run_id))
+        .filter(delegation::Column::DelegationKey.eq(&input.delegation.delegation_key))
+        .one(&tx)
+        .await?
     {
         validate_delegation_replay(&existing, &input.delegation)?;
         let child_turn_id = existing.child_turn_id.ok_or_else(|| {
@@ -432,7 +488,7 @@ pub(crate) async fn create_child_delegation_inner(
         }
         None => None,
     };
-    let delegation = create_delegation(&tx, input.delegation.clone()).await?;
+    let delegation = create_delegation_model(&tx, input.delegation.clone()).await?;
     let (child_turn, child_run, child_message) =
         create_turn_with_run_on(&tx, input.child_turn).await?;
     let child_run_id = child_run.id;
@@ -450,7 +506,8 @@ pub(crate) async fn create_child_delegation_inner(
         .one(&tx)
         .await?
         .ok_or_else(|| AgentDbError::NotFound(format!("Agent child run 不存在: {child_run_id}")))?;
-    let delegation = update_delegation(&tx, delegation.id, "running", None, None, None).await?;
+    let delegation =
+        update_delegation_model(&tx, delegation.id, "running", None, None, None).await?;
     if let Some(parent_execution) = parent_execution {
         let mut execution_active: execution::ActiveModel = parent_execution.into();
         // A delegation execution represents the whole child lifecycle.  Keep
@@ -488,14 +545,14 @@ pub(crate) async fn create_child_delegation_inner(
 /// Completes a child Run, records the delegation result, delivers a durable
 /// `child_result` inbox item, and wakes the parent in one transaction.
 pub async fn complete_child_delegation(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: AgentChildCompletionInput,
 ) -> Result<
     Option<(
-        run::Model,
-        delegation::Model,
-        inbox_model::Model,
-        run::Model,
+        AgentRunRecord,
+        AgentDelegationRecord,
+        AgentInboxRecord,
+        AgentRunRecord,
     )>,
     AgentDbError,
 > {
@@ -757,21 +814,26 @@ pub async fn complete_child_delegation(
     let _ = refresh_thread_status_on(&tx, child_run.thread_id).await?;
     let _ = refresh_thread_status_on(&tx, parent_run.thread_id).await?;
     tx.commit().await?;
-    Ok(Some((child_run, delegation, inbox_row, parent_run)))
+    Ok(Some((
+        child_run.into(),
+        delegation.into(),
+        inbox_row.into(),
+        parent_run.into(),
+    )))
 }
 
 /// Fails a child Run and its delegation, then delivers the failure to and
 /// wakes the parent atomically. Repeating the same failure returns the durable
 /// terminal records instead of creating another inbox item.
 pub async fn fail_child_delegation(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: AgentChildFailureInput,
 ) -> Result<
     (
-        run::Model,
-        delegation::Model,
-        inbox_model::Model,
-        run::Model,
+        AgentRunRecord,
+        AgentDelegationRecord,
+        AgentInboxRecord,
+        AgentRunRecord,
     ),
     AgentDbError,
 > {
@@ -879,7 +941,12 @@ pub async fn fail_child_delegation(
                 AgentDbError::Conflict(format!("Agent child failure inbox 缺失: {}", delegation.id))
             })?;
         tx.commit().await?;
-        return Ok((child_run, delegation, inbox_row, parent_run));
+        return Ok((
+            child_run.into(),
+            delegation.into(),
+            inbox_row.into(),
+            parent_run.into(),
+        ));
     }
     validate_live_run_lease(&child_run, &input.child_lease_token, timestamp)?;
     if delegation.child_run_id != Some(child_run.id)
@@ -1054,5 +1121,10 @@ pub async fn fail_child_delegation(
     let _ = refresh_thread_status_on(&tx, child_run.thread_id).await?;
     let _ = refresh_thread_status_on(&tx, parent_run.thread_id).await?;
     tx.commit().await?;
-    Ok((child_run, delegation, inbox_row, parent_run))
+    Ok((
+        child_run.into(),
+        delegation.into(),
+        inbox_row.into(),
+        parent_run.into(),
+    ))
 }

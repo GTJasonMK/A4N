@@ -106,7 +106,7 @@ where
 }
 
 pub async fn resume_optimization_analysis_session(
-    db: &sea_orm::DatabaseConnection,
+    db: &impl crate::DbExecutor,
     session_id: i64,
 ) -> Result<optimization_session::Model, OptimizeDbError> {
     // A generation retry reuses the prepared inputs; it must not overwrite a
@@ -133,7 +133,7 @@ pub async fn resume_optimization_analysis_session(
 }
 
 pub async fn resume_optimization_analysis_session_record(
-    db: &sea_orm::DatabaseConnection,
+    db: &impl crate::DbExecutor,
     session_id: i64,
 ) -> Result<a4n_domain::project::OptimizationSessionRecord, OptimizeDbError> {
     resume_optimization_analysis_session(db, session_id)

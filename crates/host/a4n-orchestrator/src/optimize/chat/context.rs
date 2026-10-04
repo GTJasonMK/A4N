@@ -28,7 +28,7 @@ impl OrchestratorContext {
         let (previous_turns_result, analysis_context_result) = futures::join!(
             self.list_turns(session.id),
             build_content_optimization_context(
-                self.database.connection(),
+                self.database.executor(),
                 session.project_id,
                 session.chapter_id,
                 permissions,

@@ -28,7 +28,7 @@ pub(crate) fn galgame_portrait_spec_references_lines(
 }
 
 pub async fn galgame_webgal_portraits(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     root_project_id: i64,
 ) -> Result<Vec<CharacterPortraitRecord>, GalgameGenerationRecordError> {
     validate_galgame_generation_id(root_project_id, "root_project_id")?;
@@ -46,7 +46,7 @@ pub async fn galgame_webgal_portraits(
 }
 
 pub async fn galgame_portrait_spec_target_profile(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     spec: &GenerationSpecRecord,
     input: &GalgamePortraitSpecTargetInput,
 ) -> Result<GalgamePortraitSpecTargetProfile, GalgameGenerationRecordError> {
@@ -160,7 +160,7 @@ pub(in crate::galgame) fn validate_galgame_portrait_spec_target_input(
 }
 
 pub async fn completed_galgame_portrait_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     spec: &GenerationSpecRecord,
     profile_id: i64,
     expression: &str,
@@ -191,7 +191,7 @@ pub async fn completed_galgame_portrait_record(
 }
 
 pub async fn primary_galgame_portrait_reference_image_ids(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     profile: &GalgamePortraitSpecTargetProfile,
 ) -> Result<Vec<i64>, GalgameGenerationRecordError> {
     validate_galgame_generation_id(profile.id, "profile_id")?;

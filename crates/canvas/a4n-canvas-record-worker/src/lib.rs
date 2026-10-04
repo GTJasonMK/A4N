@@ -30,7 +30,6 @@ use axum::{
     routing::{get, post},
 };
 use chrono::Utc;
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, Statement};
 use serde::Serialize;
 use subtle::ConstantTimeEq;
 
@@ -71,13 +70,21 @@ struct RequestMeta {
 
 impl CanvasRecordWorker {
     pub fn new(
-        database: DatabaseConnection,
+        database: a4n_db::DatabaseConnection,
+        worker_id: impl Into<String>,
+        auth_token: impl Into<String>,
+    ) -> Self {
+        Self::new_with_handle(DbHandle::new(Arc::new(database)), worker_id, auth_token)
+    }
+
+    pub fn new_with_handle(
+        database: DbHandle,
         worker_id: impl Into<String>,
         auth_token: impl Into<String>,
     ) -> Self {
         Self {
             state: WorkerState {
-                database: DbHandle::new(Arc::new(database)),
+                database,
                 worker_id: Arc::<str>::from(worker_id.into()),
                 auth_token: Arc::<str>::from(auth_token.into()),
             },
@@ -126,13 +133,8 @@ async fn async_main() -> anyhow::Result<()> {
     a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
     let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
     let address = worker_addr()?;
-    let mut options = ConnectOptions::new(database_url);
-    options
-        .max_connections(8)
-        .min_connections(1)
-        .connect_timeout(std::time::Duration::from_secs(5));
-    let database = Database::connect(options).await?;
-    CanvasRecordWorker::new(database, CANVAS_RECORD_WORKER_ID, auth_token)
+    let database = DbHandle::connect_default(database_url).await?;
+    CanvasRecordWorker::new_with_handle(database, CANVAS_RECORD_WORKER_ID, auth_token)
         .serve(address)
         .await
 }
@@ -152,16 +154,8 @@ async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Respons
     if !state.authorized(&headers) {
         return unauthorized();
     }
-    let status = match state
-        .database
-        .connection()
-        .execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT 1",
-        ))
-        .await
-    {
-        Ok(_) => WorkerHealthStatus::Healthy,
+    let status = match state.database.ping().await {
+        Ok(()) => WorkerHealthStatus::Healthy,
         Err(_) => WorkerHealthStatus::Degraded,
     };
     Json(WorkerHealth {

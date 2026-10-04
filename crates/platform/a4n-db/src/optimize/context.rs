@@ -312,7 +312,7 @@ where
 }
 
 pub async fn write_optimization_chapter_patch_content(
-    db: &sea_orm::DatabaseTransaction,
+    db: &impl crate::DbTransactionExecutor,
     input: OptimizationChapterPatchWriteInput,
 ) -> Result<a4n_domain::chapter::ChapterRecord, OptimizeDbError> {
     if !crate::chapter_content::chapter_source_snapshots_match_for_update(

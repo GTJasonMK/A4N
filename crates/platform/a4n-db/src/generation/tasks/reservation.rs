@@ -1,4 +1,5 @@
 use super::*;
+use sea_orm::ConnectionTrait;
 pub(super) struct PreparedReservation {
     input: ReserveGenerationTaskInput,
     start_request_id: Uuid,
@@ -7,7 +8,7 @@ pub(super) struct PreparedReservation {
 }
 
 pub async fn reserve_generation_task(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: ReserveGenerationTaskInput,
 ) -> Result<GenerationTaskReservation, GenerationTaskPersistenceError> {
     if db.get_database_backend() != DbBackend::Postgres {

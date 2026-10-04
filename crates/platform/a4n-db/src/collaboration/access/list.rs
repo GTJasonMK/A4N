@@ -8,10 +8,9 @@ use super::super::{
     CollaborationDbError, ProjectAccessScope, accessible_member_condition, member_root_ids,
     validate_positive_i64,
 };
-use sea_orm::DatabaseConnection;
 
 pub async fn list_accessible_projects(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: AccessibleProjectListInput,
 ) -> Result<AccessibleProjectsPage, CollaborationDbError> {
     let mut condition = accessible_project_condition(db, input.user_id, input.access_scope).await?;
@@ -56,7 +55,7 @@ pub async fn list_accessible_projects(
 }
 
 async fn accessible_project_condition(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
     access_scope: ProjectAccessScope,
 ) -> Result<Condition, CollaborationDbError> {

@@ -10,7 +10,7 @@ use crate::project::{CreateProjectRecordInput, create_project_record};
 use a4n_db_models::models::{ai::generated_image, media::image_publication};
 use a4n_domain::media::{CreateImagePublicationIntentInput, ImagePublicationFileFacts};
 use a4n_migration::test_support::connect_test_database;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use uuid::Uuid;
 
 #[test]
@@ -286,7 +286,7 @@ async fn publication_failure_matrix_preserves_intent_and_blocks_stale_writer() {
 }
 
 async fn create_test_publication_intent(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
     project_id: i64,
     publication_id: &str,

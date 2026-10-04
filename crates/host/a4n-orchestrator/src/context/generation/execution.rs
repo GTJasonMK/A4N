@@ -188,15 +188,13 @@ impl GenerationApplication {
                 let publisher = SessionGenerationEventPublisher::new(
                     session.clone(),
                     Arc::new(DatabaseGenerationSequenceLeaseReplenisher::new(
-                        self.database.shared_connection(),
+                        self.database.clone(),
                     )),
                 );
                 Ok(Some(GenerationTaskExecution {
                     session,
                     publisher,
-                    checkpoint_writer: GenerationCheckpointWriter::new(
-                        self.database.shared_connection(),
-                    ),
+                    checkpoint_writer: GenerationCheckpointWriter::new(self.database.clone()),
                     terminal: self.terminal.clone(),
                     permit,
                 }))

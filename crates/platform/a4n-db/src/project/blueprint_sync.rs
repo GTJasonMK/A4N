@@ -16,6 +16,7 @@ pub(crate) use record::{
 pub use records::{
     blueprint_characters_for_project, blueprint_relationships_for_project,
     blueprint_sources_need_review, blueprint_version_by_project_version,
+    blueprint_version_record_by_project_version, blueprint_version_records_by_project,
     blueprint_versions_by_project, novel_blueprint_for_project,
 };
 pub(super) use relationships::sync_blueprint_relationships;

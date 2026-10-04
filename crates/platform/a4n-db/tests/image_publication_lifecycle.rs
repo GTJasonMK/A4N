@@ -83,7 +83,7 @@ impl Fixture {
 async fn fixture() -> Fixture {
     let db = connect_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
-    let user = a4n_db::auth::create_user(
+    let user = a4n_db::auth::create_user_summary(
         &db,
         &format!("image_publication_{suffix}"),
         &format!("image_publication_{suffix}@example.invalid"),

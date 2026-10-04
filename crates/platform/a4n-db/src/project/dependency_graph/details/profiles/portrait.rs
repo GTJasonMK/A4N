@@ -46,8 +46,8 @@ where
             .order_by_asc(generated_image::Column::Id)
             .all(db),
     );
-    let portraits = portraits_result.map_err(AppError::Database)?;
-    let images = images_result.map_err(AppError::Database)?;
+    let portraits = portraits_result.map_err(AppError::from)?;
+    let images = images_result.map_err(AppError::from)?;
     let images_by_portrait_id = images.iter().fold(
         HashMap::with_capacity(images.len()),
         |mut by_portrait_id, image| {

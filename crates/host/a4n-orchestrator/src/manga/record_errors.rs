@@ -9,7 +9,7 @@ pub(crate) fn manga_prompt_record_error(error: MangaPromptRecordError) -> AppErr
             current: message,
             operation: "创建漫画提示词".to_string(),
         },
-        MangaPromptRecordError::Database { source, .. } => AppError::Database(source),
+        MangaPromptRecordError::Database { source, .. } => AppError::database(source),
         MangaPromptRecordError::Generation(error) => crate::generation::generation_error(error),
     }
 }
@@ -17,7 +17,7 @@ pub(crate) fn manga_prompt_record_error(error: MangaPromptRecordError) -> AppErr
 pub(in crate::manga) fn manga_pipeline_db_error(error: MangaPipelineDbError) -> AppError {
     match error {
         MangaPipelineDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
-        MangaPipelineDbError::Database(error) => AppError::Database(error),
+        MangaPipelineDbError::Database(error) => AppError::database(error),
         MangaPipelineDbError::Generation(error) => crate::generation::generation_error(error),
     }
 }

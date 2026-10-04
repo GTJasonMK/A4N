@@ -7,10 +7,9 @@ use super::existence::{
     embedding_configs_exist, image_configs_exist, llm_configs_exist, video_configs_exist,
 };
 use a4n_error::AppError;
-use sea_orm::DatabaseConnection;
 
 pub async fn insert_baseline_embedding_config_if_empty(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
 ) -> Result<bool, AppError> {
     if embedding_configs_exist(db).await? {
         return Ok(false);
@@ -36,7 +35,7 @@ pub async fn insert_baseline_embedding_config_if_empty(
 }
 
 pub async fn insert_baseline_llm_config_if_empty(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: LlmConfigRecordInput,
 ) -> Result<bool, AppError> {
     if llm_configs_exist(db).await? {
@@ -48,7 +47,7 @@ pub async fn insert_baseline_llm_config_if_empty(
 }
 
 pub async fn insert_baseline_image_config_if_empty(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: ImageConfigRecordInput,
 ) -> Result<bool, AppError> {
     if image_configs_exist(db).await? {
@@ -60,7 +59,7 @@ pub async fn insert_baseline_image_config_if_empty(
 }
 
 pub async fn insert_baseline_video_config_if_empty(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: VideoConfigRecordInput,
 ) -> Result<bool, AppError> {
     if video_configs_exist(db).await? {

@@ -24,13 +24,13 @@ impl AgentApplication {
                 request.operation_id
             )));
         }
-        let run = agent::run_by_id(self.connection(), request.payload.run_id)
+        let run = agent::run_by_id(self.executor(), request.payload.run_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| {
                 AppError::NotFound(format!("Agent run 不存在: {}", request.payload.run_id))
             })?;
-        agent::validate_live_run_lease(
+        agent::validate_live_run_lease_record(
             &run,
             &request.lease.fence_token,
             chrono::Utc::now().naive_utc(),
@@ -49,14 +49,14 @@ impl AgentApplication {
         // `expires_at` is an observation captured when the request was built.
         // Renewal legitimately changes it while the fence token and epoch stay
         // stable; validate liveness above against the database as authority.
-        let thread = agent::thread_by_id(self.connection(), run.thread_id)
+        let thread = agent::thread_by_id(self.executor(), run.thread_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent thread 不存在: {}", run.thread_id)))?;
         if let Some(execution_id) = request.payload.execution_id {
-            let execution = execution::Entity::find_by_id(execution_id)
-                .one(self.connection())
-                .await?
+            let execution = agent::execution_by_id(self.executor(), execution_id)
+                .await
+                .map_err(agent_db_error_to_app)?
                 .ok_or_else(|| {
                     AppError::NotFound(format!("Agent execution 不存在: {execution_id}"))
                 })?;

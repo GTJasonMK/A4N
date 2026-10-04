@@ -16,7 +16,7 @@ pub(in crate::import_reverse) use workflow_rules::{
 
 pub(crate) fn import_reverse_db_error(error: ImportReverseDbError) -> a4n_error::AppError {
     match error {
-        ImportReverseDbError::Database(error) => a4n_error::AppError::Database(error),
+        ImportReverseDbError::Database(error) => a4n_error::AppError::database(error),
         ImportReverseDbError::NotFound(message) => a4n_error::AppError::NotFound(message),
         ImportReverseDbError::InvalidArgument(message) => {
             a4n_error::AppError::InvalidArgument(message)

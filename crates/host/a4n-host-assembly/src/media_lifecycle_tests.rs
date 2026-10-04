@@ -39,7 +39,12 @@ async fn state() -> (
     let router = axum::Router::new()
         .nest(
             "/config",
-            ConfigReadWorker::new(db.clone(), CONFIG_READ_WORKER_ID, &token).router(),
+            ConfigReadWorker::new(
+                a4n_db::DbHandle::new(Arc::new(db.clone())),
+                CONFIG_READ_WORKER_ID,
+                &token,
+            )
+            .router(),
         )
         .nest(
             "/project-access",
@@ -108,7 +113,7 @@ async fn state() -> (
     )
     .await
     .unwrap();
-    let owner = a4n_db::auth::create_user(
+    let owner = a4n_db::auth::create_user_summary(
         &db,
         "media-owner",
         "owner@example.invalid",
@@ -166,7 +171,7 @@ const TEST_IMAGE_BASE64: &str =
 #[tokio::test]
 async fn media_access_checks_membership_and_the_resolved_project_or_theme() {
     let (_resources, state, db, owner_id, project_id) = state().await;
-    let other = a4n_db::auth::create_user(
+    let other = a4n_db::auth::create_user_summary(
         &db,
         "media-other",
         "other@example.invalid",

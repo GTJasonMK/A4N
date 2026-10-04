@@ -13,13 +13,12 @@ use a4n_db_models::models::generation::{
 use chrono::Utc;
 use sea_orm::sea_query::{Expr, extension::postgres::PgExpr};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, NotSet, QueryFilter,
-    QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, NotSet, QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use serde_json::json;
 
 pub async fn cancel_workflow_run_persistence(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     workflow_run_id: i64,
     reason: &str,
 ) -> Result<CancelWorkflowRunPersistenceResult, WorkflowWriteError> {

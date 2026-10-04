@@ -9,7 +9,7 @@ impl WorkflowApplication {
         input: UpsertWorkflowRunInput,
     ) -> Result<WorkflowRunSummary, AppError> {
         a4n_db::workflow::continue_completed_workflow_run_summary(
-            self.database.connection(),
+            self.database.executor(),
             source_run_id,
             input,
         )
@@ -20,7 +20,7 @@ impl WorkflowApplication {
         &self,
         workflow_run_id: i64,
     ) -> Result<WorkflowRunSummary, AppError> {
-        a4n_db::workflow::workflow_run_summary_by_id(self.database.connection(), workflow_run_id)
+        a4n_db::workflow::workflow_run_summary_by_id(self.database.executor(), workflow_run_id)
             .await
             .map_err(workflow_read_app_error)
     }
@@ -29,7 +29,7 @@ impl WorkflowApplication {
         &self,
         input: ListWorkflowRunsInput,
     ) -> Result<Vec<WorkflowRunSummary>, AppError> {
-        a4n_db::workflow::list_workflow_runs(self.database.connection(), input)
+        a4n_db::workflow::list_workflow_runs(self.database.executor(), input)
             .await
             .map_err(workflow_read_app_error)
     }
@@ -40,7 +40,7 @@ impl WorkflowApplication {
         workflow_kind: &str,
     ) -> Result<Vec<WorkflowRunResumeRecord>, AppError> {
         a4n_db::workflow::workflow_run_resume_records_by_project_kind(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             workflow_kind,
         )
@@ -53,7 +53,7 @@ impl WorkflowApplication {
         workflow_run_id: i64,
     ) -> Result<WorkflowRunSummary, AppError> {
         a4n_db::workflow::workflow_run_summary_by_id_record(
-            self.database.connection(),
+            self.database.executor(),
             workflow_run_id,
         )
         .await
@@ -65,7 +65,7 @@ impl WorkflowApplication {
         workflow_run_id: i64,
     ) -> Result<WorkflowRunStatusRecord, AppError> {
         a4n_db::workflow::workflow_run_status_record_by_id(
-            self.database.connection(),
+            self.database.executor(),
             workflow_run_id,
         )
         .await
@@ -76,7 +76,7 @@ impl WorkflowApplication {
         &self,
         workflow_run_ids: &[i64],
     ) -> Result<Vec<(i64, String)>, AppError> {
-        a4n_db::workflow::workflow_run_statuses_by_ids(self.database.connection(), workflow_run_ids)
+        a4n_db::workflow::workflow_run_statuses_by_ids(self.database.executor(), workflow_run_ids)
             .await
             .map_err(workflow_read_app_error)
     }
@@ -86,7 +86,7 @@ impl WorkflowApplication {
         business_key: &str,
     ) -> Result<Option<WorkflowRunSummary>, AppError> {
         a4n_db::workflow::latest_workflow_run_summary_by_business_key(
-            self.database.connection(),
+            self.database.executor(),
             business_key,
         )
         .await
@@ -98,7 +98,7 @@ impl WorkflowApplication {
         business_key: &str,
     ) -> Result<Option<WorkflowRunStatusRecord>, AppError> {
         a4n_db::workflow::latest_workflow_run_status_record_by_business_key(
-            self.database.connection(),
+            self.database.executor(),
             business_key,
         )
         .await
@@ -110,7 +110,7 @@ impl WorkflowApplication {
         business_keys: &[String],
     ) -> Result<Vec<WorkflowRunRecoveryRecord>, AppError> {
         a4n_db::workflow::latest_workflow_run_recovery_records_by_business_keys(
-            self.database.connection(),
+            self.database.executor(),
             business_keys,
         )
         .await
@@ -131,7 +131,7 @@ impl WorkflowApplication {
         workflow_run_ids: &[i64],
     ) -> Result<Vec<(i64, String)>, AppError> {
         a4n_db::workflow::workflow_checkpoint_statuses_for_runs(
-            self.database.connection(),
+            self.database.executor(),
             workflow_run_ids,
         )
         .await
@@ -143,7 +143,7 @@ impl WorkflowApplication {
         workflow_run_id: i64,
     ) -> Result<Vec<(String, String)>, AppError> {
         a4n_db::workflow::workflow_checkpoint_step_statuses(
-            self.database.connection(),
+            self.database.executor(),
             workflow_run_id,
         )
         .await
@@ -195,7 +195,7 @@ impl WorkflowApplication {
             Err(error) => error,
         };
         if let Err(rejection_error) = a4n_db::workflow::reject_completed_llm_call_checkpoint(
-            self.database.connection(),
+            self.database.executor(),
             workflow_run_id,
             call_key,
             input_fingerprint_json,
@@ -217,7 +217,7 @@ impl WorkflowApplication {
         reason: &str,
     ) -> Result<CancelWorkflowRunPersistenceResult, AppError> {
         a4n_db::workflow::cancel_workflow_run_persistence(
-            self.database.connection(),
+            self.database.executor(),
             workflow_run_id,
             reason,
         )
@@ -229,7 +229,7 @@ impl WorkflowApplication {
         &self,
         input: UpsertWorkflowRunInput,
     ) -> Result<WorkflowRunSummary, AppError> {
-        a4n_db::workflow::upsert_workflow_run_summary(self.database.connection(), input)
+        a4n_db::workflow::upsert_workflow_run_summary(self.database.executor(), input)
             .await
             .map_err(workflow_write_app_error)
     }
@@ -238,7 +238,7 @@ impl WorkflowApplication {
         &self,
         input: UpsertWorkflowRunInput,
     ) -> Result<WorkflowRunSummary, AppError> {
-        a4n_db::workflow::resume_or_upsert_workflow_run_summary(self.database.connection(), input)
+        a4n_db::workflow::resume_or_upsert_workflow_run_summary(self.database.executor(), input)
             .await
             .map_err(workflow_write_app_error)
     }
@@ -247,7 +247,7 @@ impl WorkflowApplication {
         &self,
         input: ClaimExclusiveWorkflowRunInput,
     ) -> Result<WorkflowRunSummary, AppError> {
-        a4n_db::workflow::claim_exclusive_workflow_run_summary(self.database.connection(), input)
+        a4n_db::workflow::claim_exclusive_workflow_run_summary(self.database.executor(), input)
             .await
             .map_err(workflow_write_app_error)
     }
@@ -260,7 +260,7 @@ impl WorkflowApplication {
         error_message: Option<&str>,
     ) -> Result<WorkflowRunSummary, AppError> {
         a4n_db::workflow::mark_workflow_status_summary(
-            self.database.connection(),
+            self.database.executor(),
             workflow_run_id,
             status,
             can_resume,
@@ -274,7 +274,7 @@ impl WorkflowApplication {
         &self,
         workflow_run_id: i64,
     ) -> Result<WorkflowRunSummary, AppError> {
-        a4n_db::workflow::resume_workflow_run_summary(self.database.connection(), workflow_run_id)
+        a4n_db::workflow::resume_workflow_run_summary(self.database.executor(), workflow_run_id)
             .await
             .map_err(workflow_write_app_error)
     }
@@ -285,7 +285,7 @@ impl WorkflowApplication {
         active_task_id: &str,
     ) -> Result<WorkflowRunSummary, AppError> {
         a4n_db::workflow::resume_workflow_run_with_active_task_summary(
-            self.database.connection(),
+            self.database.executor(),
             workflow_run_id,
             active_task_id,
         )
@@ -299,7 +299,7 @@ impl WorkflowApplication {
         current_step_key: &str,
     ) -> Result<WorkflowRunSummary, AppError> {
         a4n_db::workflow::mark_workflow_current_step_summary(
-            self.database.connection(),
+            self.database.executor(),
             workflow_run_id,
             current_step_key,
         )
@@ -320,7 +320,7 @@ impl WorkflowApplication {
         &self,
         input: WorkflowProgressEventInput<'_>,
     ) -> Result<(), AppError> {
-        a4n_db::workflow::record_workflow_progress_event(self.database.connection(), input)
+        a4n_db::workflow::record_workflow_progress_event(self.database.executor(), input)
             .await
             .map_err(workflow_write_app_error)
     }
@@ -331,7 +331,7 @@ impl WorkflowApplication {
         snapshot: serde_json::Value,
     ) -> Result<WorkflowRunSummary, AppError> {
         a4n_db::workflow::persist_workflow_progress_snapshot_summary(
-            self.database.connection(),
+            self.database.executor(),
             workflow_run_id,
             snapshot,
         )
@@ -355,7 +355,7 @@ impl WorkflowApplication {
         step_keys: &[&str],
     ) -> Result<u64, AppError> {
         a4n_db::workflow::delete_workflow_checkpoints_by_keys(
-            self.database.connection(),
+            self.database.executor(),
             workflow_run_id,
             step_keys,
         )

@@ -1,9 +1,9 @@
 use crate::galgame::{GalgameMediaRecordError, validate_galgame_media_asset_id};
 use a4n_db_models::models::media::{media_asset, media_provenance};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, TransactionTrait};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 pub async fn delete_media_asset_with_provenance_records(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     media_asset_id: i64,
 ) -> Result<(), GalgameMediaRecordError> {
     validate_galgame_media_asset_id(Some(media_asset_id))?;

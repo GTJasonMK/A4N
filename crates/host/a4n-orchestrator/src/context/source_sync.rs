@@ -22,8 +22,8 @@ impl SourceSyncApplication {
         Self { database }
     }
 
-    fn connection(&self) -> &a4n_db::DatabaseConnection {
-        self.database.connection()
+    fn connection(&self) -> &impl a4n_db::DbExecutor {
+        self.database.executor()
     }
 
     async fn create_source_sync_preview_records(
@@ -44,7 +44,7 @@ impl SourceSyncApplication {
     ) -> Result<Option<SourceSyncRunRecord>, AppError> {
         a4n_db::source_sync::source_sync_run_record_by_id(self.connection(), sync_run_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn detach_derived_project_record(&self, derived_project_id: i64) -> Result<(), AppError> {

@@ -7,10 +7,10 @@ use crate::collaboration::{
 use a4n_db_models::models::project::{project_invite, project_member};
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set, TransactionTrait};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 
 pub async fn accept_project_invite(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
     invite_id: i64,
 ) -> Result<(), CollaborationDbError> {
@@ -90,7 +90,7 @@ pub async fn accept_project_invite(
 }
 
 pub async fn decline_project_invite(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
     invite_id: i64,
 ) -> Result<(), CollaborationDbError> {
@@ -104,7 +104,7 @@ pub async fn decline_project_invite(
 }
 
 pub async fn revoke_project_invite(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     actor_user_id: i64,
     project_id: i64,
     invite_id: i64,

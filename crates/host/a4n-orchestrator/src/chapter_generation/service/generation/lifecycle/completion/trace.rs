@@ -6,7 +6,7 @@ use a4n_llm_trace::{chat_request_messages_json, text_response_summary_json};
 
 use crate::chapter_generation::service::ChapterGenerationService;
 use crate::generation::generation_error;
-use a4n_db::DbTransaction as DatabaseTransaction;
+use a4n_db::DbTransaction;
 use a4n_llm_trace::context_aware_chat_request_trace_json;
 
 impl ChapterGenerationService {
@@ -17,7 +17,7 @@ impl ChapterGenerationService {
         chapter_outline: &str,
         content: &str,
         trace: ChapterGenerationTrace,
-        db: &DatabaseTransaction,
+        db: &DbTransaction,
     ) -> Result<(), AppError> {
         a4n_db::generation::record_completed_generation_run_in_transaction(
             db,

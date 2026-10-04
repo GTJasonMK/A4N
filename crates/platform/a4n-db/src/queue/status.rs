@@ -1,11 +1,11 @@
 use super::QueueDbError;
-use crate::DbHandle;
 use crate::workflow::is_terminal_workflow_status;
+use crate::{DbExecutor, DbHandle};
 use a4n_db_models::models::{generation::workflow_run, task::task_queue};
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
-    QuerySelect, TransactionTrait,
+    QuerySelect,
 };
 use std::collections::BTreeSet;
 
@@ -39,7 +39,7 @@ pub async fn update_task_status(
     error: Option<&str>,
 ) -> Result<bool, QueueDbError> {
     let db = db.connection();
-    let tx = db.begin().await?;
+    let tx = DbExecutor::begin_db_transaction(db).await?;
     let mut query = task_queue::Entity::find_by_id(task_id.to_string())
         .select_only()
         .column(task_queue::Column::Id)
@@ -116,7 +116,7 @@ pub async fn interrupt_active_tasks(
     requested_ids.sort_unstable();
     requested_ids.dedup();
 
-    let tx = db.begin().await?;
+    let tx = DbExecutor::begin_db_transaction(db).await?;
     let mut query = task_queue::Entity::find()
         .select_only()
         .column(task_queue::Column::Id)

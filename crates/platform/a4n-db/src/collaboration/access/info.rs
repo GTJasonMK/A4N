@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use a4n_db_models::models::project::project_member;
 use a4n_domain::auth::ROLE_READ_ONLY;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 
 use super::super::{
     CollaborationDbError, ProjectAccessInfo, ProjectAccessInfoQuery, ProjectAccessRole, find_user,
@@ -11,7 +11,7 @@ use super::super::{
 };
 
 pub async fn project_access_info(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     query: ProjectAccessInfoQuery,
     user_id: i64,
 ) -> Result<ProjectAccessInfo, CollaborationDbError> {
@@ -22,7 +22,7 @@ pub async fn project_access_info(
 }
 
 pub async fn project_access_info_batch(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     queries: &[ProjectAccessInfoQuery],
     user_id: i64,
 ) -> Result<HashMap<i64, ProjectAccessInfo>, CollaborationDbError> {

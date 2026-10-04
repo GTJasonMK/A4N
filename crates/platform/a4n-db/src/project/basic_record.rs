@@ -3,8 +3,7 @@ use a4n_db_models::models::project::novel_project;
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait,
-    QueryFilter, QuerySelect,
+    ColumnTrait, ConnectionTrait, DbErr, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -28,7 +27,7 @@ impl ProjectBasicRecordError {
 }
 
 pub async fn project_import_analysis_progress(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<Option<String>, ProjectBasicRecordError> {
     validate_positive_i64(project_id, "project_id")
@@ -45,7 +44,7 @@ pub async fn project_import_analysis_progress(
 }
 
 pub async fn save_project_import_analysis_progress(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     progress: String,
 ) -> Result<(), ProjectBasicRecordError> {
@@ -71,7 +70,7 @@ pub async fn save_project_import_analysis_progress(
 }
 
 pub async fn project_kind(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<String, ProjectBasicRecordError> {
     validate_positive_i64(project_id, "project_id")
@@ -88,7 +87,7 @@ pub async fn project_kind(
 }
 
 pub async fn project_title(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<String, ProjectBasicRecordError> {
     validate_positive_i64(project_id, "project_id")
@@ -117,6 +116,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::DatabaseConnection;
     use std::error::Error;
 
     #[test]

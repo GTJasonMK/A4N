@@ -29,7 +29,7 @@ pub(super) async fn build_prepared_galgame_scene_regeneration_plan(
     speaker_profiles: &[GalgameSpeakerProfile],
 ) -> Result<GalgameSceneRegenerationPlan, AppError> {
     let source = a4n_db::source_sync::galgame_scene_regeneration_source_record_from_records(
-        service.database.connection(),
+        service.database.executor(),
         run,
         conflict,
         payload.galgame_scene_id,
@@ -51,7 +51,7 @@ pub(super) async fn build_prepared_galgame_scene_regeneration_plan(
         AppError::InvalidArgument(format!("Galgame 场 {} 缺少本地改编计划", source.scene.id))
     })?;
     let mut sources = a4n_db::project::resolve_snapshot_sources(
-        service.database.connection(),
+        service.database.executor(),
         run.derived_project_id,
         run.root_project_id,
         run.to_snapshot_id,
@@ -71,7 +71,7 @@ pub(super) async fn build_prepared_galgame_scene_regeneration_plan(
         .is_none()
     {
         let previous = a4n_db::media_authoring::authoring_document(
-            service.database.connection(),
+            service.database.executor(),
             run.derived_project_id,
             previous_plan_id,
         )

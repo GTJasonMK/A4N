@@ -1,10 +1,11 @@
 use super::*;
 use a4n_db_models::models::agent::memory as memory_model;
+use sea_orm::ConnectionTrait;
 
 pub async fn insert_memory<C>(
     db: &C,
     input: AgentMemoryInput,
-) -> Result<memory_model::Model, AgentDbError>
+) -> Result<AgentMemoryRecord, AgentDbError>
 where
     C: ConnectionTrait,
 {
@@ -35,7 +36,8 @@ where
     }
     .insert(db)
     .await
-    .map_err(AgentDbError::Database)
+    .map(AgentMemoryRecord::from)
+    .map_err(AgentDbError::from)
 }
 
 pub async fn list_memory<C>(
@@ -43,7 +45,7 @@ pub async fn list_memory<C>(
     owner_user_id: i64,
     scope_kind: Option<&str>,
     scope_key: Option<&str>,
-) -> Result<Vec<memory_model::Model>, AgentDbError>
+) -> Result<Vec<AgentMemoryRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
@@ -56,5 +58,44 @@ where
     if let Some(key) = scope_key {
         query = query.filter(memory_model::Column::ScopeKey.eq(key));
     }
-    query.all(db).await.map_err(AgentDbError::Database)
+    query
+        .all(db)
+        .await
+        .map(|rows| rows.into_iter().map(AgentMemoryRecord::from).collect())
+        .map_err(AgentDbError::from)
+}
+
+pub async fn memory_by_id<C: ConnectionTrait>(
+    db: &C,
+    memory_id: i64,
+) -> Result<Option<AgentMemoryRecord>, AgentDbError> {
+    memory_model::Entity::find_by_id(memory_id)
+        .one(db)
+        .await
+        .map(|row| row.map(AgentMemoryRecord::from))
+        .map_err(AgentDbError::from)
+}
+
+pub async fn retract_memory(
+    db: &impl crate::DbExecutor,
+    owner_user_id: i64,
+    memory_id: i64,
+) -> Result<AgentMemoryRecord, AgentDbError> {
+    let tx = db.begin_db_transaction().await?;
+    let model = memory_model::Entity::find_by_id(memory_id)
+        .lock_exclusive()
+        .one(&tx)
+        .await?
+        .ok_or_else(|| AgentDbError::NotFound(format!("Agent memory 不存在: {memory_id}")))?;
+    if model.owner_user_id != owner_user_id {
+        return Err(AgentDbError::Forbidden("无权修改此 Agent memory".into()));
+    }
+    let timestamp = now();
+    let mut active: memory_model::ActiveModel = model.into();
+    active.status = Set("retracted".into());
+    active.retracted_at = Set(Some(timestamp));
+    active.updated_at = Set(timestamp);
+    let row = active.update(&tx).await?;
+    tx.commit().await?;
+    Ok(row.into())
 }

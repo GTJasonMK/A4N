@@ -1,16 +1,13 @@
 use a4n_db_models::models::{project::novel_project, scene::scene_profile};
 use a4n_domain::scene_profile::SceneProfileRecord;
-use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect,
-};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use crate::scene_profile::{SceneProfileDbError, SceneProfileDbResult};
 
 use super::record::scene_profile_record;
 
 pub async fn scene_profiles_by_project(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> SceneProfileDbResult<Vec<SceneProfileRecord>> {
     let (project_result, profiles_result) = futures::join!(
@@ -28,7 +25,7 @@ pub async fn scene_profiles_by_project(
 }
 
 pub async fn scene_profile_by_id(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     scene_profile_id: i64,
 ) -> SceneProfileDbResult<SceneProfileRecord> {
     scene_profile_model_by_id(db, scene_profile_id)
@@ -37,7 +34,7 @@ pub async fn scene_profile_by_id(
 }
 
 pub(crate) async fn scene_profile_model_by_id(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     scene_profile_id: i64,
 ) -> SceneProfileDbResult<scene_profile::Model> {
     scene_profile::Entity::find_by_id(scene_profile_id)
@@ -47,7 +44,7 @@ pub(crate) async fn scene_profile_model_by_id(
 }
 
 pub async fn scene_profile_project_id(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     scene_profile_id: i64,
 ) -> SceneProfileDbResult<i64> {
     scene_profile::Entity::find_by_id(scene_profile_id)

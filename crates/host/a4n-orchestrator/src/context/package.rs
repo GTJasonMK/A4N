@@ -22,7 +22,7 @@ mod mutations;
 
 impl OrchestratorContext {
     pub(crate) async fn package_overview(&self) -> Result<Vec<PackageOverview>, AppError> {
-        let states = a4n_db::package::list_host_package_states(self.database.connection()).await?;
+        let states = a4n_db::package::list_host_package_states(self.database.executor()).await?;
         let mut overview = Vec::new();
         for definition in package_catalog().packages {
             let state = states
@@ -30,7 +30,7 @@ impl OrchestratorContext {
                 .find(|state| state.package_id == definition.id.as_str());
             let lifecycle = match state {
                 Some(state) => a4n_db::package::latest_package_operation(
-                    self.database.connection(),
+                    self.database.executor(),
                     &state.package_id,
                 )
                 .await?
@@ -137,7 +137,7 @@ impl OrchestratorContext {
         package_id: PackageId,
     ) -> Result<Option<PackageReasonCode>, AppError> {
         let Some(state) =
-            a4n_db::package::host_package_state(self.database.connection(), package_id.as_str())
+            a4n_db::package::host_package_state(self.database.executor(), package_id.as_str())
                 .await?
         else {
             return Ok(Some(PackageReasonCode::NotInstalled));
@@ -168,11 +168,11 @@ impl OrchestratorContext {
     pub(crate) async fn pending_package_lifecycle_operations(
         &self,
     ) -> Result<Vec<HostPackageOperationRecord>, AppError> {
-        a4n_db::package::pending_package_operations(self.database.connection()).await
+        a4n_db::package::pending_package_operations(self.database.executor()).await
     }
 
     pub(crate) async fn enabled_package_service_names(&self) -> Result<Vec<String>, AppError> {
-        let states = a4n_db::package::list_host_package_states(self.database.connection()).await?;
+        let states = a4n_db::package::list_host_package_states(self.database.executor()).await?;
         let mut services = HashSet::new();
         for state in states {
             if state.installation_state != a4n_db::package::INSTALLATION_INSTALLED
@@ -194,7 +194,7 @@ impl OrchestratorContext {
         &self,
         package_id: &str,
     ) -> Result<a4n_db::package::PackageWorkloadSnapshot, AppError> {
-        a4n_db::package::package_workload_snapshot(self.database.connection(), package_id).await
+        a4n_db::package::package_workload_snapshot(self.database.executor(), package_id).await
     }
 
     /// 返回可以安全停止的 managed service。任何其他包处于未知、过渡或
@@ -207,7 +207,7 @@ impl OrchestratorContext {
         if target_services.is_empty() {
             return Ok(Vec::new());
         }
-        let states = a4n_db::package::list_host_package_states(self.database.connection()).await?;
+        let states = a4n_db::package::list_host_package_states(self.database.executor()).await?;
         let catalog = package_catalog();
         let safe_services = target_services
             .iter()
@@ -257,10 +257,9 @@ impl OrchestratorContext {
     ) -> Result<PackageLifecycleSummary, AppError> {
         self.require_admin_permission(user_id, AdminPermission::ManageSettings)
             .await?;
-        let operation =
-            a4n_db::package::package_operation(self.database.connection(), operation_id)
-                .await?
-                .ok_or_else(|| AppError::NotFound(format!("功能包操作不存在: {operation_id}")))?;
+        let operation = a4n_db::package::package_operation(self.database.executor(), operation_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("功能包操作不存在: {operation_id}")))?;
         package_lifecycle_summary(operation)
     }
 
@@ -269,7 +268,7 @@ impl OrchestratorContext {
         user_id: i64,
     ) -> Result<PackagePreferencesSummary, AppError> {
         let hidden_package_ids =
-            a4n_db::package::package_preference(self.database.connection(), user_id)
+            a4n_db::package::package_preference(self.database.executor(), user_id)
                 .await?
                 .map(|preference| parse_hidden_package_ids(preference.hidden_package_ids))
                 .transpose()?
@@ -286,7 +285,7 @@ impl OrchestratorContext {
         descriptor: &CommandDescriptor,
     ) -> Result<PackageCommandAvailability, AppError> {
         let state = a4n_db::package::host_package_state(
-            self.database.connection(),
+            self.database.executor(),
             descriptor.package_id.as_str(),
         )
         .await?;
@@ -377,11 +376,9 @@ impl OrchestratorContext {
             return Ok(false);
         };
         for dependency in &definition.dependencies {
-            let Some(state) = a4n_db::package::host_package_state(
-                self.database.connection(),
-                dependency.as_str(),
-            )
-            .await?
+            let Some(state) =
+                a4n_db::package::host_package_state(self.database.executor(), dependency.as_str())
+                    .await?
             else {
                 return Ok(false);
             };
@@ -713,7 +710,7 @@ mod tests {
             .build()
             .await;
         ensure_host_package_states(
-            &database,
+            database.as_ref(),
             &[
                 PackageId::Agent.as_str().to_string(),
                 PackageId::AiWorkflow.as_str().to_string(),
@@ -727,12 +724,12 @@ mod tests {
             .await
             .expect("启用中的 Agent 应允许执行");
 
-        let state = host_package_state(&database, PackageId::Agent.as_str())
+        let state = host_package_state(database.as_ref(), PackageId::Agent.as_str())
             .await
             .expect("读取 Agent 功能包状态")
             .expect("Agent 功能包状态必须存在");
         start_package_lifecycle(
-            &database,
+            database.as_ref(),
             &Uuid::new_v4().to_string(),
             PackageId::Agent.as_str(),
             "disable",
@@ -761,7 +758,7 @@ mod tests {
             .build()
             .await;
         ensure_host_package_states(
-            &database,
+            database.as_ref(),
             &[
                 PackageId::Agent.as_str().to_string(),
                 PackageId::AiWorkflow.as_str().to_string(),
@@ -770,12 +767,12 @@ mod tests {
         .await
         .expect("初始化 Agent 及其依赖功能包状态");
 
-        let dependency = host_package_state(&database, PackageId::AiWorkflow.as_str())
+        let dependency = host_package_state(database.as_ref(), PackageId::AiWorkflow.as_str())
             .await
             .expect("读取 AI workflow 功能包状态")
             .expect("AI workflow 功能包状态必须存在");
         start_package_lifecycle(
-            &database,
+            database.as_ref(),
             &Uuid::new_v4().to_string(),
             PackageId::AiWorkflow.as_str(),
             "disable",

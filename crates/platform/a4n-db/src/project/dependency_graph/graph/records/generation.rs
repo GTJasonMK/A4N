@@ -40,8 +40,8 @@ pub(super) async fn load_generation_asset_graph_records(
             .into_model::<MediaAssetGraphRow>()
             .all(db),
     );
-    let generation_specs = generation_specs_result.map_err(AppError::Database)?;
-    let media_assets = media_assets_result.map_err(AppError::Database)?;
+    let generation_specs = generation_specs_result.map_err(AppError::from)?;
+    let media_assets = media_assets_result.map_err(AppError::from)?;
     let generation_spec_ids = generation_specs
         .iter()
         .map(|row| row.id)
@@ -73,8 +73,8 @@ pub(super) async fn load_generation_asset_graph_records(
             }
         },
     );
-    let prompt_artifacts = prompt_artifacts_result.map_err(AppError::Database)?;
-    let media_provenance_count = media_provenance_count_result.map_err(AppError::Database)?;
+    let prompt_artifacts = prompt_artifacts_result.map_err(AppError::from)?;
+    let media_provenance_count = media_provenance_count_result.map_err(AppError::from)?;
 
     Ok(GenerationAssetGraphRecords {
         generation_specs,

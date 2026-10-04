@@ -10,11 +10,13 @@ impl WorkerState {
         if portrait_id <= 0 {
             return Err(WorkerFailure::invalid_request("portrait_id 必须大于 0"));
         }
-        let portrait =
-            a4n_db::character::character_portrait_by_id(self.database.connection(), portrait_id)
-                .await
-                .map_err(database_error)?
-                .ok_or_else(|| WorkerFailure::not_found("立绘不存在"))?;
+        let portrait = a4n_db::character::character_portrait_record_by_id(
+            self.database.connection(),
+            portrait_id,
+        )
+        .await
+        .map_err(database_error)?
+        .ok_or_else(|| WorkerFailure::not_found("立绘不存在"))?;
         let user_id = user_id(&request)?;
         verify_permission(
             self,

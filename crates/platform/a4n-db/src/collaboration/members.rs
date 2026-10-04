@@ -1,7 +1,7 @@
 use super::*;
 
 pub async fn list_project_members(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     actor_user_id: i64,
     project_id: i64,
 ) -> Result<Vec<ProjectMemberSummary>, CollaborationDbError> {
@@ -40,7 +40,7 @@ pub async fn list_project_members(
 }
 
 pub async fn update_project_member_role(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     actor_user_id: i64,
     project_id: i64,
     member_user_id: i64,
@@ -79,7 +79,7 @@ pub async fn update_project_member_role(
 }
 
 pub async fn remove_project_member(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     actor_user_id: i64,
     project_id: i64,
     member_user_id: i64,
@@ -108,7 +108,7 @@ pub async fn remove_project_member(
 }
 
 pub async fn leave_project(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
     project_id: i64,
 ) -> Result<(), CollaborationDbError> {

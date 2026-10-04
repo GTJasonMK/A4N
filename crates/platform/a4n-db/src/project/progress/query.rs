@@ -6,11 +6,10 @@ use super::video::video_project_progress_by_project;
 use super::{ProjectProgressQuery, ProjectProgressReadError, ProjectProgressSummary};
 use crate::project::validate_positive_i64;
 use a4n_domain::project::ProjectKind;
-use sea_orm::DatabaseConnection;
 use std::collections::{HashMap, HashSet};
 
 pub async fn project_progress_summary(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     query: ProjectProgressQuery,
 ) -> Result<ProjectProgressSummary, ProjectProgressReadError> {
     let mut summaries = project_progress_summaries(db, std::slice::from_ref(&query)).await?;
@@ -22,7 +21,7 @@ pub async fn project_progress_summary(
 }
 
 pub async fn project_progress_summaries(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     queries: &[ProjectProgressQuery],
 ) -> Result<HashMap<i64, ProjectProgressSummary>, ProjectProgressReadError> {
     let mut progress_by_project_id = HashMap::with_capacity(queries.len());

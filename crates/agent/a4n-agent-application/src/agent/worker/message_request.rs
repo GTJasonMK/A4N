@@ -58,7 +58,7 @@ impl AgentApplication {
             lease: request.lease.clone(),
         })
         .await?;
-        let run = agent::run_by_id(self.connection(), request.run_id)
+        let run = agent::run_by_id(self.executor(), request.run_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", request.run_id)))?;
@@ -76,7 +76,7 @@ impl AgentApplication {
                 .validate()
                 .map_err(AppError::InvalidArgument)?;
                 agent::request_user_input(
-                    self.connection(),
+                    self.executor(),
                     agent::AgentQuestionInput {
                         run_id: run.id,
                         lease_token: request.lease.fence_token.clone(),
@@ -98,7 +98,7 @@ impl AgentApplication {
             } => {
                 let content = serde_json::to_string(result)?;
                 agent::append_message_for_run_lease(
-                    self.connection(),
+                    self.executor(),
                     request.run_id,
                     &request.lease.fence_token,
                     AgentMessageInput {
@@ -129,7 +129,7 @@ impl AgentApplication {
                 tool_calls,
                 client_message_id,
             } => agent::append_message_for_run_lease(
-                self.connection(),
+                self.executor(),
                 request.run_id,
                 &request.lease.fence_token,
                 AgentMessageInput {
@@ -154,7 +154,7 @@ impl AgentApplication {
                 content,
                 reasoning_content,
             } => agent::upsert_assistant_streaming_message_for_run_lease(
-                self.connection(),
+                self.executor(),
                 request.run_id,
                 &request.lease.fence_token,
                 AgentMessageInput {
@@ -181,7 +181,7 @@ impl AgentApplication {
                 client_message_id,
                 reason,
             } => agent::interrupt_assistant_streaming_message_for_run_lease(
-                self.connection(),
+                self.executor(),
                 request.run_id,
                 &request.lease.fence_token,
                 client_message_id,
@@ -195,7 +195,7 @@ impl AgentApplication {
                 content,
                 tool_calls,
             } => agent::complete_assistant_streaming_message_for_run_lease(
-                self.connection(),
+                self.executor(),
                 request.run_id,
                 &request.lease.fence_token,
                 client_message_id,

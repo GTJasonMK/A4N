@@ -3,11 +3,12 @@ use super::record::{blueprint_character_record, blueprint_record, blueprint_rela
 use a4n_db_models::models::project::{
     blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,
 };
-use a4n_domain::project::{BlueprintCharacterRecord, BlueprintRecord, BlueprintRelationshipRecord};
+use a4n_domain::project::{
+    BlueprintCharacterRecord, BlueprintRecord, BlueprintRelationshipRecord, BlueprintVersionRecord,
+};
 use chrono::NaiveDateTime;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait, QueryFilter,
-    QueryOrder, Statement,
+    ColumnTrait, ConnectionTrait, DbBackend, DbErr, EntityTrait, QueryFilter, QueryOrder, Statement,
 };
 
 const BLUEPRINT_SOURCE_REVIEW_SQL: &str = r#"
@@ -114,7 +115,7 @@ where
 }
 
 pub async fn blueprint_versions_by_project(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<Vec<blueprint_version::Model>, ProjectMutationError> {
     validate_positive_i64(project_id, "project_id")
@@ -127,8 +128,17 @@ pub async fn blueprint_versions_by_project(
         .map_err(ProjectMutationError::Database)
 }
 
+pub async fn blueprint_version_records_by_project(
+    db: &impl crate::DbExecutor,
+    project_id: i64,
+) -> Result<Vec<BlueprintVersionRecord>, ProjectMutationError> {
+    blueprint_versions_by_project(db, project_id)
+        .await
+        .map(|rows| rows.into_iter().map(blueprint_version_record).collect())
+}
+
 pub async fn blueprint_version_by_project_version(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     version: &str,
 ) -> Result<Option<blueprint_version::Model>, ProjectMutationError> {
@@ -142,4 +152,26 @@ pub async fn blueprint_version_by_project_version(
         .one(db)
         .await
         .map_err(ProjectMutationError::Database)
+}
+
+pub async fn blueprint_version_record_by_project_version(
+    db: &impl crate::DbExecutor,
+    project_id: i64,
+    version: &str,
+) -> Result<Option<BlueprintVersionRecord>, ProjectMutationError> {
+    blueprint_version_by_project_version(db, project_id, version)
+        .await
+        .map(|row| row.map(blueprint_version_record))
+}
+
+fn blueprint_version_record(model: blueprint_version::Model) -> BlueprintVersionRecord {
+    BlueprintVersionRecord {
+        id: model.id,
+        project_id: model.project_id,
+        version: model.version,
+        change_description: model.change_description,
+        blueprint_data: model.blueprint_data,
+        created_at: model.created_at,
+        created_by: model.created_by,
+    }
 }

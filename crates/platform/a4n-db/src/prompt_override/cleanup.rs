@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use a4n_db_models::models::ai::system_settings;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 use super::PromptOverrideDbError;
 use super::identity::parse_project_override_key;
@@ -9,7 +9,7 @@ use super::storage::all_prompt_override_settings;
 use super::types::database;
 
 pub async fn delete_project_overrides_for_prompt_names(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     prompt_names: &HashSet<String>,
 ) -> Result<u64, PromptOverrideDbError> {
     if prompt_names.is_empty() {
@@ -31,7 +31,7 @@ pub async fn delete_project_overrides_for_prompt_names(
 }
 
 pub async fn preflight_project_override_keys_for_retired_cleanup(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
 ) -> Result<(), PromptOverrideDbError> {
     let records = all_prompt_override_settings(db).await?;
     validate_project_override_record_keys(&records)

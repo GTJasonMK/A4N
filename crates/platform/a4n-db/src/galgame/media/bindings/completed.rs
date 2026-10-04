@@ -7,10 +7,10 @@ use crate::galgame::{
 };
 use a4n_db_models::models::media::{media_asset, media_binding, media_provenance};
 use a4n_domain::{generation::GenerationSpecRecord, media::MediaProvenanceRecord};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 pub async fn completed_galgame_visual_binding_records(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     spec: &GenerationSpecRecord,
     target_entity_kind: &str,
     target_entity_id: i64,

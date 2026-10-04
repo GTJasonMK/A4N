@@ -6,7 +6,7 @@ use super::snapshots::{
 use super::*;
 
 pub async fn restore_blueprint_version_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     version_name: &str,
 ) -> Result<crate::blueprint::VersionedBlueprintMutationResult, BlueprintRestoreError> {

@@ -35,7 +35,7 @@ impl OptimizeApplication {
         chapter_id: Option<i64>,
     ) -> Result<Vec<OptimizationSessionRecord>, AppError> {
         a4n_db::optimize::optimization_session_records(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             chapter_id,
         )
@@ -47,7 +47,7 @@ impl OptimizeApplication {
         &self,
         session_id: i64,
     ) -> Result<Option<OptimizationSessionRecord>, AppError> {
-        a4n_db::optimize::optimization_session_record_by_id(self.database.connection(), session_id)
+        a4n_db::optimize::optimization_session_record_by_id(self.database.executor(), session_id)
             .await
             .map_err(optimize_db_error)
     }
@@ -56,7 +56,7 @@ impl OptimizeApplication {
         &self,
         input: OptimizationSessionMessageInsertInput,
     ) -> Result<OptimizationSessionMessageRecord, AppError> {
-        a4n_db::optimize::insert_optimization_session_message(self.database.connection(), input)
+        a4n_db::optimize::insert_optimization_session_message(self.database.executor(), input)
             .await
             .map_err(optimize_db_error)
     }
@@ -66,7 +66,7 @@ impl OptimizeApplication {
         session_id: i64,
     ) -> Result<u64, AppError> {
         a4n_db::optimize::delete_optimization_session_with_messages(
-            self.database.connection(),
+            self.database.executor(),
             session_id,
         )
         .await
@@ -77,7 +77,7 @@ impl OptimizeApplication {
         &self,
         session_id: i64,
     ) -> Result<Vec<OptimizationSessionMessageRecord>, AppError> {
-        a4n_db::optimize::optimization_session_messages(self.database.connection(), session_id)
+        a4n_db::optimize::optimization_session_messages(self.database.executor(), session_id)
             .await
             .map_err(optimize_db_error)
     }
@@ -86,7 +86,7 @@ impl OptimizeApplication {
         &self,
         chapter_id: i64,
     ) -> Result<Option<ChapterRecord>, AppError> {
-        a4n_db::optimize::optimization_chapter_by_id(self.database.connection(), chapter_id)
+        a4n_db::optimize::optimization_chapter_by_id(self.database.executor(), chapter_id)
             .await
             .map_err(optimize_db_error)
     }
@@ -95,7 +95,7 @@ impl OptimizeApplication {
         &self,
         session_id: i64,
     ) -> Result<Vec<OptimizationPatchSetRecord>, AppError> {
-        a4n_db::optimize::optimization_patch_sets(self.database.connection(), session_id)
+        a4n_db::optimize::optimization_patch_sets(self.database.executor(), session_id)
             .await
             .map_err(optimize_db_error)
     }
@@ -105,7 +105,7 @@ impl OptimizeApplication {
         patch_set_ids: &[i64],
     ) -> Result<Vec<OptimizationPatchRecord>, AppError> {
         a4n_db::optimize::optimization_patch_set_patches_for_sets(
-            self.database.connection(),
+            self.database.executor(),
             patch_set_ids,
         )
         .await
@@ -116,7 +116,7 @@ impl OptimizeApplication {
         &self,
         session_id: i64,
     ) -> Result<Vec<OptimizationTurnRecord>, AppError> {
-        a4n_db::optimize::optimization_turns(self.database.connection(), session_id)
+        a4n_db::optimize::optimization_turns(self.database.executor(), session_id)
             .await
             .map_err(optimize_db_error)
     }
@@ -125,7 +125,7 @@ impl OptimizeApplication {
         &self,
         turn_ids: &[i64],
     ) -> Result<Vec<OptimizationTurnEventRecord>, AppError> {
-        a4n_db::optimize::optimization_turn_events_for_turns(self.database.connection(), turn_ids)
+        a4n_db::optimize::optimization_turn_events_for_turns(self.database.executor(), turn_ids)
             .await
             .map_err(optimize_db_error)
     }
@@ -176,7 +176,7 @@ impl OrchestratorContext {
         session_id: i64,
     ) -> Result<(), AppError> {
         a4n_db::optimize::discard_pending_optimization_patch_sets_and_record_event(
-            self.database.connection(),
+            self.database.executor(),
             session_id,
         )
         .await
@@ -189,7 +189,7 @@ impl OrchestratorContext {
         patch_set_id: i64,
     ) -> Result<(), AppError> {
         a4n_db::optimize::discard_optimization_patch_set_and_record_event(
-            self.database.connection(),
+            self.database.executor(),
             session_id,
             patch_set_id,
         )

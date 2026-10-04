@@ -23,8 +23,8 @@ impl PromptOverrideApplication {
         Self { database }
     }
 
-    fn connection(&self) -> &a4n_db::DatabaseConnection {
-        self.database.connection()
+    fn connection(&self) -> &impl a4n_db::DbExecutor {
+        self.database.executor()
     }
 
     async fn load_project_override_persisted_content(
@@ -114,7 +114,7 @@ fn prompt_override_db_error(error: PromptOverrideDbError) -> AppError {
         PromptOverrideDbError::Project { source } => {
             crate::project::project_mutation_error_to_app_error(source)
         }
-        PromptOverrideDbError::Database { source, .. } => AppError::Database(source),
+        PromptOverrideDbError::Database { source, .. } => AppError::database(source),
     }
 }
 

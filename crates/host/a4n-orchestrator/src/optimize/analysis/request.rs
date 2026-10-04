@@ -55,7 +55,7 @@ impl OrchestratorContext {
             .render_prompt("content_optimization", &prompt_vars, Some(project_id))
             .await?;
         let analysis_context = build_content_optimization_context(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             chapter_id,
             &permissions,

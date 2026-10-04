@@ -2,7 +2,7 @@ use super::*;
 
 /// 在单一事务内完成状态回退清理、状态写回、历史记录和派生项目标记。
 pub async fn rollback_project_status_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     expected_from: ProjectStatus,
     to: ProjectStatus,

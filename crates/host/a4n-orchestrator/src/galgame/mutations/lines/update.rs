@@ -141,7 +141,7 @@ impl OrchestratorContext {
         };
         let visual_generation_inputs_changed = visual_inputs_changed(&line, &record_input);
         let updated = a4n_db::galgame::update_galgame_line_with_generation_cleanup_record(
-            self.database.connection(),
+            self.database.executor(),
             context.project.id,
             record_input,
             visual_generation_inputs_changed,

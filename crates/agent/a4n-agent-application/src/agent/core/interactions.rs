@@ -35,109 +35,127 @@ impl AgentApplication {
         self.hydrate_scope_chapter_number(&mut scope).await?;
         let editor_source = match input.editor_source.take() {
             Some(source) => {
-                Some(canonicalize_editor_source(self.connection(), source, &thread).await?)
+                Some(canonicalize_editor_source(self.executor(), source, &thread).await?)
             }
             None => None,
         };
         let client_message_id = required_text(input.client_message_id, "client_message_id")?;
         let content = required_text(input.content, "content")?;
         validate_optional_positive_id(input.model_config_id, "model_config_id")?;
-        let tx = self.connection().begin().await?;
-        thread::Entity::find_by_id(thread_id)
-            .lock_exclusive()
-            .one(&tx)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Agent Thread 不存在".into()))?;
-        let runs = agent::active_runs_by_thread(&tx, thread_id)
-            .await
-            .map_err(agent_db_error_to_app)?;
-        if let Some(active) = runs.first() {
-            if let Some(source) = &editor_source {
-                let turn = turn::Entity::find_by_id(active.turn_id)
-                    .one(self.connection())
-                    .await?
-                    .ok_or_else(|| AppError::NotFound("Agent Turn 不存在".into()))?;
-                let original_source =
-                    agent::message_by_id(self.connection(), turn.input_message_id)
+        let database = self.executor();
+        let editor_view_instance_id = editor_source
+            .as_ref()
+            .map(|source| source.view_instance_id.clone());
+        let delivery_mode = input.delivery_mode;
+        let queued_client_message_id = client_message_id.clone();
+        let queued_content = content.clone();
+        let queued =
+            a4n_db::transaction::run_in_transaction(database, "发送 Agent 消息", |tx| {
+                Box::pin(async move {
+                    let result = async {
+                        let thread = agent::lock_thread(&tx, thread_id)
+                            .await
+                            .map_err(agent_db_error_to_app)?;
+                        let runs = agent::active_runs_by_thread(&tx, thread_id)
+                            .await
+                            .map_err(agent_db_error_to_app)?;
+                        let Some(active) = runs.into_iter().next() else {
+                            return Ok(None);
+                        };
+                        if let Some(view_instance_id) = editor_view_instance_id.as_deref() {
+                            let turn = agent::turn_by_id(&tx, active.turn_id)
+                                .await
+                                .map_err(agent_db_error_to_app)?
+                                .ok_or_else(|| AppError::NotFound("Agent Turn 不存在".into()))?;
+                            let original_source = agent::message_by_id(&tx, turn.input_message_id)
+                                .await
+                                .map_err(agent_db_error_to_app)?
+                                .and_then(|message| message.payload_json)
+                                .and_then(|payload| payload.get("editor_source").cloned());
+                            let original = match original_source {
+                                Some(value) => Some(
+                                    parse_persisted_editor_source(database, value, &thread).await?,
+                                ),
+                                None => None,
+                            };
+                            if original.as_ref().is_none_or(|original| {
+                                original.view_instance_id != view_instance_id
+                            }) {
+                                return Err(AppError::InvalidArgument(
+                                    "当前任务来自其他视图；请等待或结束原任务后再从此视图发送"
+                                        .into(),
+                                ));
+                            }
+                        }
+                        if active.status == "waiting"
+                            && matches!(
+                                active.waiting_reason.as_deref(),
+                                Some("budget" | "reconcile")
+                            )
+                        {
+                            return Err(AppError::InvalidState {
+                                current: format!(
+                                    "waiting({})",
+                                    active.waiting_reason.as_deref().unwrap_or("unknown")
+                                ),
+                                operation: "发送 Agent 消息".into(),
+                            });
+                        }
+                        let waiting_reason = active
+                            .waiting_reason
+                            .as_deref()
+                            .filter(|reason| {
+                                active.status == "waiting" && matches!(*reason, "user" | "backoff")
+                            })
+                            .map(str::to_string);
+                        let message = agent::append_message(
+                            &tx,
+                            AgentMessageInput {
+                                thread_id,
+                                turn_id: Some(active.turn_id),
+                                run_id: Some(active.id),
+                                role: "user".into(),
+                                sender_kind: "user".into(),
+                                sender_thread_id: None,
+                                client_message_id: Some(queued_client_message_id.clone()),
+                                content: queued_content.clone(),
+                                status: "complete".into(),
+                                payload_json: Some(
+                                    json!({ "delivery_mode": enum_value(delivery_mode) }),
+                                ),
+                            },
+                        )
                         .await
-                        .map_err(agent_db_error_to_app)?
-                        .and_then(|message| message.payload_json)
-                        .and_then(|payload| payload.get("editor_source").cloned());
-                let original = match original_source {
-                    Some(value) => Some(
-                        parse_persisted_editor_source(self.connection(), value, &thread).await?,
-                    ),
-                    None => None,
-                };
-                if original
-                    .as_ref()
-                    .is_none_or(|original| original.view_instance_id != source.view_instance_id)
-                {
-                    return Err(AppError::InvalidArgument(
-                        "当前任务来自其他视图；请等待或结束原任务后再从此视图发送".into(),
-                    ));
-                }
-            }
-            if active.status == "waiting"
-                && matches!(
-                    active.waiting_reason.as_deref(),
-                    Some("budget" | "reconcile")
-                )
-            {
-                return Err(AppError::InvalidState {
-                    current: format!(
-                        "waiting({})",
-                        active.waiting_reason.as_deref().unwrap_or("unknown")
-                    ),
-                    operation: "发送 Agent 消息".into(),
-                });
-            }
-            let waiting_reason = active
-                .waiting_reason
-                .as_deref()
-                .filter(|reason| {
-                    active.status == "waiting" && matches!(*reason, "user" | "backoff")
+                        .map_err(agent_db_error_to_app)?;
+                        agent::enqueue_inbox(
+                            &tx,
+                            AgentInboxInput {
+                                thread_id,
+                                turn_id: Some(active.turn_id),
+                                run_id: Some(active.id),
+                                source_kind: "user".into(),
+                                source_thread_id: None,
+                                inbox_kind: enum_value(delivery_inbox_kind(delivery_mode)),
+                                delivery_mode: enum_value(delivery_mode),
+                                priority: delivery_priority(delivery_mode),
+                                dedupe_key: format!("message:{queued_client_message_id}"),
+                                content: queued_content,
+                                payload_json: Some(json!({ "message_id": message.id.to_string() })),
+                                available_at: None,
+                            },
+                        )
+                        .await
+                        .map_err(agent_db_error_to_app)?;
+                        Ok(Some((active, message, waiting_reason)))
+                    }
+                    .await;
+                    (tx, result)
                 })
-                .map(str::to_string);
-            let message = agent::append_message(
-                &tx,
-                AgentMessageInput {
-                    thread_id,
-                    turn_id: Some(active.turn_id),
-                    run_id: Some(active.id),
-                    role: "user".into(),
-                    sender_kind: "user".into(),
-                    sender_thread_id: None,
-                    client_message_id: Some(client_message_id.clone()),
-                    content: content.clone(),
-                    status: "complete".into(),
-                    payload_json: Some(json!({ "delivery_mode": enum_value(input.delivery_mode) })),
-                },
-            )
-            .await
-            .map_err(agent_db_error_to_app)?;
-            agent::enqueue_inbox(
-                &tx,
-                AgentInboxInput {
-                    thread_id,
-                    turn_id: Some(active.turn_id),
-                    run_id: Some(active.id),
-                    source_kind: "user".into(),
-                    source_thread_id: None,
-                    inbox_kind: enum_value(delivery_inbox_kind(input.delivery_mode)),
-                    delivery_mode: enum_value(input.delivery_mode),
-                    priority: delivery_priority(input.delivery_mode),
-                    dedupe_key: format!("message:{client_message_id}"),
-                    content,
-                    payload_json: Some(json!({ "message_id": message.id.to_string() })),
-                    available_at: None,
-                },
-            )
-            .await
-            .map_err(agent_db_error_to_app)?;
-            tx.commit().await?;
+            })
+            .await?;
+        if let Some((active, message, waiting_reason)) = queued {
             let awakened = if let Some(reason) = waiting_reason {
-                agent::wake_waiting_run_for_reason(self.connection(), active.id, &reason)
+                agent::wake_waiting_run_for_reason(self.executor(), active.id, &reason)
                     .await
                     .map_err(agent_db_error_to_app)?
             } else {
@@ -169,8 +187,6 @@ impl AgentApplication {
             );
         }
 
-        tx.commit().await?;
-
         admit_new_run_runtime_snapshot(
             runtime_snapshot_required,
             require_runtime_snapshot_for_new_run,
@@ -184,7 +200,7 @@ impl AgentApplication {
         validate_agent_budget(&budget)?;
         let budget_json = serde_json::to_value(budget)?;
         let (turn, run, message) = agent::create_turn_with_run(
-            self.connection(),
+            self.executor(),
             AgentTurnInput {
                 thread_id,
                 client_message_id: client_message_id.clone(),
@@ -237,7 +253,7 @@ impl AgentApplication {
         require_runtime_snapshot_for_new_run: bool,
     ) -> Result<AgentMessageAccepted, AppError> {
         let delegation_id = parse_id(&input.delegation_id, "delegation_id")?;
-        let delegation = agent::delegation_by_id(self.connection(), delegation_id)
+        let delegation = agent::delegation_by_id(self.executor(), delegation_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| {
@@ -276,7 +292,7 @@ impl AgentApplication {
         input: ControlChildAgentInput,
     ) -> Result<AgentRunView, AppError> {
         let delegation_id = parse_id(&input.delegation_id, "delegation_id")?;
-        let delegation = agent::delegation_by_id(self.connection(), delegation_id)
+        let delegation = agent::delegation_by_id(self.executor(), delegation_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| {
@@ -284,22 +300,19 @@ impl AgentApplication {
             })?;
         self.owned_thread(user_id, delegation.parent_thread_id)
             .await?;
-        let child_run_id = agent::runs_by_thread(
-            self.connection(),
-            delegation.child_thread_id,
-            SNAPSHOT_LIMIT,
-        )
-        .await
-        .map_err(agent_db_error_to_app)?
-        .into_iter()
-        .rev()
-        .find(|row| agent::is_run_active(&row.status))
-        .map(|row| row.id)
-        .or(delegation.child_run_id)
-        .ok_or_else(|| AppError::InvalidState {
-            current: format!("delegation {delegation_id} 尚未创建 child run"),
-            operation: "控制 child Agent".into(),
-        })?;
+        let child_run_id =
+            agent::runs_by_thread(self.executor(), delegation.child_thread_id, SNAPSHOT_LIMIT)
+                .await
+                .map_err(agent_db_error_to_app)?
+                .into_iter()
+                .rev()
+                .find(|row| agent::is_run_active(&row.status))
+                .map(|row| row.id)
+                .or(delegation.child_run_id)
+                .ok_or_else(|| AppError::InvalidState {
+                    current: format!("delegation {delegation_id} 尚未创建 child run"),
+                    operation: "控制 child Agent".into(),
+                })?;
         self.control_run(
             user_id,
             ControlAgentRunInput {
@@ -319,7 +332,7 @@ impl AgentApplication {
     ) -> Result<AgentDelegationView, AppError> {
         validate_user_id(user_id)?;
         let parent_run_id = parse_id(&input.parent_run_id, "parent_run_id")?;
-        let parent_run = agent::run_by_id(self.connection(), parent_run_id)
+        let parent_run = agent::run_by_id(self.executor(), parent_run_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| {
@@ -347,10 +360,9 @@ impl AgentApplication {
                 operation: "创建 Agent child delegation".into(),
             });
         }
-        let parent_turn = turn::Entity::find_by_id(parent_run.turn_id)
-            .one(self.connection())
+        let parent_turn = agent::turn_by_id(self.executor(), parent_run.turn_id)
             .await
-            .map_err(AppError::Database)?
+            .map_err(agent_db_error_to_app)?
             .ok_or_else(|| {
                 AppError::NotFound(format!("Agent parent turn 不存在: {}", parent_run.turn_id))
             })?;
@@ -368,7 +380,7 @@ impl AgentApplication {
                 operation: "创建 Agent child delegation".into(),
             });
         }
-        let delegations = agent::delegations_by_thread(self.connection(), parent_thread.id)
+        let delegations = agent::delegations_by_thread(self.executor(), parent_thread.id)
             .await
             .map_err(agent_db_error_to_app)?;
         let delegation_snapshots = delegations
@@ -446,7 +458,7 @@ impl AgentApplication {
         scope.project_id = scope.project_id.or(project_id);
         scope.chapter_id = scope.chapter_id.or(chapter_id);
         scope.chapter_number = chapter_number;
-        verify_director_source(self.connection(), &capability, &scope).await?;
+        verify_director_source(self.executor(), &capability, &scope).await?;
         validate_subagent_resource(&capability, &scope, bound_resource.as_ref())?;
 
         apply_subagent_tool_policy(&capability, &mut scope)?;
@@ -481,7 +493,7 @@ impl AgentApplication {
         );
         let child_message_id = format!("delegation:{delegation_key}");
         let (delegation, _child_turn, _child_run, _child_message) = agent::create_user_delegation(
-            self.connection(),
+            self.executor(),
             AgentUserDelegationInput {
                 delegation: AgentDelegationInput {
                     parent_thread_id: parent_thread.id,
@@ -555,7 +567,7 @@ impl AgentApplication {
             .as_deref()
             .map(|value| required_text(value.to_string(), "scope_id"))
             .transpose()?;
-        let rows = agent::list_memory(self.connection(), user_id, kind.as_deref(), key.as_deref())
+        let rows = agent::list_memory(self.executor(), user_id, kind.as_deref(), key.as_deref())
             .await
             .map_err(agent_db_error_to_app)?;
         rows.into_iter().map(memory_view).collect()
@@ -580,7 +592,7 @@ impl AgentApplication {
             AgentMemoryScopeKind::Project => {
                 let project_id = parse_id(&scope_id, "scope_id")?;
                 a4n_db::collaboration::verify_project_permission(
-                    self.connection(),
+                    self.executor(),
                     project_id,
                     user_id,
                     ProjectAccessRole::Viewer,
@@ -596,7 +608,7 @@ impl AgentApplication {
             }
         };
         let existing = agent::list_memory(
-            self.connection(),
+            self.executor(),
             user_id,
             Some(&enum_value(input.scope_kind)),
             Some(&scope_id),
@@ -613,7 +625,7 @@ impl AgentApplication {
             .ok_or_else(|| AppError::InvalidArgument("memory revision 溢出".into()))?;
         let resource_refs = serde_json::to_value(input.resource_refs)?;
         let row = agent::insert_memory(
-            self.connection(),
+            self.executor(),
             a4n_domain::agent::AgentMemoryInput {
                 owner_user_id: user_id,
                 project_id,
@@ -642,22 +654,9 @@ impl AgentApplication {
     ) -> Result<AgentMemoryView, AppError> {
         validate_user_id(user_id)?;
         let memory_id = parse_id(&input.memory_id, "memory_id")?;
-        let row = memory::Entity::find_by_id(memory_id)
-            .one(self.connection())
+        let row = agent::retract_memory(self.executor(), user_id, memory_id)
             .await
-            .map_err(AppError::Database)?
-            .ok_or_else(|| AppError::NotFound(format!("Agent memory 不存在: {memory_id}")))?;
-        if row.owner_user_id != user_id {
-            return Err(AppError::Forbidden("无权修改此 Agent memory".into()));
-        }
-        let mut active: memory::ActiveModel = row.into();
-        active.status = Set("retracted".into());
-        active.retracted_at = Set(Some(chrono::Utc::now().naive_utc()));
-        active.updated_at = Set(chrono::Utc::now().naive_utc());
-        let row = active
-            .update(self.connection())
-            .await
-            .map_err(AppError::Database)?;
+            .map_err(agent_db_error_to_app)?;
         memory_view(row)
     }
 
@@ -668,7 +667,7 @@ impl AgentApplication {
     ) -> Result<AgentRunView, AppError> {
         let thread_id = parse_id(&input.thread_id, "thread_id")?;
         self.owned_thread(user_id, thread_id).await?;
-        let runs = agent::runs_by_thread(self.connection(), thread_id, SNAPSHOT_LIMIT)
+        let runs = agent::runs_by_thread(self.executor(), thread_id, SNAPSHOT_LIMIT)
             .await
             .map_err(agent_db_error_to_app)?;
         let run_id = parse_id(&input.run_id, "run_id")?;
@@ -685,7 +684,7 @@ impl AgentApplication {
         let resume_budget = if let Some(budget) = input.budget.clone() {
             validate_agent_budget(&budget)?;
             let budget = if let Some(parent_run_id) = current.parent_run_id {
-                let parent = agent::run_by_id(self.connection(), parent_run_id)
+                let parent = agent::run_by_id(self.executor(), parent_run_id)
                     .await
                     .map_err(agent_db_error_to_app)?
                     .ok_or_else(|| {
@@ -705,13 +704,10 @@ impl AgentApplication {
         };
         let updated = match input.action {
             AgentControlAction::Cancel => {
-                let cancelled = agent::cancel_run_tree(
-                    self.connection(),
-                    current.id,
-                    Some("用户取消 Agent run"),
-                )
-                .await
-                .map_err(agent_db_error_to_app)?;
+                let cancelled =
+                    agent::cancel_run_tree(self.executor(), current.id, Some("用户取消 Agent run"))
+                        .await
+                        .map_err(agent_db_error_to_app)?;
                 cancelled
                     .into_iter()
                     .find(|row| row.id == current.id)
@@ -720,7 +716,7 @@ impl AgentApplication {
                     })?
             }
             AgentControlAction::Pause => {
-                let paused = agent::pause_run_tree(self.connection(), current.id)
+                let paused = agent::pause_run_tree(self.executor(), current.id)
                     .await
                     .map_err(agent_db_error_to_app)?;
                 paused
@@ -731,7 +727,7 @@ impl AgentApplication {
             // Resume always starts a fresh claim cycle.  Never preserve an old
             // worker lease or mark the run running from a user request.
             AgentControlAction::Resume => agent::resume_run(
-                self.connection(),
+                self.executor(),
                 user_id,
                 thread_id,
                 current.id,
@@ -776,7 +772,7 @@ impl AgentApplication {
             AGENT_EVENTS_MAX_LIMIT,
             "limit",
         )? as u64;
-        agent::events_after(self.connection(), thread_id, after, limit)
+        agent::events_after(self.executor(), thread_id, after, limit)
             .await
             .map_err(agent_db_error_to_app)?
             .into_iter()
@@ -899,9 +895,9 @@ impl AgentApplication {
     ) -> Result<AgentDelegationView, AppError> {
         use a4n_api_contract::agent::AgentDelegationReviewDecision;
         let id = parse_id(&input.delegation_id, "delegation_id")?;
-        let row = delegation::Entity::find_by_id(id)
-            .one(self.connection())
-            .await?
+        let row = agent::delegation_by_id(self.executor(), id)
+            .await
+            .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound("Agent delegation 不存在".into()))?;
         self.owned_thread(user_id, row.parent_thread_id).await?;
         if parent_run_id.is_some_and(|run_id| row.parent_run_id != run_id) {
@@ -913,7 +909,7 @@ impl AgentApplication {
             validate_resource_ref(resource)?;
         }
         let row = agent::review_delegation(
-            self.connection(),
+            self.executor(),
             a4n_domain::agent::AgentDelegationReviewInput {
                 user_id,
                 delegation_id: id,
@@ -946,14 +942,14 @@ impl AgentApplication {
     ) -> Result<AgentApprovalView, AppError> {
         validate_user_id(user_id)?;
         let approval_id = parse_id(&input.approval_id, "approval_id")?;
-        let existing = agent::approval_by_id(self.connection(), approval_id)
+        let existing = agent::approval_by_id(self.executor(), approval_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent approval 不存在: {approval_id}")))?;
         self.owned_thread(user_id, existing.thread_id).await?;
         let approved = input.decision == AgentApprovalDecision::Approve;
         let row = agent::resolve_approval_for_run(
-            self.connection(),
+            self.executor(),
             approval_id,
             user_id,
             approved,

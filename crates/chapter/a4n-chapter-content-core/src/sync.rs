@@ -5,7 +5,6 @@ use a4n_db::workflow::{
 use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::project::ChapterDerivedCleanupArtifacts;
 use a4n_error::AppError;
-use sea_orm::ConnectionTrait;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
@@ -14,8 +13,8 @@ use crate::{CHAPTER_CONTENT_SYNC_WORKFLOW_KIND, cleanup_chapter_derived_data_in}
 pub const CHAPTER_CONTENT_SYNC_CLEANUP_STEP: &str = "chapter_content_sync.cleanup_plan";
 pub const CHAPTER_CONTENT_SYNC_EXTERNAL_STEP: &str = "chapter_content_sync.external_cleanup";
 
-pub async fn begin_chapter_content_sync_in_transaction<C: ConnectionTrait>(
-    tx: &C,
+pub async fn begin_chapter_content_sync_in_transaction(
+    tx: &impl a4n_db::DbTransactionExecutor,
     chapter: &ChapterRecord,
 ) -> Result<WorkflowRunSummary, AppError> {
     let business_key = chapter_content_sync_workflow_business_key(chapter.project_id, chapter.id);

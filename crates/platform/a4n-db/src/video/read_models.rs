@@ -9,7 +9,7 @@ use a4n_domain::video_prompt::{
     ChapterVideoPromptPatch, ChapterVideoPromptRecord, ChapterVideoPromptSyncDraft,
     ChapterVideoPromptSyncPolicy, UpdateChapterVideoPromptRecordInput,
 };
-use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, TransactionTrait};
+use sea_orm::{ConnectionTrait, DbErr, TransactionTrait};
 use serde_json::Value;
 
 use super::VideoDbError;
@@ -79,7 +79,7 @@ pub async fn generated_image_by_id<C: ConnectionTrait>(
 }
 
 pub async fn generated_images_by_ids(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     image_ids: &[i64],
 ) -> Result<Vec<GeneratedImageRecord>, VideoDbError> {
     super::generated_images_by_ids(db, image_ids)
@@ -361,7 +361,7 @@ where
 }
 
 pub async fn mark_generated_videos_error_status_and_prompt_records(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     inputs: &[GeneratedVideoErrorStatusBatchInput],
     message: &str,
 ) -> Result<Vec<i64>, VideoDbError> {
@@ -421,7 +421,7 @@ pub fn chapter_video_prompt_from_model(
 }
 
 pub async fn chapter_video_prompt_by_id(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     prompt_id: i64,
 ) -> Result<Option<ChapterVideoPromptRecord>, VideoDbError> {
     super::chapter_video_prompt_by_id(db, prompt_id)
@@ -430,7 +430,7 @@ pub async fn chapter_video_prompt_by_id(
 }
 
 pub async fn chapter_video_prompts_for_batch_generation(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     prompt_ids: &[i64],
 ) -> Result<Vec<ChapterVideoPromptRecord>, VideoDbError> {
     super::chapter_video_prompts_for_batch_generation(db, prompt_ids)

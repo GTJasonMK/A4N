@@ -19,8 +19,8 @@ impl ImportReverseApplication {
         Self { database }
     }
 
-    fn connection(&self) -> &a4n_db::DatabaseConnection {
-        self.database.connection()
+    fn connection(&self) -> &impl a4n_db::DbExecutor {
+        self.database.executor()
     }
 
     async fn reverse_context_rows(

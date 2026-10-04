@@ -10,11 +10,10 @@ use providers::{
     import_embedding_config_row, import_image_config_row, import_llm_config_row,
     import_video_config_row,
 };
-use sea_orm::{DatabaseConnection, TransactionTrait};
 use theme_system::{import_system_setting_row, import_theme_row};
 
 pub async fn import_settings_all_configs(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: SettingsAllConfigImportInput,
 ) -> Result<SettingsAllConfigImportCounts, SettingsAllConfigImportError> {
     let SettingsAllConfigImportInput { overwrite, rows } = input;
