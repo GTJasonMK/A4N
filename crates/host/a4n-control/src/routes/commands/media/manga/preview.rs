@@ -14,6 +14,7 @@ pub(in crate::routes::commands) async fn preview_start_manga_pipeline_request(
         user_id,
         input.project_id,
         input.chapter_number,
+        input.page_number,
         false,
         input.stop_after,
     )
@@ -32,6 +33,7 @@ pub(in crate::routes::commands) async fn preview_resume_manga_pipeline_request(
         user_id,
         input.project_id,
         input.chapter_number,
+        input.page_number,
         true,
         input.stop_after,
     )
@@ -43,6 +45,7 @@ pub(in crate::routes::commands) async fn preview_manga_pipeline_request(
     user_id: i64,
     project_id: i64,
     chapter_number: i32,
+    page_number: Option<u32>,
     resume_from_checkpoint: bool,
     stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
 ) -> Result<Value, ApiError> {
@@ -52,6 +55,7 @@ pub(in crate::routes::commands) async fn preview_manga_pipeline_request(
             user_id,
             project_id,
             chapter_number,
+            page_number,
             resume_from_checkpoint,
             stop_after,
         )

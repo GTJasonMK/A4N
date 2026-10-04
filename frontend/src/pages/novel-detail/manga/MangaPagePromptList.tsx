@@ -54,6 +54,8 @@ interface MangaPagePromptListProps {
   stageMode?: MangaPageWorkspaceStage;
   onDirtyChange?: (dirty: boolean) => void;
   prompts: MangaPagePromptSummary[];
+  selectedPageNumber: number | null;
+  onSelectedPageChange: (pageNumber: number | null) => void;
   promptsLoading: boolean;
   pagePromptsError: string | null;
   currentContentHash: string | null;
@@ -201,6 +203,8 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   stageMode,
   onDirtyChange,
   prompts,
+  selectedPageNumber,
+  onSelectedPageChange,
   promptsLoading,
   pagePromptsError,
   currentContentHash,
@@ -270,7 +274,6 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
     () => buildPagePrompts(prompts, currentContentHash, pagePromptLabels),
     [currentContentHash, pagePromptLabels, prompts],
   );
-  const [selectedPage, setSelectedPage] = useState<number | null>(null);
   const pageRailRef = useRef<HTMLElement | null>(null);
   const activePageButtonRef = useRef<HTMLButtonElement | null>(null);
   const [pageRailHasBefore, setPageRailHasBefore] = useState(false);
@@ -288,19 +291,19 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
 
   useEffect(() => {
     if (pagePrompts.length === 0) {
-      if (selectedPage !== null) setSelectedPage(null);
+      if (selectedPageNumber !== null) onSelectedPageChange(null);
       return;
     }
     if (
-      selectedPage == null ||
-      !pagePrompts.some((page) => page.pageNumber === selectedPage)
+      selectedPageNumber == null ||
+      !pagePrompts.some((page) => page.pageNumber === selectedPageNumber)
     ) {
-      setSelectedPage(pagePrompts[0].pageNumber);
+      onSelectedPageChange(pagePrompts[0].pageNumber);
     }
-  }, [pagePrompts, selectedPage]);
+  }, [onSelectedPageChange, pagePrompts, selectedPageNumber]);
 
   const activePage =
-    pagePrompts.find((page) => page.pageNumber === selectedPage) ?? pagePrompts[0] ?? null;
+    pagePrompts.find((page) => page.pageNumber === selectedPageNumber) ?? pagePrompts[0] ?? null;
 
   useEffect(() => {
     const rail = pageRailRef.current;
@@ -647,7 +650,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                   ref={selected ? activePageButtonRef : undefined}
                   key={page.pageNumber}
                   type="button"
-                  onClick={() => setSelectedPage(page.pageNumber)}
+                  onClick={() => onSelectedPageChange(page.pageNumber)}
                   aria-current={selected ? "true" : undefined}
                   data-active={selected ? "1" : undefined}
                   className="a4n-sidebar-item min-w-[8.75rem] shrink-0 text-xs xl:min-w-0"

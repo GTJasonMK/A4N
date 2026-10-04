@@ -26,6 +26,7 @@ impl OrchestratorContext {
             workflow_run_id,
             resume_from_checkpoint,
             stop_after,
+            page_number,
         } = input;
         let source = a4n_db::project::resolve_chapter_source(
             self.database.executor(),
@@ -63,6 +64,7 @@ impl OrchestratorContext {
             workflow_run_id,
             resume_from_checkpoint,
             stop_after,
+            page_number,
             chapter_content,
             source_spans,
             source_markers,

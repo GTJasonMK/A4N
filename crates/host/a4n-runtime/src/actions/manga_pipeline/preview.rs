@@ -9,6 +9,7 @@ pub async fn preview_manga_pipeline_requests(
     user_id: i64,
     project_id: i64,
     chapter_number: i32,
+    page_number: Option<u32>,
     resume_from_checkpoint: bool,
     stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
 ) -> Result<ModelRequestPreview, AppError> {
@@ -19,6 +20,7 @@ pub async fn preview_manga_pipeline_requests(
             user_id,
             project_id,
             chapter_number,
+            page_number,
             resume_from_checkpoint,
             stop_after,
             prompt_renderer,

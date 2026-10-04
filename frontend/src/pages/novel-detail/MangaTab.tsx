@@ -185,6 +185,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const [pagePrompts, setPagePrompts] = useState<MangaPagePromptSummary[]>([]);
   const [pagePromptsLoading, setPagePromptsLoading] = useState(false);
   const [pagePromptsError, setPagePromptsError] = useState<string | null>(null);
+  const [selectedPageNumber, setSelectedPageNumber] = useState<number | null>(null);
   const [currentContentHash, setCurrentContentHash] = useState<string | null>(
     null,
   );
@@ -401,6 +402,10 @@ export const MangaTab: React.FC<MangaTabProps> = ({
 
   useEffect(() => {
     selectedChapterIdRef.current = selectedChapter?.id ?? null;
+  }, [selectedChapter?.id]);
+
+  useEffect(() => {
+    setSelectedPageNumber(null);
   }, [selectedChapter?.id]);
 
   useEffect(() => {
@@ -919,7 +924,10 @@ export const MangaTab: React.FC<MangaTabProps> = ({
 
   const handleSelect = async (row: ChapterRow) => {
     if (selectedChapter?.id === row.id) return;
-    if (await confirmLeaveStage()) openChapterDetail(row);
+    if (await confirmLeaveStage()) {
+      setSelectedPageNumber(null);
+      openChapterDetail(row);
+    }
   };
 
   const handleDeleteManga = async () => {
@@ -969,7 +977,12 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     }
   };
 
-  const handleRunPipeline = async (mode: "start" | "resume", stopAfter: MangaPipelineStopAfter | null = null, guard = true) => {
+  const handleRunPipeline = async (
+    mode: "start" | "resume",
+    stopAfter: MangaPipelineStopAfter | null = null,
+    guard = true,
+    pageNumber: number | null = null,
+  ) => {
     if (!ensureCanEditManga()) return;
     if (guard && !await confirmLeaveStage()) return;
     const requestProjectId = projectId;
@@ -1009,8 +1022,8 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     let terminalTaskCompleted = false;
     try {
       const handle = isResume
-        ? await resumeMangaPipeline(requestProjectId, chapter.chapter_number, stopAfter, imageSize)
-        : await startMangaPipeline(requestProjectId, chapter.chapter_number, stopAfter, imageSize);
+        ? await resumeMangaPipeline(requestProjectId, chapter.chapter_number, stopAfter, imageSize, pageNumber)
+        : await startMangaPipeline(requestProjectId, chapter.chapter_number, stopAfter, imageSize, pageNumber);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
       taskStarted = true;
       void loadSingleStatus(chapter.id, requestProjectId);
@@ -1067,6 +1080,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const handlePreviewPipeline = async (
     mode: "start" | "resume",
     stopAfter: MangaPipelineStopAfter | null = null,
+    pageNumber: number | null = null,
   ) => {
     if (!ensureCanEditManga()) return;
     const requestProjectId = projectId;
@@ -1097,11 +1111,13 @@ export const MangaTab: React.FC<MangaTabProps> = ({
               requestProjectId,
               chapter.chapter_number,
               stopAfter,
+              pageNumber,
             )
           : await previewStartMangaPipelineRequest(
               requestProjectId,
               chapter.chapter_number,
               stopAfter,
+              pageNumber,
             );
       if (
         !isPreviewCurrent(requestProjectId, requestSeq) ||
@@ -1374,6 +1390,8 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         selectedChapter={selectedChapter}
         selectedStatus={selectedStatus}
         pagePrompts={pagePrompts}
+        selectedPageNumber={selectedPageNumber}
+        onSelectedPageChange={setSelectedPageNumber}
         pagePromptsLoading={pagePromptsLoading}
         pagePromptsError={pagePromptsError}
         currentContentHash={currentContentHash}
@@ -1393,8 +1411,8 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         missingPortraitCount={missingPortraitCount}
         acting={acting}
         canEditManga={canEditManga}
-        onPreviewPipeline={(mode, stopAfter) => void handlePreviewPipeline(mode, stopAfter)}
-        onRunPipeline={(mode, stopAfter) => void handleRunPipeline(mode, stopAfter)}
+        onPreviewPipeline={(mode, stopAfter, pageNumber) => void handlePreviewPipeline(mode, stopAfter, pageNumber)}
+        onRunPipeline={(mode, stopAfter, pageNumber) => void handleRunPipeline(mode, stopAfter, true, pageNumber)}
         onGenerateMissingPortraits={() => void handleGenerateMissingPortraits()}
         onCancelPipeline={() => {
           if (!ensureCanEditManga()) return;

@@ -12,12 +12,14 @@ export async function startMangaPipeline(
   chapterNumber: number,
   stopAfter: Host.MangaPipelineStopAfter | null = null,
   imageSize: ImageSize | null = null,
+  pageNumber: number | null = null,
 ): Promise<GenerationTaskHandle> {
   return generationClient.start((meta) => apiInvoke<GenerationTaskHandle>("start_manga_pipeline", {
     input: {
       meta,
       project_id: idNum(projectId),
       chapter_number: chapterNumber,
+      page_number: pageNumber,
       stop_after: stopAfter,
       image_size: imageSize,
       resume_from_checkpoint: false,
@@ -29,11 +31,13 @@ export async function previewStartMangaPipelineRequest(
   projectId: Id,
   chapterNumber: number,
   stopAfter: Host.MangaPipelineStopAfter | null = null,
+  pageNumber: number | null = null,
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_start_manga_pipeline_request", {
     input: {
       project_id: idNum(projectId),
       chapter_number: chapterNumber,
+      page_number: pageNumber,
       stop_after: stopAfter,
     } satisfies Host.MangaPipelineStartInput,
   });
@@ -45,12 +49,14 @@ export async function resumeMangaPipeline(
   chapterNumber: number,
   stopAfter: Host.MangaPipelineStopAfter | null = null,
   imageSize: ImageSize | null = null,
+  pageNumber: number | null = null,
 ): Promise<GenerationTaskHandle> {
   return generationClient.start((meta) => apiInvoke<GenerationTaskHandle>("resume_manga_pipeline", {
     input: {
       meta,
       project_id: idNum(projectId),
       chapter_number: chapterNumber,
+      page_number: pageNumber,
       stop_after: stopAfter,
       image_size: imageSize,
       resume_from_checkpoint: true,
@@ -62,11 +68,13 @@ export async function previewResumeMangaPipelineRequest(
   projectId: Id,
   chapterNumber: number,
   stopAfter: Host.MangaPipelineStopAfter | null = null,
+  pageNumber: number | null = null,
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_resume_manga_pipeline_request", {
     input: {
       project_id: idNum(projectId),
       chapter_number: chapterNumber,
+      page_number: pageNumber,
       stop_after: stopAfter,
     } satisfies Host.MangaPipelineResumeInput,
   });

@@ -100,8 +100,8 @@ def main():
             call("create_scene_profile", {"project_id": root_id, "profile": {"name": "旧车站通道", "scene_type": "room", "importance": "primary", "base_description": "封闭通道",
                 "visual_description": "木门、挂钟与清晰的通道", "spatial_layout": "通道通向机房", "atmosphere": "安静", "first_seen_chapter": 1, "last_seen_chapter": 1, "image_prompt_seed": "旧车站通道"}})
 
-            def derive(kind):
-                project = call("create_derived_project", {"root_project_id": root_id, "derived_kind": kind, "title": "独立" + kind, "description": "isolated stage fixture", "start_chapter": 1, "end_chapter": 1})
+            def derive(kind, title=None):
+                project = call("create_derived_project", {"root_project_id": root_id, "derived_kind": kind, "title": title or "独立" + kind, "description": "isolated stage fixture", "start_chapter": 1, "end_chapter": 1})
                 report["projects"].append(project["id"])
                 return project["id"]
 
@@ -113,13 +113,18 @@ def main():
             assert comic_adaptation["inputs"]["video_reference"] is None
             passed("漫画和 Galgame 在没有视频项目或拍摄剧本时独立生成并采用改编计划")
 
-            def manga_run():
-                handle = call("start_manga_pipeline", {
+            def manga_run(project_id=comic, stop_after=None, page_number=None):
+                pipeline_input = {
                     "meta": {"start_request_id": str(uuid.uuid4())},
-                    "project_id": comic,
+                    "project_id": project_id,
                     "chapter_number": 1,
                     "image_size": {"width": 1024, "height": 1024},
-                })
+                }
+                if stop_after is not None:
+                    pipeline_input["stop_after"] = stop_after
+                if page_number is not None:
+                    pipeline_input["page_number"] = page_number
+                handle = call("start_manga_pipeline", pipeline_input)
                 checked(
                     cli,
                     ["task", "watch", handle["task_id"], "--attempt", str(handle["attempt"])],
@@ -131,6 +136,7 @@ def main():
                     "manga task",
                 )[0]["data"]
                 assert task["handle"]["status"] == "completed", task
+                return task
 
             before = len(llm_calls())
             provider_request_offset = len(provider_log_entries(args.provider_log))
@@ -145,6 +151,29 @@ def main():
             manga_artifacts = workspace(comic)["artifacts"]
             assert not any(artifact["stale"] for artifact in manga_artifacts), manga_artifacts
             passed("漫画一次完成页面槽位、页面改编、分镜、绘图提示词和成图")
+
+            scoped_comic = derive("comic", "单页范围验收漫画")
+            manga_run(scoped_comic, stop_after="page_slots")
+            scoped_pages = call("list_manga_page_prompts", {"project_id": scoped_comic, "chapter_id": chapter_id})
+            assert len(scoped_pages) == 2
+            assert all(page["page_content"] for page in scoped_pages)
+            before_selected_page = len(llm_calls())
+            manga_run(scoped_comic, stop_after="storyboard", page_number=2)
+            assert len(llm_calls()) - before_selected_page == 2
+            scoped_pages = call("list_manga_page_prompts", {"project_id": scoped_comic, "chapter_id": chapter_id})
+            first_page = next(page for page in scoped_pages if page["page_number"] == 1)
+            selected_page = next(page for page in scoped_pages if page["page_number"] == 2)
+            assert first_page.get("page_adaptation") is None and first_page.get("page_plan") is None
+            assert selected_page.get("page_adaptation") and selected_page.get("page_plan")
+            before_next_page = len(llm_calls())
+            manga_run(scoped_comic, stop_after="storyboard", page_number=1)
+            assert len(llm_calls()) - before_next_page == 2
+            scoped_pages = call("list_manga_page_prompts", {"project_id": scoped_comic, "chapter_id": chapter_id})
+            first_page = next(page for page in scoped_pages if page["page_number"] == 1)
+            selected_page = next(page for page in scoped_pages if page["page_number"] == 2)
+            assert first_page.get("page_adaptation") and first_page.get("page_plan")
+            assert selected_page.get("page_adaptation") and selected_page.get("page_plan")
+            passed("单页分镜按选中页执行，连续处理另一页时复用已完成的整章阶段")
 
             game_input = {"project_id": game, "task_id": str(uuid.uuid4()), "resume_from_checkpoint": True, "start_from_stage": None, "stop_after": "branch_design"}
             before_galgame = len(provider_log_entries(args.provider_log))

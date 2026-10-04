@@ -1,6 +1,8 @@
 use super::*;
 use crate::manga::pipeline::state::MangaPipelineStage;
-use crate::manga::{manga_completed_stage_order, manga_stop_after_order};
+use crate::manga::{
+    manga_completed_stage_can_continue, manga_completed_stage_order, manga_stop_after_order,
+};
 use a4n_db::project::MangaCharacterPortraitRefSummary;
 
 #[test]
@@ -23,14 +25,14 @@ fn manga_pipeline_stage_keys_are_owned_by_stage_enum() {
 }
 
 #[test]
-fn completed_manga_pipeline_stages_continue_only_forward() {
+fn completed_manga_pipeline_stages_reuse_forward_or_same_page_stage() {
     use a4n_api_contract::manga::MangaPipelineStopAfter as StopAfter;
 
     assert_eq!(manga_completed_stage_order("page_content"), Some(0));
     assert_eq!(manga_completed_stage_order("adaptation"), Some(1));
     assert_eq!(manga_completed_stage_order("storyboard"), Some(2));
     assert_eq!(manga_completed_stage_order("drawing_prompt"), Some(3));
-    assert_eq!(manga_completed_stage_order("completed"), None);
+    assert_eq!(manga_completed_stage_order("completed"), Some(4));
     assert!(manga_completed_stage_order("page_content").unwrap() < manga_stop_after_order(None));
     assert!(
         manga_completed_stage_order("adaptation").unwrap()
@@ -40,6 +42,11 @@ fn completed_manga_pipeline_stages_continue_only_forward() {
         manga_completed_stage_order("storyboard").unwrap()
             >= manga_stop_after_order(Some(StopAfter::Storyboard))
     );
+    assert!(manga_completed_stage_can_continue(2, 2, true));
+    assert!(!manga_completed_stage_can_continue(2, 2, false));
+    assert!(!manga_completed_stage_can_continue(2, 1, true));
+    assert!(manga_completed_stage_can_continue(4, 4, true));
+    assert!(!manga_completed_stage_can_continue(4, 4, false));
 }
 
 #[test]

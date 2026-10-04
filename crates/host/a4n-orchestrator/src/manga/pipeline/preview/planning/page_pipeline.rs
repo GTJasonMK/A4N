@@ -23,8 +23,24 @@ pub(super) async fn preview_page_pipeline(
     extraction_summary: &Value,
 ) -> Result<(), AppError> {
     let total_pages = slots.pages.len();
+    if let Some(page_number) = context.page_number
+        && !slots
+            .pages
+            .iter()
+            .any(|slot| slot.page_number == page_number)
+    {
+        return Err(AppError::InvalidArgument(format!(
+            "漫画第 {page_number} 页不存在，无法预览单页流水线"
+        )));
+    }
     for (index, slot) in slots.pages.iter().enumerate() {
         let page_number = slot.page_number;
+        if context
+            .page_number
+            .is_some_and(|selected| selected != page_number)
+        {
+            continue;
+        }
         let content = &slot.content;
         let previous_content = index.checked_sub(1).and_then(|i| slots.pages.get(i));
         let next_content = slots.pages.get(index + 1);

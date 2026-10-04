@@ -123,6 +123,9 @@ fn test_load_real_prompts_dir() {
     assert!(portrait_prompt.contains("中文 prompt"));
     assert!(!portrait_prompt.contains("英文 prompt"));
 
+    let manga_storyboard_prompt = engine.get("manga_page_storyboard").unwrap().content;
+    assert!(manga_storyboard_prompt.contains("\"layer_index\": 1"));
+
     let mut context_guard_vars = HashMap::new();
     context_guard_vars.insert(
         "project_context_json".to_string(),

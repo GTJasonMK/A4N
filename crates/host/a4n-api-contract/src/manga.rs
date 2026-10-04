@@ -93,6 +93,9 @@ pub struct MangaPipelineStartInput {
     pub project_id: i64,
     #[schemars(range(min = 1))]
     pub chapter_number: i32,
+    #[serde(default)]
+    #[schemars(range(min = 1))]
+    pub page_number: Option<u32>,
     pub stop_after: Option<MangaPipelineStopAfter>,
     pub image_size: Option<a4n_domain::ImageSize>,
     #[serde(default)]
@@ -108,6 +111,9 @@ pub struct MangaPipelineResumeInput {
     pub project_id: i64,
     #[schemars(range(min = 1))]
     pub chapter_number: i32,
+    #[serde(default)]
+    #[schemars(range(min = 1))]
+    pub page_number: Option<u32>,
     pub stop_after: Option<MangaPipelineStopAfter>,
     pub image_size: Option<a4n_domain::ImageSize>,
     #[serde(default = "default_resume_from_checkpoint")]
@@ -218,6 +224,9 @@ pub trait MangaPipelineExecutionApplicationPort: Send + Sync {
         user_id: i64,
         project_id: i64,
         chapter_number: i32,
+        page_number: Option<u32>,
+        stop_after: Option<MangaPipelineStopAfter>,
+        prompt_renderer: &dyn crate::prompt::PromptRenderPort,
     ) -> Result<(), a4n_error::AppError>;
 }
 
@@ -241,6 +250,7 @@ pub trait MangaPipelinePreviewApplicationPort: Send + Sync {
         user_id: i64,
         project_id: i64,
         chapter_number: i32,
+        page_number: Option<u32>,
         resume_from_checkpoint: bool,
         stop_after: Option<MangaPipelineStopAfter>,
         prompt_renderer: &dyn crate::prompt::PromptRenderPort,

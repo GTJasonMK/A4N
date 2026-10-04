@@ -31,6 +31,12 @@ export const mangaStopAfterForStage = (
   }
 };
 
+export const mangaPageNumberForPipelineStage = (
+  stage: MangaPageWorkspaceStage | undefined,
+  selectedPageNumber: number | null,
+): number | null =>
+  stage == null || stage === "page_plan" ? null : selectedPageNumber;
+
 export type MangaPagePromptSource = {
   content_sha256: string;
   source_revision_key: string;

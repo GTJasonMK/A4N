@@ -19,6 +19,7 @@ pub(super) struct MangaRunContext<'a> {
     pub(super) service: &'a OrchestratorContext,
     pub(super) chapter_id: i64,
     pub(super) chapter_number: i32,
+    pub(super) page_number: Option<u32>,
     pub(super) project_id: i64,
     pub(super) user_id: i64,
     pub(super) adaptation: PreparedAdaptation,

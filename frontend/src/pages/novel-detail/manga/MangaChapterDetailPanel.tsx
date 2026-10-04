@@ -55,6 +55,7 @@ import {
   mangaPageImageBlockReason,
   mangaStageLabel,
   mangaPageStageLabel,
+  mangaPageNumberForPipelineStage,
   mangaStopAfterForStage,
   type MangaPageWorkspaceStage,
 } from "./mangaTabUtils";
@@ -68,6 +69,8 @@ interface MangaChapterDetailPanelProps {
   selectedChapter: ChapterRow | null;
   selectedStatus: MangaPipelineStatusSummary | null | undefined;
   pagePrompts: MangaPagePromptSummary[];
+  selectedPageNumber: number | null;
+  onSelectedPageChange: (pageNumber: number | null) => void;
   pagePromptsLoading: boolean;
   pagePromptsError: string | null;
   currentContentHash: string | null;
@@ -90,10 +93,12 @@ interface MangaChapterDetailPanelProps {
   onPreviewPipeline: (
     mode: "start" | "resume",
     stopAfter: MangaPipelineStopAfter | null,
+    pageNumber: number | null,
   ) => void;
   onRunPipeline: (
     mode: "start" | "resume",
     stopAfter: MangaPipelineStopAfter | null,
+    pageNumber: number | null,
   ) => void;
   onGenerateMissingPortraits: () => void;
   onCancelPipeline: () => void;
@@ -126,6 +131,8 @@ export function MangaChapterDetailPanel({
   selectedChapter,
   selectedStatus,
   pagePrompts,
+  selectedPageNumber,
+  onSelectedPageChange,
   pagePromptsLoading,
   pagePromptsError,
   currentContentHash,
@@ -283,6 +290,11 @@ export function MangaChapterDetailPanel({
       ? mangaStageLabel(selectedStatus.pipeline_status, t)
       : t("comic.pipelineStages.notStarted");
   const pipelineStopAfter = stageMode ? mangaStopAfterForStage(stageMode) : null;
+  const pageScopedStage = stageMode != null && stageMode !== "page_plan";
+  const pipelinePageNumber = mangaPageNumberForPipelineStage(
+    stageMode,
+    selectedPageNumber,
+  );
   const pipelineTargetLabel = stageMode
     ? mangaPageStageLabel(
         stageMode === "page_plan"
@@ -297,6 +309,10 @@ export function MangaChapterDetailPanel({
         t,
       )
     : null;
+  const pipelineActionTargetLabel =
+    pipelineTargetLabel && pipelinePageNumber != null
+      ? `${pipelineTargetLabel} · ${t("comic.prompt.pageLabel", { page: pipelinePageNumber })}`
+      : pipelineTargetLabel;
   const statusTone: NoticeTone =
     pipelineStoppedWithError
       ? "danger"
@@ -823,14 +839,14 @@ export function MangaChapterDetailPanel({
     mangaResultStale && !pipelineCanResume && !pipelineFailed
       ? "secondary"
       : "primary";
-  const pipelineDirectLabel = pipelineTargetLabel
+  const pipelineDirectLabel = pipelineActionTargetLabel
     ? pipelineCanResume || (hasIncompletePages && !pipelineFailed)
-      ? t("comic.continueToStage", { stage: pipelineTargetLabel })
+      ? t("comic.continueToStage", { stage: pipelineActionTargetLabel })
       : pipelineFailed
-        ? t("comic.regenerateToStage", { stage: pipelineTargetLabel })
+        ? t("comic.regenerateToStage", { stage: pipelineActionTargetLabel })
         : mangaResultStale
-          ? t("comic.updateToStage", { stage: pipelineTargetLabel })
-          : t("comic.generateToStage", { stage: pipelineTargetLabel })
+          ? t("comic.updateToStage", { stage: pipelineActionTargetLabel })
+          : t("comic.generateToStage", { stage: pipelineActionTargetLabel })
     : pipelineCanResume
       ? t("comic.continueChapter")
       : hasIncompletePages && !pipelineFailed
@@ -840,8 +856,8 @@ export function MangaChapterDetailPanel({
           : mangaResultStale
             ? t("comic.updateChapter")
             : t("comic.generateChapter");
-  const pipelinePreviewLabel = pipelineTargetLabel
-    ? t("comic.prompt.viewStageRequest", { stage: pipelineTargetLabel })
+  const pipelinePreviewLabel = pipelineActionTargetLabel
+    ? t("comic.prompt.viewStageRequest", { stage: pipelineActionTargetLabel })
     : pipelineCanResume
       ? t("comic.prompt.viewContinueRequest")
       : pipelineFailed
@@ -863,7 +879,8 @@ export function MangaChapterDetailPanel({
     selectedChapter == null ||
     detailBusy ||
     !selectedChapterReady ||
-    selectedChapterGenerating;
+    selectedChapterGenerating ||
+    (pageScopedStage && selectedPageNumber == null);
   const pipelineMenuItems: DropdownItem[] = [];
   if (canEditManga && selectedChapter && !pipelineRunning) {
     if (showPipelineDirectAction) {
@@ -876,6 +893,7 @@ export function MangaChapterDetailPanel({
           onPreviewPipeline(
             pipelineCanResume ? "resume" : "start",
             pipelineStopAfter,
+            pipelinePageNumber,
           ),
       });
     }
@@ -887,13 +905,13 @@ export function MangaChapterDetailPanel({
         label: t("comic.prompt.fromStart"),
         icon: <Play size={12} />,
         disabled: pipelineMainDisabled || pipelineStartBusy,
-        onClick: () => onRunPipeline("start", pipelineStopAfter),
+        onClick: () => onRunPipeline("start", pipelineStopAfter, pipelinePageNumber),
       });
       pipelineMenuItems.push({
         label: t("comic.prompt.fromStartRequest"),
         icon: <Eye size={12} />,
         disabled: pipelineMainDisabled || pipelineStartBusy,
-        onClick: () => onPreviewPipeline("start", pipelineStopAfter),
+        onClick: () => onPreviewPipeline("start", pipelineStopAfter, pipelinePageNumber),
       });
     }
     if (missingPortraitCount > 0) {
@@ -999,6 +1017,7 @@ export function MangaChapterDetailPanel({
                           onRunPipeline(
                             pipelineCanResume ? "resume" : "start",
                             pipelineStopAfter,
+                            pipelinePageNumber,
                           )
                         }
                         disabled={
@@ -1040,6 +1059,8 @@ export function MangaChapterDetailPanel({
                 stageMode={stageMode}
                 onDirtyChange={onDirtyChange}
                 prompts={pagePrompts}
+                selectedPageNumber={selectedPageNumber}
+                onSelectedPageChange={onSelectedPageChange}
                 promptsLoading={pagePromptsLoading}
                 pagePromptsError={pagePromptsError}
                 currentContentHash={currentContentHash}

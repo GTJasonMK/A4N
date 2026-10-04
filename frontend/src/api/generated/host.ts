@@ -40,10 +40,10 @@ export const HOST_API_COMMANDS = [
   "commit_inserted_segment_draft",
   "confirm_chapter_visual_plan",
   "confirm_reverse_engineering_candidate",
+  "create_canvas_project",
   "create_derived_project",
   "create_embedding_config",
   "create_foreshadowing",
-  "create_canvas_project",
   "create_invite_code",
   "create_llm_config",
   "create_object_profile",
@@ -99,6 +99,7 @@ export const HOST_API_COMMANDS = [
   "execute_attribute_deletion",
   "export_all_configs_json",
   "export_batch_data",
+  "export_canvas_project_data",
   "export_characters_json_data",
   "export_derived_project_data",
   "export_epub_data",
@@ -111,7 +112,6 @@ export const HOST_API_COMMANDS = [
   "export_theme",
   "export_theme_package",
   "export_txt_data",
-  "export_canvas_project_data",
   "forward_project_status",
   "generate_canvas_text_asset_draft",
   "generate_chapter_analysis",
@@ -172,6 +172,7 @@ export const HOST_API_COMMANDS = [
   "health_check",
   "import_all_configs",
   "import_canvas_media",
+  "import_canvas_project_upload",
   "import_chapter",
   "import_galgame_audio",
   "import_project_bundle_upload",
@@ -180,7 +181,6 @@ export const HOST_API_COMMANDS = [
   "import_project_text_upload",
   "import_theme",
   "import_theme_package",
-  "import_canvas_project_upload",
   "insert_galgame_line",
   "inspect_project_bundle_upload",
   "invite_project_member",
@@ -480,6 +480,7 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "check_character_conflict": "full",
   "check_implicit_update": "full",
   "confirm_reverse_engineering_candidate": "full",
+  "create_foreshadowing": "full",
   "create_optimization_analysis_session": "full",
   "create_optimization_chat_session": "full",
   "create_profile": "full",
@@ -2351,6 +2352,7 @@ export interface MangaPipelineStartInput {
   chapter_number: number;
   image_size?: ImageSize | null;
   meta?: GenerationStartRequestMeta | null;
+  page_number?: number | null;
   project_id: number;
   resume_from_checkpoint?: boolean;
   stop_after?: MangaPipelineStopAfter | null;
@@ -2592,6 +2594,7 @@ export interface MangaPipelineResumeInput {
   chapter_number: number;
   image_size?: ImageSize | null;
   meta?: GenerationStartRequestMeta | null;
+  page_number?: number | null;
   project_id: number;
   resume_from_checkpoint?: boolean;
   stop_after?: MangaPipelineStopAfter | null;

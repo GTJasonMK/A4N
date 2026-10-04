@@ -48,6 +48,7 @@ pub(super) struct MangaPreviewContext<'a> {
     pub(super) workflow_run_id: Option<i64>,
     pub(super) resume_from_checkpoint: bool,
     pub(super) stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+    pub(super) page_number: Option<u32>,
     pub(super) chapter_content: String,
     pub(super) source_spans: Vec<SourceSpan>,
     pub(super) source_markers: SourceMarkerMap,

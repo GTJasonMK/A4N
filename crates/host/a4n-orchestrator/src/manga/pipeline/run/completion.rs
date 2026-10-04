@@ -14,13 +14,22 @@ use super::page::{
     prepare_manga_page_work, process_manga_page,
 };
 use super::page_slots::MangaPageSlotsRun;
+use crate::manga::validate_manga_page_scope;
 
 pub(super) async fn complete_pipeline(
     context: &MangaRunContext<'_>,
     extraction: MangaExtractionRun,
     slots_run: MangaPageSlotsRun,
 ) -> Result<Vec<MangaPagePromptRecord>, AppError> {
+    validate_manga_page_scope(context.page_number, context.stop_after)?;
     let total_pages = slots_run.slots.pages.len();
+    let page_numbers = slots_run
+        .slots
+        .pages
+        .iter()
+        .map(|slot| slot.page_number)
+        .collect::<Vec<_>>();
+    let selected_page_indexes = page_indexes_to_process(&page_numbers, context.page_number)?;
     let extraction_summary = extraction.extraction_summary;
     let persist = MangaPipelinePersistInput {
         chapter_id: context.chapter_id,
@@ -81,7 +90,8 @@ pub(super) async fn complete_pipeline(
         work.row = row;
     }
 
-    let total_steps = manga_page_pipeline_total_steps(total_pages, context.stop_after)?;
+    let total_steps =
+        manga_page_pipeline_total_steps(selected_page_indexes.len(), context.stop_after)?;
     if matches!(
         context.stop_after,
         Some(
@@ -100,16 +110,27 @@ pub(super) async fn complete_pipeline(
     }
 
     let progress = MangaPagePipelineProgress::new(total_steps);
-    let results = stream::iter(works.into_iter().map(|work| {
-        process_manga_page(
-            context,
-            &persist,
-            work,
-            &extraction_summary,
-            &progress,
-            total_pages,
-        )
-    }))
+    let results = stream::iter(
+        works
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, work)| {
+                selected_page_indexes
+                    .binary_search(&index)
+                    .ok()
+                    .map(|_| work)
+            })
+            .map(|work| {
+                process_manga_page(
+                    context,
+                    &persist,
+                    work,
+                    &extraction_summary,
+                    &progress,
+                    total_pages,
+                )
+            }),
+    )
     .buffer_unordered(MANGA_PAGE_PIPELINE_CONCURRENCY)
     .collect::<Vec<_>>()
     .await;
@@ -127,13 +148,21 @@ pub(super) async fn complete_pipeline(
         return Err(error);
     }
     rows.sort_by_key(|row| row.page_number);
-    if rows.len() != total_pages {
+    if rows.len() != selected_page_indexes.len() {
         return Err(AppError::InvalidState {
-            current: format!("expected_rows={total_pages}, actual_rows={}", rows.len()),
+            current: format!(
+                "expected_rows={}, actual_rows={}",
+                selected_page_indexes.len(),
+                rows.len()
+            ),
             operation: "完成漫画页面流水线".to_string(),
         });
     }
-    let (stage, message) = completed_page_stage(context.stop_after, total_pages);
+    let (stage, message) = completed_page_stage(
+        context.stop_after,
+        selected_page_indexes.len(),
+        context.page_number,
+    );
     complete_at_stage(context, rows, stage, total_steps, message).await
 }
 
@@ -172,21 +201,67 @@ async fn complete_at_stage(
 fn completed_page_stage(
     stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
     page_count: usize,
+    page_number: Option<u32>,
 ) -> (&'static str, String) {
+    let scope = page_number
+        .map(|page_number| format!("第 {page_number} 页"))
+        .unwrap_or_else(|| format!("{page_count} 页"));
     match stop_after {
         Some(a4n_api_contract::manga::MangaPipelineStopAfter::PageAdaptation) => {
-            ("adaptation", format!("{page_count} 页页面改编计划已完成"))
+            ("adaptation", format!("{scope}页面改编计划已完成"))
         }
         Some(
             a4n_api_contract::manga::MangaPipelineStopAfter::Storyboard
             | a4n_api_contract::manga::MangaPipelineStopAfter::PagePlanning,
-        ) => ("storyboard", format!("{page_count} 页分镜已完成")),
+        ) => ("storyboard", format!("{scope}分镜已完成")),
         Some(a4n_api_contract::manga::MangaPipelineStopAfter::DrawingPrompt) => {
-            ("drawing_prompt", format!("{page_count} 页整页提示词已完成"))
+            ("drawing_prompt", format!("{scope}整页提示词已完成"))
         }
+        _ if page_number.is_some() => ("completed", format!("{scope}漫画流水线已完成")),
         _ => (
             "completed",
             format!("漫画页面流水线完成，共生成 {page_count} 页图片"),
         ),
+    }
+}
+
+fn page_indexes_to_process(
+    page_numbers: &[u32],
+    page_number: Option<u32>,
+) -> Result<Vec<usize>, AppError> {
+    if let Some(page_number) = page_number {
+        return page_numbers
+            .iter()
+            .position(|candidate| *candidate == page_number)
+            .map(|index| vec![index])
+            .ok_or_else(|| {
+                AppError::InvalidArgument(format!(
+                    "漫画第 {page_number} 页不存在，无法启动单页流水线"
+                ))
+            });
+    }
+    Ok((0..page_numbers.len()).collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::page_indexes_to_process;
+
+    #[test]
+    fn page_scope_selects_only_the_requested_slot() {
+        assert_eq!(page_indexes_to_process(&[1, 2, 3], Some(2)).unwrap(), [1]);
+    }
+
+    #[test]
+    fn missing_page_scope_is_rejected() {
+        assert!(page_indexes_to_process(&[1, 2, 3], Some(4)).is_err());
+    }
+
+    #[test]
+    fn absent_page_scope_keeps_full_chapter_behavior() {
+        assert_eq!(
+            page_indexes_to_process(&[1, 2, 3], None).unwrap(),
+            [0, 1, 2]
+        );
     }
 }

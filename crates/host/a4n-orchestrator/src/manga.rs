@@ -31,6 +31,7 @@ pub struct MangaGeneratePagePromptsInput<'a> {
     pub user_id: i64,
     pub chapter_id: i64,
     pub chapter_number: i32,
+    pub page_number: Option<u32>,
     pub project_id: i64,
     pub prompt_renderer: &'a dyn PromptRenderer,
     pub character_portraits: Vec<MangaCharacterPortraitRefSummary>,
@@ -48,11 +49,37 @@ pub struct MangaGeneratePagePromptsInput<'a> {
 pub struct MangaPipelineRequestPreviewInput<'a> {
     pub chapter_id: i64,
     pub project_id: i64,
+    pub page_number: Option<u32>,
     pub prompt_renderer: &'a dyn PromptRenderer,
     pub character_portraits: Vec<MangaCharacterPortraitRefSummary>,
     pub workflow_run_id: Option<i64>,
     pub resume_from_checkpoint: bool,
     pub stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+}
+
+pub(crate) fn validate_manga_page_scope(
+    page_number: Option<u32>,
+    stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+) -> Result<(), a4n_error::AppError> {
+    if page_number == Some(0) {
+        return Err(a4n_error::AppError::InvalidArgument(
+            "漫画页码必须大于 0".into(),
+        ));
+    }
+    if page_number.is_some()
+        && matches!(
+            stop_after,
+            Some(
+                a4n_api_contract::manga::MangaPipelineStopAfter::PageSlots
+                    | a4n_api_contract::manga::MangaPipelineStopAfter::PageContent
+            )
+        )
+    {
+        return Err(a4n_error::AppError::InvalidArgument(
+            "分页规划是整章步骤，不能限定单页".into(),
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -73,6 +100,7 @@ impl OrchestratorContext {
         chapter_id: i64,
         fingerprint: &serde_json::Value,
         stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+        page_number: Option<u32>,
     ) -> Result<Option<WorkflowRunSummary>, AppError> {
         let next_stage_order = manga_stop_after_order(stop_after);
         Ok(self
@@ -87,7 +115,13 @@ impl OrchestratorContext {
                         .current_step_key
                         .as_deref()
                         .and_then(manga_completed_stage_order)
-                        .is_some_and(|stage_order| stage_order < next_stage_order)
+                        .is_some_and(|stage_order| {
+                            manga_completed_stage_can_continue(
+                                stage_order,
+                                next_stage_order,
+                                page_number.is_some(),
+                            )
+                        })
             }))
     }
     pub(crate) async fn resumable_manga_workflow_validated(
@@ -167,6 +201,7 @@ impl OrchestratorContext {
         task_id: String,
         resume_from_checkpoint: bool,
         stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+        page_number: Option<u32>,
     ) -> Result<(WorkflowRunSummary, bool), AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
@@ -208,6 +243,7 @@ impl OrchestratorContext {
                 chapter_id,
                 &input_fingerprint,
                 stop_after,
+                page_number,
             )
             .await?
         {
@@ -241,6 +277,16 @@ fn manga_completed_stage_order(stage: &str) -> Option<u8> {
         "adaptation" => Some(1),
         "storyboard" | "page_planning" => Some(2),
         "drawing_prompt" => Some(3),
+        "completed" => Some(4),
         _ => None,
     }
+}
+
+pub(crate) fn manga_completed_stage_can_continue(
+    completed_stage_order: u8,
+    next_stage_order: u8,
+    page_scoped: bool,
+) -> bool {
+    completed_stage_order < next_stage_order
+        || (page_scoped && completed_stage_order == next_stage_order)
 }

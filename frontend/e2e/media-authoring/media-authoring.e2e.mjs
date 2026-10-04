@@ -9,6 +9,47 @@ import { authoringChapters, authoringWorkspace } from "./fixtures.mjs";
 const artifactDir = fileURLToPath(new URL("../../../.dev-runtime/media-authoring/browser/", import.meta.url));
 const text = "雨从旧书店的屋檐落下。她推开门。";
 const hash = createHash("sha256").update(text).digest("hex");
+const mangaPages = [1, 2].map((page) => ({
+  id: 200 + page,
+  chapter_id: 1,
+  project_id: 2,
+  page_number: page,
+  page_id: `page-${String(page).padStart(4, "0")}`,
+  image_prompt: "",
+  dialogue_text: null,
+  page_content: {
+    summary: `第 ${page} 页内容`,
+    source_span_ids: [],
+    beat_refs: [{ unit_id: "unit-1", beat_id: `beat-${page}` }],
+    action: `第 ${page} 页动作`,
+    reaction: null,
+    dialogue_intent: null,
+    entry_state: "开始",
+    exit_state: "结束",
+  },
+  page_adaptation: null,
+  page_plan: null,
+  drawing_prompt: null,
+  reference_bindings: [],
+  source: {
+    adaptation_plan_id: 202,
+    adaptation_plan_revision: 1,
+    adaptation_plan_sha256: "adaptation-hash",
+    content_sha256: hash,
+    root_project_id: 1,
+    source_chapter_id: 1,
+    source_revision_key: "revision-1",
+    source_snapshot_chapter_id: 301,
+    source_snapshot_id: 12,
+  },
+  generated_image_id: null,
+  status: "pending",
+  pipeline_stage: "adaptation",
+  pipeline_status: "pending",
+  pipeline_error: null,
+  created_at: "2026-09-29T00:00:00Z",
+  updated_at: "2026-09-29T00:00:00Z",
+}));
 const projects = visualFixtures.projectRecords.map((project) => ({ ...project, source_snapshot_id: project.root_project_id ? project.id + 10 : null }));
 const fixture = {
   ...visualFixtures,
@@ -29,7 +70,7 @@ const fixture = {
     segments: [{ id: "shot-1", title: "镜头 1", start_point_id: "start", end_point_id: "end", prompt: "", scene_binding: null, use_end_point_image: false }],
   } },
   byProject: {
-    2: { list_source_snapshot_chapters: authoringChapters(2), get_media_authoring_workspace: authoringWorkspace(2, "manga") },
+    2: { list_source_snapshot_chapters: authoringChapters(2), get_media_authoring_workspace: authoringWorkspace(2, "manga"), list_manga_page_prompts: mangaPages },
     5: { list_source_snapshot_chapters: authoringChapters(5), get_media_authoring_workspace: authoringWorkspace(5, "galgame") },
     7: { list_source_snapshot_chapters: authoringChapters(7) },
   },
@@ -145,6 +186,75 @@ describe("Derived media authoring stages", () => {
     await $("[role=dialog]").waitForDisplayed();
     await browser.keys("Escape");
     await browser.waitUntil(async () => await browser.execute(() => document.querySelector("[role=dialog]") == null));
+  });
+
+  it("starts only the selected page from a per-page pipeline stage", async () => {
+    await browser.setWindowSize(1440, 1000);
+    await browser.url("/comic-project/2");
+    await chooseStage("单页改编计划");
+    const secondPage = await $('//button[contains(.,"第 2 页")]');
+    await secondPage.waitForDisplayed();
+    await secondPage.click();
+    await browser.waitUntil(async () =>
+      (await $("body").getText()).includes("继续生成至单页改编计划 · 第 2 页"),
+    );
+    await checkLayout("comic-selected-page", 1440);
+    await checkLayout("comic-selected-page", 390);
+
+    await browser.execute(() => {
+      window.__uiAudit.previousLocalRuntimeSettings = localStorage.getItem("a4n:local-runtime-settings:v1");
+      localStorage.setItem("a4n:local-runtime-settings:v1", JSON.stringify({
+        schema_version: 1,
+        next_id: 2,
+        llm: [],
+        system_llm_api_key_encrypted: "fixture-key",
+        system_image_api_key_encrypted: null,
+        system_video_api_key_encrypted: null,
+        embedding: [{
+          id: 1, name: "fixture", backend: "local_hash", base_url: null,
+          api_key_encrypted: null, has_api_key: false, model: "local-sha256-hash",
+          dimension: 384, batch_size: 100, local_model_path: null, is_default: true,
+          pricing: {
+            currency: "USD", llm_input_per_million: null,
+            llm_output_per_million: null, llm_cache_read_per_million: null,
+            llm_cache_write_per_million: null, embedding_input_per_million: null,
+            image_per_generation: null, video_per_second: null,
+          },
+        }],
+        image: [],
+        video: [],
+        web_search: null,
+        web_fetch: {
+          enabled: true, timeout_secs: 30, max_redirects: 5,
+          max_response_bytes: 5000000, max_body_chars: 100000,
+          max_output_chars: 200000,
+        },
+        default_source: { llm: "system", image: "system", video: "system" },
+      }));
+      window.__uiAudit.deferred.push("start_manga_pipeline");
+    });
+    const startButton = await $('//button[contains(.,"继续生成至单页改编计划 · 第 2 页")]');
+    await startButton.click();
+    await browser.waitUntil(async () => await browser.execute(() =>
+      window.__uiAudit.pending.some((item) => item.command === "start_manga_pipeline"),
+    ));
+    const request = await browser.execute(() =>
+      window.__uiAudit.pending.find((item) => item.command === "start_manga_pipeline").body.input,
+    );
+    assert.equal(request.page_number, 2);
+    assert.equal(request.stop_after, "page_adaptation");
+    await browser.execute(() => {
+      const index = window.__uiAudit.pending.findIndex((item) => item.command === "start_manga_pipeline");
+      const [pending] = window.__uiAudit.pending.splice(index, 1);
+      pending.resolve(Response.json({ message: "fixture stops after request capture" }, { status: 400 }));
+    });
+    await browser.waitUntil(async () => await startButton.isEnabled());
+    await browser.execute(() => {
+      const previous = window.__uiAudit.previousLocalRuntimeSettings;
+      if (previous == null) localStorage.removeItem("a4n:local-runtime-settings:v1");
+      else localStorage.setItem("a4n:local-runtime-settings:v1", previous);
+      delete window.__uiAudit.previousLocalRuntimeSettings;
+    });
   });
 
   it("clears the previous video's content while the next route project is loading", async () => {

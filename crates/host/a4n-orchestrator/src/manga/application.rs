@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::generation::events::GenerationEventPublisher;
 use a4n_api_contract::generation_tasks::GenerationTaskHandle;
 use a4n_api_contract::manga::{
@@ -22,7 +24,7 @@ use super::layout_rules::{
 use super::{
     MangaGeneratePagePromptsInput, MangaPipelineRequestPreviewInput,
     MangaPipelineRequestPreviewStep, MangaPromptOptimizationInput, ensure_manga_source_can_write,
-    manga_pipeline_fingerprint,
+    manga_pipeline_fingerprint, validate_manga_page_scope,
 };
 use crate::{OrchestratorContext, prompt_records::PromptRendererAdapter};
 use a4n_domain::collaboration::ProjectAccessRole;
@@ -32,6 +34,7 @@ pub struct MangaPipelineApplicationInput<'a> {
     pub user_id: i64,
     pub project_id: i64,
     pub chapter_number: i32,
+    pub page_number: Option<u32>,
     pub task_id: &'a str,
     pub resume_from_checkpoint: bool,
     pub stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
@@ -46,6 +49,7 @@ pub struct MangaPipelineApplicationInput<'a> {
 pub struct MangaPipelinePreviewApplicationInput<'a> {
     pub project_id: i64,
     pub chapter_number: i32,
+    pub page_number: Option<u32>,
     pub resume_from_checkpoint: bool,
     pub stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
     pub prompt_renderer: &'a dyn PromptRenderer,
@@ -56,16 +60,60 @@ enum MangaTaskEvent {
     Text { stream_id: String, delta: String },
 }
 
+fn manga_stop_after_includes_storyboard(
+    stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+) -> bool {
+    !matches!(
+        stop_after,
+        Some(
+            a4n_api_contract::manga::MangaPipelineStopAfter::PageSlots
+                | a4n_api_contract::manga::MangaPipelineStopAfter::PageContent
+                | a4n_api_contract::manga::MangaPipelineStopAfter::PageAdaptation
+        )
+    )
+}
+
+fn validate_manga_storyboard_prompt_contract(prompt: &str) -> Result<(), AppError> {
+    if prompt.contains("\"layer_index\"") && !prompt.contains("\"layer_number\"") {
+        return Ok(());
+    }
+    Err(AppError::InvalidArgument(
+        "当前 manga_page_storyboard 提示词未使用合同字段 `layer_index`；已在任务创建前阻止生成，请修正或重置提示词后重试。".into(),
+    ))
+}
+
 impl OrchestratorContext {
     pub async fn preflight_manga_pipeline_validated(
         &self,
         project_id: i64,
         chapter_number: i32,
+        page_number: Option<u32>,
+        stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+        prompt_renderer: &dyn PromptRenderer,
     ) -> Result<(), AppError> {
+        validate_manga_page_scope(page_number, stop_after)?;
         let source = self
             .chapter_manga_source_by_number(project_id, chapter_number, true)
             .await?;
         ensure_manga_source_can_write(&source, "启动漫画流水线")?;
+        if let Some(page_number) = page_number {
+            let page_number = i32::try_from(page_number)
+                .map_err(|_| AppError::InvalidArgument("漫画页码超出 i32 范围".into()))?;
+            let pages = self
+                .manga_page_prompts_by_chapter(project_id, source.chapter_id)
+                .await?;
+            if !pages.iter().any(|page| page.page_number == page_number) {
+                return Err(AppError::InvalidArgument(format!(
+                    "漫画第 {page_number} 页不存在，无法启动单页流水线"
+                )));
+            }
+        }
+        if manga_stop_after_includes_storyboard(stop_after) {
+            let prompt = prompt_renderer
+                .render_prompt("manga_page_storyboard", &HashMap::new(), Some(project_id))
+                .await?;
+            validate_manga_storyboard_prompt_contract(&prompt)?;
+        }
         Ok(())
     }
 
@@ -89,6 +137,7 @@ impl OrchestratorContext {
                 input.task_id.to_string(),
                 input.resume_from_checkpoint,
                 input.stop_after,
+                input.page_number,
             )
             .await?;
         let result = self
@@ -96,6 +145,7 @@ impl OrchestratorContext {
                 user_id: input.user_id,
                 chapter_id: source.chapter_id,
                 chapter_number: input.chapter_number,
+                page_number: input.page_number,
                 project_id: input.project_id,
                 prompt_renderer: input.prompt_renderer,
                 character_portraits,
@@ -118,6 +168,7 @@ impl OrchestratorContext {
         &self,
         input: MangaPipelinePreviewApplicationInput<'_>,
     ) -> Result<Vec<MangaPipelineRequestPreviewStep>, AppError> {
+        validate_manga_page_scope(input.page_number, input.stop_after)?;
         let (source_result, character_portraits_result) = futures::join!(
             self.chapter_manga_source_by_number(input.project_id, input.chapter_number, true),
             self.manga_character_portrait_refs(input.project_id),
@@ -143,6 +194,7 @@ impl OrchestratorContext {
                 source.chapter_id,
                 &workflow_fingerprint,
                 input.stop_after,
+                input.page_number,
             )
             .await?
             .map(|run| run.id)
@@ -150,6 +202,7 @@ impl OrchestratorContext {
         self.preview_generate_page_prompt_requests(MangaPipelineRequestPreviewInput {
             chapter_id: source.chapter_id,
             project_id: input.project_id,
+            page_number: input.page_number,
             prompt_renderer: input.prompt_renderer,
             character_portraits,
             workflow_run_id,
@@ -438,11 +491,21 @@ impl a4n_api_contract::manga::MangaPipelineExecutionApplicationPort for Orchestr
         user_id: i64,
         project_id: i64,
         chapter_number: i32,
+        page_number: Option<u32>,
+        stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+        prompt_renderer: &dyn a4n_api_contract::prompt::PromptRenderPort,
     ) -> Result<(), AppError> {
         self.verify_project_or_derived_family_editor_validated(user_id, project_id)
             .await?;
-        self.preflight_manga_pipeline_validated(project_id, chapter_number)
-            .await
+        let prompt_renderer = PromptRendererAdapter(prompt_renderer);
+        self.preflight_manga_pipeline_validated(
+            project_id,
+            chapter_number,
+            page_number,
+            stop_after,
+            &prompt_renderer,
+        )
+        .await
     }
 }
 
@@ -499,6 +562,7 @@ impl OrchestratorContext {
                 user_id,
                 project_id: input.project_id,
                 chapter_number: input.chapter_number,
+                page_number: input.page_number,
                 task_id: &handle.task_id,
                 resume_from_checkpoint: input.resume_from_checkpoint,
                 stop_after: input.stop_after,
@@ -554,7 +618,10 @@ impl OrchestratorContext {
                     .complete_with_result(
                         "manga_pipeline",
                         result_ref,
-                        format!("漫画页面流水线完成，共 {} 页", rows.len()),
+                        input.page_number.map_or_else(
+                            || format!("漫画页面流水线完成，共 {} 页", rows.len()),
+                            |page_number| format!("漫画第 {page_number} 页流水线已完成"),
+                        ),
                         Vec::new(),
                         None,
                     )
@@ -578,6 +645,7 @@ impl a4n_api_contract::manga::MangaPipelinePreviewApplicationPort for Orchestrat
         user_id: i64,
         project_id: i64,
         chapter_number: i32,
+        page_number: Option<u32>,
         resume_from_checkpoint: bool,
         stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
         prompt_renderer: &dyn a4n_api_contract::prompt::PromptRenderPort,
@@ -588,6 +656,7 @@ impl a4n_api_contract::manga::MangaPipelinePreviewApplicationPort for Orchestrat
         self.prepare_manga_pipeline_preview_validated(MangaPipelinePreviewApplicationInput {
             project_id,
             chapter_number,
+            page_number,
             resume_from_checkpoint,
             stop_after,
             prompt_renderer: &prompt_renderer,
@@ -676,4 +745,31 @@ fn manga_pipeline_preview_step(
         note: step.note,
         request: step.request.map(serde_json::to_value).transpose()?,
     })
+}
+
+#[cfg(test)]
+mod preflight_tests {
+    use super::{manga_stop_after_includes_storyboard, validate_manga_storyboard_prompt_contract};
+    use a4n_api_contract::manga::MangaPipelineStopAfter;
+
+    #[test]
+    fn storyboard_preflight_requires_the_contract_field() {
+        assert!(validate_manga_storyboard_prompt_contract(r#"{"layer_index": 1}"#).is_ok());
+        assert!(validate_manga_storyboard_prompt_contract(r#"{"layer_number": 1}"#).is_err());
+        assert!(
+            validate_manga_storyboard_prompt_contract(r#"{"layer_index": 1, "layer_number": 1}"#)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn storyboard_prompt_is_checked_only_for_stages_that_use_it() {
+        assert!(!manga_stop_after_includes_storyboard(Some(
+            MangaPipelineStopAfter::PageAdaptation
+        )));
+        assert!(manga_stop_after_includes_storyboard(Some(
+            MangaPipelineStopAfter::Storyboard
+        )));
+        assert!(manga_stop_after_includes_storyboard(None));
+    }
 }
