@@ -145,9 +145,10 @@ pub async fn prepare_standalone_comic_source_chapter(
         .column(chapter::Column::ChapterNumber)
         .filter(chapter::Column::ProjectId.eq(input.project_id))
         .order_by_desc(chapter::Column::ChapterNumber)
+        .into_tuple::<i32>()
         .one(&txn)
         .await?
-        .map_or(0, |row| row.chapter_number);
+        .unwrap_or(0);
     let chapter_number = last_number.checked_add(1).ok_or_else(|| {
         StandaloneComicSourceDbError::InvalidArgument("漫画来源编号溢出".to_string())
     })?;
