@@ -706,7 +706,10 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
       addToast(t("novel.imageLibrary.operationInProgress"), "error");
       return;
     }
-    importFileInputRef.current?.click();
+    const input = importFileInputRef.current;
+    if (!input) return;
+    if (typeof input.showPicker === "function") input.showPicker();
+    else input.click();
   };
 
   const handleImportImageFile = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -918,7 +921,9 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         ref={importFileInputRef}
         type="file"
         accept={supportedImageAccept()}
-        className="hidden"
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
         onChange={(event) => void handleImportImageFile(event)}
       />
 
