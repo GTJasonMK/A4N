@@ -21,6 +21,19 @@ pub(super) async fn validate_adopted_manga_plan(
             "漫画项目不可写".into(),
         ));
     }
+    let source = crate::project::resolve_chapter_source(db, project_id, chapter_id)
+        .await
+        .map_err(|error| match error {
+            crate::project::ResolveChapterSourceError::Database(error) => {
+                MangaPipelineDbError::Database(error)
+            }
+            error => MangaPipelineDbError::InvalidArgument(error.to_string()),
+        })?;
+    let source_snapshot_id = Some(
+        source
+            .source_snapshot_id
+            .ok_or_else(|| MangaPipelineDbError::InvalidArgument("漫画章节缺少原文快照".into()))?,
+    );
     let first_value = drafts
         .first()
         .and_then(|draft| draft.layout.as_ref())
@@ -31,24 +44,10 @@ pub(super) async fn validate_adopted_manga_plan(
         == Some("manga_page_generation_v4")
     {
         let layouts = deserialize_layouts::<MangaPageGenerationLayoutV4>(drafts)?;
-        validate_v4_layouts(
-            db,
-            project_id,
-            chapter_id,
-            project.source_snapshot_id,
-            &layouts,
-        )
-        .await
+        validate_v4_layouts(db, project_id, chapter_id, source_snapshot_id, &layouts).await
     } else {
         let layouts = deserialize_layouts::<MangaPageGenerationLayoutV3>(drafts)?;
-        validate_v3_layouts(
-            db,
-            project_id,
-            chapter_id,
-            project.source_snapshot_id,
-            &layouts,
-        )
-        .await
+        validate_v3_layouts(db, project_id, chapter_id, source_snapshot_id, &layouts).await
     }
 }
 

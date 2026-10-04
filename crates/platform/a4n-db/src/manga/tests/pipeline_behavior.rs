@@ -64,6 +64,65 @@ async fn project_and_chapter(db: &DatabaseConnection, title: &str) -> (i64, i64)
     (comic.id, chapter.id)
 }
 
+async fn standalone_comic_project_and_chapter(db: &DatabaseConnection, title: &str) -> (i64, i64) {
+    use a4n_db_models::models::canvas::{canvas_text_asset, canvas_text_asset_version};
+
+    a4n_migration::migrations::canvas_project_split::ensure_complete(db)
+        .await
+        .expect("测试库应完成 Canvas 项目拆分迁移");
+    let project = crate::project::create_standalone_comic_project_record(
+        db,
+        1,
+        crate::project::CreateStandaloneComicProjectParams {
+            title: title.to_string(),
+            description: String::new(),
+        },
+    )
+    .await
+    .unwrap();
+    let content = "她推开门，桌上放着一封信。";
+    let content_hash = a4n_domain::source_text_hash(content);
+    let now = fixed_time(1);
+    let asset = canvas_text_asset::ActiveModel {
+        project_id: Set(project.id),
+        title: Set("文本素材".to_string()),
+        text_kind: Set("script".to_string()),
+        content: Set(content.to_string()),
+        content_hash: Set(content_hash.clone()),
+        current_version: Set(1),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
+    canvas_text_asset_version::ActiveModel {
+        canvas_text_asset_id: Set(asset.id),
+        version: Set(1),
+        content: Set(content.to_string()),
+        content_hash: Set(content_hash),
+        created_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap();
+    let chapter = crate::project::prepare_standalone_comic_source_chapter(
+        db,
+        crate::project::PrepareStandaloneComicSourceDbInput {
+            project_id: project.id,
+            asset_id: asset.id,
+            version: 1,
+            start_section: 0,
+            end_section: 0,
+        },
+    )
+    .await
+    .unwrap();
+    (project.id, chapter.id)
+}
+
 fn fixed_time(day: u32) -> chrono::NaiveDateTime {
     chrono::NaiveDate::from_ymd_opt(2026, 5, day)
         .unwrap()
@@ -238,6 +297,46 @@ async fn planned_drafts(
     (drafts, adaptation)
 }
 
+fn upgrade_to_pipeline_layouts(drafts: &mut [MangaPagePromptSyncDraft]) {
+    for draft in drafts {
+        let previous = draft.layout.take().expect("page layout");
+        let page_number = previous["page_plan"]["page_number"]
+            .as_u64()
+            .expect("page number") as u32;
+        let page_id = format!("page-{page_number:04}");
+        let source = previous["source"].clone();
+        let source_hash = source["content_sha256"].as_str().expect("source hash");
+        draft.layout = Some(json!({
+            "schema_version": "manga_page_generation_v4",
+            "page_id": page_id,
+            "page_number": page_number,
+            "page_plan_ref": previous["page_plan_ref"],
+            "pipeline": {
+                "schema_version": "manga_page_pipeline_state_v1",
+                "page_id": page_id,
+                "status": "pending",
+                "stage": "content",
+                "attempt": 1,
+                "source_fingerprint": source_hash,
+                "stage_fingerprints": {"content": "content-fingerprint"},
+                "page_content": {
+                    "summary": "推进冲突",
+                    "source_span_ids": [],
+                    "beat_refs": [{"unit_id": "unit-1", "beat_id": "beat-1"}],
+                    "action": "抬头",
+                    "reaction": null,
+                    "dialogue_intent": null,
+                    "entry_state": "平静",
+                    "exit_state": "紧张"
+                }
+            },
+            "reference_bindings": previous["reference_bindings"],
+            "prompt_fingerprint": previous["prompt_fingerprint"],
+            "source": source
+        }));
+    }
+}
+
 #[tokio::test]
 async fn sync_page_prompts_preserves_rendered_image_when_prompt_unchanged() {
     let db = setup_db().await;
@@ -359,6 +458,26 @@ async fn sync_page_prompts_preserves_rendered_image_when_prompt_unchanged() {
             .to_string()
             .contains("对应版本的改编计划")
     );
+}
+
+#[tokio::test]
+async fn sync_accepts_adopted_plan_for_standalone_comic_chapter_snapshot() {
+    let db = setup_db().await;
+    let (project_id, chapter_id) =
+        standalone_comic_project_and_chapter(&db, "独立漫画来源快照").await;
+    let (mut drafts, adaptation) = planned_drafts(&db, project_id, chapter_id).await;
+    upgrade_to_pipeline_layouts(&mut drafts);
+
+    assert_eq!(
+        adaptation.status,
+        a4n_domain::media_authoring::AuthoringDocumentStatus::Adopted
+    );
+    let synced =
+        sync_manga_page_prompts_by_chapter(&db, project_id, chapter_id, drafts, fixed_time(2))
+            .await
+            .expect("独立漫画应按章节来源快照校验已采用改编计划");
+
+    assert_eq!(synced.len(), 2);
 }
 
 #[tokio::test]
