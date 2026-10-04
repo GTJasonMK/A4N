@@ -50,7 +50,10 @@ fn galgame_portrait_spec_target_input_rejects_invalid_source_line_ids() {
         source_line_ids: vec![11, 0],
     };
     assert!(matches!(
-        validate_galgame_portrait_spec_target_input(&spec, &input),
+        validate_galgame_portrait_spec_target_input(
+            &crate::generation::generation_spec_record_from_model(spec),
+            &input,
+        ),
         Err(GalgameGenerationRecordError::InvalidArgument(message))
             if message == "source_line_ids 必须全部是正整数: 0"
     ));
@@ -213,7 +216,11 @@ fn galgame_portrait_spec_family_context_accepts_matching_project_context() {
     let spec = generation_spec_model();
 
     assert_eq!(
-        validate_galgame_portrait_spec_family_context(&spec, 1).unwrap(),
+        validate_galgame_portrait_spec_family_context(
+            &crate::generation::generation_spec_record_from_model(spec),
+            1,
+        )
+        .unwrap(),
         20
     );
 }
@@ -221,9 +228,21 @@ fn galgame_portrait_spec_family_context_accepts_matching_project_context() {
 #[test]
 fn galgame_portrait_spec_family_context_rejects_foreign_root_and_missing_snapshot() {
     let mut spec = generation_spec_model();
-    assert!(validate_galgame_portrait_spec_family_context(&spec, 2).is_err());
+    assert!(
+        validate_galgame_portrait_spec_family_context(
+            &crate::generation::generation_spec_record_from_model(spec.clone()),
+            2,
+        )
+        .is_err()
+    );
     spec.source_snapshot_id = None;
-    assert!(validate_galgame_portrait_spec_family_context(&spec, 1).is_err());
+    assert!(
+        validate_galgame_portrait_spec_family_context(
+            &crate::generation::generation_spec_record_from_model(spec),
+            1,
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -232,8 +251,10 @@ fn galgame_portrait_spec_source_chapter_rejects_chapter_context() {
     spec.source_chapter_id = Some(30);
     spec.source_snapshot_chapter_id = Some(40);
 
-    let err = validate_galgame_portrait_spec_source_chapter(&spec)
-        .expect_err("portrait expression specs must stay snapshot-scoped");
+    let err = validate_galgame_portrait_spec_source_chapter(
+        &crate::generation::generation_spec_record_from_model(spec),
+    )
+    .expect_err("portrait expression specs must stay snapshot-scoped");
 
     assert!(err.to_string().contains("必须使用源快照级上下文"));
 }

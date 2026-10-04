@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use serde_json::{Map, Value, json};
 use std::collections::BTreeMap;
 
@@ -11,7 +11,7 @@ mod states;
 type CharacterMap = BTreeMap<String, Map<String, Value>>;
 
 pub(in crate::import_reverse::context) fn collect_extracted_characters(
-    chapters: &[chapter::Model],
+    chapters: &[ChapterRecord],
     limit: usize,
 ) -> Vec<Value> {
     let mut map = CharacterMap::new();

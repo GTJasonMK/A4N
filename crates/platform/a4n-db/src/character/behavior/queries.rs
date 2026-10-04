@@ -1,4 +1,6 @@
+use crate::character::character_behavior_record;
 use a4n_db_models::models::character::protagonist_behavior_record;
+use a4n_domain::character::CharacterBehaviorRecord;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
 };
@@ -38,10 +40,25 @@ where
     query.all(db).await
 }
 
+pub async fn behavior_records_by_profile_records<C>(
+    db: &C,
+    profile_id: i64,
+    chapter_from: Option<i32>,
+    chapter_to: Option<i32>,
+    limit: Option<u64>,
+) -> Result<Vec<CharacterBehaviorRecord>, DbErr>
+where
+    C: ConnectionTrait,
+{
+    behavior_records_by_profile(db, profile_id, chapter_from, chapter_to, limit)
+        .await
+        .map(|rows| rows.into_iter().map(character_behavior_record).collect())
+}
+
 pub async fn implicit_review_behavior_records<C>(
     db: &C,
     profile_id: i64,
-) -> Result<Vec<protagonist_behavior_record::Model>, DbErr>
+) -> Result<Vec<CharacterBehaviorRecord>, DbErr>
 where
     C: ConnectionTrait,
 {
@@ -51,4 +68,5 @@ where
         .order_by_desc(protagonist_behavior_record::Column::Id)
         .all(db)
         .await
+        .map(|rows| rows.into_iter().map(character_behavior_record).collect())
 }

@@ -1,10 +1,10 @@
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::chapter::PartOutlineRecord;
 use serde_json::{Map, Value, json};
 
 use super::formatting::{add_optional_chapter_title, add_summary_or_preview};
 
-pub(in crate::import_reverse::context) fn chapter_outline_entry(ch: &chapter::Model) -> Value {
+pub(in crate::import_reverse::context) fn chapter_outline_entry(ch: &ChapterRecord) -> Value {
     let mut entry = Map::new();
     entry.insert("chapter_number".to_string(), json!(ch.chapter_number));
     add_optional_chapter_title(&mut entry, ch);

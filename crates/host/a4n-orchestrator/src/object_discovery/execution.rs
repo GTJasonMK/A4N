@@ -122,8 +122,8 @@ impl OrchestratorContext {
         AppError,
     > {
         let (available_chapters, existing_profiles) = futures::join!(
-            self.character_sync_chapters(input.project_id),
-            self.object_profiles_by_project(input.project_id),
+            self.character_sync_chapter_records(input.project_id),
+            self.object_profile_records_by_project(input.project_id),
         );
         let available_chapters = available_chapters?;
         let chapters = select_object_discovery_chapters(
@@ -140,11 +140,11 @@ impl OrchestratorContext {
             .collect::<Vec<_>>();
         let anchor_groups = match anchor_mode {
             ChapterAnchorMode::EnsureCurrent => {
-                self.ensure_chapter_content_anchor_records_batch(input.project_id, &chapter_ids)
+                self.ensure_chapter_content_anchor_record_batch(input.project_id, &chapter_ids)
                     .await?
             }
             ChapterAnchorMode::RequireExistingCurrent => {
-                self.require_current_chapter_content_anchors_for_preview_batch(
+                self.require_current_chapter_content_anchor_records_for_preview_batch(
                     input.project_id,
                     &chapter_ids,
                 )
@@ -178,8 +178,8 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_number: Option<i32>,
         request: &a4n_llm_provider_contract::provider::ChatRequest,
-        chapters: &[a4n_db_models::models::chapter::chapter::Model],
-        text_anchors: &[a4n_db_models::models::project::text_anchor::Model],
+        chapters: &[a4n_domain::chapter::ChapterRecord],
+        text_anchors: &[a4n_domain::text_anchor::TextAnchorRecord],
         progress: Option<ObjectDiscoveryProgress<'_>>,
     ) -> Result<ObjectDiscoveryCallResult, AppError> {
         report_object_discovery_progress(

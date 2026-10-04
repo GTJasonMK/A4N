@@ -292,7 +292,7 @@ impl OrchestratorContext {
         profile_id: i64,
     ) -> Result<
         (
-            a4n_db_models::models::character::protagonist_profile::Model,
+            a4n_domain::character::CharacterProfileRecord,
             Vec<BehaviorForReview>,
         ),
         AppError,

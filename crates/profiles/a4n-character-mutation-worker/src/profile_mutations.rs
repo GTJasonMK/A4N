@@ -9,7 +9,7 @@ impl WorkerState {
         let user_id = user_id(&request)?;
         let input = request.payload.0;
         verify_project_editor(&self.database, input.project_id, user_id).await?;
-        let profile = a4n_db::character::create_profile(
+        let profile = a4n_db::character::create_profile_domain_record(
             self.database.connection(),
             input.project_id,
             input.name.trim(),
@@ -31,7 +31,7 @@ impl WorkerState {
         let user_id = user_id(&request)?;
         let input = request.payload.0;
         verify_project_editor(&self.database, input.project_id, user_id).await?;
-        let profile = a4n_db::character::update_initial_profile(
+        let profile = a4n_db::character::update_initial_profile_record(
             self.database.connection(),
             input.project_id,
             input.profile_id,

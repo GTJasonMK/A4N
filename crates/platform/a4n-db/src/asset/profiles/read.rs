@@ -4,7 +4,7 @@ use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder
 
 use crate::asset::AssetDbError;
 
-fn object_profile_record(model: object_profile::Model) -> ObjectProfileRecord {
+pub(in crate::asset) fn object_profile_record(model: object_profile::Model) -> ObjectProfileRecord {
     ObjectProfileRecord {
         id: model.id,
         project_id: model.project_id,

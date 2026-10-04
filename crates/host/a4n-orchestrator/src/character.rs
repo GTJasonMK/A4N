@@ -25,7 +25,7 @@ pub(crate) use a4n_character_host_contract::{
 pub(crate) use a4n_db::character::{
     AppliedCharacterImplicitDecisionAction, AppliedCharacterImplicitDecisionRecord,
     AppliedCharacterSyncPersistenceRecord, CharacterConflictContextRows,
-    CharacterPortraitRecordError, CharacterProfileCreateError, CharacterProfileDeleteError,
+    CharacterPortraitRecordError, CharacterProfileDeleteError,
     CharacterSyncAttributeEventRecordInput, CharacterSyncPersistenceInput,
     CharacterSyncWriteStepRecordInput, PortraitNamedPromptProfileRows, PortraitPromptProfileRows,
 };
@@ -58,20 +58,6 @@ pub(crate) fn character_portrait_record_error(error: CharacterPortraitRecordErro
             AppError::InvalidArgument(message)
         }
         CharacterPortraitRecordError::Database(error) => AppError::Database(error),
-    }
-}
-
-pub(crate) fn character_profile_create_error(error: CharacterProfileCreateError) -> AppError {
-    match error {
-        CharacterProfileCreateError::AlreadyExists { name } => AppError::InvalidState {
-            current: "character_profile_already_exists".to_string(),
-            operation: format!("创建角色档案 {name}"),
-        },
-        CharacterProfileCreateError::InvalidArgument(message) => AppError::InvalidArgument(message),
-        CharacterProfileCreateError::Database(error) => AppError::Database(error),
-        CharacterProfileCreateError::Generation(error) => {
-            crate::generation::generation_error(error)
-        }
     }
 }
 
@@ -226,7 +212,7 @@ impl CharacterProfileSyncApplicationPort for crate::OrchestratorContext {
 }
 pub(crate) use discovery::{CHARACTER_DISCOVERY_CALL_KEY, CHARACTER_DISCOVERY_KIND};
 pub(crate) use discovery::{
-    character_identity_key, character_llm_chapter_context_model, profile_character_keys_model,
+    character_identity_key, character_llm_chapter_context, profile_character_keys,
 };
 pub(crate) use implicit_classification::CharacterImplicitClassificationInput;
 pub(crate) use implicit_review::CharacterSyncImplicitReviewInput;

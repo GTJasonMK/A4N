@@ -1,5 +1,7 @@
 use a4n_db_models::models::character::protagonist_deletion_mark;
-use a4n_domain::character::{CHARACTER_DELETION_THRESHOLD, DeletionMarkStatus};
+use a4n_domain::character::{
+    CHARACTER_DELETION_THRESHOLD, CharacterDeletionMarkRecord, DeletionMarkStatus,
+};
 use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder};
 
 pub async fn deletion_marks_by_profile<C>(
@@ -45,6 +47,24 @@ where
         .order_by_desc(protagonist_deletion_mark::Column::Id)
         .all(db)
         .await
+}
+
+pub async fn deletion_mark_records_by_profile<C>(
+    db: &C,
+    profile_id: i64,
+    category: Option<&str>,
+    status: DeletionMarkStatus,
+) -> Result<Vec<CharacterDeletionMarkRecord>, DbErr>
+where
+    C: ConnectionTrait,
+{
+    deletion_marks_by_profile(db, profile_id, category, status)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(crate::character::character_deletion_mark_record)
+                .collect()
+        })
 }
 
 pub(in crate::character::attributes) async fn pending_deletion_mark_for_attribute<C>(

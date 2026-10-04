@@ -108,9 +108,7 @@ pub(crate) use video_studio_package::{
 };
 pub(crate) use video_studio_transfer::video_studio_export_media_files;
 
-pub(crate) use chapters::{
-    is_character_sync_available_chapter, validate_chapter_generation_number,
-};
+pub(crate) use chapters::validate_chapter_generation_number;
 pub(crate) use errors::blueprint_restore_error_to_app;
 pub(crate) use errors::foreshadowing_db_error_to_app_error;
 pub(crate) use errors::project_basic_record_error_to_app_error;

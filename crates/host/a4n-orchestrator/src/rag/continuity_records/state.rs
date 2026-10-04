@@ -1,5 +1,5 @@
 use a4n_db::rag::RagCharacterStateRow;
-use a4n_db_models::models::character::character_state_index;
+use a4n_domain::character::CharacterStateIndexRecord;
 use a4n_domain::rag::RagDataType;
 use a4n_rag_core::RagRecord;
 use a4n_rag_core::record_text::{optional_json_text, optional_rag_text, required_rag_text};
@@ -40,7 +40,7 @@ pub(super) fn character_state_rag_text(
 
 pub fn character_state_rag_record(
     project_id: i64,
-    state_index: &character_state_index::Model,
+    state_index: &CharacterStateIndexRecord,
     name: &str,
 ) -> Result<RagRecord, String> {
     character_state_rag_record_from_row(project_id, &RagCharacterStateRow::from(state_index), name)

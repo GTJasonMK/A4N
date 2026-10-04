@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use a4n_api_contract::profile::ObjectProfileInput;
-use a4n_db_models::models::{chapter::chapter, project::text_anchor};
+use a4n_domain::{chapter::ChapterRecord, text_anchor::TextAnchorRecord};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_progress::{FieldMilestone, ProgressSpan};
@@ -62,8 +62,8 @@ pub(super) enum ChapterAnchorMode {
 }
 
 pub(super) struct ObjectDiscoveryRequestContext {
-    pub(super) chapters: Vec<chapter::Model>,
-    pub(super) text_anchors: Vec<text_anchor::Model>,
+    pub(super) chapters: Vec<ChapterRecord>,
+    pub(super) text_anchors: Vec<TextAnchorRecord>,
 }
 
 #[derive(Debug)]

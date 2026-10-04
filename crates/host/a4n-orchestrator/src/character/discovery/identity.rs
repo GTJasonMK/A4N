@@ -1,7 +1,6 @@
 use std::collections::BTreeSet;
 
 use a4n_api_contract::character::DiscoveredCharacterProfileSummary;
-use a4n_db_models::models::character::protagonist_profile;
 use a4n_domain::character::CharacterProfileRecord;
 use serde_json::{Value, json};
 
@@ -69,19 +68,6 @@ pub fn profile_character_keys(profile: &CharacterProfileRecord) -> BTreeSet<Stri
     let mut keys = BTreeSet::new();
     keys.insert(character_identity_key(&profile.name));
     for alias in profile_aliases(profile) {
-        keys.insert(character_identity_key(&alias));
-    }
-    keys.retain(|key| !key.is_empty());
-    keys
-}
-
-pub fn profile_character_keys_model(profile: &protagonist_profile::Model) -> BTreeSet<String> {
-    let mut keys = BTreeSet::new();
-    keys.insert(character_identity_key(&profile.name));
-    for alias in aliases_from_attributes(&profile.base_attributes)
-        .into_iter()
-        .chain(aliases_from_attributes(&profile.current_state))
-    {
         keys.insert(character_identity_key(&alias));
     }
     keys.retain(|key| !key.is_empty());

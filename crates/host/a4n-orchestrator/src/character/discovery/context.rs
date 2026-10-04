@@ -1,5 +1,4 @@
 use a4n_chapter_analysis::summary_text;
-use a4n_db_models::models::chapter::chapter;
 use a4n_domain::chapter::ChapterRecord;
 use serde_json::{Map, Value, json};
 
@@ -26,24 +25,6 @@ pub fn character_llm_chapter_context(chapter: &ChapterRecord) -> Value {
         Value::String(chapter.content.clone()),
     );
     Value::Object(context)
-}
-
-pub fn character_llm_chapter_context_model(chapter: &chapter::Model) -> Value {
-    character_llm_chapter_context(&ChapterRecord {
-        id: chapter.id,
-        project_id: chapter.project_id,
-        outline_id: chapter.outline_id,
-        chapter_number: chapter.chapter_number,
-        title: chapter.title.clone(),
-        content: chapter.content.clone(),
-        word_count: chapter.word_count,
-        status: chapter.status.clone(),
-        summary: chapter.summary.clone(),
-        style_tags: chapter.style_tags.clone(),
-        analysis_data: chapter.analysis_data.clone(),
-        created_at: chapter.created_at,
-        updated_at: chapter.updated_at,
-    })
 }
 
 fn chapter_summary_for_character_prompt(chapter: &ChapterRecord) -> Option<String> {

@@ -1,6 +1,5 @@
 use a4n_api_contract::profile::ObjectProfileInput;
 use a4n_db::{DbHandle, asset::ObjectProfileUpsertRecordResult};
-use a4n_db_models::models::asset::object_profile;
 use a4n_domain::{
     chapter::ChapterSourceSnapshot, generation::RecordCompletedGenerationRunInput,
     object_profile::ObjectProfileEvidenceRecordInput,
@@ -19,15 +18,6 @@ pub(super) struct AssetApplication {
 impl AssetApplication {
     pub(super) fn new(database: DbHandle) -> Self {
         Self { database }
-    }
-
-    async fn object_profiles_by_project(
-        &self,
-        project_id: i64,
-    ) -> Result<Vec<object_profile::Model>, AppError> {
-        a4n_db::asset::object_profiles_by_project(self.database.connection(), project_id)
-            .await
-            .map_err(asset_error)
     }
 
     async fn object_profile_records_by_project(
@@ -72,13 +62,6 @@ impl AssetApplication {
 }
 
 impl OrchestratorContext {
-    pub(crate) async fn object_profiles_by_project(
-        &self,
-        project_id: i64,
-    ) -> Result<Vec<object_profile::Model>, AppError> {
-        self.asset.object_profiles_by_project(project_id).await
-    }
-
     pub(crate) async fn object_profile_records_by_project(
         &self,
         project_id: i64,

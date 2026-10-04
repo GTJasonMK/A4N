@@ -305,6 +305,25 @@ pub async fn latest_workflow_run_summary_by_business_key(
         .transpose()
 }
 
+pub async fn latest_workflow_run_summary_by_business_key_with_status(
+    db: &DatabaseConnection,
+    business_key: &str,
+    status: &str,
+) -> Result<Option<WorkflowRunSummary>, WorkflowReadError> {
+    let business_key = required_text(business_key.to_string(), "business_key")?;
+    let status = required_text(status.to_string(), "status")?;
+    workflow_run::Entity::find()
+        .filter(workflow_run::Column::BusinessKey.eq(business_key))
+        .filter(workflow_run::Column::Status.eq(status))
+        .order_by_desc(workflow_run::Column::UpdatedAt)
+        .order_by_desc(workflow_run::Column::Id)
+        .one(db)
+        .await
+        .map_err(WorkflowReadError::Database)?
+        .map(workflow_run_summary)
+        .transpose()
+}
+
 pub async fn latest_workflow_run_status_record_by_business_key(
     db: &DatabaseConnection,
     business_key: &str,

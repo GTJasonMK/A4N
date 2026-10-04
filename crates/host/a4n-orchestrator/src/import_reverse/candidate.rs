@@ -7,24 +7,15 @@
 use a4n_api_contract::import_reverse::{
     ReverseEngineeringCandidate, ReverseEngineeringCandidateState,
 };
-use a4n_db::{
-    import_reverse::{
-        apply_reverse_blueprint_records, apply_reverse_outline_records,
-        apply_reverse_part_outline_records, reverse_context_rows,
-    },
-    outline::load_outline_generation_source_rows_for_update,
-    workflow::completed_llm_call_checkpoint_from_model,
+use a4n_db::import_reverse::{
+    ReverseCandidateApplyData, ReverseCandidateApplyInput, ReverseContextRows,
 };
-use a4n_db_models::models::generation::{workflow_checkpoint, workflow_run};
-use a4n_domain::project::ProjectStatus;
-use a4n_domain::workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING};
+use a4n_domain::workflow::{
+    WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING, WorkflowCheckpointSummary,
+    WorkflowRunSummary,
+};
 use a4n_error::AppError;
 use a4n_event::InternalEvent;
-use chrono::Utc;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set, TransactionTrait,
-};
 use serde_json::{Value, json};
 
 use crate::OrchestratorContext;
@@ -33,9 +24,8 @@ use crate::workflow::workflow_checkpoint_contract_app_error;
 use super::{
     IMPORT_REVERSE_WORKFLOW_KIND, IMPORT_REVERSE_WORKFLOW_MODE, ReverseEngineeringTarget,
     application::{
-        reverse_blueprint_apply_draft, reverse_blueprint_apply_result,
-        reverse_outline_apply_result, reverse_outline_rows, reverse_part_outline_apply_result,
-        reverse_part_outline_rows, validate_reverse_engineer_output,
+        reverse_blueprint_apply_draft, reverse_outline_rows, reverse_part_outline_rows,
+        validate_reverse_engineer_output,
     },
     context::ReverseContentRequest,
     execution::restored_import_reverse_checkpoint,
@@ -154,32 +144,37 @@ async fn latest_reverse_engineering_candidate(
     let prompt_name = target.prompt_name();
     let business_key =
         import_reverse_business_key(project_id, target).map_err(AppError::InvalidArgument)?;
-    let Some(run) = workflow_run::Entity::find()
-        .filter(workflow_run::Column::BusinessKey.eq(business_key))
-        .filter(workflow_run::Column::ProjectId.eq(project_id))
-        .filter(workflow_run::Column::Status.eq(WORKFLOW_STATUS_COMPLETED))
-        .order_by_desc(workflow_run::Column::UpdatedAt)
-        .order_by_desc(workflow_run::Column::Id)
-        .one(context.database.connection())
-        .await?
+    let Some(run) = a4n_db::workflow::latest_workflow_run_summary_by_business_key_with_status(
+        context.database.connection(),
+        &business_key,
+        WORKFLOW_STATUS_COMPLETED,
+    )
+    .await
+    .map_err(crate::workflow::workflow_read_app_error)?
     else {
         return Ok(None);
     };
     validate_reverse_candidate_run(&run, project_id, target, WORKFLOW_STATUS_COMPLETED)?;
-    let checkpoint = workflow_checkpoint::Entity::find()
-        .filter(workflow_checkpoint::Column::WorkflowRunId.eq(run.id))
-        .filter(workflow_checkpoint::Column::StepKey.eq(prompt_name))
-        .one(context.database.connection())
-        .await?
-        .ok_or_else(|| {
-            AppError::NotFound(format!(
-                "工作流 {} 缺少反推 checkpoint {prompt_name}",
-                run.id
-            ))
-        })?;
+    let checkpoint = a4n_db::workflow::workflow_checkpoint_summary_by_step_in(
+        context.database.connection(),
+        run.id,
+        prompt_name,
+    )
+    .await
+    .map_err(crate::workflow::workflow_read_app_error)?
+    .ok_or_else(|| {
+        AppError::NotFound(format!(
+            "工作流 {} 缺少反推 checkpoint {prompt_name}",
+            run.id
+        ))
+    })?;
     validate_reverse_candidate_checkpoint(&checkpoint, run.id, target)?;
-    let checkpoint = completed_llm_call_checkpoint_from_model(&checkpoint, prompt_name)
-        .map_err(workflow_checkpoint_contract_app_error)?;
+    let checkpoint = a4n_db::workflow::completed_llm_call_checkpoint_from_fields(
+        checkpoint.checkpoint_json.as_ref(),
+        checkpoint.artifacts_json.as_ref(),
+        prompt_name,
+    )
+    .map_err(workflow_checkpoint_contract_app_error)?;
     let result = restored_import_reverse_checkpoint(
         &checkpoint.parsed_output,
         &checkpoint.response_content,
@@ -227,40 +222,19 @@ async fn apply_reverse_engineering_checkpoint(
         ));
     }
 
-    let tx = context.database.connection().begin().await?;
-
-    // 自动上下文依赖项目正式资料；项目行先串行化正式写入，再锁正文与 workflow run。
-    let run_hint = workflow_run::Entity::find_by_id(workflow_run_id)
-        .one(&tx)
-        .await?
-        .ok_or_else(|| AppError::NotFound(format!("工作流不存在: {workflow_run_id}")))?;
-    let project_id =
-        run_hint
-            .project_id
-            .filter(|id| *id > 0)
-            .ok_or_else(|| AppError::InvalidState {
-                current: "missing_project_id".to_string(),
-                operation: "写入项目资料归纳结果".to_string(),
-            })?;
-    let locked_sources = load_outline_generation_source_rows_for_update(&tx, project_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
-    let project = locked_sources.project;
-    if project.lifecycle_gate != a4n_db::generation::PROJECT_GATE_ACTIVE {
-        return Err(AppError::InvalidState {
-            current: project.lifecycle_gate,
+    let run = a4n_db::workflow::workflow_run_summary_by_id(
+        context.database.connection(),
+        workflow_run_id,
+    )
+    .await
+    .map_err(crate::workflow::workflow_read_app_error)?;
+    let project_id = run
+        .project_id
+        .filter(|id| *id > 0)
+        .ok_or_else(|| AppError::InvalidState {
+            current: "missing_project_id".to_string(),
             operation: "写入项目资料归纳结果".to_string(),
-        });
-    }
-    let mut run_query = workflow_run::Entity::find_by_id(workflow_run_id);
-    if tx.get_database_backend() != DbBackend::Sqlite {
-        run_query = run_query.lock_exclusive();
-    }
-    let run = run_query
-        .one(&tx)
-        .await?
-        .ok_or_else(|| AppError::NotFound(format!("工作流不存在: {workflow_run_id}")))?;
-
+        })?;
     let prompt_name = run
         .current_step_key
         .as_deref()
@@ -272,6 +246,7 @@ async fn apply_reverse_engineering_checkpoint(
             operation: "写入项目资料归纳结果".to_string(),
         })?;
     let target = reverse_target_from_prompt_name(prompt_name)?;
+    let prompt_name = prompt_name.to_string();
     if expected_target.is_some_and(|expected| expected != target) {
         return Err(AppError::InvalidState {
             current: prompt_name.to_string(),
@@ -279,162 +254,95 @@ async fn apply_reverse_engineering_checkpoint(
         });
     }
     validate_reverse_candidate_run(&run, project_id, target, expected_run_status)?;
-    let mut checkpoint_query = workflow_checkpoint::Entity::find()
-        .filter(workflow_checkpoint::Column::WorkflowRunId.eq(workflow_run_id))
-        .filter(workflow_checkpoint::Column::StepKey.eq(prompt_name));
-    if tx.get_database_backend() != DbBackend::Sqlite {
-        checkpoint_query = checkpoint_query.lock_exclusive();
-    }
-    let checkpoint = checkpoint_query.one(&tx).await?.ok_or_else(|| {
+    let checkpoint = a4n_db::workflow::workflow_checkpoint_summary_by_step_in(
+        context.database.connection(),
+        workflow_run_id,
+        &prompt_name,
+    )
+    .await
+    .map_err(crate::workflow::workflow_read_app_error)?
+    .ok_or_else(|| {
         AppError::NotFound(format!(
             "工作流 {workflow_run_id} 缺少反推 checkpoint {prompt_name}"
         ))
     })?;
     validate_reverse_candidate_checkpoint(&checkpoint, workflow_run_id, target)?;
 
-    let completed_checkpoint = completed_llm_call_checkpoint_from_model(&checkpoint, prompt_name)
-        .map_err(workflow_checkpoint_contract_app_error)?;
+    let completed_checkpoint = a4n_db::workflow::completed_llm_call_checkpoint_from_fields(
+        checkpoint.checkpoint_json.as_ref(),
+        checkpoint.artifacts_json.as_ref(),
+        &prompt_name,
+    )
+    .map_err(workflow_checkpoint_contract_app_error)?;
     let parsed_output = restored_import_reverse_checkpoint(
         &completed_checkpoint.parsed_output,
         &completed_checkpoint.response_content,
         target,
     )?;
     validate_reverse_engineer_output(target, &parsed_output)?;
-
-    let mut artifacts =
-        completed_checkpoint
-            .artifacts_json
-            .ok_or_else(|| AppError::InvalidState {
-                current: "missing_reverse_candidate_artifacts".to_string(),
-                operation: "写入项目资料归纳结果".to_string(),
-            })?;
-    let artifacts_object = artifacts
-        .as_object_mut()
-        .ok_or_else(|| AppError::InvalidState {
-            current: "invalid_reverse_candidate_artifacts".to_string(),
-            operation: "写入项目资料归纳结果".to_string(),
-        })?;
-    let mut candidate = artifacts_object
-        .get(REVERSE_CANDIDATE_ARTIFACT_KEY)
-        .cloned()
-        .ok_or_else(|| AppError::InvalidState {
-            current: "missing_reverse_candidate".to_string(),
-            operation: "写入项目资料归纳结果".to_string(),
-        })?;
-    let candidate_object = candidate
-        .as_object_mut()
-        .ok_or_else(|| AppError::InvalidState {
-            current: "invalid_reverse_candidate".to_string(),
-            operation: "写入项目资料归纳结果".to_string(),
-        })?;
-    validate_candidate_output_fingerprint(candidate_object, &parsed_output)?;
-
-    if let Some(applied) = confirmed_reverse_candidate_apply_result(candidate_object)? {
-        tx.rollback().await?;
-        let current_status =
-            a4n_db::project::project_by_id_record(context.database.connection(), project_id)
-                .await
-                .map_err(crate::project::project_mutation_error_to_app_error)?
-                .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?
-                .status;
-        let current_status = ProjectStatus::parse_storage(&current_status)?;
-        if current_status < target.applied_status() {
-            return Err(AppError::InvalidState {
-                current: current_status.as_str().to_string(),
-                operation: format!(
-                    "读取已确认的项目资料归纳结果（期望项目状态至少为 {}）",
-                    target.applied_status().as_str()
-                ),
-            });
-        }
-        publish_reverse_blueprint_updated(context, project_id, target, &applied)?;
-        return Ok(reverse_candidate_response(
-            workflow_run_id,
-            target,
-            ReverseEngineeringCandidateState::Confirmed,
-            parsed_output,
-            Some(applied),
-            Vec::new(),
-        ));
-    }
-
-    validate_reverse_candidate_source_freshness(
-        &tx,
-        project_id,
-        target,
-        run.input_fingerprint_json
-            .as_ref()
-            .ok_or_else(|| AppError::InvalidState {
-                current: "missing_reverse_candidate_input_fingerprint".to_string(),
-                operation: "写入项目资料归纳结果".to_string(),
-            })?,
-    )
-    .await?;
-
-    let applied = match target {
+    let apply_data = match target {
         ReverseEngineeringTarget::Blueprint => {
             let draft =
                 reverse_blueprint_apply_draft(&parsed_output).map_err(AppError::InvalidArgument)?;
-            let result = apply_reverse_blueprint_records(&tx, project_id, draft)
-                .await
-                .map_err(import_reverse_db_error)?;
-            reverse_blueprint_apply_result(result)
+            ReverseCandidateApplyData::Blueprint(draft)
         }
         ReverseEngineeringTarget::Outline => {
             let rows = reverse_outline_rows(&parsed_output).map_err(AppError::InvalidArgument)?;
-            let count = apply_reverse_outline_records(&tx, project_id, &rows)
-                .await
-                .map_err(AppError::Database)?;
-            reverse_outline_apply_result(count)
+            ReverseCandidateApplyData::Outline(rows)
         }
         ReverseEngineeringTarget::PartOutline => {
             let rows =
                 reverse_part_outline_rows(&parsed_output).map_err(AppError::InvalidArgument)?;
-            let result = apply_reverse_part_outline_records(&tx, project_id, &rows)
-                .await
-                .map_err(import_reverse_db_error)?;
-            reverse_part_outline_apply_result(result)
+            ReverseCandidateApplyData::PartOutline(rows)
         }
     };
 
-    let now = Utc::now().naive_utc();
-    let current_status = ProjectStatus::parse_storage(&project.status)?;
-    let target_status = target.applied_status();
-    let status_change = if current_status < target_status {
-        a4n_db::project::update_project_status_record_in(&tx, project, target_status, now)
-            .await
-            .map_err(crate::project::project_status_write_error_to_app_error)?;
-        Some((current_status, target_status))
-    } else {
-        None
-    };
-    candidate_object.insert("state".to_string(), json!("confirmed"));
-    candidate_object.insert("apply_result".to_string(), applied.clone());
-    artifacts_object.insert(REVERSE_CANDIDATE_ARTIFACT_KEY.to_string(), candidate);
-    let mut checkpoint_active: workflow_checkpoint::ActiveModel = checkpoint.into();
-    checkpoint_active.artifacts_json = Set(Some(artifacts));
-    checkpoint_active.updated_at = Set(now);
-    checkpoint_active
-        .update(&tx)
-        .await
-        .map_err(AppError::Database)?;
-    tx.commit().await?;
+    let source_fingerprint =
+        run.input_fingerprint_json
+            .clone()
+            .ok_or_else(|| AppError::InvalidState {
+                current: "missing_reverse_candidate_input_fingerprint".to_string(),
+                operation: "写入项目资料归纳结果".to_string(),
+            })?;
+    let freshness_target = target;
+    let result = a4n_db::import_reverse::apply_reverse_candidate_records(
+        context.database.connection(),
+        ReverseCandidateApplyInput {
+            workflow_run_id,
+            project_id,
+            run,
+            checkpoint,
+            target: prompt_name,
+            output: parsed_output.clone(),
+            apply_data,
+        },
+        move |rows| {
+            reverse_candidate_source_is_current(
+                rows,
+                project_id,
+                freshness_target,
+                &source_fingerprint,
+            )
+        },
+    )
+    .await
+    .map_err(import_reverse_db_error)?;
 
-    if let Some((from, to)) = status_change {
+    if let Some(change) = result.status_change {
         context.publish_internal_event(InternalEvent::ProjectStatusChanged {
             project_id,
-            from,
-            to,
-            timestamp: now,
+            from: change.from,
+            to: change.to,
+            timestamp: change.changed_at,
         })?;
     }
-    publish_reverse_blueprint_updated(context, project_id, target, &applied)?;
+    publish_reverse_blueprint_updated(context, project_id, target, &result.apply_result)?;
     Ok(reverse_candidate_response(
         workflow_run_id,
         target,
         ReverseEngineeringCandidateState::Confirmed,
         parsed_output,
-        Some(applied),
+        Some(result.apply_result),
         Vec::new(),
     ))
 }
@@ -463,7 +371,7 @@ fn publish_reverse_blueprint_updated(
 }
 
 fn validate_reverse_candidate_run(
-    run: &workflow_run::Model,
+    run: &WorkflowRunSummary,
     project_id: i64,
     target: ReverseEngineeringTarget,
     expected_status: &str,
@@ -576,46 +484,30 @@ fn validate_reverse_candidate_run_fingerprint(
     Ok(())
 }
 
-async fn validate_reverse_candidate_source_freshness(
-    db: &sea_orm::DatabaseTransaction,
+fn reverse_candidate_source_is_current(
+    rows: &ReverseContextRows,
     project_id: i64,
     target: ReverseEngineeringTarget,
     fingerprint: &Value,
-) -> Result<(), AppError> {
+) -> Result<bool, String> {
     let auto_context = fingerprint
         .get("auto_context")
         .and_then(Value::as_bool)
-        .ok_or_else(|| AppError::InvalidState {
-            current: "invalid_reverse_candidate_input_fingerprint_shape".to_string(),
-            operation: "写入项目资料归纳结果".to_string(),
-        })?;
+        .ok_or_else(|| "反推输入指纹 auto_context 字段无效".to_string())?;
     if !auto_context {
-        return Ok(());
+        return Ok(true);
     }
 
     let expected_hash = fingerprint
         .get("auto_context_source_sha256")
         .and_then(Value::as_str)
-        .ok_or_else(|| AppError::InvalidState {
-            current: "missing_reverse_candidate_auto_context_fingerprint".to_string(),
-            operation: "写入项目资料归纳结果".to_string(),
-        })?;
+        .ok_or_else(|| "反推输入指纹缺少自动上下文来源哈希".to_string())?;
     let context_limit = fingerprint
         .get("context_limit")
         .and_then(Value::as_i64)
         .filter(|value| *value > 0)
         .and_then(|value| usize::try_from(value).ok())
-        .ok_or_else(|| AppError::InvalidState {
-            current: "invalid_reverse_candidate_context_limit".to_string(),
-            operation: "写入项目资料归纳结果".to_string(),
-        })?;
-    let rows = reverse_context_rows(
-        db,
-        project_id,
-        matches!(target, ReverseEngineeringTarget::Blueprint),
-    )
-    .await
-    .map_err(import_reverse_db_error)?;
+        .ok_or_else(|| "反推输入指纹 context_limit 无效".to_string())?;
     let (_, current_hash) = super::context::resolve_reverse_content_sample_with_provenance(
         ReverseContentRequest {
             project_id,
@@ -625,15 +517,12 @@ async fn validate_reverse_candidate_source_freshness(
         },
         target.context_kind(),
         Some(&rows),
-    )
-    .map_err(AppError::InvalidArgument)?;
-    let current_hash = current_hash.ok_or_else(|| AppError::InvalidState {
-        current: "missing_reverse_candidate_current_auto_context_fingerprint".to_string(),
-        operation: "写入项目资料归纳结果".to_string(),
-    })?;
-    validate_auto_context_source_hash(expected_hash, &current_hash)
+    )?;
+    let current_hash = current_hash.ok_or_else(|| "当前反推上下文缺少来源哈希".to_string())?;
+    Ok(expected_hash == current_hash)
 }
 
+#[cfg(test)]
 fn validate_auto_context_source_hash(expected: &str, current: &str) -> Result<(), AppError> {
     if expected == current {
         return Ok(());
@@ -651,7 +540,7 @@ fn valid_sha256(value: Option<&Value>) -> bool {
 }
 
 fn validate_reverse_candidate_checkpoint(
-    checkpoint: &workflow_checkpoint::Model,
+    checkpoint: &WorkflowCheckpointSummary,
     workflow_run_id: i64,
     target: ReverseEngineeringTarget,
 ) -> Result<(), AppError> {
@@ -766,10 +655,10 @@ mod tests {
             .unwrap()
     }
 
-    fn completed_run() -> workflow_run::Model {
+    fn completed_run() -> WorkflowRunSummary {
         let target = ReverseEngineeringTarget::Outline;
         let prompt_name = target.prompt_name();
-        workflow_run::Model {
+        WorkflowRunSummary {
             id: 42,
             business_key: import_reverse_business_key(7, target).unwrap(),
             workflow_kind: IMPORT_REVERSE_WORKFLOW_KIND.to_string(),
@@ -794,18 +683,19 @@ mod tests {
             })),
             status: WORKFLOW_STATUS_COMPLETED.to_string(),
             current_step_key: Some(prompt_name.to_string()),
+            progress: None,
             progress_json: None,
             active_task_id: None,
             can_resume: false,
             resume_block_reason: None,
             error_message: None,
-            created_at: timestamp(),
-            updated_at: timestamp(),
-            completed_at: Some(timestamp()),
+            created_at: timestamp().to_string(),
+            updated_at: timestamp().to_string(),
+            completed_at: Some(timestamp().to_string()),
         }
     }
 
-    fn completed_checkpoint() -> workflow_checkpoint::Model {
+    fn completed_checkpoint() -> WorkflowCheckpointSummary {
         let prompt_name = ReverseEngineeringTarget::Outline.prompt_name();
         let fingerprint = json!({
             "schema_version": 1,
@@ -818,7 +708,7 @@ mod tests {
             "response_format": null,
         });
         let hash = a4n_db::workflow::llm_call_checkpoint_fingerprint_sha256(&fingerprint).unwrap();
-        workflow_checkpoint::Model {
+        WorkflowCheckpointSummary {
             id: 9,
             workflow_run_id: 42,
             step_key: prompt_name.to_string(),
@@ -830,9 +720,9 @@ mod tests {
             artifacts_json: None,
             generation_run_ids_json: None,
             error_message: None,
-            created_at: timestamp(),
-            updated_at: timestamp(),
-            completed_at: Some(timestamp()),
+            created_at: timestamp().to_string(),
+            updated_at: timestamp().to_string(),
+            completed_at: Some(timestamp().to_string()),
         }
     }
 

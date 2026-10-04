@@ -1,11 +1,11 @@
 //! 物体发现工作流指纹与章节范围纯规则（无 DB）。
 
-use a4n_db_models::models::{chapter::chapter, project::text_anchor};
+use a4n_domain::{chapter::ChapterRecord, text_anchor::TextAnchorRecord};
 use a4n_llm_provider_contract::provider::ChatRequest;
 use serde_json::Value;
 use std::collections::BTreeSet;
 
-use crate::discovery_workflow::{discovery_call_fingerprint_json, discovery_workflow_run_input};
+use crate::discovery_workflow::discovery_call_fingerprint_json;
 use crate::workflow::UpsertWorkflowRunInput;
 
 use super::{OBJECT_DISCOVERY_CALL_KEY, OBJECT_DISCOVERY_KIND};
@@ -27,10 +27,10 @@ pub(super) fn object_discovery_call_fingerprint_json(
 
 /// 从可分析章节中选择本次物体发现范围。
 pub(super) fn select_object_discovery_chapters(
-    mut chapters: Vec<chapter::Model>,
+    mut chapters: Vec<ChapterRecord>,
     project_id: i64,
     chapter_number: Option<i32>,
-) -> Result<Vec<chapter::Model>, String> {
+) -> Result<Vec<ChapterRecord>, String> {
     if let Some(chapter_number) = chapter_number {
         chapters.retain(|chapter| chapter.chapter_number == chapter_number);
         if chapters.is_empty() {
@@ -52,12 +52,12 @@ pub(super) fn select_object_discovery_chapters(
 pub(super) fn object_discovery_workflow_run_input(
     project_id: i64,
     chapter_number: Option<i32>,
-    chapters: &[chapter::Model],
-    text_anchors: &[text_anchor::Model],
+    chapters: &[ChapterRecord],
+    text_anchors: &[TextAnchorRecord],
     request: &ChatRequest,
     active_task_id: Option<&str>,
 ) -> Result<UpsertWorkflowRunInput, String> {
-    discovery_workflow_run_input(
+    crate::discovery_workflow::discovery_workflow_run_input_records(
         OBJECT_DISCOVERY_KIND,
         OBJECT_DISCOVERY_CALL_KEY,
         project_id,
@@ -125,7 +125,7 @@ mod tests {
         };
 
         let now = chrono::Utc::now().naive_utc();
-        let chapter = chapter::Model {
+        let chapter = ChapterRecord {
             id: 1,
             project_id: 5,
             outline_id: None,
@@ -133,7 +133,7 @@ mod tests {
             title: None,
             content: "正文".to_string(),
             word_count: 2,
-            status: chapter::STATUS_DRAFT.to_string(),
+            status: a4n_domain::chapter::chapter_status::STATUS_DRAFT.to_string(),
             summary: None,
             style_tags: None,
             analysis_data: None,

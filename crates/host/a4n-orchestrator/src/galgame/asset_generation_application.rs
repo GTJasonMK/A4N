@@ -832,7 +832,6 @@ fn validate_input(input: &RunGalgameAssetGenerationInput) -> Result<(), AppError
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_db_models::models::generation::generation_spec;
     use serde_json::json;
 
     fn spec(
@@ -840,9 +839,9 @@ mod tests {
         target_entity_kind: &str,
         target_entity_id: Option<i64>,
         params: Value,
-    ) -> generation_spec::Model {
+    ) -> GenerationSpecRecord {
         let now = chrono::Utc::now().naive_utc();
-        generation_spec::Model {
+        GenerationSpecRecord {
             id: 1,
             project_id: 10,
             root_project_id: 10,

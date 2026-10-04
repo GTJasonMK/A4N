@@ -1,7 +1,9 @@
 mod contracts;
+mod discovery;
 mod names;
 mod portrait;
 mod state;
+mod timeline;
 
 pub use contracts::{
     AppliedImplicitUpdateAction, CharacterAttributeCategory,
@@ -12,9 +14,13 @@ pub use contracts::{
     DeletionMarkStatus, ForeshadowingRecordInput, ForeshadowingStatus, ImplicitUpdateDecision,
     InsertBehaviorRecordInput,
 };
+pub use discovery::{
+    CharacterDiscoveryCandidateRecordInput, CharacterDiscoveryCandidateRecordOutcome,
+};
 pub use names::*;
 pub use portrait::*;
 pub use state::*;
+pub use timeline::*;
 
 pub const CHARACTER_DELETION_THRESHOLD: i32 = 5;
 

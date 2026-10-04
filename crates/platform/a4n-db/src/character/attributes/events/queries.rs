@@ -2,6 +2,7 @@ use super::super::types::CharacterAttributeEventHistoryFilter;
 use super::validation::validate_attribute_history_filter;
 use crate::character::CharacterDbError;
 use a4n_db_models::models::character::attribute_event;
+use a4n_domain::character::CharacterAttributeEventRecord;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
 };
@@ -28,7 +29,7 @@ where
 pub async fn attribute_events_by_ids<C>(
     db: &C,
     attribute_event_ids: &[i64],
-) -> Result<Vec<attribute_event::Model>, DbErr>
+) -> Result<Vec<CharacterAttributeEventRecord>, DbErr>
 where
     C: ConnectionTrait,
 {
@@ -41,6 +42,11 @@ where
         .order_by_asc(attribute_event::Column::Id)
         .all(db)
         .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(crate::character::character_attribute_event_record)
+                .collect()
+        })
 }
 
 async fn attribute_events_by_profile<C>(
@@ -84,7 +90,7 @@ pub async fn attribute_history<C>(
     db: &C,
     profile_id: i64,
     mut filter: CharacterAttributeEventHistoryFilter,
-) -> Result<Vec<attribute_event::Model>, CharacterDbError>
+) -> Result<Vec<CharacterAttributeEventRecord>, CharacterDbError>
 where
     C: ConnectionTrait,
 {
@@ -94,5 +100,10 @@ where
     }
     attribute_events_by_profile(db, profile_id, filter)
         .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(crate::character::character_attribute_event_record)
+                .collect()
+        })
         .map_err(CharacterDbError::Database)
 }

@@ -126,13 +126,53 @@ check_source \
     "Portrait application exposes ORM models" \
     "crates/host/a4n-orchestrator/src/portrait" \
     '(?:character_portrait::Model|protagonist_profile::Model|a4n_db_models::models::character)'
+check_source \
+    "Object discovery owner exposes ORM models" \
+    "crates/host/a4n-orchestrator/src/object_discovery" \
+    '(?:a4n_db_models::|(?:chapter|text_anchor|object_profile)::Model|DatabaseTransaction|sea_orm::)'
 for discovery_file in \
-    contracts.rs execution.rs request.rs output.rs rules.rs workflow.rs; do
+    contracts.rs context.rs execution.rs identity.rs persistence.rs request.rs output.rs rules.rs workflow.rs; do
     check_source \
         "Character discovery pure owner exposes ORM models: $discovery_file" \
         "crates/host/a4n-orchestrator/src/character/discovery/$discovery_file" \
         '(?:a4n_db_models::|(?:chapter|text_anchor|protagonist_profile)::Model|DatabaseTransaction|sea_orm::)'
 done
+check_source \
+    "Character profile sync application exposes ORM models" \
+    "crates/host/a4n-orchestrator/src/character/profile_sync" \
+    '(?:a4n_db_models::|(?:chapter|text_anchor|protagonist_profile)::Model|DatabaseTransaction|sea_orm::)'
+check_source \
+    "Character sync rules expose ORM models" \
+    "crates/host/a4n-orchestrator/src/character/sync_rules.rs" \
+    '(?:a4n_db_models::|(?:chapter|protagonist_profile)::Model|DatabaseTransaction|sea_orm::)'
+check_source \
+    "Character conflict rules expose ORM models" \
+    "crates/host/a4n-orchestrator/src/character/conflict" \
+    '(?:a4n_db_models::|(?:chapter|attribute_event|character_state_index)::Model|DatabaseTransaction|sea_orm::)'
+check_source \
+    "Character mutation worker exposes ORM models" \
+    "crates/profiles/a4n-character-mutation-worker/src" \
+    '(?:a4n_db_models::|::Model|DatabaseTransaction|sea_orm::)'
+check_source \
+    "Import reverse candidate application exposes ORM transaction or rows" \
+    "crates/host/a4n-orchestrator/src/import_reverse/candidate.rs" \
+    '(?:a4n_db_models::|(?:workflow_run|workflow_checkpoint)::Model|DatabaseTransaction|sea_orm::)'
+check_source \
+    "Import reverse chapter context rules expose ORM models" \
+    "crates/host/a4n-orchestrator/src/import_reverse/context/chapter_entries" \
+    '(?:a4n_db_models::|chapter::Model|DatabaseTransaction|sea_orm::)'
+check_source \
+    "Import reverse source extraction rules expose ORM models" \
+    "crates/host/a4n-orchestrator/src/import_reverse/context/extraction" \
+    '(?:a4n_db_models::|chapter::Model|DatabaseTransaction|sea_orm::)'
+check_source \
+    "Import reverse blueprint chapter rules expose ORM models" \
+    "crates/host/a4n-orchestrator/src/import_reverse/context/blueprint/chapters.rs" \
+    '(?:a4n_db_models::|chapter::Model|DatabaseTransaction|sea_orm::)'
+check_source \
+    "Import reverse blueprint extraction rules expose ORM models" \
+    "crates/host/a4n-orchestrator/src/import_reverse/context/blueprint/extracted.rs" \
+    '(?:a4n_db_models::|chapter::Model|DatabaseTransaction|sea_orm::)'
 check_source \
     "Video-studio package exposes transfer ORM models" \
     "crates/host/a4n-orchestrator/src/project/video_studio_package" \
@@ -143,4 +183,4 @@ if ((violations > 0)); then
     exit 1
 fi
 
-echo "ORM boundary passed for migrated Core, Optimize, Project Family, Provider, Timeline, Publication, Scene Profile, Source Sync, Galgame, Portrait, and Video Studio slices."
+echo "ORM boundary passed for migrated Core, Optimize, Project Family, Provider, Timeline, Publication, Scene Profile, Source Sync, Character Discovery, Character Profile Sync, Character Timeline, Object Discovery, Import Reverse, Galgame, Portrait, and Video Studio slices."

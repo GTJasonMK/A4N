@@ -1,20 +1,20 @@
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use chrono::NaiveDate;
 use serde_json::Value;
 
-pub(super) fn sample_chapter(analysis_data: Option<Value>) -> chapter::Model {
+pub(super) fn sample_chapter(analysis_data: Option<Value>) -> ChapterRecord {
     sample_chapter_with_number(2, analysis_data)
 }
 
 pub(super) fn sample_chapter_with_number(
     chapter_number: i32,
     analysis_data: Option<Value>,
-) -> chapter::Model {
+) -> ChapterRecord {
     let now = NaiveDate::from_ymd_opt(2026, 5, 26)
         .unwrap()
         .and_hms_opt(10, 0, 0)
         .unwrap();
-    chapter::Model {
+    ChapterRecord {
         id: 9,
         project_id: 3,
         outline_id: None,

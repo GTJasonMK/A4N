@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use serde_json::{Map, Value, json};
 
 use crate::import_reverse::json::collect_json_strings;
@@ -6,9 +6,7 @@ use crate::import_reverse::json::collect_json_strings;
 use super::analysis::{analysis_metadata_array, analysis_value_path};
 use super::formatting::{add_optional_chapter_title, add_summary_or_preview};
 
-pub(in crate::import_reverse::context) fn chapter_summary_for_reverse(
-    ch: &chapter::Model,
-) -> Value {
+pub(in crate::import_reverse::context) fn chapter_summary_for_reverse(ch: &ChapterRecord) -> Value {
     let analysis = ch.analysis_data.as_ref();
     let mut entry = Map::new();
     entry.insert("chapter_number".to_string(), json!(ch.chapter_number));

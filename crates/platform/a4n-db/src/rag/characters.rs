@@ -2,6 +2,7 @@ use a4n_db_models::models::{
     character::{attribute_event, character_state_index, protagonist_profile},
     project::{blueprint_character, blueprint_relationship},
 };
+use a4n_domain::character::{CharacterAttributeEventRecord, CharacterStateIndexRecord};
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbErr, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
     QuerySelect,
@@ -80,6 +81,22 @@ impl From<&character_state_index::Model> for RagCharacterStateRow {
     }
 }
 
+impl From<&CharacterStateIndexRecord> for RagCharacterStateRow {
+    fn from(record: &CharacterStateIndexRecord) -> Self {
+        Self {
+            id: record.id,
+            profile_id: record.profile_id,
+            chapter_number: record.chapter_number,
+            state_summary: record.state_summary.clone(),
+            key_attributes: record.key_attributes.clone(),
+            emotional_state: record.emotional_state.clone(),
+            current_location: record.current_location.clone(),
+            current_goal: record.current_goal.clone(),
+            created_at: record.created_at,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, FromQueryResult)]
 pub struct RagAttributeEventRow {
     pub id: i64,
@@ -113,6 +130,26 @@ impl From<&attribute_event::Model> for RagAttributeEventRow {
             new_value: model.new_value.clone(),
             cause: model.cause.clone(),
             evidence: model.evidence.clone(),
+        }
+    }
+}
+
+impl From<&CharacterAttributeEventRecord> for RagAttributeEventRow {
+    fn from(record: &CharacterAttributeEventRecord) -> Self {
+        Self {
+            id: record.id,
+            profile_id: record.profile_id,
+            chapter_number: record.chapter_number,
+            source_kind: record.source_kind.clone(),
+            timestamp: record.timestamp,
+            category: record.category.clone(),
+            key: record.key.clone(),
+            operation: record.operation.clone(),
+            change_description: record.change_description.clone(),
+            old_value: record.old_value.clone(),
+            new_value: record.new_value.clone(),
+            cause: record.cause.clone(),
+            evidence: record.evidence.clone(),
         }
     }
 }

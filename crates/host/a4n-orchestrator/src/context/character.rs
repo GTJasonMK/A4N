@@ -3,11 +3,10 @@ use a4n_api_contract::character::{
     ImplicitUpdateDecisionSummary,
 };
 use a4n_db::DbHandle;
-use a4n_db_models::models::character::{
-    attribute_event, protagonist_behavior_record, protagonist_deletion_mark, protagonist_profile,
-};
+use a4n_db_models::models::character::protagonist_profile;
 use a4n_domain::character::{
-    CharacterAttributeCategory, CharacterImplicitReviewDecisionRecordInput,
+    CharacterAttributeCategory, CharacterAttributeEventRecord, CharacterBehaviorRecord,
+    CharacterDeletionMarkRecord, CharacterImplicitReviewDecisionRecordInput,
     CharacterPortraitCreateInput, CharacterPortraitRecord, CharacterProfileRecord,
     CharacterTimelineSourceKind,
 };
@@ -63,6 +62,20 @@ impl CharacterApplication {
         a4n_db::character::profile_records_by_project(self.database.connection(), project_id)
             .await
             .map_err(AppError::Database)
+    }
+
+    async fn profile_record_by_project_name(
+        &self,
+        project_id: i64,
+        name: &str,
+    ) -> Result<Option<CharacterProfileRecord>, AppError> {
+        a4n_db::character::profile_record_by_project_name(
+            self.database.connection(),
+            project_id,
+            name,
+        )
+        .await
+        .map_err(AppError::Database)
     }
 
     async fn profile_record_by_id(
@@ -177,7 +190,7 @@ impl CharacterApplication {
     async fn attribute_events_by_ids(
         &self,
         attribute_event_ids: &[i64],
-    ) -> Result<Vec<attribute_event::Model>, AppError> {
+    ) -> Result<Vec<CharacterAttributeEventRecord>, AppError> {
         a4n_db::character::attribute_events_by_ids(self.database.connection(), attribute_event_ids)
             .await
             .map_err(AppError::Database)
@@ -197,7 +210,7 @@ impl CharacterApplication {
     async fn implicit_review_behavior_records(
         &self,
         profile_id: i64,
-    ) -> Result<Vec<protagonist_behavior_record::Model>, AppError> {
+    ) -> Result<Vec<CharacterBehaviorRecord>, AppError> {
         a4n_db::character::implicit_review_behavior_records(self.database.connection(), profile_id)
             .await
             .map_err(AppError::Database)
@@ -207,7 +220,7 @@ impl CharacterApplication {
         &self,
         profile_id: i64,
         start_chapter: i32,
-    ) -> Result<Vec<protagonist_behavior_record::Model>, AppError> {
+    ) -> Result<Vec<CharacterBehaviorRecord>, AppError> {
         a4n_db::character::behavior_records_before_chapter(
             self.database.connection(),
             profile_id,
@@ -221,12 +234,12 @@ impl CharacterApplication {
 
     async fn character_profile_state_through_chapter(
         &self,
-        profile: &protagonist_profile::Model,
+        profile: &CharacterProfileRecord,
         chapter_number: i32,
     ) -> Result<Value, AppError> {
-        a4n_db::character::replay_profile_state_through_chapter(
+        a4n_db::character::replay_profile_state_through_chapter_by_id(
             self.database.connection(),
-            profile,
+            profile.id,
             chapter_number,
         )
         .await
@@ -265,7 +278,7 @@ impl CharacterApplication {
 }
 
 fn character_deletion_mark_summary(
-    mark: &protagonist_deletion_mark::Model,
+    mark: &CharacterDeletionMarkRecord,
 ) -> Result<DeletionMarkSummary, AppError> {
     let source_kind = CharacterTimelineSourceKind::parse(&mark.source_kind).ok_or_else(|| {
         AppError::InvalidArgument(format!("角色时间线 source_kind 无效: {}", mark.source_kind))
@@ -391,6 +404,16 @@ impl OrchestratorContext {
         self.character.profile_records_by_project(project_id).await
     }
 
+    pub(crate) async fn profile_record_by_project_name(
+        &self,
+        project_id: i64,
+        name: &str,
+    ) -> Result<Option<CharacterProfileRecord>, AppError> {
+        self.character
+            .profile_record_by_project_name(project_id, name)
+            .await
+    }
+
     pub(crate) async fn profile_record_by_id(
         &self,
         profile_id: i64,
@@ -476,7 +499,7 @@ impl OrchestratorContext {
     pub(crate) async fn attribute_events_by_ids(
         &self,
         attribute_event_ids: &[i64],
-    ) -> Result<Vec<attribute_event::Model>, AppError> {
+    ) -> Result<Vec<CharacterAttributeEventRecord>, AppError> {
         self.character
             .attribute_events_by_ids(attribute_event_ids)
             .await
@@ -500,8 +523,8 @@ impl OrchestratorContext {
 
     async fn sync_attribute_event_after_write(
         &self,
-        profile: &protagonist_profile::Model,
-        event: &attribute_event::Model,
+        profile: &CharacterProfileRecord,
+        event: &CharacterAttributeEventRecord,
     ) -> Result<(), CharacterAttributeLifecycleError> {
         self.sync_character_attribute_event_rag(profile.project_id, event, &profile.name)
             .await
@@ -513,7 +536,7 @@ impl OrchestratorContext {
     pub(crate) async fn implicit_review_behavior_records(
         &self,
         profile_id: i64,
-    ) -> Result<Vec<protagonist_behavior_record::Model>, AppError> {
+    ) -> Result<Vec<CharacterBehaviorRecord>, AppError> {
         self.character
             .implicit_review_behavior_records(profile_id)
             .await
@@ -524,7 +547,7 @@ impl OrchestratorContext {
         &self,
         profile_id: i64,
         start_chapter: i32,
-    ) -> Result<Vec<protagonist_behavior_record::Model>, AppError> {
+    ) -> Result<Vec<CharacterBehaviorRecord>, AppError> {
         self.character
             .behavior_records_before_chapter(profile_id, start_chapter)
             .await
@@ -534,7 +557,7 @@ impl OrchestratorContext {
 
     pub(crate) async fn character_profile_state_through_chapter(
         &self,
-        profile: &protagonist_profile::Model,
+        profile: &CharacterProfileRecord,
         chapter_number: i32,
     ) -> Result<Value, AppError> {
         self.character
@@ -546,9 +569,9 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         profile_id: i64,
-    ) -> Result<protagonist_profile::Model, AppError> {
+    ) -> Result<CharacterProfileRecord, AppError> {
         let profile = self
-            .profile_by_id(profile_id)
+            .profile_record_by_id(profile_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("角色档案不存在: {profile_id}")))?;
         self.verify_project_permission(profile.project_id, user_id, ProjectAccessRole::Editor)

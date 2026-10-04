@@ -4,7 +4,7 @@ use a4n_api_contract::character::{
     CharacterProfileSkippedResult, CharacterProfileSyncBatchStatus, CharacterProfileSyncFailure,
     CharacterProfileSyncedResult, SyncAllCharacterProfilesResult, SyncCharacterProfileResult,
 };
-use a4n_db_models::models::{chapter::chapter, character::protagonist_profile};
+use a4n_domain::{chapter::ChapterRecord, character::CharacterProfileRecord};
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use serde::Serialize;
@@ -21,8 +21,7 @@ use super::super::{
     CharacterProfileSyncApplicationInput, CharacterProfileSyncPreviewStep,
     CharacterProfileSyncProgress, CharacterProfileSyncStageTracePort, CharacterProfileSyncSubject,
     CharacterSyncRangeMode, character_identity_key, character_profile_skipped_result,
-    profile_character_keys_model, profile_first_seen_chapter,
-    validate_character_sync_target_chapter,
+    profile_character_keys, profile_first_seen_chapter, validate_character_sync_target_chapter,
 };
 use super::CharacterProfileSyncAnchorCache;
 
@@ -37,8 +36,8 @@ impl OrchestratorContext {
     ) -> Result<SyncAllCharacterProfilesResult, AppError> {
         progress.report_with_total(0, 1, "正在校验同步目标章节")?;
         let (chapters_result, profiles_result) = futures::join!(
-            self.character_sync_chapters(project_id),
-            self.protagonist_profiles_for_project(project_id),
+            self.character_sync_chapter_records(project_id),
+            self.profile_records_by_project(project_id),
         );
         let chapters = chapters_result?;
         let target_chapter =
@@ -86,8 +85,8 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<Vec<CharacterProfileSyncPreviewStep>, AppError> {
         let (chapters_result, profiles_result) = futures::join!(
-            self.character_sync_chapters(project_id),
-            self.protagonist_profiles_for_project(project_id),
+            self.character_sync_chapter_records(project_id),
+            self.profile_records_by_project(project_id),
         );
         let chapters = chapters_result?;
         let target_chapter =
@@ -136,7 +135,7 @@ impl OrchestratorContext {
         chapter_analysis_checkpoint_fingerprint: Value,
     ) -> Result<AnalysisCharacterProfileSyncResult, AppError> {
         progress.report_with_total(0, 1, "正在按章节分析结果选择待同步角色")?;
-        let chapters = self.character_sync_chapters(project_id).await?;
+        let chapters = self.character_sync_chapter_records(project_id).await?;
         let target_chapter =
             validate_character_sync_target_chapter(&chapters, project_id, chapter_number)
                 .map_err(AppError::InvalidArgument)?;
@@ -170,15 +169,15 @@ impl OrchestratorContext {
             ));
         }
 
-        let profiles = self.protagonist_profiles_for_project(project_id).await?;
+        let profiles = self.profile_records_by_project(project_id).await?;
         let all_profile_keys = profiles
             .iter()
-            .flat_map(|profile| profile_character_keys_model(profile).into_iter())
+            .flat_map(|profile| profile_character_keys(profile).into_iter())
             .collect::<BTreeSet<_>>();
         let matched_profiles = profiles
             .into_iter()
             .filter(|profile| {
-                profile_character_keys_model(profile)
+                profile_character_keys(profile)
                     .iter()
                     .any(|key| sync_character_keys.contains(key))
             })
@@ -242,8 +241,8 @@ impl OrchestratorContext {
     #[allow(clippy::too_many_arguments)]
     async fn run_character_profile_sync_batch(
         &self,
-        profiles: Vec<protagonist_profile::Model>,
-        chapters: &[chapter::Model],
+        profiles: Vec<CharacterProfileRecord>,
+        chapters: &[ChapterRecord],
         target_chapter: i32,
         range_mode: CharacterSyncRangeMode,
         anchor_mode: CharacterProfileSyncAnchorMode,

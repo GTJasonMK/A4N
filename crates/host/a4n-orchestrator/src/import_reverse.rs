@@ -21,6 +21,9 @@ pub(crate) fn import_reverse_db_error(error: ImportReverseDbError) -> a4n_error:
         ImportReverseDbError::InvalidArgument(message) => {
             a4n_error::AppError::InvalidArgument(message)
         }
+        ImportReverseDbError::InvalidState { current, operation } => {
+            a4n_error::AppError::InvalidState { current, operation }
+        }
         ImportReverseDbError::Internal(message) => {
             a4n_error::AppError::Internal(anyhow::anyhow!(message))
         }

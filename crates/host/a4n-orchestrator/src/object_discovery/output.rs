@@ -1,8 +1,8 @@
 use std::collections::BTreeSet;
 
 use a4n_api_contract::profile::ObjectProfileInput;
-use a4n_db_models::models::{chapter::chapter, project::text_anchor};
 use a4n_domain::source_spans::anchor_quotes_with_chapter_numbers;
+use a4n_domain::{chapter::ChapterRecord, text_anchor::TextAnchorRecord};
 use a4n_domain::{
     json_contract::{
         optional_string, positive_i64_array, reject_unknown_fields, required_string, string_array,
@@ -21,8 +21,8 @@ use super::contracts::ParsedObjectProfileDraft;
 pub(super) fn parse_and_validate_object_discovery_output(
     content: &str,
     analyzed_chapters: &BTreeSet<i32>,
-    chapters: &[chapter::Model],
-    text_anchors: &[text_anchor::Model],
+    chapters: &[ChapterRecord],
+    text_anchors: &[TextAnchorRecord],
 ) -> Result<(Vec<ParsedObjectProfileDraft>, Value), String> {
     let value: Value = serde_json::from_str(content.trim()).map_err(|error| {
         let mut message = format!("物体档案发现结果必须是 JSON 对象: {error}");
@@ -60,8 +60,8 @@ pub(super) fn parse_and_validate_object_discovery_output(
 fn normalize_object(
     index: usize,
     object: &Value,
-    chapters: &[chapter::Model],
-    text_anchors: &[text_anchor::Model],
+    chapters: &[ChapterRecord],
+    text_anchors: &[TextAnchorRecord],
 ) -> Result<ParsedObjectProfileDraft, String> {
     let path = format!("objects[{index}]");
     if !object.is_object() {
@@ -178,8 +178,8 @@ fn importance_string(value: &Value, key: &str, path: &str) -> Result<String, Str
 pub(super) fn parse_and_validate_object_discovery_content(
     content: &str,
     analyzed_chapters: &BTreeSet<i32>,
-    chapters: &[chapter::Model],
-    text_anchors: &[text_anchor::Model],
+    chapters: &[ChapterRecord],
+    text_anchors: &[TextAnchorRecord],
 ) -> Result<Vec<ParsedObjectProfileDraft>, String> {
     parse_and_validate_object_discovery_output(content, analyzed_chapters, chapters, text_anchors)
         .map(|(drafts, _)| drafts)

@@ -95,7 +95,10 @@ where
         add_profile_attribute_with_profile_in(&tx, profile.clone(), input, SOURCE_KIND_USER)
             .await?;
     tx.commit().await?;
-    Ok(CharacterAttributeMutationResult { profile, event })
+    Ok(CharacterAttributeMutationResult {
+        profile: crate::character::character_profile_record(profile),
+        event: crate::character::character_attribute_event_record(event),
+    })
 }
 
 pub(in crate::character::attributes) async fn modify_profile_attribute_with_profile_in<C>(
@@ -165,5 +168,8 @@ where
         modify_profile_attribute_with_profile_in(&tx, profile.clone(), input, SOURCE_KIND_USER)
             .await?;
     tx.commit().await?;
-    Ok(CharacterAttributeMutationResult { profile, event })
+    Ok(CharacterAttributeMutationResult {
+        profile: crate::character::character_profile_record(profile),
+        event: crate::character::character_attribute_event_record(event),
+    })
 }

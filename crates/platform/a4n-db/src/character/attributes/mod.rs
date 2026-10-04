@@ -8,8 +8,9 @@ mod types;
 pub(in crate::character::attributes) use deletion_marks::request_attribute_deletion_in;
 pub(in crate::character) use deletion_marks::request_attribute_deletion_with_profile_in;
 pub use deletion_marks::{
-    deletion_marks_by_profile, request_attribute_deletion, reset_deletion_marks_in,
-    rewind_ai_deletion_marks_after, rewind_deletion_marks_after,
+    deletion_mark_records_by_profile, deletion_marks_by_profile, request_attribute_deletion,
+    request_attribute_deletion_record, reset_deletion_marks_in, rewind_ai_deletion_marks_after,
+    rewind_deletion_marks_after,
 };
 pub(in crate::character) use events::attribute_events_by_profile_chapter_range;
 #[cfg(test)]
@@ -210,8 +211,8 @@ where
     .await?;
     tx.commit().await?;
     Ok(CharacterAttributeDeletionExecutionResult {
-        profile,
-        event,
+        profile: crate::character::character_profile_record(profile),
+        event: crate::character::character_attribute_event_record(event),
         consecutive_count,
     })
 }

@@ -1,7 +1,7 @@
 use a4n_db::asset::ObjectProfileUpsertRecordResult;
-use a4n_db_models::models::asset::object_profile;
 use a4n_domain::{
-    generation::RecordCompletedGenerationRunInput, object_profile::ObjectProfileEvidenceRecordInput,
+    generation::RecordCompletedGenerationRunInput,
+    object_profile::{ObjectProfileEvidenceRecordInput, ObjectProfileRecord},
 };
 use a4n_error::AppError;
 use serde_json::{Value, json};
@@ -51,7 +51,7 @@ impl OrchestratorContext {
             .collect::<Result<Vec<_>, AppError>>()?;
         let source_chapters = chapters
             .iter()
-            .map(a4n_db::project::chapter_source_snapshot_from_model)
+            .map(a4n_domain::chapter::ChapterRecord::source_snapshot)
             .collect();
         let result = self
             .upsert_object_profiles_from_drafts_validated(
@@ -97,7 +97,7 @@ impl OrchestratorContext {
 }
 
 fn object_discovery_result(
-    chapters: Vec<a4n_db_models::models::chapter::chapter::Model>,
+    chapters: Vec<a4n_domain::chapter::ChapterRecord>,
     discovered_count: usize,
     result: ObjectProfileUpsertRecordResult,
 ) -> Value {
@@ -111,7 +111,7 @@ fn object_discovery_result(
     })
 }
 
-fn object_profile_result(profile: &object_profile::Model) -> Value {
+fn object_profile_result(profile: &ObjectProfileRecord) -> Value {
     json!({
         "id": profile.id,
         "project_id": profile.project_id,

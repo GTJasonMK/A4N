@@ -55,6 +55,63 @@ where
         .map(|row| row.map(character_profile_record))
 }
 
+pub async fn profile_record_by_project_name<C>(
+    db: &C,
+    project_id: i64,
+    name: &str,
+) -> Result<Option<CharacterProfileRecord>, sea_orm::DbErr>
+where
+    C: ConnectionTrait,
+{
+    profile_by_project_name(db, project_id, name)
+        .await
+        .map(|row| row.map(character_profile_record))
+}
+
+pub async fn profiles_with_timeline_state_records<C>(
+    db: &C,
+    project_id: i64,
+) -> Result<Vec<(CharacterProfileRecord, bool, bool)>, crate::character::CharacterDbError>
+where
+    C: ConnectionTrait,
+{
+    crate::character::profiles_with_timeline_state(db, project_id)
+        .await
+        .map(|profiles| {
+            profiles
+                .into_iter()
+                .map(|(profile, timeline_started, editable)| {
+                    (
+                        character_profile_record(profile),
+                        timeline_started,
+                        editable,
+                    )
+                })
+                .collect()
+        })
+}
+
+pub async fn update_initial_profile_record<C>(
+    db: &C,
+    project_id: i64,
+    profile_id: i64,
+    expected_current_state: serde_json::Value,
+    base_attributes: serde_json::Value,
+) -> Result<CharacterProfileRecord, crate::character::CharacterDbError>
+where
+    C: ConnectionTrait + sea_orm::TransactionTrait,
+{
+    super::update_initial_profile(
+        db,
+        project_id,
+        profile_id,
+        expected_current_state,
+        base_attributes,
+    )
+    .await
+    .map(character_profile_record)
+}
+
 pub(crate) async fn referenced_profile_ids<C: ConnectionTrait>(
     db: &C,
     project_id: i64,

@@ -34,6 +34,7 @@ where
     let chapters = chapters
         .into_iter()
         .filter(|chapter| chapter.status != "deleted" && !chapter.content.trim().is_empty())
+        .map(crate::project::chapter_record)
         .collect::<Vec<_>>();
     let blueprint_context = if include_blueprint_context {
         Some(ReverseBlueprintContextRows {

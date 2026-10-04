@@ -1,5 +1,8 @@
 //! 导入逆向工程工作流指纹与 business key 纯规则（无 DB）。
 
+pub(crate) use a4n_domain::import_reverse::{
+    WORKFLOW_KIND as IMPORT_REVERSE_WORKFLOW_KIND, WORKFLOW_MODE as IMPORT_REVERSE_WORKFLOW_MODE,
+};
 use a4n_domain::source_text_hash as source_content_sha256;
 use serde_json::{Map, Value, json};
 use std::collections::HashMap;
@@ -7,21 +10,13 @@ use std::collections::HashMap;
 use super::ReverseEngineeringTarget;
 use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
 
-pub(crate) const IMPORT_REVERSE_WORKFLOW_KIND: &str = "import_reverse_engineer";
-pub(crate) const IMPORT_REVERSE_WORKFLOW_MODE: &str = "reverse";
-
 /// import_reverse exclusive business key。
 pub(super) fn import_reverse_business_key(
     project_id: i64,
     target: ReverseEngineeringTarget,
 ) -> Result<String, String> {
-    if project_id <= 0 {
-        return Err("项目 ID 必须大于 0".to_string());
-    }
     let prompt_name = target.prompt_name();
-    Ok(format!(
-        "{IMPORT_REVERSE_WORKFLOW_KIND}:project:{project_id}:{prompt_name}:{IMPORT_REVERSE_WORKFLOW_MODE}"
-    ))
+    a4n_domain::import_reverse::business_key(project_id, prompt_name)
 }
 
 /// import_reverse 工作流输入指纹。

@@ -5,14 +5,12 @@ mod provenance;
 
 use std::collections::HashMap;
 
+use a4n_db_models::models::generation::generation_spec;
 use a4n_db_models::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
-use a4n_db_models::models::{
-    ai::generated_video,
-    generation::generation_spec,
-    media::{media_asset, media_provenance},
-    video_project::assembly_timeline,
-};
 use a4n_domain::canvas::{CanvasEdgeRecord, CanvasGraphRecord, CanvasNodeRecord};
+use a4n_domain::generation::GenerationSpecRecord;
+use a4n_domain::media::{GeneratedVideoRecord, MediaAssetRecord, MediaProvenanceRecord};
+use a4n_domain::video_transfer::AssemblyTimelineRecord;
 use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use a4n_domain::{CanvasNodeRefKind, project::ProjectRecord};
 
@@ -81,8 +79,8 @@ fn package() -> VideoStudioProjectPackage {
     }
 }
 
-fn video_with_file() -> generated_video::Model {
-    generated_video::Model {
+fn video_with_file() -> GeneratedVideoRecord {
+    GeneratedVideoRecord {
         id: 10,
         project_id: 1,
         chapter_id: None,
@@ -192,8 +190,8 @@ fn canvas_edge(
     }
 }
 
-fn assembly_timeline_with_cache_key(cache_key: &str) -> assembly_timeline::Model {
-    assembly_timeline::Model {
+fn assembly_timeline_with_cache_key(cache_key: &str) -> AssemblyTimelineRecord {
+    AssemblyTimelineRecord {
         id: 40,
         project_id: 1,
         source_chapter_id: None,
@@ -207,8 +205,8 @@ fn assembly_timeline_with_cache_key(cache_key: &str) -> assembly_timeline::Model
     }
 }
 
-fn media_asset_with_file(bytes: &[u8]) -> media_asset::Model {
-    media_asset::Model {
+fn media_asset_with_file(bytes: &[u8]) -> MediaAssetRecord {
+    MediaAssetRecord {
         id: 60,
         project_id: 1,
         root_project_id: 1,
@@ -232,7 +230,7 @@ fn media_asset_with_file(bytes: &[u8]) -> media_asset::Model {
     }
 }
 
-fn media_asset_without_file() -> media_asset::Model {
+fn media_asset_without_file() -> MediaAssetRecord {
     let mut asset = media_asset_with_file(b"unused");
     asset.file_path = None;
     asset.file_size = None;
@@ -245,8 +243,8 @@ fn media_asset_without_file() -> media_asset::Model {
 fn media_provenance(
     source_external_path: Option<&str>,
     request_snapshot_json: Option<serde_json::Value>,
-) -> media_provenance::Model {
-    media_provenance::Model {
+) -> MediaProvenanceRecord {
+    MediaProvenanceRecord {
         media_asset_id: 60,
         generation_spec_id: None,
         prompt_artifact_id: None,
@@ -262,10 +260,10 @@ fn media_provenance(
 fn generation_spec_with_target(
     target_entity_kind: &str,
     target_entity_id: Option<i64>,
-) -> generation_spec::Model {
+) -> GenerationSpecRecord {
     let source_material = serde_json::json!({"prompt":"prompt","source_node_ids":[]});
     let params_json = serde_json::json!({"source_material":source_material});
-    generation_spec::Model {
+    GenerationSpecRecord {
         id: 50,
         project_id: 1,
         root_project_id: 1,

@@ -1,7 +1,8 @@
-use a4n_db_models::models::character::{
-    attribute_event, character_state_index, foreshadowing_index,
+use a4n_db_models::models::character::foreshadowing_index;
+use a4n_domain::{
+    character::{CharacterAttributeEventRecord, CharacterStateIndexRecord},
+    rag::RagDataType,
 };
-use a4n_domain::rag::RagDataType;
 use a4n_orchestrator::rag::{
     character_attribute_event_rag_record, character_state_rag_record, foreshadowing_rag_record,
 };
@@ -15,8 +16,8 @@ fn ts() -> NaiveDateTime {
         .expect("valid time")
 }
 
-fn state_index() -> character_state_index::Model {
-    character_state_index::Model {
+fn state_index() -> CharacterStateIndexRecord {
+    CharacterStateIndexRecord {
         id: 50,
         profile_id: 40,
         chapter_number: 3,
@@ -29,8 +30,8 @@ fn state_index() -> character_state_index::Model {
     }
 }
 
-fn attribute_event() -> attribute_event::Model {
-    attribute_event::Model {
+fn attribute_event() -> CharacterAttributeEventRecord {
+    CharacterAttributeEventRecord {
         id: 70,
         profile_id: 40,
         chapter_number: 3,

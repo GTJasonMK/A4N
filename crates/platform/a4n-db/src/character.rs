@@ -3,6 +3,7 @@ mod behavior;
 mod blueprint_seed;
 mod portrait;
 mod profile;
+mod record_mappers;
 mod snapshot;
 
 mod sync_persistence;
@@ -13,11 +14,14 @@ pub use attributes::{
     CharacterAttributeDeletionExecutionResult, CharacterAttributeEventHistoryFilter,
     CharacterAttributeMutationResult, CharacterDeletionMarkRewindSummary, add_profile_attribute,
     apply_implicit_review_decision_record, attribute_events_by_ids, attribute_history,
-    deletion_marks_by_profile, execute_ready_attribute_deletion, modify_profile_attribute,
-    request_attribute_deletion, reset_deletion_marks_in, rewind_ai_deletion_marks_after,
-    rewind_deletion_marks_after,
+    deletion_mark_records_by_profile, deletion_marks_by_profile, execute_ready_attribute_deletion,
+    modify_profile_attribute, request_attribute_deletion, request_attribute_deletion_record,
+    reset_deletion_marks_in, rewind_ai_deletion_marks_after, rewind_deletion_marks_after,
 };
-pub use behavior::{behavior_records_by_profile, implicit_review_behavior_records};
+pub use behavior::{
+    behavior_records_by_profile, behavior_records_by_profile_records,
+    implicit_review_behavior_records,
+};
 pub use blueprint_seed::{CharacterProfileSeedError, sync_character_profiles_from_blueprint};
 pub(crate) use portrait::character_portrait_record_from_model;
 pub use portrait::{
@@ -31,19 +35,28 @@ pub use portrait::{
     rollback_failed_portrait_creation_records, set_primary_character_portrait_record,
 };
 pub(crate) use profile::apply_profile_current_state;
+pub(in crate::character) use profile::character_profile_record;
 pub(crate) use profile::delete_profiles_cascade_in;
 pub(crate) use profile::referenced_profile_ids;
 pub use profile::{
     CharacterProfileCreateError, CharacterProfileCurrentStateFields, CharacterProfileDeleteError,
-    CharacterProfileDeletionSummary, create_profile, create_profile_with_generation_run,
-    create_profile_with_generation_run_in, delete_profile_cascade_transaction, profile_by_id,
+    CharacterProfileDeletionSummary, create_profile, create_profile_domain_record,
+    create_profile_with_generation_run, create_profile_with_generation_run_in,
+    delete_profile_cascade_transaction, persist_character_discovery_candidates, profile_by_id,
     profile_by_project_name, profile_current_state_fields, profile_record_by_id,
-    profile_records_by_project, profiles_by_project, profiles_with_timeline_state,
-    update_initial_profile,
+    profile_record_by_project_name, profile_records_by_project, profiles_by_project,
+    profiles_with_timeline_state, profiles_with_timeline_state_records, update_initial_profile,
+    update_initial_profile_record,
+};
+pub(in crate::character) use record_mappers::{
+    character_attribute_event_record, character_behavior_record, character_deletion_mark_record,
+    character_snapshot_reference_record, character_state_index_record,
 };
 pub use snapshot::store::Sha256SnapshotStore;
 pub use snapshot::{
-    snapshot_attributes_from_data, snapshot_reference_by_chapter, snapshot_references_by_profile,
+    snapshot_attributes_from_data, snapshot_reference_by_chapter,
+    snapshot_reference_record_by_chapter, snapshot_references_by_profile,
+    snapshot_references_by_profile_records,
 };
 pub use sync_persistence::{
     AppliedCharacterSyncPersistenceRecord, CharacterSyncAttributeEventRecordInput,
@@ -56,7 +69,8 @@ pub use timeline::{
     behavior_records_before_chapter, character_conflict_context_rows,
     delete_ai_timeline_artifacts_from_chapter_checked,
     delete_timeline_artifacts_from_chapter_checked, replay_profile_state_through_chapter,
-    retract_profile_chapter_facts, rollback_profile_to_chapter,
+    replay_profile_state_through_chapter_by_id, retract_profile_chapter_facts,
+    rollback_profile_to_chapter,
 };
 
 use sea_orm::DbErr;

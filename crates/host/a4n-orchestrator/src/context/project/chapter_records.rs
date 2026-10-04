@@ -1,12 +1,10 @@
 use a4n_db::DbHandle;
-use a4n_db_models::models::chapter::chapter;
 use a4n_error::AppError;
 
 use super::super::OrchestratorContext;
 use crate::project::{
-    is_character_sync_available_chapter, project_chapter_context_error_to_app_error,
-    project_chapter_scene_record_error_to_app_error, project_mutation_error_to_app_error,
-    validate_chapter_generation_number,
+    project_chapter_context_error_to_app_error, project_chapter_scene_record_error_to_app_error,
+    project_mutation_error_to_app_error, validate_chapter_generation_number,
 };
 use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::collaboration::ProjectAccessRole;
@@ -48,20 +46,6 @@ impl ProjectChapterRecordsApplication {
         a4n_db::project::import_analysis_chapter_candidates(self.database.connection(), project_id)
             .await
             .map_err(project_chapter_context_error_to_app_error)
-    }
-
-    async fn character_sync_chapters(
-        &self,
-        project_id: i64,
-    ) -> Result<Vec<chapter::Model>, AppError> {
-        let chapters =
-            a4n_db::project::character_sync_chapters(self.database.connection(), project_id)
-                .await
-                .map_err(project_chapter_context_error_to_app_error)?;
-        Ok(chapters
-            .into_iter()
-            .filter(is_character_sync_available_chapter)
-            .collect())
     }
 
     async fn character_sync_chapter_records(
@@ -148,15 +132,6 @@ impl OrchestratorContext {
     ) -> Result<Vec<ChapterRecord>, AppError> {
         self.project_chapter_records
             .import_analysis_chapter_candidates(project_id)
-            .await
-    }
-
-    pub(crate) async fn character_sync_chapters(
-        &self,
-        project_id: i64,
-    ) -> Result<Vec<chapter::Model>, AppError> {
-        self.project_chapter_records
-            .character_sync_chapters(project_id)
             .await
     }
 

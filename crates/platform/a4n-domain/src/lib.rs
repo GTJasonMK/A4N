@@ -19,6 +19,7 @@ pub mod galgame;
 pub mod generation;
 pub mod hash;
 pub mod image;
+pub mod import_reverse;
 pub mod import_review;
 pub mod inspiration;
 pub mod json_contract;
