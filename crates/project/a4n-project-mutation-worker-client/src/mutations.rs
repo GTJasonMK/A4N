@@ -1,15 +1,15 @@
 use a4n_api_contract::project::{
-    CreateDerivedProjectInput, CreateFreeformVideoProjectInput, CreateProjectInput,
+    CreateCanvasProjectInput, CreateDerivedProjectInput, CreateProjectInput,
     CreateStandaloneComicProjectInput, ProjectMutationApplicationPort, ProjectSummary,
     UpdateProjectInput,
 };
 use a4n_error::AppError;
 use a4n_project_mutation_worker_contract::{
+    CreateCanvasProjectInput as WorkerCreateCanvasProjectInput,
     CreateDerivedProjectInput as WorkerCreateDerivedProjectInput,
-    CreateFreeformVideoProjectInput as WorkerCreateFreeformVideoProjectInput,
     CreateProjectInput as WorkerCreateProjectInput,
     CreateStandaloneComicProjectInput as WorkerCreateStandaloneComicProjectInput,
-    PROJECT_MUTATION_CREATE_DERIVED_OPERATION, PROJECT_MUTATION_CREATE_FREEFORM_VIDEO_OPERATION,
+    PROJECT_MUTATION_CREATE_CANVAS_OPERATION, PROJECT_MUTATION_CREATE_DERIVED_OPERATION,
     PROJECT_MUTATION_CREATE_OPERATION, PROJECT_MUTATION_CREATE_STANDALONE_COMIC_OPERATION,
     PROJECT_MUTATION_UPDATE_OPERATION, UpdateProjectInput as WorkerUpdateProjectInput,
 };
@@ -58,16 +58,16 @@ impl ProjectMutationApplicationPort for ProjectMutationWorkerClient {
         .await
     }
 
-    async fn create_freeform_video(
+    async fn create_canvas(
         &self,
         user_id: i64,
-        input: CreateFreeformVideoProjectInput,
+        input: CreateCanvasProjectInput,
     ) -> Result<ProjectSummary, AppError> {
         self.command(
             user_id,
             None,
-            PROJECT_MUTATION_CREATE_FREEFORM_VIDEO_OPERATION,
-            WorkerCreateFreeformVideoProjectInput {
+            PROJECT_MUTATION_CREATE_CANVAS_OPERATION,
+            WorkerCreateCanvasProjectInput {
                 title: input.title,
                 description: input.description,
             },

@@ -17,7 +17,7 @@ use a4n_db::{
         GENERATION_SPEC_TARGET_KIND_CANVAS_ASSEMBLY, GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE,
         GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
     },
-    project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
+    project::{CreateCanvasProjectParams, create_canvas_project_record},
 };
 use a4n_db_models::models::{
     ai::{generated_image, generated_video},
@@ -416,10 +416,10 @@ async fn setup_canvas(node_kind: &str, config: Value, source_count: usize) -> Ca
     let context = TestOrchestratorBuilder::new(Arc::clone(&database))
         .build()
         .await;
-    let project = create_freeform_video_project_record(
+    let project = create_canvas_project_record(
         database.as_ref(),
         1,
-        CreateFreeformVideoProjectParams {
+        CreateCanvasProjectParams {
             title: format!("Canvas {node_kind} application 测试"),
             description: String::new(),
         },

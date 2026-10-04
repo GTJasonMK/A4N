@@ -120,11 +120,41 @@ pub async fn verify_required_schema(
     Ok(())
 }
 
-#[cfg(feature = "migration")]
-pub async fn run_migrations(database: &DatabaseConnection) -> Result<(), a4n_error::AppError> {
-    a4n_migration::migrator::run_migrations(database)
+pub async fn verify_canvas_project_split(
+    database: &DatabaseConnection,
+) -> Result<(), a4n_error::AppError> {
+    let row = database
+        .query_one(Statement::from_string(
+            DatabaseBackend::Postgres,
+            r#"
+SELECT
+  (SELECT COUNT(*) FROM novel_project WHERE project_kind = 'video' AND root_project_id IS NULL AND source_snapshot_id IS NULL) AS legacy_freeform,
+  (SELECT COUNT(*) FROM novel_project p WHERE p.project_kind = 'video' AND p.root_project_id IS NOT NULL AND p.source_snapshot_id IS NOT NULL AND (
+      EXISTS (SELECT 1 FROM canvas_graph g JOIN canvas_node n ON n.graph_id = g.id WHERE g.project_id = p.id)
+      OR EXISTS (SELECT 1 FROM canvas_text_asset t WHERE t.project_id = p.id)
+      OR EXISTS (SELECT 1 FROM generation_spec s WHERE s.project_id = p.id AND s.source_context_kind = 'freeform')
+      OR EXISTS (SELECT 1 FROM generated_image i WHERE i.project_id = p.id AND i.image_type IN ('canvas_image','canvas_frame'))
+      OR EXISTS (SELECT 1 FROM generated_video v WHERE v.project_id = p.id AND (v.video_type IN ('canvas_video','canvas_assembly') OR v.workflow_mode IN ('canvas_video','canvas_trim','canvas_assembly')))
+  )) AS derived_canvas
+"#
+            .to_string(),
+        ))
         .await
-        .map_err(a4n_error::AppError::Database)
+        .map_err(a4n_error::AppError::Database)?
+        .ok_or_else(|| a4n_error::AppError::ConfigError("Canvas 项目拆分预检无结果".into()))?;
+    let legacy_freeform: i64 = row
+        .try_get("", "legacy_freeform")
+        .map_err(a4n_error::AppError::Database)?;
+    let derived_canvas: i64 = row
+        .try_get("", "derived_canvas")
+        .map_err(a4n_error::AppError::Database)?;
+    if legacy_freeform > 0 || derived_canvas > 0 {
+        return Err(a4n_error::AppError::ConfigError(format!(
+            "Canvas 项目拆分尚未完成：{} 个旧 freeform 项目、{} 个派生视频含画布内容；请运行维护迁移",
+            legacy_freeform, derived_canvas
+        )));
+    }
+    Ok(())
 }
 
 #[cfg(test)]

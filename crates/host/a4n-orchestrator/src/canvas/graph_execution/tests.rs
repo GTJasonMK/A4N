@@ -12,7 +12,7 @@ use a4n_db::{
         CanvasEdgeRecordInput, CanvasGraphRecordDocument, CanvasGraphRecordInput,
         CanvasNodeRecordInput,
     },
-    project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
+    project::{CreateCanvasProjectParams, create_canvas_project_record},
 };
 use a4n_db_models::models::{canvas::canvas_graph, generation::workflow_run};
 use async_trait::async_trait;
@@ -331,10 +331,10 @@ async fn canvas_graph_resume_skips_completed_checkpoints_and_finishes_pending_no
 #[tokio::test]
 async fn canvas_graph_run_keeps_the_source_text_version_when_resumed() {
     let (database, context) = setup_context().await;
-    let project = create_freeform_video_project_record(
+    let project = create_canvas_project_record(
         database.as_ref(),
         1,
-        CreateFreeformVideoProjectParams {
+        CreateCanvasProjectParams {
             title: "Canvas text snapshot test".to_string(),
             description: String::new(),
         },
@@ -608,10 +608,10 @@ async fn insert_test_graph(
     context: &OrchestratorContext,
     operation_count: usize,
 ) -> (i64, CanvasGraphRecordDocument) {
-    let project = create_freeform_video_project_record(
+    let project = create_canvas_project_record(
         database,
         1,
-        CreateFreeformVideoProjectParams {
+        CreateCanvasProjectParams {
             title: format!("Canvas Graph Runner application 测试-{operation_count}"),
             description: String::new(),
         },

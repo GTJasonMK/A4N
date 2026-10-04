@@ -1,5 +1,5 @@
 import React from "react";
-import { BookOpen, ChevronRight, Gamepad2, Image, Video } from "lucide-react";
+import { BookOpen, ChevronRight, Gamepad2, Image, Layers3, Video } from "lucide-react";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { BookCardAction } from "../../components/ui/BookCard";
 import { useContextMenu, type ContextMenuEntry } from "../../components/ui/ContextMenu";
@@ -176,12 +176,14 @@ const ProjectRow: React.FC<{
   const kindLabel = {
     text: t("novel.textProject"),
     video: t("novel.videoProject"),
+    canvas: t("video.canvasProject"),
     comic: t("novel.comicProject"),
     galgame: t("novel.galgameProject"),
   }[project.project_kind];
   const ProjectKindIcon = {
     text: BookOpen,
     video: Video,
+    canvas: Layers3,
     comic: Image,
     galgame: Gamepad2,
   }[project.project_kind];

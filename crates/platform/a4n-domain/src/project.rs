@@ -160,17 +160,25 @@ pub enum ProjectKind {
     Text,
     Comic,
     Video,
+    Canvas,
     Galgame,
 }
 
 impl ProjectKind {
-    pub const ALL: [Self; 4] = [Self::Text, Self::Comic, Self::Video, Self::Galgame];
+    pub const ALL: [Self; 5] = [
+        Self::Text,
+        Self::Comic,
+        Self::Video,
+        Self::Canvas,
+        Self::Galgame,
+    ];
 
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Text => "text",
             Self::Comic => "comic",
             Self::Video => "video",
+            Self::Canvas => "canvas",
             Self::Galgame => "galgame",
         }
     }
@@ -207,7 +215,7 @@ impl ProjectSourceMode {
             source_snapshot_id.is_some(),
         ) {
             (ProjectKind::Text, false, false) => Ok(Self::Self_),
-            (ProjectKind::Video, false, false) => Ok(Self::Freeform),
+            (ProjectKind::Canvas, false, false) => Ok(Self::Freeform),
             (ProjectKind::Comic, false, false) => Ok(Self::Standalone),
             (ProjectKind::Comic | ProjectKind::Video | ProjectKind::Galgame, true, true) => {
                 Ok(Self::Derived)
@@ -270,9 +278,10 @@ mod tests {
             Ok(ProjectSourceMode::Self_)
         );
         assert_eq!(
-            ProjectSourceMode::from_identity("video", None, None),
+            ProjectSourceMode::from_identity("canvas", None, None),
             Ok(ProjectSourceMode::Freeform)
         );
+        assert!(ProjectSourceMode::from_identity("video", None, None).is_err());
         assert_eq!(
             ProjectSourceMode::from_identity("comic", None, None),
             Ok(ProjectSourceMode::Standalone)

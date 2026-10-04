@@ -17,31 +17,10 @@ use super::super::{
 use super::{projects::validate_package_projects, uniqueness::validate_package_uniqueness};
 
 pub fn validate_package_manifest(package: &ProjectFamilyPackage) -> Result<(), String> {
-    validate_package_manifest_inner(package, &std::collections::HashSet::new())
+    validate_package_manifest_inner(package)
 }
 
-pub(crate) fn validate_package_manifest_with_canvas(
-    package: &ProjectFamilyPackage,
-    canvases: &[crate::project::VideoStudioProjectPackage],
-) -> Result<(), String> {
-    let mut validated_canvas_specs = std::collections::HashSet::new();
-    for canvas in canvases.iter().filter(|canvas| {
-        package
-            .projects
-            .iter()
-            .any(|project| project.id == canvas.project.id)
-    }) {
-        validated_canvas_specs.extend(
-            crate::project::video_studio_package::validate_family_canvas_package(canvas, package)?,
-        );
-    }
-    validate_package_manifest_inner(package, &validated_canvas_specs)
-}
-
-fn validate_package_manifest_inner(
-    package: &ProjectFamilyPackage,
-    validated_canvas_specs: &std::collections::HashSet<i64>,
-) -> Result<(), String> {
+fn validate_package_manifest_inner(package: &ProjectFamilyPackage) -> Result<(), String> {
     validate_package_projects(package)?;
     validate_package_uniqueness(package)?;
     validate_source_snapshot_manifest(package)?;
@@ -56,6 +35,6 @@ fn validate_package_manifest_inner(
     validate_manga_manifest(package)?;
     validate_video_manifest(package)?;
     validate_galgame_manifest(package)?;
-    validate_generation_manifest(package, validated_canvas_specs)?;
+    validate_generation_manifest(package, &std::collections::HashSet::new())?;
     validate_source_sync_manifest(package)
 }

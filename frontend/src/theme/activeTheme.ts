@@ -230,7 +230,7 @@ export function themeRouteFamilyForPath(pathname: string): ThemeRouteFamily {
   if (/^\/inspiration\/\d+(?:\/|$)/.test(pathname)) return "inspiration";
   if (/^\/novel\/\d+(?:\/|$)/.test(pathname)) return "novel_detail";
   if (/^\/write\/\d+(?:\/|$)/.test(pathname)) return "writing_desk";
-  if (/^\/video-project\/\d+\/studio(?:\/|$)/.test(pathname)) return "video_studio";
+  if (/^\/canvas-project\/\d+(?:\/|$)/.test(pathname)) return "video_studio";
   if (/^\/video-project\/\d+(?:\/|$)/.test(pathname)) return "video_workspace";
   if (/^\/comic-project\/\d+(?:\/|$)/.test(pathname)) return "comic_workspace";
   if (/^\/galgame-project\/\d+(?:\/|$)/.test(pathname)) return "galgame_workspace";

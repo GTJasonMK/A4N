@@ -12,16 +12,16 @@ pub(in crate::routes::commands) use collaboration::{
 };
 pub(in crate::routes::commands) use duplication::duplicate_project;
 pub(in crate::routes::commands) use records::{
-    create_derived_project, create_freeform_video_project, create_project,
-    create_standalone_comic_project, delete_project, get_project,
-    get_project_asset_dependency_graph, get_project_asset_dependency_graph_node_detail,
-    list_projects, list_source_snapshot_chapters, reset_project_generated_data, update_project,
+    create_canvas_project, create_derived_project, create_project, create_standalone_comic_project,
+    delete_project, get_project, get_project_asset_dependency_graph,
+    get_project_asset_dependency_graph_node_detail, list_projects, list_source_snapshot_chapters,
+    reset_project_generated_data, update_project,
 };
 pub(in crate::routes::commands) use status::{
     forward_project_status, get_project_status_machine, preview_rollback, rollback_project_status,
 };
 pub(in crate::routes::commands) use transfer::{
-    export_derived_project_data, export_project_bundle_data, export_project_family_data,
-    export_video_studio_project_data, import_project_bundle_upload, import_project_family_upload,
-    import_video_studio_project_upload, inspect_project_bundle_upload,
+    export_canvas_project_data, export_derived_project_data, export_project_bundle_data,
+    export_project_family_data, import_canvas_project_upload, import_project_bundle_upload,
+    import_project_family_upload, inspect_project_bundle_upload,
 };

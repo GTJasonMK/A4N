@@ -77,21 +77,21 @@ impl WorkerState {
         self.summary_for_user(user_id, project.id).await
     }
 
-    pub(super) async fn create_freeform_video(
+    pub(super) async fn create_canvas(
         &self,
-        request: WorkerEnvelope<CreateFreeformVideoProjectInput>,
+        request: WorkerEnvelope<CreateCanvasProjectInput>,
     ) -> Result<ProjectSummary, WorkerFailure> {
-        unscoped_request(&request, PROJECT_MUTATION_CREATE_FREEFORM_VIDEO_OPERATION)?;
+        unscoped_request(&request, PROJECT_MUTATION_CREATE_CANVAS_OPERATION)?;
         let user_id = user_id(&request)?;
         let input = request.payload;
         let title = required_text(&input.title, "项目标题")
             .map_err(WorkerFailure::invalid_request)?
             .to_string();
         let description = optional_text(input.description.as_deref());
-        let project = a4n_db::project::create_freeform_video_project_record(
+        let project = a4n_db::project::create_canvas_project_record(
             self.database.connection(),
             user_id,
-            a4n_db::project::CreateFreeformVideoProjectParams { title, description },
+            a4n_db::project::CreateCanvasProjectParams { title, description },
         )
         .await
         .map_err(project_mutation_error)?;

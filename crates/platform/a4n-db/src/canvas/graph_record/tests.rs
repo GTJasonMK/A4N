@@ -78,10 +78,10 @@ async fn media_inputs_read_current_reference_metadata_without_persisting_copies(
     use sea_orm::{ActiveModelTrait, Set};
 
     let db = a4n_migration::test_support::connect_test_database().await;
-    let project = crate::project::create_freeform_video_project_record(
+    let project = crate::project::create_canvas_project_record(
         &db,
         1,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: "画布输入资源属性".to_string(),
             description: String::new(),
         },
@@ -244,10 +244,10 @@ async fn media_inputs_read_current_reference_metadata_without_persisting_copies(
 #[tokio::test]
 async fn canvas_graph_save_batches_nodes_and_edges_preserving_chain_order() {
     let db = a4n_migration::test_support::connect_test_database().await;
-    let project = crate::project::create_freeform_video_project_record(
+    let project = crate::project::create_canvas_project_record(
         &db,
         1,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: "画布拓扑批量保存".to_string(),
             description: String::new(),
         },
@@ -369,10 +369,10 @@ async fn canvas_graph_save_batches_nodes_and_edges_preserving_chain_order() {
 #[tokio::test]
 async fn canvas_graph_save_rejects_stale_version_without_replacing_topology() {
     let db = a4n_migration::test_support::connect_test_database().await;
-    let project = crate::project::create_freeform_video_project_record(
+    let project = crate::project::create_canvas_project_record(
         &db,
         1,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: "画布版本冲突".to_string(),
             description: String::new(),
         },

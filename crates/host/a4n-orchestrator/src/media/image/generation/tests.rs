@@ -9,8 +9,8 @@ use a4n_api_contract::manga::MangaReferenceBindingSummary;
 use a4n_db::{
     DatabaseConnection,
     project::{
-        CreateDerivedProjectParams, CreateFreeformVideoProjectParams, DerivedChapterScope,
-        create_derived_project_record, create_freeform_video_project_record,
+        CreateCanvasProjectParams, CreateDerivedProjectParams, DerivedChapterScope,
+        create_canvas_project_record, create_derived_project_record,
     },
 };
 use a4n_db_models::models::{
@@ -313,10 +313,10 @@ async fn setup_context() -> (Arc<DatabaseConnection>, OrchestratorContext, i64) 
 }
 
 async fn insert_project(database: &DatabaseConnection, user_id: i64) -> i64 {
-    create_freeform_video_project_record(
+    create_canvas_project_record(
         database,
         user_id,
-        CreateFreeformVideoProjectParams {
+        CreateCanvasProjectParams {
             title: "Image Generation application 测试项目".to_string(),
             description: String::new(),
         },

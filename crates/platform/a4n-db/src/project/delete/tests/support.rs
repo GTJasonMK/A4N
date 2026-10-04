@@ -18,14 +18,11 @@ pub(super) async fn set_project_gate(
     active.update(db).await.unwrap();
 }
 
-pub(super) async fn freeform_video_project(
-    db: &DatabaseConnection,
-    title: &str,
-) -> novel_project::Model {
-    crate::project::create_freeform_video_project_record(
+pub(super) async fn canvas_project(db: &DatabaseConnection, title: &str) -> novel_project::Model {
+    crate::project::create_canvas_project_record(
         db,
         1,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: title.to_string(),
             description: String::new(),
         },

@@ -139,20 +139,20 @@ mod tests {
     #[tokio::test]
     async fn copies_video_segments_and_links_in_batches() {
         let db = a4n_migration::test_support::connect_test_database().await;
-        let source = crate::project::create_freeform_video_project_record(
+        let source = crate::project::create_canvas_project_record(
             &db,
             1,
-            crate::project::CreateFreeformVideoProjectParams {
+            crate::project::CreateCanvasProjectParams {
                 title: "复制片段源".to_string(),
                 description: String::new(),
             },
         )
         .await
         .unwrap();
-        let target = crate::project::create_freeform_video_project_record(
+        let target = crate::project::create_canvas_project_record(
             &db,
             1,
-            crate::project::CreateFreeformVideoProjectParams {
+            crate::project::CreateCanvasProjectParams {
                 title: "复制片段目标".to_string(),
                 description: String::new(),
             },

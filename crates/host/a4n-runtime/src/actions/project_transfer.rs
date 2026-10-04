@@ -5,10 +5,9 @@ mod package_files;
 mod video_studio_api;
 
 pub use a4n_api_contract::project_transfer::{
-    ExportDerivedProjectDataInput, ExportProjectBundleDataInput, ExportProjectFamilyDataInput,
-    ExportProjectPackageData, ExportVideoStudioProjectDataInput, ImportProjectPackageUploadInput,
-    PROJECT_BUNDLE_PACKAGE_SUFFIX, PROJECT_FAMILY_PACKAGE_SUFFIX,
-    VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
+    CANVAS_PROJECT_PACKAGE_SUFFIX, ExportCanvasProjectDataInput, ExportDerivedProjectDataInput,
+    ExportProjectBundleDataInput, ExportProjectFamilyDataInput, ExportProjectPackageData,
+    ImportProjectPackageUploadInput, PROJECT_BUNDLE_PACKAGE_SUFFIX, PROJECT_FAMILY_PACKAGE_SUFFIX,
 };
 pub use bundle_api::{
     export_project_bundle_data, import_project_bundle_upload, inspect_project_bundle_upload,
@@ -18,6 +17,5 @@ pub use family_api::{
     import_project_family_upload_summaries,
 };
 pub use video_studio_api::{
-    export_video_studio_project_data, import_video_studio_project_upload,
-    import_video_studio_project_upload_summary,
+    export_canvas_project_data, import_canvas_project_upload, import_canvas_project_upload_summary,
 };

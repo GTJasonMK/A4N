@@ -125,7 +125,7 @@ const StatusBarUserWidget: React.FC = () => {
 
 function currentProjectIdFromPath(pathname: string): number | null {
   const match = pathname.match(
-    /^\/(?:novel|write|inspiration|video-project|comic-project|galgame-project)\/(\d+)(?:\/|$)/,
+    /^\/(?:novel|write|inspiration|video-project|canvas-project|comic-project|galgame-project)\/(\d+)(?:\/|$)/,
   );
   if (!match) return null;
   const id = Number(match[1]);
@@ -181,7 +181,7 @@ function RouteContent() {
             element={<VideoProjectWorkspace />}
           />
           <Route
-            path="/video-project/:id/studio"
+            path="/canvas-project/:id"
             element={<VideoStudioCanvasRoute />}
           />
           <Route
@@ -215,7 +215,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   const projectId = currentProjectIdFromPath(location.pathname);
   const dependencyGraphAvailable =
     projectId != null && isPackageVisible("lineage-view") &&
-    !/^\/video-project\/\d+\/studio(?:\/|$)/.test(location.pathname);
+    !/^\/canvas-project\/\d+(?:\/|$)/.test(location.pathname);
   const settingsShortcutAvailable =
     location.pathname !== "/" && location.pathname !== "/settings";
   const agentMonitorAvailable = user != null && location.pathname !== "/agents" && isPackageVisible("agent");

@@ -204,7 +204,7 @@ async fn initialize_runtime_with_ports(
         project_duplication_application: orchestrator.clone(),
         project_family_transfer_application: orchestrator.clone(),
         project_bundle_transfer_application: orchestrator.clone(),
-        video_studio_transfer_application: orchestrator.clone(),
+        canvas_project_transfer_application: orchestrator.clone(),
         chapter_scene_read_application: chapter_scene_worker.clone(),
         chapter_scene_mutation_application: chapter_scene_worker,
         chapter_scene_generation_application: orchestrator.clone(),

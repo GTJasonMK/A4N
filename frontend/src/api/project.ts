@@ -4,7 +4,7 @@ import type {
   AssetDependencyGraph,
   AssetGraphNodeDetail,
   CreateDerivedProjectInput,
-  CreateFreeformVideoProjectInput,
+  CreateCanvasProjectInput,
   CreateStandaloneComicProjectInput,
   CreateProjectInput,
   ExportProjectBundleDataInput,
@@ -29,9 +29,9 @@ import type {
 } from "./generated/host";
 
 export {
+  CANVAS_PROJECT_PACKAGE_SUFFIX,
   PROJECT_BUNDLE_PACKAGE_SUFFIX,
   PROJECT_FAMILY_PACKAGE_SUFFIX,
-  VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
 } from "./generated/host";
 
 export type {
@@ -192,12 +192,22 @@ export async function createDerivedProject(
   });
 }
 
-export async function createFreeformVideoProject(
-  input: CreateFreeformVideoProjectInput,
+export async function createCanvasProject(
+  input: CreateCanvasProjectInput,
 ): Promise<NovelProject> {
-  return apiInvoke<NovelProject>("create_freeform_video_project", {
+  return apiInvoke<NovelProject>("create_canvas_project", {
     input,
   });
+}
+
+export async function importCanvasProjectUpload(
+  input: ImportProjectPackageUploadInput,
+): Promise<NovelProject> {
+  return apiInvoke<NovelProject>("import_canvas_project_upload", { input });
+}
+
+export async function exportCanvasProjectData(input: { project_id: number }): Promise<ExportProjectPackageData> {
+  return apiInvoke<ExportProjectPackageData>("export_canvas_project_data", { input });
 }
 
 export async function createStandaloneComicProject(
@@ -367,14 +377,6 @@ export async function importProjectFamilyUpload(
   input: ImportProjectPackageUploadInput,
 ): Promise<NovelProject[]> {
   return apiInvoke<NovelProject[]>("import_project_family_upload", {
-    input,
-  });
-}
-
-export async function importVideoStudioProjectUpload(
-  input: ImportProjectPackageUploadInput,
-): Promise<NovelProject> {
-  return apiInvoke<NovelProject>("import_video_studio_project_upload", {
     input,
   });
 }

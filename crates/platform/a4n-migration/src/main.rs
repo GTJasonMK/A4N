@@ -41,6 +41,56 @@ async fn run() -> Result<(), String> {
         .await
         .map_err(|err| format!("数据库迁移失败: {err}"))?;
 
-    println!("数据库迁移完成");
+    let command = std::env::args().nth(1);
+    let subcommand = std::env::args().nth(2);
+    match command.as_deref() {
+        Some("canvas-split") => match subcommand.as_deref() {
+            Some("--preflight") => {
+                let report = a4n_migration::migrations::canvas_project_split::preflight(&db)
+                    .await
+                    .map_err(|err| format!("Canvas 拆分预检失败: {err}"))?;
+                println!(
+                    "Canvas 拆分预检：{} 个旧 freeform 项目，{} 个派生视频含画布内容",
+                    report.legacy_freeform_project_ids.len(),
+                    report.derived_projects_with_canvas_ids.len()
+                );
+                println!("旧项目 IDs: {:?}", report.legacy_freeform_project_ids);
+                println!(
+                    "派生项目 IDs: {:?}",
+                    report.derived_projects_with_canvas_ids
+                );
+            }
+            Some("--apply") => {
+                let data_dir = std::env::var_os("A4N_DATA_DIR")
+                    .map(std::path::PathBuf::from)
+                    .ok_or_else(|| "Canvas 拆分 apply 需要设置 A4N_DATA_DIR".to_string())?;
+                let report = a4n_migration::migrations::canvas_project_split::apply(&db, &data_dir)
+                    .await
+                    .map_err(|err| format!("Canvas 拆分执行失败: {err}"))?;
+                println!(
+                    "Canvas 拆分完成：原位转换 {} 个项目，新建 Canvas 项目 {:?}",
+                    report.converted_freeform_projects, report.created_canvas_projects
+                );
+            }
+            Some("--rollback") => {
+                let data_dir = std::env::var_os("A4N_DATA_DIR")
+                    .map(std::path::PathBuf::from)
+                    .ok_or_else(|| "Canvas 拆分 rollback 需要设置 A4N_DATA_DIR".to_string())?;
+                let count =
+                    a4n_migration::migrations::canvas_project_split::rollback(&db, &data_dir)
+                        .await
+                        .map_err(|err| format!("Canvas 拆分回滚失败: {err}"))?;
+                println!("Canvas 拆分已回滚：处理 {} 条迁移映射", count);
+            }
+            _ => {
+                return Err(
+                    "用法：a4n-migration canvas-split --preflight|--apply|--rollback".to_string(),
+                );
+            }
+        },
+        Some(command) => return Err(format!("未知迁移命令: {command}")),
+        None => println!("数据库迁移完成"),
+    }
+
     Ok(())
 }

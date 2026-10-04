@@ -92,10 +92,10 @@ async fn media_cleanup_does_not_fall_back_when_reference_query_fails() {
 #[tokio::test]
 async fn media_path_filter_covers_all_persisted_path_columns() {
     let db = setup_db().await;
-    let project = crate::project::create_freeform_video_project_record(
+    let project = crate::project::create_canvas_project_record(
         &db,
         1,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: "视频路径引用测试".to_string(),
             description: String::new(),
         },
@@ -282,10 +282,10 @@ async fn media_path_filter_covers_all_persisted_path_columns() {
 #[tokio::test]
 async fn media_asset_provenance_failure_rolls_back_asset_insert() {
     let db = setup_db().await;
-    let project = crate::project::create_freeform_video_project_record(
+    let project = crate::project::create_canvas_project_record(
         &db,
         1,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: "媒体事务回滚测试".to_string(),
             description: String::new(),
         },

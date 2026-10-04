@@ -3,9 +3,8 @@ use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{ConnectionTrait, EntityTrait, FromQueryResult, QuerySelect};
 
 use super::GRAPH_KIND_VIDEO_STUDIO;
-use crate::canvas::{CanvasDbError, PROJECT_KIND_COMIC, PROJECT_KIND_VIDEO};
+use crate::canvas::{CanvasDbError, PROJECT_KIND_CANVAS, PROJECT_KIND_COMIC};
 
-const GRAPH_KIND_DERIVED_VIDEO: &str = "derived_video";
 const GRAPH_KIND_TEMPLATE: &str = "template";
 
 #[derive(Debug, Clone, FromQueryResult)]
@@ -33,9 +32,9 @@ where
         .one(db)
         .await?
         .ok_or_else(|| CanvasDbError::NotFound(format!("项目不存在: {project_id}")))?;
-    if project.project_kind != PROJECT_KIND_VIDEO {
+    if project.project_kind != PROJECT_KIND_CANVAS {
         return Err(CanvasDbError::InvalidArgument(
-            "画布工作台当前只支持视频项目".to_string(),
+            "画布工作台当前只支持独立画布项目".to_string(),
         ));
     }
     ProjectSourceMode::from_identity(
@@ -64,9 +63,9 @@ where
         .one(db)
         .await?
         .ok_or_else(|| CanvasDbError::NotFound(format!("项目不存在: {project_id}")))?;
-    if project.project_kind != PROJECT_KIND_VIDEO && project.project_kind != PROJECT_KIND_COMIC {
+    if project.project_kind != PROJECT_KIND_CANVAS && project.project_kind != PROJECT_KIND_COMIC {
         return Err(CanvasDbError::InvalidArgument(
-            "项目文本素材仅支持视频和漫画项目".to_string(),
+            "项目文本素材仅支持画布和漫画项目".to_string(),
         ));
     }
     ProjectSourceMode::from_identity(
@@ -83,7 +82,6 @@ pub(super) fn normalize_canvas_record_graph_kind(
 ) -> Result<&'static str, CanvasDbError> {
     match value.trim() {
         GRAPH_KIND_VIDEO_STUDIO => Ok(GRAPH_KIND_VIDEO_STUDIO),
-        GRAPH_KIND_DERIVED_VIDEO => Ok(GRAPH_KIND_DERIVED_VIDEO),
         GRAPH_KIND_TEMPLATE => Ok(GRAPH_KIND_TEMPLATE),
         other => Err(CanvasDbError::InvalidArgument(format!(
             "未知画布类型: {other}"
@@ -94,20 +92,17 @@ pub(super) fn normalize_canvas_record_graph_kind(
 pub(super) fn default_canvas_record_graph_kind(
     project: &CanvasProjectIdentity,
 ) -> Result<&'static str, CanvasDbError> {
-    match ProjectSourceMode::from_identity(
+    if ProjectSourceMode::from_identity(
         &project.project_kind,
         project.root_project_id,
         project.source_snapshot_id,
     )
     .map_err(|error| CanvasDbError::InvalidArgument(format!("项目 {}: {error}", project.id)))?
+        != ProjectSourceMode::Freeform
     {
-        ProjectSourceMode::Derived => Ok(GRAPH_KIND_DERIVED_VIDEO),
-        ProjectSourceMode::Freeform => Ok(GRAPH_KIND_VIDEO_STUDIO),
-        ProjectSourceMode::Standalone => Err(CanvasDbError::InvalidArgument(
-            "独立漫画项目不支持视频画布".to_string(),
-        )),
-        ProjectSourceMode::Self_ => Err(CanvasDbError::InvalidArgument(
-            "视频画布不支持文本项目".to_string(),
-        )),
+        return Err(CanvasDbError::InvalidArgument(
+            "画布项目来源身份无效".to_string(),
+        ));
     }
+    Ok(GRAPH_KIND_VIDEO_STUDIO)
 }

@@ -7,7 +7,7 @@ use a4n_db::{
         CanvasEdgeRecordInput, CanvasGraphRecordDocument, CanvasGraphRecordInput,
         CanvasNodeRecordInput,
     },
-    project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
+    project::{CreateCanvasProjectParams, create_canvas_project_record},
 };
 use a4n_db_models::models::{
     ai::{generated_image, generated_video},
@@ -188,10 +188,10 @@ fn canvas_video_output_only_consumes_video_target_port() {
 #[tokio::test]
 async fn canvas_output_application_persists_text_image_audio_and_video_artifacts() {
     let (database, context) = setup_context().await;
-    let project = create_freeform_video_project_record(
+    let project = create_canvas_project_record(
         database.as_ref(),
         1,
-        CreateFreeformVideoProjectParams {
+        CreateCanvasProjectParams {
             title: "Canvas Output application 测试".to_string(),
             description: String::new(),
         },
@@ -326,10 +326,10 @@ async fn canvas_output_application_persists_text_image_audio_and_video_artifacts
 #[tokio::test]
 async fn canvas_output_application_marks_workflow_failed_when_artifact_is_missing() {
     let (database, context) = setup_context().await;
-    let project = create_freeform_video_project_record(
+    let project = create_canvas_project_record(
         database.as_ref(),
         1,
-        CreateFreeformVideoProjectParams {
+        CreateCanvasProjectParams {
             title: "Canvas Output failure 测试".to_string(),
             description: String::new(),
         },

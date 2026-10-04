@@ -75,10 +75,9 @@ pub struct ApplicationPorts {
         Arc<dyn a4n_api_contract::project_transfer::ProjectFamilyTransferApplicationPort>,
     pub project_bundle_transfer_application:
         Arc<dyn a4n_api_contract::project_transfer::ProjectBundleTransferApplicationPort>,
-    /// Video-studio package transfer owner. Runtime supplies archive/file
-    /// adapters and receives summaries rather than ORM records.
-    pub video_studio_transfer_application:
-        Arc<dyn a4n_api_contract::project_transfer::VideoStudioProjectTransferApplicationPort>,
+    /// Canvas package transfer owner. Runtime supplies archive/file adapters.
+    pub canvas_project_transfer_application:
+        Arc<dyn a4n_api_contract::project_transfer::CanvasProjectTransferApplicationPort>,
     /// Host-facing chapter scene boundary.
     pub chapter_scene_read_application:
         Arc<dyn a4n_api_contract::chapter::ChapterSceneReadApplicationPort>,

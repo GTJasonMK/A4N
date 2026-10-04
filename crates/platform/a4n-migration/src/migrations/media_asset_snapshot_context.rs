@@ -137,7 +137,7 @@ BEGIN
     SELECT project_row.source_mode INTO project_source_mode
     FROM novel_project project_row
     WHERE project_row.id = NEW.project_id
-      AND project_row.project_kind = 'video';
+      AND project_row.project_kind = 'canvas';
 
     IF project_source_mode = 'freeform' THEN
         IF NEW.root_project_id <> NEW.project_id THEN

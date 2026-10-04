@@ -16,6 +16,9 @@ BEGIN
             (project_kind = 'text'
                 AND root_project_id IS NULL
                 AND source_snapshot_id IS NULL)
+            OR (project_kind = 'canvas'
+                AND root_project_id IS NULL
+                AND source_snapshot_id IS NULL)
             OR (project_kind = 'video'
                 AND root_project_id IS NULL
                 AND source_snapshot_id IS NULL)
@@ -27,6 +30,9 @@ BEGIN
             WHEN project_kind = 'text'
                  AND root_project_id IS NULL
                  AND source_snapshot_id IS NULL THEN 'self'
+            WHEN project_kind = 'canvas'
+                 AND root_project_id IS NULL
+                 AND source_snapshot_id IS NULL THEN 'freeform'
             WHEN project_kind = 'video'
                  AND root_project_id IS NULL
                  AND source_snapshot_id IS NULL THEN 'freeform'

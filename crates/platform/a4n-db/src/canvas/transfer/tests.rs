@@ -41,10 +41,10 @@ fn generation_spec_with_target(
 #[tokio::test]
 async fn video_studio_import_batches_canvas_reference_fixups() {
     let db = a4n_migration::test_support::connect_test_database().await;
-    let project = crate::project::create_freeform_video_project_record(
+    let project = crate::project::create_canvas_project_record(
         &db,
         1,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: "画布引用批量回填".to_string(),
             description: String::new(),
         },
@@ -260,10 +260,10 @@ async fn video_studio_import_batches_canvas_reference_fixups() {
 #[tokio::test]
 async fn video_studio_import_batches_all_media_rows_and_preserves_id_maps() {
     let db = a4n_migration::test_support::connect_test_database().await;
-    let project = crate::project::create_freeform_video_project_record(
+    let project = crate::project::create_canvas_project_record(
         &db,
         1,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: "画布媒体批量导入".to_string(),
             description: String::new(),
         },
@@ -634,10 +634,10 @@ async fn video_studio_import_batches_canvas_text_assets_and_preserves_mapping_or
 #[tokio::test]
 async fn video_studio_import_batches_canvas_topology_and_builds_id_maps() {
     let db = a4n_migration::test_support::connect_test_database().await;
-    let project = crate::project::create_freeform_video_project_record(
+    let project = crate::project::create_canvas_project_record(
         &db,
         1,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: "画布拓扑批量导入".to_string(),
             description: String::new(),
         },
@@ -812,10 +812,10 @@ async fn video_studio_import_batches_canvas_topology_and_builds_id_maps() {
 #[tokio::test]
 async fn video_studio_import_batches_generated_video_source_ref_updates() {
     let db = a4n_migration::test_support::connect_test_database().await;
-    let project = crate::project::create_freeform_video_project_record(
+    let project = crate::project::create_canvas_project_record(
         &db,
         1,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: "生成视频来源批量回填".to_string(),
             description: String::new(),
         },
@@ -879,10 +879,10 @@ async fn video_studio_import_batches_generated_video_source_ref_updates() {
 #[tokio::test]
 async fn video_studio_import_batches_video_segments_and_chain_updates() {
     let db = a4n_migration::test_support::connect_test_database().await;
-    let project = crate::project::create_freeform_video_project_record(
+    let project = crate::project::create_canvas_project_record(
         &db,
         1,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: "视频片段批量导入".to_string(),
             description: String::new(),
         },
@@ -934,10 +934,10 @@ async fn video_studio_import_batches_video_segments_and_chain_updates() {
 #[tokio::test]
 async fn video_studio_import_batches_assembly_timelines_and_clips() {
     let db = a4n_migration::test_support::connect_test_database().await;
-    let project = crate::project::create_freeform_video_project_record(
+    let project = crate::project::create_canvas_project_record(
         &db,
         1,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: "成片批量导入".to_string(),
             description: String::new(),
         },

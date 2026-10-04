@@ -80,6 +80,7 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
     text: t("novel.textProject"),
     comic: t("novel.comicProject"),
     video: t("novel.videoProject"),
+    canvas: t("video.canvasProject"),
     galgame: t("novel.galgameProject"),
   };
   const accessScopeLabels: Record<ProjectAccessScope, string> = {

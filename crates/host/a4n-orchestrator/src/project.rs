@@ -1,4 +1,3 @@
-pub(crate) use a4n_db::project::PROJECT_KIND_TEXT;
 pub(crate) use a4n_db::project::family::import::{
     ProjectFamilyImportPackage, snapshot_profile_key,
 };
@@ -8,6 +7,7 @@ pub(crate) use a4n_db::project::{
     SOURCE_SYNC_CURRENT, is_valid_source_sync_status, normalize_derived_project_kind,
     normalize_project_kind, normalize_project_type,
 };
+pub(crate) use a4n_db::project::{PROJECT_KIND_CANVAS, PROJECT_KIND_TEXT};
 pub(crate) use a4n_db::project::{
     ProjectFamilyContext, ProjectFamilyMetadata, ProjectFamilyMetadataQuery, ProjectProgressQuery,
 };
@@ -53,11 +53,11 @@ mod video_studio_package;
 mod video_studio_transfer;
 
 pub(crate) use a4n_api_contract::project_transfer::{
+    CanvasProjectTransferApplicationPort, ExportCanvasProjectApplicationInput,
     ExportDerivedProjectPackageApplicationInput, ExportProjectFamilyPackageApplicationInput,
-    ExportVideoStudioProjectApplicationInput, ExportedProjectPackage,
-    ImportProjectPackageApplicationInput, MediaFileEntry, ProjectFamilyTransferApplicationPort,
-    ProjectPackageTransferError, ProjectPackageTransferHostPort,
-    VideoStudioProjectTransferApplicationPort,
+    ExportedProjectPackage, ImportProjectPackageApplicationInput, MediaFileEntry,
+    ProjectFamilyTransferApplicationPort, ProjectPackageTransferError,
+    ProjectPackageTransferHostPort,
 };
 #[cfg(test)]
 pub(crate) use family_package::PROJECT_FAMILY_PACKAGE_VERSION;
@@ -68,7 +68,6 @@ pub(crate) use family_package::{
     assemble_project_family_export_package, family_media_package_path,
     validate_media_manifest as validate_family_media_manifest,
     validate_package_manifest as validate_family_package_manifest,
-    validate_package_manifest_with_canvas as validate_family_package_manifest_with_canvas,
 };
 pub(crate) use family_transfer::{
     imported_project_family_media_path, project_family_export_media_files,
@@ -88,9 +87,8 @@ pub(crate) use package_rules::{ImportMediaPayload, media_asset_path, media_file_
 pub(crate) use package_rules::{
     collect_unique_ids, hash_json, hash_text, is_valid_snapshot_outline_kind,
     is_valid_snapshot_profile_kind, parse_chapter_scope_json, required_package_extension,
-    required_path_extension, sha256_bytes, validate_freeform_video_project,
-    validate_import_unique_ids, validate_import_unique_key_strings,
-    validate_snapshot_payload_identity,
+    required_path_extension, sha256_bytes, validate_canvas_project, validate_import_unique_ids,
+    validate_import_unique_key_strings, validate_snapshot_payload_identity,
 };
 pub(crate) use package_transfer::{
     import_result_with_file_rollback, index_import_media_payload, project_package_export_input,
@@ -98,15 +96,15 @@ pub(crate) use package_transfer::{
 
 pub(crate) use bundle::{
     MANIFEST_PATH as PROJECT_BUNDLE_MANIFEST_PATH, ProjectBundlePackage, ProjectBundleProviderSlot,
-    add_canvas_provider_slot, assemble_project_bundle,
+    add_canvas_provider_slot, assemble_project_bundle, validate_provider_slots,
 };
 
 pub(crate) use video_studio_package::{MANIFEST_PATH, VideoStudioProjectPackage};
 #[cfg(test)]
 pub(crate) use video_studio_package::{PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION};
 pub(crate) use video_studio_package::{
-    assemble_video_studio_export_package, assemble_video_studio_project_canvas_package,
-    validate_package_manifest,
+    assemble_video_studio_export_package,
+    validate_package_manifest as validate_canvas_package_manifest,
 };
 pub(crate) use video_studio_transfer::video_studio_export_media_files;
 

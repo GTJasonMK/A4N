@@ -12,7 +12,7 @@ use crate::{
     OrchestratorContext,
     canvas::{CanvasImageMediaAssetEnsureInput, CanvasVideoMediaAssetEnsureInput},
     media::MEDIA_ORIGIN_IMPORTED,
-    project::PROJECT_KIND_VIDEO,
+    project::PROJECT_KIND_CANVAS,
 };
 
 impl OrchestratorContext {
@@ -129,9 +129,9 @@ impl OrchestratorContext {
             .project_by_id(project_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
-        if project.project_kind != PROJECT_KIND_VIDEO {
+        if project.project_kind != PROJECT_KIND_CANVAS {
             return Err(AppError::InvalidArgument(
-                "画布媒体导入只支持视频项目".to_string(),
+                "画布媒体导入只支持独立画布项目".to_string(),
             ));
         }
         if require_freeform
@@ -140,7 +140,7 @@ impl OrchestratorContext {
             })? != a4n_domain::project::ProjectSourceMode::Freeform
         {
             return Err(AppError::InvalidArgument(
-                "画布音频导入只支持自由视频项目".to_string(),
+                "画布音频导入只支持独立画布项目".to_string(),
             ));
         }
         Ok(project)

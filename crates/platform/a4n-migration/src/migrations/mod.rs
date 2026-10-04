@@ -17,6 +17,7 @@ pub mod canvas_assemble_clip_order;
 pub mod canvas_assemble_edge_role;
 pub mod canvas_extract_frame_contract;
 pub mod canvas_node_ref_contract_cleanup;
+pub mod canvas_project_split;
 pub mod canvas_text_asset_versions;
 pub mod canvas_trim_contract;
 pub mod chapter_outline_provenance;

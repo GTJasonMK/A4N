@@ -127,6 +127,8 @@ export const videoCore = {
   noSourceChapter: "当前视频项目没有可用的来源章节。",
   loadCanvas: "加载画布",
   canvasProject: "视频画布",
+  notCanvasProject: "当前项目不是独立画布项目",
+  canvasWrongGraphKind: "当前画布图类型无效，请先迁移到独立画布项目",
   canvasWorkspace: "视频画布编辑区",
   emptyCanvas: "空画布",
   viewOnlyWorkflow: "只能查看现有工作流。",

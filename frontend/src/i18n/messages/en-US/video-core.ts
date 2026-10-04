@@ -127,6 +127,8 @@ export const videoCore = {
   noSourceChapter: "This video project has no available source chapters.",
   loadCanvas: "Load canvas",
   canvasProject: "Video canvas",
+  notCanvasProject: "This project is not an independent canvas project",
+  canvasWrongGraphKind: "The canvas graph type is invalid; migrate it to an independent canvas project",
   canvasWorkspace: "Video canvas editor",
   emptyCanvas: "Empty canvas",
   viewOnlyWorkflow: "You can only view the existing workflow.",

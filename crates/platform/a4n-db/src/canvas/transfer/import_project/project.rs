@@ -1,5 +1,5 @@
 use super::super::{SOURCE_SYNC_CURRENT, types::VideoStudioProjectImportError};
-use crate::canvas::PROJECT_KIND_VIDEO;
+use crate::canvas::PROJECT_KIND_CANVAS;
 use a4n_db_models::models::project::novel_project;
 use a4n_domain::project::ProjectRecord;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
@@ -18,7 +18,7 @@ where
         title: Set(source.title.clone()),
         description: Set(source.description.clone()),
         project_type: Set(source.project_type.clone()),
-        project_kind: Set(PROJECT_KIND_VIDEO.to_string()),
+        project_kind: Set(PROJECT_KIND_CANVAS.to_string()),
         root_project_id: Set(None),
         source_snapshot_id: Set(None),
         source_sync_status: Set(SOURCE_SYNC_CURRENT.to_string()),

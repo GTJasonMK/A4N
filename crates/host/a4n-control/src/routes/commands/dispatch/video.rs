@@ -1,8 +1,8 @@
 use super::super::{
     ApiError, ServerState, add_video_config, assemble_chapter_videos,
     commit_inserted_segment_draft, delete_chapter_video_prompt, delete_inserted_segment,
-    delete_video, detect_video_config_models, export_video_studio_project_data,
-    get_chapter_video_timeline, import_video_studio_project_upload, list_chapter_video_prompts,
+    delete_video, detect_video_config_models, export_canvas_project_data,
+    get_chapter_video_timeline, import_canvas_project_upload, list_chapter_video_prompts,
     list_video_configs, list_video_reference_images, list_videos_by_chapter,
     load_cached_assembled_chapter_video_preview, load_video_playback_data,
     load_video_scrub_playback_data, load_video_segment_plan_draft, move_inserted_segment,
@@ -87,11 +87,9 @@ pub(super) async fn try_dispatch(
         "preview_reference_media_video_request" => {
             preview_reference_media_video_request(state, user_id, args).await?
         }
-        "export_video_studio_project_data" => {
-            export_video_studio_project_data(state, user_id, args).await?
-        }
-        "import_video_studio_project_upload" => {
-            import_video_studio_project_upload(state, user_id, args).await?
+        "export_canvas_project_data" => export_canvas_project_data(state, user_id, args).await?,
+        "import_canvas_project_upload" => {
+            import_canvas_project_upload(state, user_id, args).await?
         }
         _ => return Ok(None),
     };

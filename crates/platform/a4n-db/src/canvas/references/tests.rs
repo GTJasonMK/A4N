@@ -25,10 +25,10 @@ fn missing_image_cleanup_removes_only_deleted_generated_image_refs() {
 #[tokio::test]
 async fn canvas_reference_cleanup_batches_missing_image_and_video_nodes() {
     let db = a4n_migration::test_support::connect_test_database().await;
-    let project = crate::project::create_freeform_video_project_record(
+    let project = crate::project::create_canvas_project_record(
         &db,
         1,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: "画布缺失引用批量清理".to_string(),
             description: String::new(),
         },

@@ -21,7 +21,7 @@ BEGIN
         RAISE EXCEPTION '媒体资产 project_id 不存在';
     END IF;
 
-    IF project_kind = 'video'
+    IF project_kind = 'canvas'
        AND project_root_project_id IS NULL
        AND project_source_snapshot_id IS NULL THEN
         IF NEW.root_project_id <> NEW.project_id THEN

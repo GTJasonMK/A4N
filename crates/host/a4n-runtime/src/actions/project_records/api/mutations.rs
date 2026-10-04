@@ -2,7 +2,7 @@ use super::super::reset::reset_generated_data;
 use crate::AppState;
 use crate::actions::access;
 use a4n_api_contract::project::{
-    CreateDerivedProjectInput, CreateFreeformVideoProjectInput, CreateProjectInput,
+    CreateCanvasProjectInput, CreateDerivedProjectInput, CreateProjectInput,
     CreateStandaloneComicProjectInput, ProjectGeneratedDataResetResponse, ProjectSummary,
     UpdateProjectInput,
 };
@@ -33,17 +33,16 @@ pub async fn create_derived_project(
     Ok(project)
 }
 
-pub async fn create_freeform_video_project(
+pub async fn create_canvas_project(
     state: &AppState,
     user_id: i64,
-    input: CreateFreeformVideoProjectInput,
+    input: CreateCanvasProjectInput,
 ) -> Result<ProjectSummary, String> {
-    let project = state
+    state
         .project_mutation_application()
-        .create_freeform_video(user_id, input)
+        .create_canvas(user_id, input)
         .await
-        .map_err(|error| error.to_string())?;
-    Ok(project)
+        .map_err(|error| error.to_string())
 }
 
 pub async fn create_standalone_comic_project(

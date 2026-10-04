@@ -8,9 +8,7 @@ use a4n_db_models::models::{
 };
 
 use super::super::{ProjectDeleteDbError, delete_project_cascade_record};
-use super::support::{
-    freeform_video_project, generated_image_with_asset, set_project_gate, setup_db,
-};
+use super::support::{canvas_project, generated_image_with_asset, set_project_gate, setup_db};
 
 #[tokio::test]
 async fn project_delete_removes_canvas_dependencies_only_in_its_project() {
@@ -21,7 +19,7 @@ async fn project_delete_removes_canvas_dependencies_only_in_its_project() {
     use serde_json::json;
     let db = setup_db().await;
     let (root, project) = super::support::root_with_video_derivative(&db).await;
-    let other = freeform_video_project(&db, "保留的画布").await;
+    let other = canvas_project(&db, "保留的画布").await;
     let now = chrono::Utc::now().naive_utc();
     let mut graphs = Vec::new();
     for project_id in [project.id, other.id] {
@@ -146,7 +144,7 @@ async fn project_delete_removes_canvas_dependencies_only_in_its_project() {
 #[tokio::test]
 async fn project_cascade_rolls_back_when_final_project_delete_fails() {
     let db = setup_db().await;
-    let project = freeform_video_project(&db, "项目删除事务回滚测试").await;
+    let project = canvas_project(&db, "项目删除事务回滚测试").await;
     let (image, asset) = generated_image_with_asset(&db, project.id, "rollback-image.png").await;
     let function_name = format!("a4n_test_block_project_delete_{}", project.id);
     let trigger_name = format!("a4n_test_block_project_delete_trigger_{}", project.id);
@@ -231,7 +229,7 @@ async fn project_cascade_rolls_back_when_final_project_delete_fails() {
 #[tokio::test]
 async fn project_delete_commits_cleanup_intent_with_media_paths() {
     let db = setup_db().await;
-    let project = freeform_video_project(&db, "项目删除 cleanup outbox 测试").await;
+    let project = canvas_project(&db, "项目删除 cleanup outbox 测试").await;
     let (image, _) = generated_image_with_asset(&db, project.id, "cleanup-outbox.png").await;
 
     set_project_gate(

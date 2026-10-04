@@ -183,10 +183,10 @@ pub trait ProjectMutationApplicationPort: Send + Sync {
         input: CreateDerivedProjectInput,
     ) -> Result<ProjectSummary, a4n_error::AppError>;
 
-    async fn create_freeform_video(
+    async fn create_canvas(
         &self,
         user_id: i64,
-        input: CreateFreeformVideoProjectInput,
+        input: CreateCanvasProjectInput,
     ) -> Result<ProjectSummary, a4n_error::AppError>;
 
     async fn create_standalone_comic(
@@ -230,7 +230,7 @@ pub struct CreateProjectInput {
 
 #[derive(Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct CreateFreeformVideoProjectInput {
+pub struct CreateCanvasProjectInput {
     pub title: String,
     pub description: Option<String>,
 }

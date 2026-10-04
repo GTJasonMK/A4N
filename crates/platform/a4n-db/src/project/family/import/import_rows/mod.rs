@@ -125,7 +125,6 @@ pub(super) async fn insert_media_project_rows<Importer: ProjectFamilyMediaFileIm
 ) -> Result<(), ProjectFamilyImportError> {
     insert_visual_plan_rows(user_id, txn, package, maps).await?;
     authoring::insert_authoring_document_rows(txn, package, maps).await?;
-    canvas::insert_canvas_rows(txn, package, maps).await?;
     insert_galgame_rows(txn, package, maps).await?;
     insert_manga_rows(txn, package, maps, media_importer).await?;
     insert_video_generation_rows(txn, package, maps, media_importer).await?;
@@ -152,12 +151,10 @@ pub(super) async fn insert_media_project_rows<Importer: ProjectFamilyMediaFileIm
         }
     );
     insert_source_sync_rows(txn, package, maps).await?;
-    canvas::finish_canvas_rows(txn, package, maps).await?;
     Ok(())
 }
 
 mod authoring;
-mod canvas;
 mod root_text;
 pub(super) use root_text::insert_scene_profiles;
 use root_text::*;

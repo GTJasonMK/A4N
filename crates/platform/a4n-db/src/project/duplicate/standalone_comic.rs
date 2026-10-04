@@ -41,6 +41,7 @@ pub async fn duplicate_standalone_comic_project_record(
         ProjectCopyInsert {
             user_id,
             title: new_title.to_string(),
+            project_kind: original.project_kind.clone(),
             root_project_id: None,
             source_snapshot_id: None,
             status: original.status.clone(),

@@ -11,7 +11,7 @@ use a4n_api_contract::portrait::{
 };
 use a4n_db::{
     DatabaseConnection,
-    project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
+    project::{CreateCanvasProjectParams, create_canvas_project_record},
 };
 use a4n_db_models::models::{
     ai::generated_image,
@@ -171,10 +171,10 @@ async fn insert_project_and_profile(
     a4n_db_models::models::project::novel_project::Model,
     a4n_db_models::models::character::protagonist_profile::Model,
 ) {
-    let project = create_freeform_video_project_record(
+    let project = create_canvas_project_record(
         database,
         1,
-        CreateFreeformVideoProjectParams {
+        CreateCanvasProjectParams {
             title: "Portrait application 测试项目".to_string(),
             description: String::new(),
         },

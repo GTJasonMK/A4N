@@ -91,7 +91,11 @@ export const createProjectActions = (
       ? [
           ...(textProjectActions.length ? [{ type: "divider" as const }] : []),
           ...(isPackageVisible("export") ? [{
-            label: project.project_kind === "text" ? t("novel.exportFamily") : t("novel.exportDerived"),
+            label: project.project_kind === "text"
+              ? t("novel.exportFamily")
+              : project.project_kind === "canvas"
+                ? t("video.canvasProject")
+                : t("novel.exportDerived"),
             icon: <Download size={14} />,
             onClick: () => handlers.onExport(project),
           }, { type: "divider" as const }] : []),

@@ -247,8 +247,8 @@ use a4n_api_contract::{
     },
     project::{
         AssetDependencyGraph, AssetGraphEdge, AssetGraphLayer, AssetGraphNode,
-        AssetGraphNodeDetail, AssetLineageRecord, AssetLineageRef, CreateDerivedProjectInput,
-        CreateFreeformVideoProjectInput, CreateProjectInput, CreateStandaloneComicProjectInput,
+        AssetGraphNodeDetail, AssetLineageRecord, AssetLineageRef, CreateCanvasProjectInput,
+        CreateDerivedProjectInput, CreateProjectInput, CreateStandaloneComicProjectInput,
         DuplicateProjectInput, GenerationInputSource, PaginatedProjects,
         ProjectGeneratedDataResetResponse, ProjectGeneratedDataResetStatus,
         ProjectGeneratedDataResetSummary, ProjectKind, ProjectProgressSummary,
@@ -257,11 +257,10 @@ use a4n_api_contract::{
         SourceSnapshotChapterSummary, UpdateProjectInput,
     },
     project_transfer::{
-        ExportDerivedProjectDataInput, ExportProjectBundleDataInput, ExportProjectFamilyDataInput,
-        ExportProjectPackageData, ExportVideoStudioProjectDataInput,
+        CANVAS_PROJECT_PACKAGE_SUFFIX, ExportCanvasProjectDataInput, ExportDerivedProjectDataInput,
+        ExportProjectBundleDataInput, ExportProjectFamilyDataInput, ExportProjectPackageData,
         ImportProjectPackageUploadInput, PROJECT_BUNDLE_PACKAGE_SUFFIX,
         PROJECT_FAMILY_PACKAGE_SUFFIX, ProjectBundleImportReport, ProjectBundleProviderSlotReport,
-        VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
     },
     prompt::{
         AbRenderResult, CategoryInfo, ProjectPromptOverrideSummary, PromptEntrySummary,
@@ -526,7 +525,7 @@ fn typescript_project_package_suffixes() -> String {
     format!(
         "export const PROJECT_BUNDLE_PACKAGE_SUFFIX = {PROJECT_BUNDLE_PACKAGE_SUFFIX:?};\n\
          export const PROJECT_FAMILY_PACKAGE_SUFFIX = {PROJECT_FAMILY_PACKAGE_SUFFIX:?};\n\
-         export const VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX = {VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX:?};\n\n"
+         export const CANVAS_PROJECT_PACKAGE_SUFFIX = {CANVAS_PROJECT_PACKAGE_SUFFIX:?};\n\n"
     )
 }
 

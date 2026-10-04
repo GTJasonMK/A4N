@@ -14,20 +14,18 @@ use a4n_db::project::bundle::{
 use a4n_db::project::family::import::{
     ProjectFamilyMediaFileImporter, ProjectFamilyMediaImportError,
 };
-use chrono::Utc;
 use sha2::{Digest, Sha256};
 
 use super::super::OrchestratorContext;
 use crate::project::{
     ExportedProjectPackage as InternalExportedProjectPackage, ImportMediaPayload,
-    PROJECT_BUNDLE_MANIFEST_PATH, ProjectBundlePackage, ProjectFamilyPackage,
-    ProjectPackageTransferError as InternalTransferError, assemble_project_bundle,
-    assemble_project_family_export_package, assemble_video_studio_project_canvas_package,
-    imported_project_family_media_path, index_import_media_payload, media_file_key,
-    project_family_export_media_files, project_package_export_input, required_package_extension,
-    validate_family_media_manifest, validate_family_package_manifest_with_canvas,
-    validate_package_manifest as validate_video_studio_package_manifest,
-    video_studio_export_media_files,
+    PROJECT_BUNDLE_MANIFEST_PATH, ProjectBundlePackage, ProjectBundleProviderSlot,
+    ProjectFamilyPackage, ProjectPackageTransferError as InternalTransferError,
+    VideoStudioProjectPackage, assemble_project_bundle, assemble_project_family_export_package,
+    assemble_video_studio_export_package, imported_project_family_media_path,
+    index_import_media_payload, media_file_key, project_family_export_media_files,
+    project_package_export_input, required_package_extension, validate_canvas_package_manifest,
+    validate_family_media_manifest, validate_family_package_manifest,
 };
 use a4n_domain::collaboration::ProjectAccessRole;
 
@@ -50,7 +48,7 @@ impl OrchestratorContext {
                 InternalTransferError::Message(format!("项目不存在: {}", input.project_id))
             })?;
 
-        let (family, family_project_ids, mut canvas_projects, standalone_comics, mut media_files) =
+        let (family, family_project_ids, standalone_comics, mut media_files) =
             if project.project_kind == crate::project::PROJECT_KIND_TEXT {
                 let selection = self
                     .project_family
@@ -79,7 +77,7 @@ impl OrchestratorContext {
                     media.clone(),
                 )?;
                 let project_ids = package_project_ids(&package);
-                (Some(package), project_ids, Vec::new(), Vec::new(), media)
+                (Some(package), project_ids, Vec::new(), media)
             } else if project.project_kind == "comic" && project.root_project_id.is_none() {
                 let comic = a4n_db::project::bundle::export_standalone_comic_project_bundle(
                     self.database.connection(),
@@ -87,7 +85,7 @@ impl OrchestratorContext {
                 )
                 .await
                 .map_err(|error| InternalTransferError::Message(error.to_string()))?;
-                (None, Vec::new(), Vec::new(), vec![comic], Vec::new())
+                (None, Vec::new(), vec![comic], Vec::new())
             } else if project.root_project_id.is_some() {
                 let selection = self
                     .project_family
@@ -116,47 +114,29 @@ impl OrchestratorContext {
                     media.clone(),
                 )?;
                 let project_ids = package_project_ids(&package);
-                (Some(package), project_ids, Vec::new(), Vec::new(), media)
+                (Some(package), project_ids, Vec::new(), media)
             } else {
-                (None, Vec::new(), Vec::new(), Vec::new(), Vec::new())
+                (None, Vec::new(), Vec::new(), Vec::new())
             };
 
-        let canvas_owner_projects = if let Some(family) = &family {
-            family
-                .projects
-                .iter()
-                .filter(|project| project.project_kind == "video")
-                .cloned()
-                .collect()
-        } else if project.project_kind == "video" {
-            vec![project.clone()]
-        } else {
-            Vec::new()
-        };
-        for canvas_project in canvas_owner_projects {
-            let mut rows = self
-                .canvas
-                .video_studio_project_export_rows(canvas_project.id)
-                .await?;
-            if family.is_some() {
-                rows = a4n_db::canvas::VideoStudioProjectExportRows {
-                    canvas_graphs: rows.canvas_graphs,
-                    canvas_nodes: rows.canvas_nodes,
-                    canvas_edges: rows.canvas_edges,
-                    canvas_text_assets: rows.canvas_text_assets,
-                    ..Default::default()
-                };
+        let mut canvas_projects = Vec::new();
+        if project.project_kind == crate::project::PROJECT_KIND_CANVAS {
+            if project.root_project_id.is_some() || project.source_snapshot_id.is_some() {
+                return Err(InternalTransferError::Message(
+                    "Canvas 项目不能属于项目族或源快照".to_string(),
+                ));
             }
-            let mut canvas_media = video_studio_export_media_files(&rows)?;
-            let prefix = format!("canvas/{}/", canvas_project.id);
+            let rows = self
+                .canvas
+                .video_studio_project_export_rows(project.id)
+                .await?;
+            let mut canvas_media = crate::project::video_studio_export_media_files(&rows)?;
+            let prefix = format!("canvas/{}/", project.id);
             for entry in &mut canvas_media {
                 entry.package_path = format!("{prefix}{}", entry.package_path);
             }
-            let mut canvas_package = assemble_video_studio_project_canvas_package(
-                canvas_project,
-                rows,
-                canvas_media.clone(),
-            )?;
+            let mut canvas_package =
+                assemble_video_studio_export_package(project.clone(), rows, canvas_media.clone())?;
             canvas_package.media_files = canvas_media.clone();
             media_files.extend(canvas_media);
             canvas_projects.push(canvas_package);
@@ -209,6 +189,18 @@ impl OrchestratorContext {
         &self,
         package: &mut ProjectBundlePackage,
     ) -> Result<(), InternalTransferError> {
+        let slots = self.canvas_provider_slots(&package.canvas_projects).await?;
+        package.provider_slots.extend(slots);
+        Ok(())
+    }
+
+    pub(super) async fn canvas_provider_slots(
+        &self,
+        canvas_projects: &[VideoStudioProjectPackage],
+    ) -> Result<Vec<ProjectBundleProviderSlot>, InternalTransferError> {
+        if canvas_projects.is_empty() {
+            return Ok(Vec::new());
+        }
         let (llm, image, video) = tokio::try_join!(
             list_llm_config_records(self.database.connection()),
             list_image_config_records(self.database.connection()),
@@ -217,7 +209,7 @@ impl OrchestratorContext {
         .map_err(|error| InternalTransferError::Message(error.to_string()))?;
 
         let mut descriptors = Vec::new();
-        for canvas in &package.canvas_projects {
+        for canvas in canvas_projects {
             for node in &canvas.canvas_nodes {
                 let (capability, config_key) = match node.node_kind.as_str() {
                     "LlmTextNode" => ("llm", "llm_config_id"),
@@ -291,13 +283,20 @@ impl OrchestratorContext {
                 }
             }
         }
+        let mut provider_slots = Vec::new();
         for (config_id, capability, provider, backend, model, base_url) in descriptors {
             crate::project::add_canvas_provider_slot(
-                package, config_id, capability, provider, backend, model, base_url,
+                &mut provider_slots,
+                config_id,
+                capability,
+                provider,
+                backend,
+                model,
+                base_url,
             )
             .map_err(InternalTransferError::Message)?;
         }
-        Ok(())
+        Ok(provider_slots)
     }
 
     async fn read_project_bundle<Host>(
@@ -366,24 +365,7 @@ impl OrchestratorContext {
 
             if let Some(family) = package.family.clone() {
                 let old_projects = family.projects.clone();
-                let mut family_rows = family.into_import_package();
-                for mut canvas in package
-                    .canvas_projects
-                    .iter()
-                    .filter(|canvas| {
-                        old_projects
-                            .iter()
-                            .any(|project| project.id == canvas.project.id)
-                    })
-                    .cloned()
-                {
-                    remap_canvas_provider_slots(
-                        &mut canvas,
-                        &package.provider_slots,
-                        &provider_resolutions,
-                    );
-                    family_rows.canvas_projects.push(canvas.into_import_rows());
-                }
+                let family_rows = family.into_import_package();
                 let mut writer = BundleFamilyMediaWriter {
                     host_port,
                     media_payload: &family_payload,
@@ -448,10 +430,6 @@ impl OrchestratorContext {
             }
 
             for mut canvas in package.canvas_projects.clone() {
-                if let Some(new_project_id) = imported_project_ids.get(&canvas.project.id) {
-                    root_project_ids.insert(canvas.project.id, *new_project_id);
-                    continue;
-                }
                 remap_canvas_provider_slots(
                     &mut canvas,
                     &package.provider_slots,
@@ -470,7 +448,7 @@ impl OrchestratorContext {
                         .import_video_studio_package(
                             user_id,
                             canvas,
-                            Utc::now().naive_utc(),
+                            chrono::Utc::now().naive_utc(),
                             &mut writer,
                         )
                         .await?
@@ -546,14 +524,20 @@ impl OrchestratorContext {
         &self,
         package: &ProjectBundlePackage,
     ) -> Result<HashMap<String, Option<i64>>, InternalTransferError> {
+        self.resolve_provider_slots(&package.provider_slots).await
+    }
+
+    pub(super) async fn resolve_provider_slots(
+        &self,
+        provider_slots: &[ProjectBundleProviderSlot],
+    ) -> Result<HashMap<String, Option<i64>>, InternalTransferError> {
         let (llm, image, video) = tokio::try_join!(
             list_llm_config_records(self.database.connection()),
             list_image_config_records(self.database.connection()),
             list_video_config_records(self.database.connection()),
         )
         .map_err(|error| InternalTransferError::Message(error.to_string()))?;
-        Ok(package
-            .provider_slots
+        Ok(provider_slots
             .iter()
             .map(|slot| {
                 let model_matches = |model: &str| slot.model.as_deref() == Some(model);
@@ -674,8 +658,7 @@ fn validate_bundle_media(
     }
     let family_payload = if let Some(family) = &package.family {
         let payload = scoped_import_media_payload(&family.media_files, media_bytes)?;
-        validate_family_package_manifest_with_canvas(family, &package.canvas_projects)
-            .map_err(InternalTransferError::Message)?;
+        validate_family_package_manifest(family).map_err(InternalTransferError::Message)?;
         validate_family_media_manifest(family, &payload).map_err(InternalTransferError::Message)?;
         payload
     } else {
@@ -702,16 +685,8 @@ fn validate_bundle_media(
                 .map(|entry| entry.package_path.as_str()),
         );
         let payload = scoped_import_media_payload(&canvas.media_files, media_bytes)?;
-        let family_owned = package.family.as_ref().is_some_and(|family| {
-            family
-                .projects
-                .iter()
-                .any(|project| project.id == canvas.project.id)
-        });
-        if !family_owned {
-            validate_video_studio_package_manifest(canvas, &payload)
-                .map_err(InternalTransferError::Message)?;
-        }
+        validate_canvas_package_manifest(canvas, &payload)
+            .map_err(InternalTransferError::Message)?;
         canvas_payloads.insert(canvas.project.id, payload);
     }
     if nested_paths != root_paths {
@@ -795,7 +770,7 @@ fn provider_slot_reports_from_resolutions(
         .collect()
 }
 
-fn remap_canvas_provider_slots(
+pub(super) fn remap_canvas_provider_slots(
     package: &mut crate::project::VideoStudioProjectPackage,
     provider_slots: &[crate::project::ProjectBundleProviderSlot],
     resolutions: &HashMap<String, Option<i64>>,

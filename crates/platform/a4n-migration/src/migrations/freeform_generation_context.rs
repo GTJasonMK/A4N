@@ -95,10 +95,10 @@ BEGIN
         IF NOT EXISTS (
             SELECT 1 FROM novel_project project_row
             WHERE project_row.id = NEW.project_id
-              AND project_row.project_kind = 'video'
+              AND project_row.project_kind = 'canvas'
               AND project_row.source_mode = 'freeform'
         ) THEN
-            RAISE EXCEPTION 'freeform 生成意图必须属于自由视频项目';
+            RAISE EXCEPTION 'freeform 生成意图必须属于独立 Canvas 项目';
         END IF;
         IF NEW.root_project_id <> NEW.project_id THEN
             RAISE EXCEPTION 'freeform 生成意图 root_project_id 必须等于 project_id';

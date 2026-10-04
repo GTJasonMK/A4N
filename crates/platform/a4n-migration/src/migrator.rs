@@ -143,6 +143,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::standalone_comic_project::Migration),
             Box::new(crate::migrations::canvas_text_asset_versions::Migration),
             Box::new(crate::migrations::standalone_comic_text_sources::Migration),
+            Box::new(crate::migrations::canvas_project_split::Migration),
         ]
     }
 }

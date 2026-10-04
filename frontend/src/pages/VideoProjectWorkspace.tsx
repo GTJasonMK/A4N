@@ -9,7 +9,7 @@ import React, {
   useState,
 } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Film, GitCompare, Layers3, RefreshCw } from "lucide-react";
+import { Film, GitCompare, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import {
   getProject,
@@ -25,12 +25,8 @@ import { BackButton } from "../components/ui/BackButton";
 import { DerivedProjectHeader } from "../components/shell/DerivedProjectHeader";
 import { EmptyHint, type ChapterRow } from "./novel-detail/shared";
 import { VideoTab } from "./novel-detail/VideoTab";
-import {
-  getDerivedProjectSubtitle,
-  getProjectStudioRoute,
-} from "../utils/projectRouting";
+import { getDerivedProjectSubtitle } from "../utils/projectRouting";
 import { formatNumber, useI18n } from "../i18n";
-import { usePackagePreferences } from "../store/packagePreferences";
 import { useNovelDetailDirtyRegistry } from "./novel-detail/novelDetailDirty";
 import { UnsavedNavigationGuard } from "../components/navigation/UnsavedNavigationGuard";
 
@@ -41,7 +37,6 @@ const SourceSyncDialog = lazy(() =>
 );
 
 export const VideoProjectWorkspace: React.FC = () => {
-  const { isVisible: isPackageVisible } = usePackagePreferences();
   const { id } = useParams();
   const navigate = useNavigate();
   const { addToast } = useToast();
@@ -114,8 +109,9 @@ export const VideoProjectWorkspace: React.FC = () => {
         navigate("/", { replace: true });
         return false;
       }
-      if (item.source_mode === "freeform") {
-        navigate(getProjectStudioRoute(projectId), { replace: true });
+      if (item.source_mode !== "derived") {
+        addToast(translatorRef.current("video.notVideoProject"), "error");
+        navigate("/", { replace: true });
         return false;
       }
       if (refreshRequestRef.current !== requestId) return false;
@@ -196,9 +192,6 @@ export const VideoProjectWorkspace: React.FC = () => {
   const handleBack = () => {
     navigate("/");
   };
-  const handleOpenCanvas = () => {
-    navigate(getProjectStudioRoute(projectId));
-  };
 
   return (
     <div className="h-full min-h-0 flex flex-col bg-book-bg">
@@ -225,15 +218,6 @@ export const VideoProjectWorkspace: React.FC = () => {
                 <GitCompare size={14} />
               </BookIconButton>
             ) : null}
-            {isPackageVisible("canvas") ? <BookButton
-              variant="secondary"
-              size="sm"
-              onClick={() => void handleOpenCanvas()}
-              disabled={!project}
-            >
-              <Layers3 size={14} />
-              {t("video.canvasMode")}
-            </BookButton> : null}
           </>
         }
       />

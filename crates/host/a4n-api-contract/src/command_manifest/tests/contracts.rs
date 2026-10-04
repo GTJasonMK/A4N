@@ -638,13 +638,13 @@
             "list_projects",
             "create_project",
             "create_derived_project",
-            "create_freeform_video_project",
+            "create_canvas_project",
             "duplicate_project",
             "export_project_family_data",
             "export_derived_project_data",
             "import_project_family_upload",
-            "export_video_studio_project_data",
-            "import_video_studio_project_upload",
+            "export_canvas_project_data",
+            "import_canvas_project_upload",
         ] {
             let descriptor = command_descriptor(command).unwrap();
             assert_eq!(
@@ -662,8 +662,8 @@
             "export_project_family_data",
             "export_derived_project_data",
             "import_project_family_upload",
-            "export_video_studio_project_data",
-            "import_video_studio_project_upload",
+            "export_canvas_project_data",
+            "import_canvas_project_upload",
         ] {
             assert_eq!(
                 command_descriptor(command).unwrap().args_schema["additionalProperties"],
@@ -680,7 +680,7 @@
             command_descriptor("import_project_family_upload")
                 .unwrap()
                 .args_schema,
-            command_descriptor("import_video_studio_project_upload")
+            command_descriptor("import_canvas_project_upload")
                 .unwrap()
                 .args_schema
         );

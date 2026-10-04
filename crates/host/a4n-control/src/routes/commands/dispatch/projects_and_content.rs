@@ -1,6 +1,6 @@
 use super::super::{
     ApiError, ServerState, accept_project_invite, admin, apply_source_sync_decisions,
-    cleanup_orphan_project_data_dirs, create_derived_project, create_freeform_video_project,
+    cleanup_orphan_project_data_dirs, create_canvas_project, create_derived_project,
     create_project, create_standalone_comic_project, decline_project_invite, delete_chapter_scene,
     delete_chapter_shooting_script, delete_latest_chapter_outlines, delete_optimize_session,
     delete_project, detach_derived_project, diff_blueprint_versions, diff_profile_chapters,
@@ -63,9 +63,7 @@ async fn try_dispatch_projects(
         "get_project" => get_project(state, user_id, args).await?,
         "create_project" => create_project(state, user_id, args).await?,
         "create_derived_project" => create_derived_project(state, user_id, args).await?,
-        "create_freeform_video_project" => {
-            create_freeform_video_project(state, user_id, args).await?
-        }
+        "create_canvas_project" => create_canvas_project(state, user_id, args).await?,
         "create_standalone_comic_project" => {
             create_standalone_comic_project(state, user_id, args).await?
         }

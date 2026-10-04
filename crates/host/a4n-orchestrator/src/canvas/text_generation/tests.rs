@@ -14,7 +14,7 @@ use a4n_db::{
         CanvasNodeRecordInput,
     },
     generation::{GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT, GENERATION_PROMPT_KIND_VIDEO_PROMPT},
-    project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
+    project::{CreateCanvasProjectParams, create_canvas_project_record},
 };
 use a4n_db_models::models::generation::{
     generation_spec, prompt_artifact, workflow_checkpoint, workflow_run,
@@ -97,10 +97,10 @@ async fn insert_canvas(
     target_kind: &str,
     target_config: Value,
 ) -> (i64, CanvasGraphRecordDocument) {
-    let project = create_freeform_video_project_record(
+    let project = create_canvas_project_record(
         database,
         1,
-        CreateFreeformVideoProjectParams {
+        CreateCanvasProjectParams {
             title: format!("Canvas {target_kind} application 测试"),
             description: String::new(),
         },

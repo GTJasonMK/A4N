@@ -116,10 +116,10 @@ fn normalize_base_attributes_rejects_unknown_top_level_field() {
 #[tokio::test]
 async fn profile_cascade_preserves_other_portrait_with_shared_path() {
     let db = a4n_migration::test_support::connect_test_database().await;
-    let project = crate::project::create_freeform_video_project_record(
+    let project = crate::project::create_canvas_project_record(
         &db,
         1,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: "角色档案共享路径删除测试".to_string(),
             description: String::new(),
         },
@@ -305,10 +305,10 @@ async fn profile_cascade_preserves_other_portrait_with_shared_path() {
 #[tokio::test]
 async fn profile_batch_cascade_deletes_profiles_in_one_scope() {
     let db = a4n_migration::test_support::connect_test_database().await;
-    let project = crate::project::create_freeform_video_project_record(
+    let project = crate::project::create_canvas_project_record(
         &db,
         1,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: "角色档案批量删除测试".to_string(),
             description: String::new(),
         },

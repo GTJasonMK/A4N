@@ -11,7 +11,7 @@ use a4n_db::{
         CanvasNodeRecordInput,
     },
     generation::GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE,
-    project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
+    project::{CreateCanvasProjectParams, create_canvas_project_record},
 };
 use a4n_db_models::models::{
     ai::generated_image,
@@ -210,10 +210,10 @@ async fn insert_canvas(
     user_id: i64,
     target_config: Value,
 ) -> (i64, CanvasGraphRecordDocument) {
-    let project = create_freeform_video_project_record(
+    let project = create_canvas_project_record(
         database,
         user_id,
-        CreateFreeformVideoProjectParams {
+        CreateCanvasProjectParams {
             title: "Canvas Image application 测试".to_string(),
             description: String::new(),
         },

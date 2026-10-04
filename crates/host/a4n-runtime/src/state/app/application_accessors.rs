@@ -143,10 +143,10 @@ impl AppState {
         self.project_bundle_transfer_application.as_ref()
     }
 
-    pub(crate) fn video_studio_transfer_application(
+    pub(crate) fn canvas_project_transfer_application(
         &self,
-    ) -> &dyn a4n_api_contract::project_transfer::VideoStudioProjectTransferApplicationPort {
-        self.video_studio_transfer_application.as_ref()
+    ) -> &dyn a4n_api_contract::project_transfer::CanvasProjectTransferApplicationPort {
+        self.canvas_project_transfer_application.as_ref()
     }
 
     pub(crate) fn chapter_scene_read_application(

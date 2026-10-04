@@ -34,7 +34,7 @@ export function pageKindForPath(pathname: string): string {
   if (/^\/inspiration\/\d+(?:\/|$)/.test(pathname)) return "inspiration-chat";
   if (/^\/novel\/\d+(?:\/|$)/.test(pathname)) return "novel-detail";
   if (/^\/write\/\d+(?:\/|$)/.test(pathname)) return "writing-desk";
-  if (/^\/video-project\/\d+\/studio(?:\/|$)/.test(pathname)) return "video-studio";
+  if (/^\/canvas-project\/\d+(?:\/|$)/.test(pathname)) return "canvas-project";
   if (/^\/video-project\/\d+(?:\/|$)/.test(pathname)) return "video-project";
   if (/^\/comic-project\/\d+(?:\/|$)/.test(pathname)) return "comic-project";
   if (/^\/galgame-project\/\d+(?:\/|$)/.test(pathname)) return "galgame-project";
@@ -51,7 +51,7 @@ function positiveId(value: string | null): number | null {
 
 function projectIdForPath(pathname: string): number | null {
   const match = pathname.match(
-    /^\/(?:inspiration|novel|write|video-project|comic-project|galgame-project)\/(\d+)(?:\/|$)/,
+    /^\/(?:inspiration|novel|write|video-project|canvas-project|comic-project|galgame-project)\/(\d+)(?:\/|$)/,
   );
   return match ? positiveId(match[1]) : null;
 }

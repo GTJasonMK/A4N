@@ -14,7 +14,6 @@ pub(in crate::project::family::import::import_rows) async fn insert_generation_r
     package: &ProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
-    super::super::canvas::insert_canvas_generation_specs(txn, package, maps).await?;
     insert_mapped_import_rows!(
         txn,
         package

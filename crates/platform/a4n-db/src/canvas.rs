@@ -3,14 +3,6 @@ mod graph_record;
 mod references;
 mod transfer;
 
-pub(crate) use transfer::{
-    DeferredVideoStudioImportGenerationSpecTarget, VideoStudioProjectImportIdMaps,
-    import_video_studio_canvas_graphs, import_video_studio_canvas_text_assets,
-    import_video_studio_generation_specs, update_imported_canvas_node_refs,
-    update_imported_generation_spec_metadata, update_imported_generation_spec_targets,
-    update_imported_media_metadata,
-};
-
 pub use artifacts::{
     CanvasAssemblyContractSyncSummary, CanvasImageMediaAssetEnsureInput,
     CanvasMediaAssetProbeRecord, CanvasNodeArtifactUpdateInput, CanvasNodeObservationUpdateInput,
@@ -35,7 +27,7 @@ pub use transfer::{
     VideoStudioProjectExportRows, VideoStudioProjectImportError,
     VideoStudioProjectImportMediaError, VideoStudioProjectImportMediaFileWriter,
     VideoStudioProjectImportRows, import_video_studio_project_record,
-    video_studio_project_export_rows,
+    migrate_derived_video_canvas_project_record, video_studio_project_export_rows,
 };
 
 pub(crate) use references::{
@@ -47,7 +39,7 @@ pub(crate) use references::{
 
 use sea_orm::DbErr;
 
-const PROJECT_KIND_VIDEO: &str = "video";
+const PROJECT_KIND_CANVAS: &str = "canvas";
 const PROJECT_KIND_COMIC: &str = "comic";
 
 #[derive(Debug, thiserror::Error)]

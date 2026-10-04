@@ -107,12 +107,13 @@ pub use freeform_reset::{
 };
 pub use material_refs::{primary_material_image_ids_for_projects, protagonist_profile_project_id};
 pub use mutation::{
-    CreateFreeformVideoProjectParams, CreateProjectRecordInput, CreateStandaloneComicProjectParams,
-    PROJECT_KIND_COMIC, PROJECT_KIND_TEXT, PROJECT_KIND_VIDEO, ProjectMutationError,
-    SOURCE_SYNC_CURRENT, UpdateProjectRecordInput, create_freeform_video_project_record,
-    create_project_record, create_standalone_comic_project_record, is_valid_source_sync_status,
-    normalize_derived_project_kind, normalize_project_kind, normalize_project_type,
-    project_by_id_record, project_ids, project_summary_by_id_record, update_project_record,
+    CreateCanvasProjectParams, CreateProjectRecordInput, CreateStandaloneComicProjectParams,
+    PROJECT_KIND_CANVAS, PROJECT_KIND_COMIC, PROJECT_KIND_TEXT, PROJECT_KIND_VIDEO,
+    ProjectMutationError, SOURCE_SYNC_CURRENT, UpdateProjectRecordInput,
+    create_canvas_project_record, create_project_record, create_standalone_comic_project_record,
+    is_valid_source_sync_status, normalize_derived_project_kind, normalize_project_kind,
+    normalize_project_type, project_by_id_record, project_ids, project_summary_by_id_record,
+    update_project_record,
 };
 pub(crate) use mutation::{
     SOURCE_SYNC_CONFLICT, SOURCE_SYNC_DETACHED, SOURCE_SYNC_ROOT_UPDATED,

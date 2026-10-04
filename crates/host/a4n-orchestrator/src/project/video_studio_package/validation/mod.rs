@@ -7,7 +7,6 @@ use crate::project::{ImportMediaPayload, VideoStudioProjectPackage};
 mod canvas;
 mod manifest;
 pub(crate) use manifest::validate_canvas_media_asset_owner;
-pub(crate) use manifest::validate_family_canvas_package;
 mod media;
 mod provenance;
 

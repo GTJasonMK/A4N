@@ -6,10 +6,8 @@ use a4n_domain::clear_canvas_transfer_runtime_identity;
 use a4n_domain::project::ProjectRecord;
 use chrono::Utc;
 
-use super::{
-    FAMILY_CANVAS_MODE, PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION, VideoStudioProjectPackage,
-};
-use crate::project::{MediaFileEntry, validate_freeform_video_project};
+use super::{PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION, VideoStudioProjectPackage};
+use crate::project::{MediaFileEntry, validate_canvas_project};
 
 /// 组装视频画布导出 manifest。
 pub(crate) fn assemble_video_studio_export_package(
@@ -17,7 +15,7 @@ pub(crate) fn assemble_video_studio_export_package(
     rows: VideoStudioProjectExportRows,
     media_files: Vec<MediaFileEntry>,
 ) -> Result<VideoStudioProjectPackage, String> {
-    validate_freeform_video_project(&project, "视频画布项目导出")?;
+    validate_canvas_project(&project, "视频画布项目导出")?;
     assemble_video_studio_project_canvas_package(project, rows, media_files)
 }
 
@@ -27,9 +25,9 @@ pub(crate) fn assemble_video_studio_project_canvas_package(
     rows: VideoStudioProjectExportRows,
     media_files: Vec<MediaFileEntry>,
 ) -> Result<VideoStudioProjectPackage, String> {
-    if project.project_kind != "video" {
+    if project.project_kind != "canvas" {
         return Err(format!(
-            "画布数据只能挂在 video 项目上: project_id={}",
+            "画布数据只能挂在独立 Canvas 项目上: project_id={}",
             project.id
         ));
     }
@@ -70,12 +68,7 @@ pub(crate) fn assemble_video_studio_project_canvas_package(
     Ok(VideoStudioProjectPackage {
         version: VIDEO_STUDIO_PACKAGE_VERSION.to_string(),
         exported_at: Utc::now().naive_utc().to_string(),
-        mode: if project.root_project_id.is_some() {
-            FAMILY_CANVAS_MODE
-        } else {
-            PACKAGE_MODE
-        }
-        .to_string(),
+        mode: PACKAGE_MODE.to_string(),
         project,
         canvas_graphs: rows.canvas_graphs,
         canvas_nodes: rows.canvas_nodes,
@@ -91,6 +84,7 @@ pub(crate) fn assemble_video_studio_project_canvas_package(
         video_segments: rows.video_segments,
         assembly_timelines: rows.assembly_timelines,
         assembly_clips: rows.assembly_clips,
+        provider_slots: Vec::new(),
         media_files,
     })
 }

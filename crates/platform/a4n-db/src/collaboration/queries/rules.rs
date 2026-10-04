@@ -21,7 +21,7 @@ pub(in crate::collaboration) fn validate_collaboration_root_identity(
             Ok(())
         }
         ProjectSourceMode::Derived => Err(CollaborationDbError::InvalidArgument(
-            "协作权限只能绑定到文本根项目或自由视频项目".to_string(),
+            "协作权限只能绑定到文本根项目、独立画布或独立漫画项目".to_string(),
         )),
     }
 }

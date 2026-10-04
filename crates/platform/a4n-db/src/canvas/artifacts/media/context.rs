@@ -1,5 +1,5 @@
 use super::super::types::CanvasMediaSourceContext;
-use crate::canvas::{CanvasDbError, PROJECT_KIND_VIDEO};
+use crate::canvas::{CanvasDbError, PROJECT_KIND_CANVAS};
 use a4n_db_models::models::project::{
     novel_project, project_source_snapshot, source_snapshot_chapter,
 };
@@ -35,9 +35,9 @@ where
         .one(db)
         .await?
         .ok_or_else(|| CanvasDbError::InvalidArgument(format!("项目不存在: {project_id}")))?;
-    if project.project_kind != PROJECT_KIND_VIDEO {
+    if project.project_kind != PROJECT_KIND_CANVAS {
         return Err(CanvasDbError::InvalidArgument(format!(
-            "画布媒体资产只支持视频项目: {project_id}"
+            "画布媒体资产只支持独立画布项目: {project_id}"
         )));
     }
     match ProjectSourceMode::from_identity(
@@ -50,7 +50,7 @@ where
         ProjectSourceMode::Freeform => {
             if let Some(chapter_id) = source_chapter_id {
                 return Err(CanvasDbError::InvalidArgument(format!(
-                    "freeform 视频项目媒体资产不能绑定源章节: project_id={project_id}, chapter_id={chapter_id}"
+                    "独立画布媒体资产不能绑定源章节: project_id={project_id}, chapter_id={chapter_id}"
                 )));
             }
             Ok(CanvasMediaSourceContext {
@@ -60,49 +60,9 @@ where
                 source_snapshot_chapter_id: None,
             })
         }
-        ProjectSourceMode::Derived => {
-            let (_, root_project_id) =
-                crate::project::derived_project_family_access_ids(db, project_id)
-                    .await
-                    .map_err(project_family_error_to_canvas_error)?;
-            let source_snapshot_id = project.source_snapshot_id.ok_or_else(|| {
-                CanvasDbError::InvalidArgument(format!(
-                    "派生视频项目 {project_id} 缺少 source_snapshot_id"
-                ))
-            })?;
-            let source_snapshot_chapter_id = if let Some(chapter_id) = source_chapter_id {
-                Some(
-                    source_snapshot_chapter::Entity::find()
-                        .select_only()
-                        .column(source_snapshot_chapter::Column::Id)
-                        .filter(source_snapshot_chapter::Column::SnapshotId.eq(source_snapshot_id))
-                        .filter(source_snapshot_chapter::Column::RootProjectId.eq(root_project_id))
-                        .filter(source_snapshot_chapter::Column::SourceChapterId.eq(chapter_id))
-                        .into_tuple::<i64>()
-                        .one(db)
-                        .await?
-                        .ok_or_else(|| {
-                            CanvasDbError::InvalidArgument(format!(
-                                "派生视频项目 {project_id} 的源快照不包含章节 {chapter_id}"
-                            ))
-                        })?,
-                )
-            } else {
-                None
-            };
-            Ok(CanvasMediaSourceContext {
-                root_project_id,
-                source_snapshot_id: Some(source_snapshot_id),
-                source_chapter_id,
-                source_snapshot_chapter_id,
-            })
-        }
-        ProjectSourceMode::Self_ => Err(CanvasDbError::InvalidArgument(
-            "画布媒体资产不支持文本项目".to_string(),
-        )),
-        ProjectSourceMode::Standalone => Err(CanvasDbError::InvalidArgument(
-            "画布媒体资产不支持独立漫画项目".to_string(),
-        )),
+        mode => Err(CanvasDbError::InvalidArgument(format!(
+            "画布项目来源模式无效: {mode:?}"
+        ))),
     }
 }
 
@@ -157,16 +117,4 @@ where
         )));
     }
     Ok(locked_context)
-}
-
-fn project_family_error_to_canvas_error(
-    error: crate::project::ProjectFamilyDbError,
-) -> CanvasDbError {
-    match error {
-        crate::project::ProjectFamilyDbError::InvalidArgument(message)
-        | crate::project::ProjectFamilyDbError::NotFound(message) => {
-            CanvasDbError::InvalidArgument(message)
-        }
-        crate::project::ProjectFamilyDbError::Database(error) => CanvasDbError::Database(error),
-    }
 }

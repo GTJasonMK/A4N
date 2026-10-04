@@ -1368,10 +1368,10 @@ async fn server_destructive_drain_releases_database_locks_before_waiting() {
     )
     .await
     .unwrap();
-    let project = a4n_db::project::create_freeform_video_project_record(
+    let project = a4n_db::project::create_canvas_project_record(
         &db,
         owner.id,
-        a4n_db::project::CreateFreeformVideoProjectParams {
+        a4n_db::project::CreateCanvasProjectParams {
             title: format!("destructive lock {suffix}"),
             description: String::new(),
         },
@@ -1554,10 +1554,10 @@ async fn server_process_recovers_snapshot_only_generation_subscription() {
     )
     .await
     .unwrap();
-    let project = a4n_db::project::create_freeform_video_project_record(
+    let project = a4n_db::project::create_canvas_project_record(
         &db,
         owner.id,
-        a4n_db::project::CreateFreeformVideoProjectParams {
+        a4n_db::project::CreateCanvasProjectParams {
             title: format!("generation process {suffix}"),
             description: String::new(),
         },

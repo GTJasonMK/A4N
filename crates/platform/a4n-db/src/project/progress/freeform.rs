@@ -4,13 +4,13 @@ use a4n_db_models::models::ai::generated_video;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashMap;
 
-const FREEFORM_VIDEO_PROGRESS_TYPES: [&str; 3] = [
+const CANVAS_VIDEO_PROGRESS_TYPES: [&str; 3] = [
     a4n_domain::video_workflow::VIDEO_TYPE_CANVAS,
     a4n_domain::video_workflow::VIDEO_TYPE_TRIMMED_CLIP,
     a4n_domain::video_workflow::VIDEO_TYPE_CANVAS_ASSEMBLY,
 ];
 
-pub(super) async fn freeform_video_project_progress_by_project(
+pub(super) async fn canvas_project_progress_by_project(
     db: &DatabaseConnection,
     project_ids: &[i64],
 ) -> Result<HashMap<i64, ProjectProgressSummary>, ProjectProgressReadError> {
@@ -23,11 +23,13 @@ pub(super) async fn freeform_video_project_progress_by_project(
         .column(generated_video::Column::ProjectId)
         .column(generated_video::Column::Status)
         .filter(generated_video::Column::ProjectId.is_in(project_ids.iter().copied()))
-        .filter(generated_video::Column::VideoType.is_in(FREEFORM_VIDEO_PROGRESS_TYPES))
+        .filter(generated_video::Column::VideoType.is_in(CANVAS_VIDEO_PROGRESS_TYPES))
         .into_tuple::<(i64, i64, String)>()
         .all(db)
         .await
-        .map_err(|error| ProjectProgressReadError::database("查询自由画布生成视频失败", error))?;
+        .map_err(|error| {
+            ProjectProgressReadError::database("查询 Canvas 项目生成视频失败", error)
+        })?;
     let mut counts_by_project: HashMap<i64, ProgressCounts> = HashMap::new();
     for (id, project_id, status) in videos {
         counts_by_project
@@ -39,7 +41,7 @@ pub(super) async fn freeform_video_project_progress_by_project(
     for project_id in project_ids {
         progress.insert(
             *project_id,
-            freeform_video_project_progress_from_counts(
+            canvas_project_progress_from_counts(
                 counts_by_project.remove(project_id).unwrap_or_default(),
             ),
         );
@@ -47,7 +49,7 @@ pub(super) async fn freeform_video_project_progress_by_project(
     Ok(progress)
 }
 
-fn freeform_video_project_progress_from_counts(counts: ProgressCounts) -> ProjectProgressSummary {
+fn canvas_project_progress_from_counts(counts: ProgressCounts) -> ProjectProgressSummary {
     let total = (counts.total() > 0).then_some(counts.total());
     let current = total.map(|_| counts.completed);
     if counts.failed > 0 {
@@ -82,15 +84,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn freeform_video_progress_prioritizes_failures() {
-        let failed = freeform_video_project_progress_from_counts(ProgressCounts {
+    fn canvas_video_progress_prioritizes_failures() {
+        let failed = canvas_project_progress_from_counts(ProgressCounts {
             completed: 1,
             failed: 1,
             ..Default::default()
         });
         assert_eq!(failed.label, "画布视频生成失败");
 
-        let workspace = freeform_video_project_progress_from_counts(ProgressCounts::default());
+        let workspace = canvas_project_progress_from_counts(ProgressCounts::default());
         assert_eq!(workspace.label, "视频画布制作中");
         assert_eq!(workspace.detail, None);
     }

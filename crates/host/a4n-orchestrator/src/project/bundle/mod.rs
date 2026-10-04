@@ -134,6 +134,25 @@ impl ProjectBundlePackage {
         {
             return Err("项目包根项目与项目族根项目不一致".to_string());
         }
+        if self.family.is_some() && !self.canvas_projects.is_empty() {
+            return Err("项目族包不能包含 Canvas 项目；请使用独立 Canvas 项目包".to_string());
+        }
+        if self
+            .canvas_projects
+            .iter()
+            .any(|canvas| !canvas.provider_slots.is_empty())
+        {
+            return Err("统一项目包中的 Canvas Provider 槽位必须存放在项目包根部".to_string());
+        }
+        if !self.canvas_projects.is_empty()
+            && (self.canvas_projects.len() != 1
+                || self.canvas_projects[0].project.id != self.root_project_id
+                || self.canvas_projects[0].project.project_kind != "canvas"
+                || self.canvas_projects[0].project.root_project_id.is_some()
+                || self.canvas_projects[0].project.source_snapshot_id.is_some())
+        {
+            return Err("统一项目包中的 Canvas 必须是唯一的独立根项目".to_string());
+        }
         if !self.standalone_comics.is_empty()
             && (self.standalone_comics.len() != 1
                 || self.family.is_some()
@@ -233,7 +252,7 @@ pub(crate) fn assemble_project_bundle(
 }
 
 pub(crate) fn add_canvas_provider_slot(
-    package: &mut ProjectBundlePackage,
+    provider_slots: &mut Vec<ProjectBundleProviderSlot>,
     source_config_id: i64,
     capability: &str,
     provider: Option<String>,
@@ -244,7 +263,7 @@ pub(crate) fn add_canvas_provider_slot(
     if source_config_id <= 0 {
         return Err("画布 Provider 配置 ID 必须大于 0".to_string());
     }
-    if package.provider_slots.iter().any(|slot| {
+    if provider_slots.iter().any(|slot| {
         slot.source_config_id == Some(source_config_id) && slot.capability == capability
     }) {
         return Ok(());
@@ -260,7 +279,7 @@ pub(crate) fn add_canvas_provider_slot(
     });
     let fingerprint_bytes =
         serde_json::to_vec(&fingerprint_input).map_err(|error| error.to_string())?;
-    package.provider_slots.push(ProjectBundleProviderSlot {
+    provider_slots.push(ProjectBundleProviderSlot {
         slot_key,
         source_config_id: Some(source_config_id),
         capability: capability.to_string(),
@@ -440,7 +459,7 @@ fn validate_media_entries(entries: &[MediaFileEntry]) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_provider_slots(slots: &[ProjectBundleProviderSlot]) -> Result<(), String> {
+pub(crate) fn validate_provider_slots(slots: &[ProjectBundleProviderSlot]) -> Result<(), String> {
     let mut keys = HashSet::with_capacity(slots.len());
     for slot in slots {
         if slot.slot_key.is_empty()
@@ -509,7 +528,7 @@ mod tests {
             media_sha256: BTreeMap::new(),
         };
         add_canvas_provider_slot(
-            &mut package,
+            &mut package.provider_slots,
             7,
             "image",
             None,
@@ -519,7 +538,7 @@ mod tests {
         )
         .expect("Provider 槽位应可写入");
         add_canvas_provider_slot(
-            &mut package,
+            &mut package.provider_slots,
             7,
             "image",
             None,

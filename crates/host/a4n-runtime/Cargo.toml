@@ -6,7 +6,7 @@ license.workspace = true
 
 [features]
 default = []
-migration = ["a4n-db-session/migration"]
+migration = ["dep:a4n-migration"]
 embedded-capabilities = [
     "embedded-transforms",
     "embedded-prompt-git",
@@ -43,6 +43,7 @@ a4n-canvas-host-contract = { workspace = true }
 a4n-outline-contract = { workspace = true }
 a4n-config = { workspace = true }
 a4n-db-session = { workspace = true }
+a4n-migration = { workspace = true, optional = true }
 a4n-db-models = { workspace = true }
 a4n-domain = { workspace = true }
 a4n-error = { workspace = true, features = ["database"], default-features = true }

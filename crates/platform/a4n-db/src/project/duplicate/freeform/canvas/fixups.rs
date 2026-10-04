@@ -168,20 +168,20 @@ mod tests {
     #[tokio::test]
     async fn batches_generation_spec_target_and_metadata_fixups() {
         let db = a4n_migration::test_support::connect_test_database().await;
-        let source = crate::project::create_freeform_video_project_record(
+        let source = crate::project::create_canvas_project_record(
             &db,
             1,
-            crate::project::CreateFreeformVideoProjectParams {
+            crate::project::CreateCanvasProjectParams {
                 title: "回填生成意图源".to_string(),
                 description: String::new(),
             },
         )
         .await
         .unwrap();
-        let target = crate::project::create_freeform_video_project_record(
+        let target = crate::project::create_canvas_project_record(
             &db,
             1,
-            crate::project::CreateFreeformVideoProjectParams {
+            crate::project::CreateCanvasProjectParams {
                 title: "回填生成意图目标".to_string(),
                 description: String::new(),
             },

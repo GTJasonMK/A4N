@@ -7,10 +7,10 @@ use std::{
 };
 
 use a4n_api_contract::project_transfer::{
-    ExportVideoStudioProjectApplicationInput, ImportProjectPackageApplicationInput,
+    ExportCanvasProjectApplicationInput, ImportProjectPackageApplicationInput,
     ProjectPackageExportInput, ProjectPackageImportPayload, ProjectPackageTransferHostPort,
 };
-use a4n_db::project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record};
+use a4n_db::project::{CreateCanvasProjectParams, create_canvas_project_record};
 use a4n_db_models::models::media::media_asset::FILE_PATH_FIELD;
 use a4n_db_models::models::{media::media_asset, user::user};
 use a4n_domain::CanvasNodeRefKind;
@@ -120,12 +120,12 @@ async fn export_application_enforces_owner_before_rows_assembly_and_render() {
     let (context, database) = setup().await;
     let owner_user_id = insert_active_user(database.as_ref(), "owner").await;
     let intruder_user_id = insert_active_user(database.as_ref(), "intruder").await;
-    let source = insert_freeform_project(database.as_ref(), owner_user_id).await;
+    let source = insert_canvas_project(database.as_ref(), owner_user_id).await;
     let host = TestVideoStudioTransferHost::default();
 
     context
-        .export_video_studio_project_validated(
-            ExportVideoStudioProjectApplicationInput {
+        .export_canvas_project_validated(
+            ExportCanvasProjectApplicationInput {
                 user_id: intruder_user_id,
                 project_id: source.id,
             },
@@ -136,8 +136,8 @@ async fn export_application_enforces_owner_before_rows_assembly_and_render() {
     assert_eq!(host.render_calls.load(Ordering::SeqCst), 0);
 
     let exported = context
-        .export_video_studio_project_validated(
-            ExportVideoStudioProjectApplicationInput {
+        .export_canvas_project_validated(
+            ExportCanvasProjectApplicationInput {
                 user_id: source.user_id,
                 project_id: source.id,
             },
@@ -159,7 +159,7 @@ async fn export_application_enforces_owner_before_rows_assembly_and_render() {
 #[tokio::test]
 async fn import_application_owns_archive_validation_database_import_and_user_projection() {
     let (context, database) = setup().await;
-    let source = insert_freeform_project(database.as_ref(), 8).await;
+    let source = insert_canvas_project(database.as_ref(), 8).await;
     let host_package = ReadVideoStudioProjectPackage {
         package: empty_package(source),
         media_payload: ImportMediaPayload {
@@ -170,7 +170,7 @@ async fn import_application_owns_archive_validation_database_import_and_user_pro
     let mut host = TestVideoStudioTransferHost::with_read_package(host_package);
 
     let imported = context
-        .import_video_studio_project_validated(
+        .import_canvas_project_validated(
             ImportProjectPackageApplicationInput {
                 user_id: 81,
                 package_bytes: vec![9],
@@ -193,7 +193,7 @@ async fn import_application_owns_archive_validation_database_import_and_user_pro
 #[tokio::test]
 async fn import_application_builds_canonical_media_path_before_host_write() {
     let (context, database) = setup().await;
-    let source = insert_freeform_project(database.as_ref(), 10).await;
+    let source = insert_canvas_project(database.as_ref(), 10).await;
     let bytes = b"video bytes".to_vec();
     let mut package = empty_package(source.clone());
     package.media_assets.push(media_asset::Model {
@@ -242,7 +242,7 @@ async fn import_application_builds_canonical_media_path_before_host_write() {
     });
 
     let imported = context
-        .import_video_studio_project_validated(
+        .import_canvas_project_validated(
             ImportProjectPackageApplicationInput {
                 user_id: 101,
                 package_bytes: vec![9],
@@ -269,7 +269,7 @@ async fn import_application_builds_canonical_media_path_before_host_write() {
 #[tokio::test]
 async fn import_application_rejects_invalid_package_before_file_rollback() {
     let (context, database) = setup().await;
-    let source = insert_freeform_project(database.as_ref(), 9).await;
+    let source = insert_canvas_project(database.as_ref(), 9).await;
     let mut package = empty_package(source);
     package.version = "invalid-version".to_string();
     let mut host = TestVideoStudioTransferHost::with_read_package(ReadVideoStudioProjectPackage {
@@ -281,7 +281,7 @@ async fn import_application_rejects_invalid_package_before_file_rollback() {
     });
 
     let error = context
-        .import_video_studio_project_validated(
+        .import_canvas_project_validated(
             ImportProjectPackageApplicationInput {
                 user_id: 91,
                 package_bytes: vec![9],
@@ -332,6 +332,7 @@ fn empty_package(project: ProjectRecord) -> VideoStudioProjectPackage {
         video_segments: Vec::new(),
         assembly_timelines: Vec::new(),
         assembly_clips: Vec::new(),
+        provider_slots: Vec::new(),
         media_files: Vec::new(),
     }
 }
@@ -366,20 +367,20 @@ async fn insert_active_user(database: &a4n_db::DatabaseConnection, label: &str) 
     .id
 }
 
-async fn insert_freeform_project(
+async fn insert_canvas_project(
     database: &a4n_db::DatabaseConnection,
     user_id: i64,
 ) -> ProjectRecord {
-    let created = create_freeform_video_project_record(
+    let created = create_canvas_project_record(
         database,
         user_id,
-        CreateFreeformVideoProjectParams {
+        CreateCanvasProjectParams {
             title: format!("video-studio-transfer-{user_id}"),
             description: "video studio transfer application test".to_string(),
         },
     )
     .await
-    .expect("测试 freeform 视频项目应可写入");
+    .expect("测试 Canvas 项目应可写入");
     a4n_db::project::project_by_id_record(database, created.id)
         .await
         .expect("应查询测试项目")

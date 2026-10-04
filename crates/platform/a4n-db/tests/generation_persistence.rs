@@ -353,10 +353,10 @@ async fn generation_persistence_reservation_lease_checkpoint_and_gate_use_postgr
     )
     .await
     .unwrap();
-    let project = a4n_db::project::create_freeform_video_project_record(
+    let project = a4n_db::project::create_canvas_project_record(
         &db,
         user.id,
-        a4n_db::project::CreateFreeformVideoProjectParams {
+        a4n_db::project::CreateCanvasProjectParams {
             title: format!("generation persistence {suffix}"),
             description: String::new(),
         },
@@ -613,10 +613,10 @@ async fn generation_cancel_batch_updates_checkpoints_and_queue_rows() {
     )
     .await
     .unwrap();
-    let project = a4n_db::project::create_freeform_video_project_record(
+    let project = a4n_db::project::create_canvas_project_record(
         &db,
         user.id,
-        a4n_db::project::CreateFreeformVideoProjectParams {
+        a4n_db::project::CreateCanvasProjectParams {
             title: format!("generation cancel batch {suffix}"),
             description: String::new(),
         },
@@ -696,10 +696,10 @@ async fn generation_task_tree_ttl_waits_for_descendants_and_audit_before_deletin
     )
     .await
     .unwrap();
-    let project = a4n_db::project::create_freeform_video_project_record(
+    let project = a4n_db::project::create_canvas_project_record(
         &db,
         user.id,
-        a4n_db::project::CreateFreeformVideoProjectParams {
+        a4n_db::project::CreateCanvasProjectParams {
             title: format!("generation tree {suffix}"),
             description: String::new(),
         },
@@ -901,20 +901,20 @@ async fn generation_task_lists_filter_access_before_cursor_and_limit() {
     )
     .await
     .unwrap();
-    let shared_project = a4n_db::project::create_freeform_video_project_record(
+    let shared_project = a4n_db::project::create_canvas_project_record(
         &db,
         owner.id,
-        a4n_db::project::CreateFreeformVideoProjectParams {
+        a4n_db::project::CreateCanvasProjectParams {
             title: format!("generation list shared {suffix}"),
             description: String::new(),
         },
     )
     .await
     .unwrap();
-    let private_project = a4n_db::project::create_freeform_video_project_record(
+    let private_project = a4n_db::project::create_canvas_project_record(
         &db,
         outsider.id,
-        a4n_db::project::CreateFreeformVideoProjectParams {
+        a4n_db::project::CreateCanvasProjectParams {
             title: format!("generation list private {suffix}"),
             description: String::new(),
         },

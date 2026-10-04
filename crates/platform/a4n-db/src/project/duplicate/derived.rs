@@ -40,6 +40,7 @@ where
         super::shared::ProjectCopyInsert {
             user_id,
             title: new_title.into(),
+            project_kind: original.project_kind.clone(),
             root_project_id: original.root_project_id,
             source_snapshot_id: original.source_snapshot_id,
             status: original.status.clone(),

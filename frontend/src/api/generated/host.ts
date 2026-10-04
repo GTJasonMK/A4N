@@ -43,7 +43,7 @@ export const HOST_API_COMMANDS = [
   "create_derived_project",
   "create_embedding_config",
   "create_foreshadowing",
-  "create_freeform_video_project",
+  "create_canvas_project",
   "create_invite_code",
   "create_llm_config",
   "create_object_profile",
@@ -111,7 +111,7 @@ export const HOST_API_COMMANDS = [
   "export_theme",
   "export_theme_package",
   "export_txt_data",
-  "export_video_studio_project_data",
+  "export_canvas_project_data",
   "forward_project_status",
   "generate_canvas_text_asset_draft",
   "generate_chapter_analysis",
@@ -180,7 +180,7 @@ export const HOST_API_COMMANDS = [
   "import_project_text_upload",
   "import_theme",
   "import_theme_package",
-  "import_video_studio_project_upload",
+  "import_canvas_project_upload",
   "insert_galgame_line",
   "inspect_project_bundle_upload",
   "invite_project_member",
@@ -449,7 +449,7 @@ export type HostApiCommand = (typeof HOST_API_COMMANDS)[number];
 
 export const PROJECT_BUNDLE_PACKAGE_SUFFIX = ".a4n-project.zip";
 export const PROJECT_FAMILY_PACKAGE_SUFFIX = ".a4n-family.zip";
-export const VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX = ".a4n-video-studio.zip";
+export const CANVAS_PROJECT_PACKAGE_SUFFIX = ".a4n-canvas.zip";
 
 export const MAX_PROJECT_TEXT_UPLOAD_BYTES = 104857600;
 export const REVERSE_ENGINEERING_PROGRESS_TOTAL = 3;
@@ -480,7 +480,6 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "check_character_conflict": "full",
   "check_implicit_update": "full",
   "confirm_reverse_engineering_candidate": "full",
-  "create_foreshadowing": "full",
   "create_optimization_analysis_session": "full",
   "create_optimization_chat_session": "full",
   "create_profile": "full",
@@ -3236,7 +3235,7 @@ export interface ExportDerivedProjectDataInput {
   derived_project_id: number;
 }
 
-export interface ExportVideoStudioProjectDataInput {
+export interface ExportCanvasProjectDataInput {
   project_id: number;
 }
 
@@ -3714,7 +3713,7 @@ export interface ProjectProgressSummary {
   label: string;
 }
 
-export type ProjectKind = "text" | "comic" | "video" | "galgame";
+export type ProjectKind = "text" | "comic" | "video" | "canvas" | "galgame";
 
 export type ProjectSourceMode = "self" | "derived" | "freeform" | "standalone";
 
@@ -3891,7 +3890,7 @@ export interface CreateProjectInput {
   title: string;
 }
 
-export interface CreateFreeformVideoProjectInput {
+export interface CreateCanvasProjectInput {
   description?: string | null;
   title: string;
 }

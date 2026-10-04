@@ -9,8 +9,8 @@ use a4n_db::{
         GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE, GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
     },
     project::{
-        CreateFreeformVideoProjectParams, PROJECT_KIND_TEXT, SOURCE_SYNC_CURRENT,
-        create_freeform_video_project_record,
+        CreateCanvasProjectParams, PROJECT_KIND_TEXT, SOURCE_SYNC_CURRENT,
+        create_canvas_project_record,
     },
 };
 use a4n_db_models::models::{
@@ -142,7 +142,7 @@ async fn duplicate_missing_project_is_not_found_before_permission_check() {
 #[tokio::test]
 async fn duplicate_freeform_application_rolls_back_host_files_on_copy_failure() {
     let (context, database) = setup().await;
-    let source = insert_freeform_project(database.as_ref(), 8).await;
+    let source = insert_canvas_project(database.as_ref(), 8).await;
     insert_media_asset(database.as_ref(), source.id).await;
     let mut host = TestProjectDuplicationHost::failing_copy();
     let before = novel_project::Entity::find()
@@ -178,7 +178,7 @@ async fn duplicate_freeform_application_rolls_back_host_files_on_copy_failure() 
 #[tokio::test]
 async fn duplicate_freeform_application_rejects_non_terminal_video_before_copying_files() {
     let (context, database) = setup().await;
-    let source = insert_freeform_project(database.as_ref(), 18).await;
+    let source = insert_canvas_project(database.as_ref(), 18).await;
     insert_generated_video(
         database.as_ref(),
         source.id,
@@ -209,7 +209,7 @@ async fn duplicate_freeform_application_rejects_non_terminal_video_before_copyin
 #[tokio::test]
 async fn duplicate_freeform_application_remaps_source_material_and_clears_runtime_identity() {
     let (context, database) = setup().await;
-    let source = insert_freeform_project(database.as_ref(), 25).await;
+    let source = insert_canvas_project(database.as_ref(), 25).await;
     let now = Utc::now().naive_utc();
     let graph = canvas_graph::ActiveModel {
         project_id: Set(source.id),
@@ -344,20 +344,20 @@ async fn duplicate_freeform_application_remaps_source_material_and_clears_runtim
     assert_eq!(host.rollback_calls.load(Ordering::SeqCst), 0);
 }
 
-async fn insert_freeform_project(
+async fn insert_canvas_project(
     database: &a4n_db::DatabaseConnection,
     user_id: i64,
 ) -> a4n_domain::project::ProjectRecord {
-    let created = create_freeform_video_project_record(
+    let created = create_canvas_project_record(
         database,
         user_id,
-        CreateFreeformVideoProjectParams {
+        CreateCanvasProjectParams {
             title: format!("freeform-{user_id}"),
             description: "project duplication application test".to_string(),
         },
     )
     .await
-    .expect("测试 freeform 视频项目应可写入");
+    .expect("测试 Canvas 项目应可写入");
     a4n_db::project::project_by_id_record(database, created.id)
         .await
         .expect("应查询测试项目")

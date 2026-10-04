@@ -4,7 +4,7 @@ use a4n_canvas_contract::{CanvasProbeNodeApplicationInput, CanvasProbeNodeApplic
 use a4n_db::{
     DatabaseConnection,
     canvas::{CanvasEdgeRecordInput, CanvasGraphRecordInput, CanvasNodeRecordInput},
-    project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
+    project::{CreateCanvasProjectParams, create_canvas_project_record},
 };
 use a4n_db_models::models::{
     ai::{generated_image, generated_video},
@@ -68,10 +68,10 @@ fn canvas_probe_observation_patch_projects_only_canonical_fields() {
 #[tokio::test]
 async fn canvas_probe_application_persists_text_image_video_and_audio_observations() {
     let (database, context) = setup_context().await;
-    let project = create_freeform_video_project_record(
+    let project = create_canvas_project_record(
         database.as_ref(),
         1,
-        CreateFreeformVideoProjectParams {
+        CreateCanvasProjectParams {
             title: "Canvas Probe application 测试".to_string(),
             description: String::new(),
         },
@@ -246,10 +246,10 @@ async fn canvas_probe_application_persists_text_image_video_and_audio_observatio
 #[tokio::test]
 async fn canvas_probe_application_marks_workflow_and_checkpoint_failed_when_artifact_is_missing() {
     let (database, context) = setup_context().await;
-    let project = create_freeform_video_project_record(
+    let project = create_canvas_project_record(
         database.as_ref(),
         1,
-        CreateFreeformVideoProjectParams {
+        CreateCanvasProjectParams {
             title: "Canvas Probe failure 测试".to_string(),
             description: String::new(),
         },

@@ -54,6 +54,7 @@ export const PROJECT_KIND_FILTERS: readonly ProjectKindFilter[] = [
   "text",
   "comic",
   "video",
+  "canvas",
   "galgame",
 ] as const;
 
@@ -74,7 +75,8 @@ const PROJECT_KIND_ORDER: Record<ProjectKind, number> = {
   text: 0,
   comic: 1,
   video: 2,
-  galgame: 3,
+  canvas: 3,
+  galgame: 4,
 };
 
 const compareFamilyProjects = (a: NovelProject, b: NovelProject): number => {

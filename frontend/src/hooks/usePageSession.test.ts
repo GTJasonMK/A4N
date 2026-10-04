@@ -8,7 +8,7 @@ describe("Page Session page context", () => {
     expect(pageKindForPath("/inspiration/3/chat")).toBe("inspiration-chat");
     expect(pageKindForPath("/novel/4/overview")).toBe("novel-detail");
     expect(pageKindForPath("/write/4")).toBe("writing-desk");
-    expect(pageKindForPath("/video-project/4/studio")).toBe("video-studio");
+    expect(pageKindForPath("/canvas-project/4")).toBe("canvas-project");
     expect(pageKindForPath("/comic-project/4")).toBe("comic-project");
     expect(pageKindForPath("/galgame-project/4")).toBe("galgame-project");
     expect(pageKindForPath("/settings/about")).toBe("settings");

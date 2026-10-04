@@ -437,10 +437,14 @@ export const VideoStudioCanvas: React.FC = () => {
 
       if (projectResult.status === "rejected") {
         failures.push(extractErrorMessage(projectResult.reason, translatorRef.current("video.canvasLoadFailed")));
-      } else if (projectResult.value.project_kind !== "video") {
-        addToast(translatorRef.current("video.notVideoProject"), "error");
+      } else if (projectResult.value.project_kind !== "canvas") {
+        addToast(translatorRef.current("video.notCanvasProject"), "error");
         navigate("/", { replace: true });
         return;
+      }
+      if (projectRecord && graphResult.status === "fulfilled"
+          && graphResult.value.graph.graph_kind !== "video_studio") {
+        failures.push(translatorRef.current("video.canvasWrongGraphKind"));
       }
       if (graphResult.status === "rejected") {
         failures.push(extractErrorMessage(graphResult.reason, translatorRef.current("video.canvasLoadFailed")));
@@ -700,14 +704,12 @@ export const VideoStudioCanvas: React.FC = () => {
         onClick: () => void importMedia("video"),
       },
     ];
-    if (project?.source_mode === "freeform") {
-      items.push({
-        label: t("video.importAudio"),
-        icon: <Upload size={13} />,
-        disabled: importDisabled,
-        onClick: () => void importMedia("audio"),
-      });
-    }
+    items.push({
+      label: t("video.importAudio"),
+      icon: <Upload size={13} />,
+      disabled: importDisabled,
+      onClick: () => void importMedia("audio"),
+    });
     if (selectedNode) {
       items.push({ type: "divider" });
       items.push({
@@ -742,7 +744,6 @@ export const VideoStudioCanvas: React.FC = () => {
     importMedia,
     previewLoading,
     previewNode,
-    project?.source_mode,
     runNode,
     runToNode,
     selectedNode,
@@ -886,9 +887,7 @@ export const VideoStudioCanvas: React.FC = () => {
           subtitle={
             selectedNode
               ? `${selectedNode.data.label || nodeDisplayTitle(selectedNode.data, t)} · ${stateLabel(selectedNode.data.state, t)}`
-              : project?.source_mode === "freeform"
-                ? t("video.freeCanvasDescription")
-                : t("video.derivedCanvasDescription")
+              : t("video.freeCanvasDescription")
           }
           meta={
             <span className="text-small text-book-text-muted">
@@ -896,9 +895,7 @@ export const VideoStudioCanvas: React.FC = () => {
                 ? t("video.canvasSaving")
                 : importing
                   ? t("video.canvasImporting")
-                  : project?.source_mode === "freeform"
-                    ? t("video.freeCanvas")
-                    : t("video.derivedCanvas")}
+                  : t("video.freeCanvas")}
               <span
                 aria-hidden={canvasWriteBusy || !dirty}
                 className={canvasWriteBusy || !dirty ? "invisible" : undefined}
@@ -1112,7 +1109,7 @@ export const VideoStudioCanvas: React.FC = () => {
                 {nodes.length === 0 ? (
                   <CanvasEmptyState
                     disabled={canvasMutationDisabled}
-                    showTextToVideoTemplate={project?.source_mode === "freeform"}
+                    showTextToVideoTemplate={Boolean(project)}
                     templateDisabled={saving || importing || dirty}
                     mobile={isMobileLayout}
                     onOpenNodeLibrary={() => setMobileNodeLibraryOpen(true)}

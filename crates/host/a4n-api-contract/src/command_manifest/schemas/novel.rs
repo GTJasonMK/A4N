@@ -84,8 +84,8 @@ pub(crate) fn args_create_derived_project() -> Value {
 pub(crate) fn args_source_sync_project() -> Value {
     strict_typed_input_schema::<crate::source_sync::SourceSyncProjectInput>()
 }
-pub(crate) fn args_create_freeform_video_project() -> Value {
-    strict_typed_input_schema::<crate::project::CreateFreeformVideoProjectInput>()
+pub(crate) fn args_create_canvas_project() -> Value {
+    strict_typed_input_schema::<crate::project::CreateCanvasProjectInput>()
 }
 pub(crate) fn args_create_standalone_comic_project() -> Value {
     strict_typed_input_schema::<crate::project::CreateStandaloneComicProjectInput>()
@@ -228,8 +228,8 @@ pub(crate) fn args_export_project_family_data() -> Value {
 pub(crate) fn args_export_project_bundle_data() -> Value {
     strict_typed_input_schema::<crate::project_transfer::ExportProjectBundleDataInput>()
 }
-pub(crate) fn args_export_video_studio_project_data() -> Value {
-    strict_typed_input_schema::<crate::project_transfer::ExportVideoStudioProjectDataInput>()
+pub(crate) fn args_export_canvas_project_data() -> Value {
+    strict_typed_input_schema::<crate::project_transfer::ExportCanvasProjectDataInput>()
 }
 pub(crate) fn args_forward_project_status() -> Value {
     json!({
@@ -294,7 +294,7 @@ pub(crate) fn args_import_project_text_upload() -> Value {
 pub(crate) fn args_import_review_id() -> Value {
     strict_typed_input_schema::<crate::import_review::ImportReviewIdInput>()
 }
-pub(crate) fn args_import_video_studio_project_upload() -> Value {
+pub(crate) fn args_import_canvas_project_upload() -> Value {
     strict_typed_input_schema::<crate::project_transfer::ImportProjectPackageUploadInput>()
 }
 pub(crate) fn args_list_blueprint_versions() -> Value {

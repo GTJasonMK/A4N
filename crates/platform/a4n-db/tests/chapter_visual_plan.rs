@@ -31,10 +31,10 @@ async fn director_resources_are_family_scoped_and_survive_supersession() {
     )
     .await
     .unwrap();
-    let media_project = a4n_db::project::create_freeform_video_project_record(
+    let media_project = a4n_db::project::create_canvas_project_record(
         &db,
         1,
-        a4n_db::project::CreateFreeformVideoProjectParams {
+        a4n_db::project::CreateCanvasProjectParams {
             title: "Director media".into(),
             description: String::new(),
         },

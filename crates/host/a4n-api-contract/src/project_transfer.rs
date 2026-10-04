@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub const PROJECT_FAMILY_PACKAGE_SUFFIX: &str = ".a4n-family.zip";
-pub const VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX: &str = ".a4n-video-studio.zip";
+pub const CANVAS_PROJECT_PACKAGE_SUFFIX: &str = ".a4n-canvas.zip";
 pub const PROJECT_BUNDLE_PACKAGE_SUFFIX: &str = ".a4n-project.zip";
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -30,7 +30,7 @@ pub struct ExportDerivedProjectDataInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct ExportVideoStudioProjectDataInput {
+pub struct ExportCanvasProjectDataInput {
     pub project_id: i64,
 }
 
@@ -191,12 +191,12 @@ pub struct ExportDerivedProjectPackageApplicationInput {
     pub derived_project_id: i64,
 }
 
-/// 视频画布项目包的业务应用边界。
+/// 独立 Canvas 项目包的业务应用边界。
 #[async_trait::async_trait]
-pub trait VideoStudioProjectTransferApplicationPort: Send + Sync {
+pub trait CanvasProjectTransferApplicationPort: Send + Sync {
     async fn export_project(
         &self,
-        input: ExportVideoStudioProjectApplicationInput,
+        input: ExportCanvasProjectApplicationInput,
         host_port: &dyn ProjectPackageTransferHostPort,
     ) -> Result<ExportedProjectPackage, ProjectPackageTransferError>;
 
@@ -208,7 +208,7 @@ pub trait VideoStudioProjectTransferApplicationPort: Send + Sync {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExportVideoStudioProjectApplicationInput {
+pub struct ExportCanvasProjectApplicationInput {
     pub user_id: i64,
     pub project_id: i64,
 }

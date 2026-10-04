@@ -3,10 +3,7 @@ import { ChevronRight, Film, FolderOpen, PanelsTopLeft, Plus, Sparkles, Upload }
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import { Modal } from "../../components/ui/Modal";
-import {
-  PROJECT_FAMILY_PACKAGE_SUFFIX,
-  VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
-} from "../../api/project";
+import { CANVAS_PROJECT_PACKAGE_SUFFIX, PROJECT_FAMILY_PACKAGE_SUFFIX } from "../../api/project";
 import { ImportsTab } from "../novel-detail/ImportsTab";
 import { useI18n, type MessageKey } from "../../i18n";
 import type { PackageId } from "../../api/generated/page";
@@ -14,7 +11,7 @@ import { usePackagePreferences } from "../../store/packagePreferences";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useNovelDetailDirtyRegistry } from "../novel-detail/novelDetailDirty";
 
-export type CreateMode = "ai" | "free" | "video_canvas" | "comic_workspace";
+export type CreateMode = "ai" | "free" | "canvas" | "comic_workspace";
 
 interface ProjectCreationDialogProps {
   open: boolean;
@@ -44,7 +41,7 @@ const CREATE_MODE_OPTIONS: Array<{
     icon: <Plus size={14} />,
   },
   {
-    id: "video_canvas",
+    id: "canvas",
     packageId: "canvas",
     labelKey: "novel.createModeCanvas",
     descriptionKey: "novel.createModeCanvasDescription",
@@ -175,7 +172,7 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({
       <p className="text-xs text-book-text-muted leading-relaxed mb-3">
         {t("novel.restorePackageHelp", {
           familySuffix: PROJECT_FAMILY_PACKAGE_SUFFIX,
-          videoSuffix: VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
+          canvasSuffix: CANVAS_PROJECT_PACKAGE_SUFFIX,
         })}
       </p>
       {importFileName && (

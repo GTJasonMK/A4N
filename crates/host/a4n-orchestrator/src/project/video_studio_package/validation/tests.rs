@@ -76,6 +76,7 @@ fn package() -> VideoStudioProjectPackage {
         video_segments: Vec::new(),
         assembly_timelines: Vec::new(),
         assembly_clips: Vec::new(),
+        provider_slots: Vec::new(),
         media_files: Vec::new(),
     }
 }

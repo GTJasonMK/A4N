@@ -31,8 +31,8 @@ describe("project type labels", () => {
   });
 });
 
-describe("video studio back route", () => {
-  it("returns derived video projects to their workspace and freeform projects to the list", () => {
+describe("Canvas back route", () => {
+  it("returns derived video projects to their workspace and independent Canvas projects home", () => {
     expect(getProjectStudioBackRoute({
       id: 12,
       status: "writing",
@@ -42,7 +42,7 @@ describe("video studio back route", () => {
     expect(getProjectStudioBackRoute({
       id: 13,
       status: "writing",
-      project_kind: "video",
+      project_kind: "canvas",
       source_mode: "freeform",
     })).toBe("/");
   });

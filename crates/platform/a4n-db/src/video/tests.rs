@@ -41,11 +41,11 @@ fn checkpoint_artifacts_with_flag(
     Ok(Value::Object(artifacts))
 }
 
-async fn freeform_video_project(db: &DatabaseConnection, title: &str) -> novel_project::Model {
-    crate::project::create_freeform_video_project_record(
+async fn canvas_project(db: &DatabaseConnection, title: &str) -> novel_project::Model {
+    crate::project::create_canvas_project_record(
         db,
         1,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: title.to_string(),
             description: String::new(),
         },
@@ -135,7 +135,7 @@ fn video_read_ids_and_frame_numbers_reject_non_positive_values() {
 #[tokio::test]
 async fn timeline_prompt_query_returns_the_timeline_projection() {
     let db = setup_db().await;
-    let project = freeform_video_project(&db, "时间线提示词窄读").await;
+    let project = canvas_project(&db, "时间线提示词窄读").await;
     let chapter = video_test_chapter(&db, project.id).await;
     let now = Utc::now().naive_utc();
     chapter_video_prompt::ActiveModel {
@@ -203,7 +203,7 @@ fn video_database_error_keeps_db_source() {
 #[tokio::test]
 async fn current_shared_segment_plan_query_filters_source_hash() {
     let db = setup_db().await;
-    let project = freeform_video_project(&db, "当前片段规划查询").await;
+    let project = canvas_project(&db, "当前片段规划查询").await;
     let chapter = video_test_chapter(&db, project.id).await;
     let current = shared_segment_plan(&db, project.id, chapter.id, "current").await;
 
@@ -224,7 +224,7 @@ async fn current_shared_segment_plan_query_filters_source_hash() {
 #[tokio::test]
 async fn delete_generated_image_removes_only_generated_target_binding() {
     let db = setup_db().await;
-    let project = freeform_video_project(&db, "图片 target binding 删除测试").await;
+    let project = canvas_project(&db, "图片 target binding 删除测试").await;
     let image = create_generated_image_record(
         &db,
         CreateGeneratedImageRecordDraftInput {
@@ -429,7 +429,7 @@ async fn delete_generated_image_clears_every_segment_recipe_image_reference() {
 #[tokio::test]
 async fn delete_generated_image_with_cleanup_commits_record_and_file_intent_together() {
     let db = setup_db().await;
-    let project = freeform_video_project(&db, "图片 cleanup intent 原子性").await;
+    let project = canvas_project(&db, "图片 cleanup intent 原子性").await;
     let image = create_generated_image_record(
         &db,
         CreateGeneratedImageRecordDraftInput {
@@ -469,7 +469,7 @@ async fn delete_generated_image_with_cleanup_commits_record_and_file_intent_toge
 #[tokio::test]
 async fn delete_generated_video_with_cleanup_records_video_and_thumbnail_paths() {
     let db = setup_db().await;
-    let project = freeform_video_project(&db, "视频 cleanup intent").await;
+    let project = canvas_project(&db, "视频 cleanup intent").await;
     let video = create_generated_video_record(
         &db,
         CreateGeneratedVideoRecordDraftInput {
@@ -617,7 +617,7 @@ async fn delete_generated_video_rebinds_prompt_to_completed_candidate() {
 #[tokio::test]
 async fn batch_error_status_updates_many_videos_in_one_contract() {
     let db = setup_db().await;
-    let project = freeform_video_project(&db, "批量终止视频状态").await;
+    let project = canvas_project(&db, "批量终止视频状态").await;
     let mut videos = Vec::new();
     for index in 0..20 {
         videos.push(
@@ -676,7 +676,7 @@ async fn batch_error_status_updates_many_videos_in_one_contract() {
 #[tokio::test]
 async fn missing_video_repair_uses_binding_project_and_removes_dangling_binding() {
     let db = setup_db().await;
-    let project = freeform_video_project(&db, "缺失视频 binding 修复测试").await;
+    let project = canvas_project(&db, "缺失视频 binding 修复测试").await;
     let video = create_generated_video_record(
         &db,
         CreateGeneratedVideoRecordDraftInput {

@@ -159,7 +159,7 @@ BEGIN
         IF NOT EXISTS (
             SELECT 1 FROM novel_project project_row
             WHERE project_row.id = NEW.project_id
-              AND project_row.project_kind = 'video'
+              AND project_row.project_kind = 'canvas'
               AND project_row.root_project_id IS NULL
               AND project_row.source_snapshot_id IS NULL
         ) THEN
@@ -915,7 +915,7 @@ BEGIN
         IF NOT EXISTS (
             SELECT 1 FROM novel_project project_row
             WHERE project_row.id = NEW.project_id
-              AND project_row.project_kind = 'video'
+              AND project_row.project_kind = 'canvas'
               AND project_row.source_mode = 'freeform'
         ) THEN
             RAISE EXCEPTION 'freeform 生成意图必须属于自由视频项目';

@@ -20,18 +20,16 @@ use crate::project::{ImportMediaPayload, MediaFileEntry};
 mod export_assembly;
 mod validation;
 pub(crate) use validation::validate_canvas_media_asset_owner;
-pub(crate) use validation::validate_family_canvas_package;
 
 #[cfg(test)]
 pub(crate) use validation::MediaEntryOwnerIndex;
 
 /// 视频画布项目包版本号。
-pub(crate) const VIDEO_STUDIO_PACKAGE_VERSION: &str = "video_studio_project_v2";
+pub(crate) const VIDEO_STUDIO_PACKAGE_VERSION: &str = "canvas_project_v1";
 /// 视频画布项目包 mode。
-pub(crate) const PACKAGE_MODE: &str = "video_studio_project";
-pub(crate) const FAMILY_CANVAS_MODE: &str = "project_family_canvas";
+pub(crate) const PACKAGE_MODE: &str = "canvas_project";
 /// zip 内清单路径。
-pub const MANIFEST_PATH: &str = "a4n-video-studio-project.json";
+pub const MANIFEST_PATH: &str = "a4n-canvas-project.json";
 
 /// 视频画布导出/导入包 manifest。
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,6 +52,7 @@ pub struct VideoStudioProjectPackage {
     pub video_segments: Vec<video_segment::Model>,
     pub assembly_timelines: Vec<assembly_timeline::Model>,
     pub assembly_clips: Vec<assembly_clip::Model>,
+    pub(crate) provider_slots: Vec<crate::project::ProjectBundleProviderSlot>,
     pub media_files: Vec<MediaFileEntry>,
 }
 
@@ -81,9 +80,7 @@ impl VideoStudioProjectPackage {
 }
 
 /// 组装视频画布导出 manifest。
-pub(crate) use export_assembly::{
-    assemble_video_studio_export_package, assemble_video_studio_project_canvas_package,
-};
+pub(crate) use export_assembly::assemble_video_studio_export_package;
 
 /// 校验包 manifest 与媒体 payload 一致性（纯规则，无 DB）。
 pub(crate) fn validate_package_manifest(

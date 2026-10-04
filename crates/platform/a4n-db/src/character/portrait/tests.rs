@@ -25,10 +25,10 @@ async fn project_and_profile(
     db: &DatabaseConnection,
     title: &str,
 ) -> (novel_project::Model, protagonist_profile::Model) {
-    let project = crate::project::create_freeform_video_project_record(
+    let project = crate::project::create_canvas_project_record(
         db,
         1,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: title.to_string(),
             description: String::new(),
         },
@@ -271,20 +271,20 @@ async fn set_primary_portrait_leaves_exactly_one_primary() {
 #[tokio::test]
 async fn portrait_rollback_is_transactional_and_project_scoped() {
     let db = setup_db().await;
-    let project = crate::project::create_freeform_video_project_record(
+    let project = crate::project::create_canvas_project_record(
         &db,
         1,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: "立绘回滚目标项目".to_string(),
             description: String::new(),
         },
     )
     .await
     .unwrap();
-    let other_project = crate::project::create_freeform_video_project_record(
+    let other_project = crate::project::create_canvas_project_record(
         &db,
         1,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: "立绘回滚隔离项目".to_string(),
             description: String::new(),
         },

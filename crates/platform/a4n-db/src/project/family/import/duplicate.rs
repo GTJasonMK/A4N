@@ -45,7 +45,6 @@ pub(crate) async fn copy_derived_media_rows<Copier: ProjectMediaFileCopier + ?Si
         return Err(invalid("复制派生项目的冻结原文不属于该原作"));
     }
     let mut package = ProjectFamilyImportPackage {
-        canvas_projects: Vec::new(),
         root_project_id: root_id,
         projects: vec![crate::project::project_record_from_model(original.clone())],
         text_core: rows.text_core,

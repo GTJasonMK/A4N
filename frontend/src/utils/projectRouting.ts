@@ -30,6 +30,7 @@ const PROJECT_TYPE_LABEL_KEYS: Record<string, MessageKey> = {
 export const PROJECT_KIND_LABEL_KEYS: Record<ProjectKind, MessageKey> = {
   text: "novel.textProject",
   video: "novel.videoProject",
+  canvas: "video.canvasProject",
   comic: "novel.comicProject",
   galgame: "novel.galgameProject",
 };
@@ -95,19 +96,16 @@ export const getDerivedProjectSubtitle = (
   return parts.join(" · ") || labels.fallback;
 };
 
-export const getProjectStudioRoute = (id: number | string): string =>
-  `/video-project/${id}/studio`;
+export const getCanvasProjectRoute = (id: number | string): string =>
+  `/canvas-project/${id}`;
 
 const projectRoute = (
   project: RoutedProject,
   textRoute: "novel" | "write",
 ): string => {
   const id = project.id;
-  if (project.project_kind === "video") {
-    return project.source_mode === "freeform"
-      ? getProjectStudioRoute(id)
-      : `/video-project/${id}`;
-  }
+  if (project.project_kind === "canvas") return getCanvasProjectRoute(id);
+  if (project.project_kind === "video") return `/video-project/${id}`;
   if (project.project_kind === "comic") return `/comic-project/${id}`;
   if (project.project_kind === "galgame") return `/galgame-project/${id}`;
   return `/${textRoute}/${id}`;
@@ -117,7 +115,7 @@ export const getProjectPrimaryRoute = (project: RoutedProject): string =>
   projectRoute(project, "novel");
 
 export const getProjectStudioBackRoute = (project: RoutedProject): string =>
-  project.project_kind === "video" && project.source_mode === "freeform"
+  project.project_kind === "canvas"
     ? "/"
     : getProjectPrimaryRoute(project);
 
@@ -125,8 +123,10 @@ export const getProjectPrimaryLabel = (
   project: RoutedProject,
   t: MessageTranslator,
 ): string =>
-  project.project_kind === "video"
-    ? t("novel.enterVideoProject")
+  project.project_kind === "canvas"
+    ? t("video.canvasProject")
+    : project.project_kind === "video"
+      ? t("novel.enterVideoProject")
     : project.project_kind === "comic"
       ? t("novel.enterComicProject")
       : project.project_kind === "galgame"
@@ -140,8 +140,10 @@ export const getProjectWorkspaceLabel = (
   project: RoutedProject,
   t: MessageTranslator,
 ): string =>
-  project.project_kind === "video"
-    ? t("novel.enterVideoWorkspace")
+  project.project_kind === "canvas"
+    ? t("video.canvasProject")
+    : project.project_kind === "video"
+      ? t("novel.enterVideoWorkspace")
     : project.project_kind === "comic"
       ? t("novel.enterComicWorkspace")
       : project.project_kind === "galgame"

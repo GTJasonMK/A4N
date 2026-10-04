@@ -7,7 +7,7 @@ use crate::routes::commands::{
     ApiError, nullable_i64_arg, optional_string_field, project_records_actions, to_value, u64_arg,
 };
 use a4n_api_contract::project::{
-    CreateDerivedProjectInput, CreateFreeformVideoProjectInput, CreateProjectInput,
+    CreateCanvasProjectInput, CreateDerivedProjectInput, CreateProjectInput,
     CreateStandaloneComicProjectInput, UpdateProjectInput,
 };
 use serde_json::Value;
@@ -50,9 +50,9 @@ project_web_input_value_command!(
     project_records_actions::create_derived_project
 );
 project_web_input_value_command!(
-    create_freeform_video_project,
-    CreateFreeformVideoProjectInput,
-    project_records_actions::create_freeform_video_project
+    create_canvas_project,
+    CreateCanvasProjectInput,
+    project_records_actions::create_canvas_project
 );
 project_web_input_value_command!(
     create_standalone_comic_project,

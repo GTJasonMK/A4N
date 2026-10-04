@@ -54,7 +54,7 @@ BEGIN
     FROM novel_project project_row
     WHERE project_row.id = NEW.project_id;
 
-    IF project_kind = 'video'
+    IF project_kind = 'canvas'
        AND project_root_project_id IS NULL
        AND project_source_snapshot_id IS NULL THEN
         IF NEW.root_project_id <> NEW.project_id THEN
@@ -122,7 +122,7 @@ BEGIN
     FROM novel_project project_row
     WHERE project_row.id = NEW.project_id;
 
-    IF project_kind = 'video'
+    IF project_kind = 'canvas'
        AND project_root_project_id IS NULL
        AND project_source_snapshot_id IS NULL THEN
         IF NEW.source_chapter_id IS NOT NULL OR NEW.source_snapshot_chapter_id IS NOT NULL THEN
@@ -172,7 +172,7 @@ BEGIN
     SELECT project_row.source_mode INTO project_source_mode
     FROM novel_project project_row
     WHERE project_row.id = NEW.project_id
-      AND project_row.project_kind = 'video';
+      AND project_row.project_kind = 'canvas';
 
     IF project_source_mode = 'freeform' THEN
         IF NEW.root_project_id <> NEW.project_id THEN

@@ -12,11 +12,14 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    IF NEW.project_kind NOT IN ('text','comic','video','galgame') THEN
+    IF NEW.project_kind NOT IN ('text','comic','video','canvas','galgame') THEN
         RAISE EXCEPTION 'novel_project.project_kind 无效';
     END IF;
     IF NOT (
         (NEW.project_kind = 'text'
+            AND NEW.root_project_id IS NULL
+            AND NEW.source_snapshot_id IS NULL)
+        OR (NEW.project_kind = 'canvas'
             AND NEW.root_project_id IS NULL
             AND NEW.source_snapshot_id IS NULL)
         OR (NEW.project_kind = 'video'
@@ -58,11 +61,14 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    IF NEW.project_kind NOT IN ('text','comic','video','galgame') THEN
+    IF NEW.project_kind NOT IN ('text','comic','video','canvas','galgame') THEN
         RAISE EXCEPTION 'novel_project.project_kind 无效';
     END IF;
     IF NOT (
         (NEW.project_kind = 'text'
+            AND NEW.root_project_id IS NULL
+            AND NEW.source_snapshot_id IS NULL)
+        OR (NEW.project_kind = 'canvas'
             AND NEW.root_project_id IS NULL
             AND NEW.source_snapshot_id IS NULL)
         OR (NEW.project_kind = 'video'

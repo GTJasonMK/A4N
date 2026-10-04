@@ -583,9 +583,7 @@ pub(super) fn run() {
         &typescript_interface::<ExportProjectFamilyDataInput>("ExportProjectFamilyDataInput"),
         &typescript_interface::<ExportProjectBundleDataInput>("ExportProjectBundleDataInput"),
         &typescript_interface::<ExportDerivedProjectDataInput>("ExportDerivedProjectDataInput"),
-        &typescript_interface::<ExportVideoStudioProjectDataInput>(
-            "ExportVideoStudioProjectDataInput",
-        ),
+        &typescript_interface::<ExportCanvasProjectDataInput>("ExportCanvasProjectDataInput"),
         &typescript_interface::<ExportProjectPackageData>("ExportProjectPackageData"),
         &typescript_interface::<ImportProjectPackageUploadInput>("ImportProjectPackageUploadInput"),
         &typescript_interface::<ProjectBundleImportReport>("ProjectBundleImportReport"),
@@ -681,7 +679,7 @@ pub(super) fn run() {
         &typescript_interface::<ProjectSummary>("ProjectSummary"),
         &typescript_interface::<PaginatedProjects>("PaginatedProjects"),
         &typescript_interface::<CreateProjectInput>("CreateProjectInput"),
-        &typescript_interface::<CreateFreeformVideoProjectInput>("CreateFreeformVideoProjectInput"),
+        &typescript_interface::<CreateCanvasProjectInput>("CreateCanvasProjectInput"),
         &typescript_interface::<CreateStandaloneComicProjectInput>(
             "CreateStandaloneComicProjectInput",
         ),

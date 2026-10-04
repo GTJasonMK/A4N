@@ -76,8 +76,7 @@ impl OrchestratorContext {
             a4n_domain::collaboration::ProjectAccessRole::Editor,
         )
         .await?;
-        self.require_freeform_video_project(input.project_id)
-            .await?;
+        self.require_canvas_project(input.project_id).await?;
         let video_input = CanvasVideoNodeInput {
             prompt: input.prompt,
             negative_prompt: input.negative_prompt,
@@ -121,8 +120,7 @@ impl OrchestratorContext {
             a4n_domain::collaboration::ProjectAccessRole::Editor,
         )
         .await?;
-        self.require_freeform_video_project(input.project_id)
-            .await?;
+        self.require_canvas_project(input.project_id).await?;
         let document = self
             .canvas_document_with_workflow_text_asset_snapshot(
                 input.document,
@@ -793,18 +791,23 @@ impl OrchestratorContext {
         .await
     }
 
-    async fn require_freeform_video_project(&self, project_id: i64) -> Result<(), AppError> {
+    async fn require_canvas_project(&self, project_id: i64) -> Result<(), AppError> {
         let project = self
             .project_by_id(project_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
+        if project.project_kind != a4n_db::project::PROJECT_KIND_CANVAS {
+            return Err(AppError::InvalidArgument(
+                "GenerateVideoNode 当前只支持独立画布项目".to_string(),
+            ));
+        }
         if project
             .source_mode()
             .map_err(|error| AppError::InvalidArgument(format!("项目 {project_id}: {error}")))?
             != ProjectSourceMode::Freeform
         {
             return Err(AppError::InvalidArgument(
-                "GenerateVideoNode 当前只支持自由视频项目".to_string(),
+                "GenerateVideoNode 当前只支持独立画布项目".to_string(),
             ));
         }
         Ok(())

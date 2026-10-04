@@ -38,12 +38,11 @@ const resolveProjectPrefetchTarget = (
   project: HomeEntryProject,
 ): { key: string; load: () => Promise<unknown> } => {
   const route = getProjectHomeEntryRoute(project);
+  if (route.startsWith("/canvas-project/")) {
+    return { key: "page:canvas-project", load: () => import("../pages/VideoStudioCanvas") };
+  }
   if (route.startsWith("/write/")) {
     return { key: "page:writing-desk", load: () => import("../pages/WritingDesk") };
-  }
-
-  if (route.endsWith("/studio") && route.startsWith("/video-project/")) {
-    return { key: "page:video-studio-canvas", load: () => import("../pages/VideoStudioCanvas") };
   }
 
   if (route.startsWith("/video-project/")) {

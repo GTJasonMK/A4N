@@ -9,6 +9,7 @@ use super::ProjectDuplicateError;
 pub(super) struct ProjectCopyInsert {
     pub(super) user_id: i64,
     pub(super) title: String,
+    pub(super) project_kind: String,
     pub(super) root_project_id: Option<i64>,
     pub(super) source_snapshot_id: Option<i64>,
     pub(super) status: String,
@@ -31,7 +32,7 @@ where
         title: Set(values.title),
         description: Set(original.description.clone()),
         project_type: Set(original.project_type.clone()),
-        project_kind: Set(original.project_kind.clone()),
+        project_kind: Set(values.project_kind),
         root_project_id: Set(values.root_project_id),
         source_snapshot_id: Set(values.source_snapshot_id),
         source_sync_status: Set(original.source_sync_status.clone()),

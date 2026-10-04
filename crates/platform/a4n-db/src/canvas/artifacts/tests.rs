@@ -30,10 +30,10 @@ async fn setup_db() -> DatabaseConnection {
 #[tokio::test]
 async fn canvas_image_provenance_failure_rolls_back_asset_and_binding() {
     let db = setup_db().await;
-    let project = crate::project::create_freeform_video_project_record(
+    let project = crate::project::create_canvas_project_record(
         &db,
         1,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: "画布媒体事务回滚测试".to_string(),
             description: String::new(),
         },
@@ -95,10 +95,10 @@ async fn canvas_image_provenance_failure_rolls_back_asset_and_binding() {
 #[tokio::test]
 async fn canvas_generation_spec_upsert_derives_source_version_hash() {
     let db = setup_db().await;
-    let project = crate::project::create_freeform_video_project_record(
+    let project = crate::project::create_canvas_project_record(
         &db,
         2,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: "画布生成意图哈希测试".to_string(),
             description: String::new(),
         },
@@ -142,10 +142,10 @@ async fn canvas_generation_spec_upsert_derives_source_version_hash() {
 #[tokio::test]
 async fn canvas_prompt_artifact_keeps_user_edits() {
     let db = setup_db().await;
-    let project = crate::project::create_freeform_video_project_record(
+    let project = crate::project::create_canvas_project_record(
         &db,
         1,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: "提示词人工编辑保留".to_string(),
             description: String::new(),
         },
@@ -207,10 +207,10 @@ async fn canvas_prompt_artifact_keeps_user_edits() {
 #[tokio::test]
 async fn canvas_node_artifact_update_rejects_a_changed_graph_version() {
     let db = setup_db().await;
-    let project = crate::project::create_freeform_video_project_record(
+    let project = crate::project::create_canvas_project_record(
         &db,
         1,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: "画布节点版本保护".to_string(),
             description: String::new(),
         },
@@ -311,10 +311,10 @@ async fn canvas_node_artifact_update_rejects_a_changed_graph_version() {
 #[tokio::test]
 async fn canvas_assembly_batch_write_preserves_segment_chain_bindings_and_clips() {
     let db = setup_db().await;
-    let project = crate::project::create_freeform_video_project_record(
+    let project = crate::project::create_canvas_project_record(
         &db,
         3,
-        crate::project::CreateFreeformVideoProjectParams {
+        crate::project::CreateCanvasProjectParams {
             title: "画布成片批量写入合同".to_string(),
             description: String::new(),
         },

@@ -1,6 +1,6 @@
 use a4n_db::{
     generation::RecordStartedGenerationRunInput,
-    project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
+    project::{CreateCanvasProjectParams, create_canvas_project_record},
     video::create_generated_video_record_with_generation_run,
     workflow::{UpsertWorkflowRunInput, upsert_workflow_run},
 };
@@ -133,10 +133,10 @@ async fn interrupts_stale_in_process_workflows() {
 #[tokio::test]
 async fn interrupts_stale_video_before_provider_submission() {
     let db = setup_db().await;
-    let project = create_freeform_video_project_record(
+    let project = create_canvas_project_record(
         db.as_ref(),
         1,
-        CreateFreeformVideoProjectParams {
+        CreateCanvasProjectParams {
             title: "视频恢复测试".to_string(),
             description: String::new(),
         },

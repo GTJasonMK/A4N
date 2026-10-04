@@ -41,11 +41,14 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    IF NEW.project_kind NOT IN ('text','comic','video','galgame') THEN
+    IF NEW.project_kind NOT IN ('text','comic','video','canvas','galgame') THEN
         RAISE EXCEPTION 'novel_project.project_kind 无效';
     END IF;
     IF NOT (
         (NEW.project_kind = 'text'
+            AND NEW.root_project_id IS NULL
+            AND NEW.source_snapshot_id IS NULL)
+        OR (NEW.project_kind = 'canvas'
             AND NEW.root_project_id IS NULL
             AND NEW.source_snapshot_id IS NULL)
         OR (NEW.project_kind = 'video'
@@ -92,7 +95,7 @@ FOR EACH ROW EXECUTE FUNCTION a4n_validate_novel_project_family()
 
 const VIDEO_CANVAS_UP_SQL: &[&str] = &[
     "ALTER TABLE novel_project ADD COLUMN IF NOT EXISTS source_mode TEXT",
-    "UPDATE novel_project SET source_mode = CASE WHEN project_kind = 'text' THEN 'self' ELSE 'derived' END WHERE source_mode IS NULL OR source_mode = ''",
+    "UPDATE novel_project SET source_mode = CASE WHEN project_kind = 'text' THEN 'self' WHEN project_kind = 'canvas' THEN 'freeform' ELSE 'derived' END WHERE source_mode IS NULL OR source_mode = ''",
     "ALTER TABLE novel_project ALTER COLUMN source_mode SET DEFAULT 'self'",
     "ALTER TABLE novel_project ALTER COLUMN source_mode SET NOT NULL",
     "CREATE INDEX IF NOT EXISTS idx_novel_project_source_mode ON novel_project(source_mode)",

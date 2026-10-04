@@ -805,7 +805,6 @@ version = "0.1.0"
 dependencies = [
  "a4n-db-models",
  "a4n-error",
- "a4n-migration",
  "anyhow",
  "sea-orm",
  "tokio",
@@ -1669,9 +1668,11 @@ name = "a4n-migration"
 version = "0.1.0"
 dependencies = [
  "a4n-config",
+ "a4n-db",
  "a4n-db-models",
  "a4n-domain",
  "a4n-service-protocol",
+ "a4n-storage",
  "a4n-video-contract",
  "sea-orm",
  "sea-orm-migration",

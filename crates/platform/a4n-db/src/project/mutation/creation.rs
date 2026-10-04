@@ -1,6 +1,6 @@
 use super::contracts::{
-    CreateFreeformVideoProjectParams, CreateProjectRecordInput, CreateStandaloneComicProjectParams,
-    PROJECT_KIND_COMIC, PROJECT_KIND_TEXT, PROJECT_KIND_VIDEO, PROJECT_TYPE_SCRIPT,
+    CreateCanvasProjectParams, CreateProjectRecordInput, CreateStandaloneComicProjectParams,
+    PROJECT_KIND_CANVAS, PROJECT_KIND_COMIC, PROJECT_KIND_TEXT, PROJECT_TYPE_SCRIPT,
     ProjectMutationError, SOURCE_SYNC_CURRENT,
 };
 use super::rules::{normalize_project_type, required_project_title};
@@ -45,10 +45,10 @@ pub async fn create_project_record(
     .map_err(ProjectMutationError::Database)
 }
 
-pub async fn create_freeform_video_project_record(
+pub async fn create_canvas_project_record(
     db: &DatabaseConnection,
     user_id: i64,
-    params: CreateFreeformVideoProjectParams,
+    params: CreateCanvasProjectParams,
 ) -> Result<novel_project::Model, ProjectMutationError> {
     let title = required_project_title(&params.title)?.to_string();
     let description = params.description.trim().to_string();
@@ -58,7 +58,7 @@ pub async fn create_freeform_video_project_record(
         title: Set(title),
         description: Set(description),
         project_type: Set(PROJECT_TYPE_SCRIPT.to_string()),
-        project_kind: Set(PROJECT_KIND_VIDEO.to_string()),
+        project_kind: Set(PROJECT_KIND_CANVAS.to_string()),
         root_project_id: Set(None),
         source_snapshot_id: Set(None),
         source_sync_status: Set(SOURCE_SYNC_CURRENT.to_string()),

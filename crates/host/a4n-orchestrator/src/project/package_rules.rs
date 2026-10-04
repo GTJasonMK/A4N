@@ -112,14 +112,17 @@ pub fn validate_snapshot_payload_identity(
     Ok(())
 }
 
-/// freeform 视频项目结构约束。
-pub fn validate_freeform_video_project(project: &ProjectRecord, label: &str) -> Result<(), String> {
+/// Canvas 项目结构约束。
+pub fn validate_canvas_project(project: &ProjectRecord, label: &str) -> Result<(), String> {
+    if project.project_kind != a4n_domain::project::ProjectKind::Canvas.as_str() {
+        return Err(format!("{label}必须是独立画布项目"));
+    }
     if project
         .source_mode()
         .map_err(|error| format!("{label}{error}"))?
         != ProjectSourceMode::Freeform
     {
-        return Err(format!("{label}必须是 freeform video 项目"));
+        return Err(format!("{label}必须是 freeform canvas 项目"));
     }
     Ok(())
 }

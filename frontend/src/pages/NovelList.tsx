@@ -18,22 +18,23 @@ import { cancelWorkflowTask } from "../api/streaming";
 import {
   acceptProjectInvite,
   createDerivedProject,
-  createFreeformVideoProject,
+  createCanvasProject,
   createStandaloneComicProject,
   createProject,
   declineProjectInvite,
   deleteProject,
   duplicateProject,
   exportProjectBundleData,
+  exportCanvasProjectData,
   importProjectBundleUpload,
   importProjectFamilyUpload,
-  importVideoStudioProjectUpload,
+  importCanvasProjectUpload,
   listAllProjects,
   listMyProjectInvites,
   listProjects,
   PROJECT_BUNDLE_PACKAGE_SUFFIX,
+  CANVAS_PROJECT_PACKAGE_SUFFIX,
   PROJECT_FAMILY_PACKAGE_SUFFIX,
-  VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
   type NovelProject,
   type ProjectAccessScope,
   type ProjectInvite,
@@ -56,7 +57,6 @@ import {
   type Quote,
 } from "./novel-list/novelListUtils";
 import { pickLocalFile, readFileAsBase64 } from "../utils/fileUpload";
-import { initializeVideoStarterGraph } from "./video-studio/canvasStarterTemplate";
 import { base64DataToBlob, downloadBlob } from "../utils/downloadFile";
 import { useI18n } from "../i18n";
 import { UnsavedNavigationGuard } from "../components/navigation/UnsavedNavigationGuard";
@@ -353,9 +353,9 @@ export const NovelList: React.FC<NovelListProps> = () => {
     setCreating(true);
     try {
       const project =
-        requestMode === "video_canvas"
-          ? await createFreeformVideoProject({
-              title: t("novel.projectListActions.unnamedVideoProject"),
+        requestMode === "canvas"
+          ? await createCanvasProject({
+              title: t("video.canvasProject"),
               description: "",
             })
           : requestMode === "comic_workspace"
@@ -368,19 +368,6 @@ export const NovelList: React.FC<NovelListProps> = () => {
               description: "",
               project_type: "novel_long",
             });
-      if (requestMode === "video_canvas") {
-        try {
-          await initializeVideoStarterGraph(
-            project.id,
-            tRef.current("video.canvas.defaultRewriteInstruction"),
-          );
-        } catch (error) {
-          addToast(
-            extractErrorMessage(error, tRef.current("video.canvasTemplateInitFailed")),
-            "error",
-          );
-        }
-      }
       if (!mountedRef.current || createSeqRef.current !== requestSeq) return;
       const refreshed = await refreshAfterMutation();
       if (!mountedRef.current || createSeqRef.current !== requestSeq) return;
@@ -391,7 +378,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
         navigate(`/inspiration/${project.id}`);
       } else if (requestMode === "free") {
         navigate(getProjectPrimaryRoute(project));
-      } else if (requestMode === "video_canvas" || requestMode === "comic_workspace") {
+      } else if (requestMode === "canvas" || requestMode === "comic_workspace") {
         navigate(getProjectPrimaryRoute(project));
       }
     } catch (err) {
@@ -454,7 +441,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
     const label = kind === "comic"
       ? t("novel.comicProject")
       : kind === "video"
-        ? t("novel.videoProject")
+        ? t("video.canvasProject")
         : t("novel.galgameProject");
     if (project.project_kind !== "text") {
       addToast(tRef.current("novel.projectListActions.derivedSourceOnly", { label }), "error");
@@ -549,10 +536,12 @@ export const NovelList: React.FC<NovelListProps> = () => {
         if (scope === "cancel") return;
         includeDerivedProjects = scope === "secondary";
       }
-      const result = await exportProjectBundleData({
-        project_id: project.id,
-        include_derived_projects: includeDerivedProjects,
-      });
+      const result = project.project_kind === "canvas"
+        ? await exportCanvasProjectData({ project_id: project.id })
+        : await exportProjectBundleData({
+            project_id: project.id,
+            include_derived_projects: includeDerivedProjects,
+          });
       if (!mountedRef.current) return;
       downloadBlob(
         result.file_name,
@@ -633,16 +622,16 @@ export const NovelList: React.FC<NovelListProps> = () => {
         if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
         importedTextProject = imported.find((item) => item.project_kind === "text") ?? null;
         importSuccessMessage = tRef.current("novel.projectListActions.importedFamily", { titles: imported.map((item) => item.title).join(" / ") });
-      } else if (normalizedFileName.endsWith(VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX)) {
-        const imported = await importVideoStudioProjectUpload(input);
+      } else if (normalizedFileName.endsWith(CANVAS_PROJECT_PACKAGE_SUFFIX)) {
+        const imported = await importCanvasProjectUpload(input);
         if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
-        importSuccessMessage = tRef.current("novel.projectListActions.importedVideo", { title: imported.title });
+        importSuccessMessage = tRef.current("novel.projectListActions.importedCanvas", { title: imported.title });
       } else {
         throw new Error(
           tRef.current("novel.projectListActions.invalidImportFile", {
             bundleSuffix: PROJECT_BUNDLE_PACKAGE_SUFFIX,
             familySuffix: PROJECT_FAMILY_PACKAGE_SUFFIX,
-            videoSuffix: VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
+            canvasSuffix: CANVAS_PROJECT_PACKAGE_SUFFIX,
           }),
         );
       }
@@ -669,7 +658,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
     importFileSeqRef.current = requestSeq;
     try {
       const selected = await pickLocalFile(
-        `${PROJECT_BUNDLE_PACKAGE_SUFFIX},${PROJECT_FAMILY_PACKAGE_SUFFIX},${VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX},application/zip`,
+        `${PROJECT_BUNDLE_PACKAGE_SUFFIX},${PROJECT_FAMILY_PACKAGE_SUFFIX},${CANVAS_PROJECT_PACKAGE_SUFFIX},application/zip`,
       );
       if (
         selected &&

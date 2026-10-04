@@ -8,9 +8,9 @@ use a4n_domain::{
     project::{optional_text, required_text},
 };
 use a4n_project_mutation_worker_contract::{
-    CreateDerivedProjectInput, CreateFreeformVideoProjectInput, CreateProjectInput,
+    CreateCanvasProjectInput, CreateDerivedProjectInput, CreateProjectInput,
     CreateStandaloneComicProjectInput, PROJECT_MUTATION_CAPABILITY,
-    PROJECT_MUTATION_CREATE_DERIVED_OPERATION, PROJECT_MUTATION_CREATE_FREEFORM_VIDEO_OPERATION,
+    PROJECT_MUTATION_CREATE_CANVAS_OPERATION, PROJECT_MUTATION_CREATE_DERIVED_OPERATION,
     PROJECT_MUTATION_CREATE_OPERATION, PROJECT_MUTATION_CREATE_STANDALONE_COMIC_OPERATION,
     PROJECT_MUTATION_UPDATE_OPERATION, PROJECT_MUTATION_WORKER_CONTRACT_VERSION,
     PROJECT_MUTATION_WORKER_ID, ProjectSummary, UpdateProjectInput,
@@ -82,8 +82,8 @@ impl ProjectMutationWorker {
                 post(create_derived),
             )
             .route(
-                "/v1/commands/project.mutation.create_freeform_video",
-                post(create_freeform_video),
+                "/v1/commands/project.mutation.create_canvas",
+                post(create_canvas),
             )
             .route(
                 "/v1/commands/project.mutation.create_standalone_comic",
@@ -184,13 +184,13 @@ async fn create_derived(
     .await
 }
 
-async fn create_freeform_video(
+async fn create_canvas(
     State(state): State<WorkerState>,
     headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<CreateFreeformVideoProjectInput>>,
+    Json(request): Json<WorkerEnvelope<CreateCanvasProjectInput>>,
 ) -> Response {
     command_response(&state, &headers, request, |request| {
-        state.create_freeform_video(request)
+        state.create_canvas(request)
     })
     .await
 }

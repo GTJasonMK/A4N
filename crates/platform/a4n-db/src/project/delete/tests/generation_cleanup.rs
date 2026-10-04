@@ -11,14 +11,14 @@ use a4n_domain::image::IMAGE_TYPE_CANVAS;
 
 use super::super::{GeneratedImageDeleteScope, delete_chapter_generation_outputs};
 use super::support::{
-    freeform_video_project, generated_image_with_asset, generated_video_with_asset,
-    set_project_gate, setup_db,
+    canvas_project, generated_image_with_asset, generated_video_with_asset, set_project_gate,
+    setup_db,
 };
 
 #[tokio::test]
 async fn project_generation_cleanup_removes_only_generated_target_bindings() {
     let db = setup_db().await;
-    let project = freeform_video_project(&db, "项目生成 binding 清理测试").await;
+    let project = canvas_project(&db, "项目生成 binding 清理测试").await;
     let (image, image_asset) =
         generated_image_with_asset(&db, project.id, "binding-image.png").await;
     let (video, video_asset) =
@@ -105,7 +105,7 @@ async fn project_generation_cleanup_removes_only_generated_target_bindings() {
 #[tokio::test]
 async fn freeform_reset_rediscovers_targets_and_preserves_imported_media() {
     let db = setup_db().await;
-    let project = freeform_video_project(&db, "自由画布重置目标复核测试").await;
+    let project = canvas_project(&db, "自由画布重置目标复核测试").await;
     let (generated, generated_asset) =
         generated_image_with_asset(&db, project.id, "generated-reset.png").await;
     let imported = crate::video::create_generated_image_record(
