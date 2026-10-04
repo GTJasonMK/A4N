@@ -7,6 +7,8 @@ use serde_json::Value;
 pub const PROJECT_FAMILY_PACKAGE_SUFFIX: &str = ".a4n-family.zip";
 pub const CANVAS_PROJECT_PACKAGE_SUFFIX: &str = ".a4n-canvas.zip";
 pub const PROJECT_BUNDLE_PACKAGE_SUFFIX: &str = ".a4n-project.zip";
+pub const MEDIA_ASSET_FILE_PATH_FIELD: &str = "file_path";
+pub const MEDIA_ASSET_THUMBNAIL_PATH_FIELD: &str = "thumbnail_path";
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]

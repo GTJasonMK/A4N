@@ -1,9 +1,9 @@
 //! 角色冲突检查上下文构建纯规则。
 
 use a4n_chapter_analysis::summary_text;
-use a4n_db_models::models::{
-    chapter::chapter,
-    character::{attribute_event, character_state_index},
+use a4n_domain::{
+    chapter::ChapterRecord,
+    character::{CharacterAttributeEventRecord, CharacterStateIndexRecord},
 };
 use a4n_error::AppError;
 use serde_json::{Value, json};
@@ -52,7 +52,7 @@ impl CharacterConflictChapterScope {
 }
 
 pub fn character_conflict_chapter_context(
-    chapter: &chapter::Model,
+    chapter: &ChapterRecord,
 ) -> Result<Option<Value>, AppError> {
     let mut object = serde_json::Map::new();
     object.insert(
@@ -99,7 +99,7 @@ pub fn character_conflict_chapter_context(
     Ok(Some(Value::Object(object)))
 }
 
-pub fn character_state_context(state: &character_state_index::Model) -> Value {
+pub fn character_state_context(state: &CharacterStateIndexRecord) -> Value {
     json!({
         "source_id": format!("state:{}", state.chapter_number),
         "chapter_number": state.chapter_number,
@@ -111,7 +111,7 @@ pub fn character_state_context(state: &character_state_index::Model) -> Value {
     })
 }
 
-pub fn attribute_event_context(event: &attribute_event::Model) -> Value {
+pub fn attribute_event_context(event: &CharacterAttributeEventRecord) -> Value {
     json!({
         "source_id": format!("attribute_event:{}", event.id),
         "chapter_number": event.chapter_number,
@@ -200,12 +200,12 @@ mod tests {
     use super::*;
     use chrono::NaiveDate;
 
-    fn sample_chapter(summary: Option<&str>, content: &str) -> chapter::Model {
+    fn sample_chapter(summary: Option<&str>, content: &str) -> ChapterRecord {
         let now = NaiveDate::from_ymd_opt(2026, 5, 31)
             .unwrap()
             .and_hms_opt(0, 0, 0)
             .unwrap();
-        chapter::Model {
+        ChapterRecord {
             id: 1,
             project_id: 9,
             outline_id: None,

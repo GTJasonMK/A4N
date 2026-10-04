@@ -1,7 +1,7 @@
 use super::shared::{ProgressCounts, progress_count_detail, project_progress};
 use super::{ProjectProgressReadError, ProjectProgressSummary};
 use a4n_db_models::models::ai::generated_video;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashMap;
 
 const CANVAS_VIDEO_PROGRESS_TYPES: [&str; 3] = [
@@ -11,7 +11,7 @@ const CANVAS_VIDEO_PROGRESS_TYPES: [&str; 3] = [
 ];
 
 pub(super) async fn canvas_project_progress_by_project(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_ids: &[i64],
 ) -> Result<HashMap<i64, ProjectProgressSummary>, ProjectProgressReadError> {
     if project_ids.is_empty() {

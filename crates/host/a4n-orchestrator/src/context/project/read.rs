@@ -25,7 +25,7 @@ impl ProjectReadApplication {
         &self,
         query: ProjectFamilyMetadataQuery,
     ) -> Result<ProjectFamilyMetadata, AppError> {
-        a4n_db::project::project_family_metadata(self.database.connection(), query)
+        a4n_db::project::project_family_metadata(self.database.executor(), query)
             .await
             .map_err(project_family_metadata_read_error_to_app_error)
     }
@@ -34,7 +34,7 @@ impl ProjectReadApplication {
         &self,
         query: ProjectProgressQuery,
     ) -> Result<ProjectProgressSummary, AppError> {
-        a4n_db::project::project_progress_summary(self.database.connection(), query)
+        a4n_db::project::project_progress_summary(self.database.executor(), query)
             .await
             .map_err(project_progress_read_error_to_app_error)
     }
@@ -43,7 +43,7 @@ impl ProjectReadApplication {
         &self,
         project_id: i64,
     ) -> Result<Option<ProjectRecord>, AppError> {
-        a4n_db::project::project_by_id_record(self.database.connection(), project_id)
+        a4n_db::project::project_by_id_record(self.database.executor(), project_id)
             .await
             .map_err(project_mutation_error_to_app_error)
     }
@@ -52,7 +52,7 @@ impl ProjectReadApplication {
         &self,
         project_id: i64,
     ) -> Result<Option<ProjectSummaryRecord>, AppError> {
-        a4n_db::project::project_summary_by_id_record(self.database.connection(), project_id)
+        a4n_db::project::project_summary_by_id_record(self.database.executor(), project_id)
             .await
             .map_err(project_mutation_error_to_app_error)
     }
@@ -80,9 +80,9 @@ impl OrchestratorContext {
                 user_id,
             ),
             async {
-                a4n_db::fact_feedback::feedback_interval(self.database.connection(), project_id)
+                a4n_db::fact_feedback::feedback_interval(self.database.executor(), project_id)
                     .await
-                    .map_err(AppError::Database)
+                    .map_err(AppError::from)
             },
         )?;
         Ok(Some(project_summary_from_parts(

@@ -74,7 +74,7 @@ mod record_mapping_tests {
 pub async fn create_optimization_turn<C>(
     db: &C,
     input: OptimizationTurnCreateInput,
-) -> Result<optimization_turn::Model, OptimizeDbError>
+) -> Result<OptimizationTurnRecord, OptimizeDbError>
 where
     C: ConnectionTrait,
 {
@@ -93,6 +93,7 @@ where
     }
     .insert(db)
     .await
+    .map(optimization_turn_record)
     .map_err(OptimizeDbError::Database)
 }
 
@@ -118,7 +119,7 @@ where
 pub async fn optimization_turn_by_agent_turn_id<C>(
     db: &C,
     agent_turn_id: i64,
-) -> Result<Option<optimization_turn::Model>, OptimizeDbError>
+) -> Result<Option<OptimizationTurnRecord>, OptimizeDbError>
 where
     C: ConnectionTrait,
 {
@@ -126,30 +127,44 @@ where
         .filter(optimization_turn::Column::AgentTurnId.eq(agent_turn_id))
         .one(db)
         .await
+        .map(|turn| turn.map(optimization_turn_record))
         .map_err(OptimizeDbError::Database)
 }
 
 pub async fn optimization_turn_by_id<C>(
     db: &C,
     turn_id: i64,
-) -> Result<Option<optimization_turn::Model>, OptimizeDbError>
+) -> Result<Option<OptimizationTurnRecord>, OptimizeDbError>
 where
     C: ConnectionTrait,
 {
     optimization_turn::Entity::find_by_id(turn_id)
         .one(db)
         .await
+        .map(|turn| turn.map(optimization_turn_record))
         .map_err(OptimizeDbError::Database)
 }
 
 pub async fn update_optimization_turn<C>(
     db: &C,
     input: OptimizationTurnUpdateInput,
-) -> Result<optimization_turn::Model, OptimizeDbError>
+) -> Result<OptimizationTurnRecord, OptimizeDbError>
 where
     C: ConnectionTrait,
 {
-    let mut active: optimization_turn::ActiveModel = input.turn.into();
+    let turn = input.turn;
+    let mut active = optimization_turn::ActiveModel {
+        id: Set(turn.id),
+        session_id: Set(turn.session_id),
+        agent_turn_id: Set(turn.agent_turn_id),
+        user_text: Set(turn.user_text),
+        status: Set(turn.status),
+        permissions_snapshot: Set(turn.permissions_snapshot),
+        final_reply: Set(turn.final_reply),
+        error: Set(turn.error),
+        created_at: Set(turn.created_at),
+        updated_at: Set(turn.updated_at),
+    };
     if let Some(status) = input.status {
         active.status = Set(status);
     }
@@ -160,17 +175,21 @@ where
         active.error = Set(error);
     }
     active.updated_at = Set(chrono::Utc::now().naive_utc());
-    active.update(db).await.map_err(OptimizeDbError::Database)
+    active
+        .update(db)
+        .await
+        .map(optimization_turn_record)
+        .map_err(OptimizeDbError::Database)
 }
 
 /// Atomically persist the formal user/assistant messages and complete one chat turn.
 pub async fn complete_optimization_chat_turn(
-    tx: &sea_orm::DatabaseTransaction,
+    tx: &impl crate::DbTransactionExecutor,
     session_id: i64,
     turn_id: i64,
     user_text: &str,
     final_reply: &str,
-) -> Result<optimization_turn::Model, OptimizeDbError> {
+) -> Result<OptimizationTurnRecord, OptimizeDbError> {
     let (session, turn) = locked_optimization_session_turn(tx, session_id, turn_id).await?;
     if turn.status != "running" {
         return Err(OptimizeDbError::InvalidArgument(format!(
@@ -222,17 +241,17 @@ pub async fn complete_optimization_chat_turn(
     let mut session_active: optimization_session::ActiveModel = session.into();
     session_active.updated_at = Set(chrono::Utc::now().naive_utc());
     session_active.update(tx).await?;
-    Ok(completed)
+    Ok(optimization_turn_record(completed))
 }
 
 /// Atomically persist one analysis result and expose the completed turn as the formal result.
 pub async fn complete_optimization_analysis_turn(
-    tx: &sea_orm::DatabaseTransaction,
+    tx: &impl crate::DbTransactionExecutor,
     session_id: i64,
     turn_id: i64,
     assistant_content: &str,
     canonical_issues: Value,
-) -> Result<optimization_turn::Model, OptimizeDbError> {
+) -> Result<OptimizationTurnRecord, OptimizeDbError> {
     let (session, turn) = locked_optimization_session_turn(tx, session_id, turn_id).await?;
     if session.status != "analyzing" {
         return Err(OptimizeDbError::InvalidArgument(format!(
@@ -267,7 +286,7 @@ pub async fn complete_optimization_analysis_turn(
     let completed = update_optimization_turn(
         tx,
         OptimizationTurnUpdateInput {
-            turn,
+            turn: optimization_turn_record(turn),
             status: Some("completed".to_string()),
             final_reply: Some(Some(assistant_content.to_string())),
             error: Some(None),
@@ -292,7 +311,7 @@ pub async fn complete_optimization_analysis_turn(
 
 /// Atomically persist one patch proposal, its review event and completed turn.
 pub async fn complete_optimization_patch_turn(
-    tx: &sea_orm::DatabaseTransaction,
+    tx: &impl crate::DbTransactionExecutor,
     input: CompleteOptimizationPatchTurnInput,
 ) -> Result<CompleteOptimizationPatchTurnResult, OptimizeDbError> {
     let (session, turn) =
@@ -383,7 +402,7 @@ pub async fn complete_optimization_patch_turn(
     let turn = update_optimization_turn(
         tx,
         OptimizationTurnUpdateInput {
-            turn,
+            turn: optimization_turn_record(turn),
             status: Some("completed".to_string()),
             final_reply: Some(Some(final_reply)),
             error: Some(None),
@@ -394,7 +413,7 @@ pub async fn complete_optimization_patch_turn(
 }
 
 async fn locked_optimization_session_turn(
-    tx: &sea_orm::DatabaseTransaction,
+    tx: &impl crate::DbTransactionExecutor,
     session_id: i64,
     turn_id: i64,
 ) -> Result<(optimization_session::Model, optimization_turn::Model), OptimizeDbError> {
@@ -460,7 +479,7 @@ where
 pub async fn append_optimization_turn_event<C>(
     db: &C,
     input: OptimizationTurnEventAppendInput,
-) -> Result<optimization_turn_event::Model, OptimizeDbError>
+) -> Result<OptimizationTurnEventRecord, OptimizeDbError>
 where
     C: ConnectionTrait,
 {
@@ -490,5 +509,6 @@ where
     }
     .insert(db)
     .await
+    .map(optimization_turn_event_record)
     .map_err(OptimizeDbError::Database)
 }

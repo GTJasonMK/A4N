@@ -27,7 +27,7 @@ pub(super) async fn prepare_beat_mapping(
     let beat_payload = parse_beat_sheet_json(beat_sheet)?;
     let (part, context) = futures::join!(
         service.get_part(part_id),
-        load_chapter_outline_generation_context(service.database.connection(), project_id),
+        load_chapter_outline_generation_context(service.database.executor(), project_id),
     );
     let part = part?;
     if part.project_id != project_id {

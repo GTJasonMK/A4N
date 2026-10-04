@@ -20,10 +20,10 @@ use super::generated_media::{
 };
 use super::project::insert_video_studio_project_record;
 use a4n_db_models::models::project::novel_project;
-use sea_orm::{ConnectionTrait, DatabaseConnection, TransactionTrait};
+use sea_orm::ConnectionTrait;
 
 pub async fn import_video_studio_project_record<Writer>(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
     rows: VideoStudioProjectImportRows,
     now: chrono::NaiveDateTime,

@@ -24,11 +24,11 @@ impl AgentApplication {
         let mut candidates = Vec::with_capacity(workflows.len());
         for workflow in workflows {
             let owner = self
-                .workflow_owner(workflow.id)
+                .workflow_owner(workflow)
                 .await?
                 .ok_or_else(|| AppError::InvalidArgument("Workflow Agent owner 丢失".into()))?;
             candidates.push(AgentWorkflowCancelSnapshot {
-                workflow_run_id: workflow.id,
+                workflow_run_id: workflow,
                 owner_stopped: self.generation_owner_stopped(&owner).await?,
             });
         }

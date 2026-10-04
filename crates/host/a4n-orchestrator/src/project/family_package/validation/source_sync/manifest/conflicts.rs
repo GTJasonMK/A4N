@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use a4n_db_models::models::source_sync::source_sync_run;
 use a4n_domain::source_sync::{
     SourceSyncChangeKind, SourceSyncConflictSeverity, SourceSyncConflictStatus,
     SourceSyncLocalStateKind, SourceSyncResolutionStrategy,
@@ -20,7 +19,7 @@ use super::super::rules::{
 pub(super) fn validate_source_sync_conflicts(
     package: &ProjectFamilyPackage,
     refs: &SourceSyncReferenceSets,
-    runs: &HashMap<i64, &source_sync_run::Model>,
+    runs: &HashMap<i64, &a4n_domain::project::ProjectFamilySourceSyncRunRecord>,
 ) -> Result<(), String> {
     for conflict in &package.source_sync_conflicts {
         ensure_package!(

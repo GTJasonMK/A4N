@@ -3,9 +3,9 @@ pub(crate) use a4n_db::project::family::import::{
 };
 pub(crate) use a4n_db::project::{
     ChapterMangaSourceSummary, ForeshadowingAnalysisDraft, PROJECT_KIND_VIDEO,
-    ProjectFamilyExportRows, ProjectFamilyExportSelection, ProjectFamilyTextCoreRows,
-    SOURCE_SYNC_CURRENT, is_valid_source_sync_status, normalize_derived_project_kind,
-    normalize_project_kind, normalize_project_type,
+    ProjectFamilyExportRows, ProjectFamilyExportSelection, SOURCE_SYNC_CURRENT,
+    is_valid_source_sync_status, normalize_derived_project_kind, normalize_project_kind,
+    normalize_project_type,
 };
 pub(crate) use a4n_db::project::{PROJECT_KIND_CANVAS, PROJECT_KIND_TEXT};
 pub(crate) use a4n_db::project::{
@@ -108,9 +108,7 @@ pub(crate) use video_studio_package::{
 };
 pub(crate) use video_studio_transfer::video_studio_export_media_files;
 
-pub(crate) use chapters::{
-    is_character_sync_available_chapter, validate_chapter_generation_number,
-};
+pub(crate) use chapters::validate_chapter_generation_number;
 pub(crate) use errors::blueprint_restore_error_to_app;
 pub(crate) use errors::foreshadowing_db_error_to_app_error;
 pub(crate) use errors::project_basic_record_error_to_app_error;

@@ -12,7 +12,7 @@ pub(super) fn text_preview(content: &str, max_chars: usize) -> String {
     text
 }
 
-pub(super) fn chapter_summary_text(ch: &chapter::Model) -> Option<String> {
+pub(super) fn chapter_summary_text(ch: &ChapterRecord) -> Option<String> {
     ch.analysis_data
         .as_ref()
         .and_then(summary_text)
@@ -35,7 +35,7 @@ fn chapter_title(title: Option<&str>) -> Option<String> {
         .map(ToOwned::to_owned)
 }
 
-pub(super) fn add_optional_chapter_title(entry: &mut Map<String, Value>, ch: &chapter::Model) {
+pub(super) fn add_optional_chapter_title(entry: &mut Map<String, Value>, ch: &ChapterRecord) {
     if let Some(title) = chapter_title(ch.title.as_deref()) {
         entry.insert("title".to_string(), json!(title));
     }
@@ -43,7 +43,7 @@ pub(super) fn add_optional_chapter_title(entry: &mut Map<String, Value>, ch: &ch
 
 pub(super) fn add_summary_or_preview(
     entry: &mut Map<String, Value>,
-    ch: &chapter::Model,
+    ch: &ChapterRecord,
     max_chars: usize,
 ) {
     if let Some(summary) = chapter_summary_text(ch) {
@@ -55,7 +55,7 @@ pub(super) fn add_summary_or_preview(
         );
     }
 }
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use serde_json::{Map, Value, json};
 
 use a4n_chapter_analysis::summary_text;

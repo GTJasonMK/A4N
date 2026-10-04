@@ -5,8 +5,7 @@ use crate::workflow::{
 };
 use a4n_db_models::models::{chapter::chapter_video_prompt, generation::workflow_run};
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
-    QuerySelect,
+    ColumnTrait, EntityTrait, FromQueryResult, QueryFilter, QueryOrder, QuerySelect,
     sea_query::{Expr, extension::postgres::PgExpr},
 };
 use serde_json::Value;
@@ -94,7 +93,7 @@ struct PipelineWorkflowProgressRow {
 }
 
 pub(super) async fn latest_pipeline_states_by_project(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_ids: &[i64],
     workflow_kind: &str,
     query_operation: &'static str,

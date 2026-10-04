@@ -2,10 +2,7 @@ use a4n_db_models::models::canvas::{canvas_text_asset, canvas_text_asset_version
 use a4n_domain::canvas::{
     CanvasTextAssetRecord, CanvasTextAssetRecordInput, CanvasTextAssetVersionRecord,
 };
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
-    TransactionTrait,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 use sha2::{Digest, Sha256};
 
 use super::super::records::canvas_text_asset_record;
@@ -14,7 +11,7 @@ use super::context::require_canvas_text_asset_project_record;
 use crate::canvas::CanvasDbError;
 
 pub async fn upsert_canvas_text_asset_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     input: CanvasTextAssetRecordInput,
     now: chrono::NaiveDateTime,
@@ -154,7 +151,7 @@ pub async fn upsert_canvas_text_asset_record(
 }
 
 pub async fn canvas_text_assets_by_project_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<Vec<CanvasTextAssetRecord>, CanvasDbError> {
     require_canvas_text_asset_project_record(db, project_id).await?;
@@ -169,7 +166,7 @@ pub async fn canvas_text_assets_by_project_record(
 }
 
 pub async fn canvas_text_asset_versions_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     asset_id: i64,
 ) -> Result<Vec<CanvasTextAssetVersionRecord>, CanvasDbError> {

@@ -1,5 +1,6 @@
-use a4n_db_models::models::project::{blueprint_version, novel_blueprint};
+use a4n_db_models::models::project::blueprint_version;
 use a4n_domain::chapter::PartOutlineRecord;
+use a4n_domain::project::BlueprintRecord;
 use a4n_domain::project::{
     BLUEPRINT_MAX_TOTAL_CHAPTERS, BLUEPRINT_MIN_TOTAL_CHAPTERS, CHAPTERS_PER_PART, ProjectStatus,
     ProjectStatusHistoryInput, increment_blueprint_version, is_valid_blueprint_total_chapters,
@@ -319,7 +320,7 @@ where
 async fn persist_blueprint_version_and_project<C>(
     db: &C,
     rows: &OutlineGenerationSourceRows,
-    blueprint: &novel_blueprint::Model,
+    blueprint: &BlueprintRecord,
     version: String,
     change_description: &str,
     snapshot: Value,

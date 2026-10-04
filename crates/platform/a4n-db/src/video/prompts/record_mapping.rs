@@ -29,7 +29,7 @@ pub(crate) fn chapter_video_prompt_record_from_model(
     }
 }
 
-pub(crate) fn chapter_video_prompt_model_from_record(
+pub fn chapter_video_prompt_model_from_record(
     record: ChapterVideoPromptRecord,
 ) -> chapter_video_prompt::Model {
     chapter_video_prompt::Model {

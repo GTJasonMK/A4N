@@ -4,10 +4,10 @@ use a4n_db_models::models::{
 };
 use a4n_domain::manga::{MangaBoundReferenceAsset, MangaReferenceAssetKind};
 use a4n_domain::project::ProjectSourceMode;
-use sea_orm::{DatabaseConnection, EntityTrait, QuerySelect};
+use sea_orm::{EntityTrait, QuerySelect};
 
 pub async fn manga_reference_bound_asset(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     asset_kind: MangaReferenceAssetKind,
     asset_id: i64,
@@ -50,7 +50,7 @@ pub async fn manga_reference_bound_asset(
 }
 
 async fn reference_asset_projection(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     asset_kind: MangaReferenceAssetKind,
     asset_id: i64,
 ) -> Result<(i64, i64, String), MangaPromptRecordError> {
@@ -89,7 +89,7 @@ async fn reference_asset_projection(
 }
 
 async fn allowed_reference_project_ids(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<Vec<i64>, MangaPromptRecordError> {
     let project = novel_project::Entity::find_by_id(project_id)

@@ -21,7 +21,7 @@ const DEFAULT_LLM_STREAM_ERROR: &str = "测试 OrchestratorContext 未配置 LLM
 const DEFAULT_EMBEDDING_ERROR: &str = "测试 OrchestratorContext 未配置 embedding 响应";
 
 pub(crate) async fn create_test_user(db: &DatabaseConnection) -> i64 {
-    a4n_db::auth::create_user(
+    a4n_db::auth::create_user_summary(
         db,
         "orchestrator-test-user",
         "orchestrator-test-user@example.invalid",
@@ -75,13 +75,12 @@ impl TestOrchestratorBuilder {
     }
 
     pub(crate) async fn build(self) -> OrchestratorContext {
-        let db_connection = self.db.clone();
-        let db_handle = DbHandle::new(db_connection.clone());
+        let db_handle = DbHandle::new(self.db.clone());
         let event_bus = Arc::new(BroadcastEventBus::new(64));
         let task_manager = Arc::new(TaskManager::new());
         let rag_store: Arc<dyn VectorStore> = Arc::new(MemoryVectorStore::new());
         let task_queue = Arc::new(
-            PersistentTaskQueue::new(self.db.clone())
+            PersistentTaskQueue::new(db_handle.clone())
                 .await
                 .expect("test task queue should initialize"),
         );
@@ -95,7 +94,7 @@ impl TestOrchestratorBuilder {
         let llm = self.llm;
         let embedding = self.embedding;
         OrchestratorContext::bootstrap(
-            db_connection,
+            db_handle,
             self.prompt_client,
             Arc::new(
                 ServiceManager::new(Vec::new()).expect("empty service manager should initialize"),

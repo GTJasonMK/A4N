@@ -222,13 +222,20 @@ pub(crate) async fn copy_derived_media_rows<Copier: ProjectMediaFileCopier + ?Si
     package
         .authoring_receipts
         .retain(|row| row.project_id == original.id);
-    import_rows::insert_scene_profiles(txn, &package, &mut maps).await?;
+    let database_package = super::execution::database_package(&package)?;
+    import_rows::insert_scene_profiles(txn, &database_package, &mut maps).await?;
     let mut writer = CopyMediaWriter {
         copier,
         paths: media_paths(&package),
     };
-    import_rows::insert_media_project_rows(copy.user_id, txn, &package, &mut maps, &mut writer)
-        .await
+    import_rows::insert_media_project_rows(
+        copy.user_id,
+        txn,
+        &database_package,
+        &mut maps,
+        &mut writer,
+    )
+    .await
 }
 
 fn media_paths(package: &ProjectFamilyImportPackage) -> HashMap<(String, i64, String), String> {

@@ -1,3 +1,4 @@
+use a4n_agent_runtime_contract::AgentExecutionSnapshot;
 use a4n_llm_provider_contract::provider::{ChatMessage, ChatRequest, ChatResponse};
 use serde_json::Value;
 
@@ -26,7 +27,7 @@ pub(super) async fn execute_agent_loop_decision_call<T>(
     chat_request: ChatRequest,
     call_key: &str,
     input_fingerprint_json: &Value,
-    execution: Option<a4n_db_models::models::agent::execution::Model>,
+    execution: Option<AgentExecutionSnapshot>,
 ) -> Result<AgentDecisionCallResult<T>, AgentLoopExecutionError> {
     let generation = request.generation;
     if let Some(checkpoint) = context

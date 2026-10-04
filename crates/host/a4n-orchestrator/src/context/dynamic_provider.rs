@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use a4n_db_models::models::ai::{embedding_config, llm_config};
+use a4n_config_read_core::{embedding_provider_config, llm_provider_config};
 use a4n_domain::cost::{ModelUsageRecordCompletion, ModelUsageRecordStart};
 use a4n_domain::llm::ContextPackReference;
 use a4n_error::AppError;
@@ -90,10 +90,7 @@ impl ProviderRuntimePort for ProviderRuntimeAdapter {
         &self,
         input: a4n_domain::llm::RecordLlmCallTraceInput,
     ) -> Result<(), AppError> {
-        self.generation
-            .record_llm_call_trace(input)
-            .await
-            .map(|_| ())
+        self.generation.record_llm_call_trace(input).await
     }
 
     async fn start_model_usage(
@@ -103,7 +100,7 @@ impl ProviderRuntimePort for ProviderRuntimeAdapter {
         self.settings
             .start_model_usage_record(input)
             .await
-            .map(|record| ModelUsageRecordHandle { id: record.id })
+            .map(|id| ModelUsageRecordHandle { id })
     }
 
     async fn finish_model_usage(
@@ -185,45 +182,4 @@ impl TaskLease for DurableTaskLease {
     async fn cancel(self: Box<Self>) -> Result<(), AppError> {
         self.0.cancel().await
     }
-}
-
-fn llm_provider_config(model: llm_config::Model) -> Result<LlmProviderConfig, AppError> {
-    Ok(LlmProviderConfig {
-        id: model.id,
-        name: model.name,
-        provider: model.provider,
-        base_url: model.base_url,
-        api_key: model.api_key_encrypted,
-        model: model.model,
-        max_concurrent: model.max_concurrent,
-        timeout_secs: model.timeout_secs,
-        max_context_tokens: model.max_context_tokens,
-        max_output_tokens: model.max_output_tokens,
-        agent_protocol: model.agent_protocol,
-        extra_body_json: model.extra_body_json,
-        pricing: parse_pricing(model.pricing_json)?,
-    })
-}
-
-fn embedding_provider_config(
-    model: embedding_config::Model,
-) -> Result<EmbeddingProviderConfig, AppError> {
-    Ok(EmbeddingProviderConfig {
-        id: model.id,
-        name: model.name,
-        backend: model.backend,
-        base_url: model.base_url,
-        api_key: model.api_key_encrypted,
-        model: model.model,
-        dimension: model.dimension,
-        batch_size: model.batch_size,
-        local_model_path: model.local_model_path,
-        pricing: parse_pricing(model.pricing_json)?,
-    })
-}
-
-fn parse_pricing(value: serde_json::Value) -> Result<a4n_domain::cost::PricingPlan, AppError> {
-    let pricing: a4n_domain::cost::PricingPlan =
-        serde_json::from_value(value).map_err(AppError::Serialization)?;
-    pricing.validate().map_err(AppError::InvalidArgument)
 }

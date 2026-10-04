@@ -86,7 +86,7 @@ async fn blueprint(
     db: &DatabaseConnection,
     project_id: i64,
     world: Value,
-) -> novel_blueprint::Model {
+) -> a4n_domain::project::BlueprintRecord {
     save_manual_blueprint_records_transaction(
         db,
         SaveManualBlueprintInput {
@@ -177,8 +177,7 @@ async fn partial_feedback_is_versioned_source_fenced_and_reversible() {
     .await
     .unwrap();
     assert!(result.blueprint_version.is_some());
-    let updated = novel_blueprint::Entity::find_by_id(original.id)
-        .one(&db)
+    let updated = a4n_db::project::novel_blueprint_for_project(&db, original.project_id)
         .await
         .unwrap()
         .unwrap();
@@ -567,8 +566,7 @@ async fn field_removals_and_character_enrichment_retract_without_overwriting_man
     // Array removals are journaled once as a parent replacement; object removals keep their path.
     assert_eq!(applied.changes[0].operation, "replace");
     assert_eq!(applied.changes[0].field_path, "/core_rules");
-    let updated = novel_blueprint::Entity::find_by_id(original.id)
-        .one(&db)
+    let updated = a4n_db::project::novel_blueprint_for_project(&db, original.project_id)
         .await
         .unwrap()
         .unwrap();

@@ -3,11 +3,10 @@ use super::indexes::{
 };
 use crate::collaboration::{CollaborationDbError, ProjectInviteSummary, parse_stored_member_role};
 use a4n_db_models::models::project::project_invite;
-use sea_orm::DatabaseConnection;
 use std::collections::HashMap;
 
 pub(in crate::collaboration) async fn invite_summaries(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     invites: Vec<project_invite::Model>,
 ) -> Result<Vec<ProjectInviteSummary>, CollaborationDbError> {
     if invites.is_empty() {

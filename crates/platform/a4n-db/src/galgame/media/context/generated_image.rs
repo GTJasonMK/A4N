@@ -1,12 +1,13 @@
 use crate::galgame::{GalgameGenerationRecordError, validate_galgame_generation_id};
 use a4n_db_models::models::ai::generated_image;
-use sea_orm::{DatabaseConnection, EntityTrait};
+use a4n_domain::media::GeneratedImageRecord;
+use sea_orm::EntityTrait;
 
 pub async fn galgame_generated_image_by_id(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     image_id: i64,
     project_id: i64,
-) -> Result<generated_image::Model, GalgameGenerationRecordError> {
+) -> Result<GeneratedImageRecord, GalgameGenerationRecordError> {
     validate_galgame_generation_id(image_id, "image_id")?;
     validate_galgame_generation_id(project_id, "project_id")?;
     let generated = generated_image::Entity::find_by_id(image_id)
@@ -28,5 +29,5 @@ pub async fn galgame_generated_image_by_id(
             generated.id
         )));
     }
-    Ok(generated)
+    Ok(crate::video::generated_image_record_from_model(generated))
 }

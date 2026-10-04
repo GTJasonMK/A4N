@@ -1,22 +1,9 @@
 use a4n_db::rag::RagForeshadowingRow;
-use a4n_db_models::models::character::foreshadowing_index;
 use a4n_domain::rag::RagDataType;
 use a4n_rag_core::RagRecord;
 use a4n_rag_core::record_text::{optional_json_text, required_rag_text, short_rag_title};
 
 use crate::rag::foreshadowing_rag_chunk_id;
-
-pub(super) fn foreshadowing_rag_text(item: &foreshadowing_index::Model) -> Result<String, String> {
-    foreshadowing_rag_text_fields(
-        item.id,
-        &item.description,
-        item.setup_chapter,
-        item.payoff_chapter,
-        &item.status,
-        item.related_characters.as_ref(),
-        item.importance,
-    )
-}
 
 fn foreshadowing_rag_text_fields(
     id: i64,
@@ -46,18 +33,6 @@ fn foreshadowing_rag_text_fields(
         lines.push(format!("关联角色/实体: {related_characters}"));
     }
     Ok(lines.join("\n"))
-}
-
-pub fn foreshadowing_rag_record(
-    project_id: i64,
-    item: &foreshadowing_index::Model,
-) -> Result<RagRecord, String> {
-    let description = required_rag_text(
-        Some(&item.description),
-        format!("伏笔 {} 缺少描述，跳过 RAG 入库", item.id),
-    )?;
-    let text = foreshadowing_rag_text(item)?;
-    foreshadowing_rag_record_fields(project_id, item.id, item.setup_chapter, description, text)
 }
 
 pub fn foreshadowing_rag_record_from_row(

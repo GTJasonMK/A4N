@@ -1,8 +1,8 @@
 use a4n_api_contract::character::ImplicitUpdateDecisionSummary;
-use a4n_db_models::models::character::attribute_event::SOURCE_KIND_AI_SYNC;
 use a4n_domain::character::{
     CharacterAttributeDeletionRequestInput, CharacterAttributeValueChangeInput,
-    CharacterImplicitReviewDecisionRecordInput, InsertBehaviorRecordInput,
+    CharacterImplicitReviewDecisionRecordInput, CharacterTimelineSourceKind,
+    InsertBehaviorRecordInput,
 };
 use a4n_error::AppError;
 use serde_json::Value;
@@ -183,7 +183,7 @@ fn behavior_record_input(
     Ok(InsertBehaviorRecordInput {
         profile_id,
         chapter_number: required_i32(behavior, "chapter_number").map_err(invalid_argument)?,
-        source_kind: SOURCE_KIND_AI_SYNC.to_string(),
+        source_kind: CharacterTimelineSourceKind::AiSync.as_str().to_string(),
         behavior_type: required_string(behavior, "behavior_type").map_err(invalid_argument)?,
         behavior_description: required_string(behavior, "behavior_description")
             .map_err(invalid_argument)?,

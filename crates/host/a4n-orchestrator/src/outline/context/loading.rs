@@ -10,8 +10,8 @@ use a4n_db::outline::{
     OutlineGenerationSourceRows, load_outline_generation_source_rows,
     outline_generation_source_snapshot,
 };
+use a4n_db::{ConnectionTrait, DbExecutor};
 use a4n_error::AppError;
-use sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction};
 use serde_json::{Value, json};
 
 pub(in crate::outline) async fn load_part_generation_context<C>(
@@ -25,7 +25,7 @@ where
 {
     let rows = load_outline_generation_source_rows(db, project_id)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
     let formal_materials = outline_formal_materials_context_json(
         &rows.character_profiles,
@@ -74,7 +74,7 @@ where
 {
     let rows = load_outline_generation_source_rows(db, project_id)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
     let formal_materials = outline_formal_materials_context_json(
         &rows.character_profiles,
@@ -108,14 +108,27 @@ where
     })
 }
 
-pub(in crate::outline) async fn lock_outline_generation_sources(
-    db: &DatabaseConnection,
+pub(in crate::outline) async fn with_locked_outline_generation_sources<'work, T: Send>(
+    db: &'work impl DbExecutor,
     project_id: i64,
-    expected_source_snapshot: &Value,
-) -> Result<DatabaseTransaction, AppError> {
-    a4n_db::outline::lock_outline_generation_sources(db, project_id, expected_source_snapshot)
-        .await
-        .map_err(crate::outline::outline_db_error)
+    expected_source_snapshot: &'work Value,
+    work: impl FnOnce(a4n_db::DbTransaction) -> a4n_db::transaction::TransactionWork<'work, T> + Send,
+) -> Result<T, AppError> {
+    a4n_db::transaction::run_in_transaction(db, "保存生成的大纲", |tx| {
+        Box::pin(async move {
+            match a4n_db::outline::lock_outline_generation_sources(
+                &tx,
+                project_id,
+                expected_source_snapshot,
+            )
+            .await
+            {
+                Ok(()) => work(tx).await,
+                Err(error) => (tx, Err(crate::outline::outline_db_error(error))),
+            }
+        }) as a4n_db::transaction::TransactionWork<'_, T>
+    })
+    .await
 }
 
 fn outline_blueprint_payload(

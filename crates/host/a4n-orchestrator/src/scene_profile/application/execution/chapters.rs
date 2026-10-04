@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_error::AppError;
 use a4n_progress::ProgressSpan;
 use a4n_prompt::rendering::PromptRenderer;
@@ -26,7 +26,7 @@ pub(super) async fn sync_scene_profile_chapters(
     host_port: &dyn SceneProfileSyncHostPort,
     project_id: i64,
     workflow_run_id: i64,
-    chapters: Vec<chapter::Model>,
+    chapters: Vec<ChapterRecord>,
     progress: Option<&SceneProfileSyncProgress<'_>>,
 ) -> Result<(), AppError> {
     let stable = load_scene_profile_sync_stable_context(state, project_id).await?;

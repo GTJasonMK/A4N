@@ -1,8 +1,3 @@
-use a4n_db_models::models::{
-    galgame::{galgame_scene, galgame_script},
-    generation::generation_spec,
-    project::source_snapshot_chapter,
-};
 use std::collections::HashMap;
 
 use crate::project::{
@@ -13,11 +8,14 @@ use crate::project::{
 use super::super::targets::validate_generation_spec_galgame_scene_context;
 
 pub(super) fn validate_galgame_background_spec_params(
-    spec: &generation_spec::Model,
+    spec: &a4n_domain::project::ProjectFamilyGenerationSpecRecord,
     source_snapshot_id: i64,
-    snapshot_chapters: &HashMap<i64, &source_snapshot_chapter::Model>,
-    galgame_scripts: &HashMap<i64, &galgame_script::Model>,
-    galgame_scenes: &HashMap<i64, &galgame_scene::Model>,
+    snapshot_chapters: &HashMap<
+        i64,
+        &a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord,
+    >,
+    galgame_scripts: &HashMap<i64, &a4n_domain::project::ProjectFamilyGalgameScriptRecord>,
+    galgame_scenes: &HashMap<i64, &a4n_domain::project::ProjectFamilyGalgameSceneRecord>,
 ) -> Result<(), String> {
     let target_id = required_generation_spec_target_id(spec)?;
     let target_scene = galgame_scenes.get(&target_id).copied().ok_or_else(|| {

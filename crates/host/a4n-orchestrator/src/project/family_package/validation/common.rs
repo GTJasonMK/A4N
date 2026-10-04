@@ -1,6 +1,9 @@
 use super::*;
 
-pub(crate) fn validate_media_bytes(asset: &media_asset::Model, bytes: &[u8]) -> Result<(), String> {
+pub(crate) fn validate_media_bytes(
+    asset: &a4n_domain::project::ProjectFamilyMediaAssetRecord,
+    bytes: &[u8],
+) -> Result<(), String> {
     let expected_size = asset
         .file_size
         .ok_or_else(|| format!("媒体资产缺少 file_size: {}", asset.id))?;

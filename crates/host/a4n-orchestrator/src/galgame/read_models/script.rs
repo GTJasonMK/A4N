@@ -4,10 +4,6 @@ use a4n_db::galgame::{
     GalgameMediaAssetReadRecord, GalgameMediaBindingReadRecord, GalgameScriptDetailChoiceRecord,
     GalgameScriptDetailReadModel, GalgameScriptDetailSceneRecord,
 };
-use a4n_db_models::models::{
-    galgame::{galgame_choice, galgame_line, galgame_scene},
-    media::{media_asset, media_binding},
-};
 use a4n_domain::galgame::GalgameLineRecord;
 use a4n_error::AppError;
 
@@ -35,11 +31,11 @@ impl OrchestratorContext {
     ) -> Result<Option<GalgameScriptDetail>, AppError> {
         let context = self.load_galgame_context(project_id).await?;
         let read_model = a4n_db::galgame::galgame_script_detail_read_model(
-            self.database.connection(),
+            self.database.executor(),
             context.project.id,
         )
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
         read_model
             .map(galgame_script_detail_from_read_model)
             .transpose()
@@ -131,8 +127,8 @@ pub(crate) fn galgame_script_detail_from_read_model(
     })
 }
 
-pub(crate) fn galgame_scene_from_model(
-    scene: galgame_scene::Model,
+pub(crate) fn galgame_scene_from_record(
+    scene: a4n_domain::galgame::GalgameSceneRecord,
 ) -> Result<GalgameScene, AppError> {
     galgame_scene_from_detail_record(GalgameScriptDetailSceneRecord {
         id: scene.id,
@@ -170,22 +166,6 @@ fn galgame_scene_from_detail_record(
         background_note: scene.background_note,
         entry_kind,
         next_scene_id: scene.next_scene_id,
-    })
-}
-
-pub(crate) fn galgame_line_from_model(line: galgame_line::Model) -> Result<GalgameLine, AppError> {
-    galgame_line_from_record(GalgameLineRecord {
-        id: line.id,
-        scene_id: line.scene_id,
-        line_index: line.line_index,
-        line_type: line.line_type,
-        speaker_profile_id: line.speaker_profile_id,
-        text: line.text,
-        expression: line.expression,
-        pose: line.pose,
-        position: line.position,
-        presentation_json: line.presentation_json,
-        text_anchor_id: line.text_anchor_id,
     })
 }
 
@@ -241,7 +221,9 @@ pub(crate) fn galgame_line_from_record(line: GalgameLineRecord) -> Result<Galgam
     })
 }
 
-pub(crate) fn galgame_choice_from_model(choice: galgame_choice::Model) -> GalgameChoice {
+pub(crate) fn galgame_choice_from_record(
+    choice: a4n_domain::galgame::GalgameChoiceRecord,
+) -> GalgameChoice {
     galgame_choice_from_parts(
         choice.id,
         choice.line_id,
@@ -278,8 +260,8 @@ fn galgame_choice_from_parts(
 }
 
 pub(crate) fn galgame_media_binding_summary(
-    binding: media_binding::Model,
-    asset: media_asset::Model,
+    binding: GalgameMediaBindingReadRecord,
+    asset: GalgameMediaAssetReadRecord,
 ) -> Result<GalgameMediaBindingSummary, AppError> {
     galgame_media_binding_summary_parts(
         binding.id,

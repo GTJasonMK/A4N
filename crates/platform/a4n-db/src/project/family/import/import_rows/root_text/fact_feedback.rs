@@ -1,5 +1,5 @@
 use crate::project::family::import::{
-    ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage, map_required,
+    DatabaseProjectFamilyImportPackage, ImportIdMaps, ProjectFamilyImportError, map_required,
 };
 use a4n_db_models::models::{
     chapter::chapter,
@@ -16,7 +16,7 @@ use serde_json::Value;
 pub(super) async fn insert_feedback_rows(
     tx: &DatabaseTransaction,
     project_id: i64,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     let Some(archive) = &package.text_core.fact_feedback else {
@@ -347,7 +347,7 @@ pub(super) async fn insert_feedback_rows(
 
 fn remap_source(
     source: &mut FactSourceRevision,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &ImportIdMaps,
     current: &std::collections::HashMap<i64, FactSourceRevision>,
     historical: bool,

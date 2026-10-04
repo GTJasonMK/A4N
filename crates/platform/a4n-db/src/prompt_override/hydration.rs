@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
 use a4n_db_models::models::ai::system_settings;
-use sea_orm::DatabaseConnection;
 
 use super::identity::{parse_project_override_key, validate_project_override_project_id};
 use super::storage::{
@@ -11,7 +10,7 @@ use super::storage::{
 use super::{ProjectOverrideHydration, ProjectPromptOverrideSummary, PromptOverrideDbError};
 
 pub async fn project_override_hydration_plan(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
 ) -> Result<Vec<ProjectOverrideHydration>, PromptOverrideDbError> {
     let records = all_prompt_override_settings(db).await?;
     let plan = project_override_hydration_candidates_from_records(&records)?;
@@ -26,7 +25,7 @@ pub async fn project_override_hydration_plan(
 }
 
 pub async fn project_override_summaries(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     active_prompt_names: &HashSet<String>,
 ) -> Result<Vec<ProjectPromptOverrideSummary>, PromptOverrideDbError> {

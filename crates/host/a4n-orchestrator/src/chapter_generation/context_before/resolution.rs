@@ -41,7 +41,7 @@ impl OrchestratorContext {
         let mut lines = Vec::new();
         let mut world_facts = std::collections::BTreeMap::new();
         let ready_sources =
-            a4n_db::fact_feedback::current_feedback_sources(self.database.connection(), project_id)
+            a4n_db::fact_feedback::current_feedback_sources(self.database.executor(), project_id)
                 .await
                 .map_err(|error| error.to_string())?;
         for chapter in previous_chapters.iter().filter(|chapter| {

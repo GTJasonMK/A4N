@@ -1,4 +1,5 @@
-use a4n_db_models::models::chapter::{chapter, chapter_video_prompt};
+use a4n_domain::chapter::ChapterRecord;
+use a4n_domain::video_prompt as chapter_video_prompt;
 use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use a4n_error::AppError;
 
@@ -14,8 +15,8 @@ impl OrchestratorContext {
         operation: &str,
         writable: bool,
     ) -> Result<ProjectChapterVideoSource, AppError> {
-        let (project, chapter) = a4n_db::video::project_and_chapter_for_video_source(
-            self.database.connection(),
+        let (project, chapter) = a4n_db::video::project_and_chapter_for_video_source_records(
+            self.database.executor(),
             project_id,
             chapter_id,
         )
@@ -58,7 +59,7 @@ impl OrchestratorContext {
                             operation: operation.to_string(),
                         })?;
                 let snapshot_chapter = a4n_db::video::source_snapshot_chapter_for_video_source(
-                    self.database.connection(),
+                    self.database.executor(),
                     snapshot_id,
                     chapter_id,
                 )
@@ -91,7 +92,7 @@ impl OrchestratorContext {
     }
 }
 
-fn resolve_chapter_video_source(chapter: &chapter::Model) -> Result<ChapterVideoSource, AppError> {
+fn resolve_chapter_video_source(chapter: &ChapterRecord) -> Result<ChapterVideoSource, AppError> {
     if chapter.status == "deleted" {
         return Err(AppError::InvalidState {
             current: chapter.status.clone(),

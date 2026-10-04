@@ -12,8 +12,9 @@ use a4n_api_contract::project_transfer::{
 };
 use a4n_db::project::{CreateCanvasProjectParams, create_canvas_project_record};
 use a4n_db_models::models::media::media_asset::FILE_PATH_FIELD;
-use a4n_db_models::models::{media::media_asset, user::user};
+use a4n_db_models::models::user::user;
 use a4n_domain::CanvasNodeRefKind;
+use a4n_domain::media::MediaAssetRecord;
 use a4n_domain::project::ProjectRecord;
 use async_trait::async_trait;
 use sea_orm::ActiveModelTrait;
@@ -196,7 +197,7 @@ async fn import_application_builds_canonical_media_path_before_host_write() {
     let source = insert_canvas_project(database.as_ref(), 10).await;
     let bytes = b"video bytes".to_vec();
     let mut package = empty_package(source.clone());
-    package.media_assets.push(media_asset::Model {
+    package.media_assets.push(MediaAssetRecord {
         id: 10,
         project_id: source.id,
         root_project_id: source.id,

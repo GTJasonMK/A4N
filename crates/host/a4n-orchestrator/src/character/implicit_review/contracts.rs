@@ -3,14 +3,15 @@ pub(super) use a4n_api_contract::character::{
     ImplicitAttributeReviewSummary, ImplicitEvidenceSummary, ImplicitReviewSummary,
     ImplicitUpdateDecisionSummary,
 };
-use a4n_db_models::models::character::{protagonist_behavior_record, protagonist_profile};
-use a4n_domain::character::ImplicitUpdateDecision;
+use a4n_domain::character::{
+    CharacterBehaviorRecord, CharacterProfileRecord, ImplicitUpdateDecision,
+};
 use a4n_llm_provider_contract::provider::ChatRequest;
 use serde_json::Value;
 
 pub(crate) struct CharacterSyncImplicitReviewInput<'a> {
     pub workflow_run_id: i64,
-    pub profile: &'a protagonist_profile::Model,
+    pub profile: &'a CharacterProfileRecord,
     pub start_chapter: i32,
     pub final_attributes: &'a Value,
     pub behaviors: &'a [Value],
@@ -27,8 +28,8 @@ pub(super) struct BehaviorForReview {
     pub(super) classification_results: Value,
 }
 
-impl From<&protagonist_behavior_record::Model> for BehaviorForReview {
-    fn from(value: &protagonist_behavior_record::Model) -> Self {
+impl From<&CharacterBehaviorRecord> for BehaviorForReview {
+    fn from(value: &CharacterBehaviorRecord) -> Self {
         Self {
             behavior_id: value.id,
             chapter_number: value.chapter_number,

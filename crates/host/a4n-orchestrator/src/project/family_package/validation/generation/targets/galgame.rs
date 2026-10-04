@@ -1,16 +1,14 @@
-use a4n_db_models::models::{
-    galgame::{galgame_scene, galgame_script},
-    generation::generation_spec,
-    project::source_snapshot_chapter,
-};
 use std::collections::HashMap;
 
 pub(in super::super) fn validate_generation_spec_galgame_scene_context(
-    spec: &generation_spec::Model,
+    spec: &a4n_domain::project::ProjectFamilyGenerationSpecRecord,
     source_snapshot_id: i64,
-    scene: &galgame_scene::Model,
-    galgame_scripts: &HashMap<i64, &galgame_script::Model>,
-    snapshot_chapters: &HashMap<i64, &source_snapshot_chapter::Model>,
+    scene: &a4n_domain::project::ProjectFamilyGalgameSceneRecord,
+    galgame_scripts: &HashMap<i64, &a4n_domain::project::ProjectFamilyGalgameScriptRecord>,
+    snapshot_chapters: &HashMap<
+        i64,
+        &a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord,
+    >,
 ) -> Result<(), String> {
     let script = galgame_scripts.get(&scene.script_id).copied().ok_or_else(|| {
         format!(

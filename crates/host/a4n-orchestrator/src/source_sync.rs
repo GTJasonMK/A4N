@@ -122,7 +122,7 @@ pub(crate) fn source_sync_db_error(
             a4n_error::AppError::Internal(anyhow::anyhow!(message))
         }
         a4n_db::source_sync::SourceSyncDbError::Database(error) => {
-            a4n_error::AppError::Database(error)
+            a4n_error::AppError::database(error)
         }
     }
 }

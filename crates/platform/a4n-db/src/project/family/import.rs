@@ -6,7 +6,7 @@ mod import_rows;
 mod remap;
 mod rules;
 
-use contracts::ImportIdMaps;
+use contracts::{DatabaseProjectFamilyImportPackage, ImportIdMaps};
 pub use contracts::{
     ProjectFamilyImportMappings, ProjectFamilyImportPackage, ProjectFamilyMediaFileImporter,
 };

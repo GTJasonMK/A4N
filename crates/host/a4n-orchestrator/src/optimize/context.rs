@@ -4,9 +4,9 @@ mod projection;
 #[cfg(test)]
 mod tests;
 
+use a4n_db::ConnectionTrait;
 use a4n_db::optimize::OptimizationContextReadInput;
 use a4n_error::AppError;
-use sea_orm::ConnectionTrait;
 use serde_json::Value;
 
 use super::{OptimizationAgentPermissions, optimize_db_error};

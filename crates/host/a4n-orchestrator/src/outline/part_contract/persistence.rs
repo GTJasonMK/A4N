@@ -1,10 +1,10 @@
 use super::model::PartOutlineDraft;
 use crate::outline::chapter_contract::{required_array, required_object, required_string};
 use crate::outline::outline_db_error;
+use a4n_db::ConnectionTrait;
 use a4n_db::outline::{self as outline_db, PartOutlineSyncDraft};
 use a4n_domain::chapter::PartOutlineRecord;
 use a4n_error::AppError;
-use sea_orm::ConnectionTrait;
 use serde_json::Value;
 
 pub fn part_outline_sync_draft_from_json(

@@ -2,10 +2,8 @@ use std::fmt::Display;
 
 use a4n_domain::project::ChapterDerivedCleanupArtifacts;
 use a4n_error::AppError;
-use sea_orm::DatabaseTransaction;
-
 pub async fn cleanup_chapter_derived_data_in(
-    db: &DatabaseTransaction,
+    db: &impl a4n_db::DbTransactionExecutor,
     project_id: i64,
     chapter_id: i64,
     chapter_number: i32,
@@ -35,7 +33,7 @@ pub async fn cleanup_chapter_derived_data_in(
         chapter_number,
     )
     .await
-    .map_err(AppError::Database)?;
+    .map_err(AppError::from)?;
 
     let profiles = a4n_db::project::protagonist_profiles_for_project_in(db, project_id)
         .await

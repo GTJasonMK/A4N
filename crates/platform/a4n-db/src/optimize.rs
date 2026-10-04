@@ -23,17 +23,20 @@ pub use context::{
     optimization_chapter_by_id, optimization_context_rows, write_optimization_chapter_patch_content,
 };
 pub use patches::{
-    create_optimization_patch_set, matching_pending_optimization_patch_sets,
-    optimization_patch_set_by_id, optimization_patch_set_by_turn_id,
-    optimization_patch_set_patches, optimization_patch_set_patches_for_sets,
-    optimization_patch_sets, pending_optimization_patch_sets,
-    update_optimization_patch_sets_status,
+    create_optimization_patch_set, discard_optimization_patch_set_and_record_event,
+    discard_pending_optimization_patch_sets_and_record_event,
+    matching_pending_optimization_patch_sets, optimization_patch_set_by_id,
+    optimization_patch_set_by_turn_id, optimization_patch_set_patches,
+    optimization_patch_set_patches_for_sets, optimization_patch_sets,
+    pending_optimization_patch_sets, update_optimization_patch_sets_status,
 };
 pub use sessions::{
-    create_optimization_session, delete_optimization_session_with_messages,
-    insert_optimization_session_message, optimization_session_by_id, optimization_session_messages,
-    optimization_session_name_exists, optimization_sessions, resume_optimization_analysis_session,
-    update_optimization_session,
+    create_optimization_session, create_optimization_session_record,
+    delete_optimization_session_with_messages, insert_optimization_session_message,
+    optimization_session_by_id, optimization_session_messages, optimization_session_name_exists,
+    optimization_session_record_by_id, optimization_session_records, optimization_sessions,
+    resume_optimization_analysis_session, resume_optimization_analysis_session_record,
+    update_optimization_session, update_optimization_session_record,
 };
 pub use turns::{
     append_optimization_turn_event, complete_optimization_analysis_turn,
@@ -47,9 +50,9 @@ pub use types::{
     OptimizationChapterPatchWriteInput, OptimizationChapterSummaryRecord,
     OptimizationContextReadInput, OptimizationContextRows, OptimizationPatchCreateInput,
     OptimizationPatchSetCreateInput, OptimizationSessionCreateInput,
-    OptimizationSessionMessageInsertInput, OptimizationSessionUpdateInput,
-    OptimizationTurnCreateInput, OptimizationTurnEventAppendInput, OptimizationTurnUpdateInput,
-    OptimizeDbError,
+    OptimizationSessionMessageInsertInput, OptimizationSessionRecordUpdateInput,
+    OptimizationSessionUpdateInput, OptimizationTurnCreateInput, OptimizationTurnEventAppendInput,
+    OptimizationTurnUpdateInput, OptimizeDbError,
 };
 
 #[cfg(test)]

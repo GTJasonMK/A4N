@@ -1,10 +1,10 @@
 use super::projections::persisted_task_info_from_row;
 use crate::workflow::{PersistedTaskInfo, WorkflowReadError, validate_positive_i64};
 use a4n_db_models::models::task::task_queue;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 pub async fn persisted_task_history(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: Option<i64>,
     offset: u64,
     limit: u64,
@@ -29,7 +29,7 @@ pub async fn persisted_task_history(
 }
 
 pub async fn persisted_task_by_id(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     task_id: &str,
 ) -> Result<Option<PersistedTaskInfo>, WorkflowReadError> {
     let task_id = task_id.trim();

@@ -1,10 +1,11 @@
 use super::*;
 use a4n_db_models::models::agent::inbox as inbox_model;
+use sea_orm::ConnectionTrait;
 
 pub async fn enqueue_inbox<C>(
     db: &C,
     input: AgentInboxInput,
-) -> Result<inbox_model::Model, AgentDbError>
+) -> Result<AgentInboxRecord, AgentDbError>
 where
     C: ConnectionTrait,
 {
@@ -66,13 +67,13 @@ where
             input.dedupe_key
         )));
     }
-    Ok(existing)
+    Ok(existing.into())
 }
 
 pub async fn claim_inbox(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     thread_id: Option<i64>,
-) -> Result<Option<inbox_model::Model>, AgentDbError> {
+) -> Result<Option<AgentInboxRecord>, AgentDbError> {
     let tx = db.begin().await?;
     let timestamp = now();
     let claimable = sea_orm::Condition::any()
@@ -106,7 +107,7 @@ pub async fn claim_inbox(
     active.claimed_at = Set(Some(timestamp));
     let row = active.update(&tx).await?;
     tx.commit().await?;
-    Ok(Some(row))
+    Ok(Some(row.into()))
 }
 
 pub(crate) fn validate_inbox_claim(
@@ -134,10 +135,10 @@ pub(crate) fn validate_inbox_claim(
 }
 
 pub async fn consume_inbox(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     inbox_id: i64,
     claim_token: &str,
-) -> Result<inbox_model::Model, AgentDbError> {
+) -> Result<AgentInboxRecord, AgentDbError> {
     let tx = db.begin().await?;
     let row = inbox_model::Entity::find_by_id(inbox_id)
         .lock_exclusive()
@@ -153,7 +154,7 @@ pub async fn consume_inbox(
     active.consumed_at = Set(Some(timestamp));
     let row = active.update(&tx).await?;
     tx.commit().await?;
-    Ok(row)
+    Ok(row.into())
 }
 
 /// Atomically turns a claimed inbox item into a durable Agent message and
@@ -161,12 +162,12 @@ pub async fn consume_inbox(
 /// claim transition, so a worker crash cannot lose an observation between
 /// consuming the inbox and rebuilding model history.
 pub async fn consume_inbox_with_message(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     inbox_id: i64,
     claim_token: &str,
     run_lease_token: &str,
     message: AgentMessageInput,
-) -> Result<(inbox_model::Model, message::Model), AgentDbError> {
+) -> Result<(AgentInboxRecord, AgentMessageRecord), AgentDbError> {
     let identity = inbox_model::Entity::find_by_id(inbox_id)
         .one(db)
         .await?
@@ -217,14 +218,14 @@ pub async fn consume_inbox_with_message(
     active.consumed_at = Set(Some(timestamp));
     let consumed = active.update(&tx).await?;
     tx.commit().await?;
-    Ok((consumed, durable_message))
+    Ok((consumed.into(), durable_message.into()))
 }
 
 pub async fn supersede_inbox(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     inbox_id: i64,
     claim_token: Option<&str>,
-) -> Result<inbox_model::Model, AgentDbError> {
+) -> Result<AgentInboxRecord, AgentDbError> {
     let tx = db.begin().await?;
     let row = inbox_model::Entity::find_by_id(inbox_id)
         .lock_exclusive()
@@ -243,7 +244,7 @@ pub async fn supersede_inbox(
         )?,
         "superseded" => {
             tx.commit().await?;
-            return Ok(row);
+            return Ok(row.into());
         }
         status => {
             return Err(AgentDbError::Conflict(format!(
@@ -258,15 +259,15 @@ pub async fn supersede_inbox(
     active.consumed_at = Set(Some(timestamp));
     let row = active.update(&tx).await?;
     tx.commit().await?;
-    Ok(row)
+    Ok(row.into())
 }
 
 pub async fn release_inbox_claim(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     inbox_id: i64,
     claim_token: &str,
     available_at: Option<NaiveDateTime>,
-) -> Result<inbox_model::Model, AgentDbError> {
+) -> Result<AgentInboxRecord, AgentDbError> {
     let tx = db.begin().await?;
     let row = inbox_model::Entity::find_by_id(inbox_id)
         .lock_exclusive()
@@ -283,5 +284,5 @@ pub async fn release_inbox_claim(
     active.claimed_at = Set(None);
     let row = active.update(&tx).await?;
     tx.commit().await?;
-    Ok(row)
+    Ok(row.into())
 }

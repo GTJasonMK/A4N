@@ -1,17 +1,14 @@
 use crate::workflow::{WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING, WorkflowWriteError};
+use crate::{DbExecutor, DbHandle};
 use a4n_db_models::models::{generation::generation_run, generation::workflow_run};
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::sea_query::Expr;
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait, QueryFilter, QuerySelect,
-    TransactionTrait,
-};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 
 const DURABLE_RUNNING_WORKFLOW_KIND: &str = "video_provider_job";
 
-pub async fn recover_stale_in_process_workflows(
-    db: &DatabaseConnection,
-) -> Result<u64, WorkflowWriteError> {
+pub async fn recover_stale_in_process_workflows(db: &DbHandle) -> Result<u64, WorkflowWriteError> {
+    let db = db.connection();
     let candidate_ids = workflow_run::Entity::find()
         .select_only()
         .column(workflow_run::Column::Id)
@@ -25,7 +22,9 @@ pub async fn recover_stale_in_process_workflows(
         return Ok(0);
     }
 
-    let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
+    let tx = DbExecutor::begin_db_transaction(db)
+        .await
+        .map_err(WorkflowWriteError::Database)?;
     let runs = workflow_run::Entity::find()
         .select_only()
         .column(workflow_run::Column::Id)
@@ -73,7 +72,7 @@ pub async fn recover_stale_in_process_workflows(
 }
 
 async fn mark_workflows_interrupted(
-    db: &DatabaseTransaction,
+    db: &crate::DbTransaction,
     workflow_run_ids: &[i64],
     can_resume: bool,
     error_message: &str,

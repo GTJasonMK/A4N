@@ -16,7 +16,7 @@ use super::*;
 #[tokio::test]
 async fn discarding_pending_patch_sets_updates_patches_and_records_one_event() {
     let database = Arc::new(a4n_migration::test_support::connect_test_database().await);
-    let user = a4n_db::auth::create_user(
+    let user = a4n_db::auth::create_user_summary(
         database.as_ref(),
         "optimize_discard_owner",
         "optimize-discard-owner@example.invalid",

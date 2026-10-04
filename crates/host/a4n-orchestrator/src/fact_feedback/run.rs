@@ -3,7 +3,6 @@ use a4n_chapter_analysis_host_contract::{
     ChapterAnalysisApplicationProgress, ChapterAnalysisHostPort,
 };
 use a4n_character_host_contract::CharacterProfileSyncStageTracePort;
-use a4n_db_models::models::generation::workflow_run;
 use a4n_domain::{fact_feedback::FactConsolidationOutput, workflow::WORKFLOW_STATUS_RUNNING};
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
@@ -57,7 +56,7 @@ impl OrchestratorContext {
                 .feedback_resume_run(project_id, id, FACT_CONSOLIDATION_KIND)
                 .await?;
             let applied = self
-                .workflow_checkpoint_models(run.id)
+                .workflow_checkpoint_summaries(run.id)
                 .await?
                 .iter()
                 .any(|checkpoint| {
@@ -107,7 +106,7 @@ impl OrchestratorContext {
                 } else if run.status == "failed"
                     && run.can_resume
                     && self
-                        .workflow_checkpoint_models(run.id)
+                        .workflow_checkpoint_summaries(run.id)
                         .await?
                         .iter()
                         .any(|checkpoint| {
@@ -220,7 +219,7 @@ impl OrchestratorContext {
     async fn execute_consolidation(
         &self,
         project_id: i64,
-        run: &workflow_run::Model,
+        run: &a4n_domain::workflow::WorkflowRunSummary,
         mut prepared: PreparedConsolidation,
         host_port: &dyn ChapterAnalysisHostPort,
         progress: ChapterAnalysisApplicationProgress<'_>,
@@ -294,7 +293,7 @@ impl OrchestratorContext {
             return Err(AppError::Cancelled);
         }
         let applied = a4n_db::fact_feedback::apply_consolidation(
-            self.database.connection(),
+            self.database.executor(),
             a4n_db::fact_feedback::ConsolidationApplyInput {
                 project_id,
                 workflow_run_id: run.id,
@@ -337,7 +336,7 @@ impl OrchestratorContext {
         host_port: &dyn ChapterAnalysisHostPort,
     ) -> Result<(), AppError> {
         let checkpoint = self
-            .workflow_checkpoint_models(run_id)
+            .workflow_checkpoint_summaries(run_id)
             .await?
             .into_iter()
             .find(|checkpoint| {
@@ -365,7 +364,7 @@ impl OrchestratorContext {
         project_id: i64,
         id: i64,
         kind: &str,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<a4n_domain::workflow::WorkflowRunSummary, AppError> {
         let run = self.workflow_run_model_by_id(id).await?;
         if run.project_id != Some(project_id) || run.workflow_kind != kind {
             return Err(AppError::InvalidArgument(
@@ -428,7 +427,7 @@ impl OrchestratorContext {
             .await?
         };
         let result = async {
-            let completed = self.workflow_checkpoint_models(run.id).await?;
+            let completed = self.workflow_checkpoint_summaries(run.id).await?;
             for (index, chapter) in chapters.iter().enumerate() {
                 let key = format!("fact_rebuild.chapter.{}", chapter.id);
                 if completed.iter().any(|checkpoint| {

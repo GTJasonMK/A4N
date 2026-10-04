@@ -7,14 +7,10 @@ use a4n_worker_contract::AgentWorkerRunLeaseRequest;
 
 impl AgentApplication {
     pub(crate) async fn mark_turn_active(&self, claimed: &AgentWorkerRun) -> Result<(), AppError> {
-        agent::mark_turn_active_for_run_lease(
-            self.connection(),
-            claimed.run.id,
-            &claimed.lease_token,
-        )
-        .await
-        .map(|_| ())
-        .map_err(agent_db_error_to_app)
+        agent::mark_turn_active_for_run_lease(self.executor(), claimed.run.id, &claimed.lease_token)
+            .await
+            .map(|_| ())
+            .map_err(agent_db_error_to_app)
     }
 
     pub(crate) async fn mark_turn_active_request(
@@ -23,7 +19,7 @@ impl AgentApplication {
     ) -> Result<(), AppError> {
         self.validate_worker_lease_request(request).await?;
         agent::mark_turn_active_for_run_lease(
-            self.connection(),
+            self.executor(),
             request.run_id,
             &request.lease.fence_token,
         )

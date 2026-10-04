@@ -21,7 +21,7 @@ impl ProjectSceneRecordsApplication {
         &self,
         chapter_id: i64,
     ) -> Result<Vec<ChapterSceneRecord>, AppError> {
-        a4n_db::project::chapter_scenes_by_chapter(self.database.connection(), chapter_id)
+        a4n_db::project::chapter_scenes_by_chapter(self.database.executor(), chapter_id)
             .await
             .map_err(project_chapter_scene_record_error_to_app_error)
     }
@@ -30,7 +30,7 @@ impl ProjectSceneRecordsApplication {
         &self,
         input: ProjectGeneratedChapterSceneSaveInput,
     ) -> Result<ChapterSceneRecord, AppError> {
-        a4n_db::project::save_generated_chapter_scene_record(self.database.connection(), input)
+        a4n_db::project::save_generated_chapter_scene_record(self.database.executor(), input)
             .await
             .map_err(project_chapter_scene_write_error_to_app_error)
     }

@@ -50,7 +50,7 @@ pub(super) async fn prepare_galgame_pipeline(
         .map(|chapter| chapter.source_chapter_id)
         .collect::<Vec<_>>();
     let sources = a4n_db::project::resolve_snapshot_sources(
-        service.database.connection(),
+        service.database.executor(),
         project_id,
         context.root_project_id,
         context.source_snapshot_id,

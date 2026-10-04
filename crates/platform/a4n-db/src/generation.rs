@@ -7,8 +7,8 @@ use a4n_db_models::models::{
 };
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait, sea_query::Expr,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set, sea_query::Expr,
 };
 use serde_json::Value;
 const RUN_STATUS_RUNNING: &str = "running";
@@ -73,12 +73,14 @@ pub(crate) use refs::{
 pub(in crate::generation) use refs::{normalize_entity_kind, normalize_media_ref_role};
 
 mod prompts;
+mod record_mapping;
 #[cfg(test)]
 pub(in crate::generation) use prompts::validate_prompt_artifact_text;
 pub(crate) use prompts::{
     insert_prompt_artifact, normalize_video_prompt_kind, prompt_artifact_by_id,
 };
 pub use prompts::{is_valid_generation_prompt_kind, render_prompt_text};
+pub use record_mapping::{generation_spec_record_from_model, prompt_artifact_record_from_model};
 
 mod tasks;
 pub use tasks::{
@@ -86,13 +88,12 @@ pub use tasks::{
     GenerationTaskCheckpointPage, GenerationTaskPersistenceError, GenerationTaskReservation,
     PersistGenerationCheckpointInput, PersistedGenerationCheckpoint, PersistedGenerationTask,
     ReserveGenerationTaskInput, bind_generation_task_to_workflow, extend_generation_sequence_lease,
-    generation_public_snapshot_for_summary, list_active_generation_task_checkpoints,
+    generation_public_snapshot_for_summary_record, list_active_generation_task_checkpoints,
     list_generation_task_history_checkpoints, load_generation_task,
     load_generation_task_checkpoint, persist_generation_checkpoint,
-    persisted_generation_task_from_checkpoint, reserve_generation_task,
-    started_event_from_checkpoint,
+    persisted_generation_task_from_record, reserve_generation_task, started_event_from_record,
+    started_event_from_summary_record,
 };
-
 mod task_lifecycle;
 pub use task_lifecycle::{
     GenerationCancelTarget, GenerationCorruptRecoveryState, GenerationTaskLifecycleError,

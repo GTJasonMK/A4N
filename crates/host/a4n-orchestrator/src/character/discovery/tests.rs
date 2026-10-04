@@ -2,10 +2,10 @@ use std::collections::BTreeSet;
 
 use a4n_api_contract::character::DiscoverCharacterProfilesInput;
 use a4n_character_host_contract::validate_character_discovery_input;
-use a4n_db_models::models::{
-    chapter::chapter, character::protagonist_profile, project::text_anchor,
-};
 use a4n_domain::source_spans::source_spans_for_chapters;
+use a4n_domain::{
+    chapter::ChapterRecord, character::CharacterProfileRecord, text_anchor::TextAnchorRecord,
+};
 use serde_json::{Value, json};
 
 use crate::character::discovery::{
@@ -20,9 +20,9 @@ use super::{
     request::build_character_discovery_manifest_user_prompt,
 };
 
-fn discovery_chapter(chapter_number: i32, status: &str, content: &str) -> chapter::Model {
+fn discovery_chapter(chapter_number: i32, status: &str, content: &str) -> ChapterRecord {
     let now = chrono::Utc::now().naive_utc();
-    chapter::Model {
+    ChapterRecord {
         id: i64::from(chapter_number),
         project_id: 1,
         outline_id: None,
@@ -39,17 +39,17 @@ fn discovery_chapter(chapter_number: i32, status: &str, content: &str) -> chapte
     }
 }
 
-fn discovery_anchor_context(content: &str) -> (Vec<chapter::Model>, Vec<text_anchor::Model>) {
+fn discovery_anchor_context(content: &str) -> (Vec<ChapterRecord>, Vec<TextAnchorRecord>) {
     let chapters = vec![discovery_chapter(1, "draft", content)];
     (chapters.clone(), anchors_for_test(&chapters))
 }
 
-fn anchors_for_test(chapters: &[chapter::Model]) -> Vec<text_anchor::Model> {
+fn anchors_for_test(chapters: &[ChapterRecord]) -> Vec<TextAnchorRecord> {
     let now = chrono::Utc::now().naive_utc();
     source_spans_for_chapters(chapters)
         .iter()
         .enumerate()
-        .map(|(index, span)| text_anchor::Model {
+        .map(|(index, span)| TextAnchorRecord {
             id: i64::try_from(index + 1).expect("test anchor id should fit i64"),
             project_id: 1,
             source_chapter_id: Some(span.chapter_id),
@@ -69,7 +69,7 @@ fn anchors_for_test(chapters: &[chapter::Model]) -> Vec<text_anchor::Model> {
         .collect()
 }
 
-fn anchor_id_containing(anchors: &[text_anchor::Model], text: &str) -> i64 {
+fn anchor_id_containing(anchors: &[TextAnchorRecord], text: &str) -> i64 {
     anchors
         .iter()
         .find(|anchor| anchor.quote.contains(text))
@@ -183,7 +183,7 @@ fn character_discovery_user_prompt_uses_json_payload() {
 #[test]
 fn existing_profile_for_prompt_projects_identity_without_database_metadata() {
     let now = chrono::Utc::now().naive_utc();
-    let profile = protagonist_profile::Model {
+    let profile = CharacterProfileRecord {
         id: 42,
         project_id: 9,
         name: "陈恪".to_string(),
@@ -233,7 +233,7 @@ fn existing_profile_for_prompt_projects_identity_without_database_metadata() {
 #[test]
 fn existing_profile_for_prompt_rejects_missing_explicit_identity_context() {
     let now = chrono::Utc::now().naive_utc();
-    let profile = protagonist_profile::Model {
+    let profile = CharacterProfileRecord {
         id: 42,
         project_id: 9,
         name: "陈恪".to_string(),

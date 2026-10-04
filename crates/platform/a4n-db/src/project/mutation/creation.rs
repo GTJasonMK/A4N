@@ -7,10 +7,10 @@ use super::rules::{normalize_project_type, required_project_title};
 use a4n_db_models::models::project::novel_project;
 use a4n_domain::project::ProjectStatus;
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
+use sea_orm::{ActiveModelTrait, Set};
 
 pub async fn create_project_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: CreateProjectRecordInput,
 ) -> Result<novel_project::Model, ProjectMutationError> {
     let title = required_project_title(&input.title)?.to_string();
@@ -46,7 +46,7 @@ pub async fn create_project_record(
 }
 
 pub async fn create_canvas_project_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
     params: CreateCanvasProjectParams,
 ) -> Result<novel_project::Model, ProjectMutationError> {
@@ -82,7 +82,7 @@ pub async fn create_canvas_project_record(
 }
 
 pub async fn create_standalone_comic_project_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
     params: CreateStandaloneComicProjectParams,
 ) -> Result<novel_project::Model, ProjectMutationError> {

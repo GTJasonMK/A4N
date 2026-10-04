@@ -38,7 +38,7 @@ pub(in crate::project::family_package::tests) fn package_with_galgame_project()
             }],
             "video_reference": null, "dependencies": []
         });
-        a4n_db_models::models::project::media_authoring_document::Model {
+        a4n_domain::project::ProjectFamilyAuthoringDocumentRecord {
             id: 1400 + source.id,
             project_id: 2,
             source_snapshot_id: source.snapshot_id,

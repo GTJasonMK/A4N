@@ -125,13 +125,13 @@ impl WorkerState {
             .collect::<Vec<_>>();
         let (analysis_runs, content_runs) = tokio::try_join!(
             a4n_db::workflow::latest_workflow_run_summaries_for_chapters(
-                self.database.connection(),
+                &self.database,
                 project_id,
                 "chapter_analysis",
                 &chapter_ids,
             ),
             a4n_db::workflow::latest_workflow_run_summaries_for_chapters(
-                self.database.connection(),
+                &self.database,
                 project_id,
                 CHAPTER_CONTENT_SYNC_WORKFLOW_KIND,
                 &chapter_ids,
@@ -143,12 +143,10 @@ impl WorkerState {
             .chain(&content_runs)
             .map(|run| run.id)
             .collect::<Vec<_>>();
-        let checkpoints = a4n_db::workflow::workflow_checkpoint_summaries_for_runs(
-            self.database.connection(),
-            &run_ids,
-        )
-        .await
-        .map_err(workflow_error)?;
+        let checkpoints =
+            a4n_db::workflow::workflow_checkpoint_summaries_for_runs(&self.database, &run_ids)
+                .await
+                .map_err(workflow_error)?;
         let mut summaries = chapters.iter().map(chapter_metadata).collect::<Vec<_>>();
         attach_chapter_sync_state(
             chapters,

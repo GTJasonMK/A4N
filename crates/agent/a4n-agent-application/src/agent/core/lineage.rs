@@ -17,7 +17,7 @@ impl AgentApplication {
                 });
             }
             depth = depth.saturating_add(1);
-            ancestor = agent::run_by_id(self.connection(), parent_id)
+            ancestor = agent::run_by_id(self.executor(), parent_id)
                 .await
                 .map_err(agent_db_error_to_app)?
                 .and_then(|row| row.parent_run_id);

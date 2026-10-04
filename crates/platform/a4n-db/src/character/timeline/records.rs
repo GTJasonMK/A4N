@@ -55,7 +55,7 @@ pub async fn behavior_records_before_chapter<C>(
     db: &C,
     profile_id: i64,
     start_chapter: i32,
-) -> Result<Vec<protagonist_behavior_record::Model>, DbErr>
+) -> Result<Vec<a4n_domain::character::CharacterBehaviorRecord>, DbErr>
 where
     C: ConnectionTrait,
 {
@@ -66,4 +66,9 @@ where
         .order_by_desc(protagonist_behavior_record::Column::Id)
         .all(db)
         .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(crate::character::character_behavior_record)
+                .collect()
+        })
 }

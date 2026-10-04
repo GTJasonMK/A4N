@@ -1,5 +1,40 @@
+use chrono::NaiveDateTime;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+/// Persisted chapter-video timeline projection. ORM rows are converted to
+/// this record at the database boundary before reaching orchestration.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct VideoTimelineRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub chapter_id: i64,
+    pub workflow_mode: String,
+    pub revision: i64,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct VideoTimelineItemRecord {
+    pub id: i64,
+    pub timeline_id: i64,
+    pub position: Option<i32>,
+    pub item_kind: String,
+    pub status: String,
+    pub native_source_shot_id: Option<String>,
+    pub native_segment_index_in_shot: Option<i32>,
+    pub insert_plan_prompt_id: Option<i64>,
+    pub workflow_run_id: Option<i64>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct VideoTimelineSnapshotRecord {
+    pub timeline: VideoTimelineRecord,
+    pub items: Vec<VideoTimelineItemRecord>,
+}
 use thiserror::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]

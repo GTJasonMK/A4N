@@ -2,10 +2,10 @@ use a4n_api_contract::source_sync::{
     SourceSyncConflictSummary, SourceSyncPlanSummary, SourceSyncRunSummary,
 };
 use a4n_db::source_sync::SourceSyncPlanRecord;
-use a4n_db_models::models::source_sync::{source_sync_conflict, source_sync_run};
 use a4n_domain::source_sync::{
-    SourceSyncChangeKind, SourceSyncConflictSeverity, SourceSyncConflictStatus,
-    SourceSyncLocalStateKind, SourceSyncResolutionStrategy, SourceSyncRunMode, SourceSyncRunStatus,
+    SourceSyncChangeKind, SourceSyncConflictRecord, SourceSyncConflictSeverity,
+    SourceSyncConflictStatus, SourceSyncLocalStateKind, SourceSyncResolutionStrategy,
+    SourceSyncRunMode, SourceSyncRunRecord, SourceSyncRunStatus,
 };
 use a4n_error::AppError;
 use serde_json::{Map, Value};
@@ -27,7 +27,7 @@ pub(crate) fn source_sync_plan_summary(
 }
 
 fn source_sync_conflict_summary(
-    conflict: source_sync_conflict::Model,
+    conflict: SourceSyncConflictRecord,
     regenerate_scene_id: Option<i64>,
 ) -> Result<SourceSyncConflictSummary, AppError> {
     let source_change_kind =
@@ -78,7 +78,7 @@ fn source_sync_conflict_summary(
     })
 }
 
-fn source_sync_run_summary(run: source_sync_run::Model) -> Result<SourceSyncRunSummary, AppError> {
+fn source_sync_run_summary(run: SourceSyncRunRecord) -> Result<SourceSyncRunSummary, AppError> {
     let mode = SourceSyncRunMode::parse(&run.mode)
         .ok_or_else(|| invalid_source_sync_value("run_mode", &run.mode))?;
     let status = SourceSyncRunStatus::parse(&run.status)
@@ -115,8 +115,7 @@ fn invalid_source_sync_value(field: &str, value: &str) -> AppError {
 #[cfg(test)]
 mod tests {
     use super::source_sync_run_summary;
-    use a4n_db_models::models::source_sync::source_sync_run;
-    use a4n_domain::source_sync::{SourceSyncRunMode, SourceSyncRunStatus};
+    use a4n_domain::source_sync::{SourceSyncRunMode, SourceSyncRunRecord, SourceSyncRunStatus};
     use chrono::NaiveDate;
     use serde_json::json;
 
@@ -130,7 +129,7 @@ mod tests {
             .unwrap()
             .and_hms_opt(3, 4, 5)
             .unwrap();
-        let run = source_sync_run::Model {
+        let run = SourceSyncRunRecord {
             id: 1,
             derived_project_id: 2,
             root_project_id: 3,

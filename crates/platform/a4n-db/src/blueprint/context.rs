@@ -3,15 +3,15 @@
 //! ORM metadata stays inside the persistence adapter; callers receive only
 //! the deliberately public JSON projection.
 
-use a4n_db_models::models::project::{blueprint_character, blueprint_relationship};
 use serde::Serialize;
 use serde_json::{Value, json};
 
-pub fn blueprint_llm_context(
-    blueprint: &impl Serialize,
-    characters: &[blueprint_character::Model],
-    relationships: &[blueprint_relationship::Model],
-) -> Value {
+pub fn blueprint_llm_context<B, C, R>(blueprint: &B, characters: &[C], relationships: &[R]) -> Value
+where
+    B: Serialize,
+    C: Serialize,
+    R: Serialize,
+{
     json!({
         "blueprint": blueprint_model_llm_context(blueprint),
         "characters": characters
@@ -56,31 +56,55 @@ pub fn blueprint_model_llm_context(blueprint: &impl Serialize) -> Value {
     )
 }
 
-pub fn blueprint_character_llm_context(character: &blueprint_character::Model) -> Value {
-    json!({
-        "name": character.name,
-        "character_type": character.character_type,
-        "gender": character.gender,
-        "age": character.age,
-        "appearance": character.appearance,
-        "personality": character.personality,
-        "background": character.background,
-        "motivation": character.motivation,
-        "arc_summary": character.arc_summary,
-        "relationship_to_protagonist": character.relationship_to_protagonist,
-        "arc_stages": character.arc_stages,
-    })
+pub fn blueprint_character_llm_context(character: &impl Serialize) -> Value {
+    serialize_fields(
+        character,
+        &[
+            "name",
+            "character_type",
+            "gender",
+            "age",
+            "appearance",
+            "personality",
+            "background",
+            "motivation",
+            "arc_summary",
+            "relationship_to_protagonist",
+            "arc_stages",
+        ],
+    )
 }
 
-pub fn blueprint_relationship_llm_context(relationship: &blueprint_relationship::Model) -> Value {
-    json!({
-        "relationship_type": relationship.relationship_type,
-        "character_a": relationship.character_a,
-        "character_b": relationship.character_b,
-        "description": relationship.description,
-        "strength": relationship.strength,
-        "evolution": relationship.evolution,
-    })
+pub fn blueprint_relationship_llm_context(relationship: &impl Serialize) -> Value {
+    serialize_fields(
+        relationship,
+        &[
+            "relationship_type",
+            "character_a",
+            "character_b",
+            "description",
+            "strength",
+            "evolution",
+        ],
+    )
+}
+
+fn serialize_fields(record: &impl Serialize, fields: &[&str]) -> Value {
+    let value = serde_json::to_value(record).expect("blueprint context record must serialize");
+    Value::Object(
+        fields
+            .iter()
+            .map(|field| {
+                (
+                    (*field).to_string(),
+                    value
+                        .get(field)
+                        .cloned()
+                        .expect("blueprint context field must exist"),
+                )
+            })
+            .collect(),
+    )
 }
 
 #[cfg(test)]
@@ -154,7 +178,9 @@ mod tests {
             created_at: now,
         };
 
-        let context = blueprint_llm_context(&blueprint, &[character], &[relationship]);
+        let characters = [crate::project::blueprint_character_record(character)];
+        let relationships = [crate::project::blueprint_relationship_record(relationship)];
+        let context = blueprint_llm_context(&blueprint, &characters, &relationships);
         let text = serde_json::to_string(&context).unwrap();
 
         assert_eq!(context["blueprint"]["title"], json!("星潮档案"));

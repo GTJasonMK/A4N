@@ -3,6 +3,7 @@
 //! This module intentionally contains no model/provider orchestration. It
 //! owns the durable inbox, lease, event-sequence and idempotency boundaries;
 //! the orchestrator decides what each record means.
+use sea_orm::ConnectionTrait;
 
 use a4n_db_models::models::agent::{
     approval, delegation, event, execution, message, run, thread, turn,
@@ -15,8 +16,7 @@ use a4n_domain::agent::{
 use chrono::{Duration, NaiveDateTime, Utc};
 use sea_orm::sea_query::{LockBehavior, LockType, OnConflict};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -42,7 +42,7 @@ pub use inbox::{
     supersede_inbox,
 };
 mod memory;
-pub use memory::{insert_memory, list_memory};
+pub use memory::{insert_memory, list_memory, memory_by_id, retract_memory};
 mod messages;
 pub use messages::{
     append_message, append_message_for_run_lease,
@@ -56,12 +56,21 @@ pub(crate) use messages::{
     recover_child_delegation_on,
 };
 mod queries;
+mod records;
 pub use queries::{
     active_runs_by_thread, approval_by_id, approvals_by_thread, create_thread,
     default_thread_by_owner, delegation_by_id, delegation_by_parent_and_key, delegations_by_thread,
-    executions_by_runs, inbox_by_thread, list_threads_by_owner, message_by_id, messages_before,
-    messages_by_run, messages_by_thread, messages_for_context, run_by_id, runs_by_thread,
-    thread_by_canonical_binding, thread_by_id, turns_by_thread,
+    execution_by_id, execution_by_key, executions_by_runs, has_user_message_after, inbox_by_id,
+    inbox_by_thread, latest_event_by_run_and_kind, list_threads_by_owner, message_by_id,
+    message_by_run_and_client_id, messages_before, messages_by_run, messages_by_thread,
+    messages_for_context, run_by_id, runs_by_thread, thread_by_canonical_binding, thread_by_id,
+    turn_by_id, turns_by_thread,
+};
+pub use records::{
+    AgentApprovalRecord, AgentDelegationRecord, AgentEventRecord, AgentExecutionRecord,
+    AgentExternalTaskWaitRecord, AgentInboxRecord, AgentMemoryRecord, AgentMessageRecord,
+    AgentOwnedGenerationTaskRecord, AgentRunRecord, AgentThreadHistoryRecord, AgentThreadRecord,
+    AgentThreadUpdateRecordInput, AgentTurnRecord,
 };
 mod recovery;
 pub use recovery::{cancel_run_tree, expired_running_runs, pause_run_tree, recover_expired_run};
@@ -90,6 +99,11 @@ mod completion;
 pub use completion::{completion_blockers, request_user_input};
 mod task_wait;
 pub use task_wait::{external_task_wait, list_external_task_waits, wake_external_task_wait};
+mod thread_commands;
+pub use thread_commands::{
+    archive_thread_record, lock_thread, reconcile_thread_scope_record, thread_history,
+    update_thread_record,
+};
 mod budget;
 pub use budget::{AgentBudgetSnapshot, resume_run, run_budget_snapshot};
 mod generation;
@@ -117,8 +131,18 @@ pub enum AgentDbError {
     NotFound(String),
     #[error("{0}")]
     Conflict(String),
+    #[error("{0}")]
+    Forbidden(String),
+    #[error("{current}")]
+    InvalidState { current: String, operation: String },
     #[error(transparent)]
-    Database(#[from] DbErr),
+    Database(Box<dyn std::error::Error + Send + Sync + 'static>),
+}
+
+impl From<sea_orm::DbErr> for AgentDbError {
+    fn from(error: sea_orm::DbErr) -> Self {
+        Self::Database(Box::new(error))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -206,7 +230,7 @@ pub async fn agent_skill_profile_ids<C: ConnectionTrait>(
 }
 
 pub async fn save_agent_skill_profile_ids(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     owner_user_id: i64,
     capability: &str,
     enabled_skill_ids: &[String],
@@ -242,22 +266,56 @@ pub async fn save_agent_skill_profile_ids(
     Ok(())
 }
 
-pub fn validate_live_run_lease(
+pub(crate) fn validate_live_run_lease(
     row: &run::Model,
     lease_token: &str,
     timestamp: NaiveDateTime,
 ) -> Result<(), AgentDbError> {
+    validate_live_run_lease_fields(
+        row.id,
+        row.lease_token.as_deref(),
+        row.is_active,
+        &row.status,
+        row.lease_expires_at,
+        lease_token,
+        timestamp,
+    )
+}
+
+pub fn validate_live_run_lease_record(
+    row: &AgentRunRecord,
+    lease_token: &str,
+    timestamp: NaiveDateTime,
+) -> Result<(), AgentDbError> {
+    validate_live_run_lease_fields(
+        row.id,
+        row.lease_token.as_deref(),
+        row.is_active,
+        &row.status,
+        row.lease_expires_at,
+        lease_token,
+        timestamp,
+    )
+}
+
+fn validate_live_run_lease_fields(
+    id: i64,
+    current_lease_token: Option<&str>,
+    is_active: bool,
+    status: &str,
+    lease_expires_at: Option<NaiveDateTime>,
+    lease_token: &str,
+    timestamp: NaiveDateTime,
+) -> Result<(), AgentDbError> {
     if lease_token.trim().is_empty()
-        || row.lease_token.as_deref() != Some(lease_token)
-        || !row.is_active
-        || row.status != "running"
-        || row
-            .lease_expires_at
-            .is_none_or(|expires_at| expires_at <= timestamp)
+        || current_lease_token != Some(lease_token)
+        || !is_active
+        || status != "running"
+        || lease_expires_at.is_none_or(|expires_at| expires_at <= timestamp)
     {
         return Err(AgentDbError::Conflict(format!(
             "Agent run lease 已失效: {}",
-            row.id
+            id
         )));
     }
     Ok(())
@@ -448,7 +506,9 @@ fn validate_delegation_status(status: &str) -> Result<(), AgentDbError> {
     }
 }
 
-fn projected_thread_status(active_run: Option<&run::Model>) -> Result<&'static str, AgentDbError> {
+fn projected_thread_status(
+    active_run: Option<&AgentRunRecord>,
+) -> Result<&'static str, AgentDbError> {
     match active_run.map(|row| row.status.as_str()) {
         None => Ok("idle"),
         Some("queued" | "running") => Ok("running"),

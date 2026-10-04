@@ -21,11 +21,14 @@ impl WorkerState {
         )
         .await
         .map_err(collaboration_error)?;
-        a4n_db::project::foreshadowing_records_by_project(self.database.connection(), project_id)
-            .await
-            .map_err(foreshadowing_error)?
-            .into_iter()
-            .map(foreshadowing_summary)
-            .collect()
+        a4n_db::project::foreshadowing_index_records_by_project(
+            self.database.connection(),
+            project_id,
+        )
+        .await
+        .map_err(foreshadowing_error)?
+        .into_iter()
+        .map(foreshadowing_summary)
+        .collect()
     }
 }

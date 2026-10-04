@@ -4,14 +4,13 @@ use crate::generation::{
     GenerationDbError, GenerationRunCheckpointContext, RUN_STATUS_COMPLETED,
     RecordCompletedGenerationRunWithCheckpointInput, RecordStartedGenerationRunInput,
 };
-use a4n_db_models::models::generation::generation_run;
 use a4n_domain::generation::RecordCompletedGenerationRunInput;
-use sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, TransactionTrait};
+use sea_orm::ConnectionTrait;
 
 pub async fn record_completed_generation_run(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: RecordCompletedGenerationRunInput,
-) -> Result<generation_run::Model, GenerationDbError> {
+) -> Result<(), GenerationDbError> {
     record_completed_run_with_checkpoint_transaction(
         db,
         RecordCompletedGenerationRunWithCheckpointInput {
@@ -20,12 +19,13 @@ pub async fn record_completed_generation_run(
         },
     )
     .await
+    .map(|_| ())
 }
 
 pub async fn record_completed_generation_run_in_transaction(
-    db: &DatabaseTransaction,
+    db: &impl crate::DbTransactionExecutor,
     input: RecordCompletedGenerationRunInput,
-) -> Result<generation_run::Model, GenerationDbError> {
+) -> Result<i64, GenerationDbError> {
     record_completed_generation_run_with_checkpoint_in(
         db,
         input,
@@ -38,7 +38,7 @@ pub(crate) async fn record_completed_generation_run_with_checkpoint_in<C>(
     db: &C,
     input: RecordCompletedGenerationRunInput,
     checkpoint: GenerationRunCheckpointContext,
-) -> Result<generation_run::Model, GenerationDbError>
+) -> Result<i64, GenerationDbError>
 where
     C: ConnectionTrait,
 {
@@ -49,13 +49,16 @@ where
         checkpoint,
     )
     .await?;
-    update_generation_run_record(db, run, RUN_STATUS_COMPLETED, response_summary_json, None).await
+    let run_id = run.id;
+    update_generation_run_record(db, run, RUN_STATUS_COMPLETED, response_summary_json, None)
+        .await?;
+    Ok(run_id)
 }
 
 pub async fn record_completed_run_with_checkpoint_transaction(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: RecordCompletedGenerationRunWithCheckpointInput,
-) -> Result<generation_run::Model, GenerationDbError> {
+) -> Result<i64, GenerationDbError> {
     let tx = db.begin().await?;
     let run = record_completed_generation_run_with_checkpoint_in(&tx, input.run, input.checkpoint)
         .await?;

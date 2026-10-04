@@ -1,14 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_db_models::models::{
-    ai::generated_image,
-    chapter::{
-        chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE},
-        chapter_visual_plan,
-    },
-    character::character_portrait,
-    project::{media_authoring_document, source_snapshot_chapter},
-};
+use a4n_db::manga::MANGA_PAGE_PROMPT_TYPE;
 use a4n_domain::{
     canvas_transfer_runtime_identity_key,
     manga::{MangaPageGenerationLayoutV3, MangaReferenceAssetKind},
@@ -17,10 +9,7 @@ use a4n_domain::{
     shooting_script::{CHAPTER_SHOOTING_SCRIPT_V2, ChapterShootingScriptV2},
 };
 
-use crate::{
-    manga::manga_page_generation_layout,
-    project::{ProjectFamilyPackage, hash_text, sha256_bytes},
-};
+use crate::project::{ProjectFamilyPackage, hash_text, sha256_bytes};
 
 pub(super) fn validate_manga_manifest(package: &ProjectFamilyPackage) -> Result<(), String> {
     let context = MangaManifestContext::new(package);
@@ -32,12 +21,13 @@ pub(super) fn validate_manga_manifest(package: &ProjectFamilyPackage) -> Result<
 
 struct MangaManifestContext<'a> {
     projects: HashMap<i64, &'a ProjectRecord>,
-    chapters: HashMap<i64, &'a a4n_db_models::models::chapter::chapter::Model>,
-    snapshot_chapters: HashMap<i64, &'a source_snapshot_chapter::Model>,
-    documents: HashMap<i64, &'a media_authoring_document::Model>,
-    visual_plans: HashMap<i64, &'a chapter_visual_plan::Model>,
-    portraits: HashMap<i64, &'a character_portrait::Model>,
-    images: HashMap<i64, &'a generated_image::Model>,
+    chapters: HashMap<i64, &'a a4n_domain::project::ProjectFamilyChapterRecord>,
+    snapshot_chapters:
+        HashMap<i64, &'a a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord>,
+    documents: HashMap<i64, &'a a4n_domain::project::ProjectFamilyAuthoringDocumentRecord>,
+    visual_plans: HashMap<i64, &'a a4n_domain::project::ProjectFamilyVisualPlanRecord>,
+    portraits: HashMap<i64, &'a a4n_domain::project::ProjectFamilyCharacterPortraitRecord>,
+    images: HashMap<i64, &'a a4n_domain::project::ProjectFamilyGeneratedImageRecord>,
 }
 
 impl<'a> MangaManifestContext<'a> {
@@ -386,7 +376,11 @@ fn validate_manga_prompts(
                 prompt.project_id, prompt.chapter_id, prompt.page_number
             ));
         }
-        let layout = manga_page_generation_layout(prompt)?;
+        let layout = a4n_manga_core::manga_page_generation_layout(
+            prompt.id,
+            prompt.page_number,
+            prompt.layout.as_ref(),
+        )?;
         validate_manga_layout(package, prompt, project, &layout, context)?;
         if let Some(image_id) = prompt.generated_image_id {
             let image = context.images.get(&image_id).copied().ok_or_else(|| {
@@ -411,7 +405,7 @@ fn validate_manga_prompts(
 
 fn validate_manga_layout(
     package: &ProjectFamilyPackage,
-    prompt: &chapter_manga_prompt::Model,
+    prompt: &a4n_domain::project::ProjectFamilyMangaPromptRecord,
     project: &ProjectRecord,
     layout: &MangaPageGenerationLayoutV3,
     context: &MangaManifestContext<'_>,

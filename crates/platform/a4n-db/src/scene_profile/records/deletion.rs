@@ -2,14 +2,12 @@ use a4n_db_models::models::{
     asset::profile_primary_material,
     scene::{scene_entity_state, scene_occurrence, scene_profile, scene_transition},
 };
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, TransactionTrait,
-};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 
 use crate::scene_profile::{SceneProfileDbError, SceneProfileDbResult};
 
 pub async fn delete_scene_profile_records(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     scene_profile_id: i64,
 ) -> SceneProfileDbResult<()> {
     let txn = db.begin().await?;

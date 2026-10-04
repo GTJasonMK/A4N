@@ -132,7 +132,7 @@ impl OrchestratorContext {
             (None, None)
         };
         a4n_db::media::create_media_asset_with_provenance_read_model(
-            self.database.connection(),
+            self.database.executor(),
             CreateMediaAssetRecordInput {
                 project_id: input.project_id,
                 root_project_id: input.root_project_id,
@@ -191,7 +191,7 @@ impl OrchestratorContext {
 /// 单张图片生成 begin 的返回值（workflow + Host 后续 checkpoint 所需字段）。
 #[derive(Debug, Clone)]
 pub struct ImageGenerationWorkflowStart {
-    pub workflow_run: a4n_db_models::models::generation::workflow_run::Model,
+    pub workflow_run: a4n_domain::workflow::WorkflowRunSummary,
     pub step_key: String,
     pub fingerprint_json: serde_json::Value,
 }
@@ -281,7 +281,7 @@ fn media_db_error(error: MediaDbError) -> AppError {
     match error {
         MediaDbError::NotFound(message) => AppError::NotFound(message),
         MediaDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
-        MediaDbError::Database(error) => AppError::Database(error),
+        MediaDbError::Database(error) => AppError::database(error),
     }
 }
 

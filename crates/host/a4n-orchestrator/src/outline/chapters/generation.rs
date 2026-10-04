@@ -8,7 +8,7 @@ use crate::outline::chapter_contract::{
     validate_chapter_outline_generation_request, validate_requested_part_context,
 };
 use crate::outline::context::{
-    load_chapter_outline_generation_context, lock_outline_generation_sources,
+    load_chapter_outline_generation_context, with_locked_outline_generation_sources,
 };
 use crate::outline::{
     ChapterOutlineCountGenerationInput, ChapterOutlineGenerationInput, OrchestratorContext,
@@ -107,7 +107,7 @@ impl OrchestratorContext {
         }
 
         let mut context =
-            load_chapter_outline_generation_context(self.database.connection(), project_id).await?;
+            load_chapter_outline_generation_context(self.database.executor(), project_id).await?;
         validate_requested_part_context(&context.parts, start_chapter, end_chapter)?;
         ensure_focus_part_in_context(focus_part, &context.parts)?;
 
@@ -178,21 +178,26 @@ impl OrchestratorContext {
                 .await?;
             let part_id =
                 requested_part_for_chapter(&context.parts, chapter_number)?.map(|part| part.id);
-            let tx = lock_outline_generation_sources(
-                self.database.connection(),
+            let outline = with_locked_outline_generation_sources(
+                self.database.executor(),
                 project_id,
                 &context.source_snapshot,
+                |tx| {
+                    Box::pin(async move {
+                        let result = insert_chapter_outline_from_json(
+                            &tx,
+                            project_id,
+                            part_id,
+                            &generated.chapter_json,
+                            Utc::now().naive_utc(),
+                        )
+                        .await;
+                        (tx, result)
+                    })
+                        as a4n_db::transaction::TransactionWork<'_, ChapterOutlineRecord>
+                },
             )
             .await?;
-            let outline = insert_chapter_outline_from_json(
-                &tx,
-                project_id,
-                part_id,
-                &generated.chapter_json,
-                Utc::now().naive_utc(),
-            )
-            .await?;
-            tx.commit().await.map_err(AppError::Database)?;
             self.record_chapter_outline_generation_run(
                 &outline,
                 &generated.request,
@@ -202,9 +207,8 @@ impl OrchestratorContext {
             )
             .await?;
             results.push(outline);
-            context =
-                load_chapter_outline_generation_context(self.database.connection(), project_id)
-                    .await?;
+            context = load_chapter_outline_generation_context(self.database.executor(), project_id)
+                .await?;
             report_progress(
                 progress,
                 current,

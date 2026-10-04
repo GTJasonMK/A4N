@@ -1,5 +1,5 @@
 use a4n_db_models::models::chapter::chapter_video_prompt;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use super::super::super::{
     ChapterVideoPromptCandidateRecord, VideoDbError, validate_positive_video_i32,
@@ -7,7 +7,7 @@ use super::super::super::{
 };
 
 pub async fn chapter_video_prompts_for_batch_generation(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     prompt_ids: &[i64],
 ) -> Result<Vec<chapter_video_prompt::Model>, VideoDbError> {
     validate_positive_video_ids(prompt_ids, "prompt_ids")?;
@@ -24,7 +24,7 @@ pub async fn chapter_video_prompts_for_batch_generation(
 }
 
 pub async fn chapter_video_boundary_frame_prompt_candidates(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_id: i64,
     first_frame_number: i32,
@@ -62,7 +62,7 @@ pub async fn chapter_video_boundary_frame_prompt_candidates(
 }
 
 pub async fn chapter_video_first_frame_prompt_candidates(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_id: i64,
 ) -> Result<Vec<ChapterVideoPromptCandidateRecord>, VideoDbError> {
@@ -90,7 +90,7 @@ pub async fn chapter_video_first_frame_prompt_candidates(
 }
 
 pub async fn chapter_video_first_frame_chain_prompt_candidates(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_id: i64,
 ) -> Result<Vec<ChapterVideoPromptCandidateRecord>, VideoDbError> {
@@ -120,7 +120,7 @@ pub async fn chapter_video_first_frame_chain_prompt_candidates(
 }
 
 pub async fn chapter_video_storyboard_prompt_candidates(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_id: i64,
     shot_number: i32,

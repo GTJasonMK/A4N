@@ -1,12 +1,15 @@
 use super::super::*;
 
 pub(super) fn validate_galgame_media_binding_contract(
-    binding: &media_binding::Model,
-    asset: &media_asset::Model,
-    galgame_scripts: &HashMap<i64, &galgame_script::Model>,
-    galgame_scenes: &HashMap<i64, &galgame_scene::Model>,
-    galgame_lines: &HashMap<i64, &galgame_line::Model>,
-    snapshot_chapters: &HashMap<i64, &source_snapshot_chapter::Model>,
+    binding: &a4n_domain::project::ProjectFamilyMediaBindingRecord,
+    asset: &a4n_domain::project::ProjectFamilyMediaAssetRecord,
+    galgame_scripts: &HashMap<i64, &a4n_domain::project::ProjectFamilyGalgameScriptRecord>,
+    galgame_scenes: &HashMap<i64, &a4n_domain::project::ProjectFamilyGalgameSceneRecord>,
+    galgame_lines: &HashMap<i64, &a4n_domain::project::ProjectFamilyGalgameLineRecord>,
+    snapshot_chapters: &HashMap<
+        i64,
+        &a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord,
+    >,
 ) -> Result<(), String> {
     if !is_valid_galgame_media_binding_pair(&binding.target_kind, &binding.role) {
         return Err(format!(
@@ -81,11 +84,14 @@ pub(super) fn validate_galgame_media_binding_contract(
 }
 
 fn validate_galgame_media_binding_project(
-    binding: &media_binding::Model,
-    asset: &media_asset::Model,
-    scene: &galgame_scene::Model,
-    galgame_scripts: &HashMap<i64, &galgame_script::Model>,
-    snapshot_chapters: &HashMap<i64, &source_snapshot_chapter::Model>,
+    binding: &a4n_domain::project::ProjectFamilyMediaBindingRecord,
+    asset: &a4n_domain::project::ProjectFamilyMediaAssetRecord,
+    scene: &a4n_domain::project::ProjectFamilyGalgameSceneRecord,
+    galgame_scripts: &HashMap<i64, &a4n_domain::project::ProjectFamilyGalgameScriptRecord>,
+    snapshot_chapters: &HashMap<
+        i64,
+        &a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord,
+    >,
 ) -> Result<(), String> {
     let script = galgame_scripts.get(&scene.script_id).copied().ok_or_else(|| {
         format!(
@@ -124,7 +130,7 @@ fn validate_galgame_media_binding_project(
     Ok(())
 }
 pub(super) fn validate_media_binding_target_ref(
-    binding: &media_binding::Model,
+    binding: &a4n_domain::project::ProjectFamilyMediaBindingRecord,
     chapter_ids: &HashSet<i64>,
     character_profile_ids: &HashSet<i64>,
     object_profile_ids: &HashSet<i64>,

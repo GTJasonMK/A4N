@@ -9,7 +9,7 @@ pub(super) async fn setup_db() -> DatabaseConnection {
 }
 
 pub(super) async fn set_project_gate(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project: &novel_project::Model,
     operation: a4n_domain::generation::ProjectLifecycleOperation,
 ) {
@@ -18,7 +18,10 @@ pub(super) async fn set_project_gate(
     active.update(db).await.unwrap();
 }
 
-pub(super) async fn canvas_project(db: &DatabaseConnection, title: &str) -> novel_project::Model {
+pub(super) async fn canvas_project(
+    db: &impl crate::DbExecutor,
+    title: &str,
+) -> novel_project::Model {
     crate::project::create_canvas_project_record(
         db,
         1,
@@ -31,7 +34,7 @@ pub(super) async fn canvas_project(db: &DatabaseConnection, title: &str) -> nove
     .unwrap()
 }
 
-pub(super) async fn text_project(db: &DatabaseConnection, title: &str) -> novel_project::Model {
+pub(super) async fn text_project(db: &impl crate::DbExecutor, title: &str) -> novel_project::Model {
     crate::project::create_project_record(
         db,
         crate::project::CreateProjectRecordInput {
@@ -46,7 +49,7 @@ pub(super) async fn text_project(db: &DatabaseConnection, title: &str) -> novel_
 }
 
 pub(super) async fn root_with_video_derivative(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
 ) -> (novel_project::Model, novel_project::Model) {
     let root = text_project(db, "根文本").await;
     let now = Utc::now().naive_utc();
@@ -88,7 +91,7 @@ pub(super) async fn root_with_video_derivative(
 }
 
 pub(super) async fn generated_image_with_asset(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     file_name: &str,
 ) -> (
@@ -133,7 +136,7 @@ pub(super) async fn generated_image_with_asset(
 }
 
 pub(super) async fn generated_video_with_asset(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     file_name: &str,
 ) -> (

@@ -20,4 +20,7 @@ pub use queries::{
     profile_material_image_counts_by_profile, profile_material_image_identity_rows_by_type,
     profile_material_image_ids_by_profile, profile_material_list_rows,
 };
-pub use records::{object_profile_source_record, scene_profile_source_record};
+pub use records::{
+    object_profile_source_record, object_profile_source_record_from_record,
+    scene_profile_source_record,
+};

@@ -22,7 +22,6 @@ use a4n_db::canvas::{
     CanvasVideoMediaAssetEnsureInput, VideoStudioProjectExportRows,
     VideoStudioProjectImportMediaFileWriter, validate_canvas_record_document_edge_contract,
 };
-use a4n_db_models::models::generation::workflow_run;
 use a4n_domain::canvas::{
     CanvasAssemblyContractSyncInput, CanvasPromptArtifactRecord, CanvasPromptArtifactUpsertInput,
     CanvasTextAssetRecord, CanvasTextAssetRecordInput, FreeformCanvasGenerationSpecUpsertInput,
@@ -53,8 +52,8 @@ impl CanvasApplication {
         Self { database }
     }
 
-    fn connection(&self) -> &sea_orm::DatabaseConnection {
-        self.database.connection()
+    fn connection(&self) -> &impl a4n_db::DbExecutor {
+        self.database.executor()
     }
 
     async fn get_or_create_canvas_graph_record(
@@ -333,7 +332,7 @@ impl OrchestratorContext {
     pub(crate) async fn complete_canvas_graph_workflow_validated(
         &self,
         workflow_run_id: i64,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<a4n_domain::workflow::WorkflowRunSummary, AppError> {
         self.complete_workflow_run_validated(workflow_run_id).await
     }
 
@@ -346,7 +345,7 @@ impl OrchestratorContext {
         unique_suffix: i64,
         input_fingerprint_json: serde_json::Value,
         first_step_key: Option<String>,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<a4n_domain::workflow::WorkflowRunSummary, AppError> {
         let input = crate::canvas::canvas_graph_workflow_run_input(
             project_id,
             graph_id,
@@ -368,7 +367,7 @@ impl OrchestratorContext {
         unique_suffix: i64,
         input_fingerprint_json: serde_json::Value,
         step_key: String,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<a4n_domain::workflow::WorkflowRunSummary, AppError> {
         let input = crate::canvas::canvas_single_node_workflow_run_input(
             project_id,
             graph_id,
@@ -389,7 +388,7 @@ impl OrchestratorContext {
         mode: &str,
         step_key: &str,
         input_fingerprint_json: serde_json::Value,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<a4n_domain::workflow::WorkflowRunSummary, AppError> {
         let input = crate::canvas::canvas_node_step_workflow_run_input(
             project_id,
             graph_id,

@@ -266,15 +266,16 @@ async fn package_finish_rejects_a_stale_operation_version_after_progress_update(
 #[tokio::test]
 async fn package_snapshot_keeps_unknown_work_and_persistence_gate_rejects_new_work() {
     let db = connect_test_database().await;
+    let db_handle = a4n_db::DbHandle::new(std::sync::Arc::new(db.clone()));
     ensure_host_package_states(&db, &["export".to_string()])
         .await
         .expect("初始化功能包状态");
     let known_id = format!("known-{}", Uuid::new_v4());
     let unknown_id = format!("legacy-{}", Uuid::new_v4());
-    insert_task_queue_record(&db, queue_record(&known_id, "export_generation"))
+    insert_task_queue_record(&db_handle, queue_record(&known_id, "export_generation"))
         .await
         .expect("写入 export 任务");
-    insert_task_queue_record(&db, queue_record(&unknown_id, "legacy_background"))
+    insert_task_queue_record(&db_handle, queue_record(&unknown_id, "legacy_background"))
         .await
         .expect("写入未知旧任务");
 
@@ -306,9 +307,10 @@ async fn package_snapshot_keeps_unknown_work_and_persistence_gate_rejects_new_wo
         Some(("export".to_string(), "operation_in_progress".to_string()))
     );
 
-    let rejected = insert_task_queue_record(&db, queue_record("new-export", "export_generation"))
-        .await
-        .expect_err("停用中的包不得登记新任务");
+    let rejected =
+        insert_task_queue_record(&db_handle, queue_record("new-export", "export_generation"))
+            .await
+            .expect_err("停用中的包不得登记新任务");
     assert!(matches!(rejected, QueueDbError::AdmissionBlocked { .. }));
 
     // Unknown legacy work deliberately keeps the operation draining; it is
@@ -331,6 +333,7 @@ async fn package_snapshot_keeps_unknown_work_and_persistence_gate_rejects_new_wo
 #[tokio::test]
 async fn package_admission_rejects_known_package_without_state_row() {
     let db = connect_test_database().await;
+    let db_handle = a4n_db::DbHandle::new(std::sync::Arc::new(db.clone()));
 
     let block = package_admission_block(&db, "export_generation", None, None)
         .await
@@ -340,22 +343,25 @@ async fn package_admission_rejects_known_package_without_state_row() {
         Some(("export".to_string(), "not_installed".to_string()))
     );
 
-    let rejected =
-        insert_task_queue_record(&db, queue_record("missing-export", "export_generation"))
-            .await
-            .expect_err("缺少功能包状态不得登记任务");
+    let rejected = insert_task_queue_record(
+        &db_handle,
+        queue_record("missing-export", "export_generation"),
+    )
+    .await
+    .expect_err("缺少功能包状态不得登记任务");
     assert!(matches!(rejected, QueueDbError::AdmissionBlocked { .. }));
 }
 
 #[tokio::test]
 async fn package_snapshot_waits_for_terminal_provider_cleanup() {
     let db = connect_test_database().await;
+    let db_handle = a4n_db::DbHandle::new(std::sync::Arc::new(db.clone()));
     ensure_host_package_states(&db, &["video".to_string()])
         .await
         .expect("初始化 video 功能包状态");
 
     let task_id = Uuid::new_v4().to_string();
-    insert_task_queue_record(&db, queue_record(&task_id, "video_generation"))
+    insert_task_queue_record(&db_handle, queue_record(&task_id, "video_generation"))
         .await
         .expect("写入已终态 generation 的 queue 记录");
     let now = Utc::now().naive_utc();

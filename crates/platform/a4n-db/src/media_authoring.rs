@@ -1,5 +1,6 @@
 //! Versioned project artifacts. The domain owner validates its document before
 //! saving; this boundary owns lineage, source integrity and concurrent writes.
+use sea_orm::ConnectionTrait;
 
 use a4n_db_models::models::project::{
     media_authoring_document as document, novel_project, project_source_snapshot,
@@ -12,10 +13,12 @@ use a4n_domain::media_authoring::{
     AuthoringDocumentInputs, AuthoringDocumentKind, AuthoringDocumentRecord, AuthoringDocumentRef,
     AuthoringDocumentStatus,
 };
+use a4n_domain::project::ProjectRecord;
+use a4n_domain::shooting_script::ChapterShootingScriptReferenceRecord;
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, DbErr,
-    EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait, sea_query::Expr,
+    ActiveModelTrait, ColumnTrait, Condition, DbErr, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set, sea_query::Expr,
 };
 use serde_json::Value;
 
@@ -263,7 +266,7 @@ pub async fn editable_authoring_document<C: ConnectionTrait>(
 }
 
 pub async fn save_authoring_document(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: SaveAuthoringDocument,
 ) -> Result<AuthoringDocumentRecord, AuthoringDocumentError> {
     let lineage = scope(
@@ -362,7 +365,7 @@ pub async fn save_authoring_document(
 }
 
 pub async fn adopt_authoring_document(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     record_id: i64,
     expected_revision: i32,
@@ -609,6 +612,14 @@ pub fn parse_record(
     })
 }
 
+pub fn parse_family_transfer_record(
+    row: a4n_domain::project::ProjectFamilyAuthoringDocumentRecord,
+) -> Result<AuthoringDocumentRecord, AuthoringDocumentError> {
+    let row = serde_json::from_value(serde_json::to_value(row).map_err(invalid_json)?)
+        .map_err(invalid_json)?;
+    parse_record(row)
+}
+
 fn positive(value: i64, field: &str) -> Result<(), AuthoringDocumentError> {
     if value <= 0 {
         return Err(AuthoringDocumentError::InvalidArgument(format!(
@@ -632,13 +643,7 @@ pub async fn video_reference_scripts<C: ConnectionTrait>(
     db: &C,
     root_project_id: i64,
     chapter_id: Option<i64>,
-) -> Result<
-    Vec<(
-        novel_project::Model,
-        a4n_db_models::models::chapter::chapter_shooting_script::Model,
-    )>,
-    DbErr,
-> {
+) -> Result<Vec<(ProjectRecord, ChapterShootingScriptReferenceRecord)>, DbErr> {
     use a4n_db_models::models::chapter::chapter_shooting_script as script;
     let projects = novel_project::Entity::find()
         .filter(novel_project::Column::RootProjectId.eq(root_project_id))
@@ -662,7 +667,10 @@ pub async fn video_reference_scripts<C: ConnectionTrait>(
         let project = projects
             .get(&script.project_id)
             .ok_or_else(|| DbErr::Custom("视频剧本归属不一致".into()))?;
-        rows.push((project.clone(), script));
+        rows.push((
+            crate::project::project_record_from_model(project.clone()),
+            chapter_shooting_script_reference_record(script),
+        ));
     }
     Ok(rows)
 }
@@ -671,10 +679,29 @@ pub async fn video_reference_script<C: ConnectionTrait>(
     db: &C,
     project_id: i64,
     script_id: i64,
-) -> Result<Option<a4n_db_models::models::chapter::chapter_shooting_script::Model>, DbErr> {
+) -> Result<Option<ChapterShootingScriptReferenceRecord>, DbErr> {
     use a4n_db_models::models::chapter::chapter_shooting_script as script;
     script::Entity::find_by_id(script_id)
         .filter(script::Column::ProjectId.eq(project_id))
         .one(db)
         .await
+        .map(|row| row.map(chapter_shooting_script_reference_record))
+}
+
+fn chapter_shooting_script_reference_record(
+    row: a4n_db_models::models::chapter::chapter_shooting_script::Model,
+) -> ChapterShootingScriptReferenceRecord {
+    ChapterShootingScriptReferenceRecord {
+        id: row.id,
+        project_id: row.project_id,
+        root_project_id: row.root_project_id,
+        source_chapter_id: row.source_chapter_id,
+        source_snapshot_id: row.source_snapshot_id,
+        source_snapshot_chapter_id: row.source_snapshot_chapter_id,
+        source_revision_key: row.source_revision_key,
+        source_content_sha256: row.source_content_sha256,
+        revision: row.revision,
+        script_sha256: row.script_sha256,
+        script_json: row.script_json,
+    }
 }

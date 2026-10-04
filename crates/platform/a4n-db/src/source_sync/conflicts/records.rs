@@ -5,6 +5,7 @@ use super::types::{SourceSyncConflictRecordInput, SourceSyncDecisionRecordInput}
 use a4n_db_models::models::source_sync::{
     source_sync_conflict, source_sync_decision, source_sync_run,
 };
+use a4n_domain::source_sync::SourceSyncConflictRecord;
 use a4n_domain::source_sync::{SourceSyncConflictStatus, SourceSyncResolutionStrategy};
 use chrono::Utc;
 use sea_orm::{
@@ -84,6 +85,51 @@ where
     }
 
     Ok(conflicts_by_id)
+}
+
+pub async fn source_sync_conflict_records_for_decisions<C>(
+    db: &C,
+    sync_run_id: i64,
+    conflict_ids: &[i64],
+    operation: &str,
+) -> Result<HashMap<i64, SourceSyncConflictRecord>, SourceSyncDbError>
+where
+    C: ConnectionTrait,
+{
+    source_sync_conflicts_for_decisions(db, sync_run_id, conflict_ids, operation)
+        .await
+        .map(|conflicts| {
+            conflicts
+                .into_iter()
+                .map(|(id, conflict)| {
+                    (
+                        id,
+                        SourceSyncConflictRecord {
+                            id: conflict.id,
+                            sync_run_id: conflict.sync_run_id,
+                            derived_project_id: conflict.derived_project_id,
+                            root_project_id: conflict.root_project_id,
+                            from_snapshot_id: conflict.from_snapshot_id,
+                            to_snapshot_id: conflict.to_snapshot_id,
+                            conflict_scope: conflict.conflict_scope,
+                            target_kind: conflict.target_kind,
+                            target_id: conflict.target_id,
+                            source_change_kind: conflict.source_change_kind,
+                            local_state_kind: conflict.local_state_kind,
+                            severity: conflict.severity,
+                            status: conflict.status,
+                            resolution_strategy: conflict.resolution_strategy,
+                            source_summary_json: conflict.source_summary_json,
+                            local_summary_json: conflict.local_summary_json,
+                            affected_refs_json: conflict.affected_refs_json,
+                            decision_json: conflict.decision_json,
+                            created_at: conflict.created_at,
+                            resolved_at: conflict.resolved_at,
+                        },
+                    )
+                })
+                .collect()
+        })
 }
 
 pub(in crate::source_sync) async fn insert_source_sync_conflict_records<C>(

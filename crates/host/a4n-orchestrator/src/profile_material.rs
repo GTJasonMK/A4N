@@ -1,6 +1,5 @@
 use a4n_api_contract::profile::{ProfileMaterialGroup, UploadProfileMaterialImageInput};
 use a4n_db::profile_material::profile_material_identity_from_fields;
-use a4n_db_models::models::{asset::object_profile, media::image_publication};
 use a4n_domain::{
     image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL},
     media::{
@@ -8,6 +7,7 @@ use a4n_domain::{
         IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED,
         ImagePublicationFileFacts,
     },
+    object_profile::ObjectProfileRecord,
     profile_material::{ProfileMaterialKind, profile_material_identity},
     scene_profile::SceneProfileRecord,
 };
@@ -109,7 +109,7 @@ fn scene_visual_state_hint(state: &Value) -> String {
 }
 
 pub(crate) fn object_profile_image_prompt(
-    profile: &object_profile::Model,
+    profile: &ObjectProfileRecord,
     style: Option<&str>,
 ) -> String {
     let style = style
@@ -141,9 +141,9 @@ pub(crate) fn scene_profile_content(profile: &SceneProfileRecord) -> String {
     )
 }
 
-pub(crate) fn object_profile_content(profile: &object_profile::Model) -> String {
+pub(crate) fn object_profile_content(profile: &ObjectProfileRecord) -> String {
     a4n_profile_material_core::object_profile_content(
-        &a4n_db::profile_material::object_profile_source_record(profile),
+        &a4n_db::profile_material::object_profile_source_record_from_record(profile),
     )
 }
 
@@ -344,7 +344,7 @@ impl OrchestratorContext {
     pub(crate) async fn ensure_profile_material_publication_identity_for_user_validated(
         &self,
         user_id: i64,
-        publication: &image_publication::Model,
+        publication: &a4n_domain::media::ImagePublicationRecord,
     ) -> Result<(), AppError> {
         self.verify_project_permission(publication.project_id, user_id, ProjectAccessRole::Editor)
             .await?;
@@ -434,13 +434,13 @@ impl OrchestratorContext {
     ) -> Result<(), AppError> {
         let profile_project_id = match kind {
             ProfileMaterialKind::Scene => a4n_db::scene_profile::scene_profile_project_id(
-                self.database.connection(),
+                self.database.executor(),
                 profile_id,
             )
             .await
             .map_err(scene_profile_db_error)?,
             ProfileMaterialKind::Object => {
-                a4n_db::asset::object_profile_project_id(self.database.connection(), profile_id)
+                a4n_db::asset::object_profile_project_id(self.database.executor(), profile_id)
                     .await
                     .map_err(asset_error)?
             }
@@ -476,14 +476,14 @@ impl OrchestratorContext {
                 ))
             }
             ProfileMaterialKind::Object => {
-                let profile = self.object_profile_by_id(profile_id).await?;
+                let profile = self.object_profile_record_by_id(profile_id).await?;
                 if profile.project_id != project_id {
                     return Err(AppError::InvalidArgument(format!(
                         "物体档案 #{profile_id} 不属于项目 {project_id}"
                     )));
                 }
                 Ok(object_source_from_record(
-                    a4n_db::profile_material::object_profile_source_record(&profile),
+                    a4n_db::profile_material::object_profile_source_record_from_record(&profile),
                 ))
             }
         }

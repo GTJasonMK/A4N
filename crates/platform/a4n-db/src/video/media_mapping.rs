@@ -35,7 +35,7 @@ pub(super) fn generated_image_reference_record_from_model(
     }
 }
 
-pub(super) fn generated_video_record_from_model(
+pub(crate) fn generated_video_record_from_model(
     model: generated_video::Model,
 ) -> GeneratedVideoRecord {
     GeneratedVideoRecord {

@@ -1,7 +1,5 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_db_models::models::project::source_snapshot_profile;
-
 use crate::project::{required_json_i64_field, required_json_string_field, snapshot_profile_key};
 
 use super::super::super::ProjectFamilyPackage;
@@ -12,8 +10,10 @@ pub(in super::super) fn validate_source_snapshot_profile_manifest(
     package: &ProjectFamilyPackage,
     snapshots: &HashMap<i64, SourceSnapshotManifestInfo>,
 ) -> Result<(), String> {
-    let mut profiles_by_snapshot: HashMap<i64, HashMap<String, &source_snapshot_profile::Model>> =
-        HashMap::new();
+    let mut profiles_by_snapshot: HashMap<
+        i64,
+        HashMap<String, &a4n_domain::project::ProjectFamilySourceSnapshotProfileRecord>,
+    > = HashMap::new();
     let mut seen_profiles = HashSet::new();
     for profile in &package.source_snapshot_profiles {
         validate_snapshot_payload_identity(

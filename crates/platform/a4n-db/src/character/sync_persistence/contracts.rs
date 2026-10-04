@@ -2,8 +2,8 @@ use super::super::{CharacterDeletionMarkRewindSummary, CharacterTimelineDeletion
 use a4n_db_models::models::character::character_state_index;
 use a4n_domain::character::{
     CharacterAttributeDeletionRequestInput, CharacterAttributeValueChangeInput,
-    CharacterImplicitReviewDecisionRecordInput, CharacterSyncChapterStateRecordInput,
-    InsertBehaviorRecordInput,
+    CharacterImplicitReviewDecisionRecordInput, CharacterStateIndexRecord,
+    CharacterSyncChapterStateRecordInput, InsertBehaviorRecordInput,
 };
 use a4n_domain::generation::RecordCompletedGenerationRunInput;
 use chrono::NaiveDateTime;
@@ -78,7 +78,7 @@ pub struct AppliedCharacterSyncPersistenceRecord {
     pub deletion_mark_rewind: CharacterDeletionMarkRewindSummary,
     pub write_summary: CharacterSyncWriteSummary,
     pub target_snapshot_hash: String,
-    pub state_indexes: Vec<character_state_index::Model>,
+    pub state_indexes: Vec<CharacterStateIndexRecord>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

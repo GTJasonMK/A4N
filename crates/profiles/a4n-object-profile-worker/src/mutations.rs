@@ -23,7 +23,7 @@ impl WorkerState {
         .map_err(collaboration_error)?;
         let record = normalize_object_profile_record_input(request.payload.profile)
             .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
-        let profile = a4n_db::asset::create_object_profile_record(
+        let profile = a4n_db::asset::create_object_profile_read_record(
             self.database.connection(),
             project_id,
             record,
@@ -45,7 +45,7 @@ impl WorkerState {
     ) -> Result<ObjectProfileMutationResponse, WorkerFailure> {
         validate_request(&request, OBJECT_PROFILE_UPDATE_OPERATION)?;
         let user_id = user_id(&request)?;
-        let existing = a4n_db::asset::object_profile_by_id(
+        let existing = a4n_db::asset::object_profile_record_by_id(
             self.database.connection(),
             request.payload.object_profile_id,
         )
@@ -74,7 +74,7 @@ impl WorkerState {
         .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
         let record = normalize_object_profile_record_input(request.payload.profile)
             .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
-        let profile = a4n_db::asset::update_object_profile_record(
+        let profile = a4n_db::asset::update_object_profile_read_record(
             self.database.connection(),
             existing.id,
             record,
@@ -96,7 +96,7 @@ impl WorkerState {
     ) -> Result<ObjectProfileDeleteResponse, WorkerFailure> {
         validate_request(&request, OBJECT_PROFILE_DELETE_OPERATION)?;
         let user_id = user_id(&request)?;
-        let existing = a4n_db::asset::object_profile_by_id(
+        let existing = a4n_db::asset::object_profile_record_by_id(
             self.database.connection(),
             request.payload.object_profile_id,
         )

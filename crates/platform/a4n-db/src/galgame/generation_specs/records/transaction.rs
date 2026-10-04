@@ -13,14 +13,11 @@ use a4n_db_models::models::{generation::generation_spec, project::project_source
 use a4n_domain::galgame::GalgameAssetPlanSpecRecordInput;
 use chrono::Utc;
 use sea_orm::sea_query::{CaseStatement, Expr};
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, NotSet, QueryFilter, QuerySelect,
-    TransactionTrait,
-};
+use sea_orm::{ColumnTrait, EntityTrait, NotSet, QueryFilter, QuerySelect};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub async fn upsert_galgame_asset_plan_spec_records_transaction(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     inputs: Vec<GalgameAssetPlanSpecRecordInput>,
 ) -> Result<Vec<GalgameGenerationSpecUpsert>, GalgameAssetPlanSpecRecordError> {
@@ -109,7 +106,10 @@ pub async fn upsert_galgame_asset_plan_spec_records_transaction(
         existing_specs_by_canonical_key.insert(canonical_key.clone(), model.clone());
         result_keys.push(canonical_key);
         ref_inputs.push((text_anchor_ids, replace_entity_refs, entity_profile_id));
-        upserts.push(GalgameGenerationSpecUpsert { model, outcome });
+        upserts.push(GalgameGenerationSpecUpsert {
+            record: crate::generation::generation_spec_record_from_model(model),
+            outcome,
+        });
     }
 
     if !pending_inserts.is_empty() {
@@ -137,8 +137,8 @@ pub async fn upsert_galgame_asset_plan_spec_records_transaction(
             .zip(inserted)
             .collect::<BTreeMap<_, _>>();
         for (upsert, key) in upserts.iter_mut().zip(&result_keys) {
-            if upsert.model.id == 0 {
-                upsert.model.id = inserted_by_key
+            if upsert.record.id == 0 {
+                upsert.record.id = inserted_by_key
                     .get(key)
                     .expect("inserted generation spec key must exist")
                     .id;
@@ -311,20 +311,20 @@ pub async fn upsert_galgame_asset_plan_spec_records_transaction(
     for ((text_anchor_ids, replace_entity_refs, entity_profile_id), upsert) in
         ref_inputs.into_iter().zip(&upserts)
     {
-        refs.text_anchor_spec_ids.push(upsert.model.id);
+        refs.text_anchor_spec_ids.push(upsert.record.id);
         refs.text_anchor_refs
             .extend(text_anchor_ids.into_iter().map(|text_anchor_id| {
                 GalgameGenerationSpecTextAnchorRefRecordInput {
-                    generation_spec_id: upsert.model.id,
+                    generation_spec_id: upsert.record.id,
                     text_anchor_id,
                 }
             }));
         if replace_entity_refs {
-            refs.entity_ref_spec_ids.push(upsert.model.id);
+            refs.entity_ref_spec_ids.push(upsert.record.id);
             if let Some(profile_id) = entity_profile_id {
                 refs.entity_refs
                     .push(GalgameGenerationSpecEntityRefRecordInput {
-                        generation_spec_id: upsert.model.id,
+                        generation_spec_id: upsert.record.id,
                         profile_id,
                     });
             }

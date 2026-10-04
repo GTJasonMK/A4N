@@ -1,6 +1,5 @@
 mod assembly;
 mod assets;
-pub(crate) use assets::validate_canvas_media_asset_owner;
 mod canvas_records;
 mod contracts;
 mod generation;

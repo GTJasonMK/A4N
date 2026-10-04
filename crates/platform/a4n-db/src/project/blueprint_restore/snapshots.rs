@@ -4,6 +4,7 @@ use super::fields::{
     reject_unknown_blueprint_snapshot_fields, required_blueprint_snapshot_string,
 };
 use super::*;
+use sea_orm::ConnectionTrait;
 
 pub(super) fn validate_blueprint_version_snapshot(
     data: &Value,

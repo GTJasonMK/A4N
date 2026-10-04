@@ -1,4 +1,5 @@
 use a4n_db_models::models::character::foreshadowing_index;
+use a4n_domain::character::ForeshadowingIndexRecord;
 use sea_orm::DbErr;
 use serde_json::Value;
 
@@ -49,9 +50,24 @@ pub struct ForeshadowingFactUpdate {
 
 #[derive(Debug, Clone, Default)]
 pub struct ForeshadowingAnalysisSyncResult {
-    pub current: Vec<foreshadowing_index::Model>,
-    pub created: Vec<foreshadowing_index::Model>,
-    pub updated: Vec<foreshadowing_index::Model>,
-    pub existing: Vec<foreshadowing_index::Model>,
-    pub resolved: Vec<foreshadowing_index::Model>,
+    pub current: Vec<ForeshadowingIndexRecord>,
+    pub created: Vec<ForeshadowingIndexRecord>,
+    pub updated: Vec<ForeshadowingIndexRecord>,
+    pub existing: Vec<ForeshadowingIndexRecord>,
+    pub resolved: Vec<ForeshadowingIndexRecord>,
+}
+
+pub fn foreshadowing_index_record(row: foreshadowing_index::Model) -> ForeshadowingIndexRecord {
+    ForeshadowingIndexRecord {
+        id: row.id,
+        project_id: row.project_id,
+        description: row.description,
+        setup_chapter: row.setup_chapter,
+        payoff_chapter: row.payoff_chapter,
+        status: row.status,
+        related_characters: row.related_characters,
+        importance: row.importance,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    }
 }

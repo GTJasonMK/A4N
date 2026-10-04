@@ -18,7 +18,6 @@ fn legacy_v5_package_without_feedback_remains_importable() {
 
 #[test]
 fn legacy_upgrade_keeps_unconfirmed_director_drafts() {
-    use a4n_db_models::models::chapter::chapter_visual_plan;
     use a4n_domain::chapter_visual_plan::ChapterVisualPlanV3;
 
     let mut package = package_with_part_outlines(Vec::new());

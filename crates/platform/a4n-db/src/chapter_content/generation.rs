@@ -8,17 +8,16 @@ use super::{
     ChapterGenerationExistingRecord, ChapterGenerationLifecycleError,
     GeneratedChapterContentRecordInput, assign_chapter_content,
 };
+use crate::DbHandle;
 use crate::generation::delete_generation_run_targets_for;
 
-pub async fn begin_chapter_generation_record<C>(
-    db: &C,
+pub async fn begin_chapter_generation_record(
+    db: &DbHandle,
     project_id: i64,
     chapter_number: i32,
     now: NaiveDateTime,
-) -> Result<Option<ChapterGenerationExistingRecord>, ChapterGenerationLifecycleError>
-where
-    C: ConnectionTrait,
-{
+) -> Result<Option<ChapterGenerationExistingRecord>, ChapterGenerationLifecycleError> {
+    let db = db.connection();
     let Some((chapter_id, status, title, summary)) = chapter::Entity::find_current()
         .filter(chapter::Column::ProjectId.eq(project_id))
         .filter(chapter::Column::ChapterNumber.eq(chapter_number))
@@ -60,15 +59,13 @@ where
     }))
 }
 
-pub async fn restore_chapter_generation_status_record<C>(
-    db: &C,
+pub async fn restore_chapter_generation_status_record(
+    db: &DbHandle,
     chapter_id: i64,
     previous_status: String,
     now: NaiveDateTime,
-) -> Result<bool, ChapterGenerationLifecycleError>
-where
-    C: ConnectionTrait,
-{
+) -> Result<bool, ChapterGenerationLifecycleError> {
+    let db = db.connection();
     let Some(status) = chapter::Entity::find_by_id(chapter_id)
         .select_only()
         .column(chapter::Column::Status)

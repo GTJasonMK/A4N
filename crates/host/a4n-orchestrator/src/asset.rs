@@ -5,7 +5,7 @@ use a4n_error::AppError;
 
 pub(crate) fn asset_error(error: AssetDbError) -> AppError {
     match error {
-        AssetDbError::Database(error) => AppError::Database(error),
+        AssetDbError::Database(error) => AppError::database(error),
         AssetDbError::NotFound(message) => AppError::NotFound(message),
         AssetDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
         AssetDbError::InvalidState { current, operation } => {

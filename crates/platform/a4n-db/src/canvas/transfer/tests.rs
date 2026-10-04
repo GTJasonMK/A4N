@@ -4,7 +4,7 @@ use a4n_db_models::models::{
     canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset},
     generation::{generation_spec, prompt_artifact},
     media::media_asset,
-    video_project::{assembly_clip, assembly_timeline, video_segment},
+    video_project::{assembly_clip, video_segment},
 };
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, Set};
@@ -161,26 +161,28 @@ async fn video_studio_import_batches_canvas_reference_fixups() {
             created_at: now,
             updated_at: now,
         });
-        generated_images.push(generated_image::Model {
-            id: old_image_id,
-            project_id: 99,
-            image_type: "canvas".to_string(),
-            file_path: format!("images/{index}.png"),
-            prompt: format!("image-{index}"),
-            model: "test".to_string(),
-            width: 512,
-            height: 512,
-            file_size: None,
-            ai_score: None,
-            is_favorite: false,
-            chapter_id: None,
-            panel_id: None,
-            metadata_json: Some(json!({
-                "generated_video_id": old_video_id,
-                "node_id": old_node_id,
-            })),
-            created_at: now,
-        });
+        generated_images.push(crate::video::generated_image_record_from_model(
+            generated_image::Model {
+                id: old_image_id,
+                project_id: 99,
+                image_type: "canvas".to_string(),
+                file_path: format!("images/{index}.png"),
+                prompt: format!("image-{index}"),
+                model: "test".to_string(),
+                width: 512,
+                height: 512,
+                file_size: None,
+                ai_score: None,
+                is_favorite: false,
+                chapter_id: None,
+                panel_id: None,
+                metadata_json: Some(json!({
+                    "generated_video_id": old_video_id,
+                    "node_id": old_node_id,
+                })),
+                created_at: now,
+            },
+        ));
         let mut video = target_videos[index].clone();
         video.id = old_video_id;
         video.project_id = 99;
@@ -188,7 +190,7 @@ async fn video_studio_import_batches_canvas_reference_fixups() {
             "generated_image_id": old_image_id,
             "node_id": old_node_id,
         }));
-        generated_videos.push(video);
+        generated_videos.push(crate::video::generated_video_record_from_model(video));
     }
     let rows = VideoStudioProjectImportRows {
         project: crate::project::project_record_from_model(project.clone()),
@@ -272,75 +274,81 @@ async fn video_studio_import_batches_all_media_rows_and_preserves_id_maps() {
     .unwrap();
     let now = Utc::now().naive_utc();
     let images = (0..4)
-        .map(|index| generated_image::Model {
-            id: 10_000 + index,
-            project_id: 99,
-            image_type: "canvas".to_string(),
-            file_path: format!("source/image-{index}.png"),
-            prompt: format!("image-{index}"),
-            model: "test".to_string(),
-            width: 512,
-            height: 512,
-            file_size: None,
-            ai_score: None,
-            is_favorite: false,
-            chapter_id: None,
-            panel_id: None,
-            metadata_json: Some(json!({"source": index})),
-            created_at: now,
+        .map(|index| {
+            crate::video::generated_image_record_from_model(generated_image::Model {
+                id: 10_000 + index,
+                project_id: 99,
+                image_type: "canvas".to_string(),
+                file_path: format!("source/image-{index}.png"),
+                prompt: format!("image-{index}"),
+                model: "test".to_string(),
+                width: 512,
+                height: 512,
+                file_size: None,
+                ai_score: None,
+                is_favorite: false,
+                chapter_id: None,
+                panel_id: None,
+                metadata_json: Some(json!({"source": index})),
+                created_at: now,
+            })
         })
         .collect::<Vec<_>>();
     let videos = (0..3)
-        .map(|index| generated_video::Model {
-            id: 20_000 + index,
-            project_id: 99,
-            chapter_id: None,
-            video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string(),
-            workflow_mode: Some("canvas_video".to_string()),
-            file_path: Some(format!("source/video-{index}.mp4")),
-            thumbnail_path: Some(format!("source/video-{index}.webp")),
-            prompt: format!("video-{index}"),
-            negative_prompt: None,
-            model: "test".to_string(),
-            width: 1280,
-            height: 720,
-            duration_secs: 1.0,
-            fps: 24,
-            file_size: None,
-            source_video_id: None,
-            source_image_id: None,
-            status: a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED.to_string(),
-            provider_job_id: None,
-            error_message: None,
-            timeline_item_id: None,
-            metadata_json: Some(json!({"source": index})),
-            is_favorite: false,
-            created_at: now,
-            updated_at: now,
+        .map(|index| {
+            crate::video::generated_video_record_from_model(generated_video::Model {
+                id: 20_000 + index,
+                project_id: 99,
+                chapter_id: None,
+                video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string(),
+                workflow_mode: Some("canvas_video".to_string()),
+                file_path: Some(format!("source/video-{index}.mp4")),
+                thumbnail_path: Some(format!("source/video-{index}.webp")),
+                prompt: format!("video-{index}"),
+                negative_prompt: None,
+                model: "test".to_string(),
+                width: 1280,
+                height: 720,
+                duration_secs: 1.0,
+                fps: 24,
+                file_size: None,
+                source_video_id: None,
+                source_image_id: None,
+                status: a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED.to_string(),
+                provider_job_id: None,
+                error_message: None,
+                timeline_item_id: None,
+                metadata_json: Some(json!({"source": index})),
+                is_favorite: false,
+                created_at: now,
+                updated_at: now,
+            })
         })
         .collect::<Vec<_>>();
     let assets = (0..2)
-        .map(|index| media_asset::Model {
-            id: 30_000 + index,
-            project_id: 99,
-            root_project_id: 99,
-            source_snapshot_id: None,
-            source_chapter_id: None,
-            source_snapshot_chapter_id: None,
-            media_kind: "image".to_string(),
-            origin: "imported".to_string(),
-            file_path: Some(format!("source/asset-{index}.png")),
-            thumbnail_path: Some(format!("source/asset-{index}.webp")),
-            width: Some(512),
-            height: Some(512),
-            duration_secs: None,
-            fps: None,
-            file_size: None,
-            checksum: None,
-            status: "completed".to_string(),
-            error_message: None,
-            created_at: now,
-            updated_at: now,
+        .map(|index| {
+            crate::media::media_asset_record_from_model(media_asset::Model {
+                id: 30_000 + index,
+                project_id: 99,
+                root_project_id: 99,
+                source_snapshot_id: None,
+                source_chapter_id: None,
+                source_snapshot_chapter_id: None,
+                media_kind: "image".to_string(),
+                origin: "imported".to_string(),
+                file_path: Some(format!("source/asset-{index}.png")),
+                thumbnail_path: Some(format!("source/asset-{index}.webp")),
+                width: Some(512),
+                height: Some(512),
+                duration_secs: None,
+                fps: None,
+                file_size: None,
+                checksum: None,
+                status: "completed".to_string(),
+                error_message: None,
+                created_at: now,
+                updated_at: now,
+            })
         })
         .collect::<Vec<_>>();
 
@@ -733,7 +741,7 @@ async fn video_studio_import_batches_canvas_topology_and_builds_id_maps() {
             let params_json = json!({
                 "source_material": {"source_node_ids": [30_000 + index]}
             });
-            generation_spec::Model {
+            crate::generation::generation_spec_record_from_model(generation_spec::Model {
                 id: 50_000 + index,
                 project_id: 99,
                 root_project_id: 99,
@@ -751,7 +759,7 @@ async fn video_studio_import_batches_canvas_topology_and_builds_id_maps() {
                 params_json,
                 created_at: now,
                 updated_at: now,
-            }
+            })
         })
         .collect::<Vec<_>>();
     let deferred = super::import_canvas::import_video_studio_generation_specs(
@@ -792,15 +800,17 @@ async fn video_studio_import_batches_canvas_topology_and_builds_id_maps() {
     }
 
     let artifacts = (0..20)
-        .map(|index| prompt_artifact::Model {
-            id: 60_000 + index,
-            generation_spec_id: 50_000 + index,
-            prompt_kind: "video".to_string(),
-            prompt_text: format!("提示词 {index}"),
-            renderer_version: "test".to_string(),
-            edited_by_user: false,
-            created_at: now,
-            updated_at: now,
+        .map(|index| {
+            crate::generation::prompt_artifact_record_from_model(prompt_artifact::Model {
+                id: 60_000 + index,
+                generation_spec_id: 50_000 + index,
+                prompt_kind: "video".to_string(),
+                prompt_text: format!("提示词 {index}"),
+                renderer_version: "test".to_string(),
+                edited_by_user: false,
+                created_at: now,
+                updated_at: now,
+            })
         })
         .collect::<Vec<_>>();
     super::import_canvas::import_video_studio_prompt_artifacts(&db, &artifacts, &mut maps, now)
@@ -851,7 +861,18 @@ async fn video_studio_import_batches_generated_video_source_ref_updates() {
     let mut maps = VideoStudioProjectImportIdMaps::default();
     maps.video_ids.insert(20, imported_b.id);
     maps.image_ids.insert(30, 300);
-    let imported_videos = HashMap::from([(10, imported_a.clone()), (20, imported_b.clone())]);
+    let source_a = crate::video::generated_video_record_from_model(source_a);
+    let source_b = crate::video::generated_video_record_from_model(source_b);
+    let imported_videos = HashMap::from([
+        (
+            10,
+            crate::video::generated_video_record_from_model(imported_a.clone()),
+        ),
+        (
+            20,
+            crate::video::generated_video_record_from_model(imported_b.clone()),
+        ),
+    ]);
 
     super::import_project::update_imported_video_source_refs(
         &db,
@@ -891,7 +912,7 @@ async fn video_studio_import_batches_video_segments_and_chain_updates() {
     .unwrap();
     let now = Utc::now().naive_utc();
     let segments = (0..20)
-        .map(|index| video_segment::Model {
+        .map(|index| a4n_domain::video_transfer::VideoSegmentRecord {
             id: 10_000 + index,
             project_id: 99,
             root_project_id: 99,
@@ -959,7 +980,7 @@ async fn video_studio_import_batches_assembly_timelines_and_clips() {
     .insert(&db)
     .await
     .unwrap();
-    let timeline = assembly_timeline::Model {
+    let timeline = a4n_domain::video_transfer::AssemblyTimelineRecord {
         id: 20_000,
         project_id: 99,
         source_chapter_id: None,
@@ -971,7 +992,7 @@ async fn video_studio_import_batches_assembly_timelines_and_clips() {
         created_at: now,
         updated_at: now,
     };
-    let clip = assembly_clip::Model {
+    let clip = a4n_domain::video_transfer::AssemblyClipRecord {
         id: 21_000,
         timeline_id: timeline.id,
         media_asset_id: 30_000,

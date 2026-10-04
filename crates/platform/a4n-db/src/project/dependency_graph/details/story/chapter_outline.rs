@@ -18,7 +18,7 @@ where
         .order_by_asc(chapter_outline::Column::ChapterNumber)
         .all(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
     Ok(outlines
         .into_iter()
         .map(|outline| {

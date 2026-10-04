@@ -7,6 +7,7 @@ use super::super::types::{
     VideoStudioProjectImportIdMaps,
 };
 use a4n_db_models::models::generation::{generation_spec, prompt_artifact};
+use a4n_domain::generation::{GenerationSpecRecord, PromptArtifactRecord};
 use sea_orm::{
     ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set,
     sea_query::{Alias, CaseStatement, Expr},
@@ -15,7 +16,7 @@ use sea_orm::{
 pub(crate) async fn import_video_studio_generation_specs<C>(
     db: &C,
     project_id: i64,
-    specs: &[generation_spec::Model],
+    specs: &[GenerationSpecRecord],
     maps: &mut VideoStudioProjectImportIdMaps,
     now: chrono::NaiveDateTime,
 ) -> Result<Vec<DeferredVideoStudioImportGenerationSpecTarget>, VideoStudioProjectImportError>
@@ -89,7 +90,7 @@ where
 
 pub(crate) async fn update_imported_generation_spec_metadata<C>(
     db: &C,
-    specs: &[generation_spec::Model],
+    specs: &[GenerationSpecRecord],
     maps: &VideoStudioProjectImportIdMaps,
     now: chrono::NaiveDateTime,
 ) -> Result<(), VideoStudioProjectImportError>
@@ -157,7 +158,7 @@ where
 
 pub(crate) async fn import_video_studio_prompt_artifacts<C>(
     db: &C,
-    artifacts: &[prompt_artifact::Model],
+    artifacts: &[PromptArtifactRecord],
     maps: &mut VideoStudioProjectImportIdMaps,
     now: chrono::NaiveDateTime,
 ) -> Result<(), VideoStudioProjectImportError>

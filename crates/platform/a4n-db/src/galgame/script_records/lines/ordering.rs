@@ -1,21 +1,23 @@
 use crate::galgame::{GalgameLineRecordError, GalgameLineReorderRecordError};
 use a4n_db_models::models::galgame::galgame_line;
+use a4n_domain::galgame::GalgameLineRecord;
 use chrono::Utc;
+use sea_orm::ConnectionTrait;
 use sea_orm::sea_query::{CaseStatement, Expr};
-use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    TransactionTrait,
-};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 
 pub async fn reorder_galgame_line_records_transaction(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     scene_id: i64,
     line_ids: Vec<i64>,
-) -> Result<Vec<galgame_line::Model>, GalgameLineReorderRecordError> {
+) -> Result<Vec<GalgameLineRecord>, GalgameLineReorderRecordError> {
     let tx = db.begin().await?;
     let records = reorder_galgame_line_records(&tx, scene_id, line_ids).await?;
     tx.commit().await?;
-    Ok(records)
+    Ok(records
+        .into_iter()
+        .map(super::super::mapping::line_record)
+        .collect())
 }
 
 async fn reorder_galgame_line_records<C>(

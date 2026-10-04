@@ -1,6 +1,6 @@
 //! 场景档案同步工作流指纹纯规则（无 DB）。
 
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::source_text_hash as source_content_sha256;
 use serde_json::{Value, json};
 
@@ -18,7 +18,7 @@ pub fn scene_profile_sync_business_key(project_id: i64, chapter_number: Option<i
 pub fn scene_profile_sync_workflow_fingerprint(
     project_id: i64,
     chapter_number: Option<i32>,
-    chapters: &[chapter::Model],
+    chapters: &[ChapterRecord],
 ) -> Value {
     json!({
         "workflow": "scene_profile_sync",

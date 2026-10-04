@@ -1,6 +1,6 @@
 use a4n_db_models::models::generation::{generation_run, llm_call_trace};
 use chrono::{Duration, NaiveDate, NaiveDateTime, Utc};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use std::collections::BTreeMap;
 
 use super::AdminDbError;

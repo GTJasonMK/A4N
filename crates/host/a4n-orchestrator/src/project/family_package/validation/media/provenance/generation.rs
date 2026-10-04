@@ -1,16 +1,11 @@
-use a4n_db_models::models::{
-    generation::generation_spec,
-    media::{media_asset, media_provenance},
-};
-
 use super::super::contracts::MediaProvenanceRefContext;
 use super::context::validate_media_provenance_source_context;
 
 pub(super) fn validate_generation_spec_ref<'a>(
-    provenance: &media_provenance::Model,
-    asset: &media_asset::Model,
+    provenance: &a4n_domain::project::ProjectFamilyMediaProvenanceRecord,
+    asset: &a4n_domain::project::ProjectFamilyMediaAssetRecord,
     refs: &MediaProvenanceRefContext<'a>,
-) -> Result<Option<&'a generation_spec::Model>, String> {
+) -> Result<Option<&'a a4n_domain::project::ProjectFamilyGenerationSpecRecord>, String> {
     let Some(spec_id) = provenance.generation_spec_id else {
         return Ok(None);
     };

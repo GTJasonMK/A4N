@@ -1,12 +1,10 @@
 use a4n_db::DbHandle;
-use a4n_db_models::models::chapter::chapter;
 use a4n_error::AppError;
 
 use super::super::OrchestratorContext;
 use crate::project::{
-    is_character_sync_available_chapter, project_chapter_context_error_to_app_error,
-    project_chapter_scene_record_error_to_app_error, project_mutation_error_to_app_error,
-    validate_chapter_generation_number,
+    project_chapter_context_error_to_app_error, project_chapter_scene_record_error_to_app_error,
+    project_mutation_error_to_app_error, validate_chapter_generation_number,
 };
 use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::collaboration::ProjectAccessRole;
@@ -22,9 +20,9 @@ impl ProjectChapterRecordsApplication {
     }
 
     async fn chapter_by_id(&self, chapter_id: i64) -> Result<Option<ChapterRecord>, AppError> {
-        a4n_db::project::chapter_by_id(self.database.connection(), chapter_id)
+        a4n_db::project::chapter_by_id(self.database.executor(), chapter_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn chapter_by_project_number(
@@ -33,7 +31,7 @@ impl ProjectChapterRecordsApplication {
         chapter_number: i32,
     ) -> Result<Option<ChapterRecord>, AppError> {
         a4n_db::project::chapter_by_project_number(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             chapter_number,
         )
@@ -45,27 +43,22 @@ impl ProjectChapterRecordsApplication {
         &self,
         project_id: i64,
     ) -> Result<Vec<ChapterRecord>, AppError> {
-        a4n_db::project::import_analysis_chapter_candidates(self.database.connection(), project_id)
+        a4n_db::project::import_analysis_chapter_candidates(self.database.executor(), project_id)
             .await
             .map_err(project_chapter_context_error_to_app_error)
     }
 
-    async fn character_sync_chapters(
+    async fn character_sync_chapter_records(
         &self,
         project_id: i64,
-    ) -> Result<Vec<chapter::Model>, AppError> {
-        let chapters =
-            a4n_db::project::character_sync_chapters(self.database.connection(), project_id)
-                .await
-                .map_err(project_chapter_context_error_to_app_error)?;
-        Ok(chapters
-            .into_iter()
-            .filter(is_character_sync_available_chapter)
-            .collect())
+    ) -> Result<Vec<ChapterRecord>, AppError> {
+        a4n_db::project::character_sync_chapter_records(self.database.executor(), project_id)
+            .await
+            .map_err(project_chapter_context_error_to_app_error)
     }
 
     async fn refresh_project_current_chapter(&self, project_id: i64) -> Result<(), AppError> {
-        a4n_db::project::refresh_project_current_chapter(self.database.connection(), project_id)
+        a4n_db::project::refresh_project_current_chapter(self.database.executor(), project_id)
             .await
             .map_err(project_chapter_context_error_to_app_error)
     }
@@ -76,7 +69,7 @@ impl ProjectChapterRecordsApplication {
         chapter_number: i32,
     ) -> Result<Vec<ChapterRecord>, AppError> {
         a4n_db::project::chapters_before_number(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             chapter_number,
         )
@@ -91,7 +84,7 @@ impl ProjectChapterRecordsApplication {
         source_chapter_id: i64,
     ) -> Result<Option<String>, AppError> {
         a4n_db::project::source_snapshot_chapter_content_by_snapshot_and_source(
-            self.database.connection(),
+            self.database.executor(),
             root_project_id,
             snapshot_id,
             source_chapter_id,
@@ -142,12 +135,12 @@ impl OrchestratorContext {
             .await
     }
 
-    pub(crate) async fn character_sync_chapters(
+    pub(crate) async fn character_sync_chapter_records(
         &self,
         project_id: i64,
-    ) -> Result<Vec<chapter::Model>, AppError> {
+    ) -> Result<Vec<ChapterRecord>, AppError> {
         self.project_chapter_records
-            .character_sync_chapters(project_id)
+            .character_sync_chapter_records(project_id)
             .await
     }
 

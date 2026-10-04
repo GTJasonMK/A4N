@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use a4n_api_contract::portrait::{
     GeneratePortraitInput, GeneratePortraitPromptInput, PortraitType,
 };
-use a4n_db_models::models::character::protagonist_profile;
+use a4n_domain::character::CharacterProfileRecord;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;
@@ -18,13 +18,13 @@ use crate::{
 };
 
 pub(super) struct PreparedNamedPortraitRequest {
-    pub(super) profile: protagonist_profile::Model,
+    pub(super) profile: CharacterProfileRecord,
     pub(super) expression: String,
     pub(super) request: ChatRequest,
 }
 
 pub(super) struct PreparedProfilePortraitRequest {
-    pub(super) profile: protagonist_profile::Model,
+    pub(super) profile: CharacterProfileRecord,
     pub(super) profile_context: Value,
     pub(super) project_context: Option<Value>,
     pub(super) request: ChatRequest,

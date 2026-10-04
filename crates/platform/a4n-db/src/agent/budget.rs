@@ -1,5 +1,6 @@
 use super::*;
 use a4n_domain::agent::AgentBudget;
+use sea_orm::ConnectionTrait;
 use sea_orm::{DatabaseBackend, Statement};
 use std::collections::HashMap;
 
@@ -49,7 +50,7 @@ impl BudgetDemand {
 pub(super) async fn lock_budget_tree_on<C: ConnectionTrait>(
     db: &C,
     run_id: i64,
-) -> Result<run::Model, AgentDbError> {
+) -> Result<AgentRunRecord, AgentDbError> {
     let row = run_by_id(db, run_id)
         .await?
         .ok_or_else(|| AgentDbError::NotFound("Agent Run 不存在".into()))?;
@@ -249,12 +250,12 @@ pub async fn run_budget_snapshot<C: ConnectionTrait>(
 
 /// Extends a paused/waiting Run without replacing its execution history.
 pub async fn resume_run(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
     thread_id: i64,
     run_id: i64,
     extension: Option<&AgentBudget>,
-) -> Result<run::Model, AgentDbError> {
+) -> Result<AgentRunRecord, AgentDbError> {
     let tx = db.begin().await?;
     let identity = lock_budget_tree_on(&tx, run_id).await?;
     let root = identity.root_run_id.unwrap_or(identity.id);
@@ -400,7 +401,7 @@ pub async fn resume_run(
     }
     tx.commit().await?;
     resumed.usage_json = snapshot.usage;
-    Ok(resumed)
+    Ok(resumed.into())
 }
 
 fn has_exhausted_limit(remaining: &AgentBudget) -> bool {

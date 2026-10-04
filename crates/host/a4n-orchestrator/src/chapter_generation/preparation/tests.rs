@@ -7,8 +7,8 @@ use super::{
     resolve_generation_word_count_range,
 };
 use a4n_db::rag::RagForeshadowingRow;
-use a4n_db_models::models::project::blueprint_character;
 use a4n_domain::chapter::ChapterOutlineRecord;
+use a4n_domain::project::BlueprintCharacterRecord;
 use serde_json::json;
 
 fn generation_outline(title: Option<&str>, summary: Option<&str>) -> ChapterOutlineRecord {
@@ -52,9 +52,9 @@ fn foreshadowing_item(payoff_chapter: Option<i32>) -> RagForeshadowingRow {
     }
 }
 
-fn blueprint_character(name: &str) -> blueprint_character::Model {
+fn blueprint_character(name: &str) -> BlueprintCharacterRecord {
     let now = chrono::Utc::now().naive_utc();
-    blueprint_character::Model {
+    BlueprintCharacterRecord {
         id: 1,
         project_id: 1,
         name: name.to_string(),

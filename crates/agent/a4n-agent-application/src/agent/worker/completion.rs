@@ -19,7 +19,7 @@ impl AgentApplication {
     }
 
     pub(super) async fn result_refs_for_run_id(&self, run_id: i64) -> Result<Value, AppError> {
-        let executions = agent::executions_by_runs(self.connection(), vec![run_id])
+        let executions = agent::executions_by_runs(self.executor(), vec![run_id])
             .await
             .map_err(agent_db_error_to_app)?;
         let mut refs = Vec::<AgentResourceRef>::new();
@@ -68,7 +68,7 @@ impl AgentApplication {
         observed_input_message_id: i64,
     ) -> Result<AgentWorkerCompletionSnapshotWire, AppError> {
         let completed = agent::finish_run_with_message(
-            self.connection(),
+            self.executor(),
             fields.run_id,
             fields.lease_token,
             AgentMessageInput {
@@ -101,7 +101,7 @@ impl AgentApplication {
     ) -> Result<AgentWorkerCompletionSnapshotWire, AppError> {
         completion_receipt(
             agent::complete_child_delegation(
-                self.connection(),
+                self.executor(),
                 a4n_db::agent::AgentChildCompletionInput {
                     child_run_id: fields.run_id,
                     child_lease_token: fields.lease_token.to_string(),
@@ -133,13 +133,13 @@ impl AgentApplication {
         request
             .validate()
             .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-        let run = agent::run_by_id(self.connection(), request.run_id)
+        let run = agent::run_by_id(self.executor(), request.run_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", request.run_id)))?;
-        let source = execution::Entity::find_by_id(request.source_execution_id)
-            .one(self.connection())
-            .await?
+        let source = agent::execution_by_id(self.executor(), request.source_execution_id)
+            .await
+            .map_err(agent_db_error_to_app)?
             .filter(|row| {
                 row.run_id == run.id
                     && row.status == "succeeded"
@@ -174,11 +174,11 @@ impl AgentApplication {
                 "完成内容与已保存的模型决定不一致".into(),
             ));
         }
-        if let Some(feedback) = message::Entity::find()
-            .filter(message::Column::RunId.eq(run.id))
-            .filter(message::Column::ClientMessageId.eq(format!("agent-notice:{}", source.id)))
-            .one(self.connection())
-            .await?
+        let feedback_client_id = format!("agent-notice:{}", source.id);
+        if let Some(feedback) =
+            agent::message_by_run_and_client_id(self.executor(), run.id, &feedback_client_id)
+                .await
+                .map_err(agent_db_error_to_app)?
         {
             let receipt = feedback
                 .payload_json
@@ -190,14 +190,14 @@ impl AgentApplication {
             return serde_json::from_value(receipt).map_err(AppError::from);
         }
         if run.status == "completed" {
-            let finished = turn::Entity::find_by_id(run.turn_id)
-                .one(self.connection())
-                .await?
+            let finished = agent::turn_by_id(self.executor(), run.turn_id)
+                .await
+                .map_err(agent_db_error_to_app)?
                 .and_then(|turn| turn.final_message_id);
             if let Some(finished) = finished {
-                let message = message::Entity::find_by_id(finished)
-                    .one(self.connection())
-                    .await?;
+                let message = agent::message_by_id(self.executor(), finished)
+                    .await
+                    .map_err(agent_db_error_to_app)?;
                 if message.is_some_and(|message| {
                     message.content == request.content
                         && message
@@ -218,13 +218,13 @@ impl AgentApplication {
             ));
         }
         if run.status == "queued"
-            && message::Entity::find()
-                .filter(message::Column::RunId.eq(run.id))
-                .filter(message::Column::Role.eq("user"))
-                .filter(message::Column::Id.gt(request.observed_input_message_id))
-                .one(self.connection())
-                .await?
-                .is_some()
+            && agent::has_user_message_after(
+                self.executor(),
+                run.id,
+                request.observed_input_message_id,
+            )
+            .await
+            .map_err(agent_db_error_to_app)?
         {
             return Ok(AgentWorkerCompletionSnapshotWire {
                 completed: false,
@@ -268,7 +268,7 @@ impl AgentApplication {
         };
         if !receipt.blockers.is_empty() {
             agent::append_message_for_run_lease(
-                self.connection(),
+                self.executor(),
                 run.id,
                 &request.lease.fence_token,
                 AgentMessageInput {

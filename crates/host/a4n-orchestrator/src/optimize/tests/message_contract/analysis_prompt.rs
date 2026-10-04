@@ -51,7 +51,7 @@ fn content_optimization_analysis_prompt_detection_uses_payload_task_name() {
     let permissions = optimize_test_permissions();
     let chat_prompt = build_content_optimization_chat_user_message(
         "帮我解释这段",
-        &optimization_session::Model {
+        &OptimizationSessionRecord {
             id: 1,
             project_id: 1,
             chapter_id: 1,

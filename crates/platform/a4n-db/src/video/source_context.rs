@@ -27,6 +27,16 @@ pub async fn project_and_chapter_for_video_source<C: ConnectionTrait>(
     Ok((project, chapter))
 }
 
+pub async fn project_and_chapter_for_video_source_records<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+    chapter_id: i64,
+) -> Result<(VideoProjectIdentity, a4n_domain::chapter::ChapterRecord), VideoDbError> {
+    project_and_chapter_for_video_source(db, project_id, chapter_id)
+        .await
+        .map(|(project, chapter)| (project, crate::project::chapter_record(chapter)))
+}
+
 pub async fn source_snapshot_chapter_for_video_source<C: ConnectionTrait>(
     db: &C,
     snapshot_id: i64,

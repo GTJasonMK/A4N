@@ -1,5 +1,5 @@
 use a4n_db::rag::RagAttributeEventRow;
-use a4n_db_models::models::character::attribute_event;
+use a4n_domain::character::CharacterAttributeEventRecord;
 use a4n_domain::rag::RagDataType;
 use a4n_rag_core::RagRecord;
 use a4n_rag_core::record_text::{optional_json_text, optional_rag_text, required_rag_text};
@@ -54,7 +54,7 @@ pub(super) fn character_attribute_event_rag_text(
 
 pub fn character_attribute_event_rag_record(
     project_id: i64,
-    event: &attribute_event::Model,
+    event: &CharacterAttributeEventRecord,
     name: &str,
 ) -> Result<RagRecord, String> {
     character_attribute_event_rag_record_from_row(

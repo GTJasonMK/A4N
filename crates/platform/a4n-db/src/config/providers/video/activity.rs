@@ -29,7 +29,7 @@ where
         .into_model::<ActiveGeneratedVideoRow>()
         .all(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .into_iter()
         .filter(|video| {
             video

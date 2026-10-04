@@ -42,13 +42,13 @@ impl OrchestratorContext {
             .checked_sub_signed(Duration::days(i64::from(input.days)))
             .ok_or_else(|| AppError::InvalidArgument("模型成本报表时间范围无效".to_string()))?;
         let aggregates = a4n_db::model_usage::aggregate_model_usage_records(
-            self.database.connection(),
+            self.database.executor(),
             input.project_id,
             since,
         )
         .await?;
         let records = a4n_db::model_usage::list_model_usage_summaries(
-            self.database.connection(),
+            self.database.executor(),
             input.project_id,
             since,
             u64::from(input.limit),
@@ -168,7 +168,7 @@ impl a4n_api_contract::cost::ModelUsageReadApplicationPort for OrchestratorConte
         input: ModelUsageRequestInput,
     ) -> Result<ModelUsageRequest, AppError> {
         let record =
-            a4n_db::model_usage::model_usage_record_by_id(self.database.connection(), input.id)
+            a4n_db::model_usage::model_usage_record_by_id(self.database.executor(), input.id)
                 .await?
                 .ok_or_else(|| AppError::NotFound(format!("模型成本记录不存在: {}", input.id)))?;
         let project_ids = [record.project_id, record.root_project_id]

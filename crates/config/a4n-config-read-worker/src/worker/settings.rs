@@ -15,7 +15,7 @@ impl WorkerState {
         request: WorkerEnvelope<SettingsExportInput>,
     ) -> Result<String, WorkerFailure> {
         validate_admin_request(&request, CONFIG_SETTINGS_EXPORT_OPERATION, &self.database).await?;
-        let rows = a4n_db::config::settings_all_config_rows(self.database.connection())
+        let rows = a4n_db::config::settings_all_config_rows(self.database.executor())
             .await
             .map_err(app_error)?;
         serde_json::to_string_pretty(&AllConfigsExport {
@@ -47,7 +47,7 @@ impl WorkerState {
         validate_all_configs_export(&incoming).map_err(WorkerFailure::invalid_request)?;
         let config_import = settings_import_input(&incoming, request.payload.overwrite);
         a4n_db::config::validate_settings_all_config_import_defaults(
-            self.database.connection(),
+            self.database.executor(),
             &config_import,
         )
         .await
@@ -75,13 +75,13 @@ impl WorkerState {
         }
         let config_import = settings_import_input(&incoming, request.payload.overwrite);
         a4n_db::config::validate_settings_all_config_import_defaults(
-            self.database.connection(),
+            self.database.executor(),
             &config_import,
         )
         .await
         .map_err(settings_import_error)?;
         let counts =
-            a4n_db::config::import_settings_all_configs(self.database.connection(), config_import)
+            a4n_db::config::import_settings_all_configs(self.database.executor(), config_import)
                 .await
                 .map_err(settings_import_error)?;
         Ok(import_details_from_counts(

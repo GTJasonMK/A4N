@@ -26,7 +26,7 @@ impl Sha256SnapshotStore {
     pub async fn load_snapshot(&self, content_hash: &str) -> Result<Option<Snapshot>, AppError> {
         let model = super::snapshot_reference_by_hash(self.db.as_ref(), content_hash)
             .await
-            .map_err(AppError::Database)?;
+            .map_err(AppError::from)?;
 
         Ok(model.map(|model| Snapshot {
             content_hash: model.snapshot_hash,

@@ -7,8 +7,9 @@ use a4n_api_contract::video::{
     UpdateVideoSegmentPlanDraftRecipeInput, VideoSegmentPlanDraftSummary,
 };
 use a4n_api_contract::video::{VideoPromptDownstreamCleanupPort, VideoPromptGenerationOptions};
-use a4n_db_models::models::chapter::{chapter, chapter_video_prompt};
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::prompt_language::PromptOutputLanguage;
+use a4n_domain::video_prompt as chapter_video_prompt;
 use a4n_domain::video_prompt::ChapterVideoPromptPatch;
 use a4n_domain::{DownstreamConflictStrategy, source_text_hash as source_content_sha256};
 use a4n_prompt::rendering::PromptRenderer;
@@ -274,7 +275,7 @@ fn apply_duration_capability(
 fn build_video_prompt_vars(
     project_id: i64,
     chapter_id: i64,
-    chapter: &chapter::Model,
+    chapter: &ChapterRecord,
     source: &ChapterVideoSource,
     options: &ChapterVideoPromptOptions,
 ) -> Result<HashMap<String, Value>, AppError> {

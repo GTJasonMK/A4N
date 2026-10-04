@@ -1,8 +1,7 @@
 use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect,
+    ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
     sea_query::{Expr, extension::postgres::PgExpr},
 };
 
@@ -11,7 +10,7 @@ use crate::video::prompts::record_mapping::chapter_video_prompt_record_from_mode
 use crate::video::{VideoDbError, required_video_record_text, validate_positive_video_i64};
 
 pub async fn chapter_video_prompt_by_id(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     prompt_id: i64,
 ) -> Result<Option<chapter_video_prompt::Model>, VideoDbError> {
     validate_positive_video_i64(prompt_id, "prompt_id")?;

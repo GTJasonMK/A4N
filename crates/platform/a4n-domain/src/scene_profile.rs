@@ -193,6 +193,29 @@ pub struct SceneProfileRecord {
     pub updated_at: NaiveDateTime,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SceneOccurrenceRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub scene_profile_id: i64,
+    pub chapter_id: i64,
+    pub chapter_number: i32,
+    pub occurrence_order: i32,
+    pub timeline_position: Option<String>,
+    pub summary: String,
+    pub mood: Option<String>,
+    pub weather_or_lighting: Option<String>,
+    pub source_span_ids_json: Value,
+    pub evidence_json: Value,
+    pub characters_json: Value,
+    pub objects_json: Value,
+    pub key_events_json: Value,
+    pub entry_state_json: Value,
+    pub exit_state_json: Value,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SceneOccurrenceRecordInput {
     pub occurrence_ref: String,

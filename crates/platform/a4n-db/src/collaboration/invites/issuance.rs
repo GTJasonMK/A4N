@@ -6,12 +6,11 @@ use crate::collaboration::{
 use a4n_db_models::models::project::{project_invite, project_member};
 use chrono::{Duration, Utc};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
 
 pub async fn invite_project_member(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     inviter_user_id: i64,
     project_id: i64,
     username_or_email: &str,
@@ -100,7 +99,7 @@ pub async fn invite_project_member(
 }
 
 pub async fn list_project_invites(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     actor_user_id: i64,
     project_id: i64,
 ) -> Result<Vec<ProjectInviteSummary>, CollaborationDbError> {
@@ -118,7 +117,7 @@ pub async fn list_project_invites(
 }
 
 pub async fn list_my_project_invites(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
 ) -> Result<Vec<ProjectInviteSummary>, CollaborationDbError> {
     let invites = project_invite::Entity::find()

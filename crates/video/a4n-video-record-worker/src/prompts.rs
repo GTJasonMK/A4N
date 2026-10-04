@@ -38,7 +38,7 @@ impl WorkerState {
             || run.project_id != Some(input.project_id)
             || run.chapter_id != Some(input.chapter_id)
             || run.mode.as_deref()
-                != Some(a4n_db_models::models::chapter::chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN)
+                != Some(a4n_domain::video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN)
         {
             return Err(WorkerFailure::invalid_request(format!(
                 "片段规划 workflow {} 与当前项目或章节不一致",
@@ -62,9 +62,7 @@ impl WorkerState {
             || fingerprint.get("project_id").and_then(Value::as_i64) != Some(input.project_id)
             || fingerprint.get("chapter_id").and_then(Value::as_i64) != Some(input.chapter_id)
             || fingerprint.get("workflow_mode").and_then(Value::as_str)
-                != Some(
-                    a4n_db_models::models::chapter::chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
-                )
+                != Some(a4n_domain::video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN)
         {
             return Err(WorkerFailure::conflict("片段规划 workflow 输入指纹无效"));
         }

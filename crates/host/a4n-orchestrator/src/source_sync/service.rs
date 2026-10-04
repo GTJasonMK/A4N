@@ -5,11 +5,11 @@ use super::rules::source_sync_decisions_require_galgame_preparation;
 use crate::OrchestratorContext;
 use crate::source_sync::source_sync_db_error;
 use a4n_db::source_sync::SourceSyncPlanRecord;
-use a4n_db_models::models::source_sync::source_sync_run;
+use a4n_domain::source_sync::SourceSyncRunRecord;
 use a4n_error::AppError;
 
 pub struct ApplySourceSyncApplicationInput<'a> {
-    pub run: source_sync_run::Model,
+    pub run: SourceSyncRunRecord,
     pub decisions: Vec<SourceSyncDecisionInput>,
     pub galgame_prompt_renderer: Option<&'a dyn a4n_prompt::rendering::PromptRenderer>,
 }
@@ -56,15 +56,15 @@ impl OrchestratorContext {
     ) -> Result<SourceSyncPlanRecord, AppError> {
         if decisions.is_empty() {
             return a4n_db::source_sync::apply_unconflicted_source_sync_records_transaction(
-                self.database.connection(),
+                self.database.executor(),
                 sync_run_id,
             )
             .await
             .map_err(source_sync_db_error);
         }
         let prepared_context = if source_sync_decisions_require_galgame_preparation(&decisions) {
-            let run = a4n_db::source_sync::load_source_sync_apply_run_record(
-                self.database.connection(),
+            let run = a4n_db::source_sync::load_source_sync_apply_run_domain_record(
+                self.database.executor(),
                 sync_run_id,
             )
             .await
@@ -75,7 +75,7 @@ impl OrchestratorContext {
         };
         let prepared_decisions = prepared_source_sync_decisions(&decisions, &prepared_context)?;
         a4n_db::source_sync::apply_prepared_source_sync_decisions_records_transaction(
-            self.database.connection(),
+            self.database.executor(),
             sync_run_id,
             prepared_decisions,
         )

@@ -16,8 +16,8 @@ impl AgentApplication {
     pub(crate) async fn expire_pending_approvals(
         &self,
         limit: u64,
-    ) -> Result<Vec<approval::Model>, AppError> {
-        agent::expire_pending_approvals(self.connection(), limit)
+    ) -> Result<Vec<agent::AgentApprovalRecord>, AppError> {
+        agent::expire_pending_approvals(self.executor(), limit)
             .await
             .map_err(agent_db_error_to_app)
     }
@@ -29,8 +29,8 @@ impl AgentApplication {
         &self,
         thread_id: i64,
         execution_id: i64,
-    ) -> Result<Option<approval::Model>, AppError> {
-        agent::approved_execution(self.connection(), thread_id, execution_id)
+    ) -> Result<Option<agent::AgentApprovalRecord>, AppError> {
+        agent::approved_execution(self.executor(), thread_id, execution_id)
             .await
             .map_err(agent_db_error_to_app)
     }
@@ -47,7 +47,7 @@ impl AgentApplication {
             lease: request.lease.clone(),
         })
         .await?;
-        let run = agent::run_by_id(self.connection(), request.run_id)
+        let run = agent::run_by_id(self.executor(), request.run_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", request.run_id)))?;
@@ -68,7 +68,7 @@ impl AgentApplication {
         operation_json: Value,
         resource_preconditions_json: Option<Value>,
         expires_at: Option<chrono::NaiveDateTime>,
-    ) -> Result<approval::Model, AppError> {
+    ) -> Result<agent::AgentApprovalRecord, AppError> {
         self.request_worker_approval_fields(
             ApprovalRunFields {
                 run_id: claimed.run.id,
@@ -90,12 +90,12 @@ impl AgentApplication {
         operation_json: Value,
         resource_preconditions_json: Option<Value>,
         expires_at: Option<chrono::NaiveDateTime>,
-    ) -> Result<approval::Model, AppError> {
+    ) -> Result<agent::AgentApprovalRecord, AppError> {
         let operation_digest = a4n_db::agent::sha256_hex(
             &serde_json::to_string(&operation_json).map_err(AppError::Serialization)?,
         );
         let (approval, _, _) = agent::request_approval_for_run_lease(
-            self.connection(),
+            self.executor(),
             fields.lease_token,
             a4n_domain::agent::AgentApprovalInput {
                 thread_id: fields.thread_id,
@@ -124,7 +124,7 @@ impl AgentApplication {
             lease: request.lease.clone(),
         })
         .await?;
-        let run = agent::run_by_id(self.connection(), request.run_id)
+        let run = agent::run_by_id(self.executor(), request.run_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", request.run_id)))?;

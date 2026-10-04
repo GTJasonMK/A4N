@@ -1,7 +1,5 @@
-use sea_orm::{
-    ConnectionTrait, DatabaseConnection, DatabaseTransaction, DbBackend, DbErr, Statement,
-    TransactionTrait,
-};
+use sea_orm::ConnectionTrait;
+use sea_orm::{DatabaseTransaction, DbBackend, DbErr, Statement};
 
 use super::tasks::{GenerationTaskPersistenceError, validate_safe_id};
 use a4n_domain::generation::{
@@ -152,7 +150,7 @@ impl GenerationLifecycleGateError {
 }
 
 pub async fn begin_project_lifecycle_gate(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     expected_owner_user_id: i64,
     operation: ProjectLifecycleOperation,
@@ -246,7 +244,7 @@ pub async fn begin_project_lifecycle_gate(
 }
 
 pub async fn begin_user_disable_gate(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     caller_user_id: i64,
     user_id: i64,
 ) -> Result<UserLifecycleGateClaim, GenerationLifecycleGateError> {
@@ -263,7 +261,12 @@ pub async fn begin_user_disable_gate(
     crate::auth::lock_administrator_membership(&tx, user_id, true)
         .await
         .map_err(|error| match error {
-            a4n_error::AppError::Database(error) => GenerationLifecycleGateError::Database(error),
+            a4n_error::AppError::Database(error) => match error.downcast::<DbErr>() {
+                Ok(error) => GenerationLifecycleGateError::Database(error),
+                Err(error) => GenerationLifecycleGateError::Corrupt(format!(
+                    "数据库错误来源无法还原为 DbErr: {error}"
+                )),
+            },
             a4n_error::AppError::NotFound(message) => {
                 GenerationLifecycleGateError::NotFound(message)
             }
@@ -300,7 +303,7 @@ pub async fn begin_user_disable_gate(
 }
 
 pub async fn active_generation_tasks_for_user(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
 ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError> {
     ensure_postgres(db)?;
@@ -309,7 +312,7 @@ pub async fn active_generation_tasks_for_user(
 }
 
 pub async fn active_generation_tasks_for_project(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError> {
     ensure_postgres(db)?;
@@ -318,14 +321,14 @@ pub async fn active_generation_tasks_for_project(
 }
 
 pub async fn active_generation_tasks(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
 ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError> {
     ensure_postgres(db)?;
     query_lifecycle_tasks_without_owner(db, ACTIVE_TASKS_SQL).await
 }
 
 pub async fn pending_lifecycle_operations(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
 ) -> Result<Vec<PendingLifecycleOperation>, GenerationLifecycleGateError> {
     ensure_postgres(db)?;
     let mut operations = Vec::new();
@@ -499,7 +502,7 @@ where
 }
 
 pub async fn restore_project_lifecycle_gate(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     operation: ProjectLifecycleOperation,
 ) -> Result<(), GenerationLifecycleGateError> {
@@ -514,7 +517,7 @@ pub async fn restore_project_lifecycle_gate(
 }
 
 pub async fn restore_user_lifecycle_gate(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
 ) -> Result<(), GenerationLifecycleGateError> {
     ensure_postgres(db)?;
@@ -683,7 +686,7 @@ async fn reject_derived_gate_conflict(
 }
 
 async fn query_lifecycle_tasks(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     sql: &str,
     owner_id: i64,
 ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError> {
@@ -699,7 +702,7 @@ async fn query_lifecycle_tasks(
 }
 
 async fn query_lifecycle_tasks_without_owner(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     sql: &str,
 ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError> {
     db.query_all(Statement::from_string(DbBackend::Postgres, sql))
@@ -772,7 +775,7 @@ fn validate_project_gate(gate: &str) -> Result<(), GenerationLifecycleGateError>
     }
 }
 
-fn ensure_postgres(db: &DatabaseConnection) -> Result<(), GenerationLifecycleGateError> {
+fn ensure_postgres(db: &impl crate::DbExecutor) -> Result<(), GenerationLifecycleGateError> {
     if db.get_database_backend() == DbBackend::Postgres {
         Ok(())
     } else {

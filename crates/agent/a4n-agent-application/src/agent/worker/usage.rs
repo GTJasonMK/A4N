@@ -8,9 +8,9 @@ impl AgentApplication {
     pub(crate) async fn update_run_usage(
         &self,
         input: WorkerUsage,
-    ) -> Result<run::Model, AppError> {
+    ) -> Result<agent::AgentRunRecord, AppError> {
         agent::update_run_usage(
-            self.connection(),
+            self.executor(),
             input.run_id,
             &input.lease_token,
             input.usage_json,
@@ -32,7 +32,7 @@ impl AgentApplication {
         })
         .await?;
         agent::update_run_usage(
-            self.connection(),
+            self.executor(),
             request.run_id,
             &request.lease.fence_token,
             request.usage_json.clone(),

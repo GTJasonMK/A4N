@@ -359,7 +359,7 @@ impl a4n_api_contract::manga::MangaPipelineExecutionApplicationPort for Orchestr
         self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         let chapter = a4n_db::project::prepare_standalone_comic_source_chapter(
-            self.database.connection(),
+            self.database.executor(),
             a4n_db::project::PrepareStandaloneComicSourceDbInput {
                 project_id: input.project_id,
                 asset_id: input.asset_id,
@@ -386,7 +386,7 @@ impl a4n_api_contract::manga::MangaPipelineExecutionApplicationPort for Orchestr
                 AppError::Forbidden(message)
             }
             a4n_db::project::StandaloneComicSourceDbError::Database(error) => {
-                AppError::Database(error)
+                AppError::database(error)
             }
         })?;
         Ok(a4n_api_contract::manga::MangaStandaloneSourceSummary {

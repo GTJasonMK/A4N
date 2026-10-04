@@ -15,7 +15,7 @@ impl OrchestratorContext {
         current_step_key: &str,
         task_id: Option<String>,
         input_fingerprint_json: Value,
-    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_domain::workflow::WorkflowRunSummary, AppError> {
         let input = crate::outline::outline_workflow_run_input(
             project_id,
             workflow_kind,

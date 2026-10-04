@@ -9,12 +9,9 @@ impl VideoApplication {
         &self,
         prompt_id: i64,
     ) -> Result<Option<ChapterVideoPromptRecord>, AppError> {
-        a4n_db::video::read_models::chapter_video_prompt_by_id(
-            self.database.connection(),
-            prompt_id,
-        )
-        .await
-        .map_err(video_db_error)
+        a4n_db::video::read_models::chapter_video_prompt_by_id(self.database.executor(), prompt_id)
+            .await
+            .map_err(video_db_error)
     }
 
     pub(in crate::context) async fn chapter_video_prompts_for_chapter(
@@ -28,7 +25,7 @@ impl VideoApplication {
             chapter_id,
         )
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
     }
 
     pub(in crate::context) async fn chapter_video_prompt_timeline_records_for_chapter(
@@ -42,7 +39,7 @@ impl VideoApplication {
             chapter_id,
         )
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
     }
 
     pub(in crate::context) async fn chapter_video_prompt_video_binding_records_for_chapter(
@@ -56,7 +53,7 @@ impl VideoApplication {
             chapter_id,
         )
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
     }
 
     pub(in crate::context) async fn chapter_video_prompts_for_batch_generation(
@@ -64,7 +61,7 @@ impl VideoApplication {
         prompt_ids: &[i64],
     ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
         a4n_db::video::read_models::chapter_video_prompts_for_batch_generation(
-            self.database.connection(),
+            self.database.executor(),
             prompt_ids,
         )
         .await

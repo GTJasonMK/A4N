@@ -189,7 +189,7 @@ fn image_config() -> ImageProviderConfig {
 async fn setup_context() -> (Arc<DatabaseConnection>, OrchestratorContext, i64) {
     let database = Arc::new(a4n_migration::test_support::connect_test_database().await);
     let suffix = Uuid::new_v4().simple().to_string();
-    let user = a4n_db::auth::create_user(
+    let user = a4n_db::auth::create_user_summary(
         database.as_ref(),
         &format!("canvas-image-test-{suffix}"),
         &format!("canvas-image-test-{suffix}@example.test"),

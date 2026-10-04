@@ -1,6 +1,6 @@
 //! 角色发现章节选择与输出范围校验纯规则（无 DB）。
 
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use serde_json::Value;
 use std::collections::BTreeSet;
 
@@ -14,10 +14,10 @@ fn required_i32_field(value: &Value, field: &str) -> Result<i32, String> {
 
 /// 按可选章节号筛选可用于角色发现的章节。
 pub fn select_character_discovery_chapters(
-    chapters: Vec<chapter::Model>,
+    chapters: Vec<ChapterRecord>,
     project_id: i64,
     chapter_number: Option<i32>,
-) -> Result<Vec<chapter::Model>, String> {
+) -> Result<Vec<ChapterRecord>, String> {
     if let Some(chapter_number) = chapter_number {
         let selected = chapters
             .into_iter()

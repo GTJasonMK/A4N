@@ -3,7 +3,7 @@ use super::{
     generation_media::*,
     snapshots::*,
     text_core::project_family_export_text_core_rows,
-    types::{ProjectFamilyExportError, ProjectFamilyExportRows},
+    types::{ProjectFamilyExportError, ProjectFamilyExportRows, ProjectFamilyTextCoreRows},
 };
 use a4n_domain::source_text_hash;
 use sea_orm::ConnectionTrait;
@@ -39,7 +39,7 @@ where
         project_family_export_chapter_visual_plans(db, &family_project_ids),
         project_family_export_chapter_shooting_scripts(db, &family_project_ids),
     );
-    let text_core = text_core?;
+    let text_core: ProjectFamilyTextCoreRows = super::super::transfer::transfer_record(text_core?)?;
     let source_sync_runs = source_sync_runs?;
     let authoring_documents = authoring_documents?;
     let authoring_receipts = authoring_receipts?;
@@ -261,38 +261,52 @@ where
     Ok(ProjectFamilyExportRows {
         snapshot_ids,
         text_core,
-        source_snapshots,
-        source_snapshot_chapters,
-        source_snapshot_outlines,
-        source_snapshot_profiles,
-        text_anchors,
-        profile_evidence,
-        chapter_visual_plans,
-        chapter_shooting_scripts,
-        authoring_documents,
-        authoring_receipts,
-        character_portraits,
-        generated_images,
-        chapter_manga_prompts,
+        source_snapshots: super::super::transfer::transfer_records(source_snapshots)?,
+        source_snapshot_chapters: super::super::transfer::transfer_records(
+            source_snapshot_chapters,
+        )?,
+        source_snapshot_outlines: super::super::transfer::transfer_records(
+            source_snapshot_outlines,
+        )?,
+        source_snapshot_profiles: super::super::transfer::transfer_records(
+            source_snapshot_profiles,
+        )?,
+        text_anchors: super::super::transfer::transfer_records(text_anchors)?,
+        profile_evidence: super::super::transfer::transfer_records(profile_evidence)?,
+        chapter_visual_plans: super::super::transfer::transfer_records(chapter_visual_plans)?,
+        chapter_shooting_scripts: super::super::transfer::transfer_records(
+            chapter_shooting_scripts,
+        )?,
+        authoring_documents: super::super::transfer::transfer_records(authoring_documents)?,
+        authoring_receipts: super::super::transfer::transfer_records(authoring_receipts)?,
+        character_portraits: super::super::transfer::transfer_records(character_portraits)?,
+        generated_images: super::super::transfer::transfer_records(generated_images)?,
+        chapter_manga_prompts: super::super::transfer::transfer_records(chapter_manga_prompts)?,
         chapter_video_prompts,
-        generated_videos,
-        generation_specs,
-        generation_spec_text_anchors,
-        generation_spec_entity_refs,
-        generation_spec_media_refs,
-        prompt_artifacts,
-        media_assets,
-        media_provenance,
-        media_bindings,
-        galgame_scripts,
-        galgame_scenes,
-        galgame_lines,
-        galgame_choices,
-        video_segments,
-        assembly_timelines,
-        assembly_clips,
-        source_sync_runs,
-        source_sync_conflicts,
-        source_sync_decisions,
+        generated_videos: super::super::transfer::transfer_records(generated_videos)?,
+        generation_specs: super::super::transfer::transfer_records(generation_specs)?,
+        generation_spec_text_anchors: super::super::transfer::transfer_records(
+            generation_spec_text_anchors,
+        )?,
+        generation_spec_entity_refs: super::super::transfer::transfer_records(
+            generation_spec_entity_refs,
+        )?,
+        generation_spec_media_refs: super::super::transfer::transfer_records(
+            generation_spec_media_refs,
+        )?,
+        prompt_artifacts: super::super::transfer::transfer_records(prompt_artifacts)?,
+        media_assets: super::super::transfer::transfer_records(media_assets)?,
+        media_provenance: super::super::transfer::transfer_records(media_provenance)?,
+        media_bindings: super::super::transfer::transfer_records(media_bindings)?,
+        galgame_scripts: super::super::transfer::transfer_records(galgame_scripts)?,
+        galgame_scenes: super::super::transfer::transfer_records(galgame_scenes)?,
+        galgame_lines: super::super::transfer::transfer_records(galgame_lines)?,
+        galgame_choices: super::super::transfer::transfer_records(galgame_choices)?,
+        video_segments: super::super::transfer::transfer_records(video_segments)?,
+        assembly_timelines: super::super::transfer::transfer_records(assembly_timelines)?,
+        assembly_clips: super::super::transfer::transfer_records(assembly_clips)?,
+        source_sync_runs: super::super::transfer::transfer_records(source_sync_runs)?,
+        source_sync_conflicts: super::super::transfer::transfer_records(source_sync_conflicts)?,
+        source_sync_decisions: super::super::transfer::transfer_records(source_sync_decisions)?,
     })
 }

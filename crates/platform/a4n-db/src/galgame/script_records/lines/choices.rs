@@ -1,20 +1,22 @@
 use crate::galgame::ReplaceGalgameChoiceRecordInput;
 use a4n_db_models::models::galgame::galgame_choice;
+use a4n_domain::galgame::GalgameChoiceRecord;
 use chrono::Utc;
-use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder,
-    Set, TransactionTrait,
-};
+use sea_orm::ConnectionTrait;
+use sea_orm::{ColumnTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, Set};
 
 pub async fn replace_galgame_choice_records_transaction(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     line_id: i64,
     choices: Vec<ReplaceGalgameChoiceRecordInput>,
-) -> Result<Vec<galgame_choice::Model>, DbErr> {
+) -> Result<Vec<GalgameChoiceRecord>, DbErr> {
     let tx = db.begin().await?;
     let records = replace_galgame_choice_records(&tx, line_id, choices).await?;
     tx.commit().await?;
-    Ok(records)
+    Ok(records
+        .into_iter()
+        .map(super::super::mapping::choice_record)
+        .collect())
 }
 
 async fn replace_galgame_choice_records<C>(

@@ -33,7 +33,7 @@ pub(super) async fn run_branch_design_stage(
     let stage = GalgamePipelineStartStage::BranchDesign;
     ensure_galgame_pipeline_not_cancelled(execution.service, execution.options.workflow_run_id)
         .await?;
-    let db = execution.service.database.connection();
+    let db = execution.service.database.executor();
     let mut inputs = AuthoringDocumentInputs {
         sources: Vec::new(),
         dependencies: Vec::new(),

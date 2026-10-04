@@ -3,7 +3,7 @@
 //! 数据库写入与 RAG 同步编排已迁入 `context/character.rs`。
 
 use a4n_db::character::AppliedCharacterImplicitDecisionRecord;
-use a4n_db_models::models::character::attribute_event;
+use a4n_domain::character::CharacterAttributeEventRecord;
 use a4n_error::AppError;
 
 #[derive(Debug, thiserror::Error)]
@@ -23,7 +23,7 @@ impl CharacterAttributeLifecycleError {
 /// 从隐式审核决策结果中提取需要同步到 RAG 的属性事件。
 pub fn implicit_review_attribute_event(
     applied: &AppliedCharacterImplicitDecisionRecord,
-) -> Option<&attribute_event::Model> {
+) -> Option<&CharacterAttributeEventRecord> {
     applied.event.as_ref()
 }
 

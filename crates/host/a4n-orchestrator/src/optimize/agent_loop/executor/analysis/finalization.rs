@@ -1,12 +1,12 @@
 use super::super::{
-    AppError, OptimizeAnalysisTurnExecution, OrchestratorContext, Value, final_issues,
-    materialize_optimization_issue_evidence, optimization_session, parse_optimization_issues,
+    AppError, OptimizationSessionRecord, OptimizeAnalysisTurnExecution, OrchestratorContext, Value,
+    final_issues, materialize_optimization_issue_evidence, parse_optimization_issues,
 };
 
 impl OrchestratorContext {
     pub(super) async fn finish_explicit_analysis_agent_loop(
         &self,
-        session: optimization_session::Model,
+        session: OptimizationSessionRecord,
         turn_id: i64,
         output: (String, Value),
     ) -> Result<OptimizeAnalysisTurnExecution, AppError> {

@@ -34,11 +34,11 @@ impl OrchestratorContext {
             return Ok(None);
         }
         let read_model = a4n_db::galgame::galgame_asset_planning_read_model(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
         )
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .ok_or_else(|| stale_plan("剧本不存在"))?;
         let drafts = collect_galgame_asset_plan_drafts(&context, read_model)?;
         let mut specs_by_key = BTreeMap::new();

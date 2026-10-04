@@ -3,9 +3,9 @@ use a4n_domain::agent::AgentDelegationReviewInput;
 
 /// Review and evidence commit together; a final message never accepts artifacts.
 pub async fn review_delegation(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: AgentDelegationReviewInput,
-) -> Result<delegation::Model, AgentDbError> {
+) -> Result<AgentDelegationRecord, AgentDbError> {
     if !matches!(input.status.as_str(), "accepted" | "revision_requested")
         || input.reason.trim().is_empty()
     {
@@ -54,7 +54,7 @@ pub async fn review_delegation(
         })
     {
         tx.commit().await?;
-        return Ok(row);
+        return Ok(row.into());
     }
     if row.child_run_id != Some(input.expected_child_run_id) {
         return Err(AgentDbError::Conflict(
@@ -205,7 +205,7 @@ pub async fn review_delegation(
     )
     .await?;
     tx.commit().await?;
-    Ok(reviewed)
+    Ok(reviewed.into())
 }
 
 fn same_resource_version(a: &Value, b: &Value) -> bool {

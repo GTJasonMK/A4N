@@ -33,7 +33,7 @@ impl OrchestratorContext {
             })
             .collect();
         let rows = sync_manga_page_prompts_by_chapter(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             chapter_id,
             sync_drafts,
@@ -74,15 +74,10 @@ impl OrchestratorContext {
             layout: draft.layout,
             status: draft.status,
         };
-        let row = upsert_manga_page_prompt(
-            self.database.connection(),
-            project_id,
-            chapter_id,
-            sync,
-            now,
-        )
-        .await
-        .map_err(manga_pipeline_db_error)?;
+        let row =
+            upsert_manga_page_prompt(self.database.executor(), project_id, chapter_id, sync, now)
+                .await
+                .map_err(manga_pipeline_db_error)?;
         for trace in traces {
             self.record_manga_page_prompt_generation_run(&row, trace)
                 .await?;

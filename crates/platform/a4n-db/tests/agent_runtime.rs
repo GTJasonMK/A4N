@@ -1,13 +1,13 @@
 use a4n_db::agent::{
-    AgentDbError, AgentUserDelegationInput, append_event, append_message, bind_delegation_child,
-    cancel_run_tree, claim_inbox, claim_runnable_run, consume_inbox_with_message,
-    create_delegation, create_execution_for_run_lease, create_thread, create_turn_with_run,
-    create_user_delegation, delegation_by_parent_and_key, enqueue_inbox, expire_pending_approvals,
-    expired_running_runs, finish_run_with_message, latest_events_by_thread,
-    mark_turn_active_for_run_lease, recover_expired_run, release_inbox_claim, renew_run_lease,
-    request_approval_for_run_lease, supersede_inbox, update_delegation,
-    update_execution_for_run_lease, update_run_state, update_run_state_if_unchanged,
-    update_run_state_with_budget, update_run_usage,
+    AgentDbError, AgentInboxRecord, AgentRunRecord, AgentThreadRecord, AgentTurnRecord,
+    AgentUserDelegationInput, append_event, append_message, bind_delegation_child, cancel_run_tree,
+    claim_inbox, claim_runnable_run, consume_inbox_with_message, create_delegation,
+    create_execution_for_run_lease, create_thread, create_turn_with_run, create_user_delegation,
+    delegation_by_parent_and_key, enqueue_inbox, expire_pending_approvals, expired_running_runs,
+    finish_run_with_message, latest_events_by_thread, mark_turn_active_for_run_lease,
+    recover_expired_run, release_inbox_claim, renew_run_lease, request_approval_for_run_lease,
+    supersede_inbox, update_delegation, update_execution_for_run_lease, update_run_state,
+    update_run_state_if_unchanged, update_run_state_with_budget, update_run_usage,
 };
 use a4n_db_models::models::agent::{
     approval, delegation, event, execution, inbox, run, thread, turn,
@@ -25,7 +25,31 @@ async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
 }
 
-async fn create_test_thread(db: &DatabaseConnection, profile: &str) -> thread::Model {
+async fn persisted_run(db: &DatabaseConnection, id: i64) -> run::Model {
+    run::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .expect("run query must succeed")
+        .expect("run must exist")
+}
+
+async fn persisted_inbox(db: &DatabaseConnection, id: i64) -> inbox::Model {
+    inbox::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .expect("inbox query must succeed")
+        .expect("inbox must exist")
+}
+
+async fn persisted_approval(db: &DatabaseConnection, id: i64) -> approval::Model {
+    approval::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .expect("approval query must succeed")
+        .expect("approval must exist")
+}
+
+async fn create_test_thread(db: &DatabaseConnection, profile: &str) -> AgentThreadRecord {
     create_thread(
         db,
         AgentThreadCreateInput {
@@ -54,7 +78,7 @@ async fn create_test_run(
     db: &DatabaseConnection,
     thread_id: i64,
     trigger: &str,
-) -> (turn::Model, run::Model) {
+) -> (AgentTurnRecord, AgentRunRecord) {
     let client_message_id = Uuid::new_v4().to_string();
     let (turn, run, _) = create_turn_with_run(
         db,
@@ -107,7 +131,7 @@ async fn failed_duration_budget_keeps_its_usage_readable() {
     let thread = create_test_thread(&db, "main").await;
     let (_, run) = create_test_run(&db, thread.id, "user").await;
     let id = run.id;
-    let mut row: run::ActiveModel = run.into();
+    let mut row: run::ActiveModel = persisted_run(&db, run.id).await.into();
     row.budget_json = Set(json!({"max_duration_seconds": i64::MAX}));
     row.started_at = Set(Some(Utc::now().naive_utc()));
     row.status = Set("running".into());
@@ -132,7 +156,7 @@ async fn failed_duration_budget_keeps_its_usage_readable() {
     let child_thread = create_test_thread(&db, "general").await;
     let (_, child) = create_test_run(&db, child_thread.id, "delegation").await;
     let child_id = child.id;
-    let mut child: run::ActiveModel = child.into();
+    let mut child: run::ActiveModel = persisted_run(&db, child.id).await.into();
     child.parent_run_id = Set(Some(id));
     child.root_run_id = Set(Some(id));
     child.update(&db).await.unwrap();
@@ -150,7 +174,7 @@ async fn budget_one_admits_one_call_and_extension_resumes_the_same_run() {
     let db = setup_db().await;
     let thread = create_test_thread(&db, "main").await;
     let (_, run) = create_test_run(&db, thread.id, "user").await;
-    let mut active: run::ActiveModel = run.into();
+    let mut active: run::ActiveModel = persisted_run(&db, run.id).await.into();
     active.budget_json = Set(json!({"max_model_calls": 1}));
     active.update(&db).await.unwrap();
     let run = claim_runnable_run(&db, "budget-test")
@@ -365,7 +389,7 @@ async fn generation_ownership_fences_attempts_and_keeps_cancelled_call_cost() {
     a4n_db::package::ensure_host_package_states(&db, &["ai-workflow".into()])
         .await
         .unwrap();
-    let user = a4n_db::auth::create_user(
+    let user = a4n_db::auth::create_user_summary(
         &db,
         "agent_generation",
         "agent_generation@example.invalid",
@@ -562,7 +586,7 @@ async fn shared_budget_serializes_siblings_and_counts_replay_once() {
     let db = setup_db().await;
     let root_thread = create_test_thread(&db, "main").await;
     let (_, root) = create_test_run(&db, root_thread.id, "user").await;
-    let mut active: run::ActiveModel = root.clone().into();
+    let mut active: run::ActiveModel = persisted_run(&db, root.id).await.into();
     active.budget_json = Set(json!({"max_model_calls": 1, "max_tokens": 5000}));
     active.update(&db).await.unwrap();
     let root_claim = claim_runnable_run(&db, "root").await.unwrap().unwrap();
@@ -570,7 +594,7 @@ async fn shared_budget_serializes_siblings_and_counts_replay_once() {
     for _ in 0..2 {
         let thread = create_test_thread(&db, "general").await;
         let (_, child) = create_test_run(&db, thread.id, "delegation").await;
-        let mut child: run::ActiveModel = child.into();
+        let mut child: run::ActiveModel = persisted_run(&db, child.id).await.into();
         child.parent_run_id = Set(Some(root.id));
         child.root_run_id = Set(Some(root.id));
         child.update(&db).await.unwrap();
@@ -653,7 +677,7 @@ async fn token_reservation_is_shared_until_an_actual_receipt_arrives() {
     let request = budget_execution(row.id, "model-call:1", true);
     let reservation =
         a4n_domain::agent::agent_model_token_reservation(request.arguments_json.as_ref().unwrap());
-    let mut active: run::ActiveModel = row.clone().into();
+    let mut active: run::ActiveModel = persisted_run(&db, row.id).await.into();
     active.budget_json = Set(json!({"max_tokens": reservation + 100}));
     active.update(&db).await.unwrap();
     let claimed = claim_runnable_run(&db, "tokens").await.unwrap().unwrap();
@@ -916,7 +940,7 @@ async fn parent_budget_extension_wakes_descendants_on_both_sides_of_wait_race() 
     let parent_thread = create_test_thread(&db, "main").await;
     let (_, root) = create_test_run(&db, parent_thread.id, "user").await;
     let parent = claim_runnable_run(&db, "root").await.unwrap().unwrap();
-    let mut active: run::ActiveModel = parent.clone().into();
+    let mut active: run::ActiveModel = persisted_run(&db, parent.id).await.into();
     active.budget_json = Set(json!({"max_model_calls":1}));
     active.update(&db).await.unwrap();
     create_execution_for_run_lease(
@@ -939,7 +963,7 @@ async fn parent_budget_extension_wakes_descendants_on_both_sides_of_wait_race() 
     for (index, wait_first) in [false, true].into_iter().enumerate() {
         let thread = create_test_thread(&db, "general").await;
         let (_, child) = create_test_run(&db, thread.id, "delegation").await;
-        let mut active: run::ActiveModel = child.clone().into();
+        let mut active: run::ActiveModel = persisted_run(&db, child.id).await.into();
         active.parent_run_id = Set(Some(root.id));
         active.root_run_id = Set(Some(root.id));
         active.update(&db).await.unwrap();
@@ -1010,7 +1034,7 @@ async fn pause_tree_resumes_only_its_own_pauses() {
     for _ in 0..2 {
         let thread = create_test_thread(&db, "general").await;
         let (_, child) = create_test_run(&db, thread.id, "delegation").await;
-        let mut active: run::ActiveModel = child.clone().into();
+        let mut active: run::ActiveModel = persisted_run(&db, child.id).await.into();
         active.parent_run_id = Set(Some(root.id));
         active.root_run_id = Set(Some(root.id));
         active.update(&db).await.unwrap();
@@ -1379,7 +1403,7 @@ async fn enqueue_test_inbox(
     thread_id: i64,
     turn_id: i64,
     run_id: i64,
-) -> inbox::Model {
+) -> AgentInboxRecord {
     enqueue_inbox(
         db,
         AgentInboxInput {
@@ -1500,7 +1524,7 @@ async fn run_claim_only_takes_queued_work_and_single_worker_wins() {
     let second_thread = create_test_thread(&db, "canvas").await;
     let (_, first_run) = create_test_run(&db, first_thread.id, "user").await;
     let (_, second_run) = create_test_run(&db, second_thread.id, "user").await;
-    let mut active: run::ActiveModel = first_run.clone().into();
+    let mut active: run::ActiveModel = persisted_run(&db, first_run.id).await.into();
     active.status = Set("running".to_string());
     active.worker_id = Set(Some("dead-worker".to_string()));
     active.lease_token = Set(Some("expired-token".to_string()));
@@ -1586,7 +1610,7 @@ async fn expired_inbox_claim_is_reclaimed_once() {
         .expect("first claim must succeed")
         .expect("inbox must be claimable");
     let old_token = claimed.claim_token.clone().expect("claim token must exist");
-    let mut active: inbox::ActiveModel = claimed.into();
+    let mut active: inbox::ActiveModel = persisted_inbox(&db, claimed.id).await.into();
     active.claim_expires_at = Set(Some(Utc::now().naive_utc() - Duration::seconds(1)));
     active
         .update(&db)
@@ -1623,7 +1647,7 @@ async fn expired_run_recovery_rejects_live_lease_and_is_idempotent() {
         .expect_err("live lease must not be recovered");
     assert!(matches!(error, AgentDbError::Conflict(_)));
 
-    let mut active: run::ActiveModel = claimed.into();
+    let mut active: run::ActiveModel = persisted_run(&db, claimed.id).await.into();
     active.lease_expires_at = Set(Some(Utc::now().naive_utc() - Duration::seconds(1)));
     active
         .update(&db)
@@ -1655,7 +1679,7 @@ async fn expired_worker_cannot_commit_run_state() {
         .as_deref()
         .expect("claimed run must have a lease token")
         .to_string();
-    let mut active: run::ActiveModel = claimed.into();
+    let mut active: run::ActiveModel = persisted_run(&db, claimed.id).await.into();
     active.lease_expires_at = Set(Some(Utc::now().naive_utc() - Duration::seconds(1)));
     active
         .update(&db)
@@ -1695,7 +1719,7 @@ async fn usage_rejects_invalid_runtime_snapshot_admission_state() {
         .expect("run must be claimable");
     let token = claimed.lease_token.clone().expect("lease token must exist");
 
-    let mut malformed: run::ActiveModel = claimed.clone().into();
+    let mut malformed: run::ActiveModel = persisted_run(&db, claimed.id).await.into();
     malformed.usage_json = Set(json!({
         "runtime_snapshot_required": "yes"
     }));
@@ -1747,7 +1771,7 @@ async fn expired_running_scan_is_bounded_and_fenced_execution_rejects_expired_wo
         Err(AgentDbError::InvalidArgument(_))
     ));
 
-    let mut active: run::ActiveModel = claimed.into();
+    let mut active: run::ActiveModel = persisted_run(&db, claimed.id).await.into();
     active.lease_expires_at = Set(Some(Utc::now().naive_utc() - Duration::seconds(1)));
     active
         .update(&db)
@@ -1809,7 +1833,7 @@ async fn expired_worker_cannot_commit_execution_result() {
     .await
     .expect("execution must be prepared under the live lease");
 
-    let mut active: run::ActiveModel = claimed.into();
+    let mut active: run::ActiveModel = persisted_run(&db, claimed.id).await.into();
     active.lease_expires_at = Set(Some(Utc::now().naive_utc() - Duration::seconds(1)));
     active
         .update(&db)
@@ -1901,7 +1925,8 @@ async fn approval_is_consumed_only_after_execution_succeeds() {
     )
     .await
     .expect("approval request must be durable");
-    let mut approval_active: approval::ActiveModel = approval.into();
+    let mut approval_active: approval::ActiveModel =
+        persisted_approval(&db, approval.id).await.into();
     approval_active.status = Set("approved".to_string());
     approval_active.decided_at = Set(Some(Utc::now().naive_utc()));
     approval_active
@@ -2049,7 +2074,7 @@ async fn stale_run_lease_cannot_activate_turn_or_consume_inbox() {
         .claim_token
         .clone()
         .expect("inbox claim token must exist");
-    let mut active: run::ActiveModel = claimed_run.into();
+    let mut active: run::ActiveModel = persisted_run(&db, claimed_run.id).await.into();
     active.lease_expires_at = Set(Some(Utc::now().naive_utc() - Duration::seconds(1)));
     active
         .update(&db)

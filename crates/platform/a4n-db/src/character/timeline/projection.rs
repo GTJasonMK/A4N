@@ -9,8 +9,8 @@ use a4n_db_models::models::{
     project::blueprint_character,
 };
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseTransaction, EntityTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set,
 };
 use serde_json::Value;
 
@@ -87,6 +87,18 @@ where
     replay_profile_state_from_records(profile, &events, chapter_number, &ownership)
 }
 
+pub async fn replay_profile_state_through_chapter_by_id<C>(
+    db: &C,
+    profile_id: i64,
+    chapter_number: i32,
+) -> Result<Value, CharacterDbError>
+where
+    C: ConnectionTrait,
+{
+    let profile = crate::character::profile::require_profile(db, profile_id).await?;
+    replay_profile_state_through_chapter(db, &profile, chapter_number).await
+}
+
 async fn profile_timeline_records<C: ConnectionTrait>(
     db: &C,
     profile: &protagonist_profile::Model,
@@ -109,8 +121,8 @@ async fn profile_timeline_records<C: ConnectionTrait>(
 }
 
 /// Retract observations while retaining the identity, manual history and assets.
-pub async fn retract_profile_chapter_facts(
-    db: &DatabaseTransaction,
+pub async fn retract_profile_chapter_facts<C: ConnectionTrait>(
+    db: &C,
     project_id: i64,
     profile_id: i64,
     from_chapter: i32,

@@ -4,7 +4,7 @@ use serde_json::Value;
 
 use super::refs::{validate_snapshot_i64_array_ref, validate_snapshot_i64_ref};
 
-use a4n_db_models::models::media::media_provenance;
+use a4n_domain::media::MediaProvenanceRecord;
 
 pub(in crate::project::video_studio_package::validation) struct MediaProvenanceSnapshotRefs<'a> {
     pub(in crate::project::video_studio_package::validation) graph_ids: &'a HashSet<i64>,
@@ -22,7 +22,7 @@ pub(in crate::project::video_studio_package::validation) struct MediaProvenanceS
 }
 
 pub(in crate::project::video_studio_package::validation) fn validate_media_provenance_snapshot(
-    provenance: &media_provenance::Model,
+    provenance: &MediaProvenanceRecord,
     refs: &MediaProvenanceSnapshotRefs<'_>,
 ) -> Result<(), String> {
     let Some(snapshot) = provenance.request_snapshot_json.as_ref() else {

@@ -1,7 +1,7 @@
 //! 立绘生成工作流指纹与 business key 纯规则（无 DB、无 Host）。
 
 use a4n_db::generation::generation_checkpoint_fingerprint_sha256;
-use a4n_db_models::models::character::protagonist_profile;
+use a4n_domain::character::CharacterProfileRecord;
 use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_llm_trace::context_aware_chat_request_trace_json;
@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 /// 完整立绘生成工作流输入指纹。
 pub fn portrait_generate_workflow_fingerprint(
     project_id: i64,
-    profile: &protagonist_profile::Model,
+    profile: &CharacterProfileRecord,
     style: Option<&str>,
     expression: &str,
     pose: Option<&str>,
@@ -88,7 +88,7 @@ pub fn portrait_image_business_key(workflow: &str, fingerprint: &Value) -> Resul
 /// 缺失立绘批量生成单项指纹。
 pub fn missing_portrait_item_fingerprint(
     project_id: i64,
-    profile: &protagonist_profile::Model,
+    profile: &CharacterProfileRecord,
     prompt: &str,
     width: i32,
     height: i32,
@@ -107,7 +107,7 @@ pub fn missing_portrait_item_fingerprint(
 /// 人物三视图提示词生成工作流输入指纹。
 pub fn portrait_prompt_workflow_fingerprint(
     project_id: i64,
-    profile: &protagonist_profile::Model,
+    profile: &CharacterProfileRecord,
     portrait_type: &str,
     variables: Option<&Value>,
     profile_context: &Value,
@@ -136,7 +136,7 @@ pub fn portrait_prompt_business_key(fingerprint: &Value) -> Result<String, Strin
     ))
 }
 
-fn profile_fingerprint_fields(profile: &protagonist_profile::Model) -> Value {
+fn profile_fingerprint_fields(profile: &CharacterProfileRecord) -> Value {
     json!({
         "id": profile.id,
         "name": profile.name,
@@ -161,12 +161,12 @@ mod tests {
         ChatRequest::new(vec![ChatMessage::user("hi")], None, None)
     }
 
-    fn sample_profile() -> protagonist_profile::Model {
+    fn sample_profile() -> CharacterProfileRecord {
         let ts = chrono::NaiveDate::from_ymd_opt(2026, 1, 1)
             .unwrap()
             .and_hms_opt(0, 0, 0)
             .unwrap();
-        protagonist_profile::Model {
+        CharacterProfileRecord {
             id: 9,
             project_id: 1,
             name: "测".into(),

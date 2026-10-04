@@ -21,7 +21,7 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn reusable_frame
     prompt_output_language: PromptOutputLanguage,
 ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
     let rows = a4n_db::video::read_models::chapter_video_prompt_workflow_records(
-        service.database.connection(),
+        service.database.executor(),
         project_id,
         chapter_id,
         prompt_type,
@@ -29,7 +29,7 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn reusable_frame
         true,
     )
     .await
-    .map_err(AppError::Database)?;
+    .map_err(AppError::from)?;
 
     let mut by_frame = BTreeMap::<i32, ChapterVideoPromptRecord>::new();
     for row in rows {

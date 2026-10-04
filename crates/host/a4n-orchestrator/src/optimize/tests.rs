@@ -5,8 +5,7 @@ use super::messages::{
     optimization_chat_history, parse_optimization_issues,
 };
 use super::*;
-use a4n_db_models::models::ai::optimization_session;
-use a4n_domain::project::OptimizationTurnRecord;
+use a4n_domain::project::{OptimizationSessionRecord, OptimizationTurnRecord};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::MessageRole;
 use a4n_prompt::tera_engine::TeraPromptEngine;

@@ -9,7 +9,7 @@ impl AgentApplication {
         &self,
         run_id: i64,
     ) -> Result<Vec<AgentMessageSnapshot>, AppError> {
-        Ok(agent::messages_by_run(self.connection(), run_id)
+        Ok(agent::messages_by_run(self.executor(), run_id)
             .await
             .map_err(agent_db_error_to_app)?
             .into_iter()
@@ -22,7 +22,7 @@ impl AgentApplication {
         &self,
         run_id: i64,
     ) -> Result<Option<i64>, AppError> {
-        let executions = agent::executions_by_runs(self.connection(), vec![run_id])
+        let executions = agent::executions_by_runs(self.executor(), vec![run_id])
             .await
             .map_err(agent_db_error_to_app)?;
         Ok(executions

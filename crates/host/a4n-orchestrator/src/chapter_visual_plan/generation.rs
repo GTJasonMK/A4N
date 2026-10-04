@@ -48,7 +48,7 @@ impl OrchestratorContext {
             .resolve_visual_plan_source(project_id, chapter_id)
             .await?;
         let plan = a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
-            self.database.connection(),
+            self.database.executor(),
             record_id,
         )
         .await
@@ -82,7 +82,7 @@ impl OrchestratorContext {
             .into_iter()
             .collect::<Vec<_>>();
         let scenes =
-            a4n_db::project::scene_profiles_for_source(self.database.connection(), source, &ids)
+            a4n_db::project::scene_profiles_for_source(self.database.executor(), source, &ids)
                 .await
                 .map_err(crate::shooting_script::errors::resolve_source_error)?;
         Ok(scenes.into_iter().map(|scene| json!({"id":scene.id,"name":scene.name,"description":scene.base_description,"visual_description":scene.visual_description,"spatial_layout":scene.spatial_layout,"atmosphere":scene.atmosphere})).collect())
@@ -393,7 +393,7 @@ impl OrchestratorContext {
                     .await);
             }
         };
-        let record = a4n_db::generation::record_completed_run_with_checkpoint_transaction(self.database.connection(), RecordCompletedGenerationRunWithCheckpointInput {
+        let record = a4n_db::generation::record_completed_run_with_checkpoint_transaction(self.database.executor(), RecordCompletedGenerationRunWithCheckpointInput {
             run:RecordCompletedGenerationRunInput {
                 project_id:input.project_id,workflow:DIRECTOR_SEGMENT_PROMPT.into(),step_key:input.segment_id.clone(),title:"导演镜头段 prompt 候选".into(),model_kind:"llm".into(),provider:None,model:Some(candidate.model.clone()),
                 prompt_template_names_json:Some(json!([DIRECTOR_SEGMENT_PROMPT])),prompt_template_hashes_json:None,
@@ -421,7 +421,7 @@ impl OrchestratorContext {
                 DIRECTOR_SEGMENT_PROMPT,
                 GenerationResultRef {
                     kind: "visual_plan_prompt_candidate".into(),
-                    id: record.id.to_string(),
+                    id: record.to_string(),
                     revision: hash,
                 },
                 "镜头变化描述已生成，等待采用".into(),
@@ -444,7 +444,7 @@ impl OrchestratorContext {
         self.verify_project_or_derived_family_access_validated(user_id, input.project_id)
             .await?;
         let record = a4n_db::chapter_visual_plan::visual_plan_prompt_candidate_record(
-            self.database.connection(),
+            self.database.executor(),
             input.project_id,
             input.generation_run_id,
         )

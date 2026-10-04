@@ -10,7 +10,7 @@ impl WorkerState {
         let input = request.payload;
         validate_snapshot_range(input.start_chapter, input.end_chapter)?;
         profile_for_editor(&self.database, user_id, input.profile_id).await?;
-        let snapshots = a4n_db::character::snapshot_references_by_profile(
+        let snapshots = a4n_db::character::snapshot_references_by_profile_records(
             self.database.connection(),
             input.profile_id,
             input.start_chapter,
@@ -32,7 +32,7 @@ impl WorkerState {
             return Err(WorkerFailure::invalid_request("章节号必须大于 0"));
         }
         profile_for_editor(&self.database, user_id, input.profile_id).await?;
-        let snapshot = a4n_db::character::snapshot_reference_by_chapter(
+        let snapshot = a4n_db::character::snapshot_reference_record_by_chapter(
             self.database.connection(),
             input.profile_id,
             input.chapter_number,
@@ -115,7 +115,7 @@ impl WorkerState {
             ));
         }
         profile_for_editor(&self.database, user_id, input.profile_id).await?;
-        let records = a4n_db::character::behavior_records_by_profile(
+        let records = a4n_db::character::behavior_records_by_profile_records(
             self.database.connection(),
             input.profile_id,
             input.chapter_from,
@@ -135,7 +135,7 @@ impl WorkerState {
         let user_id = user_id(&request)?;
         let input = request.payload;
         profile_for_editor(&self.database, user_id, input.profile_id).await?;
-        let marks = a4n_db::character::deletion_marks_by_profile(
+        let marks = a4n_db::character::deletion_mark_records_by_profile(
             self.database.connection(),
             input.profile_id,
             input.category.as_ref().map(|value| value.as_str()),
@@ -154,7 +154,7 @@ impl WorkerState {
         let user_id = user_id(&request)?;
         let profile =
             profile_for_editor(&self.database, user_id, request.payload.profile_id).await?;
-        let chapters = a4n_db::project::character_sync_chapters(
+        let chapters = a4n_db::project::character_sync_chapter_records(
             self.database.connection(),
             profile.project_id,
         )
@@ -165,7 +165,7 @@ impl WorkerState {
             .map(|chapter| chapter.chapter_number)
             .max()
             .unwrap_or_default();
-        let snapshots = a4n_db::character::snapshot_references_by_profile(
+        let snapshots = a4n_db::character::snapshot_references_by_profile_records(
             self.database.connection(),
             profile.id,
             None,
@@ -203,7 +203,7 @@ impl WorkerState {
             ));
         }
         let profile = profile_for_editor(&self.database, user_id, input.profile_id).await?;
-        let to_ref = a4n_db::character::snapshot_reference_by_chapter(
+        let to_ref = a4n_db::character::snapshot_reference_record_by_chapter(
             self.database.connection(),
             profile.id,
             input.to_chapter,
@@ -216,7 +216,7 @@ impl WorkerState {
         let from_ref = if input.from_chapter == 0 {
             None
         } else {
-            a4n_db::character::snapshot_reference_by_chapter(
+            a4n_db::character::snapshot_reference_record_by_chapter(
                 self.database.connection(),
                 profile.id,
                 input.from_chapter,

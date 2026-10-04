@@ -3,13 +3,11 @@ use super::status::galgame_project_progress_from_counts;
 use crate::project::progress::shared::latest_pipeline_states_by_project;
 use crate::project::progress::{ProjectProgressReadError, ProjectProgressSummary};
 use a4n_db_models::models::galgame::{galgame_line, galgame_scene, galgame_script};
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter, QuerySelect,
-};
+use sea_orm::{ColumnTrait, EntityTrait, FromQueryResult, QueryFilter, QuerySelect};
 use std::collections::HashMap;
 
 pub(in crate::project::progress) async fn galgame_project_progress_by_project(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_ids: &[i64],
 ) -> Result<HashMap<i64, ProjectProgressSummary>, ProjectProgressReadError> {
     if project_ids.is_empty() {
@@ -117,7 +115,7 @@ struct GalgameLineCountRow {
 }
 
 async fn line_counts_by_scene(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     scene_ids: &[i64],
 ) -> Result<HashMap<i64, i64>, ProjectProgressReadError> {
     if scene_ids.is_empty() {

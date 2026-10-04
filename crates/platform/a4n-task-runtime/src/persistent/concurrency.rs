@@ -1,4 +1,4 @@
-use a4n_db::SharedDatabaseConnection;
+use a4n_db::DbHandle;
 use a4n_error::AppError;
 
 use super::queue_db_error;
@@ -15,8 +15,8 @@ pub(super) struct QueueConcurrencyLimits {
 }
 
 impl QueueConcurrencyLimits {
-    pub(super) async fn load(db: &SharedDatabaseConnection) -> Result<Self, AppError> {
-        let provider_limits = a4n_db::queue::load_default_provider_concurrency_limits(db.as_ref())
+    pub(super) async fn load(db: &DbHandle) -> Result<Self, AppError> {
+        let provider_limits = a4n_db::queue::load_default_provider_concurrency_limits(db)
             .await
             .map_err(queue_db_error)?;
         Ok(Self {

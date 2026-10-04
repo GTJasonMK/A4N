@@ -21,10 +21,12 @@ impl WorkerState {
         )
         .await
         .map_err(collaboration_error)?;
-        let profiles =
-            a4n_db::asset::object_profiles_by_project(self.database.connection(), project_id)
-                .await
-                .map_err(asset_error)?;
+        let profiles = a4n_db::asset::object_profile_records_by_project(
+            self.database.connection(),
+            project_id,
+        )
+        .await
+        .map_err(asset_error)?;
         let profile_ids = profiles
             .iter()
             .map(|profile| profile.id)

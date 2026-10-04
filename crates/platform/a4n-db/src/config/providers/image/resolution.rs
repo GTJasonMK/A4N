@@ -1,22 +1,22 @@
 use a4n_db_models::models::ai::image_gen_config;
 use a4n_error::AppError;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 use super::records::image_config_by_id;
 
 async fn default_image_config(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
 ) -> Result<image_gen_config::Model, AppError> {
     image_gen_config::Entity::find()
         .filter(image_gen_config::Column::IsDefault.eq(true))
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .ok_or_else(|| AppError::ConfigError("请先设置默认图片配置".to_string()))
 }
 
 pub async fn resolve_image_config(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     config_id: Option<i64>,
 ) -> Result<image_gen_config::Model, AppError> {
     match config_id {

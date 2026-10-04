@@ -14,7 +14,7 @@ use a4n_domain::media::{
     CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput,
     IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED,
     IMAGE_PUBLICATION_STATUS_RECLAIMED, IMAGE_PUBLICATION_STATUS_RECLAIMING,
-    ImagePublicationFileFacts,
+    ImagePublicationFileFacts, ImagePublicationRecord,
 };
 use chrono::Utc;
 use sea_orm::sea_query::{Expr, OnConflict};
@@ -31,6 +31,109 @@ pub struct ImagePublicationRequest<'a> {
     pub prompt: &'a str,
     pub chapter_id: Option<i64>,
     pub panel_id: Option<&'a str>,
+}
+
+pub(crate) fn image_publication_record_from_model(
+    publication: image_publication::Model,
+) -> ImagePublicationRecord {
+    ImagePublicationRecord {
+        publication_id: publication.publication_id,
+        project_id: publication.project_id,
+        requested_by_user_id: publication.requested_by_user_id,
+        staging_path: publication.staging_path,
+        final_path: publication.final_path,
+        image_type: publication.image_type,
+        prompt: publication.prompt,
+        model: publication.model,
+        width: publication.width,
+        height: publication.height,
+        expected_file_size: publication.expected_file_size,
+        expected_sha256: publication.expected_sha256,
+        file_size: publication.file_size,
+        file_sha256: publication.file_sha256,
+        chapter_id: publication.chapter_id,
+        panel_id: publication.panel_id,
+        metadata_json: publication.metadata_json,
+        status: publication.status,
+        version: publication.version,
+        image_id: publication.image_id,
+        last_error: publication.last_error,
+        created_at: publication.created_at,
+        updated_at: publication.updated_at,
+    }
+}
+
+fn image_publication_model_from_record(
+    publication: &ImagePublicationRecord,
+) -> image_publication::Model {
+    image_publication::Model {
+        publication_id: publication.publication_id.clone(),
+        project_id: publication.project_id,
+        requested_by_user_id: publication.requested_by_user_id,
+        staging_path: publication.staging_path.clone(),
+        final_path: publication.final_path.clone(),
+        image_type: publication.image_type.clone(),
+        prompt: publication.prompt.clone(),
+        model: publication.model.clone(),
+        width: publication.width,
+        height: publication.height,
+        expected_file_size: publication.expected_file_size,
+        expected_sha256: publication.expected_sha256.clone(),
+        file_size: publication.file_size,
+        file_sha256: publication.file_sha256.clone(),
+        chapter_id: publication.chapter_id,
+        panel_id: publication.panel_id.clone(),
+        metadata_json: publication.metadata_json.clone(),
+        status: publication.status.clone(),
+        version: publication.version,
+        image_id: publication.image_id,
+        last_error: publication.last_error.clone(),
+        created_at: publication.created_at,
+        updated_at: publication.updated_at,
+    }
+}
+
+pub fn validate_image_publication_record_request(
+    publication: &ImagePublicationRecord,
+    request: ImagePublicationRequest<'_>,
+) -> Result<(), VideoDbError> {
+    validate_image_publication_request(&image_publication_model_from_record(publication), request)
+}
+
+pub async fn create_image_publication_intent_record<C>(
+    db: &C,
+    input: CreateImagePublicationIntentInput,
+) -> Result<ImagePublicationRecord, VideoDbError>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    create_image_publication_intent(db, input)
+        .await
+        .map(image_publication_record_from_model)
+}
+
+pub async fn image_publication_record_by_id<C>(
+    db: &C,
+    publication_id: &str,
+) -> Result<Option<ImagePublicationRecord>, VideoDbError>
+where
+    C: ConnectionTrait,
+{
+    image_publication_by_id(db, publication_id)
+        .await
+        .map(|publication| publication.map(image_publication_record_from_model))
+}
+
+pub async fn image_publication_record_by_image_id<C>(
+    db: &C,
+    image_id: i64,
+) -> Result<Option<ImagePublicationRecord>, VideoDbError>
+where
+    C: ConnectionTrait,
+{
+    image_publication_by_image_id(db, image_id)
+        .await
+        .map(|publication| publication.map(image_publication_record_from_model))
 }
 
 pub fn validate_image_publication_request(
@@ -122,6 +225,20 @@ where
     let publication = active.update(&txn).await.map_err(VideoDbError::Database)?;
     txn.commit().await.map_err(VideoDbError::Database)?;
     Ok(publication)
+}
+
+pub async fn update_image_publication_metadata_record<C>(
+    db: &C,
+    publication_id: &str,
+    expected_version: i64,
+    metadata_json: Value,
+) -> Result<ImagePublicationRecord, VideoDbError>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    update_image_publication_metadata(db, publication_id, expected_version, metadata_json)
+        .await
+        .map(image_publication_record_from_model)
 }
 
 pub async fn create_image_publication_intent<C>(
@@ -491,6 +608,24 @@ where
     image_publications_for_recovery_for_model(db, limit, published_after, None).await
 }
 
+pub async fn image_publication_recovery_records<C>(
+    db: &C,
+    limit: usize,
+    published_after: Option<&str>,
+) -> Result<Vec<ImagePublicationRecord>, VideoDbError>
+where
+    C: ConnectionTrait,
+{
+    image_publications_for_recovery(db, limit, published_after)
+        .await
+        .map(|publications| {
+            publications
+                .into_iter()
+                .map(image_publication_record_from_model)
+                .collect()
+        })
+}
+
 pub async fn image_publications_for_recovery_for_model<C>(
     db: &C,
     limit: usize,
@@ -542,6 +677,25 @@ where
         publications.extend(published);
     }
     Ok(publications)
+}
+
+pub async fn image_publication_recovery_records_for_model<C>(
+    db: &C,
+    limit: usize,
+    published_after: Option<&str>,
+    model: Option<&str>,
+) -> Result<Vec<ImagePublicationRecord>, VideoDbError>
+where
+    C: ConnectionTrait,
+{
+    image_publications_for_recovery_for_model(db, limit, published_after, model)
+        .await
+        .map(|publications| {
+            publications
+                .into_iter()
+                .map(image_publication_record_from_model)
+                .collect()
+        })
 }
 
 pub async fn mark_image_publication_reclaiming<C>(
@@ -618,6 +772,20 @@ where
     Ok(publication)
 }
 
+pub async fn mark_image_publication_reclaiming_record<C>(
+    db: &C,
+    publication_id: &str,
+    version: i64,
+    reason: String,
+) -> Result<ImagePublicationRecord, VideoDbError>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    mark_image_publication_reclaiming(db, publication_id, version, reason)
+        .await
+        .map(image_publication_record_from_model)
+}
+
 pub async fn mark_image_publication_reclaimed<C>(
     db: &C,
     publication_id: &str,
@@ -684,6 +852,20 @@ where
     }
     txn.commit().await.map_err(VideoDbError::Database)?;
     Ok(publication)
+}
+
+pub async fn mark_image_publication_reclaimed_record<C>(
+    db: &C,
+    publication_id: &str,
+    version: i64,
+    reason: Option<String>,
+) -> Result<ImagePublicationRecord, VideoDbError>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    mark_image_publication_reclaimed(db, publication_id, version, reason)
+        .await
+        .map(image_publication_record_from_model)
 }
 
 fn normalize_intent_input(

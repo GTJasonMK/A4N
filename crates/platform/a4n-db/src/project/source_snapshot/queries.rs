@@ -4,10 +4,10 @@ use super::{
 };
 use a4n_db_models::models::project::{novel_project, source_snapshot_chapter};
 use a4n_domain::project::ProjectSourceMode;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 pub async fn source_snapshot_chapters(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<Vec<SourceSnapshotChapterSummary>, ProjectMutationError> {
     validate_positive_i64(project_id, "project_id")
@@ -35,7 +35,7 @@ pub async fn source_snapshot_chapters(
 }
 
 pub async fn source_snapshot_chapter_content_by_snapshot_and_source(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     root_project_id: i64,
     snapshot_id: i64,
     source_chapter_id: i64,

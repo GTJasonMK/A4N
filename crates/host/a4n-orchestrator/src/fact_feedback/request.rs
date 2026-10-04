@@ -31,7 +31,7 @@ impl OrchestratorContext {
         force: bool,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<Option<PreparedConsolidation>, AppError> {
-        let db = self.database.connection();
+        let db = self.database.executor();
         let (source_result, config_result, rows_result) = tokio::join!(
             current_feedback_sources(db, project_id),
             feedback_config(db, project_id),

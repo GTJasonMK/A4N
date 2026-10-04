@@ -250,7 +250,8 @@ async fn stale_outline_generation_cannot_overwrite_new_formal_outline() {
     let user_outline = insert_user_outline(&db, project_id).await;
 
     let result: Result<(), OutlineDbError> = async {
-        let tx = lock_outline_generation_sources(&db, project_id, &snapshot).await?;
+        let tx = db.begin().await?;
+        lock_outline_generation_sources(&tx, project_id, &snapshot).await?;
         sync_chapter_outline_records_by_number(
             &tx,
             project_id,
@@ -279,7 +280,11 @@ async fn outline_generation_lock_orders_new_material_before_generated_write() {
     let db = a4n_migration::test_support::connect_test_database().await;
     let project_id = create_project(&db, "新增资料与大纲写入有明确顺序").await;
     let snapshot = outline_source_snapshot(&db, project_id).await;
-    let tx = lock_outline_generation_sources(&db, project_id, &snapshot)
+    let tx = db
+        .begin()
+        .await
+        .expect("source lock transaction must begin");
+    lock_outline_generation_sources(&tx, project_id, &snapshot)
         .await
         .expect("matching sources must lock");
 
@@ -314,7 +319,11 @@ async fn outline_generation_lock_orders_new_material_before_generated_write() {
         .expect("profile task must complete")
         .expect("profile insert must succeed");
 
-    let error = lock_outline_generation_sources(&db, project_id, &snapshot)
+    let tx = db
+        .begin()
+        .await
+        .expect("stale source check transaction must begin");
+    let error = lock_outline_generation_sources(&tx, project_id, &snapshot)
         .await
         .expect_err("new character must invalidate the old source snapshot");
     assert_outline_source_changed(error);
@@ -325,7 +334,11 @@ async fn later_outline_task_with_the_same_snapshot_cannot_overwrite_first_commit
     let db = a4n_migration::test_support::connect_test_database().await;
     let project_id = create_project(&db, "并发大纲任务按正式资料顺序提交").await;
     let snapshot = outline_source_snapshot(&db, project_id).await;
-    let first_tx = lock_outline_generation_sources(&db, project_id, &snapshot)
+    let first_tx = db
+        .begin()
+        .await
+        .expect("first source transaction must begin");
+    lock_outline_generation_sources(&first_tx, project_id, &snapshot)
         .await
         .expect("first task must lock matching sources");
 
@@ -334,7 +347,8 @@ async fn later_outline_task_with_the_same_snapshot_cannot_overwrite_first_commit
     let (attempting, attempted) = oneshot::channel();
     let mut second = tokio::spawn(async move {
         let _ = attempting.send(());
-        lock_outline_generation_sources(&second_db, project_id, &second_snapshot)
+        let tx = second_db.begin().await?;
+        lock_outline_generation_sources(&tx, project_id, &second_snapshot)
             .await
             .map(|_| ())
     });
@@ -395,7 +409,11 @@ async fn outline_generation_does_not_write_while_project_is_resetting() {
         .await
         .expect("project lifecycle gate must update");
 
-    let error = lock_outline_generation_sources(&db, project_id, &snapshot)
+    let tx = db
+        .begin()
+        .await
+        .expect("reset source check transaction must begin");
+    let error = lock_outline_generation_sources(&tx, project_id, &snapshot)
         .await
         .expect_err("resetting project must reject outline writes");
     assert!(matches!(

@@ -12,9 +12,8 @@ use a4n_service_protocol::{
 };
 use chrono::{Duration, Utc};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DatabaseTransaction,
-    DbBackend, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set, Statement,
-    TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DbBackend, DbErr, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set, Statement,
     sea_query::{CaseStatement, Expr},
 };
 use sha2::Digest;

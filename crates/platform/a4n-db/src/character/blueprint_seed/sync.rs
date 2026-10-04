@@ -3,10 +3,8 @@ use super::contracts::CharacterProfileSeedError;
 use super::persistence::{
     insert_profile_seed, merge_profile_seed_model, update_profile_seed_models_batch,
 };
-use a4n_db_models::models::{
-    character::protagonist_profile,
-    project::{blueprint_character, blueprint_relationship},
-};
+use a4n_db_models::models::character::protagonist_profile;
+use a4n_domain::project::{BlueprintCharacterRecord, BlueprintRelationshipRecord};
 use chrono::NaiveDateTime;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::{BTreeSet, HashMap};
@@ -35,8 +33,8 @@ where
 async fn sync_character_profiles_from_blueprint_rows<C>(
     db: &C,
     project_id: i64,
-    characters: &[blueprint_character::Model],
-    relationships: &[blueprint_relationship::Model],
+    characters: &[BlueprintCharacterRecord],
+    relationships: &[BlueprintRelationshipRecord],
     now: NaiveDateTime,
 ) -> Result<(), CharacterProfileSeedError>
 where

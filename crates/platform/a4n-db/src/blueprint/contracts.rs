@@ -1,4 +1,4 @@
-use a4n_domain::project::ProjectStatus;
+use a4n_domain::project::{BlueprintRecord, ProjectStatus};
 use chrono::NaiveDateTime;
 use sea_orm::DbErr;
 use serde_json::Value;
@@ -79,7 +79,7 @@ pub struct BlueprintMutationStatusChange {
 
 #[derive(Debug, Clone)]
 pub struct VersionedBlueprintMutationResult {
-    pub blueprint: a4n_db_models::models::project::novel_blueprint::Model,
+    pub blueprint: BlueprintRecord,
     pub status_change: Option<BlueprintMutationStatusChange>,
 }
 

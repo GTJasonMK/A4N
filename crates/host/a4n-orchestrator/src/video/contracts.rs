@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use a4n_domain::prompt_language::PromptOutputLanguage;
 use a4n_progress::{ProgressPhaseKind, ProgressSeverity};
 use a4n_prompt::rendering::PromptRenderer;
@@ -118,7 +118,7 @@ pub(crate) struct ChapterVideoSource {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProjectChapterVideoSource {
-    pub(super) chapter: chapter::Model,
+    pub(super) chapter: ChapterRecord,
     pub(super) source: ChapterVideoSource,
 }
 

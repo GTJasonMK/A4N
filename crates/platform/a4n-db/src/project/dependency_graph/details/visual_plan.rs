@@ -65,7 +65,7 @@ where
         .into_model::<VisualPlanDetailRow>()
         .all(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
     rows.into_iter()
         .map(|plan| {
             let origin = authoring_mode_origin(&plan.authoring_mode)?;
@@ -168,7 +168,7 @@ where
         .order_by_asc(chapter_shooting_script::Column::SourceChapterId)
         .all(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .into_iter()
         .map(|script| {
             let source_refs = script

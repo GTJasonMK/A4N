@@ -2,9 +2,7 @@ use std::collections::HashSet;
 
 use a4n_db_models::models::{ai::system_settings, project::novel_project};
 use chrono::Utc;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set};
 use serde_json::Value;
 
 use super::identity::{
@@ -19,7 +17,7 @@ pub(super) enum MissingProjectMessage {
 }
 
 pub async fn load_project_override_persisted_content(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     identity: &ProjectOverrideIdentity,
 ) -> Result<Option<String>, PromptOverrideDbError> {
     ensure_project_exists(db, identity.project_id, MissingProjectMessage::Command).await?;
@@ -37,7 +35,7 @@ pub async fn load_project_override_persisted_content(
 }
 
 pub async fn save_project_override(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     name: &str,
     content: &str,
@@ -84,7 +82,7 @@ pub async fn save_project_override(
 }
 
 pub async fn delete_project_override(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     identity: &ProjectOverrideIdentity,
 ) -> Result<(), PromptOverrideDbError> {
     let key = project_override_key(identity);
@@ -97,7 +95,7 @@ pub async fn delete_project_override(
 }
 
 pub(super) async fn ensure_project_exists(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     missing_message: MissingProjectMessage,
 ) -> Result<(), PromptOverrideDbError> {
@@ -121,7 +119,7 @@ pub(super) async fn ensure_project_exists(
 }
 
 pub(super) async fn ensure_hydration_projects_exist(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_ids: &[i64],
 ) -> Result<(), PromptOverrideDbError> {
     let requested_ids = project_ids.iter().copied().collect::<HashSet<_>>();
@@ -153,7 +151,7 @@ pub(super) async fn ensure_hydration_projects_exist(
 }
 
 pub(super) async fn all_prompt_override_settings(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
 ) -> Result<Vec<system_settings::Model>, PromptOverrideDbError> {
     system_settings::Entity::find()
         .filter(
@@ -165,7 +163,7 @@ pub(super) async fn all_prompt_override_settings(
 }
 
 pub(super) async fn project_prompt_override_settings(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<Vec<system_settings::Model>, PromptOverrideDbError> {
     system_settings::Entity::find()

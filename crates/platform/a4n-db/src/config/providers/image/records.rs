@@ -15,7 +15,7 @@ where
         .order_by_asc(image_gen_config::Column::Name)
         .all(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
 }
 
 pub async fn image_config_by_id<C>(
@@ -28,7 +28,7 @@ where
     image_gen_config::Entity::find_by_id(config_id)
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .ok_or_else(|| AppError::NotFound(format!("图片配置 #{config_id} 不存在")))
 }
 
@@ -68,7 +68,7 @@ where
     }
     .insert(db)
     .await
-    .map_err(AppError::Database)
+    .map_err(AppError::from)
 }
 
 pub async fn update_image_config_record<C>(
@@ -91,7 +91,7 @@ where
     active.supported_sizes_json = Set(input.supported_sizes_json);
     active.pricing_json = Set(input.pricing_json);
     active.updated_at = Set(Utc::now().naive_utc());
-    active.update(db).await.map_err(AppError::Database)
+    active.update(db).await.map_err(AppError::from)
 }
 
 pub async fn delete_image_config_record<C>(db: &C, config_id: i64) -> Result<(), AppError>
@@ -101,7 +101,7 @@ where
     image_gen_config::Entity::delete_by_id(config_id)
         .exec(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
     Ok(())
 }
 
@@ -118,7 +118,7 @@ where
     if let Some(config_id) = except_id {
         query = query.filter(image_gen_config::Column::Id.ne(config_id));
     }
-    let count = query.count(db).await.map_err(AppError::Database)?;
+    let count = query.count(db).await.map_err(AppError::from)?;
     if count > 0 {
         return Err(AppError::InvalidArgument(format!(
             "图片配置名称已存在: {name}"

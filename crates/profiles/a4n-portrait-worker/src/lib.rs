@@ -4,7 +4,10 @@ use std::{env, net::SocketAddr, sync::Arc};
 
 use a4n_api_contract::portrait::{PortraitSummary, PortraitType};
 use a4n_db::DbHandle;
-use a4n_domain::character::{CharacterPortraitProfile, profile_portrait_seed_prompt};
+use a4n_domain::character::{
+    CharacterPortraitProfile, CharacterPortraitRecord, CharacterProfileRecord,
+    profile_portrait_seed_prompt,
+};
 use a4n_portrait_worker_contract::{
     PORTRAIT_BY_ID_OPERATION, PORTRAIT_LIST_OPERATION, PORTRAIT_MISSING_SEEDS_OPERATION,
     PORTRAIT_MUTATION_CAPABILITY, PORTRAIT_PRIMARY_OPERATION, PORTRAIT_READ_CAPABILITY,
@@ -314,9 +317,7 @@ fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
         .ok_or_else(|| WorkerFailure::unauthorized("用户 principal subject 无效"))
 }
 
-fn portrait_profile(
-    profile: &a4n_db_models::models::character::protagonist_profile::Model,
-) -> CharacterPortraitProfile {
+fn portrait_profile(profile: &CharacterProfileRecord) -> CharacterPortraitProfile {
     CharacterPortraitProfile {
         name: profile.name.clone(),
         gender: profile.gender.clone(),
@@ -331,9 +332,7 @@ fn portrait_profile(
     }
 }
 
-fn portrait_summary(
-    portrait: &a4n_db_models::models::character::character_portrait::Model,
-) -> Result<PortraitSummary, WorkerFailure> {
+fn portrait_summary(portrait: &CharacterPortraitRecord) -> Result<PortraitSummary, WorkerFailure> {
     let portrait_type =
         PortraitType::try_from(portrait.portrait_type.as_str()).map_err(|error| {
             WorkerFailure::conflict(format!("读取立绘 #{} 失败: {error}", portrait.id))

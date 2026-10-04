@@ -1,5 +1,6 @@
 use a4n_error::AppError;
-use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, Statement, TransactionTrait};
+use sea_orm::ConnectionTrait;
+use sea_orm::{DbErr, Statement};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProviderConfigKind {
@@ -60,14 +61,14 @@ where
 }
 
 pub async fn set_default_provider_config(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     kind: ProviderConfigKind,
     config_id: i64,
 ) -> Result<(), AppError> {
-    let txn = db.begin().await.map_err(AppError::Database)?;
+    let txn = db.begin().await.map_err(AppError::from)?;
     clear_provider_config_defaults(&txn, kind, Some(config_id))
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
 
     let table = kind.table_name();
     let updated = txn
@@ -79,7 +80,7 @@ pub async fn set_default_provider_config(
             [config_id.into()],
         ))
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
     if updated.rows_affected() != 1 {
         return Err(AppError::NotFound(format!(
             "{}不存在: {config_id}",
@@ -87,5 +88,5 @@ pub async fn set_default_provider_config(
         )));
     }
 
-    txn.commit().await.map_err(AppError::Database)
+    txn.commit().await.map_err(AppError::from)
 }

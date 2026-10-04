@@ -1,12 +1,14 @@
 use super::*;
+use a4n_domain::galgame::GalgameSceneRecord;
+use sea_orm::ConnectionTrait;
 
 pub async fn update_galgame_scene_with_generation_cleanup_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     input: UpdateGalgameSceneRecordInput,
     delete_background: bool,
     delete_line_cgs: bool,
-) -> Result<galgame_scene::Model, GalgameSceneRecordError> {
+) -> Result<GalgameSceneRecord, GalgameSceneRecordError> {
     let scene_id = input.scene_id;
     let tx = db.begin().await?;
     if delete_background || delete_line_cgs {
@@ -21,7 +23,7 @@ pub async fn update_galgame_scene_with_generation_cleanup_record(
     }
     let updated = update_galgame_scene_record(&tx, input).await?;
     tx.commit().await?;
-    Ok(updated)
+    Ok(super::mapping::scene_record(updated))
 }
 
 async fn update_galgame_scene_record<C>(

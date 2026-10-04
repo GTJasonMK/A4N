@@ -7,9 +7,9 @@ impl AgentApplication {
         &self,
         user_id: i64,
         thread_id: i64,
-    ) -> Result<thread::Model, AppError> {
+    ) -> Result<agent::AgentThreadRecord, AppError> {
         validate_user_id(user_id)?;
-        let row = agent::thread_by_id(self.connection(), thread_id)
+        let row = agent::thread_by_id(self.executor(), thread_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent thread 不存在: {thread_id}")))?;
@@ -41,10 +41,10 @@ impl AgentApplication {
         let chapter_number = if let Some(chapter_id) = chapter_id {
             match project_id {
                 Some(project_id) => {
-                    Some(scope_chapter_number(self.connection(), project_id, chapter_id).await?)
+                    Some(scope_chapter_number(self.executor(), project_id, chapter_id).await?)
                 }
                 None => {
-                    let chapter = a4n_db::project::chapter_by_id(self.connection(), chapter_id)
+                    let chapter = a4n_db::project::chapter_by_id(self.executor(), chapter_id)
                         .await?
                         .ok_or_else(|| AppError::NotFound(format!("章节不存在: {chapter_id}")))?;
                     project_id = Some(chapter.project_id);
@@ -61,7 +61,7 @@ impl AgentApplication {
         }
         if let Some(project_id) = project_id {
             a4n_db::collaboration::verify_project_permission(
-                self.connection(),
+                self.executor(),
                 project_id,
                 user_id,
                 ProjectAccessRole::Viewer,
@@ -83,14 +83,14 @@ impl AgentApplication {
         let project_id = match scope.project_id {
             Some(project_id) => project_id,
             None => {
-                a4n_db::project::chapter_by_id(self.connection(), chapter_id)
+                a4n_db::project::chapter_by_id(self.executor(), chapter_id)
                     .await?
                     .ok_or_else(|| AppError::NotFound(format!("章节不存在: {chapter_id}")))?
                     .project_id
             }
         };
         scope.chapter_number =
-            Some(scope_chapter_number(self.connection(), project_id, chapter_id).await?);
+            Some(scope_chapter_number(self.executor(), project_id, chapter_id).await?);
         Ok(())
     }
 
@@ -110,7 +110,7 @@ impl AgentApplication {
             return Err(AppError::InvalidArgument("projectId 无效".into()));
         }
         a4n_db::collaboration::verify_project_permission(
-            self.connection(),
+            self.executor(),
             project_id,
             user_id,
             ProjectAccessRole::Viewer,
@@ -125,7 +125,7 @@ impl AgentApplication {
             if *chapter_id <= 0 {
                 return Err(AppError::InvalidArgument("chapterId 无效".into()));
             }
-            let chapter = a4n_db::project::chapter_by_id(self.connection(), *chapter_id)
+            let chapter = a4n_db::project::chapter_by_id(self.executor(), *chapter_id)
                 .await?
                 .ok_or_else(|| AppError::NotFound(format!("章节不存在: {chapter_id}")))?;
             if chapter.project_id != project_id {
@@ -135,7 +135,7 @@ impl AgentApplication {
             }
         }
         for chapter_id in source_chapter_ids {
-            scope_chapter_number(self.connection(), project_id, *chapter_id).await?;
+            scope_chapter_number(self.executor(), project_id, *chapter_id).await?;
         }
         Ok(())
     }
@@ -149,7 +149,7 @@ impl AgentApplication {
         public_text: &str,
     ) -> Result<(), AppError> {
         agent::append_event(
-            self.connection(),
+            self.executor(),
             AgentEventInput {
                 thread_id: fields.thread_id,
                 turn_id: fields.turn_id,

@@ -7,9 +7,18 @@ use a4n_db_models::models::{
     scene::scene_profile,
 };
 use a4n_domain::auth::ROLE_USER;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use chrono::Utc;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use std::error::Error;
+
+fn package_record<Source, Target>(source: Source) -> Target
+where
+    Source: serde::Serialize,
+    Target: serde::de::DeserializeOwned,
+{
+    super::super::transfer::transfer_record(source).expect("test row matches transfer record")
+}
 
 mod fact_feedback;
 mod remap;
@@ -235,15 +244,15 @@ async fn project_family_import_rebuilds_raw_blueprint_from_formal_rows() {
     let snapshot = crate::blueprint::blueprint_version_snapshot(
         &blueprint,
         std::slice::from_ref(&character),
-        &[],
+        &[] as &[a4n_db_models::models::project::blueprint_relationship::Model],
     );
     let package = ProjectFamilyImportPackage {
         root_project_id: project.id,
         projects: vec![crate::project::project_record_from_model(project.clone())],
         text_core: crate::project::ProjectFamilyTextCoreRows {
             fact_feedback: None,
-            blueprint: Some(blueprint),
-            blueprint_versions: vec![blueprint_version::Model {
+            blueprint: Some(package_record(blueprint)),
+            blueprint_versions: vec![package_record(blueprint_version::Model {
                 id: 4,
                 project_id: 1,
                 version: "1.0".to_string(),
@@ -251,8 +260,8 @@ async fn project_family_import_rebuilds_raw_blueprint_from_formal_rows() {
                 blueprint_data: snapshot.clone(),
                 created_at: now,
                 created_by: Some("system".to_string()),
-            }],
-            blueprint_characters: vec![character],
+            })],
+            blueprint_characters: vec![package_record(character)],
             ..Default::default()
         },
         ..Default::default()
@@ -385,7 +394,7 @@ async fn project_family_media_write_failure_rolls_back_database_rows() {
     let package = ProjectFamilyImportPackage {
         root_project_id: project.id,
         projects: vec![crate::project::project_record_from_model(project.clone())],
-        media_assets: vec![asset],
+        media_assets: vec![package_record(asset)],
         ..Default::default()
     };
 
@@ -498,7 +507,7 @@ async fn project_family_import_batches_video_reference_fixups() {
         updated_at: now,
     };
     let prompt = |id: i64, shot_number: i32, generated_video_id: i64, metadata_json| {
-        chapter_video_prompt::Model {
+        ChapterVideoPromptRecord {
             id,
             project_id,
             chapter_id,
@@ -554,8 +563,11 @@ async fn project_family_import_batches_video_reference_fixups() {
         projects: vec![crate::project::project_record_from_model(project.clone())],
         text_core: crate::project::ProjectFamilyTextCoreRows {
             fact_feedback: None,
-            chapters: vec![chapter],
-            scene_profiles: vec![scene(30, "大厅", None), scene(31, "内室", Some(30))],
+            chapters: vec![package_record(chapter)],
+            scene_profiles: vec![
+                package_record(scene(30, "大厅", None)),
+                package_record(scene(31, "内室", Some(30))),
+            ],
             ..Default::default()
         },
         chapter_video_prompts: vec![
@@ -576,13 +588,13 @@ async fn project_family_import_batches_video_reference_fixups() {
             ),
         ],
         generated_videos: vec![
-            video(10, "第一段", None, None),
-            video(
+            package_record(video(10, "第一段", None, None)),
+            package_record(video(
                 11,
                 "第二段",
                 Some(10),
                 Some(serde_json::json!({"source_video_id": 10})),
-            ),
+            )),
         ],
         ..Default::default()
     };

@@ -4,13 +4,13 @@
 //! LLM 流式编排仍在 `inspiration/` 模块，经本 owner 读写。
 
 use a4n_db::DbHandle;
+use a4n_db::DbTransaction;
 use a4n_db::inspiration::{
     InspirationDbError, InspirationProjectContextRows, ensure_inspiration_conversation,
     insert_inspiration_exchange_in_transaction,
 };
 use a4n_domain::inspiration::{InspirationExchangeInsertInput, InspirationMessageRecord};
 use a4n_error::AppError;
-use sea_orm::DatabaseTransaction;
 
 use super::OrchestratorContext;
 
@@ -24,8 +24,8 @@ impl InspirationApplication {
         Self { database }
     }
 
-    fn connection(&self) -> &sea_orm::DatabaseConnection {
-        self.database.connection()
+    fn connection(&self) -> &impl a4n_db::DbExecutor {
+        self.database.executor()
     }
 
     async fn inspiration_messages(
@@ -54,7 +54,7 @@ impl InspirationApplication {
 
     async fn save_inspiration_exchange_in_transaction(
         &self,
-        tx: &DatabaseTransaction,
+        tx: &DbTransaction,
         project_id: i64,
         user_input: String,
         assistant_output: String,
@@ -76,7 +76,7 @@ pub(crate) fn inspiration_db_error_to_app(error: InspirationDbError) -> AppError
     match error {
         InspirationDbError::NotFound(message) => AppError::NotFound(message),
         InspirationDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
-        InspirationDbError::Database(error) => AppError::Database(error),
+        InspirationDbError::Database(error) => AppError::database(error),
     }
 }
 
@@ -109,7 +109,7 @@ impl OrchestratorContext {
     /// 仅供 inspiration 子树编排使用。
     pub(crate) async fn save_inspiration_exchange_in_transaction(
         &self,
-        tx: &DatabaseTransaction,
+        tx: &DbTransaction,
         project_id: i64,
         user_input: &str,
         assistant_output: &str,
@@ -134,7 +134,7 @@ impl OrchestratorContext {
         mode: &str,
         request: &a4n_llm_provider_contract::provider::ChatRequest,
         active_task_id: Option<String>,
-    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_domain::workflow::WorkflowRunSummary, AppError> {
         let input = crate::inspiration::inspiration_workflow_run_input(
             project_id,
             mode,

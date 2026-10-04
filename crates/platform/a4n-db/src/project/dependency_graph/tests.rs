@@ -20,7 +20,7 @@ async fn setup_db() -> DatabaseConnection {
 }
 
 async fn insert_chapter(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_number: i32,
 ) -> chapter::Model {
@@ -46,7 +46,7 @@ async fn insert_chapter(
 }
 
 async fn insert_video_prompt(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_id: i64,
     prompt_type: &str,

@@ -27,6 +27,6 @@ pub(crate) fn video_db_error(error: a4n_db::video::VideoDbError) -> AppError {
         }
         a4n_db::video::VideoDbError::NotFound(message) => AppError::NotFound(message),
         a4n_db::video::VideoDbError::Forbidden(message) => AppError::Forbidden(message),
-        a4n_db::video::VideoDbError::Database(error) => AppError::Database(error),
+        a4n_db::video::VideoDbError::Database(error) => AppError::database(error),
     }
 }

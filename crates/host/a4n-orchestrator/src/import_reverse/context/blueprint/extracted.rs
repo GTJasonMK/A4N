@@ -1,5 +1,5 @@
 use a4n_db::import_reverse::ReverseBlueprintContextRows;
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use serde_json::{Value, json};
 
 use super::super::extraction::{
@@ -14,7 +14,7 @@ pub(super) struct BlueprintExtractedContext {
 }
 
 pub(super) fn blueprint_extracted_context(
-    chapters: &[chapter::Model],
+    chapters: &[ChapterRecord],
     blueprint_rows: &ReverseBlueprintContextRows,
 ) -> BlueprintExtractedContext {
     let mut foreshadowing = collect_analysis_foreshadowing(chapters, 30);

@@ -1,9 +1,11 @@
 use std::collections::HashSet;
 
 use super::required_path_extension;
-use a4n_api_contract::project_transfer::MediaFileEntry;
+use a4n_api_contract::project_transfer::{
+    MEDIA_ASSET_FILE_PATH_FIELD as FILE_PATH_FIELD,
+    MEDIA_ASSET_THUMBNAIL_PATH_FIELD as THUMBNAIL_PATH_FIELD, MediaFileEntry,
+};
 use a4n_db::canvas::VideoStudioProjectExportRows;
-use a4n_db_models::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 use a4n_domain::CanvasNodeRefKind;
 
 pub(crate) fn video_studio_export_media_files(

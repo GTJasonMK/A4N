@@ -1,4 +1,4 @@
-use a4n_db_models::models::generation::generation_spec;
+use a4n_domain::generation::GenerationSpecRecord;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -23,7 +23,7 @@ pub(in crate::galgame) struct GalgameGenerationSpecEntityRefRecordInput {
 
 #[derive(Debug, Clone)]
 pub struct GalgameGenerationSpecUpsert {
-    pub model: generation_spec::Model,
+    pub record: GenerationSpecRecord,
     pub outcome: GalgameGenerationSpecUpsertOutcome,
 }
 

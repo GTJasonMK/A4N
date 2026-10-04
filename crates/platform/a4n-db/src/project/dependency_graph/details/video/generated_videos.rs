@@ -30,7 +30,7 @@ where
             .order_by_asc(generated_video::Column::Id)
             .all(db),
     );
-    let prompts = prompts_result.map_err(AppError::Database)?;
+    let prompts = prompts_result.map_err(AppError::from)?;
     let prompt_by_video = prompts
         .iter()
         .filter_map(|prompt| prompt.generated_video_id.map(|id| (id, prompt)))
@@ -39,7 +39,7 @@ where
         .iter()
         .map(|prompt| (prompt.id, prompt))
         .collect::<HashMap<_, _>>();
-    let videos = videos_result.map_err(AppError::Database)?;
+    let videos = videos_result.map_err(AppError::from)?;
     Ok(videos
         .into_iter()
         .map(|video| {

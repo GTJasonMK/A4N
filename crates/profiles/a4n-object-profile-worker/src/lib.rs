@@ -8,7 +8,8 @@ use a4n_api_contract::profile::{
 };
 use a4n_db::DbHandle;
 use a4n_domain::{
-    image::IMAGE_TYPE_OBJECT_MATERIAL, object_profile::normalize_object_profile_record_input,
+    image::IMAGE_TYPE_OBJECT_MATERIAL, object_profile::ObjectProfileRecord,
+    object_profile::normalize_object_profile_record_input,
     profile_material::resolve_downstream_image_ids,
 };
 use a4n_object_profile_worker_contract::{
@@ -280,7 +281,7 @@ fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
 }
 
 fn object_profile_summary(
-    profile: &a4n_db_models::models::asset::object_profile::Model,
+    profile: &ObjectProfileRecord,
     generated_image_count: i64,
 ) -> ObjectProfileSummary {
     ObjectProfileSummary {

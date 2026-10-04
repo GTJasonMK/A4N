@@ -3,8 +3,7 @@
 //! 持有 `DbHandle`，封装章节正文锚点 ensure/read 与档案证据章节查询。
 
 use a4n_db::DbHandle;
-use a4n_db::text_anchor::CurrentChapterContentAnchorRows;
-use a4n_db_models::models::project::text_anchor;
+use a4n_db::text_anchor::CurrentChapterContentAnchorRecordRows;
 use a4n_domain::text_anchor::TextAnchorProfileKind;
 use a4n_error::AppError;
 
@@ -21,16 +20,16 @@ impl TextAnchorApplication {
         Self { database }
     }
 
-    fn connection(&self) -> &sea_orm::DatabaseConnection {
-        self.database.connection()
+    fn connection(&self) -> &impl a4n_db::DbExecutor {
+        self.database.executor()
     }
 
-    async fn ensure_chapter_content_anchor_records_batch(
+    async fn ensure_chapter_content_anchor_record_batch(
         &self,
         project_id: i64,
         chapter_ids: &[i64],
-    ) -> Result<Vec<Vec<text_anchor::Model>>, AppError> {
-        a4n_db::text_anchor::ensure_chapter_content_anchor_records_batch(
+    ) -> Result<Vec<Vec<a4n_domain::text_anchor::TextAnchorRecord>>, AppError> {
+        a4n_db::text_anchor::ensure_chapter_content_anchor_records_batch_records(
             self.connection(),
             project_id,
             chapter_ids,
@@ -39,12 +38,12 @@ impl TextAnchorApplication {
         .map_err(text_anchor_db_error)
     }
 
-    async fn read_current_chapter_content_anchor_records_batch(
+    async fn read_current_chapter_content_anchor_record_rows_batch(
         &self,
         project_id: i64,
         chapter_ids: &[i64],
-    ) -> Result<Vec<CurrentChapterContentAnchorRows>, AppError> {
-        a4n_db::text_anchor::read_current_chapter_content_anchor_records_batch(
+    ) -> Result<Vec<CurrentChapterContentAnchorRecordRows>, AppError> {
+        a4n_db::text_anchor::read_current_chapter_content_anchor_records_batch_records(
             self.connection(),
             project_id,
             chapter_ids,
@@ -71,24 +70,24 @@ impl TextAnchorApplication {
 }
 
 impl OrchestratorContext {
-    pub(crate) async fn ensure_chapter_content_anchor_records_batch(
+    pub(crate) async fn ensure_chapter_content_anchor_record_batch(
         &self,
         project_id: i64,
         chapter_ids: &[i64],
-    ) -> Result<Vec<Vec<text_anchor::Model>>, AppError> {
+    ) -> Result<Vec<Vec<a4n_domain::text_anchor::TextAnchorRecord>>, AppError> {
         self.text_anchor
-            .ensure_chapter_content_anchor_records_batch(project_id, chapter_ids)
+            .ensure_chapter_content_anchor_record_batch(project_id, chapter_ids)
             .await
     }
 
-    pub(crate) async fn require_current_chapter_content_anchors_for_preview_batch(
+    pub(crate) async fn require_current_chapter_content_anchor_records_for_preview_batch(
         &self,
         project_id: i64,
         chapter_ids: &[i64],
-    ) -> Result<Vec<Vec<text_anchor::Model>>, AppError> {
+    ) -> Result<Vec<Vec<a4n_domain::text_anchor::TextAnchorRecord>>, AppError> {
         let rows = self
             .text_anchor
-            .read_current_chapter_content_anchor_records_batch(project_id, chapter_ids)
+            .read_current_chapter_content_anchor_record_rows_batch(project_id, chapter_ids)
             .await?;
         rows.into_iter()
             .map(|row| {

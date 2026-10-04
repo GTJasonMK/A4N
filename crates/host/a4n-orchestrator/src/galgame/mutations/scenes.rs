@@ -5,7 +5,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         input: UpdateGalgameSceneInput,
-    ) -> Result<galgame_scene::Model, AppError> {
+    ) -> Result<GalgameSceneRecord, AppError> {
         validate_positive_id(project_id, "project_id")?;
         validate_positive_id(input.scene_id, "scene_id")?;
         let context = self.load_galgame_context(project_id).await?;
@@ -87,7 +87,7 @@ impl OrchestratorContext {
             next_scene_id,
         };
         let updated = a4n_db::galgame::update_galgame_scene_with_generation_cleanup_record(
-            self.database.connection(),
+            self.database.executor(),
             context.project.id,
             record_input,
             background_generation_inputs_changed,

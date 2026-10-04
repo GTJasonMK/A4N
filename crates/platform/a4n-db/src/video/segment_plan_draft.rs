@@ -1,7 +1,6 @@
 use a4n_db_models::models::generation::workflow_checkpoint;
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter, QuerySelect,
-    Select,
+    ColumnTrait, EntityTrait, FromQueryResult, QueryFilter, QuerySelect, Select,
     sea_query::{
         Expr,
         extension::postgres::{PgExpr, PgFunc},
@@ -22,7 +21,7 @@ pub struct VideoSegmentPlanDraftCheckpoint {
 }
 
 pub async fn video_segment_plan_draft_checkpoints(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     workflow_run_id: i64,
     shot_step_key_prefix: &str,
 ) -> Result<Vec<VideoSegmentPlanDraftCheckpoint>, VideoDbError> {

@@ -14,7 +14,10 @@ async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
 }
 
-async fn text_project_with_chapter(db: &DatabaseConnection, title: &str) -> novel_project::Model {
+async fn text_project_with_chapter(
+    db: &impl crate::DbExecutor,
+    title: &str,
+) -> novel_project::Model {
     let project = crate::project::create_project_record(
         db,
         crate::project::CreateProjectRecordInput {
@@ -48,7 +51,11 @@ async fn text_project_with_chapter(db: &DatabaseConnection, title: &str) -> nove
     project
 }
 
-async fn video_project(db: &DatabaseConnection, user_id: i64, title: &str) -> novel_project::Model {
+async fn video_project(
+    db: &impl crate::DbExecutor,
+    user_id: i64,
+    title: &str,
+) -> novel_project::Model {
     let root = text_project_with_chapter(db, title).await;
     crate::project::create_derived_project_record(
         db,
@@ -69,7 +76,7 @@ async fn video_project(db: &DatabaseConnection, user_id: i64, title: &str) -> no
 }
 
 async fn generation_spec_for_snapshot(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project: &novel_project::Model,
     snapshot_id: i64,
 ) -> generation_spec::Model {
@@ -102,14 +109,14 @@ async fn generation_spec_for_snapshot(
 }
 
 async fn generation_spec(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project: &novel_project::Model,
 ) -> generation_spec::Model {
     generation_spec_for_snapshot(db, project, project.source_snapshot_id.unwrap()).await
 }
 
 async fn additional_snapshot(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     root_project_id: i64,
 ) -> project_source_snapshot::Model {
     crate::project::create_source_snapshot_in_record(
@@ -125,7 +132,10 @@ async fn additional_snapshot(
     .unwrap()
 }
 
-async fn prompt_artifact_for_spec(db: &DatabaseConnection, spec_id: i64) -> prompt_artifact::Model {
+async fn prompt_artifact_for_spec(
+    db: &impl crate::DbExecutor,
+    spec_id: i64,
+) -> prompt_artifact::Model {
     let now = Utc::now().naive_utc();
     prompt_artifact::ActiveModel {
         generation_spec_id: Set(spec_id),

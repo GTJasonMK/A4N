@@ -2,8 +2,7 @@ use super::*;
 use a4n_api_contract::blueprint::{
     BlueprintDiffSummary, BlueprintSummary, BlueprintVersionSummary,
 };
-use a4n_db_models::models::project::blueprint_version;
-use a4n_domain::project::BlueprintRecord;
+use a4n_domain::project::{BlueprintRecord, BlueprintVersionRecord};
 use serde_json::{Map, Value};
 
 fn blueprint_summary(blueprint: BlueprintRecord, sources_need_review: bool) -> BlueprintSummary {
@@ -31,7 +30,7 @@ fn blueprint_summary(blueprint: BlueprintRecord, sources_need_review: bool) -> B
 }
 
 fn blueprint_version_summary(
-    version: blueprint_version::Model,
+    version: BlueprintVersionRecord,
 ) -> Result<BlueprintVersionSummary, WorkerFailure> {
     Ok(BlueprintVersionSummary {
         id: version.id,
@@ -139,7 +138,7 @@ impl WorkerState {
             ProjectAccessRole::Viewer,
         )
         .await?;
-        a4n_db::project::blueprint_versions_by_project(
+        a4n_db::project::blueprint_version_records_by_project(
             self.database.connection(),
             request.payload.project_id,
         )
@@ -163,7 +162,7 @@ impl WorkerState {
             ProjectAccessRole::Editor,
         )
         .await?;
-        let left = a4n_db::project::blueprint_version_by_project_version(
+        let left = a4n_db::project::blueprint_version_record_by_project_version(
             self.database.connection(),
             request.payload.project_id,
             &request.payload.version_a,
@@ -173,7 +172,7 @@ impl WorkerState {
         .ok_or_else(|| {
             WorkerFailure::not_found(format!("版本 {} 不存在", request.payload.version_a))
         })?;
-        let right = a4n_db::project::blueprint_version_by_project_version(
+        let right = a4n_db::project::blueprint_version_record_by_project_version(
             self.database.connection(),
             request.payload.project_id,
             &request.payload.version_b,

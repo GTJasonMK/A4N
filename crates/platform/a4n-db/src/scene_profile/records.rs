@@ -12,3 +12,4 @@ pub use read::{
 #[cfg(test)]
 pub(crate) use record::create_scene_profile_model;
 pub use record::create_scene_profile_record;
+pub(crate) use record::scene_profile_record;

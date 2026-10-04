@@ -9,10 +9,10 @@ impl AgentApplication {
         &self,
         claimed: &AgentWorkerRun,
         error_message: impl Into<String>,
-    ) -> Result<run::Model, AppError> {
+    ) -> Result<agent::AgentRunRecord, AppError> {
         let error_message = error_message.into();
         agent::fail_run_for_lease(
-            self.connection(),
+            self.executor(),
             claimed.run.id,
             &claimed.lease_token,
             Some(error_message),
@@ -31,7 +31,7 @@ impl AgentApplication {
             return Ok(());
         }
         agent::fail_child_delegation(
-            self.connection(),
+            self.executor(),
             a4n_db::agent::AgentChildFailureInput {
                 child_run_id: claimed.run.id,
                 child_lease_token: claimed.lease_token.clone(),
@@ -55,13 +55,13 @@ impl AgentApplication {
             lease: request.lease.clone(),
         })
         .await?;
-        let run = agent::run_by_id(self.connection(), request.run_id)
+        let run = agent::run_by_id(self.executor(), request.run_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", request.run_id)))?;
         let result = if run.parent_run_id.is_none() {
             agent::fail_run_for_lease(
-                self.connection(),
+                self.executor(),
                 request.run_id,
                 &request.lease.fence_token,
                 Some(request.error_message.clone()),
@@ -71,7 +71,7 @@ impl AgentApplication {
             .map_err(agent_db_error_to_app)
         } else {
             agent::fail_child_delegation(
-                self.connection(),
+                self.executor(),
                 a4n_db::agent::AgentChildFailureInput {
                     child_run_id: request.run_id,
                     child_lease_token: request.lease.fence_token.clone(),
@@ -83,7 +83,7 @@ impl AgentApplication {
             .map_err(agent_db_error_to_app)
         };
         result?;
-        agent::cancel_run_tree(self.connection(), run.id, Some(&request.error_message))
+        agent::cancel_run_tree(self.executor(), run.id, Some(&request.error_message))
             .await
             .map_err(agent_db_error_to_app)?;
         Ok(())

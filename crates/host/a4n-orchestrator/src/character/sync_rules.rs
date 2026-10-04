@@ -1,14 +1,13 @@
 //! 角色同步范围与跳过判定纯规则（无 DB）。
 
 use a4n_api_contract::character::{CharacterProfileSkippedResult, CharacterProfileSyncSkipReason};
-use a4n_db_models::models::chapter::chapter;
-use a4n_db_models::models::character::protagonist_profile;
+use a4n_domain::{chapter::ChapterRecord, character::CharacterProfileRecord};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
 /// 校验同步目标章节是否存在且可同步（调用方已加载章节列表）。
 pub fn validate_character_sync_target_chapter(
-    chapters: &[chapter::Model],
+    chapters: &[ChapterRecord],
     project_id: i64,
     chapter_number: i32,
 ) -> Result<i32, String> {
@@ -71,7 +70,7 @@ pub fn validate_contiguous_character_sync_range(
 }
 
 /// 档案首次出现章节。
-pub fn profile_first_seen_chapter(profile: &protagonist_profile::Model) -> Option<i32> {
+pub fn profile_first_seen_chapter(profile: &CharacterProfileRecord) -> Option<i32> {
     profile.first_seen_chapter()
 }
 
@@ -81,7 +80,7 @@ pub fn profile_first_seen_chapter(profile: &protagonist_profile::Model) -> Optio
 /// 档案声明的 first_seen 与正文证据 first_seen 取 min。只读声明值会让跳过判定与区间
 /// 计算对同一角色给出相反结论。
 pub fn profile_sync_skip_reason(
-    profile: &protagonist_profile::Model,
+    profile: &CharacterProfileRecord,
     target_chapter: i32,
     first_seen_chapter: Option<i32>,
 ) -> Option<CharacterProfileSyncSkipReason> {
@@ -172,7 +171,7 @@ pub fn character_profile_sync_mode_label(start_chapter: i32, target_chapter: i32
 /// 带显式原因的跳过结果。`first_seen_chapter` 口径同 [`profile_sync_skip_reason`]，
 /// 直接展示给用户，必须与做出跳过决定时使用的值一致。
 pub fn character_profile_skipped_result(
-    profile: &protagonist_profile::Model,
+    profile: &CharacterProfileRecord,
     target_chapter: i32,
     reason: CharacterProfileSyncSkipReason,
     first_seen_chapter: Option<i32>,
@@ -194,7 +193,7 @@ pub enum CharacterSyncRangeMode {
 }
 
 pub(crate) fn profile_sync_skip_reason_for_mode(
-    profile: &protagonist_profile::Model,
+    profile: &CharacterProfileRecord,
     target_chapter: i32,
     mode: CharacterSyncRangeMode,
     first_seen_chapter: Option<i32>,
@@ -219,7 +218,7 @@ pub struct CharacterSyncRange {
 /// 解析同步范围；不可同步时返回 None。
 #[cfg(test)]
 pub fn character_sync_range(
-    profile: &protagonist_profile::Model,
+    profile: &CharacterProfileRecord,
     target_chapter: i32,
     mode: CharacterSyncRangeMode,
 ) -> Option<CharacterSyncRange> {
@@ -232,7 +231,7 @@ pub fn character_sync_range(
 }
 
 pub fn character_sync_range_with_first_seen(
-    profile: &protagonist_profile::Model,
+    profile: &CharacterProfileRecord,
     target_chapter: i32,
     mode: CharacterSyncRangeMode,
     first_seen_chapter: Option<i32>,
@@ -275,7 +274,7 @@ pub fn character_sync_range_with_first_seen(
 /// 增量同步起始章。
 #[cfg(test)]
 pub fn character_sync_start_chapter(
-    profile: &protagonist_profile::Model,
+    profile: &CharacterProfileRecord,
     target_chapter: i32,
 ) -> Option<i32> {
     character_sync_range(profile, target_chapter, CharacterSyncRangeMode::Incremental)
@@ -286,12 +285,12 @@ pub fn character_sync_start_chapter(
 mod tests {
     use super::*;
 
-    fn profile(last_synced: i32, first_seen: i32) -> protagonist_profile::Model {
+    fn profile(last_synced: i32, first_seen: i32) -> CharacterProfileRecord {
         let ts = chrono::NaiveDate::from_ymd_opt(2026, 1, 1)
             .unwrap()
             .and_hms_opt(0, 0, 0)
             .unwrap();
-        protagonist_profile::Model {
+        CharacterProfileRecord {
             id: 1,
             project_id: 1,
             name: "测试".into(),
@@ -441,12 +440,12 @@ mod first_seen_source_consistency {
     /// 角色发现匹配到已存在档案时只绑定正文证据锚点，不回写声明值
     /// （crates/host/a4n-orchestrator/src/character/discovery/persistence.rs:85-92），
     /// 因此「声明值缺失、证据值存在」是常规状态而非边缘情况。
-    fn profile_without_declared_first_seen(last_synced: i32) -> protagonist_profile::Model {
+    fn profile_without_declared_first_seen(last_synced: i32) -> CharacterProfileRecord {
         let ts = chrono::NaiveDate::from_ymd_opt(2026, 1, 1)
             .unwrap()
             .and_hms_opt(0, 0, 0)
             .unwrap();
-        protagonist_profile::Model {
+        CharacterProfileRecord {
             id: 1,
             project_id: 1,
             name: "林岚".into(),
@@ -469,7 +468,7 @@ mod first_seen_source_consistency {
         }
     }
 
-    fn profile_with_declared_first_seen(first_seen: i32) -> protagonist_profile::Model {
+    fn profile_with_declared_first_seen(first_seen: i32) -> CharacterProfileRecord {
         let mut profile = profile_without_declared_first_seen(0);
         profile.base_attributes = json!({
             "explicit_attributes": { "first_seen_chapter": first_seen },
@@ -611,7 +610,7 @@ mod first_seen_source_consistency {
 #[cfg(test)]
 mod runtime_scope_regressions {
     use super::*;
-    use a4n_db_models::models::chapter::chapter;
+    use a4n_domain::chapter::ChapterRecord;
     use a4n_domain::character::{
         analysis_sync_character_names, character_names_from_chapter_analysis,
         character_names_from_discovery_result,
@@ -619,9 +618,9 @@ mod runtime_scope_regressions {
     use serde_json::json;
     use std::collections::BTreeSet;
 
-    fn discovery_chapter(chapter_number: i32, status: &str, content: &str) -> chapter::Model {
+    fn discovery_chapter(chapter_number: i32, status: &str, content: &str) -> ChapterRecord {
         let now = chrono::Utc::now().naive_utc();
-        chapter::Model {
+        ChapterRecord {
             id: i64::from(chapter_number),
             project_id: 1,
             outline_id: None,
@@ -638,9 +637,9 @@ mod runtime_scope_regressions {
         }
     }
 
-    fn character_profile_for_test(name: &str) -> protagonist_profile::Model {
+    fn character_profile_for_test(name: &str) -> CharacterProfileRecord {
         let now = chrono::Utc::now().naive_utc();
-        protagonist_profile::Model {
+        CharacterProfileRecord {
             id: 1,
             project_id: 1,
             name: name.to_string(),

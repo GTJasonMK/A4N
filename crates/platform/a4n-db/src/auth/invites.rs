@@ -7,21 +7,21 @@ use a4n_domain::auth::ROLE_USER;
 use sea_orm::QuerySelect;
 
 pub async fn register_user_with_invite(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     username: &str,
     email: &str,
     password: &str,
     raw_invite_code: &str,
 ) -> Result<user::Model, AppError> {
     let code = normalize_invite_code(raw_invite_code)?;
-    let txn = db.begin().await.map_err(AppError::Database)?;
+    let txn = db.begin().await.map_err(AppError::from)?;
 
     let result = async {
         let invite = invite_code::Entity::find()
             .filter(invite_code::Column::Code.eq(code))
             .one(&txn)
             .await
-            .map_err(AppError::Database)?
+            .map_err(AppError::from)?
             .ok_or_else(|| AppError::InvalidArgument("邀请码无效".into()))?;
         if invite.used_at.is_some() || invite.used_by_user_id.is_some() {
             return Err(AppError::InvalidArgument("邀请码已被使用".into()));
@@ -40,7 +40,7 @@ pub async fn register_user_with_invite(
             .filter(invite_code::Column::UsedByUserId.is_null())
             .exec(&txn)
             .await
-            .map_err(AppError::Database)?;
+            .map_err(AppError::from)?;
         if updated.rows_affected != 1 {
             return Err(AppError::InvalidArgument("邀请码已被使用".into()));
         }
@@ -50,18 +50,18 @@ pub async fn register_user_with_invite(
 
     match result {
         Ok(user) => {
-            txn.commit().await.map_err(AppError::Database)?;
+            txn.commit().await.map_err(AppError::from)?;
             Ok(user)
         }
         Err(err) => {
-            txn.rollback().await.map_err(AppError::Database)?;
+            txn.rollback().await.map_err(AppError::from)?;
             Err(err)
         }
     }
 }
 
 pub async fn create_invite_code(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     code: &str,
     created_by_user_id: Option<i64>,
 ) -> Result<InviteCodeSummary, AppError> {
@@ -76,7 +76,7 @@ pub async fn create_invite_code(
         .into_tuple::<i64>()
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .is_some()
     {
         return Err(AppError::InvalidArgument("邀请码已存在".into()));
@@ -92,19 +92,19 @@ pub async fn create_invite_code(
     }
     .insert(db)
     .await
-    .map_err(AppError::Database)
+    .map_err(AppError::from)
     .map(invite_code_summary)
 }
 
 pub async fn list_invite_codes(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
 ) -> Result<Vec<InviteCodeSummary>, AppError> {
     invite_code::Entity::find()
         .order_by_desc(invite_code::Column::CreatedAt)
         .order_by_desc(invite_code::Column::Id)
         .all(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
         .map(|codes| codes.into_iter().map(invite_code_summary).collect())
 }
 

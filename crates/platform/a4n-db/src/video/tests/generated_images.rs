@@ -24,7 +24,7 @@ async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
 }
 
-async fn text_project(db: &DatabaseConnection, title: &str) -> novel_project::Model {
+async fn text_project(db: &impl crate::DbExecutor, title: &str) -> novel_project::Model {
     crate::project::create_project_record(
         db,
         crate::project::CreateProjectRecordInput {
@@ -38,7 +38,7 @@ async fn text_project(db: &DatabaseConnection, title: &str) -> novel_project::Mo
     .unwrap()
 }
 
-async fn chapter_record(db: &DatabaseConnection, project_id: i64) -> chapter::Model {
+async fn chapter_record(db: &impl crate::DbExecutor, project_id: i64) -> chapter::Model {
     let now = Utc::now().naive_utc();
     chapter::ActiveModel {
         project_id: Set(project_id),
@@ -77,7 +77,7 @@ fn image_input(project_id: i64) -> CreateGeneratedImageRecordDraftInput {
     }
 }
 
-async fn image_count(db: &DatabaseConnection) -> u64 {
+async fn image_count(db: &impl crate::DbExecutor) -> u64 {
     generated_image::Entity::find().count(db).await.unwrap()
 }
 
@@ -120,7 +120,7 @@ async fn video_profile_material_read_model_returns_domain_image_records() {
 }
 
 async fn manga_prompt(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_id: i64,
     page_number: i32,
@@ -148,7 +148,7 @@ async fn manga_prompt(
 }
 
 async fn frame_prompt(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_id: i64,
     shot_number: i32,

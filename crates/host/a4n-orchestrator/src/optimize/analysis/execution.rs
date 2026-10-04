@@ -25,8 +25,8 @@ impl OrchestratorContext {
                 }
                 .into());
             }
-            session = a4n_db::optimize::resume_optimization_analysis_session(
-                self.database.connection(),
+            session = a4n_db::optimize::resume_optimization_analysis_session_record(
+                self.database.executor(),
                 session_id,
             )
             .await
@@ -62,7 +62,7 @@ impl OrchestratorContext {
         .await?;
         let permissions = optimization_permissions_from_session(&session)?;
         let analysis_context = build_content_optimization_context(
-            self.database.connection(),
+            self.database.executor(),
             session.project_id,
             session.chapter_id,
             &permissions,

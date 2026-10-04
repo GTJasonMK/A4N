@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use serde_json::{Map, Value};
 
 pub(super) fn analysis_metadata_array(analysis: Option<&Value>, key: &str) -> Option<Value> {
@@ -21,7 +21,7 @@ pub(super) fn analysis_value_path(analysis: Option<&Value>, path: &[&str]) -> Op
     }
 }
 
-pub(super) fn chapter_analysis_context(ch: &chapter::Model) -> Result<Option<Value>, String> {
+pub(super) fn chapter_analysis_context(ch: &ChapterRecord) -> Result<Option<Value>, String> {
     let Some(analysis) = ch.analysis_data.as_ref() else {
         return Ok(None);
     };

@@ -42,7 +42,7 @@ where
         .into_model::<AssetGraphProjectRow>()
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
     let requested_project_id = project.id;
     let root_project_id = project.root_project_id.unwrap_or(project.id);
@@ -53,7 +53,7 @@ where
             .into_model::<AssetGraphProjectRow>()
             .one(db)
             .await
-            .map_err(AppError::Database)?
+            .map_err(AppError::from)?
             .ok_or_else(|| AppError::NotFound(format!("根文本项目不存在: {root_project_id}")))?
     };
     let derived_projects = novel_project::Entity::find()
@@ -65,7 +65,7 @@ where
         .into_model::<AssetGraphDerivedProjectRow>()
         .all(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
     let mut family_project_ids = BTreeSet::from([root_project.id, requested_project_id]);
     family_project_ids.extend(derived_projects.iter().map(|project| project.id));
     Ok(AssetGraphScope {

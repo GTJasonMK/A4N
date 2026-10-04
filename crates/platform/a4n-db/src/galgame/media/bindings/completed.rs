@@ -5,15 +5,13 @@ use crate::galgame::{
     GalgameCompletedVisualBindingRecord, GalgameMediaRecordError, require_galgame_media_text,
     validate_galgame_generation_id,
 };
-use a4n_db_models::models::{
-    generation::generation_spec,
-    media::{media_asset, media_binding, media_provenance},
-};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use a4n_db_models::models::media::{media_asset, media_binding, media_provenance};
+use a4n_domain::{generation::GenerationSpecRecord, media::MediaProvenanceRecord};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 pub async fn completed_galgame_visual_binding_records(
-    db: &DatabaseConnection,
-    spec: &generation_spec::Model,
+    db: &impl crate::DbExecutor,
+    spec: &GenerationSpecRecord,
     target_entity_kind: &str,
     target_entity_id: i64,
     role: &str,
@@ -83,6 +81,16 @@ pub async fn completed_galgame_visual_binding_records(
     Ok(CompletedGalgameVisualBindingRecords {
         binding,
         asset,
-        provenance,
+        provenance: MediaProvenanceRecord {
+            media_asset_id: provenance.media_asset_id,
+            generation_spec_id: provenance.generation_spec_id,
+            prompt_artifact_id: provenance.prompt_artifact_id,
+            provider_job_id: provenance.provider_job_id,
+            source_media_asset_id: provenance.source_media_asset_id,
+            source_external_path: provenance.source_external_path,
+            imported_from_user: provenance.imported_from_user,
+            request_snapshot_json: provenance.request_snapshot_json,
+            created_at: provenance.created_at,
+        },
     })
 }

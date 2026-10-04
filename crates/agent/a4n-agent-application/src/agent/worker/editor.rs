@@ -18,15 +18,15 @@ impl AgentApplication {
         claimed: &AgentWorkerRun,
         request: &AgentEditorRequest,
     ) -> Result<(), AppError> {
-        let thread = agent::thread_by_id(self.connection(), claimed.thread.id)
+        let thread = agent::thread_by_id(self.executor(), claimed.thread.id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound("Agent thread 不存在".into()))?;
         let mut request = request.clone();
         request.source =
-            canonicalize_editor_source(self.connection(), request.source, &thread).await?;
+            canonicalize_editor_source(self.executor(), request.source, &thread).await?;
         agent::wait_run_for_lease_with_request(
-            self.connection(),
+            self.executor(),
             claimed.run.id,
             &claimed.lease_token,
             "external",
@@ -49,19 +49,19 @@ impl AgentApplication {
             lease: request.lease.clone(),
         })
         .await?;
-        let run = agent::run_by_id(self.connection(), request.run_id)
+        let run = agent::run_by_id(self.executor(), request.run_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound("Agent Run 不存在".into()))?;
-        let thread = agent::thread_by_id(self.connection(), run.thread_id)
+        let thread = agent::thread_by_id(self.executor(), run.thread_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound("Agent thread 不存在".into()))?;
         let mut editor_request = request.editor_request.clone();
         editor_request.source =
-            canonicalize_editor_source(self.connection(), editor_request.source, &thread).await?;
+            canonicalize_editor_source(self.executor(), editor_request.source, &thread).await?;
         agent::wait_run_for_lease_with_request(
-            self.connection(),
+            self.executor(),
             request.run_id,
             &request.lease.fence_token,
             "external",
@@ -79,17 +79,14 @@ impl AgentApplication {
     ) -> Result<(AgentWorkerRun, AgentEditorRequest), AppError> {
         let run_id = parse_id(&input.run_id, "run_id")?;
         let execution_id = parse_id(&input.execution_id, "execution_id")?;
-        let run = agent::run_by_id(self.connection(), run_id)
+        let run = agent::run_by_id(self.executor(), run_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound("Agent Run 不存在".into()))?;
         let thread = self.owned_thread(user_id, run.thread_id).await?;
-        let payload = event::Entity::find()
-            .filter(event::Column::RunId.eq(run_id))
-            .filter(event::Column::Kind.eq("run_waiting"))
-            .order_by_desc(event::Column::Sequence)
-            .one(self.connection())
-            .await?
+        let payload = agent::latest_event_by_run_and_kind(self.executor(), run_id, "run_waiting")
+            .await
+            .map_err(agent_db_error_to_app)?
             .and_then(|event| event.payload_json)
             .and_then(|payload| payload.get("editor_request").cloned())
             .ok_or_else(|| AppError::InvalidArgument("Run 没有待响应的编辑器请求".into()))?;
@@ -100,8 +97,8 @@ impl AgentApplication {
             return Err(AppError::Forbidden("响应与原始视图或执行不匹配".into()));
         }
         request.source =
-            canonicalize_editor_source(self.connection(), request.source, &thread).await?;
-        let run = agent::claim_editor_execution(self.connection(), user_id, run_id, execution_id)
+            canonicalize_editor_source(self.executor(), request.source, &thread).await?;
+        let run = agent::claim_editor_execution(self.executor(), user_id, run_id, execution_id)
             .await
             .map_err(agent_db_error_to_app)?;
         let lease_token = run
@@ -126,7 +123,7 @@ impl AgentApplication {
         claimed: &AgentWorkerRun,
     ) -> Result<(), AppError> {
         agent::update_run_state(
-            self.connection(),
+            self.executor(),
             claimed.run.id,
             Some(&claimed.lease_token),
             "queued",
@@ -139,7 +136,7 @@ impl AgentApplication {
     }
 
     pub async fn expire_editor_requests(&self, limit: u64) -> Result<usize, AppError> {
-        agent::expire_editor_requests(self.connection(), limit)
+        agent::expire_editor_requests(self.executor(), limit)
             .await
             .map_err(agent_db_error_to_app)
     }

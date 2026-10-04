@@ -1,12 +1,10 @@
-use a4n_db_models::models::media::{media_asset, media_binding, media_provenance};
-use a4n_domain::galgame::GalgameLineRecord;
+use a4n_domain::{galgame::GalgameLineRecord, media::MediaProvenanceRecord};
 use sea_orm::FromQueryResult;
-use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct GalgameMediaBindingResult {
-    pub binding: media_binding::Model,
-    pub asset: media_asset::Model,
+    pub binding: GalgameMediaBindingReadRecord,
+    pub asset: GalgameMediaAssetReadRecord,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -173,7 +171,7 @@ pub struct GalgameAssetPlanningSourceChapterRecord {
 pub struct CompletedGalgameVisualBindingRecords {
     pub binding: GalgameCompletedVisualBindingRecord,
     pub asset: GalgameCompletedVisualAssetRecord,
-    pub provenance: media_provenance::Model,
+    pub provenance: MediaProvenanceRecord,
 }
 
 #[derive(Debug, Clone, FromQueryResult)]

@@ -19,6 +19,6 @@ fn chapter_generation_lifecycle_error_to_app_error(
         ChapterGenerationLifecycleError::InvalidState { current, operation } => {
             AppError::InvalidState { current, operation }
         }
-        ChapterGenerationLifecycleError::Database(error) => AppError::Database(error),
+        ChapterGenerationLifecycleError::Database(error) => AppError::database(error),
     }
 }

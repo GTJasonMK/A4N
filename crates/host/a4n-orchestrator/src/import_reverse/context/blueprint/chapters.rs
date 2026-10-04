@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use serde_json::Value;
 
 use super::super::chapter_entries::{
@@ -12,7 +12,7 @@ pub(super) struct BlueprintChapterContext {
 }
 
 pub(super) fn blueprint_chapter_context(
-    chapters: &[chapter::Model],
+    chapters: &[ChapterRecord],
     summary_limit: usize,
 ) -> Result<BlueprintChapterContext, String> {
     let summaries = sampled_chapters(chapters, summary_limit)

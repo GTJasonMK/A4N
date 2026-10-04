@@ -4,7 +4,7 @@ use super::contracts::{
     workflow_checkpoint_fingerprint_sha256,
 };
 use crate::OrchestratorContext;
-use a4n_db_models::models::generation::workflow_checkpoint;
+use a4n_domain::workflow::WorkflowCheckpointSummary;
 use a4n_error::AppError;
 use serde_json::Value;
 
@@ -14,7 +14,7 @@ impl OrchestratorContext {
         workflow_run_id: Option<i64>,
         step_key: &str,
         input_fingerprint_json: &Value,
-    ) -> Result<Option<workflow_checkpoint::Model>, AppError> {
+    ) -> Result<Option<WorkflowCheckpointSummary>, AppError> {
         let Some(workflow_run_id) = workflow_run_id else {
             return Ok(None);
         };

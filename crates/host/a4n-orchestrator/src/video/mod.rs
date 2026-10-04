@@ -146,7 +146,7 @@ pub(in crate::video) use self::config::{
     duration_capability_for_provider_config,
 };
 pub(crate) use self::config::{
-    validate_video_duration_for_provider_config_secs, video_provider_config_from_model,
+    validate_video_duration_for_provider_config_secs, video_provider_config_from_record,
 };
 
 pub(crate) use errors::video_db_error;

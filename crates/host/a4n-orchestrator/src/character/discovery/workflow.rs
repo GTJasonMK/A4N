@@ -1,10 +1,12 @@
 //! 角色发现工作流指纹与 business key 纯规则（无 DB）。
 
-use a4n_db_models::models::{chapter::chapter, project::text_anchor};
+use a4n_domain::{chapter::ChapterRecord, text_anchor::TextAnchorRecord};
 use a4n_llm_provider_contract::provider::ChatRequest;
 use serde_json::Value;
 
-use crate::discovery_workflow::{discovery_call_fingerprint_json, discovery_workflow_run_input};
+use crate::discovery_workflow::{
+    discovery_call_fingerprint_json, discovery_workflow_run_input_records,
+};
 use crate::workflow::UpsertWorkflowRunInput;
 
 use super::{CHARACTER_DISCOVERY_CALL_KEY, CHARACTER_DISCOVERY_KIND};
@@ -28,12 +30,12 @@ pub(in crate::character) fn character_discovery_call_fingerprint_json(
 pub(in crate::character) fn character_discovery_workflow_run_input(
     project_id: i64,
     chapter_number: Option<i32>,
-    chapters: &[chapter::Model],
-    text_anchors: &[text_anchor::Model],
+    chapters: &[ChapterRecord],
+    text_anchors: &[TextAnchorRecord],
     request: &ChatRequest,
     active_task_id: Option<&str>,
 ) -> Result<UpsertWorkflowRunInput, String> {
-    discovery_workflow_run_input(
+    discovery_workflow_run_input_records(
         CHARACTER_DISCOVERY_KIND,
         CHARACTER_DISCOVERY_CALL_KEY,
         project_id,

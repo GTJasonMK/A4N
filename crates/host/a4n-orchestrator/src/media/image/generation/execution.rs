@@ -8,7 +8,7 @@ use a4n_domain::generation::RecordCompletedGenerationRunInput;
 use a4n_domain::media::{
     CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput, GeneratedImageRecord,
     IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED,
-    ImagePublicationFileFacts,
+    ImagePublicationFileFacts, ImagePublicationRecord,
 };
 use a4n_error::AppError;
 use a4n_provider_contract::ImageProviderConfig;
@@ -152,7 +152,7 @@ impl OrchestratorContext {
         .await?;
         if let Some(chapter_id) = input.chapter_id {
             a4n_db::video::ensure_image_chapter_belongs_to_project_record(
-                self.database.connection(),
+                self.database.executor(),
                 input.project_id,
                 chapter_id,
             )
@@ -392,7 +392,7 @@ impl OrchestratorContext {
         let Some(publication) = self.image_publication_by_id(publication_id).await? else {
             return Ok(None);
         };
-        a4n_db::video::validate_image_publication_request(
+        a4n_db::video::validate_image_publication_record_request(
             &publication,
             a4n_db::video::ImagePublicationRequest {
                 project_id: input.project_id,
@@ -421,7 +421,7 @@ impl OrchestratorContext {
         &self,
         host_port: &dyn ImageGenerationHostPort,
         input: &ImageGenerationExecutionInput,
-        publication: &a4n_db_models::models::media::image_publication::Model,
+        publication: &ImagePublicationRecord,
     ) -> Result<GeneratedImageRecord, AppError> {
         host_port.validate_generated_image_file(&publication.final_path, "已发布图片文件")?;
         let file =
@@ -501,9 +501,9 @@ impl OrchestratorContext {
                 })?;
         let _publication_guard = self.lock_image_publications().await;
         let image =
-            a4n_db::video::read_models::generated_image_by_id(self.database.connection(), image_id)
+            a4n_db::video::read_models::generated_image_by_id(self.database.executor(), image_id)
                 .await
-                .map_err(AppError::Database)?
+                .map_err(AppError::from)?
                 .ok_or_else(|| {
                     AppError::NotFound(format!(
                         "{} checkpoint 指向的图片记录不存在: {image_id}",
@@ -523,7 +523,7 @@ impl OrchestratorContext {
             )));
         }
         let publication =
-            a4n_db::video::image_publication_by_image_id(self.database.connection(), image_id)
+            a4n_db::video::image_publication_record_by_image_id(self.database.executor(), image_id)
                 .await
                 .map_err(crate::video::video_db_error)?
                 .ok_or_else(|| {

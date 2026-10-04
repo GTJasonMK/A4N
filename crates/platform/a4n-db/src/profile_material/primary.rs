@@ -1,9 +1,6 @@
 use a4n_db_models::models::{ai::generated_image, asset::profile_primary_material};
 use chrono::Utc;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,
-    TransactionTrait,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set};
 
 use super::{
     contracts::ProfileMaterialDbError,
@@ -11,7 +8,7 @@ use super::{
 };
 
 pub async fn upsert_profile_primary_material(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     profile_kind: &str,
     profile_id: i64,
@@ -85,7 +82,7 @@ pub async fn upsert_profile_primary_material(
 }
 
 pub async fn delete_profile_primary_material(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     profile_kind: &str,
     profile_id: i64,

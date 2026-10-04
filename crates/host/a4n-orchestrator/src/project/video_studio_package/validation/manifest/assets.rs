@@ -1,7 +1,11 @@
 use super::contracts::ManifestIds;
-use a4n_db_models::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
+use a4n_api_contract::project_transfer::{
+    MEDIA_ASSET_FILE_PATH_FIELD as FILE_PATH_FIELD,
+    MEDIA_ASSET_THUMBNAIL_PATH_FIELD as THUMBNAIL_PATH_FIELD,
+};
 use a4n_domain::CanvasNodeRefKind;
 use a4n_domain::canvas_transfer_runtime_identity_key;
+use a4n_domain::media::MediaAssetRecord;
 
 use crate::media::{
     MEDIA_STATUS_COMPLETED, is_valid_media_kind, is_valid_media_origin, is_valid_media_status,
@@ -217,7 +221,7 @@ pub(super) fn validate_asset_records(
 }
 
 pub(crate) fn validate_canvas_media_asset_owner(
-    asset: &a4n_db_models::models::media::media_asset::Model,
+    asset: &MediaAssetRecord,
     project_id: i64,
 ) -> Result<(), String> {
     if asset.project_id != project_id || asset.root_project_id != project_id {

@@ -5,7 +5,7 @@ use super::queries::locked_workflow_run_by_id;
 use super::validation::ensure_workflow_write_open;
 
 pub async fn workflow_progress_events(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     workflow_run_id: i64,
     limit: usize,
 ) -> Result<Vec<TaskProgressEventSummary>, WorkflowReadError> {
@@ -17,9 +17,9 @@ pub async fn workflow_progress_events(
 }
 
 pub async fn record_workflow_progress_event(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: WorkflowProgressEventInput<'_>,
-) -> Result<workflow_progress_event::Model, WorkflowWriteError> {
+) -> Result<(), WorkflowWriteError> {
     validate_positive_i64(input.workflow_run_id, "workflow_run_id")?;
     validate_workflow_progress_range(input.current, input.total)?;
     let current = input.current;
@@ -77,7 +77,7 @@ pub async fn record_workflow_progress_event(
         .await
         .map_err(WorkflowWriteError::Database)?;
 
-    let event = workflow_progress_event::ActiveModel {
+    workflow_progress_event::ActiveModel {
         id: NotSet,
         workflow_run_id: Set(input.workflow_run_id),
         task_id: Set(input.task_id.and_then(non_empty_text)),
@@ -94,13 +94,13 @@ pub async fn record_workflow_progress_event(
     .map_err(WorkflowWriteError::Database)?;
     trim_workflow_progress_events(&tx, input.workflow_run_id).await?;
     tx.commit().await.map_err(WorkflowWriteError::Database)?;
-    Ok(event)
+    Ok(())
 }
 
 /// Stores a typed, durable snapshot alongside the public progress summary.
 /// Resumable interrupted runs may update this after their final progress event.
 pub async fn persist_workflow_progress_snapshot(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     workflow_run_id: i64,
     snapshot: Value,
 ) -> Result<workflow_run::Model, WorkflowWriteError> {
@@ -136,6 +136,19 @@ pub async fn persist_workflow_progress_snapshot(
     Ok(updated)
 }
 
+pub async fn persist_workflow_progress_snapshot_summary(
+    db: &impl crate::DbExecutor,
+    workflow_run_id: i64,
+    snapshot: Value,
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
+    persist_workflow_progress_snapshot(db, workflow_run_id, snapshot)
+        .await
+        .map_err(WorkflowWriteError::from)
+        .and_then(|run| {
+            super::projections::workflow_run_summary(run).map_err(WorkflowWriteError::from)
+        })
+}
+
 pub(in crate::workflow) fn validate_workflow_progress_range(
     current: u32,
     total: u32,
@@ -155,7 +168,7 @@ pub(in crate::workflow) fn validate_workflow_progress_range(
 }
 
 async fn workflow_progress_event_models(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     workflow_run_id: i64,
     limit: usize,
 ) -> Result<Vec<workflow_progress_event::Model>, WorkflowReadError> {

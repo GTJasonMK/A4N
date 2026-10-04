@@ -36,7 +36,7 @@ impl OrchestratorContext {
                 AppError::InvalidArgument("独立漫画改编必须先选择文本来源".into())
             })?;
             let source = a4n_db::project::resolve_chapter_source(
-                self.database.connection(),
+                self.database.executor(),
                 project_id,
                 chapter_id,
             )
@@ -66,17 +66,15 @@ impl OrchestratorContext {
         let ids = match chapter_id {
             Some(id) if id > 0 => vec![id],
             Some(_) => return Err(AppError::InvalidArgument("章节 ID 必须大于 0".into())),
-            None => {
-                a4n_db::project::source_snapshot_chapters(self.database.connection(), project_id)
-                    .await
-                    .map_err(crate::project::project_mutation_error_to_app_error)?
-                    .into_iter()
-                    .map(|chapter| chapter.source_chapter_id)
-                    .collect()
-            }
+            None => a4n_db::project::source_snapshot_chapters(self.database.executor(), project_id)
+                .await
+                .map_err(crate::project::project_mutation_error_to_app_error)?
+                .into_iter()
+                .map(|chapter| chapter.source_chapter_id)
+                .collect(),
         };
         let sources = a4n_db::project::resolve_snapshot_sources(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             family.root_project.id,
             snapshot_id,
@@ -98,7 +96,7 @@ impl OrchestratorContext {
                 continue;
             }
             let record = records::current_authoring_document(
-                self.database.connection(),
+                self.database.executor(),
                 source.requested_project_id,
                 authoring_source(source)?.source_snapshot_id,
                 Some(source.source_chapter_id),
@@ -170,7 +168,7 @@ impl OrchestratorContext {
                     ));
                 }
                 let record = records::authoring_document(
-                    self.database.connection(),
+                    self.database.executor(),
                     project_id,
                     inputs.dependencies[0].id,
                 )
@@ -190,7 +188,7 @@ impl OrchestratorContext {
                 context.adaptations.clear();
                 for (source, dependency) in sources.iter().zip(&inputs.dependencies) {
                     let record = records::authoring_document(
-                        self.database.connection(),
+                        self.database.executor(),
                         project_id,
                         dependency.id,
                     )
@@ -260,7 +258,7 @@ impl OrchestratorContext {
                 parse_adaptation(record.clone(), &source, target)?;
             } else {
                 let previous = a4n_db::project::resolve_snapshot_sources(
-                    self.database.connection(),
+                    self.database.executor(),
                     input.project_id,
                     source.root_project_id,
                     record.source_snapshot_id,
@@ -306,10 +304,9 @@ impl OrchestratorContext {
         match (record_id, expected_revision) {
             (None, None) => Ok(None),
             (Some(id), Some(revision)) if revision > 0 => {
-                let record =
-                    records::authoring_document(self.database.connection(), project_id, id)
-                        .await
-                        .map_err(authoring_error)?;
+                let record = records::authoring_document(self.database.executor(), project_id, id)
+                    .await
+                    .map_err(authoring_error)?;
                 if record.revision != revision {
                     return Err(authoring_error(
                         records::AuthoringDocumentError::RevisionConflict(id),

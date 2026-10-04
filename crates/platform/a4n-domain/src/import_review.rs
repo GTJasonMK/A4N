@@ -18,6 +18,17 @@ pub struct ImportReviewCreateInput {
     pub analysis_result: Value,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImportReviewRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub filename: String,
+    pub analysis_result: Value,
+    pub review_status: String,
+    pub created_at: chrono::NaiveDateTime,
+    pub updated_at: chrono::NaiveDateTime,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ImportReviewStatus {

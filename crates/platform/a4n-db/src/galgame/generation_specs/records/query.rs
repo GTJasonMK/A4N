@@ -1,18 +1,17 @@
 use crate::galgame::GalgameAssetPlanSpecRecordError;
 use a4n_db_models::models::generation::generation_spec;
-use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder,
-};
+use a4n_domain::generation::GenerationSpecRecord;
+use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashSet};
 
 pub async fn galgame_asset_generation_specs(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     target_kinds: &[&str],
     generation_spec_ids: &[i64],
     limit: Option<usize>,
-) -> Result<Vec<generation_spec::Model>, GalgameAssetPlanSpecRecordError> {
+) -> Result<Vec<GenerationSpecRecord>, GalgameAssetPlanSpecRecordError> {
     validate_galgame_asset_generation_spec_query(
         project_id,
         target_kinds,
@@ -46,7 +45,10 @@ pub async fn galgame_asset_generation_specs(
     if let Some(limit) = limit {
         specs.truncate(limit);
     }
-    Ok(specs)
+    Ok(specs
+        .into_iter()
+        .map(crate::generation::generation_spec_record_from_model)
+        .collect())
 }
 
 pub(in crate::galgame) fn validate_galgame_asset_generation_spec_query(

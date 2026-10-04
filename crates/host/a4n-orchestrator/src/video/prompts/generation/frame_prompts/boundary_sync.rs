@@ -1,7 +1,7 @@
 use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt as chapter_video_prompt;
 use a4n_domain::video_prompt::UpdateChapterVideoPromptRecordInput;
 use a4n_error::AppError;
 use serde_json::{Value, json};
@@ -87,7 +87,7 @@ pub(super) async fn sync_boundary_frame_previous_image_ref(
         );
     }
     a4n_db::video::read_models::update_chapter_video_prompt_record(
-        service.database.connection(),
+        service.database.executor(),
         row,
         UpdateChapterVideoPromptRecordInput {
             reference_image_ids_json: Some(Some(json!(updated_refs))),
@@ -149,7 +149,7 @@ pub(super) async fn ensure_boundary_frame_checkpoint_can_sync(
     kept_prompt_ids: &BTreeSet<i64>,
 ) -> Result<(), AppError> {
     let rows = a4n_db::video::read_models::chapter_video_prompt_workflow_records(
-        service.database.connection(),
+        service.database.executor(),
         project_id,
         chapter_id,
         prompt_type,
@@ -157,7 +157,7 @@ pub(super) async fn ensure_boundary_frame_checkpoint_can_sync(
         false,
     )
     .await
-    .map_err(AppError::Database)?;
+    .map_err(AppError::from)?;
     let mut prompts_to_validate = Vec::new();
     for row in rows {
         if row.status == chapter_video_prompt::STATUS_RUNNING {

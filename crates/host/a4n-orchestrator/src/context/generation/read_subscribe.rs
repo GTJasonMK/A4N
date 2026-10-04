@@ -6,10 +6,7 @@ impl GenerationApplication {
     async fn load_task_checkpoint(
         &self,
         task_id: &str,
-    ) -> Result<
-        a4n_db_models::models::generation::generation_task_checkpoint::Model,
-        GenerationTaskAccessError,
-    > {
+    ) -> Result<GenerationTaskCheckpointRecord, GenerationTaskAccessError> {
         a4n_db::generation::load_generation_task_checkpoint(self.connection(), task_id)
             .await
             .map_err(|error| match error {
@@ -72,7 +69,7 @@ impl GenerationApplication {
     pub(crate) async fn record_completed_generation_run(
         &self,
         input: RecordCompletedGenerationRunInput,
-    ) -> Result<generation_run::Model, AppError> {
+    ) -> Result<(), AppError> {
         a4n_db::generation::record_completed_generation_run(self.connection(), input)
             .await
             .map_err(generation_error)
@@ -81,7 +78,7 @@ impl GenerationApplication {
     pub(super) async fn record_completed_generation_run_with_checkpoint(
         &self,
         input: RecordCompletedGenerationRunWithCheckpointInput,
-    ) -> Result<generation_run::Model, AppError> {
+    ) -> Result<i64, AppError> {
         a4n_db::generation::record_completed_run_with_checkpoint_transaction(
             self.connection(),
             input,
@@ -102,7 +99,7 @@ impl GenerationApplication {
     pub(crate) async fn record_llm_call_trace(
         &self,
         input: RecordLlmCallTraceInput,
-    ) -> Result<llm_call_trace::Model, AppError> {
+    ) -> Result<(), AppError> {
         a4n_db::generation::record_llm_call_trace(self.connection(), input)
             .await
             .map_err(generation_error)
@@ -255,8 +252,8 @@ impl OrchestratorContext {
         attempt: u32,
     ) -> Result<AuthorizedGenerationTask, GenerationTaskAccessError> {
         let checkpoint = self.generation.load_task_checkpoint(task_id).await?;
-        authorize_checkpoint(&checkpoint, user_id, attempt, self).await?;
-        let persisted = a4n_db::generation::persisted_generation_task_from_checkpoint(checkpoint)
+        authorize_checkpoint(&checkpoint.summary(), user_id, attempt, self).await?;
+        let persisted = a4n_db::generation::persisted_generation_task_from_record(checkpoint)
             .map_err(GenerationTaskAccessError::Persistence)?;
         Ok(AuthorizedGenerationTask { persisted })
     }
@@ -269,10 +266,11 @@ impl OrchestratorContext {
         attempt: u32,
     ) -> Result<GenerationTaskSummary, GenerationTaskAccessError> {
         let checkpoint = self.generation.load_task_checkpoint(task_id).await?;
-        authorize_checkpoint(&checkpoint, user_id, attempt, self).await?;
+        let checkpoint_summary = checkpoint.summary();
+        authorize_checkpoint(&checkpoint_summary, user_id, attempt, self).await?;
         generation_task_summary_from_checkpoint(
-            &checkpoint,
-            a4n_db::generation::generation_public_snapshot_for_summary(&checkpoint),
+            &checkpoint_summary,
+            a4n_db::generation::generation_public_snapshot_for_summary_record(&checkpoint_summary),
         )
     }
 
@@ -331,7 +329,7 @@ impl OrchestratorContext {
 }
 
 async fn authorize_checkpoint(
-    checkpoint: &a4n_db_models::models::generation::generation_task_checkpoint::Model,
+    checkpoint: &GenerationTaskCheckpointSummaryRecord,
     user_id: i64,
     attempt: u32,
     context: &OrchestratorContext,
@@ -374,17 +372,17 @@ fn summarize_checkpoint_page(
         .map(|checkpoint| {
             generation_task_summary_from_checkpoint(
                 checkpoint,
-                a4n_db::generation::generation_public_snapshot_for_summary(checkpoint),
+                a4n_db::generation::generation_public_snapshot_for_summary_record(checkpoint),
             )
         })
         .collect()
 }
 
 fn generation_task_summary_from_checkpoint(
-    checkpoint: &a4n_db_models::models::generation::generation_task_checkpoint::Model,
+    checkpoint: &GenerationTaskCheckpointSummaryRecord,
     public_snapshot: GenerationPublicSnapshot,
 ) -> Result<GenerationTaskSummary, GenerationTaskAccessError> {
-    let started = a4n_db::generation::started_event_from_checkpoint(checkpoint)
+    let started = a4n_db::generation::started_event_from_summary_record(checkpoint)
         .map_err(GenerationTaskAccessError::Persistence)?;
     let status: GenerationTaskStatus =
         serde_json::from_value(Value::String(checkpoint.status.clone())).map_err(|error| {

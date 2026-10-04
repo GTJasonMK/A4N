@@ -2,12 +2,10 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use a4n_db_models::models::{
     galgame::{galgame_line, galgame_scene, galgame_script},
-    generation::generation_spec,
     project::source_snapshot_chapter,
 };
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter, QuerySelect,
-};
+use a4n_domain::generation::GenerationSpecRecord;
+use sea_orm::{ColumnTrait, EntityTrait, FromQueryResult, QueryFilter, QuerySelect};
 
 use super::positions::{
     normalized_galgame_position, validate_galgame_portrait_position_samples,
@@ -46,8 +44,8 @@ struct PortraitSourceSnapshotChapterRecord {
 }
 
 pub(in crate::galgame) async fn validate_galgame_portrait_spec_source_lines(
-    db: &DatabaseConnection,
-    spec: &generation_spec::Model,
+    db: &impl crate::DbExecutor,
+    spec: &GenerationSpecRecord,
     input: &GalgamePortraitSpecTargetInput,
     project_id: i64,
     root_project_id: i64,

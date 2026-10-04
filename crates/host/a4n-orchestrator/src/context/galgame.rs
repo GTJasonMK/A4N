@@ -8,12 +8,12 @@ use a4n_db::galgame::{
     CompletedGalgameVisualBindingRecords, GalgameMediaBindingResult,
     GalgamePortraitSpecTargetInput, GalgameTargetContext,
 };
-use a4n_db_models::models::{
-    ai::generated_image,
-    character::character_portrait,
-    generation::{generation_spec, prompt_artifact},
+use a4n_domain::{
+    character::CharacterPortraitRecord,
+    galgame::GalgamePromptArtifactUpsertInput,
+    generation::{GenerationSpecRecord, PromptArtifactRecord},
+    media::GeneratedImageRecord,
 };
-use a4n_domain::galgame::GalgamePromptArtifactUpsertInput;
 use a4n_error::AppError;
 
 use super::OrchestratorContext;
@@ -39,9 +39,9 @@ impl GalgameApplication {
         target_kinds: &[&str],
         generation_spec_ids: &[i64],
         limit: Option<usize>,
-    ) -> Result<Vec<generation_spec::Model>, AppError> {
+    ) -> Result<Vec<GenerationSpecRecord>, AppError> {
         a4n_db::galgame::galgame_asset_generation_specs(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             target_kinds,
             generation_spec_ids,
@@ -54,35 +54,31 @@ impl GalgameApplication {
     async fn galgame_webgal_portraits(
         &self,
         root_project_id: i64,
-    ) -> Result<Vec<character_portrait::Model>, AppError> {
-        a4n_db::galgame::galgame_webgal_portraits(self.database.connection(), root_project_id)
+    ) -> Result<Vec<CharacterPortraitRecord>, AppError> {
+        a4n_db::galgame::galgame_webgal_portraits(self.database.executor(), root_project_id)
             .await
             .map_err(galgame_generation_record_error)
     }
 
     async fn galgame_portrait_spec_target_profile(
         &self,
-        spec: &generation_spec::Model,
+        spec: &GenerationSpecRecord,
         input: &GalgamePortraitSpecTargetInput,
     ) -> Result<a4n_db::galgame::GalgamePortraitSpecTargetProfile, AppError> {
-        a4n_db::galgame::galgame_portrait_spec_target_profile(
-            self.database.connection(),
-            spec,
-            input,
-        )
-        .await
-        .map_err(galgame_generation_record_error)
+        a4n_db::galgame::galgame_portrait_spec_target_profile(self.database.executor(), spec, input)
+            .await
+            .map_err(galgame_generation_record_error)
     }
 
     async fn completed_galgame_portrait_record(
         &self,
-        spec: &generation_spec::Model,
+        spec: &GenerationSpecRecord,
         profile_id: i64,
         expression: &str,
         pose: &str,
-    ) -> Result<character_portrait::Model, AppError> {
+    ) -> Result<CharacterPortraitRecord, AppError> {
         a4n_db::galgame::completed_galgame_portrait_record(
-            self.database.connection(),
+            self.database.executor(),
             spec,
             profile_id,
             expression,
@@ -97,7 +93,7 @@ impl GalgameApplication {
         profile: &a4n_db::galgame::GalgamePortraitSpecTargetProfile,
     ) -> Result<Vec<i64>, AppError> {
         a4n_db::galgame::primary_galgame_portrait_reference_image_ids(
-            self.database.connection(),
+            self.database.executor(),
             profile,
         )
         .await
@@ -110,7 +106,7 @@ impl GalgameApplication {
         status: &str,
     ) -> Result<(), AppError> {
         a4n_db::galgame::mark_galgame_generation_spec_status_record(
-            self.database.connection(),
+            self.database.executor(),
             generation_spec_id,
             status,
         )
@@ -121,9 +117,9 @@ impl GalgameApplication {
     async fn galgame_prompt_artifact_by_generation_spec(
         &self,
         generation_spec_id: i64,
-    ) -> Result<Option<prompt_artifact::Model>, AppError> {
+    ) -> Result<Option<PromptArtifactRecord>, AppError> {
         a4n_db::galgame::galgame_prompt_artifact_by_generation_spec(
-            self.database.connection(),
+            self.database.executor(),
             generation_spec_id,
         )
         .await
@@ -133,8 +129,8 @@ impl GalgameApplication {
     async fn upsert_galgame_prompt_artifact_record(
         &self,
         input: GalgamePromptArtifactUpsertInput,
-    ) -> Result<prompt_artifact::Model, AppError> {
-        a4n_db::galgame::upsert_galgame_prompt_artifact_record(self.database.connection(), input)
+    ) -> Result<PromptArtifactRecord, AppError> {
+        a4n_db::galgame::upsert_galgame_prompt_artifact_record(self.database.executor(), input)
             .await
             .map_err(galgame_generation_record_error)
     }
@@ -146,7 +142,7 @@ impl GalgameApplication {
         target_id: i64,
     ) -> Result<GalgameTargetContext, AppError> {
         a4n_db::galgame::galgame_media_target_context(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             target_kind,
             target_id,
@@ -159,9 +155,9 @@ impl GalgameApplication {
         &self,
         image_id: i64,
         project_id: i64,
-    ) -> Result<generated_image::Model, AppError> {
+    ) -> Result<GeneratedImageRecord, AppError> {
         a4n_db::galgame::galgame_generated_image_by_id(
-            self.database.connection(),
+            self.database.executor(),
             image_id,
             project_id,
         )
@@ -179,7 +175,7 @@ impl GalgameApplication {
         required_media_kind: &str,
     ) -> Result<GalgameMediaBindingResult, AppError> {
         a4n_db::galgame::bind_galgame_media_records(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             media_asset_id,
             target_kind,
@@ -200,7 +196,7 @@ impl GalgameApplication {
         media_asset_id: Option<i64>,
     ) -> Result<u64, AppError> {
         a4n_db::galgame::unbind_galgame_media_records(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             target_kind,
             target_id,
@@ -213,13 +209,13 @@ impl GalgameApplication {
 
     async fn completed_galgame_visual_binding_records(
         &self,
-        spec: &generation_spec::Model,
+        spec: &GenerationSpecRecord,
         target_entity_kind: &str,
         target_entity_id: i64,
         role: &str,
     ) -> Result<CompletedGalgameVisualBindingRecords, AppError> {
         a4n_db::galgame::completed_galgame_visual_binding_records(
-            self.database.connection(),
+            self.database.executor(),
             spec,
             target_entity_kind,
             target_entity_id,
@@ -234,7 +230,7 @@ impl GalgameApplication {
         media_asset_id: i64,
     ) -> Result<(), AppError> {
         a4n_db::galgame::delete_media_asset_with_provenance_records(
-            self.database.connection(),
+            self.database.executor(),
             media_asset_id,
         )
         .await
@@ -249,8 +245,7 @@ impl OrchestratorContext {
         target_kinds: &[&str],
         generation_spec_ids: &[i64],
         limit: Option<usize>,
-    ) -> Result<Vec<a4n_db_models::models::generation::generation_spec::Model>, a4n_error::AppError>
-    {
+    ) -> Result<Vec<GenerationSpecRecord>, a4n_error::AppError> {
         self.galgame
             .galgame_asset_generation_specs(project_id, target_kinds, generation_spec_ids, limit)
             .await
@@ -259,14 +254,13 @@ impl OrchestratorContext {
     pub(crate) async fn galgame_webgal_portraits(
         &self,
         root_project_id: i64,
-    ) -> Result<Vec<a4n_db_models::models::character::character_portrait::Model>, a4n_error::AppError>
-    {
+    ) -> Result<Vec<CharacterPortraitRecord>, a4n_error::AppError> {
         self.galgame.galgame_webgal_portraits(root_project_id).await
     }
 
     pub(crate) async fn galgame_portrait_spec_target_profile(
         &self,
-        spec: &a4n_db_models::models::generation::generation_spec::Model,
+        spec: &GenerationSpecRecord,
         input: &a4n_db::galgame::GalgamePortraitSpecTargetInput,
     ) -> Result<a4n_db::galgame::GalgamePortraitSpecTargetProfile, a4n_error::AppError> {
         self.galgame
@@ -276,12 +270,11 @@ impl OrchestratorContext {
 
     pub(crate) async fn completed_galgame_portrait_record(
         &self,
-        spec: &a4n_db_models::models::generation::generation_spec::Model,
+        spec: &GenerationSpecRecord,
         profile_id: i64,
         expression: &str,
         pose: &str,
-    ) -> Result<a4n_db_models::models::character::character_portrait::Model, a4n_error::AppError>
-    {
+    ) -> Result<CharacterPortraitRecord, a4n_error::AppError> {
         self.galgame
             .completed_galgame_portrait_record(spec, profile_id, expression, pose)
             .await
@@ -309,10 +302,7 @@ impl OrchestratorContext {
     pub(crate) async fn galgame_prompt_artifact_by_generation_spec(
         &self,
         generation_spec_id: i64,
-    ) -> Result<
-        Option<a4n_db_models::models::generation::prompt_artifact::Model>,
-        a4n_error::AppError,
-    > {
+    ) -> Result<Option<PromptArtifactRecord>, a4n_error::AppError> {
         self.galgame
             .galgame_prompt_artifact_by_generation_spec(generation_spec_id)
             .await
@@ -321,8 +311,7 @@ impl OrchestratorContext {
     pub(crate) async fn upsert_galgame_prompt_artifact_record(
         &self,
         input: GalgamePromptArtifactUpsertInput,
-    ) -> Result<a4n_db_models::models::generation::prompt_artifact::Model, a4n_error::AppError>
-    {
+    ) -> Result<PromptArtifactRecord, a4n_error::AppError> {
         self.galgame
             .upsert_galgame_prompt_artifact_record(input)
             .await
@@ -343,7 +332,7 @@ impl OrchestratorContext {
         &self,
         image_id: i64,
         project_id: i64,
-    ) -> Result<a4n_db_models::models::ai::generated_image::Model, a4n_error::AppError> {
+    ) -> Result<GeneratedImageRecord, a4n_error::AppError> {
         self.galgame
             .galgame_generated_image_by_id(image_id, project_id)
             .await
@@ -385,7 +374,7 @@ impl OrchestratorContext {
 
     pub(crate) async fn completed_galgame_visual_binding_records(
         &self,
-        spec: &a4n_db_models::models::generation::generation_spec::Model,
+        spec: &GenerationSpecRecord,
         target_entity_kind: &str,
         target_entity_id: i64,
         role: &str,

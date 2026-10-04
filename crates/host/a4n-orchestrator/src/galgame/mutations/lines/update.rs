@@ -1,5 +1,5 @@
 use a4n_db::galgame::UpdateGalgameLineRecordInput;
-use a4n_db_models::models::galgame::galgame_line;
+use a4n_domain::galgame::GalgameLineRecord;
 use a4n_error::AppError;
 
 use crate::galgame::{
@@ -13,7 +13,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         input: UpdateGalgameLineInput,
-    ) -> Result<galgame_line::Model, AppError> {
+    ) -> Result<GalgameLineRecord, AppError> {
         validate_positive_id(project_id, "project_id")?;
         validate_positive_id(input.line_id, "line_id")?;
         let context = self.load_galgame_context(project_id).await?;
@@ -141,7 +141,7 @@ impl OrchestratorContext {
         };
         let visual_generation_inputs_changed = visual_inputs_changed(&line, &record_input);
         let updated = a4n_db::galgame::update_galgame_line_with_generation_cleanup_record(
-            self.database.connection(),
+            self.database.executor(),
             context.project.id,
             record_input,
             visual_generation_inputs_changed,
@@ -162,7 +162,7 @@ fn transition_change_without_cg_is_invalid(
         })
 }
 
-fn visual_inputs_changed(line: &galgame_line::Model, input: &UpdateGalgameLineRecordInput) -> bool {
+fn visual_inputs_changed(line: &GalgameLineRecord, input: &UpdateGalgameLineRecordInput) -> bool {
     // Asset plans consume line content, the speaker projection and CG fields, not playback directives.
     input
         .line_type
@@ -198,8 +198,7 @@ mod tests {
 
     #[test]
     fn playback_changes_and_unchanged_content_keep_visual_assets() {
-        let timestamp = chrono::Utc::now().naive_utc();
-        let line = galgame_line::Model {
+        let line = GalgameLineRecord {
             id: 1,
             scene_id: 1,
             line_index: 1,
@@ -211,8 +210,6 @@ mod tests {
             position: None,
             presentation_json: json!({"cg": true, "cg_note": "雨中的车站", "cg_importance": "high", "transition": null}),
             text_anchor_id: Some(1),
-            created_at: timestamp,
-            updated_at: timestamp,
         };
         let mut input = UpdateGalgameLineRecordInput {
             line_id: 1,

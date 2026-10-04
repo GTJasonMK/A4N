@@ -15,7 +15,7 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn ensure_existin
     prompt_output_language: PromptOutputLanguage,
 ) -> Result<(), AppError> {
     let rows = a4n_db::video::read_models::chapter_video_prompt_workflow_records(
-        service.database.connection(),
+        service.database.executor(),
         project_id,
         chapter_id,
         prompt_type,
@@ -23,7 +23,7 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn ensure_existin
         false,
     )
     .await
-    .map_err(AppError::Database)?;
+    .map_err(AppError::from)?;
     let rows = rows
         .into_iter()
         .filter(|row| {

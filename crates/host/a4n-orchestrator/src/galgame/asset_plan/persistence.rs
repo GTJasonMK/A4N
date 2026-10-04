@@ -1,5 +1,5 @@
 use a4n_db::galgame::GalgameGenerationSpecUpsertOutcome;
-use a4n_db_models::models::generation::generation_spec;
+use a4n_domain::generation::GenerationSpecRecord;
 use a4n_error::AppError;
 
 use crate::galgame::{OrchestratorContext, galgame_asset_plan_spec_record_error};
@@ -18,7 +18,7 @@ pub(super) async fn persist_galgame_asset_plan(
         .map(|draft| draft.record_input.clone())
         .collect::<Vec<_>>();
     let upserts = a4n_db::galgame::upsert_galgame_asset_plan_spec_records_transaction(
-        service.database.connection(),
+        service.database.executor(),
         project_id,
         record_inputs,
     )
@@ -41,7 +41,7 @@ pub(super) async fn persist_galgame_asset_plan(
             GalgameGenerationSpecUpsertOutcome::Updated => GalgameAssetPlanOutcome::Updated,
             GalgameGenerationSpecUpsertOutcome::Reused => GalgameAssetPlanOutcome::Reused,
         };
-        (draft, upsert.model, Some(outcome))
+        (draft, upsert.record, Some(outcome))
     }))
 }
 
@@ -49,7 +49,7 @@ pub(super) fn assemble_galgame_asset_plan(
     items: impl IntoIterator<
         Item = (
             GalgameAssetPlanItemDraft,
-            generation_spec::Model,
+            GenerationSpecRecord,
             Option<GalgameAssetPlanOutcome>,
         ),
     >,

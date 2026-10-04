@@ -11,16 +11,17 @@ mod validation;
 
 pub use contracts::{
     CHAPTER_SHOOTING_SCRIPT_V2, ChapterShootingScriptRecordSummary,
-    ChapterShootingScriptSchemaVersion, ChapterShootingScriptUnitProgressCheckpoint,
-    ChapterShootingScriptUnitProgressView, ChapterShootingScriptV2,
-    EditChapterShootingScriptProgressInput, EditStoredChapterShootingScriptInput,
-    EditedChapterShootingScriptProgressView, ShootingBlockingV1, ShootingCameraAngleV1,
-    ShootingCameraHeightV1, ShootingCameraMovementV1, ShootingContinuityIntentV1,
-    ShootingCoverageV1, ShootingDialogueCueV1, ShootingDirectingStatementV1, ShootingEditingModeV1,
-    ShootingPerformanceBeatV2, ShootingSceneV2, ShootingShotSizeV1, ShootingShotV2,
-    ShootingSoundDesignV1, ShootingSpatialContinuityV1, ShootingTransitionContractV1,
-    ShootingTransitionTypeV1, ShootingViewpointModeV1, ShootingViewpointV1,
-    ShootingVisualConstraintsV3, ShootingVisualPlanSourceV1,
+    ChapterShootingScriptReferenceRecord, ChapterShootingScriptSchemaVersion,
+    ChapterShootingScriptUnitProgressCheckpoint, ChapterShootingScriptUnitProgressView,
+    ChapterShootingScriptV2, EditChapterShootingScriptProgressInput,
+    EditStoredChapterShootingScriptInput, EditedChapterShootingScriptProgressView,
+    ShootingBlockingV1, ShootingCameraAngleV1, ShootingCameraHeightV1, ShootingCameraMovementV1,
+    ShootingContinuityIntentV1, ShootingCoverageV1, ShootingDialogueCueV1,
+    ShootingDirectingStatementV1, ShootingEditingModeV1, ShootingPerformanceBeatV2,
+    ShootingSceneV2, ShootingShotSizeV1, ShootingShotV2, ShootingSoundDesignV1,
+    ShootingSpatialContinuityV1, ShootingTransitionContractV1, ShootingTransitionTypeV1,
+    ShootingViewpointModeV1, ShootingViewpointV1, ShootingVisualConstraintsV3,
+    ShootingVisualPlanSourceV1,
 };
 pub use director_projection::{
     DirectorScriptPlan, DirectorScriptUnit, project_visual_plan_for_shooting_script,

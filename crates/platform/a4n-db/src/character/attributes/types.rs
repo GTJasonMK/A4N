@@ -1,6 +1,9 @@
 use a4n_db_models::models::character::{
     attribute_event, protagonist_deletion_mark, protagonist_profile,
 };
+use a4n_domain::character::{
+    CharacterAttributeEventRecord, CharacterDeletionMarkRecord, CharacterProfileRecord,
+};
 use serde_json::Value;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -30,8 +33,8 @@ pub(in crate::character::attributes) struct CharacterAttributeEventInsertInput {
 
 #[derive(Debug, Clone)]
 pub struct CharacterAttributeMutationResult {
-    pub profile: protagonist_profile::Model,
-    pub event: attribute_event::Model,
+    pub profile: CharacterProfileRecord,
+    pub event: CharacterAttributeEventRecord,
 }
 
 #[derive(Debug, Clone)]
@@ -54,6 +57,14 @@ pub enum AppliedCharacterImplicitDecisionAction {
 
 #[derive(Debug, Clone)]
 pub struct AppliedCharacterImplicitDecisionRecord {
+    pub profile: CharacterProfileRecord,
+    pub action: AppliedCharacterImplicitDecisionAction,
+    pub event: Option<CharacterAttributeEventRecord>,
+    pub deletion_mark: Option<CharacterDeletionMarkRecord>,
+}
+
+#[derive(Debug, Clone)]
+pub(in crate::character) struct AppliedCharacterImplicitDecisionModels {
     pub profile: protagonist_profile::Model,
     pub action: AppliedCharacterImplicitDecisionAction,
     pub event: Option<attribute_event::Model>,
@@ -62,8 +73,8 @@ pub struct AppliedCharacterImplicitDecisionRecord {
 
 #[derive(Debug, Clone)]
 pub struct CharacterAttributeDeletionExecutionResult {
-    pub profile: protagonist_profile::Model,
-    pub event: attribute_event::Model,
+    pub profile: CharacterProfileRecord,
+    pub event: CharacterAttributeEventRecord,
     pub consecutive_count: i32,
 }
 

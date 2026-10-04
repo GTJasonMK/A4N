@@ -6,16 +6,13 @@ use crate::manga::{
 use a4n_db_models::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
 use a4n_domain::manga::MangaPagePromptRecord;
 use chrono::Utc;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,
-    TransactionTrait,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set};
 use serde_json::Value;
 
 use super::mapping::manga_page_prompt_record_from_model;
 
 pub async fn delete_manga_prompts_by_chapter(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_id: i64,
 ) -> Result<u64, MangaPromptRecordError> {
@@ -48,7 +45,7 @@ pub async fn delete_manga_prompts_by_chapter(
 }
 
 pub async fn delete_manga_prompt_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     prompt_id: i64,
 ) -> Result<(), MangaPromptRecordError> {
     require_positive_manga_id(prompt_id, "prompt_id")?;
@@ -73,7 +70,7 @@ pub async fn delete_manga_prompt_record(
 }
 
 pub async fn update_manga_page_prompt_layout(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     page_prompt: MangaPagePromptRecord,
     layout: Value,
 ) -> Result<MangaPagePromptRecord, MangaPromptRecordError> {
@@ -102,7 +99,7 @@ fn manga_pipeline_record_error(error: MangaPipelineDbError) -> MangaPromptRecord
 }
 
 pub async fn update_manga_page_prompt_image_prompt(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     page_prompt: MangaPagePromptRecord,
     image_prompt: String,
 ) -> Result<MangaPagePromptRecord, MangaPromptRecordError> {
@@ -127,7 +124,7 @@ pub async fn update_manga_page_prompt_image_prompt(
 }
 
 pub async fn mark_manga_page_prompt_image_completed_with_image(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     page_prompt_id: i64,
     image_id: i64,
     updated_at: MangaPromptUpdatedAt,

@@ -1,8 +1,3 @@
-use a4n_db_models::models::{
-    galgame::{galgame_line, galgame_scene, galgame_script},
-    generation::generation_spec,
-    project::{source_snapshot_chapter, source_snapshot_profile},
-};
 use std::collections::{HashMap, HashSet};
 
 use crate::project::snapshot_profile_key;
@@ -10,16 +5,22 @@ use crate::project::snapshot_profile_key;
 use super::galgame::validate_generation_spec_galgame_scene_context;
 
 pub(in super::super) fn validate_generation_spec_target_entity(
-    spec: &generation_spec::Model,
+    spec: &a4n_domain::project::ProjectFamilyGenerationSpecRecord,
     source_snapshot_id: i64,
-    snapshot_chapters: &HashMap<i64, &source_snapshot_chapter::Model>,
-    snapshot_profiles: &HashMap<(i64, String), &source_snapshot_profile::Model>,
+    snapshot_chapters: &HashMap<
+        i64,
+        &a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord,
+    >,
+    snapshot_profiles: &HashMap<
+        (i64, String),
+        &a4n_domain::project::ProjectFamilySourceSnapshotProfileRecord,
+    >,
     chapter_video_prompt_ids: &HashSet<i64>,
     video_segment_ids: &HashSet<i64>,
     assembly_timeline_ids: &HashSet<i64>,
-    galgame_scripts: &HashMap<i64, &galgame_script::Model>,
-    galgame_scenes: &HashMap<i64, &galgame_scene::Model>,
-    galgame_lines: &HashMap<i64, &galgame_line::Model>,
+    galgame_scripts: &HashMap<i64, &a4n_domain::project::ProjectFamilyGalgameScriptRecord>,
+    galgame_scenes: &HashMap<i64, &a4n_domain::project::ProjectFamilyGalgameSceneRecord>,
+    galgame_lines: &HashMap<i64, &a4n_domain::project::ProjectFamilyGalgameLineRecord>,
 ) -> Result<(), String> {
     let Some(target_entity_id) = spec.target_entity_id else {
         return Ok(());

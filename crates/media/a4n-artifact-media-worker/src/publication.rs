@@ -17,11 +17,13 @@ impl WorkerState {
         )
         .await
         .map_err(|error| error.to_string())?;
-        let publication =
-            a4n_db::video::image_publication_by_id(self.db.connection(), &request.publication_id)
-                .await
-                .map_err(|error| error.to_string())?
-                .ok_or_else(|| format!("图片发布意图不存在: {}", request.publication_id))?;
+        let publication = a4n_db::video::image_publication_record_by_id(
+            self.db.connection(),
+            &request.publication_id,
+        )
+        .await
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| format!("图片发布意图不存在: {}", request.publication_id))?;
         if publication.project_id != request.project_id
             || publication.model != EXTERNAL_IMPORT_MODEL
         {
@@ -46,11 +48,13 @@ impl WorkerState {
         )
         .await
         .map_err(|error| error.to_string())?;
-        let publication =
-            a4n_db::video::image_publication_by_id(self.db.connection(), &request.publication_id)
-                .await
-                .map_err(|error| error.to_string())?
-                .ok_or_else(|| "图片发布完成后找不到 publication".to_string())?;
+        let publication = a4n_db::video::image_publication_record_by_id(
+            self.db.connection(),
+            &request.publication_id,
+        )
+        .await
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "图片发布完成后找不到 publication".to_string())?;
         Ok(PublishedImageResponse {
             publication_id: publication.publication_id,
             image_id: image.id,

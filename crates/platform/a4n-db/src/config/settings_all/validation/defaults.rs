@@ -2,10 +2,10 @@ use super::super::types::{SettingsAllConfigImportError, SettingsAllConfigImportI
 use super::contracts::{DefaultImportPolicy, DefaultStateRow};
 use super::policy::ensure_single_default_after_import;
 use a4n_db_models::models::ai::{embedding_config, image_gen_config, llm_config, video_gen_config};
-use sea_orm::{DatabaseConnection, EntityTrait, QuerySelect};
+use sea_orm::{EntityTrait, QuerySelect};
 
 pub async fn validate_settings_all_config_import_defaults(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: &SettingsAllConfigImportInput,
 ) -> Result<(), SettingsAllConfigImportError> {
     let existing_llm = llm_config::Entity::find()

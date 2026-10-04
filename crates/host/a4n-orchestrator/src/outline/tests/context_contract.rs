@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn outline_blueprint_context_is_compact_and_keeps_story_fields() {
     let now = fixed_time(1);
-    let blueprint = novel_blueprint::Model {
+    let blueprint = a4n_domain::project::BlueprintRecord {
         id: 1,
         project_id: 9,
         title: "星潮档案".to_string(),
@@ -23,7 +23,7 @@ fn outline_blueprint_context_is_compact_and_keeps_story_fields() {
         created_at: now,
         updated_at: now,
     };
-    let character = blueprint_character::Model {
+    let character = a4n_domain::project::BlueprintCharacterRecord {
         id: 2,
         project_id: 9,
         name: "林烬".to_string(),
@@ -40,7 +40,7 @@ fn outline_blueprint_context_is_compact_and_keeps_story_fields() {
         created_at: now,
         updated_at: now,
     };
-    let relationship = blueprint_relationship::Model {
+    let relationship = a4n_domain::project::BlueprintRelationshipRecord {
         id: 3,
         project_id: 9,
         relationship_type: "rival".to_string(),
@@ -139,7 +139,7 @@ fn outline_context_without_blueprint_uses_sparse_formal_materials_without_fake_c
         created_at: now,
         updated_at: now,
     };
-    let profile = protagonist_profile::Model {
+    let profile = a4n_domain::character::CharacterProfileRecord {
         id: 1,
         project_id: 9,
         name: "林岚".to_string(),
@@ -156,7 +156,7 @@ fn outline_context_without_blueprint_uses_sparse_formal_materials_without_fake_c
         created_at: now,
         updated_at: now,
     };
-    let object = object_profile::Model {
+    let object = a4n_domain::object_profile::ObjectProfileRecord {
         id: 2,
         project_id: 9,
         ownership_kind: "user".to_string(),
@@ -178,7 +178,7 @@ fn outline_context_without_blueprint_uses_sparse_formal_materials_without_fake_c
         created_at: now,
         updated_at: now,
     };
-    let scene = scene_profile::Model {
+    let scene = a4n_domain::scene_profile::SceneProfileRecord {
         id: 3,
         project_id: 9,
         ownership_kind: "user".to_string(),
@@ -202,7 +202,7 @@ fn outline_context_without_blueprint_uses_sparse_formal_materials_without_fake_c
         created_at: now,
         updated_at: now,
     };
-    let foreshadowing = foreshadowing_index::Model {
+    let foreshadowing = a4n_domain::character::ForeshadowingIndexRecord {
         id: 4,
         project_id: 9,
         description: "旧钟会在午夜倒走".to_string(),

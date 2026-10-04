@@ -146,7 +146,7 @@ impl OrchestratorContext {
     pub(crate) async fn create_image_publication_intent(
         &self,
         input: CreateImagePublicationIntentInput,
-    ) -> Result<(image_publication::Model, OwnedMutexGuard<()>), AppError> {
+    ) -> Result<(ImagePublicationRecord, OwnedMutexGuard<()>), AppError> {
         self.video.create_image_publication_intent(input).await
     }
 
@@ -159,7 +159,7 @@ impl OrchestratorContext {
     pub(crate) async fn image_publication_by_id(
         &self,
         publication_id: &str,
-    ) -> Result<Option<image_publication::Model>, AppError> {
+    ) -> Result<Option<ImagePublicationRecord>, AppError> {
         self.video.image_publication_by_id(publication_id).await
     }
 
@@ -193,7 +193,7 @@ impl OrchestratorContext {
         publication_id: &str,
         expected_version: i64,
         metadata_json: Value,
-    ) -> Result<image_publication::Model, AppError> {
+    ) -> Result<ImagePublicationRecord, AppError> {
         self.video
             .update_image_publication_metadata(publication_id, expected_version, metadata_json)
             .await
@@ -203,7 +203,7 @@ impl OrchestratorContext {
         &self,
         limit: usize,
         published_after: Option<&str>,
-    ) -> Result<Vec<image_publication::Model>, AppError> {
+    ) -> Result<Vec<ImagePublicationRecord>, AppError> {
         self.video
             .image_publications_for_recovery(limit, published_after)
             .await
@@ -214,7 +214,7 @@ impl OrchestratorContext {
         publication_id: &str,
         version: i64,
         reason: String,
-    ) -> Result<image_publication::Model, AppError> {
+    ) -> Result<ImagePublicationRecord, AppError> {
         self.video
             .mark_image_publication_reclaiming(publication_id, version, reason)
             .await
@@ -225,7 +225,7 @@ impl OrchestratorContext {
         publication_id: &str,
         version: i64,
         reason: Option<String>,
-    ) -> Result<image_publication::Model, AppError> {
+    ) -> Result<ImagePublicationRecord, AppError> {
         self.video
             .mark_image_publication_reclaimed(publication_id, version, reason)
             .await

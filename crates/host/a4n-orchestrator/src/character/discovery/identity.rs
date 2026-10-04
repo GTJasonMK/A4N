@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use a4n_api_contract::character::DiscoveredCharacterProfileSummary;
-use a4n_db_models::models::character::protagonist_profile;
+use a4n_domain::character::CharacterProfileRecord;
 use serde_json::{Value, json};
 
 use crate::character::json_field_rules::{
@@ -9,7 +9,7 @@ use crate::character::json_field_rules::{
 };
 
 pub(super) fn existing_profile_for_prompt(
-    profile: &protagonist_profile::Model,
+    profile: &CharacterProfileRecord,
 ) -> Result<Value, String> {
     Ok(json!({
         "name": profile.name,
@@ -33,7 +33,7 @@ pub(super) fn existing_profile_for_prompt(
 }
 
 pub(super) fn profile_for_result(
-    profile: &protagonist_profile::Model,
+    profile: &CharacterProfileRecord,
 ) -> Result<DiscoveredCharacterProfileSummary, String> {
     Ok(DiscoveredCharacterProfileSummary {
         id: profile.id,
@@ -55,7 +55,7 @@ pub(super) fn profile_for_result(
     })
 }
 
-pub(super) fn existing_character_keys(profiles: &[protagonist_profile::Model]) -> BTreeSet<String> {
+pub(super) fn existing_character_keys(profiles: &[CharacterProfileRecord]) -> BTreeSet<String> {
     let mut keys = BTreeSet::new();
     for profile in profiles {
         keys.extend(profile_character_keys(profile));
@@ -64,7 +64,7 @@ pub(super) fn existing_character_keys(profiles: &[protagonist_profile::Model]) -
     keys
 }
 
-pub fn profile_character_keys(profile: &protagonist_profile::Model) -> BTreeSet<String> {
+pub fn profile_character_keys(profile: &CharacterProfileRecord) -> BTreeSet<String> {
     let mut keys = BTreeSet::new();
     keys.insert(character_identity_key(&profile.name));
     for alias in profile_aliases(profile) {
@@ -74,7 +74,7 @@ pub fn profile_character_keys(profile: &protagonist_profile::Model) -> BTreeSet<
     keys
 }
 
-fn profile_aliases(profile: &protagonist_profile::Model) -> Vec<String> {
+fn profile_aliases(profile: &CharacterProfileRecord) -> Vec<String> {
     aliases_from_attributes(&profile.base_attributes)
         .into_iter()
         .chain(aliases_from_attributes(&profile.current_state))

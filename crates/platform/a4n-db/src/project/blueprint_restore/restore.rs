@@ -6,7 +6,7 @@ use super::snapshots::{
 use super::*;
 
 pub async fn restore_blueprint_version_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     version_name: &str,
 ) -> Result<crate::blueprint::VersionedBlueprintMutationResult, BlueprintRestoreError> {
@@ -53,7 +53,8 @@ pub async fn restore_blueprint_version_record(
     let existing = locked_sources.blueprint;
 
     let restored = if let Some(blueprint) = existing {
-        let mut active: novel_blueprint::ActiveModel = blueprint.into();
+        let mut active: novel_blueprint::ActiveModel =
+            crate::project::blueprint_model_from_record(blueprint).into();
         fields.apply_to_existing(&mut active, now);
         active
             .update(&txn)
@@ -78,6 +79,7 @@ pub async fn restore_blueprint_version_record(
     .await?;
     let status_change =
         sync_project_after_blueprint_restore_record(&txn, project_id, &restored, data, now).await?;
+    let restored = crate::project::blueprint_record(restored);
     txn.commit()
         .await
         .map_err(|error| BlueprintRestoreError::database("提交蓝图版本恢复事务失败", error))?;

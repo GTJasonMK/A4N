@@ -5,7 +5,7 @@
 
 use a4n_db::DbHandle;
 use a4n_db::source_sync::SourceSyncPlanRecord;
-use a4n_db_models::models::source_sync::source_sync_run;
+use a4n_domain::source_sync::SourceSyncRunRecord;
 use a4n_error::AppError;
 
 use super::OrchestratorContext;
@@ -22,8 +22,8 @@ impl SourceSyncApplication {
         Self { database }
     }
 
-    fn connection(&self) -> &sea_orm::DatabaseConnection {
-        self.database.connection()
+    fn connection(&self) -> &impl a4n_db::DbExecutor {
+        self.database.executor()
     }
 
     async fn create_source_sync_preview_records(
@@ -41,10 +41,10 @@ impl SourceSyncApplication {
     async fn source_sync_run_by_id(
         &self,
         sync_run_id: i64,
-    ) -> Result<Option<source_sync_run::Model>, AppError> {
-        a4n_db::source_sync::source_sync_run_by_id(self.connection(), sync_run_id)
+    ) -> Result<Option<SourceSyncRunRecord>, AppError> {
+        a4n_db::source_sync::source_sync_run_record_by_id(self.connection(), sync_run_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn detach_derived_project_record(&self, derived_project_id: i64) -> Result<(), AppError> {
@@ -76,7 +76,7 @@ impl OrchestratorContext {
     pub(crate) async fn source_sync_run_by_id(
         &self,
         sync_run_id: i64,
-    ) -> Result<Option<source_sync_run::Model>, AppError> {
+    ) -> Result<Option<SourceSyncRunRecord>, AppError> {
         self.source_sync.source_sync_run_by_id(sync_run_id).await
     }
 
@@ -84,7 +84,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         sync_run_id: i64,
-    ) -> Result<source_sync_run::Model, AppError> {
+    ) -> Result<SourceSyncRunRecord, AppError> {
         let run = self
             .source_sync_run_by_id(sync_run_id)
             .await?
@@ -128,7 +128,7 @@ impl OrchestratorContext {
         from_snapshot_id: i64,
         to_snapshot_id: i64,
         decisions: &serde_json::Value,
-    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_domain::workflow::WorkflowRunSummary, AppError> {
         let input = crate::source_sync::source_sync_apply_workflow_run_input(
             sync_run_id,
             derived_project_id,

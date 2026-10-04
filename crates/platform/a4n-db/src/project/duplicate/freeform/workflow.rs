@@ -1,7 +1,3 @@
-use a4n_domain::project::{ProjectMediaFileCopier, ProjectRecord, ProjectSourceMode};
-use chrono::Utc;
-use sea_orm::{DatabaseConnection, TransactionTrait};
-
 use super::{
     FreeformCopyMaps, FreeformProjectMediaCopyResult,
     canvas::{
@@ -25,9 +21,11 @@ use crate::project::duplicate::{
     },
 };
 use crate::project::{project_record_from_model, project_record_into_model};
+use a4n_domain::project::{ProjectMediaFileCopier, ProjectRecord, ProjectSourceMode};
+use chrono::Utc;
 
 pub async fn duplicate_freeform_project_record<Copier>(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     original: ProjectRecord,
     user_id: i64,
     new_title: &str,

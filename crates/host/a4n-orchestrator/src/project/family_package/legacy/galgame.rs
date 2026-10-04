@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 
-use a4n_db_models::models::{galgame::galgame_scene, project::source_snapshot_chapter};
 use a4n_domain::{
     galgame::GalgamePipelineBeatRefV4,
     media_authoring::{
@@ -16,7 +15,10 @@ use a4n_domain::{
 use super::{ProjectFamilyPackage, error, insert_document, receipt};
 
 pub(super) fn upgrade(package: &mut ProjectFamilyPackage, next: &mut i64) -> Result<(), String> {
-    let mut groups = BTreeMap::<(i64, i64, i64, Option<i64>), Vec<galgame_scene::Model>>::new();
+    let mut groups = BTreeMap::<
+        (i64, i64, i64, Option<i64>),
+        Vec<a4n_domain::project::ProjectFamilyGalgameSceneRecord>,
+    >::new();
     let mut sources = BTreeMap::new();
     for scene in &package.galgame_scenes {
         let script = package
@@ -210,7 +212,7 @@ pub(super) fn upgrade(package: &mut ProjectFamilyPackage, next: &mut i64) -> Res
 fn anchor_spans(
     package: &ProjectFamilyPackage,
     id: i64,
-    source: &source_snapshot_chapter::Model,
+    source: &a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord,
 ) -> Result<Vec<String>, String> {
     let anchor = package
         .text_anchors

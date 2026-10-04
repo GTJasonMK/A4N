@@ -12,13 +12,13 @@ impl AgentApplication {
         &self,
         worker_id: &str,
     ) -> Result<Option<AgentWorkerRun>, AppError> {
-        let row = agent::claim_runnable_run(self.connection(), worker_id)
+        let row = agent::claim_runnable_run(self.executor(), worker_id)
             .await
             .map_err(agent_db_error_to_app)?;
         let Some(run_row) = row else {
             return Ok(None);
         };
-        let thread_row = agent::thread_by_id(self.connection(), run_row.thread_id)
+        let thread_row = agent::thread_by_id(self.executor(), run_row.thread_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::InvalidState {
@@ -43,7 +43,7 @@ impl AgentApplication {
         &self,
         claimed: &AgentWorkerRun,
     ) -> Result<(), AppError> {
-        agent::renew_run_lease(self.connection(), claimed.run.id, &claimed.lease_token)
+        agent::renew_run_lease(self.executor(), claimed.run.id, &claimed.lease_token)
             .await
             .map_err(agent_db_error_to_app)
     }
@@ -53,23 +53,19 @@ impl AgentApplication {
         request: &AgentWorkerRunLeaseRequest,
     ) -> Result<(), AppError> {
         self.validate_worker_lease_request(request).await?;
-        agent::renew_run_lease(
-            self.connection(),
-            request.run_id,
-            &request.lease.fence_token,
-        )
-        .await
-        .map_err(agent_db_error_to_app)
+        agent::renew_run_lease(self.executor(), request.run_id, &request.lease.fence_token)
+            .await
+            .map_err(agent_db_error_to_app)
     }
 
     pub(crate) async fn validate_worker_lease_request(
         &self,
         request: &AgentWorkerRunLeaseRequest,
-    ) -> Result<run::Model, AppError> {
+    ) -> Result<agent::AgentRunRecord, AppError> {
         request
             .validate()
             .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-        let run = agent::run_by_id(self.connection(), request.run_id)
+        let run = agent::run_by_id(self.executor(), request.run_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {}", request.run_id)))?;
@@ -92,7 +88,7 @@ impl AgentApplication {
         request: &AgentWorkerRunLeaseRequest,
     ) -> Result<AgentWorkerRun, AppError> {
         let run = self.validate_worker_lease_request(request).await?;
-        let thread = agent::thread_by_id(self.connection(), run.thread_id)
+        let thread = agent::thread_by_id(self.executor(), run.thread_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent thread 不存在: {}", run.thread_id)))?;

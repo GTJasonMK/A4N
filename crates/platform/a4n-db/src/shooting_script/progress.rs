@@ -8,9 +8,10 @@ use a4n_domain::workflow::{
     WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING,
 };
 use chrono::Utc;
+use sea_orm::ConnectionTrait;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, EntityTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait, sea_query::Expr,
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+    Set, sea_query::Expr,
 };
 use std::collections::HashMap;
 
@@ -125,7 +126,7 @@ async fn chapter_shooting_script_progress_for_plans<C: ConnectionTrait>(
 }
 
 pub async fn edit_chapter_shooting_script_progress(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: EditChapterShootingScriptProgressInput,
 ) -> Result<EditedChapterShootingScriptProgressView, ShootingScriptDbError> {
     require_positive(input.project_id, "project_id")?;

@@ -1,7 +1,7 @@
 use std::{future::Future, sync::Arc, time::Duration};
 
 use a4n_db::{
-    SharedDatabaseConnection,
+    DbHandle,
     generation::{
         GENERATION_SEQUENCE_LEASE_SIZE, GenerationTaskPersistenceError,
         PersistGenerationCheckpointInput, PersistedGenerationCheckpoint, PersistedGenerationTask,
@@ -67,15 +67,15 @@ impl GenerationCheckpointError {
 
 #[derive(Clone)]
 pub(crate) struct GenerationCheckpointWriter {
-    db: SharedDatabaseConnection,
+    db: DbHandle,
 }
 
 pub(crate) struct DatabaseGenerationSequenceLeaseReplenisher {
-    db: SharedDatabaseConnection,
+    db: DbHandle,
 }
 
 impl DatabaseGenerationSequenceLeaseReplenisher {
-    pub(crate) fn new(db: SharedDatabaseConnection) -> Self {
+    pub(crate) fn new(db: DbHandle) -> Self {
         Self { db }
     }
 }
@@ -101,7 +101,7 @@ impl GenerationSequenceLeaseReplenisher for DatabaseGenerationSequenceLeaseReple
                 next: u64::MAX,
             })?;
         let lease = extend_generation_sequence_lease(
-            self.db.as_ref(),
+            self.db.executor(),
             task_id,
             expected_checkpoint_revision,
             current_reserved_through_sequence,
@@ -121,7 +121,7 @@ impl GenerationSequenceLeaseReplenisher for DatabaseGenerationSequenceLeaseReple
 }
 
 impl GenerationCheckpointWriter {
-    pub(crate) fn new(db: SharedDatabaseConnection) -> Self {
+    pub(crate) fn new(db: DbHandle) -> Self {
         Self { db }
     }
 
@@ -144,7 +144,7 @@ impl GenerationCheckpointWriter {
         loop {
             let input = checkpoint_input(&candidate, expected_revision, metadata.clone());
             match retry_database(session, || {
-                persist_generation_checkpoint(self.db.as_ref(), input.clone())
+                persist_generation_checkpoint(self.db.executor(), input.clone())
             })
             .await
             {
@@ -160,7 +160,7 @@ impl GenerationCheckpointWriter {
                     GenerationTaskPersistenceError::CheckpointConflict,
                 )) => {
                     let loaded = retry_database(session, || {
-                        load_generation_task(self.db.as_ref(), &candidate.snapshot.task_id)
+                        load_generation_task(self.db.executor(), &candidate.snapshot.task_id)
                     })
                     .await?;
                     validate_loaded(&candidate, &loaded)?;
@@ -236,7 +236,7 @@ impl GenerationCheckpointWriter {
                 metadata.clone(),
             );
             match retry_database(session, || {
-                persist_generation_checkpoint(self.db.as_ref(), input.clone())
+                persist_generation_checkpoint(self.db.executor(), input.clone())
             })
             .await
             {
@@ -249,7 +249,7 @@ impl GenerationCheckpointWriter {
                         });
                     }
                     let loaded = retry_database(session, || {
-                        load_generation_task(self.db.as_ref(), &candidate.snapshot.task_id)
+                        load_generation_task(self.db.executor(), &candidate.snapshot.task_id)
                     })
                     .await?;
                     rebuild_from_loaded(session, loaded)?;
@@ -260,7 +260,7 @@ impl GenerationCheckpointWriter {
                 )) => {
                     drop(permit);
                     let loaded = retry_database(session, || {
-                        load_generation_task(self.db.as_ref(), &candidate.snapshot.task_id)
+                        load_generation_task(self.db.executor(), &candidate.snapshot.task_id)
                     })
                     .await?;
                     validate_loaded(&candidate, &loaded)?;

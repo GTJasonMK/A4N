@@ -2,8 +2,7 @@ use a4n_api_contract::blueprint::{
     RestoreBlueprintVersionInput, SaveBlueprintInput, UpdateWorldSettingInput,
 };
 use a4n_db::DbHandle;
-use a4n_db_models::models::project::{blueprint_character, blueprint_relationship};
-use a4n_domain::project::BlueprintRecord;
+use a4n_domain::project::{BlueprintCharacterRecord, BlueprintRecord, BlueprintRelationshipRecord};
 use a4n_error::AppError;
 use a4n_event::InternalEvent;
 use serde_json::Value;
@@ -24,14 +23,14 @@ impl ProjectBlueprintApplication {
         Self { database }
     }
 
-    fn connection(&self) -> &sea_orm::DatabaseConnection {
-        self.database.connection()
+    fn connection(&self) -> &impl a4n_db::DbExecutor {
+        self.database.executor()
     }
 
     async fn current(&self, project_id: i64) -> Result<Option<BlueprintRecord>, AppError> {
         a4n_db::project::novel_blueprint_for_project(self.connection(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn restore(
@@ -47,19 +46,19 @@ impl ProjectBlueprintApplication {
     async fn blueprint_characters_for_project(
         &self,
         project_id: i64,
-    ) -> Result<Vec<blueprint_character::Model>, AppError> {
+    ) -> Result<Vec<BlueprintCharacterRecord>, AppError> {
         a4n_db::project::blueprint_characters_for_project(self.connection(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn blueprint_relationships_for_project(
         &self,
         project_id: i64,
-    ) -> Result<Vec<blueprint_relationship::Model>, AppError> {
+    ) -> Result<Vec<BlueprintRelationshipRecord>, AppError> {
         a4n_db::project::blueprint_relationships_for_project(self.connection(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 }
 
@@ -163,7 +162,7 @@ impl OrchestratorContext {
     pub(crate) async fn load_blueprint_characters(
         &self,
         project_id: i64,
-    ) -> Result<Vec<blueprint_character::Model>, AppError> {
+    ) -> Result<Vec<BlueprintCharacterRecord>, AppError> {
         self.project_blueprint
             .blueprint_characters_for_project(project_id)
             .await
@@ -172,7 +171,7 @@ impl OrchestratorContext {
     pub(crate) async fn load_blueprint_relationships(
         &self,
         project_id: i64,
-    ) -> Result<Vec<blueprint_relationship::Model>, AppError> {
+    ) -> Result<Vec<BlueprintRelationshipRecord>, AppError> {
         self.project_blueprint
             .blueprint_relationships_for_project(project_id)
             .await

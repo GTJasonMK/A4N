@@ -1,4 +1,4 @@
-use a4n_db_models::models::character::protagonist_profile;
+use a4n_domain::character::CharacterProfileRecord;
 use sea_orm::DbErr;
 use serde_json::Value;
 
@@ -9,13 +9,13 @@ pub struct CharacterPortraitRollbackResult {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PortraitPromptProfileRows {
-    pub profile: protagonist_profile::Model,
+    pub profile: CharacterProfileRecord,
     pub project_context: Option<Value>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PortraitNamedPromptProfileRows {
-    pub profile: protagonist_profile::Model,
+    pub profile: CharacterProfileRecord,
     pub existing_portrait_count: u64,
     pub project_context: Option<Value>,
 }

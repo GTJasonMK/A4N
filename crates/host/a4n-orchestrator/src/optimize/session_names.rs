@@ -1,5 +1,5 @@
+use a4n_db::ConnectionTrait;
 use a4n_error::AppError;
-use sea_orm::ConnectionTrait;
 
 use super::optimize_db_error;
 

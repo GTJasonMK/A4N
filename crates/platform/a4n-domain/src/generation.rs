@@ -8,5 +8,16 @@ pub use lifecycle::{
     ProjectLifecycleGateClaim, ProjectLifecycleOperation, UserLifecycleGateClaim,
 };
 pub use records::{
-    GenerationRunTraceTarget, GenerationTaskListCursor, RecordCompletedGenerationRunInput,
+    GenerationRunTraceTarget, GenerationSpecRecord, GenerationTaskCheckpointRecord,
+    GenerationTaskCheckpointSummaryRecord, GenerationTaskListCursor, PromptArtifactRecord,
+    RecordCompletedGenerationRunInput,
 };
+
+pub const SOURCE_CONTEXT_FREEFORM: &str = "freeform";
+
+pub fn freeform_source_version_hash(params_json: &serde_json::Value) -> Option<String> {
+    params_json
+        .get("source_material")
+        .filter(|value| value.is_object())
+        .map(|value| crate::source_text_hash(&value.to_string()))
+}

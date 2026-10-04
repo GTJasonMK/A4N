@@ -1,5 +1,5 @@
 use a4n_db::optimize::{OptimizationPatchCreateInput, OptimizationPatchSetCreateInput};
-use a4n_db_models::models::ai::optimization_patch_set;
+use a4n_domain::project::OptimizationPatchSetRecord;
 use a4n_error::AppError;
 
 use serde_json::Value;
@@ -9,10 +9,6 @@ use super::super::{
     OptimizationPatch, OptimizationPatchProposal, OrchestratorContext, optimize_db_error,
 };
 
-const PATCH_SET_STATUS_PENDING: &str = "pending";
-const PATCH_DECISION_PENDING: &str = "pending";
-const PATCH_APPLY_STATUS_PENDING: &str = "pending";
-
 impl OrchestratorContext {
     pub(in crate::optimize) async fn persist_patch_tool_result(
         &self,
@@ -21,7 +17,7 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         result: &Value,
-    ) -> Result<Option<optimization_patch_set::Model>, AppError> {
+    ) -> Result<Option<OptimizationPatchSetRecord>, AppError> {
         if result.get("tool").and_then(Value::as_str) != Some(EDIT_ARTICLE_TOOL)
             || result.get("mode").and_then(Value::as_str) != Some("pending_confirmation")
         {
@@ -48,9 +44,9 @@ impl OrchestratorContext {
         &self,
         turn_id: i64,
         proposal: &OptimizationPatchProposal,
-    ) -> Result<Option<optimization_patch_set::Model>, AppError> {
+    ) -> Result<Option<OptimizationPatchSetRecord>, AppError> {
         if let Some(existing) =
-            a4n_db::optimize::optimization_patch_set_by_turn_id(self.database.connection(), turn_id)
+            a4n_db::optimize::optimization_patch_set_by_turn_id(self.database.executor(), turn_id)
                 .await
                 .map_err(optimize_db_error)?
         {
@@ -61,16 +57,18 @@ impl OrchestratorContext {
         }
 
         a4n_db::optimize::create_optimization_patch_set(
-            self.database.connection(),
+            self.database.executor(),
             OptimizationPatchSetCreateInput {
                 turn_id,
                 session_id: proposal.session_id,
                 chapter_id: proposal.chapter_id,
                 base_content_hash: proposal.base_content_hash.clone(),
-                status: PATCH_SET_STATUS_PENDING.to_string(),
+                status: a4n_domain::project::OPTIMIZATION_PATCH_SET_STATUS_PENDING.to_string(),
                 summary: proposal.summary.clone(),
-                patch_decision: PATCH_DECISION_PENDING.to_string(),
-                patch_apply_status: PATCH_APPLY_STATUS_PENDING.to_string(),
+                patch_decision: a4n_domain::project::OPTIMIZATION_PATCH_DECISION_PENDING
+                    .to_string(),
+                patch_apply_status: a4n_domain::project::OPTIMIZATION_PATCH_APPLY_STATUS_PENDING
+                    .to_string(),
                 patches: proposal
                     .patches
                     .iter()

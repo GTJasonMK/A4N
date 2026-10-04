@@ -1,6 +1,5 @@
 use a4n_api_contract::profile::ObjectProfileInput;
 use a4n_db::{DbHandle, asset::ObjectProfileUpsertRecordResult};
-use a4n_db_models::models::asset::object_profile;
 use a4n_domain::{
     chapter::ChapterSourceSnapshot, generation::RecordCompletedGenerationRunInput,
     object_profile::ObjectProfileEvidenceRecordInput,
@@ -21,20 +20,20 @@ impl AssetApplication {
         Self { database }
     }
 
-    async fn object_profiles_by_project(
+    async fn object_profile_records_by_project(
         &self,
         project_id: i64,
-    ) -> Result<Vec<object_profile::Model>, AppError> {
-        a4n_db::asset::object_profiles_by_project(self.database.connection(), project_id)
+    ) -> Result<Vec<a4n_domain::object_profile::ObjectProfileRecord>, AppError> {
+        a4n_db::asset::object_profile_records_by_project(self.database.executor(), project_id)
             .await
             .map_err(asset_error)
     }
 
-    async fn object_profile_by_id(
+    async fn object_profile_record_by_id(
         &self,
         object_profile_id: i64,
-    ) -> Result<object_profile::Model, AppError> {
-        a4n_db::asset::object_profile_by_id(self.database.connection(), object_profile_id)
+    ) -> Result<a4n_domain::object_profile::ObjectProfileRecord, AppError> {
+        a4n_db::asset::object_profile_record_by_id(self.database.executor(), object_profile_id)
             .await
             .map_err(asset_error)
     }
@@ -50,7 +49,7 @@ impl AssetApplication {
     ) -> Result<ObjectProfileUpsertRecordResult, AppError> {
         let inputs = normalize_object_profile_record_inputs(drafts)?;
         a4n_db::asset::upsert_object_profiles_with_generation_run_record(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             inputs,
             source_chapters,
@@ -63,18 +62,22 @@ impl AssetApplication {
 }
 
 impl OrchestratorContext {
-    pub(crate) async fn object_profiles_by_project(
+    pub(crate) async fn object_profile_records_by_project(
         &self,
         project_id: i64,
-    ) -> Result<Vec<object_profile::Model>, AppError> {
-        self.asset.object_profiles_by_project(project_id).await
+    ) -> Result<Vec<a4n_domain::object_profile::ObjectProfileRecord>, AppError> {
+        self.asset
+            .object_profile_records_by_project(project_id)
+            .await
     }
 
-    pub(crate) async fn object_profile_by_id(
+    pub(crate) async fn object_profile_record_by_id(
         &self,
         object_profile_id: i64,
-    ) -> Result<object_profile::Model, AppError> {
-        self.asset.object_profile_by_id(object_profile_id).await
+    ) -> Result<a4n_domain::object_profile::ObjectProfileRecord, AppError> {
+        self.asset
+            .object_profile_record_by_id(object_profile_id)
+            .await
     }
 
     /// 发现路径：批量规范化草稿后与 generation_run 一并 upsert。

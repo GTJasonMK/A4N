@@ -1,10 +1,11 @@
 use a4n_db_models::models::chapter::{chapter, chapter_outline, part_outline};
 use a4n_domain::chapter::{ChapterOutlineRecord, PartOutlineRecord};
 use chrono::{NaiveDateTime, Utc};
+use sea_orm::ConnectionTrait;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DbBackend, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+    Set,
 };
 
 use super::contracts::{
@@ -16,7 +17,7 @@ use crate::outline::record_mapping::{
 };
 
 pub async fn update_chapter_outline_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: ProjectChapterOutlineUpdateInput,
 ) -> Result<ChapterOutlineRecord, ProjectChapterOutlineUpdateError> {
     if input.title.is_none()
@@ -87,7 +88,7 @@ pub async fn update_chapter_outline_record(
 }
 
 pub async fn save_manual_chapter_outline(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: ManualChapterOutlineSaveInput,
 ) -> Result<ChapterOutlineRecord, ProjectOutlineRecordError> {
     let input = normalize_manual_chapter_input(input)?;
@@ -202,7 +203,7 @@ pub async fn save_manual_chapter_outline(
 }
 
 pub async fn save_manual_part_outline(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: ManualPartOutlineSaveInput,
 ) -> Result<PartOutlineRecord, ProjectOutlineRecordError> {
     let input = normalize_manual_part_input(input)?;

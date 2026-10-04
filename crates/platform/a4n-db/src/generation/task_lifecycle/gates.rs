@@ -1,6 +1,7 @@
 use super::*;
+use sea_orm::ConnectionTrait;
 pub async fn persist_generation_status_changed(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: PersistGenerationLifecycleInput,
 ) -> Result<PersistedGenerationCheckpoint, GenerationTaskLifecycleError> {
     validate_transition_input(db, &input, false)?;
@@ -31,7 +32,7 @@ pub(super) fn valid_status_changed_transition(
 }
 
 pub async fn persist_generation_terminal(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: PersistGenerationLifecycleInput,
 ) -> Result<PersistedGenerationCheckpoint, GenerationTaskLifecycleError> {
     validate_transition_input(db, &input, true)?;
@@ -45,7 +46,7 @@ pub struct LockedGenerationCompletion {
 }
 
 pub async fn lock_generation_completion(
-    tx: &DatabaseTransaction,
+    tx: &impl crate::DbTransactionExecutor,
     task_id: &str,
     attempt: u32,
     expected_checkpoint_revision: i64,
@@ -83,7 +84,7 @@ pub async fn lock_generation_completion(
 }
 
 pub async fn persist_locked_generation_completion(
-    tx: &DatabaseTransaction,
+    tx: &impl crate::DbTransactionExecutor,
     locked: LockedGenerationCompletion,
     input: PersistGenerationLifecycleInput,
 ) -> Result<PersistedGenerationCheckpoint, GenerationTaskLifecycleError> {
@@ -101,7 +102,7 @@ pub async fn persist_locked_generation_completion(
 }
 
 pub async fn load_generation_corrupt_recovery_state(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     task_id: &str,
 ) -> Result<GenerationCorruptRecoveryState, GenerationTaskLifecycleError> {
     if db.get_database_backend() != DbBackend::Postgres {
@@ -147,7 +148,7 @@ pub async fn load_generation_corrupt_recovery_state(
 }
 
 pub async fn persist_generation_corrupt_terminal(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: PersistGenerationLifecycleInput,
 ) -> Result<PersistedGenerationCheckpoint, GenerationTaskLifecycleError> {
     validate_transition_input(db, &input, true)?;
@@ -223,7 +224,7 @@ pub(super) fn validate_terminal_transition(
 }
 
 pub(super) async fn persist_transition(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: PersistGenerationLifecycleInput,
     terminal: bool,
     allow_corrupt_previous_snapshot: bool,

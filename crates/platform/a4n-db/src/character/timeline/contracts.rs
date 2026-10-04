@@ -1,15 +1,15 @@
 use super::super::CharacterDeletionMarkRewindSummary;
-use a4n_db_models::models::{
-    chapter::chapter,
-    character::{attribute_event, character_state_index},
+use a4n_domain::{
+    chapter::ChapterRecord,
+    character::{CharacterAttributeEventRecord, CharacterStateIndexRecord},
 };
 use serde_json::Value;
 
 #[derive(Debug, Clone)]
 pub struct CharacterConflictContextRows {
-    pub chapters: Vec<chapter::Model>,
-    pub state_timeline: Vec<character_state_index::Model>,
-    pub attribute_events: Vec<attribute_event::Model>,
+    pub chapters: Vec<ChapterRecord>,
+    pub state_timeline: Vec<CharacterStateIndexRecord>,
+    pub attribute_events: Vec<CharacterAttributeEventRecord>,
 }
 
 #[derive(Debug, Clone)]

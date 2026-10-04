@@ -2,10 +2,11 @@ use super::{ChapterVisualPlanDbError, ParsedChapterVisualPlan, SaveChapterVisual
 use a4n_domain::chapter_visual_plan::{
     ChapterVisualPlanV3, VisualPlanChange, VisualPlanEditReceipt, VisualPlanEditVersion,
 };
-use sea_orm::{ConnectionTrait, DbBackend, Statement, TransactionTrait};
+use sea_orm::ConnectionTrait;
+use sea_orm::{DbBackend, Statement};
 
 pub async fn save_chapter_visual_plan_draft(
-    db: &sea_orm::DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: SaveChapterVisualPlanDraftInput,
 ) -> Result<ParsedChapterVisualPlan, ChapterVisualPlanDbError> {
     save_chapter_visual_plan_draft_with_operation(db, input, &uuid::Uuid::new_v4().to_string())
@@ -15,7 +16,7 @@ pub async fn save_chapter_visual_plan_draft(
 /// The journal and the business record commit together. A lost HTTP reply can
 /// be retried with the same operation ID without repeating the mutation.
 pub async fn save_chapter_visual_plan_draft_with_operation(
-    db: &sea_orm::DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: SaveChapterVisualPlanDraftInput,
     operation_id: &str,
 ) -> Result<ParsedChapterVisualPlan, ChapterVisualPlanDbError> {
@@ -67,7 +68,7 @@ pub async fn replay_visual_plan_edit<C: ConnectionTrait>(
 }
 
 pub async fn save_chapter_visual_plan_edit(
-    db: &sea_orm::DatabaseConnection,
+    db: &impl crate::DbExecutor,
     mut input: SaveChapterVisualPlanDraftInput,
     operation_id: &str,
     payload_hash: &str,
@@ -137,7 +138,7 @@ pub(super) async fn lock_project<C: ConnectionTrait>(
 }
 
 pub async fn record_visual_plan_noop(
-    db: &sea_orm::DatabaseConnection,
+    db: &impl crate::DbExecutor,
     base: &ParsedChapterVisualPlan,
     operation_id: &str,
     payload_hash: &str,

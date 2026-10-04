@@ -1,6 +1,9 @@
 use super::super::{
     events::modify_profile_attribute_with_profile_from_source_in,
-    types::{AppliedCharacterImplicitDecisionAction, AppliedCharacterImplicitDecisionRecord},
+    types::{
+        AppliedCharacterImplicitDecisionAction, AppliedCharacterImplicitDecisionModels,
+        AppliedCharacterImplicitDecisionRecord,
+    },
 };
 use super::validation::{
     require_positive_chapter_number, validate_implicit_review_decision_record,
@@ -24,13 +27,24 @@ where
     let tx = db.begin().await?;
     let applied = apply_implicit_review_decision_record_in(&tx, input).await?;
     tx.commit().await?;
-    Ok(applied)
+    let AppliedCharacterImplicitDecisionModels {
+        profile,
+        action,
+        event,
+        deletion_mark,
+    } = applied;
+    Ok(AppliedCharacterImplicitDecisionRecord {
+        profile: crate::character::character_profile_record(profile),
+        action,
+        event: event.map(crate::character::character_attribute_event_record),
+        deletion_mark: deletion_mark.map(crate::character::character_deletion_mark_record),
+    })
 }
 
 async fn apply_implicit_review_decision_record_in<C>(
     db: &C,
     input: CharacterImplicitReviewDecisionRecordInput,
-) -> Result<AppliedCharacterImplicitDecisionRecord, CharacterDbError>
+) -> Result<AppliedCharacterImplicitDecisionModels, CharacterDbError>
 where
     C: ConnectionTrait,
 {
@@ -51,7 +65,7 @@ pub(in crate::character) async fn apply_implicit_review_decision_record_with_pro
     profile: a4n_db_models::models::character::protagonist_profile::Model,
     input: CharacterImplicitReviewDecisionRecordInput,
     source_kind: &str,
-) -> Result<AppliedCharacterImplicitDecisionRecord, CharacterDbError>
+) -> Result<AppliedCharacterImplicitDecisionModels, CharacterDbError>
 where
     C: ConnectionTrait,
 {
@@ -59,7 +73,7 @@ where
     validate_implicit_review_decision_record(&profile, &input)?;
 
     match input.decision.as_str() {
-        "keep" => Ok(AppliedCharacterImplicitDecisionRecord {
+        "keep" => Ok(AppliedCharacterImplicitDecisionModels {
             profile,
             action: AppliedCharacterImplicitDecisionAction::Keep,
             event: None,
@@ -87,7 +101,7 @@ where
                 source_kind,
             )
             .await?;
-            Ok(AppliedCharacterImplicitDecisionRecord {
+            Ok(AppliedCharacterImplicitDecisionModels {
                 profile,
                 action: AppliedCharacterImplicitDecisionAction::Modify,
                 event: Some(event),
@@ -109,7 +123,7 @@ where
                 source_kind,
             )
             .await?;
-            Ok(AppliedCharacterImplicitDecisionRecord {
+            Ok(AppliedCharacterImplicitDecisionModels {
                 profile,
                 action: AppliedCharacterImplicitDecisionAction::MarkDeletion,
                 event: None,

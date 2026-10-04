@@ -42,7 +42,7 @@ impl OrchestratorContext {
             stream_reporter,
         } = input;
         let source = a4n_db::project::resolve_chapter_source(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             chapter_id,
         )

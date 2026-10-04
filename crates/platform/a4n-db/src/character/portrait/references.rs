@@ -3,6 +3,7 @@ use a4n_db_models::models::{
     ai::generated_image,
     character::{character_portrait, protagonist_profile},
 };
+use a4n_domain::character::CharacterProfileRecord;
 use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, sea_query::Query};
 use std::collections::HashMap;
 
@@ -24,6 +25,20 @@ where
         .filter(protagonist_profile::Column::Id.not_in_subquery(portrait_profile_ids))
         .all(db)
         .await
+}
+
+pub async fn missing_portrait_profile_records<C>(
+    db: &C,
+    project_id: i64,
+) -> Result<Vec<CharacterProfileRecord>, DbErr>
+where
+    C: ConnectionTrait,
+{
+    missing_portrait_profiles(db, project_id).await.map(|rows| {
+        rows.into_iter()
+            .map(super::record_mapping::character_profile_record_from_model)
+            .collect()
+    })
 }
 
 pub async fn portrait_reference_images_by_ids<C>(

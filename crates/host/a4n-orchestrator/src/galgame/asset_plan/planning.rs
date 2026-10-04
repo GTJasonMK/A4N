@@ -11,11 +11,11 @@ impl OrchestratorContext {
         validate_positive_id(project_id, "project_id")?;
         let context = self.load_galgame_context(project_id).await?;
         let read_model = a4n_db::galgame::galgame_asset_planning_read_model(
-            self.database.connection(),
+            self.database.executor(),
             context.project.id,
         )
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .ok_or_else(|| AppError::NotFound(format!("Galgame 剧本不存在: {project_id}")))?;
         if read_model.scenes.is_empty() {
             return Err(AppError::InvalidState {

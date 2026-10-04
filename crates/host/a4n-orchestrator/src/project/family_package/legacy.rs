@@ -3,9 +3,6 @@
 use std::collections::HashMap;
 
 use a4n_db::project::bundle::ProjectBundleHistoryRows;
-use a4n_db_models::models::project::{
-    media_authoring_document, media_authoring_migration_receipt, source_snapshot_chapter,
-};
 use a4n_domain::media_authoring::{
     AuthoringDocumentInputs, AuthoringDocumentRef, AuthoringSourceRef,
 };
@@ -64,16 +61,16 @@ impl ProjectFamilyPackage {
         source::remove_film_hashes(&mut package)?;
         package.version = super::PROJECT_FAMILY_PACKAGE_VERSION.into();
         let after = hash(&package)?;
-        package
-            .authoring_receipts
-            .push(media_authoring_migration_receipt::Model {
+        package.authoring_receipts.push(
+            a4n_domain::project::ProjectFamilyAuthoringMigrationReceiptRecord {
                 kind: "legacy_package".into(),
                 old_id: package.root_project_id,
                 new_id: package.root_project_id,
                 project_id: package.root_project_id,
                 before_json: original,
                 after_sha256: after,
-            });
+            },
+        );
         Ok(package)
     }
 }
@@ -108,14 +105,16 @@ fn archive_source_sync_history(package: &mut ProjectFamilyPackage) -> Result<(),
         if a4n_domain::media_authoring::legacy::source_sync::archive_legacy_source_sync_payload(
             payload,
         )? {
-            receipts.push(media_authoring_migration_receipt::Model {
-                kind: kind.into(),
-                old_id: id,
-                new_id: id,
-                project_id: project_id.ok_or("旧同步决策的项目不存在")?,
-                before_json: original,
-                after_sha256: hash(payload)?,
-            });
+            receipts.push(
+                a4n_domain::project::ProjectFamilyAuthoringMigrationReceiptRecord {
+                    kind: kind.into(),
+                    old_id: id,
+                    new_id: id,
+                    project_id: project_id.ok_or("旧同步决策的项目不存在")?,
+                    before_json: original,
+                    after_sha256: hash(payload)?,
+                },
+            );
         }
     }
     package.authoring_receipts.extend(receipts);
@@ -160,13 +159,13 @@ fn error(error: impl std::fmt::Display) -> String {
 fn insert_document(
     package: &mut ProjectFamilyPackage,
     project_id: i64,
-    source: &source_snapshot_chapter::Model,
+    source: &a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord,
     kind: &str,
     payload: Value,
     dependencies: Vec<AuthoringDocumentRef>,
     adopted: bool,
     next: &mut i64,
-) -> Result<media_authoring_document::Model, String> {
+) -> Result<a4n_domain::project::ProjectFamilyAuthoringDocumentRecord, String> {
     let project = package
         .projects
         .iter()
@@ -206,7 +205,7 @@ fn insert_document(
     } else {
         "superseded"
     };
-    let doc = media_authoring_document::Model {
+    let doc = a4n_domain::project::ProjectFamilyAuthoringDocumentRecord {
         id: next_id(next)?,
         project_id,
         source_snapshot_id: source.snapshot_id,
@@ -234,15 +233,15 @@ fn receipt(
     before: Value,
     after: &impl serde::Serialize,
 ) -> Result<(), String> {
-    package
-        .authoring_receipts
-        .push(media_authoring_migration_receipt::Model {
+    package.authoring_receipts.push(
+        a4n_domain::project::ProjectFamilyAuthoringMigrationReceiptRecord {
             kind: kind.into(),
             old_id,
             new_id,
             project_id,
             before_json: before,
             after_sha256: hash(after)?,
-        });
+        },
+    );
     Ok(())
 }

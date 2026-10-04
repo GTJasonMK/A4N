@@ -6,7 +6,6 @@ license.workspace = true
 
 [features]
 default = []
-migration = ["dep:a4n-migration"]
 embedded-capabilities = [
     "embedded-transforms",
     "embedded-prompt-git",
@@ -43,8 +42,6 @@ a4n-canvas-host-contract = { workspace = true }
 a4n-outline-contract = { workspace = true }
 a4n-config = { workspace = true }
 a4n-db-session = { workspace = true }
-a4n-migration = { workspace = true, optional = true }
-a4n-db-models = { workspace = true }
 a4n-domain = { workspace = true }
 a4n-error = { workspace = true, features = ["database"], default-features = true }
 a4n-event = { workspace = true }
@@ -116,7 +113,6 @@ futures = { workspace = true }
 htmd = { workspace = true }
 jsonwebtoken = { workspace = true }
 reqwest = { workspace = true }
-sea-orm = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
@@ -131,8 +127,10 @@ zip = { workspace = true, features = ["deflate"] }
 
 [dev-dependencies]
 a4n-media-processing-core = { workspace = true }
+a4n-db-models = { workspace = true }
 a4n-db = { workspace = true }
 a4n-migration = { workspace = true }
 a4n-prompt = { workspace = true, features = ["test-support"] }
 a4n-test-support = { workspace = true }
 tempfile = { workspace = true }
+sea-orm = { workspace = true }

@@ -20,7 +20,7 @@ pub(crate) fn workflow_read_app_error(error: WorkflowReadError) -> AppError {
         WorkflowReadError::InvalidArgument(message) => AppError::InvalidArgument(message),
         WorkflowReadError::NotFound(message) => AppError::NotFound(message),
         WorkflowReadError::InvalidData(message) => AppError::Internal(anyhow::anyhow!(message)),
-        WorkflowReadError::Database(error) => AppError::Database(error),
+        WorkflowReadError::Database(error) => AppError::database(error),
     }
 }
 
@@ -36,7 +36,7 @@ pub(crate) fn workflow_write_app_error(error: WorkflowWriteError) -> AppError {
         WorkflowWriteError::StatusConflict { current, operation } => {
             AppError::InvalidState { current, operation }
         }
-        WorkflowWriteError::Database(error) => AppError::Database(error),
+        WorkflowWriteError::Database(error) => AppError::database(error),
     }
 }
 

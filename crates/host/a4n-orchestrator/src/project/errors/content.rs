@@ -18,13 +18,13 @@ pub(crate) fn blueprint_restore_error_to_app(error: BlueprintRestoreError) -> Ap
         BlueprintRestoreError::CharacterSync { source }
         | BlueprintRestoreError::RelationshipSync { source } => match source {
             BlueprintSyncError::InvalidArgument(message) => AppError::InvalidArgument(message),
-            BlueprintSyncError::Database(source) => AppError::Database(source),
+            BlueprintSyncError::Database(source) => AppError::database(source),
         },
         BlueprintRestoreError::StatusWrite { source } => {
             project_status_write_error_to_app_error(source)
         }
         BlueprintRestoreError::Serialization { source } => AppError::Serialization(source),
-        BlueprintRestoreError::Database { source, .. } => AppError::Database(source),
+        BlueprintRestoreError::Database { source, .. } => AppError::database(source),
     }
 }
 
@@ -45,7 +45,7 @@ pub(crate) fn project_outline_record_error_to_app_error(
             operation: error.to_string(),
         },
         ProjectOutlineRecordError::Generation(error) => crate::generation::generation_error(error),
-        ProjectOutlineRecordError::Database(error) => AppError::Database(error),
+        ProjectOutlineRecordError::Database(error) => AppError::database(error),
     }
 }
 
@@ -57,7 +57,7 @@ pub(crate) fn project_chapter_scene_write_error_to_app_error(
             AppError::InvalidArgument(message)
         }
         ProjectChapterSceneWriteError::NotFound(message) => AppError::NotFound(message),
-        ProjectChapterSceneWriteError::Database(error) => AppError::Database(error),
+        ProjectChapterSceneWriteError::Database(error) => AppError::database(error),
     }
 }
 
@@ -68,7 +68,7 @@ pub(crate) fn project_chapter_scene_record_error_to_app_error(
         ProjectChapterSceneRecordError::InvalidArgument(message) => {
             AppError::InvalidArgument(message)
         }
-        ProjectChapterSceneRecordError::Database { source, .. } => AppError::Database(source),
+        ProjectChapterSceneRecordError::Database { source, .. } => AppError::database(source),
     }
 }
 
@@ -78,7 +78,7 @@ pub(crate) fn project_chapter_context_error_to_app_error(
     match error {
         ProjectChapterContextError::InvalidArgument(message) => AppError::InvalidArgument(message),
         ProjectChapterContextError::NotFound(message) => AppError::NotFound(message),
-        ProjectChapterContextError::Database(error) => AppError::Database(error),
+        ProjectChapterContextError::Database(error) => AppError::database(error),
     }
 }
 
@@ -94,6 +94,6 @@ pub(crate) fn foreshadowing_db_error_to_app_error(error: ForeshadowingDbError) -
         | ForeshadowingDbError::DuplicateResolutionTarget { .. }) => {
             AppError::InvalidArgument(error.to_string())
         }
-        ForeshadowingDbError::Database(error) => AppError::Database(error),
+        ForeshadowingDbError::Database(error) => AppError::database(error),
     }
 }

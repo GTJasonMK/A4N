@@ -16,7 +16,7 @@ where
         .order_by_asc(generation_spec::Column::Id)
         .all(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
     Ok(specs.into_iter().map(generation_spec_record).collect())
 }
 

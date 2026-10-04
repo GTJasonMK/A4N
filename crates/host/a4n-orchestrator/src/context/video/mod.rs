@@ -8,20 +8,18 @@ use a4n_db::generation::{
     RecordCompletedGenerationRunWithCheckpointInput, RecordStartedGenerationRunInput,
 };
 use a4n_db::video::ChapterVideoPromptTimelineRecord;
-use a4n_db_models::models::{chapter::chapter_video_timeline, media::image_publication};
 use a4n_domain::media::{
     CreateGeneratedImageRecordDraftInput, CreateGeneratedVideoRecordDraftInput,
     CreateImagePublicationIntentInput, GeneratedImageRecord, GeneratedImageReferenceRecord,
     GeneratedVideoErrorStatusBatchInput, GeneratedVideoRecord, ImagePublicationFileFacts,
-    UpdateGeneratedImageRecordInput, UpdateGeneratedVideoRecordInput,
+    ImagePublicationRecord, UpdateGeneratedImageRecordInput, UpdateGeneratedVideoRecordInput,
 };
 use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_domain::video_prompt::{ChapterVideoPromptPatch, VideoPromptDownstreamDependencies};
-use a4n_domain::video_timeline::{NativeVideoTimelineKey, VideoTimelineGap};
+use a4n_domain::video_timeline::{NativeVideoTimelineKey, VideoTimelineGap, VideoTimelineRecord};
 use a4n_error::AppError;
 use a4n_video::validate_video_max_concurrent;
 use a4n_video_contract::VideoSegmentExecutionRecipeV1;
-use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -60,8 +58,8 @@ impl VideoApplication {
         }
     }
 
-    fn connection(&self) -> &DatabaseConnection {
-        self.database.connection()
+    fn connection(&self) -> &impl a4n_db::DbExecutor {
+        self.database.executor()
     }
 }
 

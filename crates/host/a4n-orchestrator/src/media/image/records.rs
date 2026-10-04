@@ -7,12 +7,11 @@ use a4n_api_contract::image::{
     ListImagesByProjectInput, ListImagesByProjectsInput, ListVideoReferenceImagesInput,
     UpdateGeneratedImageInput, UploadImageInput,
 };
-use a4n_db_models::models::media::image_publication;
 use a4n_domain::media::{
     CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput, GeneratedImageRecord,
-    ImagePublicationFileFacts, ImagePublicationRecoveryRecord, UpdateGeneratedImageRecordInput,
+    ImagePublicationFileFacts, ImagePublicationRecord, ImagePublicationRecoveryRecord,
+    UpdateGeneratedImageRecordInput,
 };
-use a4n_domain::media::{IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED};
 use a4n_domain::project::required_text;
 use a4n_domain::{
     EXTERNAL_IMPORT_MODEL,
@@ -25,7 +24,6 @@ use a4n_image_host_contract::{
 };
 use async_trait::async_trait;
 use chrono::Utc;
-use sea_orm::{ColumnTrait, Condition, EntityTrait, QueryFilter, QuerySelect};
 use serde_json::{Map, Value, json};
 use tokio::sync::OwnedMutexGuard;
 
@@ -42,7 +40,7 @@ use a4n_media::decode_uploaded_image_data;
 const MAX_IMPORT_IMAGE_BYTES: usize = 50 * 1024 * 1024;
 
 fn image_publication_recovery_record(
-    publication: image_publication::Model,
+    publication: ImagePublicationRecord,
 ) -> ImagePublicationRecoveryRecord {
     ImagePublicationRecoveryRecord {
         publication_id: publication.publication_id,
@@ -72,37 +70,13 @@ impl OrchestratorContext {
                 "图片 cleanup project_id 必须大于 0".to_string(),
             ));
         }
-        if paths.is_empty() {
-            return Ok(HashSet::new());
-        }
-        let publications = image_publication::Entity::find()
-            .filter(image_publication::Column::ProjectId.eq(project_id))
-            .filter(image_publication::Column::Status.is_in([
-                IMAGE_PUBLICATION_STATUS_PENDING,
-                IMAGE_PUBLICATION_STATUS_PUBLISHED,
-            ]))
-            .filter(
-                Condition::any()
-                    .add(image_publication::Column::StagingPath.is_in(paths.to_vec()))
-                    .add(image_publication::Column::FinalPath.is_in(paths.to_vec())),
-            )
-            .all(self.database.connection())
-            .await
-            .map_err(AppError::Database)?;
-        let mut protected = HashSet::new();
-        for publication in publications {
-            if publication.status == IMAGE_PUBLICATION_STATUS_PENDING {
-                if paths.contains(&publication.staging_path) {
-                    protected.insert(publication.staging_path);
-                }
-                if paths.contains(&publication.final_path) {
-                    protected.insert(publication.final_path);
-                }
-            } else if paths.contains(&publication.final_path) {
-                protected.insert(publication.final_path);
-            }
-        }
-        Ok(protected)
+        a4n_db::media::protected_image_publication_cleanup_paths(
+            self.database.executor(),
+            project_id,
+            paths,
+        )
+        .await
+        .map_err(AppError::from)
     }
 
     pub async fn project_has_active_image_publication(
@@ -114,26 +88,16 @@ impl OrchestratorContext {
                 "图片 cleanup project_id 必须大于 0".to_string(),
             ));
         }
-        Ok(image_publication::Entity::find()
-            .select_only()
-            .column(image_publication::Column::PublicationId)
-            .filter(image_publication::Column::ProjectId.eq(project_id))
-            .filter(image_publication::Column::Status.is_in([
-                IMAGE_PUBLICATION_STATUS_PENDING,
-                IMAGE_PUBLICATION_STATUS_PUBLISHED,
-            ]))
-            .into_tuple::<String>()
-            .one(self.database.connection())
+        a4n_db::media::project_has_active_image_publication(self.database.executor(), project_id)
             .await
-            .map_err(AppError::Database)?
-            .is_some())
+            .map_err(AppError::from)
     }
 
     pub async fn create_image_publication_intent_for_user_validated(
         &self,
         user_id: i64,
         input: CreateImagePublicationIntentInput,
-    ) -> Result<(image_publication::Model, OwnedMutexGuard<()>), AppError> {
+    ) -> Result<(ImagePublicationRecord, OwnedMutexGuard<()>), AppError> {
         self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         self.create_image_publication_intent(input).await
@@ -288,7 +252,7 @@ impl OrchestratorContext {
         staging_path: String,
         final_path: String,
         expected_sha256: String,
-    ) -> Result<(image_publication::Model, OwnedMutexGuard<()>), AppError> {
+    ) -> Result<(ImagePublicationRecord, OwnedMutexGuard<()>), AppError> {
         self.verify_project_permission(prepared.project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         let metadata_json = imported_image_metadata(
@@ -664,9 +628,9 @@ impl ImagePublicationRecoveryReadPort for OrchestratorContext {
         image_id: i64,
     ) -> Result<Option<GeneratedImageIdentity>, AppError> {
         Ok(
-            a4n_db::video::read_models::generated_image_by_id(self.database.connection(), image_id)
+            a4n_db::video::read_models::generated_image_by_id(self.database.executor(), image_id)
                 .await
-                .map_err(AppError::Database)?
+                .map_err(AppError::from)?
                 .map(|image| GeneratedImageIdentity {
                     project_id: image.project_id,
                     file_path: image.file_path,

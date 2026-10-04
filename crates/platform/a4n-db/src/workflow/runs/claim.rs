@@ -1,7 +1,7 @@
 use super::*;
 use a4n_db_models::models::task::task_queue;
 use sea_orm::sea_query::Expr;
-use sea_orm::{ActiveModelTrait, DbBackend, Statement, TransactionTrait};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, DbBackend, Statement};
 
 use super::mutations::{
     resume_workflow_run_model_in_transaction, upsert_workflow_run_in_transaction,
@@ -12,7 +12,7 @@ use super::validation::{
 };
 
 pub async fn claim_exclusive_workflow_run(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: ClaimExclusiveWorkflowRunInput,
 ) -> Result<workflow_run::Model, WorkflowWriteError> {
     let (project_id, chapter_id) = validate_claim_input(&input)?;
@@ -64,6 +64,18 @@ pub async fn claim_exclusive_workflow_run(
     }
     tx.commit().await.map_err(WorkflowWriteError::Database)?;
     Ok(run)
+}
+
+pub async fn claim_exclusive_workflow_run_summary(
+    db: &impl crate::DbExecutor,
+    input: ClaimExclusiveWorkflowRunInput,
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
+    claim_exclusive_workflow_run(db, input)
+        .await
+        .map_err(WorkflowWriteError::from)
+        .and_then(|run| {
+            super::projections::workflow_run_summary(run).map_err(WorkflowWriteError::from)
+        })
 }
 
 async fn running_workflow_has_live_task(
@@ -288,7 +300,7 @@ fn validate_claim_input(
 }
 
 async fn lock_video_generation_scope(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     tx: &sea_orm::DatabaseTransaction,
     project_id: i64,
     chapter_id: i64,

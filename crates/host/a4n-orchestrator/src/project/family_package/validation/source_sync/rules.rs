@@ -19,8 +19,8 @@ pub(super) fn is_valid_source_sync_conflict_target_ref(
 }
 
 pub(super) fn validate_source_sync_decision_conflict(
-    decision: &source_sync_decision::Model,
-    conflicts: &HashMap<i64, &source_sync_conflict::Model>,
+    decision: &a4n_domain::project::ProjectFamilySourceSyncDecisionRecord,
+    conflicts: &HashMap<i64, &a4n_domain::project::ProjectFamilySourceSyncConflictRecord>,
 ) -> Result<(), String> {
     let conflict = conflicts.get(&decision.conflict_id).copied().ok_or_else(|| {
         format!(
@@ -50,8 +50,8 @@ pub(super) fn validate_source_sync_decision_conflict(
 }
 
 pub(super) fn validate_source_sync_conflict_run_context(
-    conflict: &source_sync_conflict::Model,
-    run: &source_sync_run::Model,
+    conflict: &a4n_domain::project::ProjectFamilySourceSyncConflictRecord,
+    run: &a4n_domain::project::ProjectFamilySourceSyncRunRecord,
 ) -> Result<(), String> {
     if conflict.derived_project_id != run.derived_project_id
         || conflict.root_project_id != run.root_project_id

@@ -1,12 +1,81 @@
 use std::{sync::Arc, time::Duration};
 
+use futures::future::BoxFuture;
 use sea_orm::{
-    ConnectOptions, ConnectionTrait, Database, DatabaseBackend, Statement, TransactionTrait,
+    ConnectOptions, ConnectionTrait, Database, DatabaseBackend, DbErr, ExecResult, QueryResult,
+    Statement, TransactionTrait,
 };
 
 pub type DatabaseConnection = sea_orm::DatabaseConnection;
-pub type DbTransaction = sea_orm::DatabaseTransaction;
 pub type SharedDatabaseConnection = Arc<DatabaseConnection>;
+
+pub struct DbTransaction {
+    transaction: sea_orm::DatabaseTransaction,
+}
+
+impl DbTransaction {
+    fn new(transaction: sea_orm::DatabaseTransaction) -> Self {
+        Self { transaction }
+    }
+
+    pub async fn commit(self) -> Result<(), DbErr> {
+        self.transaction.commit().await
+    }
+
+    pub async fn rollback(self) -> Result<(), DbErr> {
+        self.transaction.rollback().await
+    }
+}
+
+#[async_trait::async_trait]
+impl ConnectionTrait for DbTransaction {
+    fn get_database_backend(&self) -> DatabaseBackend {
+        self.transaction.get_database_backend()
+    }
+
+    async fn execute(&self, statement: Statement) -> Result<ExecResult, DbErr> {
+        self.transaction.execute(statement).await
+    }
+
+    async fn execute_unprepared(&self, sql: &str) -> Result<ExecResult, DbErr> {
+        self.transaction.execute_unprepared(sql).await
+    }
+
+    async fn query_one(&self, statement: Statement) -> Result<Option<QueryResult>, DbErr> {
+        self.transaction.query_one(statement).await
+    }
+
+    async fn query_all(&self, statement: Statement) -> Result<Vec<QueryResult>, DbErr> {
+        self.transaction.query_all(statement).await
+    }
+
+    fn support_returning(&self) -> bool {
+        self.transaction.support_returning()
+    }
+
+    fn is_mock_connection(&self) -> bool {
+        self.transaction.is_mock_connection()
+    }
+}
+
+pub trait DbTransactionExecutor: ConnectionTrait {}
+
+impl DbTransactionExecutor for DbTransaction {}
+
+impl DbTransactionExecutor for sea_orm::DatabaseTransaction {}
+
+pub trait DbExecutor: ConnectionTrait + TransactionTrait {
+    fn begin_db_transaction<'a>(&'a self) -> BoxFuture<'a, Result<DbTransaction, DbErr>>;
+}
+
+impl<T> DbExecutor for T
+where
+    T: ConnectionTrait + TransactionTrait,
+{
+    fn begin_db_transaction<'a>(&'a self) -> BoxFuture<'a, Result<DbTransaction, DbErr>> {
+        Box::pin(async move { TransactionTrait::begin(self).await.map(DbTransaction::new) })
+    }
+}
 
 #[derive(Clone)]
 pub struct DbHandle {
@@ -28,6 +97,15 @@ impl DbHandle {
         Ok(Self::new(Arc::new(connection)))
     }
 
+    pub async fn connect_default(
+        database_url: impl Into<String>,
+    ) -> Result<Self, a4n_error::AppError> {
+        let connection = Database::connect(database_url.into())
+            .await
+            .map_err(a4n_error::AppError::from)?;
+        Ok(Self::new(Arc::new(connection)))
+    }
+
     pub async fn ping(&self) -> anyhow::Result<()> {
         self.connection
             .execute(Statement::from_string(
@@ -39,13 +117,17 @@ impl DbHandle {
     }
 
     pub async fn begin(&self) -> Result<DbTransaction, a4n_error::AppError> {
-        self.connection
-            .begin()
+        self.executor()
+            .begin_db_transaction()
             .await
-            .map_err(a4n_error::AppError::Database)
+            .map_err(a4n_error::AppError::from)
     }
 
     pub fn connection(&self) -> &DatabaseConnection {
+        self.connection.as_ref()
+    }
+
+    pub fn executor(&self) -> &impl DbExecutor {
         self.connection.as_ref()
     }
 
@@ -59,7 +141,7 @@ const GENERATION_OWNER_LOCK_KEY: i32 = 1;
 
 pub async fn acquire_generation_owner_lock(
     database_url: &str,
-) -> Result<DatabaseConnection, a4n_error::AppError> {
+) -> Result<DbHandle, a4n_error::AppError> {
     let mut options = ConnectOptions::new(database_url.to_string());
     options
         .max_connections(1)
@@ -68,7 +150,7 @@ pub async fn acquire_generation_owner_lock(
         .max_lifetime(Duration::from_secs(10 * 365 * 24 * 60 * 60));
     let database = Database::connect(options)
         .await
-        .map_err(a4n_error::AppError::Database)?;
+        .map_err(a4n_error::AppError::from)?;
     let row = database
         .query_one(Statement::from_sql_and_values(
             DatabaseBackend::Postgres,
@@ -79,7 +161,7 @@ pub async fn acquire_generation_owner_lock(
             ],
         ))
         .await
-        .map_err(a4n_error::AppError::Database)?
+        .map_err(a4n_error::AppError::from)?
         .ok_or_else(|| {
             a4n_error::AppError::ConfigError(
                 "generation Host owner lock 查询未返回结果".to_string(),
@@ -87,18 +169,17 @@ pub async fn acquire_generation_owner_lock(
         })?;
     let acquired: bool = row
         .try_get("", "acquired")
-        .map_err(a4n_error::AppError::Database)?;
+        .map_err(a4n_error::AppError::from)?;
     if !acquired {
         return Err(a4n_error::AppError::ConfigError(
             "同一 PostgreSQL 数据库已有 generation Host owner".to_string(),
         ));
     }
-    Ok(database)
+    Ok(DbHandle::new(Arc::new(database)))
 }
 
-pub async fn verify_required_schema(
-    database: &DatabaseConnection,
-) -> Result<(), a4n_error::AppError> {
+pub async fn verify_required_schema(database: &DbHandle) -> Result<(), a4n_error::AppError> {
+    let database = database.connection();
     let required = a4n_db_models::REQUIRED_SCHEMA_MIGRATION;
     let applied = database
         .query_one(Statement::from_sql_and_values(
@@ -120,9 +201,8 @@ pub async fn verify_required_schema(
     Ok(())
 }
 
-pub async fn verify_canvas_project_split(
-    database: &DatabaseConnection,
-) -> Result<(), a4n_error::AppError> {
+pub async fn verify_canvas_project_split(database: &DbHandle) -> Result<(), a4n_error::AppError> {
+    let database = database.connection();
     let row = database
         .query_one(Statement::from_string(
             DatabaseBackend::Postgres,
@@ -140,14 +220,14 @@ SELECT
             .to_string(),
         ))
         .await
-        .map_err(a4n_error::AppError::Database)?
+        .map_err(a4n_error::AppError::from)?
         .ok_or_else(|| a4n_error::AppError::ConfigError("Canvas 项目拆分预检无结果".into()))?;
     let legacy_freeform: i64 = row
         .try_get("", "legacy_freeform")
-        .map_err(a4n_error::AppError::Database)?;
+        .map_err(a4n_error::AppError::from)?;
     let derived_canvas: i64 = row
         .try_get("", "derived_canvas")
-        .map_err(a4n_error::AppError::Database)?;
+        .map_err(a4n_error::AppError::from)?;
     if legacy_freeform > 0 || derived_canvas > 0 {
         return Err(a4n_error::AppError::ConfigError(format!(
             "Canvas 项目拆分尚未完成：{} 个旧 freeform 项目、{} 个派生视频含画布内容；请运行维护迁移",

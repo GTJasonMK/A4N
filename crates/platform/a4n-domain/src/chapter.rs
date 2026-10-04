@@ -244,6 +244,15 @@ pub struct ChapterOutlineRecord {
     pub updated_at: NaiveDateTime,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ChapterOutlineProvenanceRecord {
+    pub outline_id: i64,
+    pub source_kind: String,
+    pub source_fingerprint_json: Value,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
 pub fn required_outline_pacing_score(
     pacing_score: Option<f32>,
     chapter_number: i32,

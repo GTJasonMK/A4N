@@ -1,10 +1,9 @@
 use a4n_db_models::models::chapter::chapter_outline;
 use a4n_domain::chapter::ChapterOutlineRecord;
 use chrono::NaiveDateTime;
+use sea_orm::ConnectionTrait;
 use sea_orm::sea_query::{CaseStatement, Expr};
-use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, TransactionTrait,
-};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 use super::super::record_mapping::chapter_outline_record_from_model;
 use super::super::types::OutlineDbError;
@@ -14,7 +13,7 @@ use a4n_domain::chapter::ChapterOutlineSyncDraft;
 
 /// 按 chapter_number 增量同步章节大纲（更新已有、插入缺失）。
 pub async fn sync_chapter_outline_records_by_number_transaction(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     part_id: Option<i64>,
     drafts: Vec<ChapterOutlineSyncDraft>,

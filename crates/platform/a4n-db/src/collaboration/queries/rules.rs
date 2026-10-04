@@ -5,7 +5,7 @@ use crate::collaboration::{
 use a4n_db_models::models::project::project_member;
 use a4n_domain::auth::ROLE_READ_ONLY;
 use a4n_domain::project::ProjectSourceMode;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 
 pub(in crate::collaboration) fn validate_collaboration_root_identity(
     project_id: i64,
@@ -35,7 +35,7 @@ pub(in crate::collaboration) fn parse_stored_member_role(
 }
 
 pub(in crate::collaboration) async fn effective_role_for_root(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     root: &CollaborationRootProject,
     user_id: i64,
 ) -> Result<Option<ProjectAccessRole>, CollaborationDbError> {

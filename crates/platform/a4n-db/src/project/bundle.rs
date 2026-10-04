@@ -3,6 +3,7 @@
 //! The regular family/canvas importers own their domain rows. This module owns
 //! the cross-cutting conversation and generation history rows that must follow
 //! those projects without carrying runtime ownership to another machine.
+use sea_orm::ConnectionTrait;
 
 use std::collections::{HashMap, HashSet};
 
@@ -24,8 +25,7 @@ use a4n_domain::{
     project::{ProjectRecord, ProjectSourceMode},
 };
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, EntityTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, QueryFilter, QueryOrder, Set,
 };
 use serde_json::{Value, json};
 
@@ -101,7 +101,7 @@ pub struct StandaloneComicProjectImportMaps {
 }
 
 pub async fn export_standalone_comic_project_bundle(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<StandaloneComicProjectBundle, StandaloneComicProjectBundleError> {
     let project = crate::project::project_by_id_record(db, project_id)
@@ -165,7 +165,7 @@ pub async fn export_standalone_comic_project_bundle(
 }
 
 pub async fn import_standalone_comic_project_bundle(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     package: &StandaloneComicProjectBundle,
     user_id: i64,
 ) -> Result<StandaloneComicProjectImportMaps, StandaloneComicProjectBundleError> {
@@ -620,7 +620,7 @@ where
 }
 
 pub async fn import_project_bundle_history(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     rows: &ProjectBundleHistoryRows,
     maps: &ProjectBundleEntityIdMaps,
     bundle_id: &str,

@@ -2,12 +2,10 @@ use super::{ProjectChapterSceneWriteError, record::chapter_scene_record};
 use a4n_db_models::models::chapter::{chapter, chapter_scene};
 use a4n_domain::chapter::ProjectGeneratedChapterSceneSaveInput;
 use chrono::Utc;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set};
 
 pub async fn save_generated_chapter_scene_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: ProjectGeneratedChapterSceneSaveInput,
 ) -> Result<a4n_domain::chapter::ChapterSceneRecord, ProjectChapterSceneWriteError> {
     let word_count = i32::try_from(input.content.chars().count()).map_err(|_| {

@@ -1,21 +1,24 @@
 use std::collections::HashMap;
 
-use a4n_db_models::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
-use a4n_db_models::models::{ai::generated_image, ai::generated_video, media::media_asset};
+use a4n_api_contract::project_transfer::{
+    MEDIA_ASSET_FILE_PATH_FIELD as FILE_PATH_FIELD,
+    MEDIA_ASSET_THUMBNAIL_PATH_FIELD as THUMBNAIL_PATH_FIELD,
+};
 use a4n_domain::CanvasNodeRefKind;
+use a4n_domain::media::{GeneratedImageRecord, GeneratedVideoRecord, MediaAssetRecord};
 
 use crate::project::{MediaFileEntry, VideoStudioProjectPackage};
 
 pub(super) enum MediaEntryOwner<'a> {
-    GeneratedImage(&'a generated_image::Model),
-    GeneratedVideo(&'a generated_video::Model),
-    MediaAsset(&'a media_asset::Model),
+    GeneratedImage(&'a GeneratedImageRecord),
+    GeneratedVideo(&'a GeneratedVideoRecord),
+    MediaAsset(&'a MediaAssetRecord),
 }
 
 pub struct MediaEntryOwnerIndex<'a> {
-    generated_images: HashMap<i64, &'a generated_image::Model>,
-    generated_videos: HashMap<i64, &'a generated_video::Model>,
-    media_assets: HashMap<i64, &'a media_asset::Model>,
+    generated_images: HashMap<i64, &'a GeneratedImageRecord>,
+    generated_videos: HashMap<i64, &'a GeneratedVideoRecord>,
+    media_assets: HashMap<i64, &'a MediaAssetRecord>,
 }
 
 impl<'a> MediaEntryOwnerIndex<'a> {

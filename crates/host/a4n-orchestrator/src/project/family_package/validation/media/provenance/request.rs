@@ -1,17 +1,12 @@
-use a4n_db_models::models::{
-    generation::generation_spec,
-    media::{media_asset, media_provenance},
-};
-
 use super::super::contracts::MediaProvenanceRefContext;
 use super::super::request::{
     is_galgame_visual_generation_spec, validate_media_request_snapshot_refs,
 };
 
 pub(super) fn validate_request_snapshot(
-    provenance: &media_provenance::Model,
-    asset: &media_asset::Model,
-    linked_spec: Option<&generation_spec::Model>,
+    provenance: &a4n_domain::project::ProjectFamilyMediaProvenanceRecord,
+    asset: &a4n_domain::project::ProjectFamilyMediaAssetRecord,
+    linked_spec: Option<&a4n_domain::project::ProjectFamilyGenerationSpecRecord>,
     refs: &MediaProvenanceRefContext<'_>,
 ) -> Result<(), String> {
     let Some(request_snapshot) = provenance.request_snapshot_json.as_ref() else {

@@ -2,9 +2,9 @@ use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use std::collections::HashMap;
 
 use a4n_api_contract::video::PreviewChapterVideoPromptOverrideInput;
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::image::reference_image_ids;
 use a4n_domain::prompt_language::PromptOutputLanguage;
+use a4n_domain::video_prompt as chapter_video_prompt;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_video::{VideoGenerationRequest, video_request_prompt_length_context};

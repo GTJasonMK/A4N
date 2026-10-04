@@ -1,4 +1,19 @@
+use chrono::NaiveDateTime;
 use serde_json::{Map, Value, json};
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CharacterPortraitRecord {
+    pub id: i64,
+    pub profile_id: i64,
+    pub project_id: i64,
+    pub portrait_type: String,
+    pub image_path: String,
+    pub prompt: String,
+    pub expression: Option<String>,
+    pub pose: Option<String>,
+    pub is_primary: bool,
+    pub created_at: NaiveDateTime,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CharacterPortraitProfile {

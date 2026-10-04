@@ -1,5 +1,6 @@
 mod creation;
 mod deletion;
+mod discovery;
 mod records;
 mod state;
 mod types;
@@ -17,12 +18,19 @@ use serde_json::Value;
 use std::collections::HashSet;
 
 pub use creation::{
-    create_profile, create_profile_with_generation_run, create_profile_with_generation_run_in,
+    create_profile, create_profile_domain_record, create_profile_with_generation_run,
+    create_profile_with_generation_run_in,
 };
 pub use deletion::delete_profile_cascade_transaction;
 pub(crate) use deletion::delete_profiles_cascade_in;
+pub use discovery::persist_character_discovery_candidates;
+pub(crate) use records::character_profile_record;
 pub(crate) use records::referenced_profile_ids;
-pub use records::{profile_by_id, profile_by_project_name, profiles_by_project};
+pub use records::{
+    profile_by_id, profile_by_project_name, profile_record_by_id, profile_record_by_project_name,
+    profile_records_by_project, profiles_by_project, profiles_with_timeline_state_records,
+    update_initial_profile_record,
+};
 pub(in crate::character) use records::{
     require_profile, require_profile_for_update, update_profile_current_state,
 };

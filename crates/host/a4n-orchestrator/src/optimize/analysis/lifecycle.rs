@@ -9,14 +9,10 @@ impl OrchestratorContext {
         chapter_content: &str,
         prompt_renderer: &dyn PromptRenderer,
         variables: &std::collections::HashMap<String, serde_json::Value>,
-    ) -> Result<optimization_session::Model, AppError> {
-        let name = required_available_session_name(
-            self.database.connection(),
-            project_id,
-            chapter_id,
-            name,
-        )
-        .await?;
+    ) -> Result<a4n_domain::project::OptimizationSessionRecord, AppError> {
+        let name =
+            required_available_session_name(self.database.executor(), project_id, chapter_id, name)
+                .await?;
         let bundle = self
             .build_analysis_session_prompt_bundle(
                 project_id,
@@ -26,8 +22,8 @@ impl OrchestratorContext {
                 variables,
             )
             .await?;
-        let session = a4n_db::optimize::create_optimization_session(
-            self.database.connection(),
+        let session = a4n_db::optimize::create_optimization_session_record(
+            self.database.executor(),
             OptimizationSessionCreateInput {
                 project_id,
                 chapter_id,
@@ -83,7 +79,7 @@ impl OrchestratorContext {
         chapter_content: &str,
         prompt_renderer: &dyn PromptRenderer,
         variables: &std::collections::HashMap<String, serde_json::Value>,
-    ) -> Result<optimization_session::Model, AppError> {
+    ) -> Result<a4n_domain::project::OptimizationSessionRecord, AppError> {
         let session = self.get_session(session_id).await?;
         if matches!(
             session.status.as_str(),
@@ -117,9 +113,9 @@ impl OrchestratorContext {
         self.save_agent_event(session.id, "已在当前会话准备分析输入，等待执行模型分析。")
             .await?;
 
-        a4n_db::optimize::update_optimization_session(
-            self.database.connection(),
-            OptimizationSessionUpdateInput {
+        a4n_db::optimize::update_optimization_session_record(
+            self.database.executor(),
+            a4n_db::optimize::OptimizationSessionRecordUpdateInput {
                 session,
                 status: Some("analyzing".to_string()),
                 issues: None,

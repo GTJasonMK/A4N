@@ -1,16 +1,12 @@
-use a4n_db_models::models::{
-    galgame::{galgame_line, galgame_scene, galgame_script},
-    media::media_asset,
-};
 use std::collections::HashMap;
 
 pub(super) fn validate_media_request_galgame_target_line(
     media_asset_id: i64,
-    asset: &media_asset::Model,
+    asset: &a4n_domain::project::ProjectFamilyMediaAssetRecord,
     target_line_id: i64,
-    galgame_scripts: &HashMap<i64, &galgame_script::Model>,
-    galgame_scenes: &HashMap<i64, &galgame_scene::Model>,
-    galgame_lines: &HashMap<i64, &galgame_line::Model>,
+    galgame_scripts: &HashMap<i64, &a4n_domain::project::ProjectFamilyGalgameScriptRecord>,
+    galgame_scenes: &HashMap<i64, &a4n_domain::project::ProjectFamilyGalgameSceneRecord>,
+    galgame_lines: &HashMap<i64, &a4n_domain::project::ProjectFamilyGalgameLineRecord>,
 ) -> Result<(), String> {
     let line = galgame_lines.get(&target_line_id).copied().ok_or_else(|| {
         format!(
@@ -29,9 +25,9 @@ pub(super) fn validate_media_request_galgame_target_line(
 
 pub(super) fn validate_media_request_galgame_scene_project(
     media_asset_id: i64,
-    asset: &media_asset::Model,
-    scene: &galgame_scene::Model,
-    galgame_scripts: &HashMap<i64, &galgame_script::Model>,
+    asset: &a4n_domain::project::ProjectFamilyMediaAssetRecord,
+    scene: &a4n_domain::project::ProjectFamilyGalgameSceneRecord,
+    galgame_scripts: &HashMap<i64, &a4n_domain::project::ProjectFamilyGalgameScriptRecord>,
 ) -> Result<(), String> {
     let script = galgame_scripts.get(&scene.script_id).copied().ok_or_else(|| {
         format!(

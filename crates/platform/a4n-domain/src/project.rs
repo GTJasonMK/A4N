@@ -1,6 +1,7 @@
 mod asset_graph;
 mod blueprint;
 mod cleanup;
+mod family_transfer;
 #[path = "optimization.rs"]
 mod optimization;
 mod status;
@@ -8,6 +9,7 @@ mod status;
 pub use asset_graph::*;
 pub use blueprint::*;
 pub use cleanup::*;
+pub use family_transfer::*;
 pub use optimization::*;
 pub use status::*;
 
@@ -36,6 +38,17 @@ pub struct ProjectSummaryRecord {
     pub chapters_per_part: Option<i32>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct BlueprintVersionRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub version: String,
+    pub change_description: Option<String>,
+    pub blueprint_data: Value,
+    pub created_at: NaiveDateTime,
+    pub created_by: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

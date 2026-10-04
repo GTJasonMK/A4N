@@ -34,7 +34,6 @@ pub(crate) use workflow_rules::{
 };
 
 use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
-use a4n_db_models::models::generation::workflow_run;
 
 #[cfg(test)]
 mod tests;
@@ -46,7 +45,7 @@ impl OrchestratorContext {
         project_id: i64,
         profile_id: i64,
         fingerprint: &Value,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<a4n_domain::workflow::WorkflowRunSummary, AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
         }
@@ -85,7 +84,7 @@ impl OrchestratorContext {
         profile_id: i64,
         portrait_type: PortraitType,
         fingerprint: &Value,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<a4n_domain::workflow::WorkflowRunSummary, AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
         }
@@ -122,7 +121,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         fingerprint: &Value,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<a4n_domain::workflow::WorkflowRunSummary, AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
         }
@@ -156,7 +155,7 @@ impl OrchestratorContext {
         mode: &str,
         current_step_key: &str,
         fingerprint: &Value,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<a4n_domain::workflow::WorkflowRunSummary, AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
         }

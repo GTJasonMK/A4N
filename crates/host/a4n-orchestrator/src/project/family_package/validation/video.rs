@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-use a4n_db_models::models::{
-    ai::{generated_image, generated_video},
-    chapter::{chapter, chapter_shooting_script, chapter_video_prompt},
-};
 use a4n_domain::canvas_transfer_runtime_identity_key;
 use a4n_domain::image::reference_image_ids;
 use a4n_domain::project::ProjectRecord;
+use a4n_domain::video_prompt::{
+    ChapterVideoPromptRecord, PROMPT_TYPE_FRAME_SEGMENT_PLAN, STATUS_CANCELLED, STATUS_COMPLETED,
+    STATUS_FAILED, STATUS_INTERRUPTED, STATUS_PENDING, STATUS_RUNNING,
+};
 use a4n_video_contract::VideoShootingScriptIdentityV1;
 use serde_json::Value;
 
@@ -25,11 +25,11 @@ pub(super) fn validate_video_manifest(package: &ProjectFamilyPackage) -> Result<
 
 struct VideoManifestContext<'a> {
     projects: HashMap<i64, &'a ProjectRecord>,
-    chapters: HashMap<i64, &'a chapter::Model>,
-    shooting_scripts: HashMap<i64, &'a chapter_shooting_script::Model>,
-    images: HashMap<i64, &'a generated_image::Model>,
-    prompts: HashMap<i64, &'a chapter_video_prompt::Model>,
-    videos: HashMap<i64, &'a generated_video::Model>,
+    chapters: HashMap<i64, &'a a4n_domain::project::ProjectFamilyChapterRecord>,
+    shooting_scripts: HashMap<i64, &'a a4n_domain::project::ProjectFamilyShootingScriptRecord>,
+    images: HashMap<i64, &'a a4n_domain::project::ProjectFamilyGeneratedImageRecord>,
+    prompts: HashMap<i64, &'a ChapterVideoPromptRecord>,
+    videos: HashMap<i64, &'a a4n_domain::project::ProjectFamilyGeneratedVideoRecord>,
 }
 
 impl<'a> VideoManifestContext<'a> {
@@ -68,7 +68,7 @@ impl<'a> VideoManifestContext<'a> {
 
 fn validate_video_prompt(
     package: &ProjectFamilyPackage,
-    prompt: &chapter_video_prompt::Model,
+    prompt: &ChapterVideoPromptRecord,
     context: &VideoManifestContext<'_>,
 ) -> Result<(), String> {
     require_positive_id(prompt.id, "chapter_video_prompt.id")?;
@@ -81,17 +81,14 @@ fn validate_video_prompt(
         context,
     )?;
     match prompt.status.as_str() {
-        chapter_video_prompt::STATUS_RUNNING => {
+        STATUS_RUNNING => {
             return Err(format!(
                 "项目族导入包不能包含运行中的章节视频提示词: chapter_video_prompt_id={}",
                 prompt.id
             ));
         }
-        chapter_video_prompt::STATUS_PENDING
-        | chapter_video_prompt::STATUS_FAILED
-        | chapter_video_prompt::STATUS_INTERRUPTED
-        | chapter_video_prompt::STATUS_COMPLETED
-        | chapter_video_prompt::STATUS_CANCELLED => {}
+        STATUS_PENDING | STATUS_FAILED | STATUS_INTERRUPTED | STATUS_COMPLETED
+        | STATUS_CANCELLED => {}
         _ => {
             return Err(format!(
                 "项目族导入包章节视频提示词状态无效: chapter_video_prompt_id={}, status={}",
@@ -182,7 +179,7 @@ fn validate_video_prompt(
 
 fn validate_generated_video(
     package: &ProjectFamilyPackage,
-    video: &generated_video::Model,
+    video: &a4n_domain::project::ProjectFamilyGeneratedVideoRecord,
     context: &VideoManifestContext<'_>,
 ) -> Result<(), String> {
     require_positive_id(video.id, "generated_video.id")?;
@@ -369,7 +366,7 @@ fn validate_prompt_metadata_references(
                 prompt_id,
                 project_id,
                 Some(chapter_id),
-                Some(chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN),
+                Some(PROMPT_TYPE_FRAME_SEGMENT_PLAN),
                 owner_label,
                 owner_id,
                 context,
@@ -387,7 +384,7 @@ fn require_prompt_reference<'a>(
     owner_label: &str,
     owner_id: i64,
     context: &VideoManifestContext<'a>,
-) -> Result<&'a chapter_video_prompt::Model, String> {
+) -> Result<&'a ChapterVideoPromptRecord, String> {
     let prompt = context.prompts.get(&prompt_id).copied().ok_or_else(|| {
         format!(
             "项目族导入包{owner_label}引用了不存在的章节视频提示词: owner_id={owner_id}, chapter_video_prompt_id={prompt_id}"

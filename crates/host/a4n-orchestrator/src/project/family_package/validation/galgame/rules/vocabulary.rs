@@ -1,7 +1,5 @@
-use a4n_db_models::models::galgame::galgame_line;
-
 pub(in crate::project::family_package::validation) fn normalized_galgame_position(
-    line: &galgame_line::Model,
+    line: &a4n_domain::project::ProjectFamilyGalgameLineRecord,
 ) -> Option<&str> {
     line.position
         .as_deref()

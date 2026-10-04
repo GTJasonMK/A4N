@@ -1,3 +1,7 @@
+use super::{
+    WorkerState,
+    protocol::{WorkerFailure, completed, failed},
+};
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
     WorkerCapability, WorkerEnvelope, WorkerHealth, WorkerHealthStatus,
@@ -12,12 +16,6 @@ use axum::{
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
-};
-use sea_orm::{ConnectionTrait, Statement};
-
-use super::{
-    WorkerState,
-    protocol::{WorkerFailure, completed, failed},
 };
 
 pub(super) fn router(state: WorkerState) -> Router {
@@ -37,16 +35,8 @@ async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Respons
     if !state.authorized(&headers) {
         return unauthorized();
     }
-    let status = match state
-        .database
-        .connection()
-        .execute(Statement::from_string(
-            sea_orm::DatabaseBackend::Postgres,
-            "SELECT 1",
-        ))
-        .await
-    {
-        Ok(_) => WorkerHealthStatus::Healthy,
+    let status = match state.database.ping().await {
+        Ok(()) => WorkerHealthStatus::Healthy,
         Err(_) => WorkerHealthStatus::Degraded,
     };
     Json(WorkerHealth {

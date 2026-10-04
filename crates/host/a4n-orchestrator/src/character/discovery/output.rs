@@ -2,8 +2,8 @@ mod fields;
 
 use std::collections::BTreeSet;
 
-use a4n_db_models::models::{chapter::chapter, project::text_anchor};
 use a4n_domain::source_spans::AnchorQuoteIndex;
+use a4n_domain::{chapter::ChapterRecord, text_anchor::TextAnchorRecord};
 use a4n_domain::{json_contract::reject_unknown_fields, profile_text::normalize_importance_value};
 use serde_json::{Value, json};
 
@@ -17,8 +17,8 @@ use fields::{
 
 pub(super) fn parse_character_discovery_output(
     content: &str,
-    chapters: &[chapter::Model],
-    text_anchors: &[text_anchor::Model],
+    chapters: &[ChapterRecord],
+    text_anchors: &[TextAnchorRecord],
 ) -> Result<Vec<Value>, String> {
     let value: Value = serde_json::from_str(content.trim()).map_err(|err| {
         let mut message = format!("角色发现结果必须是 JSON 对象: {err}");

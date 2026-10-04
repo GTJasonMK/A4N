@@ -5,11 +5,11 @@ use super::contracts::{
 };
 use super::projection::build_project_family_metadata;
 use a4n_db_models::models::project::{novel_project, project_source_snapshot};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashMap;
 
 pub async fn project_family_metadata(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     query: ProjectFamilyMetadataQuery,
 ) -> Result<ProjectFamilyMetadata, ProjectFamilyMetadataReadError> {
     let mut metadata_by_project_id =
@@ -20,7 +20,7 @@ pub async fn project_family_metadata(
 }
 
 pub async fn project_family_metadata_batch(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     queries: &[ProjectFamilyMetadataQuery],
 ) -> Result<HashMap<i64, ProjectFamilyMetadata>, ProjectFamilyMetadataReadError> {
     if queries.is_empty() {
@@ -62,7 +62,7 @@ pub async fn project_family_metadata_batch(
 }
 
 async fn project_models_by_id(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_ids: &[i64],
 ) -> Result<HashMap<i64, ProjectFamilyRootRow>, ProjectFamilyMetadataReadError> {
     if project_ids.is_empty() {
@@ -81,7 +81,7 @@ async fn project_models_by_id(
 }
 
 async fn source_snapshots_by_id(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     snapshot_ids: &[i64],
 ) -> Result<HashMap<i64, ProjectFamilySnapshotRow>, ProjectFamilyMetadataReadError> {
     if snapshot_ids.is_empty() {

@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
-use a4n_db_models::models::generation::generation_spec;
 use a4n_domain::galgame::GalgameAssetPlanSpecRecordInput;
+use a4n_domain::generation::GenerationSpecRecord;
 use a4n_error::AppError;
 
 use super::super::contracts::{GalgameAssetPlanGroup, GalgameAssetPlanItemDraft, GalgameSpecInput};
@@ -39,7 +39,7 @@ pub(in crate::galgame::asset_plan) fn galgame_asset_plan_item_draft(
 pub(in crate::galgame::asset_plan) fn push_plan_item(
     items: &mut Vec<GalgameAssetPlanItem>,
     summary: &mut GalgameAssetPlanSummary,
-    spec: generation_spec::Model,
+    spec: GenerationSpecRecord,
     draft: GalgameAssetPlanItemDraft,
     outcome: Option<GalgameAssetPlanOutcome>,
 ) -> Result<(), AppError> {

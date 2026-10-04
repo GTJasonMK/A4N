@@ -20,7 +20,7 @@ pub(super) async fn prepare_last_part_regeneration(
     project_id: i64,
 ) -> Result<PreparedPartRegeneration, AppError> {
     let context =
-        load_part_generation_context(service.database.connection(), project_id, None, None).await?;
+        load_part_generation_context(service.database.executor(), project_id, None, None).await?;
     let target = context
         .parts
         .last()
@@ -36,7 +36,7 @@ pub(super) async fn prepare_part_regeneration_by_id(
 ) -> Result<PreparedPartRegeneration, AppError> {
     let (target, context) = futures::join!(
         service.get_part(part_id),
-        load_part_generation_context(service.database.connection(), project_id, None, None),
+        load_part_generation_context(service.database.executor(), project_id, None, None),
     );
     let target = target?;
     if target.project_id != project_id {

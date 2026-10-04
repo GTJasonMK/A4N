@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 
-use a4n_db_models::models::{
-    chapter::chapter, character::protagonist_profile, project::text_anchor,
-};
-use a4n_domain::chapter::ChapterSourceSnapshot;
 use a4n_domain::source_spans::{text_anchor_prompt_text, text_anchor_prompt_values};
 use a4n_domain::text_anchor::TextAnchorProfileKind;
+use a4n_domain::{
+    chapter::{ChapterRecord, ChapterSourceSnapshot},
+    character::CharacterProfileRecord,
+    text_anchor::TextAnchorRecord,
+};
 use a4n_error::AppError;
 use serde_json::Value;
 
@@ -13,7 +14,7 @@ use crate::OrchestratorContext;
 
 use super::{
     super::{
-        CharacterProfileSyncStageInput, CharacterSyncRangeMode, character_llm_chapter_context,
+        CharacterProfileSyncStageInput, CharacterSyncRangeMode,
         character_sync_range_with_first_seen, profile_first_seen_chapter,
         validate_character_sync_target_chapter, validate_contiguous_character_sync_range,
     },
@@ -23,11 +24,11 @@ use super::{
     },
 };
 
-pub(crate) type CharacterProfileSyncAnchorCache = HashMap<i64, Vec<text_anchor::Model>>;
+pub(crate) type CharacterProfileSyncAnchorCache = HashMap<i64, Vec<TextAnchorRecord>>;
 
 pub(crate) struct PreparedCharacterProfileSync {
     pub(super) project_id: i64,
-    pub(super) profile: protagonist_profile::Model,
+    pub(super) profile: CharacterProfileRecord,
     /// 档案声明的 first_seen 与正文证据 first_seen 取 min；跳过判定与区间计算共用此值。
     pub(super) effective_first_seen: Option<i32>,
     pub(super) start_chapter: i32,
@@ -67,7 +68,7 @@ impl OrchestratorContext {
             .resolve_character_profile_sync_subject(input.subject)
             .await?;
         let project_id = profile.project_id;
-        let chapters = self.character_sync_chapters(project_id).await?;
+        let chapters = self.character_sync_chapter_records(project_id).await?;
         if chapters.is_empty() {
             return Err(AppError::InvalidArgument(format!(
                 "项目还没有章节: project_id={project_id}"
@@ -91,7 +92,7 @@ impl OrchestratorContext {
     pub(crate) async fn prepare_character_profile_sync_context_with_chapters(
         &self,
         input: CharacterProfileSyncApplicationInput,
-        chapters: &[chapter::Model],
+        chapters: &[ChapterRecord],
         anchor_cache: &mut CharacterProfileSyncAnchorCache,
     ) -> Result<PreparedCharacterProfileSync, AppError> {
         let profile = self
@@ -123,10 +124,10 @@ impl OrchestratorContext {
     async fn resolve_character_profile_sync_subject(
         &self,
         subject: CharacterProfileSyncSubject,
-    ) -> Result<protagonist_profile::Model, AppError> {
+    ) -> Result<CharacterProfileRecord, AppError> {
         match subject {
             CharacterProfileSyncSubject::ByName { project_id, name } => self
-                .profile_by_project_name(project_id, &name)
+                .profile_record_by_project_name(project_id, &name)
                 .await?
                 .ok_or_else(|| {
                     AppError::NotFound(format!("角色不存在: project_id={project_id}, name={name}"))
@@ -137,8 +138,8 @@ impl OrchestratorContext {
 
     async fn prepare_character_profile_sync_for_profile(
         &self,
-        profile: protagonist_profile::Model,
-        chapters: &[chapter::Model],
+        profile: CharacterProfileRecord,
+        chapters: &[ChapterRecord],
         target_chapter: i32,
         range_mode: CharacterSyncRangeMode,
         anchor_mode: CharacterProfileSyncAnchorMode,
@@ -199,7 +200,7 @@ impl OrchestratorContext {
         .map_err(AppError::InvalidArgument)?;
         let source_chapters = selected_chapters
             .iter()
-            .map(|chapter| a4n_db::project::chapter_source_snapshot_from_model(chapter))
+            .map(|chapter| chapter.source_snapshot())
             .collect::<Vec<_>>();
 
         let first_seen = effective_first_seen.unwrap_or(1);
@@ -223,14 +224,14 @@ impl OrchestratorContext {
         if !missing_chapter_ids.is_empty() {
             let anchors = match anchor_mode {
                 CharacterProfileSyncAnchorMode::EnsureCurrent => {
-                    self.ensure_chapter_content_anchor_records_batch(
+                    self.ensure_chapter_content_anchor_record_batch(
                         profile.project_id,
                         &missing_chapter_ids,
                     )
                     .await?
                 }
                 CharacterProfileSyncAnchorMode::RequireExistingCurrent => {
-                    self.require_current_chapter_content_anchors_for_preview_batch(
+                    self.require_current_chapter_content_anchor_records_for_preview_batch(
                         profile.project_id,
                         &missing_chapter_ids,
                     )
@@ -272,7 +273,7 @@ impl OrchestratorContext {
 
     async fn character_profile_state_before_chapter(
         &self,
-        profile: &protagonist_profile::Model,
+        profile: &CharacterProfileRecord,
         chapter_number: i32,
     ) -> Result<Value, AppError> {
         if chapter_number <= 1 {
@@ -284,10 +285,10 @@ impl OrchestratorContext {
 }
 
 fn character_profile_sync_chapter_context(
-    chapter: &chapter::Model,
-    anchors: &[text_anchor::Model],
+    chapter: &ChapterRecord,
+    anchors: &[TextAnchorRecord],
 ) -> Result<Value, AppError> {
-    let mut context = character_llm_chapter_context(chapter);
+    let mut context = crate::character::character_llm_chapter_context(chapter);
     if let Some(object) = context.as_object_mut() {
         object.insert(
             "content".to_string(),

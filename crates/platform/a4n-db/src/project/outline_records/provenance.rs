@@ -1,10 +1,10 @@
 use a4n_db_models::models::chapter::{chapter, chapter_outline, chapter_outline_provenance};
 use a4n_domain::chapter::ChapterSourceSnapshot;
 use chrono::Utc;
+use sea_orm::ConnectionTrait;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait,
-    QueryFilter, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DbBackend, EntityTrait, QueryFilter, QuerySelect, Set,
 };
 use std::collections::HashMap;
 
@@ -47,7 +47,7 @@ where
 /// 该入口用于章节分析完成后的派生同步。它会在同一事务内锁定来源章节，
 /// 再比较章节身份、标题、正文哈希和更新时间；任何一项变化都拒绝写入。
 pub async fn upsert_retrospective_chapter_outline_checked(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: RetrospectiveChapterOutlineUpsertInput,
     source: ChapterSourceSnapshot,
 ) -> Result<RetrospectiveChapterOutlineUpsertOutcome, ProjectOutlineRecordError> {
@@ -56,7 +56,7 @@ pub async fn upsert_retrospective_chapter_outline_checked(
 }
 
 pub(crate) async fn upsert_automatic_chapter_outline_checked(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: RetrospectiveChapterOutlineUpsertInput,
     source: ChapterSourceSnapshot,
     source_kind: &str,

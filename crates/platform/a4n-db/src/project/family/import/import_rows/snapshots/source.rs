@@ -1,7 +1,7 @@
 use crate::project::family::import::{
-    ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage, hash_json, map_optional,
-    map_required, remap_chapter_hashes_json, remap_profile_hashes_json, remap_profile_id,
-    remap_snapshot_outline_source_id, remap_source_snapshot_outline_payload,
+    DatabaseProjectFamilyImportPackage, ImportIdMaps, ProjectFamilyImportError, hash_json,
+    map_optional, map_required, remap_chapter_hashes_json, remap_profile_hashes_json,
+    remap_profile_id, remap_snapshot_outline_source_id, remap_source_snapshot_outline_payload,
     remap_source_snapshot_profile_payload, snapshot_profile_key,
 };
 use a4n_db_models::models::project::{
@@ -16,7 +16,7 @@ use std::collections::{BTreeSet, HashMap};
 
 pub(in crate::project::family::import::import_rows) async fn insert_source_snapshots(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     reserve_snapshot_outline_sources(txn, package, maps).await?;
@@ -155,7 +155,7 @@ pub(in crate::project::family::import::import_rows) async fn insert_source_snaps
 
 async fn reserve_snapshot_outline_sources(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     maps.source_part_outline_ids
@@ -232,7 +232,7 @@ mod tests {
             }
         })
         .collect();
-        let package = ProjectFamilyImportPackage {
+        let package = DatabaseProjectFamilyImportPackage {
             source_snapshot_outlines: outlines,
             ..Default::default()
         };

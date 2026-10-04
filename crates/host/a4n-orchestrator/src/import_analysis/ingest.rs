@@ -1,8 +1,6 @@
 use crate::OrchestratorContext;
-use a4n_db_models::models::project::import_review_queue;
 use a4n_domain::collaboration::ProjectAccessRole;
-use a4n_domain::import_review::ImportChapterDraft;
-use a4n_domain::import_review::ImportReviewCreateInput;
+use a4n_domain::import_review::{ImportChapterDraft, ImportReviewCreateInput, ImportReviewRecord};
 use a4n_error::AppError;
 
 pub async fn create_import_analysis_reviews_for_user_validated(
@@ -11,7 +9,7 @@ pub async fn create_import_analysis_reviews_for_user_validated(
     project_id: i64,
     filename: &str,
     chapters: &[ImportChapterDraft],
-) -> Result<Vec<import_review_queue::Model>, AppError> {
+) -> Result<Vec<ImportReviewRecord>, AppError> {
     context
         .verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
         .await?;

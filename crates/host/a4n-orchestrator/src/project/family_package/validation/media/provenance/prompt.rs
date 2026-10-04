@@ -1,15 +1,10 @@
-use a4n_db_models::models::{
-    generation::generation_spec,
-    media::{media_asset, media_provenance},
-};
-
 use super::super::contracts::MediaProvenanceRefContext;
 use super::context::validate_media_provenance_source_context;
 
 pub(super) fn validate_prompt_artifact_ref(
-    provenance: &media_provenance::Model,
-    asset: &media_asset::Model,
-    linked_spec: Option<&generation_spec::Model>,
+    provenance: &a4n_domain::project::ProjectFamilyMediaProvenanceRecord,
+    asset: &a4n_domain::project::ProjectFamilyMediaAssetRecord,
+    linked_spec: Option<&a4n_domain::project::ProjectFamilyGenerationSpecRecord>,
     refs: &MediaProvenanceRefContext<'_>,
 ) -> Result<(), String> {
     let Some(prompt_id) = provenance.prompt_artifact_id else {

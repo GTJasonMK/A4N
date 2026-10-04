@@ -6,14 +6,14 @@ use crate::project::project_record_from_model;
 use a4n_db_models::models::project::{novel_project, source_snapshot_chapter};
 use a4n_domain::project::ProjectRecord;
 use chrono::{NaiveDateTime, Utc};
+use sea_orm::ConnectionTrait;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QuerySelect, QueryTrait, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, QueryTrait, Set,
 };
 
 pub async fn update_project_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: UpdateProjectRecordInput,
 ) -> Result<ProjectRecord, ProjectMutationError> {
     let tx = db.begin().await?;

@@ -30,7 +30,7 @@ impl OrchestratorContext {
             ));
         }
         if let Some((_, saved)) = a4n_db::chapter_visual_plan::replay_visual_plan_edit(
-            self.database.connection(),
+            self.database.executor(),
             input.project_id,
             &operation_id,
             &payload_hash,
@@ -42,7 +42,7 @@ impl OrchestratorContext {
             return edit_result(saved);
         }
         let mut current = a4n_db::chapter_visual_plan::visual_plan_revision(
-            self.database.connection(),
+            self.database.executor(),
             input.record_id,
             input.expected_revision,
         )
@@ -61,7 +61,7 @@ impl OrchestratorContext {
         let changes = apply_operation(&mut current.plan, &input.operation)?;
         if changes.is_empty() {
             let saved = a4n_db::chapter_visual_plan::record_visual_plan_noop(
-                self.database.connection(),
+                self.database.executor(),
                 &current,
                 &operation_id,
                 &payload_hash,
@@ -72,7 +72,7 @@ impl OrchestratorContext {
         }
         let expected = if current.status == ChapterVisualPlanStatus::Confirmed {
             let plans = a4n_db::chapter_visual_plan::chapter_visual_plans_for_source(
-                self.database.connection(),
+                self.database.executor(),
                 &source,
             )
             .await
@@ -104,7 +104,7 @@ impl OrchestratorContext {
             )));
         }
         current = a4n_db::chapter_visual_plan::save_chapter_visual_plan_edit(
-            self.database.connection(),
+            self.database.executor(),
             a4n_db::chapter_visual_plan::SaveChapterVisualPlanDraftInput {
                 source,
                 author_user_id: user_id,

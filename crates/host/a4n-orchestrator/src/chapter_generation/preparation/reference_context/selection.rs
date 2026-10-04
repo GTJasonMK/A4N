@@ -2,13 +2,13 @@ use std::collections::HashSet;
 
 use super::json::extract_character_names_from_value;
 use a4n_db::rag::RagForeshadowingRow;
-use a4n_db_models::models::project::{blueprint_character, blueprint_relationship};
 use a4n_domain::chapter::ChapterOutlineRecord;
+use a4n_domain::project::{BlueprintCharacterRecord, BlueprintRelationshipRecord};
 
 pub(in crate::chapter_generation::preparation) fn select_generation_characters<'a>(
-    characters: &'a [blueprint_character::Model],
+    characters: &'a [BlueprintCharacterRecord],
     involved_names: &[String],
-) -> Vec<&'a blueprint_character::Model> {
+) -> Vec<&'a BlueprintCharacterRecord> {
     let selected = if involved_names.is_empty() {
         characters
             .iter()
@@ -38,9 +38,9 @@ pub(in crate::chapter_generation::preparation) fn select_generation_characters<'
 }
 
 pub(super) fn select_generation_relationships<'a>(
-    relationships: &'a [blueprint_relationship::Model],
+    relationships: &'a [BlueprintRelationshipRecord],
     involved_names: &[String],
-) -> Vec<&'a blueprint_relationship::Model> {
+) -> Vec<&'a BlueprintRelationshipRecord> {
     if involved_names.is_empty() {
         return relationships.iter().collect();
     }

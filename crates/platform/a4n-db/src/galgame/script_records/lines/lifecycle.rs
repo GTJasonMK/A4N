@@ -5,14 +5,13 @@ use crate::galgame::{
     delete_galgame_line_visual_generation_media_graph_record,
 };
 use a4n_db_models::models::galgame::{galgame_choice, galgame_line};
+use a4n_domain::galgame::GalgameLineRecord;
 use chrono::Utc;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    Set, TransactionTrait,
-};
+use sea_orm::ConnectionTrait;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
 pub async fn delete_galgame_line_with_generation_media_graph_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     line_id: i64,
 ) -> Result<(), GalgameLineRecordError> {
@@ -39,11 +38,11 @@ where
 }
 
 pub async fn update_galgame_line_with_generation_cleanup_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     input: UpdateGalgameLineRecordInput,
     cleanup_visual_generation: bool,
-) -> Result<galgame_line::Model, GalgameLineRecordError> {
+) -> Result<GalgameLineRecord, GalgameLineRecordError> {
     let line_id = input.line_id;
     let tx = db.begin().await?;
     if cleanup_visual_generation {
@@ -51,7 +50,7 @@ pub async fn update_galgame_line_with_generation_cleanup_record(
     }
     let updated = update_galgame_line_record(&tx, input).await?;
     tx.commit().await?;
-    Ok(updated)
+    Ok(super::super::mapping::line_record(updated))
 }
 
 async fn update_galgame_line_record<C>(

@@ -41,7 +41,7 @@ fn checkpoint_artifacts_with_flag(
     Ok(Value::Object(artifacts))
 }
 
-async fn canvas_project(db: &DatabaseConnection, title: &str) -> novel_project::Model {
+async fn canvas_project(db: &impl crate::DbExecutor, title: &str) -> novel_project::Model {
     crate::project::create_canvas_project_record(
         db,
         1,
@@ -54,7 +54,7 @@ async fn canvas_project(db: &DatabaseConnection, title: &str) -> novel_project::
     .unwrap()
 }
 
-async fn video_test_chapter(db: &DatabaseConnection, project_id: i64) -> chapter::Model {
+async fn video_test_chapter(db: &impl crate::DbExecutor, project_id: i64) -> chapter::Model {
     let now = Utc::now().naive_utc();
     chapter::ActiveModel {
         project_id: Set(project_id),
@@ -77,7 +77,7 @@ async fn video_test_chapter(db: &DatabaseConnection, project_id: i64) -> chapter
 }
 
 async fn shared_segment_plan(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_id: i64,
     source_content_sha256: &str,
@@ -800,7 +800,7 @@ async fn segment_plan_draft_query_projects_only_restoration_fields() {
     .unwrap();
     let large_context = "x".repeat(10_000);
     crate::workflow::upsert_workflow_checkpoint(
-        &db,
+        &crate::DbHandle::new(std::sync::Arc::new(db.clone())),
         crate::workflow::UpsertWorkflowCheckpointInput {
             workflow_run_id: run.id,
             step_key: "video_segment_plan.shot.unit_1_shot_1".to_string(),
@@ -827,7 +827,7 @@ async fn segment_plan_draft_query_projects_only_restoration_fields() {
     .await
     .unwrap();
     crate::workflow::upsert_workflow_checkpoint(
-        &db,
+        &crate::DbHandle::new(std::sync::Arc::new(db.clone())),
         crate::workflow::UpsertWorkflowCheckpointInput {
             workflow_run_id: run.id,
             step_key: "videoXsegmentYplan.shot.not_a_video_checkpoint".to_string(),
@@ -967,7 +967,7 @@ async fn segment_plan_draft_query_projects_only_restoration_fields() {
     ));
 
     crate::workflow::upsert_workflow_checkpoint(
-        &db,
+        &crate::DbHandle::new(std::sync::Arc::new(db.clone())),
         crate::workflow::UpsertWorkflowCheckpointInput {
             workflow_run_id: run.id,
             step_key: "video_segment_plan.final".to_string(),

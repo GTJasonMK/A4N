@@ -30,7 +30,7 @@ fn fixed_time() -> chrono::NaiveDateTime {
         .unwrap()
 }
 
-async fn insert_project(db: &DatabaseConnection, title: &str) -> novel_project::Model {
+async fn insert_project(db: &impl crate::DbExecutor, title: &str) -> novel_project::Model {
     let now = fixed_time();
     novel_project::ActiveModel {
         user_id: Set(1),
@@ -61,7 +61,7 @@ async fn insert_project(db: &DatabaseConnection, title: &str) -> novel_project::
 }
 
 async fn insert_existing_blueprint(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     total_chapters: i32,
     needs_part_outlines: bool,
@@ -92,7 +92,7 @@ async fn insert_existing_blueprint(
     .unwrap();
 }
 
-async fn insert_existing_blueprint_materials(db: &DatabaseConnection, project_id: i64) {
+async fn insert_existing_blueprint_materials(db: &impl crate::DbExecutor, project_id: i64) {
     let now = fixed_time();
     blueprint_character::ActiveModel {
         project_id: Set(project_id),
@@ -150,7 +150,10 @@ fn blueprint_draft(
     }
 }
 
-async fn blueprint_for_project(db: &DatabaseConnection, project_id: i64) -> novel_blueprint::Model {
+async fn blueprint_for_project(
+    db: &impl crate::DbExecutor,
+    project_id: i64,
+) -> novel_blueprint::Model {
     novel_blueprint::Entity::find()
         .filter(novel_blueprint::Column::ProjectId.eq(project_id))
         .one(db)

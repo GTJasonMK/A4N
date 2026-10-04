@@ -1,6 +1,7 @@
 use super::*;
 
-pub fn generation_public_snapshot_for_summary(
+#[cfg(test)]
+pub(super) fn generation_public_snapshot_for_summary(
     checkpoint: &generation_task_checkpoint::Model,
 ) -> GenerationPublicSnapshot {
     match super::verified_generation_public_snapshot(checkpoint) {
@@ -9,8 +10,20 @@ pub fn generation_public_snapshot_for_summary(
         Err(_) => GenerationPublicSnapshot::Corrupt,
     }
 }
+
+pub fn generation_public_snapshot_for_summary_record(
+    checkpoint: &GenerationTaskCheckpointSummaryRecord,
+) -> GenerationPublicSnapshot {
+    match super::verified_generation_public_snapshot(&super::generation_task_summary_model(
+        checkpoint,
+    )) {
+        Ok(Some(snapshot)) => GenerationPublicSnapshot::Available(snapshot),
+        Ok(None) => GenerationPublicSnapshot::Expired,
+        Err(_) => GenerationPublicSnapshot::Corrupt,
+    }
+}
 pub async fn list_active_generation_task_checkpoints(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     requested_by_user_id: i64,
     project_id: Option<i64>,
 ) -> Result<GenerationTaskCheckpointPage, GenerationTaskPersistenceError> {
@@ -27,7 +40,7 @@ pub async fn list_active_generation_task_checkpoints(
 }
 
 pub async fn list_generation_task_history_checkpoints(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     requested_by_user_id: i64,
     project_id: Option<i64>,
     limit: u32,
@@ -51,7 +64,7 @@ pub async fn list_generation_task_history_checkpoints(
 }
 
 async fn list_generation_task_checkpoints(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     requested_by_user_id: i64,
     project_id: Option<i64>,
     statuses: &[&str],

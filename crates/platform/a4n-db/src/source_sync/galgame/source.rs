@@ -5,7 +5,10 @@ use a4n_db_models::models::{
     project::{source_snapshot_chapter, text_anchor},
     source_sync::{source_sync_conflict, source_sync_run},
 };
-use a4n_domain::source_sync::GALGAME_REGENERATABLE_ENTRY_KIND;
+use a4n_domain::project::SourceSnapshotChapterSummary;
+use a4n_domain::source_sync::{
+    GALGAME_REGENERATABLE_ENTRY_KIND, SourceSyncConflictRecord, SourceSyncRunRecord,
+};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use std::collections::{HashMap, HashSet};
 
@@ -204,6 +207,8 @@ where
         )));
     }
 
+    let old_snapshot_chapter = source_snapshot_chapter_summary(old_snapshot_chapter);
+    let new_snapshot_chapter = source_snapshot_chapter_summary(new_snapshot_chapter);
     Ok(SourceSyncGalgameSceneRegenerationSourceRecord {
         scene,
         script,
@@ -222,4 +227,70 @@ where
             })
             .collect(),
     })
+}
+
+fn source_snapshot_chapter_summary(
+    row: source_snapshot_chapter::Model,
+) -> SourceSnapshotChapterSummary {
+    SourceSnapshotChapterSummary {
+        id: row.id,
+        snapshot_id: row.snapshot_id,
+        root_project_id: row.root_project_id,
+        source_chapter_id: row.source_chapter_id,
+        chapter_number: row.chapter_number,
+        title: row.title,
+        summary: row.summary,
+        content: row.content,
+        analysis_data_json: row.analysis_data_json,
+        content_hash: row.content_hash,
+        analysis_hash: row.analysis_hash,
+    }
+}
+
+pub async fn galgame_scene_regeneration_source_record_from_records<C>(
+    db: &C,
+    run: &SourceSyncRunRecord,
+    conflict: &SourceSyncConflictRecord,
+    expected_scene_id: i64,
+) -> Result<SourceSyncGalgameSceneRegenerationSourceRecord, SourceSyncDbError>
+where
+    C: ConnectionTrait,
+{
+    let run_model = source_sync_run::Model {
+        id: run.id,
+        derived_project_id: run.derived_project_id,
+        root_project_id: run.root_project_id,
+        from_snapshot_id: run.from_snapshot_id,
+        to_snapshot_id: run.to_snapshot_id,
+        mode: run.mode.clone(),
+        status: run.status.clone(),
+        summary_json: run.summary_json.clone(),
+        error_message: run.error_message.clone(),
+        created_at: run.created_at,
+        updated_at: run.updated_at,
+    };
+    let conflict_model = source_sync_conflict::Model {
+        id: conflict.id,
+        sync_run_id: conflict.sync_run_id,
+        derived_project_id: conflict.derived_project_id,
+        root_project_id: conflict.root_project_id,
+        from_snapshot_id: conflict.from_snapshot_id,
+        to_snapshot_id: conflict.to_snapshot_id,
+        conflict_scope: conflict.conflict_scope.clone(),
+        target_kind: conflict.target_kind.clone(),
+        target_id: conflict.target_id,
+        source_change_kind: conflict.source_change_kind.clone(),
+        local_state_kind: conflict.local_state_kind.clone(),
+        severity: conflict.severity.clone(),
+        status: conflict.status.clone(),
+        resolution_strategy: conflict.resolution_strategy.clone(),
+        source_summary_json: conflict.source_summary_json.clone(),
+        local_summary_json: conflict.local_summary_json.clone(),
+        affected_refs_json: conflict.affected_refs_json.clone(),
+        decision_json: conflict.decision_json.clone(),
+        created_at: conflict.created_at,
+        resolved_at: conflict.resolved_at,
+    };
+    galgame_scene_regeneration_source_record(db, &run_model, &conflict_model, expected_scene_id)
+        .await
 }

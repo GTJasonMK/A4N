@@ -8,8 +8,8 @@ use a4n_db_models::models::{
     project::{blueprint_character, blueprint_relationship, novel_blueprint},
 };
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
-    QuerySelect, sea_query::Expr,
+    ColumnTrait, EntityTrait, FromQueryResult, QueryFilter, QueryOrder, QuerySelect,
+    sea_query::Expr,
 };
 
 #[derive(Debug, FromQueryResult)]
@@ -23,7 +23,7 @@ struct InspirationRecentChapterQueryRow {
 }
 
 pub async fn inspiration_project_context_rows(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<InspirationProjectContextRows, InspirationDbError> {
     let project = ensure_inspiration_project_exists(db, project_id).await?;

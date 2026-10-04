@@ -1,5 +1,8 @@
 use a4n_api_contract::media_authoring::*;
-use a4n_domain::{chapter::ResolvedChapterSource, collaboration::ProjectAccessRole};
+use a4n_domain::{
+    chapter::ResolvedChapterSource, collaboration::ProjectAccessRole,
+    shooting_script::ChapterShootingScriptReferenceRecord,
+};
 use a4n_error::AppError;
 
 use super::{authoring_source, records};
@@ -24,7 +27,7 @@ impl OrchestratorContext {
             .ok_or_else(|| AppError::NotFound("项目没有原文章节".into()))?
             .root_project_id;
         let scripts =
-            records::video_reference_scripts(self.database.connection(), root, input.chapter_id)
+            records::video_reference_scripts(self.database.executor(), root, input.chapter_id)
                 .await?;
         let mut candidates = Vec::new();
         for (project, script) in scripts {
@@ -86,7 +89,7 @@ impl OrchestratorContext {
             ));
         }
         let record = records::video_reference_script(
-            self.database.connection(),
+            self.database.executor(),
             selection.video_project_id,
             selection.script_id,
         )
@@ -122,13 +125,13 @@ impl OrchestratorContext {
 
     async fn reference_script_source(
         &self,
-        record: &a4n_db_models::models::chapter::chapter_shooting_script::Model,
+        record: &ChapterShootingScriptReferenceRecord,
     ) -> Result<ResolvedChapterSource, AppError> {
         let snapshot_id = record
             .source_snapshot_id
             .ok_or_else(|| AppError::InvalidArgument("参考剧本缺少冻结原文".into()))?;
         let mut sources = a4n_db::project::resolve_snapshot_sources(
-            self.database.connection(),
+            self.database.executor(),
             record.project_id,
             record.root_project_id,
             snapshot_id,
@@ -169,7 +172,7 @@ impl OrchestratorContext {
             Err(error) => return Err(error),
         }
         let record = records::video_reference_script(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             reference.script_id,
         )

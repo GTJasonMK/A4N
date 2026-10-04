@@ -1,8 +1,8 @@
 use a4n_chapter_analysis::summary_text;
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use serde_json::{Map, Value, json};
 
-pub fn character_llm_chapter_context(chapter: &chapter::Model) -> Value {
+pub fn character_llm_chapter_context(chapter: &ChapterRecord) -> Value {
     let mut context = Map::new();
     context.insert(
         "chapter_number".to_string(),
@@ -27,7 +27,7 @@ pub fn character_llm_chapter_context(chapter: &chapter::Model) -> Value {
     Value::Object(context)
 }
 
-fn chapter_summary_for_character_prompt(chapter: &chapter::Model) -> Option<String> {
+fn chapter_summary_for_character_prompt(chapter: &ChapterRecord) -> Option<String> {
     chapter
         .summary
         .as_deref()

@@ -1,6 +1,7 @@
 use super::CharacterPortraitRecordError;
 use a4n_db_models::models::character::{character_portrait, protagonist_profile};
 use a4n_domain::character::CharacterPortraitCreateInput;
+use a4n_domain::character::CharacterPortraitRecord;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter,
     QuerySelect, Set, TransactionTrait,
@@ -18,6 +19,18 @@ where
         .await
 }
 
+pub async fn character_portrait_record_by_id<C>(
+    db: &C,
+    portrait_id: i64,
+) -> Result<Option<CharacterPortraitRecord>, sea_orm::DbErr>
+where
+    C: ConnectionTrait,
+{
+    character_portrait_by_id(db, portrait_id)
+        .await
+        .map(|row| row.map(super::record_mapping::character_portrait_record_from_model))
+}
+
 pub async fn character_portrait_records_by_project<C>(
     db: &C,
     project_id: i64,
@@ -29,6 +42,22 @@ where
         .filter(character_portrait::Column::ProjectId.eq(project_id))
         .all(db)
         .await
+}
+
+pub async fn character_portrait_records_by_project_records<C>(
+    db: &C,
+    project_id: i64,
+) -> Result<Vec<CharacterPortraitRecord>, sea_orm::DbErr>
+where
+    C: ConnectionTrait,
+{
+    character_portrait_records_by_project(db, project_id)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(super::record_mapping::character_portrait_record_from_model)
+                .collect()
+        })
 }
 
 pub async fn primary_character_portrait_record<C>(
@@ -43,6 +72,18 @@ where
         .filter(character_portrait::Column::IsPrimary.eq(true))
         .one(db)
         .await
+}
+
+pub async fn primary_character_portrait_record_value<C>(
+    db: &C,
+    profile_id: i64,
+) -> Result<Option<CharacterPortraitRecord>, sea_orm::DbErr>
+where
+    C: ConnectionTrait,
+{
+    primary_character_portrait_record(db, profile_id)
+        .await
+        .map(|row| row.map(super::record_mapping::character_portrait_record_from_model))
 }
 
 pub async fn create_character_portrait_for_profile<C>(
@@ -89,6 +130,18 @@ where
     .insert(db)
     .await
     .map_err(CharacterPortraitRecordError::Database)
+}
+
+pub async fn create_character_portrait_record_for_profile<C>(
+    db: &C,
+    input: CharacterPortraitCreateInput,
+) -> Result<CharacterPortraitRecord, CharacterPortraitRecordError>
+where
+    C: ConnectionTrait,
+{
+    create_character_portrait_for_profile(db, input)
+        .await
+        .map(super::record_mapping::character_portrait_record_from_model)
 }
 
 pub async fn set_primary_character_portrait_record<C>(

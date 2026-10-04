@@ -6,12 +6,13 @@ use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set};
 use serde_json::Value;
 
 use crate::project::family::import::{
-    ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage, map_optional, map_required,
+    DatabaseProjectFamilyImportPackage, ImportIdMaps, ProjectFamilyImportError, map_optional,
+    map_required,
 };
 
 pub(super) async fn insert_authoring_document_rows(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     insert_mapped_import_rows!(
@@ -58,7 +59,7 @@ pub(super) async fn insert_authoring_document_rows(
 /// their snapshots after film resource hashes are remapped, within the import transaction.
 pub(super) async fn remap_authoring_documents(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     let mut ordered = package.authoring_documents.iter().collect::<Vec<_>>();

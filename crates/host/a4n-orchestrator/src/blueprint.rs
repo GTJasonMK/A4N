@@ -9,7 +9,6 @@ use a4n_api_contract::{
         GenerationStartRequestMeta, GenerationTaskHandle, GenerationTaskStartError,
     },
 };
-use a4n_db_models::models::generation::workflow_run;
 use a4n_domain::project::{
     BLUEPRINT_GENERATION_KIND, BLUEPRINT_REFINEMENT_WORKFLOW_KIND,
     blueprint_generation_input_fingerprint, blueprint_refinement_input_fingerprint,
@@ -286,7 +285,7 @@ pub(crate) fn blueprint_db_error(error: a4n_db::blueprint::BlueprintDbError) -> 
             AppError::InvalidArgument(message)
         }
         a4n_db::blueprint::BlueprintDbError::NotFound(message) => AppError::NotFound(message),
-        a4n_db::blueprint::BlueprintDbError::Database(error) => AppError::Database(error),
+        a4n_db::blueprint::BlueprintDbError::Database(error) => AppError::database(error),
     }
 }
 
@@ -295,13 +294,13 @@ fn blueprint_sync_error(error: a4n_db::project::BlueprintSyncError) -> AppError 
         a4n_db::project::BlueprintSyncError::InvalidArgument(message) => {
             AppError::InvalidArgument(message)
         }
-        a4n_db::project::BlueprintSyncError::Database(error) => AppError::Database(error),
+        a4n_db::project::BlueprintSyncError::Database(error) => AppError::database(error),
     }
 }
 
 fn character_profile_seed_error(error: a4n_db::character::CharacterProfileSeedError) -> AppError {
     match error {
-        a4n_db::character::CharacterProfileSeedError::Database(error) => AppError::Database(error),
+        a4n_db::character::CharacterProfileSeedError::Database(error) => AppError::database(error),
         a4n_db::character::CharacterProfileSeedError::Internal(message) => {
             AppError::Internal(anyhow::anyhow!(message))
         }
@@ -320,7 +319,7 @@ impl OrchestratorContext {
         target_length: i32,
         variables: &serde_json::Value,
         task_id: Option<String>,
-    ) -> Result<workflow_run::Model, AppError> {
+    ) -> Result<a4n_domain::workflow::WorkflowRunSummary, AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
         }

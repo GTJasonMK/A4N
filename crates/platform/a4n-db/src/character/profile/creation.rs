@@ -11,6 +11,7 @@ use super::{
     types::CharacterProfileCreateError,
 };
 use a4n_domain::character::CharacterProfileCreateInput;
+use a4n_domain::character::CharacterProfileRecord;
 
 async fn create_profile_record<C>(
     db: &C,
@@ -88,6 +89,20 @@ where
         },
     )
     .await
+}
+
+pub async fn create_profile_domain_record<C>(
+    db: &C,
+    project_id: i64,
+    name: &str,
+    base_attributes: Value,
+) -> Result<CharacterProfileRecord, CharacterProfileCreateError>
+where
+    C: ConnectionTrait,
+{
+    create_profile(db, project_id, name, base_attributes)
+        .await
+        .map(crate::character::character_profile_record)
 }
 
 pub async fn create_profile_with_generation_run<C>(

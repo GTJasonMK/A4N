@@ -3,6 +3,7 @@ use a4n_domain::profile_ownership::PROFILE_OWNERSHIP_USER;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, TransactionTrait};
 
 use crate::asset::AssetDbError;
+use a4n_domain::object_profile::ObjectProfileRecord;
 use a4n_domain::object_profile::ObjectProfileRecordInput;
 
 use super::read::{
@@ -31,6 +32,19 @@ where
     insert_object_profile_record(db, project_id, input, PROFILE_OWNERSHIP_USER).await
 }
 
+pub async fn create_object_profile_read_record<C>(
+    db: &C,
+    project_id: i64,
+    input: ObjectProfileRecordInput,
+) -> Result<ObjectProfileRecord, AssetDbError>
+where
+    C: ConnectionTrait,
+{
+    create_object_profile_record(db, project_id, input)
+        .await
+        .map(super::read::object_profile_record)
+}
+
 pub async fn update_object_profile_record<C>(
     db: &C,
     object_profile_id: i64,
@@ -51,6 +65,19 @@ where
         )));
     }
     replace_object_profile_record(db, existing, input).await
+}
+
+pub async fn update_object_profile_read_record<C>(
+    db: &C,
+    object_profile_id: i64,
+    input: ObjectProfileRecordInput,
+) -> Result<ObjectProfileRecord, AssetDbError>
+where
+    C: ConnectionTrait,
+{
+    update_object_profile_record(db, object_profile_id, input)
+        .await
+        .map(super::read::object_profile_record)
 }
 
 pub async fn delete_object_profile_record<C>(

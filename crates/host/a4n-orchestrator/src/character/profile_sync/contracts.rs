@@ -1,4 +1,4 @@
-use a4n_db_models::models::character::protagonist_profile;
+use a4n_domain::character::CharacterProfileRecord;
 
 use super::super::CharacterSyncRangeMode;
 
@@ -13,7 +13,7 @@ pub enum CharacterProfileSyncAnchorMode {
 #[derive(Debug, Clone)]
 pub enum CharacterProfileSyncSubject {
     ByName { project_id: i64, name: String },
-    Profile(protagonist_profile::Model),
+    Profile(CharacterProfileRecord),
 }
 
 #[derive(Debug, Clone)]

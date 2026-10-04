@@ -3,13 +3,17 @@ use super::rules::validate_galgame_line_semantics;
 
 pub(super) fn validate_galgame_lines(
     package: &ProjectFamilyPackage,
-    scripts: &HashMap<i64, &galgame_script::Model>,
-    scenes: &HashMap<i64, &galgame_scene::Model>,
-    snapshot_chapters: &HashMap<i64, &source_snapshot_chapter::Model>,
-    text_anchors: &HashMap<i64, &text_anchor::Model>,
+    scripts: &HashMap<i64, &a4n_domain::project::ProjectFamilyGalgameScriptRecord>,
+    scenes: &HashMap<i64, &a4n_domain::project::ProjectFamilyGalgameSceneRecord>,
+    snapshot_chapters: &HashMap<
+        i64,
+        &a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord,
+    >,
+    text_anchors: &HashMap<i64, &a4n_domain::project::ProjectFamilyTextAnchorRecord>,
     character_profile_ids: &HashSet<i64>,
 ) -> Result<(), String> {
-    let mut lines_by_scene = HashMap::<i64, Vec<&galgame_line::Model>>::new();
+    let mut lines_by_scene =
+        HashMap::<i64, Vec<&a4n_domain::project::ProjectFamilyGalgameLineRecord>>::new();
     for line in &package.galgame_lines {
         let scene = scenes.get(&line.scene_id).copied().ok_or_else(|| {
             format!(

@@ -1,5 +1,6 @@
 //! Pure object-profile values and normalization shared by object owners.
 
+use chrono::NaiveDateTime;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -21,6 +22,30 @@ pub const OBJECT_TYPES: &[&str] = &[
     "environment_object",
     "other",
 ];
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ObjectProfileRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub ownership_kind: String,
+    pub name: String,
+    pub normalized_name: String,
+    pub aliases_json: Value,
+    pub object_type: String,
+    pub importance: String,
+    pub visual_description: String,
+    pub material_and_state: String,
+    pub story_usage: String,
+    pub visual_usage: String,
+    pub generation_usage: String,
+    pub location_context: Option<String>,
+    pub first_seen_chapter: i32,
+    pub last_seen_chapter: i32,
+    pub evidence_json: Value,
+    pub image_prompt_seed: String,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]

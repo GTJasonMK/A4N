@@ -21,7 +21,7 @@ pub(crate) use a4n_domain::fact_feedback::{
 
 pub(crate) fn feedback_error(error: a4n_db::fact_feedback::FactFeedbackDbError) -> AppError {
     match error {
-        a4n_db::fact_feedback::FactFeedbackDbError::Database(error) => AppError::Database(error),
+        a4n_db::fact_feedback::FactFeedbackDbError::Database(error) => AppError::database(error),
         a4n_db::fact_feedback::FactFeedbackDbError::Json(error) => AppError::Serialization(error),
         error => AppError::InvalidState {
             current: "body_fact_feedback".into(),
@@ -55,7 +55,7 @@ impl OrchestratorContext {
     ) -> Result<ProjectFactFeedbackSummary, AppError> {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
             .await?;
-        let db = self.database.connection();
+        let db = self.database.executor();
         let (config, sources, changes, chapters) = tokio::join!(
             a4n_db::fact_feedback::feedback_config(db, project_id),
             a4n_db::fact_feedback::current_feedback_sources(db, project_id),
@@ -90,7 +90,7 @@ impl OrchestratorContext {
         ]
         .into_iter()
         .flatten()
-        .max_by_key(|run| (run.status == "running", run.updated_at, run.id));
+        .max_by_key(|run| (run.status == "running", run.updated_at.clone(), run.id));
         Ok(ProjectFactFeedbackSummary {
             project_id,
             interval_chapters: config.interval_chapters,

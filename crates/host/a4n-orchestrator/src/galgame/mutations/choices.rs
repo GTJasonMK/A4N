@@ -5,7 +5,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         input: UpdateGalgameChoicesInput,
-    ) -> Result<Vec<galgame_choice::Model>, AppError> {
+    ) -> Result<Vec<GalgameChoiceRecord>, AppError> {
         validate_positive_id(project_id, "project_id")?;
         validate_positive_id(input.line_id, "line_id")?;
         if !(2..=3).contains(&input.choices.len()) {
@@ -83,12 +83,12 @@ impl OrchestratorContext {
         }
 
         let choices = a4n_db::galgame::replace_galgame_choice_records_transaction(
-            self.database.connection(),
+            self.database.executor(),
             line.id,
             normalized,
         )
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
         Ok(choices)
     }
 }

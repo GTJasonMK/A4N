@@ -53,7 +53,7 @@ where
         .into_tuple::<(String, i64, i64)>()
         .all(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
     let mut run_ids_by_target: HashMap<GenerationTargetKey, HashSet<i64>> = HashMap::new();
     for (target_table, target_id, generation_run_id) in targets {
         let target_table = target_ids_by_table
@@ -99,7 +99,7 @@ where
         .into_model::<GenerationRunInputRecord>()
         .all(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
 
     // Keep one projection per run. A single generation run can target many
     // assets; cloning its JSON payload into every target map entry doubled

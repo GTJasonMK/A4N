@@ -56,12 +56,12 @@ impl PersistentTaskQueue {
         // by the existing startup scan; submitting to memory first could let a
         // worker execute a task whose package admission transaction later lost
         // the race with a disable operation.
-        a4n_db::queue::insert_task_queue_record(self.db.as_ref(), record)
+        a4n_db::queue::insert_task_queue_record(&self.db, record)
             .await
             .map_err(queue_db_error)?;
         if let Err(error) = self.inner.submit_persisted(task) {
             a4n_db::queue::update_task_status(
-                self.db.as_ref(),
+                &self.db,
                 &task_id,
                 "cancelled",
                 Some("内存队列登记失败，避免遗留未执行任务"),

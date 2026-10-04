@@ -13,9 +13,9 @@ impl AgentApplication {
     ) -> Result<AgentExecutionResultPage, AppError> {
         let limit = bounded_limit(input.limit, 2_000, 2_000, "limit")? as usize;
         let execution_id = parse_id(&input.execution_id, "execution_id")?;
-        let execution = execution::Entity::find_by_id(execution_id)
-            .one(self.connection())
-            .await?
+        let execution = agent::execution_by_id(self.executor(), execution_id)
+            .await
+            .map_err(agent_db_error_to_app)?
             .filter(|execution| {
                 matches!(
                     execution.execution_kind.as_str(),
@@ -23,7 +23,7 @@ impl AgentApplication {
                 )
             })
             .ok_or_else(|| AppError::Forbidden("不能读取此工具结果".into()))?;
-        let source_run = agent::run_by_id(self.connection(), execution.run_id)
+        let source_run = agent::run_by_id(self.executor(), execution.run_id)
             .await
             .map_err(agent_db_error_to_app)?
             .filter(|run| run.thread_id == context.thread.id)

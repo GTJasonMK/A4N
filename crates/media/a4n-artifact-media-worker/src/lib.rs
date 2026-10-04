@@ -28,7 +28,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseBackend, Statement};
 use serde_json::{Value, json};
 use tokio::time::MissedTickBehavior;
 
@@ -68,9 +67,9 @@ async fn async_main() -> anyhow::Result<()> {
         a4n_artifact_media_contract::ARTIFACT_MEDIA_WORKER_TOKEN_ENV,
     )?;
     let addr = worker_addr()?;
-    let db = Database::connect(ConnectOptions::new(database_url)).await?;
+    let db = a4n_db::DbHandle::connect_default(database_url).await?;
     let state = WorkerState {
-        db: a4n_db::DbHandle::new(Arc::new(db)),
+        db,
         data_dir: Arc::new(data_dir),
         token: Arc::from(token),
     };
@@ -111,16 +110,8 @@ async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Respons
     if !authorized(&state, &headers) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
-    let status = match state
-        .db
-        .connection()
-        .execute(Statement::from_string(
-            DatabaseBackend::Postgres,
-            "SELECT 1",
-        ))
-        .await
-    {
-        Ok(_) => WorkerHealthStatus::Healthy,
+    let status = match state.db.ping().await {
+        Ok(()) => WorkerHealthStatus::Healthy,
         Err(_) => WorkerHealthStatus::Degraded,
     };
     Json(WorkerHealth {

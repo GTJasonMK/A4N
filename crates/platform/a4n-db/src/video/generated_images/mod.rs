@@ -1,5 +1,5 @@
-use a4n_db_models::models::project::novel_blueprint;
 use a4n_domain::media::{CreateGeneratedImageRecordDraftInput, GeneratedImageRecord};
+use a4n_domain::project::BlueprintRecord;
 use chrono::NaiveDateTime;
 use sea_orm::FromQueryResult;
 use serde_json::Value;
@@ -17,12 +17,16 @@ mod references;
 pub use create::create_generated_image_record;
 pub(crate) use publication::reclaim_image_publications_for_deleted_images;
 pub use publication::{
-    ImagePublicationRequest, create_image_publication_intent, image_publication_by_id,
-    image_publication_by_image_id, image_publications_for_recovery,
-    image_publications_for_recovery_for_model, mark_image_publication_reclaimed,
-    mark_image_publication_reclaiming, publish_image_publication,
-    publish_image_publication_with_generation_run_checkpoint, update_image_publication_metadata,
-    validate_image_publication_request,
+    ImagePublicationRequest, create_image_publication_intent,
+    create_image_publication_intent_record, image_publication_by_id, image_publication_by_image_id,
+    image_publication_record_by_id, image_publication_record_by_image_id,
+    image_publication_recovery_records, image_publication_recovery_records_for_model,
+    image_publications_for_recovery, image_publications_for_recovery_for_model,
+    mark_image_publication_reclaimed, mark_image_publication_reclaimed_record,
+    mark_image_publication_reclaiming, mark_image_publication_reclaiming_record,
+    publish_image_publication, publish_image_publication_with_generation_run_checkpoint,
+    update_image_publication_metadata, update_image_publication_metadata_record,
+    validate_image_publication_record_request, validate_image_publication_request,
 };
 pub(crate) use records::clear_generated_image_references_record;
 pub(crate) use records::generated_images_for_chapter_by_id_desc;
@@ -39,8 +43,9 @@ pub(crate) use references::video_project_record;
 pub use references::{
     VideoProjectIdentity, ensure_image_chapter_belongs_to_project_record,
     ensure_video_chapter_belongs_to_project_record, ensure_video_reference_images_available_record,
-    validated_video_reference_image_records, video_asset_project_ids_record, video_chapter_record,
-    video_reference_candidate_image_records, video_tail_frame_images,
+    validated_video_reference_image_records, video_asset_project_ids_record,
+    video_chapter_domain_record, video_chapter_record, video_reference_candidate_image_records,
+    video_tail_frame_images,
 };
 use references::{
     normalize_optional_image_record_text, required_image_record_text,
@@ -88,7 +93,7 @@ pub struct VideoProfileMaterialReadModel {
 
 #[derive(Debug, Clone, Default)]
 pub struct VideoProjectContextReadModel {
-    pub blueprint: Option<novel_blueprint::Model>,
+    pub blueprint: Option<BlueprintRecord>,
     pub blueprint_characters: Vec<VideoPromptBlueprintCharacterRecord>,
     pub protagonist_profiles: Vec<VideoPromptProtagonistProfileRecord>,
 }

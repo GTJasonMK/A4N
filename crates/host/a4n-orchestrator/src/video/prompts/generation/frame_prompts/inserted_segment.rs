@@ -2,8 +2,8 @@ use a4n_error::AppError;
 use std::collections::HashMap;
 
 use a4n_api_contract::video::VideoInsertedSegmentGenerationOptions;
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::image::validate_reference_image_id_list;
+use a4n_domain::video_prompt as chapter_video_prompt;
 use a4n_domain::video_timeline::{VideoTimelineGap, timeline_gap_index};
 use a4n_domain::{VideoAspectRatio, prompt_language::PromptOutputLanguage, source_text_hash};
 use a4n_llm_context::LlmContextLedger;

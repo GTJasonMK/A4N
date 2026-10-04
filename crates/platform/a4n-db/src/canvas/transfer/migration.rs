@@ -13,7 +13,7 @@ use crate::canvas::transfer::import_project::import_video_studio_project_record;
 /// project. Chapter backed media and chapter generation rows are intentionally
 /// left in the source video project.
 pub async fn migrate_derived_video_canvas_project_record<Writer>(
-    db: &sea_orm::DatabaseConnection,
+    db: &impl crate::DbExecutor,
     source: &ProjectRecord,
     title: String,
     rows: super::types::VideoStudioProjectExportRows,
@@ -188,7 +188,7 @@ fn canvas_owned_rows(
 }
 
 async fn copy_project_members(
-    db: &sea_orm::DatabaseConnection,
+    db: &impl crate::DbExecutor,
     source: &ProjectRecord,
     target_project_id: i64,
 ) -> Result<(), VideoStudioProjectImportError> {

@@ -3,8 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use a4n_db_models::models::chapter::{chapter, chapter_outline, part_outline};
 use chrono::NaiveDateTime;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, QueryFilter,
-    QueryOrder, QuerySelect, TransactionTrait,
+    ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
     sea_query::{CaseStatement, Expr},
 };
 
@@ -12,7 +11,7 @@ use super::{DeleteLatestOutlineRecordsInput, OutlineDeleteTarget, ProjectOutline
 use crate::generation::delete_generation_run_targets_for;
 
 pub async fn delete_latest_part_outline_records(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: DeleteLatestOutlineRecordsInput,
 ) -> Result<(), ProjectOutlineRecordError> {
     validate_delete_input(&input)?;
@@ -88,7 +87,7 @@ pub async fn delete_latest_part_outline_records(
 }
 
 pub async fn delete_latest_chapter_outline_records(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: DeleteLatestOutlineRecordsInput,
 ) -> Result<(), ProjectOutlineRecordError> {
     validate_delete_input(&input)?;

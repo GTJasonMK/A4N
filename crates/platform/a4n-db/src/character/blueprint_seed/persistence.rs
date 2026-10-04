@@ -1,7 +1,8 @@
 use super::contracts::{BlueprintProfileSeed, CharacterProfileSeedError};
 use super::merge::merge_missing_seed_attributes;
 use crate::character::{apply_profile_current_state, profile_current_state_fields};
-use a4n_db_models::models::{character::protagonist_profile, project::blueprint_character};
+use a4n_db_models::models::character::protagonist_profile;
+use a4n_domain::project::BlueprintCharacterRecord;
 use chrono::NaiveDateTime;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, Set,
@@ -12,7 +13,7 @@ use sea_orm::{
 pub(super) async fn insert_profile_seed<C>(
     db: &C,
     project_id: i64,
-    character: &blueprint_character::Model,
+    character: &BlueprintCharacterRecord,
     seed: &BlueprintProfileSeed,
     now: NaiveDateTime,
 ) -> Result<Option<protagonist_profile::Model>, CharacterProfileSeedError>

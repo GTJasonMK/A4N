@@ -29,7 +29,7 @@ impl OrchestratorContext {
             .operation_id
             .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
         a4n_db::chapter_visual_plan::save_chapter_visual_plan_draft_with_operation(
-            self.database.connection(),
+            self.database.executor(),
             a4n_db::chapter_visual_plan::SaveChapterVisualPlanDraftInput {
                 source,
                 author_user_id: user_id,
@@ -54,7 +54,7 @@ impl OrchestratorContext {
         let (source_result, current_result) = futures::join!(
             self.resolve_visual_plan_source(input.project_id, input.source_chapter_id),
             a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
-                self.database.connection(),
+                self.database.executor(),
                 input.record_id,
             ),
         );
@@ -62,7 +62,7 @@ impl OrchestratorContext {
         let current = current_result.map_err(visual_plan_db_error)?;
         ensure_plan_belongs_to_source(&current, &source)?;
         a4n_db::chapter_visual_plan::confirm_chapter_visual_plan(
-            self.database.connection(),
+            self.database.executor(),
             a4n_domain::chapter_visual_plan::ConfirmChapterVisualPlanInput {
                 record_id: input.record_id,
                 expected_revision: input.expected_revision,
@@ -82,7 +82,7 @@ impl OrchestratorContext {
         let (source_result, current_result) = futures::join!(
             self.resolve_visual_plan_source(input.project_id, input.source_chapter_id),
             a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
-                self.database.connection(),
+                self.database.executor(),
                 input.record_id,
             ),
         );
@@ -90,7 +90,7 @@ impl OrchestratorContext {
         let current = current_result.map_err(visual_plan_db_error)?;
         ensure_plan_belongs_to_source(&current, &source)?;
         a4n_db::chapter_visual_plan::discard_chapter_visual_plan_draft(
-            self.database.connection(),
+            self.database.executor(),
             a4n_domain::chapter_visual_plan::DiscardChapterVisualPlanDraftInput {
                 record_id: input.record_id,
                 expected_revision: input.expected_revision,
@@ -106,7 +106,7 @@ impl OrchestratorContext {
         requested_id: Option<i64>,
     ) -> Result<ParsedChapterVisualPlan, AppError> {
         let confirmed = a4n_db::chapter_visual_plan::confirmed_chapter_visual_plan_for_source(
-            self.database.connection(),
+            self.database.executor(),
             source,
         )
         .await
@@ -132,7 +132,7 @@ impl OrchestratorContext {
         source_chapter_id: i64,
     ) -> Result<ResolvedChapterSource, AppError> {
         a4n_db::project::resolve_video_chapter_source(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             source_chapter_id,
         )
@@ -332,7 +332,7 @@ pub(crate) fn visual_plan_db_error(error: ChapterVisualPlanDbError) -> AppError 
             ),
             operation: "更新章节视觉编排".into(),
         },
-        ChapterVisualPlanDbError::Database(error) => AppError::Database(error),
+        ChapterVisualPlanDbError::Database(error) => AppError::database(error),
     }
 }
 

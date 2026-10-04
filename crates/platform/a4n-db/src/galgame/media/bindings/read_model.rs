@@ -3,13 +3,11 @@ use crate::galgame::{
     GalgameMediaBindingReadModel, GalgameMediaBindingReadRecord,
 };
 use a4n_db_models::models::media::{media_asset, media_binding};
-use sea_orm::{
-    ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
-};
+use sea_orm::{ColumnTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use std::collections::HashSet;
 
 pub(in crate::galgame) async fn galgame_media_binding_read_model(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     scene_ids: &[i64],
     line_ids: &[i64],
 ) -> Result<GalgameMediaBindingReadModel, DbErr> {

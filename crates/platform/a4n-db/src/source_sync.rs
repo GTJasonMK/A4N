@@ -23,7 +23,8 @@ pub use candidates::{
 };
 pub use conflicts::{
     SourceSyncConflictRecordInput, SourceSyncDecisionRecordInput, detach_derived_project_record,
-    source_sync_conflict_for_decision, source_sync_conflicts_for_decisions,
+    source_sync_conflict_for_decision, source_sync_conflict_records_for_decisions,
+    source_sync_conflicts_for_decisions,
 };
 pub(in crate::source_sync) use conflicts::{
     insert_source_sync_conflict_records, insert_source_sync_decision_record,
@@ -44,6 +45,7 @@ pub use galgame::{
     SourceSyncGalgameSceneConflictSceneRecord, SourceSyncGalgameSceneLineWriteRecordInput,
     SourceSyncGalgameSceneRegenerationApplyRecord, SourceSyncGalgameSceneRegenerationSourceRecord,
     SourceSyncGalgameSceneWriteRecordInput, galgame_scene_regeneration_source_record,
+    galgame_scene_regeneration_source_record_from_records,
 };
 pub(in crate::source_sync) use galgame::{
     apply_galgame_scene_regeneration_record, galgame_anchor_conflict_candidates_for_run,
@@ -72,7 +74,8 @@ pub use preview::create_source_sync_preview_records;
 pub(in crate::source_sync) use run::finalize_source_sync_apply_run_record;
 pub use run::{
     FinalizeSourceSyncApplyRunInput, apply_unconflicted_source_sync_records_transaction,
-    load_source_sync_apply_run_record, source_sync_run_by_id,
+    load_source_sync_apply_run_domain_record, load_source_sync_apply_run_record,
+    source_sync_run_by_id, source_sync_run_record_by_id,
 };
 pub use snapshots::{
     SourceSnapshotChapterChangeRecord, SourceSnapshotDiffRecord, SourceSnapshotProfileChangeRecord,

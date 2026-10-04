@@ -1,10 +1,10 @@
 use super::contracts::BlueprintProfileSeed;
-use a4n_db_models::models::project::{blueprint_character, blueprint_relationship};
+use a4n_domain::project::{BlueprintCharacterRecord, BlueprintRelationshipRecord};
 use serde_json::{Map, Value, json};
 use std::collections::HashMap;
 
 pub(super) fn profile_seed_from_blueprint_character(
-    character: &blueprint_character::Model,
+    character: &BlueprintCharacterRecord,
     relationships: &[(String, String)],
 ) -> BlueprintProfileSeed {
     let mut explicit = Map::new();
@@ -44,8 +44,8 @@ pub(super) fn profile_seed_from_blueprint_character(
 }
 
 pub(super) fn blueprint_relationship_seed_map(
-    characters: &[blueprint_character::Model],
-    relationships: &[blueprint_relationship::Model],
+    characters: &[BlueprintCharacterRecord],
+    relationships: &[BlueprintRelationshipRecord],
 ) -> HashMap<String, Vec<(String, String)>> {
     use crate::project::normalized_blueprint_identity;
 
@@ -86,7 +86,7 @@ fn seed_insert_text(target: &mut Map<String, Value>, key: &str, value: Option<&s
     target.insert(key.to_string(), Value::String(value.to_string()));
 }
 
-fn blueprint_character_arc(character: &blueprint_character::Model) -> Option<Value> {
+fn blueprint_character_arc(character: &BlueprintCharacterRecord) -> Option<Value> {
     if character
         .arc_summary
         .as_deref()
@@ -103,7 +103,7 @@ fn blueprint_character_arc(character: &blueprint_character::Model) -> Option<Val
     }))
 }
 
-fn blueprint_relationship_seed_text(relationship: &blueprint_relationship::Model) -> String {
+fn blueprint_relationship_seed_text(relationship: &BlueprintRelationshipRecord) -> String {
     let mut text = relationship.relationship_type.trim().to_string();
     if let Some(description) = relationship
         .description

@@ -121,7 +121,7 @@ impl OrchestratorContext {
         else {
             return Ok(inputs);
         };
-        for checkpoint in self.workflow_checkpoint_models(run.id).await? {
+        for checkpoint in self.workflow_checkpoint_summaries(run.id).await? {
             if checkpoint.status != WORKFLOW_STATUS_COMPLETED {
                 continue;
             }

@@ -1,4 +1,3 @@
-use a4n_db::DbTransaction;
 use a4n_db::workflow::{
     UpsertWorkflowCheckpointInput, UpsertWorkflowRunInput, WorkflowCheckpointSummary,
     WorkflowRunSummary,
@@ -15,12 +14,12 @@ pub const CHAPTER_CONTENT_SYNC_CLEANUP_STEP: &str = "chapter_content_sync.cleanu
 pub const CHAPTER_CONTENT_SYNC_EXTERNAL_STEP: &str = "chapter_content_sync.external_cleanup";
 
 pub async fn begin_chapter_content_sync_in_transaction(
-    tx: &DbTransaction,
+    tx: &impl a4n_db::DbTransactionExecutor,
     chapter: &ChapterRecord,
 ) -> Result<WorkflowRunSummary, AppError> {
     let business_key = chapter_content_sync_workflow_business_key(chapter.project_id, chapter.id);
     let previous =
-        a4n_db::workflow::latest_workflow_run_by_business_key_for_update(tx, &business_key)
+        a4n_db::workflow::latest_workflow_run_summary_by_business_key_for_update(tx, &business_key)
             .await
             .map_err(workflow_read_error)?;
     let mut artifacts = cleanup_chapter_derived_data_in(
@@ -36,7 +35,7 @@ pub async fn begin_chapter_content_sync_in_transaction(
             && a4n_db::workflow::workflow_run_is_running_or_resumable(&run.status, run.can_resume)
     }) {
         let previous_id = previous.id;
-        let checkpoint = a4n_db::workflow::workflow_checkpoint_model_by_step_in(
+        let checkpoint = a4n_db::workflow::workflow_checkpoint_summary_by_step_in(
             tx,
             previous_id,
             CHAPTER_CONTENT_SYNC_CLEANUP_STEP,
@@ -47,9 +46,6 @@ pub async fn begin_chapter_content_sync_in_transaction(
             current: format!("chapter_content_sync_run_id={previous_id}"),
             operation: "沿用尚未完成的章节资料清理计划".to_string(),
         })?;
-        let checkpoint = a4n_db::workflow::workflow_checkpoint_summary_from_model(checkpoint);
-        let previous = a4n_db::workflow::workflow_run_summary_from_model(previous)
-            .map_err(workflow_read_error)?;
         artifacts.merge(chapter_content_sync_checkpoint_artifacts(
             &previous,
             &checkpoint,
@@ -65,7 +61,7 @@ pub async fn begin_chapter_content_sync_in_transaction(
                 current: "missing_chapter_content_sync_fingerprint".to_string(),
                 operation: "登记章节资料同步".to_string(),
             })?;
-    let run = a4n_db::workflow::upsert_workflow_run_in_transaction(tx, input)
+    let run = a4n_db::workflow::upsert_workflow_run_summary_in_transaction(tx, input)
         .await
         .map_err(workflow_write_error)?;
     let checkpoint =
@@ -73,7 +69,7 @@ pub async fn begin_chapter_content_sync_in_transaction(
     a4n_db::workflow::upsert_workflow_checkpoint_in_transaction(tx, checkpoint)
         .await
         .map_err(workflow_write_error)?;
-    a4n_db::workflow::workflow_run_summary_from_model(run).map_err(workflow_read_error)
+    Ok(run)
 }
 
 pub fn chapter_content_sync_workflow_business_key(project_id: i64, chapter_id: i64) -> String {

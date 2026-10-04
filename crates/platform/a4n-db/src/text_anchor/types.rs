@@ -1,4 +1,5 @@
 use a4n_db_models::models::project::text_anchor;
+use a4n_domain::text_anchor::TextAnchorRecord;
 use sea_orm::{DbErr, FromQueryResult};
 
 #[derive(Debug, Clone, FromQueryResult)]
@@ -13,6 +14,13 @@ pub struct CurrentChapterContentSource {
 pub struct CurrentChapterContentAnchorRows {
     pub chapter: CurrentChapterContentSource,
     pub anchors: Vec<text_anchor::Model>,
+    pub source_version_hash: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct CurrentChapterContentAnchorRecordRows {
+    pub chapter: CurrentChapterContentSource,
+    pub anchors: Vec<TextAnchorRecord>,
     pub source_version_hash: String,
 }
 

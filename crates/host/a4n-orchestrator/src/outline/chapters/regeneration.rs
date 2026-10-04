@@ -5,7 +5,7 @@ use chrono::Utc;
 use crate::outline::chapter_contract::{
     requested_part_for_chapter, update_chapter_outline_from_json_in,
 };
-use crate::outline::context::lock_outline_generation_sources;
+use crate::outline::context::with_locked_outline_generation_sources;
 use crate::outline::{ChapterOutlineRegenerationInput, OrchestratorContext, report_progress};
 
 use super::contracts::SingleChapterOutlineJsonInput;
@@ -50,21 +50,25 @@ impl OrchestratorContext {
             .await?;
         let part_id =
             requested_part_for_chapter(&context.parts, chapter_number)?.map(|part| part.id);
-        let tx = lock_outline_generation_sources(
-            self.database.connection(),
+        let updated = with_locked_outline_generation_sources(
+            self.database.executor(),
             project_id,
             &context.source_snapshot,
+            |tx| {
+                Box::pin(async move {
+                    let result = update_chapter_outline_from_json_in(
+                        &tx,
+                        old,
+                        part_id,
+                        &generated.chapter_json,
+                        Utc::now().naive_utc(),
+                    )
+                    .await;
+                    (tx, result)
+                }) as a4n_db::transaction::TransactionWork<'_, ChapterOutlineRecord>
+            },
         )
         .await?;
-        let updated = update_chapter_outline_from_json_in(
-            &tx,
-            old,
-            part_id,
-            &generated.chapter_json,
-            Utc::now().naive_utc(),
-        )
-        .await?;
-        tx.commit().await.map_err(AppError::Database)?;
         self.record_chapter_outline_generation_run(
             &updated,
             &generated.request,

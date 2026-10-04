@@ -26,7 +26,7 @@ impl OrchestratorContext {
         variables: &HashMap<String, serde_json::Value>,
     ) -> Result<Vec<OutlineRequestPreviewStep>, AppError> {
         let mut context = load_part_generation_context(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             part_count,
             chapters_per_part,

@@ -1,8 +1,8 @@
 use super::fields::{optional_f32, optional_non_null, optional_positive_i32, required_string};
+use a4n_db::ConnectionTrait;
 use a4n_db::outline::{self as outline_db, OutlineDbError};
 use a4n_domain::chapter::{ChapterOutlineRecord, ChapterOutlineSyncDraft};
 use a4n_error::AppError;
-use sea_orm::ConnectionTrait;
 use serde_json::Value;
 
 fn chapter_outline_sync_draft_from_json(
@@ -90,7 +90,7 @@ pub(in crate::outline) fn outline_db_error(error: OutlineDbError) -> AppError {
         OutlineDbError::InvalidState { current, operation } => {
             AppError::InvalidState { current, operation }
         }
-        OutlineDbError::Database(err) => AppError::Database(err),
+        OutlineDbError::Database(err) => AppError::database(err),
         OutlineDbError::Generation(err) => crate::generation::generation_error(err),
     }
 }

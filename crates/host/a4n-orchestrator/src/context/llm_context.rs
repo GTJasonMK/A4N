@@ -22,12 +22,9 @@ impl LlmContextApplication {
         &self,
         input: RecordOrReuseContextPackInput,
     ) -> Result<ContextPackReference, AppError> {
-        a4n_db::llm_context::record_or_reuse_context_pack_reference(
-            self.database.connection(),
-            input,
-        )
-        .await
-        .map_err(llm_context_pack_db_error)
+        a4n_db::llm_context::record_or_reuse_context_pack_reference(self.database.executor(), input)
+            .await
+            .map_err(llm_context_pack_db_error)
     }
 
     pub(super) async fn record_or_reuse_context_pack_references(
@@ -35,7 +32,7 @@ impl LlmContextApplication {
         inputs: Vec<RecordOrReuseContextPackInput>,
     ) -> Result<Vec<ContextPackReference>, AppError> {
         a4n_db::llm_context::record_or_reuse_context_pack_references(
-            self.database.connection(),
+            self.database.executor(),
             inputs,
         )
         .await
@@ -46,6 +43,6 @@ impl LlmContextApplication {
 fn llm_context_pack_db_error(error: LlmContextPackDbError) -> AppError {
     match error {
         LlmContextPackDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
-        LlmContextPackDbError::Database(error) => AppError::Database(error),
+        LlmContextPackDbError::Database(error) => AppError::database(error),
     }
 }

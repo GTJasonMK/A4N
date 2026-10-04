@@ -4,6 +4,7 @@ use std::{env, net::SocketAddr, sync::Arc};
 
 use a4n_api_contract::profile::ForeshadowingSummary;
 use a4n_db::DbHandle;
+use a4n_domain::character::ForeshadowingIndexRecord;
 use a4n_domain::character::ForeshadowingStatus;
 use a4n_foreshadowing_worker_contract::{
     CreateInput, DeleteInput, FORESHADOWING_CREATE_OPERATION, FORESHADOWING_DELETE_OPERATION,
@@ -273,7 +274,7 @@ fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
 }
 
 fn foreshadowing_summary(
-    record: a4n_db_models::models::character::foreshadowing_index::Model,
+    record: ForeshadowingIndexRecord,
 ) -> Result<ForeshadowingSummary, WorkerFailure> {
     let status = ForeshadowingStatus::parse(&record.status).ok_or_else(|| {
         WorkerFailure::conflict(format!("伏笔 #{} 状态非法：{}", record.id, record.status))

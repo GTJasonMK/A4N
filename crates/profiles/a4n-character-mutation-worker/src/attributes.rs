@@ -67,7 +67,7 @@ impl WorkerState {
         let user_id = user_id(&request)?;
         let input = request.payload;
         profile_for_editor(&self.database, user_id, input.profile_id).await?;
-        let mark = a4n_db::character::request_attribute_deletion(
+        let mark = a4n_db::character::request_attribute_deletion_record(
             self.database.connection(),
             CharacterAttributeDeletionRequestInput {
                 profile_id: input.profile_id,

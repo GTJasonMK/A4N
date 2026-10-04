@@ -8,7 +8,7 @@ mod scenes;
 use std::collections::BTreeSet;
 
 use a4n_db::galgame::{ReplaceGalgameChoiceRecordInput, UpdateGalgameSceneRecordInput};
-use a4n_db_models::models::galgame::{galgame_choice, galgame_scene};
+use a4n_domain::galgame::{GalgameChoiceRecord, GalgameSceneRecord};
 use a4n_error::AppError;
 
 use super::{

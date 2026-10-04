@@ -25,7 +25,7 @@ pub(crate) use a4n_character_host_contract::{
 pub(crate) use a4n_db::character::{
     AppliedCharacterImplicitDecisionAction, AppliedCharacterImplicitDecisionRecord,
     AppliedCharacterSyncPersistenceRecord, CharacterConflictContextRows,
-    CharacterPortraitRecordError, CharacterProfileCreateError, CharacterProfileDeleteError,
+    CharacterPortraitRecordError, CharacterProfileDeleteError,
     CharacterSyncAttributeEventRecordInput, CharacterSyncPersistenceInput,
     CharacterSyncWriteStepRecordInput, PortraitNamedPromptProfileRows, PortraitPromptProfileRows,
 };
@@ -43,7 +43,7 @@ pub(crate) fn character_db_error(error: a4n_db::character::CharacterDbError) -> 
         a4n_db::character::CharacterDbError::Internal(message) => {
             AppError::Internal(anyhow::anyhow!(message))
         }
-        a4n_db::character::CharacterDbError::Database(error) => AppError::Database(error),
+        a4n_db::character::CharacterDbError::Database(error) => AppError::database(error),
         a4n_db::character::CharacterDbError::Generation(error) => {
             crate::generation::generation_error(error)
         }
@@ -57,21 +57,7 @@ pub(crate) fn character_portrait_record_error(error: CharacterPortraitRecordErro
         CharacterPortraitRecordError::InvalidArgument(message) => {
             AppError::InvalidArgument(message)
         }
-        CharacterPortraitRecordError::Database(error) => AppError::Database(error),
-    }
-}
-
-pub(crate) fn character_profile_create_error(error: CharacterProfileCreateError) -> AppError {
-    match error {
-        CharacterProfileCreateError::AlreadyExists { name } => AppError::InvalidState {
-            current: "character_profile_already_exists".to_string(),
-            operation: format!("创建角色档案 {name}"),
-        },
-        CharacterProfileCreateError::InvalidArgument(message) => AppError::InvalidArgument(message),
-        CharacterProfileCreateError::Database(error) => AppError::Database(error),
-        CharacterProfileCreateError::Generation(error) => {
-            crate::generation::generation_error(error)
-        }
+        CharacterPortraitRecordError::Database(error) => AppError::database(error),
     }
 }
 
@@ -82,7 +68,7 @@ pub(crate) fn character_profile_delete_error(error: CharacterProfileDeleteError)
             operation: "删除角色档案".to_string(),
         },
         CharacterProfileDeleteError::NotFound(message) => AppError::NotFound(message),
-        CharacterProfileDeleteError::Database(error) => AppError::Database(error),
+        CharacterProfileDeleteError::Database(error) => AppError::database(error),
         CharacterProfileDeleteError::Generation(error) => {
             crate::generation::generation_error(error)
         }

@@ -1,5 +1,5 @@
 use a4n_db::optimize::OptimizationSessionMessageInsertInput;
-use a4n_db_models::models::ai::optimization_session_message;
+use a4n_domain::project::OptimizationSessionMessageRecord;
 use a4n_error::AppError;
 use serde_json::Value;
 
@@ -41,7 +41,7 @@ impl OrchestratorContext {
         session_id: i64,
         role: &str,
         content: &str,
-    ) -> Result<optimization_session_message::Model, AppError> {
+    ) -> Result<OptimizationSessionMessageRecord, AppError> {
         self.save_message_with_tool_calls(session_id, role, content, None)
             .await
     }
@@ -50,7 +50,7 @@ impl OrchestratorContext {
         &self,
         session_id: i64,
         content: &str,
-    ) -> Result<optimization_session_message::Model, AppError> {
+    ) -> Result<OptimizationSessionMessageRecord, AppError> {
         self.save_message(session_id, "agent_event", content).await
     }
 
@@ -60,7 +60,7 @@ impl OrchestratorContext {
         role: &str,
         content: &str,
         tool_calls: Option<Value>,
-    ) -> Result<optimization_session_message::Model, AppError> {
+    ) -> Result<OptimizationSessionMessageRecord, AppError> {
         self.insert_optimization_session_message(OptimizationSessionMessageInsertInput {
             session_id,
             role: role.to_string(),

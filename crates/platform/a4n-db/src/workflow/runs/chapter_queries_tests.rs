@@ -1,4 +1,5 @@
 use super::*;
+use crate::DatabaseConnection;
 use a4n_db_models::models::chapter::chapter;
 use a4n_test_support::workflow::WorkflowRunModelBuilder;
 use sea_orm::IntoActiveModel;
@@ -93,7 +94,7 @@ async fn latest_chapter_runs_match_existing_selection_and_keep_scope() {
         vec![ids[2], ids[3]]
     );
     let summaries = latest_workflow_run_summaries_for_chapters(
-        &db,
+        &crate::DbHandle::new(std::sync::Arc::new(db.clone())),
         projects[0],
         "chapter_analysis",
         &[chapters[0], chapters[1], chapters[3]],

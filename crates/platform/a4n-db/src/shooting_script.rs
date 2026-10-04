@@ -12,6 +12,7 @@ pub use contracts::{
     ChapterVisualPlanIdentity, DeleteStoredChapterShootingScriptInput,
     EditChapterShootingScriptOutcome, InsertChapterShootingScriptInput,
     ParsedChapterShootingScript, ShootingScriptDbError, UpdateChapterShootingScriptInput,
+    chapter_shooting_script_record_summary,
 };
 pub use deletion::delete_chapter_shooting_script_and_invalidate;
 pub use editing::edit_chapter_shooting_script_and_invalidate;

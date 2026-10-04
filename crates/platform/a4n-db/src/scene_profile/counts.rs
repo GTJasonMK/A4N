@@ -1,7 +1,6 @@
 use a4n_db_models::models::scene::scene_occurrence;
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, PaginatorTrait, QueryFilter,
-    QuerySelect,
+    ColumnTrait, EntityTrait, FromQueryResult, PaginatorTrait, QueryFilter, QuerySelect,
 };
 use std::collections::BTreeMap;
 
@@ -14,7 +13,7 @@ struct SceneOccurrenceCountRow {
 }
 
 pub async fn scene_occurrence_count(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     scene_profile_id: i64,
 ) -> SceneProfileDbResult<u64> {
@@ -28,7 +27,7 @@ pub async fn scene_occurrence_count(
 }
 
 pub async fn scene_occurrence_counts_by_profile(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     profile_ids: &[i64],
 ) -> SceneProfileDbResult<BTreeMap<i64, u64>> {

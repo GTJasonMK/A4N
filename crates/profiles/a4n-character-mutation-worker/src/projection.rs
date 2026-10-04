@@ -16,13 +16,13 @@ pub(super) fn attribute_counts(value: &Value) -> Result<AttributeCountsSummary, 
 }
 
 pub(super) fn character_profile_summary(
-    profile: &a4n_db_models::models::character::protagonist_profile::Model,
+    profile: &a4n_domain::character::CharacterProfileRecord,
 ) -> Result<CharacterProfileSummary, WorkerFailure> {
     character_profile_summary_with_state(profile, false, true)
 }
 
 pub(super) fn character_profile_summary_with_state(
-    profile: &a4n_db_models::models::character::protagonist_profile::Model,
+    profile: &a4n_domain::character::CharacterProfileRecord,
     timeline_started: bool,
     initial_profile_editable: bool,
 ) -> Result<CharacterProfileSummary, WorkerFailure> {
@@ -49,7 +49,7 @@ pub(super) fn character_profile_summary_with_state(
 }
 
 pub(super) fn attribute_event_summary(
-    event: &a4n_db_models::models::character::attribute_event::Model,
+    event: &a4n_domain::character::CharacterAttributeEventRecord,
 ) -> Result<AttributeEventSummary, WorkerFailure> {
     let source_kind = CharacterTimelineSourceKind::parse(&event.source_kind).ok_or_else(|| {
         WorkerFailure::conflict(format!(
@@ -78,7 +78,7 @@ pub(super) fn attribute_event_summary(
 }
 
 pub(super) fn behavior_record_summary(
-    record: &a4n_db_models::models::character::protagonist_behavior_record::Model,
+    record: &a4n_domain::character::CharacterBehaviorRecord,
 ) -> Result<BehaviorRecordSummary, WorkerFailure> {
     let source_kind = CharacterTimelineSourceKind::parse(&record.source_kind).ok_or_else(|| {
         WorkerFailure::conflict(format!(
@@ -101,7 +101,7 @@ pub(super) fn behavior_record_summary(
 }
 
 pub(super) fn deletion_mark_summary(
-    mark: &a4n_db_models::models::character::protagonist_deletion_mark::Model,
+    mark: &a4n_domain::character::CharacterDeletionMarkRecord,
 ) -> Result<DeletionMarkSummary, WorkerFailure> {
     let source_kind = CharacterTimelineSourceKind::parse(&mark.source_kind).ok_or_else(|| {
         WorkerFailure::conflict(format!("角色时间线 source_kind 无效: {}", mark.source_kind))
@@ -123,7 +123,7 @@ pub(super) fn deletion_mark_summary(
 }
 
 fn snapshot_data(
-    snapshot: &a4n_db_models::models::character::snapshot_reference::Model,
+    snapshot: &a4n_domain::character::CharacterSnapshotReferenceRecord,
 ) -> Result<
     (
         Value,
@@ -172,7 +172,7 @@ fn snapshot_data(
 }
 
 pub(super) fn snapshot_reference_summary(
-    snapshot: &a4n_db_models::models::character::snapshot_reference::Model,
+    snapshot: &a4n_domain::character::CharacterSnapshotReferenceRecord,
 ) -> Result<SnapshotReferenceSummary, WorkerFailure> {
     let (_, counts, state_summary, _, changes, behaviors) = snapshot_data(snapshot)?;
     Ok(SnapshotReferenceSummary {
@@ -187,7 +187,7 @@ pub(super) fn snapshot_reference_summary(
 }
 
 pub(super) fn profile_state_summary(
-    snapshot: &a4n_db_models::models::character::snapshot_reference::Model,
+    snapshot: &a4n_domain::character::CharacterSnapshotReferenceRecord,
 ) -> Result<ProfileChapterStateSummary, WorkerFailure> {
     let (attributes, counts, state_summary, current_location, changes, behaviors) =
         snapshot_data(snapshot)?;

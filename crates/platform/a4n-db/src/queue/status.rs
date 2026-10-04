@@ -1,10 +1,11 @@
 use super::QueueDbError;
 use crate::workflow::is_terminal_workflow_status;
+use crate::{DbExecutor, DbHandle};
 use a4n_db_models::models::{generation::workflow_run, task::task_queue};
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, FromQueryResult,
-    QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
+    ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
+    QuerySelect,
 };
 use std::collections::BTreeSet;
 
@@ -32,12 +33,13 @@ pub(super) enum TaskStatusTimestampUpdate {
 
 /// Returns false for an already-terminal row and true when a non-terminal row was updated.
 pub async fn update_task_status(
-    db: &DatabaseConnection,
+    db: &DbHandle,
     task_id: &str,
     status: &str,
     error: Option<&str>,
 ) -> Result<bool, QueueDbError> {
-    let tx = db.begin().await?;
+    let db = db.connection();
+    let tx = DbExecutor::begin_db_transaction(db).await?;
     let mut query = task_queue::Entity::find_by_id(task_id.to_string())
         .select_only()
         .column(task_queue::Column::Id)
@@ -102,10 +104,11 @@ pub async fn update_task_status(
 
 /// 将启动恢复发现的多个普通队列任务一次性标记为 interrupted。
 pub async fn interrupt_active_tasks(
-    db: &DatabaseConnection,
+    db: &DbHandle,
     task_ids: &[String],
     error: &str,
 ) -> Result<(), QueueDbError> {
+    let db = db.connection();
     if task_ids.is_empty() {
         return Ok(());
     }
@@ -113,7 +116,7 @@ pub async fn interrupt_active_tasks(
     requested_ids.sort_unstable();
     requested_ids.dedup();
 
-    let tx = db.begin().await?;
+    let tx = DbExecutor::begin_db_transaction(db).await?;
     let mut query = task_queue::Entity::find()
         .select_only()
         .column(task_queue::Column::Id)

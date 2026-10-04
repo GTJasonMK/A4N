@@ -5,10 +5,9 @@ use super::{
         validate_source_sync_local_summary_refs, validate_source_sync_source_summary_refs,
     },
 };
-use a4n_db_models::models::source_sync::source_sync_conflict;
 
 pub(in super::super) fn validate_source_sync_conflict_json_refs(
-    conflict: &source_sync_conflict::Model,
+    conflict: &a4n_domain::project::ProjectFamilySourceSyncConflictRecord,
     refs: &SourceSyncReferenceSets,
 ) -> Result<(), String> {
     let source_summary = conflict

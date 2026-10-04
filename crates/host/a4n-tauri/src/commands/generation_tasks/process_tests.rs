@@ -44,7 +44,7 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
         .unwrap();
     let expected_sha256 = format!("{:x}", Sha256::digest(&expected_bytes));
     let (db, database_url) = a4n_migration::test_support::connect_test_database_with_url().await;
-    let owner = a4n_db::auth::create_user(
+    let owner = a4n_db::auth::create_user_summary(
         &db,
         "tauri_generation_owner",
         "tauri-generation-owner@example.invalid",

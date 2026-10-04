@@ -2,7 +2,7 @@
 
 use super::*;
 
-pub(super) fn run_snapshot(row: run::Model) -> AgentRunSnapshot {
+pub(super) fn run_snapshot(row: agent::AgentRunRecord) -> AgentRunSnapshot {
     AgentRunSnapshot {
         id: row.id,
         thread_id: row.thread_id,
@@ -20,7 +20,9 @@ pub(super) fn run_snapshot(row: run::Model) -> AgentRunSnapshot {
     }
 }
 
-pub(super) fn thread_snapshot(row: thread::Model) -> Result<AgentThreadSnapshot, AppError> {
+pub(super) fn thread_snapshot(
+    row: agent::AgentThreadRecord,
+) -> Result<AgentThreadSnapshot, AppError> {
     let context_summary = parse_agent_context_summary(row.context_summary.as_deref())?;
     Ok(AgentThreadSnapshot {
         id: row.id,
@@ -39,7 +41,7 @@ pub(super) fn thread_snapshot(row: thread::Model) -> Result<AgentThreadSnapshot,
     })
 }
 
-pub(super) fn turn_snapshot(row: turn::Model) -> AgentTurnSnapshot {
+pub(super) fn turn_snapshot(row: agent::AgentTurnRecord) -> AgentTurnSnapshot {
     AgentTurnSnapshot {
         id: row.id,
         thread_id: row.thread_id,
@@ -50,7 +52,7 @@ pub(super) fn turn_snapshot(row: turn::Model) -> AgentTurnSnapshot {
     }
 }
 
-pub(super) fn message_snapshot(row: message::Model) -> AgentMessageSnapshot {
+pub(super) fn message_snapshot(row: agent::AgentMessageRecord) -> AgentMessageSnapshot {
     AgentMessageSnapshot {
         id: row.id,
         thread_id: row.thread_id,
@@ -63,7 +65,7 @@ pub(super) fn message_snapshot(row: message::Model) -> AgentMessageSnapshot {
     }
 }
 
-pub(super) fn execution_snapshot(row: execution::Model) -> AgentExecutionSnapshot {
+pub(super) fn execution_snapshot(row: agent::AgentExecutionRecord) -> AgentExecutionSnapshot {
     AgentExecutionSnapshot {
         id: row.id,
         run_id: row.run_id,
@@ -82,7 +84,7 @@ pub(super) fn execution_snapshot(row: execution::Model) -> AgentExecutionSnapsho
     }
 }
 
-pub(super) fn delegation_snapshot(row: delegation::Model) -> AgentDelegationSnapshot {
+pub(super) fn delegation_snapshot(row: agent::AgentDelegationRecord) -> AgentDelegationSnapshot {
     AgentDelegationSnapshot {
         id: row.id,
         parent_run_id: row.parent_run_id,
@@ -103,7 +105,7 @@ pub(super) fn delegation_snapshot(row: delegation::Model) -> AgentDelegationSnap
     }
 }
 
-pub(super) fn inbox_snapshot(row: inbox::Model) -> AgentInboxSnapshot {
+pub(super) fn inbox_snapshot(row: agent::AgentInboxRecord) -> AgentInboxSnapshot {
     AgentInboxSnapshot {
         id: row.id,
         thread_id: row.thread_id,

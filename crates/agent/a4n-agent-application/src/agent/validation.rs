@@ -138,9 +138,9 @@ pub(super) fn complete_scope_resource(
 }
 
 pub(super) async fn canonicalize_editor_source(
-    database: &sea_orm::DatabaseConnection,
+    database: &impl a4n_db::DbExecutor,
     source: a4n_api_contract::agent::AgentEditorSource,
-    thread: &thread::Model,
+    thread: &agent::AgentThreadRecord,
 ) -> Result<a4n_api_contract::agent::AgentEditorSource, AppError> {
     let scope: AgentScope = from_json(thread.scope_json.clone(), "agent_thread.scope_json")?;
     validate_editor_source(&source, &thread.profile_id, &scope)?;
@@ -161,7 +161,7 @@ pub(super) async fn canonicalize_editor_source(
 // Binding a derived source permits context access, not mutation of the original
 // chapter. Chapter-only command authorization retains its ownership check.
 pub(super) async fn scope_chapter_number(
-    database: &sea_orm::DatabaseConnection,
+    database: &impl a4n_db::DbExecutor,
     project_id: i64,
     chapter_id: i64,
 ) -> Result<i32, AppError> {
@@ -176,7 +176,7 @@ pub(super) async fn scope_chapter_number(
 }
 
 pub(super) async fn verify_director_source(
-    database: &sea_orm::DatabaseConnection,
+    database: &impl a4n_db::DbExecutor,
     capability: &str,
     scope: &AgentScope,
 ) -> Result<(), AppError> {
@@ -197,7 +197,7 @@ pub(super) async fn verify_director_source(
 fn agent_source_error(error: a4n_db::project::ResolveChapterSourceError) -> AppError {
     use a4n_db::project::ResolveChapterSourceError;
     match error {
-        ResolveChapterSourceError::Database(error) => AppError::Database(error),
+        ResolveChapterSourceError::Database(error) => AppError::database(error),
         ResolveChapterSourceError::NotFound(message) => AppError::NotFound(message),
         ResolveChapterSourceError::InvalidArgument(message) => AppError::Forbidden(message),
         ResolveChapterSourceError::InvalidState(current) => AppError::InvalidState {
@@ -208,9 +208,9 @@ fn agent_source_error(error: a4n_db::project::ResolveChapterSourceError) -> AppE
 }
 
 pub(super) async fn parse_persisted_editor_source(
-    database: &sea_orm::DatabaseConnection,
+    database: &impl a4n_db::DbExecutor,
     value: Value,
-    thread: &thread::Model,
+    thread: &agent::AgentThreadRecord,
 ) -> Result<a4n_api_contract::agent::AgentEditorSource, AppError> {
     let scope: AgentScope = from_json(thread.scope_json.clone(), "agent_thread.scope_json")?;
     let value = normalize_legacy_editor_source(value, scope.chapter_id)?;
@@ -743,7 +743,7 @@ pub(super) fn accepted(
     })
 }
 
-pub(super) fn thread_view(row: thread::Model) -> Result<AgentThreadView, AppError> {
+pub(super) fn thread_view(row: agent::AgentThreadRecord) -> Result<AgentThreadView, AppError> {
     let scope = from_json(row.scope_json, "agent_thread.scope_json")?;
     let bound_resource = match (row.resource_type, row.resource_id) {
         (Some(kind), Some(id)) => Some(AgentResourceRef {
@@ -796,7 +796,7 @@ pub(super) fn next_sequence_view(value: i64, field: &str) -> Result<u64, AppErro
         })
 }
 
-pub(super) fn message_view(row: message::Model) -> Result<AgentMessageView, AppError> {
+pub(super) fn message_view(row: agent::AgentMessageRecord) -> Result<AgentMessageView, AppError> {
     Ok(AgentMessageView {
         id: row.id.to_string(),
         thread_id: row.thread_id.to_string(),
@@ -813,7 +813,7 @@ pub(super) fn message_view(row: message::Model) -> Result<AgentMessageView, AppE
     })
 }
 
-pub(super) fn turn_view(row: turn::Model) -> Result<AgentTurnView, AppError> {
+pub(super) fn turn_view(row: agent::AgentTurnRecord) -> Result<AgentTurnView, AppError> {
     Ok(AgentTurnView {
         id: row.id.to_string(),
         thread_id: row.thread_id.to_string(),
@@ -828,7 +828,7 @@ pub(super) fn turn_view(row: turn::Model) -> Result<AgentTurnView, AppError> {
     })
 }
 
-pub(super) fn run_view(row: run::Model) -> Result<AgentRunView, AppError> {
+pub(super) fn run_view(row: agent::AgentRunRecord) -> Result<AgentRunView, AppError> {
     runtime_snapshot_required(&row.usage_json, row.id)?;
     let usage = row
         .usage_json
@@ -897,7 +897,9 @@ pub(super) fn runtime_snapshot_required(usage_json: &Value, run_id: i64) -> Resu
     }
 }
 
-pub(super) fn execution_view(row: execution::Model) -> Result<AgentExecutionView, AppError> {
+pub(super) fn execution_view(
+    row: agent::AgentExecutionRecord,
+) -> Result<AgentExecutionView, AppError> {
     Ok(AgentExecutionView {
         id: row.id.to_string(),
         run_id: row.run_id.to_string(),
@@ -924,7 +926,9 @@ pub(super) fn execution_view(row: execution::Model) -> Result<AgentExecutionView
     })
 }
 
-pub(super) fn delegation_view(row: delegation::Model) -> Result<AgentDelegationView, AppError> {
+pub(super) fn delegation_view(
+    row: agent::AgentDelegationRecord,
+) -> Result<AgentDelegationView, AppError> {
     Ok(AgentDelegationView {
         id: row.id.to_string(),
         parent_run_id: row.parent_run_id.to_string(),
@@ -945,7 +949,9 @@ pub(super) fn delegation_view(row: delegation::Model) -> Result<AgentDelegationV
     })
 }
 
-pub(super) fn approval_view(row: approval::Model) -> Result<AgentApprovalView, AppError> {
+pub(super) fn approval_view(
+    row: agent::AgentApprovalRecord,
+) -> Result<AgentApprovalView, AppError> {
     let operation = row
         .operation_json
         .as_object()
@@ -999,7 +1005,7 @@ pub(super) fn approval_view(row: approval::Model) -> Result<AgentApprovalView, A
     })
 }
 
-pub(super) fn inbox_view(row: inbox::Model) -> Result<AgentInboxItemView, AppError> {
+pub(super) fn inbox_view(row: agent::AgentInboxRecord) -> Result<AgentInboxItemView, AppError> {
     Ok(AgentInboxItemView {
         id: row.id.to_string(),
         thread_id: row.thread_id.to_string(),
@@ -1023,7 +1029,7 @@ pub(super) fn inbox_view(row: inbox::Model) -> Result<AgentInboxItemView, AppErr
     })
 }
 
-pub(super) fn memory_view(row: memory::Model) -> Result<AgentMemoryView, AppError> {
+pub(super) fn memory_view(row: agent::AgentMemoryRecord) -> Result<AgentMemoryView, AppError> {
     let resource_refs = row
         .content_json
         .as_ref()
@@ -1048,7 +1054,7 @@ pub(super) fn memory_view(row: memory::Model) -> Result<AgentMemoryView, AppErro
     })
 }
 
-pub(super) fn event_view(row: event::Model) -> Result<AgentEvent, AppError> {
+pub(super) fn event_view(row: agent::AgentEventRecord) -> Result<AgentEvent, AppError> {
     let editor_request = row
         .payload_json
         .as_ref()
@@ -1229,7 +1235,11 @@ pub(super) fn agent_db_error_to_app(error: AgentDbError) -> AppError {
             current: message,
             operation: "执行 Agent 操作".into(),
         },
-        AgentDbError::Database(error) => AppError::Database(error),
+        AgentDbError::Forbidden(message) => AppError::Forbidden(message),
+        AgentDbError::InvalidState { current, operation } => {
+            AppError::InvalidState { current, operation }
+        }
+        AgentDbError::Database(error) => AppError::Database(anyhow::Error::from_boxed(error)),
     }
 }
 
@@ -1243,6 +1253,6 @@ pub(super) fn collaboration_db_error_to_app(error: CollaborationDbError) -> AppE
             operation: "校验 Agent 资源访问权限".into(),
         },
         CollaborationDbError::Internal(message) => AppError::Internal(anyhow::anyhow!(message)),
-        CollaborationDbError::Database(error) => AppError::Database(error),
+        CollaborationDbError::Database(error) => AppError::database(error),
     }
 }

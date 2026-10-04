@@ -7,13 +7,14 @@ use a4n_domain::theme_edit::{
 use a4n_domain::{ThemeAppearance, ThemeDocument, ThemeMode};
 use a4n_error::AppError;
 use chrono::Utc;
+use sea_orm::ConnectionTrait;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, EntityTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+    Set,
 };
 
 pub async fn list_themes_visible_to_user(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
 ) -> Result<Vec<ThemeRecord>, AppError> {
     theme_config::Entity::find()
@@ -26,22 +27,22 @@ pub async fn list_themes_visible_to_user(
         .all(db)
         .await
         .map(|rows| rows.into_iter().map(theme_record).collect())
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
 }
 
 pub async fn theme_by_id(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     theme_id: i64,
 ) -> Result<Option<ThemeRecord>, AppError> {
     theme_config::Entity::find_by_id(theme_id)
         .one(db)
         .await
         .map(|row| row.map(theme_record))
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
 }
 
 pub async fn create_theme(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: Option<i64>,
     name: &str,
     mode: ThemeMode,
@@ -62,20 +63,20 @@ pub async fn create_theme(
     .insert(db)
     .await
     .map(theme_record)
-    .map_err(AppError::Database)
+    .map_err(AppError::from)
 }
 
 pub async fn update_theme(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     theme: ThemeRecord,
     changes: ThemeUpdateChanges,
 ) -> Result<(ThemeRecord, Vec<ThemeResourceRecord>), AppError> {
-    let txn = db.begin().await.map_err(AppError::Database)?;
+    let txn = db.begin().await.map_err(AppError::from)?;
     let current = theme_config::Entity::find_by_id(theme.id)
         .lock_exclusive()
         .one(&txn)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .ok_or_else(|| AppError::NotFound("主题不存在".into()))?;
     if current.user_id != theme.user_id {
         return Err(AppError::Forbidden("主题所有者已变化".into()));
@@ -101,7 +102,7 @@ pub async fn update_theme(
             Some(user_id) => clear_scope.filter(theme_config::Column::UserId.eq(user_id)),
             None => clear_scope.filter(theme_config::Column::UserId.is_null()),
         };
-        clear_scope.exec(&txn).await.map_err(AppError::Database)?;
+        clear_scope.exec(&txn).await.map_err(AppError::from)?;
     }
     let theme_id = theme.id;
     let mut active: theme_config::ActiveModel = theme.into();
@@ -115,7 +116,7 @@ pub async fn update_theme(
         active.theme_document = Set(serde_json::to_value(value)?);
     }
     active.updated_at = Set(Utc::now().naive_utc());
-    let updated = active.update(&txn).await.map_err(AppError::Database)?;
+    let updated = active.update(&txn).await.map_err(AppError::from)?;
     let mut keys = std::collections::HashSet::new();
     for resource in changes.resources {
         if resource.theme_id != theme_id || !keys.insert(resource.resource_key.clone()) {
@@ -145,7 +146,7 @@ pub async fn update_theme(
             .filter(theme_resource::Column::Id.is_in(deleted_ids.iter().copied()))
             .exec(&txn)
             .await
-            .map_err(AppError::Database)?;
+            .map_err(AppError::from)?;
         if deleted.rows_affected != deleted_ids.len() as u64 {
             return Err(AppError::InvalidArgument(
                 "待删除主题资源不存在或不属于该主题".into(),
@@ -165,27 +166,27 @@ pub async fn update_theme(
             )));
         }
     }
-    txn.commit().await.map_err(AppError::Database)?;
+    txn.commit().await.map_err(AppError::from)?;
     Ok((theme_record(updated), resources))
 }
 
-pub async fn delete_theme(db: &DatabaseConnection, theme_id: i64) -> Result<(), AppError> {
+pub async fn delete_theme(db: &impl crate::DbExecutor, theme_id: i64) -> Result<(), AppError> {
     theme_config::Entity::delete_by_id(theme_id)
         .exec(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
     Ok(())
 }
 
 pub async fn activate_theme(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     theme_id: i64,
 ) -> Result<ThemeRecord, AppError> {
-    let txn = db.begin().await.map_err(AppError::Database)?;
+    let txn = db.begin().await.map_err(AppError::from)?;
     let target = theme_config::Entity::find_by_id(theme_id)
         .one(&txn)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .ok_or_else(|| AppError::NotFound("主题不存在".into()))?;
     let user_id = target.user_id;
     let now = Utc::now().naive_utc();
@@ -204,13 +205,13 @@ pub async fn activate_theme(
         None => clear_scope.filter(theme_config::Column::UserId.is_null()),
     };
     clear_scope = clear_scope.filter(theme_config::Column::Mode.eq(&target.mode));
-    clear_scope.exec(&txn).await.map_err(AppError::Database)?;
+    clear_scope.exec(&txn).await.map_err(AppError::from)?;
 
     let mut active: theme_config::ActiveModel = target.into();
     active.is_active = Set(true);
     active.updated_at = Set(now);
-    let updated = active.update(&txn).await.map_err(AppError::Database)?;
-    txn.commit().await.map_err(AppError::Database)?;
+    let updated = active.update(&txn).await.map_err(AppError::from)?;
+    txn.commit().await.map_err(AppError::from)?;
     Ok(theme_record(updated))
 }
 
@@ -224,11 +225,11 @@ pub async fn list_theme_resources(
         .all(db)
         .await
         .map(|rows| rows.into_iter().map(theme_resource_record).collect())
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
 }
 
 pub async fn list_theme_resources_for_themes(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     theme_ids: &[i64],
 ) -> Result<Vec<ThemeResourceRecord>, AppError> {
     if theme_ids.is_empty() {
@@ -241,18 +242,18 @@ pub async fn list_theme_resources_for_themes(
         .all(db)
         .await
         .map(|rows| rows.into_iter().map(theme_resource_record).collect())
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
 }
 
 pub async fn theme_resource_by_id(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     resource_id: i64,
 ) -> Result<Option<ThemeResourceRecord>, AppError> {
     theme_resource::Entity::find_by_id(resource_id)
         .one(db)
         .await
         .map(|row| row.map(theme_resource_record))
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
 }
 
 pub async fn upsert_theme_resource(
@@ -270,7 +271,7 @@ pub async fn upsert_theme_resource(
         .filter(theme_resource::Column::ResourceKey.eq(resource_key))
         .one(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
     let now = Utc::now().naive_utc();
     if let Some(existing) = existing {
         let mut active: theme_resource::ActiveModel = existing.into();
@@ -284,7 +285,7 @@ pub async fn upsert_theme_resource(
             .update(db)
             .await
             .map(theme_resource_record)
-            .map_err(AppError::Database);
+            .map_err(AppError::from);
     }
     theme_resource::ActiveModel {
         theme_id: Set(theme_id),
@@ -301,11 +302,11 @@ pub async fn upsert_theme_resource(
     .insert(db)
     .await
     .map(theme_resource_record)
-    .map_err(AppError::Database)
+    .map_err(AppError::from)
 }
 
 pub async fn delete_theme_resource(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     resource_id: i64,
 ) -> Result<ThemeResourceRecord, AppError> {
     let resource = theme_resource_by_id(db, resource_id)
@@ -314,23 +315,23 @@ pub async fn delete_theme_resource(
     theme_resource::Entity::delete_by_id(resource_id)
         .exec(db)
         .await
-        .map_err(AppError::Database)?;
+        .map_err(AppError::from)?;
     Ok(resource)
 }
 
 pub async fn theme_preference(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
 ) -> Result<Option<ThemePreferenceRecord>, AppError> {
     theme_preference_entity::Entity::find_by_id(user_id)
         .one(db)
         .await
         .map(|row| row.map(theme_preference_record))
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
 }
 
 pub async fn upsert_theme_preference(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
     appearance: ThemeAppearance,
 ) -> Result<ThemePreferenceRecord, AppError> {
@@ -338,7 +339,7 @@ pub async fn upsert_theme_preference(
     if let Some(existing) = theme_preference_entity::Entity::find_by_id(user_id)
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
     {
         let mut active: theme_preference_entity::ActiveModel = existing.into();
         active.appearance = Set(appearance.to_string());
@@ -347,7 +348,7 @@ pub async fn upsert_theme_preference(
             .update(db)
             .await
             .map(theme_preference_record)
-            .map_err(AppError::Database);
+            .map_err(AppError::from);
     }
     theme_preference_entity::ActiveModel {
         user_id: Set(user_id),
@@ -358,7 +359,7 @@ pub async fn upsert_theme_preference(
     .insert(db)
     .await
     .map(theme_preference_record)
-    .map_err(AppError::Database)
+    .map_err(AppError::from)
 }
 
 fn theme_record(row: theme_config::Model) -> ThemeRecord {

@@ -119,12 +119,6 @@ for package in "${packages[@]}"; do
     if tree_has_package "$tree" a4n-db-models; then
         models_allowed=false
         case "$package" in
-            a4n-runtime)
-                if rg -q --fixed-strings 'a4n_db_models::REQUIRED_SCHEMA_MIGRATION' \
-                    "$source_dir/state/database.rs"; then
-                    models_allowed=true
-                fi
-                ;;
             a4n-tauri)
                 if tree_has_package "$tree" a4n-runtime \
                     && tree_has_package "$tree" a4n-migration; then
@@ -141,16 +135,10 @@ for package in "${packages[@]}"; do
     if [[ "$package" == a4n-runtime ]]; then
         check_source_pattern "$package" "$source_dir" "a4n-db repository" \
             '(?<![[:alnum:]_])a4n_db::'
-        check_source_pattern "$package" "$source_dir" "business ORM model" \
-            '(?<![[:alnum:]_])a4n_db_models::(?!REQUIRED_SCHEMA_MIGRATION\b)'
-        check_source_pattern "$package" "$source_dir" "schema-version model" \
-            '(?<![[:alnum:]_])a4n_db_models::REQUIRED_SCHEMA_MIGRATION\b' \
-            --glob '!**/state/database.rs'
-        check_source_pattern "$package" "$source_dir" "non-infrastructure ORM/migration" \
-            '(?<![[:alnum:]_])(?:sea_orm|sea_orm_migration|a4n_migration)::' \
-            --glob '!**/state/database.rs' \
-            --glob '!**/state/app.rs' \
-            --glob '!**/state/app/bootstrap.rs'
+        check_source_pattern "$package" "$source_dir" "ORM model" \
+            '(?<![[:alnum:]_])a4n_db_models::'
+        check_source_pattern "$package" "$source_dir" "SeaORM/migration crate" \
+            '(?<![[:alnum:]_])(?:sea_orm|sea_orm_migration|a4n_migration)::'
     else
         check_source_pattern "$package" "$source_dir" "business database/ORM" \
             '(?<![[:alnum:]_])(?:a4n_db|a4n_db_models|sea_orm|sea_orm_migration|a4n_migration)::'

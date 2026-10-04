@@ -1,10 +1,10 @@
 use a4n_db::source_sync::SourceSyncGalgameAnchorRecord;
-use a4n_db_models::models::project::source_snapshot_chapter;
+use a4n_domain::project::SourceSnapshotChapterSummary;
 
 use crate::galgame::GalgamePipelinePromptSourceSpan;
 
 pub(super) fn galgame_regeneration_source_spans(
-    chapter: &source_snapshot_chapter::Model,
+    chapter: &SourceSnapshotChapterSummary,
     anchors: &[SourceSyncGalgameAnchorRecord],
 ) -> Vec<GalgamePipelinePromptSourceSpan> {
     anchors

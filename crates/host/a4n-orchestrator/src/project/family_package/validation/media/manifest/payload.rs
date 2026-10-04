@@ -6,7 +6,10 @@ use crate::project::{
     ImportMediaPayload, family_media_package_path, family_package::ProjectFamilyPackage,
     media_asset_path, media_file_key,
 };
-use a4n_db_models::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
+use a4n_api_contract::project_transfer::{
+    MEDIA_ASSET_FILE_PATH_FIELD as FILE_PATH_FIELD,
+    MEDIA_ASSET_THUMBNAIL_PATH_FIELD as THUMBNAIL_PATH_FIELD,
+};
 
 const MEDIA_ASSET_OWNER: &str = "media_asset";
 const GENERATED_IMAGE_OWNER: &str = "generated_image";

@@ -1,10 +1,11 @@
 use super::*;
 use a4n_db_models::models::agent::inbox as inbox_model;
+use sea_orm::ConnectionTrait;
 
 pub async fn claim_runnable_run(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     worker_id: &str,
-) -> Result<Option<run::Model>, AgentDbError> {
+) -> Result<Option<AgentRunRecord>, AgentDbError> {
     if worker_id.trim().is_empty() {
         return Err(AgentDbError::InvalidArgument("worker_id 不能为空".into()));
     }
@@ -41,7 +42,7 @@ pub async fn claim_runnable_run(
     active.updated_at = Set(timestamp);
     let row = active.update(&tx).await?;
     tx.commit().await?;
-    Ok(Some(row))
+    Ok(Some(row.into()))
 }
 
 pub async fn renew_run_lease<C>(db: &C, run_id: i64, lease_token: &str) -> Result<(), AgentDbError>
@@ -76,18 +77,20 @@ where
 /// The original editor may resolve only this waiting execution. It temporarily
 /// owns the same Run lease; the normal worker cannot dispatch it concurrently.
 pub async fn claim_editor_execution(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
     run_id: i64,
     execution_id: i64,
-) -> Result<run::Model, AgentDbError> {
-    resolve_editor_wait(db, user_id, run_id, execution_id, false).await
+) -> Result<AgentRunRecord, AgentDbError> {
+    resolve_editor_wait(db, user_id, run_id, execution_id, false)
+        .await
+        .map(Into::into)
 }
 
 /// Reconcile durable editor waits after disconnect or restart. Expiry and a
 /// live response contend on the same locks; only one can resolve the request.
 pub async fn expire_editor_requests(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     limit: u64,
 ) -> Result<usize, AgentDbError> {
     let rows = run::Entity::find()
@@ -134,7 +137,7 @@ pub(crate) async fn latest_editor_wait<C: ConnectionTrait>(
 }
 
 pub(crate) async fn resolve_editor_wait(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
     run_id: i64,
     execution_id: i64,
@@ -275,7 +278,7 @@ where
     active.revision = Set(revision
         .checked_add(1)
         .ok_or_else(|| AgentDbError::InvalidArgument("Agent thread revision 溢出".into()))?);
-    let updated = active.update(db).await.map_err(AgentDbError::Database)?;
+    let updated = active.update(db).await.map_err(AgentDbError::from)?;
     Ok(updated)
 }
 
@@ -402,7 +405,7 @@ async fn update_run_state_on_with_options<C>(
     waiting_reason: Option<&str>,
     error_message: Option<&str>,
     budget_json: Option<Value>,
-    expected: Option<&run::Model>,
+    expected: Option<&AgentRunRecord>,
 ) -> Result<run::Model, AgentDbError>
 where
     C: ConnectionTrait,
@@ -465,7 +468,7 @@ where
             active.next_attempt_at = Set(timestamp);
         }
     }
-    let updated = active.update(db).await.map_err(AgentDbError::Database)?;
+    let updated = active.update(db).await.map_err(AgentDbError::from)?;
     let lifecycle = match status {
         "queued" => Some(("run_queued", "queued", "Agent run 已排队")),
         "waiting" => Some(("run_waiting", "waiting", "Agent run 正在等待")),
@@ -498,13 +501,13 @@ where
 }
 
 pub async fn update_run_state(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     run_id: i64,
     lease_token: Option<&str>,
     status: &str,
     waiting_reason: Option<&str>,
     error_message: Option<&str>,
-) -> Result<run::Model, AgentDbError> {
+) -> Result<AgentRunRecord, AgentDbError> {
     update_run_state_inner(
         db,
         run_id,
@@ -516,17 +519,18 @@ pub async fn update_run_state(
         None,
     )
     .await
+    .map(Into::into)
 }
 
 pub async fn update_run_state_with_budget(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     run_id: i64,
     lease_token: Option<&str>,
     status: &str,
     waiting_reason: Option<&str>,
     error_message: Option<&str>,
     budget_json: Value,
-) -> Result<run::Model, AgentDbError> {
+) -> Result<AgentRunRecord, AgentDbError> {
     update_run_state_inner(
         db,
         run_id,
@@ -538,17 +542,18 @@ pub async fn update_run_state_with_budget(
         None,
     )
     .await
+    .map(Into::into)
 }
 
 pub async fn update_run_state_if_unchanged(
-    db: &DatabaseConnection,
-    expected: &run::Model,
+    db: &impl crate::DbExecutor,
+    expected: &AgentRunRecord,
     lease_token: Option<&str>,
     status: &str,
     waiting_reason: Option<&str>,
     error_message: Option<&str>,
     budget_json: Option<Value>,
-) -> Result<run::Model, AgentDbError> {
+) -> Result<AgentRunRecord, AgentDbError> {
     update_run_state_inner(
         db,
         expected.id,
@@ -560,17 +565,18 @@ pub async fn update_run_state_if_unchanged(
         Some(expected),
     )
     .await
+    .map(Into::into)
 }
 
 async fn update_run_state_inner(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     run_id: i64,
     lease_token: Option<&str>,
     status: &str,
     waiting_reason: Option<&str>,
     error_message: Option<&str>,
     budget_json: Option<Value>,
-    expected: Option<&run::Model>,
+    expected: Option<&AgentRunRecord>,
 ) -> Result<run::Model, AgentDbError> {
     validate_run_status(status)?;
     let current = run::Entity::find_by_id(run_id)
@@ -605,23 +611,23 @@ async fn update_run_state_inner(
 /// transaction.  Waiting runs must not retain a worker lease: approvals and
 /// child results should be able to wake them immediately.
 pub async fn wait_run_for_lease(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     run_id: i64,
     lease_token: &str,
     waiting_reason: &str,
-) -> Result<run::Model, AgentDbError> {
+) -> Result<AgentRunRecord, AgentDbError> {
     wait_run_for_lease_with_request(db, run_id, lease_token, waiting_reason, None).await
 }
 
 /// Publishes the external request in the same transaction that releases the
 /// Run, so a fast UI response cannot arrive before the wait is durable.
 pub async fn wait_run_for_lease_with_request(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     run_id: i64,
     lease_token: &str,
     waiting_reason: &str,
     editor_request: Option<Value>,
-) -> Result<run::Model, AgentDbError> {
+) -> Result<AgentRunRecord, AgentDbError> {
     if waiting_reason.trim().is_empty() {
         return Err(AgentDbError::InvalidArgument(
             "Agent waiting_reason 不能为空".into(),
@@ -669,7 +675,7 @@ pub async fn wait_run_for_lease_with_request(
         let row = update_run_state_on(&tx, run_id, Some(lease_token), "queued", None, None).await?;
         refresh_thread_status_on(&tx, row.thread_id).await?;
         tx.commit().await?;
-        return Ok(row);
+        return Ok(row.into());
     }
     let mut active: run::ActiveModel = current.into();
     active.status = Set("waiting".to_string());
@@ -693,7 +699,7 @@ pub async fn wait_run_for_lease_with_request(
     .await?;
     let _ = refresh_thread_status_on(&tx, row.thread_id).await?;
     tx.commit().await?;
-    Ok(row)
+    Ok(row.into())
 }
 
 /// Requeues an active waiting run and releases any stale lease.  This is used
@@ -705,10 +711,10 @@ pub async fn wait_run_for_lease_with_request(
 /// gate. A concurrent resolver that already changed the state is an ordinary
 /// no-op rather than a failed message delivery.
 pub async fn wake_waiting_run_for_reason(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     run_id: i64,
     waiting_reason: &str,
-) -> Result<Option<run::Model>, AgentDbError> {
+) -> Result<Option<AgentRunRecord>, AgentDbError> {
     if waiting_reason.trim().is_empty() {
         return Err(AgentDbError::InvalidArgument(
             "Agent waiting_reason 不能为空".into(),
@@ -755,7 +761,7 @@ pub async fn wake_waiting_run_for_reason(
     .await?;
     let _ = refresh_thread_status_on(&tx, row.thread_id).await?;
     tx.commit().await?;
-    Ok(Some(row))
+    Ok(Some(row.into()))
 }
 
 /// Fenced failure transition for a worker.  Keeping Turn and Run terminal
@@ -817,11 +823,11 @@ pub(crate) async fn fail_run_on<C: ConnectionTrait>(
 }
 
 pub async fn fail_run_for_lease(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     run_id: i64,
     lease_token: &str,
     error_message: Option<String>,
-) -> Result<run::Model, AgentDbError> {
+) -> Result<AgentRunRecord, AgentDbError> {
     let identity = run::Entity::find_by_id(run_id)
         .one(db)
         .await?
@@ -843,18 +849,18 @@ pub async fn fail_run_for_lease(
     validate_live_run_lease(&row, lease_token, timestamp)?;
     let row = fail_run_on(&tx, row, error_message, timestamp).await?;
     tx.commit().await?;
-    Ok(row)
+    Ok(row.into())
 }
 
 /// Fenced transition used when a worker cannot safely resume (for example the
 /// process-local runtime snapshot is gone).  The state is terminal and must be
 /// reconciled explicitly instead of silently retrying an unknown side effect.
 pub async fn recovery_required_for_lease(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     run_id: i64,
     lease_token: &str,
     reason: Option<String>,
-) -> Result<run::Model, AgentDbError> {
+) -> Result<AgentRunRecord, AgentDbError> {
     let identity = run::Entity::find_by_id(run_id)
         .one(db)
         .await?
@@ -921,7 +927,7 @@ pub async fn recovery_required_for_lease(
     .await?;
     let _ = refresh_thread_status_on(&tx, row.thread_id).await?;
     tx.commit().await?;
-    Ok(row)
+    Ok(row.into())
 }
 
 pub(crate) async fn complete_turn<C>(
@@ -958,17 +964,17 @@ where
     } else {
         active.completed_at = Set(None);
     }
-    active.update(db).await.map_err(AgentDbError::Database)
+    active.update(db).await.map_err(AgentDbError::from)
 }
 
 /// Marks a Turn active while fencing the transition to its Run lease.  The
 /// check and Turn update share one transaction, so a recovered/stale worker
 /// cannot resurrect a queued Turn after its Run lease has changed hands.
 pub async fn mark_turn_active_for_run_lease(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     run_id: i64,
     lease_token: &str,
-) -> Result<turn::Model, AgentDbError> {
+) -> Result<AgentTurnRecord, AgentDbError> {
     let identity = run::Entity::find_by_id(run_id)
         .one(db)
         .await?
@@ -1010,7 +1016,7 @@ pub async fn mark_turn_active_for_run_lease(
     active.completed_at = Set(None);
     let row = active.update(&tx).await?;
     tx.commit().await?;
-    Ok(row)
+    Ok(row.into())
 }
 
 /// Atomically appends an assistant final message and closes its Turn/Run.
@@ -1019,13 +1025,13 @@ pub async fn mark_turn_active_for_run_lease(
 /// leave a completed message behind while the durable Run remains active (or
 /// vice versa).
 pub async fn finish_run_with_message(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     run_id: i64,
     lease_token: &str,
     message: AgentMessageInput,
     result_refs_json: Option<Value>,
     observed_input_message_id: i64,
-) -> Result<Option<(run::Model, message::Model)>, AgentDbError> {
+) -> Result<Option<(AgentRunRecord, AgentMessageRecord)>, AgentDbError> {
     let identity = run::Entity::find_by_id(run_id)
         .one(db)
         .await?
@@ -1119,7 +1125,7 @@ pub async fn finish_run_with_message(
     .await?;
     let _ = refresh_thread_status_on(&tx, completed_run.thread_id).await?;
     tx.commit().await?;
-    Ok(Some((completed_run, final_message)))
+    Ok(Some((completed_run.into(), final_message.into())))
 }
 
 // The sender and finalizer both hold the Thread lock. An accepted follow-up
@@ -1179,11 +1185,11 @@ pub(crate) async fn consume_observed_user_inbox_on<C: ConnectionTrait>(
 }
 
 pub async fn update_run_usage(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     run_id: i64,
     lease_token: &str,
     usage_json: Value,
-) -> Result<run::Model, AgentDbError> {
+) -> Result<AgentRunRecord, AgentDbError> {
     let tx = db.begin().await?;
     let row = run::Entity::find_by_id(run_id)
         .lock_exclusive()
@@ -1241,5 +1247,5 @@ pub async fn update_run_usage(
     active.updated_at = Set(timestamp);
     let row = active.update(&tx).await?;
     tx.commit().await?;
-    Ok(row)
+    Ok(row.into())
 }

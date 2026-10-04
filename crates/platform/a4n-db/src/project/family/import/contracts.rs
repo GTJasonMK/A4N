@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 
-use crate::project::ProjectFamilyTextCoreRows;
 use a4n_db_models::models::{
     ai::{generated_image, generated_video},
+    asset::object_profile,
     chapter::{
-        chapter_manga_prompt, chapter_shooting_script, chapter_video_prompt, chapter_visual_plan,
+        chapter, chapter_manga_prompt, chapter_outline, chapter_shooting_script,
+        chapter_visual_plan, part_outline,
     },
-    character::character_portrait,
+    character::{character_portrait, protagonist_profile},
     galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script},
     generation::{
         generation_spec, generation_spec_entity_ref, generation_spec_media_ref,
@@ -14,13 +15,17 @@ use a4n_db_models::models::{
     },
     media::{media_asset, media_binding, media_provenance},
     project::{
+        blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,
         profile_evidence, project_source_snapshot, source_snapshot_chapter,
         source_snapshot_outline, source_snapshot_profile, text_anchor,
     },
+    scene::{scene_entity_state, scene_occurrence, scene_profile, scene_transition},
     source_sync::{source_sync_conflict, source_sync_decision, source_sync_run},
     video_project::{assembly_clip, assembly_timeline, video_segment},
 };
-use a4n_domain::project::ProjectRecord;
+use a4n_domain::project::*;
+use a4n_domain::video_prompt::ChapterVideoPromptRecord;
+use serde::{Deserialize, Serialize};
 
 pub const PROJECT_FAMILY_MEDIA_OWNER_CHARACTER_PORTRAIT: &str = "character_portrait";
 pub const PROJECT_FAMILY_CHARACTER_PORTRAIT_IMAGE_PATH_FIELD: &str = "image_path";
@@ -30,6 +35,46 @@ pub struct ProjectFamilyImportPackage {
     pub root_project_id: i64,
     pub projects: Vec<ProjectRecord>,
     pub text_core: ProjectFamilyTextCoreRows,
+    pub source_snapshots: Vec<ProjectFamilySourceSnapshotRecord>,
+    pub source_snapshot_chapters: Vec<ProjectFamilySourceSnapshotChapterRecord>,
+    pub source_snapshot_outlines: Vec<ProjectFamilySourceSnapshotOutlineRecord>,
+    pub source_snapshot_profiles: Vec<ProjectFamilySourceSnapshotProfileRecord>,
+    pub text_anchors: Vec<ProjectFamilyTextAnchorRecord>,
+    pub profile_evidence: Vec<ProjectFamilyProfileEvidenceRecord>,
+    pub chapter_visual_plans: Vec<ProjectFamilyVisualPlanRecord>,
+    pub chapter_shooting_scripts: Vec<ProjectFamilyShootingScriptRecord>,
+    pub authoring_documents: Vec<ProjectFamilyAuthoringDocumentRecord>,
+    pub authoring_receipts: Vec<ProjectFamilyAuthoringMigrationReceiptRecord>,
+    pub character_portraits: Vec<ProjectFamilyCharacterPortraitRecord>,
+    pub generated_images: Vec<ProjectFamilyGeneratedImageRecord>,
+    pub chapter_manga_prompts: Vec<ProjectFamilyMangaPromptRecord>,
+    pub chapter_video_prompts: Vec<ChapterVideoPromptRecord>,
+    pub generated_videos: Vec<ProjectFamilyGeneratedVideoRecord>,
+    pub generation_specs: Vec<ProjectFamilyGenerationSpecRecord>,
+    pub generation_spec_text_anchors: Vec<ProjectFamilyGenerationSpecTextAnchorRecord>,
+    pub generation_spec_entity_refs: Vec<ProjectFamilyGenerationSpecEntityRefRecord>,
+    pub generation_spec_media_refs: Vec<ProjectFamilyGenerationSpecMediaRefRecord>,
+    pub prompt_artifacts: Vec<ProjectFamilyPromptArtifactRecord>,
+    pub media_assets: Vec<ProjectFamilyMediaAssetRecord>,
+    pub media_provenance: Vec<ProjectFamilyMediaProvenanceRecord>,
+    pub media_bindings: Vec<ProjectFamilyMediaBindingRecord>,
+    pub galgame_scripts: Vec<ProjectFamilyGalgameScriptRecord>,
+    pub galgame_scenes: Vec<ProjectFamilyGalgameSceneRecord>,
+    pub galgame_lines: Vec<ProjectFamilyGalgameLineRecord>,
+    pub galgame_choices: Vec<ProjectFamilyGalgameChoiceRecord>,
+    pub video_segments: Vec<ProjectFamilyVideoSegmentRecord>,
+    pub assembly_timelines: Vec<ProjectFamilyAssemblyTimelineRecord>,
+    pub assembly_clips: Vec<ProjectFamilyAssemblyClipRecord>,
+    pub source_sync_runs: Vec<ProjectFamilySourceSyncRunRecord>,
+    pub source_sync_conflicts: Vec<ProjectFamilySourceSyncConflictRecord>,
+    pub source_sync_decisions: Vec<ProjectFamilySourceSyncDecisionRecord>,
+}
+
+#[cfg_attr(test, derive(Default))]
+pub(super) struct DatabaseProjectFamilyImportPackage {
+    pub root_project_id: i64,
+    pub projects: Vec<ProjectRecord>,
+    pub text_core: DatabaseProjectFamilyTextCoreRows,
     pub source_snapshots: Vec<project_source_snapshot::Model>,
     pub source_snapshot_chapters: Vec<source_snapshot_chapter::Model>,
     pub source_snapshot_outlines: Vec<source_snapshot_outline::Model>,
@@ -44,7 +89,7 @@ pub struct ProjectFamilyImportPackage {
     pub character_portraits: Vec<character_portrait::Model>,
     pub generated_images: Vec<generated_image::Model>,
     pub chapter_manga_prompts: Vec<chapter_manga_prompt::Model>,
-    pub chapter_video_prompts: Vec<chapter_video_prompt::Model>,
+    pub chapter_video_prompts: Vec<ChapterVideoPromptRecord>,
     pub generated_videos: Vec<generated_video::Model>,
     pub generation_specs: Vec<generation_spec::Model>,
     pub generation_spec_text_anchors: Vec<generation_spec_text_anchor::Model>,
@@ -64,6 +109,26 @@ pub struct ProjectFamilyImportPackage {
     pub source_sync_runs: Vec<source_sync_run::Model>,
     pub source_sync_conflicts: Vec<source_sync_conflict::Model>,
     pub source_sync_decisions: Vec<source_sync_decision::Model>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(Default))]
+pub(super) struct DatabaseProjectFamilyTextCoreRows {
+    #[serde(default)]
+    pub fact_feedback: Option<crate::fact_feedback::FactFeedbackArchive>,
+    pub blueprint: Option<novel_blueprint::Model>,
+    pub blueprint_versions: Vec<blueprint_version::Model>,
+    pub blueprint_characters: Vec<blueprint_character::Model>,
+    pub blueprint_relationships: Vec<blueprint_relationship::Model>,
+    pub part_outlines: Vec<part_outline::Model>,
+    pub chapter_outlines: Vec<chapter_outline::Model>,
+    pub chapters: Vec<chapter::Model>,
+    pub character_profiles: Vec<protagonist_profile::Model>,
+    pub object_profiles: Vec<object_profile::Model>,
+    pub scene_profiles: Vec<scene_profile::Model>,
+    pub scene_occurrences: Vec<scene_occurrence::Model>,
+    pub scene_transitions: Vec<scene_transition::Model>,
+    pub scene_entity_states: Vec<scene_entity_state::Model>,
 }
 
 #[derive(Debug, Clone, Default)]

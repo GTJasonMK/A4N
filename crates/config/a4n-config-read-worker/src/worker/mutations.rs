@@ -15,6 +15,15 @@ use a4n_config_read_worker_contract::{
 use a4n_db::config::{
     EmbeddingConfigRecordInput, ImageConfigRecordInput, VideoConfigRecordInput,
 };
+use a4n_db::config::read_records::{
+    create_embedding_config_read_record, create_image_config_read_record,
+    create_video_config_read_record, embedding_config_read_record_by_id,
+    image_config_read_record_by_id, update_embedding_config_read_record,
+    update_image_config_read_record, update_video_config_read_record,
+    validate_embedding_config_read_record, validate_image_config_read_record,
+    video_config_read_record_by_id,
+};
+use a4n_domain::config::VideoConfigReadRecord;
 use a4n_domain::embedding::CreateEmbeddingConfigParams;
 use a4n_video::{VideoConfigParams, validate_video_config_params};
 
@@ -24,7 +33,7 @@ impl WorkerState {
         request: WorkerEnvelope<EmptyInput>,
     ) -> Result<bool, WorkerFailure> {
         validate_service_request(&request, CONFIG_MUTATION_BASELINE_EMBEDDING_OPERATION)?;
-        a4n_db::config::insert_baseline_embedding_config_if_empty(self.database.connection())
+        a4n_db::config::insert_baseline_embedding_config_if_empty(self.database.executor())
             .await
             .map_err(app_error)
     }
@@ -36,7 +45,7 @@ impl WorkerState {
         validate_service_request(&request, CONFIG_MUTATION_BASELINE_IMAGE_OPERATION)?;
         let (params, pricing) = image_params(request.payload.0).map_err(app_error)?;
         a4n_db::config::insert_baseline_image_config_if_empty(
-            self.database.connection(),
+            self.database.executor(),
             image_record_input(params, pricing).map_err(app_error)?,
         )
         .await
@@ -50,7 +59,7 @@ impl WorkerState {
         validate_service_request(&request, CONFIG_MUTATION_BASELINE_VIDEO_OPERATION)?;
         let (params, pricing) = video_params(request.payload.0).map_err(app_error)?;
         a4n_db::config::insert_baseline_video_config_if_empty(
-            self.database.connection(),
+            self.database.executor(),
             video_record_input(params, pricing),
         )
         .await
@@ -68,13 +77,13 @@ impl WorkerState {
         )
         .await?;
         let (params, pricing) = image_params(request.payload.0).map_err(app_error)?;
-        let model = a4n_db::config::create_image_config_record(
-            self.database.connection(),
+        let model = create_image_config_read_record(
+            self.database.executor(),
             image_record_input(params, pricing).map_err(app_error)?,
         )
         .await
         .map_err(app_error)?;
-        image_summary(&image_config_read_record(&model)).map_err(app_error)
+        image_summary(&model).map_err(app_error)
     }
 
     async fn update_image(
@@ -87,8 +96,8 @@ impl WorkerState {
             &self.database,
         )
         .await?;
-        let existing = a4n_db::config::image_config_by_id(
-            self.database.connection(),
+        let existing = image_config_read_record_by_id(
+            self.database.executor(),
             positive_id(request.payload.config_id)?,
         )
         .await
@@ -107,14 +116,14 @@ impl WorkerState {
             supported_sizes: input.supported_sizes,
         })
         .map_err(app_error)?;
-        let model = a4n_db::config::update_image_config_record(
-            self.database.connection(),
-            existing,
+        let model = update_image_config_read_record(
+            self.database.executor(),
+            &existing,
             image_record_input(params, pricing).map_err(app_error)?,
         )
         .await
         .map_err(app_error)?;
-        image_summary(&image_config_read_record(&model)).map_err(app_error)
+        image_summary(&model).map_err(app_error)
     }
 
     async fn set_default_image(
@@ -128,12 +137,12 @@ impl WorkerState {
         )
         .await?;
         let config_id = positive_id(request.payload.config_id)?;
-        let model = a4n_db::config::image_config_by_id(self.database.connection(), config_id)
+        let model = image_config_read_record_by_id(self.database.executor(), config_id)
             .await
             .map_err(app_error)?;
-        a4n_db::config::validate_image_config_model(&model).map_err(app_error)?;
+        validate_image_config_read_record(&model).map_err(app_error)?;
         a4n_db::config::set_default_provider_config(
-            self.database.connection(),
+            self.database.executor(),
             ProviderConfigKind::Image,
             config_id,
         )
@@ -152,11 +161,11 @@ impl WorkerState {
         )
         .await?;
         let config_id = positive_id(request.payload.config_id)?;
-        let model = a4n_db::config::image_config_by_id(self.database.connection(), config_id)
+        let model = image_config_read_record_by_id(self.database.executor(), config_id)
             .await
             .map_err(app_error)?;
         ensure_default_config_delete_allowed("图片配置", model.is_default).map_err(app_error)?;
-        a4n_db::config::delete_image_config_record(self.database.connection(), config_id)
+        a4n_db::config::delete_image_config_record(self.database.executor(), config_id)
             .await
             .map_err(app_error)
     }
@@ -172,13 +181,13 @@ impl WorkerState {
         )
         .await?;
         let (params, pricing) = video_params(request.payload.0).map_err(app_error)?;
-        let model = a4n_db::config::create_video_config_record(
-            self.database.connection(),
+        let model = create_video_config_read_record(
+            self.database.executor(),
             video_record_input(params, pricing),
         )
         .await
         .map_err(app_error)?;
-        video_summary(&video_config_read_record(&model)).map_err(app_error)
+        video_summary(&model).map_err(app_error)
     }
 
     async fn update_video(
@@ -191,8 +200,8 @@ impl WorkerState {
             &self.database,
         )
         .await?;
-        let existing = a4n_db::config::video_config_by_id(
-            self.database.connection(),
+        let existing = video_config_read_record_by_id(
+            self.database.executor(),
             positive_id(request.payload.config_id)?,
         )
         .await
@@ -218,14 +227,14 @@ impl WorkerState {
             default_fps: input.default_fps,
         })
         .map_err(|error| app_error(a4n_error::AppError::InvalidArgument(error)))?;
-        let model = a4n_db::config::update_video_config_record(
-            self.database.connection(),
-            existing,
+        let model = update_video_config_read_record(
+            self.database.executor(),
+            &existing,
             video_record_input(params, pricing_json(input.pricing).map_err(app_error)?),
         )
         .await
         .map_err(app_error)?;
-        video_summary(&video_config_read_record(&model)).map_err(app_error)
+        video_summary(&model).map_err(app_error)
     }
 
     async fn set_default_video(
@@ -239,12 +248,12 @@ impl WorkerState {
         )
         .await?;
         let config_id = positive_id(request.payload.config_id)?;
-        let model = a4n_db::config::video_config_by_id(self.database.connection(), config_id)
+        let model = video_config_read_record_by_id(self.database.executor(), config_id)
             .await
             .map_err(app_error)?;
         validate_video_model(&model).map_err(app_error)?;
         a4n_db::config::set_default_provider_config(
-            self.database.connection(),
+            self.database.executor(),
             ProviderConfigKind::Video,
             config_id,
         )
@@ -263,12 +272,12 @@ impl WorkerState {
         )
         .await?;
         let config_id = positive_id(request.payload.config_id)?;
-        let model = a4n_db::config::video_config_by_id(self.database.connection(), config_id)
+        let model = video_config_read_record_by_id(self.database.executor(), config_id)
             .await
             .map_err(app_error)?;
         ensure_default_config_delete_allowed("视频配置", model.is_default).map_err(app_error)?;
         let active = a4n_db::config::active_generated_video_ids_for_config(
-            self.database.connection(),
+            self.database.executor(),
             config_id,
         )
         .await
@@ -279,7 +288,7 @@ impl WorkerState {
                 active.len()
             )));
         }
-        a4n_db::config::delete_video_config_record(self.database.connection(), config_id)
+        a4n_db::config::delete_video_config_record(self.database.executor(), config_id)
             .await
             .map_err(app_error)
     }
@@ -295,13 +304,13 @@ impl WorkerState {
         )
         .await?;
         let (params, pricing) = embedding_params(request.payload.0).map_err(app_error)?;
-        let model = a4n_db::config::create_embedding_config_record(
-            self.database.connection(),
+        let model = create_embedding_config_read_record(
+            self.database.executor(),
             embedding_record_input(params, pricing),
         )
         .await
         .map_err(app_error)?;
-        embedding_summary(&embedding_config_read_record(&model)).map_err(app_error)
+        embedding_summary(&model).map_err(app_error)
     }
 
     async fn update_embedding(
@@ -314,8 +323,8 @@ impl WorkerState {
             &self.database,
         )
         .await?;
-        let existing = a4n_db::config::embedding_config_by_id(
-            self.database.connection(),
+        let existing = embedding_config_read_record_by_id(
+            self.database.executor(),
             positive_id(request.payload.config_id)?,
         )
         .await
@@ -335,14 +344,14 @@ impl WorkerState {
             local_model_path: input.local_model_path,
         })
         .map_err(app_error)?;
-        let model = a4n_db::config::update_embedding_config_record(
-            self.database.connection(),
-            existing,
+        let model = update_embedding_config_read_record(
+            self.database.executor(),
+            &existing,
             embedding_record_input(params, pricing_json(input.pricing).map_err(app_error)?),
         )
         .await
         .map_err(app_error)?;
-        embedding_summary(&embedding_config_read_record(&model)).map_err(app_error)
+        embedding_summary(&model).map_err(app_error)
     }
 
     async fn set_default_embedding(
@@ -356,12 +365,12 @@ impl WorkerState {
         )
         .await?;
         let config_id = positive_id(request.payload.config_id)?;
-        let model = a4n_db::config::embedding_config_by_id(self.database.connection(), config_id)
+        let model = embedding_config_read_record_by_id(self.database.executor(), config_id)
             .await
             .map_err(app_error)?;
-        a4n_db::config::validate_embedding_config_model(&model).map_err(app_error)?;
+        validate_embedding_config_read_record(&model).map_err(app_error)?;
         a4n_db::config::set_default_provider_config(
-            self.database.connection(),
+            self.database.executor(),
             ProviderConfigKind::Embedding,
             config_id,
         )
@@ -380,12 +389,12 @@ impl WorkerState {
         )
         .await?;
         let config_id = positive_id(request.payload.config_id)?;
-        let model = a4n_db::config::embedding_config_by_id(self.database.connection(), config_id)
+        let model = embedding_config_read_record_by_id(self.database.executor(), config_id)
             .await
             .map_err(app_error)?;
         ensure_default_config_delete_allowed(" Embedding 配置", model.is_default)
             .map_err(app_error)?;
-        a4n_db::config::delete_embedding_config_record(self.database.connection(), config_id)
+        a4n_db::config::delete_embedding_config_record(self.database.executor(), config_id)
             .await
             .map_err(app_error)
     }
@@ -467,9 +476,7 @@ fn video_record_input(params: VideoConfigParams, pricing_json: Value) -> VideoCo
     }
 }
 
-fn validate_video_model(
-    model: &a4n_db_models::models::ai::video_gen_config::Model,
-) -> Result<(), a4n_error::AppError> {
+fn validate_video_model(model: &VideoConfigReadRecord) -> Result<(), a4n_error::AppError> {
     validate_video_config_params(VideoConfigParams {
         name: model.name.clone(),
         backend: model.backend.clone(),

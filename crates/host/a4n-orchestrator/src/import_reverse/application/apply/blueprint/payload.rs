@@ -1,5 +1,5 @@
-use a4n_db::import_reverse::{ReverseBlueprintApplyDraft, ReverseBlueprintApplyResult};
-use serde_json::{Value, json};
+use a4n_db::import_reverse::ReverseBlueprintApplyDraft;
+use serde_json::Value;
 
 pub(super) use self::sections::validate_reverse_blueprint_sections;
 pub(super) use self::top_level::{
@@ -42,14 +42,5 @@ pub fn reverse_blueprint_apply_draft(data: &Value) -> Result<ReverseBlueprintApp
         incoming_needs_part_outlines,
         characters,
         relationships,
-    })
-}
-
-pub fn reverse_blueprint_apply_result(result: ReverseBlueprintApplyResult) -> Value {
-    json!({
-        "blueprint_applied": true,
-        "blueprint_version": result.version,
-        "character_count": result.character_count,
-        "relationship_count": result.relationship_count,
     })
 }

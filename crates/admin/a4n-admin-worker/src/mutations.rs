@@ -10,7 +10,7 @@ impl WorkerState {
         self.require_admin(caller, AdminPermission::ManageUsers)
             .await?;
         let input = request.payload.input;
-        let user = a4n_db::auth::create_user(
+        a4n_db::auth::create_user_summary(
             self.database.connection(),
             &input.username,
             &input.email,
@@ -18,10 +18,7 @@ impl WorkerState {
             &input.role,
         )
         .await
-        .map_err(app_error)?;
-        a4n_db::auth::user_summary_by_id(self.database.connection(), user.id)
-            .await
-            .map_err(app_error)
+        .map_err(app_error)
     }
 
     pub(super) async fn create_invite(
@@ -49,15 +46,12 @@ impl WorkerState {
         let caller = self.caller(&request.principal, request.payload.caller_user_id)?;
         self.require_admin(caller, AdminPermission::ManageUsers)
             .await?;
-        let user = a4n_db::auth::update_user_role(
+        a4n_db::auth::update_user_role_summary(
             self.database.connection(),
             request.payload.user_id,
             &request.payload.input.role,
         )
         .await
-        .map_err(app_error)?;
-        a4n_db::auth::user_summary_by_id(self.database.connection(), user.id)
-            .await
-            .map_err(app_error)
+        .map_err(app_error)
     }
 }

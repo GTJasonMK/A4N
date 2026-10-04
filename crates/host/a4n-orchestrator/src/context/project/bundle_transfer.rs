@@ -80,7 +80,7 @@ impl OrchestratorContext {
                 (Some(package), project_ids, Vec::new(), media)
             } else if project.project_kind == "comic" && project.root_project_id.is_none() {
                 let comic = a4n_db::project::bundle::export_standalone_comic_project_bundle(
-                    self.database.connection(),
+                    self.database.executor(),
                     project.id,
                 )
                 .await
@@ -150,7 +150,7 @@ impl OrchestratorContext {
             .into_iter()
             .collect::<Vec<_>>();
         let history = a4n_db::project::bundle::export_project_bundle_history(
-            self.database.connection(),
+            self.database.executor(),
             &project_ids,
         )
         .await
@@ -202,9 +202,9 @@ impl OrchestratorContext {
             return Ok(Vec::new());
         }
         let (llm, image, video) = tokio::try_join!(
-            list_llm_config_records(self.database.connection()),
-            list_image_config_records(self.database.connection()),
-            list_video_config_records(self.database.connection()),
+            list_llm_config_records(self.database.executor()),
+            list_image_config_records(self.database.executor()),
+            list_video_config_records(self.database.executor()),
         )
         .map_err(|error| InternalTransferError::Message(error.to_string()))?;
 
@@ -403,7 +403,7 @@ impl OrchestratorContext {
 
             for comic in &package.standalone_comics {
                 let imported = a4n_db::project::bundle::import_standalone_comic_project_bundle(
-                    self.database.connection(),
+                    self.database.executor(),
                     comic,
                     user_id,
                 )
@@ -460,7 +460,7 @@ impl OrchestratorContext {
             history_maps.project_ids = imported_project_ids.clone();
             history_maps.root_project_ids = root_project_ids;
             let history_summary = a4n_db::project::bundle::import_project_bundle_history(
-                self.database.connection(),
+                self.database.executor(),
                 &package.history,
                 &history_maps,
                 &package.bundle_id,
@@ -532,9 +532,9 @@ impl OrchestratorContext {
         provider_slots: &[ProjectBundleProviderSlot],
     ) -> Result<HashMap<String, Option<i64>>, InternalTransferError> {
         let (llm, image, video) = tokio::try_join!(
-            list_llm_config_records(self.database.connection()),
-            list_image_config_records(self.database.connection()),
-            list_video_config_records(self.database.connection()),
+            list_llm_config_records(self.database.executor()),
+            list_image_config_records(self.database.executor()),
+            list_video_config_records(self.database.executor()),
         )
         .map_err(|error| InternalTransferError::Message(error.to_string()))?;
         Ok(provider_slots

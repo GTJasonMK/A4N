@@ -3,21 +3,22 @@ use a4n_db_models::models::{
 };
 use a4n_domain::character::ForeshadowingStatus;
 use chrono::Utc;
+use sea_orm::ConnectionTrait;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DatabaseTransaction,
-    EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set,
 };
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
     ForeshadowingAnalysisDraft, ForeshadowingAnalysisSyncResult, ForeshadowingDbError,
-    ForeshadowingFactUpdate,
+    ForeshadowingFactUpdate, foreshadowing_index_record,
 };
 use a4n_domain::chapter::ChapterSourceSnapshot;
 
 pub async fn sync_chapter_analysis_foreshadowing(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     source: ChapterSourceSnapshot,
     drafts: Vec<ForeshadowingAnalysisDraft>,
     updates: Vec<ForeshadowingFactUpdate>,
@@ -127,7 +128,9 @@ pub async fn sync_chapter_analysis_foreshadowing(
             ));
         }
         if before == foreshadowing_fact_snapshot(&item) {
-            result.existing.push(item.clone());
+            result
+                .existing
+                .push(foreshadowing_index_record(item.clone()));
         } else {
             record_change(
                 &tx,
@@ -139,13 +142,17 @@ pub async fn sync_chapter_analysis_foreshadowing(
             )
             .await?;
             if prior.is_some() {
-                result.updated.push(item.clone());
+                result
+                    .updated
+                    .push(foreshadowing_index_record(item.clone()));
             } else {
-                result.created.push(item.clone());
+                result
+                    .created
+                    .push(foreshadowing_index_record(item.clone()));
             }
         }
         by_id.insert(item.id, item.clone());
-        result.current.push(item);
+        result.current.push(foreshadowing_index_record(item));
     }
     let mut updated = BTreeSet::new();
     for update in updates {
@@ -190,8 +197,10 @@ pub async fn sync_chapter_analysis_foreshadowing(
             ));
         }
         if prior.status == update.status.as_str() {
-            result.existing.push(prior.clone());
-            result.current.push(prior);
+            result
+                .existing
+                .push(foreshadowing_index_record(prior.clone()));
+            result.current.push(foreshadowing_index_record(prior));
             continue;
         }
         let before = foreshadowing_fact_snapshot(&prior);
@@ -202,7 +211,9 @@ pub async fn sync_chapter_analysis_foreshadowing(
         active.updated_at = Set(Utc::now().naive_utc());
         let item = active.update(&tx).await?;
         if before == foreshadowing_fact_snapshot(&item) {
-            result.existing.push(item.clone());
+            result
+                .existing
+                .push(foreshadowing_index_record(item.clone()));
         } else {
             record_change(
                 &tx,
@@ -214,13 +225,17 @@ pub async fn sync_chapter_analysis_foreshadowing(
             )
             .await?;
             if update.status == ForeshadowingStatus::Resolved {
-                result.resolved.push(item.clone());
+                result
+                    .resolved
+                    .push(foreshadowing_index_record(item.clone()));
             } else {
-                result.updated.push(item.clone());
+                result
+                    .updated
+                    .push(foreshadowing_index_record(item.clone()));
             }
         }
         by_id.insert(item.id, item.clone());
-        result.current.push(item);
+        result.current.push(foreshadowing_index_record(item));
     }
     tx.commit().await?;
     Ok(result)

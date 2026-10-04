@@ -29,7 +29,10 @@ where
     let chapters = chapters_query
         .all(db)
         .await
-        .map_err(CharacterDbError::Database)?;
+        .map_err(CharacterDbError::Database)?
+        .into_iter()
+        .map(crate::project::chapter_record)
+        .collect();
 
     let mut state_timeline_query = character_state_index::Entity::find()
         .filter(character_state_index::Column::ProfileId.eq(profile_id))
@@ -45,7 +48,10 @@ where
     let state_timeline = state_timeline_query
         .all(db)
         .await
-        .map_err(CharacterDbError::Database)?;
+        .map_err(CharacterDbError::Database)?
+        .into_iter()
+        .map(crate::character::character_state_index_record)
+        .collect();
 
     let mut attribute_events_query = attribute_event::Entity::find()
         .filter(attribute_event::Column::ProfileId.eq(profile_id))
@@ -62,7 +68,10 @@ where
     let attribute_events = attribute_events_query
         .all(db)
         .await
-        .map_err(CharacterDbError::Database)?;
+        .map_err(CharacterDbError::Database)?
+        .into_iter()
+        .map(crate::character::character_attribute_event_record)
+        .collect();
 
     Ok(CharacterConflictContextRows {
         chapters,

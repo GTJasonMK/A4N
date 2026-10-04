@@ -3,10 +3,10 @@ use a4n_db_models::models::{
     character::protagonist_profile,
     project::{blueprint_character, blueprint_relationship, novel_blueprint},
 };
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 
 pub async fn chapter_generation_reference_context_rows(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_number: i32,
 ) -> Result<ChapterGenerationReferenceContextRows, ProjectChapterContextError> {
@@ -52,9 +52,13 @@ pub async fn chapter_generation_reference_context_rows(
     let mut blueprint = blueprint?;
     if let Some(current) = blueprint.as_mut() {
         current.world_setting = Some(
-            crate::fact_feedback::world_setting_before_chapter(db, current, chapter_number)
-                .await
-                .map_err(|error| ProjectChapterContextError::InvalidArgument(error.to_string()))?,
+            crate::fact_feedback::world_setting_before_chapter(
+                db,
+                &crate::project::blueprint_record(current.clone()),
+                chapter_number,
+            )
+            .await
+            .map_err(|error| ProjectChapterContextError::InvalidArgument(error.to_string()))?,
         );
     }
     let characters = characters?;
@@ -107,9 +111,18 @@ pub async fn chapter_generation_reference_context_rows(
     }
 
     Ok(ChapterGenerationReferenceContextRows {
-        blueprint,
-        characters,
-        relationships,
-        protagonist_profiles: historical_profiles,
+        blueprint: blueprint.map(crate::project::blueprint_record),
+        characters: characters
+            .into_iter()
+            .map(crate::project::blueprint_character_record)
+            .collect(),
+        relationships: relationships
+            .into_iter()
+            .map(crate::project::blueprint_relationship_record)
+            .collect(),
+        protagonist_profiles: historical_profiles
+            .into_iter()
+            .map(crate::character::character_profile_record)
+            .collect(),
     })
 }

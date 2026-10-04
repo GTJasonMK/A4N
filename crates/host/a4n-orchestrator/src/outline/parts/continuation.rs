@@ -5,7 +5,9 @@ use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use chrono::Utc;
 
-use crate::outline::context::{load_part_generation_context, lock_outline_generation_sources};
+use crate::outline::context::{
+    load_part_generation_context, with_locked_outline_generation_sources,
+};
 use crate::outline::part_contract::{
     ensure_continue_part_request, ensure_no_part_outline_conflict, insert_part_outline_from_json,
     validate_part_outline_request,
@@ -31,8 +33,7 @@ impl OrchestratorContext {
             workflow_run_id,
         } = input;
         let context =
-            load_part_generation_context(self.database.connection(), project_id, None, None)
-                .await?;
+            load_part_generation_context(self.database.executor(), project_id, None, None).await?;
         validate_part_outline_request(part_number, start_chapter, end_chapter)?;
         ensure_continue_part_request(&context.parts, part_number, start_chapter)?;
         ensure_no_part_outline_conflict(
@@ -60,25 +61,38 @@ impl OrchestratorContext {
             })
             .await?;
         let now = Utc::now().naive_utc();
-        let tx = lock_outline_generation_sources(
-            self.database.connection(),
+        let part = with_locked_outline_generation_sources(
+            self.database.executor(),
             project_id,
             &context.source_snapshot,
+            |tx| {
+                Box::pin(async move {
+                    let result = async {
+                        let part = insert_part_outline_from_json(
+                            &tx,
+                            project_id,
+                            part_number,
+                            start_chapter,
+                            end_chapter,
+                            &generated.data,
+                            now,
+                        )
+                        .await?;
+                        self.record_part_outline_generation_run(
+                            &tx,
+                            &part,
+                            &generated,
+                            "续写分部大纲",
+                        )
+                        .await?;
+                        Ok(part)
+                    }
+                    .await;
+                    (tx, result)
+                }) as a4n_db::transaction::TransactionWork<'_, PartOutlineRecord>
+            },
         )
         .await?;
-        let part = insert_part_outline_from_json(
-            &tx,
-            project_id,
-            part_number,
-            start_chapter,
-            end_chapter,
-            &generated.data,
-            now,
-        )
-        .await?;
-        self.record_part_outline_generation_run(&tx, &part, &generated, "续写分部大纲")
-            .await?;
-        tx.commit().await.map_err(AppError::Database)?;
         Ok(part)
     }
 
@@ -92,8 +106,7 @@ impl OrchestratorContext {
         variables: &HashMap<String, serde_json::Value>,
     ) -> Result<ChatRequest, AppError> {
         let context =
-            load_part_generation_context(self.database.connection(), project_id, None, None)
-                .await?;
+            load_part_generation_context(self.database.executor(), project_id, None, None).await?;
         validate_part_outline_request(part_number, start_chapter, end_chapter)?;
         ensure_continue_part_request(&context.parts, part_number, start_chapter)?;
         ensure_no_part_outline_conflict(

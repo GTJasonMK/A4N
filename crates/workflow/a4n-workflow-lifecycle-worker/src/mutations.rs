@@ -20,7 +20,7 @@ impl WorkerState {
         validate_request(&request, WORKFLOW_LIFECYCLE_MARK_RUNNING_OPERATION)?;
         require_service_principal(&request.principal)?;
         a4n_db::workflow::resume_workflow_run(
-            self.database.connection(),
+            self.database.executor(),
             request.payload.workflow_run_id,
         )
         .await
@@ -38,7 +38,7 @@ impl WorkerState {
             return Err(WorkerFailure::invalid_request("取消原因不能为空"));
         }
         let result = a4n_db::workflow::cancel_workflow_run_persistence(
-            self.database.connection(),
+            self.database.executor(),
             request.payload.workflow_run_id,
             &request.payload.reason,
         )
@@ -63,7 +63,7 @@ impl WorkerState {
             return Err(WorkerFailure::invalid_request("active_task_id 不能为空"));
         }
         a4n_db::workflow::resume_workflow_run_with_active_task(
-            self.database.connection(),
+            self.database.executor(),
             request.payload.workflow_run_id,
             &request.payload.active_task_id,
         )

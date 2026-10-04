@@ -1,5 +1,5 @@
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::prompt_language::{PromptOutputLanguage, metadata_matches_prompt_output_language};
+use a4n_domain::video_prompt as chapter_video_prompt;
 use a4n_error::AppError;
 
 use crate::video::OrchestratorContext;
@@ -15,7 +15,7 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn ensure_video_p
     prompt_output_language: PromptOutputLanguage,
 ) -> Result<(), AppError> {
     let rows = a4n_db::video::chapter_video_prompt_workflow_shot_records(
-        service.database.connection(),
+        service.database.executor(),
         project_id,
         chapter_id,
         workflow_mode.as_str(),
@@ -23,7 +23,7 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn ensure_video_p
         shot_number,
     )
     .await
-    .map_err(AppError::Database)?;
+    .map_err(AppError::from)?;
     for row in rows {
         if !metadata_matches_prompt_output_language(
             row.metadata_json.as_ref(),

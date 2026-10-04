@@ -2,6 +2,7 @@ mod files;
 
 pub use files::*;
 
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use chrono::NaiveDateTime;
@@ -45,7 +46,7 @@ pub struct CreateGeneratedVideoRecordDraftInput {
     pub metadata_json: Option<Value>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GeneratedImageRecord {
     pub id: i64,
     pub project_id: i64,
@@ -64,14 +65,27 @@ pub struct GeneratedImageRecord {
     pub created_at: NaiveDateTime,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MediaProvenanceRecord {
+    pub media_asset_id: i64,
+    pub generation_spec_id: Option<i64>,
+    pub prompt_artifact_id: Option<i64>,
+    pub provider_job_id: Option<String>,
+    pub source_media_asset_id: Option<i64>,
+    pub source_external_path: Option<String>,
+    pub imported_from_user: bool,
+    pub request_snapshot_json: Option<Value>,
+    pub created_at: NaiveDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GeneratedImageReferenceRecord {
     pub id: i64,
     pub image_type: String,
     pub metadata_json: Option<Value>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GeneratedVideoRecord {
     pub id: i64,
     pub project_id: i64,
@@ -176,6 +190,35 @@ pub struct ImagePublicationRecoveryRecord {
     pub status: String,
     pub version: i64,
     pub image_id: Option<i64>,
+}
+
+/// Complete image-publication projection used by orchestration and recovery.
+/// The database adapter owns conversion from the persistence row.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImagePublicationRecord {
+    pub publication_id: String,
+    pub project_id: i64,
+    pub requested_by_user_id: i64,
+    pub staging_path: String,
+    pub final_path: String,
+    pub image_type: String,
+    pub prompt: String,
+    pub model: String,
+    pub width: i32,
+    pub height: i32,
+    pub expected_file_size: i64,
+    pub expected_sha256: String,
+    pub file_size: Option<i64>,
+    pub file_sha256: Option<String>,
+    pub chapter_id: Option<i64>,
+    pub panel_id: Option<String>,
+    pub metadata_json: Option<Value>,
+    pub status: String,
+    pub version: i64,
+    pub image_id: Option<i64>,
+    pub last_error: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 pub const MEDIA_KIND_IMAGE: &str = "image";
@@ -326,7 +369,7 @@ pub struct CreateMediaAssetRecordInput {
     pub provenance: MediaProvenanceRecordInput,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MediaAssetRecord {
     pub id: i64,
     pub project_id: i64,
@@ -348,6 +391,16 @@ pub struct MediaAssetRecord {
     pub error_message: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MediaBindingRecord {
+    pub id: i64,
+    pub media_asset_id: i64,
+    pub target_kind: String,
+    pub target_id: i64,
+    pub role: String,
+    pub created_at: NaiveDateTime,
 }
 
 #[cfg(test)]

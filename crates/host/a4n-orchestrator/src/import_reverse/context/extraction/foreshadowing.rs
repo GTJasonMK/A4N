@@ -1,4 +1,4 @@
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use serde_json::{Value, json};
 
 fn push_foreshadowing_entry(out: &mut Vec<Value>, chapter_number: i32, item: &Value, status: &str) {
@@ -22,7 +22,7 @@ fn push_foreshadowing_entry(out: &mut Vec<Value>, chapter_number: i32, item: &Va
 }
 
 pub(in crate::import_reverse::context) fn collect_analysis_foreshadowing(
-    chapters: &[chapter::Model],
+    chapters: &[ChapterRecord],
     limit: usize,
 ) -> Vec<Value> {
     let mut out = Vec::new();

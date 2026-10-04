@@ -18,8 +18,8 @@ impl ProfileMaterialApplication {
         Self { database }
     }
 
-    fn connection(&self) -> &sea_orm::DatabaseConnection {
-        self.database.connection()
+    fn connection(&self) -> &impl a4n_db::DbExecutor {
+        self.database.executor()
     }
 
     async fn profile_material_list_rows(
@@ -58,7 +58,7 @@ impl ProfileMaterialApplication {
 fn profile_material_db_error(error: ProfileMaterialDbError) -> AppError {
     match error {
         ProfileMaterialDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
-        ProfileMaterialDbError::Database { source, .. } => AppError::Database(source),
+        ProfileMaterialDbError::Database { source, .. } => AppError::database(source),
     }
 }
 

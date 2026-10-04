@@ -6,10 +6,7 @@ use super::{
 use a4n_db_models::models::project::{blueprint_version, novel_blueprint, novel_project};
 use a4n_domain::project::ProjectStatus;
 use chrono::{NaiveDateTime, Utc};
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait,
-    QueryFilter, Set, TransactionTrait,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DbErr, EntityTrait, QueryFilter, Set};
 use serde_json::Value;
 
 mod fields;

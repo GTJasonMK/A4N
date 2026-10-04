@@ -132,7 +132,11 @@ where
         deletion_mark_rewind,
         write_summary,
         target_snapshot_hash: stored_snapshots.target_hash,
-        state_indexes: stored_snapshots.state_indexes,
+        state_indexes: stored_snapshots
+            .state_indexes
+            .into_iter()
+            .map(crate::character::character_state_index_record)
+            .collect(),
     })
 }
 

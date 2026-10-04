@@ -1,4 +1,4 @@
-use a4n_db::{SharedDatabaseConnection, generation::canonical_json_sha256};
+use a4n_db::{DbHandle, generation::canonical_json_sha256};
 use a4n_domain::media::GeneratedVideoRecord;
 use a4n_error::AppError;
 use a4n_provider_contract::VideoProviderConfig;
@@ -159,10 +159,7 @@ struct ProviderCheckpointIdentity {
 }
 
 impl VideoGenerationCheckpointContext {
-    pub(crate) fn new(
-        session: Arc<GenerationTaskSession>,
-        database: SharedDatabaseConnection,
-    ) -> Self {
+    pub(crate) fn new(session: Arc<GenerationTaskSession>, database: DbHandle) -> Self {
         Self {
             session,
             writer: GenerationCheckpointWriter::new(database),
@@ -992,7 +989,7 @@ mod tests {
         assert!(matches!(error, AppError::InvalidState { .. }));
         assert!(
             context
-                .workflow_checkpoint_models(run.id)
+                .workflow_checkpoint_summaries(run.id)
                 .await
                 .expect("应可读取 workflow checkpoints")
                 .is_empty()

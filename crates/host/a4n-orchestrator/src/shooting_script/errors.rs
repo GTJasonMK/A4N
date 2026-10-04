@@ -9,7 +9,7 @@ pub(crate) fn resolve_source_error(error: ResolveChapterSourceError) -> AppError
             operation: "解析章节拍摄剧本来源".to_string(),
         },
         ResolveChapterSourceError::NotFound(message) => AppError::NotFound(message),
-        ResolveChapterSourceError::Database(error) => AppError::Database(error),
+        ResolveChapterSourceError::Database(error) => AppError::database(error),
     }
 }
 
@@ -30,6 +30,6 @@ pub(crate) fn shooting_script_db_error(error: ShootingScriptDbError) -> AppError
             ),
             operation: "更新章节共享拍摄剧本".to_string(),
         },
-        ShootingScriptDbError::Database(error) => AppError::Database(error),
+        ShootingScriptDbError::Database(error) => AppError::database(error),
     }
 }

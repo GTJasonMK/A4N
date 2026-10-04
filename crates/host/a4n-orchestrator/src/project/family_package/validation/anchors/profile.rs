@@ -1,5 +1,4 @@
 use a4n_db::project::family::import::normalize_profile_evidence_role;
-use a4n_db_models::models::project::profile_evidence;
 use std::collections::HashSet;
 
 use super::super::super::ProjectFamilyPackage;
@@ -62,7 +61,7 @@ pub(in super::super) fn validate_profile_evidence_manifest(
 }
 
 fn validate_profile_evidence_profile_id(
-    evidence: &profile_evidence::Model,
+    evidence: &a4n_domain::project::ProjectFamilyProfileEvidenceRecord,
     character_profile_ids: &HashSet<i64>,
     object_profile_ids: &HashSet<i64>,
     scene_profile_ids: &HashSet<i64>,

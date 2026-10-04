@@ -4,7 +4,6 @@ mod prompt;
 mod request;
 mod source_asset;
 
-use a4n_db_models::models::media::{media_asset, media_provenance};
 use a4n_domain::canvas_transfer_runtime_identity_key;
 
 use super::contracts::MediaProvenanceRefContext;
@@ -14,8 +13,8 @@ use request::validate_request_snapshot;
 use source_asset::validate_source_media_asset_ref;
 
 pub(super) fn validate_media_provenance_refs(
-    provenance: &media_provenance::Model,
-    asset: &media_asset::Model,
+    provenance: &a4n_domain::project::ProjectFamilyMediaProvenanceRecord,
+    asset: &a4n_domain::project::ProjectFamilyMediaAssetRecord,
     refs: &MediaProvenanceRefContext<'_>,
 ) -> Result<(), String> {
     if provenance.provider_job_id.is_some() {

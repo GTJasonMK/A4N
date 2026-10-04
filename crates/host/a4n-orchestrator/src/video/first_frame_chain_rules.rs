@@ -1,6 +1,6 @@
 //! 首帧链提示词与尾帧图片匹配规则（无 DB、无 Host）。
 
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt as chapter_video_prompt;
 use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 
 use super::{

@@ -5,10 +5,10 @@ use crate::manga::{
 };
 use a4n_db_models::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
 use a4n_domain::manga::MangaPagePromptRecord;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 pub async fn manga_page_prompts_by_chapter(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_id: i64,
 ) -> Result<Vec<MangaPagePromptRecord>, MangaPromptRecordError> {
@@ -29,7 +29,7 @@ pub async fn manga_page_prompts_by_chapter(
 }
 
 pub async fn manga_page_prompt_statuses_by_chapter(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_id: i64,
 ) -> Result<Vec<(i64, String)>, MangaPromptRecordError> {
@@ -49,7 +49,7 @@ pub async fn manga_page_prompt_statuses_by_chapter(
 }
 
 pub async fn manga_page_prompt_statuses_by_chapters(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_ids: &[i64],
 ) -> Result<Vec<(i64, i64, String)>, MangaPromptRecordError> {
@@ -77,7 +77,7 @@ pub async fn manga_page_prompt_statuses_by_chapters(
 }
 
 pub async fn manga_page_prompt_for_image_generation(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_id: i64,
     page_number: i32,
@@ -97,7 +97,7 @@ pub async fn manga_page_prompt_for_image_generation(
 }
 
 pub async fn manga_page_prompt_by_id(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     prompt_id: i64,
 ) -> Result<Option<MangaPagePromptRecord>, MangaPromptRecordError> {
     require_positive_manga_id(prompt_id, "prompt_id")?;

@@ -1,16 +1,17 @@
 use super::*;
+use sea_orm::ConnectionTrait;
 
 /// Atomically appends the input message and creates the first execution run.
 /// Replaying the same client id returns the original turn/run without adding
 /// another active writer to the thread.
 pub async fn create_turn_with_run(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: AgentTurnInput,
-) -> Result<(turn::Model, run::Model, message::Model), AgentDbError> {
+) -> Result<(AgentTurnRecord, AgentRunRecord, AgentMessageRecord), AgentDbError> {
     let tx = db.begin().await?;
     let rows = create_turn_with_run_on(&tx, input).await?;
     tx.commit().await?;
-    Ok(rows)
+    Ok((rows.0.into(), rows.1.into(), rows.2.into()))
 }
 
 pub(crate) async fn create_turn_with_run_on<C>(
@@ -159,13 +160,13 @@ where
 }
 
 pub async fn append_event(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: AgentEventInput,
-) -> Result<event::Model, AgentDbError> {
+) -> Result<AgentEventRecord, AgentDbError> {
     let tx = db.begin().await?;
     let row = append_event_on(&tx, input).await?;
     tx.commit().await?;
-    Ok(row)
+    Ok(row.into())
 }
 
 pub(crate) async fn append_event_on<C>(
@@ -252,11 +253,11 @@ where
 /// The Thread is locked before the Run, matching turn admission and all
 /// terminal transitions that also refresh the Thread projection.
 pub async fn append_event_for_run_lease(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     run_id: i64,
     lease_token: &str,
     input: AgentEventInput,
-) -> Result<event::Model, AgentDbError> {
+) -> Result<AgentEventRecord, AgentDbError> {
     let identity = run::Entity::find_by_id(run_id)
         .one(db)
         .await?
@@ -282,7 +283,7 @@ pub async fn append_event_for_run_lease(
     validate_live_run_lease(&run_row, lease_token, now())?;
     let row = append_event_on(&tx, input).await?;
     tx.commit().await?;
-    Ok(row)
+    Ok(row.into())
 }
 
 pub async fn events_after<C>(
@@ -290,7 +291,7 @@ pub async fn events_after<C>(
     thread_id: i64,
     after_sequence: i64,
     limit: u64,
-) -> Result<Vec<event::Model>, AgentDbError>
+) -> Result<Vec<AgentEventRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
@@ -301,14 +302,15 @@ where
         .limit(limit)
         .all(db)
         .await
-        .map_err(AgentDbError::Database)
+        .map(|rows| rows.into_iter().map(AgentEventRecord::from).collect())
+        .map_err(AgentDbError::from)
 }
 
 pub async fn latest_events_by_thread<C>(
     db: &C,
     thread_id: i64,
     limit: u64,
-) -> Result<Vec<event::Model>, AgentDbError>
+) -> Result<Vec<AgentEventRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
@@ -318,7 +320,7 @@ where
         .limit(limit)
         .all(db)
         .await
-        .map_err(AgentDbError::Database)?;
+        .map_err(AgentDbError::from)?;
     rows.reverse();
-    Ok(rows)
+    Ok(rows.into_iter().map(AgentEventRecord::from).collect())
 }

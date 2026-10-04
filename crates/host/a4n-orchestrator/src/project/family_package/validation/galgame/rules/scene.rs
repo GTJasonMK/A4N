@@ -1,9 +1,8 @@
-use a4n_db_models::models::galgame::galgame_scene;
 use serde_json::Value;
 use std::collections::HashSet;
 
 pub(in super::super) fn validate_galgame_scene_entry_kind(
-    scene: &galgame_scene::Model,
+    scene: &a4n_domain::project::ProjectFamilyGalgameSceneRecord,
 ) -> Result<(), String> {
     match scene.entry_kind.as_str() {
         "main" | "branch" => Ok(()),

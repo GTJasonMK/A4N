@@ -1,15 +1,13 @@
-use a4n_db_models::models::{
-    character::protagonist_profile,
-    project::{material_fact_change, novel_blueprint},
-};
+use a4n_db_models::models::{character::protagonist_profile, project::material_fact_change};
 use a4n_domain::fact_feedback::{
     FactChangeOperation, FactMaterialChange, FactMaterialKind, FactSourceRevision,
     apply_fact_json_change, world_setting_document,
 };
+use a4n_domain::project::BlueprintRecord;
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseTransaction, EntityTrait, QueryFilter,
-    QueryOrder, QuerySelect, Select, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Select, Set,
 };
 use serde_json::Value;
 
@@ -23,7 +21,7 @@ use super::{
 
 pub async fn world_setting_before_chapter<C: ConnectionTrait>(
     db: &C,
-    blueprint: &novel_blueprint::Model,
+    blueprint: &BlueprintRecord,
     chapter_number: i32,
 ) -> Result<Value, FactFeedbackDbError> {
     let mut world = world_setting_document(blueprint.world_setting.as_ref());
@@ -48,8 +46,8 @@ pub struct FeedbackInvalidation {
     pub foreshadowing_ids: Vec<i64>,
 }
 
-pub async fn invalidate_feedback_sources(
-    db: &DatabaseTransaction,
+pub async fn invalidate_feedback_sources<C: ConnectionTrait>(
+    db: &C,
     project_id: i64,
     from_chapter: i32,
 ) -> Result<FeedbackInvalidation, FactFeedbackDbError> {
@@ -221,8 +219,8 @@ fn undo_value(
     .map_err(FactFeedbackDbError::Invalid)
 }
 
-async fn undo_character(
-    db: &DatabaseTransaction,
+async fn undo_character<C: ConnectionTrait>(
+    db: &C,
     project_id: i64,
     change: &material_fact_change::Model,
 ) -> Result<bool, FactFeedbackDbError> {

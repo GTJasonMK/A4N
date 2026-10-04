@@ -110,7 +110,7 @@ impl AgentApplication {
             }
         }
         a4n_db::agent::save_agent_skill_profile_ids(
-            self.connection(),
+            self.executor(),
             user_id,
             &capability,
             &input.enabled_skill_ids,
@@ -229,7 +229,7 @@ impl AgentApplication {
             .iter()
             .map(|skill| skill.id)
             .collect::<HashSet<_>>();
-        let stored = a4n_db::agent::agent_skill_profile_ids(self.connection(), user_id, capability)
+        let stored = a4n_db::agent::agent_skill_profile_ids(self.executor(), user_id, capability)
             .await
             .map_err(super::agent_db_error_to_app)?;
         let ids =

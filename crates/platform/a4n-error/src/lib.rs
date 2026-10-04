@@ -30,7 +30,7 @@ pub enum AppError {
 
     #[cfg(feature = "database")]
     #[error("数据库错误：{0}")]
-    Database(#[from] sea_orm::DbErr),
+    Database(#[source] anyhow::Error),
 
     #[error("未找到：{0}")]
     NotFound(String),
@@ -75,6 +75,20 @@ pub enum AppError {
 impl From<anyhow::Error> for AppError {
     fn from(error: anyhow::Error) -> Self {
         Self::Internal(error)
+    }
+}
+
+#[cfg(feature = "database")]
+impl AppError {
+    pub fn database(error: impl std::error::Error + Send + Sync + 'static) -> Self {
+        Self::Database(anyhow::Error::new(error))
+    }
+}
+
+#[cfg(feature = "database")]
+impl From<sea_orm::DbErr> for AppError {
+    fn from(error: sea_orm::DbErr) -> Self {
+        Self::database(error)
     }
 }
 

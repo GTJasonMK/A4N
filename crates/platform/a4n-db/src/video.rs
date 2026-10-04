@@ -2,6 +2,7 @@ pub mod prompts;
 pub use prompts::source_sync::with_video_plan_source_sync;
 use sea_orm::{ConnectionTrait, DbErr};
 
+pub use prompts::record_mapping::chapter_video_prompt_model_from_record;
 pub use prompts::records::{
     ChapterVideoPromptCandidateRecord, ChapterVideoPromptTimelineRecord,
     chapter_video_boundary_frame_prompt_candidates,
@@ -25,7 +26,9 @@ pub(crate) use prompts::records::{
 
 mod generated_images;
 mod media_mapping;
-pub(crate) use media_mapping::generated_image_record_from_model;
+pub(crate) use media_mapping::{
+    generated_image_record_from_model, generated_video_record_from_model,
+};
 pub mod read_models;
 pub(crate) use generated_images::validated_video_reference_image_records_batch;
 pub(crate) use generated_images::video_project_record;
@@ -34,21 +37,26 @@ pub use generated_images::{
     VideoProfileRelevanceRow, VideoProjectContextReadModel, VideoProjectIdentity,
     VideoPromptBlueprintCharacterRecord, VideoPromptProtagonistProfileRecord,
     create_generated_image_record, create_image_publication_intent,
-    delete_generated_image_record_with_cleanup, delete_manga_page_image_records,
-    ensure_image_chapter_belongs_to_project_record, ensure_video_chapter_belongs_to_project_record,
-    ensure_video_reference_images_available_record, generated_image_by_id,
-    generated_image_ids_by_ids, generated_images_by_ids, generated_images_for_chapter,
-    generated_images_for_project, generated_images_for_projects,
+    create_image_publication_intent_record, delete_generated_image_record_with_cleanup,
+    delete_manga_page_image_records, ensure_image_chapter_belongs_to_project_record,
+    ensure_video_chapter_belongs_to_project_record, ensure_video_reference_images_available_record,
+    generated_image_by_id, generated_image_ids_by_ids, generated_images_by_ids,
+    generated_images_for_chapter, generated_images_for_project, generated_images_for_projects,
     generated_images_for_projects_chapter_by_id_desc, image_publication_by_id,
-    image_publication_by_image_id, image_publications_for_recovery,
+    image_publication_by_image_id, image_publication_record_by_id,
+    image_publication_record_by_image_id, image_publication_recovery_records,
+    image_publication_recovery_records_for_model, image_publications_for_recovery,
     image_publications_for_recovery_for_model, mark_image_publication_reclaimed,
-    mark_image_publication_reclaiming, publish_image_publication,
+    mark_image_publication_reclaimed_record, mark_image_publication_reclaiming,
+    mark_image_publication_reclaiming_record, publish_image_publication,
     publish_image_publication_with_generation_run_checkpoint, update_generated_image_record,
-    update_image_publication_metadata, validate_image_publication_request,
-    validated_video_reference_image_records, video_asset_project_ids_record, video_chapter_record,
-    video_library_chapter_image_records, video_library_explicit_image_records,
-    video_profile_material_read_model, video_project_context_read_model,
-    video_reference_candidate_image_records, video_tail_frame_images,
+    update_image_publication_metadata, update_image_publication_metadata_record,
+    validate_image_publication_record_request, validate_image_publication_request,
+    validated_video_reference_image_records, video_asset_project_ids_record,
+    video_chapter_domain_record, video_chapter_record, video_library_chapter_image_records,
+    video_library_explicit_image_records, video_profile_material_read_model,
+    video_project_context_read_model, video_reference_candidate_image_records,
+    video_tail_frame_images,
 };
 pub(crate) use generated_images::{
     clear_generated_image_references_record, generated_images_for_chapter_by_id_desc,
@@ -236,7 +244,8 @@ pub(super) fn validate_positive_video_ids(values: &[i64], field: &str) -> Result
 
 mod source_context;
 pub use source_context::{
-    project_and_chapter_for_video_source, source_snapshot_chapter_for_video_source,
+    project_and_chapter_for_video_source, project_and_chapter_for_video_source_records,
+    source_snapshot_chapter_for_video_source,
 };
 
 #[cfg(test)]

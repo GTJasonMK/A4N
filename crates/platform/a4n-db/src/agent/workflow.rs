@@ -1,7 +1,8 @@
 use super::*;
 use a4n_db_models::models::generation::workflow_run;
 use a4n_domain::agent::AgentWorkflowOrigin;
-use sea_orm::{DatabaseBackend, Statement};
+use sea_orm::ConnectionTrait;
+use sea_orm::{DatabaseBackend, FromQueryResult, Statement};
 
 // Only the approved start execution owns a workflow. Reads and waits cannot
 // confer ownership, including after the start receipt is lost.
@@ -9,7 +10,12 @@ const OWNER_JOIN: &str = "FROM agent_run r JOIN agent_execution e ON e.run_id = 
     AND e.tool_name IN ('run_canvas_graph', 'run_canvas_node')
     JOIN workflow_run w ON w.id::text = e.resource_preconditions_json->>'workflow_run_id'";
 
-pub async fn workflow_owner<C: ConnectionTrait>(
+#[derive(Debug, FromQueryResult)]
+struct WorkflowIdRow {
+    id: i64,
+}
+
+pub(super) async fn workflow_owner_model<C: ConnectionTrait>(
     db: &C,
     id: i64,
 ) -> Result<Option<run::Model>, AgentDbError> {
@@ -29,10 +35,19 @@ pub async fn workflow_owner<C: ConnectionTrait>(
     Ok(rows.into_iter().next())
 }
 
+pub async fn workflow_owner<C: ConnectionTrait>(
+    db: &C,
+    id: i64,
+) -> Result<Option<AgentRunRecord>, AgentDbError> {
+    workflow_owner_model(db, id)
+        .await
+        .map(|owner| owner.map(AgentRunRecord::from))
+}
+
 pub async fn active_owned_workflows(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     after_id: i64,
-) -> Result<Vec<workflow_run::Model>, AgentDbError> {
+) -> Result<Vec<i64>, AgentDbError> {
     // `workflow_run` contains json columns, so DISTINCT cannot be applied to
     // its full row on PostgreSQL. EXISTS preserves the owner predicate without
     // multiplying rows when several executions observe the same workflow.
@@ -40,7 +55,7 @@ pub async fn active_owned_workflows(
         .from_raw_sql(Statement::from_sql_and_values(
             DatabaseBackend::Postgres,
             r#"
-            SELECT w.*
+            SELECT w.id
             FROM workflow_run w
             WHERE w.completed_at IS NULL
               AND w.id > $1
@@ -57,13 +72,15 @@ pub async fn active_owned_workflows(
             "#,
             [after_id.into()],
         ))
+        .into_model::<WorkflowIdRow>()
         .all(db)
         .await
+        .map(|rows| rows.into_iter().map(|row| row.id).collect())
         .map_err(AgentDbError::from)
 }
 
 pub async fn bind_owned_workflow(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     origin: &AgentWorkflowOrigin,
     workflow_id: i64,
 ) -> Result<(), AgentDbError> {

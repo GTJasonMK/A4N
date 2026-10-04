@@ -557,7 +557,13 @@ async fn blueprint_source_review_tracks_changes_after_last_blueprint_save() {
     );
 
     let reviewed_at = chapter_changed_at + chrono::Duration::seconds(1);
-    let mut blueprint: novel_blueprint::ActiveModel = saved.blueprint.into();
+    let mut blueprint: novel_blueprint::ActiveModel =
+        novel_blueprint::Entity::find_by_id(saved.blueprint.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap()
+            .into();
     blueprint.updated_at = Set(reviewed_at);
     blueprint.update(&db).await.unwrap();
     assert!(

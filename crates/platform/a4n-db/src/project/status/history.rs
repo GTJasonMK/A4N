@@ -3,8 +3,8 @@ use crate::project::{ProjectCleanupDbError, validate_positive_i64};
 use a4n_db_models::models::project::project_status_history;
 use a4n_domain::project::{ProjectStatus, ProjectStatusHistoryInput, ProjectStatusHistorySummary};
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter,
-    QueryOrder, QuerySelect, Set,
+    ColumnTrait, ConnectionTrait, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
+    QuerySelect, Set,
 };
 
 #[derive(Debug, FromQueryResult)]
@@ -60,7 +60,7 @@ where
 }
 
 pub async fn project_status_history(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<Vec<ProjectStatusHistorySummary>, ProjectStatusReadError> {
     validate_positive_i64(project_id, "project_id")

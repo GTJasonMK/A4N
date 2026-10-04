@@ -1,6 +1,7 @@
 pub(super) mod store;
 use super::CharacterDbError;
 use a4n_db_models::models::character::snapshot_reference;
+use a4n_domain::character::CharacterSnapshotReferenceRecord;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect, Set,
@@ -81,6 +82,24 @@ where
         .await
 }
 
+pub async fn snapshot_references_by_profile_records<C>(
+    db: &C,
+    profile_id: i64,
+    start_chapter: Option<i32>,
+    end_chapter: Option<i32>,
+) -> Result<Vec<CharacterSnapshotReferenceRecord>, DbErr>
+where
+    C: ConnectionTrait,
+{
+    snapshot_references_by_profile(db, profile_id, start_chapter, end_chapter)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(crate::character::character_snapshot_reference_record)
+                .collect()
+        })
+}
+
 pub async fn snapshot_reference_by_chapter<C>(
     db: &C,
     profile_id: i64,
@@ -94,6 +113,19 @@ where
         .filter(snapshot_reference::Column::ChapterNumber.eq(chapter_number))
         .one(db)
         .await
+}
+
+pub async fn snapshot_reference_record_by_chapter<C>(
+    db: &C,
+    profile_id: i64,
+    chapter_number: i32,
+) -> Result<Option<CharacterSnapshotReferenceRecord>, DbErr>
+where
+    C: ConnectionTrait,
+{
+    snapshot_reference_by_chapter(db, profile_id, chapter_number)
+        .await
+        .map(|row| row.map(crate::character::character_snapshot_reference_record))
 }
 
 pub(super) async fn upsert_snapshot_reference<C>(

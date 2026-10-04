@@ -11,14 +11,11 @@ use a4n_db_models::models::{
 };
 use a4n_domain::profile_ownership::PROFILE_OWNERSHIP_USER;
 use a4n_domain::source_text_hash;
-use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect,
-};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use std::collections::HashMap;
 
 pub async fn object_profiles_before_chapter(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_number: i32,
 ) -> Result<Vec<ChapterObjectProfileContext>, ProjectChapterContextError> {
@@ -52,14 +49,16 @@ pub async fn object_profiles_before_chapter(
                 fact_state,
             });
         } else if profile.ownership_kind == PROFILE_OWNERSHIP_USER {
-            result.push(ChapterObjectProfileContext::Authored(profile));
+            result.push(ChapterObjectProfileContext::Authored(
+                crate::asset::object_profile_record(profile),
+            ));
         }
     }
     Ok(result)
 }
 
 pub async fn scene_profiles_before_chapter(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_number: i32,
 ) -> Result<Vec<ChapterSceneProfileContext>, ProjectChapterContextError> {
@@ -97,18 +96,20 @@ pub async fn scene_profiles_before_chapter(
             result.push(ChapterSceneProfileContext::Observed {
                 profile_id: profile.id,
                 name: profile.name,
-                occurrence,
+                occurrence: scene_occurrence_record(occurrence),
                 fact_state,
             });
         } else if profile.ownership_kind == PROFILE_OWNERSHIP_USER {
-            result.push(ChapterSceneProfileContext::Authored(profile));
+            result.push(ChapterSceneProfileContext::Authored(
+                crate::scene_profile::scene_profile_record(profile),
+            ));
         }
     }
     Ok(result)
 }
 
 async fn object_evidence_before_chapter(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     chapter_number: i32,
     profile_ids: &[i64],
@@ -189,10 +190,17 @@ async fn object_evidence_before_chapter(
 }
 
 pub async fn protagonist_profiles_for_project(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
-) -> Result<Vec<protagonist_profile::Model>, ProjectChapterContextError> {
-    protagonist_profiles_for_project_in(db, project_id).await
+) -> Result<Vec<a4n_domain::character::CharacterProfileRecord>, ProjectChapterContextError> {
+    protagonist_profiles_for_project_in(db, project_id)
+        .await
+        .map(|profiles| {
+            profiles
+                .into_iter()
+                .map(crate::character::character_profile_record)
+                .collect()
+        })
 }
 
 pub async fn protagonist_profiles_for_project_in<C>(
@@ -211,11 +219,11 @@ where
 }
 
 pub async fn character_states_for_profiles_before_chapter(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     profile_ids: &[i64],
     chapter_number: i32,
     limit: u64,
-) -> Result<Vec<character_state_index::Model>, ProjectChapterContextError> {
+) -> Result<Vec<a4n_domain::character::CharacterStateIndexRecord>, ProjectChapterContextError> {
     if profile_ids.is_empty() {
         return Ok(Vec::new());
     }
@@ -226,5 +234,47 @@ pub async fn character_states_for_profiles_before_chapter(
         .limit(limit)
         .all(db)
         .await
+        .map(|states| {
+            states
+                .into_iter()
+                .map(|state| a4n_domain::character::CharacterStateIndexRecord {
+                    id: state.id,
+                    profile_id: state.profile_id,
+                    chapter_number: state.chapter_number,
+                    state_summary: state.state_summary,
+                    key_attributes: state.key_attributes,
+                    emotional_state: state.emotional_state,
+                    current_location: state.current_location,
+                    current_goal: state.current_goal,
+                    created_at: state.created_at,
+                })
+                .collect()
+        })
         .map_err(ProjectChapterContextError::Database)
+}
+
+fn scene_occurrence_record(
+    occurrence: scene_occurrence::Model,
+) -> a4n_domain::scene_profile::SceneOccurrenceRecord {
+    a4n_domain::scene_profile::SceneOccurrenceRecord {
+        id: occurrence.id,
+        project_id: occurrence.project_id,
+        scene_profile_id: occurrence.scene_profile_id,
+        chapter_id: occurrence.chapter_id,
+        chapter_number: occurrence.chapter_number,
+        occurrence_order: occurrence.occurrence_order,
+        timeline_position: occurrence.timeline_position,
+        summary: occurrence.summary,
+        mood: occurrence.mood,
+        weather_or_lighting: occurrence.weather_or_lighting,
+        source_span_ids_json: occurrence.source_span_ids_json,
+        evidence_json: occurrence.evidence_json,
+        characters_json: occurrence.characters_json,
+        objects_json: occurrence.objects_json,
+        key_events_json: occurrence.key_events_json,
+        entry_state_json: occurrence.entry_state_json,
+        exit_state_json: occurrence.exit_state_json,
+        created_at: occurrence.created_at,
+        updated_at: occurrence.updated_at,
+    }
 }

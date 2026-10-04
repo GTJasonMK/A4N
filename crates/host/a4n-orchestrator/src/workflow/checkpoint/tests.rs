@@ -4,14 +4,12 @@ use super::contracts::{
     required_checkpoint_field, required_checkpoint_json,
 };
 use super::persistence::completed_workflow_checkpoint_upsert_input;
-use a4n_db_models::models::generation::workflow_checkpoint;
+use a4n_domain::workflow::WorkflowCheckpointSummary;
 use a4n_llm_provider_contract::provider::{ChatRequest, LlmTraceContext};
-use chrono::Utc;
 use serde_json::{Value, json};
 
-fn checkpoint(checkpoint_json: Option<Value>) -> workflow_checkpoint::Model {
-    let now = Utc::now().naive_utc();
-    workflow_checkpoint::Model {
+fn checkpoint(checkpoint_json: Option<Value>) -> WorkflowCheckpointSummary {
+    WorkflowCheckpointSummary {
         id: 1,
         workflow_run_id: 7,
         step_key: "chapter.sync".to_string(),
@@ -23,9 +21,9 @@ fn checkpoint(checkpoint_json: Option<Value>) -> workflow_checkpoint::Model {
         artifacts_json: None,
         generation_run_ids_json: None,
         error_message: None,
-        created_at: now,
-        updated_at: now,
-        completed_at: Some(now),
+        created_at: "2026-01-01T00:00:00Z".to_string(),
+        updated_at: "2026-01-01T00:00:00Z".to_string(),
+        completed_at: Some("2026-01-01T00:00:00Z".to_string()),
     }
 }
 

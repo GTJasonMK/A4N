@@ -58,7 +58,7 @@ where
     }
     .insert(db)
     .await
-    .map_err(AppError::Database)
+    .map_err(AppError::from)
 }
 
 pub async fn finish_model_usage_record<C>(
@@ -77,7 +77,7 @@ where
     let record = model_usage_record::Entity::find_by_id(record_id)
         .one(db)
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .ok_or_else(|| AppError::NotFound(format!("模型成本记录不存在: {record_id}")))?;
     let capability = parse_capability(&record.capability)?;
     let pricing: PricingPlan = serde_json::from_value(record.pricing_snapshot_json.clone())
@@ -94,7 +94,7 @@ where
     active.error_kind = Set(normalize_optional(input.error_kind));
     active.error_message = Set(normalize_optional(input.error_message));
     active.completed_at = Set(Some(Utc::now().naive_utc()));
-    active.update(db).await.map_err(AppError::Database)?;
+    active.update(db).await.map_err(AppError::from)?;
     Ok(())
 }
 
@@ -154,7 +154,21 @@ where
         .into_model::<ModelUsageSummaryRecord>()
         .all(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
+}
+
+/// Persist a usage record and return only the stable identifier needed by the
+/// provider runtime. The ORM row remains private to this adapter.
+pub async fn start_model_usage_record_id<C>(
+    db: &C,
+    input: ModelUsageRecordStart,
+) -> Result<i64, AppError>
+where
+    C: ConnectionTrait,
+{
+    start_model_usage_record(db, input)
+        .await
+        .map(|record| record.id)
 }
 
 #[derive(Debug, FromQueryResult)]
@@ -194,7 +208,7 @@ where
     model_usage_record::Entity::find_by_id(id)
         .one(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
 }
 
 #[derive(Debug, FromQueryResult)]
@@ -263,7 +277,7 @@ where
         .into_model::<ModelUsageAggregate>()
         .all(db)
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
 }
 
 fn validate_start(input: &ModelUsageRecordStart) -> Result<(), AppError> {

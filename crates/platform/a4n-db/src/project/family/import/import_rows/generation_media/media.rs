@@ -8,7 +8,7 @@ use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, Set};
 
 use crate::project::family::import::{
-    ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage,
+    DatabaseProjectFamilyImportPackage, ImportIdMaps, ProjectFamilyImportError,
     ProjectFamilyMediaFileImporter, map_optional, map_required,
     media_asset_status_for_import_insert, remap_media_request_snapshot,
     remap_media_source_external_path,
@@ -16,7 +16,7 @@ use crate::project::family::import::{
 
 pub(in crate::project::family::import::import_rows) async fn insert_media_rows<Importer>(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
     media_importer: &mut Importer,
 ) -> Result<(), ProjectFamilyImportError>
@@ -218,7 +218,7 @@ where
 
 pub(in crate::project::family::import::import_rows) async fn insert_media_provenance_rows(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     let inserts = package

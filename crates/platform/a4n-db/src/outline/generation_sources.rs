@@ -6,12 +6,19 @@ use a4n_db_models::models::{
     project::{blueprint_character, blueprint_relationship, novel_blueprint, novel_project},
     scene::scene_profile,
 };
-use a4n_domain::chapter::{ChapterOutlineRecord, PartOutlineRecord};
-use a4n_domain::project::ProjectRecord;
+use a4n_domain::chapter::{
+    ChapterOutlineProvenanceRecord, ChapterOutlineRecord, ChapterRecord, PartOutlineRecord,
+};
+use a4n_domain::character::{CharacterProfileRecord, ForeshadowingIndexRecord};
+use a4n_domain::object_profile::ObjectProfileRecord;
+use a4n_domain::project::{
+    BlueprintCharacterRecord, BlueprintRecord, BlueprintRelationshipRecord, ProjectRecord,
+};
+use a4n_domain::scene_profile::SceneProfileRecord;
 use a4n_domain::source_text_hash;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, DatabaseTransaction, DbBackend, DbErr,
-    EntityTrait, QueryFilter, QueryOrder, QuerySelect, Select, Statement, TransactionTrait,
+    ColumnTrait, ConnectionTrait, DbBackend, DbErr, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Select, Statement,
 };
 use serde_json::{Value, json};
 
@@ -21,17 +28,17 @@ pub const OUTLINE_GENERATION_SOURCE_CHANGED: &str = "outline_generation_source_c
 
 pub struct OutlineGenerationSourceRows {
     pub project: ProjectRecord,
-    pub chapters: Vec<chapter::Model>,
-    pub blueprint: Option<novel_blueprint::Model>,
-    pub blueprint_characters: Vec<blueprint_character::Model>,
-    pub blueprint_relationships: Vec<blueprint_relationship::Model>,
-    pub character_profiles: Vec<protagonist_profile::Model>,
-    pub objects: Vec<object_profile::Model>,
-    pub scenes: Vec<scene_profile::Model>,
-    pub foreshadowing: Vec<foreshadowing_index::Model>,
+    pub chapters: Vec<ChapterRecord>,
+    pub blueprint: Option<BlueprintRecord>,
+    pub blueprint_characters: Vec<BlueprintCharacterRecord>,
+    pub blueprint_relationships: Vec<BlueprintRelationshipRecord>,
+    pub character_profiles: Vec<CharacterProfileRecord>,
+    pub objects: Vec<ObjectProfileRecord>,
+    pub scenes: Vec<SceneProfileRecord>,
+    pub foreshadowing: Vec<ForeshadowingIndexRecord>,
     pub parts: Vec<PartOutlineRecord>,
     pub chapter_outlines: Vec<ChapterOutlineRecord>,
-    pub chapter_outline_provenance: Vec<chapter_outline_provenance::Model>,
+    pub chapter_outline_provenance: Vec<ChapterOutlineProvenanceRecord>,
 }
 
 pub async fn load_outline_generation_source_rows<C>(
@@ -54,13 +61,15 @@ where
     load_outline_generation_source_rows_with_lock(db, project_id, true).await
 }
 
-pub async fn lock_outline_generation_sources(
-    db: &DatabaseConnection,
+pub async fn lock_outline_generation_sources<C>(
+    db: &C,
     project_id: i64,
     expected_source_snapshot: &Value,
-) -> Result<DatabaseTransaction, OutlineDbError> {
-    let tx = db.begin().await?;
-    let rows = load_outline_generation_source_rows_for_update(&tx, project_id)
+) -> Result<(), OutlineDbError>
+where
+    C: ConnectionTrait,
+{
+    let rows = load_outline_generation_source_rows_for_update(db, project_id)
         .await?
         .ok_or_else(outline_generation_source_changed)?;
     if rows.project.lifecycle_gate != crate::generation::PROJECT_GATE_ACTIVE {
@@ -72,7 +81,7 @@ pub async fn lock_outline_generation_sources(
     if expected_source_snapshot != &outline_generation_source_snapshot(&rows) {
         return Err(outline_generation_source_changed());
     }
-    Ok(tx)
+    Ok(())
 }
 
 pub fn outline_generation_source_snapshot(rows: &OutlineGenerationSourceRows) -> Value {
@@ -207,14 +216,35 @@ where
         };
         return Ok(Some(OutlineGenerationSourceRows {
             project,
-            chapters,
-            blueprint,
-            blueprint_characters,
-            blueprint_relationships,
-            character_profiles,
-            objects,
-            scenes,
-            foreshadowing,
+            chapters: chapters
+                .into_iter()
+                .map(crate::project::chapter_record)
+                .collect(),
+            blueprint: blueprint.map(crate::project::blueprint_record),
+            blueprint_characters: blueprint_characters
+                .into_iter()
+                .map(crate::project::blueprint_character_record)
+                .collect(),
+            blueprint_relationships: blueprint_relationships
+                .into_iter()
+                .map(crate::project::blueprint_relationship_record)
+                .collect(),
+            character_profiles: character_profiles
+                .into_iter()
+                .map(crate::character::character_profile_record)
+                .collect(),
+            objects: objects
+                .into_iter()
+                .map(crate::asset::object_profile_record)
+                .collect(),
+            scenes: scenes
+                .into_iter()
+                .map(crate::scene_profile::scene_profile_record)
+                .collect(),
+            foreshadowing: foreshadowing
+                .into_iter()
+                .map(foreshadowing_index_record)
+                .collect(),
             parts: parts
                 .into_iter()
                 .map(part_outline_record_from_model)
@@ -223,7 +253,10 @@ where
                 .into_iter()
                 .map(chapter_outline_record_from_model)
                 .collect(),
-            chapter_outline_provenance,
+            chapter_outline_provenance: chapter_outline_provenance
+                .into_iter()
+                .map(chapter_outline_provenance_record)
+                .collect(),
         }));
     }
     let chapters = maybe_lock(
@@ -339,14 +372,35 @@ where
 
     Ok(Some(OutlineGenerationSourceRows {
         project,
-        chapters,
-        blueprint,
-        blueprint_characters,
-        blueprint_relationships,
-        character_profiles,
-        objects,
-        scenes,
-        foreshadowing,
+        chapters: chapters
+            .into_iter()
+            .map(crate::project::chapter_record)
+            .collect(),
+        blueprint: blueprint.map(crate::project::blueprint_record),
+        blueprint_characters: blueprint_characters
+            .into_iter()
+            .map(crate::project::blueprint_character_record)
+            .collect(),
+        blueprint_relationships: blueprint_relationships
+            .into_iter()
+            .map(crate::project::blueprint_relationship_record)
+            .collect(),
+        character_profiles: character_profiles
+            .into_iter()
+            .map(crate::character::character_profile_record)
+            .collect(),
+        objects: objects
+            .into_iter()
+            .map(crate::asset::object_profile_record)
+            .collect(),
+        scenes: scenes
+            .into_iter()
+            .map(crate::scene_profile::scene_profile_record)
+            .collect(),
+        foreshadowing: foreshadowing
+            .into_iter()
+            .map(foreshadowing_index_record)
+            .collect(),
         parts: parts
             .into_iter()
             .map(part_outline_record_from_model)
@@ -355,7 +409,10 @@ where
             .into_iter()
             .map(chapter_outline_record_from_model)
             .collect(),
-        chapter_outline_provenance,
+        chapter_outline_provenance: chapter_outline_provenance
+            .into_iter()
+            .map(chapter_outline_provenance_record)
+            .collect(),
     }))
 }
 
@@ -408,7 +465,7 @@ fn outline_generation_source_changed() -> OutlineDbError {
     }
 }
 
-fn chapter_source_snapshot(chapter: &chapter::Model) -> Value {
+fn chapter_source_snapshot(chapter: &ChapterRecord) -> Value {
     json!({
         "id": chapter.id,
         "project_id": chapter.project_id,
@@ -424,4 +481,31 @@ fn chapter_source_snapshot(chapter: &chapter::Model) -> Value {
         "created_at": chapter.created_at,
         "updated_at": chapter.updated_at,
     })
+}
+
+fn foreshadowing_index_record(model: foreshadowing_index::Model) -> ForeshadowingIndexRecord {
+    ForeshadowingIndexRecord {
+        id: model.id,
+        project_id: model.project_id,
+        description: model.description,
+        setup_chapter: model.setup_chapter,
+        payoff_chapter: model.payoff_chapter,
+        status: model.status,
+        related_characters: model.related_characters,
+        importance: model.importance,
+        created_at: model.created_at,
+        updated_at: model.updated_at,
+    }
+}
+
+fn chapter_outline_provenance_record(
+    model: chapter_outline_provenance::Model,
+) -> ChapterOutlineProvenanceRecord {
+    ChapterOutlineProvenanceRecord {
+        outline_id: model.outline_id,
+        source_kind: model.source_kind,
+        source_fingerprint_json: model.source_fingerprint_json,
+        created_at: model.created_at,
+        updated_at: model.updated_at,
+    }
 }

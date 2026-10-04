@@ -1,4 +1,3 @@
-use a4n_db_models::models::project::{project_source_snapshot, source_snapshot_chapter};
 use std::collections::{HashMap, HashSet};
 
 use crate::project::{
@@ -9,9 +8,12 @@ use crate::project::{
 use super::super::manifest::SourceSnapshotManifestInfo;
 
 pub(super) fn validate_snapshot_chapter_hashes(
-    snapshot: &project_source_snapshot::Model,
+    snapshot: &a4n_domain::project::ProjectFamilySourceSnapshotRecord,
     info: SourceSnapshotManifestInfo,
-    chapters_by_number: &HashMap<i32, &source_snapshot_chapter::Model>,
+    chapters_by_number: &HashMap<
+        i32,
+        &a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord,
+    >,
 ) -> Result<(), String> {
     let rows = snapshot.chapter_hashes_json.as_array().ok_or_else(|| {
         format!(

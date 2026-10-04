@@ -1,5 +1,5 @@
 use a4n_db::rag::RagForeshadowingRow;
-use a4n_db_models::models::character::attribute_event;
+use a4n_domain::character::CharacterAttributeEventRecord;
 use a4n_rag_core::RagRecord;
 
 use super::{
@@ -12,7 +12,7 @@ impl OrchestratorContext {
     pub(crate) async fn sync_character_attribute_event_rag(
         &self,
         project_id: i64,
-        event: &attribute_event::Model,
+        event: &CharacterAttributeEventRecord,
         character_name: &str,
     ) -> Result<(), String> {
         let record = character_attribute_event_rag_record(project_id, event, character_name)?;

@@ -6,10 +6,7 @@ use a4n_db_models::models::{
 };
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
-use sea_orm::{
-    ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QuerySelect,
-};
+use sea_orm::{ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashMap;
 
 pub(in crate::collaboration) fn accessible_member_condition(root_ids: &[i64]) -> Condition {
@@ -23,7 +20,7 @@ pub(in crate::collaboration) fn accessible_member_condition(root_ids: &[i64]) ->
 }
 
 pub(in crate::collaboration) async fn member_root_ids(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
 ) -> Result<Vec<i64>, CollaborationDbError> {
     let members = project_member::Entity::find()
@@ -108,7 +105,7 @@ where
 }
 
 pub(in crate::collaboration) async fn pending_invite_counts_by_root(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     root_ids: &[i64],
 ) -> Result<HashMap<i64, u64>, CollaborationDbError> {
     if root_ids.is_empty() {

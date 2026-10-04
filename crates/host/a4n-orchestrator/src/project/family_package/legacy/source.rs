@@ -1,7 +1,3 @@
-use a4n_db_models::models::project::{
-    project_source_snapshot, source_snapshot_chapter, source_snapshot_outline,
-    source_snapshot_profile, text_anchor,
-};
 use serde_json::{Value, json};
 
 use super::{ProjectFamilyPackage, error, next_id};
@@ -17,7 +13,7 @@ pub(super) fn source_for(
     snapshot_chapter: Option<i64>,
     content_hash: &str,
     next: &mut i64,
-) -> Result<source_snapshot_chapter::Model, String> {
+) -> Result<a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord, String> {
     match (snapshot, snapshot_chapter) {
         (Some(snapshot), Some(id)) => {
             let source = package
@@ -45,7 +41,7 @@ fn freeze_source(
     chapter_id: i64,
     content_hash: &str,
     next: &mut i64,
-) -> Result<source_snapshot_chapter::Model, String> {
+) -> Result<a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord, String> {
     let chapter = package
         .text_core
         .chapters
@@ -119,7 +115,7 @@ fn freeze_source(
         .iter()
         .map(|(kind, id, value)| Ok(json!({"kind": kind, "id": id, "hash": hash(value)?})))
         .collect::<Result<Vec<_>, String>>()?;
-    let source = source_snapshot_chapter::Model {
+    let source = a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord {
         id: next_id(next)?,
         snapshot_id,
         root_project_id: package.root_project_id,
@@ -132,7 +128,7 @@ fn freeze_source(
         content_hash: content_hash.into(),
         analysis_hash: chapter.analysis_data.as_ref().map(hash).transpose()?,
     };
-    let mut snapshot = project_source_snapshot::Model {
+    let mut snapshot = a4n_domain::project::ProjectFamilySourceSnapshotRecord {
         id: snapshot_id,
         root_project_id: package.root_project_id,
         source_version_hash: String::new(),
@@ -149,9 +145,8 @@ fn freeze_source(
     };
     snapshot.source_version_hash = snapshot_hash(&snapshot)?;
     for (kind, id, value) in profiles {
-        package
-            .source_snapshot_profiles
-            .push(source_snapshot_profile::Model {
+        package.source_snapshot_profiles.push(
+            a4n_domain::project::ProjectFamilySourceSnapshotProfileRecord {
                 id: next_id(next)?,
                 snapshot_id,
                 root_project_id: package.root_project_id,
@@ -159,7 +154,8 @@ fn freeze_source(
                 source_profile_id: id,
                 payload_hash: hash(&value)?,
                 payload_json: value,
-            });
+            },
+        );
     }
     let outlines = package
         .text_core
@@ -179,9 +175,8 @@ fn freeze_source(
         )
         .collect::<Result<Vec<_>, String>>()?;
     for (kind, id, value) in outlines {
-        package
-            .source_snapshot_outlines
-            .push(source_snapshot_outline::Model {
+        package.source_snapshot_outlines.push(
+            a4n_domain::project::ProjectFamilySourceSnapshotOutlineRecord {
                 id: next_id(next)?,
                 snapshot_id,
                 root_project_id: package.root_project_id,
@@ -189,29 +184,32 @@ fn freeze_source(
                 outline_kind: kind.into(),
                 payload_hash: hash(&value)?,
                 payload_json: value,
-            });
+            },
+        );
     }
     for span in a4n_domain::source_spans::source_spans_for_content(
         chapter.id,
         chapter.chapter_number,
         &chapter.content,
     ) {
-        package.text_anchors.push(text_anchor::Model {
-            id: next_id(next)?,
-            project_id: package.root_project_id,
-            source_chapter_id: Some(chapter.id),
-            source_snapshot_id: Some(snapshot_id),
-            source_snapshot_chapter_id: Some(source.id),
-            source_kind: "chapter_content".into(),
-            source_id: source.id,
-            paragraph_index: i32::try_from(span.sentence_index).map_err(error)?,
-            start_offset: i32::try_from(span.char_start).map_err(error)?,
-            end_offset: i32::try_from(span.char_end).map_err(error)?,
-            quote_hash: a4n_domain::source_text_hash(&span.text),
-            quote: span.text,
-            source_version_hash: source.content_hash.clone(),
-            created_at: now,
-        });
+        package
+            .text_anchors
+            .push(a4n_domain::project::ProjectFamilyTextAnchorRecord {
+                id: next_id(next)?,
+                project_id: package.root_project_id,
+                source_chapter_id: Some(chapter.id),
+                source_snapshot_id: Some(snapshot_id),
+                source_snapshot_chapter_id: Some(source.id),
+                source_kind: "chapter_content".into(),
+                source_id: source.id,
+                paragraph_index: i32::try_from(span.sentence_index).map_err(error)?,
+                start_offset: i32::try_from(span.char_start).map_err(error)?,
+                end_offset: i32::try_from(span.char_end).map_err(error)?,
+                quote_hash: a4n_domain::source_text_hash(&span.text),
+                quote: span.text,
+                source_version_hash: source.content_hash.clone(),
+                created_at: now,
+            });
     }
     super::receipt(
         package,
@@ -293,12 +291,14 @@ pub(super) fn historical_project(
     Ok(id)
 }
 
-fn chapter_hash(source: &source_snapshot_chapter::Model) -> Value {
+fn chapter_hash(source: &a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord) -> Value {
     json!({"source_chapter_id": source.source_chapter_id, "chapter_number": source.chapter_number,
         "content_hash": source.content_hash, "analysis_hash": source.analysis_hash})
 }
 
-fn snapshot_hash(snapshot: &project_source_snapshot::Model) -> Result<String, String> {
+fn snapshot_hash(
+    snapshot: &a4n_domain::project::ProjectFamilySourceSnapshotRecord,
+) -> Result<String, String> {
     hash(
         &json!({"root_project_id": snapshot.root_project_id, "chapter_scope": snapshot.chapter_scope_json,
         "chapter_hashes": snapshot.chapter_hashes_json, "profile_hashes": snapshot.profile_hashes_json,

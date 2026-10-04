@@ -35,9 +35,9 @@ impl RagApplication {
         &self,
         project_id: i64,
     ) -> Result<Vec<ChapterRecord>, AppError> {
-        a4n_db::rag::chapters_for_rag_ingest(self.database.connection(), project_id)
+        a4n_db::rag::chapters_for_rag_ingest(self.database.executor(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn chapter_for_rag_ingest(
@@ -45,81 +45,81 @@ impl RagApplication {
         project_id: i64,
         chapter_id: i64,
     ) -> Result<Option<ChapterRecord>, AppError> {
-        a4n_db::rag::chapter_for_rag_ingest(self.database.connection(), project_id, chapter_id)
+        a4n_db::rag::chapter_for_rag_ingest(self.database.executor(), project_id, chapter_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn chapter_outlines_for_rag_ingest(
         &self,
         project_id: i64,
     ) -> Result<Vec<a4n_db::rag::RagChapterOutlineRow>, AppError> {
-        a4n_db::rag::chapter_outlines_for_rag_ingest(self.database.connection(), project_id)
+        a4n_db::rag::chapter_outlines_for_rag_ingest(self.database.executor(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn part_outlines_for_rag_ingest(
         &self,
         project_id: i64,
     ) -> Result<Vec<PartOutlineRecord>, AppError> {
-        a4n_db::rag::part_outlines_for_rag_ingest(self.database.connection(), project_id)
+        a4n_db::rag::part_outlines_for_rag_ingest(self.database.executor(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn novel_blueprints_for_rag_ingest(
         &self,
         project_id: i64,
     ) -> Result<Vec<BlueprintRecord>, AppError> {
-        a4n_db::rag::novel_blueprints_for_rag_ingest(self.database.connection(), project_id)
+        a4n_db::rag::novel_blueprints_for_rag_ingest(self.database.executor(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn blueprint_characters_for_rag_search(
         &self,
         project_id: i64,
     ) -> Result<Vec<String>, AppError> {
-        a4n_db::rag::blueprint_characters_for_rag_search(self.database.connection(), project_id)
+        a4n_db::rag::blueprint_characters_for_rag_search(self.database.executor(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn blueprint_characters_for_rag_ingest(
         &self,
         project_id: i64,
     ) -> Result<Vec<RagBlueprintCharacterRow>, AppError> {
-        a4n_db::rag::blueprint_characters_for_rag_ingest(self.database.connection(), project_id)
+        a4n_db::rag::blueprint_characters_for_rag_ingest(self.database.executor(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn blueprint_relationships_for_rag_ingest(
         &self,
         project_id: i64,
     ) -> Result<Vec<RagBlueprintRelationshipRow>, AppError> {
-        a4n_db::rag::blueprint_relationships_for_rag_ingest(self.database.connection(), project_id)
+        a4n_db::rag::blueprint_relationships_for_rag_ingest(self.database.executor(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn protagonist_profiles_for_rag_ingest(
         &self,
         project_id: i64,
     ) -> Result<Vec<RagProtagonistProfileRow>, AppError> {
-        a4n_db::rag::protagonist_profiles_for_rag_ingest(self.database.connection(), project_id)
+        a4n_db::rag::protagonist_profiles_for_rag_ingest(self.database.executor(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn character_states_for_rag_ingest(
         &self,
         profile_ids: &[i64],
     ) -> Result<Vec<RagCharacterStateRow>, AppError> {
-        a4n_db::rag::character_states_for_rag_ingest(self.database.connection(), profile_ids)
+        a4n_db::rag::character_states_for_rag_ingest(self.database.executor(), profile_ids)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn character_states_for_rag_ingest_before_chapter(
@@ -128,21 +128,21 @@ impl RagApplication {
         chapter_number: i32,
     ) -> Result<Vec<RagCharacterStateRow>, AppError> {
         a4n_db::rag::character_states_for_rag_ingest_before_chapter(
-            self.database.connection(),
+            self.database.executor(),
             profile_ids,
             chapter_number,
         )
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
     }
 
     async fn attribute_events_for_rag_ingest(
         &self,
         profile_ids: &[i64],
     ) -> Result<Vec<RagAttributeEventRow>, AppError> {
-        a4n_db::rag::attribute_events_for_rag_ingest(self.database.connection(), profile_ids)
+        a4n_db::rag::attribute_events_for_rag_ingest(self.database.executor(), profile_ids)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn attribute_events_for_rag_ingest_before_chapter(
@@ -151,39 +151,39 @@ impl RagApplication {
         chapter_number: i32,
     ) -> Result<Vec<RagAttributeEventRow>, AppError> {
         a4n_db::rag::attribute_events_for_rag_ingest_before_chapter(
-            self.database.connection(),
+            self.database.executor(),
             profile_ids,
             chapter_number,
         )
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
     }
 
     async fn scene_profiles_for_rag_ingest(
         &self,
         project_id: i64,
     ) -> Result<Vec<a4n_db::rag::RagSceneProfileRow>, AppError> {
-        a4n_db::rag::scene_profiles_for_rag_ingest(self.database.connection(), project_id)
+        a4n_db::rag::scene_profiles_for_rag_ingest(self.database.executor(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn scene_occurrences_for_rag_ingest(
         &self,
         project_id: i64,
     ) -> Result<Vec<a4n_db::rag::RagSceneOccurrenceRow>, AppError> {
-        a4n_db::rag::scene_occurrences_for_rag_ingest(self.database.connection(), project_id)
+        a4n_db::rag::scene_occurrences_for_rag_ingest(self.database.executor(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn scene_transitions_for_rag_ingest(
         &self,
         project_id: i64,
     ) -> Result<Vec<a4n_db::rag::RagSceneTransitionRow>, AppError> {
-        a4n_db::rag::scene_transitions_for_rag_ingest(self.database.connection(), project_id)
+        a4n_db::rag::scene_transitions_for_rag_ingest(self.database.executor(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn foreshadowing_items_by_ids(
@@ -192,21 +192,21 @@ impl RagApplication {
         foreshadowing_ids: &[i64],
     ) -> Result<Vec<RagForeshadowingRow>, AppError> {
         a4n_db::rag::foreshadowing_items_by_ids(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             foreshadowing_ids,
         )
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
     }
 
     async fn foreshadowing_items_for_rag_ingest(
         &self,
         project_id: i64,
     ) -> Result<Vec<a4n_db::rag::RagForeshadowingRow>, AppError> {
-        a4n_db::rag::foreshadowing_items_for_rag_ingest(self.database.connection(), project_id)
+        a4n_db::rag::foreshadowing_items_for_rag_ingest(self.database.executor(), project_id)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::from)
     }
 
     async fn pending_foreshadowing_before_chapter(
@@ -216,13 +216,13 @@ impl RagApplication {
         limit: u64,
     ) -> Result<Vec<RagForeshadowingRow>, AppError> {
         a4n_db::rag::pending_foreshadowing_before_chapter(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             chapter_number,
             limit,
         )
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
     }
 
     async fn pending_foreshadowing_for_project(
@@ -230,13 +230,9 @@ impl RagApplication {
         project_id: i64,
         limit: u64,
     ) -> Result<Vec<RagForeshadowingRow>, AppError> {
-        a4n_db::rag::pending_foreshadowing_for_project(
-            self.database.connection(),
-            project_id,
-            limit,
-        )
-        .await
-        .map_err(AppError::Database)
+        a4n_db::rag::pending_foreshadowing_for_project(self.database.executor(), project_id, limit)
+            .await
+            .map_err(AppError::from)
     }
 
     async fn pending_foreshadowing_search_rows(
@@ -246,13 +242,13 @@ impl RagApplication {
         limit: u64,
     ) -> Result<Vec<a4n_db::rag::PendingForeshadowingSearchRow>, AppError> {
         a4n_db::rag::pending_foreshadowing_search_rows(
-            self.database.connection(),
+            self.database.executor(),
             project_id,
             chapter_number,
             limit,
         )
         .await
-        .map_err(AppError::Database)
+        .map_err(AppError::from)
     }
 }
 

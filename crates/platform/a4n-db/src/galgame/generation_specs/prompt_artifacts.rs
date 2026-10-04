@@ -1,7 +1,8 @@
 use super::*;
+use a4n_domain::generation::PromptArtifactRecord;
 
 pub async fn mark_galgame_generation_spec_status_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     generation_spec_id: i64,
     status: &str,
 ) -> Result<(), GalgameGenerationRecordError> {
@@ -19,30 +20,42 @@ pub async fn mark_galgame_generation_spec_status_record(
 }
 
 pub async fn galgame_prompt_artifact_by_generation_spec(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     generation_spec_id: i64,
-) -> Result<Option<prompt_artifact::Model>, GalgameGenerationRecordError> {
+) -> Result<Option<PromptArtifactRecord>, GalgameGenerationRecordError> {
     validate_galgame_generation_id(generation_spec_id, "generation_spec_id")?;
+    galgame_prompt_artifact_model_by_generation_spec(db, generation_spec_id)
+        .await
+        .map(|row| row.map(crate::generation::prompt_artifact_record_from_model))
+        .map_err(GalgameGenerationRecordError::Database)
+}
+
+async fn galgame_prompt_artifact_model_by_generation_spec(
+    db: &impl crate::DbExecutor,
+    generation_spec_id: i64,
+) -> Result<Option<prompt_artifact::Model>, sea_orm::DbErr> {
     prompt_artifact::Entity::find()
         .filter(prompt_artifact::Column::GenerationSpecId.eq(generation_spec_id))
         .order_by_asc(prompt_artifact::Column::Id)
         .one(db)
         .await
-        .map_err(GalgameGenerationRecordError::Database)
 }
 
 pub async fn upsert_galgame_prompt_artifact_record(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: GalgamePromptArtifactUpsertInput,
-) -> Result<prompt_artifact::Model, GalgameGenerationRecordError> {
+) -> Result<PromptArtifactRecord, GalgameGenerationRecordError> {
     validate_galgame_generation_id(input.generation_spec_id, "generation_spec_id")?;
     require_galgame_generation_text(&input.prompt_kind, "prompt_kind")?;
     require_galgame_generation_text(&input.prompt_text, "prompt_text")?;
     require_galgame_generation_text(&input.renderer_version, "renderer_version")?;
-    let existing = galgame_prompt_artifact_by_generation_spec(db, input.generation_spec_id).await?;
+    let existing =
+        galgame_prompt_artifact_model_by_generation_spec(db, input.generation_spec_id).await?;
     if let Some(existing) = existing {
         if existing.edited_by_user {
-            return Ok(existing);
+            return Ok(crate::generation::prompt_artifact_record_from_model(
+                existing,
+            ));
         }
         let mut active: prompt_artifact::ActiveModel = existing.into();
         active.prompt_kind = Set(input.prompt_kind);
@@ -53,6 +66,7 @@ pub async fn upsert_galgame_prompt_artifact_record(
         return active
             .update(db)
             .await
+            .map(crate::generation::prompt_artifact_record_from_model)
             .map_err(GalgameGenerationRecordError::Database);
     }
     let now = Utc::now().naive_utc();
@@ -68,5 +82,6 @@ pub async fn upsert_galgame_prompt_artifact_record(
     }
     .insert(db)
     .await
+    .map(crate::generation::prompt_artifact_record_from_model)
     .map_err(GalgameGenerationRecordError::Database)
 }

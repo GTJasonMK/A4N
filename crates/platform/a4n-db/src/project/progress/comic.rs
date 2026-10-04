@@ -4,13 +4,13 @@ use super::shared::{
 };
 use super::{ProjectProgressReadError, ProjectProgressSummary};
 use a4n_db_models::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashMap;
 
 const MANGA_PIPELINE_WORKFLOW_KIND: &str = "manga_pipeline";
 
 pub(super) async fn comic_project_progress_by_project(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_ids: &[i64],
 ) -> Result<HashMap<i64, ProjectProgressSummary>, ProjectProgressReadError> {
     if project_ids.is_empty() {

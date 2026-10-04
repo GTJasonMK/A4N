@@ -9,7 +9,7 @@ use crate::workflow::workflow_checkpoint_contract_app_error;
 use super::super::super::chapter_contract::{
     parse_chapter_outline_batch, required_i32, sync_chapter_outlines_by_number_in,
 };
-use super::super::super::context::lock_outline_generation_sources;
+use super::super::super::context::with_locked_outline_generation_sources;
 use super::super::super::{
     BeatMappingApplyInput, OrchestratorContext, ensure_response_not_truncated, report_progress,
 };
@@ -141,21 +141,26 @@ impl OrchestratorContext {
                 ),
             )?;
         }
-        let tx = lock_outline_generation_sources(
-            self.database.connection(),
+        let outlines = with_locked_outline_generation_sources(
+            self.database.executor(),
             project_id,
             &prepared.context.source_snapshot,
+            |tx| {
+                Box::pin(async move {
+                    let result = sync_chapter_outlines_by_number_in(
+                        &tx,
+                        project_id,
+                        Some(prepared.part.id),
+                        chapters,
+                        now,
+                    )
+                    .await;
+                    (tx, result)
+                })
+                    as a4n_db::transaction::TransactionWork<'_, Vec<ChapterOutlineRecord>>
+            },
         )
         .await?;
-        let outlines = sync_chapter_outlines_by_number_in(
-            &tx,
-            project_id,
-            Some(prepared.part.id),
-            chapters,
-            now,
-        )
-        .await?;
-        tx.commit().await.map_err(AppError::Database)?;
         Ok(outlines)
     }
 }

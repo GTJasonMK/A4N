@@ -1,11 +1,11 @@
 mod trace;
 
+use a4n_db::DbTransaction;
 use a4n_db::chapter_content::GeneratedChapterContentRecordInput;
 use a4n_domain::chapter::{ChapterOutlineRecord, ChapterRecord};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use chrono::Utc;
-use sea_orm::DatabaseTransaction;
 
 use super::super::super::ChapterGenerationService;
 use super::chapter_generation_lifecycle_error_to_app_error;
@@ -26,7 +26,7 @@ impl ChapterGenerationService {
         source_outline: Option<ChapterOutlineRecord>,
         chapter_outline: &str,
         generation_trace: Option<ChapterGenerationTrace>,
-        db: &DatabaseTransaction,
+        db: &DbTransaction,
     ) -> Result<ChapterRecord, AppError> {
         let validated =
             self.validate_generated_chapter_for_checkpoint(session, content, chapter_outline)?;

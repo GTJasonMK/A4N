@@ -4,8 +4,7 @@ use a4n_db_models::models::user::{conversation, message};
 use a4n_domain::inspiration::{InspirationExchangeInsertInput, InspirationMessageRecord};
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
 };
 
 const INSPIRATION_CONVERSATION_TYPE: &str = "inspiration";
@@ -30,7 +29,7 @@ where
 }
 
 async fn create_inspiration_conversation(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<conversation::Model, InspirationDbError> {
     let now = Utc::now().naive_utc();
@@ -52,7 +51,7 @@ async fn create_inspiration_conversation(
 }
 
 pub async fn ensure_inspiration_conversation(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<(), InspirationDbError> {
     ensure_inspiration_project_exists(db, project_id).await?;
@@ -66,7 +65,7 @@ pub async fn ensure_inspiration_conversation(
 }
 
 pub async fn inspiration_messages(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     limit: Option<u64>,
 ) -> Result<Vec<InspirationMessageRecord>, InspirationDbError> {
@@ -105,7 +104,7 @@ where
 }
 
 pub async fn insert_inspiration_exchange_in_transaction(
-    tx: &DatabaseTransaction,
+    tx: &impl crate::DbTransactionExecutor,
     input: InspirationExchangeInsertInput,
 ) -> Result<i64, InspirationDbError> {
     let conversation = conversation::Entity::find()

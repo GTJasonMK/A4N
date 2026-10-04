@@ -279,7 +279,7 @@ pub(super) fn upgrade(
     Ok(())
 }
 
-fn revision_key(source: &a4n_db_models::models::project::source_snapshot_chapter::Model) -> String {
+fn revision_key(source: &a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord) -> String {
     format!(
         "snapshot:{}:chapter:{}:{}",
         source.snapshot_id, source.id, source.content_hash

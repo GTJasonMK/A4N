@@ -1,4 +1,5 @@
 use super::*;
+use sea_orm::ConnectionTrait;
 
 pub(crate) async fn append_message_on<C>(
     db: &C,
@@ -57,7 +58,7 @@ where
         ..Default::default()
     };
     let Some(client_id) = input.client_message_id else {
-        return active.insert(db).await.map_err(AgentDbError::Database);
+        return active.insert(db).await.map_err(AgentDbError::from);
     };
     message::Entity::insert(active)
         .on_conflict(
@@ -198,7 +199,7 @@ where
     active.error_message = Set(error_message);
     active.updated_at = Set(timestamp);
     active.completed_at = Set(Some(timestamp));
-    active.update(db).await.map_err(AgentDbError::Database)
+    active.update(db).await.map_err(AgentDbError::from)
 }
 
 /// Projects an expired child lease to its parent. The child run is already
@@ -363,11 +364,11 @@ where
 pub async fn append_message<C>(
     db: &C,
     input: AgentMessageInput,
-) -> Result<message::Model, AgentDbError>
+) -> Result<AgentMessageRecord, AgentDbError>
 where
     C: ConnectionTrait,
 {
-    append_message_on(db, input).await
+    append_message_on(db, input).await.map(Into::into)
 }
 
 /// Appends a message only while the caller still owns the Run lease.
@@ -376,11 +377,11 @@ where
 /// stale worker from adding observations after recovery has transferred the
 /// run to another owner.
 pub async fn append_message_for_run_lease(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     run_id: i64,
     lease_token: &str,
     input: AgentMessageInput,
-) -> Result<message::Model, AgentDbError> {
+) -> Result<AgentMessageRecord, AgentDbError> {
     let tx = db.begin().await?;
     let run_row = run::Entity::find_by_id(run_id)
         .lock_exclusive()
@@ -397,18 +398,18 @@ pub async fn append_message_for_run_lease(
     let row = append_message_on(&tx, input).await?;
     append_message_event_on(&tx, &row, "message_appended", "complete").await?;
     tx.commit().await?;
-    Ok(row)
+    Ok(row.into())
 }
 
 /// Stores a context summary only while the worker still owns the Run lease.
 /// The summary is durable thread state, so a recovered worker cannot overwrite
 /// a newer summary from the next lease holder.
 pub async fn update_context_summary_for_run_lease(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     run_id: i64,
     lease_token: &str,
     context_summary: Value,
-) -> Result<thread::Model, AgentDbError> {
+) -> Result<AgentThreadRecord, AgentDbError> {
     if !context_summary.is_object() {
         return Err(AgentDbError::InvalidArgument(
             "Agent context_summary 必须是 JSON 对象".into(),
@@ -473,7 +474,7 @@ pub async fn update_context_summary_for_run_lease(
     {
         if previous == &context_summary {
             tx.commit().await?;
-            return Ok(thread_row);
+            return Ok(thread_row.into());
         }
         return Err(AgentDbError::Conflict(
             "不能覆盖相同或较新消息边界的摘要".into(),
@@ -512,18 +513,18 @@ pub async fn update_context_summary_for_run_lease(
     active.updated_at = Set(now());
     let updated = active.update(&tx).await?;
     tx.commit().await?;
-    Ok(updated)
+    Ok(updated.into())
 }
 
 /// Upserts one assistant stream projection while the worker still owns its
 /// Run lease. The client id is the stream identity, so retries update the
 /// same message instead of appending a second assistant response.
 pub async fn upsert_assistant_streaming_message_for_run_lease(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     run_id: i64,
     lease_token: &str,
     input: AgentMessageInput,
-) -> Result<message::Model, AgentDbError> {
+) -> Result<AgentMessageRecord, AgentDbError> {
     if input.role != "assistant" || input.status != "streaming" || input.client_message_id.is_none()
     {
         return Err(AgentDbError::InvalidArgument(
@@ -603,19 +604,19 @@ pub async fn upsert_assistant_streaming_message_for_run_lease(
     };
     append_message_event_on(&tx, &row, "message_delta", "streaming").await?;
     tx.commit().await?;
-    Ok(row)
+    Ok(row.into())
 }
 
 /// Finalizes a streaming assistant projection when the response also carries
 /// tool calls. Returning an existing completed row makes retries idempotent.
 pub async fn complete_assistant_streaming_message_for_run_lease(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     run_id: i64,
     lease_token: &str,
     client_message_id: &str,
     content: String,
     payload_json: Value,
-) -> Result<Option<message::Model>, AgentDbError> {
+) -> Result<Option<AgentMessageRecord>, AgentDbError> {
     let identity = run::Entity::find_by_id(run_id)
         .one(db)
         .await?
@@ -652,7 +653,7 @@ pub async fn complete_assistant_streaming_message_for_run_lease(
     }
     if row.status == "complete" {
         tx.commit().await?;
-        return Ok(Some(row));
+        return Ok(Some(row.into()));
     }
     let timestamp = now();
     let mut active: message::ActiveModel = row.into();
@@ -664,11 +665,11 @@ pub async fn complete_assistant_streaming_message_for_run_lease(
     let updated = active.update(&tx).await?;
     append_message_event_on(&tx, &updated, "message_completed", "complete").await?;
     tx.commit().await?;
-    Ok(Some(updated))
+    Ok(Some(updated.into()))
 }
 
 pub async fn interrupt_assistant_streaming_message_for_run_lease(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     run_id: i64,
     lease_token: &str,
     client_message_id: &str,

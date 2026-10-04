@@ -1,8 +1,8 @@
 use super::OrchestratorContext;
-use crate::video::video_provider_config_from_model;
+use crate::video::video_provider_config_from_record;
 use a4n_api_contract::video::VideoProviderConfigPort;
 use a4n_db::DbHandle;
-use a4n_db_models::models::ai::{embedding_config, image_gen_config, llm_config, video_gen_config};
+use a4n_domain::config::{ImageConfigReadRecord, VideoConfigReadRecord};
 use a4n_domain::cost::{ModelUsageRecordCompletion, ModelUsageRecordStart};
 use a4n_error::AppError;
 use a4n_provider_contract::{ImageProviderConfig, VideoProviderConfig};

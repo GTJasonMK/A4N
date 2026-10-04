@@ -1,7 +1,7 @@
 use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use std::collections::BTreeSet;
 
-use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::video_prompt as chapter_video_prompt;
 use a4n_error::AppError;
 
 use crate::video::OrchestratorContext;
@@ -14,7 +14,7 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn video_prompt_r
     workflow_mode: PromptWorkflowMode,
 ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
     a4n_db::video::read_models::chapter_video_prompt_workflow_records(
-        service.database.connection(),
+        service.database.executor(),
         project_id,
         chapter_id,
         chapter_video_prompt::PROMPT_TYPE_VIDEO,
@@ -22,7 +22,7 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn video_prompt_r
         false,
     )
     .await
-    .map_err(AppError::Database)
+    .map_err(AppError::from)
 }
 
 pub(in crate::video::prompts::generation::frame_prompts) async fn ignored_prompt_ids_by_types(
@@ -37,24 +37,24 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn ignored_prompt
     }
     if !ensure_mutable {
         return Ok(a4n_db::video::chapter_video_prompt_ids_for_types(
-            service.database.connection(),
+            service.database.executor(),
             project_id,
             chapter_id,
             prompt_types,
         )
         .await
-        .map_err(AppError::Database)?
+        .map_err(AppError::from)?
         .into_iter()
         .collect());
     }
     let rows = a4n_db::video::read_models::chapter_video_prompt_records_for_types(
-        service.database.connection(),
+        service.database.executor(),
         project_id,
         chapter_id,
         prompt_types,
     )
     .await
-    .map_err(AppError::Database)?;
+    .map_err(AppError::from)?;
     service.ensure_prompt_stages_mutable(&rows, "删除").await?;
     Ok(rows.into_iter().map(|row| row.id).collect())
 }
@@ -68,7 +68,7 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn segment_plan_r
     only_plan_row: bool,
 ) -> Result<Vec<ChapterVideoPromptRecord>, AppError> {
     a4n_db::video::read_models::chapter_video_prompt_segment_plan_records(
-        service.database.connection(),
+        service.database.executor(),
         project_id,
         chapter_id,
         workflow_mode.as_str(),
@@ -76,5 +76,5 @@ pub(in crate::video::prompts::generation::frame_prompts) async fn segment_plan_r
         only_plan_row,
     )
     .await
-    .map_err(AppError::Database)
+    .map_err(AppError::from)
 }

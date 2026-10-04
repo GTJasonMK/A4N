@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 pub(in crate::outline) use contracts::{
     ChapterOutlineGenerationContext, PartOutlineGenerationContext,
 };
-pub(in crate::outline) use loading::lock_outline_generation_sources;
+pub(in crate::outline) use loading::with_locked_outline_generation_sources;
 pub(in crate::outline) use loading::{
     load_chapter_outline_generation_context, load_part_generation_context,
 };

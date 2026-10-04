@@ -36,16 +36,21 @@ pub use blueprint_sync::{
     BlueprintCharacterDraft, BlueprintRelationshipDraft, BlueprintSyncError,
     blueprint_characters_for_project, blueprint_relationships_for_project,
     blueprint_sources_need_review, blueprint_version_by_project_version,
+    blueprint_version_record_by_project_version, blueprint_version_records_by_project,
     blueprint_versions_by_project, edit_blueprint_characters, edit_blueprint_relationships,
     merge_blueprint_characters, merge_blueprint_relationships, novel_blueprint_for_project,
+};
+pub(crate) use blueprint_sync::{
+    blueprint_character_record, blueprint_model_from_record, blueprint_record,
+    blueprint_relationship_record,
 };
 pub(crate) use chapter::chapter_record;
 pub use chapter::context::{
     ChapterGenerationReferenceContextRows, ChapterObjectProfileContext, ChapterProfileEvidence,
     ChapterSceneProfileContext, ProjectChapterContextError, chapter_by_id,
     chapter_generation_reference_context_rows, chapter_project_id, chapters_before_number,
-    character_states_for_profiles_before_chapter, character_sync_chapters,
-    import_analysis_chapter_candidates, object_profiles_before_chapter,
+    character_states_for_profiles_before_chapter, character_sync_chapter_records,
+    character_sync_chapters, import_analysis_chapter_candidates, object_profiles_before_chapter,
     protagonist_profiles_for_project, protagonist_profiles_for_project_in,
     refresh_project_current_chapter, scene_profiles_before_chapter,
 };
@@ -97,9 +102,10 @@ pub use family::metadata::{
 pub(crate) use foreshadowing::restore_foreshadowing_fact;
 pub use foreshadowing::{
     ForeshadowingAnalysisDraft, ForeshadowingAnalysisSyncResult, ForeshadowingDbError,
-    ForeshadowingFactUpdate, create_foreshadowing_record, delete_foreshadowing_record,
+    ForeshadowingFactUpdate, create_foreshadowing_read_record, create_foreshadowing_record,
+    delete_foreshadowing_record, foreshadowing_index_records_by_project,
     foreshadowing_records_by_project, sync_chapter_analysis_foreshadowing,
-    update_foreshadowing_record,
+    update_foreshadowing_read_record, update_foreshadowing_record,
 };
 pub(crate) use freeform_reset::FreeformGeneratedResetTargets;
 pub use freeform_reset::{

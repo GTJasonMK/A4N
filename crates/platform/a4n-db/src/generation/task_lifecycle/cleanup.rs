@@ -1,6 +1,7 @@
 use super::*;
+use sea_orm::ConnectionTrait;
 pub async fn expire_generation_snapshot_bodies(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     limit: usize,
 ) -> Result<u64, GenerationTaskLifecycleError> {
     if db.get_database_backend() != DbBackend::Postgres {
@@ -53,7 +54,7 @@ RETURNING checkpoint.task_id
 /// 删除顺序固定为 start-request mapping → task dependency → 深度降序 task_queue。
 /// checkpoint 依靠 task_queue 外键级联删除，避免留下 child checkpoint 或 mapping 孤儿。
 pub async fn purge_expired_generation_task_trees(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     limit: usize,
 ) -> Result<u64, GenerationTaskLifecycleError> {
     if db.get_database_backend() != DbBackend::Postgres {

@@ -1,10 +1,33 @@
 use a4n_db_models::models::asset::{object_profile, profile_primary_material};
 use a4n_domain::{
+    object_profile::ObjectProfileRecord,
     profile_material::{
         ProfileMaterialObjectRecord, ProfileMaterialSceneRecord, ProfilePrimaryMaterialRecord,
     },
     scene_profile::SceneProfileRecord,
 };
+
+pub fn object_profile_source_record_from_record(
+    profile: &ObjectProfileRecord,
+) -> ProfileMaterialObjectRecord {
+    ProfileMaterialObjectRecord {
+        id: profile.id,
+        project_id: profile.project_id,
+        name: profile.name.clone(),
+        object_type: profile.object_type.clone(),
+        importance: profile.importance.clone(),
+        visual_description: profile.visual_description.clone(),
+        material_and_state: profile.material_and_state.clone(),
+        story_usage: profile.story_usage.clone(),
+        visual_usage: profile.visual_usage.clone(),
+        generation_usage: profile.generation_usage.clone(),
+        location_context: profile.location_context.clone(),
+        first_seen_chapter: profile.first_seen_chapter,
+        last_seen_chapter: profile.last_seen_chapter,
+        image_prompt_seed: profile.image_prompt_seed.clone(),
+        updated_at: profile.updated_at,
+    }
+}
 
 pub fn scene_profile_source_record(profile: &SceneProfileRecord) -> ProfileMaterialSceneRecord {
     ProfileMaterialSceneRecord {

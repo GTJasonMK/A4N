@@ -9,8 +9,8 @@ use a4n_domain::{
 };
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseTransaction, DbErr, EntityTrait,
-    QueryFilter, QueryOrder, Set, sea_query::OnConflict,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder,
+    Set, sea_query::OnConflict,
 };
 use serde_json::{Value, json};
 
@@ -258,7 +258,7 @@ pub async fn record_fact_change<C: ConnectionTrait>(
 }
 
 pub async fn record_feedback_completion(
-    db: &DatabaseTransaction,
+    db: &impl crate::DbTransactionExecutor,
     chapter: &ChapterRecord,
     workflow_run_id: i64,
 ) -> Result<(), FactFeedbackDbError> {

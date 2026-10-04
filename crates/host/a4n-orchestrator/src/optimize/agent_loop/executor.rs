@@ -1,5 +1,5 @@
 use a4n_db::workflow;
-use a4n_db_models::models::ai::optimization_session;
+use a4n_domain::project::OptimizationSessionRecord;
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::{ChatMessage, ChatResponse};
 use serde_json::{Value, json};

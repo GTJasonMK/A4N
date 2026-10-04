@@ -1,14 +1,16 @@
 use a4n_db::character::{
     AppliedCharacterImplicitDecisionAction, AppliedCharacterImplicitDecisionRecord,
 };
-use a4n_db_models::models::character::{attribute_event, protagonist_profile};
+use a4n_domain::character::{
+    CharacterAttributeEventRecord, CharacterProfileRecord, CharacterTimelineSourceKind,
+};
 use a4n_error::AppError;
 
 use super::{CharacterAttributeLifecycleError, implicit_review_attribute_event};
 
-fn profile() -> protagonist_profile::Model {
+fn profile() -> CharacterProfileRecord {
     let now = chrono::Utc::now().naive_utc();
-    protagonist_profile::Model {
+    CharacterProfileRecord {
         id: 7,
         project_id: 3,
         name: "林岚".to_string(),
@@ -27,12 +29,12 @@ fn profile() -> protagonist_profile::Model {
     }
 }
 
-fn event() -> attribute_event::Model {
-    attribute_event::Model {
+fn event() -> CharacterAttributeEventRecord {
+    CharacterAttributeEventRecord {
         id: 11,
         profile_id: 7,
         chapter_number: 3,
-        source_kind: attribute_event::SOURCE_KIND_AI_SYNC.to_string(),
+        source_kind: CharacterTimelineSourceKind::AiSync.as_str().to_string(),
         timestamp: chrono::Utc::now().naive_utc(),
         category: "implicit".to_string(),
         key: "谨慎".to_string(),

@@ -2,10 +2,7 @@ use super::contracts::ProjectMutationError;
 use crate::project::project_record_from_model;
 use a4n_db_models::models::project::novel_project;
 use a4n_domain::project::{ProjectRecord, ProjectSummaryRecord};
-use sea_orm::{
-    ConnectionTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait, FromQueryResult,
-    QuerySelect,
-};
+use sea_orm::{ConnectionTrait, DbBackend, DbErr, EntityTrait, FromQueryResult, QuerySelect};
 
 #[derive(Debug, FromQueryResult)]
 struct ProjectSummaryRow {
@@ -134,7 +131,7 @@ where
     query.into_model::<ProjectWriteIdentity>().one(db).await
 }
 
-pub async fn project_ids(db: &DatabaseConnection) -> Result<Vec<i64>, ProjectMutationError> {
+pub async fn project_ids(db: &impl crate::DbExecutor) -> Result<Vec<i64>, ProjectMutationError> {
     novel_project::Entity::find()
         .select_only()
         .column(novel_project::Column::Id)

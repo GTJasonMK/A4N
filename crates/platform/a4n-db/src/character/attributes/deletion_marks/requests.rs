@@ -11,6 +11,7 @@ use a4n_db_models::models::character::{
     attribute_event::SOURCE_KIND_USER, protagonist_deletion_mark, protagonist_profile,
 };
 use a4n_domain::character::CharacterAttributeDeletionRequestInput;
+use a4n_domain::character::CharacterDeletionMarkRecord;
 use sea_orm::{ConnectionTrait, TransactionTrait};
 
 pub(in crate::character::attributes) async fn request_attribute_deletion_in<C>(
@@ -116,6 +117,18 @@ where
     let mark = request_attribute_deletion_in(&tx, input).await?;
     tx.commit().await?;
     Ok(mark)
+}
+
+pub async fn request_attribute_deletion_record<C>(
+    db: &C,
+    input: CharacterAttributeDeletionRequestInput,
+) -> Result<CharacterDeletionMarkRecord, CharacterDbError>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    request_attribute_deletion(db, input)
+        .await
+        .map(crate::character::character_deletion_mark_record)
 }
 
 pub async fn reset_deletion_marks_in<C>(

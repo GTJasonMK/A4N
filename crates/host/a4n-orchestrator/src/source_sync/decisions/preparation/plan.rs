@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
-use a4n_db_models::models::source_sync::{source_sync_conflict, source_sync_run};
 use a4n_domain::media_authoring::{AdaptationTarget, AuthoringDocumentInputs};
+use a4n_domain::source_sync::{SourceSyncConflictRecord, SourceSyncRunRecord};
 use a4n_error::AppError;
 
 use super::spans::galgame_regeneration_source_spans;
@@ -22,14 +22,14 @@ use crate::{
 
 pub(super) async fn build_prepared_galgame_scene_regeneration_plan(
     service: &OrchestratorContext,
-    run: &source_sync_run::Model,
-    conflict: &source_sync_conflict::Model,
+    run: &SourceSyncRunRecord,
+    conflict: &SourceSyncConflictRecord,
     payload: &RegenerateGalgameScenePayload,
     galgame_execution: GalgameSourceSyncExecutionContext<'_>,
     speaker_profiles: &[GalgameSpeakerProfile],
 ) -> Result<GalgameSceneRegenerationPlan, AppError> {
-    let source = a4n_db::source_sync::galgame_scene_regeneration_source_record(
-        service.database.connection(),
+    let source = a4n_db::source_sync::galgame_scene_regeneration_source_record_from_records(
+        service.database.executor(),
         run,
         conflict,
         payload.galgame_scene_id,
@@ -51,7 +51,7 @@ pub(super) async fn build_prepared_galgame_scene_regeneration_plan(
         AppError::InvalidArgument(format!("Galgame 场 {} 缺少本地改编计划", source.scene.id))
     })?;
     let mut sources = a4n_db::project::resolve_snapshot_sources(
-        service.database.connection(),
+        service.database.executor(),
         run.derived_project_id,
         run.root_project_id,
         run.to_snapshot_id,
@@ -71,7 +71,7 @@ pub(super) async fn build_prepared_galgame_scene_regeneration_plan(
         .is_none()
     {
         let previous = a4n_db::media_authoring::authoring_document(
-            service.database.connection(),
+            service.database.executor(),
             run.derived_project_id,
             previous_plan_id,
         )

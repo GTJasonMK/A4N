@@ -3,15 +3,13 @@ use std::collections::HashSet;
 use super::super::outline::push_optional_text;
 use super::json::{compact_json_text, is_meaningful_json_value, truncate_text_chars};
 use a4n_db::rag::RagForeshadowingRow;
-use a4n_db_models::models::{
-    character::protagonist_profile,
-    project::{blueprint_character, blueprint_relationship, novel_blueprint},
-};
+use a4n_domain::character::CharacterProfileRecord;
+use a4n_domain::project::{BlueprintCharacterRecord, BlueprintRecord, BlueprintRelationshipRecord};
 use serde_json::Value;
 
 pub(super) fn format_blueprint_core_section(
-    blueprint: &novel_blueprint::Model,
-    characters: &[blueprint_character::Model],
+    blueprint: &BlueprintRecord,
+    characters: &[BlueprintCharacterRecord],
 ) -> String {
     let mut lines = vec!["## 核心设定".to_string()];
     let mut basics = Vec::new();
@@ -37,7 +35,7 @@ pub(super) fn format_blueprint_core_section(
 }
 
 pub(in crate::chapter_generation::preparation) fn format_character_reference_line(
-    character: &&blueprint_character::Model,
+    character: &&BlueprintCharacterRecord,
 ) -> String {
     let mut parts = vec![format!("类型: {}", character.character_type)];
     push_kv(&mut parts, "性别", character.gender.as_deref());
@@ -56,7 +54,7 @@ pub(in crate::chapter_generation::preparation) fn format_character_reference_lin
 }
 
 pub(super) fn format_relationship_reference_line(
-    relationship: &&blueprint_relationship::Model,
+    relationship: &&BlueprintRelationshipRecord,
 ) -> String {
     let mut suffix = Vec::new();
     push_kv(
@@ -77,7 +75,7 @@ pub(super) fn format_relationship_reference_line(
 }
 
 pub(super) fn format_protagonist_profile_reference(
-    profiles: &[protagonist_profile::Model],
+    profiles: &[CharacterProfileRecord],
     involved_names: &[String],
 ) -> Option<Vec<String>> {
     let involved_names = involved_names

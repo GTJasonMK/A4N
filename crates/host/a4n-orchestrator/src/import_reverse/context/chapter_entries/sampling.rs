@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 
 fn select_sample_indices(total: usize, limit: usize) -> BTreeSet<usize> {
     let mut indices = BTreeSet::new();
@@ -22,9 +22,9 @@ fn select_sample_indices(total: usize, limit: usize) -> BTreeSet<usize> {
 }
 
 pub(in crate::import_reverse::context) fn sampled_chapters(
-    chapters: &[chapter::Model],
+    chapters: &[ChapterRecord],
     limit: usize,
-) -> Vec<&chapter::Model> {
+) -> Vec<&ChapterRecord> {
     let indices = select_sample_indices(chapters.len(), limit);
     chapters
         .iter()

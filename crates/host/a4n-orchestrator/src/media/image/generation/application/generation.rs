@@ -61,7 +61,7 @@ impl OrchestratorContext {
         self.require_image_project_editor(user_id, input.project_id)
             .await?;
         if !a4n_db::project::project_source_snapshot_allowed(
-            self.database.connection(),
+            self.database.executor(),
             input.project_id,
             input.source_snapshot_id,
         )
@@ -579,7 +579,7 @@ impl OrchestratorContext {
         input: &ObjectProfileImageInput,
     ) -> Result<ProfileImageMaterial, AppError> {
         require_positive(input.object_profile_id, "object_profile_id")?;
-        let profile = self.object_profile_by_id(input.object_profile_id).await?;
+        let profile = self.object_profile_record_by_id(input.object_profile_id).await?;
         self.require_image_project_editor(user_id, profile.project_id)
             .await?;
         Ok(object_profile_material(profile, input))

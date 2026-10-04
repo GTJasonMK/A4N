@@ -1,11 +1,11 @@
-use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ChapterRecord;
 use serde_json::{Map, Value, json};
 
 use super::analysis::chapter_analysis_context;
 use super::formatting::{add_optional_chapter_title, text_preview};
 
 pub(in crate::import_reverse::context) fn sample_chapter_entry(
-    ch: &chapter::Model,
+    ch: &ChapterRecord,
 ) -> Result<Value, String> {
     let mut entry = Map::new();
     entry.insert("chapter_number".to_string(), json!(ch.chapter_number));

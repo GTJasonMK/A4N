@@ -22,7 +22,7 @@ impl MediaAuthoringApplicationPort for OrchestratorContext {
             )
             .await?;
         let records = records::list_authoring_documents(
-            self.database.connection(),
+            self.database.executor(),
             input.project_id,
             input.chapter_id,
         )
@@ -138,7 +138,7 @@ impl MediaAuthoringApplicationPort for OrchestratorContext {
         .await?;
         let draft = existing.filter(|record| record.status == AuthoringDocumentStatus::Draft);
         records::save_authoring_document(
-            self.database.connection(),
+            self.database.executor(),
             records::SaveAuthoringDocument {
                 project_id: input.project_id,
                 source_snapshot_id: snapshot_id,
@@ -162,7 +162,7 @@ impl MediaAuthoringApplicationPort for OrchestratorContext {
         self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         let record = records::authoring_document(
-            self.database.connection(),
+            self.database.executor(),
             input.project_id,
             input.record_id,
         )
@@ -186,7 +186,7 @@ impl MediaAuthoringApplicationPort for OrchestratorContext {
         )
         .await?;
         records::adopt_authoring_document(
-            self.database.connection(),
+            self.database.executor(),
             input.project_id,
             record.id,
             input.expected_revision,

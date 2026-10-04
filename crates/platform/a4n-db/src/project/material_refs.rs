@@ -1,11 +1,9 @@
 use super::ProjectFamilyDbError;
 use a4n_db_models::models::{asset::profile_primary_material, character::protagonist_profile};
-use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect,
-};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 
 pub async fn protagonist_profile_project_id(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     profile_id: i64,
 ) -> Result<i64, ProjectFamilyDbError> {
     if profile_id <= 0 {

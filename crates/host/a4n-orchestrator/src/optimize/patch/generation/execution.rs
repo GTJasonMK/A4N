@@ -2,8 +2,8 @@ mod call;
 mod completion;
 mod preparation;
 
-use a4n_db_models::models::ai::optimization_session;
 use a4n_domain::chapter::ChapterRecord;
+use a4n_domain::project::OptimizationSessionRecord;
 use a4n_llm_provider_contract::provider::{ChatRequest, ChatResponse};
 use serde_json::Value;
 
@@ -18,7 +18,7 @@ use self::completion::{PatchGenerationCompletionInput, prepare_patch_generation_
 use self::preparation::{PatchGenerationPreparationInput, prepare_patch_generation};
 
 pub(super) struct PreparedPatchGeneration {
-    pub(super) session: optimization_session::Model,
+    pub(super) session: OptimizationSessionRecord,
     pub(super) chapter: ChapterRecord,
     pub(super) turn_id: i64,
     pub(super) request: ChatRequest,

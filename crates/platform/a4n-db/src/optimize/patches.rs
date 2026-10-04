@@ -1,9 +1,44 @@
 use super::*;
+pub(super) fn optimization_patch_set_record(
+    patch_set: optimization_patch_set::Model,
+) -> a4n_domain::project::OptimizationPatchSetRecord {
+    a4n_domain::project::OptimizationPatchSetRecord {
+        id: patch_set.id,
+        turn_id: patch_set.turn_id,
+        session_id: patch_set.session_id,
+        chapter_id: patch_set.chapter_id,
+        base_content_hash: patch_set.base_content_hash,
+        status: patch_set.status,
+        summary: patch_set.summary,
+        created_at: patch_set.created_at,
+        updated_at: patch_set.updated_at,
+    }
+}
+
+fn optimization_patch_record(
+    patch: optimization_patch::Model,
+) -> a4n_domain::project::OptimizationPatchRecord {
+    a4n_domain::project::OptimizationPatchRecord {
+        id: patch.id,
+        patch_set_id: patch.patch_set_id,
+        patch_id: patch.patch_id,
+        issue_id: patch.issue_id,
+        operation: patch.operation,
+        old_text: patch.old_text,
+        new_text: patch.new_text,
+        reason: patch.reason,
+        risk: patch.risk,
+        decision: patch.decision,
+        apply_status: patch.apply_status,
+        created_at: patch.created_at,
+        updated_at: patch.updated_at,
+    }
+}
 
 pub async fn optimization_patch_sets<C>(
     db: &C,
     session_id: i64,
-) -> Result<Vec<optimization_patch_set::Model>, OptimizeDbError>
+) -> Result<Vec<a4n_domain::project::OptimizationPatchSetRecord>, OptimizeDbError>
 where
     C: ConnectionTrait,
 {
@@ -13,13 +48,18 @@ where
         .order_by_desc(optimization_patch_set::Column::Id)
         .all(db)
         .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(optimization_patch_set_record)
+                .collect()
+        })
         .map_err(OptimizeDbError::Database)
 }
 
 pub async fn optimization_patch_set_by_turn_id<C>(
     db: &C,
     turn_id: i64,
-) -> Result<Option<optimization_patch_set::Model>, OptimizeDbError>
+) -> Result<Option<a4n_domain::project::OptimizationPatchSetRecord>, OptimizeDbError>
 where
     C: ConnectionTrait,
 {
@@ -28,26 +68,28 @@ where
         .order_by_desc(optimization_patch_set::Column::Id)
         .one(db)
         .await
+        .map(|row| row.map(optimization_patch_set_record))
         .map_err(OptimizeDbError::Database)
 }
 
 pub async fn optimization_patch_set_by_id<C>(
     db: &C,
     patch_set_id: i64,
-) -> Result<Option<optimization_patch_set::Model>, OptimizeDbError>
+) -> Result<Option<a4n_domain::project::OptimizationPatchSetRecord>, OptimizeDbError>
 where
     C: ConnectionTrait,
 {
     optimization_patch_set::Entity::find_by_id(patch_set_id)
         .one(db)
         .await
+        .map(|row| row.map(optimization_patch_set_record))
         .map_err(OptimizeDbError::Database)
 }
 
 pub async fn optimization_patch_set_patches<C>(
     db: &C,
     patch_set_id: i64,
-) -> Result<Vec<optimization_patch::Model>, OptimizeDbError>
+) -> Result<Vec<a4n_domain::project::OptimizationPatchRecord>, OptimizeDbError>
 where
     C: ConnectionTrait,
 {
@@ -56,13 +98,14 @@ where
         .order_by_asc(optimization_patch::Column::Id)
         .all(db)
         .await
+        .map(|rows| rows.into_iter().map(optimization_patch_record).collect())
         .map_err(OptimizeDbError::Database)
 }
 
 pub async fn optimization_patch_set_patches_for_sets<C>(
     db: &C,
     patch_set_ids: &[i64],
-) -> Result<Vec<optimization_patch::Model>, OptimizeDbError>
+) -> Result<Vec<a4n_domain::project::OptimizationPatchRecord>, OptimizeDbError>
 where
     C: ConnectionTrait,
 {
@@ -75,6 +118,7 @@ where
         .order_by_asc(optimization_patch::Column::Id)
         .all(db)
         .await
+        .map(|rows| rows.into_iter().map(optimization_patch_record).collect())
         .map_err(OptimizeDbError::Database)
 }
 
@@ -83,7 +127,7 @@ pub async fn matching_pending_optimization_patch_sets<C>(
     session_id: i64,
     base_content_hash: &str,
     pending_status: &str,
-) -> Result<Vec<optimization_patch_set::Model>, OptimizeDbError>
+) -> Result<Vec<a4n_domain::project::OptimizationPatchSetRecord>, OptimizeDbError>
 where
     C: ConnectionTrait,
 {
@@ -93,6 +137,11 @@ where
         .filter(optimization_patch_set::Column::Status.eq(pending_status))
         .all(db)
         .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(optimization_patch_set_record)
+                .collect()
+        })
         .map_err(OptimizeDbError::Database)
 }
 
@@ -100,7 +149,7 @@ pub async fn pending_optimization_patch_sets<C>(
     db: &C,
     session_id: i64,
     pending_status: &str,
-) -> Result<Vec<optimization_patch_set::Model>, OptimizeDbError>
+) -> Result<Vec<a4n_domain::project::OptimizationPatchSetRecord>, OptimizeDbError>
 where
     C: ConnectionTrait,
 {
@@ -109,13 +158,107 @@ where
         .filter(optimization_patch_set::Column::Status.eq(pending_status))
         .all(db)
         .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(optimization_patch_set_record)
+                .collect()
+        })
         .map_err(OptimizeDbError::Database)
+}
+
+pub async fn discard_pending_optimization_patch_sets_and_record_event(
+    db: &impl crate::DbExecutor,
+    session_id: i64,
+) -> Result<(), OptimizeDbError> {
+    if session_id <= 0 {
+        return Err(OptimizeDbError::InvalidArgument(
+            "session_id 必须大于 0".to_string(),
+        ));
+    }
+    let tx = db.begin().await?;
+    let patch_sets = pending_optimization_patch_sets(
+        &tx,
+        session_id,
+        a4n_domain::project::OPTIMIZATION_PATCH_SET_STATUS_PENDING,
+    )
+    .await?;
+    let patch_set_ids = patch_sets
+        .iter()
+        .map(|patch_set| patch_set.id)
+        .collect::<Vec<_>>();
+    update_optimization_patch_sets_status(
+        &tx,
+        &patch_set_ids,
+        a4n_domain::project::OPTIMIZATION_PATCH_SET_STATUS_REJECTED,
+        a4n_domain::project::OPTIMIZATION_PATCH_DECISION_REJECTED,
+        a4n_domain::project::OPTIMIZATION_PATCH_APPLY_STATUS_PENDING,
+    )
+    .await?;
+    insert_optimization_session_message(
+        &tx,
+        OptimizationSessionMessageInsertInput {
+            session_id,
+            role: "agent_event".to_string(),
+            content: "用户已丢弃当前待应用局部补丁。".to_string(),
+            tool_calls: None,
+        },
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(())
+}
+
+pub async fn discard_optimization_patch_set_and_record_event(
+    db: &impl crate::DbExecutor,
+    session_id: i64,
+    patch_set_id: i64,
+) -> Result<(), OptimizeDbError> {
+    if session_id <= 0 || patch_set_id <= 0 {
+        return Err(OptimizeDbError::InvalidArgument(
+            "session_id 和 patch_set_id 必须大于 0".to_string(),
+        ));
+    }
+    let tx = db.begin().await?;
+    let patch_set = optimization_patch_set_by_id(&tx, patch_set_id)
+        .await?
+        .ok_or_else(|| OptimizeDbError::NotFound(format!("优化补丁集不存在: {patch_set_id}")))?;
+    if patch_set.session_id != session_id {
+        return Err(OptimizeDbError::Forbidden(
+            "优化补丁集不属于当前优化会话".into(),
+        ));
+    }
+    if patch_set.status != a4n_domain::project::OPTIMIZATION_PATCH_SET_STATUS_PENDING {
+        return Err(OptimizeDbError::InvalidState {
+            current: patch_set.status,
+            operation: "拒绝优化补丁集".into(),
+        });
+    }
+    update_optimization_patch_sets_status(
+        &tx,
+        &[patch_set_id],
+        a4n_domain::project::OPTIMIZATION_PATCH_SET_STATUS_REJECTED,
+        a4n_domain::project::OPTIMIZATION_PATCH_DECISION_REJECTED,
+        a4n_domain::project::OPTIMIZATION_PATCH_APPLY_STATUS_PENDING,
+    )
+    .await?;
+    insert_optimization_session_message(
+        &tx,
+        OptimizationSessionMessageInsertInput {
+            session_id,
+            role: "agent_event".to_string(),
+            content: "用户已拒绝当前正文补丁。".to_string(),
+            tool_calls: None,
+        },
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(())
 }
 
 pub async fn create_optimization_patch_set<C>(
     db: &C,
     input: OptimizationPatchSetCreateInput,
-) -> Result<Option<optimization_patch_set::Model>, OptimizeDbError>
+) -> Result<Option<a4n_domain::project::OptimizationPatchSetRecord>, OptimizeDbError>
 where
     C: ConnectionTrait,
 {
@@ -163,7 +306,7 @@ where
         .await
         .map_err(OptimizeDbError::Database)?;
 
-    Ok(Some(patch_set))
+    Ok(Some(optimization_patch_set_record(patch_set)))
 }
 
 pub async fn update_optimization_patch_sets_status<C>(

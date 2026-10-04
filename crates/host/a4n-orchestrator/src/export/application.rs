@@ -15,7 +15,7 @@ impl OrchestratorContext {
         project_id: i64,
     ) -> Result<ExportFileData, AppError> {
         ensure_positive_project_id(project_id)?;
-        let document = export_document(self.database.connection(), project_id).await?;
+        let document = export_document(self.database.executor(), project_id).await?;
         self.render_document_file_data(
             project_id,
             document,
@@ -36,7 +36,7 @@ impl OrchestratorContext {
         ensure_positive_project_id(project_id)?;
         let title = required_text(title, "Markdown 标题").map_err(AppError::InvalidArgument)?;
         let author = required_text(author, "Markdown 作者").map_err(AppError::InvalidArgument)?;
-        let document = export_document(self.database.connection(), project_id).await?;
+        let document = export_document(self.database.executor(), project_id).await?;
         self.render_document_file_data(
             project_id,
             document,
@@ -53,7 +53,7 @@ impl OrchestratorContext {
         project_id: i64,
     ) -> Result<ExportFileData, AppError> {
         ensure_positive_project_id(project_id)?;
-        let value = export_outline_json(self.database.connection(), project_id).await?;
+        let value = export_outline_json(self.database.executor(), project_id).await?;
         export_json_file_data(project_id, "outline.json", value)
     }
 
@@ -62,7 +62,7 @@ impl OrchestratorContext {
         project_id: i64,
     ) -> Result<ExportFileData, AppError> {
         ensure_positive_project_id(project_id)?;
-        let value = export_characters_json(self.database.connection(), project_id).await?;
+        let value = export_characters_json(self.database.executor(), project_id).await?;
         export_json_file_data(project_id, "characters.json", value)
     }
 
@@ -143,7 +143,7 @@ impl OrchestratorContext {
             u32::try_from(input.formats.len()).expect("validated batch format count fits u32") + 1;
         progress.progress(0, total, "正在准备批量导出");
         progress.check_cancelled()?;
-        let document = export_document(self.database.connection(), input.project_id).await?;
+        let document = export_document(self.database.executor(), input.project_id).await?;
         let nested_progress = progress.without_reporting();
         let mut results = Vec::with_capacity(input.formats.len());
         for (index, format) in input.formats.iter().copied().enumerate() {
@@ -196,7 +196,7 @@ impl OrchestratorContext {
                 }
                 BatchExportFormat::OutlineJson => {
                     let value =
-                        export_outline_json(self.database.connection(), input.project_id).await?;
+                        export_outline_json(self.database.executor(), input.project_id).await?;
                     export_json_file_data(input.project_id, "outline.json", value)?
                 }
                 BatchExportFormat::Pdf => {
@@ -225,7 +225,7 @@ impl OrchestratorContext {
     ) -> Result<ExportDocument, AppError> {
         progress.progress(0, total, "正在读取可导出章节");
         progress.check_cancelled()?;
-        let document = export_document(self.database.connection(), project_id).await?;
+        let document = export_document(self.database.executor(), project_id).await?;
         progress.check_cancelled()?;
         Ok(document)
     }

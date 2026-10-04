@@ -8,7 +8,7 @@ mod tests;
 
 // 数据库视频配置到纯视频合同的唯一适配。
 
-use a4n_db_models::models::ai::video_gen_config;
+use a4n_domain::config::VideoConfigReadRecord;
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_video::VideoConfigParams;
 use a4n_video::{
@@ -16,8 +16,8 @@ use a4n_video::{
     validate_video_duration_for_params_secs,
 };
 
-pub fn video_provider_config_from_model(
-    cfg: &video_gen_config::Model,
+pub fn video_provider_config_from_record(
+    cfg: &VideoConfigReadRecord,
 ) -> Result<VideoProviderConfig, String> {
     let pricing = serde_json::from_value(cfg.pricing_json.clone())
         .map_err(|error| format!("视频配置 #{} pricing_json 无效：{error}", cfg.id))?;

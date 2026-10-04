@@ -1,7 +1,10 @@
 use crate::media::{
     MEDIA_STATUS_COMPLETED, is_valid_media_kind, is_valid_media_origin, is_valid_media_status,
 };
-use a4n_db_models::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
+use a4n_api_contract::project_transfer::{
+    MEDIA_ASSET_FILE_PATH_FIELD as FILE_PATH_FIELD,
+    MEDIA_ASSET_THUMBNAIL_PATH_FIELD as THUMBNAIL_PATH_FIELD,
+};
 
 use super::super::assets::validate_media_asset_source_context;
 use super::context::MediaManifestContext;
@@ -52,10 +55,15 @@ pub(super) fn validate_media_assets(
                     asset.id
                 ));
             }
-            crate::project::video_studio_package::validate_canvas_media_asset_owner(
-                asset,
-                asset.project_id,
-            )?;
+            if asset.source_snapshot_id.is_some()
+                || asset.source_chapter_id.is_some()
+                || asset.source_snapshot_chapter_id.is_some()
+            {
+                return Err(format!(
+                    "freeform 媒体资产不能绑定文本快照或章节: media_asset_id={}",
+                    asset.id
+                ));
+            }
         } else {
             if asset.root_project_id != package.root_project_id {
                 return Err(format!(

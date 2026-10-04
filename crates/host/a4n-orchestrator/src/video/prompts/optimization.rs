@@ -19,9 +19,9 @@ use a4n_db::generation::{
     GenerationRunCheckpointContext, RecordCompletedGenerationRunWithCheckpointInput,
     generation_checkpoint_fingerprint_sha256,
 };
-use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::generation::RecordCompletedGenerationRunInput;
 use a4n_domain::prompt_language::prompt_type_uses_prompt_output_language;
+use a4n_domain::video_prompt as chapter_video_prompt;
 use a4n_domain::video_prompt::ChapterVideoPromptPatch;
 use a4n_domain::video_prompt::ChapterVideoPromptRecord;
 use a4n_domain::{

@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet, HashMap};
 
-use a4n_db_models::models::{chapter::chapter, project::text_anchor};
+use a4n_domain::{chapter::ChapterRecord, text_anchor::TextAnchorRecord};
 use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_progress::{FieldMilestone, ProgressSpan};
 use serde_json::Value;
@@ -28,8 +28,8 @@ pub(super) enum ChapterAnchorMode {
 }
 
 pub(super) struct CharacterDiscoveryRequestContext {
-    pub(super) chapters: Vec<chapter::Model>,
-    pub(super) text_anchors: Vec<text_anchor::Model>,
+    pub(super) chapters: Vec<ChapterRecord>,
+    pub(super) text_anchors: Vec<TextAnchorRecord>,
     pub(super) existing_keys: BTreeSet<String>,
     pub(super) existing_key_profiles: HashMap<String, i64>,
 }

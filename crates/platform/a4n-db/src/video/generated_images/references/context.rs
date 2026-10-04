@@ -45,6 +45,18 @@ where
         .ok_or_else(|| VideoDbError::NotFound(format!("章节不存在: {chapter_id}")))
 }
 
+pub async fn video_chapter_domain_record<C>(
+    db: &C,
+    chapter_id: i64,
+) -> Result<a4n_domain::chapter::ChapterRecord, VideoDbError>
+where
+    C: ConnectionTrait,
+{
+    video_chapter_record(db, chapter_id)
+        .await
+        .map(crate::project::chapter_record)
+}
+
 pub(crate) async fn video_chapter_project_id_record<C>(
     db: &C,
     chapter_id: i64,

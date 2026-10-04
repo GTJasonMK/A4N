@@ -1,4 +1,5 @@
 use super::*;
+use a4n_domain::{character::CharacterPortraitRecord, generation::GenerationSpecRecord};
 use sea_orm::QuerySelect;
 use std::collections::HashSet;
 
@@ -27,21 +28,26 @@ pub(crate) fn galgame_portrait_spec_references_lines(
 }
 
 pub async fn galgame_webgal_portraits(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     root_project_id: i64,
-) -> Result<Vec<character_portrait::Model>, GalgameGenerationRecordError> {
+) -> Result<Vec<CharacterPortraitRecord>, GalgameGenerationRecordError> {
     validate_galgame_generation_id(root_project_id, "root_project_id")?;
     character_portrait::Entity::find()
         .filter(character_portrait::Column::ProjectId.eq(root_project_id))
         .order_by_asc(character_portrait::Column::Id)
         .all(db)
         .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(crate::character::character_portrait_record_from_model)
+                .collect()
+        })
         .map_err(GalgameGenerationRecordError::Database)
 }
 
 pub async fn galgame_portrait_spec_target_profile(
-    db: &DatabaseConnection,
-    spec: &generation_spec::Model,
+    db: &impl crate::DbExecutor,
+    spec: &GenerationSpecRecord,
     input: &GalgamePortraitSpecTargetInput,
 ) -> Result<GalgamePortraitSpecTargetProfile, GalgameGenerationRecordError> {
     validate_galgame_portrait_spec_target_input(spec, input)?;
@@ -137,7 +143,7 @@ pub async fn galgame_portrait_spec_target_profile(
 }
 
 pub(in crate::galgame) fn validate_galgame_portrait_spec_target_input(
-    spec: &generation_spec::Model,
+    spec: &GenerationSpecRecord,
     input: &GalgamePortraitSpecTargetInput,
 ) -> Result<(), GalgameGenerationRecordError> {
     validate_galgame_generation_id(spec.id, "generation_spec_id")?;
@@ -154,12 +160,12 @@ pub(in crate::galgame) fn validate_galgame_portrait_spec_target_input(
 }
 
 pub async fn completed_galgame_portrait_record(
-    db: &DatabaseConnection,
-    spec: &generation_spec::Model,
+    db: &impl crate::DbExecutor,
+    spec: &GenerationSpecRecord,
     profile_id: i64,
     expression: &str,
     pose: &str,
-) -> Result<character_portrait::Model, GalgameGenerationRecordError> {
+) -> Result<CharacterPortraitRecord, GalgameGenerationRecordError> {
     validate_galgame_generation_id(spec.id, "generation_spec_id")?;
     validate_galgame_generation_id(spec.root_project_id, "root_project_id")?;
     validate_galgame_generation_id(profile_id, "profile_id")?;
@@ -181,10 +187,11 @@ pub async fn completed_galgame_portrait_record(
                 spec.id, profile_id, expression, pose
             ))
         })
+        .map(crate::character::character_portrait_record_from_model)
 }
 
 pub async fn primary_galgame_portrait_reference_image_ids(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     profile: &GalgamePortraitSpecTargetProfile,
 ) -> Result<Vec<i64>, GalgameGenerationRecordError> {
     validate_galgame_generation_id(profile.id, "profile_id")?;

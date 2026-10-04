@@ -1,11 +1,9 @@
-use a4n_db_models::models::media::media_asset;
-
 use super::super::contracts::MediaRequestRefContext;
 use super::galgame::validate_media_request_galgame_scene_project;
 
 pub(super) fn validate_media_request_target_entity(
     media_asset_id: i64,
-    asset: &media_asset::Model,
+    asset: &a4n_domain::project::ProjectFamilyMediaAssetRecord,
     target_entity_kind: &str,
     target_entity_id: i64,
     refs: &MediaRequestRefContext<'_>,

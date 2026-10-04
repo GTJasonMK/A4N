@@ -3,11 +3,11 @@ use super::identity::{GeneratedVideoProgressRow, VideoPromptProgressRow};
 use super::status::video_project_progress_from_counts;
 use crate::project::progress::{ProjectProgressReadError, ProjectProgressSummary};
 use a4n_db_models::models::{ai::generated_video, chapter::chapter_video_prompt};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashMap;
 
 pub(in crate::project::progress) async fn video_project_progress_by_project(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_ids: &[i64],
 ) -> Result<HashMap<i64, ProjectProgressSummary>, ProjectProgressReadError> {
     if project_ids.is_empty() {

@@ -1,7 +1,7 @@
 use a4n_db_models::models::{ai::generated_image, asset::profile_primary_material};
 use std::collections::{BTreeMap, HashSet};
 
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use super::{
     contracts::{ProfileMaterialDbError, ProfileMaterialImageIdentityRow, ProfileMaterialListRows},
@@ -11,7 +11,7 @@ use super::{
 };
 
 pub async fn profile_material_list_rows(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     image_types: &[&str],
 ) -> Result<ProfileMaterialListRows, ProfileMaterialDbError> {
@@ -59,7 +59,7 @@ pub async fn profile_material_list_rows(
 }
 
 pub async fn profile_material_image_identity_rows_by_type(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     image_type: &str,
 ) -> Result<Vec<ProfileMaterialImageIdentityRow>, ProfileMaterialDbError> {
@@ -80,7 +80,7 @@ pub async fn profile_material_image_identity_rows_by_type(
 }
 
 pub async fn profile_material_image_counts_by_profile(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     image_type: &str,
     profile_ids: &[i64],
@@ -104,7 +104,7 @@ pub async fn profile_material_image_counts_by_profile(
 }
 
 pub async fn profile_material_image_ids_by_profile(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     image_type: &str,
     profile_id: i64,

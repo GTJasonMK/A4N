@@ -2,13 +2,14 @@ use super::*;
 use a4n_db_models::models::agent::inbox as inbox_model;
 use a4n_db_models::models::generation::{generation_task_checkpoint, workflow_run};
 use a4n_domain::agent::AgentCompletionBlocker;
+use sea_orm::ConnectionTrait;
 
 /// Commit the tool receipt, visible question and wait together. A fast user
 /// reply already in the inbox requeues the Run instead of leaving it asleep.
 pub async fn request_user_input(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     input: AgentQuestionInput,
-) -> Result<message::Model, AgentDbError> {
+) -> Result<AgentMessageRecord, AgentDbError> {
     let identity = run_by_id(db, input.run_id)
         .await?
         .ok_or_else(|| AgentDbError::NotFound("Agent Run 不存在".into()))?;
@@ -42,6 +43,7 @@ pub async fn request_user_input(
             .filter(message::Column::ClientMessageId.eq(question_key))
             .one(&tx)
             .await?
+            .map(AgentMessageRecord::from)
             .ok_or_else(|| AgentDbError::Conflict("提问执行完成但缺少消息".into()));
     }
     validate_live_run_lease(&owner, &input.lease_token, now())?;
@@ -106,7 +108,7 @@ pub async fn request_user_input(
     .await?;
     refresh_thread_status_on(&tx, owner.thread_id).await?;
     tx.commit().await?;
-    Ok(question)
+    Ok(question.into())
 }
 
 /// Called inside the finalizer's Thread/Run transaction. Only current durable

@@ -98,7 +98,7 @@ macro_rules! insert_project_scoped_mapped_import_rows {
 pub(super) async fn import_package_rows<Importer>(
     user_id: i64,
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     media_importer: &mut Importer,
 ) -> Result<(Vec<novel_project::Model>, ImportIdMaps), ProjectFamilyImportError>
 where
@@ -119,7 +119,7 @@ where
 pub(super) async fn insert_media_project_rows<Importer: ProjectFamilyMediaFileImporter>(
     user_id: i64,
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
     media_importer: &mut Importer,
 ) -> Result<(), ProjectFamilyImportError> {

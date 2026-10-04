@@ -1,4 +1,5 @@
 use a4n_db_models::models::project::novel_blueprint;
+use a4n_domain::project::BlueprintRecord;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 
 use super::{BlueprintDbError, BlueprintRefinePatchInput};
@@ -6,13 +7,14 @@ use super::{BlueprintDbError, BlueprintRefinePatchInput};
 /// 应用蓝图优化补丁字段并更新版本号。
 pub async fn apply_blueprint_refine_patch_record<C>(
     db: &C,
-    existing: novel_blueprint::Model,
+    existing: BlueprintRecord,
     patch: BlueprintRefinePatchInput,
-) -> Result<novel_blueprint::Model, BlueprintDbError>
+) -> Result<BlueprintRecord, BlueprintDbError>
 where
     C: ConnectionTrait,
 {
-    let mut active: novel_blueprint::ActiveModel = existing.into();
+    let mut active: novel_blueprint::ActiveModel =
+        crate::project::blueprint_model_from_record(existing).into();
     if let Some(style) = patch.style {
         active.style = Set(Some(style));
     }
@@ -24,5 +26,5 @@ where
     }
     active.current_version = Set(patch.current_version);
     active.updated_at = Set(patch.now);
-    Ok(active.update(db).await?)
+    Ok(crate::project::blueprint_record(active.update(db).await?))
 }

@@ -1,7 +1,7 @@
 use a4n_db_models::models::user::user;
 use a4n_error::AppError;
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
+use sea_orm::{ActiveModelTrait, Set};
 
 use crate::auth::rules::{
     hash_password, normalize_email, normalize_optional_text, normalize_username,
@@ -11,7 +11,7 @@ use crate::auth::rules::{
 use super::read::{active_user, find_by_email_on, find_by_username_on};
 
 pub async fn login_user(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     username: &str,
     password: &str,
 ) -> Result<user::Model, AppError> {
@@ -29,11 +29,11 @@ pub async fn login_user(
 
     let mut active: user::ActiveModel = user.clone().into();
     active.last_login_at = Set(Some(Utc::now().naive_utc()));
-    active.update(db).await.map_err(AppError::Database)
+    active.update(db).await.map_err(AppError::from)
 }
 
 pub async fn update_profile(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
     email: Option<&str>,
     avatar_url: Option<Option<&str>>,
@@ -57,11 +57,11 @@ pub async fn update_profile(
         active.page_cli_enabled = Set(value);
     }
     active.updated_at = Set(Utc::now().naive_utc());
-    active.update(db).await.map_err(AppError::Database)
+    active.update(db).await.map_err(AppError::from)
 }
 
 pub async fn change_password(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     user_id: i64,
     old_password: &str,
     new_password: &str,
@@ -74,6 +74,6 @@ pub async fn change_password(
     let mut active: user::ActiveModel = user.into();
     active.password_hash = Set(hash_password(new_password)?);
     active.updated_at = Set(Utc::now().naive_utc());
-    active.update(db).await.map_err(AppError::Database)?;
+    active.update(db).await.map_err(AppError::from)?;
     Ok(())
 }

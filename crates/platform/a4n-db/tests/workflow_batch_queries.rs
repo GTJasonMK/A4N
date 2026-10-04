@@ -44,6 +44,10 @@ fn workflow_input(business_key: &str, fingerprint: &str, status: &str) -> Upsert
     }
 }
 
+fn shared_db_handle(db: &sea_orm::DatabaseConnection) -> a4n_db::DbHandle {
+    a4n_db::DbHandle::new(std::sync::Arc::new(db.clone()))
+}
+
 #[tokio::test]
 async fn cancelling_a_failed_resumable_workflow_discards_its_progress() {
     let db = a4n_migration::test_support::connect_test_database().await;
@@ -212,7 +216,7 @@ async fn chapter_source_change_invalidates_derived_checkpoints_but_keeps_llm_cal
             "scene_profile_sync.chapter.2.scenes",
         ] {
             upsert_workflow_checkpoint(
-                &db,
+                &shared_db_handle(&db),
                 UpsertWorkflowCheckpointInput {
                     workflow_run_id: run.id,
                     step_key: step_key.to_string(),
@@ -435,7 +439,7 @@ async fn workflow_snapshot_survives_progress_reads_updates_and_cancellation() {
         run_input.active_task_id = Some(active_task_id.clone());
         let run = upsert_workflow_run(&db, run_input).await.unwrap();
         upsert_workflow_checkpoint(
-            &db,
+            &shared_db_handle(&db),
             UpsertWorkflowCheckpointInput {
                 workflow_run_id: run.id,
                 step_key: "video-generation".to_string(),
@@ -641,15 +645,19 @@ async fn resume_binds_activity_task_to_workflow() {
 #[tokio::test]
 async fn cancelled_retry_inherits_completed_calls_without_reopening_cancelled_run() {
     let db = a4n_migration::test_support::connect_test_database().await;
+    let db_handle = a4n_db::DbHandle::new(std::sync::Arc::new(db.clone()));
     let key = format!("character-call-resume:{}", uuid::Uuid::new_v4());
     let mut input = workflow_input(&key, "same", WORKFLOW_STATUS_RUNNING);
     input.workflow_kind = "character_profile_sync".to_string();
     let original = resume_or_upsert_workflow_run(&db, input.clone())
         .await
         .unwrap();
-    save_completed_llm_call_checkpoint(&db, completed_call(original.id, "evidence"))
-        .await
-        .unwrap();
+    save_completed_llm_call_checkpoint(
+        &shared_db_handle(&db),
+        completed_call(original.id, "evidence"),
+    )
+    .await
+    .unwrap();
     for (step_key, status, payload) in [
         (
             "business-write",
@@ -663,7 +671,7 @@ async fn cancelled_retry_inherits_completed_calls_without_reopening_cancelled_ru
         ),
     ] {
         upsert_workflow_checkpoint(
-            &db,
+            &shared_db_handle(&db),
             UpsertWorkflowCheckpointInput {
                 workflow_run_id: original.id,
                 step_key: step_key.to_string(),
@@ -699,7 +707,7 @@ async fn cancelled_retry_inherits_completed_calls_without_reopening_cancelled_ru
         )]
     );
     let restored = load_completed_llm_call_checkpoint(
-        &db,
+        &db_handle,
         restarted.id,
         "evidence",
         &json!({"request": "stable"}),
@@ -710,7 +718,7 @@ async fn cancelled_retry_inherits_completed_calls_without_reopening_cancelled_ru
     assert_eq!(restored.response_content, "{\"events\":[]}");
     assert!(
         load_completed_llm_call_checkpoint(
-            &db,
+            &db_handle,
             restarted.id,
             "evidence",
             &json!({"request": "changed"})
@@ -724,7 +732,10 @@ async fn cancelled_retry_inherits_completed_calls_without_reopening_cancelled_ru
     assert!(!cancelled.can_resume);
     assert!(
         matches!(
-            save_completed_llm_call_checkpoint(&db, completed_call(original.id, "late-response"))
+            save_completed_llm_call_checkpoint(
+                &shared_db_handle(&db),
+                completed_call(original.id, "late-response"),
+            )
                 .await,
             Err(WorkflowWriteError::StatusConflict { current, .. })
                 if current == WORKFLOW_STATUS_CANCELLED
@@ -755,9 +766,12 @@ async fn cancelled_retry_does_not_inherit_unrelated_or_fresh_start_calls() {
         let original = resume_or_upsert_workflow_run(&db, input.clone())
             .await
             .unwrap();
-        save_completed_llm_call_checkpoint(&db, completed_call(original.id, "saved-call"))
-            .await
-            .unwrap();
+        save_completed_llm_call_checkpoint(
+            &shared_db_handle(&db),
+            completed_call(original.id, "saved-call"),
+        )
+        .await
+        .unwrap();
         if mode == "already_completed" {
             mark_workflow_status(&db, original.id, WORKFLOW_STATUS_COMPLETED, false, None)
                 .await
@@ -791,6 +805,7 @@ async fn cancelled_retry_does_not_inherit_unrelated_or_fresh_start_calls() {
 #[tokio::test]
 async fn new_attempt_after_failure_inherits_validated_calls() {
     let db = a4n_migration::test_support::connect_test_database().await;
+    let db_handle = a4n_db::DbHandle::new(std::sync::Arc::new(db.clone()));
     let key = format!("failed-call-retry:{}", uuid::Uuid::new_v4());
     let input = workflow_input(&key, "same", WORKFLOW_STATUS_RUNNING);
     let original = upsert_workflow_run(&db, input.clone()).await.unwrap();
@@ -800,7 +815,9 @@ async fn new_attempt_after_failure_inherits_validated_calls() {
         "trace_context": {"workflow_run_id": original.id}
     }});
     let mut expected_fingerprint = call.input_fingerprint_json.clone();
-    save_completed_llm_call_checkpoint(&db, call).await.unwrap();
+    save_completed_llm_call_checkpoint(&shared_db_handle(&db), call)
+        .await
+        .unwrap();
     mark_workflow_status(
         &db,
         original.id,
@@ -814,10 +831,15 @@ async fn new_attempt_after_failure_inherits_validated_calls() {
     assert_ne!(retry.id, original.id);
     expected_fingerprint["request"]["trace_context"]["workflow_run_id"] = json!(retry.id);
     assert!(
-        load_completed_llm_call_checkpoint(&db, retry.id, "first-call", &expected_fingerprint)
-            .await
-            .unwrap()
-            .is_some()
+        load_completed_llm_call_checkpoint(
+            &db_handle,
+            retry.id,
+            "first-call",
+            &expected_fingerprint,
+        )
+        .await
+        .unwrap()
+        .is_some()
     );
     assert_eq!(
         workflow_run_model_by_id(&db, original.id)
@@ -827,9 +849,12 @@ async fn new_attempt_after_failure_inherits_validated_calls() {
         WORKFLOW_STATUS_FAILED
     );
     assert!(
-        save_completed_llm_call_checkpoint(&db, completed_call(original.id, "late-call"))
-            .await
-            .is_err()
+        save_completed_llm_call_checkpoint(
+            &shared_db_handle(&db),
+            completed_call(original.id, "late-call"),
+        )
+        .await
+        .is_err()
     );
 
     mark_workflow_status(&db, retry.id, WORKFLOW_STATUS_COMPLETED, false, None)
@@ -860,7 +885,7 @@ async fn workflow_checkpoint_status_query_returns_only_run_and_status() {
     .expect("workflow must be inserted");
     for (step_order, status) in [(2, WORKFLOW_STATUS_COMPLETED), (1, WORKFLOW_STATUS_RUNNING)] {
         upsert_workflow_checkpoint(
-            &db,
+            &shared_db_handle(&db),
             UpsertWorkflowCheckpointInput {
                 workflow_run_id: run.id,
                 step_key: format!("step-{step_order}"),
@@ -913,7 +938,7 @@ async fn workflow_checkpoint_step_status_query_returns_ordered_narrow_rows() {
 
     for (step_order, status) in [(2, WORKFLOW_STATUS_COMPLETED), (1, WORKFLOW_STATUS_RUNNING)] {
         upsert_workflow_checkpoint(
-            &db,
+            &shared_db_handle(&db),
             UpsertWorkflowCheckpointInput {
                 workflow_run_id: run.id,
                 step_key: format!("step-{step_order}"),

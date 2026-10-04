@@ -9,7 +9,7 @@ pub(crate) fn project_family_error_to_app_error(error: ProjectFamilyDbError) -> 
     match error {
         ProjectFamilyDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
         ProjectFamilyDbError::NotFound(message) => AppError::NotFound(message),
-        ProjectFamilyDbError::Database(error) => AppError::Database(error),
+        ProjectFamilyDbError::Database(error) => AppError::database(error),
     }
 }
 
@@ -22,7 +22,10 @@ pub(crate) fn project_family_export_error_to_app_error(
         ProjectFamilyExportError::InvalidState { current, operation } => {
             AppError::InvalidState { current, operation }
         }
-        ProjectFamilyExportError::Database(error) => AppError::Database(error),
+        ProjectFamilyExportError::Database(error) => AppError::database(error),
+        ProjectFamilyExportError::Serialization(error) => {
+            AppError::Internal(anyhow::anyhow!(error))
+        }
     }
 }
 
@@ -30,7 +33,7 @@ pub(crate) fn project_basic_record_error_to_app_error(error: ProjectBasicRecordE
     match error {
         ProjectBasicRecordError::InvalidArgument(message) => AppError::InvalidArgument(message),
         ProjectBasicRecordError::ProjectNotFound { .. } => AppError::NotFound(error.to_string()),
-        ProjectBasicRecordError::Database { source, .. } => AppError::Database(source),
+        ProjectBasicRecordError::Database { source, .. } => AppError::database(source),
     }
 }
 
@@ -45,7 +48,7 @@ pub(crate) fn project_family_metadata_read_error_to_app_error(
         | ProjectFamilyMetadataReadError::SourceSnapshotMissing { .. } => {
             AppError::Internal(anyhow::anyhow!(error.to_string()))
         }
-        ProjectFamilyMetadataReadError::Database { source, .. } => AppError::Database(source),
+        ProjectFamilyMetadataReadError::Database { source, .. } => AppError::database(source),
     }
 }
 
@@ -63,7 +66,7 @@ pub(crate) fn project_progress_read_error_to_app_error(
         | ProjectProgressReadError::SummaryMissing { .. } => {
             AppError::Internal(anyhow::anyhow!(error.to_string()))
         }
-        ProjectProgressReadError::Database { source, .. } => AppError::Database(source),
+        ProjectProgressReadError::Database { source, .. } => AppError::database(source),
     }
 }
 
@@ -73,7 +76,7 @@ pub(crate) fn project_family_import_error_to_app_error(
     match error {
         ProjectFamilyImportError::Database(source)
         | ProjectFamilyImportError::Commit(source)
-        | ProjectFamilyImportError::DatabaseContext { source, .. } => AppError::Database(source),
+        | ProjectFamilyImportError::DatabaseContext { source, .. } => AppError::database(source),
         ProjectFamilyImportError::InvalidPackage(message) => AppError::InvalidArgument(message),
         ProjectFamilyImportError::CanvasImport(error) => {
             crate::canvas::video_studio_project_import_error(error)

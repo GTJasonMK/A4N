@@ -171,7 +171,7 @@ pub fn completed_llm_call_checkpoint_from_fields(
 }
 
 pub async fn load_completed_llm_call_checkpoint(
-    db: &DatabaseConnection,
+    db: &crate::DbHandle,
     workflow_run_id: i64,
     call_key: &str,
     input_fingerprint_json: &Value,
@@ -187,13 +187,19 @@ pub async fn load_completed_llm_call_checkpoint(
     )
     .await?;
     checkpoint
-        .map(|checkpoint| completed_llm_call_checkpoint_from_model(&checkpoint, call_key))
+        .map(|checkpoint| {
+            completed_llm_call_checkpoint_from_fields(
+                checkpoint.checkpoint_json.as_ref(),
+                checkpoint.artifacts_json.as_ref(),
+                call_key,
+            )
+        })
         .transpose()
         .map_err(|error| WorkflowReadError::InvalidData(error.to_string()))
 }
 
 pub async fn reject_completed_llm_call_checkpoint(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     workflow_run_id: i64,
     call_key: &str,
     input_fingerprint_json: &Value,
@@ -234,8 +240,8 @@ pub async fn reject_completed_llm_call_checkpoint(
     tx.commit().await.map_err(WorkflowWriteError::Database)
 }
 
-pub(super) async fn inherit_completed_llm_call_checkpoints(
-    tx: &sea_orm::DatabaseTransaction,
+pub(super) async fn inherit_completed_llm_call_checkpoints<C: sea_orm::ConnectionTrait>(
+    tx: &C,
     source_run_id: i64,
     target_run_id: i64,
 ) -> Result<(), WorkflowWriteError> {
@@ -362,7 +368,7 @@ mod tests {
 }
 
 pub async fn save_completed_llm_call_checkpoint(
-    db: &DatabaseConnection,
+    db: &crate::DbHandle,
     input: CompletedLlmCallCheckpointInput,
 ) -> Result<(), WorkflowWriteError> {
     let CompletedLlmCallCheckpoint {

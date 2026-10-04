@@ -158,7 +158,7 @@ async fn collaboration_flow_keeps_reads_pure_and_mutations_explicit() {
     ));
 }
 
-async fn insert_user(db: &DatabaseConnection, label: &str) -> user::Model {
+async fn insert_user(db: &impl crate::DbExecutor, label: &str) -> user::Model {
     let now = Utc::now().naive_utc();
     user::ActiveModel {
         username: Set(format!("collaboration-{label}")),
@@ -180,7 +180,7 @@ async fn insert_user(db: &DatabaseConnection, label: &str) -> user::Model {
 }
 
 async fn insert_invite(
-    db: &DatabaseConnection,
+    db: &impl crate::DbExecutor,
     project_id: i64,
     inviter_user_id: i64,
     invitee_user_id: i64,

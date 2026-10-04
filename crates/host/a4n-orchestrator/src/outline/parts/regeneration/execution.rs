@@ -8,7 +8,7 @@ use serde_json::Value;
 use a4n_prompt::rendering::PromptRenderer;
 
 use super::super::super::OrchestratorContext;
-use super::super::super::context::lock_outline_generation_sources;
+use super::super::super::context::with_locked_outline_generation_sources;
 use super::super::super::part_contract::{
     update_part_outline_and_rebind_chapters_in, update_part_outline_from_json,
 };
@@ -68,39 +68,52 @@ impl OrchestratorContext {
             })
             .await?;
         let now = Utc::now().naive_utc();
-        let tx = lock_outline_generation_sources(
-            self.database.connection(),
+        let updated = with_locked_outline_generation_sources(
+            self.database.executor(),
             prepared.project_id,
             &prepared.context.source_snapshot,
+            |tx| {
+                Box::pin(async move {
+                    let result = async {
+                        let updated = if prepared.rebind_chapter_outlines {
+                            update_part_outline_and_rebind_chapters_in(
+                                &tx,
+                                prepared.project_id,
+                                prepared.target.clone(),
+                                prepared.target.part_number,
+                                prepared.target.start_chapter,
+                                prepared.target.end_chapter,
+                                &generated.data,
+                                now,
+                            )
+                            .await?
+                        } else {
+                            update_part_outline_from_json(
+                                &tx,
+                                prepared.target.clone(),
+                                prepared.target.part_number,
+                                prepared.target.start_chapter,
+                                prepared.target.end_chapter,
+                                &generated.data,
+                                now,
+                            )
+                            .await?
+                        };
+                        self.record_part_outline_generation_run(
+                            &tx,
+                            &updated,
+                            &generated,
+                            "重新生成分部大纲",
+                        )
+                        .await?;
+                        Ok(updated)
+                    }
+                    .await;
+                    (tx, result)
+                }) as a4n_db::transaction::TransactionWork<'_, PartOutlineRecord>
+            },
         )
         .await?;
-        let updated = if prepared.rebind_chapter_outlines {
-            update_part_outline_and_rebind_chapters_in(
-                &tx,
-                prepared.project_id,
-                prepared.target.clone(),
-                prepared.target.part_number,
-                prepared.target.start_chapter,
-                prepared.target.end_chapter,
-                &generated.data,
-                now,
-            )
-            .await?
-        } else {
-            update_part_outline_from_json(
-                &tx,
-                prepared.target.clone(),
-                prepared.target.part_number,
-                prepared.target.start_chapter,
-                prepared.target.end_chapter,
-                &generated.data,
-                now,
-            )
-            .await?
-        };
-        self.record_part_outline_generation_run(&tx, &updated, &generated, "重新生成分部大纲")
-            .await?;
-        tx.commit().await.map_err(AppError::Database)?;
         Ok(updated)
     }
 }

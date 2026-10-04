@@ -10,7 +10,7 @@ pub use candidates::{
 pub(crate) use context::video_project_record;
 pub use context::{
     VideoProjectIdentity, ensure_video_chapter_belongs_to_project_record,
-    video_asset_project_ids_record, video_chapter_record,
+    video_asset_project_ids_record, video_chapter_domain_record, video_chapter_record,
 };
 pub use tail_frames::video_tail_frame_images;
 pub(crate) use validation::validated_video_reference_image_records_batch;
