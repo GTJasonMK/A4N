@@ -9,7 +9,7 @@ import {
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { ImageZoomButton } from "../../../components/ui/ImageLightbox";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
-import type { GeneratedImage } from "../../../api/image";
+import type { GeneratedImage, PickedLocalImageFile } from "../../../api/image";
 import { EmptyHint, type ChapterRow } from "../shared";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import { formatNumber, useI18n } from "../../../i18n";
@@ -43,7 +43,8 @@ interface ImageGalleryPanelProps {
   onFavoriteOnlyChange: (enabled: boolean) => void;
   onRefresh: () => void;
   onOpenTools: () => void;
-  onImportImageFile: (file: File) => void;
+  onImportImageFile: (file: File | PickedLocalImageFile) => void;
+  onPickLocalImageFile?: () => void;
   onToggleFavorite: (image: GeneratedImage) => void;
   onOpenActions: (image: GeneratedImage) => void;
 }
@@ -68,6 +69,7 @@ export function ImageGalleryPanel({
   onRefresh,
   onOpenTools,
   onImportImageFile,
+  onPickLocalImageFile,
   onToggleFavorite,
   onOpenActions,
 }: ImageGalleryPanelProps) {
@@ -241,7 +243,19 @@ export function ImageGalleryPanel({
             >
               <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
             </BookIconButton>
-            {canEditImages ? (
+            {canEditImages && onPickLocalImageFile ? (
+              <BookButton
+                variant="secondary"
+                size="sm"
+                disabled={importBusy}
+                onClick={onPickLocalImageFile}
+                className="min-w-0 flex-1 !text-xs sm:flex-none"
+              >
+                <ImagePlus size={12} />
+                {importBusy ? t("novel.imageLibrary.importing") : t("novel.imageLibrary.import")}
+              </BookButton>
+            ) : null}
+            {canEditImages && !onPickLocalImageFile ? (
               <span className="relative min-w-0 flex-1 rounded-lg focus-within:ring-2 focus-within:ring-book-border sm:flex-none">
                 <BookButton
                   variant="secondary"

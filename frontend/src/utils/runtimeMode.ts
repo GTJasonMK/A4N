@@ -11,6 +11,10 @@ export function isTauriRuntime(): boolean {
   );
 }
 
+export function isDesktopTauriRuntime(): boolean {
+  return isTauriRuntime() && !/android|iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
 export function shouldUseHttpBackend(): boolean {
   if (!isTauriRuntime()) return true;
   const transport = import.meta.env.VITE_A4N_API_TRANSPORT;

@@ -9,11 +9,13 @@ import {
   listImagesByChapter,
   listImagesByProject,
   previewSceneImageRequest,
+  pickLocalImageFile,
   startImageGeneration,
   updateImage,
   uploadImage,
   verifyImageGenerationResult,
   type GeneratedImage,
+  type PickedLocalImageFile,
   type UpdateImageInput,
 } from "../../api/image";
 import {
@@ -34,6 +36,7 @@ import { useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { copyTextToClipboard } from "../../utils/clipboard";
 import { readFileAsBase64 } from "../../utils/fileUpload";
+import { isDesktopTauriRuntime } from "../../utils/runtimeMode";
 import {
   isSupportedImageMime,
   MAX_UPLOAD_IMAGE_BYTES,
@@ -697,7 +700,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     }
   };
 
-  const handleImportImageFile = async (file: File) => {
+  const handleImportImageFile = async (file: File | PickedLocalImageFile) => {
     if (!ensureCanEditImages()) return;
     const requestScope = scopeKey;
     const requestProjectId = projectId;
@@ -727,7 +730,9 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     if (actionSeq == null) return;
     setImportBusy(true);
     try {
-      const dataBase64 = await readFileAsBase64(file);
+      const dataBase64 = "dataBase64" in file
+        ? file.dataBase64
+        : await readFileAsBase64(file);
       if (!isCurrentAction(requestScope, actionSeq)) return;
       const imported = await uploadImage(requestProjectId, {
         file_name: file.name,
@@ -751,6 +756,19 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     } finally {
       if (isCurrentAction(requestScope, actionSeq)) setImportBusy(false);
       finishAction(actionSeq);
+    }
+  };
+
+  const handlePickLocalImageFile = async () => {
+    if (!ensureCanEditImages() || importBusy) return;
+    setImportBusy(true);
+    try {
+      const file = await pickLocalImageFile();
+      if (file) await handleImportImageFile(file);
+    } catch (err) {
+      addToast(extractErrorMessage(err, t("novel.imageLibrary.importFailed")), "error");
+    } finally {
+      setImportBusy(false);
     }
   };
 
@@ -892,6 +910,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         onRefresh={() => void load()}
         onOpenTools={() => setToolsOpen(true)}
         onImportImageFile={(file) => void handleImportImageFile(file)}
+        onPickLocalImageFile={isDesktopTauriRuntime() ? () => void handlePickLocalImageFile() : undefined}
         onToggleFavorite={(image) => void handleToggleFavorite(image)}
         onOpenActions={handleOpenImageActions}
         contentHashError={chapterContentHashError}

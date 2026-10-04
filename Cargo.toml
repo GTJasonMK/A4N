@@ -300,6 +300,7 @@ tracing-subscriber = "0.3"
 # Tauri
 tauri = { version = "2" }
 tauri-build = "2"
+tauri-plugin-dialog = "~2.6.0"
 
 # 密码学
 argon2 = "0.5"

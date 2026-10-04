@@ -6,3 +6,4 @@ pub mod config {
 pub mod dispatch;
 pub mod frontend_state;
 pub mod generation_tasks;
+pub mod image_import;

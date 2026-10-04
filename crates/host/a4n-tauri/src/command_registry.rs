@@ -19,6 +19,7 @@ pub(crate) fn handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         commands::config::local_embedding::local_delete_embedding_model,
         commands::config::local_embedding::local_test_embedding_config,
         commands::config::local_embedding::local_embed_texts,
+        commands::image_import::pick_image_file,
         commands::frontend_state::commands::get_all_frontend_state,
         commands::frontend_state::commands::set_frontend_state_many,
         commands::frontend_state::commands::remove_frontend_state_many,

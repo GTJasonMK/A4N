@@ -23,6 +23,7 @@ pub(crate) fn run() {
     logging::init(early_log_dir).expect("日志系统初始化失败");
 
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(commands::generation_tasks::GenerationSubscriptionRegistry::default())
         .manage(commands::auth::OAuthBrowserState::default())
         .register_uri_scheme_protocol("a4n-media", media_protocol::handle_request)
