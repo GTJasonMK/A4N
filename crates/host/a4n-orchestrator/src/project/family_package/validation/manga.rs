@@ -3,7 +3,10 @@ use std::collections::{HashMap, HashSet};
 use a4n_db::manga::MANGA_PAGE_PROMPT_TYPE;
 use a4n_domain::{
     canvas_transfer_runtime_identity_key,
-    manga::{MangaPageGenerationLayoutV3, MangaReferenceAssetKind},
+    manga::{
+        MangaPageGenerationLayoutV3, MangaPageGenerationLayoutV4, MangaPagePromptSourceSummary,
+        MangaReferenceAssetKind, MangaReferenceBindingSummary,
+    },
     media_authoring::{AdaptationPlanV1, AdaptationTarget, AuthoringDocumentInputs},
     project::{ProjectKind, ProjectRecord},
     shooting_script::{CHAPTER_SHOOTING_SCRIPT_V2, ChapterShootingScriptV2},
@@ -365,23 +368,57 @@ fn validate_manga_prompts(
                 prompt.id, prompt.prompt_type, prompt.status
             ));
         }
-        required_text(
-            &prompt.image_prompt,
-            "漫画页面提示词 image_prompt",
-            prompt.id,
-        )?;
         if !identities.insert((prompt.project_id, prompt.chapter_id, prompt.page_number)) {
             return Err(format!(
                 "项目族导入包漫画页面提示词身份重复: project_id={}, chapter_id={}, page_number={}",
                 prompt.project_id, prompt.chapter_id, prompt.page_number
             ));
         }
-        let layout = a4n_manga_core::manga_page_generation_layout(
-            prompt.id,
-            prompt.page_number,
-            prompt.layout.as_ref(),
-        )?;
-        validate_manga_layout(package, prompt, project, &layout, context)?;
+        if prompt
+            .layout
+            .as_ref()
+            .and_then(|layout| layout.get("schema_version"))
+            .and_then(serde_json::Value::as_str)
+            == Some("manga_page_generation_v4")
+        {
+            let layout = a4n_manga_core::manga_page_pipeline_layout(
+                prompt.id,
+                prompt.page_number,
+                prompt.layout.as_ref(),
+            )?;
+            if layout.pipeline.drawing_prompt.is_some() || prompt.generated_image_id.is_some() {
+                required_text(
+                    &prompt.image_prompt,
+                    "漫画页面提示词 image_prompt",
+                    prompt.id,
+                )?;
+            }
+            if layout
+                .pipeline
+                .image
+                .as_ref()
+                .is_some_and(|image| Some(image.generated_image_id) != prompt.generated_image_id)
+                || (layout.pipeline.image.is_none() && prompt.generated_image_id.is_some())
+            {
+                return Err(format!(
+                    "项目族导入包漫画页面提示词图片与流水线状态不一致: prompt_id={}",
+                    prompt.id
+                ));
+            }
+            validate_manga_pipeline_layout(package, prompt, project, &layout, context)?;
+        } else {
+            required_text(
+                &prompt.image_prompt,
+                "漫画页面提示词 image_prompt",
+                prompt.id,
+            )?;
+            let layout = a4n_manga_core::manga_page_generation_layout(
+                prompt.id,
+                prompt.page_number,
+                prompt.layout.as_ref(),
+            )?;
+            validate_manga_layout(package, prompt, project, &layout, context)?;
+        }
         if let Some(image_id) = prompt.generated_image_id {
             let image = context.images.get(&image_id).copied().ok_or_else(|| {
                 format!(
@@ -410,14 +447,62 @@ fn validate_manga_layout(
     layout: &MangaPageGenerationLayoutV3,
     context: &MangaManifestContext<'_>,
 ) -> Result<(), String> {
+    validate_manga_layout_parts(
+        package,
+        prompt,
+        project,
+        &layout.source,
+        layout.page_plan_ref.as_ref(),
+        &layout.page_plan.beat_refs,
+        &layout.reference_bindings,
+        context,
+    )
+}
+
+fn validate_manga_pipeline_layout(
+    package: &ProjectFamilyPackage,
+    prompt: &a4n_domain::project::ProjectFamilyMangaPromptRecord,
+    project: &ProjectRecord,
+    layout: &MangaPageGenerationLayoutV4,
+    context: &MangaManifestContext<'_>,
+) -> Result<(), String> {
+    let mut beat_refs = Vec::new();
+    if let Some(content) = &layout.pipeline.page_content {
+        beat_refs.extend(content.beat_refs.iter().cloned());
+    }
+    if let Some(storyboard) = &layout.pipeline.storyboard {
+        beat_refs.extend(storyboard.beat_refs.iter().cloned());
+    }
+    validate_manga_layout_parts(
+        package,
+        prompt,
+        project,
+        &layout.source,
+        layout.page_plan_ref.as_ref(),
+        &beat_refs,
+        &layout.reference_bindings,
+        context,
+    )
+}
+
+fn validate_manga_layout_parts(
+    package: &ProjectFamilyPackage,
+    prompt: &a4n_domain::project::ProjectFamilyMangaPromptRecord,
+    project: &ProjectRecord,
+    source_summary: &MangaPagePromptSourceSummary,
+    page_plan_ref: Option<&a4n_domain::media_authoring::AuthoringDocumentRef>,
+    beat_refs: &[a4n_domain::media_authoring::AdaptationBeatRef],
+    reference_bindings: &[MangaReferenceBindingSummary],
+    context: &MangaManifestContext<'_>,
+) -> Result<(), String> {
     let document = context
         .documents
-        .get(&layout.source.adaptation_plan_id)
+        .get(&source_summary.adaptation_plan_id)
         .copied()
         .ok_or_else(|| {
             format!(
                 "项目族导入包漫画 layout 引用了不存在的改编计划: prompt_id={}, adaptation_plan_id={}",
-                prompt.id, layout.source.adaptation_plan_id
+                prompt.id, source_summary.adaptation_plan_id
             )
         })?;
     let inputs: AuthoringDocumentInputs = serde_json::from_value(document.inputs_json.clone())
@@ -438,11 +523,11 @@ fn validate_manga_layout(
         || document.version <= 0
         || document.revision <= 0
         || expected_hash != document.document_sha256
-        || layout.source.root_project_id != package.root_project_id
+        || source_summary.root_project_id != package.root_project_id
         || source.root_project_id != package.root_project_id
-        || layout.source.source_chapter_id != prompt.chapter_id
+        || source_summary.source_chapter_id != prompt.chapter_id
         || source.source_chapter_id != prompt.chapter_id
-        || !layout.source.matches_authoring(
+        || !source_summary.matches_authoring(
             source,
             &a4n_domain::media_authoring::AuthoringDocumentRef {
                 id: document.id,
@@ -459,7 +544,7 @@ fn validate_manga_layout(
     if ProjectKind::parse(&project.project_kind) != Some(ProjectKind::Comic) {
         return Err(format!("漫画页面 {} 不属于漫画派生项目", prompt.id));
     }
-    if let Some(reference) = &layout.page_plan_ref {
+    if let Some(reference) = page_plan_ref {
         let page_doc = context
             .documents
             .get(&reference.id)
@@ -497,16 +582,14 @@ fn validate_manga_layout(
         &snapshot.content,
     );
     plan.validate(&spans.into_iter().map(|span| span.id).collect())?;
-    if layout
-        .page_plan
-        .beat_refs
+    if beat_refs
         .iter()
         .any(|reference| plan.beat(reference).is_none())
     {
         return Err(format!("漫画页面 {} 引用了不存在的本地改编节拍", prompt.id));
     }
     let mut names = HashSet::new();
-    for binding in &layout.reference_bindings {
+    for binding in reference_bindings {
         let name = binding.character_name.trim();
         if name.is_empty() || !names.insert(name) {
             return Err(format!(

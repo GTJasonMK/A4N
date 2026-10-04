@@ -68,7 +68,11 @@ import {
   mangaPipelineConfigBlockReason,
   type MangaTabProps,
 } from "./manga/mangaPipelineProgress";
-import { countStaleMangaPagePrompts, type MangaPageWorkspaceStage } from "./manga/mangaTabUtils";
+import {
+  countStaleMangaPagePrompts,
+  mangaPageNumberForPipelineStage,
+  type MangaPageWorkspaceStage,
+} from "./manga/mangaTabUtils";
 
 type MangaTextSourceSelection = import("../derived/ProjectTextMaterialsPanel").ProjectTextSourceSelection;
 
@@ -251,6 +255,10 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     staged && workspaceStage !== "materials" && workspaceStage !== "adaptation"
       ? workspaceStage
       : undefined;
+  const oneClickPageNumber = mangaPageNumberForPipelineStage(
+    activePageStage,
+    selectedPageNumber,
+  );
   const [profiles, setProfiles] = useState<CharacterProfile[]>([]);
   const [portraits, setPortraits] = useState<Portrait[]>([]);
   const [projectImages, setProjectImages] = useState<GeneratedImage[]>([]);
@@ -1310,7 +1318,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           setWorkspaceStage(stage);
           return true;
         }}>
-        {canEditManga && <BookButton size="sm" variant="secondary" disabled={!selectedChapter || standaloneSourceLoading || selectedStatus?.pipeline_status === "running" || selectedStatus?.can_cancel || acting != null} onClick={() => void handleRunPipeline("start")}>{t("common.mediaAuthoring.oneClick")}</BookButton>}
+        {canEditManga && <BookButton size="sm" variant="secondary" disabled={!selectedChapter || standaloneSourceLoading || selectedStatus?.pipeline_status === "running" || selectedStatus?.can_cancel || acting != null || (activePageStage != null && activePageStage !== "page_plan" && selectedPageNumber == null)} onClick={() => void handleRunPipeline("start", null, true, oneClickPageNumber)}>{oneClickPageNumber == null ? t("common.mediaAuthoring.oneClick") : `${t("common.mediaAuthoring.oneClick")} · ${t("comic.prompt.pageLabel", { page: oneClickPageNumber })}`}</BookButton>}
       </MediaStageHeader>}
       {outputState?.stale && (workspaceStage === "prompts" || workspaceStage === "images") && (
         <p role="status" className="shrink-0 rounded-xl border border-warning/40 bg-warning-bg px-3 py-2 text-small text-warning">
