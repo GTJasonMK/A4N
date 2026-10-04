@@ -393,6 +393,7 @@ async fn initialize_runtime_with_ports(
         galgame_asset_plan_application: orchestrator.clone(),
         galgame_asset_generation_application: orchestrator.clone(),
         galgame_record_mutation_application: orchestrator.clone(),
+        galgame_story_graph_mutation_application: orchestrator.clone(),
         galgame_media_mutation_application: orchestrator.clone(),
         manga_pipeline_execution_application: orchestrator.clone(),
         media_authoring_application: orchestrator.clone(),

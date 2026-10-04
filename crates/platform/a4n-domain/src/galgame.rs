@@ -1,10 +1,12 @@
 mod kinds;
 
+pub mod graph;
 pub mod pipeline;
 pub mod presentation;
 pub mod records;
 pub mod validation;
 
+pub use graph::*;
 pub use kinds::*;
 pub use pipeline::GalgamePipelineStartStage;
 pub use presentation::*;

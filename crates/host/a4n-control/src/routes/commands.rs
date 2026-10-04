@@ -147,10 +147,12 @@ use self::front::{
     update_video_config, upload_theme_resource, web_fetch, web_search,
 };
 use self::galgame::{
-    bind_galgame_media, cancel_galgame_pipeline, delete_galgame_line, export_galgame_webgal,
-    get_galgame_asset_plan, get_galgame_pipeline_status, get_galgame_script, import_galgame_audio,
-    insert_galgame_line, plan_galgame_assets, preview_galgame_pipeline_request,
-    reorder_galgame_lines, run_galgame_asset_generation, start_galgame_pipeline,
+    advance_galgame_story_runtime, bind_galgame_media, cancel_galgame_pipeline,
+    delete_galgame_line, export_galgame_webgal, get_galgame_asset_plan,
+    get_galgame_pipeline_status, get_galgame_script, get_galgame_story_runtime_state,
+    import_galgame_audio, insert_galgame_line, plan_galgame_assets,
+    preview_galgame_pipeline_request, reorder_galgame_lines, run_galgame_asset_generation,
+    save_galgame_story_graph, start_galgame_pipeline, start_galgame_story_runtime,
     unbind_galgame_media, update_galgame_choices, update_galgame_line, update_galgame_scene,
 };
 use self::import_project::{

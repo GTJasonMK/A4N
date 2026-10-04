@@ -1,9 +1,10 @@
 use super::{
     DeleteGalgameLineInput, GalgameChoice, GalgameLine, GalgameScene, InsertGalgameLineInput,
-    ReorderGalgameLinesInput, UpdateGalgameChoicesInput, UpdateGalgameLineInput,
-    UpdateGalgameSceneInput,
+    ReorderGalgameLinesInput, SaveGalgameStoryGraphInput, UpdateGalgameChoicesInput,
+    UpdateGalgameLineInput, UpdateGalgameSceneInput,
 };
 use crate::AppState;
+use a4n_domain::galgame::StoryGraph;
 
 pub async fn update_galgame_line(
     state: &AppState,
@@ -79,6 +80,19 @@ pub async fn update_galgame_choices(
     state
         .galgame_record_mutation_application()
         .update_choices(user_id, project_id, input)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+pub async fn save_galgame_story_graph(
+    state: &AppState,
+    user_id: i64,
+    project_id: i64,
+    input: SaveGalgameStoryGraphInput,
+) -> Result<StoryGraph, String> {
+    state
+        .galgame_story_graph_mutation_application()
+        .save(user_id, project_id, input)
         .await
         .map_err(|err| err.to_string())
 }

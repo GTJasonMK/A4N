@@ -24,6 +24,7 @@ command_specs! {
     "add_profile_attribute" => args_add_profile_attribute, result_unit, "profile";
     "add_video_config" => args_add_video_config, result_add_video_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_VIDEO);
     "adopt_media_authoring_document" => args_adopt_authoring_document, result_authoring_document, "media_authoring", context(NO_CONTEXT);
+    "advance_galgame_story_runtime" => args_advance_galgame_story_runtime, result_galgame_story_runtime, "galgame", context(PROJECT_CONTEXT);
     "apply_assembly_postprocess_edit" => args_apply_assembly_postprocess_edit, result_generated_video, "video", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "apply_implicit_update_decision" => args_apply_implicit_update_decision, result_apply_implicit_update_decision, "profile";
     "apply_optimization_patches" => args_apply_optimization_patches, result_apply_optimization_patches, "optimize", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
@@ -147,6 +148,7 @@ command_specs! {
     "get_galgame_asset_plan" => args_cancel_galgame_pipeline, result_get_galgame_asset_plan, "galgame", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_GENERATION_SPEC_IDS);
     "get_galgame_pipeline_status" => args_cancel_galgame_pipeline, result_cancel_galgame_pipeline, "galgame", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow"), references(REFERENCES_WORKFLOW_RUN_IDS);
     "get_galgame_script" => args_cancel_galgame_pipeline, result_find_galgame_script, "galgame", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_GALGAME_SCRIPT_IDS);
+    "get_galgame_story_runtime_state" => args_get_galgame_story_runtime_state, result_get_galgame_story_runtime_state, "galgame", context(PROJECT_CONTEXT), effect(READ_EFFECT);
     "get_generation_call_analytics" => args_get_generation_call_analytics, result_get_generation_call_analytics, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_generation_progress" => args_project_id, result_outline_generation_progress, "task", context(PROJECT_CONTEXT), effect(READ_EFFECT);
     "get_implicit_review" => args_get_implicit_review, result_get_implicit_review, "profile", effect(READ_EFFECT);
@@ -376,6 +378,7 @@ command_specs! {
     "save_canvas_text_asset" => args_save_canvas_text_asset, result_save_canvas_text_asset, "canvas", context(NO_CONTEXT);
     "save_chapter_outline" => args_save_chapter_outline, result_save_chapter_outline, "outline", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "save_chapter_visual_plan_draft" => args_save_chapter_visual_plan_draft, result_chapter_visual_plan, "chapter", references(REFERENCES_PROJECT_IDS), idempotency("operation_id");
+    "save_galgame_story_graph" => args_save_galgame_story_graph, result_save_galgame_story_graph, "galgame", context(PROJECT_CONTEXT);
     "save_media_authoring_document" => args_save_authoring_document, result_authoring_document, "media_authoring", context(NO_CONTEXT);
     "save_part_outline" => args_save_part_outline, result_save_part_outline, "outline", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "select_segment_video" => args_select_segment_video, result_generated_video, "video", context(PROJECT_CHAPTER_CONTEXT), effect(DESTRUCTIVE_EFFECT);
@@ -391,6 +394,7 @@ command_specs! {
     "start_chapter_generation" => args_start_chapter_generation, result_generation_task_handle, "chapter", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "start_chapter_shooting_script_generation" => args_start_chapter_shooting_script_generation, result_generation_task_handle, "chapter", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "start_galgame_pipeline" => args_start_galgame_pipeline, result_find_galgame_script, "galgame", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_GALGAME_SCRIPT_IDS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
+    "start_galgame_story_runtime" => args_start_galgame_story_runtime, result_galgame_story_runtime, "galgame", context(PROJECT_CONTEXT);
     "start_image_generation" => args_start_image_generation, result_generation_task_handle, "asset", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "start_inspiration_generation" => args_start_inspiration_generation, result_generation_task_handle, "inspiration", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "start_manga_pipeline" => args_preview_start_manga_pipeline_request, result_generation_task_handle, "manga", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");

@@ -5,7 +5,6 @@ import {
   FileSearch,
   FileText,
   PenLine,
-  Plus,
   RefreshCw,
   X,
 } from "lucide-react";
@@ -85,6 +84,7 @@ import type { GalgamePipelineStopAfter } from "../../api/generated/host";
 import { usePersistedTab } from "../../hooks/usePersistedTab";
 import { useDirty } from "../../components/navigation/dirtyRegistry";
 import { BaseMaterialsWorkspace } from "../derived/BaseMaterialsWorkspace";
+import { StoryGraphPanel } from "./galgame/StoryGraphPanel";
 
 
 interface GalgameTabProps {
@@ -981,6 +981,21 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         {detail && <p className="text-sm">{t("galgame.sceneCount", { scenes: detail.scenes.length, lines: totalLines })}</p>}
         <BookButton size="sm" disabled={!canEditGalgame || !detail || exportingWebgal} onClick={handleExportWebgal}>{exportingWebgal ? <LoadingSpinner size="sm" /> : <Download size={14} />}{t("galgame.exportWebgal")}</BookButton>
       </section> : <>
+      <StoryGraphPanel
+        canEdit={canEditGalgame}
+        graph={detail?.story_graph ?? null}
+        graphStatus={detail?.story_graph_status ?? null}
+        projectId={projectId}
+        onSaved={(storyGraph) => setDetail((current) => current ? {
+          ...current,
+          story_graph: storyGraph,
+          story_graph_status: "edited",
+        } : current)}
+      />
+      <details className="a4n-flat-surface border border-book-border/40">
+        <summary className="cursor-pointer px-4 py-3 text-xs font-medium text-book-text-muted hover:text-book-text-main">
+          {t("galgame.sceneProjection")}
+        </summary>
       <div className="lg:hidden">
         <SegmentedControl
           ariaLabel={t("galgame.mobileWorkspace")}
@@ -1260,25 +1275,6 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                   : loadError ? t("galgame.loadFailed") : t("galgame.generatedEditorHint")}
               </p>
             </div>
-            {selectedScene && canEditGalgame ? (
-              <BookButton
-                variant="secondary"
-                size="sm"
-                onClick={() =>
-                  handleAddLine(
-                    selectedScene,
-                    selectedScene.lines.length
-                      ? selectedScene.lines[selectedScene.lines.length - 1]
-                      : null,
-                  )
-                }
-                disabled={busyTarget != null}
-                className="!min-h-9 !px-2.5 !text-xs sm:!min-h-8"
-              >
-                <Plus size={14} />
-                {t("galgame.addNarration")}
-              </BookButton>
-            ) : null}
           </div>
 
           {selectedScene ? (
@@ -1289,7 +1285,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
               mediaBindings={
                 mediaBindingsByScene.get(selectedScene.scene.id) ?? []
               }
-              disabled={!canEditGalgame || busyTarget != null}
+              disabled
               fieldDraftResetRevision={fieldDraftResetRevision}
               fieldDraft={fieldDrafts[`scene:${selectedScene.scene.id}`] ?? null}
               mediaAssetIdDraft={assetBindingDrafts[`scene:${selectedScene.scene.id}:background`] ?? ""}
@@ -1348,7 +1344,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                           ) ?? null)
                         : null
                     }
-                    disabled={!canEditGalgame || busyTarget != null}
+                    disabled
                     saving={busyTarget === lineBusyTarget(line.id)}
                     fieldDraftResetRevision={fieldDraftResetRevision}
                     fieldDraft={fieldDrafts[`line:${line.id}`] ?? null}
@@ -1390,6 +1386,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
           </div>
         </section>
       </div>
+      </details>
       </>}
       </div>
       <RequestPreviewModal

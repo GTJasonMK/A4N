@@ -633,6 +633,8 @@ pub struct ApplicationPorts {
     /// DTO projection remain in the Galgame owner.
     pub galgame_record_mutation_application:
         Arc<dyn a4n_api_contract::galgame::GalgameRecordMutationApplicationPort>,
+    pub galgame_story_graph_mutation_application:
+        Arc<dyn a4n_api_contract::galgame::GalgameStoryGraphMutationApplicationPort>,
     /// Host-facing Galgame media-binding mutation boundary.
     pub galgame_media_mutation_application:
         Arc<dyn a4n_api_contract::galgame::GalgameMediaMutationApplicationPort>,

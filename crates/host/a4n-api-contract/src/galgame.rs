@@ -3,7 +3,8 @@ use std::sync::Arc;
 use a4n_domain::galgame::{
     GalgameAudioRole, GalgameGenerationTargetKind, GalgameLinePresentationDocumentV3,
     GalgameLineType, GalgameMediaRole, GalgameMediaTargetKind, GalgamePipelineStartStage,
-    GalgameSceneEntryKind, GalgameStagePositionV2, GalgameTargetEntityKind,
+    GalgameSceneEntryKind, GalgameStagePositionV2, GalgameTargetEntityKind, StoryEdge, StoryGraph,
+    StoryNode, StoryRuntimeState,
 };
 use a4n_error::AppError;
 use a4n_progress::ProgressMeta;
@@ -166,6 +167,49 @@ pub struct GalgameScriptDetail {
     pub text_anchors: Vec<GalgameTextAnchorSummary>,
     pub media_bindings: Vec<GalgameMediaBindingSummary>,
     pub scenes: Vec<GalgameSceneDetail>,
+    pub story_graph: Option<StoryGraph>,
+    pub story_graph_status: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SaveGalgameStoryGraphInput {
+    #[schemars(range(min = 0))]
+    pub expected_revision: i64,
+    pub graph: StoryGraph,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct GetGalgameStoryRuntimeInput {
+    #[schemars(length(min = 1, max = 80))]
+    pub save_slot: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct StartGalgameStoryRuntimeInput {
+    #[schemars(length(min = 1, max = 80))]
+    pub save_slot: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AdvanceGalgameStoryRuntimeInput {
+    #[schemars(length(min = 1, max = 80))]
+    pub save_slot: String,
+    #[schemars(range(min = 0))]
+    pub expected_step_index: u32,
+    #[schemars(length(min = 1, max = 160))]
+    pub edge_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct GalgameStoryRuntimeView {
+    pub state: StoryRuntimeState,
+    pub current_node: StoryNode,
+    pub available_edges: Vec<StoryEdge>,
 }
 
 /// Host-facing Galgame read boundary.
@@ -231,6 +275,38 @@ pub trait GalgameRecordMutationApplicationPort: Send + Sync {
         project_id: i64,
         input: UpdateGalgameChoicesInput,
     ) -> Result<Vec<GalgameChoice>, a4n_error::AppError>;
+}
+
+/// Host-facing Galgame story graph mutation boundary.
+#[async_trait::async_trait]
+pub trait GalgameStoryGraphMutationApplicationPort: Send + Sync {
+    async fn save(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: SaveGalgameStoryGraphInput,
+    ) -> Result<StoryGraph, a4n_error::AppError>;
+
+    async fn runtime_state(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: GetGalgameStoryRuntimeInput,
+    ) -> Result<Option<GalgameStoryRuntimeView>, a4n_error::AppError>;
+
+    async fn start_runtime(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: StartGalgameStoryRuntimeInput,
+    ) -> Result<GalgameStoryRuntimeView, a4n_error::AppError>;
+
+    async fn advance_runtime(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: AdvanceGalgameStoryRuntimeInput,
+    ) -> Result<GalgameStoryRuntimeView, a4n_error::AppError>;
 }
 
 /// Host-facing Galgame media-binding mutation boundary.

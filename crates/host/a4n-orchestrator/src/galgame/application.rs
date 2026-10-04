@@ -75,6 +75,8 @@ impl OrchestratorContext {
     ) -> Result<Option<GalgameScriptDetail>, AppError> {
         self.verify_galgame_project_access(user_id, input.project_id, ProjectAccessRole::Editor)
             .await?;
+        self.ensure_story_graph_regeneration_safe(input.project_id)
+            .await?;
         self.run_galgame_pipeline_validated(input, prompt_renderer)
             .await
     }

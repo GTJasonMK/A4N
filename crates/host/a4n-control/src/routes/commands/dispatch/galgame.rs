@@ -1,10 +1,11 @@
 use super::super::{
-    ApiError, ServerState, bind_galgame_media, cancel_galgame_pipeline, delete_galgame_line,
-    export_galgame_webgal, get_galgame_asset_plan, get_galgame_pipeline_status, get_galgame_script,
+    ApiError, ServerState, advance_galgame_story_runtime, bind_galgame_media,
+    cancel_galgame_pipeline, delete_galgame_line, export_galgame_webgal, get_galgame_asset_plan,
+    get_galgame_pipeline_status, get_galgame_script, get_galgame_story_runtime_state,
     import_galgame_audio, insert_galgame_line, plan_galgame_assets,
     preview_galgame_pipeline_request, reorder_galgame_lines, run_galgame_asset_generation,
-    start_galgame_pipeline, unbind_galgame_media, update_galgame_choices, update_galgame_line,
-    update_galgame_scene,
+    save_galgame_story_graph, start_galgame_pipeline, start_galgame_story_runtime,
+    unbind_galgame_media, update_galgame_choices, update_galgame_line, update_galgame_scene,
 };
 use serde_json::Value;
 
@@ -26,6 +27,14 @@ pub(super) async fn try_dispatch(
         "update_galgame_line" => update_galgame_line(state, user_id, args).await?,
         "insert_galgame_line" => insert_galgame_line(state, user_id, args).await?,
         "update_galgame_scene" => update_galgame_scene(state, user_id, args).await?,
+        "save_galgame_story_graph" => save_galgame_story_graph(state, user_id, args).await?,
+        "get_galgame_story_runtime_state" => {
+            get_galgame_story_runtime_state(state, user_id, args).await?
+        }
+        "start_galgame_story_runtime" => start_galgame_story_runtime(state, user_id, args).await?,
+        "advance_galgame_story_runtime" => {
+            advance_galgame_story_runtime(state, user_id, args).await?
+        }
         "delete_galgame_line" => delete_galgame_line(state, user_id, args).await?,
         "reorder_galgame_lines" => reorder_galgame_lines(state, user_id, args).await?,
         "update_galgame_choices" => update_galgame_choices(state, user_id, args).await?,

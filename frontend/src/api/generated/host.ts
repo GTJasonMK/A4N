@@ -14,6 +14,7 @@ export const HOST_API_COMMANDS = [
   "add_profile_attribute",
   "add_video_config",
   "adopt_media_authoring_document",
+  "advance_galgame_story_runtime",
   "apply_assembly_postprocess_edit",
   "apply_implicit_update_decision",
   "apply_optimization_patches",
@@ -137,6 +138,7 @@ export const HOST_API_COMMANDS = [
   "get_galgame_asset_plan",
   "get_galgame_pipeline_status",
   "get_galgame_script",
+  "get_galgame_story_runtime_state",
   "get_generation_call_analytics",
   "get_generation_progress",
   "get_implicit_review",
@@ -366,6 +368,7 @@ export const HOST_API_COMMANDS = [
   "save_canvas_text_asset",
   "save_chapter_outline",
   "save_chapter_visual_plan_draft",
+  "save_galgame_story_graph",
   "save_media_authoring_document",
   "save_part_outline",
   "select_segment_video",
@@ -381,6 +384,7 @@ export const HOST_API_COMMANDS = [
   "start_chapter_generation",
   "start_chapter_shooting_script_generation",
   "start_galgame_pipeline",
+  "start_galgame_story_runtime",
   "start_image_generation",
   "start_inspiration_generation",
   "start_manga_pipeline",
@@ -2876,8 +2880,151 @@ export interface GalgameScriptDetail {
   root_project_id: number;
   scenes: GalgameSceneDetail[];
   speaker_profiles: GalgameSpeakerProfile[];
+  story_graph: StoryGraph | null;
+  story_graph_status: string | null;
   text_anchors: GalgameTextAnchorSummary[];
   title: string;
+}
+
+export interface SaveGalgameStoryGraphInput {
+  expected_revision: number;
+  graph: StoryGraph;
+}
+
+export interface GetGalgameStoryRuntimeInput {
+  save_slot: string;
+}
+
+export interface StartGalgameStoryRuntimeInput {
+  save_slot: string;
+}
+
+export interface AdvanceGalgameStoryRuntimeInput {
+  edge_id: string;
+  expected_step_index: number;
+  save_slot: string;
+}
+
+export interface GalgameStoryRuntimeView {
+  available_edges: StoryEdge[];
+  current_node: StoryNode;
+  state: StoryRuntimeState;
+}
+
+export type StoryNodeKind = "narrative" | "choice" | "fork" | "join" | "loop_entry" | "loop_exit" | "chapter_boundary" | "terminal";
+
+export type StoryEdgeKind = "sequence" | "choice" | "loop_back" | "chapter_transition" | "interrupt";
+
+export type StoryValue = { bool: boolean } | { int: number } | { string: string } | { enum: string };
+
+export type StoryExpression = "true" | "false" | { variable: string } | { constant: StoryValue } | { not: unknown } | { all: unknown[] } | { any: unknown[] } | { equals: [unknown, unknown] } | { not_equals: [unknown, unknown] } | { greater_than: [unknown, unknown] } | { less_than: [unknown, unknown] } | { has_knowledge: string };
+
+export type StoryStateOperation = { set: { key: string; value: StoryValue } } | { increment: { amount: number; key: string } } | { add_knowledge: { key: string } } | { remove_knowledge: { key: string } };
+
+export interface StoryStateVariable {
+  default_value: StoryValue;
+  key: string;
+  value_kind: string;
+}
+
+export interface StorySourceRef {
+  root_project_id: number;
+  source_chapter_id: number | null;
+  source_snapshot_chapter_id: number;
+  source_snapshot_id: number;
+  source_span_ids: string[];
+}
+
+export interface StoryNarrativeLine {
+  display_order: number;
+  id: string;
+  line_type: string;
+  presentation: unknown;
+  speaker_profile_id: number | null;
+  text: string;
+}
+
+export interface StoryNode {
+  id: string;
+  kind: StoryNodeKind;
+  layout_x: number;
+  layout_y: number;
+  lines: StoryNarrativeLine[];
+  media_intents: unknown[];
+  primary_source: StorySourceRef | null;
+  source_refs: StorySourceRef[];
+  state_after: Record<string, StoryValue>;
+  state_before: Record<string, StoryValue>;
+  state_operations: StoryStateOperation[];
+  summary: string;
+  title: string;
+}
+
+export interface StoryEdge {
+  branch_group_id: string | null;
+  display_order: number;
+  from_node_id: string;
+  from_port: string;
+  guard: StoryExpression | null;
+  id: string;
+  kind: StoryEdgeKind;
+  state_operations: StoryStateOperation[];
+  to_node_id: string;
+  to_port: string;
+}
+
+export interface StoryBranchOption {
+  condition: StoryExpression | null;
+  edge_id: string;
+  id: string;
+  label: string;
+  state_operations: StoryStateOperation[];
+}
+
+export interface StoryBranchGroup {
+  fork_node_id: string;
+  id: string;
+  join_node_id: string | null;
+  options: StoryBranchOption[];
+}
+
+export interface StoryLoopGroup {
+  back_edge_id: string;
+  back_to_node_id: string;
+  body_exit_node_id: string;
+  entry_node_id: string;
+  exit_node_id: string;
+  guard: StoryExpression;
+  id: string;
+  max_iterations: number | null;
+  state_operations: StoryStateOperation[];
+}
+
+export interface StoryGraph {
+  branch_groups: StoryBranchGroup[];
+  edges: StoryEdge[];
+  entry_node_id: string;
+  id: string;
+  loop_groups: StoryLoopGroup[];
+  nodes: StoryNode[];
+  project_id: number;
+  revision: number;
+  schema_version: string;
+  source_snapshot_id: number;
+  state_variables: StoryStateVariable[];
+  terminal_node_ids: string[];
+}
+
+export interface StoryRuntimeState {
+  current_node_id: string;
+  graph_id: string;
+  graph_revision: number;
+  loop_iterations: Record<string, number>;
+  loop_stack: string[];
+  player_knowledge: string[];
+  step_index: number;
+  variables: Record<string, StoryValue>;
+  visited_counts: Record<string, number>;
 }
 
 export interface GalgameSpeakerProfile {

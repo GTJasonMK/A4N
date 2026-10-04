@@ -13,6 +13,8 @@ pub async fn replace_galgame_script_for_project_record(
     input: PersistGalgameScriptRecordInput,
 ) -> Result<galgame_script::Model, GalgameScriptRecordError> {
     let tx = db.begin().await?;
+    let expected_story_graph_revision = input.expected_story_graph_revision;
+    let story_graph = input.story_graph.clone();
     let project = novel_project::Entity::find_by_id(project_id)
         .lock_exclusive()
         .one(&tx)
@@ -63,6 +65,14 @@ pub async fn replace_galgame_script_for_project_record(
     delete_galgame_target_generation_media_graph_record(&tx, project_id).await?;
     delete_galgame_script_records_for_project(&tx, project_id).await?;
     let script = persist_galgame_script_record(&tx, input).await?;
+    crate::galgame::save_galgame_story_graph_revision_in_transaction(
+        &tx,
+        project_id,
+        expected_story_graph_revision,
+        "generated",
+        story_graph,
+    )
+    .await?;
     tx.commit().await?;
     Ok(script)
 }

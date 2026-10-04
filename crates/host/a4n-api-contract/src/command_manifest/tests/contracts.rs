@@ -298,13 +298,17 @@
     fn galgame_commands_use_one_authenticated_identity() {
         assert_commands_use_authenticated_host_identity(&[
             "get_galgame_script",
+            "get_galgame_story_runtime_state",
             "start_galgame_pipeline",
+            "start_galgame_story_runtime",
+            "advance_galgame_story_runtime",
             "cancel_galgame_pipeline",
             "preview_galgame_pipeline_request",
             "get_galgame_pipeline_status",
             "update_galgame_line",
             "insert_galgame_line",
             "update_galgame_scene",
+            "save_galgame_story_graph",
             "delete_galgame_line",
             "reorder_galgame_lines",
             "update_galgame_choices",

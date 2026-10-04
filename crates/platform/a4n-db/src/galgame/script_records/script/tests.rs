@@ -5,12 +5,72 @@ use a4n_db_models::models::{
     galgame::{galgame_choice, galgame_line, galgame_scene},
     project::source_snapshot_chapter,
 };
+use a4n_domain::galgame::{
+    GALGAME_STORY_GRAPH_SCHEMA_VERSION, StoryBranchGroup, StoryBranchOption, StoryEdge,
+    StoryEdgeKind, StoryGraph, StoryNode, StoryNodeKind,
+};
 use a4n_domain::project::ProjectKind;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
 };
 use serde_json::json;
+
+fn graph_node(id: &str, kind: StoryNodeKind) -> StoryNode {
+    StoryNode {
+        id: id.into(),
+        kind,
+        title: id.into(),
+        summary: String::new(),
+        primary_source: None,
+        source_refs: Vec::new(),
+        lines: Vec::new(),
+        state_before: Default::default(),
+        state_after: Default::default(),
+        state_operations: Vec::new(),
+        media_intents: Vec::new(),
+        layout_x: 0.0,
+        layout_y: 0.0,
+    }
+}
+
+fn graph_edge(
+    id: &str,
+    from: &str,
+    to: &str,
+    kind: StoryEdgeKind,
+    group: Option<&str>,
+) -> StoryEdge {
+    StoryEdge {
+        id: id.into(),
+        from_node_id: from.into(),
+        to_node_id: to.into(),
+        from_port: "out".into(),
+        to_port: "in".into(),
+        kind,
+        branch_group_id: group.map(str::to_string),
+        guard: None,
+        state_operations: Vec::new(),
+        display_order: 0,
+    }
+}
+
+fn minimal_graph(project_id: i64, source_snapshot_id: i64) -> StoryGraph {
+    StoryGraph {
+        schema_version: GALGAME_STORY_GRAPH_SCHEMA_VERSION.into(),
+        id: format!("galgame:{project_id}"),
+        project_id,
+        source_snapshot_id,
+        revision: 1,
+        entry_node_id: "end".into(),
+        terminal_node_ids: vec!["end".into()],
+        nodes: vec![graph_node("end", StoryNodeKind::Terminal)],
+        edges: Vec::new(),
+        branch_groups: Vec::new(),
+        loop_groups: Vec::new(),
+        state_variables: Vec::new(),
+    }
+}
 
 #[tokio::test]
 async fn persist_script_rejects_empty_scenes_before_database_access() {
@@ -23,6 +83,8 @@ async fn persist_script_rejects_empty_scenes_before_database_access() {
         style_config_json: json!({}),
         status: "draft".to_string(),
         scenes: Vec::new(),
+        expected_story_graph_revision: 0,
+        story_graph: minimal_graph(1, 2),
     };
 
     assert!(matches!(
@@ -178,6 +240,67 @@ async fn persist_script_writes_scene_line_choice_graph_in_one_contract() {
             title: "批量合同脚本".to_string(),
             style_config_json: json!({}),
             status: "draft".to_string(),
+            expected_story_graph_revision: 0,
+            story_graph: StoryGraph {
+                schema_version: GALGAME_STORY_GRAPH_SCHEMA_VERSION.into(),
+                id: format!("galgame:{}", derived.id),
+                project_id: derived.id,
+                source_snapshot_id: derived.source_snapshot_id.unwrap(),
+                revision: 1,
+                entry_node_id: "scene:1".into(),
+                terminal_node_ids: vec!["scene:2".into()],
+                nodes: vec![
+                    graph_node("scene:1", StoryNodeKind::Choice),
+                    graph_node("join:scene:2", StoryNodeKind::Join),
+                    graph_node("scene:2", StoryNodeKind::Terminal),
+                ],
+                edges: vec![
+                    graph_edge(
+                        "choice:1",
+                        "scene:1",
+                        "join:scene:2",
+                        StoryEdgeKind::Choice,
+                        Some("branch:scene:1"),
+                    ),
+                    graph_edge(
+                        "choice:2",
+                        "scene:1",
+                        "join:scene:2",
+                        StoryEdgeKind::Choice,
+                        Some("branch:scene:1"),
+                    ),
+                    graph_edge(
+                        "join:continue",
+                        "join:scene:2",
+                        "scene:2",
+                        StoryEdgeKind::Sequence,
+                        None,
+                    ),
+                ],
+                branch_groups: vec![StoryBranchGroup {
+                    id: "branch:scene:1".into(),
+                    fork_node_id: "scene:1".into(),
+                    options: vec![
+                        StoryBranchOption {
+                            id: "option:1".into(),
+                            label: "前进".into(),
+                            edge_id: "choice:1".into(),
+                            condition: None,
+                            state_operations: Vec::new(),
+                        },
+                        StoryBranchOption {
+                            id: "option:2".into(),
+                            label: "观察".into(),
+                            edge_id: "choice:2".into(),
+                            condition: None,
+                            state_operations: Vec::new(),
+                        },
+                    ],
+                    join_node_id: Some("join:scene:2".into()),
+                }],
+                loop_groups: Vec::new(),
+                state_variables: Vec::new(),
+            },
             scenes: vec![
                 crate::galgame::PersistGalgameSceneRecordInput {
                     scene_index: 1,
@@ -268,6 +391,12 @@ async fn persist_script_writes_scene_line_choice_graph_in_one_contract() {
         .unwrap();
     assert_eq!(scenes.len(), 2);
     assert_eq!(scenes[0].next_scene_id, Some(scenes[1].id));
+    let saved_graph = crate::galgame::current_galgame_story_graph(&db, derived.id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(saved_graph.revision, 1);
+    assert_eq!(saved_graph.graph.entry_node_id, "scene:1");
     let lines = galgame_line::Entity::find()
         .filter(galgame_line::Column::SceneId.is_in(scenes.iter().map(|scene| scene.id)))
         .order_by_asc(galgame_line::Column::Id)

@@ -12,7 +12,8 @@ use crate::galgame::{
     GalgameMediaBindingSummary, GalgameMediaRole, GalgameMediaTargetKind, GalgameScene,
     GalgameSceneDetail, GalgameSceneEntryKind, GalgameScriptDetail, GalgameStagePositionV2,
     GalgameTextAnchorSummary, OrchestratorContext, galgame_speaker_profiles_from_prompt_records,
-    parse_and_validate_presentation_projection, validate_line_semantics,
+    galgame_story_graph_record_error, parse_and_validate_presentation_projection,
+    validate_line_semantics,
 };
 
 impl OrchestratorContext {
@@ -36,9 +37,25 @@ impl OrchestratorContext {
         )
         .await
         .map_err(AppError::from)?;
-        read_model
-            .map(galgame_script_detail_from_read_model)
-            .transpose()
+        let Some(read_model) = read_model else {
+            return Ok(None);
+        };
+        let mut detail = galgame_script_detail_from_read_model(read_model)?;
+        if let Some(record) =
+            a4n_db::galgame::current_galgame_story_graph(self.database.executor(), project_id)
+                .await
+                .map_err(galgame_story_graph_record_error)?
+        {
+            let is_stale = record.status == "stale"
+                || context.project.source_snapshot_id != Some(record.source_snapshot_id);
+            detail.story_graph_status = Some(if is_stale {
+                "stale".into()
+            } else {
+                record.status
+            });
+            detail.story_graph = Some(record.graph);
+        }
+        Ok(Some(detail))
     }
 }
 
@@ -124,6 +141,8 @@ pub(crate) fn galgame_script_detail_from_read_model(
         text_anchors,
         media_bindings,
         scenes,
+        story_graph: None,
+        story_graph_status: None,
     })
 }
 
