@@ -1,6 +1,40 @@
+use chrono::NaiveDateTime;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::status::ProjectStatus;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BlueprintCharacterRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub name: String,
+    pub character_type: String,
+    pub gender: Option<String>,
+    pub age: Option<String>,
+    pub appearance: Option<String>,
+    pub personality: Option<String>,
+    pub background: Option<String>,
+    pub motivation: Option<String>,
+    pub arc_summary: Option<String>,
+    pub relationship_to_protagonist: Option<String>,
+    pub arc_stages: Option<Value>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BlueprintRelationshipRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub relationship_type: String,
+    pub character_a: String,
+    pub character_b: String,
+    pub description: Option<String>,
+    pub strength: Option<i32>,
+    pub evolution: Option<Value>,
+    pub created_at: NaiveDateTime,
+}
 
 pub fn normalized_blueprint_identity(value: &str) -> String {
     value

@@ -102,7 +102,7 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<PreparedCharacterConflictCheck, AppError> {
         let profile = self
-            .profile_by_project_name(input.project_id, &input.name)
+            .profile_record_by_project_name(input.project_id, &input.name)
             .await?
             .ok_or_else(|| {
                 AppError::NotFound(format!(

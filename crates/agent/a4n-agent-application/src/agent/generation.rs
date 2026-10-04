@@ -131,12 +131,13 @@ impl AgentApplication {
         &self,
         run_id: i64,
         key: &str,
-    ) -> Result<Option<execution::Model>, AppError> {
+    ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
         execution::Entity::find()
             .filter(execution::Column::RunId.eq(run_id))
             .filter(execution::Column::ExecutionKey.eq(key))
             .one(self.connection())
             .await
+            .map(|row| row.map(super::snapshots::execution_snapshot))
             .map_err(AppError::from)
     }
 
@@ -169,9 +170,10 @@ impl AgentApplication {
     pub async fn prepare_task_execution(
         &self,
         input: AgentTaskExecutionInput,
-    ) -> Result<Option<execution::Model>, AppError> {
+    ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
         agent::create_task_execution(self.connection(), input)
             .await
+            .map(|execution| execution.map(super::snapshots::execution_snapshot))
             .map_err(agent_db_error_to_app)
     }
 

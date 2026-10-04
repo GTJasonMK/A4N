@@ -1,9 +1,5 @@
 use std::collections::HashMap;
 
-use a4n_db_models::models::{
-    ai::{generated_image, generated_video},
-    chapter::{chapter, chapter_shooting_script},
-};
 use a4n_domain::canvas_transfer_runtime_identity_key;
 use a4n_domain::image::reference_image_ids;
 use a4n_domain::project::ProjectRecord;
@@ -29,11 +25,11 @@ pub(super) fn validate_video_manifest(package: &ProjectFamilyPackage) -> Result<
 
 struct VideoManifestContext<'a> {
     projects: HashMap<i64, &'a ProjectRecord>,
-    chapters: HashMap<i64, &'a chapter::Model>,
-    shooting_scripts: HashMap<i64, &'a chapter_shooting_script::Model>,
-    images: HashMap<i64, &'a generated_image::Model>,
+    chapters: HashMap<i64, &'a a4n_domain::project::ProjectFamilyChapterRecord>,
+    shooting_scripts: HashMap<i64, &'a a4n_domain::project::ProjectFamilyShootingScriptRecord>,
+    images: HashMap<i64, &'a a4n_domain::project::ProjectFamilyGeneratedImageRecord>,
     prompts: HashMap<i64, &'a ChapterVideoPromptRecord>,
-    videos: HashMap<i64, &'a generated_video::Model>,
+    videos: HashMap<i64, &'a a4n_domain::project::ProjectFamilyGeneratedVideoRecord>,
 }
 
 impl<'a> VideoManifestContext<'a> {
@@ -183,7 +179,7 @@ fn validate_video_prompt(
 
 fn validate_generated_video(
     package: &ProjectFamilyPackage,
-    video: &generated_video::Model,
+    video: &a4n_domain::project::ProjectFamilyGeneratedVideoRecord,
     context: &VideoManifestContext<'_>,
 ) -> Result<(), String> {
     require_positive_id(video.id, "generated_video.id")?;

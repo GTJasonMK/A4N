@@ -2,14 +2,18 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use a4n_db_models::models::{generation::generation_spec, project::source_snapshot_profile};
+use a4n_domain::project::{
+    ProjectFamilyGenerationSpecRecord, ProjectFamilySourceSnapshotProfileRecord,
+};
 use serde_json::{Map, Value};
 
 use crate::galgame::GalgameCgImportance;
 use crate::project::snapshot_profile_key;
 
 /// 生成意图缺少 target_entity_id。
-pub fn required_generation_spec_target_id(spec: &generation_spec::Model) -> Result<i64, String> {
+pub fn required_generation_spec_target_id(
+    spec: &ProjectFamilyGenerationSpecRecord,
+) -> Result<i64, String> {
     spec.target_entity_id.ok_or_else(|| {
         format!(
             "项目族导入包 Galgame 生成意图缺少 target_entity_id: generation_spec_id={}",
@@ -20,7 +24,7 @@ pub fn required_generation_spec_target_id(spec: &generation_spec::Model) -> Resu
 
 /// params_json 必须是对象。
 pub fn generation_spec_params_object(
-    spec: &generation_spec::Model,
+    spec: &ProjectFamilyGenerationSpecRecord,
 ) -> Result<&Map<String, Value>, String> {
     spec.params_json.as_object().ok_or_else(|| {
         format!(
@@ -175,7 +179,7 @@ pub fn validate_required_galgame_cg_importance(
 
 /// canonical_key 与期望一致。
 pub fn validate_generation_spec_canonical_key(
-    spec: &generation_spec::Model,
+    spec: &ProjectFamilyGenerationSpecRecord,
     params: &Map<String, Value>,
     expected_key: &str,
 ) -> Result<(), String> {
@@ -191,7 +195,7 @@ pub fn validate_generation_spec_canonical_key(
 
 /// 参数 path 对应 id 与期望一致。
 pub fn validate_params_id_equals(
-    spec: &generation_spec::Model,
+    spec: &ProjectFamilyGenerationSpecRecord,
     object: &Map<String, Value>,
     path: &str,
     expected_id: i64,
@@ -208,10 +212,10 @@ pub fn validate_params_id_equals(
 
 /// 角色档案 id 属于源快照。
 pub fn validate_snapshot_character_profile_id(
-    spec: &generation_spec::Model,
+    spec: &ProjectFamilyGenerationSpecRecord,
     source_snapshot_id: i64,
     profile_id: i64,
-    snapshot_profiles: &HashMap<(i64, String), &source_snapshot_profile::Model>,
+    snapshot_profiles: &HashMap<(i64, String), &ProjectFamilySourceSnapshotProfileRecord>,
 ) -> Result<(), String> {
     let key = (
         source_snapshot_id,

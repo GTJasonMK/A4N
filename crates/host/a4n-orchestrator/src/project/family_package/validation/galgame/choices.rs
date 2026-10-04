@@ -2,10 +2,11 @@ use super::super::*;
 
 pub(super) fn validate_galgame_choices(
     package: &ProjectFamilyPackage,
-    lines: &HashMap<i64, &galgame_line::Model>,
-    scenes: &HashMap<i64, &galgame_scene::Model>,
+    lines: &HashMap<i64, &a4n_domain::project::ProjectFamilyGalgameLineRecord>,
+    scenes: &HashMap<i64, &a4n_domain::project::ProjectFamilyGalgameSceneRecord>,
 ) -> Result<(), String> {
-    let mut choices_by_line = HashMap::<i64, Vec<&galgame_choice::Model>>::new();
+    let mut choices_by_line =
+        HashMap::<i64, Vec<&a4n_domain::project::ProjectFamilyGalgameChoiceRecord>>::new();
     for choice in &package.galgame_choices {
         choices_by_line
             .entry(choice.line_id)

@@ -115,7 +115,7 @@ impl OrchestratorContext {
     pub(crate) async fn advance_package_lifecycle(
         &self,
         operation_id: &str,
-    ) -> Result<a4n_db_models::models::package::host_package_operation::Model, AppError> {
+    ) -> Result<HostPackageOperationRecord, AppError> {
         let operation =
             a4n_db::package::package_operation(self.database.connection(), operation_id)
                 .await?
@@ -238,7 +238,7 @@ impl OrchestratorContext {
     pub(crate) async fn finalize_package_disable(
         &self,
         operation_id: &str,
-    ) -> Result<a4n_db_models::models::package::host_package_operation::Model, AppError> {
+    ) -> Result<HostPackageOperationRecord, AppError> {
         let operation =
             a4n_db::package::package_operation(self.database.connection(), operation_id)
                 .await?

@@ -1,10 +1,11 @@
-use a4n_db_models::models::character::foreshadowing_index;
+use a4n_db::rag::RagForeshadowingRow;
 use a4n_domain::{
     character::{CharacterAttributeEventRecord, CharacterStateIndexRecord},
     rag::RagDataType,
 };
 use a4n_orchestrator::rag::{
-    character_attribute_event_rag_record, character_state_rag_record, foreshadowing_rag_record,
+    character_attribute_event_rag_record, character_state_rag_record,
+    foreshadowing_rag_record_from_row,
 };
 use chrono::{NaiveDate, NaiveDateTime};
 use serde_json::json;
@@ -48,18 +49,15 @@ fn attribute_event() -> CharacterAttributeEventRecord {
     }
 }
 
-fn foreshadowing() -> foreshadowing_index::Model {
-    foreshadowing_index::Model {
+fn foreshadowing() -> RagForeshadowingRow {
+    RagForeshadowingRow {
         id: 80,
-        project_id: 1,
         description: "旧导航图上的缺口指向被删除的星门坐标。".to_string(),
         setup_chapter: 3,
         payoff_chapter: Some(12),
         status: "pending".to_string(),
         related_characters: Some(json!(["林舟", "沈砚"])),
         importance: 5,
-        created_at: ts(),
-        updated_at: ts(),
     }
 }
 
@@ -101,10 +99,10 @@ fn attribute_event_contract_preserves_labels_values_and_metadata() {
 fn foreshadowing_contract_preserves_text_id_and_searchable_metadata() {
     let mut item = foreshadowing();
     item.description = " ".to_string();
-    assert!(foreshadowing_rag_record(9, &item).is_err());
+    assert!(foreshadowing_rag_record_from_row(9, &item).is_err());
 
     let item = foreshadowing();
-    let record = foreshadowing_rag_record(9, &item).expect("foreshadowing record");
+    let record = foreshadowing_rag_record_from_row(9, &item).expect("foreshadowing record");
     assert_eq!(record.chunk_id, "foreshadowing:9:80");
     assert_eq!(
         record.metadata["data_type"],

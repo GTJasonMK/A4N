@@ -19,7 +19,7 @@ pub async fn workflow_progress_events(
 pub async fn record_workflow_progress_event(
     db: &DatabaseConnection,
     input: WorkflowProgressEventInput<'_>,
-) -> Result<workflow_progress_event::Model, WorkflowWriteError> {
+) -> Result<(), WorkflowWriteError> {
     validate_positive_i64(input.workflow_run_id, "workflow_run_id")?;
     validate_workflow_progress_range(input.current, input.total)?;
     let current = input.current;
@@ -77,7 +77,7 @@ pub async fn record_workflow_progress_event(
         .await
         .map_err(WorkflowWriteError::Database)?;
 
-    let event = workflow_progress_event::ActiveModel {
+    workflow_progress_event::ActiveModel {
         id: NotSet,
         workflow_run_id: Set(input.workflow_run_id),
         task_id: Set(input.task_id.and_then(non_empty_text)),
@@ -94,7 +94,7 @@ pub async fn record_workflow_progress_event(
     .map_err(WorkflowWriteError::Database)?;
     trim_workflow_progress_events(&tx, input.workflow_run_id).await?;
     tx.commit().await.map_err(WorkflowWriteError::Database)?;
-    Ok(event)
+    Ok(())
 }
 
 /// Stores a typed, durable snapshot alongside the public progress summary.

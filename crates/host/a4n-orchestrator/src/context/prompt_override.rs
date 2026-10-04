@@ -23,7 +23,7 @@ impl PromptOverrideApplication {
         Self { database }
     }
 
-    fn connection(&self) -> &sea_orm::DatabaseConnection {
+    fn connection(&self) -> &a4n_db::DatabaseConnection {
         self.database.connection()
     }
 

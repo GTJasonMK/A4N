@@ -4,13 +4,13 @@
 //! LLM 流式编排仍在 `inspiration/` 模块，经本 owner 读写。
 
 use a4n_db::DbHandle;
+use a4n_db::DbTransaction as DatabaseTransaction;
 use a4n_db::inspiration::{
     InspirationDbError, InspirationProjectContextRows, ensure_inspiration_conversation,
     insert_inspiration_exchange_in_transaction,
 };
 use a4n_domain::inspiration::{InspirationExchangeInsertInput, InspirationMessageRecord};
 use a4n_error::AppError;
-use sea_orm::DatabaseTransaction;
 
 use super::OrchestratorContext;
 
@@ -24,7 +24,7 @@ impl InspirationApplication {
         Self { database }
     }
 
-    fn connection(&self) -> &sea_orm::DatabaseConnection {
+    fn connection(&self) -> &a4n_db::DatabaseConnection {
         self.database.connection()
     }
 

@@ -1,11 +1,11 @@
-use a4n_db_models::models::character::{character_state_index, protagonist_profile};
+use a4n_domain::character::{CharacterProfileRecord, CharacterStateIndexRecord};
 
 use super::super::shared::truncate_chars;
 use crate::chapter_generation::non_empty_trimmed;
 
 pub(in crate::chapter_generation::context_before) fn character_state_context_line(
-    state_index: &character_state_index::Model,
-    profile: &protagonist_profile::Model,
+    state_index: &CharacterStateIndexRecord,
+    profile: &CharacterProfileRecord,
 ) -> Option<String> {
     let mut details = Vec::new();
     if let Some(summary) = non_empty_trimmed(&state_index.state_summary) {
@@ -49,7 +49,7 @@ pub(in crate::chapter_generation::context_before) fn character_state_context_lin
 }
 
 pub(in crate::chapter_generation::context_before) fn character_profile_context_line(
-    profile: &protagonist_profile::Model,
+    profile: &CharacterProfileRecord,
     chapter_number: i32,
 ) -> Option<String> {
     if profile.last_synced_chapter >= chapter_number {

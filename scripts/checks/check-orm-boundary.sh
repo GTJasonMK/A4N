@@ -11,6 +11,13 @@ for command in rg; do
     }
 done
 
+for command in cargo; do
+    command -v "$command" >/dev/null 2>&1 || {
+        echo "Required command not found: $command" >&2
+        exit 127
+    }
+done
+
 violations=0
 
 check_source() {
@@ -33,6 +40,34 @@ check_source \
     "chapter-content core exposes a concrete ORM transaction" \
     "crates/chapter/a4n-chapter-content-core/src" \
     '(?<![[:alnum:]_])(?:DbTransaction|DatabaseTransaction|a4n_db_models::)'
+check_source \
+    "Orchestrator production code imports SeaORM directly" \
+    "crates/host/a4n-orchestrator/src" \
+    '(?:sea_orm::|use[[:space:]]+sea_orm)'
+
+# These files contain inline cfg(test) ORM fixtures; a4n-db-models is a
+# dev-dependency only in Orchestrator.
+if hits="$(rg --pcre2 --line-number --with-filename --no-heading \
+    --glob '*.rs' --glob '!**/tests/**' --glob '!**/*test*.rs' \
+    --glob '!**/project/family_package/mod.rs' \
+    --glob '!**/project/chapters/records.rs' \
+    --glob '!**/shooting_script/contracts.rs' \
+    'a4n_db_models::' "$PROJECT_ROOT/crates/host/a4n-orchestrator/src" 2>/dev/null)"; then
+    echo "FAIL: Orchestrator production code imports database models directly:" >&2
+    printf '  %s\n' "$hits" >&2
+    violations=$((violations + 1))
+fi
+
+if model_tree="$(cargo tree --offline --locked --edges normal --depth 1 -p a4n-orchestrator 2>&1)"; then
+    if rg --quiet 'a4n-db-models' <<<"$model_tree"; then
+        echo "FAIL: a4n-orchestrator has a normal dependency on a4n-db-models." >&2
+        violations=$((violations + 1))
+    fi
+else
+    echo "FAIL: could not inspect Orchestrator normal dependencies:" >&2
+    printf '  %s\n' "$model_tree" >&2
+    violations=$((violations + 1))
+fi
 
 # These application slices use domain records at the Host boundary.
 check_source \
@@ -177,10 +212,54 @@ check_source \
     "Video-studio package exposes transfer ORM models" \
     "crates/host/a4n-orchestrator/src/project/video_studio_package" \
     '(?:generation_spec::Model|prompt_artifact::Model|generated_image::Model|generated_video::Model|media_asset::Model|media_provenance::Model|media_binding::Model|video_segment::Model|assembly_timeline::Model|assembly_clip::Model)'
+check_source \
+    "Generation task application exposes ORM checkpoint/run/trace models" \
+    "crates/host/a4n-orchestrator/src/context/generation" \
+    '(?:a4n_db_models::|generation_task_checkpoint::Model|generation_run::Model|llm_call_trace::Model)'
+check_source \
+    "Workflow application exposes ORM progress event model" \
+    "crates/host/a4n-orchestrator/src/context/workflow" \
+    '(?:a4n_db_models::models::generation::workflow_progress_event|workflow_progress_event::Model)'
+check_source \
+    "Blueprint application exposes ORM models" \
+    "crates/host/a4n-orchestrator/src/blueprint" \
+    '(?:a4n_db_models::|novel_blueprint::Model|blueprint_character::Model|blueprint_relationship::Model)'
+check_source \
+    "Outline context exposes ORM models" \
+    "crates/host/a4n-orchestrator/src/outline/context" \
+    '(?:a4n_db_models::|novel_blueprint::Model|blueprint_character::Model|blueprint_relationship::Model|protagonist_profile::Model|object_profile::Model|scene_profile::Model|foreshadowing_index::Model)'
+check_source \
+    "Chapter generation references expose ORM models" \
+    "crates/host/a4n-orchestrator/src/chapter_generation/preparation/reference_context" \
+    '(?:a4n_db_models::|novel_blueprint::Model|blueprint_character::Model|blueprint_relationship::Model|protagonist_profile::Model)'
+check_source \
+    "Chapter generation state context exposes ORM models" \
+    "crates/host/a4n-orchestrator/src/chapter_generation/context_before/character_state" \
+    '(?:a4n_db_models::|character_state_index::Model|protagonist_profile::Model)'
+check_source \
+    "Project blueprint owner exposes ORM models" \
+    "crates/host/a4n-orchestrator/src/context/project/blueprint.rs" \
+    '(?:a4n_db_models::|novel_blueprint::Model|blueprint_character::Model|blueprint_relationship::Model)'
+check_source \
+    "Project chapter context exposes ORM models" \
+    "crates/host/a4n-orchestrator/src/context/project/chapter_context.rs" \
+    '(?:a4n_db_models::|protagonist_profile::Model|character_state_index::Model)'
+check_source \
+    "Video prompt project context exposes ORM blueprint" \
+    "crates/host/a4n-orchestrator/src/video/prompts/context/project_context.rs" \
+    '(?:a4n_db_models::|novel_blueprint::Model)'
+check_source \
+    "Optimize Host exposes ORM message/patch rows" \
+    "crates/host/a4n-orchestrator/src/optimize" \
+    '(?:a4n_db_models::models::ai::optimization_(?:session_message|patch_set|patch)|optimization_(?:session_message|patch_set|patch)::Model)'
+check_source \
+    "Optimize context owner exposes ORM message/patch rows" \
+    "crates/host/a4n-orchestrator/src/context/optimize.rs" \
+    '(?:a4n_db_models::models::ai::optimization_(?:session_message|patch_set|patch)|optimization_(?:session_message|patch_set|patch)::Model)'
 
 if ((violations > 0)); then
     echo "ORM boundary failed with $violations violation group(s)." >&2
     exit 1
 fi
 
-echo "ORM boundary passed for migrated Core, Optimize, Project Family, Provider, Timeline, Publication, Scene Profile, Source Sync, Character Discovery, Character Profile Sync, Character Timeline, Object Discovery, Import Reverse, Galgame, Portrait, and Video Studio slices."
+echo "ORM boundary passed for migrated Core, Optimize, Project Family, Provider, Timeline, Publication, Scene Profile, Source Sync, Character Discovery, Character Profile Sync, Character Timeline, Object Discovery, Import Reverse, Galgame, Portrait, Video Studio, Generation Task, Workflow Progress, Blueprint, Outline, and Chapter Generation slices."

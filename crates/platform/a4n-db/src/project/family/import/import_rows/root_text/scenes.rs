@@ -2,14 +2,14 @@ use a4n_db_models::models::scene::{scene_entity_state, scene_occurrence, scene_t
 use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set};
 
 use crate::project::family::import::{
-    ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage, map_optional, map_required,
-    remap_optional_entity_id,
+    DatabaseProjectFamilyImportPackage, ImportIdMaps, ProjectFamilyImportError, map_optional,
+    map_required, remap_optional_entity_id,
 };
 
 pub(super) async fn insert_scene_rows(
     txn: &DatabaseTransaction,
     root_project_id: i64,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     insert_mapped_import_rows!(

@@ -3,9 +3,9 @@ pub(crate) use a4n_db::project::family::import::{
 };
 pub(crate) use a4n_db::project::{
     ChapterMangaSourceSummary, ForeshadowingAnalysisDraft, PROJECT_KIND_VIDEO,
-    ProjectFamilyExportRows, ProjectFamilyExportSelection, ProjectFamilyTextCoreRows,
-    SOURCE_SYNC_CURRENT, is_valid_source_sync_status, normalize_derived_project_kind,
-    normalize_project_kind, normalize_project_type,
+    ProjectFamilyExportRows, ProjectFamilyExportSelection, SOURCE_SYNC_CURRENT,
+    is_valid_source_sync_status, normalize_derived_project_kind, normalize_project_kind,
+    normalize_project_type,
 };
 pub(crate) use a4n_db::project::{PROJECT_KIND_CANVAS, PROJECT_KIND_TEXT};
 pub(crate) use a4n_db::project::{

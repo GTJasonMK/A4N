@@ -341,7 +341,7 @@ fn collect_provider_slots(
     }
     if let Some(family) = family {
         for spec in &family.generation_specs {
-            let spec = a4n_db::generation::generation_spec_record_from_model(spec.clone());
+            let spec = a4n_domain::generation::GenerationSpecRecord::from(spec);
             insert_spec_provider_slot(&mut slots, &spec)?;
         }
         for image in &family.generated_images {

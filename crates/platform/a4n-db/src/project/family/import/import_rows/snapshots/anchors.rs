@@ -1,13 +1,13 @@
 use crate::project::family::import::{
-    ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage, map_optional, map_required,
-    normalize_profile_evidence_role, remap_profile_id, remap_text_anchor_source_id,
+    DatabaseProjectFamilyImportPackage, ImportIdMaps, ProjectFamilyImportError, map_optional,
+    map_required, normalize_profile_evidence_role, remap_profile_id, remap_text_anchor_source_id,
 };
 use a4n_db_models::models::project::{profile_evidence, text_anchor};
 use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set};
 
 pub(in crate::project::family::import::import_rows) async fn insert_text_anchor_rows(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     let root_project_id = map_required(

@@ -5,6 +5,7 @@ use a4n_chapter_analysis::{
     foreshadowing_entries, priority_to_importance, summary_text, validate_saved_chapter_analysis,
 };
 use a4n_domain::chapter::ChapterRecord;
+use a4n_domain::character::ForeshadowingIndexRecord;
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
@@ -288,7 +289,7 @@ impl OrchestratorContext {
             .iter()
             .map(|item| item.id)
             .collect::<Vec<_>>();
-        let rows = |items: &[a4n_db_models::models::character::foreshadowing_index::Model]| {
+        let rows = |items: &[ForeshadowingIndexRecord]| {
             items
                 .iter()
                 .map(|item| json!({ "id": item.id, "name": item.description }))

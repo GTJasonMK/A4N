@@ -1,7 +1,8 @@
 use super::super::{galgame_bindable_media_asset, galgame_media_target_context_in};
 use super::rules::{validate_galgame_media_asset_id, validate_galgame_media_target_ids};
 use crate::galgame::{
-    GalgameMediaBindingResult, GalgameMediaRecordError, require_galgame_media_text,
+    GalgameMediaAssetReadRecord, GalgameMediaBindingReadRecord, GalgameMediaBindingResult,
+    GalgameMediaRecordError, require_galgame_media_text,
 };
 use a4n_db_models::models::media::media_binding;
 use chrono::Utc;
@@ -62,7 +63,21 @@ where
     tx.commit()
         .await
         .map_err(GalgameMediaRecordError::Database)?;
-    Ok(GalgameMediaBindingResult { binding, asset })
+    Ok(GalgameMediaBindingResult {
+        binding: GalgameMediaBindingReadRecord {
+            id: binding.id,
+            media_asset_id: binding.media_asset_id,
+            target_kind: binding.target_kind,
+            target_id: binding.target_id,
+            role: binding.role,
+        },
+        asset: GalgameMediaAssetReadRecord {
+            id: asset.id,
+            media_kind: asset.media_kind,
+            file_path: asset.file_path,
+            thumbnail_path: asset.thumbnail_path,
+        },
+    })
 }
 
 pub async fn unbind_galgame_media_records<C>(

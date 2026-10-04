@@ -1,11 +1,11 @@
 mod trace;
 
+use a4n_db::DbTransaction as DatabaseTransaction;
 use a4n_db::chapter_content::GeneratedChapterContentRecordInput;
 use a4n_domain::chapter::{ChapterOutlineRecord, ChapterRecord};
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 use chrono::Utc;
-use sea_orm::DatabaseTransaction;
 
 use super::super::super::ChapterGenerationService;
 use super::chapter_generation_lifecycle_error_to_app_error;

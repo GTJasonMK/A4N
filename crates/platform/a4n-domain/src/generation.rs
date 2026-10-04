@@ -8,7 +8,8 @@ pub use lifecycle::{
     ProjectLifecycleGateClaim, ProjectLifecycleOperation, UserLifecycleGateClaim,
 };
 pub use records::{
-    GenerationRunTraceTarget, GenerationSpecRecord, GenerationTaskListCursor, PromptArtifactRecord,
+    GenerationRunTraceTarget, GenerationSpecRecord, GenerationTaskCheckpointRecord,
+    GenerationTaskCheckpointSummaryRecord, GenerationTaskListCursor, PromptArtifactRecord,
     RecordCompletedGenerationRunInput,
 };
 

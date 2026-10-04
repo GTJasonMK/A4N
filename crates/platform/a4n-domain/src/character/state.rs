@@ -1,7 +1,8 @@
 use chrono::NaiveDateTime;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CharacterProfileRecord {
     pub id: i64,
     pub project_id: i64,

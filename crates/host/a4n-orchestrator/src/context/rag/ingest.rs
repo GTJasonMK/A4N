@@ -352,7 +352,7 @@ impl RagIngestPort for OrchestratorContext {
             .next()
             .ok_or_else(|| AppError::NotFound(format!("属性事件不存在: {event_id}")))?;
         let profile = self
-            .profile_by_id(event.profile_id)
+            .profile_record_by_id(event.profile_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("角色档案不存在: {}", event.profile_id)))?;
         if profile.project_id != project_id {

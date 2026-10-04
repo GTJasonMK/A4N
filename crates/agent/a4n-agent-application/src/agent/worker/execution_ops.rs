@@ -17,9 +17,7 @@ impl AgentApplication {
         run_id: i64,
         key: &str,
     ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
-        self.execution_by_key(run_id, key)
-            .await
-            .map(|row| row.map(execution_snapshot))
+        self.execution_by_key(run_id, key).await
     }
 
     pub(crate) async fn create_prepared_execution(

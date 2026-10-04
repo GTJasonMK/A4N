@@ -6,6 +6,7 @@ use a4n_domain::chapter::{ChapterRecord, PartOutlineRecord};
 use a4n_domain::project::{
     OptimizationCharacterProfileRecord, OptimizationSessionRecord, ProjectOptimizationContextRecord,
 };
+use a4n_domain::project::{OptimizationPatchSetRecord, OptimizationTurnRecord};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OptimizationSessionCreateInput {
@@ -61,7 +62,7 @@ pub struct OptimizationTurnCreateInput {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OptimizationTurnUpdateInput {
-    pub turn: optimization_turn::Model,
+    pub turn: OptimizationTurnRecord,
     pub status: Option<String>,
     pub final_reply: Option<Option<String>>,
     pub error: Option<Option<String>>,
@@ -115,8 +116,8 @@ pub struct CompleteOptimizationPatchTurnInput {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CompleteOptimizationPatchTurnResult {
-    pub turn: optimization_turn::Model,
-    pub patch_set: Option<optimization_patch_set::Model>,
+    pub turn: OptimizationTurnRecord,
+    pub patch_set: Option<OptimizationPatchSetRecord>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -180,6 +181,12 @@ pub struct OptimizationChapterPatchWriteInput {
 pub enum OptimizeDbError {
     #[error("{0}")]
     InvalidArgument(String),
+    #[error("{0}")]
+    NotFound(String),
+    #[error("{0}")]
+    Forbidden(String),
+    #[error("状态无效：当前状态 {current}，不允许操作 {operation}")]
+    InvalidState { current: String, operation: String },
     #[error(transparent)]
     Database(#[from] DbErr),
 }

@@ -1,7 +1,3 @@
-use a4n_db_models::models::{
-    generation::generation_spec,
-    media::{media_asset, media_provenance},
-};
 use serde_json::{Map, Value};
 
 use super::super::contracts::MediaRequestRefContext;
@@ -16,9 +12,9 @@ use super::{
 };
 
 pub(in super::super) fn validate_media_request_snapshot_refs(
-    provenance: &media_provenance::Model,
-    asset: &media_asset::Model,
-    linked_spec: Option<&generation_spec::Model>,
+    provenance: &a4n_domain::project::ProjectFamilyMediaProvenanceRecord,
+    asset: &a4n_domain::project::ProjectFamilyMediaAssetRecord,
+    linked_spec: Option<&a4n_domain::project::ProjectFamilyGenerationSpecRecord>,
     request: &Map<String, Value>,
     refs: &MediaRequestRefContext<'_>,
 ) -> Result<(), String> {

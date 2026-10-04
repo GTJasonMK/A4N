@@ -9,6 +9,10 @@ pub(super) use characters::sync_blueprint_characters;
 pub use characters::{edit_blueprint_characters, merge_blueprint_characters};
 pub use contracts::{BlueprintCharacterDraft, BlueprintRelationshipDraft, BlueprintSyncError};
 pub(crate) use identity::normalized_blueprint_identity;
+pub(crate) use record::{
+    blueprint_character_record, blueprint_model_from_record, blueprint_record,
+    blueprint_relationship_record,
+};
 pub use records::{
     blueprint_characters_for_project, blueprint_relationships_for_project,
     blueprint_sources_need_review, blueprint_version_by_project_version,

@@ -23,11 +23,12 @@ pub use context::{
     optimization_chapter_by_id, optimization_context_rows, write_optimization_chapter_patch_content,
 };
 pub use patches::{
-    create_optimization_patch_set, matching_pending_optimization_patch_sets,
-    optimization_patch_set_by_id, optimization_patch_set_by_turn_id,
-    optimization_patch_set_patches, optimization_patch_set_patches_for_sets,
-    optimization_patch_sets, pending_optimization_patch_sets,
-    update_optimization_patch_sets_status,
+    create_optimization_patch_set, discard_optimization_patch_set_and_record_event,
+    discard_pending_optimization_patch_sets_and_record_event,
+    matching_pending_optimization_patch_sets, optimization_patch_set_by_id,
+    optimization_patch_set_by_turn_id, optimization_patch_set_patches,
+    optimization_patch_set_patches_for_sets, optimization_patch_sets,
+    pending_optimization_patch_sets, update_optimization_patch_sets_status,
 };
 pub use sessions::{
     create_optimization_session, create_optimization_session_record,

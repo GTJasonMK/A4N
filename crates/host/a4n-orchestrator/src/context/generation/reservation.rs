@@ -43,7 +43,7 @@ impl GenerationApplication {
         }
     }
 
-    pub(super) fn connection(&self) -> &sea_orm::DatabaseConnection {
+    pub(super) fn connection(&self) -> &a4n_db::DatabaseConnection {
         self.database.connection()
     }
 
@@ -103,7 +103,7 @@ impl GenerationApplication {
                 return Err(GenerationTaskAccessError::Session(error));
             }
         };
-        let started = a4n_db::generation::started_event_from_checkpoint(&task.checkpoint)?;
+        let started = a4n_db::generation::started_event_from_record(&task.checkpoint)?;
         let started_event = GenerationTaskEvent {
             schema_version: GENERATION_EVENT_SCHEMA_VERSION,
             task_id: snapshot.task_id.clone(),

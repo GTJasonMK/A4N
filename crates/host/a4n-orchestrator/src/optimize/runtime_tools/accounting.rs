@@ -1,5 +1,5 @@
+use a4n_agent_runtime_contract::AgentExecutionSnapshot;
 use a4n_db::agent::{AgentOwnedTask, AgentTaskExecutionInput};
-use a4n_db_models::models::agent::execution;
 use a4n_domain::project::OptimizationSessionRecord;
 use a4n_error::AppError;
 use a4n_llm_context::{LlmContextManifest, replace_request_user_content_from_manifest};
@@ -13,7 +13,7 @@ pub(in crate::optimize) async fn prepare_model_execution(
     generation: &AgentLoopGenerationContext<'_>,
     call_key: &str,
     request: &mut ChatRequest,
-) -> Result<Option<execution::Model>, AppError> {
+) -> Result<Option<AgentExecutionSnapshot>, AppError> {
     let task = generation.session.snapshot();
     let agent = context.agent();
     let Some(owner) = agent.generation_owner(&task.task_id, task.attempt).await? else {
@@ -123,7 +123,7 @@ pub(in crate::optimize) async fn prepare_model_execution(
 pub(in crate::optimize) async fn record_model_execution(
     context: &OrchestratorContext,
     generation: &AgentLoopGenerationContext<'_>,
-    execution: Option<&execution::Model>,
+    execution: Option<&AgentExecutionSnapshot>,
     result: Option<Value>,
     error: Option<String>,
 ) -> Result<(), AppError> {

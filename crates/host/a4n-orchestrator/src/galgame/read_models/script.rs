@@ -4,10 +4,6 @@ use a4n_db::galgame::{
     GalgameMediaAssetReadRecord, GalgameMediaBindingReadRecord, GalgameScriptDetailChoiceRecord,
     GalgameScriptDetailReadModel, GalgameScriptDetailSceneRecord,
 };
-use a4n_db_models::models::{
-    galgame::galgame_line,
-    media::{media_asset, media_binding},
-};
 use a4n_domain::galgame::GalgameLineRecord;
 use a4n_error::AppError;
 
@@ -173,22 +169,6 @@ fn galgame_scene_from_detail_record(
     })
 }
 
-pub(crate) fn galgame_line_from_model(line: galgame_line::Model) -> Result<GalgameLine, AppError> {
-    galgame_line_from_record(GalgameLineRecord {
-        id: line.id,
-        scene_id: line.scene_id,
-        line_index: line.line_index,
-        line_type: line.line_type,
-        speaker_profile_id: line.speaker_profile_id,
-        text: line.text,
-        expression: line.expression,
-        pose: line.pose,
-        position: line.position,
-        presentation_json: line.presentation_json,
-        text_anchor_id: line.text_anchor_id,
-    })
-}
-
 pub(crate) fn galgame_line_from_record(line: GalgameLineRecord) -> Result<GalgameLine, AppError> {
     let line_type = GalgameLineType::parse(&line.line_type).ok_or_else(|| {
         invalid_read_model(format!(
@@ -280,8 +260,8 @@ fn galgame_choice_from_parts(
 }
 
 pub(crate) fn galgame_media_binding_summary(
-    binding: media_binding::Model,
-    asset: media_asset::Model,
+    binding: GalgameMediaBindingReadRecord,
+    asset: GalgameMediaAssetReadRecord,
 ) -> Result<GalgameMediaBindingSummary, AppError> {
     galgame_media_binding_summary_parts(
         binding.id,

@@ -3,7 +3,6 @@
 use std::collections::HashSet;
 
 use a4n_db::project::ProjectFamilyExportRows;
-use a4n_db_models::models::project::project_source_snapshot;
 use a4n_domain::clear_canvas_transfer_runtime_identity;
 use a4n_domain::project::ProjectRecord;
 use a4n_domain::video_prompt::STATUS_RUNNING;
@@ -36,7 +35,7 @@ fn validate_export_same_user(
 /// 校验导出行中的源快照覆盖派生引用。
 fn validate_export_snapshot_coverage(
     expected_ids: &[i64],
-    snapshots: &[project_source_snapshot::Model],
+    snapshots: &[a4n_domain::project::ProjectFamilySourceSnapshotRecord],
 ) -> Result<(), String> {
     let found = snapshots
         .iter()
@@ -157,13 +156,11 @@ fn prepare_rows_for_export(rows: &mut ProjectFamilyExportRows) -> Result<(), Str
     for spec in &mut rows.generation_specs {
         clear_canvas_transfer_runtime_identity(&mut spec.params_json);
         if spec.source_context_kind.as_deref()
-            == Some(a4n_db_models::models::generation::generation_spec::SOURCE_CONTEXT_FREEFORM)
+            == Some(a4n_domain::generation::SOURCE_CONTEXT_FREEFORM)
         {
             spec.source_version_hash =
-                a4n_db_models::models::generation::generation_spec::freeform_source_version_hash(
-                    &spec.params_json,
-                )
-                .ok_or_else(|| format!("画布生成意图缺少 source_material: {}", spec.id))?;
+                a4n_domain::generation::freeform_source_version_hash(&spec.params_json)
+                    .ok_or_else(|| format!("画布生成意图缺少 source_material: {}", spec.id))?;
         }
     }
     for provenance in &mut rows.media_provenance {
@@ -335,8 +332,8 @@ mod tests {
         }
     }
 
-    fn generated_video(status: &str) -> a4n_db_models::models::ai::generated_video::Model {
-        a4n_db_models::models::ai::generated_video::Model {
+    fn generated_video(status: &str) -> a4n_domain::project::ProjectFamilyGeneratedVideoRecord {
+        a4n_domain::project::ProjectFamilyGeneratedVideoRecord {
             id: 20,
             project_id: 2,
             chapter_id: Some(3),

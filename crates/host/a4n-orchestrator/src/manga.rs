@@ -27,16 +27,6 @@ pub(crate) use record_errors::manga_prompt_record_error;
 pub use source::ensure_manga_source_can_write;
 pub(crate) use workflow::{manga_pipeline_business_key, manga_pipeline_fingerprint};
 
-pub(crate) fn manga_page_generation_layout(
-    prompt: &a4n_db_models::models::chapter::chapter_manga_prompt::Model,
-) -> Result<a4n_domain::manga::MangaPageGenerationLayoutV3, String> {
-    a4n_manga_core::manga_page_generation_layout(
-        prompt.id,
-        prompt.page_number,
-        prompt.layout.as_ref(),
-    )
-}
-
 pub struct MangaGeneratePagePromptsInput<'a> {
     pub user_id: i64,
     pub chapter_id: i64,

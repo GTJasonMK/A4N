@@ -1,9 +1,22 @@
 use super::*;
 
-pub fn generation_public_snapshot_for_summary(
+#[cfg(test)]
+pub(super) fn generation_public_snapshot_for_summary(
     checkpoint: &generation_task_checkpoint::Model,
 ) -> GenerationPublicSnapshot {
     match super::verified_generation_public_snapshot(checkpoint) {
+        Ok(Some(snapshot)) => GenerationPublicSnapshot::Available(snapshot),
+        Ok(None) => GenerationPublicSnapshot::Expired,
+        Err(_) => GenerationPublicSnapshot::Corrupt,
+    }
+}
+
+pub fn generation_public_snapshot_for_summary_record(
+    checkpoint: &GenerationTaskCheckpointSummaryRecord,
+) -> GenerationPublicSnapshot {
+    match super::verified_generation_public_snapshot(&super::generation_task_summary_model(
+        checkpoint,
+    )) {
         Ok(Some(snapshot)) => GenerationPublicSnapshot::Available(snapshot),
         Ok(None) => GenerationPublicSnapshot::Expired,
         Err(_) => GenerationPublicSnapshot::Corrupt,

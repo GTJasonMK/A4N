@@ -1,12 +1,10 @@
-use a4n_db_models::models::media::{media_asset, media_binding};
 use a4n_domain::{galgame::GalgameLineRecord, media::MediaProvenanceRecord};
 use sea_orm::FromQueryResult;
-use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct GalgameMediaBindingResult {
-    pub binding: media_binding::Model,
-    pub asset: media_asset::Model,
+    pub binding: GalgameMediaBindingReadRecord,
+    pub asset: GalgameMediaAssetReadRecord,
 }
 
 #[derive(Debug, Clone, Default)]

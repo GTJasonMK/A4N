@@ -3,6 +3,7 @@
 //! 持有 `DbHandle`，封装视频提示词、生成图/视频记录与素材库相关数据库行为。
 //! LLM/预览/流水线编排仍在 `video/` 模块，但 DB 只经本 owner。
 
+use a4n_db::DatabaseConnection;
 use a4n_db::DbHandle;
 use a4n_db::generation::{
     RecordCompletedGenerationRunWithCheckpointInput, RecordStartedGenerationRunInput,
@@ -20,7 +21,6 @@ use a4n_domain::video_timeline::{NativeVideoTimelineKey, VideoTimelineGap, Video
 use a4n_error::AppError;
 use a4n_video::validate_video_max_concurrent;
 use a4n_video_contract::VideoSegmentExecutionRecipeV1;
-use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 use std::sync::Arc;

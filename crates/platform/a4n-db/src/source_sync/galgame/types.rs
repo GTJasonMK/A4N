@@ -1,7 +1,8 @@
 use a4n_db_models::models::{
     galgame::{galgame_scene, galgame_script},
-    project::{source_snapshot_chapter, text_anchor},
+    project::text_anchor,
 };
+use a4n_domain::project::SourceSnapshotChapterSummary;
 use sea_orm::FromQueryResult;
 use serde_json::Value;
 
@@ -51,8 +52,8 @@ pub struct SourceSyncGalgameAnchorRecord {
 pub struct SourceSyncGalgameSceneRegenerationSourceRecord {
     pub scene: galgame_scene::Model,
     pub script: galgame_script::Model,
-    pub old_snapshot_chapter: source_snapshot_chapter::Model,
-    pub new_snapshot_chapter: source_snapshot_chapter::Model,
+    pub old_snapshot_chapter: SourceSnapshotChapterSummary,
+    pub new_snapshot_chapter: SourceSnapshotChapterSummary,
     pub anchors: Vec<SourceSyncGalgameAnchorRecord>,
 }
 

@@ -1,28 +1,25 @@
-use a4n_db_models::models::{
-    galgame::{galgame_line, galgame_scene, galgame_script},
-    generation::generation_spec,
-    media::media_asset,
-    project::{
-        project_source_snapshot, source_snapshot_chapter, source_snapshot_profile, text_anchor,
-    },
-};
 use std::collections::{HashMap, HashSet};
 
 use crate::project::{ProjectFamilyPackage, snapshot_profile_key};
 
 pub(super) struct GenerationReferenceContext<'a> {
-    pub(super) specs: HashMap<i64, &'a generation_spec::Model>,
-    pub(super) source_snapshots: HashMap<i64, &'a project_source_snapshot::Model>,
-    pub(super) snapshot_chapters: HashMap<i64, &'a source_snapshot_chapter::Model>,
-    pub(super) snapshot_profiles: HashMap<(i64, String), &'a source_snapshot_profile::Model>,
-    pub(super) text_anchors: HashMap<i64, &'a text_anchor::Model>,
-    pub(super) media_assets: HashMap<i64, &'a media_asset::Model>,
+    pub(super) specs: HashMap<i64, &'a a4n_domain::project::ProjectFamilyGenerationSpecRecord>,
+    pub(super) source_snapshots:
+        HashMap<i64, &'a a4n_domain::project::ProjectFamilySourceSnapshotRecord>,
+    pub(super) snapshot_chapters:
+        HashMap<i64, &'a a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord>,
+    pub(super) snapshot_profiles:
+        HashMap<(i64, String), &'a a4n_domain::project::ProjectFamilySourceSnapshotProfileRecord>,
+    pub(super) text_anchors: HashMap<i64, &'a a4n_domain::project::ProjectFamilyTextAnchorRecord>,
+    pub(super) media_assets: HashMap<i64, &'a a4n_domain::project::ProjectFamilyMediaAssetRecord>,
     pub(super) chapter_video_prompt_ids: HashSet<i64>,
     pub(super) video_segment_ids: HashSet<i64>,
     pub(super) assembly_timeline_ids: HashSet<i64>,
-    pub(super) galgame_scripts: HashMap<i64, &'a galgame_script::Model>,
-    pub(super) galgame_scenes: HashMap<i64, &'a galgame_scene::Model>,
-    pub(super) galgame_lines: HashMap<i64, &'a galgame_line::Model>,
+    pub(super) galgame_scripts:
+        HashMap<i64, &'a a4n_domain::project::ProjectFamilyGalgameScriptRecord>,
+    pub(super) galgame_scenes:
+        HashMap<i64, &'a a4n_domain::project::ProjectFamilyGalgameSceneRecord>,
+    pub(super) galgame_lines: HashMap<i64, &'a a4n_domain::project::ProjectFamilyGalgameLineRecord>,
 }
 
 impl<'a> GenerationReferenceContext<'a> {

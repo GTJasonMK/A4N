@@ -1,13 +1,14 @@
 use a4n_db_models::models::{
-    chapter::chapter,
     character::protagonist_profile,
     project::{material_fact_change, novel_blueprint, novel_project, project_fact_feedback},
 };
 use a4n_domain::{
+    chapter::ChapterRecord,
     fact_feedback::{
         FactChangeOperation, FactMaterialChange, FactMaterialKind, FactSourceRevision,
         apply_fact_json_change, world_setting_document,
     },
+    project::BlueprintRecord,
     source_spans::source_spans_for_chapters,
 };
 use chrono::Utc;
@@ -282,10 +283,10 @@ async fn apply_in(
 }
 
 fn validate_sources(
-    chapters: &[chapter::Model],
+    chapters: &[ChapterRecord],
     project_id: i64,
     sources: &[FactSourceRevision],
-) -> Result<Vec<chapter::Model>, FactFeedbackDbError> {
+) -> Result<Vec<ChapterRecord>, FactFeedbackDbError> {
     if sources.is_empty() {
         return Err(FactFeedbackDbError::Invalid(
             "没有可归纳的已分析正文".into(),
@@ -299,9 +300,7 @@ fn validate_sources(
                 .find(|chapter| {
                     chapter.id == source.chapter_id
                         && chapter.project_id == project_id
-                        && source_revision(&crate::project::chapter_record((*chapter).clone()))
-                            .as_ref()
-                            == Some(source)
+                        && source_revision(chapter).as_ref() == Some(source)
                 })
                 .cloned()
                 .ok_or_else(|| {
@@ -415,9 +414,9 @@ pub(super) async fn persist_character_enrichment<C: ConnectionTrait>(
 
 pub(super) async fn persist_blueprint<C: ConnectionTrait>(
     tx: &C,
-    mut blueprint: novel_blueprint::Model,
+    mut blueprint: BlueprintRecord,
     project: &a4n_domain::project::ProjectRecord,
-) -> Result<novel_blueprint::Model, FactFeedbackDbError> {
+) -> Result<BlueprintRecord, FactFeedbackDbError> {
     let now = Utc::now().naive_utc();
     blueprint.current_version = crate::blueprint::next_blueprint_version_record(
         tx,
@@ -426,12 +425,13 @@ pub(super) async fn persist_blueprint<C: ConnectionTrait>(
     )
     .await?;
     blueprint.updated_at = now;
-    let mut active: novel_blueprint::ActiveModel = blueprint.clone().into();
+    let mut active: novel_blueprint::ActiveModel =
+        crate::project::blueprint_model_from_record(blueprint.clone()).into();
     active.world_setting = Set(blueprint.world_setting.clone());
     active.full_synopsis = Set(blueprint.full_synopsis.clone());
     active.current_version = Set(blueprint.current_version.clone());
     active.updated_at = Set(now);
-    let blueprint = active.update(tx).await?;
+    let blueprint = crate::project::blueprint_record(active.update(tx).await?);
     let characters = crate::project::blueprint_characters_for_project(tx, project.id).await?;
     let relationships = crate::project::blueprint_relationships_for_project(tx, project.id).await?;
     let snapshot =

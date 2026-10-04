@@ -4,12 +4,11 @@ use a4n_api_contract::{
     chapter::{ChapterAnalysisEntry, ChapterIndexEntry, ChapterMetadata, ChapterSummary},
     collaboration::ProjectAccessRole,
 };
-use a4n_db::{DbHandle, workflow::WorkflowRunSummary};
+use a4n_db::{DbHandle, transaction::run_in_transaction, workflow::WorkflowRunSummary};
 use a4n_domain::chapter::ChapterRecord;
 use a4n_error::AppError;
 use dashmap::DashMap;
 use regex::Regex;
-use sea_orm::{DatabaseTransaction, TransactionTrait};
 use std::sync::Arc;
 use tokio::sync::Mutex as AsyncMutex;
 
@@ -57,47 +56,33 @@ impl ChapterContentApplication {
         &self,
         chapter_id: i64,
     ) -> Result<WorkflowRunSummary, AppError> {
-        let tx = self
-            .database
-            .connection()
-            .begin()
-            .await
-            .map_err(AppError::Database)?;
-        let committed = async {
-            let chapter = a4n_db::chapter_content::chapter_by_id_for_analysis(&tx, chapter_id)
-                .await
-                .map_err(chapter_content_edit_error_to_app_error)?;
-            a4n_chapter_content_core::begin_chapter_content_sync_in_transaction(&tx, &chapter).await
-        }
-        .await;
-        finish_chapter_content_transaction(tx, committed, "登记章节资料同步").await
+        run_in_transaction(
+            self.database.connection(),
+            "登记章节资料同步",
+            |tx| {
+                Box::pin(async move {
+                    let result = async {
+                        let chapter =
+                            a4n_db::chapter_content::chapter_by_id_for_analysis(&tx, chapter_id)
+                                .await
+                                .map_err(chapter_content_edit_error_to_app_error)?;
+                        a4n_chapter_content_core::begin_chapter_content_sync_in_transaction(
+                            &tx, &chapter,
+                        )
+                        .await
+                    }
+                    .await;
+                    (tx, result)
+                }) as a4n_db::transaction::TransactionWork<'_, WorkflowRunSummary>
+            },
+        )
+        .await
     }
 
     async fn chapter_by_id_for_analysis(&self, chapter_id: i64) -> Result<ChapterRecord, AppError> {
         a4n_db::chapter_content::chapter_by_id_for_analysis(self.database.connection(), chapter_id)
             .await
             .map_err(chapter_content_edit_error_to_app_error)
-    }
-}
-
-async fn finish_chapter_content_transaction<T>(
-    tx: DatabaseTransaction,
-    result: Result<T, AppError>,
-    operation: &str,
-) -> Result<T, AppError> {
-    match result {
-        Ok(value) => {
-            tx.commit().await.map_err(AppError::Database)?;
-            Ok(value)
-        }
-        Err(error) => {
-            tx.rollback().await.map_err(|rollback_error| {
-                AppError::Internal(anyhow::anyhow!(
-                    "{operation}失败：{error}；事务回滚失败：{rollback_error}"
-                ))
-            })?;
-            Err(error)
-        }
     }
 }
 

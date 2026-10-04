@@ -1,3 +1,4 @@
+use a4n_db::DbTransaction as DatabaseTransaction;
 use a4n_db::blueprint::{
     NovelBlueprintUpsertInput, SyncProjectAfterBlueprintInput, blueprint_version_snapshot,
     next_blueprint_version_record, sync_project_after_blueprint_record,
@@ -9,12 +10,11 @@ use a4n_db::project::{
     insert_project_status_history, merge_blueprint_characters, merge_blueprint_relationships,
     project_by_id_record,
 };
-use a4n_db_models::models::project::novel_blueprint;
 use a4n_domain::generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput};
 use a4n_domain::project::{
     BLUEPRINT_BASE_PROMPT, BLUEPRINT_GENERATE_PROGRESS_TOTAL, BLUEPRINT_GENERATION_KIND,
-    BLUEPRINT_GENERATION_PROMPTS, ParsedBlueprint, ProjectStatus, ProjectStatusHistoryInput,
-    project_status_after_blueprint_generation,
+    BLUEPRINT_GENERATION_PROMPTS, BlueprintRecord, ParsedBlueprint, ProjectStatus,
+    ProjectStatusHistoryInput, project_status_after_blueprint_generation,
 };
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
@@ -24,7 +24,6 @@ use a4n_llm_trace::{
 use a4n_progress::{ProgressPhaseKind, ProgressSeverity};
 use a4n_service_protocol::ProgressEvent;
 use chrono::{NaiveDateTime, Utc};
-use sea_orm::DatabaseTransaction;
 use serde_json::{Value, json};
 
 use crate::blueprint::persistence::{blueprint_character_drafts, blueprint_relationship_drafts};
@@ -45,7 +44,7 @@ pub(super) struct BlueprintGenerationCompletionInput {
 }
 
 pub(super) struct BlueprintCompletionOutcome {
-    pub(super) blueprint: novel_blueprint::Model,
+    pub(super) blueprint: BlueprintRecord,
     pub(super) status_change: Option<(ProjectStatus, ProjectStatus, NaiveDateTime)>,
 }
 

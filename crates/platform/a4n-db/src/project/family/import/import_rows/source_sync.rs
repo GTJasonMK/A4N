@@ -3,7 +3,7 @@ use a4n_domain::source_sync::SourceSyncConflictStatus;
 
 pub(super) async fn insert_source_sync_rows(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     insert_mapped_import_rows!(

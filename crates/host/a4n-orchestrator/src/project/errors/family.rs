@@ -23,6 +23,9 @@ pub(crate) fn project_family_export_error_to_app_error(
             AppError::InvalidState { current, operation }
         }
         ProjectFamilyExportError::Database(error) => AppError::Database(error),
+        ProjectFamilyExportError::Serialization(error) => {
+            AppError::Internal(anyhow::anyhow!(error))
+        }
     }
 }
 

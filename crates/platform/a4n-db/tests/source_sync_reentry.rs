@@ -253,9 +253,13 @@ async fn partial_sync_survives_recheck_and_kept_scenes_participate_in_later_upda
     );
     let target_chapter = regeneration.new_snapshot_chapter.id;
     let target_anchor = regeneration.anchors.first().expect("target anchor").id;
+    let target_source_chapter = source_snapshot_chapter::Entity::find_by_id(target_chapter)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
     let target_plan =
-        authoring::adopt_historical_game_plan(&db, derived.id, &regeneration.new_snapshot_chapter)
-            .await;
+        authoring::adopt_historical_game_plan(&db, derived.id, &target_source_chapter).await;
     let regenerated = apply_prepared_source_sync_decisions_records_transaction(
         &db,
         next.run.id,

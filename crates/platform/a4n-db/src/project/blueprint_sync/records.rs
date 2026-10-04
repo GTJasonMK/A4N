@@ -1,9 +1,9 @@
 use super::super::{ProjectMutationError, required_text, validate_positive_i64};
-use super::record::blueprint_record;
+use super::record::{blueprint_character_record, blueprint_record, blueprint_relationship_record};
 use a4n_db_models::models::project::{
     blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,
 };
-use a4n_domain::project::BlueprintRecord;
+use a4n_domain::project::{BlueprintCharacterRecord, BlueprintRecord, BlueprintRelationshipRecord};
 use chrono::NaiveDateTime;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait, QueryFilter,
@@ -49,7 +49,7 @@ SELECT (
 pub async fn blueprint_characters_for_project<C>(
     db: &C,
     project_id: i64,
-) -> Result<Vec<blueprint_character::Model>, DbErr>
+) -> Result<Vec<BlueprintCharacterRecord>, DbErr>
 where
     C: ConnectionTrait,
 {
@@ -58,12 +58,13 @@ where
         .order_by_asc(blueprint_character::Column::Id)
         .all(db)
         .await
+        .map(|rows| rows.into_iter().map(blueprint_character_record).collect())
 }
 
 pub async fn blueprint_relationships_for_project<C>(
     db: &C,
     project_id: i64,
-) -> Result<Vec<blueprint_relationship::Model>, DbErr>
+) -> Result<Vec<BlueprintRelationshipRecord>, DbErr>
 where
     C: ConnectionTrait,
 {
@@ -72,6 +73,11 @@ where
         .order_by_asc(blueprint_relationship::Column::Id)
         .all(db)
         .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(blueprint_relationship_record)
+                .collect()
+        })
 }
 
 pub async fn novel_blueprint_for_project<C>(

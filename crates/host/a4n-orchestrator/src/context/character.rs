@@ -3,7 +3,6 @@ use a4n_api_contract::character::{
     ImplicitUpdateDecisionSummary,
 };
 use a4n_db::DbHandle;
-use a4n_db_models::models::character::protagonist_profile;
 use a4n_domain::character::{
     CharacterAttributeCategory, CharacterAttributeEventRecord, CharacterBehaviorRecord,
     CharacterDeletionMarkRecord, CharacterImplicitReviewDecisionRecordInput,
@@ -35,25 +34,6 @@ impl CharacterApplication {
     }
 
     // —— profiles ——
-
-    async fn profile_by_id(
-        &self,
-        profile_id: i64,
-    ) -> Result<Option<protagonist_profile::Model>, AppError> {
-        a4n_db::character::profile_by_id(self.database.connection(), profile_id)
-            .await
-            .map_err(AppError::Database)
-    }
-
-    async fn profile_by_project_name(
-        &self,
-        project_id: i64,
-        name: &str,
-    ) -> Result<Option<protagonist_profile::Model>, AppError> {
-        a4n_db::character::profile_by_project_name(self.database.connection(), project_id, name)
-            .await
-            .map_err(AppError::Database)
-    }
 
     async fn profile_records_by_project(
         &self,
@@ -379,23 +359,6 @@ impl crate::character::CharacterImplicitReviewApplyApplicationPort for Orchestra
 
 impl OrchestratorContext {
     // —— profiles ——
-
-    pub(crate) async fn profile_by_id(
-        &self,
-        profile_id: i64,
-    ) -> Result<Option<protagonist_profile::Model>, AppError> {
-        self.character.profile_by_id(profile_id).await
-    }
-
-    pub(crate) async fn profile_by_project_name(
-        &self,
-        project_id: i64,
-        name: &str,
-    ) -> Result<Option<protagonist_profile::Model>, AppError> {
-        self.character
-            .profile_by_project_name(project_id, name)
-            .await
-    }
 
     pub(crate) async fn profile_records_by_project(
         &self,

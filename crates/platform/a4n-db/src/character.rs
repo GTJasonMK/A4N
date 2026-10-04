@@ -35,7 +35,7 @@ pub use portrait::{
     rollback_failed_portrait_creation_records, set_primary_character_portrait_record,
 };
 pub(crate) use profile::apply_profile_current_state;
-pub(in crate::character) use profile::character_profile_record;
+pub(crate) use profile::character_profile_record;
 pub(crate) use profile::delete_profiles_cascade_in;
 pub(crate) use profile::referenced_profile_ids;
 pub use profile::{

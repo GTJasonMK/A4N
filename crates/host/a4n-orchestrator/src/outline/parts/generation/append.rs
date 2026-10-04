@@ -2,7 +2,9 @@ use a4n_domain::chapter::PartOutlineRecord;
 use a4n_error::AppError;
 use chrono::Utc;
 
-use crate::outline::context::{load_part_generation_context, lock_outline_generation_sources};
+use crate::outline::context::{
+    load_part_generation_context, with_locked_outline_generation_sources,
+};
 use crate::outline::part_contract::{
     insert_part_outline_from_json, validate_existing_parts_for_plan,
 };
@@ -75,25 +77,39 @@ impl OrchestratorContext {
                     workflow_run_id,
                 })
                 .await?;
-            let tx = lock_outline_generation_sources(
+            with_locked_outline_generation_sources(
                 self.database.connection(),
                 project_id,
                 &context.source_snapshot,
+                |tx| {
+                    Box::pin(async move {
+                        let result = async {
+                            let part = insert_part_outline_from_json(
+                                &tx,
+                                project_id,
+                                part_num,
+                                start_ch,
+                                end_ch,
+                                &generated.data,
+                                Utc::now().naive_utc(),
+                            )
+                            .await?;
+                            self.record_part_outline_generation_run(
+                                &tx,
+                                &part,
+                                &generated,
+                                "生成分部大纲",
+                            )
+                            .await?;
+                            Ok(part)
+                        }
+                        .await;
+                        (tx, result)
+                    })
+                        as a4n_db::transaction::TransactionWork<'_, PartOutlineRecord>
+                },
             )
             .await?;
-            let part = insert_part_outline_from_json(
-                &tx,
-                project_id,
-                part_num,
-                start_ch,
-                end_ch,
-                &generated.data,
-                Utc::now().naive_utc(),
-            )
-            .await?;
-            self.record_part_outline_generation_run(&tx, &part, &generated, "生成分部大纲")
-                .await?;
-            tx.commit().await.map_err(AppError::Database)?;
             context = load_part_generation_context(
                 self.database.connection(),
                 project_id,

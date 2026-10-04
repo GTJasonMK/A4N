@@ -319,7 +319,7 @@ impl WorkflowApplication {
     pub(in crate::context) async fn record_workflow_progress_event(
         &self,
         input: WorkflowProgressEventInput<'_>,
-    ) -> Result<workflow_progress_event::Model, AppError> {
+    ) -> Result<(), AppError> {
         a4n_db::workflow::record_workflow_progress_event(self.database.connection(), input)
             .await
             .map_err(workflow_write_app_error)

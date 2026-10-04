@@ -1,7 +1,6 @@
 mod chapter;
 
 use a4n_db::text_anchor::SOURCE_KIND_CHAPTER_CONTENT;
-use a4n_db_models::models::project::text_anchor;
 use std::collections::{HashMap, HashSet};
 
 use super::super::super::{ProjectFamilyPackage, hash_text};
@@ -105,7 +104,9 @@ pub(in super::super) fn validate_text_anchor_manifest(
     Ok(())
 }
 
-fn validate_text_anchor_offsets(anchor: &text_anchor::Model) -> Result<(), String> {
+fn validate_text_anchor_offsets(
+    anchor: &a4n_domain::project::ProjectFamilyTextAnchorRecord,
+) -> Result<(), String> {
     if anchor.paragraph_index < 0
         || anchor.start_offset < 0
         || anchor.end_offset <= anchor.start_offset

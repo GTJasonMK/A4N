@@ -1,9 +1,5 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_db_models::models::{
-    chapter::{chapter, chapter_visual_plan},
-    project::source_snapshot_chapter,
-};
 use a4n_domain::chapter_visual_plan::{CHAPTER_VISUAL_PLAN_V3, ChapterVisualPlanV3};
 
 use super::super::{ProjectFamilyPackage, hash_text};
@@ -60,9 +56,12 @@ pub(super) fn validate_visual_plan_manifest(package: &ProjectFamilyPackage) -> R
 
 fn validate_plan_record(
     package: &ProjectFamilyPackage,
-    plan: &chapter_visual_plan::Model,
-    chapters: &HashMap<i64, &chapter::Model>,
-    snapshot_chapters: &HashMap<i64, &source_snapshot_chapter::Model>,
+    plan: &a4n_domain::project::ProjectFamilyVisualPlanRecord,
+    chapters: &HashMap<i64, &a4n_domain::project::ProjectFamilyChapterRecord>,
+    snapshot_chapters: &HashMap<
+        i64,
+        &a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord,
+    >,
 ) -> Result<(), String> {
     if plan.id <= 0
         || plan.root_project_id != package.root_project_id

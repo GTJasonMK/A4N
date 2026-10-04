@@ -4,7 +4,9 @@ use a4n_domain::chapter::PartOutlineRecord;
 use a4n_error::AppError;
 use chrono::Utc;
 
-use crate::outline::context::{load_part_generation_context, lock_outline_generation_sources};
+use crate::outline::context::{
+    load_part_generation_context, with_locked_outline_generation_sources,
+};
 use crate::outline::part_contract::{
     PartOutlineDraft, part_outline_model_from_json, sync_part_outlines_and_assign_chapters_in,
     validate_existing_parts_for_plan,
@@ -109,27 +111,44 @@ impl OrchestratorContext {
                 },
             )
             .collect();
-        let tx = lock_outline_generation_sources(
+        let results = with_locked_outline_generation_sources(
             self.database.connection(),
             project_id,
             &context.source_snapshot,
+            |tx| {
+                Box::pin(async move {
+                    let result = async {
+                        let results =
+                            sync_part_outlines_and_assign_chapters_in(&tx, project_id, drafts, now)
+                                .await?;
+                        let mut generated_by_part_number =
+                            HashMap::with_capacity(generated_jsons.len());
+                        for (part_number, _, _, generated) in &generated_jsons {
+                            generated_by_part_number
+                                .entry(*part_number)
+                                .or_insert(generated);
+                        }
+                        for part in &results {
+                            if let Some(generated) = generated_by_part_number.get(&part.part_number)
+                            {
+                                self.record_part_outline_generation_run(
+                                    &tx,
+                                    part,
+                                    generated,
+                                    "重新生成分部大纲",
+                                )
+                                .await?;
+                            }
+                        }
+                        Ok(results)
+                    }
+                    .await;
+                    (tx, result)
+                })
+                    as a4n_db::transaction::TransactionWork<'_, Vec<PartOutlineRecord>>
+            },
         )
         .await?;
-        let results =
-            sync_part_outlines_and_assign_chapters_in(&tx, project_id, drafts, now).await?;
-        let mut generated_by_part_number = HashMap::with_capacity(generated_jsons.len());
-        for (part_number, _, _, generated) in &generated_jsons {
-            generated_by_part_number
-                .entry(*part_number)
-                .or_insert(generated);
-        }
-        for part in &results {
-            if let Some(generated) = generated_by_part_number.get(&part.part_number) {
-                self.record_part_outline_generation_run(&tx, part, generated, "重新生成分部大纲")
-                    .await?;
-            }
-        }
-        tx.commit().await.map_err(AppError::Database)?;
         Ok(results)
     }
 }

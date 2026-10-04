@@ -1,6 +1,6 @@
 use super::super::*;
 use crate::project::{ImportMediaPayload, MediaFileEntry, media_file_key};
-use a4n_db_models::models::media::media_asset::FILE_PATH_FIELD;
+use a4n_api_contract::project_transfer::MEDIA_ASSET_FILE_PATH_FIELD as FILE_PATH_FIELD;
 
 pub(in crate::project::family_package::tests) fn media_asset_with_checksum(
     bytes: &[u8],

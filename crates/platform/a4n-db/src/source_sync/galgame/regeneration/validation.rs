@@ -2,9 +2,9 @@ use std::collections::HashSet;
 
 use a4n_db_models::models::{
     galgame::{galgame_scene, galgame_script},
-    project::source_snapshot_chapter,
     source_sync::source_sync_run,
 };
+use a4n_domain::project::SourceSnapshotChapterSummary;
 
 use crate::source_sync::galgame::{
     SourceSyncGalgameSceneRegenerationSourceRecord, SourceSyncGalgameSceneWriteRecordInput,
@@ -76,8 +76,8 @@ pub(super) fn validate_galgame_scene_regeneration_source_record(
     run: &source_sync_run::Model,
     scene: &galgame_scene::Model,
     script: &galgame_script::Model,
-    old_snapshot_chapter: &source_snapshot_chapter::Model,
-    new_snapshot_chapter: &source_snapshot_chapter::Model,
+    old_snapshot_chapter: &SourceSnapshotChapterSummary,
+    new_snapshot_chapter: &SourceSnapshotChapterSummary,
 ) -> Result<(), SourceSyncDbError> {
     validate_positive_id(scene.id, "galgame_scene_id")?;
     validate_positive_id(script.id, "galgame_script_id")?;

@@ -28,6 +28,7 @@ pub mod manga;
 pub mod media;
 pub mod media_authoring;
 pub mod object_profile;
+pub mod package;
 pub mod profile_material;
 pub mod profile_ownership;
 pub mod profile_text;

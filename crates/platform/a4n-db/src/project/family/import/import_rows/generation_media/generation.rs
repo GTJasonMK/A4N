@@ -4,14 +4,14 @@ use a4n_db_models::models::generation::{
 use sea_orm::{ActiveModelTrait, DatabaseTransaction, EntityTrait, Set};
 
 use crate::project::family::import::{
-    ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage, map_optional, map_required,
-    remap_generation_spec_params_json, remap_generation_spec_source_version_hash,
+    DatabaseProjectFamilyImportPackage, ImportIdMaps, ProjectFamilyImportError, map_optional,
+    map_required, remap_generation_spec_params_json, remap_generation_spec_source_version_hash,
     remap_generation_target_id, remap_profile_id,
 };
 
 pub(in crate::project::family::import::import_rows) async fn insert_generation_rows_before_media(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     insert_mapped_import_rows!(

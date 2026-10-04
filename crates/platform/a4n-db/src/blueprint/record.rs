@@ -1,4 +1,5 @@
 use a4n_db_models::models::project::novel_blueprint;
+use a4n_domain::project::BlueprintRecord;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 
 use super::{BlueprintDbError, ManualBlueprintUpsertInput, NovelBlueprintUpsertInput};
@@ -7,13 +8,14 @@ use super::{BlueprintDbError, ManualBlueprintUpsertInput, NovelBlueprintUpsertIn
 pub async fn upsert_novel_blueprint_record<C>(
     db: &C,
     input: NovelBlueprintUpsertInput,
-    existing: Option<novel_blueprint::Model>,
-) -> Result<novel_blueprint::Model, BlueprintDbError>
+    existing: Option<BlueprintRecord>,
+) -> Result<BlueprintRecord, BlueprintDbError>
 where
     C: ConnectionTrait,
 {
     if let Some(blueprint) = existing {
-        let mut active: novel_blueprint::ActiveModel = blueprint.into();
+        let mut active: novel_blueprint::ActiveModel =
+            crate::project::blueprint_model_from_record(blueprint).into();
         active.title = Set(input.title);
         active.genre = Set(input.genre);
         active.style = Set(Some(input.style));
@@ -27,9 +29,9 @@ where
         active.chapters_per_part = Set(input.chapters_per_part);
         active.current_version = Set(input.current_version);
         active.updated_at = Set(input.now);
-        Ok(active.update(db).await?)
+        Ok(crate::project::blueprint_record(active.update(db).await?))
     } else {
-        Ok(novel_blueprint::ActiveModel {
+        let model = novel_blueprint::ActiveModel {
             project_id: Set(input.project_id),
             title: Set(input.title),
             genre: Set(input.genre),
@@ -50,7 +52,8 @@ where
             ..Default::default()
         }
         .insert(db)
-        .await?)
+        .await?;
+        Ok(crate::project::blueprint_record(model))
     }
 }
 
@@ -58,13 +61,14 @@ where
 pub async fn upsert_manual_blueprint_record<C>(
     db: &C,
     input: ManualBlueprintUpsertInput,
-    existing: Option<novel_blueprint::Model>,
-) -> Result<novel_blueprint::Model, BlueprintDbError>
+    existing: Option<BlueprintRecord>,
+) -> Result<BlueprintRecord, BlueprintDbError>
 where
     C: ConnectionTrait,
 {
     if let Some(blueprint) = existing {
-        let mut active: novel_blueprint::ActiveModel = blueprint.into();
+        let mut active: novel_blueprint::ActiveModel =
+            crate::project::blueprint_model_from_record(blueprint).into();
         active.title = Set(input.title);
         active.genre = Set(input.genre);
         active.style = Set(input.style);
@@ -77,10 +81,10 @@ where
         active.chapters_per_part = Set(input.chapters_per_part);
         active.current_version = Set(input.current_version);
         active.updated_at = Set(input.now);
-        return Ok(active.update(db).await?);
+        return Ok(crate::project::blueprint_record(active.update(db).await?));
     }
 
-    Ok(novel_blueprint::ActiveModel {
+    let model = novel_blueprint::ActiveModel {
         project_id: Set(input.project_id),
         title: Set(input.title),
         genre: Set(input.genre),
@@ -101,5 +105,6 @@ where
         ..Default::default()
     }
     .insert(db)
-    .await?)
+    .await?;
+    Ok(crate::project::blueprint_record(model))
 }

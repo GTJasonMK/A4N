@@ -1,8 +1,7 @@
 use a4n_db::optimize::{
     OptimizationTurnCreateInput, OptimizationTurnEventAppendInput, OptimizationTurnUpdateInput,
 };
-use a4n_db_models::models::ai::{optimization_turn, optimization_turn_event};
-use a4n_domain::project::OptimizationTurnRecord;
+use a4n_domain::project::{OptimizationTurnEventRecord, OptimizationTurnRecord};
 use a4n_error::AppError;
 use serde_json::Value;
 
@@ -28,7 +27,7 @@ impl OrchestratorContext {
         user_text: &str,
         permissions: &OptimizationAgentPermissions,
         agent_turn_id: Option<i64>,
-    ) -> Result<optimization_turn::Model, AppError> {
+    ) -> Result<OptimizationTurnRecord, AppError> {
         let text = user_text.trim();
         if text.is_empty() {
             return Err(AppError::InvalidArgument(
@@ -63,7 +62,7 @@ impl OrchestratorContext {
         status: &str,
         public_text: &str,
         payload: Option<Value>,
-    ) -> Result<optimization_turn_event::Model, AppError> {
+    ) -> Result<OptimizationTurnEventRecord, AppError> {
         let kind = kind.trim();
         let status = status.trim();
         let public_text = public_text.trim();
@@ -102,7 +101,7 @@ impl OrchestratorContext {
         turn_id: i64,
         status: &str,
         error: &str,
-    ) -> Result<optimization_turn::Model, AppError> {
+    ) -> Result<OptimizationTurnRecord, AppError> {
         let status = status.trim();
         let error = error.trim();
         if !matches!(status, TURN_STATUS_FAILED | TURN_STATUS_CANCELLED) {
@@ -127,10 +126,7 @@ impl OrchestratorContext {
         .map_err(optimize_db_error)
     }
 
-    pub(super) async fn get_turn(
-        &self,
-        turn_id: i64,
-    ) -> Result<optimization_turn::Model, AppError> {
+    pub(super) async fn get_turn(&self, turn_id: i64) -> Result<OptimizationTurnRecord, AppError> {
         a4n_db::optimize::optimization_turn_by_id(self.database.connection(), turn_id)
             .await
             .map_err(optimize_db_error)?

@@ -2,14 +2,14 @@ use a4n_db_models::models::chapter::chapter_visual_plan;
 use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set};
 
 use crate::project::family::import::{
-    ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage, map_optional, map_required,
-    remap_chapter_source_revision_key, remap_visual_plan_identity,
+    DatabaseProjectFamilyImportPackage, ImportIdMaps, ProjectFamilyImportError, map_optional,
+    map_required, remap_chapter_source_revision_key, remap_visual_plan_identity,
 };
 
 pub(super) async fn insert_visual_plan_rows(
     user_id: i64,
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     insert_mapped_import_rows!(
@@ -79,7 +79,7 @@ pub(super) async fn insert_visual_plan_rows(
 /// director references and hashes before importing media that depends on scripts.
 pub(super) async fn remap_visual_plan_resources(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     use a4n_db_models::models::chapter::chapter_shooting_script;

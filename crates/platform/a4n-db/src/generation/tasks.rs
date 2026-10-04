@@ -4,7 +4,9 @@ use a4n_db_models::models::{
     },
     task::task_queue,
 };
-use a4n_domain::generation::GenerationTaskListCursor;
+use a4n_domain::generation::{
+    GenerationTaskCheckpointRecord, GenerationTaskCheckpointSummaryRecord, GenerationTaskListCursor,
+};
 use a4n_queue::priority::{TaskInfo, TaskKind, TaskPriority};
 use a4n_service_protocol::{
     BatchCommitPolicy, DEFAULT_GENERATION_ACTIVE_SESSION_MAX, GENERATION_EVENT_SCHEMA_VERSION,
@@ -37,8 +39,10 @@ pub use checkpoint::{
     bind_generation_task_to_workflow, extend_generation_sequence_lease, load_generation_task,
     load_generation_task_checkpoint, persist_generation_checkpoint,
 };
+#[cfg(test)]
+use history::generation_public_snapshot_for_summary;
 pub use history::{
-    generation_public_snapshot_for_summary, list_active_generation_task_checkpoints,
+    generation_public_snapshot_for_summary_record, list_active_generation_task_checkpoints,
     list_generation_task_history_checkpoints,
 };
 pub use reservation::reserve_generation_task;
@@ -123,7 +127,7 @@ pub struct ReserveGenerationTaskInput {
 
 #[derive(Debug, Clone)]
 pub struct PersistedGenerationTask {
-    pub checkpoint: generation_task_checkpoint::Model,
+    pub checkpoint: GenerationTaskCheckpointRecord,
     pub public_snapshot: Option<GenerationTaskSnapshot>,
 }
 
@@ -136,7 +140,7 @@ pub enum GenerationPublicSnapshot {
 
 #[derive(Debug, Clone)]
 pub struct GenerationTaskCheckpointPage {
-    pub items: Vec<generation_task_checkpoint::Model>,
+    pub items: Vec<GenerationTaskCheckpointSummaryRecord>,
     pub has_more: bool,
 }
 
@@ -184,10 +188,9 @@ struct GenerationTaskLineageRow {
 }
 
 impl GenerationTaskSummaryRow {
-    fn into_checkpoint(self) -> generation_task_checkpoint::Model {
-        generation_task_checkpoint::Model {
+    fn into_checkpoint(self) -> GenerationTaskCheckpointSummaryRecord {
+        GenerationTaskCheckpointSummaryRecord {
             task_id: self.task_id,
-            business_key: String::new(),
             attempt: self.attempt,
             requested_by_user_id: self.requested_by_user_id,
             task_kind: self.task_kind,
@@ -205,28 +208,14 @@ impl GenerationTaskSummaryRow {
             item_key: self.item_key,
             retry_of_task_id: self.retry_of_task_id,
             status: self.status,
-            checkpoint_revision: 0,
             covers_through_sequence: self.covers_through_sequence,
-            reserved_through_sequence: 0,
             public_snapshot_json: self.public_snapshot_json,
             public_snapshot_sha256: self.public_snapshot_sha256,
-            step_key: None,
-            call_key: None,
-            provider_kind: None,
-            provider_model: None,
-            provider_job_id: None,
-            provider_idempotency_key_sha256: None,
-            resume_metadata_version: None,
-            execution_checkpoint_json: None,
-            execution_checkpoint_sha256: None,
-            input_fingerprint_sha256: String::new(),
             result_kind: self.result_kind,
             result_id: self.result_id,
             result_revision: self.result_revision,
             expires_at: self.expires_at,
-            created_at: self.updated_at,
             updated_at: self.updated_at,
-            completed_at: None,
         }
     }
 }
@@ -379,15 +368,183 @@ fn verified_generation_execution_checkpoint(
     Ok(Some(checkpoint_json.clone()))
 }
 
-pub fn persisted_generation_task_from_checkpoint(
+pub(crate) fn persisted_generation_task_from_checkpoint(
     checkpoint: generation_task_checkpoint::Model,
 ) -> Result<PersistedGenerationTask, GenerationTaskPersistenceError> {
     let public_snapshot = verified_generation_public_snapshot(&checkpoint)?;
     verified_generation_execution_checkpoint(&checkpoint)?;
     Ok(PersistedGenerationTask {
+        checkpoint: generation_task_checkpoint_record(checkpoint),
+        public_snapshot,
+    })
+}
+
+pub fn persisted_generation_task_from_record(
+    checkpoint: GenerationTaskCheckpointRecord,
+) -> Result<PersistedGenerationTask, GenerationTaskPersistenceError> {
+    let model = generation_task_checkpoint_model(&checkpoint);
+    let public_snapshot = verified_generation_public_snapshot(&model)?;
+    verified_generation_execution_checkpoint(&model)?;
+    Ok(PersistedGenerationTask {
         checkpoint,
         public_snapshot,
     })
+}
+
+pub fn started_event_from_record(
+    checkpoint: &GenerationTaskCheckpointRecord,
+) -> Result<StartedEvent, GenerationTaskPersistenceError> {
+    started_event_from_checkpoint(&generation_task_checkpoint_model(checkpoint))
+}
+
+pub fn started_event_from_summary_record(
+    checkpoint: &GenerationTaskCheckpointSummaryRecord,
+) -> Result<StartedEvent, GenerationTaskPersistenceError> {
+    started_event_from_checkpoint(&generation_task_summary_model(checkpoint))
+}
+
+pub(super) fn generation_task_checkpoint_record(
+    model: generation_task_checkpoint::Model,
+) -> GenerationTaskCheckpointRecord {
+    GenerationTaskCheckpointRecord {
+        task_id: model.task_id,
+        business_key: model.business_key,
+        attempt: model.attempt,
+        requested_by_user_id: model.requested_by_user_id,
+        task_kind: model.task_kind,
+        delivery_mode: model.delivery_mode,
+        batch_policy: model.batch_policy,
+        project_id: model.project_id,
+        root_project_id: model.root_project_id,
+        workflow_run_id: model.workflow_run_id,
+        generation_run_id: model.generation_run_id,
+        target_kind: model.target_kind,
+        target_id: model.target_id,
+        target_revision: model.target_revision,
+        root_task_id: model.root_task_id,
+        parent_task_id: model.parent_task_id,
+        item_key: model.item_key,
+        retry_of_task_id: model.retry_of_task_id,
+        status: model.status,
+        checkpoint_revision: model.checkpoint_revision,
+        covers_through_sequence: model.covers_through_sequence,
+        reserved_through_sequence: model.reserved_through_sequence,
+        public_snapshot_json: model.public_snapshot_json,
+        public_snapshot_sha256: model.public_snapshot_sha256,
+        step_key: model.step_key,
+        call_key: model.call_key,
+        provider_kind: model.provider_kind,
+        provider_model: model.provider_model,
+        provider_job_id: model.provider_job_id,
+        provider_idempotency_key_sha256: model.provider_idempotency_key_sha256,
+        resume_metadata_version: model.resume_metadata_version,
+        execution_checkpoint_json: model.execution_checkpoint_json,
+        execution_checkpoint_sha256: model.execution_checkpoint_sha256,
+        input_fingerprint_sha256: model.input_fingerprint_sha256,
+        result_kind: model.result_kind,
+        result_id: model.result_id,
+        result_revision: model.result_revision,
+        expires_at: model.expires_at,
+        created_at: model.created_at,
+        updated_at: model.updated_at,
+        completed_at: model.completed_at,
+    }
+}
+
+fn generation_task_checkpoint_model(
+    record: &GenerationTaskCheckpointRecord,
+) -> generation_task_checkpoint::Model {
+    generation_task_checkpoint::Model {
+        task_id: record.task_id.clone(),
+        business_key: record.business_key.clone(),
+        attempt: record.attempt,
+        requested_by_user_id: record.requested_by_user_id,
+        task_kind: record.task_kind.clone(),
+        delivery_mode: record.delivery_mode.clone(),
+        batch_policy: record.batch_policy.clone(),
+        project_id: record.project_id,
+        root_project_id: record.root_project_id,
+        workflow_run_id: record.workflow_run_id,
+        generation_run_id: record.generation_run_id,
+        target_kind: record.target_kind.clone(),
+        target_id: record.target_id.clone(),
+        target_revision: record.target_revision.clone(),
+        root_task_id: record.root_task_id.clone(),
+        parent_task_id: record.parent_task_id.clone(),
+        item_key: record.item_key.clone(),
+        retry_of_task_id: record.retry_of_task_id.clone(),
+        status: record.status.clone(),
+        checkpoint_revision: record.checkpoint_revision,
+        covers_through_sequence: record.covers_through_sequence,
+        reserved_through_sequence: record.reserved_through_sequence,
+        public_snapshot_json: record.public_snapshot_json.clone(),
+        public_snapshot_sha256: record.public_snapshot_sha256.clone(),
+        step_key: record.step_key.clone(),
+        call_key: record.call_key.clone(),
+        provider_kind: record.provider_kind.clone(),
+        provider_model: record.provider_model.clone(),
+        provider_job_id: record.provider_job_id.clone(),
+        provider_idempotency_key_sha256: record.provider_idempotency_key_sha256.clone(),
+        resume_metadata_version: record.resume_metadata_version,
+        execution_checkpoint_json: record.execution_checkpoint_json.clone(),
+        execution_checkpoint_sha256: record.execution_checkpoint_sha256.clone(),
+        input_fingerprint_sha256: record.input_fingerprint_sha256.clone(),
+        result_kind: record.result_kind.clone(),
+        result_id: record.result_id.clone(),
+        result_revision: record.result_revision.clone(),
+        expires_at: record.expires_at,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+        completed_at: record.completed_at,
+    }
+}
+
+fn generation_task_summary_model(
+    record: &GenerationTaskCheckpointSummaryRecord,
+) -> generation_task_checkpoint::Model {
+    generation_task_checkpoint::Model {
+        task_id: record.task_id.clone(),
+        business_key: String::new(),
+        attempt: record.attempt,
+        requested_by_user_id: record.requested_by_user_id,
+        task_kind: record.task_kind.clone(),
+        delivery_mode: record.delivery_mode.clone(),
+        batch_policy: record.batch_policy.clone(),
+        project_id: record.project_id,
+        root_project_id: record.root_project_id,
+        workflow_run_id: record.workflow_run_id,
+        generation_run_id: record.generation_run_id,
+        target_kind: record.target_kind.clone(),
+        target_id: record.target_id.clone(),
+        target_revision: record.target_revision.clone(),
+        root_task_id: record.root_task_id.clone(),
+        parent_task_id: record.parent_task_id.clone(),
+        item_key: record.item_key.clone(),
+        retry_of_task_id: record.retry_of_task_id.clone(),
+        status: record.status.clone(),
+        checkpoint_revision: 0,
+        covers_through_sequence: record.covers_through_sequence,
+        reserved_through_sequence: 0,
+        public_snapshot_json: record.public_snapshot_json.clone(),
+        public_snapshot_sha256: record.public_snapshot_sha256.clone(),
+        step_key: None,
+        call_key: None,
+        provider_kind: None,
+        provider_model: None,
+        provider_job_id: None,
+        provider_idempotency_key_sha256: None,
+        resume_metadata_version: None,
+        execution_checkpoint_json: None,
+        execution_checkpoint_sha256: None,
+        input_fingerprint_sha256: String::new(),
+        result_kind: record.result_kind.clone(),
+        result_id: record.result_id.clone(),
+        result_revision: record.result_revision.clone(),
+        expires_at: record.expires_at,
+        created_at: record.updated_at,
+        updated_at: record.updated_at,
+        completed_at: None,
+    }
 }
 
 fn validate_snapshot_matches_checkpoint(
@@ -415,7 +572,7 @@ fn validate_snapshot_matches_checkpoint(
     Ok(())
 }
 
-pub fn started_event_from_checkpoint(
+pub(crate) fn started_event_from_checkpoint(
     checkpoint: &generation_task_checkpoint::Model,
 ) -> Result<StartedEvent, GenerationTaskPersistenceError> {
     let target = match (

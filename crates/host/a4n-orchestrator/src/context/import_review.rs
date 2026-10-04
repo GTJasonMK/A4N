@@ -9,9 +9,7 @@ use a4n_db::{
     DbHandle,
     import_review::{AcceptedImportReview, ImportReviewMutationError},
 };
-use a4n_db_models::models::project::import_review_queue;
-use a4n_domain::import_review::ImportChapterDraft;
-use a4n_domain::import_review::ImportReviewCreateInput;
+use a4n_domain::import_review::{ImportChapterDraft, ImportReviewCreateInput, ImportReviewRecord};
 use a4n_error::AppError;
 use async_trait::async_trait;
 use serde_json::Value;
@@ -32,7 +30,7 @@ impl ImportReviewApplication {
     async fn import_review_by_id(
         &self,
         review_id: i64,
-    ) -> Result<Option<import_review_queue::Model>, AppError> {
+    ) -> Result<Option<ImportReviewRecord>, AppError> {
         a4n_db::import_review::import_review_by_id(self.database.connection(), review_id)
             .await
             .map_err(AppError::Database)
@@ -53,7 +51,7 @@ impl ImportReviewApplication {
     async fn create_import_reviews(
         &self,
         inputs: Vec<ImportReviewCreateInput>,
-    ) -> Result<Vec<import_review_queue::Model>, AppError> {
+    ) -> Result<Vec<ImportReviewRecord>, AppError> {
         a4n_db::import_review::create_import_reviews(self.database.connection(), inputs)
             .await
             .map_err(AppError::Database)
@@ -82,8 +80,8 @@ impl ImportReviewApplication {
 
     async fn reject_import_review(
         &self,
-        review: import_review_queue::Model,
-    ) -> Result<import_review_queue::Model, AppError> {
+        review: ImportReviewRecord,
+    ) -> Result<ImportReviewRecord, AppError> {
         a4n_db::import_review::reject_import_review(self.database.connection(), review.id)
             .await
             .map_err(import_review_mutation_error)
@@ -105,7 +103,7 @@ impl OrchestratorContext {
     pub(crate) async fn create_import_reviews(
         &self,
         inputs: Vec<ImportReviewCreateInput>,
-    ) -> Result<Vec<import_review_queue::Model>, AppError> {
+    ) -> Result<Vec<ImportReviewRecord>, AppError> {
         self.import_review.create_import_reviews(inputs).await
     }
 
@@ -113,7 +111,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         review_id: i64,
-    ) -> Result<import_review_queue::Model, AppError> {
+    ) -> Result<ImportReviewRecord, AppError> {
         let review = self.import_review_for_editor(user_id, review_id).await?;
         self.import_review.reject_import_review(review).await
     }
@@ -223,7 +221,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         review_id: i64,
-    ) -> Result<import_review_queue::Model, AppError> {
+    ) -> Result<ImportReviewRecord, AppError> {
         let review = self
             .import_review
             .import_review_by_id(review_id)
@@ -235,9 +233,7 @@ impl OrchestratorContext {
     }
 }
 
-fn import_review_summary(
-    review: &import_review_queue::Model,
-) -> Result<ImportReviewSummary, AppError> {
+fn import_review_summary(review: &ImportReviewRecord) -> Result<ImportReviewSummary, AppError> {
     let review_status = a4n_domain::import_review::ImportReviewStatus::parse(&review.review_status)
         .ok_or_else(|| AppError::InvalidState {
             current: format!(

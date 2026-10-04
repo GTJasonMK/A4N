@@ -10,7 +10,7 @@ use super::super::{OrchestratorContext, optimize_db_error};
 impl OrchestratorContext {
     pub(crate) async fn record_patches_applied(
         &self,
-        tx: &sea_orm::DatabaseTransaction,
+        tx: &a4n_db::DbTransaction,
         session_id: i64,
         chapter_id: i64,
         word_count: i32,

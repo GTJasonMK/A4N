@@ -260,7 +260,7 @@ where
 pub async fn optimization_session_messages<C>(
     db: &C,
     session_id: i64,
-) -> Result<Vec<optimization_session_message::Model>, OptimizeDbError>
+) -> Result<Vec<a4n_domain::project::OptimizationSessionMessageRecord>, OptimizeDbError>
 where
     C: ConnectionTrait,
 {
@@ -270,13 +270,18 @@ where
         .order_by_asc(optimization_session_message::Column::Id)
         .all(db)
         .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(optimization_session_message_record)
+                .collect()
+        })
         .map_err(OptimizeDbError::Database)
 }
 
 pub async fn insert_optimization_session_message<C>(
     db: &C,
     input: OptimizationSessionMessageInsertInput,
-) -> Result<optimization_session_message::Model, OptimizeDbError>
+) -> Result<a4n_domain::project::OptimizationSessionMessageRecord, OptimizeDbError>
 where
     C: ConnectionTrait,
 {
@@ -290,7 +295,21 @@ where
     }
     .insert(db)
     .await
+    .map(optimization_session_message_record)
     .map_err(OptimizeDbError::Database)
+}
+
+fn optimization_session_message_record(
+    message: optimization_session_message::Model,
+) -> a4n_domain::project::OptimizationSessionMessageRecord {
+    a4n_domain::project::OptimizationSessionMessageRecord {
+        id: message.id,
+        session_id: message.session_id,
+        role: message.role,
+        content: message.content,
+        tool_calls: message.tool_calls,
+        created_at: message.created_at,
+    }
 }
 
 pub async fn delete_optimization_session_with_messages<C>(

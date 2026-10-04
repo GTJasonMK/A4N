@@ -5,6 +5,7 @@ use a4n_db_models::models::{
     project::{source_snapshot_chapter, text_anchor},
     source_sync::{source_sync_conflict, source_sync_run},
 };
+use a4n_domain::project::SourceSnapshotChapterSummary;
 use a4n_domain::source_sync::{
     GALGAME_REGENERATABLE_ENTRY_KIND, SourceSyncConflictRecord, SourceSyncRunRecord,
 };
@@ -206,6 +207,8 @@ where
         )));
     }
 
+    let old_snapshot_chapter = source_snapshot_chapter_summary(old_snapshot_chapter);
+    let new_snapshot_chapter = source_snapshot_chapter_summary(new_snapshot_chapter);
     Ok(SourceSyncGalgameSceneRegenerationSourceRecord {
         scene,
         script,
@@ -224,6 +227,24 @@ where
             })
             .collect(),
     })
+}
+
+fn source_snapshot_chapter_summary(
+    row: source_snapshot_chapter::Model,
+) -> SourceSnapshotChapterSummary {
+    SourceSnapshotChapterSummary {
+        id: row.id,
+        snapshot_id: row.snapshot_id,
+        root_project_id: row.root_project_id,
+        source_chapter_id: row.source_chapter_id,
+        chapter_number: row.chapter_number,
+        title: row.title,
+        summary: row.summary,
+        content: row.content,
+        analysis_data_json: row.analysis_data_json,
+        content_hash: row.content_hash,
+        analysis_hash: row.analysis_hash,
+    }
 }
 
 pub async fn galgame_scene_regeneration_source_record_from_records<C>(

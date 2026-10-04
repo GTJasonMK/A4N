@@ -12,7 +12,7 @@ use sea_orm::{
 
 pub(super) async fn insert_video_generation_rows<Importer>(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
     media_importer: &mut Importer,
 ) -> Result<(), ProjectFamilyImportError>
@@ -35,7 +35,7 @@ where
 
 pub(super) async fn update_video_generation_refs(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     update_video_prompt_refs(txn, package, maps).await?;
@@ -44,7 +44,7 @@ pub(super) async fn update_video_generation_refs(
 
 async fn insert_video_prompts(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     let prompts = package
@@ -91,7 +91,7 @@ async fn insert_video_prompts(
 
 async fn insert_generated_videos<Importer>(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
     media_importer: &mut Importer,
 ) -> Result<(), ProjectFamilyImportError>
@@ -201,7 +201,7 @@ where
 
 async fn update_video_prompt_refs(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     if package.chapter_video_prompts.is_empty() {
@@ -290,7 +290,7 @@ async fn update_video_prompt_refs(
 
 async fn update_generated_video_refs(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     if package.generated_videos.is_empty() {
@@ -393,7 +393,7 @@ async fn update_generated_video_refs(
 
 pub(super) async fn insert_video_segments(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     insert_mapped_import_rows!(
@@ -507,7 +507,7 @@ pub(super) async fn insert_video_segments(
 
 pub(super) async fn insert_assembly_rows(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     insert_mapped_import_rows!(
@@ -570,7 +570,7 @@ pub(super) async fn insert_assembly_rows(
 
 pub(super) async fn update_generation_spec_deferred_targets(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     let mut target_entity_id_case = CaseStatement::new();

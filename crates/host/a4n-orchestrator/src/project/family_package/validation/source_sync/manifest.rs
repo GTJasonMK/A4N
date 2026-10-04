@@ -4,8 +4,6 @@ mod runs;
 
 use std::collections::HashMap;
 
-use a4n_db_models::models::source_sync::{source_sync_conflict, source_sync_run};
-
 use super::super::ProjectFamilyPackage;
 use super::contracts::SourceSyncReferenceSets;
 use conflicts::validate_source_sync_conflicts;
@@ -18,12 +16,12 @@ pub(super) fn validate_source_sync_manifest(package: &ProjectFamilyPackage) -> R
         .source_sync_runs
         .iter()
         .map(|run| (run.id, run))
-        .collect::<HashMap<i64, &source_sync_run::Model>>();
+        .collect::<HashMap<i64, &a4n_domain::project::ProjectFamilySourceSyncRunRecord>>();
     let conflicts = package
         .source_sync_conflicts
         .iter()
         .map(|conflict| (conflict.id, conflict))
-        .collect::<HashMap<i64, &source_sync_conflict::Model>>();
+        .collect::<HashMap<i64, &a4n_domain::project::ProjectFamilySourceSyncConflictRecord>>();
 
     validate_source_sync_runs(package)?;
     validate_source_sync_conflicts(package, &refs, &runs)?;

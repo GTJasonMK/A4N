@@ -9,27 +9,6 @@ use crate::media::{
     is_valid_galgame_media_binding_pair,
 };
 #[cfg(test)]
-use a4n_db_models::models::{
-    asset::object_profile,
-    chapter::{chapter, part_outline},
-    character::protagonist_profile,
-    generation::{
-        generation_spec_entity_ref, generation_spec_media_ref, generation_spec_text_anchor,
-    },
-    media::media_provenance,
-    project::{profile_evidence, source_snapshot_outline, source_snapshot_profile},
-    scene::scene_profile,
-    video_project::{assembly_timeline, video_segment},
-};
-use a4n_db_models::models::{
-    chapter::chapter_outline,
-    galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script},
-    generation::{generation_spec, prompt_artifact},
-    media::{media_asset, media_binding},
-    project::{project_source_snapshot, source_snapshot_chapter, text_anchor},
-    source_sync::{source_sync_conflict, source_sync_decision, source_sync_run},
-};
-#[cfg(test)]
 use serde_json::{Value, json};
 use std::collections::{BTreeSet, HashMap, HashSet};
 
@@ -53,6 +32,196 @@ pub(crate) use export_assembly::{
     assemble_project_family_export_package, family_media_package_path,
 };
 pub(crate) use validation::{validate_media_manifest, validate_package_manifest};
+
+#[cfg(test)]
+macro_rules! family_record_module {
+    ($module:ident, $record:ty) => {
+        mod $module {
+            #[allow(dead_code)]
+            pub type Model = $record;
+        }
+    };
+}
+
+#[cfg(test)]
+mod chapter {
+    pub type Model = a4n_domain::project::ProjectFamilyChapterRecord;
+    pub const STATUS_IMPORTED: &str = a4n_domain::chapter::chapter_status::STATUS_IMPORTED;
+    pub const STATUS_DELETED: &str = a4n_domain::chapter::chapter_status::STATUS_DELETED;
+}
+
+#[cfg(test)]
+mod media_asset {
+    #[allow(dead_code)]
+    pub type Model = a4n_domain::project::ProjectFamilyMediaAssetRecord;
+}
+
+#[cfg(test)]
+family_record_module!(
+    chapter_manga_prompt,
+    a4n_domain::project::ProjectFamilyMangaPromptRecord
+);
+#[cfg(test)]
+mod chapter_outline {
+    pub type Model = a4n_domain::project::ProjectFamilyChapterOutlineRecord;
+    pub const STATUS_COMPLETED: &str =
+        a4n_domain::chapter::chapter_outline_status::STATUS_COMPLETED;
+}
+#[cfg(test)]
+family_record_module!(
+    chapter_visual_plan,
+    a4n_domain::project::ProjectFamilyVisualPlanRecord
+);
+#[cfg(test)]
+family_record_module!(
+    character_portrait,
+    a4n_domain::project::ProjectFamilyCharacterPortraitRecord
+);
+#[cfg(test)]
+family_record_module!(
+    galgame_choice,
+    a4n_domain::project::ProjectFamilyGalgameChoiceRecord
+);
+#[cfg(test)]
+family_record_module!(
+    galgame_line,
+    a4n_domain::project::ProjectFamilyGalgameLineRecord
+);
+#[cfg(test)]
+family_record_module!(
+    galgame_scene,
+    a4n_domain::project::ProjectFamilyGalgameSceneRecord
+);
+#[cfg(test)]
+family_record_module!(
+    galgame_script,
+    a4n_domain::project::ProjectFamilyGalgameScriptRecord
+);
+#[cfg(test)]
+family_record_module!(
+    generated_image,
+    a4n_domain::project::ProjectFamilyGeneratedImageRecord
+);
+#[cfg(test)]
+family_record_module!(
+    generated_video,
+    a4n_domain::project::ProjectFamilyGeneratedVideoRecord
+);
+#[cfg(test)]
+family_record_module!(
+    generation_spec,
+    a4n_domain::project::ProjectFamilyGenerationSpecRecord
+);
+#[cfg(test)]
+family_record_module!(
+    generation_spec_entity_ref,
+    a4n_domain::project::ProjectFamilyGenerationSpecEntityRefRecord
+);
+#[cfg(test)]
+family_record_module!(
+    generation_spec_media_ref,
+    a4n_domain::project::ProjectFamilyGenerationSpecMediaRefRecord
+);
+#[cfg(test)]
+family_record_module!(
+    generation_spec_text_anchor,
+    a4n_domain::project::ProjectFamilyGenerationSpecTextAnchorRecord
+);
+#[cfg(test)]
+family_record_module!(
+    media_authoring_document,
+    a4n_domain::project::ProjectFamilyAuthoringDocumentRecord
+);
+#[cfg(test)]
+family_record_module!(
+    media_binding,
+    a4n_domain::project::ProjectFamilyMediaBindingRecord
+);
+#[cfg(test)]
+family_record_module!(
+    media_provenance,
+    a4n_domain::project::ProjectFamilyMediaProvenanceRecord
+);
+#[cfg(test)]
+family_record_module!(
+    object_profile,
+    a4n_domain::project::ProjectFamilyObjectProfileRecord
+);
+#[cfg(test)]
+family_record_module!(
+    part_outline,
+    a4n_domain::project::ProjectFamilyPartOutlineRecord
+);
+#[cfg(test)]
+family_record_module!(
+    profile_evidence,
+    a4n_domain::project::ProjectFamilyProfileEvidenceRecord
+);
+#[cfg(test)]
+family_record_module!(
+    project_source_snapshot,
+    a4n_domain::project::ProjectFamilySourceSnapshotRecord
+);
+#[cfg(test)]
+family_record_module!(
+    prompt_artifact,
+    a4n_domain::project::ProjectFamilyPromptArtifactRecord
+);
+#[cfg(test)]
+family_record_module!(
+    protagonist_profile,
+    a4n_domain::project::ProjectFamilyProtagonistProfileRecord
+);
+#[cfg(test)]
+family_record_module!(
+    scene_profile,
+    a4n_domain::project::ProjectFamilySceneProfileRecord
+);
+#[cfg(test)]
+family_record_module!(
+    source_snapshot_chapter,
+    a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord
+);
+#[cfg(test)]
+family_record_module!(
+    source_snapshot_outline,
+    a4n_domain::project::ProjectFamilySourceSnapshotOutlineRecord
+);
+#[cfg(test)]
+family_record_module!(
+    source_snapshot_profile,
+    a4n_domain::project::ProjectFamilySourceSnapshotProfileRecord
+);
+#[cfg(test)]
+family_record_module!(
+    source_sync_conflict,
+    a4n_domain::project::ProjectFamilySourceSyncConflictRecord
+);
+#[cfg(test)]
+family_record_module!(
+    source_sync_decision,
+    a4n_domain::project::ProjectFamilySourceSyncDecisionRecord
+);
+#[cfg(test)]
+family_record_module!(
+    source_sync_run,
+    a4n_domain::project::ProjectFamilySourceSyncRunRecord
+);
+#[cfg(test)]
+family_record_module!(
+    text_anchor,
+    a4n_domain::project::ProjectFamilyTextAnchorRecord
+);
+#[cfg(test)]
+family_record_module!(
+    video_segment,
+    a4n_domain::project::ProjectFamilyVideoSegmentRecord
+);
+#[cfg(test)]
+family_record_module!(
+    assembly_timeline,
+    a4n_domain::project::ProjectFamilyAssemblyTimelineRecord
+);
 
 use a4n_db::project::family::import::ProjectFamilyImportPackage;
 

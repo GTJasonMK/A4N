@@ -201,7 +201,7 @@ where
             .into_model::<VideoPromptProtagonistProfileRecord>()
             .all(db),
     );
-    let blueprint = blueprint_result?;
+    let blueprint = blueprint_result?.map(crate::project::blueprint_record);
     let blueprint_characters = blueprint_characters_result?;
     let protagonist_profiles = protagonist_profiles_result?;
 

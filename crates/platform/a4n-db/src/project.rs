@@ -39,6 +39,10 @@ pub use blueprint_sync::{
     blueprint_versions_by_project, edit_blueprint_characters, edit_blueprint_relationships,
     merge_blueprint_characters, merge_blueprint_relationships, novel_blueprint_for_project,
 };
+pub(crate) use blueprint_sync::{
+    blueprint_character_record, blueprint_model_from_record, blueprint_record,
+    blueprint_relationship_record,
+};
 pub(crate) use chapter::chapter_record;
 pub use chapter::context::{
     ChapterGenerationReferenceContextRows, ChapterObjectProfileContext, ChapterProfileEvidence,

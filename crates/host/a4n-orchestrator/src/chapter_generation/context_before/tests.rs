@@ -3,8 +3,8 @@ use super::{
     character_state::{character_profile_context_line, character_state_context_line},
     summaries::layered_chapter_summary_lines,
 };
-use a4n_db_models::models::character::{character_state_index, protagonist_profile};
 use a4n_domain::chapter::ChapterRecord;
+use a4n_domain::character::{CharacterProfileRecord, CharacterStateIndexRecord};
 
 fn chapter_for_context(
     chapter_number: i32,
@@ -63,9 +63,9 @@ fn chapter_analysis_context_line_omits_missing_title_without_placeholder() {
     assert!(line.contains("主角进入边境城"));
 }
 
-fn profile_for_context(last_synced_chapter: i32) -> protagonist_profile::Model {
+fn profile_for_context(last_synced_chapter: i32) -> CharacterProfileRecord {
     let now = chrono::Utc::now().naive_utc();
-    protagonist_profile::Model {
+    CharacterProfileRecord {
         id: 1,
         project_id: 1,
         name: "林岚".to_string(),
@@ -94,7 +94,7 @@ fn profile_for_context(last_synced_chapter: i32) -> protagonist_profile::Model {
 #[test]
 fn character_state_context_line_includes_profile_constraints() {
     let now = chrono::Utc::now().naive_utc();
-    let state_index = character_state_index::Model {
+    let state_index = CharacterStateIndexRecord {
         id: 1,
         profile_id: 1,
         chapter_number: 3,

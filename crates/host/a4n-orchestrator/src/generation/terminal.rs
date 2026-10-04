@@ -1,5 +1,7 @@
 use std::{future::Future, sync::Arc, time::Duration};
 
+use a4n_db::transaction::{TransactionError, run_in_transaction};
+use a4n_db::{DbErr, DbTransaction as DatabaseTransaction};
 use a4n_db::{
     DbHandle,
     generation::{
@@ -23,7 +25,6 @@ use a4n_service_protocol::{
     TextStreamSnapshot,
 };
 use futures::future::BoxFuture;
-use sea_orm::{DatabaseTransaction, TransactionTrait};
 
 use super::artifacts::PreparedArtifactEvent;
 use super::events::{
@@ -65,6 +66,27 @@ pub enum GenerationTerminalError {
     Completion(#[source] AppError),
     #[error("generation queue 取消通知失败: {0}")]
     QueueSignal(#[source] AppError),
+    #[error("{operation}失败：{original}；事务回滚失败：{rollback_error}")]
+    TransactionRollback {
+        operation: String,
+        original: Box<Self>,
+        #[source]
+        rollback_error: DbErr,
+    },
+}
+
+impl TransactionError for GenerationTerminalError {
+    fn from_database(error: DbErr) -> Self {
+        Self::Persistence(GenerationTaskLifecycleError::Database(error))
+    }
+
+    fn rollback_failure(operation: &str, original: Self, rollback_error: DbErr) -> Self {
+        Self::TransactionRollback {
+            operation: operation.to_string(),
+            original: Box::new(original),
+            rollback_error,
+        }
+    }
 }
 
 impl GenerationTerminalError {
@@ -77,6 +99,7 @@ impl GenerationTerminalError {
             Self::PersistenceUnavailable => "generation_terminal_persistence_unavailable",
             Self::Completion(_) => "generation_persist_failed",
             Self::QueueSignal(_) => "generation_persist_failed",
+            Self::TransactionRollback { .. } => "generation_persist_failed",
         }
     }
 }
@@ -292,9 +315,10 @@ impl GenerationTerminalCoordinator {
         write_result: F,
     ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError>
     where
-        F: for<'tx> FnOnce(
-            &'tx DatabaseTransaction,
-        ) -> BoxFuture<'tx, Result<CompletionDescriptor, AppError>>,
+        F: Send
+            + for<'tx> FnOnce(
+                &'tx DatabaseTransaction,
+            ) -> BoxFuture<'tx, Result<CompletionDescriptor, AppError>>,
     {
         self.complete_with_artifacts(session, Vec::new(), write_result)
             .await
@@ -311,12 +335,13 @@ impl GenerationTerminalCoordinator {
         write_result: F,
     ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError>
     where
-        F: for<'tx> FnOnce(
-            &'tx DatabaseTransaction,
-        ) -> BoxFuture<
-            'tx,
-            Result<(CompletionDescriptor, Vec<ProgressEvent>), AppError>,
-        >,
+        F: Send
+            + for<'tx> FnOnce(
+                &'tx DatabaseTransaction,
+            ) -> BoxFuture<
+                'tx,
+                Result<(CompletionDescriptor, Vec<ProgressEvent>), AppError>,
+            >,
     {
         self.complete_with_progress_artifacts(session, Vec::new(), write_result)
             .await
@@ -329,9 +354,10 @@ impl GenerationTerminalCoordinator {
         write_result: F,
     ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError>
     where
-        F: for<'tx> FnOnce(
-            &'tx DatabaseTransaction,
-        ) -> BoxFuture<'tx, Result<CompletionDescriptor, AppError>>,
+        F: Send
+            + for<'tx> FnOnce(
+                &'tx DatabaseTransaction,
+            ) -> BoxFuture<'tx, Result<CompletionDescriptor, AppError>>,
     {
         self.complete_with_progress_artifacts(session, artifacts, move |tx| {
             let future = write_result(tx);
@@ -348,12 +374,13 @@ impl GenerationTerminalCoordinator {
         write_result: F,
     ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError>
     where
-        F: for<'tx> FnOnce(
-            &'tx DatabaseTransaction,
-        ) -> BoxFuture<
-            'tx,
-            Result<(CompletionDescriptor, Vec<ProgressEvent>), AppError>,
-        >,
+        F: Send
+            + for<'tx> FnOnce(
+                &'tx DatabaseTransaction,
+            ) -> BoxFuture<
+                'tx,
+                Result<(CompletionDescriptor, Vec<ProgressEvent>), AppError>,
+            >,
     {
         match self.begin_finalizing(session).await? {
             GenerationTerminalWriteOutcome::AlreadyTerminal => {
@@ -379,39 +406,51 @@ impl GenerationTerminalCoordinator {
             .into());
         }
 
-        let tx = self.database.connection().begin().await.map_err(|error| {
-            GenerationTerminalError::Persistence(GenerationTaskLifecycleError::Database(error))
-        })?;
-        let locked = lock_generation_completion(
-            &tx,
-            &candidate.snapshot.task_id,
-            candidate.snapshot.attempt,
-            candidate.checkpoint_revision,
+        let session_for_transaction = Arc::clone(session);
+        let (persisted, permit) = run_in_transaction(
+            self.database.connection(),
+            "提交 generation 完成",
+            move |tx| {
+                Box::pin(async move {
+                    let result: Result<_, GenerationTerminalError> = async {
+                        let locked = lock_generation_completion(
+                            &tx,
+                            &candidate.snapshot.task_id,
+                            candidate.snapshot.attempt,
+                            candidate.checkpoint_revision,
+                        )
+                        .await?;
+                        let (mut descriptor, progress_events) = write_result(&tx)
+                            .await
+                            .map_err(GenerationTerminalError::Completion)?;
+                        append_reasoning_hash(&mut descriptor, &candidate.snapshot.streams);
+                        validate_batch_summary_presence(
+                            &candidate.snapshot,
+                            descriptor.batch_summary.as_ref(),
+                        )?;
+                        let events = committed_terminal_events_with_progress(
+                            artifacts,
+                            progress_events,
+                            GenerationEvent::Completed(descriptor.into()),
+                        );
+                        let permit = session_for_transaction.prepare_committed_events(events)?;
+                        let input = PersistGenerationLifecycleInput {
+                            task_id: candidate.snapshot.task_id,
+                            attempt: candidate.snapshot.attempt,
+                            expected_checkpoint_revision: candidate.checkpoint_revision,
+                            expected_status: GenerationTaskStatus::Finalizing,
+                            public_snapshot: permit.snapshot().clone(),
+                        };
+                        let persisted =
+                            persist_locked_generation_completion(&tx, locked, input).await?;
+                        Ok((persisted, permit))
+                    }
+                    .await;
+                    (tx, result)
+                })
+            },
         )
         .await?;
-        let descriptor = write_result(&tx)
-            .await
-            .map_err(GenerationTerminalError::Completion)?;
-        let (mut descriptor, progress_events) = descriptor;
-        append_reasoning_hash(&mut descriptor, &candidate.snapshot.streams);
-        validate_batch_summary_presence(&candidate.snapshot, descriptor.batch_summary.as_ref())?;
-        let events = committed_terminal_events_with_progress(
-            artifacts,
-            progress_events,
-            GenerationEvent::Completed(descriptor.into()),
-        );
-        let permit = session.prepare_committed_events(events)?;
-        let input = PersistGenerationLifecycleInput {
-            task_id: candidate.snapshot.task_id,
-            attempt: candidate.snapshot.attempt,
-            expected_checkpoint_revision: candidate.checkpoint_revision,
-            expected_status: GenerationTaskStatus::Finalizing,
-            public_snapshot: permit.snapshot().clone(),
-        };
-        let persisted = persist_locked_generation_completion(&tx, locked, input).await?;
-        tx.commit().await.map_err(|error| {
-            GenerationTerminalError::Persistence(GenerationTaskLifecycleError::Database(error))
-        })?;
         commit_or_rebuild(self.database.connection(), session, permit, persisted).await
     }
 

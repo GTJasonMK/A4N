@@ -1,4 +1,5 @@
 mod contracts;
+pub(super) use contracts::foreshadowing_index_record;
 pub use contracts::{
     ForeshadowingAnalysisDraft, ForeshadowingAnalysisSyncResult, ForeshadowingDbError,
     ForeshadowingFactUpdate,

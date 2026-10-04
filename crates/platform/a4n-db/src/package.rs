@@ -14,6 +14,7 @@ use sea_orm::{
 use serde_json::Value;
 
 use a4n_domain::generation::GenerationLifecycleTask;
+use a4n_domain::package::HostPackageOperationRecord;
 
 const HOST_SCOPE: &str = "a4n-server";
 pub const INSTALLATION_INSTALLED: &str = "installed";
@@ -31,6 +32,25 @@ pub const OPERATION_COMPLETED: &str = "completed";
 
 const ACTIVE_TASK_STATUSES: [&str; 2] = ["pending", "running"];
 const ACTIVE_GENERATION_STATUSES: [&str; 4] = ["reserved", "running", "finalizing", "cancelling"];
+
+fn package_operation_record(
+    operation: host_package_operation::Model,
+) -> HostPackageOperationRecord {
+    HostPackageOperationRecord {
+        operation_id: operation.operation_id,
+        host_scope: operation.host_scope,
+        package_id: operation.package_id,
+        action: operation.action,
+        state: operation.state,
+        requested_version: operation.requested_version,
+        requested_by_user_id: operation.requested_by_user_id,
+        status_version: operation.status_version,
+        reason_code: operation.reason_code,
+        error: operation.error,
+        created_at: operation.created_at,
+        updated_at: operation.updated_at,
+    }
+}
 
 /// 由现有 task_queue、generation checkpoint 和 Agent run 汇总的停用快照。
 ///
@@ -169,30 +189,32 @@ pub async fn host_package_state(
 pub async fn latest_package_operation(
     db: &DatabaseConnection,
     package_id: &str,
-) -> Result<Option<host_package_operation::Model>, AppError> {
+) -> Result<Option<HostPackageOperationRecord>, AppError> {
     host_package_operation::Entity::find()
         .filter(host_package_operation::Column::HostScope.eq(HOST_SCOPE))
         .filter(host_package_operation::Column::PackageId.eq(package_id))
         .order_by_desc(host_package_operation::Column::UpdatedAt)
         .one(db)
         .await
+        .map(|operation| operation.map(package_operation_record))
         .map_err(AppError::Database)
 }
 
 pub async fn package_operation(
     db: &DatabaseConnection,
     operation_id: &str,
-) -> Result<Option<host_package_operation::Model>, AppError> {
+) -> Result<Option<HostPackageOperationRecord>, AppError> {
     host_package_operation::Entity::find_by_id(operation_id.to_string())
         .filter(host_package_operation::Column::HostScope.eq(HOST_SCOPE))
         .one(db)
         .await
+        .map(|operation| operation.map(package_operation_record))
         .map_err(AppError::Database)
 }
 
 pub async fn pending_package_operations(
     db: &DatabaseConnection,
-) -> Result<Vec<host_package_operation::Model>, AppError> {
+) -> Result<Vec<HostPackageOperationRecord>, AppError> {
     host_package_operation::Entity::find()
         .filter(host_package_operation::Column::HostScope.eq(HOST_SCOPE))
         .filter(host_package_operation::Column::State.is_in([
@@ -203,6 +225,12 @@ pub async fn pending_package_operations(
         .order_by_asc(host_package_operation::Column::UpdatedAt)
         .all(db)
         .await
+        .map(|operations| {
+            operations
+                .into_iter()
+                .map(package_operation_record)
+                .collect()
+        })
         .map_err(AppError::Database)
 }
 
@@ -408,7 +436,7 @@ pub async fn start_package_lifecycle(
     requested_version: Option<String>,
     requested_by_user_id: i64,
     expected_status_version: i64,
-) -> Result<host_package_operation::Model, AppError> {
+) -> Result<HostPackageOperationRecord, AppError> {
     if operation_id.trim().is_empty() {
         return Err(AppError::InvalidArgument(
             "功能包操作 ID 不能为空".to_string(),
@@ -437,7 +465,7 @@ pub async fn start_package_lifecycle(
             requested_version.as_deref(),
         )?;
         tx.commit().await.map_err(AppError::Database)?;
-        return Ok(existing);
+        return Ok(package_operation_record(existing));
     }
 
     let current = host_package_state::Entity::find()
@@ -464,7 +492,7 @@ pub async fn start_package_lifecycle(
             requested_version.as_deref(),
         )?;
         tx.commit().await.map_err(AppError::Database)?;
-        return Ok(existing);
+        return Ok(package_operation_record(existing));
     }
     if current.status_version != expected_status_version {
         return Err(AppError::InvalidState {
@@ -541,7 +569,7 @@ pub async fn update_package_lifecycle_progress(
     operation_state: &str,
     reason_code: Option<&str>,
     error: Option<&str>,
-) -> Result<host_package_operation::Model, AppError> {
+) -> Result<HostPackageOperationRecord, AppError> {
     if !matches!(
         operation_state,
         OPERATION_PENDING | OPERATION_DRAINING | OPERATION_WAITING_EXTERNAL
@@ -563,7 +591,7 @@ pub async fn update_package_lifecycle_progress(
         OPERATION_COMPLETED | OPERATION_FAILED
     ) {
         tx.commit().await.map_err(AppError::Database)?;
-        return Ok(operation);
+        return Ok(package_operation_record(operation));
     }
     if operation.status_version != expected_operation_status_version {
         return Err(AppError::InvalidState {
@@ -588,7 +616,7 @@ pub async fn update_package_lifecycle_progress(
     active.updated_at = Set(Utc::now().naive_utc());
     let updated = active.update(&tx).await.map_err(AppError::Database)?;
     tx.commit().await.map_err(AppError::Database)?;
-    Ok(updated)
+    Ok(package_operation_record(updated))
 }
 
 pub async fn finish_package_lifecycle(
@@ -599,7 +627,7 @@ pub async fn finish_package_lifecycle(
     final_host_state: &str,
     reason_code: Option<&str>,
     error: Option<&str>,
-) -> Result<host_package_operation::Model, AppError> {
+) -> Result<HostPackageOperationRecord, AppError> {
     if !matches!(operation_state, OPERATION_COMPLETED | OPERATION_FAILED) {
         return Err(AppError::InvalidArgument(format!(
             "未知功能包终态: {operation_state}"
@@ -622,7 +650,7 @@ pub async fn finish_package_lifecycle(
         OPERATION_COMPLETED | OPERATION_FAILED
     ) {
         tx.commit().await.map_err(AppError::Database)?;
-        return Ok(operation);
+        return Ok(package_operation_record(operation));
     }
 
     let current = host_package_state::Entity::find()
@@ -654,7 +682,7 @@ pub async fn finish_package_lifecycle(
         OPERATION_COMPLETED | OPERATION_FAILED
     ) {
         tx.commit().await.map_err(AppError::Database)?;
-        return Ok(operation);
+        return Ok(package_operation_record(operation));
     }
     let expected_host_state = match operation.action.as_str() {
         "enable" => HOST_STATE_ENABLING,
@@ -703,7 +731,7 @@ pub async fn finish_package_lifecycle(
     active.updated_at = Set(Utc::now().naive_utc());
     let updated = active.update(&tx).await.map_err(AppError::Database)?;
     tx.commit().await.map_err(AppError::Database)?;
-    Ok(updated)
+    Ok(package_operation_record(updated))
 }
 
 fn validate_idempotent_package_operation(

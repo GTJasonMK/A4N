@@ -1,8 +1,6 @@
-use a4n_db_models::models::media::media_asset;
-
 pub(super) fn validate_media_provenance_source_context(
     media_asset_id: i64,
-    asset: &media_asset::Model,
+    asset: &a4n_domain::project::ProjectFamilyMediaAssetRecord,
     ref_source_snapshot_id: Option<i64>,
     ref_source_snapshot_chapter_id: Option<i64>,
     ref_source_chapter_id: Option<i64>,

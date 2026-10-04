@@ -4,7 +4,7 @@ use a4n_domain::project::ProjectRecord;
 pub(super) fn validate_galgame_scripts(
     package: &ProjectFamilyPackage,
     projects: &HashMap<i64, &ProjectRecord>,
-    snapshots: &HashMap<i64, &project_source_snapshot::Model>,
+    snapshots: &HashMap<i64, &a4n_domain::project::ProjectFamilySourceSnapshotRecord>,
 ) -> Result<(), String> {
     for script in &package.galgame_scripts {
         if let Some(id) = script.branch_plan_id {

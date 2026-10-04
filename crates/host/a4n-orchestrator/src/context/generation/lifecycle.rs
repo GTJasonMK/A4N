@@ -396,14 +396,14 @@ impl OrchestratorContext {
     pub(crate) async fn record_completed_generation_run(
         &self,
         input: RecordCompletedGenerationRunInput,
-    ) -> Result<generation_run::Model, AppError> {
+    ) -> Result<(), AppError> {
         self.generation.record_completed_generation_run(input).await
     }
 
     pub(crate) async fn record_completed_generation_run_with_checkpoint(
         &self,
         input: RecordCompletedGenerationRunWithCheckpointInput,
-    ) -> Result<generation_run::Model, AppError> {
+    ) -> Result<i64, AppError> {
         self.generation
             .record_completed_generation_run_with_checkpoint(input)
             .await

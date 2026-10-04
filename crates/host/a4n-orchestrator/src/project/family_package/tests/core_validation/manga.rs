@@ -1,8 +1,4 @@
 use super::*;
-use a4n_db_models::models::{
-    ai::generated_image, chapter::chapter_manga_prompt, character::character_portrait,
-};
-
 #[test]
 fn validate_package_manifest_rejects_manga_layout_unknown_field() {
     let mut package = package_with_part_outlines(Vec::new());

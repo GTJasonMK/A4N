@@ -3,13 +3,13 @@ use a4n_domain::project::ProjectRecord;
 use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set};
 
 use crate::project::family::import::{
-    ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage, map_required,
+    DatabaseProjectFamilyImportPackage, ImportIdMaps, ProjectFamilyImportError, map_required,
 };
 
 pub(in crate::project::family::import::import_rows) async fn insert_root_project(
     txn: &DatabaseTransaction,
     user_id: i64,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<novel_project::Model, ProjectFamilyImportError> {
     let root = package
@@ -30,7 +30,7 @@ pub(in crate::project::family::import::import_rows) async fn insert_root_project
 pub(in crate::project::family::import::import_rows) async fn insert_derived_projects(
     txn: &DatabaseTransaction,
     user_id: i64,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<Vec<novel_project::Model>, ProjectFamilyImportError> {
     let mut imported = Vec::new();

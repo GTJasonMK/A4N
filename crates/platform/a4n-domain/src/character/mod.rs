@@ -11,8 +11,8 @@ pub use contracts::{
     CharacterAttributeOperation, CharacterAttributeValueChangeInput,
     CharacterImplicitReviewDecisionRecordInput, CharacterPortraitCreateInput,
     CharacterProfileCreateInput, CharacterSyncChapterStateRecordInput, CharacterTimelineSourceKind,
-    DeletionMarkStatus, ForeshadowingRecordInput, ForeshadowingStatus, ImplicitUpdateDecision,
-    InsertBehaviorRecordInput,
+    DeletionMarkStatus, ForeshadowingIndexRecord, ForeshadowingRecordInput, ForeshadowingStatus,
+    ImplicitUpdateDecision, InsertBehaviorRecordInput,
 };
 pub use discovery::{
     CharacterDiscoveryCandidateRecordInput, CharacterDiscoveryCandidateRecordOutcome,

@@ -1,4 +1,3 @@
-use a4n_db_models::models::project::source_snapshot_chapter;
 use std::collections::{HashMap, HashSet};
 
 use super::super::super::super::{ProjectFamilyPackage, hash_json, hash_text};
@@ -9,8 +8,10 @@ pub(in super::super) fn validate_source_snapshot_chapter_manifest(
     package: &ProjectFamilyPackage,
     snapshots: &HashMap<i64, SourceSnapshotManifestInfo>,
 ) -> Result<(), String> {
-    let mut chapters_by_snapshot: HashMap<i64, Vec<&source_snapshot_chapter::Model>> =
-        HashMap::new();
+    let mut chapters_by_snapshot: HashMap<
+        i64,
+        Vec<&a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord>,
+    > = HashMap::new();
     let mut seen_numbers = HashSet::new();
     let mut seen_source_ids = HashSet::new();
     let source_identities = package

@@ -128,7 +128,7 @@ pub async fn reserve_generation_task(
     Ok(GenerationTaskReservation {
         created: true,
         task: PersistedGenerationTask {
-            checkpoint,
+            checkpoint: generation_task_checkpoint_record(checkpoint),
             public_snapshot: Some(public_snapshot),
         },
         queue_task,

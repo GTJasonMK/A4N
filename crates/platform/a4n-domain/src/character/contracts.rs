@@ -1,3 +1,4 @@
+use chrono::NaiveDateTime;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -144,6 +145,20 @@ pub struct ForeshadowingRecordInput {
     pub related_characters: Vec<String>,
     #[schemars(range(min = 1, max = 5))]
     pub importance: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ForeshadowingIndexRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub description: String,
+    pub setup_chapter: i32,
+    pub payoff_chapter: Option<i32>,
+    pub status: String,
+    pub related_characters: Option<Value>,
+    pub importance: i32,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

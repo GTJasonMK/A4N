@@ -1,16 +1,15 @@
-use a4n_db_models::models::{
-    chapter::chapter,
-    project::{source_snapshot_chapter, text_anchor},
-};
 use std::collections::{HashMap, HashSet};
 
 use super::super::super::super::hash_text;
 
 pub(super) fn validate_chapter_content_anchor(
-    anchor: &text_anchor::Model,
-    chapters: &HashMap<i64, &chapter::Model>,
+    anchor: &a4n_domain::project::ProjectFamilyTextAnchorRecord,
+    chapters: &HashMap<i64, &a4n_domain::project::ProjectFamilyChapterRecord>,
     source_snapshots: &HashSet<i64>,
-    snapshot_chapters: &HashMap<i64, &source_snapshot_chapter::Model>,
+    snapshot_chapters: &HashMap<
+        i64,
+        &a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord,
+    >,
 ) -> Result<(), String> {
     validate_chapter_anchor_source(anchor, chapters, source_snapshots, snapshot_chapters)?;
     let expected_source_version_hash = if anchor.source_snapshot_id.is_some() {
@@ -28,10 +27,13 @@ pub(super) fn validate_chapter_content_anchor(
 }
 
 pub(super) fn validate_chapter_anchor_source(
-    anchor: &text_anchor::Model,
-    chapters: &HashMap<i64, &chapter::Model>,
+    anchor: &a4n_domain::project::ProjectFamilyTextAnchorRecord,
+    chapters: &HashMap<i64, &a4n_domain::project::ProjectFamilyChapterRecord>,
     source_snapshots: &HashSet<i64>,
-    snapshot_chapters: &HashMap<i64, &source_snapshot_chapter::Model>,
+    snapshot_chapters: &HashMap<
+        i64,
+        &a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord,
+    >,
 ) -> Result<(), String> {
     if let Some(snapshot_id) = anchor.source_snapshot_id {
         if !source_snapshots.contains(&snapshot_id) {
@@ -97,7 +99,7 @@ pub(super) fn validate_chapter_anchor_source(
 }
 
 fn validate_text_anchor_source_version_hash(
-    anchor: &text_anchor::Model,
+    anchor: &a4n_domain::project::ProjectFamilyTextAnchorRecord,
     expected: &str,
 ) -> Result<(), String> {
     if anchor.source_version_hash != expected {

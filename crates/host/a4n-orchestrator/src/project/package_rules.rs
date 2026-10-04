@@ -4,9 +4,11 @@ use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::path::Path;
 
-use a4n_api_contract::project_transfer::MediaFileEntry;
-use a4n_db_models::models::media::media_asset::{self, FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
-use a4n_domain::project::{ProjectRecord, ProjectSourceMode};
+use a4n_api_contract::project_transfer::{
+    MEDIA_ASSET_FILE_PATH_FIELD as FILE_PATH_FIELD,
+    MEDIA_ASSET_THUMBNAIL_PATH_FIELD as THUMBNAIL_PATH_FIELD, MediaFileEntry,
+};
+use a4n_domain::project::{ProjectFamilyMediaAssetRecord, ProjectRecord, ProjectSourceMode};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
@@ -169,7 +171,7 @@ where
 
 /// 按字段取媒体资产路径。
 pub fn media_asset_path<'a>(
-    asset: &'a media_asset::Model,
+    asset: &'a ProjectFamilyMediaAssetRecord,
     field: &str,
 ) -> Result<Option<&'a str>, String> {
     match field {

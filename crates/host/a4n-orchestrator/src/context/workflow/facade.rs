@@ -522,7 +522,7 @@ impl OrchestratorContext {
     pub(crate) async fn record_workflow_progress_event(
         &self,
         input: WorkflowProgressEventInput<'_>,
-    ) -> Result<workflow_progress_event::Model, AppError> {
+    ) -> Result<(), AppError> {
         self.workflow.record_workflow_progress_event(input).await
     }
 

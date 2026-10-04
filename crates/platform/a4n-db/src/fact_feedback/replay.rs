@@ -1,11 +1,9 @@
-use a4n_db_models::models::{
-    character::protagonist_profile,
-    project::{material_fact_change, novel_blueprint},
-};
+use a4n_db_models::models::{character::protagonist_profile, project::material_fact_change};
 use a4n_domain::fact_feedback::{
     FactChangeOperation, FactMaterialChange, FactMaterialKind, FactSourceRevision,
     apply_fact_json_change, world_setting_document,
 };
+use a4n_domain::project::BlueprintRecord;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder,
@@ -23,7 +21,7 @@ use super::{
 
 pub async fn world_setting_before_chapter<C: ConnectionTrait>(
     db: &C,
-    blueprint: &novel_blueprint::Model,
+    blueprint: &BlueprintRecord,
     chapter_number: i32,
 ) -> Result<Value, FactFeedbackDbError> {
     let mut world = world_setting_document(blueprint.world_setting.as_ref());

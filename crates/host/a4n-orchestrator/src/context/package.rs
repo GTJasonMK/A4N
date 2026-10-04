@@ -7,6 +7,7 @@ use a4n_api_contract::package::{
     PackageLifecycleState, PackageLifecycleSummary, PackageOverview, PackagePreferencesSummary,
     PackageReasonCode, StartPackageLifecycleInput, UpdatePackagePreferencesInput, package_catalog,
 };
+use a4n_domain::package::HostPackageOperationRecord;
 use a4n_error::AppError;
 use a4n_service_protocol::{
     EMBEDDING_SERVICE_NAME, EXPORT_SERVICE_NAME, HealthStatus, IMAGE_SERVICE_NAME,
@@ -166,7 +167,7 @@ impl OrchestratorContext {
 
     pub(crate) async fn pending_package_lifecycle_operations(
         &self,
-    ) -> Result<Vec<a4n_db_models::models::package::host_package_operation::Model>, AppError> {
+    ) -> Result<Vec<HostPackageOperationRecord>, AppError> {
         a4n_db::package::pending_package_operations(self.database.connection()).await
     }
 
@@ -572,7 +573,7 @@ fn parse_status_version(value: i64, operation: &str) -> Result<u64, AppError> {
 }
 
 fn package_lifecycle_summary(
-    operation: a4n_db_models::models::package::host_package_operation::Model,
+    operation: HostPackageOperationRecord,
 ) -> Result<PackageLifecycleSummary, AppError> {
     let action = match operation.action.as_str() {
         "enable" => PackageLifecycleAction::Enable,

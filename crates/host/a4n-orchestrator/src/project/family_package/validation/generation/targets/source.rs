@@ -1,8 +1,7 @@
-use a4n_db_models::models::{generation::generation_spec, project::source_snapshot_chapter};
 use std::collections::HashMap;
 
 pub(in super::super) fn required_generation_spec_source_snapshot_id(
-    spec: &generation_spec::Model,
+    spec: &a4n_domain::project::ProjectFamilyGenerationSpecRecord,
 ) -> Result<i64, String> {
     let context_kind = spec.source_context_kind.as_deref().ok_or_else(|| {
         format!(
@@ -25,9 +24,12 @@ pub(in super::super) fn required_generation_spec_source_snapshot_id(
 }
 
 pub(in super::super) fn validate_generation_spec_source_chapter(
-    spec: &generation_spec::Model,
+    spec: &a4n_domain::project::ProjectFamilyGenerationSpecRecord,
     source_snapshot_id: i64,
-    snapshot_chapters: &HashMap<i64, &source_snapshot_chapter::Model>,
+    snapshot_chapters: &HashMap<
+        i64,
+        &a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord,
+    >,
 ) -> Result<(), String> {
     if spec.source_chapter_id.is_some() != spec.source_snapshot_chapter_id.is_some() {
         return Err(format!(

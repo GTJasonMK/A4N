@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use a4n_db::chapter_content::ChapterGenerationExistingRecord;
-use a4n_db_models::models::chapter::chapter::STATUS_GENERATING;
+use a4n_domain::chapter::chapter_status::STATUS_GENERATING;
 use a4n_error::AppError;
 use tokio::sync::{Mutex as AsyncMutex, OwnedMutexGuard};
 

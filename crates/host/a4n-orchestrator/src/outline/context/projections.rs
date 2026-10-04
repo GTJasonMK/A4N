@@ -2,21 +2,20 @@ use a4n_db::blueprint::context::{
     blueprint_character_llm_context, blueprint_model_llm_context,
     blueprint_relationship_llm_context,
 };
-use a4n_db_models::models::{
-    asset::object_profile,
-    character::{foreshadowing_index, protagonist_profile},
-    project::{blueprint_character, blueprint_relationship, novel_blueprint},
-    scene::scene_profile,
-};
 use a4n_domain::chapter::{ChapterOutlineRecord, PartOutlineRecord};
-use a4n_domain::project::ProjectRecord;
+use a4n_domain::character::{CharacterProfileRecord, ForeshadowingIndexRecord};
+use a4n_domain::object_profile::ObjectProfileRecord;
+use a4n_domain::project::{
+    BlueprintCharacterRecord, BlueprintRecord, BlueprintRelationshipRecord, ProjectRecord,
+};
+use a4n_domain::scene_profile::SceneProfileRecord;
 use serde_json::{Value, json};
 
 pub(in crate::outline) fn outline_blueprint_context_json(
     project: &ProjectRecord,
-    blueprint: Option<&novel_blueprint::Model>,
-    characters: &[blueprint_character::Model],
-    relationships: &[blueprint_relationship::Model],
+    blueprint: Option<&BlueprintRecord>,
+    characters: &[BlueprintCharacterRecord],
+    relationships: &[BlueprintRelationshipRecord],
     formal_materials: Value,
     chapters_per_part: Option<i32>,
 ) -> Value {
@@ -88,10 +87,10 @@ pub(in crate::outline) fn outline_blueprint_context_json(
 }
 
 pub(crate) fn outline_formal_materials_context_json(
-    profiles: &[protagonist_profile::Model],
-    objects: &[object_profile::Model],
-    scenes: &[scene_profile::Model],
-    foreshadowing: &[foreshadowing_index::Model],
+    profiles: &[CharacterProfileRecord],
+    objects: &[ObjectProfileRecord],
+    scenes: &[SceneProfileRecord],
+    foreshadowing: &[ForeshadowingIndexRecord],
 ) -> Value {
     json!({
         "character_profiles": profiles
@@ -146,7 +145,7 @@ pub(in crate::outline) fn part_context_json(part: &PartOutlineRecord) -> Value {
     })
 }
 
-fn character_profile_context_json(profile: &protagonist_profile::Model) -> Value {
+fn character_profile_context_json(profile: &CharacterProfileRecord) -> Value {
     let mut value = serde_json::Map::new();
     insert_text(&mut value, "name", &profile.name);
     insert_optional_text(&mut value, "gender", profile.gender.as_deref());
@@ -173,7 +172,7 @@ fn character_profile_context_json(profile: &protagonist_profile::Model) -> Value
     Value::Object(value)
 }
 
-fn object_profile_context_json(profile: &object_profile::Model) -> Value {
+fn object_profile_context_json(profile: &ObjectProfileRecord) -> Value {
     let mut value = serde_json::Map::new();
     insert_text(&mut value, "name", &profile.name);
     insert_json(&mut value, "aliases", &profile.aliases_json);
@@ -204,7 +203,7 @@ fn object_profile_context_json(profile: &object_profile::Model) -> Value {
     Value::Object(value)
 }
 
-fn scene_profile_context_json(profile: &scene_profile::Model) -> Value {
+fn scene_profile_context_json(profile: &SceneProfileRecord) -> Value {
     let mut value = serde_json::Map::new();
     insert_text(&mut value, "name", &profile.name);
     insert_json(&mut value, "aliases", &profile.aliases_json);
@@ -230,7 +229,7 @@ fn scene_profile_context_json(profile: &scene_profile::Model) -> Value {
     Value::Object(value)
 }
 
-fn foreshadowing_context_json(item: &foreshadowing_index::Model) -> Value {
+fn foreshadowing_context_json(item: &ForeshadowingIndexRecord) -> Value {
     json!({
         "description": item.description,
         "setup_chapter": item.setup_chapter,

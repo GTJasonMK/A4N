@@ -24,7 +24,7 @@ pub use creation::{
 pub use deletion::delete_profile_cascade_transaction;
 pub(crate) use deletion::delete_profiles_cascade_in;
 pub use discovery::persist_character_discovery_candidates;
-pub(in crate::character) use records::character_profile_record;
+pub(crate) use records::character_profile_record;
 pub(crate) use records::referenced_profile_ids;
 pub use records::{
     profile_by_id, profile_by_project_name, profile_record_by_id, profile_record_by_project_name,

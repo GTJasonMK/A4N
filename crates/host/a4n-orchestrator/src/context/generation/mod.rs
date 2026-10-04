@@ -26,11 +26,10 @@ use a4n_db::generation::{
     PersistedGenerationTask, RecordCompletedGenerationRunWithCheckpointInput,
     ReserveGenerationTaskInput,
 };
-use a4n_db_models::models::generation::{generation_run, llm_call_trace};
 use a4n_domain::generation::{
-    GenerationLifecycleTask, GenerationTaskListCursor, PendingLifecycleOperation,
-    ProjectLifecycleGateClaim, ProjectLifecycleOperation, RecordCompletedGenerationRunInput,
-    UserLifecycleGateClaim,
+    GenerationLifecycleTask, GenerationTaskCheckpointRecord, GenerationTaskCheckpointSummaryRecord,
+    GenerationTaskListCursor, PendingLifecycleOperation, ProjectLifecycleGateClaim,
+    ProjectLifecycleOperation, RecordCompletedGenerationRunInput, UserLifecycleGateClaim,
 };
 use a4n_domain::llm::RecordLlmCallTraceInput;
 use a4n_domain::project::{

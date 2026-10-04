@@ -1,5 +1,8 @@
 use a4n_api_contract::media_authoring::*;
-use a4n_domain::{chapter::ResolvedChapterSource, collaboration::ProjectAccessRole};
+use a4n_domain::{
+    chapter::ResolvedChapterSource, collaboration::ProjectAccessRole,
+    shooting_script::ChapterShootingScriptReferenceRecord,
+};
 use a4n_error::AppError;
 
 use super::{authoring_source, records};
@@ -122,7 +125,7 @@ impl OrchestratorContext {
 
     async fn reference_script_source(
         &self,
-        record: &a4n_db_models::models::chapter::chapter_shooting_script::Model,
+        record: &ChapterShootingScriptReferenceRecord,
     ) -> Result<ResolvedChapterSource, AppError> {
         let snapshot_id = record
             .source_snapshot_id

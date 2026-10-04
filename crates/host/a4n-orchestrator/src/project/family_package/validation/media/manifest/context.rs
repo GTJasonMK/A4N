@@ -1,18 +1,15 @@
-use a4n_db_models::models::{
-    galgame::{galgame_line, galgame_scene, galgame_script},
-    generation::{generation_spec, prompt_artifact},
-    media::media_asset,
-    project::{project_source_snapshot, source_snapshot_chapter},
-};
 use std::collections::{HashMap, HashSet};
 
 use super::super::contracts::MediaRequestRefContext;
 use crate::project::family_package::ProjectFamilyPackage;
 
 pub(super) struct MediaManifestContext<'a> {
-    pub(super) media_assets_by_id: HashMap<i64, &'a media_asset::Model>,
-    pub(super) generation_specs: HashMap<i64, &'a generation_spec::Model>,
-    pub(super) prompt_artifacts: HashMap<i64, &'a prompt_artifact::Model>,
+    pub(super) media_assets_by_id:
+        HashMap<i64, &'a a4n_domain::project::ProjectFamilyMediaAssetRecord>,
+    pub(super) generation_specs:
+        HashMap<i64, &'a a4n_domain::project::ProjectFamilyGenerationSpecRecord>,
+    pub(super) prompt_artifacts:
+        HashMap<i64, &'a a4n_domain::project::ProjectFamilyPromptArtifactRecord>,
     pub(super) chapter_ids: HashSet<i64>,
     pub(super) character_profile_ids: HashSet<i64>,
     pub(super) object_profile_ids: HashSet<i64>,
@@ -23,13 +20,17 @@ pub(super) struct MediaManifestContext<'a> {
     pub(super) assembly_timeline_ids: HashSet<i64>,
     pub(super) galgame_scene_ids: HashSet<i64>,
     pub(super) galgame_line_ids: HashSet<i64>,
-    pub(super) galgame_scripts: HashMap<i64, &'a galgame_script::Model>,
-    pub(super) galgame_scenes: HashMap<i64, &'a galgame_scene::Model>,
-    pub(super) galgame_lines: HashMap<i64, &'a galgame_line::Model>,
+    pub(super) galgame_scripts:
+        HashMap<i64, &'a a4n_domain::project::ProjectFamilyGalgameScriptRecord>,
+    pub(super) galgame_scenes:
+        HashMap<i64, &'a a4n_domain::project::ProjectFamilyGalgameSceneRecord>,
+    pub(super) galgame_lines: HashMap<i64, &'a a4n_domain::project::ProjectFamilyGalgameLineRecord>,
     pub(super) generation_spec_ids: HashSet<i64>,
     pub(super) prompt_artifact_ids: HashSet<i64>,
-    pub(super) source_snapshots: HashMap<i64, &'a project_source_snapshot::Model>,
-    pub(super) source_snapshot_chapters: HashMap<i64, &'a source_snapshot_chapter::Model>,
+    pub(super) source_snapshots:
+        HashMap<i64, &'a a4n_domain::project::ProjectFamilySourceSnapshotRecord>,
+    pub(super) source_snapshot_chapters:
+        HashMap<i64, &'a a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord>,
 }
 
 impl<'a> MediaManifestContext<'a> {

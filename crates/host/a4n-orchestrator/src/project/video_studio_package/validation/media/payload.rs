@@ -1,6 +1,6 @@
 use super::owner::{MediaEntryOwner, MediaEntryOwnerIndex};
 use crate::project::{MediaFileEntry, VideoStudioProjectPackage, sha256_bytes};
-use a4n_db_models::models::media::media_asset::FILE_PATH_FIELD;
+use a4n_api_contract::project_transfer::MEDIA_ASSET_FILE_PATH_FIELD as FILE_PATH_FIELD;
 
 pub(crate) fn validate_media_entry_bytes(
     package: &VideoStudioProjectPackage,

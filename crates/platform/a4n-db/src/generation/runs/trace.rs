@@ -4,7 +4,7 @@ use a4n_domain::llm::{LlmCallUsageTraceInput, RecordLlmCallTraceInput};
 pub async fn record_llm_call_trace<C>(
     db: &C,
     input: RecordLlmCallTraceInput,
-) -> Result<llm_call_trace::Model, GenerationDbError>
+) -> Result<(), GenerationDbError>
 where
     C: ConnectionTrait,
 {
@@ -55,6 +55,7 @@ where
     }
     .insert(db)
     .await
+    .map(|_| ())
     .map_err(GenerationDbError::Database)
 }
 

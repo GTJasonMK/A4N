@@ -13,7 +13,7 @@ use crate::project::family::import::contracts::{
     PROJECT_FAMILY_MEDIA_OWNER_CHARACTER_PORTRAIT,
 };
 use crate::project::family::import::{
-    ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage,
+    DatabaseProjectFamilyImportPackage, ImportIdMaps, ProjectFamilyImportError,
     ProjectFamilyMediaFileImporter, map_optional, map_required, remap_chapter_source_revision_key,
     remap_manga_generated_image_metadata, remap_manga_page_layout,
     remap_shooting_script_visual_plan_source, remap_visual_plan_identity,
@@ -21,7 +21,7 @@ use crate::project::family::import::{
 
 pub(super) async fn insert_manga_rows<Importer>(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
     media_importer: &mut Importer,
 ) -> Result<(), ProjectFamilyImportError>
@@ -39,7 +39,7 @@ where
 
 async fn insert_shooting_scripts(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     insert_mapped_import_rows!(
@@ -135,7 +135,7 @@ async fn insert_shooting_scripts(
 
 async fn insert_character_portraits<Importer>(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
     media_importer: &mut Importer,
 ) -> Result<(), ProjectFamilyImportError>
@@ -231,7 +231,7 @@ where
 
 async fn insert_generated_images<Importer>(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
     media_importer: &mut Importer,
 ) -> Result<(), ProjectFamilyImportError>
@@ -326,7 +326,7 @@ where
 
 async fn insert_manga_prompts(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     insert_mapped_import_rows!(
@@ -383,7 +383,7 @@ async fn insert_manga_prompts(
 
 async fn update_generated_image_metadata(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     let mut metadata_case = CaseStatement::new();

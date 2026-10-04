@@ -5,13 +5,13 @@ use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, Set};
 
 use crate::project::family::import::{
-    ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage, map_required,
+    DatabaseProjectFamilyImportPackage, ImportIdMaps, ProjectFamilyImportError, map_required,
 };
 
 pub(super) async fn insert_profile_rows(
     txn: &DatabaseTransaction,
     root_project_id: i64,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     insert_project_scoped_mapped_import_rows!(
@@ -37,7 +37,7 @@ pub(super) async fn insert_profile_rows(
 
 pub(in crate::project::family::import) async fn insert_scene_profiles(
     txn: &DatabaseTransaction,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     let profiles = package

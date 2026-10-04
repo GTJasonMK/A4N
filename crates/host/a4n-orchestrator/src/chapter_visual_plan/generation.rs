@@ -421,7 +421,7 @@ impl OrchestratorContext {
                 DIRECTOR_SEGMENT_PROMPT,
                 GenerationResultRef {
                     kind: "visual_plan_prompt_candidate".into(),
-                    id: record.id.to_string(),
+                    id: record.to_string(),
                     revision: hash,
                 },
                 "镜头变化描述已生成，等待采用".into(),

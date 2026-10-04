@@ -12,7 +12,7 @@ pub async fn load_generation_task(
 pub async fn load_generation_task_checkpoint(
     db: &DatabaseConnection,
     task_id: &str,
-) -> Result<generation_task_checkpoint::Model, GenerationTaskPersistenceError> {
+) -> Result<GenerationTaskCheckpointRecord, GenerationTaskPersistenceError> {
     let task_id = canonical_uuid_v4(task_id, "task_id")?;
     generation_task_checkpoint::Entity::find_by_id(task_id.clone())
         .one(db)
@@ -22,6 +22,7 @@ pub async fn load_generation_task_checkpoint(
                 "generation task checkpoint 不存在: {task_id}"
             ))
         })
+        .map(generation_task_checkpoint_record)
 }
 
 /// Binds a reserved generation task to the workflow created by its worker.

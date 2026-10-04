@@ -31,7 +31,7 @@ pub(super) fn validate_authoring_manifest(package: &ProjectFamilyPackage) -> Res
     let mut versions = BTreeSet::new();
     let mut heads = BTreeSet::new();
     for row in &package.authoring_documents {
-        let record = a4n_db::media_authoring::parse_record(row.clone())
+        let record = a4n_db::media_authoring::parse_family_transfer_record(row.clone())
             .map_err(|error| error.to_string())?;
         if record.id <= 0
             || record.revision <= 0

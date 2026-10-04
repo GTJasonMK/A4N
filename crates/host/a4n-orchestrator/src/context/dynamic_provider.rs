@@ -90,10 +90,7 @@ impl ProviderRuntimePort for ProviderRuntimeAdapter {
         &self,
         input: a4n_domain::llm::RecordLlmCallTraceInput,
     ) -> Result<(), AppError> {
-        self.generation
-            .record_llm_call_trace(input)
-            .await
-            .map(|_| ())
+        self.generation.record_llm_call_trace(input).await
     }
 
     async fn start_model_usage(

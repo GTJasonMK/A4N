@@ -1,6 +1,7 @@
 mod asset_graph;
 mod blueprint;
 mod cleanup;
+mod family_transfer;
 #[path = "optimization.rs"]
 mod optimization;
 mod status;
@@ -8,6 +9,7 @@ mod status;
 pub use asset_graph::*;
 pub use blueprint::*;
 pub use cleanup::*;
+pub use family_transfer::*;
 pub use optimization::*;
 pub use status::*;
 

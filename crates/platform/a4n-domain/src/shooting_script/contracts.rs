@@ -42,6 +42,21 @@ pub struct ChapterShootingScriptRecordSummary {
     pub visual_plan_sha256: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChapterShootingScriptReferenceRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub root_project_id: i64,
+    pub source_chapter_id: i64,
+    pub source_snapshot_id: Option<i64>,
+    pub source_snapshot_chapter_id: Option<i64>,
+    pub source_revision_key: String,
+    pub source_content_sha256: String,
+    pub revision: i32,
+    pub script_sha256: String,
+    pub script_json: serde_json::Value,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ChapterShootingScriptUnitProgressView {
     pub workflow_run_id: i64,

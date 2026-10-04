@@ -88,13 +88,12 @@ pub use tasks::{
     GenerationTaskCheckpointPage, GenerationTaskPersistenceError, GenerationTaskReservation,
     PersistGenerationCheckpointInput, PersistedGenerationCheckpoint, PersistedGenerationTask,
     ReserveGenerationTaskInput, bind_generation_task_to_workflow, extend_generation_sequence_lease,
-    generation_public_snapshot_for_summary, list_active_generation_task_checkpoints,
+    generation_public_snapshot_for_summary_record, list_active_generation_task_checkpoints,
     list_generation_task_history_checkpoints, load_generation_task,
     load_generation_task_checkpoint, persist_generation_checkpoint,
-    persisted_generation_task_from_checkpoint, reserve_generation_task,
-    started_event_from_checkpoint,
+    persisted_generation_task_from_record, reserve_generation_task, started_event_from_record,
+    started_event_from_summary_record,
 };
-
 mod task_lifecycle;
 pub use task_lifecycle::{
     GenerationCancelTarget, GenerationCorruptRecoveryState, GenerationTaskLifecycleError,

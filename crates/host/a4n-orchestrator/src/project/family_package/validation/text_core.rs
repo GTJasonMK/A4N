@@ -35,7 +35,7 @@ pub(super) fn validate_text_core_chapter_outline_statuses(
     package: &ProjectFamilyPackage,
 ) -> Result<(), String> {
     for outline in &package.text_core.chapter_outlines {
-        if !chapter_outline::is_valid_status(&outline.status) {
+        if !a4n_domain::chapter::chapter_outline_status::is_valid_status(&outline.status) {
             return Err(format!(
                 "项目族导入包章节大纲状态无效: chapter_outline_id={}, status={}",
                 outline.id, outline.status

@@ -1,10 +1,13 @@
 use super::super::*;
 
 pub(super) fn validate_media_asset_source_context(
-    asset: &media_asset::Model,
+    asset: &a4n_domain::project::ProjectFamilyMediaAssetRecord,
     root_project_id: i64,
-    source_snapshots: &HashMap<i64, &project_source_snapshot::Model>,
-    source_snapshot_chapters: &HashMap<i64, &source_snapshot_chapter::Model>,
+    source_snapshots: &HashMap<i64, &a4n_domain::project::ProjectFamilySourceSnapshotRecord>,
+    source_snapshot_chapters: &HashMap<
+        i64,
+        &a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord,
+    >,
 ) -> Result<(), String> {
     let source_snapshot_id = asset.source_snapshot_id.ok_or_else(|| {
         format!(

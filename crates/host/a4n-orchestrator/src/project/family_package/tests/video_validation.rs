@@ -1,6 +1,5 @@
 use super::*;
 use crate::project::{ImportMediaPayload, MediaFileEntry, media_file_key};
-use a4n_db_models::models::ai::{generated_image, generated_video};
 use a4n_domain::video_prompt::{
     ChapterVideoPromptRecord, PROMPT_TYPE_VIDEO, STATUS_COMPLETED, STATUS_RUNNING,
     WORKFLOW_MODE_BOUNDARY_FRAMES,

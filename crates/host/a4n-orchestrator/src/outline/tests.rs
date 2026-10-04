@@ -26,11 +26,8 @@ use super::{
 };
 
 use a4n_db_models::models::{
-    asset::object_profile,
     chapter::{chapter_outline, part_outline},
-    character::{foreshadowing_index, protagonist_profile},
-    project::{blueprint_character, blueprint_relationship, novel_blueprint, novel_project},
-    scene::scene_profile,
+    project::novel_project,
 };
 use a4n_domain::chapter::{ChapterOutlineRecord, PartOutlineRecord};
 use a4n_error::AppError;

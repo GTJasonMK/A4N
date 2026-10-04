@@ -1,66 +1,95 @@
-use a4n_db_models::models::project::{
-    blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,
-};
+use a4n_db_models::models::project::blueprint_version;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
+use serde::Serialize;
 use serde_json::{Value, json};
 
 use super::{BlueprintDbError, InsertBlueprintVersionInput};
 
 /// 蓝图版本与项目 raw_blueprint 共用的唯一规范快照。
-pub fn blueprint_version_snapshot(
-    blueprint: &novel_blueprint::Model,
-    characters: &[blueprint_character::Model],
-    relationships: &[blueprint_relationship::Model],
-) -> Value {
+pub fn blueprint_version_snapshot<B, C, R>(
+    blueprint: &B,
+    characters: &[C],
+    relationships: &[R],
+) -> Value
+where
+    B: Serialize,
+    C: Serialize,
+    R: Serialize,
+{
+    let blueprint = serde_json::to_value(blueprint).expect("blueprint record must serialize");
     let characters = characters
         .iter()
         .map(|character| {
-            json!({
-                "name": character.name,
-                "character_type": character.character_type,
-                "gender": character.gender,
-                "age": character.age,
-                "appearance": character.appearance,
-                "personality": character.personality,
-                "background": character.background,
-                "motivation": character.motivation,
-                "arc_summary": character.arc_summary,
-                "relationship_to_protagonist": character.relationship_to_protagonist,
-                "arc_stages": character.arc_stages,
-            })
+            select_fields(
+                character,
+                &[
+                    "name",
+                    "character_type",
+                    "gender",
+                    "age",
+                    "appearance",
+                    "personality",
+                    "background",
+                    "motivation",
+                    "arc_summary",
+                    "relationship_to_protagonist",
+                    "arc_stages",
+                ],
+            )
         })
         .collect::<Vec<_>>();
     let relationships = relationships
         .iter()
         .map(|relationship| {
-            json!({
-                "relationship_type": relationship.relationship_type,
-                "character_a": relationship.character_a,
-                "character_b": relationship.character_b,
-                "description": relationship.description,
-                "strength": relationship.strength,
-                "evolution": relationship.evolution,
-            })
+            select_fields(
+                relationship,
+                &[
+                    "relationship_type",
+                    "character_a",
+                    "character_b",
+                    "description",
+                    "strength",
+                    "evolution",
+                ],
+            )
         })
         .collect::<Vec<_>>();
 
     json!({
-        "title": blueprint.title,
-        "genre": blueprint.genre,
-        "style": blueprint.style,
-        "tone": blueprint.tone,
-        "target_audience": blueprint.target_audience,
-        "one_sentence_summary": blueprint.one_sentence_summary,
-        "full_synopsis": blueprint.full_synopsis,
-        "world_setting": blueprint.world_setting,
-        "needs_part_outlines": blueprint.needs_part_outlines,
-        "total_chapters": blueprint.total_chapters,
-        "chapters_per_part": blueprint.chapters_per_part,
-        "avatar_svg": blueprint.avatar_svg,
-        "avatar_animal": blueprint.avatar_animal,
+        "title": blueprint["title"],
+        "genre": blueprint["genre"],
+        "style": blueprint["style"],
+        "tone": blueprint["tone"],
+        "target_audience": blueprint["target_audience"],
+        "one_sentence_summary": blueprint["one_sentence_summary"],
+        "full_synopsis": blueprint["full_synopsis"],
+        "world_setting": blueprint["world_setting"],
+        "needs_part_outlines": blueprint["needs_part_outlines"],
+        "total_chapters": blueprint["total_chapters"],
+        "chapters_per_part": blueprint["chapters_per_part"],
+        "avatar_svg": blueprint["avatar_svg"],
+        "avatar_animal": blueprint["avatar_animal"],
         "characters": characters,
         "relationships": relationships,
     })
+}
+
+fn select_fields(record: &impl Serialize, fields: &[&str]) -> Value {
+    let value = serde_json::to_value(record).expect("blueprint source record must serialize");
+    Value::Object(
+        fields
+            .iter()
+            .map(|field| {
+                (
+                    (*field).to_string(),
+                    value
+                        .get(field)
+                        .cloned()
+                        .expect("blueprint snapshot field must exist"),
+                )
+            })
+            .collect(),
+    )
 }
 
 /// 插入蓝图版本快照记录。

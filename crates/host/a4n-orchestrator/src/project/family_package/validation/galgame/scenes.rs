@@ -3,9 +3,12 @@ use super::rules::{validate_galgame_participants_json, validate_galgame_scene_en
 
 pub(super) fn validate_galgame_scenes(
     package: &ProjectFamilyPackage,
-    scripts: &HashMap<i64, &galgame_script::Model>,
-    scenes: &HashMap<i64, &galgame_scene::Model>,
-    snapshot_chapters: &HashMap<i64, &source_snapshot_chapter::Model>,
+    scripts: &HashMap<i64, &a4n_domain::project::ProjectFamilyGalgameScriptRecord>,
+    scenes: &HashMap<i64, &a4n_domain::project::ProjectFamilyGalgameSceneRecord>,
+    snapshot_chapters: &HashMap<
+        i64,
+        &a4n_domain::project::ProjectFamilySourceSnapshotChapterRecord,
+    >,
     character_profile_ids: &HashSet<i64>,
 ) -> Result<(), String> {
     for scene in &package.galgame_scenes {

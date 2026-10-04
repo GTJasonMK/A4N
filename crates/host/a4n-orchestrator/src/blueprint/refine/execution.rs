@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 use a4n_api_contract::{
     blueprint::StartBlueprintRefinementInput, generation_tasks::GenerationTaskHandle,
 };
+use a4n_domain::project::BlueprintRecord;
 use a4n_domain::project::{BLUEPRINT_RAW_JSON_STREAM_ID, BLUEPRINT_REFINEMENT_WORKFLOW_KIND};
 use a4n_error::AppError;
 use a4n_progress::ProgressPhaseKind;
@@ -194,9 +195,7 @@ impl OrchestratorContext {
             .await;
         }
 
-        let completion_slot: Arc<
-            Mutex<Option<a4n_db_models::models::project::novel_blueprint::Model>>,
-        > = Arc::new(Mutex::new(None));
+        let completion_slot: Arc<Mutex<Option<BlueprintRecord>>> = Arc::new(Mutex::new(None));
         let completion_slot_for_tx = Arc::clone(&completion_slot);
         let expected_source_snapshot = prepared.expected_source_snapshot.clone();
         let parsed = output.parsed;

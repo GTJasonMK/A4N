@@ -11,13 +11,13 @@ use sea_orm::{
 };
 
 use crate::project::family::import::{
-    ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage, map_optional,
+    DatabaseProjectFamilyImportPackage, ImportIdMaps, ProjectFamilyImportError, map_optional,
 };
 
 pub(super) async fn insert_story_rows(
     txn: &DatabaseTransaction,
     root_project_id: i64,
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
     maps: &mut ImportIdMaps,
 ) -> Result<(), ProjectFamilyImportError> {
     let canonical_raw_blueprint = canonical_package_blueprint_snapshot(package)?;
@@ -126,7 +126,7 @@ pub(super) async fn insert_story_rows(
 }
 
 fn canonical_package_blueprint_snapshot(
-    package: &ProjectFamilyImportPackage,
+    package: &DatabaseProjectFamilyImportPackage,
 ) -> Result<Option<String>, ProjectFamilyImportError> {
     let Some(blueprint) = &package.text_core.blueprint else {
         if package.text_core.blueprint_characters.is_empty()

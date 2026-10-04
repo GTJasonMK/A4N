@@ -1,4 +1,4 @@
-use super::types::{ProjectFamilyExportError, ProjectFamilyTextCoreRows};
+use super::types::ProjectFamilyExportError;
 use a4n_db_models::models::{
     asset::object_profile,
     chapter::{chapter, chapter_outline, part_outline},
@@ -7,12 +7,32 @@ use a4n_db_models::models::{
     scene::{scene_entity_state, scene_occurrence, scene_profile, scene_transition},
 };
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(super) struct ProjectFamilyTextCoreModelRows {
+    #[serde(default)]
+    fact_feedback: Option<crate::fact_feedback::FactFeedbackArchive>,
+    blueprint: Option<novel_blueprint::Model>,
+    blueprint_versions: Vec<blueprint_version::Model>,
+    blueprint_characters: Vec<blueprint_character::Model>,
+    blueprint_relationships: Vec<blueprint_relationship::Model>,
+    part_outlines: Vec<part_outline::Model>,
+    chapter_outlines: Vec<chapter_outline::Model>,
+    chapters: Vec<chapter::Model>,
+    character_profiles: Vec<protagonist_profile::Model>,
+    object_profiles: Vec<object_profile::Model>,
+    scene_profiles: Vec<scene_profile::Model>,
+    scene_occurrences: Vec<scene_occurrence::Model>,
+    scene_transitions: Vec<scene_transition::Model>,
+    scene_entity_states: Vec<scene_entity_state::Model>,
+}
 
 pub(super) async fn project_family_export_text_core_rows<C>(
     db: &C,
     root_project_id: i64,
     family_project_ids: &[i64],
-) -> Result<ProjectFamilyTextCoreRows, ProjectFamilyExportError>
+) -> Result<ProjectFamilyTextCoreModelRows, ProjectFamilyExportError>
 where
     C: ConnectionTrait,
 {
@@ -136,7 +156,7 @@ where
         },
     );
 
-    Ok(ProjectFamilyTextCoreRows {
+    Ok(ProjectFamilyTextCoreModelRows {
         fact_feedback: Some(
             crate::fact_feedback::load_feedback_archive(db, root_project_id).await?,
         ),

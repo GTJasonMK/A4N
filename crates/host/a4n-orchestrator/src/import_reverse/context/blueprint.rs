@@ -80,8 +80,7 @@ pub(super) fn has_blueprint_source(rows: &ReverseContextRows) -> bool {
 #[cfg(test)]
 mod tests {
     use a4n_db::import_reverse::{ReverseBlueprintContextRows, ReverseContextRows};
-    use a4n_db_models::models::project::blueprint_relationship;
-    use a4n_domain::project::ProjectRecord;
+    use a4n_domain::project::{BlueprintRelationshipRecord, ProjectRecord};
     use chrono::NaiveDate;
     use serde_json::json;
 
@@ -153,7 +152,7 @@ mod tests {
             .as_mut()
             .unwrap()
             .blueprint_relationships
-            .push(blueprint_relationship::Model {
+            .push(BlueprintRelationshipRecord {
                 id: 1,
                 project_id: 9,
                 relationship_type: "friend".to_string(),

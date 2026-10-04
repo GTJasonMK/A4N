@@ -1,3 +1,4 @@
+use a4n_db::DbTransaction as DatabaseTransaction;
 use a4n_db::blueprint::{
     BlueprintRefinePatchInput, InsertBlueprintVersionInput, SyncProjectAfterBlueprintInput,
     apply_blueprint_refine_patch_record, blueprint_version_snapshot,
@@ -8,11 +9,9 @@ use a4n_db::project::{
     blueprint_characters_for_project, blueprint_relationships_for_project,
     edit_blueprint_characters, edit_blueprint_relationships,
 };
-use a4n_db_models::models::project::novel_blueprint;
-use a4n_domain::project::ProjectStatus;
+use a4n_domain::project::{BlueprintRecord, ProjectStatus};
 use a4n_error::AppError;
 use chrono::Utc;
-use sea_orm::DatabaseTransaction;
 use serde_json::Value;
 
 use super::contracts::blueprint_refine_source_snapshot;
@@ -25,7 +24,7 @@ pub(super) async fn persist_blueprint_refinement_in_transaction(
     project_id: i64,
     expected_source_snapshot: Value,
     parsed: a4n_domain::project::ParsedBlueprintOptimization,
-) -> Result<novel_blueprint::Model, AppError> {
+) -> Result<BlueprintRecord, AppError> {
     let locked_sources =
         a4n_db::outline::load_outline_generation_source_rows_for_update(tx, project_id)
             .await?

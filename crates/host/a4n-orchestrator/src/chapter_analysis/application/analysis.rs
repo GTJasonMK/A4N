@@ -772,7 +772,6 @@ impl OrchestratorContext {
         chapter: &ChapterRecord,
         workflow_run_id: i64,
     ) -> Result<(), AppError> {
-        use sea_orm::TransactionTrait;
         let step = crate::fact_feedback::CHAPTER_FEEDBACK_STEP;
         if self
             .completed_chapter_analysis_phase(workflow_run_id, chapter, step)
@@ -781,21 +780,59 @@ impl OrchestratorContext {
         {
             return Ok(());
         }
-        let tx = self.database.connection().begin().await?;
-        a4n_db::chapter_content::lock_chapter_analysis_source(&tx, &chapter.source_snapshot())
-            .await
-            .map_err(crate::chapter_content_edit_error_to_app_error)?;
-        a4n_db::fact_feedback::record_feedback_completion(&tx, chapter, workflow_run_id)
-            .await
-            .map_err(crate::fact_feedback::feedback_error)?;
-        a4n_db::workflow::upsert_workflow_checkpoint_in_transaction(&tx, UpsertWorkflowCheckpointInput {
-            workflow_run_id, step_key: step.into(), step_order: 55, status: "completed".into(),
-            input_fingerprint_sha256: None, input_fingerprint_json: Some(chapter_analysis_phase_fingerprint(chapter, step)),
-            checkpoint_json: Some(json!({"completed":true,"result":{"world_facts":chapter.analysis_data.as_ref().and_then(|analysis|analysis.get("world_facts"))}})),
-            artifacts_json: None, generation_run_ids_json: None, error_message: None, completed: true,
-        }).await.map_err(crate::workflow::workflow_write_app_error)?;
-        tx.commit().await?;
-        Ok(())
+        a4n_db::transaction::run_in_transaction(
+            self.database.connection(),
+            "记录章节事实反馈",
+            |tx| {
+                Box::pin(async move {
+                    let result = async {
+                        a4n_db::chapter_content::lock_chapter_analysis_source(
+                            &tx,
+                            &chapter.source_snapshot(),
+                        )
+                        .await
+                        .map_err(crate::chapter_content_edit_error_to_app_error)?;
+                        a4n_db::fact_feedback::record_feedback_completion(
+                            &tx,
+                            chapter,
+                            workflow_run_id,
+                        )
+                        .await
+                        .map_err(crate::fact_feedback::feedback_error)?;
+                        a4n_db::workflow::upsert_workflow_checkpoint_in_transaction(
+                            &tx,
+                            UpsertWorkflowCheckpointInput {
+                                workflow_run_id,
+                                step_key: step.into(),
+                                step_order: 55,
+                                status: "completed".into(),
+                                input_fingerprint_sha256: None,
+                                input_fingerprint_json: Some(chapter_analysis_phase_fingerprint(
+                                    chapter, step,
+                                )),
+                                checkpoint_json: Some(json!({
+                                    "completed": true,
+                                    "result": {
+                                        "world_facts": chapter.analysis_data.as_ref().and_then(|analysis| analysis.get("world_facts")),
+                                    },
+                                })),
+                                artifacts_json: None,
+                                generation_run_ids_json: None,
+                                error_message: None,
+                                completed: true,
+                            },
+                        )
+                        .await
+                        .map_err(crate::workflow::workflow_write_app_error)?;
+                        Ok(())
+                    }
+                    .await;
+                    (tx, result)
+                })
+                    as a4n_db::transaction::TransactionWork<'_, ()>
+            },
+        )
+        .await
     }
 
     async fn sync_chapter_fact_indexes(

@@ -1,12 +1,11 @@
 use crate::media::MEDIA_STATUS_COMPLETED;
-use a4n_db_models::models::media::{media_asset, media_provenance};
 
 use super::super::contracts::MediaProvenanceRefContext;
 use super::context::validate_media_provenance_source_context;
 
 pub(super) fn validate_source_media_asset_ref(
-    provenance: &media_provenance::Model,
-    asset: &media_asset::Model,
+    provenance: &a4n_domain::project::ProjectFamilyMediaProvenanceRecord,
+    asset: &a4n_domain::project::ProjectFamilyMediaAssetRecord,
     refs: &MediaProvenanceRefContext<'_>,
 ) -> Result<(), String> {
     let Some(source_media_asset_id) = provenance.source_media_asset_id else {
