@@ -17,9 +17,7 @@ use a4n_worker_contract::{
 use serde_json::Value;
 
 use super::application_ports::ApplicationPorts;
-use super::database::{
-    acquire_generation_owner_lock, run_startup_migrations, validate_runtime_config,
-};
+use super::database::{acquire_generation_owner_lock, validate_runtime_config};
 use super::profile::{RuntimeProfile, RuntimeRole};
 use super::prompt_engine::create_prompt_engine;
 use super::rag::create_rag_store;

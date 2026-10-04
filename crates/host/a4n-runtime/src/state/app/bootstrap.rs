@@ -40,7 +40,8 @@ impl RuntimeBootstrap {
         };
 
         if runtime_role.is_host() {
-            run_startup_migrations(&db).await?;
+            a4n_db_session::verify_required_schema(&db).await?;
+            a4n_db_session::verify_canvas_project_split(&db).await?;
         }
 
         let service_manager = Arc::new(

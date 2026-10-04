@@ -1314,7 +1314,6 @@ version = "0.1.0"
 dependencies = [
  "a4n-config",
  "a4n-db",
- "a4n-db-models",
  "a4n-domain",
  "a4n-error",
  "a4n-import-review-core",

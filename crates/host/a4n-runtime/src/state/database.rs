@@ -6,21 +6,6 @@ pub(super) async fn acquire_generation_owner_lock(
     a4n_db_session::acquire_generation_owner_lock(database_url).await
 }
 
-#[cfg(feature = "migration")]
-pub(super) async fn run_startup_migrations(
-    db: &a4n_db_session::DbHandle,
-) -> Result<(), a4n_error::AppError> {
-    a4n_db_session::run_migrations(db).await
-}
-
-#[cfg(not(feature = "migration"))]
-pub(super) async fn run_startup_migrations(
-    db: &a4n_db_session::DbHandle,
-) -> Result<(), a4n_error::AppError> {
-    a4n_db_session::verify_required_schema(db).await?;
-    a4n_db_session::verify_canvas_project_split(db).await
-}
-
 pub(super) fn validate_runtime_config(config: &AppConfig) -> Result<(), a4n_error::AppError> {
     a4n_config::validate_postgres_database_url("A4N_DATABASE_URL", &config.database_url)?;
     if config

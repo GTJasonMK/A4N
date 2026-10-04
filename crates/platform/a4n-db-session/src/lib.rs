@@ -164,17 +164,6 @@ SELECT
     Ok(())
 }
 
-#[cfg(feature = "migration")]
-pub async fn run_migrations(database: &DbHandle) -> Result<(), a4n_error::AppError> {
-    let connection = database.connection();
-    a4n_migration::migrator::run_migrations(connection)
-        .await
-        .map_err(a4n_error::AppError::Database)?;
-    a4n_migration::migrations::canvas_project_split::ensure_complete(connection)
-        .await
-        .map_err(a4n_error::AppError::Database)
-}
-
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;

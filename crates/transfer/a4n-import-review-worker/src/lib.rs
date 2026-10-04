@@ -4,7 +4,7 @@ use std::{env, net::SocketAddr, sync::Arc};
 
 use a4n_db::DbHandle;
 use a4n_domain::collaboration::ProjectAccessRole;
-use a4n_domain::import_review::ImportReviewCreateInput;
+use a4n_domain::import_review::{ImportReviewCreateInput, ImportReviewRecord};
 use a4n_import_review_core::{calculate_dedup, summary_from_parts};
 use a4n_import_review_worker_contract::{
     CheckImportDedupInput, IMPORT_REVIEW_DEDUP_OPERATION, IMPORT_REVIEW_DELETE_OPERATION,
@@ -287,7 +287,7 @@ async fn review_for_editor(
     database: &DbHandle,
     user_id: i64,
     review_id: i64,
-) -> Result<a4n_db_models::models::project::import_review_queue::Model, WorkerFailure> {
+) -> Result<ImportReviewRecord, WorkerFailure> {
     if review_id <= 0 {
         return Err(WorkerFailure::invalid_request("review_id 必须大于 0"));
     }
@@ -302,7 +302,7 @@ async fn review_for_editor(
 }
 
 fn summary_from_record(
-    review: a4n_db_models::models::project::import_review_queue::Model,
+    review: ImportReviewRecord,
 ) -> Result<ImportReviewSummary, a4n_error::AppError> {
     summary_from_parts(
         review.id,
@@ -323,7 +323,7 @@ mod tests {
 
     #[test]
     fn review_summary_preserves_persisted_fields() {
-        let review = a4n_db_models::models::project::import_review_queue::Model {
+        let review = ImportReviewRecord {
             id: 4,
             project_id: 8,
             filename: "chapters.md".into(),

@@ -6,7 +6,6 @@ license.workspace = true
 
 [features]
 default = []
-migration = ["a4n-db-session/migration"]
 embedded-capabilities = [
     "embedded-transforms",
     "embedded-prompt-git",
