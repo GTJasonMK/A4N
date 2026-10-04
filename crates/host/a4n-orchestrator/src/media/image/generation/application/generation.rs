@@ -647,15 +647,18 @@ impl OrchestratorContext {
         let Some(chapter_id) = chapter_id else {
             return Ok((None, None));
         };
-        let source_content = match project.project_kind.as_str() {
-            "text" => {
+        let source_mode = project
+            .source_mode()
+            .map_err(|error| AppError::InvalidArgument(format!("项目 {project_id}: {error}")))?;
+        let source_content = match source_mode {
+            ProjectSourceMode::Self_ | ProjectSourceMode::Standalone => {
                 let chapter = self
                     .chapter_by_id(chapter_id)
                     .await?
                     .ok_or_else(|| AppError::NotFound(format!("章节 #{chapter_id} 不存在")))?;
                 if chapter.project_id != project.id {
                     return Err(AppError::InvalidArgument(format!(
-                        "章节 #{} 不属于文本项目 {project_id}",
+                        "章节 #{} 不属于项目 {project_id}",
                         chapter.id
                     )));
                 }
@@ -673,7 +676,7 @@ impl OrchestratorContext {
                 }
                 chapter.content.clone()
             }
-            "comic" | "video" | "galgame" => {
+            ProjectSourceMode::Derived => {
                 let root_project_id = project.root_project_id.ok_or_else(|| {
                     AppError::InvalidArgument(format!("派生项目缺少根文本项目: {project_id}"))
                 })?;
@@ -696,9 +699,10 @@ impl OrchestratorContext {
                     ))
                 })?
             }
-            other => {
+            ProjectSourceMode::Freeform => {
                 return Err(AppError::InvalidArgument(format!(
-                    "图片链路不支持项目类型 {other}: project_id={project_id}"
+                    "图片链路不支持项目类型 {}: project_id={project_id}",
+                    project.project_kind
                 )));
             }
         };

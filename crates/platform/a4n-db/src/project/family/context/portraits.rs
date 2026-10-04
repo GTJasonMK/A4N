@@ -1,7 +1,7 @@
 use super::contracts::{MangaCharacterPortraitRefSummary, ProjectFamilyDbError};
 use super::project_family_access_row;
 use a4n_db_models::models::character::{character_portrait, protagonist_profile};
-use a4n_domain::project::ProjectKind;
+use a4n_domain::project::{ProjectKind, ProjectSourceMode};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use std::collections::HashMap;
 
@@ -110,21 +110,51 @@ async fn manga_profile_project_id(
     project_id: i64,
 ) -> Result<i64, ProjectFamilyDbError> {
     let project = project_family_access_row(db, project_id).await?;
-    match ProjectKind::parse(&project.project_kind) {
-        Some(ProjectKind::Text) => Ok(project.id),
-        Some(ProjectKind::Comic) => project.root_project_id.ok_or_else(|| {
-            ProjectFamilyDbError::InvalidArgument(format!("漫画项目缺少根文本项目: {}", project.id))
-        }),
+    manga_profile_project_id_for_identity(
+        project.id,
+        &project.project_kind,
+        project.root_project_id,
+        project.source_snapshot_id,
+    )
+}
+
+fn manga_profile_project_id_for_identity(
+    project_id: i64,
+    project_kind: &str,
+    root_project_id: Option<i64>,
+    source_snapshot_id: Option<i64>,
+) -> Result<i64, ProjectFamilyDbError> {
+    match ProjectKind::parse(project_kind) {
+        Some(ProjectKind::Text) => Ok(project_id),
+        Some(ProjectKind::Comic) => {
+            let source_mode =
+                ProjectSourceMode::from_identity(project_kind, root_project_id, source_snapshot_id)
+                    .map_err(|error| {
+                        ProjectFamilyDbError::InvalidArgument(format!("项目 {project_id}: {error}"))
+                    })?;
+            match source_mode {
+                ProjectSourceMode::Standalone => Ok(project_id),
+                ProjectSourceMode::Derived => root_project_id.ok_or_else(|| {
+                    ProjectFamilyDbError::InvalidArgument(format!(
+                        "漫画项目缺少根文本项目: {}",
+                        project_id
+                    ))
+                }),
+                _ => Err(ProjectFamilyDbError::InvalidArgument(format!(
+                    "漫画项目 {} 的来源模式无效",
+                    project_id
+                ))),
+            }
+        }
         _ => Err(ProjectFamilyDbError::InvalidArgument(format!(
-            "项目 {project_id} 不是文本项目或漫画项目: {}",
-            project.project_kind
+            "项目 {project_id} 不是文本项目或漫画项目: {project_kind}"
         ))),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::portrait_index;
+    use super::{manga_profile_project_id_for_identity, portrait_index};
     use a4n_db_models::models::character::character_portrait;
     use chrono::Utc;
 
@@ -162,5 +192,18 @@ mod tests {
         );
         assert!(matches!(index.get(&11), Some(None)));
         assert!(!index.contains_key(&12));
+    }
+
+    #[test]
+    fn manga_profile_project_id_respects_comic_source_mode() {
+        assert_eq!(
+            manga_profile_project_id_for_identity(12, "comic", None, None).unwrap(),
+            12
+        );
+        assert_eq!(
+            manga_profile_project_id_for_identity(12, "comic", Some(3), Some(5)).unwrap(),
+            3
+        );
+        assert!(manga_profile_project_id_for_identity(12, "comic", Some(3), None).is_err());
     }
 }

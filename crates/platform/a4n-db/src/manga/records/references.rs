@@ -3,6 +3,7 @@ use a4n_db_models::models::{
     ai::generated_image, character::character_portrait, project::novel_project,
 };
 use a4n_domain::manga::{MangaBoundReferenceAsset, MangaReferenceAssetKind};
+use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{DatabaseConnection, EntityTrait, QuerySelect};
 
 pub async fn manga_reference_bound_asset(
@@ -96,24 +97,76 @@ async fn allowed_reference_project_ids(
         .column(novel_project::Column::Id)
         .column(novel_project::Column::ProjectKind)
         .column(novel_project::Column::RootProjectId)
-        .into_tuple::<(i64, String, Option<i64>)>()
+        .column(novel_project::Column::SourceSnapshotId)
+        .into_tuple::<(i64, String, Option<i64>, Option<i64>)>()
         .one(db)
         .await
         .map_err(manga_record_database("读取漫画参考素材项目失败"))?
         .ok_or_else(|| MangaPromptRecordError::NotFound(format!("项目不存在: {project_id}")))?;
-    match project.1.as_str() {
-        "text" => Ok(vec![project.0]),
+    reference_project_scope_for_identity(project.0, &project.1, project.2, project.3)
+}
+
+fn reference_project_scope_for_identity(
+    project_id: i64,
+    project_kind: &str,
+    root_project_id: Option<i64>,
+    source_snapshot_id: Option<i64>,
+) -> Result<Vec<i64>, MangaPromptRecordError> {
+    match project_kind {
+        "text" => Ok(vec![project_id]),
         "comic" => {
-            let root_project_id = project.2.ok_or_else(|| {
-                MangaPromptRecordError::InvalidArgument(format!(
-                    "漫画项目缺少根文本项目: {}",
-                    project.0
-                ))
-            })?;
-            Ok(vec![project.0, root_project_id])
+            let source_mode =
+                ProjectSourceMode::from_identity(project_kind, root_project_id, source_snapshot_id)
+                    .map_err(|error| {
+                        MangaPromptRecordError::InvalidArgument(format!(
+                            "项目 {project_id}: {error}"
+                        ))
+                    })?;
+            match source_mode {
+                ProjectSourceMode::Standalone => Ok(vec![project_id]),
+                ProjectSourceMode::Derived => {
+                    let root_project_id = root_project_id.ok_or_else(|| {
+                        MangaPromptRecordError::InvalidArgument(format!(
+                            "漫画项目缺少根文本项目: {}",
+                            project_id
+                        ))
+                    })?;
+                    Ok(vec![project_id, root_project_id])
+                }
+                _ => Err(MangaPromptRecordError::InvalidArgument(format!(
+                    "漫画项目 {} 的来源模式无效",
+                    project_id
+                ))),
+            }
         }
         other => Err(MangaPromptRecordError::InvalidArgument(format!(
             "项目 {project_id} 不是文本项目或漫画项目: {other}"
         ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::reference_project_scope_for_identity;
+
+    #[test]
+    fn standalone_comic_references_are_limited_to_the_comic_project() {
+        assert_eq!(
+            reference_project_scope_for_identity(12, "comic", None, None).unwrap(),
+            vec![12]
+        );
+    }
+
+    #[test]
+    fn derived_comic_references_include_the_text_root() {
+        assert_eq!(
+            reference_project_scope_for_identity(12, "comic", Some(3), Some(5)).unwrap(),
+            vec![12, 3]
+        );
+    }
+
+    #[test]
+    fn invalid_comic_reference_identity_is_rejected() {
+        assert!(reference_project_scope_for_identity(12, "comic", Some(3), None).is_err());
     }
 }

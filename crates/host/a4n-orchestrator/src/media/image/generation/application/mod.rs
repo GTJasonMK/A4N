@@ -14,7 +14,7 @@ use a4n_domain::{
         batch_item_reference_image_ids, video_frame_image_generation_context,
     },
     profile_material::ProfileMaterialKind,
-    project::ProjectRecord,
+    project::{ProjectRecord, ProjectSourceMode},
     source_spans::{ChapterSourceContext, source_metadata},
 };
 use a4n_error::AppError;
