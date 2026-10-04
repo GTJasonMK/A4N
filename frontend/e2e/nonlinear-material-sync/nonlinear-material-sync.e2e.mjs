@@ -161,7 +161,7 @@ describe("非线性创作资料同步", () => {
       [...document.querySelectorAll("[role=dialog] button")]
         .map((button) => button.textContent?.trim() ?? "")
         .filter((text) =>
-          ["AI 辅助创作", "自由创作", "视频画布项目"].some((label) =>
+          ["AI 辅助创作", "自由创作", "独立画布项目"].some((label) =>
             text.includes(label),
           ),
         ),
@@ -169,7 +169,7 @@ describe("非线性创作资料同步", () => {
     const dialogText = await modeDialog.getText();
     assert.equal(dialogText.includes("AI 辅助创作"), true);
     assert.equal(dialogText.includes("自由创作"), true);
-    assert.equal(dialogText.includes("视频画布项目"), true);
+    assert.equal(dialogText.includes("独立画布项目"), true);
     assert.equal(dialogText.includes("小说项目"), false);
     assert.equal(dialogText.includes("剧本项目"), false);
     assert.equal(modeLabels.length, 3);

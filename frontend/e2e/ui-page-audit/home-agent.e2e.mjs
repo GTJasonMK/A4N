@@ -262,7 +262,7 @@ describe("Home and global Agent page audit", function () {
       return { pendingInvites: homeAgentFixtures.list_my_project_invites.length };
     } },
     { id: "H06-create-options", task: "检查三种真实创建选项", open: async () => { await home(); await click("创建项目"); return dialog("新建项目"); }, check: async (scope) => {
-      const labels = ["AI 辅助创作", "自由创作", "视频画布项目"];
+      const labels = ["AI 辅助创作", "自由创作", "独立画布项目"];
       for (const label of labels) {
         const option = await scope.$('.//button[.//span[normalize-space(.)=' + literal(label) + ']]');
         assert.ok((await reach(option)).reached); assert.ok(await option.isEnabled());

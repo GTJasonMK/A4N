@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ChevronRight, Film, FolderOpen, PanelsTopLeft, Plus, Sparkles, Upload } from "lucide-react";
+import { ChevronRight, FolderOpen, PanelsTopLeft, Plus, Sparkles, Upload, Workflow } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import { Modal } from "../../components/ui/Modal";
@@ -45,7 +45,7 @@ const CREATE_MODE_OPTIONS: Array<{
     packageId: "canvas",
     labelKey: "novel.createModeCanvas",
     descriptionKey: "novel.createModeCanvasDescription",
-    icon: <Film size={14} />,
+    icon: <Workflow size={14} />,
   },
   {
     id: "comic_workspace",

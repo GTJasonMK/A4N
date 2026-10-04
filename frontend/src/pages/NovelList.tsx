@@ -355,7 +355,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
       const project =
         requestMode === "canvas"
           ? await createCanvasProject({
-              title: t("video.canvasProject"),
+              title: t("novel.canvasProject"),
               description: "",
             })
           : requestMode === "comic_workspace"
