@@ -4,23 +4,19 @@ import {
   generateCanvasTextAssetDraft,
   listCanvasTextAssetVersions,
   listCanvasTextAssets,
-  previewCanvasTextAssetDraftRequest,
   saveCanvasTextAsset,
   type CanvasTextAssetSummary,
   type CanvasTextAssetVersionSummary,
 } from "../../api/canvas";
-import { listLlmConfig } from "../../api/config/llm";
-import type { LlmConfigSummary } from "../../api/config/types";
 import { importProjectTextAssetUpload } from "../../api/import";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
+import { Modal } from "../../components/ui/Modal";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
 import { extractErrorMessage } from "../../api";
 import { useI18n } from "../../i18n";
-import type { ModelRequestPreview } from "../../api/requestPreview";
-import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { pickLocalFile, readFileAsBase64 } from "../../utils/fileUpload";
 import { EmptyHint } from "../novel-detail/shared";
 
@@ -76,14 +72,10 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [llmConfigs, setLlmConfigs] = useState<LlmConfigSummary[]>([]);
-  const [llmConfigId, setLlmConfigId] = useState<number | null>(null);
   const [aiInstruction, setAiInstruction] = useState("");
-  const [requestPreview, setRequestPreview] = useState<ModelRequestPreview | null>(null);
-  const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
-  const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
-  const [draftInput, setDraftInput] = useState<import("../../api/generated/host").CanvasTextAssetDraftInput | null>(null);
-  const [draftReviewed, setDraftReviewed] = useState(false);
+  const [aiDraftContent, setAiDraftContent] = useState("");
+  const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
+  const [sourceDialogOpen, setSourceDialogOpen] = useState(false);
   const [generatingDraft, setGeneratingDraft] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestRef = useRef(0);
@@ -150,15 +142,6 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
     void load();
     return () => { requestRef.current += 1; };
   }, [load]);
-  useEffect(() => {
-    void listLlmConfig()
-      .then((configs) => {
-        setLlmConfigs(configs);
-        const defaultConfig = configs.find((config) => config.is_default) ?? configs[0];
-        if (defaultConfig) setLlmConfigId(defaultConfig.id);
-      })
-      .catch((cause) => addToast(extractErrorMessage(cause, t("novel.textMaterialsConfigLoadFailed")), "error"));
-  }, [addToast, t]);
   useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
   useEffect(() => {
     setStartSection((current) => Math.min(current, sections.length - 1));
@@ -256,46 +239,47 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
     }
   };
 
-  const prepareDraft = async () => {
-    if (!canEdit || requestPreviewLoading || generatingDraft || !aiInstruction.trim()) return;
-    const input = {
-      project_id: projectId,
-      llm_config_id: llmConfigId,
-      instruction: aiInstruction.trim(),
-      source_asset_id: selected?.id ?? null,
-      source_version: selected ? sourceVersion ?? selected.current_version : null,
-    } satisfies import("../../api/generated/host").CanvasTextAssetDraftInput;
-    setRequestPreviewLoading(true);
-    setDraftInput(null);
-    setDraftReviewed(false);
-    try {
-      const preview = await previewCanvasTextAssetDraftRequest(input);
-      setDraftInput(input);
-      setRequestPreview(preview);
-      setRequestPreviewOpen(true);
-    } catch (cause) {
-      addToast(extractErrorMessage(cause, t("novel.textMaterialsPreviewFailed")), "error");
-    } finally {
-      setRequestPreviewLoading(false);
+  const openAiAssistant = () => {
+    if (!canEdit || generatingDraft) return;
+    if (dirty) {
+      addToast(t("novel.textMaterialsSaveBeforeAi"), "info");
+      return;
     }
+    setAiInstruction("");
+    setAiDraftContent("");
+    setAiAssistantOpen(true);
   };
 
   const generateDraft = async () => {
-    if (!draftInput || !canEdit || generatingDraft) return;
+    if (!canEdit || generatingDraft || !aiInstruction.trim()) return;
+    if (dirty) {
+      addToast(t("novel.textMaterialsSaveBeforeAi"), "info");
+      return;
+    }
     setGeneratingDraft(true);
+    setAiDraftContent("");
     try {
-      const draft = await generateCanvasTextAssetDraft(draftInput);
-      setContent(draft.content);
-      setDraftReviewed(false);
-      setDraftInput(null);
-      setRequestPreview(null);
-      setRequestPreviewOpen(false);
-      addToast(t("novel.textMaterialsDraftReady"), "success");
+      const draft = await generateCanvasTextAssetDraft({
+        project_id: projectId,
+        llm_config_id: null,
+        instruction: aiInstruction.trim(),
+        source_asset_id: selected?.id ?? null,
+        source_version: selected ? sourceVersion ?? selected.current_version : null,
+      });
+      setAiDraftContent(draft.content);
     } catch (cause) {
       addToast(extractErrorMessage(cause, t("novel.textMaterialsDraftFailed")), "error");
     } finally {
       setGeneratingDraft(false);
     }
+  };
+
+  const applyDraft = () => {
+    if (!aiDraftContent) return;
+    setContent(aiDraftContent);
+    setAiAssistantOpen(false);
+    setAiDraftContent("");
+    addToast(t("novel.textMaterialsDraftApplied"), "success");
   };
 
   const loadVersion = (version: CanvasTextAssetVersionSummary) => {
@@ -318,6 +302,7 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
       startSection,
       endSection,
     });
+    setSourceDialogOpen(false);
   };
 
   return (
@@ -340,6 +325,23 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
           {saving ? <LoadingSpinner size="sm" /> : <Save size={14} />}
           {t("common.save")}
         </BookButton>
+        <BookButton
+          variant="secondary"
+          size="sm"
+          onClick={openAiAssistant}
+          disabled={!canEdit || generatingDraft}
+        >
+          <Sparkles size={14} />
+          {t("novel.textMaterialsAiAssist")}
+        </BookButton>
+        {onSelectSource && selected ? (
+          <BookButton variant="secondary" size="sm" onClick={() => setSourceDialogOpen(true)} disabled={!canEdit || dirty}>
+            <ArrowRight size={14} />
+            {selectedSource?.assetId === selected.id && selectedSource.version === (sourceVersion ?? selected.current_version) && selectedSource.startSection === startSection && selectedSource.endSection === endSection
+              ? t("novel.textMaterialsSourceSelected")
+              : t("novel.textMaterialsUseSource")}
+          </BookButton>
+        ) : null}
       </header>
       {error ? (
         <div role="alert" className="flex items-center gap-2 border-b border-book-border/70 py-2 text-sm text-error">
@@ -365,33 +367,6 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
           {!loading && assets.length === 0 ? <EmptyHint text={t("novel.textMaterialsEmpty")} /> : null}
         </nav>
         <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto p-3">
-          <div className="flex flex-wrap items-end gap-2 border-b border-book-border/70 pb-3">
-            <label className="min-w-44 flex-1 text-small text-book-text-muted">
-              {t("novel.textMaterialsLlmConfig")}
-              <ThemedSelect
-                aria-label={t("novel.textMaterialsLlmConfig")}
-                value={llmConfigId ?? "default"}
-                onChange={(value) => setLlmConfigId(value === "default" ? null : Number(value))}
-                disabled={!canEdit || requestPreviewLoading || generatingDraft}
-                className="pyqt-input mt-1 w-full min-w-0 text-sm"
-              >
-                <option value="default">{t("novel.textMaterialsUseDefaultConfig")}</option>
-                {llmConfigs.map((config) => <option key={config.id} value={config.id}>{config.name}</option>)}
-              </ThemedSelect>
-            </label>
-            <BookButton size="sm" variant="secondary" onClick={() => void prepareDraft()} disabled={!canEdit || !aiInstruction.trim() || requestPreviewLoading || generatingDraft || dirty}>
-              {requestPreviewLoading ? <LoadingSpinner size="sm" /> : <Sparkles size={14} />}
-              {t("novel.textMaterialsPreviewDraft")}
-            </BookButton>
-            <BookButton size="sm" variant="primary" onClick={() => void generateDraft()} disabled={!draftReviewed || !draftInput || generatingDraft}>
-              {generatingDraft ? <LoadingSpinner size="sm" /> : <Sparkles size={14} />}
-              {t("novel.textMaterialsGenerateDraft")}
-            </BookButton>
-          </div>
-          <label className="block text-small text-book-text-muted">
-            {t("novel.textMaterialsInstruction")}
-            <textarea value={aiInstruction} onChange={(event) => { setAiInstruction(event.target.value); setDraftInput(null); setDraftReviewed(false); setRequestPreview(null); }} disabled={!canEdit || requestPreviewLoading || generatingDraft} rows={3} className="pyqt-input mt-1 w-full resize-y text-sm leading-relaxed" />
-          </label>
           <label className="block text-small text-book-text-muted">
             {t("novel.textMaterialsName")}
             <input value={title} onChange={(event) => setTitle(event.target.value)} disabled={!canEdit || loading} className="pyqt-input mt-1 w-full text-sm" />
@@ -400,37 +375,6 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
             {t("novel.textMaterialsContent")}
             <textarea value={content} onChange={(event) => setContent(event.target.value)} disabled={!canEdit || loading} rows={12} className="pyqt-input mt-1 min-h-48 flex-1 resize-y text-sm leading-relaxed" />
           </label>
-          {onSelectSource && selected ? (
-            <div className="flex flex-wrap items-end gap-2 border-t border-book-border/70 pt-3">
-              <label className="min-w-0 flex-1 text-small text-book-text-muted">
-                {t("novel.textMaterialsFrom")}
-                <ThemedSelect
-                  aria-label={t("novel.textMaterialsFrom")}
-                  value={startSection}
-                  onChange={(value) => setStartSection(Number(value))}
-                  disabled={!canEdit}
-                  className="pyqt-input mt-1 w-full min-w-0 text-sm"
-                >
-                  {sections.map((section, index) => <option key={`${index}:${section.start}`} value={index}>{section.title}</option>)}
-                </ThemedSelect>
-              </label>
-              <label className="min-w-0 flex-1 text-small text-book-text-muted">
-                {t("novel.textMaterialsTo")}
-                <ThemedSelect
-                  aria-label={t("novel.textMaterialsTo")}
-                  value={endSection}
-                  onChange={(value) => setEndSection(Number(value))}
-                  disabled={!canEdit}
-                  className="pyqt-input mt-1 w-full min-w-0 text-sm"
-                >
-                  {sections.map((section, index) => <option key={`${index}:${section.start}`} value={index}>{section.title}</option>)}
-                </ThemedSelect>
-              </label>
-              <BookButton variant="secondary" size="sm" onClick={selectSource} disabled={dirty || startSection > endSection}>
-                <ArrowRight size={14} />{selectedSource?.assetId === selected.id && selectedSource.version === (sourceVersion ?? selected.current_version) && selectedSource.startSection === startSection && selectedSource.endSection === endSection ? t("novel.textMaterialsSourceSelected") : t("novel.textMaterialsUseSource")}
-              </BookButton>
-            </div>
-          ) : null}
           {selected && versions.length > 1 ? (
             <details className="border-t border-book-border/70 pt-2 text-small">
               <summary className="cursor-pointer text-book-text-muted">{t("novel.textMaterialsHistory", { count: versions.length })}</summary>
@@ -450,19 +394,93 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
           ) : null}
         </div>
       </div>
-      <RequestPreviewModal
-        open={requestPreviewOpen}
-        loading={requestPreviewLoading}
-        data={requestPreview}
-        confirmLabel={t("novel.textMaterialsGenerateDraft")}
-        confirmDisabled={!draftInput}
-        confirmBusy={generatingDraft}
-        onConfirm={() => void generateDraft()}
-        onClose={() => {
-          setRequestPreviewOpen(false);
-          setDraftReviewed(Boolean(requestPreview && draftInput));
-        }}
-      />
+      <Modal
+        isOpen={aiAssistantOpen}
+        onClose={() => { if (!generatingDraft) setAiAssistantOpen(false); }}
+        title={t("novel.textMaterialsAiAssistTitle")}
+        maxWidthClassName="max-w-3xl"
+        showCloseButton={!generatingDraft}
+        closeOnBackdrop={!generatingDraft}
+        closeOnEscape={!generatingDraft}
+        footer={(
+          <div className="flex w-full flex-wrap items-center justify-end gap-2">
+            <BookButton variant="secondary" size="sm" onClick={() => setAiAssistantOpen(false)} disabled={generatingDraft}>
+              {t("common.cancel")}
+            </BookButton>
+            {aiDraftContent ? (
+              <>
+                <BookButton variant="secondary" size="sm" onClick={() => void generateDraft()} disabled={generatingDraft || !aiInstruction.trim()}>
+                  {generatingDraft ? <LoadingSpinner size="sm" /> : <Sparkles size={14} />}
+                  {t("novel.textMaterialsRegenerateDraft")}
+                </BookButton>
+                <BookButton variant="primary" size="sm" onClick={applyDraft} disabled={generatingDraft}>
+                  {t("novel.textMaterialsApplyDraft")}
+                </BookButton>
+              </>
+            ) : (
+              <BookButton variant="primary" size="sm" onClick={() => void generateDraft()} disabled={generatingDraft || !aiInstruction.trim()}>
+                {generatingDraft ? <LoadingSpinner size="sm" /> : <Sparkles size={14} />}
+                {t("novel.textMaterialsGenerateDraft")}
+              </BookButton>
+            )}
+          </div>
+        )}
+      >
+        <div className="flex flex-col gap-3">
+          <label className="block text-small text-book-text-muted">
+            {t("novel.textMaterialsInstruction")}
+            <textarea
+              value={aiInstruction}
+              onChange={(event) => { setAiInstruction(event.target.value); setAiDraftContent(""); }}
+              disabled={generatingDraft}
+              placeholder={t("novel.textMaterialsAiInstructionPlaceholder")}
+              rows={4}
+              className="pyqt-input mt-1 w-full resize-y text-sm leading-relaxed"
+            />
+          </label>
+          {aiDraftContent ? (
+            <label className="block text-small text-book-text-muted">
+              {t("novel.textMaterialsDraftResult")}
+              <textarea value={aiDraftContent} readOnly rows={12} className="pyqt-input mt-1 w-full resize-y text-sm leading-relaxed" />
+            </label>
+          ) : null}
+          {generatingDraft ? (
+            <LoadingSpinner size="sm" text={t("novel.textMaterialsGeneratingDraft")} />
+          ) : null}
+        </div>
+      </Modal>
+      {onSelectSource && selected ? (
+        <Modal
+          isOpen={sourceDialogOpen}
+          onClose={() => setSourceDialogOpen(false)}
+          title={t("novel.textMaterialsSourceDialogTitle")}
+          maxWidthClassName="max-w-xl"
+          footer={(
+            <div className="flex w-full justify-end gap-2">
+              <BookButton variant="secondary" size="sm" onClick={() => setSourceDialogOpen(false)}>{t("common.cancel")}</BookButton>
+              <BookButton variant="primary" size="sm" onClick={selectSource} disabled={dirty || startSection > endSection}>{t("novel.textMaterialsUseSource")}</BookButton>
+            </div>
+          )}
+        >
+          <div className="flex flex-col gap-3">
+            <p className="text-small text-book-text-muted">{t("novel.textMaterialsSourceRangeHint")}</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-small text-book-text-muted">
+                {t("novel.textMaterialsFrom")}
+                <ThemedSelect aria-label={t("novel.textMaterialsFrom")} value={startSection} onChange={(value) => setStartSection(Number(value))} disabled={!canEdit} className="pyqt-input mt-1 w-full text-sm">
+                  {sections.map((section, index) => <option key={`${index}:${section.start}`} value={index}>{section.title}</option>)}
+                </ThemedSelect>
+              </label>
+              <label className="text-small text-book-text-muted">
+                {t("novel.textMaterialsTo")}
+                <ThemedSelect aria-label={t("novel.textMaterialsTo")} value={endSection} onChange={(value) => setEndSection(Number(value))} disabled={!canEdit} className="pyqt-input mt-1 w-full text-sm">
+                  {sections.map((section, index) => <option key={`${index}:${section.start}`} value={index}>{section.title}</option>)}
+                </ThemedSelect>
+              </label>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
     </div>
   );
 };

@@ -155,12 +155,6 @@ export async function listCanvasTextAssetVersions(
   });
 }
 
-export async function previewCanvasTextAssetDraftRequest(
-  input: CanvasTextAssetDraftInput,
-): Promise<ModelRequestPreview> {
-  return apiInvoke<ModelRequestPreview>("preview_canvas_text_asset_draft_request", { input });
-}
-
 export async function generateCanvasTextAssetDraft(
   input: CanvasTextAssetDraftInput,
 ): Promise<CanvasTextAssetDraftSummary> {
