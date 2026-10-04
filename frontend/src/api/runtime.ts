@@ -48,7 +48,7 @@ const NATIVE_TAURI_COMMANDS = new Set([
   "local_delete_embedding_model",
   "local_test_embedding_config",
   "local_embed_texts",
-  "pick_image_file",
+  "read_local_image_file",
   "subscribe_generation_task",
   "unsubscribe_generation_task",
   "get_generation_task_summary",

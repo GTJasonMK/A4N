@@ -9,7 +9,7 @@ import {
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { ImageZoomButton } from "../../../components/ui/ImageLightbox";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
-import type { GeneratedImage, PickedLocalImageFile } from "../../../api/image";
+import type { GeneratedImage } from "../../../api/image";
 import { EmptyHint, type ChapterRow } from "../shared";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import { formatNumber, useI18n } from "../../../i18n";
@@ -43,7 +43,7 @@ interface ImageGalleryPanelProps {
   onFavoriteOnlyChange: (enabled: boolean) => void;
   onRefresh: () => void;
   onOpenTools: () => void;
-  onImportImageFile: (file: File | PickedLocalImageFile) => void;
+  onImportImageFile: (file: File) => void;
   onPickLocalImageFile?: () => void;
   onToggleFavorite: (image: GeneratedImage) => void;
   onOpenActions: (image: GeneratedImage) => void;

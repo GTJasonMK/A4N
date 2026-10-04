@@ -54,7 +54,6 @@ a4n-storage = { workspace = true }
 a4n-task-runtime = { workspace = true }
 uuid = { workspace = true }
 base64 = { workspace = true }
-tauri-plugin-dialog = { workspace = true }
 
 # 异步
 tokio = { workspace = true }

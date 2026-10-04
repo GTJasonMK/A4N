@@ -1,15 +1,19 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { FileInput } from "lucide-react";
 import { useToast } from "../../components/feedback/Toast";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { promptDialog } from "../../components/feedback/PromptDialog";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
+import { BookButton } from "../../components/ui/BookButton";
+import { BookInput } from "../../components/ui/BookInput";
+import { Modal } from "../../components/ui/Modal";
 import { extractErrorMessage } from "../../api";
 import {
   deleteImage,
   listImagesByChapter,
   listImagesByProject,
   previewSceneImageRequest,
-  pickLocalImageFile,
+  readLocalImageFile,
   startImageGeneration,
   updateImage,
   uploadImage,
@@ -85,6 +89,9 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   const [favOnly, setFavOnly] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [importBusy, setImportBusy] = useState(false);
+  const [localPathDialogOpen, setLocalPathDialogOpen] = useState(false);
+  const [localImagePath, setLocalImagePath] = useState("");
+  const [localPathBusy, setLocalPathBusy] = useState(false);
   const [genPrompt, setGenPrompt] = useState("");
   const [genBusy, setGenBusy] = useState(false);
   const [objectProfiles, setObjectProfiles] = useState<ObjectProfile[]>([]);
@@ -120,6 +127,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   const actionBusyRef = useRef(false);
   const previewSeqRef = useRef(0);
   const previewBusyRef = useRef(false);
+  const localPathInputRef = useRef<HTMLInputElement | null>(null);
   activeScopeRef.current = scopeKey;
   allImagesRef.current = allImages;
   objectProfilesRef.current = objectProfiles;
@@ -759,16 +767,28 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     }
   };
 
-  const handlePickLocalImageFile = async () => {
-    if (!ensureCanEditImages() || importBusy) return;
-    setImportBusy(true);
+  const handleOpenLocalImagePath = () => {
+    if (!ensureCanEditImages() || importBusy || localPathBusy) return;
+    setLocalImagePath("");
+    setLocalPathDialogOpen(true);
+  };
+
+  const handleReadLocalImage = async () => {
+    const path = localImagePath.trim();
+    if (!path) {
+      addToast(t("novel.imageLibrary.localPathRequired"), "error");
+      localPathInputRef.current?.focus();
+      return;
+    }
+    setLocalPathBusy(true);
     try {
-      const file = await pickLocalImageFile();
-      if (file) await handleImportImageFile(file);
+      const file = await readLocalImageFile(path);
+      setLocalPathDialogOpen(false);
+      await handleImportImageFile(file);
     } catch (err) {
       addToast(extractErrorMessage(err, t("novel.imageLibrary.importFailed")), "error");
     } finally {
-      setImportBusy(false);
+      setLocalPathBusy(false);
     }
   };
 
@@ -910,7 +930,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         onRefresh={() => void load()}
         onOpenTools={() => setToolsOpen(true)}
         onImportImageFile={(file) => void handleImportImageFile(file)}
-        onPickLocalImageFile={isDesktopTauriRuntime() ? () => void handlePickLocalImageFile() : undefined}
+        onPickLocalImageFile={isDesktopTauriRuntime() ? handleOpenLocalImagePath : undefined}
         onToggleFavorite={(image) => void handleToggleFavorite(image)}
         onOpenActions={handleOpenImageActions}
         contentHashError={chapterContentHashError}
@@ -964,6 +984,54 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         fallbackTitle={t("novel.imageLibrary.requestPreview")}
         onClose={closeRequestPreview}
       />
+      <Modal
+        isOpen={localPathDialogOpen}
+        onClose={() => {
+          if (!localPathBusy) setLocalPathDialogOpen(false);
+        }}
+        title={t("novel.imageLibrary.localPathTitle")}
+        initialFocusRef={localPathInputRef}
+        footer={(
+          <div className="flex justify-end gap-2">
+            <BookButton
+              variant="ghost"
+              size="sm"
+              onClick={() => setLocalPathDialogOpen(false)}
+              disabled={localPathBusy}
+            >
+              {t("common.cancel")}
+            </BookButton>
+            <BookButton
+              variant="primary"
+              size="sm"
+              onClick={() => void handleReadLocalImage()}
+              disabled={localPathBusy || !localImagePath.trim()}
+            >
+              <FileInput size={13} />
+              {t("novel.imageLibrary.localPathRead")}
+            </BookButton>
+          </div>
+        )}
+      >
+        <div className="space-y-3">
+          <p className="text-small leading-relaxed text-book-text-muted">
+            {t("novel.imageLibrary.localPathMessage")}
+          </p>
+          <BookInput
+            ref={localPathInputRef}
+            label={t("novel.imageLibrary.localPathLabel")}
+            value={localImagePath}
+            onChange={(event) => setLocalImagePath(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !localPathBusy) void handleReadLocalImage();
+            }}
+            placeholder={t("novel.imageLibrary.localPathPlaceholder")}
+            disabled={localPathBusy}
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </div>
+      </Modal>
     </div>
   );
 };

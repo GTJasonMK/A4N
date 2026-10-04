@@ -18,8 +18,8 @@ export interface PickedLocalImageFile {
   type: string;
 }
 
-export function pickLocalImageFile(): Promise<PickedLocalImageFile | null> {
-  return runtimeInvoke<PickedLocalImageFile | null>("pick_image_file");
+export function readLocalImageFile(path: string): Promise<PickedLocalImageFile> {
+  return runtimeInvoke<PickedLocalImageFile>("read_local_image_file", { path });
 }
 
 export async function updateImage(imageId: Id, input: UpdateImageInput): Promise<GeneratedImage> {

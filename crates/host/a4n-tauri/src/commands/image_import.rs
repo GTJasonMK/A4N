@@ -1,11 +1,8 @@
 use base64::{Engine, engine::general_purpose::STANDARD};
 use std::path::{Path, PathBuf};
-use tauri::WebviewWindow;
-use tauri_plugin_dialog::DialogExt;
 use tokio::io::AsyncReadExt;
 
 const MAX_PICKED_IMAGE_BYTES: u64 = 50 * 1024 * 1024;
-const PICKED_IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "webp"];
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -18,44 +15,29 @@ pub struct PickedImageFile {
 }
 
 #[tauri::command]
-pub async fn pick_image_file(window: WebviewWindow) -> Result<Option<PickedImageFile>, String> {
-    let (sender, receiver) = tokio::sync::oneshot::channel();
-    window
-        .dialog()
-        .file()
-        .add_filter("Images", PICKED_IMAGE_EXTENSIONS)
-        .pick_file(move |path| {
-            let _ = sender.send(path);
-        });
-
-    let Some(file_path) = receiver
-        .await
-        .map_err(|error| format!("图片选择器未返回结果：{error}"))?
-    else {
-        return Ok(None);
-    };
-    let path = file_path
-        .into_path()
-        .map_err(|error| format!("无法读取所选图片路径：{error}"))?;
-
-    read_image_file(path).await.map(Some)
+pub async fn read_local_image_file(path: String) -> Result<PickedImageFile, String> {
+    let path = PathBuf::from(path.trim());
+    if path.as_os_str().is_empty() {
+        return Err("图片路径不能为空".to_owned());
+    }
+    read_image_file(path).await
 }
 
 async fn read_image_file(path: PathBuf) -> Result<PickedImageFile, String> {
     let name = path
         .file_name()
         .and_then(|name| name.to_str())
-        .ok_or_else(|| "所选图片文件名无效".to_owned())?
+        .ok_or_else(|| "图片文件名无效".to_owned())?
         .to_owned();
     let mime_type = image_mime_type(&path)?.to_owned();
     let mut bytes = Vec::new();
     tokio::fs::File::open(&path)
         .await
-        .map_err(|error| format!("打开所选图片失败：{error}"))?
+        .map_err(|error| format!("打开图片失败：{error}"))?
         .take(MAX_PICKED_IMAGE_BYTES + 1)
         .read_to_end(&mut bytes)
         .await
-        .map_err(|error| format!("读取所选图片失败：{error}"))?;
+        .map_err(|error| format!("读取图片失败：{error}"))?;
     if bytes.len() as u64 > MAX_PICKED_IMAGE_BYTES {
         return Err("图片文件不能超过 50 MiB".to_owned());
     }
@@ -72,7 +54,7 @@ fn image_mime_type(path: &Path) -> Result<&'static str, String> {
     let extension = path
         .extension()
         .and_then(|extension| extension.to_str())
-        .ok_or_else(|| "所选文件不是支持的图片格式".to_owned())?;
+        .ok_or_else(|| "仅支持 PNG、JPG、JPEG 和 WebP 图片".to_owned())?;
     if extension.eq_ignore_ascii_case("png") {
         Ok("image/png")
     } else if extension.eq_ignore_ascii_case("jpg") || extension.eq_ignore_ascii_case("jpeg") {
