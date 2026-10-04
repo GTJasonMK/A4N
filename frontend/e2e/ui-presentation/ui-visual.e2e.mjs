@@ -25,6 +25,8 @@ const cases = [
   ["home-loading", "/?ui-state=loading", ".a4n-project-skeleton-row"],
   ["home-menu", "/", ".a4n-project-row"],
   ["project-dialog", "/", ".a4n-project-row"],
+  ["video-source-dialog", "/", ".a4n-project-row"],
+  ["video-title-dialog", "/", ".a4n-project-row"],
   ["settings-editor", "/settings#llm", ".a4n-section-heading"],
   ["home-en", "/?ui-locale=en-US", ".a4n-project-row"],
   ["settings-en", "/settings?ui-locale=en-US#llm", ".a4n-section-heading"],
@@ -92,6 +94,23 @@ describe("iOS visual coverage with the original palette", () => {
       } else if (name === "project-dialog") {
         await $('//button[normalize-space()="创建项目"]').click();
         await $('[role="dialog"]').waitForDisplayed();
+      } else if (name === "video-source-dialog" || name === "video-title-dialog") {
+        await $('//button[normalize-space()="创建项目"]').click();
+        const creationDialog = await $('[role="dialog"]');
+        await creationDialog.waitForDisplayed();
+        await creationDialog.$('.//button[.//span[normalize-space(.)="视频项目"]]').click();
+        const sourceDialog = await $('//*[@role="dialog" and .//*[normalize-space(.)="选择视频来源项目"]]');
+        await sourceDialog.waitForDisplayed({ timeout: 10_000 });
+        await sourceDialog.$('button[role="combobox"][aria-label="文本项目来源"]').waitForDisplayed({ timeout: 10_000 });
+        const selectedSource = await sourceDialog.$('button[role="combobox"][aria-label="文本项目来源"]').getText();
+        const textProject = visualFixtures.projectRecords.find((project) => project.project_kind === "text");
+        assert.ok(textProject);
+        assert.equal(selectedSource.trim(), textProject.title);
+        if (name === "video-title-dialog") {
+          await sourceDialog.$('.//button[normalize-space(.)="下一步"]').click();
+          const titleDialog = await $('//*[@role="dialog" and .//*[normalize-space(.)="创建视频项目"]]');
+          await titleDialog.waitForDisplayed({ timeout: 10_000 });
+        }
       } else if (name === "settings-editor") {
         await $('//button[contains(.,"新增 LLM 配置")]').click();
         await $('input[role="combobox"]').waitForDisplayed();
@@ -122,7 +141,7 @@ describe("iOS visual coverage with the original palette", () => {
           if (name === "agents") {
             assert.ok(result.composer && result.composer.bottom <= result.viewport.height + 1, `${file}: composer must remain in the viewport`);
           }
-          if (process.env.A4N_LAYOUT_AUDIT_SCRIPT && width === 390 && ["home", "settings", "agents", "auth", "home-menu", "project-dialog", "settings-editor"].includes(name)) {
+          if (process.env.A4N_LAYOUT_AUDIT_SCRIPT && width === 390 && ["home", "settings", "agents", "auth", "home-menu", "project-dialog", "video-source-dialog", "video-title-dialog", "settings-editor"].includes(name)) {
             const audit = await readFile(process.env.A4N_LAYOUT_AUDIT_SCRIPT, "utf8");
             const findings = await browser.execute(new Function(audit + "\nreturn __audit({});"));
             await browser.saveScreenshot(`${directory}/${file}-annotated.png`);

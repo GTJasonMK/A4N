@@ -17,6 +17,7 @@ import { formatRagIngestResultSummary, ragIngestAll } from "../api/rag";
 import { cancelWorkflowTask } from "../api/streaming";
 import {
   acceptProjectInvite,
+  canEditProjectMaterials,
   createDerivedProject,
   createCanvasProject,
   createStandaloneComicProject,
@@ -65,6 +66,11 @@ import { useNovelDetailDirty } from "./novel-detail/novelDetailDirty";
 const ProjectCreationDialog = lazy(() =>
   import("./novel-list/NovelListDialogs").then((module) => ({
     default: module.ProjectCreationDialog,
+  })),
+);
+const VideoProjectSourceDialog = lazy(() =>
+  import("./novel-list/NovelListDialogs").then((module) => ({
+    default: module.VideoProjectSourceDialog,
   })),
 );
 const ProjectImportDialog = lazy(() =>
@@ -129,6 +135,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
   const refreshSeqRef = useRef(0);
   const inviteSeqRef = useRef(0);
   const createSeqRef = useRef(0);
+  const videoProjectSourceSeqRef = useRef(0);
   const importDialogOpenRef = useRef(false);
   const importFileSeqRef = useRef(0);
   const importSeqRef = useRef(0);
@@ -139,6 +146,11 @@ export const NovelList: React.FC<NovelListProps> = () => {
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [videoProjectSourceDialogOpen, setVideoProjectSourceDialogOpen] = useState(false);
+  const [videoProjectSourceProjects, setVideoProjectSourceProjects] = useState<NovelProject[]>([]);
+  const [selectedVideoProjectSourceId, setSelectedVideoProjectSourceId] = useState<number | null>(null);
+  const [videoProjectSourceLoading, setVideoProjectSourceLoading] = useState(false);
+  const [videoProjectSourceError, setVideoProjectSourceError] = useState<string | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importTextProjectId, setImportTextProjectId] = useState<number | null>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -237,6 +249,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
       refreshSeqRef.current += 1;
       inviteSeqRef.current += 1;
       createSeqRef.current += 1;
+      videoProjectSourceSeqRef.current += 1;
       importFileSeqRef.current += 1;
       importSeqRef.current += 1;
       createBusyRef.current = false;
@@ -345,7 +358,49 @@ export const NovelList: React.FC<NovelListProps> = () => {
     if (mountedRef.current) setInviteActionIds(next);
   };
 
-  const handleCreate = async (requestMode: CreateMode) => {
+  const loadVideoProjectSources = async () => {
+    const requestSeq = videoProjectSourceSeqRef.current + 1;
+    videoProjectSourceSeqRef.current = requestSeq;
+    setVideoProjectSourceProjects([]);
+    setSelectedVideoProjectSourceId(null);
+    setVideoProjectSourceLoading(true);
+    setVideoProjectSourceError(null);
+    try {
+      const projects = await listAllProjects({
+        project_kind: "text",
+        access_scope: "all",
+      });
+      if (!mountedRef.current || videoProjectSourceSeqRef.current !== requestSeq) return;
+      const editableProjects = projects.filter(
+        (project) => project.project_kind === "text" && canEditProjectMaterials(project),
+      );
+      setVideoProjectSourceProjects(editableProjects);
+      setSelectedVideoProjectSourceId(editableProjects[0]?.id ?? null);
+    } catch (error) {
+      if (mountedRef.current && videoProjectSourceSeqRef.current === requestSeq) {
+        setVideoProjectSourceError(
+          extractErrorMessage(error, tRef.current("novel.videoProjectSourceLoadFailed")),
+        );
+      }
+    } finally {
+      if (mountedRef.current && videoProjectSourceSeqRef.current === requestSeq) {
+        setVideoProjectSourceLoading(false);
+      }
+    }
+  };
+
+  const closeVideoProjectSourceDialog = () => {
+    videoProjectSourceSeqRef.current += 1;
+    setVideoProjectSourceLoading(false);
+    setVideoProjectSourceDialogOpen(false);
+  };
+
+  const handleBackToProjectCreation = () => {
+    closeVideoProjectSourceDialog();
+    setCreateDialogOpen(true);
+  };
+
+  const handleCreate = async (requestMode: Exclude<CreateMode, "video">) => {
     if (!mountedRef.current || createBusyRef.current) return;
     createBusyRef.current = true;
     const requestSeq = createSeqRef.current + 1;
@@ -395,6 +450,12 @@ export const NovelList: React.FC<NovelListProps> = () => {
 
   const handleSelectMode = (mode: CreateMode) => {
     if (creating || createBusyRef.current) return;
+    if (mode === "video") {
+      setCreateDialogOpen(false);
+      setVideoProjectSourceDialogOpen(true);
+      void loadVideoProjectSources();
+      return;
+    }
     void handleCreate(mode);
   };
 
@@ -518,6 +579,15 @@ export const NovelList: React.FC<NovelListProps> = () => {
     } finally {
       finishProjectAction(actionKey);
     }
+  };
+
+  const handleCreateVideoProjectFromSelectedSource = () => {
+    const source = videoProjectSourceProjects.find(
+      (project) => project.id === selectedVideoProjectSourceId,
+    );
+    if (!source || !canEditProjectMaterials(source)) return;
+    closeVideoProjectSourceDialog();
+    void handleCreateDerivedProject(source, "video");
   };
 
   const handleExport = async (project: NovelProject) => {
@@ -817,6 +887,20 @@ export const NovelList: React.FC<NovelListProps> = () => {
             creating={creating}
             onClose={() => setCreateDialogOpen(false)}
             onSelectMode={handleSelectMode}
+          />
+        ) : null}
+        {videoProjectSourceDialogOpen ? (
+          <VideoProjectSourceDialog
+            open
+            projects={videoProjectSourceProjects}
+            selectedProjectId={selectedVideoProjectSourceId}
+            loading={videoProjectSourceLoading}
+            error={videoProjectSourceError}
+            onClose={closeVideoProjectSourceDialog}
+            onBack={handleBackToProjectCreation}
+            onRetry={() => void loadVideoProjectSources()}
+            onSelectProject={setSelectedVideoProjectSourceId}
+            onContinue={handleCreateVideoProjectFromSelectedSource}
           />
         ) : null}
         {importDialogOpen ? (

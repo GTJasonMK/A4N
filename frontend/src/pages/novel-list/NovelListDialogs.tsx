@@ -1,9 +1,24 @@
 import React, { useState } from "react";
-import { ChevronRight, FolderOpen, PanelsTopLeft, Plus, Sparkles, Upload, Workflow } from "lucide-react";
+import {
+  ChevronRight,
+  Film,
+  FolderOpen,
+  PanelsTopLeft,
+  Plus,
+  RefreshCw,
+  Sparkles,
+  Upload,
+  Workflow,
+} from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import { Modal } from "../../components/ui/Modal";
-import { CANVAS_PROJECT_PACKAGE_SUFFIX, PROJECT_FAMILY_PACKAGE_SUFFIX } from "../../api/project";
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
+import {
+  CANVAS_PROJECT_PACKAGE_SUFFIX,
+  PROJECT_FAMILY_PACKAGE_SUFFIX,
+  type NovelProject,
+} from "../../api/project";
 import { ImportsTab } from "../novel-detail/ImportsTab";
 import { useI18n, type MessageKey } from "../../i18n";
 import type { PackageId } from "../../api/generated/page";
@@ -11,7 +26,7 @@ import { usePackagePreferences } from "../../store/packagePreferences";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useNovelDetailDirtyRegistry } from "../novel-detail/novelDetailDirty";
 
-export type CreateMode = "ai" | "free" | "canvas" | "comic_workspace";
+export type CreateMode = "ai" | "free" | "video" | "canvas" | "comic_workspace";
 
 interface ProjectCreationDialogProps {
   open: boolean;
@@ -39,6 +54,13 @@ const CREATE_MODE_OPTIONS: Array<{
     labelKey: "novel.createModeFree",
     descriptionKey: "novel.createModeFreeDescription",
     icon: <Plus size={14} />,
+  },
+  {
+    id: "video",
+    packageId: "video",
+    labelKey: "novel.createModeVideo",
+    descriptionKey: "novel.createModeVideoDescription",
+    icon: <Film size={14} />,
   },
   {
     id: "canvas",
@@ -105,6 +127,97 @@ export const ProjectCreationDialog: React.FC<ProjectCreationDialogProps> = ({
       {creating && (
         <div className="mt-3 inline-flex items-center gap-2 text-xs text-book-text-muted">
           <LoadingSpinner size="sm" /> {t("novel.creating")}
+        </div>
+      )}
+    </Modal>
+  );
+};
+
+interface VideoProjectSourceDialogProps {
+  open: boolean;
+  projects: NovelProject[];
+  selectedProjectId: number | null;
+  loading: boolean;
+  error: string | null;
+  onClose: () => void;
+  onBack: () => void;
+  onRetry: () => void;
+  onSelectProject: (projectId: number | null) => void;
+  onContinue: () => void;
+}
+
+export const VideoProjectSourceDialog: React.FC<VideoProjectSourceDialogProps> = ({
+  open,
+  projects,
+  selectedProjectId,
+  loading,
+  error,
+  onClose,
+  onBack,
+  onRetry,
+  onSelectProject,
+  onContinue,
+}) => {
+  const { t } = useI18n();
+  const canContinue = selectedProjectId != null
+    && projects.some((project) => project.id === selectedProjectId)
+    && !loading
+    && error == null;
+
+  return (
+    <Modal
+      isOpen={open}
+      onClose={onClose}
+      title={t("novel.videoProjectSourceTitle")}
+      icon={<Film size={15} />}
+      subtitle={t("novel.videoProjectSourceDescription")}
+      maxWidthClassName="max-w-md"
+      bodyClassName="px-4 py-4"
+      footer={
+        <div className="flex w-full items-center justify-between gap-2">
+          <BookButton variant="secondary" onClick={onBack}>
+            {t("novel.videoProjectSourceBack")}
+          </BookButton>
+          <BookButton variant="primary" onClick={onContinue} disabled={!canContinue}>
+            {t("novel.projectListActions.nextStep")}
+          </BookButton>
+        </div>
+      }
+    >
+      {loading ? (
+        <div className="flex min-h-24 items-center justify-center text-small text-book-text-muted" role="status">
+          <LoadingSpinner size="sm" /> {t("novel.videoProjectSourceLoading")}
+        </div>
+      ) : error ? (
+        <div role="alert" className="flex flex-wrap items-center gap-2 text-small text-error">
+          <span className="min-w-0 flex-1">{error}</span>
+          <BookButton variant="secondary" size="sm" onClick={onRetry}>
+            <RefreshCw size={12} /> {t("common.retry")}
+          </BookButton>
+        </div>
+      ) : projects.length === 0 ? (
+        <p className="py-5 text-small text-book-text-muted">
+          {t("novel.videoProjectSourceEmpty")}
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <span className="text-small font-medium text-book-text-main">
+            {t("novel.videoProjectSourceSelect")}
+          </span>
+          <ThemedSelect
+            value={selectedProjectId ?? ""}
+            onChange={(value) => {
+              const projectId = Number(value);
+              onSelectProject(Number.isSafeInteger(projectId) && projectId > 0 ? projectId : null);
+            }}
+            className="pyqt-input min-w-0 w-full"
+            aria-label={t("novel.videoProjectSourceSelect")}
+          >
+            <option value="" disabled>{t("novel.videoProjectSourceSelect")}</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>{project.title}</option>
+            ))}
+          </ThemedSelect>
         </div>
       )}
     </Modal>

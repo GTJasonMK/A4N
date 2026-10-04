@@ -261,13 +261,23 @@ describe("Home and global Agent page audit", function () {
       assert.ok(await $('//*[@role="menuitem" and contains(normalize-space(.),"拒绝邀请")]').isDisplayed());
       return { pendingInvites: homeAgentFixtures.list_my_project_invites.length };
     } },
-    { id: "H06-create-options", task: "检查三种真实创建选项", open: async () => { await home(); await click("创建项目"); return dialog("新建项目"); }, check: async (scope) => {
-      const labels = ["AI 辅助创作", "自由创作", "独立画布项目"];
+    { id: "H06-create-options", task: "检查 Video 与 Canvas 独立创建入口", open: async () => { await home(); await click("创建项目"); return dialog("新建项目"); }, check: async (scope) => {
+      const labels = ["AI 辅助创作", "自由创作", "视频项目", "独立画布项目"];
       for (const label of labels) {
         const option = await scope.$('.//button[.//span[normalize-space(.)=' + literal(label) + ']]');
         assert.ok((await reach(option)).reached); assert.ok(await option.isEnabled());
       }
-      return { creationOptions: labels };
+      const videoOption = await scope.$('.//button[.//span[normalize-space(.)=' + literal("视频项目") + ']]');
+      await press(videoOption);
+      const sourceDialog = await dialog("选择视频来源项目");
+      const sourceProject = fixtures.projectRecords.find((project) => project.project_kind === "text");
+      assert.ok(sourceProject, "The fixture must expose a text project as a video source");
+      const sourceSelect = await sourceDialog.$('button[role="combobox"][aria-label="文本项目来源"]');
+      await sourceSelect.waitForDisplayed({ timeout });
+      await browser.waitUntil(async () => (await sourceSelect.getText()).trim() === sourceProject.title, { timeout });
+      const request = await browser.execute(() => window.__uiAudit.requests.findLast((item) => item.command === "list_projects").body);
+      assert.equal(request.projectKind, "text");
+      return { creationOptions: labels, videoSourceProject: sourceProject.title, sourceKind: request.projectKind };
     } },
     { id: "H07-project-import", task: "检查项目包选择与导入确认入口", open: async () => { await home(); await click("导入项目"); return dialog("导入项目"); }, check: async (scope) => {
       assert.ok(await (await button("选择文件", scope)).isEnabled());
