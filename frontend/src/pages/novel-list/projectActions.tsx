@@ -19,7 +19,7 @@ import type { MessageKey } from "../../i18n";
 import type { PackageId } from "../../api/generated/page";
 import { getProjectHomeEntryRoute, getProjectPrimaryRoute } from "../../utils/projectRouting";
 
-type DerivedProjectKind = Exclude<ProjectKind, "text">;
+type DerivedProjectKind = Exclude<ProjectKind, "text" | "canvas">;
 
 interface ProjectActionHandlers {
   onOpenDetails: (project: NovelProject) => void;

@@ -93,7 +93,7 @@ interface NovelListProps {
   isDark?: boolean;
 }
 
-type DerivedProjectKind = Exclude<ProjectKind, "text">;
+type DerivedProjectKind = Exclude<ProjectKind, "text" | "canvas">;
 
 export const NovelList: React.FC<NovelListProps> = () => {
   const { isVisible: isPackageVisible } = usePackagePreferences();
@@ -441,7 +441,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
     const label = kind === "comic"
       ? t("novel.comicProject")
       : kind === "video"
-        ? t("video.canvasProject")
+        ? t("novel.videoProject")
         : t("novel.galgameProject");
     if (project.project_kind !== "text") {
       addToast(tRef.current("novel.projectListActions.derivedSourceOnly", { label }), "error");
