@@ -52,6 +52,7 @@ import { explainMangaPipelineAiConfigError } from "./mangaPipelineErrors";
 import {
   chapterHeading,
   countStaleMangaPagePrompts,
+  mangaPageImageBlockReason,
   mangaStageLabel,
   mangaPageStageLabel,
   mangaStopAfterForStage,
@@ -394,6 +395,18 @@ export function MangaChapterDetailPanel({
       addToast(t("comic.chapter.generatingGenerate"), "error");
       return;
     }
+    const pagePrompt = pagePromptsRef.current.find(
+      (prompt) => prompt.page_number === pageNumber,
+    );
+    if (!pagePrompt) {
+      addToast(t("comic.prompt.notFound"), "error");
+      return;
+    }
+    const imageBlockReason = mangaPageImageBlockReason(pagePrompt, t);
+    if (imageBlockReason) {
+      addToast(imageBlockReason, "error");
+      return;
+    }
     if (!imageSize) {
       addToast(t("settingsForm.imageSizeUnavailable"), "error");
       return;
@@ -458,6 +471,18 @@ export function MangaChapterDetailPanel({
     }
     if (selectedChapterGenerating) {
       addToast(t("comic.chapter.generatingPreview"), "error");
+      return;
+    }
+    const pagePrompt = pagePromptsRef.current.find(
+      (prompt) => prompt.page_number === pageNumber,
+    );
+    if (!pagePrompt) {
+      addToast(t("comic.prompt.notFound"), "error");
+      return;
+    }
+    const imageBlockReason = mangaPageImageBlockReason(pagePrompt, t);
+    if (imageBlockReason) {
+      addToast(imageBlockReason, "error");
       return;
     }
     if (!imageSize) {

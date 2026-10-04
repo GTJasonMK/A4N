@@ -215,6 +215,8 @@ export const comic = {
     loading: "Loading full-page prompts…",
     empty: "No full-page comic prompts have been generated for this chapter.",
     missingBindings: "Bind reference images first: {items}",
+    imageStageRequired: "Page {page} cannot skip pipeline stages. Complete {stage} first, then generate the full-page image.",
+    imagePipelineRequired: "Page {page} must run page content, adaptation, storyboard, and full-page prompt in order before generating an image.",
     available: "Available",
     expired: "Expired",
     none: "None",

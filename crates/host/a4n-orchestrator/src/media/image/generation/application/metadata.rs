@@ -1,9 +1,9 @@
 fn ensure_manga_page_panels_match_current_source(
     page_prompt: &MangaPagePrompt,
     current_content: &str,
-) -> Result<(), AppError> {
+) -> Result<a4n_domain::manga::MangaPageGenerationLayoutV4, AppError> {
     let current_hash = source_content_sha256(current_content);
-    let layout = manga_page_generation_layout(
+    let layout = manga_page_image_generation_layout(
         page_prompt.id,
         page_prompt.page_number,
         page_prompt.layout.as_ref(),
@@ -21,7 +21,7 @@ fn ensure_manga_page_panels_match_current_source(
             page_prompt.id
         )));
     }
-    Ok(())
+    Ok(layout)
 }
 
 fn image_source_metadata(content: &str) -> Value {

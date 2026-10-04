@@ -2,8 +2,8 @@
 
 use a4n_api_contract::manga::MangaPagePromptSummary;
 use a4n_domain::manga::{
-    MangaPageGenerationLayoutV3, MangaPageGenerationLayoutV4, MangaPagePromptRecord,
-    MangaPortraitReference,
+    MangaPageGenerationLayoutV3, MangaPageGenerationLayoutV4, MangaPagePipelineStage,
+    MangaPagePromptRecord, MangaPortraitReference,
 };
 use a4n_domain::source_spans::{ChapterSourceContext, source_metadata};
 use serde_json::{Value, json};
@@ -97,6 +97,25 @@ pub fn manga_page_pipeline_layout(
     layout
         .validate(page_number)
         .map_err(|error| format!("漫画页面提示词 #{prompt_id} 的 v4 layout 无效: {error}"))?;
+    Ok(layout)
+}
+
+pub fn manga_page_image_generation_layout(
+    prompt_id: i64,
+    page_number: i32,
+    layout: Option<&Value>,
+) -> Result<MangaPageGenerationLayoutV4, String> {
+    let layout = manga_page_pipeline_layout(prompt_id, page_number, layout).map_err(|error| {
+        format!(
+            "漫画页面提示词 #{prompt_id} 不能直接生成图片：请先按页面内容、单页改编计划、单页分镜、整页提示词的顺序运行漫画流水线（{error}）"
+        )
+    })?;
+    if layout.pipeline.stage != MangaPagePipelineStage::Image {
+        return Err(format!(
+            "漫画页面提示词 #{prompt_id} 不能跳过阶段直接生成图片：当前阶段为 {}，请先按页面内容、单页改编计划、单页分镜、整页提示词的顺序完成前置阶段",
+            layout.pipeline.stage.key()
+        ));
+    }
     Ok(layout)
 }
 

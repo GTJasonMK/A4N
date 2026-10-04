@@ -215,6 +215,8 @@ export const comic = {
     loading: "加载整页提示词…",
     empty: "本章尚未生成整页漫画提示词。",
     missingBindings: "请先绑定参考图：{items}",
+    imageStageRequired: "第 {page} 页不能跳过前置阶段：请先完成{stage}，再生成整页图片。",
+    imagePipelineRequired: "第 {page} 页必须先按页面内容、单页改编计划、单页分镜、整页提示词的顺序运行漫画流水线，不能直接生成图片。",
     available: "可用",
     expired: "过期",
     none: "无",

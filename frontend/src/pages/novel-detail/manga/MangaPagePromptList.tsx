@@ -42,6 +42,7 @@ import {
   type MangaPagePrompt,
 } from "./mangaPagePromptModel";
 import {
+  mangaPageImageBlockReason,
   mangaPageStageLabel,
   type MangaPageWorkspaceStage,
 } from "./mangaTabUtils";
@@ -426,6 +427,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
     const generating = generatingPageNumber === page.pageNumber;
     const generated = page.prompt.generated_image_id != null;
     const missingBindings = missingReferenceBindingLabels(page);
+    const imageBlockReason = mangaPageImageBlockReason(page.prompt, t);
     if (generated && !page.sourceStale) return null;
     return (
       <BookButton
@@ -442,7 +444,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
         title={
           missingBindings.length > 0
             ? t("comic.prompt.missingBindings", { items: missingBindings.join(t("common.listSeparator")) })
-            : undefined
+            : imageBlockReason ?? undefined
         }
       >
         {generating ? (

@@ -134,3 +134,34 @@ export const mangaPageStageLabel = (
       return t("comic.pipelineStages.notStarted");
   }
 };
+
+export const mangaPageImageBlockReason = (
+  prompt: MangaPagePromptSummary,
+  t: MessageTranslator,
+): string | null => {
+  const requiredStage: MangaPagePipelineStage | null = !prompt.page_content
+    ? "content"
+    : !prompt.page_adaptation
+      ? "adaptation"
+      : !prompt.page_plan
+        ? "storyboard"
+        : !prompt.drawing_prompt
+          ? "drawing_prompt"
+          : null;
+  if (requiredStage) {
+    return t("comic.prompt.imageStageRequired", {
+      page: prompt.page_number,
+      stage: mangaPageStageLabel(requiredStage, t),
+    });
+  }
+  if (prompt.pipeline_stage == null) {
+    return t("comic.prompt.imagePipelineRequired", { page: prompt.page_number });
+  }
+  if (prompt.pipeline_stage !== "image") {
+    return t("comic.prompt.imageStageRequired", {
+      page: prompt.page_number,
+      stage: mangaPageStageLabel(prompt.pipeline_stage, t),
+    });
+  }
+  return null;
+};

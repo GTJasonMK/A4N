@@ -508,14 +508,8 @@ impl OrchestratorContext {
                     input.chapter_number, input.page_number
                 ))
             })?;
-        ensure_manga_page_panels_match_current_source(&page_prompt, &chapter.content)?;
+        let layout = ensure_manga_page_panels_match_current_source(&page_prompt, &chapter.content)?;
         let panel_id = format!("page{}", input.page_number);
-        let layout = manga_page_generation_layout(
-            page_prompt.id,
-            page_prompt.page_number,
-            page_prompt.layout.as_ref(),
-        )
-        .map_err(AppError::InvalidArgument)?;
         let reference_bindings = layout.reference_bindings;
         let reference_images = collect_bound_reference_images(host, &reference_bindings)?;
         let reference_image_count = reference_images.len();

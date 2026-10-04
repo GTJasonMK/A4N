@@ -19,7 +19,7 @@ use a4n_domain::{
 };
 use a4n_error::AppError;
 use a4n_image_contract::{ImageGenerationRequest, ImageReference};
-use a4n_manga_core::manga_page_generation_layout;
+use a4n_manga_core::manga_page_image_generation_layout;
 use serde_json::{Value, json};
 
 use crate::{
