@@ -1388,7 +1388,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         canEdit={canEditManga} stageRunning={selectedStatus?.can_cancel === true} onReload={authoring.reload} onDirtyChange={setAuthoringDirty}
         onBusyChange={setAuthoringBusy}
         onNext={() => setWorkspaceStage("page_plan")}
-      /> : workspaceStage === "materials" ? <BaseMaterialsWorkspace projectId={characterAssetProjectId} textProjectId={projectId} canEdit={canEditManga} showNext={!standalone}
+      /> : workspaceStage === "materials" ? <BaseMaterialsWorkspace projectId={characterAssetProjectId} textProjectId={projectId} canEdit={canEditManga} showNext={!standalone} standaloneComic={standalone}
         onChanged={loadProjectImages} onTextDirtyChange={setTextMaterialsDirty} selectedTextSource={standalone ? selectedTextSource : null} onSelectTextSource={standalone ? (selection) => void selectMangaTextSource(selection) : undefined} onNext={async () => { if (await reloadMangaAssets()) setWorkspaceStage("adaptation"); }} /> : <MangaChapterDetailPanel
         key={`${projectId}:${selectedChapter?.id}:${workspaceStage}:${discardVersion}`}
         stageMode={activePageStage}
@@ -1421,7 +1421,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         canEditManga={canEditManga}
         onPreviewPipeline={(mode, stopAfter, pageNumber) => void handlePreviewPipeline(mode, stopAfter, pageNumber)}
         onRunPipeline={(mode, stopAfter, pageNumber) => void handleRunPipeline(mode, stopAfter, true, pageNumber)}
-        onGenerateMissingPortraits={() => void handleGenerateMissingPortraits()}
+        {...(!standalone ? { onGenerateMissingPortraits: () => void handleGenerateMissingPortraits() } : {})}
         onCancelPipeline={() => {
           if (!ensureCanEditManga()) return;
           const chapter = selectedChapter;

@@ -100,7 +100,7 @@ interface MangaChapterDetailPanelProps {
     stopAfter: MangaPipelineStopAfter | null,
     pageNumber: number | null,
   ) => void;
-  onGenerateMissingPortraits: () => void;
+  onGenerateMissingPortraits?: () => void;
   onCancelPipeline: () => void;
   onDeleteManga: () => void;
   onPagePromptsChanged: () => Promise<boolean>;
@@ -367,7 +367,7 @@ export function MangaChapterDetailPanel({
           : t("comic.chapter.staleCheckpointNotice"),
       };
     }
-    if (missingPortraitCount > 0) {
+    if (missingPortraitCount > 0 && onGenerateMissingPortraits) {
       return {
         tone: "warning" as NoticeTone,
         text: t("comic.chapter.missingPortraitNotice", {
@@ -923,7 +923,7 @@ export function MangaChapterDetailPanel({
           detailBusy ||
           acting === "generate-missing-portraits" ||
           characterAssetsLoading,
-        onClick: onGenerateMissingPortraits,
+        onClick: () => onGenerateMissingPortraits?.(),
       });
     }
     if (

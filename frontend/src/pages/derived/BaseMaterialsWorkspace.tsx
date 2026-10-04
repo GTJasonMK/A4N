@@ -9,14 +9,16 @@ import { ProjectTextMaterialsPanel, type ProjectTextSourceSelection } from "./Pr
 
 const CharacterPortraitsPanel = lazy(() => import("../novel-detail/characters/CharacterPortraitsPanel").then((module) => ({ default: module.CharacterPortraitsPanel })));
 const VideoMaterialWorkspace = lazy(() => import("../novel-detail/video/VideoMaterialWorkspace").then((module) => ({ default: module.VideoMaterialWorkspace })));
+const ImagesTab = lazy(() => import("../novel-detail/ImagesTab").then((module) => ({ default: module.ImagesTab })));
 
-export function BaseMaterialsWorkspace({ projectId, textProjectId, canEdit, onChanged, onNext, showNext = true, onTextDirtyChange, onSelectTextSource, selectedTextSource }: {
+export function BaseMaterialsWorkspace({ projectId, textProjectId, canEdit, onChanged, onNext, showNext = true, standaloneComic = false, onTextDirtyChange, onSelectTextSource, selectedTextSource }: {
   projectId: number;
   textProjectId?: number;
   canEdit: boolean;
   onChanged: () => Promise<boolean | void> | boolean | void;
   onNext: () => void;
   showNext?: boolean;
+  standaloneComic?: boolean;
   onTextDirtyChange?: (dirty: boolean) => void;
   onSelectTextSource?: (selection: ProjectTextSourceSelection) => void;
   selectedTextSource?: ProjectTextSourceSelection | null;
@@ -24,7 +26,19 @@ export function BaseMaterialsWorkspace({ projectId, textProjectId, canEdit, onCh
   const { t } = useI18n();
   const addToast = useToast((state) => state.addToast);
   const { runProgressTask } = useProgressTask();
-  const [kind, setKind] = useState<"characters" | "scenes_objects" | "text">("characters");
+  const [kind, setKind] = useState<"characters" | "scenes_objects" | "images" | "text">(
+    standaloneComic ? "images" : "characters",
+  );
+  const materialOptions = standaloneComic
+    ? [
+        { id: "images" as const, label: t("common.mediaAuthoring.images") },
+        { id: "text" as const, label: t("novel.textMaterialsTitle") },
+      ]
+    : [
+        { id: "characters" as const, label: t("common.mediaAuthoring.characterMaterials") },
+        { id: "scenes_objects" as const, label: t("common.mediaAuthoring.sceneObjectMaterials") },
+        { id: "text" as const, label: t("novel.textMaterialsTitle") },
+      ];
   const [nexting, setNexting] = useState(false);
   const handleNext = async () => {
     if (nexting) return;
@@ -46,15 +60,12 @@ export function BaseMaterialsWorkspace({ projectId, textProjectId, canEdit, onCh
         {t("common.mediaAuthoring.nextStage")}
       </BookButton> : null}
     </header>
-    <SegmentedControl ariaLabel={t("common.mediaAuthoring.materials")} value={kind} onChange={setKind} options={[
-      { id: "characters", label: t("common.mediaAuthoring.characterMaterials") },
-      { id: "scenes_objects", label: t("common.mediaAuthoring.sceneObjectMaterials") },
-      { id: "text", label: t("novel.textMaterialsTitle") },
-    ]} />
+    <SegmentedControl ariaLabel={t("common.mediaAuthoring.materials")} value={kind} onChange={setKind} options={materialOptions} />
     <fieldset disabled={!canEdit} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto custom-scrollbar">
       <legend className="sr-only">{t("common.mediaAuthoring.materials")}</legend>
       <Suspense fallback={<LoadingSpinner size="sm" />}>
-        {kind === "characters" ? <CharacterPortraitsPanel projectId={projectId} />
+        {kind === "images" ? <ImagesTab projectId={projectId} canEditImages={canEdit} />
+          : kind === "characters" ? <CharacterPortraitsPanel projectId={projectId} />
           : kind === "scenes_objects"
             ? <VideoMaterialWorkspace projectId={projectId} onToast={addToast} runProgressTask={runProgressTask} onRefreshVideoData={onChanged} />
             : <ProjectTextMaterialsPanel
