@@ -24,6 +24,7 @@ IGNORED_DEPLOY_PATHS = [
   %r{\Afrontend/(?:node_modules|dist|\.vite|\.tauri)/},
 ].freeze
 FINGERPRINT_PATHS = [
+  %r{\Arust-toolchain\.toml\z},
   %r{\ACargo\.toml\z},
   %r{\ACargo\.lock\z},
   %r{\Acrates/},
@@ -217,7 +218,7 @@ def artifact_inventory(root)
   artifacts = Hash.new { |hash, key| hash[key] = [] }
   roles = {}
   tool_binaries = tools.map { |entry| entry.fetch("binary") }.to_h { |binary| [binary, true] }
-  launchers = (workers + services).map { |entry| entry.fetch("launcher") }.uniq
+  launchers = (workers + services).map { |entry| entry.fetch("binary") }.uniq
   missing_launchers = launchers.reject { |launcher| tool_binaries[launcher] }
   fail_with("component catalog references unreleased launchers: #{missing_launchers.join(", ")}") unless missing_launchers.empty?
   tools.each do |entry|
@@ -226,7 +227,13 @@ def artifact_inventory(root)
 
     binary = entry.fetch("binary")
     artifacts[package] << "bin/#{binary}"
-    roles[package] = package == "a4n-component-host" ? "sidecar" : "tool"
+    roles[package] = if workers.any? { |entry| entry.fetch("binary") == binary }
+                      "stateful_worker"
+                    elsif services.any? { |entry| entry.fetch("binary") == binary }
+                      "capability_sidecar"
+                    else
+                      "tool"
+                    end
   end
   artifacts["a4n-server"] << "bin/a4n-server"
   roles["a4n-server"] = "host"
@@ -290,12 +297,12 @@ def plan(options)
     full_reason = "unclassified deployment paths: #{unknown.join(", ")}"
   elsif relevant_changed.any? { |path| path == "Cargo.toml" || path == "Cargo.lock" }
     full_reason = "workspace Cargo metadata changed"
+  elsif relevant_changed.include?("rust-toolchain.toml")
+    full_reason = "Rust toolchain changed"
   elsif changed_packages.any? { |name| FULL_CHANGE_PACKAGES.include?(name) || FULL_CHANGE_CRATES.include?(name) }
     full_reason = "a full-restart package or protocol changed"
   elsif relevant_changed.any? { |path| path.start_with?("prompts/") || path.start_with?("tools/onnxruntime/") }
     full_reason = "runtime prompt or ONNX input changed"
-  elsif affected.any? { |name| roles[name] == "sidecar" }
-    full_reason = "shared component launcher changed"
   end
 
   if full_reason
@@ -316,7 +323,7 @@ def plan(options)
     {
       "package" => package,
       "role" => roles.fetch(package),
-      "restart" => %w[stateful_worker host_child].include?(roles.fetch(package)) ? "component" : "full",
+      "restart" => %w[stateful_worker capability_sidecar host_child].include?(roles.fetch(package)) ? "component" : "full",
       "paths" => artifacts.fetch(package),
       "fingerprint" => component_fingerprints[package],
     }
@@ -390,6 +397,20 @@ def delta_manifest(options)
   files = plan.fetch("artifact_paths").map do |path|
     { "path" => path, "kind" => path == "static" ? "directory" : "file" }
   end
+  release_manifest = JSON.parse(File.read(manifest))
+  runtime_entries = release_manifest.fetch("runtime_files")
+  shared_paths = if plan.fetch("affected_packages", []).include?("a4n-db")
+                   database_libraries = release_manifest.fetch("shared_libraries", [])
+                     .select { |name| name.match?(/\A(?:lib)?a4n_db\.(?:so|dylib|dll)\z/) }
+                   fail_with("release manifest is missing the shared database library") if database_libraries.empty?
+                   runtime_entries
+                     .select { |entry| database_libraries.include?(entry.fetch("name")) }
+                     .map { |entry| entry.fetch("path") }
+                 else
+                   []
+                 end
+  files.concat(shared_paths.map { |path| { "path" => path, "kind" => "file" } })
+  files.uniq! { |entry| entry.fetch("path") }
   files.concat(plan.fetch("payloads").filter_map do |payload|
     next unless payload == "static"
 

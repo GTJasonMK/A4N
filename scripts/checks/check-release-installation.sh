@@ -68,6 +68,7 @@ trap cleanup EXIT
 
 catalog_rows="$(ruby "$MANIFEST_TOOL" service-rows)" || fail "unable to load service catalog"
 selected_binary=""
+unselected_binary=""
 unselected_service_names=()
 while IFS=$'\t' read -r service binary _rest; do
     [[ -n "$service" ]] || continue
@@ -75,11 +76,12 @@ while IFS=$'\t' read -r service binary _rest; do
         selected_binary="$binary"
     else
         unselected_service_names+=("$service")
+        [[ -n "$unselected_binary" ]] && : || unselected_binary="$binary"
     fi
 done <<<"$catalog_rows"
 [[ -n "$selected_binary" ]] || fail "service catalog has no selected service: $SELECTED_SERVICE"
 [[ "${#unselected_service_names[@]}" -gt 0 ]] || fail "service catalog has no unselected service"
-[[ "$selected_binary" == "a4n-component-host" ]] || fail "service catalog does not use the shared component host"
+[[ -n "$selected_binary" && "$selected_binary" != "a4n-component-host" ]] || fail "service catalog does not use an independent service binary"
 unselected_service="${unselected_service_names[0]}"
 
 tool_rows="$(ruby "$MANIFEST_TOOL" tool-rows)" || fail "unable to load release tool catalog"
@@ -159,6 +161,8 @@ write_fixture_package() {
     done
 
     printf 'fixture-runtime:%s\n' "$fixture_id" >"$package_root/bin/services/libonnxruntime.so.1"
+    printf 'fixture-rust-std:%s\n' "$fixture_id" >"$package_root/bin/services/libstd-fixture.so"
+    printf 'fixture-database-runtime:%s\n' "$fixture_id" >"$package_root/bin/services/liba4n_db.so"
     printf 'fixture-default-config:%s\n' "$fixture_id" >"$package_root/data/config.toml"
 
     ruby "$MANIFEST_TOOL" generate \
@@ -166,6 +170,7 @@ write_fixture_package() {
         --target "$TARGET_PLATFORM" \
         --package "$PACKAGE_NAME" \
         --services "$SELECTED_SERVICE" \
+        --runtime-files libstd-fixture.so,liba4n_db.so \
         --output "$package_root/release-manifest.json"
 
     write_fixture_start_script "$package_root"
@@ -255,7 +260,8 @@ verify_selected_layout() {
       path, selected = ARGV
       data = JSON.parse(File.read(path))
       services = data.fetch("binaries").map { |entry| entry.fetch("service") }.sort
-      expected = ["host", selected].sort
+      expected = ["host", selected] + data.fetch("workers")
+      expected = expected.sort
       abort "manifest selected services mismatch" unless services == expected && data.fetch("services") == [selected]
     ' "$manifest" "$SELECTED_SERVICE" || return 1
     [[ -x "$package_root/start.sh" ]] || {
@@ -267,16 +273,9 @@ verify_selected_layout() {
         return 1
     }
     [[ -x "$package_root/bin/$selected_binary" ]] || {
-        printf 'fixture is missing shared component host: %s\n' "$selected_binary" >&2
+        printf 'fixture is missing independent service binary: %s\n' "$selected_binary" >&2
         return 1
     }
-    local unselected_service
-    for unselected_service in "${unselected_service_names[@]}"; do
-        [[ ! -e "$package_root/bin/services/$unselected_service" ]] || {
-            printf 'legacy per-service binary is present in selected install: %s\n' "$unselected_service" >&2
-            return 1
-        }
-    done
 }
 
 verify_real_layout() {
@@ -664,8 +663,8 @@ forged_source_parent="$tmp_dir/forged-source"
 forged_source="$forged_source_parent/a4n-tauri-fixture"
 mkdir -p "$forged_source_parent"
 cp -a "$package_root" "$forged_source"
-printf 'forged-unselected-sidecar\n' >"$forged_source/bin/services/$unselected_service"
-chmod +x "$forged_source/bin/services/$unselected_service"
+printf 'forged-unselected-sidecar\n' >"$forged_source/bin/$unselected_binary"
+chmod +x "$forged_source/bin/$unselected_binary"
 forged_archive="$tmp_dir/a4n-tauri-forged-unselected.tar.gz"
 archive_package "$forged_source" "$forged_archive"
 printf 'checking that an unselected sidecar cannot masquerade as installed\n'

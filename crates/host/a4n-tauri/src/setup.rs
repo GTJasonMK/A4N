@@ -76,10 +76,26 @@ pub(crate) fn configure_bundled_sidecar_resources(
     // SAFETY: app::run calls this before logging, Tauri, or worker threads start.
     unsafe {
         std::env::set_var(loader_variable, value);
+        prepend_loader_path(loader_variable, &resources.join("bin"))?;
         if configured.is_none() {
             std::env::set_var("A4N_ONNXRUNTIME_ROOT", library_dir);
         }
     }
+    Ok(())
+}
+
+fn prepend_loader_path(variable: &str, directory: &std::path::Path) -> Result<(), AppError> {
+    if !directory.is_dir() {
+        return Ok(());
+    }
+    let mut paths = vec![directory.to_path_buf()];
+    if let Some(current) = std::env::var_os(variable) {
+        paths.extend(std::env::split_paths(&current));
+    }
+    let value = std::env::join_paths(paths)
+        .map_err(|error| AppError::ConfigError(format!("构造 {variable} 失败: {error}")))?;
+    // SAFETY: called before Tauri starts its runtime threads.
+    unsafe { std::env::set_var(variable, value) };
     Ok(())
 }
 

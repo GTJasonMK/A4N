@@ -7,9 +7,9 @@ source "$SCRIPT_DIR/../lib/common.sh"
 cd "$PROJECT_ROOT"
 
 sidecar_binaries="$(sidecar_catalog_binaries)"
-component_host_binary="${sidecar_binaries%%$'\n'*}"
-[[ "$component_host_binary" == "a4n-component-host" ]] || {
-    echo "service catalog must use the shared component host" >&2
+first_sidecar_binary="${sidecar_binaries%%$'\n'*}"
+[[ -n "$first_sidecar_binary" && "$first_sidecar_binary" != "a4n-component-host" ]] || {
+    echo "service catalog must use independent service binaries" >&2
     exit 1
 }
 tool_binaries="$(release_tool_binaries)"
@@ -37,12 +37,15 @@ printf 'host-binary\n' > "$tmp_dir/bin/a4n-tauri"
 while IFS= read -r tool; do
     printf '%s\n' "$tool" > "$tmp_dir/bin/$tool"
 done <<<"$tool_binaries"
+printf 'shared-database-runtime\n' > "$tmp_dir/bin/services/liba4n_db.so"
+printf 'rust-std-runtime\n' > "$tmp_dir/bin/services/libstd-d1237ef7159db0a2.so"
 printf 'onnx-runtime\n' > "$tmp_dir/bin/services/libonnxruntime.so.1"
 
 ruby scripts/release_manifest.rb generate \
     --package-root "$tmp_dir" \
     --target linux-x86_64 \
     --package a4n-tauri \
+    --runtime-files libstd-d1237ef7159db0a2.so,liba4n_db.so \
     --output "$tmp_dir/release-manifest.json"
 ruby scripts/release_manifest.rb verify \
     --package-root "$tmp_dir" \
@@ -52,6 +55,11 @@ worker_count="$(ruby -rjson -e 'puts JSON.parse(File.read(ARGV.fetch(0))).fetch(
     echo "release manifest does not declare all 30 worker roles" >&2
     exit 1
 }
+ruby -rjson -e '
+  libraries = JSON.parse(File.read(ARGV.fetch(0))).fetch("shared_libraries")
+  expected = %w[liba4n_db.so libstd-d1237ef7159db0a2.so]
+  abort "release manifest does not declare the shared runtime set" unless libraries.sort == expected.sort
+' "$tmp_dir/release-manifest.json"
 (cd "$tmp_dir" && sha256sum -c release-manifest.sha256 >/dev/null)
 rg -q '^[0-9a-fA-F]{64}  release-manifest\.json$' "$tmp_dir/release-manifest.sha256"
 
@@ -69,12 +77,12 @@ ruby scripts/release_manifest.rb verify \
     --manifest "$server_tmp/release-manifest.json"
 (cd "$server_tmp" && sha256sum -c release-manifest.sha256 >/dev/null)
 
-printf 'tampered\n' >> "$tmp_dir/bin/$component_host_binary"
+printf 'tampered\n' >> "$tmp_dir/bin/$export_sidecar_binary"
 if (cd "$tmp_dir" && sha256sum -c release-manifest.sha256 >/dev/null 2>&1); then
-    echo "tampered shared component host unexpectedly passed checksum verification" >&2
+    echo "tampered independent service unexpectedly passed checksum verification" >&2
     exit 1
 fi
-printf '%s\n' "$component_host_binary" > "$tmp_dir/bin/$component_host_binary"
+printf '%s\n' "$export_sidecar_binary" > "$tmp_dir/bin/$export_sidecar_binary"
 
 ruby scripts/release_manifest.rb generate \
     --package-root "$tmp_dir" \
@@ -85,20 +93,21 @@ ruby scripts/release_manifest.rb generate \
 ruby -rjson -e '
   data = JSON.parse(File.read(ARGV.fetch(0)))
   abort "selected service manifest includes unselected roles" unless data.fetch("services") == ["export"]
-  abort "selected service manifest is missing shared launcher entry" unless data.fetch("binaries").map { |entry| entry.fetch("service") }.sort == ["export", "host"]
+  expected = ["export", "host"] + data.fetch("workers")
+  abort "selected service manifest is missing independent process entries" unless data.fetch("binaries").map { |entry| entry.fetch("service") }.sort == expected.sort
 ' "$tmp_dir/release-manifest-export.json"
 ruby scripts/release_manifest.rb verify \
     --package-root "$tmp_dir" \
     --manifest "$tmp_dir/release-manifest-export.json"
 
-mv "$tmp_dir/bin/$component_host_binary" "$tmp_dir/bin/$component_host_binary.missing"
+mv "$tmp_dir/bin/$export_sidecar_binary" "$tmp_dir/bin/$export_sidecar_binary.missing"
 if ruby scripts/release_manifest.rb verify \
     --package-root "$tmp_dir" \
     --manifest "$tmp_dir/release-manifest-export.json" >/dev/null 2>&1; then
     echo "selected service missing unexpectedly passed manifest verification" >&2
     exit 1
 fi
-mv "$tmp_dir/bin/$component_host_binary.missing" "$tmp_dir/bin/$component_host_binary"
+mv "$tmp_dir/bin/$export_sidecar_binary.missing" "$tmp_dir/bin/$export_sidecar_binary"
 
 printf 'host-binary\n' > "$tmp_dir/bin/a4n-tauri.exe"
 while IFS= read -r tool; do
@@ -122,6 +131,8 @@ while IFS= read -r tool; do
     printf '%s-signed\n' "$tool" > "$tauri_app/Contents/MacOS/$tool"
 done <<<"$tool_binaries"
 printf 'signed-runtime\n' > "$tauri_app/Contents/Resources/libonnxruntime.dylib"
+printf 'signed-rust-std\n' > "$tauri_app/Contents/Resources/libstd-fixture.dylib"
+printf 'signed-database-runtime\n' > "$tauri_app/Contents/Resources/liba4n_db.dylib"
 tauri_metadata="$tmp_dir/macos-metadata"
 mkdir -p "$tauri_metadata"
 ruby scripts/release_manifest.rb generate \
@@ -133,7 +144,12 @@ ruby scripts/release_manifest.rb generate \
 ruby scripts/release_manifest.rb verify \
     --package-root "$tauri_package_root" \
     --manifest "$tauri_metadata/release-manifest-tauri.json"
-printf 'tampered\n' >> "$tauri_app/Contents/MacOS/$component_host_binary"
+ruby -rjson -e '
+  libraries = JSON.parse(File.read(ARGV.fetch(0))).fetch("shared_libraries")
+  expected = %w[liba4n_db.dylib libstd-fixture.dylib]
+  abort "Tauri manifest omits shared component runtimes" unless libraries.sort == expected.sort
+' "$tauri_metadata/release-manifest-tauri.json"
+printf 'tampered\n' >> "$tauri_app/Contents/MacOS/$export_sidecar_binary"
 if ruby scripts/release_manifest.rb verify --package-root "$tauri_package_root" --manifest "$tauri_metadata/release-manifest-tauri.json" >/dev/null 2>&1; then
     echo "tampered Tauri sidecar unexpectedly passed manifest verification" >&2
     exit 1
@@ -186,16 +202,16 @@ if ruby scripts/release_manifest.rb verify --package-root "$tmp_dir" --manifest 
 fi
 printf '%s\n' "$first_tool_binary" > "$tmp_dir/bin/$first_tool_binary"
 
-printf 'tampered\n' >> "$tmp_dir/bin/services/libonnxruntime.so.1"
+printf 'tampered\n' >> "$tmp_dir/bin/services/liba4n_db.so"
 if ruby scripts/release_manifest.rb verify --package-root "$tmp_dir" --manifest "$tmp_dir/release-manifest.json" >/dev/null 2>&1; then
-    echo "tampered ONNX Runtime unexpectedly passed manifest verification" >&2
+    echo "tampered shared runtime unexpectedly passed manifest verification" >&2
     exit 1
 fi
-printf 'onnx-runtime\n' > "$tmp_dir/bin/services/libonnxruntime.so.1"
+printf 'shared-database-runtime\n' > "$tmp_dir/bin/services/liba4n_db.so"
 
-printf 'tampered\n' >> "$tmp_dir/bin/$component_host_binary"
+printf 'tampered\n' >> "$tmp_dir/bin/$export_sidecar_binary"
 if ruby scripts/release_manifest.rb verify --package-root "$tmp_dir" --manifest "$tmp_dir/release-manifest.json" >/dev/null 2>&1; then
-    echo "tampered shared launcher unexpectedly passed manifest verification" >&2
+    echo "tampered independent service unexpectedly passed manifest verification" >&2
     exit 1
 fi
 

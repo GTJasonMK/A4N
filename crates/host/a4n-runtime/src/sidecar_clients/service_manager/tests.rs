@@ -141,6 +141,7 @@ fn write_release_manifest(services: &[&str]) -> (tempfile::TempDir, PathBuf) {
         binaries: Vec::new(),
         tools: Vec::new(),
         runtime_files: Vec::new(),
+        shared_libraries: Vec::new(),
     };
     let contents = serde_json::to_vec(&manifest).expect("serialize release manifest");
     std::fs::write(&path, contents).expect("write release manifest");

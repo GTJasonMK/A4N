@@ -26,7 +26,6 @@ FRONTEND_DIR="$PROJECT_ROOT/frontend"
 PACKAGE_NAME="a4n-tauri"
 VERSION=$(grep '^version' "$PROJECT_ROOT/crates/host/a4n-tauri/Cargo.toml" | head -1 | sed 's/.*"\(.*\)"/\1/')
 TOOL_SPECS=()
-COMPONENT_SERVICE_FEATURES=()
 SELECTED_SERVICES=()
 SKIP_BUILD=false
 DRY_RUN=false
@@ -64,7 +63,6 @@ select_sidecar_inventory() {
         $found_service || die "--services 包含未知 service: $service"
         [[ " ${selected_services[*]} " != *" $service "* ]] || die "--services 包含重复 service: $service"
         selected_services+=("$service")
-        COMPONENT_SERVICE_FEATURES+=("service_${service//-/_}")
     done
     SELECTED_SERVICES=("${selected_services[@]}")
 }
@@ -133,6 +131,15 @@ if [[ "$TARGET_PLATFORM" == *windows* ]]; then
     BINARY_EXT=".exe"
 fi
 
+RUST_TARGET_TRIPLE=""
+case "$TARGET_PLATFORM" in
+    linux-x86_64) RUST_TARGET_TRIPLE="x86_64-unknown-linux-gnu" ;;
+    linux-aarch64) RUST_TARGET_TRIPLE="aarch64-unknown-linux-gnu" ;;
+    macos-x86_64) RUST_TARGET_TRIPLE="x86_64-apple-darwin" ;;
+    macos-aarch64) RUST_TARGET_TRIPLE="aarch64-apple-darwin" ;;
+    windows-x86_64) RUST_TARGET_TRIPLE="x86_64-pc-windows-msvc" ;;
+esac
+
 # 输出目录
 DEPLOY_DIR="$PROJECT_ROOT/deploy"
 RELEASE_BINARY="$CARGO_TARGET_DIR/release/${PACKAGE_NAME}${BINARY_EXT}"
@@ -155,6 +162,38 @@ onnxruntime_release_name() {
 
 onnxruntime_release_source() {
     printf '%s/lib/%s\n' "$A4N_ONNXRUNTIME_ROOT" "$(onnxruntime_release_name)"
+}
+
+copy_shared_rust_runtime() {
+    local output_dir="$PACKAGE_DIR/bin/services" source pattern rust_std_dir db_library_name
+    if [[ -n "$RUST_TARGET_TRIPLE" ]]; then
+        rust_std_dir="$(rustc --target "$RUST_TARGET_TRIPLE" --print target-libdir 2>/dev/null || true)"
+    else
+        rust_std_dir="$(rustc --print target-libdir 2>/dev/null || true)"
+    fi
+    case "$TARGET_PLATFORM" in
+        *windows*)
+            db_library_name="a4n_db.dll"
+            for source in "$rust_std_dir/std-"*.dll "$rust_std_dir/libstd-"*.dll; do
+                [[ -f "$source" ]] || continue
+                cp -L "$source" "$output_dir/$(basename "$source")"
+            done
+            ;;
+        *darwin*|macos-*)
+            db_library_name="liba4n_db.dylib"
+            for source in "$rust_std_dir/libstd-"*.dylib; do
+                [[ -f "$source" ]] || continue
+                cp -L "$source" "$output_dir/$(basename "$source")"
+            done
+            ;;
+        *)
+            db_library_name="liba4n_db.so"
+            cp -L "$rust_std_dir"/libstd-*.so "$output_dir/"
+            ;;
+    esac
+    source="$CARGO_TARGET_DIR/release/deps/$db_library_name"
+    [[ -f "$source" ]] || die "未找到共享数据库运行库: $source"
+    cp -L "$source" "$output_dir/$db_library_name"
 }
 
 echo -e "${BOLD}${CYAN}╔══════════════════════════════════╗${NC}"
@@ -222,21 +261,33 @@ do_build() {
     # 构建后端
     echo -e "${CYAN}━━━ 构建 Release ━━━${NC}"
     cd "$PROJECT_ROOT"
+    local base_rustflags="${RUSTFLAGS:-}" is_component component_package
+    local -a component_packages=()
+    while IFS= read -r component_package; do
+        [[ -n "$component_package" ]] && component_packages+=("$component_package")
+    done < <(runtime_component_packages)
+    export RUSTFLAGS="$base_rustflags"
     cargo build --release -p "$PACKAGE_NAME" 2>&1
-    local component_host_features
-    if [[ ${#COMPONENT_SERVICE_FEATURES[@]} -gt 0 ]]; then
-        component_host_features="stateful-workers,$(IFS=,; printf '%s' "${COMPONENT_SERVICE_FEATURES[*]}")"
-        echo -e "${CYAN}→ 构建共享组件宿主（选定 services）${NC}"
-        cargo build --release --no-default-features --features "$component_host_features" -p a4n-component-host 2>&1
-    else
-        echo -e "${CYAN}→ 构建共享组件宿主（全部角色）${NC}"
-        cargo build --release -p a4n-component-host 2>&1
-    fi
     for spec in "${TOOL_SPECS[@]}"; do
         local package="${spec%%:*}"
-        [[ "$package" == "a4n-component-host" ]] && continue
+        is_component=false
+        for component_package in "${component_packages[@]}"; do
+            [[ "$package" == "$component_package" ]] && is_component=true
+        done
+        $is_component && continue
         echo -e "${CYAN}→ 构建工具: ${package}${NC}"
         cargo build --release -p "$package" 2>&1
+    done
+    export RUSTFLAGS="$(runtime_component_rustflags "$base_rustflags" "$TARGET_PLATFORM" portable)"
+    for spec in "${TOOL_SPECS[@]}"; do
+        local package="${spec%%:*}"
+        is_component=false
+        for component_package in "${component_packages[@]}"; do
+            [[ "$package" == "$component_package" ]] && is_component=true
+        done
+        $is_component || continue
+        echo -e "${CYAN}→ 构建独立组件: ${package}${NC}"
+        cargo build --release --config 'profile.release.lto="off"' -p "$package" 2>&1
     done
     echo ""
 
@@ -284,6 +335,23 @@ prepare_package() {
     [[ -r "$runtime_source" ]] || die "缺少 ONNX Runtime 发布文件: $runtime_source"
     cp -L "$runtime_source" "$PACKAGE_DIR/bin/services/$runtime_name"
     echo -e "  ${GREEN}✓${NC} runtime: bin/services/${runtime_name}"
+    copy_shared_rust_runtime
+    local db_library_name pattern
+    local -a std_patterns=()
+    case "$TARGET_PLATFORM" in
+        *windows*) db_library_name="a4n_db.dll"; std_patterns=('std-*.dll' 'libstd-*.dll') ;;
+        *darwin*|macos-*) db_library_name="liba4n_db.dylib"; std_patterns=('libstd-*.dylib') ;;
+        *) db_library_name="liba4n_db.so"; std_patterns=('libstd-*.so') ;;
+    esac
+    local std_runtime=""
+    for pattern in "${std_patterns[@]}"; do
+        for source in "$PACKAGE_DIR/bin/services"/$pattern; do
+            [[ -f "$source" ]] || continue
+            std_runtime="$source"
+            break 2
+        done
+    done
+    [[ -n "$std_runtime" ]] || die "包中缺少 Rust 共享标准库: ${std_patterns[*]}"
 
     local manifest_args=(
         generate
@@ -292,6 +360,10 @@ prepare_package() {
         --package "$PACKAGE_NAME"
         --output "$PACKAGE_DIR/release-manifest.json"
     )
+    local -a runtime_names=("$(basename "$std_runtime")" "$db_library_name")
+    local runtime_files
+    runtime_files="$(IFS=,; printf '%s' "${runtime_names[*]}")"
+    manifest_args+=(--runtime-files "$runtime_files")
     if [[ -n "$SERVICES_FILTER" ]]; then
         manifest_args+=(--services "$SERVICES_FILTER")
     fi
@@ -562,8 +634,8 @@ A4N - AI 辅助小说创作工具
   Windows:      双击 start.bat
 
 默认运行模式:
-  启动脚本启用 managed sidecars，由桌面 Host 使用 bin/a4n-component-host
-  为每个 service 启动独立进程。bin/services/ 保存 ONNX Runtime。
+  启动脚本启用 managed sidecars，由桌面 Host 使用 bin/ 下各自的独立组件二进制
+  为每个 service 启动独立进程。bin/services/ 保存共享 Rust 运行库和 ONNX Runtime。
 
 首次启动前必须在 data/config.toml 填写 database_url，并配置 JWT secret：
   database_url = "postgres://user:password@host:5432/database"
@@ -571,8 +643,7 @@ A4N - AI 辅助小说创作工具
   jwt_secret = "replace-with-a-long-random-secret"
 
 目录结构:
-  bin/         桌面 Host 与 release tool catalog 声明的工具
-  bin/a4n-component-host worker/service launcher，bin/services/ 保存 ONNX Runtime
+  bin/         worker/service 独立二进制，bin/services/ 保存共享运行库和 ONNX Runtime
   static/      前端页面（React SPA）
   prompts/     提示词模板
   data/        数据目录、配置、数据库、日志、缓存、生成素材
@@ -630,12 +701,9 @@ if $DRY_RUN; then
     echo "将打包以下内容:"
     echo "  - bin/${PACKAGE_NAME}"
     for spec in "${TOOL_SPECS[@]}"; do
-        if [[ "${spec#*:}" != "a4n-component-host" ]]; then
-            echo "  - bin/${spec#*:}${BINARY_EXT}"
-        fi
+        echo "  - bin/${spec#*:}${BINARY_EXT}"
     done
-    echo "  - bin/a4n-component-host (worker/service shared launcher)"
-    echo "  - bin/services/ (ONNX Runtime)"
+    echo "  - bin/services/ (共享 Rust 运行库和 ONNX Runtime)"
     echo "  - start.sh / start.bat / Windows start.ps1 (默认 sidecar profile，启动包内 sidecar)"
     if [[ -d "$FRONTEND_DIST" ]]; then
         static_count=0

@@ -57,10 +57,13 @@ mod tests {
             !entry.capability_version.trim().is_empty()
                 && entry.default_addr.parse::<std::net::SocketAddr>().is_ok()
         }));
+        assert!(entries.iter().all(|entry| entry.launcher == entry.binary));
+        let workers = stateful_worker_catalog().expect("embedded worker catalog must be valid");
+        assert!(workers.iter().all(|entry| entry.launcher == entry.binary));
         assert!(
-            entries
+            workers
                 .iter()
-                .all(|entry| entry.launcher == "a4n-component-host")
+                .all(|entry| entry.launcher != "a4n-component-host")
         );
     }
 
@@ -627,14 +630,14 @@ mod tests {
         for worker in workers {
             let tool = tools
                 .iter()
-                .find(|tool| tool.package == worker.launcher)
+                .find(|tool| tool.package == worker.binary)
                 .unwrap_or_else(|| {
                     panic!(
-                        "worker {} launcher is missing from release tools",
+                        "worker {} binary is missing from release tools",
                         worker.name
                     )
                 });
-            assert_eq!(tool.binary, worker.launcher);
+            assert_eq!(tool.binary, worker.binary);
         }
     }
 
@@ -679,7 +682,7 @@ mod tests {
             {
               "name":"prompt",
               "binary":"a4n-prompt-service",
-              "launcher":"a4n-component-host",
+              "launcher":"a4n-prompt-service",
               "capability_version":"prompt-render-v4",
               "addr_env":"A4N_PROMPT_SERVICE_ADDR",
               "url_env":"A4N_PROMPT_SERVICE_URL",

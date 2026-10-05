@@ -11,7 +11,7 @@
 #     --public-origin https://app.example.com
 #   ./scripts/deploy/deploy-cloud.sh --online          # 容器内允许 cargo 联网拉取缺失依赖
 #   ./scripts/deploy/deploy-cloud.sh --full            # 强制全量构建、上传和重启
-#   ./scripts/deploy/deploy-cloud.sh --skip-build      # 使用已有 Host/工具/共享组件宿主/ONNX Runtime 和 frontend/dist
+#   ./scripts/deploy/deploy-cloud.sh --skip-build      # 使用已有 Host/独立组件/共享运行库/ONNX Runtime 和 frontend/dist
 #   ./scripts/deploy/deploy-cloud.sh --rebuild-builder # 重建本地 Ubuntu 24 构建镜像
 #   ./scripts/deploy/deploy-cloud.sh --no-smoke        # 跳过公网 smoke test
 #   ./scripts/deploy/deploy-cloud.sh --help
@@ -160,12 +160,10 @@ main() {
             build_package_and_upload
             update_remote_public_app_env
             replace_remote_app
-            restart_remote_service
         fi
     else
         update_remote_public_app_env
         replace_remote_app
-        restart_remote_service
     fi
     verify_remote_runtime
     smoke_test

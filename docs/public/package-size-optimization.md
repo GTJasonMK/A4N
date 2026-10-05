@@ -2,9 +2,29 @@
 
 ## 保留的发行能力
 
-桌面仍包含完整业务功能，各 Worker 仍是独立进程、独立可替换程序。没有合并 Worker，也没有引入 Rust 业务动态库 ABI。
+桌面仍包含完整业务功能，各 Worker 和 capability service 仍是独立进程、独立可替换程序。
+发布 catalog 的 `launcher` 现在等于组件自己的 `binary`，不再把角色路由到
+`a4n-component-host`。30 个 Worker 共同链接 `a4n-db` Rust `dylib`；Host 与迁移工具
+静态链接 DB，以便它们在组件运行库路径建立前也能启动。`a4n-db-session` 静态并入
+`a4n-db`，不单独打包。组件发布构建固定 Rust 1.95.0，使用
+`-C prefer-dynamic -C lto=off`，并将 DB 动态库及匹配的 `libstd` 放入
+`bin/services/`。macOS 便携二进制嵌入 `@executable_path/services` rpath，Tauri
+externalBin 嵌入 `@executable_path/../Resources` rpath。Tauri/Server/CLI/迁移 Host
+二进制保留仓库默认 fat LTO 和静态 DB。
 
 默认 Host 使用 sidecar 执行文档解析、导出和媒体处理；`--features embedded-transforms` 保留本地实现，`embedded-capabilities` 自动包含它。选择 `minimal` profile 时必须显式启用 `embedded-transforms`；不支持的组合在初始化时失败，不转用隐藏 fallback。原生 Tauri 命令入口保持可用。
+
+`a4n-db` dylib 只共享磁盘上的实现文件；每个 Worker 仍是独立进程并建立自己的连接。
+Rust dylib ABI 不承诺跨版本兼容，因此同一发布包/增量部署必须携带与二进制匹配的
+共享库和 Rust toolchain。DB 库不变时，单个 Worker 二进制增量发布由 Server supervisor
+重启对应 Worker；DB/`libstd` 变化或 capability Sidecar 更新会重启 Host 进程组，保证
+旧二进制不会加载不兼容的新库。要支持跨版本独立滚动更新，后续需把 Worker 持久化改为
+领域操作 RPC；不能把 SeaORM connection/transaction 对象透传。
+
+9 个 capability Sidecar 将 `a4n-sidecar-bootstrap` 编入各自程序；30 个 Worker 仍在各自
+package 中实现 Axum/runtime 启动，当前没有共同依赖这个 helper。尝试把 bootstrap 变成
+Rust dylib 时，Worker 与 bootstrap 的 Axum/Tokio crate 格式冲突；因此本次只共享 DB，
+不宣称 HTTP/runtime 代码已去重。
 
 ## 已收敛的依赖
 
@@ -33,6 +53,22 @@ python3 scripts/checks/package_size.py \
 报告统计压缩包字节数、安装文件逻辑字节数及 SHA-256。实际分发的重复文件分别计数，符号链接不重复计入其目标内容；该指标不是文件系统块占用量。
 
 体积比较必须固定源码、工具链、平台、features、LTO/优化参数和前端资源；不得把其他会话变化算入优化收益。依赖减少、源码删除和 Control 单体变小不等于完整安装包变小。
+
+## Linux 组件对照
+
+2026-10-06 使用同一份源码、Rust 1.95.0、Linux x86_64、release opt-level 3、LTO off，
+对 30 个 Worker 和 9 个 Sidecar 分别构建静态依赖版与 DB dylib 版。动态版计入一份
+`liba4n_db.so` 和一份 `libstd`：
+
+| 产物 | 静态依赖 | 共享 DB dylib | 减少 |
+| --- | ---: | ---: | ---: |
+| 39 个组件二进制 | 381,990,480 B | 236,186,264 B | 145,804,216 B |
+| 加共享 DB 与 libstd | 381,990,480 B | 317,030,344 B | 64,960,136 B (17.01%) |
+
+此对照只覆盖组件程序和共享 Rust 运行库；不含 Host 工具、ONNX Runtime、前端、提示词或
+压缩归档，因此不能把 17.01% 外推成完整安装包降幅。DB dylib 为 75,425,592 B，匹配的
+`libstd` 为 5,418,488 B。动态版 39 个程序的 ELF 均能解析共享依赖；30 个 Worker 引用
+`liba4n_db.so`，9 个 Sidecar 不引用它。
 
 ## Linux 对照结果
 

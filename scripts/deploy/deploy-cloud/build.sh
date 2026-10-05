@@ -92,12 +92,24 @@ build_backend() {
         log_info "cargo 允许联网构建"
     fi
 
-    local cargo_packages=""
-    local package
+    local cargo_host_packages="" cargo_component_packages=""
+    local package component_package is_component
+    local -a component_packages=()
+    while IFS= read -r component_package; do
+        [[ -n "$component_package" ]] && component_packages+=("$component_package")
+    done < <(runtime_component_packages)
     for package in "${BUILD_PACKAGES[@]}"; do
-        cargo_packages+=" -p $package"
+        is_component=false
+        for component_package in "${component_packages[@]}"; do
+            [[ "$package" == "$component_package" ]] && is_component=true
+        done
+        if $is_component; then
+            cargo_component_packages+=" -p $package"
+        else
+            cargo_host_packages+=" -p $package"
+        fi
     done
-    log_info "Cargo 构建 ${#BUILD_PACKAGES[@]} 个 package，实时显示编译进度"
+    log_info "Cargo 构建 ${#BUILD_PACKAGES[@]} 个 package；Host 静态 DB，Worker/Sidecar 动态 DB"
 
     rm -f -- "$DOCKER_BUILD_CIDFILE"
     docker run --rm -t --cidfile "$DOCKER_BUILD_CIDFILE" \
@@ -116,7 +128,7 @@ build_backend() {
         -v "$BUILD_TARGET_DIR:/cargo-target" \
         -w /work \
         "$BUILDER_IMAGE" \
-        bash -c "set -euo pipefail; rustc --version; getconf GNU_LIBC_VERSION; protoc --version; cargo build --release${cargo_packages} --target-dir /cargo-target --locked ${offline_flag[*]}" &
+        bash -c "set -euo pipefail; rustc --version; getconf GNU_LIBC_VERSION; protoc --version; if [[ -n '${cargo_host_packages}' ]]; then cargo build --release${cargo_host_packages} --target-dir /cargo-target --locked ${offline_flag[*]}; fi; if [[ -n '${cargo_component_packages}' ]]; then RUSTFLAGS='-C prefer-dynamic' cargo build --release --config 'profile.release.lto=\"off\"'${cargo_component_packages} --target-dir /cargo-target --locked ${offline_flag[*]}; fi" &
     DOCKER_BUILD_PID=$!
     local build_status
     if wait "$DOCKER_BUILD_PID"; then
@@ -191,6 +203,13 @@ prepare_package() {
         binary="${spec#*:}"
         cp "$BUILD_TARGET_DIR/release/$binary" "$PACKAGE_DIR/bin/$binary"
     done
+    local shared_runtime
+    shared_runtime="$(find "$(rustc --print target-libdir)" -maxdepth 1 -name 'libstd-*.so' -print -quit)"
+    [[ -n "$shared_runtime" && -f "$shared_runtime" ]] || die "Rust toolchain shared libstd was not found"
+    cp -L "$shared_runtime" "$PACKAGE_DIR/bin/services/$(basename "$shared_runtime")"
+    shared_runtime="$BUILD_TARGET_DIR/release/deps/liba4n_db.so"
+    [[ -f "$shared_runtime" ]] || die "构建产物缺少共享数据库运行库: $shared_runtime"
+    cp -L "$shared_runtime" "$PACKAGE_DIR/bin/services/liba4n_db.so"
     cp -L "$A4N_ONNXRUNTIME_ROOT/lib/libonnxruntime.so" "$PACKAGE_DIR/bin/services/libonnxruntime.so.1"
     if [[ "$DEPLOY_MODE" == full ]] || plan_has_payload static; then
         [[ -f "$FRONTEND_PACKAGE_DIST/index.html" ]] \
@@ -211,6 +230,7 @@ prepare_package() {
         --package-root "$PACKAGE_DIR" \
         --target "$TARGET_PLATFORM" \
         --package "$HOST_PACKAGE" \
+        --runtime-files "$(find "$PACKAGE_DIR/bin/services" -maxdepth 1 -name 'libstd-*.so' -print -quit | sed 's#^.*/##')",liba4n_db.so \
         --output "$PACKAGE_DIR/release-manifest.json"
     ruby "$RELEASE_MANIFEST_TOOL" verify \
         --package-root "$PACKAGE_DIR" \
@@ -247,7 +267,7 @@ prepare_package() {
     log_ok "部署包: $PACKAGE_PATH"
     log_ok "SHA256: $PACKAGE_SHA256"
     log_ok "部署模式: $DEPLOY_MODE"
-    log_ok "release manifest: ${#SERVICE_NAMES[@]} 个 service 角色，共用组件宿主 + ${#TOOL_SPECS[@]} 个工具 + ONNX Runtime"
+    log_ok "release manifest: ${#SERVICE_NAMES[@]} 个独立 service + ${#WORKER_NAMES[@]} 个独立 worker + ${#TOOL_SPECS[@]} 个工具 + 共享 Rust/ONNX Runtime"
     du -sh "$PACKAGE_PATH"
 }
 

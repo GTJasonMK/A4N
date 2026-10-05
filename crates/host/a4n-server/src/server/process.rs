@@ -32,9 +32,15 @@ pub(crate) fn spawn_control_from_workers(
 
 pub(crate) fn spawn_managed_worker(config: &ManagedWorkerConfig) -> anyhow::Result<Child> {
     let mut command = Command::new(&config.binary);
+    if config
+        .binary
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.trim_end_matches(".exe") == "a4n-component-host")
+    {
+        command.args(["--worker", config.metadata.name.as_str()]);
+    }
     command
-        .arg("--worker")
-        .arg(config.metadata.name.as_str())
         .env(
             config.metadata.addr_env.as_str(),
             config.address.to_string(),

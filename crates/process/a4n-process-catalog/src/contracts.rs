@@ -52,9 +52,10 @@ pub struct ProcessMetadata {
 #[serde(deny_unknown_fields)]
 pub struct ServiceCatalogEntry {
     pub name: String,
-    /// Standalone Cargo package binary, retained for local development and version metadata.
+    /// Cargo package binary used as the independently deployable process.
     pub binary: String,
-    /// Shared executable used to launch this service role.
+    /// Process launcher. It normally equals `binary`; a different value is
+    /// reserved for an explicitly versioned compatibility launcher.
     pub launcher: String,
     pub capability_version: String,
     pub addr_env: String,
@@ -74,9 +75,10 @@ pub struct ServiceCatalogEntry {
 pub struct StatefulWorkerCatalogEntry {
     pub name: String,
     pub kind: ProcessKind,
-    /// Standalone Cargo package binary, retained for local development and isolation tests.
+    /// Cargo package binary used as the independently deployable process.
     pub binary: String,
-    /// Shared executable used to launch this worker role.
+    /// Process launcher. It normally equals `binary`; a different value is
+    /// reserved for an explicitly versioned compatibility launcher.
     pub launcher: String,
     pub contract_version: String,
     pub capability_version: String,

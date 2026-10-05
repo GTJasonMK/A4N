@@ -127,6 +127,7 @@ impl BinaryIntegrityVerifier {
         };
         let expected_services = std::iter::once("host".to_string())
             .chain(selected_service_names.iter().cloned())
+            .chain(worker_catalog.iter().map(|entry| entry.name.clone()))
             .collect::<HashSet<_>>();
         if services != expected_services || by_service.len() != expected_services.len() {
             return Err(ServiceManagerError::ReleaseManifestInvalid(
@@ -223,7 +224,7 @@ impl BinaryIntegrityVerifier {
             if !selected_service_names.contains(&entry.name) {
                 continue;
             }
-            let binary_name = format!("{}{extension}", entry.launcher);
+            let binary_name = format!("{}{extension}", entry.binary);
             let binary = by_service
                 .get(&entry.name)
                 .expect("catalog service is checked above");
@@ -242,6 +243,26 @@ impl BinaryIntegrityVerifier {
                 ));
             }
         }
+        for entry in worker_catalog {
+            let binary_name = format!("{}{extension}", entry.binary);
+            let binary = by_service
+                .get(&entry.name)
+                .expect("catalog worker is checked above");
+            let worker_tool = manifest
+                .tools
+                .iter()
+                .find(|tool| tool.name == binary_name)
+                .expect("catalog worker is checked above");
+            if binary.name != binary_name
+                || binary.path != expected_tool_path(tauri_app_root, &binary_name)
+                || binary.sha256 != worker_tool.sha256
+                || binary.capability_version.as_deref() != Some(entry.capability_version.as_str())
+            {
+                return Err(ServiceManagerError::ReleaseManifestInvalid(
+                    "manifest worker catalog entry is inconsistent".to_string(),
+                ));
+            }
+        }
         let expected_runtime_name = if manifest.target.contains("windows") {
             "onnxruntime.dll"
         } else if manifest.target.contains("darwin") || manifest.target.contains("macos") {
@@ -249,17 +270,44 @@ impl BinaryIntegrityVerifier {
         } else {
             "libonnxruntime.so.1"
         };
-        if manifest.runtime_files.len() != 1 {
+        if manifest.runtime_files.is_empty() {
             return Err(ServiceManagerError::ReleaseManifestInvalid(
-                "manifest must contain one runtime file".to_string(),
+                "manifest must contain runtime files".to_string(),
             ));
         }
-        let runtime = &manifest.runtime_files[0];
-        if runtime.name != expected_runtime_name
-            || runtime.path != expected_runtime_path(tauri_app_root, expected_runtime_name)
-            || !valid_manifest_path(&runtime.path)
-            || manifest_file_name(&runtime.path) != Some(runtime.name.as_str())
-            || !is_sha256(&runtime.sha256)
+        let expected_runtime_count = manifest.shared_libraries.len() + 1;
+        let declared_shared_libraries = manifest.shared_libraries.iter().collect::<HashSet<_>>();
+        if declared_shared_libraries.len() != manifest.shared_libraries.len()
+            || declared_shared_libraries.iter().any(|name| {
+                !manifest
+                    .runtime_files
+                    .iter()
+                    .any(|runtime| &runtime.name == *name)
+            })
+            || manifest.runtime_files.len() != expected_runtime_count
+            || manifest.runtime_files.iter().any(|runtime| {
+                runtime.name != expected_runtime_name
+                    && !declared_shared_libraries.contains(&runtime.name)
+            })
+        {
+            return Err(ServiceManagerError::ReleaseManifestInvalid(
+                "manifest shared libraries do not match runtime files".to_string(),
+            ));
+        }
+        if manifest
+            .runtime_files
+            .iter()
+            .filter(|runtime| runtime.name == expected_runtime_name)
+            .count()
+            != 1
+            || manifest.runtime_files.iter().any(|runtime| {
+                runtime.name.trim().is_empty()
+                    || !valid_catalog_identifier(&runtime.name.replace('.', "-"))
+                    || runtime.path != expected_runtime_path(tauri_app_root, &runtime.name)
+                    || !valid_manifest_path(&runtime.path)
+                    || manifest_file_name(&runtime.path) != Some(runtime.name.as_str())
+                    || !is_sha256(&runtime.sha256)
+            })
         {
             return Err(ServiceManagerError::ReleaseManifestInvalid(
                 "manifest runtime file is inconsistent".to_string(),
@@ -444,7 +492,20 @@ mod tests {
             capability_version: None,
         }];
         for entry in service_catalog().unwrap() {
-            let binary = entry.launcher;
+            let binary = entry.binary;
+            binaries.push(ReleaseBinaryManifest {
+                name: binary.clone(),
+                service: entry.name,
+                path: format!("bin/{binary}"),
+                version: "0.1.0".to_string(),
+                target: "linux-x86_64".to_string(),
+                sha256: prompt_sha256.clone(),
+                protocol_version: PROTOCOL_VERSION,
+                capability_version: Some(entry.capability_version),
+            });
+        }
+        for entry in a4n_process_catalog::stateful_worker_catalog().unwrap() {
+            let binary = entry.binary;
             binaries.push(ReleaseBinaryManifest {
                 name: binary.clone(),
                 service: entry.name,
@@ -464,11 +525,7 @@ mod tests {
                 path: format!("bin/{}", entry.binary),
                 version: "0.1.0".to_string(),
                 target: "linux-x86_64".to_string(),
-                sha256: if entry.binary == "a4n-component-host" {
-                    prompt_sha256.clone()
-                } else {
-                    "c".repeat(64)
-                },
+                sha256: prompt_sha256.clone(),
             })
             .collect();
         ReleaseManifest {
@@ -494,6 +551,7 @@ mod tests {
                 path: "bin/services/libonnxruntime.so.1".to_string(),
                 sha256: "b".repeat(64),
             }],
+            shared_libraries: Vec::new(),
         }
     }
 
@@ -515,7 +573,7 @@ mod tests {
                 .as_nanos()
         ));
         std::fs::create_dir_all(&directory).unwrap();
-        let path = directory.join("a4n-component-host");
+        let path = directory.join("a4n-prompt-service");
         std::fs::write(&path, b"original").unwrap();
         let digest = sha256(&path).unwrap();
         let verifier = BinaryIntegrityVerifier::new(valid_manifest(digest), None).unwrap();
@@ -572,7 +630,7 @@ mod tests {
     }
 
     #[test]
-    fn shared_launcher_roles_must_have_the_launcher_hash() {
+    fn independent_service_binary_must_match_its_release_tool_hash() {
         let mut manifest = valid_manifest("a".repeat(64));
         manifest
             .binaries
@@ -626,8 +684,8 @@ mod tests {
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();
             std::fs::write(&path, tool.name.as_bytes()).unwrap();
             tool.sha256 = sha256(&path).unwrap();
-            if tool.name == "a4n-component-host" {
-                for binary in &mut manifest.binaries {
+            for binary in &mut manifest.binaries {
+                if binary.name == tool.name {
                     binary.sha256 = tool.sha256.clone();
                 }
             }
@@ -668,8 +726,8 @@ mod tests {
             let path = directory.join(&tool.path);
             std::fs::write(&path, tool.name.as_bytes()).unwrap();
             tool.sha256 = sha256(&path).unwrap();
-            if tool.name == "a4n-component-host" {
-                for binary in &mut manifest.binaries {
+            for binary in &mut manifest.binaries {
+                if binary.name == tool.name {
                     binary.sha256 = tool.sha256.clone();
                 }
             }

@@ -65,8 +65,29 @@ stateful_worker_packages() {
     require_command node
     node -e '
       const entries = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-      for (const binary of new Set(entries.map((entry) => entry.launcher))) console.log(binary);
+      for (const binary of new Set(entries.map((entry) => entry.binary))) console.log(binary);
     ' "$PROJECT_ROOT/crates/process/a4n-process-catalog/worker-catalog.json"
+}
+
+runtime_component_packages() {
+    {
+        stateful_worker_packages
+        sidecar_catalog_rows | cut -f2
+    } | sort -u
+}
+
+runtime_component_rustflags() {
+    local flags="${1:-}" target="$2" layout="$3"
+    flags="${flags:+$flags }-C prefer-dynamic"
+    case "$target:$layout" in
+        *apple-darwin:portable|macos-*:portable)
+            flags+=" -C link-arg=-Wl,-rpath,@executable_path/services"
+            ;;
+        *apple-darwin:tauri)
+            flags+=" -C link-arg=-Wl,-rpath,@executable_path/../Resources"
+            ;;
+    esac
+    printf '%s\n' "$flags"
 }
 
 worker_client_packages() {

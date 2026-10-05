@@ -109,6 +109,9 @@ tauri_config="$(ruby -rjson -e '
   bundle.fetch("resources").delete("../../../target/tauri-sidecars/*onnxruntime*")
   bundle.fetch("resources")[File.join(external_dir, "*onnxruntime*")] = ""
   unless ARGV.fetch(2) == "true"
+    ["liba4n_db*", "a4n_db*", "libstd-*", "std-*"].each do |pattern|
+      bundle.fetch("resources")[File.join(external_dir, pattern)] = ""
+    end
     windows = JSON.parse(File.read(File.join(File.dirname(ARGV.fetch(0)), "tauri.conf.json"))).fetch("app").fetch("windows")
     config["app"] = { "windows" => windows.map { |window| window.merge("devtools" => false) } }
   end

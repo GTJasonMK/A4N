@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-pub const RELEASE_MANIFEST_SCHEMA_VERSION: u32 = 4;
+pub const RELEASE_MANIFEST_SCHEMA_VERSION: u32 = 5;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -10,11 +10,14 @@ pub struct ReleaseManifest {
     pub version: String,
     pub target: String,
     pub protocol_version: u32,
-    /// 本次发布包含的全部 stateful worker 角色；这些角色共用 launcher。
+    /// 本次发布包含的全部 stateful worker 角色。
     pub workers: Vec<String>,
     /// 本次发布实际携带的 capability service 子集；空值兼容旧的全量 manifest。
     #[serde(default)]
     pub services: Vec<String>,
+    /// Shared process runtime and any native libraries loaded by components.
+    #[serde(default)]
+    pub shared_libraries: Vec<String>,
     pub binaries: Vec<ReleaseBinaryManifest>,
     pub tools: Vec<ReleaseToolManifest>,
     pub runtime_files: Vec<ReleaseRuntimeFileManifest>,

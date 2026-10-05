@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the Runtime watcher rebuilds the shared launcher for role changes."""
+"""Verify the Runtime watcher rebuilds independent component binaries."""
 
 from __future__ import annotations
 
@@ -67,23 +67,24 @@ class RuntimeWorkerWatcherTest(unittest.TestCase):
         self.assertNotIn("a4n-component-host", commands[0])
         self.assertNotIn("-p a4n-control", commands[0])
 
-    def test_worker_change_builds_the_shared_component_host(self) -> None:
+    def test_worker_change_builds_only_the_changed_worker(self) -> None:
         commands = self.run_watcher(ROOT / "crates/agent/a4n-agent-worker/src/lib.rs")
         self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-component-host", commands[0])
-        self.assertNotIn("-p a4n-agent-worker", commands[0])
+        self.assertIn("-p a4n-agent-worker", commands[0])
+        self.assertNotIn("a4n-component-host", commands[0])
 
-    def test_service_change_builds_the_shared_component_host(self) -> None:
+    def test_service_change_builds_only_the_changed_service(self) -> None:
         commands = self.run_watcher(ROOT / "crates/image/a4n-image-service/src/lib.rs")
         self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-component-host", commands[0])
-        self.assertNotIn("-p a4n-image-service", commands[0])
+        self.assertIn("-p a4n-image-service", commands[0])
+        self.assertNotIn("a4n-component-host", commands[0])
 
-    def test_worker_contract_change_builds_control_and_shared_host(self) -> None:
+    def test_worker_contract_change_builds_control_and_all_components(self) -> None:
         commands = self.run_watcher(ROOT / "crates/agent/a4n-agent-worker-contract/src/lib.rs")
         self.assertEqual(len(commands), 1)
         self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-component-host", commands[0])
+        self.assertIn("-p a4n-agent-worker", commands[0])
+        self.assertNotIn("a4n-component-host", commands[0])
 
     def test_worker_client_change_builds_only_control(self) -> None:
         commands = self.run_watcher(ROOT / "crates/agent/a4n-agent-worker-client/src/lib.rs")
@@ -91,11 +92,12 @@ class RuntimeWorkerWatcherTest(unittest.TestCase):
         self.assertIn("-p a4n-control", commands[0])
         self.assertNotIn("a4n-component-host", commands[0])
 
-    def test_shared_domain_change_builds_control_and_component_host(self) -> None:
+    def test_shared_domain_change_builds_control_and_all_components(self) -> None:
         commands = self.run_watcher(ROOT / "crates/platform/a4n-domain/src/lib.rs")
         self.assertEqual(len(commands), 1)
         self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-component-host", commands[0])
+        self.assertIn("-p a4n-agent-worker", commands[0])
+        self.assertNotIn("a4n-component-host", commands[0])
 
 
 if __name__ == "__main__":

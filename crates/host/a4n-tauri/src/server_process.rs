@@ -142,7 +142,13 @@ impl NativeWorkerSettings {
             let binary_env = stateful_worker_binary_env(&worker.metadata.name);
             let binary = resolve_binary(app, &worker.metadata.launcher, &binary_env)?;
             let mut command = Command::new(&binary);
-            command.args(["--worker", worker.metadata.name.as_str()]);
+            if binary
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.trim_end_matches(".exe") == "a4n-component-host")
+            {
+                command.args(["--worker", worker.metadata.name.as_str()]);
+            }
             // Agent health reports a process identity, not the catalog service name.
             let worker_id = if worker.metadata.name == "agent-worker" {
                 let identity = format!("a4n-agent:{}", uuid::Uuid::new_v4());
@@ -162,6 +168,7 @@ impl NativeWorkerSettings {
                 .stdin(Stdio::null())
                 .stdout(Stdio::inherit())
                 .stderr(Stdio::inherit());
+            configure_component_library_path(&mut command, app)?;
             configure_parent_death_signal(&mut command);
 
             // ponytail: release each reserved port immediately before bind; retry if a rare race occurs.
@@ -202,6 +209,35 @@ impl NativeWorkerSettings {
         }
         Ok(processes)
     }
+}
+
+fn configure_component_library_path(
+    command: &mut Command,
+    app: &AppHandle,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let binary_dir = std::env::current_exe()?
+        .parent()
+        .map(Path::to_path_buf)
+        .ok_or_else(|| io::Error::other("Tauri Host executable path has no parent"))?;
+    let resource_dir = app.path().resource_dir()?;
+    let runtime_dirs = [
+        binary_dir.join("services"),
+        resource_dir.clone(),
+        resource_dir.join("bin"),
+    ];
+    let loader_var = if cfg!(windows) {
+        "PATH"
+    } else if cfg!(target_os = "macos") {
+        "DYLD_LIBRARY_PATH"
+    } else {
+        "LD_LIBRARY_PATH"
+    };
+    let mut paths = runtime_dirs.to_vec();
+    if let Some(current) = std::env::var_os(loader_var) {
+        paths.extend(std::env::split_paths(&current));
+    }
+    command.env(loader_var, std::env::join_paths(paths)?);
+    Ok(())
 }
 
 impl NativeWorkerProcesses {
@@ -725,8 +761,8 @@ fn resolve_binary(
         directories.push(parent.to_path_buf());
     }
     if let Ok(resource_dir) = app.path().resource_dir() {
-        directories.push(resource_dir.clone());
         directories.push(resource_dir.join("bin"));
+        directories.push(resource_dir.clone());
     }
 
     resolve_binary_in_directories(name, env_name, directories)

@@ -3,7 +3,7 @@
     "name": "admin-worker",
     "kind": "stateful_worker",
     "binary": "a4n-admin-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-admin-worker",
     "contract_version": "admin-v1",
     "capability_version": "admin-v1",
     "addr_env": "A4N_ADMIN_WORKER_ADDR",
@@ -25,9 +25,17 @@
       "generation_run_target",
       "llm_call_trace"
     ],
-    "write_scope": ["user", "invite_code"],
-    "capabilities": ["admin.read", "admin.write"],
-    "dependencies": ["a4n-migration"],
+    "write_scope": [
+      "user",
+      "invite_code"
+    ],
+    "capabilities": [
+      "admin.read",
+      "admin.write"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "admin",
       "min_compatible": "admin",
@@ -38,7 +46,7 @@
     "name": "agent-worker",
     "kind": "stateful_worker",
     "binary": "a4n-agent-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-agent-worker",
     "contract_version": "worker-schema-v6",
     "capability_version": "agent-worker-v2",
     "addr_env": "A4N_AGENT_WORKER_ADDR",
@@ -111,7 +119,7 @@
     "name": "novel-planning-worker",
     "kind": "stateful_worker",
     "binary": "a4n-novel-planning-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-novel-planning-worker",
     "contract_version": "novel-planning-shooting-script-v3",
     "capability_version": "novel-planning-shooting-script-v3",
     "addr_env": "A4N_NOVEL_PLANNING_WORKER_ADDR",
@@ -122,7 +130,10 @@
       "chapter_shooting_script",
       "chapter_visual_plan"
     ],
-    "write_scope": ["chapter_shooting_script", "chapter_visual_plan"],
+    "write_scope": [
+      "chapter_shooting_script",
+      "chapter_visual_plan"
+    ],
     "capabilities": [
       "shooting_script.current",
       "shooting_script.unit_progress",
@@ -145,7 +156,7 @@
     "name": "artifact-media-worker",
     "kind": "stateful_worker",
     "binary": "a4n-artifact-media-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-artifact-media-worker",
     "contract_version": "artifact-media-v1",
     "capability_version": "artifact-media-v1",
     "addr_env": "A4N_ARTIFACT_MEDIA_WORKER_ADDR",
@@ -157,9 +168,17 @@
       "project_cleanup_outbox",
       "media_artifact"
     ],
-    "write_scope": ["image_publication", "project_cleanup_outbox", "media_artifact"],
-    "capabilities": ["artifact-media"],
-    "dependencies": ["a4n-migration"],
+    "write_scope": [
+      "image_publication",
+      "project_cleanup_outbox",
+      "media_artifact"
+    ],
+    "capabilities": [
+      "artifact-media"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "image_publication",
       "min_compatible": "image_publication",
@@ -170,7 +189,7 @@
     "name": "outline-worker",
     "kind": "stateful_worker",
     "binary": "a4n-outline-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-outline-worker",
     "contract_version": "outline-records-v1",
     "capability_version": "outline-records-v1",
     "addr_env": "A4N_OUTLINE_WORKER_ADDR",
@@ -191,7 +210,9 @@
       "outline.records.read",
       "outline.records.mutation"
     ],
-    "dependencies": ["a4n-migration"],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "outline_records",
       "min_compatible": "outline_records",
@@ -202,7 +223,7 @@
     "name": "blueprint-worker",
     "kind": "stateful_worker",
     "binary": "a4n-blueprint-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-blueprint-worker",
     "contract_version": "blueprint-read-v1",
     "capability_version": "blueprint-read-v1",
     "addr_env": "A4N_BLUEPRINT_WORKER_ADDR",
@@ -214,8 +235,12 @@
       "blueprint_version"
     ],
     "write_scope": [],
-    "capabilities": ["blueprint.records.read"],
-    "dependencies": ["a4n-migration"],
+    "capabilities": [
+      "blueprint.records.read"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "blueprint_read",
       "min_compatible": "blueprint_read",
@@ -226,17 +251,23 @@
     "name": "asset-graph-worker",
     "kind": "stateful_worker",
     "binary": "a4n-asset-graph-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-asset-graph-worker",
     "contract_version": "project-asset-graph-v1",
     "capability_version": "project-asset-graph-v1",
     "addr_env": "A4N_ASSET_GRAPH_WORKER_ADDR",
     "url_env": "A4N_ASSET_GRAPH_WORKER_URL",
     "default_addr": "127.0.0.1:47655",
     "local_only": true,
-    "read_scope": ["project_dependency_graph"],
+    "read_scope": [
+      "project_dependency_graph"
+    ],
     "write_scope": [],
-    "capabilities": ["project.asset_graph.read"],
-    "dependencies": ["a4n-migration"],
+    "capabilities": [
+      "project.asset_graph.read"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "project_asset_graph",
       "min_compatible": "project_asset_graph",
@@ -247,17 +278,32 @@
     "name": "canvas-record-worker",
     "kind": "stateful_worker",
     "binary": "a4n-canvas-record-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-canvas-record-worker",
     "contract_version": "canvas-records-v1",
     "capability_version": "canvas-records-v1",
     "addr_env": "A4N_CANVAS_RECORD_WORKER_ADDR",
     "url_env": "A4N_CANVAS_RECORD_WORKER_URL",
     "default_addr": "127.0.0.1:47677",
     "local_only": true,
-    "read_scope": ["canvas_graph", "canvas_node", "canvas_edge", "canvas_text_asset"],
-    "write_scope": ["canvas_graph", "canvas_node", "canvas_edge", "canvas_text_asset"],
-    "capabilities": ["canvas.graph.read", "canvas.graph.mutation"],
-    "dependencies": ["a4n-migration"],
+    "read_scope": [
+      "canvas_graph",
+      "canvas_node",
+      "canvas_edge",
+      "canvas_text_asset"
+    ],
+    "write_scope": [
+      "canvas_graph",
+      "canvas_node",
+      "canvas_edge",
+      "canvas_text_asset"
+    ],
+    "capabilities": [
+      "canvas.graph.read",
+      "canvas.graph.mutation"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "canvas_graph_records",
       "min_compatible": "canvas_graph_records",
@@ -268,20 +314,26 @@
     "name": "foreshadowing-worker",
     "kind": "stateful_worker",
     "binary": "a4n-foreshadowing-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-foreshadowing-worker",
     "contract_version": "foreshadowing-records-v2",
     "capability_version": "foreshadowing-records-v2",
     "addr_env": "A4N_FORESHADOWING_WORKER_ADDR",
     "url_env": "A4N_FORESHADOWING_WORKER_URL",
     "default_addr": "127.0.0.1:47656",
     "local_only": true,
-    "read_scope": ["foreshadowing_index"],
-    "write_scope": ["foreshadowing_index"],
+    "read_scope": [
+      "foreshadowing_index"
+    ],
+    "write_scope": [
+      "foreshadowing_index"
+    ],
     "capabilities": [
       "profile.foreshadowing.read",
       "profile.foreshadowing.mutation"
     ],
-    "dependencies": ["a4n-migration"],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "foreshadowing_records",
       "min_compatible": "foreshadowing_records",
@@ -292,17 +344,26 @@
     "name": "object-profile-worker",
     "kind": "stateful_worker",
     "binary": "a4n-object-profile-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-object-profile-worker",
     "contract_version": "object-profile-mutation-v1",
     "capability_version": "object-profile-mutation-v1",
     "addr_env": "A4N_OBJECT_PROFILE_WORKER_ADDR",
     "url_env": "A4N_OBJECT_PROFILE_WORKER_URL",
     "default_addr": "127.0.0.1:47657",
     "local_only": true,
-    "read_scope": ["object_profile"],
-    "write_scope": ["object_profile"],
-    "capabilities": ["profile.object.read", "profile.object.mutation"],
-    "dependencies": ["a4n-migration"],
+    "read_scope": [
+      "object_profile"
+    ],
+    "write_scope": [
+      "object_profile"
+    ],
+    "capabilities": [
+      "profile.object.read",
+      "profile.object.mutation"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "object_profile_mutation",
       "min_compatible": "object_profile_mutation",
@@ -313,7 +374,7 @@
     "name": "scene-profile-worker",
     "kind": "stateful_worker",
     "binary": "a4n-scene-profile-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-scene-profile-worker",
     "contract_version": "scene-profile-sync-v1",
     "capability_version": "scene-profile-sync-v1",
     "addr_env": "A4N_SCENE_PROFILE_WORKER_ADDR",
@@ -343,7 +404,9 @@
       "profile.scene.mutation",
       "profile.scene.sync"
     ],
-    "dependencies": ["a4n-migration"],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "scene_profile_mutation",
       "min_compatible": "scene_profile_mutation",
@@ -354,20 +417,28 @@
     "name": "profile-material-worker",
     "kind": "stateful_worker",
     "binary": "a4n-profile-material-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-profile-material-worker",
     "contract_version": "profile-material-v1",
     "capability_version": "profile-material-v1",
     "addr_env": "A4N_PROFILE_MATERIAL_WORKER_ADDR",
     "url_env": "A4N_PROFILE_MATERIAL_WORKER_URL",
     "default_addr": "127.0.0.1:47661",
     "local_only": true,
-    "read_scope": ["profile_material", "profile_primary_material"],
-    "write_scope": ["profile_material", "profile_primary_material"],
+    "read_scope": [
+      "profile_material",
+      "profile_primary_material"
+    ],
+    "write_scope": [
+      "profile_material",
+      "profile_primary_material"
+    ],
     "capabilities": [
       "profile.material.read",
       "profile.material.mutation"
     ],
-    "dependencies": ["a4n-migration"],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "profile_material",
       "min_compatible": "profile_material",
@@ -378,17 +449,30 @@
     "name": "project-status-worker",
     "kind": "stateful_worker",
     "binary": "a4n-project-status-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-project-status-worker",
     "contract_version": "project-status-v2",
     "capability_version": "project-status-v2",
     "addr_env": "A4N_PROJECT_STATUS_WORKER_ADDR",
     "url_env": "A4N_PROJECT_STATUS_WORKER_URL",
     "default_addr": "127.0.0.1:47662",
     "local_only": true,
-    "read_scope": ["project_status", "project_status_history", "project_rollback_impact"],
-    "write_scope": ["project_status", "project_status_history", "project_rollback_impact"],
-    "capabilities": ["project.status.read", "project.status.write"],
-    "dependencies": ["a4n-migration"],
+    "read_scope": [
+      "project_status",
+      "project_status_history",
+      "project_rollback_impact"
+    ],
+    "write_scope": [
+      "project_status",
+      "project_status_history",
+      "project_rollback_impact"
+    ],
+    "capabilities": [
+      "project.status.read",
+      "project.status.write"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "project_status",
       "min_compatible": "project_status",
@@ -399,17 +483,26 @@
     "name": "portrait-worker",
     "kind": "stateful_worker",
     "binary": "a4n-portrait-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-portrait-worker",
     "contract_version": "portrait-records-v3",
     "capability_version": "portrait-records-v3",
     "addr_env": "A4N_PORTRAIT_WORKER_ADDR",
     "url_env": "A4N_PORTRAIT_WORKER_URL",
     "default_addr": "127.0.0.1:47659",
     "local_only": true,
-    "read_scope": ["character_portrait"],
-    "write_scope": ["character_portrait"],
-    "capabilities": ["portrait.records.read", "portrait.records.mutation"],
-    "dependencies": ["a4n-migration"],
+    "read_scope": [
+      "character_portrait"
+    ],
+    "write_scope": [
+      "character_portrait"
+    ],
+    "capabilities": [
+      "portrait.records.read",
+      "portrait.records.mutation"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "portrait_read",
       "min_compatible": "portrait_read",
@@ -420,17 +513,23 @@
     "name": "source-snapshot-worker",
     "kind": "stateful_worker",
     "binary": "a4n-source-snapshot-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-source-snapshot-worker",
     "contract_version": "source-snapshot-read-v1",
     "capability_version": "source-snapshot-read-v1",
     "addr_env": "A4N_SOURCE_SNAPSHOT_WORKER_ADDR",
     "url_env": "A4N_SOURCE_SNAPSHOT_WORKER_URL",
     "default_addr": "127.0.0.1:47660",
     "local_only": true,
-    "read_scope": ["source_snapshot_chapter"],
+    "read_scope": [
+      "source_snapshot_chapter"
+    ],
     "write_scope": [],
-    "capabilities": ["project.source_snapshot.read"],
-    "dependencies": ["a4n-migration"],
+    "capabilities": [
+      "project.source_snapshot.read"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "source_snapshot_read",
       "min_compatible": "source_snapshot_read",
@@ -441,17 +540,30 @@
     "name": "theme-read-worker",
     "kind": "stateful_worker",
     "binary": "a4n-theme-read-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-theme-read-worker",
     "contract_version": "theme-read-v2",
     "capability_version": "theme-read-v2",
     "addr_env": "A4N_THEME_READ_WORKER_ADDR",
     "url_env": "A4N_THEME_READ_WORKER_URL",
     "default_addr": "127.0.0.1:47663",
     "local_only": true,
-    "read_scope": ["theme_config", "theme_resource", "theme_preference"],
-    "write_scope": ["theme_config", "theme_resource", "theme_preference"],
-    "capabilities": ["theme.read", "theme.mutation"],
-    "dependencies": ["a4n-migration"],
+    "read_scope": [
+      "theme_config",
+      "theme_resource",
+      "theme_preference"
+    ],
+    "write_scope": [
+      "theme_config",
+      "theme_resource",
+      "theme_preference"
+    ],
+    "capabilities": [
+      "theme.read",
+      "theme.mutation"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "theme_read",
       "min_compatible": "theme_read",
@@ -462,17 +574,26 @@
     "name": "project-read-worker",
     "kind": "stateful_worker",
     "binary": "a4n-project-read-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-project-read-worker",
     "contract_version": "project-read-v1",
     "capability_version": "project-read-v1",
     "addr_env": "A4N_PROJECT_READ_WORKER_ADDR",
     "url_env": "A4N_PROJECT_READ_WORKER_URL",
     "default_addr": "127.0.0.1:47664",
     "local_only": true,
-    "read_scope": ["project", "project_family", "project_progress", "project_access"],
+    "read_scope": [
+      "project",
+      "project_family",
+      "project_progress",
+      "project_access"
+    ],
     "write_scope": [],
-    "capabilities": ["project.read"],
-    "dependencies": ["a4n-migration"],
+    "capabilities": [
+      "project.read"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "project_read",
       "min_compatible": "project_read",
@@ -483,17 +604,27 @@
     "name": "import-review-read-worker",
     "kind": "stateful_worker",
     "binary": "a4n-import-review-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-import-review-worker",
     "contract_version": "import-review-read-v1",
     "capability_version": "import-review-read-v1",
     "addr_env": "A4N_IMPORT_REVIEW_READ_WORKER_ADDR",
     "url_env": "A4N_IMPORT_REVIEW_READ_WORKER_URL",
     "default_addr": "127.0.0.1:47665",
     "local_only": true,
-    "read_scope": ["import_review", "chapter_content"],
-    "write_scope": ["import_review"],
-    "capabilities": ["import_review.read", "import_review.mutation"],
-    "dependencies": ["a4n-migration"],
+    "read_scope": [
+      "import_review",
+      "chapter_content"
+    ],
+    "write_scope": [
+      "import_review"
+    ],
+    "capabilities": [
+      "import_review.read",
+      "import_review.mutation"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "import_review_read",
       "min_compatible": "import_review_read",
@@ -504,17 +635,24 @@
     "name": "inspiration-history-worker",
     "kind": "stateful_worker",
     "binary": "a4n-inspiration-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-inspiration-worker",
     "contract_version": "inspiration-history-v1",
     "capability_version": "inspiration-history-v1",
     "addr_env": "A4N_INSPIRATION_HISTORY_WORKER_ADDR",
     "url_env": "A4N_INSPIRATION_HISTORY_WORKER_URL",
     "default_addr": "127.0.0.1:47666",
     "local_only": true,
-    "read_scope": ["conversation", "message"],
+    "read_scope": [
+      "conversation",
+      "message"
+    ],
     "write_scope": [],
-    "capabilities": ["inspiration.history.read"],
-    "dependencies": ["a4n-migration"],
+    "capabilities": [
+      "inspiration.history.read"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "inspiration_history",
       "min_compatible": "inspiration_history",
@@ -525,17 +663,24 @@
     "name": "project-access-worker",
     "kind": "stateful_worker",
     "binary": "a4n-project-access-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-project-access-worker",
     "contract_version": "project-access-v1",
     "capability_version": "project-access-v1",
     "addr_env": "A4N_PROJECT_ACCESS_WORKER_ADDR",
     "url_env": "A4N_PROJECT_ACCESS_WORKER_URL",
     "default_addr": "127.0.0.1:47667",
     "local_only": true,
-    "read_scope": ["project", "project_member"],
+    "read_scope": [
+      "project",
+      "project_member"
+    ],
     "write_scope": [],
-    "capabilities": ["project.access.read"],
-    "dependencies": ["a4n-migration"],
+    "capabilities": [
+      "project.access.read"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "project_access",
       "min_compatible": "project_access",
@@ -546,17 +691,28 @@
     "name": "project-collaboration-worker",
     "kind": "stateful_worker",
     "binary": "a4n-project-collaboration-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-project-collaboration-worker",
     "contract_version": "project-collaboration-v1",
     "capability_version": "project-collaboration-v1",
     "addr_env": "A4N_PROJECT_COLLABORATION_WORKER_ADDR",
     "url_env": "A4N_PROJECT_COLLABORATION_WORKER_URL",
     "default_addr": "127.0.0.1:47668",
     "local_only": true,
-    "read_scope": ["project", "project_member", "project_invite"],
-    "write_scope": ["project_member", "project_invite"],
-    "capabilities": ["project.collaboration"],
-    "dependencies": ["a4n-migration"],
+    "read_scope": [
+      "project",
+      "project_member",
+      "project_invite"
+    ],
+    "write_scope": [
+      "project_member",
+      "project_invite"
+    ],
+    "capabilities": [
+      "project.collaboration"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "project_collaboration",
       "min_compatible": "project_collaboration",
@@ -567,17 +723,29 @@
     "name": "project-mutation-worker",
     "kind": "stateful_worker",
     "binary": "a4n-project-mutation-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-project-mutation-worker",
     "contract_version": "project-mutation-v1",
     "capability_version": "project-mutation-v1",
     "addr_env": "A4N_PROJECT_MUTATION_WORKER_ADDR",
     "url_env": "A4N_PROJECT_MUTATION_WORKER_URL",
     "default_addr": "127.0.0.1:47669",
     "local_only": true,
-    "read_scope": ["project", "project_family", "project_progress"],
-    "write_scope": ["project", "project_family", "project_progress"],
-    "capabilities": ["project.mutation"],
-    "dependencies": ["a4n-migration"],
+    "read_scope": [
+      "project",
+      "project_family",
+      "project_progress"
+    ],
+    "write_scope": [
+      "project",
+      "project_family",
+      "project_progress"
+    ],
+    "capabilities": [
+      "project.mutation"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "project_mutation",
       "min_compatible": "project_mutation",
@@ -588,17 +756,26 @@
     "name": "chapter-scene-worker",
     "kind": "stateful_worker",
     "binary": "a4n-chapter-scene-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-chapter-scene-worker",
     "contract_version": "chapter-scene-v1",
     "capability_version": "chapter-scene-v1",
     "addr_env": "A4N_CHAPTER_SCENE_WORKER_ADDR",
     "url_env": "A4N_CHAPTER_SCENE_WORKER_URL",
     "default_addr": "127.0.0.1:47670",
     "local_only": true,
-    "read_scope": ["chapter", "chapter_scene"],
-    "write_scope": ["chapter_scene"],
-    "capabilities": ["chapter.scene"],
-    "dependencies": ["a4n-migration"],
+    "read_scope": [
+      "chapter",
+      "chapter_scene"
+    ],
+    "write_scope": [
+      "chapter_scene"
+    ],
+    "capabilities": [
+      "chapter.scene"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "chapter_scene",
       "min_compatible": "chapter_scene",
@@ -609,17 +786,25 @@
     "name": "chapter-content-worker",
     "kind": "stateful_worker",
     "binary": "a4n-chapter-content-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-chapter-content-worker",
     "contract_version": "chapter-content-v5",
     "capability_version": "chapter-content-v5",
     "addr_env": "A4N_CHAPTER_CONTENT_WORKER_ADDR",
     "url_env": "A4N_CHAPTER_CONTENT_WORKER_URL",
     "default_addr": "127.0.0.1:47671",
     "local_only": true,
-    "read_scope": ["chapter"],
-    "write_scope": ["chapter"],
-    "capabilities": ["chapter.content"],
-    "dependencies": ["a4n-migration"],
+    "read_scope": [
+      "chapter"
+    ],
+    "write_scope": [
+      "chapter"
+    ],
+    "capabilities": [
+      "chapter.content"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "chapter_content",
       "min_compatible": "chapter_content",
@@ -630,7 +815,7 @@
     "name": "workflow-read-worker",
     "kind": "stateful_worker",
     "binary": "a4n-workflow-read-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-workflow-read-worker",
     "contract_version": "workflow-read-v2",
     "capability_version": "workflow-read-v2",
     "addr_env": "A4N_WORKFLOW_READ_WORKER_ADDR",
@@ -646,8 +831,14 @@
       "task_queue"
     ],
     "write_scope": [],
-    "capabilities": ["workflow.read", "workflow.task_lookup", "task.read.history"],
-    "dependencies": ["a4n-migration"],
+    "capabilities": [
+      "workflow.read",
+      "workflow.task_lookup",
+      "task.read.history"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "workflow",
       "min_compatible": "workflow",
@@ -658,7 +849,7 @@
     "name": "workflow-lifecycle-worker",
     "kind": "stateful_worker",
     "binary": "a4n-workflow-lifecycle-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-workflow-lifecycle-worker",
     "contract_version": "workflow-lifecycle-v2",
     "capability_version": "workflow-lifecycle-v2",
     "addr_env": "A4N_WORKFLOW_LIFECYCLE_WORKER_ADDR",
@@ -677,8 +868,12 @@
       "workflow_checkpoint",
       "workflow_progress_event"
     ],
-    "capabilities": ["workflow.lifecycle"],
-    "dependencies": ["a4n-migration"],
+    "capabilities": [
+      "workflow.lifecycle"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "workflow",
       "min_compatible": "workflow",
@@ -689,7 +884,7 @@
     "name": "config-read-worker",
     "kind": "stateful_worker",
     "binary": "a4n-config-read-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-config-read-worker",
     "contract_version": "config-read-v2",
     "capability_version": "config-read-v2",
     "addr_env": "A4N_CONFIG_READ_WORKER_ADDR",
@@ -711,8 +906,14 @@
       "embedding_config",
       "system_settings"
     ],
-    "capabilities": ["config.read", "config.mutation", "config.settings"],
-    "dependencies": ["a4n-migration"],
+    "capabilities": [
+      "config.read",
+      "config.mutation",
+      "config.settings"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "config",
       "min_compatible": "config",
@@ -723,17 +924,32 @@
     "name": "video-record-worker",
     "kind": "stateful_worker",
     "binary": "a4n-video-record-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-video-record-worker",
     "contract_version": "video-record-v5",
     "capability_version": "video-record-v5",
     "addr_env": "A4N_VIDEO_RECORD_WORKER_ADDR",
     "url_env": "A4N_VIDEO_RECORD_WORKER_URL",
     "default_addr": "127.0.0.1:47675",
     "local_only": true,
-    "read_scope": ["generated_video", "generated_image", "chapter", "project"],
-    "write_scope": ["generated_video", "generated_image"],
-    "capabilities": ["video.record.read", "video.record.mutation", "video.prompt.read", "video.prompt.draft"],
-    "dependencies": ["a4n-migration"],
+    "read_scope": [
+      "generated_video",
+      "generated_image",
+      "chapter",
+      "project"
+    ],
+    "write_scope": [
+      "generated_video",
+      "generated_image"
+    ],
+    "capabilities": [
+      "video.record.read",
+      "video.record.mutation",
+      "video.prompt.read",
+      "video.prompt.draft"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "video",
       "min_compatible": "video",
@@ -744,17 +960,28 @@
     "name": "manga-record-worker",
     "kind": "stateful_worker",
     "binary": "a4n-manga-record-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-manga-record-worker",
     "contract_version": "manga-record-v3",
     "capability_version": "manga-record-v3",
     "addr_env": "A4N_MANGA_RECORD_WORKER_ADDR",
     "url_env": "A4N_MANGA_RECORD_WORKER_URL",
     "default_addr": "127.0.0.1:47676",
     "local_only": true,
-    "read_scope": ["chapter_manga_prompt", "chapter", "project"],
-    "write_scope": ["chapter_manga_prompt"],
-    "capabilities": ["manga.record.read", "manga.pipeline.read"],
-    "dependencies": ["a4n-migration"],
+    "read_scope": [
+      "chapter_manga_prompt",
+      "chapter",
+      "project"
+    ],
+    "write_scope": [
+      "chapter_manga_prompt"
+    ],
+    "capabilities": [
+      "manga.record.read",
+      "manga.pipeline.read"
+    ],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "manga_record",
       "min_compatible": "manga_record",
@@ -765,7 +992,7 @@
     "name": "character-mutation-worker",
     "kind": "stateful_worker",
     "binary": "a4n-character-mutation-worker",
-    "launcher": "a4n-component-host",
+    "launcher": "a4n-character-mutation-worker",
     "contract_version": "character-mutation-v7",
     "capability_version": "character-mutation-v7",
     "addr_env": "A4N_CHARACTER_MUTATION_WORKER_ADDR",
@@ -791,7 +1018,9 @@
       "character.overview",
       "character.timeline.read"
     ],
-    "dependencies": ["a4n-migration"],
+    "dependencies": [
+      "a4n-migration"
+    ],
     "migration": {
       "current": "character_profile",
       "min_compatible": "character_profile",

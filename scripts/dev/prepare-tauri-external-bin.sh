@@ -137,22 +137,30 @@ if ! $DRY_RUN; then
 fi
 
 build_external_binaries() {
-    local spec package
+    local spec package component_package is_component base_rustflags="${RUSTFLAGS:-}"
     local -a cargo_base=(cargo build)
     [[ "$BUILD_MODE" == "release" ]] && cargo_base+=(--release)
     [[ -n "$TARGET_TRIPLE" ]] && cargo_base+=(--target "$TARGET_TRIPLE")
-    local -a component_host_args=("${cargo_base[@]}" -p a4n-component-host)
-    local -a tool_args=("${cargo_base[@]}")
-    local found_component_host=false
+    local -a component_packages=() all_args=("${cargo_base[@]}") host_args=("${cargo_base[@]}") component_args=("${cargo_base[@]}")
+    while IFS= read -r component_package; do
+        [[ -n "$component_package" ]] && component_packages+=("$component_package")
+    done < <(runtime_component_packages)
     for spec in "${TOOL_SPECS[@]}"; do
         package="${spec%%:*}"
-        if [[ "$package" == "a4n-component-host" ]]; then
-            found_component_host=true
+        all_args+=(-p "$package")
+        is_component=false
+        for component_package in "${component_packages[@]}"; do
+            [[ "$package" == "$component_package" ]] && is_component=true
+        done
+        if $is_component; then
+            component_args+=(-p "$package")
         else
-            tool_args+=(-p "$package")
+            host_args+=(-p "$package")
         fi
     done
-    $found_component_host || die "release tool catalog is missing a4n-component-host"
+    if [[ "$BUILD_MODE" == "release" ]]; then
+        component_args+=(--config 'profile.release.lto="off"')
+    fi
 
     if $SKIP_BUILD; then
         $DRY_RUN && log_info "build externalBin: skipped (--no-build)"
@@ -160,14 +168,27 @@ build_external_binaries() {
     fi
     if $DRY_RUN; then
         log_info "build externalBin:"
-        print_command "${component_host_args[@]}"
-        ((${#tool_args[@]} > ${#cargo_base[@]})) && print_command "${tool_args[@]}"
+        if [[ "$BUILD_MODE" == "release" ]]; then
+            print_command "${host_args[@]}"
+            log_info "Host retains fat LTO; component packages use -C prefer-dynamic with release LTO off"
+            print_command "${component_args[@]}"
+        else
+            print_command "${all_args[@]}"
+        fi
     else
         (
             cd "$PROJECT_ROOT"
-            "${component_host_args[@]}"
-            if ((${#tool_args[@]} > ${#cargo_base[@]})); then
-                "${tool_args[@]}"
+            if [[ "$BUILD_MODE" != "release" ]]; then
+                "${all_args[@]}"
+            else
+                if [[ -n "$base_rustflags" ]]; then
+                    export RUSTFLAGS="$base_rustflags"
+                else
+                    unset RUSTFLAGS
+                fi
+                "${host_args[@]}"
+                export RUSTFLAGS="$(runtime_component_rustflags "$base_rustflags" "$TARGET_TRIPLE" tauri)"
+                "${component_args[@]}"
             fi
         )
     fi
@@ -176,7 +197,7 @@ build_external_binaries() {
 prepare_external_binary() {
     local package="$1"
     local binary_name="$2"
-    local source_binary target_binary runtime_dependency
+    local source_binary target_binary
 
     source_binary="$PROFILE_DIR/${binary_name}${BINARY_EXT}"
     target_binary="$EXTERNAL_BIN_DIR/${binary_name}-${TARGET_TRIPLE}${BINARY_EXT}"
@@ -189,12 +210,6 @@ prepare_external_binary() {
         cp "$source_binary" "$target_binary"
         if [[ "$TARGET_TRIPLE" != *-windows-* ]]; then
             chmod +x "$target_binary"
-        fi
-        if [[ "$TARGET_TRIPLE" == *-apple-darwin && "$package" == "a4n-component-host" ]]; then
-            runtime_dependency="$(otool -L "$target_binary" | awk '/libonnxruntime.*dylib/ { print $1; exit }')"
-            [[ -n "$runtime_dependency" ]] || die "embedding sidecar 未链接 ONNX Runtime"
-            install_name_tool -change "$runtime_dependency" '@rpath/libonnxruntime.dylib' "$target_binary"
-            codesign --force --sign - "$target_binary"
         fi
         log_ok "$(basename "$target_binary")"
     fi
@@ -219,3 +234,33 @@ else
     cp "$runtime_source" "$runtime_target"
     log_ok "$RUNTIME_NAME"
 fi
+
+copy_shared_rust_runtime() {
+    $DRY_RUN && { log_info "copy shared Rust runtime: $EXTERNAL_BIN_DIR"; return 0; }
+    [[ "$BUILD_MODE" == "release" ]] || return 0
+    local source pattern rust_std_dir db_library_name
+    rust_std_dir="$(rustc --target "$TARGET_TRIPLE" --print target-libdir)"
+    local -a patterns=()
+    case "$TARGET_TRIPLE" in
+        *-apple-darwin) db_library_name="liba4n_db.dylib"; patterns=("libstd-"*.dylib) ;;
+        *-windows-*) db_library_name="a4n_db.dll"; patterns=("std-"*.dll "libstd-"*.dll) ;;
+        *) db_library_name="liba4n_db.so"; patterns=("libstd-"*.so) ;;
+    esac
+    source="$PROFILE_DIR/deps/$db_library_name"
+    [[ -f "$source" ]] || die "缺少共享数据库动态库: $source"
+    cp -L "$source" "$EXTERNAL_BIN_DIR/$db_library_name"
+    for pattern in "${patterns[@]}"; do
+        for source in "$PROFILE_DIR/$pattern"; do
+            [[ -f "$source" ]] || continue
+            cp -L "$source" "$EXTERNAL_BIN_DIR/$(basename "$source")"
+        done
+    done
+    for pattern in "${patterns[@]}"; do
+        for source in "$rust_std_dir/$pattern"; do
+            [[ -f "$source" ]] || continue
+            cp -L "$source" "$EXTERNAL_BIN_DIR/$(basename "$source")"
+        done
+    done
+}
+
+copy_shared_rust_runtime

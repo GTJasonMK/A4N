@@ -33,7 +33,7 @@ $WorkerRows = @(& ruby $ManifestTool worker-rows)
 if ($LASTEXITCODE -ne 0) { throw "unable to read worker catalog" }
 $Workers = @($WorkerRows | ForEach-Object {
     $fields = $_ -split "`t", 2
-    [pscustomobject]@{ name = $fields[0]; launcher = $fields[1] }
+    [pscustomobject]@{ name = $fields[0]; binary = $fields[1] }
 })
 $ToolRows = @(& ruby $ManifestTool tool-rows)
 if ($LASTEXITCODE -ne 0) { throw "unable to read release tool catalog" }
@@ -103,7 +103,7 @@ try {
     }
     $SelectedSidecar = Join-Path $PackageRoot "bin\$($SelectedService.binary).exe"
     if (-not (Test-Path -LiteralPath $SelectedSidecar -PathType Leaf)) {
-        throw "release package is missing shared component host: $($SelectedService.binary).exe"
+        throw "release package is missing independent service binary: $($SelectedService.binary).exe"
     }
     $MissingSidecar = "$SelectedSidecar.missing"
     if (Test-Path -LiteralPath $MissingSidecar) {
@@ -124,6 +124,13 @@ try {
         if (-not (Test-Path -LiteralPath $toolPath -PathType Leaf)) {
             throw "release package is missing executable tool: $tool"
         }
+    }
+    $RuntimeDir = Join-Path $PackageRoot "bin\services"
+    if (-not (Test-Path -LiteralPath (Join-Path $RuntimeDir "a4n_db.dll") -PathType Leaf)) {
+        throw "release package is missing shared runtime: a4n_db.dll"
+    }
+    if (-not (Get-ChildItem -LiteralPath $RuntimeDir -File | Where-Object { $_.Name -match "^(lib)?std-.+\.dll$" } | Select-Object -First 1)) {
+        throw "release package is missing the Rust shared standard library"
     }
     $LocalCli = (Resolve-Path -LiteralPath (Join-Path $PackageRoot "bin\$($CliBinary).exe")).Path
     $LocalConfig = Join-Path $TempRoot "cli.json"
@@ -200,12 +207,12 @@ try {
         throw "release sidecars did not become healthy"
     }
 
-    $ComponentHostPath = (Resolve-Path -LiteralPath $SelectedSidecar).Path
     $SidecarPids = @()
     for ($index = 0; $index -lt $modules.Count; $index++) {
-        $servicePattern = "--service\s+$([regex]::Escape($modules[$index]))(?:\s|$)"
-        $ServiceProcesses = @(Get-CimInstance Win32_Process -Filter "Name='a4n-component-host.exe'" | Where-Object {
-            $_.ExecutablePath -eq $ComponentHostPath -and $_.CommandLine -match $servicePattern
+        $serviceBinary = [string]$Services[$index].binary
+        $servicePath = (Resolve-Path -LiteralPath (Join-Path $PackageRoot "bin\$serviceBinary.exe")).Path
+        $ServiceProcesses = @(Get-CimInstance Win32_Process -Filter "Name='$serviceBinary.exe'" | Where-Object {
+            $_.ExecutablePath -eq $servicePath
         })
         if ($ServiceProcesses.Count -ne 1) {
             throw "expected one independent $($modules[$index]) process, found $($ServiceProcesses.Count)"
@@ -213,13 +220,13 @@ try {
         $SidecarPids += [uint32]$ServiceProcesses[0].ProcessId
     }
     if (@($SidecarPids | Select-Object -Unique).Count -ne $modules.Count) {
-        throw "multiple service roles share one component-host process"
+        throw "multiple service roles share one process"
     }
     $WorkerPids = @()
     foreach ($worker in $Workers) {
-        $workerPattern = "--worker\s+$([regex]::Escape($worker.name))(?:\s|$)"
-        $WorkerProcesses = @(Get-CimInstance Win32_Process -Filter "Name='a4n-component-host.exe'" | Where-Object {
-            $_.ExecutablePath -eq $ComponentHostPath -and $_.CommandLine -match $workerPattern
+        $workerPath = (Resolve-Path -LiteralPath (Join-Path $PackageRoot "bin\$($worker.binary).exe")).Path
+        $WorkerProcesses = @(Get-CimInstance Win32_Process -Filter "Name='$($worker.binary).exe'" | Where-Object {
+            $_.ExecutablePath -eq $workerPath
         })
         if ($WorkerProcesses.Count -ne 1) {
             throw "expected one independent $($worker.name) process, found $($WorkerProcesses.Count)"
@@ -227,7 +234,7 @@ try {
         $WorkerPids += [uint32]$WorkerProcesses[0].ProcessId
     }
     if (@($WorkerPids | Select-Object -Unique).Count -ne $Workers.Count) {
-        throw "multiple worker roles share one component-host process"
+        throw "multiple worker roles share one process"
     }
 
     $hostPath = (Resolve-Path -LiteralPath (Join-Path $PackageRoot "bin\a4n-tauri.exe")).Path

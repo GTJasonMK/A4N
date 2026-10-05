@@ -386,7 +386,15 @@ fn spawn_child(
     }
     let mut command = Command::new(binary);
     command.env_clear();
-    command.args(["--service", config.name.as_str()]);
+    if binary
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.trim_end_matches(".exe") == "a4n-component-host")
+    {
+        // Keep old packages launchable while new catalog entries execute the
+        // component binary directly.
+        command.args(["--service", config.name.as_str()]);
+    }
     command.envs(config.env.clone());
     #[cfg(windows)]
     if let Some(system_root) = std::env::var_os("SystemRoot") {

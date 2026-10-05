@@ -108,10 +108,14 @@ for tree in "$control_tree" "$host_tree"; do
 done
 for worker in "${STATEFUL_WORKER_PACKAGES[@]}"; do
     worker_tree="$(cargo tree --locked -e normal -p "$worker")"
-    if grep -Eq 'a4n-(worker-client|runtime|orchestrator) v' <<<"$worker_tree"; then
-        echo "$worker must not depend on Host implementations or client transport for protocol constants" >&2
+    if grep -Eq 'a4n-(sidecar-bootstrap|worker-client|runtime|orchestrator) v' <<<"$worker_tree"; then
+        echo "$worker must not depend on the Sidecar runtime helper or Host/client implementations" >&2
         exit 1
     fi
+    grep -q 'a4n-db v' <<<"$worker_tree" || {
+        echo "$worker must link the shared database runtime" >&2
+        exit 1
+    }
     if [[ "$worker" == a4n-import-review-worker ]] && grep -q 'a4n-import-core v' <<<"$worker_tree"; then
         echo "import review must not pull document/archive parsers for SimHash" >&2
         exit 1
@@ -146,24 +150,24 @@ cargo check --locked -p "$WORKER_PACKAGE" >/dev/null
 cargo check --locked -p a4n-worker-client >/dev/null
 cargo test --locked -p a4n-service-protocol --lib >/dev/null
 
-worker_main="$(cargo_package_dir "$WORKER_PACKAGE")/src/main.rs"
-[[ -r "$worker_main" ]] || {
-    echo "Worker entrypoint is missing: $worker_main" >&2
+worker_source="$(cargo_package_dir "$WORKER_PACKAGE")/src"
+[[ -d "$worker_source" ]] || {
+    echo "Worker source is missing: $worker_source" >&2
     exit 1
 }
-rg -q --fixed-strings 'a4n_sidecar_bootstrap::serve_sidecar' "$worker_main" || {
+rg -q --fixed-strings 'a4n_sidecar_bootstrap::serve_sidecar' "$worker_source" || {
     echo "Worker must use shared sidecar bootstrap" >&2
     exit 1
 }
-rg -q --fixed-strings 'EXPORT_SERVICE_NAME' "$worker_main" || {
+rg -q --fixed-strings 'EXPORT_SERVICE_NAME' "$worker_source" || {
     echo "Worker must bind the catalog service identity" >&2
     exit 1
 }
-rg -q --fixed-strings 'sidecar_resource_policy' "$worker_main" || {
+rg -q --fixed-strings 'sidecar_resource_policy' "$worker_source" || {
     echo "Worker must use the service-protocol resource policy" >&2
     exit 1
 }
-if rg -n 'DatabaseConnection|sqlx|DATABASE_URL|JWT_SECRET|task_queue|generation_task_checkpoint' "$worker_main"; then
+if rg -n 'DatabaseConnection|sqlx|DATABASE_URL|JWT_SECRET|task_queue|generation_task_checkpoint' "$worker_source"; then
     echo "Worker entrypoint must not own Host database/task/recovery state" >&2
     exit 1
 fi

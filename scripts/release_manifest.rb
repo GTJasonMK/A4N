@@ -17,6 +17,7 @@ def options_for(argv)
     opts.on("--target TARGET", String) { |value| options[:target] = value }
     opts.on("--package NAME", String) { |value| options[:package] = value }
     opts.on("--services NAMES", String) { |value| options[:services] = value }
+    opts.on("--runtime-files NAMES", String) { |value| options[:runtime_files] = value }
     opts.on("--tauri-app PATH", String) { |value| options[:tauri_app] = value }
     opts.on("--manifest PATH", String) { |value| options[:manifest] = value }
     opts.on("--output PATH", String) { |value| options[:output] = value }
@@ -204,6 +205,38 @@ def runtime_file_name(target)
   "libonnxruntime.so.1"
 end
 
+def runtime_file_entries(package_root, target, tauri_app, selected_names)
+  runtime_root = if tauri_app
+                   package_root.join(tauri_app.fetch(:root), "Contents", "Resources")
+                 else
+                   package_root.join("bin", "services")
+                 end
+  names = Dir[runtime_root.join("*").to_s]
+    .select { |path| File.file?(path) }
+    .map { |path| File.basename(path) }
+    .sort
+  expected = runtime_file_name(target)
+  fail_with("missing #{expected}") unless names.include?(expected)
+  unless selected_names.nil?
+    unknown = selected_names - names
+    fail_with("--runtime-files contains missing file: #{unknown.join(", ")}") unless unknown.empty?
+    names = [expected] + selected_names.reject { |name| name == expected }
+  end
+  names.map do |name|
+    path = runtime_root.join(name)
+    relative = if tauri_app
+                 "#{tauri_app.fetch(:root)}/Contents/Resources/#{name}"
+               else
+                 "bin/services/#{name}"
+               end
+    {
+      "name" => name,
+      "path" => relative,
+      "sha256" => sha256(path)
+    }
+  end
+end
+
 def safe_package_path(root, relative)
   relative = validate_relative_manifest_path(relative)
   path = root.join(relative).cleanpath
@@ -309,7 +342,28 @@ def generate(options)
   }
 
   selected_catalog.each do |entry|
-    binary = "#{entry.fetch("launcher")}#{extension}"
+    binary = "#{entry.fetch("binary")}#{extension}"
+    relative = if tauri_app
+                 "#{tauri_app.fetch(:root)}/Contents/MacOS/#{binary}"
+               else
+                 "bin/#{binary}"
+               end
+    path = safe_package_path(package_root, relative)
+    fail_with("missing #{relative}") unless path.file?
+    binaries << {
+      "name" => binary,
+      "service" => entry.fetch("name"),
+      "path" => relative,
+      "version" => cargo_version(root, entry.fetch("binary")),
+      "target" => target,
+      "sha256" => sha256(path),
+      "protocol_version" => protocol,
+      "capability_version" => entry.fetch("capability_version")
+    }
+  end
+
+  worker_catalog.each do |entry|
+    binary = "#{entry.fetch("binary")}#{extension}"
     relative = if tauri_app
                  "#{tauri_app.fetch(:root)}/Contents/MacOS/#{binary}"
                else
@@ -349,19 +403,12 @@ def generate(options)
     }
   end
 
-  runtime_name = runtime_file_name(target)
-  runtime_relative = if tauri_app
-                       "#{tauri_app.fetch(:root)}/Contents/Resources/#{runtime_name}"
-                     else
-                       "bin/services/#{runtime_name}"
-                     end
-  runtime_path = safe_package_path(package_root, runtime_relative)
-  fail_with("missing #{runtime_relative}") unless runtime_path.file?
-  runtime_files = [{
-    "name" => runtime_name,
-    "path" => runtime_relative,
-    "sha256" => sha256(runtime_path)
-  }]
+  selected_runtime_names = if options[:runtime_files]
+                             names = options[:runtime_files].split(",").map(&:strip)
+                             fail_with("--runtime-files contains an empty or duplicated name") if names.empty? || names.any?(&:empty?) || names.uniq.length != names.length
+                             names
+                           end
+  runtime_files = runtime_file_entries(package_root, target, tauri_app, selected_runtime_names)
 
   manifest = {
     "schema_version" => schema_version,
@@ -371,6 +418,7 @@ def generate(options)
     "protocol_version" => protocol,
     "workers" => worker_catalog.map { |entry| entry.fetch("name") },
     "services" => selected_catalog.map { |entry| entry.fetch("name") },
+    "shared_libraries" => runtime_files.map { |entry| entry.fetch("name") }.reject { |name| name == runtime_file_name(target) },
     "binaries" => binaries,
     "tools" => tools,
     "runtime_files" => runtime_files
@@ -413,12 +461,12 @@ def verify(options)
   binaries = manifest.fetch("binaries")
   fail_with("manifest binaries must be an array") unless binaries.is_a?(Array)
   selected_catalog = selected_manifest_service_catalog(catalog, manifest)
-  services = binaries.map { |entry| entry.fetch("service") }
-  expected_services = ["host"] + selected_catalog.map { |entry| entry.fetch("name") }
-  services_match = services.length == expected_services.length &&
-                   (services - expected_services).empty? &&
-                   (expected_services - services).empty?
-  fail_with("manifest services do not match service catalog") unless services_match
+  binary_services = binaries.map { |entry| entry.fetch("service") }
+  expected_services = ["host"] + selected_catalog.map { |entry| entry.fetch("name") } + worker_catalog.map { |entry| entry.fetch("name") }
+  services_match = binary_services.length == expected_services.length &&
+                   (binary_services - expected_services).empty? &&
+                   (expected_services - binary_services).empty?
+  fail_with("manifest binaries do not match process catalogs") unless services_match
   duplicate_names = binaries.group_by { |entry| entry.fetch("name") }
     .values.any? { |entries| entries.map { |entry| [entry.fetch("path"), entry.fetch("sha256")] }.uniq.length > 1 }
   fail_with("manifest binary names reference different artifacts") if duplicate_names
@@ -475,16 +523,23 @@ def verify(options)
     fail_with("SHA-256 mismatch for #{name}") unless sha256(actual_path).casecmp?(entry.fetch("sha256"))
   end
   runtime_files = manifest.fetch("runtime_files")
-  fail_with("manifest must contain one ONNX Runtime file") unless runtime_files.is_a?(Array) && runtime_files.length == 1
+  fail_with("manifest must contain runtime files") unless runtime_files.is_a?(Array) && !runtime_files.empty?
+  shared_libraries = manifest.fetch("shared_libraries")
+  fail_with("manifest shared_libraries must be an array") unless shared_libraries.is_a?(Array)
+  fail_with("manifest shared libraries are duplicated") unless shared_libraries.uniq.length == shared_libraries.length
   expected_runtime_name = runtime_file_name(target)
+  fail_with("manifest must contain one ONNX Runtime file") unless runtime_files.count { |entry| entry.fetch("name") == expected_runtime_name } == 1
+  actual_shared_libraries = runtime_files.map { |entry| entry.fetch("name") }.reject { |name| name == expected_runtime_name }
+  fail_with("manifest shared libraries do not match runtime files") unless shared_libraries.sort == actual_shared_libraries.sort
   runtime_files.each do |entry|
-    fail_with("manifest runtime file name is invalid") unless entry.fetch("name") == expected_runtime_name
+    name = entry.fetch("name")
+    fail_with("manifest runtime file name is invalid") unless name.match?(/\A[a-zA-Z0-9._-]+\z/)
     fail_with("manifest runtime file SHA-256 is invalid") unless sha256_value?(entry.fetch("sha256"))
     fail_with("manifest runtime file name does not match path") unless manifest_file_name(entry.fetch("path")) == entry.fetch("name")
     expected_runtime_path = if layout.fetch(:type) == :tauri_macos
-                              "#{layout.fetch(:root)}/Contents/Resources/#{expected_runtime_name}"
-                            else
-                              "bin/services/#{expected_runtime_name}"
+                              "#{layout.fetch(:root)}/Contents/Resources/#{name}"
+    else
+                              "bin/services/#{name}"
                             end
     fail_with("manifest runtime file path is invalid") unless entry.fetch("path") == expected_runtime_path
     actual_path = safe_package_path(package_root, entry.fetch("path"))
@@ -496,13 +551,25 @@ def verify(options)
     manifest_entry = binaries.find { |entry| entry.fetch("service") == catalog_entry.fetch("name") }
     fail_with("manifest capability version does not match service catalog") unless manifest_entry.fetch("capability_version") == catalog_entry.fetch("capability_version")
     fail_with("manifest service version does not match package") unless manifest_entry.fetch("version") == cargo_version(root, catalog_entry.fetch("binary"))
-    binary_name = "#{catalog_entry.fetch("launcher")}#{binary_extension(target)}"
+    binary_name = "#{catalog_entry.fetch("binary")}#{binary_extension(target)}"
     expected_path = if layout.fetch(:type) == :tauri_macos
                       "#{layout.fetch(:root)}/Contents/MacOS/#{binary_name}"
                     else
                       "bin/#{binary_name}"
                     end
     fail_with("manifest service path does not match layout") unless manifest_entry.fetch("name") == binary_name && manifest_entry.fetch("path") == expected_path
+  end
+  worker_catalog.each do |catalog_entry|
+    manifest_entry = binaries.find { |entry| entry.fetch("service") == catalog_entry.fetch("name") }
+    fail_with("manifest worker version does not match catalog") unless manifest_entry.fetch("version") == cargo_version(root, catalog_entry.fetch("binary"))
+    fail_with("manifest worker capability version does not match catalog") unless manifest_entry.fetch("capability_version") == catalog_entry.fetch("capability_version")
+    binary_name = "#{catalog_entry.fetch("binary")}#{binary_extension(target)}"
+    expected_path = if layout.fetch(:type) == :tauri_macos
+                      "#{layout.fetch(:root)}/Contents/MacOS/#{binary_name}"
+                    else
+                      "bin/#{binary_name}"
+                    end
+    fail_with("manifest worker path does not match layout") unless manifest_entry.fetch("name") == binary_name && manifest_entry.fetch("path") == expected_path
   end
   duplicate_paths = (binaries + tools + runtime_files)
     .group_by { |entry| entry.fetch("path") }

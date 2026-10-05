@@ -23,7 +23,7 @@ check_prerequisites() {
     log_ok "公网入口: $PUBLIC_APP_URL/"
     log_ok "API Base: $API_BASE_URL"
     log_ok "SSH key: $SSH_KEY"
-    log_ok "完整 sidecar service 角色: ${#SERVICE_NAMES[@]} 个，共用 a4n-component-host"
+    log_ok "完整 sidecar service 角色: ${#SERVICE_NAMES[@]} 个，全部独立二进制发布"
 }
 remote_preflight() {
     log_section "远端预检"

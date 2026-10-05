@@ -36,12 +36,14 @@ worker_rows="$(ruby "$PROJECT_ROOT/scripts/release_manifest.rb" worker-rows)"
 tool_binaries="$(release_tool_binaries)"
 cli_binary="$(release_tool_binary_for_package a4n-cli)"
 modules=()
+module_binaries=()
 addr_envs=()
 url_envs=()
 health_paths=()
 while IFS=$'\t' read -r module _package addr_env url_env health_path; do
     [[ -n "$module" ]] || continue
     modules+=("$module")
+    module_binaries+=("$_package")
     addr_envs+=("$addr_env")
     url_envs+=("$url_env")
     health_paths+=("$health_path")
@@ -114,6 +116,12 @@ package_root="${package_roots[0]}"
     printf 'release package is missing executable start.sh\n' >&2
     exit 1
 }
+while IFS= read -r library; do
+    [[ -f "$package_root/bin/services/$library" ]] || {
+        printf 'release package is missing shared runtime: %s\n' "$library" >&2
+        exit 1
+    }
+done < <(ruby -rjson -e 'puts JSON.parse(File.read(ARGV.fetch(0))).fetch("shared_libraries")' "$package_root/release-manifest.json")
 while IFS= read -r tool; do
     [[ -x "$package_root/bin/$tool" ]] || {
         printf 'release package is missing executable tool: %s\n' "$tool" >&2
@@ -178,7 +186,7 @@ find "$package_root/data/logs/services" -type f -size +0c -print -quit | rg -q .
 
 declare -A sidecar_pid_by_service=()
 for index in "${!modules[@]}"; do
-    mapfile -t process_ids < <(pgrep -P "$launcher_pid" -f -- "a4n-component-host --service ${modules[index]}" || true)
+    mapfile -t process_ids < <(pgrep -P "$launcher_pid" -f -- "(^|/)${module_binaries[index]}([[:space:]]|$)" || true)
     [[ "${#process_ids[@]}" -eq 1 ]] || {
         printf 'expected one independent %s process, found %s\n' "${modules[index]}" "${#process_ids[@]}" >&2
         exit 1
@@ -186,13 +194,13 @@ for index in "${!modules[@]}"; do
     sidecar_pid_by_service["${modules[index]}"]="${process_ids[0]}"
 done
 if [[ "$(printf '%s\n' "${sidecar_pid_by_service[@]}" | sort -u | wc -l)" -ne "${#modules[@]}" ]]; then
-    printf 'multiple service roles share one component-host process\n' >&2
+    printf 'multiple service roles share one process\n' >&2
     exit 1
 fi
 declare -A sidecar_pid_by_worker=()
-while IFS=$'\t' read -r worker_name _launcher; do
+while IFS=$'\t' read -r worker_name worker_binary; do
     [[ -n "$worker_name" ]] || continue
-    mapfile -t process_ids < <(pgrep -P "$launcher_pid" -f -- "a4n-component-host --worker ${worker_name}" || true)
+    mapfile -t process_ids < <(pgrep -P "$launcher_pid" -f -- "(^|/)${worker_binary}([[:space:]]|$)" || true)
     [[ "${#process_ids[@]}" -eq 1 ]] || {
         printf 'expected one independent %s process, found %s\n' "$worker_name" "${#process_ids[@]}" >&2
         exit 1
@@ -200,7 +208,7 @@ while IFS=$'\t' read -r worker_name _launcher; do
     sidecar_pid_by_worker["$worker_name"]="${process_ids[0]}"
 done <<<"$worker_rows"
 if [[ "$(printf '%s\n' "${sidecar_pid_by_worker[@]}" | sort -u | wc -l)" -ne "${#sidecar_pid_by_worker[@]}" ]]; then
-    printf 'multiple worker roles share one component-host process\n' >&2
+    printf 'multiple worker roles share one process\n' >&2
     exit 1
 fi
 

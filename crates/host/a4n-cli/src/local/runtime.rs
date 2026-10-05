@@ -245,11 +245,10 @@ pub(super) fn resolve_or_build_sidecars(source_root: Option<&Path>) -> Result<Pa
     })?;
     let directory = target_debug_dir(root)?;
     let mut command = Command::new("cargo");
-    command
-        .arg("build")
-        .arg("-q")
-        .arg("-p")
-        .arg("a4n-component-host");
+    command.arg("build").arg("-q");
+    for service in a4n_process_catalog::service_catalog()? {
+        command.arg("-p").arg(service.binary);
+    }
     configure_onnxruntime_environment(&mut command, None)?;
     let output = command
         .current_dir(root)
@@ -273,7 +272,7 @@ pub(super) fn validate_sidecar_directory(directory: &Path) -> Result<()> {
         .collect::<Vec<_>>();
     if !missing.is_empty() {
         bail!(
-            "sidecar 目录缺少组件宿主 {}: {}",
+            "sidecar 目录缺少独立 service 二进制 {}: {}",
             directory.display(),
             missing.join(", ")
         );

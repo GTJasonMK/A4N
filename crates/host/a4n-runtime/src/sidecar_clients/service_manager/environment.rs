@@ -57,7 +57,65 @@ pub(super) fn apply_common_sidecar_env(
             env.insert(key.to_string(), value);
         }
     }
+    let executable =
+        std::env::current_exe().map_err(|error| format!("无法解析 Host 二进制路径: {error}"))?;
+    apply_component_loader_paths(env, &executable)
+}
+
+fn apply_component_loader_paths(
+    env: &mut HashMap<String, String>,
+    executable: &Path,
+) -> Result<(), String> {
+    let runtime_dirs = component_runtime_dirs(executable);
+    for key in ["LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"] {
+        let mut paths = runtime_dirs.clone();
+        if let Some(current) = std::env::var_os(key) {
+            paths.extend(std::env::split_paths(&current));
+        }
+        env.insert(
+            key.to_string(),
+            std::env::join_paths(paths)
+                .map_err(|error| format!("构造 {key} 失败: {error}"))?
+                .to_string_lossy()
+                .into_owned(),
+        );
+    }
+    if cfg!(windows) {
+        let current = env
+            .get("PATH")
+            .cloned()
+            .or_else(|| std::env::var("PATH").ok());
+        let mut paths = runtime_dirs;
+        if let Some(current) = current {
+            paths.extend(std::env::split_paths(&current));
+        }
+        env.insert(
+            "PATH".to_string(),
+            std::env::join_paths(paths)
+                .map_err(|error| format!("构造 PATH 失败: {error}"))?
+                .to_string_lossy()
+                .into_owned(),
+        );
+    }
     Ok(())
+}
+
+fn component_runtime_dirs(executable: &Path) -> Vec<PathBuf> {
+    let Some(binary_dir) = executable.parent() else {
+        return Vec::new();
+    };
+    let mut directories = vec![binary_dir.join("services"), binary_dir.join("bin/services")];
+    if binary_dir.file_name().is_some_and(|name| name == "MacOS")
+        && let Some(contents_dir) = binary_dir.parent()
+        && contents_dir
+            .file_name()
+            .is_some_and(|name| name == "Contents")
+    {
+        directories.insert(0, contents_dir.join("Resources"));
+    } else {
+        directories.push(binary_dir.join("resources"));
+    }
+    directories
 }
 
 fn configured_path(key: &str, default_path: &Path) -> Result<PathBuf, String> {
@@ -70,4 +128,42 @@ fn path_string(path: &Path) -> Result<String, String> {
     path.to_str()
         .map(str::to_string)
         .ok_or_else(|| format!("Sidecar 环境路径不是有效 Unicode: {}", path.display()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn component_loader_paths_prefer_host_relative_shared_runtimes() {
+        let executable = Path::new("/fixture/a4n/bin/a4n-server");
+        let mut env = HashMap::new();
+        apply_component_loader_paths(&mut env, executable)
+            .expect("component loader paths should be valid");
+        let runtime_dirs = component_runtime_dirs(executable);
+
+        let loader_variables: &[&str] = if cfg!(windows) {
+            &["PATH"]
+        } else {
+            &["LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"]
+        };
+        for variable in loader_variables {
+            let paths = std::env::split_paths(std::ffi::OsStr::new(
+                env.get(*variable)
+                    .expect("shared library path should be populated"),
+            ))
+            .collect::<Vec<_>>();
+            assert!(paths.starts_with(&runtime_dirs));
+        }
+    }
+
+    #[test]
+    fn macos_bundle_resources_are_first_for_sidecar_libraries() {
+        let executable = Path::new("/Applications/A4N.app/Contents/MacOS/a4n-server");
+        let directories = component_runtime_dirs(executable);
+        assert_eq!(
+            directories.first(),
+            Some(&PathBuf::from("/Applications/A4N.app/Contents/Resources"))
+        );
+    }
 }

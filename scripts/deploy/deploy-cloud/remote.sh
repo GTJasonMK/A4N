@@ -1,10 +1,19 @@
 replace_remote_delta() {
-    log_section "远端增量替换（不停止 Host）"
-    ssh "${SSH_OPTS[@]}" "$REMOTE" 'bash -s' -- "$REMOTE_DIR" "$REMOTE_PACKAGE" "$REMOTE_SERVICE" <<'REMOTE' || return $?
+    log_section "远端增量替换（组件文件原子更新）"
+    ssh "${SSH_OPTS[@]}" "$REMOTE" 'bash -s' -- "$REMOTE_DIR" "$REMOTE_PACKAGE" "$REMOTE_SERVICE" "${SERVICE_NAMES[@]}" --workers "${WORKER_NAMES[@]}" <<'REMOTE' || return $?
 set -euo pipefail
 app="$1"
 package_path="$2"
 service="$3"
+shift 3
+service_roles=()
+while (($# > 0)) && [[ "$1" != "--workers" ]]; do
+    service_roles+=("$1")
+    shift
+done
+[[ "${1:-}" == "--workers" ]] || { echo "缺少 worker role 列表" >&2; exit 1; }
+shift
+worker_roles=("$@")
 stage="$app/.deploy-delta"
 state="$app/.deploy-state/current.json"
 rm -rf "$stage"
@@ -54,8 +63,15 @@ for entry in delta.get("files", []):
         if not (root / relative).is_dir():
             raise SystemExit(f"missing delta directory: {relative}")
     elif kind == "file":
-        if not relative.startswith("bin/") or not (root / pathlib.Path(*candidate.parts)).is_file():
+        if (not relative.startswith("bin/") or not (root / pathlib.Path(*candidate.parts)).is_file()):
             raise SystemExit(f"missing or unsafe delta file: {relative}")
+        if relative.startswith("bin/services/"):
+            expected = {
+                entry.get("path")
+                for entry in json.loads(release_manifest.read_text()).get("runtime_files", [])
+            }
+            if relative not in expected:
+                raise SystemExit(f"unlisted shared runtime file: {relative}")
     else:
         raise SystemExit(f"invalid delta file kind: {relative}")
     print(f"{kind}\t{relative}")
@@ -80,14 +96,44 @@ if [[ -z "$base_release_id" || "$current_manifest_id" != "$base_release_id" || "
     exit 42
 fi
 
+restart_host_required=false
+shared_runtime_update=false
+sidecar_binary_paths="$(python3 - "$stage/release-manifest.json" "${service_roles[@]}" <<'PY'
+import json
+import sys
+manifest = json.load(open(sys.argv[1], encoding="utf-8"))
+roles = set(sys.argv[2:])
+for entry in manifest.get("binaries", []):
+    if entry.get("service") in roles:
+        print(f"bin/{entry['name']}")
+PY
+)"
+while IFS=$'\t' read -r kind relative; do
+    [[ "$kind" == file && "$relative" == bin/services/* ]] && {
+        shared_runtime_update=true
+        restart_host_required=true
+    }
+    if [[ "$kind" == file && "$relative" == bin/a4n-server ]]; then
+        restart_host_required=true
+    fi
+    if [[ "$kind" == file ]] && grep -Fxq -- "$relative" <<< "$sidecar_binary_paths"; then
+        restart_host_required=true
+    fi
+done < "$changed_files"
+
 ts="$(date +%Y%m%d%H%M%S)"
 backup="$app/backups/deploy-$ts"
 mkdir -p "$backup"
 applied=false
+service_stopped=false
 
 restore_delta() {
     local status=$?
     if [[ "$applied" == true && "$status" -ne 0 ]]; then
+        if [[ "$restart_host_required" == true ]]; then
+            service_stopped=true
+            sudo systemctl stop "$service" >/dev/null 2>&1 || true
+        fi
         while IFS=$'\t' read -r kind relative; do
             [[ -n "$relative" ]] || continue
             if [[ "$kind" == directory ]]; then
@@ -99,9 +145,25 @@ restore_delta() {
                 rm -f "$app/$relative"
             fi
         done < "$changed_files"
-        [[ -f "$backup/release-manifest.json" ]] && install -m 644 "$backup/release-manifest.json" "$app/release-manifest.json"
-        [[ -f "$backup/release-manifest.sha256" ]] && install -m 644 "$backup/release-manifest.sha256" "$app/release-manifest.sha256"
-        sudo systemctl restart "$service" >/dev/null 2>&1 || true
+        if [[ "$shared_runtime_update" == true ]]; then
+            rm -rf "$app/bin/services"
+            if [[ -d "$backup/bin/services" ]]; then
+                cp -a "$backup/bin/services" "$app/bin/services"
+            fi
+        fi
+        if [[ -f "$backup/release-manifest.json" ]]; then
+            install -m 644 "$backup/release-manifest.json" "$app/release-manifest.json"
+        else
+            rm -f "$app/release-manifest.json"
+        fi
+        if [[ -f "$backup/release-manifest.sha256" ]]; then
+            install -m 644 "$backup/release-manifest.sha256" "$app/release-manifest.sha256"
+        else
+            rm -f "$app/release-manifest.sha256"
+        fi
+    fi
+    if [[ "$service_stopped" == true ]]; then
+        sudo systemctl start "$service" >/dev/null 2>&1 || true
     fi
     rm -rf "$stage"
     exit "$status"
@@ -120,6 +182,22 @@ while IFS=$'\t' read -r kind relative; do
     fi
 done < "$changed_files"
 
+if [[ "$shared_runtime_update" == true ]]; then
+    if [[ -d "$app/bin/services" ]]; then
+        mkdir -p "$backup/bin"
+        cp -a "$app/bin/services" "$backup/bin/services"
+    fi
+    mkdir -p "$app/bin/services"
+fi
+
+if [[ "$restart_host_required" == true ]]; then
+    service_stopped=true
+    sudo systemctl stop "$service"
+    if systemctl is-active --quiet "$service"; then
+        echo "服务停止失败: $service" >&2
+        exit 1
+    fi
+fi
 applied=true
 while IFS=$'\t' read -r kind relative; do
     [[ -n "$relative" ]] || continue
@@ -135,10 +213,26 @@ while IFS=$'\t' read -r kind relative; do
         mv "$destination.new" "$destination"
     fi
 done < "$changed_files"
+
 install -m 644 "$stage/release-manifest.json" "$app/release-manifest.json.new"
 mv "$app/release-manifest.json.new" "$app/release-manifest.json"
 install -m 644 "$stage/release-manifest.sha256" "$app/release-manifest.sha256.new"
 mv "$app/release-manifest.sha256.new" "$app/release-manifest.sha256"
+
+if [[ "$shared_runtime_update" == true ]]; then
+    python3 - "$app/bin/services" "$app/release-manifest.json" <<'PY'
+import json
+import pathlib
+import sys
+
+runtime_dir = pathlib.Path(sys.argv[1])
+manifest = json.loads(pathlib.Path(sys.argv[2]).read_text())
+expected = {entry["path"] for entry in manifest.get("runtime_files", [])}
+for candidate in runtime_dir.iterdir():
+    if f"bin/services/{candidate.name}" not in expected and (candidate.is_file() or candidate.is_symlink()):
+        candidate.unlink()
+PY
+fi
 
 python3 - "$app" "$app/release-manifest.json" <<'PY'
 import hashlib
@@ -161,9 +255,59 @@ for entry in manifest["binaries"] + manifest["tools"] + manifest["runtime_files"
         raise SystemExit(f"release checksum mismatch: {relative}")
 PY
 (cd "$app" && sha256sum -c release-manifest.sha256 >/dev/null)
-systemctl is-active --quiet "$service"
-health="$(curl -fsS --max-time 10 http://127.0.0.1:8080/api/health)"
-[[ "$health" == "ok" ]] || { echo "增量替换后 Host health 异常: $health" >&2; exit 1; }
+if [[ "$restart_host_required" == true ]]; then
+    sudo systemctl start "$service"
+    service_stopped=false
+fi
+health=""
+for _ in {1..60}; do
+    if systemctl is-active --quiet "$service" \
+        && health="$(curl -fsS --connect-timeout 1 --max-time 1 http://127.0.0.1:8080/api/health 2>/dev/null)" \
+        && [[ "$health" == "ok" ]]; then
+        break
+    fi
+    health=""
+    sleep 1
+done
+[[ "$health" == "ok" ]] || { echo "增量替换后 Host health 异常" >&2; exit 1; }
+verify_component_processes() {
+    local role binary expected_executable
+    local -a pids=() roles=("${service_roles[@]}" "${worker_roles[@]}")
+    local -A seen_pids=()
+    for role in "${roles[@]}"; do
+        binary="$(python3 - "$app/release-manifest.json" "$role" <<'PY'
+import json
+import sys
+manifest = json.load(open(sys.argv[1], encoding="utf-8"))
+for entry in manifest.get("binaries", []):
+    if entry.get("service") == sys.argv[2]:
+        print(entry["name"])
+        break
+else:
+    raise SystemExit(f"manifest missing role: {sys.argv[2]}")
+PY
+)"
+        test -x "$app/bin/$binary"
+        expected_executable="$(readlink -f "$app/bin/$binary")"
+        pids=()
+        for _ in {1..30}; do
+            mapfile -t pids < <(pgrep -f -- "(^|/)${binary}([[:space:]]|$)" || true)
+            if ((${#pids[@]} == 1)) \
+                && [[ "$(readlink "/proc/${pids[0]}/exe" 2>/dev/null || true)" == "$expected_executable" ]]; then
+                break
+            fi
+            sleep 1
+        done
+        if ((${#pids[@]} != 1)) \
+            || [[ "$(readlink "/proc/${pids[0]:-0}/exe" 2>/dev/null || true)" != "$expected_executable" ]] \
+            || [[ -n "${seen_pids[${pids[0]:-}]+x}" ]]; then
+            echo "更新后组件未以独立进程运行: $role" >&2
+            exit 1
+        fi
+        seen_pids["${pids[0]}"]="$role"
+    done
+}
+verify_component_processes
 echo "backup=$backup"
 echo "release_id=$(sha256sum "$app/release-manifest.json" | cut -d' ' -f1)"
 echo "health=$health"
@@ -206,11 +350,20 @@ REMOTE
 
 replace_remote_app() {
     log_section "远端预校验、停服、替换与迁移"
-    ssh "${SSH_OPTS[@]}" "$REMOTE" 'bash -s' -- "$REMOTE_DIR" "$REMOTE_PACKAGE" "$REMOTE_SERVICE" <<'REMOTE'
+    ssh "${SSH_OPTS[@]}" "$REMOTE" 'bash -s' -- "$REMOTE_DIR" "$REMOTE_PACKAGE" "$REMOTE_SERVICE" "${SERVICE_NAMES[@]}" --workers "${WORKER_NAMES[@]}" <<'REMOTE'
 set -euo pipefail
 app="$1"
 package_path="$2"
 service="$3"
+shift 3
+service_roles=()
+while (($# > 0)) && [[ "$1" != "--workers" ]]; do
+    service_roles+=("$1")
+    shift
+done
+[[ "${1:-}" == "--workers" ]] || { echo "缺少 worker role 列表" >&2; exit 1; }
+shift
+worker_roles=("$@")
 database_url="$(python3 - "$app/.env" <<'PY'
 import pathlib
 import sys
@@ -279,22 +432,61 @@ mapfile -t managed_files < "$managed_files"
 ((${#managed_files[@]} > 0))
 
 service_stopped=false
+deployment_applied=false
 restart_after_failure() {
     local status=$?
-    if [[ "$service_stopped" == true && "$status" -ne 0 ]]; then
+    if [[ "$status" -ne 0 && "$deployment_applied" == true ]]; then
+        if [[ "$service_stopped" != true ]]; then
+            service_stopped=true
+            sudo systemctl stop "$service" >/dev/null 2>&1 || true
+        fi
+        for relative in "${managed_files[@]}"; do
+            case "$relative" in
+                bin/services/*) continue ;;
+            esac
+            destination="$app/$relative"
+            if [[ -f "$backup/$relative" ]]; then
+                mkdir -p "$(dirname "$destination")"
+                rm -f "$destination.new"
+                cp -a "$backup/$relative" "$destination.new"
+                mv "$destination.new" "$destination"
+            else
+                rm -f "$destination" "$destination.new"
+            fi
+        done
+        rm -rf "$app/bin/services"
+        if [[ -d "$backup/bin/services" ]]; then
+            cp -a "$backup/bin/services" "$app/bin/services"
+        fi
+        for relative in release-manifest.json release-manifest.sha256; do
+            if [[ -f "$backup/$relative" ]]; then
+                cp -a "$backup/$relative" "$app/$relative.restore"
+                mv "$app/$relative.restore" "$app/$relative"
+            else
+                rm -f "$app/$relative"
+            fi
+        done
+        for directory in static prompts; do
+            rm -rf "$app/$directory"
+            if [[ -d "$backup/$directory" ]]; then
+                cp -a "$backup/$directory" "$app/$directory"
+            fi
+        done
+        rm -rf "$app/.deploy-new" "$app/static.new" "$app/prompts.new" "$app/bin/services.new"
+    fi
+    if [[ "$service_stopped" == true ]]; then
         sudo systemctl start "$service" || true
     fi
     exit "$status"
 }
 trap restart_after_failure EXIT
 
+service_stopped=true
 sudo systemctl stop "$service"
 if systemctl is-active --quiet "$service"; then
     echo "服务停止失败: $service" >&2
     exit 1
 fi
-service_stopped=true
-
 ts=$(date +%Y%m%d%H%M%S)
 backup="$app/backups/deploy-$ts"
 
@@ -317,6 +509,8 @@ for relative in release-manifest.json release-manifest.sha256; do
 done
 if [[ -d "$app/static" ]]; then cp -a "$app/static" "$backup/static"; fi
 if [[ -d "$app/prompts" ]]; then cp -a "$app/prompts" "$backup/prompts"; fi
+
+deployment_applied=true
 
 for relative in "${managed_files[@]}"; do
     case "$relative" in
@@ -347,10 +541,66 @@ rm -rf "$app/prompts"
 mv "$app/prompts.new" "$app/prompts"
 
 A4N_DATABASE_URL="$database_url" "$app/bin/a4n-migration"
+sudo systemctl start "$service"
+service_stopped=false
+health=""
+for _ in {1..60}; do
+    if systemctl is-active --quiet "$service" \
+        && health="$(curl -fsS --connect-timeout 1 --max-time 1 http://127.0.0.1:8080/api/health 2>/dev/null)" \
+        && [[ "$health" == "ok" ]]; then
+        break
+    fi
+    health=""
+    sleep 1
+done
+[[ "$health" == "ok" ]] || {
+    echo "全量部署后 Host health 未就绪" >&2
+    systemctl status "$service" --no-pager --lines=80 >&2 || true
+    journalctl -u "$service" --since "2 minutes ago" --no-pager | tail -n 120 >&2 || true
+    exit 1
+}
+verify_component_processes() {
+    local role binary expected_executable
+    local -a pids=() roles=("${service_roles[@]}" "${worker_roles[@]}")
+    local -A seen_pids=()
+    for role in "${roles[@]}"; do
+        binary="$(python3 - "$app/release-manifest.json" "$role" <<'PY'
+import json
+import sys
+manifest = json.load(open(sys.argv[1], encoding="utf-8"))
+for entry in manifest.get("binaries", []):
+    if entry.get("service") == sys.argv[2]:
+        print(entry["name"])
+        break
+else:
+    raise SystemExit(f"manifest missing role: {sys.argv[2]}")
+PY
+)"
+        test -x "$app/bin/$binary"
+        expected_executable="$(readlink -f "$app/bin/$binary")"
+        pids=()
+        for _ in {1..30}; do
+            mapfile -t pids < <(pgrep -f -- "(^|/)${binary}([[:space:]]|$)" || true)
+            if ((${#pids[@]} == 1)) \
+                && [[ "$(readlink "/proc/${pids[0]}/exe" 2>/dev/null || true)" == "$expected_executable" ]]; then
+                break
+            fi
+            sleep 1
+        done
+        if ((${#pids[@]} != 1)) \
+            || [[ "$(readlink "/proc/${pids[0]:-0}/exe" 2>/dev/null || true)" != "$expected_executable" ]] \
+            || [[ -n "${seen_pids[${pids[0]:-}]+x}" ]]; then
+            echo "更新后组件未以独立进程运行: $role" >&2
+            exit 1
+        fi
+        seen_pids["${pids[0]}"]="$role"
+    done
+}
+verify_component_processes
 rm -rf "$app/.deploy-new"
 
 echo "backup=$backup"
-ls -lh "$app/bin/a4n-server" "$app/bin/a4n-control" "$app/bin/a4n-component-host" "$app/bin/a4n-migration"
+ls -lh "$app/bin/a4n-server" "$app/bin/a4n-control" "$app/bin/a4n-migration"
 ls -lh "$app/bin/services"
 find "$app/static" -maxdepth 2 -type f | wc -l
 du -sh "$app/static" "$app/prompts"
@@ -396,32 +646,6 @@ REMOTE
     log_ok "远端 A4N_PUBLIC_APP_URL 已更新"
 }
 
-restart_remote_service() {
-    log_section "重启服务"
-    ssh "${SSH_OPTS[@]}" "$REMOTE" 'bash -s' -- "$REMOTE_SERVICE" <<'REMOTE'
-set -euo pipefail
-service="$1"
-sudo systemctl restart "$service"
-state=activating
-for _ in {1..60}; do
-    state="$(systemctl is-active "$service" 2>/dev/null || true)"
-    [[ "$state" == active || "$state" == failed ]] && break
-    sleep 1
-done
-if [[ "$state" != active ]]; then
-    echo "服务启动失败或超时: $service state=$state" >&2
-    systemctl status "$service" --no-pager --lines=80 >&2 || true
-    journalctl -u "$service" --since "5 minutes ago" --no-pager | tail -n 120 >&2 || true
-    exit 1
-fi
-echo "service_state=$state"
-systemctl status "$service" --no-pager --lines=20
-if command -v nginx >/dev/null 2>&1; then sudo nginx -t; fi
-journalctl -u "$service" --since "5 minutes ago" --no-pager | grep -E "ERROR|panic|failed|Failed|Error" || true
-REMOTE
-    log_ok "服务已重启"
-}
-
 verify_remote_runtime() {
     log_section "远端运行时校验"
     ssh "${SSH_OPTS[@]}" "$REMOTE" 'bash -s' -- "$REMOTE_DIR" "$REMOTE_SERVICE" "${SERVICE_NAMES[@]}" --workers "${WORKER_NAMES[@]}" <<'REMOTE'
@@ -438,7 +662,21 @@ done
 shift
 worker_roles=("$@")
 systemctl is-active --quiet "$service"
-test -x "$app/bin/a4n-component-host"
+test -x "$app/bin/a4n-server"
+binary_for_role() {
+    python3 - "$app/release-manifest.json" "$1" <<'PY'
+import json
+import sys
+manifest = json.load(open(sys.argv[1], encoding="utf-8"))
+role = sys.argv[2]
+for entry in manifest.get("binaries", []):
+    if entry.get("service") == role:
+        print(entry["name"])
+        break
+else:
+    raise SystemExit(f"manifest missing role: {role}")
+PY
+}
 declare -A role_pids=()
 for kind in service worker; do
     if [[ "$kind" == service ]]; then
@@ -447,9 +685,11 @@ for kind in service worker; do
         roles=("${worker_roles[@]}")
     fi
     for role in "${roles[@]}"; do
+        binary="$(binary_for_role "$role")"
+        test -x "$app/bin/$binary"
         pids=()
         for _ in {1..30}; do
-            mapfile -t pids < <(pgrep -f -- "a4n-component-host --${kind} ${role}([[:space:]]|$)" || true)
+            mapfile -t pids < <(pgrep -f -- "(^|/)${binary}([[:space:]]|$)" || true)
             ((${#pids[@]} == 1)) && break
             sleep 1
         done

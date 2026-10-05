@@ -21,7 +21,8 @@ pub(in crate::sidecar_clients::service_manager) fn sidecar_binary_path(
         .parent()
         .ok_or_else(|| "当前 Host 可执行文件路径缺少父目录".to_string())?;
     let services = bin_dir.join("services");
-    Ok([services, bin_dir.to_path_buf()]
+    let resource_bin = bin_dir.join("bin");
+    Ok([bin_dir.to_path_buf(), resource_bin, services]
         .into_iter()
         .map(|directory| directory.join(&executable))
         .find(|binary| binary.is_file()))

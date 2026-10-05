@@ -473,8 +473,14 @@ build_local_server_targets() {
 
 build_native_worker_targets() {
   local -a build_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
+  local package
   $RELEASE && build_command+=(--release)
-  build_command+=(-p a4n-component-host)
+  while IFS= read -r package; do
+    [[ -n "$package" ]] && build_command+=(-p "$package")
+  done < <(stateful_worker_packages)
+  while IFS= read -r package; do
+    [[ -n "$package" ]] && build_command+=(-p "$package")
+  done < <(sidecar_catalog_binaries)
   "${build_command[@]}"
 }
 

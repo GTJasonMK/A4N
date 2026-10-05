@@ -21,7 +21,7 @@ for name in A4N_QDRANT_URL A4N_DATABASE_URL A4N_JWT_SECRET; do
         exit 2
     }
 done
-for command_name in curl ditto grep pgrep sort wc; do
+for command_name in curl ditto grep otool pgrep sort wc; do
     require_command "$command_name"
 done
 
@@ -127,6 +127,18 @@ while IFS= read -r tool; do
         exit 1
     }
 done <<<"$tool_binaries"
+while IFS=$'\t' read -r worker_name worker_binary; do
+    [[ -n "$worker_name" ]] || continue
+    worker_path="$macos_dir/$worker_binary"
+    otool -L "$worker_path" | grep -q 'liba4n_db\.dylib' || {
+        printf 'Tauri Worker does not link the shared database library: %s\n' "$worker_name" >&2
+        exit 1
+    }
+    otool -l "$worker_path" | grep -A 2 'cmd LC_RPATH' | grep -Fq '@executable_path/../Resources' || {
+        printf 'Tauri Worker is missing its bundled runtime rpath: %s\n' "$worker_name" >&2
+        exit 1
+    }
+done <<<"$worker_rows"
 capabilities="$(cd "$tmp_root" && "$local_cli" --config "$local_config" --agent capabilities export)"
 ruby -rjson -e '
   data = JSON.parse(STDIN.read).fetch("data")
@@ -135,6 +147,14 @@ ruby -rjson -e '
 ' <<<"$capabilities"
 [[ -f "$resources_dir/libonnxruntime.dylib" ]] || {
     printf 'Tauri bundle is missing libonnxruntime.dylib\n' >&2
+    exit 1
+}
+[[ -f "$resources_dir/liba4n_db.dylib" ]] || {
+    printf 'Tauri bundle is missing liba4n_db.dylib\n' >&2
+    exit 1
+}
+find "$resources_dir" -maxdepth 1 -type f -name 'libstd-*.dylib' -print -quit | rg -q . || {
+    printf 'Tauri bundle is missing the Rust shared standard library\n' >&2
     exit 1
 }
 [[ -f "$resources_dir/prompts/_registry.yaml" ]] || {
@@ -212,7 +232,7 @@ for index in "${!modules[@]}"; do
     matches=()
     while IFS= read -r match; do
         [[ -z "$match" ]] || matches+=("$match")
-    done < <(pgrep -P "$host_pid" -f "a4n-component-host --service ${modules[index]}" || true)
+    done < <(pgrep -P "$host_pid" -f "(^|/)${packages[index]}([[:space:]]|$)" || true)
     [[ "${#matches[@]}" -eq 1 ]] || {
         printf 'expected one independent %s process, found %s\n' "${modules[index]}" "${#matches[@]}" >&2
         exit 1
@@ -220,16 +240,16 @@ for index in "${!modules[@]}"; do
     sidecar_pids+=("${matches[0]}")
 done
 if [[ "$(printf '%s\n' "${sidecar_pids[@]}" | sort -u | wc -l)" -ne "${#modules[@]}" ]]; then
-    printf 'multiple service roles share one component-host process\n' >&2
+    printf 'multiple service roles share one process\n' >&2
     exit 1
 fi
 worker_pids=()
-while IFS=$'\t' read -r worker_name _launcher; do
+while IFS=$'\t' read -r worker_name worker_binary; do
     [[ -n "$worker_name" ]] || continue
     matches=()
     while IFS= read -r match; do
         [[ -z "$match" ]] || matches+=("$match")
-    done < <(pgrep -P "$host_pid" -f "a4n-component-host --worker ${worker_name}" || true)
+    done < <(pgrep -P "$host_pid" -f "(^|/)${worker_binary}([[:space:]]|$)" || true)
     [[ "${#matches[@]}" -eq 1 ]] || {
         printf 'expected one independent %s process, found %s\n' "$worker_name" "${#matches[@]}" >&2
         exit 1
@@ -237,7 +257,7 @@ while IFS=$'\t' read -r worker_name _launcher; do
     worker_pids+=("${matches[0]}")
 done <<<"$worker_rows"
 if [[ "$(printf '%s\n' "${worker_pids[@]}" | sort -u | wc -l)" -ne "${#worker_pids[@]}" ]]; then
-    printf 'multiple worker roles share one component-host process\n' >&2
+    printf 'multiple worker roles share one process\n' >&2
     exit 1
 fi
 grep -q 'A4N 应用启动完成' "$launcher_log"
