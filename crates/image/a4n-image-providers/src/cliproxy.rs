@@ -97,10 +97,15 @@ impl ImageProvider for CliProxyImageProvider {
 }
 
 fn cli_proxy_image_edit_error(model: &str, status: reqwest::StatusCode, body: &str) -> AppError {
+    let normalized_body = body.to_ascii_lowercase();
+    if normalized_body.contains("personal-team-blocked:spending-limit") {
+        return AppError::InvalidArgument(format!(
+            "CLIProxy/Grok 图片编辑被 XAI API/team 消费策略拒绝：CPA 返回 personal-team-blocked:spending-limit。网页每周 SuperGrok 额度与 API billing 是两套限制；请在 XAI/CPA billing 中启用图片 API 额度或更换有 API 权限的账号（当前模型：{model}）。"
+        ));
+    }
+
     if status == reqwest::StatusCode::FORBIDDEN
-        && body
-            .to_ascii_lowercase()
-            .contains("model does not support this api endpoint")
+        && normalized_body.contains("model does not support this api endpoint")
     {
         return AppError::InvalidArgument(format!(
             "CLIProxy/Grok 图片编辑端点拒绝当前模型 {model}（CPA 返回：model does not support this API endpoint）。这表示当前 CPA 实例、账号或模型配置未启用 /images/edits；请升级或检查 CPA 的 image 模型配置。无参考图生成可继续使用 /images/generations。"

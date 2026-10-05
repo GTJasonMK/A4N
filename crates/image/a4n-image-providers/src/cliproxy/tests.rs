@@ -49,6 +49,21 @@ fn unsupported_edit_endpoint_error_reports_cpa_instance_capability() {
 }
 
 #[test]
+fn spending_limit_error_reports_api_billing_boundary() {
+    let error = cli_proxy_image_edit_error(
+        "grok-imagine-image-2.0",
+        StatusCode::FORBIDDEN,
+        r#"{"code":"personal-team-blocked:spending-limit"}"#,
+    );
+
+    assert!(matches!(&error, ProviderError::InvalidArgument(_)));
+    let message = error.to_string();
+    assert!(message.contains("XAI API/team 消费策略"));
+    assert!(message.contains("API billing"));
+    assert!(message.contains("grok-imagine-image-2.0"));
+}
+
+#[test]
 fn edit_preview_uses_all_reference_images() {
     let mut req = request();
     req.reference_images = vec![
