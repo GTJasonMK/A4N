@@ -1,4 +1,6 @@
-use super::{CliProxyImageProvider, cli_proxy_image_edit_error};
+use super::{
+    CliProxyImageProvider, cli_proxy_image_edit_error, validate_cli_proxy_image_edit_model,
+};
 use a4n_domain::ProviderError;
 use a4n_image_contract::{ImageGenerationRequest, ImageReference};
 use reqwest::StatusCode;
@@ -42,8 +44,22 @@ fn unsupported_edit_endpoint_error_explains_supported_grok_models() {
     assert!(matches!(&error, ProviderError::InvalidArgument(_)));
     let message = error.to_string();
     assert!(message.contains("grok-imagine-image-2.0"));
-    assert!(message.contains("grok-imagine-image-quality"));
-    assert!(message.contains("无参考图生成不受此限制"));
+    assert!(message.contains("只支持模型 grok-imagine-image"));
+    assert!(!message.contains("grok-imagine-image-quality；"));
+    assert!(message.contains("无参考图生成可继续使用其他 Grok Imagine 模型"));
+}
+
+#[test]
+fn quality_model_is_rejected_before_an_edit_request() {
+    let error = validate_cli_proxy_image_edit_model("grok-imagine-image-quality")
+        .expect_err("quality model must not be sent to the edit endpoint");
+    assert!(error.to_string().contains("只支持模型 grok-imagine-image"));
+}
+
+#[test]
+fn canonical_edit_model_is_accepted() {
+    validate_cli_proxy_image_edit_model(" grok-imagine-image ")
+        .expect("canonical Grok edit model should be accepted");
 }
 
 #[test]
