@@ -20,7 +20,9 @@ import { imageTypeLabel } from "../images/imageTabUtils";
 import {
   extractMangaPagePromptSource,
   isMangaPagePromptSourceStale,
+  mangaPipelineStageMatchesWorkspaceStage,
   type MangaPagePromptSource,
+  type MangaPageWorkspaceStage,
 } from "./mangaTabUtils";
 import type { MessageTranslator } from "../../../i18n";
 
@@ -174,6 +176,7 @@ export const buildPagePrompts = (
   prompts: MangaPagePromptSummary[],
   currentContentHash: string | null,
   labels: MangaPagePromptLabels,
+  stageMode?: MangaPageWorkspaceStage,
 ): MangaPagePrompt[] => {
   return [...prompts]
     .sort((a, b) => a.page_number - b.page_number)
@@ -181,12 +184,22 @@ export const buildPagePrompts = (
       const source = extractMangaPagePromptSource(prompt);
       const imageCompleted =
         prompt.generated_image_id != null && prompt.status === "completed";
+      const pipelineStatus = imageCompleted ? "completed" : prompt.pipeline_status;
+      const pipelineStage = imageCompleted
+        ? "image"
+        : pipelineStatus === "failed" || pipelineStatus === "cancelled"
+          ? prompt.pipeline_error?.stage ?? prompt.pipeline_stage
+          : prompt.pipeline_stage;
+      const pipelineStateVisible = mangaPipelineStageMatchesWorkspaceStage(
+        stageMode,
+        pipelineStage,
+      );
       return {
         pageNumber: prompt.page_number,
         prompt,
         promptCount: prompt.page_plan ? 1 + prompt.page_plan.panels.length : 0,
-        pipelineStage: prompt.pipeline_stage,
-        pipelineStatus: imageCompleted ? "completed" : prompt.pipeline_status,
+        pipelineStage: pipelineStateVisible ? pipelineStage : null,
+        pipelineStatus: pipelineStateVisible ? pipelineStatus : null,
         pageContent: prompt.page_content,
         pageAdaptation: prompt.page_adaptation,
         source,

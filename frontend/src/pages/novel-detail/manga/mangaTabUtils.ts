@@ -14,6 +14,8 @@ export type MangaPageWorkspaceStage =
   | "prompts"
   | "images";
 
+export type MangaWorkspaceStage = "materials" | "adaptation" | MangaPageWorkspaceStage;
+
 export const mangaStopAfterForStage = (
   stage: MangaPageWorkspaceStage,
 ): MangaPipelineStopAfter => {
@@ -30,6 +32,39 @@ export const mangaStopAfterForStage = (
       return "image";
   }
 };
+
+const PIPELINE_STAGES_BY_WORKSPACE_STAGE: Record<
+  MangaWorkspaceStage,
+  readonly string[]
+> = {
+  materials: [
+    "character_binding",
+    "speech_selection",
+    "visual_anchor_extraction",
+    "item_extraction",
+  ],
+  adaptation: ["adaptation_plan"],
+  page_plan: ["slots", "content", "page_planning", "page_content", "page_slots"],
+  page_adaptation: ["adaptation", "page_adaptation"],
+  storyboard: ["storyboard"],
+  prompts: ["drawing_prompt"],
+  images: ["image"],
+};
+
+export const mangaPipelineStageMatchesWorkspaceStage = (
+  workspaceStage: MangaWorkspaceStage | undefined,
+  pipelineStage: string | null | undefined,
+): boolean => {
+  if (workspaceStage == null) return true;
+  return (
+    pipelineStage != null &&
+    PIPELINE_STAGES_BY_WORKSPACE_STAGE[workspaceStage].includes(pipelineStage)
+  );
+};
+
+export const mangaImageStatusMatchesWorkspaceStage = (
+  workspaceStage: MangaWorkspaceStage | undefined,
+): boolean => workspaceStage == null || workspaceStage === "images";
 
 export const mangaPageNumberForPipelineStage = (
   stage: MangaPageWorkspaceStage | undefined,

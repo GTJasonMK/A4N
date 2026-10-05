@@ -1295,6 +1295,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           <MangaChapterList
             chapters={chapters}
             statuses={statuses}
+            workspaceStage={staged ? workspaceStage : undefined}
             selectedChapter={selectedChapter}
             onSelect={handleSelect}
           />
@@ -1369,6 +1370,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         <MangaChapterList
           chapters={chapters}
           statuses={statuses}
+          workspaceStage={staged ? workspaceStage : undefined}
           selectedChapter={selectedChapter}
           onSelect={handleSelect}
         />

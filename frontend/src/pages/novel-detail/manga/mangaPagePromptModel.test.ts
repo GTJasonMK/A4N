@@ -109,5 +109,34 @@ describe("buildPagePrompts", () => {
 
     expect(completedPage.pipelineStatus).toBe("completed");
     expect(completedPage.prompt.status).toBe("completed");
+
+    const failedImagePrompt = {
+      ...prompt,
+      pipeline_stage: "image",
+      pipeline_status: "failed",
+      pipeline_error: {
+        stage: "image",
+        code: "page_stage_failed",
+        message: "image provider failed",
+        retryable: true,
+      },
+    } satisfies MangaPagePromptSummary;
+    const [imageStagePage] = buildPagePrompts(
+      [failedImagePrompt],
+      null,
+      labels,
+      "images",
+    );
+    const [storyboardPage] = buildPagePrompts(
+      [failedImagePrompt],
+      null,
+      labels,
+      "storyboard",
+    );
+
+    expect(imageStagePage.pipelineStage).toBe("image");
+    expect(imageStagePage.pipelineStatus).toBe("failed");
+    expect(storyboardPage.pipelineStage).toBeNull();
+    expect(storyboardPage.pipelineStatus).toBeNull();
   });
 });

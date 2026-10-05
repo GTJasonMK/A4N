@@ -44,6 +44,7 @@ import {
 import {
   mangaPageImageBlockReason,
   mangaPageStageLabel,
+  mangaImageStatusMatchesWorkspaceStage,
   type MangaPageWorkspaceStage,
 } from "./mangaTabUtils";
 import { useI18n } from "../../../i18n";
@@ -271,9 +272,10 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
     otherPortrait: t("comic.prompt.otherPortrait"),
   }), [t]);
   const pagePrompts = useMemo(
-    () => buildPagePrompts(prompts, currentContentHash, pagePromptLabels),
-    [currentContentHash, pagePromptLabels, prompts],
+    () => buildPagePrompts(prompts, currentContentHash, pagePromptLabels, stageMode),
+    [currentContentHash, pagePromptLabels, prompts, stageMode],
   );
+  const imageStatusVisible = mangaImageStatusMatchesWorkspaceStage(stageMode);
   const pageRailRef = useRef<HTMLElement | null>(null);
   const activePageButtonRef = useRef<HTMLButtonElement | null>(null);
   const [pageRailHasBefore, setPageRailHasBefore] = useState(false);
@@ -304,6 +306,10 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
 
   const activePage =
     pagePrompts.find((page) => page.pageNumber === selectedPageNumber) ?? pagePrompts[0] ?? null;
+  const activePageStage = activePage?.pipelineStage ??
+    (imageStatusVisible && activePage?.prompt.status !== "pending" ? "image" : null);
+  const activePageStatus = activePage?.pipelineStatus ??
+    (imageStatusVisible ? activePage?.prompt.status ?? null : null);
 
   useEffect(() => {
     const rail = pageRailRef.current;
@@ -391,9 +397,13 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
     (sum, page) => sum + missingReferenceBindingLabels(page).length,
     0,
   );
-  const pipelinePromptCount = sumPipelinePrompts(pipelineStatus);
-  const pipelineCompleted = pipelineStatus?.completed ?? 0;
-  const pipelineFailed = pipelineStatus?.failed ?? 0;
+  const pipelinePromptCount = imageStatusVisible ? sumPipelinePrompts(pipelineStatus) : 0;
+  const pipelineCompleted = imageStatusVisible ? pipelineStatus?.completed ?? 0 : 0;
+  const pipelineFailed = pagePrompts.filter(
+    (page) =>
+      page.pipelineStatus === "failed" ||
+      (imageStatusVisible && page.prompt.status === "failed"),
+  ).length;
   const pipelineCheckpointLabel = pipelineStatus?.has_checkpoint
     ? pipelineStatus.checkpoint_valid
       ? t("comic.prompt.available")
@@ -508,14 +518,16 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
     missingBindingCount > 0
       ? t("comic.prompt.missingReferenceCount", { count: missingBindingCount })
       : "",
-    pipelineStatus
+    imageStatusVisible && pipelineStatus
       ? t("comic.prompt.pipelineCount", {
           completed: pipelineCompleted,
           total: pipelinePromptCount || pagePrompts.length,
         })
       : "",
     pipelineFailed > 0 ? t("comic.prompt.failedCount", { count: pipelineFailed }) : "",
-    pipelineStatus?.has_checkpoint ? t("comic.prompt.checkpoint", { status: pipelineCheckpointLabel }) : "",
+    imageStatusVisible && pipelineStatus?.has_checkpoint
+      ? t("comic.prompt.checkpoint", { status: pipelineCheckpointLabel })
+      : "",
     staleCount > 0 ? t("comic.prompt.staleCount", { count: staleCount }) : "",
   ].filter(Boolean);
   const activePromptMenuItems: DropdownItem[] = [];
@@ -631,15 +643,23 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
           >
             {pagePrompts.map((page) => {
               const selected = page.pageNumber === activePage?.pageNumber;
-              const imageLabel = page.prompt.generated_image_id != null
-                ? t("comic.prompt.generatedStatus")
-                : t("comic.prompt.pendingStatus");
-              const pageStatus = statusLabel(page.prompt.status, t);
+              const imageLabel = imageStatusVisible
+                ? page.prompt.generated_image_id != null
+                  ? t("comic.prompt.generatedStatus")
+                  : page.prompt.status === "pending"
+                    ? t("comic.prompt.pendingStatus")
+                    : ""
+                : "";
+              const pageStage = page.pipelineStage ??
+                (imageStatusVisible && page.prompt.status !== "pending" ? "image" : null);
+              const pagePipelineStatus = page.pipelineStatus;
               const pageMeta = [
-                page.pipelineStage ? mangaPageStageLabel(page.pipelineStage, t) : "",
-                page.pipelineStatus ? statusLabel(page.pipelineStatus, t) : "",
+                pageStage ? mangaPageStageLabel(pageStage, t) : "",
+                pagePipelineStatus ? statusLabel(pagePipelineStatus, t) : "",
                 imageLabel,
-                page.prompt.status !== "completed" && page.prompt.status !== "pending" ? pageStatus : "",
+                imageStatusVisible && page.prompt.status !== "completed" && page.prompt.status !== "pending"
+                  ? statusLabel(page.prompt.status, t)
+                  : "",
                 page.promptCount > 1 ? t("comic.prompt.recordCount", { count: page.promptCount }) : "",
                 page.sourceStale ? t("comic.prompt.staleStatus") : "",
                 promptDrafts[page.prompt.id] !== undefined && promptDrafts[page.prompt.id] !== page.prompt.image_prompt
@@ -683,10 +703,10 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                       </h3>
                       <p className="mt-1 text-small text-book-text-muted">
                         {[
-                          activePage.pipelineStage
-                            ? mangaPageStageLabel(activePage.pipelineStage, t)
+                          activePageStage
+                            ? mangaPageStageLabel(activePageStage, t)
                             : "",
-                          statusLabel(activePage.pipelineStatus ?? activePage.prompt.status, t),
+                          activePageStatus ? statusLabel(activePageStatus, t) : "",
                           activePage.prompt.generated_image_id != null ? t("comic.prompt.hasImage") : t("comic.prompt.noImage"),
                           activePage.sourceStale ? t("comic.prompt.sourceStale") : "",
                           activePage.promptCount > 1 ? t("comic.prompt.recordCount", { count: activePage.promptCount }) : "",

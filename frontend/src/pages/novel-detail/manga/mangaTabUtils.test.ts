@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  mangaImageStatusMatchesWorkspaceStage,
+  mangaPipelineStageMatchesWorkspaceStage,
   mangaPageNumberForPipelineStage,
   mangaStageAllowsReferenceBinding,
   mangaStopAfterForStage,
@@ -28,5 +30,23 @@ describe("manga pipeline workspace stages", () => {
     expect(mangaStageAllowsReferenceBinding("page_plan")).toBe(false);
     expect(mangaStageAllowsReferenceBinding("page_adaptation")).toBe(false);
     expect(mangaStageAllowsReferenceBinding("storyboard")).toBe(false);
+  });
+
+  it("keeps a pipeline error in the workspace stage that produced it", () => {
+    expect(mangaPipelineStageMatchesWorkspaceStage("images", "image")).toBe(true);
+    expect(mangaPipelineStageMatchesWorkspaceStage("storyboard", "image")).toBe(false);
+    expect(mangaPipelineStageMatchesWorkspaceStage("page_plan", "page_content")).toBe(true);
+    expect(mangaPipelineStageMatchesWorkspaceStage("page_plan", "image")).toBe(false);
+    expect(mangaPipelineStageMatchesWorkspaceStage("adaptation", "adaptation")).toBe(false);
+    expect(mangaPipelineStageMatchesWorkspaceStage("page_adaptation", "adaptation")).toBe(true);
+    expect(mangaPipelineStageMatchesWorkspaceStage(undefined, "image")).toBe(true);
+    expect(mangaPipelineStageMatchesWorkspaceStage("storyboard", null)).toBe(false);
+  });
+
+  it("shows image-generation status only in the image stage or combined workspace", () => {
+    expect(mangaImageStatusMatchesWorkspaceStage("images")).toBe(true);
+    expect(mangaImageStatusMatchesWorkspaceStage("storyboard")).toBe(false);
+    expect(mangaImageStatusMatchesWorkspaceStage("materials")).toBe(false);
+    expect(mangaImageStatusMatchesWorkspaceStage(undefined)).toBe(true);
   });
 });

@@ -53,6 +53,7 @@ import {
   mangaStageLabel,
   mangaPageStageLabel,
   mangaPageNumberForPipelineStage,
+  mangaPipelineStageMatchesWorkspaceStage,
   mangaStopAfterForStage,
   mangaStageAllowsReferenceBinding,
   type MangaPageWorkspaceStage,
@@ -277,15 +278,28 @@ export function MangaChapterDetailPanel({
     selectedChapter != null
       ? countStaleMangaPagePrompts(pagePrompts, currentContentHash)
       : 0;
-  const pipelineStoppedWithError =
+  const pipelineHasStoppedWithError =
     selectedStatus?.pipeline_status === "failed" ||
     selectedStatus?.pipeline_status === "interrupted";
+  const pipelineFailureMatchesStage = mangaPipelineStageMatchesWorkspaceStage(
+    stageMode,
+    selectedStatus?.stage,
+  );
+  const pipelineStoppedWithError =
+    pipelineHasStoppedWithError && pipelineFailureMatchesStage;
+  const pipelineCanResumeForStage =
+    selectedStatus?.can_resume === true &&
+    selectedStatus.pipeline_status !== "running" &&
+    selectedStatus.can_cancel !== true &&
+    mangaPipelineStageMatchesWorkspaceStage(stageMode, selectedStatus.stage);
 
-  const stageText = selectedStatus?.stage
-    ? mangaStageLabel(selectedStatus.stage, t)
-    : selectedStatus?.pipeline_status
-      ? mangaStageLabel(selectedStatus.pipeline_status, t)
-      : t("comic.pipelineStages.notStarted");
+  const stageText = pipelineHasStoppedWithError && !pipelineFailureMatchesStage
+    ? ""
+    : selectedStatus?.stage
+      ? mangaStageLabel(selectedStatus.stage, t)
+      : selectedStatus?.pipeline_status
+        ? mangaStageLabel(selectedStatus.pipeline_status, t)
+        : t("comic.pipelineStages.notStarted");
   const pipelineStopAfter = stageMode ? mangaStopAfterForStage(stageMode) : null;
   const pageScopedStage = stageMode != null && stageMode !== "page_plan";
   const pipelinePageNumber = mangaPageNumberForPipelineStage(
@@ -349,7 +363,7 @@ export function MangaChapterDetailPanel({
       };
     }
     if (pipelineStoppedWithError) return null;
-    if (selectedStatus?.can_resume) {
+    if (pipelineCanResumeForStage) {
       return {
         tone: "warning" as InlineNoticeTone,
         text: selectedStatus.checkpoint_valid
@@ -809,12 +823,18 @@ export function MangaChapterDetailPanel({
   const pipelineRunning =
     selectedStatus?.pipeline_status === "running" || selectedStatus?.can_cancel === true;
   const pipelineCanCancel = selectedStatus?.can_cancel === true;
-  const pipelineCanResume =
-    selectedStatus?.can_resume === true && !pipelineRunning;
+  const pipelineCanResume = pipelineCanResumeForStage;
   const hasMangaResult = pagePrompts.length > 0;
-  const hasIncompletePages = pagePrompts.some(
-    (prompt) => prompt.pipeline_status != null && prompt.pipeline_status !== "completed",
-  );
+  const hasIncompletePages = pagePrompts.some((prompt) => {
+    if (prompt.pipeline_status == null || prompt.pipeline_status === "completed") {
+      return false;
+    }
+    const failedStage =
+      prompt.pipeline_status === "failed" || prompt.pipeline_status === "cancelled"
+        ? prompt.pipeline_error?.stage ?? prompt.pipeline_stage
+        : prompt.pipeline_stage;
+    return mangaPipelineStageMatchesWorkspaceStage(stageMode, failedStage);
+  });
   const mangaResultStale = stalePagePromptCount > 0;
   const pipelineFailed =
     pipelineStoppedWithError && !pipelineCanResume;

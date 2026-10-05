@@ -4,13 +4,20 @@ import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { MangaPipelineStatusSummary } from "../../../api/manga";
 import { nonEmptyText } from "../../../utils/text";
 import { EmptyHint, type ChapterRow } from "../shared";
-import { mangaStageLabel } from "./mangaTabUtils";
+import {
+  mangaImageStatusMatchesWorkspaceStage,
+  mangaPageStageLabel,
+  mangaPipelineStageMatchesWorkspaceStage,
+  mangaStageLabel,
+  type MangaWorkspaceStage,
+} from "./mangaTabUtils";
 import { useI18n } from "../../../i18n";
 import { getScrollRailCue, scrollRailItemIntoView } from "../../../utils/scrollRail";
 
 interface MangaChapterListProps {
   chapters: ChapterRow[];
   statuses: Record<number, MangaPipelineStatusSummary | null>;
+  workspaceStage?: MangaWorkspaceStage;
   selectedChapter: ChapterRow | null;
   onSelect: (chapter: ChapterRow) => void;
 }
@@ -40,6 +47,7 @@ const chapterPipelineIcon = (status: MangaPipelineStatusSummary | null | undefin
 export const MangaChapterList: React.FC<MangaChapterListProps> = ({
   chapters,
   statuses,
+  workspaceStage,
   selectedChapter,
   onSelect,
 }) => {
@@ -100,13 +108,48 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
       >
         {chapters.map((chapter) => {
           const status = statuses[chapter.id];
+          const imageStatusVisible = mangaImageStatusMatchesWorkspaceStage(workspaceStage);
+          const workflowStatus = mangaPipelineStageMatchesWorkspaceStage(
+            workspaceStage,
+            status?.stage,
+          )
+            ? status
+            : null;
           const total =
-            status != null
+            imageStatusVisible && status != null
               ? status.pending + status.generating + status.completed + status.failed + status.cancelled
               : 0;
           const completedRatio = total > 0 ? (status?.completed ?? 0) / total : 0;
           const failedRatio = total > 0 ? (status?.failed ?? 0) / total : 0;
           const generatingRatio = total > 0 ? (status?.generating ?? 0) / total : 0;
+          const imageHasFailures = imageStatusVisible && (status?.failed ?? 0) > 0;
+          const workflowFailed = pipelineStoppedWithError(workflowStatus);
+          const showPipelineStatus =
+            imageStatusVisible ||
+            workflowStatus?.pipeline_status != null ||
+            workflowStatus?.can_resume === true ||
+            workflowStatus?.message != null;
+          const statusTone = workflowFailed || imageHasFailures
+            ? "text-error"
+            : workflowStatus
+              ? chapterPipelineTone(workflowStatus)
+              : imageStatusVisible && (status?.completed ?? 0) > 0
+                ? "text-success"
+                : "text-book-text-muted";
+          const statusIcon = workflowFailed || imageHasFailures
+            ? <AlertTriangle size={11} />
+            : workflowStatus
+              ? chapterPipelineIcon(workflowStatus)
+              : imageStatusVisible && (status?.completed ?? 0) > 0
+                ? <CheckCircle2 size={11} />
+                : <Clock3 size={11} />;
+          const stageLabel = workflowStatus?.stage
+            ? mangaStageLabel(workflowStatus.stage, t)
+            : workspaceStage === "images"
+              ? mangaPageStageLabel("image", t)
+              : workspaceStage == null
+                ? mangaStageLabel(undefined, t)
+                : "";
           const isSelected = selectedChapter?.id === chapter.id;
           return (
             <li key={chapter.id}>
@@ -122,25 +165,27 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
                   {t("comic.chapterNumber", { number: chapter.chapter_number })}
                   {nonEmptyText(chapter.title) ? ` · ${nonEmptyText(chapter.title)}` : ""}
                 </div>
-                <div
-                  className={`mb-1 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-small ${
-                    isSelected ? "text-book-primary" : chapterPipelineTone(status)
-                  }`}
-                >
-                  <span className="inline-flex min-w-0 items-center gap-1 truncate">
-                    {chapterPipelineIcon(status)}
-                    {mangaStageLabel(status?.stage, t)}
-                  </span>
-                  {total > 0 ? (
-                    <span className="font-mono">
-                      {status?.completed ?? 0}/{total}
+                {showPipelineStatus ? (
+                  <div
+                    className={`mb-1 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-small ${
+                      isSelected ? "text-book-primary" : statusTone
+                    }`}
+                  >
+                    <span className="inline-flex min-w-0 items-center gap-1 truncate">
+                      {statusIcon}
+                      {stageLabel}
                     </span>
-                  ) : status?.can_resume ? (
-                    <span>{t("comic.resumable")}</span>
-                  ) : (
-                    <span>{t("comic.notGenerated")}</span>
-                  )}
-                </div>
+                    {total > 0 ? (
+                      <span className="font-mono">
+                        {status?.completed ?? 0}/{total}
+                      </span>
+                    ) : workflowStatus?.can_resume ? (
+                      <span>{t("comic.resumable")}</span>
+                    ) : (
+                      <span>{t("comic.notGenerated")}</span>
+                    )}
+                  </div>
+                ) : null}
                 {total > 0 ? (
                   <div
                     className={`flex h-1 overflow-hidden rounded-full ${
@@ -160,13 +205,13 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
                       style={{ width: `${generatingRatio * 100}%` }}
                     />
                   </div>
-                ) : status?.message ? (
+                ) : workflowStatus?.message ? (
                   <div
                     className={`truncate text-small ${
                       isSelected ? "text-book-primary" : "text-book-text-muted"
                     }`}
                   >
-                    {status.message}
+                    {workflowStatus.message}
                   </div>
                 ) : null}
               </button>
