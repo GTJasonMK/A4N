@@ -90,12 +90,22 @@ impl ImageProvider for CliProxyImageProvider {
         let status = resp.status();
         let text = response_text(resp, "CLIProxy 图片编辑").await?;
         if !status.is_success() {
-            return Err(image_provider_http_error(
-                "CLIProxy 图片编辑",
-                status,
-                &text,
-            ));
+            return Err(cli_proxy_image_edit_error(&req.model, status, &text));
         }
         image_result_from_openai_payload(&self.client, &text, req.model, "CLIProxy 图片编辑").await
     }
+}
+
+fn cli_proxy_image_edit_error(model: &str, status: reqwest::StatusCode, body: &str) -> AppError {
+    if status == reqwest::StatusCode::FORBIDDEN
+        && body
+            .to_ascii_lowercase()
+            .contains("model does not support this api endpoint")
+    {
+        return AppError::InvalidArgument(format!(
+            "CLIProxy/Grok 图片编辑端点不支持当前模型 {model}。CPA 支持参考图编辑的模型为 grok-imagine-image 和 grok-imagine-image-quality；请把图像配置的模型改为其中之一。无参考图生成不受此限制。"
+        ));
+    }
+
+    image_provider_http_error("CLIProxy 图片编辑", status, body)
 }

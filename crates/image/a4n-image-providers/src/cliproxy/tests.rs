@@ -1,5 +1,7 @@
-use super::CliProxyImageProvider;
+use super::{CliProxyImageProvider, cli_proxy_image_edit_error};
+use a4n_domain::ProviderError;
 use a4n_image_contract::{ImageGenerationRequest, ImageReference};
+use reqwest::StatusCode;
 
 fn request() -> ImageGenerationRequest {
     ImageGenerationRequest {
@@ -27,6 +29,21 @@ fn generation_body_uses_2k_for_large_images() {
     let body = CliProxyImageProvider::generation_body(&req);
     assert_eq!(body["resolution"], "2k");
     assert_eq!(body["aspect_ratio"], "1:1");
+}
+
+#[test]
+fn unsupported_edit_endpoint_error_explains_supported_grok_models() {
+    let error = cli_proxy_image_edit_error(
+        "grok-imagine-image-2.0",
+        StatusCode::FORBIDDEN,
+        "{\"error\":{\"message\":\"Model does not support this API endpoint\"}}",
+    );
+
+    assert!(matches!(&error, ProviderError::InvalidArgument(_)));
+    let message = error.to_string();
+    assert!(message.contains("grok-imagine-image-2.0"));
+    assert!(message.contains("grok-imagine-image-quality"));
+    assert!(message.contains("无参考图生成不受此限制"));
 }
 
 #[test]
