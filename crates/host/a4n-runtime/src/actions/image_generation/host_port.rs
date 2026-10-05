@@ -1,3 +1,11 @@
+use super::{
+    generation_io::{persist_reserved_generated_image_file, prepare_generated_image_file},
+    run_queued_request_with_cancel_and_workflow,
+};
+use crate::{
+    AppState, cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
+    file_utils::inspect_generated_media_file,
+};
 use a4n_domain::cost::{
     ModelCapability, ModelUsageMeter, ModelUsageRecordCompletion, ModelUsageRecordStart,
 };
@@ -12,18 +20,8 @@ use a4n_image_host_contract::{
 };
 use a4n_provider_contract::ImageProviderConfig;
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
-use async_trait::async_trait;
-use base64::Engine as _;
-
-use super::{
-    generation_io::{persist_reserved_generated_image_file, prepare_generated_image_file},
-    run_queued_request_with_cancel_and_workflow,
-};
-use crate::{
-    AppState, cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
-    file_utils::inspect_generated_media_file,
-};
 use a4n_storage::canonicalize_data_file_path;
+use async_trait::async_trait;
 
 pub(in crate::actions) struct RuntimeImageGenerationHostPort<'state> {
     state: &'state AppState,
@@ -55,22 +53,7 @@ impl ImageGenerationHostPort for RuntimeImageGenerationHostPort<'_> {
         label: &str,
         relative_path: &str,
     ) -> Result<ImageReference, AppError> {
-        let path = canonicalize_data_file_path(
-            self.state.data_dir(),
-            relative_path,
-            &format!("参考图 {label}"),
-        )
-        .map_err(host_error)?;
-        let bytes = std::fs::read(&path)
-            .map_err(|error| host_error(format!("读取参考图 {} 失败：{error}", path.display())))?;
-        let mime = image_mime_from_path(&path).map_err(host_error)?;
-        Ok(ImageReference {
-            label: label.to_string(),
-            data_uri: format!(
-                "data:{mime};base64,{}",
-                base64::engine::general_purpose::STANDARD.encode(bytes)
-            ),
-        })
+        super::read_reference_image(self.state.data_dir(), label, relative_path)
     }
 
     async fn generate_image(

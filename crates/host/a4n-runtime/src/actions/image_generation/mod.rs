@@ -7,6 +7,7 @@ mod host_port;
 mod page;
 mod preview;
 mod profiles;
+mod reference;
 
 use crate::AppState;
 use crate::actions::request_preview::{ModelRequestPreview, model_request_preview};
@@ -33,3 +34,4 @@ pub use generation_task::start_image_generation_typed;
 
 pub(crate) use self::config::{resolve_image_config, resolve_image_provider_config};
 pub(crate) use preview::image_generation_preview_step;
+pub(crate) use reference::read_reference_image;

@@ -7,7 +7,7 @@ use a4n_domain::cost::{
 use a4n_domain::image::validate_reference_image_ids;
 use a4n_domain::media::{GeneratedMediaArtifactFile, image_mime_from_path};
 use a4n_error::AppError;
-use a4n_image_contract::{ImageGenerationRequest, ImageReference};
+use a4n_image_contract::ImageGenerationRequest;
 use a4n_image_host_contract::{
     PersistGeneratedImageFileInput, PersistedGeneratedImageFile, PrepareGeneratedImageFileInput,
     PreparedGeneratedImageFile,
@@ -20,13 +20,13 @@ use a4n_portrait_host_contract::{
 use a4n_provider_contract::ImageProviderConfig;
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use async_trait::async_trait;
-use base64::Engine as _;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
     AppState,
     actions::image_generation::{
-        persist_reserved_generated_image_file, prepare_generated_image_file, resolve_image_config,
+        persist_reserved_generated_image_file, prepare_generated_image_file, read_reference_image,
+        resolve_image_config,
     },
     cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
     file_utils::inspect_generated_media_file,
@@ -102,7 +102,7 @@ pub(super) async fn build_portrait_image_request_preview_with_config(
     let reference_images = sources
         .iter()
         .map(|source| {
-            read_reference_image(state, &source.label, &source.file_path)
+            read_reference_image(state.data_dir(), &source.label, &source.file_path)
                 .map_err(|error| error.to_string())
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -148,7 +148,9 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
         ensure_image_size_supported(&supported_sizes, width, height)?;
         let reference_images = reference_images
             .iter()
-            .map(|source| read_reference_image(self.state, &source.label, &source.file_path))
+            .map(|source| {
+                read_reference_image(self.state.data_dir(), &source.label, &source.file_path)
+            })
             .collect::<Result<Vec<_>, _>>()?;
         if !reference_images.is_empty()
             && !a4n_domain::image::image_backend_supports_reference_images(&config.backend)
@@ -348,22 +350,6 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
         .await
         .map_err(|error| host_error(format!("{label}：{error}")))
     }
-}
-
-fn read_reference_image(
-    state: &AppState,
-    label: &str,
-    relative_path: &str,
-) -> Result<ImageReference, AppError> {
-    let path =
-        canonicalize_data_file_path(state.data_dir(), relative_path, label).map_err(host_error)?;
-    let bytes = std::fs::read(&path)?;
-    let mime = image_mime_from_path(&path).map_err(AppError::InvalidArgument)?;
-    let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
-    Ok(ImageReference {
-        label: label.to_string(),
-        data_uri: format!("data:{mime};base64,{encoded}"),
-    })
 }
 
 fn host_error(message: String) -> AppError {

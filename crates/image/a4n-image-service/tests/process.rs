@@ -47,7 +47,7 @@ async fn image_service_process_calls_local_fake_provider_and_stops() {
         &base_url,
         "/image/generate/events",
         IMAGE_SERVICE_NAME,
-        BodyLimitKind::Streaming,
+        BodyLimitKind::Media,
     )
     .await;
     let client = HttpImageClient::new_with_auth_token(base_url.clone(), SIDECAR_PROCESS_TEST_TOKEN);

@@ -2585,6 +2585,7 @@ dependencies = [
  "encoding_rs",
  "futures",
  "htmd",
+ "image",
  "jsonwebtoken",
  "reqwest 0.12.28",
  "sea-orm",

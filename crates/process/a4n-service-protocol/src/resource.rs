@@ -151,6 +151,12 @@ mod tests {
     }
 
     #[test]
+    fn image_media_routes_accept_video_sized_reference_payloads() {
+        let policy = sidecar_resource_policy("image").expect("image service policy");
+        assert_eq!(policy.body_limit(BodyLimitKind::Media), 64 * 1024 * 1024);
+    }
+
+    #[test]
     fn llm_json_limit_covers_the_maximum_read_image_batch() {
         let policy = sidecar_resource_policy(LLM_SERVICE_NAME).expect("llm policy");
         let raw_bytes: usize = 16 * 1024 * 1024;
