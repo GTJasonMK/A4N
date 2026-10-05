@@ -216,23 +216,17 @@ def artifact_inventory(root)
   workers, services, tools = catalog(root)
   artifacts = Hash.new { |hash, key| hash[key] = [] }
   roles = {}
-  workers.each do |entry|
-    package = entry.fetch("binary")
-    artifacts[package] << "bin/#{package}"
-    roles[package] = "stateful_worker"
-  end
-  services.each do |entry|
-    package = entry.fetch("binary")
-    artifacts[package] << "bin/services/#{package}"
-    roles[package] ||= "sidecar"
-  end
+  tool_binaries = tools.map { |entry| entry.fetch("binary") }.to_h { |binary| [binary, true] }
+  launchers = (workers + services).map { |entry| entry.fetch("launcher") }.uniq
+  missing_launchers = launchers.reject { |launcher| tool_binaries[launcher] }
+  fail_with("component catalog references unreleased launchers: #{missing_launchers.join(", ")}") unless missing_launchers.empty?
   tools.each do |entry|
     package = entry.fetch("package")
     next if package == "a4n-server"
 
     binary = entry.fetch("binary")
     artifacts[package] << "bin/#{binary}"
-    roles[package] ||= "tool"
+    roles[package] = package == "a4n-component-host" ? "sidecar" : "tool"
   end
   artifacts["a4n-server"] << "bin/a4n-server"
   roles["a4n-server"] = "host"
@@ -301,7 +295,7 @@ def plan(options)
   elsif relevant_changed.any? { |path| path.start_with?("prompts/") || path.start_with?("tools/onnxruntime/") }
     full_reason = "runtime prompt or ONNX input changed"
   elsif affected.any? { |name| roles[name] == "sidecar" }
-    full_reason = "capability sidecar changed"
+    full_reason = "shared component launcher changed"
   end
 
   if full_reason

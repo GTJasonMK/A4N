@@ -244,12 +244,12 @@ pub(super) fn resolve_or_build_sidecars(source_root: Option<&Path>) -> Result<Pa
         anyhow::anyhow!("未找到 managed sidecar 二进制；请设置 {SIDECAR_BIN_DIR_ENV}")
     })?;
     let directory = target_debug_dir(root)?;
-    let catalog = service_catalog()?;
     let mut command = Command::new("cargo");
-    command.arg("build").arg("-q");
-    for service in &catalog {
-        command.arg("-p").arg(&service.binary);
-    }
+    command
+        .arg("build")
+        .arg("-q")
+        .arg("-p")
+        .arg("a4n-component-host");
     configure_onnxruntime_environment(&mut command, None)?;
     let output = command
         .current_dir(root)
@@ -268,12 +268,12 @@ pub(super) fn resolve_or_build_sidecars(source_root: Option<&Path>) -> Result<Pa
 pub(super) fn validate_sidecar_directory(directory: &Path) -> Result<()> {
     let missing = service_catalog()?
         .into_iter()
-        .filter(|service| !directory.join(executable_name(&service.binary)).is_file())
-        .map(|service| service.binary)
+        .filter(|service| !directory.join(executable_name(&service.launcher)).is_file())
+        .map(|service| service.name)
         .collect::<Vec<_>>();
     if !missing.is_empty() {
         bail!(
-            "sidecar 目录缺少可执行文件 {}: {}",
+            "sidecar 目录缺少组件宿主 {}: {}",
             directory.display(),
             missing.join(", ")
         );

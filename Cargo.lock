@@ -635,6 +635,53 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-component-host"
+version = "0.1.0"
+dependencies = [
+ "a4n-admin-worker",
+ "a4n-agent-worker",
+ "a4n-artifact-media-worker",
+ "a4n-asset-graph-worker",
+ "a4n-blueprint-worker",
+ "a4n-canvas-record-worker",
+ "a4n-chapter-content-worker",
+ "a4n-chapter-scene-worker",
+ "a4n-character-mutation-worker",
+ "a4n-config-read-worker",
+ "a4n-embedding-service",
+ "a4n-export-service",
+ "a4n-foreshadowing-worker",
+ "a4n-image-service",
+ "a4n-import-review-worker",
+ "a4n-import-service",
+ "a4n-inspiration-worker",
+ "a4n-llm-gateway",
+ "a4n-manga-record-worker",
+ "a4n-media-service",
+ "a4n-novel-planning-worker",
+ "a4n-object-profile-worker",
+ "a4n-outline-worker",
+ "a4n-portrait-worker",
+ "a4n-process-catalog",
+ "a4n-profile-material-worker",
+ "a4n-project-access-worker",
+ "a4n-project-collaboration-worker",
+ "a4n-project-mutation-worker",
+ "a4n-project-read-worker",
+ "a4n-project-status-worker",
+ "a4n-prompt-service",
+ "a4n-rag-service",
+ "a4n-scene-profile-worker",
+ "a4n-source-snapshot-worker",
+ "a4n-theme-read-worker",
+ "a4n-video-record-worker",
+ "a4n-video-service",
+ "a4n-workflow-lifecycle-worker",
+ "a4n-workflow-read-worker",
+ "anyhow",
+]
+
+[[package]]
 name = "a4n-config"
 version = "0.1.0"
 dependencies = [
@@ -5641,7 +5688,6 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tower-service",
- "webpki-roots",
 ]
 
 [[package]]
@@ -6285,12 +6331,6 @@ name = "log"
 version = "0.4.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
-
-[[package]]
-name = "lru-slab"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
 
 [[package]]
 name = "lzma-rs"
@@ -7638,11 +7678,9 @@ dependencies = [
  "anyhow",
  "derive_builder",
  "futures",
- "futures-util",
  "parking_lot",
  "prost",
  "prost-types",
- "reqwest 0.12.28",
  "semver",
  "serde",
  "serde_json",
@@ -7665,61 +7703,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e660451e55124f798a69a5af3f49ccfbefbd41910eefd25caf2393e1f3473ec1"
 dependencies = [
  "memchr",
-]
-
-[[package]]
-name = "quinn"
-version = "0.11.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9e20a958963c291dc322d98411f541009df2ced7b5a4f2bd52337638cfccf20"
-dependencies = [
- "bytes",
- "cfg_aliases",
- "pin-project-lite",
- "quinn-proto",
- "quinn-udp",
- "rustc-hash",
- "rustls",
- "socket2 0.6.3",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
- "web-time",
-]
-
-[[package]]
-name = "quinn-proto"
-version = "0.11.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fcb935c5bec503c2f0e306bdd3e58bb9029dcb14fa8d9ac76e3a5256ac0763e"
-dependencies = [
- "bytes",
- "getrandom 0.3.4",
- "lru-slab",
- "rand 0.9.4",
- "ring",
- "rustc-hash",
- "rustls",
- "rustls-pki-types",
- "slab",
- "thiserror 2.0.18",
- "tinyvec",
- "tracing",
- "web-time",
-]
-
-[[package]]
-name = "quinn-udp"
-version = "0.5.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "addec6a0dcad8a8d96a771f815f0eaf55f9d1805756410b39f5fa81332574cbd"
-dependencies = [
- "cfg_aliases",
- "libc",
- "once_cell",
- "socket2 0.6.3",
- "tracing",
- "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -7970,8 +7953,6 @@ dependencies = [
  "native-tls",
  "percent-encoding",
  "pin-project-lite",
- "quinn",
- "rustls",
  "rustls-pki-types",
  "serde",
  "serde_json",
@@ -7979,7 +7960,6 @@ dependencies = [
  "sync_wrapper",
  "tokio",
  "tokio-native-tls",
- "tokio-rustls",
  "tokio-util",
  "tower 0.5.3",
  "tower-http",
@@ -7989,7 +7969,6 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-streams 0.4.2",
  "web-sys",
- "webpki-roots",
 ]
 
 [[package]]
@@ -8142,7 +8121,6 @@ version = "1.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "30a7197ae7eb376e574fe940d068c30fe0462554a3ddbe4eca7838e049c937a9"
 dependencies = [
- "web-time",
  "zeroize",
 ]
 

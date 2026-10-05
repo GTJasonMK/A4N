@@ -386,6 +386,7 @@ fn spawn_child(
     }
     let mut command = Command::new(binary);
     command.env_clear();
+    command.args(["--service", config.name.as_str()]);
     command.envs(config.env.clone());
     #[cfg(windows)]
     if let Some(system_root) = std::env::var_os("SystemRoot") {

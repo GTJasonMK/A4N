@@ -18,7 +18,7 @@ pub(crate) fn catalog_worker_specs(control_addr: SocketAddr) -> anyhow::Result<V
             }
             Ok(WorkerSpec {
                 metadata,
-                binary: child_binary(&managed_worker_env(metadata, "BINARY"), &metadata.binary)?,
+                binary: child_binary(&managed_worker_env(metadata, "BINARY"), &metadata.launcher)?,
                 address,
                 control_addr,
                 token: worker_token_for_env(&managed_worker_env(metadata, "TOKEN"))?,

@@ -46,12 +46,10 @@ if [[ -n "$REAL_ARCHIVE" && ! -f "$REAL_ARCHIVE" ]]; then
     fail "release archive does not exist: $REAL_ARCHIVE"
 fi
 
-temp_parent="${TMPDIR:-/tmp}"
+temp_parent="${CARGO_TARGET_DIR:-$PROJECT_ROOT/target}/tmp"
+mkdir -p "$temp_parent"
 [[ -d "$temp_parent" ]] || fail "temporary parent does not exist: $temp_parent"
 temp_parent="$(cd "$temp_parent" && pwd -P)"
-case "$temp_parent" in
-    "$PROJECT_ROOT"|"$PROJECT_ROOT"/*) fail "TMPDIR must not be inside the repository" ;;
-esac
 tmp_dir="$(mktemp -d "$temp_parent/a4n-release-install.XXXXXX")"
 case "$tmp_dir" in
     "$temp_parent"/a4n-release-install.*) ;;
@@ -70,19 +68,19 @@ trap cleanup EXIT
 
 catalog_rows="$(ruby "$MANIFEST_TOOL" service-rows)" || fail "unable to load service catalog"
 selected_binary=""
-unselected_binary=""
-unselected_binaries=()
+unselected_service_names=()
 while IFS=$'\t' read -r service binary _rest; do
     [[ -n "$service" ]] || continue
     if [[ "$service" == "$SELECTED_SERVICE" ]]; then
         selected_binary="$binary"
     else
-        unselected_binaries+=("$binary")
-        [[ -n "$unselected_binary" ]] || unselected_binary="$binary"
+        unselected_service_names+=("$service")
     fi
 done <<<"$catalog_rows"
 [[ -n "$selected_binary" ]] || fail "service catalog has no selected service: $SELECTED_SERVICE"
-[[ "${#unselected_binaries[@]}" -gt 0 ]] || fail "service catalog has no unselected service"
+[[ "${#unselected_service_names[@]}" -gt 0 ]] || fail "service catalog has no unselected service"
+[[ "$selected_binary" == "a4n-component-host" ]] || fail "service catalog does not use the shared component host"
+unselected_service="${unselected_service_names[0]}"
 
 tool_rows="$(ruby "$MANIFEST_TOOL" tool-rows)" || fail "unable to load release tool catalog"
 tool_binaries=()
@@ -148,8 +146,8 @@ write_fixture_package() {
     {
         printf '%s\n' '#!/usr/bin/env bash'
         printf '%s\n' 'set -euo pipefail'
-        printf '%s\n' '[[ -f "$PWD/bin/services/'"$selected_binary"'" ]]'
-        printf '%s\n' '[[ ! -e "$PWD/bin/services/'"$unselected_binary"'" ]]'
+        printf '%s\n' '[[ -f "$PWD/bin/'"$selected_binary"'" ]]'
+        printf '%s\n' '[[ ! -e "$PWD/bin/services/'"$selected_binary"'" ]]'
         printf '%s\n' '[[ -n "${A4N_FIXTURE_HOST_MARKER:-}" ]]'
         printf '%s\n' 'printf "%s\n" "${A4N_FIXTURE_RELEASE_ID:-unknown}" > "$A4N_FIXTURE_HOST_MARKER"'
     } >"$package_root/bin/$PACKAGE_NAME"
@@ -160,8 +158,6 @@ write_fixture_package() {
         chmod +x "$package_root/bin/$tool"
     done
 
-    printf 'fixture-sidecar:%s:%s\n' "$selected_binary" "$fixture_id" >"$package_root/bin/services/$selected_binary"
-    chmod +x "$package_root/bin/services/$selected_binary"
     printf 'fixture-runtime:%s\n' "$fixture_id" >"$package_root/bin/services/libonnxruntime.so.1"
     printf 'fixture-default-config:%s\n' "$fixture_id" >"$package_root/data/config.toml"
 
@@ -270,14 +266,14 @@ verify_selected_layout() {
         printf 'fixture is missing executable host\n' >&2
         return 1
     }
-    [[ -x "$package_root/bin/services/$selected_binary" ]] || {
-        printf 'fixture is missing selected sidecar: %s\n' "$selected_binary" >&2
+    [[ -x "$package_root/bin/$selected_binary" ]] || {
+        printf 'fixture is missing shared component host: %s\n' "$selected_binary" >&2
         return 1
     }
-    local unselected
-    for unselected in "${unselected_binaries[@]}"; do
-        [[ ! -e "$package_root/bin/services/$unselected" ]] || {
-            printf 'unselected sidecar is present in selected install: %s\n' "$unselected" >&2
+    local unselected_service
+    for unselected_service in "${unselected_service_names[@]}"; do
+        [[ ! -e "$package_root/bin/services/$unselected_service" ]] || {
+            printf 'legacy per-service binary is present in selected install: %s\n' "$unselected_service" >&2
             return 1
         }
     done
@@ -508,7 +504,7 @@ check_real_archive() {
     package_root="$INSTALLED_PACKAGE"
     assert_persistent_state "$package_root" "$state_snapshot" || fail "real archive reinstall lost persistent state"
 
-    selected_path="$package_root/bin/services/$selected_binary"
+    selected_path="$package_root/bin/$selected_binary"
     selected_backup="$selected_path.original"
     printf 'checking real package startup rejection for a missing sidecar and checksum mismatch\n'
     [[ -f "$selected_path" ]] || fail "real release archive has no selected sidecar: $selected_binary"
@@ -598,7 +594,7 @@ state_snapshot="$tmp_dir/fixture-state.sha256"
 snapshot_persistent_state "$INSTALLED_PACKAGE" "$state_snapshot"
 
 printf 'checking fixture startup rejection for a missing selected sidecar\n'
-selected_path="$INSTALLED_PACKAGE/bin/services/$selected_binary"
+selected_path="$INSTALLED_PACKAGE/bin/$selected_binary"
 mv -- "$selected_path" "$selected_path.missing"
 if run_fixture_host "$INSTALLED_PACKAGE" missing-selected; then
     fail "startup accepted a package with the selected sidecar removed"
@@ -668,8 +664,8 @@ forged_source_parent="$tmp_dir/forged-source"
 forged_source="$forged_source_parent/a4n-tauri-fixture"
 mkdir -p "$forged_source_parent"
 cp -a "$package_root" "$forged_source"
-printf 'forged-unselected-sidecar\n' >"$forged_source/bin/services/$unselected_binary"
-chmod +x "$forged_source/bin/services/$unselected_binary"
+printf 'forged-unselected-sidecar\n' >"$forged_source/bin/services/$unselected_service"
+chmod +x "$forged_source/bin/services/$unselected_service"
 forged_archive="$tmp_dir/a4n-tauri-forged-unselected.tar.gz"
 archive_package "$forged_source" "$forged_archive"
 printf 'checking that an unselected sidecar cannot masquerade as installed\n'

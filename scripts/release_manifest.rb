@@ -126,8 +126,8 @@ def load_service_catalog(root)
   catalog = load_inventory(
     root.join("crates/process/a4n-process-catalog/service-catalog.json"),
     "service catalog",
-    required_fields: %w[name binary capability_version addr_env url_env default_addr],
-    identifier_fields: %w[name binary],
+    required_fields: %w[name binary launcher capability_version addr_env url_env default_addr],
+    identifier_fields: %w[name binary launcher],
     unique_fields: %w[name binary addr_env url_env]
   )
   catalog.each do |entry|
@@ -136,6 +136,16 @@ def load_service_catalog(root)
     end
   end
   catalog
+end
+
+def load_worker_catalog(root)
+  load_inventory(
+    root.join("crates/process/a4n-process-catalog/worker-catalog.json"),
+    "worker catalog",
+    required_fields: %w[name binary launcher],
+    identifier_fields: %w[name binary launcher],
+    unique_fields: %w[name binary]
+  )
 end
 
 def load_tool_catalog(root)
@@ -154,16 +164,26 @@ end
 
 def load_release_inventories(root)
   service_catalog = load_service_catalog(root)
+  worker_catalog = load_worker_catalog(root)
   tool_catalog = load_tool_catalog(root)
-  overlap = service_catalog.map { |entry| entry.fetch("binary") } & tool_catalog.map { |entry| entry.fetch("binary") }
-  fail_with("service and release tool binaries overlap: #{overlap.join(", ")}") unless overlap.empty?
-  [service_catalog, tool_catalog]
+  tool_binaries = tool_catalog.map { |entry| entry.fetch("binary") }.to_h { |binary| [binary, true] }
+  missing_launchers = (service_catalog + worker_catalog).map { |entry| entry.fetch("launcher") }.uniq.reject do |launcher|
+    tool_binaries[launcher]
+  end
+  fail_with("service catalog references unreleased launchers: #{missing_launchers.join(", ")}") unless missing_launchers.empty?
+  [service_catalog, worker_catalog, tool_catalog]
 end
 
 def print_service_rows(root)
   health_path = sidecar_health_path(root)
   load_service_catalog(root).each do |entry|
-    puts (%w[name binary addr_env url_env].map { |field| entry.fetch(field) } + [health_path]).join("\t")
+    puts (%w[name launcher addr_env url_env].map { |field| entry.fetch(field) } + [health_path]).join("\t")
+  end
+end
+
+def print_worker_rows(root)
+  load_worker_catalog(root).each do |entry|
+    puts %w[name launcher].map { |field| entry.fetch(field) }.join("\t")
   end
 end
 
@@ -260,7 +280,7 @@ def generate(options)
   target = required_option(options, :target)
   package = required_identifier_option(options, :package)
   output = Pathname(required_option(options, :output)).expand_path
-  catalog, tool_catalog = load_release_inventories(root)
+  catalog, worker_catalog, tool_catalog = load_release_inventories(root)
   tool_catalog = tool_catalog_for_package(tool_catalog, package)
   selected_catalog = selected_service_catalog(catalog, options[:services])
   extension = binary_extension(target)
@@ -289,11 +309,11 @@ def generate(options)
   }
 
   selected_catalog.each do |entry|
-    binary = "#{entry.fetch("binary")}#{extension}"
+    binary = "#{entry.fetch("launcher")}#{extension}"
     relative = if tauri_app
                  "#{tauri_app.fetch(:root)}/Contents/MacOS/#{binary}"
                else
-                 "bin/services/#{binary}"
+                 "bin/#{binary}"
                end
     path = safe_package_path(package_root, relative)
     fail_with("missing #{relative}") unless path.file?
@@ -349,6 +369,7 @@ def generate(options)
     "version" => binaries.first.fetch("version"),
     "target" => target,
     "protocol_version" => protocol,
+    "workers" => worker_catalog.map { |entry| entry.fetch("name") },
     "services" => selected_catalog.map { |entry| entry.fetch("name") },
     "binaries" => binaries,
     "tools" => tools,
@@ -357,7 +378,7 @@ def generate(options)
   manifest_relative = manifest_checksum_path(package_root, output)
   File.write(output, JSON.pretty_generate(manifest) + "\n")
   checksum = output.sub_ext(".sha256")
-  files = binaries + tools + runtime_files
+  files = (binaries + tools + runtime_files).uniq { |entry| entry.fetch("path") }
   checksum_entries = files.map { |entry| "#{entry.fetch("sha256")}  #{entry.fetch("path")}" }
   checksum_entries << "#{sha256(output)}  #{manifest_relative}"
   File.write(checksum, checksum_entries.join("\n") + "\n")
@@ -368,7 +389,7 @@ def verify(options)
   root = Pathname(__dir__).parent
   package_root = Pathname(required_option(options, :package_root)).expand_path
   path = Pathname(required_option(options, :manifest)).expand_path
-  catalog, tool_catalog = load_release_inventories(root)
+  catalog, worker_catalog, tool_catalog = load_release_inventories(root)
   schema_version = release_manifest_schema_version(root)
   manifest = JSON.parse(File.read(path))
   fail_with("manifest schema version is unsupported") unless manifest.fetch("schema_version") == schema_version
@@ -382,6 +403,13 @@ def verify(options)
   fail_with("manifest target is empty") unless target.is_a?(String) && !target.strip.empty?
   fail_with("manifest protocol version is invalid") unless protocol.is_a?(Integer)
   fail_with("manifest protocol version does not match release") unless protocol == protocol_version(root)
+  workers = manifest.fetch("workers")
+  fail_with("manifest workers must be an array") unless workers.is_a?(Array)
+  expected_workers = worker_catalog.map { |entry| entry.fetch("name") }
+  workers_match = workers.length == expected_workers.length &&
+                  (workers - expected_workers).empty? &&
+                  (expected_workers - workers).empty?
+  fail_with("manifest workers do not match worker catalog") unless workers_match
   binaries = manifest.fetch("binaries")
   fail_with("manifest binaries must be an array") unless binaries.is_a?(Array)
   selected_catalog = selected_manifest_service_catalog(catalog, manifest)
@@ -391,8 +419,9 @@ def verify(options)
                    (services - expected_services).empty? &&
                    (expected_services - services).empty?
   fail_with("manifest services do not match service catalog") unless services_match
-  names = binaries.map { |entry| entry.fetch("name") }
-  fail_with("manifest binary names are duplicated") unless names.uniq.length == names.length
+  duplicate_names = binaries.group_by { |entry| entry.fetch("name") }
+    .values.any? { |entries| entries.map { |entry| [entry.fetch("path"), entry.fetch("sha256")] }.uniq.length > 1 }
+  fail_with("manifest binary names reference different artifacts") if duplicate_names
   binaries.each do |entry|
     name = entry.fetch("name")
     entry_target = entry.fetch("target")
@@ -467,16 +496,18 @@ def verify(options)
     manifest_entry = binaries.find { |entry| entry.fetch("service") == catalog_entry.fetch("name") }
     fail_with("manifest capability version does not match service catalog") unless manifest_entry.fetch("capability_version") == catalog_entry.fetch("capability_version")
     fail_with("manifest service version does not match package") unless manifest_entry.fetch("version") == cargo_version(root, catalog_entry.fetch("binary"))
-    binary_name = "#{catalog_entry.fetch("binary")}#{binary_extension(target)}"
+    binary_name = "#{catalog_entry.fetch("launcher")}#{binary_extension(target)}"
     expected_path = if layout.fetch(:type) == :tauri_macos
                       "#{layout.fetch(:root)}/Contents/MacOS/#{binary_name}"
                     else
-                      "bin/services/#{binary_name}"
+                      "bin/#{binary_name}"
                     end
     fail_with("manifest service path does not match layout") unless manifest_entry.fetch("name") == binary_name && manifest_entry.fetch("path") == expected_path
   end
-  paths = (binaries + tools + runtime_files).map { |entry| entry.fetch("path") }
-  fail_with("manifest file paths are duplicated") unless paths.uniq.length == paths.length
+  duplicate_paths = (binaries + tools + runtime_files)
+    .group_by { |entry| entry.fetch("path") }
+    .select { |_path, entries| entries.map { |entry| entry.fetch("sha256") }.uniq.length > 1 }
+  fail_with("shared manifest paths have inconsistent hashes") unless duplicate_paths.empty?
   puts "verified #{path} (#{binaries.length} binaries, #{tools.length} tools, #{runtime_files.length} runtime file)"
 rescue JSON::ParserError, KeyError, TypeError => error
   fail_with("manifest JSON is invalid: #{error.message}")
@@ -492,6 +523,9 @@ when "verify"
 when "service-rows"
   fail_with("service-rows does not accept options") unless ARGV.empty?
   print_service_rows(root)
+when "worker-rows"
+  fail_with("worker-rows does not accept options") unless ARGV.empty?
+  print_worker_rows(root)
 when "tool-rows"
   fail_with("tool-rows does not accept options") unless ARGV.empty?
   print_tool_rows(root)
@@ -499,5 +533,5 @@ when "schema-version"
   fail_with("schema-version does not accept options") unless ARGV.empty?
   puts release_manifest_schema_version(root)
 else
-  fail_with("usage: release_manifest.rb generate|verify [options] | service-rows | tool-rows | schema-version")
+  fail_with("usage: release_manifest.rb generate|verify [options] | service-rows | worker-rows | tool-rows | schema-version")
 end

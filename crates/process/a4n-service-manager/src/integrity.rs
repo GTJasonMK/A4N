@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use a4n_process_catalog::{
     RELEASE_MANIFEST_SCHEMA_VERSION, ReleaseBinaryManifest, ReleaseManifest,
-    ReleaseRuntimeFileManifest, release_tool_catalog, service_catalog,
+    ReleaseRuntimeFileManifest, release_tool_catalog, service_catalog, stateful_worker_catalog,
 };
 use a4n_service_protocol::{PROTOCOL_VERSION, RELEASE_MANIFEST_ENV};
 use sha2::{Digest, Sha256};
@@ -62,7 +62,24 @@ impl BinaryIntegrityVerifier {
                 "manifest schema or protocol version is incompatible".to_string(),
             ));
         }
-        let mut names = HashSet::new();
+        let worker_catalog = stateful_worker_catalog().map_err(|_| {
+            ServiceManagerError::ReleaseManifestInvalid("worker catalog is invalid".to_string())
+        })?;
+        let expected_workers = worker_catalog
+            .iter()
+            .map(|entry| entry.name.clone())
+            .collect::<HashSet<_>>();
+        let workers = manifest.workers.iter().cloned().collect::<HashSet<_>>();
+        if workers.len() != manifest.workers.len()
+            || workers != expected_workers
+            || worker_catalog.iter().any(|entry| {
+                !valid_catalog_identifier(&entry.name) || !valid_catalog_identifier(&entry.launcher)
+            })
+        {
+            return Err(ServiceManagerError::ReleaseManifestInvalid(
+                "manifest workers do not match worker catalog".to_string(),
+            ));
+        }
         let mut services = HashSet::new();
         let mut by_service = HashMap::new();
         for entry in manifest.binaries {
@@ -74,7 +91,6 @@ impl BinaryIntegrityVerifier {
                 || entry.target != manifest.target
                 || entry.protocol_version != manifest.protocol_version
                 || !is_sha256(&entry.sha256)
-                || !names.insert(entry.name.clone())
                 || !services.insert(entry.service.clone())
             {
                 return Err(ServiceManagerError::ReleaseManifestInvalid(
@@ -165,6 +181,14 @@ impl BinaryIntegrityVerifier {
                 "release tool catalog is invalid".to_string(),
             ));
         }
+        if worker_catalog
+            .iter()
+            .any(|entry| !expected_tool_names.contains(&format!("{}{extension}", entry.launcher)))
+        {
+            return Err(ServiceManagerError::ReleaseManifestInvalid(
+                "worker catalog references an unreleased launcher".to_string(),
+            ));
+        }
         let mut tool_names = HashSet::new();
         for tool in &manifest.tools {
             if tool.name.trim().is_empty()
@@ -199,12 +223,18 @@ impl BinaryIntegrityVerifier {
             if !selected_service_names.contains(&entry.name) {
                 continue;
             }
-            let binary_name = format!("{}{extension}", entry.binary);
+            let binary_name = format!("{}{extension}", entry.launcher);
             let binary = by_service
                 .get(&entry.name)
                 .expect("catalog service is checked above");
+            let launcher_tool = manifest
+                .tools
+                .iter()
+                .find(|tool| tool.name == binary_name)
+                .expect("catalog launcher is checked above");
             if binary.name != binary_name
-                || binary.path != expected_service_path(tauri_app_root, &binary_name)
+                || binary.path != expected_tool_path(tauri_app_root, &binary_name)
+                || binary.sha256 != launcher_tool.sha256
                 || binary.capability_version.as_deref() != Some(entry.capability_version.as_str())
             {
                 return Err(ServiceManagerError::ReleaseManifestInvalid(
@@ -365,13 +395,6 @@ fn expected_host_path(tauri_app_root: Option<&str>, name: &str) -> String {
     )
 }
 
-fn expected_service_path(tauri_app_root: Option<&str>, name: &str) -> String {
-    tauri_app_root.map_or_else(
-        || format!("bin/services/{name}"),
-        |root| format!("{root}/Contents/MacOS/{name}"),
-    )
-}
-
 fn expected_tool_path(tauri_app_root: Option<&str>, name: &str) -> String {
     tauri_app_root.map_or_else(
         || format!("bin/{name}"),
@@ -421,19 +444,14 @@ mod tests {
             capability_version: None,
         }];
         for entry in service_catalog().unwrap() {
-            let sha256 = if entry.name == "prompt" {
-                prompt_sha256.clone()
-            } else {
-                "a".repeat(64)
-            };
-            let binary = entry.binary;
+            let binary = entry.launcher;
             binaries.push(ReleaseBinaryManifest {
                 name: binary.clone(),
                 service: entry.name,
-                path: format!("bin/services/{binary}"),
+                path: format!("bin/{binary}"),
                 version: "0.1.0".to_string(),
                 target: "linux-x86_64".to_string(),
-                sha256,
+                sha256: prompt_sha256.clone(),
                 protocol_version: PROTOCOL_VERSION,
                 capability_version: Some(entry.capability_version),
             });
@@ -446,7 +464,11 @@ mod tests {
                 path: format!("bin/{}", entry.binary),
                 version: "0.1.0".to_string(),
                 target: "linux-x86_64".to_string(),
-                sha256: "c".repeat(64),
+                sha256: if entry.binary == "a4n-component-host" {
+                    prompt_sha256.clone()
+                } else {
+                    "c".repeat(64)
+                },
             })
             .collect();
         ReleaseManifest {
@@ -455,6 +477,11 @@ mod tests {
             version: "0.1.0".to_string(),
             target: "linux-x86_64".to_string(),
             protocol_version: PROTOCOL_VERSION,
+            workers: a4n_process_catalog::stateful_worker_catalog()
+                .unwrap()
+                .into_iter()
+                .map(|entry| entry.name)
+                .collect(),
             services: service_catalog()
                 .unwrap()
                 .into_iter()
@@ -488,7 +515,7 @@ mod tests {
                 .as_nanos()
         ));
         std::fs::create_dir_all(&directory).unwrap();
-        let path = directory.join("a4n-prompt-service");
+        let path = directory.join("a4n-component-host");
         std::fs::write(&path, b"original").unwrap();
         let digest = sha256(&path).unwrap();
         let verifier = BinaryIntegrityVerifier::new(valid_manifest(digest), None).unwrap();
@@ -526,12 +553,37 @@ mod tests {
     }
 
     #[test]
+    fn manifest_requires_every_stateful_worker_role() {
+        let mut manifest = valid_manifest("a".repeat(64));
+        manifest.workers.pop();
+
+        let error = BinaryIntegrityVerifier::new(manifest, None)
+            .expect_err("release must include all worker roles in the shared host");
+        assert!(error.to_string().contains("manifest workers"));
+    }
+
+    #[test]
     fn manifest_accepts_declared_service_subset() {
         let mut manifest = valid_manifest("a".repeat(64));
         manifest.binaries.retain(|entry| entry.service != "video");
         manifest.services.retain(|service| service != "video");
         BinaryIntegrityVerifier::new(manifest, None)
             .expect("a manifest may omit an undeclared optional service");
+    }
+
+    #[test]
+    fn shared_launcher_roles_must_have_the_launcher_hash() {
+        let mut manifest = valid_manifest("a".repeat(64));
+        manifest
+            .binaries
+            .iter_mut()
+            .find(|entry| entry.service == "video")
+            .unwrap()
+            .sha256 = "d".repeat(64);
+
+        let error = BinaryIntegrityVerifier::new(manifest, None)
+            .expect_err("roles sharing one launcher must share its checksum");
+        assert!(error.to_string().contains("manifest service catalog entry"));
     }
 
     #[test]
@@ -574,6 +626,11 @@ mod tests {
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();
             std::fs::write(&path, tool.name.as_bytes()).unwrap();
             tool.sha256 = sha256(&path).unwrap();
+            if tool.name == "a4n-component-host" {
+                for binary in &mut manifest.binaries {
+                    binary.sha256 = tool.sha256.clone();
+                }
+            }
         }
         manifest.runtime_files[0].sha256 = sha256(&runtime).unwrap();
         let verifier = BinaryIntegrityVerifier::new(manifest, Some(directory.clone())).unwrap();
@@ -611,6 +668,11 @@ mod tests {
             let path = directory.join(&tool.path);
             std::fs::write(&path, tool.name.as_bytes()).unwrap();
             tool.sha256 = sha256(&path).unwrap();
+            if tool.name == "a4n-component-host" {
+                for binary in &mut manifest.binaries {
+                    binary.sha256 = tool.sha256.clone();
+                }
+            }
         }
         let runtime = resources_dir.join("libonnxruntime.dylib");
         std::fs::write(&runtime, b"runtime").unwrap();

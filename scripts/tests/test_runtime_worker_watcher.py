@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Verify the Runtime worker watcher selects only affected packages."""
+"""Verify the Runtime watcher rebuilds the shared launcher for role changes."""
 
 from __future__ import annotations
 
-import json
 import os
 import stat
 import subprocess
@@ -36,6 +35,7 @@ class RuntimeWorkerWatcherTest(unittest.TestCase):
             environment.update(
                 {
                     "PATH": f"{fake_bin}:{environment['PATH']}",
+                    "CARGO_TARGET_DIR": str(temp / "target"),
                     "A4N_TEST_CARGO_LOG": str(cargo_log),
                     "A4N_TEST_CHANGED_PATH": str(changed_path),
                     "A4N_RUNTIME_WORKER_RELOAD_MARKER": "",
@@ -57,497 +57,45 @@ class RuntimeWorkerWatcherTest(unittest.TestCase):
         commands = self.run_watcher(ROOT / "crates/host/a4n-control/src/lib.rs")
         self.assertEqual(len(commands), 1)
         self.assertIn("-p a4n-control", commands[0])
-        self.assertNotIn("a4n-agent-worker", commands[0])
-
-    def test_agent_worker_change_builds_only_agent_worker(self) -> None:
-        commands = self.run_watcher(ROOT / "crates/agent/a4n-agent-worker/src/main.rs")
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-agent-worker", commands[0])
-        self.assertNotIn("a4n-control", commands[0])
-
-    def test_runtime_change_builds_only_control(self) -> None:
-        commands = self.run_watcher(ROOT / "crates/host/a4n-runtime/src/lib.rs")
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertNotIn("a4n-agent-worker", commands[0])
-
-    def test_agent_runtime_change_builds_control_and_agent_worker(self) -> None:
-        commands = self.run_watcher(ROOT / "crates/agent/a4n-agent-runtime/src/lib.rs")
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-agent-worker", commands[0])
+        self.assertNotIn("a4n-component-host", commands[0])
         self.assertNotIn("-p a4n-edge", commands[0])
-
-    def test_agent_application_change_builds_control_and_agent_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/agent/a4n-agent-application/src/agent/validation.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-agent-worker", commands[0])
-        self.assertNotIn("-p a4n-edge", commands[0])
-
-    def test_agent_runtime_contract_change_builds_control_and_agent_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/agent/a4n-agent-runtime-contract/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-agent-worker", commands[0])
-        self.assertNotIn("-p a4n-edge", commands[0])
-
-    def test_agent_worker_client_change_builds_only_control(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/agent/a4n-agent-worker-client/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-agent-worker", commands[0])
 
     def test_edge_change_builds_only_edge(self) -> None:
         commands = self.run_watcher(ROOT / "crates/host/a4n-edge/src/lib.rs")
         self.assertEqual(len(commands), 1)
         self.assertIn("-p a4n-edge", commands[0])
-        self.assertNotIn("a4n-control", commands[0])
-        self.assertNotIn("a4n-agent-worker", commands[0])
-
-    def test_novel_planning_worker_change_builds_only_novel_planning_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/planning/a4n-novel-planning-worker/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-novel-planning-worker", commands[0])
-        self.assertNotIn("a4n-control", commands[0])
-        self.assertNotIn("a4n-agent-worker", commands[0])
-        self.assertNotIn("-p a4n-edge", commands[0])
-
-    def test_novel_planning_contract_change_builds_control_and_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/planning/a4n-novel-planning-worker-contract/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-novel-planning-worker", commands[0])
-        self.assertNotIn("a4n-agent-worker", commands[0])
-
-    def test_novel_planning_client_change_builds_only_control(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/planning/a4n-novel-planning-worker-client/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertNotIn("a4n-novel-planning-worker ", commands[0])
-        self.assertNotIn("a4n-agent-worker", commands[0])
-
-    def test_artifact_media_worker_change_builds_only_artifact_media_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/media/a4n-artifact-media-worker/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-artifact-media-worker", commands[0])
+        self.assertNotIn("a4n-component-host", commands[0])
         self.assertNotIn("-p a4n-control", commands[0])
+
+    def test_worker_change_builds_the_shared_component_host(self) -> None:
+        commands = self.run_watcher(ROOT / "crates/agent/a4n-agent-worker/src/lib.rs")
+        self.assertEqual(len(commands), 1)
+        self.assertIn("-p a4n-component-host", commands[0])
         self.assertNotIn("-p a4n-agent-worker", commands[0])
 
-    def test_artifact_media_contract_change_builds_artifact_media_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/media/a4n-artifact-media-contract/src/lib.rs"
-        )
+    def test_service_change_builds_the_shared_component_host(self) -> None:
+        commands = self.run_watcher(ROOT / "crates/image/a4n-image-service/src/lib.rs")
         self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-artifact-media-worker", commands[0])
-        self.assertIn("-p a4n-control", commands[0])
+        self.assertIn("-p a4n-component-host", commands[0])
+        self.assertNotIn("-p a4n-image-service", commands[0])
 
-    def test_blueprint_worker_change_builds_only_blueprint_worker(self) -> None:
-        commands = self.run_watcher(ROOT / "crates/planning/a4n-blueprint-worker/src/lib.rs")
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-blueprint-worker", commands[0])
-        self.assertNotIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-outline-worker", commands[0])
-
-    def test_blueprint_contract_change_builds_control_and_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/planning/a4n-blueprint-worker-contract/src/lib.rs"
-        )
+    def test_worker_contract_change_builds_control_and_shared_host(self) -> None:
+        commands = self.run_watcher(ROOT / "crates/agent/a4n-agent-worker-contract/src/lib.rs")
         self.assertEqual(len(commands), 1)
         self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-blueprint-worker", commands[0])
-        self.assertNotIn("-p a4n-agent-worker", commands[0])
+        self.assertIn("-p a4n-component-host", commands[0])
 
-    def test_blueprint_client_change_builds_only_control(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/planning/a4n-blueprint-worker-client/src/lib.rs"
-        )
+    def test_worker_client_change_builds_only_control(self) -> None:
+        commands = self.run_watcher(ROOT / "crates/agent/a4n-agent-worker-client/src/lib.rs")
         self.assertEqual(len(commands), 1)
         self.assertIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-blueprint-worker ", commands[0])
-        self.assertNotIn("-p a4n-agent-worker", commands[0])
+        self.assertNotIn("a4n-component-host", commands[0])
 
-    def test_asset_graph_worker_change_builds_only_asset_graph_worker(self) -> None:
-        commands = self.run_watcher(ROOT / "crates/canvas/a4n-asset-graph-worker/src/lib.rs")
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-asset-graph-worker", commands[0])
-        self.assertNotIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-blueprint-worker", commands[0])
-
-    def test_asset_graph_contract_change_builds_control_and_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/canvas/a4n-asset-graph-worker-contract/src/lib.rs"
-        )
+    def test_shared_domain_change_builds_control_and_component_host(self) -> None:
+        commands = self.run_watcher(ROOT / "crates/platform/a4n-domain/src/lib.rs")
         self.assertEqual(len(commands), 1)
         self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-asset-graph-worker", commands[0])
-        self.assertNotIn("-p a4n-agent-worker", commands[0])
-
-    def test_asset_graph_client_change_builds_only_control(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/canvas/a4n-asset-graph-worker-client/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-asset-graph-worker ", commands[0])
-        self.assertNotIn("a4n-agent-worker", commands[0])
-
-    def test_foreshadowing_worker_change_builds_only_foreshadowing_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/planning/a4n-foreshadowing-worker/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-foreshadowing-worker", commands[0])
-        self.assertNotIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-asset-graph-worker", commands[0])
-
-    def test_foreshadowing_contract_change_builds_control_and_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/planning/a4n-foreshadowing-worker-contract/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-foreshadowing-worker", commands[0])
-        self.assertNotIn("a4n-agent-worker", commands[0])
-
-    def test_foreshadowing_client_change_builds_only_control(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/planning/a4n-foreshadowing-worker-client/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-foreshadowing-worker ", commands[0])
-        self.assertNotIn("a4n-agent-worker", commands[0])
-
-    def test_object_profile_worker_change_builds_only_object_profile_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/profiles/a4n-object-profile-worker/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-object-profile-worker", commands[0])
-        self.assertNotIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-scene-profile-worker", commands[0])
-
-    def test_object_profile_contract_change_builds_control_and_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/profiles/a4n-object-profile-worker-contract/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-object-profile-worker", commands[0])
-        self.assertNotIn("a4n-agent-worker", commands[0])
-
-    def test_object_profile_client_change_builds_only_control(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/profiles/a4n-object-profile-worker-client/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-object-profile-worker ", commands[0])
-
-    def test_scene_profile_worker_change_builds_only_scene_profile_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/profiles/a4n-scene-profile-worker/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-scene-profile-worker", commands[0])
-        self.assertNotIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-object-profile-worker", commands[0])
-
-    def test_scene_profile_contract_change_builds_control_and_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/profiles/a4n-scene-profile-worker-contract/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-scene-profile-worker", commands[0])
-        self.assertNotIn("a4n-agent-worker", commands[0])
-
-    def test_scene_profile_client_change_builds_only_control(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/profiles/a4n-scene-profile-worker-client/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-scene-profile-worker ", commands[0])
-
-    def test_portrait_worker_change_builds_only_portrait_worker(self) -> None:
-        commands = self.run_watcher(ROOT / "crates/profiles/a4n-portrait-worker/src/lib.rs")
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-portrait-worker", commands[0])
-        self.assertNotIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-scene-profile-worker", commands[0])
-
-    def test_portrait_contract_change_builds_control_and_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/profiles/a4n-portrait-worker-contract/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-portrait-worker", commands[0])
-        self.assertNotIn("a4n-agent-worker", commands[0])
-
-    def test_portrait_client_change_builds_only_control(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/profiles/a4n-portrait-worker-client/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-portrait-worker ", commands[0])
-
-    def test_source_snapshot_worker_change_builds_only_source_snapshot_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/project/a4n-source-snapshot-worker/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-source-snapshot-worker", commands[0])
-        self.assertNotIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-portrait-worker", commands[0])
-
-    def test_source_snapshot_contract_change_builds_control_and_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/project/a4n-source-snapshot-worker-contract/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-source-snapshot-worker", commands[0])
-        self.assertNotIn("a4n-agent-worker", commands[0])
-
-    def test_source_snapshot_client_change_builds_only_control(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/project/a4n-source-snapshot-worker-client/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-source-snapshot-worker ", commands[0])
-
-    def test_theme_read_worker_change_builds_only_theme_read_worker(self) -> None:
-        commands = self.run_watcher(ROOT / "crates/theme/a4n-theme-read-worker/src/lib.rs")
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-theme-read-worker", commands[0])
-        self.assertNotIn("-p a4n-control", commands[0])
-
-    def test_theme_read_contract_change_builds_control_and_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/theme/a4n-theme-read-worker-contract/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-theme-read-worker", commands[0])
-
-    def test_theme_read_client_change_builds_only_control(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/theme/a4n-theme-read-worker-client/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-theme-read-worker ", commands[0])
-
-    def test_project_read_worker_change_builds_only_project_read_worker(self) -> None:
-        commands = self.run_watcher(ROOT / "crates/project/a4n-project-read-worker/src/lib.rs")
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-project-read-worker", commands[0])
-        self.assertNotIn("-p a4n-control", commands[0])
-
-    def test_project_read_contract_change_builds_control_and_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/project/a4n-project-read-worker-contract/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-project-read-worker", commands[0])
-
-    def test_project_read_client_change_builds_only_control(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/project/a4n-project-read-worker-client/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-project-read-worker ", commands[0])
-
-    def test_import_review_worker_change_builds_only_import_review_worker(self) -> None:
-        commands = self.run_watcher(ROOT / "crates/transfer/a4n-import-review-worker/src/lib.rs")
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-import-review-worker", commands[0])
-        self.assertNotIn("-p a4n-control", commands[0])
-
-    def test_import_review_contract_change_builds_control_and_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/transfer/a4n-import-review-worker-contract/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-import-review-worker", commands[0])
-
-    def test_import_review_client_change_builds_only_control(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/transfer/a4n-import-review-worker-client/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-import-review-worker ", commands[0])
-
-    def test_inspiration_worker_change_builds_only_inspiration_worker(self) -> None:
-        commands = self.run_watcher(ROOT / "crates/inspiration/a4n-inspiration-worker/src/lib.rs")
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-inspiration-worker", commands[0])
-        self.assertNotIn("-p a4n-control", commands[0])
-
-    def test_inspiration_contract_change_builds_control_and_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/inspiration/a4n-inspiration-worker-contract/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-inspiration-worker", commands[0])
-
-    def test_inspiration_client_change_builds_only_control(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/inspiration/a4n-inspiration-worker-client/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-inspiration-worker ", commands[0])
-
-    def test_project_access_worker_change_builds_only_project_access_worker(self) -> None:
-        commands = self.run_watcher(ROOT / "crates/project/a4n-project-access-worker/src/lib.rs")
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-project-access-worker", commands[0])
-        self.assertNotIn("-p a4n-control", commands[0])
-
-    def test_project_access_contract_change_builds_control_and_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/project/a4n-project-access-worker-contract/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-project-access-worker", commands[0])
-
-    def test_project_access_client_change_builds_only_control(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/project/a4n-project-access-worker-client/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-project-access-worker ", commands[0])
-
-    def test_project_collaboration_worker_change_builds_only_project_collaboration_worker(
-        self,
-    ) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/project/a4n-project-collaboration-worker/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-project-collaboration-worker", commands[0])
-        self.assertNotIn("-p a4n-control", commands[0])
-
-    def test_project_collaboration_contract_change_builds_control_and_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/project/a4n-project-collaboration-worker-contract/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-project-collaboration-worker", commands[0])
-
-    def test_project_collaboration_client_change_builds_only_control(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/project/a4n-project-collaboration-worker-client/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-project-collaboration-worker ", commands[0])
-
-    def test_project_mutation_worker_change_builds_only_project_mutation_worker(self) -> None:
-        commands = self.run_watcher(ROOT / "crates/project/a4n-project-mutation-worker/src/lib.rs")
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-project-mutation-worker", commands[0])
-        self.assertNotIn("-p a4n-control", commands[0])
-
-    def test_project_mutation_contract_change_builds_control_and_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/project/a4n-project-mutation-worker-contract/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-project-mutation-worker", commands[0])
-
-    def test_project_mutation_client_change_builds_only_control(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/project/a4n-project-mutation-worker-client/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-project-mutation-worker ", commands[0])
-
-    def test_chapter_scene_worker_change_builds_only_chapter_scene_worker(self) -> None:
-        commands = self.run_watcher(ROOT / "crates/chapter/a4n-chapter-scene-worker/src/lib.rs")
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-chapter-scene-worker", commands[0])
-        self.assertNotIn("-p a4n-control", commands[0])
-
-    def test_chapter_scene_contract_change_builds_control_and_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/chapter/a4n-chapter-scene-worker-contract/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-chapter-scene-worker", commands[0])
-
-    def test_chapter_scene_client_change_builds_only_control(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/chapter/a4n-chapter-scene-worker-client/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-chapter-scene-worker ", commands[0])
-
-    def test_canvas_record_worker_change_builds_only_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/canvas/a4n-canvas-record-worker/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-canvas-record-worker", commands[0])
-        self.assertNotIn("-p a4n-control", commands[0])
-
-    def test_canvas_record_contract_change_builds_control_and_worker(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/canvas/a4n-canvas-record-worker-contract/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-canvas-record-worker", commands[0])
-
-    def test_canvas_record_client_change_builds_only_control(self) -> None:
-        commands = self.run_watcher(
-            ROOT / "crates/canvas/a4n-canvas-record-worker-client/src/lib.rs"
-        )
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertNotIn("-p a4n-canvas-record-worker ", commands[0])
-
-    def test_shared_crate_change_builds_all_runtime_workers(self) -> None:
-        commands = self.run_watcher(ROOT / "crates/host/a4n-api-contract/src/lib.rs")
-        self.assertEqual(len(commands), 1)
-        self.assertIn("-p a4n-control", commands[0])
-        self.assertIn("-p a4n-edge", commands[0])
-        worker_catalog = ROOT / "crates/process/a4n-process-catalog/worker-catalog.json"
-        for entry in json.loads(worker_catalog.read_text(encoding="utf-8")):
-            package = entry["binary"]
-            self.assertIn(f"-p {package}", commands[0])
+        self.assertIn("-p a4n-component-host", commands[0])
 
 
 if __name__ == "__main__":

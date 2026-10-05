@@ -133,7 +133,7 @@ build_backend() {
     while IFS= read -r binary; do
         [[ -x "$binary" ]] || die "后端构建后未找到二进制: $binary"
     done < <(required_binary_paths)
-    log_ok "Host、工具和 ${#SERVICE_BINARIES[@]} 个 sidecar 构建完成"
+    log_ok "Host、工具和共享组件宿主（${#SERVICE_NAMES[@]} 个 service 角色）构建完成"
 
 }
 
@@ -186,16 +186,10 @@ prepare_package() {
     mkdir -p "$PACKAGE_DIR/bin/services" "$PACKAGE_DIR/static" "$PACKAGE_DIR/prompts"
 
     cp "$BINARY_PATH" "$PACKAGE_DIR/bin/a4n-server"
-    cp "$CONTROL_BINARY_PATH" "$PACKAGE_DIR/bin/a4n-control"
-    cp "$AGENT_WORKER_BINARY_PATH" "$PACKAGE_DIR/bin/a4n-agent-worker"
-    cp "$MIGRATION_BINARY_PATH" "$PACKAGE_DIR/bin/a4n-migration"
     local spec binary
     for spec in "${TOOL_SPECS[@]}"; do
         binary="${spec#*:}"
         cp "$BUILD_TARGET_DIR/release/$binary" "$PACKAGE_DIR/bin/$binary"
-    done
-    for binary in "${SERVICE_BINARIES[@]}"; do
-        cp "$BUILD_TARGET_DIR/release/$binary" "$PACKAGE_DIR/bin/services/$binary"
     done
     cp -L "$A4N_ONNXRUNTIME_ROOT/lib/libonnxruntime.so" "$PACKAGE_DIR/bin/services/libonnxruntime.so.1"
     if [[ "$DEPLOY_MODE" == full ]] || plan_has_payload static; then
@@ -253,7 +247,7 @@ prepare_package() {
     log_ok "部署包: $PACKAGE_PATH"
     log_ok "SHA256: $PACKAGE_SHA256"
     log_ok "部署模式: $DEPLOY_MODE"
-    log_ok "release manifest: ${#SERVICE_BINARIES[@]} 个 sidecar + ${#TOOL_SPECS[@]} 个工具 + ONNX Runtime"
+    log_ok "release manifest: ${#SERVICE_NAMES[@]} 个 service 角色，共用组件宿主 + ${#TOOL_SPECS[@]} 个工具 + ONNX Runtime"
     du -sh "$PACKAGE_PATH"
 }
 

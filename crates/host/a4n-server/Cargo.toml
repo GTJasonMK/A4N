@@ -92,7 +92,7 @@ a4n-process-catalog = { workspace = true }
 a4n-worker-contract = { workspace = true }
 
 anyhow = { workspace = true }
-reqwest = { workspace = true }
+reqwest = { workspace = true, features = ["blocking", "json"] }
 tempfile = { workspace = true }
 uuid = { workspace = true }
 
@@ -108,7 +108,7 @@ axum = { workspace = true }
 base64 = { workspace = true }
 chrono = { workspace = true }
 futures = { workspace = true }
-reqwest = { workspace = true }
+reqwest = { workspace = true, features = ["json", "stream"] }
 serde_json = { workspace = true }
 sea-orm = { workspace = true }
 sha2 = { workspace = true }

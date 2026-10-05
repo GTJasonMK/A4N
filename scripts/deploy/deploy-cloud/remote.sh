@@ -257,10 +257,16 @@ manifest_path = pathlib.Path(sys.argv[1]).resolve()
 root = manifest_path.parent
 manifest = json.loads(manifest_path.read_text())
 entries = manifest["binaries"] + manifest["tools"] + manifest["runtime_files"]
-paths = [entry["path"] for entry in entries]
-if len(paths) != len(set(paths)):
-    raise SystemExit("release manifest contains duplicate paths")
-for relative in paths:
+hashes_by_path = {}
+for entry in entries:
+    relative = entry["path"]
+    digest = entry["sha256"]
+    previous = hashes_by_path.get(relative)
+    if previous is not None and previous != digest:
+        raise SystemExit(f"release manifest shared path has inconsistent hashes: {relative}")
+    if previous is not None:
+        continue
+    hashes_by_path[relative] = digest
     candidate = pathlib.PurePosixPath(relative)
     if candidate.is_absolute() or not relative.startswith("bin/") or any(part in {"", ".", ".."} for part in candidate.parts):
         raise SystemExit(f"unsafe release manifest path: {relative}")
@@ -344,7 +350,7 @@ A4N_DATABASE_URL="$database_url" "$app/bin/a4n-migration"
 rm -rf "$app/.deploy-new"
 
 echo "backup=$backup"
-ls -lh "$app/bin/a4n-server" "$app/bin/a4n-control" "$app/bin/a4n-agent-worker" "$app/bin/a4n-migration"
+ls -lh "$app/bin/a4n-server" "$app/bin/a4n-control" "$app/bin/a4n-component-host" "$app/bin/a4n-migration"
 ls -lh "$app/bin/services"
 find "$app/static" -maxdepth 2 -type f | wc -l
 du -sh "$app/static" "$app/prompts"
@@ -418,27 +424,46 @@ REMOTE
 
 verify_remote_runtime() {
     log_section "远端运行时校验"
-    ssh "${SSH_OPTS[@]}" "$REMOTE" 'bash -s' -- "$REMOTE_DIR" "$REMOTE_SERVICE" "${SERVICE_BINARIES[@]}" <<'REMOTE'
+    ssh "${SSH_OPTS[@]}" "$REMOTE" 'bash -s' -- "$REMOTE_DIR" "$REMOTE_SERVICE" "${SERVICE_NAMES[@]}" --workers "${WORKER_NAMES[@]}" <<'REMOTE'
 set -euo pipefail
 app="$1"
 service="$2"
 shift 2
+service_roles=()
+while (($# > 0)) && [[ "$1" != "--workers" ]]; do
+    service_roles+=("$1")
+    shift
+done
+[[ "${1:-}" == "--workers" ]] || { echo "缺少 worker 角色列表" >&2; exit 1; }
+shift
+worker_roles=("$@")
 systemctl is-active --quiet "$service"
-for binary in "$@"; do
-    test -x "$app/bin/services/$binary"
-    found=false
-    for _ in {1..30}; do
-        if pgrep -f -- "^$app/bin/services/$binary( |$)" >/dev/null; then
-            found=true
-            break
-        fi
-        sleep 1
-    done
-    if ! $found; then
-        echo "sidecar 未运行: $binary" >&2
-        systemctl status "$service" --no-pager --lines=80 >&2 || true
-        exit 1
+test -x "$app/bin/a4n-component-host"
+declare -A role_pids=()
+for kind in service worker; do
+    if [[ "$kind" == service ]]; then
+        roles=("${service_roles[@]}")
+    else
+        roles=("${worker_roles[@]}")
     fi
+    for role in "${roles[@]}"; do
+        pids=()
+        for _ in {1..30}; do
+            mapfile -t pids < <(pgrep -f -- "a4n-component-host --${kind} ${role}([[:space:]]|$)" || true)
+            ((${#pids[@]} == 1)) && break
+            sleep 1
+        done
+        if ((${#pids[@]} != 1)); then
+            echo "$kind role 未以独立进程运行: $role" >&2
+            systemctl status "$service" --no-pager --lines=80 >&2 || true
+            exit 1
+        fi
+        if [[ -n "${role_pids[${pids[0]}]+x}" ]]; then
+            echo "多个组件 role 共用了同一进程: $role" >&2
+            exit 1
+        fi
+        role_pids["${pids[0]}"]="$kind:$role"
+    done
 done
 health=""
 for _ in {1..60}; do
@@ -456,8 +481,9 @@ if [[ "$health" != "ok" ]]; then
     exit 1
 fi
 echo "service=$service"
-echo "sidecars=$#"
+echo "service_roles=${#service_roles[@]}"
+echo "worker_roles=${#worker_roles[@]}"
 echo "health=$health"
 REMOTE
-    log_ok "${#SERVICE_BINARIES[@]} 个 sidecar 均在运行，内部 health=ok"
+    log_ok "${#SERVICE_NAMES[@]} 个 service + ${#WORKER_NAMES[@]} 个 worker role 均以独立进程运行，内部 health=ok"
 }

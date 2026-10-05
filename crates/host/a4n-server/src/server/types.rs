@@ -1,4 +1,5 @@
 use super::*;
+use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,22 +23,46 @@ pub(crate) struct WorkerProcess {
     pub(crate) config: WorkerSpec,
     pub(crate) child: Child,
     pub(crate) fingerprint: BinaryFingerprint,
-    pub(crate) rollback_binary: Option<tempfile::TempPath>,
 }
 
 pub(crate) type ManagedWorker = WorkerProcess;
 
-pub(crate) struct WorkerProcessRegistry(Vec<WorkerProcess>);
+pub(crate) struct WorkerProcessRegistry {
+    processes: Vec<WorkerProcess>,
+    pub(crate) rollback_binaries: HashMap<PathBuf, tempfile::TempPath>,
+}
 
 impl WorkerProcessRegistry {
+    #[cfg(test)]
     pub(crate) fn new(processes: Vec<WorkerProcess>) -> Self {
-        Self(processes)
+        Self {
+            processes,
+            rollback_binaries: HashMap::new(),
+        }
+    }
+
+    pub(crate) fn with_rollback_binaries(
+        processes: Vec<WorkerProcess>,
+        rollback_binaries: HashMap<PathBuf, tempfile::TempPath>,
+    ) -> Self {
+        Self {
+            processes,
+            rollback_binaries,
+        }
     }
 
     pub(crate) fn find_mut(&mut self, worker_name: &str) -> Option<&mut WorkerProcess> {
-        self.0
+        self.processes
             .iter_mut()
             .find(|process| process.config.metadata.name == worker_name)
+    }
+
+    pub(crate) fn indices_for_binary(&self, binary: &Path) -> Vec<usize> {
+        self.processes
+            .iter()
+            .enumerate()
+            .filter_map(|(index, process)| (process.config.binary == binary).then_some(index))
+            .collect()
     }
 }
 
@@ -45,13 +70,13 @@ impl Deref for WorkerProcessRegistry {
     type Target = [WorkerProcess];
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.processes
     }
 }
 
 impl DerefMut for WorkerProcessRegistry {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        &mut self.processes
     }
 }
 

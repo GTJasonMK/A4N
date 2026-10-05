@@ -9,7 +9,7 @@ a4n-domain = { workspace = true }
 a4n-embedding-provider-contract = { workspace = true }
 
 async-trait = { workspace = true }
-reqwest = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 

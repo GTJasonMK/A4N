@@ -25,46 +25,48 @@ source "$SCRIPT_DIR/lib/common.sh"
 FRONTEND_DIR="$PROJECT_ROOT/frontend"
 PACKAGE_NAME="a4n-tauri"
 VERSION=$(grep '^version' "$PROJECT_ROOT/crates/host/a4n-tauri/Cargo.toml" | head -1 | sed 's/.*"\(.*\)"/\1/')
-SIDECAR_PACKAGES=()
 TOOL_SPECS=()
+COMPONENT_SERVICE_FEATURES=()
+SELECTED_SERVICES=()
 SKIP_BUILD=false
 DRY_RUN=false
 TARGET_PLATFORM=""
 SERVICES_FILTER=""
 
 load_release_inventory() {
-    local lines package binary
-    lines="$(sidecar_catalog_binaries)"
-    while IFS= read -r package; do
-        [[ -z "$package" ]] || SIDECAR_PACKAGES+=("$package")
-    done <<<"$lines"
+    local lines package binary service
     lines="$(release_tool_rows)"
     while IFS=$'\t' read -r package binary; do
         TOOL_SPECS+=("$package:$binary")
     done <<<"$lines"
+    while IFS=$'\t' read -r service _; do
+        SELECTED_SERVICES+=("$service")
+    done <<<"$(sidecar_catalog_rows)"
 }
 
 select_sidecar_inventory() {
     [[ -z "$SERVICES_FILTER" ]] && return
-    local requested service binary rows selected
+    local requested service rows selected_services
     rows="$(sidecar_catalog_rows)"
-    selected=()
+    selected_services=()
+    SELECTED_SERVICES=()
     IFS=',' read -ra requested <<<"$SERVICES_FILTER"
     for service in "${requested[@]}"; do
         service="$(echo "$service" | tr -d '[:space:]')"
         [[ -n "$service" ]] || die "--services 不能包含空 service"
-        binary=""
-        while IFS=$'\t' read -r catalog_service catalog_binary _; do
+        found_service=false
+        while IFS=$'\t' read -r catalog_service _; do
             if [[ "$catalog_service" == "$service" ]]; then
-                binary="$catalog_binary"
+                found_service=true
                 break
             fi
         done <<<"$rows"
-        [[ -n "$binary" ]] || die "--services 包含未知 service: $service"
-        [[ " ${selected[*]} " != *" $binary "* ]] || die "--services 包含重复 service: $service"
-        selected+=("$binary")
+        $found_service || die "--services 包含未知 service: $service"
+        [[ " ${selected_services[*]} " != *" $service "* ]] || die "--services 包含重复 service: $service"
+        selected_services+=("$service")
+        COMPONENT_SERVICE_FEATURES+=("service_${service//-/_}")
     done
-    SIDECAR_PACKAGES=("${selected[@]}")
+    SELECTED_SERVICES=("${selected_services[@]}")
 }
 
 # —— 检测平台 ——
@@ -133,14 +135,14 @@ fi
 
 # 输出目录
 DEPLOY_DIR="$PROJECT_ROOT/deploy"
-RELEASE_BINARY="$PROJECT_ROOT/target/release/${PACKAGE_NAME}${BINARY_EXT}"
+RELEASE_BINARY="$CARGO_TARGET_DIR/release/${PACKAGE_NAME}${BINARY_EXT}"
 FRONTEND_DIST="$FRONTEND_DIR/dist"
 PACKAGE_DIR="$DEPLOY_DIR/${PACKAGE_NAME}-${VERSION}-${TARGET_PLATFORM}"
 ARCHIVE_NAME="${PACKAGE_NAME}-${VERSION}-${TARGET_PLATFORM}.tar.gz"
 
 release_binary_path() {
     local binary="$1"
-    printf '%s/target/release/%s%s\n' "$PROJECT_ROOT" "$binary" "$BINARY_EXT"
+    printf '%s/release/%s%s\n' "$CARGO_TARGET_DIR" "$binary" "$BINARY_EXT"
 }
 
 onnxruntime_release_name() {
@@ -189,15 +191,6 @@ do_build() {
             echo "  请先运行 ./scripts/build.sh --release"
             exit 1
         fi
-        for package in "${SIDECAR_PACKAGES[@]}"; do
-            local sidecar_binary
-            sidecar_binary="$(release_binary_path "$package")"
-            if [[ ! -f "$sidecar_binary" ]]; then
-                echo -e "${RED}✗ 未找到 sidecar Release 二进制: ${sidecar_binary}${NC}"
-                echo "  请先运行 cargo build --release -p ${package}"
-                exit 1
-            fi
-        done
         for spec in "${TOOL_SPECS[@]}"; do
             local package="${spec%%:*}" binary="${spec#*:}" tool_binary
             tool_binary="$(release_binary_path "$binary")"
@@ -230,13 +223,19 @@ do_build() {
     echo -e "${CYAN}━━━ 构建 Release ━━━${NC}"
     cd "$PROJECT_ROOT"
     cargo build --release -p "$PACKAGE_NAME" 2>&1
+    local component_host_features
+    if [[ ${#COMPONENT_SERVICE_FEATURES[@]} -gt 0 ]]; then
+        component_host_features="stateful-workers,$(IFS=,; printf '%s' "${COMPONENT_SERVICE_FEATURES[*]}")"
+        echo -e "${CYAN}→ 构建共享组件宿主（选定 services）${NC}"
+        cargo build --release --no-default-features --features "$component_host_features" -p a4n-component-host 2>&1
+    else
+        echo -e "${CYAN}→ 构建共享组件宿主（全部角色）${NC}"
+        cargo build --release -p a4n-component-host 2>&1
+    fi
     for spec in "${TOOL_SPECS[@]}"; do
         local package="${spec%%:*}"
+        [[ "$package" == "a4n-component-host" ]] && continue
         echo -e "${CYAN}→ 构建工具: ${package}${NC}"
-        cargo build --release -p "$package" 2>&1
-    done
-    for package in "${SIDECAR_PACKAGES[@]}"; do
-        echo -e "${CYAN}→ 构建 sidecar: ${package}${NC}"
         cargo build --release -p "$package" 2>&1
     done
     echo ""
@@ -278,17 +277,6 @@ prepare_package() {
         echo -e "  ${GREEN}✓${NC} 工具: bin/$(basename "$tool_binary")"
     done
 
-    for package in "${SIDECAR_PACKAGES[@]}"; do
-        local sidecar_binary
-        sidecar_binary="$(release_binary_path "$package")"
-        if [[ ! -f "$sidecar_binary" ]]; then
-            echo -e "  ${RED}✗${NC} 缺少 sidecar 二进制: ${sidecar_binary}"
-            exit 1
-        fi
-        cp "$sidecar_binary" "$PACKAGE_DIR/bin/services/"
-        echo -e "  ${GREEN}✓${NC} sidecar: bin/services/$(basename "$sidecar_binary")"
-    done
-
     require_onnxruntime
     local runtime_source runtime_name
     runtime_name="$(onnxruntime_release_name)"
@@ -312,7 +300,7 @@ prepare_package() {
         --package-root "$PACKAGE_DIR" \
         --manifest "$PACKAGE_DIR/release-manifest.json"
     expected_checksum_entries="$(wc -l < "$PACKAGE_DIR/release-manifest.sha256")"
-    echo -e "  ${GREEN}✓${NC} release-manifest.json（host + ${#SIDECAR_PACKAGES[@]} 个 sidecar + ${#TOOL_SPECS[@]} 个工具）"
+    echo -e "  ${GREEN}✓${NC} release-manifest.json（host + ${#SELECTED_SERVICES[@]} 个 service + ${#TOOL_SPECS[@]} 个工具）"
 
     # 复制前端产物
     if [[ -d "$FRONTEND_DIST" ]]; then
@@ -389,16 +377,19 @@ function Assert-ReleaseManifest {
             ($relative -split "[/\\]") -contains "..") {
             throw "release manifest 文件条目无效: $relative"
         }
-        if ($seen.ContainsKey($relative)) {
-            throw "release manifest 存在重复路径: $relative"
-        }
-        $seen[$relative] = $expectedHash.ToLowerInvariant()
         $binary = Join-Path $ScriptDir ($relative -replace '/', [IO.Path]::DirectorySeparatorChar)
         if (-not (Test-Path -LiteralPath $binary -PathType Leaf)) {
             throw "release manifest 缺少二进制: $relative"
         }
+        if ($seen.ContainsKey($relative)) {
+            if ($seen[$relative] -ne $expectedHash.ToLowerInvariant()) {
+                throw "release manifest 共享路径的 SHA-256 不一致: $relative"
+            }
+            continue
+        }
+        $seen[$relative] = $expectedHash.ToLowerInvariant()
         $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $binary).Hash.ToLowerInvariant()
-        if ($actual -ne $seen[$relative]) {
+        if ($actual -ne $expectedHash.ToLowerInvariant()) {
             throw "release manifest SHA-256 不匹配: $relative"
         }
     }
@@ -466,8 +457,10 @@ Set-DefaultEnv "A4N_LOG_DIR" (Join-Path $env:A4N_DATA_DIR "logs")
 Set-DefaultEnv "A4N_TEMP_DIR" (Join-Path $env:A4N_DATA_DIR "tmp")
 Set-DefaultEnv "A4N_RUNTIME_PROFILE" "sidecar"
 Set-DefaultEnv "A4N_RELEASE_MANIFEST_PATH" (Join-Path $ScriptDir "release-manifest.json")
-Set-DefaultEnv "A4N_SIDECAR_BIN_DIR" (Join-Path $ScriptDir "bin\services")
+Set-DefaultEnv "A4N_SIDECAR_BIN_DIR" (Join-Path $ScriptDir "bin")
+Set-DefaultEnv "A4N_ONNXRUNTIME_ROOT" (Join-Path $ScriptDir "bin\services")
 Set-DefaultEnv "A4N_MANAGED_SIDECARS" "1"
+$env:PATH = (Join-Path $ScriptDir "bin\services") + ";" + $env:PATH
 
 & (Join-Path $ScriptDir "bin\a4n-tauri.exe")
 exit $LASTEXITCODE
@@ -545,10 +538,11 @@ export A4N_LOG_DIR="${A4N_LOG_DIR:-$A4N_DATA_DIR/logs}"
 export A4N_TEMP_DIR="${A4N_TEMP_DIR:-$A4N_DATA_DIR/tmp}"
 export A4N_RUNTIME_PROFILE="${A4N_RUNTIME_PROFILE:-sidecar}"
 export A4N_RELEASE_MANIFEST_PATH="${A4N_RELEASE_MANIFEST_PATH:-$SCRIPT_DIR/release-manifest.json}"
-export A4N_SIDECAR_BIN_DIR="${A4N_SIDECAR_BIN_DIR:-$SCRIPT_DIR/bin/services}"
+export A4N_SIDECAR_BIN_DIR="${A4N_SIDECAR_BIN_DIR:-$SCRIPT_DIR/bin}"
+export A4N_ONNXRUNTIME_ROOT="${A4N_ONNXRUNTIME_ROOT:-$SCRIPT_DIR/bin/services}"
 export A4N_MANAGED_SIDECARS="${A4N_MANAGED_SIDECARS:-1}"
-export LD_LIBRARY_PATH="$A4N_SIDECAR_BIN_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-export DYLD_LIBRARY_PATH="$A4N_SIDECAR_BIN_DIR${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH="$SCRIPT_DIR/bin/services${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export DYLD_LIBRARY_PATH="$SCRIPT_DIR/bin/services${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
 
 exec bin/a4n-tauri
 SHEOF
@@ -568,8 +562,8 @@ A4N - AI 辅助小说创作工具
   Windows:      双击 start.bat
 
 默认运行模式:
-  启动脚本启用 managed sidecars，由桌面 Host 按 service catalog 从
-  bin/services/ 启停服务。替换 sidecar 二进制后重启应用即可生效。
+  启动脚本启用 managed sidecars，由桌面 Host 使用 bin/a4n-component-host
+  为每个 service 启动独立进程。bin/services/ 保存 ONNX Runtime。
 
 首次启动前必须在 data/config.toml 填写 database_url，并配置 JWT secret：
   database_url = "postgres://user:password@host:5432/database"
@@ -578,7 +572,7 @@ A4N - AI 辅助小说创作工具
 
 目录结构:
   bin/         桌面 Host 与 release tool catalog 声明的工具
-  bin/services/ service catalog 声明的 sidecar
+  bin/a4n-component-host worker/service launcher，bin/services/ 保存 ONNX Runtime
   static/      前端页面（React SPA）
   prompts/     提示词模板
   data/        数据目录、配置、数据库、日志、缓存、生成素材
@@ -636,9 +630,12 @@ if $DRY_RUN; then
     echo "将打包以下内容:"
     echo "  - bin/${PACKAGE_NAME}"
     for spec in "${TOOL_SPECS[@]}"; do
-        echo "  - bin/${spec#*:}${BINARY_EXT}"
+        if [[ "${spec#*:}" != "a4n-component-host" ]]; then
+            echo "  - bin/${spec#*:}${BINARY_EXT}"
+        fi
     done
-    echo "  - bin/services/ (${#SIDECAR_PACKAGES[@]} 个 sidecar 二进制)"
+    echo "  - bin/a4n-component-host (worker/service shared launcher)"
+    echo "  - bin/services/ (ONNX Runtime)"
     echo "  - start.sh / start.bat / Windows start.ps1 (默认 sidecar profile，启动包内 sidecar)"
     if [[ -d "$FRONTEND_DIST" ]]; then
         static_count=0

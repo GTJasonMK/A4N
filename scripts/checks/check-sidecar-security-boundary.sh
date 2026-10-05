@@ -12,10 +12,10 @@ ROUTERS=(
     crates/embedding/a4n-embedding-service/src/app.rs
     crates/rag/a4n-rag-service/src/app.rs
     crates/image/a4n-image-service/src/app.rs
-    crates/video/a4n-video-service/src/main.rs
-    crates/transfer/a4n-import-service/src/main.rs
-    crates/transfer/a4n-export-service/src/main.rs
-    crates/media/a4n-media-service/src/main.rs
+    crates/video/a4n-video-service/src/lib.rs
+    crates/transfer/a4n-import-service/src/lib.rs
+    crates/transfer/a4n-export-service/src/lib.rs
+    crates/media/a4n-media-service/src/lib.rs
 )
 
 for router in "${ROUTERS[@]}"; do
@@ -47,10 +47,10 @@ if rg -n 'const [A-Z0-9_]*(BODY_LIMIT|MAX_CONCURRENT)' \
     crates/embedding/a4n-embedding-service/src/app.rs \
     crates/rag/a4n-rag-service/src/app.rs \
     crates/image/a4n-image-service/src/app.rs \
-    crates/video/a4n-video-service/src/main.rs \
-    crates/transfer/a4n-import-service/src/main.rs \
-    crates/transfer/a4n-export-service/src/main.rs \
-    crates/media/a4n-media-service/src/main.rs; then
+    crates/video/a4n-video-service/src/lib.rs \
+    crates/transfer/a4n-import-service/src/lib.rs \
+    crates/transfer/a4n-export-service/src/lib.rs \
+    crates/media/a4n-media-service/src/lib.rs; then
     printf 'sidecar resource limits must have one service-protocol owner\n' >&2
     exit 1
 fi

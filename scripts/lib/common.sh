@@ -64,9 +64,8 @@ require_command() {
 stateful_worker_packages() {
     require_command node
     node -e '
-      for (const entry of JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))) {
-        console.log(entry.binary);
-      }
+      const entries = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+      for (const binary of new Set(entries.map((entry) => entry.launcher))) console.log(binary);
     ' "$PROJECT_ROOT/crates/process/a4n-process-catalog/worker-catalog.json"
 }
 
@@ -242,7 +241,7 @@ sidecar_catalog_rows() {
 }
 
 sidecar_catalog_binaries() {
-    sidecar_catalog_rows | cut -f2
+    sidecar_catalog_rows | cut -f2 | sort -u
 }
 
 release_tool_rows() {

@@ -578,7 +578,7 @@ fn manager_exposes_sidecar_and_stateful_worker_metadata() {
         sidecar.contract_version.as_deref(),
         Some("service-protocol-v2")
     );
-    assert_eq!(sidecar.binary, "a4n-prompt-service");
+    assert_eq!(sidecar.binary, "a4n-component-host");
     assert_eq!(sidecar.default_addr, "127.0.0.1:47641");
 
     let worker = manager
@@ -590,7 +590,7 @@ fn manager_exposes_sidecar_and_stateful_worker_metadata() {
         Some("agent-worker-v2")
     );
     assert_eq!(worker.contract_version.as_deref(), Some("worker-schema-v6"));
-    assert_eq!(worker.binary, "a4n-agent-worker");
+    assert_eq!(worker.binary, "a4n-component-host");
     assert_eq!(worker.addr_env, "A4N_AGENT_WORKER_ADDR");
     assert_eq!(worker.url_env.as_deref(), Some("A4N_AGENT_WORKER_URL"));
     assert_eq!(worker.default_addr, "127.0.0.1:47650");
