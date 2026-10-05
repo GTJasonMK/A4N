@@ -11,8 +11,6 @@ use a4n_image_contract::ImageGenerationRequest;
 use a4n_image_provider_contract::{ImageGenerationResult, ImageProvider};
 use async_trait::async_trait;
 
-const CLIPROXY_IMAGE_EDIT_MODEL: &str = "grok-imagine-image";
-
 /// CLIProxyAPI image provider for xAI Grok Imagine Image.
 pub(crate) struct CliProxyImageProvider {
     base_url: String,
@@ -72,7 +70,6 @@ impl ImageProvider for CliProxyImageProvider {
             .await;
         }
 
-        validate_cli_proxy_image_edit_model(&req.model)?;
         let url = format!("{}/images/edits", self.base_url);
         tracing::debug!(
             "cliproxy image edit POST {url} model={} {}x{} refs={}",
@@ -106,19 +103,9 @@ fn cli_proxy_image_edit_error(model: &str, status: reqwest::StatusCode, body: &s
             .contains("model does not support this api endpoint")
     {
         return AppError::InvalidArgument(format!(
-            "CLIProxy/Grok 图片编辑端点不支持当前模型 {model}。CPA 的参考图编辑端点只支持模型 {CLIPROXY_IMAGE_EDIT_MODEL}；请把图像配置的模型改为该模型。无参考图生成可继续使用其他 Grok Imagine 模型。"
+            "CLIProxy/Grok 图片编辑端点拒绝当前模型 {model}（CPA 返回：model does not support this API endpoint）。这表示当前 CPA 实例、账号或模型配置未启用 /images/edits；请升级或检查 CPA 的 image 模型配置。无参考图生成可继续使用 /images/generations。"
         ));
     }
 
     image_provider_http_error("CLIProxy 图片编辑", status, body)
-}
-
-fn validate_cli_proxy_image_edit_model(model: &str) -> Result<(), AppError> {
-    if model.trim() == CLIPROXY_IMAGE_EDIT_MODEL {
-        return Ok(());
-    }
-    Err(AppError::InvalidArgument(format!(
-        "CLIProxy/Grok 图片编辑端点只支持模型 {CLIPROXY_IMAGE_EDIT_MODEL}，当前模型为 {}；无参考图生成可继续使用其他 Grok Imagine 模型。",
-        model.trim()
-    )))
 }
