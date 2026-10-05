@@ -227,6 +227,7 @@ export const comic = {
     failedCount: "失败 {count}",
     checkpoint: "断点 {status}",
     staleCount: "{count} 页需更新",
+    viewPromptRequest: "查看页面提示词生成请求",
     viewRequest: "查看生成图片请求",
     viewRegenerateRequest: "查看重新生成请求",
     viewUpdateRequest: "查看更新请求",

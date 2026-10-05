@@ -48,4 +48,20 @@ describe("manga pipeline page scope", () => {
       },
     );
   });
+
+  it("scopes drawing prompt previews to the selected page", async () => {
+    await previewStartMangaPipelineRequest(7, 3, "drawing_prompt", 2);
+
+    expect(mocks.apiInvoke).toHaveBeenCalledWith(
+      "preview_start_manga_pipeline_request",
+      {
+        input: {
+          project_id: 7,
+          chapter_number: 3,
+          page_number: 2,
+          stop_after: "drawing_prompt",
+        },
+      },
+    );
+  });
 });

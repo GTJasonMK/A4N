@@ -53,6 +53,7 @@ import {
   mangaStageLabel,
   mangaPageStageLabel,
   mangaPageNumberForPipelineStage,
+  mangaPagePreviewActionForStage,
   mangaPageStageNeedsGeneration,
   mangaPipelineStageMatchesWorkspaceStage,
   mangaStopAfterForStage,
@@ -302,6 +303,7 @@ export function MangaChapterDetailPanel({
         ? mangaStageLabel(selectedStatus.pipeline_status, t)
         : t("comic.pipelineStages.notStarted");
   const pipelineStopAfter = stageMode ? mangaStopAfterForStage(stageMode) : null;
+  const pagePreviewAction = mangaPagePreviewActionForStage(stageMode);
   const pageScopedStage = stageMode != null && stageMode !== "page_plan";
   const pipelinePageNumber = mangaPageNumberForPipelineStage(
     stageMode,
@@ -976,7 +978,7 @@ export function MangaChapterDetailPanel({
                     {[...chapterMeta, stageText].filter(Boolean).join(" · ")}
                   </p>
                 </div>
-                {(stageMode == null || stageMode === "prompts" || stageMode === "images") && <div className="w-44 max-w-full">
+                {pagePreviewAction === "image_request" && <div className="w-44 max-w-full">
                   <ImageSizeSelect
                     label={t("settingsForm.selectImageSize")}
                     value={imageSize}
@@ -1085,7 +1087,19 @@ export function MangaChapterDetailPanel({
                 optimizingPromptId={optimizingPromptId}
                 actionsDisabled={detailBusy}
                 canEditManga={canEditManga}
-                onPreviewPageImage={stageMode == null || stageMode === "images" || stageMode === "prompts" ? handlePreviewPageImage : undefined}
+                onPreviewPagePromptRequest={
+                  pagePreviewAction === "prompt_request"
+                    ? (pageNumber) =>
+                        onPreviewPipeline(
+                          pipelineCanResume ? "resume" : "start",
+                          pipelineStopAfter,
+                          pageNumber,
+                        )
+                    : undefined
+                }
+                onPreviewPageImage={
+                  pagePreviewAction === "image_request" ? handlePreviewPageImage : undefined
+                }
                 onGeneratePageImage={stageMode == null || stageMode === "images" ? handleGeneratePageImage : undefined}
                 onBindReferenceImage={mangaStageAllowsReferenceBinding(stageMode) ? handleBindReferenceImage : undefined}
                 onUpdatePrompt={handleUpdatePrompt}

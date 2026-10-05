@@ -3,6 +3,7 @@ import {
   mangaImageStatusMatchesWorkspaceStage,
   mangaPipelineStageMatchesWorkspaceStage,
   mangaPageNumberForPipelineStage,
+  mangaPagePreviewActionForStage,
   mangaPageStageHasOutput,
   mangaPageStageNeedsGeneration,
   mangaStageAllowsReferenceBinding,
@@ -18,10 +19,20 @@ describe("manga pipeline workspace stages", () => {
     expect(mangaStopAfterForStage("images")).toBe("image");
   });
 
+  it("previews prompt requests in the prompt stage and image requests in the image stage", () => {
+    expect(mangaPagePreviewActionForStage("prompts")).toBe("prompt_request");
+    expect(mangaPagePreviewActionForStage("images")).toBe("image_request");
+    expect(mangaPagePreviewActionForStage(undefined)).toBe("image_request");
+    expect(mangaPagePreviewActionForStage("storyboard")).toBeNull();
+    expect(mangaPagePreviewActionForStage("page_plan")).toBeNull();
+    expect(mangaPagePreviewActionForStage("page_adaptation")).toBeNull();
+  });
+
   it("scopes per-page stages to the selected page and keeps pagination chapter-wide", () => {
     expect(mangaPageNumberForPipelineStage("page_plan", 2)).toBeNull();
     expect(mangaPageNumberForPipelineStage("page_adaptation", 2)).toBe(2);
     expect(mangaPageNumberForPipelineStage("storyboard", 2)).toBe(2);
+    expect(mangaPageNumberForPipelineStage("prompts", 2)).toBe(2);
     expect(mangaPageNumberForPipelineStage(undefined, 2)).toBeNull();
   });
 

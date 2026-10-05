@@ -70,6 +70,7 @@ interface MangaPagePromptListProps {
   optimizingPromptId?: number | null;
   actionsDisabled?: boolean;
   canEditManga: boolean;
+  onPreviewPagePromptRequest?: (pageNumber: number) => void | Promise<void>;
   onPreviewPageImage?: (pageNumber: number) => void | Promise<void>;
   onGeneratePageImage?: (pageNumber: number) => void | Promise<void>;
   onBindReferenceImage?: (
@@ -219,6 +220,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   optimizingPromptId = null,
   actionsDisabled = false,
   canEditManga,
+  onPreviewPagePromptRequest,
   onPreviewPageImage,
   onGeneratePageImage,
   onBindReferenceImage,
@@ -532,6 +534,22 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   ].filter(Boolean);
   const activePromptMenuItems: DropdownItem[] = [];
   const activePageMenuItems: DropdownItem[] = [];
+  if (
+    activePage &&
+    canEditManga &&
+    stageMode === "prompts" &&
+    onPreviewPagePromptRequest
+  ) {
+    activePageMenuItems.push({
+      label: t("comic.prompt.viewPromptRequest"),
+      icon: <Eye size={12} />,
+      disabled:
+        actionsDisabled ||
+        chapterLocked ||
+        generatingPageNumber != null,
+      onClick: () => void onPreviewPagePromptRequest(activePage.pageNumber),
+    });
+  }
   if (
     activePage &&
     activePage.prompt.drawing_prompt &&

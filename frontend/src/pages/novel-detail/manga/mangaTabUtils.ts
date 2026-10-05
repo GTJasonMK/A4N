@@ -16,6 +16,16 @@ export type MangaPageWorkspaceStage =
 
 export type MangaWorkspaceStage = "materials" | "adaptation" | MangaPageWorkspaceStage;
 
+export type MangaPagePreviewAction = "prompt_request" | "image_request" | null;
+
+export const mangaPagePreviewActionForStage = (
+  stage: MangaPageWorkspaceStage | undefined,
+): MangaPagePreviewAction => {
+  if (stage === "prompts") return "prompt_request";
+  if (stage == null || stage === "images") return "image_request";
+  return null;
+};
+
 export const mangaStopAfterForStage = (
   stage: MangaPageWorkspaceStage,
 ): MangaPipelineStopAfter => {

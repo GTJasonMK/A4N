@@ -227,6 +227,7 @@ export const comic = {
     failedCount: "Failed {count}",
     checkpoint: "Checkpoint {status}",
     staleCount: "{count} pages need update",
+    viewPromptRequest: "View page prompt generation request",
     viewRequest: "View image generation request",
     viewRegenerateRequest: "View regeneration request",
     viewUpdateRequest: "View update request",
