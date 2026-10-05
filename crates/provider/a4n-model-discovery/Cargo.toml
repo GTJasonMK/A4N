@@ -7,5 +7,5 @@ license.workspace = true
 [dependencies]
 a4n-domain = { workspace = true }
 a4n-model-discovery-contract = { workspace = true }
-reqwest = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
 serde_json = { workspace = true }

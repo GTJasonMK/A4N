@@ -25,16 +25,21 @@ cleanup_stale_build_container() {
 }
 
 load_release_inventory() {
-    local package binary
+    local package binary service
     BUILD_PACKAGES=("$HOST_PACKAGE")
-    SERVICE_BINARIES=()
+    SERVICE_NAMES=()
+    WORKER_NAMES=()
     TOOL_SPECS=()
 
-    while IFS=$'\t' read -r _service binary _rest; do
-        [[ -n "$binary" ]] || continue
-        SERVICE_BINARIES+=("$binary")
-        BUILD_PACKAGES+=("$binary")
+    while IFS=$'\t' read -r service _rest; do
+        [[ -n "$service" ]] || continue
+        SERVICE_NAMES+=("$service")
     done < <(sidecar_catalog_rows)
+
+    while IFS=$'\t' read -r name _launcher; do
+        [[ -n "$name" ]] || continue
+        WORKER_NAMES+=("$name")
+    done < <(ruby "$PROJECT_ROOT/scripts/release_manifest.rb" worker-rows)
 
     while IFS=$'\t' read -r package binary; do
         [[ "$package" == "$HOST_PACKAGE" ]] && continue
@@ -44,8 +49,10 @@ load_release_inventory() {
 
     if [[ -n "$DEPLOY_RECORD_PATH" ]]; then
         {
-            echo "sidecar_count=${#SERVICE_BINARIES[@]}"
-            echo "sidecars=${SERVICE_BINARIES[*]}"
+            echo "sidecar_count=${#SERVICE_NAMES[@]}"
+            echo "sidecars=${SERVICE_NAMES[*]}"
+            echo "worker_count=${#WORKER_NAMES[@]}"
+            echo "workers=${WORKER_NAMES[*]}"
             echo "tool_count=${#TOOL_SPECS[@]}"
             echo "tools=${TOOL_SPECS[*]}"
         } >> "$DEPLOY_RECORD_PATH"
@@ -53,13 +60,10 @@ load_release_inventory() {
 }
 
 required_binary_paths() {
-    printf '%s\n' "$BINARY_PATH" "$CONTROL_BINARY_PATH" "$AGENT_WORKER_BINARY_PATH" "$MIGRATION_BINARY_PATH"
+    printf '%s\n' "$BINARY_PATH"
     local spec binary
     for spec in "${TOOL_SPECS[@]}"; do
         binary="${spec#*:}"
-        printf '%s/release/%s\n' "$BUILD_TARGET_DIR" "$binary"
-    done
-    for binary in "${SERVICE_BINARIES[@]}"; do
         printf '%s/release/%s\n' "$BUILD_TARGET_DIR" "$binary"
     done
 }

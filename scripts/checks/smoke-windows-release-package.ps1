@@ -29,6 +29,12 @@ $Services = @($ServiceRows | ForEach-Object {
         health_path = $fields[4]
     }
 })
+$WorkerRows = @(& ruby $ManifestTool worker-rows)
+if ($LASTEXITCODE -ne 0) { throw "unable to read worker catalog" }
+$Workers = @($WorkerRows | ForEach-Object {
+    $fields = $_ -split "`t", 2
+    [pscustomobject]@{ name = $fields[0]; launcher = $fields[1] }
+})
 $ToolRows = @(& ruby $ManifestTool tool-rows)
 if ($LASTEXITCODE -ne 0) { throw "unable to read release tool catalog" }
 $ReleaseTools = @($ToolRows | ForEach-Object {
@@ -95,9 +101,9 @@ try {
     if ($null -eq $SelectedService) {
         throw "sidecar service catalog is empty"
     }
-    $SelectedSidecar = Join-Path $PackageRoot "bin\services\$($SelectedService.binary).exe"
+    $SelectedSidecar = Join-Path $PackageRoot "bin\$($SelectedService.binary).exe"
     if (-not (Test-Path -LiteralPath $SelectedSidecar -PathType Leaf)) {
-        throw "release package is missing selected sidecar: $($SelectedService.binary).exe"
+        throw "release package is missing shared component host: $($SelectedService.binary).exe"
     }
     $MissingSidecar = "$SelectedSidecar.missing"
     if (Test-Path -LiteralPath $MissingSidecar) {
@@ -192,6 +198,36 @@ try {
     }
     if (-not $ready) {
         throw "release sidecars did not become healthy"
+    }
+
+    $ComponentHostPath = (Resolve-Path -LiteralPath $SelectedSidecar).Path
+    $SidecarPids = @()
+    for ($index = 0; $index -lt $modules.Count; $index++) {
+        $servicePattern = "--service\s+$([regex]::Escape($modules[$index]))(?:\s|$)"
+        $ServiceProcesses = @(Get-CimInstance Win32_Process -Filter "Name='a4n-component-host.exe'" | Where-Object {
+            $_.ExecutablePath -eq $ComponentHostPath -and $_.CommandLine -match $servicePattern
+        })
+        if ($ServiceProcesses.Count -ne 1) {
+            throw "expected one independent $($modules[$index]) process, found $($ServiceProcesses.Count)"
+        }
+        $SidecarPids += [uint32]$ServiceProcesses[0].ProcessId
+    }
+    if (@($SidecarPids | Select-Object -Unique).Count -ne $modules.Count) {
+        throw "multiple service roles share one component-host process"
+    }
+    $WorkerPids = @()
+    foreach ($worker in $Workers) {
+        $workerPattern = "--worker\s+$([regex]::Escape($worker.name))(?:\s|$)"
+        $WorkerProcesses = @(Get-CimInstance Win32_Process -Filter "Name='a4n-component-host.exe'" | Where-Object {
+            $_.ExecutablePath -eq $ComponentHostPath -and $_.CommandLine -match $workerPattern
+        })
+        if ($WorkerProcesses.Count -ne 1) {
+            throw "expected one independent $($worker.name) process, found $($WorkerProcesses.Count)"
+        }
+        $WorkerPids += [uint32]$WorkerProcesses[0].ProcessId
+    }
+    if (@($WorkerPids | Select-Object -Unique).Count -ne $Workers.Count) {
+        throw "multiple worker roles share one component-host process"
     }
 
     $hostPath = (Resolve-Path -LiteralPath (Join-Path $PackageRoot "bin\a4n-tauri.exe")).Path

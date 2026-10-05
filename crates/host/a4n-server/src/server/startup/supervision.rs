@@ -56,24 +56,29 @@ fn handle_worker_event(
     workers: &mut WorkerProcessRegistry,
     event: WorkerLifecycleEvent,
 ) -> anyhow::Result<()> {
-    let (worker_name, stop_first) = match event {
+    match event {
         WorkerLifecycleEvent::Exited {
             worker_name,
             status,
         } => {
             eprintln!("A4N {worker_name} 意外退出: {status}；准备重启");
-            (worker_name, false)
+            let worker = workers
+                .find_mut(&worker_name)
+                .ok_or_else(|| anyhow::anyhow!("未注册需要重启的 Worker: {worker_name}"))?;
+            if let Err(error) = restart_managed_worker(worker, false) {
+                eprintln!("A4N {worker_name} Worker 重启失败，监督服务继续运行: {error:#}");
+            }
         }
         WorkerLifecycleEvent::BinaryChanged { worker_name } => {
-            eprintln!("检测到 A4N {worker_name} 构建完成；只替换该 Worker");
-            (worker_name, true)
+            let binary = workers
+                .find_mut(&worker_name)
+                .map(|worker| worker.config.binary.clone())
+                .ok_or_else(|| anyhow::anyhow!("未注册需要重启的 Worker: {worker_name}"))?;
+            eprintln!("检测到 A4N {worker_name} 共享宿主已更新；准备整体重启使用该宿主的 Worker");
+            if let Err(error) = restart_managed_binary_group(workers, &binary) {
+                eprintln!("A4N Worker 共享宿主更新失败，监督服务继续运行: {error:#}");
+            }
         }
-    };
-    let worker = workers
-        .find_mut(&worker_name)
-        .ok_or_else(|| anyhow::anyhow!("未注册需要重启的 Worker: {worker_name}"))?;
-    if let Err(error) = restart_managed_worker(worker, stop_first) {
-        eprintln!("A4N {worker_name} Worker 重启失败，监督服务继续运行: {error:#}");
     }
     Ok(())
 }
@@ -93,14 +98,6 @@ fn next_event(
     if let Some(status) = control.try_wait()? {
         return Ok(Some(RuntimeEvent::ControlExited(status)));
     }
-    for worker in workers.iter_mut() {
-        if let Some(status) = worker.child.try_wait()? {
-            return Ok(Some(RuntimeEvent::Worker(WorkerLifecycleEvent::Exited {
-                worker_name: worker.config.metadata.name.clone(),
-                status,
-            })));
-        }
-    }
     if binary_fingerprint(&config.edge_binary)? != edge_fingerprint {
         return Ok(Some(RuntimeEvent::EdgeChanged));
     }
@@ -114,6 +111,14 @@ fn next_event(
                     worker_name: worker.config.metadata.name.clone(),
                 },
             )));
+        }
+    }
+    for worker in workers.iter_mut() {
+        if let Some(status) = worker.child.try_wait()? {
+            return Ok(Some(RuntimeEvent::Worker(WorkerLifecycleEvent::Exited {
+                worker_name: worker.config.metadata.name.clone(),
+                status,
+            })));
         }
     }
     let latest_marker = optional_binary_fingerprint(config.reload_marker.as_deref())?;
@@ -210,7 +215,6 @@ mod tests {
             },
             child,
             fingerprint,
-            rollback_binary: None,
         }
     }
 
@@ -260,7 +264,7 @@ mod tests {
     }
 
     #[test]
-    fn unavailable_worker_during_update_does_not_fail_supervision() {
+    fn missing_worker_binary_during_update_does_not_stop_the_running_process() {
         let tempdir = tempfile::tempdir().unwrap();
         let mut edge = live_child();
         let mut control = live_child();
@@ -281,7 +285,7 @@ mod tests {
 
         assert!(edge.try_wait().unwrap().is_none());
         assert!(control.try_wait().unwrap().is_none());
-        assert!(workers[0].child.try_wait().unwrap().is_some());
+        assert!(workers[0].child.try_wait().unwrap().is_none());
         stop_children(&mut edge, &mut control, &mut workers);
     }
 
@@ -320,6 +324,20 @@ mod tests {
                 if worker_name == "canvas-record-worker"
         ));
         stop_children(&mut edge, &mut control, &mut workers);
+    }
+
+    #[test]
+    fn shared_worker_binary_group_contains_every_role_using_the_host() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let binary = tempdir.path().join("a4n-component-host");
+        std::fs::write(&binary, b"component-host").unwrap();
+        let mut workers = WorkerProcessRegistry::new(vec![
+            worker_process("video-record-worker", binary.clone(), live_child()),
+            worker_process("canvas-record-worker", binary.clone(), live_child()),
+        ]);
+
+        assert_eq!(workers.indices_for_binary(&binary), vec![0, 1]);
+        stop_managed_workers(&mut workers);
     }
 
     #[test]

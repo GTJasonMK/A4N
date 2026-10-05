@@ -57,6 +57,11 @@ mod tests {
             !entry.capability_version.trim().is_empty()
                 && entry.default_addr.parse::<std::net::SocketAddr>().is_ok()
         }));
+        assert!(
+            entries
+                .iter()
+                .all(|entry| entry.launcher == "a4n-component-host")
+        );
     }
 
     #[test]
@@ -622,11 +627,14 @@ mod tests {
         for worker in workers {
             let tool = tools
                 .iter()
-                .find(|tool| tool.package == worker.binary)
+                .find(|tool| tool.package == worker.launcher)
                 .unwrap_or_else(|| {
-                    panic!("worker {} is missing from release tools", worker.binary)
+                    panic!(
+                        "worker {} launcher is missing from release tools",
+                        worker.name
+                    )
                 });
-            assert_eq!(tool.binary, worker.binary);
+            assert_eq!(tool.binary, worker.launcher);
         }
     }
 
@@ -652,6 +660,7 @@ mod tests {
         let entry = service_catalog().unwrap().remove(0);
         for field in [
             "kind",
+            "launcher",
             "contract_version",
             "data_scope",
             "dependencies",
@@ -670,6 +679,7 @@ mod tests {
             {
               "name":"prompt",
               "binary":"a4n-prompt-service",
+              "launcher":"a4n-component-host",
               "capability_version":"prompt-render-v4",
               "addr_env":"A4N_PROMPT_SERVICE_ADDR",
               "url_env":"A4N_PROMPT_SERVICE_URL",

@@ -1,0 +1,103 @@
+[package]
+name = "a4n-component-host"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[features]
+default = ["stateful-workers", "all-services"]
+stateful-workers = [
+    "dep:a4n-admin-worker",
+    "dep:a4n-agent-worker",
+    "dep:a4n-novel-planning-worker",
+    "dep:a4n-artifact-media-worker",
+    "dep:a4n-outline-worker",
+    "dep:a4n-blueprint-worker",
+    "dep:a4n-asset-graph-worker",
+    "dep:a4n-canvas-record-worker",
+    "dep:a4n-foreshadowing-worker",
+    "dep:a4n-object-profile-worker",
+    "dep:a4n-scene-profile-worker",
+    "dep:a4n-profile-material-worker",
+    "dep:a4n-project-status-worker",
+    "dep:a4n-portrait-worker",
+    "dep:a4n-source-snapshot-worker",
+    "dep:a4n-theme-read-worker",
+    "dep:a4n-project-read-worker",
+    "dep:a4n-import-review-worker",
+    "dep:a4n-inspiration-worker",
+    "dep:a4n-project-access-worker",
+    "dep:a4n-project-collaboration-worker",
+    "dep:a4n-project-mutation-worker",
+    "dep:a4n-chapter-scene-worker",
+    "dep:a4n-chapter-content-worker",
+    "dep:a4n-workflow-read-worker",
+    "dep:a4n-workflow-lifecycle-worker",
+    "dep:a4n-config-read-worker",
+    "dep:a4n-video-record-worker",
+    "dep:a4n-manga-record-worker",
+    "dep:a4n-character-mutation-worker",
+]
+all-services = [
+    "service_prompt",
+    "service_llm",
+    "service_embedding",
+    "service_rag",
+    "service_image",
+    "service_video",
+    "service_import",
+    "service_export",
+    "service_media",
+]
+service_prompt = ["dep:a4n-prompt-service"]
+service_llm = ["dep:a4n-llm-gateway"]
+service_embedding = ["dep:a4n-embedding-service"]
+service_rag = ["dep:a4n-rag-service"]
+service_image = ["dep:a4n-image-service"]
+service_video = ["dep:a4n-video-service"]
+service_import = ["dep:a4n-import-service"]
+service_export = ["dep:a4n-export-service"]
+service_media = ["dep:a4n-media-service"]
+
+[dependencies]
+anyhow = { workspace = true }
+a4n-process-catalog = { workspace = true }
+a4n-admin-worker = { workspace = true, optional = true }
+a4n-agent-worker = { workspace = true, optional = true }
+a4n-novel-planning-worker = { workspace = true, optional = true }
+a4n-artifact-media-worker = { workspace = true, optional = true }
+a4n-outline-worker = { workspace = true, optional = true }
+a4n-blueprint-worker = { workspace = true, optional = true }
+a4n-asset-graph-worker = { workspace = true, optional = true }
+a4n-canvas-record-worker = { workspace = true, optional = true }
+a4n-foreshadowing-worker = { workspace = true, optional = true }
+a4n-object-profile-worker = { workspace = true, optional = true }
+a4n-scene-profile-worker = { workspace = true, optional = true }
+a4n-profile-material-worker = { workspace = true, optional = true }
+a4n-project-status-worker = { workspace = true, optional = true }
+a4n-portrait-worker = { workspace = true, optional = true }
+a4n-source-snapshot-worker = { workspace = true, optional = true }
+a4n-theme-read-worker = { workspace = true, optional = true }
+a4n-project-read-worker = { workspace = true, optional = true }
+a4n-import-review-worker = { workspace = true, optional = true }
+a4n-inspiration-worker = { workspace = true, optional = true }
+a4n-project-access-worker = { workspace = true, optional = true }
+a4n-project-collaboration-worker = { workspace = true, optional = true }
+a4n-project-mutation-worker = { workspace = true, optional = true }
+a4n-chapter-scene-worker = { workspace = true, optional = true }
+a4n-chapter-content-worker = { workspace = true, optional = true }
+a4n-workflow-read-worker = { workspace = true, optional = true }
+a4n-workflow-lifecycle-worker = { workspace = true, optional = true }
+a4n-config-read-worker = { workspace = true, optional = true }
+a4n-video-record-worker = { workspace = true, optional = true }
+a4n-manga-record-worker = { workspace = true, optional = true }
+a4n-character-mutation-worker = { workspace = true, optional = true }
+a4n-prompt-service = { workspace = true, optional = true }
+a4n-llm-gateway = { workspace = true, optional = true }
+a4n-embedding-service = { workspace = true, optional = true }
+a4n-rag-service = { workspace = true, optional = true }
+a4n-image-service = { workspace = true, optional = true }
+a4n-video-service = { workspace = true, optional = true }
+a4n-import-service = { workspace = true, optional = true }
+a4n-export-service = { workspace = true, optional = true }
+a4n-media-service = { workspace = true, optional = true }

@@ -463,7 +463,8 @@ build_local_server_targets() {
     sidecar_package_lines="$(sidecar_catalog_binaries)"
     mapfile -t sidecar_packages <<<"$sidecar_package_lines"
     for package in "${sidecar_packages[@]}"; do
-      [[ -n "$package" ]] && build_command+=(-p "$package")
+      [[ -n "$package" ]] || continue
+      [[ " ${worker_packages[*]} " == *" $package "* ]] || build_command+=(-p "$package")
     done
   fi
   $FULL_HOST && build_command+=(--features a4n-server/embedded-capabilities)
@@ -471,21 +472,9 @@ build_local_server_targets() {
 }
 
 build_native_worker_targets() {
-  local directory package_count=0
-  local -a package_dirs=(
-    crates/admin/a4n-admin-worker
-    crates/canvas/a4n-canvas-record-worker
-    crates/workflow/a4n-workflow-lifecycle-worker
-  )
-  for directory in "${package_dirs[@]}"; do
-    [[ -f "$PROJECT_ROOT/$directory/Cargo.toml" ]] && package_count=$((package_count + 1))
-  done
-  ((package_count == 0)) && return 0
-  ((package_count == ${#package_dirs[@]})) || die "Native worker packages are incomplete"
-
   local -a build_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
   $RELEASE && build_command+=(--release)
-  build_command+=(-p a4n-admin-worker -p a4n-canvas-record-worker -p a4n-workflow-lifecycle-worker)
+  build_command+=(-p a4n-component-host)
   "${build_command[@]}"
 }
 

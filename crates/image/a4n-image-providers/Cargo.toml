@@ -12,7 +12,7 @@ a4n-image-provider-contract = { workspace = true }
 async-trait = { workspace = true }
 base64 = { workspace = true }
 image = { workspace = true }
-reqwest = { workspace = true }
+reqwest = { workspace = true, features = ["json", "multipart"] }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

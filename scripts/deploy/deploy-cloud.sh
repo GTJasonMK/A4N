@@ -11,7 +11,7 @@
 #     --public-origin https://app.example.com
 #   ./scripts/deploy/deploy-cloud.sh --online          # 容器内允许 cargo 联网拉取缺失依赖
 #   ./scripts/deploy/deploy-cloud.sh --full            # 强制全量构建、上传和重启
-#   ./scripts/deploy/deploy-cloud.sh --skip-build      # 使用已有 Host/工具/sidecar/ONNX Runtime 和 frontend/dist
+#   ./scripts/deploy/deploy-cloud.sh --skip-build      # 使用已有 Host/工具/共享组件宿主/ONNX Runtime 和 frontend/dist
 #   ./scripts/deploy/deploy-cloud.sh --rebuild-builder # 重建本地 Ubuntu 24 构建镜像
 #   ./scripts/deploy/deploy-cloud.sh --no-smoke        # 跳过公网 smoke test
 #   ./scripts/deploy/deploy-cloud.sh --help
@@ -61,17 +61,15 @@ BUILDER_IMAGE="${A4N_DEPLOY_BUILDER_IMAGE:-a4n-rust-noble:1.95}"
 RUST_BASE_IMAGE="${A4N_DEPLOY_RUST_BASE:-docker.m.daocloud.io/library/rust:1.95-bookworm}"
 UBUNTU_BASE_IMAGE="${A4N_DEPLOY_UBUNTU_BASE:-docker.m.daocloud.io/library/ubuntu:24.04}"
 CACHE_ROOT="$CARGO_TARGET_DIR/deploy-cloud"
-BUILD_TARGET_DIR="$CACHE_ROOT/target"
+BUILD_TARGET_DIR="$CARGO_TARGET_DIR"
 BUILD_CARGO_HOME="$CACHE_ROOT/cargo-home"
 BINARY_PATH="$BUILD_TARGET_DIR/release/a4n-server"
-CONTROL_BINARY_PATH="$BUILD_TARGET_DIR/release/a4n-control"
-AGENT_WORKER_BINARY_PATH="$BUILD_TARGET_DIR/release/a4n-agent-worker"
-MIGRATION_BINARY_PATH="$BUILD_TARGET_DIR/release/a4n-migration"
 HOST_PACKAGE="a4n-server"
 TARGET_PLATFORM="linux-x86_64"
 RELEASE_MANIFEST_TOOL="$PROJECT_ROOT/scripts/release_manifest.rb"
 DEPLOY_PLAN_TOOL="$PROJECT_ROOT/scripts/deploy/deploy-plan.rb"
-SERVICE_BINARIES=()
+SERVICE_NAMES=()
+WORKER_NAMES=()
 TOOL_SPECS=()
 BUILD_PACKAGES=()
 PLAN_ARTIFACT_PATHS=()

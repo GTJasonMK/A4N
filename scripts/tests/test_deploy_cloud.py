@@ -244,7 +244,7 @@ for index, value in enumerate(args):
     if value == "-v" and args[index + 1].endswith(":/cargo-target"):
         target = pathlib.Path(args[index + 1].removesuffix(":/cargo-target")) / "release"
         target.mkdir(parents=True, exist_ok=True)
-        for name in ("a4n-server", "a4n-control", "a4n-agent-worker", "a4n-migration"):
+        for name in ("a4n-server", "a4n-component-host"):
             binary = target / name
             binary.write_text("fixture")
             binary.chmod(0o755)
@@ -274,9 +274,10 @@ log_section() { :; }
 log_info() { :; }
 log_ok() { :; }
 ensure_builder_image() { :; }
-BUILD_PACKAGES=(a4n-server a4n-control a4n-agent-worker a4n-migration)
+BUILD_PACKAGES=(a4n-server a4n-component-host)
+TOOL_SPECS=(a4n-component-host:a4n-component-host)
 build_backend
-[[ "$CARGO_TARGET_DIR" == "${BUILD_TARGET_DIR%/deploy-cloud/target}" ]]
+[[ "$CARGO_TARGET_DIR" == "$BUILD_TARGET_DIR" ]]
 ''', "test", str(CLOUD)],
                     cwd=ROOT, env=environment, text=True, capture_output=True, timeout=10,
                 )
@@ -285,11 +286,12 @@ build_backend
                 self.assertEqual(args[args.index("--user") + 1], f"{os.getuid()}:{os.getgid()}")
                 mounts = [args[index + 1] for index, value in enumerate(args) if value == "-v"]
                 cache = temp / "native-target/deploy-cloud"
-                self.assertIn(f"{cache / 'target'}:/cargo-target", mounts)
+                self.assertIn(f"{temp / 'native-target'}:/cargo-target", mounts)
                 self.assertIn(f"{cache / 'cargo-home'}:/cargo-home", mounts)
                 self.assertIn(f"{ROOT}:/work:ro", mounts)
                 self.assertIn("CARGO_HOME=/cargo-home", args)
-                self.assertFalse((temp / "native-target/release").exists())
+                self.assertTrue((temp / "native-target/release/a4n-server").is_file())
+                self.assertTrue((temp / "native-target/release/a4n-component-host").is_file())
                 self.assertEqual("--offline" in args[-1], offline == "true")
                 if offline == "true":
                     self.assertIn(f"{temp / 'host-cargo/registry'}:/cargo-home/registry:ro", mounts)

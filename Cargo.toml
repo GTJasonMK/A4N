@@ -14,6 +14,15 @@ a4n-host-assembly = { path = "crates/host/a4n-host-assembly" }
 a4n-orchestrator = { path = "crates/host/a4n-orchestrator" }
 a4n-runtime = { path = "crates/host/a4n-runtime", default-features = false }
 a4n-auth-application = { path = "crates/auth/a4n-auth-application" }
+a4n-prompt-service = { path = "crates/prompt/a4n-prompt-service" }
+a4n-llm-gateway = { path = "crates/llm/a4n-llm-gateway" }
+a4n-embedding-service = { path = "crates/embedding/a4n-embedding-service" }
+a4n-rag-service = { path = "crates/rag/a4n-rag-service" }
+a4n-image-service = { path = "crates/image/a4n-image-service" }
+a4n-video-service = { path = "crates/video/a4n-video-service" }
+a4n-import-service = { path = "crates/transfer/a4n-import-service" }
+a4n-export-service = { path = "crates/transfer/a4n-export-service" }
+a4n-media-service = { path = "crates/media/a4n-media-service" }
 
 # platform
 a4n-cleanup-contract = { path = "crates/platform/a4n-cleanup-contract" }
@@ -124,6 +133,7 @@ a4n-blueprint-worker-contract = { path = "crates/planning/a4n-blueprint-worker-c
 a4n-foreshadowing-worker = { path = "crates/planning/a4n-foreshadowing-worker" }
 a4n-foreshadowing-worker-client = { path = "crates/planning/a4n-foreshadowing-worker-client" }
 a4n-foreshadowing-worker-contract = { path = "crates/planning/a4n-foreshadowing-worker-contract" }
+a4n-novel-planning-worker = { path = "crates/planning/a4n-novel-planning-worker" }
 a4n-novel-planning-worker-client = { path = "crates/planning/a4n-novel-planning-worker-client" }
 a4n-novel-planning-worker-contract = { path = "crates/planning/a4n-novel-planning-worker-contract" }
 a4n-outline-contract = { path = "crates/planning/a4n-outline-contract" }
@@ -308,7 +318,7 @@ subtle = "2"
 jsonwebtoken = "9"
 
 # HTTP 客户端
-reqwest = { version = "0.12", features = ["json", "stream", "blocking", "multipart", "native-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["charset", "http2", "native-tls", "system-proxy"] }
 url = "2"
 
 # UUID

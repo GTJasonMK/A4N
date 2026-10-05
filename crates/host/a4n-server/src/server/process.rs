@@ -33,6 +33,8 @@ pub(crate) fn spawn_control_from_workers(
 pub(crate) fn spawn_managed_worker(config: &ManagedWorkerConfig) -> anyhow::Result<Child> {
     let mut command = Command::new(&config.binary);
     command
+        .arg("--worker")
+        .arg(config.metadata.name.as_str())
         .env(
             config.metadata.addr_env.as_str(),
             config.address.to_string(),

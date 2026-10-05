@@ -94,12 +94,8 @@ if $FULL_HOST; then
 fi
 
 prepare_command=("$SCRIPT_DIR/prepare-tauri-external-bin.sh" "${PREPARE_ARGS[@]}")
-sidecar_package_lines="$(sidecar_catalog_binaries)"
-BUNDLE_BINARIES=()
-while IFS= read -r package; do
-    [[ -z "$package" ]] || BUNDLE_BINARIES+=("$package")
-done <<<"$sidecar_package_lines"
 tool_binary_lines="$(release_tool_binaries)"
+BUNDLE_BINARIES=()
 while IFS= read -r binary; do
     BUNDLE_BINARIES+=("$binary")
 done <<<"$tool_binary_lines"

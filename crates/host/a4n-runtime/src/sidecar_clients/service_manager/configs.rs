@@ -57,7 +57,7 @@ pub(super) fn runtime_service_configs(
             let mut reserved_addrs = HashSet::new();
             runtime_sidecar_service_configs(&selected_services, |spec| {
                 if managed_sidecars_enabled {
-                    let binary = sidecar_binary_path(&spec.binary)?;
+                    let binary = sidecar_binary_path(&spec.launcher)?;
                     managed_sidecar_service(spec, config, &mut reserved_addrs, binary)
                 } else {
                     remote_service(spec)
@@ -113,10 +113,10 @@ pub(super) fn managed_sidecar_service(
     reserved_addrs: &mut HashSet<SocketAddr>,
     binary: Option<PathBuf>,
 ) -> Result<ManagedServiceConfig, String> {
-    let executable = sidecar_executable_name(&spec.binary);
+    let executable = sidecar_executable_name(&spec.launcher);
     let binary = binary.ok_or_else(|| {
         format!(
-            "{MANAGED_SIDECARS_ENV}=1 需要可执行 sidecar 二进制，但未找到 {}；请设置 {SIDECAR_BIN_DIR_ENV} 或使用发布包 bin/services",
+            "{MANAGED_SIDECARS_ENV}=1 需要可执行 sidecar launcher，但未找到 {}；请设置 {SIDECAR_BIN_DIR_ENV} 或使用发布包 bin",
             executable
         )
     })?;

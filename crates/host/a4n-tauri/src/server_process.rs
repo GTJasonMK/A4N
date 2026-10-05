@@ -135,8 +135,9 @@ impl NativeWorkerSettings {
         let mut reservations = self.reservations.into_iter();
         for worker in self.workers {
             let binary_env = stateful_worker_binary_env(&worker.metadata.name);
-            let binary = resolve_binary(app, &worker.metadata.binary, &binary_env)?;
+            let binary = resolve_binary(app, &worker.metadata.launcher, &binary_env)?;
             let mut command = Command::new(&binary);
+            command.args(["--worker", worker.metadata.name.as_str()]);
             // Agent health reports a process identity, not the catalog service name.
             let worker_id = if worker.metadata.name == "agent-worker" {
                 let identity = format!("a4n-agent:{}", uuid::Uuid::new_v4());
@@ -346,7 +347,7 @@ impl LocalServerProcess {
             .into_iter()
             .map(|worker| {
                 let env_name = stateful_worker_binary_env(&worker.name);
-                resolve_binary(app, &worker.binary, &env_name).map(|binary| (env_name, binary))
+                resolve_binary(app, &worker.launcher, &env_name).map(|binary| (env_name, binary))
             })
             .collect::<Result<Vec<_>, _>>()?;
         run_migration(&migration, &config.database_url)?;
@@ -754,12 +755,12 @@ mod tests {
         }
 
         for worker in a4n_process_catalog::stateful_worker_catalog().unwrap() {
-            let bundled_name = format!("{}-x86_64-unknown-linux-gnu", worker.binary);
+            let bundled_name = format!("{}-x86_64-unknown-linux-gnu", worker.launcher);
             std::fs::write(directory.path().join(&bundled_name), &bundled_name)
                 .expect("suffixed worker fixture should write");
             let env_name = stateful_worker_binary_env(&worker.name);
             let resolved = resolve_binary_in_directories(
-                &worker.binary,
+                &worker.launcher,
                 &env_name,
                 [directory.path().to_path_buf()],
             )

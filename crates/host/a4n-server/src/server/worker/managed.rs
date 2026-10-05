@@ -49,44 +49,51 @@ pub(crate) fn start_managed_workers(
     configs: &[ManagedWorkerConfig],
 ) -> anyhow::Result<WorkerProcessRegistry> {
     let mut workers = Vec::with_capacity(configs.len());
+    let mut rollback_binaries = std::collections::HashMap::new();
     for config in configs {
-        let rollback_binary = match backup_binary(&config.binary) {
-            Ok(rollback_binary) => rollback_binary,
-            Err(error) => {
-                return Err(error.context(startup_failure_context(
-                    &config.metadata.name,
-                    stop_managed_workers(&mut workers),
-                )));
+        if !rollback_binaries.contains_key(&config.binary) {
+            match backup_binary(&config.binary) {
+                Ok(Some(rollback_binary)) => {
+                    rollback_binaries.insert(config.binary.clone(), rollback_binary);
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    let cleanup_results = stop_worker_processes(&mut workers);
+                    cleanup_rollback_binaries(&mut rollback_binaries);
+                    return Err(error.context(startup_failure_context(
+                        &config.metadata.name,
+                        cleanup_results,
+                    )));
+                }
             }
-        };
+        }
         match launch(config) {
             Ok((child, fingerprint)) => workers.push(ManagedWorker {
                 config: config.clone(),
                 child,
                 fingerprint,
-                rollback_binary,
             }),
             Err(error) => {
-                remove_backup(rollback_binary);
+                let cleanup_results = stop_worker_processes(&mut workers);
+                cleanup_rollback_binaries(&mut rollback_binaries);
                 return Err(error.context(startup_failure_context(
                     &config.metadata.name,
-                    stop_managed_workers(&mut workers),
+                    cleanup_results,
                 )));
             }
         }
     }
-    Ok(WorkerProcessRegistry::new(workers))
+    Ok(WorkerProcessRegistry::with_rollback_binaries(
+        workers,
+        rollback_binaries,
+    ))
 }
 
 pub(crate) fn restart_managed_worker(
     worker: &mut ManagedWorker,
     stop_first: bool,
 ) -> anyhow::Result<()> {
-    let next_rollback_binary = backup_binary(&worker.config.binary)?;
-    let rollback_binary = worker.rollback_binary.take();
     if stop_first && let Err(error) = stop_child(&mut worker.child) {
-        worker.rollback_binary = rollback_binary;
-        remove_backup(next_rollback_binary);
         return Err(error);
     }
     std::thread::sleep(WORKER_RESTART_DELAY);
@@ -94,22 +101,142 @@ pub(crate) fn restart_managed_worker(
         Ok((child, fingerprint)) => {
             worker.child = child;
             worker.fingerprint = fingerprint;
-            if next_rollback_binary.is_some() {
-                remove_backup(rollback_binary);
-                worker.rollback_binary = next_rollback_binary;
-            } else {
-                worker.rollback_binary = rollback_binary;
-            }
             Ok(())
         }
-        Err(error) => {
-            remove_backup(next_rollback_binary);
-            let Some(rollback_binary) = rollback_binary else {
-                return Err(error);
-            };
-            rollback_worker(worker, rollback_binary, error)
+        Err(error) => Err(error),
+    }
+}
+
+pub(crate) fn restart_managed_binary_group(
+    workers: &mut WorkerProcessRegistry,
+    binary: &Path,
+) -> anyhow::Result<()> {
+    restart_managed_binary_group_with(workers, binary, launch, backup_binary)
+}
+
+fn restart_managed_binary_group_with(
+    workers: &mut WorkerProcessRegistry,
+    binary: &Path,
+    mut launch_worker: impl FnMut(&ManagedWorkerConfig) -> anyhow::Result<(Child, BinaryFingerprint)>,
+    mut backup: impl FnMut(&Path) -> anyhow::Result<Option<tempfile::TempPath>>,
+) -> anyhow::Result<()> {
+    let indices = workers.indices_for_binary(binary);
+    if indices.is_empty() {
+        anyhow::bail!("没有 Worker 使用共享二进制 {}", binary.display());
+    }
+    let next_rollback_binary = backup(binary)?
+        .ok_or_else(|| anyhow::anyhow!("共享 Worker 二进制不存在: {}", binary.display()))?;
+    let rollback_binary = workers
+        .rollback_binaries
+        .remove(binary)
+        .ok_or_else(|| anyhow::anyhow!("缺少共享 Worker 回滚快照: {}", binary.display()))?;
+
+    let stop_errors = indices
+        .iter()
+        .filter_map(|index| {
+            stop_child(&mut workers[*index].child)
+                .err()
+                .map(|error| format!("{}: {error:#}", workers[*index].config.metadata.name))
+        })
+        .collect::<Vec<_>>();
+    if !stop_errors.is_empty() {
+        workers
+            .rollback_binaries
+            .insert(binary.to_path_buf(), rollback_binary);
+        remove_backup(Some(next_rollback_binary));
+        anyhow::bail!("停止共享二进制 Worker 组失败: {}", stop_errors.join("; "));
+    }
+
+    std::thread::sleep(WORKER_RESTART_DELAY);
+    let mut restarted_indices = Vec::with_capacity(indices.len());
+    let mut update_error = None;
+    for index in &indices {
+        match launch_worker(&workers[*index].config) {
+            Ok((child, fingerprint)) => {
+                workers[*index].child = child;
+                workers[*index].fingerprint = fingerprint;
+                restarted_indices.push(*index);
+            }
+            Err(error) => {
+                update_error = Some((workers[*index].config.metadata.name.clone(), error));
+                break;
+            }
         }
     }
+    if let Some((failed_worker, update_error)) = update_error {
+        let cleanup_errors = restarted_indices
+            .iter()
+            .filter_map(|index| {
+                stop_child(&mut workers[*index].child)
+                    .err()
+                    .map(|error| format!("{}: {error:#}", workers[*index].config.metadata.name))
+            })
+            .collect::<Vec<_>>();
+        if !cleanup_errors.is_empty() {
+            remove_backup(Some(next_rollback_binary));
+            workers
+                .rollback_binaries
+                .insert(binary.to_path_buf(), rollback_binary);
+            return Err(anyhow::anyhow!(
+                "共享 Worker 组更新失败（{failed_worker}）: {update_error:#}; 停止新进程失败: {}; 保留当前宿主和旧版快照，监督循环将重试整组更新",
+                cleanup_errors.join("; ")
+            ));
+        }
+        remove_backup(Some(next_rollback_binary));
+        if let Err(error) = std::fs::copy(&rollback_binary, binary) {
+            workers
+                .rollback_binaries
+                .insert(binary.to_path_buf(), rollback_binary);
+            return Err(anyhow::anyhow!(
+                "共享 Worker 组更新失败（{failed_worker}）: {update_error:#}; 恢复旧二进制失败: {error}"
+            ));
+        }
+        let mut rollback_errors = Vec::new();
+        let rollback_fingerprint = match binary_fingerprint(binary) {
+            Ok(fingerprint) => fingerprint,
+            Err(error) => {
+                workers
+                    .rollback_binaries
+                    .insert(binary.to_path_buf(), rollback_binary);
+                return Err(anyhow::anyhow!(
+                    "共享 Worker 组更新失败（{failed_worker}）: {update_error:#}; 已恢复二进制但读取其指纹失败: {error:#}"
+                ));
+            }
+        };
+        for index in &indices {
+            match launch_worker(&workers[*index].config) {
+                Ok((child, fingerprint)) => {
+                    workers[*index].child = child;
+                    workers[*index].fingerprint = fingerprint;
+                }
+                Err(error) => {
+                    workers[*index].fingerprint = rollback_fingerprint;
+                    rollback_errors.push(format!(
+                        "{}: {error:#}",
+                        workers[*index].config.metadata.name
+                    ));
+                }
+            }
+        }
+        workers
+            .rollback_binaries
+            .insert(binary.to_path_buf(), rollback_binary);
+        let mut details = vec![format!("更新 {failed_worker} 失败: {update_error:#}")];
+        if !rollback_errors.is_empty() {
+            details.push(format!(
+                "恢复 Worker 组失败: {}",
+                rollback_errors.join("; ")
+            ));
+        } else {
+            details.push("已恢复旧版本 Worker 组".to_string());
+        }
+        return Err(anyhow::anyhow!(details.join("; ")));
+    }
+    workers
+        .rollback_binaries
+        .insert(binary.to_path_buf(), next_rollback_binary);
+    remove_backup(Some(rollback_binary));
+    Ok(())
 }
 
 fn backup_binary(binary: &Path) -> anyhow::Result<Option<tempfile::TempPath>> {
@@ -143,37 +270,6 @@ fn backup_binary_in(binary: &Path, directory: &Path) -> anyhow::Result<Option<te
     Ok(Some(backup))
 }
 
-fn rollback_worker(
-    worker: &mut ManagedWorker,
-    backup: tempfile::TempPath,
-    update_error: anyhow::Error,
-) -> anyhow::Result<()> {
-    if let Err(error) = std::fs::copy(&backup, &worker.config.binary) {
-        worker.rollback_binary = Some(backup);
-        return Err(anyhow::anyhow!(
-            "{} 更新失败: {update_error:#}; 恢复旧 Worker 二进制失败: {error}",
-            worker.config.metadata.name
-        ));
-    }
-    let (child, fingerprint) = match launch(&worker.config) {
-        Ok(result) => result,
-        Err(error) => {
-            worker.rollback_binary = Some(backup);
-            return Err(anyhow::anyhow!(
-                "{} 更新失败: {update_error:#}; 恢复旧 Worker 失败: {error:#}",
-                worker.config.metadata.name
-            ));
-        }
-    };
-    worker.fingerprint = fingerprint;
-    worker.child = child;
-    worker.rollback_binary = Some(backup);
-    Err(anyhow::anyhow!(
-        "{} 更新失败: {update_error:#}; 已恢复旧 Worker 并继续监督",
-        worker.config.metadata.name
-    ))
-}
-
 fn remove_backup(path: Option<tempfile::TempPath>) {
     if let Some(path) = path {
         let name = path.display().to_string();
@@ -183,24 +279,75 @@ fn remove_backup(path: Option<tempfile::TempPath>) {
     }
 }
 
-pub(crate) fn stop_managed_workers(
-    workers: &mut [ManagedWorker],
-) -> Vec<(String, anyhow::Result<()>)> {
+fn stop_worker_processes(workers: &mut [ManagedWorker]) -> Vec<(String, anyhow::Result<()>)> {
     workers
         .iter_mut()
         .rev()
         .map(|worker| {
-            let rollback_binary = worker.rollback_binary.take();
             let result = stop_child(&mut worker.child);
-            remove_backup(rollback_binary);
             (worker.config.metadata.name.clone(), result)
         })
         .collect()
 }
 
+fn cleanup_rollback_binaries(
+    rollback_binaries: &mut std::collections::HashMap<PathBuf, tempfile::TempPath>,
+) {
+    for (_, backup) in std::mem::take(rollback_binaries) {
+        remove_backup(Some(backup));
+    }
+}
+
+pub(crate) fn stop_managed_workers(
+    workers: &mut WorkerProcessRegistry,
+) -> Vec<(String, anyhow::Result<()>)> {
+    let results = workers
+        .iter_mut()
+        .rev()
+        .map(|worker| {
+            let result = stop_child(&mut worker.child);
+            (worker.config.metadata.name.clone(), result)
+        })
+        .collect();
+    cleanup_rollback_binaries(&mut workers.rollback_binaries);
+    results
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{backup_binary_in, remove_backup, startup_failure_context};
+    use super::{
+        BinaryFingerprint, ManagedWorkerConfig, WorkerProcess, WorkerProcessRegistry, WorkerSpec,
+        backup_binary_in, binary_fingerprint, remove_backup, restart_managed_binary_group_with,
+        startup_failure_context, stop_managed_workers,
+    };
+    use std::collections::HashMap;
+
+    #[cfg(unix)]
+    fn worker_process(name: &str, binary: &std::path::Path) -> WorkerProcess {
+        use std::process::Command;
+
+        WorkerProcess {
+            config: WorkerSpec {
+                metadata: a4n_process_catalog::stateful_worker_catalog_entry_ref(name).unwrap(),
+                binary: binary.to_path_buf(),
+                address: "127.0.0.1:47675".parse().unwrap(),
+                control_addr: "127.0.0.1:47674".parse().unwrap(),
+                token: "test-token".into(),
+            },
+            child: Command::new("sleep").arg("30").spawn().unwrap(),
+            fingerprint: binary_fingerprint(binary).unwrap(),
+        }
+    }
+
+    #[cfg(unix)]
+    fn launch_fixture(
+        config: &ManagedWorkerConfig,
+    ) -> anyhow::Result<(std::process::Child, BinaryFingerprint)> {
+        use std::process::Command;
+
+        let child = Command::new("sleep").arg("30").spawn()?;
+        Ok((child, binary_fingerprint(&config.binary)?))
+    }
 
     #[test]
     fn startup_failure_context_reports_cleanup_errors() {
@@ -239,6 +386,92 @@ mod tests {
         let backup_path = backup.to_path_buf();
         remove_backup(Some(backup));
         assert!(!backup_path.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn shared_binary_update_rolls_back_every_role_after_partial_startup_failure() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let binary = tempdir.path().join("a4n-component-host");
+        let backup_dir = tempdir.path().join("application-tmp");
+        std::fs::write(&binary, b"running-version").unwrap();
+        let rollback = backup_binary_in(&binary, &backup_dir).unwrap().unwrap();
+        let mut rollback_binaries = HashMap::new();
+        rollback_binaries.insert(binary.clone(), rollback);
+        let mut workers = WorkerProcessRegistry::with_rollback_binaries(
+            vec![
+                worker_process("video-record-worker", &binary),
+                worker_process("canvas-record-worker", &binary),
+            ],
+            rollback_binaries,
+        );
+        std::fs::write(&binary, b"new-version").unwrap();
+
+        let result = restart_managed_binary_group_with(
+            &mut workers,
+            &binary,
+            |config| {
+                if config.metadata.name == "canvas-record-worker"
+                    && std::fs::read(&config.binary)? == b"new-version"
+                {
+                    anyhow::bail!("fixture readiness failure");
+                }
+                launch_fixture(config)
+            },
+            |path| backup_binary_in(path, &backup_dir),
+        );
+
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("已恢复旧版本 Worker 组")
+        );
+        assert_eq!(std::fs::read(&binary).unwrap(), b"running-version");
+        assert_eq!(workers.rollback_binaries.len(), 1);
+        let snapshot = workers.rollback_binaries.get(&binary).unwrap();
+        assert_eq!(std::fs::read(snapshot).unwrap(), b"running-version");
+        assert_eq!(std::fs::read_dir(&backup_dir).unwrap().count(), 1);
+        for worker in workers.iter_mut() {
+            assert!(worker.child.try_wait().unwrap().is_none());
+            assert_eq!(worker.fingerprint, binary_fingerprint(&binary).unwrap());
+        }
+        let _ = stop_managed_workers(&mut workers);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn shared_binary_update_rotates_one_snapshot_after_all_roles_start() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let binary = tempdir.path().join("a4n-component-host");
+        let backup_dir = tempdir.path().join("application-tmp");
+        std::fs::write(&binary, b"running-version").unwrap();
+        let rollback = backup_binary_in(&binary, &backup_dir).unwrap().unwrap();
+        let mut rollback_binaries = HashMap::new();
+        rollback_binaries.insert(binary.clone(), rollback);
+        let mut workers = WorkerProcessRegistry::with_rollback_binaries(
+            vec![
+                worker_process("video-record-worker", &binary),
+                worker_process("canvas-record-worker", &binary),
+            ],
+            rollback_binaries,
+        );
+        std::fs::write(&binary, b"new-version").unwrap();
+
+        restart_managed_binary_group_with(&mut workers, &binary, launch_fixture, |path| {
+            backup_binary_in(path, &backup_dir)
+        })
+        .unwrap();
+
+        assert_eq!(workers.rollback_binaries.len(), 1);
+        let snapshot = workers.rollback_binaries.get(&binary).unwrap();
+        assert_eq!(std::fs::read(snapshot).unwrap(), b"new-version");
+        assert_eq!(std::fs::read_dir(&backup_dir).unwrap().count(), 1);
+        for worker in workers.iter_mut() {
+            assert!(worker.child.try_wait().unwrap().is_none());
+            assert_eq!(worker.fingerprint, binary_fingerprint(&binary).unwrap());
+        }
+        let _ = stop_managed_workers(&mut workers);
     }
 
     #[cfg(target_os = "linux")]

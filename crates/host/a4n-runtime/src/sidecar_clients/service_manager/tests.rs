@@ -129,6 +129,11 @@ fn write_release_manifest(services: &[&str]) -> (tempfile::TempDir, PathBuf) {
         version: "test".to_string(),
         target: "test-target".to_string(),
         protocol_version: PROTOCOL_VERSION,
+        workers: a4n_process_catalog::stateful_worker_catalog()
+            .unwrap()
+            .into_iter()
+            .map(|worker| worker.name)
+            .collect(),
         services: services
             .iter()
             .map(|service| (*service).to_string())

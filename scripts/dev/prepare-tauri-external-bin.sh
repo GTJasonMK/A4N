@@ -20,11 +20,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/lib/common.sh
 source "$SCRIPT_DIR/../lib/common.sh"
 
-sidecar_package_lines="$(sidecar_catalog_binaries)"
-SIDECAR_PACKAGES=()
-while IFS= read -r package; do
-    [[ -z "$package" ]] || SIDECAR_PACKAGES+=("$package")
-done <<<"$sidecar_package_lines"
 tool_rows="$(release_tool_rows)"
 TOOL_SPECS=()
 while IFS=$'\t' read -r package binary; do
@@ -142,16 +137,22 @@ if ! $DRY_RUN; then
 fi
 
 build_external_binaries() {
-    local package spec
-    local -a cargo_args=(cargo build)
-    [[ "$BUILD_MODE" == "release" ]] && cargo_args+=(--release)
-    [[ -n "$TARGET_TRIPLE" ]] && cargo_args+=(--target "$TARGET_TRIPLE")
-    for package in "${SIDECAR_PACKAGES[@]}"; do
-        cargo_args+=(-p "$package")
-    done
+    local spec package
+    local -a cargo_base=(cargo build)
+    [[ "$BUILD_MODE" == "release" ]] && cargo_base+=(--release)
+    [[ -n "$TARGET_TRIPLE" ]] && cargo_base+=(--target "$TARGET_TRIPLE")
+    local -a component_host_args=("${cargo_base[@]}" -p a4n-component-host)
+    local -a tool_args=("${cargo_base[@]}")
+    local found_component_host=false
     for spec in "${TOOL_SPECS[@]}"; do
-        cargo_args+=(-p "${spec%%:*}")
+        package="${spec%%:*}"
+        if [[ "$package" == "a4n-component-host" ]]; then
+            found_component_host=true
+        else
+            tool_args+=(-p "$package")
+        fi
     done
+    $found_component_host || die "release tool catalog is missing a4n-component-host"
 
     if $SKIP_BUILD; then
         $DRY_RUN && log_info "build externalBin: skipped (--no-build)"
@@ -159,11 +160,15 @@ build_external_binaries() {
     fi
     if $DRY_RUN; then
         log_info "build externalBin:"
-        print_command "${cargo_args[@]}"
+        print_command "${component_host_args[@]}"
+        ((${#tool_args[@]} > ${#cargo_base[@]})) && print_command "${tool_args[@]}"
     else
         (
             cd "$PROJECT_ROOT"
-            "${cargo_args[@]}"
+            "${component_host_args[@]}"
+            if ((${#tool_args[@]} > ${#cargo_base[@]})); then
+                "${tool_args[@]}"
+            fi
         )
     fi
 }
@@ -185,7 +190,7 @@ prepare_external_binary() {
         if [[ "$TARGET_TRIPLE" != *-windows-* ]]; then
             chmod +x "$target_binary"
         fi
-        if [[ "$TARGET_TRIPLE" == *-apple-darwin && "$package" == "a4n-embedding-service" ]]; then
+        if [[ "$TARGET_TRIPLE" == *-apple-darwin && "$package" == "a4n-component-host" ]]; then
             runtime_dependency="$(otool -L "$target_binary" | awk '/libonnxruntime.*dylib/ { print $1; exit }')"
             [[ -n "$runtime_dependency" ]] || die "embedding sidecar 未链接 ONNX Runtime"
             install_name_tool -change "$runtime_dependency" '@rpath/libonnxruntime.dylib' "$target_binary"
@@ -196,9 +201,6 @@ prepare_external_binary() {
 }
 
 build_external_binaries
-for package in "${SIDECAR_PACKAGES[@]}"; do
-    prepare_external_binary "$package" "$package"
-done
 for spec in "${TOOL_SPECS[@]}"; do
     prepare_external_binary "${spec%%:*}" "${spec#*:}"
 done

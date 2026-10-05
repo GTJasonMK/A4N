@@ -7,7 +7,11 @@ source "$SCRIPT_DIR/../lib/common.sh"
 cd "$PROJECT_ROOT"
 
 sidecar_binaries="$(sidecar_catalog_binaries)"
-first_sidecar_binary="${sidecar_binaries%%$'\n'*}"
+component_host_binary="${sidecar_binaries%%$'\n'*}"
+[[ "$component_host_binary" == "a4n-component-host" ]] || {
+    echo "service catalog must use the shared component host" >&2
+    exit 1
+}
 tool_binaries="$(release_tool_binaries)"
 first_tool_binary="${tool_binaries%%$'\n'*}"
 export_sidecar_binary=""
@@ -34,9 +38,6 @@ while IFS= read -r tool; do
     printf '%s\n' "$tool" > "$tmp_dir/bin/$tool"
 done <<<"$tool_binaries"
 printf 'onnx-runtime\n' > "$tmp_dir/bin/services/libonnxruntime.so.1"
-while IFS= read -r binary; do
-    printf '%s\n' "$binary" > "$tmp_dir/bin/services/$binary"
-done <<<"$sidecar_binaries"
 
 ruby scripts/release_manifest.rb generate \
     --package-root "$tmp_dir" \
@@ -46,6 +47,11 @@ ruby scripts/release_manifest.rb generate \
 ruby scripts/release_manifest.rb verify \
     --package-root "$tmp_dir" \
     --manifest "$tmp_dir/release-manifest.json"
+worker_count="$(ruby -rjson -e 'puts JSON.parse(File.read(ARGV.fetch(0))).fetch("workers").length' "$tmp_dir/release-manifest.json")"
+[[ "$worker_count" -eq 30 ]] || {
+    echo "release manifest does not declare all 30 worker roles" >&2
+    exit 1
+}
 (cd "$tmp_dir" && sha256sum -c release-manifest.sha256 >/dev/null)
 rg -q '^[0-9a-fA-F]{64}  release-manifest\.json$' "$tmp_dir/release-manifest.sha256"
 
@@ -63,12 +69,12 @@ ruby scripts/release_manifest.rb verify \
     --manifest "$server_tmp/release-manifest.json"
 (cd "$server_tmp" && sha256sum -c release-manifest.sha256 >/dev/null)
 
-printf 'tampered\n' >> "$tmp_dir/bin/services/$first_sidecar_binary"
+printf 'tampered\n' >> "$tmp_dir/bin/$component_host_binary"
 if (cd "$tmp_dir" && sha256sum -c release-manifest.sha256 >/dev/null 2>&1); then
-    echo "tampered release binary unexpectedly passed checksum verification" >&2
+    echo "tampered shared component host unexpectedly passed checksum verification" >&2
     exit 1
 fi
-printf '%s\n' "$first_sidecar_binary" > "$tmp_dir/bin/services/$first_sidecar_binary"
+printf '%s\n' "$component_host_binary" > "$tmp_dir/bin/$component_host_binary"
 
 ruby scripts/release_manifest.rb generate \
     --package-root "$tmp_dir" \
@@ -76,33 +82,29 @@ ruby scripts/release_manifest.rb generate \
     --package a4n-tauri \
     --services export \
     --output "$tmp_dir/release-manifest-export.json"
+ruby -rjson -e '
+  data = JSON.parse(File.read(ARGV.fetch(0)))
+  abort "selected service manifest includes unselected roles" unless data.fetch("services") == ["export"]
+  abort "selected service manifest is missing shared launcher entry" unless data.fetch("binaries").map { |entry| entry.fetch("service") }.sort == ["export", "host"]
+' "$tmp_dir/release-manifest-export.json"
 ruby scripts/release_manifest.rb verify \
     --package-root "$tmp_dir" \
     --manifest "$tmp_dir/release-manifest-export.json"
 
-mv "$tmp_dir/bin/services/$export_sidecar_binary" "$tmp_dir/bin/services/$export_sidecar_binary.missing"
+mv "$tmp_dir/bin/$component_host_binary" "$tmp_dir/bin/$component_host_binary.missing"
 if ruby scripts/release_manifest.rb verify \
     --package-root "$tmp_dir" \
     --manifest "$tmp_dir/release-manifest-export.json" >/dev/null 2>&1; then
     echo "selected service missing unexpectedly passed manifest verification" >&2
     exit 1
 fi
-mv "$tmp_dir/bin/services/$export_sidecar_binary.missing" "$tmp_dir/bin/services/$export_sidecar_binary"
-
-mv "$tmp_dir/bin/services/$first_unselected_binary" "$tmp_dir/bin/services/$first_unselected_binary.missing"
-ruby scripts/release_manifest.rb verify \
-    --package-root "$tmp_dir" \
-    --manifest "$tmp_dir/release-manifest-export.json"
-mv "$tmp_dir/bin/services/$first_unselected_binary.missing" "$tmp_dir/bin/services/$first_unselected_binary"
+mv "$tmp_dir/bin/$component_host_binary.missing" "$tmp_dir/bin/$component_host_binary"
 
 printf 'host-binary\n' > "$tmp_dir/bin/a4n-tauri.exe"
 while IFS= read -r tool; do
     printf '%s\n' "$tool" > "$tmp_dir/bin/$tool.exe"
 done <<<"$tool_binaries"
 printf 'onnx-runtime\n' > "$tmp_dir/bin/services/onnxruntime.dll"
-while IFS= read -r binary; do
-    printf '%s\n' "$binary" > "$tmp_dir/bin/services/$binary.exe"
-done <<<"$sidecar_binaries"
 ruby scripts/release_manifest.rb generate \
     --package-root "$tmp_dir" \
     --target windows-x86_64 \
@@ -120,9 +122,6 @@ while IFS= read -r tool; do
     printf '%s-signed\n' "$tool" > "$tauri_app/Contents/MacOS/$tool"
 done <<<"$tool_binaries"
 printf 'signed-runtime\n' > "$tauri_app/Contents/Resources/libonnxruntime.dylib"
-while IFS= read -r binary; do
-    printf '%s-signed\n' "$binary" > "$tauri_app/Contents/MacOS/$binary"
-done <<<"$sidecar_binaries"
 tauri_metadata="$tmp_dir/macos-metadata"
 mkdir -p "$tauri_metadata"
 ruby scripts/release_manifest.rb generate \
@@ -134,7 +133,7 @@ ruby scripts/release_manifest.rb generate \
 ruby scripts/release_manifest.rb verify \
     --package-root "$tauri_package_root" \
     --manifest "$tauri_metadata/release-manifest-tauri.json"
-printf 'tampered\n' >> "$tauri_app/Contents/MacOS/$first_sidecar_binary"
+printf 'tampered\n' >> "$tauri_app/Contents/MacOS/$component_host_binary"
 if ruby scripts/release_manifest.rb verify --package-root "$tauri_package_root" --manifest "$tauri_metadata/release-manifest-tauri.json" >/dev/null 2>&1; then
     echo "tampered Tauri sidecar unexpectedly passed manifest verification" >&2
     exit 1
@@ -194,9 +193,9 @@ if ruby scripts/release_manifest.rb verify --package-root "$tmp_dir" --manifest 
 fi
 printf 'onnx-runtime\n' > "$tmp_dir/bin/services/libonnxruntime.so.1"
 
-printf 'tampered\n' >> "$tmp_dir/bin/services/$first_sidecar_binary"
+printf 'tampered\n' >> "$tmp_dir/bin/$component_host_binary"
 if ruby scripts/release_manifest.rb verify --package-root "$tmp_dir" --manifest "$tmp_dir/release-manifest.json" >/dev/null 2>&1; then
-    echo "tampered release binary unexpectedly passed manifest verification" >&2
+    echo "tampered shared launcher unexpectedly passed manifest verification" >&2
     exit 1
 fi
 

@@ -20,6 +20,7 @@ class DeployPlanTest(unittest.TestCase):
         self.root = Path(self.temp_dir.name)
         package_dirs = {
             "a4n-agent-worker": self.root / "crates/agent/a4n-agent-worker",
+            "a4n-component-host": self.root / "crates/host/a4n-component-host",
             "a4n-control": self.root / "crates/host/a4n-control",
             "a4n-worker-contract": self.root / "crates/process/a4n-worker-contract",
         }
@@ -32,7 +33,8 @@ class DeployPlanTest(unittest.TestCase):
         (self.root / "Cargo.toml").write_text(
             '[workspace]\nmembers = ["crates/*/a4n-*"]\n'
             '[workspace.dependencies]\n'
-            'a4n-worker-contract = { path = "crates/process/a4n-worker-contract" }\n',
+            'a4n-worker-contract = { path = "crates/process/a4n-worker-contract" }\n'
+            'a4n-agent-worker = { path = "crates/agent/a4n-agent-worker" }\n',
             encoding="utf-8",
         )
         (self.root / "Cargo.lock").write_text("# fixture\n", encoding="utf-8")
@@ -43,6 +45,8 @@ class DeployPlanTest(unittest.TestCase):
                 if package in {"a4n-agent-worker", "a4n-control"}
                 else ""
             )
+            if package == "a4n-component-host":
+                dependencies = "\n[dependencies]\na4n-agent-worker = { workspace = true }\n"
             package_dir.joinpath("Cargo.toml").write_text(
                 f'[package]\nname = "{package}"\nversion = "0.1.0"\nedition = "2024"\n{dependencies}',
                 encoding="utf-8",
@@ -55,6 +59,7 @@ class DeployPlanTest(unittest.TestCase):
                     {
                         "name": "agent-worker",
                         "binary": "a4n-agent-worker",
+                        "launcher": "a4n-component-host",
                         "kind": "stateful_worker",
                         "contract_version": "worker-v1",
                         "capability_version": "agent-v1",
@@ -69,7 +74,7 @@ class DeployPlanTest(unittest.TestCase):
         (self.root / "crates/process/a4n-process-catalog/release-tools.json").write_text(
             json.dumps(
                 [
-                    {"package": "a4n-agent-worker", "binary": "a4n-agent-worker"},
+                    {"package": "a4n-component-host", "binary": "a4n-component-host"},
                     {"package": "a4n-control", "binary": "a4n-control"},
                 ]
             ),
@@ -84,10 +89,12 @@ class DeployPlanTest(unittest.TestCase):
 
         self.metadata = self.root / "metadata.json"
         packages = []
-        for package in ["a4n-agent-worker", "a4n-control", "a4n-worker-contract"]:
+        for package in ["a4n-agent-worker", "a4n-component-host", "a4n-control", "a4n-worker-contract"]:
             dependencies = []
             if package in {"a4n-agent-worker", "a4n-control"}:
                 dependencies.append({"name": "a4n-worker-contract"})
+            if package == "a4n-component-host":
+                dependencies.append({"name": "a4n-agent-worker"})
             packages.append(
                 {
                     "name": package,
@@ -146,17 +153,23 @@ class DeployPlanTest(unittest.TestCase):
         )
         return json.loads(output.read_text(encoding="utf-8"))
 
-    def test_worker_change_is_delta_and_does_not_build_control(self) -> None:
+    def test_worker_change_rebuilds_shared_host_and_restarts_all_roles(self) -> None:
         worker_source = self.root / "crates/agent/a4n-agent-worker/src/lib.rs"
         worker_source.write_text("pub fn fixture() { println!(\"changed\"); }\n", encoding="utf-8")
 
         plan = self.plan()
 
-        self.assertEqual(plan["mode"], "delta")
-        self.assertEqual(plan["build_packages"], ["a4n-agent-worker"])
-        self.assertIn("bin/a4n-agent-worker", plan["artifact_paths"])
+        self.assertEqual(plan["mode"], "full")
+        self.assertEqual(plan["fallback_reason"], "shared component launcher changed")
+        self.assertEqual(
+            plan["build_packages"],
+            ["a4n-component-host", "a4n-control", "a4n-server"],
+        )
+        self.assertIn("bin/a4n-component-host", plan["artifact_paths"])
+        self.assertNotIn("bin/a4n-agent-worker", plan["artifact_paths"])
         self.assertNotIn("bin/services/a4n-agent-worker", plan["artifact_paths"])
-        self.assertNotIn("a4n-control", plan["build_packages"])
+        self.assertEqual(plan["components"][0]["role"], "sidecar")
+        self.assertEqual(plan["components"][0]["restart"], "full")
 
     def test_shared_worker_contract_change_is_full(self) -> None:
         contract = self.root / "crates/process/a4n-worker-contract/src/lib.rs"
@@ -167,7 +180,7 @@ class DeployPlanTest(unittest.TestCase):
         self.assertEqual(plan["mode"], "full")
         self.assertIn("full-restart package or protocol", plan["fallback_reason"])
 
-    def test_committed_worker_change_is_delta_from_the_deployed_content(self) -> None:
+    def test_committed_worker_change_is_full_from_the_deployed_content(self) -> None:
         source = self.root / "crates/agent/a4n-agent-worker/src/lib.rs"
         source.write_text('pub fn fixture() { println!("committed"); }\n', encoding="utf-8")
         self.run_git("add", ".")
@@ -175,8 +188,8 @@ class DeployPlanTest(unittest.TestCase):
 
         plan = self.plan()
 
-        self.assertEqual(plan["mode"], "delta")
-        self.assertEqual(plan["build_packages"], ["a4n-agent-worker"])
+        self.assertEqual(plan["mode"], "full")
+        self.assertIn("a4n-component-host", plan["build_packages"])
         self.assertFalse(plan["dirty"])
 
     def test_deployed_dirty_content_can_be_committed_or_reverted(self) -> None:
@@ -194,21 +207,22 @@ class DeployPlanTest(unittest.TestCase):
 
         source.write_text(original, encoding="utf-8")
         plan = self.plan()
-        self.assertEqual(plan["mode"], "delta")
-        self.assertEqual(plan["build_packages"], ["a4n-agent-worker"])
+        self.assertEqual(plan["mode"], "full")
+        self.assertIn("a4n-component-host", plan["build_packages"])
 
     def test_untracked_and_deleted_paths_are_compared_without_splitting_names(self) -> None:
         source = self.root / "crates/agent/a4n-agent-worker/src/extra space\nfile.rs"
         source.write_text("pub fn extra() {}\n", encoding="utf-8")
         plan = self.plan()
-        self.assertEqual(plan["build_packages"], ["a4n-agent-worker"])
+        self.assertEqual(plan["mode"], "full")
+        self.assertIn("a4n-component-host", plan["build_packages"])
         self.assertIn(str(source.relative_to(self.root)), plan["changed_paths"])
         self.record_deployment(plan)
         self.assertEqual(self.plan()["mode"], "noop")
 
         source.unlink()
         plan = self.plan()
-        self.assertEqual(plan["mode"], "delta")
+        self.assertEqual(plan["mode"], "full")
         self.assertIn(str(source.relative_to(self.root)), plan["changed_paths"])
 
     def test_committed_frontend_change_only_rebuilds_static_payload(self) -> None:

@@ -5,7 +5,7 @@ impl From<&ServiceCatalogEntry> for ProcessMetadata {
         Self {
             name: entry.name.clone(),
             kind: entry.kind,
-            binary: entry.binary.clone(),
+            binary: entry.launcher.clone(),
             capability_version: Some(entry.capability_version.clone()),
             contract_version: Some(entry.contract_version.clone()),
             addr_env: entry.addr_env.clone(),
@@ -27,7 +27,7 @@ impl From<&StatefulWorkerCatalogEntry> for ProcessMetadata {
         Self {
             name: entry.name.clone(),
             kind: entry.kind,
-            binary: entry.binary.clone(),
+            binary: entry.launcher.clone(),
             capability_version: Some(entry.capability_version.clone()),
             contract_version: Some(entry.contract_version.clone()),
             addr_env: entry.addr_env.clone(),

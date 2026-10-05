@@ -8,7 +8,7 @@ license.workspace = true
 a4n-process-catalog = { workspace = true }
 a4n-service-protocol = { workspace = true }
 
-reqwest = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }

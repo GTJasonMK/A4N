@@ -21,11 +21,12 @@ for name in A4N_QDRANT_URL A4N_DATABASE_URL A4N_JWT_SECRET; do
         exit 2
     }
 done
-for command_name in curl ditto grep pgrep; do
+for command_name in curl ditto grep pgrep sort wc; do
     require_command "$command_name"
 done
 
 catalog_rows="$(sidecar_catalog_rows)"
+worker_rows="$(ruby "$PROJECT_ROOT/scripts/release_manifest.rb" worker-rows)"
 tool_binaries="$(release_tool_binaries)"
 cli_binary="$(release_tool_binary_for_package a4n-cli)"
 packages=()
@@ -211,13 +212,34 @@ for index in "${!modules[@]}"; do
     matches=()
     while IFS= read -r match; do
         [[ -z "$match" ]] || matches+=("$match")
-    done < <(pgrep -P "$host_pid" -f "${packages[index]}" || true)
+    done < <(pgrep -P "$host_pid" -f "a4n-component-host --service ${modules[index]}" || true)
     [[ "${#matches[@]}" -eq 1 ]] || {
-        printf 'expected one managed %s process, found %s\n' "${packages[index]}" "${#matches[@]}" >&2
+        printf 'expected one independent %s process, found %s\n' "${modules[index]}" "${#matches[@]}" >&2
         exit 1
     }
     sidecar_pids+=("${matches[0]}")
 done
+if [[ "$(printf '%s\n' "${sidecar_pids[@]}" | sort -u | wc -l)" -ne "${#modules[@]}" ]]; then
+    printf 'multiple service roles share one component-host process\n' >&2
+    exit 1
+fi
+worker_pids=()
+while IFS=$'\t' read -r worker_name _launcher; do
+    [[ -n "$worker_name" ]] || continue
+    matches=()
+    while IFS= read -r match; do
+        [[ -z "$match" ]] || matches+=("$match")
+    done < <(pgrep -P "$host_pid" -f "a4n-component-host --worker ${worker_name}" || true)
+    [[ "${#matches[@]}" -eq 1 ]] || {
+        printf 'expected one independent %s process, found %s\n' "$worker_name" "${#matches[@]}" >&2
+        exit 1
+    }
+    worker_pids+=("${matches[0]}")
+done <<<"$worker_rows"
+if [[ "$(printf '%s\n' "${worker_pids[@]}" | sort -u | wc -l)" -ne "${#worker_pids[@]}" ]]; then
+    printf 'multiple worker roles share one component-host process\n' >&2
+    exit 1
+fi
 grep -q 'A4N 应用启动完成' "$launcher_log"
 find "$A4N_LOG_DIR/services" -type f -size +0c -print -quit | grep -q .
 

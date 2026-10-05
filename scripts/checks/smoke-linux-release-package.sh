@@ -27,11 +27,12 @@ export A4N_DATABASE_URL="${A4N_DATABASE_URL:-${A4N_TEST_DATABASE_URL:-}}"
     exit 2
 }
 
-for command_name in curl rg tar; do
+for command_name in curl pgrep rg sort tar wc; do
     require_command "$command_name"
 done
 
 catalog_rows="$(sidecar_catalog_rows)"
+worker_rows="$(ruby "$PROJECT_ROOT/scripts/release_manifest.rb" worker-rows)"
 tool_binaries="$(release_tool_binaries)"
 cli_binary="$(release_tool_binary_for_package a4n-cli)"
 modules=()
@@ -174,6 +175,34 @@ done
 rg -q 'A4N 应用启动完成' "$launcher_log"
 
 find "$package_root/data/logs/services" -type f -size +0c -print -quit | rg -q .
+
+declare -A sidecar_pid_by_service=()
+for index in "${!modules[@]}"; do
+    mapfile -t process_ids < <(pgrep -P "$launcher_pid" -f -- "a4n-component-host --service ${modules[index]}" || true)
+    [[ "${#process_ids[@]}" -eq 1 ]] || {
+        printf 'expected one independent %s process, found %s\n' "${modules[index]}" "${#process_ids[@]}" >&2
+        exit 1
+    }
+    sidecar_pid_by_service["${modules[index]}"]="${process_ids[0]}"
+done
+if [[ "$(printf '%s\n' "${sidecar_pid_by_service[@]}" | sort -u | wc -l)" -ne "${#modules[@]}" ]]; then
+    printf 'multiple service roles share one component-host process\n' >&2
+    exit 1
+fi
+declare -A sidecar_pid_by_worker=()
+while IFS=$'\t' read -r worker_name _launcher; do
+    [[ -n "$worker_name" ]] || continue
+    mapfile -t process_ids < <(pgrep -P "$launcher_pid" -f -- "a4n-component-host --worker ${worker_name}" || true)
+    [[ "${#process_ids[@]}" -eq 1 ]] || {
+        printf 'expected one independent %s process, found %s\n' "$worker_name" "${#process_ids[@]}" >&2
+        exit 1
+    }
+    sidecar_pid_by_worker["$worker_name"]="${process_ids[0]}"
+done <<<"$worker_rows"
+if [[ "$(printf '%s\n' "${sidecar_pid_by_worker[@]}" | sort -u | wc -l)" -ne "${#sidecar_pid_by_worker[@]}" ]]; then
+    printf 'multiple worker roles share one component-host process\n' >&2
+    exit 1
+fi
 
 kill -TERM "$launcher_pid"
 set +e
