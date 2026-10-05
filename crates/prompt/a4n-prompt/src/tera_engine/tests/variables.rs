@@ -128,6 +128,8 @@ fn test_load_real_prompts_dir() {
     assert!(manga_storyboard_prompt.contains("narration"));
     assert!(manga_storyboard_prompt.contains("text_layers[].speaker"));
     assert!(manga_storyboard_prompt.contains("JSON `null`"));
+    assert!(manga_storyboard_prompt.contains("upper_right"));
+    assert!(manga_storyboard_prompt.contains("8 个规范值"));
 
     let mut context_guard_vars = HashMap::new();
     context_guard_vars.insert(

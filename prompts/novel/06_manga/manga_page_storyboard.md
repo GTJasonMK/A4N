@@ -65,6 +65,7 @@ name: manga_page_storyboard
 - `camera_angle`：`eye_level`、`high`、`low`、`top_down`、`dutch`、`over_shoulder`、`profile`。
 - `text_layers.kind`：`dialogue`、`thought`、`narration`、`sfx`。`placement`：`top_left`、`top_right`、`upper_center`、`center_left`、`center_right`、`bottom_left`、`bottom_right`、`lower_center`。
 - `text_layers[].speaker` 必须按 kind 填写：`dialogue` 或 `thought` 使用 `characters` 中的稳定角色名；`narration` 或 `sfx` 必须严格写 JSON `null`，不能填写角色名、空字符串或其他文本。
+- `text_layers[].placement` 必须严格使用上面列出的 8 个规范值；`upper_left`、`upper_right`、`top_center`、`lower_left`、`lower_right`、`bottom_center` 等别名均无效。
 - 不输出 Markdown、解释或额外字段。
 
 <!-- @include _partials/json_only_rule.md -->

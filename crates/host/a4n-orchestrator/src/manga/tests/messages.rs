@@ -99,6 +99,10 @@ fn manga_page_storyboard_message_requires_null_speaker_for_non_dialogue_layers()
         contract["text_layer_speaker_rule"],
         "text_layers.kind 为 dialogue 或 thought 时 speaker 必须是 characters 中的稳定角色名；kind 为 narration 或 sfx 时 speaker 必须严格为 JSON null"
     );
+    assert_eq!(
+        contract["text_layer_placement_rule"],
+        "placement 必须严格使用 top_left、top_right、upper_center、center_left、center_right、bottom_left、bottom_right、lower_center；upper_right 等别名无效"
+    );
 }
 
 struct TestPromptRenderer;

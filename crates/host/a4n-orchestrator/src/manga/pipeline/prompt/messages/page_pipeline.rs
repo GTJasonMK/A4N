@@ -114,6 +114,7 @@ pub(in crate::manga) fn manga_page_storyboard_user_message(
             "page_number": page_number,
             "beat_ref_rule": "beat_refs 必须覆盖 page_adaptation.beat_refs；每格 beat_refs 必须属于页面 beat_refs",
             "text_layer_speaker_rule": "text_layers.kind 为 dialogue 或 thought 时 speaker 必须是 characters 中的稳定角色名；kind 为 narration 或 sfx 时 speaker 必须严格为 JSON null",
+            "text_layer_placement_rule": "placement 必须严格使用 top_left、top_right、upper_center、center_left、center_right、bottom_left、bottom_right、lower_center；upper_right 等别名无效",
         }),
     )
 }
