@@ -2,14 +2,16 @@ use a4n_config::app_config::{AppConfig, portable_home_dir};
 use a4n_process_catalog::StatefulWorkerCatalogEntry;
 use a4n_worker_client::{HttpWorkerClient, WorkerHealthStatus};
 use reqwest::StatusCode;
+use std::collections::VecDeque;
+use std::io::{self, BufRead, BufReader, Write};
 use std::net::SocketAddr;
+use std::net::TcpListener;
 #[cfg(target_os = "linux")]
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use std::{io, net::TcpListener};
 use tauri::{AppHandle, Manager};
 
 const SERVER_BINARY_ENV: &str = "A4N_SERVER_BINARY";
@@ -18,10 +20,13 @@ const EDGE_BINARY_ENV: &str = "A4N_EDGE_BINARY";
 const MIGRATION_BINARY_ENV: &str = "A4N_MIGRATION_BINARY";
 const NATIVE_WORKER_READY_TIMEOUT: Duration = Duration::from_secs(30);
 const NATIVE_WORKER_RETRY_INTERVAL: Duration = Duration::from_millis(100);
+const SERVER_STDERR_TAIL_LIMIT: usize = 8 * 1024;
 
 pub(crate) struct LocalServerProcess {
     child: Mutex<Option<Child>>,
     address_directory: tempfile::TempDir,
+    stderr_tail: Arc<Mutex<VecDeque<u8>>>,
+    stderr_reader: Mutex<Option<std::thread::JoinHandle<()>>>,
 }
 
 pub(crate) struct NativeWorkerSettings {
@@ -352,6 +357,7 @@ impl LocalServerProcess {
         run_migration(&migration, &config.database_url)?;
 
         let mut command = Command::new(&server);
+        // The Server main returns startup failures through stderr; retain a sanitized tail for the Tauri setup error.
         command
             .env(
                 "A4N_WEB_LISTEN_FILE",
@@ -369,7 +375,7 @@ impl LocalServerProcess {
             .env("A4N_LOG_DIR", &config.log_dir)
             .stdin(Stdio::null())
             .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit());
+            .stderr(Stdio::piped());
         for (env_name, binary) in worker_binaries {
             command.env(env_name, binary);
         }
@@ -381,17 +387,80 @@ impl LocalServerProcess {
         }
         configure_parent_death_signal(&mut command);
 
-        let child = command
+        let mut child = command
             .spawn()
             .map_err(|error| format!("启动 A4N Server 失败: {}: {error}", server.display()))?;
+        let Some(stderr) = child.stderr.take() else {
+            if let Err(error) = terminate_child(&mut child) {
+                tracing::warn!(%error, "停止 stderr 未能捕获的 A4N Server 失败");
+            }
+            return Err(io::Error::other("A4N Server stderr 未开启捕获").into());
+        };
+        let stderr_tail = Arc::new(Mutex::new(VecDeque::with_capacity(
+            SERVER_STDERR_TAIL_LIMIT,
+        )));
+        let stderr_reader = match spawn_server_stderr_reader(stderr, config, stderr_tail.clone()) {
+            Ok(reader) => reader,
+            Err(error) => {
+                if let Err(stop_error) = terminate_child(&mut child) {
+                    tracing::warn!(%stop_error, "启动 stderr 捕获失败后停止 A4N Server 失败");
+                }
+                return Err(format!("启动 A4N Server stderr 捕获失败: {error}").into());
+            }
+        };
         let process = Self {
             child: Mutex::new(Some(child)),
             address_directory,
+            stderr_tail,
+            stderr_reader: Mutex::new(Some(stderr_reader)),
         };
-        let api_base_url = wait_until_healthy(&process).await?;
+        let api_base_url = match wait_until_healthy(&process).await {
+            Ok(api_base_url) => api_base_url,
+            Err(error) => {
+                process.stop();
+                return match process.server_stderr() {
+                    Ok(stderr) if stderr.trim().is_empty() => Err(error),
+                    Ok(stderr) => Err(format!(
+                        "{error}; A4N Server stderr（已脱敏，末尾最多 {SERVER_STDERR_TAIL_LIMIT} 字节）:\n{}",
+                        stderr.trim()
+                    )
+                    .into()),
+                    Err(capture_error) => Err(format!(
+                        "{error}; 读取 A4N Server stderr 失败: {capture_error}"
+                    )
+                    .into()),
+                };
+            }
+        };
 
         tracing::info!(url = %api_base_url, "A4N HTTP-only Server 启动完成");
         Ok((process, api_base_url))
+    }
+
+    fn server_stderr(&self) -> Result<String, io::Error> {
+        let reader = self
+            .stderr_reader
+            .lock()
+            .map_err(|_| io::Error::other("获取 A4N Server stderr 捕获锁失败"))?
+            .take();
+        if let Some(reader) = reader {
+            for _ in 0..20 {
+                if reader.is_finished() {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            if reader.is_finished() {
+                reader
+                    .join()
+                    .map_err(|_| io::Error::other("A4N Server stderr 捕获线程异常退出"))?;
+            }
+        }
+        let tail = self
+            .stderr_tail
+            .lock()
+            .map_err(|_| io::Error::other("获取 A4N Server stderr 内容锁失败"))?;
+        Ok(String::from_utf8_lossy(&tail.iter().copied().collect::<Vec<_>>()).into_owned())
     }
 
     pub(crate) fn stop(&self) {
@@ -407,6 +476,87 @@ impl LocalServerProcess {
         {
             tracing::warn!(%error, "停止 A4N Server 失败");
         }
+    }
+}
+
+fn spawn_server_stderr_reader(
+    stderr: std::process::ChildStderr,
+    config: &AppConfig,
+    tail: Arc<Mutex<VecDeque<u8>>>,
+) -> Result<std::thread::JoinHandle<()>, io::Error> {
+    let secrets = server_startup_secrets(config);
+
+    std::thread::Builder::new()
+        .name("a4n-server-stderr".to_string())
+        .spawn(move || {
+            let mut reader = BufReader::new(stderr);
+            let stderr_output = io::stderr();
+            let mut line = Vec::new();
+            loop {
+                line.clear();
+                match reader.read_until(b'\n', &mut line) {
+                    Ok(0) => break,
+                    Ok(_) => {}
+                    Err(error) => {
+                        let message = redact_server_stderr(
+                            &format!("读取 A4N Server stderr 失败: {error}\n"),
+                            &secrets,
+                        );
+                        let _ = stderr_output.lock().write_all(message.as_bytes());
+                        append_server_stderr_tail(&tail, message.as_bytes());
+                        break;
+                    }
+                }
+                let message = redact_server_stderr(&String::from_utf8_lossy(&line), &secrets);
+                let _ = stderr_output.lock().write_all(message.as_bytes());
+                append_server_stderr_tail(&tail, message.as_bytes());
+            }
+        })
+}
+
+fn server_startup_secrets(config: &AppConfig) -> Vec<String> {
+    let mut secrets = std::env::vars_os()
+        .filter_map(|(name, value)| {
+            let name = name.to_string_lossy().to_ascii_uppercase();
+            let is_secret = [
+                "TOKEN",
+                "SECRET",
+                "PASSWORD",
+                "API_KEY",
+                "DATABASE_URL",
+                "_KEY",
+            ]
+            .iter()
+            .any(|suffix| name.ends_with(suffix));
+            let value = value.to_string_lossy().into_owned();
+            (is_secret && !value.is_empty()).then_some(value)
+        })
+        .collect::<Vec<_>>();
+    secrets.extend([config.database_url.clone()]);
+    secrets.extend(config.security.jwt_secret.clone());
+    secrets.retain(|secret| !secret.is_empty());
+    secrets.sort_unstable_by_key(|secret| std::cmp::Reverse(secret.len()));
+    secrets.dedup();
+    secrets
+}
+
+fn redact_server_stderr(message: &str, secrets: &[String]) -> String {
+    let mut message = a4n_service_protocol::redact_sensitive_message(message);
+    for secret in secrets {
+        message = message.replace(secret, "[REDACTED]");
+    }
+    message
+}
+
+fn append_server_stderr_tail(tail: &Mutex<VecDeque<u8>>, bytes: &[u8]) {
+    let Ok(mut tail) = tail.lock() else {
+        return;
+    };
+    for byte in bytes {
+        if tail.len() == SERVER_STDERR_TAIL_LIMIT {
+            tail.pop_front();
+        }
+        tail.push_back(*byte);
     }
 }
 
@@ -434,6 +584,7 @@ fn configure_parent_death_signal(_: &mut Command) {}
 impl Drop for LocalServerProcess {
     fn drop(&mut self) {
         self.stop();
+        let _ = self.server_stderr();
     }
 }
 
