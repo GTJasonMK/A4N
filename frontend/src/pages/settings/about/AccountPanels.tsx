@@ -47,7 +47,6 @@ export const PageCliPanel: React.FC = () => {
       <div className="flex flex-wrap items-start justify-between gap-3 px-3 py-3">
         <div className="min-w-0 flex-1">
           <h3 className="font-medium text-book-text-main">{t("pageCli.title")}</h3>
-          <p className="mt-1 max-w-prose leading-relaxed text-book-text-muted">{t("pageCli.description")}</p>
         </div>
         <label className="inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-book-border/60 bg-book-bg-tertiary/45 px-2.5 text-book-text-sub has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-book-primary">
           <input

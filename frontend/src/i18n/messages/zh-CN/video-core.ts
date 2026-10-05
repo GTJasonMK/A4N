@@ -222,7 +222,6 @@ export const videoCore = {
   inspectorNode: "节点属性",
   inspectorEmpty: "选择节点或连线后编辑",
   inspectorEmptyDetail: "选择画布节点或连线后编辑属性",
-  freeCanvasDescription: "自由编排节点、媒体与生成流程",
   derivedCanvasDescription: "基于派生项目编排视频生成流程",
   canvasSaving: "正在保存画布…",
   canvasImporting: "正在导入媒体…",

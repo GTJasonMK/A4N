@@ -11,7 +11,6 @@ import {
 } from "./outlineTabUtils";
 import {
   isDerivedChapterOutline,
-  isRetrospectiveChapterOutline,
   type ChapterOutline,
   type PartOutline,
 } from "../../../api/outline";
@@ -82,7 +81,6 @@ export function ManualChapterOutlineDialog({
       isOpen
       onClose={() => void close()}
       title={t("outline.dialogs.directChapterTitle")}
-      subtitle={t("outline.dialogs.directChapterSubtitle")}
       maxWidthClassName="max-w-2xl"
       closeOnBackdrop={!saving}
       closeOnEscape={!saving}
@@ -194,7 +192,6 @@ export function ManualPartOutlineDialog({
       isOpen
       onClose={() => void close()}
       title={part ? t("outline.dialogs.editPartTitle", { part: part.part_number }) : t("outline.dialogs.directPartTitle")}
-      subtitle={t("outline.dialogs.directPartSubtitle")}
       maxWidthClassName="max-w-2xl"
       closeOnBackdrop={!saving}
       closeOnEscape={!saving}
@@ -327,7 +324,6 @@ export function PartDetailDialog({
       isOpen
       onClose={onClose}
       title={partHeading(part, t)}
-      subtitle={t("outline.dialogs.partDetails")}
       maxWidthClassName="max-w-3xl"
       bodyClassName="px-5 py-5"
       footer={
@@ -382,21 +378,11 @@ export function ChapterOutlineDetailDialog({
   onClose: () => void;
 }) {
   const { t } = useI18n();
-  const sourceLabel = isRetrospectiveChapterOutline(outline)
-    ? t("outline.chapterSection.sourceRetrospective")
-    : isDerivedChapterOutline(outline)
-      ? t("outline.chapterSection.sourceAnalysis")
-      : t("outline.chapterSection.sourceChapter");
   return (
     <Modal
       isOpen
       onClose={onClose}
       title={chapterOutlineHeading(outline, t)}
-      subtitle={
-        isDerivedChapterOutline(outline)
-          ? t("outline.dialogs.autoAnalysis", { source: sourceLabel })
-          : t("outline.dialogs.chapterDetails")
-      }
       maxWidthClassName="max-w-3xl"
       bodyClassName="px-5 py-5"
     >
@@ -450,7 +436,6 @@ export function ChapterOutlineActionDialog({
         if (!busy) onClose();
       }}
       title={t("outline.dialogs.chapterActions", { chapter: outline.chapter_number })}
-      subtitle={chapterOutlineHeading(outline, t)}
       icon={<MoreHorizontal size={15} />}
       maxWidthClassName="max-w-md"
       bodyClassName="px-4 py-4"

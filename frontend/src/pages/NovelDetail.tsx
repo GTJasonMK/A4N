@@ -31,10 +31,7 @@ import {
 import { formatRagIngestResultSummary, ragIngestAll } from "../api/rag";
 import { OverviewTab } from "./novel-detail/OverviewTab";
 import { useStatusBarPermanent } from "../components/ui/StatusBar";
-import {
-  getProjectLifecycleBlockedReason,
-  getProjectProgressText,
-} from "../utils/projectStatus";
+import { getProjectLifecycleBlockedReason } from "../utils/projectStatus";
 import { usePersistedTab } from "../hooks/usePersistedTab";
 import { BackButton, useSmartBack } from "../components/ui/BackButton";
 import { Modal } from "../components/ui/Modal";
@@ -737,7 +734,6 @@ export const NovelDetail: React.FC = () => {
         className="a4n-app-page-header--detail h-auto shrink-0 py-2 sm:flex-nowrap sm:py-0"
         leading={<BackButton iconOnly title={t("novel.backToPreviousPage")} onClick={smartBack} />}
         title={project.title}
-        subtitle={getProjectProgressText(project, t)}
         actions={
           <>
             {showHomeEntryButton && (
@@ -897,7 +893,6 @@ export const NovelDetail: React.FC = () => {
         isOpen={actionsOpen}
         onClose={() => setActionsOpen(false)}
         title={t("novel.projectActions")}
-        subtitle={t("novel.projectActionsSubtitle")}
         icon={<MoreHorizontal size={15} />}
         maxWidthClassName="max-w-2xl"
         bodyClassName="px-4 py-4"
@@ -996,7 +991,6 @@ export const NovelDetail: React.FC = () => {
         isOpen={collaborationOpen}
         onClose={() => void closeCollaboration()}
         title={t("novel.collaborationTitle")}
-        subtitle={t("novel.collaborationSubtitle")}
         icon={<Users size={15} />}
         maxWidthClassName="max-w-3xl"
         bodyClassName="px-4 py-4"
@@ -1012,7 +1006,6 @@ export const NovelDetail: React.FC = () => {
         isOpen={exportOpen}
         onClose={() => void closeExport()}
         title={t("novel.exportNovelTitle")}
-        subtitle={t("novel.exportNovelSubtitle")}
         icon={<FileText size={15} />}
         maxWidthClassName="max-w-4xl"
         bodyClassName="px-4 py-4"

@@ -51,7 +51,6 @@ export const InspirationChat: React.FC = () => {
     <div className="h-full w-full min-w-0 flex flex-col">
       <UnsavedNavigationGuard dirty={chat.input.trim().length > 0} name={t("inspiration.inputConversation")} action={t("common.leavePage")} />
       <InspirationChatHeader
-        projectTitle={chat.project.title}
         showConversationControls={chat.stage === "conversation"}
         generating={chat.generating}
         canGenerate={chat.canGenerate}
@@ -121,11 +120,6 @@ export const InspirationChat: React.FC = () => {
             ? t("inspiration.adjustBlueprint")
             : t("inspiration.blueprintTitle")
         }
-        subtitle={
-          chat.blueprintOperation === "refinement"
-            ? t("inspiration.adjustHint")
-            : t("inspiration.blueprintSubtitle")
-        }
         status={chat.blueprintProgress.status}
         current={chat.blueprintProgress.current}
         total={chat.blueprintProgress.total}
@@ -150,7 +144,6 @@ export const InspirationChat: React.FC = () => {
         isOpen={progressOpen && chat.stage === "conversation"}
         onClose={() => setProgressOpen(false)}
         title={t("inspiration.progressTitle")}
-        subtitle={t("inspiration.progressSubtitle")}
         icon={<ListChecks size={15} />}
         maxWidthClassName="max-w-md"
         bodyClassName="px-4 py-4"

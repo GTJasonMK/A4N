@@ -956,9 +956,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     <div className="flex min-h-[60vh] flex-col gap-3 lg:h-full lg:min-h-0">
       {loadError ? <p role="alert" className="text-small text-error">{loadError}</p> : null}
       <MediaStageHeader id={stageId} label={t("common.mediaAuthoring.stages")} tabs={stageTabs} activeTab={workspaceStage}
-        onTabChange={async (stage) => { if (!await confirmLeaveStage()) return false; if (workspaceStage === "materials") void load(); setWorkspaceStage(stage); return true; }}>
-        {canEditGalgame && <BookButton size="sm" variant="secondary" disabled={pipelineRunning || loading} onClick={() => void handleGenerate(false, null)}>{t("common.mediaAuthoring.oneClick")}</BookButton>}
-      </MediaStageHeader>
+        onTabChange={async (stage) => { if (!await confirmLeaveStage()) return false; if (workspaceStage === "materials") void load(); setWorkspaceStage(stage); return true; }} />
       {outputState?.stale && workspaceStage !== "adaptation" && workspaceStage !== "branches" && <p role="status" className="text-xs text-warning">{t("common.mediaAuthoring.outputsStale")}</p>}
       {authoring.error && workspaceStage !== "adaptation" && workspaceStage !== "branches" && <p role="alert" className="text-xs text-error">{authoring.error}</p>}
       <div id={`${stageId}-panel`} role="tabpanel" aria-labelledby={`${stageId}-tab-${workspaceStage}`} className="flex min-h-0 flex-1 flex-col gap-3">
@@ -977,7 +975,6 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         onPlan={handlePlanAssets} onGenerate={handleGenerateAssets} onGenerateSpec={handleGenerateAssetSpec} />
       : workspaceStage === "export" ? <section className="space-y-4 overflow-y-auto p-1 custom-scrollbar">
         <h2 className="text-base font-semibold">{t("common.mediaAuthoring.export")}</h2>
-        <p className="text-sm text-book-text-muted">{t("common.mediaAuthoring.exportHint")}</p>
         {detail && <p className="text-sm">{t("galgame.sceneCount", { scenes: detail.scenes.length, lines: totalLines })}</p>}
         <BookButton size="sm" disabled={!canEditGalgame || !detail || exportingWebgal} onClick={handleExportWebgal}>{exportingWebgal ? <LoadingSpinner size="sm" /> : <Download size={14} />}{t("galgame.exportWebgal")}</BookButton>
       </section> : <>

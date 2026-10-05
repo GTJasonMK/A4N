@@ -16,7 +16,6 @@ interface DerivedProjectHeaderProps {
   leading?: React.ReactNode;
   icon: React.ReactNode;
   title: React.ReactNode;
-  subtitle?: React.ReactNode;
   actions?: React.ReactNode;
   context?: DerivedContextItem[];
   stages?: Array<{ id: string; label: string; active?: boolean }>;
@@ -27,7 +26,6 @@ export const DerivedProjectHeader: React.FC<DerivedProjectHeaderProps> = ({
   leading,
   icon,
   title,
-  subtitle,
   actions,
   context,
   stages,
@@ -47,11 +45,6 @@ export const DerivedProjectHeader: React.FC<DerivedProjectHeaderProps> = ({
           <h1 className="a4n-app-page-header__title">
             {title}
           </h1>
-          {subtitle != null ? (
-            <p className="a4n-derived-project-subtitle mt-0.5 text-small text-book-text-muted">
-              {subtitle}
-            </p>
-          ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           {actions}

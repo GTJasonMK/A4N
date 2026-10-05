@@ -223,7 +223,6 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
       <section aria-label={t("settingsLogs.workflowDetails")} className="space-y-2">
         <div className="flex items-baseline gap-2 px-1">
           <h3 className="text-xs font-medium text-book-text-main">{t("settingsLogs.workflowDetails")}</h3>
-          <p className="text-small text-book-text-muted">{t("settingsLogs.workflowDetailsHint")}</p>
         </div>
         <div className="grid grid-cols-1 items-start gap-2 xl:grid-cols-2">
           <DiagnosticDomainDetails
@@ -289,7 +288,6 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
       <section aria-label={t("settingsLogs.recentCalls")} className="space-y-2">
         <div className="flex items-baseline gap-2 px-1">
           <h3 className="text-xs font-medium text-book-text-main">{t("settingsLogs.recentCalls")}</h3>
-          <p className="text-small text-book-text-muted">{t("settingsLogs.recentCallsHint")}</p>
         </div>
         <div className="grid grid-cols-1 items-start gap-2 xl:grid-cols-2">
           <DiagnosticDomainDetails

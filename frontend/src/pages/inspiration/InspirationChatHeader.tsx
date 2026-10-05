@@ -8,7 +8,6 @@ import { PageHeader } from "../../components/shell/PageHeader";
 import { useI18n } from "../../i18n";
 
 interface InspirationChatHeaderProps {
-  projectTitle: string;
   showConversationControls: boolean;
   generating: boolean;
   canGenerate: boolean;
@@ -19,7 +18,6 @@ interface InspirationChatHeaderProps {
 
 /** 灵感对话顶栏：只保留页面身份、响应方式和生成主操作。 */
 export const InspirationChatHeader: React.FC<InspirationChatHeaderProps> = ({
-  projectTitle,
   showConversationControls,
   generating,
   canGenerate,
@@ -33,7 +31,6 @@ export const InspirationChatHeader: React.FC<InspirationChatHeaderProps> = ({
     className="a4n-app-page-header--detail h-auto shrink-0 !px-3 py-2 sm:!px-[var(--a4n-content-gutter)]"
     leading={<BackButton iconOnly title={t("nav.backToPrevious")} />}
     title={t("novel.inspiration")}
-    subtitle={<span className="line-clamp-2" title={projectTitle}>{projectTitle}</span>}
     actions={showConversationControls ? (
       <>
         <div className="lg:hidden">

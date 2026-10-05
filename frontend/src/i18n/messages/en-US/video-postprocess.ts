@@ -28,7 +28,6 @@ export const videoPostprocess = {
     selectedRange: "Selected {start}–{end} · {duration}",
     markerGapRequired: "Markers must be at least {gap} apart",
     emptyTitle: "No final preview is waiting for post-processing",
-    emptyDescription: "Push a preview from final assembly before confirming or adjusting edits here.",
     pushBatches: "Push batches",
     batchCount: "{count} batches",
     invalidBatch: "Invalid batch",

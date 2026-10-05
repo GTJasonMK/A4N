@@ -28,7 +28,6 @@ export const videoPostprocess = {
     selectedRange: "已选择 {start}–{end} · {duration}",
     markerGapRequired: "两根竖线至少需要间隔 {gap}",
     emptyTitle: "还没有待处理的成片",
-    emptyDescription: "从成片合成阶段推送预览后，才能在这里确认和调整剪辑。",
     pushBatches: "推送批次",
     batchCount: "{count} 批",
     invalidBatch: "批次无效",

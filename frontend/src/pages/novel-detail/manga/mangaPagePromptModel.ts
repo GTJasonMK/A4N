@@ -6,7 +6,6 @@ import type {
   MangaPageContentV1,
   MangaPageImportanceV2,
   MangaPagePacingV2,
-  MangaPagePipelineErrorV1,
   MangaPagePipelineStage,
   MangaPagePipelineStatus,
   MangaPageRoleV2,
@@ -58,7 +57,6 @@ export type MangaPagePrompt = {
   promptCount: number;
   pipelineStage: MangaPagePipelineStage | null;
   pipelineStatus: MangaPagePipelineStatus | null;
-  pipelineError: MangaPagePipelineErrorV1 | null;
   pageContent: MangaPageContentV1 | null;
   pageAdaptation: MangaPageAdaptationV1 | null;
   source: MangaPagePromptSource;
@@ -187,7 +185,6 @@ export const buildPagePrompts = (
         promptCount: prompt.page_plan ? 1 + prompt.page_plan.panels.length : 0,
         pipelineStage: prompt.pipeline_stage,
         pipelineStatus: prompt.pipeline_status,
-        pipelineError: prompt.pipeline_error,
         pageContent: prompt.page_content,
         pageAdaptation: prompt.page_adaptation,
         source,

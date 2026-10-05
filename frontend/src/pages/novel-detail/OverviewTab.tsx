@@ -449,7 +449,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         isOpen={blueprintEditorOpen}
         onClose={() => void closeBlueprintEditor()}
         title={displayBlueprint ? t("novel.editFormalBlueprint") : t("novel.enterFormalBlueprint")}
-        subtitle={t("novel.formalBlueprintSubtitle")}
         icon={<Pencil size={15} />}
         maxWidthClassName="max-w-3xl"
         bodyClassName="px-5 py-5"

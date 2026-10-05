@@ -744,9 +744,6 @@ export const VideoPostProcessWorkspace: React.FC<
             <h3 className="text-sm font-medium text-book-text-main">
               {t("video.postprocess.emptyTitle")}
             </h3>
-            <p className="mt-1 text-xs leading-relaxed text-book-text-muted">
-              {t("video.postprocess.emptyDescription")}
-            </p>
           </div>
         </div>
       </section>

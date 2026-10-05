@@ -282,9 +282,8 @@ export const AssetDependencyGraphDialog: React.FC<
     <>
       <Modal
         isOpen={open}
-        onClose={onClose}
-        title={t("novel.assetGraph.title")}
-        subtitle={t("novel.assetGraph.subtitle")}
+      onClose={onClose}
+      title={t("novel.assetGraph.title")}
         icon={<Network size={15} />}
         maxWidthClassName="max-w-[min(1280px,96vw)]"
         bodyClassName="!overflow-hidden p-0"

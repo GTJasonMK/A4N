@@ -43,9 +43,6 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
   return (
     <section aria-label={title} className="w-full max-w-3xl">
       <h3 className="text-sm font-semibold text-book-text-main">{title}</h3>
-      <p className="mt-1 text-small leading-relaxed text-book-text-muted">
-        {t(scope === "local" ? "settingsAdvanced.localBackupHint" : "settingsAdvanced.serverBackupHint")}
-      </p>
 
       <div className="mt-3 grid items-start gap-2 text-xs sm:grid-cols-2">
         <section className="a4n-flat-surface overflow-hidden">
@@ -59,7 +56,7 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
             <span className="min-w-0 flex-1">
               <span className="block font-medium">{t("settingsAdvanced.exportFile")}</span>
               <span className="mt-0.5 block text-small text-book-text-muted">
-                {t("settingsAdvanced.exportFileHint")}
+                {t(scope === "local" ? "settingsAdvanced.localBackupHint" : "settingsAdvanced.serverBackupHint")}
               </span>
             </span>
             <ChevronRight size={13} className="text-book-text-muted" />

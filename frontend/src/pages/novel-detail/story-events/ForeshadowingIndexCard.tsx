@@ -230,9 +230,6 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
       <header className="flex flex-wrap items-start gap-3 border-b border-book-border/40 px-3 py-3">
         <div className="min-w-0 flex-1 basis-56">
           <h2 className="text-sm font-semibold text-book-text-main">{t("novel.foreshadowing.title")}</h2>
-          <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
-            {t("novel.foreshadowing.description")}
-          </p>
         </div>
         <button
           type="button"

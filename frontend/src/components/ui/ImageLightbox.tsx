@@ -155,7 +155,6 @@ const ImageLightboxDialog: React.FC<{
       isOpen={target != null}
       onClose={onClose}
       title={target?.alt || t("common.imagePreview.title")}
-      subtitle={t("common.imagePreview.hint")}
       footer={
         <div className="a4n-image-lightbox-toolbar">
           <span className="text-small font-medium text-book-text-muted">{formatScale(scale)}</span>

@@ -64,7 +64,7 @@ export function MediaStageHeader<T extends string>({
   }, [tabs]);
 
   return (
-    <div className="grid min-w-0 shrink-0 gap-2 border-b border-book-border/60 pb-2 sm:flex sm:items-center">
+    <div className="a4n-media-stage-header grid min-w-0 shrink-0 gap-2 border-b border-book-border/60 pb-2 sm:flex sm:items-center">
       <label className="grid min-w-0 gap-1 text-xs text-book-text-muted sm:hidden">
         <span>{label}</span>
         <ThemedSelect id={`${id}-select`} aria-label={label} className="w-full min-w-0 text-sm" value={activeTab}
@@ -73,7 +73,7 @@ export function MediaStageHeader<T extends string>({
         </ThemedSelect>
       </label>
       <div
-        className="a4n-tab-rail-wrap a4n-tab-rail-wrap--canvas hidden min-w-0 w-full flex-1 sm:block"
+        className="a4n-media-stage-tabs a4n-tab-rail-wrap a4n-tab-rail-wrap--canvas hidden min-w-0 w-full flex-1 sm:block"
         data-has-before={tabRailHasBefore ? "true" : undefined}
         data-has-more={tabRailHasMore ? "true" : undefined}
       >
@@ -124,12 +124,13 @@ export function MediaStageHeader<T extends string>({
                   )
                 }
                 data-active={active ? "1" : undefined}
-                className="pyqt-tab inline-flex shrink-0 items-center gap-1.5 !px-2"
+                title={tab.status ? `${tab.label} · ${tab.status}` : tab.label}
+                className="a4n-media-stage-tab pyqt-tab inline-flex shrink-0 items-center gap-1.5 !px-2"
               >
-                <span className="tabular-nums text-small text-book-text-muted" aria-hidden="true">{index + 1}</span>
-                {tab.icon}
-                {tab.label}
-                {tab.status && <span className="text-small text-book-text-muted">{tab.status}</span>}
+                <span className="a4n-media-stage-tab__index tabular-nums" aria-hidden="true">{index + 1}</span>
+                {tab.icon ? <span className="a4n-media-stage-tab__icon" aria-hidden="true">{tab.icon}</span> : null}
+                <span className="a4n-media-stage-tab__label">{tab.label}</span>
+                {tab.status ? <span className="a4n-media-stage-tab__status">{tab.status}</span> : null}
               </button>
             );
           })}

@@ -22,7 +22,6 @@ export type { ProgressTimelineItem };
 interface ProgressDialogProps {
   open: boolean;
   title: string;
-  subtitle?: React.ReactNode;
   status: ProgressDialogStatus;
   current: number;
   total: number;
@@ -44,7 +43,6 @@ interface ProgressDialogProps {
 export const ProgressDialog: React.FC<ProgressDialogProps> = ({
   open,
   title,
-  subtitle,
   status,
   current,
   total,
@@ -174,7 +172,6 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
       isOpen={open}
       onClose={canClose ? onClose : () => undefined}
       title={title}
-      subtitle={subtitle}
       icon={icon}
       tone={tone}
       maxWidthClassName="max-w-2xl"

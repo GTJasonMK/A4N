@@ -24,9 +24,6 @@ export const ImportFilePanel: React.FC<ImportFilePanelProps> = ({
   <section className="a4n-flat-surface p-4 sm:p-5">
     <div className="mb-4">
       <h3 className="text-sm font-semibold text-book-text-main">{t("novel.importReview.file.title")}</h3>
-      <p className="mt-0.5 text-small text-book-text-muted">
-        {t("novel.importReview.file.description")}
-      </p>
     </div>
     <div className="grid items-end gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
       <button

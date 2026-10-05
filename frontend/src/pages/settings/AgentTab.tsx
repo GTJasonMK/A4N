@@ -257,9 +257,6 @@ export const AgentTab: React.FC = () => {
                   <h3 className="text-sm font-semibold text-book-text-main">
                     {profileLabel(activeProfile.capability, t)}
                   </h3>
-                  <p className="mt-1 text-[11px] text-book-text-muted">
-                    {t("settingsAgent.profileHint")}
-                  </p>
                 </div>
                 <span className="text-[11px] text-book-text-muted">
                   {t("settingsAgent.enabledCount", {

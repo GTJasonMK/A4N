@@ -21,9 +21,6 @@ export const InspirationGuidePanel: React.FC<InspirationGuidePanelProps> = ({
       <div className="flex h-full min-h-0 w-full flex-col p-3">
         <header className="border-b border-book-border/55 px-1 pb-3 pt-1">
           <h2 className="text-sm font-semibold text-book-text-main">{t("inspiration.progressTitle")}</h2>
-          <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
-            {t("inspiration.progressSubtitle")}
-          </p>
         </header>
 
         <div className="mt-3 min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-1">

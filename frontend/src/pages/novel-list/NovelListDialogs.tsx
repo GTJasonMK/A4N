@@ -92,7 +92,6 @@ export const ProjectCreationDialog: React.FC<ProjectCreationDialogProps> = ({
       onClose={() => !creating && onClose()}
       title={t("novel.newProject")}
       icon={<Plus size={15} />}
-      subtitle={t("novel.selectMode")}
       maxWidthClassName="max-w-xl"
       bodyClassName="px-4 py-4"
       closeOnBackdrop={!creating}
@@ -170,7 +169,6 @@ export const VideoProjectSourceDialog: React.FC<VideoProjectSourceDialogProps> =
       onClose={onClose}
       title={t("novel.videoProjectSourceTitle")}
       icon={<Film size={15} />}
-      subtitle={t("novel.videoProjectSourceDescription")}
       maxWidthClassName="max-w-md"
       bodyClassName="px-4 py-4"
       footer={

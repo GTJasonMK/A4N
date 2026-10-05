@@ -22,7 +22,6 @@ export const WorldDetailModal: React.FC<WorldDetailModalProps> = ({
       isOpen={open}
       onClose={onClose}
       title={t("novel.world.detailTitle")}
-      subtitle={t("novel.world.detailSubtitle")}
       icon={<ScrollText size={15} />}
       maxWidthClassName="max-w-5xl"
       bodyClassName="px-4 py-4"

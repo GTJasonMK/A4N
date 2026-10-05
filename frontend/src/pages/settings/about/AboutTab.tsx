@@ -65,9 +65,6 @@ export const AboutTab: React.FC<{ user: AboutUser | null; onLogout: () => Promis
             </span>
             <div className="min-w-0">
               <h2 className="font-serif text-base font-semibold text-book-text-main">A4N</h2>
-              <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
-                {t("settingsAbout.productDescription")}
-              </p>
             </div>
           </div>
           <details className="group border-t border-book-border/35 text-xs">

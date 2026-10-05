@@ -9,7 +9,6 @@ interface WorldPanelHeaderProps {
   editing: boolean;
   saving: boolean;
   canEdit: boolean;
-  hasBlueprint: boolean;
   hasWorldContent: boolean;
   worldObject: WorldObject | null;
   refining: boolean;
@@ -24,7 +23,6 @@ export const WorldPanelHeader: React.FC<WorldPanelHeaderProps> = ({
   editing,
   saving,
   canEdit,
-  hasBlueprint,
   hasWorldContent,
   worldObject,
   refining,
@@ -35,15 +33,6 @@ export const WorldPanelHeader: React.FC<WorldPanelHeaderProps> = ({
   onOpenDetail,
 }) => {
   const { t } = useI18n();
-  const description = editing
-    ? t("novel.world.editingDescription")
-    : !hasBlueprint
-      ? t("novel.world.noBlueprintDescription")
-      : hasWorldContent
-        ? worldObject
-          ? t("novel.world.structuredDescription")
-          : t("novel.world.textDescription")
-        : t("novel.world.emptyDescription");
   const headerClassName = editing
     ? "mb-4 flex flex-col gap-3 border-b border-book-border/45 pb-3 sm:flex-row sm:items-center sm:justify-between"
     : "flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between";
@@ -54,9 +43,6 @@ export const WorldPanelHeader: React.FC<WorldPanelHeaderProps> = ({
         <h2 className="text-sm font-semibold text-book-text-main">
           {editing ? t("novel.world.editTitle") : t("novel.world.title")}
         </h2>
-        <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
-          {description}
-        </p>
       </div>
       <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0">
         {!editing ? (

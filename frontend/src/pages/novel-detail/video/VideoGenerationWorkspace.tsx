@@ -662,7 +662,6 @@ export const VideoGenerationWorkspace: React.FC<
         title={
           inputDialog?.kind === "frame" ? t("video.chapter.frameConfigTitle", { label: inputDialog.label }) : t("video.chapter.frameConfig")
         }
-        subtitle={t("video.chapter.frameConfigSubtitle")}
         icon={<ImageIcon size={15} />}
         maxWidthClassName="max-w-2xl"
         zIndexClassName="z-[70]"
@@ -865,7 +864,6 @@ export const VideoGenerationWorkspace: React.FC<
         isOpen={segmentConfigOpen && inputDialog?.kind === "continuity"}
         onClose={() => setInputDialog(null)}
         title={t("video.chapter.continuityConfigTitle")}
-        subtitle={t("video.chapter.continuityConfigSubtitle")}
         icon={<PanelTop size={15} />}
         maxWidthClassName="max-w-2xl"
         zIndexClassName="z-[70]"

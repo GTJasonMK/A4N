@@ -368,7 +368,6 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
         isOpen
         onClose={() => void requestClose()}
         title={t("characterDetail.portrait.generationTitle")}
-        subtitle={t("characterDetail.portrait.generationSubtitle")}
         icon={<Images size={15} />}
         maxWidthClassName="max-w-3xl"
         closeOnBackdrop={!closeBusy}

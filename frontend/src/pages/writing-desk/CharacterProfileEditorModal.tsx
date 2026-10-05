@@ -131,11 +131,6 @@ export const CharacterProfileEditorModal: React.FC<{
       onClose={() => void close()}
       title={editing ? t("characterDetail.editInitialProfileTitle") : t("characterDetail.newProfileTitle")}
       icon={editing ? <Pencil size={15} /> : <UserPlus size={15} />}
-      subtitle={
-        editing
-          ? t("characterDetail.editProfileSubtitle")
-          : t("characterDetail.createProfileSubtitle")
-      }
       maxWidthClassName="max-w-lg"
       bodyClassName="px-4 py-4"
       closeOnBackdrop={!saving}

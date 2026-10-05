@@ -6,7 +6,6 @@ interface PageHeaderProps {
   icon?: React.ReactNode;
   eyebrow?: React.ReactNode;
   title: React.ReactNode;
-  subtitle?: React.ReactNode;
   meta?: React.ReactNode;
   actions?: React.ReactNode;
   titleId?: string;
@@ -24,7 +23,6 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   icon,
   eyebrow,
   title,
-  subtitle,
   meta,
   actions,
   titleId,
@@ -42,7 +40,6 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
         </h1>
         {meta != null ? <div className="a4n-app-page-header__meta">{meta}</div> : null}
       </div>
-      {subtitle != null ? <div className="a4n-app-page-header__subtitle">{subtitle}</div> : null}
     </div>
 
     <div className="a4n-app-page-header__actions">

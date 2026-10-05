@@ -333,7 +333,6 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
           onClose={() => void closeImportDialog()}
           title={t("novel.importChapter")}
           icon={<Upload size={15} />}
-          subtitle={t("novel.importChapterSubtitle")}
           maxWidthClassName="max-w-2xl"
           bodyClassName="px-4 py-4"
           closeOnBackdrop={!importing}

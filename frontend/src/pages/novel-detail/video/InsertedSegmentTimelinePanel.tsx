@@ -564,7 +564,6 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
           isOpen={editingItem != null && editingPrompt != null && edit != null}
           onClose={closeModal}
           title={t("video.chapter.insertedDetailTitle")}
-          subtitle={t("video.chapter.insertedDetailSubtitle")}
           icon={<ChevronDown size={15} />}
           maxWidthClassName="max-w-3xl"
           footer={

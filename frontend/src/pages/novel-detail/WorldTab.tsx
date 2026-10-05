@@ -362,7 +362,6 @@ export const WorldTab: React.FC<WorldTabProps> = ({
             editing
             saving={saving}
             canEdit={Boolean(displayBlueprint) && canEditWorld}
-            hasBlueprint={Boolean(displayBlueprint)}
             hasWorldContent={displayHasWorldContent}
             worldObject={displayWorldObject}
             refining={refining}
@@ -389,7 +388,6 @@ export const WorldTab: React.FC<WorldTabProps> = ({
             editing={false}
             saving={saving}
             canEdit={Boolean(displayBlueprint) && canEditWorld}
-            hasBlueprint={Boolean(displayBlueprint)}
             hasWorldContent={displayHasWorldContent}
             worldObject={displayWorldObject}
             refining={refining}

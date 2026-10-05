@@ -276,11 +276,6 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
               ? t("settingsAdmin.packages")
               : t("settingsAbout.packagePreferences")}
           </h3>
-          <p className="mt-0.5 text-small text-book-text-muted">
-            {canManageLifecycle
-              ? t("settingsAdmin.packageHint")
-              : t("settingsAbout.packagePreferencesHint")}
-          </p>
         </div>
         <BookIconButton
           label={t("settingsAdmin.refresh")}

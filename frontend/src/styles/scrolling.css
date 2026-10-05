@@ -239,6 +239,100 @@
   flex: 0 0 auto;
 }
 
+/* 媒体改编阶段轨道：阶段是主导航，进度是辅助信息，避免整排文字抢同一层级。 */
+.a4n-media-stage-tabs .tab-bar {
+  gap: 0.25rem;
+  padding: 0.125rem;
+}
+
+.a4n-media-stage-tab {
+  min-height: 2.5rem;
+  border: 1px solid transparent;
+  border-radius: 0.7rem;
+  color: rgb(var(--color-text-secondary));
+  transition:
+    background-color var(--a4n-motion-fast) var(--a4n-ease-out),
+    border-color var(--a4n-motion-fast) var(--a4n-ease-out),
+    color var(--a4n-motion-fast) var(--a4n-ease-out);
+}
+
+.a4n-media-stage-tab:hover {
+  border-color: rgb(var(--color-border) / 0.55);
+  background: rgb(var(--color-bg-tertiary) / 0.42);
+}
+
+.a4n-media-stage-tab[data-active="1"] {
+  border-color: rgb(var(--color-primary) / 0.35);
+  background: rgb(var(--color-primary) / 0.11);
+  box-shadow: inset 0 -2px 0 rgb(var(--color-primary) / 0.9);
+}
+
+.a4n-media-stage-tab__index {
+  display: inline-grid;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgb(var(--color-border) / 0.72);
+  border-radius: 0.42rem;
+  color: rgb(var(--color-text-muted));
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.a4n-media-stage-tab[data-active="1"] .a4n-media-stage-tab__index {
+  border-color: rgb(var(--color-primary) / 0.62);
+  background: rgb(var(--color-primary) / 0.2);
+  color: rgb(var(--color-primary));
+}
+
+.a4n-media-stage-tab__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: rgb(var(--color-text-muted));
+}
+
+.a4n-media-stage-tab[data-active="1"] .a4n-media-stage-tab__icon,
+.a4n-media-stage-tab[data-active="1"] .a4n-media-stage-tab__label {
+  color: rgb(var(--color-primary));
+}
+
+.a4n-media-stage-tab__label {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.a4n-media-stage-tab__status {
+  max-width: 7rem;
+  overflow: hidden;
+  border-left: 1px solid rgb(var(--color-border) / 0.7);
+  padding-left: 0.45rem;
+  color: rgb(var(--color-text-muted));
+  font-size: 0.68rem;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.a4n-media-stage-tab[data-active="1"] .a4n-media-stage-tab__status {
+  border-color: rgb(var(--color-primary) / 0.28);
+  color: rgb(var(--color-text-secondary));
+}
+
+@media (min-width: 768px) and (max-width: 1200px) {
+  .a4n-media-stage-tab__label {
+    max-width: 8rem;
+  }
+
+  .a4n-media-stage-tab__status {
+    max-width: 5rem;
+  }
+}
+
 /* 移动端横滑选择轨道：保留原生滚动能力，隐藏桌面式滚动条。 */
 .a4n-mobile-scroll-rail {
   -webkit-overflow-scrolling: touch;

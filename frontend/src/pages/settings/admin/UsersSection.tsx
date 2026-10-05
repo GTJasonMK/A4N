@@ -646,7 +646,6 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
         isOpen={createOpen}
         onClose={() => void closeCreate()}
         title={t("settingsAdmin.createUser")}
-        subtitle={t("settingsAdmin.createUserSubtitle")}
         icon={<Plus size={15} />}
         maxWidthClassName="max-w-lg"
         closeOnBackdrop={!createBusy}

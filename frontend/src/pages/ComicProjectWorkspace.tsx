@@ -16,7 +16,6 @@ import { DerivedProjectHeader } from "../components/shell/DerivedProjectHeader";
 import { MangaTab } from "./novel-detail/MangaTab";
 import { EmptyHint } from "./novel-detail/shared";
 import { SourceSyncDialog } from "./derived/SourceSyncDialog";
-import { getDerivedProjectSubtitle } from "../utils/projectRouting";
 import { useI18n } from "../i18n";
 import { useNovelDetailDirtyRegistry } from "./novel-detail/novelDetailDirty";
 import { confirmDiscardMediaChanges } from "../components/feedback/UnsavedChangesGuard";
@@ -31,27 +30,6 @@ export const ComicProjectWorkspace: React.FC = () => {
   const translatorRef = useRef(t);
   translatorRef.current = t;
   const projectId = Number(id);
-
-  const subtitleLabels = useMemo(
-    () => ({
-      fallback: t("comic.projectWorkspace"),
-      sourceProject: (title: string) => t("novel.sourceProject", { title }),
-      chapterScope: (start: number, end: number) =>
-        start === end
-          ? t("novel.chapterScopeSingle", { start })
-          : t("novel.chapterScopeRange", { start, end }),
-      sourceSyncStatus: (value: string | null | undefined) => {
-        switch (String(value ?? "").trim().toLowerCase()) {
-          case "current": return t("novel.sourceSyncCurrent");
-          case "root_updated": return t("novel.sourceSyncRootUpdated");
-          case "conflict": return t("novel.sourceSyncConflict");
-          case "detached": return t("novel.sourceSyncDetached");
-          default: return value?.trim() || t("novel.sourceSyncUnknown");
-        }
-      },
-    }),
-    [t],
-  );
 
   const [project, setProject] = useState<NovelProject | null>(null);
   const [chapters, setChapters] = useState<SourceSnapshotChapterSummary[]>([]);
@@ -140,13 +118,6 @@ export const ComicProjectWorkspace: React.FC = () => {
         leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => navigate("/")} />}
         icon={<PanelsTopLeft size={15} />}
         title={project?.title || t("novel.comicProject")}
-        subtitle={
-          project
-            ? project.source_mode === "standalone"
-              ? t("comic.projectWorkspace")
-              : getDerivedProjectSubtitle(project, subtitleLabels)
-            : loading ? t("video.sourceLoading") : null
-        }
         actions={
           <>
             {canEditProject && project?.source_mode === "derived" ? (

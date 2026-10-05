@@ -25,7 +25,6 @@ import { BackButton } from "../components/ui/BackButton";
 import { DerivedProjectHeader } from "../components/shell/DerivedProjectHeader";
 import { EmptyHint, type ChapterRow } from "./novel-detail/shared";
 import { VideoTab } from "./novel-detail/VideoTab";
-import { getDerivedProjectSubtitle } from "../utils/projectRouting";
 import { formatNumber, useI18n } from "../i18n";
 import { useNovelDetailDirtyRegistry } from "./novel-detail/novelDetailDirty";
 import { UnsavedNavigationGuard } from "../components/navigation/UnsavedNavigationGuard";
@@ -45,27 +44,6 @@ export const VideoProjectWorkspace: React.FC = () => {
   const translatorRef = useRef(t);
   translatorRef.current = t;
   const projectId = Number(id);
-
-  const subtitleLabels = useMemo(
-    () => ({
-      fallback: t("video.projectWorkspace"),
-      sourceProject: (title: string) => t("novel.sourceProject", { title }),
-      chapterScope: (start: number, end: number) =>
-        start === end
-          ? t("novel.chapterScopeSingle", { start })
-          : t("novel.chapterScopeRange", { start, end }),
-      sourceSyncStatus: (value: string | null | undefined) => {
-        switch (String(value ?? "").trim().toLowerCase()) {
-          case "current": return t("novel.sourceSyncCurrent");
-          case "root_updated": return t("novel.sourceSyncRootUpdated");
-          case "conflict": return t("novel.sourceSyncConflict");
-          case "detached": return t("novel.sourceSyncDetached");
-          default: return value?.trim() || t("novel.sourceSyncUnknown");
-        }
-      },
-    }),
-    [t],
-  );
 
   const [project, setProject] = useState<NovelProject | null>(null);
   const [chapters, setChapters] = useState<SourceSnapshotChapterSummary[]>([]);
@@ -200,11 +178,6 @@ export const VideoProjectWorkspace: React.FC = () => {
         leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => void handleBack()} />}
         icon={<Film size={15} />}
         title={project?.title || t("novel.videoProject")}
-        subtitle={
-          project
-            ? getDerivedProjectSubtitle(project, subtitleLabels)
-            : loading ? t("video.sourceLoading") : null
-        }
         actions={
           <>
             {canEditProject ? (

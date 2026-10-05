@@ -460,9 +460,6 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
           </div>
           <div className="max-w-sm">
             <h3 className="text-sm font-medium text-book-text-main">{t("video.chapter.noVideo")}</h3>
-            <p className="mt-1 text-xs leading-relaxed text-book-text-muted">
-              {t("video.chapter.noVideoHint")}
-            </p>
             <div className="mt-3 xl:hidden">
               <BookButton
                 variant="secondary"

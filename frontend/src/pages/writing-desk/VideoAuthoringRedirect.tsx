@@ -28,7 +28,6 @@ export function VideoAuthoringRedirect({ projectId }: { projectId: number }) {
   return (
     <section className="a4n-flat-surface min-w-0 space-y-3 p-4">
       <h3 className="font-semibold">{t("common.mediaAuthoring.movedTitle")}</h3>
-      <p className="text-sm text-book-text-muted">{t("common.mediaAuthoring.movedDescription")}</p>
       {loading ? <LoadingSpinner size="sm" text={t("common.loading")} /> : error ? (
         <div role="alert" className="space-y-2 text-sm text-error">
           <p>{error}</p>

@@ -26,9 +26,6 @@ export const StreamDisplaySettingsPanel: React.FC<StreamDisplaySettingsPanelProp
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold text-book-text-main">{t("settingsTheme.streamDisplay")}</h3>
-          <p className="mt-1 text-small leading-relaxed text-book-text-muted">
-            {t("settingsTheme.streamDisplayHint")}
-          </p>
         </div>
         <button
           type="button"

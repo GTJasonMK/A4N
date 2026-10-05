@@ -509,7 +509,6 @@ const RelationshipEditorModal: React.FC<{
           ? t("novel.relationships.editorEdit")
           : t("novel.relationships.editorCreate")
       }
-      subtitle={t("novel.relationships.editorSubtitle")}
       icon={state.editing ? <Pencil size={15} /> : <Plus size={15} />}
       maxWidthClassName="max-w-lg"
       bodyClassName="px-4 py-4"

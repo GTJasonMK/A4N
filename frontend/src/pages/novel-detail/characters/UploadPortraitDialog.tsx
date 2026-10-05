@@ -194,7 +194,6 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
       isOpen
       onClose={() => void requestClose()}
       title={t("characterDetail.portrait.uploadTitle")}
-      subtitle={t("characterDetail.portrait.uploadSubtitle")}
       icon={<Upload size={15} />}
       maxWidthClassName="max-w-2xl"
       closeOnBackdrop={!busy}

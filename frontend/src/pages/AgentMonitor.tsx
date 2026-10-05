@@ -612,7 +612,6 @@ export const AgentMonitor: React.FC = () => {
         icon={<span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-book-primary/10 text-book-primary"><Bot size={18} /></span>}
         eyebrow={t("agent.collaborationHub")}
         title={t("agent.workbench")}
-        subtitle={locale === "zh-CN" ? "查看任务进度与待确认操作" : "Track progress and review pending actions"}
         meta={<span className={`inline-flex items-center gap-1.5 text-small ${connected ? "text-success" : "text-book-text-muted"}`}><span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-success" : "bg-book-text-muted/50"}`} />{connected ? (locale === "zh-CN" ? "事件流已连接" : "Event stream") : t("agent.polling")}</span>}
         actions={<BookIconButton label={t("agent.refresh")} onClick={() => void refreshWorkbench()} variant="secondary" size="sm" disabled={refreshing || snapshotLoading}><RefreshCw size={14} className={refreshing || snapshotLoading ? "animate-spin" : undefined} /></BookIconButton>}
       />

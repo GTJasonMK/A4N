@@ -562,9 +562,6 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
             <h3 className="text-sm font-medium text-book-text-main">
               {t("video.chapter.assemblyNoClips")}
             </h3>
-            <p className="mt-1 text-xs leading-relaxed text-book-text-muted">
-              {t("video.chapter.assemblyNoClipsHint")}
-            </p>
           </div>
           <BookButton
             variant="secondary"

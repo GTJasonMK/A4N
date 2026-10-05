@@ -710,20 +710,6 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                   </div>
                 </header>
 
-                {activePage.pipelineError && (
-                  <div
-                    role="alert"
-                    className="mx-3 mt-3 rounded-lg border border-error/35 bg-error/10 px-3 py-2 text-xs text-error"
-                  >
-                    <p className="font-semibold">
-                      {t("comic.prompt.pipelineError")} · {mangaPageStageLabel(activePage.pipelineError.stage, t)}
-                    </p>
-                    <p className="mt-1 whitespace-pre-wrap break-words">
-                      {activePage.pipelineError.message}
-                    </p>
-                  </div>
-                )}
-
                 {!stageMode && <div className="border-b border-book-border/40 px-3 py-2">
                   <SegmentedControl
                     ariaLabel={t("comic.prompt.pageTitle")}

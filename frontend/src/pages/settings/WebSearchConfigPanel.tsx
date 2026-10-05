@@ -196,9 +196,6 @@ export const WebSearchConfigPanel: React.FC = () => {
           <h2 className="a4n-section-heading">
             {t("settings.webSearch")}
           </h2>
-          <p className="mt-1 text-small leading-relaxed text-book-text-muted">
-            {t("settings.webSearchHint")}
-          </p>
         </div>
         <BookIconButton
           label={t("common.refresh")}
@@ -371,9 +368,6 @@ export const WebSearchConfigPanel: React.FC = () => {
             <Globe2 size={16} className="mt-0.5 shrink-0 text-book-primary" />
             <div className="min-w-0 flex-1">
               <h4 className="text-xs font-semibold text-book-text-main">{t("settings.webFetch")}</h4>
-              <p className="mt-1 text-small leading-relaxed text-book-text-muted">
-                {t("settings.webFetchHint")}
-              </p>
             </div>
           </div>
           <div className="grid min-w-0 grid-cols-1 gap-3 p-3 sm:grid-cols-2">

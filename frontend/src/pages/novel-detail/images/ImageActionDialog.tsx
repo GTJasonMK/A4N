@@ -309,9 +309,6 @@ export function ImageActionDialog({
             <section className="a4n-flat-surface space-y-3 p-3">
               <div>
                 <h3 className="text-xs font-semibold text-book-text-main">{t("novel.imageLibrary.promptTitle")}</h3>
-                <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
-                  {t("novel.imageLibrary.promptHint")}
-                </p>
               </div>
               <label className="grid gap-1 text-small text-book-text-muted">
                 <textarea
@@ -374,9 +371,6 @@ export function ImageActionDialog({
             <section className="a4n-flat-surface space-y-3 p-3">
               <div>
                 <h3 className="text-xs font-semibold text-book-text-main">{t("novel.imageLibrary.qualityScore")}</h3>
-                <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
-                  {t("novel.imageLibrary.qualityHint")}
-                </p>
               </div>
               <div className="flex items-center gap-2">
                 <input

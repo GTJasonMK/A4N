@@ -104,10 +104,6 @@ export function OutlineAdvancedToolsDialog({
         if (!actionBusy) onClose();
       }}
       title={t("outline.advanced.title")}
-      subtitle={t("outline.advanced.subtitle", {
-        parts: parts.length,
-        outlines: outlines.length,
-      })}
       icon={<SlidersHorizontal size={15} />}
       maxWidthClassName="max-w-5xl"
       bodyClassName="px-4 py-4"

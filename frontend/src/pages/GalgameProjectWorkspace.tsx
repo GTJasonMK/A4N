@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Gamepad2, GitCompare, RefreshCw, Trash2 } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
@@ -19,7 +19,6 @@ import { Dropdown } from "../components/ui/Dropdown";
 import { DerivedProjectHeader } from "../components/shell/DerivedProjectHeader";
 import { SourceSyncDialog } from "./derived/SourceSyncDialog";
 import { GalgameTab } from "./novel-detail/GalgameTab";
-import { getDerivedProjectSubtitle } from "../utils/projectRouting";
 import { getProjectLifecycleBlockedReason } from "../utils/projectStatus";
 import { useI18n } from "../i18n";
 import { confirmDiscardMediaChanges } from "../components/feedback/UnsavedChangesGuard";
@@ -35,27 +34,6 @@ export const GalgameProjectWorkspace: React.FC = () => {
   const translatorRef = useRef(t);
   translatorRef.current = t;
   const projectId = Number(id);
-
-  const subtitleLabels = useMemo(
-    () => ({
-      fallback: t("galgame.workspace"),
-      sourceProject: (title: string) => t("novel.sourceProject", { title }),
-      chapterScope: (start: number, end: number) =>
-        start === end
-          ? t("novel.chapterScopeSingle", { start })
-          : t("novel.chapterScopeRange", { start, end }),
-      sourceSyncStatus: (value: string | null | undefined) => {
-        switch (String(value ?? "").trim().toLowerCase()) {
-          case "current": return t("novel.sourceSyncCurrent");
-          case "root_updated": return t("novel.sourceSyncRootUpdated");
-          case "conflict": return t("novel.sourceSyncConflict");
-          case "detached": return t("novel.sourceSyncDetached");
-          default: return value?.trim() || t("novel.sourceSyncUnknown");
-        }
-      },
-    }),
-    [t],
-  );
 
   const [project, setProject] = useState<NovelProject | null>(null);
   const [chapters, setChapters] = useState<SourceSnapshotChapterSummary[]>([]);
@@ -304,11 +282,6 @@ export const GalgameProjectWorkspace: React.FC = () => {
         leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => navigate("/")} />}
         icon={<Gamepad2 size={15} />}
         title={project?.title || t("novel.galgameProject")}
-        subtitle={
-          project
-            ? getDerivedProjectSubtitle(project, subtitleLabels)
-            : loading ? t("video.sourceLoading") : null
-        }
         actions={
           <>
             {canEditProject ? (

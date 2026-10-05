@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
-  CheckCircle2,
   CircleDashed,
   Eye,
   ImagePlus,
@@ -9,7 +8,6 @@ import {
   Play,
   RefreshCw,
   Trash2,
-  XCircle,
 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { ImageSizeSelect } from "../../../components/image/ImageSizeSelect";
@@ -48,7 +46,6 @@ import { isCancelledOperation } from "../../../utils/cancellation";
 import { chooseDownstreamConflictStrategy } from "../dependencyConflict";
 import { EmptyHint, isChapterGenerating, type ChapterRow } from "../shared";
 import { MangaPagePromptList } from "./MangaPagePromptList";
-import { explainMangaPipelineAiConfigError } from "./mangaPipelineErrors";
 import {
   chapterHeading,
   countStaleMangaPagePrompts,
@@ -109,6 +106,7 @@ interface MangaChapterDetailPanelProps {
 }
 
 type NoticeTone = "ok" | "warning" | "danger" | "muted";
+type InlineNoticeTone = "warning" | "muted";
 
 const noticeClass: Record<NoticeTone, string> = {
   ok: "border-success/40 text-success",
@@ -117,9 +115,7 @@ const noticeClass: Record<NoticeTone, string> = {
   muted: "border-book-border/50 text-book-text-sub",
 };
 
-const noticeIcon = (tone: NoticeTone) => {
-  if (tone === "ok") return <CheckCircle2 size={13} />;
-  if (tone === "danger") return <XCircle size={13} />;
+const noticeIcon = (tone: InlineNoticeTone) => {
   if (tone === "warning") return <AlertTriangle size={13} />;
   return <CircleDashed size={13} />;
 };
@@ -342,27 +338,20 @@ export function MangaChapterDetailPanel({
   const notice = (() => {
     if (!selectedChapterReady) {
       return {
-        tone: "warning" as NoticeTone,
+        tone: "warning" as InlineNoticeTone,
         text: t("comic.chapter.emptyBodyNotice"),
       };
     }
     if (selectedChapterGenerating) {
       return {
-        tone: "warning" as NoticeTone,
+        tone: "warning" as InlineNoticeTone,
         text: t("comic.chapter.generatingNotice"),
       };
     }
-    if (pipelineStoppedWithError) {
-      return {
-        tone: "danger" as NoticeTone,
-        text: selectedStatus.message
-          ? explainMangaPipelineAiConfigError(selectedStatus.message, t)
-          : t("comic.chapter.interruptedNotice"),
-      };
-    }
+    if (pipelineStoppedWithError) return null;
     if (selectedStatus?.can_resume) {
       return {
-        tone: "warning" as NoticeTone,
+        tone: "warning" as InlineNoticeTone,
         text: selectedStatus.checkpoint_valid
           ? t("comic.chapter.resumableNotice")
           : t("comic.chapter.staleCheckpointNotice"),
@@ -370,7 +359,7 @@ export function MangaChapterDetailPanel({
     }
     if (missingPortraitCount > 0 && onGenerateMissingPortraits) {
       return {
-        tone: "warning" as NoticeTone,
+        tone: "warning" as InlineNoticeTone,
         text: t("comic.chapter.missingPortraitNotice", {
           count: missingPortraitCount,
         }),
@@ -378,20 +367,15 @@ export function MangaChapterDetailPanel({
     }
     if (stalePagePromptCount > 0) {
       return {
-        tone: "warning" as NoticeTone,
+        tone: "warning" as InlineNoticeTone,
         text: t("comic.chapter.stalePromptNotice", {
           count: stalePagePromptCount,
         }),
       };
     }
-    if (pagePrompts.length > 0) {
-      return {
-        tone: "ok" as NoticeTone,
-        text: t("comic.chapter.promptsReadyNotice"),
-      };
-    }
+    if (pagePrompts.length > 0) return null;
     return {
-      tone: "muted" as NoticeTone,
+      tone: "muted" as InlineNoticeTone,
       text: t("comic.chapter.readyNotice"),
     };
   })();
@@ -1043,16 +1027,18 @@ export function MangaChapterDetailPanel({
                 ) : null}
               </div>
 
-              <div
-                className={`mt-3 flex items-start gap-2 rounded-xl border bg-book-bg-paper/50 px-2.5 py-2 text-xs ${noticeClass[notice.tone]}`}
-              >
-                <span className="mt-0.5 shrink-0">
-                  {noticeIcon(notice.tone)}
-                </span>
-                <span className="min-w-0 flex-1 whitespace-pre-wrap break-words leading-relaxed">
-                  {notice.text}
-                </span>
-              </div>
+              {notice ? (
+                <div
+                  className={`mt-3 flex items-start gap-2 rounded-xl border bg-book-bg-paper/50 px-2.5 py-2 text-xs ${noticeClass[notice.tone]}`}
+                >
+                  <span className="mt-0.5 shrink-0">
+                    {noticeIcon(notice.tone)}
+                  </span>
+                  <span className="min-w-0 flex-1 whitespace-pre-wrap break-words leading-relaxed">
+                    {notice.text}
+                  </span>
+                </div>
+              ) : null}
             </header>
 
             <div className="mt-3 min-h-0 min-w-0 flex-1">

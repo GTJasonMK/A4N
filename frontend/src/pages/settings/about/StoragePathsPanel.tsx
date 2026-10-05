@@ -367,9 +367,6 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
             <Trash2 size={14} className="shrink-0 text-book-primary" />
             <div className="min-w-0 flex-1">
               <h3 className="text-xs font-semibold text-book-text-main">{t("settingsAbout.storageCleanup")}</h3>
-              <p className="mt-0.5 text-small text-book-text-muted">
-                {t("settingsAbout.storageCleanupHint")}
-              </p>
             </div>
           </div>
 

@@ -1042,9 +1042,6 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           <h4 className="text-sm font-medium text-book-text-main">
             {t("outline.advancedPanel.selectedPart")}
           </h4>
-          <p className="mt-0.5 text-small text-book-text-muted">
-            {t("outline.advancedPanel.selectedPartHint")}
-          </p>
         </div>
         <ThemedSelect
           value={selectedPartId}
@@ -1087,9 +1084,6 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           <h4 className="text-sm font-medium text-book-text-main">
             {t("outline.advancedPanel.allParts")}
           </h4>
-          <p className="mt-0.5 text-small text-book-text-muted">
-            {t("outline.advancedPanel.allPartsHint")}
-          </p>
         </div>
         <div className="grid gap-2">
           <AdvancedActionRow

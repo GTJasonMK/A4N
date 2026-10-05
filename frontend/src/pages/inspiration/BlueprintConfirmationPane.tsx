@@ -128,7 +128,6 @@ export const BlueprintConfirmationPane: React.FC<BlueprintConfirmationPaneProps>
         isOpen={refineModalOpen && !consistencyWarning}
         onClose={() => void closeRefineModal()}
         title={t("inspiration.adjustBlueprint")}
-        subtitle={t("inspiration.adjustHint")}
         icon={<RefreshCw size={15} />}
         maxWidthClassName="max-w-md"
         bodyClassName="px-4 py-4 sm:px-5"

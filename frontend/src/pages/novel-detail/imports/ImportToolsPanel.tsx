@@ -74,9 +74,6 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
         <h3 id="import-tools-title" className="text-sm font-semibold text-book-text-main">
           {t("novel.importReview.tools.title")}
         </h3>
-        <p className="mt-0.5 text-small text-book-text-muted">
-          {t("novel.importReview.tools.description")}
-        </p>
       </div>
       <details className="group a4n-flat-surface overflow-hidden">
         <summary className="grid cursor-pointer list-none grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 px-3.5 py-3 text-book-text-main [&::-webkit-details-marker]:hidden">

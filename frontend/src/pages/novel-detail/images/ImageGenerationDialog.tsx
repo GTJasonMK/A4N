@@ -117,11 +117,6 @@ export function ImageGenerationDialog({
       isOpen={open}
       onClose={() => void close()}
       title={chapter ? t("novel.imageLibrary.chapterTitle") : t("novel.imageLibrary.projectTitle")}
-      subtitle={
-        chapter
-          ? t("novel.imageLibrary.chapterDescription")
-          : t("novel.imageLibrary.projectDescription")
-      }
       icon={<Camera size={15} />}
       maxWidthClassName="max-w-2xl"
       bodyClassName="px-4 py-4"

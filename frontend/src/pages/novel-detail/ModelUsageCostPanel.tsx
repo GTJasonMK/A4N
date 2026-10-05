@@ -101,7 +101,6 @@ export const ModelUsageCostPanel: React.FC<{ projectId: number | null }> = ({ pr
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-semibold text-book-text-main">{t("novel.costTitle")}</h2>
-          <p className="mt-1 text-small text-book-text-muted">{t("novel.costSubtitle")}</p>
         </div>
         <BookIconButton
           label={t("novel.costRefresh")}

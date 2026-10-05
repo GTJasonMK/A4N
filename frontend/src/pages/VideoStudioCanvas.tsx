@@ -884,11 +884,6 @@ export const VideoStudioCanvas: React.FC = () => {
           leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => navigate(project ? getProjectStudioBackRoute(project) : "/")} />}
           icon={<Film size={15} />}
           title={project?.title || t("video.canvasProject")}
-          subtitle={
-            selectedNode
-              ? `${selectedNode.data.label || nodeDisplayTitle(selectedNode.data, t)} · ${stateLabel(selectedNode.data.state, t)}`
-              : t("video.freeCanvasDescription")
-          }
           meta={
             <span className="text-small text-book-text-muted">
               {saving

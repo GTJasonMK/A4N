@@ -567,7 +567,6 @@ const PortraitGenerationSizeDialog: React.FC<PortraitGenerationSizeDialogProps> 
       isOpen
       onClose={onClose}
       title={action === "preview" ? t("characterDetail.portrait.previewMissing") : t("characterDetail.portrait.batchMissing")}
-      subtitle={t("settingsForm.selectImageSize")}
       maxWidthClassName="max-w-sm"
       bodyClassName="px-4 py-4"
       footer={

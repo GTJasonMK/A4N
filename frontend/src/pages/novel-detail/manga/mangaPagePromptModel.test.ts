@@ -89,7 +89,7 @@ describe("buildPagePrompts", () => {
 
     expect(page.pipelineStage).toBe("adaptation");
     expect(page.pipelineStatus).toBe("running");
-    expect(page.pipelineError?.message).toBe("temporarily unavailable");
+    expect(page).not.toHaveProperty("pipelineError");
     expect(page.pageContent?.summary).toBe("A character finds the letter.");
     expect(page.promptCount).toBe(0);
     expect(page.characterNames).toEqual([]);

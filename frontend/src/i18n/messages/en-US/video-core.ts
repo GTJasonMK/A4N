@@ -222,7 +222,6 @@ export const videoCore = {
   inspectorNode: "Node properties",
   inspectorEmpty: "Select a node or edge to edit",
   inspectorEmptyDetail: "Select a canvas node or edge to edit its properties",
-  freeCanvasDescription: "Arrange nodes, media, and generation flows",
   derivedCanvasDescription: "Arrange a video generation flow from a derived project",
   canvasSaving: "Saving canvas…",
   canvasImporting: "Importing media…",

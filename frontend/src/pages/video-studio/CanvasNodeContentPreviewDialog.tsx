@@ -74,11 +74,6 @@ export const CanvasNodeContentPreviewDialog: React.FC<CanvasNodeContentPreviewDi
       isOpen={node !== null}
       onClose={onClose}
       title={preview ? t("video.canvas.preview.title", { name: preview.title }) : t("video.canvas.preview.fallbackTitle")}
-      subtitle={
-        node && preview
-          ? `${preview.kindLabel} · ${contentTypeLabel(preview.dataType, t)}`
-          : t("video.canvas.preview.subtitle")
-      }
       icon={<Eye size={15} />}
       maxWidthClassName="max-w-[min(96vw,72rem)]"
       bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar px-4 py-4"

@@ -140,7 +140,6 @@ export const ThemeTab: React.FC = () => {
       <section className="a4n-flat-surface grid min-w-0 grid-cols-1 gap-2 px-3 py-3 sm:flex sm:flex-wrap sm:items-center sm:gap-3 sm:px-4">
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-semibold text-book-text-main">{t("settingsTheme.appearance")}</h2>
-          <p className="mt-0.5 text-small text-book-text-muted">{t("settingsTheme.appearanceHint")}</p>
         </div>
         <SegmentedControl
           ariaLabel={t("settingsTheme.appearance")}
@@ -191,7 +190,6 @@ export const ThemeTab: React.FC = () => {
         isOpen={Boolean(editingTheme)}
         onClose={() => void handleEditorClose()}
         title={editingTheme?.name ?? t("settingsTheme.editorTitle")}
-        subtitle={editingTheme ? t("settingsTheme.editorHint") : undefined}
         maxWidthClassName="max-w-3xl"
         bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar p-3"
         closeOnBackdrop={!themeTab.editorSaving}
@@ -218,13 +216,6 @@ export const ThemeTab: React.FC = () => {
             : themeAction === "import"
               ? t("settingsTheme.import")
               : t("settingsTheme.package")
-        }
-        subtitle={
-          themeAction === "create"
-            ? t("settingsTheme.createHint")
-            : themeAction === "import"
-              ? t("settingsTheme.importHint")
-              : t("settingsTheme.packageHint")
         }
         maxWidthClassName="max-w-3xl"
         bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar p-4"

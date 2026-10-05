@@ -82,6 +82,8 @@ CLAUDE.md
 /docs/*
 !/docs/public/
 !/docs/public/assets/demo.mp4
+# Internal field map explicitly requested on the debug branch.
+!/docs/llm-call-io-fields.zh.md
 
 # OS/editor noise
 .DS_Store

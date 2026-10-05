@@ -15,12 +15,6 @@
     padding-top: 1px;
   }
 
-  .agent-monitor-page-header .a4n-app-page-header__subtitle {
-    overflow: visible;
-    line-height: 1.35;
-    overflow-wrap: anywhere;
-    white-space: normal;
-  }
 
   .agent-monitor-body {
     box-sizing: border-box;
@@ -384,11 +378,6 @@
       flex-basis: 100%;
     }
 
-    .agent-monitor-page-header .a4n-app-page-header__subtitle {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
 
     .agent-monitor-session-header {
       padding-inline: 10px;

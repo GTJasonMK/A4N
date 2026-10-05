@@ -14,12 +14,6 @@ const entersWritingDesk = (project: HomeEntryProject): boolean =>
   project.project_kind === "text" && canEditProjectMaterials(project) &&
   (project.status === "writing" || project.status === "completed");
 
-export interface DerivedProjectPresentation {
-  root_project_title?: string | null;
-  derived_chapter_scope?: unknown | null;
-  source_sync_status?: string | null;
-}
-
 const PROJECT_TYPE_LABEL_KEYS: Record<string, MessageKey> = {
   novel_long: "novel.longNovel",
   novel_short: "novel.shortStory",
@@ -64,37 +58,6 @@ export const getAdminProjectTypeLabel = (project: {
   project.project_kind === "text"
     ? getProjectTypeLabel(project.project_type, t)
     : getProjectKindLabel(project.project_kind, t);
-
-const formatDerivedChapterScope = (
-  scope: unknown,
-  format: (start: number, end: number) => string,
-): string | null => {
-  if (!scope || typeof scope !== "object") return null;
-  const record = scope as Record<string, unknown>;
-  const start = Number(record.start);
-  const end = Number(record.end);
-  if (!Number.isInteger(start) || !Number.isInteger(end)) return null;
-  return format(start, end);
-};
-
-export interface DerivedProjectSubtitleLabels {
-  fallback: string;
-  sourceProject: (title: string) => string;
-  chapterScope: (start: number, end: number) => string;
-  sourceSyncStatus: (value: string | null | undefined) => string;
-}
-
-export const getDerivedProjectSubtitle = (
-  project: DerivedProjectPresentation,
-  labels: DerivedProjectSubtitleLabels,
-): string => {
-  const parts = [
-    project.root_project_title ? labels.sourceProject(project.root_project_title) : null,
-    formatDerivedChapterScope(project.derived_chapter_scope, labels.chapterScope),
-    labels.sourceSyncStatus(project.source_sync_status),
-  ].filter((part): part is string => Boolean(part));
-  return parts.join(" · ") || labels.fallback;
-};
 
 export const getCanvasProjectRoute = (id: number | string): string =>
   `/canvas-project/${id}`;
