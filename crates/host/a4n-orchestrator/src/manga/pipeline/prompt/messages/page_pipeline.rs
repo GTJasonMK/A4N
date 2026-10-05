@@ -113,6 +113,7 @@ pub(in crate::manga) fn manga_page_storyboard_user_message(
             "required_fields": ["page_number", "beat_refs", "role", "pacing", "importance", "reading_flow", "page_goal", "visual_thesis", "entry_state", "exit_state", "dominant_panel_number", "panels"],
             "page_number": page_number,
             "beat_ref_rule": "beat_refs 必须覆盖 page_adaptation.beat_refs；每格 beat_refs 必须属于页面 beat_refs",
+            "text_layer_speaker_rule": "text_layers.kind 为 dialogue 或 thought 时 speaker 必须是 characters 中的稳定角色名；kind 为 narration 或 sfx 时 speaker 必须严格为 JSON null",
         }),
     )
 }

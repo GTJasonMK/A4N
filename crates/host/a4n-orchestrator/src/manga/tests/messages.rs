@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 
+use a4n_domain::manga::{MangaPageAdaptationV1, MangaPageContentV1};
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use async_trait::async_trait;
 use serde_json::Value;
 
 use super::*;
+use crate::manga::pipeline::prompt::manga_page_storyboard_user_message;
 use crate::manga::pipeline::prompt::{MangaLlmCallInput, prepare_manga_llm_call};
 use crate::source_markers::SourceMarkerMap;
 use a4n_llm_context::{
@@ -46,6 +48,57 @@ fn manga_pages_reuse_shared_input_without_losing_page_or_output_requirements() {
             .to_string()
             .contains("current_page")
     }));
+}
+
+#[test]
+fn manga_page_storyboard_message_requires_null_speaker_for_non_dialogue_layers() {
+    let beat_ref = json!({"unit_id": "unit-1", "beat_id": "beat-1"});
+    let content: MangaPageContentV1 = serde_json::from_value(json!({
+        "summary": "角色发现异常",
+        "source_span_ids": [],
+        "beat_refs": [beat_ref.clone()],
+        "action": "角色停下脚步",
+        "reaction": null,
+        "dialogue_intent": null,
+        "entry_state": "平静",
+        "exit_state": "紧张"
+    }))
+    .expect("page content fixture");
+    let adaptation: MangaPageAdaptationV1 = serde_json::from_value(json!({
+        "visual_intent": "用留白放大异常感",
+        "continuity_requirements": [],
+        "retained_details": [],
+        "omitted_details": [],
+        "beat_refs": [beat_ref]
+    }))
+    .expect("page adaptation fixture");
+    let source_markers = SourceMarkerMap::from_source_spans(&[]).expect("source markers");
+    let message = manga_page_storyboard_user_message(
+        1,
+        1,
+        &content,
+        &adaptation,
+        None,
+        None,
+        json!({"units": [{"participants": ["林晓雨"]}]}),
+        &json!({"characters": {"林晓雨": {"name": "林晓雨"}}}),
+        &json!({"character_portraits": []}),
+        &source_markers,
+    )
+    .expect("storyboard message");
+    let contract = message
+        .packs
+        .iter()
+        .find_map(|pack| {
+            pack.variants[0]
+                .canonical_content_json
+                .get("output_contract")
+        })
+        .expect("storyboard output contract");
+    assert_eq!(
+        contract["text_layer_speaker_rule"],
+        "text_layers.kind 为 dialogue 或 thought 时 speaker 必须是 characters 中的稳定角色名；kind 为 narration 或 sfx 时 speaker 必须严格为 JSON null"
+    );
 }
 
 struct TestPromptRenderer;

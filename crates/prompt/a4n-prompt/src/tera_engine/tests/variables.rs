@@ -125,6 +125,9 @@ fn test_load_real_prompts_dir() {
 
     let manga_storyboard_prompt = engine.get("manga_page_storyboard").unwrap().content;
     assert!(manga_storyboard_prompt.contains("\"layer_index\": 1"));
+    assert!(manga_storyboard_prompt.contains("narration"));
+    assert!(manga_storyboard_prompt.contains("text_layers[].speaker"));
+    assert!(manga_storyboard_prompt.contains("JSON `null`"));
 
     let mut context_guard_vars = HashMap::new();
     context_guard_vars.insert(
