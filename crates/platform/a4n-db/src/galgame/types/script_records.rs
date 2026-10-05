@@ -11,6 +11,8 @@ pub struct PersistGalgameScriptRecordInput {
     pub style_config_json: Value,
     pub status: String,
     pub scenes: Vec<PersistGalgameSceneRecordInput>,
+    pub expected_story_graph_revision: i64,
+    pub story_graph: a4n_domain::galgame::StoryGraph,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -4,6 +4,7 @@ import type * as Host from "./generated/host";
 import type { ModelRequestPreview } from "./requestPreview";
 export type {
   BindGalgameMediaInput,
+  AdvanceGalgameStoryRuntimeInput,
   DeleteGalgameLineInput,
   GalgameAssetGenerationItem,
   GalgameAssetGenerationSummary,
@@ -34,6 +35,7 @@ export type {
   GalgameSceneEntryKind,
   GalgameScriptDetail,
   GalgameSpeakerProfile,
+  GalgameStoryRuntimeView,
   GalgameStageLayerV2,
   GalgameStagePositionV2,
   GalgameTargetEntityKind,
@@ -43,10 +45,14 @@ export type {
   GalgameWorkflowCheckpointSummary,
   GalgameWorkflowRunSummary,
   ImportGalgameAudioInput,
+  GetGalgameStoryRuntimeInput,
   InsertGalgameLineInput,
   PreviewGalgamePipelineInput,
   ReorderGalgameLinesInput,
   RunGalgameAssetGenerationInput,
+  StartGalgameStoryRuntimeInput,
+  SaveGalgameStoryGraphInput,
+  StoryGraph,
   StartGalgamePipelineInput,
   UnbindGalgameMediaInput,
   UpdateGalgameChoiceOptionInput,
@@ -58,6 +64,46 @@ export type {
 export async function getGalgameScript(projectId: Id): Promise<Host.GalgameScriptDetail | null> {
   return apiInvoke<Host.GalgameScriptDetail | null>("get_galgame_script", {
     input: { project_id: idNum(projectId) },
+  });
+}
+
+export async function saveGalgameStoryGraph(
+  projectId: Id,
+  input: Host.SaveGalgameStoryGraphInput,
+): Promise<Host.StoryGraph> {
+  return apiInvoke<Host.StoryGraph>("save_galgame_story_graph", {
+    projectId: idNum(projectId),
+    input,
+  });
+}
+
+export async function getGalgameStoryRuntimeState(
+  projectId: Id,
+  input: Host.GetGalgameStoryRuntimeInput,
+): Promise<Host.GalgameStoryRuntimeView | null> {
+  return apiInvoke<Host.GalgameStoryRuntimeView | null>("get_galgame_story_runtime_state", {
+    projectId: idNum(projectId),
+    input,
+  });
+}
+
+export async function startGalgameStoryRuntime(
+  projectId: Id,
+  input: Host.StartGalgameStoryRuntimeInput,
+): Promise<Host.GalgameStoryRuntimeView> {
+  return apiInvoke<Host.GalgameStoryRuntimeView>("start_galgame_story_runtime", {
+    projectId: idNum(projectId),
+    input,
+  });
+}
+
+export async function advanceGalgameStoryRuntime(
+  projectId: Id,
+  input: Host.AdvanceGalgameStoryRuntimeInput,
+): Promise<Host.GalgameStoryRuntimeView> {
+  return apiInvoke<Host.GalgameStoryRuntimeView>("advance_galgame_story_runtime", {
+    projectId: idNum(projectId),
+    input,
   });
 }
 

@@ -10,6 +10,9 @@ mod asset_plan;
 mod context;
 mod contracts;
 mod errors;
+mod graph_application;
+mod graph_projection;
+pub(crate) use graph_projection::story_graph_from_persist_plan;
 mod media_application;
 mod mutations;
 mod persistence;
@@ -51,7 +54,7 @@ pub(crate) use errors::{
     galgame_asset_plan_spec_record_error, galgame_context_record_error,
     galgame_generation_record_error, galgame_line_record_error, galgame_line_reorder_record_error,
     galgame_media_record_error, galgame_project_record_error, galgame_scene_record_error,
-    galgame_script_record_error,
+    galgame_script_record_error, galgame_story_graph_record_error,
 };
 #[cfg(test)]
 use persistence::GalgamePersistValidationScope;

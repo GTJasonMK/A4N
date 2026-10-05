@@ -56,6 +56,8 @@ pub mod galgame_scene_snapshot_scope;
 pub mod galgame_scene_source_identity;
 pub mod galgame_script_integrity_contract;
 pub mod galgame_script_tables;
+pub mod galgame_story_graph;
+pub mod galgame_story_runtime_state;
 pub mod galgame_target_reverse_integrity_contract;
 pub mod generation_run_checkpoint_fields;
 pub mod generation_runs;

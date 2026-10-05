@@ -454,6 +454,12 @@ impl AppState {
         self.galgame_read_application.as_ref()
     }
 
+    pub(crate) fn galgame_story_graph_mutation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::galgame::GalgameStoryGraphMutationApplicationPort {
+        self.galgame_story_graph_mutation_application.as_ref()
+    }
+
     pub(crate) fn inspiration_history_read_application(
         &self,
     ) -> &dyn a4n_api_contract::inspiration::InspirationHistoryReadApplicationPort {

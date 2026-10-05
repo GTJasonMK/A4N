@@ -3,7 +3,8 @@ use a4n_error::AppError;
 use super::{records::galgame_script_record_input, validation::GalgamePersistValidationScope};
 use crate::galgame::{
     GalgameChapterAdaptation, GalgameScriptDetail, GalgameScriptPersistPlan, OrchestratorContext,
-    galgame_script_record_error, parse_and_validate_presentation_projection,
+    galgame_script_record_error, galgame_story_graph_record_error,
+    parse_and_validate_presentation_projection, story_graph_from_persist_plan,
     validate_line_semantics, validate_positive_id, validate_scene_entry_kind,
 };
 
@@ -112,7 +113,39 @@ impl OrchestratorContext {
             }
         }
 
-        let record_input = galgame_script_record_input(&context, plan, adaptations, branch_plan)?;
+        let current_graph =
+            a4n_db::galgame::current_galgame_story_graph(self.database.executor(), project_id)
+                .await
+                .map_err(galgame_story_graph_record_error)?;
+        if current_graph
+            .as_ref()
+            .is_some_and(|record| record.is_user_edited())
+        {
+            return Err(AppError::InvalidState {
+                current: "story_graph_manual_edits".into(),
+                operation: "来源文本生成结果与手工节点修改冲突，请先重置 Galgame 生成数据".into(),
+            });
+        }
+        let expected_story_graph_revision =
+            current_graph.as_ref().map_or(0, |record| record.revision);
+        let next_graph_revision = expected_story_graph_revision
+            .checked_add(1)
+            .ok_or_else(|| AppError::InvalidArgument("节点图 revision 超出范围".into()))?;
+        let story_graph = story_graph_from_persist_plan(
+            project_id,
+            context.root_project.id,
+            context.source_snapshot.id,
+            next_graph_revision,
+            &plan,
+        )?;
+        let record_input = galgame_script_record_input(
+            &context,
+            plan,
+            adaptations,
+            branch_plan,
+            expected_story_graph_revision,
+            story_graph,
+        )?;
         a4n_db::galgame::replace_galgame_script_for_project_record(
             self.database.executor(),
             context.project.id,

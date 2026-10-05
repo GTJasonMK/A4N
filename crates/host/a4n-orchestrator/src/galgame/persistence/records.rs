@@ -2,6 +2,7 @@ use a4n_db::galgame::{
     PersistGalgameChoiceRecordInput, PersistGalgameLineRecordInput, PersistGalgameSceneRecordInput,
     PersistGalgameScriptRecordInput,
 };
+use a4n_domain::galgame::StoryGraph;
 use a4n_error::AppError;
 use serde_json::json;
 
@@ -17,6 +18,8 @@ pub(crate) fn galgame_script_record_input(
     plan: GalgameScriptPersistPlan,
     adaptations: &[GalgameChapterAdaptation],
     branch_plan: a4n_domain::media_authoring::AuthoringDocumentRef,
+    expected_story_graph_revision: i64,
+    story_graph: StoryGraph,
 ) -> Result<PersistGalgameScriptRecordInput, AppError> {
     let scenes = plan
         .scenes
@@ -34,6 +37,8 @@ pub(crate) fn galgame_script_record_input(
         }),
         status: SCRIPT_STATUS_READY.to_string(),
         scenes,
+        expected_story_graph_revision,
+        story_graph,
     })
 }
 

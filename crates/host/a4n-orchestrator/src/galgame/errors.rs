@@ -2,6 +2,7 @@ use a4n_db::galgame::{
     GalgameAssetPlanSpecRecordError, GalgameContextRecordError, GalgameGenerationRecordError,
     GalgameLineRecordError, GalgameLineReorderRecordError, GalgameMediaRecordError,
     GalgameProjectRecordError, GalgameSceneRecordError, GalgameScriptRecordError,
+    GalgameStoryGraphRecordError,
 };
 use a4n_error::AppError;
 
@@ -10,6 +11,45 @@ pub(crate) fn galgame_project_record_error(err: GalgameProjectRecordError) -> Ap
         GalgameProjectRecordError::NotFound(message) => AppError::NotFound(message),
         GalgameProjectRecordError::InvalidArgument(message) => AppError::InvalidArgument(message),
         GalgameProjectRecordError::Database(err) => AppError::database(err),
+    }
+}
+
+pub(crate) fn galgame_story_graph_record_error(err: GalgameStoryGraphRecordError) -> AppError {
+    match err {
+        GalgameStoryGraphRecordError::InvalidArgument(message) => {
+            AppError::InvalidArgument(message)
+        }
+        GalgameStoryGraphRecordError::RevisionConflict {
+            expected_revision,
+            current_revision,
+        } => AppError::InvalidState {
+            current: format!("story_graph_revision:{current_revision}"),
+            operation: format!("使用 expected_revision={expected_revision} 保存节点图"),
+        },
+        GalgameStoryGraphRecordError::Database(err) => AppError::database(err),
+    }
+}
+
+pub(crate) fn galgame_story_runtime_record_error(
+    err: a4n_db::galgame::GalgameStoryRuntimeRecordError,
+) -> AppError {
+    match err {
+        a4n_db::galgame::GalgameStoryRuntimeRecordError::InvalidArgument(message) => {
+            AppError::InvalidArgument(message)
+        }
+        a4n_db::galgame::GalgameStoryRuntimeRecordError::NotFound(message) => {
+            AppError::NotFound(message)
+        }
+        a4n_db::galgame::GalgameStoryRuntimeRecordError::Conflict(message) => {
+            AppError::InvalidState {
+                current: message,
+                operation: "更新 Galgame 运行存档".into(),
+            }
+        }
+        a4n_db::galgame::GalgameStoryRuntimeRecordError::StoryGraph(error) => {
+            galgame_story_graph_record_error(error)
+        }
+        a4n_db::galgame::GalgameStoryRuntimeRecordError::Database(err) => AppError::database(err),
     }
 }
 
@@ -24,6 +64,7 @@ pub(crate) fn galgame_context_record_error(err: GalgameContextRecordError) -> Ap
 pub(crate) fn galgame_script_record_error(err: GalgameScriptRecordError) -> AppError {
     match err {
         GalgameScriptRecordError::InvalidArgument(message) => AppError::InvalidArgument(message),
+        GalgameScriptRecordError::StoryGraph(error) => galgame_story_graph_record_error(error),
         GalgameScriptRecordError::Database(err) => AppError::database(err),
     }
 }

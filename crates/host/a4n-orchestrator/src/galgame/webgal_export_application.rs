@@ -1,10 +1,13 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use a4n_api_contract::export::ExportFileData;
 use a4n_archive_core::{ArchiveEntry, write_zip};
 use a4n_domain::{
     character::CharacterPortraitRecord,
-    galgame::{GalgameFacingV2, GalgameStageLayerV2},
+    galgame::{
+        GalgameFacingV2, GalgameLineDocumentSchemaVersion, GalgameLinePresentationDocumentV3,
+        GalgameStageLayerV2, StoryEdge, StoryGraph, StoryNode,
+    },
 };
 use a4n_error::AppError;
 use base64::Engine as _;
@@ -12,8 +15,8 @@ use base64::Engine as _;
 use crate::OrchestratorContext;
 
 use super::{
-    GalgameChoice, GalgameLineType, GalgameMediaRole, GalgameMediaTargetKind, GalgameSceneDetail,
-    GalgameSceneEntryKind, GalgameScriptDetail,
+    GalgameChoice, GalgameLine, GalgameLineType, GalgameMediaRole, GalgameMediaTargetKind,
+    GalgameScene, GalgameSceneDetail, GalgameSceneEntryKind, GalgameScriptDetail,
     webgal_export_rules::{
         media_file_extension, media_file_extension_for_webgal_role, sanitize_export_file_stem,
         webgal_choice_text, webgal_string_literal, webgal_transition_args,
@@ -59,22 +62,446 @@ impl OrchestratorContext {
         project_id: i64,
     ) -> Result<ExportFileData, AppError> {
         let detail = self.get_script_detail(project_id).await?;
-        if detail.scenes.is_empty() {
+        let graph = detail
+            .story_graph
+            .as_ref()
+            .ok_or_else(|| AppError::InvalidState {
+                current: "missing_story_graph".into(),
+                operation: "导出 WebGAL 前先生成 Galgame 节点图".into(),
+            })?;
+        if detail.story_graph_status.as_deref() == Some("stale") {
             return Err(AppError::InvalidState {
-                current: "empty_galgame_script".to_string(),
-                operation: "导出 WebGAL".to_string(),
+                current: "story_graph_stale".into(),
+                operation: "从来源已变化的节点图导出 WebGAL".into(),
             });
         }
+        let export_detail = webgal_detail_from_story_graph(&detail, graph)?;
         let portraits = self
             .galgame_webgal_portraits(detail.root_project_id)
             .await?;
-        let bytes = build_webgal_package(self.data_dir(), &detail, &portraits)?;
+        let bytes = build_webgal_package(self.data_dir(), &export_detail, &portraits)?;
         let file_stem = sanitize_export_file_stem(&detail.title).map_err(invalid_webgal)?;
         Ok(ExportFileData {
             file_name: format!("{file_stem}-webgal.zip"),
             mime_type: "application/zip".to_string(),
             data_base64: base64::engine::general_purpose::STANDARD.encode(bytes),
         })
+    }
+}
+
+fn webgal_detail_from_story_graph(
+    source: &GalgameScriptDetail,
+    graph: &StoryGraph,
+) -> Result<GalgameScriptDetail, AppError> {
+    graph.validate().map_err(invalid_webgal)?;
+    if !graph.loop_groups.is_empty()
+        || !graph.state_variables.is_empty()
+        || graph
+            .nodes
+            .iter()
+            .any(|node| !node.state_operations.is_empty())
+        || graph
+            .edges
+            .iter()
+            .any(|edge| edge.guard.is_some() || !edge.state_operations.is_empty())
+        || graph
+            .branch_groups
+            .iter()
+            .flat_map(|group| &group.options)
+            .any(|option| option.condition.is_some() || !option.state_operations.is_empty())
+    {
+        return Err(invalid_webgal(
+            "当前 WebGAL 导出目标不能无损表示节点图中的循环、状态变量或条件操作",
+        ));
+    }
+    if graph
+        .edges
+        .iter()
+        .any(|edge| edge.kind == a4n_domain::galgame::StoryEdgeKind::Interrupt)
+    {
+        return Err(invalid_webgal("当前 WebGAL 导出目标不能无损表示中断边"));
+    }
+
+    let ordered_nodes = ordered_story_nodes(graph)?;
+    let mut used_scene_ids = BTreeSet::new();
+    let reserved_scene_ids = ordered_nodes
+        .iter()
+        .filter_map(|node| graph_numeric_id(&node.id, "scene:"))
+        .collect::<BTreeSet<_>>();
+    let mut next_scene_id = 1_i64;
+    let mut scene_id_by_node = BTreeMap::new();
+    for node in &ordered_nodes {
+        let scene_id = allocate_graph_id(
+            &node.id,
+            "scene:",
+            &reserved_scene_ids,
+            &mut used_scene_ids,
+            &mut next_scene_id,
+        );
+        scene_id_by_node.insert(node.id.clone(), scene_id);
+    }
+
+    let mut used_line_ids = BTreeSet::new();
+    let reserved_line_ids = ordered_nodes
+        .iter()
+        .flat_map(|node| &node.lines)
+        .filter_map(|line| graph_numeric_id(&line.id, "line:"))
+        .collect::<BTreeSet<_>>();
+    let mut next_line_id = 1_i64;
+    let mut used_choice_ids = BTreeSet::new();
+    let reserved_choice_ids = graph
+        .edges
+        .iter()
+        .filter_map(|edge| graph_numeric_id(&edge.id, "choice:"))
+        .collect::<BTreeSet<_>>();
+    let mut next_choice_id = 1_i64;
+    let mut scenes = Vec::with_capacity(ordered_nodes.len());
+    let mut graph_media_targets = Vec::new();
+    for node in &ordered_nodes {
+        let scene_id = scene_id_by_node[&node.id];
+        let mut graph_lines = node.lines.iter().collect::<Vec<_>>();
+        graph_lines.sort_by_key(|line| line.display_order);
+        let outgoing = sorted_outgoing_edges(graph, node);
+        let branch_groups = graph
+            .branch_groups
+            .iter()
+            .filter(|group| group.fork_node_id == node.id)
+            .collect::<Vec<_>>();
+        if branch_groups.len() > 1 {
+            return Err(invalid_webgal(format!(
+                "节点 {} 包含多个独立分支组，WebGAL 无法无损表达",
+                node.id
+            )));
+        }
+
+        let choice_line_story_id = (outgoing.len() > 1)
+            .then(|| {
+                graph_lines
+                    .iter()
+                    .rev()
+                    .find(|line| line.line_type == "choice")
+                    .map(|line| line.id.clone())
+            })
+            .flatten();
+        let mut lines = Vec::with_capacity(
+            graph_lines.len() + usize::from(outgoing.len() > 1 && choice_line_story_id.is_none()),
+        );
+        let mut line_id_by_story_id = HashMap::new();
+        for story_line in &graph_lines {
+            let line_id = allocate_graph_id(
+                &story_line.id,
+                "line:",
+                &reserved_line_ids,
+                &mut used_line_ids,
+                &mut next_line_id,
+            );
+            line_id_by_story_id.insert(story_line.id.as_str(), line_id);
+            let mut line_type = GalgameLineType::parse(&story_line.line_type).ok_or_else(|| {
+                invalid_webgal(format!(
+                    "节点 {} 的台词类型无法导出: {}",
+                    node.id, story_line.line_type
+                ))
+            })?;
+            if line_type == GalgameLineType::Choice
+                && choice_line_story_id.as_deref() != Some(story_line.id.as_str())
+            {
+                line_type = GalgameLineType::Narration;
+            }
+            let presentation_json = serde_json::from_value::<GalgameLinePresentationDocumentV3>(
+                story_line.presentation.clone(),
+            )
+            .map_err(|error| {
+                invalid_webgal(format!(
+                    "节点 {} 台词 {} 的演出信息无效: {error}",
+                    node.id, story_line.id
+                ))
+            })?;
+            lines.push(GalgameLine {
+                id: line_id,
+                scene_id,
+                line_index: i32::try_from(lines.len() + 1)
+                    .map_err(|_| invalid_webgal("节点台词数量超出 WebGAL 范围"))?,
+                line_type,
+                speaker_profile_id: story_line.speaker_profile_id,
+                text: story_line.text.clone(),
+                expression: None,
+                pose: None,
+                position: None,
+                presentation_json,
+                text_anchor_id: None,
+            });
+        }
+        if let Some(scene_index) = graph_scene_index(&node.id)
+            && let Some(source_scene) = source
+                .scenes
+                .iter()
+                .find(|scene| scene.scene.scene_index == scene_index)
+        {
+            graph_media_targets.push((
+                GalgameMediaTargetKind::GalgameScene,
+                source_scene.scene.id,
+                scene_id,
+            ));
+            for story_line in &graph_lines {
+                let Some((line_scene_index, line_index)) = graph_line_identity(&story_line.id)
+                else {
+                    continue;
+                };
+                if line_scene_index != scene_index {
+                    continue;
+                }
+                let Some(source_line) = source_scene
+                    .lines
+                    .iter()
+                    .find(|line| line.line_index == line_index)
+                else {
+                    continue;
+                };
+                let Some(export_line_id) = line_id_by_story_id.get(story_line.id.as_str()) else {
+                    continue;
+                };
+                graph_media_targets.push((
+                    GalgameMediaTargetKind::GalgameLine,
+                    source_line.id,
+                    *export_line_id,
+                ));
+            }
+        }
+
+        let choices = if outgoing.len() > 1 {
+            let choice_line_id = if let Some(story_line_id) = choice_line_story_id.as_deref() {
+                line_id_by_story_id[story_line_id]
+            } else {
+                let line_id = allocate_graph_id(
+                    &format!("webgal-choice:{}", node.id),
+                    "line:",
+                    &reserved_line_ids,
+                    &mut used_line_ids,
+                    &mut next_line_id,
+                );
+                lines.push(GalgameLine {
+                    id: line_id,
+                    scene_id,
+                    line_index: i32::try_from(lines.len() + 1)
+                        .map_err(|_| invalid_webgal("节点台词数量超出 WebGAL 范围"))?,
+                    line_type: GalgameLineType::Choice,
+                    speaker_profile_id: None,
+                    text: String::new(),
+                    expression: None,
+                    pose: None,
+                    position: None,
+                    presentation_json: empty_webgal_presentation(),
+                    text_anchor_id: None,
+                });
+                line_id
+            };
+            outgoing
+                .iter()
+                .enumerate()
+                .map(|(index, edge)| {
+                    let target_scene_id =
+                        *scene_id_by_node.get(&edge.to_node_id).ok_or_else(|| {
+                            invalid_webgal(format!(
+                                "边 {} 指向不存在的节点 {}",
+                                edge.id, edge.to_node_id
+                            ))
+                        })?;
+                    let label = branch_groups
+                        .first()
+                        .and_then(|group| {
+                            group
+                                .options
+                                .iter()
+                                .find(|option| option.edge_id == edge.id)
+                        })
+                        .map(|option| option.label.as_str())
+                        .unwrap_or_else(|| {
+                            graph
+                                .nodes
+                                .iter()
+                                .find(|target| target.id == edge.to_node_id)
+                                .map(|target| target.title.as_str())
+                                .unwrap_or("Continue")
+                        });
+                    Ok(GalgameChoice {
+                        id: allocate_graph_id(
+                            &edge.id,
+                            "choice:",
+                            &reserved_choice_ids,
+                            &mut used_choice_ids,
+                            &mut next_choice_id,
+                        ),
+                        line_id: choice_line_id,
+                        option_index: i32::try_from(index + 1)
+                            .map_err(|_| invalid_webgal("分支选项数量超出 WebGAL 范围"))?,
+                        option_text: label.to_string(),
+                        target_scene_id: Some(target_scene_id),
+                    })
+                })
+                .collect::<Result<Vec<_>, AppError>>()?
+        } else {
+            Vec::new()
+        };
+
+        let next_scene_id = if outgoing.len() == 1 {
+            Some(
+                *scene_id_by_node
+                    .get(&outgoing[0].to_node_id)
+                    .ok_or_else(|| {
+                        invalid_webgal(format!(
+                            "边 {} 指向不存在的节点 {}",
+                            outgoing[0].id, outgoing[0].to_node_id
+                        ))
+                    })?,
+            )
+        } else {
+            None
+        };
+        let source_chapter_id = node
+            .primary_source
+            .as_ref()
+            .or_else(|| node.source_refs.first())
+            .map(|source| source.source_snapshot_chapter_id)
+            .or_else(|| {
+                source
+                    .scenes
+                    .first()
+                    .map(|scene| scene.scene.source_snapshot_chapter_id)
+            })
+            .unwrap_or(1);
+        scenes.push(GalgameSceneDetail {
+            scene: GalgameScene {
+                id: scene_id,
+                source_snapshot_chapter_id: source_chapter_id,
+                adaptation_plan_id: None,
+                adaptation_unit_id: None,
+                scene_index: i32::try_from(scenes.len() + 1)
+                    .map_err(|_| invalid_webgal("节点数量超出 WebGAL 范围"))?,
+                title: node.title.clone(),
+                location: None,
+                time_of_day: None,
+                background_note: (!node.summary.is_empty()).then(|| node.summary.clone()),
+                entry_kind: GalgameSceneEntryKind::Main,
+                next_scene_id,
+            },
+            lines,
+            choices,
+        });
+    }
+    let mut export_detail = source.clone();
+    export_detail.scenes = scenes;
+    export_detail.media_bindings = source
+        .media_bindings
+        .iter()
+        .filter_map(|binding| {
+            let export_target =
+                graph_media_targets
+                    .iter()
+                    .find_map(|(target_kind, source_id, export_id)| {
+                        (binding.binding.target_kind == *target_kind
+                            && binding.binding.target_id == *source_id)
+                            .then_some(*export_id)
+                    })?;
+            let mut binding = binding.clone();
+            binding.binding.target_id = export_target;
+            Some(binding)
+        })
+        .collect();
+    export_detail.story_graph = Some(graph.clone());
+    Ok(export_detail)
+}
+
+fn ordered_story_nodes(graph: &StoryGraph) -> Result<Vec<&StoryNode>, AppError> {
+    let mut ordered = Vec::with_capacity(graph.nodes.len());
+    let mut visited = BTreeSet::new();
+    let mut pending = vec![graph.entry_node_id.as_str()];
+    while let Some(node_id) = pending.pop() {
+        if !visited.insert(node_id.to_string()) {
+            continue;
+        }
+        let node = graph
+            .nodes
+            .iter()
+            .find(|node| node.id == node_id)
+            .ok_or_else(|| invalid_webgal(format!("入口路径引用不存在的节点: {node_id}")))?;
+        ordered.push(node);
+        let mut outgoing = sorted_outgoing_edges(graph, node);
+        outgoing.reverse();
+        pending.extend(outgoing.into_iter().map(|edge| edge.to_node_id.as_str()));
+    }
+    if ordered.len() != graph.nodes.len() {
+        return Err(invalid_webgal("节点图包含从入口不可达的节点"));
+    }
+    Ok(ordered)
+}
+
+fn sorted_outgoing_edges<'a>(graph: &'a StoryGraph, node: &StoryNode) -> Vec<&'a StoryEdge> {
+    let mut edges = graph.outgoing_edges(&node.id);
+    edges.sort_by_key(|edge| edge.display_order);
+    edges
+}
+
+fn allocate_graph_id(
+    value: &str,
+    prefix: &str,
+    reserved: &BTreeSet<i64>,
+    used: &mut BTreeSet<i64>,
+    next: &mut i64,
+) -> i64 {
+    if let Some(id) = graph_numeric_id(value, prefix)
+        && used.insert(id)
+    {
+        return id;
+    }
+    while reserved.contains(&*next) || !used.insert(*next) {
+        *next = (*next).saturating_add(1);
+    }
+    let allocated = *next;
+    *next = (*next).saturating_add(1);
+    allocated
+}
+
+fn graph_numeric_id(value: &str, prefix: &str) -> Option<i64> {
+    value
+        .strip_prefix(prefix)
+        .and_then(|suffix| suffix.parse::<i64>().ok())
+        .filter(|id| *id > 0)
+}
+
+fn graph_scene_index(node_id: &str) -> Option<i32> {
+    node_id
+        .strip_prefix("scene:")
+        .and_then(|suffix| suffix.parse::<i32>().ok())
+        .filter(|index| *index > 0)
+}
+
+fn graph_line_identity(line_id: &str) -> Option<(i32, i32)> {
+    let mut parts = line_id.strip_prefix("line:")?.split(':');
+    let scene_index = parts.next()?.parse::<i32>().ok()?;
+    let line_index = parts.next()?.parse::<i32>().ok()?;
+    (parts.next().is_none() && scene_index > 0 && line_index > 0)
+        .then_some((scene_index, line_index))
+}
+
+fn empty_webgal_presentation() -> GalgameLinePresentationDocumentV3 {
+    GalgameLinePresentationDocumentV3 {
+        schema_version: GalgameLineDocumentSchemaVersion::V3,
+        origin: a4n_domain::media_authoring::AdaptationOrigin::Added,
+        beat_ref: None,
+        visible_cast: Vec::new(),
+        enter: Vec::new(),
+        exit: Vec::new(),
+        focus_character_profile_id: None,
+        hold: false,
+        player_knowledge: Vec::new(),
+        cg: None,
+        cg_note: None,
+        cg_importance: None,
+        transition: None,
+        branch: None,
+        branch_id: None,
+        returns_to_scene_index: None,
+        after_beat_ref: None,
     }
 }
 
@@ -93,11 +520,6 @@ fn build_webgal_package(
                 format!("scene_{:03}_{}.txt", index + 1, scene.scene.id),
             )
         })
-        .collect::<BTreeMap<_, _>>();
-    let scene_entry_by_id = detail
-        .scenes
-        .iter()
-        .map(|scene| (scene.scene.id, scene.scene.entry_kind))
         .collect::<BTreeMap<_, _>>();
     let speaker_name_by_id = detail
         .speaker_profiles
@@ -137,7 +559,6 @@ fn build_webgal_package(
         let script = render_webgal_scene(
             scene,
             &scene_file_by_id,
-            &scene_entry_by_id,
             &speaker_name_by_id,
             &choices_by_line,
             &assets,
@@ -184,7 +605,6 @@ fn build_webgal_package(
 fn render_webgal_scene(
     scene: &GalgameSceneDetail,
     scene_file_by_id: &BTreeMap<i64, String>,
-    scene_entry_by_id: &BTreeMap<i64, GalgameSceneEntryKind>,
     speaker_name_by_id: &BTreeMap<i64, String>,
     choices_by_line: &BTreeMap<i64, Vec<&GalgameChoice>>,
     assets: &WebgalExportAssets,
@@ -362,21 +782,7 @@ fn render_webgal_scene(
                     scene.scene.id
                 ))
             })?;
-            if scene.scene.entry_kind == GalgameSceneEntryKind::Branch
-                && scene_entry_by_id.get(&next_scene_id) != Some(&GalgameSceneEntryKind::Main)
-            {
-                return Err(invalid_webgal(format!(
-                    "Galgame branch 场 {} next_scene_id 必须指向主线场，当前指向 {next_scene_id}",
-                    scene.scene.id
-                )));
-            }
             output.push_str(&format!("changeScene:{next_file};\n"));
-        }
-        None if scene.scene.entry_kind == GalgameSceneEntryKind::Branch => {
-            return Err(invalid_webgal(format!(
-                "Galgame branch 场 {} 缺少 next_scene_id，无法导出 WebGAL",
-                scene.scene.id
-            )));
         }
         None => {}
     }
@@ -535,41 +941,15 @@ fn validate_webgal_choice_contract(
                     choice.id
                 )));
             }
-            let target_scene = detail
+            if !detail
                 .scenes
                 .iter()
-                .find(|candidate| candidate.scene.id == target_scene_id)
-                .ok_or_else(|| {
-                    invalid_webgal(format!(
-                        "Galgame choice {} 指向详情中不存在的场 {target_scene_id}",
-                        choice.id
-                    ))
-                })?;
-            if target_scene.scene.entry_kind == GalgameSceneEntryKind::Branch {
-                let return_scene_id = target_scene.scene.next_scene_id.ok_or_else(|| {
-                    invalid_webgal(format!(
-                        "Galgame choice {} 指向没有回线的 branch 场，无法导出 WebGAL",
-                        choice.id
-                    ))
-                })?;
-                let return_scene = detail
-                    .scenes
-                    .iter()
-                    .find(|candidate| candidate.scene.id == return_scene_id)
-                    .ok_or_else(|| {
-                        invalid_webgal(format!(
-                            "Galgame choice {} 的 branch 回线指向不存在的场 {return_scene_id}",
-                            choice.id
-                        ))
-                    })?;
-                if return_scene.scene.entry_kind != GalgameSceneEntryKind::Main
-                    || return_scene.scene.scene_index <= scene.scene.scene_index
-                {
-                    return Err(invalid_webgal(format!(
-                        "Galgame choice {} 的 branch 回线必须进入选择所在场之后的主线场，当前选择场={}, 回线场={}",
-                        choice.id, scene.scene.scene_index, return_scene.scene.scene_index
-                    )));
-                }
+                .any(|candidate| candidate.scene.id == target_scene_id)
+            {
+                return Err(invalid_webgal(format!(
+                    "Galgame choice {} 指向详情中不存在的场 {target_scene_id}",
+                    choice.id
+                )));
             }
             choices_by_line
                 .entry(choice.line_id)
@@ -588,9 +968,9 @@ fn validate_webgal_choice_contract(
                     line.id
                 ))
             })?;
-            if !(2..=3).contains(&choices.len()) {
+            if choices.len() < 2 {
                 return Err(invalid_webgal(format!(
-                    "Galgame choice 行 {} 选项数量必须是 2 到 3 个，无法导出 WebGAL: choice_count={}",
+                    "Galgame choice 行 {} 至少需要两个选项，无法导出 WebGAL: choice_count={}",
                     line.id,
                     choices.len()
                 )));
@@ -685,9 +1065,11 @@ fn invalid_webgal(message: impl Into<String>) -> AppError {
 mod tests {
     use super::*;
     use crate::galgame::{GalgameLine, GalgameScene};
+    use crate::galgame::{GalgameMediaAsset, GalgameMediaBinding, GalgameMediaBindingSummary};
     use a4n_domain::galgame::{
-        GalgameFacingV2, GalgameLinePresentationDocumentV3, GalgameStageLayerV2,
-        GalgameStagePositionV2, GalgameVisibleCastMemberV2,
+        GALGAME_STORY_GRAPH_SCHEMA_VERSION, GalgameFacingV2, GalgameLinePresentationDocumentV3,
+        GalgameStageLayerV2, GalgameStagePositionV2, GalgameVisibleCastMemberV2, StoryGraph,
+        StoryNarrativeLine, StoryNode, StoryNodeKind,
     };
     use serde_json::Value;
 
@@ -752,6 +1134,67 @@ mod tests {
             after_beat_ref: None,
         })
         .unwrap()
+    }
+
+    fn graph_with_scene_line() -> StoryGraph {
+        StoryGraph {
+            schema_version: GALGAME_STORY_GRAPH_SCHEMA_VERSION.into(),
+            id: "galgame:1".into(),
+            project_id: 1,
+            source_snapshot_id: 2,
+            revision: 1,
+            entry_node_id: "scene:1".into(),
+            terminal_node_ids: vec!["scene:1".into()],
+            nodes: vec![StoryNode {
+                id: "scene:1".into(),
+                kind: StoryNodeKind::Terminal,
+                title: "测试场".into(),
+                summary: String::new(),
+                primary_source: None,
+                source_refs: Vec::new(),
+                lines: vec![StoryNarrativeLine {
+                    id: "line:1:1".into(),
+                    display_order: 0,
+                    line_type: "narration".into(),
+                    speaker_profile_id: None,
+                    text: "旁白".into(),
+                    presentation: presentation(Vec::new(), Vec::new(), Vec::new()),
+                }],
+                state_before: Default::default(),
+                state_after: Default::default(),
+                state_operations: Vec::new(),
+                media_intents: Vec::new(),
+                layout_x: 0.0,
+                layout_y: 0.0,
+            }],
+            edges: Vec::new(),
+            branch_groups: Vec::new(),
+            loop_groups: Vec::new(),
+            state_variables: Vec::new(),
+        }
+    }
+
+    fn media_binding(
+        id: i64,
+        target_kind: GalgameMediaTargetKind,
+        target_id: i64,
+        role: GalgameMediaRole,
+    ) -> GalgameMediaBindingSummary {
+        GalgameMediaBindingSummary {
+            binding: GalgameMediaBinding {
+                id,
+                media_asset_id: id + 100,
+                target_kind,
+                target_id,
+                role,
+            },
+            asset: GalgameMediaAsset {
+                id: id + 100,
+                media_kind: "image".into(),
+                file_path: Some(format!("media/{id}.png")),
+                thumbnail_path: None,
+            },
+        }
     }
 
     #[test]
@@ -820,7 +1263,6 @@ mod tests {
             &BTreeMap::new(),
             &BTreeMap::new(),
             &BTreeMap::new(),
-            &BTreeMap::new(),
             &assets,
             &BTreeSet::from([47, 48]),
         )
@@ -867,7 +1309,6 @@ mod tests {
                 (30, "scene_003_30.txt".to_string()),
             ]),
             &BTreeMap::new(),
-            &BTreeMap::new(),
             &choices_by_line,
             &WebgalExportAssets::default(),
             &BTreeSet::new(),
@@ -880,5 +1321,64 @@ mod tests {
         assert!(script.contains(
             "choose:{__a4n_choice_100_1}:scene_002_20.txt|{__a4n_choice_100_2}:scene_003_30.txt;"
         ));
+    }
+
+    #[test]
+    fn maps_existing_scene_and_line_media_bindings_to_graph_export_ids() {
+        let source = GalgameScriptDetail {
+            id: 1,
+            root_project_id: 2,
+            title: "测试剧本".into(),
+            speaker_profiles: Vec::new(),
+            text_anchors: Vec::new(),
+            media_bindings: vec![
+                media_binding(
+                    11,
+                    GalgameMediaTargetKind::GalgameScene,
+                    10,
+                    GalgameMediaRole::Background,
+                ),
+                media_binding(
+                    12,
+                    GalgameMediaTargetKind::GalgameLine,
+                    100,
+                    GalgameMediaRole::Cg,
+                ),
+                media_binding(
+                    13,
+                    GalgameMediaTargetKind::GalgameScene,
+                    99,
+                    GalgameMediaRole::Background,
+                ),
+            ],
+            scenes: vec![scene(vec![line(
+                100,
+                GalgameLineType::Narration,
+                presentation(Vec::new(), Vec::new(), Vec::new()),
+            )])],
+            story_graph: None,
+            story_graph_status: None,
+        };
+
+        let export = webgal_detail_from_story_graph(&source, &graph_with_scene_line()).unwrap();
+
+        assert_eq!(export.media_bindings.len(), 2);
+        let background = export
+            .media_bindings
+            .iter()
+            .find(|binding| binding.binding.id == 11)
+            .unwrap();
+        assert_eq!(
+            background.binding.target_kind,
+            GalgameMediaTargetKind::GalgameScene
+        );
+        assert_eq!(background.binding.target_id, export.scenes[0].scene.id);
+        let cg = export
+            .media_bindings
+            .iter()
+            .find(|binding| binding.binding.id == 12)
+            .unwrap();
+        assert_eq!(cg.binding.target_kind, GalgameMediaTargetKind::GalgameLine);
+        assert_eq!(cg.binding.target_id, export.scenes[0].lines[0].id);
     }
 }

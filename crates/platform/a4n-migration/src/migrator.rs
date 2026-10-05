@@ -144,6 +144,8 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::canvas_text_asset_versions::Migration),
             Box::new(crate::migrations::standalone_comic_text_sources::Migration),
             Box::new(crate::migrations::canvas_project_split::Migration),
+            Box::new(crate::migrations::galgame_story_graph::Migration),
+            Box::new(crate::migrations::galgame_story_runtime_state::Migration),
         ]
     }
 }

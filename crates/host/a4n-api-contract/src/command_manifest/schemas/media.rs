@@ -385,6 +385,18 @@ pub(crate) fn args_run_galgame_asset_generation() -> Value {
 pub(crate) fn args_save_canvas_graph() -> Value {
     strict_typed_input_schema::<crate::canvas::SaveCanvasGraphInput>()
 }
+pub(crate) fn args_save_galgame_story_graph() -> Value {
+    project_typed_input_schema::<crate::galgame::SaveGalgameStoryGraphInput>()
+}
+pub(crate) fn args_get_galgame_story_runtime_state() -> Value {
+    project_typed_input_schema::<crate::galgame::GetGalgameStoryRuntimeInput>()
+}
+pub(crate) fn args_start_galgame_story_runtime() -> Value {
+    project_typed_input_schema::<crate::galgame::StartGalgameStoryRuntimeInput>()
+}
+pub(crate) fn args_advance_galgame_story_runtime() -> Value {
+    project_typed_input_schema::<crate::galgame::AdvanceGalgameStoryRuntimeInput>()
+}
 pub(crate) fn args_read_canvas_graph() -> Value {
     strict_typed_input_schema::<crate::canvas::ReadCanvasGraphInput>()
 }
@@ -631,6 +643,15 @@ pub(crate) fn result_get_canvas_graph() -> Value {
 }
 pub(crate) fn result_save_canvas_graph() -> Value {
     typed_schema::<crate::canvas::CanvasGraphSaveResult>()
+}
+pub(crate) fn result_save_galgame_story_graph() -> Value {
+    typed_schema::<a4n_domain::galgame::StoryGraph>()
+}
+pub(crate) fn result_get_galgame_story_runtime_state() -> Value {
+    typed_schema::<Option<crate::galgame::GalgameStoryRuntimeView>>()
+}
+pub(crate) fn result_galgame_story_runtime() -> Value {
+    typed_schema::<crate::galgame::GalgameStoryRuntimeView>()
 }
 pub(crate) fn result_get_canvas_node_contracts() -> Value {
     typed_schema::<Vec<crate::canvas::CanvasNodeContract>>()

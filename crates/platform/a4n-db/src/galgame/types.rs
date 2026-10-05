@@ -8,6 +8,7 @@ pub use self::errors::{
     GalgameAssetPlanSpecRecordError, GalgameContextRecordError, GalgameGenerationRecordError,
     GalgameLineRecordError, GalgameLineReorderRecordError, GalgameMediaRecordError,
     GalgameProjectRecordError, GalgameSceneRecordError, GalgameScriptRecordError,
+    GalgameStoryGraphRecordError, GalgameStoryRuntimeRecordError,
 };
 pub(in crate::galgame) use self::generation_specs::{
     GalgameGenerationSpecEntityRefRecordInput, GalgameGenerationSpecRefsRecordInput,

@@ -104,6 +104,8 @@ async fn delete_galgame_records(
     db: &impl ConnectionTrait,
     project_id: i64,
 ) -> Result<(), ProjectDeleteDbError> {
+    crate::galgame::delete_galgame_story_runtime_states_for_project(db, project_id).await?;
+    crate::galgame::delete_galgame_story_graph_revisions(db, project_id).await?;
     let script_ids = galgame_script::Entity::find()
         .select_only()
         .column(galgame_script::Column::Id)

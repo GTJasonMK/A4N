@@ -75,6 +75,78 @@ pub(in crate::routes::commands) async fn update_galgame_scene(
     )
 }
 
+pub(in crate::routes::commands) async fn save_galgame_story_graph(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let project_id = i64_arg(args, "projectId")?;
+    to_value(
+        galgame_records_actions::save_galgame_story_graph(
+            state.runtime(),
+            user_id,
+            project_id,
+            command_input(args, "save_galgame_story_graph")?,
+        )
+        .await
+        .map_err(ApiError::bad_request)?,
+    )
+}
+
+pub(in crate::routes::commands) async fn get_galgame_story_runtime_state(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let project_id = i64_arg(args, "projectId")?;
+    to_value(
+        galgame_records_actions::get_galgame_story_runtime_state(
+            state.runtime(),
+            user_id,
+            project_id,
+            command_input(args, "get_galgame_story_runtime_state")?,
+        )
+        .await
+        .map_err(ApiError::bad_request)?,
+    )
+}
+
+pub(in crate::routes::commands) async fn start_galgame_story_runtime(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let project_id = i64_arg(args, "projectId")?;
+    to_value(
+        galgame_records_actions::start_galgame_story_runtime(
+            state.runtime(),
+            user_id,
+            project_id,
+            command_input(args, "start_galgame_story_runtime")?,
+        )
+        .await
+        .map_err(ApiError::bad_request)?,
+    )
+}
+
+pub(in crate::routes::commands) async fn advance_galgame_story_runtime(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let project_id = i64_arg(args, "projectId")?;
+    to_value(
+        galgame_records_actions::advance_galgame_story_runtime(
+            state.runtime(),
+            user_id,
+            project_id,
+            command_input(args, "advance_galgame_story_runtime")?,
+        )
+        .await
+        .map_err(ApiError::bad_request)?,
+    )
+}
+
 pub(in crate::routes::commands) async fn delete_galgame_line(
     state: &ServerState,
     user_id: i64,

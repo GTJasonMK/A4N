@@ -11,6 +11,8 @@ pub(super) use pipeline::{
     start_galgame_pipeline,
 };
 pub(super) use script::{
-    delete_galgame_line, get_galgame_script, insert_galgame_line, reorder_galgame_lines,
-    update_galgame_choices, update_galgame_line, update_galgame_scene,
+    advance_galgame_story_runtime, delete_galgame_line, get_galgame_script,
+    get_galgame_story_runtime_state, insert_galgame_line, reorder_galgame_lines,
+    save_galgame_story_graph, start_galgame_story_runtime, update_galgame_choices,
+    update_galgame_line, update_galgame_scene,
 };

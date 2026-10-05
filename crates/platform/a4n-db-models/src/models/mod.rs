@@ -91,6 +91,8 @@ pub mod galgame {
     pub mod galgame_line;
     pub mod galgame_scene;
     pub mod galgame_script;
+    pub mod galgame_story_graph;
+    pub mod galgame_story_runtime_state;
 }
 
 pub mod source_sync {

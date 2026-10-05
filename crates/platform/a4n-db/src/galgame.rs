@@ -85,10 +85,11 @@ pub use types::{
     GalgamePipelinePromptTextAnchorRecord, GalgamePortraitSpecTargetInput,
     GalgamePortraitSpecTargetProfile, GalgameProjectRecordError, GalgameSceneRecordError,
     GalgameScriptDetailChoiceRecord, GalgameScriptDetailReadModel, GalgameScriptDetailSceneRecord,
-    GalgameScriptDetailScriptRecord, GalgameScriptRecordError, GalgameTargetContext,
-    InsertGalgameLineRecordInput, PersistGalgameChoiceRecordInput, PersistGalgameLineRecordInput,
-    PersistGalgameSceneRecordInput, PersistGalgameScriptRecordInput,
-    ReplaceGalgameChoiceRecordInput, UpdateGalgameLineRecordInput, UpdateGalgameSceneRecordInput,
+    GalgameScriptDetailScriptRecord, GalgameScriptRecordError, GalgameStoryGraphRecordError,
+    GalgameStoryRuntimeRecordError, GalgameTargetContext, InsertGalgameLineRecordInput,
+    PersistGalgameChoiceRecordInput, PersistGalgameLineRecordInput, PersistGalgameSceneRecordInput,
+    PersistGalgameScriptRecordInput, ReplaceGalgameChoiceRecordInput, UpdateGalgameLineRecordInput,
+    UpdateGalgameSceneRecordInput,
 };
 pub(in crate::galgame) use types::{
     GalgameGenerationSpecEntityRefRecordInput, GalgameGenerationSpecRefsRecordInput,
@@ -149,6 +150,20 @@ pub use script_records::{
     reorder_galgame_line_records_transaction, replace_galgame_choice_records_transaction,
     replace_galgame_script_for_project_record, update_galgame_line_with_generation_cleanup_record,
     update_galgame_scene_with_generation_cleanup_record,
+};
+
+mod story_graph;
+pub(crate) use story_graph::save_galgame_story_graph_revision_in_transaction;
+pub use story_graph::{
+    GalgameStoryGraphRecord, current_galgame_story_graph, delete_galgame_story_graph_revisions,
+    save_galgame_story_graph_revision,
+};
+
+mod story_runtime_state;
+pub use story_runtime_state::{
+    GalgameStoryRuntimeRecord, advance_galgame_story_runtime_state,
+    create_galgame_story_runtime_state, delete_galgame_story_runtime_states_for_project,
+    galgame_story_runtime_state,
 };
 
 #[cfg(test)]
