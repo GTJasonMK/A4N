@@ -125,6 +125,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   const objectProfilesLoadSeqRef = useRef(0);
   const actionSeqRef = useRef(0);
   const actionBusyRef = useRef(false);
+  const importBusyRef = useRef(false);
   const previewSeqRef = useRef(0);
   const previewBusyRef = useRef(false);
   const localPathInputRef = useRef<HTMLInputElement | null>(null);
@@ -709,66 +710,74 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   };
 
   const handleImportImageFile = async (file: File | LocalImageFile) => {
-    if (!ensureCanEditImages()) return;
+    if (!ensureCanEditImages() || importBusyRef.current) return;
     const requestScope = scopeKey;
     const requestProjectId = projectId;
     const requestChapterScoped = chapterScoped;
     const requestChapter = chapter;
-    if (!isSupportedImageMime(file.type)) {
-      addToast(t("novel.imageLibrary.unsupportedFormat"), "error");
-      return;
-    }
-    if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
-      addToast(t("novel.importReview.fileTooLarge", { size: formatNumber(MAX_UPLOAD_IMAGE_BYTES / 1024 / 1024, locale) }), "error");
-      return;
-    }
-    if (!isCurrentScope(requestScope)) return;
-    const prompt = await promptDialog({
-      title: t("novel.imageLibrary.importTitle"),
-      message: t("novel.imageLibrary.importMessage"),
-      defaultValue: t("novel.imageLibrary.externalImport"),
-      placeholder: t("novel.imageLibrary.descriptionPlaceholder"),
-      confirmText: t("novel.imageLibrary.importConfirm"),
-      multiline: true,
-      required: true,
-    });
-    if (!prompt?.trim()) return;
-    if (!isCurrentScope(requestScope)) return;
-    const actionSeq = beginAction(requestScope);
-    if (actionSeq == null) return;
+    importBusyRef.current = true;
     setImportBusy(true);
     try {
-      const dataBase64 = "dataBase64" in file
-        ? file.dataBase64
-        : await readFileAsBase64(file);
-      if (!isCurrentAction(requestScope, actionSeq)) return;
-      const imported = await uploadImage(requestProjectId, {
-        file_name: file.name,
-        mime_type: file.type,
-        data_base64: dataBase64,
-        image_type: requestChapterScoped && requestChapter ? "chapter_reference" : "project_reference",
-        prompt: prompt.trim(),
-        chapter_id: requestChapterScoped && requestChapter ? requestChapter.id : null,
-        metadata_json: {
-          source: requestChapterScoped && requestChapter ? "chapter_image_upload" : "project_image_upload",
-          manual_upload: true,
-        },
+      if (!isSupportedImageMime(file.type)) {
+        addToast(t("novel.imageLibrary.unsupportedFormat"), "error");
+        return;
+      }
+      if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
+        addToast(t("novel.importReview.fileTooLarge", { size: formatNumber(MAX_UPLOAD_IMAGE_BYTES / 1024 / 1024, locale) }), "error");
+        return;
+      }
+      if (!isCurrentScope(requestScope)) return;
+      const prompt = await promptDialog({
+        title: t("novel.imageLibrary.importTitle"),
+        message: t("novel.imageLibrary.importMessage"),
+        defaultValue: t("novel.imageLibrary.externalImport"),
+        placeholder: t("novel.imageLibrary.descriptionPlaceholder"),
+        confirmText: t("novel.imageLibrary.importConfirm"),
+        multiline: true,
+        required: true,
       });
-      if (!isCurrentAction(requestScope, actionSeq)) return;
-      commitImage(imported);
-      addToast(t("novel.imageLibrary.imported"), "success");
+      if (!prompt?.trim() || !isCurrentScope(requestScope)) return;
+      const actionSeq = beginAction(requestScope);
+      if (actionSeq == null) return;
+      try {
+        const dataBase64 = "dataBase64" in file
+          ? file.dataBase64
+          : await readFileAsBase64(file);
+        if (!isCurrentAction(requestScope, actionSeq)) return;
+        const imported = await uploadImage(requestProjectId, {
+          file_name: file.name,
+          mime_type: file.type,
+          data_base64: dataBase64,
+          image_type: requestChapterScoped && requestChapter ? "chapter_reference" : "project_reference",
+          prompt: prompt.trim(),
+          chapter_id: requestChapterScoped && requestChapter ? requestChapter.id : null,
+          metadata_json: {
+            source: requestChapterScoped && requestChapter ? "chapter_image_upload" : "project_image_upload",
+            manual_upload: true,
+          },
+        });
+        if (!isCurrentAction(requestScope, actionSeq)) return;
+        commitImage(imported);
+        addToast(t("novel.imageLibrary.imported"), "success");
+      } catch (err) {
+        if (isCurrentAction(requestScope, actionSeq)) {
+          addToast(extractErrorMessage(err, t("novel.imageLibrary.importFailed")), "error");
+        }
+      } finally {
+        finishAction(actionSeq);
+      }
     } catch (err) {
-      if (isCurrentAction(requestScope, actionSeq)) {
+      if (isCurrentScope(requestScope)) {
         addToast(extractErrorMessage(err, t("novel.imageLibrary.importFailed")), "error");
       }
     } finally {
-      if (isCurrentAction(requestScope, actionSeq)) setImportBusy(false);
-      finishAction(actionSeq);
+      importBusyRef.current = false;
+      if (isCurrentScope(requestScope)) setImportBusy(false);
     }
   };
 
   const handleOpenLocalImagePath = () => {
-    if (!ensureCanEditImages() || importBusy || localPathBusy) return;
+    if (!ensureCanEditImages() || importBusyRef.current || localPathBusy) return;
     setLocalImagePath("");
     setLocalPathDialogOpen(true);
   };
