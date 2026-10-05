@@ -37,7 +37,7 @@ const labels: MangaPagePromptLabels = {
 };
 
 describe("buildPagePrompts", () => {
-  it("projects unfinished pages without a storyboard or drawing prompt", () => {
+  it("shows a linked completed image ahead of a stale failed pipeline checkpoint", () => {
     const prompt: MangaPagePromptSummary = {
       id: 1,
       chapter_id: 2,
@@ -94,5 +94,20 @@ describe("buildPagePrompts", () => {
     expect(page.promptCount).toBe(0);
     expect(page.characterNames).toEqual([]);
     expect(page.layoutItems).toEqual([]);
+
+    const [completedPage] = buildPagePrompts(
+      [{
+        ...prompt,
+        generated_image_id: 44,
+        status: "completed",
+        pipeline_stage: "image",
+        pipeline_status: "failed",
+      }],
+      null,
+      labels,
+    );
+
+    expect(completedPage.pipelineStatus).toBe("completed");
+    expect(completedPage.prompt.status).toBe("completed");
   });
 });

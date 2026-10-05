@@ -179,12 +179,14 @@ export const buildPagePrompts = (
     .sort((a, b) => a.page_number - b.page_number)
     .map((prompt) => {
       const source = extractMangaPagePromptSource(prompt);
+      const imageCompleted =
+        prompt.generated_image_id != null && prompt.status === "completed";
       return {
         pageNumber: prompt.page_number,
         prompt,
         promptCount: prompt.page_plan ? 1 + prompt.page_plan.panels.length : 0,
         pipelineStage: prompt.pipeline_stage,
-        pipelineStatus: prompt.pipeline_status,
+        pipelineStatus: imageCompleted ? "completed" : prompt.pipeline_status,
         pageContent: prompt.page_content,
         pageAdaptation: prompt.page_adaptation,
         source,
