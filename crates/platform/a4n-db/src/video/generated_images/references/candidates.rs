@@ -3,6 +3,7 @@ use super::rules::validate_positive_image_i64;
 use crate::video::VideoDbError;
 use a4n_db_models::models::{ai::generated_image, project::novel_project};
 use a4n_domain::image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL};
+use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{
     ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
 };
@@ -108,19 +109,71 @@ fn ensure_image_chapter_project_match(
     project_id: i64,
     chapter_id: i64,
 ) -> Result<(), VideoDbError> {
-    match project.project_kind.as_str() {
-        "text" if chapter_project_id == project.id => Ok(()),
-        "text" => Err(VideoDbError::InvalidArgument(format!(
+    let source_mode = ProjectSourceMode::from_identity(
+        &project.project_kind,
+        project.root_project_id,
+        project.source_snapshot_id,
+    )
+    .map_err(|error| VideoDbError::InvalidArgument(format!("项目 {project_id}: {error}")))?;
+    match source_mode {
+        ProjectSourceMode::Self_ if chapter_project_id == project.id => Ok(()),
+        ProjectSourceMode::Self_ => Err(VideoDbError::InvalidArgument(format!(
             "章节 #{chapter_id} 不属于文本项目 {project_id}"
         ))),
-        "comic" | "video" | "galgame" if project.root_project_id == Some(chapter_project_id) => {
-            Ok(())
-        }
-        "comic" | "video" | "galgame" => Err(VideoDbError::InvalidArgument(format!(
+        ProjectSourceMode::Standalone if chapter_project_id == project.id => Ok(()),
+        ProjectSourceMode::Standalone => Err(VideoDbError::InvalidArgument(format!(
+            "章节 #{chapter_id} 不属于独立漫画项目 {project_id}"
+        ))),
+        ProjectSourceMode::Derived if project.root_project_id == Some(chapter_project_id) => Ok(()),
+        ProjectSourceMode::Derived => Err(VideoDbError::InvalidArgument(format!(
             "章节 #{chapter_id} 不属于派生项目 {project_id} 绑定的根文本项目"
         ))),
-        other => Err(VideoDbError::InvalidArgument(format!(
-            "图片链路不支持项目类型 {other}: project_id={project_id}"
+        ProjectSourceMode::Freeform => Err(VideoDbError::InvalidArgument(format!(
+            "图片链路不支持自由画布项目 {project_id}"
         ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn project(
+        id: i64,
+        project_kind: &str,
+        root_project_id: Option<i64>,
+        source_snapshot_id: Option<i64>,
+    ) -> VideoProjectIdentity {
+        VideoProjectIdentity {
+            id,
+            project_kind: project_kind.to_string(),
+            root_project_id,
+            source_snapshot_id,
+        }
+    }
+
+    #[test]
+    fn standalone_comic_accepts_its_own_chapter() {
+        let standalone = project(12, "comic", None, None);
+
+        ensure_image_chapter_project_match(&standalone, 12, 12, 5)
+            .expect("独立漫画章节应绑定到独立漫画项目");
+    }
+
+    #[test]
+    fn standalone_comic_rejects_a_chapter_from_another_project() {
+        let standalone = project(12, "comic", None, None);
+
+        let error = ensure_image_chapter_project_match(&standalone, 3, 12, 5)
+            .expect_err("独立漫画不能绑定其他项目章节");
+        assert!(error.to_string().contains("不属于独立漫画项目 12"));
+    }
+
+    #[test]
+    fn derived_comic_still_accepts_a_root_chapter() {
+        let derived = project(12, "comic", Some(3), Some(10));
+
+        ensure_image_chapter_project_match(&derived, 3, 12, 5)
+            .expect("派生漫画章节应绑定到根文本项目");
     }
 }
