@@ -78,13 +78,13 @@ impl ImageProvider for CliProxyImageProvider {
             req.height,
             req.reference_images.len()
         );
-        let form = self.edit_form(&req)?;
+        let body = Self::edit_body(&req)?;
         let resp = send_image_request(
             "CLIProxy 图片编辑请求失败",
             self.client
                 .post(&url)
                 .bearer_auth(&self.api_key)
-                .multipart(form),
+                .json(&body),
         )
         .await?;
         let status = resp.status();
@@ -108,7 +108,7 @@ fn cli_proxy_image_edit_error(model: &str, status: reqwest::StatusCode, body: &s
         && normalized_body.contains("model does not support this api endpoint")
     {
         return AppError::InvalidArgument(format!(
-            "CLIProxy/Grok 图片编辑端点拒绝当前模型 {model}（CPA 返回：model does not support this API endpoint）。这表示当前 CPA 实例、账号或模型配置未启用 /images/edits；请升级或检查 CPA 的 image 模型配置。无参考图生成可继续使用 /images/generations。"
+            "CLIProxy/Grok `/images/edits` 请求返回 403：Model does not support this API endpoint。该错误可能由 CPAproxy/Gateway 的模型目录在转发前生成；Grok xAI 参考图请求使用 JSON image.url/images[].url 合同。请检查当前模型 {model} 的 endpoint_families 是否包含 images_xai。无参考图生成可继续使用 /images/generations。"
         ));
     }
 

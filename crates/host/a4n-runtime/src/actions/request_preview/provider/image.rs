@@ -65,7 +65,7 @@ fn image_provider_preview_payload(
             let note = if request.reference_images.is_empty() {
                 "CLIProxy `/images/generations` JSON 请求；强制 response_format=url。"
             } else {
-                "CLIProxy `/images/edits` multipart 请求；强制 response_format=url，预览省略参考图媒体数据。"
+                "CLIProxy/Grok `/images/edits` xAI JSON 请求；强制 response_format=url，预览省略参考图媒体数据。"
             };
             ("image_generation_cliproxy", note.into())
         }

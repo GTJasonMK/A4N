@@ -3,6 +3,9 @@ use a4n_domain::ProviderError;
 use a4n_image_contract::{ImageGenerationRequest, ImageReference};
 use reqwest::StatusCode;
 
+const PNG_1X1_B64: &str =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
 fn request() -> ImageGenerationRequest {
     ImageGenerationRequest {
         prompt: "draw".into(),
@@ -10,6 +13,13 @@ fn request() -> ImageGenerationRequest {
         height: 720,
         model: "grok-imagine-image-quality".into(),
         reference_images: Vec::new(),
+    }
+}
+
+fn reference(index: usize) -> ImageReference {
+    ImageReference {
+        label: format!("参考图 {index}"),
+        data_uri: format!("data:image/png;base64,{PNG_1X1_B64}"),
     }
 }
 
@@ -32,7 +42,7 @@ fn generation_body_uses_2k_for_large_images() {
 }
 
 #[test]
-fn unsupported_edit_endpoint_error_reports_cpa_instance_capability() {
+fn unsupported_edit_endpoint_error_reports_gateway_contract() {
     let error = cli_proxy_image_edit_error(
         "grok-imagine-image",
         StatusCode::FORBIDDEN,
@@ -42,10 +52,50 @@ fn unsupported_edit_endpoint_error_reports_cpa_instance_capability() {
     assert!(matches!(&error, ProviderError::InvalidArgument(_)));
     let message = error.to_string();
     assert!(message.contains("grok-imagine-image"));
-    assert!(message.contains("当前 CPA 实例、账号或模型配置"));
+    assert!(message.contains("CPAproxy/Gateway"));
+    assert!(message.contains("images_xai"));
+    assert!(message.contains("image.url/images[].url"));
     assert!(message.contains("/images/edits"));
     assert!(message.contains("/images/generations"));
     assert!(!message.contains("quality"));
+}
+
+#[test]
+fn edit_body_uses_xai_single_image_contract_without_aspect_ratio() {
+    let mut req = request();
+    req.reference_images = vec![reference(1)];
+
+    let body = CliProxyImageProvider::edit_body(&req).unwrap();
+
+    assert_eq!(body["image"]["url"], req.reference_images[0].data_uri);
+    assert!(body.get("images").is_none());
+    assert!(body.get("aspect_ratio").is_none());
+}
+
+#[test]
+fn edit_body_uses_xai_multiple_image_contract_and_aspect_ratio() {
+    let mut req = request();
+    req.reference_images = vec![reference(1), reference(2)];
+
+    let body = CliProxyImageProvider::edit_body(&req).unwrap();
+    let images = body["images"].as_array().expect("images array");
+
+    assert_eq!(images.len(), 2);
+    assert_eq!(images[0]["url"], req.reference_images[0].data_uri);
+    assert_eq!(images[1]["url"], req.reference_images[1].data_uri);
+    assert!(body.get("image").is_none());
+    assert_eq!(body["aspect_ratio"], "16:9");
+}
+
+#[test]
+fn edit_body_rejects_more_than_three_xai_references() {
+    let mut req = request();
+    req.reference_images = (1..=4).map(reference).collect();
+
+    let error = CliProxyImageProvider::edit_body(&req).unwrap_err();
+
+    assert!(matches!(error, ProviderError::InvalidArgument(_)));
+    assert!(error.to_string().contains("最多支持 3 张参考图"));
 }
 
 #[test]
@@ -64,23 +114,21 @@ fn spending_limit_error_reports_api_billing_boundary() {
 }
 
 #[test]
-fn edit_preview_uses_all_reference_images() {
+fn edit_preview_uses_xai_json_contract_and_all_reference_images() {
     let mut req = request();
-    req.reference_images = vec![
-        ImageReference {
-            label: "参考图 1".into(),
-            data_uri: "data:image/png;base64,aaa".into(),
-        },
-        ImageReference {
-            label: "参考图 2".into(),
-            data_uri: "data:image/png;base64,bbb".into(),
-        },
-    ];
+    req.reference_images = vec![reference(1), reference(2)];
 
     let body = CliProxyImageProvider::request_body_preview(&req).unwrap();
+    let images = body["fields"]["images"]
+        .as_array()
+        .expect("xAI images array");
 
-    let files = body["files"].as_array().expect("files should be an array");
-    assert_eq!(files.len(), 2);
-    assert_eq!(files[0]["label"], "参考图 1");
-    assert_eq!(files[1]["label"], "参考图 2");
+    assert_eq!(body["content_type"], "application/json");
+    assert_eq!(images.len(), 2);
+    assert!(
+        images[0]["url"]
+            .as_str()
+            .unwrap()
+            .starts_with("data:image/png;base64,")
+    );
 }

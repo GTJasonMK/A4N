@@ -1,12 +1,13 @@
 use super::super::support::{
     internal_error, prepare_reference_image_for_upload, prompt_with_reference_labels,
-    reference_image_field_name,
 };
 use super::CliProxyImageProvider;
 use a4n_domain::ProviderError as AppError;
 use a4n_image_contract::ImageGenerationRequest;
-use reqwest::multipart::{Form, Part};
+use base64::Engine as _;
 use serde_json::{Value, json};
+
+const MAX_XAI_IMAGE_EDIT_REFERENCES: usize = 3;
 
 impl CliProxyImageProvider {
     pub(super) fn generation_body(req: &ImageGenerationRequest) -> Value {
@@ -25,67 +26,58 @@ impl CliProxyImageProvider {
         body
     }
 
-    pub(super) fn edit_form(&self, req: &ImageGenerationRequest) -> Result<Form, AppError> {
+    pub(super) fn edit_body(req: &ImageGenerationRequest) -> Result<Value, AppError> {
         let reference_images = &req.reference_images;
         if reference_images.is_empty() {
             return Err(internal_error("CLIProxy 图片编辑请求缺少参考图"));
         }
+        if reference_images.len() > MAX_XAI_IMAGE_EDIT_REFERENCES {
+            return Err(AppError::InvalidArgument(format!(
+                "CLIProxy/Grok xAI 图片编辑最多支持 {MAX_XAI_IMAGE_EDIT_REFERENCES} 张参考图"
+            )));
+        }
+
         let prompt = prompt_with_reference_labels(&req.prompt, reference_images);
-        let mut form = Form::new()
-            .text("model", req.model.clone())
-            .text("prompt", prompt)
-            .text("size", format!("{}x{}", req.width, req.height))
-            .text("response_format", "url")
-            .text("resolution", image_resolution(req.width, req.height));
-        if let Some(aspect_ratio) = image_aspect_ratio(req.width, req.height) {
-            form = form.text("aspect_ratio", aspect_ratio);
-        }
-        let field_name = reference_image_field_name(reference_images.len());
-        for (index, image) in reference_images.iter().enumerate() {
+        let mut body = json!({
+            "model": req.model,
+            "prompt": prompt,
+            "size": format!("{}x{}", req.width, req.height),
+            "response_format": "url",
+            "resolution": image_resolution(req.width, req.height),
+        });
+        let mut images = Vec::with_capacity(reference_images.len());
+        for image in reference_images {
             let decoded = prepare_reference_image_for_upload(&image.data_uri)?;
-            let filename = format!("reference_{}.{}", index + 1, decoded.format);
-            let part = Part::bytes(decoded.bytes)
-                .file_name(filename)
-                .mime_str(&decoded.mime_type)
-                .map_err(|e| internal_error(format!("参考图 multipart 构造失败：{e}")))?;
-            form = form.part(field_name, part);
+            let data_url = format!(
+                "data:{};base64,{}",
+                decoded.mime_type,
+                base64::engine::general_purpose::STANDARD.encode(decoded.bytes)
+            );
+            images.push(json!({"url": data_url}));
         }
-        Ok(form)
+
+        if images.len() == 1 {
+            body["image"] = images.remove(0);
+        } else {
+            body["images"] = json!(images);
+            if let Some(aspect_ratio) = image_aspect_ratio(req.width, req.height) {
+                body["aspect_ratio"] = json!(aspect_ratio);
+            }
+        }
+        Ok(body)
     }
 
     pub(crate) fn request_body_preview(req: &ImageGenerationRequest) -> Result<Value, AppError> {
         if req.reference_images.is_empty() {
             return Ok(Self::generation_body(req));
         }
-        let reference_images = &req.reference_images;
-        let field_name = reference_image_field_name(reference_images.len());
-        let files = reference_images
-            .iter()
-            .enumerate()
-            .map(|(index, image)| {
-                json!({
-                    "field": field_name,
-                    "filename": format!("reference_{}", index + 1),
-                    "label": image.label,
-                    "data_uri": image.data_uri,
-                })
-            })
-            .collect::<Vec<_>>();
-        let prompt = prompt_with_reference_labels(&req.prompt, reference_images);
+        let body = Self::edit_body(req)?;
         Ok(json!({
             "endpoint": "/images/edits",
-            "content_type": "multipart/form-data",
+            "content_type": "application/json",
             "model": req.model,
             "size": format!("{}x{}", req.width, req.height),
-            "fields": {
-                "model": req.model,
-                "prompt": prompt,
-                "size": format!("{}x{}", req.width, req.height),
-                "response_format": "url",
-                "resolution": image_resolution(req.width, req.height),
-                "aspect_ratio": image_aspect_ratio(req.width, req.height),
-            },
-            "files": files,
+            "fields": body,
         }))
     }
 }
