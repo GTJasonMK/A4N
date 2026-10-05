@@ -744,7 +744,7 @@ export const novelAssets = {
     externalImport: "External imported image",
     descriptionPlaceholder: "Image description",
     importConfirm: "Import",
-    manualPath: "Enter path manually",
+    manualPath: "Enter path",
     localPathTitle: "Import image from local path",
     localPathMessage: "If the file picker cannot open, paste the complete local image path.",
     localPathLabel: "Image path",

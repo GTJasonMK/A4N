@@ -1,4 +1,4 @@
-import { useMemo, type ChangeEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
   AlertTriangle,
   Camera,
@@ -24,6 +24,8 @@ import {
   isImageStale,
   type ImageScope,
 } from "./imageTabUtils";
+
+const LOCAL_PATH_FALLBACK_DELAY_MS = 1500;
 
 interface ImageGalleryPanelProps {
   allImages: GeneratedImage[];
@@ -75,6 +77,37 @@ export function ImageGalleryPanel({
   onOpenActions,
 }: ImageGalleryPanelProps) {
   const { locale, t } = useI18n();
+  const [showLocalPathFallback, setShowLocalPathFallback] = useState(false);
+  const localPathFallbackTimerRef = useRef<number | null>(null);
+  const localImageFileInputRef = useRef<HTMLInputElement | null>(null);
+  const clearLocalPathFallback = useCallback(() => {
+    if (localPathFallbackTimerRef.current != null) {
+      window.clearTimeout(localPathFallbackTimerRef.current);
+      localPathFallbackTimerRef.current = null;
+    }
+    setShowLocalPathFallback(false);
+  }, []);
+  const handleImagePickerClick = () => {
+    clearLocalPathFallback();
+    if (onPickLocalImageFile) {
+      localPathFallbackTimerRef.current = window.setTimeout(() => {
+        localPathFallbackTimerRef.current = null;
+        setShowLocalPathFallback(true);
+      }, LOCAL_PATH_FALLBACK_DELAY_MS);
+    }
+  };
+
+  useEffect(() => {
+    const input = localImageFileInputRef.current;
+    input?.addEventListener("cancel", clearLocalPathFallback);
+    return () => {
+      input?.removeEventListener("cancel", clearLocalPathFallback);
+      if (localPathFallbackTimerRef.current != null) {
+        window.clearTimeout(localPathFallbackTimerRef.current);
+      }
+    };
+  }, [canEditImages, clearLocalPathFallback]);
+
   const { images, stats } = useMemo(() => {
     const visibleImages: GeneratedImage[] = [];
     let staleCount = 0;
@@ -252,18 +285,21 @@ export function ImageGalleryPanel({
                   disabled={importBusy}
                   aria-hidden="true"
                   tabIndex={-1}
-                  className="pointer-events-none w-full !text-xs"
+                  className="pointer-events-none w-full !whitespace-nowrap !text-xs"
                 >
                   <ImagePlus size={12} />
                   {importBusy ? t("novel.imageLibrary.importing") : t("novel.imageLibrary.import")}
                 </BookButton>
                 <input
+                  ref={localImageFileInputRef}
                   type="file"
                   accept={supportedImageAccept()}
                   aria-label={t("novel.imageLibrary.import")}
                   disabled={importBusy}
                   className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                  onClick={handleImagePickerClick}
                   onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                    clearLocalPathFallback();
                     const input = event.currentTarget;
                     const file = input.files?.[0];
                     input.value = "";
@@ -272,13 +308,16 @@ export function ImageGalleryPanel({
                 />
               </span>
             ) : null}
-            {canEditImages && onPickLocalImageFile ? (
+            {canEditImages && onPickLocalImageFile && showLocalPathFallback ? (
               <BookButton
-                variant="ghost"
+                variant="secondary"
                 size="sm"
                 disabled={importBusy}
-                onClick={onPickLocalImageFile}
-                className="min-w-0 flex-1 !text-xs sm:flex-none"
+                onClick={() => {
+                  clearLocalPathFallback();
+                  onPickLocalImageFile();
+                }}
+                className="min-w-0 shrink-0 !whitespace-nowrap !text-xs sm:flex-none"
               >
                 <FileInput size={12} />
                 {t("novel.imageLibrary.manualPath")}
@@ -289,7 +328,7 @@ export function ImageGalleryPanel({
                 variant="primary"
                 size="sm"
                 onClick={onOpenTools}
-                className="min-w-0 flex-1 !text-xs sm:flex-none"
+                className="min-w-0 flex-1 !whitespace-nowrap !text-xs sm:flex-none"
               >
                 <Camera size={12} /> {t("novel.imageLibrary.generate")}
               </BookButton>
