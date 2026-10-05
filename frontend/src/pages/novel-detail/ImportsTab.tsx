@@ -51,7 +51,7 @@ import {
   importAnalysisDialogFromProgress,
   type ImportAnalysisDialogState,
 } from "./imports/importTabUtils";
-import { readFileAsBase64 } from "../../utils/fileUpload";
+import { openFilePicker, readFileAsBase64 } from "../../utils/fileUpload";
 import { formatNumber, useI18n } from "../../i18n";
 import { useNovelDetailDirty } from "./novelDetailDirty";
 
@@ -445,7 +445,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
 
   const handleSelectImportFile = () => {
     if (importBusyRef.current) return;
-    importFileInputRef.current?.click();
+    openFilePicker(importFileInputRef.current);
   };
 
   const handleImportFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -1165,7 +1165,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
           ref={importFileInputRef}
           type="file"
           accept=".txt,.md,.markdown,.epub,.docx,text/plain,text/markdown,application/epub+zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          className="hidden"
+          className="sr-only"
           onChange={handleImportFileChange}
         />
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">

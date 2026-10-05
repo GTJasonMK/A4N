@@ -2,6 +2,7 @@ import React, { useRef } from "react";
 import { ChevronRight, Download, Upload } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { useI18n } from "../../../i18n";
+import { openFilePicker } from "../../../utils/fileUpload";
 import type { ConfigBackupScope } from "./useFullConfigBackup";
 
 interface FullConfigBackupPanelProps {
@@ -78,7 +79,7 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
         <section className="a4n-flat-surface overflow-hidden">
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => openFilePicker(fileInputRef.current)}
             disabled={busy}
             className="flex min-h-11 w-full items-center gap-3 px-3 py-3 text-left text-book-text-main transition-colors hover:bg-book-bg-tertiary/40 hover:text-book-primary disabled:opacity-50"
           >
@@ -99,7 +100,7 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
             ref={fileInputRef}
             type="file"
             accept=".json,application/json"
-            className="hidden"
+            className="sr-only"
             onChange={handleFileChange}
           />
           {scope === "server" && <details className="border-t border-book-border/35 text-xs text-book-text-muted">
