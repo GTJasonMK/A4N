@@ -19,7 +19,7 @@ import {
   uploadImage,
   verifyImageGenerationResult,
   type GeneratedImage,
-  type PickedLocalImageFile,
+  type LocalImageFile,
   type UpdateImageInput,
 } from "../../api/image";
 import {
@@ -708,7 +708,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     }
   };
 
-  const handleImportImageFile = async (file: File | PickedLocalImageFile) => {
+  const handleImportImageFile = async (file: File | LocalImageFile) => {
     if (!ensureCanEditImages()) return;
     const requestScope = scopeKey;
     const requestProjectId = projectId;

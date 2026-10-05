@@ -11,15 +11,15 @@ import { idNum, type ApiId as Id } from "../shared";
 export type UpdateImageInput = Omit<UpdateGeneratedImageInput, "image_id">;
 export type { UploadImageInput };
 
-export interface PickedLocalImageFile {
+export interface LocalImageFile {
   dataBase64: string;
   name: string;
   size: number;
   type: string;
 }
 
-export function readLocalImageFile(path: string): Promise<PickedLocalImageFile> {
-  return runtimeInvoke<PickedLocalImageFile>("read_local_image_file", { path });
+export function readLocalImageFile(path: string): Promise<LocalImageFile> {
+  return runtimeInvoke<LocalImageFile>("read_local_image_file", { path });
 }
 
 export async function updateImage(imageId: Id, input: UpdateImageInput): Promise<GeneratedImage> {
