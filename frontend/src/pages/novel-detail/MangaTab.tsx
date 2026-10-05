@@ -70,6 +70,7 @@ import {
 } from "./manga/mangaPipelineProgress";
 import {
   countStaleMangaPagePrompts,
+  mangaPageStageHasOutput,
   type MangaPageWorkspaceStage,
 } from "./manga/mangaTabUtils";
 
@@ -200,6 +201,10 @@ export const MangaTab: React.FC<MangaTabProps> = ({
             total: pagePrompts.length,
           })
         : undefined;
+    const pageStageProgress = (stage: MangaPageWorkspaceStage) =>
+      stageProgress(
+        pagePrompts.filter((page) => mangaPageStageHasOutput(page, stage)).length,
+      );
     const pagePromptsStale = countStaleMangaPagePrompts(pagePrompts, currentContentHash) > 0;
     return [
       { id: "materials" as const, label: t("common.mediaAuthoring.materials"), icon: <ImagePlus size={13} /> },
@@ -213,19 +218,19 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         id: "page_plan" as const,
         label: t("comic.pipelineStages.pagination"),
         icon: <PanelTop size={13} />,
-        status: stageProgress(pagePrompts.filter((page) => page.page_content != null).length),
+        status: pageStageProgress("page_plan"),
       },
       {
         id: "page_adaptation" as const,
         label: t("comic.pipelineStages.pageAdaptation"),
         icon: <FileText size={13} />,
-        status: stageProgress(pagePrompts.filter((page) => page.page_adaptation != null).length),
+        status: pageStageProgress("page_adaptation"),
       },
       {
         id: "storyboard" as const,
         label: t("comic.pipelineStages.storyboard"),
         icon: <Clapperboard size={13} />,
-        status: stageProgress(pagePrompts.filter((page) => page.page_plan != null).length),
+        status: pageStageProgress("storyboard"),
       },
       {
         id: "prompts" as const,
@@ -233,7 +238,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         icon: <FileText size={13} />,
         status: outputState?.stale || pagePromptsStale
           ? t("common.mediaAuthoring.needsUpdate")
-          : stageProgress(pagePrompts.filter((page) => page.drawing_prompt != null).length),
+          : pageStageProgress("prompts"),
       },
       {
         id: "images" as const,
@@ -241,7 +246,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         icon: <Images size={13} />,
         status: outputState?.stale || pagePromptsStale
           ? t("common.mediaAuthoring.needsUpdate")
-          : stageProgress(pagePrompts.filter((page) => page.generated_image_id != null).length),
+          : pageStageProgress("images"),
       },
     ];
   }, [authoring.workspace, currentContentHash, pagePrompts, selectedChapter?.id, t]);

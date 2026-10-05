@@ -66,6 +66,46 @@ export const mangaImageStatusMatchesWorkspaceStage = (
   workspaceStage: MangaWorkspaceStage | undefined,
 ): boolean => workspaceStage == null || workspaceStage === "images";
 
+type MangaPageStageOutputs = Pick<
+  MangaPagePromptSummary,
+  "page_content" | "page_adaptation" | "page_plan" | "drawing_prompt" | "generated_image_id"
+>;
+
+type MangaPageStageProgress = MangaPageStageOutputs &
+  Pick<MangaPagePromptSummary, "pipeline_error" | "pipeline_stage" | "pipeline_status">;
+
+export const mangaPageStageHasOutput = (
+  page: MangaPageStageOutputs,
+  stage: MangaPageWorkspaceStage,
+): boolean => {
+  switch (stage) {
+    case "page_plan":
+      return page.page_content != null;
+    case "page_adaptation":
+      return page.page_adaptation != null;
+    case "storyboard":
+      return page.page_plan != null;
+    case "prompts":
+      return page.drawing_prompt != null;
+    case "images":
+      return page.generated_image_id != null;
+  }
+};
+
+export const mangaPageStageNeedsGeneration = (
+  page: MangaPageStageProgress,
+  stage: MangaPageWorkspaceStage,
+): boolean => {
+  if (!mangaPageStageHasOutput(page, stage)) return true;
+  if (page.pipeline_status == null || page.pipeline_status === "completed") return false;
+
+  const incompleteStage =
+    page.pipeline_status === "failed" || page.pipeline_status === "cancelled"
+      ? page.pipeline_error?.stage ?? page.pipeline_stage
+      : page.pipeline_stage;
+  return mangaPipelineStageMatchesWorkspaceStage(stage, incompleteStage);
+};
+
 export const mangaPageNumberForPipelineStage = (
   stage: MangaPageWorkspaceStage | undefined,
   selectedPageNumber: number | null,

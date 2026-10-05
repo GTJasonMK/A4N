@@ -3,6 +3,8 @@ import {
   mangaImageStatusMatchesWorkspaceStage,
   mangaPipelineStageMatchesWorkspaceStage,
   mangaPageNumberForPipelineStage,
+  mangaPageStageHasOutput,
+  mangaPageStageNeedsGeneration,
   mangaStageAllowsReferenceBinding,
   mangaStopAfterForStage,
 } from "./mangaTabUtils";
@@ -48,5 +50,42 @@ describe("manga pipeline workspace stages", () => {
     expect(mangaImageStatusMatchesWorkspaceStage("storyboard")).toBe(false);
     expect(mangaImageStatusMatchesWorkspaceStage("materials")).toBe(false);
     expect(mangaImageStatusMatchesWorkspaceStage(undefined)).toBe(true);
+  });
+
+  it("offers generation when the selected stage output is missing", () => {
+    const emptyPage: Parameters<typeof mangaPageStageNeedsGeneration>[0] = {
+      page_content: null,
+      page_adaptation: null,
+      page_plan: null,
+      drawing_prompt: null,
+      generated_image_id: null,
+      pipeline_error: null,
+      pipeline_stage: null,
+      pipeline_status: null,
+    };
+
+    expect(mangaPageStageHasOutput(emptyPage, "storyboard")).toBe(false);
+    expect(mangaPageStageNeedsGeneration(emptyPage, "storyboard")).toBe(true);
+
+    const completedStoryboard = {
+      ...emptyPage,
+      page_plan: {} as NonNullable<typeof emptyPage.page_plan>,
+    };
+    expect(mangaPageStageHasOutput(completedStoryboard, "storyboard")).toBe(true);
+    expect(mangaPageStageNeedsGeneration(completedStoryboard, "storyboard")).toBe(false);
+
+    const failedImage = {
+      ...completedStoryboard,
+      pipeline_error: {
+        stage: "image",
+        code: "page_stage_failed",
+        message: "image generation failed",
+        retryable: true,
+      },
+      pipeline_stage: "image",
+      pipeline_status: "failed",
+    } satisfies Parameters<typeof mangaPageStageNeedsGeneration>[0];
+    expect(mangaPageStageNeedsGeneration(failedImage, "storyboard")).toBe(false);
+    expect(mangaPageStageNeedsGeneration(failedImage, "images")).toBe(true);
   });
 });

@@ -53,6 +53,7 @@ import {
   mangaStageLabel,
   mangaPageStageLabel,
   mangaPageNumberForPipelineStage,
+  mangaPageStageNeedsGeneration,
   mangaPipelineStageMatchesWorkspaceStage,
   mangaStopAfterForStage,
   mangaStageAllowsReferenceBinding,
@@ -825,16 +826,17 @@ export function MangaChapterDetailPanel({
   const pipelineCanCancel = selectedStatus?.can_cancel === true;
   const pipelineCanResume = pipelineCanResumeForStage;
   const hasMangaResult = pagePrompts.length > 0;
-  const hasIncompletePages = pagePrompts.some((prompt) => {
-    if (prompt.pipeline_status == null || prompt.pipeline_status === "completed") {
-      return false;
-    }
-    const failedStage =
-      prompt.pipeline_status === "failed" || prompt.pipeline_status === "cancelled"
-        ? prompt.pipeline_error?.stage ?? prompt.pipeline_stage
-        : prompt.pipeline_stage;
-    return mangaPipelineStageMatchesWorkspaceStage(stageMode, failedStage);
-  });
+  const pipelineTargetPages =
+    pipelinePageNumber == null
+      ? pagePrompts
+      : pagePrompts.filter((prompt) => prompt.page_number === pipelinePageNumber);
+  const hasIncompletePages = stageMode == null
+    ? pagePrompts.some(
+        (prompt) => prompt.pipeline_status != null && prompt.pipeline_status !== "completed",
+      )
+    : pipelineTargetPages.some((prompt) =>
+        mangaPageStageNeedsGeneration(prompt, stageMode),
+      );
   const mangaResultStale = stalePagePromptCount > 0;
   const pipelineFailed =
     pipelineStoppedWithError && !pipelineCanResume;
