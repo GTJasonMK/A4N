@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   mangaPageNumberForPipelineStage,
+  mangaStageAllowsReferenceBinding,
   mangaStopAfterForStage,
 } from "./mangaTabUtils";
 
@@ -18,5 +19,14 @@ describe("manga pipeline workspace stages", () => {
     expect(mangaPageNumberForPipelineStage("page_adaptation", 2)).toBe(2);
     expect(mangaPageNumberForPipelineStage("storyboard", 2)).toBe(2);
     expect(mangaPageNumberForPipelineStage(undefined, 2)).toBeNull();
+  });
+
+  it("allows reference binding in prompt and image stages", () => {
+    expect(mangaStageAllowsReferenceBinding(undefined)).toBe(true);
+    expect(mangaStageAllowsReferenceBinding("prompts")).toBe(true);
+    expect(mangaStageAllowsReferenceBinding("images")).toBe(true);
+    expect(mangaStageAllowsReferenceBinding("page_plan")).toBe(false);
+    expect(mangaStageAllowsReferenceBinding("page_adaptation")).toBe(false);
+    expect(mangaStageAllowsReferenceBinding("storyboard")).toBe(false);
   });
 });

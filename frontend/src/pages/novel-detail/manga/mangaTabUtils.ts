@@ -37,6 +37,10 @@ export const mangaPageNumberForPipelineStage = (
 ): number | null =>
   stage == null || stage === "page_plan" ? null : selectedPageNumber;
 
+export const mangaStageAllowsReferenceBinding = (
+  stage: MangaPageWorkspaceStage | undefined,
+): boolean => stage == null || stage === "prompts" || stage === "images";
+
 export type MangaPagePromptSource = {
   content_sha256: string;
   source_revision_key: string;

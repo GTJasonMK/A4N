@@ -57,6 +57,7 @@ import {
   mangaPageStageLabel,
   mangaPageNumberForPipelineStage,
   mangaStopAfterForStage,
+  mangaStageAllowsReferenceBinding,
   type MangaPageWorkspaceStage,
 } from "./mangaTabUtils";
 import { useI18n } from "../../../i18n";
@@ -1078,7 +1079,7 @@ export function MangaChapterDetailPanel({
                 canEditManga={canEditManga}
                 onPreviewPageImage={stageMode == null || stageMode === "images" || stageMode === "prompts" ? handlePreviewPageImage : undefined}
                 onGeneratePageImage={stageMode == null || stageMode === "images" ? handleGeneratePageImage : undefined}
-                onBindReferenceImage={stageMode == null || stageMode === "images" ? handleBindReferenceImage : undefined}
+                onBindReferenceImage={mangaStageAllowsReferenceBinding(stageMode) ? handleBindReferenceImage : undefined}
                 onUpdatePrompt={handleUpdatePrompt}
                 onOptimizePrompt={handleOptimizePrompt}
                 onDeletePrompt={handleDeletePrompt}
