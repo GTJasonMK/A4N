@@ -2,6 +2,7 @@ import { useMemo, type ChangeEvent } from "react";
 import {
   AlertTriangle,
   Camera,
+  FileInput,
   ImagePlus,
   RefreshCw,
   Star,
@@ -243,19 +244,7 @@ export function ImageGalleryPanel({
             >
               <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
             </BookIconButton>
-            {canEditImages && onPickLocalImageFile ? (
-              <BookButton
-                variant="secondary"
-                size="sm"
-                disabled={importBusy}
-                onClick={onPickLocalImageFile}
-                className="min-w-0 flex-1 !text-xs sm:flex-none"
-              >
-                <ImagePlus size={12} />
-                {importBusy ? t("novel.imageLibrary.importing") : t("novel.imageLibrary.import")}
-              </BookButton>
-            ) : null}
-            {canEditImages && !onPickLocalImageFile ? (
+            {canEditImages ? (
               <span className="relative min-w-0 flex-1 rounded-lg focus-within:ring-2 focus-within:ring-book-border sm:flex-none">
                 <BookButton
                   variant="secondary"
@@ -282,6 +271,18 @@ export function ImageGalleryPanel({
                   }}
                 />
               </span>
+            ) : null}
+            {canEditImages && onPickLocalImageFile ? (
+              <BookButton
+                variant="ghost"
+                size="sm"
+                disabled={importBusy}
+                onClick={onPickLocalImageFile}
+                className="min-w-0 flex-1 !text-xs sm:flex-none"
+              >
+                <FileInput size={12} />
+                {t("novel.imageLibrary.manualPath")}
+              </BookButton>
             ) : null}
             {canEditImages ? (
               <BookButton
