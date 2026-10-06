@@ -38,6 +38,21 @@ Rust dylib 时，Worker 与 bootstrap 的 Axum/Tokio crate 格式冲突；因此
 - 图片功能只启用业务支持的 PNG/JPEG/WebP；SeaORM 显式保留 PostgreSQL、chrono、JSON、UUID 和数组支持。ZIP 的既有导入兼容范围没有缩减。
 - release bundle 禁用 devtools，debug bundle 保留调试能力。打包脚本使用调用方的 `CARGO_TARGET_DIR`，包括带空格的路径。
 
+## 2026-10-06 依赖收敛实测
+
+在相同 Linux x86_64、Rust 1.95.0、前端和发布清单下，固定
+`qdrant-client = 1.19.0`，移除 Axum 默认 feature，并将 Tokio feature 改为显式集合。
+候选完整 Tauri 包从压缩 `217,901,494` 字节降到 `217,140,317` 字节（减少
+`761,177` 字节，`0.349%`）；解包文件从 `559,927,910` 字节降到 `557,920,214`
+字节（减少 `2,007,696` 字节，`0.359%`）。包内仍有 30 个独立 Worker、9 个独立
+Sidecar；30 个二进制依赖共享 `liba4n_db`，39 个依赖共享 `libstd`，所有包内 ELF
+依赖在设置 `bin/services` loader path 后均可解析。
+
+`cargo tree --workspace --duplicates` 已不再报告 Axum、Tokio 或 Tower 的多版本。
+剩余重复项来自 Tauri、fastembed 及其它上游构建链，不能通过本仓库的 feature 收敛安全
+删除。将 Host 也改成共享 DB 动态库的原型需要关闭 Host 的 fat LTO：`a4n-control`
+单体仅减少约 2.5 MB，`a4n-tauri` 反而增加约 1.8 MB，因此不纳入发行配方。
+
 ## 验证与度量方式
 
 依赖门禁在 `scripts/checks/check-worker-isolation.sh` 中检查默认 Host 不携带已迁出的 transform core，以及 Worker 不为协议常量反向依赖客户端实现。

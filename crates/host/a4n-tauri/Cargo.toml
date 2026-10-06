@@ -56,9 +56,9 @@ uuid = { workspace = true }
 base64 = { workspace = true }
 
 # 异步
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["fs"] }
 reqwest = { workspace = true }
-axum = { workspace = true }
+axum = { workspace = true, features = ["query"] }
 tempfile = { workspace = true }
 
 # 配置解析

@@ -266,7 +266,7 @@ a4n-theme-read-worker-contract = { path = "crates/theme/a4n-theme-read-worker-co
 clap = { version = "4", features = ["derive"] }
 
 # 异步运行时
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", default-features = false, features = ["io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 async-trait = "0.1"
 
 # 序列化
@@ -291,7 +291,7 @@ thiserror = "2"
 futures = "0.3"
 
 # HTTP 服务端
-axum = "0.8"
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "tracing"] }
 tower = { version = "0.5", features = ["limit"] }
 tower-http = { version = "0.6", features = ["cors", "fs", "trace"] }
 

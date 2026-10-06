@@ -99,6 +99,13 @@ if grep -Eq '(^|[[:space:]])(a4n-(db|db-models|runtime|orchestrator)|sea-orm|sql
     exit 1
 fi
 
+duplicate_runtime_tree="$(cargo tree --workspace --locked --duplicates)"
+if grep -Eq '^(axum|tokio|tower) v' <<<"$duplicate_runtime_tree"; then
+    echo "workspace must keep a single Axum/Tokio/Tower version for independently packaged components" >&2
+    grep -E '^(axum|tokio|tower) v' <<<"$duplicate_runtime_tree" >&2
+    exit 1
+fi
+
 control_tree="$(cargo tree --locked -e normal,build -p a4n-control --no-default-features)"
 for tree in "$control_tree" "$host_tree"; do
     if grep -Eq 'a4n-(import|export|document-export|media-processing|media-render)-core v' <<<"$tree"; then

@@ -14,7 +14,7 @@ dependencies = [
  "a4n-error",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "serde_json",
  "subtle",
@@ -122,7 +122,7 @@ dependencies = [
  "a4n-worker-contract",
  "anyhow",
  "async-trait",
- "axum 0.8.9",
+ "axum",
  "futures",
  "reqwest 0.12.28",
  "sea-orm",
@@ -130,7 +130,7 @@ dependencies = [
  "serde_json",
  "subtle",
  "tokio",
- "tower 0.5.3",
+ "tower",
  "tracing",
  "tracing-subscriber",
 ]
@@ -194,7 +194,7 @@ dependencies = [
  "a4n-worker-client",
  "a4n-worker-contract",
  "async-trait",
- "axum 0.8.9",
+ "axum",
  "chrono",
  "serde",
  "serde_json",
@@ -225,7 +225,7 @@ dependencies = [
  "a4n-storage",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "chrono",
  "serde",
  "serde_json",
@@ -245,7 +245,7 @@ dependencies = [
  "a4n-error",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "subtle",
  "tokio",
@@ -308,7 +308,7 @@ dependencies = [
  "a4n-domain",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "serde_json",
  "subtle",
@@ -378,7 +378,7 @@ dependencies = [
  "a4n-domain",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "chrono",
  "serde",
  "serde_json",
@@ -460,7 +460,7 @@ dependencies = [
  "a4n-error",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "subtle",
  "tokio",
@@ -512,7 +512,7 @@ dependencies = [
  "a4n-domain",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "chrono",
  "serde",
  "subtle",
@@ -568,7 +568,7 @@ dependencies = [
  "a4n-domain",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "serde_json",
  "subtle",
@@ -724,7 +724,7 @@ dependencies = [
  "a4n-video",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "chrono",
  "serde",
  "serde_json",
@@ -776,7 +776,7 @@ dependencies = [
  "a4n-task-runtime",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "chrono",
  "futures",
  "parking_lot",
@@ -856,7 +856,7 @@ dependencies = [
  "a4n-service-protocol",
  "a4n-sidecar-bootstrap",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde_json",
  "tokio",
 ]
@@ -892,7 +892,7 @@ name = "a4n-edge"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "futures",
  "reqwest 0.12.28",
  "tempfile",
@@ -977,7 +977,7 @@ dependencies = [
  "a4n-sidecar-bootstrap",
  "a4n-test-support",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "futures",
  "serde_json",
  "tokio",
@@ -1062,7 +1062,7 @@ dependencies = [
  "a4n-sidecar-bootstrap",
  "a4n-test-support",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "futures",
  "serde_json",
  "tokio",
@@ -1079,7 +1079,7 @@ dependencies = [
  "a4n-foreshadowing-worker-contract",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "serde_json",
  "subtle",
@@ -1197,7 +1197,7 @@ dependencies = [
  "a4n-workflow-lifecycle-worker-client",
  "a4n-workflow-read-worker-client",
  "async-trait",
- "axum 0.8.9",
+ "axum",
  "chrono",
  "sea-orm",
  "sha2",
@@ -1283,7 +1283,7 @@ dependencies = [
  "a4n-sidecar-bootstrap",
  "a4n-test-support",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "base64 0.22.1",
  "futures",
  "serde_json",
@@ -1358,7 +1358,7 @@ dependencies = [
  "a4n-import-review-worker-contract",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "subtle",
  "tokio",
@@ -1398,7 +1398,7 @@ dependencies = [
  "a4n-sidecar-bootstrap",
  "a4n-test-support",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "base64 0.22.1",
  "serde_json",
  "tokio",
@@ -1435,7 +1435,7 @@ dependencies = [
  "a4n-inspiration-worker-contract",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "subtle",
  "tokio",
@@ -1515,7 +1515,7 @@ dependencies = [
  "a4n-sidecar-bootstrap",
  "a4n-test-support",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "futures",
  "serde_json",
  "tokio",
@@ -1607,7 +1607,7 @@ dependencies = [
  "a4n-manga-record-worker-contract",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "subtle",
  "tokio",
@@ -1695,7 +1695,7 @@ dependencies = [
  "a4n-sidecar-bootstrap",
  "a4n-test-support",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "tokio",
  "tracing",
 ]
@@ -1761,12 +1761,12 @@ dependencies = [
  "a4n-novel-planning-worker-contract",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "serde_json",
  "subtle",
  "tokio",
- "tower 0.5.3",
+ "tower",
  "tracing",
  "tracing-subscriber",
 ]
@@ -1806,7 +1806,7 @@ dependencies = [
  "a4n-object-profile-worker-contract",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "subtle",
  "tokio",
@@ -1958,7 +1958,7 @@ dependencies = [
  "a4n-outline-worker-contract",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "serde_json",
  "subtle",
@@ -2016,7 +2016,7 @@ dependencies = [
  "a4n-portrait-worker-contract",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "subtle",
  "tokio",
@@ -2077,7 +2077,7 @@ dependencies = [
  "a4n-profile-material-worker-contract",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "subtle",
  "tokio",
@@ -2125,7 +2125,7 @@ dependencies = [
  "a4n-project-access-worker-contract",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "subtle",
  "tokio",
@@ -2164,7 +2164,7 @@ dependencies = [
  "a4n-project-collaboration-worker-contract",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "subtle",
  "tokio",
@@ -2205,7 +2205,7 @@ dependencies = [
  "a4n-project-read-core",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "subtle",
  "tokio",
@@ -2258,7 +2258,7 @@ dependencies = [
  "a4n-project-read-worker-contract",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "subtle",
  "tokio",
@@ -2300,7 +2300,7 @@ dependencies = [
  "a4n-project-status-worker-contract",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "chrono",
  "serde",
  "subtle",
@@ -2400,7 +2400,7 @@ dependencies = [
  "a4n-sidecar-bootstrap",
  "a4n-test-support",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "serde_json",
  "tokio",
@@ -2509,7 +2509,7 @@ dependencies = [
  "a4n-sidecar-bootstrap",
  "a4n-test-support",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "futures",
  "serde_json",
  "tokio",
@@ -2667,7 +2667,7 @@ dependencies = [
  "a4n-scene-profile-worker-contract",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "subtle",
  "tokio",
@@ -2744,7 +2744,7 @@ dependencies = [
  "a4n-workflow-lifecycle-worker",
  "a4n-workflow-read-worker",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "base64 0.22.1",
  "chrono",
  "futures",
@@ -2807,12 +2807,12 @@ version = "0.1.0"
 dependencies = [
  "a4n-service-protocol",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "futures",
  "serde_json",
  "subtle",
  "tokio",
- "tower 0.5.3",
+ "tower",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -2829,7 +2829,7 @@ dependencies = [
  "a4n-source-snapshot-worker-contract",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "subtle",
  "tokio",
@@ -2913,7 +2913,7 @@ dependencies = [
  "a4n-test-support",
  "a4n-worker-client",
  "a4n-worker-contract",
- "axum 0.8.9",
+ "axum",
  "base64 0.22.1",
  "parking_lot",
  "reqwest 0.12.28",
@@ -2966,7 +2966,7 @@ dependencies = [
  "a4n-video-sidecar-contract",
  "anyhow",
  "async-trait",
- "axum 0.8.9",
+ "axum",
  "chrono",
  "futures",
  "reqwest 0.12.28",
@@ -2999,7 +2999,7 @@ dependencies = [
  "a4n-theme-read-worker-contract",
  "a4n-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "subtle",
  "tokio",
@@ -3127,7 +3127,7 @@ dependencies = [
  "a4n-worker-contract",
  "a4n-workflow-core",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "chrono",
  "sea-orm",
  "serde",
@@ -3176,7 +3176,7 @@ dependencies = [
  "a4n-video-providers",
  "a4n-video-sidecar-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "base64 0.22.1",
  "futures",
  "serde_json",
@@ -3238,7 +3238,7 @@ dependencies = [
  "a4n-worker-contract",
  "a4n-workflow-lifecycle-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "serde",
  "subtle",
  "tokio",
@@ -3284,7 +3284,7 @@ dependencies = [
  "a4n-workflow-core",
  "a4n-workflow-read-worker-contract",
  "anyhow",
- "axum 0.8.9",
+ "axum",
  "chrono",
  "serde",
  "subtle",
@@ -3566,38 +3566,11 @@ checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
 name = "axum"
-version = "0.7.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edca88bc138befd0323b20752846e6587272d3b03b0343c8ea28a6f819e6e71f"
-dependencies = [
- "async-trait",
- "axum-core 0.4.5",
- "bytes",
- "futures-util",
- "http",
- "http-body",
- "http-body-util",
- "itoa",
- "matchit 0.7.3",
- "memchr",
- "mime",
- "percent-encoding",
- "pin-project-lite",
- "rustversion",
- "serde",
- "sync_wrapper",
- "tower 0.5.3",
- "tower-layer",
- "tower-service",
-]
-
-[[package]]
-name = "axum"
 version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "31b698c5f9a010f6573133b09e0de5408834d0c82f8d7475a89fc1867a71cd90"
 dependencies = [
- "axum-core 0.5.6",
+ "axum-core",
  "bytes",
  "form_urlencoded",
  "futures-util",
@@ -3607,7 +3580,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "itoa",
- "matchit 0.8.4",
+ "matchit",
  "memchr",
  "mime",
  "multer",
@@ -3619,30 +3592,10 @@ dependencies = [
  "serde_urlencoded",
  "sync_wrapper",
  "tokio",
- "tower 0.5.3",
+ "tower",
  "tower-layer",
  "tower-service",
  "tracing",
-]
-
-[[package]]
-name = "axum-core"
-version = "0.4.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09f2bd6146b97ae3359fa0cc6d6b376d9539582c7b4220f041a33ec24c226199"
-dependencies = [
- "async-trait",
- "bytes",
- "futures-util",
- "http",
- "http-body",
- "http-body-util",
- "mime",
- "pin-project-lite",
- "rustversion",
- "sync_wrapper",
- "tower-layer",
- "tower-service",
 ]
 
 [[package]]
@@ -4618,7 +4571,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4816,7 +4769,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5736,7 +5689,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.6.3",
+ "socket2",
  "system-configuration",
  "tokio",
  "tower-service",
@@ -6414,12 +6367,6 @@ dependencies = [
 
 [[package]]
 name = "matchit"
-version = "0.7.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e7465ac9959cc2b1404e8e2367b43684a6d13790fe23056cc8c6c5a6b7bcb94"
-
-[[package]]
-name = "matchit"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
@@ -6664,7 +6611,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7633,9 +7580,9 @@ dependencies = [
 
 [[package]]
 name = "prost"
-version = "0.13.5"
+version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2796faa41db3ec313a31f7624d9286acf277b52de526150b7e69f3debf891ee5"
+checksum = "528ac67416ff8646872a3c02cad9cc4ee5dc9f9540c9b10771855c95cb2e5ae1"
 dependencies = [
  "bytes",
  "prost-derive",
@@ -7643,9 +7590,9 @@ dependencies = [
 
 [[package]]
 name = "prost-derive"
-version = "0.13.5"
+version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
+checksum = "b570b25f7617e43d59005d0990ccb79e950a423952cea19671b7a876da390adf"
 dependencies = [
  "anyhow",
  "itertools 0.14.0",
@@ -7656,9 +7603,9 @@ dependencies = [
 
 [[package]]
 name = "prost-types"
-version = "0.13.5"
+version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52c2c1bf36ddb1a1c396b3601a3cec27c2462e45f07c386894ec3ccf5332bd16"
+checksum = "f94967dc7688f3054c7fac87473ffae4cc4c3904800e2d9f5b857246d8963b0a"
 dependencies = [
  "prost",
 ]
@@ -7671,9 +7618,9 @@ checksum = "e0c5ccf5294c6ccd63a74f1565028353830a9c2f5eb0c682c355c471726a6e3f"
 
 [[package]]
 name = "qdrant-client"
-version = "1.18.0"
+version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82cef4e669bcf9c07471463adab5ee080dd9bc9381f3652ea4981f6030b2c309"
+checksum = "dddc19df129bad7346ebd027288621ab1ac7e52678371f906b9a8622d7aaf87e"
 dependencies = [
  "anyhow",
  "derive_builder",
@@ -7684,9 +7631,10 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tokio",
  "tonic",
+ "tonic-prost",
  "uuid",
 ]
 
@@ -7961,7 +7909,7 @@ dependencies = [
  "tokio",
  "tokio-native-tls",
  "tokio-util",
- "tower 0.5.3",
+ "tower",
  "tower-http",
  "tower-service",
  "url",
@@ -7995,7 +7943,7 @@ dependencies = [
  "sync_wrapper",
  "tokio",
  "tokio-util",
- "tower 0.5.3",
+ "tower",
  "tower-http",
  "tower-service",
  "url",
@@ -8076,7 +8024,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -8104,15 +8052,6 @@ dependencies = [
  "rustls-pki-types",
  "schannel",
  "security-framework",
-]
-
-[[package]]
-name = "rustls-pemfile"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dce314e5fee3f39953d46bb63bb8a46d40c2f8fb7cc5a3b6cab2bde9721d6e50"
-dependencies = [
- "rustls-pki-types",
 ]
 
 [[package]]
@@ -8514,9 +8453,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.149"
+version = "1.0.151"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83fc039473c5595ace860d8c4fafa220ff474b3fc6bfdb4293327f1a37e94d86"
+checksum = "c841b55ecdae098c80dcae9cf767f6f8a0c2cdb3416bbef72181df4d0fe73f14"
 dependencies = [
  "itoa",
  "memchr",
@@ -8800,16 +8739,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 dependencies = [
  "serde",
-]
-
-[[package]]
-name = "socket2"
-version = "0.5.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e22376abed350d73dd1cd119b57ffccad95b4e585a7cda43e286245ce23c0678"
-dependencies = [
- "libc",
- "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -9576,7 +9505,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -9751,17 +9680,16 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.52.1"
+version = "1.53.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b67dee974fe86fd92cc45b7a95fdd2f99a36a6d7b0d431a231178d3d670bbcc6"
+checksum = "e95f91fcc7a621e8b030f6aa23c71fe9838ae2fb4d8118b75602a328f5144044"
 dependencies = [
  "bytes",
  "libc",
  "mio",
- "parking_lot",
  "pin-project-lite",
  "signal-hook-registry",
- "socket2 0.6.3",
+ "socket2",
  "tokio-macros",
  "windows-sys 0.61.2",
 ]
@@ -9943,13 +9871,12 @@ checksum = "756daf9b1013ebe47a8776667b466417e2d4c5679d441c26230efd9ef78692db"
 
 [[package]]
 name = "tonic"
-version = "0.12.3"
+version = "0.14.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "877c5b330756d856ffcc4553ab34a5684481ade925ecc54bcd1bf02b1d0d4d52"
+checksum = "ac2a5518c70fa84342385732db33fb3f44bc4cc748936eb5833d2df34d6445ef"
 dependencies = [
- "async-stream",
  "async-trait",
- "axum 0.7.9",
+ "axum",
  "base64 0.22.1",
  "bytes",
  "flate2",
@@ -9962,37 +9889,27 @@ dependencies = [
  "hyper-util",
  "percent-encoding",
  "pin-project",
- "prost",
  "rustls-native-certs",
- "rustls-pemfile",
- "socket2 0.5.10",
+ "socket2",
+ "sync_wrapper",
  "tokio",
  "tokio-rustls",
  "tokio-stream",
- "tower 0.4.13",
+ "tower",
  "tower-layer",
  "tower-service",
  "tracing",
 ]
 
 [[package]]
-name = "tower"
-version = "0.4.13"
+name = "tonic-prost"
+version = "0.14.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8fa9be0de6cf49e536ce1851f987bd21a43b771b09473c3549a6c853db37c1c"
+checksum = "50849f68853be452acf590cde0b146665b8d507b3b8af17261df47e02c209ea0"
 dependencies = [
- "futures-core",
- "futures-util",
- "indexmap 1.9.3",
- "pin-project",
- "pin-project-lite",
- "rand 0.8.6",
- "slab",
- "tokio",
- "tokio-util",
- "tower-layer",
- "tower-service",
- "tracing",
+ "bytes",
+ "prost",
+ "tonic",
 ]
 
 [[package]]
@@ -10003,7 +9920,9 @@ checksum = "ebe5ef63511595f1344e2d5cfa636d973292adc0eec1f0ad45fae9f0851ab1d4"
 dependencies = [
  "futures-core",
  "futures-util",
+ "indexmap 2.14.0",
  "pin-project-lite",
+ "slab",
  "sync_wrapper",
  "tokio",
  "tokio-util",
@@ -10035,7 +9954,7 @@ dependencies = [
  "pin-project-lite",
  "tokio",
  "tokio-util",
- "tower 0.5.3",
+ "tower",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -10777,7 +10696,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
