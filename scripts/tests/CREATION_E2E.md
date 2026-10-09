@@ -8,9 +8,9 @@ python3 scripts/tests/run_creation_e2e.py --stage inspiration
 python3 scripts/tests/run_creation_e2e.py --list
 ```
 
-`python3 scripts/tests/run_creation_e2e.py --stage all` 是全量生成链路 Mock 验收入口。除下列阶段测试和真实浏览器流程外，还运行媒体改编、角色/场景同步、Agent 委派与领域 Agent、LLM 生命周期/缓存、图片/立绘生成与恢复，以及 `run_all_workflows_e2e.py` 的全业务 fixture。任一子套件缺失、无断言、超时或失败，均使整轮失败；报告中的 `generation_matrix` 汇总全量套件状态。
+`python3 scripts/tests/run_creation_e2e.py --stage all --browser-feature-flows` 是完整 Web 与 CLI 功能链路 Mock 验收入口。它运行下列阶段测试和浏览器流程，并覆盖媒体改编、角色/场景同步、Agent 委派与领域 Agent、LLM 生命周期/缓存、图片/立绘生成与恢复，以及 `run_all_workflows_e2e.py` 的全业务 fixture。任一子套件缺失、无断言、超时或失败，均使整轮失败；报告中的 `generation_matrix` 汇总全量 CLI 套件状态。
 
-Nightly Full Checks workflow 会自动运行 `--stage all`；PR 只运行轻量矩阵和核心数据库集成。需要在本地复现同一组测试时使用 `./scripts/test-all.sh --profile full`，不要把完整 E2E 当作只编译或只启动服务的检查。
+Nightly Full Checks workflow 会自动运行 `--stage all --browser-feature-flows`；PR 只运行轻量矩阵和核心数据库集成。需要在本地复现同一组测试时使用 `./scripts/test-all.sh --profile full`，不要把完整 E2E 当作只编译或只启动服务的检查。
 
 需要已有 Rust、Node/npm 依赖、Docker、FFmpeg、Chromium/ChromeDriver、项目固定版本的 ONNX Runtime 和 `tools/qdrant/bin/qdrant`。PostgreSQL 默认使用 `postgres:16` 并设置 `max_connections=300`，以容纳全量并行 worker 的连接池；私有镜像地址可通过 `--postgres-image` 或 `A4N_E2E_POSTGRES_IMAGE` 指定。
 
@@ -58,7 +58,25 @@ Nightly Full Checks workflow 会自动运行 `--stage all`；PR 只运行轻量�
 | `full-project.e2e.mjs` | 手工建档、导入正文、RAG、Agent、画布、项目族导出 |
 | `nonlinear-material-sync.e2e.mjs` | 自由创作、无正文资料、跳过空白章节、归纳候选确认及正式蓝图更新 |
 | `video-mode-switch` / `video-scrub` | 多种生成模式、多片段状态、取消、播放与拖动竞态 |
-| `tauri-generation` / `package-lifecycle` | Native Channel 生命周期、功能包启停与权限隔离 |
+| `package-lifecycle.e2e.mjs` | 管理员启停功能包、普通用户边界及个人隐藏偏好；由完整创作 E2E 一起运行 |
+| `tauri-generation/generation.e2e.mjs` | Tauri Native 路径创建项目、流式生成及离开页面后恢复查看；由 macOS `tauri-functional` profile 运行 |
+
+## 用户功能覆盖
+
+| 功能区 | 流程覆盖 | 执行入口 |
+| --- | --- | --- |
+| 首页与 Agent | 项目筛选、邀请查看、创建/导入入口、线程活动、审批、子线程和预算操作 | `browser-ui-functional`：`H01-H08`、`A01-A12` |
+| 设置 | 提示词/主题、模型配置、用户和项目管理、任务队列、账号认证、日志、用量与备份 | `browser-ui-functional`：`SD01-SD27` 及 `S02`、`S05`、`S06` 操作用例 |
+| 创作编辑器 | 草稿确认/丢弃、章节导入与数值范围、阶段切换、视频时间输入 | `browser-ui-functional`：`UX-B60`、`UX-B72`、`UX-B73`、`UX-B74`、`UX-698` |
+| 正文事实反馈 | 保存归纳周期、执行反馈、关闭进行中的预览 | `browser-fact-feedback`：两个隔离 UI 流程 |
+| 视频画布 | 键盘添加节点 | `browser-ui-functional`：`X01` |
+| 创作阶段 | 灵感到媒体九个阶段的创建、生成、编辑、刷新重读和下游使用 | `creation-e2e`：`generation-stages.e2e.mjs` |
+| 完整项目 | 登录、项目创建、RAG、Agent、衍生项目和项目族导出 | `creation-e2e --browser-feature-flows`：`full-project.e2e.mjs` |
+| 功能包 | 管理员启停与用户偏好 | `creation-e2e --browser-feature-flows`：`package-lifecycle.e2e.mjs` |
+| CLI | 九个创作阶段，以及媒体、同步、Agent、LLM、图片/立绘与工作流任务 | `creation-e2e --stage all` |
+| Tauri Native 生成路径 | 桌面端创建项目、流式生成、离开后返回并读取完成结果 | macOS `tauri-functional` profile |
+
+`browser-ui-functional` 和 `browser-fact-feedback` 在 nightly 与 nightly-quick 执行；Tauri 用例需要设置 `A4N_WDIO_APP_BINARY`、隔离数据库 `A4N_DATABASE_URL`、`A4N_QDRANT_URL` 和 `A4N_JWT_SECRET`，运行命令为 `python3 scripts/tests/run_test_matrix.py --profile tauri-functional`。这些流程只验证用户功能行为，不扩展性能、安全或视觉质量门禁。
 
 原 `resume-existing.e2e.mjs` 的独有断言已并入非线性测试，旧文件退役。现在由同一次运行创建项目、导入第 7 章、完成同步，再验证分部归纳保留稀疏章纲和蓝图正式写入；不再依赖人工留下的项目 ID，也不以自动重试掩盖生成或同步失败。
 

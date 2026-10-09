@@ -340,7 +340,9 @@ describe("Home and global Agent page audit", function () {
       return { approvalId: mainSeed.approvals[0].id, command: mainSeed.approvals[0].command };
     }, last: async (scope) => button("拒绝", scope) },
     { id: "A04a-approval-exclusion", task: "处理一项审批时锁定同线程其他待审批项", open: async () => {
-      const scope = await agent();
+      for (let index = mainSeed.approvals.length - 1; index >= 0; index--) {
+        if (mainSeed.approvals[index].id === "home-approval-second") mainSeed.approvals.splice(index, 1);
+      }
       mainSeed.approvals.push({
         ...structuredClone(mainSeed.approvals[0]),
         id: "home-approval-second",
@@ -348,18 +350,49 @@ describe("Home and global Agent page audit", function () {
         command: "update_project_material",
         reason: "用于验证同线程只能同时处理一项审批。",
       });
+      await installUiFixtures(browser, fixtures);
+      const scope = await agent(mainSeed.thread.id, true);
       const firstApproval = mainSeed.approvals[0];
       const firstCard = await scope.$(`[data-approval-id="${firstApproval.id}"]`);
+      await browser.execute((approvalId) => window.__uiAudit.deferred.push(approvalId), firstApproval.id);
       await click("批准", firstCard);
-      await browser.waitUntil(async () => window.__uiAudit.pending.some((item) => item.command === "resolve_agent_approval"), { timeout });
+      try {
+        await browser.waitUntil(async () => browser.execute((approvalId) =>
+          window.__uiAudit.pending.some((item) => item.command === approvalId), firstApproval.id), { timeout });
+      } catch (error) {
+        const state = await browser.execute(() => ({
+          requests: window.__uiAudit.requests.slice(-5),
+          deferred: window.__uiAudit.deferred,
+          pending: window.__uiAudit.pending.map((item) => item.command),
+        }));
+        throw new Error(`${error.message}; UI fixture state=${JSON.stringify(state)}`);
+      }
       const secondCard = await scope.$('[data-approval-id="home-approval-second"]');
       assert.equal(await (await button("批准", secondCard)).isEnabled(), false);
       assert.equal(await (await button("拒绝", secondCard)).isEnabled(), false);
-      const pending = window.__uiAudit.pending.find((item) => item.command === "resolve_agent_approval");
-      Object.assign(firstApproval, { status: "approved", decision: "approve" });
-      pending.resolve(Response.json(firstApproval));
-      await browser.waitUntil(async () => (await button("批准", secondCard)).isEnabled(), { timeout });
-      assert.equal(window.__uiAudit.requests.filter((item) => item.command === "resolve_agent_approval").length, 1);
+      await browser.execute((approvalId) => {
+        const pending = window.__uiAudit.pending.find((item) => item.command === approvalId);
+        const approval = window.__uiAudit.fixtures.agentSnapshots[0].approvals.find((item) => item.id === approvalId);
+        Object.assign(approval, { status: "approved", decision: "approve" });
+        pending.resolve(Response.json(approval));
+      }, firstApproval.id);
+      try {
+        await browser.waitUntil(async () => {
+          const currentCard = await $('[data-approval-id="home-approval-second"]');
+          return (await button("批准", currentCard)).isEnabled();
+        }, { timeout });
+      } catch (error) {
+        const state = await browser.execute(() => ({
+          approvals: window.__uiAudit.fixtures.agentSnapshots[0].approvals.map(({ id, status }) => ({ id, status })),
+          requests: window.__uiAudit.requests.slice(-5),
+          pending: window.__uiAudit.pending.map((item) => item.command),
+          buttons: [...document.querySelectorAll('[data-approval-id="home-approval-second"] button')]
+            .map((item) => ({ disabled: item.disabled, text: item.innerText })),
+        }));
+        throw new Error(`${error.message}; UI fixture state=${JSON.stringify(state)}`);
+      }
+      assert.equal(await browser.execute((approvalId) =>
+        window.__uiAudit.requests.filter((item) => item.command === approvalId).length, firstApproval.id), 1);
       return scope;
     }, text: "用于验证同线程只能同时处理一项审批。", check: async (scope) => {
       assert.equal(await (await button("批准", await scope.$('[data-approval-id="home-approval-second"]'))).isEnabled(), true);

@@ -6,9 +6,10 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from run_creation_e2e import (
-    FULL_GENERATION_SUITES, ROOT, RunnerError, STAGES, acceptance_passed,
+    BROWSER_FEATURE_SPECS, FULL_GENERATION_SUITES, ROOT, RunnerError, STAGES, acceptance_passed,
     acceptance_result, build_cache_paths, files_fingerprint, frontend_fingerprint,
     full_generation_matrix_report, read_all_workflows_report, read_suite_report,
+    selected_browser_specs,
     selected_suites, source_fingerprint, stop_owned_workers, stop_postgres,
 )
 from run_browser_full_project_e2e import secure_mkdir, stop_process, tail
@@ -59,6 +60,13 @@ class CreationAcceptanceTest(unittest.TestCase):
         self.assertFalse(set(FULL_GENERATION_SUITES) & set(selected_suites({"inspiration"})))
         for script in FULL_GENERATION_SUITES.values():
             self.assertTrue((ROOT / "scripts/tests" / script).is_file(), script)
+
+    def test_browser_feature_flows_extend_the_creation_browser_path(self):
+        default = selected_browser_specs(False)
+        complete = selected_browser_specs(True)
+        self.assertEqual(default, ["./e2e/full-project/generation-stages.e2e.mjs"])
+        self.assertEqual(complete, [*default, *BROWSER_FEATURE_SPECS])
+        self.assertTrue(all((ROOT / "frontend" / spec.removeprefix("./")).is_file() for spec in complete))
 
     def test_full_generation_matrix_fails_if_any_suite_is_missing_or_failed(self):
         passed = {name: {"success": True} for name in FULL_GENERATION_SUITES}

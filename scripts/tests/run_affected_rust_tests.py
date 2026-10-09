@@ -48,7 +48,7 @@ def git_output(*args: str) -> str:
     return result.stdout
 
 
-def base_ref(explicit: str | None) -> str | None:
+def base_ref(explicit: str | None) -> str:
     requested = explicit or os.environ.get("A4N_TEST_BASE_REF")
     if not requested:
         github_base = os.environ.get("GITHUB_BASE_REF")
@@ -71,26 +71,21 @@ def base_ref(explicit: str | None) -> str | None:
             stderr=subprocess.DEVNULL,
         ).returncode == 0:
             return candidate
-    if subprocess.run(
-        ["git", "rev-parse", "--verify", "HEAD^"],
-        cwd=ROOT,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    ).returncode == 0:
-        return "HEAD^"
-    return None
+    raise AffectedRustError(
+        "无法确定 Rust 测试基线；请通过 --base-ref 或 A4N_TEST_BASE_REF 指定"
+    )
 
 
-def changed_files(reference: str | None) -> set[str]:
+def changed_files(reference: str) -> set[str]:
     files: set[str] = set()
-    if reference:
-        files.update(git_output("diff", "--name-only", f"{reference}...HEAD", "--").splitlines())
-        files.update(git_output("diff", "--name-only", "HEAD", "--").splitlines())
-    else:
-        files.update(git_output("diff", "--name-only", "--").splitlines())
-        files.update(git_output("diff", "--cached", "--name-only", "--").splitlines())
+    files.update(git_output("diff", "--name-only", f"{reference}...HEAD", "--").splitlines())
+    files.update(git_output("diff", "--name-only", "HEAD", "--").splitlines())
     files.update(git_output("ls-files", "--others", "--exclude-standard").splitlines())
     return {name.replace("\\", "/") for name in files if name}
+
+
+def workspace_package_dir(manifest_path: str) -> str:
+    return Path(manifest_path).parent.relative_to(ROOT).as_posix()
 
 
 def load_workspace_packages() -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
@@ -113,7 +108,7 @@ def load_workspace_packages() -> tuple[dict[str, dict[str, Any]], dict[str, str]
         if package.get("source") is None
     }
     package_by_dir = {
-        str(Path(package["manifest_path"]).parent.relative_to(ROOT)): package["name"]
+        workspace_package_dir(package["manifest_path"]): package["name"]
         for package in packages.values()
     }
     if not packages:
@@ -127,7 +122,7 @@ def needs_full_workspace(files: set[str], packages: dict[str, dict[str, Any]]) -
     if any(name.startswith(FULL_WORKSPACE_PREFIXES) for name in files):
         return True
     contract_dirs = {
-        str(Path(package["manifest_path"]).parent.relative_to(ROOT))
+        workspace_package_dir(package["manifest_path"])
         for package_name, package in packages.items()
         if package_name.endswith("-contract")
     }
@@ -226,6 +221,7 @@ def build_plan(args: argparse.Namespace) -> dict[str, Any]:
         for package in selected:
             cargo_args.extend(("-p", package))
         selection = {"mode": "affected_packages", "packages": selected}
+    cargo_args.extend(("--", "--test-threads=1"))
     selection["base_ref"] = reference
     selection["changed_files"] = sorted(files)
     selection["migration_command"] = ["cargo", "run", "--locked", "-p", "a4n-migration"]

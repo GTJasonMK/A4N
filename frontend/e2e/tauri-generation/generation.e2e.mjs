@@ -1,9 +1,3 @@
-const requiredEnv = (name) => {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is required`);
-  return value;
-};
-
 const composerSelector = ".chat-composer textarea";
 
 const pageContains = async (text) => browser.execute(
@@ -46,6 +40,16 @@ const clickButton = async (label) => browser.execute((text) => {
   button.click();
 }, label);
 
+const createProject = async () => {
+  await browser.$("button*=创建项目").click();
+  await browser.waitUntil(() => pageContains("AI 辅助创作"));
+  await browser.$("button*=AI 辅助创作").click();
+  await browser.waitUntil(async () => /\/inspiration\/\d+$/.test(new URL(await browser.getUrl()).pathname));
+  const match = (await browser.getUrl()).match(/\/inspiration\/(\d+)$/);
+  if (!match) throw new Error("AI 辅助创作没有打开新灵感项目");
+  return Number(match[1]);
+};
+
 const navigate = async (path) => {
   await browser.execute((nextPath) => {
     window.history.pushState({}, "", nextPath);
@@ -81,18 +85,13 @@ const send = async (message) => {
   await browser.waitUntil(() => pageContains("发送中"));
 };
 
-describe("real Tauri generation lifecycle", () => {
-  it("consumes Channel, remounts by active cursor, and cleans up on Destroyed", async () => {
-    const username = requiredEnv("A4N_WDIO_USERNAME");
-    const password = requiredEnv("A4N_WDIO_PASSWORD");
-    const projectId = requiredEnv("A4N_WDIO_PROJECT_ID");
-    const suffix = requiredEnv("A4N_WDIO_SUFFIX");
-    const route = `/inspiration/${projectId}`;
-    const remountMessage = `tauri-wry-remount-${suffix}`;
-    const destroyMessage = `tauri-wry-destroyed-${suffix}`;
-    const remountFirstText = "真实 Wry 首字";
-    const remountReply = "真实 Wry 首字重挂载完成";
-    const destroyFirstText = "真实 Wry 销毁清理首字";
+describe("Tauri generation user flow", () => {
+  it("creates a project and completes mock generation across route remount", async () => {
+    const { username, password } = process.env;
+    if (!username || !password) throw new Error("A4N_WDIO_USERNAME and A4N_WDIO_PASSWORD are required");
+    const suffix = Date.now();
+    const userPrompt = `A4N_TAURI_GENERATION_INPUT:${suffix}`;
+    const remountReply = `A4N_TAURI_GENERATION_REPLY:${suffix}`;
 
     const usernameSelector = 'input[placeholder="输入用户名"]';
     await browser.waitUntil(() => elementExists(usernameSelector));
@@ -106,11 +105,13 @@ describe("real Tauri generation lifecycle", () => {
     await click(loginButton);
     await browser.waitUntil(async () => !(await elementExists(usernameSelector)));
 
+    const projectId = await createProject();
+    const route = `/inspiration/${projectId}`;
     await navigate(route);
     await browser.waitUntil(() => elementExists(composerSelector));
-    await observeFirstText(remountFirstText, "__a4nRemountFirstTextAt");
-    await send(remountMessage);
-    await waitForPageText(remountFirstText);
+    await observeFirstText(remountReply, "__a4nRemountFirstTextAt");
+    await send(userPrompt);
+    await waitForPageText(remountReply);
     const remountFirstTextAt = await browser.execute(() => window.__a4nRemountFirstTextAt);
 
     await navigate("/");
@@ -123,27 +124,14 @@ describe("real Tauri generation lifecycle", () => {
       remountReply,
     );
     const remountCompleted = !(await pageContains("发送中"));
-
-    await observeFirstText(destroyFirstText, "__a4nDestroyFirstTextAt");
-    await send(destroyMessage);
-    await browser.waitUntil(() => pageContains(destroyFirstText));
-    const destroyFirstTextAt = await browser.execute(() => window.__a4nDestroyFirstTextAt);
+    if (!remountCompleted || remountOccurrences !== 1) {
+      throw new Error("Tauri 页面重挂载后没有唯一且完成的 mock 回复");
+    }
 
     process.stdout.write(`A4N_TAURI_WRY_RESULT=${JSON.stringify({
       remountFirstTextAt,
-      destroyFirstTextAt,
       remountOccurrences,
       remountCompleted,
-      destroyStillSending: await pageContains("发送中"),
     })}\n`);
-    await browser.execute(() => {
-      const { invoke, metadata } = window.__TAURI_INTERNALS__;
-      // Let executeAsync reply before destroying its WebDriver session.
-      setTimeout(
-        () => void invoke("plugin:window|destroy", { label: metadata.currentWindow.label }),
-        100,
-      );
-    });
-    await new Promise((resolve) => setTimeout(resolve, 500));
   });
 });

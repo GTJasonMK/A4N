@@ -293,7 +293,31 @@ class ProviderHandler(BaseHTTPRequestHandler):
         try:
             lifecycle_fixture = str(body.get("model", "")).removeprefix("a4n-llm-lifecycle-")
             if lifecycle_fixture in {"ok", "length", "missing", "slow"}:
-                agent_fixture = {"content": "partial answer " * 200 if lifecycle_fixture == "slow" else "LLM lifecycle fixture output"}
+                content = "LLM lifecycle fixture output"
+                if lifecycle_fixture == "slow":
+                    marker = "partial answer"
+                    for message in reversed(body.get("messages") or []):
+                        if message.get("role") != "user":
+                            continue
+                        match = re.search(
+                            r"A4N_TAURI_GENERATION_INPUT:([A-Za-z0-9_-]+)",
+                            message_text(message.get("content", "")),
+                        )
+                        if match:
+                            marker = f"A4N_TAURI_GENERATION_REPLY:{match.group(1)}"
+                            break
+                    system = "\n".join(
+                        message_text(message.get("content", ""))
+                        for message in body.get("messages") or []
+                        if message.get("role") == "system"
+                    )
+                    if "小说概念大师·文思" in system:
+                        response = json.loads(response_for({**body, "model": "a4n-creation-journey"}))
+                        response["ai_message"] = marker + " 正在继续生成。" * 350
+                        content = json.dumps(response, ensure_ascii=False)
+                    else:
+                        content = f"{marker} partial answer " * 200
+                agent_fixture = {"content": content}
             elif body.get("a4n_test_cache_usage") is True:
                 agent_fixture = {"content": "雨夜里，角色谨慎地推开仓库门。"}
             else:

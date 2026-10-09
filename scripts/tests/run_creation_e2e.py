@@ -51,6 +51,10 @@ FULL_GENERATION_SUITES = {
     "all_workflows": "run_all_workflows_e2e.py",
 }
 POST_BROWSER_SUITES = {"image_checkpoint_recovery", "all_workflows"}
+BROWSER_FEATURE_SPECS = (
+    "./e2e/full-project/full-project.e2e.mjs",
+    "./e2e/package-lifecycle/package-lifecycle.e2e.mjs",
+)
 BINARIES = ("a4n", "a4n-server", "a4n-migration", "a4n-novel-planning-worker")
 EMBEDDING_DIMENSION = 384
 
@@ -197,6 +201,17 @@ def selected_suites(stages: set[str]) -> list[str]:
     if stages == set(STAGES):
         selected.extend(FULL_GENERATION_SUITES)
     return selected
+
+
+def selected_browser_specs(include_feature_flows: bool) -> list[str]:
+    specs = ["./e2e/full-project/generation-stages.e2e.mjs"]
+    if include_feature_flows:
+        specs.extend(BROWSER_FEATURE_SPECS)
+    for spec in specs:
+        path = ROOT / "frontend" / spec.removeprefix("./")
+        if not path.is_file():
+            raise RunnerError(f"浏览器功能用例不存在：{spec}")
+    return specs
 
 
 def full_generation_matrix_report(suites: dict) -> dict:
@@ -346,12 +361,14 @@ def main() -> int:
     parser.add_argument("--application-source", type=Path, help="重现某份已保存的源码快照；报告明确记录被测版本，测试脚本使用当前版本")
     parser.add_argument("--report-dir", type=Path)
     parser.add_argument("--postgres-image", default=os.environ.get("A4N_E2E_POSTGRES_IMAGE", "postgres:16"))
+    parser.add_argument("--browser-feature-flows", action="store_true", help="在创作阶段外运行完整项目和功能包用户流程")
     parser.add_argument("--list", action="store_true", help="列出阶段和实际运行的测试组")
     args = parser.parse_args()
     stages = set(STAGES) if not args.stage or "all" in args.stage else set(args.stage)
     suites = selected_suites(stages)
+    browser_specs = selected_browser_specs(args.browser_feature_flows)
     if args.list:
-        print(json.dumps({"stages": [s for s in STAGES if s in stages], "cli_suites": suites, "browser": "generation-stages.e2e.mjs"}, ensure_ascii=False, indent=2))
+        print(json.dumps({"stages": [s for s in STAGES if s in stages], "cli_suites": suites, "browser_specs": browser_specs}, ensure_ascii=False, indent=2))
         return 0
     run_id = time.strftime("%Y%m%dT%H%M%S") + "-" + uuid.uuid4().hex[:8]
     if args.report_dir and args.report_dir.exists() and any(args.report_dir.iterdir()):
@@ -524,15 +541,37 @@ def main() -> int:
                        "A4N_BROWSER_E2E_ARTIFACT_DIR": str(report_dir / "browser"), "A4N_BROWSER_E2E_DOWNLOAD_DIR": str(data / "downloads"),
                        "A4N_CREATION_E2E_STAGES": ",".join(s for s in STAGES if s in stages)}
         wait_http(server_url, process=server, timeout=60)
-        browser, browser_log = start_process(["npm", "run", "test:browser-full-project", "--", "--spec", "./e2e/full-project/generation-stages.e2e.mjs"],
-                                            cwd=frontend, env=browser_env, log_path=report_dir / "browser.log")
-        processes.append((browser, browser_log))
-        browser_exit = browser.wait(timeout=1800)
+        browser_runs = []
         browser_path = report_dir / "browser" / "stages.json"
-        browser_checks = json.loads(browser_path.read_text()) if browser_path.exists() else {}
-        report["browser"] = {"exit_code": browser_exit, "report": str(browser_path)}
-        if browser_exit != 0:
-            report["failures"].append("浏览器验收失败：" + tail(report_dir / "browser.log", 2000))
+        browser_checks = {}
+        for index, spec in enumerate(browser_specs):
+            name = Path(spec).stem
+            browser_log_path = report_dir / ("browser.log" if index == 0 else f"browser-{name}.log")
+            browser, browser_log = start_process(
+                ["npm", "run", "test:browser-full-project", "--", "--spec", spec],
+                cwd=frontend,
+                env=browser_env,
+                log_path=browser_log_path,
+            )
+            processes.append((browser, browser_log))
+            try:
+                browser_exit = browser.wait(timeout=1800)
+            except subprocess.TimeoutExpired:
+                stop_process(browser, None)
+                browser_exit = 124
+            browser_runs.append({"spec": spec, "exit_code": browser_exit, "log": str(browser_log_path)})
+            if index == 0 and browser_path.exists():
+                browser_checks = json.loads(browser_path.read_text())
+            if browser_exit != 0:
+                report["failures"].append(
+                    f"浏览器功能用例失败({spec}, exit={browser_exit})："
+                    + tail(browser_log_path, 2000)
+                )
+        report["browser"] = {
+            "exit_code": 0 if all(run["exit_code"] == 0 for run in browser_runs) else 1,
+            "runs": browser_runs,
+            "report": str(browser_path),
+        }
         for name in suites:
             if name in POST_BROWSER_SUITES:
                 execute_suite(name)

@@ -18,6 +18,7 @@ from urllib.request import Request, urlopen
 from mock_openai.protocol import (
     MP4_1S_BASE64,
     PNG_1X1_BASE64,
+    UnhandledPromptError,
 )
 from mock_openai.transport import ProviderServer
 from mock_openai.fixtures.entities import (
@@ -82,6 +83,32 @@ class MockOpenAIProviderTest(unittest.TestCase):
             self.assertEqual(value["ui_control"]["type"], kind)
             self.assertEqual(value["is_complete"], round_number == 3)
             messages.append({"role": "assistant", "content": response})
+
+    def test_slow_lifecycle_fixture_echoes_tauri_flow_marker(self) -> None:
+        prompt = "A4N_TAURI_GENERATION_INPUT:123"
+        marker = "A4N_TAURI_GENERATION_REPLY:123"
+        _, response = self.request_json(
+            "/v1/chat/completions",
+            {
+                "model": "a4n-llm-lifecycle-slow",
+                "messages": [
+                    {"role": "system", "content": "小说概念大师·文思"},
+                    {"role": "user", "content": prompt},
+                ],
+            },
+        )
+        inspiration = json.loads(response["choices"][0]["message"]["content"])
+        self.assertTrue(inspiration["ai_message"].startswith(marker))
+        self.assertEqual(inspiration["ui_control"]["type"], "inspired_options")
+
+        _, response = self.request_json(
+            "/v1/chat/completions",
+            {
+                "model": "a4n-llm-lifecycle-slow",
+                "messages": [{"role": "user", "content": prompt}],
+            },
+        )
+        self.assertTrue(response["choices"][0]["message"]["content"].startswith(marker))
 
     def test_blueprint_refinement_is_not_routed_by_inspiration_history(self) -> None:
         from mock_openai.fixtures.story import inspiration_response
@@ -801,7 +828,7 @@ class MockOpenAIProviderTest(unittest.TestCase):
     def test_manga_reference_discovery_only_selects_available_candidates(self) -> None:
         body = {"messages": [{
             "role": "user",
-            "content": json.dumps({
+            "content": "参考素材发现请求\n\n输入：\n" + json.dumps({
                 "task": {"prompt_name": "manga_page_reference_discovery"},
                 "input": {
                     "page_number": 3,
@@ -819,12 +846,20 @@ class MockOpenAIProviderTest(unittest.TestCase):
         self.assertEqual(response["page_number"], 3)
         self.assertEqual(response["references"][0]["asset_id"], 9)
 
-        body["messages"][0]["content"] = json.dumps({
+        body["messages"][0]["content"] = "参考素材发现请求\n\n输入：\n" + json.dumps({
             "task": {"prompt_name": "manga_page_reference_discovery"},
             "input": {"page_number": 3, "available_assets": []},
         }, ensure_ascii=False)
         empty_response = json.loads(response_for(body))
         self.assertEqual(empty_response["references"], [])
+
+        for invalid_input in ({"available_assets": []}, {"page_number": 3}):
+            body["messages"][0]["content"] = "参考素材发现请求\n\n输入：\n" + json.dumps({
+                "task": {"prompt_name": "manga_page_reference_discovery"},
+                "input": invalid_input,
+            }, ensure_ascii=False)
+            with self.subTest(input=invalid_input), self.assertRaises(UnhandledPromptError):
+                response_for(body)
 
     def test_manga_page_pipeline_responses_follow_each_page_contract(self) -> None:
         beat_ref = {"unit_id": "station", "beat_id": "evidence"}

@@ -130,6 +130,26 @@
       ],
       "timeout_seconds": 900
     },
+    "browser-ui-functional": {
+      "command": [
+        "npm",
+        "--prefix",
+        "frontend",
+        "run",
+        "test:browser-ui-functional"
+      ],
+      "timeout_seconds": 1800
+    },
+    "browser-fact-feedback": {
+      "command": [
+        "npm",
+        "--prefix",
+        "frontend",
+        "run",
+        "test:browser-fact-feedback"
+      ],
+      "timeout_seconds": 600
+    },
     "rust-workspace": {
       "command": [
         "python3",
@@ -139,7 +159,7 @@
         "--",
         "bash",
         "-c",
-        "set -euo pipefail; cargo run --locked -p a4n-migration; exec cargo test --locked --workspace --all-targets --no-fail-fast"
+        "set -euo pipefail; cargo run --locked -p a4n-migration; exec cargo test --locked --workspace --all-targets --no-fail-fast -- --test-threads=1"
       ],
       "timeout_seconds": 7800
     },
@@ -158,9 +178,14 @@
         "python3",
         "scripts/tests/run_creation_e2e.py",
         "--stage",
-        "all"
+        "all",
+        "--browser-feature-flows"
       ],
-      "timeout_seconds": 10800
+      "timeout_seconds": 14100
+    },
+    "tauri-functional": {
+      "command": ["python3", "scripts/tests/run_tauri_generation_e2e.py"],
+      "timeout_seconds": 1200
     },
     "core-boundaries": {
       "command": ["bash", "scripts/checks/check-core-boundary.sh"],
@@ -197,6 +222,8 @@
       "exclude": ["affected-rust-integration", "rust-service-protocol"],
       "suites": [
         "browser-canvas",
+        "browser-ui-functional",
+        "browser-fact-feedback",
         "rust-workspace",
         "creation-e2e"
       ]
@@ -204,6 +231,9 @@
     "nightly-quick": {
       "extends": "nightly",
       "exclude": ["rust-workspace", "creation-e2e"]
+    },
+    "tauri-functional": {
+      "suites": ["tauri-functional"]
     },
     "full": {
       "extends": "nightly",
