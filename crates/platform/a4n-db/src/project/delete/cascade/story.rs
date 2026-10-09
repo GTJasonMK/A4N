@@ -46,6 +46,19 @@ where
         .await?;
     project_db::delete_project_status_history(db, project_id).await?;
     delete_project_prompt_override_settings(db, project_id).await?;
+    delete_project_prompt_assembly_settings(db, project_id).await?;
+    Ok(())
+}
+
+async fn delete_project_prompt_assembly_settings(
+    db: &impl ConnectionTrait,
+    project_id: i64,
+) -> Result<(), ProjectDeleteDbError> {
+    let key_prefix = system_settings::prompt_assembly_project_prefix(project_id);
+    system_settings::Entity::delete_many()
+        .filter(system_settings::Column::Key.starts_with(key_prefix))
+        .exec(db)
+        .await?;
     Ok(())
 }
 

@@ -32,6 +32,7 @@ pub(super) async fn run_character_staging_stage(
                 step_key: format!("source_sync.scene.{}.character_staging", input.scene_id),
                 call_order: 2,
                 prompt_name: "galgame_character_staging",
+                prompt_assembly_call_key: "GalgameService.build_source_sync_scene_regeneration",
                 user_prompt: galgame_character_staging_user_message(
                     &script.0,
                     &input.speaker_profiles,

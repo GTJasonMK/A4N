@@ -1,6 +1,6 @@
 use a4n_api_contract::prompt::{
-    RemoveOverrideInput, RenderInput, SetOverrideInput, UpdatePromptInput, ValidateVarsInput,
-    VersionDiffInput,
+    PromptAssemblyInput, RemoveOverrideInput, RenderInput, SavePromptAssemblyInput,
+    SetOverrideInput, UpdatePromptInput, ValidateVarsInput, VersionDiffInput,
 };
 use serde_json::Value;
 
@@ -120,6 +120,25 @@ pub(in crate::routes::commands) async fn prompt_list_project_overrides(
     )
 }
 
+prompt_web_user_input_command!(
+    prompt_assembly_get,
+    PromptAssemblyInput,
+    prompt_records_actions::prompt_assembly_get,
+);
+prompt_web_no_input_command!(
+    prompt_assembly_list,
+    prompt_records_actions::prompt_assembly_list
+);
+prompt_web_user_input_unit_command!(
+    prompt_assembly_reset,
+    PromptAssemblyInput,
+    prompt_records_actions::prompt_assembly_reset,
+);
+prompt_web_user_input_unit_command!(
+    prompt_assembly_save,
+    SavePromptAssemblyInput,
+    prompt_records_actions::prompt_assembly_save,
+);
 prompt_web_user_input_command!(
     prompt_render,
     RenderInput,

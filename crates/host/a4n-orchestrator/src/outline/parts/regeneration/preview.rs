@@ -21,7 +21,13 @@ impl OrchestratorContext {
         variables: &HashMap<String, Value>,
     ) -> Result<ChatRequest, AppError> {
         let prepared = prepare_last_part_regeneration(self, project_id).await?;
-        preview_regenerate_part_request(prepared, prompt_renderer, variables).await
+        preview_regenerate_part_request(
+            prepared,
+            prompt_renderer,
+            variables,
+            "OutlineService.regenerate_last_part",
+        )
+        .await
     }
 
     pub(in crate::outline) async fn preview_regenerate_part_outline_request(
@@ -32,7 +38,13 @@ impl OrchestratorContext {
         variables: &HashMap<String, Value>,
     ) -> Result<ChatRequest, AppError> {
         let prepared = prepare_part_regeneration_by_id(self, project_id, part_id).await?;
-        preview_regenerate_part_request(prepared, prompt_renderer, variables).await
+        preview_regenerate_part_request(
+            prepared,
+            prompt_renderer,
+            variables,
+            "OutlineService.regenerate_part_outline",
+        )
+        .await
     }
 }
 
@@ -40,9 +52,11 @@ async fn preview_regenerate_part_request(
     prepared: PreparedPartRegeneration,
     prompt_renderer: &dyn PromptRenderer,
     variables: &HashMap<String, Value>,
+    prompt_assembly_call_key: &str,
 ) -> Result<ChatRequest, AppError> {
     build_part_outline_request(PartOutlineRequestInput {
         project_id: prepared.project_id,
+        prompt_assembly_call_key,
         part_num: prepared.target.part_number,
         start_ch: prepared.target.start_chapter,
         end_ch: prepared.target.end_chapter,

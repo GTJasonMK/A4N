@@ -23,6 +23,7 @@ where
     F: Fn(Value) -> Result<T, AppError>,
 {
     let request = ChatRequest::new(prepared.request_messages, Some(0.25), None)
+        .with_prompt_assembly_key("GalgamePipelineRunner.run")
         .with_json_response_format()
         .with_trace_context(LlmTraceContext {
             project_id: Some(input.project_id),

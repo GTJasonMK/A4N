@@ -59,6 +59,23 @@ fn validate_variables_uses_for_loop_container_not_loop_local() {
     assert!(missing.is_empty());
 }
 
+#[test]
+fn template_variable_access_paths_include_nested_external_fields() {
+    let paths = crate::variables::template_variable_access_paths(
+        "{% if scene.location %}{{ scene.title }}{% endif %} {{ line.text }}",
+    )
+    .unwrap();
+
+    assert_eq!(
+        paths,
+        vec![
+            vec!["line".to_string(), "text".to_string()],
+            vec!["scene".to_string(), "location".to_string()],
+            vec!["scene".to_string(), "title".to_string()],
+        ]
+    );
+}
+
 /// 集成测试：从真实仓库 prompts/ 目录加载当前提示词集合，
 /// 验证递归扫描、frontmatter 解析、@include 展开、registry 严格注入全链路。
 #[test]

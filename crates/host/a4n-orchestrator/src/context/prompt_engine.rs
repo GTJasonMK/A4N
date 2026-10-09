@@ -2,7 +2,9 @@ use std::collections::{HashMap, HashSet};
 
 use a4n_error::AppError;
 use a4n_prompt::{
-    engine::{PromptCategory, PromptEntry, PromptVersion},
+    engine::{
+        PromptAssemblyConfig, PromptAssemblySnapshot, PromptCategory, PromptEntry, PromptVersion,
+    },
     rendering::PromptRenderer,
 };
 use async_trait::async_trait;
@@ -17,18 +19,61 @@ impl PromptRenderer for OrchestratorContext {
         variables: &HashMap<String, serde_json::Value>,
         project_id: Option<i64>,
     ) -> Result<String, AppError> {
-        self.prompt_render_template(template_name, variables, project_id)
+        let call_key = self.prompt_default_assembly_call_key(template_name)?;
+        let snapshot = self
+            .resolve_prompt_assembly_snapshot(&call_key, template_name, project_id)
+            .await?;
+        self.prompt_render_assembled(&snapshot, variables, project_id)
     }
-}
 
-impl OrchestratorContext {
-    pub(crate) fn prompt_render_template(
+    async fn render_prompt_for_call(
         &self,
+        call_key: &str,
         template_name: &str,
         variables: &HashMap<String, serde_json::Value>,
         project_id: Option<i64>,
     ) -> Result<String, AppError> {
-        self.engine.render(template_name, variables, project_id)
+        let snapshot = self
+            .resolve_prompt_assembly_snapshot(call_key, template_name, project_id)
+            .await?;
+        self.prompt_render_assembled(&snapshot, variables, project_id)
+    }
+}
+
+impl OrchestratorContext {
+    pub(crate) fn prompt_render_assembled(
+        &self,
+        snapshot: &PromptAssemblySnapshot,
+        variables: &HashMap<String, serde_json::Value>,
+        project_id: Option<i64>,
+    ) -> Result<String, AppError> {
+        self.engine
+            .render_assembled(snapshot, variables, project_id)
+    }
+
+    pub(crate) fn prompt_template_variables(
+        &self,
+        prompt_name: &str,
+        project_id: Option<i64>,
+    ) -> Result<Vec<String>, AppError> {
+        self.engine.template_variables(prompt_name, project_id)
+    }
+
+    pub(crate) fn prompt_template_variable_access_paths(
+        &self,
+        prompt_name: &str,
+        project_id: Option<i64>,
+    ) -> Result<Vec<Vec<String>>, AppError> {
+        self.engine
+            .template_variable_access_paths(prompt_name, project_id)
+    }
+
+    pub(crate) fn prompt_registry_assembly_call_keys(&self, prompt_name: &str) -> Vec<String> {
+        self.engine.registry_assembly_call_keys(prompt_name)
+    }
+
+    pub(crate) fn prompt_default_assembly(&self, prompt_name: &str) -> PromptAssemblyConfig {
+        self.engine.default_assembly(prompt_name)
     }
 
     pub(crate) fn prompt_render_ab(

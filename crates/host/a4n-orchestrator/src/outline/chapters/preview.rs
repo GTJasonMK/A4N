@@ -37,6 +37,7 @@ impl OrchestratorContext {
         let focus_part = prepared.focus_part;
         build_chapter_outline_request(ChapterOutlineRequestInput {
             project_id,
+            prompt_assembly_call_key: "OutlineService.regenerate_chapter_outline",
             context: &context,
             focus_part: focus_part.as_ref(),
             start_chapter: chapter_number,
@@ -63,6 +64,7 @@ impl OrchestratorContext {
             None,
             prompt_renderer,
             variables,
+            "OutlineService.generate_chapter_outlines_by_count",
         )
         .await
     }
@@ -93,6 +95,7 @@ impl OrchestratorContext {
             Some(&part),
             prompt_renderer,
             variables,
+            "OutlineService.generate_chapter_outlines",
             &context,
         )
         .await
@@ -106,6 +109,7 @@ impl OrchestratorContext {
         focus_part: Option<&PartOutlineRecord>,
         prompt_renderer: &dyn PromptRenderer,
         variables: &HashMap<String, Value>,
+        prompt_assembly_call_key: &str,
     ) -> Result<Vec<OutlineRequestPreviewStep>, AppError> {
         let context =
             load_chapter_outline_generation_context(self.database.executor(), project_id).await?;
@@ -116,6 +120,7 @@ impl OrchestratorContext {
             focus_part,
             prompt_renderer,
             variables,
+            prompt_assembly_call_key,
             &context,
         )
         .await
@@ -129,6 +134,7 @@ impl OrchestratorContext {
         focus_part: Option<&PartOutlineRecord>,
         prompt_renderer: &dyn PromptRenderer,
         variables: &HashMap<String, Value>,
+        prompt_assembly_call_key: &str,
         context: &crate::outline::context::ChapterOutlineGenerationContext,
     ) -> Result<Vec<OutlineRequestPreviewStep>, AppError> {
         let end_chapter = validate_chapter_outline_generation_request(start_chapter, count)?;
@@ -168,6 +174,7 @@ impl OrchestratorContext {
 
             let request = build_chapter_outline_request(ChapterOutlineRequestInput {
                 project_id,
+                prompt_assembly_call_key,
                 context,
                 focus_part,
                 start_chapter: chapter_number,

@@ -56,6 +56,7 @@ async fn chapter_outline_request_moves_blueprint_and_parts_into_manifest() {
     let variables = HashMap::new();
     let request = build_chapter_outline_request(ChapterOutlineRequestInput {
         project_id: 42,
+        prompt_assembly_call_key: "OutlineService.generate_chapter_outlines",
         context: &context,
         focus_part: Some(&part),
         start_chapter: 3,

@@ -15,6 +15,7 @@ pub(in crate::outline::chapters) async fn build_chapter_outline_request(
 ) -> Result<ChatRequest, AppError> {
     let ChapterOutlineRequestInput {
         project_id,
+        prompt_assembly_call_key,
         context,
         focus_part,
         start_chapter,
@@ -24,7 +25,12 @@ pub(in crate::outline::chapters) async fn build_chapter_outline_request(
         variables,
     } = input;
     let prompt_content = prompt_renderer
-        .render_prompt("outline", variables, Some(project_id))
+        .render_prompt_for_call(
+            prompt_assembly_call_key,
+            "outline",
+            variables,
+            Some(project_id),
+        )
         .await?;
     let user_content = chapter_outline_generation_manifest_user_message(
         focus_part,
@@ -32,18 +38,21 @@ pub(in crate::outline::chapters) async fn build_chapter_outline_request(
         count,
         end_chapter,
     )?;
-    build_context_aware_chapter_outline_request(ContextAwareChapterOutlineRequestInput {
-        project_id,
-        context,
-        prompt_content,
-        user_content,
-        count,
-        start_chapter,
-        end_chapter,
-        temperature: Some(0.7),
-        workflow: "chapter_outline_generation",
-        step_key: format!("chapter_{start_chapter}"),
-    })
+    Ok(
+        build_context_aware_chapter_outline_request(ContextAwareChapterOutlineRequestInput {
+            project_id,
+            context,
+            prompt_content,
+            user_content,
+            count,
+            start_chapter,
+            end_chapter,
+            temperature: Some(0.7),
+            workflow: "chapter_outline_generation",
+            step_key: format!("chapter_{start_chapter}"),
+        })?
+        .with_prompt_assembly_key(prompt_assembly_call_key),
+    )
 }
 
 pub(in crate::outline::chapters) fn build_context_aware_chapter_outline_request(

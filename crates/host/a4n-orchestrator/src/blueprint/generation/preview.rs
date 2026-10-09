@@ -19,7 +19,12 @@ pub(in crate::blueprint) async fn preview_generate_request(
     variables: &HashMap<String, Value>,
 ) -> Result<BlueprintGenerationPreviewStep, AppError> {
     let prompt_content = prompt_renderer
-        .render_prompt(BLUEPRINT_BASE_PROMPT, variables, Some(project_id))
+        .render_prompt_for_call(
+            "OrchestratorContext.preview_blueprint_generation_request_for_user_validated",
+            BLUEPRINT_BASE_PROMPT,
+            variables,
+            Some(project_id),
+        )
         .await?;
     let user_payload =
         build_blueprint_generation_payload(novel_title, genre, target_length, variables)

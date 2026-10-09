@@ -29,10 +29,11 @@ pub(super) async fn build_chapter_analysis_stage_request(
 ) -> Result<ChatRequest, AppError> {
     let variables = HashMap::new();
     let stage_prompt = prompt_renderer
-        .render_prompt(prompt_name, &variables, Some(ch.project_id))
+        .render_prompt_for_call(prompt_name, prompt_name, &variables, Some(ch.project_id))
         .await?;
     let system_prompt = prompt_renderer
-        .render_prompt(
+        .render_prompt_for_call(
+            "chapter_analysis::owner::requests::context::build_chapter_analysis_stage_request",
             CHAPTER_ANALYSIS_SESSION_PROMPT,
             &variables,
             Some(ch.project_id),
@@ -53,6 +54,7 @@ pub(super) async fn build_chapter_analysis_stage_request(
     let manifest = ledger.into_manifest(user_prompt, None);
     Ok(
         context_aware_system_user_request(system_prompt, manifest, Some(0.2), None)?
+            .with_prompt_assembly_key(prompt_name)
             .with_json_response_format()
             .with_trace_context(chapter_analysis_trace_context(ch.project_id, prompt_name)),
     )

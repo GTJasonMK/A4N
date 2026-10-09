@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use a4n_error::AppError;
 use serde_json::{Map, Value, json};
 
+use crate::video::prompts::context::VIDEO_CONTEXT_BUILDER_ASSEMBLY_CALL_KEY;
 use a4n_prompt::rendering::PromptRenderer;
 
 const VIDEO_BUILDER_RULES_TEMPLATE: &str = "chapter_video_builder_rules";
@@ -12,7 +13,8 @@ pub(in crate::video::prompts::context::builders) async fn video_builder_rules(
     project_id: i64,
 ) -> Result<Map<String, Value>, AppError> {
     let rendered = prompt_renderer
-        .render_prompt(
+        .render_prompt_for_call(
+            VIDEO_CONTEXT_BUILDER_ASSEMBLY_CALL_KEY,
             VIDEO_BUILDER_RULES_TEMPLATE,
             &HashMap::new(),
             Some(project_id),

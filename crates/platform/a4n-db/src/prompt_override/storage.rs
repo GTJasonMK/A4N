@@ -2,7 +2,10 @@ use std::collections::HashSet;
 
 use a4n_db_models::models::{ai::system_settings, project::novel_project};
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set,
+    sea_query::OnConflict,
+};
 use serde_json::Value;
 
 use super::identity::{
@@ -91,6 +94,98 @@ pub async fn delete_project_override(
         .exec(db)
         .await
         .map_err(|source| database("删除项目提示词覆盖失败", source))?;
+    Ok(())
+}
+
+pub async fn load_prompt_assembly_override(
+    db: &impl crate::DbExecutor,
+    project_id: Option<i64>,
+    call_key: &str,
+    prompt_name: &str,
+) -> Result<Option<Value>, PromptOverrideDbError> {
+    let key = match project_id {
+        Some(project_id) if project_id > 0 => {
+            system_settings::prompt_assembly_project_key(project_id, call_key, prompt_name)
+        }
+        Some(_) => return Err(super::types::invalid_argument("项目 ID 必须大于 0")),
+        None => system_settings::prompt_assembly_global_key(call_key, prompt_name),
+    };
+    system_settings::Entity::find()
+        .filter(system_settings::Column::Key.eq(key))
+        .one(db)
+        .await
+        .map(|record| record.map(|record| record.value))
+        .map_err(|source| database("读取提示词装配配置失败", source))
+}
+
+pub async fn save_prompt_assembly_override(
+    db: &impl crate::DbExecutor,
+    project_id: Option<i64>,
+    call_key: &str,
+    prompt_name: &str,
+    value: Value,
+) -> Result<(), PromptOverrideDbError> {
+    if let Some(project_id) = project_id {
+        ensure_project_exists(db, project_id, MissingProjectMessage::Command).await?;
+    }
+    let key = match project_id {
+        Some(project_id) => {
+            system_settings::prompt_assembly_project_key(project_id, call_key, prompt_name)
+        }
+        None => system_settings::prompt_assembly_global_key(call_key, prompt_name),
+    };
+    save_system_setting(db, key, value, "提示词装配配置").await
+}
+
+pub async fn delete_prompt_assembly_override(
+    db: &impl crate::DbExecutor,
+    project_id: Option<i64>,
+    call_key: &str,
+    prompt_name: &str,
+) -> Result<(), PromptOverrideDbError> {
+    let key = match project_id {
+        Some(project_id) if project_id > 0 => {
+            system_settings::prompt_assembly_project_key(project_id, call_key, prompt_name)
+        }
+        Some(_) => return Err(super::types::invalid_argument("项目 ID 必须大于 0")),
+        None => system_settings::prompt_assembly_global_key(call_key, prompt_name),
+    };
+    system_settings::Entity::delete_many()
+        .filter(system_settings::Column::Key.eq(key))
+        .exec(db)
+        .await
+        .map_err(|source| database("删除提示词装配配置失败", source))?;
+    Ok(())
+}
+
+async fn save_system_setting(
+    db: &impl crate::DbExecutor,
+    key: String,
+    value: Value,
+    description: &str,
+) -> Result<(), PromptOverrideDbError> {
+    let now = Utc::now().naive_utc();
+    system_settings::Entity::insert(system_settings::ActiveModel {
+        key: Set(key),
+        value: Set(value),
+        category: Set("prompt_assembly".to_string()),
+        description: Set(Some(description.to_string())),
+        updated_at: Set(now),
+        ..Default::default()
+    })
+    .on_conflict(
+        OnConflict::column(system_settings::Column::Key)
+            .update_columns([
+                system_settings::Column::Value,
+                system_settings::Column::Category,
+                system_settings::Column::Description,
+                system_settings::Column::UpdatedAt,
+            ])
+            .to_owned(),
+    )
+    .exec(db)
+    .await
+    .map_err(|source| database("保存提示词装配配置失败", source))?;
     Ok(())
 }
 

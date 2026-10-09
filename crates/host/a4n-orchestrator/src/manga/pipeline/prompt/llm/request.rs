@@ -10,7 +10,10 @@ use crate::workflow::workflow_checkpoint_contract_app_error;
 use a4n_llm_trace::context_aware_chat_request_trace_json;
 use a4n_prompt::rendering::PromptRenderer;
 
-use super::super::contracts::{MANGA_PIPELINE_WORKFLOW, MangaLlmCallInput, MangaPreparedLlmCall};
+use super::super::contracts::{
+    MANGA_PIPELINE_WORKFLOW, MangaLlmCallInput, MangaPreparedLlmCall,
+    manga_pipeline_prompt_assembly_call_key,
+};
 async fn build_manga_chat_request(
     prompt_renderer: &dyn PromptRenderer,
     prompt_name: &str,
@@ -19,11 +22,13 @@ async fn build_manga_chat_request(
     user_content: LlmContextManifest,
     temperature: f32,
 ) -> Result<ChatRequest, AppError> {
+    let call_key = manga_pipeline_prompt_assembly_call_key(prompt_name)?;
     let sys = prompt_renderer
-        .render_prompt(prompt_name, variables, Some(project_id))
+        .render_prompt_for_call(call_key, prompt_name, variables, Some(project_id))
         .await?;
     Ok(
         context_aware_system_user_request(sys, user_content, Some(temperature), None)?
+            .with_prompt_assembly_key(call_key)
             .with_json_response_format()
             .with_trace_context(LlmTraceContext {
                 project_id: Some(project_id),

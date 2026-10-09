@@ -39,7 +39,8 @@ pub(super) async fn prepare_implicit_classification_call(
     implicit_attributes: &Value,
 ) -> Result<PreparedImplicitClassificationCall, AppError> {
     let system_prompt = prompt_renderer
-        .render_prompt(
+        .render_prompt_for_call(
+            "character::implicit_classification::request::prepare_implicit_classification_call",
             IMPLICIT_CLASSIFICATION_KIND,
             &HashMap::new(),
             Some(project_id),
@@ -78,7 +79,10 @@ pub(super) async fn prepare_implicit_classification_call(
             call_key: Some(call_key.clone()),
         },
     )
-    .map_err(AppError::InvalidArgument)?;
+    .map_err(AppError::InvalidArgument)?
+    .with_prompt_assembly_key(
+        "character::implicit_classification::request::prepare_implicit_classification_call",
+    );
     let request_json = context_aware_chat_request_trace_json(&request)?;
     let input_fingerprint_json = json!({
         "request": request_json,

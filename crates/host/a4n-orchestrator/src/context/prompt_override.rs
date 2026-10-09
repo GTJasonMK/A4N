@@ -10,6 +10,7 @@ use a4n_db::prompt_override::{
 };
 use a4n_error::AppError;
 use a4n_prompt::tera_engine::TeraPromptEngine;
+use serde_json::Value;
 
 use super::OrchestratorContext;
 
@@ -57,6 +58,56 @@ impl PromptOverrideApplication {
         a4n_db::prompt_override::delete_project_override(self.connection(), identity)
             .await
             .map_err(prompt_override_db_error)
+    }
+
+    async fn load_assembly_override(
+        &self,
+        project_id: Option<i64>,
+        call_key: &str,
+        prompt_name: &str,
+    ) -> Result<Option<Value>, AppError> {
+        a4n_db::prompt_override::load_prompt_assembly_override(
+            self.connection(),
+            project_id,
+            call_key,
+            prompt_name,
+        )
+        .await
+        .map_err(prompt_override_db_error)
+    }
+
+    async fn save_assembly_override(
+        &self,
+        project_id: Option<i64>,
+        call_key: &str,
+        prompt_name: &str,
+        value: Value,
+    ) -> Result<(), AppError> {
+        a4n_db::prompt_override::save_prompt_assembly_override(
+            self.connection(),
+            project_id,
+            call_key,
+            prompt_name,
+            value,
+        )
+        .await
+        .map_err(prompt_override_db_error)
+    }
+
+    async fn delete_assembly_override(
+        &self,
+        project_id: Option<i64>,
+        call_key: &str,
+        prompt_name: &str,
+    ) -> Result<(), AppError> {
+        a4n_db::prompt_override::delete_prompt_assembly_override(
+            self.connection(),
+            project_id,
+            call_key,
+            prompt_name,
+        )
+        .await
+        .map_err(prompt_override_db_error)
     }
 
     async fn delete_project_overrides_for_prompt_names(
@@ -119,6 +170,40 @@ fn prompt_override_db_error(error: PromptOverrideDbError) -> AppError {
 }
 
 impl OrchestratorContext {
+    pub(crate) async fn load_prompt_assembly_override(
+        &self,
+        project_id: Option<i64>,
+        call_key: &str,
+        prompt_name: &str,
+    ) -> Result<Option<Value>, AppError> {
+        self.prompt_override
+            .load_assembly_override(project_id, call_key, prompt_name)
+            .await
+    }
+
+    pub(crate) async fn save_prompt_assembly_override(
+        &self,
+        project_id: Option<i64>,
+        call_key: &str,
+        prompt_name: &str,
+        value: Value,
+    ) -> Result<(), AppError> {
+        self.prompt_override
+            .save_assembly_override(project_id, call_key, prompt_name, value)
+            .await
+    }
+
+    pub(crate) async fn delete_prompt_assembly_override(
+        &self,
+        project_id: Option<i64>,
+        call_key: &str,
+        prompt_name: &str,
+    ) -> Result<(), AppError> {
+        self.prompt_override
+            .delete_assembly_override(project_id, call_key, prompt_name)
+            .await
+    }
+
     pub(crate) async fn load_project_override_persisted_content(
         &self,
         identity: &ProjectOverrideIdentity,

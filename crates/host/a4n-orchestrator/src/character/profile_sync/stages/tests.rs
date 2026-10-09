@@ -53,6 +53,17 @@ impl PromptRenderer for TestPromptRenderer {
         );
         Ok(format!("system prompt for {template_name}"))
     }
+
+    async fn render_prompt_for_call(
+        &self,
+        _: &str,
+        template_name: &str,
+        variables: &HashMap<String, Value>,
+        project_id: Option<i64>,
+    ) -> Result<String, AppError> {
+        self.render_prompt(template_name, variables, project_id)
+            .await
+    }
 }
 
 #[derive(Default)]

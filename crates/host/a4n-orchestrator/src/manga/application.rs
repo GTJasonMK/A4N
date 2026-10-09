@@ -26,6 +26,7 @@ use super::layout_rules::{
     manga_page_generation_layout, manga_page_pipeline_layout, mutate_reference_asset_in_layout,
     mutate_reference_asset_in_pipeline_layout,
 };
+use super::pipeline::prompt::manga_pipeline_prompt_assembly_call_key;
 use super::{
     MangaGeneratePagePromptsInput, MangaPipelineRequestPreviewInput,
     MangaPipelineRequestPreviewStep, MangaPromptOptimizationInput, ensure_manga_source_can_write,
@@ -178,7 +179,12 @@ impl OrchestratorContext {
         if run_stage == Some(MangaPipelineArtifactStage::Preprocessing) {
             for prompt_name in prompt_names {
                 prompt_renderer
-                    .render_prompt(prompt_name, &HashMap::new(), Some(project_id))
+                    .render_prompt_for_call(
+                        manga_pipeline_prompt_assembly_call_key(prompt_name)?,
+                        prompt_name,
+                        &HashMap::new(),
+                        Some(project_id),
+                    )
                     .await?;
             }
             return Ok(());
@@ -239,7 +245,12 @@ impl OrchestratorContext {
         }
         for prompt_name in prompt_names {
             let prompt = prompt_renderer
-                .render_prompt(prompt_name, &HashMap::new(), Some(project_id))
+                .render_prompt_for_call(
+                    manga_pipeline_prompt_assembly_call_key(prompt_name)?,
+                    prompt_name,
+                    &HashMap::new(),
+                    Some(project_id),
+                )
                 .await?;
             if prompt_name == "manga_page_storyboard" {
                 validate_manga_storyboard_prompt_contract(&prompt)?;

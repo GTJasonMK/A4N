@@ -20,7 +20,8 @@ pub(super) async fn build_manga_prompt_optimization_request(
     instruction: &str,
 ) -> Result<ChatRequest, AppError> {
     let system_prompt = prompt_renderer
-        .render_prompt(
+        .render_prompt_for_call(
+            "manga_records::optimize_manga_prompt",
             MANGA_PROMPT_OPTIMIZATION_PROMPT_NAME,
             &HashMap::new(),
             Some(prompt.project_id),
@@ -46,13 +47,15 @@ pub(super) async fn build_manga_prompt_optimization_request(
         json!(serde_json::to_string_pretty(&payload)?),
     );
     let user_prompt = prompt_renderer
-        .render_prompt(
+        .render_prompt_for_call(
+            "manga_records::optimize_manga_prompt",
             MANGA_PROMPT_OPTIMIZATION_USER_PROMPT_NAME,
             &user_variables,
             Some(prompt.project_id),
         )
         .await?;
     let mut request = ChatRequest::system_user(system_prompt, user_prompt, Some(0.25), None)
+        .with_prompt_assembly_key("manga_records::optimize_manga_prompt")
         .with_json_response_format();
     let input_fingerprint_sha256 =
         source_text_hash(&serde_json::to_string(&request).map_err(AppError::Serialization)?);

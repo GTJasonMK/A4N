@@ -32,6 +32,7 @@ pub(super) async fn run_script_adaptation_stage(
                 step_key: format!("source_sync.scene.{}.script_adaptation", input.scene_id),
                 call_order: 1,
                 prompt_name: "galgame_script_adaptation",
+                prompt_assembly_call_key: "GalgameService.build_source_sync_scene_regeneration",
                 user_prompt: galgame_script_adaptation_user_message(
                     std::slice::from_ref(&prepared.prompt_chapter),
                     &prepared.scenes_json,

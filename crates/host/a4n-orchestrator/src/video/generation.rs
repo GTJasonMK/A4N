@@ -558,6 +558,18 @@ impl a4n_prompt::rendering::PromptRenderer for VideoPromptRendererAdapter<'_> {
             .render_prompt(template_name, variables, project_id)
             .await
     }
+
+    async fn render_prompt_for_call(
+        &self,
+        call_key: &str,
+        template_name: &str,
+        variables: &std::collections::HashMap<String, serde_json::Value>,
+        project_id: Option<i64>,
+    ) -> Result<String, AppError> {
+        self.host_port
+            .render_prompt_for_call(call_key, template_name, variables, project_id)
+            .await
+    }
 }
 
 #[async_trait::async_trait]

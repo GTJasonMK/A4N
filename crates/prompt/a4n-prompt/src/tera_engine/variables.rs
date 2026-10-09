@@ -19,9 +19,27 @@ pub(super) fn missing_template_variables(
         .collect())
 }
 
+pub fn required_template_variables(content: &str) -> Result<Vec<String>, tera::Error> {
+    let template = tera::Template::new("__prompt_variable_validation__", None, content)?;
+    let mut collector = VariableCollector::default();
+    collector.collect_nodes(&template.ast, &mut vec![HashSet::new()]);
+    collector.required.sort();
+    Ok(collector.required)
+}
+
+pub fn template_variable_access_paths(content: &str) -> Result<Vec<Vec<String>>, tera::Error> {
+    let template = tera::Template::new("__prompt_variable_paths__", None, content)?;
+    let mut collector = VariableCollector::default();
+    collector.collect_nodes(&template.ast, &mut vec![HashSet::new()]);
+    collector.access_paths.sort();
+    collector.access_paths.dedup();
+    Ok(collector.access_paths)
+}
+
 #[derive(Default)]
 struct VariableCollector {
     required: Vec<String>,
+    access_paths: Vec<Vec<String>>,
 }
 
 impl VariableCollector {
@@ -164,6 +182,9 @@ impl VariableCollector {
         if !self.required.iter().any(|existing| existing == root) {
             self.required.push(root.to_string());
         }
+        if let Some(path) = variable_access_path(ident) {
+            self.access_paths.push(path);
+        }
     }
 }
 
@@ -194,6 +215,15 @@ fn root_ident(ident: &str) -> Option<&str> {
     } else {
         None
     }
+}
+
+fn variable_access_path(ident: &str) -> Option<Vec<String>> {
+    let path = ident
+        .split('.')
+        .map(str::trim)
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    (path.len() > 1 && path.iter().all(|part| is_identifier(part))).then_some(path)
 }
 
 fn is_identifier(value: &str) -> bool {

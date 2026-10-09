@@ -59,7 +59,8 @@ impl OrchestratorContext {
             serde_json::to_string(&optimization_runtime_tool_specs_for_prompt())?.into(),
         );
         let system_prompt = prompt_renderer
-            .render_prompt(
+            .render_prompt_for_call(
+                "OptimizeService.send_user_message",
                 "content_optimization_chat",
                 &prompt_vars,
                 Some(session.project_id),

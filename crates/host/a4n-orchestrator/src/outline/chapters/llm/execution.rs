@@ -20,6 +20,7 @@ impl OrchestratorContext {
     ) -> Result<GeneratedChapterOutline, AppError> {
         let SingleChapterOutlineJsonInput {
             project_id,
+            prompt_assembly_call_key,
             context,
             focus_part,
             chapter_number,
@@ -29,6 +30,7 @@ impl OrchestratorContext {
         } = input;
         let mut request = build_chapter_outline_request(ChapterOutlineRequestInput {
             project_id,
+            prompt_assembly_call_key,
             context,
             focus_part,
             start_chapter: chapter_number,

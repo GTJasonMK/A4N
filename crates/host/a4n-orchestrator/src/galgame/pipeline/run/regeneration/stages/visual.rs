@@ -33,6 +33,7 @@ pub(super) async fn run_visual_planning_stage(
                 step_key: format!("source_sync.scene.{}.visual_planning", input.scene_id),
                 call_order: 3,
                 prompt_name: "galgame_visual_planning",
+                prompt_assembly_call_key: "GalgameService.build_source_sync_scene_regeneration",
                 user_prompt: galgame_visual_planning_user_message(
                     &prepared.scenes_json,
                     &staging.0,

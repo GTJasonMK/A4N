@@ -1,4 +1,7 @@
-pub use a4n_prompt_contract::{PromptCategory, PromptEntry};
+pub use a4n_prompt_contract::{
+    PromptAssemblyBlock, PromptAssemblyBlockKind, PromptAssemblyConfig, PromptAssemblySnapshot,
+    PromptAssemblySource, PromptCategory, PromptEntry,
+};
 
 /// Prompt version record kept by the implementation and version store.
 /// 提示词版本记录

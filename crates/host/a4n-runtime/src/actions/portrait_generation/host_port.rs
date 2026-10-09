@@ -160,13 +160,20 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
                 config.backend
             )));
         }
-        let request = ImageGenerationRequest {
+        let mut request = ImageGenerationRequest {
             prompt,
             width,
             height,
             model: config.model.clone(),
             reference_images,
         };
+        crate::actions::image_generation::assemble_image_generation_request(
+            self.state,
+            project_id,
+            &mut request,
+        )
+        .await
+        .map_err(host_error)?;
         let provider_backend = config.backend.clone();
         let request_json = serde_json::to_value(&request)?;
         let request_body_snapshot =
@@ -177,7 +184,7 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
                 project_id,
                 "portrait_generation",
                 "Portrait image provider request",
-                None,
+                Some("image_generation_request".to_string()),
                 None,
                 &config,
                 request.clone(),

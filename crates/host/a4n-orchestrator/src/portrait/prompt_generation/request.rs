@@ -27,7 +27,12 @@ pub async fn build_generate_prompt_request(
         variables,
     } = input;
     let prompt_content = prompt_renderer
-        .render_prompt("character_portrait_generation", variables, Some(project_id))
+        .render_prompt_for_call(
+            "PortraitService.generate",
+            "character_portrait_generation",
+            variables,
+            Some(project_id),
+        )
         .await?;
 
     let type_desc = portrait_type_description(spec.portrait_type);
@@ -41,7 +46,8 @@ pub async fn build_generate_prompt_request(
         Value::String(serde_json::to_string_pretty(&dynamic_payload)?),
     );
     let user_prompt = prompt_renderer
-        .render_prompt(
+        .render_prompt_for_call(
+            "PortraitService.generate",
             "character_portrait_generation_user",
             &user_variables,
             Some(project_id),
@@ -91,6 +97,7 @@ pub async fn build_generate_prompt_request(
 
     Ok(
         context_aware_system_user_request(prompt_content, manifest, Some(0.8), None)?
+            .with_prompt_assembly_key("PortraitService.generate")
             .with_trace_context(LlmTraceContext {
                 project_id: Some(project_id),
                 root_project_id: None,

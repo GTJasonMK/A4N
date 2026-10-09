@@ -5,6 +5,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub use a4n_prompt_contract::PromptEntry;
+pub use a4n_prompt_contract::{
+    PromptAssemblyBlock, PromptAssemblyBlockKind, PromptAssemblyConfig, PromptAssemblySnapshot,
+    PromptAssemblySource,
+};
 
 /// Host-provided prompt rendering capability used by application owners.
 #[async_trait::async_trait]
@@ -22,11 +26,7 @@ pub trait PromptRenderPort: Send + Sync {
         template_name: &str,
         variables: &HashMap<String, Value>,
         project_id: Option<i64>,
-    ) -> Result<String, a4n_error::AppError> {
-        let _ = call_key;
-        self.render_prompt(template_name, variables, project_id)
-            .await
-    }
+    ) -> Result<String, a4n_error::AppError>;
 }
 
 /// Runtime-supplied execution context for the prompt owner.
@@ -173,6 +173,58 @@ pub struct ProjectPromptOverrideSummary {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
+pub struct PromptAssemblySummary {
+    pub call_key: String,
+    pub prompt_name: String,
+    pub variables: Vec<String>,
+    pub available_templates: Vec<PromptAssemblyTemplateOption>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PromptAssemblyTemplateOption {
+    pub name: String,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+#[schemars(extend("required" = ["project_id", "prompt_name"]))]
+pub struct PromptAssemblyInput {
+    #[schemars(length(min = 1, max = 255))]
+    pub call_key: String,
+    #[schemars(length(min = 1, max = 255))]
+    pub prompt_name: String,
+    #[serde(deserialize_with = "crate::serde_update::deserialize_required_nullable_field")]
+    #[schemars(range(min = 1))]
+    pub project_id: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preview_config: Option<PromptAssemblyConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SavePromptAssemblyInput {
+    #[schemars(length(min = 1, max = 255))]
+    pub call_key: String,
+    #[schemars(length(min = 1, max = 255))]
+    pub prompt_name: String,
+    #[serde(deserialize_with = "crate::serde_update::deserialize_required_nullable_field")]
+    #[schemars(range(min = 1))]
+    pub project_id: Option<i64>,
+    pub config: PromptAssemblyConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PromptAssemblyOutput {
+    pub config: PromptAssemblyConfig,
+    pub source: PromptAssemblySource,
+    pub rendered_preview: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct PromptNameArgs {
     #[schemars(length(min = 1, max = 255))]
     pub name: String,
@@ -181,6 +233,34 @@ pub struct PromptNameArgs {
 /// Prompt record read boundary owned by the prompt application.
 #[async_trait::async_trait]
 pub trait PromptReadApplicationPort: Send + Sync {
+    async fn list_assembly_records(
+        &self,
+        context: &PromptExecutionContext,
+    ) -> Result<Vec<PromptAssemblySummary>, a4n_error::AppError>;
+
+    async fn get_assembly_record(
+        &self,
+        context: &PromptExecutionContext,
+        user_id: i64,
+        input: PromptAssemblyInput,
+    ) -> Result<PromptAssemblyOutput, a4n_error::AppError>;
+
+    async fn resolve_assembly_record(
+        &self,
+        context: &PromptExecutionContext,
+        call_key: &str,
+        prompt_name: &str,
+        project_id: Option<i64>,
+    ) -> Result<PromptAssemblySnapshot, a4n_error::AppError>;
+
+    async fn render_template(
+        &self,
+        context: &PromptExecutionContext,
+        template_name: &str,
+        variables: HashMap<String, Value>,
+        project_id: Option<i64>,
+    ) -> Result<String, a4n_error::AppError>;
+
     async fn list_records(
         &self,
         context: &PromptExecutionContext,
@@ -199,9 +279,10 @@ pub trait PromptReadApplicationPort: Send + Sync {
         input: RenderInput,
     ) -> Result<String, a4n_error::AppError>;
 
-    async fn render_template(
+    async fn render_template_for_call(
         &self,
         context: &PromptExecutionContext,
+        call_key: &str,
         template_name: &str,
         variables: HashMap<String, Value>,
         project_id: Option<i64>,
@@ -253,6 +334,19 @@ pub trait PromptReadApplicationPort: Send + Sync {
 /// Prompt record mutation boundary owned by the prompt application.
 #[async_trait::async_trait]
 pub trait PromptMutationApplicationPort: Send + Sync {
+    async fn save_assembly_record(
+        &self,
+        context: &PromptExecutionContext,
+        user_id: i64,
+        input: SavePromptAssemblyInput,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn reset_assembly_record(
+        &self,
+        context: &PromptExecutionContext,
+        user_id: i64,
+        input: PromptAssemblyInput,
+    ) -> Result<(), a4n_error::AppError>;
     async fn hydrate_overrides(&self) -> Result<(), a4n_error::AppError>;
 
     async fn load_defaults(

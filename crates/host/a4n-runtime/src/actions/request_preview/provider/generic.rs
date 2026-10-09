@@ -6,6 +6,49 @@ use super::super::{
     status::prompt_from_request,
 };
 
+pub(crate) async fn attach_prompt_assembly_metadata(
+    state: &crate::AppState,
+    project_id: Option<i64>,
+    call_key: &str,
+    prompt_name: &str,
+    step: &mut ModelRequestPreviewStep,
+) -> Result<(), String> {
+    let context = crate::actions::prompt_records::prompt_context(state);
+    let assembly = state
+        .prompt_read_application()
+        .resolve_assembly_record(&context, call_key, prompt_name, project_id)
+        .await
+        .map_err(|error| error.to_string())?;
+    step.prompt_name = Some(prompt_name.to_string());
+    step.prompt_assembly_key = Some(call_key.to_string());
+    step.prompt_assembly_source = Some(
+        match assembly.source {
+            a4n_api_contract::prompt::PromptAssemblySource::SystemDefault => "system_default",
+            a4n_api_contract::prompt::PromptAssemblySource::Global => "global",
+            a4n_api_contract::prompt::PromptAssemblySource::Project => "project",
+        }
+        .to_string(),
+    );
+    step.prompt_assembly_blocks = Some(
+        assembly
+            .config
+            .blocks
+            .into_iter()
+            .filter(|block| block.enabled)
+            .map(|block| match block.kind {
+                a4n_api_contract::prompt::PromptAssemblyBlockKind::Template => {
+                    format!("模板 {}", block.value)
+                }
+                a4n_api_contract::prompt::PromptAssemblyBlockKind::Variable => {
+                    format!("变量 {}", block.value)
+                }
+                a4n_api_contract::prompt::PromptAssemblyBlockKind::Custom => "自定义模块".into(),
+            })
+            .collect(),
+    );
+    Ok(())
+}
+
 pub(crate) fn provider_request_step<T: Serialize>(
     key: impl Into<String>,
     title: impl Into<String>,
@@ -26,6 +69,9 @@ pub(crate) fn provider_request_step<T: Serialize>(
         title: title.into(),
         kind: kind.into(),
         prompt_name: prompt_name.into(),
+        prompt_assembly_source: None,
+        prompt_assembly_blocks: None,
+        prompt_assembly_key: None,
         state: state.into(),
         note: note.into(),
         system_prompt: None,

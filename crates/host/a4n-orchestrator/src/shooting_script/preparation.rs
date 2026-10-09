@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use a4n_domain::source_spans::source_spans_for_content;
 use a4n_error::AppError;
+use a4n_prompt::rendering::PromptRenderer;
 use serde_json::json;
 
 use crate::OrchestratorContext;
@@ -57,22 +58,32 @@ impl OrchestratorContext {
                 &source,
             )
             .await?;
-        let layout_unit_system_prompt = self.prompt_render_template(
-            CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT,
-            &HashMap::new(),
-            Some(input.project_id),
-        )?;
-        let unit_adaptation_system_prompt = self.prompt_render_template(
-            CHAPTER_SCREENPLAY_UNIT_ADAPTATION_PROMPT,
-            &HashMap::new(),
-            Some(input.project_id),
-        )?;
-        let design_unit_system_prompt =
-            Self::current_shooting_design_prompt(self.prompt_render_template(
+        let assembly_call_key = "OrchestratorContext.prepare_chapter_shooting_script_request";
+        let layout_unit_system_prompt = self
+            .render_prompt_for_call(
+                assembly_call_key,
+                CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT,
+                &HashMap::new(),
+                Some(input.project_id),
+            )
+            .await?;
+        let unit_adaptation_system_prompt = self
+            .render_prompt_for_call(
+                assembly_call_key,
+                CHAPTER_SCREENPLAY_UNIT_ADAPTATION_PROMPT,
+                &HashMap::new(),
+                Some(input.project_id),
+            )
+            .await?;
+        let design_unit_system_prompt = Self::current_shooting_design_prompt(
+            self.render_prompt_for_call(
+                assembly_call_key,
                 CHAPTER_SHOOTING_DESIGN_UNIT_PROMPT,
                 &HashMap::new(),
                 Some(input.project_id),
-            )?)?;
+            )
+            .await?,
+        )?;
         let mut user_payload = json!({
             "source": {
                 "root_project_id": source.root_project_id,

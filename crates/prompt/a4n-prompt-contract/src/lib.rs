@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use chrono::NaiveDateTime;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -20,11 +21,19 @@ pub mod rendering {
             variables: &HashMap<String, Value>,
             project_id: Option<i64>,
         ) -> Result<String, AppError>;
+
+        async fn render_prompt_for_call(
+            &self,
+            call_key: &str,
+            template_name: &str,
+            variables: &HashMap<String, Value>,
+            project_id: Option<i64>,
+        ) -> Result<String, AppError>;
     }
 }
 
 pub const PROMPT_SERVICE_NAME: &str = "prompt";
-pub const PROMPT_RENDER_CAPABILITY_VERSION: &str = "prompt-render-v4";
+pub const PROMPT_RENDER_CAPABILITY_VERSION: &str = "prompt-render-v6";
 pub const PROMPT_SERVICE_ADDR_ENV: &str = "A4N_PROMPT_SERVICE_ADDR";
 pub const PROMPT_SERVICE_DEFAULT_ADDR: &str = "127.0.0.1:47641";
 
@@ -48,6 +57,86 @@ pub struct PromptEntry {
     pub path: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PromptAssemblyConfig {
+    pub blocks: Vec<PromptAssemblyBlock>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PromptAssemblyBlock {
+    pub id: String,
+    pub kind: PromptAssemblyBlockKind,
+    pub value: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PromptAssemblyBlockKind {
+    Template,
+    Variable,
+    Custom,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PromptAssemblySource {
+    SystemDefault,
+    Global,
+    Project,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PromptAssemblySnapshot {
+    pub call_key: String,
+    pub prompt_name: String,
+    pub config: PromptAssemblyConfig,
+    pub source: PromptAssemblySource,
+}
+
+impl PromptAssemblyConfig {
+    pub fn system_default(prompt_name: impl Into<String>) -> Self {
+        Self {
+            blocks: vec![PromptAssemblyBlock {
+                id: "primary".into(),
+                kind: PromptAssemblyBlockKind::Template,
+                value: prompt_name.into(),
+                enabled: true,
+            }],
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.blocks.is_empty() || self.blocks.len() > 64 {
+            return Err("提示词装配必须包含 1 到 64 个模块".into());
+        }
+        let mut ids = std::collections::HashSet::new();
+        let mut enabled = false;
+        for block in &self.blocks {
+            if block.id.trim().is_empty() || block.id.chars().any(char::is_control) {
+                return Err("提示词装配模块 ID 不能为空或包含控制字符".into());
+            }
+            if !ids.insert(block.id.as_str()) {
+                return Err(format!("提示词装配模块 ID 重复：{}", block.id));
+            }
+            if block.value.trim().is_empty() {
+                return Err(format!("提示词装配模块 {} 内容不能为空", block.id));
+            }
+            if block.value.len() > 100_000 {
+                return Err(format!("提示词装配模块 {} 超过长度限制", block.id));
+            }
+            enabled |= block.enabled;
+        }
+        if !enabled {
+            return Err("提示词装配至少需要启用一个模块".into());
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PromptCategory {
@@ -64,6 +153,14 @@ pub struct PromptEmptyPayload {}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PromptRenderPayload {
+    pub template_name: String,
+    pub variables: HashMap<String, Value>,
+    pub assembly: PromptAssemblySnapshot,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PromptRenderAbPayload {
     pub template_name: String,
     pub variables: HashMap<String, Value>,
 }

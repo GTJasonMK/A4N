@@ -5,6 +5,7 @@ use serde_json::{Value, json};
 
 use a4n_error::AppError;
 
+use crate::video::prompts::context::VIDEO_CONTEXT_BUILDER_ASSEMBLY_CALL_KEY;
 use a4n_prompt::rendering::PromptRenderer;
 
 const VIDEO_USER_REQUEST_TEMPLATE: &str = "chapter_video_user_request";
@@ -30,7 +31,12 @@ pub(super) async fn render_strict_json_user_prompt(
     variables.insert("instruction".to_string(), json!(instruction));
     variables.insert("payload".to_string(), json!(payload));
     prompt_renderer
-        .render_prompt(VIDEO_USER_REQUEST_TEMPLATE, &variables, Some(project_id))
+        .render_prompt_for_call(
+            VIDEO_CONTEXT_BUILDER_ASSEMBLY_CALL_KEY,
+            VIDEO_USER_REQUEST_TEMPLATE,
+            &variables,
+            Some(project_id),
+        )
         .await
 }
 

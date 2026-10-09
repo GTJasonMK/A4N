@@ -168,7 +168,8 @@ impl OrchestratorContext {
             ("scene_number".to_string(), json!(input.scene_number)),
         ]);
         let system_prompt = prompt_renderer
-            .render_prompt(
+            .render_prompt_for_call(
+                "chapter::scene::generate_chapter_scene",
                 "chapter_scene_generation",
                 &variables,
                 Some(chapter.project_id),
@@ -184,7 +185,8 @@ impl OrchestratorContext {
             generation_context: Some(&generation_context),
             scene_number: input.scene_number,
             scene_prompt: &required.scene_prompt,
-        })?;
+        })?
+        .with_prompt_assembly_key("chapter::scene::generate_chapter_scene");
         Ok(PreparedChapterSceneGeneration {
             project_id: chapter.project_id,
             chapter_id: chapter.id,

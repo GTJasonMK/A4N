@@ -34,6 +34,7 @@ pub async fn preview_canvas_text_asset_draft_request(
             key: "text_asset_draft".to_string(),
             title: "项目文本素材草稿请求".to_string(),
             prompt_name: None,
+            prompt_assembly: None,
             state: "ready".to_string(),
             note: None,
             request,

@@ -1,5 +1,7 @@
 use super::*;
 
+const CREATE_ANALYSIS_ASSEMBLY_CALL_KEY: &str = "OptimizeService.create_analysis_session";
+
 pub(in crate::optimize) struct AnalysisSessionPromptBundle {
     pub(in crate::optimize) analysis_prompt: String,
     pub(in crate::optimize) context_manifest: String,
@@ -24,15 +26,17 @@ impl OrchestratorContext {
                 chapter_content,
                 prompt_renderer,
                 variables,
+                CREATE_ANALYSIS_ASSEMBLY_CALL_KEY,
             )
             .await?;
-        build_first_agent_loop_chat_request(
+        Ok(build_first_agent_loop_chat_request(
             project_id,
             None,
             "content_optimization_agent_loop",
             bundle.analysis_prompt,
             &bundle.user_message,
-        )
+        )?
+        .with_prompt_assembly_key(CREATE_ANALYSIS_ASSEMBLY_CALL_KEY))
     }
 
     pub(in crate::optimize) async fn build_analysis_session_prompt_bundle(
@@ -42,6 +46,7 @@ impl OrchestratorContext {
         chapter_content: &str,
         prompt_renderer: &dyn PromptRenderer,
         variables: &std::collections::HashMap<String, serde_json::Value>,
+        assembly_call_key: &str,
     ) -> Result<AnalysisSessionPromptBundle, AppError> {
         let permissions = optimization_permissions_from_variables(variables)?;
         let agent_instruction = variables
@@ -52,7 +57,12 @@ impl OrchestratorContext {
             .map(ToOwned::to_owned);
         let prompt_vars = self.build_analysis_prompt_variables(variables)?;
         let analysis_prompt = prompt_renderer
-            .render_prompt("content_optimization", &prompt_vars, Some(project_id))
+            .render_prompt_for_call(
+                assembly_call_key,
+                "content_optimization",
+                &prompt_vars,
+                Some(project_id),
+            )
             .await?;
         let analysis_context = build_content_optimization_context(
             self.database.executor(),

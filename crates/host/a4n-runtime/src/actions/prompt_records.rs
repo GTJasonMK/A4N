@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
 use a4n_api_contract::prompt::{
-    AbRenderResult, CategoryInfo, ProjectPromptOverrideSummary, PromptEntry, PromptEntrySummary,
+    AbRenderResult, CategoryInfo, ProjectPromptOverrideSummary, PromptAssemblyInput,
+    PromptAssemblyOutput, PromptAssemblySummary, PromptEntry, PromptEntrySummary,
     PromptExecutionContext, PromptVersionSummary, RemoveOverrideInput, RenderInput,
-    SetOverrideInput, UpdatePromptInput, ValidateVarsInput, VersionDiffInput,
+    SavePromptAssemblyInput, SetOverrideInput, UpdatePromptInput, ValidateVarsInput,
+    VersionDiffInput,
 };
 use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
@@ -17,6 +19,54 @@ pub async fn prompt_list(state: &AppState) -> Result<Vec<PromptEntrySummary>, St
     state
         .prompt_read_application()
         .list_records(&context)
+        .await
+        .map_err(prompt_error)
+}
+
+pub async fn prompt_assembly_list(state: &AppState) -> Result<Vec<PromptAssemblySummary>, String> {
+    let context = prompt_context(state);
+    state
+        .prompt_read_application()
+        .list_assembly_records(&context)
+        .await
+        .map_err(prompt_error)
+}
+
+pub async fn prompt_assembly_get(
+    state: &AppState,
+    user_id: i64,
+    input: PromptAssemblyInput,
+) -> Result<PromptAssemblyOutput, String> {
+    let context = prompt_context(state);
+    state
+        .prompt_read_application()
+        .get_assembly_record(&context, user_id, input)
+        .await
+        .map_err(prompt_error)
+}
+
+pub async fn prompt_assembly_save(
+    state: &AppState,
+    user_id: i64,
+    input: SavePromptAssemblyInput,
+) -> Result<(), String> {
+    let context = prompt_context(state);
+    state
+        .prompt_mutation_application()
+        .save_assembly_record(&context, user_id, input)
+        .await
+        .map_err(prompt_error)
+}
+
+pub async fn prompt_assembly_reset(
+    state: &AppState,
+    user_id: i64,
+    input: PromptAssemblyInput,
+) -> Result<(), String> {
+    let context = prompt_context(state);
+    state
+        .prompt_mutation_application()
+        .reset_assembly_record(&context, user_id, input)
         .await
         .map_err(prompt_error)
 }
@@ -87,6 +137,21 @@ pub(crate) async fn render_prompt_template(
     state
         .prompt_read_application()
         .render_template(&context, template_name, variables, project_id)
+        .await
+        .map_err(prompt_error)
+}
+
+pub(crate) async fn render_prompt_template_for_call(
+    state: &AppState,
+    call_key: &str,
+    template_name: &str,
+    variables: HashMap<String, Value>,
+    project_id: Option<i64>,
+) -> Result<String, String> {
+    let context = prompt_context(state);
+    state
+        .prompt_read_application()
+        .render_template_for_call(&context, call_key, template_name, variables, project_id)
         .await
         .map_err(prompt_error)
 }
@@ -225,6 +290,24 @@ impl a4n_api_contract::prompt::PromptRenderPort for AppState {
             .await
             .map_err(|error| AppError::Internal(anyhow::anyhow!(error)))
     }
+
+    async fn render_prompt_for_call(
+        &self,
+        call_key: &str,
+        template_name: &str,
+        variables: &HashMap<String, Value>,
+        project_id: Option<i64>,
+    ) -> Result<String, AppError> {
+        render_prompt_template_for_call(
+            self,
+            call_key,
+            template_name,
+            variables.clone(),
+            project_id,
+        )
+        .await
+        .map_err(|error| AppError::Internal(anyhow::anyhow!(error)))
+    }
 }
 
 #[async_trait]
@@ -243,9 +326,26 @@ impl PromptRenderer for AppState {
         )
         .await
     }
+
+    async fn render_prompt_for_call(
+        &self,
+        call_key: &str,
+        template_name: &str,
+        variables: &HashMap<String, Value>,
+        project_id: Option<i64>,
+    ) -> Result<String, AppError> {
+        <Self as a4n_api_contract::prompt::PromptRenderPort>::render_prompt_for_call(
+            self,
+            call_key,
+            template_name,
+            variables,
+            project_id,
+        )
+        .await
+    }
 }
 
-fn prompt_context(state: &AppState) -> PromptExecutionContext {
+pub(crate) fn prompt_context(state: &AppState) -> PromptExecutionContext {
     PromptExecutionContext::new(
         state.runtime_profile().uses_sidecars(),
         crate::runtime_config::current_user_id(),

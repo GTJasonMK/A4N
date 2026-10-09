@@ -10,7 +10,9 @@ pub(crate) use self::chat::{
 };
 pub(crate) use self::contracts::{ChatRequestStepInput, ChatRequestStepWithBudgetInput};
 pub use self::contracts::{ModelRequestPreview, ModelRequestPreviewStep};
-pub(crate) use self::provider::{image_provider_request_step, provider_request_step};
+pub(crate) use self::provider::{
+    attach_prompt_assembly_metadata, image_provider_request_step, provider_request_step,
+};
 pub(crate) use self::sanitize::sanitize_preview_value;
 pub(crate) use self::status::{ChatStatusPreviewStep, chat_status_preview_for_state};
 

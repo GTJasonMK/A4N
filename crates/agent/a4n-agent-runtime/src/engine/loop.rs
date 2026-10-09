@@ -672,6 +672,7 @@ async fn process_claimed_run_inner(
                 // batches. The single-user manifest renderer must not rewrite
                 // an old user instruction or insert a second context owner.
                 context_manifest_json: None,
+                prompt_assembly_key: None,
                 tools: None,
                 tool_choice: None,
                 stop_sequences: None,

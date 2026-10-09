@@ -24,6 +24,7 @@ pub(super) use config::{
     update_llm_config, update_video_config, web_fetch, web_search,
 };
 pub(super) use prompt::{
+    prompt_assembly_get, prompt_assembly_list, prompt_assembly_reset, prompt_assembly_save,
     prompt_list, prompt_list_categories, prompt_list_project_overrides, prompt_load_defaults,
     prompt_remove_project_override, prompt_render, prompt_render_ab, prompt_reset,
     prompt_set_project_override, prompt_update, prompt_validate_variables, prompt_version_diff,

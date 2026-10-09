@@ -3,10 +3,10 @@
 use a4n_prompt_contract::{
     CountOutput, PROMPT_RENDER_CAPABILITY_VERSION, PROMPT_SERVICE_NAME, PromptCategory,
     PromptEmptyPayload, PromptEntry, PromptHydrateOverridesPayload, PromptListOutput,
-    PromptNamePayload, PromptRenderAbOutput, PromptRenderOutput, PromptRenderPayload,
-    PromptSetProjectOverridePayload, PromptUpdateManyPayload, PromptUpdatePayload,
-    PromptValidateOutput, PromptValidatePayload, PromptVersionDiffOutput, PromptVersionDiffPayload,
-    PromptVersionHistoryOutput,
+    PromptNamePayload, PromptRenderAbOutput, PromptRenderAbPayload, PromptRenderOutput,
+    PromptRenderPayload, PromptSetProjectOverridePayload, PromptUpdateManyPayload,
+    PromptUpdatePayload, PromptValidateOutput, PromptValidatePayload, PromptVersionDiffOutput,
+    PromptVersionDiffPayload, PromptVersionHistoryOutput,
 };
 use a4n_service_client::{
     HttpClientFactory, HttpSidecarTransport, ServiceClient, ServiceClientConfig,
@@ -77,7 +77,7 @@ pub trait PromptClient: ServiceClient {
     ) -> ServiceClientResult<ServiceResponse<PromptValidateOutput>>;
     async fn render_ab(
         &self,
-        request: ServiceRequest<PromptRenderPayload>,
+        request: ServiceRequest<PromptRenderAbPayload>,
     ) -> ServiceClientResult<ServiceResponse<PromptRenderAbOutput>>;
     async fn hydrate_project_overrides(
         &self,
@@ -153,7 +153,7 @@ impl PromptClient for HttpPromptClient {
 
     async fn render_ab(
         &self,
-        request: ServiceRequest<PromptRenderPayload>,
+        request: ServiceRequest<PromptRenderAbPayload>,
     ) -> ServiceClientResult<ServiceResponse<PromptRenderAbOutput>> {
         self.transport.post("/prompt/render_ab", request).await
     }

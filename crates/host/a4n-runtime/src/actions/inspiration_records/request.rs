@@ -24,6 +24,7 @@ pub async fn preview_inspiration_request(
                     key: "inspiration".to_string(),
                     title: "本次灵感对话".to_string(),
                     prompt_name: Some("inspiration".to_string()),
+                    prompt_assembly: None,
                     state: "ready".to_string(),
                     note: None,
                     request,

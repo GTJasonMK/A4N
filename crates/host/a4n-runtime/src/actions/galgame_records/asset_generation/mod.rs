@@ -11,7 +11,6 @@ use a4n_api_contract::{
 };
 use a4n_error::AppError;
 use a4n_galgame_host_contract::GalgameAssetGenerationHostPort;
-use a4n_prompt::rendering::PromptRenderer;
 use a4n_storage::canonicalize_data_file_path;
 use async_trait::async_trait;
 
@@ -52,13 +51,18 @@ impl GalgameAssetGenerationHostPort for RuntimeGalgameAssetGenerationHostPort<'_
         variables: &std::collections::HashMap<String, serde_json::Value>,
         project_id: i64,
     ) -> Result<String, AppError> {
-        self.state
-            .render_prompt(template_name, variables, Some(project_id))
-            .await
-            .map_err(|error| AppError::InvalidState {
-                current: "galgame_prompt_renderer".to_string(),
-                operation: error.to_string(),
-            })
+        a4n_prompt::rendering::PromptRenderer::render_prompt_for_call(
+            self.state,
+            "galgame_records::run_galgame_visual_spec_generation",
+            template_name,
+            variables,
+            Some(project_id),
+        )
+        .await
+        .map_err(|error| AppError::InvalidState {
+            current: "galgame_prompt_renderer".to_string(),
+            operation: error.to_string(),
+        })
     }
 
     async fn generate_visual_image(

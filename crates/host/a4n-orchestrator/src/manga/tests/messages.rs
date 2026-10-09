@@ -119,6 +119,17 @@ impl PromptRenderer for TestPromptRenderer {
         assert_eq!(template_name, "manga_preprocessing");
         Ok("system prompt".to_string())
     }
+
+    async fn render_prompt_for_call(
+        &self,
+        _: &str,
+        template_name: &str,
+        variables: &HashMap<String, Value>,
+        project_id: Option<i64>,
+    ) -> Result<String, AppError> {
+        self.render_prompt(template_name, variables, project_id)
+            .await
+    }
 }
 
 #[tokio::test]

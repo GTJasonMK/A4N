@@ -22,6 +22,8 @@ prompts:
     version: "3.0"
     used_by:
       - "OrchestratorContext.run_manga_preprocessing"
+    assembly_call_keys:
+      - "OrchestratorContext.run_manga_preprocessing"
     dependencies: []
     description: "在一个预处理产物中整理原文事件、角色、对白、视觉锚点和关键物品，不决定漫画页数"
 
@@ -32,6 +34,8 @@ prompts:
     tags: ["manga", "galgame", "adaptation"]
     version: "2.0"
     used_by:
+      - "OrchestratorContext.generate_adaptation_plan"
+    assembly_call_keys:
       - "OrchestratorContext.generate_adaptation_plan"
     dependencies: []
     description: "依据原作快照和可选视频参考生成目标项目独立持有的改编单元；漫画计划同时确定章节页数"
@@ -45,6 +49,8 @@ prompts:
     version: "1.0"
     used_by:
       - "OrchestratorContext.prepare_inspiration_request_validated"
+    assembly_call_keys:
+      - "OrchestratorContext.prepare_inspiration_request_validated"
     dependencies: []
     description: "AI 扮演\"文思\"角色，与作者多轮对话把模糊灵感锻造成完整小说概念蓝图"
 
@@ -55,6 +61,8 @@ prompts:
     tags: ["inspiration", "context", "guard"]
     version: "1.0"
     used_by:
+      - "OrchestratorContext.prepare_inspiration_request_validated"
+    assembly_call_keys:
       - "OrchestratorContext.prepare_inspiration_request_validated"
     dependencies:
       - "inspiration"
@@ -70,6 +78,9 @@ prompts:
     used_by:
       - "OrchestratorContext.run_blueprint_generation_task"
       - "OrchestratorContext.preview_blueprint_generation_request_for_user_validated"
+    assembly_call_keys:
+      - "OrchestratorContext.run_blueprint_generation_task"
+      - "OrchestratorContext.preview_blueprint_generation_request_for_user_validated"
     dependencies:
       - "inspiration"
     description: "根据灵感对话记录生成完整故事蓝图（世界观/角色/剧情/主题）"
@@ -81,6 +92,8 @@ prompts:
     tags: ["blueprint", "staged-generation", "system"]
     version: "1.0"
     used_by:
+      - "a4n_prompt::blueprint_generation::build_blueprint_stage_request"
+    assembly_call_keys:
       - "a4n_prompt::blueprint_generation::build_blueprint_stage_request"
     dependencies:
       - "blueprint"
@@ -94,6 +107,8 @@ prompts:
     version: "1.0"
     used_by:
       - "a4n_prompt::blueprint_generation::build_blueprint_stage_request"
+    assembly_call_keys:
+      - "a4n_prompt::blueprint_generation::build_blueprint_stage_request"
     dependencies:
       - "blueprint_stage_system"
     description: "将蓝图阶段输入、上游阶段上下文和当前输出 schema 渲染为严格 JSON 用户请求"
@@ -105,6 +120,8 @@ prompts:
     tags: ["blueprint", "optimization"]
     version: "1.0"
     used_by:
+      - "a4n_prompt::blueprint_generation::build_blueprint_refine_request"
+    assembly_call_keys:
       - "a4n_prompt::blueprint_generation::build_blueprint_refine_request"
     dependencies:
       - "blueprint"
@@ -118,6 +135,8 @@ prompts:
     version: "1.0"
     used_by:
       - "a4n_prompt::blueprint_generation::build_blueprint_refine_request"
+    assembly_call_keys:
+      - "a4n_prompt::blueprint_generation::build_blueprint_refine_request"
     dependencies:
       - "blueprint_optimization"
     description: "将当前蓝图上下文和用户优化重点整理为严格 JSON 优化请求"
@@ -130,6 +149,8 @@ prompts:
     version: "1.0"
     used_by:
       - "ImportService.reverse_engineer"
+    assembly_call_keys:
+      - "ImportService.reverse_engineer"
     dependencies: []
     description: "从已有小说内容反推生成蓝图结构（用于导入分析）"
 
@@ -141,6 +162,11 @@ prompts:
     tags: ["outline", "planning", "chapter"]
     version: "1.0"
     used_by:
+      - "OutlineService.generate_chapter_outlines"
+      - "OutlineService.generate_chapter_outlines_by_count"
+      - "OutlineService.regenerate_chapter_outline"
+      - "OutlineService.apply_beat_mapping"
+    assembly_call_keys:
       - "OutlineService.generate_chapter_outlines"
       - "OutlineService.generate_chapter_outlines_by_count"
       - "OutlineService.regenerate_chapter_outline"
@@ -160,6 +186,11 @@ prompts:
       - "OutlineService.continue_part_outline"
       - "OutlineService.regenerate_part_outline"
       - "OutlineService.regenerate_last_part"
+    assembly_call_keys:
+      - "OutlineService.generate_parts"
+      - "OutlineService.continue_part_outline"
+      - "OutlineService.regenerate_part_outline"
+      - "OutlineService.regenerate_last_part"
     dependencies:
       - "blueprint"
     description: "逐个生成分部大纲，支持上下文传递"
@@ -172,6 +203,8 @@ prompts:
     version: "1.0"
     used_by:
       - "ImportService.reverse_engineer"
+    assembly_call_keys:
+      - "ImportService.reverse_engineer"
     dependencies: []
     description: "从已有章节内容反推生成大纲（用于导入分析）"
 
@@ -182,6 +215,8 @@ prompts:
     tags: ["导入分析", "大纲", "长篇"]
     version: "1.0"
     used_by:
+      - "ImportService.reverse_engineer"
+    assembly_call_keys:
       - "ImportService.reverse_engineer"
     dependencies: []
     description: "从已有内容反推生成分部大纲结构"
@@ -194,6 +229,8 @@ prompts:
     tags: ["writing", "chapter", "generation"]
     version: "1.0"
     used_by:
+      - "ChapterService.generate_stream"
+    assembly_call_keys:
       - "ChapterService.generate_stream"
     dependencies:
       - "outline"
@@ -208,6 +245,8 @@ prompts:
     used_by:
       - "chapter::scene::generate_chapter_scene"
       - "chapter::scene::preview_chapter_scene_request"
+    assembly_call_keys:
+      - "chapter::scene::generate_chapter_scene"
     dependencies:
       - "writing"
       - "outline"
@@ -222,6 +261,8 @@ prompts:
     version: "1.0"
     used_by:
       - "fact_feedback::prepare_consolidation"
+    assembly_call_keys:
+      - "fact_feedback::prepare_consolidation"
     dependencies: ["chapter_fact_extraction"]
     description: "按章节变化增量归纳世界观、蓝图事实、角色说话特征和成长进展"
 
@@ -232,6 +273,8 @@ prompts:
     tags: ["analysis", "session", "cache"]
     version: "1.0"
     used_by:
+      - "chapter_analysis::owner::requests::context::build_chapter_analysis_stage_request"
+    assembly_call_keys:
       - "chapter_analysis::owner::requests::context::build_chapter_analysis_stage_request"
     dependencies: []
     description: "为同一章节的结构化分析阶段提供稳定公共 System 前缀"
@@ -255,6 +298,8 @@ prompts:
     version: "1.0"
     used_by:
       - "chapter_analysis::owner::requests::stages::build_chapter_fact_extraction_request"
+    assembly_call_keys:
+      - "chapter_fact_extraction"
     dependencies:
       - "chapter_analysis_session"
       - "writing"
@@ -268,6 +313,8 @@ prompts:
     version: "1.0"
     used_by:
       - "chapter_analysis::owner::requests::stages::build_chapter_summary_synthesis_request"
+    assembly_call_keys:
+      - "chapter_summary_synthesis"
     dependencies:
       - "chapter_analysis_session"
       - "chapter_fact_extraction"
@@ -281,6 +328,8 @@ prompts:
     version: "1.0"
     used_by:
       - "chapter_analysis::owner::requests::stages::build_chapter_character_state_request"
+    assembly_call_keys:
+      - "chapter_character_state"
     dependencies:
       - "chapter_analysis_session"
       - "chapter_fact_extraction"
@@ -294,6 +343,8 @@ prompts:
     version: "1.0"
     used_by:
       - "chapter_analysis::owner::requests::stages::build_chapter_foreshadowing_events_request"
+    assembly_call_keys:
+      - "chapter_foreshadowing_events"
     dependencies:
       - "chapter_analysis_session"
       - "chapter_fact_extraction"
@@ -306,6 +357,8 @@ prompts:
     tags: ["asset", "object", "discovery"]
     version: "1.0"
     used_by:
+      - "object_discovery::request::build_object_discovery_request"
+    assembly_call_keys:
       - "object_discovery::request::build_object_discovery_request"
     dependencies:
       - "chapter_fact_extraction"
@@ -322,6 +375,8 @@ prompts:
     version: "1.0"
     used_by:
       - "SceneProfileDiscovery.sync_scene_profiles_for_chapters"
+    assembly_call_keys:
+      - "SceneProfileDiscovery.sync_scene_profiles_for_chapters"
     dependencies: []
     description: "为同一章节的场景档案同步阶段提供稳定公共 System 前缀"
 
@@ -333,6 +388,8 @@ prompts:
     version: "1.0"
     used_by:
       - "SceneProfileDiscovery.sync_scene_profiles_for_chapters"
+    assembly_call_keys:
+      - "scene_profile_candidates"
     dependencies:
       - "scene_profile_sync_session"
       - "chapter_fact_extraction"
@@ -351,6 +408,8 @@ prompts:
     version: "1.0"
     used_by:
       - "SceneProfileDiscovery.sync_scene_profiles_for_chapters"
+    assembly_call_keys:
+      - "scene_occurrence_extraction"
     dependencies:
       - "scene_profile_sync_session"
       - "scene_profile_candidates"
@@ -364,6 +423,8 @@ prompts:
     version: "1.0"
     used_by:
       - "SceneProfileDiscovery.sync_scene_profiles_for_chapters"
+    assembly_call_keys:
+      - "scene_transition_extraction"
     dependencies:
       - "scene_profile_sync_session"
       - "scene_profile_candidates"
@@ -378,6 +439,8 @@ prompts:
     version: "1.0"
     used_by:
       - "SceneProfileDiscovery.sync_scene_profiles_for_chapters"
+    assembly_call_keys:
+      - "scene_entity_state_extraction"
     dependencies:
       - "scene_profile_sync_session"
       - "scene_profile_candidates"
@@ -393,6 +456,9 @@ prompts:
     used_by:
       - "OptimizeService.create_analysis_session"
       - "OptimizeService.prepare_analysis_session"
+    assembly_call_keys:
+      - "OptimizeService.create_analysis_session"
+      - "OptimizeService.prepare_analysis_session"
     dependencies: []
     description: "显式内容优化 Agent Loop：逐步读取上下文、调用工具并最终输出 issues JSON"
 
@@ -404,6 +470,8 @@ prompts:
     version: "1.0"
     used_by:
       - "OrchestratorContext.prepare_chapter_shooting_script_request"
+    assembly_call_keys:
+      - "OrchestratorContext.prepare_chapter_shooting_script_request"
     dependencies: []
     description: "在固定全章骨架下逐单元细化场记、戏剧状态和转场合同"
 
@@ -414,6 +482,8 @@ prompts:
     tags: ["analysis", "screenplay", "adaptation", "design-unit"]
     version: "1.0"
     used_by:
+      - "OrchestratorContext.prepare_chapter_shooting_script_request"
+    assembly_call_keys:
       - "OrchestratorContext.prepare_chapter_shooting_script_request"
     dependencies:
       - "chapter_screenplay_layout_unit"
@@ -427,6 +497,8 @@ prompts:
     version: "1.0"
     used_by:
       - "OrchestratorContext.prepare_chapter_shooting_script_request"
+    assembly_call_keys:
+      - "OrchestratorContext.prepare_chapter_shooting_script_request"
     dependencies:
       - "chapter_screenplay_unit_adaptation"
     description: "针对一个已校验叙事单元逐镜头生成可独立缓存的 ShootingSceneV2，最终合同由后端确定性装配"
@@ -439,6 +511,8 @@ prompts:
     version: "1.0"
     used_by:
       - "OptimizeService.send_user_message"
+    assembly_call_keys:
+      - "OptimizeService.send_user_message"
     dependencies:
       - "content_optimization"
     description: "内容优化会话中的显式 Agent Loop 对话，可按需读取上下文或调用工具"
@@ -450,6 +524,8 @@ prompts:
     tags: ["optimization", "patch", "agent", "editing"]
     version: "1.0"
     used_by:
+      - "OptimizeService.propose_patches"
+    assembly_call_keys:
       - "OptimizeService.propose_patches"
     dependencies:
       - "content_optimization"
@@ -464,6 +540,8 @@ prompts:
     version: "2.0"
     used_by:
       - "MangaPipeline.generate_page_prompts"
+    assembly_call_keys:
+      - "MangaPipeline.generate_page_prompts"
     dependencies:
       - "manga_preprocessing"
       - "chapter_media_adaptation_plan"
@@ -477,6 +555,8 @@ prompts:
     version: "1.0"
     used_by:
       - "MangaPipeline.process_page"
+    assembly_call_keys:
+      - "MangaPipeline.process_page"
     dependencies:
       - "manga_page_slots"
     description: "逐页编写视觉意图、连续性要求和取舍细节"
@@ -488,6 +568,8 @@ prompts:
     tags: ["manga", "storyboard", "page"]
     version: "1.0"
     used_by:
+      - "MangaPipeline.process_page"
+    assembly_call_keys:
       - "MangaPipeline.process_page"
     dependencies:
       - "manga_page_adaptation_plan"
@@ -502,6 +584,8 @@ prompts:
     used_by:
       - "MangaPipeline.process_page"
       - "MangaPipeline.preview_generate_page_prompt_requests"
+    assembly_call_keys:
+      - "MangaPipeline.process_page"
     dependencies:
       - "manga_page_storyboard"
     description: "根据当前页分镜从项目可用图片中发现相关参考图，供绘图提示词和成图使用"
@@ -513,6 +597,8 @@ prompts:
     tags: ["manga", "drawing", "page", "prompt"]
     version: "2.0.0"
     used_by:
+      - "MangaPipeline.process_page"
+    assembly_call_keys:
       - "MangaPipeline.process_page"
     dependencies:
       - "manga_page_storyboard"
@@ -526,6 +612,8 @@ prompts:
     version: "1.0"
     used_by:
       - "manga_records::optimize_manga_prompt"
+    assembly_call_keys:
+      - "manga_records::optimize_manga_prompt"
     dependencies:
       - "manga_page_drawing_prompt"
     description: "按用户要求优化已有漫画整页绘图提示词，保留剧情、角色、构图、参考图和风格约束"
@@ -537,6 +625,8 @@ prompts:
     tags: ["manga", "prompt", "optimization", "user-request"]
     version: "1.0"
     used_by:
+      - "manga_records::optimize_manga_prompt"
+    assembly_call_keys:
       - "manga_records::optimize_manga_prompt"
     dependencies:
       - "manga_prompt_optimization"
@@ -551,6 +641,8 @@ prompts:
     version: "1.0"
     used_by:
       - "PortraitService.generate"
+    assembly_call_keys:
+      - "PortraitService.generate"
     dependencies: []
     description: "基于角色档案生成肖像图（SD/DALL·E 调用的 prompt）"
 
@@ -561,6 +653,8 @@ prompts:
     tags: ["protagonist", "portrait", "image-generation", "user-request"]
     version: "1.0"
     used_by:
+      - "PortraitService.generate"
+    assembly_call_keys:
       - "PortraitService.generate"
     dependencies:
       - "character_portrait_generation"
@@ -574,6 +668,8 @@ prompts:
     version: "1.0"
     used_by:
       - "character::discovery::request::build_character_discovery_request"
+    assembly_call_keys:
+      - "character::discovery::request::build_character_discovery_request"
     dependencies: []
     description: "从章节内容中识别出现角色，并为缺失角色生成初始档案"
 
@@ -585,6 +681,8 @@ prompts:
     version: "1.0"
     used_by:
       - "character::profile_sync_stages::request::build_character_profile_sync_stage_request"
+    assembly_call_keys:
+      - "character::profile_sync_stages::request::build_character_profile_sync_stage_request"
     dependencies: []
     description: "为同一角色和同步范围内的档案同步阶段提供稳定公共 System 前缀"
 
@@ -595,6 +693,8 @@ prompts:
     tags: ["protagonist", "sync", "staged", "evidence"]
     version: "1.0"
     used_by:
+      - "character::profile_sync_stages::request::build_character_profile_sync_stage_request"
+    assembly_call_keys:
       - "character::profile_sync_stages::request::build_character_profile_sync_stage_request"
     dependencies:
       - "character_sync_session"
@@ -608,6 +708,8 @@ prompts:
     version: "1.0"
     used_by:
       - "character::profile_sync_stages::request::build_character_profile_sync_stage_request"
+    assembly_call_keys:
+      - "character::profile_sync_stages::request::build_character_profile_sync_stage_request"
     dependencies:
       - "character_sync_session"
       - "character_sync_evidence_events"
@@ -620,6 +722,8 @@ prompts:
     tags: ["protagonist", "sync", "staged", "state"]
     version: "1.0"
     used_by:
+      - "character::profile_sync_stages::request::build_character_profile_sync_stage_request"
+    assembly_call_keys:
       - "character::profile_sync_stages::request::build_character_profile_sync_stage_request"
     dependencies:
       - "character_sync_session"
@@ -635,6 +739,8 @@ prompts:
     version: "1.0"
     used_by:
       - "character::profile_sync_stages::request::build_character_profile_sync_stage_request"
+    assembly_call_keys:
+      - "character::profile_sync_stages::request::build_character_profile_sync_stage_request"
     dependencies:
       - "character_sync_session"
       - "character_sync_evidence_events"
@@ -647,6 +753,8 @@ prompts:
     tags: ["protagonist", "sync", "staged", "deletion"]
     version: "1.0"
     used_by:
+      - "character::profile_sync_stages::request::build_character_profile_sync_stage_request"
+    assembly_call_keys:
       - "character::profile_sync_stages::request::build_character_profile_sync_stage_request"
     dependencies:
       - "character_sync_session"
@@ -662,6 +770,8 @@ prompts:
     version: "1.0"
     used_by:
       - "character::implicit_classification::request::prepare_implicit_classification_call"
+    assembly_call_keys:
+      - "character::implicit_classification::request::prepare_implicit_classification_call"
     dependencies: []
     description: "根据角色行为判断是否符合已有隐性属性，并给出新隐性属性建议"
 
@@ -672,6 +782,8 @@ prompts:
     tags: ["protagonist", "implicit", "update"]
     version: "1.0"
     used_by:
+      - "character::implicit_review::request::build_implicit_update_request"
+    assembly_call_keys:
       - "character::implicit_review::request::build_implicit_update_request"
     dependencies:
       - "implicit_classification"
@@ -684,6 +796,8 @@ prompts:
     tags: ["protagonist", "consistency", "conflict"]
     version: "1.0"
     used_by:
+      - "character::conflict::request::build_character_conflict_request"
+    assembly_call_keys:
       - "character::conflict::request::build_character_conflict_request"
     dependencies:
       - "character_sync_evidence_events"
@@ -706,6 +820,8 @@ prompts:
     version: "1.0"
     used_by:
       - "video::prompts::generation::llm_chat::build_video_prompt_request"
+    assembly_call_keys:
+      - "video::prompts::generation::llm_chat::build_video_prompt_request"
     dependencies: []
     description: "视频各生成阶段共享稳定系统前缀，具体阶段模板只在当前任务中出现一次"
 
@@ -716,6 +832,8 @@ prompts:
     tags: ["video", "director", "timeline"]
     version: "1.0"
     used_by:
+      - "chapter_visual_plan::generation"
+    assembly_call_keys:
       - "chapter_visual_plan::generation"
     dependencies: []
     description: "根据分镜图片点、场景、镜头时长和用户描述生成待采用的变化 prompt"
@@ -728,6 +846,8 @@ prompts:
     version: "1.0"
     used_by:
       - "video::prompt_context::builders"
+    assembly_call_keys:
+      - "video::prompt_context::builders"
     dependencies: []
     description: "将视频 builder 组装出的 JSON payload 渲染为严格 JSON 用户请求"
 
@@ -738,6 +858,8 @@ prompts:
     tags: ["video", "builder", "rules"]
     version: "1.0"
     used_by:
+      - "video::prompt_context::builders"
+    assembly_call_keys:
       - "video::prompt_context::builders"
     dependencies:
       - "chapter_shooting_design_unit"
@@ -759,6 +881,8 @@ prompts:
     version: "1.0"
     used_by:
       - "video::prompt_generation::frame_prompts::inserted_segment"
+    assembly_call_keys:
+      - "video::prompts::generation::llm_chat::build_video_prompt_request"
     dependencies:
       - "chapter_video_builder_rules"
     description: "根据时间线前后片段、视觉锚点和用户要求生成尚未提交的插入片段草稿"
@@ -771,6 +895,8 @@ prompts:
     version: "1.0"
     used_by:
       - "video::prompt_generation::frame_prompts::staged_segment_plan::shots::render_segment_plan_shots"
+    assembly_call_keys:
+      - "video::prompts::generation::llm_chat::build_video_prompt_request"
     dependencies:
       - "chapter_shooting_design_unit"
     description: "按单个导演镜头生成片段规划，系统再合并为全章连续 segment 列表"
@@ -783,6 +909,8 @@ prompts:
     version: "1.0"
     used_by:
       - "video::prompt_generation::frame_prompts::frame_chain::boundary_frames::checkpoint::render_boundary_frame_checkpoint"
+    assembly_call_keys:
+      - "video::prompts::generation::llm_chat::build_video_prompt_request"
     dependencies:
       - "chapter_video_segment_plan"
     description: "为视频执行单元链生成 U+1 个共享边界帧提示词"
@@ -795,6 +923,8 @@ prompts:
     version: "1.0"
     used_by:
       - "video::prompt_generation::frame_prompts::frame_chain::first_frame_workflow::generate_first_frame_workflow"
+    assembly_call_keys:
+      - "video::prompts::generation::llm_chat::build_video_prompt_request"
     dependencies:
       - "chapter_video_segment_plan"
     description: "为首帧串联模式生成整条执行链唯一的初始首帧提示词"
@@ -807,6 +937,8 @@ prompts:
     version: "1.0"
     used_by:
       - "video::prompt_generation::frame_prompts::frame_chain::storyboard_workflow::generation::checkpoint::render_storyboard_frame_checkpoint"
+    assembly_call_keys:
+      - "video::prompts::generation::llm_chat::build_video_prompt_request"
     dependencies:
       - "chapter_video_segment_plan"
     description: "为每个内容单元或显式动作桥生成一张多格分镜板提示词"
@@ -819,6 +951,8 @@ prompts:
     version: "1.0"
     used_by:
       - "video::prompt_generation::frame_prompts::video_chain::unit_execution::draft::generate_video_prompt_draft"
+    assembly_call_keys:
+      - "video::prompts::generation::llm_chat::build_video_prompt_request"
     dependencies:
       - "chapter_video_segment_plan"
       - "chapter_video_frame_prompts"
@@ -832,6 +966,8 @@ prompts:
     version: "1.0"
     used_by:
       - "video::prompt_generation::frame_prompts::video_chain::unit_execution::draft::generate_video_prompt_draft"
+    assembly_call_keys:
+      - "video::prompts::generation::llm_chat::build_video_prompt_request"
     dependencies:
       - "chapter_video_segment_plan"
       - "chapter_video_first_frame_prompts"
@@ -845,6 +981,8 @@ prompts:
     version: "1.0"
     used_by:
       - "video::prompt_generation::frame_prompts::video_chain::unit_execution::draft::generate_video_prompt_draft"
+    assembly_call_keys:
+      - "video::prompts::generation::llm_chat::build_video_prompt_request"
     dependencies:
       - "chapter_video_segment_plan"
       - "chapter_video_storyboard_prompts"
@@ -857,6 +995,8 @@ prompts:
     tags: ["video", "provider", "prompt"]
     version: "1.0"
     used_by:
+      - "video_generation::build_chapter_video_provider_request"
+    assembly_call_keys:
       - "video_generation::build_chapter_video_provider_request"
     dependencies:
       - "chapter_video_prompt"
@@ -873,6 +1013,8 @@ prompts:
     version: "1.0"
     used_by:
       - "video_generation::build_chapter_video_provider_request"
+    assembly_call_keys:
+      - "video_generation::build_chapter_video_provider_request"
     dependencies:
       - "chapter_video_first_frame_video_prompt"
       - "chapter_video_first_frame_prompts"
@@ -885,6 +1027,8 @@ prompts:
     tags: ["video", "prompt", "optimization"]
     version: "2.0"
     used_by:
+      - "video_prompts::optimize_chapter_video_prompt"
+    assembly_call_keys:
       - "video_prompts::optimize_chapter_video_prompt"
     dependencies:
       - "chapter_video_frame_prompts"
@@ -904,6 +1048,8 @@ prompts:
     version: "1.0"
     used_by:
       - "video_prompts::optimize_chapter_video_prompt"
+    assembly_call_keys:
+      - "video_prompts::optimize_chapter_video_prompt"
     dependencies:
       - "chapter_video_prompt_optimization"
     description: "将用户优化要求和当前视频提示词上下文整理为严格 JSON 优化请求"
@@ -916,6 +1062,8 @@ prompts:
     version: "1.0"
     used_by:
       - "video::prompt_generation::frame_prompts::video_chain::unit_execution::draft::generate_video_prompt_draft"
+    assembly_call_keys:
+      - "video::prompts::generation::llm_chat::build_video_prompt_request"
     dependencies:
       - "chapter_video_segment_plan"
     description: "生成可复制到外部 Chat 视频模型的单段视频提示词"
@@ -929,6 +1077,8 @@ prompts:
     version: "1.0"
     used_by:
       - "GalgamePipelineRunner.run"
+    assembly_call_keys:
+      - "GalgamePipelineRunner.run"
     dependencies: []
     description: "为同一次 Galgame 管线的结构化阶段提供共享导演上下文缓存前缀"
 
@@ -939,6 +1089,9 @@ prompts:
     tags: ["galgame", "script", "adaptation"]
     version: "2.0"
     used_by:
+      - "GalgamePipelineRunner.run"
+      - "GalgameService.build_source_sync_scene_regeneration"
+    assembly_call_keys:
       - "GalgamePipelineRunner.run"
       - "GalgameService.build_source_sync_scene_regeneration"
     dependencies:
@@ -956,6 +1109,9 @@ prompts:
     used_by:
       - "GalgamePipelineRunner.run"
       - "GalgameService.build_source_sync_scene_regeneration"
+    assembly_call_keys:
+      - "GalgamePipelineRunner.run"
+      - "GalgameService.build_source_sync_scene_regeneration"
     dependencies:
       - "galgame_pipeline_session"
       - "galgame_script_adaptation"
@@ -968,6 +1124,9 @@ prompts:
     tags: ["galgame", "visual", "planning"]
     version: "1.0"
     used_by:
+      - "GalgamePipelineRunner.run"
+      - "GalgameService.build_source_sync_scene_regeneration"
+    assembly_call_keys:
       - "GalgamePipelineRunner.run"
       - "GalgameService.build_source_sync_scene_regeneration"
     dependencies:
@@ -984,6 +1143,9 @@ prompts:
     used_by:
       - "GalgamePipelineRunner.run"
       - "GalgameService.build_source_sync_scene_regeneration"
+    assembly_call_keys:
+      - "GalgamePipelineRunner.run"
+      - "GalgameService.build_source_sync_scene_regeneration"
     dependencies:
       - "galgame_pipeline_session"
       - "chapter_shooting_design_unit"
@@ -997,6 +1159,8 @@ prompts:
     version: "1.0"
     used_by:
       - "galgame_records::run_galgame_visual_spec_generation"
+    assembly_call_keys:
+      - "galgame_records::run_galgame_visual_spec_generation"
     dependencies:
       - "galgame_visual_planning"
     description: "将背景规划和项目美术约束渲染为图像生成提示词"
@@ -1009,9 +1173,37 @@ prompts:
     version: "1.0"
     used_by:
       - "galgame_records::run_galgame_visual_spec_generation"
+    assembly_call_keys:
+      - "galgame_records::run_galgame_visual_spec_generation"
     dependencies:
       - "galgame_visual_planning"
     description: "将事件 CG 规划、角色和场景约束渲染为图像生成提示词"
+
+  image_generation_request:
+    path: "media/image_generation_request.md"
+    title: "图片模型请求"
+    category: "media"
+    tags: ["image", "provider", "generation"]
+    version: "1.0"
+    used_by:
+      - "image_generation.provider"
+    assembly_call_keys:
+      - "image_generation.provider"
+    dependencies: []
+    description: "装配实际发送给图片模型的提示词"
+
+  video_generation_request:
+    path: "media/video_generation_request.md"
+    title: "视频模型请求"
+    category: "video"
+    tags: ["video", "provider", "generation"]
+    version: "1.0"
+    used_by:
+      - "video_generation.provider"
+    assembly_call_keys:
+      - "video_generation.provider"
+    dependencies: []
+    description: "装配实际发送给视频模型的提示词"
 
 # ============================================================================
 # Categories
@@ -1053,3 +1245,7 @@ categories:
     label: "Galgame"
     order: 9
     description: "Galgame 剧本改编、视觉资产规划与 WebGAL 导出"
+  media:
+    label: "媒体生成"
+    order: 10
+    description: "图片模型生成请求"

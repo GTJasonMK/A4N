@@ -32,7 +32,8 @@ pub async fn build_blueprint_stage_request(
     )
     .await?;
     let system_content = prompt_renderer
-        .render_prompt(
+        .render_prompt_for_call(
+            "a4n_prompt::blueprint_generation::build_blueprint_stage_request",
             BLUEPRINT_STAGE_SYSTEM_PROMPT,
             &HashMap::from([("base_prompt".to_string(), json!(base_prompt))]),
             Some(project_id),
@@ -46,6 +47,9 @@ pub async fn build_blueprint_stage_request(
     )?;
     Ok(
         context_aware_system_user_request(system_content, manifest, Some(0.7), None)?
+            .with_prompt_assembly_key(
+                "a4n_prompt::blueprint_generation::build_blueprint_stage_request",
+            )
             .with_json_response_format()
             .with_trace_context(LlmTraceContext {
                 project_id: Some(project_id),

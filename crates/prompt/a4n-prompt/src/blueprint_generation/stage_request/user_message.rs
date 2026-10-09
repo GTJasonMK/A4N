@@ -30,6 +30,11 @@ pub(super) async fn build_blueprint_stage_manifest_user_message(
         ("payload".to_string(), json!(payload)),
     ]);
     prompt_renderer
-        .render_prompt(BLUEPRINT_STAGE_USER_PROMPT, &variables, project_id)
+        .render_prompt_for_call(
+            "a4n_prompt::blueprint_generation::build_blueprint_stage_request",
+            BLUEPRINT_STAGE_USER_PROMPT,
+            &variables,
+            project_id,
+        )
         .await
 }

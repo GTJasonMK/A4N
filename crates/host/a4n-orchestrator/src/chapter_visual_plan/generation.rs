@@ -15,6 +15,7 @@ use a4n_llm_context::{
     context_aware_system_user_request,
 };
 use a4n_llm_provider_contract::provider::{ChatRequest, LlmTraceContext};
+use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::GenerationResultRef;
 use serde_json::{Value, json};
 
@@ -234,11 +235,14 @@ impl OrchestratorContext {
             "explicit_end_frame":segment.use_end_point_image.then(|| json!({"relative_at_ms":end.at_ms-start,"description":end.description})),
             "user_description":input.user_description,
         });
-        let system = self.prompt_render_template(
-            DIRECTOR_SEGMENT_PROMPT,
-            &HashMap::new(),
-            Some(input.project_id),
-        )?;
+        let system = self
+            .render_prompt_for_call(
+                "chapter_visual_plan::generation",
+                DIRECTOR_SEGMENT_PROMPT,
+                &HashMap::new(),
+                Some(input.project_id),
+            )
+            .await?;
         let mut ledger = LlmContextLedger::new();
         ledger.add_pack(LlmContextLedgerPackInput {
             scope_kind: "chapter".into(),
@@ -271,6 +275,7 @@ impl OrchestratorContext {
             Some(0.4),
             None,
         )?
+        .with_prompt_assembly_key("chapter_visual_plan::generation")
         .with_trace_context(LlmTraceContext {
             project_id: Some(input.project_id),
             root_project_id: None,

@@ -20,6 +20,7 @@ impl OrchestratorContext {
                 chapter_content,
                 prompt_renderer,
                 variables,
+                "OptimizeService.create_analysis_session",
             )
             .await?;
         let session = a4n_db::optimize::create_optimization_session_record(
@@ -98,6 +99,7 @@ impl OrchestratorContext {
                 chapter_content,
                 prompt_renderer,
                 variables,
+                "OptimizeService.prepare_analysis_session",
             )
             .await?;
 

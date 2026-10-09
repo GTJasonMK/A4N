@@ -30,7 +30,12 @@ pub(super) async fn build_object_discovery_request(
         .map(existing_object_profile_for_prompt)
         .collect::<Vec<_>>();
     let system_prompt = prompt_renderer
-        .render_prompt(OBJECT_DISCOVERY_KIND, &HashMap::new(), Some(project_id))
+        .render_prompt_for_call(
+            "object_discovery::request::build_object_discovery_request",
+            OBJECT_DISCOVERY_KIND,
+            &HashMap::new(),
+            Some(project_id),
+        )
         .await?;
     let stable_context =
         object_discovery_stable_context(&existing_prompt_profiles, chapters, text_anchors)?;
@@ -66,6 +71,10 @@ pub(super) async fn build_object_discovery_request(
             call_key: Some(OBJECT_DISCOVERY_CALL_KEY.to_string()),
         },
     )
+    .map(|request| {
+        request
+            .with_prompt_assembly_key("object_discovery::request::build_object_discovery_request")
+    })
     .map_err(AppError::InvalidArgument)
 }
 

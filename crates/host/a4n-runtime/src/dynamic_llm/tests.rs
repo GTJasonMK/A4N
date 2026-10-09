@@ -597,6 +597,7 @@ fn test_chat_request() -> ChatRequest {
         cache_mode: None,
         trace_context: None,
         context_manifest_json: None,
+        prompt_assembly_key: None,
         tools: None,
         tool_choice: None,
         stop_sequences: None,

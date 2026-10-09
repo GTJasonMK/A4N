@@ -42,6 +42,7 @@ async fn part_outline_request_moves_blueprint_and_previous_parts_into_manifest()
     let previous_part = sample_previous_part();
     let request = build_part_outline_request(PartOutlineRequestInput {
         project_id: 42,
+        prompt_assembly_call_key: "OutlineService.generate_parts",
         part_num: 2,
         start_ch: 21,
         end_ch: 40,

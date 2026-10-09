@@ -59,14 +59,16 @@ pub(in crate::scene_profile::application) async fn build_scene_profile_stage_req
     output_contract: Value,
 ) -> Result<ChatRequest, AppError> {
     let stage_prompt = prompt_renderer
-        .render_prompt(
+        .render_prompt_for_call(
+            prompt_name,
             prompt_name,
             &HashMap::new(),
             Some(context.chapter.project_id),
         )
         .await?;
     let system_prompt = prompt_renderer
-        .render_prompt(
+        .render_prompt_for_call(
+            "SceneProfileDiscovery.sync_scene_profiles_for_chapters",
             SCENE_PROFILE_SYNC_SESSION_PROMPT,
             &HashMap::new(),
             Some(context.chapter.project_id),
@@ -123,6 +125,7 @@ pub(in crate::scene_profile::application) async fn build_scene_profile_stage_req
             )),
         },
     )
+    .map(|request| request.with_prompt_assembly_key(prompt_name))
     .map_err(AppError::InvalidArgument)
 }
 

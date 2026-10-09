@@ -307,6 +307,14 @@ pub trait VideoPromptGenerationHostPort: Send + Sync {
         project_id: Option<i64>,
     ) -> Result<String, AppError>;
 
+    async fn render_prompt_for_call(
+        &self,
+        call_key: &str,
+        template_name: &str,
+        variables: &HashMap<String, serde_json::Value>,
+        project_id: Option<i64>,
+    ) -> Result<String, AppError>;
+
     fn runtime_video_config(&self) -> Option<VideoProviderConfig>;
 }
 

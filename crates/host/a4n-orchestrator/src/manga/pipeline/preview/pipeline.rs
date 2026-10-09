@@ -4,7 +4,9 @@ use a4n_domain::{manga::MangaPreprocessingV3, source_spans::source_spans_for_con
 use a4n_error::AppError;
 use serde_json::json;
 
-use super::super::super::pipeline::prompt::manga_preprocessing_user_message;
+use super::super::super::pipeline::prompt::{
+    manga_pipeline_prompt_assembly_call_key, manga_preprocessing_user_message,
+};
 use super::super::super::reference_assets::manga_reference_assets_json;
 use super::super::super::{MangaPipelineRequestPreviewInput, OrchestratorContext};
 use super::super::json::required_array_field;
@@ -62,7 +64,12 @@ impl OrchestratorContext {
                 manga_reference_assets_json(&character_portraits),
             )?;
             let system = prompt_renderer
-                .render_prompt("manga_preprocessing", &HashMap::new(), Some(project_id))
+                .render_prompt_for_call(
+                    manga_pipeline_prompt_assembly_call_key("manga_preprocessing")?,
+                    "manga_preprocessing",
+                    &HashMap::new(),
+                    Some(project_id),
+                )
                 .await?;
             return Ok(vec![MangaPipelineRequestPreviewStep::ready(
                 "manga_preprocessing",

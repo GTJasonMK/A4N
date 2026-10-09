@@ -10,6 +10,7 @@ use a4n_llm_provider_contract::provider::{
 };
 use a4n_prompt::rendering::PromptRenderer;
 
+use super::super::VIDEO_PROMPT_ASSEMBLY_CALL_KEY;
 use super::contracts::VideoPromptLlmCallTraceContext;
 
 const VIDEO_PROMPT_WORKFLOW: &str = "video_prompt_generation";
@@ -23,15 +24,26 @@ async fn build_video_prompt_request(
     temperature: f32,
 ) -> Result<ChatRequest, AppError> {
     let stage = prompt_renderer
-        .render_prompt(prompt_name, variables, Some(project_id))
+        .render_prompt_for_call(
+            VIDEO_PROMPT_ASSEMBLY_CALL_KEY,
+            prompt_name,
+            variables,
+            Some(project_id),
+        )
         .await?;
     let system = prompt_renderer
-        .render_prompt("video_prompt_session", &HashMap::new(), Some(project_id))
+        .render_prompt_for_call(
+            VIDEO_PROMPT_ASSEMBLY_CALL_KEY,
+            "video_prompt_session",
+            &HashMap::new(),
+            Some(project_id),
+        )
         .await?;
     // 来源已按镜头裁剪；较长的固定阶段规则应先于变化的段落，供同阶段复用。
     let system = format!("{}\n\n[阶段指令]\n{}", system.trim(), stage.trim());
     Ok(
         context_aware_system_user_request(system, manifest, Some(temperature), None)?
+            .with_prompt_assembly_key(VIDEO_PROMPT_ASSEMBLY_CALL_KEY)
             .with_json_response_format()
             .with_trace_context(LlmTraceContext {
                 project_id: Some(project_id),
@@ -172,6 +184,16 @@ mod tests {
                 _: Option<i64>,
             ) -> Result<String, AppError> {
                 Ok(format!("rules:{name}:{}", self.0))
+            }
+
+            async fn render_prompt_for_call(
+                &self,
+                _: &str,
+                name: &str,
+                variables: &HashMap<String, Value>,
+                project_id: Option<i64>,
+            ) -> Result<String, AppError> {
+                self.render_prompt(name, variables, project_id).await
             }
         }
         let vars = HashMap::new();

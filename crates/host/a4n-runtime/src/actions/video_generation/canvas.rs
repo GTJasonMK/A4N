@@ -10,6 +10,7 @@ pub(crate) async fn preview_canvas_video_request(
     state: &AppState,
     input: GenerateCanvasVideoInput,
 ) -> Result<ModelRequestPreview, String> {
+    let project_id = input.project_id;
     let host_port = RuntimeVideoProviderHostPort::new(state);
     let preview = state
         .canvas_video_request_preview_application()
@@ -24,17 +25,26 @@ pub(crate) async fn preview_canvas_video_request(
         "node_id": preview.node_id,
         "request": preview.request,
     });
+    let mut step = provider_request_step(
+        "canvas_video",
+        "画布视频 provider 请求",
+        "video_generation_request",
+        Some("video_generation_request".to_string()),
+        "ready",
+        None,
+        &payload,
+    )?;
+    crate::actions::request_preview::attach_prompt_assembly_metadata(
+        state,
+        Some(project_id),
+        "video_generation.provider",
+        "video_generation_request",
+        &mut step,
+    )
+    .await?;
     Ok(model_request_preview(
         "canvas_video_generation",
         "画布视频模型请求",
-        vec![provider_request_step(
-            "canvas_video",
-            "画布视频 provider 请求",
-            "video_generation_request",
-            Some("canvas_video_prompt".to_string()),
-            "ready",
-            None,
-            &payload,
-        )?],
+        vec![step],
     ))
 }

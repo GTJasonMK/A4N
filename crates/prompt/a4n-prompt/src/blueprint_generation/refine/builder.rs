@@ -28,7 +28,12 @@ pub async fn build_blueprint_refine_request(
     inspiration_context: &Value,
 ) -> Result<ChatRequest, AppError> {
     let system_prompt = prompt_renderer
-        .render_prompt(BLUEPRINT_REFINEMENT_PROMPT, variables, Some(project_id))
+        .render_prompt_for_call(
+            "a4n_prompt::blueprint_generation::build_blueprint_refine_request",
+            BLUEPRINT_REFINEMENT_PROMPT,
+            variables,
+            Some(project_id),
+        )
         .await?;
     let user_prompt =
         blueprint_refine_manifest_user_message(prompt_renderer, Some(project_id), focus).await?;
@@ -41,6 +46,9 @@ pub async fn build_blueprint_refine_request(
     let call_key = blueprint_refinement_call_key(project_id);
     Ok(
         context_aware_system_user_request(system_prompt, manifest, Some(0.6), None)?
+            .with_prompt_assembly_key(
+                "a4n_prompt::blueprint_generation::build_blueprint_refine_request",
+            )
             .with_json_response_format()
             .with_trace_context(LlmTraceContext {
                 project_id: Some(project_id),

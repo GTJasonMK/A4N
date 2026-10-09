@@ -29,11 +29,17 @@ pub(in crate::import_reverse) async fn build_reverse_engineer_request(
     } = input;
     let prompt_name = target.prompt_name();
     let sys = prompt_renderer
-        .render_prompt(prompt_name, variables, Some(project_id))
+        .render_prompt_for_call(
+            "ImportService.reverse_engineer",
+            prompt_name,
+            variables,
+            Some(project_id),
+        )
         .await?;
     let (manifest, fingerprint) = build_reverse_engineer_context(target, content_sample)?;
     Ok(
         context_aware_system_user_request(sys, manifest, Some(0.3), None)?
+            .with_prompt_assembly_key("ImportService.reverse_engineer")
             .with_json_response_format()
             .with_trace_context(LlmTraceContext {
                 project_id: Some(project_id),

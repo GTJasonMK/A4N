@@ -160,7 +160,8 @@ impl OrchestratorContext {
             &attribute_events,
         );
         let system_prompt = prompt_renderer
-            .render_prompt(
+            .render_prompt_for_call(
+                "character::conflict::request::build_character_conflict_request",
                 CHARACTER_CONFLICT_KIND,
                 &HashMap::new(),
                 Some(input.project_id),
@@ -178,6 +179,9 @@ impl OrchestratorContext {
                 state_timeline: &state_timeline,
                 attribute_events: &attribute_events,
             })?;
+        let request = request.with_prompt_assembly_key(
+            "character::conflict::request::build_character_conflict_request",
+        );
         Ok(PreparedCharacterConflictCheck {
             input,
             profile_id: profile.id,

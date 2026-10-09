@@ -29,6 +29,7 @@ pub(in crate::actions::portrait_generation) async fn chat_preview_step(
             key: key.to_string(),
             title: title.to_string(),
             prompt_name: prompt_name.map(str::to_string),
+            prompt_assembly: None,
             state: "ready".to_string(),
             note: None,
             request,
@@ -43,8 +44,14 @@ pub(super) async fn provider_preview_step(
     key: &str,
     title: &str,
     config: &ImageProviderConfig,
-    request: ImageGenerationRequest,
+    mut request: ImageGenerationRequest,
 ) -> Result<ModelRequestPreviewStep, String> {
+    crate::actions::image_generation::assemble_image_generation_request(
+        state,
+        project_id,
+        &mut request,
+    )
+    .await?;
     if state.runtime_profile().uses_sidecars() {
         let root_project_id = crate::actions::sidecar_root_project_id(state, project_id).await?;
         let provider_request = crate::sidecar_clients::preview_image_provider_request(
@@ -55,17 +62,26 @@ pub(super) async fn provider_preview_step(
             root_project_id,
         )
         .await?;
-        return provider_request_step(
+        let mut step = provider_request_step(
             key.to_string(),
             title.to_string(),
             "image_provider_request",
-            None,
+            Some("image_generation_request".to_string()),
             "ready",
             None,
             &provider_request,
-        );
+        )?;
+        crate::actions::request_preview::attach_prompt_assembly_metadata(
+            state,
+            Some(project_id),
+            "image_generation.provider",
+            "image_generation_request",
+            &mut step,
+        )
+        .await?;
+        return Ok(step);
     }
-    image_provider_request_step(
+    let mut step = image_provider_request_step(
         key.to_string(),
         title.to_string(),
         None,
@@ -73,5 +89,15 @@ pub(super) async fn provider_preview_step(
         None,
         &config.backend,
         request,
+    )?;
+    step.prompt_name = Some("image_generation_request".to_string());
+    crate::actions::request_preview::attach_prompt_assembly_metadata(
+        state,
+        Some(project_id),
+        "image_generation.provider",
+        "image_generation_request",
+        &mut step,
     )
+    .await?;
+    Ok(step)
 }

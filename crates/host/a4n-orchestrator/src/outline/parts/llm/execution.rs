@@ -20,6 +20,7 @@ impl OrchestratorContext {
     ) -> Result<GeneratedPartOutline, AppError> {
         let PartOutlineJsonInput {
             project_id,
+            prompt_assembly_call_key,
             part_num,
             start_ch,
             end_ch,
@@ -34,6 +35,7 @@ impl OrchestratorContext {
         } = input;
         let mut request = build_part_outline_request(PartOutlineRequestInput {
             project_id,
+            prompt_assembly_call_key,
             part_num,
             start_ch,
             end_ch,

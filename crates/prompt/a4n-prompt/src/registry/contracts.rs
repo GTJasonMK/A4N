@@ -17,6 +17,24 @@ pub(crate) struct PromptRegistryEntry {
     pub used_by: Vec<String>,
     /// 此提示词依赖哪些其他提示词。
     pub dependencies: Vec<String>,
+    #[serde(default)]
+    pub assembly_call_keys: Vec<String>,
+    #[serde(default)]
+    pub assembly_blocks: Vec<PromptRegistryAssemblyBlock>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PromptRegistryAssemblyBlock {
+    pub id: String,
+    pub kind: a4n_prompt_contract::PromptAssemblyBlockKind,
+    pub value: String,
+    #[serde(default = "enabled_by_default")]
+    pub enabled: bool,
+}
+
+fn enabled_by_default() -> bool {
+    true
 }
 
 /// 分类定义。

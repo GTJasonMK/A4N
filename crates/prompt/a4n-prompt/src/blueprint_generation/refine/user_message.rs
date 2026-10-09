@@ -58,6 +58,11 @@ pub(super) async fn blueprint_refine_manifest_user_message(
     let payload = serde_json::to_string(&Value::Object(payload))?;
     let variables = HashMap::from([("payload".to_string(), json!(payload))]);
     prompt_renderer
-        .render_prompt(BLUEPRINT_REFINEMENT_USER_PROMPT, &variables, project_id)
+        .render_prompt_for_call(
+            "a4n_prompt::blueprint_generation::build_blueprint_refine_request",
+            BLUEPRINT_REFINEMENT_USER_PROMPT,
+            &variables,
+            project_id,
+        )
         .await
 }

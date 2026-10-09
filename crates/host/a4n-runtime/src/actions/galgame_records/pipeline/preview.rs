@@ -30,6 +30,7 @@ pub async fn preview_galgame_pipeline_request(
                     key: item.key,
                     title: item.title,
                     prompt_name: Some(item.prompt_name),
+                    prompt_assembly: None,
                     state: "ready".to_string(),
                     note: None,
                     request,

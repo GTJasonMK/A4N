@@ -61,6 +61,10 @@ impl ImageGenerationHostPort for RuntimeImageGenerationHostPort<'_> {
         input: ImageGenerationProviderInput,
         progress: &ImageGenerationProgress<'_>,
     ) -> Result<ImageGenerationProviderOutput, AppError> {
+        let mut input = input;
+        super::assemble_image_generation_request(self.state, input.project_id, &mut input.request)
+            .await
+            .map_err(host_error)?;
         let root_project_id = crate::actions::sidecar_root_project_id(self.state, input.project_id)
             .await
             .map_err(host_error)?;
@@ -71,14 +75,17 @@ impl ImageGenerationHostPort for RuntimeImageGenerationHostPort<'_> {
             input.project_id,
             "image_generation",
             "Image provider request",
-            None,
+            Some("image_generation_request".to_string()),
             None,
             &input.config,
             input.request.clone(),
         )
         .await
         {
-            Ok(preview) => preview.request,
+            Ok(mut preview) => {
+                preview.prompt_assembly_key = Some("image_generation.provider".to_string());
+                preview.request
+            }
             Err(error) => {
                 tracing::warn!(backend = %input.config.backend, %error, "Could not capture image request snapshot");
                 None

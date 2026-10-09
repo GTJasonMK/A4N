@@ -40,6 +40,7 @@ impl OrchestratorContext {
         let generated = self
             .generate_single_chapter_outline_json(SingleChapterOutlineJsonInput {
                 project_id,
+                prompt_assembly_call_key: "OutlineService.regenerate_chapter_outline",
                 context: &context,
                 focus_part: focus_part.as_ref(),
                 chapter_number,
