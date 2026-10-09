@@ -52,8 +52,8 @@ export const config = {
     grep: /(?:^Home and global Agent page audit (?:H\d{2}-|A\d{2}[a-z]?-)|^Settings detail pages and complete dialog workflows SD\d{2}-|^Settings pages with populated records (?:S02-size-edit|S05-web-tools|S06-(?:revert|pending-save|retry))|^Novel page audit.* (?:UX-B60|UX-B73|UX-B74|UX-698)|^Populated media pages and task dialogs UX-B(?:72|73)|^Individual page workflows X01-)/,
   },
   onPrepare: async (...args) => {
-    await prepareMediaFixtures();
     try {
+      await prepareMediaFixtures();
       await base.onPrepare?.(...args);
     } catch (error) {
       await cleanMediaFixtures();

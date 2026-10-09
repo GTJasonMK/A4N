@@ -48,8 +48,9 @@ def parse_functional_result(log_path: Path) -> dict[str, object]:
         not isinstance(result, dict)
         or result.get("remountCompleted") is not True
         or type(result.get("remountOccurrences")) is not int
-        or result["remountOccurrences"] < 1
+        or result["remountOccurrences"] != 1
         or type(result.get("remountFirstTextAt")) is not int
+        or result["remountFirstTextAt"] <= 0
     ):
         raise RunnerError(f"Tauri UI 功能结果不完整：{result!r}")
     return result

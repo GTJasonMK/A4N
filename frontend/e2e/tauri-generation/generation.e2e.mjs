@@ -124,8 +124,8 @@ describe("Tauri generation user flow", () => {
       remountReply,
     );
     const remountCompleted = !(await pageContains("发送中"));
-    if (!remountCompleted || remountOccurrences < 1) {
-      throw new Error("Tauri 页面重挂载后没有显示完成的 mock 回复");
+    if (!remountCompleted || remountOccurrences !== 1) {
+      throw new Error("Tauri 页面重挂载后没有唯一且完成的 mock 回复");
     }
 
     process.stdout.write(`A4N_TAURI_WRY_RESULT=${JSON.stringify({

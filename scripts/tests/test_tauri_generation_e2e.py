@@ -12,18 +12,26 @@ class TauriGenerationE2ETest(unittest.TestCase):
     def test_functional_result_requires_generated_text_after_remount(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "wdio.log"
-            result = {
+            valid_result = {
                 "remountFirstTextAt": 100,
                 "remountOccurrences": 1,
                 "remountCompleted": True,
             }
-            path.write_text("A4N_TAURI_WRY_RESULT=" + json.dumps(result))
-            self.assertEqual(parse_functional_result(path), result)
+            path.write_text("A4N_TAURI_WRY_RESULT=" + json.dumps(valid_result))
+            self.assertEqual(parse_functional_result(path), valid_result)
 
-            result["remountCompleted"] = False
-            path.write_text("A4N_TAURI_WRY_RESULT=" + json.dumps(result))
-            with self.assertRaisesRegex(RunnerError, "功能结果不完整"):
-                parse_functional_result(path)
+            for invalid_fields in (
+                {"remountCompleted": False},
+                {"remountOccurrences": 2},
+                {"remountOccurrences": 0},
+                {"remountFirstTextAt": 0},
+                {"remountFirstTextAt": -1},
+            ):
+                with self.subTest(fields=invalid_fields):
+                    result = {**valid_result, **invalid_fields}
+                    path.write_text("A4N_TAURI_WRY_RESULT=" + json.dumps(result))
+                    with self.assertRaisesRegex(RunnerError, "功能结果不完整"):
+                        parse_functional_result(path)
 
     def test_functional_result_rejects_missing_or_duplicate_records(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
