@@ -15,6 +15,43 @@ fn control_request_lease_has_one_canonical_shape() {
 }
 
 #[test]
+fn worker_command_validation_shares_identity_checks() {
+    let request = valid_envelope();
+    request
+        .validate_worker_command("content.update", "content-worker", "content worker")
+        .expect("matching command identity should validate");
+
+    let operation_error = request
+        .validate_worker_command("content.read", "content-worker", "content worker")
+        .expect_err("operation mismatch should fail");
+    assert_eq!(
+        operation_error.message(),
+        "operation_id 不匹配: expected=content.read, actual=content.update"
+    );
+
+    let worker_error = request
+        .validate_worker_command("content.update", "other-worker", "other worker")
+        .expect_err("worker mismatch should fail");
+    assert_eq!(
+        worker_error.message(),
+        "lease.worker_id 不属于 other worker"
+    );
+
+    let mut invalid_schema = request;
+    invalid_schema.schema_version = 0;
+    let schema_error = invalid_schema
+        .validate_worker_command("content.update", "content-worker", "content worker")
+        .expect_err("invalid schema should fail before command identity checks");
+    let schema_error: WorkerError = schema_error.into();
+    assert_eq!(schema_error.code, WorkerErrorCode::InvalidRequest);
+    assert!(!schema_error.retryable);
+    assert_eq!(
+        schema_error.message,
+        format!("unsupported worker schema version: expected {WORKER_SCHEMA_VERSION}, got 0")
+    );
+}
+
+#[test]
 fn worker_failure_constructors_share_wire_error_semantics() {
     let cases = [
         (

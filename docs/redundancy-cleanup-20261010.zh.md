@@ -3,7 +3,7 @@
 ## 范围与方法
 
 - 工作分支：`agent/redundancy-cleanup-20261010`，基线 `debug@3f6a2408c9e78c4719259e77d5443f2befdd8fda`。
-- 建立分支本地 CodeGraph 索引后持续同步；最终索引覆盖 6,242 个文件、86,307 个符号、276,364 条边，状态为 up to date。
+- 建立分支本地 CodeGraph 索引后持续同步；当前索引覆盖 6,242 个文件、86,313 个符号、276,170 条边，状态为 up to date。
 - 从 `a4n-server`、Tauri 本地 Server、`a4n-component-host`、Worker/Sidecar catalog、Axum route 注册、`a4n-control` 动态 command 分派和 `frontend/src/App.tsx` 路由入口追踪生产调用与注册点。前端索引包含 444 个 TS 和 318 个 TSX 文件。
 - 基线 Cargo workspace 有 213 个 crate manifest；本次增加 runtime crate 后共 214 个。`cargo metadata` 核对了 Worker 对共享配置/runtime crate 的依赖。静态搜索补查脚本启动、环境变量、历史迁移、测试 fixture、生成合同脚本和运行时路由字符串。
 - 检查了 `#[allow(dead_code)]`、兼容/legacy 命名、候选无入边符号、Cargo 直接依赖和可复用的前端格式工具。
@@ -106,6 +106,15 @@ CodeGraph 无法解析跨 crate 的 `a4n_config::worker_listen_addr`（29 处）
 - 新增合同测试覆盖成功/失败响应的 request、trace、operation identity、状态、payload/error 和 parts 构造校验；静态搜索确认 29 个生产 helper 都只转发到共享入口，生产侧唯一直接使用 parts 的路径是 Canvas Record，其他路径不再自行装配 `WorkerOperationRef`。
 - 记录文件：`crates/process/a4n-worker-contract/src/wire.rs`、`wire_tests.rs`，以及 29 个 Worker 的响应 helper 文件。
 
+### R-12：统一 Worker command envelope 基础校验
+
+- 类别：重复请求校验实现及无效转发包装。
+- BFS 从 `WorkerEnvelope` schema 合同进入 Worker catalog/Axum route，沿 command handler、`validate_request`/`request_validate`、principal/scope 校验和错误响应 builder 追踪；CodeGraph 探查 `validate_worker_command` 的全部生产调用与调用路径，文本搜索复核所有 `operation_id`/`lease.worker_id` 校验分支。29 个通用 `WorkerEnvelope` Worker 的基础校验均收敛到 `a4n-worker-contract::WorkerEnvelope::validate_worker_command`。
+- 共享 helper 按原顺序执行 `WorkerEnvelope::validate`、operation ID 相等校验、lease worker ID 相等校验；保留原错误码、retryable 标志和逐 Worker 错误消息。29 个 Worker 仍传入自己的 operation、worker ID 和标签；User/Service/Admin principal、用户身份、项目范围、无 scope 规则等后续专属校验保持原位置。
+- Import Review 的 `validate_mutation_request` 只有两个调用且只转发到 `validate_request`；BFS 确认没有独立变换或副作用，调用点改为直接使用完整校验函数并删除转发层。Artifact Media 使用独立请求协议，不在通用 `WorkerEnvelope` 调用集合内，保留其独立校验。
+- contract 测试覆盖有效身份、错误 operation、错误 worker、schema 错误优先级及 InvalidRequest/不可重试语义。此项未新增回退、默认、宽松校验或吞错路径。
+- 记录文件：`crates/process/a4n-worker-contract/{src/wire.rs,src/wire_tests.rs}`、29 个通用 Worker 的基础 request validator，以及 `crates/transfer/a4n-import-review-worker/src/mutations.rs`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -118,9 +127,9 @@ CodeGraph 无法解析跨 crate 的 `a4n_config::worker_listen_addr`（29 处）
 ## 验证
 
 - `cargo check --workspace --locked --offline`：续作后全 workspace 通过，无警告。
-- `cargo check --workspace --all-targets --locked --offline`：通过，编译全 workspace 的测试/示例目标，无警告；本轮 R-11 后再次执行通过。
+- `cargo check --workspace --all-targets --locked --offline`：通过，编译全 workspace 的测试/示例目标，无警告；本轮 R-12 后再次执行通过。
+- `timeout 60s cargo test --locked --offline -p a4n-worker-contract --lib`：48/48 通过，覆盖共享失败构造、响应元数据、请求身份校验和 wire 序列化。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-client --lib`：14/14 通过，覆盖共享传输与响应错误映射。
-- `timeout 60s cargo test --locked --offline -p a4n-worker-contract -p a4n-worker-client --lib`：47/47 和 14/14 通过，覆盖共享失败构造、响应元数据装配、wire 序列化和 client 错误映射。
 - `cargo check --locked --offline -p a4n-worker-runtime -p a4n-service-manager -p a4n-server -p a4n-tauri`：通过，验证共享父进程退出信号 helper 的三个集成点和更新后的 lockfile。
 - `timeout 60s cargo test --locked --offline -p a4n-config worker_listen_addr_requires_loopback_and_nonzero_port --lib`：1/1 通过。
 - Worker client Debug 脱敏定向测试：30 个 client 各 1 项通过；共享 URL/token 解析测试 1/1 通过；28 个环境读取消费者 `cargo check` 通过。

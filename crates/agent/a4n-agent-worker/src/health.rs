@@ -275,20 +275,7 @@ fn validate_user_request(
     request: &WorkerEnvelope<Value>,
     operation: &str,
 ) -> Result<i64, WorkerFailure> {
-    request
-        .validate()
-        .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
-    if request.operation_id != operation {
-        return Err(WorkerFailure::invalid_request(format!(
-            "operation_id 不匹配: expected={operation}, actual={}",
-            request.operation_id
-        )));
-    }
-    if request.lease.worker_id != "agent-worker" {
-        return Err(WorkerFailure::invalid_request(
-            "lease.worker_id 不属于 agent worker",
-        ));
-    }
+    request.validate_worker_command(operation, "agent-worker", "agent worker")?;
     if request.principal.kind != WorkerPrincipalKind::User {
         return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
     }

@@ -212,21 +212,7 @@ fn validate_request<T: serde::Serialize>(
     request: &WorkerEnvelope<T>,
     operation: &str,
 ) -> Result<(), WorkerFailure> {
-    request
-        .validate()
-        .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
-    if request.operation_id != operation {
-        return Err(WorkerFailure::invalid_request(format!(
-            "operation_id 不匹配: expected={operation}, actual={}",
-            request.operation_id
-        )));
-    }
-    if request.lease.worker_id != CHAPTER_SCENE_WORKER_ID {
-        return Err(WorkerFailure::invalid_request(
-            "lease.worker_id 不属于 chapter scene worker",
-        ));
-    }
-    Ok(())
+    request.validate_worker_command(operation, CHAPTER_SCENE_WORKER_ID, "chapter scene worker")
 }
 
 fn user_id<T: serde::Serialize>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {

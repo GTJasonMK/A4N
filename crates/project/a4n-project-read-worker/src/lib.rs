@@ -198,20 +198,7 @@ fn validate_request<T: serde::Serialize>(
     operation: &str,
     service: bool,
 ) -> Result<(), WorkerFailure> {
-    request
-        .validate()
-        .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
-    if request.operation_id != operation {
-        return Err(WorkerFailure::invalid_request(format!(
-            "operation_id 不匹配: expected={operation}, actual={}",
-            request.operation_id
-        )));
-    }
-    if request.lease.worker_id != PROJECT_READ_WORKER_ID {
-        return Err(WorkerFailure::invalid_request(
-            "lease.worker_id 不属于 project read worker",
-        ));
-    }
+    request.validate_worker_command(operation, PROJECT_READ_WORKER_ID, "project read worker")?;
     if service && request.principal.kind != WorkerPrincipalKind::Service {
         return Err(WorkerFailure::unauthorized(
             "该操作仅允许 service principal",

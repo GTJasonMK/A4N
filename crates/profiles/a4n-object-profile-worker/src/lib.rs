@@ -220,21 +220,11 @@ fn validate_request<T: serde::Serialize>(
     request: &WorkerEnvelope<T>,
     expected_operation: &str,
 ) -> Result<(), WorkerFailure> {
-    request
-        .validate()
-        .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
-    if request.operation_id != expected_operation {
-        return Err(WorkerFailure::invalid_request(format!(
-            "operation_id 不匹配: expected={}, actual={}",
-            expected_operation, request.operation_id
-        )));
-    }
-    if request.lease.worker_id != OBJECT_PROFILE_WORKER_ID {
-        return Err(WorkerFailure::invalid_request(
-            "lease.worker_id 不属于 object profile worker",
-        ));
-    }
-    Ok(())
+    request.validate_worker_command(
+        expected_operation,
+        OBJECT_PROFILE_WORKER_ID,
+        "object profile worker",
+    )
 }
 
 fn ensure_scope_project<T>(

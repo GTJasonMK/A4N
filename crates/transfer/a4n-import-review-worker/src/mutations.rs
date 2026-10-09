@@ -5,7 +5,7 @@ impl WorkerState {
         &self,
         request: WorkerEnvelope<ImportReviewIdInput>,
     ) -> Result<(), WorkerFailure> {
-        validate_mutation_request(&request, IMPORT_REVIEW_DELETE_OPERATION)?;
+        validate_request(&request, IMPORT_REVIEW_DELETE_OPERATION)?;
         let user_id = user_id(&request)?;
         let review = review_for_editor(&self.database, user_id, request.payload.review_id).await?;
         a4n_db::import_review::delete_import_review(self.database.connection(), review.id)
@@ -17,7 +17,7 @@ impl WorkerState {
         &self,
         request: WorkerEnvelope<ImportReviewIdInput>,
     ) -> Result<ImportReviewSummary, WorkerFailure> {
-        validate_mutation_request(&request, IMPORT_REVIEW_REJECT_OPERATION)?;
+        validate_request(&request, IMPORT_REVIEW_REJECT_OPERATION)?;
         let user_id = user_id(&request)?;
         let review = review_for_editor(&self.database, user_id, request.payload.review_id).await?;
         let review =

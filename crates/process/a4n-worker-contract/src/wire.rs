@@ -66,6 +66,28 @@ impl<T> WorkerEnvelope<T> {
         Ok(())
     }
 
+    pub fn validate_worker_command(
+        &self,
+        operation: &str,
+        worker_id: &str,
+        worker_label: &str,
+    ) -> Result<(), WorkerFailure> {
+        self.validate()
+            .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
+        if self.operation_id != operation {
+            return Err(WorkerFailure::invalid_request(format!(
+                "operation_id 不匹配: expected={operation}, actual={}",
+                self.operation_id
+            )));
+        }
+        if self.lease.worker_id != worker_id {
+            return Err(WorkerFailure::invalid_request(format!(
+                "lease.worker_id 不属于 {worker_label}"
+            )));
+        }
+        Ok(())
+    }
+
     pub fn scope(&self) -> WorkerScope {
         WorkerScope {
             project_id: self.project_id,

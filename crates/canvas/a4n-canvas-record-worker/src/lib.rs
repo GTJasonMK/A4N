@@ -333,21 +333,11 @@ fn validate_request<T: Serialize>(
     request: &WorkerEnvelope<T>,
     expected_operation: &str,
 ) -> Result<(), WorkerFailure> {
-    request
-        .validate()
-        .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
-    if request.operation_id != expected_operation {
-        return Err(WorkerFailure::invalid_request(format!(
-            "operation_id 不匹配: expected={expected_operation}, actual={}",
-            request.operation_id
-        )));
-    }
-    if request.lease.worker_id != CANVAS_RECORD_WORKER_ID {
-        return Err(WorkerFailure::invalid_request(
-            "lease.worker_id 不属于 Canvas record worker",
-        ));
-    }
-    Ok(())
+    request.validate_worker_command(
+        expected_operation,
+        CANVAS_RECORD_WORKER_ID,
+        "Canvas record worker",
+    )
 }
 
 fn validate_project_scope<T>(

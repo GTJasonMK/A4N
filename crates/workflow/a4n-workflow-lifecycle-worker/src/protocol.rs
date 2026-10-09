@@ -6,21 +6,11 @@ pub(super) fn validate_request<T: serde::Serialize>(
     request: &WorkerEnvelope<T>,
     operation: &str,
 ) -> Result<(), WorkerFailure> {
-    request
-        .validate()
-        .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
-    if request.operation_id != operation {
-        return Err(WorkerFailure::invalid_request(format!(
-            "operation_id 不匹配: expected={operation}, actual={}",
-            request.operation_id
-        )));
-    }
-    if request.lease.worker_id != WORKFLOW_LIFECYCLE_WORKER_ID {
-        return Err(WorkerFailure::invalid_request(
-            "lease.worker_id 不属于 workflow lifecycle worker",
-        ));
-    }
-    Ok(())
+    request.validate_worker_command(
+        operation,
+        WORKFLOW_LIFECYCLE_WORKER_ID,
+        "workflow lifecycle worker",
+    )
 }
 
 pub(super) fn workflow_error(error: a4n_db::workflow::WorkflowWriteError) -> WorkerFailure {

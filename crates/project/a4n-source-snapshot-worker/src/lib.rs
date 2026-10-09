@@ -153,21 +153,11 @@ impl WorkerState {
 }
 
 fn validate_request<T: serde::Serialize>(request: &WorkerEnvelope<T>) -> Result<(), WorkerFailure> {
-    request
-        .validate()
-        .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
-    if request.operation_id != SOURCE_SNAPSHOT_CHAPTERS_OPERATION {
-        return Err(WorkerFailure::invalid_request(format!(
-            "operation_id 不匹配: expected={}, actual={}",
-            SOURCE_SNAPSHOT_CHAPTERS_OPERATION, request.operation_id
-        )));
-    }
-    if request.lease.worker_id != SOURCE_SNAPSHOT_WORKER_ID {
-        return Err(WorkerFailure::invalid_request(
-            "lease.worker_id 不属于 source snapshot worker",
-        ));
-    }
-    Ok(())
+    request.validate_worker_command(
+        SOURCE_SNAPSHOT_CHAPTERS_OPERATION,
+        SOURCE_SNAPSHOT_WORKER_ID,
+        "source snapshot worker",
+    )
 }
 
 fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {

@@ -167,20 +167,11 @@ impl WorkerState {
 }
 
 fn validate_request<T: serde::Serialize>(request: &WorkerEnvelope<T>) -> Result<(), WorkerFailure> {
-    request
-        .validate()
-        .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
-    if request.operation_id != INSPIRATION_HISTORY_OPERATION {
-        return Err(WorkerFailure::invalid_request(format!(
-            "operation_id 不匹配: expected={INSPIRATION_HISTORY_OPERATION}, actual={}",
-            request.operation_id
-        )));
-    }
-    if request.lease.worker_id != INSPIRATION_HISTORY_WORKER_ID {
-        return Err(WorkerFailure::invalid_request(
-            "lease.worker_id 不属于 inspiration history worker",
-        ));
-    }
+    request.validate_worker_command(
+        INSPIRATION_HISTORY_OPERATION,
+        INSPIRATION_HISTORY_WORKER_ID,
+        "inspiration history worker",
+    )?;
     if request.principal.kind != WorkerPrincipalKind::User {
         return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
     }
