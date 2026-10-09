@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "suites": {
+    "rust-format": {
+      "command": ["cargo", "fmt", "--all", "--", "--check"],
+      "timeout_seconds": 300
+    },
+    "rust-contract": {
+      "command": ["bash", "scripts/checks/check-generation-contracts.sh"],
+      "timeout_seconds": 300
+    },
+    "rust-safety-boundary": {
+      "command": ["bash", "scripts/checks/check-generation-safety-boundary.sh"],
+      "timeout_seconds": 300
+    },
+    "rust-service-protocol": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "a4n-service-protocol",
+        "--lib",
+        "events_artifacts"
+      ],
+      "timeout_seconds": 900
+    },
+    "python-tests": {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts/tests",
+        "-p",
+        "test_*.py"
+      ],
+      "timeout_seconds": 900
+    },
+    "python-checks": {
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts/checks",
+        "-p",
+        "test_*.py"
+      ],
+      "timeout_seconds": 300
+    },
+    "frontend-unit": {
+      "command": ["npm", "--prefix", "frontend", "run", "test:run"],
+      "timeout_seconds": 900
+    },
+    "frontend-build": {
+      "command": ["npm", "--prefix", "frontend", "run", "build"],
+      "timeout_seconds": 900
+    },
+    "frontend-parity": {
+      "command": [
+        "npm",
+        "--prefix",
+        "frontend",
+        "run",
+        "check:web-api-parity"
+      ],
+      "timeout_seconds": 900
+    },
+    "browser-llm-cache": {
+      "command": [
+        "npm",
+        "--prefix",
+        "frontend",
+        "run",
+        "test:browser-llm-cache"
+      ],
+      "timeout_seconds": 300
+    },
+    "browser-llm-presets": {
+      "command": [
+        "npm",
+        "--prefix",
+        "frontend",
+        "run",
+        "test:browser-llm-presets"
+      ],
+      "timeout_seconds": 300
+    },
+    "browser-video-mode": {
+      "command": [
+        "npm",
+        "--prefix",
+        "frontend",
+        "run",
+        "test:browser-video-mode"
+      ],
+      "timeout_seconds": 300
+    },
+    "browser-video-scrub": {
+      "command": [
+        "npm",
+        "--prefix",
+        "frontend",
+        "run",
+        "test:browser-video-scrub"
+      ],
+      "timeout_seconds": 600
+    },
+    "browser-ui-presentation": {
+      "command": [
+        "npm",
+        "--prefix",
+        "frontend",
+        "run",
+        "test:browser-ui-presentation"
+      ],
+      "timeout_seconds": 900
+    },
+    "rust-workspace": {
+      "command": [
+        "python3",
+        "scripts/tests/run_with_test_database.py",
+        "--timeout",
+        "7200",
+        "--",
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--all-targets"
+      ],
+      "timeout_seconds": 3600
+    },
+    "browser-canvas": {
+      "command": [
+        "npm",
+        "--prefix",
+        "frontend",
+        "run",
+        "test:browser-canvas-starter"
+      ],
+      "timeout_seconds": 600
+    },
+    "creation-e2e": {
+      "command": [
+        "python3",
+        "scripts/tests/run_creation_e2e.py",
+        "--stage",
+        "all"
+      ],
+      "timeout_seconds": 10800
+    }
+  },
+  "profiles": {
+    "fast": [
+      "rust-format",
+      "rust-contract",
+      "rust-safety-boundary",
+      "rust-service-protocol",
+      "python-tests",
+      "python-checks",
+      "frontend-unit",
+      "frontend-build",
+      "frontend-parity",
+      "browser-llm-cache",
+      "browser-llm-presets",
+      "browser-video-mode",
+      "browser-video-scrub",
+      "browser-ui-presentation"
+    ],
+    "nightly": [
+      "rust-format",
+      "rust-contract",
+      "rust-safety-boundary",
+      "rust-service-protocol",
+      "python-tests",
+      "python-checks",
+      "frontend-unit",
+      "frontend-build",
+      "frontend-parity",
+      "browser-llm-cache",
+      "browser-llm-presets",
+      "browser-video-mode",
+      "browser-video-scrub",
+      "browser-ui-presentation",
+      "rust-workspace",
+      "browser-canvas",
+      "creation-e2e"
+    ],
+    "full": [
+      "rust-format",
+      "rust-contract",
+      "rust-safety-boundary",
+      "rust-service-protocol",
+      "python-tests",
+      "python-checks",
+      "frontend-unit",
+      "frontend-build",
+      "frontend-parity",
+      "browser-llm-cache",
+      "browser-llm-presets",
+      "browser-video-mode",
+      "browser-video-scrub",
+      "browser-ui-presentation",
+      "rust-workspace",
+      "browser-canvas",
+      "creation-e2e"
+    ]
+  }
+}

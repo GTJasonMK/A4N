@@ -1469,7 +1469,7 @@ def missing_fixture_provider_paths(path: Path | None, fixture_start: int) -> lis
 def runtime_snapshot_for_fixture(
     base_url: str,
     state: dict[str, Any],
-    embedding_dimension: int,
+    embedding_dimension: int = 384,
 ) -> dict[str, Any]:
     snapshot = runtime_snapshot(base_url, embedding_dimension=embedding_dimension)
     for section, state_key in (

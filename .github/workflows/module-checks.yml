@@ -1,11 +1,13 @@
-name: Module Checks
+name: Nightly Full Checks
 
 on:
-  pull_request:
   push:
     branches:
       - main
       - master
+  schedule:
+    - cron: "30 2 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -705,7 +707,7 @@ jobs:
       - name: Install Chromium, ChromeDriver and FFmpeg
         run: |
           sudo apt-get update
-          sudo apt-get install -y chromium chromium-driver ffmpeg
+          sudo apt-get install -y chromium chromium-driver ffmpeg xvfb
 
       - name: Install Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -782,6 +784,99 @@ jobs:
           --features embedded-media-providers
           tauri_channel_remounts_active_image_generation_after_window_cleanup
           -- --nocapture --test-threads=1
+
+  workspace-tests:
+    name: Full Rust workspace tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libayatana-appindicator3-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            pkg-config
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
+
+      - name: Prepare ONNX Runtime
+        run: |
+          ./scripts/dev/setup-onnxruntime.sh
+          source scripts/lib/common.sh
+          require_onnxruntime
+
+      - name: Run all Rust targets in a disposable database
+        run: >-
+          python3 scripts/tests/run_with_test_database.py
+          --report-dir artifacts/workspace-tests
+          --timeout 7200 --
+          cargo test --locked --workspace --all-targets --no-fail-fast
+
+      - name: Upload workspace test report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nightly-workspace-tests
+          path: artifacts/workspace-tests
+          retention-days: 14
+
+  creation-e2e:
+    name: Full creation E2E matrix
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install Linux creation E2E dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            chromium \
+            chromium-driver \
+            ffmpeg \
+            libayatana-appindicator3-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            pkg-config \
+            xvfb
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
+
+      - name: Install Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Prepare fixed runtime dependencies
+        run: |
+          ./scripts/dev/setup-onnxruntime.sh
+          ./scripts/dev/setup-qdrant.sh
+
+      - name: Run full creation acceptance
+        run: >-
+          python3 scripts/tests/run_creation_e2e.py
+          --stage all
+          --report-dir artifacts/creation-e2e
+
+      - name: Upload creation E2E evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nightly-creation-e2e
+          path: artifacts/creation-e2e
+          retention-days: 14
 
   supply-chain:
     name: Advisory, license and SBOM checks

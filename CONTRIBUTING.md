@@ -131,6 +131,16 @@ npm --prefix frontend run build
 git diff --check
 ```
 
+统一测试矩阵入口：
+
+```bash
+./scripts/test-all.sh --profile fast
+./scripts/test-all.sh --profile full
+./scripts/test-all.sh --profile fast --list
+```
+
+`fast` 用于本地和 PR 快速反馈；`nightly` 与 `full` 还会运行完整 Rust workspace、浏览器和创作链路。需要 PostgreSQL 的单批测试通过 `scripts/tests/run_with_test_database.py` 创建临时数据库；不要把 `A4N_TEST_DATABASE_URL` 指向日常开发库。完整创作 E2E 自己创建并清理 PostgreSQL、Qdrant、Provider 和浏览器进程。
+
 整体构建使用 `./scripts/build.sh`，后端编译检查使用 `./scripts/build.sh --backend --check`；复杂 Cargo/test 参数走 `scripts/cargo.sh`，`scripts/test.sh` 只支持 `--crate` 和 `--nocapture`。不能把超时、跳过、旧二进制或仅编译成功写成当前行为验证通过；无法验证时说明原因和剩余范围。
 
 ## 构建缓存管理
