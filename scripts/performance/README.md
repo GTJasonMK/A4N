@@ -269,4 +269,10 @@ A4N_PERF_CASE=manga-source \
 A4N_PERF_BASELINE_REF=3f6a2408c \
 A4N_PERF_ARTIFACTS=../data/performance-audit-20261010/manga-before-02 \
   node e2e/performance/check.mjs
+
+### PERF-021：Galgame 工作区延迟加载媒体编排范围
+
+- 请求位置：Galgame 工作区默认 `materials` 阶段。旧实现挂载 `GalgameTab` 即请求 `get_media_authoring_workspace`，该响应包含整个源快照的章节跨度；材料页只显示角色/素材，不读取创作工作区。新实现把读取开关绑定到 `adaptation`/`branches` 阶段，进入这两个阶段后仍按原命令读取并保留错误/权限处理。
+- 真实 Chromium 153.0.8010.52 夹具使用 1000 个源章节、4 Mbps/50 ms 传输模型，前后版本只替换 `GalgameTab.tsx`，三轮交错取中位数。初始请求 JSON **9,460,572 → 20 B（99.9998%）**，gzip 字节 **46,854 → 20 B（99.96%）**；初始可用时间 **226.8 → 154.0 ms（32.10%）**；JS heap **30.30 → 23.96 MB（20.94%）**。DOM、章节计数和 780px 窄屏宽度保持一致。
+- 夹具随后点击 `adaptation` tab，候选版本确认发出且完成一次 `get_media_authoring_workspace`，证明延迟读取没有删除工作流。证据为 `data/performance-audit-20261010/galgame-before-{02,03,04}/` 与 `galgame-after-{05,06,07}/`；复现命令沿用 `A4N_PERF_CASE=galgame-source` 和 `A4N_PERF_BASELINE_REF=3f6a2408c`。
 ```

@@ -95,6 +95,16 @@ interface GalgameTabProps {
   snapshotChapters: SourceSnapshotChapterIndexEntry[];
 }
 
+const GALGAME_STAGE_IDS = [
+  "materials",
+  "adaptation",
+  "branches",
+  "script",
+  "asset_plan",
+  "asset_generation",
+  "export",
+] as const;
+
 export const GalgameTab: React.FC<GalgameTabProps> = ({
   projectId,
   materialProjectId,
@@ -106,8 +116,16 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   const { t } = useI18n();
   const [authoringDirty, setAuthoringDirty] = useState(false);
   const [discardVersion, setDiscardVersion] = useState(0);
-  const authoring = useMediaAuthoring(projectId);
   const stageId = `galgame-stages-${projectId}`;
+  const [workspaceStage, setWorkspaceStage] = usePersistedTab(
+    `a4n:galgame:${projectId}:stage`,
+    "materials",
+    GALGAME_STAGE_IDS,
+  );
+  const authoring = useMediaAuthoring(
+    projectId,
+    workspaceStage === "adaptation" || workspaceStage === "branches",
+  );
   const outputState = authoring.workspace?.artifacts.find((artifact) => artifact.kind === "galgame_script");
   const stageTabs = useMemo(() => [
     { id: "materials" as const, label: t("common.mediaAuthoring.materials") },
@@ -118,11 +136,6 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     { id: "asset_generation" as const, label: t("common.mediaAuthoring.assetGeneration") },
     { id: "export" as const, label: t("common.mediaAuthoring.export") },
   ], [authoring.workspace, outputState, t]);
-  const [workspaceStage, setWorkspaceStage] = usePersistedTab(
-    `a4n:galgame:${projectId}:stage`,
-    "materials",
-    stageTabs.map((tab) => tab.id),
-  );
   const {
     error: imageSizeError,
     loading: imageSizeLoading,

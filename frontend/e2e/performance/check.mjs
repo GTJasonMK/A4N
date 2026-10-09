@@ -14,15 +14,18 @@ const port = Number(process.env.A4N_PERF_PORT ?? 48966);
 const outDir = path.join(artifacts, "dist");
 const baselineRef = process.env.A4N_PERF_BASELINE_REF;
 const scenario = process.env.A4N_PERF_CASE ?? "core";
-assert.ok(["core", "sidebar", "story-events", "manga-source"].includes(scenario));
+assert.ok(["core", "sidebar", "story-events", "manga-source", "galgame-source"].includes(scenario));
 const entry = scenario === "sidebar" ? "sidebar.html" : scenario === "story-events" ? "story-events.html"
-  : scenario === "manga-source" ? "manga-source.html" : "index.html";
+  : scenario === "manga-source" ? "manga-source.html"
+  : scenario === "galgame-source" ? "galgame-source.html" : "index.html";
 const sourceFiles = scenario === "story-events"
   ? ["src/pages/novel-detail/story-events/storyEventUtils.ts", "src/pages/novel-detail/story-events/ChapterEventSection.tsx"]
   : scenario === "sidebar"
   ? ["src/pages/writing-desk/ChapterSidebar.tsx", "src/pages/writing-desk/ChapterCard.tsx"]
   : scenario === "manga-source"
   ? ["src/pages/novel-detail/MangaTab.tsx"]
+  : scenario === "galgame-source"
+  ? ["src/pages/novel-detail/GalgameTab.tsx"]
   : ["src/hooks/usePacedStreamText.ts", "src/i18n/format.ts", "src/components/ui/MarkdownText.tsx"];
 const baselineSources = new Map(baselineRef ? sourceFiles.map((file) => [
   path.join(frontend, file),
@@ -66,7 +69,7 @@ try {
     browserName: "chrome", "goog:chromeOptions": {
       binary: process.env.A4N_WDIO_CHROMIUM_BINARY ?? "/usr/bin/chromium",
       args: ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage",
-        ...(scenario === "manga-source" ? ["--js-flags=--expose-gc"] : []),
+        ...(scenario === "manga-source" || scenario === "galgame-source" ? ["--js-flags=--expose-gc"] : []),
         `--user-data-dir=${path.join(temp, "chrome")}`],
     },
   } });
@@ -115,6 +118,20 @@ try {
     for (const count of [100, 1000]) storyEvents.push(await browser.execute((count) => window.measureStoryEvents(count), count));
     report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
       viewports: [1440, 390], trace: traces[0], storyEvents };
+  } else if (scenario === "galgame-source") {
+    const galgameSource = await browser.execute(() => window.measureGalgameSource());
+    assert.equal(galgameSource.chapterCount, 1000);
+    const workspaceRequests = galgameSource.requests.filter((request) =>
+      request.command === "get_media_authoring_workspace",
+    );
+    assert.equal(workspaceRequests.filter((request) => request.scope_chapter_id == null).length, baselineRef ? 1 : 0);
+    assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+    if (!baselineRef) {
+      await browser.execute(() => document.querySelector("[role=tab][id$='-tab-adaptation']")?.click());
+      await browser.waitUntil(() => browser.execute(() => window.galgameWorkspaceCompleteCount() === 1));
+    }
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
+      galgameSource };
   } else if (scenario === "manga-source") {
     const mangaSource = await browser.execute(() => window.measureMangaSource());
     assert.equal(mangaSource.selectedChapterReady, true);
