@@ -176,12 +176,8 @@ pub struct ProjectPromptOverrideSummary {
 pub struct PromptAssemblySummary {
     pub call_key: String,
     pub prompt_name: String,
-    pub title: String,
-    pub description: String,
     pub variables: Vec<String>,
     pub available_templates: Vec<PromptAssemblyTemplateOption>,
-    pub defaults: PromptAssemblyConfig,
-    pub allowed_blocks: Vec<PromptAssemblyBlockKind>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -189,7 +185,6 @@ pub struct PromptAssemblySummary {
 pub struct PromptAssemblyTemplateOption {
     pub name: String,
     pub title: String,
-    pub description: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -225,7 +220,6 @@ pub struct SavePromptAssemblyInput {
 pub struct PromptAssemblyOutput {
     pub config: PromptAssemblyConfig,
     pub source: PromptAssemblySource,
-    pub has_project_override: bool,
     pub rendered_preview: String,
 }
 

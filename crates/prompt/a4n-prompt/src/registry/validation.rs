@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use a4n_prompt_contract::{PromptAssemblyBlock, PromptAssemblyConfig};
+
 use super::PromptRegistry;
 
 impl PromptRegistry {
@@ -7,7 +9,6 @@ impl PromptRegistry {
         let mut errors = Vec::new();
 
         for (name, entry) in &self.file.prompts {
-            let mut block_ids = std::collections::HashSet::new();
             let mut assembly_call_keys = std::collections::HashSet::new();
             for call_key in &entry.assembly_call_keys {
                 if call_key.trim().is_empty() || !assembly_call_keys.insert(call_key.as_str()) {
@@ -16,18 +17,21 @@ impl PromptRegistry {
                     ));
                 }
             }
-            for block in &entry.assembly_blocks {
-                if block.id.trim().is_empty() || !block_ids.insert(block.id.as_str()) {
-                    errors.push(format!(
-                        "装配模块 ID 为空或重复：{}（prompt: {name})",
-                        block.id
-                    ));
-                }
-                if block.label.trim().is_empty() || block.value.trim().is_empty() {
-                    errors.push(format!(
-                        "装配模块 label/value 不能为空：{}（prompt: {name})",
-                        block.id
-                    ));
+            if !entry.assembly_blocks.is_empty() {
+                let config = PromptAssemblyConfig {
+                    blocks: entry
+                        .assembly_blocks
+                        .iter()
+                        .map(|block| PromptAssemblyBlock {
+                            id: block.id.clone(),
+                            kind: block.kind,
+                            value: block.value.clone(),
+                            enabled: block.enabled,
+                        })
+                        .collect(),
+                };
+                if let Err(error) = config.validate() {
+                    errors.push(format!("默认装配无效：{error}（prompt: {name})"));
                 }
             }
             if entry.path.trim().is_empty() {

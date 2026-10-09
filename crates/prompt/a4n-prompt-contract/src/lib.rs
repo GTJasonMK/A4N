@@ -33,7 +33,7 @@ pub mod rendering {
 }
 
 pub const PROMPT_SERVICE_NAME: &str = "prompt";
-pub const PROMPT_RENDER_CAPABILITY_VERSION: &str = "prompt-render-v5";
+pub const PROMPT_RENDER_CAPABILITY_VERSION: &str = "prompt-render-v6";
 pub const PROMPT_SERVICE_ADDR_ENV: &str = "A4N_PROMPT_SERVICE_ADDR";
 pub const PROMPT_SERVICE_DEFAULT_ADDR: &str = "127.0.0.1:47641";
 
@@ -155,8 +155,14 @@ pub struct PromptEmptyPayload {}
 pub struct PromptRenderPayload {
     pub template_name: String,
     pub variables: HashMap<String, Value>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub assembly: Option<PromptAssemblySnapshot>,
+    pub assembly: PromptAssemblySnapshot,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PromptRenderAbPayload {
+    pub template_name: String,
+    pub variables: HashMap<String, Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

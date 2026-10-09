@@ -29,13 +29,8 @@ pub(crate) struct PromptRegistryAssemblyBlock {
     pub id: String,
     pub kind: a4n_prompt_contract::PromptAssemblyBlockKind,
     pub value: String,
-    pub label: String,
     #[serde(default = "enabled_by_default")]
     pub enabled: bool,
-    #[serde(default)]
-    pub protected: bool,
-    #[serde(default)]
-    pub required_variables: Vec<String>,
 }
 
 fn enabled_by_default() -> bool {

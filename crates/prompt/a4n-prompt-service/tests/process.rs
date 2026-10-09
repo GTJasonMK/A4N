@@ -22,6 +22,22 @@ fn typed_request<T: DeserializeOwned>(
     .expect("test request must match the typed contract")
 }
 
+fn system_default_assembly(template_name: &str) -> serde_json::Value {
+    serde_json::json!({
+        "call_key": format!("prompt:{template_name}"),
+        "prompt_name": template_name,
+        "config": {
+            "blocks": [{
+                "id": "primary",
+                "kind": "template",
+                "value": template_name,
+                "enabled": true
+            }]
+        },
+        "source": "system_default"
+    })
+}
+
 fn project_request_context(
     request_id: &str,
     trace_id: &str,
@@ -141,7 +157,8 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
                 "chapter_word_count_range": "10-20 字",
                 "chapter_word_count_min": 10,
                 "chapter_word_count_max": 20
-            }
+            },
+            "assembly": system_default_assembly("writing")
         }),
     );
     assert_route_rejects_unknown_payload_field(
@@ -216,7 +233,8 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
             PROMPT_RENDER_CAPABILITY_VERSION,
             serde_json::json!({
                 "template_name": "writing",
-                "variables": {"chapter_title": "恢复哨兵"}
+                "variables": {"chapter_title": "恢复哨兵"},
+                "assembly": system_default_assembly("writing")
             }),
         )))
         .await
@@ -308,7 +326,8 @@ async fn prompt_service_process_serves_typed_list_and_stops() {
             "prompt-process-override-render-trace",
             serde_json::json!({
                 "template_name": "writing",
-                "variables": {"chapter_title": "覆盖哨兵"}
+                "variables": {"chapter_title": "覆盖哨兵"},
+                "assembly": system_default_assembly("writing")
             }),
         )))
         .await

@@ -6,7 +6,7 @@ use serde_json::Value;
 use tera::{Context, Tera};
 
 use super::TeraPromptEngine;
-use super::variables::required_template_variables;
+use super::variables::{required_template_variables, template_variable_access_paths};
 
 impl TeraPromptEngine {
     pub fn registry_assembly_call_keys(&self, prompt_name: &str) -> Vec<String> {
@@ -24,6 +24,16 @@ impl TeraPromptEngine {
     ) -> Result<Vec<String>, AppError> {
         let (content, _) = self.resolve_content(prompt_name, project_id)?;
         required_template_variables(&content)
+            .map_err(|error| AppError::InvalidArgument(format!("提示词变量解析失败：{error}")))
+    }
+
+    pub fn template_variable_access_paths(
+        &self,
+        prompt_name: &str,
+        project_id: Option<i64>,
+    ) -> Result<Vec<Vec<String>>, AppError> {
+        let (content, _) = self.resolve_content(prompt_name, project_id)?;
+        template_variable_access_paths(&content)
             .map_err(|error| AppError::InvalidArgument(format!("提示词变量解析失败：{error}")))
     }
 
@@ -93,46 +103,29 @@ impl TeraPromptEngine {
         Ok(blocks.join("\n\n"))
     }
 
-    pub fn registry_assembly_definitions(
-        &self,
-        prompt_name: &str,
-    ) -> Option<Vec<a4n_prompt_contract::PromptAssemblyBlock>> {
-        self.registry.read().get(prompt_name).map(|entry| {
-            entry
-                .assembly_blocks
-                .iter()
-                .map(|block| a4n_prompt_contract::PromptAssemblyBlock {
-                    id: block.id.clone(),
-                    kind: block.kind,
-                    value: block.value.clone(),
-                    enabled: block.enabled,
-                })
-                .collect()
-        })
-    }
-
-    pub fn registry_assembly_metadata(
-        &self,
-        prompt_name: &str,
-    ) -> Option<Vec<(String, String, bool, Vec<String>)>> {
-        self.registry.read().get(prompt_name).map(|entry| {
-            entry
-                .assembly_blocks
-                .iter()
-                .map(|block| {
-                    (
-                        block.id.clone(),
-                        block.label.clone(),
-                        block.protected,
-                        block.required_variables.clone(),
-                    )
-                })
-                .collect()
-        })
-    }
-
     pub fn default_assembly(&self, prompt_name: &str) -> PromptAssemblyConfig {
-        PromptAssemblyConfig::system_default(prompt_name)
+        let blocks = self
+            .registry
+            .read()
+            .get(prompt_name)
+            .map(|entry| {
+                entry
+                    .assembly_blocks
+                    .iter()
+                    .map(|block| a4n_prompt_contract::PromptAssemblyBlock {
+                        id: block.id.clone(),
+                        kind: block.kind,
+                        value: block.value.clone(),
+                        enabled: block.enabled,
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        if blocks.is_empty() {
+            PromptAssemblyConfig::system_default(prompt_name)
+        } else {
+            PromptAssemblyConfig { blocks }
+        }
     }
 }
 

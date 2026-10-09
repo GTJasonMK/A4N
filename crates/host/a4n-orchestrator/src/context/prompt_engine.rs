@@ -3,8 +3,7 @@ use std::collections::{HashMap, HashSet};
 use a4n_error::AppError;
 use a4n_prompt::{
     engine::{
-        PromptAssemblyBlock, PromptAssemblyConfig, PromptAssemblySnapshot, PromptCategory,
-        PromptEntry, PromptVersion,
+        PromptAssemblyConfig, PromptAssemblySnapshot, PromptCategory, PromptEntry, PromptVersion,
     },
     rendering::PromptRenderer,
 };
@@ -42,15 +41,6 @@ impl PromptRenderer for OrchestratorContext {
 }
 
 impl OrchestratorContext {
-    pub(crate) fn prompt_render_template(
-        &self,
-        template_name: &str,
-        variables: &HashMap<String, serde_json::Value>,
-        project_id: Option<i64>,
-    ) -> Result<String, AppError> {
-        self.engine.render(template_name, variables, project_id)
-    }
-
     pub(crate) fn prompt_render_assembled(
         &self,
         snapshot: &PromptAssemblySnapshot,
@@ -69,11 +59,13 @@ impl OrchestratorContext {
         self.engine.template_variables(prompt_name, project_id)
     }
 
-    pub(crate) fn prompt_registry_assembly_definitions(
+    pub(crate) fn prompt_template_variable_access_paths(
         &self,
         prompt_name: &str,
-    ) -> Option<Vec<PromptAssemblyBlock>> {
-        self.engine.registry_assembly_definitions(prompt_name)
+        project_id: Option<i64>,
+    ) -> Result<Vec<Vec<String>>, AppError> {
+        self.engine
+            .template_variable_access_paths(prompt_name, project_id)
     }
 
     pub(crate) fn prompt_registry_assembly_call_keys(&self, prompt_name: &str) -> Vec<String> {

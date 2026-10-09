@@ -79,3 +79,18 @@ fn load_requires_complete_category_metadata() {
     let error = PromptRegistry::load_from_dir(tmp.path()).unwrap_err();
     assert!(error.to_string().contains("missing field `order`"));
 }
+
+#[test]
+fn registry_rejects_assembly_without_an_enabled_block() {
+    let tmp = TempDir::new().unwrap();
+    fs::write(tmp.path().join("test.md"), "---\nname: test\n---\nHello").unwrap();
+    fs::write(
+        tmp.path().join("_registry.yaml"),
+        "prompts:\n  test:\n    path: \"test.md\"\n    title: \"测试\"\n    category: \"writing\"\n    tags: [\"test\"]\n    version: \"1.0\"\n    used_by: []\n    dependencies: []\n    description: \"测试模板\"\n    assembly_blocks:\n      - id: primary\n        kind: template\n        value: test\n        enabled: false\ncategories:\n  writing:\n    label: \"写作\"\n    order: 1\n    description: \"写作模板\"",
+    )
+    .unwrap();
+
+    let error = PromptRegistry::load_from_dir(tmp.path()).unwrap_err();
+
+    assert!(error.to_string().contains("至少需要启用一个模块"));
+}

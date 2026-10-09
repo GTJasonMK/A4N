@@ -16,7 +16,15 @@ impl PromptRenderer for TeraPromptEngine {
         variables: &HashMap<String, Value>,
         project_id: Option<i64>,
     ) -> Result<String, AppError> {
-        self.render(template_name, variables, project_id)
+        let call_key = format!("prompt:{template_name}");
+        PromptRenderer::render_prompt_for_call(
+            self,
+            &call_key,
+            template_name,
+            variables,
+            project_id,
+        )
+        .await
     }
 
     async fn render_prompt_for_call(

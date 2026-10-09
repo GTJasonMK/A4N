@@ -18,9 +18,10 @@ use a4n_prompt_client::PromptClient;
 use a4n_prompt_contract::{
     CountOutput, PromptBatchUpdate, PromptCategory, PromptEmptyPayload, PromptEntry,
     PromptHydrateOverride, PromptHydrateOverridesPayload, PromptListOutput, PromptNamePayload,
-    PromptRenderAbOutput, PromptRenderOutput, PromptRenderPayload, PromptSetProjectOverridePayload,
-    PromptUpdateManyPayload, PromptUpdatePayload, PromptValidateOutput, PromptValidatePayload,
-    PromptVersionDiffOutput, PromptVersionDiffPayload, PromptVersionHistoryOutput,
+    PromptRenderAbOutput, PromptRenderAbPayload, PromptRenderOutput, PromptRenderPayload,
+    PromptSetProjectOverridePayload, PromptUpdateManyPayload, PromptUpdatePayload,
+    PromptValidateOutput, PromptValidatePayload, PromptVersionDiffOutput, PromptVersionDiffPayload,
+    PromptVersionHistoryOutput,
 };
 use a4n_service_client::sidecar_response_payload;
 use a4n_service_protocol::{
@@ -98,57 +99,76 @@ impl OrchestratorContext {
         &self,
         call_key: &str,
         prompt_name: &str,
-    ) -> Result<(PromptAssemblyConfig, PromptAssemblySummary, Vec<String>), AppError> {
-        let prompt = self.prompt_entry(prompt_name)?;
-        let allowed_call_keys = self
-            .prompt_registry_assembly_call_keys(prompt_name)
-            .into_iter()
-            .chain(std::iter::once(format!("prompt:{prompt_name}")))
-            .collect::<Vec<_>>();
-        if !allowed_call_keys.iter().any(|key| key == call_key) {
+        project_id: Option<i64>,
+    ) -> Result<(PromptAssemblyConfig, Vec<String>), AppError> {
+        self.prompt_entry(prompt_name)?;
+        let generic_call_key = format!("prompt:{prompt_name}");
+        if call_key != generic_call_key
+            && !self
+                .prompt_registry_assembly_call_keys(prompt_name)
+                .iter()
+                .any(|key| key == call_key)
+        {
             return Err(AppError::InvalidArgument(format!(
                 "提示词 {prompt_name} 未注册调用归属 {call_key}"
             )));
         }
-        let variables = self.prompt_template_variables(prompt_name, None)?;
-        let defaults = self
-            .prompt_registry_assembly_definitions(prompt_name)
-            .filter(|blocks| !blocks.is_empty())
-            .map(|blocks| PromptAssemblyConfig { blocks })
-            .unwrap_or_else(|| self.prompt_default_assembly(prompt_name));
-        defaults.validate().map_err(|error| {
-            AppError::ConfigError(format!("{prompt_name} 默认装配无效：{error}"))
-        })?;
-        let templates = self
-            .prompt_entries()
-            .into_iter()
-            .filter_map(|entry| {
-                let required = self.prompt_template_variables(&entry.name, None).ok()?;
-                required
-                    .iter()
-                    .all(|variable| variables.contains(variable))
-                    .then_some(PromptAssemblyTemplateOption {
-                        name: entry.name,
-                        title: entry.title,
-                        description: entry.description,
-                    })
-            })
-            .collect::<Vec<_>>();
-        let summary = PromptAssemblySummary {
-            call_key: call_key.to_string(),
-            prompt_name: prompt_name.to_string(),
-            title: prompt.title,
-            description: prompt.description,
-            variables: variables.clone(),
-            available_templates: templates,
-            defaults: defaults.clone(),
-            allowed_blocks: vec![
-                PromptAssemblyBlockKind::Template,
-                PromptAssemblyBlockKind::Variable,
-                PromptAssemblyBlockKind::Custom,
-            ],
-        };
-        Ok((defaults, summary, variables))
+        let variables = self.prompt_template_variables(prompt_name, project_id)?;
+        let defaults = self.prompt_default_assembly(prompt_name);
+        self.validate_prompt_assembly_config(&defaults, prompt_name, &variables, project_id)
+            .map_err(|error| match error {
+                AppError::InvalidArgument(reason) => {
+                    AppError::ConfigError(format!("{prompt_name} 默认装配无效：{reason}"))
+                }
+                error => error,
+            })?;
+        Ok((defaults, variables))
+    }
+
+    fn validate_prompt_assembly_config(
+        &self,
+        config: &PromptAssemblyConfig,
+        prompt_name: &str,
+        variables: &[String],
+        project_id: Option<i64>,
+    ) -> Result<(), AppError> {
+        config.validate().map_err(AppError::InvalidArgument)?;
+        for block in &config.blocks {
+            match block.kind {
+                PromptAssemblyBlockKind::Template => {
+                    let required = if block.value == prompt_name {
+                        variables.to_vec()
+                    } else {
+                        self.prompt_template_variables(&block.value, project_id)?
+                    };
+                    if !required.iter().all(|variable| variables.contains(variable)) {
+                        return Err(AppError::InvalidArgument(format!(
+                            "当前调用不可用模板：{}",
+                            block.value
+                        )));
+                    }
+                }
+                PromptAssemblyBlockKind::Variable if !variables.contains(&block.value) => {
+                    return Err(AppError::InvalidArgument(format!(
+                        "当前调用不可用变量：{}",
+                        block.value
+                    )));
+                }
+                PromptAssemblyBlockKind::Custom => {
+                    let required = a4n_prompt::variables::required_template_variables(&block.value)
+                        .map_err(|error| {
+                            AppError::InvalidArgument(format!("自定义模块模板无效：{error}"))
+                        })?;
+                    if let Some(variable) = required.iter().find(|name| !variables.contains(name)) {
+                        return Err(AppError::InvalidArgument(format!(
+                            "当前调用不可用变量：{variable}"
+                        )));
+                    }
+                }
+                PromptAssemblyBlockKind::Variable => {}
+            }
+        }
+        Ok(())
     }
 
     pub(crate) fn prompt_default_assembly_call_key(
@@ -165,8 +185,19 @@ impl OrchestratorContext {
         prompt_name: &str,
         project_id: Option<i64>,
     ) -> Result<PromptAssemblySnapshot, AppError> {
-        let (default, summary, variables) =
-            self.prompt_assembly_definition(call_key, prompt_name)?;
+        self.resolve_prompt_assembly_snapshot_with_variables(call_key, prompt_name, project_id)
+            .await
+            .map(|(snapshot, _)| snapshot)
+    }
+
+    async fn resolve_prompt_assembly_snapshot_with_variables(
+        &self,
+        call_key: &str,
+        prompt_name: &str,
+        project_id: Option<i64>,
+    ) -> Result<(PromptAssemblySnapshot, Vec<String>), AppError> {
+        let (default, variables) =
+            self.prompt_assembly_definition(call_key, prompt_name, project_id)?;
         let project_value = if let Some(project_id) = project_id {
             self.load_prompt_assembly_override(Some(project_id), call_key, prompt_name)
                 .await?
@@ -177,13 +208,16 @@ impl OrchestratorContext {
             let config = serde_json::from_value(value).map_err(|error| {
                 AppError::InvalidArgument(format!("项目提示词装配配置无效：{error}"))
             })?;
-            validate_assembly_config(&config, &variables, &summary.available_templates)?;
-            return Ok(PromptAssemblySnapshot {
-                call_key: call_key.into(),
-                prompt_name: prompt_name.into(),
-                config,
-                source: PromptAssemblySource::Project,
-            });
+            self.validate_prompt_assembly_config(&config, prompt_name, &variables, project_id)?;
+            return Ok((
+                PromptAssemblySnapshot {
+                    call_key: call_key.into(),
+                    prompt_name: prompt_name.into(),
+                    config,
+                    source: PromptAssemblySource::Project,
+                },
+                variables,
+            ));
         }
         if let Some(value) = self
             .load_prompt_assembly_override(None, call_key, prompt_name)
@@ -192,20 +226,26 @@ impl OrchestratorContext {
             let config = serde_json::from_value(value).map_err(|error| {
                 AppError::InvalidArgument(format!("全局提示词装配配置无效：{error}"))
             })?;
-            validate_assembly_config(&config, &variables, &summary.available_templates)?;
-            return Ok(PromptAssemblySnapshot {
+            self.validate_prompt_assembly_config(&config, prompt_name, &variables, project_id)?;
+            return Ok((
+                PromptAssemblySnapshot {
+                    call_key: call_key.into(),
+                    prompt_name: prompt_name.into(),
+                    config,
+                    source: PromptAssemblySource::Global,
+                },
+                variables,
+            ));
+        }
+        Ok((
+            PromptAssemblySnapshot {
                 call_key: call_key.into(),
                 prompt_name: prompt_name.into(),
-                config,
-                source: PromptAssemblySource::Global,
-            });
-        }
-        Ok(PromptAssemblySnapshot {
-            call_key: call_key.into(),
-            prompt_name: prompt_name.into(),
-            config: default,
-            source: PromptAssemblySource::SystemDefault,
-        })
+                config: default,
+                source: PromptAssemblySource::SystemDefault,
+            },
+            variables,
+        ))
     }
 
     pub(crate) async fn render_prompt_for_call_validated(
@@ -244,7 +284,7 @@ impl OrchestratorContext {
                 PromptRenderPayload {
                     template_name: snapshot.prompt_name.clone(),
                     variables: variables.clone(),
-                    assembly: Some(snapshot.clone()),
+                    assembly: snapshot.clone(),
                 },
             )?)
             .await
@@ -255,15 +295,46 @@ impl OrchestratorContext {
     pub(crate) async fn list_prompt_assembly_summaries(
         &self,
     ) -> Result<Vec<PromptAssemblySummary>, AppError> {
+        let prompts = self.prompt_entries();
+        let mut prompt_data = HashMap::with_capacity(prompts.len());
+        for prompt in &prompts {
+            let mut call_keys = self.prompt_registry_assembly_call_keys(&prompt.name);
+            let generic_call_key = format!("prompt:{}", prompt.name);
+            if !call_keys.contains(&generic_call_key) {
+                call_keys.push(generic_call_key);
+            }
+            let Some(call_key) = call_keys.first() else {
+                continue;
+            };
+            let (_, variables) = self.prompt_assembly_definition(call_key, &prompt.name, None)?;
+            prompt_data.insert(prompt.name.clone(), (call_keys, variables));
+        }
+
         let mut summaries = Vec::new();
-        for prompt in self.prompt_entries() {
-            for call_key in self
-                .prompt_registry_assembly_call_keys(&prompt.name)
-                .into_iter()
-                .chain(std::iter::once(format!("prompt:{}", prompt.name)))
-            {
-                let (_, summary, _) = self.prompt_assembly_definition(&call_key, &prompt.name)?;
-                summaries.push(summary);
+        for prompt in &prompts {
+            let Some((call_keys, variables)) = prompt_data.get(&prompt.name) else {
+                continue;
+            };
+            let available_templates = prompts
+                .iter()
+                .filter_map(|entry| {
+                    let (_, required) = prompt_data.get(&entry.name)?;
+                    required
+                        .iter()
+                        .all(|variable| variables.contains(variable))
+                        .then(|| PromptAssemblyTemplateOption {
+                            name: entry.name.clone(),
+                            title: entry.title.clone(),
+                        })
+                })
+                .collect::<Vec<_>>();
+            for call_key in call_keys {
+                summaries.push(PromptAssemblySummary {
+                    call_key: call_key.clone(),
+                    prompt_name: prompt.name.clone(),
+                    variables: variables.clone(),
+                    available_templates: available_templates.clone(),
+                });
             }
         }
         Ok(summaries)
@@ -285,17 +356,27 @@ impl OrchestratorContext {
             self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
                 .await?;
         }
-        let snapshot = self
-            .resolve_prompt_assembly_snapshot(&call_key, &prompt_name, project_id)
+        let (snapshot, variables) = self
+            .resolve_prompt_assembly_snapshot_with_variables(&call_key, &prompt_name, project_id)
             .await?;
-        let (_, summary, variables) = self.prompt_assembly_definition(&call_key, &prompt_name)?;
         let preview_config = preview_config.unwrap_or_else(|| snapshot.config.clone());
-        validate_assembly_config(&preview_config, &variables, &summary.available_templates)?;
+        if preview_config != snapshot.config {
+            self.validate_prompt_assembly_config(
+                &preview_config,
+                &prompt_name,
+                &variables,
+                project_id,
+            )?;
+        }
         let preview_snapshot = PromptAssemblySnapshot {
             config: preview_config,
             ..snapshot.clone()
         };
-        let preview_variables = prompt_assembly_preview_variables(&variables);
+        let preview_variables = self.prompt_assembly_preview_variables(
+            &preview_snapshot.config,
+            &variables,
+            project_id,
+        )?;
         let rendered_preview = self
             .render_prompt_snapshot_validated(
                 context,
@@ -304,19 +385,43 @@ impl OrchestratorContext {
                 project_id,
             )
             .await?;
-        let has_project_override = if let Some(project_id) = project_id {
-            self.load_prompt_assembly_override(Some(project_id), &call_key, &prompt_name)
-                .await?
-                .is_some()
-        } else {
-            false
-        };
         Ok(PromptAssemblyOutput {
             config: snapshot.config,
             source: snapshot.source,
-            has_project_override,
             rendered_preview,
         })
+    }
+
+    fn prompt_assembly_preview_variables(
+        &self,
+        config: &PromptAssemblyConfig,
+        variables: &[String],
+        project_id: Option<i64>,
+    ) -> Result<HashMap<String, Value>, AppError> {
+        let mut access_paths = Vec::new();
+        for block in config.blocks.iter().filter(|block| block.enabled) {
+            let paths = match block.kind {
+                PromptAssemblyBlockKind::Template => {
+                    self.prompt_template_variable_access_paths(&block.value, project_id)?
+                }
+                PromptAssemblyBlockKind::Variable => continue,
+                PromptAssemblyBlockKind::Custom => {
+                    a4n_prompt::variables::template_variable_access_paths(&block.value).map_err(
+                        |error| {
+                            AppError::InvalidArgument(format!(
+                                "自定义装配模块 {} 的模板无效：{error}",
+                                block.id
+                            ))
+                        },
+                    )?
+                }
+            };
+            access_paths.extend(paths);
+        }
+        Ok(a4n_prompt::variables::placeholder_template_variables(
+            variables,
+            &access_paths,
+        ))
     }
 
     pub(crate) async fn save_prompt_assembly_config(
@@ -328,9 +433,14 @@ impl OrchestratorContext {
             self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
                 .await?;
         }
-        let (_, summary, variables) =
-            self.prompt_assembly_definition(&input.call_key, &input.prompt_name)?;
-        validate_assembly_config(&input.config, &variables, &summary.available_templates)?;
+        let (_, variables) =
+            self.prompt_assembly_definition(&input.call_key, &input.prompt_name, input.project_id)?;
+        self.validate_prompt_assembly_config(
+            &input.config,
+            &input.prompt_name,
+            &variables,
+            input.project_id,
+        )?;
         self.save_prompt_assembly_override(
             input.project_id,
             &input.call_key,
@@ -349,7 +459,7 @@ impl OrchestratorContext {
             self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
                 .await?;
         }
-        self.prompt_assembly_definition(&input.call_key, &input.prompt_name)?;
+        self.prompt_assembly_definition(&input.call_key, &input.prompt_name, input.project_id)?;
         self.delete_prompt_assembly_override(input.project_id, &input.call_key, &input.prompt_name)
             .await
     }
@@ -535,26 +645,15 @@ impl OrchestratorContext {
         variables: HashMap<String, Value>,
         project_id: Option<i64>,
     ) -> Result<String, AppError> {
-        let Some(client) = self.prompt_client_for_execution(context)? else {
-            return self.prompt_render_template(template_name, &variables, project_id);
-        };
-        let root_project_id = self
-            .hydrate_prompt_project_overrides(context, client.clone(), project_id)
-            .await?;
-        let response = client
-            .render(prompt_service_request(
-                context,
-                project_id,
-                root_project_id,
-                PromptRenderPayload {
-                    template_name: template_name.to_string(),
-                    variables,
-                    assembly: None,
-                },
-            )?)
-            .await
-            .map_err(prompt_sidecar_error)?;
-        Ok(prompt_response_payload::<PromptRenderOutput>(response)?.rendered)
+        let call_key = self.prompt_default_assembly_call_key(template_name)?;
+        self.render_prompt_for_call_validated(
+            context,
+            &call_key,
+            template_name,
+            &variables,
+            project_id,
+        )
+        .await
     }
 
     pub(crate) async fn render_prompt_record_ab_validated(
@@ -581,10 +680,9 @@ impl OrchestratorContext {
                     context,
                     project_id,
                     root_project_id,
-                    PromptRenderPayload {
+                    PromptRenderAbPayload {
                         template_name,
                         variables,
-                        assembly: None,
                     },
                 )?)
                 .await
@@ -1182,54 +1280,6 @@ impl PromptMutationApplicationPort for OrchestratorContext {
         self.update_many_prompt_records_validated(context, updates, author, overwrite)
             .await
     }
-}
-
-fn prompt_assembly_preview_variables(variables: &[String]) -> HashMap<String, Value> {
-    variables
-        .iter()
-        .map(|name| (name.clone(), Value::String(format!("⟦{name}⟧"))))
-        .collect()
-}
-
-fn validate_assembly_config(
-    config: &PromptAssemblyConfig,
-    variables: &[String],
-    templates: &[PromptAssemblyTemplateOption],
-) -> Result<(), AppError> {
-    config.validate().map_err(AppError::InvalidArgument)?;
-    let template_names = templates
-        .iter()
-        .map(|template| template.name.as_str())
-        .collect::<HashSet<_>>();
-    for block in &config.blocks {
-        match block.kind {
-            PromptAssemblyBlockKind::Template if !template_names.contains(block.value.as_str()) => {
-                return Err(AppError::InvalidArgument(format!(
-                    "当前调用不可用模板：{}",
-                    block.value
-                )));
-            }
-            PromptAssemblyBlockKind::Variable if !variables.contains(&block.value) => {
-                return Err(AppError::InvalidArgument(format!(
-                    "当前调用不可用变量：{}",
-                    block.value
-                )));
-            }
-            PromptAssemblyBlockKind::Custom => {
-                let required = a4n_prompt::variables::required_template_variables(&block.value)
-                    .map_err(|error| {
-                        AppError::InvalidArgument(format!("自定义模块模板无效：{error}"))
-                    })?;
-                if let Some(variable) = required.iter().find(|name| !variables.contains(name)) {
-                    return Err(AppError::InvalidArgument(format!(
-                        "当前调用不可用变量：{variable}"
-                    )));
-                }
-            }
-            PromptAssemblyBlockKind::Template | PromptAssemblyBlockKind::Variable => {}
-        }
-    }
-    Ok(())
 }
 
 fn prompt_service_request<T>(

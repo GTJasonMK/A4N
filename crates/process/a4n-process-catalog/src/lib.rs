@@ -602,7 +602,7 @@ mod tests {
         assert_eq!(sidecar.kind, ProcessKind::CapabilitySidecar);
         assert_eq!(
             sidecar.capability_version.as_deref(),
-            Some("prompt-render-v5")
+            Some("prompt-render-v6")
         );
         assert_eq!(
             sidecar.contract_version.as_deref(),
@@ -683,7 +683,7 @@ mod tests {
               "name":"prompt",
               "binary":"a4n-prompt-service",
               "launcher":"a4n-prompt-service",
-              "capability_version":"prompt-render-v5",
+              "capability_version":"prompt-render-v6",
               "addr_env":"A4N_PROMPT_SERVICE_ADDR",
               "url_env":"A4N_PROMPT_SERVICE_URL",
               "default_addr":"127.0.0.1:47641",

@@ -3,7 +3,7 @@ use crate::health::{HealthStatus, ServiceHealth, ServiceVersion};
 use crate::validation::RequiredSecretPolicy;
 
 pub const PROTOCOL_VERSION: u32 = 2;
-pub const PROMPT_RENDER_CAPABILITY_VERSION: &str = "prompt-render-v5";
+pub const PROMPT_RENDER_CAPABILITY_VERSION: &str = "prompt-render-v6";
 pub const LLM_CHAT_CAPABILITY_VERSION: &str = "llm-chat-v8";
 pub const EMBEDDING_CAPABILITY_VERSION: &str = "embedding-v5";
 pub const RAG_INDEX_CAPABILITY_VERSION: &str = "rag-index-v3";

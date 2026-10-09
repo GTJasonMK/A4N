@@ -1848,19 +1848,14 @@ export interface PromptAssemblySnapshot {
 }
 
 export interface PromptAssemblyTemplateOption {
-  description: string;
   name: string;
   title: string;
 }
 
 export interface PromptAssemblySummary {
-  allowed_blocks: PromptAssemblyBlockKind[];
   available_templates: PromptAssemblyTemplateOption[];
   call_key: string;
-  defaults: PromptAssemblyConfig;
-  description: string;
   prompt_name: string;
-  title: string;
   variables: string[];
 }
 
@@ -1880,7 +1875,6 @@ export interface SavePromptAssemblyInput {
 
 export interface PromptAssemblyOutput {
   config: PromptAssemblyConfig;
-  has_project_override: boolean;
   rendered_preview: string;
   source: PromptAssemblySource;
 }
