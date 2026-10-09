@@ -466,6 +466,12 @@ impl AppState {
         self.manga_record_mutation_application.as_ref()
     }
 
+    pub(crate) fn manga_pipeline_artifact_application(
+        &self,
+    ) -> &dyn a4n_api_contract::manga::MangaPipelineArtifactApplicationPort {
+        self.manga_pipeline_artifact_application.as_ref()
+    }
+
     pub(crate) fn canvas_read_application(
         &self,
     ) -> &dyn a4n_api_contract::canvas::CanvasReadApplicationPort {

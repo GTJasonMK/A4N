@@ -2,6 +2,7 @@ use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     chapter::{
         chapter_manga_prompt, chapter_shooting_script, chapter_video_prompt, chapter_visual_plan,
+        manga_pipeline_artifact,
     },
     character::character_portrait,
     generation::{
@@ -53,6 +54,16 @@ project_family_export_load_by_ids!(
     chapter_manga_prompt::Column::ChapterId,
     chapter_manga_prompt::Column::PageNumber,
     chapter_manga_prompt::Column::Id,
+);
+
+project_family_export_load_by_ids!(
+    project_family_export_manga_pipeline_artifacts,
+    manga_pipeline_artifact::Entity,
+    manga_pipeline_artifact::Column::ProjectId,
+    manga_pipeline_artifact::Column::ChapterId,
+    manga_pipeline_artifact::Column::Stage,
+    manga_pipeline_artifact::Column::PageNumber,
+    manga_pipeline_artifact::Column::Id,
 );
 
 project_family_export_load_by_ids!(

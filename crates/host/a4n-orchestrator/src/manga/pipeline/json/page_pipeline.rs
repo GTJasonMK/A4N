@@ -24,6 +24,16 @@ pub(crate) fn parse_manga_page_slots(
     slots
         .validate()
         .map_err(|error| AppError::InvalidArgument(format!("{context}: {error}")))?;
+    let planned_page_count = adaptation
+        .plan
+        .validate_manga_page_count()
+        .map_err(AppError::InvalidArgument)? as usize;
+    if slots.pages.len() != planned_page_count {
+        return Err(AppError::InvalidArgument(format!(
+            "{context} 必须生成 {planned_page_count} 页，实际为 {} 页",
+            slots.pages.len()
+        )));
+    }
 
     let available_spans = source_spans
         .iter()

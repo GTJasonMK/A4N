@@ -42,8 +42,8 @@ pub(super) fn manga_prompt_updated_model(
     now: chrono::NaiveDateTime,
 ) -> Option<chapter_manga_prompt::Model> {
     let content_matches = manga_prompt_content_matches(existing, &draft);
-    let keep_rendered_image = content_matches && existing.generated_image_id.is_some();
-    if content_matches && (keep_rendered_image || existing.status == draft.status) {
+    let has_rendered_image = existing.generated_image_id.is_some();
+    if content_matches && (has_rendered_image || existing.status == draft.status) {
         return None;
     }
     let mut updated = existing.clone();
@@ -54,8 +54,7 @@ pub(super) fn manga_prompt_updated_model(
     updated.dialogue_text = draft.dialogue_text;
     updated.characters_in_frame = draft.characters_in_frame;
     updated.layout = draft.layout;
-    if !keep_rendered_image {
-        updated.generated_image_id = None;
+    if !has_rendered_image {
         updated.status = draft.status;
     }
     updated.updated_at =

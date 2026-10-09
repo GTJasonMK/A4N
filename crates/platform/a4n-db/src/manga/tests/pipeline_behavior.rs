@@ -2,16 +2,19 @@ use a4n_db_models::models::chapter::{
     chapter,
     chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE},
 };
-use a4n_domain::manga::MangaPagePromptSyncDraft;
+use a4n_domain::manga::{
+    MangaPagePromptSyncDraft, MangaPipelineArtifactDraft, MangaPipelineArtifactStage,
+};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
 };
 use serde_json::json;
 
 use crate::manga::{
-    MangaPipelineDbError, manga_page_prompt_statuses_by_chapter,
-    manga_page_prompt_statuses_by_chapters, sync_manga_page_prompts_by_chapter,
-    update_manga_page_prompt_layout,
+    MangaPipelineDbError, delete_manga_pipeline_artifact, manga_page_prompt_statuses_by_chapter,
+    manga_page_prompt_statuses_by_chapters, manga_pipeline_artifact_deletion_plan,
+    manga_pipeline_artifacts_by_chapter, sync_manga_page_prompts_by_chapter,
+    update_manga_page_prompt_layout, upsert_manga_pipeline_artifact,
 };
 
 async fn setup_db() -> DatabaseConnection {
@@ -227,6 +230,7 @@ async fn planned_drafts(
         }],
         video_reference: None,
         dependencies: Vec::new(),
+        preprocessing_fingerprint: None,
     };
     let document = json!({"schema_version":"adaptation_plan_v1", "target":"manga", "intention":"保留已有页面", "decisions":[],
         "units":[{"id":"unit-1", "origin":"historical", "title":"对峙", "location":null, "participants":[],
@@ -338,7 +342,7 @@ fn upgrade_to_pipeline_layouts(drafts: &mut [MangaPagePromptSyncDraft]) {
 }
 
 #[tokio::test]
-async fn sync_page_prompts_preserves_rendered_image_when_prompt_unchanged() {
+async fn sync_page_prompts_preserves_images_and_unmentioned_pages() {
     let db = setup_db().await;
     let (project_id, chapter_id) = project_and_chapter(&db, "漫画提示词同步").await;
     let old_time = fixed_time(1);
@@ -389,11 +393,13 @@ async fn sync_page_prompts_preserves_rendered_image_when_prompt_unchanged() {
         .to_string()
         .contains("页面来源")
     );
+    let mut changed_drafts = drafts.clone();
+    changed_drafts[0].image_prompt = "已修改绘图提示词".to_string();
     let rows = sync_manga_page_prompts_by_chapter(
         &db,
         project_id,
         chapter_id,
-        drafts.clone(),
+        changed_drafts,
         fixed_time(2),
     )
     .await
@@ -406,11 +412,11 @@ async fn sync_page_prompts_preserves_rendered_image_when_prompt_unchanged() {
         .all(&db)
         .await
         .unwrap();
-    assert_eq!(stored.len(), 2);
+    assert_eq!(stored.len(), 3);
     assert_eq!(stored[0].id, kept.id);
     assert_eq!(stored[0].generated_image_id, Some(9901));
     assert_eq!(stored[0].status, "completed");
-    assert!(!stored.iter().any(|row| row.id == stale.id));
+    assert!(stored.iter().any(|row| row.id == stale.id));
 
     let mut statuses = manga_page_prompt_statuses_by_chapter(&db, project_id, chapter_id)
         .await
@@ -420,7 +426,8 @@ async fn sync_page_prompts_preserves_rendered_image_when_prompt_unchanged() {
         statuses,
         vec![
             (stored[0].id, "completed".to_string()),
-            (stored[1].id, "pending".to_string())
+            (stored[1].id, "pending".to_string()),
+            (stale.id, "pending".to_string()),
         ]
     );
     let batch_statuses = manga_page_prompt_statuses_by_chapters(&db, project_id, &[chapter_id])
@@ -431,6 +438,7 @@ async fn sync_page_prompts_preserves_rendered_image_when_prompt_unchanged() {
         vec![
             (chapter_id, stored[0].id, "completed".to_string()),
             (chapter_id, stored[1].id, "pending".to_string()),
+            (chapter_id, stale.id, "pending".to_string()),
         ]
     );
     let newer = crate::media_authoring::save_authoring_document(
@@ -507,6 +515,91 @@ async fn layout_update_preserves_concurrent_image_status() {
         .unwrap();
     assert_eq!(updated.generated_image_id, Some(9901));
     assert_eq!(updated.status, "completed");
+}
+
+#[tokio::test]
+async fn deleting_page_content_cascades_only_for_that_page() {
+    let db = setup_db().await;
+    let (project_id, chapter_id) = project_and_chapter(&db, "漫画阶段失效范围").await;
+    let now = fixed_time(1);
+
+    for (stage, page_number) in [
+        (MangaPipelineArtifactStage::PageContent, 1),
+        (MangaPipelineArtifactStage::PageContent, 2),
+        (MangaPipelineArtifactStage::PageAdaptation, 1),
+        (MangaPipelineArtifactStage::PageAdaptation, 2),
+        (MangaPipelineArtifactStage::Storyboard, 1),
+        (MangaPipelineArtifactStage::Storyboard, 2),
+        (MangaPipelineArtifactStage::ReferenceDiscovery, 1),
+        (MangaPipelineArtifactStage::ReferenceDiscovery, 2),
+        (MangaPipelineArtifactStage::DrawingPrompt, 1),
+        (MangaPipelineArtifactStage::DrawingPrompt, 2),
+        (MangaPipelineArtifactStage::Image, 1),
+        (MangaPipelineArtifactStage::Image, 2),
+    ] {
+        upsert_manga_pipeline_artifact(
+            &db,
+            MangaPipelineArtifactDraft {
+                project_id,
+                chapter_id,
+                stage,
+                page_number: Some(page_number),
+                input_fingerprint: format!("{}:{page_number}", stage.key()),
+                payload: json!({"stage": stage.key(), "page_number": page_number}),
+                stale: false,
+            },
+            now,
+        )
+        .await
+        .unwrap();
+    }
+
+    let deletion_plan = manga_pipeline_artifact_deletion_plan(
+        &db,
+        project_id,
+        chapter_id,
+        MangaPipelineArtifactStage::PageContent,
+        Some(1),
+    )
+    .await
+    .unwrap();
+    let expected_artifact_ids = deletion_plan
+        .iter()
+        .map(|artifact| artifact.id)
+        .collect::<Vec<_>>();
+    delete_manga_pipeline_artifact(
+        &db,
+        project_id,
+        chapter_id,
+        MangaPipelineArtifactStage::PageContent,
+        Some(1),
+        &expected_artifact_ids,
+        &[],
+    )
+    .await
+    .unwrap();
+
+    let artifacts = manga_pipeline_artifacts_by_chapter(&db, project_id, chapter_id)
+        .await
+        .unwrap();
+    assert!(
+        !artifacts
+            .iter()
+            .any(|artifact| artifact.page_number == Some(1))
+    );
+    assert_eq!(
+        artifacts
+            .iter()
+            .filter(|artifact| artifact.page_number == Some(2))
+            .count(),
+        6
+    );
+    assert!(
+        artifacts
+            .iter()
+            .filter(|artifact| artifact.page_number == Some(2))
+            .all(|artifact| !artifact.stale)
+    );
 }
 
 #[tokio::test]

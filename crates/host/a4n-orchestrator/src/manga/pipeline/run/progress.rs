@@ -1,9 +1,6 @@
+use super::super::super::{MANGA_PIPELINE_TOTAL_STEPS, OrchestratorContext};
 use a4n_db::workflow::WorkflowProgressEventInput;
 use a4n_error::AppError;
-use a4n_llm_trace::llm_usage_summary_text;
-
-use super::super::super::{MANGA_PIPELINE_TOTAL_STEPS, OrchestratorContext};
-use super::super::prompt::MangaPromptGenerationTrace;
 
 impl OrchestratorContext {
     pub(in crate::manga) async fn record_manga_pipeline_progress(
@@ -54,22 +51,5 @@ impl OrchestratorContext {
         })
         .await?;
         Ok(())
-    }
-
-    pub(super) async fn report_pipeline_llm_usage(
-        &self,
-        workflow_run_id: i64,
-        stage: &str,
-        current: i32,
-        task_id: &str,
-        trace: &MangaPromptGenerationTrace,
-    ) -> Result<(), AppError> {
-        let message = format!(
-            "模型请求完成：{}；{}；正在校验结构",
-            trace.prompt_name,
-            llm_usage_summary_text(trace.usage.as_ref())
-        );
-        self.record_manga_pipeline_progress(workflow_run_id, task_id, stage, current, &message)
-            .await
     }
 }

@@ -1,6 +1,8 @@
 use a4n_api_contract::manga::{
-    BindMangaReferenceImageInput, DeleteMangaPromptInput, MangaChapterInput,
-    OptimizeMangaPromptInput, UpdateMangaPromptInput,
+    BindMangaReferenceImageInput, DeleteMangaPageInput, DeleteMangaPipelineArtifactInput,
+    DeleteMangaPromptInput, MangaChapterInput, OptimizeMangaPromptInput,
+    PreviewMangaPipelineArtifactDeletionInput, SaveMangaPipelineArtifactInput,
+    UpdateMangaPromptInput,
 };
 use serde_json::Value;
 
@@ -17,6 +19,63 @@ pub(in crate::routes::commands) async fn list_manga_page_prompts(
             .await
             .map_err(ApiError::bad_request)?;
     to_value(page_prompts)
+}
+
+pub(in crate::routes::commands) async fn list_manga_pipeline_artifacts(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: MangaChapterInput = command_input(args, "list_manga_pipeline_artifacts")?;
+    let artifacts =
+        manga_records_actions::list_manga_pipeline_artifacts(state.runtime(), user_id, input)
+            .await
+            .map_err(ApiError::bad_request)?;
+    to_value(artifacts)
+}
+
+pub(in crate::routes::commands) async fn save_manga_pipeline_artifact(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: SaveMangaPipelineArtifactInput =
+        command_input(args, "save_manga_pipeline_artifact")?;
+    let artifact =
+        manga_records_actions::save_manga_pipeline_artifact(state.runtime(), user_id, input)
+            .await
+            .map_err(ApiError::bad_request)?;
+    to_value(artifact)
+}
+
+pub(in crate::routes::commands) async fn preview_delete_manga_pipeline_artifact(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: PreviewMangaPipelineArtifactDeletionInput =
+        command_input(args, "preview_delete_manga_pipeline_artifact")?;
+    let preview = manga_records_actions::preview_delete_manga_pipeline_artifact(
+        state.runtime(),
+        user_id,
+        input,
+    )
+    .await
+    .map_err(ApiError::bad_request)?;
+    to_value(preview)
+}
+
+pub(in crate::routes::commands) async fn delete_manga_pipeline_artifact(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: DeleteMangaPipelineArtifactInput =
+        command_input(args, "delete_manga_pipeline_artifact")?;
+    manga_records_actions::delete_manga_pipeline_artifact(state.runtime(), user_id, input)
+        .await
+        .map_err(ApiError::bad_request)?;
+    Ok(Value::Null)
 }
 
 pub(in crate::routes::commands) async fn bind_manga_reference_image(
@@ -75,6 +134,18 @@ pub(in crate::routes::commands) async fn delete_manga_by_chapter(
 ) -> Result<Value, ApiError> {
     let input: MangaChapterInput = command_input(args, "delete_manga_by_chapter")?;
     manga_records_actions::delete_manga_by_chapter(state.runtime(), user_id, input)
+        .await
+        .map_err(ApiError::bad_request)?;
+    Ok(Value::Null)
+}
+
+pub(in crate::routes::commands) async fn delete_manga_page(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: DeleteMangaPageInput = command_input(args, "delete_manga_page")?;
+    manga_records_actions::delete_manga_page(state.runtime(), user_id, input)
         .await
         .map_err(ApiError::bad_request)?;
     Ok(Value::Null)

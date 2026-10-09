@@ -112,6 +112,7 @@ pub(super) fn upgrade(package: &mut ProjectFamilyPackage, next: &mut i64) -> Res
         let plan = AdaptationPlanV1 {
             schema_version: AdaptationPlanVersion::V1,
             target: AdaptationTarget::Galgame,
+            page_count: None,
             intention: "保留已经保存的游戏场景、对白、选择和人工编辑；历史导演意图不作推测。"
                 .into(),
             decisions: Vec::new(),

@@ -225,6 +225,72 @@ pub async fn continue_completed_workflow_run_summary(
         .and_then(|run| workflow_run_summary(run).map_err(WorkflowWriteError::from))
 }
 
+/// Start a fresh run when its owner explicitly replaces an interrupted run.
+pub async fn restart_interrupted_workflow_run(
+    db: &impl crate::DbExecutor,
+    source_run_id: i64,
+    input: UpsertWorkflowRunInput,
+) -> Result<workflow_run::Model, WorkflowWriteError> {
+    validate_workflow_run_input(&input)?;
+    if input.status != WORKFLOW_STATUS_RUNNING {
+        return Err(WorkflowWriteError::InvalidData(
+            "重新启动中断工作流只允许创建 running 状态".into(),
+        ));
+    }
+    let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
+    if let Some(project_id) = input.project_id {
+        crate::project::project_write_identity_for_update(&tx, project_id)
+            .await
+            .map_err(WorkflowWriteError::Database)?
+            .ok_or_else(|| WorkflowWriteError::NotFound(format!("项目不存在: {project_id}")))?;
+    }
+    let source = locked_latest_workflow_run_by_business_key_model(&tx, &input.business_key)
+        .await?
+        .ok_or_else(|| WorkflowWriteError::NotFound("待替换的中断工作流不存在".into()))?;
+    if source.id != source_run_id
+        || source.status != WORKFLOW_STATUS_INTERRUPTED
+        || source.project_id != input.project_id
+        || source.chapter_id != input.chapter_id
+        || source.workflow_kind != input.workflow_kind
+        || !workflow_fingerprint_matches(
+            source.input_fingerprint_json.as_ref(),
+            input.input_fingerprint_json.as_ref(),
+        )
+    {
+        return Err(WorkflowWriteError::InvalidData(
+            "待替换的中断工作流已变化".into(),
+        ));
+    }
+
+    let now = Utc::now().naive_utc();
+    let mut superseded: workflow_run::ActiveModel = source.into();
+    superseded.status = Set(WORKFLOW_STATUS_SUPERSEDED.to_string());
+    superseded.active_task_id = Set(None);
+    superseded.can_resume = Set(false);
+    superseded.resume_block_reason = Set(Some("由新的工作流运行取代".into()));
+    superseded.updated_at = Set(now);
+    superseded.completed_at = Set(Some(now));
+    superseded
+        .update(&tx)
+        .await
+        .map_err(WorkflowWriteError::Database)?;
+
+    let run = upsert_workflow_run_in_transaction(&tx, input).await?;
+    tx.commit().await.map_err(WorkflowWriteError::Database)?;
+    Ok(run)
+}
+
+pub async fn restart_interrupted_workflow_run_summary(
+    db: &impl crate::DbExecutor,
+    source_run_id: i64,
+    input: UpsertWorkflowRunInput,
+) -> Result<WorkflowRunSummary, WorkflowWriteError> {
+    restart_interrupted_workflow_run(db, source_run_id, input)
+        .await
+        .map_err(WorkflowWriteError::from)
+        .and_then(|run| workflow_run_summary(run).map_err(WorkflowWriteError::from))
+}
+
 pub(super) async fn resume_workflow_run_model_in_transaction<C: ConnectionTrait>(
     tx: &C,
     existing: workflow_run::Model,

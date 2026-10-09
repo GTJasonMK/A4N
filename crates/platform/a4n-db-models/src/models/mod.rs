@@ -112,6 +112,7 @@ pub mod chapter {
     pub mod chapter_video_timeline;
     pub mod chapter_video_timeline_item;
     pub mod chapter_visual_plan;
+    pub mod manga_pipeline_artifact;
     pub mod part_outline;
 }
 

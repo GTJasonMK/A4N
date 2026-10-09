@@ -3,6 +3,7 @@
 mod pipeline;
 
 use a4n_db::project::MangaCharacterPortraitRefSummary;
+use a4n_domain::media::GeneratedImageRecord;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::ProgressEvent;
 use tokio_util::sync::CancellationToken;
@@ -17,6 +18,7 @@ mod prompt_optimization;
 mod record_errors;
 mod reference_assets;
 mod source;
+mod stage_artifacts;
 mod workflow;
 
 pub(crate) use pipeline::json::parse_manga_page_plan;
@@ -25,7 +27,7 @@ pub(in crate::manga) use pipeline::state::{MANGA_PIPELINE_TOTAL_STEPS, MangaPipe
 pub(in crate::manga) use prompt_optimization::MangaPromptOptimizationInput;
 pub(crate) use record_errors::manga_prompt_record_error;
 pub use source::ensure_manga_source_can_write;
-pub(crate) use workflow::{manga_pipeline_business_key, manga_pipeline_fingerprint};
+pub(crate) use workflow::{manga_pipeline_business_key, manga_pipeline_run_fingerprint};
 
 pub struct MangaGeneratePagePromptsInput<'a> {
     pub user_id: i64,
@@ -35,10 +37,12 @@ pub struct MangaGeneratePagePromptsInput<'a> {
     pub project_id: i64,
     pub prompt_renderer: &'a dyn PromptRenderer,
     pub character_portraits: Vec<MangaCharacterPortraitRefSummary>,
+    pub available_reference_images: Vec<GeneratedImageRecord>,
     pub task_id: &'a str,
     pub workflow_run_id: i64,
     pub resume_from_checkpoint: bool,
     pub stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+    pub run_stage: Option<a4n_domain::manga::MangaPipelineArtifactStage>,
     pub image_size: Option<a4n_domain::ImageSize>,
     pub image_generator: Option<&'a dyn a4n_api_contract::manga::MangaPipelinePageImageGenerator>,
     pub cancel_token: Option<&'a CancellationToken>,
@@ -52,9 +56,11 @@ pub struct MangaPipelineRequestPreviewInput<'a> {
     pub page_number: Option<u32>,
     pub prompt_renderer: &'a dyn PromptRenderer,
     pub character_portraits: Vec<MangaCharacterPortraitRefSummary>,
+    pub available_reference_images: Vec<GeneratedImageRecord>,
     pub workflow_run_id: Option<i64>,
     pub resume_from_checkpoint: bool,
     pub stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+    pub run_stage: Option<a4n_domain::manga::MangaPipelineArtifactStage>,
 }
 
 pub(crate) fn validate_manga_page_scope(
@@ -69,10 +75,7 @@ pub(crate) fn validate_manga_page_scope(
     if page_number.is_some()
         && matches!(
             stop_after,
-            Some(
-                a4n_api_contract::manga::MangaPipelineStopAfter::PageSlots
-                    | a4n_api_contract::manga::MangaPipelineStopAfter::PageContent
-            )
+            Some(a4n_api_contract::manga::MangaPipelineStopAfter::PageSlots)
         )
     {
         return Err(a4n_error::AppError::InvalidArgument(
@@ -198,9 +201,11 @@ impl OrchestratorContext {
         chapter_id: i64,
         content: &str,
         character_portraits: &[MangaCharacterPortraitRefSummary],
+        available_reference_images: &[GeneratedImageRecord],
         task_id: String,
         resume_from_checkpoint: bool,
         stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+        run_stage: Option<a4n_domain::manga::MangaPipelineArtifactStage>,
         page_number: Option<u32>,
     ) -> Result<(WorkflowRunSummary, bool), AppError> {
         if project_id <= 0 {
@@ -209,9 +214,15 @@ impl OrchestratorContext {
         if chapter_id <= 0 {
             return Err(AppError::InvalidArgument("章节 ID 必须大于 0".to_string()));
         }
-        let input_fingerprint = manga_pipeline_fingerprint(content, character_portraits);
+        let input_fingerprint = manga_pipeline_run_fingerprint(
+            content,
+            character_portraits,
+            available_reference_images,
+            run_stage,
+        );
+        let business_key = manga_pipeline_business_key(project_id, chapter_id);
         let input = UpsertWorkflowRunInput {
-            business_key: manga_pipeline_business_key(project_id, chapter_id),
+            business_key: business_key.clone(),
             workflow_kind: "manga_pipeline".to_string(),
             project_id: Some(project_id),
             root_project_id: None,
@@ -236,6 +247,20 @@ impl OrchestratorContext {
                 .resume_workflow_run_with_active_task_validated(run.id, &task_id)
                 .await
                 .map(|run| (run, true));
+        }
+        if let Some(previous) = self
+            .latest_workflow_run_by_business_key(&business_key)
+            .await?
+            .filter(|run| {
+                run.workflow_kind == "manga_pipeline"
+                    && run.status == WORKFLOW_STATUS_INTERRUPTED
+                    && run.input_fingerprint_json.as_ref() == Some(&input_fingerprint)
+            })
+        {
+            return self
+                .restart_interrupted_workflow_run_validated(previous.id, input)
+                .await
+                .map(|run| (run, false));
         }
         if let Some(previous) = self
             .completed_manga_pipeline_stage_workflow(
@@ -263,11 +288,12 @@ fn manga_stop_after_order(
 ) -> u8 {
     use a4n_api_contract::manga::MangaPipelineStopAfter as StopAfter;
     match stop_after {
-        Some(StopAfter::PageSlots | StopAfter::PageContent) => 0,
+        Some(StopAfter::PageSlots) => 0,
         Some(StopAfter::PageAdaptation) => 1,
-        Some(StopAfter::Storyboard | StopAfter::PagePlanning) => 2,
-        Some(StopAfter::DrawingPrompt) => 3,
-        Some(StopAfter::Image) | None => 4,
+        Some(StopAfter::Storyboard) => 2,
+        Some(StopAfter::ReferenceDiscovery) => 3,
+        Some(StopAfter::DrawingPrompt) => 4,
+        Some(StopAfter::Image) | None => 5,
     }
 }
 
@@ -275,9 +301,10 @@ fn manga_completed_stage_order(stage: &str) -> Option<u8> {
     match stage {
         "page_content" => Some(0),
         "adaptation" => Some(1),
-        "storyboard" | "page_planning" => Some(2),
-        "drawing_prompt" => Some(3),
-        "completed" => Some(4),
+        "storyboard" => Some(2),
+        "reference_discovery" => Some(3),
+        "drawing_prompt" => Some(4),
+        "completed" => Some(5),
         _ => None,
     }
 }

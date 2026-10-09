@@ -13,6 +13,7 @@ export async function startMangaPipeline(
   stopAfter: Host.MangaPipelineStopAfter | null = null,
   imageSize: ImageSize | null = null,
   pageNumber: number | null = null,
+  runStage: Host.MangaPipelineArtifactStage | null = null,
 ): Promise<GenerationTaskHandle> {
   return generationClient.start((meta) => apiInvoke<GenerationTaskHandle>("start_manga_pipeline", {
     input: {
@@ -20,6 +21,7 @@ export async function startMangaPipeline(
       project_id: idNum(projectId),
       chapter_number: chapterNumber,
       page_number: pageNumber,
+      ...(runStage == null ? {} : { run_stage: runStage }),
       stop_after: stopAfter,
       image_size: imageSize,
       resume_from_checkpoint: false,
@@ -32,12 +34,14 @@ export async function previewStartMangaPipelineRequest(
   chapterNumber: number,
   stopAfter: Host.MangaPipelineStopAfter | null = null,
   pageNumber: number | null = null,
+  runStage: Host.MangaPipelineArtifactStage | null = null,
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_start_manga_pipeline_request", {
     input: {
       project_id: idNum(projectId),
       chapter_number: chapterNumber,
       page_number: pageNumber,
+      ...(runStage == null ? {} : { run_stage: runStage }),
       stop_after: stopAfter,
     } satisfies Host.MangaPipelineStartInput,
   });
@@ -50,6 +54,7 @@ export async function resumeMangaPipeline(
   stopAfter: Host.MangaPipelineStopAfter | null = null,
   imageSize: ImageSize | null = null,
   pageNumber: number | null = null,
+  runStage: Host.MangaPipelineArtifactStage | null = null,
 ): Promise<GenerationTaskHandle> {
   return generationClient.start((meta) => apiInvoke<GenerationTaskHandle>("resume_manga_pipeline", {
     input: {
@@ -57,6 +62,7 @@ export async function resumeMangaPipeline(
       project_id: idNum(projectId),
       chapter_number: chapterNumber,
       page_number: pageNumber,
+      ...(runStage == null ? {} : { run_stage: runStage }),
       stop_after: stopAfter,
       image_size: imageSize,
       resume_from_checkpoint: true,
@@ -69,12 +75,14 @@ export async function previewResumeMangaPipelineRequest(
   chapterNumber: number,
   stopAfter: Host.MangaPipelineStopAfter | null = null,
   pageNumber: number | null = null,
+  runStage: Host.MangaPipelineArtifactStage | null = null,
 ): Promise<ModelRequestPreview> {
   return apiInvoke<ModelRequestPreview>("preview_resume_manga_pipeline_request", {
     input: {
       project_id: idNum(projectId),
       chapter_number: chapterNumber,
       page_number: pageNumber,
+      ...(runStage == null ? {} : { run_stage: runStage }),
       stop_after: stopAfter,
     } satisfies Host.MangaPipelineResumeInput,
   });

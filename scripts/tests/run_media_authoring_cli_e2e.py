@@ -113,7 +113,7 @@ def main():
             assert comic_adaptation["inputs"]["video_reference"] is None
             passed("漫画和 Galgame 在没有视频项目或拍摄剧本时独立生成并采用改编计划")
 
-            def manga_run(project_id=comic, stop_after=None, page_number=None):
+            def manga_run(project_id=comic, stop_after=None, page_number=None, run_stage=None):
                 pipeline_input = {
                     "meta": {"start_request_id": str(uuid.uuid4())},
                     "project_id": project_id,
@@ -124,6 +124,8 @@ def main():
                     pipeline_input["stop_after"] = stop_after
                 if page_number is not None:
                     pipeline_input["page_number"] = page_number
+                if run_stage is not None:
+                    pipeline_input["run_stage"] = run_stage
                 handle = call("start_manga_pipeline", pipeline_input)
                 checked(
                     cli,
@@ -142,8 +144,8 @@ def main():
             provider_request_offset = len(provider_log_entries(args.provider_log))
             manga_run()
             pages = call("list_manga_page_prompts", {"project_id": comic, "chapter_id": chapter_id})
-            assert len(pages) == 2 and len(llm_calls()) - before >= len(pages) * 3
-            assert all(page["page_content"] and page["page_adaptation"] and page["page_plan"] and page["drawing_prompt"] for page in pages)
+            assert len(pages) == 2 and len(llm_calls()) - before >= len(pages) * 4 + 2
+            assert all(page["page_content"] and page["page_adaptation"] and page["page_plan"] and page["reference_discovery"] and page["drawing_prompt"] for page in pages)
             assert pages[0]["source"]["adaptation_plan_id"] == comic_adaptation["id"]
             assert all(page["generated_image_id"] for page in pages)
             image_calls = [row for row in provider_log_entries(args.provider_log)[provider_request_offset:] if "/images/" in row.get("path", "")]
@@ -151,6 +153,22 @@ def main():
             manga_artifacts = workspace(comic)["artifacts"]
             assert not any(artifact["stale"] for artifact in manga_artifacts), manga_artifacts
             passed("漫画一次完成页面槽位、页面改编、分镜、绘图提示词和成图")
+
+            storyboard_preview = call("preview_start_manga_pipeline_request", {
+                "project_id": comic,
+                "chapter_number": 1,
+                "page_number": 1,
+                "stop_after": "storyboard",
+                "run_stage": "storyboard",
+            })
+            assert len(storyboard_preview["steps"]) == 1, storyboard_preview
+            assert storyboard_preview["steps"][0]["prompt_name"] == "manga_page_storyboard"
+            passed("单阶段请求预览只返回所选分镜步骤")
+
+            before_image_rerun = len(llm_calls())
+            manga_run(comic, stop_after="image", page_number=1, run_stage="image")
+            assert len(llm_calls()) == before_image_rerun
+            passed("单独重生成图片复用预处理、分镜和参考图发现产物")
 
             scoped_comic = derive("comic", "单页范围验收漫画")
             manga_run(scoped_comic, stop_after="page_slots")

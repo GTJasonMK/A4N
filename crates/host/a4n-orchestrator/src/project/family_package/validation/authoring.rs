@@ -127,6 +127,7 @@ pub(super) fn validate_authoring_manifest(package: &ProjectFamilyPackage) -> Res
             AdaptationPlanV1 {
                 schema_version: AdaptationPlanVersion::V1,
                 target,
+                page_count: None,
                 intention: "冻结视频参考".into(),
                 decisions: Vec::new(),
                 units: reference.units.clone(),

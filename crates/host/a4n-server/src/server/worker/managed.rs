@@ -29,6 +29,7 @@ fn launch(config: &ManagedWorkerConfig) -> anyhow::Result<(Child, BinaryFingerpr
 
 fn startup_failure_context(
     worker_name: &str,
+    address: SocketAddr,
     cleanup_results: impl IntoIterator<Item = (String, anyhow::Result<()>)>,
 ) -> String {
     let cleanup_errors = cleanup_results
@@ -36,21 +37,37 @@ fn startup_failure_context(
         .filter_map(|(name, result)| result.err().map(|error| format!("{name}: {error:#}")))
         .collect::<Vec<_>>();
     if cleanup_errors.is_empty() {
-        format!("启动 {worker_name} 失败")
+        format!("启动 {worker_name} ({address}) 失败")
     } else {
         format!(
-            "启动 {worker_name} 失败；回滚已启动 Worker 也失败: {}",
+            "启动 {worker_name} ({address}) 失败；回滚已启动 Worker 也失败: {}",
             cleanup_errors.join("; ")
         )
     }
 }
 
 pub(crate) fn start_managed_workers(
-    configs: &[ManagedWorkerConfig],
+    configs: &mut [ManagedWorkerConfig],
+    reserved_ports: &[u16],
 ) -> anyhow::Result<WorkerProcessRegistry> {
     let mut workers = Vec::with_capacity(configs.len());
     let mut rollback_binaries = std::collections::HashMap::new();
     for config in configs {
+        if !config.address_is_explicit {
+            let address = match allocate_worker_address(config, reserved_ports) {
+                Ok(address) => address,
+                Err(error) => {
+                    let cleanup_results = stop_worker_processes(&mut workers);
+                    cleanup_rollback_binaries(&mut rollback_binaries);
+                    return Err(error.context(startup_failure_context(
+                        &config.metadata.name,
+                        config.address,
+                        cleanup_results,
+                    )));
+                }
+            };
+            config.address = address;
+        }
         if !rollback_binaries.contains_key(&config.binary) {
             match backup_binary(&config.binary) {
                 Ok(Some(rollback_binary)) => {
@@ -62,6 +79,7 @@ pub(crate) fn start_managed_workers(
                     cleanup_rollback_binaries(&mut rollback_binaries);
                     return Err(error.context(startup_failure_context(
                         &config.metadata.name,
+                        config.address,
                         cleanup_results,
                     )));
                 }
@@ -78,6 +96,7 @@ pub(crate) fn start_managed_workers(
                 cleanup_rollback_binaries(&mut rollback_binaries);
                 return Err(error.context(startup_failure_context(
                     &config.metadata.name,
+                    config.address,
                     cleanup_results,
                 )));
             }
@@ -87,6 +106,26 @@ pub(crate) fn start_managed_workers(
         workers,
         rollback_binaries,
     ))
+}
+
+fn allocate_worker_address(
+    config: &ManagedWorkerConfig,
+    reserved_ports: &[u16],
+) -> anyhow::Result<SocketAddr> {
+    for _ in 0..16 {
+        let listener = std::net::TcpListener::bind(SocketAddr::new(config.address.ip(), 0))
+            .with_context(|| format!("为 {} 分配空闲端口失败", config.metadata.name))?;
+        let address = listener
+            .local_addr()
+            .with_context(|| format!("读取 {} 的临时监听地址失败", config.metadata.name))?;
+        if !reserved_ports.contains(&address.port()) {
+            return Ok(address);
+        }
+    }
+    anyhow::bail!(
+        "为 {} 分配的临时端口多次与保留端口冲突",
+        config.metadata.name
+    )
 }
 
 pub(crate) fn restart_managed_worker(
@@ -331,6 +370,7 @@ mod tests {
                 metadata: a4n_process_catalog::stateful_worker_catalog_entry_ref(name).unwrap(),
                 binary: binary.to_path_buf(),
                 address: "127.0.0.1:47675".parse().unwrap(),
+                address_is_explicit: true,
                 control_addr: "127.0.0.1:47674".parse().unwrap(),
                 token: "test-token".into(),
             },
@@ -354,19 +394,21 @@ mod tests {
         assert_eq!(
             startup_failure_context(
                 "canvas-record-worker",
+                "127.0.0.1:47675".parse().unwrap(),
                 std::iter::empty::<(String, anyhow::Result<()>)>()
             ),
-            "启动 canvas-record-worker 失败"
+            "启动 canvas-record-worker (127.0.0.1:47675) 失败"
         );
         assert_eq!(
             startup_failure_context(
                 "canvas-record-worker",
+                "127.0.0.1:47675".parse().unwrap(),
                 [(
                     "video-record-worker".to_string(),
                     Err(anyhow::anyhow!("permission denied"))
                 )]
             ),
-            "启动 canvas-record-worker 失败；回滚已启动 Worker 也失败: video-record-worker: permission denied"
+            "启动 canvas-record-worker (127.0.0.1:47675) 失败；回滚已启动 Worker 也失败: video-record-worker: permission denied"
         );
     }
 

@@ -10,6 +10,9 @@ pub(crate) fn args_save_authoring_document() -> Value {
 pub(crate) fn args_adopt_authoring_document() -> Value {
     strict_typed_input_schema::<crate::media_authoring::AdoptAuthoringDocumentInput>()
 }
+pub(crate) fn args_delete_authoring_document() -> Value {
+    strict_typed_input_schema::<crate::media_authoring::DeleteAuthoringDocumentInput>()
+}
 pub(crate) fn args_generate_adaptation_plan() -> Value {
     strict_runtime_typed_input_schema::<crate::media_authoring::GenerateAdaptationPlanInput>()
 }
@@ -59,6 +62,21 @@ pub(crate) fn args_cancel_galgame_pipeline() -> Value {
 }
 pub(crate) fn args_cancel_manga_pipeline() -> Value {
     strict_typed_input_schema::<crate::manga::MangaChapterInput>()
+}
+pub(crate) fn args_manga_chapter() -> Value {
+    strict_typed_input_schema::<crate::manga::MangaChapterInput>()
+}
+pub(crate) fn args_delete_manga_pipeline_artifact() -> Value {
+    strict_typed_input_schema::<crate::manga::DeleteMangaPipelineArtifactInput>()
+}
+pub(crate) fn args_preview_delete_manga_pipeline_artifact() -> Value {
+    strict_typed_input_schema::<crate::manga::PreviewMangaPipelineArtifactDeletionInput>()
+}
+pub(crate) fn args_delete_manga_page() -> Value {
+    strict_typed_input_schema::<crate::manga::DeleteMangaPageInput>()
+}
+pub(crate) fn args_save_manga_pipeline_artifact() -> Value {
+    strict_typed_input_schema::<crate::manga::SaveMangaPipelineArtifactInput>()
 }
 pub(crate) fn args_list_manga_pipeline_statuses() -> Value {
     strict_typed_input_schema::<crate::manga::MangaPipelineStatusesInput>()
@@ -673,6 +691,15 @@ pub(crate) fn result_get_manga_pipeline_status() -> Value {
 }
 pub(crate) fn result_list_manga_pipeline_statuses() -> Value {
     typed_schema::<Vec<crate::manga::MangaPipelineStatusSummary>>()
+}
+pub(crate) fn result_list_manga_pipeline_artifacts() -> Value {
+    typed_schema::<Vec<crate::manga::MangaPipelineArtifactRecord>>()
+}
+pub(crate) fn result_manga_pipeline_artifact_deletion_preview() -> Value {
+    typed_schema::<crate::manga::MangaPipelineArtifactDeletionPreview>()
+}
+pub(crate) fn result_manga_pipeline_artifact() -> Value {
+    typed_schema::<crate::manga::MangaPipelineArtifactRecord>()
 }
 pub(crate) fn result_prepare_standalone_comic_source() -> Value {
     typed_schema::<crate::manga::MangaStandaloneSourceSummary>()

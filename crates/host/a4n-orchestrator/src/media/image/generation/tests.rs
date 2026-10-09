@@ -120,7 +120,7 @@ fn profile_image_inputs_enforce_documented_contract() {
 }
 
 #[test]
-fn manga_page_reference_bindings_require_an_asset_for_every_slot() {
+fn manga_page_reference_bindings_allow_empty_slots_and_use_bound_assets() {
     let host = TestImageGenerationHost::default();
     let mut bindings = serde_json::from_value::<Vec<MangaReferenceBindingSummary>>(json!([{
         "character_name": "林岚",
@@ -128,19 +128,39 @@ fn manga_page_reference_bindings_require_an_asset_for_every_slot() {
     }]))
     .expect("valid binding fixture");
 
-    let error =
-        collect_bound_reference_images(&host, &bindings).expect_err("参考图未绑定时必须拒绝成图");
-    assert!(error.to_string().contains("参考图“林岚”尚未绑定"));
+    let references = collect_bound_reference_images(&host, &[], &bindings)
+        .expect("没有系统图或用户图时仍允许生成");
+    assert!(references.is_empty());
 
     bindings[0].bound_asset = Some(a4n_domain::manga::MangaBoundReferenceAsset {
-        asset_kind: a4n_domain::manga::MangaReferenceAssetKind::GeneratedImage,
-        asset_id: 7,
-        image_path: "generated/lin-lan.png".to_string(),
+        asset_kind: a4n_domain::manga::MangaReferenceAssetKind::CharacterPortrait,
+        asset_id: 4,
+        image_path: "portraits/lin-lan.png".to_string(),
     });
-    let references =
-        collect_bound_reference_images(&host, &bindings).expect("bound_asset 应是唯一绑定状态");
-    assert_eq!(references.len(), 1);
-    assert_eq!(references[0].label, "林岚");
+    bindings[0]
+        .user_added_assets
+        .push(a4n_domain::manga::MangaBoundReferenceAsset {
+            asset_kind: a4n_domain::manga::MangaReferenceAssetKind::GeneratedImage,
+            asset_id: 7,
+            image_path: "generated/lin-lan.png".to_string(),
+        });
+    let discovered = [a4n_domain::manga::MangaPageReferenceImageV1 {
+        asset: a4n_domain::manga::MangaBoundReferenceAsset {
+            asset_kind: a4n_domain::manga::MangaReferenceAssetKind::GeneratedImage,
+            asset_id: 9,
+            image_path: "generated/stairwell.png".to_string(),
+        },
+        target_kind: a4n_domain::manga::MangaPageReferenceTargetKind::Scene,
+        target_name: "楼梯间".to_string(),
+        description: "昏暗的楼梯间，右侧有窄窗".to_string(),
+        usage: "保持楼梯间结构和窗户位置一致".to_string(),
+    }];
+    let references = collect_bound_reference_images(&host, &discovered, &bindings)
+        .expect("系统发现图和用户补充图都应传入生成请求");
+    assert_eq!(references.len(), 3);
+    assert_eq!(references[0].label, "参考图 1 · 林岚");
+    assert_eq!(references[1].label, "参考图 2 · 楼梯间");
+    assert_eq!(references[2].label, "参考图 3 · 林岚 用户 1");
 }
 
 #[derive(Default)]

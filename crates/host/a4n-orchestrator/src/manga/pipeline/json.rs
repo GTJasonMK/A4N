@@ -3,7 +3,7 @@ mod page_pipeline;
 mod page_plan;
 mod page_prompts;
 
-pub(crate) use fields::{required_array_field, required_object_field};
+pub(crate) use fields::required_array_field;
 pub(crate) use page_pipeline::{
     parse_manga_page_adaptation, parse_manga_page_slots, parse_manga_page_storyboard,
 };

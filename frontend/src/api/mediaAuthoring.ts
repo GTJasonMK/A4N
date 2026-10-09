@@ -14,6 +14,8 @@ export const saveMediaAuthoringDocument = (input: Host.SaveAuthoringDocumentInpu
   apiInvoke<Host.AuthoringDocumentRecord>("save_media_authoring_document", { input });
 export const adoptMediaAuthoringDocument = (input: Host.AdoptAuthoringDocumentInput) =>
   apiInvoke<Host.AuthoringDocumentRecord>("adopt_media_authoring_document", { input });
+export const deleteMediaAuthoringDocument = (input: Host.DeleteAuthoringDocumentInput) =>
+  apiInvoke<void>("delete_media_authoring_document", { input });
 export const generateMediaAdaptationPlan = (input: Host.GenerateAdaptationPlanInput) =>
   apiInvoke<Host.AuthoringDocumentRecord>("generate_media_adaptation_plan", { input });
 export const previewMediaAdaptationPlanRequest = (input: Host.GenerateAdaptationPlanInput) =>

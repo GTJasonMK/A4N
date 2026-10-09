@@ -121,6 +121,7 @@ pub fn adaptation_from_shooting_script(
         AdaptationPlanV1 {
             schema_version: AdaptationPlanVersion::V1,
             target,
+            page_count: None,
             intention: "保留迁移前已经采用的叙事取舍，后续在目标项目独立改编".into(),
             decisions: Vec::new(),
             units,

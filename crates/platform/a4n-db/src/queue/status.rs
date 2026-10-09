@@ -261,7 +261,9 @@ where
         return Ok(());
     }
     let next_active_task_id = match status {
-        "pending" | "running" => Some(task_id.to_string()),
+        "pending" | "running" if run.active_task_id.is_none() => Some(task_id.to_string()),
+        // Nested provider tasks must not replace the workflow task that owns cancellation.
+        "pending" | "running" => return Ok(()),
         _ if run.active_task_id.as_deref() == Some(task_id) => {
             task_queue::Entity::find()
                 .select_only()

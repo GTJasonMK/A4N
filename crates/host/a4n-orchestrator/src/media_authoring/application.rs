@@ -8,6 +8,61 @@ use super::{authoring_error, authoring_source, parse_adaptation, records};
 use crate::OrchestratorContext;
 
 impl OrchestratorContext {
+    pub(crate) async fn current_manga_preprocessing_input_fingerprint(
+        &self,
+        project_id: i64,
+        source_content_sha256: &str,
+        chapter_number: i32,
+    ) -> Result<String, AppError> {
+        let portraits = self.manga_character_portrait_refs(project_id).await?;
+        let reference_assets = a4n_manga_core::manga_reference_assets_json(&portraits);
+        Ok(a4n_domain::manga::manga_preprocessing_input_fingerprint(
+            source_content_sha256,
+            chapter_number,
+            &reference_assets,
+        ))
+    }
+
+    pub(super) async fn current_manga_preprocessing_fingerprint(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        source_content_sha256: &str,
+        chapter_number: i32,
+    ) -> Result<String, AppError> {
+        let input_fingerprint = self
+            .current_manga_preprocessing_input_fingerprint(
+                project_id,
+                source_content_sha256,
+                chapter_number,
+            )
+            .await?;
+        let artifact = self
+            .manga_pipeline_artifact(
+                project_id,
+                chapter_id,
+                a4n_domain::manga::MangaPipelineArtifactStage::Preprocessing,
+                None,
+            )
+            .await?
+            .ok_or_else(|| AppError::InvalidState {
+                current: "manga_preprocessing_missing".into(),
+                operation: "请先完成漫画预处理".into(),
+            })?;
+        if artifact.stale || artifact.input_fingerprint != input_fingerprint {
+            return Err(AppError::InvalidState {
+                current: "manga_preprocessing_stale".into(),
+                operation: "请先重新运行漫画预处理".into(),
+            });
+        }
+        let preprocessing: a4n_domain::manga::MangaPreprocessingV3 =
+            serde_json::from_value(artifact.payload)?;
+        preprocessing
+            .validate()
+            .map_err(AppError::InvalidArgument)?;
+        Ok(artifact.output_fingerprint)
+    }
+
     pub(super) async fn authoring_sources(
         &self,
         user_id: i64,
@@ -118,6 +173,7 @@ impl OrchestratorContext {
                 .collect::<Result<_, _>>()?,
             video_reference: None,
             dependencies,
+            preprocessing_fingerprint: None,
         })
     }
 
@@ -146,6 +202,24 @@ impl OrchestratorContext {
                     .first()
                     .filter(|_| sources.len() == 1)
                     .ok_or_else(|| AppError::InvalidArgument("改编计划必须选择一章".into()))?;
+                if target == AdaptationTarget::Manga {
+                    let current_fingerprint = self
+                        .current_manga_preprocessing_fingerprint(
+                            project_id,
+                            source.source_chapter_id,
+                            &source.content_sha256,
+                            source.chapter_number,
+                        )
+                        .await?;
+                    if inputs.preprocessing_fingerprint.as_deref()
+                        != Some(current_fingerprint.as_str())
+                    {
+                        return Err(AppError::InvalidState {
+                            current: "manga_preprocessing_changed".into(),
+                            operation: "请先重新生成漫画改编计划".into(),
+                        });
+                    }
+                }
                 let plan: AdaptationPlanV1 = serde_json::from_value(value.clone())?;
                 if plan.target != target {
                     return Err(AppError::InvalidArgument("改编计划目标媒介不一致".into()));
@@ -157,6 +231,10 @@ impl OrchestratorContext {
                 );
                 plan.validate(&spans.into_iter().map(|span| span.id).collect())
                     .map_err(AppError::InvalidArgument)?;
+                if target == AdaptationTarget::Manga {
+                    plan.validate_manga_page_count()
+                        .map_err(AppError::InvalidArgument)?;
+                }
             }
             AuthoringDocumentKind::MangaPagePlan => {
                 if target != AdaptationTarget::Manga
@@ -291,6 +369,19 @@ impl OrchestratorContext {
             sources: vec![authoring_source(&source)?],
             video_reference: reference,
             dependencies: Vec::new(),
+            preprocessing_fingerprint: if target == AdaptationTarget::Manga {
+                Some(
+                    self.current_manga_preprocessing_fingerprint(
+                        source.requested_project_id,
+                        source.source_chapter_id,
+                        &source.content_sha256,
+                        source.chapter_number,
+                    )
+                    .await?,
+                )
+            } else {
+                None
+            },
         };
         Ok((target, source, inputs, existing))
     }

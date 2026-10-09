@@ -98,6 +98,8 @@ pub struct AdaptationDecision {
 pub struct AdaptationPlanV1 {
     pub schema_version: AdaptationPlanVersion,
     pub target: AdaptationTarget,
+    #[serde(default)]
+    pub page_count: Option<u32>,
     pub intention: String,
     pub decisions: Vec<AdaptationDecision>,
     pub units: Vec<AdaptationUnit>,
@@ -175,6 +177,8 @@ pub struct AuthoringDocumentInputs {
     pub sources: Vec<AuthoringSourceRef>,
     pub video_reference: Option<VideoAdaptationReference>,
     pub dependencies: Vec<AuthoringDocumentRef>,
+    #[serde(default)]
+    pub preprocessing_fingerprint: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

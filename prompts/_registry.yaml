@@ -14,16 +14,27 @@
 # Prompts
 # ============================================================================
 prompts:
+  manga_preprocessing:
+    path: "novel/06_manga/manga_preprocessing.md"
+    title: "漫画改编前预处理"
+    category: "manga"
+    tags: ["manga", "preprocessing", "source-analysis"]
+    version: "3.0"
+    used_by:
+      - "OrchestratorContext.run_manga_preprocessing"
+    dependencies: []
+    description: "在一个预处理产物中整理原文事件、角色、对白、视觉锚点和关键物品，不决定漫画页数"
+
   chapter_media_adaptation_plan:
     path: "novel/06_manga/chapter_media_adaptation_plan.md"
     title: "派生媒体章节改编计划"
     category: "manga"
     tags: ["manga", "galgame", "adaptation"]
-    version: "1.0"
+    version: "2.0"
     used_by:
       - "OrchestratorContext.generate_adaptation_plan"
     dependencies: []
-    description: "依据原作快照和可选视频参考生成目标项目独立持有的改编单元"
+    description: "依据原作快照和可选视频参考生成目标项目独立持有的改编单元；漫画计划同时确定章节页数"
 
   # ============= 01 构思 =============
   inspiration:
@@ -445,87 +456,18 @@ prompts:
     description: "基于内容优化 issues 生成可审阅的局部文章补丁"
 
   # ============= 06 漫画 =============
-  manga_character_binding:
-    path: "novel/06_manga/manga_character_binding.md"
-    title: "漫画角色绑定"
-    category: "manga"
-    tags: ["manga", "character", "binding"]
-    version: "1.0"
-    used_by:
-      - "MangaService.generate_page_prompts"
-      - "MangaService.preview_generate_page_prompt_requests"
-    dependencies:
-      - "chapter_shooting_design_unit"
-    description: "漫画流水线第 1 步：基于共享导演事件投影、正文和角色立绘绑定本章出场角色身份与外观"
-
-  manga_speech_selection:
-    path: "novel/06_manga/manga_speech_selection.md"
-    title: "漫画对白旁白选择"
-    category: "manga"
-    tags: ["manga", "speech", "dialogue", "narration"]
-    version: "1.0"
-    used_by:
-      - "MangaService.generate_page_prompts"
-      - "MangaService.preview_generate_page_prompt_requests"
-    dependencies:
-      - "manga_character_binding"
-    description: "漫画流水线第 2 步：基于导演事件窗口和角色绑定选择关键对白、想法与旁白"
-
-  manga_visual_anchor_extraction:
-    path: "novel/06_manga/manga_visual_anchor_extraction.md"
-    title: "漫画视觉锚点抽取"
-    category: "manga"
-    tags: ["manga", "scene", "visual-anchor"]
-    version: "1.0"
-    used_by:
-      - "MangaService.generate_page_prompts"
-      - "MangaService.preview_generate_page_prompt_requests"
-    dependencies:
-      - "chapter_shooting_design_unit"
-    description: "漫画流水线第 3 步：基于导演事件窗口抽取场景边界、地点氛围和视觉锚点"
-
-  manga_item_extraction:
-    path: "novel/06_manga/manga_item_extraction.md"
-    title: "漫画关键物品抽取"
-    category: "manga"
-    tags: ["manga", "item", "extraction"]
-    version: "1.0"
-    used_by:
-      - "MangaService.generate_page_prompts"
-      - "MangaService.preview_generate_page_prompt_requests"
-    dependencies:
-      - "manga_speech_selection"
-      - "manga_visual_anchor_extraction"
-    description: "漫画流水线第 4 步：从对白旁白和视觉锚点中抽取需要稳定绘制的关键物品"
-
-  manga_chapter_comic_synthesis:
-    path: "novel/06_manga/manga_chapter_comic_synthesis.md"
-    title: "漫画章节综合"
-    category: "manga"
-    tags: ["manga", "synthesis", "planning"]
-    version: "1.0"
-    used_by:
-      - "MangaService.generate_page_prompts"
-      - "MangaService.preview_generate_page_prompt_requests"
-    dependencies:
-      - "chapter_shooting_design_unit"
-      - "manga_speech_selection"
-      - "manga_visual_anchor_extraction"
-      - "manga_item_extraction"
-    description: "漫画流水线第 5 步：综合导演事件、对白、视觉锚点和物品，输出分页需要的摘要、情绪轨迹和页数建议"
-
   manga_page_slots:
     path: "novel/06_manga/manga_page_slots.md"
-    title: "漫画页面内容拆分 v1"
+    title: "漫画页面内容拆分 v2"
     category: "manga"
     tags: ["manga", "planning", "page-content"]
-    version: "1.0"
+    version: "2.0"
     used_by:
       - "MangaPipeline.generate_page_prompts"
     dependencies:
-      - "manga_chapter_comic_synthesis"
+      - "manga_preprocessing"
       - "chapter_media_adaptation_plan"
-    description: "先确定漫画页数，并为每页分配剧情内容和改编节拍"
+    description: "严格按改编计划确定的页数，以原文事件骨架拆分页面内容并分配改编节拍"
 
   manga_page_adaptation_plan:
     path: "novel/06_manga/manga_page_adaptation_plan.md"
@@ -551,6 +493,19 @@ prompts:
       - "manga_page_adaptation_plan"
     description: "逐页生成画格、阅读顺序和文字层"
 
+  manga_page_reference_discovery:
+    path: "novel/06_manga/manga_page_reference_discovery.md"
+    title: "单页漫画参考图发现 v1"
+    category: "manga"
+    tags: ["manga", "reference", "page"]
+    version: "1.0"
+    used_by:
+      - "MangaPipeline.process_page"
+      - "MangaPipeline.preview_generate_page_prompt_requests"
+    dependencies:
+      - "manga_page_storyboard"
+    description: "根据当前页分镜从项目可用图片中发现相关参考图，供绘图提示词和成图使用"
+
   manga_page_drawing_prompt:
     path: "novel/06_manga/manga_page_drawing_prompt.md"
     title: "整页漫画绘图 Prompt v2"
@@ -561,7 +516,7 @@ prompts:
       - "MangaPipeline.process_page"
     dependencies:
       - "manga_page_storyboard"
-    description: "漫画流水线第 9 步：为单页分镜生成整页绘图提示词"
+    description: "漫画流水线第 11 步：结合页面分镜和发现的参考图生成整页绘图提示词"
 
   manga_prompt_optimization:
     path: "novel/06_manga/manga_prompt_optimization.md"

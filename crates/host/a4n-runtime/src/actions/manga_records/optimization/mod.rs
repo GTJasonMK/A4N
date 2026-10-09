@@ -1,4 +1,3 @@
-use super::RuntimeMangaDownstreamCleanup;
 use crate::AppState;
 use a4n_api_contract::manga::{MangaPagePromptSummary, OptimizeMangaPromptInput};
 
@@ -7,11 +6,10 @@ pub async fn optimize_manga_prompt(
     user_id: i64,
     input: OptimizeMangaPromptInput,
 ) -> Result<MangaPagePromptSummary, String> {
-    let cleanup = RuntimeMangaDownstreamCleanup { state, user_id };
     let prompt_renderer = state;
     state
         .manga_record_mutation_application()
-        .optimize_prompt(user_id, input, prompt_renderer, &cleanup)
+        .optimize_prompt(user_id, input, prompt_renderer)
         .await
         .map_err(crate::actions::app_error_message)
 }

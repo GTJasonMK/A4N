@@ -1,4 +1,5 @@
 use a4n_domain::manga::MangaPageSlotsV1;
+use a4n_domain::manga::MangaPipelineArtifactStage;
 use a4n_error::AppError;
 
 use super::super::super::adaptation_projection::manga_page_slots_source;
@@ -24,7 +25,9 @@ pub(super) async fn run_page_slots(
         &context.chapter_content,
         &context.source_markers,
     )?;
-    let (trace, slots) = context
+    let input_fingerprint =
+        context.artifact_input_fingerprint(MangaPipelineArtifactStage::PageSlots, &user_content)?;
+    let (_, slots) = context
         .service
         .render_and_validate_manga_call_with_markers(
             MangaRenderTraceInput {
@@ -54,13 +57,11 @@ pub(super) async fn run_page_slots(
         )
         .await?;
     context
-        .service
-        .report_pipeline_llm_usage(
-            context.workflow_run_id,
-            "page_content",
-            6,
-            context.task_id,
-            &trace,
+        .persist_artifact(
+            MangaPipelineArtifactStage::PageSlots,
+            None,
+            input_fingerprint,
+            serde_json::to_value(&slots)?,
         )
         .await?;
     Ok(MangaPageSlotsRun { slots })

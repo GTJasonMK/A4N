@@ -658,6 +658,10 @@ pub struct ApplicationPorts {
     /// decisions remain in the Manga owner.
     pub manga_record_mutation_application:
         Arc<dyn a4n_api_contract::manga::MangaRecordMutationApplicationPort>,
+    /// Stage-scoped Manga artifact access. The Manga owner controls scope,
+    /// validation, stale propagation, and compatibility projection.
+    pub manga_pipeline_artifact_application:
+        Arc<dyn a4n_api_contract::manga::MangaPipelineArtifactApplicationPort>,
     /// Host-facing Galgame read boundary. Script authorization and projection
     /// stay in the Galgame owner.
     pub galgame_read_application: Arc<dyn a4n_api_contract::galgame::GalgameReadApplicationPort>,

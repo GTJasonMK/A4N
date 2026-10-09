@@ -101,3 +101,18 @@ pub struct ProjectFamilyMangaPromptRecord {
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProjectFamilyMangaPipelineArtifactRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub chapter_id: i64,
+    pub stage: String,
+    pub page_number: i32,
+    pub input_fingerprint: String,
+    pub output_fingerprint: String,
+    pub payload: serde_json::Value,
+    pub stale: bool,
+    pub created_at: chrono::NaiveDateTime,
+    pub updated_at: chrono::NaiveDateTime,
+}

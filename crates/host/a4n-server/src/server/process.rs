@@ -86,6 +86,7 @@ mod tests {
             metadata: stateful_worker_catalog_entry_ref("agent-worker").unwrap(),
             binary,
             address: "127.0.0.1:47650".parse().unwrap(),
+            address_is_explicit: true,
             control_addr,
             token: output.display().to_string(),
         };

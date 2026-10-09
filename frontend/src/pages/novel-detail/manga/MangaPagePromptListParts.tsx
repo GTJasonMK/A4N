@@ -3,9 +3,6 @@ import type { LayoutSummaryItem } from "./mangaPagePromptModel";
 import { useI18n, type MessageTranslator } from "../../../i18n";
 
 export type MangaPageDetailView =
-  | "page_content"
-  | "page_adaptation"
-  | "storyboard"
   | "prompt"
   | "image";
 

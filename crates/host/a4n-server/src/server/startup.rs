@@ -18,8 +18,8 @@ pub(crate) fn run() -> anyhow::Result<()> {
     if onnxruntime_environment_required() {
         configure_onnxruntime_environment()?;
     }
-    let config = load()?;
-    let workers = start_foundation(&config)?;
+    let mut config = load()?;
+    let workers = start_foundation(&mut config)?;
     let runtime = start_remaining(config, workers)?;
     run_lifecycle(runtime)
 }

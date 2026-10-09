@@ -16,6 +16,19 @@ impl WorkflowApplication {
         .await
         .map_err(workflow_write_app_error)
     }
+    pub(in crate::context) async fn restart_interrupted_workflow_run(
+        &self,
+        source_run_id: i64,
+        input: UpsertWorkflowRunInput,
+    ) -> Result<WorkflowRunSummary, AppError> {
+        a4n_db::workflow::restart_interrupted_workflow_run_summary(
+            self.database.executor(),
+            source_run_id,
+            input,
+        )
+        .await
+        .map_err(workflow_write_app_error)
+    }
     pub(in crate::context) async fn workflow_run_summary(
         &self,
         workflow_run_id: i64,

@@ -61,6 +61,7 @@ pub(crate) async fn copy_derived_media_rows<Copier: ProjectMediaFileCopier + ?Si
         character_portraits: rows.character_portraits,
         generated_images: rows.generated_images,
         chapter_manga_prompts: rows.chapter_manga_prompts,
+        manga_pipeline_artifacts: rows.manga_pipeline_artifacts,
         chapter_video_prompts: rows.chapter_video_prompts,
         generated_videos: rows.generated_videos,
         generation_specs: rows.generation_specs,
@@ -212,6 +213,9 @@ pub(crate) async fn copy_derived_media_rows<Copier: ProjectMediaFileCopier + ?Si
         .retain(|row| row.project_id == original.id);
     package
         .chapter_manga_prompts
+        .retain(|row| row.project_id == original.id);
+    package
+        .manga_pipeline_artifacts
         .retain(|row| row.project_id == original.id);
     package
         .chapter_video_prompts

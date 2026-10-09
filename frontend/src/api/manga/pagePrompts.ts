@@ -51,15 +51,16 @@ export async function optimizeMangaPrompt(
   });
 }
 
-export async function deleteMangaPrompt(
-  promptId: Id,
-  downstreamStrategy: Host.DownstreamConflictStrategy,
+export async function deleteMangaPage(
+  input: Host.DeleteMangaPageInput,
 ): Promise<void> {
-  return apiInvoke<void>("delete_manga_prompt", {
+  return apiInvoke<void>("delete_manga_page", {
     input: {
-      prompt_id: idNum(promptId),
-      downstream_strategy: downstreamStrategy,
-    } satisfies Host.DeleteMangaPromptInput,
+      ...input,
+      project_id: idNum(input.project_id),
+      chapter_id: idNum(input.chapter_id),
+      page_number: idNum(input.page_number),
+    },
   });
 }
 

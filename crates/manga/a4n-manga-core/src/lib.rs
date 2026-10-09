@@ -2,8 +2,10 @@
 
 use a4n_api_contract::manga::MangaPagePromptSummary;
 use a4n_domain::manga::{
-    MangaPageGenerationLayoutV3, MangaPageGenerationLayoutV4, MangaPagePipelineStage,
-    MangaPagePromptRecord, MangaPortraitReference,
+    MANGA_PAGE_PIPELINE_STATE_V1, MangaPageGenerationLayoutV3, MangaPageGenerationLayoutV4,
+    MangaPageGenerationSchemaVersion, MangaPagePipelineStage, MangaPagePipelineStateV1,
+    MangaPagePipelineStatus, MangaPagePromptRecord, MangaPipelineArtifactRecord,
+    MangaPipelineArtifactStage, MangaPortraitReference,
 };
 use a4n_domain::source_spans::{ChapterSourceContext, source_metadata};
 use serde_json::{Value, json};
@@ -40,43 +42,47 @@ pub fn manga_page_generation_layout(
     page_number: i32,
     layout: Option<&Value>,
 ) -> Result<MangaPageGenerationLayoutV3, String> {
-    let page_number = u32::try_from(page_number)
-        .ok()
-        .filter(|page_number| *page_number > 0)
-        .ok_or_else(|| format!("漫画页面提示词 #{prompt_id} 的 page_number 必须大于 0"))?;
-    let value = layout
-        .cloned()
-        .ok_or_else(|| format!("漫画页面提示词 #{prompt_id} 缺少 layout"))?;
-    if value.get("schema_version").and_then(Value::as_str) == Some("manga_page_generation_v4") {
-        let layout: MangaPageGenerationLayoutV4 = serde_json::from_value(value)
-            .map_err(|error| format!("漫画页面提示词 #{prompt_id} 的 v4 layout 无效: {error}"))?;
-        layout
-            .validate(page_number)
-            .map_err(|error| format!("漫画页面提示词 #{prompt_id} 的 v4 layout 无效: {error}"))?;
-        let page_plan = layout
-            .pipeline
-            .storyboard
-            .ok_or_else(|| format!("漫画页面提示词 #{prompt_id} 尚未完成 storyboard"))?;
-        let drawing_prompt = layout
-            .pipeline
-            .drawing_prompt
-            .ok_or_else(|| format!("漫画页面提示词 #{prompt_id} 尚未完成 drawing_prompt"))?;
-        return Ok(MangaPageGenerationLayoutV3 {
-            schema_version: a4n_domain::manga::MangaPageGenerationSchemaVersion::V3,
-            page_plan,
-            page_plan_ref: layout.page_plan_ref,
-            drawing_prompt,
-            reference_bindings: layout.reference_bindings,
-            prompt_fingerprint: layout.prompt_fingerprint,
-            source: layout.source,
-        });
+    let page_number = manga_page_number(prompt_id, page_number)?;
+    let (value, schema_version) = manga_page_layout_value(prompt_id, layout)?;
+    match schema_version {
+        "manga_page_generation_v4" => {
+            let layout: MangaPageGenerationLayoutV4 = serde_json::from_value(value.clone())
+                .map_err(|error| {
+                    format!("漫画页面提示词 #{prompt_id} 的 v4 layout 无效: {error}")
+                })?;
+            layout.validate(page_number).map_err(|error| {
+                format!("漫画页面提示词 #{prompt_id} 的 v4 layout 无效: {error}")
+            })?;
+            let page_plan = layout
+                .pipeline
+                .storyboard
+                .ok_or_else(|| format!("漫画页面提示词 #{prompt_id} 尚未完成 storyboard"))?;
+            let drawing_prompt = layout
+                .pipeline
+                .drawing_prompt
+                .ok_or_else(|| format!("漫画页面提示词 #{prompt_id} 尚未完成 drawing_prompt"))?;
+            Ok(MangaPageGenerationLayoutV3 {
+                schema_version: MangaPageGenerationSchemaVersion::V3,
+                page_plan,
+                page_plan_ref: layout.page_plan_ref,
+                drawing_prompt,
+                reference_bindings: layout.reference_bindings,
+                prompt_fingerprint: layout.prompt_fingerprint,
+                source: layout.source,
+            })
+        }
+        "manga_page_generation_v3" => {
+            let layout: MangaPageGenerationLayoutV3 = serde_json::from_value(value.clone())
+                .map_err(|error| {
+                    format!("漫画页面提示词 #{prompt_id} 的 v3 layout 无效: {error}")
+                })?;
+            layout.validate(page_number).map_err(|error| {
+                format!("漫画页面提示词 #{prompt_id} 的 v3 layout 无效: {error}")
+            })?;
+            Ok(layout)
+        }
+        other => Err(unsupported_manga_page_layout(prompt_id, other)),
     }
-    let layout: MangaPageGenerationLayoutV3 = serde_json::from_value(value)
-        .map_err(|error| format!("漫画页面提示词 #{prompt_id} 的 v3 layout 无效: {error}"))?;
-    layout
-        .validate(page_number)
-        .map_err(|error| format!("漫画页面提示词 #{prompt_id} 的 v3 layout 无效: {error}"))?;
-    Ok(layout)
 }
 
 pub fn manga_page_pipeline_layout(
@@ -84,20 +90,128 @@ pub fn manga_page_pipeline_layout(
     page_number: i32,
     layout: Option<&Value>,
 ) -> Result<MangaPageGenerationLayoutV4, String> {
-    let layout: MangaPageGenerationLayoutV4 = serde_json::from_value(
-        layout
-            .cloned()
-            .ok_or_else(|| format!("漫画页面提示词 #{prompt_id} 缺少 v4 layout"))?,
+    let page_number = manga_page_number(prompt_id, page_number)?;
+    let (value, schema_version) = manga_page_layout_value(prompt_id, layout)?;
+    manga_page_pipeline_layout_with_schema(
+        &format!("漫画页面提示词 #{prompt_id}"),
+        page_number,
+        value,
+        schema_version,
     )
-    .map_err(|error| format!("漫画页面提示词 #{prompt_id} 的 v4 layout 无效: {error}"))?;
-    let page_number = u32::try_from(page_number)
+}
+
+/// Parses a stored layout value when the page prompt record is not available.
+pub fn manga_page_pipeline_layout_from_value(
+    page_number: u32,
+    value: &Value,
+) -> Result<MangaPageGenerationLayoutV4, String> {
+    let schema_version = value
+        .get("schema_version")
+        .and_then(Value::as_str)
+        .ok_or_else(|| format!("漫画第 {page_number} 页的 schema_version 无效"))?;
+    manga_page_pipeline_layout_with_schema(
+        &format!("漫画第 {page_number} 页"),
+        page_number,
+        value,
+        schema_version,
+    )
+}
+
+fn manga_page_pipeline_layout_with_schema(
+    label: &str,
+    page_number: u32,
+    value: &Value,
+    schema_version: &str,
+) -> Result<MangaPageGenerationLayoutV4, String> {
+    match schema_version {
+        "manga_page_generation_v4" => {
+            let layout: MangaPageGenerationLayoutV4 = serde_json::from_value(value.clone())
+                .map_err(|error| format!("{label} 的 v4 layout 无效: {error}"))?;
+            layout
+                .validate(page_number)
+                .map_err(|error| format!("{label} 的 v4 layout 无效: {error}"))?;
+            Ok(layout)
+        }
+        "manga_page_generation_v3" => {
+            let layout: MangaPageGenerationLayoutV3 = serde_json::from_value(value.clone())
+                .map_err(|error| format!("{label} 的 v3 layout 无效: {error}"))?;
+            layout
+                .validate(page_number)
+                .map_err(|error| format!("{label} 的 v3 layout 无效: {error}"))?;
+            let page_id = format!("page-{page_number:04}");
+            let pipeline = MangaPagePipelineStateV1 {
+                schema_version: MANGA_PAGE_PIPELINE_STATE_V1.into(),
+                page_id: page_id.clone(),
+                status: MangaPagePipelineStatus::Pending,
+                stage: MangaPagePipelineStage::Adaptation,
+                attempt: 1,
+                source_fingerprint: layout.source.content_sha256.clone(),
+                stage_fingerprints: Default::default(),
+                page_content: None,
+                page_adaptation: None,
+                storyboard: Some(layout.page_plan),
+                reference_discovery: None,
+                drawing_prompt: Some(layout.drawing_prompt),
+                image: None,
+                error: None,
+            };
+            let upgraded = MangaPageGenerationLayoutV4 {
+                schema_version: MangaPageGenerationSchemaVersion::V4,
+                page_id,
+                page_number,
+                page_plan_ref: layout.page_plan_ref,
+                pipeline,
+                reference_bindings: layout.reference_bindings,
+                prompt_fingerprint: layout.prompt_fingerprint,
+                source: layout.source,
+            };
+            upgraded
+                .validate(page_number)
+                .map_err(|error| format!("{label} 的 v3 layout 无法升级: {error}"))?;
+            Ok(upgraded)
+        }
+        other => Err(format!("{label} 的 schema_version 不支持: {other}")),
+    }
+}
+
+fn manga_page_number(prompt_id: i64, page_number: i32) -> Result<u32, String> {
+    u32::try_from(page_number)
         .ok()
         .filter(|page_number| *page_number > 0)
-        .ok_or_else(|| format!("漫画页面提示词 #{prompt_id} 的 page_number 必须大于 0"))?;
-    layout
-        .validate(page_number)
-        .map_err(|error| format!("漫画页面提示词 #{prompt_id} 的 v4 layout 无效: {error}"))?;
-    Ok(layout)
+        .ok_or_else(|| format!("漫画页面提示词 #{prompt_id} 的 page_number 必须大于 0"))
+}
+
+fn manga_page_layout_value<'a>(
+    prompt_id: i64,
+    layout: Option<&'a Value>,
+) -> Result<(&'a Value, &'a str), String> {
+    let layout = layout.ok_or_else(|| format!("漫画页面提示词 #{prompt_id} 缺少 layout"))?;
+    let schema_version = layout
+        .get("schema_version")
+        .and_then(Value::as_str)
+        .ok_or_else(|| format!("漫画页面提示词 #{prompt_id} 的 schema_version 无效"))?;
+    Ok((layout, schema_version))
+}
+
+fn unsupported_manga_page_layout(prompt_id: i64, schema_version: &str) -> String {
+    format!("漫画页面提示词 #{prompt_id} 的 schema_version 不支持: {schema_version}")
+}
+
+pub fn manga_page_prompt_stale_stages(
+    prompt_id: i64,
+    page_number: i32,
+    artifacts: &[MangaPipelineArtifactRecord],
+) -> Result<Vec<MangaPipelineArtifactStage>, String> {
+    let page_number = manga_page_number(prompt_id, page_number)?;
+    Ok(artifacts
+        .iter()
+        .filter(|artifact| {
+            artifact.stale
+                && artifact.page_number == Some(page_number)
+                && artifact.stage.page_scoped()
+        })
+        .map(|artifact| artifact.stage)
+        .collect())
 }
 
 pub fn manga_page_image_generation_layout(
@@ -122,56 +236,76 @@ pub fn manga_page_image_generation_layout(
 pub fn manga_page_prompt_summary(
     prompt: &MangaPagePromptRecord,
 ) -> Result<MangaPagePromptSummary, String> {
-    if let Ok(layout) =
-        manga_page_pipeline_layout(prompt.id, prompt.page_number, prompt.layout.as_ref())
-    {
-        return Ok(MangaPagePromptSummary {
-            id: prompt.id,
-            chapter_id: prompt.chapter_id,
-            project_id: prompt.project_id,
-            page_number: prompt.page_number,
-            page_id: Some(layout.page_id),
-            image_prompt: prompt.image_prompt.clone(),
-            dialogue_text: prompt.dialogue_text.clone(),
-            page_content: layout.pipeline.page_content,
-            page_adaptation: layout.pipeline.page_adaptation,
-            page_plan: layout.pipeline.storyboard,
-            drawing_prompt: layout.pipeline.drawing_prompt,
-            reference_bindings: layout.reference_bindings,
-            source: layout.source,
-            generated_image_id: prompt.generated_image_id,
-            status: prompt.status.clone(),
-            pipeline_stage: Some(layout.pipeline.stage),
-            pipeline_status: Some(layout.pipeline.status),
-            pipeline_error: layout.pipeline.error,
-            created_at: prompt.created_at.to_string(),
-            updated_at: prompt.updated_at.to_string(),
-        });
+    let (_, schema_version) = manga_page_layout_value(prompt.id, prompt.layout.as_ref())?;
+    match schema_version {
+        "manga_page_generation_v4" => {
+            let layout =
+                manga_page_pipeline_layout(prompt.id, prompt.page_number, prompt.layout.as_ref())?;
+            Ok(MangaPagePromptSummary {
+                id: prompt.id,
+                chapter_id: prompt.chapter_id,
+                project_id: prompt.project_id,
+                page_number: prompt.page_number,
+                page_id: Some(layout.page_id),
+                image_prompt: prompt.image_prompt.clone(),
+                dialogue_text: prompt.dialogue_text.clone(),
+                page_content: layout.pipeline.page_content,
+                page_adaptation: layout.pipeline.page_adaptation,
+                page_plan: layout.pipeline.storyboard,
+                reference_discovery: layout.pipeline.reference_discovery.clone(),
+                drawing_prompt: layout.pipeline.drawing_prompt,
+                stale_stages: Vec::new(),
+                orphaned: false,
+                system_reference_images: layout
+                    .pipeline
+                    .reference_discovery
+                    .map_or_else(Vec::new, |discovery| discovery.references),
+                reference_bindings: layout.reference_bindings,
+                source: layout.source,
+                generated_image_id: prompt.generated_image_id,
+                status: prompt.status.clone(),
+                pipeline_stage: Some(layout.pipeline.stage),
+                pipeline_status: Some(layout.pipeline.status),
+                pipeline_error: layout.pipeline.error,
+                created_at: prompt.created_at.to_string(),
+                updated_at: prompt.updated_at.to_string(),
+            })
+        }
+        "manga_page_generation_v3" => {
+            let layout = manga_page_generation_layout(
+                prompt.id,
+                prompt.page_number,
+                prompt.layout.as_ref(),
+            )?;
+            Ok(MangaPagePromptSummary {
+                id: prompt.id,
+                chapter_id: prompt.chapter_id,
+                project_id: prompt.project_id,
+                page_number: prompt.page_number,
+                page_id: None,
+                image_prompt: prompt.image_prompt.clone(),
+                dialogue_text: prompt.dialogue_text.clone(),
+                page_content: None,
+                page_adaptation: None,
+                page_plan: Some(layout.page_plan),
+                reference_discovery: None,
+                drawing_prompt: Some(layout.drawing_prompt),
+                stale_stages: Vec::new(),
+                orphaned: false,
+                system_reference_images: Vec::new(),
+                reference_bindings: layout.reference_bindings,
+                source: layout.source,
+                generated_image_id: prompt.generated_image_id,
+                status: prompt.status.clone(),
+                pipeline_stage: None,
+                pipeline_status: None,
+                pipeline_error: None,
+                created_at: prompt.created_at.to_string(),
+                updated_at: prompt.updated_at.to_string(),
+            })
+        }
+        other => Err(unsupported_manga_page_layout(prompt.id, other)),
     }
-    let layout =
-        manga_page_generation_layout(prompt.id, prompt.page_number, prompt.layout.as_ref())?;
-    Ok(MangaPagePromptSummary {
-        id: prompt.id,
-        chapter_id: prompt.chapter_id,
-        project_id: prompt.project_id,
-        page_number: prompt.page_number,
-        page_id: None,
-        image_prompt: prompt.image_prompt.clone(),
-        dialogue_text: prompt.dialogue_text.clone(),
-        page_content: None,
-        page_adaptation: None,
-        page_plan: Some(layout.page_plan),
-        drawing_prompt: Some(layout.drawing_prompt),
-        reference_bindings: layout.reference_bindings,
-        source: layout.source,
-        generated_image_id: prompt.generated_image_id,
-        status: prompt.status.clone(),
-        pipeline_stage: None,
-        pipeline_status: None,
-        pipeline_error: None,
-        created_at: prompt.created_at.to_string(),
-        updated_at: prompt.updated_at.to_string(),
-    })
 }
 
 #[cfg(test)]

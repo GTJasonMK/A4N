@@ -71,7 +71,10 @@ export const HOST_API_COMMANDS = [
   "delete_llm_config",
   "delete_local_embedding_model",
   "delete_manga_by_chapter",
+  "delete_manga_page",
+  "delete_manga_pipeline_artifact",
   "delete_manga_prompt",
+  "delete_media_authoring_document",
   "delete_object_profile",
   "delete_optimize_session",
   "delete_profile",
@@ -213,7 +216,9 @@ export const HOST_API_COMMANDS = [
   "list_llm_config",
   "list_local_embedding_models",
   "list_manga_page_prompts",
+  "list_manga_pipeline_artifacts",
   "list_manga_pipeline_statuses",
+  "preview_delete_manga_pipeline_artifact",
   "list_model_provider_catalog",
   "list_my_project_invites",
   "list_object_profiles",
@@ -370,6 +375,7 @@ export const HOST_API_COMMANDS = [
   "save_chapter_visual_plan_draft",
   "save_galgame_story_graph",
   "save_media_authoring_document",
+  "save_manga_pipeline_artifact",
   "save_part_outline",
   "select_segment_video",
   "set_default_embedding_config",
@@ -2359,7 +2365,73 @@ export interface MangaPipelineStartInput {
   page_number?: number | null;
   project_id: number;
   resume_from_checkpoint?: boolean;
+  run_stage?: MangaPipelineArtifactStage | null;
   stop_after?: MangaPipelineStopAfter | null;
+}
+
+export type MangaPipelineArtifactStage = "preprocessing" | "page_slots" | "page_content" | "page_adaptation" | "storyboard" | "reference_discovery" | "reference_bindings" | "drawing_prompt" | "image";
+
+export interface MangaChapterComicSynthesisV1 {
+  chapter_summary: string;
+  mood_progression: string[];
+}
+
+export interface MangaPreprocessingV3 {
+  characters: unknown;
+  comic_synthesis: MangaChapterComicSynthesisV1;
+  items: unknown;
+  schema_version: string;
+  source_events: unknown;
+  speech: unknown;
+  visual_anchors: unknown;
+}
+
+export interface MangaPipelineArtifactRecord {
+  chapter_id: number;
+  created_at: string;
+  id: number;
+  input_fingerprint: string;
+  output_fingerprint: string;
+  page_number: number | null;
+  payload: unknown;
+  project_id: number;
+  stage: MangaPipelineArtifactStage;
+  stale: boolean;
+  updated_at: string;
+}
+
+export interface MangaPipelineArtifactDeletionItem {
+  artifact_id: number;
+  page_number: number | null;
+  stage: MangaPipelineArtifactStage;
+}
+
+export interface MangaPipelineArtifactDeletionPreview {
+  downstream: MangaPipelineArtifactDeletionItem[];
+  target: MangaPipelineArtifactDeletionItem;
+}
+
+export interface PreviewMangaPipelineArtifactDeletionInput {
+  chapter_id: number;
+  page_number?: number | null;
+  project_id: number;
+  stage: MangaPipelineArtifactStage;
+}
+
+export interface SaveMangaPipelineArtifactInput {
+  chapter_id: number;
+  page_number?: number | null;
+  payload: unknown;
+  project_id: number;
+  stage: MangaPipelineArtifactStage;
+}
+
+export interface DeleteMangaPipelineArtifactInput {
+  chapter_id: number;
+  expected_artifact_ids: number[];
+  page_number?: number | null;
+  project_id: number;
+  stage: MangaPipelineArtifactStage;
 }
 
 export interface PrepareStandaloneComicSourceInput {
@@ -2382,7 +2454,7 @@ export interface MangaStandaloneSourceSummary {
   version: number;
 }
 
-export type MangaPipelineStopAfter = "page_slots" | "page_content" | "page_adaptation" | "storyboard" | "page_planning" | "drawing_prompt" | "image";
+export type MangaPipelineStopAfter = "page_slots" | "page_adaptation" | "storyboard" | "reference_discovery" | "drawing_prompt" | "image";
 
 export type AdaptationTarget = "manga" | "galgame";
 
@@ -2464,6 +2536,7 @@ export interface AdaptationDecision {
 export interface AdaptationPlanV1 {
   decisions: AdaptationDecision[];
   intention: string;
+  page_count: number | null;
   schema_version: AdaptationPlanVersion;
   target: AdaptationTarget;
   units: AdaptationUnit[];
@@ -2495,6 +2568,7 @@ export interface AuthoringDocumentRef {
 
 export interface AuthoringDocumentInputs {
   dependencies: AuthoringDocumentRef[];
+  preprocessing_fingerprint: string | null;
   sources: AuthoringSourceRef[];
   video_reference: VideoAdaptationReference | null;
 }
@@ -2529,6 +2603,13 @@ export interface SaveAuthoringDocumentInput {
 
 export interface AdoptAuthoringDocumentInput {
   expected_revision: number;
+  project_id: number;
+  record_id: number;
+}
+
+export interface DeleteAuthoringDocumentInput {
+  expected_revision: number;
+  kind: AuthoringDocumentKind;
   project_id: number;
   record_id: number;
 }
@@ -2601,6 +2682,7 @@ export interface MangaPipelineResumeInput {
   page_number?: number | null;
   project_id: number;
   resume_from_checkpoint?: boolean;
+  run_stage?: MangaPipelineArtifactStage | null;
   stop_after?: MangaPipelineStopAfter | null;
 }
 
@@ -2609,28 +2691,31 @@ export interface MangaChapterInput {
   project_id: number;
 }
 
+export interface DeleteMangaPageInput {
+  chapter_id: number;
+  page_number: number;
+  project_id: number;
+}
+
 export interface BindMangaReferenceImageInput {
+  action: MangaReferenceBindingAction;
   asset_id: number;
   asset_kind: MangaReferenceAssetKind;
   character_name: string;
-  downstream_strategy: DownstreamConflictStrategy;
   prompt_id: number;
 }
 
 export interface UpdateMangaPromptInput {
-  downstream_strategy: DownstreamConflictStrategy;
   image_prompt: string;
   prompt_id: number;
 }
 
 export interface OptimizeMangaPromptInput {
-  downstream_strategy: DownstreamConflictStrategy;
   instruction: string;
   prompt_id: number;
 }
 
 export interface DeleteMangaPromptInput {
-  downstream_strategy: DownstreamConflictStrategy;
   prompt_id: number;
 }
 
@@ -2677,7 +2762,7 @@ export interface MangaPageAdaptationV1 {
   visual_intent: string;
 }
 
-export type MangaPagePipelineStage = "slots" | "content" | "adaptation" | "storyboard" | "drawing_prompt" | "image";
+export type MangaPagePipelineStage = "slots" | "content" | "adaptation" | "storyboard" | "reference_discovery" | "drawing_prompt" | "image";
 
 export type MangaPagePipelineStatus = "pending" | "running" | "failed" | "cancelled" | "completed";
 
@@ -2686,6 +2771,21 @@ export interface MangaPagePipelineErrorV1 {
   message: string;
   retryable: boolean;
   stage: MangaPagePipelineStage;
+}
+
+export type MangaPageReferenceTargetKind = "character" | "scene" | "object" | "style";
+
+export interface MangaPageReferenceImageV1 {
+  asset: MangaBoundReferenceAsset;
+  description: string;
+  target_kind: MangaPageReferenceTargetKind;
+  target_name: string;
+  usage: string;
+}
+
+export interface MangaPageReferenceDiscoveryV1 {
+  references: MangaPageReferenceImageV1[];
+  schema_version: string;
 }
 
 export type MangaPagePlanSchemaVersion = "manga_page_plan_v4";
@@ -2772,6 +2872,8 @@ export interface MangaPageDrawingPromptV2 {
 
 export type MangaReferenceAssetKind = "character_portrait" | "generated_image";
 
+export type MangaReferenceBindingAction = "add_user_image" | "remove_user_image";
+
 export interface MangaBoundReferenceAsset {
   asset_id: number;
   asset_kind: MangaReferenceAssetKind;
@@ -2781,6 +2883,7 @@ export interface MangaBoundReferenceAsset {
 export interface MangaReferenceBindingSummary {
   bound_asset: MangaBoundReferenceAsset | null;
   character_name: string;
+  user_added_assets: MangaBoundReferenceAsset[];
 }
 
 export interface MangaPagePromptSourceSummary {
@@ -2803,6 +2906,7 @@ export interface MangaPagePromptSummary {
   generated_image_id: number | null;
   id: number;
   image_prompt: string;
+  orphaned: boolean;
   page_adaptation: MangaPageAdaptationV1 | null;
   page_content: MangaPageContentV1 | null;
   page_id: string | null;
@@ -2813,8 +2917,11 @@ export interface MangaPagePromptSummary {
   pipeline_status: MangaPagePipelineStatus | null;
   project_id: number;
   reference_bindings: MangaReferenceBindingSummary[];
+  reference_discovery: MangaPageReferenceDiscoveryV1 | null;
   source: MangaPagePromptSourceSummary;
+  stale_stages: MangaPipelineArtifactStage[];
   status: string;
+  system_reference_images: MangaPageReferenceImageV1[];
   updated_at: string;
 }
 

@@ -146,6 +146,11 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::canvas_project_split::Migration),
             Box::new(crate::migrations::galgame_story_graph::Migration),
             Box::new(crate::migrations::galgame_story_runtime_state::Migration),
+            Box::new(crate::migrations::manga_pipeline_artifacts::Migration),
+            Box::new(crate::migrations::manga_preprocessing::Migration),
+            Box::new(crate::migrations::manga_preprocessing_contract_v2::Migration),
+            Box::new(crate::migrations::manga_preprocessing_contract_v3::Migration),
+            Box::new(crate::migrations::manga_page_image_artifacts::Migration),
         ]
     }
 }

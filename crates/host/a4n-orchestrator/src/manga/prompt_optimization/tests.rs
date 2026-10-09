@@ -114,22 +114,13 @@ fn page_prompt() -> MangaPagePromptRecord {
 }
 
 #[test]
-fn input_contract_trims_instruction_and_rejects_invalid_downstream_id() {
+fn input_contract_trims_instruction() {
     let required = required_manga_prompt_optimization_input(MangaPromptOptimizationInput {
         page_prompt: page_prompt(),
         instruction: "  增强构图  ".to_string(),
-        downstream_image_ids: vec![44],
     })
     .expect("valid input");
     assert_eq!(required.instruction, "增强构图");
-
-    let err = required_manga_prompt_optimization_input(MangaPromptOptimizationInput {
-        page_prompt: page_prompt(),
-        instruction: "增强构图".to_string(),
-        downstream_image_ids: vec![0],
-    })
-    .expect_err("invalid image id should fail");
-    assert!(err.to_string().contains("下游图片 ID 必须大于 0"));
 }
 
 #[test]

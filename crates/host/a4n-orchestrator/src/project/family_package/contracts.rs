@@ -27,6 +27,8 @@ pub struct ProjectFamilyPackage {
     pub character_portraits: Vec<ProjectFamilyCharacterPortraitRecord>,
     pub generated_images: Vec<ProjectFamilyGeneratedImageRecord>,
     pub chapter_manga_prompts: Vec<ProjectFamilyMangaPromptRecord>,
+    #[serde(default)]
+    pub manga_pipeline_artifacts: Vec<ProjectFamilyMangaPipelineArtifactRecord>,
     pub chapter_video_prompts: Vec<ChapterVideoPromptRecord>,
     pub generated_videos: Vec<ProjectFamilyGeneratedVideoRecord>,
     pub generation_specs: Vec<ProjectFamilyGenerationSpecRecord>,

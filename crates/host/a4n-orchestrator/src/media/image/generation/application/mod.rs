@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_api_contract::manga::MangaReferenceBindingSummary;

@@ -5,7 +5,7 @@ use a4n_domain::{
     canvas_transfer_runtime_identity_key,
     manga::{
         MangaPageGenerationLayoutV3, MangaPageGenerationLayoutV4, MangaPagePromptSourceSummary,
-        MangaReferenceAssetKind, MangaReferenceBindingSummary,
+        MangaPipelineArtifactStage, MangaReferenceAssetKind, MangaReferenceBindingSummary,
     },
     media_authoring::{AdaptationPlanV1, AdaptationTarget, AuthoringDocumentInputs},
     project::{ProjectKind, ProjectRecord},
@@ -19,7 +19,8 @@ pub(super) fn validate_manga_manifest(package: &ProjectFamilyPackage) -> Result<
     validate_shooting_scripts(package, &context)?;
     validate_character_portraits(package, &context)?;
     validate_generated_images(package, &context)?;
-    validate_manga_prompts(package, &context)
+    validate_manga_prompts(package, &context)?;
+    validate_manga_pipeline_artifacts(package, &context)
 }
 
 struct MangaManifestContext<'a> {
@@ -440,6 +441,91 @@ fn validate_manga_prompts(
     Ok(())
 }
 
+fn validate_manga_pipeline_artifacts(
+    package: &ProjectFamilyPackage,
+    context: &MangaManifestContext<'_>,
+) -> Result<(), String> {
+    let prompt_scopes = package
+        .chapter_manga_prompts
+        .iter()
+        .map(|prompt| (prompt.project_id, prompt.chapter_id, prompt.page_number))
+        .collect::<HashSet<_>>();
+    let mut identities = HashSet::new();
+    for artifact in &package.manga_pipeline_artifacts {
+        positive_id(artifact.id, "manga_pipeline_artifact.id")?;
+        require_packaged_project(context, artifact.project_id, "漫画阶段产物", artifact.id)?;
+        let chapter = context
+            .chapters
+            .get(&artifact.chapter_id)
+            .copied()
+            .ok_or_else(|| {
+                format!(
+                    "漫画阶段产物引用了不存在的章节: artifact_id={}",
+                    artifact.id
+                )
+            })?;
+        if chapter.project_id != package.root_project_id {
+            return Err(format!(
+                "漫画阶段产物章节不属于根项目: artifact_id={}, chapter_id={}",
+                artifact.id, artifact.chapter_id
+            ));
+        }
+        let stage = MangaPipelineArtifactStage::from_key(&artifact.stage).ok_or_else(|| {
+            format!(
+                "漫画阶段产物阶段键无效: artifact_id={}, stage={}",
+                artifact.id, artifact.stage
+            )
+        })?;
+        let page_number = if stage.page_scoped() {
+            if artifact.page_number <= 0 {
+                return Err(format!(
+                    "页级漫画阶段产物必须包含正页码: artifact_id={}",
+                    artifact.id
+                ));
+            }
+            let page = u32::try_from(artifact.page_number)
+                .map_err(|_| format!("漫画阶段产物页码无效: artifact_id={}", artifact.id))?;
+            if !prompt_scopes.contains(&(
+                artifact.project_id,
+                artifact.chapter_id,
+                artifact.page_number,
+            )) {
+                return Err(format!(
+                    "漫画阶段产物引用了不存在的页面: artifact_id={}, page_number={page}",
+                    artifact.id
+                ));
+            }
+            artifact.page_number
+        } else {
+            if artifact.page_number != 0 {
+                return Err(format!(
+                    "章节级漫画阶段产物页码必须为 0: artifact_id={}",
+                    artifact.id
+                ));
+            }
+            0
+        };
+        if artifact.input_fingerprint.trim().is_empty()
+            || artifact.output_fingerprint.trim().is_empty()
+            || artifact.payload.is_null()
+        {
+            return Err(format!("漫画阶段产物内容无效: artifact_id={}", artifact.id));
+        }
+        if !identities.insert((
+            artifact.project_id,
+            artifact.chapter_id,
+            artifact.stage.clone(),
+            page_number,
+        )) {
+            return Err(format!(
+                "漫画阶段产物身份重复: project_id={}, chapter_id={}, stage={}, page_number={page_number}",
+                artifact.project_id, artifact.chapter_id, artifact.stage
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn validate_manga_layout(
     package: &ProjectFamilyPackage,
     prompt: &a4n_domain::project::ProjectFamilyMangaPromptRecord,
@@ -454,6 +540,7 @@ fn validate_manga_layout(
         &layout.source,
         layout.page_plan_ref.as_ref(),
         &layout.page_plan.beat_refs,
+        &[],
         &layout.reference_bindings,
         context,
     )
@@ -480,6 +567,11 @@ fn validate_manga_pipeline_layout(
         &layout.source,
         layout.page_plan_ref.as_ref(),
         &beat_refs,
+        layout
+            .pipeline
+            .reference_discovery
+            .as_ref()
+            .map_or(&[], |discovery| discovery.references.as_slice()),
         &layout.reference_bindings,
         context,
     )
@@ -492,6 +584,7 @@ fn validate_manga_layout_parts(
     source_summary: &MangaPagePromptSourceSummary,
     page_plan_ref: Option<&a4n_domain::media_authoring::AuthoringDocumentRef>,
     beat_refs: &[a4n_domain::media_authoring::AdaptationBeatRef],
+    system_reference_images: &[a4n_domain::manga::MangaPageReferenceImageV1],
     reference_bindings: &[MangaReferenceBindingSummary],
     context: &MangaManifestContext<'_>,
 ) -> Result<(), String> {
@@ -597,42 +690,66 @@ fn validate_manga_layout_parts(
                 prompt.id
             ));
         }
-        let Some(asset) = binding.bound_asset.as_ref() else {
-            continue;
-        };
-        positive_id(asset.asset_id, "漫画 layout reference asset_id")?;
-        match asset.asset_kind {
-            MangaReferenceAssetKind::CharacterPortrait => {
-                let portrait = context.portraits.get(&asset.asset_id).copied().ok_or_else(|| {
-                    format!(
-                        "项目族导入包漫画 layout 引用了不存在的角色立绘: prompt_id={}, portrait_id={}",
-                        prompt.id, asset.asset_id
-                    )
-                })?;
-                if ![prompt.project_id, package.root_project_id].contains(&portrait.project_id)
-                    || portrait.image_path != asset.image_path
-                {
-                    return Err(format!(
-                        "项目族导入包漫画 layout 角色立绘身份不一致: prompt_id={}, portrait_id={}",
-                        prompt.id, asset.asset_id
-                    ));
-                }
+        if let Some(asset) = &binding.bound_asset {
+            validate_manga_reference_asset(asset, prompt, package, context)?;
+        }
+        for asset in &binding.user_added_assets {
+            validate_manga_reference_asset(asset, prompt, package, context)?;
+        }
+    }
+    for (index, reference) in system_reference_images.iter().enumerate() {
+        if reference.target_name.trim().is_empty()
+            || reference.description.trim().is_empty()
+            || reference.usage.trim().is_empty()
+        {
+            return Err(format!(
+                "项目族导入包漫画系统参考图描述为空: prompt_id={}, reference_index={index}",
+                prompt.id
+            ));
+        }
+        validate_manga_reference_asset(&reference.asset, prompt, package, context)?;
+    }
+    Ok(())
+}
+
+fn validate_manga_reference_asset(
+    asset: &a4n_domain::manga::MangaBoundReferenceAsset,
+    prompt: &a4n_domain::project::ProjectFamilyMangaPromptRecord,
+    package: &ProjectFamilyPackage,
+    context: &MangaManifestContext<'_>,
+) -> Result<(), String> {
+    positive_id(asset.asset_id, "漫画 layout reference asset_id")?;
+    match asset.asset_kind {
+        MangaReferenceAssetKind::CharacterPortrait => {
+            let portrait = context.portraits.get(&asset.asset_id).copied().ok_or_else(|| {
+                format!(
+                    "项目族导入包漫画 layout 引用了不存在的角色立绘: prompt_id={}, portrait_id={}",
+                    prompt.id, asset.asset_id
+                )
+            })?;
+            if ![prompt.project_id, package.root_project_id].contains(&portrait.project_id)
+                || portrait.image_path != asset.image_path
+            {
+                return Err(format!(
+                    "项目族导入包漫画 layout 角色立绘身份不一致: prompt_id={}, portrait_id={}",
+                    prompt.id, asset.asset_id
+                ));
             }
-            MangaReferenceAssetKind::GeneratedImage => {
-                let image = context.images.get(&asset.asset_id).copied().ok_or_else(|| {
-                    format!(
-                        "项目族导入包漫画 layout 引用了不存在的生成图片: prompt_id={}, generated_image_id={}",
-                        prompt.id, asset.asset_id
-                    )
-                })?;
-                if ![prompt.project_id, package.root_project_id].contains(&image.project_id)
-                    || image.file_path != asset.image_path
-                {
-                    return Err(format!(
-                        "项目族导入包漫画 layout 参考图片身份不一致: prompt_id={}, generated_image_id={}",
-                        prompt.id, asset.asset_id
-                    ));
-                }
+        }
+        MangaReferenceAssetKind::GeneratedImage => {
+            let image = context.images.get(&asset.asset_id).copied().ok_or_else(|| {
+                format!(
+                    "项目族导入包漫画 layout 引用了不存在的生成图片: prompt_id={}, generated_image_id={}",
+                    prompt.id, asset.asset_id
+                )
+            })?;
+            if ![prompt.project_id, package.root_project_id].contains(&image.project_id)
+                || image.file_path != asset.image_path
+            {
+                return Err(format!(
+                    "项目族导入包漫画 layout 参考图片身份不一致: prompt_id={}, generated_image_id={}",
+                    prompt.id, asset.asset_id
+                ));
             }
         }
     }

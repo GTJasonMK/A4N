@@ -29,6 +29,16 @@ pub(crate) fn parse_manga_page_plan(
             plan.adaptation_plan_revision
         )));
     }
+    let planned_page_count = adaptation
+        .plan
+        .validate_manga_page_count()
+        .map_err(AppError::InvalidArgument)? as usize;
+    if plan.pages.len() != planned_page_count {
+        return Err(AppError::InvalidArgument(format!(
+            "{context} 必须包含 {planned_page_count} 页，实际为 {} 页",
+            plan.pages.len()
+        )));
+    }
     validate_adaptation_beat_coverage(&plan, adaptation, context)?;
     Ok(plan)
 }

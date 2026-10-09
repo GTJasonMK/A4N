@@ -10,14 +10,18 @@ mod validation;
 
 pub use contracts::{
     MANGA_PAGE_DRAWING_PROMPT_V2, MANGA_PAGE_GENERATION_V4, MANGA_PAGE_PIPELINE_STATE_V1,
-    MANGA_PAGE_PLAN_V4, MANGA_PAGE_SLOT_LIMIT, MANGA_PAGE_SLOTS_V1, MangaCameraAngleV2,
-    MangaPageAdaptationV1, MangaPageContentV1, MangaPageDrawingPromptSchemaVersion,
-    MangaPageDrawingPromptV2, MangaPageGenerationSchemaVersion, MangaPageImageArtifactV1,
-    MangaPageImportanceV2, MangaPagePacingV2, MangaPagePipelineErrorV1, MangaPagePipelineStage,
-    MangaPagePipelineStateV1, MangaPagePipelineStatus, MangaPagePlanSchemaVersion, MangaPagePlanV4,
+    MANGA_PAGE_PLAN_V4, MANGA_PAGE_REFERENCE_DISCOVERY_V1, MANGA_PAGE_REFERENCE_IMAGE_LIMIT,
+    MANGA_PAGE_SLOT_LIMIT, MANGA_PAGE_SLOTS_V1, MANGA_PREPROCESSING_V3, MangaCameraAngleV2,
+    MangaChapterComicSynthesisV1, MangaPageAdaptationV1, MangaPageContentV1,
+    MangaPageDrawingPromptSchemaVersion, MangaPageDrawingPromptV2,
+    MangaPageGenerationSchemaVersion, MangaPageImageArtifactV1, MangaPageImportanceV2,
+    MangaPagePacingV2, MangaPagePipelineErrorV1, MangaPagePipelineStage, MangaPagePipelineStateV1,
+    MangaPagePipelineStatus, MangaPagePlanSchemaVersion, MangaPagePlanV4,
+    MangaPageReferenceDiscoveryV1, MangaPageReferenceImageV1, MangaPageReferenceTargetKind,
     MangaPageRoleV2, MangaPageSlotV1, MangaPageSlotsSchemaVersion, MangaPageSlotsV1, MangaPageV4,
-    MangaPanelFunctionV2, MangaPanelSizeV2, MangaPanelV2, MangaReadingFlowV2, MangaShotScaleV2,
-    MangaTextLayerKindV2, MangaTextLayerV2, MangaTextPlacementV2,
+    MangaPanelFunctionV2, MangaPanelSizeV2, MangaPanelV2, MangaPipelineArtifactStage,
+    MangaPreprocessingV3, MangaReadingFlowV2, MangaShotScaleV2, MangaTextLayerKindV2,
+    MangaTextLayerV2, MangaTextPlacementV2, manga_preprocessing_input_fingerprint,
 };
 pub use validation::MangaPlanValidationError;
 
@@ -51,11 +55,46 @@ pub struct MangaPagePromptRecord {
     pub updated_at: NaiveDateTime,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct MangaPipelineArtifactRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub chapter_id: i64,
+    pub stage: MangaPipelineArtifactStage,
+    pub page_number: Option<u32>,
+    pub input_fingerprint: String,
+    pub output_fingerprint: String,
+    pub payload: Value,
+    pub stale: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct MangaPipelineArtifactDraft {
+    pub project_id: i64,
+    pub chapter_id: i64,
+    pub stage: MangaPipelineArtifactStage,
+    pub page_number: Option<u32>,
+    pub input_fingerprint: String,
+    pub payload: Value,
+    pub stale: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum MangaReferenceAssetKind {
     CharacterPortrait,
     GeneratedImage,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MangaReferenceBindingAction {
+    AddUserImage,
+    RemoveUserImage,
 }
 
 pub trait MangaPortraitReference {
@@ -81,7 +120,10 @@ pub struct MangaBoundReferenceAsset {
 #[serde(deny_unknown_fields)]
 pub struct MangaReferenceBindingSummary {
     pub character_name: String,
+    #[serde(default)]
     pub bound_asset: Option<MangaBoundReferenceAsset>,
+    #[serde(default)]
+    pub user_added_assets: Vec<MangaBoundReferenceAsset>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -142,6 +184,7 @@ pub struct MangaPageGenerationLayoutV4 {
     pub page_number: u32,
     pub page_plan_ref: Option<crate::media_authoring::AuthoringDocumentRef>,
     pub pipeline: MangaPagePipelineStateV1,
+    #[serde(default)]
     pub reference_bindings: Vec<MangaReferenceBindingSummary>,
     pub prompt_fingerprint: Value,
     pub source: MangaPagePromptSourceSummary,
@@ -269,6 +312,7 @@ fn validate_page_source_and_bindings(
                 message: "绑定素材身份无效".into(),
             });
         }
+        validate_user_reference_assets(binding, &format!("{bindings_path}[{index}]"))?;
     }
     Ok(())
 }
@@ -363,7 +407,33 @@ impl MangaPageGenerationLayoutV3 {
                     });
                 }
             }
+            validate_user_reference_assets(binding, &format!("reference_bindings[{index}]"))?;
         }
         Ok(())
     }
+}
+
+fn validate_user_reference_assets(
+    binding: &MangaReferenceBindingSummary,
+    path: &str,
+) -> Result<(), MangaPlanValidationError> {
+    let mut seen = std::collections::HashSet::new();
+    if let Some(asset) = &binding.bound_asset {
+        seen.insert((asset.asset_kind, asset.asset_id));
+    }
+    for (index, asset) in binding.user_added_assets.iter().enumerate() {
+        if asset.asset_id <= 0 || asset.image_path.trim().is_empty() {
+            return Err(MangaPlanValidationError {
+                path: format!("{path}.user_added_assets[{index}]"),
+                message: "用户参考素材身份无效".into(),
+            });
+        }
+        if !seen.insert((asset.asset_kind, asset.asset_id)) {
+            return Err(MangaPlanValidationError {
+                path: format!("{path}.user_added_assets[{index}]"),
+                message: "用户参考素材不能重复".into(),
+            });
+        }
+    }
+    Ok(())
 }

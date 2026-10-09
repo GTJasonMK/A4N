@@ -1,11 +1,9 @@
 //! 漫画页面 layout JSON 纯字段规则。
 
-use a4n_domain::{
-    DownstreamConflictStrategy,
-    manga::{
-        MangaBoundReferenceAsset, MangaPageGenerationLayoutV3, MangaPageGenerationLayoutV4,
-        MangaPagePromptRecord, MangaReferenceBindingSummary,
-    },
+use a4n_domain::manga::{
+    MangaBoundReferenceAsset, MangaPageGenerationLayoutV3, MangaPageGenerationLayoutV4,
+    MangaPagePromptRecord, MangaReferenceAssetKind, MangaReferenceBindingAction,
+    MangaReferenceBindingSummary,
 };
 
 pub(crate) fn manga_page_generation_layout(
@@ -28,23 +26,13 @@ pub(crate) fn manga_page_pipeline_layout(
     )
 }
 
-pub(crate) fn unbound_image_reference_character_name(
-    layout: &MangaPageGenerationLayoutV4,
-) -> Option<&str> {
-    if layout.pipeline.stage < a4n_domain::manga::MangaPagePipelineStage::DrawingPrompt {
-        return None;
-    }
-    layout
-        .reference_bindings
-        .iter()
-        .find(|binding| binding.bound_asset.is_none())
-        .map(|binding| binding.character_name.as_str())
-}
-
-fn bind_reference_asset_in_bindings(
+fn mutate_reference_asset_in_bindings(
     bindings: &mut [MangaReferenceBindingSummary],
     character_name: &str,
-    bound_asset: MangaBoundReferenceAsset,
+    asset_kind: MangaReferenceAssetKind,
+    asset_id: i64,
+    action: MangaReferenceBindingAction,
+    asset: Option<MangaBoundReferenceAsset>,
 ) -> Result<(), String> {
     for (index, binding) in bindings.iter_mut().enumerate() {
         let current_character_name = binding.character_name.trim();
@@ -56,7 +44,36 @@ fn bind_reference_asset_in_bindings(
         if current_character_name != character_name {
             continue;
         }
-        binding.bound_asset = Some(bound_asset);
+        match action {
+            MangaReferenceBindingAction::AddUserImage => {
+                let asset = asset.ok_or_else(|| "添加用户参考图时必须提供素材".to_string())?;
+                let is_system_asset = binding.bound_asset.as_ref().is_some_and(|current| {
+                    current.asset_kind == asset.asset_kind && current.asset_id == asset.asset_id
+                });
+                if !is_system_asset
+                    && !binding.user_added_assets.iter().any(|current| {
+                        current.asset_kind == asset.asset_kind && current.asset_id == asset.asset_id
+                    })
+                {
+                    binding.user_added_assets.push(asset);
+                }
+            }
+            MangaReferenceBindingAction::RemoveUserImage => {
+                if binding.bound_asset.as_ref().is_some_and(|current| {
+                    current.asset_kind == asset_kind && current.asset_id == asset_id
+                }) {
+                    if binding.bound_asset.as_ref().is_some_and(|current| {
+                        current.asset_kind == MangaReferenceAssetKind::CharacterPortrait
+                    }) {
+                        return Err(format!("角色 {character_name} 的系统参考图不能移除"));
+                    }
+                    binding.bound_asset = None;
+                }
+                binding.user_added_assets.retain(|current| {
+                    current.asset_kind != asset_kind || current.asset_id != asset_id
+                });
+            }
+        }
         return Ok(());
     }
 
@@ -64,42 +81,43 @@ fn bind_reference_asset_in_bindings(
 }
 
 /// 将参考素材绑定进整页漫画 layout 的指定角色。
-pub(crate) fn bind_reference_asset_in_layout(
+pub(crate) fn mutate_reference_asset_in_layout(
     mut layout: MangaPageGenerationLayoutV3,
     character_name: &str,
-    bound_asset: MangaBoundReferenceAsset,
+    asset_kind: MangaReferenceAssetKind,
+    asset_id: i64,
+    action: MangaReferenceBindingAction,
+    asset: Option<MangaBoundReferenceAsset>,
 ) -> Result<MangaPageGenerationLayoutV3, String> {
-    bind_reference_asset_in_bindings(&mut layout.reference_bindings, character_name, bound_asset)?;
+    mutate_reference_asset_in_bindings(
+        &mut layout.reference_bindings,
+        character_name,
+        asset_kind,
+        asset_id,
+        action,
+        asset,
+    )?;
     Ok(layout)
 }
 
 /// 将参考素材绑定进新流水线 layout，同时保留页面 checkpoint。
-pub(crate) fn bind_reference_asset_in_pipeline_layout(
+pub(crate) fn mutate_reference_asset_in_pipeline_layout(
     mut layout: MangaPageGenerationLayoutV4,
     character_name: &str,
-    bound_asset: MangaBoundReferenceAsset,
+    asset_kind: MangaReferenceAssetKind,
+    asset_id: i64,
+    action: MangaReferenceBindingAction,
+    asset: Option<MangaBoundReferenceAsset>,
 ) -> Result<MangaPageGenerationLayoutV4, String> {
-    bind_reference_asset_in_bindings(&mut layout.reference_bindings, character_name, bound_asset)?;
+    mutate_reference_asset_in_bindings(
+        &mut layout.reference_bindings,
+        character_name,
+        asset_kind,
+        asset_id,
+        action,
+        asset,
+    )?;
     Ok(layout)
-}
-
-/// 确定整页漫画提示词变更前的下游图片处理。
-pub(crate) fn resolve_manga_prompt_downstream_conflict(
-    page_prompt: &MangaPagePromptRecord,
-    strategy: DownstreamConflictStrategy,
-    operation: &str,
-) -> Result<Option<i64>, String> {
-    let Some(image_id) = page_prompt.generated_image_id else {
-        return Ok(None);
-    };
-    match strategy {
-        DownstreamConflictStrategy::Reject => Err(format!(
-            "整页漫画提示词 #{} 已派生成图片 #{image_id}，{operation}前需要选择：删除下游派生产物，或保留下游只覆盖源提示词",
-            page_prompt.id
-        )),
-        DownstreamConflictStrategy::KeepDownstream => Ok(None),
-        DownstreamConflictStrategy::DeleteDownstream => Ok(Some(image_id)),
-    }
 }
 
 #[cfg(test)]
@@ -112,54 +130,90 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn bind_updates_existing_character() {
+    fn add_user_reference_to_existing_character() {
         let layout = layout_fixture(vec![MangaReferenceBindingSummary {
             character_name: "hero".to_string(),
             bound_asset: None,
+            user_added_assets: Vec::new(),
         }]);
         let bound = MangaBoundReferenceAsset {
             asset_kind: MangaReferenceAssetKind::GeneratedImage,
             asset_id: 7,
             image_path: "hero.png".to_string(),
         };
-        let updated = bind_reference_asset_in_layout(layout, "hero", bound).unwrap();
+        let updated = mutate_reference_asset_in_layout(
+            layout,
+            "hero",
+            MangaReferenceAssetKind::GeneratedImage,
+            7,
+            MangaReferenceBindingAction::AddUserImage,
+            Some(bound),
+        )
+        .unwrap();
+        assert_eq!(updated.reference_bindings[0].bound_asset, None);
         assert_eq!(
-            updated.reference_bindings[0]
-                .bound_asset
-                .as_ref()
-                .expect("bound asset")
-                .asset_id,
+            updated.reference_bindings[0].user_added_assets[0].asset_id,
             7
         );
     }
 
     #[test]
-    fn bind_rejects_empty_character_and_unknown_character() {
+    fn user_reference_mutation_rejects_empty_and_unknown_characters() {
         let bound = || MangaBoundReferenceAsset {
             asset_kind: MangaReferenceAssetKind::GeneratedImage,
             asset_id: 7,
             image_path: "hero.png".to_string(),
         };
-        let err = bind_reference_asset_in_layout(
+        let err = mutate_reference_asset_in_layout(
             layout_fixture(vec![MangaReferenceBindingSummary {
                 character_name: "".to_string(),
                 bound_asset: None,
+                user_added_assets: Vec::new(),
             }]),
             "hero",
-            bound(),
+            MangaReferenceAssetKind::GeneratedImage,
+            7,
+            MangaReferenceBindingAction::AddUserImage,
+            Some(bound()),
         )
         .unwrap_err();
         assert!(err.contains("character_name 必须是非空字符串"));
-        let err = bind_reference_asset_in_layout(
+        let err = mutate_reference_asset_in_layout(
             layout_fixture(vec![MangaReferenceBindingSummary {
                 character_name: "other".to_string(),
                 bound_asset: None,
+                user_added_assets: Vec::new(),
             }]),
             "hero",
-            bound(),
+            MangaReferenceAssetKind::GeneratedImage,
+            7,
+            MangaReferenceBindingAction::AddUserImage,
+            Some(bound()),
         )
         .unwrap_err();
         assert_eq!(err, "整页漫画提示词不存在角色参考图: hero");
+    }
+
+    #[test]
+    fn system_portrait_cannot_be_removed_as_user_reference() {
+        let err = mutate_reference_asset_in_layout(
+            layout_fixture(vec![MangaReferenceBindingSummary {
+                character_name: "hero".to_string(),
+                bound_asset: Some(MangaBoundReferenceAsset {
+                    asset_kind: MangaReferenceAssetKind::CharacterPortrait,
+                    asset_id: 7,
+                    image_path: "hero.png".to_string(),
+                }),
+                user_added_assets: Vec::new(),
+            }]),
+            "hero",
+            MangaReferenceAssetKind::CharacterPortrait,
+            7,
+            MangaReferenceBindingAction::RemoveUserImage,
+            None,
+        )
+        .expect_err("系统参考图不能作为用户参考图移除");
+        assert_eq!(err, "角色 hero 的系统参考图不能移除");
     }
 
     #[test]
@@ -199,31 +253,30 @@ mod tests {
             }
         }))
         .expect("valid v4 layout fixture");
-        assert_eq!(unbound_image_reference_character_name(&layout), None);
         layout.pipeline.stage = MangaPagePipelineStage::DrawingPrompt;
-        assert_eq!(
-            unbound_image_reference_character_name(&layout),
-            Some("hero")
-        );
         let bound = MangaBoundReferenceAsset {
             asset_kind: MangaReferenceAssetKind::GeneratedImage,
             asset_id: 7,
             image_path: "hero.png".to_string(),
         };
 
-        let updated = bind_reference_asset_in_pipeline_layout(layout, "hero", bound).unwrap();
+        let updated = mutate_reference_asset_in_pipeline_layout(
+            layout,
+            "hero",
+            MangaReferenceAssetKind::GeneratedImage,
+            7,
+            MangaReferenceBindingAction::AddUserImage,
+            Some(bound),
+        )
+        .unwrap();
 
         assert_eq!(updated.schema_version, MangaPageGenerationSchemaVersion::V4);
         assert_eq!(updated.pipeline.page_id, "page-0001");
+        assert!(updated.reference_bindings[0].bound_asset.is_none());
         assert_eq!(
-            updated.reference_bindings[0]
-                .bound_asset
-                .as_ref()
-                .unwrap()
-                .asset_id,
+            updated.reference_bindings[0].user_added_assets[0].asset_id,
             7
         );
-        assert_eq!(unbound_image_reference_character_name(&updated), None);
     }
 
     fn layout_fixture(

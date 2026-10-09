@@ -283,10 +283,8 @@ export const Dropdown: React.FC<DropdownProps> = ({ items, label, ariaLabel }) =
       ) : (
         <button
           {...triggerProps}
-          className={`a4n-dropdown-trigger inline-flex h-11 w-11 items-center justify-center rounded-[10px] border bg-book-bg-tertiary/70 transition-colors sm:h-8 sm:w-8 ${
-            isOpen
-              ? 'border-book-primary/70 text-book-primary'
-              : 'border-book-border text-book-text-muted hover:border-book-primary/55 hover:bg-book-bg-tertiary hover:text-book-primary'
+          className={`a4n-dropdown-trigger a4n-btn-ghost inline-flex h-11 w-11 items-center justify-center rounded-[10px] transition-colors sm:h-8 sm:w-8 ${
+            isOpen ? "bg-[rgb(var(--color-primary-pale))] text-book-primary" : ""
           }`}
           title={triggerLabel}
         >

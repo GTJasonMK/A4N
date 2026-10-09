@@ -237,30 +237,89 @@ fn profile_image_metadata(material: &ProfileImageMaterial) -> Value {
 
 pub(super) fn collect_bound_reference_images(
     host: &dyn ImageGenerationHostPort,
+    system_reference_images: &[a4n_domain::manga::MangaPageReferenceImageV1],
     bindings: &[MangaReferenceBindingSummary],
 ) -> Result<Vec<ImageReference>, AppError> {
     let mut references = Vec::new();
+    let mut seen = HashSet::new();
+
+    for (index, binding) in bindings.iter().enumerate() {
+        if let Some(asset) = binding.bound_asset.as_ref().filter(|asset| {
+            asset.asset_kind == a4n_domain::manga::MangaReferenceAssetKind::CharacterPortrait
+        }) {
+            append_manga_reference_image(
+                host,
+                asset,
+                &format!("参考图 {} · {}", references.len() + 1, binding.character_name),
+                &format!("reference_bindings[{index}].bound_asset.image_path"),
+                &mut seen,
+                &mut references,
+            )?;
+        }
+    }
+    for (index, reference) in system_reference_images.iter().enumerate() {
+        append_manga_reference_image(
+            host,
+            &reference.asset,
+            &format!("参考图 {} · {}", references.len() + 1, reference.target_name),
+            &format!("system_reference_images[{index}].asset.image_path"),
+            &mut seen,
+            &mut references,
+        )?;
+    }
+
     for (index, binding) in bindings.iter().enumerate() {
         let binding_context = format!("reference_bindings[{index}]");
-        let asset = binding.bound_asset.as_ref().ok_or_else(|| {
-            AppError::InvalidArgument(format!(
-                "参考图“{}”尚未绑定，无法生成漫画页图片",
-                binding.character_name
-            ))
-        })?;
         let label = binding.character_name.trim();
         if label.is_empty() {
             return Err(AppError::InvalidArgument(format!(
                 "{binding_context}.character_name 不能为空"
             )));
         }
-        let path = asset.image_path.trim();
-        if path.is_empty() {
-            return Err(AppError::InvalidArgument(format!(
-                "{binding_context}.bound_asset.image_path 不能为空"
-            )));
+        let mut user_reference_index = 0;
+        if let Some(asset) = binding.bound_asset.as_ref().filter(|asset| {
+            asset.asset_kind == a4n_domain::manga::MangaReferenceAssetKind::GeneratedImage
+        }) {
+            user_reference_index += 1;
+            append_manga_reference_image(
+                host,
+                asset,
+                &format!("参考图 {} · {label} 用户 {user_reference_index}", references.len() + 1),
+                &format!("{binding_context}.bound_asset.image_path"),
+                &mut seen,
+                &mut references,
+            )?;
         }
-        references.push(host.read_reference_image(label, path)?);
+        for (user_index, asset) in binding.user_added_assets.iter().enumerate() {
+            user_reference_index += 1;
+            append_manga_reference_image(
+                host,
+                asset,
+                &format!("参考图 {} · {label} 用户 {user_reference_index}", references.len() + 1),
+                &format!("{binding_context}.user_added_assets[{user_index}].image_path"),
+                &mut seen,
+                &mut references,
+            )?;
+        }
     }
     Ok(references)
+}
+
+fn append_manga_reference_image(
+    host: &dyn ImageGenerationHostPort,
+    asset: &a4n_domain::manga::MangaBoundReferenceAsset,
+    label: &str,
+    path_context: &str,
+    seen: &mut HashSet<(a4n_domain::manga::MangaReferenceAssetKind, i64)>,
+    references: &mut Vec<ImageReference>,
+) -> Result<(), AppError> {
+    if !seen.insert((asset.asset_kind, asset.asset_id)) {
+        return Ok(());
+    }
+    let path = asset.image_path.trim();
+    if path.is_empty() {
+        return Err(AppError::InvalidArgument(format!("{path_context} 不能为空")));
+    }
+    references.push(host.read_reference_image(label, path)?);
+    Ok(())
 }

@@ -5,11 +5,12 @@ use a4n_db::workflow::{
     invalidate_chapter_analysis_after_source_change,
     latest_workflow_run_recovery_records_by_business_keys, latest_workflow_runs_by_business_keys,
     load_completed_llm_call_checkpoint, mark_workflow_status, persist_workflow_progress_snapshot,
-    record_workflow_progress_event, resume_or_upsert_workflow_run,
-    resume_workflow_run_with_active_task, save_completed_llm_call_checkpoint,
-    upsert_workflow_checkpoint, upsert_workflow_run, workflow_checkpoint_statuses_for_runs,
-    workflow_checkpoint_step_statuses, workflow_run_detail, workflow_run_model_by_id,
-    workflow_run_models_by_ids, workflow_run_statuses_by_ids, workflow_run_summary_by_id,
+    record_workflow_progress_event, restart_interrupted_workflow_run,
+    resume_or_upsert_workflow_run, resume_workflow_run_with_active_task,
+    save_completed_llm_call_checkpoint, upsert_workflow_checkpoint, upsert_workflow_run,
+    workflow_checkpoint_statuses_for_runs, workflow_checkpoint_step_statuses, workflow_run_detail,
+    workflow_run_model_by_id, workflow_run_models_by_ids, workflow_run_statuses_by_ids,
+    workflow_run_summary_by_id,
 };
 use a4n_db_models::models::{
     generation::{generation_run, workflow_run},
@@ -17,7 +18,7 @@ use a4n_db_models::models::{
 };
 use a4n_domain::workflow::{
     WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED,
-    WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING,
+    WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING, WORKFLOW_STATUS_SUPERSEDED,
 };
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
@@ -290,6 +291,48 @@ async fn resume_or_upsert_reuses_matching_interrupted_run() {
     assert_eq!(resumed.status, WORKFLOW_STATUS_RUNNING);
     assert_eq!(resumed.active_task_id.as_deref(), Some("resume-task"));
     assert!(resumed.completed_at.is_none());
+}
+
+#[tokio::test]
+async fn starting_after_interruption_supersedes_old_run_and_creates_a_new_one() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let suffix = uuid::Uuid::new_v4();
+    let key = format!("workflow-restart:{suffix}");
+    let fingerprint = format!("fingerprint-{suffix}");
+    let initial = upsert_workflow_run(
+        &db,
+        workflow_input(&key, &fingerprint, WORKFLOW_STATUS_RUNNING),
+    )
+    .await
+    .expect("initial workflow must be inserted");
+    mark_workflow_status(
+        &db,
+        initial.id,
+        WORKFLOW_STATUS_INTERRUPTED,
+        true,
+        Some("应用重启后中断"),
+    )
+    .await
+    .expect("workflow must become interrupted");
+
+    let mut input = workflow_input(&key, &fingerprint, WORKFLOW_STATUS_RUNNING);
+    input.active_task_id = Some("fresh-start-task".to_string());
+    let restarted = restart_interrupted_workflow_run(&db, initial.id, input)
+        .await
+        .expect("explicit start must replace an interrupted workflow");
+    let superseded = workflow_run_model_by_id(&db, initial.id)
+        .await
+        .expect("superseded workflow must be readable");
+
+    assert_ne!(restarted.id, initial.id);
+    assert_eq!(superseded.status, WORKFLOW_STATUS_SUPERSEDED);
+    assert!(!superseded.can_resume);
+    assert!(superseded.active_task_id.is_none());
+    assert_eq!(restarted.status, WORKFLOW_STATUS_RUNNING);
+    assert_eq!(
+        restarted.active_task_id.as_deref(),
+        Some("fresh-start-task")
+    );
 }
 
 #[tokio::test]

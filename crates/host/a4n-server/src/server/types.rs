@@ -13,6 +13,7 @@ pub(crate) struct WorkerSpec {
     pub(crate) metadata: &'static a4n_process_catalog::StatefulWorkerCatalogEntry,
     pub(crate) binary: PathBuf,
     pub(crate) address: SocketAddr,
+    pub(crate) address_is_explicit: bool,
     pub(crate) control_addr: SocketAddr,
     pub(crate) token: String,
 }

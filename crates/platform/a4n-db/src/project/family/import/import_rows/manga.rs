@@ -1,10 +1,14 @@
 use a4n_db_models::models::{
     ai::generated_image,
-    chapter::{chapter_manga_prompt, chapter_shooting_script},
+    chapter::{chapter_manga_prompt, chapter_shooting_script, manga_pipeline_artifact},
     character::character_portrait,
     media::media_asset::FILE_PATH_FIELD,
 };
-use a4n_domain::CanvasNodeRefKind;
+use a4n_domain::{
+    CanvasNodeRefKind,
+    manga::{MangaPageGenerationLayoutV3, MangaPageImageArtifactV1, MangaPipelineArtifactStage},
+    source_text_hash,
+};
 use sea_orm::sea_query::{Alias, CaseStatement, Expr};
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, Set};
 
@@ -16,7 +20,8 @@ use crate::project::family::import::{
     DatabaseProjectFamilyImportPackage, ImportIdMaps, ProjectFamilyImportError,
     ProjectFamilyMediaFileImporter, map_optional, map_required, remap_chapter_source_revision_key,
     remap_manga_generated_image_metadata, remap_manga_page_layout,
-    remap_shooting_script_visual_plan_source, remap_visual_plan_identity,
+    remap_manga_pipeline_artifact_payload, remap_shooting_script_visual_plan_source,
+    remap_visual_plan_identity,
 };
 
 pub(super) async fn insert_manga_rows<Importer>(
@@ -34,6 +39,7 @@ where
     super::visual_plan::remap_visual_plan_resources(txn, package, maps).await?;
     super::authoring::remap_authoring_documents(txn, package, maps).await?;
     insert_manga_prompts(txn, package, maps).await?;
+    insert_manga_pipeline_artifacts(txn, package, maps).await?;
     update_generated_image_metadata(txn, package, maps).await
 }
 
@@ -378,6 +384,227 @@ async fn insert_manga_prompts(
             )?);
         }
     );
+    Ok(())
+}
+
+async fn insert_manga_pipeline_artifacts(
+    txn: &DatabaseTransaction,
+    package: &DatabaseProjectFamilyImportPackage,
+    maps: &mut ImportIdMaps,
+) -> Result<(), ProjectFamilyImportError> {
+    insert_import_rows!(
+        txn,
+        &package.manga_pipeline_artifacts,
+        artifact,
+        manga_pipeline_artifact::ActiveModel,
+        "导入漫画阶段产物失败",
+        |active| {
+            active.project_id = Set(map_required(
+                &maps.project_ids,
+                artifact.project_id,
+                "漫画阶段产物 project_id",
+            )?);
+            active.chapter_id = Set(map_required(
+                &maps.chapter_ids,
+                artifact.chapter_id,
+                "漫画阶段产物 chapter_id",
+            )?);
+            let stage = a4n_domain::manga::MangaPipelineArtifactStage::from_key(&artifact.stage)
+                .ok_or_else(|| {
+                    ProjectFamilyImportError::invalid_package(format!(
+                        "漫画阶段产物 #{} 的 stage 无效: {}",
+                        artifact.id, artifact.stage
+                    ))
+                })?;
+            active.payload = Set(remap_manga_pipeline_artifact_payload(
+                stage,
+                &artifact.payload,
+                maps,
+                &format!("漫画阶段产物 #{} payload", artifact.id),
+            )?);
+        }
+    );
+    insert_legacy_v3_manga_artifacts(txn, package, maps).await?;
+    Ok(())
+}
+
+async fn insert_legacy_v3_manga_artifacts(
+    txn: &DatabaseTransaction,
+    package: &DatabaseProjectFamilyImportPackage,
+    maps: &ImportIdMaps,
+) -> Result<(), ProjectFamilyImportError> {
+    for prompt in &package.chapter_manga_prompts {
+        let Some(value) = prompt.layout.as_ref().filter(|layout| {
+            layout
+                .get("schema_version")
+                .and_then(serde_json::Value::as_str)
+                == Some("manga_page_generation_v3")
+        }) else {
+            continue;
+        };
+        let layout: MangaPageGenerationLayoutV3 =
+            serde_json::from_value(value.clone()).map_err(|error| {
+                ProjectFamilyImportError::invalid_package(format!(
+                    "章节漫画提示词 #{} 的 v3 layout 无效: {error}",
+                    prompt.id
+                ))
+            })?;
+        let page_number = u32::try_from(prompt.page_number)
+            .ok()
+            .filter(|page_number| *page_number > 0)
+            .ok_or_else(|| {
+                ProjectFamilyImportError::invalid_package(format!(
+                    "章节漫画提示词 #{} 的 page_number 无效",
+                    prompt.id
+                ))
+            })?;
+        layout.validate(page_number).map_err(|error| {
+            ProjectFamilyImportError::invalid_package(format!(
+                "章节漫画提示词 #{} 的 v3 layout 无效: {error}",
+                prompt.id
+            ))
+        })?;
+        let project_id = map_required(
+            &maps.project_ids,
+            prompt.project_id,
+            "旧版漫画阶段产物 project_id",
+        )?;
+        let chapter_id = map_required(
+            &maps.chapter_ids,
+            prompt.chapter_id,
+            "旧版漫画阶段产物 chapter_id",
+        )?;
+        let mut legacy_artifacts = vec![
+            (
+                MangaPipelineArtifactStage::Storyboard,
+                serde_json::to_value(&layout.page_plan).map_err(|error| {
+                    ProjectFamilyImportError::invalid_package(format!(
+                        "章节漫画提示词 #{} 的 v3 分镜无法编码: {error}",
+                        prompt.id
+                    ))
+                })?,
+            ),
+            (
+                MangaPipelineArtifactStage::DrawingPrompt,
+                serde_json::to_value(&layout.drawing_prompt).map_err(|error| {
+                    ProjectFamilyImportError::invalid_package(format!(
+                        "章节漫画提示词 #{} 的 v3 绘图提示词无法编码: {error}",
+                        prompt.id
+                    ))
+                })?,
+            ),
+        ];
+        if !layout.reference_bindings.is_empty() {
+            legacy_artifacts.push((
+                MangaPipelineArtifactStage::ReferenceBindings,
+                serde_json::to_value(&layout.reference_bindings).map_err(|error| {
+                    ProjectFamilyImportError::invalid_package(format!(
+                        "章节漫画提示词 #{} 的 v3 参考绑定无法编码: {error}",
+                        prompt.id
+                    ))
+                })?,
+            ));
+        }
+        if let Some(image_id) = prompt.generated_image_id {
+            let image = package
+                .generated_images
+                .iter()
+                .find(|image| image.id == image_id)
+                .ok_or_else(|| {
+                    ProjectFamilyImportError::invalid_package(format!(
+                        "章节漫画提示词 #{} 引用了未导入的成图 {}",
+                        prompt.id, image_id
+                    ))
+                })?;
+            if image.image_type != "manga_page"
+                || image.project_id != prompt.project_id
+                || image
+                    .chapter_id
+                    .is_some_and(|image_chapter_id| image_chapter_id != prompt.chapter_id)
+            {
+                return Err(ProjectFamilyImportError::invalid_package(format!(
+                    "章节漫画提示词 #{} 引用的图片 {} 不属于当前漫画页",
+                    prompt.id, image_id
+                )));
+            }
+            legacy_artifacts.push((
+                MangaPipelineArtifactStage::Image,
+                serde_json::to_value(MangaPageImageArtifactV1 {
+                    workflow_run_id: None,
+                    generated_image_id: image_id,
+                    width: image.width,
+                    height: image.height,
+                })
+                .map_err(|error| {
+                    ProjectFamilyImportError::invalid_package(format!(
+                        "章节漫画提示词 #{} 的成图产物无法编码: {error}",
+                        prompt.id
+                    ))
+                })?,
+            ));
+        }
+
+        for (stage, payload) in legacy_artifacts {
+            let payload = remap_manga_pipeline_artifact_payload(
+                stage,
+                &payload,
+                maps,
+                &format!("章节漫画提示词 #{} 的 v3 {}", prompt.id, stage.key()),
+            )?;
+            let existing = manga_pipeline_artifact::Entity::find()
+                .filter(manga_pipeline_artifact::Column::ProjectId.eq(project_id))
+                .filter(manga_pipeline_artifact::Column::ChapterId.eq(chapter_id))
+                .filter(manga_pipeline_artifact::Column::Stage.eq(stage.key()))
+                .filter(manga_pipeline_artifact::Column::PageNumber.eq(prompt.page_number))
+                .one(txn)
+                .await
+                .map_err(|source| ProjectFamilyImportError::DatabaseContext {
+                    context: "读取已导入的漫画阶段产物失败",
+                    source,
+                })?;
+            if let Some(existing) = existing {
+                if existing.payload != payload {
+                    return Err(ProjectFamilyImportError::invalid_package(format!(
+                        "章节漫画提示词 #{} 的 v3 {} 与阶段产物记录不一致",
+                        prompt.id,
+                        stage.key()
+                    )));
+                }
+                continue;
+            }
+            let payload_json = serde_json::to_string(&payload).map_err(|error| {
+                ProjectFamilyImportError::invalid_package(format!(
+                    "章节漫画提示词 #{} 的 v3 {} 无法编码: {error}",
+                    prompt.id,
+                    stage.key()
+                ))
+            })?;
+            manga_pipeline_artifact::ActiveModel {
+                project_id: Set(project_id),
+                chapter_id: Set(chapter_id),
+                stage: Set(stage.key().into()),
+                page_number: Set(prompt.page_number),
+                input_fingerprint: Set(source_text_hash(&format!(
+                    "legacy:project_import:manga_page:{}:{}:{}",
+                    prompt.id,
+                    stage.key(),
+                    page_number
+                ))),
+                output_fingerprint: Set(source_text_hash(&payload_json)),
+                payload: Set(payload),
+                stale: Set(true),
+                created_at: Set(prompt.created_at),
+                updated_at: Set(prompt.updated_at),
+                ..Default::default()
+            }
+            .insert(txn)
+            .await
+            .map_err(|source| ProjectFamilyImportError::DatabaseContext {
+                context: "导入旧版漫画阶段产物失败",
+                source,
+            })?;
+        }
+    }
     Ok(())
 }
 

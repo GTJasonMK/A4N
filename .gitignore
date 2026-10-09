@@ -86,6 +86,7 @@ CLAUDE.md
 !/docs/llm-call-io-fields.zh.md
 # Chapter writing and continuation logic review requested in session.
 !/docs/chapter-writing-sync-review.zh.md
+!/docs/llm-call-context-assessment.zh.md
 
 # OS/editor noise
 .DS_Store

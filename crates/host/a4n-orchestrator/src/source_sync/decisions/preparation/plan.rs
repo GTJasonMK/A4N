@@ -84,6 +84,7 @@ pub(super) async fn build_prepared_galgame_scene_regeneration_plan(
                 dependencies: Vec::new(),
                 sources: vec![authoring_source(&target)?],
                 video_reference: previous.inputs.video_reference,
+                preprocessing_fingerprint: None,
             },
             record_id: None,
             expected_revision: None,

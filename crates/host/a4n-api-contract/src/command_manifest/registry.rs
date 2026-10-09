@@ -81,7 +81,10 @@ command_specs! {
     "delete_llm_config" => args_config_id, result_unit, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "delete_local_embedding_model" => args_delete_local_embedding_model, result_unit, "rag", effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
     "delete_manga_by_chapter" => args_cancel_manga_pipeline, result_unit, "manga", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
+    "delete_manga_page" => args_delete_manga_page, result_unit, "manga", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
+    "delete_manga_pipeline_artifact" => args_delete_manga_pipeline_artifact, result_unit, "manga", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "delete_manga_prompt" => args_delete_manga_prompt, result_unit, "manga", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
+    "delete_media_authoring_document" => args_delete_authoring_document, result_unit, "media_authoring", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "delete_object_profile" => args_delete_object_profile, result_object_profile_delete, "profile", effect(DESTRUCTIVE_EFFECT);
     "delete_optimize_session" => args_optimize_session, result_unit, "optimize", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "delete_profile" => args_delete_profile, result_delete_profile, "profile", effect(DESTRUCTIVE_EFFECT);
@@ -223,7 +226,9 @@ command_specs! {
     "list_llm_config" => empty_args_schema, result_list_llm_config, "settings", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_local_embedding_models" => empty_args_schema, result_list_local_embedding_models, "rag", effect(READ_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
     "list_manga_page_prompts" => args_cancel_manga_pipeline, result_list_manga_page_prompts, "manga", context(NO_CONTEXT), effect(READ_EFFECT);
+    "list_manga_pipeline_artifacts" => args_manga_chapter, result_list_manga_pipeline_artifacts, "manga", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_manga_pipeline_statuses" => args_list_manga_pipeline_statuses, result_list_manga_pipeline_statuses, "manga", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow");
+    "preview_delete_manga_pipeline_artifact" => args_preview_delete_manga_pipeline_artifact, result_manga_pipeline_artifact_deletion_preview, "manga", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_model_provider_catalog" => empty_args_schema, result_list_model_provider_catalog, "system", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_my_project_invites" => empty_args_schema, result_list_my_project_invites, "project", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_object_profiles" => args_list_object_profiles, result_list_object_profiles, "profile", effect(READ_EFFECT);
@@ -380,6 +385,7 @@ command_specs! {
     "save_chapter_visual_plan_draft" => args_save_chapter_visual_plan_draft, result_chapter_visual_plan, "chapter", references(REFERENCES_PROJECT_IDS), idempotency("operation_id");
     "save_galgame_story_graph" => args_save_galgame_story_graph, result_save_galgame_story_graph, "galgame", context(PROJECT_CONTEXT);
     "save_media_authoring_document" => args_save_authoring_document, result_authoring_document, "media_authoring", context(NO_CONTEXT);
+    "save_manga_pipeline_artifact" => args_save_manga_pipeline_artifact, result_manga_pipeline_artifact, "manga", context(NO_CONTEXT);
     "save_part_outline" => args_save_part_outline, result_save_part_outline, "outline", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "select_segment_video" => args_select_segment_video, result_generated_video, "video", context(PROJECT_CHAPTER_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "set_default_embedding_config" => args_config_id, result_unit, "settings", identity(ADMIN_IDENTITY), capabilities(CAPABILITIES_EMBEDDING);

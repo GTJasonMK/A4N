@@ -1,6 +1,7 @@
 use super::super::*;
 
 pub(crate) struct StartupConfig {
+    pub(crate) web_addr: SocketAddr,
     pub(crate) control_addr: SocketAddr,
     pub(crate) workers: Vec<WorkerSpec>,
     pub(crate) control_binary: PathBuf,

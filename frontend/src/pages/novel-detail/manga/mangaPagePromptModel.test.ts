@@ -58,7 +58,11 @@ describe("buildPagePrompts", () => {
       },
       page_adaptation: null,
       page_plan: null,
+      reference_discovery: null,
       drawing_prompt: null,
+      stale_stages: [],
+      orphaned: false,
+      system_reference_images: [],
       reference_bindings: [],
       source: {
         adaptation_plan_id: 4,
@@ -125,13 +129,13 @@ describe("buildPagePrompts", () => {
       [failedImagePrompt],
       null,
       labels,
-      "images",
+      "image_creation",
     );
     const [storyboardPage] = buildPagePrompts(
       [failedImagePrompt],
       null,
       labels,
-      "storyboard",
+      "visual_design",
     );
 
     expect(imageStagePage.pipelineStage).toBe("image");

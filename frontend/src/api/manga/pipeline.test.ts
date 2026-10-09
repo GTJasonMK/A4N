@@ -18,7 +18,7 @@ describe("manga pipeline page scope", () => {
   beforeEach(() => mocks.apiInvoke.mockReset().mockResolvedValue({}));
 
   it("sends the selected page when starting a stage pipeline", async () => {
-    await startMangaPipeline(7, 3, "storyboard", null, 2);
+    await startMangaPipeline(7, 3, "storyboard", null, 2, "storyboard");
 
     expect(mocks.apiInvoke).toHaveBeenCalledWith("start_manga_pipeline", {
       input: {
@@ -26,6 +26,7 @@ describe("manga pipeline page scope", () => {
         project_id: 7,
         chapter_number: 3,
         page_number: 2,
+        run_stage: "storyboard",
         stop_after: "storyboard",
         image_size: null,
         resume_from_checkpoint: false,
@@ -50,7 +51,7 @@ describe("manga pipeline page scope", () => {
   });
 
   it("scopes drawing prompt previews to the selected page", async () => {
-    await previewStartMangaPipelineRequest(7, 3, "drawing_prompt", 2);
+    await previewStartMangaPipelineRequest(7, 3, "drawing_prompt", 2, "drawing_prompt");
 
     expect(mocks.apiInvoke).toHaveBeenCalledWith(
       "preview_start_manga_pipeline_request",
@@ -59,6 +60,7 @@ describe("manga pipeline page scope", () => {
           project_id: 7,
           chapter_number: 3,
           page_number: 2,
+          run_stage: "drawing_prompt",
           stop_after: "drawing_prompt",
         },
       },

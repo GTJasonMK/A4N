@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_domain::manga::MangaPagePromptRecord;
+use a4n_domain::manga::{MangaPageContentV1, MangaPagePromptRecord, MangaPipelineArtifactStage};
 use a4n_error::AppError;
 use a4n_progress::ProgressPhaseKind;
 use futures::{StreamExt, stream};
@@ -11,7 +11,7 @@ use super::super::persist::{MangaPipelinePersistInput, pipeline_page_draft};
 use super::contracts::{MangaExtractionRun, MangaRunContext};
 use super::page::{
     MANGA_PAGE_PIPELINE_CONCURRENCY, MangaPagePipelineProgress, manga_page_pipeline_total_steps,
-    prepare_manga_page_work, process_manga_page,
+    persist_page_pipeline_artifact_delta, prepare_manga_page_work, process_manga_page,
 };
 use super::page_slots::MangaPageSlotsRun;
 use crate::manga::validate_manga_page_scope;
@@ -19,9 +19,27 @@ use crate::manga::validate_manga_page_scope;
 pub(super) async fn complete_pipeline(
     context: &MangaRunContext<'_>,
     extraction: MangaExtractionRun,
-    slots_run: MangaPageSlotsRun,
+    mut slots_run: MangaPageSlotsRun,
 ) -> Result<Vec<MangaPagePromptRecord>, AppError> {
     validate_manga_page_scope(context.page_number, context.stop_after)?;
+    let artifacts = context
+        .service
+        .manga_pipeline_artifacts_by_chapter(context.project_id, context.chapter_id)
+        .await?;
+    for slot in &mut slots_run.slots.pages {
+        if let Some(artifact) = artifacts.iter().find(|artifact| {
+            artifact.stage == MangaPipelineArtifactStage::PageContent
+                && artifact.page_number == Some(slot.page_number)
+                && !artifact.stale
+        }) {
+            slot.content = serde_json::from_value::<MangaPageContentV1>(artifact.payload.clone())?;
+            slot.content.validate().map_err(AppError::InvalidArgument)?;
+        }
+    }
+    slots_run
+        .slots
+        .validate()
+        .map_err(AppError::InvalidArgument)?;
     let total_pages = slots_run.slots.pages.len();
     let page_numbers = slots_run
         .slots
@@ -49,7 +67,8 @@ pub(super) async fn complete_pipeline(
         .collect::<HashMap<_, _>>();
 
     let mut works = Vec::with_capacity(total_pages);
-    let mut drafts = Vec::with_capacity(total_pages);
+    let mut drafts = Vec::with_capacity(selected_page_indexes.len());
+    let mut projection_deltas = Vec::with_capacity(selected_page_indexes.len());
     for index in 0..total_pages {
         let existing = existing_by_page
             .get(
@@ -59,45 +78,67 @@ pub(super) async fn complete_pipeline(
             .cloned();
         let existing_layout = existing
             .as_ref()
-            .and_then(|row| manga_page_pipeline_layout(row).ok());
+            .map(manga_page_pipeline_layout)
+            .transpose()
+            .map_err(AppError::InvalidArgument)?;
         let work = prepare_manga_page_work(
             context,
             &slots_run.slots,
             index,
             &extraction_summary,
+            &artifacts,
             existing,
         )?;
-        drafts.push(pipeline_page_draft(
-            &persist,
-            work.slot.page_number,
-            work.pipeline.clone(),
-            Vec::new(),
-            existing_layout.as_ref(),
-        )?);
+        if selected_page_indexes.binary_search(&index).is_ok() {
+            let old_layout = work.row.layout.clone();
+            let draft = pipeline_page_draft(
+                &persist,
+                work.slot.page_number,
+                work.pipeline.clone(),
+                Vec::new(),
+                existing_layout.as_ref(),
+            )?;
+            projection_deltas.push((old_layout, draft.layout.clone()));
+            drafts.push(draft);
+        }
         works.push(work);
     }
     let rows = context
         .service
         .sync_generated_page_prompts(context.project_id, context.chapter_id, drafts)
         .await?;
-    if rows.len() != works.len() {
+    if rows.len() != selected_page_indexes.len() {
         return Err(AppError::InvalidState {
-            current: format!("page_slots={}, saved_rows={}", works.len(), rows.len()),
+            current: format!(
+                "selected_pages={}, saved_rows={}",
+                selected_page_indexes.len(),
+                rows.len()
+            ),
             operation: "同步漫画页面槽位".to_string(),
         });
     }
-    for (work, row) in works.iter_mut().zip(rows) {
-        work.row = row;
+    for ((index, row), (old_layout, new_layout)) in selected_page_indexes
+        .iter()
+        .copied()
+        .zip(rows)
+        .zip(projection_deltas.iter())
+    {
+        persist_page_pipeline_artifact_delta(
+            context,
+            works[index].slot.page_number,
+            old_layout.as_ref(),
+            new_layout.as_ref(),
+            Some(MangaPipelineArtifactStage::PageContent),
+        )
+        .await?;
+        works[index].row = row;
     }
 
     let total_steps =
         manga_page_pipeline_total_steps(selected_page_indexes.len(), context.stop_after)?;
     if matches!(
         context.stop_after,
-        Some(
-            a4n_api_contract::manga::MangaPipelineStopAfter::PageSlots
-                | a4n_api_contract::manga::MangaPipelineStopAfter::PageContent
-        )
+        Some(a4n_api_contract::manga::MangaPipelineStopAfter::PageSlots)
     ) {
         return complete_at_stage(
             context,
@@ -210,10 +251,12 @@ fn completed_page_stage(
         Some(a4n_api_contract::manga::MangaPipelineStopAfter::PageAdaptation) => {
             ("adaptation", format!("{scope}页面改编计划已完成"))
         }
-        Some(
-            a4n_api_contract::manga::MangaPipelineStopAfter::Storyboard
-            | a4n_api_contract::manga::MangaPipelineStopAfter::PagePlanning,
-        ) => ("storyboard", format!("{scope}分镜已完成")),
+        Some(a4n_api_contract::manga::MangaPipelineStopAfter::Storyboard) => {
+            ("storyboard", format!("{scope}分镜已完成"))
+        }
+        Some(a4n_api_contract::manga::MangaPipelineStopAfter::ReferenceDiscovery) => {
+            ("reference_discovery", format!("{scope}参考图发现已完成"))
+        }
         Some(a4n_api_contract::manga::MangaPipelineStopAfter::DrawingPrompt) => {
             ("drawing_prompt", format!("{scope}整页提示词已完成"))
         }

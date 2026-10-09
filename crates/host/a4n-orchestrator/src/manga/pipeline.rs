@@ -6,13 +6,13 @@ pub(super) mod run {
     mod completion;
     mod contracts;
     mod drawing_prompt;
-    mod early_extraction;
-    mod late_extraction;
     mod page;
     mod page_slots;
+    mod preprocessing;
     mod pipeline {
         mod execution;
     }
     mod progress;
+    mod single_stage;
 }
 pub(super) mod state;

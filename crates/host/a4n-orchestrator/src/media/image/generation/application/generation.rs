@@ -511,7 +511,15 @@ impl OrchestratorContext {
         let layout = ensure_manga_page_panels_match_current_source(&page_prompt, &chapter.content)?;
         let panel_id = format!("page{}", input.page_number);
         let reference_bindings = layout.reference_bindings;
-        let reference_images = collect_bound_reference_images(host, &reference_bindings)?;
+        let system_reference_images = layout
+            .pipeline
+            .reference_discovery
+            .map_or_else(Vec::new, |discovery| discovery.references);
+        let reference_images = collect_bound_reference_images(
+            host,
+            &system_reference_images,
+            &reference_bindings,
+        )?;
         let reference_image_count = reference_images.len();
         let config = host.resolve_image_config(None).await?;
         let supported_sizes = image_sizes_from_json(&config.supported_sizes_json)?;
@@ -550,6 +558,7 @@ impl OrchestratorContext {
             "page_prompt_id": page_prompt.id,
             "generation_mode": "direct_page",
             "reference_bindings": reference_bindings,
+            "system_reference_images": system_reference_images,
             "reference_image_count": reference_image_count,
             "reference_image_mode": reference_image_mode,
             "source": image_source_metadata(&chapter.content),

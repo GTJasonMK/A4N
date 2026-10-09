@@ -150,6 +150,7 @@ pub(in crate::project::family_package::tests) fn package_with_part_outlines(
         character_portraits: Vec::new(),
         generated_images: Vec::new(),
         chapter_manga_prompts: Vec::new(),
+        manga_pipeline_artifacts: Vec::new(),
         chapter_video_prompts: Vec::new(),
         generated_videos: Vec::new(),
         generation_specs: Vec::new(),

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { Pencil, Save, Trash2, X } from "lucide-react";
 import {
   adoptMediaAuthoringDocument, generateMediaAdaptationPlan,
-  previewMediaAdaptationPlanRequest, saveMediaAuthoringDocument,
+  deleteMediaAuthoringDocument, previewMediaAdaptationPlanRequest, saveMediaAuthoringDocument,
   type AdaptationPlanV1, type AuthoringDocumentKind, type AuthoringDocumentRecord,
   type GalgameBranchDesign, type MediaAuthoringWorkspace,
 } from "../../api/mediaAuthoring";
@@ -12,17 +13,19 @@ import type { ModelRequestPreview } from "../../api/requestPreview";
 import { BookButton } from "../../components/ui/BookButton";
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { confirmDiscardMediaChanges } from "../../components/feedback/UnsavedChangesGuard";
+import { promptDialog } from "../../components/feedback/PromptDialog";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { useToast } from "../../components/feedback/Toast";
 import { useProgressTask } from "../../hooks/useProgressTask";
 import { useI18n } from "../../i18n";
 import { useDirty } from "../../components/navigation/dirtyRegistry";
-import { AdaptationPlanEditor, newAdaptationUnit, PlanTextField } from "./AdaptationPlanEditor";
+import { AdaptationPlanEditor, AdaptationPlanView, isValidMangaPageCount, newAdaptationUnit } from "./AdaptationPlanEditor";
 import { GalgameBranchPlanEditor } from "./MediaPlanEditors";
 
 type PlanDocument = AdaptationPlanV1 | GalgameBranchDesign;
-type BusyAction = "generate" | "preview" | "save" | "adopt";
+type BusyAction = "generate" | "preview" | "save" | "adopt" | "delete";
 
 interface Props {
   projectId: number;
@@ -33,27 +36,28 @@ interface Props {
   chapterId?: number | null;
   canEdit: boolean;
   stageRunning?: boolean;
+  preconditionError?: string | null;
   onReload: () => Promise<void>;
   onGenerateStage?: () => Promise<void>;
   onDirtyChange: (dirty: boolean) => void;
   onBusyChange?: (busy: boolean) => void;
-  onNext?: () => void;
 }
 
-export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error, chapterId: fixedChapterId, canEdit, stageRunning = false, onReload, onGenerateStage, onDirtyChange, onBusyChange, onNext }: Props) {
+export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error, chapterId: fixedChapterId, canEdit, stageRunning = false, preconditionError = null, onReload, onGenerateStage, onDirtyChange, onBusyChange }: Props) {
   const { t } = useI18n();
   const addToast = useToast((state) => state.addToast);
   const { runProgressTask } = useProgressTask();
   const [selectedChapterId, setSelectedChapterId] = useState<number | null>(null);
   const [editor, setEditor] = useState<{ record: AuthoringDocumentRecord | null; document: PlanDocument; baseline: string } | null>(null);
+  const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [busyAction, setBusyAction] = useState<BusyAction | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [instruction, setInstruction] = useState("");
-  const [submittedInstruction, setSubmittedInstruction] = useState("");
   const [preview, setPreview] = useState<ModelRequestPreview | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const busyRef = useRef(false);
+  const editingRef = useRef(editing);
+  editingRef.current = editing;
   const sourceChapterId = fixedChapterId !== undefined
     ? fixedChapterId
     : selectedChapterId ?? workspace?.chapters[0]?.source.source_chapter_id ?? null;
@@ -69,10 +73,10 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
     ?? versions.find(({ record }) => record.source_snapshot_id === workspace?.source_snapshot_id && record.status === "adopted");
   const selected = current;
   const dirty = editor != null && JSON.stringify(editor.document) !== editor.baseline;
-  const generationOptionsDirty = kind === "adaptation_plan" && (
-    instruction.trim() !== submittedInstruction.trim()
-  );
-  const draftDirty = dirty || generationOptionsDirty;
+  const isAdaptationPlan = kind === "adaptation_plan";
+  const adaptationDocument = editor?.document as AdaptationPlanV1 | undefined;
+  const pageCountValid = !isAdaptationPlan || workspace?.target !== "manga"
+    || isValidMangaPageCount(adaptationDocument?.page_count);
   const disabled = !canEdit || busy || stageRunning;
   const title = kind === "adaptation_plan"
     ? t("common.mediaAuthoring.adaptation")
@@ -81,35 +85,32 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
   const discard = () => {
     if (busy) return false;
     setEditor(null);
-    setInstruction(submittedInstruction);
+    setEditing(false);
     onDirtyChange(false);
     return true;
   };
-  useDirty(dirtyKey, draftDirty || busy, discard, () => !busy);
-  useEffect(() => { onDirtyChange(draftDirty || busy); }, [draftDirty, busy, onDirtyChange]);
+  useDirty(dirtyKey, dirty || busy, discard, () => !busy);
+  useEffect(() => { onDirtyChange(dirty || busy); }, [dirty, busy, onDirtyChange]);
   useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
   useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
   useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
   useEffect(() => {
     setEditor(null);
+    setEditing(false);
     setActionError(null);
     busyRef.current = false;
     setBusy(false);
     setBusyAction(null);
-    setSubmittedInstruction("");
-    setInstruction("");
   }, [scope]);
   useEffect(() => {
-    if (dirty) return;
+    if (dirty || editingRef.current) return;
     if (!selected) { setEditor(null); return; }
     setEditor({ record: selected.record, document: selected.record.document as PlanDocument, baseline: JSON.stringify(selected.record.document) });
-    // A background refresh must never overwrite an unsaved editor.
+    // Background refreshes must never overwrite an active or unsaved editor.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope, selected?.record.id, selected?.record.revision, selected?.record.status]);
   const confirmDiscardDrafts = async () => {
-    if (!await confirmDiscardMediaChanges(draftDirty, t)) return false;
-    setInstruction(submittedInstruction);
-    return true;
+    return confirmDiscardMediaChanges(dirty, t);
   };
   const commitEditor = (record: AuthoringDocumentRecord) => {
     if (scopeRef.current !== scope) return;
@@ -152,6 +153,9 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
   };
   const save = async () => {
     if (!editor) throw new Error(t("common.mediaAuthoring.noPlan"));
+    if (isAdaptationPlan && workspace?.target === "manga" && !pageCountValid) {
+      throw new Error(t("common.mediaAuthoring.pageCountRequired"));
+    }
     const requestScope = scope;
     const saved = await saveMediaAuthoringDocument({ project_id: projectId, chapter_id: chapterId, kind,
       record_id: editor.record?.id ?? null, expected_revision: editor.record?.revision ?? null, document: editor.document });
@@ -168,7 +172,56 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
     commitEditor(adopted);
     await reloadAfterWrite(requestScope);
   };
-  const generationInput = (): GenerateAdaptationPlanInput => {
+  const saveAndAdopt = async () => {
+    const requestScope = scope;
+    const saved = dirty || !editor?.record ? await save() : editor.record;
+    if (scopeRef.current !== requestScope) return;
+    const adopted = saved.status === "adopted"
+      ? saved
+      : await adoptMediaAuthoringDocument({ project_id: projectId, record_id: saved.id, expected_revision: saved.revision });
+    if (scopeRef.current !== requestScope) return;
+    commitEditor(adopted);
+    setEditing(false);
+    await reloadAfterWrite(requestScope);
+  };
+  const enterEdit = () => {
+    if (!editor || disabled || selected?.stale) return;
+    setEditing(true);
+  };
+  const cancelEdit = async () => {
+    if (!editor || !editing || busy) return;
+    const requestScope = scope;
+    if (!await confirmDiscardMediaChanges(dirty, t) || scopeRef.current !== requestScope) return;
+    setEditor(selected
+      ? { record: selected.record, document: selected.record.document as PlanDocument, baseline: JSON.stringify(selected.record.document) }
+      : null);
+    setEditing(false);
+    onDirtyChange(false);
+  };
+  const remove = async () => {
+    if (!isAdaptationPlan || !editor?.record) return;
+    const requestScope = scope;
+    const confirmed = await confirmDialog({
+      title: t("common.mediaAuthoring.deleteTitle"),
+      message: t("common.mediaAuthoring.deleteMessage"),
+      confirmText: t("common.delete"),
+      dialogType: "danger",
+    });
+    if (!confirmed || scopeRef.current !== requestScope) return;
+    await deleteMediaAuthoringDocument({
+      project_id: projectId,
+      record_id: editor.record.id,
+      kind,
+      expected_revision: editor.record.revision,
+    });
+    if (scopeRef.current !== requestScope) return;
+    setEditor(null);
+    setEditing(false);
+    onDirtyChange(false);
+    addToast(t("common.mediaAuthoring.deleted"), "success");
+    await reloadAfterWrite(requestScope);
+  };
+  const generationInput = (instruction: string): GenerateAdaptationPlanInput => {
     if (!sourceChapterId) throw new Error(t("common.mediaAuthoring.chooseChapter"));
     return {
       project_id: projectId, chapter_id: sourceChapterId, task_id: `media-adaptation-${projectId}-${crypto.randomUUID()}`,
@@ -177,6 +230,29 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
       clear_video_reference: true, record_id: editor?.record?.id ?? null,
       expected_revision: editor?.record?.revision ?? null, resume_from_checkpoint: true,
     };
+  };
+  const requestGenerationInstruction = () => promptDialog({
+    title: t("common.mediaAuthoring.instruction"),
+    placeholder: t("common.mediaAuthoring.defaultInstruction"),
+    multiline: true,
+  });
+  const createManualPlan = async () => {
+    if (kind === "galgame_branch_plan") {
+      setEditor({ record: null, document: { choices: [] }, baseline: "" });
+      return;
+    }
+    const target = workspace?.target;
+    if (!target || !sourceChapterId) return;
+    const document = {
+      schema_version: "adaptation_plan_v1" as const,
+      target,
+      page_count: null,
+      intention: t("common.mediaAuthoring.defaultInstruction"),
+      decisions: [],
+      units: [newAdaptationUnit()],
+    };
+    setEditor({ record: null, document, baseline: "" });
+    setEditing(true);
   };
   const generate = async () => {
     if (!await confirmDiscardMediaChanges(dirty, t)) return;
@@ -188,60 +264,79 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
       if (scopeRef.current !== requestScope) return;
       return;
     }
-    const input = generationInput();
+    const requestedInstruction = await requestGenerationInstruction();
+    if (requestedInstruction == null || scopeRef.current !== requestScope) return;
+    const input = generationInput(requestedInstruction);
     const result = await runProgressTask({ title, startMessage: t("common.mediaAuthoring.generating"), successMessage: t("common.mediaAuthoring.draftSaved"), errorMessage: t("common.mediaAuthoring.generationFailed"), total: 1, streaming: true,
       cancelTaskId: input.task_id, cancelTask: cancelWorkflowTask, pollTaskProgress: true,
     }, () => generateMediaAdaptationPlan(input));
     if (scopeRef.current === requestScope) {
-      setSubmittedInstruction(instruction);
       commitEditor(result);
+      setEditing(false);
     }
     await reloadAfterWrite(requestScope);
   };
 
   return <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-1 custom-scrollbar">
-    <header className="flex flex-wrap items-start gap-3 border-b border-book-border/60 pb-3">
-      <div className="min-w-0 flex-1 basis-64"><h2 className="text-base font-semibold">{title}</h2>
-        {chapter && kind !== "galgame_branch_plan" && <p className="mt-1 text-xs font-medium text-book-text-sub">{t("writing.chapterLabel", { number: chapter.chapter_number })}{chapter.title ? ` · ${chapter.title}` : ""}</p>}
+    <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-book-border/60 pb-3">
+      <div className="flex min-w-0 flex-1 basis-48 flex-wrap items-baseline gap-x-2 gap-y-1">
+        <h2 className="text-base font-semibold">{title}</h2>
+        {chapter && kind !== "galgame_branch_plan" && <span className="min-w-0 break-words text-xs font-medium text-book-text-sub">{t("writing.chapterLabel", { number: chapter.chapter_number })}{chapter.title ? ` · ${chapter.title}` : ""}</span>}
       </div>
-      <div className="flex flex-wrap items-end gap-2">
-        {kind !== "galgame_branch_plan" && fixedChapterId === undefined && <label className="grid gap-1 text-xs text-book-text-sub"><span>{t("common.mediaAuthoring.chooseChapter")}</span>
-          <ThemedSelect aria-label={t("common.mediaAuthoring.chooseChapter")} className="max-w-full" value={sourceChapterId ?? ""} disabled={busy || stageRunning} onChange={(value) => { const next = Number(value); void (async () => { if (await confirmDiscardDrafts()) { setEditor(null); onDirtyChange(false); setSelectedChapterId(next); } })(); }}>
+      {dirty && <span className="text-xs text-book-text-muted" role="status">{t("common.unsavedChangesTitle")}</span>}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {kind !== "galgame_branch_plan" && fixedChapterId === undefined && <label className="flex items-center gap-2 text-xs text-book-text-sub">
+          <span>{t("common.mediaAuthoring.chooseChapter")}</span>
+          <ThemedSelect aria-label={t("common.mediaAuthoring.chooseChapter")} className="max-w-full" value={sourceChapterId ?? ""} disabled={busy || stageRunning} onChange={(value) => { const next = Number(value); void (async () => { if (await confirmDiscardDrafts()) { setEditor(null); setEditing(false); onDirtyChange(false); setSelectedChapterId(next); } })(); }}>
             {workspace?.chapters.map((item) => <option key={item.source.source_chapter_id} value={item.source.source_chapter_id}>{item.chapter_number} · {item.title}</option>)}
           </ThemedSelect>
         </label>}
         <BookButton variant="ghost" size="sm" disabled={loading || busy} onClick={() => void onReload().catch(() => {})}>{t("common.refresh")}</BookButton>
+        {canEdit && <>
+          {(!isAdaptationPlan || !editing) && <>
+            <BookButton size="sm" variant={editor ? "secondary" : "primary"} disabled={disabled || !!preconditionError || !workspace || (kind !== "galgame_branch_plan" && !chapter)} onClick={() => void run("generate", generate)}>{busyAction === "generate" || stageRunning ? <LoadingSpinner size="sm" /> : null}{editor ? t("common.mediaAuthoring.regeneratePlan") : t("common.mediaAuthoring.generatePlan")}</BookButton>
+            {isAdaptationPlan && <BookButton size="sm" variant="ghost" disabled={disabled || !!preconditionError || !chapter} onClick={() => void run("preview", async () => {
+              const requestScope = scope;
+              const instruction = await requestGenerationInstruction();
+              if (instruction == null || scopeRef.current !== requestScope) return;
+              const value = await previewMediaAdaptationPlanRequest(generationInput(instruction));
+              if (scopeRef.current !== requestScope) return;
+              setPreview(value);
+              setPreviewOpen(true);
+            })}>{busyAction === "preview" ? <LoadingSpinner size="sm" /> : null}{t("common.mediaAuthoring.previewRequest")}</BookButton>}
+            {!editor && <BookButton size="sm" variant="secondary" disabled={disabled || !!preconditionError || !workspace || (isAdaptationPlan && !chapter)} onClick={() => void createManualPlan()}>{t("common.mediaAuthoring.manualPlan")}</BookButton>}
+          </>}
+          {isAdaptationPlan && editor && !editing && <BookButton size="sm" onClick={enterEdit} disabled={disabled || selected?.stale}><Pencil size={13} />{t("shootingScript.edit")}</BookButton>}
+          {isAdaptationPlan && editor && editing && <>
+            <BookButton size="sm" variant="ghost" onClick={() => void cancelEdit()} disabled={disabled}><X size={13} />{t("shootingScript.cancelEdit")}</BookButton>
+            <BookButton size="sm" onClick={() => void run("save", saveAndAdopt)} disabled={disabled || selected?.stale || !pageCountValid || (!dirty && editor.record?.status === "adopted")}>
+              {busyAction === "save" ? <LoadingSpinner size="sm" /> : <Save size={13} />}{busyAction === "save" ? t("shootingScript.saving") : t("common.mediaAuthoring.saveDraft")}
+            </BookButton>
+          </>}
+          {isAdaptationPlan && editor?.record && <BookButton size="sm" variant="danger" onClick={() => void run("delete", remove)} disabled={disabled}>
+            {busyAction === "delete" ? <LoadingSpinner size="sm" /> : <Trash2 size={13} />}{t("common.delete")}
+          </BookButton>}
+          {!isAdaptationPlan && editor && <BookButton size="sm" variant="secondary" disabled={disabled || !dirty || selected?.stale} onClick={() => void run("save", async () => { await save(); })}>{busyAction === "save" ? <LoadingSpinner size="sm" /> : null}{t("common.mediaAuthoring.saveDraft")}</BookButton>}
+          {!isAdaptationPlan && editor && <BookButton size="sm" disabled={disabled || selected?.stale || (!dirty && editor.record?.status === "adopted")} onClick={() => void run("adopt", adopt)}>{busyAction === "adopt" ? <LoadingSpinner size="sm" /> : null}{t("common.mediaAuthoring.adopt")}</BookButton>}
+        </>}
       </div>
     </header>
     {error || actionError ? <p role="alert" className="text-sm text-error">{actionError || error}</p> : null}
+    {preconditionError ? <p role="status" className="text-sm text-warning">{preconditionError}</p> : null}
     {selected?.stale && <p role="status" className="text-xs text-warning">{t("common.mediaAuthoring.stale")}</p>}
-    <div className="flex flex-wrap items-center gap-2 border-b border-book-border/60 pb-3">
-      <span className="mr-auto text-xs text-book-text-muted" role="status">
-        {dirty ? t("common.unsavedChangesTitle") : editor?.record?.status === "adopted" ? t("common.mediaAuthoring.adopted") : editor?.record ? t("common.mediaAuthoring.draftSaved") : ""}
-      </span>
-      {canEdit && <>
-        <BookButton size="sm" variant={editor ? "secondary" : "primary"} disabled={disabled || !workspace || (kind !== "galgame_branch_plan" && !chapter)} onClick={() => void run("generate", generate)}>{busyAction === "generate" || stageRunning ? <LoadingSpinner size="sm" /> : null}{editor ? t("common.mediaAuthoring.regeneratePlan") : t("common.mediaAuthoring.generatePlan")}</BookButton>
-        {kind === "adaptation_plan" && <BookButton size="sm" variant="ghost" disabled={disabled || !chapter} onClick={() => void run("preview", async () => { const value = await previewMediaAdaptationPlanRequest(generationInput()); setPreview(value); setPreviewOpen(true); })}>{busyAction === "preview" ? <LoadingSpinner size="sm" /> : null}{t("common.mediaAuthoring.previewRequest")}</BookButton>}
-        {!editor && <BookButton size="sm" variant="secondary" disabled={disabled || !workspace} onClick={() => {
-          const document = kind === "galgame_branch_plan" ? { choices: [] } : { schema_version: "adaptation_plan_v1" as const, target: workspace!.target, intention: "", decisions: [], units: [newAdaptationUnit()] };
-          setEditor({ record: null, document, baseline: "" });
-        }}>{t("common.mediaAuthoring.manualPlan")}</BookButton>}
-        {editor && <BookButton size="sm" variant="secondary" disabled={disabled || !dirty || selected?.stale} onClick={() => void run("save", async () => { await save(); })}>{busyAction === "save" ? <LoadingSpinner size="sm" /> : null}{t("common.mediaAuthoring.saveDraft")}</BookButton>}
-        {editor && <BookButton size="sm" disabled={disabled || selected?.stale || (!dirty && editor.record?.status === "adopted")} onClick={() => void run("adopt", adopt)}>{busyAction === "adopt" ? <LoadingSpinner size="sm" /> : null}{t("common.mediaAuthoring.adopt")}</BookButton>}
-        {editor && onNext && <BookButton size="sm" variant="secondary" disabled={disabled || dirty || editor.record?.status !== "adopted" || selected?.stale} onClick={() => { void (async () => { if (await confirmDiscardDrafts()) { onDirtyChange(false); onNext(); } })(); }}>{t("common.mediaAuthoring.nextStage")}</BookButton>}
-      </>}
-    </div>
-    {kind === "adaptation_plan" && <section className="border-b border-book-border/60 pb-3">
-      <h3 className="text-sm font-medium">{t("common.mediaAuthoring.generationOptions")}</h3>
-      <div className="mt-3">
-        <PlanTextField label={t("common.mediaAuthoring.instruction")} value={instruction} onChange={setInstruction} />
-      </div>
-    </section>}
-    {loading && !workspace ? <LoadingSpinner size="sm" /> : editor && workspace ? <fieldset disabled={disabled || selected?.stale} className="min-w-0 space-y-3 disabled:opacity-70">
-      <legend className="sr-only">{title}</legend>
-      {kind === "adaptation_plan" && chapter ? <AdaptationPlanEditor value={editor.document as AdaptationPlanV1} chapter={chapter} onChange={(document) => setEditor({ ...editor, document })} />
-        : <GalgameBranchPlanEditor value={editor.document as GalgameBranchDesign} workspace={workspace} onChange={(document) => setEditor({ ...editor, document })} />}
-    </fieldset> : <p className="py-6 text-sm text-book-text-muted">{t("common.mediaAuthoring.noPlan")}</p>}
+    {loading && !workspace ? <LoadingSpinner size="sm" /> : editor && workspace ? isAdaptationPlan
+      ? chapter ? editing
+        ? <fieldset disabled={disabled || selected?.stale} className="min-w-0 space-y-3">
+            <legend className="sr-only">{title}</legend>
+            <AdaptationPlanEditor value={editor.document as AdaptationPlanV1} chapter={chapter} onChange={(document) => setEditor({ ...editor, document })} />
+          </fieldset>
+        : <AdaptationPlanView value={editor.document as AdaptationPlanV1} chapter={chapter} />
+        : <p className="py-6 text-sm text-book-text-muted">{t("common.mediaAuthoring.chooseChapter")}</p>
+      : <fieldset disabled={disabled || selected?.stale} className="min-w-0 space-y-3 disabled:opacity-70">
+          <legend className="sr-only">{title}</legend>
+          <GalgameBranchPlanEditor value={editor.document as GalgameBranchDesign} workspace={workspace} onChange={(document) => setEditor({ ...editor, document })} />
+        </fieldset>
+      : <p className="py-6 text-sm text-book-text-muted">{t("common.mediaAuthoring.noPlan")}</p>}
     <RequestPreviewModal open={previewOpen} loading={false} data={preview} fallbackTitle={t("common.mediaAuthoring.previewRequest")} onClose={() => setPreviewOpen(false)} />
   </div>;
 }

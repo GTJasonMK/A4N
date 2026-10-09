@@ -3,100 +3,168 @@ import {
   mangaImageStatusMatchesWorkspaceStage,
   mangaPipelineStageMatchesWorkspaceStage,
   mangaPageNumberForPipelineStage,
-  mangaPagePreviewActionForStage,
   mangaPageStageHasOutput,
   mangaPageStageNeedsGeneration,
+  mangaPipelineActionIsReady,
+  mangaPipelineActionsForWorkspaceStage,
+  mangaPipelineTargetForWorkspaceStage,
   mangaStageAllowsReferenceBinding,
-  mangaStopAfterForStage,
 } from "./mangaTabUtils";
 
-describe("manga pipeline workspace stages", () => {
-  it("maps each visible page stage to its backend stop point", () => {
-    expect(mangaStopAfterForStage("page_plan")).toBe("page_slots");
-    expect(mangaStopAfterForStage("page_adaptation")).toBe("page_adaptation");
-    expect(mangaStopAfterForStage("storyboard")).toBe("storyboard");
-    expect(mangaStopAfterForStage("prompts")).toBe("drawing_prompt");
-    expect(mangaStopAfterForStage("images")).toBe("image");
+describe("manga pipeline workspace groups", () => {
+  const emptyPage: Parameters<typeof mangaPageStageNeedsGeneration>[0] = {
+    page_content: null,
+    page_adaptation: null,
+    page_plan: null,
+    reference_discovery: null,
+    drawing_prompt: null,
+    stale_stages: [],
+    generated_image_id: null,
+    pipeline_error: null,
+    pipeline_stage: null,
+    pipeline_status: null,
+  };
+
+  it("runs page planning through page adaptation without selecting one page", () => {
+    expect(mangaPipelineTargetForWorkspaceStage("page_planning")).toEqual({
+      runStage: null,
+      stopAfter: "page_adaptation",
+    });
+    expect(mangaPageNumberForPipelineStage("page_planning", 2)).toBeNull();
+    expect(mangaPageStageNeedsGeneration(emptyPage, "page_planning")).toBe(true);
   });
 
-  it("previews prompt requests in the prompt stage and image requests in the image stage", () => {
-    expect(mangaPagePreviewActionForStage("prompts")).toBe("prompt_request");
-    expect(mangaPagePreviewActionForStage("images")).toBe("image_request");
-    expect(mangaPagePreviewActionForStage(undefined)).toBe("image_request");
-    expect(mangaPagePreviewActionForStage("storyboard")).toBeNull();
-    expect(mangaPagePreviewActionForStage("page_plan")).toBeNull();
-    expect(mangaPagePreviewActionForStage("page_adaptation")).toBeNull();
+  it("exposes separate visual design actions with explicit prerequisites", () => {
+    expect(mangaPipelineActionsForWorkspaceStage("visual_design")).toEqual([
+      { runStage: "storyboard", stopAfter: "storyboard", prerequisite: "page_adaptation" },
+      { runStage: "reference_discovery", stopAfter: "reference_discovery", prerequisite: "storyboard" },
+    ]);
+    expect(mangaPipelineActionsForWorkspaceStage("image_creation")).toEqual([
+      { runStage: "drawing_prompt", stopAfter: "drawing_prompt", prerequisite: "reference_discovery" },
+      { runStage: "image", stopAfter: "image", prerequisite: "drawing_prompt" },
+    ]);
+    expect(mangaPipelineActionsForWorkspaceStage("page_planning")).toEqual([]);
   });
 
-  it("scopes per-page stages to the selected page and keeps pagination chapter-wide", () => {
-    expect(mangaPageNumberForPipelineStage("page_plan", 2)).toBeNull();
-    expect(mangaPageNumberForPipelineStage("page_adaptation", 2)).toBe(2);
-    expect(mangaPageNumberForPipelineStage("storyboard", 2)).toBe(2);
-    expect(mangaPageNumberForPipelineStage("prompts", 2)).toBe(2);
-    expect(mangaPageNumberForPipelineStage(undefined, 2)).toBeNull();
-  });
-
-  it("allows reference binding in prompt and image stages", () => {
-    expect(mangaStageAllowsReferenceBinding(undefined)).toBe(true);
-    expect(mangaStageAllowsReferenceBinding("prompts")).toBe(true);
-    expect(mangaStageAllowsReferenceBinding("images")).toBe(true);
-    expect(mangaStageAllowsReferenceBinding("page_plan")).toBe(false);
-    expect(mangaStageAllowsReferenceBinding("page_adaptation")).toBe(false);
-    expect(mangaStageAllowsReferenceBinding("storyboard")).toBe(false);
-  });
-
-  it("keeps a pipeline error in the workspace stage that produced it", () => {
-    expect(mangaPipelineStageMatchesWorkspaceStage("images", "image")).toBe(true);
-    expect(mangaPipelineStageMatchesWorkspaceStage("storyboard", "image")).toBe(false);
-    expect(mangaPipelineStageMatchesWorkspaceStage("page_plan", "page_content")).toBe(true);
-    expect(mangaPipelineStageMatchesWorkspaceStage("page_plan", "image")).toBe(false);
-    expect(mangaPipelineStageMatchesWorkspaceStage("adaptation", "adaptation")).toBe(false);
-    expect(mangaPipelineStageMatchesWorkspaceStage("page_adaptation", "adaptation")).toBe(true);
-    expect(mangaPipelineStageMatchesWorkspaceStage(undefined, "image")).toBe(true);
-    expect(mangaPipelineStageMatchesWorkspaceStage("storyboard", null)).toBe(false);
-  });
-
-  it("shows image-generation status only in the image stage or combined workspace", () => {
-    expect(mangaImageStatusMatchesWorkspaceStage("images")).toBe(true);
-    expect(mangaImageStatusMatchesWorkspaceStage("storyboard")).toBe(false);
-    expect(mangaImageStatusMatchesWorkspaceStage("materials")).toBe(false);
-    expect(mangaImageStatusMatchesWorkspaceStage(undefined)).toBe(true);
-  });
-
-  it("offers generation when the selected stage output is missing", () => {
-    const emptyPage: Parameters<typeof mangaPageStageNeedsGeneration>[0] = {
-      page_content: null,
-      page_adaptation: null,
-      page_plan: null,
-      drawing_prompt: null,
-      generated_image_id: null,
-      pipeline_error: null,
-      pipeline_stage: null,
-      pipeline_status: null,
-    };
-
-    expect(mangaPageStageHasOutput(emptyPage, "storyboard")).toBe(false);
-    expect(mangaPageStageNeedsGeneration(emptyPage, "storyboard")).toBe(true);
-
-    const completedStoryboard = {
+  it("keeps visual design actions independent", () => {
+    expect(mangaPipelineTargetForWorkspaceStage("visual_design", emptyPage)).toEqual({
+      runStage: "storyboard",
+      stopAfter: "storyboard",
+    });
+    expect(mangaPipelineTargetForWorkspaceStage("visual_design", {
       ...emptyPage,
       page_plan: {} as NonNullable<typeof emptyPage.page_plan>,
-    };
-    expect(mangaPageStageHasOutput(completedStoryboard, "storyboard")).toBe(true);
-    expect(mangaPageStageNeedsGeneration(completedStoryboard, "storyboard")).toBe(false);
+    })).toEqual({
+      runStage: "reference_discovery",
+      stopAfter: "reference_discovery",
+    });
+    expect(mangaPipelineTargetForWorkspaceStage("visual_design", {
+      ...emptyPage,
+      page_plan: {} as NonNullable<typeof emptyPage.page_plan>,
+    }, true)).toEqual({
+      runStage: "storyboard",
+      stopAfter: "storyboard",
+    });
+    expect(mangaStageAllowsReferenceBinding(undefined)).toBe(true);
+    expect(mangaStageAllowsReferenceBinding("visual_design")).toBe(true);
+    expect(mangaStageAllowsReferenceBinding("image_creation")).toBe(false);
+    expect(mangaPageNumberForPipelineStage("visual_design", 2)).toBe(2);
+    const [storyboardAction, referenceDiscoveryAction] =
+      mangaPipelineActionsForWorkspaceStage("visual_design");
+    expect(mangaPipelineActionIsReady(storyboardAction, {
+      ...emptyPage,
+      page_adaptation: {} as NonNullable<typeof emptyPage.page_adaptation>,
+    })).toBe(true);
+    expect(mangaPipelineActionIsReady(referenceDiscoveryAction, emptyPage)).toBe(false);
+    expect(mangaPipelineActionIsReady(referenceDiscoveryAction, {
+      ...emptyPage,
+      page_plan: {} as NonNullable<typeof emptyPage.page_plan>,
+      stale_stages: ["storyboard"],
+    })).toBe(false);
+    expect(mangaPipelineActionIsReady(referenceDiscoveryAction, {
+      ...emptyPage,
+      page_plan: {} as NonNullable<typeof emptyPage.page_plan>,
+    })).toBe(true);
+    expect(mangaPipelineActionIsReady(storyboardAction, {
+      ...emptyPage,
+      page_adaptation: {} as NonNullable<typeof emptyPage.page_adaptation>,
+      stale_stages: ["page_adaptation"],
+    })).toBe(false);
+  });
 
-    const failedImage = {
-      ...completedStoryboard,
-      pipeline_error: {
-        stage: "image",
-        code: "page_stage_failed",
-        message: "image generation failed",
-        retryable: true,
-      },
-      pipeline_stage: "image",
-      pipeline_status: "failed",
-    } satisfies Parameters<typeof mangaPageStageNeedsGeneration>[0];
-    expect(mangaPageStageNeedsGeneration(failedImage, "storyboard")).toBe(false);
-    expect(mangaPageStageNeedsGeneration(failedImage, "images")).toBe(true);
+  it("gates prompt and image actions on their own completed predecessor", () => {
+    const [drawingPromptAction, imageAction] =
+      mangaPipelineActionsForWorkspaceStage("image_creation");
+    expect(mangaPipelineActionIsReady(drawingPromptAction, {
+      ...emptyPage,
+      reference_discovery: {} as NonNullable<typeof emptyPage.reference_discovery>,
+    })).toBe(true);
+    expect(mangaPipelineActionIsReady(drawingPromptAction, {
+      ...emptyPage,
+      reference_discovery: {} as NonNullable<typeof emptyPage.reference_discovery>,
+      stale_stages: ["reference_discovery"],
+    })).toBe(false);
+    expect(mangaPipelineActionIsReady(imageAction, {
+      ...emptyPage,
+      drawing_prompt: {} as NonNullable<typeof emptyPage.drawing_prompt>,
+    })).toBe(true);
+    expect(mangaPipelineActionIsReady(imageAction, emptyPage)).toBe(false);
+  });
+
+  it("advances image creation from prompt to generated image", () => {
+    expect(mangaPipelineTargetForWorkspaceStage("image_creation", emptyPage)).toEqual({
+      runStage: "drawing_prompt",
+      stopAfter: "drawing_prompt",
+    });
+    expect(mangaPipelineTargetForWorkspaceStage("image_creation", {
+      ...emptyPage,
+      drawing_prompt: {} as NonNullable<typeof emptyPage.drawing_prompt>,
+    })).toEqual({
+      runStage: "image",
+      stopAfter: "image",
+    });
+    expect(mangaPipelineTargetForWorkspaceStage("image_creation", {
+      ...emptyPage,
+      drawing_prompt: {} as NonNullable<typeof emptyPage.drawing_prompt>,
+    }, true)).toEqual({
+      runStage: "drawing_prompt",
+      stopAfter: "drawing_prompt",
+    });
+    expect(mangaImageStatusMatchesWorkspaceStage("image_creation")).toBe(true);
+    expect(mangaImageStatusMatchesWorkspaceStage("visual_design")).toBe(false);
+  });
+
+  it("maps failures and stale outputs to their owning workspace group", () => {
+    const completePlanning = {
+      ...emptyPage,
+      page_content: {} as NonNullable<typeof emptyPage.page_content>,
+      page_adaptation: {} as NonNullable<typeof emptyPage.page_adaptation>,
+    };
+    const completeVisualDesign = {
+      ...completePlanning,
+      page_plan: {} as NonNullable<typeof emptyPage.page_plan>,
+      reference_discovery: {} as NonNullable<typeof emptyPage.reference_discovery>,
+    };
+    const completeImageCreation = {
+      ...completeVisualDesign,
+      drawing_prompt: {} as NonNullable<typeof emptyPage.drawing_prompt>,
+      generated_image_id: 42,
+    };
+
+    expect(mangaPageStageHasOutput(completePlanning, "page_planning")).toBe(true);
+    expect(mangaPageStageHasOutput(completeVisualDesign, "visual_design")).toBe(true);
+    expect(mangaPageStageHasOutput(completeImageCreation, "image_creation")).toBe(true);
+    expect(mangaPageStageNeedsGeneration({
+      ...completeImageCreation,
+      stale_stages: ["reference_discovery"],
+    }, "visual_design")).toBe(true);
+    expect(mangaPipelineStageMatchesWorkspaceStage("page_planning", "page_content")).toBe(true);
+    expect(mangaPipelineStageMatchesWorkspaceStage("visual_design", "reference_bindings")).toBe(true);
+    expect(mangaPipelineStageMatchesWorkspaceStage("visual_design", "image")).toBe(false);
+    expect(mangaPipelineStageMatchesWorkspaceStage("image_creation", "image")).toBe(true);
+    expect(mangaPipelineStageMatchesWorkspaceStage("adaptation", "adaptation")).toBe(false);
+    expect(mangaPipelineStageMatchesWorkspaceStage("materials", "preprocessing")).toBe(false);
+    expect(mangaPipelineStageMatchesWorkspaceStage("preprocessing", "preprocessing")).toBe(true);
+    expect(mangaPipelineStageMatchesWorkspaceStage(undefined, "image")).toBe(true);
   });
 });

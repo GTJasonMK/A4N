@@ -61,7 +61,7 @@ async fn mark_failed_records_error() {
 }
 
 #[tokio::test]
-async fn generation_task_status_and_workflow_owner_update_together() {
+async fn nested_image_task_does_not_replace_workflow_owner() {
     let db = setup_db().await;
     let queue = PersistentTaskQueue::new(a4n_db::DbHandle::new(db.clone()))
         .await
@@ -140,7 +140,7 @@ async fn generation_task_status_and_workflow_owner_update_together() {
         .unwrap();
     assert_eq!(
         child_running.active_task_id.as_deref(),
-        Some(child_task_id.as_str())
+        Some(workflow_task_id.as_str())
     );
 
     child_permit.complete();

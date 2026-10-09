@@ -34,38 +34,26 @@ fn manga_page_with_participants(participants: &[&str]) -> MangaPageV4 {
 }
 
 #[test]
-fn manga_late_pipeline_inputs_do_not_repeat_chapter_content() {
-    let items_input = manga_item_extraction_input(
-        json!({
-            "dialogues": [{"content": "原文对白", "source_span_id": "ch1:s1:f1"}],
-            "narrations": []
-        }),
-        json!({
-            "scenes": [{"description": "雨夜", "source_span_ids": ["ch1:s1:f1"]}]
-        }),
-    )
-    .expect("valid item extraction input");
+fn manga_page_slots_input_uses_preprocessing_events() {
     let page_slots = manga_page_slots_input(
         json!({
             "characters": {"陈恪": {"role": "主角"}},
+            "source_events": {"events": [{"event_id": "event-1", "description": "陈恪发现线索"}]},
             "events": [{"index": 0, "description": "暗棋初动"}],
             "reference_assets": {"character_portraits": [{"prompt": "重复立绘"}]},
             "speech": {"dialogues": [{"content": "是谁？"}]},
             "visual_anchors": {"scenes": [{"location": "雨夜长街"}]},
             "items": [{"name": "密信"}],
-            "comic_synthesis": {"chapter_summary": "陈恪发现线索"}
+            "comic_synthesis": {
+                "chapter_summary": "陈恪发现线索。",
+                "mood_progression": ["疑点浮现", "压力加深", "线索揭开"]
+            }
         }),
-        json!({"shooting_script_id": 1, "shooting_script_revision": 1, "script": {}}),
+        json!({"page_count": 8, "intention": "保留关键因果", "units": []}),
     )
     .expect("valid page slots input");
 
-    assert!(items_input.get("chapter").is_none());
     assert!(page_slots.get("chapter").is_none());
-    assert!(
-        serde_json::to_string(&items_input)
-            .unwrap()
-            .contains("原文对白")
-    );
     let page_slots_text = serde_json::to_string(&page_slots).unwrap();
     assert!(!page_slots_text.contains("暗棋初动"));
     assert!(!page_slots_text.contains("重复立绘"));
@@ -108,7 +96,7 @@ fn manga_page_drawing_prompt_page_input_keeps_only_page_scope_and_refs() {
         ],
         "comic_synthesis": {
             "chapter_summary": "陈恪穿越到唐初。",
-            "mood_progression": ["迷茫", "震惊"]
+            "mood_progression": ["迷茫", "震惊", "寻找答案"]
         }
     });
     let reference_assets = json!({
@@ -118,9 +106,15 @@ fn manga_page_drawing_prompt_page_input_keeps_only_page_scope_and_refs() {
         ]
     });
 
-    let input =
-        manga_page_drawing_prompt_page_input(&page_plan, &extraction_summary, &reference_assets)
-            .expect("page context should build");
+    let input = manga_page_drawing_prompt_page_input(
+        &page_plan,
+        &extraction_summary,
+        &reference_assets,
+        &[],
+        &[],
+        &[],
+    )
+    .expect("page context should build");
     let context = &input["page_context"];
 
     assert!(context["characters"].get("陈恪").is_some());
@@ -144,9 +138,15 @@ fn manga_page_drawing_context_rejects_malformed_reference_metadata() {
         "character_portraits": [{"character_name": "陈恪"}]
     });
 
-    let error =
-        manga_page_drawing_prompt_page_input(&page_plan, &extraction_summary, &reference_assets)
-            .expect_err("missing portrait prompt must fail");
+    let error = manga_page_drawing_prompt_page_input(
+        &page_plan,
+        &extraction_summary,
+        &reference_assets,
+        &[],
+        &[],
+        &[],
+    )
+    .expect_err("missing portrait prompt must fail");
 
     assert!(error.to_string().contains("character_portraits[0].prompt"));
 }

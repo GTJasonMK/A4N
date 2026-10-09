@@ -7,28 +7,23 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
-pub use a4n_domain::DownstreamConflictStrategy;
 pub use a4n_domain::manga::{
     MANGA_PAGE_DRAWING_PROMPT_V2, MANGA_PAGE_GENERATION_V4, MANGA_PAGE_PIPELINE_STATE_V1,
     MANGA_PAGE_PLAN_V4, MANGA_PAGE_SLOT_LIMIT, MANGA_PAGE_SLOTS_V1, MangaBoundReferenceAsset,
-    MangaCameraAngleV2, MangaPageAdaptationV1, MangaPageContentV1,
+    MangaCameraAngleV2, MangaChapterComicSynthesisV1, MangaPageAdaptationV1, MangaPageContentV1,
     MangaPageDrawingPromptSchemaVersion, MangaPageDrawingPromptV2, MangaPageGenerationLayoutV4,
     MangaPageGenerationSchemaVersion, MangaPageImportanceV2, MangaPagePacingV2,
     MangaPagePipelineErrorV1, MangaPagePipelineStage, MangaPagePipelineStateV1,
     MangaPagePipelineStatus, MangaPagePlanSchemaVersion, MangaPagePlanV4,
-    MangaPagePromptSourceSummary, MangaPageRoleV2, MangaPageSlotV1, MangaPageSlotsSchemaVersion,
+    MangaPagePromptSourceSummary, MangaPageReferenceDiscoveryV1, MangaPageReferenceImageV1,
+    MangaPageReferenceTargetKind, MangaPageRoleV2, MangaPageSlotV1, MangaPageSlotsSchemaVersion,
     MangaPageSlotsV1, MangaPageV4, MangaPanelFunctionV2, MangaPanelSizeV2, MangaPanelV2,
-    MangaReadingFlowV2, MangaReferenceAssetKind, MangaReferenceBindingSummary, MangaShotScaleV2,
-    MangaTextLayerKindV2, MangaTextLayerV2, MangaTextPlacementV2,
+    MangaPipelineArtifactRecord, MangaPipelineArtifactStage, MangaPreprocessingV3,
+    MangaReadingFlowV2, MangaReferenceAssetKind, MangaReferenceBindingAction,
+    MangaReferenceBindingSummary, MangaShotScaleV2, MangaTextLayerKindV2, MangaTextLayerV2,
+    MangaTextPlacementV2,
 };
 pub use a4n_domain::media_authoring::AdaptationBeatRef;
-
-/// Host-provided cleanup for media that becomes unreachable after a Manga
-/// prompt mutation. The Manga owner decides which image IDs are safe to remove.
-#[async_trait::async_trait]
-pub trait MangaPromptDownstreamCleanupPort: Send + Sync {
-    async fn delete_downstream_images(&self, image_ids: &[i64]) -> Result<(), a4n_error::AppError>;
-}
 
 /// Host-facing Manga prompt read boundary.
 #[async_trait::async_trait]
@@ -41,24 +36,55 @@ pub trait MangaRecordReadApplicationPort: Send + Sync {
     ) -> Result<Vec<MangaPagePromptSummary>, a4n_error::AppError>;
 }
 
+#[async_trait::async_trait]
+pub trait MangaPipelineArtifactApplicationPort: Send + Sync {
+    async fn list_artifacts(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<Vec<MangaPipelineArtifactRecord>, a4n_error::AppError>;
+
+    async fn save_artifact(
+        &self,
+        user_id: i64,
+        input: SaveMangaPipelineArtifactInput,
+    ) -> Result<MangaPipelineArtifactRecord, a4n_error::AppError>;
+
+    async fn preview_artifact_deletion(
+        &self,
+        user_id: i64,
+        input: PreviewMangaPipelineArtifactDeletionInput,
+    ) -> Result<MangaPipelineArtifactDeletionPreview, a4n_error::AppError>;
+
+    async fn delete_artifact(
+        &self,
+        user_id: i64,
+        input: DeleteMangaPipelineArtifactInput,
+    ) -> Result<(), a4n_error::AppError>;
+}
+
 /// Host-facing Manga prompt mutation boundary.
 ///
-/// The Manga owner keeps authorization, persistence and prompt projection;
-/// Runtime supplies only downstream cleanup and template rendering ports.
+/// The Manga owner keeps authorization, persistence and prompt projection.
 #[async_trait::async_trait]
 pub trait MangaRecordMutationApplicationPort: Send + Sync {
+    async fn delete_page(
+        &self,
+        user_id: i64,
+        input: DeleteMangaPageInput,
+    ) -> Result<(), a4n_error::AppError>;
+
     async fn bind_reference_image(
         &self,
         user_id: i64,
         input: BindMangaReferenceImageInput,
-        cleanup: &dyn MangaPromptDownstreamCleanupPort,
     ) -> Result<MangaPagePromptSummary, a4n_error::AppError>;
 
     async fn update_prompt(
         &self,
         user_id: i64,
         input: UpdateMangaPromptInput,
-        cleanup: &dyn MangaPromptDownstreamCleanupPort,
     ) -> Result<MangaPagePromptSummary, a4n_error::AppError>;
 
     async fn delete_by_chapter(
@@ -72,7 +98,6 @@ pub trait MangaRecordMutationApplicationPort: Send + Sync {
         &self,
         user_id: i64,
         input: DeleteMangaPromptInput,
-        cleanup: &dyn MangaPromptDownstreamCleanupPort,
     ) -> Result<(), a4n_error::AppError>;
 
     async fn optimize_prompt(
@@ -80,7 +105,6 @@ pub trait MangaRecordMutationApplicationPort: Send + Sync {
         user_id: i64,
         input: OptimizeMangaPromptInput,
         prompt_renderer: &dyn crate::prompt::PromptRenderPort,
-        cleanup: &dyn MangaPromptDownstreamCleanupPort,
     ) -> Result<MangaPagePromptSummary, a4n_error::AppError>;
 }
 
@@ -97,6 +121,8 @@ pub struct MangaPipelineStartInput {
     #[schemars(range(min = 1))]
     pub page_number: Option<u32>,
     pub stop_after: Option<MangaPipelineStopAfter>,
+    #[serde(default)]
+    pub run_stage: Option<MangaPipelineArtifactStage>,
     pub image_size: Option<a4n_domain::ImageSize>,
     #[serde(default)]
     pub resume_from_checkpoint: bool,
@@ -115,6 +141,8 @@ pub struct MangaPipelineResumeInput {
     #[schemars(range(min = 1))]
     pub page_number: Option<u32>,
     pub stop_after: Option<MangaPipelineStopAfter>,
+    #[serde(default)]
+    pub run_stage: Option<MangaPipelineArtifactStage>,
     pub image_size: Option<a4n_domain::ImageSize>,
     #[serde(default = "default_resume_from_checkpoint")]
     pub resume_from_checkpoint: bool,
@@ -128,10 +156,9 @@ fn default_resume_from_checkpoint() -> bool {
 #[serde(rename_all = "snake_case")]
 pub enum MangaPipelineStopAfter {
     PageSlots,
-    PageContent,
     PageAdaptation,
     Storyboard,
-    PagePlanning,
+    ReferenceDiscovery,
     DrawingPrompt,
     Image,
 }
@@ -143,6 +170,72 @@ pub struct MangaChapterInput {
     pub project_id: i64,
     #[schemars(range(min = 1))]
     pub chapter_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DeleteMangaPageInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub chapter_id: i64,
+    #[schemars(range(min = 1))]
+    pub page_number: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SaveMangaPipelineArtifactInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub chapter_id: i64,
+    pub stage: MangaPipelineArtifactStage,
+    #[serde(default)]
+    #[schemars(range(min = 1))]
+    pub page_number: Option<u32>,
+    pub payload: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DeleteMangaPipelineArtifactInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub chapter_id: i64,
+    pub stage: MangaPipelineArtifactStage,
+    #[serde(default)]
+    #[schemars(range(min = 1))]
+    pub page_number: Option<u32>,
+    #[schemars(length(min = 1))]
+    pub expected_artifact_ids: Vec<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PreviewMangaPipelineArtifactDeletionInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub chapter_id: i64,
+    pub stage: MangaPipelineArtifactStage,
+    #[serde(default)]
+    #[schemars(range(min = 1))]
+    pub page_number: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct MangaPipelineArtifactDeletionItem {
+    pub artifact_id: i64,
+    pub stage: MangaPipelineArtifactStage,
+    pub page_number: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct MangaPipelineArtifactDeletionPreview {
+    pub target: MangaPipelineArtifactDeletionItem,
+    pub downstream: Vec<MangaPipelineArtifactDeletionItem>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -226,6 +319,7 @@ pub trait MangaPipelineExecutionApplicationPort: Send + Sync {
         chapter_number: i32,
         page_number: Option<u32>,
         stop_after: Option<MangaPipelineStopAfter>,
+        run_stage: Option<MangaPipelineArtifactStage>,
         prompt_renderer: &dyn crate::prompt::PromptRenderPort,
     ) -> Result<(), a4n_error::AppError>;
 }
@@ -253,6 +347,7 @@ pub trait MangaPipelinePreviewApplicationPort: Send + Sync {
         page_number: Option<u32>,
         resume_from_checkpoint: bool,
         stop_after: Option<MangaPipelineStopAfter>,
+        run_stage: Option<MangaPipelineArtifactStage>,
         prompt_renderer: &dyn crate::prompt::PromptRenderPort,
     ) -> Result<Vec<MangaPipelinePreviewStep>, a4n_error::AppError>;
 }
@@ -285,7 +380,7 @@ pub struct BindMangaReferenceImageInput {
     pub asset_kind: MangaReferenceAssetKind,
     #[schemars(range(min = 1))]
     pub asset_id: i64,
-    pub downstream_strategy: DownstreamConflictStrategy,
+    pub action: MangaReferenceBindingAction,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -295,7 +390,6 @@ pub struct UpdateMangaPromptInput {
     pub prompt_id: i64,
     #[schemars(length(min = 1))]
     pub image_prompt: String,
-    pub downstream_strategy: DownstreamConflictStrategy,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -305,7 +399,6 @@ pub struct OptimizeMangaPromptInput {
     pub prompt_id: i64,
     #[schemars(length(min = 1))]
     pub instruction: String,
-    pub downstream_strategy: DownstreamConflictStrategy,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -313,7 +406,6 @@ pub struct OptimizeMangaPromptInput {
 pub struct DeleteMangaPromptInput {
     #[schemars(range(min = 1))]
     pub prompt_id: i64,
-    pub downstream_strategy: DownstreamConflictStrategy,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -348,7 +440,11 @@ pub struct MangaPagePromptSummary {
     pub page_content: Option<MangaPageContentV1>,
     pub page_adaptation: Option<MangaPageAdaptationV1>,
     pub page_plan: Option<MangaPageV4>,
+    pub reference_discovery: Option<MangaPageReferenceDiscoveryV1>,
     pub drawing_prompt: Option<MangaPageDrawingPromptV2>,
+    pub stale_stages: Vec<MangaPipelineArtifactStage>,
+    pub orphaned: bool,
+    pub system_reference_images: Vec<MangaPageReferenceImageV1>,
     pub reference_bindings: Vec<MangaReferenceBindingSummary>,
     pub source: MangaPagePromptSourceSummary,
     pub generated_image_id: Option<i64>,

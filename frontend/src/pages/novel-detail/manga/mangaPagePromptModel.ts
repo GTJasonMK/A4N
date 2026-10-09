@@ -9,6 +9,8 @@ import type {
   MangaPagePipelineStage,
   MangaPagePipelineStatus,
   MangaPageRoleV2,
+  MangaPageReferenceImageV1,
+  MangaPageReferenceDiscoveryV1,
   MangaPipelineStatusSummary,
   MangaPagePromptSummary,
   MangaReadingFlowV2,
@@ -61,17 +63,20 @@ export type MangaPagePrompt = {
   pipelineStatus: MangaPagePipelineStatus | null;
   pageContent: MangaPageContentV1 | null;
   pageAdaptation: MangaPageAdaptationV1 | null;
+  referenceDiscovery: MangaPageReferenceDiscoveryV1 | null;
   source: MangaPagePromptSource;
   sourceStale: boolean;
   characterNames: string[];
   dialogueText: string | null;
   layoutItems: LayoutSummaryItem[];
+  systemReferenceImages: MangaPageReferenceImageV1[];
   referenceBindings: ReferenceBinding[];
 };
 
 type ReferenceBinding = {
   characterName: string;
-  boundAsset: MangaBoundReferenceAsset | null;
+  systemAsset: MangaBoundReferenceAsset | null;
+  userAddedAssets: MangaBoundReferenceAsset[];
 };
 
 type ReferenceCandidate = {
@@ -112,17 +117,36 @@ const pageCharacterNames = (prompt: MangaPagePromptSummary): string[] => {
 
 const referenceBinding = (
   binding: MangaReferenceBindingSummary,
-): ReferenceBinding => ({
-  characterName: binding.character_name,
-  boundAsset: binding.bound_asset,
-});
-
-export const missingReferenceBindingLabels = (
-  page: MangaPagePrompt,
-): string[] =>
-  page.referenceBindings
-    .filter((binding) => binding.boundAsset == null)
-    .map((binding) => binding.characterName);
+  profiles: CharacterProfile[],
+  portraits: Portrait[],
+): ReferenceBinding => {
+  const characterProfileIds = new Set(
+    profiles
+      .filter((profile) => profile.name.trim() === binding.character_name.trim())
+      .map((profile) => profile.id),
+  );
+  const autoPortrait = portraits.find(
+    (portrait) =>
+      portrait.is_primary && characterProfileIds.has(portrait.profile_id),
+  );
+  const boundAsset = binding.bound_asset;
+  const isSystemAsset =
+    boundAsset?.asset_kind === "character_portrait" &&
+    autoPortrait?.id === boundAsset.asset_id;
+  const legacyUserAsset = boundAsset && !isSystemAsset ? boundAsset : null;
+  const userAddedAssets = legacyUserAsset
+    ? [legacyUserAsset, ...binding.user_added_assets.filter(
+        (asset) =>
+          asset.asset_kind !== legacyUserAsset.asset_kind ||
+          asset.asset_id !== legacyUserAsset.asset_id,
+      )]
+    : binding.user_added_assets;
+  return {
+    characterName: binding.character_name,
+    systemAsset: isSystemAsset ? boundAsset : null,
+    userAddedAssets,
+  };
+};
 
 const buildLayoutItems = (
   prompt: MangaPagePromptSummary,
@@ -177,6 +201,8 @@ export const buildPagePrompts = (
   currentContentHash: string | null,
   labels: MangaPagePromptLabels,
   stageMode?: MangaPageWorkspaceStage,
+  profiles: CharacterProfile[] = [],
+  portraits: Portrait[] = [],
 ): MangaPagePrompt[] => {
   return [...prompts]
     .sort((a, b) => a.page_number - b.page_number)
@@ -202,12 +228,16 @@ export const buildPagePrompts = (
         pipelineStatus: pipelineStateVisible ? pipelineStatus : null,
         pageContent: prompt.page_content,
         pageAdaptation: prompt.page_adaptation,
+        referenceDiscovery: prompt.reference_discovery,
         source,
         sourceStale: isMangaPagePromptSourceStale(source, currentContentHash),
         characterNames: pageCharacterNames(prompt),
         dialogueText: prompt.dialogue_text,
         layoutItems: buildLayoutItems(prompt, labels),
-        referenceBindings: prompt.reference_bindings.map(referenceBinding),
+        systemReferenceImages: prompt.system_reference_images,
+        referenceBindings: prompt.reference_bindings.map((binding) =>
+          referenceBinding(binding, profiles, portraits),
+        ),
       };
     });
 };

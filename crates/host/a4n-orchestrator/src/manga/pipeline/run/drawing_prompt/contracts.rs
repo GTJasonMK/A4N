@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 
 use a4n_domain::manga::{
-    MangaPageAdaptationV1, MangaPageContentV1, MangaPageDrawingPromptV2, MangaPageV4,
+    MangaPageAdaptationV1, MangaPageContentV1, MangaPageDrawingPromptV2, MangaPageReferenceImageV1,
+    MangaPageV4, MangaReferenceBindingSummary,
 };
+use a4n_domain::media::GeneratedImageRecord;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
@@ -17,6 +19,9 @@ pub(in crate::manga::pipeline::run) struct SinglePageDrawingPromptInput<'a> {
     pub(in crate::manga::pipeline::run) vars: &'a HashMap<String, Value>,
     pub(in crate::manga::pipeline::run) workflow_run_id: i64,
     pub(in crate::manga::pipeline::run) reference_assets: &'a Value,
+    pub(in crate::manga::pipeline::run) reference_bindings: &'a [MangaReferenceBindingSummary],
+    pub(in crate::manga::pipeline::run) system_reference_images: &'a [MangaPageReferenceImageV1],
+    pub(in crate::manga::pipeline::run) available_reference_images: &'a [GeneratedImageRecord],
     pub(in crate::manga::pipeline::run) page_content: &'a MangaPageContentV1,
     pub(in crate::manga::pipeline::run) page_adaptation: &'a MangaPageAdaptationV1,
     pub(in crate::manga::pipeline::run) page_plan: &'a MangaPageV4,

@@ -38,6 +38,7 @@ pub(super) async fn run_branch_design_stage(
         sources: Vec::new(),
         dependencies: Vec::new(),
         video_reference: None,
+        preprocessing_fingerprint: None,
     };
     for adaptation in &execution.prompt_context.adaptations {
         let record =

@@ -135,6 +135,7 @@ pub(super) fn database_package(
         character_portraits: database_record(&package.character_portraits)?,
         generated_images: database_record(&package.generated_images)?,
         chapter_manga_prompts: database_record(&package.chapter_manga_prompts)?,
+        manga_pipeline_artifacts: database_record(&package.manga_pipeline_artifacts)?,
         chapter_video_prompts: database_record(&package.chapter_video_prompts)?,
         generated_videos: database_record(&package.generated_videos)?,
         generation_specs: database_record(&package.generation_specs)?,

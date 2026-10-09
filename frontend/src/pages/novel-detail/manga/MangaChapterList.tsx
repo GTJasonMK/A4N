@@ -145,7 +145,7 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
                 : <Clock3 size={11} />;
           const stageLabel = workflowStatus?.stage
             ? mangaStageLabel(workflowStatus.stage, t)
-            : workspaceStage === "images"
+            : workspaceStage === "image_creation"
               ? mangaPageStageLabel("image", t)
               : workspaceStage == null
                 ? mangaStageLabel(undefined, t)

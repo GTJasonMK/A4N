@@ -45,6 +45,18 @@ pub struct AdoptAuthoringDocumentInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+pub struct DeleteAuthoringDocumentInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub record_id: i64,
+    pub kind: AuthoringDocumentKind,
+    #[schemars(range(min = 1))]
+    pub expected_revision: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct VideoScriptSelection {
     #[schemars(range(min = 1))]
     pub video_project_id: i64,
@@ -155,6 +167,11 @@ pub trait MediaAuthoringApplicationPort: Send + Sync {
         user_id: i64,
         input: AdoptAuthoringDocumentInput,
     ) -> Result<AuthoringDocumentRecord, a4n_error::AppError>;
+    async fn delete(
+        &self,
+        user_id: i64,
+        input: DeleteAuthoringDocumentInput,
+    ) -> Result<(), a4n_error::AppError>;
     async fn video_references(
         &self,
         user_id: i64,

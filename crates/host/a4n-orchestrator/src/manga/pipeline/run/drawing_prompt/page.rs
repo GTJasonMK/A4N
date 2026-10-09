@@ -19,6 +19,9 @@ impl OrchestratorContext {
             vars,
             workflow_run_id,
             reference_assets,
+            reference_bindings,
+            system_reference_images,
+            available_reference_images,
             page_content,
             page_adaptation,
             page_plan,
@@ -38,9 +41,12 @@ impl OrchestratorContext {
             page_adaptation,
             extraction_summary,
             reference_assets,
+            reference_bindings,
+            system_reference_images,
+            available_reference_images,
             source_markers,
         )?;
-        let call_order = manga_page_pipeline_call_order(page_index, 2)?;
+        let call_order = manga_page_pipeline_call_order(page_index, 3)?;
         let (trace, page_prompt) = self
             .render_and_validate_manga_call(
                 MangaRenderTraceInput {

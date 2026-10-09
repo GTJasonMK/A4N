@@ -85,11 +85,7 @@ fn test_load_real_prompts_dir() {
         "inspiration_project_context_guard",
         "chapter_screenplay_layout_unit",
         "chapter_screenplay_unit_adaptation",
-        "manga_character_binding",
-        "manga_speech_selection",
-        "manga_visual_anchor_extraction",
-        "manga_item_extraction",
-        "manga_chapter_comic_synthesis",
+        "manga_preprocessing",
         "manga_page_slots",
         "manga_page_adaptation_plan",
         "manga_page_storyboard",
@@ -159,17 +155,6 @@ fn test_load_real_prompts_dir() {
     let conflict_prompt = engine.get("character_conflict_check").unwrap().content;
     assert!(conflict_prompt.contains("故事一致性检查专家"));
     assert!(conflict_prompt.contains("source_id"));
-
-    let manga_scene_prompt = engine
-        .get("manga_visual_anchor_extraction")
-        .unwrap()
-        .content;
-    assert!(manga_scene_prompt.contains("漫画视觉锚点抽取"));
-    assert!(manga_scene_prompt.contains("`location_en` 是简短英文标签"));
-
-    let manga_item_prompt = engine.get("manga_item_extraction").unwrap().content;
-    assert!(manga_item_prompt.contains("漫画物品锚点抽取"));
-    assert!(manga_item_prompt.contains("不要把地点、角色、组织、能力、事件当作物品"));
 
     for name in ["content_optimization", "content_optimization_chat"] {
         let content = engine.get(name).unwrap().content;

@@ -32,6 +32,16 @@ pub async fn adopt_media_authoring_document(
         .adopt(user_id, input)
         .await
 }
+pub async fn delete_media_authoring_document(
+    state: &AppState,
+    user_id: i64,
+    input: DeleteAuthoringDocumentInput,
+) -> Result<(), AppError> {
+    state
+        .media_authoring_application()
+        .delete(user_id, input)
+        .await
+}
 pub async fn list_video_adaptation_references(
     state: &AppState,
     user_id: i64,

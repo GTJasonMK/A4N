@@ -779,39 +779,52 @@ class MockOpenAIProviderTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "shooting script prompt contains no source spans"):
             shooting_span_ids("旧文本中出现 ch1:s1:f1，但没有 source_spans 对象")
 
-    def test_manga_item_uses_available_source_span_contract(self) -> None:
-        body = {
-            "messages": [
-                {
-                    "role": "user",
-                    "content": json.dumps(
-                        {
-                            "task": {"prompt_name": "manga_item_extraction"},
-                            "input": {
-                                "available_source_span_ids": ["#0"],
-                                "adaptation_plan": {
-                                    "events": [
-                                        {
-                                            "beat_ref": {
-                                                "unit_id": "station",
-                                                "beat_id": "evidence",
-                                            }
-                                        }
-                                    ]
-                                },
-                            },
-                        },
-                        ensure_ascii=False,
-                    ),
-                }
-            ]
-        }
+    def test_manga_preprocessing_uses_current_contract_and_source_ids(self) -> None:
+        body = {"messages": [{
+            "role": "user",
+            "content": json.dumps({
+                "task": {"prompt_name": "manga_preprocessing"},
+                "input": {"source": "#0 林岚在旧车站检查怀表。"},
+            }, ensure_ascii=False),
+        }]}
         response = json.loads(response_for(body))
-        self.assertEqual(response["items"][0]["source_span_ids"], ["#0"])
+        self.assertEqual(response["schema_version"], "manga_preprocessing_v3")
         self.assertEqual(
-            response["items"][0]["first_appearance_beat_ref"],
-            {"unit_id": "station", "beat_id": "evidence"},
+            response["source_events"]["events"][0]["source_span_ids"],
+            ["#0"],
         )
+        self.assertEqual(
+            response["visual_anchors"]["scenes"][0]["source_event_ids"],
+            ["event-1"],
+        )
+
+    def test_manga_reference_discovery_only_selects_available_candidates(self) -> None:
+        body = {"messages": [{
+            "role": "user",
+            "content": json.dumps({
+                "task": {"prompt_name": "manga_page_reference_discovery"},
+                "input": {
+                    "page_number": 3,
+                    "available_assets": [
+                        {
+                            "asset_kind": "generated_image",
+                            "asset_id": 9,
+                            "description": "旧怀表的黄铜外壳和磨损刻度。",
+                        },
+                    ],
+                },
+            }, ensure_ascii=False),
+        }]}
+        response = json.loads(response_for(body))
+        self.assertEqual(response["page_number"], 3)
+        self.assertEqual(response["references"][0]["asset_id"], 9)
+
+        body["messages"][0]["content"] = json.dumps({
+            "task": {"prompt_name": "manga_page_reference_discovery"},
+            "input": {"page_number": 3, "available_assets": []},
+        }, ensure_ascii=False)
+        empty_response = json.loads(response_for(body))
+        self.assertEqual(empty_response["references"], [])
 
     def test_manga_page_pipeline_responses_follow_each_page_contract(self) -> None:
         beat_ref = {"unit_id": "station", "beat_id": "evidence"}

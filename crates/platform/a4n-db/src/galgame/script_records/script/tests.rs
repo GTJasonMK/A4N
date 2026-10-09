@@ -175,6 +175,7 @@ async fn persist_script_writes_scene_line_choice_graph_in_one_contract() {
         }],
         dependencies: Vec::new(),
         video_reference: None,
+        preprocessing_fingerprint: None,
     };
     let units = (1..=2)
         .map(|id| {

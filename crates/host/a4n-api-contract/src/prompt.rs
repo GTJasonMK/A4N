@@ -15,6 +15,18 @@ pub trait PromptRenderPort: Send + Sync {
         variables: &HashMap<String, Value>,
         project_id: Option<i64>,
     ) -> Result<String, a4n_error::AppError>;
+
+    async fn render_prompt_for_call(
+        &self,
+        call_key: &str,
+        template_name: &str,
+        variables: &HashMap<String, Value>,
+        project_id: Option<i64>,
+    ) -> Result<String, a4n_error::AppError> {
+        let _ = call_key;
+        self.render_prompt(template_name, variables, project_id)
+            .await
+    }
 }
 
 /// Runtime-supplied execution context for the prompt owner.

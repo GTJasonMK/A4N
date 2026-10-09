@@ -111,6 +111,7 @@ pub(super) async fn migrate_manga<C: ConnectionTrait>(
         let plan = AdaptationPlanV1 {
             schema_version: AdaptationPlanVersion::V1,
             target: AdaptationTarget::Manga,
+            page_count: Some(group.pages.len() as u32),
             intention: "保留已保存的漫画分页、画格、对白和人工编辑；原始导演引用保存在迁移回执。"
                 .into(),
             decisions: Vec::new(),
@@ -352,6 +353,7 @@ pub(super) async fn insert_document<C: ConnectionTrait>(
         }],
         video_reference: None,
         dependencies,
+        preprocessing_fingerprint: None,
     })
     .map_err(json_error)?;
     let hash = a4n_domain::generation::canonical_json_sha256(&(&inputs, &payload))

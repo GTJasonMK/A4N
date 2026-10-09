@@ -181,6 +181,7 @@ fn insert_document(
         }],
         video_reference: None,
         dependencies,
+        preprocessing_fingerprint: None,
     })
     .map_err(error)?;
     let previous = package

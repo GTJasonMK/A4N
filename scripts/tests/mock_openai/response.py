@@ -14,16 +14,13 @@ from mock_openai.fixtures.adaptations import (
     galgame_character_staging_response,
     galgame_script_adaptation_response,
     galgame_visual_planning_response,
-    manga_character_binding_response,
     manga_drawing_prompt_response,
-    manga_item_response,
+    manga_page_reference_discovery_response,
     manga_page_adaptation_response,
     manga_page_slots_response,
     manga_page_storyboard_response,
+    manga_preprocessing_response,
     manga_prompt_optimization_response,
-    manga_speech_selection_response,
-    manga_synthesis_response,
-    manga_visual_anchor_response,
 )
 from mock_openai.fixtures.entities import (
     character_discovery_response,
@@ -167,22 +164,16 @@ def response_for(body: dict[str, Any]) -> str:
         return json.dumps(galgame_visual_planning_response(combined), ensure_ascii=False)
 
     manga_prompt_name = prompt_name
-    if manga_prompt_name == "manga_character_binding":
-        return json.dumps(manga_character_binding_response(combined), ensure_ascii=False)
-    if manga_prompt_name == "manga_speech_selection":
-        return json.dumps(manga_speech_selection_response(combined), ensure_ascii=False)
-    if manga_prompt_name == "manga_visual_anchor_extraction":
-        return json.dumps(manga_visual_anchor_response(combined), ensure_ascii=False)
-    if manga_prompt_name == "manga_item_extraction":
-        return json.dumps(manga_item_response(combined), ensure_ascii=False)
-    if manga_prompt_name == "manga_chapter_comic_synthesis":
-        return json.dumps(manga_synthesis_response(), ensure_ascii=False)
+    if manga_prompt_name == "manga_preprocessing":
+        return json.dumps(manga_preprocessing_response(combined), ensure_ascii=False)
     if manga_prompt_name == "manga_page_slots":
         return json.dumps(manga_page_slots_response(combined), ensure_ascii=False)
     if manga_prompt_name == "manga_page_adaptation_plan":
         return json.dumps(manga_page_adaptation_response(combined), ensure_ascii=False)
     if manga_prompt_name == "manga_page_storyboard":
         return json.dumps(manga_page_storyboard_response(combined), ensure_ascii=False)
+    if manga_prompt_name == "manga_page_reference_discovery":
+        return json.dumps(manga_page_reference_discovery_response(combined), ensure_ascii=False)
     if manga_prompt_name == "manga_page_drawing_prompt":
         return json.dumps(manga_drawing_prompt_response(combined), ensure_ascii=False)
     if "漫画整页绘图提示词优化工程师" in combined:

@@ -12,6 +12,7 @@ pub async fn preview_manga_pipeline_requests(
     page_number: Option<u32>,
     resume_from_checkpoint: bool,
     stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+    run_stage: Option<a4n_api_contract::manga::MangaPipelineArtifactStage>,
 ) -> Result<ModelRequestPreview, AppError> {
     let prompt_renderer = state;
     let steps = state
@@ -23,6 +24,7 @@ pub async fn preview_manga_pipeline_requests(
             page_number,
             resume_from_checkpoint,
             stop_after,
+            run_stage,
             prompt_renderer,
         )
         .await?;

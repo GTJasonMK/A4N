@@ -10,8 +10,8 @@ use a4n_domain::manga::{
     MangaPageGenerationLayoutV3, MangaPageGenerationLayoutV4, MangaPagePromptSourceSummary,
 };
 use a4n_domain::media_authoring::{
-    AuthoringDocumentInputs, AuthoringDocumentKind, AuthoringDocumentRecord, AuthoringDocumentRef,
-    AuthoringDocumentStatus,
+    AdaptationPlanV1, AdaptationTarget, AuthoringDocumentInputs, AuthoringDocumentKind,
+    AuthoringDocumentRecord, AuthoringDocumentRef, AuthoringDocumentStatus,
 };
 use a4n_domain::project::ProjectRecord;
 use a4n_domain::shooting_script::ChapterShootingScriptReferenceRecord;
@@ -422,6 +422,119 @@ pub async fn adopt_authoring_document(
     let result = authoring_document(&tx, project_id, record_id).await?;
     tx.commit().await?;
     Ok(result)
+}
+
+pub async fn delete_authoring_document(
+    db: &impl crate::DbExecutor,
+    project_id: i64,
+    record_id: i64,
+    kind: AuthoringDocumentKind,
+    expected_revision: i32,
+) -> Result<(), AuthoringDocumentError> {
+    positive(project_id, "project_id")?;
+    positive(record_id, "record_id")?;
+    if expected_revision <= 0 {
+        return Err(AuthoringDocumentError::InvalidArgument(
+            "expected_revision 必须大于 0".into(),
+        ));
+    }
+
+    let tx = db.begin().await?;
+    let row = document::Entity::find_by_id(record_id)
+        .filter(document::Column::ProjectId.eq(project_id))
+        .lock_exclusive()
+        .one(&tx)
+        .await?
+        .ok_or(AuthoringDocumentError::NotFound(record_id))?;
+    let current = parse_record(row)?;
+    if current.kind != kind {
+        return Err(AuthoringDocumentError::InvalidArgument(
+            "文档种类与删除请求不匹配".into(),
+        ));
+    }
+    if current.revision != expected_revision {
+        return Err(AuthoringDocumentError::RevisionConflict(record_id));
+    }
+    validate_authoring_document_references(&tx, &current).await?;
+
+    let deleted = document::Entity::delete_many()
+        .filter(document::Column::ProjectId.eq(project_id))
+        .filter(document::Column::Id.eq(record_id))
+        .filter(document::Column::Revision.eq(expected_revision))
+        .exec(&tx)
+        .await?;
+    if deleted.rows_affected != 1 {
+        return Err(AuthoringDocumentError::RevisionConflict(record_id));
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
+async fn validate_authoring_document_references<C: ConnectionTrait>(
+    db: &C,
+    current: &AuthoringDocumentRecord,
+) -> Result<(), AuthoringDocumentError> {
+    let documents = document::Entity::find()
+        .filter(document::Column::ProjectId.eq(current.project_id))
+        .all(db)
+        .await?;
+    for row in documents {
+        if row.id == current.id {
+            continue;
+        }
+        let record = parse_record(row)?;
+        if record
+            .inputs
+            .dependencies
+            .iter()
+            .any(|dependency| dependency.id == current.id)
+        {
+            return Err(AuthoringDocumentError::InvalidState(format!(
+                "无法删除媒体创作文档 {}：文档 {} 仍依赖该文档，请先删除或重新生成下游产物",
+                current.id, record.id
+            )));
+        }
+    }
+
+    let target = match current.kind {
+        AuthoringDocumentKind::AdaptationPlan => {
+            serde_json::from_value::<AdaptationPlanV1>(current.document.clone())
+                .map_err(invalid_json)?
+                .target
+        }
+        AuthoringDocumentKind::GalgameBranchPlan => AdaptationTarget::Galgame,
+        AuthoringDocumentKind::MangaPagePlan => AdaptationTarget::Manga,
+    };
+    for artifact in authoring_artifact_sources(db, current.project_id, target, None).await? {
+        let referenced = match artifact {
+            AuthoringArtifactSource::MangaPage {
+                source,
+                page_plan_ref,
+                ..
+            } => {
+                source.adaptation_plan_id == current.id
+                    || page_plan_ref.is_some_and(|reference| reference.id == current.id)
+            }
+            AuthoringArtifactSource::GalgameScript {
+                branch_plan_id,
+                scene_plan_ids,
+                ..
+            } => {
+                branch_plan_id == Some(current.id)
+                    || scene_plan_ids
+                        .into_iter()
+                        .flatten()
+                        .any(|id| id == current.id)
+            }
+        };
+        if referenced {
+            return Err(AuthoringDocumentError::InvalidState(format!(
+                "无法删除媒体创作文档 {}：已有下游产物引用该文档，请先删除或重新生成下游产物",
+                current.id
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn scope(

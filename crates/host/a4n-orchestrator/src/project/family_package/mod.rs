@@ -245,6 +245,7 @@ impl ProjectFamilyPackage {
             character_portraits: self.character_portraits,
             generated_images: self.generated_images,
             chapter_manga_prompts: self.chapter_manga_prompts,
+            manga_pipeline_artifacts: self.manga_pipeline_artifacts,
             chapter_video_prompts: self.chapter_video_prompts,
             generated_videos: self.generated_videos,
             generation_specs: self.generation_specs,

@@ -107,6 +107,7 @@ where
         character_portraits,
         generated_images,
         chapter_manga_prompts,
+        manga_pipeline_artifacts,
         chapter_video_prompts,
         generated_videos,
     ) = futures::join!(
@@ -114,6 +115,7 @@ where
         project_family_export_character_portraits(db, &root_project_ids),
         project_family_export_generated_images(db, &family_project_ids),
         project_family_export_chapter_manga_prompts(db, &family_project_ids),
+        project_family_export_manga_pipeline_artifacts(db, &family_project_ids),
         project_family_export_chapter_video_prompts(db, &family_project_ids),
         project_family_export_generated_videos(db, &family_project_ids),
     );
@@ -153,6 +155,7 @@ where
     let character_portraits = character_portraits?;
     let generated_images = generated_images?;
     let chapter_manga_prompts = chapter_manga_prompts?;
+    let manga_pipeline_artifacts = manga_pipeline_artifacts?;
     let chapter_video_prompts = chapter_video_prompts?;
     let generated_videos = generated_videos?;
 
@@ -282,6 +285,9 @@ where
         character_portraits: super::super::transfer::transfer_records(character_portraits)?,
         generated_images: super::super::transfer::transfer_records(generated_images)?,
         chapter_manga_prompts: super::super::transfer::transfer_records(chapter_manga_prompts)?,
+        manga_pipeline_artifacts: super::super::transfer::transfer_records(
+            manga_pipeline_artifacts,
+        )?,
         chapter_video_prompts,
         generated_videos: super::super::transfer::transfer_records(generated_videos)?,
         generation_specs: super::super::transfer::transfer_records(generation_specs)?,

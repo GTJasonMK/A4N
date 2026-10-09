@@ -714,6 +714,7 @@ impl GenerationApplication {
                 "task_kind": "manga_pipeline",
                 "project_id": input.project_id,
                 "chapter_number": input.chapter_number,
+                "run_stage": input.run_stage,
             }),
             input_fingerprint_json: fingerprint,
             task_kind: TaskKind::MangaGeneration,

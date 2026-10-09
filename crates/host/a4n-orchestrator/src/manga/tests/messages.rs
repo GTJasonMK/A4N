@@ -7,8 +7,9 @@ use async_trait::async_trait;
 use serde_json::Value;
 
 use super::*;
-use crate::manga::pipeline::prompt::manga_page_storyboard_user_message;
-use crate::manga::pipeline::prompt::{MangaLlmCallInput, prepare_manga_llm_call};
+use crate::manga::pipeline::prompt::{
+    MangaLlmCallInput, manga_page_storyboard_user_message, prepare_manga_llm_call,
+};
 use crate::source_markers::SourceMarkerMap;
 use a4n_llm_context::{
     LlmContextManifest, context_aware_system_user_request, preview_context_aware_chat_request,
@@ -115,7 +116,7 @@ impl PromptRenderer for TestPromptRenderer {
         _variables: &HashMap<String, Value>,
         _project_id: Option<i64>,
     ) -> Result<String, AppError> {
-        assert_eq!(template_name, "manga_character_binding");
+        assert_eq!(template_name, "manga_preprocessing");
         Ok("system prompt".to_string())
     }
 }
@@ -126,14 +127,14 @@ async fn manga_llm_request_sends_dynamic_payload_once() {
     let variables = HashMap::new();
     let mut prepared = prepare_manga_llm_call(MangaLlmCallInput {
         prompt_renderer: &TestPromptRenderer,
-        prompt_name: "manga_character_binding",
+        prompt_name: "manga_preprocessing",
         project_id: 7,
         workflow_run_id: None,
         call_key: "manga:test".to_string(),
         call_order: 1,
         variables: &variables,
         user_content: build_manga_step_user_message(
-            "manga_character_binding",
+            "manga_preprocessing",
             "绑定角色",
             json!({"chapter": marker}),
             json!({"format": "json_object"}),
@@ -159,7 +160,7 @@ async fn manga_llm_request_sends_dynamic_payload_once() {
 #[test]
 fn build_manga_step_user_message_uses_json_payload() {
     let message = build_manga_step_user_message(
-        "manga_speech_selection",
+        "manga_preprocessing",
         "选择漫画对白与旁白",
         json!({
             "chapter": {"content": "章节正文"}
@@ -174,131 +175,8 @@ fn build_manga_step_user_message_uses_json_payload() {
         a4n_prompt::request::json_user_message_payload(&message.dynamic_user_content).unwrap(),
     )
     .unwrap();
-    assert_eq!(payload["task"]["prompt_name"], "manga_speech_selection");
+    assert_eq!(payload["task"]["prompt_name"], "manga_preprocessing");
     assert!(payload["input"].is_object());
     assert!(payload["output_contract"].is_object());
     assert!(render_manifest(message).contains("章节正文"));
-}
-
-#[test]
-fn manga_speech_selection_user_message_uses_event_windows() {
-    let source_spans =
-        source_spans_for_content(7, 1, "林晓雨低声说，你好。她忽然意识到这不是巧合。");
-    let span_id = source_spans
-        .iter()
-        .find(|span| span.text.contains("你好"))
-        .expect("dialogue span")
-        .id
-        .clone();
-    let source_markers = SourceMarkerMap::from_source_spans(&source_spans).unwrap();
-    let message = manga_speech_selection_user_message(
-        json!({"林晓雨": {"name": "林晓雨"}}),
-        json!([{"beat_ref": {"unit_id": "unit-1", "beat_id": "beat-1"}, "description": "林晓雨与陌生人对话", "source_span_ids": [span_id]}]),
-        &source_spans,
-        &source_markers,
-        json!({"character_portraits": []}),
-    )
-    .expect("speech selection prompt should serialize");
-    let chapter = message
-        .packs
-        .iter()
-        .find_map(|pack| {
-            pack.variants[0]
-                .canonical_content_json
-                .pointer("/input/chapter")
-        })
-        .unwrap();
-    assert_eq!(chapter["source_windows"].as_array().unwrap().len(), 1);
-    assert!(!chapter.get("available_source_spans").is_some());
-    assert!(
-        !chapter["available_source_span_ids"]
-            .as_array()
-            .unwrap()
-            .is_empty()
-    );
-    let message = render_manifest(message);
-
-    assert!(!message.contains(r#""content": "林晓雨低声说，你好。她忽然意识到这不是巧合。""#));
-    assert!(message.contains(r#""source_span_rule""#));
-    assert!(message.contains("input.chapter.available_source_span_ids"));
-    assert!(!message.contains("input.chapter.source_spans"));
-    assert!(!message.contains(r#""chapter_id""#));
-    assert!(!message.contains(r#""chapter_number""#));
-    assert!(!message.contains(r#""char_start""#));
-    assert!(!message.contains(r#""char_end""#));
-    assert!(!message.contains(r#""long_text""#));
-    assert!(message.contains("source_span_id"));
-}
-
-#[test]
-fn manga_visual_anchor_extraction_user_message_uses_event_windows() {
-    let source_spans = source_spans_for_content(7, 1, "林晓雨推开门。陌生人站在雨里。");
-    let span_id = source_spans
-        .iter()
-        .find(|span| span.text.contains("陌生人"))
-        .expect("scene span")
-        .id
-        .clone();
-    let source_markers = SourceMarkerMap::from_source_spans(&source_spans).unwrap();
-    let message = manga_visual_anchor_extraction_user_message(
-        json!([{"beat_ref": {"unit_id": "unit-1", "beat_id": "beat-1"}, "description": "林晓雨推门", "source_span_ids": [span_id]}]),
-        &source_spans,
-        &source_markers,
-    )
-    .expect("visual anchor prompt should serialize");
-    let chapter = message
-        .packs
-        .iter()
-        .find_map(|pack| {
-            pack.variants[0]
-                .canonical_content_json
-                .pointer("/input/chapter")
-        })
-        .unwrap();
-    assert_eq!(chapter["source_windows"].as_array().unwrap().len(), 1);
-    assert!(!chapter.get("available_source_spans").is_some());
-    assert!(
-        !chapter["available_source_span_ids"]
-            .as_array()
-            .unwrap()
-            .is_empty()
-    );
-    let message = render_manifest(message);
-
-    assert!(!message.contains(r#""content": "林晓雨推开门。陌生人站在雨里。""#));
-    assert!(message.contains(r#""source_span_rule""#));
-    assert!(message.contains("input.chapter.available_source_span_ids"));
-    assert!(!message.contains("input.chapter.source_spans"));
-    assert!(!message.contains(r#""chapter_id""#));
-    assert!(!message.contains(r#""chapter_number""#));
-    assert!(!message.contains(r#""char_start""#));
-    assert!(!message.contains(r#""char_end""#));
-    assert!(!message.contains(r#""long_text""#));
-    assert!(message.contains("source_span_ids"));
-}
-
-#[test]
-fn manga_item_extraction_input_exposes_available_source_span_ids() {
-    let step2 = json!({
-        "dialogues": [{"source_span_id": "ch1:s1:f1"}],
-        "narrations": [{"source_span_id": "ch1:s2:f1"}]
-    });
-    let step3 = json!({
-        "scenes": [{
-            "source_span_ids": ["ch1:s2:f1", "ch1:s3:f1"]
-        }]
-    });
-
-    let input = manga_item_extraction_input(step2.clone(), step3.clone())
-        .expect("valid item extraction input");
-    let ids = input["available_source_span_ids"].as_array().unwrap();
-
-    assert_eq!(
-        ids,
-        &vec![json!("ch1:s1:f1"), json!("ch1:s2:f1"), json!("ch1:s3:f1")]
-    );
-    assert_eq!(
-        manga_item_available_source_span_ids(&step2, &step3).expect("valid source span IDs"),
-        vec!["ch1:s1:f1", "ch1:s2:f1", "ch1:s3:f1"]
-    );
 }

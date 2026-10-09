@@ -1,22 +1,17 @@
 use std::collections::HashMap;
 
 use a4n_api_contract::manga::MangaPagePromptSourceSummary;
-use a4n_domain::manga::MangaPagePromptRecord;
+use a4n_domain::manga::{MangaPagePromptRecord, MangaPreprocessingV3};
 use a4n_domain::source_spans::source_spans_for_content;
 use a4n_error::AppError;
 
-use a4n_domain::media_authoring::AdaptationTarget;
-
 use super::super::super::super::reference_assets::manga_reference_assets_json;
-use super::super::super::super::{
-    MangaGeneratePagePromptsInput, MangaPipelineStage, OrchestratorContext,
-};
+use super::super::super::super::{MangaGeneratePagePromptsInput, OrchestratorContext};
 use super::super::super::prompt::manga_pipeline_prompt_fingerprint;
 use super::super::completion::complete_pipeline;
 use super::super::contracts::MangaRunContext;
-use super::super::early_extraction::run_early_extraction;
-use super::super::late_extraction::run_late_extraction;
 use super::super::page_slots::run_page_slots;
+use super::super::preprocessing::{MangaPreprocessingInput, run_manga_preprocessing};
 use crate::source_markers::SourceMarkerMap;
 
 impl OrchestratorContext {
@@ -32,10 +27,12 @@ impl OrchestratorContext {
             project_id,
             prompt_renderer,
             character_portraits,
+            available_reference_images,
             task_id,
             workflow_run_id,
             resume_from_checkpoint,
             stop_after,
+            run_stage,
             image_size,
             image_generator,
             cancel_token,
@@ -49,21 +46,63 @@ impl OrchestratorContext {
         )
         .await
         .map_err(crate::shooting_script::errors::resolve_source_error)?;
-        let report_adaptation_delta = move |delta: &str| {
-            if let Some(reporter) = stream_reporter {
-                reporter("adaptation_plan", delta);
-            }
-        };
-        let adaptation = self
-            .ensure_adaptation_plan(
-                &source,
-                AdaptationTarget::Manga,
-                workflow_run_id,
-                "manga_pipeline",
-                prompt_renderer,
-                Some(&report_adaptation_delta),
-                cancel_token,
+        let reference_assets = manga_reference_assets_json(&character_portraits);
+        let preprocessing_input_fingerprint =
+            a4n_domain::manga::manga_preprocessing_input_fingerprint(
+                &source.content_sha256,
+                source.chapter_number,
+                &reference_assets,
+            );
+        if run_stage == Some(a4n_domain::manga::MangaPipelineArtifactStage::Preprocessing) {
+            run_manga_preprocessing(
+                self,
+                MangaPreprocessingInput {
+                    project_id,
+                    chapter_id,
+                    chapter_number,
+                    chapter_content: &source.content,
+                    prompt_renderer,
+                    reference_assets,
+                    task_id,
+                    workflow_run_id,
+                    resume_from_checkpoint,
+                    cancel_token,
+                    progress_reporter,
+                    stream_reporter,
+                },
             )
+            .await?;
+            return self
+                .manga_page_prompts_by_chapter(project_id, chapter_id)
+                .await;
+        }
+        let preprocessing = self
+            .manga_pipeline_artifact(
+                project_id,
+                chapter_id,
+                a4n_domain::manga::MangaPipelineArtifactStage::Preprocessing,
+                None,
+            )
+            .await?
+            .ok_or_else(|| AppError::InvalidState {
+                current: "manga_preprocessing_missing".into(),
+                operation: "请先完成漫画预处理".into(),
+            })?;
+        if preprocessing.stale || preprocessing.input_fingerprint != preprocessing_input_fingerprint
+        {
+            return Err(AppError::InvalidState {
+                current: "manga_preprocessing_stale".into(),
+                operation: "原文章节已变化，请重新运行漫画预处理".into(),
+            });
+        }
+        let preprocessing_fingerprint = preprocessing.output_fingerprint.clone();
+        let preprocessing: MangaPreprocessingV3 = serde_json::from_value(preprocessing.payload)
+            .map_err(|error| AppError::InvalidArgument(format!("漫画预处理产物无效: {error}")))?;
+        preprocessing
+            .validate()
+            .map_err(AppError::InvalidArgument)?;
+        let adaptation = self
+            .require_adopted_manga_adaptation(&source, &preprocessing_fingerprint)
             .await?;
         if source.source_chapter_id != chapter_id {
             return Err(AppError::InvalidArgument(format!(
@@ -87,7 +126,6 @@ impl OrchestratorContext {
             adaptation_plan_sha256: adaptation.record.sha256.clone(),
         };
         let variables = HashMap::new();
-        let reference_assets = manga_reference_assets_json(&character_portraits);
         let reference_assets_metadata = reference_assets.clone();
         let prompt_fingerprint = serde_json::json!({
             "pipeline_contract": "manga_page_pipeline_v2",
@@ -97,7 +135,6 @@ impl OrchestratorContext {
                 &variables,
             )
             .await?,
-            "reference_assets": reference_assets_metadata,
         });
         let context = MangaRunContext {
             service: self,
@@ -112,6 +149,7 @@ impl OrchestratorContext {
             workflow_run_id,
             resume_from_checkpoint,
             stop_after,
+            run_stage,
             image_size,
             image_generator,
             cancel_token,
@@ -124,13 +162,17 @@ impl OrchestratorContext {
             reference_assets,
             source_metadata,
             reference_assets_metadata,
+            available_reference_images,
             prompt_fingerprint,
         };
-        context
-            .advance_stage(MangaPipelineStage::CharacterBinding)
-            .await?;
-        let early = run_early_extraction(&context).await?;
-        let extraction = run_late_extraction(&context, early).await?;
+        if let Some(stage) = run_stage {
+            return super::super::single_stage::run_single_stage(&context, stage).await;
+        }
+        let extraction = super::super::contracts::MangaExtractionRun {
+            extraction_summary: super::super::single_stage::manga_preprocessing_summary(
+                &preprocessing,
+            )?,
+        };
         let page_slots = run_page_slots(&context, &extraction.extraction_summary).await?;
         complete_pipeline(&context, extraction, page_slots).await
     }

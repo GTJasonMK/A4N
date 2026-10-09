@@ -49,6 +49,7 @@ def media_adaptation_response(combined: str) -> dict[str, Any]:
         ],
     }
     if payload["target"] == "manga":
+        result["page_count"] = 2
         result["units"] = result["units"][:1]
     return result
 
@@ -372,135 +373,105 @@ def manga_beat_ref(combined: str) -> dict[str, str]:
     raise UnhandledPromptError("manga prompt contains no local adaptation beat")
 
 
-def manga_available_source_span_ids(combined: str) -> list[str]:
-    matches = re.findall(
-        r'"available_source_span_ids"\s*:\s*\[(.*?)\]', combined, re.DOTALL
-    )
-    source_span_ids = re.findall(r'"(#\d+)"', matches[-1]) if matches else []
-    if not source_span_ids:
-        raise UnhandledPromptError("manga prompt contains no available source span ids")
-    return source_span_ids
-
-
-def manga_character_binding_response(combined: str) -> dict[str, Any]:
+def manga_preprocessing_response(combined: str) -> dict[str, Any]:
+    source_id = source_span_id(combined, "林岚")
     return {
+        "schema_version": "manga_preprocessing_v3",
+        "source_events": {
+            "events": [{
+                "event_id": "event-1",
+                "type": "action",
+                "description": "林岚在旧车站通道检查逆行怀表。",
+                "participants": ["林岚", "周衡"],
+                "importance": "critical",
+                "source_span_ids": [source_id],
+            }],
+        },
         "characters": {
             "林岚": {
                 "name": "林岚",
-                "appearance": "28岁青年女性，黑色短发，深色风衣，右手常握旧怀表",
-                "personality": "克制警觉，遇到异常时先核验证据再行动",
+                "appearance": "黑色短发，深色风衣，右手握旧怀表",
+                "personality": "克制警觉",
                 "role": "protagonist",
                 "gender": "female",
-                "age_description": "28岁青年女性",
-                "source_span_ids": [source_span_id(combined, "林岚")],
+                "age_description": "青年",
+                "source_span_ids": [source_id],
             },
             "周衡": {
                 "name": "周衡",
-                "appearance": "青年男性修表师，深色工作夹克，提旧工具箱",
-                "personality": "表面从容，提及十年前的齿轮暗记时明显回避",
+                "appearance": "深色工作夹克，提旧工具箱",
+                "personality": "表面从容，隐瞒旧事",
                 "role": "supporting",
                 "gender": "male",
-                "age_description": "约30岁青年男性",
-                "source_span_ids": [source_span_id(combined, "周衡", 1)],
+                "age_description": "青年",
+                "source_span_ids": [source_id],
             },
-        }
-    }
-
-
-def manga_speech_selection_response(combined: str) -> dict[str, Any]:
-    beat_ref = manga_beat_ref(combined)
-    return {
-        "dialogues": [
-            {
+        },
+        "speech": {"dialogues": [], "narrations": []},
+        "visual_anchors": {
+            "scenes": [{
                 "index": 0,
-                "speaker": "周衡",
-                "content": "这个记号十年前就该被烧掉了。",
-                "source_span_id": source_span_id(combined, "这个记号十年前"),
-                "emotion": "压低声音的警惕",
-                "target": "林岚",
-                "beat_ref": beat_ref,
-                "is_internal": False,
-                "bubble_type": "normal",
-            },
-            {
-                "index": 1,
-                "speaker": "林岚",
-                "content": "第一个预告已经发生。",
-                "source_span_id": source_span_id(combined, "第一个预告", -1),
-                "emotion": "克制而坚定",
-                "target": None,
-                "beat_ref": beat_ref,
-                "is_internal": True,
-                "bubble_type": "thought",
-            },
-        ],
-        "narrations": [
-            {
-                "index": 0,
-                "content": "距离午夜只剩十八分钟。",
-                "source_span_id": source_span_id(combined, "距离午夜", -1),
-                "narration_type": "time",
-                "beat_ref": beat_ref,
-                "position": "top",
-            }
-        ],
-    }
-
-
-def manga_visual_anchor_response(combined: str) -> dict[str, Any]:
-    source_ids = list(
-        dict.fromkeys(
-            [
-                source_span_id(combined, "旧怀表"),
-                source_span_id(combined, "封闭通道", -1),
-            ]
-        )
-    )
-    return {
-        "scenes": [
-            {
-                "index": 0,
-                "location": "旧车站封闭通道",
-                "location_en": "sealed station passage",
-                "time_of_day": "夜",
-                "atmosphere": "停电后的通道把林岚与周衡拉开距离，机房入口形成压迫性的黑暗纵深",
+                "location": "旧车站通道",
+                "location_en": "station passage",
+                "time_of_day": "night",
+                "atmosphere": "两人保持距离，机房入口形成纵深",
                 "weather": None,
-                "lighting": "冷灰顶灯间歇闪烁，地下机房入口透出低亮冷绿指示灯",
+                "lighting": "冷灰顶灯",
                 "indoor_outdoor": "indoor",
-                "description": "前景是林岚握紧的旧怀表，中景墙面保留齿轮暗记，周衡停在后方，机房入口位于右侧纵深",
-                "beat_refs": [manga_beat_ref(combined)],
-                "source_span_ids": source_ids,
-            }
-        ]
+                "description": "林岚在前景检查怀表，周衡停在通道后方。",
+                "source_event_ids": ["event-1"],
+                "source_span_ids": [source_id],
+            }],
+        },
+        "items": {"items": []},
+        "comic_synthesis": {
+            "chapter_summary": "林岚用怀表确认车站的时间异常，并察觉周衡隐瞒过去。",
+            "mood_progression": ["警觉观察", "异常坐实", "主动查证"],
+        },
     }
 
 
-def manga_item_response(combined: str) -> dict[str, Any]:
-    source_span_id = manga_available_source_span_ids(combined)[0]
+def manga_page_reference_discovery_response(combined: str) -> dict[str, Any]:
+    payloads = [
+        value
+        for value in embedded_json_objects(combined)
+        if isinstance(value.get("available_assets"), list)
+    ]
+    assets = payloads[-1]["available_assets"] if payloads else []
+    references = []
+    for asset in assets:
+        if not isinstance(asset, dict):
+            continue
+        if "怀表" not in str(asset.get("description", "")):
+            continue
+        references.append({
+            "target_kind": "object",
+            "target_name": "旧怀表",
+            "asset_kind": asset.get("asset_kind"),
+            "asset_id": asset.get("asset_id"),
+            "usage": "沿用怀表的黄铜外壳与磨损刻度。",
+        })
+        break
+    page_number_matches = re.findall(r'"page_number"\s*:\s*(\d+)', combined)
     return {
-        "items": [
-            {
-                "name": "旧怀表",
-                "description": "林岚随身携带、秒针曾逆行一圈的旧怀表",
-                "description_en": "worn brass pocket watch with a counterclockwise second hand",
-                "importance": "prop",
-                "first_appearance_beat_ref": manga_beat_ref(combined),
-                "visual_features": "黄铜外壳和磨损刻度必须连续一致；被林岚握紧时成为读者视线焦点并强化她的警觉",
-                "source_span_ids": [source_span_id],
-            }
-        ]
-    }
-
-
-def manga_synthesis_response() -> dict[str, Any]:
-    return {
-        "chapter_summary": "林岚用逆行怀表确认旧车站发生七分钟倒退，并从周衡失控的反应中察觉他隐瞒着十年前的秘密。她拒绝交出未来来信，留下齿轮暗记后独自进入地下机房。",
-        "mood_progression": ["警觉观察", "异常坐实", "关系失衡", "主动深入"],
-        "total_estimated_pages": 5,
+        "schema_version": "manga_page_reference_discovery_v1",
+        "page_number": int(page_number_matches[-1]) if page_number_matches else 1,
+        "references": references,
     }
 
 
 def manga_page_slots_response(combined: str) -> dict[str, Any]:
+    adaptation = next(
+        (
+            value.get("adaptation_plan")
+            for value in reversed(embedded_json_objects(combined))
+            if isinstance(value.get("adaptation_plan"), dict)
+        ),
+        None,
+    )
+    expected_page_count = adaptation.get("page_count") if adaptation else None
+    if expected_page_count != 2:
+        raise UnhandledPromptError("manga page slots fixture expects a two-page adaptation plan")
     beat_ref = manga_beat_ref(combined)
     source_id = source_span_id(combined, "林岚")
     content = [

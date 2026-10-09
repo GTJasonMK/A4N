@@ -85,6 +85,7 @@ pub(crate) fn assemble_project_family_export_package(
         character_portraits: export_rows.character_portraits,
         generated_images: export_rows.generated_images,
         chapter_manga_prompts: export_rows.chapter_manga_prompts,
+        manga_pipeline_artifacts: export_rows.manga_pipeline_artifacts,
         chapter_video_prompts: export_rows.chapter_video_prompts,
         generated_videos: export_rows.generated_videos,
         generation_specs: export_rows.generation_specs,

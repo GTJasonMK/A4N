@@ -401,6 +401,7 @@ async fn initialize_runtime_with_ports(
         manga_pipeline_read_application: manga_record_worker.clone(),
         manga_record_read_application: manga_record_worker,
         manga_record_mutation_application: orchestrator.clone(),
+        manga_pipeline_artifact_application: orchestrator.clone(),
         galgame_read_application: orchestrator.clone(),
         inspiration_history_read_application: inspiration_worker,
         inspiration_generation_application: orchestrator.clone(),

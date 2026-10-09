@@ -184,6 +184,7 @@ mod tests {
         reload_marker: Option<PathBuf>,
     ) -> StartupConfig {
         StartupConfig {
+            web_addr: "127.0.0.1:47673".parse().unwrap(),
             control_addr: "127.0.0.1:47674".parse().unwrap(),
             control_fingerprint: binary_fingerprint(&control_binary).unwrap(),
             edge_fingerprint: binary_fingerprint(&edge_binary).unwrap(),
@@ -210,6 +211,7 @@ mod tests {
                 metadata: stateful_worker_catalog_entry_ref(worker_name).unwrap(),
                 binary,
                 address: "127.0.0.1:47675".parse().unwrap(),
+                address_is_explicit: true,
                 control_addr: "127.0.0.1:47674".parse().unwrap(),
                 token: "test-token".into(),
             },

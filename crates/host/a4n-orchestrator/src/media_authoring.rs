@@ -23,6 +23,7 @@ mod artifacts;
 mod ports;
 mod references;
 
+#[derive(Clone)]
 pub(crate) struct PreparedAdaptation {
     pub record: AuthoringDocumentRecord,
     pub plan: AdaptationPlanV1,
@@ -70,28 +71,39 @@ impl OrchestratorContext {
         Ok(None)
     }
 
-    pub(crate) async fn preview_initial_adaptation(
+    pub(crate) async fn require_adopted_manga_adaptation(
         &self,
         source: &ResolvedChapterSource,
-        target: AdaptationTarget,
-        renderer: &dyn PromptRenderer,
-    ) -> Result<a4n_llm_provider_contract::provider::ChatRequest, AppError> {
-        let inputs = AuthoringDocumentInputs {
-            sources: vec![authoring_source(source)?],
-            video_reference: None,
-            dependencies: Vec::new(),
-        };
-        let (user, _) = self
-            .adaptation_user_prompt(source, target, &inputs, DEFAULT_INSTRUCTION, None)
-            .await?;
-        let system = renderer
-            .render_prompt(
-                "chapter_media_adaptation_plan",
-                &Default::default(),
-                Some(source.requested_project_id),
-            )
-            .await?;
-        Ok(crate::workflow::workflow_json_request(system, user))
+        preprocessing_fingerprint: &str,
+    ) -> Result<PreparedAdaptation, AppError> {
+        let adaptation = self
+            .load_current_adaptation(source, AdaptationTarget::Manga)
+            .await?
+            .filter(|prepared| prepared.record.status == AuthoringDocumentStatus::Adopted)
+            .ok_or_else(|| AppError::InvalidState {
+                current: "manga_adaptation_plan_not_adopted".into(),
+                operation: "请先保存并采用漫画改编计划".into(),
+            })?;
+        if adaptation
+            .record
+            .inputs
+            .preprocessing_fingerprint
+            .as_deref()
+            != Some(preprocessing_fingerprint)
+        {
+            return Err(AppError::InvalidState {
+                current: "manga_adaptation_preprocessing_changed".into(),
+                operation: "请先重新生成并采用漫画改编计划".into(),
+            });
+        }
+        adaptation
+            .plan
+            .validate_manga_page_count()
+            .map_err(|error| AppError::InvalidState {
+                current: "manga_adaptation_page_count_missing".into(),
+                operation: format!("请先在漫画改编计划中设置页数：{error}"),
+            })?;
+        Ok(adaptation)
     }
 
     /// One-click execution adopts the saved draft, or creates a plan if none
@@ -132,6 +144,19 @@ impl OrchestratorContext {
                     sources: vec![authoring_source(source)?],
                     video_reference: None,
                     dependencies: Vec::new(),
+                    preprocessing_fingerprint: if target == AdaptationTarget::Manga {
+                        Some(
+                            self.current_manga_preprocessing_fingerprint(
+                                source.requested_project_id,
+                                source.source_chapter_id,
+                                &source.content_sha256,
+                                source.chapter_number,
+                            )
+                            .await?,
+                        )
+                    } else {
+                        None
+                    },
                 },
                 record_id: None,
                 expected_revision: None,
@@ -163,6 +188,24 @@ impl OrchestratorContext {
         input: GenerateAdaptation<'_>,
     ) -> Result<PreparedAdaptation, AppError> {
         let source = input.source;
+        if input.target == AdaptationTarget::Manga {
+            let current_fingerprint = self
+                .current_manga_preprocessing_fingerprint(
+                    source.requested_project_id,
+                    source.source_chapter_id,
+                    &source.content_sha256,
+                    source.chapter_number,
+                )
+                .await?;
+            if input.inputs.preprocessing_fingerprint.as_deref()
+                != Some(current_fingerprint.as_str())
+            {
+                return Err(AppError::InvalidState {
+                    current: "manga_preprocessing_changed".into(),
+                    operation: "请先重新生成漫画改编计划".into(),
+                });
+            }
+        }
         if input.inputs.sources != vec![authoring_source(source)?] {
             return Err(AppError::InvalidArgument(
                 "改编请求与目标章节来源不一致".into(),
@@ -210,6 +253,10 @@ impl OrchestratorContext {
                     }
                     plan.validate(&span_ids)
                         .map_err(AppError::InvalidArgument)?;
+                    if input.target == AdaptationTarget::Manga {
+                        plan.validate_manga_page_count()
+                            .map_err(AppError::InvalidArgument)?;
+                    }
                     Ok(plan)
                 },
             )
@@ -280,12 +327,31 @@ impl OrchestratorContext {
             source.chapter_number,
             &source.content,
         );
+        let manga_preprocessing = if target == AdaptationTarget::Manga {
+            Some(
+                self.manga_pipeline_artifact(
+                    source.requested_project_id,
+                    source.source_chapter_id,
+                    a4n_domain::manga::MangaPipelineArtifactStage::Preprocessing,
+                    None,
+                )
+                .await?
+                .ok_or_else(|| AppError::InvalidState {
+                    current: "manga_preprocessing_missing".into(),
+                    operation: "请先完成漫画预处理".into(),
+                })?
+                .payload,
+            )
+        } else {
+            None
+        };
         let mut payload = json!({
             "target": target,
             "instruction": instruction,
             "source": inputs.sources,
             "chapter": {"number": source.chapter_number, "title": source.title, "content": source.content},
             "video_reference": inputs.video_reference,
+            "manga_preprocessing": manga_preprocessing,
             "previous_plan": previous.map(|record| record.document),
         });
         let source_markers =
@@ -347,13 +413,21 @@ pub(crate) fn parse_adaptation(
 }
 
 pub(crate) fn authoring_error(error: AuthoringDocumentError) -> AppError {
+    authoring_error_with_operation(error, "更新媒体创作文档")
+}
+
+pub(crate) fn authoring_delete_error(error: AuthoringDocumentError) -> AppError {
+    authoring_error_with_operation(error, "删除媒体创作文档")
+}
+
+fn authoring_error_with_operation(error: AuthoringDocumentError, operation: &str) -> AppError {
     match error {
         AuthoringDocumentError::Database(error) => AppError::database(error),
         AuthoringDocumentError::InvalidArgument(message) => AppError::InvalidArgument(message),
         AuthoringDocumentError::NotFound(id) => AppError::NotFound(format!("创作文档不存在: {id}")),
         error => AppError::InvalidState {
             current: error.to_string(),
-            operation: "更新媒体创作文档".into(),
+            operation: operation.into(),
         },
     }
 }

@@ -1,4 +1,3 @@
-use a4n_api_contract::manga::MangaPromptDownstreamCleanupPort;
 use a4n_db::manga::MANGA_PAGE_PROMPT_TYPE;
 use a4n_domain::{manga::MangaPagePromptRecord, project::required_text};
 use a4n_error::AppError;
@@ -36,7 +35,6 @@ impl OrchestratorContext {
         &self,
         input: MangaPromptOptimizationInput,
         prompt_renderer: &dyn PromptRenderer,
-        cleanup_port: &dyn MangaPromptDownstreamCleanupPort,
     ) -> Result<MangaPagePromptRecord, AppError> {
         let prepared = self
             .prepare_manga_prompt_optimization(input, prompt_renderer)
@@ -64,7 +62,7 @@ impl OrchestratorContext {
             })
             .await?;
         let result = self
-            .execute_manga_prompt_optimization(workflow.id, &fingerprint, prepared, cleanup_port)
+            .execute_manga_prompt_optimization(workflow.id, &fingerprint, prepared)
             .await;
         self.finalize_workflow_result(workflow.id, result, "漫画提示词优化")
             .await
@@ -92,7 +90,6 @@ impl OrchestratorContext {
         .await?;
         Ok(PreparedMangaPromptOptimization {
             page_prompt: required.page_prompt,
-            downstream_image_ids: required.downstream_image_ids,
             request,
         })
     }
@@ -102,7 +99,6 @@ impl OrchestratorContext {
         workflow_run_id: i64,
         fingerprint: &Value,
         prepared: PreparedMangaPromptOptimization,
-        cleanup_port: &dyn MangaPromptDownstreamCleanupPort,
     ) -> Result<MangaPagePromptRecord, AppError> {
         let image_prompt = self
             .run_manga_prompt_optimization_call(
@@ -115,15 +111,8 @@ impl OrchestratorContext {
         if prepared.page_prompt.image_prompt.trim() == image_prompt {
             return Ok(prepared.page_prompt);
         }
-        let updated = self
-            .update_manga_page_prompt_image_prompt(prepared.page_prompt, image_prompt)
-            .await?;
-        if !prepared.downstream_image_ids.is_empty() {
-            cleanup_port
-                .delete_downstream_images(&prepared.downstream_image_ids)
-                .await?;
-        }
-        Ok(updated)
+        self.update_manga_page_prompt_image_prompt(prepared.page_prompt, image_prompt)
+            .await
     }
 
     pub(super) async fn run_manga_prompt_optimization_call(
@@ -220,18 +209,8 @@ pub(super) fn required_manga_prompt_optimization_input(
     let instruction = required_text(&input.instruction, "优化要求")
         .map_err(AppError::InvalidArgument)?
         .to_string();
-    if let Some(image_id) = input
-        .downstream_image_ids
-        .iter()
-        .find(|image_id| **image_id <= 0)
-    {
-        return Err(AppError::InvalidArgument(format!(
-            "下游图片 ID 必须大于 0，实际为 {image_id}"
-        )));
-    }
     Ok(RequiredMangaPromptOptimizationInput {
         page_prompt: input.page_prompt,
         instruction,
-        downstream_image_ids: input.downstream_image_ids,
     })
 }

@@ -1,6 +1,5 @@
 export type {
   BindMangaReferenceImageInput,
-  DownstreamConflictStrategy,
   MangaBoundReferenceAsset,
   MangaPageAdaptationV1,
   MangaPageContentV1,
@@ -10,10 +9,18 @@ export type {
   MangaPagePipelineErrorV1,
   MangaPagePipelineStage,
   MangaPagePipelineStatus,
+  MangaPageReferenceDiscoveryV1,
+  MangaPageReferenceImageV1,
+  MangaPageReferenceTargetKind,
   MangaPageRoleV2,
   MangaPageV4,
   MangaPanelV2,
   MangaPipelineStatusSummary,
+  MangaPipelineArtifactRecord,
+  MangaPipelineArtifactStage,
+  SaveMangaPipelineArtifactInput,
+  DeleteMangaPipelineArtifactInput,
+  DeleteMangaPageInput,
   MangaPagePromptSourceSummary,
   MangaPagePromptSummary,
   MangaReferenceAssetKind,
@@ -23,5 +30,6 @@ export type {
   UpdateMangaPromptInput,
 } from "./generated/host";
 export * from "./manga/pagePrompts";
+export * from "./manga/pipelineArtifacts";
 export * from "./manga/status";
 export * from "./manga/pipeline";

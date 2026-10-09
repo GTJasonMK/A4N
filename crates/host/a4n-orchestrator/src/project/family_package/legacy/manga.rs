@@ -64,6 +64,7 @@ pub(super) fn upgrade(
         let plan = AdaptationPlanV1 {
             schema_version: AdaptationPlanVersion::V1,
             target: AdaptationTarget::Manga,
+            page_count: Some(rows.len() as u32),
             intention: "保留已保存的页面、画格、对白和人工编辑；原始导演引用保留在迁移回执。"
                 .into(),
             decisions: Vec::new(),

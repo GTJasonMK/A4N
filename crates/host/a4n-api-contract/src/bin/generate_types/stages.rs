@@ -416,6 +416,23 @@ pub(super) fn run() {
         &typescript_interface::<BatchExportInput>("BatchExportInput"),
         &typescript_interface::<ExportFileData>("ExportFileData"),
         &typescript_interface::<MangaPipelineStartInput>("MangaPipelineStartInput"),
+        &typescript_enum::<MangaPipelineArtifactStage>("MangaPipelineArtifactStage"),
+        &typescript_interface::<MangaChapterComicSynthesisV1>("MangaChapterComicSynthesisV1"),
+        &typescript_interface::<MangaPreprocessingV3>("MangaPreprocessingV3"),
+        &typescript_interface::<MangaPipelineArtifactRecord>("MangaPipelineArtifactRecord"),
+        &typescript_interface::<MangaPipelineArtifactDeletionItem>(
+            "MangaPipelineArtifactDeletionItem",
+        ),
+        &typescript_interface::<MangaPipelineArtifactDeletionPreview>(
+            "MangaPipelineArtifactDeletionPreview",
+        ),
+        &typescript_interface::<PreviewMangaPipelineArtifactDeletionInput>(
+            "PreviewMangaPipelineArtifactDeletionInput",
+        ),
+        &typescript_interface::<SaveMangaPipelineArtifactInput>("SaveMangaPipelineArtifactInput"),
+        &typescript_interface::<DeleteMangaPipelineArtifactInput>(
+            "DeleteMangaPipelineArtifactInput",
+        ),
         &typescript_interface::<PrepareStandaloneComicSourceInput>(
             "PrepareStandaloneComicSourceInput",
         ),
@@ -453,6 +470,9 @@ pub(super) fn run() {
         &typescript_interface::<authoring::AdoptAuthoringDocumentInput>(
             "AdoptAuthoringDocumentInput",
         ),
+        &typescript_interface::<authoring::DeleteAuthoringDocumentInput>(
+            "DeleteAuthoringDocumentInput",
+        ),
         &typescript_interface::<authoring::VideoScriptSelection>("VideoScriptSelection"),
         &typescript_interface::<authoring::GenerateAdaptationPlanInput>(
             "GenerateAdaptationPlanInput",
@@ -470,6 +490,7 @@ pub(super) fn run() {
         ),
         &typescript_interface::<MangaPipelineResumeInput>("MangaPipelineResumeInput"),
         &typescript_interface::<MangaChapterInput>("MangaChapterInput"),
+        &typescript_interface::<DeleteMangaPageInput>("DeleteMangaPageInput"),
         &typescript_interface::<BindMangaReferenceImageInput>("BindMangaReferenceImageInput"),
         &typescript_interface::<UpdateMangaPromptInput>("UpdateMangaPromptInput"),
         &typescript_interface::<OptimizeMangaPromptInput>("OptimizeMangaPromptInput"),
@@ -481,6 +502,9 @@ pub(super) fn run() {
         &typescript_enum::<MangaPagePipelineStage>("MangaPagePipelineStage"),
         &typescript_enum::<MangaPagePipelineStatus>("MangaPagePipelineStatus"),
         &typescript_interface::<MangaPagePipelineErrorV1>("MangaPagePipelineErrorV1"),
+        &typescript_enum::<MangaPageReferenceTargetKind>("MangaPageReferenceTargetKind"),
+        &typescript_interface::<MangaPageReferenceImageV1>("MangaPageReferenceImageV1"),
+        &typescript_interface::<MangaPageReferenceDiscoveryV1>("MangaPageReferenceDiscoveryV1"),
         &typescript_enum::<MangaPagePlanSchemaVersion>("MangaPagePlanSchemaVersion"),
         &typescript_enum::<MangaPageDrawingPromptSchemaVersion>(
             "MangaPageDrawingPromptSchemaVersion",
@@ -502,6 +526,7 @@ pub(super) fn run() {
         &typescript_interface::<a4n_api_contract::manga::MangaPagePlanV4>("MangaPagePlanV4"),
         &typescript_interface::<MangaPageDrawingPromptV2>("MangaPageDrawingPromptV2"),
         &typescript_enum::<MangaReferenceAssetKind>("MangaReferenceAssetKind"),
+        &typescript_enum::<MangaReferenceBindingAction>("MangaReferenceBindingAction"),
         &typescript_interface::<MangaBoundReferenceAsset>("MangaBoundReferenceAsset"),
         &typescript_interface::<MangaReferenceBindingSummary>("MangaReferenceBindingSummary"),
         &typescript_interface::<MangaPagePromptSourceSummary>("MangaPagePromptSourceSummary"),

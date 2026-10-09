@@ -1544,6 +1544,7 @@ fn empty_package(root: ProjectRecord) -> ProjectFamilyPackage {
         character_portraits: Vec::new(),
         generated_images: Vec::new(),
         chapter_manga_prompts: Vec::new(),
+        manga_pipeline_artifacts: Vec::new(),
         generation_specs: Vec::new(),
         generation_spec_text_anchors: Vec::new(),
         generation_spec_entity_refs: Vec::new(),

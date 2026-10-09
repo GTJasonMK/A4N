@@ -965,8 +965,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       : workspaceStage === "adaptation" || workspaceStage === "branches" ? <MediaAuthoringPanel key={`${projectId}:${workspaceStage}:${discardVersion}`} projectId={projectId}
         kind={workspaceStage === "adaptation" ? "adaptation_plan" : "galgame_branch_plan"}
         workspace={authoring.workspace} loading={authoring.loading} error={authoring.error} canEdit={canEditGalgame} stageRunning={pipelineRunning}
-        onReload={authoring.reload} onDirtyChange={setAuthoringDirty} onGenerateStage={() => handleGenerate(false, "branch_design", false)}
-        onNext={() => setWorkspaceStage(workspaceStage === "adaptation" ? "branches" : "script")} />
+        onReload={authoring.reload} onDirtyChange={setAuthoringDirty} onGenerateStage={() => handleGenerate(false, "branch_design", false)} />
       : workspaceStage === "asset_plan" || workspaceStage === "asset_generation" ? <AssetPlanPanel inline mode={workspaceStage === "asset_plan" ? "planning" : "generation"}
         plan={assetPlan} error={assetPlanError} speakerProfiles={detail?.speaker_profiles ?? []} loading={planningAssets || loading}
         generating={generatingAssets} generatingSpecId={generatingAssetSpecId} imageSize={imageSize} imageSizes={imageSizes}

@@ -11,7 +11,7 @@ pub(super) use galgame::remap_galgame_presentation_json;
 pub(super) use generation::remap_generation_target_id;
 pub(super) use generation::{
     remap_generation_spec_params_json, remap_generation_spec_source_version_hash,
-    remap_manga_page_layout,
+    remap_manga_page_layout, remap_manga_pipeline_artifact_payload,
 };
 pub(super) use media::remap_media_binding_target_id;
 pub(super) use media::{

@@ -4,7 +4,8 @@ mod params;
 mod target;
 
 pub(in crate::project::family::import) use manga::{
-    remap_manga_page_layout, remap_manga_reference_bindings_value,
+    remap_manga_page_layout, remap_manga_pipeline_artifact_payload,
+    remap_manga_reference_bindings_value,
 };
 pub(in crate::project::family::import) use params::remap_generation_spec_params_json;
 pub(in crate::project::family::import) use target::{

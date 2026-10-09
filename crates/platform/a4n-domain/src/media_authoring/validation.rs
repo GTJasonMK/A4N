@@ -22,6 +22,17 @@ impl AdaptationBeatRef {
 
 impl AdaptationPlanV1 {
     pub fn validate(&self, source_span_ids: &BTreeSet<String>) -> Result<(), String> {
+        if let Some(page_count) = self.page_count {
+            if self.target != crate::media_authoring::AdaptationTarget::Manga {
+                return Err("只有漫画改编计划可以声明 page_count".into());
+            }
+            if !(1..=crate::manga::MANGA_PAGE_SLOT_LIMIT as u32).contains(&page_count) {
+                return Err(format!(
+                    "page_count 必须在 1-{} 之间",
+                    crate::manga::MANGA_PAGE_SLOT_LIMIT
+                ));
+            }
+        }
         required(&self.intention, "intention")?;
         if self.units.is_empty() {
             return Err("改编计划至少需要一个叙事单元".into());
@@ -65,6 +76,20 @@ impl AdaptationPlanV1 {
             )?;
         }
         Ok(())
+    }
+
+    pub fn validate_manga_page_count(&self) -> Result<u32, String> {
+        if self.target != crate::media_authoring::AdaptationTarget::Manga {
+            return Err("改编计划目标不是漫画".into());
+        }
+        self.page_count
+            .filter(|count| (1..=crate::manga::MANGA_PAGE_SLOT_LIMIT as u32).contains(count))
+            .ok_or_else(|| {
+                format!(
+                    "漫画改编计划必须设置 1-{} 页",
+                    crate::manga::MANGA_PAGE_SLOT_LIMIT
+                )
+            })
     }
 
     pub fn beat(&self, reference: &AdaptationBeatRef) -> Option<&AdaptationBeat> {
@@ -114,6 +139,7 @@ mod tests {
         let mut plan = AdaptationPlanV1 {
             schema_version: crate::media_authoring::AdaptationPlanVersion::V1,
             target: AdaptationTarget::Manga,
+            page_count: Some(8),
             intention: "保留发现真相的因果".into(),
             decisions: vec![],
             units: vec![crate::media_authoring::AdaptationUnit {

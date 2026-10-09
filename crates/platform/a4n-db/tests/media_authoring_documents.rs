@@ -55,6 +55,7 @@ fn input(source: &ResolvedChapterSource) -> SaveAuthoringDocument {
             }],
             video_reference: None,
             dependencies: Vec::new(),
+            preprocessing_fingerprint: None,
         },
         document: serde_json::to_value(plan).unwrap(),
     }

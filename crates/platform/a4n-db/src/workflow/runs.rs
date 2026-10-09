@@ -23,6 +23,7 @@ pub use mutations::{
     continue_completed_workflow_run, continue_completed_workflow_run_summary,
     invalidate_chapter_analysis_after_source_change, mark_workflow_current_step,
     mark_workflow_current_step_summary, mark_workflow_status, mark_workflow_status_summary,
+    restart_interrupted_workflow_run, restart_interrupted_workflow_run_summary,
     resume_or_upsert_workflow_run, resume_or_upsert_workflow_run_summary, resume_workflow_run,
     resume_workflow_run_summary, resume_workflow_run_with_active_task,
     resume_workflow_run_with_active_task_summary, upsert_workflow_run,

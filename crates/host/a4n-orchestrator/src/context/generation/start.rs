@@ -13,12 +13,15 @@ impl OrchestratorContext {
         user_id: i64,
         input: &a4n_api_contract::manga::MangaPipelineStartInput,
     ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
-        if input.image_size.is_none()
-            && matches!(
+        let image_stage_requested = match input.run_stage {
+            Some(a4n_domain::manga::MangaPipelineArtifactStage::Image) => true,
+            Some(_) => false,
+            None => matches!(
                 input.stop_after,
                 None | Some(a4n_api_contract::manga::MangaPipelineStopAfter::Image)
-            )
-        {
+            ),
+        };
+        if input.image_size.is_none() && image_stage_requested {
             return Err(GenerationTaskAccessError::InvalidArgument(
                 "自动成图需要指定图片尺寸".into(),
             ));
@@ -34,11 +37,24 @@ impl OrchestratorContext {
             .manga_character_portrait_refs(input.project_id)
             .await
             .map_err(GenerationTaskAccessError::Project)?;
+        let asset_project_ids = self
+            .manga_reference_asset_project_ids(input.project_id)
+            .await
+            .map_err(GenerationTaskAccessError::Project)?;
+        let available_reference_images = self
+            .video_reference_candidate_images(&asset_project_ids, source.chapter_id)
+            .await
+            .map_err(GenerationTaskAccessError::Project)?;
         crate::manga::ensure_manga_source_can_write(&source, "启动漫画流水线")
             .map_err(|error| GenerationTaskAccessError::InvalidArgument(error.to_string()))?;
         let fingerprint = serde_json::json!({
             "pipeline_contract": "manga_page_pipeline_v2",
-            "source": crate::manga::manga_pipeline_fingerprint(&source.content, &portraits),
+            "source": crate::manga::manga_pipeline_run_fingerprint(
+                &source.content,
+                &portraits,
+                &available_reference_images,
+                input.run_stage,
+            ),
             "image_size": input.image_size,
             "stop_after": input.stop_after,
         });

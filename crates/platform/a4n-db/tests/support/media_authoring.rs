@@ -43,6 +43,7 @@ pub async fn adopt_historical_game_plan(
             }],
             video_reference: None,
             dependencies: Vec::new(),
+            preprocessing_fingerprint: None,
         },
         document: json!({"schema_version":"adaptation_plan_v1", "target":"galgame", "intention":"保留已有场景单元", "decisions":[], "units":units}),
     };

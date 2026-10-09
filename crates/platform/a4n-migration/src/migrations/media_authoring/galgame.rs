@@ -376,6 +376,7 @@ fn historical_plan(units: Vec<AdaptationUnit>) -> AdaptationPlanV1 {
     AdaptationPlanV1 {
         schema_version: AdaptationPlanVersion::V1,
         target: AdaptationTarget::Galgame,
+        page_count: None,
         intention: "迁移已有游戏脚本；保留实际场景、对白和人工编辑，未记录的导演意图不作推测"
             .into(),
         decisions: Vec::new(),

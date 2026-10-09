@@ -1,13 +1,13 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { CheckCircle2, Clipboard, RotateCcw, XCircle } from "lucide-react";
-import { LoadingSpinner } from "../ui/LoadingSpinner";
+import { CheckCircle2, Clipboard, Copy, RotateCcw, XCircle } from "lucide-react";
 import type {
   ModelRequestPreview,
   ModelRequestPreviewMessage,
   ModelRequestPreviewStep,
 } from "../../api/requestPreview";
 import { extractErrorMessage } from "../../api";
-import { BookButton } from "../ui/BookButton";
+import { LoadingSpinner } from "../ui/LoadingSpinner";
+import { BookButton, BookIconButton } from "../ui/BookButton";
 import { Modal } from "../ui/Modal";
 import { copyTextToClipboard } from "../../utils/clipboard";
 import { useToast } from "./Toast";
@@ -57,58 +57,6 @@ const jsonTextValue = (value: unknown): string => {
   return JSON.stringify(normalized, null, 2) ?? "";
 };
 
-const indent = (level: number): string => "  ".repeat(level);
-
-const multilineString = (value: string, level: number): string => {
-  const padding = indent(level);
-  const bodyPadding = indent(level + 1);
-  const body = value
-    .replace(/\r\n/g, "\n")
-    .split("\n")
-    .map((line) => `${bodyPadding}${line}`)
-    .join("\n");
-  return `"""\n${body}\n${padding}"""`;
-};
-
-const shouldUseMultilineString = (value: string): boolean =>
-  value.includes("\n") || value.length > 180 || value.includes('\\"') || value.includes("\\n");
-
-const readableValue = (value: unknown, level = 0): string => {
-  const normalized = normalizedPreviewValue(value);
-  if (normalized == null) return "null";
-  if (typeof normalized === "string") {
-    return shouldUseMultilineString(normalized)
-      ? multilineString(normalized, level)
-      : JSON.stringify(normalized);
-  }
-  if (
-    typeof normalized === "number" ||
-    typeof normalized === "boolean"
-  ) {
-    return JSON.stringify(normalized);
-  }
-  if (Array.isArray(normalized)) {
-    if (normalized.length === 0) return "[]";
-    const items = normalized.map(
-      (item) => `${indent(level + 1)}${readableValue(item, level + 1)}`,
-    );
-    return `[\n${items.join(",\n")}\n${indent(level)}]`;
-  }
-  if (typeof normalized === "object") {
-    const entries = Object.entries(normalized as Record<string, unknown>);
-    if (entries.length === 0) return "{}";
-    const fields = entries.map(([key, item]) => {
-      const formatted = readableValue(item, level + 1);
-      return `${indent(level + 1)}${JSON.stringify(key)}: ${formatted}`;
-    });
-    return `{\n${fields.join(",\n")}\n${indent(level)}}`;
-  }
-  return String(normalized);
-};
-
-const charLabel = (value: number, locale: Locale, t: MessageTranslator): string =>
-  t("feedback.inputCharacters", { value: formatNumber(value, locale) });
-
 const stateLabel = (state: string, t: MessageTranslator): string => {
   if (state === "ready") return t("feedback.previewReady");
   if (state === "reused") return t("feedback.reused");
@@ -124,53 +72,40 @@ const messageRoleLabel = (role: unknown, t: MessageTranslator): string => {
 };
 
 const stateClass = (state: string): string => {
-  if (state === "ready") {
-    return "text-success";
-  }
-  if (state === "reused") {
-    return "text-info";
-  }
+  if (state === "ready") return "border-success/35 bg-success-bg text-success";
+  if (state === "reused") return "border-info/35 bg-info-bg text-info";
+  return "border-warning/35 bg-warning-bg text-warning";
+};
+
+const stateTextClass = (state: string): string => {
+  if (state === "ready") return "text-success";
+  if (state === "reused") return "text-info";
   return "text-warning";
 };
 
 const stateIcon = (state: string) => {
-  if (state === "ready") return <CheckCircle2 size={11} />;
-  if (state === "reused") return <RotateCcw size={11} />;
-  return <XCircle size={11} />;
+  if (state === "ready") return <CheckCircle2 size={12} />;
+  if (state === "reused") return <RotateCcw size={12} />;
+  return <XCircle size={12} />;
 };
 
-const messagesArray = (value: unknown): ModelRequestPreviewMessage[] => {
-  return Array.isArray(value) ? (value as ModelRequestPreviewMessage[]) : [];
-};
+const messagesArray = (value: unknown): ModelRequestPreviewMessage[] =>
+  Array.isArray(value) ? (value as ModelRequestPreviewMessage[]) : [];
 
 const requestObject = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
 
+const stringRecordField = (value: unknown, field: string): string | null => {
+  const raw = requestObject(value)?.[field];
+  return typeof raw === "string" && raw.trim() ? raw : null;
+};
+
 const numericField = (value: unknown, field: string): number | null => {
   const raw = requestObject(value)?.[field];
-  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
-  return null;
+  return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
 };
-
-const numericRecordField = (value: unknown, field: string): number | null => {
-  const raw = requestObject(value)?.[field];
-  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
-  return null;
-};
-
-const arrayLength = (value: unknown): number | null => {
-  const normalized = normalizedPreviewValue(value);
-  return Array.isArray(normalized) ? normalized.length : null;
-};
-
-const maxTokensLabel = (
-  value: number | null,
-  locale: Locale,
-  t: MessageTranslator,
-): string | null =>
-  value == null ? null : t("feedback.outputTokenLimit", { value: formatNumber(value, locale) });
 
 const lengthLabel = (
   chars: number | null,
@@ -189,30 +124,48 @@ const lengthLabel = (
   return t("feedback.bytes", { count: formatNumber(bytes ?? 0, locale) });
 };
 
+const StepState: React.FC<{
+  state: string;
+  recorded: boolean;
+  t: MessageTranslator;
+}> = ({ state, recorded, t }) => (
+  <span
+    className={`inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-caption font-medium ${
+      recorded ? "border-success/35 bg-success-bg text-success" : stateClass(state)
+    }`}
+  >
+    {recorded ? <CheckCircle2 size={12} /> : stateIcon(state)}
+    {recorded ? t("feedback.requestRecordedState") : stateLabel(state, t)}
+  </span>
+);
+
 const PromptBlock: React.FC<{
   label: string;
   content: string;
   copyContent?: string;
-  onCopy: (text: string) => void;
+  copyKey: string;
+  copiedKey: string | null;
+  code?: boolean;
+  onCopy: (text: string, key: string) => void;
   t: MessageTranslator;
-}> = ({ label, content, copyContent, onCopy, t }) => {
+}> = ({ label, content, copyContent, copyKey, copiedKey, code = false, onCopy, t }) => {
   if (!content.trim()) return null;
-  const copyText = copyContent ?? content;
+  const raw = copyContent ?? content;
+  const copyLabel = t("feedback.copyLabel", { label });
   return (
-    <section className="min-w-0 overflow-hidden rounded-[var(--pyqt-radius-lg)] border border-book-border/50 bg-book-bg-secondary/45">
-      <div className="flex min-w-0 items-center justify-between gap-3 border-b border-book-border/45 px-3 py-2.5">
+    <section className="min-w-0 overflow-hidden rounded-md border border-book-border/45 bg-book-bg-secondary/35">
+      <div className="flex min-w-0 items-center justify-between gap-3 border-b border-book-border/40 px-3 py-2">
         <span className="min-w-0 truncate text-xs font-semibold text-book-text-main">{label}</span>
-        <button
-          type="button"
-          onClick={() => onCopy(copyText)}
-          className="a4n-icon-button inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-book-text-muted transition-colors hover:bg-book-bg-tertiary hover:text-book-primary"
-          title={t("feedback.copyLabel", { label })}
-          aria-label={t("feedback.copyLabel", { label })}
+        <BookIconButton
+          size="sm"
+          label={copyLabel}
+          variant="ghost"
+          onClick={() => void onCopy(raw, copyKey)}
         >
-          <Clipboard size={12} />
-        </button>
+          {copiedKey === copyKey ? <CheckCircle2 size={13} /> : <Copy size={13} />}
+        </BookIconButton>
       </div>
-      <pre className="min-h-[7rem] whitespace-pre-wrap break-words px-3 py-3 font-mono text-small leading-relaxed text-book-text-main [overflow-wrap:anywhere]">
+      <pre className={`max-h-[min(42vh,32rem)] overflow-auto whitespace-pre-wrap break-words px-3 py-3 text-body-sm leading-relaxed text-book-text-main [overflow-wrap:anywhere] ${code ? "font-mono" : "font-sans"}`}>
         {content}
       </pre>
     </section>
@@ -221,9 +174,11 @@ const PromptBlock: React.FC<{
 
 const StepView: React.FC<{
   step: ModelRequestPreviewStep;
+  stepIndex: number;
   recorded: boolean;
-  onCopy: (text: string) => void;
-}> = ({ step, recorded, onCopy }) => {
+  copiedKey: string | null;
+  onCopy: (text: string, key: string) => void;
+}> = ({ step, stepIndex, recorded, copiedKey, onCopy }) => {
   const { locale, t } = useI18n();
   const request = normalizedPreviewValue(step.request);
   const contextManifest = normalizedPreviewValue(step.context_manifest);
@@ -233,211 +188,354 @@ const StepView: React.FC<{
   const systemPrompt = textValue(step.system_prompt);
   const userPrompt = textValue(step.user_prompt);
   const requestJson = jsonTextValue(request);
-  const requestReadable = readableValue(request);
   const contextManifestJson = jsonTextValue(contextManifest);
   const contextPlanJson = jsonTextValue(contextPlan);
   const contextPackRefsJson = jsonTextValue(contextPackRefs);
-  const contextPlanReadable = readableValue(contextPlan);
-  const contextManifestReadable = readableValue(contextManifest);
-  const contextPackRefsReadable = readableValue(contextPackRefs);
   const maxTokens = numericField(request, "max_tokens");
+  const modelName = stringRecordField(request, "model");
+  const providerName = stringRecordField(request, "provider");
   const contextAvailableInputTokens = numericField(contextPlan, "available_input_tokens");
   const contextEstimatedInputTokens = numericField(contextPlan, "estimated_input_tokens");
   const contextStablePrefixTokens = numericField(contextPlan, "stable_prefix_tokens");
   const contextDynamicDeltaTokens = numericField(contextPlan, "dynamic_delta_tokens");
-  const contextDroppedOptionalPacks = arrayLength(requestObject(contextPlan)?.dropped_optional_pack_refs);
-  const contextPackCount = arrayLength(contextPackRefs);
   const promptLength = lengthLabel(
-    numericRecordField(step.char_counts, "prompt_chars"),
-    numericRecordField(step.char_counts, "prompt_bytes"),
+    numericField(step.char_counts, "prompt_chars"),
+    numericField(step.char_counts, "prompt_bytes"),
     locale,
     t,
   );
   const requestLength = lengthLabel(
-    numericRecordField(step.char_counts, "request_chars"),
-    numericRecordField(step.char_counts, "request_bytes"),
+    numericField(step.char_counts, "request_chars"),
+    numericField(step.char_counts, "request_bytes"),
     locale,
     t,
   );
+  const metadata = [
+    modelName ? { label: t("feedback.modelLabel"), value: modelName } : null,
+    providerName ? { label: t("feedback.providerLabel"), value: providerName } : null,
+    step.prompt_name ? { label: t("feedback.templateLabel"), value: step.prompt_name } : null,
+    promptLength ? { label: t("feedback.promptLengthLabel"), value: promptLength } : null,
+    requestLength ? { label: t("feedback.requestLengthLabel"), value: requestLength } : null,
+    maxTokens != null ? { label: t("feedback.outputTokenLimitLabel"), value: formatNumber(maxTokens, locale) } : null,
+  ].filter((item): item is { label: string; value: string } => item != null);
+  const hasContextDetails = Boolean(
+    contextPlanJson.trim() || contextPackRefsJson.trim() || contextManifestJson.trim(),
+  );
+  const hasPromptText = messages.length > 0 || systemPrompt.trim() || userPrompt.trim();
+
   return (
-    <section className="min-w-0">
-      <div className="mb-3 flex min-w-0 items-center gap-2 border-b border-book-border/45 pb-2 text-xs">
-        <span className="min-w-0 flex-1 truncate font-semibold text-book-text-main">
-          {step.title}
-        </span>
-        {recorded ? (
-          <span className="inline-flex shrink-0 items-center gap-1 text-small text-success">
-            <CheckCircle2 size={11} />
-            {t("feedback.requestRecordedState")}
-          </span>
-        ) : (
-          <span className={`inline-flex shrink-0 items-center gap-1 text-small ${stateClass(step.state)}`}>
-            {stateIcon(step.state)}
-            {stateLabel(step.state, t)}
-          </span>
-        )}
-      </div>
-      {step.note && (
-        <div className={`mb-3 rounded-[var(--pyqt-radius-lg)] border px-3 py-2.5 text-xs leading-relaxed ${recorded ? "border-book-border/50 bg-book-bg-secondary/45 text-book-text-muted" : "border-warning/30 bg-warning/10 text-warning"}`}>
+    <section id={`request-preview-step-${stepIndex}`} className="min-w-0 space-y-4">
+      <header className="flex min-w-0 flex-wrap items-start justify-between gap-3 border-b border-book-border/45 pb-3">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-semibold leading-relaxed text-book-text-main">{step.title}</h2>
+          {step.prompt_name ? <p className="mt-1 truncate text-small text-book-text-muted">{t("feedback.template", { name: step.prompt_name })}</p> : null}
+        </div>
+        <StepState state={step.state} recorded={recorded} t={t} />
+      </header>
+
+      {step.note ? (
+        <div className={`rounded-md border px-3 py-2.5 text-small leading-relaxed ${recorded ? "border-book-border/45 bg-book-bg-secondary/35 text-book-text-muted" : "border-warning/35 bg-warning-bg text-warning"}`}>
           {step.note}
         </div>
-      )}
-      <details className="mb-3 text-caption text-book-text-muted">
-        <summary className="w-fit cursor-pointer hover:text-book-text-main">{t("feedback.requestInfo")}</summary>
-        <div className="mt-2 flex min-w-0 flex-wrap gap-x-3 gap-y-1 border-l-2 border-book-border/60 pl-2 leading-relaxed">
-          {step.prompt_name && <span>{t("feedback.template", { name: step.prompt_name })}</span>}
-          <span>{charLabel(step.total_chars, locale, t)}</span>
-          {maxTokens != null && <span>{maxTokensLabel(maxTokens, locale, t)}</span>}
-          {promptLength && <span>{t("feedback.promptLength", { value: promptLength })}</span>}
-          {requestLength && <span>{t("feedback.requestLength", { value: requestLength })}</span>}
-          {contextAvailableInputTokens != null && (
-            <span>
-              {t("feedback.contextTokens", {
-                estimated:
-                  contextEstimatedInputTokens == null
-                    ? "-"
-                    : formatNumber(contextEstimatedInputTokens, locale),
-                available: formatNumber(contextAvailableInputTokens, locale),
-              })}
+      ) : null}
+
+      {metadata.length > 0 ? (
+        <dl className="grid min-w-0 grid-cols-2 gap-3 border-y border-book-border/40 py-3 sm:grid-cols-3 xl:grid-cols-4">
+          {metadata.map((item) => (
+            <Metric key={`${item.label}:${item.value}`} label={item.label} value={item.value || "—"} />
+          ))}
+        </dl>
+      ) : null}
+
+      {contextAvailableInputTokens != null && contextEstimatedInputTokens != null ? (
+        <ContextBudget
+          estimated={contextEstimatedInputTokens}
+          available={contextAvailableInputTokens}
+          stablePrefix={contextStablePrefixTokens}
+          dynamicDelta={contextDynamicDeltaTokens}
+          locale={locale}
+          t={t}
+        />
+      ) : null}
+
+      <section className="min-w-0 space-y-3">
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <h3 className="text-xs font-semibold text-book-text-main">{t("feedback.promptMessages")}</h3>
+          {messages.length > 0 ? (
+            <span className="shrink-0 text-caption tabular-nums text-book-text-muted">
+              {t("feedback.messageCount", { count: formatNumber(messages.length, locale) })}
             </span>
-          )}
-          {contextStablePrefixTokens != null && (
-            <span>{t("feedback.stablePrefix", { value: formatNumber(contextStablePrefixTokens, locale) })}</span>
-          )}
-          {contextDynamicDeltaTokens != null && (
-            <span>{t("feedback.dynamicTail", { value: formatNumber(contextDynamicDeltaTokens, locale) })}</span>
-          )}
-          {contextPackCount != null && <span>{t("feedback.contextPacks", { count: formatNumber(contextPackCount, locale) })}</span>}
-          {contextDroppedOptionalPacks != null && contextDroppedOptionalPacks > 0 && (
-            <span className="text-warning">{t("feedback.droppedOptionalPacks", { count: formatNumber(contextDroppedOptionalPacks, locale) })}</span>
-          )}
+          ) : null}
         </div>
-      </details>
-      {messages.length > 0 ? (
-        <div className="grid min-w-0 gap-3 xl:grid-cols-2">
-          {messages.map((message, index) => (
+        {messages.length > 0 ? (
+          <div className="grid min-w-0 gap-3">
+            {messages.map((message, index) => {
+              const label = `${messageRoleLabel(message.role, t)} ${formatNumber(index + 1, locale)}`;
+              return (
+                <PromptBlock
+                  key={`${step.key}-${index}`}
+                  label={label}
+                  content={textValue(message.content ?? message)}
+                  copyKey={`${step.key}:message:${index}`}
+                  copiedKey={copiedKey}
+                  onCopy={onCopy}
+                  t={t}
+                />
+              );
+            })}
+          </div>
+        ) : systemPrompt.trim() || userPrompt.trim() ? (
+          <div className="grid min-w-0 gap-3 xl:grid-cols-2">
             <PromptBlock
-              key={`${step.key}-${index}`}
-              label={`${messageRoleLabel(message.role, t)} ${index + 1}`}
-              content={textValue(message.content ?? message)}
+              label={t("feedback.systemPrompt")}
+              content={systemPrompt}
+              copyKey={`${step.key}:system`}
+              copiedKey={copiedKey}
               onCopy={onCopy}
               t={t}
             />
-          ))}
-        </div>
-      ) : (
-        <div className="grid min-w-0 gap-3 xl:grid-cols-2">
-          <PromptBlock label={t("feedback.systemPrompt")} content={systemPrompt} onCopy={onCopy} t={t} />
-          <PromptBlock label={t("feedback.userPrompt")} content={userPrompt} onCopy={onCopy} t={t} />
-        </div>
-      )}
-      {requestJson.trim() && (
-        <details open={recorded} className="mt-3 text-caption text-book-text-muted">
-          <summary className="w-fit cursor-pointer hover:text-book-text-main">{t("feedback.fullRequest")}</summary>
-          <div className="mt-2">
+            <PromptBlock
+              label={t("feedback.userPrompt")}
+              content={userPrompt}
+              copyKey={`${step.key}:user`}
+              copiedKey={copiedKey}
+              onCopy={onCopy}
+              t={t}
+            />
+          </div>
+        ) : (
+          <p className="border-l-2 border-book-border/60 pl-3 text-small text-book-text-muted">
+            {t("feedback.noPromptText")}
+          </p>
+        )}
+      </section>
+
+      {requestJson.trim() ? (
+        <details open={recorded} className="min-w-0 border-t border-book-border/40 pt-3 text-small">
+          <summary className="min-h-11 w-fit cursor-pointer py-3 font-semibold text-book-text-sub hover:text-book-text-main">
+            {t("feedback.fullRequest")}
+          </summary>
+          <div className="mt-3">
             <PromptBlock
               label={t("feedback.fullRequest")}
-              content={requestReadable}
+              content={requestJson}
               copyContent={requestJson}
+              copyKey={`${step.key}:request`}
+              copiedKey={copiedKey}
+              code
               onCopy={onCopy}
               t={t}
             />
           </div>
         </details>
-      )}
-      {(contextPlanJson.trim() || contextPackRefsJson.trim() || contextManifestJson.trim()) && (
-        <details className="mt-3 text-caption text-book-text-muted">
-          <summary className="w-fit cursor-pointer hover:text-book-text-main">{t("feedback.contextDetails")}</summary>
-          <div className="mt-2 grid min-w-0 gap-3 xl:grid-cols-3">
-            <PromptBlock
-              label={t("feedback.budget")}
-              content={contextPlanReadable}
-              copyContent={contextPlanJson}
-              onCopy={onCopy}
-              t={t}
-            />
-            <PromptBlock
-              label={t("feedback.references")}
-              content={contextPackRefsReadable}
-              copyContent={contextPackRefsJson}
-              onCopy={onCopy}
-              t={t}
-            />
-            <PromptBlock
-              label={t("feedback.manifest")}
-              content={contextManifestReadable}
-              copyContent={contextManifestJson}
-              onCopy={onCopy}
-              t={t}
-            />
+      ) : null}
+
+      {hasContextDetails ? (
+        <details className="min-w-0 border-t border-book-border/40 pt-3 text-small">
+          <summary className="min-h-11 w-fit cursor-pointer py-3 font-semibold text-book-text-sub hover:text-book-text-main">
+            {t("feedback.contextDetails")}
+          </summary>
+          <div className="mt-3 grid min-w-0 gap-3 xl:grid-cols-3">
+            {contextPlanJson.trim() ? (
+              <PromptBlock
+                label={t("feedback.budget")}
+                content={contextPlanJson}
+                copyContent={contextPlanJson}
+                copyKey={`${step.key}:context-plan`}
+                copiedKey={copiedKey}
+                code
+                onCopy={onCopy}
+                t={t}
+              />
+            ) : null}
+            {contextPackRefsJson.trim() ? (
+              <PromptBlock
+                label={t("feedback.references")}
+                content={contextPackRefsJson}
+                copyContent={contextPackRefsJson}
+                copyKey={`${step.key}:context-refs`}
+                copiedKey={copiedKey}
+                code
+                onCopy={onCopy}
+                t={t}
+              />
+            ) : null}
+            {contextManifestJson.trim() ? (
+              <PromptBlock
+                label={t("feedback.manifest")}
+                content={contextManifestJson}
+                copyContent={contextManifestJson}
+                copyKey={`${step.key}:context-manifest`}
+                copiedKey={copiedKey}
+                code
+                onCopy={onCopy}
+                t={t}
+              />
+            ) : null}
           </div>
         </details>
-      )}
+      ) : null}
+
+      {!hasPromptText && !requestJson.trim() && !hasContextDetails ? (
+        <div className="border-t border-book-border/40 pt-3 text-small text-book-text-muted">
+          {t("feedback.noPreviewData")}
+        </div>
+      ) : null}
     </section>
   );
 };
 
-export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
-  open,
-  loading,
-  data,
-  recorded = false,
-  fallbackTitle,
-  confirmBusy = false,
-  confirmDisabled = false,
-  confirmLabel,
-  onConfirm,
-  onClose,
-}) => {
-  const [copied, setCopied] = useState(false);
-  const copiedTimerRef = useRef<number | null>(null);
-  const copySequenceRef = useRef(0);
-  const { addToast } = useToast();
-  const { locale, t } = useI18n();
-
-  useLayoutEffect(() => {
-    copySequenceRef.current += 1;
-    setCopied(false);
-    if (copiedTimerRef.current != null) {
-      window.clearTimeout(copiedTimerRef.current);
-      copiedTimerRef.current = null;
-    }
-  }, [open, data]);
-
-  useEffect(
-    () => () => {
-      copySequenceRef.current += 1;
-      if (copiedTimerRef.current != null) {
-        window.clearTimeout(copiedTimerRef.current);
-      }
-    },
-    [],
+const StepNavigation: React.FC<{
+  steps: ModelRequestPreviewStep[];
+  activeIndex: number;
+  recorded: boolean;
+  onSelect: (index: number) => void;
+  t: MessageTranslator;
+}> = ({ steps, activeIndex, recorded, onSelect, t }) => {
+  const { locale } = useI18n();
+  const buttons = steps.map((step, index) => (
+    <StepNavigationButton
+      key={`${step.key}:${index}`}
+      step={step}
+      index={index}
+      active={index === activeIndex}
+      recorded={recorded}
+      onClick={() => onSelect(index)}
+      t={t}
+      locale={locale}
+    />
+  ));
+  return (
+    <>
+      <nav aria-label={t("feedback.stepNavigation")} className="flex min-w-0 gap-2 overflow-x-auto pb-1 custom-scrollbar xl:hidden">
+        {buttons}
+      </nav>
+      <aside className="hidden min-w-0 xl:block">
+        <div className="sticky top-0 max-h-[78vh] overflow-y-auto custom-scrollbar">
+          <h2 className="mb-2 text-caption font-semibold uppercase text-book-text-muted">
+            {t("feedback.stepNavigation")}
+          </h2>
+          <nav aria-label={t("feedback.stepNavigation")} className="grid min-w-0 gap-1.5">
+            {buttons}
+          </nav>
+        </div>
+      </aside>
+    </>
   );
+};
 
-  const copyText = async (text: string) => {
-    const copyRequest = ++copySequenceRef.current;
-    try {
-      await copyTextToClipboard(text);
-      if (copySequenceRef.current !== copyRequest) return;
-      setCopied(true);
-      if (copiedTimerRef.current != null) {
-        window.clearTimeout(copiedTimerRef.current);
-      }
-      copiedTimerRef.current = window.setTimeout(() => {
-        copiedTimerRef.current = null;
-        setCopied(false);
-      }, 1200);
-    } catch (err) {
-      if (copySequenceRef.current !== copyRequest) return;
-      if (copiedTimerRef.current != null) {
-        window.clearTimeout(copiedTimerRef.current);
-        copiedTimerRef.current = null;
-      }
-      setCopied(false);
-      addToast(extractErrorMessage(err, t("feedback.copyPreviewFailed")), "error");
-    }
-  };
-  const allText = data
+const StepNavigationButton: React.FC<{
+  step: ModelRequestPreviewStep;
+  index: number;
+  active: boolean;
+  recorded: boolean;
+  onClick: () => void;
+  t: MessageTranslator;
+  locale: Locale;
+}> = ({ step, index, active, recorded, onClick, t, locale }) => (
+  <button
+    type="button"
+    aria-current={active ? "step" : undefined}
+    onClick={onClick}
+    className={`flex basis-36 shrink-0 max-w-[18rem] items-start gap-2 rounded-md border p-2.5 text-left transition-colors xl:min-w-0 xl:max-w-none ${
+      active
+        ? "border-book-primary/45 bg-book-bg-secondary text-book-text-main"
+        : "border-transparent text-book-text-sub hover:border-book-border/45 hover:bg-book-bg-secondary/55"
+    }`}
+  >
+    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-book-bg-tertiary text-caption font-semibold tabular-nums text-book-text-muted">
+      {formatNumber(index + 1, locale)}
+    </span>
+    <span className="min-w-0 flex-1">
+      <span className="block line-clamp-2 text-xs font-semibold leading-relaxed">
+        {step.title}
+      </span>
+      <span className="mt-1 flex min-w-0 items-center gap-1.5 text-caption">
+        <span className={recorded ? "text-success" : stateTextClass(step.state)}>
+          {recorded ? <CheckCircle2 size={11} /> : stateIcon(step.state)}
+        </span>
+        <span className="truncate">{recorded ? t("feedback.requestRecordedState") : stateLabel(step.state, t)}</span>
+        {step.prompt_name ? <span className="truncate text-book-text-muted">· {step.prompt_name}</span> : null}
+      </span>
+    </span>
+  </button>
+);
+
+const Metric: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+  <div className="min-w-0 border-l border-book-border/50 pl-3 first:border-l-0 first:pl-0">
+    <dt className="text-caption text-book-text-muted">{label}</dt>
+    <dd className="mt-1 truncate text-small font-semibold tabular-nums text-book-text-main" title={value}>
+      {value}
+    </dd>
+  </div>
+);
+
+const ContextBudget: React.FC<{
+  estimated: number;
+  available: number;
+  stablePrefix: number | null;
+  dynamicDelta: number | null;
+  locale: Locale;
+  t: MessageTranslator;
+}> = ({ estimated, available, stablePrefix, dynamicDelta, locale, t }) => {
+  if (available <= 0) return null;
+  const used = Math.max(0, estimated);
+  const ratio = Math.min(1, used / available);
+  const hasBreakdown = stablePrefix != null || dynamicDelta != null;
+  const stableTokens = hasBreakdown
+    ? Math.min(used, Math.max(0, stablePrefix ?? 0))
+    : 0;
+  const dynamicTokens = Math.min(
+    Math.max(0, used - stableTokens),
+    Math.max(0, dynamicDelta ?? (stablePrefix != null ? used - stableTokens : 0)),
+  );
+  const otherTokens = Math.max(0, used - stableTokens - dynamicTokens);
+  const over = used > available;
+  const percent = Math.round(ratio * 100);
+  const stableWidth = ratio > 0 ? Math.round((stableTokens / available) * 100 / ratio) : 0;
+  const dynamicWidth = ratio > 0 ? Math.round((dynamicTokens / available) * 100 / ratio) : 0;
+  const otherWidth = Math.max(0, 100 - stableWidth - dynamicWidth);
+
+  return (
+    <section className="min-w-0 rounded-md border border-book-border/45 bg-book-bg-secondary/35 px-3 py-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-xs font-semibold text-book-text-main">{t("feedback.contextBudget")}</h3>
+        <span className={`text-small font-semibold tabular-nums ${over ? "text-warning" : "text-book-text-sub"}`}>
+          {t("feedback.contextTokens", {
+            estimated: formatNumber(used, locale),
+            available: formatNumber(available, locale),
+          })}
+        </span>
+      </div>
+      <div
+        className="mt-2 h-2.5 overflow-hidden rounded-full bg-book-bg-tertiary"
+        role="progressbar"
+        aria-label={t("feedback.contextBudget")}
+        aria-valuemin={0}
+        aria-valuemax={available}
+        aria-valuenow={Math.min(used, available)}
+        aria-valuetext={t("feedback.contextTokens", {
+          estimated: formatNumber(used, locale),
+          available: formatNumber(available, locale),
+        })}
+      >
+        <div className={`flex h-full ${over ? "bg-warning" : ""}`} style={{ width: `${percent}%` }}>
+          {stableTokens > 0 ? <span className="h-full bg-book-primary" style={{ width: `${stableWidth}%` }} /> : null}
+          {dynamicTokens > 0 ? <span className="h-full bg-book-accent" style={{ width: `${dynamicWidth}%` }} /> : null}
+          {otherTokens > 0 ? <span className="h-full bg-info" style={{ width: `${otherWidth}%` }} /> : null}
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-caption text-book-text-muted">
+        {stablePrefix != null ? <span className="inline-flex items-center gap-1.5"><i className="size-2 rounded-sm bg-book-primary" />{t("feedback.stablePrefix", { value: formatNumber(stablePrefix, locale) })}</span> : null}
+        {dynamicDelta != null ? <span className="inline-flex items-center gap-1.5"><i className="size-2 rounded-sm bg-book-accent" />{t("feedback.dynamicTail", { value: formatNumber(dynamicDelta, locale) })}</span> : null}
+        {over ? <span className="text-warning">{t("feedback.contextBudgetExceeded", { count: formatNumber(used - available, locale) })}</span> : null}
+      </div>
+    </section>
+  );
+};
+
+const buildAllText = (data: ModelRequestPreview | null): string =>
+  data
     ? data.steps
         .map((step) =>
           [
@@ -456,32 +554,102 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
         )
         .join("\n\n")
     : "";
+
+export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
+  open,
+  loading,
+  data,
+  recorded = false,
+  fallbackTitle,
+  confirmBusy = false,
+  confirmDisabled = false,
+  confirmLabel,
+  onConfirm,
+  onClose,
+}) => {
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [activeStepIndex, setActiveStepIndex] = useState(0);
+  const copiedTimerRef = useRef<number | null>(null);
+  const copySequenceRef = useRef(0);
+  const { addToast } = useToast();
+  const { locale, t } = useI18n();
+  const steps = data?.steps ?? [];
+  const activeStep = steps[Math.min(activeStepIndex, Math.max(0, steps.length - 1))] ?? null;
+  const allText = buildAllText(data);
+
+  useLayoutEffect(() => {
+    copySequenceRef.current += 1;
+    setCopiedKey(null);
+    if (copiedTimerRef.current != null) {
+      window.clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = null;
+    }
+    const readyIndex = steps.reduce(
+      (lastIndex, step, index) =>
+        step.state === "ready" || step.state === "reused" ? index : lastIndex,
+      -1,
+    );
+    setActiveStepIndex(readyIndex >= 0 ? readyIndex : Math.max(0, steps.length - 1));
+  }, [open, data]);
+
+  useEffect(
+    () => () => {
+      copySequenceRef.current += 1;
+      if (copiedTimerRef.current != null) window.clearTimeout(copiedTimerRef.current);
+    },
+    [],
+  );
+
+  const copyText = async (text: string, key: string) => {
+    const copyRequest = ++copySequenceRef.current;
+    try {
+      await copyTextToClipboard(text);
+      if (copySequenceRef.current !== copyRequest) return;
+      setCopiedKey(key);
+      if (copiedTimerRef.current != null) window.clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = window.setTimeout(() => {
+        copiedTimerRef.current = null;
+        setCopiedKey(null);
+      }, 1200);
+    } catch (err) {
+      if (copySequenceRef.current !== copyRequest) return;
+      if (copiedTimerRef.current != null) {
+        window.clearTimeout(copiedTimerRef.current);
+        copiedTimerRef.current = null;
+      }
+      setCopiedKey(null);
+      addToast(extractErrorMessage(err, t("feedback.copyPreviewFailed")), "error");
+    }
+  };
+
+  const contextSummary = data
+    ? t(recorded ? "feedback.requestRecorded" : "feedback.requestPreviewReady", {
+        ready: formatNumber(data.ready_step_count, locale),
+        total: formatNumber(data.steps.length, locale),
+      })
+    : t(recorded ? "feedback.requestRecordedLoading" : "feedback.requestPreviewSubtitle");
+
   return (
     <Modal
       isOpen={open}
       onClose={onClose}
       title={data?.title ?? fallbackTitle ?? t("feedback.requestPreviewTitle")}
-      subtitle={
-        data
-          ? t(recorded ? "feedback.requestRecorded" : "feedback.requestPreviewReady", {
-              ready: formatNumber(data.ready_step_count, locale),
-              total: formatNumber(data.steps.length, locale),
-            })
-          : t(recorded ? "feedback.requestRecordedLoading" : "feedback.requestPreviewSubtitle")
-      }
-      maxWidthClassName="max-w-[min(94vw,72rem)]"
+      subtitle={contextSummary}
+      maxWidthClassName="max-w-[min(96vw,86rem)]"
+      className="sm:max-h-[88vh]"
+      bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar px-3 py-3 sm:px-5 sm:py-4"
       zIndexClassName="z-[80]"
       footer={
         <div className="flex w-full items-center justify-end gap-2">
           <BookButton
             variant="secondary"
             size="sm"
-            onClick={() => void copyText(allText)}
+            onClick={() => void copyText(allText, "all")}
             disabled={!allText}
             className="!min-h-8 !text-xs"
           >
-            <Clipboard size={12} />
-            {copied ? t("feedback.copiedAll") : t("feedback.copyAll")}
+            {copiedKey === "all" ? <CheckCircle2 size={13} /> : <Clipboard size={13} />}
+            {copiedKey === "all" ? t("feedback.copiedAll") : t("feedback.copyAll")}
           </BookButton>
           {confirmLabel && onConfirm ? (
             <BookButton
@@ -491,7 +659,7 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
               disabled={confirmDisabled || confirmBusy}
               className="!min-h-8 !text-xs"
             >
-              {confirmBusy ? <LoadingSpinner size="sm" /> : <CheckCircle2 size={12} />}
+              {confirmBusy ? <LoadingSpinner size="sm" /> : <CheckCircle2 size={13} />}
               {confirmLabel}
             </BookButton>
           ) : null}
@@ -499,15 +667,36 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
       }
     >
       {loading ? (
-        <LoadingSpinner size="lg" text={t("feedback.buildingRequest")} inline={false} className="min-h-[18rem]" />
-      ) : data ? (
-        <div className="flex min-w-0 flex-col gap-3">
-          {data.steps.map((step) => (
-            <StepView key={step.key} step={step} recorded={recorded} onCopy={copyText} />
-          ))}
+        <div className="flex min-h-[18rem] items-center justify-center">
+          <div className="flex items-center gap-2 text-small text-book-text-muted">
+            <LoadingSpinner size="sm" />
+            {t("feedback.buildingRequest")}
+          </div>
+        </div>
+      ) : data && activeStep ? (
+        <div className={`grid min-w-0 gap-4 ${steps.length > 1 ? "xl:grid-cols-[14rem_minmax(0,1fr)]" : "grid-cols-1"}`}>
+          {steps.length > 1 ? (
+            <StepNavigation
+              steps={steps}
+              activeIndex={activeStepIndex}
+              recorded={recorded}
+              onSelect={setActiveStepIndex}
+              t={t}
+            />
+          ) : null}
+          <StepView
+            key={`${activeStep.key}:${activeStepIndex}`}
+            step={activeStep}
+            stepIndex={activeStepIndex}
+            recorded={recorded}
+            copiedKey={copiedKey}
+            onCopy={copyText}
+          />
         </div>
       ) : (
-        <div className="py-10 text-center text-sm text-book-text-muted">{t("feedback.noPreviewData")}</div>
+        <div className="flex min-h-[14rem] items-center justify-center text-small text-book-text-muted">
+          {t("feedback.noPreviewData")}
+        </div>
       )}
     </Modal>
   );

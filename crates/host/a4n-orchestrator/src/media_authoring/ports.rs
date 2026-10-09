@@ -3,7 +3,9 @@ use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
-use super::{GenerateAdaptation, authoring_error, authoring_source, records};
+use super::{
+    GenerateAdaptation, authoring_delete_error, authoring_error, authoring_source, records,
+};
 use crate::{OrchestratorContext, prompt_records::PromptRendererAdapter};
 
 #[async_trait::async_trait]
@@ -30,6 +32,45 @@ impl MediaAuthoringApplicationPort for OrchestratorContext {
         .map_err(authoring_error)?;
         let mut documents = Vec::new();
         for record in &records {
+            let preprocessing_stale = if target == AdaptationTarget::Manga
+                && record.kind == AuthoringDocumentKind::AdaptationPlan
+            {
+                match record.source_chapter_id {
+                    Some(chapter_id) => match sources
+                        .iter()
+                        .find(|source| source.source_chapter_id == chapter_id)
+                    {
+                        Some(source) => match self
+                            .manga_pipeline_artifact(
+                                input.project_id,
+                                chapter_id,
+                                a4n_domain::manga::MangaPipelineArtifactStage::Preprocessing,
+                                None,
+                            )
+                            .await?
+                        {
+                            Some(artifact) => {
+                                let input_fingerprint = self
+                                    .current_manga_preprocessing_input_fingerprint(
+                                        input.project_id,
+                                        &source.content_sha256,
+                                        source.chapter_number,
+                                    )
+                                    .await?;
+                                artifact.stale
+                                    || artifact.input_fingerprint != input_fingerprint
+                                    || record.inputs.preprocessing_fingerprint.as_deref()
+                                        != Some(artifact.output_fingerprint.as_str())
+                            }
+                            None => true,
+                        },
+                        None => true,
+                    },
+                    None => true,
+                }
+            } else {
+                false
+            };
             let stale = record.source_snapshot_id != snapshot_id
                 || record.inputs.sources.iter().any(|source| {
                     !sources.iter().any(|current| {
@@ -44,7 +85,8 @@ impl MediaAuthoringApplicationPort for OrchestratorContext {
                         parent.reference() == *dependency
                             && parent.status == AuthoringDocumentStatus::Adopted
                     })
-                });
+                })
+                || preprocessing_stale;
             let video_reference_status = self
                 .video_reference_status(user_id, record.inputs.video_reference.as_ref())
                 .await?;
@@ -109,7 +151,7 @@ impl MediaAuthoringApplicationPort for OrchestratorContext {
         let existing = self
             .authoring_edit_base(input.project_id, input.record_id, input.expected_revision)
             .await?;
-        let inputs = match &existing {
+        let mut inputs = match &existing {
             Some(record)
                 if record.kind == input.kind
                     && record.source_chapter_id == input.chapter_id
@@ -127,6 +169,22 @@ impl MediaAuthoringApplicationPort for OrchestratorContext {
                     .await?
             }
         };
+        if input.kind == AuthoringDocumentKind::AdaptationPlan && target == AdaptationTarget::Manga
+        {
+            let source = sources
+                .iter()
+                .find(|source| Some(source.source_chapter_id) == input.chapter_id)
+                .ok_or_else(|| AppError::NotFound("漫画改编原文章节不存在".into()))?;
+            inputs.preprocessing_fingerprint = Some(
+                self.current_manga_preprocessing_fingerprint(
+                    input.project_id,
+                    source.source_chapter_id,
+                    &source.content_sha256,
+                    source.chapter_number,
+                )
+                .await?,
+            );
+        }
         self.validate_authoring_payload(
             input.project_id,
             target,
@@ -193,6 +251,24 @@ impl MediaAuthoringApplicationPort for OrchestratorContext {
         )
         .await
         .map_err(authoring_error)
+    }
+
+    async fn delete(
+        &self,
+        user_id: i64,
+        input: DeleteAuthoringDocumentInput,
+    ) -> Result<(), AppError> {
+        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        records::delete_authoring_document(
+            self.database.executor(),
+            input.project_id,
+            input.record_id,
+            input.kind,
+            input.expected_revision,
+        )
+        .await
+        .map_err(authoring_delete_error)
     }
 
     async fn video_references(

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use a4n_api_contract::manga::MangaPagePromptSourceSummary;
+use a4n_domain::media::GeneratedImageRecord;
 use a4n_error::AppError;
 use a4n_progress::{ProgressPhaseKind, ProgressSeverity};
 use a4n_service_protocol::ProgressEvent;
@@ -8,13 +9,18 @@ use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
 use crate::media_authoring::PreparedAdaptation;
-use a4n_domain::source_spans::SourceSpan;
+use a4n_domain::{
+    manga::{MangaPipelineArtifactDraft, MangaPipelineArtifactStage},
+    source_spans::SourceSpan,
+    source_text_hash,
+};
 use a4n_prompt::rendering::PromptRenderer;
 
 use super::super::super::{MangaPipelineStage, OrchestratorContext};
 use super::super::state::{MANGA_PIPELINE_TOTAL_STEPS, manga_pipeline_stage_status};
 use crate::source_markers::SourceMarkerMap;
 
+#[derive(Clone)]
 pub(super) struct MangaRunContext<'a> {
     pub(super) service: &'a OrchestratorContext,
     pub(super) chapter_id: i64,
@@ -28,6 +34,7 @@ pub(super) struct MangaRunContext<'a> {
     pub(super) workflow_run_id: i64,
     pub(super) resume_from_checkpoint: bool,
     pub(super) stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+    pub(super) run_stage: Option<MangaPipelineArtifactStage>,
     pub(super) image_size: Option<a4n_domain::ImageSize>,
     pub(super) image_generator:
         Option<&'a dyn a4n_api_contract::manga::MangaPipelinePageImageGenerator>,
@@ -41,10 +48,56 @@ pub(super) struct MangaRunContext<'a> {
     pub(super) reference_assets: Value,
     pub(super) source_metadata: MangaPagePromptSourceSummary,
     pub(super) reference_assets_metadata: Value,
+    pub(super) available_reference_images: Vec<GeneratedImageRecord>,
     pub(super) prompt_fingerprint: Value,
 }
 
 impl MangaRunContext<'_> {
+    pub(super) fn with_stop_after(
+        &self,
+        stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+    ) -> Self {
+        let mut context = self.clone();
+        context.stop_after = stop_after;
+        context
+    }
+
+    pub(super) async fn persist_artifact(
+        &self,
+        stage: MangaPipelineArtifactStage,
+        page_number: Option<u32>,
+        input_fingerprint: String,
+        payload: Value,
+    ) -> Result<(), AppError> {
+        self.service
+            .upsert_manga_pipeline_artifact(MangaPipelineArtifactDraft {
+                project_id: self.project_id,
+                chapter_id: self.chapter_id,
+                stage,
+                page_number,
+                input_fingerprint,
+                payload,
+                stale: false,
+            })
+            .await?;
+        Ok(())
+    }
+
+    pub(super) fn artifact_input_fingerprint<T: serde::Serialize>(
+        &self,
+        stage: MangaPipelineArtifactStage,
+        input: &T,
+    ) -> Result<String, AppError> {
+        let fingerprint = serde_json::to_string(&serde_json::json!({
+            "contract": "manga_stage_artifact_v1",
+            "stage": stage.key(),
+            "source": self.source_metadata,
+            "prompt_fingerprint": self.prompt_fingerprint,
+            "input": input,
+        }))?;
+        Ok(source_text_hash(&fingerprint))
+    }
+
     pub(super) async fn advance_stage(
         &self,
         next_stage: MangaPipelineStage,
@@ -118,12 +171,6 @@ impl MangaRunContext<'_> {
         }
         Ok(())
     }
-}
-
-pub(super) struct MangaEarlyRun {
-    pub(super) events_json: Value,
-    pub(super) characters_json: Value,
-    pub(super) speech_json: Value,
 }
 
 pub(super) struct MangaExtractionRun {

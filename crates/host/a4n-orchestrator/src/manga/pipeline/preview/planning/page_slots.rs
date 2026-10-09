@@ -39,7 +39,7 @@ pub(super) async fn preview_page_slots(
         MangaPreviewCall::Restored { parsed_output } => {
             steps.push(MangaPipelineRequestPreviewStep::reused_checkpoint(
                 "manga_page_slots",
-                "漫画 Step 6：页数与每页内容",
+                "页数与每页内容",
                 "manga_page_slots",
             ));
             parsed_output
@@ -47,7 +47,7 @@ pub(super) async fn preview_page_slots(
         MangaPreviewCall::Ready(request) => {
             steps.push(MangaPipelineRequestPreviewStep::ready(
                 "manga_page_slots",
-                "漫画 Step 6：页数与每页内容",
+                "页数与每页内容",
                 "manga_page_slots",
                 None,
                 *request,

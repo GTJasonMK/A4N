@@ -482,6 +482,21 @@ impl OrchestratorContext {
             .await
     }
 
+    pub(crate) async fn manga_reference_asset_project_ids(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<i64>, AppError> {
+        let (project_id, root_project_id) = self
+            .project_family
+            .project_or_derived_access_ids(project_id)
+            .await?;
+        let mut project_ids = vec![project_id];
+        if let Some(root_project_id) = root_project_id {
+            project_ids.push(root_project_id);
+        }
+        Ok(project_ids)
+    }
+
     pub(crate) async fn chapter_manga_source_by_id(
         &self,
         chapter_id: i64,

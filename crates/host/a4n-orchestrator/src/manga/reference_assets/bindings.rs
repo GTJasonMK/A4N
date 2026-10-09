@@ -31,6 +31,7 @@ pub(in crate::manga) fn page_reference_bindings(
                 &name,
                 portrait_by_name.get(name.as_str()).copied(),
             )?,
+            user_added_assets: Vec::new(),
         });
     }
 

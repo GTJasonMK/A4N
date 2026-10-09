@@ -94,12 +94,34 @@ fn merge_reference_bindings(
         if let Some(previous) = existing
             .iter()
             .find(|previous| previous.character_name == binding.character_name)
-            && previous.bound_asset.is_some()
         {
-            binding.bound_asset = previous.bound_asset.clone();
+            if let Some(asset) = &previous.bound_asset
+                && !binding.bound_asset.as_ref().is_some_and(|system_asset| {
+                    system_asset.asset_kind == asset.asset_kind
+                        && system_asset.asset_id == asset.asset_id
+                })
+            {
+                push_user_reference_asset(binding, asset.clone());
+            }
+            for asset in &previous.user_added_assets {
+                push_user_reference_asset(binding, asset.clone());
+            }
         }
     }
     generated
+}
+
+fn push_user_reference_asset(
+    binding: &mut MangaReferenceBindingSummary,
+    asset: a4n_domain::manga::MangaBoundReferenceAsset,
+) {
+    if !binding
+        .user_added_assets
+        .iter()
+        .any(|current| current.asset_kind == asset.asset_kind && current.asset_id == asset.asset_id)
+    {
+        binding.user_added_assets.push(asset);
+    }
 }
 
 fn page_characters(page: &MangaPageV4) -> Vec<String> {
@@ -168,6 +190,7 @@ mod tests {
                 asset_id: 99,
                 image_path: "manual.png".into(),
             }),
+            user_added_assets: Vec::new(),
         }];
         let generated = vec![super::MangaReferenceBindingSummary {
             character_name: "hero".into(),
@@ -176,14 +199,16 @@ mod tests {
                 asset_id: 7,
                 image_path: "portrait.png".into(),
             }),
+            user_added_assets: Vec::new(),
         }];
 
         let merged = merge_reference_bindings(Some(&existing), generated);
 
-        assert_eq!(merged[0].bound_asset.as_ref().unwrap().asset_id, 99);
         assert_eq!(
             merged[0].bound_asset.as_ref().unwrap().image_path,
-            "manual.png"
+            "portrait.png"
         );
+        assert_eq!(merged[0].user_added_assets.len(), 1);
+        assert_eq!(merged[0].user_added_assets[0].asset_id, 99);
     }
 }

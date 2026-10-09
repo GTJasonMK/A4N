@@ -1,7 +1,8 @@
 use a4n_domain::{
     manga::{
-        MangaPageGenerationLayoutV3, MangaPageGenerationLayoutV4, MangaPagePromptSourceSummary,
-        MangaReferenceAssetKind, MangaReferenceBindingSummary,
+        MangaBoundReferenceAsset, MangaPageGenerationLayoutV3, MangaPageGenerationLayoutV4,
+        MangaPageImageArtifactV1, MangaPagePromptSourceSummary, MangaPageReferenceDiscoveryV1,
+        MangaPipelineArtifactStage, MangaReferenceAssetKind, MangaReferenceBindingSummary,
     },
     media_authoring::AuthoringDocumentRef,
 };
@@ -74,6 +75,51 @@ pub(in crate::project::family::import) fn remap_manga_page_layout(
     }
 }
 
+pub(in crate::project::family::import) fn remap_manga_pipeline_artifact_payload(
+    stage: MangaPipelineArtifactStage,
+    value: &Value,
+    maps: &ImportIdMaps,
+    label: &str,
+) -> Result<Value, ProjectFamilyImportError> {
+    match stage {
+        MangaPipelineArtifactStage::ReferenceDiscovery => {
+            let mut discovery: MangaPageReferenceDiscoveryV1 =
+                serde_json::from_value(value.clone()).map_err(|error| {
+                    ProjectFamilyImportError::invalid_package(format!("{label} 无效: {error}"))
+                })?;
+            for (index, reference) in discovery.references.iter_mut().enumerate() {
+                remap_manga_reference_asset(
+                    &mut reference.asset,
+                    maps,
+                    &format!("{label}.references[{index}].asset"),
+                )?;
+            }
+            serde_json::to_value(discovery).map_err(|error| {
+                ProjectFamilyImportError::invalid_package(format!("{label} 序列化失败: {error}"))
+            })
+        }
+        MangaPipelineArtifactStage::ReferenceBindings => {
+            remap_manga_reference_bindings_value(value, maps, label)
+        }
+        MangaPipelineArtifactStage::Image => {
+            let mut image: MangaPageImageArtifactV1 = serde_json::from_value(value.clone())
+                .map_err(|error| {
+                    ProjectFamilyImportError::invalid_package(format!("{label} 无效: {error}"))
+                })?;
+            image.workflow_run_id = None;
+            image.generated_image_id = map_required(
+                &maps.generated_image_ids,
+                image.generated_image_id,
+                &format!("{label}.generated_image_id"),
+            )?;
+            serde_json::to_value(image).map_err(|error| {
+                ProjectFamilyImportError::invalid_package(format!("{label} 序列化失败: {error}"))
+            })
+        }
+        _ => Ok(value.clone()),
+    }
+}
+
 fn remap_manga_page_references(
     source: &mut MangaPagePromptSourceSummary,
     page_plan_ref: &mut Option<AuthoringDocumentRef>,
@@ -99,7 +145,17 @@ fn remap_manga_page_pipeline(
     maps: &ImportIdMaps,
     label: &str,
 ) -> Result<(), ProjectFamilyImportError> {
+    if let Some(discovery) = layout.pipeline.reference_discovery.as_mut() {
+        for (index, reference) in discovery.references.iter_mut().enumerate() {
+            remap_manga_reference_asset(
+                &mut reference.asset,
+                maps,
+                &format!("{label}.pipeline.reference_discovery.references[{index}].asset"),
+            )?;
+        }
+    }
     if let Some(image) = layout.pipeline.image.as_mut() {
+        image.workflow_run_id = None;
         image.generated_image_id = map_required(
             &maps.generated_image_ids,
             image.generated_image_id,
@@ -211,33 +267,48 @@ fn remap_manga_reference_bindings(
                 "{label}.reference_bindings[{index}].character_name 不能为空"
             )));
         }
-        let Some(asset) = binding.bound_asset.as_mut() else {
-            continue;
-        };
-        let (ids, paths, kind) = match asset.asset_kind {
-            MangaReferenceAssetKind::CharacterPortrait => (
-                &maps.character_portrait_ids,
-                &maps.character_portrait_paths,
-                "character_portrait",
-            ),
-            MangaReferenceAssetKind::GeneratedImage => (
-                &maps.generated_image_ids,
-                &maps.generated_image_paths,
-                "generated_image",
-            ),
-        };
-        let old_id = asset.asset_id;
-        asset.asset_id = map_required(
-            ids,
-            old_id,
-            &format!("{label}.reference_bindings[{index}].bound_asset.asset_id"),
-        )?;
-        asset.image_path = paths.get(&old_id).cloned().ok_or_else(|| {
-            ProjectFamilyImportError::invalid_package(format!(
-                "{label}.reference_bindings[{index}] 引用了导入包外或尚未导入的 {kind} 文件: {old_id}"
-            ))
-        })?;
+        if let Some(asset) = &mut binding.bound_asset {
+            remap_manga_reference_asset(
+                asset,
+                maps,
+                &format!("{label}.reference_bindings[{index}].bound_asset"),
+            )?;
+        }
+        for (user_index, asset) in binding.user_added_assets.iter_mut().enumerate() {
+            remap_manga_reference_asset(
+                asset,
+                maps,
+                &format!("{label}.reference_bindings[{index}].user_added_assets[{user_index}]"),
+            )?;
+        }
     }
+    Ok(())
+}
+
+fn remap_manga_reference_asset(
+    asset: &mut MangaBoundReferenceAsset,
+    maps: &ImportIdMaps,
+    path: &str,
+) -> Result<(), ProjectFamilyImportError> {
+    let (ids, paths, kind) = match asset.asset_kind {
+        MangaReferenceAssetKind::CharacterPortrait => (
+            &maps.character_portrait_ids,
+            &maps.character_portrait_paths,
+            "character_portrait",
+        ),
+        MangaReferenceAssetKind::GeneratedImage => (
+            &maps.generated_image_ids,
+            &maps.generated_image_paths,
+            "generated_image",
+        ),
+    };
+    let old_id = asset.asset_id;
+    asset.asset_id = map_required(ids, old_id, &format!("{path}.asset_id"))?;
+    asset.image_path = paths.get(&old_id).cloned().ok_or_else(|| {
+        ProjectFamilyImportError::invalid_package(format!(
+            "{path} 引用了导入包外或尚未导入的 {kind} 文件: {old_id}"
+        ))
+    })?;
     Ok(())
 }
 

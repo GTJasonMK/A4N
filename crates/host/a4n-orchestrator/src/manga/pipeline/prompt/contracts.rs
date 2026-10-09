@@ -8,14 +8,11 @@ use a4n_prompt::rendering::PromptRenderer;
 
 pub(in crate::manga) const MANGA_PIPELINE_WORKFLOW: &str = "manga_pipeline";
 pub(in crate::manga) const MANGA_PIPELINE_PROMPT_NAMES: &[&str] = &[
-    "manga_character_binding",
-    "manga_speech_selection",
-    "manga_visual_anchor_extraction",
-    "manga_item_extraction",
-    "manga_chapter_comic_synthesis",
+    "manga_preprocessing",
     "manga_page_slots",
     "manga_page_adaptation_plan",
     "manga_page_storyboard",
+    "manga_page_reference_discovery",
     "manga_page_drawing_prompt",
 ];
 #[derive(Debug, Clone, Serialize)]

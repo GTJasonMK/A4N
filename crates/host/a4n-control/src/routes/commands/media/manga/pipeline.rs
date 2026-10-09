@@ -69,6 +69,7 @@ pub(in crate::routes::commands) async fn start_manga_pipeline(
         chapter_number: input.chapter_number,
         page_number: input.page_number,
         stop_after: input.stop_after,
+        run_stage: input.run_stage,
         image_size: input.image_size,
         resume_from_checkpoint: false,
     };
@@ -88,6 +89,7 @@ pub(in crate::routes::commands) async fn resume_manga_pipeline(
         chapter_number: input.chapter_number,
         page_number: input.page_number,
         stop_after: input.stop_after,
+        run_stage: input.run_stage,
         image_size: input.image_size,
         resume_from_checkpoint: true,
     };
@@ -106,6 +108,7 @@ pub(in crate::routes::commands) async fn start_or_resume_manga_pipeline(
         input.chapter_number,
         input.page_number,
         input.stop_after,
+        input.run_stage,
     )
     .await?;
     let handle =

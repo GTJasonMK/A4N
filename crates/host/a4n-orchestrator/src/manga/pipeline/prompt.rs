@@ -12,18 +12,11 @@ pub(in crate::manga) use llm::{
 };
 #[cfg(test)]
 pub(in crate::manga) use messages::{
-    build_manga_step_user_message, manga_item_extraction_input,
-    manga_page_drawing_prompt_page_input, manga_page_slots_input,
+    build_manga_step_user_message, manga_page_drawing_prompt_page_input, manga_page_slots_input,
 };
 pub(in crate::manga) use messages::{
-    manga_chapter_comic_synthesis_user_message, manga_character_binding_user_message,
-    manga_item_available_source_span_ids, manga_item_extraction_user_message,
     manga_page_adaptation_user_message, manga_page_drawing_prompt_pipeline_user_message,
-    manga_page_slots_user_message, manga_page_storyboard_user_message,
-    manga_speech_selection_user_message, manga_visual_anchor_extraction_user_message,
+    manga_page_reference_discovery_user_message, manga_page_slots_user_message,
+    manga_page_storyboard_user_message, manga_preprocessing_user_message,
 };
-pub(in crate::manga) use validation::{
-    validate_manga_chapter_comic_synthesis, validate_manga_character_binding_source_span_ids,
-    validate_manga_item_extraction_source_span_ids,
-    validate_manga_speech_selection_source_span_ids, validate_manga_visual_anchor_source_span_ids,
-};
+pub(in crate::manga) use validation::validate_manga_preprocessing;

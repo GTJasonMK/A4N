@@ -102,6 +102,11 @@ pub(super) fn validate_primary_row_ids(package: &ProjectFamilyPackage) -> Result
             "chapter_manga_prompts.id"
         ),
         (
+            &package.manga_pipeline_artifacts,
+            id,
+            "manga_pipeline_artifacts.id"
+        ),
+        (
             &package.chapter_video_prompts,
             id,
             "chapter_video_prompts.id"

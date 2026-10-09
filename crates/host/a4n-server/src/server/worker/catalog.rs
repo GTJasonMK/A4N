@@ -7,8 +7,14 @@ pub(crate) fn catalog_worker_specs(control_addr: SocketAddr) -> anyhow::Result<V
             let metadata = stateful_worker_catalog_entry_ref(&entry.name).ok_or_else(|| {
                 anyhow::anyhow!("进程目录缺少 {} 的 stateful worker 元数据", entry.name)
             })?;
-            let address_value =
-                env::var(&metadata.addr_env).unwrap_or_else(|_| metadata.default_addr.clone());
+            let configured_address = env::var_os(&metadata.addr_env);
+            let address_is_explicit = configured_address.is_some();
+            let address_value = match configured_address {
+                Some(value) => value
+                    .into_string()
+                    .map_err(|_| anyhow::anyhow!("{} 必须是有效 UTF-8", metadata.addr_env))?,
+                None => metadata.default_addr.clone(),
+            };
             let address = address_value
                 .parse::<SocketAddr>()
                 .map_err(|error| anyhow::anyhow!("{} 无效: {error}", metadata.addr_env))?;
@@ -20,6 +26,7 @@ pub(crate) fn catalog_worker_specs(control_addr: SocketAddr) -> anyhow::Result<V
                 metadata,
                 binary: child_binary(&managed_worker_env(metadata, "BINARY"), &metadata.launcher)?,
                 address,
+                address_is_explicit,
                 control_addr,
                 token: worker_token_for_env(&managed_worker_env(metadata, "TOKEN"))?,
             })

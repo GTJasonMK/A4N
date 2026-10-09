@@ -2,63 +2,45 @@ import type {
   MangaPagePipelineStage,
   MangaPagePromptSummary,
 } from "../../../api/manga";
-import type { MangaPipelineStopAfter } from "../../../api/generated/host";
+import type {
+  MangaPipelineArtifactStage,
+  MangaPipelineArtifactDeletionPreview,
+  MangaPipelineStopAfter,
+} from "../../../api/generated/host";
 import type { ChapterRow } from "../shared";
 import { nonEmptyText } from "../../../utils/text";
 import type { MessageTranslator } from "../../../i18n";
 
 export type MangaPageWorkspaceStage =
-  | "page_plan"
-  | "page_adaptation"
-  | "storyboard"
-  | "prompts"
-  | "images";
+  | "page_planning"
+  | "visual_design"
+  | "image_creation";
 
-export type MangaWorkspaceStage = "materials" | "adaptation" | MangaPageWorkspaceStage;
+export type MangaChapterArtifactStage =
+  | "page_slots"
+  | "preprocessing";
 
-export type MangaPagePreviewAction = "prompt_request" | "image_request" | null;
+export type MangaWorkspaceStage =
+  | "materials"
+  | "adaptation"
+  | "preprocessing"
+  | MangaPageWorkspaceStage;
 
-export const mangaPagePreviewActionForStage = (
-  stage: MangaPageWorkspaceStage | undefined,
-): MangaPagePreviewAction => {
-  if (stage === "prompts") return "prompt_request";
-  if (stage == null || stage === "images") return "image_request";
-  return null;
-};
-
-export const mangaStopAfterForStage = (
-  stage: MangaPageWorkspaceStage,
-): MangaPipelineStopAfter => {
-  switch (stage) {
-    case "page_plan":
-      return "page_slots";
-    case "page_adaptation":
-      return "page_adaptation";
-    case "storyboard":
-      return "storyboard";
-    case "prompts":
-      return "drawing_prompt";
-    case "images":
-      return "image";
-  }
-};
+export const isMangaPageWorkspaceStage = (
+  stage: MangaWorkspaceStage,
+): stage is MangaPageWorkspaceStage =>
+  stage === "page_planning" || stage === "visual_design" || stage === "image_creation";
 
 const PIPELINE_STAGES_BY_WORKSPACE_STAGE: Record<
   MangaWorkspaceStage,
   readonly string[]
 > = {
-  materials: [
-    "character_binding",
-    "speech_selection",
-    "visual_anchor_extraction",
-    "item_extraction",
-  ],
+  materials: [],
   adaptation: ["adaptation_plan"],
-  page_plan: ["slots", "content", "page_planning", "page_content", "page_slots"],
-  page_adaptation: ["adaptation", "page_adaptation"],
-  storyboard: ["storyboard"],
-  prompts: ["drawing_prompt"],
-  images: ["image"],
+  preprocessing: ["preprocessing"],
+  page_planning: ["slots", "content", "page_slots", "page_content", "adaptation", "page_adaptation"],
+  visual_design: ["storyboard", "reference_discovery", "reference_bindings"],
+  image_creation: ["drawing_prompt", "image"],
 };
 
 export const mangaPipelineStageMatchesWorkspaceStage = (
@@ -74,31 +56,111 @@ export const mangaPipelineStageMatchesWorkspaceStage = (
 
 export const mangaImageStatusMatchesWorkspaceStage = (
   workspaceStage: MangaWorkspaceStage | undefined,
-): boolean => workspaceStage == null || workspaceStage === "images";
+): boolean => workspaceStage == null || workspaceStage === "image_creation";
 
 type MangaPageStageOutputs = Pick<
   MangaPagePromptSummary,
-  "page_content" | "page_adaptation" | "page_plan" | "drawing_prompt" | "generated_image_id"
+  | "page_content"
+  | "page_adaptation"
+  | "page_plan"
+  | "reference_discovery"
+  | "drawing_prompt"
+  | "generated_image_id"
+  | "stale_stages"
 >;
 
 type MangaPageStageProgress = MangaPageStageOutputs &
   Pick<MangaPagePromptSummary, "pipeline_error" | "pipeline_stage" | "pipeline_status">;
+
+export interface MangaPipelineWorkspaceTarget {
+  runStage: MangaPipelineArtifactStage | null;
+  stopAfter: MangaPipelineStopAfter;
+}
+
+export interface MangaPipelineWorkspaceAction {
+  runStage: Extract<
+    MangaPipelineArtifactStage,
+    "storyboard" | "reference_discovery" | "drawing_prompt" | "image"
+  >;
+  stopAfter: Extract<
+    MangaPipelineStopAfter,
+    "storyboard" | "reference_discovery" | "drawing_prompt" | "image"
+  >;
+  prerequisite: "page_adaptation" | "storyboard" | "reference_discovery" | "drawing_prompt";
+}
+
+export const mangaPipelineActionsForWorkspaceStage = (
+  stage: MangaPageWorkspaceStage,
+): MangaPipelineWorkspaceAction[] => {
+  switch (stage) {
+    case "page_planning":
+      return [];
+    case "visual_design":
+      return [
+        { runStage: "storyboard", stopAfter: "storyboard", prerequisite: "page_adaptation" },
+        { runStage: "reference_discovery", stopAfter: "reference_discovery", prerequisite: "storyboard" },
+      ];
+    case "image_creation":
+      return [
+        { runStage: "drawing_prompt", stopAfter: "drawing_prompt", prerequisite: "reference_discovery" },
+        { runStage: "image", stopAfter: "image", prerequisite: "drawing_prompt" },
+      ];
+  }
+};
+
+export const mangaPipelineActionIsReady = (
+  action: MangaPipelineWorkspaceAction,
+  page: MangaPageStageOutputs | null | undefined,
+): boolean => {
+  if (!page) return false;
+  switch (action.prerequisite) {
+    case "page_adaptation":
+      return page.page_adaptation != null && !page.stale_stages.includes("page_adaptation");
+    case "storyboard":
+      return page.page_plan != null && !page.stale_stages.includes("storyboard");
+    case "reference_discovery":
+      return page.reference_discovery != null && !page.stale_stages.includes("reference_discovery");
+    case "drawing_prompt":
+      return page.drawing_prompt != null && !page.stale_stages.includes("drawing_prompt");
+  }
+};
+
+export const mangaPipelineTargetForWorkspaceStage = (
+  stage: MangaPageWorkspaceStage,
+  page?: MangaPageStageOutputs,
+  fromStart = false,
+): MangaPipelineWorkspaceTarget => {
+  switch (stage) {
+    case "page_planning":
+      return { runStage: null, stopAfter: "page_adaptation" };
+    case "visual_design": {
+      const storyboardCurrent =
+        page?.page_plan != null && !page.stale_stages.includes("storyboard");
+      return storyboardCurrent && !fromStart
+        ? { runStage: "reference_discovery", stopAfter: "reference_discovery" }
+        : { runStage: "storyboard", stopAfter: "storyboard" };
+    }
+    case "image_creation": {
+      const promptCurrent =
+        page?.drawing_prompt != null && !page.stale_stages.includes("drawing_prompt");
+      return promptCurrent && !fromStart
+        ? { runStage: "image", stopAfter: "image" }
+        : { runStage: "drawing_prompt", stopAfter: "drawing_prompt" };
+    }
+  }
+};
 
 export const mangaPageStageHasOutput = (
   page: MangaPageStageOutputs,
   stage: MangaPageWorkspaceStage,
 ): boolean => {
   switch (stage) {
-    case "page_plan":
-      return page.page_content != null;
-    case "page_adaptation":
-      return page.page_adaptation != null;
-    case "storyboard":
-      return page.page_plan != null;
-    case "prompts":
-      return page.drawing_prompt != null;
-    case "images":
-      return page.generated_image_id != null;
+    case "page_planning":
+      return page.page_content != null && page.page_adaptation != null;
+    case "visual_design":
+      return page.page_plan != null && page.reference_discovery != null;
+    case "image_creation":
+      return page.drawing_prompt != null && page.generated_image_id != null;
   }
 };
 
@@ -107,6 +169,12 @@ export const mangaPageStageNeedsGeneration = (
   stage: MangaPageWorkspaceStage,
 ): boolean => {
   if (!mangaPageStageHasOutput(page, stage)) return true;
+  const groupArtifacts: Record<MangaPageWorkspaceStage, readonly MangaPipelineArtifactStage[]> = {
+    page_planning: ["page_content", "page_adaptation"],
+    visual_design: ["storyboard", "reference_discovery"],
+    image_creation: ["drawing_prompt", "image"],
+  };
+  if (groupArtifacts[stage].some((artifact) => page.stale_stages.includes(artifact))) return true;
   if (page.pipeline_status == null || page.pipeline_status === "completed") return false;
 
   const incompleteStage =
@@ -120,11 +188,11 @@ export const mangaPageNumberForPipelineStage = (
   stage: MangaPageWorkspaceStage | undefined,
   selectedPageNumber: number | null,
 ): number | null =>
-  stage == null || stage === "page_plan" ? null : selectedPageNumber;
+  stage == null || stage === "page_planning" ? null : selectedPageNumber;
 
 export const mangaStageAllowsReferenceBinding = (
   stage: MangaPageWorkspaceStage | undefined,
-): boolean => stage == null || stage === "prompts" || stage === "images";
+): boolean => stage == null || stage === "visual_design";
 
 export type MangaPagePromptSource = {
   content_sha256: string;
@@ -171,24 +239,21 @@ export const mangaStageLabel = (
   t: MessageTranslator,
 ): string => {
   switch (stage) {
-    case "character_binding":
-      return t("comic.pipelineStages.characterBinding");
-    case "speech_selection":
-      return t("comic.pipelineStages.dialogueNarration");
-    case "visual_anchor_extraction":
-      return t("comic.pipelineStages.visualAnchor");
-    case "item_extraction":
-      return t("comic.pipelineStages.keyObjects");
-    case "comic_synthesis":
-      return t("comic.pipelineStages.chapterSynthesis");
-    case "page_planning":
+    case "preprocessing":
+      return t("comic.pipelineStages.preprocessing");
+    case "page_slots":
       return t("comic.pipelineStages.pagination");
     case "page_content":
       return t("comic.pipelineStages.pageContent");
+    case "page_adaptation":
     case "adaptation":
       return t("comic.pipelineStages.pageAdaptation");
     case "storyboard":
       return t("comic.pipelineStages.storyboard");
+    case "reference_discovery":
+      return t("comic.pipelineStages.referenceDiscovery");
+    case "reference_bindings":
+      return t("comic.prompt.referenceBindings");
     case "drawing_prompt":
       return t("comic.pipelineStages.pagePrompt");
     case "image":
@@ -208,6 +273,34 @@ export const mangaStageLabel = (
   }
 };
 
+export const mangaDeletionDownstreamSummary = (
+  preview: MangaPipelineArtifactDeletionPreview,
+  t: MessageTranslator,
+): string => {
+  const groups = new Map<
+    MangaPipelineArtifactStage,
+    { count: number; pages: Set<number> }
+  >();
+  for (const artifact of preview.downstream) {
+    const group = groups.get(artifact.stage) ?? { count: 0, pages: new Set<number>() };
+    group.count += 1;
+    if (artifact.page_number != null) group.pages.add(artifact.page_number);
+    groups.set(artifact.stage, group);
+  }
+  return Array.from(groups, ([stage, group]) => {
+    const pages = Array.from(group.pages).sort((left, right) => left - right);
+    const scope = pages.length === 0
+      ? t("comic.prompt.deleteCascadeChapterCount", { count: group.count })
+      : pages.length <= 6
+        ? t("comic.prompt.deleteCascadePageList", { pages: pages.join(", ") })
+        : t("comic.prompt.deleteCascadePageMore", {
+            pages: pages.slice(0, 6).join(", "),
+            count: pages.length,
+          });
+    return `${mangaStageLabel(stage, t)}（${scope}）`;
+  }).join("；");
+};
+
 export const mangaPageStageLabel = (
   stage: MangaPagePipelineStage | null | undefined,
   t: MessageTranslator,
@@ -221,6 +314,8 @@ export const mangaPageStageLabel = (
       return t("comic.pipelineStages.pageAdaptation");
     case "storyboard":
       return t("comic.pipelineStages.storyboard");
+    case "reference_discovery":
+      return t("comic.pipelineStages.referenceDiscovery");
     case "drawing_prompt":
       return t("comic.pipelineStages.pagePrompt");
     case "image":

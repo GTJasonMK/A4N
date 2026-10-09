@@ -1,6 +1,5 @@
 use super::records::{manga_prompt_active_model, manga_prompt_updated_model};
 use super::validation::validate_manga_sync_drafts;
-use crate::generation::delete_generation_run_targets_for;
 use crate::manga::MangaPipelineDbError;
 use crate::manga::records::mapping::manga_page_prompt_record_from_model;
 use a4n_db_models::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
@@ -17,7 +16,7 @@ pub async fn sync_manga_page_prompts_by_chapter(
     now: chrono::NaiveDateTime,
 ) -> Result<Vec<MangaPagePromptRecord>, MangaPipelineDbError> {
     Ok(
-        sync_manga_page_prompts_by_chapter_inner(db, project_id, chapter_id, drafts, now, true)
+        sync_manga_page_prompts_by_chapter_inner(db, project_id, chapter_id, drafts, now)
             .await?
             .into_iter()
             .map(manga_page_prompt_record_from_model)
@@ -33,15 +32,9 @@ pub async fn upsert_manga_page_prompt(
     draft: MangaPagePromptSyncDraft,
     now: chrono::NaiveDateTime,
 ) -> Result<MangaPagePromptRecord, MangaPipelineDbError> {
-    let mut rows = sync_manga_page_prompts_by_chapter_inner(
-        db,
-        project_id,
-        chapter_id,
-        vec![draft],
-        now,
-        false,
-    )
-    .await?;
+    let mut rows =
+        sync_manga_page_prompts_by_chapter_inner(db, project_id, chapter_id, vec![draft], now)
+            .await?;
     rows.pop()
         .map(manga_page_prompt_record_from_model)
         .ok_or_else(|| {
@@ -55,7 +48,6 @@ async fn sync_manga_page_prompts_by_chapter_inner(
     chapter_id: i64,
     drafts: Vec<MangaPagePromptSyncDraft>,
     now: chrono::NaiveDateTime,
-    delete_stale: bool,
 ) -> Result<Vec<chapter_manga_prompt::Model>, MangaPipelineDbError> {
     validate_manga_sync_drafts(&drafts, project_id, chapter_id)?;
 
@@ -242,10 +234,6 @@ async fn sync_manga_page_prompts_by_chapter_inner(
         }
     }
 
-    if delete_stale {
-        let stale_ids = existing_by_page.into_values().map(|row| row.id).collect();
-        delete_manga_prompt_rows(&txn, stale_ids).await?;
-    }
     txn.commit().await?;
     rows.into_iter()
         .map(|row| {
@@ -256,22 +244,4 @@ async fn sync_manga_page_prompts_by_chapter_inner(
             })
         })
         .collect()
-}
-
-async fn delete_manga_prompt_rows<C>(
-    db: &C,
-    prompt_ids: Vec<i64>,
-) -> Result<(), MangaPipelineDbError>
-where
-    C: sea_orm::ConnectionTrait,
-{
-    if prompt_ids.is_empty() {
-        return Ok(());
-    }
-    delete_generation_run_targets_for(db, "chapter_manga_prompt", &prompt_ids).await?;
-    chapter_manga_prompt::Entity::delete_many()
-        .filter(chapter_manga_prompt::Column::Id.is_in(prompt_ids))
-        .exec(db)
-        .await?;
-    Ok(())
 }

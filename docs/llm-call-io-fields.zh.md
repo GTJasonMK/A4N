@@ -4,11 +4,11 @@
 
 ## 统计口径
 
-按业务层把请求或专用输入交给 LLM driver 的静态入口表达式计数，共 **52 处**；一个源码位置在循环、Agent 多轮、重试中可以运行多次，这些运行次数不重复计数。共享 driver/provider 内部的转发不重复计数；复用型 driver 按具体业务调用位置拆开。
+按业务层把请求或专用输入交给 LLM driver 的静态入口表达式计数，共 **49 处**；一个源码位置在循环、Agent 多轮、重试中可以运行多次，这些运行次数不重复计数。共享 driver/provider 内部的转发不重复计数；复用型 driver 按具体业务调用位置拆开。
 
 之前的 31 处统计把 4 个复用型 driver 各计成了一个位置，并漏掉了大纲和立绘流程。修正口径为 `31 - 4 + 4（WorkflowLlmOnce）+ 4（Galgame pipeline）+ 9（Manga pipeline）+ 3（拍摄剧本）+ 5（大纲/立绘）= 52`。
 
-配置连通性探测单列 1 处。图片/视频生成 provider 也有两个 `/chat/completions` 请求，但它们使用媒体生成合同，不计入这 52 个聊天 LLM 入口；字段见 2.11。
+配置连通性探测单列 1 处。图片/视频生成 provider 也有两个 `/chat/completions` 请求，但它们使用媒体生成合同，不计入这 49 个聊天 LLM 入口；字段见 2.11。
 
 ## 1. 应用请求、上下文组装与传输边界
 
@@ -235,7 +235,7 @@ Sidecar 每个 chunk 外包 `CapabilityTaskEvent {task_id, event_kind, sequence,
 | [角色演出](../crates/host/a4n-orchestrator/src/galgame/pipeline/run/pipeline/early_stages/staging.rs#L42) | `galgame_character_staging` | `GalgameCharacterStaging`，字段同 2.2。 |
 | [视觉规划](../crates/host/a4n-orchestrator/src/galgame/pipeline/run/pipeline/late_stages/visual.rs#L42) | `galgame_visual_planning` | `GalgameVisualPlan`，字段同 2.2。 |
 
-## 2.4 Manga pipeline：9 个 prompt 调用点
+## 2.4 Manga pipeline：6 个 prompt 调用点
 
 共同输入 `MangaRenderTraceInput {prompt_renderer,prompt_name,project_id,workflow_run_id,call_key,call_order,restore_from_checkpoint,variables,user_content:LlmContextManifest,temperature,cancel_token?,stream_id,stream_reporter?}`。共同 trace 输出 `{prompt_name,request_json,messages_json,response_text,workflow_run_id,call_key,call_order,input_fingerprint_json,usage?,finish_reason?}`。
 
@@ -243,29 +243,23 @@ system 来自对应 `prompt_name` 模板；user 由 manifest 渲染。builder �
 
 | prompt 阶段 | 实际业务 `input` |
 | --- | --- |
-| 角色绑定 | `{chapter:{content},previous_step:{events},reference_assets}`；`content` 是带来源标记的完整正文。 |
-| 对白/旁白选择 | `{chapter:{source_windows,available_source_span_ids},previous_steps:{characters,events},reference_assets}`。 |
-| 视觉锚点抽取 | `{chapter:{source_windows,available_source_span_ids},previous_step:{events}}`。 |
-| 物体抽取 | `{available_source_span_ids,previous_steps:{speech,visual_anchors}}`。 |
-| 漫画化综合 | `{previous_steps:{events,speech,visual_anchors,items}}`。 |
-| 页面槽位规划 | `{extraction_summary:{characters,speech,visual_anchors,items,comic_synthesis},adaptation_plan,source}`；`source` 是带标记正文。 |
+| 改编前预处理 | `{chapter:{content},reference_assets}`；`content` 是带来源标记的完整正文。一次输出事件、角色、对白/旁白、视觉锚点、物品和章节综合。 |
+| 页面槽位规划 | `{extraction_summary:{source_events,characters,speech,visual_anchors,items,comic_synthesis},adaptation_plan,source}`；`source` 是带标记正文。 |
 | 页面改编 | `{page_number,total_pages,page_content,adaptation_beats,previous_page_content,next_page_content}`。 |
 | 页面分镜 | `{page_number,total_pages,page_content,page_adaptation,adaptation_beats,neighboring_pages:{previous_content,next_content},characters,reference_assets:{character_portraits}}`；立绘资料按本次 adaptation 的参与者筛选。 |
-| 页面绘图提示词 | `{current_page,page_context:{characters},reference_assets,page_content,page_adaptation}`；人物及素材按本页筛选，`current_page` 是动态输入。 |
+| 单页参考图发现 | `{page_number,page_content,page_adaptation,current_page,characters,available_assets}`；只从当前可用图片描述中选择系统参考图，可以返回空列表。 |
+| 页面绘图提示词 | `{current_page,page_context:{characters},reference_assets,reference_images,page_content,page_adaptation}`；人物及素材按本页筛选，`current_page` 是动态输入；`reference_images[].source` 区分系统发现与用户补充。 |
 
-上述字段分别由 [前段抽取](../crates/host/a4n-orchestrator/src/manga/pipeline/prompt/messages/early.rs#L1)、[后段抽取](../crates/host/a4n-orchestrator/src/manga/pipeline/prompt/messages/late.rs#L1) 和 [页面阶段](../crates/host/a4n-orchestrator/src/manga/pipeline/prompt/messages/page_pipeline.rs#L1) 构造。`source_windows[]` 为 `{window_id,beat_ref,event,source_span_ids,text}`，仅含事件覆盖的来源正文片段；`SourceMarkerMap` 将内部来源 ID 编码为 `#十进制序号`。`reference_assets` 在这些输入中是序列化的参考资料，不能直接等同于 `vision_images` 图片附件。
+上述字段分别由 [预处理](../crates/host/a4n-orchestrator/src/manga/pipeline/prompt/messages/preprocessing.rs#L9) 和 [页面阶段](../crates/host/a4n-orchestrator/src/manga/pipeline/prompt/messages/page_pipeline.rs#L18) 构造。页面分镜与绘图提示词中的角色/图片资料是文本描述，不等同于 `vision_images` 图片附件。
 
 | 位置 | prompt_name | 模型输出字段 |
 | --- | --- | --- |
-| [页面改编](../crates/host/a4n-orchestrator/src/manga/pipeline/run/page.rs#L586) | `manga_page_adaptation_plan` | `MangaPageAdaptationV1 {visual_intent,continuity_requirements[],retained_details[],omitted_details[],beat_refs[]}`。 |
-| [页面分镜](../crates/host/a4n-orchestrator/src/manga/pipeline/run/page.rs#L683) | `manga_page_storyboard` | `MangaPageV4 {page_number,beat_refs[],role,pacing,importance,reading_flow,page_goal,visual_thesis,entry_state,exit_state,dominant_panel_number,panels[]:MangaPanelV2}`。 |
-| [页面槽位规划](../crates/host/a4n-orchestrator/src/manga/pipeline/run/page_slots.rs#L30) | `manga_page_slots` | `MangaPageSlotsV1 {schema_version,pages:[{page_number,content:{summary,source_span_ids[],beat_refs[],action,reaction?,dialogue_intent?,entry_state,exit_state}}]}`。 |
+| [改编前预处理](../crates/host/a4n-orchestrator/src/manga/pipeline/run/preprocessing.rs#L87) | `manga_preprocessing` | `MangaPreprocessingV3 {schema_version,source_events,characters,speech,visual_anchors,items,comic_synthesis}`。 |
+| [页面槽位规划](../crates/host/a4n-orchestrator/src/manga/pipeline/run/page_slots.rs#L32) | `manga_page_slots` | `MangaPageSlotsV1 {schema_version,pages:[{page_number,content:{summary,source_span_ids[],beat_refs[],action,reaction?,dialogue_intent?,entry_state,exit_state}}]}`；`pages.length` 必须等于改编计划的 `page_count`。 |
+| [页面改编](../crates/host/a4n-orchestrator/src/manga/pipeline/run/page.rs#L602) | `manga_page_adaptation_plan` | `MangaPageAdaptationV1 {visual_intent,continuity_requirements[],retained_details[],omitted_details[],beat_refs[]}`。 |
+| [页面分镜](../crates/host/a4n-orchestrator/src/manga/pipeline/run/page.rs#L714) | `manga_page_storyboard` | `MangaPageV4 {page_number,beat_refs[],role,pacing,importance,reading_flow,page_goal,visual_thesis,entry_state,exit_state,dominant_panel_number,panels[]:MangaPanelV2}`。 |
+| [单页参考图发现](../crates/host/a4n-orchestrator/src/manga/pipeline/run/page.rs#L862) | `manga_page_reference_discovery` | `MangaPageReferenceDiscoveryV1 {schema_version,page_number,references:[{asset,target_kind,target_name,description,usage}]}`；asset ID 只能来自候选列表。 |
 | [页面绘图提示词](../crates/host/a4n-orchestrator/src/manga/pipeline/run/drawing_prompt/page.rs#L46) | `manga_page_drawing_prompt` | `{schema_version,page_number,image_prompt}`。 |
-| [角色绑定](../crates/host/a4n-orchestrator/src/manga/pipeline/run/early_extraction/characters.rs#L26) | `manga_character_binding` | `{characters:{角色名:{name,appearance,personality,role,gender,age_description,source_span_ids[]}}}`；role=`protagonist/antagonist/supporting/minor/background`，gender=`male/female/unknown`。 |
-| [对白/旁白选择](../crates/host/a4n-orchestrator/src/manga/pipeline/run/early_extraction/speech.rs#L34) | `manga_speech_selection` | `{dialogues:[{index,speaker,content,source_span_id,emotion,target\|null,beat_ref,is_internal,bubble_type}],narrations:[{index,content,source_span_id,narration_type,beat_ref,position}]}`。 |
-| [视觉锚点抽取](../crates/host/a4n-orchestrator/src/manga/pipeline/run/late_extraction/visual.rs#L23) | `manga_visual_anchor_extraction` | `{scenes:[{index,location,location_en,time_of_day,atmosphere,weather\|null,lighting,indoor_outdoor,description,beat_refs[],source_span_ids[]}]}`；`indoor_outdoor=indoor/outdoor`。 |
-| [物体抽取](../crates/host/a4n-orchestrator/src/manga/pipeline/run/late_extraction/items.rs#L25) | `manga_item_extraction` | `{items:[{name,description,description_en,importance,first_appearance_beat_ref,visual_features,source_span_ids[]}]}`。 |
-| [漫画化综合](../crates/host/a4n-orchestrator/src/manga/pipeline/run/late_extraction/synthesis.rs#L37) | `manga_chapter_comic_synthesis` | `{chapter_summary,mood_progression:string[],total_estimated_pages}`；页数为 5–15。 |
 
 页面分镜的 `panels[]` 是 `MangaPanelV2 {panel_number,beat_refs[],function,size,shot_scale,camera_angle,participants[],composition,observable_action,reaction?,spatial_relationship,continuity_from_previous?,text_layers[]}`；text layer 为 `{layer_index,kind,speaker,text,placement,avoid_covering[]}`。`dialogue/thought` 的 `speaker` 为稳定角色名，`narration/sfx` 为 JSON null；`placement` 限定为 `top_left/top_right/upper_center/center_left/center_right/bottom_left/bottom_right/lower_center`。
 
@@ -375,7 +369,7 @@ shot/frame number、时长、画幅和引用素材 ID 由已知片段或默认�
 
 帧提示词中的 `blocking_state`、`lighting_state` 和视频提示词中的 `dialogue_cues` 是 `serde_json::Value` 子树；当前合同固定外层字段，内层键没有统一的 Rust schema。
 
-## 2.11 Chat Completions 媒体生成接口（不计入 52 个聊天 LLM 入口）
+## 2.11 Chat Completions 媒体生成接口（不计入 49 个聊天 LLM 入口）
 
 两条 provider 也调用 `/chat/completions`，但输入/输出是媒体生成合同：
 
@@ -418,7 +412,7 @@ shot/frame number、时长、画幅和引用素材 ID 由已知片段或默认�
 
 共享 driver 的其余业务输入见 2.2–2.6，视频见 2.10，Agent 主回合与压缩见 6.10；这些展开说明不额外增加静态调用点数量。
 
-## 3. 配置连通性探测（不计入上述 52 处）
+## 3. 配置连通性探测（不计入上述 49 处）
 
 [`test_llm_config`](../crates/host/a4n-runtime/src/actions/config_records/llm/connectivity.rs#L14) 使用 `LlmProviderConfig {id,name,provider,base_url,api_key?,model,max_concurrent,timeout_secs,max_context_tokens,max_output_tokens,extra_body_json?,agent_protocol,pricing}`；probe `ChatRequest` 为单条 user 消息 `"ping"`、`temperature=0.0`、`max_tokens=min(512, model.max_output_tokens)`。Sidecar profile 调 `probe_with_config`；非 sidecar profile 调 `chat_with_config`。sidecar probe 结果为 `response_preview`、`usage?`、`finish_reason?`；上层接口只返回成功 `()`，空响应是错误。
 
@@ -706,6 +700,15 @@ shot/frame number、时长、画幅和引用素材 ID 由已知片段或默认�
 | `restore_from_checkpoint` | 是否允许复用该阶段之前保存的模型响应。 |
 | `variables` / `user_content` / `temperature` | prompt 模板变量 / 实际来源上下文 manifest / 本次模型采样温度。 |
 | `stream_id` / `stream_reporter` | 前端显示的流通道名 / 将模型 delta 推送到生成任务的回调。 |
+| `MangaPreprocessingV3.schema_version` | 漫画预处理合同版本，当前为 `manga_preprocessing_v3`。 |
+| `source_events.events[]` | 原文中的剧情、人物状态或空间变化事件。 |
+| `event_id` / `type` / `description` / `participants[]` / `source_span_ids[]` | 事件唯一 ID / 类型 / 事实描述 / 参与者 / 原文证据。 |
+| `characters` | 按规范角色名索引的外貌、性格、身份及来源资料。 |
+| `speech.dialogues[]` / `speech.narrations[]` | 被选中的对白和旁白；分别通过 `source_event_id` 关联原文事件。 |
+| `visual_anchors.scenes[]` | 场景地点、时间、氛围、天气、光线和空间描述；通过 `source_event_ids[]` 关联事件。 |
+| `items.items[]` | 关键物品及视觉特征；`first_appearance_source_event_id` 指向首次出现事件。 |
+| `AdaptationPlanV1.page_count` | 漫画改编计划确定的章节页数；分页规划必须严格输出相同数量的页面。Galgame 计划不包含该字段。 |
+| `MangaChapterComicSynthesisV1.chapter_summary` / `mood_progression[]` | 章节漫画化重点 / 情绪递进；不决定页数。 |
 | `MangaPageAdaptationV1.visual_intent` | 本页希望读者看到或感受到的核心画面意图。 |
 | `continuity_requirements[]` | 本页必须遵守的视觉或叙事连续性约束。 |
 | `retained_details[]` / `omitted_details[]` | 从原作保留到本页的细节 / 为适配漫画而省略的细节。 |
@@ -728,22 +731,11 @@ shot/frame number、时长、画幅和引用素材 ID 由已知片段或默认�
 | `MangaPageContentV1.summary` / `source_span_ids[]` / `beat_refs[]` | 页面内容摘要 / 来源正文片段 / 覆盖节拍。 |
 | `action` / `reaction` / `dialogue_intent` | 页面核心动作 / 动作反应 / 对白要传达的意图。 |
 | `MangaPageDrawingPromptV2.schema_version` / `page_number` / `image_prompt` | 绘图 prompt 合同版本 / 目标页码 / 交给图像模型的整页画面描述。 |
-| `characters` 对象的 key / `name` | 角色名称索引 / 与 key 一致的规范角色名。 |
-| `appearance` / `personality` / `role` / `gender` / `age_description` | 外观、性格、叙事角色、性别、年龄描述。 |
-| `source_span_ids[]` | 支撑角色画像的正文片段 ID。 |
-| `dialogues[]` / `narrations[]` | 对白条目 / 旁白条目。 |
-| `index` / `content` / `source_span_id` / `beat_ref` | 条目序号 / 对白或旁白正文 / 对应原文片段 / 对应改编节拍。 |
-| `speaker` / `emotion` / `target` | 对白说话人 / 表达情绪 / 对话对象；target 可以为 null。 |
-| `is_internal` / `bubble_type` | 是否为内心独白 / 对白气泡类型。 |
-| `narration_type` / `position` | 旁白类别 / 旁白在页面中的放置位置。 |
-| `scenes[]` / `index` | 本章视觉场景数组 / 场景顺序号。 |
-| `location` / `location_en` / `time_of_day` | 中文地点名 / 英文地点名 / 时间段。 |
-| `atmosphere` / `weather` / `lighting` / `indoor_outdoor` | 场景氛围 / 天气 / 光照 / 室内或室外。 |
-| `description` / `source_span_ids[]` | 场景画面描述 / 支撑场景的正文片段。 |
-| `items[]` / `name` / `importance` | 物体条目 / 规范名称 / 故事重要度。 |
-| `description` / `description_en` / `visual_features` | 中文外观和用途描述 / 英文描述 / 图像生成需要稳定保留的视觉特征。 |
-| `first_appearance_beat_ref` / `source_span_ids[]` | 物体首次出现的改编节拍 / 相关正文片段。 |
-| `chapter_summary` / `mood_progression[]` / `total_estimated_pages` | 章节漫画化概要 / 全章情绪推进序列 / 估算总页数。 |
+| `MangaPageReferenceDiscoveryV1.references[]` | 系统从候选图片中选出的单页参考图。 |
+| `asset` / `target_kind` / `target_name` | 图片素材标识 / 参考对象类型 / 参考对象名称。 |
+| `description` / `usage` | 素材外观描述 / 本页沿用该素材的具体方式。 |
+| `reference_images[].source` | `system` 表示系统发现；`user` 表示用户补充。两组描述都会进入绘图提示词。 |
+| `source_span_ids[]` | 支撑事件、角色、场景、物品或页面内容的正文片段 ID。 |
 
 ### 6.7 拍摄剧本字段
 
@@ -877,7 +869,7 @@ shot/frame number、时长、画幅和引用素材 ID 由已知片段或默认�
 
 ### 6.11 媒体生成与连通性探测字段
 
-本节接口使用图像/视频生成合同，不计入 52 个聊天 LLM 入口；字段释义用于区分文本模型调用和媒体模型调用的数据边界。
+本节接口使用图像/视频生成合同，不计入 49 个聊天 LLM 入口；字段释义用于区分文本模型调用和媒体模型调用的数据边界。
 
 | 字段 | 含义 |
 | --- | --- |

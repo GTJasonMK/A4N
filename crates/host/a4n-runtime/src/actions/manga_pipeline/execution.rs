@@ -8,6 +8,7 @@ pub async fn preflight_manga_pipeline(
     chapter_number: i32,
     page_number: Option<u32>,
     stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+    run_stage: Option<a4n_api_contract::manga::MangaPipelineArtifactStage>,
 ) -> Result<(), AppError> {
     state
         .manga_pipeline_execution_application()
@@ -17,6 +18,7 @@ pub async fn preflight_manga_pipeline(
             chapter_number,
             page_number,
             stop_after,
+            run_stage,
             state,
         )
         .await

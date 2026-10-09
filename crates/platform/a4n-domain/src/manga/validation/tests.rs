@@ -106,6 +106,7 @@ fn page_generation_layout_keeps_adaptation_identity_only_in_source() {
         reference_bindings: vec![MangaReferenceBindingSummary {
             character_name: "主角".to_string(),
             bound_asset: None,
+            user_added_assets: Vec::new(),
         }],
         prompt_fingerprint: json!({"sha256": "fingerprint"}),
         source: MangaPagePromptSourceSummary {

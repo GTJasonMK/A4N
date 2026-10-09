@@ -3,8 +3,14 @@
 //! 持有 `DbHandle`，封装漫画页面提示词账本与输出同步的数据库行为。
 //! 生成编排（LLM/preview/pipeline）仍在 `manga/` 模块，但 DB 只经本 owner。
 
-use a4n_db::{DbHandle, manga::MangaPromptUpdatedAt};
-use a4n_domain::manga::{MangaBoundReferenceAsset, MangaPagePromptRecord, MangaReferenceAssetKind};
+use a4n_db::{
+    DbHandle,
+    manga::{MangaPipelineArtifactProjectionReset, MangaPromptUpdatedAt},
+};
+use a4n_domain::manga::{
+    MangaBoundReferenceAsset, MangaPagePromptRecord, MangaPipelineArtifactDraft,
+    MangaPipelineArtifactRecord, MangaPipelineArtifactStage, MangaReferenceAssetKind,
+};
 use a4n_error::AppError;
 use serde_json::Value;
 
@@ -36,10 +42,20 @@ impl MangaApplication {
         .map_err(manga_prompt_record_error)
     }
 
-    async fn delete_manga_prompt_record(&self, prompt_id: i64) -> Result<(), AppError> {
-        a4n_db::manga::delete_manga_prompt_record(self.database.executor(), prompt_id)
-            .await
-            .map_err(manga_prompt_record_error)
+    async fn delete_manga_page_by_number(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        page_number: i32,
+    ) -> Result<(), AppError> {
+        a4n_db::manga::delete_manga_page_by_number(
+            self.database.executor(),
+            project_id,
+            chapter_id,
+            page_number,
+        )
+        .await
+        .map_err(manga_prompt_record_error)
     }
 
     async fn manga_page_prompt_for_image_generation(
@@ -92,6 +108,91 @@ impl MangaApplication {
             self.database.executor(),
             project_id,
             chapter_id,
+        )
+        .await
+        .map_err(manga_prompt_record_error)
+    }
+
+    async fn manga_pipeline_artifacts_by_chapter(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<Vec<MangaPipelineArtifactRecord>, AppError> {
+        a4n_db::manga::manga_pipeline_artifacts_by_chapter(
+            self.database.executor(),
+            project_id,
+            chapter_id,
+        )
+        .await
+        .map_err(manga_prompt_record_error)
+    }
+
+    async fn manga_pipeline_artifact(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        stage: MangaPipelineArtifactStage,
+        page_number: Option<u32>,
+    ) -> Result<Option<MangaPipelineArtifactRecord>, AppError> {
+        a4n_db::manga::manga_pipeline_artifact(
+            self.database.executor(),
+            project_id,
+            chapter_id,
+            stage,
+            page_number,
+        )
+        .await
+        .map_err(manga_prompt_record_error)
+    }
+
+    async fn manga_pipeline_artifact_deletion_plan(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        stage: MangaPipelineArtifactStage,
+        page_number: Option<u32>,
+    ) -> Result<Vec<MangaPipelineArtifactRecord>, AppError> {
+        a4n_db::manga::manga_pipeline_artifact_deletion_plan(
+            self.database.executor(),
+            project_id,
+            chapter_id,
+            stage,
+            page_number,
+        )
+        .await
+        .map_err(manga_prompt_record_error)
+    }
+
+    async fn upsert_manga_pipeline_artifact(
+        &self,
+        draft: MangaPipelineArtifactDraft,
+    ) -> Result<MangaPipelineArtifactRecord, AppError> {
+        a4n_db::manga::upsert_manga_pipeline_artifact(
+            self.database.executor(),
+            draft,
+            chrono::Utc::now().naive_utc(),
+        )
+        .await
+        .map_err(manga_prompt_record_error)
+    }
+
+    async fn delete_manga_pipeline_artifact(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        stage: MangaPipelineArtifactStage,
+        page_number: Option<u32>,
+        expected_artifact_ids: &[i64],
+        projection_resets: &[MangaPipelineArtifactProjectionReset],
+    ) -> Result<Vec<MangaPipelineArtifactRecord>, AppError> {
+        a4n_db::manga::delete_manga_pipeline_artifact(
+            self.database.executor(),
+            project_id,
+            chapter_id,
+            stage,
+            page_number,
+            expected_artifact_ids,
+            projection_resets,
         )
         .await
         .map_err(manga_prompt_record_error)
@@ -153,8 +254,15 @@ impl OrchestratorContext {
             .await
     }
 
-    pub(crate) async fn delete_manga_prompt_record(&self, prompt_id: i64) -> Result<(), AppError> {
-        self.manga.delete_manga_prompt_record(prompt_id).await
+    pub(crate) async fn delete_manga_page_by_number(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        page_number: i32,
+    ) -> Result<(), AppError> {
+        self.manga
+            .delete_manga_page_by_number(project_id, chapter_id, page_number)
+            .await
     }
 
     pub(crate) async fn manga_page_prompt_for_image_generation(
@@ -193,6 +301,68 @@ impl OrchestratorContext {
     ) -> Result<Vec<MangaPagePromptRecord>, AppError> {
         self.manga
             .manga_page_prompts_by_chapter(project_id, chapter_id)
+            .await
+    }
+
+    pub(crate) async fn manga_pipeline_artifacts_by_chapter(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<Vec<MangaPipelineArtifactRecord>, AppError> {
+        self.manga
+            .manga_pipeline_artifacts_by_chapter(project_id, chapter_id)
+            .await
+    }
+
+    pub(crate) async fn manga_pipeline_artifact(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        stage: MangaPipelineArtifactStage,
+        page_number: Option<u32>,
+    ) -> Result<Option<MangaPipelineArtifactRecord>, AppError> {
+        self.manga
+            .manga_pipeline_artifact(project_id, chapter_id, stage, page_number)
+            .await
+    }
+
+    pub(crate) async fn manga_pipeline_artifact_deletion_plan(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        stage: MangaPipelineArtifactStage,
+        page_number: Option<u32>,
+    ) -> Result<Vec<MangaPipelineArtifactRecord>, AppError> {
+        self.manga
+            .manga_pipeline_artifact_deletion_plan(project_id, chapter_id, stage, page_number)
+            .await
+    }
+
+    pub(crate) async fn upsert_manga_pipeline_artifact(
+        &self,
+        draft: MangaPipelineArtifactDraft,
+    ) -> Result<MangaPipelineArtifactRecord, AppError> {
+        self.manga.upsert_manga_pipeline_artifact(draft).await
+    }
+
+    pub(crate) async fn delete_manga_pipeline_artifact(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        stage: MangaPipelineArtifactStage,
+        page_number: Option<u32>,
+        expected_artifact_ids: &[i64],
+        projection_resets: &[MangaPipelineArtifactProjectionReset],
+    ) -> Result<Vec<MangaPipelineArtifactRecord>, AppError> {
+        self.manga
+            .delete_manga_pipeline_artifact(
+                project_id,
+                chapter_id,
+                stage,
+                page_number,
+                expected_artifact_ids,
+                projection_resets,
+            )
             .await
     }
 
