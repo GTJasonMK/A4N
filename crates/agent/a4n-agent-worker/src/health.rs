@@ -44,7 +44,6 @@ use axum::{
 };
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
-use subtle::ConstantTimeEq;
 use tokio::{net::TcpListener, sync::oneshot};
 
 use self::responses::{WorkerFailure, app_error_failure, completed, failed, unauthorized};
@@ -357,9 +356,11 @@ async fn capabilities(State(state): State<HealthState>, headers: HeaderMap) -> R
 
 impl HealthState {
     fn authorized(&self, headers: &HeaderMap) -> bool {
-        headers
-            .get(AGENT_WORKER_AUTH_HEADER)
-            .is_some_and(|value| bool::from(value.as_bytes().ct_eq(self.auth_token.as_bytes())))
+        a4n_worker_runtime::worker_token_authorized(
+            headers,
+            AGENT_WORKER_AUTH_HEADER,
+            self.auth_token.as_bytes(),
+        )
     }
 }
 

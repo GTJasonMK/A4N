@@ -3,12 +3,20 @@ use std::future::Future;
 use a4n_worker_contract::{WorkerEnvelope, WorkerFailure, WorkerResponse};
 use axum::{
     Json,
+    http::HeaderMap,
     response::{IntoResponse, Response},
 };
 use serde::Serialize;
+use subtle::ConstantTimeEq;
 
 #[cfg(target_os = "linux")]
 use std::os::unix::process::CommandExt;
+
+pub fn worker_token_authorized(headers: &HeaderMap, header_name: &str, token: &[u8]) -> bool {
+    headers
+        .get(header_name)
+        .is_some_and(|value| bool::from(value.as_bytes().ct_eq(token)))
+}
 
 pub async fn worker_command_response<T, O, F, Fut, U>(
     authorized: bool,
@@ -76,10 +84,28 @@ mod tests {
         WORKER_SCHEMA_VERSION, WorkerErrorCode, WorkerLease, WorkerOperationStatus,
         WorkerPrincipal, WorkerPrincipalKind, WorkerResponse,
     };
-    use axum::{body::to_bytes, http::StatusCode};
+    use axum::{
+        body::to_bytes,
+        http::{HeaderMap, HeaderValue, StatusCode},
+    };
     use serde_json::Value;
 
     use super::*;
+
+    #[test]
+    fn worker_token_authorization_compares_raw_header_bytes() {
+        let header_name = "x-a4n-worker-token";
+        let token = "密钥".as_bytes();
+        let mut headers = HeaderMap::new();
+
+        assert!(!worker_token_authorized(&headers, header_name, token));
+        headers.insert(
+            header_name,
+            HeaderValue::from_bytes(token).expect("header accepts opaque token bytes"),
+        );
+        assert!(worker_token_authorized(&headers, header_name, token));
+        assert!(!worker_token_authorized(&headers, header_name, b"other"));
+    }
 
     #[tokio::test]
     async fn worker_command_response_preserves_auth_and_wire_semantics() {

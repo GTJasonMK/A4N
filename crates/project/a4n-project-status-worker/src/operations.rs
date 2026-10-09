@@ -216,8 +216,10 @@ impl WorkerState {
     }
 
     pub(super) fn authorized(&self, headers: &HeaderMap) -> bool {
-        headers
-            .get(WORKER_AUTH_HEADER)
-            .is_some_and(|value| bool::from(value.as_bytes().ct_eq(self.auth_token.as_bytes())))
+        a4n_worker_runtime::worker_token_authorized(
+            headers,
+            WORKER_AUTH_HEADER,
+            self.auth_token.as_bytes(),
+        )
     }
 }

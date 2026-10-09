@@ -33,7 +33,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use subtle::ConstantTimeEq;
 
 const WORKER_ADDR_ENV: &str = "A4N_WORKFLOW_READ_WORKER_ADDR";
 const DATABASE_URL_ENV: &str = "A4N_DATABASE_URL";

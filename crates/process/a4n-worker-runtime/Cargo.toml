@@ -8,6 +8,7 @@ license.workspace = true
 a4n-worker-contract = { path = "../a4n-worker-contract" }
 axum.workspace = true
 serde.workspace = true
+subtle.workspace = true
 tokio = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
 

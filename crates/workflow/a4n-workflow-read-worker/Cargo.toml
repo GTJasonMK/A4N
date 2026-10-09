@@ -19,7 +19,6 @@ a4n-queue = { workspace = true }
 anyhow = { workspace = true }
 axum = { workspace = true }
 serde = { workspace = true }
-subtle = { workspace = true }
 tokio = { workspace = true }
 
 [dev-dependencies]

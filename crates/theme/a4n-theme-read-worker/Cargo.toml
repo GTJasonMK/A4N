@@ -18,5 +18,4 @@ a4n-worker-runtime = { workspace = true }
 anyhow = { workspace = true }
 axum = { workspace = true }
 serde = { workspace = true }
-subtle = { workspace = true }
 tokio = { workspace = true }

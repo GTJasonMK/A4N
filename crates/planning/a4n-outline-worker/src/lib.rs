@@ -21,7 +21,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use subtle::ConstantTimeEq;
 
 mod mutations;
 mod projection;
@@ -319,9 +318,11 @@ impl WorkerState {
     }
 
     fn authorized(&self, headers: &HeaderMap) -> bool {
-        headers
-            .get(a4n_worker_contract::WORKER_AUTH_HEADER)
-            .is_some_and(|value| bool::from(value.as_bytes().ct_eq(self.auth_token.as_bytes())))
+        a4n_worker_runtime::worker_token_authorized(
+            headers,
+            a4n_worker_contract::WORKER_AUTH_HEADER,
+            self.auth_token.as_bytes(),
+        )
     }
 }
 

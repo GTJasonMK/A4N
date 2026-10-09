@@ -42,7 +42,6 @@ use axum::{
     routing::{get, post},
 };
 use serde_json::Value;
-use subtle::ConstantTimeEq;
 
 const WORKER_ADDR_ENV: &str = "A4N_CONFIG_READ_WORKER_ADDR";
 const DATABASE_URL_ENV: &str = "A4N_DATABASE_URL";
