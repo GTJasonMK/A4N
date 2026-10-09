@@ -835,7 +835,10 @@ class MockOpenAIProviderTest(unittest.TestCase):
                     "task": {"prompt_name": "manga_page_slots"},
                     "input": {
                         "source": "#0 林岚在通道检查怀表。",
-                        "adaptation_plan": {"units": [{"beats": [beat_ref]}]},
+                        "adaptation_plan": {
+                            "page_count": 2,
+                            "units": [{"beats": [beat_ref]}],
+                        },
                     },
                 }, ensure_ascii=False),
             }],
