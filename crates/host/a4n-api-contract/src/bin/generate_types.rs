@@ -264,6 +264,7 @@ use a4n_api_contract::{
         ProjectGeneratedDataResetSummary, ProjectKind, ProjectProgressSummary,
         ProjectRollbackImpactSummary, ProjectRollbackPreview, ProjectSourceMode, ProjectStatus,
         ProjectStatusHistorySummary, ProjectStatusMachineSummary, ProjectSummary, PromptSource,
+        SourceSnapshotChapterIndexEntry, SourceSnapshotChapterReadInput,
         SourceSnapshotChapterSummary, UpdateProjectInput,
     },
     project_transfer::{

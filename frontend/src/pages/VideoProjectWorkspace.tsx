@@ -3,6 +3,7 @@ import React, {
   lazy,
   Suspense,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -13,9 +14,10 @@ import { Film, GitCompare, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import {
   getProject,
-  listSourceSnapshotChapters,
+  getSourceSnapshotChapter,
+  listSourceSnapshotChapterIndex,
   type NovelProject,
-  type SourceSnapshotChapterSummary,
+  type SourceSnapshotChapterIndexEntry,
 } from "../api/project";
 import { extractErrorMessage } from "../api";
 import { useToast } from "../components/feedback/Toast";
@@ -46,8 +48,11 @@ export const VideoProjectWorkspace: React.FC = () => {
   const projectId = Number(id);
 
   const [project, setProject] = useState<NovelProject | null>(null);
-  const [chapters, setChapters] = useState<SourceSnapshotChapterSummary[]>([]);
+  const [chapters, setChapters] = useState<SourceSnapshotChapterIndexEntry[]>([]);
   const [selectedSourceChapterId, setSelectedSourceChapterId] = useState<number | null>(null);
+  const [selectedChapterDetail, setSelectedChapterDetail] = useState<ChapterRow | null>(null);
+  const [selectedChapterLoading, setSelectedChapterLoading] = useState(false);
+  const [selectedChapterError, setSelectedChapterError] = useState<string | null>(null);
   const [workspaceDirty, setWorkspaceDirty] = useState(false);
   const selectSourceChapter = async (chapterId: number) => {
     if (chapterId === selectedSourceChapterId) return;
@@ -77,7 +82,7 @@ export const VideoProjectWorkspace: React.FC = () => {
     try {
       const [projectResult, chaptersResult] = await Promise.allSettled([
         getProject(projectId),
-        listSourceSnapshotChapters(projectId),
+        listSourceSnapshotChapterIndex(projectId),
       ]);
       if (projectResult.status === "rejected") throw projectResult.reason;
       const item = projectResult.value;
@@ -144,21 +149,69 @@ export const VideoProjectWorkspace: React.FC = () => {
     };
   }, [refresh]);
 
+  const selectedChapterIndex = useMemo(
+    () => chapters.find((chapter) => chapter.source_chapter_id === selectedSourceChapterId) ?? null,
+    [chapters, selectedSourceChapterId],
+  );
   const selectedChapter = useMemo<ChapterRow | null>(() => {
-    const snapshotChapter = chapters.find(
-      (chapter) => chapter.source_chapter_id === selectedSourceChapterId,
-    );
-    if (!snapshotChapter) return null;
+    if (!selectedChapterIndex) return null;
+    if (
+      selectedChapterDetail != null &&
+      selectedChapterDetail.id === selectedChapterIndex.source_chapter_id &&
+      selectedChapterDetail.snapshot_id === selectedChapterIndex.snapshot_id
+    ) return selectedChapterDetail;
     return {
-      id: snapshotChapter.source_chapter_id,
-      chapter_number: snapshotChapter.chapter_number,
-      title: snapshotChapter.title,
-      content: snapshotChapter.content,
-      summary: snapshotChapter.summary,
+      id: selectedChapterIndex.source_chapter_id,
+      snapshot_id: selectedChapterIndex.snapshot_id,
+      chapter_number: selectedChapterIndex.chapter_number,
+      title: selectedChapterIndex.title,
       status: "completed",
-      analysis_data: snapshotChapter.analysis_data_json,
     };
-  }, [chapters, selectedSourceChapterId]);
+  }, [selectedChapterDetail, selectedChapterIndex]);
+
+  useEffect(() => {
+    if (!project || !selectedChapterIndex) {
+      setSelectedChapterDetail(null);
+      setSelectedChapterLoading(false);
+      setSelectedChapterError(null);
+      return;
+    }
+    let active = true;
+    setSelectedChapterDetail(null);
+    setSelectedChapterLoading(true);
+    setSelectedChapterError(null);
+    void getSourceSnapshotChapter(
+      project.id,
+      selectedChapterIndex.snapshot_id,
+      selectedChapterIndex.source_chapter_id,
+    )
+      .then((chapter) => {
+        if (!active) return;
+        setSelectedChapterDetail({
+          id: chapter.source_chapter_id,
+          snapshot_id: chapter.snapshot_id,
+          chapter_number: chapter.chapter_number,
+          title: chapter.title,
+          content: chapter.content,
+          content_hash: chapter.content_hash,
+          summary: chapter.summary,
+          analysis_data: chapter.analysis_data_json,
+          status: "completed",
+        });
+      })
+      .catch((error) => {
+        if (!active) return;
+        const message = extractErrorMessage(error, translatorRef.current("video.loadProjectFailed"));
+        setSelectedChapterError(message);
+        addToast(message, "error");
+      })
+      .finally(() => {
+        if (active) setSelectedChapterLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [addToast, project, selectedChapterIndex]);
 
   const imageProjectIds = useMemo(() => {
     if (!project) return [];
@@ -293,15 +346,40 @@ export const VideoProjectWorkspace: React.FC = () => {
               </div>
             ) : null}
             <section className="min-h-0 flex-1 overflow-hidden">
-              <VideoTab
-                key={`${project.id}:${chapters[0].snapshot_id}:${selectedSourceChapterId}`}
-                projectId={project.id}
-                canEdit={canEditProject}
-                onDirtyChange={setWorkspaceDirty}
-                fixedChapter={selectedChapter}
-                imageProjectIds={imageProjectIds}
-                materialProjectId={project.root_project_id ?? project.id}
-              />
+              {selectedChapterError ? (
+                <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-error">
+                  <p className="min-w-0 flex-1">{selectedChapterError}</p>
+                  <BookButton
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      void (async () => {
+                        if (await confirmDiscardMediaChanges(workspaceDirty || dirtyRegistry.hasDirty(), t)) {
+                          await refresh();
+                        }
+                      })();
+                    }}
+                  >
+                    <RefreshCw size={13} /> {t("common.retry")}
+                  </BookButton>
+                </div>
+              ) : !selectedChapterIndex ? (
+                <EmptyHint text={t("video.noSourceChapter")} />
+              ) : selectedChapterLoading || selectedChapter?.content == null ? (
+                <div role="status" className="inline-flex items-center gap-2 text-xs text-book-text-muted">
+                  <LoadingSpinner size="sm" /> {t("common.loading")}
+                </div>
+              ) : (
+                <VideoTab
+                  key={`${project.id}:${chapters[0].snapshot_id}:${selectedSourceChapterId}`}
+                  projectId={project.id}
+                  canEdit={canEditProject}
+                  onDirtyChange={setWorkspaceDirty}
+                  fixedChapter={selectedChapter}
+                  imageProjectIds={imageProjectIds}
+                  materialProjectId={project.root_project_id ?? project.id}
+                />
+              )}
             </section>
           </div>
         ) : project ? (
@@ -312,7 +390,7 @@ export const VideoProjectWorkspace: React.FC = () => {
   );
 };
 
-function sourceChapterTitle(chapter: SourceSnapshotChapterSummary): string | null {
+function sourceChapterTitle(chapter: SourceSnapshotChapterIndexEntry): string | null {
   const title = chapter.title?.trim();
   if (!title) return null;
   const normalizedTitle = title.replace(/\s+/g, "");

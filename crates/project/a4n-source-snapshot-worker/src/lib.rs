@@ -2,11 +2,13 @@
 
 use std::{env, net::SocketAddr, sync::Arc};
 
-use a4n_api_contract::project::SourceSnapshotChapterSummary;
+use a4n_api_contract::project::{SourceSnapshotChapterIndexEntry, SourceSnapshotChapterSummary};
 use a4n_db::DbHandle;
 use a4n_source_snapshot_worker_contract::{
+    SOURCE_SNAPSHOT_CHAPTER_INDEX_OPERATION, SOURCE_SNAPSHOT_CHAPTER_OPERATION,
     SOURCE_SNAPSHOT_CHAPTERS_OPERATION, SOURCE_SNAPSHOT_READ_CAPABILITY,
-    SOURCE_SNAPSHOT_WORKER_CONTRACT_VERSION, SOURCE_SNAPSHOT_WORKER_ID, SourceSnapshotProjectInput,
+    SOURCE_SNAPSHOT_WORKER_CONTRACT_VERSION, SOURCE_SNAPSHOT_WORKER_ID, SourceSnapshotChapterInput,
+    SourceSnapshotProjectInput,
 };
 use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -71,6 +73,14 @@ impl SourceSnapshotWorker {
             .route(
                 "/v1/commands/project.source_snapshot.chapters",
                 post(chapters),
+            )
+            .route(
+                "/v1/commands/project.source_snapshot.chapter_index",
+                post(chapter_index),
+            )
+            .route(
+                "/v1/commands/project.source_snapshot.chapter",
+                post(chapter),
             )
             .with_state(self.state.clone())
     }
@@ -162,6 +172,36 @@ async fn chapters(
     Json(response).into_response()
 }
 
+async fn chapter_index(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<SourceSnapshotProjectInput>>,
+) -> Response {
+    if !state.authorized(&headers) {
+        return unauthorized();
+    }
+    let response = match state.chapter_index(request.clone()).await {
+        Ok(payload) => completed(&request, payload),
+        Err(error) => failed(&request, error),
+    };
+    Json(response).into_response()
+}
+
+async fn chapter(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<SourceSnapshotChapterInput>>,
+) -> Response {
+    if !state.authorized(&headers) {
+        return unauthorized();
+    }
+    let response = match state.chapter(request.clone()).await {
+        Ok(payload) => completed(&request, payload),
+        Err(error) => failed(&request, error),
+    };
+    Json(response).into_response()
+}
+
 impl WorkerState {
     fn authorized(&self, headers: &HeaderMap) -> bool {
         headers
@@ -170,14 +210,17 @@ impl WorkerState {
     }
 }
 
-fn validate_request<T: serde::Serialize>(request: &WorkerEnvelope<T>) -> Result<(), WorkerFailure> {
+fn validate_request<T: serde::Serialize>(
+    request: &WorkerEnvelope<T>,
+    operation_id: &str,
+) -> Result<(), WorkerFailure> {
     request
         .validate()
         .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
-    if request.operation_id != SOURCE_SNAPSHOT_CHAPTERS_OPERATION {
+    if request.operation_id != operation_id {
         return Err(WorkerFailure::invalid_request(format!(
             "operation_id 不匹配: expected={}, actual={}",
-            SOURCE_SNAPSHOT_CHAPTERS_OPERATION, request.operation_id
+            operation_id, request.operation_id
         )));
     }
     if request.lease.worker_id != SOURCE_SNAPSHOT_WORKER_ID {
@@ -381,7 +424,7 @@ mod tests {
             },
             payload: SourceSnapshotProjectInput { project_id: 1 },
         };
-        assert!(validate_request(&request).is_err());
+        assert!(validate_request(&request, SOURCE_SNAPSHOT_CHAPTERS_OPERATION).is_err());
         assert_eq!(
             SOURCE_SNAPSHOT_CHAPTERS_OPERATION,
             "project.source_snapshot.chapters"

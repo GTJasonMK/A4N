@@ -8,7 +8,7 @@ use crate::routes::commands::{
 };
 use a4n_api_contract::project::{
     CreateCanvasProjectInput, CreateDerivedProjectInput, CreateProjectInput,
-    CreateStandaloneComicProjectInput, UpdateProjectInput,
+    CreateStandaloneComicProjectInput, SourceSnapshotChapterReadInput, UpdateProjectInput,
 };
 use serde_json::Value;
 
@@ -63,6 +63,15 @@ project_web_project_value_command!(get_project, project_records_actions::get_pro
 project_web_project_value_command!(
     list_source_snapshot_chapters,
     project_records_actions::list_source_snapshot_chapters
+);
+project_web_project_value_command!(
+    list_source_snapshot_chapter_index,
+    project_records_actions::list_source_snapshot_chapter_index
+);
+project_web_project_input_value_command!(
+    get_source_snapshot_chapter,
+    SourceSnapshotChapterReadInput,
+    project_records_actions::get_source_snapshot_chapter
 );
 
 project_web_project_input_value_command!(

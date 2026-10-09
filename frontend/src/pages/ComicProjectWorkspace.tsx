@@ -4,9 +4,9 @@ import { GitCompare, PanelsTopLeft, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import {
   getProject,
-  listSourceSnapshotChapters,
+  listSourceSnapshotChapterIndex,
   type NovelProject,
-  type SourceSnapshotChapterSummary,
+  type SourceSnapshotChapterIndexEntry,
 } from "../api/project";
 import { extractErrorMessage } from "../api";
 import { useToast } from "../components/feedback/Toast";
@@ -32,7 +32,7 @@ export const ComicProjectWorkspace: React.FC = () => {
   const projectId = Number(id);
 
   const [project, setProject] = useState<NovelProject | null>(null);
-  const [chapters, setChapters] = useState<SourceSnapshotChapterSummary[]>([]);
+  const [chapters, setChapters] = useState<SourceSnapshotChapterIndexEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sourceSyncOpen, setSourceSyncOpen] = useState(false);
@@ -64,7 +64,7 @@ export const ComicProjectWorkspace: React.FC = () => {
       setProject(item);
       if (item.source_mode === "derived") {
         try {
-          setChapters(await listSourceSnapshotChapters(projectId));
+          setChapters(await listSourceSnapshotChapterIndex(projectId));
         } catch (error) {
           const message = extractErrorMessage(
             error,
@@ -168,6 +168,13 @@ export const ComicProjectWorkspace: React.FC = () => {
             key={project.id}
             projectId={project.id}
             canEditManga={canEditProject}
+            onSnapshotRefresh={() => {
+              void (async () => {
+                if (await confirmDiscardMediaChanges(workspaceDirty || dirtyRegistry.hasDirty(), t)) {
+                  await refresh();
+                }
+              })();
+            }}
             standalone={project.source_mode === "standalone"}
             onDirtyChange={setWorkspaceDirty}
             snapshotChapters={chapters}

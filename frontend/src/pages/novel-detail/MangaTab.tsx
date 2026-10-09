@@ -14,6 +14,7 @@ import { RequestPreviewModal } from "../../components/feedback/RequestPreviewMod
 import { extractErrorMessage } from "../../api";
 import { listChapters } from "../../api/chapter";
 import { listProfiles, type CharacterProfile } from "../../api/character";
+import { getSourceSnapshotChapter } from "../../api/project";
 import {
   listImagesByProject,
   listImagesByProjects,
@@ -352,6 +353,7 @@ const MangaChapterArtifactPanel: React.FC<{
 export const MangaTab: React.FC<MangaTabProps> = ({
   projectId,
   canEditManga = true,
+  onSnapshotRefresh,
   snapshotChapters,
   assetProjectId,
   imageProjectIds,
@@ -432,9 +434,14 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const [selectedChapter, setSelectedChapter] = useState<ChapterRow | null>(
     fixedChapter ?? null,
   );
+  const [selectedChapterLoading, setSelectedChapterLoading] = useState(false);
+  const [selectedChapterLoadError, setSelectedChapterLoadError] = useState<
+    string | null
+  >(null);
   const authoring = useMediaAuthoring(
     projectId,
-    staged && (!standalone || selectedChapter != null),
+    // Unscoped workspace reads materialize every source span; the selected chapter is enough here.
+    staged && selectedChapter != null,
     selectedChapter?.id ?? null,
   );
   const outputState = authoring.workspace?.artifacts.find((artifact) => artifact.kind === "manga_pages" && artifact.source_chapter_id === selectedChapter?.id);
@@ -561,6 +568,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const activeImageSourceKeyRef = useRef(imageSourceKey);
   const standaloneSourceLoadSeqRef = useRef(0);
   const chapterLoadSeqRef = useRef(0);
+  const chapterDetailLoadSeqRef = useRef(0);
   const statusLoadSeqRef = useRef(0);
   const pagePromptsLoadSeqRef = useRef(0);
   const chapterArtifactsLoadSeqRef = useRef(0);
@@ -691,6 +699,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     return () => {
       mountedRef.current = false;
       chapterLoadSeqRef.current += 1;
+      chapterDetailLoadSeqRef.current += 1;
       statusLoadSeqRef.current += 1;
       pagePromptsLoadSeqRef.current += 1;
       chapterArtifactsLoadSeqRef.current += 1;
@@ -846,11 +855,14 @@ export const MangaTab: React.FC<MangaTabProps> = ({
 
   const resetChapterDetail = () => {
     selectedChapterIdRef.current = null;
+    chapterDetailLoadSeqRef.current += 1;
     pagePromptsLoadSeqRef.current += 1;
     chapterArtifactsLoadSeqRef.current += 1;
     statusLoadSeqRef.current += 1;
     resetRequestPreview();
     setSelectedChapter(null);
+    setSelectedChapterLoading(false);
+    setSelectedChapterLoadError(null);
     setPagePrompts([]);
     setChapterArtifacts([]);
     setPagePromptsError(null);
@@ -858,18 +870,55 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     setCurrentContentHash(null);
   };
 
-  const openChapterDetail = (row: ChapterRow) => {
+  const openChapterDetail = (row: ChapterRow, loadSingleChapterStatus = true) => {
     selectedChapterIdRef.current = row.id;
+    const detailRequest = chapterDetailLoadSeqRef.current + 1;
+    chapterDetailLoadSeqRef.current = detailRequest;
     resetRequestPreview();
     setSelectedChapter(row);
+    setSelectedChapterLoadError(null);
     setPagePrompts([]);
     setChapterArtifacts([]);
     setPagePromptsError(null);
     setPipelineStatusError((current) => current?.scope === "chapter" ? null : current);
     setCurrentContentHash(row.content_hash ?? null);
+    const snapshotId = row.snapshot_id;
+    const needsSnapshotDetail =
+      snapshotChapters !== undefined && snapshotId != null && row.content == null;
+    setSelectedChapterLoading(needsSnapshotDetail);
+    if (needsSnapshotDetail && snapshotId != null) {
+      const isCurrentDetail = () =>
+        isProjectCurrent(projectId) &&
+        selectedChapterIdRef.current === row.id &&
+        chapterDetailLoadSeqRef.current === detailRequest;
+      void getSourceSnapshotChapter(projectId, snapshotId, row.id)
+        .then((chapter) => {
+          if (!isCurrentDetail()) return;
+          setSelectedChapter({
+            id: chapter.source_chapter_id,
+            snapshot_id: chapter.snapshot_id,
+            chapter_number: chapter.chapter_number,
+            title: chapter.title,
+            content: chapter.content,
+            content_hash: chapter.content_hash,
+            summary: chapter.summary,
+            status: "completed",
+            analysis_data: chapter.analysis_data_json,
+          });
+        })
+        .catch((error) => {
+          if (!isCurrentDetail()) return;
+          const message = extractErrorMessage(error, t("comic.loadChaptersFailed"));
+          setSelectedChapterLoadError(message);
+          addToast(message, "error");
+        })
+        .finally(() => {
+          if (isCurrentDetail()) setSelectedChapterLoading(false);
+        });
+    }
     void loadPagePrompts(row.id, projectId);
     void loadChapterArtifacts(row.id, projectId);
-    void loadSingleStatus(row.id, projectId);
+    if (loadSingleChapterStatus) void loadSingleStatus(row.id, projectId);
   };
 
   const prepareStandaloneSource = async (
@@ -1010,13 +1059,10 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       const rows: ChapterRow[] = snapshotChapters
         ? snapshotChapters.map((chapter) => ({
             id: chapter.source_chapter_id,
+            snapshot_id: chapter.snapshot_id,
             chapter_number: chapter.chapter_number,
             title: chapter.title,
-            content: chapter.content,
-            content_hash: chapter.content_hash,
-            summary: chapter.summary,
             status: "completed",
-            analysis_data: chapter.analysis_data_json,
           }))
         : (await listChapters(requestProjectId)).map((c) => ({
             id: c.id,
@@ -1042,13 +1088,12 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       selectedChapterIdRef.current = nextSelectedChapter?.id ?? null;
       setSelectedChapter(nextSelectedChapter);
       if (nextSelectedChapter && nextSelectedChapter.id !== previousChapterId) {
-        resetRequestPreview();
-        setPagePrompts([]);
-        setChapterArtifacts([]);
-        setCurrentContentHash(nextSelectedChapter.content_hash ?? null);
-        void loadPagePrompts(nextSelectedChapter.id, requestProjectId);
-        void loadChapterArtifacts(nextSelectedChapter.id, requestProjectId);
+        openChapterDetail(nextSelectedChapter, false);
+      } else if (nextSelectedChapter && snapshotChapters !== undefined && nextSelectedChapter.content == null) {
+        openChapterDetail(nextSelectedChapter, false);
       } else if (!nextSelectedChapter) {
+        setSelectedChapterLoading(false);
+        setSelectedChapterLoadError(null);
         setPagePrompts([]);
         setChapterArtifacts([]);
         setCurrentContentHash(null);
@@ -1100,6 +1145,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     activeCharacterAssetProjectIdRef.current = characterAssetProjectId;
     activeImageSourceKeyRef.current = imageSourceKey;
     chapterLoadSeqRef.current += 1;
+    chapterDetailLoadSeqRef.current += 1;
     statusLoadSeqRef.current += 1;
     pagePromptsLoadSeqRef.current += 1;
     characterAssetsLoadSeqRef.current += 1;
@@ -1109,6 +1155,8 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     resetInteractionLocks();
     setChapters([]);
     setStatuses({});
+    setSelectedChapterLoading(false);
+    setSelectedChapterLoadError(null);
     setPipelineStatusError(null);
     setPagePrompts([]);
     setPagePromptsError(null);
@@ -1236,7 +1284,10 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   }, [addToast, selectedChapter?.content, selectedChapter?.id]);
 
   const handleSelect = async (row: ChapterRow) => {
-    if (selectedChapter?.id === row.id) return;
+    if (
+      selectedChapter?.id === row.id &&
+      (selectedChapterLoading || selectedChapter.content != null)
+    ) return;
     if (await confirmLeaveStage()) {
       setSelectedPageNumber(null);
       openChapterDetail(row);
@@ -1728,6 +1779,12 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         projectId={projectId}
         isSingleMode={isSingleMode}
         selectedChapter={selectedChapter}
+        selectedChapterLoading={selectedChapterLoading}
+        selectedChapterLoadError={selectedChapterLoadError}
+        onRetryChapter={() => {
+          if (onSnapshotRefresh) onSnapshotRefresh();
+          else if (selectedChapter) openChapterDetail(selectedChapter);
+        }}
         selectedStatus={selectedStatus}
         pagePrompts={pagePrompts}
         pageSlotsNeedsGeneration={pageSlotsNeedsGeneration}

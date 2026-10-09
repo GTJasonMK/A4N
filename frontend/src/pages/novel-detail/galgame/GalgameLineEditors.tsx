@@ -17,7 +17,7 @@ import type {
   GalgameFieldDraft,
   GalgameSceneFieldValues,
 } from "./GalgameDrafts";
-import type { SourceSnapshotChapterSummary } from "../../../api/project";
+import type { SourceSnapshotChapterIndexEntry } from "../../../api/project";
 import type {
   GalgameCgImportance,
   GalgameLine,
@@ -51,7 +51,7 @@ interface LineEditorProps {
   speakerProfiles: GalgameSpeakerProfile[];
   speakerProfileById: ReadonlyMap<number, GalgameSpeakerProfile>;
   sourceAnchor: GalgameTextAnchorSummary | null;
-  sourceChapter: SourceSnapshotChapterSummary | null;
+  sourceChapter: SourceSnapshotChapterIndexEntry | null;
   mediaBindings: GalgameMediaBindingSummary[];
   choiceDrafts: ChoiceDraft[];
   onChoiceDraftsChange: (drafts: ChoiceDraft[]) => void;

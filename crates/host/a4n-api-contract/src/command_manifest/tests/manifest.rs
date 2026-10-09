@@ -543,6 +543,25 @@ fn chapter_content_commands_expose_the_immediate_strict_contract() {
     for id in ["project_id", "chapter_id"] {
         assert_eq!(get.args_schema["properties"]["input"]["properties"][id]["minimum"], 1);
     }
+
+    let snapshot_index = command_descriptor("list_source_snapshot_chapter_index").unwrap();
+    assert_eq!(snapshot_index.effect, "read");
+    assert_eq!(
+        snapshot_index.result_schema["x-a4n-schema-quality"],
+        "typed"
+    );
+    let snapshot_chapter = command_descriptor("get_source_snapshot_chapter").unwrap();
+    assert_eq!(snapshot_chapter.effect, "read");
+    assert_eq!(
+        snapshot_chapter.args_schema["properties"]["input"]["additionalProperties"],
+        false
+    );
+    for id in ["snapshot_id", "source_chapter_id"] {
+        assert_eq!(
+            snapshot_chapter.args_schema["properties"]["input"]["properties"][id]["minimum"],
+            1
+        );
+    }
 }
 
 #[test]

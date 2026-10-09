@@ -1,9 +1,7 @@
 //! Typed Host adapter for the source snapshot read worker.
 
 use a4n_error::AppError;
-use a4n_source_snapshot_worker_contract::{
-    SOURCE_SNAPSHOT_CHAPTERS_OPERATION, SOURCE_SNAPSHOT_WORKER_ID,
-};
+use a4n_source_snapshot_worker_contract::SOURCE_SNAPSHOT_WORKER_ID;
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{
     WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerLease,
@@ -51,7 +49,13 @@ impl SourceSnapshotWorkerClient {
         Self::new(url, token)
     }
 
-    async fn command<I, O>(&self, user_id: i64, project_id: i64, payload: I) -> Result<O, AppError>
+    async fn command<I, O>(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        operation_id: &str,
+        payload: I,
+    ) -> Result<O, AppError>
     where
         I: serde::Serialize,
         O: serde::de::DeserializeOwned,
@@ -68,7 +72,7 @@ impl SourceSnapshotWorkerClient {
                 kind: WorkerPrincipalKind::User,
                 subject: user_id.to_string(),
             },
-            operation_id: SOURCE_SNAPSHOT_CHAPTERS_OPERATION.into(),
+            operation_id: operation_id.into(),
             idempotency_key: uuid::Uuid::new_v4().to_string(),
             project_id: Some(project_id),
             root_project_id: None,
@@ -84,7 +88,7 @@ impl SourceSnapshotWorkerClient {
         };
         let response: WorkerResponse<O> = self
             .transport
-            .command(SOURCE_SNAPSHOT_CHAPTERS_OPERATION, request)
+            .command(operation_id, request)
             .await
             .map_err(worker_client_error)?;
         match response.status {
@@ -93,6 +97,7 @@ impl SourceSnapshotWorkerClient {
             }),
             WorkerOperationStatus::Failed => Err(worker_response_error(
                 response.error.as_ref().expect("validated failed response"),
+                operation_id,
             )),
             status => Err(AppError::ConfigError(format!(
                 "source snapshot worker 返回未完成状态: {status:?}"
@@ -105,14 +110,14 @@ fn worker_client_error(error: WorkerClientError) -> AppError {
     AppError::ConfigError(format!("source snapshot worker 请求失败: {error}"))
 }
 
-fn worker_response_error(error: &WorkerError) -> AppError {
+fn worker_response_error(error: &WorkerError, operation_id: &str) -> AppError {
     match error.code {
         WorkerErrorCode::InvalidRequest => AppError::InvalidArgument(error.message.clone()),
         WorkerErrorCode::Unauthorized => AppError::Forbidden(error.message.clone()),
         WorkerErrorCode::NotFound => AppError::NotFound(error.message.clone()),
         WorkerErrorCode::Conflict => AppError::InvalidState {
             current: error.message.clone(),
-            operation: SOURCE_SNAPSHOT_CHAPTERS_OPERATION.into(),
+            operation: operation_id.into(),
         },
         _ => AppError::ConfigError(format!("source snapshot worker 失败: {}", error.message)),
     }

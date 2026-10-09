@@ -10,7 +10,7 @@ pub use a4n_domain::project::{
     AssetLineageRecord, AssetLineageRef, GenerationInputSource, ProjectKind,
     ProjectProgressSummary, ProjectRollbackImpactSummary, ProjectRollbackPreview,
     ProjectSourceMode, ProjectStatus, ProjectStatusHistorySummary, ProjectStatusMachineSummary,
-    PromptSource, SourceSnapshotChapterSummary,
+    PromptSource, SourceSnapshotChapterIndexEntry, SourceSnapshotChapterSummary,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -163,6 +163,20 @@ pub trait ProjectSourceSnapshotReadApplicationPort: Send + Sync {
         user_id: i64,
         project_id: i64,
     ) -> Result<Vec<SourceSnapshotChapterSummary>, a4n_error::AppError>;
+
+    async fn chapter_index(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<SourceSnapshotChapterIndexEntry>, a4n_error::AppError>;
+
+    async fn chapter(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        snapshot_id: i64,
+        source_chapter_id: i64,
+    ) -> Result<SourceSnapshotChapterSummary, a4n_error::AppError>;
 }
 
 /// Host-facing project mutation boundary.
@@ -251,6 +265,15 @@ pub struct CreateDerivedProjectInput {
     pub description: String,
     pub start_chapter: i32,
     pub end_chapter: i32,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SourceSnapshotChapterReadInput {
+    #[schemars(range(min = 1))]
+    pub snapshot_id: i64,
+    #[schemars(range(min = 1))]
+    pub source_chapter_id: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

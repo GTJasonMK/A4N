@@ -24,6 +24,8 @@ import type {
   ProjectStatus,
   ProjectStatusMachineSummary,
   ProjectSummary,
+  SourceSnapshotChapterIndexEntry,
+  SourceSnapshotChapterReadInput,
   SourceSnapshotChapterSummary,
   UpdateProjectInput,
 } from "./generated/host";
@@ -55,6 +57,8 @@ export type {
   ProjectStatusMachineSummary,
   ProjectKind,
   ProjectSourceMode,
+  SourceSnapshotChapterIndexEntry,
+  SourceSnapshotChapterReadInput,
   SourceSnapshotChapterSummary,
 } from "./generated/host";
 
@@ -219,6 +223,29 @@ export async function createStandaloneComicProject(
 export async function listSourceSnapshotChapters(projectId: Id): Promise<SourceSnapshotChapterSummary[]> {
   return apiInvoke<SourceSnapshotChapterSummary[]>("list_source_snapshot_chapters", {
     projectId: idNum(projectId),
+  });
+}
+
+export async function listSourceSnapshotChapterIndex(
+  projectId: Id,
+): Promise<SourceSnapshotChapterIndexEntry[]> {
+  return apiInvoke<SourceSnapshotChapterIndexEntry[]>("list_source_snapshot_chapter_index", {
+    projectId: idNum(projectId),
+  });
+}
+
+export async function getSourceSnapshotChapter(
+  projectId: Id,
+  snapshotId: Id,
+  sourceChapterId: Id,
+): Promise<SourceSnapshotChapterSummary> {
+  const input: SourceSnapshotChapterReadInput = {
+    snapshot_id: idNum(snapshotId),
+    source_chapter_id: idNum(sourceChapterId),
+  };
+  return apiInvoke<SourceSnapshotChapterSummary>("get_source_snapshot_chapter", {
+    projectId: idNum(projectId),
+    input,
   });
 }
 

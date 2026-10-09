@@ -247,3 +247,26 @@ A4N_PERF_ARTIFACTS=/path/inside/worktree/data/api-transfer \
 - 所有失败均保留：首次发布构建遇到并行健康检查接口尚未补齐；首次CLI的旧Import sidecar缺少新的解析路由；随后一轮错误复用了已被CLI写入的测试库。已重编译对应程序、替换Import/Export/Media sidecar，并按CLI运行分配新数据库。浏览器恢复测试曾过早把“错误暂时隐藏于加载状态”当完成，现同时等待全部事件恢复。
 
 证据目录：`data/performance-audit-20260927/b10/`，最终程序与哈希在 `frozen-candidate` / `binaries-final.json`。真实基准在 `runtime-baseline.py` 增加 `--chapter-analysis-checks`；它准备专用合成数据并与旧接口逐值对比。浏览器使用 `A4N_PERF_VIEW=story`、`A4N_PERF_CHAPTER_FIXTURE=<该运行的chapter-fixture.json>` 调用 `chapter-load.mjs`；旧版加 `A4N_PERF_BASELINE_REF=ecd9fb5b7`。
+
+### PERF-020：派生媒体源快照按目录和按需正文读取
+
+- 请求链路：Comic、Video、Galgame 工作区初载只需要章节号/标题/快照章节主键；漫画/视频选章和 Galgame 场景详情才需要正文与分析。旧路径把 1000 章正文、摘要和分析放进一次目录响应，并在漫画初载读取全部媒体编排源跨度。新路径增加窄目录和带 `project_id + snapshot_id + source_chapter_id` 校验的单章详情，保留旧完整读取命令供仍需全量数据的调用方使用。
+- 后端范围读取：全量媒体编排改为在已验证根项目和快照范围内一次读取实际使用的字段，避免完整快照摘要物化后再次查询正文；正文哈希校验、章节顺序和错误边界保持不变。该路径只由媒体编排使用，目录接口仍使用窄索引。
+- PostgreSQL 千章基准 `data/performance-audit-20261010/`，15 轮交错、2 轮预热、每章约 9.2 KiB 正文：完整列表 P50/P95 **321.991/332.893 ms、12,463,579 B**；目录 + 首章详情 **10.919/14.512 ms、111,034 B**，P50 下降 **96.61%**，响应体下降 **99.11%**。全量媒体编排旧路径 **270.900/297.334 ms**，单次范围读取 **170.880/189.660 ms**，P50 下降 **36.92%**；返回章节数量、顺序和正文总量一致。
+- 真实 Chromium 153.0.8010.52 夹具覆盖 1000 章、1440/1024/768/390/375/320px、Enter 选章和无横向溢出。初次可用时间 **312.4 → 125.1 ms（59.97%）**，请求 JSON **24,861,598 → 122,722 B（99.51%）**，gzip 传输字节 **133,485 → 12,009 B（91.01%）**，JS heap **26.38 → 7.29 MB（72.38%）**。优化后初始页面不读取正文；Enter 选章仍获得单章详情，旧/新 DOM 行数均为 1000。
+- 目录与详情功能测试覆盖当前快照、跨项目、过期快照、非法参数和正文投影；`a4n-db` 源快照功能测试 **1 passed**，千章 A/B 基准 **1 passed**。前端 Vitest **489 passed**、TypeScript、生产构建和 `check:web-api-parity` 通过；Chromium 夹具证据为 `data/performance-audit-20261010/manga-before-02/` 与 `manga-after/`。首次数据库夹具因本机缺少 `postgres:16` 镜像拉取超时，改用本机独立 `a4n_perf_20261010` 数据库，失败日志保留。
+
+复现：
+
+```bash
+export A4N_TEST_DATABASE_URL=postgres://a4n:a4n@127.0.0.1:5432/a4n_perf_20261010
+CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target \
+  cargo test -p a4n-db --test source_snapshot_queries \
+  performance_source_snapshot_reads_1000_chapters -- --ignored --nocapture
+cd frontend
+A4N_PERF_TMPDIR=/home/fufu/Code/A4N/work/.pt \
+A4N_PERF_CASE=manga-source \
+A4N_PERF_BASELINE_REF=3f6a2408c \
+A4N_PERF_ARTIFACTS=../data/performance-audit-20261010/manga-before-02 \
+  node e2e/performance/check.mjs
+```

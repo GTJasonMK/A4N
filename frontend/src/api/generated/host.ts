@@ -168,6 +168,7 @@ export const HOST_API_COMMANDS = [
   "get_queue_stats",
   "get_reverse_engineering_candidate",
   "get_snapshot",
+  "get_source_snapshot_chapter",
   "get_storage_paths",
   "get_task_history",
   "get_test_run",
@@ -240,6 +241,7 @@ export const HOST_API_COMMANDS = [
   "list_scene_profiles",
   "list_sessions",
   "list_snapshots",
+  "list_source_snapshot_chapter_index",
   "list_source_snapshot_chapters",
   "list_test_runs",
   "list_test_scenarios",
@@ -4346,6 +4348,19 @@ export interface CreateDerivedProjectInput {
   root_project_id: number;
   start_chapter: number;
   title: string;
+}
+
+export interface SourceSnapshotChapterIndexEntry {
+  chapter_number: number;
+  id: number;
+  snapshot_id: number;
+  source_chapter_id: number;
+  title: string | null;
+}
+
+export interface SourceSnapshotChapterReadInput {
+  snapshot_id: number;
+  source_chapter_id: number;
 }
 
 export interface SourceSnapshotChapterSummary {

@@ -62,7 +62,7 @@ pub use chapter::scene::{
 };
 pub use chapter::source::{
     ResolveChapterSourceError, resolve_chapter_source, resolve_snapshot_sources,
-    resolve_video_chapter_source,
+    resolve_snapshot_sources_for_scope, resolve_video_chapter_source,
 };
 pub use cleanup::ProjectCleanupDbError;
 pub(crate) use cleanup::{
@@ -155,7 +155,9 @@ pub(crate) use records::{project_record_from_model, project_record_into_model};
 pub use rollback_impact::{ProjectRollbackImpactReadError, project_rollback_impacts};
 pub use source_snapshot::{
     CreateDerivedProjectParams, DerivedChapterScope, create_derived_project_record,
-    source_snapshot_chapter_content_by_snapshot_and_source, source_snapshot_chapters,
+    source_snapshot_chapter_content_by_snapshot_and_source, source_snapshot_chapter_for_project,
+    source_snapshot_chapter_index, source_snapshot_chapter_index_for_scope,
+    source_snapshot_chapters,
 };
 pub use source_snapshot::{authoring_scene_profiles, scene_profiles_for_source};
 pub(crate) use source_snapshot::{create_source_snapshot_in_record, source_snapshot_version_hash};

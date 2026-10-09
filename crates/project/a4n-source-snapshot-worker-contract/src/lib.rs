@@ -6,14 +6,24 @@ pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 use serde::{Deserialize, Serialize};
 
 pub const SOURCE_SNAPSHOT_WORKER_ID: &str = "source-snapshot-worker";
-pub const SOURCE_SNAPSHOT_WORKER_CONTRACT_VERSION: &str = "source-snapshot-read-v1";
+pub const SOURCE_SNAPSHOT_WORKER_CONTRACT_VERSION: &str = "source-snapshot-read-v2";
 pub const SOURCE_SNAPSHOT_CHAPTERS_OPERATION: &str = "project.source_snapshot.chapters";
+pub const SOURCE_SNAPSHOT_CHAPTER_INDEX_OPERATION: &str = "project.source_snapshot.chapter_index";
+pub const SOURCE_SNAPSHOT_CHAPTER_OPERATION: &str = "project.source_snapshot.chapter";
 pub const SOURCE_SNAPSHOT_READ_CAPABILITY: &str = "project.source_snapshot.read";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct SourceSnapshotProjectInput {
     pub project_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SourceSnapshotChapterInput {
+    pub project_id: i64,
+    pub snapshot_id: i64,
+    pub source_chapter_id: i64,
 }
 
 #[cfg(test)]

@@ -178,6 +178,7 @@ command_specs! {
     "get_queue_stats" => empty_args_schema, result_get_queue_stats, "system", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_reverse_engineering_candidate" => args_get_reverse_engineering_candidate, result_optional_reverse_engineering_candidate, "workflow", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_WORKFLOW_RUN_IDS);
     "get_snapshot" => args_get_snapshot, result_get_snapshot, "profile", effect(READ_EFFECT);
+    "get_source_snapshot_chapter" => args_source_snapshot_chapter, result_source_snapshot_chapter, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "get_storage_paths" => empty_args_schema, result_get_storage_paths, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_task_history" => args_get_task_history, result_get_task_history, "task", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_TASK_IDS);
     "get_test_run" => args_test_run_id, result_test_run_detail, "testing", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
@@ -250,6 +251,7 @@ command_specs! {
     "list_scene_profiles" => args_list_scene_profiles, result_list_scene_profiles, "profile", effect(READ_EFFECT);
     "list_sessions" => empty_args_schema, result_list_sessions, "auth", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_snapshots" => args_list_snapshots, result_list_snapshots, "profile", effect(READ_EFFECT);
+    "list_source_snapshot_chapter_index" => args_project_id, result_source_snapshot_chapter_index, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_source_snapshot_chapters" => args_project_id, result_source_snapshot_chapters, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_test_runs" => args_list_test_runs, result_test_runs, "testing", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "list_test_scenarios" => empty_args_schema, result_test_scenarios, "testing", identity(ADMIN_IDENTITY), effect(READ_EFFECT);

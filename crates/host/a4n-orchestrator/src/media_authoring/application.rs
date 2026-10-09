@@ -118,25 +118,26 @@ impl OrchestratorContext {
             }
         };
         let snapshot_id = family.source_snapshot.id;
-        let ids = match chapter_id {
-            Some(id) if id > 0 => vec![id],
+        let sources = match chapter_id {
+            Some(id) if id > 0 => a4n_db::project::resolve_snapshot_sources(
+                self.database.executor(),
+                project_id,
+                family.root_project.id,
+                snapshot_id,
+                &[id],
+            )
+            .await
+            .map_err(crate::shooting_script::errors::resolve_source_error)?,
             Some(_) => return Err(AppError::InvalidArgument("章节 ID 必须大于 0".into())),
-            None => a4n_db::project::source_snapshot_chapters(self.database.executor(), project_id)
-                .await
-                .map_err(crate::project::project_mutation_error_to_app_error)?
-                .into_iter()
-                .map(|chapter| chapter.source_chapter_id)
-                .collect(),
+            None => a4n_db::project::resolve_snapshot_sources_for_scope(
+                self.database.executor(),
+                project_id,
+                family.root_project.id,
+                snapshot_id,
+            )
+            .await
+            .map_err(crate::shooting_script::errors::resolve_source_error)?,
         };
-        let sources = a4n_db::project::resolve_snapshot_sources(
-            self.database.executor(),
-            project_id,
-            family.root_project.id,
-            snapshot_id,
-            &ids,
-        )
-        .await
-        .map_err(crate::shooting_script::errors::resolve_source_error)?;
         Ok((target, snapshot_id, sources))
     }
 

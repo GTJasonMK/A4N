@@ -767,6 +767,8 @@ pub(super) fn run() {
             "CreateStandaloneComicProjectInput",
         ),
         &typescript_interface::<CreateDerivedProjectInput>("CreateDerivedProjectInput"),
+        &typescript_interface::<SourceSnapshotChapterIndexEntry>("SourceSnapshotChapterIndexEntry"),
+        &typescript_interface::<SourceSnapshotChapterReadInput>("SourceSnapshotChapterReadInput"),
         &typescript_interface::<SourceSnapshotChapterSummary>("SourceSnapshotChapterSummary"),
         &typescript_interface::<DuplicateProjectInput>("DuplicateProjectInput"),
         &typescript_interface::<UpdateProjectInput>("UpdateProjectInput"),
