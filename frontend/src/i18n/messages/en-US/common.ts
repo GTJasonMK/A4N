@@ -46,7 +46,7 @@ export const common = {
   statusBarCollapse: "Close quick tools",
   imagePreview: {
     title: "Image preview",
-    hint: "Scroll to zoom; drag after zooming in",
+    hint: "Use the zoom controls; drag after zooming in",
     zoomIn: "Zoom in",
     zoomOut: "Zoom out",
     reset: "Reset image view",

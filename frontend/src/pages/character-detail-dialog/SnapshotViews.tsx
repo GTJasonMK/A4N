@@ -74,9 +74,21 @@ const SnapshotItemList: React.FC<{
         ))}
       </div>
       {items.length > visibleItems.length && (
-        <div className="mt-1 text-caption text-book-text-muted">
-          {t("characterDetail.snapshot.moreItems", { count: items.length - visibleItems.length })}
-        </div>
+        <details className="mt-1 text-caption text-book-text-muted">
+          <summary className="w-fit cursor-pointer py-1 text-book-primary hover:text-book-text-main">
+            {t("characterDetail.snapshot.moreItems", { count: items.length - visibleItems.length })}
+          </summary>
+          <div className="divide-y divide-book-border/30">
+            {items.slice(visibleItems.length).map((item, index) => (
+              <div
+                key={index + visibleItems.length}
+                className="py-1.5 text-caption leading-relaxed text-book-text-muted"
+              >
+                {renderItem(item, index + visibleItems.length)}
+              </div>
+            ))}
+          </div>
+        </details>
       )}
     </section>
   );

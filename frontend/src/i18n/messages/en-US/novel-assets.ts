@@ -535,6 +535,7 @@ export const novelAssets = {
       analysisStructure: "Analysis structure",
       saving: "Saving…",
       saveAndAccept: "Save and accept",
+      editBeforeSaveAndAccept: "Edit the review content above to enable saving and accepting it.",
     },
     tools: {
       title: "Project material synthesis and text tools",

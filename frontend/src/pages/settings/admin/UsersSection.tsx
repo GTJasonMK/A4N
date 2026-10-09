@@ -66,6 +66,12 @@ function generateInviteCode(): string {
   return `A4N-${raw.match(/.{1,4}/g)?.join("-") ?? raw}`;
 }
 
+function upsertById<T extends { id: number }>(items: T[], item: T): T[] {
+  const index = items.findIndex((current) => current.id === item.id);
+  if (index < 0) return [...items, item];
+  return items.map((current) => current.id === item.id ? item : current);
+}
+
 export const UsersSection: React.FC<{ currentUserId: number }> = ({
   currentUserId,
 }) => {
@@ -254,10 +260,11 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     const actionKey = "create-user";
     if (!tryStartAction(actionKey)) return;
     try {
-      await createAdminUser(input);
+      const createdUser = await createAdminUser(input);
       if (!isCurrentUser(requestCurrentUserId)) return;
       await reload();
       if (!isCurrentUser(requestCurrentUserId)) return;
+      setUsers((current) => upsertById(current, createdUser));
       if (createFormVersionRef.current === requestFormVersion && createOpen) {
         addToast(t("settingsAdmin.userCreated"), "success");
         resetCreate();
@@ -296,10 +303,11 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       if (!isCurrentUser(requestCurrentUserId)) return;
       if (!tryStartAction(mutationKey)) return;
       mutationStarted = true;
-      await createInviteCode({ code: trimmedCode });
+      const createdCode = await createInviteCode({ code: trimmedCode });
       if (!isCurrentUser(requestCurrentUserId)) return;
       await reload();
       if (!isCurrentUser(requestCurrentUserId)) return;
+      setInviteCodes((current) => upsertById(current, createdCode));
       addToast(t("settingsAdmin.inviteCreated"), "success");
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
@@ -341,6 +349,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       mutationStarted = true;
       const updated = await updateUserRole(u.id, role);
       if (!isCurrentUser(requestCurrentUserId)) return;
+      setUsers((current) => current.map((user) => user.id === updated.id ? updated : user));
       if (updated.id === requestCurrentUserId) {
         useAuthStore.setState({ user: updated });
         if (updated.role !== "admin") {
@@ -383,6 +392,9 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       mutationStarted = true;
       await disableUser(u.id);
       if (!isCurrentUser(requestCurrentUserId)) return;
+      setUsers((current) => current.map((user) =>
+        user.id === u.id ? { ...user, is_active: false } : user,
+      ));
       await reload();
       if (!isCurrentUser(requestCurrentUserId)) return;
       addToast(t("settingsAdmin.disabled"), "success");

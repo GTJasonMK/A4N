@@ -85,7 +85,7 @@ async function closeDialog(title) {
   await dialog(title).waitForExist({ reverse: true });
 }
 
-async function begin(tab) {
+async function begin(tab, query = "") {
   await browser.switchToWindow(primaryWindow);
   await browser.switchFrame(null);
   await browser.setWindowSize(1440, 1000);
@@ -97,7 +97,7 @@ async function begin(tab) {
   await $(".a4n-home-content").waitForDisplayed();
   await $('[role="dialog"]').waitForExist({ reverse: true });
   step("回到首页，确认前一流程文档与弹窗已销毁");
-  await browser.url(`/settings#${tab}`);
+  await browser.url(`/settings${query}#${tab}`);
   await $(".a4n-settings-content").waitForDisplayed();
   step("通过设置公开深链进入", { tab });
 }
@@ -129,6 +129,13 @@ async function defer(command) {
     if (!window.__uiAudit.deferred.includes(name)) window.__uiAudit.deferred.push(name);
   }, command);
   step("安装显式请求钩子", { command });
+}
+
+async function undefer(command) {
+  await browser.execute((name) => {
+    const index = window.__uiAudit.deferred.indexOf(name);
+    if (index >= 0) window.__uiAudit.deferred.splice(index, 1);
+  }, command);
 }
 
 async function pending(command, match = {}) {
@@ -610,6 +617,7 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await choose(await (await inputFor("角色")), "只读用户");
     await capture("create-user-filled");
     await defer("create_user");
+    await defer("list_all_users");
     await click(await dialog("新增用户").$('button=新增用户'), "提交新增用户");
     const request = await pending("create_user");
     assert.equal(request.input.username, "界面审查作者");
@@ -622,9 +630,13 @@ describe("Settings detail pages and complete dialog workflows", function () {
       created_at: seed.fixtureDate, updated_at: seed.fixtureDate,
     };
     await respond("create_user", created, { fixtures: { list_all_users: [...seed.invoke.list_all_users, created] } });
+    await pending("list_all_users");
+    await respond("list_all_users", seed.variants.readFailure.body, { status: seed.variants.readFailure.status });
+    await undefer("list_all_users");
     await dialog("新增用户").waitForExist({ reverse: true });
-    await capture("created-user");
+    await capture("created-user-list-read-failed");
     assert((await (await rowWith(created.username)).getText()).includes("只读用户"));
+    assert((await $('.a4n-settings-content [role="alert"]').getText()).includes(seed.variants.readFailure.body.message));
   });
 
   workflow("SD10-admin-role-disable-invite preserves explicit role and disable boundaries", async () => {
@@ -637,38 +649,54 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await capture("role-dialog");
     await $('input[aria-label="修改用户角色"]').setValue("只读用户");
     await defer("update_user_role");
+    await defer("list_all_users");
     await click(await dialog("修改用户角色").$('button=更新角色'), "提交只读角色");
     const role = await pending("update_user_role");
     assert.equal(role.userId, user.id);
     assert.equal(role.input.role, "read_only");
     let users = seed.invoke.list_all_users.map((item) => item.id === user.id ? { ...item, role: "read_only" } : item);
     await respond("update_user_role", users.find((item) => item.id === user.id), { fixtures: { list_all_users: users } });
+    await pending("list_all_users");
+    await respond("list_all_users", seed.variants.readFailure.body, { status: seed.variants.readFailure.status });
+    await undefer("list_all_users");
     await browser.waitUntil(async () => (await (await rowWith(user.username)).getText()).includes("只读用户"));
+    assert((await $('.a4n-settings-content [role="alert"]').getText()).includes(seed.variants.readFailure.body.message));
     row = await rowWith(user.username);
     await openMenu(row);
     await click(await menuItem("禁用用户"), "打开禁用用户确认");
     await dialog("禁用用户").waitForDisplayed();
     await capture("disable-confirmation");
     await defer("disable_user");
+    await defer("list_all_users");
     await click(await dialog("禁用用户").$('button=禁用'), "确认禁用所选用户");
     const disabling = await pending("disable_user");
     assert.equal(disabling.userId, user.id);
     users = users.map((item) => item.id === user.id ? { ...item, is_active: false } : item);
     await respond("disable_user", null, { fixtures: { list_all_users: users } });
+    await pending("list_all_users");
+    await respond("list_all_users", seed.variants.readFailure.body, { status: seed.variants.readFailure.status });
+    await undefer("list_all_users");
     await browser.waitUntil(async () => /禁用|停用/.test(await (await rowWith(user.username)).getText()));
+    assert((await $('.a4n-settings-content [role="alert"]').getText()).includes(seed.variants.readFailure.body.message));
     await click(await button("更多"), "打开用户管理工具");
     await click(await menuItem("新增邀请码"), "打开邀请码表单");
     await dialog("新增邀请码").waitForDisplayed();
     await $('input[aria-label="新增邀请码"]').setValue("UI-DETAILS-INVITE");
     await capture("invite-dialog");
     await defer("create_invite_code");
+    await defer("list_invite_codes");
     await click(await dialog("新增邀请码").$('button=新增邀请码'), "提交测试邀请码");
     const invitation = await pending("create_invite_code");
     assert.deepEqual(invitation.input, { code: "UI-DETAILS-INVITE" });
     const created = { id: 13, code: invitation.input.code, created_at: seed.fixtureDate, created_by_user_id: 1, used_at: null, used_by_user_id: null };
     await respond("create_invite_code", created, { fixtures: { list_invite_codes: [...seed.invoke.list_invite_codes, created] } });
+    await pending("list_invite_codes");
+    await respond("list_invite_codes", seed.variants.readFailure.body, { status: seed.variants.readFailure.status });
+    await undefer("list_invite_codes");
     await openDetails("邀请码");
     await capture("invite-created", { anchor: '//summary[contains(normalize-space(),"邀请码")]' });
+    assert((await $('.a4n-settings-content').getText()).includes("UI-DETAILS-INVITE"));
+    assert((await $('.a4n-settings-content [role="alert"]').getText()).includes(seed.variants.readFailure.body.message));
   });
 
   workflow("SD11-admin-projects opens populated project ownership diagnostics", async () => {
@@ -688,14 +716,81 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await openMenu(row);
     await capture("task-actions");
     await defer("cancel_admin_task");
+    await defer("list_pending_tasks");
     await click(await menuItem("取消任务"), "取消当前选中的管理员任务");
     const request = await pending("cancel_admin_task");
     assert.equal(request.taskId, seed.invoke.list_pending_tasks[0].id);
-    await respond("cancel_admin_task", null, {
+    await respond("cancel_admin_task", true, {
       fixtures: { list_pending_tasks: seed.invoke.list_pending_tasks.filter((item) => item.id !== request.taskId) },
     });
+    await pending("list_pending_tasks");
+    await respond("list_pending_tasks", seed.variants.readFailure.body, { status: seed.variants.readFailure.status });
+    await undefer("list_pending_tasks");
     await browser.waitUntil(async () => (await $$(".a4n-settings-content li")).length === seed.invoke.list_pending_tasks.length - 1);
-    await capture("task-cancelled");
+    assert((await $('.a4n-settings-content [role="alert"]').getText()).includes(seed.variants.readFailure.body.message));
+    await capture("task-cancelled-list-read-failed");
+  });
+
+  workflow("UX-1663 shows a failed API configuration read as unknown, not unconfigured", async () => {
+    await begin("admin");
+    await defer("list_llm_config");
+    await click(await $('.a4n-settings-content').$('button=配置'), "打开 API 默认配置概览");
+    await pending("list_llm_config");
+    await respond("list_llm_config", seed.variants.readFailure.body, { status: seed.variants.readFailure.status });
+    await undefer("list_llm_config");
+    const card = (await $$(".a4n-settings-content article"))[0];
+    const text = await card.getText();
+    assert(text.includes("加载 API 调用配置失败"));
+    assert.equal(text.includes("未设置默认配置"), false);
+    await capture("api-default-llm-read-failed");
+  });
+
+  workflow("UX-1669 lets the admin overview refresh independently of a pending health check", async () => {
+    await begin("admin", "?ui-defer=health_check");
+    await pending("health_check");
+    await browser.waitUntil(async () => (await $('.a4n-settings-content').getText()).includes("252"));
+    const healthPanel = await $('//section[.//h3[normalize-space()="系统健康"]]');
+    const healthText = await healthPanel.getText();
+    assert(healthText.includes("正在加载数据"));
+    assert.equal(healthText.includes("无数据"), false);
+    const refresh = await $('.a4n-settings-content button[aria-label="刷新"]');
+    await refresh.waitForEnabled();
+    const before = await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "get_admin_overview").length);
+    await click(refresh, "健康检查仍在运行时刷新已加载的概览指标");
+    await browser.waitUntil(async () => browser.execute((count) =>
+      window.__uiAudit.requests.filter((item) => item.command === "get_admin_overview").length > count,
+    before));
+    await capture("overview-refresh-while-health-pending");
+    const healthPending = await browser.execute(() =>
+      window.__uiAudit.pending.filter((item) => item.command === "health_check").length,
+    );
+    for (let index = 0; index < healthPending; index += 1) {
+      await respond("health_check", seed.invoke.health_check);
+    }
+    await undefer("health_check");
+  });
+
+  workflow("UX-1674 does not present an empty health result after the read fails", async () => {
+    await begin("admin", "?ui-defer=health_check");
+    await pending("health_check");
+    const healthPending = await browser.execute(() =>
+      window.__uiAudit.pending.filter((item) => item.command === "health_check").length,
+    );
+    for (let index = 0; index < healthPending; index += 1) {
+      await respond("health_check", seed.variants.readFailure.body, {
+        status: seed.variants.readFailure.status,
+      });
+    }
+    await browser.waitUntil(async () =>
+      (await $('.a4n-settings-content').getText()).includes(seed.variants.readFailure.body.message),
+    );
+    const healthPanel = await $('//section[.//h3[normalize-space()="系统健康"]]');
+    const healthText = await healthPanel.getText();
+    assert.equal(healthText.includes("无数据"), false);
+    assert.equal(healthText.includes("无服务状态"), false);
+    assert.equal(healthText.includes("正在加载数据"), false);
+    await capture("health-check-read-failed");
+    await undefer("health_check");
   });
 
   workflow("UX-695 keeps the admin section while its server config save is pending", async () => {

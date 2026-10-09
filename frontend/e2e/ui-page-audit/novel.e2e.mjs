@@ -525,6 +525,90 @@ describe("Novel page audit - ordinary populated pages", function () {
     ...page, open: page.open ?? (() => project(page.tab)),
   }));
 
+  it("N03 keeps portrait and profile read failures distinct from empty results", async () => {
+    current = { id: "N03-portrait-read-errors", task: "区分立绘列表和角色档案读取失败与真实空列表", visited: [], plannedWidths: [390] };
+    await browser.setWindowSize(390, height);
+    for (const failure of [
+      { command: "list_portraits_by_project", message: "立绘列表服务暂不可用" },
+      { command: "list_profiles", message: "角色档案服务暂不可用" },
+    ]) {
+      const page = await project("角色");
+      await clickText("档案", page);
+      await waitText(page, "林岚");
+      await browser.execute((nextFailure) => {
+        window.__uiAudit.failNext.push(...Array.from({ length: 4 }, () => ({
+          ...nextFailure,
+          status: 503,
+        })));
+      }, failure);
+      await clickText("立绘", page);
+      await waitText(page, failure.message);
+      if (failure.command === "list_portraits_by_project") {
+        assert.equal(await page.$$('button[title="管理人物三视图拆解"]').length, 0);
+        assert.equal((await page.getText()).includes("尚未生成人物素材"), false);
+      } else {
+        assert.equal((await page.getText()).includes("角色档案读取失败"), true);
+        const cards = await page.$$('button[title="管理人物三视图拆解"]');
+        assert.equal(cards.length, 4);
+        assert.equal((await cards[0].getText()).includes("角色档案读取失败"), true);
+      }
+    }
+    current.visited.push(390);
+  });
+
+  it("N03 reports reference-image read failures instead of an empty library", async () => {
+    current = { id: "N03-reference-read-error", task: "角色立绘生成时区分参考图库读取失败与真实空图库", visited: [], plannedWidths: [390] };
+    await browser.setWindowSize(390, height);
+    const page = await project("角色");
+    await clickText("立绘", page);
+    await waitText(page, "立绘素材");
+    await press(await page.$('button[aria-label="更多操作"]'));
+    await browser.execute(() => window.__uiAudit.failNext.push(...Array.from({ length: 4 }, () => ({
+      command: "list_images_by_project",
+      status: 503,
+      message: "参考图服务暂不可用",
+    }))));
+    await menuItem("生成单个角色立绘");
+    const form = await dialog("生成人物三视图拆解");
+    await waitText(form, "参考图服务暂不可用");
+    assert.equal((await form.getText()).includes("当前项目尚无图片"), false);
+    await closeDialog();
+    current.visited.push(390);
+  });
+
+  it("N03 keeps a successful portrait upload successful when its list refresh fails", async () => {
+    current = { id: "N03-portrait-upload-readback", task: "上传立绘成功后列表读回失败，仍明确反馈写入结果", visited: [], plannedWidths: [390] };
+    await browser.setWindowSize(390, height);
+    const page = await portraits();
+    await browser.execute(() => {
+      const portrait = window.__uiAudit.fixtures.byProject[1].list_portraits_by_project[0];
+      window.__uiAudit.fixtures.upload_portrait = {
+        ...portrait,
+        id: 1199,
+        image_path: "https://ui.invalid/image-1199.png",
+        prompt: "fixture upload result",
+      };
+      window.__uiAudit.failNext.push({
+        command: "list_portraits_by_project",
+        status: 503,
+        message: "立绘列表刷新失败",
+      });
+    });
+    await press(await page.$('button[aria-label="更多操作"]'));
+    await menuItem("上传立绘素材");
+    const form = await dialog("上传角色立绘");
+    const file = await form.$('input[type="file"]');
+    await file.setValue(fileURLToPath(new URL("../../resources/thelittleprince.png", import.meta.url)));
+    await form.$("textarea").setValue("上传一张新的林岚立绘。");
+    await press(await textButton("上传立绘", form));
+    await browser.waitUntil(async () => !await browser.execute(() => [...document.querySelectorAll('[role="dialog"]')]
+      .some((item) => item.textContent?.includes("上传角色立绘"))), { timeout });
+    await waitText(page, "立绘列表刷新失败");
+    await waitText($("body"), "已上传角色立绘");
+    assert.equal(await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "upload_portrait").length), 1);
+    current.visited.push(390);
+  });
+
   it("UX-B73 keeps empty number drafts editable and validates chapter import", async function () {
     const widthsToCheck = [1440, 390];
     for (const width of widthsToCheck) {
@@ -607,6 +691,178 @@ describe("Novel page audit - ordinary populated pages", function () {
       await deletionChapter.setValue("12");
       assert.equal(await deletionChapter.getValue(), "12");
       await deletionChapter.setValue(initialDeletionChapter);
+    }
+  });
+
+  it("UX-1670 rejects invalid part sizes before request preview", async function () {
+    current = { id: "UX-1670-part-preview-validation", task: "预览分部大纲请求前校验每部章数", visited: [], plannedWidths: [1440, 390] };
+    for (const width of current.plannedWidths) {
+      current.width = width;
+      await browser.setWindowSize(width, height);
+      const page = await project("大纲");
+      await clickText("分部大纲", page);
+      const settings = await page.$("section details.a4n-flat-surface.group");
+      if (!(await settings.getProperty("open"))) await settings.$("summary").click();
+      const fields = await settings.$$('input[type="number"]');
+      assert.equal(fields.length, 2);
+      for (const value of ["1.5", "2147483648"]) {
+        await fields[1].setValue(value);
+        const before = await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "preview_generate_parts_request").length);
+        await press(await textButton("查看追加请求", settings));
+        await waitText($("body"), "每部章数必须为正整数");
+        assert.equal(await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "preview_generate_parts_request").length), before,
+          "Invalid chapters_per_part must not reach the preview API");
+        assert.deepEqual(await snapshot(current.id, width, `invalid-${value}`, page, { value }), []);
+      }
+      await fields[1].setValue("6");
+      current.visited.push(width);
+    }
+  });
+
+  it("UX-1671 preserves the last successful outlines while a post-save list read fails", async function () {
+    current = { id: "UX-1671-outline-partial-read", task: "写入成功后章纲列表读取失败时保留同项目最近成功数据", visited: [], plannedWidths: [1440, 390] };
+    for (const width of current.plannedWidths) {
+      current.width = width;
+      await browser.setWindowSize(width, height);
+      const page = await project("大纲");
+      await clickText("章节大纲", page);
+      await waitText(page, seed.commands.list_chapter_outlines[0].title);
+      const created = {
+        ...seed.commands.list_chapter_outlines[0],
+        id: 990,
+        chapter_number: 10,
+        title: "保留的新增章纲",
+        summary: "写入已成功，列表读失败时仍显示最近一次成功读取。",
+      };
+      await browser.execute((outline, existing) => {
+        window.__uiAudit.fixtures.save_chapter_outline = { outline, warnings: [] };
+        window.__uiAudit.fixtures.list_chapter_outlines = [...existing, outline];
+        window.__uiAudit.failNext.push({
+          command: "list_chapter_outlines",
+          status: 503,
+          message: "章纲目录读取失败",
+        });
+      }, created, seed.commands.list_chapter_outlines);
+      await clickText("直接录入", page);
+      const form = await dialog();
+      await form.$('input[type="text"]').setValue(created.title);
+      await form.$("textarea").setValue(created.summary);
+      await press(await form.$('button[type="submit"]'));
+      await waitText(page, "章纲目录读取失败");
+      await waitText(page, seed.commands.list_chapter_outlines[0].title);
+      assert.equal((await page.getText()).includes(created.title), false);
+      assert.equal(await page.$$(".chapter-outline-open-indicator").length, seed.commands.list_chapter_outlines.length);
+      assert.deepEqual(await snapshot(current.id, width, "read-error-keeps-last-list", page, { previousRows: seed.commands.list_chapter_outlines.length }), []);
+      const alert = await page.$('[role="alert"]');
+      await press(await textButton("重试", alert));
+      await waitText(page, created.title);
+      assert.deepEqual(await snapshot(current.id, width, "retry-loads-new-list", page, { newOutline: created.title }), []);
+      current.visited.push(width);
+    }
+  });
+
+  it("UX-1672 verifies the generated image remains successful when object profiles fail to refresh", async function () {
+    current = { id: "UX-1672-object-image-profile-error", task: "物体立绘生成成功后物体档案读取失败仍显示写入结果", visited: [], plannedWidths: [1440, 390] };
+    for (const [index, width] of current.plannedWidths.entries()) {
+      current.width = width;
+      await browser.setWindowSize(width, height);
+      const page = await project("图像");
+      await clickText("生成图片", page);
+      const form = await dialog("生成项目图像");
+      await press(await form.$("summary"));
+      await press(await form.$("#object-image-profile"));
+      await press(await $('//*[@role="option" and normalize-space(.)="旧怀表"]'));
+
+      const sourceImage = seed.commands.list_images_by_projects.find((image) => image.metadata_json?.object_profile_id === 2011);
+      assert(sourceImage, "The result verification needs an existing object-profile image shape");
+      const image = {
+        ...sourceImage,
+        id: 50101 + index,
+        image_type: "object",
+        chapter_id: null,
+        file_path: `${browser.options.baseUrl}/resources/thelittleprince.png`,
+        prompt: `UI audit generated object image ${index}`,
+        created_at: "2026-10-10T00:00:00Z",
+      };
+      const taskId = index === 0
+        ? "550e8400-e29b-41d4-a716-446655440101"
+        : "550e8400-e29b-41d4-a716-446655440102";
+      const revision = await browser.execute(async (record) => {
+        const { sha256Json } = await import("/src/utils/contentHash.ts");
+        return sha256Json([
+          record.id, record.project_id, record.image_type, record.file_path, record.prompt,
+          record.model, record.width, record.height, record.file_size, record.chapter_id,
+          record.panel_id, record.created_at,
+        ]);
+      }, image);
+      assert.equal(typeof revision, "string");
+      await browser.execute(({ id, record, recordRevision }) => {
+        const handle = { event_schema_version: 1, task_id: id, attempt: 1, status: "reserved" };
+        const started = {
+          delivery_mode: "stream", root_task_id: id, task_kind: "image_generation",
+          project_id: record.project_id, root_project_id: record.project_id,
+          target: { kind: "generated_image", id: String(record.id) },
+        };
+        const artifact = {
+          artifact_id: `generated-image:${record.id}`, artifact_kind: "generated_image",
+          byte_size: record.file_size, content_type: "image/png", revision: recordRevision,
+          sha256: recordRevision, temporary: false,
+        };
+        const resultRef = { kind: "generated_image", id: String(record.id), revision: recordRevision };
+        const now = Date.now();
+        const event = (sequence, value) => ({
+          schema_version: 1, task_id: id, attempt: 1, sequence, emitted_at_ms: now + sequence, event: value,
+        });
+        const startedEvent = event(1, { kind: "started", data: started });
+        const artifactEvent = event(2, { kind: "artifact", data: { artifact, operation: "available" } });
+        const completedEvent = event(3, { kind: "completed", data: { final_text_hashes: [], result_ref: resultRef } });
+        const completedHandle = { ...handle, status: "completed" };
+        const summary = {
+          handle: completedHandle, started, updated_at_ms: now + 3, result_ref: resultRef,
+          snapshot_state: "available", terminal_event: completedEvent,
+        };
+        const snapshot = {
+          schema_version: 1, task_id: id, attempt: 1, covers_through_sequence: 3, status: "completed",
+          started, cancel_reason: null, progress: null, streams: [], artifacts: [artifact], usage: null,
+          latest_checkpoint: null, terminal_event: completedEvent, updated_at_ms: now + 3,
+        };
+        const fixtures = window.__uiAudit.fixtures;
+        fixtures.start_image_generation = handle;
+        fixtures.generationTasks = {
+          ...(fixtures.generationTasks ?? {}),
+          [id]: { handle, events: [startedEvent, artifactEvent, completedEvent], summary, snapshot },
+        };
+        fixtures.byProject[1].list_images_by_project = [...fixtures.byProject[1].list_images_by_project, record];
+        window.__uiAudit.failNext.push({ command: "list_object_profiles", status: 503, message: "物体档案列表读取失败" });
+      }, { id: taskId, record: image, recordRevision: revision });
+
+      const objectTools = await form.$("details[open] section");
+      await press(await textButton("生成素材图", objectTools));
+      const progress = await dialog("生成物体素材图");
+      await progress.waitForDisplayed({ timeout });
+      const closeProgress = await progress.$("button=关闭");
+      await closeProgress.waitForDisplayed({ timeout });
+      await press(closeProgress);
+      await browser.waitUntil(
+        () => browser.execute(() => ![...document.querySelectorAll('[role="dialog"]')].some((node) => {
+          const labelledBy = node.getAttribute("aria-labelledby");
+          return labelledBy && document.getElementById(labelledBy)?.textContent?.trim() === "生成物体素材图";
+        })),
+        { timeout, timeoutMsg: "The object-image progress dialog must close without closing the generation form" },
+      );
+      await waitText(form, "物体档案列表读取失败");
+      const generated = await page.$(`img[alt=${JSON.stringify(image.prompt)}]`);
+      await generated.waitForExist({ timeout });
+      assert.equal((await form.getText()).includes("图片生成失败"), false);
+      await browser.waitUntil(async () => (await $(".a4n-toast").getText()).includes("生成物体素材图"), { timeout });
+      await snapshot(current.id, width, "profile-read-error", page, { resultImageId: image.id, profileRead: "failed" });
+      await press(await form.$('button[aria-label="关闭"]'));
+      await form.waitForExist({ reverse: true });
+      await generated.waitForDisplayed({ timeout });
+      await browser.waitUntil(() => generated.execute((node) => node.complete && node.naturalWidth > 0), { timeout });
+      assert.equal(await generated.isDisplayed(), true, "The saved result must be visible after closing the generation form");
+      assert.deepEqual(await snapshot(current.id, width, "generated-result-visible", page, { resultImageId: image.id }), []);
+      current.visited.push(width);
     }
   });
 
@@ -1061,6 +1317,7 @@ describe("Novel page audit - ordinary populated pages", function () {
     } },
     { id: "N03-consistency", task: "检查角色一致性并对照具体章节的预期与实际证据", open: async () => {
       const scope = await characterTab("一致性");
+      await waitText(scope, "本次检查范围：全项目");
       await browser.execute(() => { window.__uiAudit.fixtures.get_workflow_progress_events = { events: [], stream_text: null }; });
       await clickText("开始检测", scope);
       const progress = await dialog("角色一致性检查");
@@ -1077,10 +1334,32 @@ describe("Novel page audit - ordinary populated pages", function () {
     { id: "N03-portraits", task: "查找已有立绘并浏览全部角色筛选", open: portraits, text: ["林岚", "周衡"], check: async (scope, width) => {
       const cards = await scope.$$('button[title="管理人物三视图拆解"]');
       assert.equal(cards.length, 4, "Need the four populated portraits");
+      let expressionCard;
+      for (const card of cards) {
+        if ((await card.getText()).includes("疲惫而坦诚")) expressionCard = card;
+      }
+      assert.ok(expressionCard, "The distinct expression variant must be identifiable");
+      const metadata = await expressionCard.$(".portrait-card-metadata").execute((root) =>
+        [...root.children].map((item) => ({
+          text: item.textContent?.trim(),
+          clientWidth: item.clientWidth,
+          scrollWidth: item.scrollWidth,
+        })),
+      );
+      assert.ok(metadata.length >= 2 && metadata.every((item) => item.scrollWidth <= item.clientWidth + 1), "Portrait type and expression must wrap instead of being clipped");
       const filters = await scope.$$(".a4n-filter-chips button");
       assert.equal(filters.length, seed.commands.list_profiles.length + 1);
       const lastFilter = filters.at(-1);
-      assert.equal((await wheelTo(lastFilter)).reached, true, "Every character filter must be reachable");
+      const filterLayout = await scope.$(".a4n-filter-chips").execute((container) => {
+        const bounds = container.getBoundingClientRect();
+        const visible = [...container.querySelectorAll("button")].every((button) => {
+          const rect = button.getBoundingClientRect();
+          return rect.left >= bounds.left && rect.right <= bounds.right;
+        });
+        return { clientWidth: container.clientWidth, scrollWidth: container.scrollWidth, visible };
+      });
+      assert.ok(filterLayout.scrollWidth <= filterLayout.clientWidth + 2, "Character filters must not require horizontal scrolling");
+      assert.equal(filterLayout.visible, true, "Every character filter must be visible without scrolling");
       await press(lastFilter);
       assert.equal(await lastFilter.getAttribute("aria-pressed"), "true");
       assert.deepEqual(await snapshot("N03-portraits", width, "last-filter", scope, { selectedProfile: await lastFilter.getText() }), []);
@@ -1173,7 +1452,11 @@ describe("Novel page audit - ordinary populated pages", function () {
       const scope = await portraits();
       const card = await scope.$('button[title="管理人物三视图拆解"]').$("..");
       return previewRoundTrip(await ariaButton("图片预览", card));
-    }, check: async (scope) => ({ separatePreview: true, escapeFocusRestored: true, previewSource: await scope.$("img").getAttribute("src") }) },
+    }, check: async (scope) => {
+      const stage = await scope.$(".a4n-image-lightbox-stage");
+      assert.equal(await stage.getAttribute("title"), "使用缩放按钮调整图片，放大后可拖动查看");
+      return { separatePreview: true, escapeFocusRestored: true, previewHint: await stage.getAttribute("title") };
+    } },
     { id: "N03-reference-selection", task: "图片中央选择参考图，独立预览保留选择并恢复焦点", open: async () => {
       const scope = await portraits();
       await press(await scope.$('button[aria-label="更多操作"]'));
@@ -1201,10 +1484,31 @@ describe("Novel page audit - ordinary populated pages", function () {
       assert.equal(await select.getAttribute("aria-pressed"), "true");
       return { referenceImages: (await scope.$$('button[aria-pressed]')).length, imageCenterToggles: true, previewPreservesSelection: true, escapeFocusRestored: true };
     }, last: async (scope) => {
-      const lastImage = (await scope.$$('button[aria-pressed]')).at(-1);
+      const selectedReferenceCount = () => scope.execute((root) =>
+        [...root.querySelectorAll('button[title="取消选择参考图"]')]
+          .filter((button) => button.getAttribute("aria-pressed") === "true").length,
+      );
+      while (await selectedReferenceCount() < 4) {
+        await press(await scope.$('button[title="选择参考图"]'));
+      }
+      const selectedImages = await scope.$$('button[title="取消选择参考图"]');
+      assert.equal(selectedImages.length, 4);
+      const lastImage = selectedImages.at(-1);
       assert.equal((await reach(lastImage)).reached, true);
       const count = await scope.$('[role="status"]');
-      assert.equal(await count.getText(), "已选 1 张，最多 4 张");
+      assert.equal(await count.getText(), "已选 4 张，最多 4 张");
+      const referenceSection = await scope.$('.//section[.//h3[normalize-space(.)="参考图"]]');
+      const upload = await referenceSection.$('input[type="file"]');
+      const uploadCount = await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "upload_image").length);
+      await upload.execute((node) => {
+        node.classList.remove("hidden");
+        node.style.display = "block";
+        node.style.opacity = "1";
+      });
+      await upload.setValue(fileURLToPath(new URL("../../resources/thelittleprince.png", import.meta.url)));
+      await waitText($("body"), "最多选择 4 张参考图，请先取消一张再选择或上传");
+      assert.equal(await selectedReferenceCount(), 4, "Uploading at the reference limit must preserve every selected image");
+      assert.equal(await browser.execute((before) => window.__uiAudit.requests.filter((item) => item.command === "upload_image").length, uploadCount), uploadCount, "An upload at the reference limit must not reach the API");
       const visible = await wheelTo(count);
       assert.ok(visible.reached && visible.wheelSteps === 0, "Selected-reference count must remain visible at the end of the gallery");
       return lastImage;
@@ -1229,6 +1533,17 @@ describe("Novel page audit - ordinary populated pages", function () {
       open: () => characterTab("管理", label),
       check: async (scope) => {
         await browser.waitUntil(async () => (await scope.$$("li")).length >= minimum, { timeout, timeoutMsg: "Populated " + label + " records missing" });
+        if (id === "behavior") {
+          const visibleRecord = await scope.$("li").getText();
+          await browser.execute(() => window.__uiAudit.failNext.push({
+            command: "list_behaviors",
+            status: 503,
+            message: "行为读取服务暂时不可用",
+          }));
+          await press(await textButton("刷新", scope));
+          await browser.waitUntil(async () => (await scope.$('[role="alert"]').getText()).includes("行为读取服务暂时不可用"), { timeout });
+          assert.equal(await scope.$("li").getText(), visibleRecord, "A failed refresh must identify the error while retaining the last successful behavior list");
+        }
         return { records: (await scope.$$("li")).length, minimum };
       }, last: async (scope) => (await scope.$$("li")).at(-1),
     })),
@@ -1273,16 +1588,29 @@ describe("Novel page audit - ordinary populated pages", function () {
       const scope = await characterTab("管理", "快照");
       const row = await scope.$("li");
       await row.waitForDisplayed({ timeout });
+      const snapshotHash = seed.byProfile["1011"].list_snapshots[0].snapshot_hash;
+      await browser.execute((hash) => {
+        const snapshot = window.__uiAudit.fixtures.bySnapshot[hash];
+        const existing = snapshot.data.changes;
+        snapshot.data.changes = [...existing, ...Array.from({ length: 4 }, (_, index) => ({
+          ...existing[0],
+          id: 101200 + index,
+          key: `additional_${index + 1}`,
+          change_description: `补充变化记录 ${index + 1}`,
+        }))];
+      }, snapshotHash);
       await clickText("详情", row);
       const summary = seed.byProfileChapter["1011"]["1"].state_summary;
       const detail = await scope.$(".//section[.//p[normalize-space(.)=" + literal(summary) + "]]");
       await detail.waitForDisplayed({ timeout });
       assert.equal(await scope.$('[role="region"][tabindex="-1"]').isFocused(), true, "Snapshot details must reveal and focus their result");
       return detail;
-    }, text: ["根据已写正文更新当前位置。", "观察并记录物件与空间细节。"], check: async () => {
+    }, text: ["根据已写正文更新当前位置。", "观察并记录物件与空间细节。"], check: async (scope) => {
       const request = await browser.execute(() => window.__uiAudit.requests.findLast((item) => item.command === "get_snapshot")?.body.input);
       assert.equal(request?.content_hash, seed.byProfile["1011"].list_snapshots[0].snapshot_hash);
-      return { snapshotHash: request.content_hash, changes: 2, behaviors: 2 };
+      await press(await containing("展开其余 2 条", scope, "summary"));
+      await waitText(scope, "补充变化记录 4");
+      return { snapshotHash: request.content_hash, changes: 6, expandedRemainingChanges: 2, behaviors: 2 };
     }, last: async (scope) => (await scope.$$("section")).at(-1) },
     { id: "N04-object-detail", task: "核对旧怀表的用途、证据与图像动作", open: async () => {
       const scope = await project("物体"); await press(await scope.$('button[aria-label^="旧怀表 ·"]')); return dialog();
@@ -1403,7 +1731,10 @@ describe("Novel page audit - ordinary populated pages", function () {
     }, last: async (scope) => (await scope.$$("button")).at(-1) },
     { id: "N08-chapter-outlines", task: "查看九章大纲及末章入口", open: async () => {
       const scope = await project("大纲"); await clickText("章节大纲", scope); return scope;
-    }, text: ["雨夜来信", "有人记得出发的地方"], last: async (scope) => scope.$('button[aria-label*="有人记得出发的地方"]') },
+    }, text: ["雨夜来信", "有人记得出发的地方"], check: async (scope) => {
+      assert.equal((await scope.$$(".chapter-outline-open-indicator")).length, seed.commands.list_chapter_outlines.length);
+      return { visibleEntryIndicators: seed.commands.list_chapter_outlines.length };
+    }, last: async (scope) => scope.$('button[aria-label*="有人记得出发的地方"]') },
     { id: "N08-part-detail", task: "阅读全文分部并发现编辑动作", open: async () => {
       const scope = await project("大纲"); await clickText("分部大纲", scope);
       await press(await scope.$('button[aria-label*="夜雨中的旧书店"]')); return dialog();
@@ -1424,6 +1755,7 @@ describe("Novel page audit - ordinary populated pages", function () {
         const fields = await scope.$$('input[type="number"]');
         assert.equal(fields.length, count);
         for (const field of fields) assert.ok((await field.getValue()).length > 0);
+        assert.ok(await (await textButton("查看追加请求", scope)).isDisplayed());
         assert.ok(await (await textButton(action, scope)).isEnabled());
         return { numericFields: count, generated: false };
       }, last: async (scope) => textButton(action, scope),
@@ -1455,7 +1787,9 @@ describe("Novel page audit - ordinary populated pages", function () {
     }, last: async (scope) => (await scope.$$("textarea")).at(-1) },
     { id: "N08-advanced", task: "发现进度、节奏和维护工具", open: async () => {
       const scope = await project("大纲"); await clickText("分部大纲", scope);
-      await press(await scope.$('button[aria-label="打开大纲高级工具"]')); return dialog();
+      const entry = await scope.$('button[aria-label="打开大纲高级工具"]');
+      assert.ok((await entry.getText()).includes("打开大纲高级工具"), "Advanced outline tools need a visible label");
+      await press(entry); return dialog();
     }, text: ["生成进度"], check: async (scope, width) => {
       const actions = [];
       for (const expected of [
@@ -1577,6 +1911,8 @@ describe("Novel page audit - ordinary populated pages", function () {
     }, check: async (scope) => {
       const value = await scope.$("textarea").getValue();
       assert.ok(value.includes('"chapter_title"') && value.includes('"content"'));
+      assert.equal(await (await textButton("保存并接受", scope)).isEnabled(), false);
+      await waitText(scope, "修改上方审核内容后，才能保存并接受。");
       return { reviewJsonLength: value.length };
     }, last: async (scope) => (await scope.$$("button")).at(-1) },
     { id: "N10-dedup", task: "对照已有章节检查重复，阅读结论与完整诊断且保留输入", open: async (width) => {

@@ -50,7 +50,7 @@ export const config = {
   ],
   mochaOpts: {
     ...base.mochaOpts,
-    grep: /(?:^Home and global Agent page audit (?:H\d{2}-|A\d{2}[a-z]?-)|^Settings detail pages and complete dialog workflows SD\d{2}-|^Settings pages with populated records (?:S02-size-edit|S05-web-tools|S06-(?:revert|pending-save|retry))|^Novel page audit.* (?:UX-B60|UX-B73|UX-B74|UX-698)|^Populated media pages and task dialogs UX-B(?:72|73)|^Individual page workflows X01-|^Admin test center feature flow)/,
+    grep: /(?:^Home and global Agent page audit (?:H\d{2}-|A\d{2}[a-z]?-)|^Settings detail pages and complete dialog workflows (?:SD\d{2}-|UX-1663|UX-1669|UX-1674)|^Settings pages with populated records (?:S02-size-edit|S05-web-tools|S06-(?:revert|pending-save|retry))|^Novel page audit.* (?:UX-B60|UX-B73|UX-B74|UX-698|UX-1670|UX-1671|UX-1672)|^Populated media pages and task dialogs UX-(?:B72|B73|1673)|^Individual page workflows X01-|^Admin test center feature flow)/,
   },
   onPrepare: async (...args) => {
     try {

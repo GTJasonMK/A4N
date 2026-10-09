@@ -48,6 +48,7 @@ export const inspiration = {
   previewBlueprintFailed: "Failed to preview the blueprint prompt",
   missingRefineFocus: "Describe what should be adjusted first",
   startRefineFailed: "Failed to start blueprint optimization",
+  refineFailureRecovery: "Your adjustment request is still in the form. Close this dialog and reopen Adjust blueprint to edit it.",
   previewRefineFailed: "Failed to preview the blueprint optimization prompt",
   conversationCancelled: "Inspiration chat cancelled",
   conversationInterrupted: "Inspiration chat interrupted",

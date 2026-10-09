@@ -11,6 +11,7 @@ import { portraitTypeLabel } from "./characterUtils";
 interface PortraitGalleryGridProps {
   portraits: Portrait[];
   profiles: CharacterProfile[];
+  profilesUnavailable?: boolean;
   busyId: number | null;
   onOpenActions: (portrait: Portrait) => void;
   emptyText?: string;
@@ -19,6 +20,7 @@ interface PortraitGalleryGridProps {
 export const PortraitGalleryGrid: React.FC<PortraitGalleryGridProps> = ({
   portraits,
   profiles,
+  profilesUnavailable = false,
   busyId,
   onOpenActions,
   emptyText,
@@ -57,9 +59,11 @@ export const PortraitGalleryGrid: React.FC<PortraitGalleryGridProps> = ({
               {imageSrc ? (
                 <img
                   src={imageSrc}
-                  alt={profile?.name
+                alt={profile?.name
                     ? t("characterDetail.portrait.alt", { name: profile.name })
-                    : t("characterDetail.portrait.altGeneric")}
+                    : t(profilesUnavailable
+                      ? "characterDetail.portrait.profileUnavailable"
+                      : "characterDetail.portrait.altGeneric")}
                   className="h-full w-full object-cover"
                 />
               ) : (
@@ -73,11 +77,13 @@ export const PortraitGalleryGrid: React.FC<PortraitGalleryGridProps> = ({
             </div>
             <div className="p-2.5">
               <div className="truncate text-xs font-medium text-book-text-main">
-                {profile?.name ?? t("characterDetail.portrait.unlinked")}
+                {profile?.name ?? t(profilesUnavailable
+                  ? "characterDetail.portrait.profileUnavailable"
+                  : "characterDetail.portrait.unlinked")}
               </div>
-              <div className="mt-1 flex min-w-0 items-center gap-2 text-caption text-book-text-muted">
-                <span className="truncate">{portraitTypeLabel(portrait.portrait_type, t)}</span>
-                {portrait.expression ? <span className="truncate">{portrait.expression}</span> : null}
+              <div className="portrait-card-metadata mt-1 flex min-w-0 flex-col gap-0.5 text-caption text-book-text-muted">
+                <span className="break-words leading-snug">{portraitTypeLabel(portrait.portrait_type, t)}</span>
+                {portrait.expression ? <span className="break-words leading-snug">{portrait.expression}</span> : null}
               </div>
             </div>
           </button>

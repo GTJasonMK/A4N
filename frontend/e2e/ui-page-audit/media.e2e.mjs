@@ -19,6 +19,7 @@ const timeline = '[aria-label="视频剪辑时间轴"]';
 const resultPane = 'section[aria-label="视频结果"]';
 
 const buttonText = text => $(`//button[normalize-space()=${JSON.stringify(text)}]`);
+const inputModeConfirmation = () => $('//div[@role="dialog"][.//h3[normalize-space()="切换视频输入模式"]]');
 const comicFixture = page => fixtures.byChapter[1].list_manga_page_prompts.find(row => row.page_number === page);
 
 async function ready() {
@@ -303,7 +304,7 @@ async function inspectVideoEditorEnd(record) {
 }
 
 async function openCanvas(nodeId = null) {
-  await openRoute("/video-project/6/studio");
+  await openRoute("/canvas-project/6");
   await browser.waitUntil(async () => (await $$(".react-flow__node")).length === 17, {
     timeoutMsg: "The media graph must contain seventeen populated nodes",
   });
@@ -1368,4 +1369,43 @@ describe("Populated media pages and task dialogs", () => {
     }
     this.mediaRecord.interaction = results;
   });
+
+  it("UX-1673 confirms incompatible image-edge removal before changing video input mode", async function () {
+    const results = [];
+    for (const width of canvasWidths) {
+      this.mediaRecord = { id: `UX-1673-${width}`, title: "视频输入模式连线保护", width, task: "改变首帧模式前确认将被删除的图片连线" };
+      await browser.setWindowSize(width, 1000);
+      await openCanvas(6005);
+      const inspector = await canvasInspector();
+      const modeControl = async () => (await $(inspector).$$('button[role="combobox"]'))[1];
+      const mode = await modeControl();
+      assert.equal(await mode.getText(), "首帧");
+      assert.equal(await $('.react-flow__edge[data-id="6805"]').isExisting(), true);
+      Object.assign(this.mediaRecord, await capture({ id: this.mediaRecord.id }, width));
+
+      await selectOption(mode, "仅提示词");
+      const firstConfirmation = await inputModeConfirmation();
+      await firstConfirmation.waitForDisplayed();
+      assert((await firstConfirmation.getText()).includes("1 条图片连线"));
+      await firstConfirmation.$('.//button[normalize-space()="取消"]').click();
+      await firstConfirmation.waitForExist({ reverse: true });
+      assert.equal(await (await modeControl()).getText(), "首帧", "Cancel must keep the previous input mode");
+      assert.equal(await $('.react-flow__edge[data-id="6805"]').isExisting(), true, "Cancel must keep the frame connection");
+
+      await selectOption(await modeControl(), "仅提示词");
+      const secondConfirmation = await inputModeConfirmation();
+      await secondConfirmation.waitForDisplayed();
+      await secondConfirmation.$('.//button[normalize-space()="删除不适用的连线"]').click();
+      await secondConfirmation.waitForExist({ reverse: true });
+      await browser.waitUntil(async () => (await (await modeControl()).getText()) === "仅提示词");
+      await browser.waitUntil(async () => !await $('.react-flow__edge[data-id="6805"]').isExisting());
+      assert.equal(await browser.execute(() => window.__uiAudit.commands.some((command) => ["save_canvas_graph", "run_canvas_graph"].includes(command))), false,
+        "The confirmed local mode change must not claim a saved or executed graph");
+      this.mediaRecord.interaction = { cancelledChangePreservedEdge: true, confirmedChangeRemovedEdge: true };
+      this.mediaRecord.afterInteraction = await capture({ id: this.mediaRecord.id }, width, "-confirmed");
+      results.push({ width, cancelledChangePreservedEdge: true, confirmedChangeRemovedEdge: true });
+    }
+    this.mediaRecord.interaction = results;
+  });
+
 });

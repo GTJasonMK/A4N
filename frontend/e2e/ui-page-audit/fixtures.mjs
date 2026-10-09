@@ -95,7 +95,7 @@ export async function buildPageFixtures(baseUrl) {
 
   const rewritten = JSON.parse(JSON.stringify(data), (_key, value) => {
     if (typeof value === "string") return value
-      .replace(/https:\/\/ui\.invalid\/image-(\d+)\.png/g, `${baseUrl}/e2e/ui-page-audit/media/image-$1.svg`)
+      .replace(/https:\/\/ui\.invalid\/image-\d+\.png/g, `${baseUrl}/resources/thelittleprince.png`)
       .replaceAll("https://ui.invalid/clip.mp4", `${baseUrl}/e2e/ui-page-audit/media/clip-6.mp4`)
       .replaceAll("https://ui.invalid/audio.wav", `${baseUrl}/e2e/ui-page-audit/media/audio.wav`);
     if (value?.duration_secs && value.file_path?.endsWith("/clip-6.mp4")) {

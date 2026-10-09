@@ -2,6 +2,7 @@ import React, { useCallback } from "react";
 import { addEdge, type Connection, type EdgeChange, type IsValidConnection, type NodeChange, type ReactFlowInstance, type Viewport } from "@xyflow/react";
 import { extractErrorMessage } from "../../api";
 import type { ToastType } from "../../components/feedback/Toast";
+import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import {
   getCanvasGraph,
   importCanvasMedia,
@@ -384,10 +385,44 @@ export function useCanvasGraphActions({
     [addToast, canvasMutationDisabled, edges, setEdges, setNodes, t],
   );
 
-  const updateSelectedConfig = (patch: Record<string, unknown>) => {
+  const updateSelectedConfig = async (patch: Record<string, unknown>) => {
     if (!selectedNode || canvasMutationDisabled) return;
-    const invalidatesRuntimeResults = Object.keys(patch).some((key) => key !== "title");
     const selectedNodeId = selectedNode.id;
+    let activeInputIds: Set<string> | null = null;
+    if (
+      selectedNode.data.nodeKind === "GenerateVideoNode" &&
+      Object.prototype.hasOwnProperty.call(patch, "input_mode")
+    ) {
+      const contract = studioNodeContract(
+        nodeContractsByKind,
+        selectedNode.data.nodeKind,
+      );
+      const nextData = {
+        ...selectedNode.data,
+        config: { ...selectedNode.data.config, ...patch },
+      };
+      activeInputIds = new Set(
+        contract
+          ? studioNodeInputPortsForData(nextData, contract).map((port) => port.id)
+          : [],
+      );
+      const incompatibleEdges = edges.filter(
+        (edge) => edge.target === selectedNodeId && !activeInputIds?.has(edge.targetHandle ?? ""),
+      );
+      if (incompatibleEdges.length > 0) {
+        const requestScope = actionScopeRef.current;
+        const confirmed = await confirmDialog({
+          title: t("video.canvas.inputModeChangeTitle"),
+          message: t("video.canvas.inputModeChangeMessage", {
+            count: incompatibleEdges.length,
+          }),
+          confirmText: t("video.canvas.inputModeChangeConfirm"),
+          dialogType: "warning",
+        });
+        if (!confirmed || actionScopeRef.current !== requestScope) return;
+      }
+    }
+    const invalidatesRuntimeResults = Object.keys(patch).some((key) => key !== "title");
     setNodes((items) => {
       const next = invalidatesRuntimeResults
         ? invalidateCanvasRuntimeResults(items, edges, [selectedNodeId])
@@ -411,25 +446,7 @@ export function useCanvasGraphActions({
         };
       });
     });
-    if (
-      selectedNode.data.nodeKind === "GenerateVideoNode" &&
-      Object.prototype.hasOwnProperty.call(patch, "input_mode")
-    ) {
-      const contract = studioNodeContract(
-        nodeContractsByKind,
-        selectedNode.data.nodeKind,
-      );
-      const nextData = {
-        ...selectedNode.data,
-        config: { ...selectedNode.data.config, ...patch },
-      };
-      const activeInputIds = new Set(
-        contract
-          ? studioNodeInputPortsForData(nextData, contract).map(
-              (port) => port.id,
-            )
-          : [],
-      );
+    if (activeInputIds) {
       setEdges((items) =>
         items.filter(
           (edge) =>

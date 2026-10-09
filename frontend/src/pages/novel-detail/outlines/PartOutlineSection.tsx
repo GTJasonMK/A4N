@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ChevronRight, Eye, Plus, SlidersHorizontal } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
-import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
+import { BookButton } from "../../../components/ui/BookButton";
 import { BookCardAction } from "../../../components/ui/BookCard";
 import { nonEmptyText } from "../../../utils/text";
 import { EmptyHint } from "../shared";
@@ -72,15 +72,17 @@ export function PartOutlineSection({
             >
               <Plus size={13} /> {t("outline.partSection.directEntry")}
             </BookButton>
-            <BookIconButton
-              label={t("outline.partSection.openAdvanced")}
-              onClick={onOpenAdvanced}
-              disabled={disabled || !loaded}
+            <BookButton
+              aria-label={t("outline.partSection.openAdvanced")}
               variant="ghost"
               size="sm"
+              onClick={onOpenAdvanced}
+              disabled={disabled || !loaded}
+              className="inline-flex items-center gap-1.5"
             >
-              <SlidersHorizontal size={13} />
-            </BookIconButton>
+              <SlidersHorizontal size={13} aria-hidden="true" />
+              {t("outline.partSection.openAdvanced")}
+            </BookButton>
           </div>
         ) : null}
       </header>
@@ -126,16 +128,16 @@ export function PartOutlineSection({
             </label>
             <div className="flex items-center justify-end gap-2 md:pb-0">
               {!generating ? (
-                <BookIconButton
-                  label={hasParts ? t("outline.partSection.viewAppendRequest") : t("outline.partSection.viewGenerateRequest")}
+                <BookButton
                   variant="secondary"
-                  size="md"
+                  size="sm"
                   onClick={onPreviewGenerate}
                   disabled={disabled || !loaded}
-                  className="!h-10 !w-10"
+                  className="inline-flex h-10 !min-h-10 min-w-0 items-center gap-1.5 !px-2 !text-xs"
                 >
                   <Eye size={14} />
-                </BookIconButton>
+                  {hasParts ? t("outline.partSection.viewAppendRequest") : t("outline.partSection.viewGenerateRequest")}
+                </BookButton>
               ) : null}
               <BookButton
                 variant="primary"

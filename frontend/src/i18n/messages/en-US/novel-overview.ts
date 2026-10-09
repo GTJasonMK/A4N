@@ -208,7 +208,7 @@ export const novelOverview = {
   contentMaintenance: "Content maintenance",
   inspirationDescription: "Continue developing the idea and create or refine the first blueprint.",
   syncMaterialsDescription: "Update chapters, outlines, blueprint, and character profiles used by reference search.",
-  refineBlueprintDescription: "Polish the story blueprint with an LLM.",
+  refineBlueprintDescription: "Polish the story blueprint with AI.",
   outputAndView: "Output and view",
   exportNovel: "Export novel",
   exportNovelDescription: "Export body text, chapter outlines, and character structure data.",

@@ -535,6 +535,7 @@ export const novelAssets = {
       analysisStructure: "分析结构",
       saving: "保存中…",
       saveAndAccept: "保存并接受",
+      editBeforeSaveAndAccept: "修改上方审核内容后，才能保存并接受。",
     },
     tools: {
       title: "项目资料归纳与文本工具",

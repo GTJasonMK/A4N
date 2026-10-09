@@ -125,6 +125,9 @@ export const InspirationChat: React.FC = () => {
         total={chat.blueprintProgress.total}
         message={chat.blueprintProgress.message}
         error={chat.blueprintProgress.error}
+        errorHint={chat.blueprintOperation === "refinement" && chat.blueprintProgress.status === "error"
+          ? t("inspiration.refineFailureRecovery")
+          : undefined}
         streamText={chat.blueprintStreamText}
         streaming={
           chat.blueprintProgressOpen

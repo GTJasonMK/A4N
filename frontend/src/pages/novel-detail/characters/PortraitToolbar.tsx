@@ -10,6 +10,7 @@ interface PortraitToolbarProps {
   visiblePortraitCount: number;
   totalPortraitCount: number;
   profiles: CharacterProfile[];
+  profilesUnavailable: boolean;
   selectedProfileId: number | null;
   generating: boolean;
   onProfileChange: (profileId: number | null) => void;
@@ -23,6 +24,7 @@ export const PortraitToolbar: React.FC<PortraitToolbarProps> = ({
   visiblePortraitCount,
   totalPortraitCount,
   profiles,
+  profilesUnavailable,
   selectedProfileId,
   generating,
   onProfileChange,
@@ -47,6 +49,10 @@ export const PortraitToolbar: React.FC<PortraitToolbarProps> = ({
               ? t("characterDetail.portrait.summarySelected", {
                   name: selectedProfile.name,
                   visible: formatNumber(visiblePortraitCount, locale),
+                  total: formatNumber(totalPortraitCount, locale),
+                })
+            : profilesUnavailable
+              ? t("characterDetail.portrait.profileCountUnavailable", {
                   total: formatNumber(totalPortraitCount, locale),
                 })
               : t("characterDetail.portrait.summaryAll", {
@@ -97,7 +103,7 @@ export const PortraitToolbar: React.FC<PortraitToolbarProps> = ({
       </header>
       {profiles.length > 0 ? (
         <div className="border-t border-book-border/40 px-3 py-2.5 sm:px-4">
-        <div className="a4n-filter-chips !max-w-full" aria-label={t("characterDetail.portrait.filterAria")}>
+        <div className="a4n-filter-chips !max-w-full !flex-wrap !overflow-visible" aria-label={t("characterDetail.portrait.filterAria")}>
           <button
             type="button"
             className="a4n-filter-chip"

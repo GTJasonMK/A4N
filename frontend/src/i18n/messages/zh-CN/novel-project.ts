@@ -194,7 +194,7 @@ export const novelProject = {
   enterVideoWorkspace: "进入视频工作台",
   enterComicWorkspace: "进入漫画工作台",
   enterGameWorkspace: "进入游戏工作台",
-  enterWritingDesk: "进入写作台",
+  enterWritingDesk: "进入写作桌",
   writeShortcut: "写作",
   ownerRole: "所有者",
   managerRole: "管理员",

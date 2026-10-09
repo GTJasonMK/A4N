@@ -30,9 +30,9 @@ import {
   DELETE_LATEST_PARTS_ACTION,
   deleteChapterOutlinesFromAction,
   isValidDeletionCount,
-  isPositiveInteger,
   isValidChapterOutlineCount,
   outlineOptimizationVariables,
+  partGenerationInputError,
   type NumberInputValue,
 } from "./outlines/outlineTabUtils";
 import { isCancelledOperation } from "../../utils/cancellation";
@@ -203,8 +203,8 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
           ? { projectId: requestProjectId, message: errors.join(t("common.summarySeparator")) }
           : null,
       );
-      const pp = partsResult.status === "fulfilled" ? partsResult.value : [];
-      const oo = outlinesResult.status === "fulfilled" ? outlinesResult.value : [];
+      const pp = partsResult.status === "fulfilled" ? partsResult.value : partsRef.current;
+      const oo = outlinesResult.status === "fulfilled" ? outlinesResult.value : outlinesRef.current;
       const foreignPart = pp.find((part) => part.project_id !== requestProjectId);
       if (foreignPart) {
         throw new Error(`分部大纲接口返回了其他项目的数据：part_id=${foreignPart.id}`);
@@ -341,17 +341,18 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     const requestedChaptersPerPart =
       typeof chaptersPerPart === "number" ? chaptersPerPart : null;
 
-    if (!isPositiveInteger(requestedPartCount)) {
-      addToast(t("outline.partCountPositive"), "error");
+    const inputError = partGenerationInputError(
+      requestedPartCount,
+      requestedChaptersPerPart,
+    );
+    if (inputError) {
+      addToast(
+        t(inputError === "partCount" ? "outline.partCountPositive" : "outline.chaptersPerPartPositive"),
+        "error",
+      );
       return;
     }
-    if (
-      requestedChaptersPerPart !== null &&
-      !isPositiveInteger(requestedChaptersPerPart)
-    ) {
-      addToast(t("outline.chaptersPerPartPositive"), "error");
-      return;
-    }
+    if (requestedPartCount === null) return;
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) return;
     const extendingParts = partsRef.current.length > 0;
@@ -418,8 +419,15 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     const requestedPartCount = typeof partCount === "number" ? partCount : null;
     const requestedChaptersPerPart =
       typeof chaptersPerPart === "number" ? chaptersPerPart : null;
-    if (!isPositiveInteger(requestedPartCount)) {
-      addToast(t("outline.partCountPositive"), "error");
+    const inputError = partGenerationInputError(
+      requestedPartCount,
+      requestedChaptersPerPart,
+    );
+    if (inputError) {
+      addToast(
+        t(inputError === "partCount" ? "outline.partCountPositive" : "outline.chaptersPerPartPositive"),
+        "error",
+      );
       return;
     }
     const previewSeq = beginPreview(requestProjectId);

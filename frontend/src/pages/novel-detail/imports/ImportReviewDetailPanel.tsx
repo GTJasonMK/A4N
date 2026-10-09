@@ -102,6 +102,14 @@ export const ImportReviewDetailPanel: React.FC<ImportReviewDetailPanelProps> = (
                 )}
               </BookButton>
             </div>
+            {activeReview.review_status === "pending"
+              && !actionBusy
+              && !activeReviewJsonDirty
+              && activeReviewJsonError == null ? (
+                <p role="status" className="mt-2 text-caption text-book-text-muted">
+                  {t("novel.importReview.detail.editBeforeSaveAndAccept")}
+                </p>
+              ) : null}
           </div>
         </details>
       </div>

@@ -70,6 +70,7 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
   const [referenceImages, setReferenceImages] = useState<GeneratedImage[]>([]);
   const [selectedReferenceImageIds, setSelectedReferenceImageIds] = useState<number[]>([]);
   const [referenceLoading, setReferenceLoading] = useState(false);
+  const [referenceLoadError, setReferenceLoadError] = useState<string | null>(null);
   const [uploadingReference, setUploadingReference] = useState(false);
   const [busy, setBusy] = useState(false);
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
@@ -119,6 +120,7 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
     referenceLoadSeqRef.current = requestSeq;
     setReferenceImages([]);
     setSelectedReferenceImageIds([]);
+    setReferenceLoadError(null);
     setReferenceLoading(true);
     listImagesByProject(requestProjectId)
       .then((images) => {
@@ -134,7 +136,7 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
           isCurrentProject(requestProjectId) &&
           referenceLoadSeqRef.current === requestSeq
         ) {
-          addToast(extractErrorMessage(err, t("characterDetail.portrait.referenceLoadFailed")), "error");
+          setReferenceLoadError(extractErrorMessage(err, t("characterDetail.portrait.referenceLoadFailed")));
         }
       })
       .finally(() => {
@@ -145,7 +147,7 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
           setReferenceLoading(false);
         }
       });
-  }, [addToast, isCurrentProject, projectId, t]);
+  }, [isCurrentProject, projectId, t]);
 
   useEffect(() => {
     if (profiles.length === 0) return;
@@ -173,13 +175,16 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
     setReferenceImages((current) => [image, ...current.filter((item) => item.id !== image.id)]);
     setSelectedReferenceImageIds((current) => {
       if (current.includes(image.id)) return current;
-      const next = [...current, image.id];
-      return next.slice(Math.max(0, next.length - MAX_REFERENCE_IMAGES));
+      return [...current, image.id];
     });
   };
 
   const handleUploadReferenceImage = async (file: File) => {
     if (uploadReferenceBusyRef.current) return;
+    if (selectedReferenceImageIds.length >= MAX_REFERENCE_IMAGES) {
+      addToast(t("characterDetail.portrait.maxReferences", { count: MAX_REFERENCE_IMAGES }), "error");
+      return;
+    }
     const requestProjectId = projectId;
     if (!isSupportedImageMime(file.type)) {
       addToast(t("characterDetail.portrait.invalidImage"), "error");
@@ -491,13 +496,19 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
                 <LoadingSpinner size="sm" className="mr-1.5" />
                 {t("characterDetail.portrait.loadingImages")}
               </div>
+            ) : referenceImages.length === 0 && referenceLoadError ? (
+              <div role="alert" className="rounded-[12px] border border-error/40 bg-error-bg px-3 py-3 text-xs leading-relaxed text-error">
+                {referenceLoadError}
+              </div>
             ) : referenceImages.length === 0 ? (
               <div className="rounded-[12px] border border-dashed border-book-border/55 bg-book-bg-paper/35 px-3 py-3 text-xs leading-relaxed text-book-text-muted">
                 {t("characterDetail.portrait.noImages")}
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-5">
-                {referenceImages.map((image) => {
+              <>
+                {referenceLoadError ? <div role="alert" className="mb-2 text-xs text-error">{referenceLoadError}</div> : null}
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-5">
+                  {referenceImages.map((image) => {
                   const selected = selectedReferenceImageIds.includes(image.id);
                   const src = toMediaSrc(image.file_path);
                   return (
@@ -541,8 +552,9 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
                     {src ? <ImageZoomButton src={src} alt={image.prompt} className="absolute left-1 top-1" /> : null}
                     </div>
                   );
-                })}
-              </div>
+                  })}
+                </div>
+              </>
             )}
           </section>
         </div>

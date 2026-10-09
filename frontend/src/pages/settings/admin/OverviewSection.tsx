@@ -67,14 +67,18 @@ export const OverviewSection: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-3">
-      <OverviewSummary overview={overview} loading={loading || healthLoading} onRefresh={refresh} />
+      <OverviewSummary overview={overview} loading={loading} onRefresh={refresh} />
       {error ? <p role="alert" className="text-xs text-error">{error}</p> : null}
       {healthError ? (
         <p role="alert" className="text-xs text-error">
           {extractErrorMessage(healthError.reason, t("settingsAdmin.healthCheckFailed"))}
         </p>
       ) : null}
-      <ServiceHealthPanel health={health} loading={healthLoading} />
+      <ServiceHealthPanel
+        health={health}
+        loading={healthLoading}
+        failed={health == null && healthError != null}
+      />
     </div>
   );
 };
@@ -158,9 +162,14 @@ const OverviewSummary: React.FC<{
   );
 };
 
-const ServiceHealthPanel: React.FC<{ health: AdminHealthCheck | null; loading: boolean }> = ({
+const ServiceHealthPanel: React.FC<{
+  health: AdminHealthCheck | null;
+  loading: boolean;
+  failed: boolean;
+}> = ({
   health,
   loading,
+  failed,
 }) => {
   const { t } = useI18n();
   const services = health?.services ?? [];
@@ -172,7 +181,11 @@ const ServiceHealthPanel: React.FC<{ health: AdminHealthCheck | null; loading: b
         <h3 className="text-xs font-medium text-book-text-main">{t("settingsAdmin.systemHealth")}</h3>
         <span className="min-w-0 flex-1 text-right text-small text-book-text-muted">
           {health ? `${serviceModeLabel(health.runtime_profile, t)} · ` : ""}
-          {services.length > 0 ? t("settingsAdmin.healthyCount", { healthy: healthyCount, total: services.length }) : t("settingsAdmin.noData")}
+          {services.length > 0
+            ? t("settingsAdmin.healthyCount", { healthy: healthyCount, total: services.length })
+            : loading || failed
+              ? ""
+              : t("settingsAdmin.noData")}
         </span>
       </div>
 
@@ -181,7 +194,7 @@ const ServiceHealthPanel: React.FC<{ health: AdminHealthCheck | null; loading: b
           <LoadingSpinner size="sm" />
           {t("settingsAdmin.loadingData")}
         </div>
-      ) : services.length === 0 ? (
+      ) : failed ? null : services.length === 0 ? (
         <div className="a4n-empty-state a4n-empty-state--framed py-4 text-center text-xs text-book-text-muted">
           {t("settingsAdmin.noServices")}
         </div>

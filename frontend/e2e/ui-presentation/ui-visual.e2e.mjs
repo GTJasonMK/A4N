@@ -18,7 +18,7 @@ const cases = [
   ["comic", "/comic-project/2", ".a4n-page-header h1"],
   ["video", "/video-project/3", ".a4n-page-header h1"],
   ["galgame", "/galgame-project/5", ".a4n-page-header h1"],
-  ["canvas", "/video-project/6/studio", ".react-flow__node"],
+  ["canvas", "/canvas-project/6", ".react-flow__node"],
   ["auth", "/?ui-auth=off", ".a4n-auth-card input"],
   ["home-empty", "/?ui-state=empty", ".a4n-empty-state"],
   ["home-error", "/?ui-state=error", ".a4n-home-content [role=alert]"],

@@ -291,6 +291,42 @@ describe("Home and global Agent page audit", function () {
       await press(await row.$('button[aria-label="更多操作"]')); await menu("导入文本到此项目");
       return dialog("导入项目文本");
     }, text: "12 条记录", last: async (scope) => scope.$('button[aria-label="查看 12-旧书店与车站调查补充材料.md 的审核详情"]') },
+    { id: "H09-delete-read-model", task: "删除项目后，在列表刷新响应前不再暴露已删除项目", open: async () => {
+      const scope = await home();
+      const root = fixtures.projectRecords.find((project) => project.id === 1);
+      const row = await scope.$('.//div[contains(@class,"a4n-project-row") and .//h3[normalize-space(.)=' + literal(root.title) + ']]');
+      await press(await row.$('button[aria-label="更多操作"]'));
+      await menu("删除项目");
+      const confirmation = await dialog("删除项目");
+      await browser.execute(() => {
+        window.__uiAudit.fixtures.delete_project = null;
+        window.__uiAudit.deferred.push("list_projects");
+      });
+      await click("永久删除", confirmation);
+      await browser.waitUntil(async () => browser.execute(() =>
+        window.__uiAudit.pending.some((item) => item.command === "list_projects"),
+      ), { timeout });
+      await browser.waitUntil(async () => browser.execute((title) =>
+        ![...document.querySelectorAll(".a4n-project-row h3")].some((heading) => heading.textContent?.trim() === title),
+      root.title), { timeout, timeoutMsg: "A deleted project must leave the visible list before its refresh completes" });
+      await browser.execute((projectId) => {
+        const audit = window.__uiAudit;
+        const pending = audit.pending.findLast((item) => item.command === "list_projects");
+        const fixture = audit.fixtures.list_projects;
+        const items = fixture.items.filter((project) => project.id !== projectId);
+        audit.pending = audit.pending.filter((item) => item !== pending);
+        audit.deferred = audit.deferred.filter((command) => command !== "list_projects");
+        pending?.resolve(Response.json({ ...fixture, items, total: items.length }));
+      }, root.id);
+      await browser.waitUntil(async () => browser.execute((title) =>
+        document.body.innerText.includes(`已删除：${title}`),
+      root.title), { timeout });
+      return scope;
+    }, check: async (scope) => {
+      const root = fixtures.projectRecords.find((project) => project.id === 1);
+      assert.equal(await scope.$(`.//h3[normalize-space(.)=${literal(root.title)}]`).isExisting(), false);
+      return { deletedProject: root.id, absentBeforeRefreshResponse: true };
+    } },
   ];
   for (const spec of homePages) it(spec.id + " follows the existing home entry", async () => matrix(spec));
 

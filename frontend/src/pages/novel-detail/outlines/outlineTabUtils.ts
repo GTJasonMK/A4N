@@ -28,7 +28,21 @@ export const parseNumberInput = (value: string): NumberInputValue => {
 };
 
 export const isPositiveInteger = (value: number | null): value is number =>
-  value !== null && Number.isInteger(value) && value > 0;
+  value !== null &&
+  Number.isSafeInteger(value) &&
+  value > 0 &&
+  value <= 2_147_483_647;
+
+export const partGenerationInputError = (
+  partCount: number | null,
+  chaptersPerPart: number | null,
+): "partCount" | "chaptersPerPart" | null => {
+  if (!isPositiveInteger(partCount)) return "partCount";
+  if (chaptersPerPart !== null && !isPositiveInteger(chaptersPerPart)) {
+    return "chaptersPerPart";
+  }
+  return null;
+};
 
 export const outlineOptimizationVariables = (
   direction: string,

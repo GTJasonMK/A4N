@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Eye, MoreHorizontal, Plus } from "lucide-react";
+import { ChevronRight, Eye, MoreHorizontal, Plus } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
-import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
+import { BookButton } from "../../../components/ui/BookButton";
 import { BookCardAction } from "../../../components/ui/BookCard";
 import { nonEmptyText } from "../../../utils/text";
 import { EmptyHint } from "../shared";
@@ -137,16 +137,16 @@ export function ChapterOutlineSection({
             </label>
             <div className="flex items-center justify-end gap-2 md:justify-start">
               {!generating ? (
-                <BookIconButton
-                  label={hasOutlines ? t("outline.chapterSection.viewAppendRequest") : t("outline.chapterSection.viewGenerateRequest")}
+                <BookButton
                   variant="secondary"
-                  size="md"
+                  size="sm"
                   onClick={onPreviewGenerate}
                   disabled={disabled || !loaded}
-                  className="!h-10 !w-10"
+                  className="inline-flex h-10 !min-h-10 min-w-0 flex-1 items-center justify-center gap-1.5 !px-2 !text-xs md:flex-none"
                 >
                   <Eye size={14} />
-                </BookIconButton>
+                  {hasOutlines ? t("outline.chapterSection.viewAppendRequest") : t("outline.chapterSection.viewGenerateRequest")}
+                </BookButton>
               ) : null}
               <BookButton
                 variant="primary"
@@ -235,7 +235,7 @@ export function ChapterOutlineSection({
                 ) : (
                   <>
                     <BookCardAction label={`${t("outline.chapterSection.chapter", { chapter: outline.chapter_number })} · ${outline.title ?? t("outline.chapterSection.viewDetails")}`} onClick={() => onOpenDetail(outline)} />
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 pr-8">
                       <div className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-book-text-main">
                         <span className="truncate">
                           {t("outline.chapterSection.chapter", { chapter: outline.chapter_number })}
@@ -274,6 +274,12 @@ export function ChapterOutlineSection({
                         </button>
                       </div>
                     )}
+                    <span
+                      aria-hidden="true"
+                      className={`chapter-outline-open-indicator pointer-events-none absolute top-1/2 z-20 -translate-y-1/2 text-book-text-muted ${canEdit ? "right-12" : "right-3"}`}
+                    >
+                      <ChevronRight size={14} />
+                    </span>
                   </>
                 )}
               </li>

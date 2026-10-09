@@ -2,7 +2,6 @@ import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
-import { useToast } from "../../components/feedback/Toast";
 import { extractErrorMessage } from "../../api";
 import { listBehaviors, type BehaviorRecord } from "../../api/character";
 import { useI18n } from "../../i18n";
@@ -24,11 +23,11 @@ export const BehaviorManager: React.FC<{
   profileId: number;
   refreshRevision?: number;
 }> = ({ profileId, refreshRevision = 0 }) => {
-  const { addToast } = useToast();
   const { t } = useI18n();
   const [items, setItems] = useState<BehaviorRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadedScopeKey, setLoadedScopeKey] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [chapterFilterError, setChapterFilterError] = useState<string | null>(null);
   const [chapterFilter, setChapterFilter] = useState("");
   const [limit, setLimit] = useState(20);
@@ -61,6 +60,7 @@ export const BehaviorManager: React.FC<{
     setLoading(false);
     setLoadedScopeKey(null);
     setItems([]);
+    setLoadError(null);
   }, []);
 
   const isCurrentLoad = useCallback((
@@ -93,6 +93,7 @@ export const BehaviorManager: React.FC<{
       return;
     }
     setChapterFilterError(null);
+    setLoadError(null);
     if (loadInFlightKeyRef.current === requestKey) return;
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
@@ -108,9 +109,10 @@ export const BehaviorManager: React.FC<{
       if (!isCurrentLoad(requestProfileId, requestChapterFilter, requestLimit, requestSeq)) return;
       setItems(rows);
       setLoadedScopeKey(requestKey);
+      setLoadError(null);
     } catch (err) {
       if (!isCurrentLoad(requestProfileId, requestChapterFilter, requestLimit, requestSeq)) return;
-      addToast(extractErrorMessage(err, t("characterDetail.behavior.loadFailed")), "error");
+      setLoadError(extractErrorMessage(err, t("characterDetail.behavior.loadFailed")));
     } finally {
       if (loadInFlightKeyRef.current === requestKey && loadSeqRef.current === requestSeq) {
         loadInFlightKeyRef.current = null;
@@ -119,7 +121,7 @@ export const BehaviorManager: React.FC<{
         setLoading(false);
       }
     }
-  }, [addToast, isCurrentLoad, profileId, t]);
+  }, [isCurrentLoad, profileId, t]);
 
   useLayoutEffect(() => {
     setChapterFilterError(null);
@@ -132,6 +134,9 @@ export const BehaviorManager: React.FC<{
       <div className="text-caption text-book-text-muted">
         {t("characterDetail.behavior.description")}
       </div>
+      {loadError ? (
+        <div role="alert" className="text-small text-error">{loadError}</div>
+      ) : null}
       <div className="grid grid-cols-2 items-end gap-2 text-small sm:flex sm:flex-wrap">
         <label className="flex min-w-0 flex-col gap-1 text-book-text-muted">
           <span>{t("characterDetail.behavior.chapter")}</span>
@@ -196,7 +201,7 @@ export const BehaviorManager: React.FC<{
       </div>
       {loading ? (
         <div className="text-small text-book-text-muted">{t("characterDetail.behavior.loading")}</div>
-      ) : !hasCurrentResults ? (
+      ) : loadError && !hasCurrentResults ? null : !hasCurrentResults ? (
         <div className="text-small text-book-text-muted italic">{t("characterDetail.behavior.notLoaded")}</div>
       ) : items.length === 0 ? (
         <div className="text-small text-book-text-muted italic">{t("characterDetail.behavior.empty")}</div>

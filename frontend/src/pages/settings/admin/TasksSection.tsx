@@ -60,6 +60,7 @@ export const TasksSection: React.FC = () => {
     try {
       const cancelled = await cancelAdminTask(id);
       if (!isCurrentScope("admin-tasks")) return;
+      setTasks((current) => current.filter((task) => task.id !== id));
       await reload();
       if (!isCurrentScope("admin-tasks")) return;
       addToast(

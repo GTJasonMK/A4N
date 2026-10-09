@@ -119,6 +119,7 @@ export async function installUiFixtures(browser, overrides = {}) {
       const fixtures = JSON.parse(decodeURIComponent(encodedFixtures));
       const params = new URL(location.href).searchParams;
       const authenticated = !params.has("ui-auth");
+      const deferred = [...new Set([...(fixtures.deferred ?? []), ...params.getAll("ui-defer")])];
       if (authenticated) {
         localStorage.setItem("a4n:current_user_id", "1");
         localStorage.setItem("a4n:current_access_token", "ui-test-fixture");
@@ -127,7 +128,7 @@ export async function installUiFixtures(browser, overrides = {}) {
         localStorage.removeItem("a4n:current_access_token");
       }
       localStorage.setItem("a4n:settings:locale", params.get("ui-locale") ?? "zh-CN");
-      window.__uiAudit = { fixtures, projectState: params.get("ui-state"), commands: [], requests: [], deferred: [], pending: [], unexpected: [], errors: [], modelRequests: [], agentMessages: [], draws: { attached: 0, detached: 0 } };
+      window.__uiAudit = { fixtures, projectState: params.get("ui-state"), commands: [], requests: [], deferred, failNext: [], pending: [], unexpected: [], errors: [], modelRequests: [], agentMessages: [], draws: { attached: 0, detached: 0 } };
       window.addEventListener("error", (event) => window.__uiAudit.errors.push(event.message));
       window.addEventListener("unhandledrejection", (event) => window.__uiAudit.errors.push(String(event.reason)));
       const fetch = window.fetch.bind(window);
@@ -138,6 +139,17 @@ export async function installUiFixtures(browser, overrides = {}) {
         window.__uiAudit.commands.push(command);
         const body = options?.body ? JSON.parse(options.body) : {};
         window.__uiAudit.requests.push({ command, body });
+        const failureIndex = window.__uiAudit.failNext.findIndex((failure) => failure.command === command);
+        if (failureIndex >= 0) {
+          const [failure] = window.__uiAudit.failNext.splice(failureIndex, 1);
+          return Response.json({
+            code: failure.code ?? "unavailable",
+            message: failure.message,
+            retryable: failure.retryable ?? true,
+            trace_id: null,
+            details: {},
+          }, { status: failure.status ?? 503 });
+        }
         if (window.__uiAudit.deferred.includes(command)) {
           return new Promise((resolve) => window.__uiAudit.pending.push({ command, body, resolve }));
         }

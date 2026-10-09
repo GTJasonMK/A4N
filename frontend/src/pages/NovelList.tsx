@@ -647,6 +647,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
     try {
       await deleteProject(project.id);
       if (!mountedRef.current) return;
+      setProjects((current) => current.filter((item) => item.id !== project.id));
       const refreshed = await refreshAfterMutation();
       if (!mountedRef.current) return;
       addToast(tRef.current("novel.projectListActions.deleted", { title: project.title }), "success");

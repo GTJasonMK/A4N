@@ -122,6 +122,15 @@ const ConflictScopeControls: React.FC<{
   onClear,
 }) => {
   const { t } = useI18n();
+  const start = draft.startChapter.trim();
+  const end = draft.endChapter.trim();
+  const scope = !start && !end
+    ? t("characterDetail.scopeWholeProject")
+    : start && end
+      ? t("characterDetail.scopeChapterRange", { start, end })
+      : start
+        ? t("characterDetail.scopeFromChapter", { chapter: start })
+        : t("characterDetail.scopeToChapter", { chapter: end });
   return (
   <div className="flex flex-col gap-2 border-b border-book-border/45 pb-3">
     <div className="flex flex-wrap items-end gap-2">
@@ -172,6 +181,14 @@ const ConflictScopeControls: React.FC<{
         </span>
       </BookButton>
     </div>
+    <p className="text-caption text-book-text-muted">
+      {t("characterDetail.checkScopeResult", { scope })}
+    </p>
+    {activeChapterNumber == null ? (
+      <p className="text-caption text-book-text-muted">
+        {t("characterDetail.currentChapterUnavailable")}
+      </p>
+    ) : null}
   </div>
   );
 };
@@ -424,6 +441,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
       }
       const cacheKey = conflictCacheKey;
       const taskId = createWorkflowTaskId("character-conflict", requestProjectId);
+      setConflicts(null);
       setLoadingTab("conflict");
       try {
         const rows = await runProgressTask(

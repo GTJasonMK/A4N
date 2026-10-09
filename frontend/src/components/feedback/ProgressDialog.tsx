@@ -31,6 +31,7 @@ interface ProgressDialogProps {
   streaming?: boolean;
   events?: ProgressTimelineItem[];
   error?: string | null;
+  errorHint?: React.ReactNode;
   onClose: () => void;
   closeLabel?: string;
   onCancel?: () => void;
@@ -52,6 +53,7 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
   streaming = false,
   events = [],
   error,
+  errorHint,
   onClose,
   closeLabel,
   onCancel,
@@ -284,6 +286,7 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
         {error ? (
           <div role="alert" className="rounded-[var(--pyqt-radius-lg)] border border-error/45 bg-error-bg px-3.5 py-3 text-xs leading-relaxed text-book-text-main">
             {error}
+            {errorHint ? <p className="mt-2 border-t border-error/25 pt-2 text-book-text-sub">{errorHint}</p> : null}
           </div>
         ) : null}
 

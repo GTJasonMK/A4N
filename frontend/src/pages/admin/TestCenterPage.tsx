@@ -39,6 +39,15 @@ import { formatDateTime, useI18n } from "../../i18n";
 
 type TargetMode = "test_project" | "current_project" | "repository";
 type MessageKey = Parameters<ReturnType<typeof useI18n>["t"]>[0];
+type ErrorScope = "load" | "projects" | "run" | "delete" | "project";
+
+const PROJECT_ROUTES: Record<AdminProjectSummary["project_kind"], string> = {
+  text: "novel",
+  video: "video-project",
+  canvas: "canvas-project",
+  comic: "comic-project",
+  galgame: "galgame-project",
+};
 
 const STATUS_KEYS: Record<TestRunStatus, MessageKey> = {
   queued: "settingsAdmin.testCenter.queued",
@@ -60,6 +69,56 @@ const STATUS_STYLES: Record<TestRunStatus, string> = {
 
 const isActive = (status: TestRunStatus): boolean =>
   status === "queued" || status === "running";
+
+function upsertRunSummary(
+  runs: TestRunSummary[],
+  summary: TestRunSummary,
+): TestRunSummary[] {
+  const index = runs.findIndex((run) => run.id === summary.id);
+  if (index < 0) return [summary, ...runs].slice(0, 30);
+  return runs.map((run) => run.id === summary.id ? mergeRunSummary(run, summary) : run);
+}
+
+function mergeRunSummary(current: TestRunSummary, incoming: TestRunSummary): TestRunSummary {
+  const rank = (status: TestRunStatus) =>
+    status === "queued" ? 0 : status === "running" ? 1 : 2;
+  const currentRank = rank(current.status);
+  const incomingRank = rank(incoming.status);
+  const keepCurrentStatus = currentRank > incomingRank
+    || (currentRank === 2 && incomingRank === 2 && current.status !== incoming.status);
+  return {
+    ...incoming,
+    status: keepCurrentStatus ? current.status : incoming.status,
+    target_project_id: incoming.target_project_id ?? current.target_project_id,
+    started_at: incoming.started_at ?? current.started_at,
+    finished_at: incoming.finished_at ?? current.finished_at,
+    duration_ms: incoming.duration_ms ?? current.duration_ms,
+    message: keepCurrentStatus ? current.message ?? incoming.message : incoming.message ?? current.message,
+    impact: incoming.impact.length >= current.impact.length ? incoming.impact : current.impact,
+  };
+}
+
+function mergeRunList(
+  current: TestRunSummary[],
+  incoming: TestRunSummary[],
+  selectedRunId: string,
+): TestRunSummary[] {
+  const next = incoming.map((run) => {
+    const previous = current.find((item) => item.id === run.id);
+    return previous ? mergeRunSummary(previous, run) : run;
+  });
+  const present = new Set(next.map((run) => run.id));
+  for (const run of current) {
+    if (!present.has(run.id) && (isActive(run.status) || run.id === selectedRunId)) next.push(run);
+  }
+  return next.slice(0, 30);
+}
+
+function runCreatedProject(run: TestRunSummary): boolean {
+  return run.impact.some((impact) =>
+    impact.action === "create" && impact.resource === "project" && impact.project_id != null,
+  );
+}
 
 const SCENARIO_COPY_KEYS: Record<string, { title: MessageKey; description: MessageKey }> = {
   admin_health_check: {
@@ -86,6 +145,36 @@ const SCENARIO_COPY_KEYS: Record<string, { title: MessageKey; description: Messa
     title: "settingsAdmin.testCenter.scenarioProjectStatusTitle",
     description: "settingsAdmin.testCenter.scenarioProjectStatusDescription",
   },
+  "repository_test_core-functional": {
+    title: "settingsAdmin.testCenter.scenarioRepositoryCoreTitle",
+    description: "settingsAdmin.testCenter.scenarioRepositoryCoreDescription",
+  },
+  "repository_test_browser-functional": {
+    title: "settingsAdmin.testCenter.scenarioRepositoryBrowserTitle",
+    description: "settingsAdmin.testCenter.scenarioRepositoryBrowserDescription",
+  },
+  "repository_test_authoring-workflows": {
+    title: "settingsAdmin.testCenter.scenarioRepositoryAuthoringTitle",
+    description: "settingsAdmin.testCenter.scenarioRepositoryAuthoringDescription",
+  },
+  "repository_test_desktop-workflows": {
+    title: "settingsAdmin.testCenter.scenarioRepositoryDesktopTitle",
+    description: "settingsAdmin.testCenter.scenarioRepositoryDesktopDescription",
+  },
+  "repository_test_all-functional": {
+    title: "settingsAdmin.testCenter.scenarioRepositoryAllTitle",
+    description: "settingsAdmin.testCenter.scenarioRepositoryAllDescription",
+  },
+};
+
+const CATEGORY_COPY_KEYS: Record<string, MessageKey> = {
+  system: "settingsAdmin.testCenter.categorySystem",
+  project: "settingsAdmin.testCenter.categoryProject",
+  "核心功能": "settingsAdmin.testCenter.categoryCoreFunctional",
+  "浏览器功能": "settingsAdmin.testCenter.categoryBrowserFunctional",
+  "完整流程": "settingsAdmin.testCenter.categoryAuthoringWorkflows",
+  "桌面功能": "settingsAdmin.testCenter.categoryDesktopWorkflows",
+  "全部功能": "settingsAdmin.testCenter.categoryAllFunctional",
 };
 
 const RESOURCE_COPY_KEYS: Record<string, MessageKey> = {
@@ -102,11 +191,11 @@ export const TestCenterPage: React.FC = () => {
   const { t, locale } = useI18n();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const selectedRunId = searchParams.get("runId") ?? "";
   const [scenarios, setScenarios] = useState<TestScenarioDescriptor[]>([]);
   const [runs, setRuns] = useState<TestRunSummary[]>([]);
   const [projects, setProjects] = useState<AdminProjectSummary[]>([]);
   const [selectedScenarioId, setSelectedScenarioId] = useState("");
-  const [selectedRunId, setSelectedRunId] = useState(searchParams.get("runId") ?? "");
   const [detail, setDetail] = useState<TestRunDetail | null>(null);
   const [category, setCategory] = useState("all");
   const [targetMode, setTargetMode] = useState<TargetMode>("test_project");
@@ -119,9 +208,30 @@ export const TestCenterPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [projectLoading, setProjectLoading] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ scope: ErrorScope; key?: string; message: string } | null>(null);
+  const activeRunId = runs.find((run) => isActive(run.status))?.id ?? null;
   const syncedRunId = useRef("");
-  const runRequestId = useRef(0);
+  const runRequestsInFlight = useRef(new Set<string>());
+  const projectLoadRequestId = useRef(0);
+  const refreshedProjectIds = useRef(new Set<number>());
+  const mutationInFlight = useRef(false);
+  const selectedRunIdRef = useRef(selectedRunId);
+  selectedRunIdRef.current = selectedRunId;
+
+  const updateError = useCallback((scope: ErrorScope, message: string | null, key?: string) => {
+    setError((current) => message
+      ? { scope, key, message }
+      : current?.scope === scope && (key === undefined || current.key === key) ? null : current);
+  }, []);
+
+  const selectRun = useCallback((runId: string) => {
+    setSearchParams((current) => {
+      if ((current.get("runId") ?? "") === runId) return current;
+      if (runId) current.set("runId", runId);
+      else current.delete("runId");
+      return current;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   const selectedScenario = scenarios.find((item) => item.id === selectedScenarioId) ?? null;
   const categories = useMemo(
@@ -137,43 +247,73 @@ export const TestCenterPage: React.FC = () => {
       ? { title: t(keys.title), description: t(keys.description) }
       : { title: scenario.title, description: scenario.description };
   };
+  const categoryCopy = (value: string) => {
+    const key = CATEGORY_COPY_KEYS[value];
+    return key ? t(key) : value;
+  };
+
+  const selectScenario = (scenarioId: string) => {
+    const scenario = scenarios.find((item) => item.id === scenarioId);
+    setSelectedScenarioId(scenarioId);
+    if (scenario && !scenario.target_modes.includes(targetMode) && scenario.target_modes[0]) {
+      setTargetMode(scenario.target_modes[0]);
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    updateError("load", null);
     try {
       const [nextScenarios, nextRuns] = await Promise.all([
         listTestScenarios(),
         listTestRuns(30),
       ]);
+      const selectedRunSummary = nextRuns.find((run) => run.id === selectedRunIdRef.current);
       setScenarios(nextScenarios);
-      setRuns(nextRuns);
+      setRuns((current) => mergeRunList(current, nextRuns, selectedRunIdRef.current));
+      const activeRun = nextRuns.find((run) => isActive(run.status));
+      if (activeRun && !selectedRunIdRef.current) selectRun(activeRun.id);
       setSelectedScenarioId((current) =>
-        current && nextScenarios.some((item) => item.id === current)
-          ? current
-          : nextScenarios[0]?.id ?? "",
+        selectedRunIdRef.current
+          ? selectedRunSummary && nextScenarios.some((item) => item.id === selectedRunSummary.scenario_id)
+            ? selectedRunSummary.scenario_id
+            : ""
+          : current && nextScenarios.some((item) => item.id === current)
+            ? current
+            : nextScenarios[0]?.id ?? "",
       );
     } catch (cause) {
-      setError(extractErrorMessage(cause, t("settingsAdmin.testCenter.loadFailed")));
+      updateError("load", extractErrorMessage(cause, t("settingsAdmin.testCenter.loadFailed")));
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [selectRun, t, updateError]);
 
-  const loadProjects = useCallback(async () => {
+  const loadProjects = useCallback(async (): Promise<AdminProjectSummary[] | null> => {
+    const requestId = projectLoadRequestId.current + 1;
+    projectLoadRequestId.current = requestId;
     setProjectLoading(true);
+    updateError("projects", null);
     try {
-      setProjects(await listAllProjects());
+      const nextProjects = await listAllProjects();
+      if (projectLoadRequestId.current !== requestId) return null;
+      setProjects(nextProjects);
+      setCurrentProjectId((current) =>
+        current && nextProjects.some((project) => String(project.id) === current) ? current : "",
+      );
+      setSourceProjectId((current) =>
+        current && nextProjects.some((project) => String(project.id) === current) ? current : "",
+      );
+      return nextProjects;
     } catch (cause) {
-      setError(extractErrorMessage(cause, t("settingsAdmin.testCenter.projectLoadFailed")));
+      if (projectLoadRequestId.current === requestId) {
+        updateError("projects", extractErrorMessage(cause, t("settingsAdmin.testCenter.projectLoadFailed")));
+      }
+      return null;
     } finally {
-      setProjectLoading(false);
+      if (projectLoadRequestId.current === requestId) setProjectLoading(false);
     }
-  }, [t]);
-
-  const refreshRuns = useCallback(async () => {
-    setRuns(await listTestRuns(30));
-  }, []);
+  }, [t, updateError]);
 
   useEffect(() => {
     void load();
@@ -187,23 +327,34 @@ export const TestCenterPage: React.FC = () => {
   }, [selectedScenario, targetMode]);
 
   const loadRun = useCallback(async (runId: string) => {
-    const requestId = ++runRequestId.current;
-    if (!runId) {
-      setDetail(null);
-      return;
-    }
+    if (!runId || runRequestsInFlight.current.has(runId)) return;
+    runRequestsInFlight.current.add(runId);
+    if (selectedRunIdRef.current === runId) updateError("run", null, runId);
     try {
       const next = await getTestRun(runId);
-      if (requestId !== runRequestId.current) return;
-      setDetail(next);
-      if (next.summary.status !== "running" && next.summary.status !== "queued") {
-        await refreshRuns();
+      if (selectedRunIdRef.current === runId) setDetail(next);
+      setRuns((current) => upsertRunSummary(current, next.summary));
+      if (selectedRunIdRef.current === runId || activeRunId === runId) {
+        updateError("run", null, runId);
+      }
+      const createdProjectId = next.summary.target_project_id;
+      if (
+        createdProjectId != null
+        && runCreatedProject(next.summary)
+        && !projects.some((project) => project.id === createdProjectId)
+        && !refreshedProjectIds.current.has(createdProjectId)
+      ) {
+        refreshedProjectIds.current.add(createdProjectId);
+        void loadProjects();
       }
     } catch (cause) {
-      if (requestId !== runRequestId.current) return;
-      setError(extractErrorMessage(cause, t("settingsAdmin.testCenter.loadFailed")));
+      if (selectedRunIdRef.current === runId || activeRunId === runId) {
+        updateError("run", extractErrorMessage(cause, t("settingsAdmin.testCenter.loadFailed")), runId);
+      }
+    } finally {
+      runRequestsInFlight.current.delete(runId);
     }
-  }, [refreshRuns, t]);
+  }, [activeRunId, loadProjects, projects, t, updateError]);
 
   useEffect(() => {
     if (!selectedRunId) {
@@ -211,11 +362,7 @@ export const TestCenterPage: React.FC = () => {
       return;
     }
     void loadRun(selectedRunId);
-    setSearchParams((current) => {
-      current.set("runId", selectedRunId);
-      return current;
-    }, { replace: true });
-  }, [loadRun, selectedRunId, setSearchParams]);
+  }, [loadRun, selectedRunId]);
 
   useEffect(() => {
     if (!selectedRunId) {
@@ -233,15 +380,37 @@ export const TestCenterPage: React.FC = () => {
   }, [detail, scenarios, selectedRunId]);
 
   useEffect(() => {
-    if (!detail || !isActive(detail.summary.status)) return undefined;
-    const timer = window.setInterval(() => void loadRun(detail.summary.id), 800);
+    if (!activeRunId) return undefined;
+    const timer = window.setInterval(() => void loadRun(activeRunId), 800);
     return () => window.clearInterval(timer);
-  }, [detail, loadRun]);
+  }, [activeRunId, loadRun]);
+
+  const selectedRunDetail = detail?.summary.id === selectedRunId ? detail : null;
+  const selectedRunError = Boolean(
+    selectedRunId && !selectedRunDetail && error?.scope === "run" && error.key === selectedRunId,
+  );
+  const canCancelSelectedRun = Boolean(
+    selectedRunDetail
+    && selectedRunDetail.summary.id === activeRunId
+    && selectedRunDetail.summary.scenario_id === selectedScenario?.id
+    && isActive(selectedRunDetail.summary.status),
+  );
+
+  const showActiveRun = () => {
+    if (!activeRunId) return;
+    const activeRun = runs.find((run) => run.id === activeRunId);
+    const scenario = scenarios.find((item) => item.id === activeRun?.scenario_id);
+    if (scenario) {
+      setCategory(scenario.category);
+      selectScenario(scenario.id);
+    }
+    selectRun(activeRunId);
+  };
 
   const runScenario = async () => {
-    if (!selectedScenario || busy) return;
+    if (!selectedScenario || busy || mutationInFlight.current) return;
     if (!selectedScenario.target_modes.includes(targetMode)) {
-      setError(t("settingsAdmin.testCenter.targetModeUnsupported"));
+      updateError("run", t("settingsAdmin.testCenter.targetModeUnsupported"), "start");
       return;
     }
     let target: TestTarget;
@@ -249,91 +418,125 @@ export const TestCenterPage: React.FC = () => {
       target = { mode: "repository" };
     } else if (targetMode === "current_project") {
       const projectId = numberParameter(currentProjectId);
-      if (projectId == null) {
-        setError(t("settingsAdmin.testCenter.currentProjectRequired"));
+      if (projectId == null || !projects.some((project) => project.id === projectId)) {
+        updateError("run", t("settingsAdmin.testCenter.currentProjectRequired"), "start");
         return;
       }
       target = { mode: "current_project", project_id: projectId };
     } else {
+      const sourceProjectIdValue = numberParameter(sourceProjectId);
+      if (sourceProjectId && (
+        sourceProjectIdValue == null
+        || !projects.some((project) => project.id === sourceProjectIdValue)
+      )) {
+        updateError("run", t("settingsAdmin.testCenter.sourceProjectRequired"), "start");
+        return;
+      }
       target = {
         mode: "test_project",
-        source_project_id: numberParameter(sourceProjectId),
+        source_project_id: sourceProjectIdValue,
       };
     }
     const mutatesProject = selectedScenario.effect !== "read";
-    if (targetMode === "current_project" && mutatesProject) {
-      const confirmed = await confirmDialog({
-        title: t("settingsAdmin.testCenter.impactTitle"),
-        message: `${t("settingsAdmin.testCenter.impactMessage")}\n\n${scenarioCopy(selectedScenario).description}`,
-        confirmText: t("settingsAdmin.testCenter.confirmRun"),
-        dialogType: selectedScenario.effect === "destructive" ? "danger" : "warning",
-      });
-      if (!confirmed) return;
-    }
-
-    let parameters: Record<string, string | number> = {};
-    if (selectedScenario.id === "project_create_update") {
-      parameters = {
-        ...(projectTitle.trim() ? { title: projectTitle.trim() } : {}),
-        ...(projectDescription.trim() ? { description: projectDescription.trim() } : {}),
-      };
-    }
-
-    setBusy(true);
-    setError(null);
+    mutationInFlight.current = true;
     try {
+      if (targetMode === "current_project" && mutatesProject) {
+        const confirmed = await confirmDialog({
+          title: t("settingsAdmin.testCenter.impactTitle"),
+          message: `${t("settingsAdmin.testCenter.impactMessage")}\n\n${scenarioCopy(selectedScenario).description}`,
+          confirmText: t("settingsAdmin.testCenter.confirmRun"),
+          dialogType: selectedScenario.effect === "destructive" ? "danger" : "warning",
+        });
+        if (!confirmed) return;
+      }
+
+      let parameters: Record<string, string | number> = {};
+      if (selectedScenario.id === "project_create_update") {
+        parameters = {
+          ...(projectTitle.trim() ? { title: projectTitle.trim() } : {}),
+          ...(projectDescription.trim() ? { description: projectDescription.trim() } : {}),
+        };
+      }
+
+      setBusy(true);
+      updateError("run", null, "start");
       const run = await startTestRun({
         scenario_id: selectedScenario.id,
         target,
         parameters,
         confirm_impact: targetMode === "current_project" && mutatesProject,
       });
-      setSelectedRunId(run.id);
-      await refreshRuns();
+      selectRun(run.id);
+      setRuns((current) => upsertRunSummary(current, run));
     } catch (cause) {
-      setError(extractErrorMessage(cause, t("settingsAdmin.testCenter.runFailed")));
+      updateError("run", extractErrorMessage(cause, t("settingsAdmin.testCenter.runFailed")), "start");
     } finally {
+      mutationInFlight.current = false;
       setBusy(false);
     }
   };
 
-  const cancelRun = async () => {
-    if (!detail || !isActive(detail.summary.status)) return;
+  const cancelRun = async (runId: string) => {
+    if (
+      !selectedRunDetail
+      || selectedRunDetail.summary.id !== runId
+      || selectedRunDetail.summary.scenario_id !== selectedScenario?.id
+      || activeRunId !== runId
+      || !isActive(selectedRunDetail.summary.status)
+      || mutationInFlight.current
+    ) return;
+    mutationInFlight.current = true;
     setBusy(true);
+    updateError("run", null, runId);
     try {
-      await cancelTestRun(detail.summary.id);
-      await loadRun(detail.summary.id);
+      await cancelTestRun(runId);
+      await loadRun(runId);
     } catch (cause) {
-      setError(extractErrorMessage(cause, t("settingsAdmin.testCenter.runFailed")));
+      updateError("run", extractErrorMessage(cause, t("settingsAdmin.testCenter.runFailed")), runId);
     } finally {
+      mutationInFlight.current = false;
       setBusy(false);
     }
   };
 
   const removeRun = async (run: TestRunSummary) => {
-    const removeProject = run.target.mode === "test_project" && run.target_project_id != null
-      ? await confirmDialog({
+    if (busy || mutationInFlight.current) return;
+    mutationInFlight.current = true;
+    try {
+      const removeProject = runCreatedProject(run)
+        ? await confirmDialog({
           title: t("settingsAdmin.testCenter.deleteRunTitle"),
           message: t("settingsAdmin.testCenter.deleteRunMessage"),
           confirmText: t("settingsAdmin.testCenter.deleteRunAndProject"),
           cancelText: t("settingsAdmin.testCenter.keepTestProject"),
           dialogType: "warning",
         })
-      : false;
-    if (!removeProject && !(await confirmDialog({
-      title: t("settingsAdmin.testCenter.deleteRunTitle"),
-      message: t("settingsAdmin.testCenter.deleteRunMessage"),
-      confirmText: t("settingsAdmin.testCenter.deleteRun"),
-      dialogType: "warning",
-    }))) return;
-    setBusy(true);
-    try {
+        : false;
+      if (!removeProject && !(await confirmDialog({
+        title: t("settingsAdmin.testCenter.deleteRunTitle"),
+        message: t("settingsAdmin.testCenter.deleteRunMessage"),
+        confirmText: t("settingsAdmin.testCenter.deleteRun"),
+        dialogType: "warning",
+      }))) return;
+
+      setBusy(true);
+      updateError("delete", null, run.id);
       await deleteTestRun({ run_id: run.id, delete_test_project: removeProject });
       setRuns((current) => current.filter((item) => item.id !== run.id));
-      if (selectedRunId === run.id) setSelectedRunId("");
+      if (selectedRunId === run.id) selectRun("");
+      if (removeProject) {
+        run.impact.forEach((impact) => {
+          if (impact.action === "create" && impact.resource === "project" && impact.project_id != null) {
+            refreshedProjectIds.current.delete(impact.project_id);
+          }
+        });
+        await loadProjects();
+      }
+      updateError("delete", null, run.id);
     } catch (cause) {
-      setError(extractErrorMessage(cause, t("settingsAdmin.testCenter.deleteFailed")));
+      updateError("delete", extractErrorMessage(cause, t("settingsAdmin.testCenter.deleteFailed")), run.id);
     } finally {
+      mutationInFlight.current = false;
       setBusy(false);
     }
   };
@@ -344,17 +547,23 @@ export const TestCenterPage: React.FC = () => {
       seconds: Math.max(0.1, Math.round(milliseconds / 100) / 10),
     });
   const openProject = (projectId: number) => {
-    const project = projects.find((item) => item.id === projectId);
-    const prefix = project?.project_kind === "video"
-      ? "video-project"
-      : project?.project_kind === "canvas"
-        ? "canvas-project"
-        : project?.project_kind === "comic"
-          ? "comic-project"
-          : project?.project_kind === "galgame"
-            ? "galgame-project"
-            : "novel";
-    navigate(`/${prefix}/${projectId}`);
+    const projectKey = String(projectId);
+    updateError("project", null, projectKey);
+    void (async () => {
+      let project = projects.find((item) => item.id === projectId);
+      if (!project) {
+        const latestProjects = await loadProjects();
+        if (!latestProjects) return;
+        project = latestProjects?.find((item) => item.id === projectId);
+      }
+      if (!project) {
+        updateError("project", t("settingsAdmin.testCenter.projectUnavailable"), projectKey);
+        return;
+      }
+      navigate(`/${PROJECT_ROUTES[project.project_kind]}/${projectId}`);
+    })().catch((cause) => {
+      updateError("project", extractErrorMessage(cause, t("settingsAdmin.testCenter.projectLoadFailed")), projectKey);
+    });
   };
 
   if (!user || user.role !== "admin") {
@@ -398,7 +607,11 @@ export const TestCenterPage: React.FC = () => {
         </div>
         <BookIconButton
           label={t("settingsAdmin.testCenter.refresh")}
-          onClick={() => { void load(); void loadProjects(); }}
+          onClick={() => {
+            void load();
+            void loadProjects();
+            if (selectedRunId) void loadRun(selectedRunId);
+          }}
           disabled={loading || busy}
         >
           <RefreshCw size={15} />
@@ -408,7 +621,7 @@ export const TestCenterPage: React.FC = () => {
       {error ? (
         <div role="alert" className="flex items-start gap-2 border-b border-error/30 bg-error/5 px-4 py-2 text-xs text-error md:px-6">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-          <span className="min-w-0 break-words">{error}</span>
+          <span className="min-w-0 break-words">{error.message}</span>
         </div>
       ) : null}
 
@@ -421,11 +634,22 @@ export const TestCenterPage: React.FC = () => {
             <select
               aria-label={t("settingsAdmin.testCenter.category")}
               value={category}
-              onChange={(event) => setCategory(event.target.value)}
+              onChange={(event) => {
+                const nextCategory = event.target.value;
+                const nextVisible = nextCategory === "all"
+                  ? scenarios
+                  : scenarios.filter((scenario) => scenario.category === nextCategory);
+                setCategory(nextCategory);
+                if (!nextVisible.some((scenario) => scenario.id === selectedScenarioId)) {
+                  const nextScenario = nextVisible[0];
+                  if (nextScenario) selectScenario(nextScenario.id);
+                  else setSelectedScenarioId("");
+                }
+              }}
               className="max-w-full border border-book-border/70 bg-book-bg-paper px-2 py-1.5 text-xs"
             >
               <option value="all">{t("settingsAdmin.testCenter.allCategories")}</option>
-              {categories.map((item) => <option key={item} value={item}>{item}</option>)}
+              {categories.map((item) => <option key={item} value={item}>{categoryCopy(item)}</option>)}
             </select>
           </div>
           <div className="flex flex-col gap-1.5">
@@ -434,7 +658,7 @@ export const TestCenterPage: React.FC = () => {
                 key={scenario.id}
                 type="button"
                 aria-pressed={selectedScenarioId === scenario.id}
-                onClick={() => setSelectedScenarioId(scenario.id)}
+                onClick={() => selectScenario(scenario.id)}
                 className={`min-w-0 border-l-2 px-3 py-2.5 text-left transition-colors ${
                   selectedScenarioId === scenario.id
                     ? "border-book-primary bg-book-bg-paper"
@@ -443,7 +667,7 @@ export const TestCenterPage: React.FC = () => {
               >
                 <span className="block break-words text-xs font-medium">{scenarioCopy(scenario).title}</span>
                 <span className="mt-1 flex flex-wrap items-center gap-2 text-caption text-book-text-muted">
-                  <span>{scenario.category}</span>
+                  <span>{categoryCopy(scenario.category)}</span>
                   <span aria-hidden="true">·</span>
                   <span>{t(`settingsAdmin.testCenter.effect${scenario.effect[0].toUpperCase()}${scenario.effect.slice(1)}` as MessageKey)}</span>
                 </span>
@@ -458,12 +682,22 @@ export const TestCenterPage: React.FC = () => {
         </aside>
 
         <section className="min-w-0 p-4 md:p-6 xl:overflow-y-auto">
-          {selectedScenario ? (
+          {selectedRunId && !selectedRunDetail ? (
+            <div
+              role="status"
+              aria-busy={!selectedRunError}
+              className="flex min-h-64 items-center justify-center text-xs text-book-text-muted"
+            >
+              {selectedRunError
+                ? t("settingsAdmin.testCenter.runDetailUnavailable")
+                : <LoadingSpinner text={t("settingsAdmin.testCenter.loadingRun")} />}
+            </div>
+          ) : selectedScenario ? (
             <>
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-book-border/60 pb-4">
                 <div className="min-w-0">
                   <div className="mb-1 flex flex-wrap items-center gap-2 text-caption text-book-text-muted">
-                    <span>{selectedScenario.category}</span>
+                    <span>{categoryCopy(selectedScenario.category)}</span>
                     <span aria-hidden="true">·</span>
                     <span>{t(`settingsAdmin.testCenter.effect${selectedScenario.effect[0].toUpperCase()}${selectedScenario.effect.slice(1)}` as MessageKey)}</span>
                     <span>{t("settingsAdmin.testCenter.scenarioVersion", { version: selectedScenario.version })}</span>
@@ -472,14 +706,31 @@ export const TestCenterPage: React.FC = () => {
                   <p className="mt-1 max-w-3xl text-xs leading-5 text-book-text-sub">{scenarioCopy(selectedScenario).description}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  {detail && isActive(detail.summary.status) ? (
-                    <BookButton variant="warning" size="sm" disabled={busy} onClick={() => void cancelRun()}>
+                  {canCancelSelectedRun && selectedRunDetail ? (
+                    <BookButton
+                      variant="warning"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => void cancelRun(selectedRunDetail.summary.id)}
+                    >
                       <Square size={13} className="mr-1.5 inline" />{t("settingsAdmin.testCenter.cancelRun")}
                     </BookButton>
+                  ) : activeRunId ? (
+                    <BookButton size="sm" variant="secondary" disabled={busy} onClick={showActiveRun}>
+                      <ExternalLink size={13} className="mr-1.5 inline" />
+                      {t("settingsAdmin.testCenter.viewActiveRun")}
+                    </BookButton>
                   ) : (
-                    <BookButton size="sm" disabled={busy || !selectedScenario} onClick={() => void runScenario()}>
+                    <BookButton
+                      size="sm"
+                      disabled={busy
+                        || !selectedScenario
+                        || (!!selectedRunId && !selectedRunDetail)
+                        || (projectLoading && targetMode === "current_project")}
+                      onClick={() => void runScenario()}
+                    >
                       {busy ? <LoadingSpinner size="sm" /> : <Play size={13} className="mr-1.5 inline" />}
-                      {detail && detail.summary.scenario_id === selectedScenario.id
+                      {selectedRunDetail?.summary.scenario_id === selectedScenario.id
                         ? t("settingsAdmin.testCenter.rerun")
                         : t("settingsAdmin.testCenter.run")}
                     </BookButton>
@@ -591,12 +842,13 @@ export const TestCenterPage: React.FC = () => {
               ) : null}
 
               <RunResult
-                detail={detail?.summary.id === selectedRunId && detail.summary.scenario_id === selectedScenario.id ? detail : null}
+                detail={selectedRunDetail?.summary.scenario_id === selectedScenario.id ? selectedRunDetail : null}
                 statusLabel={statusLabel}
                 formatDuration={formatDuration}
                 locale={locale}
                 onOpenProject={openProject}
-                onDelete={() => detail && void removeRun(detail.summary)}
+                onDelete={() => selectedRunDetail && void removeRun(selectedRunDetail.summary)}
+                busy={busy}
                 t={t}
               />
             </>
@@ -626,8 +878,12 @@ export const TestCenterPage: React.FC = () => {
                     type="button"
                     aria-current={selectedRunId === run.id ? "true" : undefined}
                     onClick={() => {
-                      setSelectedScenarioId(run.scenario_id);
-                      setSelectedRunId(run.id);
+                      const scenario = scenarios.find((item) => item.id === run.scenario_id);
+                      if (scenario) {
+                        setCategory(scenario.category);
+                        selectScenario(scenario.id);
+                      }
+                      selectRun(run.id);
                     }}
                     className={`min-w-0 flex-1 px-2 py-2 text-left hover:bg-book-bg-paper ${selectedRunId === run.id ? "bg-book-bg-paper" : ""}`}
                   >
@@ -667,6 +923,7 @@ function RunResult({
   locale,
   onOpenProject,
   onDelete,
+  busy,
   t,
 }: {
   detail: TestRunDetail | null;
@@ -675,6 +932,7 @@ function RunResult({
   locale: Parameters<typeof formatDateTime>[1];
   onOpenProject: (projectId: number) => void;
   onDelete: () => void;
+  busy: boolean;
   t: ReturnType<typeof useI18n>["t"];
 }) {
   if (!detail) {
@@ -716,7 +974,12 @@ function RunResult({
             </BookButton>
           ) : null}
           {!isActive(summary.status) ? (
-            <BookIconButton label={t("settingsAdmin.testCenter.deleteRun")} size="sm" onClick={onDelete}>
+            <BookIconButton
+              label={t("settingsAdmin.testCenter.deleteRun")}
+              size="sm"
+              disabled={busy}
+              onClick={onDelete}
+            >
               <Trash2 size={13} />
             </BookIconButton>
           ) : null}
