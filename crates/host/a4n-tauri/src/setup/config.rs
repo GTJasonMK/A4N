@@ -5,14 +5,30 @@ use self::environment::apply_env_overrides;
 #[cfg(test)]
 use self::file_io::write_config_file;
 use self::file_io::{config_file_path, load_config_from_file};
-use a4n_config::app_config::{AppConfig, portable_home_dir};
+use a4n_config::app_config::{AppConfig, portable_home_dir, resolve_path_in_portable_home};
 use a4n_config::validate_postgres_database_url;
 use a4n_error::AppError;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
-pub(super) fn load_config(_app: &AppHandle) -> Result<AppConfig, AppError> {
-    let portable_home = portable_home_dir();
-    let default_config = AppConfig::default();
+pub(super) fn load_config(app: &AppHandle) -> Result<AppConfig, AppError> {
+    let portable_mode = a4n_config::optional_non_empty_env_path("A4N_PORTABLE_HOME")?.is_some()
+        || a4n_config::optional_non_empty_env_path("APPIMAGE")?.is_some();
+    let portable_home = if portable_mode {
+        portable_home_dir()
+    } else {
+        app.path()
+            .app_data_dir()
+            .map_err(|error| AppError::ConfigError(format!("解析应用数据目录失败：{error}")))?
+    };
+    let mut default_config = AppConfig::default();
+    if !portable_mode {
+        default_config.data_dir = a4n_config::optional_non_empty_env_path("A4N_DATA_DIR")?
+            .map(|path| resolve_path_in_portable_home(path, &portable_home))
+            .unwrap_or_else(|| portable_home.join("data"));
+        default_config.cache_dir = default_config.data_dir.join("cache");
+        default_config.temp_dir = default_config.data_dir.join("tmp");
+        default_config.log_dir = default_config.data_dir.join("logs");
+    }
     let config_path = config_file_path(&default_config, &portable_home)?;
     let mut config = load_config_from_file(default_config, &config_path, &portable_home)?;
 

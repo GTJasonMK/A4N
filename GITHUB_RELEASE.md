@@ -1,14 +1,47 @@
 # 源码检查与发布
 
-## 当前发布能力
+## 桌面端发布
 
-当前仓库只有 [Module Checks](.github/workflows/module-checks.yml) 和 [iOS IPA](.github/workflows/ios-ipa.yml) 两条 workflow。仓库没有自动创建 GitHub Release 的流水线；推送版本 tag 不会自动完成 Apple/Azure 签名、三平台发布或资产上传。
+[Desktop Release workflow](.github/workflows/release.yml) 为以下平台构建系统安装包：
 
-Module Checks 包含构建、测试、合同检查、供应链检查和平台打包 smoke。实际执行结果以对应 commit 的 CI 为准；测试包、未签名 IPA 与正式签名发布是不同交付物。
+- Windows x64：MSI
+- macOS Apple Silicon：DMG
+- Linux x64：deb、rpm
 
-## 提交源码
+工作流同时构建 Tauri updater 所需的签名更新资产和 `latest.json`。它会创建或更新 GitHub draft Release，并在校验后保留为草稿；维护者需在 GitHub Releases 页面审核并手动发布。桌面应用从 `crates/host/a4n-tauri/tauri.conf.json` 配置的地址读取已发布的更新清单。
 
-先按[贡献指南](CONTRIBUTING.md)完成相关验证，再逐项检查工作区：
+Release tag 必须与 `crates/host/a4n-tauri/Cargo.toml` 中 `a4n-tauri` 的版本一致，例如版本 `0.1.1` 对应 tag `v0.1.1`。运行工作流前，在仓库 Actions Secrets 中配置：
+
+- `TAURI_SIGNING_PRIVATE_KEY`：Tauri updater 私钥内容；不要提交到仓库。
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`：私钥设置了密码时填写。
+
+updater 公钥保存在 Tauri 配置中。正式构建缺少私钥会失败。工作流会用公钥验证 updater 签名，上传资产到 draft Release，再从 Release 下载资产并复验签名与 SHA-256。
+
+发布流程：
+
+1. 更新 `crates/host/a4n-tauri/Cargo.toml` 版本并提交发布改动。
+2. 推送匹配的 `vX.Y.Z` tag，或在 Desktop Release 中手动选择已存在的 tag。
+3. 审核 draft Release 中的安装包、更新清单和校验结果，然后在 GitHub 上手动发布。
+
+首期工作流未配置 Windows Authenticode，也未配置 Apple Developer ID 签名和公证。macOS 用户可能需要在 Gatekeeper 中批准应用，Windows 可能显示 SmartScreen 提示。Tauri updater 签名不等同于这些操作系统发行者信任检查。
+
+## 更新中的数据迁移
+
+工作流通过 `a4n-migration release-data-migrations` 生成 `data_migrations` 清单，迁移 crate 是该元数据的唯一来源。新增数据迁移时，需要同时登记名称、实现预检、完成状态检查和可重试的执行逻辑；发布清单与应用更新流程读取同一登记。
+
+有待执行的数据迁移时，应用会先检查活动生成任务并运行迁移预检，然后创建 PostgreSQL custom 格式备份到应用数据目录的 `update-backups/`。备份会通过 `pg_restore --list` 校验，并记录 SHA-256。此类更新要求 `PATH` 中有兼容的 `pg_dump` 和 `pg_restore`。系统保留最近两份已验证备份。更新失败时保留备份和恢复状态，不会自动覆盖数据库进行整库恢复。
+
+新版本启动时会先执行恢复状态中记录的数据迁移。迁移失败会保留恢复状态和备份，以便诊断或下次启动重试。纯 schema 更新不创建数据库备份。
+
+## 本地打包与云端部署
+
+`scripts/dev/build-tauri-bundle.sh` 用于开发和 CI 的原生 Tauri 打包；正式桌面安装包由 Desktop Release 工作流构建。`scripts/deploy.sh` 仍生成内部使用的便携包，不属于 GitHub 正式桌面发布渠道。
+
+云端部署仍由 [deploy-cloud.sh](scripts/deploy/deploy-cloud.sh) 和服务端包单独处理。不要用桌面安装包替换服务端部署归档。
+
+## 源码提交
+
+发布前按[贡献指南](CONTRIBUTING.md)完成相关验证，并检查工作区和 diff：
 
 ```bash
 git status --short
@@ -16,35 +49,4 @@ git diff --check
 git diff --stat
 ```
 
-只暂存已审阅的文件，尤其注意工作区中其他任务的改动。迁移登记与迁移文件、共享合同与生成物、脚本与其检查必须一起交付。不要提交环境凭据、数据库、日志、缓存、生成媒体或签名材料。
-
-暂存后检查 `git diff --cached --check` 和 `git diff --cached --stat`，再按仓库流程提交或创建 PR。文档是否被跟踪应使用 `git check-ignore -v PATH` 核实，不能仅凭文件存在判断。
-
-## 本地打包
-
-当前打包入口是 [scripts/deploy.sh](scripts/deploy.sh)，在开发工作树根目录运行；工作树要求见[贡献指南](CONTRIBUTING.md#并行工作树与集成基线)，首次环境准备见[源码运行指南](docs/public/getting-started.zh.md)：
-
-```bash
-./scripts/deploy.sh --help
-./scripts/deploy.sh --dry-run
-./scripts/deploy.sh
-./scripts/deploy.sh --no-build
-```
-
-脚本从 service/tool catalog 派生打包清单，产物为 `deploy/a4n-tauri-<version>-<platform>.tar.gz`。`--services export,video` 选择要分发的 sidecar；它不代表功能包权限或安装生命周期已经完整验收。`--target` 指定打包平台标识，跨平台编译仍须使用相应工具链和平台验证。
-
-iOS 构建与侧载限制见 [ios/README.md](ios/README.md)。云端部署由 [deploy-cloud.sh](scripts/deploy/deploy-cloud.sh)单独处理，不等同于 GitHub Release 发布。
-
-## 云端更新
-
-配置工作树的 `.deploy.env` 后运行 `./scripts/deploy/deploy-cloud.sh`。自动模式比较上次部署保存的源文件 SHA-256，覆盖已提交、未提交和删除的内容；旧部署记录缺少源文件快照时，首次更新会执行全量构建并建立基线。`--full` 可显式要求全量更新。
-
-云端 Rust 产物位于 `$CARGO_TARGET_DIR/deploy-cloud/target`，容器使用当前用户的 UID/GID，并以只读方式挂载源码。容器 Cargo 元数据位于相邻的 `cargo-home`；离线模式只读复用本机 `${CARGO_HOME:-$HOME/.cargo}` 的 registry/git 缓存。`CARGO_TARGET_DIR` 保持调用者设置，默认是当前工作树的 `target`。
-
-更新脚本后需先完成一次构建，再使用 `--skip-build` 复用新目录中的产物。云服务器仍应配置固定监听地址（默认 `127.0.0.1:8080`），供反向代理与健康检查访问。
-
-## 正式对外分发
-
-正式发布前，应从同一已验证 commit 构建，核对版本、完整性 manifest、SHA-256、所选服务和平台运行结果；签名与公证必须有该次产物的真实验证证据。平台工具与检查见 `scripts/checks/`，不要用其他版本的历史测试记录代替。
-
-需要自动 GitHub Release 时，先实现并审查发布 workflow、最小权限、签名凭据注入、失败时保留 draft 和下载后复验，再为其编写部署说明。当前没有固定的“12 个发布资产”或自动公开 draft 的保证，也不应按旧指南向不存在的流水线配置 secrets。
+不要提交 `.env`、数据库、日志、生成媒体、构建缓存或签名材料。确认文档是否被跟踪时使用 `git check-ignore -v PATH`，不要只根据文件存在与否判断。

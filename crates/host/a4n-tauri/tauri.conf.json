@@ -1,7 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-cli/schema.json",
   "productName": "A4N",
-  "version": "0.1.0",
   "identifier": "com.a4n.app",
   "build": {
     "frontendDist": "../../../frontend/dist",
@@ -31,11 +30,22 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": false,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkwRUQ0MkJCNEFDNTkyRUMKUldUc2tzVkt1MEx0a0VsQVJmUnZtQ2M1TThTTngxT1I0eVBKdlo1SzVJbENqQXF6VFdvRk5rNU8K",
+      "requireSignedVersion": true,
+      "endpoints": [
+        "https://github.com/GTJasonMK/A4N/releases/latest/download/latest.json"
+      ],
+      "windows": { "installMode": "passive" }
+    }
   }
 }

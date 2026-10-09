@@ -10,6 +10,7 @@ import {
 } from "react-router-dom";
 import { Activity, Moon, Network, Settings, Sun } from "lucide-react";
 import { extractErrorMessage } from "./api";
+import { checkForAppUpdate } from "./api/appUpdate";
 import { ToastContainer, useToast } from "./components/feedback/Toast";
 import { ErrorBoundary } from "./components/feedback/ErrorBoundary";
 import { ConfirmDialogHost } from "./components/feedback/ConfirmDialog";
@@ -204,11 +205,22 @@ function RouteContent() {
 function Layout({ children }: { children: React.ReactNode }) {
   const { initialized, user } = useAuthStore();
   const { addToast } = useToast();
+  const notifiedUpdateVersion = useRef<string | null>(null);
   const { isVisible: isPackageVisible, error: packagePreferencesError } = usePackagePreferences();
   useEffect(() => {
     if (packagePreferencesError) addToast(packagePreferencesError, "error");
   }, [addToast, packagePreferencesError]);
   const { locale, setLocale, t } = useI18n();
+  useEffect(() => {
+    void checkForAppUpdate()
+      .then((update) => {
+        if (update && notifiedUpdateVersion.current !== update.version) {
+          notifiedUpdateVersion.current = update.version;
+          addToast(t("settingsAbout.updateAvailable", { version: update.version }), "info");
+        }
+      })
+      .catch(() => undefined);
+  }, [addToast, t]);
   const location = useLocation();
   const navigate = useNavigate();
   const pageSession = usePageSession();

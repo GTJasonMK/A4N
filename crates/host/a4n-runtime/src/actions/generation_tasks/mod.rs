@@ -61,6 +61,15 @@ pub async fn list_active_generation_tasks(
         .await
 }
 
+pub async fn active_generation_task_count(state: &AppState) -> Result<usize, String> {
+    state
+        .generation_lifecycle_application()
+        .active_generation_tasks()
+        .await
+        .map(|tasks| tasks.len())
+        .map_err(|error| error.to_string())
+}
+
 pub async fn list_generation_task_history(
     state: &AppState,
     user_id: i64,

@@ -49,7 +49,7 @@ jobs:
       - name: Install build dependencies
         run: |
           brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
-          cargo install tauri-cli --version 2.11.0 --locked
+          cargo install tauri-cli --version 2.12.0 --locked
           npm ci --prefix frontend
 
       - name: Generate iOS project
@@ -63,7 +63,7 @@ jobs:
           mkdir -p artifacts/ios
           ipa="$(find crates/host/a4n-tauri/gen/apple -type f -name '*.ipa' -print -quit)"
           test -n "$ipa"
-          version="$(ruby -rjson -e 'puts JSON.parse(File.read("crates/host/a4n-tauri/tauri.conf.json")).fetch("version")')"
+          version="$(cargo metadata --no-deps --format-version 1 | ruby -rjson -e 'puts JSON.parse(STDIN.read).fetch("packages").find { |package| package.fetch("name") == "a4n-tauri" }.fetch("version")')"
           output="artifacts/ios/A4N-${version}-ios-arm64-unsigned.ipa"
           cp "$ipa" "$output"
           shasum -a 256 "$output" > artifacts/ios/SHA256SUMS

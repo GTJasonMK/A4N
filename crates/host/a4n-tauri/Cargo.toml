@@ -33,6 +33,7 @@ required-features = ["video-scrub-e2e-host"]
 
 [dependencies]
 tauri = { workspace = true }
+tauri-plugin-updater = "=2.12.0"
 serde = { workspace = true }
 serde_json = { workspace = true }
 parking_lot = { workspace = true }
@@ -44,6 +45,7 @@ a4n-config = { workspace = true }
 a4n-domain = { workspace = true }
 a4n-error = { workspace = true, features = ["database"], default-features = true }
 a4n-host-assembly = { workspace = true }
+a4n-migration = { workspace = true }
 a4n-media = { workspace = true }
 a4n-process-catalog = { workspace = true }
 a4n-worker-client = { workspace = true }
@@ -54,6 +56,10 @@ a4n-storage = { workspace = true }
 a4n-task-runtime = { workspace = true }
 uuid = { workspace = true }
 base64 = { workspace = true }
+chrono = { workspace = true }
+sha2 = { workspace = true }
+url = { workspace = true }
+percent-encoding = "2"
 
 # 异步
 tokio = { workspace = true, features = ["fs"] }
@@ -71,6 +77,7 @@ tracing-appender = "0.2"
 
 # 并发工具
 tokio-util = { workspace = true }
+fs2 = "0.4"
 
 [build-dependencies]
 tauri-build = { workspace = true }

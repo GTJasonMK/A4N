@@ -3,6 +3,17 @@ use sea_orm::{ConnectOptions, Database};
 const MIGRATION_THREAD_STACK_SIZE: usize = 8 * 1024 * 1024;
 
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("release-data-migrations") {
+        match serde_json::to_string(&a4n_migration::migrator::data_migration_names()) {
+            Ok(metadata) => println!("{metadata}"),
+            Err(error) => {
+                eprintln!("生成数据迁移发布元数据失败：{error}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+
     // Windows main threads default to a smaller stack than the baseline migration future needs.
     let result = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(1)
@@ -41,9 +52,21 @@ async fn run() -> Result<(), String> {
         .await
         .map_err(|err| format!("数据库迁移失败: {err}"))?;
 
-    let command = std::env::args().nth(1);
-    let subcommand = std::env::args().nth(2);
-    match command.as_deref() {
+    let args = std::env::args().skip(1).collect::<Vec<_>>();
+    let subcommand = args.get(1).map(String::as_str);
+    match args.first().map(String::as_str) {
+        Some("apply-data-migrations") => {
+            let data_dir = std::env::var_os("A4N_DATA_DIR")
+                .map(std::path::PathBuf::from)
+                .ok_or_else(|| "数据迁移 apply 需要设置 A4N_DATA_DIR".to_string())?;
+            let names = args.iter().skip(1).cloned().collect::<Vec<_>>();
+            if names.is_empty() {
+                return Err("数据迁移 apply 至少需要一个迁移名称".to_string());
+            }
+            a4n_migration::migrator::apply_data_migrations(&db, &data_dir, &names)
+                .await
+                .map_err(|error| format!("应用数据迁移失败：{error}"))?;
+        }
         Some("canvas-split") => match subcommand.as_deref() {
             Some("--preflight") => {
                 let report = a4n_migration::migrations::canvas_project_split::preflight(&db)
