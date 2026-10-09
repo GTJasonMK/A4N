@@ -10,6 +10,23 @@ const [novel, media, settings] = await Promise.all(["novel", "media", "settings"
 ));
 const byId = (...lists) => [...new Map(lists.flat().map((item) => [item.id, item])).values()];
 const runtime = JSON.parse(await readFile(new URL("./novel-runtime.json", import.meta.url), "utf8"));
+const normalizeMangaPagePrompts = (pages = []) => {
+  for (const page of pages) {
+    page.page_id ??= `page-${String(page.page_number).padStart(4, "0")}`;
+    page.orphaned ??= false;
+    page.page_content ??= null;
+    page.page_adaptation ??= null;
+    page.reference_discovery ??= null;
+    page.pipeline_error ??= null;
+    page.pipeline_stage ??= null;
+    page.pipeline_status ??= null;
+    page.stale_stages ??= [];
+    page.system_reference_images ??= [];
+    for (const binding of page.reference_bindings ?? []) {
+      binding.user_added_assets ??= [];
+    }
+  }
+};
 
 // Current script responses use stable director shot IDs; frozen media snapshots stay unchanged.
 for (const chapter of Object.values(media.byChapter)) {
@@ -62,18 +79,7 @@ export async function buildPageFixtures(baseUrl) {
   data.list_images_by_chapter = images;
   for (const [id, values] of Object.entries(data.byProject)) {
     if (id === "2") values.list_manga_pipeline_artifacts ??= [];
-    for (const page of values.list_manga_page_prompts ?? []) {
-      page.page_id ??= `page-${String(page.page_number).padStart(4, "0")}`;
-      page.orphaned ??= false;
-      page.page_content ??= null;
-      page.page_adaptation ??= null;
-      page.reference_discovery ??= null;
-      page.pipeline_error ??= null;
-      page.pipeline_stage ??= null;
-      page.pipeline_status ??= null;
-      page.stale_stages ??= [];
-      page.system_reference_images ??= [];
-    }
+    normalizeMangaPagePrompts(values.list_manga_page_prompts);
     if (id === "2" || id === "5") {
       values.get_media_authoring_workspace = authoringWorkspace(Number(id), id === "2" ? "manga" : "galgame", values.list_source_snapshot_chapters);
     }
@@ -93,6 +99,7 @@ export async function buildPageFixtures(baseUrl) {
     }
   }
   for (const [id, values] of Object.entries(data.byChapter)) {
+    normalizeMangaPagePrompts(values.list_manga_page_prompts);
     values.list_images_by_chapter = images.filter((image) => image.chapter_id === Number(id));
     values.get_chapter = data.list_chapters.find((chapter) => chapter.id === Number(id));
   }

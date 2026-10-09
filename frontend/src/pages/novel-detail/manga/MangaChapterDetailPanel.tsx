@@ -1154,9 +1154,9 @@ export function MangaChapterDetailPanel({
           </div>
         ) : (
           <>
-            <header className="shrink-0 border-b border-book-border/55 pb-3">
-              <div className="flex flex-wrap items-end gap-3">
-                <div className="min-w-0 flex-1 basis-64">
+            <header className={`shrink-0 border-b border-book-border/55 ${stageMode === "image_creation" ? "pb-2 sm:pb-3" : "pb-3"}`}>
+              <div className={`flex flex-wrap items-end ${stageMode === "image_creation" ? "gap-2 sm:gap-3" : "gap-3"}`}>
+                <div className={`min-w-0 flex-1 ${stageMode === "image_creation" ? "basis-0 sm:basis-64" : "basis-64"}`}>
                   <h2 className="truncate text-sm font-semibold text-book-text-main">
                     {chapterHeading(selectedChapter, t)}
                   </h2>
@@ -1164,7 +1164,7 @@ export function MangaChapterDetailPanel({
                     {[...chapterMeta, stageText].filter(Boolean).join(" · ")}
                   </p>
                 </div>
-                {mangaImageStatusMatchesWorkspaceStage(stageMode) && <div className="w-44 max-w-full">
+                {mangaImageStatusMatchesWorkspaceStage(stageMode) && <div className={`max-w-full ${stageMode === "image_creation" ? "w-36 sm:w-44" : "w-44"}`}>
                   <ImageSizeSelect
                     label={t("settingsForm.selectImageSize")}
                     value={imageSize}
@@ -1278,7 +1278,7 @@ export function MangaChapterDetailPanel({
 
               {notice ? (
                 <div
-                  className={`mt-3 flex items-start gap-2 rounded-xl border bg-book-bg-paper/50 px-2.5 py-2 text-xs ${noticeClass[notice.tone]}`}
+                  className={`flex items-start gap-2 rounded-xl border bg-book-bg-paper/50 px-2.5 text-xs ${stageMode === "image_creation" ? "mt-2 py-1.5 sm:mt-3 sm:py-2" : "mt-3 py-2"} ${noticeClass[notice.tone]}`}
                 >
                   <span className="mt-0.5 shrink-0">
                     {noticeIcon(notice.tone)}

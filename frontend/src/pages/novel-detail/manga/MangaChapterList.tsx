@@ -96,7 +96,7 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
       aria-describedby="comic-chapter-list-scroll-hint"
       className="a4n-media-sidebar-surface flex min-h-0 min-w-0 flex-col md:max-h-full md:overflow-hidden md:p-2"
     >
-      <div className="mb-2 flex shrink-0 items-baseline gap-2 px-1 md:px-2">
+      <div className={`flex shrink-0 items-baseline gap-2 px-1 md:px-2 ${workspaceStage === "image_creation" ? "mb-1 max-md:hidden" : "mb-2"}`}>
         <h2 className="text-xs font-semibold text-book-text-main">{t("novel.chapters")}</h2>
         <span className="text-small text-book-text-muted">{t("comic.chapterCount", { count: chapters.length })}</span>
       </div>
@@ -159,7 +159,7 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
                 onClick={() => onSelect(chapter)}
                 aria-current={isSelected ? "true" : undefined}
                 data-active={isSelected ? "1" : undefined}
-                className="a4n-sidebar-item min-w-[12rem] text-xs md:min-w-0"
+                className={`a4n-sidebar-item min-w-[12rem] text-xs md:min-w-0 ${workspaceStage === "image_creation" ? "max-md:!py-1.5" : ""}`}
               >
                 <div className="mb-1 truncate font-medium">
                   {t("comic.chapterNumber", { number: chapter.chapter_number })}

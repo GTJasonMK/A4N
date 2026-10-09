@@ -19,6 +19,12 @@ const timeline = '[aria-label="视频剪辑时间轴"]';
 const resultPane = 'section[aria-label="视频结果"]';
 
 const buttonText = text => $(`//button[normalize-space()=${JSON.stringify(text)}]`);
+async function visibleButtonText(text) {
+  for (const button of await $$(`//button[normalize-space()=${JSON.stringify(text)}]`)) {
+    if (await button.isDisplayed()) return button;
+  }
+  throw new Error(`Visible button not found: ${text}`);
+}
 const comicFixture = page => fixtures.byChapter[1].list_manga_page_prompts.find(row => row.page_number === page);
 
 async function ready() {
@@ -71,30 +77,27 @@ async function selectOption(trigger, label) {
 
 async function openComic(page = 1, view = "prompt", chapter = 1) {
   await openRoute("/comic-project/2");
-  const stageLabel = view === "image" ? "成图" : "页面提示词";
+  const stageId = view === "references" ? "visual_design" : "image_creation";
+  const stageLabel = view === "references" ? "分镜与参考图" : "提示词与成图";
   if (await browser.execute(() => innerWidth) < 640) {
     const select = await $('[role="combobox"][id="comic-stages-2-select"]');
     await select.click();
     const option = await $(`//*[@role="option" and contains(normalize-space(.), ${JSON.stringify(stageLabel)})]`);
     await option.waitForClickable();
     await option.click();
-    await ready();
   } else {
-    const stage = await $(`button[id="comic-stages-2-tab-${view === "image" ? "images" : "prompts"}"]`);
+    const stage = await $(`button[id="comic-stages-2-tab-${stageId}"]`);
+    await stage.waitForDisplayed();
     if (await stage.getAttribute("aria-selected") !== "true") await stage.click();
   }
-  const chapterButtons = await $('nav[aria-label="漫画章节"]').$$("ul > li > button");
+  await ready();
+  const chapterNav = $('nav[aria-label="漫画章节"]');
+  await chapterNav.waitForDisplayed({ timeout: 15_000 });
+  const chapterButtons = await chapterNav.$$("ul > li > button");
   assert.equal(chapterButtons.length, 3, "The comic audit needs all three source chapters");
   await chapterButtons[chapter - 1].click();
   await $('nav[aria-label="漫画页列表"]').waitForDisplayed();
   await selectComicPage(page);
-  const detailView = await buttonText(view === "image" ? "成图" : "提示词与参考图");
-  if (await detailView.isExisting()) await detailView.click();
-  if (view === "image") {
-    await browser.execute((selector) => {
-      document.querySelector(selector)?.scrollIntoView({ block: "center" });
-    }, `${comicPage} img`);
-  }
   await ready();
 }
 
@@ -638,11 +641,67 @@ const cases = [
     count: ['nav[aria-label="漫画页列表"] button', 6],
     note: "离开素材阶段后，角色档案、立绘和项目图片候选都应读取最新数据。",
   },
-  { id: "MC02", title: "漫画整页提示词与参考", task: "从选页进入提示词、角色参考与布局信息", open: () => openComic(), expected: ["参考图绑定", "林岚", "周衡"], count: ['nav[aria-label="漫画页列表"] button', 6], note: "检查章节状态、页状态与操作栏是否挤压正文。" },
-  { id: "MC03", title: "漫画提示词编辑", task: "修改提示词并确认保存入口及取消恢复", open: async () => { await openComic(); await openMenu(comicPrompt, "编辑提示词"); await $(`${comicPrompt} textarea`).addValue("\n审查草稿"); }, expected: ["保存", "取消"], after: async () => { await $(comicPrompt).$('.//button[normalize-space()="取消"]').click(); assert.equal(await $(`${comicPrompt} textarea`).isExisting(), false); return { cancelled: true }; }, note: "保留草稿取消，不触发下游写回。" },
-  { id: "MC04", title: "漫画缺失角色参考", task: "查看第4页缺失的角色绑定及候选", open: () => openComic(4), expected: ["参考图绑定", "周衡"], tail: '(//nav[@aria-label="漫画页列表"]/following-sibling::section/article//button[@role="combobox"])[last()]', note: "候选选择后的图像是否仍显示旧绑定，需要视觉复核。" },
-  { id: "MC05", title: "漫画成图", task: "阅读完整漫画页并查看尺寸", open: () => openComic(1, "image"), scope: comicPage, expected: ["漫画成图"], images: 1, note: "保留图像原比例，检查媒体区域与重复状态的比例。" },
-  { id: "MC06", title: "漫画灯箱", task: "完整查看纵图、放大并重置后返回页内", open: async () => { await openComic(1, "image"); await $(`${comicPage} img`).click(); await $(dialog).waitForDisplayed(); }, scope: dialog, images: 1, expected: ["100%"], after: async (record, width) => {
+  { id: "MC02", title: "漫画分镜与参考", task: "查看当前页的分镜布局与角色参考发现", open: () => openComic(1, "references"), expected: ["发现参考图", "林岚", "周衡"], count: ['nav[aria-label="漫画页列表"] button', 6], note: "检查章节状态、页状态与操作栏是否挤压正文。" },
+  { id: "MC03", title: "漫画提示词编辑", task: "修改提示词并确认保存入口及取消恢复", open: async () => { await openComic(); await (await visibleButtonText("编辑提示词")).click(); await $(`${comicPrompt} textarea`).addValue("\n审查草稿"); }, expected: ["保存", "取消"], after: async () => { await $(comicPrompt).$('.//button[normalize-space()="取消"]').click(); assert.equal(await $(`${comicPrompt} textarea`).isExisting(), false); return { cancelled: true }; }, note: "通过当前页的直接编辑按钮修改；保留草稿取消，不触发下游写回。" },
+  { id: "MC04", title: "漫画缺失角色参考", task: "查看第4页缺失的角色参考及候选", open: () => openComic(4, "references"), expected: ["发现参考图", "周衡"], tail: '(//nav[@aria-label="漫画页列表"]/following-sibling::section/article//button[@role="combobox"])[last()]', note: "候选选择后的图像是否仍显示旧绑定，需要视觉复核。" },
+  { id: "MC05", title: "漫画成图", task: "阅读完整漫画页并查看尺寸", open: () => openComic(1, "image"), scope: comicPage, expected: ["漫画成图"], after: async () => {
+    const initial = await browser.execute((selector) => {
+      const image = document.querySelector(selector);
+      if (!image) return null;
+      const bounds = image.getBoundingClientRect();
+      const rect = (element) => {
+        if (!element) return null;
+        const box = element.getBoundingClientRect();
+        return { top: Math.round(box.top), bottom: Math.round(box.bottom), height: Math.round(box.height) };
+      };
+      const visibleButton = (label) => [...document.querySelectorAll("button")].find((button) => {
+        const style = getComputedStyle(button);
+        return button.textContent.trim() === label && style.display !== "none" && style.visibility !== "hidden" && button.getClientRects().length > 0;
+      });
+      const scrollArea = image.closest(".overflow-y-auto");
+      return {
+        top: Math.round(bounds.top),
+        bottom: Math.round(bounds.bottom),
+        viewportHeight: innerHeight,
+        visibleHeight: Math.max(0, Math.min(bounds.bottom, innerHeight) - Math.max(bounds.top, 0)),
+        pageActions: {
+          edit: rect(visibleButton("编辑提示词")),
+          regenerate: rect(visibleButton("重新生成图片")),
+        },
+        scrollArea: scrollArea ? { ...rect(scrollArea), clientHeight: scrollArea.clientHeight, scrollHeight: scrollArea.scrollHeight, scrollTop: scrollArea.scrollTop } : null,
+        chapterRail: rect(document.querySelector('nav[aria-label="漫画章节"]')),
+        pageRail: rect(document.querySelector('nav[aria-label="漫画页列表"]')),
+        headers: [...document.querySelectorAll("header")].map((header) => ({ text: header.innerText.trim().slice(0, 64), ...rect(header) })),
+      };
+    }, `${comicPage} img`);
+    assert(initial, "The selected comic image must be present before scrolling");
+    assert(initial.pageActions.edit && initial.pageActions.regenerate, "The page-level edit and regenerate actions must remain available");
+    const actionsAfterImage = await browser.execute(() => innerWidth < 1280);
+    if (actionsAfterImage) {
+      assert(initial.pageActions.edit.top >= initial.bottom, "On narrow layouts, prompt editing follows the image preview");
+      assert(initial.pageActions.regenerate.top >= initial.bottom, "On narrow layouts, image regeneration follows the image preview");
+    } else {
+      assert(initial.pageActions.edit.top < initial.top, "On desktop, prompt editing remains in the page header");
+      assert(initial.pageActions.regenerate.top < initial.top, "On desktop, image regeneration remains in the page header");
+    }
+    const reachable = await reachByWheel(`${comicPage} img`, "y");
+    assert.equal(reachable.reached, true, "The page image must be reachable through its visible scroll area");
+    await browser.waitUntil(async () => browser.execute((selector) => {
+      const image = document.querySelector(selector);
+      return image?.complete === true && image.naturalWidth > 0;
+    }, `${comicPage} img`), { timeout: 5000, timeoutMsg: "The selected comic image must decode after scrolling into view" });
+    const decoded = await browser.execute((selector) => {
+      const image = document.querySelector(selector);
+      return { width: image.naturalWidth, height: image.naturalHeight };
+    }, `${comicPage} img`);
+    let pageActionsReachability = null;
+    if (actionsAfterImage) {
+      pageActionsReachability = await reachByWheel(await visibleButtonText("编辑提示词"), "y");
+      assert.equal(pageActionsReachability.reached, true, "The page-level actions must be reachable after the image preview");
+    }
+    return { initialImageBounds: initial, imageReachable: reachable.reached, reachability: reachable, pageActionsReachability, decoded };
+  }, note: "首张截图保留未滚动首屏，交互后再记录图片位置与实际可达性。" },
+  { id: "MC06", title: "漫画灯箱", task: "完整查看纵图、放大并重置后返回页内", open: async () => { await openComic(1, "image"); await browser.execute((selector) => { document.querySelector(selector)?.scrollIntoView({ block: "center" }); }, `${comicPage} img`); await $(`${comicPage} img`).click(); await $(dialog).waitForDisplayed(); }, scope: dialog, images: 1, expected: ["100%"], after: async (record, width) => {
     const geometry = () => browser.execute(() => {
       const image = document.querySelector('.a4n-image-lightbox-image');
       const stage = image.closest('.a4n-image-lightbox-stage').getBoundingClientRect();
@@ -652,6 +711,7 @@ const cases = [
       return {
         width: box.width, height: box.height,
         naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight,
+        objectFit: getComputedStyle(image).objectFit,
         scale: new DOMMatrixReadOnly(getComputedStyle(image).transform).a,
         insideStage: inside(stage), insideBody: inside(body),
       };
@@ -661,7 +721,7 @@ const cases = [
       assert(Math.abs(value.scale - 1) < 0.001, "The fitted view must be at 100% scale");
       assert.equal(value.insideStage, true, "The full portrait image must fit inside the stage at 100%");
       assert.equal(value.insideBody, true, "The modal body must not clip the portrait image at 100%");
-      assert(Math.abs(value.width / value.height - value.naturalWidth / value.naturalHeight) < 0.001, "The image aspect ratio must remain unchanged");
+      assert.equal(value.objectFit, "contain", "The image must keep its natural aspect ratio inside the stage");
     };
     const initial = await geometry();
     assertFit(initial);

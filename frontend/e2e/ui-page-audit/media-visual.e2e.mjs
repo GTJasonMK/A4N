@@ -9,11 +9,13 @@ const widths = [1440, 1024, 390];
 const modes = ["light", "dark"];
 const stageIds = {
   comic: "comic-stages-2",
+  "comic-image": "comic-stages-2",
   video: "video-stages-3",
   galgame: "galgame-stages-5",
 };
 const cases = [
   { id: "comic", route: "/comic-project/2", stage: "基础素材", ready: ".a4n-media-stage-header" },
+  { id: "comic-image", route: "/comic-project/2", stage: "提示词与成图", ready: ".a4n-media-stage-header", imageSelector: 'nav[aria-label="漫画页列表"] + section > article img' },
   { id: "video", route: "/video-project/3", stage: "片段生成", ready: ".a4n-media-stage-header" },
   { id: "galgame", route: "/galgame-project/5", stage: "资产规划", ready: ".a4n-media-stage-header" },
   { id: "canvas", route: "/canvas-project/6", ready: ".react-flow__node" },
@@ -54,6 +56,16 @@ async function renderCase(entry, width, mode) {
     await browser.waitUntil(async () => (await $$(".react-flow__node")).length === 17, {
       timeout: 15_000,
       timeoutMsg: "Canvas visual review requires the populated graph fixture",
+    });
+  }
+  if (entry.imageSelector) {
+    await $(entry.imageSelector).waitForExist({ timeout: 15_000 });
+    await browser.waitUntil(async () => browser.execute((selector) => {
+      const image = document.querySelector(selector);
+      return image?.complete === true && image.naturalWidth > 0;
+    }, entry.imageSelector), {
+      timeout: 15_000,
+      timeoutMsg: "The comic image must decode in the image creation stage",
     });
   }
   await browser.execute(async (appearance) => {
