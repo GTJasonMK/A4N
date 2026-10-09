@@ -65,7 +65,7 @@ export const PageSessionControlBar: React.FC<PageSessionControlBarProps> = ({ st
       aria-label={t("pageSession.ariaLabel")}
       aria-live="polite"
       data-page-session-busy={activityVisible ? "true" : undefined}
-      className="shrink-0 border-t border-book-border/65 bg-book-bg-paper/95 px-3 py-2 shadow-[0_-4px_18px_rgba(75,53,36,0.06)]"
+      className="shrink-0 border-t border-book-border/65 bg-book-bg-paper/95 px-3 py-2 shadow-[0_-4px_18px_rgba(27,39,37,0.06)]"
       data-page-session-status={status}
     >
       <div className="mx-auto flex min-w-0 max-w-[1400px] flex-wrap items-center gap-x-3 gap-y-1.5">

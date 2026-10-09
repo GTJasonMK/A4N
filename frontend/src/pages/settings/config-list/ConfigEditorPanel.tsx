@@ -75,7 +75,7 @@ export function ConfigEditorPanel<C>({
   return (
     <section
       className={`a4n-config-editor a4n-flat-surface flex min-h-0 min-w-0 flex-col overflow-visible p-3 sm:p-4 md:overflow-hidden ${
-        empty ? "min-h-[180px] self-start md:w-full" : ""
+        empty ? "min-h-[152px] self-start mx-auto w-full max-w-3xl" : ""
       }`}
     >
       {empty ? (
@@ -84,7 +84,7 @@ export function ConfigEditorPanel<C>({
             <LoadingSpinner size="sm" /> {t("common.loading")}
           </div>
         ) : (
-          <div className="a4n-empty-state min-h-[148px]">
+          <div className="a4n-empty-state min-h-[112px]">
             <Edit3 size={24} className="text-book-primary/30" />
             <p className="text-sm">
               {itemCount === 0 ? (

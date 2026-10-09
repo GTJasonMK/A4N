@@ -76,7 +76,7 @@
 
   .a4n-btn-danger {
     background: rgb(var(--status-error));
-    color: var(--color-white);
+    color: rgb(var(--color-button-text));
   }
 
   .a4n-btn-warning:hover:not(:disabled),

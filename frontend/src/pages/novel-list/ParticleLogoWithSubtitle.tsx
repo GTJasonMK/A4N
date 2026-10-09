@@ -59,8 +59,6 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
       startAnimation();
     };
 
-    const randomInsideCanvas = (span: number) => edgePadding + Math.random() * (span - edgePadding * 2);
-
     const keepParticleInsideCanvas = (p: Particle) => {
       const minX = edgePadding + p.size;
       const maxX = width - edgePadding - p.size;
@@ -146,17 +144,19 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
             const alpha = imageData.data[i + 3];
 
             if (alpha > 128) {
+              const targetX = logoOffsetX + x;
+              const targetY = logoOffsetY + y;
               const r = imageData.data[i];
               const g = imageData.data[i + 1];
               const b = imageData.data[i + 2];
 
               particles.push({
-                x: randomInsideCanvas(width),
-                y: randomInsideCanvas(height),
+                x: targetX,
+                y: targetY,
                 vx: 0,
                 vy: 0,
-                targetX: logoOffsetX + x,
-                targetY: logoOffsetY + y,
+                targetX,
+                targetY,
                 size: Math.random() * 1.5 + 1,
                 color: `rgba(${r}, ${g}, ${b}, 0.8)`,
               });

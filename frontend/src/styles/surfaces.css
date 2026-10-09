@@ -2,9 +2,9 @@
 
   /* 弹窗是唯一需要明显空间深度的表面。 */
   .dialog-backdrop {
-    background: rgb(44 24 16 / 0.32);
-    backdrop-filter: blur(8px) saturate(115%);
-    -webkit-backdrop-filter: blur(8px) saturate(115%);
+    background: rgb(0 0 0 / 0.42);
+    backdrop-filter: blur(6px) saturate(110%);
+    -webkit-backdrop-filter: blur(6px) saturate(110%);
     animation: a4n-dialog-backdrop-enter 160ms ease-out both;
   }
 

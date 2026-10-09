@@ -771,7 +771,7 @@ function drawNode(
 
   ctx.save();
   ctx.globalAlpha = related ? 1 : 0.52;
-  ctx.shadowColor = theme.isDark ? "rgba(0,0,0,0.32)" : "rgba(92,62,34,0.12)";
+  ctx.shadowColor = theme.isDark ? "rgba(0,0,0,0.32)" : "rgba(27,39,37,0.12)";
   ctx.shadowBlur = selected ? 12 : 4;
   ctx.shadowOffsetY = selected ? 3 : 1;
   roundRect(ctx, node.x, node.y, node.width, node.height, 6);
@@ -874,19 +874,19 @@ function readGraphTheme(): GraphTheme {
   const style = getComputedStyle(document.documentElement);
   return {
     isDark: document.documentElement.classList.contains("dark"),
-    primary: readCssRgbVariable(style, "--color-primary", [139, 69, 19]),
-    accent: readCssRgbVariable(style, "--color-accent", [160, 82, 45]),
-    bg: readCssRgbVariable(style, "--color-bg-primary", [249, 245, 240]),
-    paper: readCssRgbVariable(style, "--color-bg-secondary", [255, 251, 240]),
-    tertiary: readCssRgbVariable(style, "--color-bg-tertiary", [240, 235, 229]),
-    border: readCssRgbVariable(style, "--color-border", [215, 204, 200]),
-    borderDark: readCssRgbVariable(style, "--color-border-dark", [196, 192, 188]),
-    text: readCssRgbVariable(style, "--color-text-primary", [44, 24, 16]),
-    muted: readCssRgbVariable(style, "--color-text-tertiary", [109, 101, 96]),
-    subtle: readCssRgbVariable(style, "--color-text-disabled", [176, 168, 160]),
-    success: readCssRgbVariable(style, "--status-success", [74, 159, 110]),
-    warning: readCssRgbVariable(style, "--status-warning", [212, 146, 58]),
-    info: readCssRgbVariable(style, "--status-info", [74, 141, 179]),
+    primary: readCssRgbVariable(style, "--color-primary", [190, 65, 49]),
+    accent: readCssRgbVariable(style, "--color-accent", [29, 116, 108]),
+    bg: readCssRgbVariable(style, "--color-bg-primary", [242, 245, 244]),
+    paper: readCssRgbVariable(style, "--color-bg-secondary", [255, 255, 254]),
+    tertiary: readCssRgbVariable(style, "--color-bg-tertiary", [230, 236, 233]),
+    border: readCssRgbVariable(style, "--color-border", [198, 211, 207]),
+    borderDark: readCssRgbVariable(style, "--color-border-dark", [172, 190, 185]),
+    text: readCssRgbVariable(style, "--color-text-primary", [30, 37, 38]),
+    muted: readCssRgbVariable(style, "--color-text-tertiary", [99, 111, 108]),
+    subtle: readCssRgbVariable(style, "--color-text-disabled", [166, 176, 173]),
+    success: readCssRgbVariable(style, "--status-success", [33, 116, 83]),
+    warning: readCssRgbVariable(style, "--status-warning", [133, 84, 24]),
+    info: readCssRgbVariable(style, "--status-info", [42, 103, 131]),
   };
 }
 

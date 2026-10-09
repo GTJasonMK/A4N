@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { installUiFixtures } from "./fixtures.mjs";
 
-const directory = fileURLToPath(new URL("../../../.dev-runtime/ui-design-20260925/visual/", import.meta.url));
+const directory = fileURLToPath(new URL("../../../.dev-runtime/ui-design-20261010/visual/", import.meta.url));
 import { visualFixtures } from "./visual-fixtures.mjs";
 
 const cases = [
@@ -73,7 +73,7 @@ const measure = () => {
   };
 };
 
-describe("iOS visual coverage with the original palette", () => {
+describe("A4N visual coverage across themes and viewports", () => {
   before(async () => {
     await mkdir(directory, { recursive: true });
     await installUiFixtures(browser, visualFixtures);
@@ -126,7 +126,7 @@ describe("iOS visual coverage with the original palette", () => {
           }, mode);
           // Covers the 360ms transition/stagger window without waiting for media timelines.
           await browser.pause(450);
-          const file = `ios-20260925-${name}-${width}-${mode}`;
+          const file = `a4n-20261010-${name}-${width}-${mode}`;
           await browser.saveScreenshot(`${directory}/${file}.png`);
           const result = await browser.execute(measure);
           report.push({ name, route, mode, file: `${file}.png`, ...result });
@@ -176,7 +176,7 @@ describe("iOS visual coverage with the original palette", () => {
       assert.equal(result.draws.detached, 0);
       assert.ok(result.transition.split(",").every((duration) => parseFloat(duration) === 0));
       report.push({ name: "reduced-motion", ...result });
-      await browser.saveScreenshot(`${directory}/ios-20260925-reduced-motion.png`);
+      await browser.saveScreenshot(`${directory}/a4n-20261010-reduced-motion.png`);
     } finally {
       await browser.sendCommandAndGetResult("Emulation.setEmulatedMedia", { features: [] });
     }

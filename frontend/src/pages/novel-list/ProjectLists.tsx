@@ -238,13 +238,13 @@ const ProjectRow: React.FC<{
           </span>
           <div className="min-w-0 flex-1">
             <h3 className="text-base font-semibold text-book-text-main sm:text-lg">
-              <span className="block truncate">{project.title}</span>
+              <span className="block line-clamp-2 leading-snug sm:line-clamp-1">{project.title}</span>
             </h3>
             <p className="mt-1 truncate text-small text-book-text-muted">
               {project.owner_username} · {formatDate(project.updated_at, locale)}
             </p>
             <p
-              className="mt-1 break-words text-small text-book-text-sub sm:truncate"
+              className="mt-1 break-words text-small text-book-text-sub [word-break:keep-all] sm:truncate"
               title={progressText}
             >
               {projectMeta}
