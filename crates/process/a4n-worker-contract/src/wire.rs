@@ -123,6 +123,20 @@ impl<T> WorkerEnvelope<T> {
     }
 }
 
+pub fn validate_optional_project_scope(
+    scope_project_id: Option<i64>,
+    resource_project_id: i64,
+) -> Result<(), WorkerFailure> {
+    if resource_project_id <= 0
+        || scope_project_id.is_some_and(|scope| scope != resource_project_id)
+    {
+        return Err(WorkerFailure::invalid_request(
+            "worker scope project_id 与资源 project_id 不一致或无效",
+        ));
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct WorkerPrincipal {

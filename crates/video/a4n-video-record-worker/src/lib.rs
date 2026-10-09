@@ -18,6 +18,7 @@ use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
     WorkerCapability, WorkerEnvelope, WorkerFailure, WorkerHealth, WorkerHealthStatus,
+    validate_optional_project_scope,
 };
 use axum::{
     Json, Router,
@@ -359,18 +360,6 @@ fn validate_required_project_scope<T>(
             "worker scope project_id 与资源 project_id 不一致或无效",
         )
         .map(|_| ())
-}
-
-fn validate_optional_project_scope(
-    request_project_id: Option<i64>,
-    project_id: i64,
-) -> Result<(), WorkerFailure> {
-    if project_id <= 0 || request_project_id.is_some_and(|scope| scope != project_id) {
-        return Err(WorkerFailure::invalid_request(
-            "worker scope project_id 与资源 project_id 不一致或无效",
-        ));
-    }
-    Ok(())
 }
 
 fn positive(value: i64, field: &str) -> Result<i64, WorkerFailure> {

@@ -79,6 +79,21 @@ fn worker_project_scope_requires_positive_payload_matching_envelope() {
 }
 
 #[test]
+fn worker_optional_project_scope_allows_absent_scope_and_rejects_invalid_resource() {
+    assert!(validate_optional_project_scope(None, 7).is_ok());
+    assert!(validate_optional_project_scope(Some(7), 7).is_ok());
+
+    for (scope, project_id) in [(Some(8), 7), (Some(7), 0), (None, -1)] {
+        let error = validate_optional_project_scope(scope, project_id)
+            .expect_err("invalid or mismatched resource scope should fail");
+        assert_eq!(
+            error.message(),
+            "worker scope project_id 与资源 project_id 不一致或无效"
+        );
+    }
+}
+
+#[test]
 fn worker_failure_constructors_share_wire_error_semantics() {
     let cases = [
         (

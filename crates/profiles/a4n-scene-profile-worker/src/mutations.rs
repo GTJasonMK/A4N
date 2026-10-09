@@ -39,7 +39,7 @@ impl WorkerState {
     ) -> Result<SceneProfileMutationWorkerResult, WorkerFailure> {
         validate_request(&request, SCENE_PROFILE_CREATE_OPERATION)?;
         let project_id = request.payload.project_id;
-        validate_project_scope(&request, project_id)?;
+        validate_optional_project_scope(request.project_id, project_id)?;
         let user_id = user_id(&request)?;
         self.verify_editor(project_id, user_id).await?;
         let record = a4n_domain::scene_profile::normalize_scene_profile_record_input(
@@ -74,7 +74,7 @@ impl WorkerState {
         )
         .await
         .map_err(scene_profile_error)?;
-        validate_project_scope(&request, existing.project_id)?;
+        validate_optional_project_scope(request.project_id, existing.project_id)?;
         self.verify_editor(existing.project_id, user_id).await?;
         let image_ids = self
             .scene_image_ids(existing.project_id, existing.id)
@@ -127,7 +127,7 @@ impl WorkerState {
         )
         .await
         .map_err(scene_profile_error)?;
-        validate_project_scope(&request, existing.project_id)?;
+        validate_optional_project_scope(request.project_id, existing.project_id)?;
         self.verify_editor(existing.project_id, user_id).await?;
         let downstream_image_ids = resolve_downstream_image_ids(
             self.scene_image_ids(existing.project_id, existing.id)
