@@ -32,7 +32,7 @@ use a4n_error::AppError;
 use a4n_worker_contract::{
     AGENT_HOST_COMMAND_OPERATION, AGENT_RUN_OPERATION, AGENT_WORKER_AUTH_HEADER,
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
-    WorkerCapability, WorkerEnvelope, WorkerHealth, WorkerHealthStatus, WorkerPrincipalKind,
+    WorkerCapability, WorkerEnvelope, WorkerHealth, WorkerHealthStatus,
 };
 use anyhow::anyhow;
 use axum::{
@@ -275,16 +275,7 @@ fn validate_user_request(
     operation: &str,
 ) -> Result<i64, WorkerFailure> {
     request.validate_worker_command(operation, "agent-worker", "agent worker")?;
-    if request.principal.kind != WorkerPrincipalKind::User {
-        return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
-    }
-    request
-        .principal
-        .subject
-        .parse::<i64>()
-        .ok()
-        .filter(|id| *id > 0)
-        .ok_or_else(|| WorkerFailure::unauthorized("用户 principal subject 无效"))
+    request.principal.require_user_id()
 }
 
 fn decode_payload<T: DeserializeOwned>(payload: Value) -> Result<T, AppError> {

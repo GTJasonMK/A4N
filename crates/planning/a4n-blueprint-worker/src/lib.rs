@@ -220,16 +220,7 @@ fn validate_project_scope<T>(
 }
 
 fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    if request.principal.kind != a4n_worker_contract::WorkerPrincipalKind::User {
-        return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
-    }
-    request
-        .principal
-        .subject
-        .parse::<i64>()
-        .ok()
-        .filter(|id| *id > 0)
-        .ok_or_else(|| WorkerFailure::unauthorized("用户 principal subject 无效"))
+    request.principal.require_user_id()
 }
 
 fn project_mutation_error(error: a4n_db::project::ProjectMutationError) -> WorkerFailure {

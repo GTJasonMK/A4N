@@ -46,13 +46,7 @@ fn validate_user_request<T: serde::Serialize>(
 }
 
 fn user_id<T: serde::Serialize>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    request
-        .principal
-        .subject
-        .parse::<i64>()
-        .ok()
-        .filter(|id| *id > 0)
-        .ok_or_else(|| WorkerFailure::unauthorized("用户 principal subject 无效"))
+    request.principal.parse_user_id()
 }
 
 fn positive_id(value: i64) -> Result<i64, WorkerFailure> {

@@ -223,13 +223,7 @@ fn scoped_project_id<T>(
 }
 
 fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    request
-        .principal
-        .subject
-        .parse::<i64>()
-        .ok()
-        .filter(|id| *id > 0)
-        .ok_or_else(|| WorkerFailure::unauthorized("用户 principal subject 无效"))
+    request.principal.parse_user_id()
 }
 
 fn service_principal<T>(request: &WorkerEnvelope<T>) -> Result<(), WorkerFailure> {

@@ -272,16 +272,7 @@ fn validate_required_project_scope(
 }
 
 fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    if request.principal.kind != a4n_worker_contract::WorkerPrincipalKind::User {
-        return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
-    }
-    request
-        .principal
-        .subject
-        .parse::<i64>()
-        .ok()
-        .filter(|id| *id > 0)
-        .ok_or_else(|| WorkerFailure::unauthorized("用户 principal subject 无效"))
+    request.principal.require_user_id()
 }
 
 fn scene_profile_summary(

@@ -1,5 +1,5 @@
 use super::{CHAPTER_CONTENT_WORKER_ID, errors::WorkerFailure};
-use a4n_worker_contract::{WorkerEnvelope, WorkerPrincipalKind};
+use a4n_worker_contract::WorkerEnvelope;
 
 pub(super) fn validate_request<T: serde::Serialize>(
     request: &WorkerEnvelope<T>,
@@ -15,16 +15,7 @@ pub(super) fn validate_request<T: serde::Serialize>(
 pub(super) fn user_id<T: serde::Serialize>(
     request: &WorkerEnvelope<T>,
 ) -> Result<i64, WorkerFailure> {
-    if request.principal.kind != WorkerPrincipalKind::User {
-        return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
-    }
-    request
-        .principal
-        .subject
-        .parse::<i64>()
-        .ok()
-        .filter(|id| *id > 0)
-        .ok_or_else(|| WorkerFailure::unauthorized("用户 principal subject 无效"))
+    request.principal.require_user_id()
 }
 
 pub(super) fn positive(field: &str, value: i64) -> Result<i64, WorkerFailure> {

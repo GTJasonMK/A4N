@@ -116,6 +116,21 @@ impl WorkerPrincipal {
     pub fn validate(&self) -> Result<(), WorkerContractError> {
         validate_non_blank("principal.subject", &self.subject)
     }
+
+    pub fn require_user_id(&self) -> Result<i64, WorkerFailure> {
+        if self.kind != WorkerPrincipalKind::User {
+            return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
+        }
+        self.parse_user_id()
+    }
+
+    pub fn parse_user_id(&self) -> Result<i64, WorkerFailure> {
+        self.subject
+            .parse::<i64>()
+            .ok()
+            .filter(|id| *id > 0)
+            .ok_or_else(|| WorkerFailure::unauthorized("用户 principal subject 无效"))
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]

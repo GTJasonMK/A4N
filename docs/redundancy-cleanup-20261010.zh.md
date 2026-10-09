@@ -3,12 +3,12 @@
 ## 范围与方法
 
 - 工作分支：`agent/redundancy-cleanup-20261010`，基线 `debug@3f6a2408c9e78c4719259e77d5443f2befdd8fda`。
-- 建立分支本地 CodeGraph 索引后持续同步；当前索引覆盖 6,242 个文件、86,254 个符号、275,881 条边，状态为 up to date。
+- 建立分支本地 CodeGraph 索引后持续同步；当前索引覆盖 6,242 个文件、86,257 个符号、275,825 条边，状态为 up to date。
 - 从 `a4n-server`、Tauri 本地 Server、`a4n-component-host`、Worker/Sidecar catalog、Axum route 注册、`a4n-control` 动态 command 分派和 `frontend/src/App.tsx` 路由入口追踪生产调用与注册点。前端索引包含 444 个 TS 和 318 个 TSX 文件。
 - 基线 Cargo workspace 有 213 个 crate manifest；本次增加 runtime crate 后共 214 个。`cargo metadata` 核对了 Worker 对共享配置/runtime crate 的依赖。静态搜索补查脚本启动、环境变量、历史迁移、测试 fixture、生成合同脚本和运行时路由字符串。
 - 检查了 `#[allow(dead_code)]`、兼容/legacy 命名、候选无入边符号、Cargo 直接依赖和可复用的前端格式工具。
 
-CodeGraph 当前索引仍有 87 条 unresolved references，跨 crate helper 导入和部分动态/宏式 route 注册未必能形成完整调用边；例如共享 runtime helper 的包外调用需要用静态搜索复核。所有本批跨 crate helper 消费者均经源码搜索确认，并由 workspace 或对应 crate 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
+CodeGraph 当前索引仍有 96 条 unresolved references，跨 crate helper 导入和部分动态/宏式 route 注册未必能形成完整调用边；例如共享 runtime helper 的包外调用需要用静态搜索复核。所有本批跨 crate helper 消费者均经源码搜索确认，并由 workspace 或对应 crate 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
 
 本记录说明实际检查的入口和结果，不声称仅凭静态分析证明了所有运行环境、外部调用者、反射或部署配置均无遗漏。未对所有产品模块做逐函数人工审阅，也未运行浏览器端到端流程。
 
@@ -133,6 +133,15 @@ CodeGraph 当前索引仍有 87 条 unresolved references，跨 crate helper 导
 - runtime 单测覆盖缺失 header、匹配/不匹配，以及有效 header 的非 ASCII token bytes；Worker/runtimes 的 all-targets 编译和 cargo-machete 校验依赖清理。
 - 记录文件：`crates/process/a4n-worker-runtime/{Cargo.toml,src/lib.rs}`、27 个 raw-byte Worker authorizer/Cargo manifest，以及 `Cargo.lock`。
 
+### R-15：集中 Worker user principal ID 解析
+
+- 类别：重复身份解析与 principal 类型检查。
+- BFS 从 26 个 Worker 的 route/command 校验进入本地 `user_id` helper，追踪每条路径的 principal kind 限制、subject 解析和后续权限查询；CodeGraph 探查 `WorkerEnvelope`/`WorkerPrincipal` 关系，静态搜索复核所有 helper 调用。重复实现分成两种已验证语义：21 个 Worker helper 同时要求 `User` kind 并解析正整数 subject；5 个 helper 仅解析 subject，因为上游 `validate_user_request`、`validate_request` 或固定 User operation 已先校验 kind。Agent user command 另有一条内联的相同强校验。
+- `WorkerPrincipal::require_user_id` 集中 User kind 与正整数检查；`WorkerPrincipal::parse_user_id` 只负责正整数 subject 解析，供已完成 kind 校验的路径调用。21 个 helper 与 Agent command 改为前者的薄转发，5 个 parse-only helper 改为后者的薄转发；Unauthorized 错误码、不可重试标志和原消息保持一致。
+- Admin caller 还需绑定 payload caller ID 并输出专属错误；Artifact Media 使用独立协议与错误字符串；Agent run result 的 `id.parse::<i64>()` 解析运行时记录 ID，不是 principal。三项均保留。
+- 新增 contract 单测覆盖 User、Service、正整数 subject 和零 ID 边界；contract 49 项通过，受影响 Worker/runtime 的 all-targets 检查通过，无警告。
+- 记录文件：`crates/process/a4n-worker-contract/{src/wire.rs,src/wire_tests.rs}`、26 个 Worker 的 `user_id` helper 和 Agent user-command 校验。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -149,7 +158,8 @@ CodeGraph 当前索引仍有 87 条 unresolved references，跨 crate helper 导
 - `cargo check --all-targets --locked --offline -p a4n-worker-runtime -p a4n-portrait-worker`：通过，覆盖共享 helper 与 Portrait 的 state-capturing 闭包适配。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-runtime --lib`：1/1 通过，覆盖未授权短路、成功响应元数据和失败 wire 映射。
 - R-14 `cargo check --all-targets --locked --offline`：`a4n-worker-runtime` 与 27 个 raw-byte authorizer 消费 Worker 通过，无警告；`timeout 60s cargo test --locked --offline -p a4n-worker-runtime --lib`：2/2 通过，覆盖 token bytes 和 command response 路径。
-- `timeout 60s cargo test --locked --offline -p a4n-worker-contract --lib`：48/48 通过，覆盖共享失败构造、响应元数据、请求身份校验和 wire 序列化。
+- R-15 `cargo check --all-targets --locked --offline`：`a4n-worker-contract`、runtime 和 26 个 Worker 消费者通过，无警告；contract 测试 49/49 通过。
+- `timeout 60s cargo test --locked --offline -p a4n-worker-contract --lib`：49/49 通过，覆盖共享失败构造、响应元数据、请求身份校验、principal ID 边界和 wire 序列化。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-client --lib`：14/14 通过，覆盖共享传输与响应错误映射。
 - `cargo check --locked --offline -p a4n-worker-runtime -p a4n-service-manager -p a4n-server -p a4n-tauri`：通过，验证共享父进程退出信号 helper 的三个集成点和更新后的 lockfile。
 - `timeout 60s cargo test --locked --offline -p a4n-config worker_listen_addr_requires_loopback_and_nonzero_port --lib`：1/1 通过。

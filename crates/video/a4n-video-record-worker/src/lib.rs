@@ -18,7 +18,6 @@ use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
     WorkerCapability, WorkerEnvelope, WorkerFailure, WorkerHealth, WorkerHealthStatus,
-    WorkerPrincipalKind,
 };
 use axum::{
     Json, Router,
@@ -346,17 +345,8 @@ fn validate_request<T: serde::Serialize>(
     request.validate_worker_command(operation, VIDEO_RECORD_WORKER_ID, "video record worker")
 }
 
-fn user_id<T: serde::Serialize>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    if request.principal.kind != WorkerPrincipalKind::User {
-        return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
-    }
-    request
-        .principal
-        .subject
-        .parse::<i64>()
-        .ok()
-        .filter(|id| *id > 0)
-        .ok_or_else(|| WorkerFailure::unauthorized("用户 principal subject 无效"))
+fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
+    request.principal.require_user_id()
 }
 
 fn validate_required_project_scope<T>(

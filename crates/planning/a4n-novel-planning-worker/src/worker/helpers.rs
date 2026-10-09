@@ -75,17 +75,7 @@ pub(super) fn validate_optional_target_revision<T>(
 }
 
 pub(super) fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    if request.principal.kind != a4n_worker_contract::WorkerPrincipalKind::User {
-        return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
-    }
-    let user_id = request
-        .principal
-        .subject
-        .parse::<i64>()
-        .ok()
-        .filter(|id| *id > 0)
-        .ok_or_else(|| WorkerFailure::unauthorized("用户 principal subject 无效"))?;
-    Ok(user_id)
+    request.principal.require_user_id()
 }
 
 pub(super) async fn resolve_source(

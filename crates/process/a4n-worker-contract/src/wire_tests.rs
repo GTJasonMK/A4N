@@ -102,6 +102,36 @@ fn worker_failure_constructors_share_wire_error_semantics() {
 }
 
 #[test]
+fn worker_principal_user_id_validation_preserves_kind_and_parse_boundaries() {
+    let user = WorkerPrincipal {
+        kind: WorkerPrincipalKind::User,
+        subject: "42".into(),
+    };
+    assert_eq!(user.require_user_id().expect("user ID"), 42);
+    assert_eq!(user.parse_user_id().expect("parsed ID"), 42);
+
+    let service = WorkerPrincipal {
+        kind: WorkerPrincipalKind::Service,
+        subject: "42".into(),
+    };
+    assert_eq!(service.parse_user_id().expect("numeric subject"), 42);
+    let error: WorkerError = service
+        .require_user_id()
+        .expect_err("service is not a user")
+        .into();
+    assert_eq!(error.code, WorkerErrorCode::Unauthorized);
+    assert_eq!(error.message, "仅允许用户 principal");
+
+    let zero = WorkerPrincipal {
+        kind: WorkerPrincipalKind::User,
+        subject: "0".into(),
+    };
+    let error: WorkerError = zero.parse_user_id().expect_err("zero user ID").into();
+    assert_eq!(error.code, WorkerErrorCode::Unauthorized);
+    assert_eq!(error.message, "用户 principal subject 无效");
+}
+
+#[test]
 fn worker_responses_share_canonical_command_metadata() {
     let request = valid_envelope();
     let completed = WorkerResponse::completed_for(&request, serde_json::json!({"ok": true}));
