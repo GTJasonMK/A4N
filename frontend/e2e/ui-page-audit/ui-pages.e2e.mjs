@@ -10,7 +10,14 @@ const phase = process.env.A4N_UI_PAGE_PHASE ?? "current";
 describe("Individual page workflows", () => {
   before(async () => {
     await mkdir(output, { recursive: true });
-    await installUiFixtures(browser, visualFixtures);
+    const fixtures = structuredClone(visualFixtures);
+    const canvasProject = fixtures.projectRecords.find((project) => project.id === 6);
+    assert.ok(canvasProject, "画布项目 fixture is required");
+    canvasProject.project_kind = "canvas";
+    canvasProject.project_type = "canvas";
+    fixtures.get_canvas_graph.graph.graph_kind = "video_studio";
+    fixtures.list_canvas_text_assets = [];
+    await installUiFixtures(browser, fixtures);
   });
 
   afterEach(async function () {
@@ -24,7 +31,7 @@ describe("Individual page workflows", () => {
 
   it("X01-desktop-node-library lets keyboard users add a node", async () => {
     await browser.setWindowSize(1440, 1000);
-    await browser.url("/video-project/6/studio");
+    await browser.url("/canvas-project/6");
     await $(".react-flow__node").waitForDisplayed();
     const count = (await $$(".react-flow__node")).length;
     const template = await $('button[draggable="true"]');
@@ -37,7 +44,7 @@ describe("Individual page workflows", () => {
 
   it("X02-tablet-properties keeps selected node properties reachable at 1024px", async () => {
     await browser.setWindowSize(1024, 1000);
-    await browser.url("/video-project/6/studio");
+    await browser.url("/canvas-project/6");
     const node = await $('.react-flow__node[data-id="1"]');
     await node.waitForDisplayed();
     await node.click();

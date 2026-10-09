@@ -508,9 +508,13 @@ jobs:
           echo "$qdrant_pid" >"$GITHUB_WORKSPACE/artifacts/qdrant/pid"
           trap 'kill "$qdrant_pid" 2>/dev/null || true; wait "$qdrant_pid" 2>/dev/null || true' EXIT
           wait_for_qdrant "$qdrant_pid" "$qdrant_log"
-          A4N_JWT_SECRET="$(openssl rand -hex 32)" \
-            ./scripts/checks/smoke-macos-tauri-bundle.sh \
+          export A4N_JWT_SECRET="$(openssl rand -hex 32)"
+          ./scripts/checks/smoke-macos-tauri-bundle.sh \
             target/aarch64-apple-darwin/release/bundle/macos/A4N.app
+          A4N_WDIO_APP_BINARY="$GITHUB_WORKSPACE/target/aarch64-apple-darwin/release/bundle/macos/A4N.app" \
+            python3 scripts/tests/run_test_matrix.py \
+            --profile tauri-functional \
+            --report-dir artifacts/tauri-functional-e2e
 
       - name: Package unsigned macOS executable bundle
         run: |
@@ -545,6 +549,8 @@ jobs:
           path: |
             artifacts/macos-package
             artifacts/macos-tauri-smoke
+            artifacts/tauri-functional-e2e
+            data/tauri-generation-e2e
             artifacts/qdrant
           retention-days: 30
 

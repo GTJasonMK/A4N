@@ -17,6 +17,7 @@
     "test:browser-llm-cache": "env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy NO_PROXY=localhost,127.0.0.1 node e2e/llm-cache/check.mjs",
     "test:browser-video-scrub": "wdio run ./e2e/video-scrub/wdio.conf.mjs",
     "test:browser-ui-presentation": "wdio run ./e2e/ui-presentation/wdio.conf.mjs",
+    "test:browser-ui-functional": "wdio run ./e2e/ui-page-audit/functional.conf.mjs",
     "test:browser-full-project": "wdio run ./e2e/full-project/wdio.conf.mjs",
     "test:browser-package-lifecycle": "wdio run ./e2e/full-project/wdio.conf.mjs --spec ./e2e/package-lifecycle/package-lifecycle.e2e.mjs",
     "test:tauri-generation": "wdio run ./e2e/tauri-generation/wdio.conf.mjs",

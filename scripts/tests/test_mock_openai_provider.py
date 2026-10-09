@@ -83,6 +83,32 @@ class MockOpenAIProviderTest(unittest.TestCase):
             self.assertEqual(value["is_complete"], round_number == 3)
             messages.append({"role": "assistant", "content": response})
 
+    def test_slow_lifecycle_fixture_echoes_tauri_flow_marker(self) -> None:
+        prompt = "A4N_TAURI_GENERATION_INPUT:123"
+        marker = "A4N_TAURI_GENERATION_REPLY:123"
+        _, response = self.request_json(
+            "/v1/chat/completions",
+            {
+                "model": "a4n-llm-lifecycle-slow",
+                "messages": [
+                    {"role": "system", "content": "小说概念大师·文思"},
+                    {"role": "user", "content": prompt},
+                ],
+            },
+        )
+        inspiration = json.loads(response["choices"][0]["message"]["content"])
+        self.assertTrue(inspiration["ai_message"].startswith(marker))
+        self.assertEqual(inspiration["ui_control"]["type"], "inspired_options")
+
+        _, response = self.request_json(
+            "/v1/chat/completions",
+            {
+                "model": "a4n-llm-lifecycle-slow",
+                "messages": [{"role": "user", "content": prompt}],
+            },
+        )
+        self.assertTrue(response["choices"][0]["message"]["content"].startswith(marker))
+
     def test_blueprint_refinement_is_not_routed_by_inspiration_history(self) -> None:
         from mock_openai.fixtures.story import inspiration_response
 

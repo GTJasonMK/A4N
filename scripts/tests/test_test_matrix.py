@@ -78,13 +78,27 @@ class TestMatrixTest(unittest.TestCase):
         self.assertNotIn("affected-rust-integration", nightly)
         self.assertNotIn("rust-service-protocol", nightly)
         self.assertIn("frontend-browser-helpers", fast)
+        self.assertNotIn("browser-ui-functional", fast)
         self.assertIn("rust-workspace", nightly)
+        self.assertIn("browser-ui-functional", nightly)
+        self.assertIn("browser-ui-functional", nightly_quick)
         self.assertIn("browser-canvas", nightly_quick)
         self.assertNotIn("rust-workspace", nightly_quick)
         self.assertNotIn("creation-e2e", nightly_quick)
         self.assertEqual(len(nightly), len(set(nightly)))
         self.assertTrue({"core-boundaries", "worker-isolation"}.issubset(full))
         self.assertEqual(len(full), len(set(full)))
+
+    def test_feature_workflows_are_in_nightly_and_creation_e2e_runs_browser_flows(self) -> None:
+        matrix = load_matrix()
+        nightly = selected_suites(matrix, "nightly", [])
+        quick = selected_suites(matrix, "nightly-quick", [])
+        creation = matrix["suites"]["creation-e2e"]["command"]
+        self.assertIn("browser-ui-functional", nightly)
+        self.assertIn("browser-ui-functional", quick)
+        self.assertNotIn("tauri-functional", nightly)
+        self.assertEqual(selected_suites(matrix, "tauri-functional", []), ["tauri-functional"])
+        self.assertIn("--browser-feature-flows", creation)
 
     def test_rejects_profile_inheritance_cycles(self) -> None:
         matrix = {

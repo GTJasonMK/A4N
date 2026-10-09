@@ -130,6 +130,16 @@
       ],
       "timeout_seconds": 900
     },
+    "browser-ui-functional": {
+      "command": [
+        "npm",
+        "--prefix",
+        "frontend",
+        "run",
+        "test:browser-ui-functional"
+      ],
+      "timeout_seconds": 1800
+    },
     "rust-workspace": {
       "command": [
         "python3",
@@ -158,9 +168,14 @@
         "python3",
         "scripts/tests/run_creation_e2e.py",
         "--stage",
-        "all"
+        "all",
+        "--browser-feature-flows"
       ],
-      "timeout_seconds": 10800
+      "timeout_seconds": 14100
+    },
+    "tauri-functional": {
+      "command": ["python3", "scripts/tests/run_tauri_generation_e2e.py"],
+      "timeout_seconds": 1200
     },
     "core-boundaries": {
       "command": ["bash", "scripts/checks/check-core-boundary.sh"],
@@ -197,6 +212,7 @@
       "exclude": ["affected-rust-integration", "rust-service-protocol"],
       "suites": [
         "browser-canvas",
+        "browser-ui-functional",
         "rust-workspace",
         "creation-e2e"
       ]
@@ -204,6 +220,9 @@
     "nightly-quick": {
       "extends": "nightly",
       "exclude": ["rust-workspace", "creation-e2e"]
+    },
+    "tauri-functional": {
+      "suites": ["tauri-functional"]
     },
     "full": {
       "extends": "nightly",
