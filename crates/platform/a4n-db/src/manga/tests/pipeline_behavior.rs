@@ -1,6 +1,10 @@
-use a4n_db_models::models::chapter::{
-    chapter,
-    chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE},
+use a4n_db_models::models::{
+    ai::generated_image,
+    chapter::{
+        chapter,
+        chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE},
+    },
+    task::cleanup_outbox,
 };
 use a4n_domain::manga::{
     MangaPagePromptSyncDraft, MangaPipelineArtifactDraft, MangaPipelineArtifactStage,
@@ -11,10 +15,12 @@ use sea_orm::{
 use serde_json::json;
 
 use crate::manga::{
-    MangaPipelineDbError, delete_manga_pipeline_artifact, manga_page_prompt_statuses_by_chapter,
-    manga_page_prompt_statuses_by_chapters, manga_pipeline_artifact_deletion_plan,
-    manga_pipeline_artifacts_by_chapter, sync_manga_page_prompts_by_chapter,
-    update_manga_page_prompt_layout, upsert_manga_pipeline_artifact,
+    MangaPipelineArtifactProjectionReset, MangaPipelineDbError, delete_manga_page_by_number,
+    delete_manga_pipeline_artifact, delete_manga_prompts_by_chapter,
+    manga_page_prompt_statuses_by_chapter, manga_page_prompt_statuses_by_chapters,
+    manga_pipeline_artifact_deletion_plan, manga_pipeline_artifacts_by_chapter,
+    sync_manga_page_prompts_by_chapter, update_manga_page_prompt_layout,
+    upsert_manga_pipeline_artifact,
 };
 
 async fn setup_db() -> DatabaseConnection {
@@ -599,6 +605,256 @@ async fn deleting_page_content_cascades_only_for_that_page() {
             .iter()
             .filter(|artifact| artifact.page_number == Some(2))
             .all(|artifact| !artifact.stale)
+    );
+}
+
+#[tokio::test]
+async fn deleting_manga_pages_removes_their_images_and_queues_file_cleanup() {
+    let db = setup_db().await;
+    let (project_id, chapter_id) = project_and_chapter(&db, "漫画页成图级联删除").await;
+    let now = fixed_time(1);
+    let mut image_ids = Vec::new();
+    for page_number in [1, 2] {
+        let file_path = format!("data/manga-delete-page-{page_number}.png");
+        let image = generated_image::ActiveModel {
+            project_id: Set(project_id),
+            image_type: Set("manga_page".into()),
+            file_path: Set(file_path),
+            prompt: Set(format!("第 {page_number} 页")),
+            model: Set("test".into()),
+            width: Set(768),
+            height: Set(1024),
+            file_size: Set(None),
+            ai_score: Set(None),
+            is_favorite: Set(false),
+            chapter_id: Set(Some(chapter_id)),
+            panel_id: Set((page_number == 2).then(|| format!("page{page_number}"))),
+            metadata_json: Set((page_number == 2).then(|| json!({"page_number": page_number}))),
+            created_at: Set(now),
+            ..Default::default()
+        }
+        .insert(&db)
+        .await
+        .unwrap();
+        image_ids.push(image.id);
+
+        chapter_manga_prompt::ActiveModel {
+            project_id: Set(project_id),
+            chapter_id: Set(chapter_id),
+            page_number: Set(page_number),
+            prompt_type: Set(MANGA_PAGE_PROMPT_TYPE.into()),
+            image_prompt: Set(format!("第 {page_number} 页")),
+            dialogue_text: Set(None),
+            characters_in_frame: Set(Some(json!([]))),
+            layout: Set(Some(page_layout(page_number))),
+            generated_image_id: Set(Some(image.id)),
+            status: Set("completed".into()),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        }
+        .insert(&db)
+        .await
+        .unwrap();
+        upsert_manga_pipeline_artifact(
+            &db,
+            MangaPipelineArtifactDraft {
+                project_id,
+                chapter_id,
+                stage: MangaPipelineArtifactStage::Image,
+                page_number: Some(page_number as u32),
+                input_fingerprint: format!("page:{page_number}"),
+                payload: json!({"image_id": image.id}),
+                stale: false,
+            },
+            now,
+        )
+        .await
+        .unwrap();
+    }
+
+    delete_manga_page_by_number(&db, project_id, chapter_id, 1)
+        .await
+        .unwrap();
+    assert!(
+        chapter_manga_prompt::Entity::find()
+            .filter(chapter_manga_prompt::Column::ProjectId.eq(project_id))
+            .filter(chapter_manga_prompt::Column::ChapterId.eq(chapter_id))
+            .filter(chapter_manga_prompt::Column::PageNumber.eq(1))
+            .one(&db)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        generated_image::Entity::find_by_id(image_ids[0])
+            .one(&db)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        generated_image::Entity::find_by_id(image_ids[1])
+            .one(&db)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    assert_eq!(
+        manga_pipeline_artifacts_by_chapter(&db, project_id, chapter_id)
+            .await
+            .unwrap()
+            .iter()
+            .filter(|artifact| artifact.page_number == Some(1))
+            .count(),
+        0
+    );
+    let cleanup_after_page = cleanup_outbox::Entity::find().all(&db).await.unwrap();
+    assert_eq!(cleanup_after_page.len(), 1);
+    assert_eq!(
+        cleanup_after_page[0].payload_json["paths"],
+        json!(["data/manga-delete-page-1.png"])
+    );
+
+    assert_eq!(
+        delete_manga_prompts_by_chapter(&db, project_id, chapter_id)
+            .await
+            .unwrap(),
+        1
+    );
+    assert!(
+        generated_image::Entity::find_by_id(image_ids[1])
+            .one(&db)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(
+        cleanup_outbox::Entity::find().all(&db).await.unwrap().len(),
+        2
+    );
+}
+
+#[tokio::test]
+async fn deleting_drawing_prompt_cascade_removes_image_record_and_queues_file_cleanup() {
+    let db = setup_db().await;
+    let (project_id, chapter_id) = project_and_chapter(&db, "漫画提示词阶段级联删除成图").await;
+    let now = fixed_time(1);
+    let layout = page_layout(1);
+    let image = generated_image::ActiveModel {
+        project_id: Set(project_id),
+        image_type: Set("manga_page".into()),
+        file_path: Set("data/manga-drawing-prompt-cascade.png".into()),
+        prompt: Set("整页画面".into()),
+        model: Set("test".into()),
+        width: Set(768),
+        height: Set(1024),
+        file_size: Set(None),
+        ai_score: Set(None),
+        is_favorite: Set(false),
+        chapter_id: Set(Some(chapter_id)),
+        panel_id: Set(Some("page1".into())),
+        metadata_json: Set(Some(json!({"page_number": 1}))),
+        created_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+    let prompt = chapter_manga_prompt::ActiveModel {
+        project_id: Set(project_id),
+        chapter_id: Set(chapter_id),
+        page_number: Set(1),
+        prompt_type: Set(MANGA_PAGE_PROMPT_TYPE.into()),
+        image_prompt: Set("整页画面".into()),
+        dialogue_text: Set(None),
+        characters_in_frame: Set(Some(json!([]))),
+        layout: Set(Some(layout.clone())),
+        generated_image_id: Set(Some(image.id)),
+        status: Set("completed".into()),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+    for stage in [
+        MangaPipelineArtifactStage::DrawingPrompt,
+        MangaPipelineArtifactStage::Image,
+    ] {
+        upsert_manga_pipeline_artifact(
+            &db,
+            MangaPipelineArtifactDraft {
+                project_id,
+                chapter_id,
+                stage,
+                page_number: Some(1),
+                input_fingerprint: format!("{}:1", stage.key()),
+                payload: json!({"stage": stage.key()}),
+                stale: false,
+            },
+            now,
+        )
+        .await
+        .unwrap();
+    }
+    let plan = manga_pipeline_artifact_deletion_plan(
+        &db,
+        project_id,
+        chapter_id,
+        MangaPipelineArtifactStage::DrawingPrompt,
+        Some(1),
+    )
+    .await
+    .unwrap();
+    let expected_artifact_ids = plan.iter().map(|artifact| artifact.id).collect::<Vec<_>>();
+
+    delete_manga_pipeline_artifact(
+        &db,
+        project_id,
+        chapter_id,
+        MangaPipelineArtifactStage::DrawingPrompt,
+        Some(1),
+        &expected_artifact_ids,
+        &[MangaPipelineArtifactProjectionReset {
+            page_prompt_id: prompt.id,
+            page_number: 1,
+            expected_layout: layout,
+            expected_generated_image_id: Some(image.id),
+            layout: json!({"schema_version": "manga_page_generation_v3", "page_number": 1}),
+            image_prompt: String::new(),
+            clear_generated_image: true,
+        }],
+    )
+    .await
+    .unwrap();
+
+    let updated_prompt = chapter_manga_prompt::Entity::find_by_id(prompt.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(updated_prompt.generated_image_id, None);
+    assert_eq!(updated_prompt.status, "pending");
+    assert!(
+        generated_image::Entity::find_by_id(image.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        manga_pipeline_artifacts_by_chapter(&db, project_id, chapter_id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let cleanup = cleanup_outbox::Entity::find().all(&db).await.unwrap();
+    assert_eq!(cleanup.len(), 1);
+    assert_eq!(
+        cleanup[0].payload_json["paths"],
+        json!(["data/manga-drawing-prompt-cascade.png"])
     );
 }
 

@@ -1,5 +1,4 @@
 use crate::video::{VideoDbError, validate_positive_video_i64};
-use a4n_db_models::models::ai::generated_image;
 use serde_json::Value;
 
 pub(in crate::video::generated_images) fn validate_positive_image_i64(
@@ -55,23 +54,6 @@ fn generated_image_page_number(metadata: Option<&Value>) -> Option<i32> {
         .and_then(|value| value.get("page_number"))
         .and_then(Value::as_i64)
         .and_then(|value| i32::try_from(value).ok())
-}
-
-pub(in crate::video::generated_images) fn should_delete_manga_page_image_record(
-    image: &generated_image::Model,
-    panel_id: &str,
-    page_number: i32,
-    preserve_image_id: Option<i64>,
-) -> bool {
-    should_delete_manga_page_image_fields(
-        image.id,
-        &image.image_type,
-        image.panel_id.as_deref(),
-        image.metadata_json.as_ref(),
-        panel_id,
-        page_number,
-        preserve_image_id,
-    )
 }
 
 pub(in crate::video::generated_images) fn should_delete_manga_page_image_fields(

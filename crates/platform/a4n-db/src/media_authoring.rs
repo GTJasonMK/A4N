@@ -6,12 +6,18 @@ use a4n_db_models::models::project::{
     media_authoring_document as document, novel_project, project_source_snapshot,
     source_snapshot_chapter, standalone_comic_text_source,
 };
+use a4n_db_models::models::{
+    chapter::{chapter_manga_prompt, manga_pipeline_artifact},
+    galgame::{galgame_choice, galgame_line, galgame_scene, galgame_story_graph},
+};
 use a4n_domain::manga::{
     MangaPageGenerationLayoutV3, MangaPageGenerationLayoutV4, MangaPagePromptSourceSummary,
 };
 use a4n_domain::media_authoring::{
-    AdaptationPlanV1, AdaptationTarget, AuthoringDocumentInputs, AuthoringDocumentKind,
+    AdaptationPlanV1, AdaptationTarget, AuthoringDocumentDeletionDependency,
+    AuthoringDocumentDeletionImpact, AuthoringDocumentInputs, AuthoringDocumentKind,
     AuthoringDocumentRecord, AuthoringDocumentRef, AuthoringDocumentStatus,
+    AuthoringGalgameScriptDeletion, AuthoringMangaPageDeletion,
 };
 use a4n_domain::project::ProjectRecord;
 use a4n_domain::shooting_script::ChapterShootingScriptReferenceRecord;
@@ -21,6 +27,7 @@ use sea_orm::{
     QuerySelect, Set, sea_query::Expr,
 };
 use serde_json::Value;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AuthoringDocumentError {
@@ -32,6 +39,8 @@ pub enum AuthoringDocumentError {
     NotFound(i64),
     #[error("媒体创作文档版本冲突: {0}")]
     RevisionConflict(i64),
+    #[error("删除影响范围在确认后发生变化，请重新预览并确认")]
+    DeletionImpactChanged,
     #[error(transparent)]
     Database(#[from] DbErr),
 }
@@ -49,13 +58,17 @@ pub struct SaveAuthoringDocument {
 
 pub enum AuthoringArtifactSource {
     MangaPage {
+        prompt_id: i64,
         chapter_id: i64,
+        page_number: i32,
         source: MangaPagePromptSourceSummary,
         page_plan_ref: Option<AuthoringDocumentRef>,
     },
     GalgameScript {
+        script_id: i64,
         source_snapshot_id: i64,
         branch_plan_id: Option<i64>,
+        scene_ids: Vec<i64>,
         scene_plan_ids: Vec<Option<i64>>,
     },
 }
@@ -135,7 +148,9 @@ pub async fn authoring_artifact_sources<C: ConnectionTrait>(
                             }
                         };
                     Ok(AuthoringArtifactSource::MangaPage {
+                        prompt_id: row.id,
                         chapter_id: row.chapter_id,
+                        page_number: row.page_number,
                         source,
                         page_plan_ref,
                     })
@@ -155,10 +170,12 @@ pub async fn authoring_artifact_sources<C: ConnectionTrait>(
                 .all(db)
                 .await?;
             Ok(vec![AuthoringArtifactSource::GalgameScript {
+                script_id: script.id,
                 source_snapshot_id: script.source_snapshot_id,
                 branch_plan_id: script.branch_plan_id,
+                scene_ids: scenes.iter().map(|scene| scene.id).collect(),
                 scene_plan_ids: scenes
-                    .into_iter()
+                    .iter()
                     .map(|scene| scene.adaptation_plan_id)
                     .collect(),
             }])
@@ -430,20 +447,143 @@ pub async fn delete_authoring_document(
     record_id: i64,
     kind: AuthoringDocumentKind,
     expected_revision: i32,
+    expected_impact_fingerprint: &str,
 ) -> Result<(), AuthoringDocumentError> {
-    positive(project_id, "project_id")?;
-    positive(record_id, "record_id")?;
-    if expected_revision <= 0 {
+    validate_delete_identity(project_id, record_id, expected_revision)?;
+    if expected_impact_fingerprint.len() != 64
+        || !expected_impact_fingerprint
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit())
+    {
         return Err(AuthoringDocumentError::InvalidArgument(
-            "expected_revision 必须大于 0".into(),
+            "expected_impact_fingerprint 必须是 SHA-256".into(),
         ));
     }
 
     let tx = db.begin().await?;
+    let current = locked_delete_record(&tx, project_id, record_id, kind, expected_revision).await?;
+    let plan = authoring_deletion_plan(&tx, &current).await?;
+    if plan.impact.fingerprint != expected_impact_fingerprint {
+        return Err(AuthoringDocumentError::DeletionImpactChanged);
+    }
+
+    let mut generated_image_paths = Vec::new();
+    for page in &plan.manga_pages {
+        crate::generation::delete_generation_run_targets_for(
+            &tx,
+            "chapter_manga_prompt",
+            &page.prompt_ids,
+        )
+        .await
+        .map_err(generation_deletion_error)?;
+        generated_image_paths.extend(
+            crate::video::delete_manga_page_image_records_in(
+                &tx,
+                project_id,
+                page.chapter_id,
+                page.page_number,
+                None,
+            )
+            .await
+            .map_err(video_deletion_error)?,
+        );
+        chapter_manga_prompt::Entity::delete_many()
+            .filter(chapter_manga_prompt::Column::ProjectId.eq(project_id))
+            .filter(chapter_manga_prompt::Column::ChapterId.eq(page.chapter_id))
+            .filter(chapter_manga_prompt::Column::PageNumber.eq(page.page_number))
+            .exec(&tx)
+            .await?;
+        manga_pipeline_artifact::Entity::delete_many()
+            .filter(manga_pipeline_artifact::Column::ProjectId.eq(project_id))
+            .filter(manga_pipeline_artifact::Column::ChapterId.eq(page.chapter_id))
+            .filter(manga_pipeline_artifact::Column::PageNumber.eq(page.page_number))
+            .exec(&tx)
+            .await?;
+    }
+
+    if plan.galgame_script.is_some() {
+        crate::galgame::delete_galgame_target_generation_media_graph_record(&tx, project_id)
+            .await?;
+        crate::galgame::delete_galgame_script_records_for_project(&tx, project_id).await?;
+        crate::galgame::delete_galgame_story_graph_revisions(&tx, project_id).await?;
+    }
+
+    let deleted = document::Entity::delete_many()
+        .filter(document::Column::ProjectId.eq(project_id))
+        .filter(document::Column::Id.is_in(plan.document_ids.clone()))
+        .exec(&tx)
+        .await?;
+    if usize::try_from(deleted.rows_affected).ok() != Some(plan.document_ids.len()) {
+        return Err(AuthoringDocumentError::RevisionConflict(record_id));
+    }
+    if !generated_image_paths.is_empty() {
+        crate::media::schedule_unreferenced_media_cleanup(
+            &tx,
+            project_id,
+            &generated_image_paths,
+            format!(
+                "media-authoring-delete:{project_id}:{record_id}:{expected_impact_fingerprint}"
+            ),
+        )
+        .await?;
+    }
+    tx.commit().await?;
+    Ok(())
+}
+
+pub async fn preview_delete_authoring_document(
+    db: &impl crate::DbExecutor,
+    project_id: i64,
+    record_id: i64,
+    kind: AuthoringDocumentKind,
+    expected_revision: i32,
+) -> Result<AuthoringDocumentDeletionImpact, AuthoringDocumentError> {
+    validate_delete_identity(project_id, record_id, expected_revision)?;
+    let tx = db.begin().await?;
+    let current = locked_delete_record(&tx, project_id, record_id, kind, expected_revision).await?;
+    let impact = authoring_deletion_plan(&tx, &current).await?.impact;
+    tx.commit().await?;
+    Ok(impact)
+}
+
+struct MangaPageDeleteTarget {
+    chapter_id: i64,
+    page_number: i32,
+    prompt_ids: Vec<i64>,
+    image_ids: Vec<i64>,
+}
+
+struct GalgameScriptDeleteTarget {
+    script_id: i64,
+    scene_ids: Vec<i64>,
+    line_ids: Vec<i64>,
+    choice_ids: Vec<i64>,
+    story_graph_revision_ids: Vec<i64>,
+}
+
+struct AuthoringDeletionPlan {
+    document_ids: Vec<i64>,
+    manga_pages: Vec<MangaPageDeleteTarget>,
+    galgame_script: Option<GalgameScriptDeleteTarget>,
+    impact: AuthoringDocumentDeletionImpact,
+}
+
+async fn locked_delete_record<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+    record_id: i64,
+    kind: AuthoringDocumentKind,
+    expected_revision: i32,
+) -> Result<AuthoringDocumentRecord, AuthoringDocumentError> {
+    novel_project::Entity::find_by_id(project_id)
+        .lock_exclusive()
+        .one(db)
+        .await?
+        .ok_or_else(|| AuthoringDocumentError::InvalidState("目标项目不存在".into()))?;
     let row = document::Entity::find_by_id(record_id)
         .filter(document::Column::ProjectId.eq(project_id))
         .lock_exclusive()
-        .one(&tx)
+        .one(db)
         .await?
         .ok_or(AuthoringDocumentError::NotFound(record_id))?;
     let current = parse_record(row)?;
@@ -455,86 +595,267 @@ pub async fn delete_authoring_document(
     if current.revision != expected_revision {
         return Err(AuthoringDocumentError::RevisionConflict(record_id));
     }
-    validate_authoring_document_references(&tx, &current).await?;
+    Ok(current)
+}
 
-    let deleted = document::Entity::delete_many()
-        .filter(document::Column::ProjectId.eq(project_id))
-        .filter(document::Column::Id.eq(record_id))
-        .filter(document::Column::Revision.eq(expected_revision))
-        .exec(&tx)
-        .await?;
-    if deleted.rows_affected != 1 {
-        return Err(AuthoringDocumentError::RevisionConflict(record_id));
+fn validate_delete_identity(
+    project_id: i64,
+    record_id: i64,
+    expected_revision: i32,
+) -> Result<(), AuthoringDocumentError> {
+    positive(project_id, "project_id")?;
+    positive(record_id, "record_id")?;
+    if expected_revision <= 0 {
+        return Err(AuthoringDocumentError::InvalidArgument(
+            "expected_revision 必须大于 0".into(),
+        ));
     }
-    tx.commit().await?;
     Ok(())
 }
 
-async fn validate_authoring_document_references<C: ConnectionTrait>(
+async fn authoring_deletion_plan<C: ConnectionTrait>(
     db: &C,
     current: &AuthoringDocumentRecord,
-) -> Result<(), AuthoringDocumentError> {
-    let documents = document::Entity::find()
+) -> Result<AuthoringDeletionPlan, AuthoringDocumentError> {
+    let records = document::Entity::find()
         .filter(document::Column::ProjectId.eq(current.project_id))
+        .order_by_asc(document::Column::Id)
         .all(db)
-        .await?;
-    for row in documents {
-        if row.id == current.id {
-            continue;
+        .await?
+        .into_iter()
+        .map(parse_record)
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let mut document_ids = BTreeSet::from([current.id]);
+    loop {
+        let before = document_ids.len();
+        for record in &records {
+            if !document_ids.contains(&record.id)
+                && record
+                    .inputs
+                    .dependencies
+                    .iter()
+                    .any(|dependency| document_ids.contains(&dependency.id))
+            {
+                document_ids.insert(record.id);
+            }
         }
-        let record = parse_record(row)?;
-        if record
-            .inputs
-            .dependencies
-            .iter()
-            .any(|dependency| dependency.id == current.id)
-        {
-            return Err(AuthoringDocumentError::InvalidState(format!(
-                "无法删除媒体创作文档 {}：文档 {} 仍依赖该文档，请先删除或重新生成下游产物",
-                current.id, record.id
-            )));
+        if document_ids.len() == before {
+            break;
+        }
+    }
+    let mut targets = Vec::new();
+    for record in records
+        .iter()
+        .filter(|record| document_ids.contains(&record.id))
+    {
+        let target = authoring_target(record)?;
+        if !targets.contains(&target) {
+            targets.push(target);
         }
     }
 
-    let target = match current.kind {
-        AuthoringDocumentKind::AdaptationPlan => {
-            serde_json::from_value::<AdaptationPlanV1>(current.document.clone())
-                .map_err(invalid_json)?
-                .target
-        }
-        AuthoringDocumentKind::GalgameBranchPlan => AdaptationTarget::Galgame,
-        AuthoringDocumentKind::MangaPagePlan => AdaptationTarget::Manga,
-    };
-    for artifact in authoring_artifact_sources(db, current.project_id, target, None).await? {
-        let referenced = match artifact {
-            AuthoringArtifactSource::MangaPage {
-                source,
-                page_plan_ref,
-                ..
-            } => {
-                source.adaptation_plan_id == current.id
-                    || page_plan_ref.is_some_and(|reference| reference.id == current.id)
-            }
-            AuthoringArtifactSource::GalgameScript {
-                branch_plan_id,
-                scene_plan_ids,
-                ..
-            } => {
-                branch_plan_id == Some(current.id)
+    let mut pages = BTreeMap::<(i64, i32), BTreeSet<i64>>::new();
+    let mut galgame_script_id = None;
+    for target in targets {
+        for artifact in authoring_artifact_sources(db, current.project_id, target, None).await? {
+            match artifact {
+                AuthoringArtifactSource::MangaPage {
+                    prompt_id,
+                    chapter_id,
+                    page_number,
+                    source,
+                    page_plan_ref,
+                } if document_ids.contains(&source.adaptation_plan_id)
+                    || page_plan_ref
+                        .as_ref()
+                        .is_some_and(|reference| document_ids.contains(&reference.id)) =>
+                {
+                    pages
+                        .entry((chapter_id, page_number))
+                        .or_default()
+                        .insert(prompt_id);
+                }
+                AuthoringArtifactSource::GalgameScript {
+                    script_id,
+                    branch_plan_id,
+                    scene_plan_ids,
+                    ..
+                } if branch_plan_id.is_some_and(|id| document_ids.contains(&id))
                     || scene_plan_ids
-                        .into_iter()
+                        .iter()
                         .flatten()
-                        .any(|id| id == current.id)
+                        .any(|id| document_ids.contains(id)) =>
+                {
+                    galgame_script_id = Some(script_id);
+                }
+                _ => {}
             }
-        };
-        if referenced {
-            return Err(AuthoringDocumentError::InvalidState(format!(
-                "无法删除媒体创作文档 {}：已有下游产物引用该文档，请先删除或重新生成下游产物",
-                current.id
-            )));
         }
     }
-    Ok(())
+
+    let mut manga_pages = Vec::with_capacity(pages.len());
+    for ((chapter_id, page_number), prompt_ids) in pages {
+        let image_ids = crate::video::manga_page_image_ids_for_deletion(
+            db,
+            current.project_id,
+            chapter_id,
+            page_number,
+        )
+        .await
+        .map_err(video_deletion_error)?;
+        manga_pages.push(MangaPageDeleteTarget {
+            chapter_id,
+            page_number,
+            prompt_ids: prompt_ids.into_iter().collect(),
+            image_ids,
+        });
+    }
+    let galgame_script = if let Some(script_id) = galgame_script_id {
+        let scene_ids = galgame_scene::Entity::find()
+            .select_only()
+            .column(galgame_scene::Column::Id)
+            .filter(galgame_scene::Column::ScriptId.eq(script_id))
+            .order_by_asc(galgame_scene::Column::Id)
+            .into_tuple::<i64>()
+            .all(db)
+            .await?;
+        let line_ids = if scene_ids.is_empty() {
+            Vec::new()
+        } else {
+            galgame_line::Entity::find()
+                .select_only()
+                .column(galgame_line::Column::Id)
+                .filter(galgame_line::Column::SceneId.is_in(scene_ids.clone()))
+                .order_by_asc(galgame_line::Column::Id)
+                .into_tuple::<i64>()
+                .all(db)
+                .await?
+        };
+        let choice_ids = if line_ids.is_empty() {
+            Vec::new()
+        } else {
+            galgame_choice::Entity::find()
+                .select_only()
+                .column(galgame_choice::Column::Id)
+                .filter(galgame_choice::Column::LineId.is_in(line_ids.clone()))
+                .order_by_asc(galgame_choice::Column::Id)
+                .into_tuple::<i64>()
+                .all(db)
+                .await?
+        };
+        let story_graph_revision_ids = galgame_story_graph::Entity::find()
+            .select_only()
+            .column(galgame_story_graph::Column::Id)
+            .filter(galgame_story_graph::Column::ProjectId.eq(current.project_id))
+            .order_by_asc(galgame_story_graph::Column::Revision)
+            .into_tuple::<i64>()
+            .all(db)
+            .await?;
+        Some(GalgameScriptDeleteTarget {
+            script_id,
+            scene_ids,
+            line_ids,
+            choice_ids,
+            story_graph_revision_ids,
+        })
+    } else {
+        None
+    };
+
+    let dependent_documents = records
+        .iter()
+        .filter(|record| record.id != current.id && document_ids.contains(&record.id))
+        .map(|record| AuthoringDocumentDeletionDependency {
+            id: record.id,
+            kind: record.kind,
+        })
+        .collect::<Vec<_>>();
+    let page_impact = manga_pages
+        .iter()
+        .map(|page| AuthoringMangaPageDeletion {
+            chapter_id: page.chapter_id,
+            page_number: page.page_number,
+            image_count: page.image_ids.len(),
+        })
+        .collect::<Vec<_>>();
+    let galgame_impact = galgame_script
+        .as_ref()
+        .map(|script| AuthoringGalgameScriptDeletion {
+            scene_count: script.scene_ids.len(),
+            line_count: script.line_ids.len(),
+            choice_count: script.choice_ids.len(),
+            story_graph_revision_count: script.story_graph_revision_ids.len(),
+        });
+    let document_ids = document_ids.into_iter().collect::<Vec<_>>();
+    let fingerprint_payload = serde_json::json!({
+        "record_id": current.id,
+        "revision": current.revision,
+        "document_ids": document_ids,
+        "manga_pages": manga_pages.iter().map(|page| {
+            (
+                page.chapter_id,
+                page.page_number,
+                &page.prompt_ids,
+                &page.image_ids,
+            )
+        }).collect::<Vec<_>>(),
+        "galgame_script": galgame_script.as_ref().map(|script| {
+            (
+                script.script_id,
+                &script.scene_ids,
+                &script.line_ids,
+                &script.choice_ids,
+                &script.story_graph_revision_ids,
+            )
+        }),
+    });
+    let fingerprint =
+        crate::generation::canonical_json_sha256(&fingerprint_payload).map_err(invalid_json)?;
+
+    Ok(AuthoringDeletionPlan {
+        document_ids,
+        manga_pages,
+        galgame_script,
+        impact: AuthoringDocumentDeletionImpact {
+            dependent_documents,
+            manga_pages: page_impact,
+            galgame_script: galgame_impact,
+            fingerprint,
+        },
+    })
+}
+
+fn authoring_target(
+    record: &AuthoringDocumentRecord,
+) -> Result<AdaptationTarget, AuthoringDocumentError> {
+    match record.kind {
+        AuthoringDocumentKind::AdaptationPlan => Ok(serde_json::from_value::<AdaptationPlanV1>(
+            record.document.clone(),
+        )
+        .map_err(invalid_json)?
+        .target),
+        AuthoringDocumentKind::GalgameBranchPlan => Ok(AdaptationTarget::Galgame),
+        AuthoringDocumentKind::MangaPagePlan => Ok(AdaptationTarget::Manga),
+    }
+}
+
+fn generation_deletion_error(
+    error: crate::generation::GenerationDbError,
+) -> AuthoringDocumentError {
+    match error {
+        crate::generation::GenerationDbError::Database(error) => {
+            AuthoringDocumentError::Database(error)
+        }
+        error => AuthoringDocumentError::InvalidState(error.to_string()),
+    }
+}
+
+fn video_deletion_error(error: crate::video::VideoDbError) -> AuthoringDocumentError {
+    match error {
+        crate::video::VideoDbError::Database(error) => AuthoringDocumentError::Database(error),
+        error => AuthoringDocumentError::InvalidState(error.to_string()),
+    }
 }
 
 fn scope(

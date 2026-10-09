@@ -4,6 +4,7 @@ import type { ModelRequestPreview } from "./requestPreview";
 
 export type {
   AdaptationPlanV1, AdaptationUnit, AdaptationBeat, AdaptationOrigin, AdaptationTarget,
+  AuthoringDocumentDeletionImpact,
   AuthoringDocumentRecord, AuthoringDocumentView, AuthoringDocumentKind, AuthoringChapter,
   MediaAuthoringWorkspace, GalgameBranchDesign,
 } from "./generated/host";
@@ -16,6 +17,8 @@ export const adoptMediaAuthoringDocument = (input: Host.AdoptAuthoringDocumentIn
   apiInvoke<Host.AuthoringDocumentRecord>("adopt_media_authoring_document", { input });
 export const deleteMediaAuthoringDocument = (input: Host.DeleteAuthoringDocumentInput) =>
   apiInvoke<void>("delete_media_authoring_document", { input });
+export const previewDeleteMediaAuthoringDocument = (input: Host.PreviewDeleteAuthoringDocumentInput) =>
+  apiInvoke<Host.AuthoringDocumentDeletionImpact>("preview_delete_media_authoring_document", { input });
 export const generateMediaAdaptationPlan = (input: Host.GenerateAdaptationPlanInput) =>
   apiInvoke<Host.AuthoringDocumentRecord>("generate_media_adaptation_plan", { input });
 export const previewMediaAdaptationPlanRequest = (input: Host.GenerateAdaptationPlanInput) =>

@@ -5,10 +5,12 @@ use serde_json::Value;
 pub use a4n_domain::media_authoring::{
     AdaptationBeat, AdaptationBeatKind, AdaptationBeatRef, AdaptationDecision,
     AdaptationImportance, AdaptationOrigin, AdaptationPlanV1, AdaptationPlanVersion,
-    AdaptationTarget, AdaptationUnit, AdaptationUnitRef, AuthoringDocumentInputs,
-    AuthoringDocumentKind, AuthoringDocumentRecord, AuthoringDocumentRef, AuthoringDocumentStatus,
-    AuthoringSourceRef, GalgameBranchDesign, GalgamePipelineChoiceOptionPlan,
-    GalgamePipelineChoicePlan, VideoAdaptationReference,
+    AdaptationTarget, AdaptationUnit, AdaptationUnitRef, AuthoringDocumentDeletionDependency,
+    AuthoringDocumentDeletionImpact, AuthoringDocumentInputs, AuthoringDocumentKind,
+    AuthoringDocumentRecord, AuthoringDocumentRef, AuthoringDocumentStatus,
+    AuthoringGalgameScriptDeletion, AuthoringMangaPageDeletion, AuthoringSourceRef,
+    GalgameBranchDesign, GalgamePipelineChoiceOptionPlan, GalgamePipelineChoicePlan,
+    VideoAdaptationReference,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -46,6 +48,20 @@ pub struct AdoptAuthoringDocumentInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct DeleteAuthoringDocumentInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub record_id: i64,
+    pub kind: AuthoringDocumentKind,
+    #[schemars(range(min = 1))]
+    pub expected_revision: i32,
+    #[schemars(length(min = 64, max = 64))]
+    pub expected_impact_fingerprint: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PreviewDeleteAuthoringDocumentInput {
     #[schemars(range(min = 1))]
     pub project_id: i64,
     #[schemars(range(min = 1))]
@@ -167,6 +183,11 @@ pub trait MediaAuthoringApplicationPort: Send + Sync {
         user_id: i64,
         input: AdoptAuthoringDocumentInput,
     ) -> Result<AuthoringDocumentRecord, a4n_error::AppError>;
+    async fn preview_delete(
+        &self,
+        user_id: i64,
+        input: PreviewDeleteAuthoringDocumentInput,
+    ) -> Result<AuthoringDocumentDeletionImpact, a4n_error::AppError>;
     async fn delete(
         &self,
         user_id: i64,

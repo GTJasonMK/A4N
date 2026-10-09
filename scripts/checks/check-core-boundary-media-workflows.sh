@@ -500,7 +500,8 @@ if rg -U -n 'state\s*\.\s*orchestrator\(\)|OrchestratorContext|a4n_db_models::mo
 fi
 
 if ! rg -U -n 'generation_lifecycle_application\(\)\s*\.\s*reset_project_generated_data_validated' \
-    crates/host/a4n-runtime/src/actions/generation_tasks/destructive_lifecycle.rs; then
+    crates/host/a4n-runtime/src/actions/generation_tasks/destructive_lifecycle.rs \
+    crates/host/a4n-runtime/src/actions/generation_tasks/destructive_lifecycle/forward.rs; then
     printf 'Runtime project generated-data reset must route through GenerationLifecycleApplicationPort\n' >&2
     exit 1
 fi
@@ -744,7 +745,7 @@ if ! rg -n 'video_canvas_media_application\(\)' \
 fi
 
 if ! rg -n 'pub trait VideoRecordReadApplicationPort|pub trait VideoRecordMutationApplicationPort|pub trait (ChapterVideoImportApplicationPort|ReferenceMediaVideoImportApplicationPort|AssemblyVideoImportApplicationPort|CanvasVideoImportApplicationPort|VideoTrimApplicationPort)|pub trait VideoAssemblyPlanningApplicationPort|pub trait VideoAssemblyPostprocessApplicationPort|pub trait VideoAssemblyPushApplicationPort|pub trait VideoRecordCompletionApplicationPort|pub trait VideoTailFrameApplicationPort|pub trait VideoRecordFailureApplicationPort|pub trait VideoRecordLifecycleApplicationPort|pub trait VideoCanvasMediaApplicationPort' \
-    crates/host/a4n-api-contract/src/video.rs; then
+    crates/host/a4n-api-contract/src/video.rs crates/host/a4n-api-contract/src/video/record_ports.rs; then
     printf 'split video record contracts are missing from the API contract\n' >&2
     exit 1
 fi

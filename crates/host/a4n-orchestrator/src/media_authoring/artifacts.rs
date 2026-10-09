@@ -53,6 +53,7 @@ fn artifact_views(
                 chapter_id,
                 source,
                 page_plan_ref,
+                ..
             } => {
                 let entry = chapters.entry(chapter_id).or_insert((0, false));
                 entry.0 += 1;
@@ -70,6 +71,7 @@ fn artifact_views(
                 source_snapshot_id,
                 branch_plan_id,
                 scene_plan_ids,
+                ..
             } => {
                 let branch_stale = match branch_plan_id {
                     Some(id) => current(id).is_none(),

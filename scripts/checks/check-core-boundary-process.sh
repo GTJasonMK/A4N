@@ -131,38 +131,6 @@ if ! rg -n 'pub trait MangaRecord(Read|Mutation)ApplicationPort' \
     exit 1
 fi
 
-if rg -n 'a4n_orchestrator::manga::MangaPromptDownstreamCleanupPort|pub trait MangaPromptDownstreamCleanupPort' \
-    crates/host/a4n-runtime/src crates/host/a4n-orchestrator/src; then
-    printf 'Manga prompt cleanup must use the API contract directly, without an orchestrator facade\n' >&2
-    exit 1
-fi
-
-if ! rg -n 'pub trait MangaPromptDownstreamCleanupPort' \
-    crates/host/a4n-api-contract/src/manga.rs || \
-   ! rg -n 'a4n_api_contract::manga::MangaPromptDownstreamCleanupPort' \
-    crates/host/a4n-runtime/src/actions/manga_records.rs \
-    crates/host/a4n-orchestrator/src/manga/application.rs \
-    crates/host/a4n-orchestrator/src/manga/prompt_optimization/execution.rs; then
-    printf 'Manga prompt cleanup consumers must use the narrow API contract directly\n' >&2
-    exit 1
-fi
-
-if rg -n 'a4n_orchestrator::manga::MangaPromptDownstreamCleanupPort|pub trait MangaPromptDownstreamCleanupPort' \
-    crates/host/a4n-runtime/src crates/host/a4n-orchestrator/src; then
-    printf 'Manga prompt cleanup must use the API contract directly, without an orchestrator facade\n' >&2
-    exit 1
-fi
-
-if ! rg -n 'pub trait MangaPromptDownstreamCleanupPort' \
-    crates/host/a4n-api-contract/src/manga.rs || \
-   ! rg -n 'a4n_api_contract::manga::MangaPromptDownstreamCleanupPort' \
-    crates/host/a4n-runtime/src/actions/manga_records.rs \
-    crates/host/a4n-orchestrator/src/manga/application.rs \
-    crates/host/a4n-orchestrator/src/manga/prompt_optimization/execution.rs; then
-    printf 'Manga prompt cleanup consumers must use the narrow API contract directly\n' >&2
-    exit 1
-fi
-
 if rg -n 'state\.orchestrator\(\)|OrchestratorContext|actions::config_records::shared::require_config_admin' \
     crates/host/a4n-runtime/src/actions/config_records/llm/records \
     crates/host/a4n-runtime/src/actions/config_records/image/records.rs \

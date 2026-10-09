@@ -44,6 +44,14 @@ pub(super) async fn try_dispatch(
             )
             .await?,
         )?,
+        "preview_delete_media_authoring_document" => to_value(
+            actions::preview_delete_media_authoring_document(
+                state.runtime(),
+                user_id,
+                strict_command_input(args, cmd)?,
+            )
+            .await?,
+        )?,
         "list_video_adaptation_references" => to_value(
             actions::list_video_adaptation_references(
                 state.runtime(),

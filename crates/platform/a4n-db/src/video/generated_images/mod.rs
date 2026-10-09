@@ -38,6 +38,10 @@ pub use records::{
     video_library_chapter_image_records, video_library_explicit_image_records,
     video_profile_material_read_model, video_project_context_read_model,
 };
+pub(crate) use records::{
+    delete_manga_chapter_image_records_in, delete_manga_page_image_records_in,
+    manga_page_image_ids_for_deletion,
+};
 pub(crate) use references::validated_video_reference_image_records_batch;
 pub(crate) use references::video_project_record;
 pub use references::{

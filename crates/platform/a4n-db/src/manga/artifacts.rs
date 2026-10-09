@@ -10,7 +10,9 @@ use sea_orm::{
 };
 use std::hash::{Hash, Hasher};
 
-use super::{MangaPromptRecordError, manga_record_database, require_positive_manga_id};
+use super::{
+    MangaPromptRecordError, manga_record_database, manga_video_error, require_positive_manga_id,
+};
 
 #[derive(Debug, Clone)]
 pub struct MangaPipelineArtifactProjectionReset {
@@ -237,6 +239,7 @@ pub async fn delete_manga_pipeline_artifact(
             "漫画页面投影清理范围无效，请重新预览".into(),
         ));
     }
+    let mut generated_image_paths = Vec::new();
     for reset in projection_resets {
         let reset_page_number = i32::try_from(reset.page_number)
             .map_err(|_| MangaPromptRecordError::InvalidArgument("漫画页面页码超出范围".into()))?;
@@ -256,6 +259,19 @@ pub async fn delete_manga_pipeline_artifact(
             return Err(MangaPromptRecordError::InvalidArgument(
                 "漫画页面投影已变化，请重新预览后再删除".into(),
             ));
+        }
+        if reset.clear_generated_image {
+            generated_image_paths.extend(
+                crate::video::delete_manga_page_image_records_in(
+                    &txn,
+                    project_id,
+                    chapter_id,
+                    reset_page_number,
+                    None,
+                )
+                .await
+                .map_err(manga_video_error)?,
+            );
         }
         chapter_manga_prompt::ActiveModel {
             id: Set(prompt.id),
@@ -289,6 +305,18 @@ pub async fn delete_manga_pipeline_artifact(
         return Err(MangaPromptRecordError::InvalidArgument(
             "漫画阶段产物范围已变化，请重新预览后再删除".into(),
         ));
+    }
+    if !generated_image_paths.is_empty() {
+        let cleanup_hash = crate::generation::canonical_json_sha256(&generated_image_paths)
+            .map_err(|error| MangaPromptRecordError::InvalidArgument(error.to_string()))?;
+        crate::media::schedule_unreferenced_media_cleanup(
+            &txn,
+            project_id,
+            &generated_image_paths,
+            format!("manga-artifact-delete:{project_id}:{chapter_id}:{cleanup_hash}"),
+        )
+        .await
+        .map_err(manga_record_database("安排漫画阶段成图文件清理失败"))?;
     }
     txn.commit()
         .await

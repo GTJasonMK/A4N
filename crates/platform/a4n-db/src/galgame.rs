@@ -120,6 +120,7 @@ pub(in crate::galgame) use generation_specs::{
 };
 
 mod media;
+pub(crate) use media::delete_galgame_target_generation_media_graph_record;
 pub use media::{
     bind_galgame_media_records, completed_galgame_visual_binding_records,
     delete_media_asset_with_provenance_records, galgame_generated_image_by_id,
@@ -129,8 +130,7 @@ pub use media::{
 pub(in crate::galgame) use media::{
     delete_galgame_line_generation_media_graph_record,
     delete_galgame_line_visual_generation_media_graph_record,
-    delete_galgame_scene_visual_generation_media_graph_record,
-    delete_galgame_target_generation_media_graph_record, galgame_media_binding_read_model,
+    delete_galgame_scene_visual_generation_media_graph_record, galgame_media_binding_read_model,
     validate_galgame_media_asset_id, validate_galgame_media_target_ids,
     validate_galgame_portrait_spec_family_context, validate_galgame_portrait_spec_source_chapter,
     validate_galgame_portrait_spec_source_lines,

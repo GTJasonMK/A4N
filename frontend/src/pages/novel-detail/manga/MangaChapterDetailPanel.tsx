@@ -973,23 +973,33 @@ export function MangaChapterDetailPanel({
 
   const handleDeleteOrphanedPage = async (pageNumber: number) => {
     if (!canEditManga || !selectedChapter) return;
-    const confirmed = await confirmDialog({
-      title: t("comic.prompt.deleteOrphanedPageTitle"),
-      message: t("comic.prompt.deleteOrphanedPageMessage", { page: pageNumber }),
-      confirmText: t("common.delete"),
-      dialogType: "danger",
-    });
-    if (!confirmed) return;
+    const requestProjectId = projectId;
+    const requestChapterId = selectedChapter.id;
+    const requestScope = scopeKey;
+    const actionSeq = beginAction(requestScope);
+    if (actionSeq == null) return;
     try {
+      const confirmed = await confirmDialog({
+        title: t("comic.prompt.deleteOrphanedPageTitle"),
+        message: t("comic.prompt.deleteOrphanedPageMessage", { page: pageNumber }),
+        confirmText: t("common.delete"),
+        dialogType: "danger",
+      });
+      if (!confirmed || !isCurrentAction(requestScope, actionSeq)) return;
       await deleteMangaPage({
-        project_id: projectId,
-        chapter_id: selectedChapter.id,
+        project_id: requestProjectId,
+        chapter_id: requestChapterId,
         page_number: pageNumber,
       });
-      await onPagePromptsChanged();
+      if (!isCurrentAction(requestScope, actionSeq)) return;
+      if (!await onPagePromptsChanged() || !isCurrentAction(requestScope, actionSeq)) return;
       addToast(t("comic.prompt.orphanedPageDeleted"), "success");
     } catch (err) {
-      addToast(extractErrorMessage(err, t("comic.prompt.deleteFailed")), "error");
+      if (isCurrentAction(requestScope, actionSeq)) {
+        addToast(extractErrorMessage(err, t("comic.prompt.deleteFailed")), "error");
+      }
+    } finally {
+      finishAction(actionSeq);
     }
   };
 

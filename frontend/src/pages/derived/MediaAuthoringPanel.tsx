@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Pencil, Save, Trash2, X } from "lucide-react";
 import {
   adoptMediaAuthoringDocument, generateMediaAdaptationPlan,
-  deleteMediaAuthoringDocument, previewMediaAdaptationPlanRequest, saveMediaAuthoringDocument,
+  deleteMediaAuthoringDocument, previewDeleteMediaAuthoringDocument,
+  previewMediaAdaptationPlanRequest, saveMediaAuthoringDocument,
   type AdaptationPlanV1, type AuthoringDocumentKind, type AuthoringDocumentRecord,
   type GalgameBranchDesign, type MediaAuthoringWorkspace,
 } from "../../api/mediaAuthoring";
@@ -201,18 +202,81 @@ export function MediaAuthoringPanel({ projectId, kind, workspace, loading, error
   const remove = async () => {
     if (!isAdaptationPlan || !editor?.record) return;
     const requestScope = scope;
+    const record = editor.record;
+    const deleteInput = {
+      project_id: projectId,
+      record_id: record.id,
+      kind,
+      expected_revision: record.revision,
+    };
+    const impact = await previewDeleteMediaAuthoringDocument(deleteInput);
+    if (scopeRef.current !== requestScope) return;
+
+    const impactLines: string[] = [];
+    if (impact.dependent_documents.length > 0) {
+      const labels: Record<AuthoringDocumentKind, string> = {
+        adaptation_plan: t("common.mediaAuthoring.adaptation"),
+        galgame_branch_plan: t("common.mediaAuthoring.branches"),
+        manga_page_plan: t("common.mediaAuthoring.pagePlanning"),
+      };
+      const details = impact.dependent_documents
+        .map(({ id, kind: dependencyKind }) => `${labels[dependencyKind]} #${id}`)
+        .join("、");
+      impactLines.push(t("common.mediaAuthoring.deleteDependentDocuments", { details }));
+    }
+    if (impact.manga_pages.length > 0) {
+      const pageRefs = impact.manga_pages.map(({ chapter_id, page_number, image_count }) => {
+        const sourceChapter = workspace?.chapters.find(
+          (item) => item.source.source_chapter_id === chapter_id,
+        );
+        const chapterLabel = sourceChapter
+          ? sourceChapter.title?.trim()
+            || t("common.mediaAuthoring.chapterNumber", { number: sourceChapter.chapter_number })
+          : `#${chapter_id}`;
+        return t("common.mediaAuthoring.deletePageRef", {
+          chapter: chapterLabel,
+          page: page_number,
+          images: image_count,
+        });
+      });
+      const visiblePageRefs = pageRefs.slice(0, 8);
+      if (pageRefs.length > visiblePageRefs.length) {
+        visiblePageRefs.push(t("common.mediaAuthoring.deleteMorePages", {
+          count: pageRefs.length - visiblePageRefs.length,
+        }));
+      }
+      impactLines.push(t("common.mediaAuthoring.deleteMangaPages", {
+        details: visiblePageRefs.join("、"),
+      }));
+    }
+    if (impact.galgame_script) {
+      impactLines.push(t("common.mediaAuthoring.deleteGalgameScript", {
+        graphs: impact.galgame_script.story_graph_revision_count,
+        scenes: impact.galgame_script.scene_count,
+        lines: impact.galgame_script.line_count,
+        choices: impact.galgame_script.choice_count,
+      }));
+    }
+    const hasDownstream = impactLines.length > 0;
     const confirmed = await confirmDialog({
-      title: t("common.mediaAuthoring.deleteTitle"),
-      message: t("common.mediaAuthoring.deleteMessage"),
-      confirmText: t("common.delete"),
+      title: t(hasDownstream
+        ? "common.mediaAuthoring.deleteTitleWithDownstream"
+        : "common.mediaAuthoring.deleteTitle"),
+      message: [
+        t("common.mediaAuthoring.deleteMessage"),
+        ...(hasDownstream
+          ? [t("common.mediaAuthoring.deleteCascadeHeading"), ...impactLines]
+          : []),
+      ].join("\n\n"),
+      confirmText: t(hasDownstream
+        ? "common.mediaAuthoring.deleteCascadeConfirm"
+        : "common.delete"),
       dialogType: "danger",
     });
     if (!confirmed || scopeRef.current !== requestScope) return;
     await deleteMediaAuthoringDocument({
-      project_id: projectId,
-      record_id: editor.record.id,
-      kind,
-      expected_revision: editor.record.revision,
+      ...deleteInput,
+      expected_impact_fingerprint: impact.fingerprint,
     });
     if (scopeRef.current !== requestScope) return;
     setEditor(null);

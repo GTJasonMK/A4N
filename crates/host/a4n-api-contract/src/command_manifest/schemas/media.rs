@@ -13,6 +13,9 @@ pub(crate) fn args_adopt_authoring_document() -> Value {
 pub(crate) fn args_delete_authoring_document() -> Value {
     strict_typed_input_schema::<crate::media_authoring::DeleteAuthoringDocumentInput>()
 }
+pub(crate) fn args_preview_delete_authoring_document() -> Value {
+    strict_typed_input_schema::<crate::media_authoring::PreviewDeleteAuthoringDocumentInput>()
+}
 pub(crate) fn args_generate_adaptation_plan() -> Value {
     strict_runtime_typed_input_schema::<crate::media_authoring::GenerateAdaptationPlanInput>()
 }
@@ -21,6 +24,9 @@ pub(crate) fn result_media_authoring_workspace() -> Value {
 }
 pub(crate) fn result_authoring_document() -> Value {
     typed_schema::<crate::media_authoring::AuthoringDocumentRecord>()
+}
+pub(crate) fn result_authoring_document_deletion_impact() -> Value {
+    typed_schema::<crate::media_authoring::AuthoringDocumentDeletionImpact>()
 }
 pub(crate) fn result_video_reference_candidates() -> Value {
     typed_schema::<Vec<crate::media_authoring::VideoScriptReferenceCandidate>>()

@@ -79,17 +79,24 @@ where
     if delete_media_asset_ids.is_empty() {
         return Ok(());
     }
-    let delete_media_asset_ids = media_asset::Entity::find()
-        .select_only()
-        .column(media_asset::Column::Id)
+    let assets_to_delete = media_asset::Entity::find()
         .filter(media_asset::Column::ProjectId.eq(project_id))
         .filter(media_asset::Column::Id.is_in(delete_media_asset_ids))
-        .into_tuple::<i64>()
         .all(db)
         .await?;
-    if delete_media_asset_ids.is_empty() {
+    if assets_to_delete.is_empty() {
         return Ok(());
     }
+    let delete_media_asset_ids = assets_to_delete
+        .iter()
+        .map(|asset| asset.id)
+        .collect::<Vec<_>>();
+    let candidate_paths = assets_to_delete
+        .iter()
+        .flat_map(|asset| [asset.file_path.as_ref(), asset.thumbnail_path.as_ref()])
+        .flatten()
+        .cloned()
+        .collect::<Vec<_>>();
     media_provenance::Entity::delete_many()
         .filter(media_provenance::Column::MediaAssetId.is_in(delete_media_asset_ids.clone()))
         .exec(db)
@@ -101,9 +108,20 @@ where
         .exec(db)
         .await?;
     media_asset::Entity::delete_many()
-        .filter(media_asset::Column::Id.is_in(delete_media_asset_ids))
+        .filter(media_asset::Column::Id.is_in(delete_media_asset_ids.iter().copied()))
         .exec(db)
         .await?;
+    if !candidate_paths.is_empty() {
+        let cleanup_hash = crate::generation::canonical_json_sha256(&delete_media_asset_ids)
+            .map_err(|error| DbErr::Custom(format!("生成媒体清理指纹失败: {error}")))?;
+        schedule_unreferenced_media_cleanup(
+            db,
+            project_id,
+            &candidate_paths,
+            format!("media-assets:{project_id}:{cleanup_hash}"),
+        )
+        .await?;
+    }
     Ok(())
 }
 

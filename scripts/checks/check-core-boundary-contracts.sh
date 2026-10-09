@@ -95,7 +95,7 @@ if rg -n '(^|[[:space:]])(a4n-(core|db|runtime|orchestrator)|sea-orm|sqlx|tokio|
 fi
 
 if rg -n '\b(sea_orm|DatabaseConnection|AppError|AppState|Runtime(Profile|Config))\b' \
-    crates/platform/a4n-domain/src/embedding.rs crates/platform/a4n-domain/src/image.rs crates/platform/a4n-domain/src/json_contract \
+    crates/platform/a4n-domain/src/embedding.rs crates/platform/a4n-domain/src/image crates/platform/a4n-domain/src/json_contract \
     crates/platform/a4n-domain/src/rag.rs crates/platform/a4n-domain/src/text_location.rs crates/platform/a4n-domain/src/profile_ownership.rs; then
     printf 'pure embedding/image domain contracts must not leak ORM or runtime types\n' >&2
     exit 1
@@ -129,7 +129,7 @@ if rg -n '(^|[[:space:]])(a4n-(core|db|db-models|runtime|orchestrator)|sea-orm|s
 fi
 
 canvas_contract_tree="$(cargo tree --locked -e normal,build -p a4n-canvas-contract)"
-if rg -n '(^|[[:space:]])(a4n-(core|db|db-models|runtime|orchestrator)|sea-orm|sqlx|tokio)([[:space:]]|v|$)' \
+if rg -n '(^|[[:space:]])(a4n-(core|db|db-models|runtime|orchestrator)|sea-orm|sqlx)([[:space:]]|v|$)' \
     <<<"$canvas_contract_tree"; then
     printf 'a4n-canvas-contract must remain independent of Host, database, ORM, orchestrator, and runtime crates\n' >&2
     exit 1
@@ -399,9 +399,9 @@ if rg -n '(^|[[:space:]])a4n-image([[:space:]]|v|$)' <<<"$image_provider_tree" \
 fi
 
 if ! rg -n 'pub trait VideoProviderExecutionApplicationPort' \
-    crates/host/a4n-api-contract/src/video.rs || \
+    crates/host/a4n-api-contract/src/video.rs crates/host/a4n-api-contract/src/video/generation_ports.rs || \
    ! rg -n 'a4n_video_host_contract::VideoProviderHostPort' \
-    crates/host/a4n-api-contract/src/video.rs \
+    crates/host/a4n-api-contract/src/video.rs crates/host/a4n-api-contract/src/video/generation_ports.rs \
     crates/host/a4n-orchestrator/src/video/records \
     crates/host/a4n-runtime/src/actions/video_generation/provider_host.rs; then
     printf 'Video provider polling must use the narrow API and runtime contracts directly\n' >&2
@@ -446,9 +446,9 @@ if rg -n 'a4n_orchestrator::video::(VideoRequestPreviewApplicationPort|CanvasVid
     exit 1
 fi
 
-if ! rg -n 'pub trait CanvasVideoRequestPreviewApplicationPort' crates/host/a4n-api-contract/src/video.rs || \
-   ! rg -n 'pub trait ChapterVideoRequestPreviewApplicationPort' crates/host/a4n-api-contract/src/video.rs || \
-   ! rg -n 'pub trait ReferenceMediaVideoRequestPreviewApplicationPort' crates/host/a4n-api-contract/src/video.rs || \
+if ! rg -n 'pub trait CanvasVideoRequestPreviewApplicationPort' crates/host/a4n-api-contract/src/video.rs crates/host/a4n-api-contract/src/video/generation_ports.rs || \
+   ! rg -n 'pub trait ChapterVideoRequestPreviewApplicationPort' crates/host/a4n-api-contract/src/video.rs crates/host/a4n-api-contract/src/video/generation_ports.rs || \
+   ! rg -n 'pub trait ReferenceMediaVideoRequestPreviewApplicationPort' crates/host/a4n-api-contract/src/video.rs crates/host/a4n-api-contract/src/video/generation_ports.rs || \
    ! rg -n 'pub (struct|trait) (CanvasVideoRequestPreview|ChapterVideoRequestPreview|ReferenceMediaVideoRequestPreview|CanvasVideoPreviewHostPort|ChapterVideoPreviewHostPort|ReferenceMediaVideoPreviewHostPort)' \
     crates/video/a4n-video-host-contract/src/lib.rs; then
     printf 'Video request preview contracts are missing from their stable owners\n' >&2

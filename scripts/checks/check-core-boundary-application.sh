@@ -119,13 +119,16 @@ if rg -n 'OrchestratorContext|state\.orchestrator\(\)' \
 fi
 
 if ! rg -n 'video_provider_config\(\)' \
-    crates/host/a4n-runtime/src/actions/video_generation/provider_host.rs; then
+    crates/host/a4n-runtime/src/actions/video_generation/provider_host.rs \
+    crates/host/a4n-runtime/src/actions/video_generation/config.rs \
+    crates/host/a4n-runtime/src/actions/video_generation/poll.rs; then
     printf 'Runtime video provider config resolution must use the injected narrow port\n' >&2
     exit 1
 fi
 
 if ! rg -n 'pub trait VideoProviderExecutionApplicationPort' \
-    crates/host/a4n-api-contract/src/video.rs; then
+    crates/host/a4n-api-contract/src/video.rs \
+    crates/host/a4n-api-contract/src/video/generation_ports.rs; then
     printf 'VideoProviderExecutionApplicationPort contract is missing\n' >&2
     exit 1
 fi
@@ -136,7 +139,9 @@ if ! rg -n 'video_provider_execution\(\)' \
     exit 1
 fi
 
-if ! rg -n 'pub trait VideoProviderConfigPort' crates/host/a4n-api-contract/src/video.rs; then
+if ! rg -n 'pub trait VideoProviderConfigPort' \
+    crates/host/a4n-api-contract/src/video.rs \
+    crates/host/a4n-api-contract/src/video/generation_ports.rs; then
     printf 'VideoProviderConfigPort contract is missing\n' >&2
     exit 1
 fi
@@ -216,13 +221,13 @@ if rg -n 'pub trait VideoPromptMutationApplicationPort|pub use .*VideoPromptMuta
 fi
 
 if ! rg -n 'pub trait VideoPromptMutationApplicationPort|pub trait VideoPromptTimelineApplicationPort|pub trait VideoPromptDraftApplicationPort' \
-    crates/host/a4n-api-contract/src/video.rs; then
+    crates/host/a4n-api-contract/src/video.rs crates/host/a4n-api-contract/src/video/prompt_ports.rs; then
     printf 'video prompt application ports must live in the API contract\n' >&2
     exit 1
 fi
 
 if ! rg -n 'pub trait VideoPromptTimelineApplicationPort|pub trait VideoPromptDraftApplicationPort' \
-    crates/host/a4n-api-contract/src/video.rs; then
+    crates/host/a4n-api-contract/src/video.rs crates/host/a4n-api-contract/src/video/prompt_ports.rs; then
     printf 'video prompt timeline/draft ports must live in the API contract\n' >&2
     exit 1
 fi
@@ -234,7 +239,7 @@ if rg -n 'a4n_orchestrator::video::VideoPrompt(Timeline|Draft)ApplicationPort|Vi
 fi
 
 if ! rg -n 'pub trait VideoPromptDownstreamCleanupPort' \
-    crates/host/a4n-api-contract/src/video.rs; then
+    crates/host/a4n-api-contract/src/video.rs crates/host/a4n-api-contract/src/video/prompt_ports.rs; then
     printf 'VideoPromptDownstreamCleanupPort contract is missing\n' >&2
     exit 1
 fi
@@ -264,7 +269,7 @@ if ! rg -n 'pub (struct|enum) (CompleteVideoRecordInput|VideoRecordCompletion|Vi
 fi
 
 if ! rg -n 'pub struct GenerateChapterVideoInput' \
-    crates/host/a4n-api-contract/src/video.rs; then
+    crates/host/a4n-api-contract/src/video.rs crates/host/a4n-api-contract/src/video/generation_ports.rs; then
     printf 'GenerateChapterVideoInput contract is missing\n' >&2
     exit 1
 fi
@@ -276,7 +281,7 @@ if rg -n 'GenerateChapterVideoInput' crates/host/a4n-orchestrator/src/video/mod.
 fi
 
 if ! rg -n 'pub struct GenerateReferenceMediaVideoInput' \
-    crates/host/a4n-api-contract/src/video.rs; then
+    crates/host/a4n-api-contract/src/video.rs crates/host/a4n-api-contract/src/video/generation_ports.rs; then
     printf 'GenerateReferenceMediaVideoInput contract is missing\n' >&2
     exit 1
 fi

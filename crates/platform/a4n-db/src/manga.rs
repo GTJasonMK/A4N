@@ -31,7 +31,7 @@ pub use records::{
 pub use sync::{sync_manga_page_prompts_by_chapter, upsert_manga_page_prompt};
 pub use types::{MangaPipelineDbError, MangaPromptRecordError, MangaPromptUpdatedAt};
 pub(in crate::manga) use types::{
-    manga_record_database, require_manga_text, require_positive_manga_id,
+    manga_record_database, manga_video_error, require_manga_text, require_positive_manga_id,
     validate_manga_page_number, validate_manga_page_prompt_layout,
 };
 

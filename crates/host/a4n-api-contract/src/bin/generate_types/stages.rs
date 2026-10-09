@@ -473,6 +473,21 @@ pub(super) fn run() {
         &typescript_interface::<authoring::DeleteAuthoringDocumentInput>(
             "DeleteAuthoringDocumentInput",
         ),
+        &typescript_interface::<authoring::PreviewDeleteAuthoringDocumentInput>(
+            "PreviewDeleteAuthoringDocumentInput",
+        ),
+        &typescript_interface::<authoring::AuthoringDocumentDeletionImpact>(
+            "AuthoringDocumentDeletionImpact",
+        ),
+        &typescript_interface::<authoring::AuthoringDocumentDeletionDependency>(
+            "AuthoringDocumentDeletionDependency",
+        ),
+        &typescript_interface::<authoring::AuthoringMangaPageDeletion>(
+            "AuthoringMangaPageDeletion",
+        ),
+        &typescript_interface::<authoring::AuthoringGalgameScriptDeletion>(
+            "AuthoringGalgameScriptDeletion",
+        ),
         &typescript_interface::<authoring::VideoScriptSelection>("VideoScriptSelection"),
         &typescript_interface::<authoring::GenerateAdaptationPlanInput>(
             "GenerateAdaptationPlanInput",

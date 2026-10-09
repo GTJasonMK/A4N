@@ -20,7 +20,7 @@ pub(in crate::galgame) use lines::{
     delete_galgame_line_generation_media_graph_record,
     delete_galgame_line_visual_generation_media_graph_record,
 };
-pub(in crate::galgame) use project::delete_galgame_target_generation_media_graph_record;
+pub(crate) use project::delete_galgame_target_generation_media_graph_record;
 pub(in crate::galgame) use scenes::delete_galgame_scene_visual_generation_media_graph_record;
 
 async fn delete_generation_media_graph<C>(

@@ -1,13 +1,17 @@
 use crate::generation::delete_generation_run_targets_for;
 use crate::manga::{
     MangaPipelineDbError, MangaPromptRecordError, MangaPromptUpdatedAt, manga_record_database,
-    require_manga_text, require_positive_manga_id, validate_manga_page_prompt_layout,
+    manga_video_error, require_manga_text, require_positive_manga_id,
+    validate_manga_page_prompt_layout,
 };
 use a4n_db_models::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
-use a4n_db_models::models::chapter::manga_pipeline_artifact;
+use a4n_db_models::models::{chapter::manga_pipeline_artifact, project::novel_project};
 use a4n_domain::manga::MangaPagePromptRecord;
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set,
+};
 use serde_json::Value;
 
 use super::mapping::manga_page_prompt_record_from_model;
@@ -23,32 +27,12 @@ pub async fn delete_manga_prompts_by_chapter(
         .begin()
         .await
         .map_err(manga_record_database("开启漫画提示词删除事务失败"))?;
-    let prompt_ids = chapter_manga_prompt::Entity::find()
-        .select_only()
-        .column(chapter_manga_prompt::Column::Id)
-        .filter(chapter_manga_prompt::Column::ProjectId.eq(project_id))
-        .filter(chapter_manga_prompt::Column::ChapterId.eq(chapter_id))
-        .into_tuple::<i64>()
-        .all(&txn)
-        .await
-        .map_err(manga_record_database("读取待删除漫画提示词 ID 失败"))?;
-    delete_generation_run_targets_for(&txn, "chapter_manga_prompt", &prompt_ids).await?;
-    let result = chapter_manga_prompt::Entity::delete_many()
-        .filter(chapter_manga_prompt::Column::ProjectId.eq(project_id))
-        .filter(chapter_manga_prompt::Column::ChapterId.eq(chapter_id))
-        .exec(&txn)
-        .await
-        .map_err(manga_record_database("删除章节漫画提示词失败"))?;
-    manga_pipeline_artifact::Entity::delete_many()
-        .filter(manga_pipeline_artifact::Column::ProjectId.eq(project_id))
-        .filter(manga_pipeline_artifact::Column::ChapterId.eq(chapter_id))
-        .exec(&txn)
-        .await
-        .map_err(manga_record_database("删除章节漫画阶段产物失败"))?;
+    lock_manga_project(&txn, project_id).await?;
+    let deleted = delete_manga_prompt_outputs(&txn, project_id, chapter_id, None).await?;
     txn.commit()
         .await
         .map_err(manga_record_database("提交漫画提示词删除事务失败"))?;
-    Ok(result.rows_affected)
+    Ok(deleted)
 }
 
 pub async fn delete_manga_page_by_number(
@@ -68,39 +52,101 @@ pub async fn delete_manga_page_by_number(
         .begin()
         .await
         .map_err(manga_record_database("开启漫画页面删除事务失败"))?;
-    let prompt_ids = chapter_manga_prompt::Entity::find()
-        .select_only()
-        .column(chapter_manga_prompt::Column::Id)
-        .filter(chapter_manga_prompt::Column::ProjectId.eq(project_id))
-        .filter(chapter_manga_prompt::Column::ChapterId.eq(chapter_id))
-        .filter(chapter_manga_prompt::Column::PageNumber.eq(page_number))
-        .into_tuple::<i64>()
-        .all(&txn)
-        .await
-        .map_err(manga_record_database("读取待删除漫画页面 ID 失败"))?;
-    if prompt_ids.is_empty() {
-        return Err(MangaPromptRecordError::NotFound(
-            "漫画页面不存在或已删除".into(),
-        ));
-    }
-    delete_generation_run_targets_for(&txn, "chapter_manga_prompt", &prompt_ids).await?;
-    chapter_manga_prompt::Entity::delete_many()
-        .filter(chapter_manga_prompt::Column::ProjectId.eq(project_id))
-        .filter(chapter_manga_prompt::Column::ChapterId.eq(chapter_id))
-        .filter(chapter_manga_prompt::Column::PageNumber.eq(page_number))
-        .exec(&txn)
-        .await
-        .map_err(manga_record_database("删除漫画页面失败"))?;
-    manga_pipeline_artifact::Entity::delete_many()
-        .filter(manga_pipeline_artifact::Column::ProjectId.eq(project_id))
-        .filter(manga_pipeline_artifact::Column::ChapterId.eq(chapter_id))
-        .filter(manga_pipeline_artifact::Column::PageNumber.eq(page_number))
-        .exec(&txn)
-        .await
-        .map_err(manga_record_database("删除漫画页面阶段产物失败"))?;
+    lock_manga_project(&txn, project_id).await?;
+    delete_manga_prompt_outputs(&txn, project_id, chapter_id, Some(page_number)).await?;
     txn.commit()
         .await
         .map_err(manga_record_database("提交漫画页面删除事务失败"))
+}
+
+async fn lock_manga_project<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+) -> Result<(), MangaPromptRecordError> {
+    novel_project::Entity::find_by_id(project_id)
+        .lock_exclusive()
+        .one(db)
+        .await
+        .map_err(manga_record_database("锁定漫画项目删除范围失败"))?
+        .ok_or_else(|| MangaPromptRecordError::NotFound("漫画项目不存在".into()))?;
+    Ok(())
+}
+
+async fn delete_manga_prompt_outputs<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+    chapter_id: i64,
+    page_number: Option<i32>,
+) -> Result<u64, MangaPromptRecordError> {
+    let mut query = chapter_manga_prompt::Entity::find()
+        .select_only()
+        .column(chapter_manga_prompt::Column::Id)
+        .column(chapter_manga_prompt::Column::PageNumber)
+        .filter(chapter_manga_prompt::Column::ProjectId.eq(project_id))
+        .filter(chapter_manga_prompt::Column::ChapterId.eq(chapter_id))
+        .order_by_asc(chapter_manga_prompt::Column::PageNumber)
+        .order_by_asc(chapter_manga_prompt::Column::Id);
+    if let Some(page_number) = page_number {
+        query = query.filter(chapter_manga_prompt::Column::PageNumber.eq(page_number));
+    }
+    let rows = query
+        .into_tuple::<(i64, i32)>()
+        .all(db)
+        .await
+        .map_err(manga_record_database("读取待删除漫画页面失败"))?;
+    let prompt_ids = rows.iter().map(|(id, _)| *id).collect::<Vec<_>>();
+    delete_generation_run_targets_for(db, "chapter_manga_prompt", &prompt_ids).await?;
+
+    let image_paths = match page_number {
+        None => {
+            crate::video::delete_manga_chapter_image_records_in(db, project_id, chapter_id, None)
+                .await
+                .map_err(manga_video_error)?
+        }
+        Some(page_number) => crate::video::delete_manga_page_image_records_in(
+            db,
+            project_id,
+            chapter_id,
+            page_number,
+            None,
+        )
+        .await
+        .map_err(manga_video_error)?,
+    };
+
+    let mut delete_prompts = chapter_manga_prompt::Entity::delete_many()
+        .filter(chapter_manga_prompt::Column::ProjectId.eq(project_id))
+        .filter(chapter_manga_prompt::Column::ChapterId.eq(chapter_id));
+    let mut delete_artifacts = manga_pipeline_artifact::Entity::delete_many()
+        .filter(manga_pipeline_artifact::Column::ProjectId.eq(project_id))
+        .filter(manga_pipeline_artifact::Column::ChapterId.eq(chapter_id));
+    if let Some(page_number) = page_number {
+        delete_prompts =
+            delete_prompts.filter(chapter_manga_prompt::Column::PageNumber.eq(page_number));
+        delete_artifacts =
+            delete_artifacts.filter(manga_pipeline_artifact::Column::PageNumber.eq(page_number));
+    }
+    let deleted = delete_prompts
+        .exec(db)
+        .await
+        .map_err(manga_record_database("删除漫画页面提示词失败"))?;
+    delete_artifacts
+        .exec(db)
+        .await
+        .map_err(manga_record_database("删除漫画页面阶段产物失败"))?;
+    if !image_paths.is_empty() {
+        let fingerprint = crate::generation::canonical_json_sha256(&(&prompt_ids, &image_paths))
+            .map_err(|error| MangaPromptRecordError::InvalidArgument(error.to_string()))?;
+        crate::media::schedule_unreferenced_media_cleanup(
+            db,
+            project_id,
+            &image_paths,
+            format!("manga-page-delete:{project_id}:{chapter_id}:{fingerprint}"),
+        )
+        .await
+        .map_err(manga_record_database("安排漫画页成图文件清理失败"))?;
+    }
+    Ok(deleted.rows_affected)
 }
 
 pub async fn update_manga_page_prompt_layout(

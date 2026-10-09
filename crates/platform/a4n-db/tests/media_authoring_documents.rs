@@ -1,7 +1,8 @@
 use a4n_db::{
     media_authoring::{
         AuthoringDocumentError, SaveAuthoringDocument, adopt_authoring_document,
-        authoring_document, current_authoring_document, save_authoring_document,
+        authoring_document, current_authoring_document, delete_authoring_document,
+        preview_delete_authoring_document, save_authoring_document,
     },
     project::{
         CreateDerivedProjectParams, CreateProjectRecordInput, DerivedChapterScope,
@@ -193,6 +194,253 @@ async fn documents_are_project_owned_revision_fenced_and_independent_per_source_
         save_authoring_document(&db, corrupt).await,
         Err(AuthoringDocumentError::InvalidArgument(_))
     ));
+}
+
+#[tokio::test]
+async fn deleting_adaptation_plan_previews_and_cascades_its_manga_page_and_image() {
+    use a4n_db_models::models::{
+        ai::generated_image,
+        chapter::{chapter_manga_prompt, manga_pipeline_artifact},
+        task::cleanup_outbox,
+    };
+    use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
+
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let root = create_project_record(
+        &db,
+        CreateProjectRecordInput {
+            user_id: 1,
+            title: "改编计划级联删除".into(),
+            description: String::new(),
+            project_type: "novel_long".into(),
+        },
+    )
+    .await
+    .unwrap();
+    let chapter = a4n_db::chapter_content::import_chapter_content_record(
+        &db,
+        ImportChapterContentInput {
+            project_id: root.id,
+            chapter_number: 1,
+            content: "她推开门。".into(),
+            title: Some("门口".into()),
+        },
+        "media authoring cascade test",
+    )
+    .await
+    .unwrap();
+    let comic = create_derived_project_record(
+        &db,
+        1,
+        CreateDerivedProjectParams {
+            root_project_id: root.id,
+            derived_kind: "comic".into(),
+            title: "级联漫画".into(),
+            description: String::new(),
+            chapter_scope: DerivedChapterScope {
+                start_chapter: 1,
+                end_chapter: 1,
+            },
+        },
+    )
+    .await
+    .unwrap();
+    let source = resolve_chapter_source(&db, comic.id, chapter.id)
+        .await
+        .unwrap();
+    let draft = save_authoring_document(&db, input(&source)).await.unwrap();
+    let adopted = adopt_authoring_document(&db, comic.id, draft.id, draft.revision)
+        .await
+        .unwrap();
+    let now = chrono::Utc::now().naive_utc();
+    let layout = json!({
+        "schema_version": "manga_page_generation_v3",
+        "page_plan": {
+            "page_number": 1,
+            "beat_refs": [{"unit_id": "door", "beat_id": "open"}],
+            "role": "setup",
+            "pacing": "medium",
+            "importance": "normal",
+            "reading_flow": "top_to_bottom_left_to_right",
+            "page_goal": "推进场景",
+            "visual_thesis": "打开房门",
+            "entry_state": "门关闭",
+            "exit_state": "门打开",
+            "dominant_panel_number": 1,
+            "panels": [{
+                "panel_number": 1,
+                "beat_refs": [{"unit_id": "door", "beat_id": "open"}],
+                "function": "action",
+                "size": "dominant",
+                "shot_scale": "medium",
+                "camera_angle": "eye_level",
+                "participants": [],
+                "composition": "门口",
+                "observable_action": "推开门",
+                "reaction": null,
+                "spatial_relationship": "门前",
+                "continuity_from_previous": null,
+                "text_layers": []
+            }]
+        },
+        "drawing_prompt": {
+            "schema_version": "manga_page_drawing_prompt_v2",
+            "page_number": 1,
+            "image_prompt": "整页画面"
+        },
+        "reference_bindings": [],
+        "prompt_fingerprint": {"hash": "sha256"},
+        "source": {
+            "root_project_id": source.root_project_id,
+            "source_chapter_id": source.source_chapter_id,
+            "source_snapshot_id": source.source_snapshot_id,
+            "source_snapshot_chapter_id": source.source_snapshot_chapter_id,
+            "source_revision_key": format!(
+                "snapshot:{}:chapter:{}:{}",
+                source.source_snapshot_id.unwrap(),
+                source.source_snapshot_chapter_id.unwrap(),
+                source.content_sha256,
+            ),
+            "content_sha256": source.content_sha256,
+            "adaptation_plan_id": adopted.id,
+            "adaptation_plan_revision": adopted.revision,
+            "adaptation_plan_sha256": adopted.sha256,
+        }
+    });
+    let page = chapter_manga_prompt::ActiveModel {
+        project_id: Set(comic.id),
+        chapter_id: Set(chapter.id),
+        page_number: Set(1),
+        prompt_type: Set("page_generation".into()),
+        image_prompt: Set("整页画面".into()),
+        dialogue_text: Set(None),
+        characters_in_frame: Set(Some(json!([]))),
+        layout: Set(Some(layout)),
+        generated_image_id: Set(None),
+        status: Set("completed".into()),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+    let image = generated_image::ActiveModel {
+        project_id: Set(comic.id),
+        image_type: Set("manga_page".into()),
+        file_path: Set("data/media-authoring-cascade-page.png".into()),
+        prompt: Set("整页画面".into()),
+        model: Set("test".into()),
+        width: Set(768),
+        height: Set(1024),
+        file_size: Set(None),
+        ai_score: Set(None),
+        is_favorite: Set(false),
+        chapter_id: Set(Some(chapter.id)),
+        panel_id: Set(Some("page1".into())),
+        metadata_json: Set(Some(json!({"page_number": 1}))),
+        created_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+    manga_pipeline_artifact::ActiveModel {
+        project_id: Set(comic.id),
+        chapter_id: Set(chapter.id),
+        stage: Set("drawing_prompt".into()),
+        page_number: Set(1),
+        input_fingerprint: Set("input".into()),
+        output_fingerprint: Set("output".into()),
+        payload: Set(json!({"prompt_id": page.id})),
+        stale: Set(false),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+
+    let impact = preview_delete_authoring_document(
+        &db,
+        comic.id,
+        adopted.id,
+        adopted.kind,
+        adopted.revision,
+    )
+    .await
+    .unwrap();
+    assert_eq!(impact.manga_pages.len(), 1);
+    assert_eq!(impact.manga_pages[0].chapter_id, chapter.id);
+    assert_eq!(impact.manga_pages[0].page_number, 1);
+    assert_eq!(impact.manga_pages[0].image_count, 1);
+
+    assert!(matches!(
+        delete_authoring_document(
+            &db,
+            comic.id,
+            adopted.id,
+            adopted.kind,
+            adopted.revision,
+            &"0".repeat(64),
+        )
+        .await,
+        Err(AuthoringDocumentError::DeletionImpactChanged)
+    ));
+    assert!(
+        chapter_manga_prompt::Entity::find_by_id(page.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_some()
+    );
+
+    delete_authoring_document(
+        &db,
+        comic.id,
+        adopted.id,
+        adopted.kind,
+        adopted.revision,
+        &impact.fingerprint,
+    )
+    .await
+    .unwrap();
+    assert!(authoring_document(&db, comic.id, adopted.id).await.is_err());
+    assert!(
+        chapter_manga_prompt::Entity::find_by_id(page.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        generated_image::Entity::find_by_id(image.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(
+        manga_pipeline_artifact::Entity::find()
+            .filter(manga_pipeline_artifact::Column::ProjectId.eq(comic.id))
+            .filter(manga_pipeline_artifact::Column::ChapterId.eq(chapter.id))
+            .all(&db)
+            .await
+            .unwrap(),
+        Vec::<manga_pipeline_artifact::Model>::new()
+    );
+    assert_eq!(
+        cleanup_outbox::Entity::find()
+            .filter(cleanup_outbox::Column::DedupeKey.starts_with(&format!(
+                "media-authoring-delete:{}:{}:",
+                comic.id, adopted.id
+            )))
+            .count(&db)
+            .await
+            .unwrap(),
+        1
+    );
 }
 
 #[tokio::test]

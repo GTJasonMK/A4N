@@ -25,6 +25,19 @@ pub(in crate::manga) fn manga_record_database(
     move |source| MangaPromptRecordError::Database { operation, source }
 }
 
+pub(in crate::manga) fn manga_video_error(
+    error: crate::video::VideoDbError,
+) -> MangaPromptRecordError {
+    match error {
+        crate::video::VideoDbError::Database(source) => MangaPromptRecordError::Database {
+            operation: "删除漫画页成图失败",
+            source,
+        },
+        crate::video::VideoDbError::NotFound(message) => MangaPromptRecordError::NotFound(message),
+        error => MangaPromptRecordError::InvalidArgument(error.to_string()),
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum MangaPipelineDbError {
     #[error(transparent)]

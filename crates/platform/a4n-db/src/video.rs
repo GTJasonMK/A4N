@@ -62,6 +62,10 @@ pub(crate) use generated_images::{
     clear_generated_image_references_record, generated_images_for_chapter_by_id_desc,
     reclaim_image_publications_for_deleted_images,
 };
+pub(crate) use generated_images::{
+    delete_manga_chapter_image_records_in, delete_manga_page_image_records_in,
+    manga_page_image_ids_for_deletion,
+};
 
 mod generated_videos;
 pub(crate) use generated_videos::clear_generated_video_references_by_ids;

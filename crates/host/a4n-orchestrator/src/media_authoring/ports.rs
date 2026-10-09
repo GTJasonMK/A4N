@@ -266,6 +266,26 @@ impl MediaAuthoringApplicationPort for OrchestratorContext {
             input.record_id,
             input.kind,
             input.expected_revision,
+            &input.expected_impact_fingerprint,
+        )
+        .await
+        .map_err(authoring_delete_error)?;
+        Ok(())
+    }
+
+    async fn preview_delete(
+        &self,
+        user_id: i64,
+        input: PreviewDeleteAuthoringDocumentInput,
+    ) -> Result<AuthoringDocumentDeletionImpact, AppError> {
+        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        records::preview_delete_authoring_document(
+            self.database.executor(),
+            input.project_id,
+            input.record_id,
+            input.kind,
+            input.expected_revision,
         )
         .await
         .map_err(authoring_delete_error)

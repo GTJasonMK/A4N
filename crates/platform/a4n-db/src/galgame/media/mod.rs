@@ -10,12 +10,12 @@ pub(in crate::galgame) use bindings::{
     galgame_media_binding_read_model, validate_galgame_media_asset_id,
     validate_galgame_media_target_ids,
 };
+pub(crate) use cleanup::delete_galgame_target_generation_media_graph_record;
 pub use cleanup::delete_media_asset_with_provenance_records;
 pub(in crate::galgame) use cleanup::{
     delete_galgame_line_generation_media_graph_record,
     delete_galgame_line_visual_generation_media_graph_record,
     delete_galgame_scene_visual_generation_media_graph_record,
-    delete_galgame_target_generation_media_graph_record,
 };
 #[cfg(test)]
 pub(in crate::galgame) use context::validate_completed_visual_asset;

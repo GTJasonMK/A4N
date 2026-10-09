@@ -122,13 +122,15 @@ if ! rg -n 'pub trait CharacterProfileAttributeMutationApplicationPort' \
 fi
 
 if ! rg -n 'impl CharacterProfileOverviewReadApplicationPort for CharacterMutationWorkerClient' \
-    crates/profiles/a4n-character-mutation-worker-client/src/lib.rs; then
+    crates/profiles/a4n-character-mutation-worker-client/src/lib.rs \
+    crates/profiles/a4n-character-mutation-worker-client/src/reads.rs; then
     printf 'CharacterProfileOverviewReadApplicationPort worker implementation is missing\n' >&2
     exit 1
 fi
 
 if ! rg -n 'impl CharacterTimelineReadApplicationPort for CharacterMutationWorkerClient' \
-    crates/profiles/a4n-character-mutation-worker-client/src/lib.rs; then
+    crates/profiles/a4n-character-mutation-worker-client/src/lib.rs \
+    crates/profiles/a4n-character-mutation-worker-client/src/reads.rs; then
     printf 'CharacterTimelineReadApplicationPort worker implementation is missing\n' >&2
     exit 1
 fi

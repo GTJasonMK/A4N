@@ -20,6 +20,6 @@ pub use validation::{
 
 pub(super) use rules::{
     normalize_optional_image_record_text, required_image_record_text,
-    should_delete_manga_page_image_fields, should_delete_manga_page_image_record,
-    validate_generated_image_ai_score, validate_positive_image_i32, validate_positive_image_i64,
+    should_delete_manga_page_image_fields, validate_generated_image_ai_score,
+    validate_positive_image_i32, validate_positive_image_i64,
 };

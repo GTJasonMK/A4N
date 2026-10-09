@@ -189,6 +189,39 @@ pub struct AuthoringDocumentRef {
     pub sha256: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AuthoringDocumentDeletionImpact {
+    pub dependent_documents: Vec<AuthoringDocumentDeletionDependency>,
+    pub manga_pages: Vec<AuthoringMangaPageDeletion>,
+    pub galgame_script: Option<AuthoringGalgameScriptDeletion>,
+    pub fingerprint: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AuthoringDocumentDeletionDependency {
+    pub id: i64,
+    pub kind: AuthoringDocumentKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AuthoringMangaPageDeletion {
+    pub chapter_id: i64,
+    pub page_number: i32,
+    pub image_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AuthoringGalgameScriptDeletion {
+    pub scene_count: usize,
+    pub line_count: usize,
+    pub choice_count: usize,
+    pub story_graph_revision_count: usize,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AuthoringDocumentKind {

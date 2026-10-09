@@ -42,6 +42,16 @@ pub async fn delete_media_authoring_document(
         .delete(user_id, input)
         .await
 }
+pub async fn preview_delete_media_authoring_document(
+    state: &AppState,
+    user_id: i64,
+    input: PreviewDeleteAuthoringDocumentInput,
+) -> Result<AuthoringDocumentDeletionImpact, AppError> {
+    state
+        .media_authoring_application()
+        .preview_delete(user_id, input)
+        .await
+}
 pub async fn list_video_adaptation_references(
     state: &AppState,
     user_id: i64,

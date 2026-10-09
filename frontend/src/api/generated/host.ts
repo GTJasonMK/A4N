@@ -288,6 +288,7 @@ export const HOST_API_COMMANDS = [
   "preview_import_project_analysis_request",
   "preview_inspiration_request",
   "preview_media_adaptation_plan_request",
+  "preview_delete_media_authoring_document",
   "preview_object_profile_image_request",
   "preview_page_image_request",
   "preview_prepare_optimization_analysis_session_request",
@@ -534,8 +535,6 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "preview_generate_portrait_prompt_request": "without_secrets",
   "preview_generate_portrait_request": "without_secrets",
   "preview_import_project_analysis_request": "without_secrets",
-  "preview_inspiration_request": "without_secrets",
-  "preview_media_adaptation_plan_request": "without_secrets",
   "preview_object_profile_image_request": "without_secrets",
   "preview_page_image_request": "without_secrets",
   "preview_prepare_optimization_analysis_session_request": "without_secrets",
@@ -2608,10 +2607,43 @@ export interface AdoptAuthoringDocumentInput {
 }
 
 export interface DeleteAuthoringDocumentInput {
+  expected_impact_fingerprint: string;
   expected_revision: number;
   kind: AuthoringDocumentKind;
   project_id: number;
   record_id: number;
+}
+
+export interface PreviewDeleteAuthoringDocumentInput {
+  expected_revision: number;
+  kind: AuthoringDocumentKind;
+  project_id: number;
+  record_id: number;
+}
+
+export interface AuthoringDocumentDeletionImpact {
+  dependent_documents: AuthoringDocumentDeletionDependency[];
+  fingerprint: string;
+  galgame_script: AuthoringGalgameScriptDeletion | null;
+  manga_pages: AuthoringMangaPageDeletion[];
+}
+
+export interface AuthoringDocumentDeletionDependency {
+  id: number;
+  kind: AuthoringDocumentKind;
+}
+
+export interface AuthoringMangaPageDeletion {
+  chapter_id: number;
+  image_count: number;
+  page_number: number;
+}
+
+export interface AuthoringGalgameScriptDeletion {
+  choice_count: number;
+  line_count: number;
+  scene_count: number;
+  story_graph_revision_count: number;
 }
 
 export interface VideoScriptSelection {
