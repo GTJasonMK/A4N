@@ -333,3 +333,20 @@ flock -x /home/fufu/Code/A4N/work/.agent-build.lock -c \
    cargo test -p a4n-db --test video_reference_source_batch \
    performance_video_reference_source_resolution_batch_1000_chapters -- --ignored --nocapture'
 ```
+
+### PERF-026：视频参考列表窄脚本投影
+
+- 请求链路：`video_references` 只需要候选项目、剧本身份、源章节身份、revision 和哈希；旧查询把完整 `script_json` 读入 SeaORM 模型后再丢弃，新查询只选用这 10 个身份列，使用 `ChapterShootingScriptReferenceSummary` 领域投影。完整脚本 JSON 仍由单剧本冻结流程按需读取。
+- 数据量与频率：独立 PostgreSQL 中 1000 个候选剧本，每条 JSON 约 64 KiB，15 轮交错测量、2 轮预热；新旧结果逐字段核对。
+- A/B 结果：全量 ORM 读取 P50/P95 **348.887/377.372 ms**，窄投影 **7.504/9.090 ms**；P50 下降 **97.85%**，P95 下降 **97.59%**。旧路径一次物化约 **65,596,000 B** 脚本 JSON，新路径 **0 B**，超过时延和内存载荷门槛。
+- 验证：`a4n-db` 窄投影基准 1 passed；`cargo check --tests -p a4n-db -p a4n-orchestrator --locked`、格式和 diff 检查通过。
+
+复现：
+
+```bash
+export A4N_TEST_DATABASE_URL=postgres://a4n:a4n@127.0.0.1:5432/a4n_perf_20261010_manga_batch
+flock -x /home/fufu/Code/A4N/work/.agent-build.lock -c \
+  'CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target CARGO_INCREMENTAL=0 \
+   cargo test -p a4n-db --test video_reference_projection_batch \
+   performance_video_reference_projection_1000_large_scripts -- --ignored --nocapture'
+```

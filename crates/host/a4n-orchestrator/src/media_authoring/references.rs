@@ -53,9 +53,12 @@ impl OrchestratorContext {
             .first()
             .ok_or_else(|| AppError::NotFound("项目没有原文章节".into()))?
             .root_project_id;
-        let scripts =
-            records::video_reference_scripts(self.database.executor(), root, input.chapter_id)
-                .await?;
+        let scripts = records::video_reference_script_summaries(
+            self.database.executor(),
+            root,
+            input.chapter_id,
+        )
+        .await?;
         let mut sources_by_chapter = HashMap::with_capacity(sources.len());
         for source in &sources {
             sources_by_chapter
@@ -140,7 +143,11 @@ impl OrchestratorContext {
                         project.id, snapshot_id, script.source_chapter_id
                     ))
                 })?;
-            let source = validate_reference_script_source(&script, source)?;
+            let source = validate_reference_script_source(
+                source,
+                script.source_snapshot_chapter_id,
+                &script.source_content_sha256,
+            )?;
             candidates.push(VideoScriptReferenceCandidate {
                 selection: VideoScriptSelection {
                     video_project_id: project.id,
@@ -237,16 +244,21 @@ impl OrchestratorContext {
         let source = sources
             .pop()
             .ok_or_else(|| AppError::NotFound("参考剧本的原文章节不存在".into()))?;
-        validate_reference_script_source(record, source)
+        validate_reference_script_source(
+            source,
+            record.source_snapshot_chapter_id,
+            &record.source_content_sha256,
+        )
     }
 }
 
 fn validate_reference_script_source(
-    record: &ChapterShootingScriptReferenceRecord,
     source: ResolvedChapterSource,
+    expected_snapshot_chapter_id: Option<i64>,
+    expected_content_sha256: &str,
 ) -> Result<ResolvedChapterSource, AppError> {
-    if source.source_snapshot_chapter_id != record.source_snapshot_chapter_id
-        || source.content_sha256 != record.source_content_sha256
+    if source.source_snapshot_chapter_id != expected_snapshot_chapter_id
+        || source.content_sha256 != expected_content_sha256
     {
         return Err(AppError::InvalidArgument("参考剧本原文身份不一致".into()));
     }
