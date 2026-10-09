@@ -6,15 +6,19 @@ from __future__ import annotations
 import subprocess
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from run_affected_rust_tests import (
     AffectedRustError,
     ROOT,
+    base_ref,
+    build_plan,
     needs_full_workspace,
     reverse_dependency_closure,
     select_packages,
     uses_onnx_runtime,
+    workspace_package_dir,
 )
 
 
@@ -102,9 +106,29 @@ class AffectedRustTests(unittest.TestCase):
         self.assertFalse(full)
         self.assertIn("a4n-server", selected)
 
+    def test_package_directories_use_git_path_separators(self) -> None:
+        self.assertEqual(
+            workspace_package_dir(
+                str(ROOT / "crates" / "host" / "a4n-server" / "Cargo.toml")
+            ),
+            "crates/host/a4n-server",
+        )
+
     def test_unowned_rust_source_fails_instead_of_silently_skipping(self) -> None:
         with self.assertRaisesRegex(AffectedRustError, "无法映射"):
             select_packages({"crates/chapter/README.rs"}, self.packages, self.package_by_dir)
+
+    def test_missing_test_base_fails_instead_of_using_only_the_previous_commit(self) -> None:
+        with (
+            patch.dict("run_affected_rust_tests.os.environ", {}, clear=True),
+            patch(
+                "run_affected_rust_tests.subprocess.run",
+                return_value=subprocess.CompletedProcess(args=[], returncode=1),
+            ) as git,
+        ):
+            with self.assertRaisesRegex(AffectedRustError, "无法确定 Rust 测试基线"):
+                base_ref(None)
+        self.assertEqual(git.call_count, 2)
 
     def test_onnx_runtime_follows_the_active_cargo_feature_graph(self) -> None:
         with patch(
@@ -126,6 +150,27 @@ class AffectedRustTests(unittest.TestCase):
             ),
         ):
             self.assertTrue(uses_onnx_runtime(["a4n-embedding-service"]))
+
+    def test_database_test_commands_are_serialized_for_both_scopes(self) -> None:
+        changed = [
+            {"crates/host/a4n-server/src/lib.rs"},
+            {"Cargo.toml"},
+        ]
+        with (
+            patch("run_affected_rust_tests.base_ref", return_value="debug"),
+            patch("run_affected_rust_tests.changed_files", side_effect=changed),
+            patch(
+                "run_affected_rust_tests.load_workspace_packages",
+                return_value=(self.packages, self.package_by_dir),
+            ),
+            patch("run_affected_rust_tests.uses_onnx_runtime", return_value=False),
+        ):
+            for _ in changed:
+                selection = build_plan(SimpleNamespace(base_ref=None))
+                self.assertEqual(
+                    selection["cargo_command"][-2:],
+                    ["--", "--test-threads=1"],
+                )
 
 
 if __name__ == "__main__":

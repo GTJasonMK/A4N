@@ -18,6 +18,7 @@ from urllib.request import Request, urlopen
 from mock_openai.protocol import (
     MP4_1S_BASE64,
     PNG_1X1_BASE64,
+    UnhandledPromptError,
 )
 from mock_openai.transport import ProviderServer
 from mock_openai.fixtures.entities import (
@@ -827,7 +828,7 @@ class MockOpenAIProviderTest(unittest.TestCase):
     def test_manga_reference_discovery_only_selects_available_candidates(self) -> None:
         body = {"messages": [{
             "role": "user",
-            "content": json.dumps({
+            "content": "参考素材发现请求\n\n输入：\n" + json.dumps({
                 "task": {"prompt_name": "manga_page_reference_discovery"},
                 "input": {
                     "page_number": 3,
@@ -845,12 +846,20 @@ class MockOpenAIProviderTest(unittest.TestCase):
         self.assertEqual(response["page_number"], 3)
         self.assertEqual(response["references"][0]["asset_id"], 9)
 
-        body["messages"][0]["content"] = json.dumps({
+        body["messages"][0]["content"] = "参考素材发现请求\n\n输入：\n" + json.dumps({
             "task": {"prompt_name": "manga_page_reference_discovery"},
             "input": {"page_number": 3, "available_assets": []},
         }, ensure_ascii=False)
         empty_response = json.loads(response_for(body))
         self.assertEqual(empty_response["references"], [])
+
+        for invalid_input in ({"available_assets": []}, {"page_number": 3}):
+            body["messages"][0]["content"] = "参考素材发现请求\n\n输入：\n" + json.dumps({
+                "task": {"prompt_name": "manga_page_reference_discovery"},
+                "input": invalid_input,
+            }, ensure_ascii=False)
+            with self.subTest(input=invalid_input), self.assertRaises(UnhandledPromptError):
+                response_for(body)
 
     def test_manga_page_pipeline_responses_follow_each_page_contract(self) -> None:
         beat_ref = {"unit_id": "station", "beat_id": "evidence"}

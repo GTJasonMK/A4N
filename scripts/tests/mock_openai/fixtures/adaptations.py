@@ -432,16 +432,24 @@ def manga_preprocessing_response(combined: str) -> dict[str, Any]:
 
 
 def manga_page_reference_discovery_response(combined: str) -> dict[str, Any]:
-    payloads = [
-        value
-        for value in embedded_json_objects(combined)
-        if isinstance(value.get("available_assets"), list)
-    ]
-    assets = payloads[-1]["available_assets"] if payloads else []
+    task = json_task_payload(combined)
+    payload = task.get("input")
+    if not isinstance(payload, dict):
+        raise UnhandledPromptError("manga reference discovery prompt contains no task input")
+    page_number = payload.get("page_number")
+    if (
+        not isinstance(page_number, int)
+        or isinstance(page_number, bool)
+        or page_number <= 0
+    ):
+        raise UnhandledPromptError("manga reference discovery prompt contains no valid page number")
+    assets = payload.get("available_assets")
+    if not isinstance(assets, list):
+        raise UnhandledPromptError("manga reference discovery prompt contains no available assets")
     references = []
     for asset in assets:
         if not isinstance(asset, dict):
-            continue
+            raise UnhandledPromptError("manga reference discovery prompt contains an invalid asset")
         if "怀表" not in str(asset.get("description", "")):
             continue
         references.append({
@@ -452,10 +460,9 @@ def manga_page_reference_discovery_response(combined: str) -> dict[str, Any]:
             "usage": "沿用怀表的黄铜外壳与磨损刻度。",
         })
         break
-    page_number_matches = re.findall(r'"page_number"\s*:\s*(\d+)', combined)
     return {
         "schema_version": "manga_page_reference_discovery_v1",
-        "page_number": int(page_number_matches[-1]) if page_number_matches else 1,
+        "page_number": page_number,
         "references": references,
     }
 

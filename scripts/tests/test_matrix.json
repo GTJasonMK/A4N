@@ -149,7 +149,7 @@
         "--",
         "bash",
         "-c",
-        "set -euo pipefail; cargo run --locked -p a4n-migration; exec cargo test --locked --workspace --all-targets --no-fail-fast"
+        "set -euo pipefail; cargo run --locked -p a4n-migration; exec cargo test --locked --workspace --all-targets --no-fail-fast -- --test-threads=1"
       ],
       "timeout_seconds": 7800
     },
