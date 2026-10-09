@@ -2,7 +2,20 @@
 //!
 //! 新库通过 PostgreSQL baseline 建表；已部署数据库通过后续幂等迁移补齐新增表。
 
+use sea_orm::{ConnectOptions, Database};
 use sea_orm_migration::prelude::*;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingSchemaMigrations {
+    pub names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UpdateMigrationPreflight {
+    pub pending_schema_migrations: Vec<String>,
+    pub pending_data_migrations: Vec<String>,
+    pub migrations: Vec<crate::migrations::canvas_project_split::DataMigrationPreflight>,
+}
 
 pub struct Migrator;
 
@@ -159,9 +172,144 @@ pub async fn run_migrations(db: &sea_orm::DatabaseConnection) -> Result<(), sea_
     Migrator::up(db, None).await
 }
 
+pub async fn pending_schema_migrations(
+    db: &sea_orm::DatabaseConnection,
+) -> Result<PendingSchemaMigrations, sea_orm::DbErr> {
+    let applied = applied_schema_migration_names(db).await?;
+    let mut names = Vec::new();
+    for migration in Migrator::migrations() {
+        let name = migration.name().to_string();
+        if applied.contains(&name) {
+            continue;
+        }
+        names.push(name);
+    }
+    Ok(PendingSchemaMigrations { names })
+}
+
+pub async fn applied_schema_migration_names(
+    db: &sea_orm::DatabaseConnection,
+) -> Result<std::collections::HashSet<String>, sea_orm::DbErr> {
+    use sea_orm_migration::prelude::MigratorTrait;
+
+    match Migrator::get_migration_models(db).await {
+        Ok(migrations) => Ok(migrations
+            .into_iter()
+            .map(|migration| migration.version)
+            .collect()),
+        Err(error) => Err(error),
+    }
+}
+
+pub fn data_migration_names() -> Vec<String> {
+    use sea_orm_migration::prelude::MigratorTrait;
+
+    Migrator::migrations()
+        .into_iter()
+        .map(|migration| migration.name().to_string())
+        .filter(|name| migration_requires_data_backup(name))
+        .collect()
+}
+
+pub async fn pending_data_migrations(
+    db: &sea_orm::DatabaseConnection,
+    names: &[String],
+) -> Result<Vec<String>, sea_orm::DbErr> {
+    let mut pending = Vec::new();
+    for name in names {
+        if !migration_requires_data_backup(name) {
+            return Err(sea_orm::DbErr::Custom(format!(
+                "未注册的数据迁移名称：{name}"
+            )));
+        }
+        let is_pending = match name.as_str() {
+            "canvas_project_split" => {
+                crate::migrations::canvas_project_split::data_migration_is_pending(db).await?
+            }
+            _ => true,
+        };
+        if is_pending {
+            pending.push(name.clone());
+        }
+    }
+    Ok(pending)
+}
+
+pub fn migration_requires_data_backup(name: &str) -> bool {
+    name == "canvas_project_split"
+}
+
+pub async fn preflight_data_migrations(
+    db: &sea_orm::DatabaseConnection,
+    data_dir: &std::path::Path,
+    names: &[String],
+) -> Result<Vec<crate::migrations::canvas_project_split::DataMigrationPreflight>, sea_orm::DbErr> {
+    let mut reports = Vec::new();
+    for name in names {
+        if !migration_requires_data_backup(name) {
+            return Err(sea_orm::DbErr::Custom(format!(
+                "缺少数据迁移预检实现：{name}"
+            )));
+        }
+        match name.as_str() {
+            "canvas_project_split" => reports.push(
+                crate::migrations::canvas_project_split::data_migration_preflight(db, data_dir)
+                    .await?,
+            ),
+            _ => {
+                return Err(sea_orm::DbErr::Custom(format!(
+                    "缺少数据迁移预检实现：{name}"
+                )));
+            }
+        }
+    }
+    Ok(reports)
+}
+
+pub async fn apply_data_migrations(
+    db: &sea_orm::DatabaseConnection,
+    data_dir: &std::path::Path,
+    names: &[String],
+) -> Result<(), sea_orm::DbErr> {
+    for name in names {
+        if !migration_requires_data_backup(name) {
+            return Err(sea_orm::DbErr::Custom(format!(
+                "未注册的数据迁移名称：{name}"
+            )));
+        }
+        match name.as_str() {
+            "canvas_project_split" => {
+                crate::migrations::canvas_project_split::apply(db, data_dir).await?;
+            }
+            _ => {
+                return Err(sea_orm::DbErr::Custom(format!(
+                    "缺少数据迁移执行实现：{name}"
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
+pub async fn preflight_update_migrations(
+    database_url: &str,
+    data_dir: &std::path::Path,
+    data_migrations: &[String],
+) -> Result<UpdateMigrationPreflight, sea_orm::DbErr> {
+    let db = Database::connect(ConnectOptions::new(database_url.to_string())).await?;
+    let pending_schema = pending_schema_migrations(&db).await?;
+    let pending_data = pending_data_migrations(&db, data_migrations).await?;
+    let migrations = preflight_data_migrations(&db, data_dir, &pending_data).await?;
+    Ok(UpdateMigrationPreflight {
+        pending_schema_migrations: pending_schema.names,
+        pending_data_migrations: pending_data,
+        migrations,
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::Migrator;
+    use super::{Migrator, migration_requires_data_backup};
     use a4n_db_models::REQUIRED_SCHEMA_MIGRATION;
     use sea_orm_migration::prelude::MigratorTrait;
 
@@ -277,5 +425,14 @@ mod tests {
             Some(REQUIRED_SCHEMA_MIGRATION),
             "runtime schema requirement must match the last registered migration"
         );
+    }
+
+    #[test]
+    fn only_data_migrations_require_a_pre_update_backup() {
+        assert!(migration_requires_data_backup("canvas_project_split"));
+        assert!(!migration_requires_data_backup("profile_record_ownership"));
+        assert!(!migration_requires_data_backup(
+            "future_schema_only_migration"
+        ));
     }
 }

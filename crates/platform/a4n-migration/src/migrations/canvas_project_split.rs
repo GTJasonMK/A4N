@@ -43,6 +43,14 @@ pub struct ApplyReport {
     pub created_canvas_projects: Vec<i64>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DataMigrationPreflight {
+    pub name: String,
+    pub affected_projects: usize,
+    pub media_files_to_copy: usize,
+}
+
 #[sea_orm_migration::async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
@@ -96,23 +104,33 @@ pub async fn preflight(db: &DatabaseConnection) -> Result<Preflight, DbErr> {
         .into_iter()
         .map(|row| row.try_get_by_index(0))
         .collect::<Result<Vec<i64>, _>>()?;
-    let derived_projects_with_canvas_ids = db
-        .query_all(Statement::from_string(
+    let contract_table_exists = db
+        .query_one(Statement::from_string(
             DbBackend::Postgres,
-            r#"
+            "SELECT to_regclass('canvas_project_split_mapping') IS NOT NULL".to_string(),
+        ))
+        .await?
+        .ok_or_else(|| DbErr::Custom("查询 Canvas 拆分迁移状态失败".to_string()))?
+        .try_get_by_index::<bool>(0)?;
+    let mapping_filter = if contract_table_exists {
+        "AND NOT EXISTS (\
+            SELECT 1 FROM canvas_project_split_mapping m\
+            JOIN novel_project canvas ON canvas.id = m.new_project_id\
+            WHERE m.old_project_id = p.id\
+              AND m.action = 'derived_copy'\
+              AND canvas.project_kind = 'canvas'\
+        )"
+    } else {
+        ""
+    };
+    let derived_projects_sql = format!(
+        r#"
 SELECT p.id
 FROM novel_project p
 WHERE p.project_kind = 'video'
   AND p.root_project_id IS NOT NULL
   AND p.source_snapshot_id IS NOT NULL
-  AND NOT EXISTS (
-      SELECT 1
-      FROM canvas_project_split_mapping m
-      JOIN novel_project canvas ON canvas.id = m.new_project_id
-      WHERE m.old_project_id = p.id
-        AND m.action = 'derived_copy'
-        AND canvas.project_kind = 'canvas'
-  )
+  {mapping_filter}
   AND (
       EXISTS (SELECT 1 FROM canvas_graph g JOIN canvas_node n ON n.graph_id = g.id WHERE g.project_id = p.id)
       OR EXISTS (SELECT 1 FROM canvas_text_asset t WHERE t.project_id = p.id)
@@ -123,7 +141,11 @@ WHERE p.project_kind = 'video'
   )
 ORDER BY p.id
 "#
-            .to_string(),
+    );
+    let derived_projects_with_canvas_ids = db
+        .query_all(Statement::from_string(
+            DbBackend::Postgres,
+            derived_projects_sql,
         ))
         .await?
         .into_iter()
@@ -133,6 +155,74 @@ ORDER BY p.id
         legacy_freeform_project_ids,
         derived_projects_with_canvas_ids,
     })
+}
+
+pub async fn data_migration_preflight(
+    db: &DatabaseConnection,
+    data_dir: &Path,
+) -> Result<DataMigrationPreflight, DbErr> {
+    let report = preflight(db).await?;
+    let mut media_files_to_copy = 0;
+    for project_id in &report.derived_projects_with_canvas_ids {
+        let rows = a4n_db::canvas::video_studio_project_export_rows(db, *project_id)
+            .await
+            .map_err(|error| DbErr::Custom(error.to_string()))?;
+        for path in
+            rows.generated_images
+                .iter()
+                .map(|image| Some(image.file_path.as_str()))
+                .chain(rows.generated_videos.iter().flat_map(|video| {
+                    [video.file_path.as_deref(), video.thumbnail_path.as_deref()]
+                }))
+                .chain(rows.media_assets.iter().flat_map(|asset| {
+                    [asset.file_path.as_deref(), asset.thumbnail_path.as_deref()]
+                }))
+                .flatten()
+                .filter(|path| !path.is_empty())
+        {
+            let source = canonicalize_data_file_path(data_dir, path, "Canvas 拆分预检媒体")
+                .map_err(|error| DbErr::Custom(error.to_string()))?;
+            std::fs::File::open(&source).map_err(|error| {
+                DbErr::Custom(format!("Canvas 拆分预检媒体不可读（{path}）：{error}"))
+            })?;
+            media_files_to_copy += 1;
+        }
+    }
+    Ok(DataMigrationPreflight {
+        name: "canvas_project_split".to_string(),
+        affected_projects: report.legacy_freeform_project_ids.len()
+            + report.derived_projects_with_canvas_ids.len(),
+        media_files_to_copy,
+    })
+}
+
+pub async fn data_migration_is_pending(db: &DatabaseConnection) -> Result<bool, DbErr> {
+    let state_table_exists = db
+        .query_one(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT to_regclass('canvas_project_split_state') IS NOT NULL".to_string(),
+        ))
+        .await?
+        .ok_or_else(|| DbErr::Custom("查询 Canvas 拆分迁移状态失败".to_string()))?
+        .try_get_by_index::<bool>(0)?;
+    if !state_table_exists {
+        return Ok(true);
+    }
+    let Some(row) = db
+        .query_one(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT status FROM canvas_project_split_state WHERE id = 1".to_string(),
+        ))
+        .await?
+    else {
+        return Ok(true);
+    };
+    let status: String = row.try_get_by_index(0)?;
+    match status.as_str() {
+        "pending" => Ok(true),
+        "complete" => Ok(false),
+        _ => Err(DbErr::Custom(format!("未知 Canvas 拆分迁移状态：{status}"))),
+    }
 }
 
 pub async fn ensure_complete(db: &DatabaseConnection) -> Result<(), DbErr> {

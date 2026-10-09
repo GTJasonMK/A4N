@@ -228,8 +228,8 @@ jobs:
             scripts/checks/build-feedback-baseline.tsv
           retention-days: 30
 
-  release-package:
-    name: Release package layout ${{ matrix.target }}
+  portable-package-layout:
+    name: Internal portable package layout ${{ matrix.target }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -255,9 +255,12 @@ jobs:
             scripts/dev/setup-onnxruntime.sh \
             scripts/dev/prepare-tauri-external-bin.sh \
             scripts/dev/build-tauri-bundle.sh \
+            scripts/checks/check-linux-tauri-installer.sh \
             scripts/checks/check-generation-safety-boundary.sh \
             scripts/checks/smoke-macos-tauri-bundle.sh \
             scripts/checks/generate-release-sbom.sh
+          ruby -c scripts/release_update_manifest.rb
+          ruby -c scripts/checks/check-updater-release.rb
           ruby -e 'require "json"; JSON.parse(File.read("crates/host/a4n-tauri/tauri.sidecars.conf.json"))'
           ./scripts/checks/check-release-manifest.sh
           ./scripts/checks/check-sidecar-security-boundary.sh
@@ -267,28 +270,10 @@ jobs:
       - name: Check release package layout
         run: ./scripts/deploy.sh --target "${{ matrix.target }}" --dry-run --no-build
 
-  linux-release-smoke:
-    name: Linux installed release smoke
+  linux-installer-layout:
+    name: Linux deb installer layout
     runs-on: ubuntu-24.04
     timeout-minutes: 90
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: a4n_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d a4n_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
-    env:
-      A4N_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/a4n_test
-      A4N_QDRANT_URL: http://127.0.0.1:6334
-      A4N_RELEASE_SMOKE_ARTIFACT_DIR: artifacts/linux-release-smoke
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -298,10 +283,11 @@ jobs:
           sudo apt-get install -y \
             libayatana-appindicator3-dev \
             libgtk-3-dev \
+            librsvg2-dev \
             libwebkit2gtk-4.1-dev \
+            patchelf \
             pkg-config \
-            ripgrep \
-            xvfb
+            ripgrep
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
@@ -317,47 +303,38 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Build real Linux release archive
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version 2.12.0 --locked
+
+      - name: Build Linux deb installer
         run: |
           ./scripts/dev/setup-onnxruntime.sh
-          source scripts/lib/common.sh
-          require_onnxruntime
-          ./scripts/deploy.sh --target linux-x86_64
+          ./scripts/dev/build-tauri-bundle.sh \
+            --target x86_64-unknown-linux-gnu \
+            --bundles deb
 
-      - name: Start installed Host and catalog sidecars
+      - name: Check Linux installer layout
         run: |
-          ./scripts/dev/setup-qdrant.sh
-          source scripts/lib/common.sh
-          mkdir -p "$A4N_RELEASE_SMOKE_ARTIFACT_DIR"
-          qdrant_log="$A4N_RELEASE_SMOKE_ARTIFACT_DIR/qdrant.log"
-          ./scripts/dev/run-qdrant.sh >"$qdrant_log" 2>&1 &
-          qdrant_pid=$!
-          trap 'kill "$qdrant_pid" 2>/dev/null || true; wait "$qdrant_pid" 2>/dev/null || true' EXIT
-          wait_for_qdrant "$qdrant_pid" "$qdrant_log"
-          A4N_JWT_SECRET="$(openssl rand -hex 32)" \
-            xvfb-run -a timeout 180 \
-            ./scripts/checks/smoke-linux-release-package.sh \
-            deploy/a4n-tauri-*-linux-x86_64.tar.gz
+          mkdir -p artifacts/linux-installer-check
+          packages=(target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb)
+          [[ ${#packages[@]} -eq 1 ]]
+          ./scripts/checks/check-linux-tauri-installer.sh "${packages[0]}" \
+            | tee artifacts/linux-installer-check/result.txt
 
-      - name: Upload Linux release and smoke evidence
+      - name: Upload Linux installer evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: linux-release-smoke
+          name: linux-deb-installer-layout
           path: |
-            deploy/a4n-tauri-*-linux-x86_64.tar.gz
-            deploy/a4n-tauri-*-linux-x86_64.tar.gz.sha256
-            artifacts/linux-release-smoke
+            target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb
+            artifacts/linux-installer-check
           retention-days: 30
 
-  windows-release-smoke:
-    name: Windows portable release smoke
+  windows-installer-layout:
+    name: Windows MSI installer layout
     runs-on: windows-2025
     timeout-minutes: 90
-    env:
-      A4N_DATABASE_URL: postgres://postgres:root@127.0.0.1:5432/a4n_test
-      A4N_QDRANT_URL: http://127.0.0.1:6334
-      A4N_RELEASE_SMOKE_ARTIFACT_DIR: artifacts/windows-release-smoke
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -375,77 +352,34 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Start PostgreSQL 17
-        shell: pwsh
-        run: |
-          Set-Service -Name postgresql-x64-17 -StartupType Manual
-          Start-Service -Name postgresql-x64-17
-          $env:PGPASSWORD = "root"
-          & "$env:PGBIN\createdb.exe" -h 127.0.0.1 -U postgres a4n_test
-          if ($LASTEXITCODE -ne 0) { throw "unable to create a4n_test" }
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version 2.12.0 --locked
 
-      - name: Build real Windows portable archive
+      - name: Build Windows MSI installer
         shell: bash
         run: |
           ./scripts/dev/setup-onnxruntime.sh
-          source scripts/lib/common.sh
-          require_onnxruntime
-          ./scripts/deploy.sh --target windows-x86_64
+          ./scripts/dev/build-tauri-bundle.sh \
+            --target x86_64-pc-windows-msvc \
+            --bundles msi
 
-      - name: Start verified Qdrant and run Windows lifecycle smoke
+      - name: Check Windows installer layout
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path artifacts\qdrant | Out-Null
-          $qdrantRoot = Join-Path $env:GITHUB_WORKSPACE "target\tmp\qdrant"
-          New-Item -ItemType Directory -Force -Path $qdrantRoot | Out-Null
-          $metadata = @(& bash -c 'source scripts/lib/common.sh; qdrant_release_metadata windows-x86_64')
-          if ($LASTEXITCODE -ne 0 -or $metadata.Count -ne 1) { throw "unable to load Qdrant release metadata" }
-          $release = $metadata[0].Split("`t")
-          if ($release.Count -ne 3) { throw "invalid Qdrant release metadata" }
-          $version, $asset, $expectedSha256 = $release
-          $archive = Join-Path $qdrantRoot $asset
-          Invoke-WebRequest -Uri "https://github.com/qdrant/qdrant/releases/download/$version/$asset" -OutFile $archive
-          $actual = (Get-FileHash -Algorithm SHA256 -Path $archive).Hash.ToLowerInvariant()
-          if ($actual -ne $expectedSha256) {
-            throw "Qdrant SHA-256 mismatch: $actual"
-          }
-          Expand-Archive -LiteralPath $archive -DestinationPath $qdrantRoot
-          $qdrant = Start-Process -FilePath (Join-Path $qdrantRoot "qdrant.exe") `
-            -RedirectStandardOutput artifacts\qdrant\stdout.log `
-            -RedirectStandardError artifacts\qdrant\stderr.log -PassThru
-          $qdrant.Id | Out-File -FilePath artifacts\qdrant\pid -Encoding ascii
-          $ready = $false
-          for ($attempt = 0; $attempt -lt 300; $attempt++) {
-            try {
-              Invoke-RestMethod -Uri "http://127.0.0.1:6333/readyz" -TimeoutSec 1 | Out-Null
-              $grpc = [System.Net.Sockets.TcpClient]::new()
-              try { $grpc.Connect("127.0.0.1", 6334) } finally { $grpc.Dispose() }
-              $ready = $true
-              break
-            } catch {
-              if ($qdrant.HasExited) { throw "Qdrant exited before becoming ready" }
-              Start-Sleep -Milliseconds 100
-            }
-          }
-          if (-not $ready) { throw "Qdrant did not become ready" }
-          $bytes = New-Object byte[] 32
-          $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
-          try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
-          $env:A4N_JWT_SECRET = -join ($bytes | ForEach-Object { $_.ToString("x2") })
-          $archives = @(Get-ChildItem -Path deploy\a4n-tauri-*-windows-x86_64.tar.gz)
-          if ($archives.Count -ne 1) { throw "expected one Windows release archive, found $($archives.Count)" }
-          ./scripts/checks/smoke-windows-release-package.ps1 -Archive $archives[0].FullName
+          New-Item -ItemType Directory -Force -Path artifacts\windows-installer-check | Out-Null
+          $installers = @(Get-ChildItem -Path target\x86_64-pc-windows-msvc\release\bundle\msi\*.msi)
+          if ($installers.Count -ne 1) { throw "expected one Windows MSI, found $($installers.Count)" }
+          ./scripts/checks/check-windows-tauri-installer.ps1 -Msi $installers[0].FullName |
+            Tee-Object -FilePath artifacts\windows-installer-check\result.txt
 
-      - name: Upload Windows release and smoke evidence
+      - name: Upload Windows installer evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: windows-release-smoke
+          name: windows-msi-installer-layout
           path: |
-            deploy/a4n-tauri-*-windows-x86_64.tar.gz
-            deploy/a4n-tauri-*-windows-x86_64.tar.gz.sha256
-            artifacts/windows-release-smoke
-            artifacts/qdrant
+            target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+            artifacts/windows-installer-check
           retention-days: 30
 
   macos-tauri-smoke:
@@ -492,10 +426,10 @@ jobs:
       - name: Build unsigned macOS arm64 Tauri app
         run: |
           ./scripts/dev/setup-onnxruntime.sh
-          cargo install tauri-cli --version 2.11.0 --locked
+          cargo install tauri-cli --version 2.12.0 --locked
           ./scripts/dev/build-tauri-bundle.sh \
             --target aarch64-apple-darwin \
-            --bundles app
+            --bundles app,dmg
 
       - name: Start verified Qdrant and bundled Host
         run: |
@@ -516,38 +450,29 @@ jobs:
             --profile tauri-functional \
             --report-dir artifacts/tauri-functional-e2e
 
-      - name: Package unsigned macOS executable bundle
+      - name: Verify macOS DMG installer
         run: |
-          app="target/aarch64-apple-darwin/release/bundle/macos/A4N.app"
-          output="artifacts/macos-package"
-          version="$(ruby -rjson -e 'puts JSON.parse(File.read("crates/host/a4n-tauri/tauri.conf.json")).fetch("version")')"
-          archive="$output/A4N-${version}-macos-arm64-unsigned.zip"
-          manifest="$output/A4N-${version}-macos-arm64-unsigned.manifest.json"
-          check="$GITHUB_WORKSPACE/target/tmp/a4n-macos-package-check"
-          mkdir -p "$output" "$check"
-          ruby scripts/release_manifest.rb generate \
-            --package-root "$(dirname "$app")" \
-            --target aarch64-apple-darwin \
-            --package a4n-tauri \
-            --tauri-app "$app" \
-            --output "$manifest"
-          ditto -c -k --sequesterRsrc --keepParent "$app" "$archive"
-          ditto -x -k "$archive" "$check"
-          ruby scripts/release_manifest.rb verify \
-            --package-root "$check" \
-            --manifest "$manifest"
-          (
-            cd "$output"
-            shasum -a 256 "$(basename "$archive")" > "$(basename "$archive").sha256"
-          )
+          dmg="$(find target/aarch64-apple-darwin/release/bundle -type f -name '*.dmg' -print -quit)"
+          test -n "$dmg"
+          hdiutil verify "$dmg"
+          mount_point="$RUNNER_TEMP/a4n-dmg-smoke"
+          mkdir -p "$mount_point"
+          hdiutil attach "$dmg" -nobrowse -readonly -mountpoint "$mount_point"
+          trap 'hdiutil detach "$mount_point" -quiet || true' EXIT
+          test -d "$mount_point/A4N.app"
+          hdiutil detach "$mount_point" -quiet
+          trap - EXIT
+          mkdir -p artifacts/macos-installer-check
+          shasum -a 256 "$dmg" > artifacts/macos-installer-check/sha256.txt
 
-      - name: Upload unsigned macOS bundle and smoke evidence
+      - name: Upload macOS installer evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: macos-arm64-tauri-smoke
           path: |
-            artifacts/macos-package
+            target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+            artifacts/macos-installer-check
             artifacts/macos-tauri-smoke
             artifacts/tauri-functional-e2e
             data/tauri-generation-e2e

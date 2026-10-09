@@ -27,6 +27,7 @@ CARGO_BUILD_ARGS=()
 FULL_HOST=false
 BUNDLE_DEBUG=false
 DRY_RUN=false
+RELEASE_BUILD=false
 
 print_command() {
     local arg
@@ -55,6 +56,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --release)
             PREPARE_ARGS+=(--release)
+            RELEASE_BUILD=true
             shift
             ;;
         --full)
@@ -102,9 +104,18 @@ done <<<"$tool_binary_lines"
 tauri_config="$(ruby -rjson -e '
   config = JSON.parse(File.read(ARGV.fetch(0)))
   external_dir = File.join(File.expand_path(ARGV.fetch(1)), "tauri-sidecars")
-  binaries = ARGV.drop(3)
+  binaries = ARGV.drop(4)
   abort "release externalBin entries are duplicated" unless binaries.uniq.length == binaries.length
   bundle = config.fetch("bundle")
+  release_build = ARGV.fetch(3) == "true"
+  if release_build
+    public_key = ENV.fetch("TAURI_UPDATER_PUBLIC_KEY")
+    abort "TAURI_UPDATER_PUBLIC_KEY 不能为空" if public_key.strip.empty?
+    bundle["createUpdaterArtifacts"] = true
+    config["plugins"] ||= {}
+    config["plugins"]["updater"] ||= {}
+    config["plugins"]["updater"]["pubkey"] = public_key
+  end
   bundle["externalBin"] = binaries.map { |binary| File.join(external_dir, binary) }
   bundle.fetch("resources").delete("../../../target/tauri-sidecars/*onnxruntime*")
   bundle.fetch("resources")[File.join(external_dir, "*onnxruntime*")] = ""
@@ -116,7 +127,7 @@ tauri_config="$(ruby -rjson -e '
     config["app"] = { "windows" => windows.map { |window| window.merge("devtools" => false) } }
   end
   print JSON.generate(config)
-' "$TAURI_SIDECAR_CONFIG" "$CARGO_TARGET_DIR" "$BUNDLE_DEBUG" "${BUNDLE_BINARIES[@]}")"
+' "$TAURI_SIDECAR_CONFIG" "$CARGO_TARGET_DIR" "$BUNDLE_DEBUG" "$RELEASE_BUILD" "${BUNDLE_BINARIES[@]}")"
 tauri_command=(cargo tauri build --config "$tauri_config" "${TAURI_ARGS[@]}")
 if [[ ${#CARGO_BUILD_ARGS[@]} -gt 0 ]]; then
     tauri_command+=(-- "${CARGO_BUILD_ARGS[@]}")
@@ -130,6 +141,11 @@ if $DRY_RUN; then
     log_info "config: tauri.sidecars.conf.json + process-catalog/service-catalog.json + release-tools.json"
     print_command "${tauri_command[@]}"
     exit 0
+fi
+
+if $RELEASE_BUILD; then
+    [[ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]] || die "正式更新包构建必须设置 TAURI_SIGNING_PRIVATE_KEY"
+    [[ -n "${TAURI_UPDATER_PUBLIC_KEY:-}" ]] || die "正式更新包构建必须设置 TAURI_UPDATER_PUBLIC_KEY"
 fi
 
 "${prepare_command[@]}"

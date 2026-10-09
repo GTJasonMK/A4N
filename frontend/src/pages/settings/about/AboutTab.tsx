@@ -6,6 +6,7 @@ import { Row } from "./aboutUtils";
 import { StoragePathsPanel } from "./StoragePathsPanel";
 import { PackageSection } from "../admin/PackageSection";
 import { useI18n } from "../../../i18n";
+import { AppUpdatePanel } from "./AppUpdatePanel";
 
 interface AboutUser {
   id: number;
@@ -58,6 +59,7 @@ export const AboutTab: React.FC<{ user: AboutUser | null; onLogout: () => Promis
       )}
 
       <div className="space-y-4">
+        <AppUpdatePanel />
         <section aria-label={t("settingsAbout.appInfo")} className="a4n-flat-surface overflow-hidden">
           <div className="flex items-center gap-3 px-4 py-4">
             <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-book-primary/10 text-book-primary">

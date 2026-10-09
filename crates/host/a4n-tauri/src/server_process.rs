@@ -391,7 +391,7 @@ impl LocalServerProcess {
                 resolve_binary(app, &worker.launcher, &env_name).map(|binary| (env_name, binary))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        run_migration(&migration, &config.database_url)?;
+        run_migration(&migration, &config.database_url, &config.data_dir, &[])?;
 
         let mut command = Command::new(&server);
         // The Server main returns startup failures through stderr; retain a sanitized tail for the Tauri setup error.
@@ -697,12 +697,43 @@ pub(crate) fn run_native_migration(
     config: &AppConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let binary = resolve_binary(app, "a4n-migration", MIGRATION_BINARY_ENV)?;
-    run_migration(&binary, &config.database_url)
+    if let Err(error) = run_migration(&binary, &config.database_url, &config.data_dir, &[]) {
+        let message = error.to_string();
+        crate::commands::updates::record_update_migration_failure(config, &message)
+            .map_err(std::io::Error::other)?;
+        return Err(error);
+    }
+    if let Some(names) = crate::commands::updates::pending_update_data_migrations(app, config)
+        .map_err(std::io::Error::other)?
+    {
+        if !names.is_empty() {
+            let mut args = vec!["apply-data-migrations".to_string()];
+            args.extend(names);
+            if let Err(error) =
+                run_migration(&binary, &config.database_url, &config.data_dir, &args)
+            {
+                let message = error.to_string();
+                crate::commands::updates::record_update_migration_failure(config, &message)
+                    .map_err(std::io::Error::other)?;
+                return Err(error);
+            }
+        }
+        crate::commands::updates::complete_update_startup(app, config)
+            .map_err(std::io::Error::other)?;
+    }
+    Ok(())
 }
 
-fn run_migration(binary: &Path, database_url: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn run_migration(
+    binary: &Path,
+    database_url: &str,
+    data_dir: &Path,
+    args: &[String],
+) -> Result<(), Box<dyn std::error::Error>> {
     let output = Command::new(binary)
+        .args(args)
         .env("A4N_DATABASE_URL", database_url)
+        .env("A4N_DATA_DIR", data_dir)
         .env_remove("A4N_WEB_ADDR")
         .stdout(Stdio::inherit())
         .stderr(Stdio::piped())
@@ -711,13 +742,8 @@ fn run_migration(binary: &Path, database_url: &str) -> Result<(), Box<dyn std::e
     if output.status.success() {
         return Ok(());
     }
-    let database_url = std::env::var("A4N_DATABASE_URL").unwrap_or_default();
     let detail = String::from_utf8_lossy(&output.stderr);
-    let detail = if database_url.is_empty() {
-        detail.into_owned()
-    } else {
-        detail.replace(&database_url, "[REDACTED]")
-    };
+    let detail = detail.replace(database_url, "[REDACTED]");
     Err(format!("数据库迁移失败: {}", detail.trim()).into())
 }
 
