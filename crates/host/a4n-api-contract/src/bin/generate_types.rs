@@ -10,10 +10,13 @@ use a4n_api_contract::generation_tasks::GENERATION_START_ROUTES;
 use a4n_api_contract::{
     admin::{
         AdminOverviewSummary, AdminProjectSummary, CallKindOverview, CreateInviteCodeInput,
-        CreateUserInput, DailyCallMetric, DailyUsagePoint, GenerationCallAnalytics,
-        GenerationCallAnalyticsInput, InviteCodeSummary, LlmWorkflowMetric, MediaWorkflowMetric,
-        RecentLlmCall, RecentMediaCall, TaskQueueSummary, ThemeInfo, UpdateUserRoleInput,
-        UsageLogSummary, UsageTrendsInput,
+        CreateUserInput, DailyCallMetric, DailyUsagePoint, DeleteTestRunInput,
+        GenerationCallAnalytics, GenerationCallAnalyticsInput, InviteCodeSummary,
+        ListTestRunsInput, LlmWorkflowMetric, MediaWorkflowMetric, RecentLlmCall, RecentMediaCall,
+        StartTestRunInput, TaskQueueSummary, TestImpact, TestRunDetail, TestRunIdInput,
+        TestRunStatus, TestRunSummary, TestScenarioDescriptor, TestScenarioEffect, TestStepSummary,
+        TestTarget, TestTargetMode, ThemeInfo, UpdateUserRoleInput, UsageLogSummary,
+        UsageTrendsInput,
     },
     agent::{
         AGENT_API_PROTOCOL_VERSION, AGENT_EVENTS_DEFAULT_LIMIT, AGENT_EVENTS_MAX_LIMIT,

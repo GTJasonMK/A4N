@@ -182,6 +182,7 @@ impl RuntimeBootstrap {
         }
 
         let managed_sidecars = Arc::new(tokio::sync::Mutex::new(Vec::new()));
+        let test_run_root = config.data_dir.join("test-runs");
         let state = AppState {
             config,
             task_manager,
@@ -189,6 +190,7 @@ impl RuntimeBootstrap {
                 crate::service_health::ServiceHealthApplication::new(service_manager.clone()),
             ),
             application_ports,
+            test_console: Arc::new(crate::actions::admin_records::TestConsole::new(test_run_root)),
             capabilities,
             event_bus,
             provider_runtime,

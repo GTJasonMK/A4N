@@ -1,7 +1,9 @@
 use super::{
     AdminOverviewSummary, AdminPermission, AdminProjectSummary, CreateInviteCodeInput,
-    CreateUserInput, DailyUsagePoint, InviteCodeSummary, TaskQueueSummary, UpdateUserRoleInput,
-    UsageLogSummary, UsageTrendsInput, UserSummary, permissions, projects, tasks, usage, users,
+    CreateUserInput, DailyUsagePoint, DeleteTestRunInput, InviteCodeSummary, ListTestRunsInput,
+    StartTestRunInput, TaskQueueSummary, TestRunDetail, TestRunIdInput, TestRunSummary,
+    TestScenarioDescriptor, UpdateUserRoleInput, UsageLogSummary, UsageTrendsInput, UserSummary,
+    permissions, projects, tasks, usage, users,
 };
 use crate::AppState;
 use a4n_error::AppError;
@@ -106,4 +108,43 @@ admin_record_command!(
     get_admin_overview_for_admin() -> AdminOverviewSummary,
     AdminPermission::ManageSettings,
     |state, caller_user_id| usage::get_admin_overview(state, caller_user_id),
+);
+
+pub async fn list_test_scenarios_for_admin(
+    state: &AppState,
+    caller_user_id: i64,
+) -> Result<Vec<TestScenarioDescriptor>, AppError> {
+    permissions::require_admin_permission(state, caller_user_id, AdminPermission::ManageSettings)
+        .await?;
+    Ok(super::TestConsole::scenarios())
+}
+
+admin_record_command!(
+    start_test_run_for_admin(input: StartTestRunInput) -> TestRunSummary,
+    AdminPermission::ManageSettings,
+    |state, caller_user_id| state.test_console().start(state.clone(), caller_user_id, input),
+);
+
+admin_record_command!(
+    get_test_run_for_admin(input: TestRunIdInput) -> TestRunDetail,
+    AdminPermission::ManageSettings,
+    |state, _caller_user_id| state.test_console().get(&input.run_id),
+);
+
+admin_record_command!(
+    list_test_runs_for_admin(input: ListTestRunsInput) -> Vec<TestRunSummary>,
+    AdminPermission::ManageSettings,
+    |state, _caller_user_id| state.test_console().list(input),
+);
+
+admin_record_command!(
+    cancel_test_run_for_admin(input: TestRunIdInput) -> TestRunSummary,
+    AdminPermission::ManageSettings,
+    |state, _caller_user_id| state.test_console().cancel(&input.run_id),
+);
+
+admin_record_command!(
+    delete_test_run_for_admin(input: DeleteTestRunInput) -> (),
+    AdminPermission::ManageSettings,
+    |state, _caller_user_id| state.test_console().delete(state, input),
 );

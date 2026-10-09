@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Shield } from "lucide-react";
+import { ExternalLink, FlaskConical, Shield } from "lucide-react";
 import { useAuthStore } from "../../store/auth";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
@@ -12,6 +12,7 @@ import { UsersSection } from "./admin/UsersSection";
 import { PackageSection } from "./admin/PackageSection";
 import { useI18n } from "../../i18n";
 import { useDirtyRegistry, useDirtyRegistryVersion } from "../../components/navigation/dirtyRegistry";
+import { routerBasename } from "../../utils/routerBase";
 
 type Section = "overview" | "users" | "projects" | "tasks" | "api" | "trends" | "packages";
 
@@ -87,6 +88,17 @@ export const AdminTab: React.FC = () => {
 
   return (
     <div className="flex h-auto min-h-0 flex-col gap-3 md:h-full">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => window.open(`${routerBasename() ?? ""}/admin/test-center`, "_blank", "noopener,noreferrer")}
+          className="a4n-btn-ghost inline-flex min-h-9 items-center gap-2 border border-book-border/60 px-3 text-xs text-book-text-main"
+        >
+          <FlaskConical size={14} />
+          <span>{t("settingsAdmin.testCenter.entry")}</span>
+          <ExternalLink size={12} className="text-book-text-muted" />
+        </button>
+      </div>
       <div className="tab-bar flex-wrap shrink-0 border-b border-book-border/45" aria-label={t("settingsAdmin.view")}>
         {sectionDefs.map((s) => (
           <button

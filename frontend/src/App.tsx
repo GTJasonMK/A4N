@@ -86,6 +86,9 @@ const SettingsPage = lazy(() =>
 const AgentMonitor = lazy(() =>
   import("./pages/AgentMonitor").then((m) => ({ default: m.AgentMonitor })),
 );
+const TestCenterPage = lazy(() =>
+  import("./pages/admin/TestCenterPage").then((m) => ({ default: m.TestCenterPage })),
+);
 const AssetDependencyGraphDialog = lazy(() =>
   import("./pages/novel-detail/asset-graph/AssetDependencyGraphDialog").then(
     (m) => ({ default: m.AssetDependencyGraphDialog }),
@@ -194,6 +197,7 @@ function RouteContent() {
             element={<GalgameProjectWorkspace />}
           />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/admin/test-center" element={<TestCenterPage />} />
           <Route path="/agents" element={<AgentMonitor />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
