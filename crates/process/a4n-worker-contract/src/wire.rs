@@ -150,6 +150,15 @@ pub struct WorkerLease {
 }
 
 impl WorkerLease {
+    pub fn control_request(worker_id: impl Into<String>) -> Self {
+        Self {
+            worker_id: worker_id.into(),
+            epoch: 1,
+            fence_token: "control-request".into(),
+            expires_at: "9999-12-31T23:59:59Z".into(),
+        }
+    }
+
     pub fn validate(&self) -> Result<(), WorkerContractError> {
         validate_non_blank("lease.worker_id", &self.worker_id)?;
         if self.epoch == 0 {

@@ -111,4 +111,10 @@ describe("locale formatting", () => {
     expect(formatDate("2020-01-02T00:00:00Z", "en-US")).toMatch(/2020/);
     expect(formatDate("2020-01-02T00:00:00Z", "zh-CN")).toMatch(/2020/);
   });
+
+  it("applies caller precision through the shared number formatter", () => {
+    expect(
+      formatNumber(1.5, "en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
+    ).toBe("1.50");
+  });
 });

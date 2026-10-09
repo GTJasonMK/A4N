@@ -4,30 +4,19 @@ use a4n_error::AppError;
 use a4n_source_snapshot_worker_contract::{
     SOURCE_SNAPSHOT_CHAPTERS_OPERATION, SOURCE_SNAPSHOT_WORKER_ID,
 };
-use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
+use a4n_worker_client::{HttpWorkerClient, WorkerClientErrorPolicy, map_worker_client_error};
 use a4n_worker_contract::{
     WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerLease,
     WorkerOperationStatus, WorkerPrincipal, WorkerPrincipalKind, WorkerResponse,
 };
 
 const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47660";
-const CONTROL_LEASE_FENCE: &str = "control-request";
-const CONTROL_LEASE_EXPIRY: &str = "9999-12-31T23:59:59Z";
 
 mod reads;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SourceSnapshotWorkerClient {
     transport: HttpWorkerClient,
-}
-
-impl std::fmt::Debug for SourceSnapshotWorkerClient {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("SourceSnapshotWorkerClient")
-            .field("transport", &self.transport)
-            .finish()
-    }
 }
 
 impl SourceSnapshotWorkerClient {
@@ -41,13 +30,11 @@ impl SourceSnapshotWorkerClient {
     }
 
     pub fn from_env() -> Self {
-        let url = std::env::var("A4N_SOURCE_SNAPSHOT_WORKER_URL")
-            .ok()
-            .filter(|value| !value.trim().is_empty())
-            .unwrap_or_else(|| DEFAULT_WORKER_URL.to_string());
-        let token = std::env::var("A4N_SOURCE_SNAPSHOT_WORKER_TOKEN")
-            .ok()
-            .filter(|value| !value.trim().is_empty());
+        let (url, token) = a4n_worker_client::worker_client_connection_from_env(
+            "A4N_SOURCE_SNAPSHOT_WORKER_URL",
+            "A4N_SOURCE_SNAPSHOT_WORKER_TOKEN",
+            DEFAULT_WORKER_URL,
+        );
         Self::new(url, token)
     }
 
@@ -74,19 +61,20 @@ impl SourceSnapshotWorkerClient {
             root_project_id: None,
             target_revision: None,
             runtime_config_snapshot_ref: None,
-            lease: WorkerLease {
-                worker_id: SOURCE_SNAPSHOT_WORKER_ID.into(),
-                epoch: 1,
-                fence_token: CONTROL_LEASE_FENCE.into(),
-                expires_at: CONTROL_LEASE_EXPIRY.into(),
-            },
+            lease: WorkerLease::control_request(SOURCE_SNAPSHOT_WORKER_ID),
             payload,
         };
         let response: WorkerResponse<O> = self
             .transport
             .command(SOURCE_SNAPSHOT_CHAPTERS_OPERATION, request)
             .await
-            .map_err(worker_client_error)?;
+            .map_err(|error| {
+                map_worker_client_error(
+                    error,
+                    "source snapshot worker",
+                    WorkerClientErrorPolicy::Configuration,
+                )
+            })?;
         match response.status {
             WorkerOperationStatus::Completed => response.payload.ok_or_else(|| {
                 AppError::ConfigError("source snapshot worker 完成响应缺少 payload".into())
@@ -99,10 +87,6 @@ impl SourceSnapshotWorkerClient {
             ))),
         }
     }
-}
-
-fn worker_client_error(error: WorkerClientError) -> AppError {
-    AppError::ConfigError(format!("source snapshot worker 请求失败: {error}"))
 }
 
 fn worker_response_error(error: &WorkerError) -> AppError {

@@ -2746,6 +2746,7 @@ dependencies = [
  "a4n-theme-read-worker",
  "a4n-video-record-worker",
  "a4n-worker-contract",
+ "a4n-worker-runtime",
  "a4n-workflow-lifecycle-worker",
  "a4n-workflow-read-worker",
  "anyhow",
@@ -2783,6 +2784,7 @@ version = "0.1.0"
 dependencies = [
  "a4n-process-catalog",
  "a4n-service-protocol",
+ "a4n-worker-runtime",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
@@ -2918,6 +2920,7 @@ dependencies = [
  "a4n-test-support",
  "a4n-worker-client",
  "a4n-worker-contract",
+ "a4n-worker-runtime",
  "axum",
  "base64 0.22.1",
  "chrono",
@@ -3208,6 +3211,7 @@ dependencies = [
 name = "a4n-worker-client"
 version = "0.1.0"
 dependencies = [
+ "a4n-error",
  "a4n-worker-contract",
  "reqwest 0.12.28",
  "serde",

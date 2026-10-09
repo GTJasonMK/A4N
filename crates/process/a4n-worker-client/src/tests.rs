@@ -1,9 +1,10 @@
 use std::{collections::HashMap, time::Duration};
 
 use a4n_worker_contract::{
-    WORKER_SCHEMA_VERSION, WorkerCancelRequest, WorkerCapabilities, WorkerEnvelope, WorkerHealth,
-    WorkerHealthStatus, WorkerLease, WorkerOperationRef, WorkerOperationStatus, WorkerPrincipal,
-    WorkerPrincipalKind, WorkerRecoveryRequest, WorkerResponse,
+    WORKER_SCHEMA_VERSION, WorkerCancelRequest, WorkerCapabilities, WorkerEnvelope, WorkerError,
+    WorkerErrorCode, WorkerHealth, WorkerHealthStatus, WorkerLease, WorkerOperationRef,
+    WorkerOperationStatus, WorkerPrincipal, WorkerPrincipalKind, WorkerRecoveryRequest,
+    WorkerResponse,
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -12,8 +13,107 @@ use tokio::{
 };
 
 use super::{
-    HttpWorkerClient, WORKER_AUTH_HEADER, WorkerClientConfig, WorkerClientError, WorkerJsonResponse,
+    HttpWorkerClient, WORKER_AUTH_HEADER, WorkerClientConfig, WorkerClientError,
+    WorkerClientErrorPolicy, WorkerJsonResponse, map_worker_client_error,
+    map_worker_response_error, resolve_worker_client_connection,
 };
+
+#[test]
+fn worker_client_error_mapping_preserves_transport_policy() {
+    assert!(matches!(
+        map_worker_client_error(
+            WorkerClientError::Timeout,
+            "worker",
+            WorkerClientErrorPolicy::Configuration,
+        ),
+        a4n_error::AppError::ConfigError(message) if message == "worker 请求失败: worker request timed out"
+    ));
+    assert!(matches!(
+        map_worker_client_error(
+            WorkerClientError::Timeout,
+            "worker",
+            WorkerClientErrorPolicy::TransientAsTimeout,
+        ),
+        a4n_error::AppError::Timeout(message) if message == "worker 请求超时"
+    ));
+    assert!(matches!(
+        map_worker_client_error(
+            WorkerClientError::HttpStatus { status: 503 },
+            "worker",
+            WorkerClientErrorPolicy::TransientAsTimeout,
+        ),
+        a4n_error::AppError::Timeout(message) if message == "worker 返回 HTTP 503"
+    ));
+    assert!(matches!(
+        map_worker_client_error(
+            WorkerClientError::HttpStatus { status: 409 },
+            "worker",
+            WorkerClientErrorPolicy::TransientAsTimeout,
+        ),
+        a4n_error::AppError::ConfigError(message) if message == "worker 请求失败: worker returned HTTP status 409"
+    ));
+}
+
+#[test]
+fn worker_response_error_mapping_preserves_basic_contract() {
+    assert!(matches!(
+        map_worker_response_error(
+            &WorkerError {
+                code: WorkerErrorCode::Conflict,
+                message: "revision conflict".into(),
+                retryable: false,
+            },
+            "demo worker",
+            "demo.save",
+        ),
+        a4n_error::AppError::InvalidState { current, operation }
+            if current == "revision conflict" && operation == "demo.save"
+    ));
+    assert!(matches!(
+        map_worker_response_error(
+            &WorkerError {
+                code: WorkerErrorCode::Internal,
+                message: "internal failure".into(),
+                retryable: false,
+            },
+            "demo worker",
+            "demo.save",
+        ),
+        a4n_error::AppError::ConfigError(message)
+            if message == "demo worker demo.save 失败: internal failure"
+    ));
+}
+
+#[test]
+fn worker_client_connection_keeps_default_and_optional_token_rules() {
+    assert_eq!(
+        resolve_worker_client_connection(
+            Err(std::env::VarError::NotPresent),
+            Err(std::env::VarError::NotPresent),
+            "http://127.0.0.1:47650",
+        ),
+        ("http://127.0.0.1:47650".to_string(), None),
+    );
+    assert_eq!(
+        resolve_worker_client_connection(
+            Ok(" https://worker.example.test ".to_string()),
+            Ok(" token ".to_string()),
+            "http://127.0.0.1:47650",
+        ),
+        (
+            " https://worker.example.test ".to_string(),
+            Some(" token ".to_string()),
+        ),
+    );
+    assert_eq!(
+        resolve_worker_client_connection(
+            Ok("   ".to_string()),
+            Ok("   ".to_string()),
+            "http://127.0.0.1:47650",
+        ),
+        ("http://127.0.0.1:47650".to_string(), None),
+    );
+}
 
 #[tokio::test]
 async fn health_and_capabilities_roundtrip() {

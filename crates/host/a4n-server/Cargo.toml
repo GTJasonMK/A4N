@@ -89,6 +89,7 @@ a4n-config = { workspace = true }
 a4n-control = { workspace = true, optional = true }
 a4n-edge = { workspace = true, optional = true }
 a4n-process-catalog = { workspace = true }
+a4n-worker-runtime = { workspace = true }
 a4n-worker-contract = { workspace = true }
 
 anyhow = { workspace = true }

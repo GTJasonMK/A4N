@@ -2,6 +2,18 @@ use serde::de::DeserializeOwned;
 
 use super::*;
 
+#[test]
+fn control_request_lease_has_one_canonical_shape() {
+    let lease = WorkerLease::control_request("worker-test");
+    assert_eq!(lease.worker_id, "worker-test");
+    assert_eq!(lease.epoch, 1);
+    assert_eq!(lease.fence_token, "control-request");
+    assert_eq!(lease.expires_at, "9999-12-31T23:59:59Z");
+    lease
+        .validate()
+        .expect("control request lease should validate");
+}
+
 fn valid_envelope() -> WorkerEnvelope<serde_json::Value> {
     WorkerEnvelope {
         schema_version: WORKER_SCHEMA_VERSION,

@@ -5,28 +5,17 @@ mod visual_plan;
 
 use a4n_error::AppError;
 use a4n_novel_planning_worker_contract::NOVEL_PLANNING_WORKER_ID;
-use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
+use a4n_worker_client::{HttpWorkerClient, WorkerClientErrorPolicy, map_worker_client_error};
 use a4n_worker_contract::{
     WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerLease,
     WorkerOperationStatus, WorkerPrincipal, WorkerPrincipalKind, WorkerResponse,
 };
 
 const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47651";
-const CONTROL_LEASE_FENCE: &str = "control-request";
-const CONTROL_LEASE_EXPIRY: &str = "9999-12-31T23:59:59Z";
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct NovelPlanningWorkerClient {
     transport: HttpWorkerClient,
-}
-
-impl std::fmt::Debug for NovelPlanningWorkerClient {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("NovelPlanningWorkerClient")
-            .field("transport", &self.transport)
-            .finish()
-    }
 }
 
 impl NovelPlanningWorkerClient {
@@ -40,13 +29,11 @@ impl NovelPlanningWorkerClient {
     }
 
     pub fn from_env() -> Self {
-        let url = std::env::var("A4N_NOVEL_PLANNING_WORKER_URL")
-            .ok()
-            .filter(|value| !value.trim().is_empty())
-            .unwrap_or_else(|| DEFAULT_WORKER_URL.to_string());
-        let token = std::env::var("A4N_NOVEL_PLANNING_WORKER_TOKEN")
-            .ok()
-            .filter(|value| !value.trim().is_empty());
+        let (url, token) = a4n_worker_client::worker_client_connection_from_env(
+            "A4N_NOVEL_PLANNING_WORKER_URL",
+            "A4N_NOVEL_PLANNING_WORKER_TOKEN",
+            DEFAULT_WORKER_URL,
+        );
         Self::new(url, token)
     }
 
@@ -87,19 +74,20 @@ impl NovelPlanningWorkerClient {
             root_project_id: None,
             target_revision: target_revision.map(|revision| revision as u64),
             runtime_config_snapshot_ref: None,
-            lease: WorkerLease {
-                worker_id: NOVEL_PLANNING_WORKER_ID.into(),
-                epoch: 1,
-                fence_token: CONTROL_LEASE_FENCE.into(),
-                expires_at: CONTROL_LEASE_EXPIRY.into(),
-            },
+            lease: WorkerLease::control_request(NOVEL_PLANNING_WORKER_ID),
             payload,
         };
         let response: WorkerResponse<O> = self
             .transport
             .command(operation_id, request)
             .await
-            .map_err(worker_client_error)?;
+            .map_err(|error| {
+                map_worker_client_error(
+                    error,
+                    "novel-planning worker",
+                    WorkerClientErrorPolicy::Configuration,
+                )
+            })?;
         match response.status {
             WorkerOperationStatus::Completed => response.payload.ok_or_else(|| {
                 AppError::ConfigError(format!(
@@ -115,10 +103,6 @@ impl NovelPlanningWorkerClient {
             ))),
         }
     }
-}
-
-fn worker_client_error(error: WorkerClientError) -> AppError {
-    AppError::ConfigError(format!("novel-planning worker 请求失败: {error}"))
 }
 
 fn worker_response_error(error: &WorkerError, operation: &str) -> AppError {

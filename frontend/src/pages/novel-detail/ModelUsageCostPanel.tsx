@@ -12,7 +12,7 @@ import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { useToast } from "../../components/feedback/Toast";
 import type { ModelRequestPreview } from "../../api/requestPreview";
-import { formatDateTime, formatNumber, useI18n, type MessageKey } from "../../i18n";
+import { formatDateTime, formatNumber, useI18n, type Locale, type MessageKey } from "../../i18n";
 import { getOperationStatusLabel } from "../../utils/workflowPresentation";
 
 const CAPABILITY_LABELS: Record<string, MessageKey> = {
@@ -249,9 +249,9 @@ function requestPreviewData(request: ModelUsageRequest): ModelRequestPreview {
   };
 }
 
-function formatMicros(value: string, locale: string): string {
+function formatMicros(value: string, locale: Locale): string {
   const amount = Number(value) / 1_000_000;
   return Number.isFinite(amount)
-    ? amount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 6 })
+    ? formatNumber(amount, locale, { minimumFractionDigits: 2, maximumFractionDigits: 6 })
     : value;
 }

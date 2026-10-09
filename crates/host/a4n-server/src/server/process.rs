@@ -1,7 +1,6 @@
 use super::*;
 
 #[cfg(target_os = "linux")]
-use std::os::unix::process::CommandExt;
 
 pub(crate) fn spawn_control_from_workers(
     binary: &Path,
@@ -24,7 +23,7 @@ pub(crate) fn spawn_control_from_workers(
     }
     #[cfg(feature = "test-embedded-processes")]
     command.env(CONTROL_PROCESS_ENV, "1");
-    configure_parent_death_signal(&mut command);
+    a4n_worker_runtime::configure_parent_death_signal(&mut command);
     command
         .spawn()
         .map_err(|error| anyhow::anyhow!("启动 A4N Control 失败: {}: {error}", binary.display()))
@@ -52,7 +51,7 @@ pub(crate) fn spawn_managed_worker(config: &ManagedWorkerConfig) -> anyhow::Resu
         .stderr(Stdio::inherit());
     #[cfg(feature = "test-embedded-processes")]
     command.env(managed_worker_env(config.metadata, "PROCESS"), "1");
-    configure_parent_death_signal(&mut command);
+    a4n_worker_runtime::configure_parent_death_signal(&mut command);
     command.spawn().map_err(|error| {
         anyhow::anyhow!(
             "启动 {} 失败: {}: {error}",
@@ -109,7 +108,7 @@ pub(crate) fn spawn_edge(binary: &Path, control_addr: SocketAddr) -> anyhow::Res
         .stderr(Stdio::inherit());
     #[cfg(feature = "test-embedded-processes")]
     command.env(EDGE_PROCESS_ENV, "1");
-    configure_parent_death_signal(&mut command);
+    a4n_worker_runtime::configure_parent_death_signal(&mut command);
     command
         .spawn()
         .map_err(|error| anyhow::anyhow!("启动 A4N Edge 失败: {}: {error}", binary.display()))
@@ -145,23 +144,3 @@ pub(crate) fn stop_child(child: &mut Child) -> anyhow::Result<()> {
     child.wait()?;
     Ok(())
 }
-
-#[cfg(target_os = "linux")]
-pub(crate) fn configure_parent_death_signal(command: &mut Command) {
-    unsafe {
-        command.pre_exec(|| {
-            unsafe extern "C" {
-                fn prctl(option: i32, ...) -> i32;
-            }
-            const PR_SET_PDEATHSIG: i32 = 1;
-            const SIGTERM: i32 = 15;
-            if prctl(PR_SET_PDEATHSIG, SIGTERM) != 0 {
-                return Err(std::io::Error::last_os_error());
-            }
-            Ok(())
-        });
-    }
-}
-
-#[cfg(not(target_os = "linux"))]
-pub(crate) fn configure_parent_death_signal(_: &mut Command) {}

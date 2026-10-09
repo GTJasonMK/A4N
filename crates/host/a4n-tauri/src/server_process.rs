@@ -6,8 +6,6 @@ use std::collections::VecDeque;
 use std::io::{self, BufRead, BufReader, Write};
 use std::net::SocketAddr;
 use std::net::TcpListener;
-#[cfg(target_os = "linux")]
-use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -169,7 +167,7 @@ impl NativeWorkerSettings {
                 .stdout(Stdio::inherit())
                 .stderr(Stdio::inherit());
             configure_component_library_path(&mut command, app)?;
-            configure_parent_death_signal(&mut command);
+            a4n_worker_runtime::configure_parent_death_signal(&mut command);
 
             // ponytail: release each reserved port immediately before bind; retry if a rare race occurs.
             drop(reservations.next());
@@ -422,7 +420,7 @@ impl LocalServerProcess {
         if let Some(address) = configured_address {
             command.env("A4N_WEB_ADDR", address.to_string());
         }
-        configure_parent_death_signal(&mut command);
+        a4n_worker_runtime::configure_parent_death_signal(&mut command);
 
         let mut child = command
             .spawn()
@@ -596,27 +594,6 @@ fn append_server_stderr_tail(tail: &Mutex<VecDeque<u8>>, bytes: &[u8]) {
         tail.push_back(*byte);
     }
 }
-
-#[cfg(target_os = "linux")]
-fn configure_parent_death_signal(command: &mut Command) {
-    // Keep the child server from surviving a Tauri dev rebuild or abrupt exit.
-    unsafe {
-        command.pre_exec(|| {
-            unsafe extern "C" {
-                fn prctl(option: i32, ...) -> i32;
-            }
-            const PR_SET_PDEATHSIG: i32 = 1;
-            const SIGTERM: i32 = 15;
-            if prctl(PR_SET_PDEATHSIG, SIGTERM) != 0 {
-                return Err(std::io::Error::last_os_error());
-            }
-            Ok(())
-        });
-    }
-}
-
-#[cfg(not(target_os = "linux"))]
-fn configure_parent_death_signal(_: &mut Command) {}
 
 impl Drop for LocalServerProcess {
     fn drop(&mut self) {

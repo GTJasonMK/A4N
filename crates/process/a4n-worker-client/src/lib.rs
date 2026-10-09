@@ -6,6 +6,7 @@
 
 use std::time::Duration;
 
+use a4n_error::AppError;
 use reqwest::{Method, StatusCode, header::CONTENT_TYPE};
 use serde::{Serialize, de::DeserializeOwned};
 
@@ -25,6 +26,31 @@ use responses::{validate_command_response, validate_operation_response};
 
 pub const WORKER_COMMANDS_PATH: &str = "/v1/commands";
 pub const WORKER_OPERATIONS_PATH: &str = "/v1/operations";
+
+pub fn worker_client_connection_from_env(
+    url_env: &str,
+    token_env: &str,
+    default_url: &str,
+) -> (String, Option<String>) {
+    resolve_worker_client_connection(
+        std::env::var(url_env),
+        std::env::var(token_env),
+        default_url,
+    )
+}
+
+fn resolve_worker_client_connection(
+    url: Result<String, std::env::VarError>,
+    token: Result<String, std::env::VarError>,
+    default_url: &str,
+) -> (String, Option<String>) {
+    let url = url
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| default_url.to_string());
+    let token = token.ok().filter(|value| !value.trim().is_empty());
+    (url, token)
+}
 
 const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
@@ -76,6 +102,50 @@ pub enum WorkerClientError {
     RequestJson(#[source] serde_json::Error),
     #[error("worker response JSON is invalid")]
     ResponseJson(#[source] serde_json::Error),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkerClientErrorPolicy {
+    Configuration,
+    TransientAsTimeout,
+}
+
+pub fn map_worker_client_error(
+    error: WorkerClientError,
+    worker_name: &str,
+    policy: WorkerClientErrorPolicy,
+) -> AppError {
+    match (policy, error) {
+        (WorkerClientErrorPolicy::TransientAsTimeout, WorkerClientError::Timeout) => {
+            AppError::Timeout(format!("{worker_name} 请求超时"))
+        }
+        (WorkerClientErrorPolicy::TransientAsTimeout, WorkerClientError::Transport(error)) => {
+            AppError::Timeout(format!("{worker_name} 请求失败: {error}"))
+        }
+        (WorkerClientErrorPolicy::TransientAsTimeout, WorkerClientError::HttpStatus { status })
+            if status >= 500 =>
+        {
+            AppError::Timeout(format!("{worker_name} 返回 HTTP {status}"))
+        }
+        (_, error) => AppError::ConfigError(format!("{worker_name} 请求失败: {error}")),
+    }
+}
+
+pub fn map_worker_response_error(
+    error: &WorkerError,
+    worker_name: &str,
+    operation: &str,
+) -> AppError {
+    match error.code {
+        WorkerErrorCode::InvalidRequest => AppError::InvalidArgument(error.message.clone()),
+        WorkerErrorCode::Unauthorized => AppError::Forbidden(error.message.clone()),
+        WorkerErrorCode::NotFound => AppError::NotFound(error.message.clone()),
+        WorkerErrorCode::Conflict => AppError::InvalidState {
+            current: error.message.clone(),
+            operation: operation.to_string(),
+        },
+        _ => AppError::ConfigError(format!("{worker_name} {operation} 失败: {}", error.message)),
+    }
 }
 
 #[derive(Clone)]

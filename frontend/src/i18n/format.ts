@@ -24,15 +24,18 @@ export const formatDateTime = (
   value: UiDateInput,
   locale: Locale,
   fallback = "—",
+  options: { includeYear?: boolean; includeSeconds?: boolean } = {},
 ): string => {
   const date = parseDate(value);
   if (!date) return fallback;
+  const includeYear = options.includeYear ?? shouldIncludeYear(date);
   return date.toLocaleString(locale, {
-    year: shouldIncludeYear(date) ? "numeric" : undefined,
+    year: includeYear ? "numeric" : undefined,
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
+    ...(options.includeSeconds ? { second: "2-digit" as const } : {}),
     hour12: locale === "zh-CN" ? false : undefined,
   });
 };

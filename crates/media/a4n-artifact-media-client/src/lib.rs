@@ -28,18 +28,9 @@ pub enum ArtifactMediaClientError {
     UnexpectedStatus(WorkerOperationStatus),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ArtifactMediaWorkerClient {
     transport: HttpWorkerClient,
-}
-
-impl std::fmt::Debug for ArtifactMediaWorkerClient {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("ArtifactMediaWorkerClient")
-            .field("transport", &self.transport)
-            .finish()
-    }
 }
 
 impl ArtifactMediaWorkerClient {
@@ -163,6 +154,18 @@ mod tests {
     use axum::{Router, routing::get};
     use std::net::SocketAddr;
     use std::time::Duration;
+
+    #[test]
+    fn client_debug_redacts_worker_address_and_token() {
+        let client = ArtifactMediaWorkerClient::new(
+            "https://user:secret@artifact-media-worker.example.test",
+            "artifact-media-token",
+        );
+        let debug = format!("{client:?}");
+        assert!(!debug.contains("artifact-media-worker.example.test"));
+        assert!(!debug.contains("secret"));
+        assert!(!debug.contains("artifact-media-token"));
+    }
 
     #[tokio::test]
     async fn client_uses_worker_health_contract() {

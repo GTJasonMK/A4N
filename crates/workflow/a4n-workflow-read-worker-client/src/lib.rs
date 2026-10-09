@@ -8,7 +8,9 @@ use a4n_api_contract::workflow::{
     WorkflowTaskLookupApplicationPort,
 };
 use a4n_error::AppError;
-use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
+#[cfg(test)]
+use a4n_worker_client::WorkerClientError;
+use a4n_worker_client::{HttpWorkerClient, WorkerClientErrorPolicy, map_worker_client_error};
 use a4n_worker_contract::{
     WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerLease,
     WorkerOperationStatus, WorkerPrincipal, WorkerPrincipalKind, WorkerResponse,
@@ -22,24 +24,13 @@ use a4n_workflow_read_worker_contract::{
 };
 
 const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47672";
-const CONTROL_LEASE_FENCE: &str = "control-request";
-const CONTROL_LEASE_EXPIRY: &str = "9999-12-31T23:59:59Z";
 
 mod tasks;
 mod workflow;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct WorkflowReadWorkerClient {
     transport: HttpWorkerClient,
-}
-
-impl std::fmt::Debug for WorkflowReadWorkerClient {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("WorkflowReadWorkerClient")
-            .field("transport", &self.transport)
-            .finish()
-    }
 }
 
 impl WorkflowReadWorkerClient {
@@ -53,13 +44,11 @@ impl WorkflowReadWorkerClient {
     }
 
     pub fn from_env() -> Self {
-        let url = std::env::var("A4N_WORKFLOW_READ_WORKER_URL")
-            .ok()
-            .filter(|value| !value.trim().is_empty())
-            .unwrap_or_else(|| DEFAULT_WORKER_URL.to_string());
-        let token = std::env::var("A4N_WORKFLOW_READ_WORKER_TOKEN")
-            .ok()
-            .filter(|value| !value.trim().is_empty());
+        let (url, token) = a4n_worker_client::worker_client_connection_from_env(
+            "A4N_WORKFLOW_READ_WORKER_URL",
+            "A4N_WORKFLOW_READ_WORKER_TOKEN",
+            DEFAULT_WORKER_URL,
+        );
         Self::new(url, token)
     }
 
@@ -89,19 +78,20 @@ impl WorkflowReadWorkerClient {
             root_project_id: None,
             target_revision: None,
             runtime_config_snapshot_ref: None,
-            lease: WorkerLease {
-                worker_id: WORKFLOW_READ_WORKER_ID.into(),
-                epoch: 1,
-                fence_token: CONTROL_LEASE_FENCE.into(),
-                expires_at: CONTROL_LEASE_EXPIRY.into(),
-            },
+            lease: WorkerLease::control_request(WORKFLOW_READ_WORKER_ID),
             payload,
         };
         let response: WorkerResponse<O> = self
             .transport
             .command(operation, request)
             .await
-            .map_err(worker_client_error)?;
+            .map_err(|error| {
+                map_worker_client_error(
+                    error,
+                    "workflow read worker",
+                    WorkerClientErrorPolicy::TransientAsTimeout,
+                )
+            })?;
         match response.status {
             WorkerOperationStatus::Completed => response.payload.ok_or_else(|| {
                 AppError::ConfigError(format!(
@@ -142,19 +132,6 @@ impl WorkflowReadWorkerClient {
     {
         self.command(Self::service_principal(), None, operation, payload)
             .await
-    }
-}
-
-fn worker_client_error(error: WorkerClientError) -> AppError {
-    match error {
-        WorkerClientError::Timeout => AppError::Timeout("workflow read worker 请求超时".into()),
-        WorkerClientError::Transport(error) => {
-            AppError::Timeout(format!("workflow read worker 请求失败: {error}"))
-        }
-        WorkerClientError::HttpStatus { status } if status >= 500 => {
-            AppError::Timeout(format!("workflow read worker 返回 HTTP {status}"))
-        }
-        error => AppError::ConfigError(format!("workflow read worker 请求失败: {error}")),
     }
 }
 
@@ -199,11 +176,19 @@ mod tests {
     #[test]
     fn retryable_worker_failures_remain_retryable() {
         assert!(matches!(
-            worker_client_error(WorkerClientError::Timeout),
+            map_worker_client_error(
+                WorkerClientError::Timeout,
+                "workflow read worker",
+                WorkerClientErrorPolicy::TransientAsTimeout,
+            ),
             AppError::Timeout(_)
         ));
         assert!(matches!(
-            worker_client_error(WorkerClientError::HttpStatus { status: 503 }),
+            map_worker_client_error(
+                WorkerClientError::HttpStatus { status: 503 },
+                "workflow read worker",
+                WorkerClientErrorPolicy::TransientAsTimeout,
+            ),
             AppError::Timeout(_)
         ));
         assert!(matches!(
