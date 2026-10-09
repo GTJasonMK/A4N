@@ -214,17 +214,7 @@ async function openGalgame(view = "editor") {
 
 async function openGalgameAssets() {
   await openGalgame("scenes");
-  if (await browser.execute(() => innerWidth) < 640) {
-    const select = await $('[role="combobox"][id="galgame-stages-5-select"]');
-    await select.click();
-    const option = await $('//*[@role="option" and contains(normalize-space(.), "资产规划")]');
-    await option.waitForClickable();
-    await option.click();
-    await ready();
-  } else {
-    const stage = await $('button[id="galgame-stages-5-tab-asset_plan"]');
-    if (await stage.getAttribute("aria-selected") !== "true") await stage.click();
-  }
+  await chooseGalgameStage("asset_plan", "资产规划");
   const entry = await buttonText("规划视觉资产");
   await entry.waitForClickable();
   await entry.click();
@@ -234,6 +224,20 @@ async function openGalgameAssets() {
   await browser.waitUntil(async () => (await $$('section[aria-label="资产规划"] tbody td')).length === 12, {
     timeout: 2500, timeoutMsg: "The asset planning dialog must render all twelve portrait cells",
   });
+  await ready();
+}
+
+async function chooseGalgameStage(stageId, label) {
+  if (await browser.execute(() => innerWidth) < 640) {
+    const select = await $('[role="combobox"][id="galgame-stages-5-select"]');
+    await select.click();
+    const option = await $(`//*[@role="option" and contains(normalize-space(.), ${JSON.stringify(label)})]`);
+    await option.waitForClickable();
+    await option.click();
+  } else {
+    const stage = await $(`button[id="galgame-stages-5-tab-${stageId}"]`);
+    if (await stage.getAttribute("aria-selected") !== "true") await stage.click();
+  }
   await ready();
 }
 
@@ -866,8 +870,8 @@ const cases = [
     assert.equal((await reachByWheel(audio)).reached, true, "The native BGM player must be visibly reachable before playback");
     return provePlayback(audio);
   }, note: "先真实滚到BGM控制区再验证播放时间推进，保留可见音频控件的interaction截图。" },
-  { id: "MG09", title: "Galgame视觉资产计划", task: "查看6背景、12立绘单元和2CG", open: openGalgameAssets, scope: 'section[aria-label="资产规划"]', expected: ["角色差分", "CG", "站台·镜中出口"], count: ['section[aria-label="资产规划"] tbody td', 12], note: "资产计划在独立阶段内展示完整背景、矩阵和操作入口。" },
-  { id: "MG10", title: "Galgame矩阵末项", task: "找到矩阵最右列并读取生成状态", open: async () => { await openGalgameAssets(); await reachByWheel('section[aria-label="资产规划"] tbody tr:last-child td:last-child button', "y"); }, scope: 'section[aria-label="资产规划"]', tail: 'section[aria-label="资产规划"] tbody tr:last-child td:last-child button', axis: "x", expected: ["视觉资产", "生成素材"], note: "单格动作准确标为生成素材；窄屏保留真实横向滚动与大图预览。" },
+  { id: "MG09", title: "Galgame视觉资产计划", task: "查看6背景、12立绘单元和2CG", open: openGalgameAssets, scope: 'section[aria-label="资产规划"]', expected: ["角色差分", "CG", "站台·镜中出口"], count: ['section[aria-label="资产规划"] tbody td', 12], after: async () => { assert.equal(await $$('//section[@aria-label="资产规划"]//tbody//button[normalize-space()="生成素材"]').length, 0); return { perAssetActionsHiddenDuringPlanning: true }; }, note: "规划阶段只承担清单与状态核对，逐项生成留在素材生成阶段。" },
+  { id: "MG10", title: "Galgame矩阵末项", task: "找到矩阵最右列并读取生成状态", open: async () => { await openGalgameAssets(); await chooseGalgameStage("asset_generation", "素材生成"); const target = 'section[aria-label="资产规划"] tbody tr:last-child td:last-child button'; await browser.waitUntil(async () => (await $$(target)).length === 1, { timeout: 2500, timeoutMsg: "Per-asset generation actions must appear in the generation stage" }); await reachByWheel(target, "y"); }, scope: 'section[aria-label="资产规划"]', tail: 'section[aria-label="资产规划"] tbody tr:last-child td:last-child button', axis: "x", expected: ["视觉资产", "生成素材"], note: "逐项生成只在素材生成阶段出现；窄屏保留真实横向滚动与大图预览。" },
   { id: "MG11", title: "Galgame生成选项", task: "区分断点续跑与指定阶段重新生成", open: async () => { await openGalgame("scenes"); await openDetails('details[aria-label="剧本生成"]'); await openDetails('details[aria-label="剧本生成"] details'); }, expected: ["继续生成", "自动选择起点"], after: async () => {
     const options = await $('details[aria-label="剧本生成"]');
     await options.$('button[role="combobox"]').click();

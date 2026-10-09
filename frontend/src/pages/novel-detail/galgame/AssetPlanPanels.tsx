@@ -123,7 +123,8 @@ export const AssetPlanPanel: React.FC<{
       {outcomeSummary ? <p>{outcomeSummary}</p> : null}
       <AssetPlanList title={t("galgame.background")} items={plan.backgrounds} />
       <PortraitExpressionMatrix items={plan.portrait_expressions} speakerProfiles={speakerProfiles}
-        disabled={disabled || loading || error != null || mode === "planning" || imageSize == null} generatingSpecId={generatingSpecId} onGenerateSpec={onGenerateSpec} />
+        mode={mode} disabled={disabled || loading || error != null || imageSize == null}
+        generatingSpecId={generatingSpecId} onGenerateSpec={onGenerateSpec} />
       <AssetPlanList title="CG" items={plan.event_cgs} />
     </div>}
   </div>;
@@ -186,12 +187,14 @@ const AssetPlanList: React.FC<{
 export const PortraitExpressionMatrix: React.FC<{
   items: GalgameAssetPlanItem[];
   speakerProfiles: GalgameSpeakerProfile[];
+  mode: "planning" | "generation";
   disabled: boolean;
   generatingSpecId: number | null;
   onGenerateSpec: (generationSpecId: number) => void;
 }> = ({
   items,
   speakerProfiles,
+  mode,
   disabled,
   generatingSpecId,
   onGenerateSpec,
@@ -272,26 +275,28 @@ export const PortraitExpressionMatrix: React.FC<{
                             >
                               {assetSpecStatusLabel(cell.item.status, t)}
                             </span>
-                            <BookButton
-                              variant="secondary"
-                              size="sm"
-                              className={
-                                disabled
-                                  ? "w-full"
-                                  : "w-full border-book-primary/35 bg-book-primary/5 text-book-primary hover:border-book-primary/55 hover:bg-book-primary/10 hover:text-book-primary"
-                              }
-                              disabled={disabled}
-                              onClick={() =>
-                                onGenerateSpec(cell.item.generation_spec_id)
-                              }
-                            >
-                              {generating ? (
-                                <LoadingSpinner size="sm" />
-                              ) : (
-                                <RefreshCw size={12} />
-                              )}
-                              {t("galgame.generateAsset")}
-                            </BookButton>
+                            {mode === "generation" ? (
+                              <BookButton
+                                variant="secondary"
+                                size="sm"
+                                className={
+                                  disabled
+                                    ? "w-full"
+                                    : "w-full border-book-primary/35 bg-book-primary/5 text-book-primary hover:border-book-primary/55 hover:bg-book-primary/10 hover:text-book-primary"
+                                }
+                                disabled={disabled}
+                                onClick={() =>
+                                  onGenerateSpec(cell.item.generation_spec_id)
+                                }
+                              >
+                                {generating ? (
+                                  <LoadingSpinner size="sm" />
+                                ) : (
+                                  <RefreshCw size={12} />
+                                )}
+                                {t("galgame.generateAsset")}
+                              </BookButton>
+                            ) : null}
                           </div>
                         ) : (
                           <span className="text-book-text-muted">-</span>
