@@ -1115,15 +1115,18 @@ pub async fn video_reference_script_summaries<C: ConnectionTrait>(
     db: &C,
     root_project_id: i64,
     chapter_id: Option<i64>,
-) -> Result<Vec<(ProjectRecord, ChapterShootingScriptReferenceSummary)>, DbErr> {
+) -> Result<Vec<(i64, String, ChapterShootingScriptReferenceSummary)>, DbErr> {
     use a4n_db_models::models::chapter::chapter_shooting_script as script;
     let projects = novel_project::Entity::find()
+        .select_only()
+        .column(novel_project::Column::Id)
+        .column(novel_project::Column::Title)
         .filter(novel_project::Column::RootProjectId.eq(root_project_id))
         .filter(novel_project::Column::ProjectKind.eq("video"))
+        .into_tuple::<(i64, String)>()
         .all(db)
         .await?
         .into_iter()
-        .map(|row| (row.id, row))
         .collect::<std::collections::BTreeMap<_, _>>();
     if projects.is_empty() {
         return Ok(Vec::new());
@@ -1174,11 +1177,12 @@ pub async fn video_reference_script_summaries<C: ConnectionTrait>(
                 revision,
                 script_sha256,
             )| {
-                let project = projects
+                let project_title = projects
                     .get(&project_id)
                     .ok_or_else(|| DbErr::Custom("视频剧本归属不一致".into()))?;
                 Ok((
-                    crate::project::project_record_from_model(project.clone()),
+                    project_id,
+                    project_title.clone(),
                     ChapterShootingScriptReferenceSummary {
                         id,
                         project_id,

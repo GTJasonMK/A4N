@@ -26,13 +26,14 @@ fn assert_metadata_matches(
         a4n_domain::shooting_script::ChapterShootingScriptReferenceRecord,
     )],
     summaries: &[(
-        a4n_domain::project::ProjectRecord,
+        i64,
+        String,
         a4n_domain::shooting_script::ChapterShootingScriptReferenceSummary,
     )],
 ) {
     assert_eq!(full.len(), summaries.len());
-    for ((full_project, full), (summary_project, summary)) in full.iter().zip(summaries) {
-        assert_eq!(full_project.id, summary_project.id);
+    for ((full_project, full), (summary_project_id, _, summary)) in full.iter().zip(summaries) {
+        assert_eq!(full_project.id, *summary_project_id);
         assert_eq!(full.id, summary.id);
         assert_eq!(full.project_id, summary.project_id);
         assert_eq!(full.root_project_id, summary.root_project_id);

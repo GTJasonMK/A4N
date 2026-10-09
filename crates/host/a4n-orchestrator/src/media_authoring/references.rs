@@ -67,15 +67,15 @@ impl OrchestratorContext {
         }
         let matching_scripts = scripts
             .into_iter()
-            .filter_map(|(project, script)| {
+            .filter_map(|(project_id, project_title, script)| {
                 sources_by_chapter
                     .get(&script.source_chapter_id)
-                    .map(|current| (project, script, *current))
+                    .map(|current| (project_id, project_title, script, *current))
             })
             .collect::<Vec<_>>();
         let mut project_ids = matching_scripts
             .iter()
-            .map(|(project, _, _)| project.id)
+            .map(|(project_id, _, _, _)| *project_id)
             .collect::<Vec<_>>();
         project_ids.sort_unstable();
         project_ids.dedup();
@@ -88,14 +88,14 @@ impl OrchestratorContext {
         let mut group_indexes = HashMap::<(i64, i64, i64), usize>::new();
         let mut groups = Vec::<((i64, i64, i64), Vec<i64>)>::new();
         let mut requested_source_keys = HashSet::new();
-        for (project, script, _) in &matching_scripts {
-            if !accessible_project_ids.contains(&project.id) {
+        for (project_id, _, script, _) in &matching_scripts {
+            if !accessible_project_ids.contains(project_id) {
                 continue;
             }
             let snapshot_id = script
                 .source_snapshot_id
                 .ok_or_else(|| AppError::InvalidArgument("参考剧本缺少冻结原文".into()))?;
-            let group_key = (project.id, script.root_project_id, snapshot_id);
+            let group_key = (*project_id, script.root_project_id, snapshot_id);
             let group_index = match group_indexes.get(&group_key) {
                 Some(index) => *index,
                 None => {
@@ -105,7 +105,7 @@ impl OrchestratorContext {
                     index
                 }
             };
-            if requested_source_keys.insert((project.id, snapshot_id, script.source_chapter_id)) {
+            if requested_source_keys.insert((*project_id, snapshot_id, script.source_chapter_id)) {
                 groups[group_index].1.push(script.source_chapter_id);
             }
         }
@@ -127,20 +127,20 @@ impl OrchestratorContext {
         }
 
         let mut candidates = Vec::with_capacity(matching_scripts.len());
-        for (project, script, current) in matching_scripts {
-            if !accessible_project_ids.contains(&project.id) {
+        for (project_id, project_title, script, current) in matching_scripts {
+            if !accessible_project_ids.contains(&project_id) {
                 continue;
             }
             let snapshot_id = script
                 .source_snapshot_id
                 .ok_or_else(|| AppError::InvalidArgument("参考剧本缺少冻结原文".into()))?;
             let source = sources_by_identity
-                .get(&(project.id, snapshot_id, script.source_chapter_id))
+                .get(&(project_id, snapshot_id, script.source_chapter_id))
                 .cloned()
                 .ok_or_else(|| {
                     AppError::NotFound(format!(
                         "媒体项目 {} 的源快照 {} 不包含章节 {}",
-                        project.id, snapshot_id, script.source_chapter_id
+                        project_id, snapshot_id, script.source_chapter_id
                     ))
                 })?;
             let source = validate_reference_script_source(
@@ -150,11 +150,11 @@ impl OrchestratorContext {
             )?;
             candidates.push(VideoScriptReferenceCandidate {
                 selection: VideoScriptSelection {
-                    video_project_id: project.id,
+                    video_project_id: project_id,
                     script_id: script.id,
                     revision: script.revision,
                 },
-                project_title: project.title,
+                project_title,
                 chapter_number: source.chapter_number,
                 same_source_content: current.content_sha256 == source.content_sha256,
                 source: authoring_source(&source)?,
