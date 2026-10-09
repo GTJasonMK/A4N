@@ -915,6 +915,11 @@
                 PackageId::Platform,
                 PackageCommandCategory::Maintenance,
             ),
+            (
+                "list_test_scenarios",
+                PackageId::Platform,
+                PackageCommandCategory::Normal,
+            ),
         ] {
             let descriptor = command_descriptor(command).expect("representative command");
             assert_eq!(descriptor.package_id, package_id, "{command}");

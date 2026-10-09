@@ -290,6 +290,7 @@ command_specs! {
     "preview_continue_part_outlines_request" => args_continue_part_outlines, result_model_request_preview, "outline", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_create_optimization_analysis_session_request" => args_create_optimization_analysis_session, result_model_request_preview, "optimize", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_delete_manga_pipeline_artifact" => args_preview_delete_manga_pipeline_artifact, result_manga_pipeline_artifact_deletion_preview, "manga", context(NO_CONTEXT), effect(READ_EFFECT);
+    "preview_delete_media_authoring_document" => args_preview_delete_authoring_document, result_authoring_document_deletion_impact, "media_authoring", context(NO_CONTEXT), effect(READ_EFFECT);
     "preview_discover_character_profiles_request" => args_preview_discover_character_profiles, result_model_request_preview, "profile", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_galgame_pipeline_request" => args_preview_galgame_pipeline_request, result_model_request_preview, "galgame", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_generate_age_variant_request" => args_preview_generate_age_variant_request, result_model_request_preview, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
@@ -303,7 +304,6 @@ command_specs! {
     "preview_import_project_analysis_request" => args_project_id, result_model_request_preview, "import", context(PROJECT_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_inspiration_request" => args_preview_inspiration_request, result_model_request_preview, "inspiration", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_media_adaptation_plan_request" => args_generate_adaptation_plan, result_model_request_preview, "media_authoring", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_delete_media_authoring_document" => args_preview_delete_authoring_document, result_authoring_document_deletion_impact, "media_authoring", context(NO_CONTEXT), effect(READ_EFFECT);
     "preview_object_profile_image_request" => args_preview_object_profile_image_request, result_model_request_preview, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_page_image_request" => args_preview_page_image_request, result_model_request_preview, "asset", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_prepare_optimization_analysis_session_request" => args_prepare_optimization_analysis_session, result_model_request_preview, "optimize", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
@@ -683,7 +683,7 @@ fn package_policy(spec: &CommandSpec) -> (PackageId, PackageCommandCategory) {
     } else if spec.domain == "auth"
         || matches!(
             spec.domain,
-            "settings" | "system" | "task" | "collaboration" | "logging"
+            "settings" | "system" | "task" | "collaboration" | "logging" | "testing"
         )
     {
         PackageId::Platform
