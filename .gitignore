@@ -87,6 +87,8 @@ CLAUDE.md
 # Chapter writing and continuation logic review requested in session.
 !/docs/chapter-writing-sync-review.zh.md
 !/docs/llm-call-context-assessment.zh.md
+# Functional test center operation and maintenance guide.
+!/docs/TEST_CENTER.md
 
 # OS/editor noise
 .DS_Store

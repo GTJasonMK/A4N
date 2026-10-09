@@ -51,6 +51,10 @@
       ],
       "timeout_seconds": 300
     },
+    "test-catalog": {
+      "command": ["python3", "scripts/tests/check_test_catalog.py"],
+      "timeout_seconds": 60
+    },
     "frontend-unit": {
       "command": ["npm", "--prefix", "frontend", "run", "test:run"],
       "timeout_seconds": 900
@@ -181,6 +185,7 @@
         "affected-rust-integration",
         "python-tests",
         "python-checks",
+        "test-catalog",
         "frontend-unit",
         "frontend-browser-helpers",
         "frontend-build",

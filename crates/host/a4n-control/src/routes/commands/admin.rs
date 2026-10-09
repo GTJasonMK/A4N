@@ -92,6 +92,41 @@ admin_web_json_command!(get_admin_overview, |state, user_id, args| {
     admin_records_actions::get_admin_overview_for_admin(state.runtime(), user_id).await?
 });
 
+admin_web_json_command!(list_test_scenarios, |state, user_id, args| {
+    empty_command_args(args, "list_test_scenarios")?;
+    admin_records_actions::list_test_scenarios_for_admin(state.runtime(), user_id).await?
+});
+
+admin_web_json_command!(start_test_run, |state, user_id, args| {
+    reject_unknown_command_args(args, "start_test_run", &["input"])?;
+    let input: admin_records_actions::StartTestRunInput = command_input(args, "start_test_run")?;
+    admin_records_actions::start_test_run_for_admin(state.runtime(), user_id, input).await?
+});
+
+admin_web_json_command!(get_test_run, |state, user_id, args| {
+    reject_unknown_command_args(args, "get_test_run", &["input"])?;
+    let input: admin_records_actions::TestRunIdInput = command_input(args, "get_test_run")?;
+    admin_records_actions::get_test_run_for_admin(state.runtime(), user_id, input).await?
+});
+
+admin_web_json_command!(list_test_runs, |state, user_id, args| {
+    reject_unknown_command_args(args, "list_test_runs", &["input"])?;
+    let input: admin_records_actions::ListTestRunsInput = command_input(args, "list_test_runs")?;
+    admin_records_actions::list_test_runs_for_admin(state.runtime(), user_id, input).await?
+});
+
+admin_web_json_command!(cancel_test_run, |state, user_id, args| {
+    reject_unknown_command_args(args, "cancel_test_run", &["input"])?;
+    let input: admin_records_actions::TestRunIdInput = command_input(args, "cancel_test_run")?;
+    admin_records_actions::cancel_test_run_for_admin(state.runtime(), user_id, input).await?
+});
+
+admin_web_unit_command!(delete_test_run, |state, user_id, args| {
+    reject_unknown_command_args(args, "delete_test_run", &["input"])?;
+    let input: admin_records_actions::DeleteTestRunInput = command_input(args, "delete_test_run")?;
+    admin_records_actions::delete_test_run_for_admin(state.runtime(), user_id, input).await?;
+});
+
 admin_web_json_command!(list_all_users, |state, user_id, args| {
     empty_command_args(args, "list_all_users")?;
     admin_records_actions::list_all_users_for_admin(state.runtime(), user_id).await?

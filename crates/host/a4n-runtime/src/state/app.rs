@@ -48,6 +48,8 @@ pub struct AppState {
     service_health_application:
         Arc<dyn a4n_api_contract::service_health::ServiceHealthApplicationPort>,
     application_ports: ApplicationPorts,
+    /// 管理员测试中心的场景执行器和历史存储。
+    test_console: Arc<crate::actions::admin_records::TestConsole>,
     /// Runtime-owned capability registry used by adapters and lifecycle code.
     capabilities: RuntimeCapabilities,
     /// Runtime-owned event bus used by Host bridges.

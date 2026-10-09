@@ -31,6 +31,7 @@ export const HOST_API_COMMANDS = [
   "cancel_import_analysis",
   "cancel_manga_pipeline",
   "cancel_task",
+  "cancel_test_run",
   "cancel_workflow",
   "change_user_password",
   "check_character_conflict",
@@ -80,6 +81,7 @@ export const HOST_API_COMMANDS = [
   "delete_profile",
   "delete_project",
   "delete_scene_profile",
+  "delete_test_run",
   "delete_theme",
   "delete_theme_resource",
   "delete_video",
@@ -168,6 +170,7 @@ export const HOST_API_COMMANDS = [
   "get_snapshot",
   "get_storage_paths",
   "get_task_history",
+  "get_test_run",
   "get_theme_preference",
   "get_token_summary",
   "get_usage_trends",
@@ -218,7 +221,6 @@ export const HOST_API_COMMANDS = [
   "list_manga_page_prompts",
   "list_manga_pipeline_artifacts",
   "list_manga_pipeline_statuses",
-  "preview_delete_manga_pipeline_artifact",
   "list_model_provider_catalog",
   "list_my_project_invites",
   "list_object_profiles",
@@ -239,6 +241,8 @@ export const HOST_API_COMMANDS = [
   "list_sessions",
   "list_snapshots",
   "list_source_snapshot_chapters",
+  "list_test_runs",
+  "list_test_scenarios",
   "list_themes",
   "list_video_adaptation_references",
   "list_video_configs",
@@ -275,6 +279,7 @@ export const HOST_API_COMMANDS = [
   "preview_check_implicit_update_request",
   "preview_continue_part_outlines_request",
   "preview_create_optimization_analysis_session_request",
+  "preview_delete_manga_pipeline_artifact",
   "preview_discover_character_profiles_request",
   "preview_galgame_pipeline_request",
   "preview_generate_age_variant_request",
@@ -374,8 +379,8 @@ export const HOST_API_COMMANDS = [
   "save_chapter_outline",
   "save_chapter_visual_plan_draft",
   "save_galgame_story_graph",
-  "save_media_authoring_document",
   "save_manga_pipeline_artifact",
+  "save_media_authoring_document",
   "save_part_outline",
   "select_segment_video",
   "set_default_embedding_config",
@@ -400,6 +405,7 @@ export const HOST_API_COMMANDS = [
   "start_outline_generation",
   "start_package_lifecycle",
   "start_portrait_generation",
+  "start_test_run",
   "start_video_generation",
   "start_visual_plan_prompt_generation",
   "sync_all_character_profiles",
@@ -1975,6 +1981,85 @@ export interface AdminOverviewSummary {
   total_llm_calls: number;
   total_projects: number;
   total_users: number;
+}
+
+export type TestScenarioEffect = "read" | "write" | "destructive";
+
+export type TestTargetMode = "test_project" | "current_project";
+
+export type TestRunStatus = "queued" | "running" | "passed" | "failed" | "blocked" | "cancelled" | "timed_out";
+
+export type TestTarget = { mode: "test_project"; source_project_id?: number | null } | { mode: "current_project"; project_id: number };
+
+export interface TestScenarioDescriptor {
+  category: string;
+  description: string;
+  effect: TestScenarioEffect;
+  id: string;
+  parameter_schema: unknown;
+  target_modes: TestTargetMode[];
+  timeout_seconds: number;
+  title: string;
+  version: number;
+}
+
+export interface StartTestRunInput {
+  confirm_impact?: boolean;
+  parameters?: unknown;
+  scenario_id: string;
+  target: TestTarget;
+}
+
+export interface TestImpact {
+  action: string;
+  detail: string;
+  project_id: number | null;
+  resource: string;
+}
+
+export interface TestRunSummary {
+  created_at: string;
+  created_by: number;
+  duration_ms: number | null;
+  finished_at: string | null;
+  id: string;
+  impact: TestImpact[];
+  message: string | null;
+  scenario_id: string;
+  scenario_version: number;
+  started_at: string | null;
+  status: TestRunStatus;
+  target: TestTarget;
+  target_project_id: number | null;
+}
+
+export interface TestStepSummary {
+  finished_at: string | null;
+  index: number;
+  message: string | null;
+  name: string;
+  started_at: string;
+  status: TestRunStatus;
+}
+
+export interface TestRunDetail {
+  logs: string[];
+  parameters: unknown;
+  steps: TestStepSummary[];
+  summary: TestRunSummary;
+}
+
+export interface ListTestRunsInput {
+  limit: number;
+}
+
+export interface TestRunIdInput {
+  run_id: string;
+}
+
+export interface DeleteTestRunInput {
+  delete_test_project?: boolean;
+  run_id: string;
 }
 
 export interface GenerationCallAnalyticsInput {

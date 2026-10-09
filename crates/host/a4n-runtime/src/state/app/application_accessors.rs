@@ -77,6 +77,10 @@ impl AppState {
         self.admin_mutation_application.as_ref()
     }
 
+    pub(crate) fn test_console(&self) -> &crate::actions::admin_records::TestConsole {
+        self.test_console.as_ref()
+    }
+
     pub(crate) fn project_status_read_application(
         &self,
     ) -> &dyn a4n_api_contract::project::ProjectStatusReadApplicationPort {

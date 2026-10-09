@@ -163,6 +163,22 @@ pub(crate) fn args_get_usage_trends() -> Value {
 pub(crate) fn args_get_workflow_progress_events() -> Value {
     strict_typed_input_schema::<crate::workflow::WorkflowProgressEventsInput>()
 }
+
+pub(crate) fn args_start_test_run() -> Value {
+    strict_typed_input_schema::<crate::admin::StartTestRunInput>()
+}
+
+pub(crate) fn args_list_test_runs() -> Value {
+    strict_typed_input_schema::<crate::admin::ListTestRunsInput>()
+}
+
+pub(crate) fn args_test_run_id() -> Value {
+    strict_typed_input_schema::<crate::admin::TestRunIdInput>()
+}
+
+pub(crate) fn args_delete_test_run() -> Value {
+    strict_typed_input_schema::<crate::admin::DeleteTestRunInput>()
+}
 pub(crate) fn args_get_workflow_run_detail() -> Value {
     strict_typed_input_schema::<crate::workflow::GetWorkflowRunInput>()
 }
@@ -423,6 +439,18 @@ pub(crate) fn result_list_my_project_invites() -> Value {
 }
 pub(crate) fn result_list_pending_tasks() -> Value {
     typed_schema::<Vec<crate::admin::TaskQueueSummary>>()
+}
+pub(crate) fn result_test_scenarios() -> Value {
+    typed_schema::<Vec<crate::admin::TestScenarioDescriptor>>()
+}
+pub(crate) fn result_test_run() -> Value {
+    typed_schema::<crate::admin::TestRunSummary>()
+}
+pub(crate) fn result_test_run_detail() -> Value {
+    typed_schema::<crate::admin::TestRunDetail>()
+}
+pub(crate) fn result_test_runs() -> Value {
+    typed_schema::<Vec<crate::admin::TestRunSummary>>()
 }
 pub(crate) fn result_list_project_members() -> Value {
     typed_schema::<Vec<crate::collaboration::ProjectMemberSummary>>()

@@ -1,5 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 /// Permissions used by host-facing administrative commands.
 ///
@@ -129,4 +130,128 @@ pub struct CreateInviteCodeInput {
 #[serde(deny_unknown_fields)]
 pub struct UpdateUserRoleInput {
     pub role: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TestScenarioEffect {
+    Read,
+    Write,
+    Destructive,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TestTargetMode {
+    TestProject,
+    CurrentProject,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TestRunStatus {
+    Queued,
+    Running,
+    Passed,
+    Failed,
+    Blocked,
+    Cancelled,
+    TimedOut,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(tag = "mode", rename_all = "snake_case")]
+pub enum TestTarget {
+    TestProject { source_project_id: Option<i64> },
+    CurrentProject { project_id: i64 },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct TestScenarioDescriptor {
+    pub id: String,
+    pub version: u32,
+    pub category: String,
+    pub title: String,
+    pub description: String,
+    pub effect: TestScenarioEffect,
+    pub target_modes: Vec<TestTargetMode>,
+    pub timeout_seconds: u64,
+    pub parameter_schema: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct StartTestRunInput {
+    pub scenario_id: String,
+    pub target: TestTarget,
+    #[serde(default)]
+    pub parameters: Value,
+    #[serde(default)]
+    pub confirm_impact: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct TestImpact {
+    pub action: String,
+    pub resource: String,
+    pub project_id: Option<i64>,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct TestRunSummary {
+    pub id: String,
+    pub scenario_id: String,
+    pub scenario_version: u32,
+    pub status: TestRunStatus,
+    pub target: TestTarget,
+    pub target_project_id: Option<i64>,
+    pub created_by: i64,
+    pub created_at: String,
+    pub started_at: Option<String>,
+    pub finished_at: Option<String>,
+    pub duration_ms: Option<u64>,
+    pub message: Option<String>,
+    pub impact: Vec<TestImpact>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct TestStepSummary {
+    pub index: u32,
+    pub name: String,
+    pub status: TestRunStatus,
+    pub started_at: String,
+    pub finished_at: Option<String>,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct TestRunDetail {
+    pub summary: TestRunSummary,
+    pub parameters: Value,
+    pub steps: Vec<TestStepSummary>,
+    pub logs: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ListTestRunsInput {
+    #[schemars(range(min = 1, max = 100))]
+    pub limit: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct TestRunIdInput {
+    pub run_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DeleteTestRunInput {
+    pub run_id: String,
+    #[serde(default)]
+    pub delete_test_project: bool,
 }
