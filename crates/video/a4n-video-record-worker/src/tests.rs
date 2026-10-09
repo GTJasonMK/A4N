@@ -127,6 +127,7 @@ async fn select_segment_rejects_stale_or_corrupt_plan_without_adopting_video() {
         ))
         .await
         .expect_err("legacy plans without proven shot sources must not accept videos");
+    let failure: a4n_worker_contract::WorkerError = failure.into();
     assert!(failure.message.contains("来源已更新"), "{failure:?}");
     let unchanged = chapter_video_prompt::Entity::find_by_id(plan.id)
         .one(&db)
@@ -153,6 +154,7 @@ async fn select_segment_rejects_stale_or_corrupt_plan_without_adopting_video() {
         ))
         .await
         .expect_err("adoption must validate the stored plan content before accepting its video");
+    let failure: a4n_worker_contract::WorkerError = failure.into();
     assert!(failure.message.contains("内容指纹"));
     let mut restored: chapter_video_prompt::ActiveModel = unchanged.clone().into();
     restored.metadata_json = Set(unchanged.metadata_json);

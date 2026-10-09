@@ -21,9 +21,9 @@ use a4n_error::AppError;
 use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
-    WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,
-    WorkerHealthStatus, WorkerOperationRef, WorkerOperationStatus, WorkerPrincipal,
-    WorkerPrincipalKind, WorkerResponse,
+    WorkerCapability, WorkerEnvelope, WorkerFailure, WorkerHealth, WorkerHealthStatus,
+    WorkerOperationRef, WorkerOperationStatus, WorkerPrincipal, WorkerPrincipalKind,
+    WorkerResponse,
 };
 use axum::{
     Json, Router,
@@ -55,13 +55,6 @@ struct WorkerState {
     database: DbHandle,
     worker_id: Arc<str>,
     auth_token: Arc<str>,
-}
-
-#[derive(Debug)]
-struct WorkerFailure {
-    code: WorkerErrorCode,
-    message: String,
-    retryable: bool,
 }
 
 impl AdminWorker {
@@ -287,52 +280,10 @@ fn app_error(error: AppError) -> WorkerFailure {
     match error {
         AppError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
         AppError::Forbidden(message) | AppError::Unauthorized(message) => {
-            WorkerFailure::forbidden(message)
+            WorkerFailure::unauthorized(message)
         }
         AppError::NotFound(message) => WorkerFailure::not_found(message),
         other => WorkerFailure::unavailable(other.to_string()),
-    }
-}
-
-impl WorkerFailure {
-    fn invalid_request(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::InvalidRequest,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn unauthorized(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unauthorized,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn forbidden(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unauthorized,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn not_found(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::NotFound,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn unavailable(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unavailable,
-            message: message.into(),
-            retryable: true,
-        }
     }
 }
 
@@ -375,11 +326,7 @@ fn failed<T>(
         provider_job_id: None,
         result_summary: None,
         pagination: None,
-        error: Some(WorkerError {
-            code: failure.code,
-            message: failure.message,
-            retryable: failure.retryable,
-        }),
+        error: Some(failure.into()),
     }
 }
 

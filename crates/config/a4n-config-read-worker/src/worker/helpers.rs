@@ -107,48 +107,6 @@ fn app_error(error: a4n_error::AppError) -> WorkerFailure {
     }
 }
 
-impl WorkerFailure {
-    fn invalid_request(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::InvalidRequest,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn unauthorized(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unauthorized,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn not_found(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::NotFound,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn conflict(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Conflict,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn unavailable(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unavailable,
-            message: message.into(),
-            retryable: true,
-        }
-    }
-}
-
 fn completed<T>(request: &WorkerEnvelope<impl serde::Serialize>, payload: T) -> WorkerResponse<T> {
     WorkerResponse {
         schema_version: WORKER_SCHEMA_VERSION,
@@ -188,11 +146,7 @@ fn failed<T>(
         provider_job_id: None,
         result_summary: None,
         pagination: None,
-        error: Some(WorkerError {
-            code: failure.code,
-            message: failure.message,
-            retryable: failure.retryable,
-        }),
+        error: Some(failure.into()),
     }
 }
 

@@ -332,6 +332,61 @@ pub struct WorkerError {
     pub retryable: bool,
 }
 
+#[derive(Debug)]
+pub struct WorkerFailure {
+    code: WorkerErrorCode,
+    message: String,
+    retryable: bool,
+}
+
+impl WorkerFailure {
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    pub fn invalid_request(message: impl Into<String>) -> Self {
+        Self::new(WorkerErrorCode::InvalidRequest, message, false)
+    }
+
+    pub fn unauthorized(message: impl Into<String>) -> Self {
+        Self::new(WorkerErrorCode::Unauthorized, message, false)
+    }
+
+    pub fn not_found(message: impl Into<String>) -> Self {
+        Self::new(WorkerErrorCode::NotFound, message, false)
+    }
+
+    pub fn conflict(message: impl Into<String>) -> Self {
+        Self::new(WorkerErrorCode::Conflict, message, false)
+    }
+
+    pub fn unavailable(message: impl Into<String>) -> Self {
+        Self::new(WorkerErrorCode::Unavailable, message, true)
+    }
+
+    pub fn internal(message: impl Into<String>) -> Self {
+        Self::new(WorkerErrorCode::Internal, message, false)
+    }
+
+    fn new(code: WorkerErrorCode, message: impl Into<String>, retryable: bool) -> Self {
+        Self {
+            code,
+            message: message.into(),
+            retryable,
+        }
+    }
+}
+
+impl From<WorkerFailure> for WorkerError {
+    fn from(failure: WorkerFailure) -> Self {
+        Self {
+            code: failure.code,
+            message: failure.message,
+            retryable: failure.retryable,
+        }
+    }
+}
+
 impl WorkerError {
     pub fn validate(&self) -> Result<(), WorkerContractError> {
         validate_non_blank("error.message", &self.message)

@@ -1,47 +1,5 @@
 use crate::*;
 
-impl WorkerFailure {
-    pub(super) fn invalid_request(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::InvalidRequest,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    pub(super) fn unauthorized(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unauthorized,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    pub(super) fn not_found(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::NotFound,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    pub(super) fn conflict(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Conflict,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    pub(super) fn unavailable(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unavailable,
-            message: message.into(),
-            retryable: true,
-        }
-    }
-}
-
 pub(super) fn source_error(error: a4n_db::project::ResolveChapterSourceError) -> WorkerFailure {
     match error {
         a4n_db::project::ResolveChapterSourceError::InvalidArgument(message) => {

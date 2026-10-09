@@ -1,6 +1,6 @@
 use super::errors::WorkerFailure;
 use a4n_worker_contract::{
-    WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerOperationRef, WorkerOperationStatus,
+    WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerOperationRef, WorkerOperationStatus,
     WorkerResponse,
 };
 use axum::{
@@ -50,11 +50,7 @@ pub(super) fn failed<T>(
         provider_job_id: None,
         result_summary: None,
         pagination: None,
-        error: Some(WorkerError {
-            code: failure.code,
-            message: failure.message,
-            retryable: failure.retryable,
-        }),
+        error: Some(failure.into()),
     }
 }
 

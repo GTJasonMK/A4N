@@ -31,9 +31,8 @@ use a4n_provider_contract::{EmbeddingProviderConfig, LlmProviderConfig};
 use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
-    WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,
-    WorkerHealthStatus, WorkerOperationRef, WorkerOperationStatus, WorkerPrincipalKind,
-    WorkerResponse,
+    WorkerCapability, WorkerEnvelope, WorkerFailure, WorkerHealth, WorkerHealthStatus,
+    WorkerOperationRef, WorkerOperationStatus, WorkerPrincipalKind, WorkerResponse,
 };
 use axum::{
     Json, Router,
@@ -60,13 +59,6 @@ struct WorkerState {
     database: DbHandle,
     worker_id: Arc<str>,
     auth_token: Arc<str>,
-}
-
-#[derive(Debug)]
-struct WorkerFailure {
-    code: WorkerErrorCode,
-    message: String,
-    retryable: bool,
 }
 
 impl ConfigReadWorker {

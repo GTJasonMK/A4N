@@ -19,8 +19,8 @@ use a4n_domain::{canvas::CanvasTextAssetRecordInput, collaboration::ProjectAcces
 use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
-    WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,
-    WorkerHealthStatus, WorkerOperationRef, WorkerOperationStatus, WorkerResponse,
+    WorkerCapability, WorkerEnvelope, WorkerFailure, WorkerHealth, WorkerHealthStatus,
+    WorkerOperationRef, WorkerOperationStatus, WorkerResponse,
 };
 use axum::{
     Json, Router,
@@ -52,13 +52,6 @@ struct WorkerState {
     database: DbHandle,
     worker_id: Arc<str>,
     auth_token: Arc<str>,
-}
-
-#[derive(Debug)]
-struct WorkerFailure {
-    code: WorkerErrorCode,
-    message: String,
-    retryable: bool,
 }
 
 #[derive(Clone)]
@@ -453,11 +446,7 @@ fn failed<T>(meta: RequestMeta, failure: WorkerFailure) -> WorkerResponse<T> {
         provider_job_id: None,
         result_summary: None,
         pagination: None,
-        error: Some(WorkerError {
-            code: failure.code,
-            message: failure.message,
-            retryable: failure.retryable,
-        }),
+        error: Some(failure.into()),
     }
 }
 
@@ -467,56 +456,6 @@ impl RequestMeta {
             request_id: request.request_id.clone(),
             trace_id: request.trace_id.clone(),
             operation_id: request.operation_id.clone(),
-        }
-    }
-}
-
-impl WorkerFailure {
-    fn invalid_request(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::InvalidRequest,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn unauthorized(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unauthorized,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn conflict(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Conflict,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn not_found(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::NotFound,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn unavailable(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unavailable,
-            message: message.into(),
-            retryable: true,
-        }
-    }
-
-    fn internal(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Internal,
-            message: message.into(),
-            retryable: false,
         }
     }
 }

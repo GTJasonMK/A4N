@@ -1,15 +1,8 @@
 use a4n_manga_record_worker_contract::MANGA_RECORD_WORKER_ID;
+pub(super) use a4n_worker_contract::WorkerFailure;
 use a4n_worker_contract::{
-    WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerOperationRef, WorkerOperationStatus,
-    WorkerResponse,
+    WorkerEnvelope, WorkerOperationRef, WorkerOperationStatus, WorkerResponse,
 };
-
-#[derive(Debug)]
-pub(super) struct WorkerFailure {
-    code: WorkerErrorCode,
-    pub(super) message: String,
-    retryable: bool,
-}
 
 pub(super) fn validate_request<T: serde::Serialize>(
     request: &WorkerEnvelope<T>,
@@ -154,52 +147,6 @@ pub(super) fn failed<T>(
         provider_job_id: None,
         result_summary: None,
         pagination: None,
-        error: Some(WorkerError {
-            code: failure.code,
-            message: failure.message,
-            retryable: failure.retryable,
-        }),
-    }
-}
-
-impl WorkerFailure {
-    pub(super) fn invalid_request(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::InvalidRequest,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    pub(super) fn unauthorized(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unauthorized,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    pub(super) fn not_found(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::NotFound,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    pub(super) fn conflict(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Conflict,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    pub(super) fn unavailable(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unavailable,
-            message: message.into(),
-            retryable: true,
-        }
+        error: Some(failure.into()),
     }
 }

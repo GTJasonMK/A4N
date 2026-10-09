@@ -14,6 +14,56 @@ fn control_request_lease_has_one_canonical_shape() {
         .expect("control request lease should validate");
 }
 
+#[test]
+fn worker_failure_constructors_share_wire_error_semantics() {
+    let cases = [
+        (
+            WorkerFailure::invalid_request("bad request"),
+            WorkerErrorCode::InvalidRequest,
+            false,
+            "bad request",
+        ),
+        (
+            WorkerFailure::unauthorized("forbidden"),
+            WorkerErrorCode::Unauthorized,
+            false,
+            "forbidden",
+        ),
+        (
+            WorkerFailure::not_found("missing"),
+            WorkerErrorCode::NotFound,
+            false,
+            "missing",
+        ),
+        (
+            WorkerFailure::conflict("conflict"),
+            WorkerErrorCode::Conflict,
+            false,
+            "conflict",
+        ),
+        (
+            WorkerFailure::unavailable("database unavailable"),
+            WorkerErrorCode::Unavailable,
+            true,
+            "database unavailable",
+        ),
+        (
+            WorkerFailure::internal("internal"),
+            WorkerErrorCode::Internal,
+            false,
+            "internal",
+        ),
+    ];
+
+    for (failure, code, retryable, message) in cases {
+        let error: WorkerError = failure.into();
+        assert_eq!(error.code, code);
+        assert_eq!(error.retryable, retryable);
+        assert_eq!(error.message, message);
+        error.validate().expect("failure message validates");
+    }
+}
+
 fn valid_envelope() -> WorkerEnvelope<serde_json::Value> {
     WorkerEnvelope {
         schema_version: WORKER_SCHEMA_VERSION,

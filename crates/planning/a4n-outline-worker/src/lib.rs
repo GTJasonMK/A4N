@@ -12,8 +12,8 @@ use a4n_outline_worker_contract::{
 };
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
-    WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,
-    WorkerHealthStatus, WorkerOperationRef, WorkerOperationStatus, WorkerResponse,
+    WorkerCapability, WorkerEnvelope, WorkerFailure, WorkerHealth, WorkerHealthStatus,
+    WorkerOperationRef, WorkerOperationStatus, WorkerResponse,
 };
 use axum::{
     Json, Router,
@@ -48,13 +48,6 @@ struct WorkerState {
     database: DbHandle,
     worker_id: Arc<str>,
     auth_token: Arc<str>,
-}
-
-#[derive(Debug)]
-struct WorkerFailure {
-    code: WorkerErrorCode,
-    message: String,
-    retryable: bool,
 }
 
 impl OutlineWorker {
@@ -526,53 +519,7 @@ fn failed<T>(
         provider_job_id: None,
         result_summary: None,
         pagination: None,
-        error: Some(WorkerError {
-            code: failure.code,
-            message: failure.message,
-            retryable: failure.retryable,
-        }),
-    }
-}
-
-impl WorkerFailure {
-    fn invalid_request(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::InvalidRequest,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn unauthorized(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unauthorized,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn not_found(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::NotFound,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn conflict(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Conflict,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn unavailable(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unavailable,
-            message: message.into(),
-            retryable: true,
-        }
+        error: Some(failure.into()),
     }
 }
 

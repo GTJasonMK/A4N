@@ -27,10 +27,6 @@ impl WorkerState {
             .into_iter()
             .map(message_summary)
             .collect::<Result<_, _>>()
-            .map_err(|message| WorkerFailure {
-                code: WorkerErrorCode::Internal,
-                message,
-                retryable: false,
-            })
+            .map_err(WorkerFailure::internal)
     }
 }

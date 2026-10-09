@@ -17,7 +17,7 @@ pub(super) async fn finish_transaction<T>(
             tx.rollback().await.map_err(|rollback_error| {
                 WorkerFailure::unavailable(format!(
                     "{operation}失败：{}；事务回滚失败：{rollback_error}",
-                    error.message
+                    error.message()
                 ))
             })?;
             Err(error)

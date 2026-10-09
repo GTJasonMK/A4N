@@ -461,6 +461,6 @@ mod tests {
         })
         .unwrap_err();
 
-        assert!(error.message.contains("未知状态"));
+        assert!(error.message().contains("未知状态"));
     }
 }

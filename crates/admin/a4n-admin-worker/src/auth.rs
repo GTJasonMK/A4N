@@ -32,13 +32,13 @@ impl WorkerState {
                 .await
                 .map_err(app_error)?;
         if !user.is_active {
-            return Err(WorkerFailure::forbidden(format!(
+            return Err(WorkerFailure::unauthorized(format!(
                 "用户 {caller_user_id} 已停用"
             )));
         }
         if parse_user_role(&user.role).map_err(|error| app_error(error.into()))? != UserRole::Admin
         {
-            return Err(WorkerFailure::forbidden("当前用户不是管理员"));
+            return Err(WorkerFailure::unauthorized("当前用户不是管理员"));
         }
         Ok(())
     }

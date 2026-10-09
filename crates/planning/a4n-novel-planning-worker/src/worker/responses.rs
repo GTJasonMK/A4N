@@ -1,5 +1,5 @@
 use crate::{
-    WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerFailure, WorkerOperationRef,
+    WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerFailure, WorkerOperationRef,
     WorkerOperationStatus, WorkerResponse,
 };
 use axum::{
@@ -49,11 +49,7 @@ pub(super) fn failed<T>(
         provider_job_id: None,
         result_summary: None,
         pagination: None,
-        error: Some(WorkerError {
-            code: failure.code,
-            message: failure.message,
-            retryable: failure.retryable,
-        }),
+        error: Some(failure.into()),
     }
 }
 

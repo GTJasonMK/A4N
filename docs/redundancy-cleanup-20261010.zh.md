@@ -3,7 +3,7 @@
 ## 范围与方法
 
 - 工作分支：`agent/redundancy-cleanup-20261010`，基线 `debug@3f6a2408c9e78c4719259e77d5443f2befdd8fda`。
-- 建立分支本地 CodeGraph 索引后持续同步；最终索引覆盖 6,242 个文件、86,469 个符号、276,453 条边，状态为 up to date。
+- 建立分支本地 CodeGraph 索引后持续同步；最终索引覆盖 6,242 个文件、86,307 个符号、276,364 条边，状态为 up to date。
 - 从 `a4n-server`、Tauri 本地 Server、`a4n-component-host`、Worker/Sidecar catalog、Axum route 注册、`a4n-control` 动态 command 分派和 `frontend/src/App.tsx` 路由入口追踪生产调用与注册点。前端索引包含 444 个 TS 和 318 个 TSX 文件。
 - 基线 Cargo workspace 有 213 个 crate manifest；本次增加 runtime crate 后共 214 个。`cargo metadata` 核对了 Worker 对共享配置/runtime crate 的依赖。静态搜索补查脚本启动、环境变量、历史迁移、测试 fixture、生成合同脚本和运行时路由字符串。
 - 检查了 `#[allow(dead_code)]`、兼容/legacy 命名、候选无入边符号、Cargo 直接依赖和可复用的前端格式工具。
@@ -88,6 +88,15 @@ CodeGraph 无法解析跨 crate 的 `a4n_config::worker_listen_addr`（29 处）
 - 新增共享映射的超时策略、HTTP 状态边界和基础响应冲突/内部错误单测；all-targets 编译覆盖 29 个调用点。此次没有增加重试、默认值或错误吞并路径。
 - 记录文件：`crates/process/a4n-worker-client/{Cargo.toml,src/lib.rs,src/tests.rs}` 及 29 个 Worker client 的 `src/lib.rs`。
 
+### R-10：收敛 Worker 失败值与 wire 转换
+
+- 类别：重复协议实现。
+- 基线共有 29 个 Worker crate 各自定义 `WorkerFailure { code, message, retryable }` 和重复构造器。BFS 从 Worker catalog/路由注册进入 command handler，沿 `Result<_, WorkerFailure>` 追到数据库错误映射、principal/scope 校验和 failed response builder；逐处确认生产调用最终只生成同一个 `WorkerError` wire 结构。覆盖 admin、agent、asset graph、canvas record、chapter content/scene、config read、inspiration、manga record、blueprint、foreshadowing、novel planning、outline、character mutation、object profile、portrait、profile material、scene profile、project access/collaboration/mutation/read/status、source snapshot、theme read、import review、video record、workflow lifecycle/read worker。
+- 唯一值类型与构造规则现位于 `a4n-worker-contract::WorkerFailure`，字段封装，提供唯一的 invalid request、unauthorized、not found、conflict、unavailable 和 internal 构造入口，以及消息只读访问器；通过 `From<WorkerFailure> for WorkerError` 转换 wire 字段。29 个本地 struct/impl 已移除；失败响应保留原 request/trace/operation identity 和失败状态，改为 `failure.into()`。CodeGraph 将其解析为一个结构及 503 个依赖关系；路由调用与构造器消费另经逐 crate 静态引用搜索核对。
+- 逐项保留语义差异：Admin 的 `forbidden` 原本就是 `Unauthorized`，现改用该唯一构造器；Blueprint `database` 原本就是 `unavailable(error.to_string())`，现直接调用后者；Agent/Foreshadowing/Canvas 的 Internal 保持 `Internal`；Canvas 和其他 Worker 的 `Internal`/`InvalidState` 分类没有统一重映射。Artifact Media 直接按动态结果构造 `WorkerError`，保留其 retryable 策略，不纳入静态构造器。
+- 新增 contract 单测覆盖六种错误码、retryable 和消息转换；contract 46 项、worker client 14 项通过；workspace all-targets check 通过，无告警，覆盖全部 Worker producer 与 Control/Host consumer。
+- 记录文件：`crates/process/a4n-worker-contract/{src/wire.rs,src/wire_tests.rs}`、29 个 Worker crate 的失败类型/响应模块及相应专属调用点。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -100,8 +109,9 @@ CodeGraph 无法解析跨 crate 的 `a4n_config::worker_listen_addr`（29 处）
 ## 验证
 
 - `cargo check --workspace --locked --offline`：续作后全 workspace 通过，无警告。
-- `cargo check --workspace --all-targets --locked --offline`：通过，编译全 workspace 的测试/示例目标，无警告。
+- `cargo check --workspace --all-targets --locked --offline`：通过，编译全 workspace 的测试/示例目标，无警告；本轮 R-10 后再次执行通过。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-client --lib`：14/14 通过，覆盖共享传输与响应错误映射。
+- `timeout 60s cargo test --locked --offline -p a4n-worker-contract -p a4n-worker-client --lib`：46/46 和 14/14 通过，覆盖共享失败构造、wire 序列化和 client 错误映射。
 - `cargo check --locked --offline -p a4n-worker-runtime -p a4n-service-manager -p a4n-server -p a4n-tauri`：通过，验证共享父进程退出信号 helper 的三个集成点和更新后的 lockfile。
 - `timeout 60s cargo test --locked --offline -p a4n-config worker_listen_addr_requires_loopback_and_nonzero_port --lib`：1/1 通过。
 - Worker client Debug 脱敏定向测试：30 个 client 各 1 项通过；共享 URL/token 解析测试 1/1 通过；28 个环境读取消费者 `cargo check` 通过。

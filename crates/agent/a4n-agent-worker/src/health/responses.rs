@@ -1,7 +1,8 @@
 use a4n_error::AppError;
+pub(super) use a4n_worker_contract::WorkerFailure;
 use a4n_worker_contract::{
-    WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerOperationRef,
-    WorkerOperationStatus, WorkerResponse,
+    WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerOperationRef, WorkerOperationStatus,
+    WorkerResponse,
 };
 use axum::{
     http::StatusCode,
@@ -21,55 +22,6 @@ pub(super) fn app_error_failure(error: AppError) -> WorkerFailure {
             WorkerFailure::conflict(format!("{current}; operation={operation}"))
         }
         other => WorkerFailure::internal(other.to_string()),
-    }
-}
-
-#[derive(Debug)]
-pub(super) struct WorkerFailure {
-    code: WorkerErrorCode,
-    message: String,
-    retryable: bool,
-}
-
-impl WorkerFailure {
-    pub(super) fn invalid_request(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::InvalidRequest,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    pub(super) fn unauthorized(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unauthorized,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn not_found(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::NotFound,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn conflict(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Conflict,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn internal(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Internal,
-            message: message.into(),
-            retryable: false,
-        }
     }
 }
 
@@ -115,11 +67,7 @@ pub(super) fn failed<T>(
         provider_job_id: None,
         result_summary: None,
         pagination: None,
-        error: Some(WorkerError {
-            code: failure.code,
-            message: failure.message,
-            retryable: failure.retryable,
-        }),
+        error: Some(failure.into()),
     }
 }
 

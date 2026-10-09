@@ -1,14 +1,9 @@
+pub(super) use a4n_worker_contract::WorkerFailure;
 use a4n_worker_contract::{
-    WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerOperationRef,
-    WorkerOperationStatus, WorkerResponse,
+    WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerOperationRef, WorkerOperationStatus,
+    WorkerResponse,
 };
 use a4n_workflow_lifecycle_worker_contract::WORKFLOW_LIFECYCLE_WORKER_ID;
-
-pub(super) struct WorkerFailure {
-    code: WorkerErrorCode,
-    message: String,
-    retryable: bool,
-}
 
 pub(super) fn validate_request<T: serde::Serialize>(
     request: &WorkerEnvelope<T>,
@@ -93,52 +88,6 @@ pub(super) fn failed<T>(
         provider_job_id: None,
         result_summary: None,
         pagination: None,
-        error: Some(WorkerError {
-            code: failure.code,
-            message: failure.message,
-            retryable: failure.retryable,
-        }),
-    }
-}
-
-impl WorkerFailure {
-    pub(super) fn invalid_request(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::InvalidRequest,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    pub(super) fn unauthorized(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unauthorized,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    pub(super) fn not_found(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::NotFound,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    pub(super) fn conflict(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Conflict,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    pub(super) fn unavailable(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unavailable,
-            message: message.into(),
-            retryable: true,
-        }
+        error: Some(failure.into()),
     }
 }
