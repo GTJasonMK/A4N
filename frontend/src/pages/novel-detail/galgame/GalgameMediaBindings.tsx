@@ -47,26 +47,8 @@ export const LineMediaBindings: React.FC<{
           }
           onUnbindMedia={onUnbindMedia}
         />
-        <div className="mb-2 divide-y divide-book-border/35 rounded-xl bg-book-bg-paper/45 lg:grid lg:grid-cols-2 lg:divide-x lg:divide-y-0">
-          <AudioBindingControl
-            label="BGM"
-            disabled={disabled}
-            onImport={() => onImportAudio("bgm")}
-            onBind={(mediaAssetId) => onBindMedia("bgm", mediaAssetId)}
-            value={mediaAssetDrafts[`line:${lineId}:bgm`] ?? ""}
-            onChange={(value) => onMediaAssetDraftChange(`line:${lineId}:bgm`, value)}
-          />
-          <AudioBindingControl
-            label="SFX"
-            disabled={disabled}
-            onImport={() => onImportAudio("sfx")}
-            onBind={(mediaAssetId) => onBindMedia("sfx", mediaAssetId)}
-            value={mediaAssetDrafts[`line:${lineId}:sfx`] ?? ""}
-            onChange={(value) => onMediaAssetDraftChange(`line:${lineId}:sfx`, value)}
-          />
-        </div>
         {audioBindings.length ? (
-          <div className="divide-y divide-book-border/35 rounded-xl bg-book-bg-paper/45 px-2.5">
+          <div className="mb-2 divide-y divide-book-border/35 rounded-xl bg-book-bg-paper/45 px-2.5">
             {audioBindings.map((item) => {
               const src = item.asset.file_path
                 ? toMediaSrc(item.asset.file_path)
@@ -100,6 +82,24 @@ export const LineMediaBindings: React.FC<{
             })}
           </div>
         ) : null}
+        <div className="mb-2 divide-y divide-book-border/35 rounded-xl bg-book-bg-paper/45 lg:grid lg:grid-cols-2 lg:divide-x lg:divide-y-0">
+          <AudioBindingControl
+            label="BGM"
+            disabled={disabled}
+            onImport={() => onImportAudio("bgm")}
+            onBind={(mediaAssetId) => onBindMedia("bgm", mediaAssetId)}
+            value={mediaAssetDrafts[`line:${lineId}:bgm`] ?? ""}
+            onChange={(value) => onMediaAssetDraftChange(`line:${lineId}:bgm`, value)}
+          />
+          <AudioBindingControl
+            label="SFX"
+            disabled={disabled}
+            onImport={() => onImportAudio("sfx")}
+            onBind={(mediaAssetId) => onBindMedia("sfx", mediaAssetId)}
+            value={mediaAssetDrafts[`line:${lineId}:sfx`] ?? ""}
+            onChange={(value) => onMediaAssetDraftChange(`line:${lineId}:sfx`, value)}
+          />
+        </div>
       </div>
     </details>
   );
