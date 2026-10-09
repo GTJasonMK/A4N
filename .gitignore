@@ -84,6 +84,8 @@ CLAUDE.md
 !/docs/public/assets/demo.mp4
 # Internal field map explicitly requested on the debug branch.
 !/docs/llm-call-io-fields.zh.md
+# Chapter writing and continuation logic review requested in session.
+!/docs/chapter-writing-sync-review.zh.md
 
 # OS/editor noise
 .DS_Store

@@ -397,7 +397,7 @@ export const ObjectProfilesTab: React.FC<{
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold text-book-text-main">{profile.name}</div>
                   <div className="mt-0.5 text-caption text-book-text-muted">
-                    {getObjectProfileTypeLabel(profile.object_type, t)} · {getObjectProfileImportanceLabel(profile.importance, t)} · {profileOwnershipLabel(profile.ownership_kind, t)} · {profileChapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter, profile.evidence_json, profile.ownership_kind, t)}
+                    {getObjectProfileTypeLabel(profile.object_type, t)} · {getObjectProfileImportanceLabel(profile.importance, t)} · {profileOwnershipLabel(profile.ownership_kind, t)} · {profileChapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter, profile.evidence_json, t)}
                   </div>
                   <p className="mt-1 line-clamp-2 text-small leading-relaxed text-book-text-sub">
                     {profile.visual_description || profile.story_usage || t("novel.profile.noValue", { label: t("novel.profile.object") })}
@@ -489,7 +489,7 @@ function ObjectProfileDetailModal({
       {profile ? (
         <div className="space-y-3 text-xs text-book-text-sub">
           <p className="text-small leading-relaxed text-book-text-muted">
-            {profileChapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter, profile.evidence_json, profile.ownership_kind, t)}
+            {profileChapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter, profile.evidence_json, t)}
             {aliases.length > 0 ? ` · ${t("novel.profile.aliasesSummary", { value: aliases.join(", ") })}` : ""}
             {profile.generated_image_count > 0 ? ` · ${t("novel.profile.materialImages", { count: profile.generated_image_count })}` : ""}
           </p>

@@ -1,4 +1,5 @@
 use a4n_db::asset::create_object_profile_record;
+use a4n_db::fact_feedback::{FactChangeRecordInput, record_fact_change};
 use a4n_db::project::{
     ChapterObjectProfileContext, ChapterSceneProfileContext, CreateProjectRecordInput,
     create_project_record, object_profiles_before_chapter, scene_profiles_before_chapter,
@@ -15,7 +16,10 @@ use a4n_db_models::models::{
 };
 use a4n_domain::object_profile::ObjectProfileRecordInput;
 use a4n_domain::scene_profile::SceneProfileRecordInput;
-use a4n_domain::text_anchor::{TextAnchorEvidenceInput, TextAnchorProfileKind};
+use a4n_domain::{
+    fact_feedback::FactSourceRevision,
+    text_anchor::{TextAnchorEvidenceInput, TextAnchorProfileKind},
+};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde_json::json;
@@ -173,6 +177,39 @@ async fn chapter_context_uses_only_historical_evidence_and_occurrences() {
     let authored_object = create_object_profile_record(&db, project.id, object_input("作者道具"))
         .await
         .expect("authored object must be created");
+    let mut authored_object_range: object_profile::ActiveModel = authored_object.clone().into();
+    authored_object_range.last_seen_chapter = Set(1);
+    authored_object_range.update(&db).await.unwrap();
+    record_fact_change(
+        &db,
+        FactChangeRecordInput {
+            project_id: project.id,
+            workflow_run_id: None,
+            material_kind: "object_profile".to_string(),
+            target_id: Some(authored_object.id),
+            field_path: String::new(),
+            operation: "replace".to_string(),
+            before: json!({"material_and_state": "铜钥匙完好"}),
+            after: json!({"material_and_state": "第八章后已损毁"}),
+            sources: vec![FactSourceRevision {
+                chapter_id: eighth.id,
+                chapter_number: eighth.chapter_number,
+                content_revision: "chapter-8-revision".to_string(),
+                analysis_hash: "chapter-8-analysis".to_string(),
+            }],
+            evidence: json!([{"chapter_number": 8, "quote": "钥匙损毁"}]),
+            reason: "第八章正文更新物体状态".to_string(),
+            status: "applied".to_string(),
+        },
+    )
+    .await
+    .expect("object state fact must be recorded");
+    let mut future_object_input = object_input("未来道具");
+    future_object_input.first_seen_chapter = 8;
+    future_object_input.last_seen_chapter = 8;
+    let _future_object = create_object_profile_record(&db, project.id, future_object_input)
+        .await
+        .expect("future authored object must be created");
     let mut ai_only: object_profile::ActiveModel = authored_object.clone().into();
     ai_only.id = sea_orm::NotSet;
     ai_only.name = Set("无历史物体".to_string());
@@ -193,6 +230,54 @@ async fn chapter_context_uses_only_historical_evidence_and_occurrences() {
         create_scene_profile_record(&db, project.id, scene_input("作者场景"), "user")
             .await
             .expect("authored scene must be created");
+    let mut authored_scene_range: scene_profile::ActiveModel =
+        scene_profile::Entity::find_by_id(authored_scene.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap()
+            .into();
+    authored_scene_range.last_seen_chapter = Set(1);
+    authored_scene_range.update(&db).await.unwrap();
+    let mut changed_scene: scene_profile::ActiveModel =
+        scene_profile::Entity::find_by_id(authored_scene.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap()
+            .into();
+    changed_scene.visual_description = Set("火灾后的坍塌房间".to_string());
+    changed_scene.update(&db).await.unwrap();
+    record_fact_change(
+        &db,
+        FactChangeRecordInput {
+            project_id: project.id,
+            workflow_run_id: None,
+            material_kind: "scene_profile".to_string(),
+            target_id: Some(authored_scene.id),
+            field_path: String::new(),
+            operation: "replace".to_string(),
+            before: json!({"visual_description": "木门和书桌"}),
+            after: json!({"visual_description": "火灾后的坍塌房间"}),
+            sources: vec![FactSourceRevision {
+                chapter_id: eighth.id,
+                chapter_number: eighth.chapter_number,
+                content_revision: "chapter-8-revision".to_string(),
+                analysis_hash: "chapter-8-analysis".to_string(),
+            }],
+            evidence: json!([{"chapter_number": 8, "quote": "房间起火"}]),
+            reason: "第八章正文更新场景".to_string(),
+            status: "applied".to_string(),
+        },
+    )
+    .await
+    .expect("scene state fact must be recorded");
+    let mut future_scene_input = scene_input("未来场景");
+    future_scene_input.first_seen_chapter = 8;
+    future_scene_input.last_seen_chapter = 8;
+    let _future_scene = create_scene_profile_record(&db, project.id, future_scene_input, "user")
+        .await
+        .expect("future authored scene must be created");
     let mut ai_scene: scene_profile::ActiveModel =
         scene_profile::Entity::find_by_id(authored_scene.id)
             .one(&db)
@@ -231,6 +316,12 @@ async fn chapter_context_uses_only_historical_evidence_and_occurrences() {
     assert!(objects_before_third.iter().any(|context| {
         matches!(context, ChapterObjectProfileContext::Authored(profile) if profile.name == "作者道具")
     }));
+    assert!(objects_before_third.iter().any(|context| {
+        matches!(context, ChapterObjectProfileContext::Authored(profile) if profile.name == "作者道具" && profile.material_and_state == "铜钥匙完好")
+    }));
+    assert!(objects_before_third.iter().all(|context| {
+        !matches!(context, ChapterObjectProfileContext::Authored(profile) if profile.name == "未来道具")
+    }));
 
     let objects_before_ninth = object_profiles_before_chapter(&db, project.id, 9)
         .await
@@ -258,12 +349,30 @@ async fn chapter_context_uses_only_historical_evidence_and_occurrences() {
     assert!(scenes_before_third.iter().any(|context| {
         matches!(context, ChapterSceneProfileContext::Authored(profile) if profile.name == "作者场景")
     }));
+    assert!(scenes_before_third.iter().any(|context| {
+        matches!(context, ChapterSceneProfileContext::Authored(profile) if profile.name == "作者场景" && profile.visual_description == "木门和书桌")
+    }));
+    assert!(scenes_before_third.iter().all(|context| {
+        !matches!(context, ChapterSceneProfileContext::Authored(profile) if profile.name == "未来场景")
+    }));
 
     let scenes_before_ninth = scene_profiles_before_chapter(&db, project.id, 9)
         .await
         .expect("late scene context must load");
     assert!(scenes_before_ninth.iter().any(|context| {
         matches!(context, ChapterSceneProfileContext::Observed { occurrence, .. } if occurrence.chapter_number == 8)
+    }));
+    assert!(objects_before_ninth.iter().any(|context| {
+        matches!(context, ChapterObjectProfileContext::Authored(profile) if profile.name == "未来道具")
+    }));
+    assert!(objects_before_ninth.iter().any(|context| {
+        matches!(context, ChapterObjectProfileContext::Authored(profile) if profile.name == "作者道具" && profile.material_and_state == "第八章后已损毁")
+    }));
+    assert!(scenes_before_ninth.iter().any(|context| {
+        matches!(context, ChapterSceneProfileContext::Authored(profile) if profile.name == "未来场景")
+    }));
+    assert!(scenes_before_ninth.iter().any(|context| {
+        matches!(context, ChapterSceneProfileContext::Authored(profile) if profile.name == "作者场景" && profile.visual_description == "火灾后的坍塌房间")
     }));
 
     let _ = third;

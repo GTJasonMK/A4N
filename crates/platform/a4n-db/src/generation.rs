@@ -17,6 +17,10 @@ const RUN_STATUS_FAILED: &str = "failed";
 const RUN_STATUS_CANCELLED: &str = "cancelled";
 const RUN_STATUS_INTERRUPTED: &str = "interrupted";
 
+pub(crate) fn chapter_generation_project_lock_scope(project_id: i64) -> String {
+    format!("chapter_generation_project:{project_id}")
+}
+
 mod validation;
 pub(in crate::generation) use validation::verify_canonical_json_sha256;
 pub use validation::{canonical_json_bytes, canonical_json_sha256, canonical_json_text};

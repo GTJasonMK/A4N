@@ -10,12 +10,14 @@ impl ChapterGenerationService {
         &self,
         project_id: i64,
         chapter_number: i32,
+        task_id: &str,
     ) -> Result<ChapterGenerationSession, AppError> {
         let guard = self.try_generation_guard(project_id, chapter_number)?;
         let existing_chapter = a4n_db::chapter_content::begin_chapter_generation_record(
             &self.db,
             project_id,
             chapter_number,
+            task_id,
             Utc::now().naive_utc(),
         )
         .await

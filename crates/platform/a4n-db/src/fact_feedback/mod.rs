@@ -11,7 +11,8 @@ mod replay;
 pub use apply::{ConsolidationApplyInput, ConsolidationApplyResult, apply_consolidation};
 pub use profiles::profile_facts_before_chapter;
 pub(crate) use profiles::{
-    profile_fact_snapshot, record_profile_fact_observation, restore_profile_fact,
+    profile_fact_snapshot, profile_facts_before_chapter_batch, record_profile_fact_observation,
+    restore_profile_fact,
 };
 pub use records::{
     FactChangeRecordInput, FeedbackSource, current_feedback_sources, feedback_changes,

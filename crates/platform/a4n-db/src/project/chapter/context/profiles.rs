@@ -30,28 +30,41 @@ pub async fn object_profiles_before_chapter(
         .collect::<Vec<_>>();
     let mut evidence =
         object_evidence_before_chapter(db, project_id, chapter_number, &profile_ids).await?;
+    let projected_profile_ids = profiles
+        .iter()
+        .filter(|profile| {
+            evidence.contains_key(&profile.id)
+                || (profile.ownership_kind == PROFILE_OWNERSHIP_USER
+                    && profile.first_seen_chapter <= chapter_number)
+        })
+        .map(|profile| profile.id)
+        .collect::<Vec<_>>();
+    let fact_states = crate::fact_feedback::profile_facts_before_chapter_batch(
+        db,
+        project_id,
+        "object_profile",
+        &projected_profile_ids,
+        chapter_number,
+    )
+    .await
+    .map_err(|error| ProjectChapterContextError::InvalidArgument(error.to_string()))?;
     let mut result = Vec::new();
     for profile in profiles {
         if let Some(evidence) = evidence.remove(&profile.id) {
-            let fact_state = crate::fact_feedback::profile_facts_before_chapter(
-                db,
-                project_id,
-                "object_profile",
-                profile.id,
-                chapter_number,
-            )
-            .await
-            .map_err(|error| ProjectChapterContextError::InvalidArgument(error.to_string()))?;
             result.push(ChapterObjectProfileContext::Observed {
                 profile_id: profile.id,
                 name: profile.name,
                 evidence,
-                fact_state,
+                fact_state: fact_states.get(&profile.id).cloned(),
             });
-        } else if profile.ownership_kind == PROFILE_OWNERSHIP_USER {
-            result.push(ChapterObjectProfileContext::Authored(
-                crate::asset::object_profile_record(profile),
-            ));
+        } else if profile.ownership_kind == PROFILE_OWNERSHIP_USER
+            && profile.first_seen_chapter <= chapter_number
+        {
+            let mut authored = crate::asset::object_profile_record(profile);
+            if let Some(fact_state) = fact_states.get(&authored.id) {
+                apply_object_profile_projection(&mut authored, fact_state)?;
+            }
+            result.push(ChapterObjectProfileContext::Authored(authored));
         }
     }
     Ok(result)
@@ -81,31 +94,80 @@ pub async fn scene_profiles_before_chapter(
         .order_by_asc(scene_profile::Column::Id)
         .all(db)
         .await?;
+    let projected_profile_ids = profiles
+        .iter()
+        .filter(|profile| {
+            latest.contains_key(&profile.id)
+                || (profile.ownership_kind == PROFILE_OWNERSHIP_USER
+                    && profile.first_seen_chapter <= chapter_number)
+        })
+        .map(|profile| profile.id)
+        .collect::<Vec<_>>();
+    let fact_states = crate::fact_feedback::profile_facts_before_chapter_batch(
+        db,
+        project_id,
+        "scene_profile",
+        &projected_profile_ids,
+        chapter_number,
+    )
+    .await
+    .map_err(|error| ProjectChapterContextError::InvalidArgument(error.to_string()))?;
     let mut result = Vec::new();
     for profile in profiles {
         if let Some(occurrence) = latest.remove(&profile.id) {
-            let fact_state = crate::fact_feedback::profile_facts_before_chapter(
-                db,
-                project_id,
-                "scene_profile",
-                profile.id,
-                chapter_number,
-            )
-            .await
-            .map_err(|error| ProjectChapterContextError::InvalidArgument(error.to_string()))?;
             result.push(ChapterSceneProfileContext::Observed {
                 profile_id: profile.id,
                 name: profile.name,
                 occurrence: scene_occurrence_record(occurrence),
-                fact_state,
+                fact_state: fact_states.get(&profile.id).cloned(),
             });
-        } else if profile.ownership_kind == PROFILE_OWNERSHIP_USER {
-            result.push(ChapterSceneProfileContext::Authored(
-                crate::scene_profile::scene_profile_record(profile),
-            ));
+        } else if profile.ownership_kind == PROFILE_OWNERSHIP_USER
+            && profile.first_seen_chapter <= chapter_number
+        {
+            let mut authored = crate::scene_profile::scene_profile_record(profile);
+            if let Some(fact_state) = fact_states.get(&authored.id) {
+                apply_scene_profile_projection(&mut authored, fact_state)?;
+            }
+            result.push(ChapterSceneProfileContext::Authored(authored));
         }
     }
     Ok(result)
+}
+
+fn apply_object_profile_projection(
+    profile: &mut a4n_domain::object_profile::ObjectProfileRecord,
+    facts: &serde_json::Value,
+) -> Result<(), ProjectChapterContextError> {
+    apply_projected_text(&mut profile.visual_description, facts, "visual_description")?;
+    apply_projected_text(&mut profile.material_and_state, facts, "material_and_state")?;
+    apply_projected_text(&mut profile.story_usage, facts, "story_usage")
+}
+
+fn apply_scene_profile_projection(
+    profile: &mut a4n_domain::scene_profile::SceneProfileRecord,
+    facts: &serde_json::Value,
+) -> Result<(), ProjectChapterContextError> {
+    apply_projected_text(&mut profile.visual_description, facts, "visual_description")?;
+    apply_projected_text(&mut profile.spatial_layout, facts, "spatial_layout")?;
+    apply_projected_text(&mut profile.atmosphere, facts, "atmosphere")
+}
+
+fn apply_projected_text(
+    current: &mut String,
+    facts: &serde_json::Value,
+    field: &str,
+) -> Result<(), ProjectChapterContextError> {
+    match facts.get(field) {
+        Some(serde_json::Value::String(value)) => *current = value.clone(),
+        Some(serde_json::Value::Null) => current.clear(),
+        Some(_) => {
+            return Err(ProjectChapterContextError::InvalidArgument(format!(
+                "档案事实投影字段 `{field}` 必须是字符串"
+            )));
+        }
+        None => {}
+    }
+    Ok(())
 }
 
 async fn object_evidence_before_chapter(

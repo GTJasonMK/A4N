@@ -58,6 +58,20 @@ pub async fn reserve_generation_task(
         prepared.input.root_project_id,
     )
     .await?;
+    if prepared.input.task_scope.as_deref() == Some("chapter_generation") {
+        let project_id = prepared.input.project_id.ok_or_else(|| {
+            GenerationTaskPersistenceError::InvalidArgument(
+                "章节生成任务缺少 project_id".to_string(),
+            )
+        })?;
+        let scope = crate::generation::chapter_generation_project_lock_scope(project_id);
+        tx.execute(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+            [scope.into()],
+        ))
+        .await?;
+    }
     acquire_generation_advisory_lock(
         &tx,
         START_REQUEST_LOCK_NAMESPACE,

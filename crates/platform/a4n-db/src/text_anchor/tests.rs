@@ -5,7 +5,10 @@ use a4n_db_models::models::{
     project::{novel_project, profile_evidence, source_snapshot_chapter, text_anchor},
 };
 use a4n_domain::text_anchor::{TextAnchorEvidenceInput, TextAnchorProfileKind};
-use a4n_domain::{profile_ownership::PROFILE_OWNERSHIP_USER, source_text_hash};
+use a4n_domain::{
+    profile_ownership::{PROFILE_OWNERSHIP_AI_SYNC, PROFILE_OWNERSHIP_USER},
+    source_text_hash,
+};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, NotSet, PaginatorTrait,
@@ -85,12 +88,21 @@ async fn object_profile_record(
     db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> object_profile::Model {
+    object_profile_record_with_ownership(db, project_id, "青铜钥匙", PROFILE_OWNERSHIP_USER).await
+}
+
+async fn object_profile_record_with_ownership(
+    db: &impl crate::DbExecutor,
+    project_id: i64,
+    name: &str,
+    ownership_kind: &str,
+) -> object_profile::Model {
     let now = Utc::now().naive_utc();
     object_profile::ActiveModel {
         project_id: Set(project_id),
-        ownership_kind: Set(PROFILE_OWNERSHIP_USER.to_string()),
-        name: Set("青铜钥匙".to_string()),
-        normalized_name: Set("青铜钥匙".to_string()),
+        ownership_kind: Set(ownership_kind.to_string()),
+        name: Set(name.to_string()),
+        normalized_name: Set(name.to_string()),
         aliases_json: Set(json!([])),
         object_type: Set("token".to_string()),
         importance: Set("primary".to_string()),
@@ -111,6 +123,119 @@ async fn object_profile_record(
     .insert(db)
     .await
     .unwrap()
+}
+
+#[tokio::test]
+async fn source_anchor_deletion_recomputes_ai_object_evidence_and_preserves_user_fields() {
+    let db = setup_db().await;
+    let project = text_project(&db, "物体档案证据撤回").await;
+    let first = chapter_record(&db, project.id, 1, "第一章出现铜钥匙。第二句。 ").await;
+    let second = chapter_record(&db, project.id, 2, "第二章又出现铜钥匙。第二句。 ").await;
+    let first_anchor = rebuild_chapter_content_anchor_records(&db, project.id, first.id)
+        .await
+        .unwrap()
+        .remove(0);
+    let second_anchor = rebuild_chapter_content_anchor_records(&db, project.id, second.id)
+        .await
+        .unwrap()
+        .remove(0);
+    let user_profile = object_profile_record(&db, project.id).await;
+    let ai_profile = object_profile_record_with_ownership(
+        &db,
+        project.id,
+        "AI铜钥匙",
+        PROFILE_OWNERSHIP_AI_SYNC,
+    )
+    .await;
+    for (profile_id, evidence) in [
+        (user_profile.id, "作者手工证据"),
+        (ai_profile.id, "旧模型证据"),
+    ] {
+        let mut active: object_profile::ActiveModel =
+            object_profile::Entity::find_by_id(profile_id)
+                .one(&db)
+                .await
+                .unwrap()
+                .unwrap()
+                .into();
+        active.first_seen_chapter = Set(1);
+        active.last_seen_chapter = Set(2);
+        active.evidence_json = Set(json!([evidence]));
+        active.update(&db).await.unwrap();
+    }
+    merge_profile_evidence_records_batch(
+        &db,
+        project.id,
+        None,
+        TextAnchorProfileKind::Object,
+        [user_profile.id, ai_profile.id]
+            .into_iter()
+            .map(|profile_id| {
+                (
+                    profile_id,
+                    vec![
+                        TextAnchorEvidenceInput {
+                            text_anchor_id: first_anchor.id,
+                            evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
+                        },
+                        TextAnchorEvidenceInput {
+                            text_anchor_id: second_anchor.id,
+                            evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
+                        },
+                    ],
+                )
+            })
+            .collect(),
+    )
+    .await
+    .unwrap();
+
+    let second_id = second.id;
+    let mut updated_second: chapter::ActiveModel = second.into();
+    updated_second.content = Set("第二章改写后不再出现钥匙。".to_string());
+    updated_second.update(&db).await.unwrap();
+    ensure_chapter_content_anchor_records_batch(&db, project.id, &[second_id])
+        .await
+        .unwrap();
+
+    let ai_after_second_retraction = object_profile::Entity::find_by_id(ai_profile.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(ai_after_second_retraction.first_seen_chapter, 1);
+    assert_eq!(ai_after_second_retraction.last_seen_chapter, 1);
+    assert_eq!(
+        ai_after_second_retraction.evidence_json,
+        json!([first_anchor.quote])
+    );
+    let user_after_second_retraction = object_profile::Entity::find_by_id(user_profile.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(user_after_second_retraction.first_seen_chapter, 1);
+    assert_eq!(user_after_second_retraction.last_seen_chapter, 2);
+    assert_eq!(
+        user_after_second_retraction.evidence_json,
+        json!(["作者手工证据"])
+    );
+
+    let first_id = first.id;
+    let mut updated_first: chapter::ActiveModel = first.into();
+    updated_first.content = Set("第一章改写后也不再出现钥匙。".to_string());
+    updated_first.update(&db).await.unwrap();
+    ensure_chapter_content_anchor_records_batch(&db, project.id, &[first_id])
+        .await
+        .unwrap();
+    let ai_without_sources = object_profile::Entity::find_by_id(ai_profile.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(ai_without_sources.first_seen_chapter, 0);
+    assert_eq!(ai_without_sources.last_seen_chapter, 0);
+    assert_eq!(ai_without_sources.evidence_json, json!([]));
 }
 
 #[tokio::test]

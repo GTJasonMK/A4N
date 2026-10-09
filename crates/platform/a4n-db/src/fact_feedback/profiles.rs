@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use a4n_db_models::models::{
     asset::object_profile, chapter::chapter, project::material_fact_change, scene::scene_profile,
 };
@@ -150,20 +152,59 @@ pub async fn profile_facts_before_chapter<C: ConnectionTrait>(
     project_profile_facts(&history, chapter_number)
 }
 
+pub(crate) async fn profile_facts_before_chapter_batch<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+    kind: &str,
+    profile_ids: &[i64],
+    chapter_number: i32,
+) -> Result<HashMap<i64, Value>, FactFeedbackDbError> {
+    let histories = profile_fact_histories(db, project_id, kind, profile_ids).await?;
+    let mut projections = HashMap::with_capacity(histories.len());
+    for (profile_id, history) in histories {
+        if let Some(facts) = project_profile_facts(&history, chapter_number)? {
+            projections.insert(profile_id, facts);
+        }
+    }
+    Ok(projections)
+}
+
 async fn profile_fact_history<C: ConnectionTrait>(
     db: &C,
     project_id: i64,
     kind: &str,
     id: i64,
 ) -> Result<Vec<material_fact_change::Model>, FactFeedbackDbError> {
+    Ok(profile_fact_histories(db, project_id, kind, &[id])
+        .await?
+        .remove(&id)
+        .unwrap_or_default())
+}
+
+async fn profile_fact_histories<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+    kind: &str,
+    profile_ids: &[i64],
+) -> Result<HashMap<i64, Vec<material_fact_change::Model>>, FactFeedbackDbError> {
     fields(kind)?;
-    Ok(material_fact_change::Entity::find()
+    if profile_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let changes = material_fact_change::Entity::find()
         .filter(material_fact_change::Column::ProjectId.eq(project_id))
         .filter(material_fact_change::Column::MaterialKind.eq(kind))
-        .filter(material_fact_change::Column::TargetId.eq(id))
+        .filter(material_fact_change::Column::TargetId.is_in(profile_ids.iter().copied()))
         .order_by_asc(material_fact_change::Column::Id)
         .all(db)
-        .await?)
+        .await?;
+    let mut histories = HashMap::<i64, Vec<material_fact_change::Model>>::new();
+    for change in changes {
+        if let Some(profile_id) = change.target_id {
+            histories.entry(profile_id).or_default().push(change);
+        }
+    }
+    Ok(histories)
 }
 
 fn project_profile_facts(

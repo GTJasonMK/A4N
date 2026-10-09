@@ -53,8 +53,23 @@ impl OrchestratorContext {
             .await;
         }
 
+        if let Err(error) = self
+            .ensure_prior_chapter_context_ready(input.project_id, input.chapter_number)
+            .await
+        {
+            return fail_chapter_generation_execution(
+                self,
+                &chapter_service,
+                execution,
+                None,
+                None,
+                generation_public_error("generation_validation_failed", "chapter_prepare", error),
+            )
+            .await;
+        }
+
         let chapter_session = match chapter_service
-            .begin_generation(input.project_id, input.chapter_number)
+            .begin_generation(input.project_id, input.chapter_number, &handle.task_id)
             .await
         {
             Ok(session) => Arc::new(session),
@@ -674,11 +689,11 @@ impl OrchestratorContext {
         self.ensure_text_source_project(project_id, operation)
             .await?;
         self.validate_chapter_generation_readiness(project_id, chapter_number)?;
-        self.ensure_prior_chapter_analysis_replay_complete(project_id, chapter_number)
+        self.ensure_prior_chapter_context_ready(project_id, chapter_number)
             .await
     }
 
-    async fn ensure_prior_chapter_analysis_replay_complete(
+    async fn ensure_prior_chapter_context_ready(
         &self,
         project_id: i64,
         chapter_number: i32,
@@ -720,6 +735,14 @@ impl OrchestratorContext {
                 run.id
             ));
         }
+        for chapter in &chapters {
+            validate_prior_chapter_context(
+                chapter.chapter_number,
+                chapter.is_generating(),
+                &chapter.content,
+                chapter.analysis_data.as_ref(),
+            )?;
+        }
         Ok(())
     }
 
@@ -758,6 +781,9 @@ impl OrchestratorContext {
                 rag_context.query_fingerprint.as_deref(),
             )
             .await?;
+        self.ensure_prior_chapter_context_ready(input.project_id, input.chapter_number)
+            .await
+            .map_err(|error| format!("准备生成请求期间前文状态发生变化：{error}"))?;
 
         let mut outline_text = sources.base_outline_text.clone();
         for context in [
@@ -1086,5 +1112,98 @@ impl OrchestratorContext {
                 .await
                 .map_err(|error| error.to_string()),
         }
+    }
+}
+
+fn validate_prior_chapter_context(
+    chapter_number: i32,
+    is_generating: bool,
+    content: &str,
+    analysis_data: Option<&Value>,
+) -> Result<(), String> {
+    if is_generating {
+        return Err(format!(
+            "第 {chapter_number} 章正文仍在生成中，请等待完成后再生成后续章节"
+        ));
+    }
+    if content.trim().is_empty() {
+        return Ok(());
+    }
+    let analysis = analysis_data.ok_or_else(|| {
+        format!("第 {chapter_number} 章缺少有效章节分析，请先完成该章分析后再生成后续章节")
+    })?;
+    a4n_chapter_analysis::validate_saved_chapter_analysis(analysis).map_err(|error| {
+        format!("第 {chapter_number} 章的章节分析无效，请重新运行章节分析后再生成：{error}")
+    })
+}
+
+#[cfg(test)]
+mod prior_chapter_analysis_tests {
+    use serde_json::{Value, json};
+
+    use super::validate_prior_chapter_context;
+
+    fn valid_analysis() -> Value {
+        json!({
+            "metadata": {
+                "characters": [],
+                "locations": [],
+                "items": [],
+                "tags": [],
+                "tone": null,
+                "timeline_marker": null
+            },
+            "summaries": {
+                "compressed": "前文摘要",
+                "one_line": "前文摘要",
+                "keywords": []
+            },
+            "character_states": {},
+            "foreshadowing": {
+                "planted": [],
+                "resolved": [],
+                "tensions": []
+            },
+            "key_events": []
+        })
+    }
+
+    #[test]
+    fn prior_chapter_with_content_requires_saved_analysis() {
+        let error = validate_prior_chapter_context(4, false, "已有正文", None)
+            .expect_err("analysis must be required for written prior chapters");
+
+        assert!(error.contains("第 4 章"));
+        assert!(error.contains("缺少有效章节分析"));
+    }
+
+    #[test]
+    fn prior_chapter_analysis_must_match_current_schema() {
+        let error = validate_prior_chapter_context(2, false, "已有正文", Some(&json!({})))
+            .expect_err("invalid analysis must be rejected");
+
+        assert!(error.contains("第 2 章"));
+        assert!(error.contains("章节分析无效"));
+    }
+
+    #[test]
+    fn valid_prior_chapter_analysis_allows_generation() {
+        validate_prior_chapter_context(1, false, "已有正文", Some(&valid_analysis()))
+            .expect("current normalized analysis must pass");
+    }
+
+    #[test]
+    fn empty_prior_chapter_does_not_require_analysis() {
+        validate_prior_chapter_context(1, false, "  ", None)
+            .expect("empty chapter has no content to analyze");
+    }
+
+    #[test]
+    fn generating_prior_chapter_blocks_following_generation() {
+        let error = validate_prior_chapter_context(3, true, "旧正文", Some(&valid_analysis()))
+            .expect_err("a generating prior chapter must not be used as context");
+
+        assert!(error.contains("第 3 章"));
+        assert!(error.contains("仍在生成中"));
     }
 }

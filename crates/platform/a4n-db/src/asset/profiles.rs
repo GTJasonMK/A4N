@@ -1,8 +1,10 @@
+mod evidence;
 mod mutations;
 mod read;
 mod record;
 mod upsert;
 
+pub(crate) use evidence::reconcile_object_profile_evidence_from_anchors;
 pub use mutations::{
     create_object_profile_read_record, create_object_profile_record, delete_object_profile_record,
     update_object_profile_read_record, update_object_profile_record,

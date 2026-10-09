@@ -22,24 +22,7 @@ pub async fn delete_chapter_content_profile_evidence_records<C>(
 where
     C: ConnectionTrait,
 {
-    if project_id <= 0 || chapter_id <= 0 {
-        return Err(super::TextAnchorDbError::InvalidArgument(
-            "章节证据清理 project_id/chapter_id 必须大于 0".to_string(),
-        ));
-    }
-    let anchor_ids = text_anchor::Entity::find()
-        .select_only()
-        .column(text_anchor::Column::Id)
-        .filter(text_anchor::Column::ProjectId.eq(project_id))
-        .filter(text_anchor::Column::SourceKind.eq(super::SOURCE_KIND_CHAPTER_CONTENT))
-        .filter(text_anchor::Column::SourceId.eq(chapter_id))
-        .filter(text_anchor::Column::SourceSnapshotId.is_null())
-        .into_query();
-    Ok(profile_evidence::Entity::delete_many()
-        .filter(profile_evidence::Column::TextAnchorId.in_subquery(anchor_ids))
-        .exec(db)
-        .await?
-        .rows_affected)
+    delete_chapter_content_profile_evidence_records_batch(db, project_id, &[chapter_id]).await
 }
 
 pub(crate) async fn delete_chapter_content_profile_evidence_records_batch<C>(
@@ -58,6 +41,25 @@ where
             "章节证据批量清理 project_id/chapter_id 必须大于 0".to_string(),
         ));
     }
+    let affected_object_profile_ids = profile_evidence::Entity::find()
+        .select_only()
+        .column(profile_evidence::Column::ProfileId)
+        .filter(profile_evidence::Column::ProfileKind.eq(TextAnchorProfileKind::Object.as_str()))
+        .filter(
+            profile_evidence::Column::TextAnchorId.in_subquery(
+                text_anchor::Entity::find()
+                    .select_only()
+                    .column(text_anchor::Column::Id)
+                    .filter(text_anchor::Column::ProjectId.eq(project_id))
+                    .filter(text_anchor::Column::SourceKind.eq(super::SOURCE_KIND_CHAPTER_CONTENT))
+                    .filter(text_anchor::Column::SourceId.is_in(chapter_ids.iter().copied()))
+                    .filter(text_anchor::Column::SourceSnapshotId.is_null())
+                    .into_query(),
+            ),
+        )
+        .into_tuple::<i64>()
+        .all(db)
+        .await?;
     let anchor_ids = text_anchor::Entity::find()
         .select_only()
         .column(text_anchor::Column::Id)
@@ -66,11 +68,18 @@ where
         .filter(text_anchor::Column::SourceId.is_in(chapter_ids.iter().copied()))
         .filter(text_anchor::Column::SourceSnapshotId.is_null())
         .into_query();
-    Ok(profile_evidence::Entity::delete_many()
+    let deleted = profile_evidence::Entity::delete_many()
         .filter(profile_evidence::Column::TextAnchorId.in_subquery(anchor_ids))
         .exec(db)
         .await?
-        .rows_affected)
+        .rows_affected;
+    crate::asset::reconcile_object_profile_evidence_from_anchors(
+        db,
+        project_id,
+        &affected_object_profile_ids,
+    )
+    .await?;
+    Ok(deleted)
 }
 
 pub async fn merge_profile_evidence_records_batch<C>(

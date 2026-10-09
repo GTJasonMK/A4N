@@ -155,10 +155,9 @@ export function profileChapterRangeText(
   first: number,
   last: number,
   evidence: unknown,
-  ownershipKind: string,
   t: MessageTranslator,
 ): string {
-  if (ownershipKind === "user" && stringList(evidence).length === 0) {
+  if (stringList(evidence).length === 0 || first <= 0 || last <= 0) {
     return t("novel.appearancePendingConfirmation");
   }
   return chapterRangeText(first, last, t);

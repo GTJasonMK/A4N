@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use a4n_db_models::models::asset::object_profile;
 #[cfg(test)]
 use a4n_domain::auth::ROLE_USER;
-use a4n_domain::profile_ownership::{PROFILE_OWNERSHIP_AI_SYNC, PROFILE_OWNERSHIP_USER};
+use a4n_domain::profile_ownership::PROFILE_OWNERSHIP_AI_SYNC;
 use a4n_domain::profile_text::merge_profile_evidence_json;
 use chrono::Utc;
 use sea_orm::sea_query::{CaseStatement, Expr};
@@ -304,8 +304,7 @@ fn merge_object_profile_record_input(
     existing: &object_profile::Model,
     mut input: ObjectProfileRecordInput,
 ) -> ObjectProfileRecordInput {
-    let range_unconfirmed = existing.ownership_kind == PROFILE_OWNERSHIP_USER
-        && existing.evidence_json.as_array().is_some_and(Vec::is_empty);
+    let range_unconfirmed = existing.evidence_json.as_array().is_some_and(Vec::is_empty);
     let first_seen_chapter = if range_unconfirmed {
         input.first_seen_chapter
     } else {
@@ -484,6 +483,22 @@ mod tests {
         let mut existing = profile(PROFILE_OWNERSHIP_USER);
         existing.first_seen_chapter = 1;
         existing.last_seen_chapter = 1;
+        existing.evidence_json = json!([]);
+        let mut incoming = discovery_input();
+        incoming.first_seen_chapter = 5;
+        incoming.last_seen_chapter = 5;
+
+        let merged = merge_object_profile_record_input(&existing, incoming);
+
+        assert_eq!(merged.first_seen_chapter, 5);
+        assert_eq!(merged.last_seen_chapter, 5);
+    }
+
+    #[test]
+    fn profile_merge_replaces_ai_range_after_source_evidence_was_removed() {
+        let mut existing = profile(PROFILE_OWNERSHIP_AI_SYNC);
+        existing.first_seen_chapter = 0;
+        existing.last_seen_chapter = 0;
         existing.evidence_json = json!([]);
         let mut incoming = discovery_input();
         incoming.first_seen_chapter = 5;
