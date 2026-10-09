@@ -519,8 +519,12 @@ async function reachByWheel(selector, axis = "y") {
     const center = { x: (bounds.left + bounds.right) / 2, y: (bounds.top + bounds.bottom) / 2 };
     const span = direction === "x" ? bounds.right - bounds.left : bounds.bottom - bounds.top;
     const distance = direction === "x" ? x - center.x : y - center.y;
+    if (!scroll && document.scrollingElement?.scrollHeight > document.scrollingElement?.clientHeight + 1) {
+      scroll = document.scrollingElement;
+    }
     return {
       reached, scrollable: Boolean(scroll), target: { x, y }, bounds,
+      scrollTarget: scroll?.className || scroll?.id || scroll?.tagName || null,
       x: Math.round(Math.max(2, Math.min(innerWidth - 2, center.x))),
       y: Math.round(Math.max(2, Math.min(innerHeight - 2, center.y))),
       delta: Math.round(Math.max(-span / 2, Math.min(span / 2, distance))),
@@ -799,7 +803,49 @@ const cases = [
   { id: "MV27", title: "创建插入片段", task: "在既有片段间准备插入内容", open: openInserted, scope: dialog, expected: ["生成插入片段", "参考"], note: "清楚区分生成描述与确认插入，不在审查中生成。" },
   { id: "MV28", title: "插入参考图选择", task: "点击图片主体选中参考图", open: openInserted, scope: dialog, expected: ["生成插入片段"], after: async () => { const option = await $(`${dialog} button:has(img)`); await option.$("img").click(); await browser.waitUntil(async () => (await option.getAttribute("class")).includes("ring-1"), { timeout: 2500, timeoutMsg: "Clicking the reference image must select it, not replace the task with a lightbox" }); assert.equal(await $(`${dialog} h3`).getText(), "生成插入片段"); return { imageClickSelectedReference: true }; }, note: "图片主体选择，独立预览按钮放大；两种操作不能吞事件。" },
   { id: "MV29", title: "插入片段详情", task: "查看插入位置、提示词与移动/删除动作", open: async () => { await openVideo(); await $('//button[.//div[normalize-space()="信封暗记特写"] and not(ancestor::*[@role="dialog"])]').click(); await $(dialog).waitForDisplayed(); }, scope: dialog, expected: ["插入片段详情", "选择新的位置"], after: async () => { const location = await $(`${dialog} button[role="combobox"]`); assert.equal(await location.isEnabled(), true); await location.click(); const options = await $$('[role="option"]'); assert(options.length > 2, "An inserted segment must expose real alternative positions"); await browser.keys("Escape"); return { moveOptions: options.length }; }, note: "保留位置编辑与已有视频操作，不执行删除。" },
-  { id: "MV30", title: "成片合成", task: "审查四个可用片段的顺序与已推送前缀", open: async () => { await openVideo("成片合成"); await waitForPlayable(".a4n-page-container video"); }, expected: ["成片预览", "片段顺序"], after: () => provePlayback(".a4n-page-container video"), note: "检查确认操作与顺序列表的距离，预览需包含真实媒体。" },
+  { id: "MV30", title: "成片合成", task: "审查四个可用片段的顺序与已推送前缀", open: async () => {
+    await openVideo("成片合成");
+    const video = ".a4n-page-container video";
+    await waitForPlayable(video);
+    await browser.waitUntil(async () => $(video).execute(element => element.readyState >= 3), {
+      timeout: 10000, timeoutMsg: "The preview must be ready to play before the loading state clears",
+    });
+  }, expected: ["成片预览", "片段顺序"], count: ['[role="region"][aria-label="片段顺序"] ul > li', 4], after: async (_record, width) => {
+    const playback = await provePlayback(".a4n-page-container video");
+    const clipOrder = await $('[role="region"][aria-label="片段顺序"]');
+    const lastClip = await clipOrder.$("ul > li:last-child");
+    const scrollMetrics = await clipOrder.execute(element => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      scrollTop: element.scrollTop,
+      keyboardFocusable: element.tabIndex >= 0,
+      scrollbarWidth: getComputedStyle(element).scrollbarWidth,
+    }));
+    assert.equal(scrollMetrics.keyboardFocusable, true);
+    const previewHeight = await $(".a4n-video-assembly-preview-media").getSize("height");
+    if (width < 1280) {
+      assert(scrollMetrics.scrollHeight <= scrollMetrics.clientHeight + 1, "Stacked clip lists must flow with the page instead of nesting a scroller");
+      assert(previewHeight > 100, "The stacked preview must retain a visible media frame");
+    }
+    const previewLoading = await $(".a4n-video-assembly-preview [role=\"status\"]");
+    assert.equal(await previewLoading.isDisplayed(), false, "The loading state must clear after media data is ready");
+    let keyboardScrollTop = null;
+    if (width === 390) {
+      await clipOrder.execute(element => element.focus());
+      await browser.keys("PageDown");
+      const assemblyPanel = await $(".a4n-video-assembly-tabpanel");
+      await browser.waitUntil(async () => (await assemblyPanel.getProperty("scrollTop")) > 32, { timeout: 2500 });
+      keyboardScrollTop = await assemblyPanel.getProperty("scrollTop");
+      assert(keyboardScrollTop > 32, "Keyboard users must be able to scroll the clip order");
+    }
+    const reachability = await reachByWheel(lastClip, "y");
+    assert.equal(reachability.reached, true, "The last assembly clip must be reachable by scrolling");
+    if (width === 390) {
+      assert(reachability.scrollable, "The last phone clip must be reachable through page scrolling");
+      assert(!String(reachability.scrollTarget).includes("a4n-video-assembly-clip-list"), "The phone order list must not create a nested scroller");
+    }
+    return { playback, lastClipReachability: reachability, scrollMetrics, keyboardScrollTop };
+  }, note: "预览保留真实媒体解码；手机端顺序区检查真实滚动、末项与键盘可达性。" },
   { id: "MV31", title: "后处理批次", task: "从两批成片进入待确认的编辑版本", open: () => openPostprocess(0), expected: ["推送批次", "后处理预览", "剪辑条"], count: ["[data-video-push-id]", 2], note: "播放器不应把实际编辑时间条压到不可见处。" },
   { id: "MV32", title: "后处理插入点", task: "点击时间条设置一个插入点", open: () => openPostprocess(1), expected: ["上传并插入"], count: [`${timeline} [role="slider"]`, 1], note: "命中区、时间读数和撤销选择入口需明确。" },
   { id: "MV33", title: "后处理选区", task: "用两个标记定义可替换的片段", open: () => openPostprocess(2), expected: ["上传并替换"], count: [`${timeline} [role="slider"]`, 2], note: "检查双标记间距、选区高亮和长时间读数的碰撞。" },

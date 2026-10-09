@@ -350,7 +350,7 @@ export const videoChapter = {
     assemblyPreviewGenerate: "Generate preview",
     assemblyClipCount: "{count} clips · {duration}",
     pushedClipCount: " · {count} clips pushed",
-    unavailableClips: "Only existing videos will be assembled this time; segments {numbers} have no valid video",
+    unavailableClips: "Planned segments {numbers} have no valid video; this preview includes adopted videos only",
     pushClipCount: "Clips to push",
     pushTo: "Push to {label}",
     noPushableClips: "No clips to push",

@@ -35,6 +35,43 @@
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+.a4n-video-assembly-clip-list:focus-visible {
+  outline: 2px solid rgb(var(--color-primary));
+  outline-offset: -2px;
+}
+
+@media (max-width: 1279px) {
+  .a4n-video-assembly-tabpanel {
+    overflow-y: auto;
+  }
+
+  .a4n-video-assembly-layout {
+    height: auto;
+    min-height: auto;
+  }
+
+  .a4n-video-assembly-preview,
+  .a4n-video-assembly-order {
+    min-height: auto;
+    overflow: visible;
+  }
+
+  .a4n-video-assembly-preview-media {
+    aspect-ratio: 16 / 9;
+    flex: none;
+  }
+
+  .a4n-video-assembly-player {
+    min-height: 0;
+  }
+
+  .a4n-video-assembly-clip-list {
+    min-height: auto;
+    flex: none;
+    overflow: visible;
+  }
+}
+
 @media (max-width: 767px) {
   .a4n-video-canvas-header .a4n-app-page-header__actions {
     box-sizing: border-box;

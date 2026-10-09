@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, MoreHorizontal, Plus } from "lucide-react";
+import { ChevronRight, Eye, MoreHorizontal, Plus } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { BookCardAction } from "../../../components/ui/BookCard";
@@ -75,6 +75,12 @@ export function ChapterOutlineSection({
   const generationActionLabel = hasOutlines
     ? t("outline.chapterSection.appendAction")
     : t("outline.chapterSection.generateAction");
+  const generationHint = hasOutlines
+    ? t("outline.chapterSection.appendHint")
+    : t("outline.chapterSection.generateHint");
+  const chapterCountLabel = hasOutlines
+    ? t("outline.chapterSection.appendCount")
+    : t("outline.chapterSection.generateCount");
   const sourceLabel = (outline: ChapterOutline) =>
     isRetrospectiveChapterOutline(outline)
       ? t("outline.chapterSection.sourceRetrospective")
@@ -119,12 +125,13 @@ export function ChapterOutlineSection({
           onToggle={(event) => setGenerationOpen(event.currentTarget.open)}
         >
           <summary className="flex cursor-pointer items-center justify-between gap-3 py-1 text-xs font-medium text-book-text-sub">
-            <span>{generationActionLabel}</span>
-            <span className="text-caption font-normal text-book-text-muted">{t("outline.chapterSection.appendHint")}</span>
+            <span className="min-w-0">{t("outline.chapterSection.settingsTitle")}</span>
+            <span className="min-w-0 flex-1 text-right text-caption font-normal text-book-text-muted">{generationHint}</span>
+            <ChevronRight size={13} className="shrink-0 transition-transform group-open:rotate-90" />
           </summary>
           <div className="mt-3 grid grid-cols-1 items-end gap-3 border-t border-book-border/35 pt-3 md:grid-cols-[minmax(12rem,20rem)_auto]">
             <label className="flex min-w-0 flex-col gap-1 text-small text-book-text-muted">
-              {t("outline.chapterSection.appendCount")}
+              {chapterCountLabel}
               <input
                 type="number"
                 min={1}

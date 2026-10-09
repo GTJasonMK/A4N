@@ -1408,6 +1408,35 @@ describe("Novel page audit - ordinary populated pages", function () {
       const scope = await project("大纲"); await clickText("分部大纲", scope);
       await press(await scope.$('button[aria-label*="夜雨中的旧书店"]')); return dialog();
     }, text: ["周衡保存了许多迟来的线索"], last: async (scope) => scope.$(".whitespace-pre-wrap") },
+    { id: "N08-empty-chapter-settings", task: "没有章纲时核对生成范围与数量标签", open: async () => {
+      await home();
+      await browser.execute(() => {
+        const outlines = window.__uiAudit.fixtures.list_chapter_outlines;
+        if (!Array.isArray(outlines)) throw new Error("Chapter outline fixture is missing");
+        window.__uiAudit.fixtures.list_chapter_outlines = [];
+      });
+      const row = await rootRow();
+      await press(await row.$('button[aria-label="更多操作"]'));
+      await menuItem("查看档案");
+      await browser.waitUntil(async () => new URL(await browser.getUrl()).pathname === "/novel/1", { timeout });
+      const page = await $(pageSelector);
+      await page.waitForDisplayed({ timeout });
+      await clickText("大纲", await $('nav[role="tablist"]'));
+      await clickText("章节大纲", page);
+      const details = await page.$("#outline-chapters-panel details");
+      await details.waitForDisplayed({ timeout });
+      await browser.waitUntil(async () => details.execute(element => element.open), { timeout });
+      return details;
+    }, text: ["章纲范围设置", "设置本次生成章数"], check: async (scope) => {
+      const summary = await scope.$("summary").getText();
+      const countLabel = await scope.$("label").getText();
+      const action = await textButton("生成章纲", scope);
+      assert.equal(await scope.execute(element => element.open), true);
+      assert(summary.includes("设置本次生成章数"));
+      assert(countLabel.includes("本次生成章数"));
+      assert.equal(await action.isEnabled(), true);
+      return { emptyOutlines: true, summary, countLabel, actionEnabled: true };
+    }, last: async (scope) => textButton("生成章纲", scope) },
     { id: "N08-create-part", task: "检查手工录入分部的范围和正文输入", open: async () => {
       const scope = await project("大纲"); await clickText("分部大纲", scope); await clickText("直接录入", scope); return dialog();
     }, check: async (scope) => {
@@ -1418,8 +1447,15 @@ describe("Novel page audit - ordinary populated pages", function () {
       id: "N08-append-" + kind, task: "展开" + tab + "追加范围并保留既有大纲",
       open: async () => {
         const page = await project("大纲"); await clickText(tab, page);
-        const summary = await containing(action, page, "summary"); await press(summary);
-        return summary.$("..");
+        const panelId = kind === "part" ? "outline-parts-panel" : "outline-chapters-panel";
+        const details = await page.$(`#${panelId} details`);
+        const summary = await details.$("summary");
+        assert.equal(await details.execute(element => element.open), false);
+        assert.equal(await summary.$("svg").isExisting(), true, "Collapsed settings need a direction cue");
+        assert.deepEqual(await snapshot(current.id, current.width, "collapsed", details), []);
+        await press(summary);
+        await browser.waitUntil(async () => details.execute(element => element.open), { timeout });
+        return details;
       }, check: async (scope) => {
         const fields = await scope.$$('input[type="number"]');
         assert.equal(fields.length, count);
@@ -1503,7 +1539,7 @@ describe("Novel page audit - ordinary populated pages", function () {
           const expected = seed.commands.list_images_by_projects.find((image) => image.id === 40001);
           const metadataText = (await Promise.all([...await scope.$$("dl")].map((list) => list.getText()))).join("\n");
           assert.ok(metadataText.includes(expected.metadata_json.generation.config_name), "The source tab must contain populated generation fields");
-          assert.ok(metadataText.includes("来源章节") && metadataText.includes(String(expected.metadata_json.source.chapter_number)), "Source chapter must be readable without opening raw JSON");
+          assert.ok(metadataText.includes("来源章节") && metadataText.includes(`第 ${expected.metadata_json.source.chapter_number} 章`), "Source chapter must be readable without opening raw JSON");
           assert.equal((await scope.getText()).includes("没有可展示的图片详情。"), false);
           assert.deepEqual(await snapshot("N09-image-detail-1", width, "source-summary", scope, { metadataText }), []);
           await press(await scope.$("summary"));
@@ -1522,7 +1558,11 @@ describe("Novel page audit - ordinary populated pages", function () {
       const main = await scope.$('button[title="管理图片"]');
       await main.waitForDisplayed({ timeout });
       return previewRoundTrip(await ariaButton("图片预览", await main.$("..")));
-    }, check: async (scope) => ({ separatePreview: true, escapeFocusRestored: true, previewSource: await scope.$("img").getAttribute("src") }) },
+    }, check: async (scope) => {
+      const hint = await scope.$(".a4n-image-lightbox-stage").getAttribute("title");
+      assert(hint.includes("下方按钮") && !hint.includes("滚轮"), "Zoom guidance must match controls available on touch screens");
+      return { separatePreview: true, escapeFocusRestored: true, previewSource: await scope.$("img").getAttribute("src"), hint };
+    } },
     ...["project", "chapter", "object"].map((mode) => ({
       id: "N09-generate-" + mode,
       task: mode === "object" ? "从完整物体档案选择素材并检查模型请求" : "填写" + (mode === "chapter" ? "本章" : "项目") + "图像提示词并检查模型请求",

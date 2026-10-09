@@ -46,7 +46,7 @@ export const common = {
   statusBarCollapse: "收起快捷工具",
   imagePreview: {
     title: "图片预览",
-    hint: "滚轮缩放，放大后可拖动查看",
+    hint: "用下方按钮缩放；放大后可拖动查看",
     zoomIn: "放大图片",
     zoomOut: "缩小图片",
     reset: "重置图片视图",

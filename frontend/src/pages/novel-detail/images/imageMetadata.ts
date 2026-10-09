@@ -129,7 +129,16 @@ export const imageSourceMetadataFields = (image: GeneratedImage, t: MessageTrans
   const source = asRecord(asRecord(image.metadata_json)?.source);
   if (!source) return [];
   return presentFields([
-    field(t("novel.imageLibrary.sourceChapter"), typeof source.chapter_number === "number" ? source.chapter_number : null, t, locale),
+    field(
+      t("novel.imageLibrary.sourceChapter"),
+      typeof source.chapter_number === "number"
+        ? t("writing.chapterLabel", {
+            number: formatNumber(source.chapter_number, locale),
+          })
+        : null,
+      t,
+      locale,
+    ),
     field(
       t("novel.imageLibrary.contentLength"),
       typeof source.content_len === "number"

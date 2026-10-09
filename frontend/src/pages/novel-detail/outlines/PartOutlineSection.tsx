@@ -92,7 +92,7 @@ export function PartOutlineSection({
           onToggle={(event) => setGenerationOpen(event.currentTarget.open)}
         >
           <summary className="flex cursor-pointer items-center justify-between gap-3 py-1 text-xs font-medium text-book-text-sub">
-            <span>{generationActionLabel}</span>
+            <span>{t("outline.partSection.settingsTitle")}</span>
             <span className="text-caption font-normal text-book-text-muted">{t("outline.partSection.settingsHint")}</span>
             <ChevronRight size={13} className="shrink-0 transition-transform group-open:rotate-90" />
           </summary>

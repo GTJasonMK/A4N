@@ -350,7 +350,7 @@ export const videoChapter = {
     assemblyPreviewGenerate: "生成预览",
     assemblyClipCount: "{count} 段 · {duration}",
     pushedClipCount: " · 已推送 {count} 段",
-    unavailableClips: "本次仅合成已有视频；片段 {numbers} 尚无有效视频",
+    unavailableClips: "计划片段 {numbers} 尚无有效视频；本次预览仅包含已采纳素材",
     pushClipCount: "推送段数",
     pushTo: "推送至 {label}",
     noPushableClips: "没有待推送片段",

@@ -589,8 +589,8 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
   }
 
   return (
-    <div className="grid h-full min-h-0 gap-3 xl:grid-cols-[minmax(0,1.15fr)_340px]">
-      <section className="a4n-flat-surface flex min-h-0 flex-col overflow-hidden p-3">
+    <div className="a4n-video-assembly-layout grid h-full min-h-0 gap-3 xl:grid-cols-[minmax(0,1.15fr)_340px]">
+      <section className="a4n-video-assembly-preview a4n-flat-surface flex min-h-0 flex-col overflow-hidden p-3">
         <div className="mb-3 flex min-w-0 flex-wrap items-center gap-2 border-b border-book-border/35 pb-3">
           <div className="min-w-0 flex-1">
             <h3 className="text-sm font-medium text-book-text-main">
@@ -713,7 +713,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
           </div>
         ) : null}
 
-        <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-book-border/50 bg-black">
+        <div className="a4n-video-assembly-preview-media relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-book-border/50 bg-black">
           {playbackSrc ? (
             <video
               ref={playbackVideoRef}
@@ -722,10 +722,8 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
               playsInline
               preload="auto"
               src={playbackSrc}
-              className="h-full min-h-[260px] w-full bg-black object-contain"
+              className="a4n-video-assembly-player h-full min-h-0 w-full bg-black object-contain"
               onLoadStart={() => setVideoLoading(true)}
-              onLoadedMetadata={handleVideoLoaded}
-              onLoadedData={handleVideoLoaded}
               onCanPlay={handleVideoLoaded}
               onError={handleVideoError}
             />
@@ -735,7 +733,10 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
             </div>
           )}
           {(loading || cacheLoading || videoLoading) && (
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/35 text-xs text-white">
+            <div
+              role="status"
+              className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/35 text-xs text-white"
+            >
               <span className="inline-flex items-center gap-1.5 rounded-xl bg-black/55 px-2.5 py-1.5 backdrop-blur-sm">
                 <LoadingSpinner size="sm" />
                 {loading
@@ -769,14 +770,19 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
         )}
       </section>
 
-      <section className="a4n-flat-surface flex min-h-0 flex-col overflow-hidden">
+      <section className="a4n-video-assembly-order a4n-flat-surface flex min-h-0 flex-col overflow-hidden">
         <div className="flex shrink-0 items-baseline justify-between gap-3 border-b border-book-border/35 px-3 py-2.5">
           <h3 className="text-xs font-medium text-book-text-main">{t("video.chapter.clipOrder")}</h3>
           <span className="text-caption text-book-text-muted">
             {t("video.chapter.segments", { count: clips.length })}
           </span>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+        <div
+          role="region"
+          aria-label={t("video.chapter.clipOrder")}
+          tabIndex={0}
+          className="a4n-video-assembly-clip-list min-h-0 flex-1 overflow-y-auto custom-scrollbar"
+        >
           <ul className="divide-y divide-book-border/35">
             {clips.map((video, index) => {
               const isInsert = video.video_type === VIDEO_TYPE_ASSEMBLY_INSERT;
