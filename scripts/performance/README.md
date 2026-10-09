@@ -350,3 +350,10 @@ flock -x /home/fufu/Code/A4N/work/.agent-build.lock -c \
    cargo test -p a4n-db --test video_reference_projection_batch \
    performance_video_reference_projection_1000_large_scripts -- --ignored --nocapture'
 ```
+
+### 拒绝候选：PERF-027 故事事件列表渲染
+
+- 目标链路：故事事件页面 1000 章/5000 事件的筛选更新与初次卡片渲染。分段 Chromium 基准显示初次 React commit 约 **167.6 ms**，章节/事件数据转换约 **24.6 ms**，筛选八次更新主要耗在卡片协调；初始 DOM 约 **69,008 个元素**。
+- 候选 A：移除每个事件行的装饰 bullet 和分隔符 DOM，改用 CSS 伪元素。DOM 降至 **49,008**，可见文本哈希、1440/390px 横向溢出检查和键盘路径保持一致；但八次筛选总耗时 P50 仅 **177.1 → 154.0 ms（13.0%）**，低于 30% 门槛，拒绝保留。
+- 候选 B：对章节数组做自定义引用比较以跳过列表协调。实际 Chromium P50 **667.3 ms**，相对基线反而约 **3.77 倍**，立即撤回。
+- 结论：两项产品改动均未进入源码；仅保留性能夹具中的分段计时、DOM 计数和可见文本哈希，用于后续评估真正的列表窗口化方案。当前实现仍保留完整 DOM、查找、键盘和打印语义。

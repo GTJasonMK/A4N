@@ -34,23 +34,35 @@ function chapter(number: number): ChapterSummary {
 function session(count: number, locale: Locale) {
   const key = ++version;
   const t = (key: Parameters<typeof translateMessage>[1], params?: Parameters<typeof translateMessage>[2]) => translateMessage(locale, key, params);
+  const chapterBuildStart = performance.now();
   const chapters = Array.from({ length: count }, (_, i) => chapter(i + 1));
+  const chapterBuildMs = performance.now() - chapterBuildStart;
+  const sectionBuildStart = performance.now();
   const sections = chapters.map((chapter) => extractChapterStorySection(chapter, t));
+  const sectionBuildMs = performance.now() - sectionBuildStart;
+  const eventIndexStart = performance.now();
   const options = getStoryEventFilterOptions(sections, sections.flatMap((section) => section.events));
+  const eventIndexMs = performance.now() - eventIndexStart;
+  const timings = { chapterBuildMs, sectionBuildMs, eventIndexMs, filterMs: 0, reactCommitMs: 0 };
   let filters = { ...DEFAULT_STORY_EVENT_FILTERS };
   let onOpenChapter = (number: number) => { opened.push(number); };
   function render(query: string, character = "all", replaceCallback = false) {
     filters = { ...filters, query, character };
     if (replaceCallback) onOpenChapter = (number) => { opened.push(number + 1000); };
+    const filterStart = performance.now();
     const visible = filterStorySections(sections, filters);
+    timings.filterMs = performance.now() - filterStart;
+    const commitStart = performance.now();
     flushSync(() => root.render(<I18nProvider initialLocale={locale} key={key}>
       <StoryEventsListCard chaptersCount={count} analyzedChapters={count} sections={visible}
         filters={filters} filterOptions={options} onFiltersChange={(next) => render(next.query, next.character)} onOpenChapter={onOpenChapter} />
     </I18nProvider>));
+    timings.reactCommitMs = performance.now() - commitStart;
     return visible;
   }
   render("");
-  return { render };
+  const initialRender = { ...timings };
+  return { render, timings, initialRender };
 }
 async function settle() {
   await new Promise<void>((done) => requestAnimationFrame(() => done()));
@@ -70,18 +82,45 @@ async function verifyStoryEvents(locale: Locale) {
 }
 async function measureStoryEvents(count: number) {
   const view = session(count, "zh-CN");
+  const settleStart = performance.now();
   await settle();
+  const initialSections = rootElement.querySelectorAll(".a4n-story-event-section");
+  const initialLastRect = initialSections[initialSections.length - 1]?.getBoundingClientRect();
+  const initial = { ...view.initialRender,
+    settleAndLayoutMs: performance.now() - settleStart,
+    domSections: initialSections.length,
+    eventRows: rootElement.querySelectorAll(".a4n-story-event-section ol > li").length,
+    domElements: rootElement.querySelectorAll("*").length,
+    documentHeight: document.documentElement.scrollHeight,
+    lastSectionBottom: initialLastRect?.bottom ?? null };
   const measurements = [];
+  const filterSamples = [];
+  const commitSamples = [];
   for (let run = 0; run < 7; run++) {
     const start = performance.now();
+    let filterMs = 0;
+    let reactCommitMs = 0;
     // Common prefixes retain whole matching chapters; narrowing still removes nonmatching rows.
-    for (const query of ["调", "调查", "调查线", "调查线索", "线索1", "线索", "调查", ""]) view.render(query);
+    for (const query of ["调", "调查", "调查线", "调查线索", "线索1", "线索", "调查", ""]) {
+      view.render(query);
+      filterMs += view.timings.filterMs;
+      reactCommitMs += view.timings.reactCommitMs;
+    }
     const elapsed = performance.now() - start;
-    if (run >= 2) measurements.push(elapsed);
+    if (run >= 2) {
+      measurements.push(elapsed);
+      filterSamples.push(filterMs);
+      commitSamples.push(reactCommitMs);
+    }
   }
   const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(rootElement.innerHTML));
+  const visibleTextHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(rootElement.innerText));
   return { chapters: count, events: count * 5, samplesMs: measurements,
     medianMs: [...measurements].sort((a, b) => a - b)[2],
-    htmlSha256: Array.from(new Uint8Array(hash), (value) => value.toString(16).padStart(2, "0")).join("") };
+    initial,
+    filterSamplesMs: filterSamples,
+    reactCommitSamplesMs: commitSamples,
+    htmlSha256: Array.from(new Uint8Array(hash), (value) => value.toString(16).padStart(2, "0")).join(""),
+    visibleTextSha256: Array.from(new Uint8Array(visibleTextHash), (value) => value.toString(16).padStart(2, "0")).join("") };
 }
 Object.assign(window, { verifyStoryEvents, measureStoryEvents, storyEventsOpened: () => opened, performanceReady: true });
