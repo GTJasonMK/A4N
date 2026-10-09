@@ -29,7 +29,7 @@ use a4n_service_protocol::{
     TraceContext,
 };
 use async_trait::async_trait;
-use serde_json::Value;
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::OrchestratorContext;
@@ -37,6 +37,51 @@ use a4n_db::prompt_override::{
     ProjectOverrideIdentity, normalize_project_override_identity, validate_project_override_content,
 };
 use a4n_domain::collaboration::ProjectAccessRole;
+
+const PROJECT_CONTEXT_ROOT: &str = "project_info";
+const PROJECT_CONTEXT_FIELDS: &[&str] = &[
+    "id",
+    "title",
+    "description",
+    "project_type",
+    "project_kind",
+    "source_sync_status",
+    "status",
+    "target_chapters",
+    "current_chapter",
+    "total_chapters",
+    "chapters_per_part",
+    "raw_blueprint",
+    "import_analysis_progress",
+    "export_config",
+];
+
+fn project_context_variables() -> Vec<String> {
+    PROJECT_CONTEXT_FIELDS
+        .iter()
+        .map(|field| format!("{PROJECT_CONTEXT_ROOT}.{field}"))
+        .collect()
+}
+
+fn variable_root(value: &str) -> &str {
+    value.split(['.', '[']).next().unwrap_or(value)
+}
+
+fn is_project_context_path(value: &str) -> bool {
+    value == PROJECT_CONTEXT_ROOT || value.starts_with("project_info.")
+}
+
+fn project_context_access_path_available(path: &[String], project_available: bool) -> bool {
+    let Some(root) = path.first() else {
+        return true;
+    };
+    if root != PROJECT_CONTEXT_ROOT {
+        return true;
+    }
+    project_available
+        && (path.len() == 1
+            || (path.len() == 2 && PROJECT_CONTEXT_FIELDS.contains(&path[1].as_str())))
+}
 
 pub(crate) struct PromptRendererAdapter<'a>(
     pub(crate) &'a dyn a4n_api_contract::prompt::PromptRenderPort,
@@ -133,6 +178,11 @@ impl OrchestratorContext {
         project_id: Option<i64>,
     ) -> Result<(), AppError> {
         config.validate().map_err(AppError::InvalidArgument)?;
+        let project_context_available = project_id.is_some();
+        let variable_available = |name: &str| {
+            name == PROJECT_CONTEXT_ROOT && project_context_available
+                || variables.iter().any(|variable| variable == name)
+        };
         for block in &config.blocks {
             match block.kind {
                 PromptAssemblyBlockKind::Template => {
@@ -141,31 +191,58 @@ impl OrchestratorContext {
                     } else {
                         self.prompt_template_variables(&block.value, project_id)?
                     };
-                    if !required.iter().all(|variable| variables.contains(variable)) {
+                    let paths =
+                        self.prompt_template_variable_access_paths(&block.value, project_id)?;
+                    if !required.iter().all(|variable| variable_available(variable))
+                        || !paths.iter().all(|path| {
+                            project_context_access_path_available(path, project_context_available)
+                        })
+                    {
                         return Err(AppError::InvalidArgument(format!(
                             "当前调用不可用模板：{}",
                             block.value
                         )));
                     }
                 }
-                PromptAssemblyBlockKind::Variable if !variables.contains(&block.value) => {
-                    return Err(AppError::InvalidArgument(format!(
-                        "当前调用不可用变量：{}",
-                        block.value
-                    )));
+                PromptAssemblyBlockKind::Variable => {
+                    let available = if is_project_context_path(&block.value) {
+                        project_context_available
+                            && (block.value == PROJECT_CONTEXT_ROOT
+                                || project_context_variables()
+                                    .iter()
+                                    .any(|key| key == &block.value))
+                    } else {
+                        variable_available(variable_root(&block.value))
+                    };
+                    if !available {
+                        return Err(AppError::InvalidArgument(format!(
+                            "当前调用不可用变量：{}",
+                            block.value
+                        )));
+                    }
                 }
                 PromptAssemblyBlockKind::Custom => {
                     let required = a4n_prompt::variables::required_template_variables(&block.value)
                         .map_err(|error| {
                             AppError::InvalidArgument(format!("自定义模块模板无效：{error}"))
                         })?;
-                    if let Some(variable) = required.iter().find(|name| !variables.contains(name)) {
+                    if let Some(variable) = required.iter().find(|name| !variable_available(name)) {
                         return Err(AppError::InvalidArgument(format!(
                             "当前调用不可用变量：{variable}"
                         )));
                     }
+                    let paths = a4n_prompt::variables::template_variable_access_paths(&block.value)
+                        .map_err(|error| {
+                            AppError::InvalidArgument(format!("自定义模块模板无效：{error}"))
+                        })?;
+                    if !paths.iter().all(|path| {
+                        project_context_access_path_available(path, project_context_available)
+                    }) {
+                        return Err(AppError::InvalidArgument(
+                            "自定义装配模块引用了不可用项目资料".into(),
+                        ));
+                    }
                 }
-                PromptAssemblyBlockKind::Variable => {}
             }
         }
         Ok(())
@@ -248,6 +325,83 @@ impl OrchestratorContext {
         ))
     }
 
+    async fn prompt_project_context_value(
+        &self,
+        project_id: Option<i64>,
+    ) -> Result<Value, AppError> {
+        let Some(project_id) = project_id else {
+            return Ok(json!({}));
+        };
+        let Some(project) = self.project_by_id(project_id).await? else {
+            return Err(AppError::NotFound(format!("项目不存在: {project_id}")));
+        };
+        Ok(json!({
+            "id": project.id,
+            "title": project.title,
+            "description": project.description,
+            "project_type": project.project_type,
+            "project_kind": project.project_kind,
+            "source_sync_status": project.source_sync_status,
+            "status": project.status,
+            "target_chapters": project.target_chapters,
+            "current_chapter": project.current_chapter,
+            "total_chapters": project.total_chapters,
+            "chapters_per_part": project.chapters_per_part,
+            "raw_blueprint": project.raw_blueprint,
+            "import_analysis_progress": project.import_analysis_progress,
+            "export_config": project.export_config,
+        }))
+    }
+
+    async fn prompt_variables_with_project_context(
+        &self,
+        snapshot: &PromptAssemblySnapshot,
+        variables: &HashMap<String, Value>,
+        project_id: Option<i64>,
+    ) -> Result<HashMap<String, Value>, AppError> {
+        let mut variables = variables.clone();
+        if project_id.is_some() && self.prompt_assembly_uses_project_info(snapshot, project_id)? {
+            variables.insert(
+                PROJECT_CONTEXT_ROOT.to_string(),
+                self.prompt_project_context_value(project_id).await?,
+            );
+        }
+        Ok(variables)
+    }
+
+    fn prompt_assembly_uses_project_info(
+        &self,
+        snapshot: &PromptAssemblySnapshot,
+        project_id: Option<i64>,
+    ) -> Result<bool, AppError> {
+        for block in snapshot.config.blocks.iter().filter(|block| block.enabled) {
+            let uses_project_info = match block.kind {
+                PromptAssemblyBlockKind::Template => self
+                    .prompt_template_variables(&block.value, project_id)?
+                    .iter()
+                    .any(|variable| variable == PROJECT_CONTEXT_ROOT),
+                PromptAssemblyBlockKind::Variable => {
+                    variable_root(&block.value) == PROJECT_CONTEXT_ROOT
+                }
+                PromptAssemblyBlockKind::Custom => {
+                    a4n_prompt::variables::required_template_variables(&block.value)
+                        .map_err(|error| {
+                            AppError::InvalidArgument(format!(
+                                "自定义装配模块 {} 的模板无效：{error}",
+                                block.id
+                            ))
+                        })?
+                        .iter()
+                        .any(|variable| variable == PROJECT_CONTEXT_ROOT)
+                }
+            };
+            if uses_project_info {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     pub(crate) async fn render_prompt_for_call_validated(
         &self,
         context: &PromptExecutionContext,
@@ -259,7 +413,10 @@ impl OrchestratorContext {
         let snapshot = self
             .resolve_prompt_assembly_snapshot(call_key, template_name, project_id)
             .await?;
-        self.render_prompt_snapshot_validated(context, &snapshot, variables, project_id)
+        let variables = self
+            .prompt_variables_with_project_context(&snapshot, variables, project_id)
+            .await?;
+        self.render_prompt_snapshot_validated(context, &snapshot, &variables, project_id)
             .await
     }
 
@@ -333,6 +490,7 @@ impl OrchestratorContext {
                     call_key: call_key.clone(),
                     prompt_name: prompt.name.clone(),
                     variables: variables.clone(),
+                    project_context_variables: project_context_variables(),
                     available_templates: available_templates.clone(),
                 });
             }
@@ -372,10 +530,12 @@ impl OrchestratorContext {
             config: preview_config,
             ..snapshot.clone()
         };
+        let project_context = self.prompt_project_context_value(project_id).await?;
         let preview_variables = self.prompt_assembly_preview_variables(
             &preview_snapshot.config,
             &variables,
             project_id,
+            &project_context,
         )?;
         let rendered_preview = self
             .render_prompt_snapshot_validated(
@@ -388,6 +548,7 @@ impl OrchestratorContext {
         Ok(PromptAssemblyOutput {
             config: snapshot.config,
             source: snapshot.source,
+            project_context,
             rendered_preview,
         })
     }
@@ -397,6 +558,7 @@ impl OrchestratorContext {
         config: &PromptAssemblyConfig,
         variables: &[String],
         project_id: Option<i64>,
+        project_context: &Value,
     ) -> Result<HashMap<String, Value>, AppError> {
         let mut access_paths = Vec::new();
         for block in config.blocks.iter().filter(|block| block.enabled) {
@@ -418,10 +580,12 @@ impl OrchestratorContext {
             };
             access_paths.extend(paths);
         }
-        Ok(a4n_prompt::variables::placeholder_template_variables(
-            variables,
-            &access_paths,
-        ))
+        let mut preview =
+            a4n_prompt::variables::placeholder_template_variables(variables, &access_paths);
+        if project_id.is_some() {
+            preview.insert(PROJECT_CONTEXT_ROOT.to_string(), project_context.clone());
+        }
+        Ok(preview)
     }
 
     pub(crate) async fn save_prompt_assembly_config(
@@ -1401,5 +1565,25 @@ mod tests {
                 .to_string()
                 .contains("同时携带 error")
         );
+    }
+
+    #[test]
+    fn project_context_access_paths_require_known_fields_and_project_scope() {
+        assert!(project_context_access_path_available(
+            &["project_info".into(), "title".into()],
+            true,
+        ));
+        assert!(!project_context_access_path_available(
+            &["project_info".into(), "missing".into()],
+            true,
+        ));
+        assert!(!project_context_access_path_available(
+            &["project_info".into(), "title".into()],
+            false,
+        ));
+        assert!(project_context_access_path_available(
+            &["chapter".into(), "title".into()],
+            false,
+        ));
     }
 }

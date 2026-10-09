@@ -61,7 +61,7 @@ impl TeraPromptEngine {
                     self.render_template(&block.value, variables, project_id)?
                 }
                 PromptAssemblyBlockKind::Variable => {
-                    let value = variables.get(&block.value).ok_or_else(|| {
+                    let value = variable_value(variables, &block.value).ok_or_else(|| {
                         AppError::InvalidArgument(format!(
                             "提示词装配变量 {} 不可用（模块 {}）",
                             block.value, block.id
@@ -147,4 +147,14 @@ fn require_variables(
             missing.join("、")
         )))
     }
+}
+
+fn variable_value<'a>(variables: &'a HashMap<String, Value>, path: &str) -> Option<&'a Value> {
+    let mut segments = path.split('.');
+    let root = segments.next()?;
+    let mut value = variables.get(root)?;
+    for segment in segments {
+        value = value.as_object()?.get(segment)?;
+    }
+    Some(value)
 }
