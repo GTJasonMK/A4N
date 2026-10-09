@@ -269,6 +269,7 @@ A4N_PERF_CASE=manga-source \
 A4N_PERF_BASELINE_REF=3f6a2408c \
 A4N_PERF_ARTIFACTS=../data/performance-audit-20261010/manga-before-02 \
   node e2e/performance/check.mjs
+```
 
 ### PERF-021：Galgame 工作区延迟加载媒体编排范围
 
@@ -281,4 +282,37 @@ A4N_PERF_ARTIFACTS=../data/performance-audit-20261010/manga-before-02 \
 - 请求位置：Galgame `materials`、`adaptation`、`branches` 阶段不使用完整脚本和资产计划；`script`/`export` 阶段需要脚本，`asset_plan`/`asset_generation` 阶段需要脚本和资产计划。旧实现三类数据在所有阶段挂载时并行读取；新实现按阶段显式投影，刷新和材料页“下一阶段”仍可强制完整刷新。
 - 真实 Chromium 153.0.8010.52 夹具生成 1000 个脚本场景、1000 个资产规格和 1000 个源章节，三轮交错取中位数：初始可用 **303.7 → 138.4 ms（54.45%）**，初始 JSON **10,616,545 → 12 B（99.9999%）**，gzip 字节 **90,431 → 12 B（99.99%）**，JS heap **33.52 → 26.37 MB（21.34%）**。DOM、章节计数和窄屏宽度保持一致。
 - 同一夹具随后依次点击 `adaptation`、`script`、`asset_plan`：候选版本分别完成一次媒体编排读取、一次脚本读取，以及第二次脚本读取加一次资产计划读取；因此延迟加载没有把后续业务功能变成空状态。证据为 `data/performance-audit-20261010/galgame-script-before-{02,03,04}/` 与 `galgame-script-after-{06,07,08}/`，入口为 `A4N_PERF_CASE=galgame-source`。
+
+### PERF-023：媒体编排章节级预处理产物批量读取
+
+- 请求链路：漫画媒体编排 workspace 为每份 adaptation plan 判断预处理产物是否过期。旧路径在文档循环内按章节逐条查询，并且每份文档重复读取角色立绘资产；新路径预取所有源章节的章节级 preprocessing 产物和一次角色资产快照，在内存中完成每份文档的 fingerprint 判断。章节身份、阶段、页码范围和 stale 规则保持不变。
+- 数据量与频率：独立 PostgreSQL 中 1000 个章节、1000 条 preprocessing 产物，15 轮交错测量，2 轮预热；旧路径每轮 1000 次数据库 round-trip，新路径每轮 1 次 `IN` 查询。新查询返回 `HashMap<chapter_id, record>`，缺失产物仍按原规则判定过期。
+- A/B 结果（debug 测试目标）：旧路径 P50/P95 **1012.415/1460.258 ms**，新路径 **18.177/32.348 ms**；P50 下降 **98.20%**，P95 下降 **97.78%**。1000 条记录逐字段比较一致，批量结果数量与章节集合一致，满足至少 30% 时延收益门槛。
+- 验证：`a4n-db` 批量基准 1 passed；`a4n-db` 与 `a4n-orchestrator` `cargo check --locked`、格式和 diff 检查通过。首次 release 基准因冷编译超过 60 秒门禁未产出测试程序，未计入性能数据；debug 目标完成同一基准并保留该失败记录。
+
+复现：使用独立 PostgreSQL 数据库并在 agent 构建锁内执行：
+
+```bash
+export A4N_TEST_DATABASE_URL=postgres://a4n:a4n@127.0.0.1:5432/a4n_perf_20261010_manga_batch
+flock -x /home/fufu/Code/A4N/work/.agent-build.lock -c \
+  'CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target CARGO_INCREMENTAL=0 \
+   cargo test -p a4n-db --test manga_pipeline_batch \
+   performance_manga_pipeline_artifacts_batch_1000_chapters -- --ignored --nocapture'
+```
+
+### PERF-024：媒体编排视频参考状态批量读取
+
+- 请求链路：workspace 为每份带视频参考的文档计算 `VideoReferenceStatus`。旧路径对每份文档重复验证视频项目 viewer 权限并读取对应剧本；新路径先批量筛选可见视频项目，再按 `(project_id, script_id)` 一次读取全部剧本，随后在内存中比较 revision 和脚本哈希。无参考、无权限、缺失剧本和脚本更新仍分别映射为原来的 `None`、`Unavailable` 或 `Updated`。
+- 数据量与频率：独立 PostgreSQL 中 1000 个视频剧本引用，15 轮交错测量，2 轮预热。旧路径每轮 2000 次数据库 round-trip；新路径为一次权限批量查询和一次剧本 `IN` 查询。
+- A/B 结果：旧路径 P50/P95 **1829.005/4209.135 ms**，新路径 **21.136/31.158 ms**；P50 下降 **98.84%**，P95 下降 **99.26%**。1000 条剧本记录逐字段比较一致，批量权限结果与逐项 owner 权限一致，满足至少 30% 时延收益门槛。
+- 验证：`a4n-db` 视频引用批量基准 1 passed；`a4n-db` 与 `a4n-orchestrator` `cargo check --locked`、全仓 rustfmt 和 diff 检查通过。基准只使用独立数据库/schema，不读取或写入开发数据。
+
+复现：
+
+```bash
+export A4N_TEST_DATABASE_URL=postgres://a4n:a4n@127.0.0.1:5432/a4n_perf_20261010_manga_batch
+flock -x /home/fufu/Code/A4N/work/.agent-build.lock -c \
+  'CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target CARGO_INCREMENTAL=0 \
+   cargo test -p a4n-db --test video_reference_batch \
+   performance_video_reference_status_batch_1000_scripts -- --ignored --nocapture'
 ```

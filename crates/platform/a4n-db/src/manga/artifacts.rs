@@ -8,6 +8,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter,
     QueryOrder, QuerySelect, Set,
 };
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 
 use super::{
@@ -43,6 +44,38 @@ pub async fn manga_pipeline_artifacts_by_chapter(
         .into_iter()
         .map(manga_pipeline_artifact_record)
         .collect()
+}
+
+/// Read chapter-level artifacts for several chapters with one database round trip.
+pub async fn manga_pipeline_artifacts_by_chapters(
+    db: &impl crate::DbExecutor,
+    project_id: i64,
+    chapter_ids: &[i64],
+    stage: MangaPipelineArtifactStage,
+) -> Result<HashMap<i64, MangaPipelineArtifactRecord>, MangaPromptRecordError> {
+    require_positive_manga_id(project_id, "project_id")?;
+    for chapter_id in chapter_ids {
+        require_positive_manga_id(*chapter_id, "chapter_id")?;
+    }
+    if chapter_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let page_number = artifact_scope(stage, None)?;
+    let records = manga_pipeline_artifact::Entity::find()
+        .filter(ArtifactColumn::ProjectId.eq(project_id))
+        .filter(ArtifactColumn::ChapterId.is_in(chapter_ids.to_vec()))
+        .filter(ArtifactColumn::Stage.eq(stage.key()))
+        .filter(ArtifactColumn::PageNumber.eq(page_number))
+        .all(db)
+        .await
+        .map_err(manga_record_database("批量读取漫画阶段产物失败"))?
+        .into_iter()
+        .map(manga_pipeline_artifact_record)
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(records
+        .into_iter()
+        .map(|record| (record.chapter_id, record))
+        .collect())
 }
 
 pub async fn manga_pipeline_artifact(

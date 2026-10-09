@@ -13,6 +13,7 @@ use a4n_domain::manga::{
 };
 use a4n_error::AppError;
 use serde_json::Value;
+use std::collections::HashMap;
 
 use super::OrchestratorContext;
 use crate::manga::manga_prompt_record_error;
@@ -122,6 +123,22 @@ impl MangaApplication {
             self.database.executor(),
             project_id,
             chapter_id,
+        )
+        .await
+        .map_err(manga_prompt_record_error)
+    }
+
+    async fn manga_pipeline_artifacts_by_chapters(
+        &self,
+        project_id: i64,
+        chapter_ids: &[i64],
+        stage: MangaPipelineArtifactStage,
+    ) -> Result<HashMap<i64, MangaPipelineArtifactRecord>, AppError> {
+        a4n_db::manga::manga_pipeline_artifacts_by_chapters(
+            self.database.executor(),
+            project_id,
+            chapter_ids,
+            stage,
         )
         .await
         .map_err(manga_prompt_record_error)
@@ -311,6 +328,17 @@ impl OrchestratorContext {
     ) -> Result<Vec<MangaPipelineArtifactRecord>, AppError> {
         self.manga
             .manga_pipeline_artifacts_by_chapter(project_id, chapter_id)
+            .await
+    }
+
+    pub(crate) async fn manga_pipeline_artifacts_by_chapters(
+        &self,
+        project_id: i64,
+        chapter_ids: &[i64],
+        stage: MangaPipelineArtifactStage,
+    ) -> Result<HashMap<i64, MangaPipelineArtifactRecord>, AppError> {
+        self.manga
+            .manga_pipeline_artifacts_by_chapters(project_id, chapter_ids, stage)
             .await
     }
 

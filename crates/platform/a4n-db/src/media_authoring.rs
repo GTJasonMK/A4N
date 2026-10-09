@@ -27,7 +27,7 @@ use sea_orm::{
     QuerySelect, Set, sea_query::Expr,
 };
 use serde_json::Value;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AuthoringDocumentError {
@@ -1120,6 +1120,37 @@ pub async fn video_reference_script<C: ConnectionTrait>(
         .one(db)
         .await
         .map(|row| row.map(chapter_shooting_script_reference_record))
+}
+
+pub async fn video_reference_scripts_by_ids<C: ConnectionTrait>(
+    db: &C,
+    references: &[(i64, i64)],
+) -> Result<HashMap<(i64, i64), ChapterShootingScriptReferenceRecord>, DbErr> {
+    use a4n_db_models::models::chapter::chapter_shooting_script as script;
+
+    if references.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let project_ids = references
+        .iter()
+        .map(|(project_id, _)| *project_id)
+        .collect::<Vec<_>>();
+    let script_ids = references
+        .iter()
+        .map(|(_, script_id)| *script_id)
+        .collect::<Vec<_>>();
+    let rows = script::Entity::find()
+        .filter(script::Column::ProjectId.is_in(project_ids))
+        .filter(script::Column::Id.is_in(script_ids))
+        .all(db)
+        .await?;
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            let key = (row.project_id, row.id);
+            (key, chapter_shooting_script_reference_record(row))
+        })
+        .collect())
 }
 
 fn chapter_shooting_script_reference_record(

@@ -2,9 +2,11 @@ use a4n_api_contract::media_authoring::*;
 use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_error::AppError;
 use serde_json::{Value, json};
+use std::collections::{HashMap, HashSet};
 
 use super::{
     GenerateAdaptation, authoring_delete_error, authoring_error, authoring_source, records,
+    references::video_reference_status_from_batch,
 };
 use crate::{OrchestratorContext, prompt_records::PromptRendererAdapter};
 
@@ -30,33 +32,89 @@ impl MediaAuthoringApplicationPort for OrchestratorContext {
         )
         .await
         .map_err(authoring_error)?;
+        let video_reference_keys = records
+            .iter()
+            .filter_map(|record| record.inputs.video_reference.as_ref())
+            .filter_map(|reference| {
+                reference
+                    .video_project_id
+                    .filter(|project_id| *project_id > 0 && reference.script_id > 0)
+                    .map(|project_id| (project_id, reference.script_id))
+            })
+            .collect::<Vec<_>>();
+        let mut video_reference_project_ids = video_reference_keys
+            .iter()
+            .map(|(project_id, _)| *project_id)
+            .collect::<Vec<_>>();
+        video_reference_project_ids.sort_unstable();
+        video_reference_project_ids.dedup();
+        let accessible_video_project_ids = self
+            .project_ids_with_permission(
+                &video_reference_project_ids,
+                user_id,
+                ProjectAccessRole::Viewer,
+            )
+            .await?
+            .into_iter()
+            .collect::<HashSet<_>>();
+        let accessible_video_reference_keys = video_reference_keys
+            .iter()
+            .copied()
+            .filter(|(project_id, _)| accessible_video_project_ids.contains(project_id))
+            .collect::<Vec<_>>();
+        let video_reference_scripts = records::video_reference_scripts_by_ids(
+            self.database.executor(),
+            &accessible_video_reference_keys,
+        )
+        .await
+        .map_err(AppError::database)?;
+        let sources_by_chapter = sources
+            .iter()
+            .map(|source| (source.source_chapter_id, source))
+            .collect::<HashMap<_, _>>();
+        let needs_manga_fingerprints = target == AdaptationTarget::Manga
+            && records
+                .iter()
+                .any(|record| record.kind == AuthoringDocumentKind::AdaptationPlan);
+        let preprocessing_artifacts = if needs_manga_fingerprints {
+            self.manga_pipeline_artifacts_by_chapters(
+                input.project_id,
+                &sources_by_chapter.keys().copied().collect::<Vec<_>>(),
+                a4n_domain::manga::MangaPipelineArtifactStage::Preprocessing,
+            )
+            .await?
+        } else {
+            HashMap::new()
+        };
+        let reference_assets = if needs_manga_fingerprints {
+            Some(a4n_manga_core::manga_reference_assets_json(
+                &self.manga_character_portrait_refs(input.project_id).await?,
+            ))
+        } else {
+            None
+        };
         let mut documents = Vec::new();
         for record in &records {
             let preprocessing_stale = if target == AdaptationTarget::Manga
                 && record.kind == AuthoringDocumentKind::AdaptationPlan
             {
                 match record.source_chapter_id {
-                    Some(chapter_id) => match sources
-                        .iter()
-                        .find(|source| source.source_chapter_id == chapter_id)
-                    {
-                        Some(source) => match self
-                            .manga_pipeline_artifact(
-                                input.project_id,
-                                chapter_id,
-                                a4n_domain::manga::MangaPipelineArtifactStage::Preprocessing,
-                                None,
-                            )
-                            .await?
-                        {
+                    Some(chapter_id) => match sources_by_chapter.get(&chapter_id) {
+                        Some(source) => match preprocessing_artifacts.get(&chapter_id) {
                             Some(artifact) => {
-                                let input_fingerprint = self
-                                    .current_manga_preprocessing_input_fingerprint(
-                                        input.project_id,
+                                let reference_assets =
+                                    reference_assets.as_ref().ok_or_else(|| {
+                                        AppError::InvalidState {
+                                            current: "manga_reference_assets_missing".into(),
+                                            operation: "计算漫画预处理指纹".into(),
+                                        }
+                                    })?;
+                                let input_fingerprint =
+                                    a4n_domain::manga::manga_preprocessing_input_fingerprint(
                                         &source.content_sha256,
                                         source.chapter_number,
-                                    )
-                                    .await?;
+                                        reference_assets,
+                                    );
                                 artifact.stale
                                     || artifact.input_fingerprint != input_fingerprint
                                     || record.inputs.preprocessing_fingerprint.as_deref()
@@ -87,9 +145,11 @@ impl MediaAuthoringApplicationPort for OrchestratorContext {
                     })
                 })
                 || preprocessing_stale;
-            let video_reference_status = self
-                .video_reference_status(user_id, record.inputs.video_reference.as_ref())
-                .await?;
+            let video_reference_status = video_reference_status_from_batch(
+                record.inputs.video_reference.as_ref(),
+                &accessible_video_project_ids,
+                &video_reference_scripts,
+            );
             documents.push(AuthoringDocumentView {
                 record: record.clone(),
                 stale,

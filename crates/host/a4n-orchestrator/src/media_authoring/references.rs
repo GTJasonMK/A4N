@@ -4,9 +4,36 @@ use a4n_domain::{
     shooting_script::ChapterShootingScriptReferenceRecord,
 };
 use a4n_error::AppError;
+use std::collections::{HashMap, HashSet};
 
 use super::{authoring_source, records};
 use crate::OrchestratorContext;
+
+pub(super) fn video_reference_status_from_batch(
+    reference: Option<&VideoAdaptationReference>,
+    accessible_project_ids: &HashSet<i64>,
+    scripts: &HashMap<(i64, i64), ChapterShootingScriptReferenceRecord>,
+) -> Option<VideoReferenceStatus> {
+    let Some(reference) = reference else {
+        return None;
+    };
+    let Some(project_id) = reference.video_project_id else {
+        return Some(VideoReferenceStatus::Unavailable);
+    };
+    if !accessible_project_ids.contains(&project_id) {
+        return Some(VideoReferenceStatus::Unavailable);
+    }
+    Some(match scripts.get(&(project_id, reference.script_id)) {
+        None => VideoReferenceStatus::Unavailable,
+        Some(record)
+            if record.revision == reference.script_revision
+                && record.script_sha256 == reference.script_sha256 =>
+        {
+            VideoReferenceStatus::Current
+        }
+        Some(_) => VideoReferenceStatus::Updated,
+    })
+}
 
 impl OrchestratorContext {
     pub(super) async fn list_video_references(
@@ -149,43 +176,67 @@ impl OrchestratorContext {
         }
         Ok(source)
     }
+}
 
-    pub(super) async fn video_reference_status(
-        &self,
-        user_id: i64,
-        reference: Option<&VideoAdaptationReference>,
-    ) -> Result<Option<VideoReferenceStatus>, AppError> {
-        let Some(reference) = reference else {
-            return Ok(None);
-        };
-        let Some(project_id) = reference.video_project_id else {
-            return Ok(Some(VideoReferenceStatus::Unavailable));
-        };
-        match self
-            .verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
-            .await
-        {
-            Ok(_) => {}
-            Err(AppError::Forbidden(_) | AppError::NotFound(_)) => {
-                return Ok(Some(VideoReferenceStatus::Unavailable));
-            }
-            Err(error) => return Err(error),
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn reference() -> VideoAdaptationReference {
+        VideoAdaptationReference {
+            video_project_id: Some(7),
+            project_title: "视频".into(),
+            source: a4n_domain::media_authoring::AuthoringSourceRef {
+                root_project_id: 1,
+                source_chapter_id: 2,
+                source_snapshot_id: 3,
+                source_snapshot_chapter_id: 4,
+                content_sha256: "content".into(),
+            },
+            script_id: 9,
+            script_revision: 2,
+            script_sha256: "script".into(),
+            units: Vec::new(),
         }
-        let record = records::video_reference_script(
-            self.database.executor(),
-            project_id,
-            reference.script_id,
-        )
-        .await?;
-        Ok(Some(match record {
-            None => VideoReferenceStatus::Unavailable,
-            Some(record)
-                if record.revision == reference.script_revision
-                    && record.script_sha256 == reference.script_sha256 =>
-            {
-                VideoReferenceStatus::Current
-            }
-            Some(_) => VideoReferenceStatus::Updated,
-        }))
+    }
+
+    fn script() -> ChapterShootingScriptReferenceRecord {
+        ChapterShootingScriptReferenceRecord {
+            id: 9,
+            project_id: 7,
+            root_project_id: 1,
+            source_chapter_id: 2,
+            source_snapshot_id: Some(3),
+            source_snapshot_chapter_id: Some(4),
+            source_revision_key: "revision".into(),
+            source_content_sha256: "content".into(),
+            revision: 2,
+            script_sha256: "script".into(),
+            script_json: serde_json::json!({"units": []}),
+        }
+    }
+
+    #[test]
+    fn batched_video_reference_status_preserves_state_mapping() {
+        let mut accessible = HashSet::from([7]);
+        let scripts = HashMap::from([((7, 9), script())]);
+        assert!(matches!(
+            video_reference_status_from_batch(Some(&reference()), &accessible, &scripts),
+            Some(VideoReferenceStatus::Current)
+        ));
+
+        let mut updated = reference();
+        updated.script_revision = 3;
+        assert!(matches!(
+            video_reference_status_from_batch(Some(&updated), &accessible, &scripts),
+            Some(VideoReferenceStatus::Updated)
+        ));
+
+        accessible.clear();
+        assert!(matches!(
+            video_reference_status_from_batch(Some(&reference()), &accessible, &scripts),
+            Some(VideoReferenceStatus::Unavailable)
+        ));
+        assert!(video_reference_status_from_batch(None, &accessible, &scripts).is_none());
     }
 }
