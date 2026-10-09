@@ -177,6 +177,7 @@ pub struct PromptAssemblySummary {
     pub call_key: String,
     pub prompt_name: String,
     pub variables: Vec<String>,
+    pub project_context_variables: Vec<String>,
     pub available_templates: Vec<PromptAssemblyTemplateOption>,
 }
 
@@ -220,6 +221,7 @@ pub struct SavePromptAssemblyInput {
 pub struct PromptAssemblyOutput {
     pub config: PromptAssemblyConfig,
     pub source: PromptAssemblySource,
+    pub project_context: Value,
     pub rendered_preview: String,
 }
 

@@ -26,6 +26,20 @@ interface PromptAssemblyPanelProps {
 
 const emptyConfig = { blocks: [] as PromptAssemblyBlock[] };
 
+const projectContextField = (key: string): string =>
+  key.startsWith("project_info.") ? key.slice("project_info.".length) : key;
+
+const objectValue = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+
+const displayContextValue = (value: unknown, emptyLabel: string): string => {
+  if (value == null || value === "") return emptyLabel;
+  if (typeof value === "string") return value;
+  return JSON.stringify(value, null, 2) ?? String(value);
+};
+
 const cloneConfig = (output: PromptAssemblyOutput) => ({
   blocks: output.config.blocks.map((block) => ({ ...block })),
 });
@@ -45,12 +59,29 @@ const callOptionLabel = (
 export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ promptName }) => {
   const { addToast } = useToast();
   const { t } = useI18n();
+  const projectContextLabels: Record<string, string> = {
+    id: t("settingsPrompt.projectContextId"),
+    title: t("settingsPrompt.projectContextTitle"),
+    description: t("settingsPrompt.projectContextDescription"),
+    project_type: t("settingsPrompt.projectContextType"),
+    project_kind: t("settingsPrompt.projectContextKind"),
+    source_sync_status: t("settingsPrompt.projectContextSyncStatus"),
+    status: t("settingsPrompt.projectContextStatus"),
+    target_chapters: t("settingsPrompt.projectContextTargetChapters"),
+    current_chapter: t("settingsPrompt.projectContextCurrentChapter"),
+    total_chapters: t("settingsPrompt.projectContextTotalChapters"),
+    chapters_per_part: t("settingsPrompt.projectContextChaptersPerPart"),
+    raw_blueprint: t("settingsPrompt.projectContextRawBlueprint"),
+    import_analysis_progress: t("settingsPrompt.projectContextImportProgress"),
+    export_config: t("settingsPrompt.projectContextExportConfig"),
+  };
   const [summaries, setSummaries] = useState<PromptAssemblySummary[]>([]);
   const [callKey, setCallKey] = useState("");
   const [projectId, setProjectId] = useState<number | null>(null);
   const [savedConfig, setSavedConfig] = useState(emptyConfig);
   const [draft, setDraft] = useState(emptyConfig);
   const [source, setSource] = useState<PromptAssemblyOutput["source"]>("system_default");
+  const [projectContext, setProjectContext] = useState<Record<string, unknown>>({});
   const [savedPreview, setSavedPreview] = useState("");
   const [preview, setPreview] = useState("");
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -68,6 +99,7 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
     [promptName, summaries],
   );
   const selected = calls.find((summary) => summary.call_key === callKey) ?? calls[0];
+  const contextVariables = selected?.project_context_variables ?? [];
   const dirty = JSON.stringify(draft) !== JSON.stringify(savedConfig);
   const busy = loadingList || loadingConfig || saving || resetting;
 
@@ -105,6 +137,7 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
       setSavedConfig(emptyConfig);
       setDraft(emptyConfig);
       setSource("system_default");
+      setProjectContext({});
       setSavedPreview("");
       setPreview("");
       setPreviewError(null);
@@ -130,6 +163,7 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
       setSavedConfig(config);
       setDraft(config);
       setSource(output.source);
+      setProjectContext(objectValue(output.project_context));
       setSavedPreview(output.rendered_preview);
       setPreview(output.rendered_preview);
     } catch (loadError) {
@@ -165,6 +199,7 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
       })
         .then((output) => {
           if (previewSeqRef.current === requestSeq) {
+            setProjectContext(objectValue(output.project_context));
             setPreview(output.rendered_preview);
           }
         })
@@ -199,7 +234,7 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
       kind === "template"
         ? selected.available_templates[0]?.name
         : kind === "variable"
-          ? selected.variables[0]
+          ? selected.variables[0] ?? (projectId ? selected.project_context_variables[0] : undefined)
           : "Custom instruction";
     if (!option) {
       addToast(t(kind === "template" ? "settingsPrompt.assemblyNoTemplates" : "settingsPrompt.assemblyVariableSelect"), "error");
@@ -211,6 +246,29 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
         { id: crypto.randomUUID(), kind, value: option, enabled: true },
       ],
     }));
+  };
+
+  const toggleProjectContext = (key: string) => {
+    if (!projectId || !selected || busy) return;
+    setDraft((current) => {
+      const hasBlock = current.blocks.some(
+        (block) => block.kind === "variable" && block.value === key,
+      );
+      if (hasBlock) {
+        return {
+          blocks: current.blocks.filter(
+            (block) => !(block.kind === "variable" && block.value === key),
+          ),
+        };
+      }
+      if (current.blocks.length >= 64) return current;
+      return {
+        blocks: [
+          ...current.blocks,
+          { id: crypto.randomUUID(), kind: "variable", value: key, enabled: true },
+        ],
+      };
+    });
   };
 
   const moveBlock = (index: number, offset: -1 | 1) => {
@@ -350,6 +408,74 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
 
           {error ? <div role="alert" className="text-small text-error">{error}</div> : null}
 
+          <section className="min-w-0 overflow-hidden rounded-md border border-book-border/45 bg-book-bg-secondary/20">
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-book-border/40 px-3 py-2">
+              <div className="min-w-0">
+                <h5 className="text-xs font-semibold text-book-text-main">
+                  {t("settingsPrompt.projectContext")}
+                </h5>
+                <p className="mt-0.5 text-caption text-book-text-muted">
+                  {projectId
+                    ? t("settingsPrompt.projectContextHint")
+                    : t("settingsPrompt.projectContextSelectProject")}
+                </p>
+              </div>
+              {projectId ? (
+                <span className="shrink-0 text-caption text-book-text-muted">
+                  {contextVariables.length} {t("settingsPrompt.projectContextAvailable")}
+                </span>
+              ) : null}
+            </div>
+            {projectId ? (
+              <div className="grid min-w-0 divide-y divide-book-border/30 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+                {contextVariables.map((key) => {
+                  const field = projectContextField(key);
+                  const checked = draft.blocks.some(
+                    (block) => block.kind === "variable" && block.value === key,
+                  );
+                  const value = displayContextValue(projectContext[field], t("common.none"));
+                  const expandable = value.length > 180;
+                  return (
+                    <div
+                      key={key}
+                      className={`min-w-0 px-3 py-2.5 ${checked ? "bg-book-accent/8" : ""}`}
+                    >
+                      <label className="flex min-w-0 cursor-pointer items-start gap-2">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 shrink-0"
+                          checked={checked}
+                          disabled={busy}
+                          onChange={() => toggleProjectContext(key)}
+                          aria-label={projectContextLabels[field] ?? field}
+                        />
+                        <span className="min-w-0 truncate text-small font-medium text-book-text-main">
+                          {projectContextLabels[field] ?? field}
+                        </span>
+                      </label>
+                      {expandable ? (
+                        <details className="ml-6 mt-1 min-w-0 text-caption text-book-text-muted">
+                          <summary className="cursor-pointer select-none">
+                            <span className="line-clamp-2 whitespace-pre-wrap break-words">
+                              {value}
+                            </span>
+                          </summary>
+                          <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded border border-book-border/35 p-2 font-mono text-caption [overflow-wrap:anywhere]">
+                            {value}
+                          </pre>
+                        </details>
+                      ) : (
+                        <span className="ml-6 mt-1 block whitespace-pre-wrap break-words text-caption text-book-text-muted">
+                          {value}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </section>
+
           <div className="grid min-w-0 gap-2">
             {draft.blocks.map((block, index) => (
               <AssemblyBlockRow
@@ -358,6 +484,7 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
                 index={index}
                 count={draft.blocks.length}
                 summary={selected}
+                projectContextEnabled={projectId != null}
                 disabled={busy}
                 onChange={(update) => updateBlock(block.id, update)}
                 onMove={(offset) => moveBlock(index, offset)}
@@ -407,7 +534,7 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
               <BookButton variant="secondary" size="sm" onClick={() => addBlock("template")} disabled={busy || draft.blocks.length >= 64 || selected.available_templates.length === 0}>
                 <Plus size={13} />{t("settingsPrompt.assemblyAddTemplate")}
               </BookButton>
-              <BookButton variant="secondary" size="sm" onClick={() => addBlock("variable")} disabled={busy || draft.blocks.length >= 64 || selected.variables.length === 0}>
+              <BookButton variant="secondary" size="sm" onClick={() => addBlock("variable")} disabled={busy || draft.blocks.length >= 64 || (selected.variables.length === 0 && (!projectId || selected.project_context_variables.length === 0))}>
                 <Plus size={13} />{t("settingsPrompt.assemblyAddVariable")}
               </BookButton>
               <BookButton variant="secondary" size="sm" onClick={() => addBlock("custom")} disabled={busy || draft.blocks.length >= 64}>
@@ -441,11 +568,12 @@ const AssemblyBlockRow: React.FC<{
   index: number;
   count: number;
   summary: PromptAssemblySummary;
+  projectContextEnabled: boolean;
   disabled: boolean;
   onChange: (update: Partial<PromptAssemblyBlock>) => void;
   onMove: (offset: -1 | 1) => void;
   onDelete: () => void;
-}> = ({ block, index, count, summary, disabled, onChange, onMove, onDelete }) => {
+}> = ({ block, index, count, summary, projectContextEnabled, disabled, onChange, onMove, onDelete }) => {
   const { t } = useI18n();
   const kindLabel = t(
     block.kind === "template"
@@ -454,6 +582,10 @@ const AssemblyBlockRow: React.FC<{
         ? "settingsPrompt.assemblyVariable"
         : "settingsPrompt.assemblyCustom",
   );
+  const variableOptions = projectContextEnabled
+    ? [...summary.variables, ...summary.project_context_variables]
+    : summary.variables;
+  const defaultVariable = variableOptions[0] ?? "";
   return (
     <div className={`grid min-w-0 gap-2 border-b border-book-border/35 py-2 sm:grid-cols-[auto_minmax(9rem,0.55fr)_minmax(0,1fr)_auto] ${block.enabled ? "" : "opacity-60"}`}>
       <label className="flex min-h-9 items-center gap-2 text-small text-book-text-muted">
@@ -471,7 +603,7 @@ const AssemblyBlockRow: React.FC<{
             const value = kind === "template"
               ? summary.available_templates[0]?.name ?? ""
               : kind === "variable"
-                ? summary.variables[0] ?? ""
+                ? defaultVariable
                 : `{{ ${summary.variables[0] ?? ""} }}`;
             onChange({ kind, value });
           }}
@@ -487,7 +619,14 @@ const AssemblyBlockRow: React.FC<{
         </select>
       ) : block.kind === "variable" ? (
         <select className="pyqt-input min-w-0 w-full self-end" value={block.value} disabled={disabled} onChange={(event) => onChange({ value: event.target.value })} aria-label={t("settingsPrompt.assemblyVariableSelect")}>
-          {summary.variables.map((variable) => <option key={variable} value={variable}>{`{{ ${variable} }}`}</option>)}
+          <optgroup label={t("settingsPrompt.assemblyVariableGroup")}>
+            {summary.variables.map((variable) => <option key={variable} value={variable}>{`{{ ${variable} }}`}</option>)}
+          </optgroup>
+          {projectContextEnabled && summary.project_context_variables.length > 0 ? (
+            <optgroup label={t("settingsPrompt.projectContextGroup")}>
+              {summary.project_context_variables.map((variable) => <option key={variable} value={variable}>{`{{ ${variable} }}`}</option>)}
+            </optgroup>
+          ) : null}
         </select>
       ) : (
         <textarea className="book-control min-h-10 min-w-0 w-full resize-y self-end p-2 font-mono text-small" value={block.value} disabled={disabled} onChange={(event) => onChange({ value: event.target.value })} aria-label={t("settingsPrompt.assemblyCustomPlaceholder")} placeholder={t("settingsPrompt.assemblyCustomPlaceholder")} />

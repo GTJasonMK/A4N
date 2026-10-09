@@ -1843,6 +1843,7 @@ export interface PromptAssemblyTemplateOption {
 export interface PromptAssemblySummary {
   available_templates: PromptAssemblyTemplateOption[];
   call_key: string;
+  project_context_variables: string[];
   prompt_name: string;
   variables: string[];
 }
@@ -1863,6 +1864,7 @@ export interface SavePromptAssemblyInput {
 
 export interface PromptAssemblyOutput {
   config: PromptAssemblyConfig;
+  project_context: unknown;
   rendered_preview: string;
   source: PromptAssemblySource;
 }

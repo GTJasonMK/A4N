@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use a4n_api_contract::prompt::PromptExecutionContext;
 use a4n_error::AppError;
 use a4n_prompt::{
     engine::{
@@ -20,10 +21,14 @@ impl PromptRenderer for OrchestratorContext {
         project_id: Option<i64>,
     ) -> Result<String, AppError> {
         let call_key = self.prompt_default_assembly_call_key(template_name)?;
-        let snapshot = self
-            .resolve_prompt_assembly_snapshot(&call_key, template_name, project_id)
-            .await?;
-        self.prompt_render_assembled(&snapshot, variables, project_id)
+        self.render_prompt_for_call_validated(
+            &PromptExecutionContext::new(false, None, None),
+            &call_key,
+            template_name,
+            variables,
+            project_id,
+        )
+        .await
     }
 
     async fn render_prompt_for_call(
@@ -33,10 +38,14 @@ impl PromptRenderer for OrchestratorContext {
         variables: &HashMap<String, serde_json::Value>,
         project_id: Option<i64>,
     ) -> Result<String, AppError> {
-        let snapshot = self
-            .resolve_prompt_assembly_snapshot(call_key, template_name, project_id)
-            .await?;
-        self.prompt_render_assembled(&snapshot, variables, project_id)
+        self.render_prompt_for_call_validated(
+            &PromptExecutionContext::new(false, None, None),
+            call_key,
+            template_name,
+            variables,
+            project_id,
+        )
+        .await
     }
 }
 

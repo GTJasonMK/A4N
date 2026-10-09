@@ -88,3 +88,28 @@ fn rejects_unavailable_variables_and_invalid_custom_templates() {
             .is_err()
     );
 }
+
+#[test]
+fn renders_nested_variable_blocks() {
+    let engine = TeraPromptEngine::with_defaults(vec![make_entry("base", "Base")]).unwrap();
+    let snapshot = PromptAssemblySnapshot {
+        call_key: "test.call".into(),
+        prompt_name: "base".into(),
+        config: PromptAssemblyConfig {
+            blocks: vec![PromptAssemblyBlock {
+                id: "project-title".into(),
+                kind: PromptAssemblyBlockKind::Variable,
+                value: "project_info.title".into(),
+                enabled: true,
+            }],
+        },
+        source: PromptAssemblySource::Project,
+    };
+    let variables = HashMap::from([("project_info".to_string(), json!({"title": "雾港"}))]);
+
+    let rendered = engine
+        .render_assembled(&snapshot, &variables, Some(42))
+        .expect("nested project context variable should render");
+
+    assert_eq!(rendered, "雾港");
+}
