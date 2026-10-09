@@ -93,17 +93,6 @@ fn app_error(error: a4n_error::AppError) -> WorkerFailure {
     }
 }
 
-fn completed<T>(request: &WorkerEnvelope<impl serde::Serialize>, payload: T) -> WorkerResponse<T> {
-    WorkerResponse::completed_for(request, payload)
-}
-
-fn failed<T>(
-    request: &WorkerEnvelope<impl serde::Serialize>,
-    failure: WorkerFailure,
-) -> WorkerResponse<T> {
-    WorkerResponse::failed_for(request, failure.into())
-}
-
 fn unauthorized() -> Response {
     StatusCode::UNAUTHORIZED.into_response()
 }

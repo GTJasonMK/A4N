@@ -14,7 +14,7 @@ use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
     WorkerCapability, WorkerEnvelope, WorkerFailure, WorkerHealth, WorkerHealthStatus,
-    WorkerPrincipal, WorkerPrincipalKind, WorkerResponse,
+    WorkerPrincipal, WorkerPrincipalKind,
 };
 use a4n_workflow_core::{workflow_run_detail_to_api, workflow_run_summary_to_api};
 use a4n_workflow_read_worker_contract::{
@@ -264,14 +264,13 @@ where
     F: FnOnce(WorkerEnvelope<T>) -> Fut,
     Fut: std::future::Future<Output = Result<O, WorkerFailure>>,
 {
-    if !state.authorized(headers) {
-        return unauthorized();
-    }
-    let response = match command(request.clone()).await {
-        Ok(payload) => completed(&request, payload),
-        Err(error) => failed(&request, error),
-    };
-    Json(response).into_response()
+    a4n_worker_runtime::worker_command_response(
+        state.authorized(headers),
+        request,
+        command,
+        unauthorized,
+    )
+    .await
 }
 
 fn require_service_principal(principal: &WorkerPrincipal) -> Result<(), WorkerFailure> {
@@ -374,17 +373,6 @@ fn app_error(error: a4n_error::AppError) -> WorkerFailure {
         a4n_error::AppError::Forbidden(message) => WorkerFailure::unauthorized(message),
         other => WorkerFailure::unavailable(other.to_string()),
     }
-}
-
-fn completed<T>(request: &WorkerEnvelope<impl serde::Serialize>, payload: T) -> WorkerResponse<T> {
-    WorkerResponse::completed_for(request, payload)
-}
-
-fn failed<T>(
-    request: &WorkerEnvelope<impl serde::Serialize>,
-    failure: WorkerFailure,
-) -> WorkerResponse<T> {
-    WorkerResponse::failed_for(request, failure.into())
 }
 
 fn unauthorized() -> Response {

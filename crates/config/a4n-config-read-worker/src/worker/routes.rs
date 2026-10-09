@@ -118,12 +118,11 @@ where
     F: FnOnce(WorkerEnvelope<T>) -> Fut,
     Fut: std::future::Future<Output = Result<O, WorkerFailure>>,
 {
-    if !state.authorized(headers) {
-        return unauthorized();
-    }
-    let response = match command(request.clone()).await {
-        Ok(payload) => completed(&request, payload),
-        Err(error) => failed(&request, error),
-    };
-    Json(response).into_response()
+    a4n_worker_runtime::worker_command_response(
+        state.authorized(headers),
+        request,
+        command,
+        unauthorized,
+    )
+    .await
 }

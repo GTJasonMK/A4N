@@ -3,12 +3,12 @@
 ## 范围与方法
 
 - 工作分支：`agent/redundancy-cleanup-20261010`，基线 `debug@3f6a2408c9e78c4719259e77d5443f2befdd8fda`。
-- 建立分支本地 CodeGraph 索引后持续同步；当前索引覆盖 6,242 个文件、86,313 个符号、276,170 条边，状态为 up to date。
+- 建立分支本地 CodeGraph 索引后持续同步；当前索引覆盖 6,242 个文件、86,278 个符号、275,904 条边，状态为 up to date。
 - 从 `a4n-server`、Tauri 本地 Server、`a4n-component-host`、Worker/Sidecar catalog、Axum route 注册、`a4n-control` 动态 command 分派和 `frontend/src/App.tsx` 路由入口追踪生产调用与注册点。前端索引包含 444 个 TS 和 318 个 TSX 文件。
 - 基线 Cargo workspace 有 213 个 crate manifest；本次增加 runtime crate 后共 214 个。`cargo metadata` 核对了 Worker 对共享配置/runtime crate 的依赖。静态搜索补查脚本启动、环境变量、历史迁移、测试 fixture、生成合同脚本和运行时路由字符串。
 - 检查了 `#[allow(dead_code)]`、兼容/legacy 命名、候选无入边符号、Cargo 直接依赖和可复用的前端格式工具。
 
-CodeGraph 无法解析跨 crate 的 `a4n_config::worker_listen_addr`（29 处）、`a4n_worker_client::worker_client_connection_from_env`（28 处）、`a4n_worker_client` 错误映射 helpers（48 处）和 `a4n_worker_runtime` helpers（62 处）引用，记录在 `unresolved_refs` 中；这些调用逐处由源码搜索确认，并由对应消费者编译校验。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
+CodeGraph 当前索引仍有 4 条 unresolved references，跨 crate helper 导入和部分动态/宏式 route 注册未必能形成完整调用边；例如共享 runtime helper 的包外调用需要用静态搜索复核。所有本批跨 crate helper 消费者均经源码搜索确认，并由 workspace 或对应 crate 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
 
 本记录说明实际检查的入口和结果，不声称仅凭静态分析证明了所有运行环境、外部调用者、反射或部署配置均无遗漏。未对所有产品模块做逐函数人工审阅，也未运行浏览器端到端流程。
 
@@ -115,6 +115,15 @@ CodeGraph 无法解析跨 crate 的 `a4n_config::worker_listen_addr`（29 处）
 - contract 测试覆盖有效身份、错误 operation、错误 worker、schema 错误优先级及 InvalidRequest/不可重试语义。此项未新增回退、默认、宽松校验或吞错路径。
 - 记录文件：`crates/process/a4n-worker-contract/{src/wire.rs,src/wire_tests.rs}`、29 个通用 Worker 的基础 request validator，以及 `crates/transfer/a4n-import-review-worker/src/mutations.rs`。
 
+### R-13：集中 Worker HTTP command response 流程
+
+- 类别：跨 Worker 重复的 HTTP command orchestration。
+- BFS 从 23 个 Worker 的 Axum `Router`/route handler 进入 `command_response`，追踪每条 handler 到授权判断、业务 `Result`、成功/失败响应与 HTTP `Json` 返回；CodeGraph 探查本地包装器、其全部生产调用和共享 runtime helper，静态搜索复核所有 23 个包装器。22 个包装器的响应流程逐项相同；Portrait 的闭包额外接收 `WorkerState`，业务结果和响应合同相同。
+- 将授权后 command 调用、保留原请求元数据、成功/失败响应构造及 JSON 返回收敛到 `a4n-worker-runtime::worker_command_response`。各 Worker 保留本地 `authorized` 实现和 `unauthorized` 响应，因此 token 比较规则、401 status/body 和“未授权不调用业务命令”行为不变；共享 helper 的测试覆盖未授权、完成、失败三条路径。
+- 23 个本地 `command_response` 现在仅向共享 helper 转发 Worker-specific 授权结果、命令闭包和 401 构造器。Portrait 将 `WorkerState` clone 放在共享 helper 调用的命令闭包内，保证授权失败时不克隆 state，也不触发命令。删除了 22 组仅被旧响应 wrapper 使用的本地 `completed`/`failed` 转发函数；仍有其他活跃调用的 response helper 保留。
+- 30 个 Worker manifest 原已依赖 `a4n-worker-runtime`，无需新增消费者依赖；runtime crate 新增 Axum、serde 和 worker contract 依赖，Cargo.lock 仅增加这些本地 package dependency 边，不变更三方版本。未改业务错误映射、重试策略、成功/失败 HTTP status 或鉴权凭据语义。
+- 记录文件：`crates/process/a4n-worker-runtime/{Cargo.toml,src/lib.rs}`、23 个 Worker 的 command response 调用入口，以及 `Cargo.lock`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -127,7 +136,9 @@ CodeGraph 无法解析跨 crate 的 `a4n_config::worker_listen_addr`（29 处）
 ## 验证
 
 - `cargo check --workspace --locked --offline`：续作后全 workspace 通过，无警告。
-- `cargo check --workspace --all-targets --locked --offline`：通过，编译全 workspace 的测试/示例目标，无警告；本轮 R-12 后再次执行通过。
+- `cargo check --workspace --all-targets --locked --offline`：通过，编译全 workspace 的测试/示例目标，无警告；本轮 23 个通用 handler 迁移后再次执行通过。
+- `cargo check --all-targets --locked --offline -p a4n-worker-runtime -p a4n-portrait-worker`：通过，覆盖共享 helper 与 Portrait 的 state-capturing 闭包适配。
+- `timeout 60s cargo test --locked --offline -p a4n-worker-runtime --lib`：1/1 通过，覆盖未授权短路、成功响应元数据和失败 wire 映射。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-contract --lib`：48/48 通过，覆盖共享失败构造、响应元数据、请求身份校验和 wire 序列化。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-client --lib`：14/14 通过，覆盖共享传输与响应错误映射。
 - `cargo check --locked --offline -p a4n-worker-runtime -p a4n-service-manager -p a4n-server -p a4n-tauri`：通过，验证共享父进程退出信号 helper 的三个集成点和更新后的 lockfile。

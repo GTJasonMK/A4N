@@ -1,6 +1,6 @@
 use a4n_manga_record_worker_contract::MANGA_RECORD_WORKER_ID;
+use a4n_worker_contract::WorkerEnvelope;
 pub(super) use a4n_worker_contract::WorkerFailure;
-use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
 pub(super) fn validate_request<T: serde::Serialize>(
     request: &WorkerEnvelope<T>,
@@ -87,18 +87,4 @@ pub(super) fn collaboration_error(
             WorkerFailure::unavailable(error.to_string())
         }
     }
-}
-
-pub(super) fn completed<T>(
-    request: &WorkerEnvelope<impl serde::Serialize>,
-    payload: T,
-) -> WorkerResponse<T> {
-    WorkerResponse::completed_for(request, payload)
-}
-
-pub(super) fn failed<T>(
-    request: &WorkerEnvelope<impl serde::Serialize>,
-    failure: WorkerFailure,
-) -> WorkerResponse<T> {
-    WorkerResponse::failed_for(request, failure.into())
 }

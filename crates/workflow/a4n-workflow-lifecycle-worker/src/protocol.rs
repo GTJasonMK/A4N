@@ -1,5 +1,5 @@
+use a4n_worker_contract::WorkerEnvelope;
 pub(super) use a4n_worker_contract::WorkerFailure;
-use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 use a4n_workflow_lifecycle_worker_contract::WORKFLOW_LIFECYCLE_WORKER_ID;
 
 pub(super) fn validate_request<T: serde::Serialize>(
@@ -31,18 +31,4 @@ pub(super) fn workflow_error(error: a4n_db::workflow::WorkflowWriteError) -> Wor
             WorkerFailure::unavailable(error.to_string())
         }
     }
-}
-
-pub(super) fn completed<T>(
-    request: &WorkerEnvelope<impl serde::Serialize>,
-    payload: T,
-) -> WorkerResponse<T> {
-    WorkerResponse::completed_for(request, payload)
-}
-
-pub(super) fn failed<T>(
-    request: &WorkerEnvelope<impl serde::Serialize>,
-    failure: WorkerFailure,
-) -> WorkerResponse<T> {
-    WorkerResponse::failed_for(request, failure.into())
 }

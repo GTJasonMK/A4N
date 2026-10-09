@@ -3236,6 +3236,10 @@ dependencies = [
 name = "a4n-worker-runtime"
 version = "0.1.0"
 dependencies = [
+ "a4n-worker-contract",
+ "axum",
+ "serde",
+ "serde_json",
  "tokio",
  "tracing-subscriber",
 ]
