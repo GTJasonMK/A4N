@@ -71,6 +71,18 @@ fn is_project_context_path(value: &str) -> bool {
     value == PROJECT_CONTEXT_ROOT || value.starts_with("project_info.")
 }
 
+fn project_context_access_path_available(path: &[String], project_available: bool) -> bool {
+    let Some(root) = path.first() else {
+        return true;
+    };
+    if root != PROJECT_CONTEXT_ROOT {
+        return true;
+    }
+    project_available
+        && (path.len() == 1
+            || (path.len() == 2 && PROJECT_CONTEXT_FIELDS.contains(&path[1].as_str())))
+}
+
 pub(crate) struct PromptRendererAdapter<'a>(
     pub(crate) &'a dyn a4n_api_contract::prompt::PromptRenderPort,
 );
@@ -179,7 +191,13 @@ impl OrchestratorContext {
                     } else {
                         self.prompt_template_variables(&block.value, project_id)?
                     };
-                    if !required.iter().all(|variable| variable_available(variable)) {
+                    let paths =
+                        self.prompt_template_variable_access_paths(&block.value, project_id)?;
+                    if !required.iter().all(|variable| variable_available(variable))
+                        || !paths.iter().all(|path| {
+                            project_context_access_path_available(path, project_context_available)
+                        })
+                    {
                         return Err(AppError::InvalidArgument(format!(
                             "当前调用不可用模板：{}",
                             block.value
@@ -212,6 +230,17 @@ impl OrchestratorContext {
                         return Err(AppError::InvalidArgument(format!(
                             "当前调用不可用变量：{variable}"
                         )));
+                    }
+                    let paths = a4n_prompt::variables::template_variable_access_paths(&block.value)
+                        .map_err(|error| {
+                            AppError::InvalidArgument(format!("自定义模块模板无效：{error}"))
+                        })?;
+                    if !paths.iter().all(|path| {
+                        project_context_access_path_available(path, project_context_available)
+                    }) {
+                        return Err(AppError::InvalidArgument(
+                            "自定义装配模块引用了不可用项目资料".into(),
+                        ));
                     }
                 }
             }
@@ -1536,5 +1565,25 @@ mod tests {
                 .to_string()
                 .contains("同时携带 error")
         );
+    }
+
+    #[test]
+    fn project_context_access_paths_require_known_fields_and_project_scope() {
+        assert!(project_context_access_path_available(
+            &["project_info".into(), "title".into()],
+            true,
+        ));
+        assert!(!project_context_access_path_available(
+            &["project_info".into(), "missing".into()],
+            true,
+        ));
+        assert!(!project_context_access_path_available(
+            &["project_info".into(), "title".into()],
+            false,
+        ));
+        assert!(project_context_access_path_available(
+            &["chapter".into(), "title".into()],
+            false,
+        ));
     }
 }

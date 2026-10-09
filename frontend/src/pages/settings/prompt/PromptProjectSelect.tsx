@@ -2,7 +2,7 @@ import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { extractErrorMessage } from "../../../api";
-import { listAllProjects, type NovelProject } from "../../../api/project";
+import { hasProjectEditorRole, listAllProjects, type NovelProject } from "../../../api/project";
 import { BookButton } from "../../../components/ui/BookButton";
 import { useI18n } from "../../../i18n";
 
@@ -10,6 +10,7 @@ interface PromptProjectSelectProps {
   value: number | null;
   onChange: (projectId: number | null) => void;
   allowEmpty?: boolean;
+  requireEditor?: boolean;
   ariaLabel: string;
   className?: string;
 }
@@ -18,6 +19,7 @@ export const PromptProjectSelect: React.FC<PromptProjectSelectProps> = ({
   value,
   onChange,
   allowEmpty = false,
+  requireEditor = false,
   ariaLabel,
   className = "",
 }) => {
@@ -35,13 +37,13 @@ export const PromptProjectSelect: React.FC<PromptProjectSelectProps> = ({
     try {
       const items = await listAllProjects({ access_scope: "all" });
       if (requestSeqRef.current !== requestSeq) return;
-      setProjects(items);
+      setProjects(requireEditor ? items.filter(hasProjectEditorRole) : items);
     } catch (error) {
       if (requestSeqRef.current === requestSeq) setLoadError({ reason: error });
     } finally {
       if (requestSeqRef.current === requestSeq) setLoading(false);
     }
-  }, []);
+  }, [requireEditor]);
 
   useEffect(() => {
     void loadProjects();

@@ -401,6 +401,7 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
                 value={projectId}
                 onChange={(nextProjectId) => void confirmScopeChange(() => setProjectId(nextProjectId))}
                 allowEmpty
+                requireEditor
                 ariaLabel={t("settingsPrompt.apply")}
               />
             </label>

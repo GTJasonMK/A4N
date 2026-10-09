@@ -188,6 +188,7 @@ export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prom
         <PromptProjectSelect
           value={projectId}
           onChange={handleProjectChange}
+          requireEditor
           ariaLabel={t("settingsPrompt.selectOverrideProject")}
           className="w-full"
         />
