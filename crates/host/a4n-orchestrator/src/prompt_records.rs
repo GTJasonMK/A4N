@@ -67,10 +67,6 @@ fn variable_root(value: &str) -> &str {
     value.split(['.', '[']).next().unwrap_or(value)
 }
 
-fn is_project_context_path(value: &str) -> bool {
-    value == PROJECT_CONTEXT_ROOT || value.starts_with("project_info.")
-}
-
 fn project_context_access_path_available(path: &[String], project_available: bool) -> bool {
     let Some(root) = path.first() else {
         return true;
@@ -81,6 +77,12 @@ fn project_context_access_path_available(path: &[String], project_available: boo
     project_available
         && (path.len() == 1
             || (path.len() == 2 && PROJECT_CONTEXT_FIELDS.contains(&path[1].as_str())))
+}
+
+fn project_context_variable_available(value: &str, project_available: bool) -> bool {
+    project_available
+        && (value == PROJECT_CONTEXT_ROOT
+            || project_context_variables().iter().any(|key| key == value))
 }
 
 pub(crate) struct PromptRendererAdapter<'a>(
@@ -205,14 +207,11 @@ impl OrchestratorContext {
                     }
                 }
                 PromptAssemblyBlockKind::Variable => {
-                    let available = if is_project_context_path(&block.value) {
-                        project_context_available
-                            && (block.value == PROJECT_CONTEXT_ROOT
-                                || project_context_variables()
-                                    .iter()
-                                    .any(|key| key == &block.value))
+                    let root = variable_root(&block.value);
+                    let available = if root == PROJECT_CONTEXT_ROOT {
+                        project_context_variable_available(&block.value, project_context_available)
                     } else {
-                        variable_available(variable_root(&block.value))
+                        variable_available(root)
                     };
                     if !available {
                         return Err(AppError::InvalidArgument(format!(
@@ -1584,6 +1583,19 @@ mod tests {
         assert!(project_context_access_path_available(
             &["chapter".into(), "title".into()],
             false,
+        ));
+        assert!(!project_context_variable_available("project_info[0]", true));
+        assert!(!project_context_variable_available(
+            "project_info.missing",
+            true
+        ));
+        assert!(project_context_variable_available(
+            "project_info.title",
+            true
+        ));
+        assert!(!project_context_variable_available(
+            "project_info.title",
+            false
         ));
     }
 }
