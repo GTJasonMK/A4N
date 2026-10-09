@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "suites": {
     "rust-format": {
       "command": ["cargo", "fmt", "--all", "--", "--check"],
@@ -55,6 +55,10 @@
       "command": ["npm", "--prefix", "frontend", "run", "test:run"],
       "timeout_seconds": 900
     },
+    "frontend-browser-helpers": {
+      "command": ["npm", "--prefix", "frontend", "run", "test:browser-helpers"],
+      "timeout_seconds": 300
+    },
     "frontend-build": {
       "command": ["npm", "--prefix", "frontend", "run", "build"],
       "timeout_seconds": 900
@@ -68,6 +72,13 @@
         "check:web-api-parity"
       ],
       "timeout_seconds": 900
+    },
+    "affected-rust-integration": {
+      "command": [
+        "python3",
+        "scripts/tests/run_affected_rust_tests.py"
+      ],
+      "timeout_seconds": 7800
     },
     "browser-llm-cache": {
       "command": [
@@ -126,13 +137,11 @@
         "--timeout",
         "7200",
         "--",
-        "cargo",
-        "test",
-        "--locked",
-        "--workspace",
-        "--all-targets"
+        "bash",
+        "-c",
+        "set -euo pipefail; cargo run --locked -p a4n-migration; exec cargo test --locked --workspace --all-targets --no-fail-fast"
       ],
-      "timeout_seconds": 3600
+      "timeout_seconds": 7800
     },
     "browser-canvas": {
       "command": [
@@ -152,62 +161,53 @@
         "all"
       ],
       "timeout_seconds": 10800
+    },
+    "core-boundaries": {
+      "command": ["bash", "scripts/checks/check-core-boundary.sh"],
+      "timeout_seconds": 1800
+    },
+    "worker-isolation": {
+      "command": ["bash", "scripts/checks/check-worker-isolation.sh"],
+      "timeout_seconds": 1800
     }
   },
   "profiles": {
-    "fast": [
-      "rust-format",
-      "rust-contract",
-      "rust-safety-boundary",
-      "rust-service-protocol",
-      "python-tests",
-      "python-checks",
-      "frontend-unit",
-      "frontend-build",
-      "frontend-parity",
-      "browser-llm-cache",
-      "browser-llm-presets",
-      "browser-video-mode",
-      "browser-video-scrub",
-      "browser-ui-presentation"
-    ],
-    "nightly": [
-      "rust-format",
-      "rust-contract",
-      "rust-safety-boundary",
-      "rust-service-protocol",
-      "python-tests",
-      "python-checks",
-      "frontend-unit",
-      "frontend-build",
-      "frontend-parity",
-      "browser-llm-cache",
-      "browser-llm-presets",
-      "browser-video-mode",
-      "browser-video-scrub",
-      "browser-ui-presentation",
-      "rust-workspace",
-      "browser-canvas",
-      "creation-e2e"
-    ],
-    "full": [
-      "rust-format",
-      "rust-contract",
-      "rust-safety-boundary",
-      "rust-service-protocol",
-      "python-tests",
-      "python-checks",
-      "frontend-unit",
-      "frontend-build",
-      "frontend-parity",
-      "browser-llm-cache",
-      "browser-llm-presets",
-      "browser-video-mode",
-      "browser-video-scrub",
-      "browser-ui-presentation",
-      "rust-workspace",
-      "browser-canvas",
-      "creation-e2e"
-    ]
+    "fast": {
+      "suites": [
+        "rust-format",
+        "rust-contract",
+        "rust-safety-boundary",
+        "rust-service-protocol",
+        "affected-rust-integration",
+        "python-tests",
+        "python-checks",
+        "frontend-unit",
+        "frontend-browser-helpers",
+        "frontend-build",
+        "frontend-parity",
+        "browser-llm-cache",
+        "browser-llm-presets",
+        "browser-video-mode",
+        "browser-video-scrub",
+        "browser-ui-presentation"
+      ]
+    },
+    "nightly": {
+      "extends": "fast",
+      "exclude": ["affected-rust-integration", "rust-service-protocol"],
+      "suites": [
+        "browser-canvas",
+        "rust-workspace",
+        "creation-e2e"
+      ]
+    },
+    "nightly-quick": {
+      "extends": "nightly",
+      "exclude": ["rust-workspace", "creation-e2e"]
+    },
+    "full": {
+      "extends": "nightly",
+      "suites": ["core-boundaries", "worker-isolation"]
+    }
   }
 }

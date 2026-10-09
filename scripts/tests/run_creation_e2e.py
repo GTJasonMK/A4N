@@ -125,16 +125,13 @@ def build_binaries(report_dir: Path, supplied: Path | None, source: Path) -> Pat
         for name in (*BINARIES, "source.json"):
             shutil.copy2(supplied / name, destination / name)
         return destination
-    common = Path(subprocess.check_output(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], cwd=ROOT, text=True).strip())
-    work = common.parent / "work"
-    if not ROOT.is_relative_to(work):
-        raise RunnerError("必须从 work/debug、work/integration 或 work/agent 工作树运行")
+    target_dir, build_lock = build_cache_paths()
     env = os.environ.copy()
-    env.update(CARGO_TARGET_DIR=str(work / ".build/agent-target"), CARGO_INCREMENTAL="0",
+    env.update(CARGO_TARGET_DIR=str(target_dir), CARGO_INCREMENTAL="0",
                CARGO_ARTIFACTS_DISABLED="1", CARGO_BUILD_JOBS="2",
                CARGO_PROFILE_DEV_DEBUG="0", CARGO_PROFILE_TEST_DEBUG="0")
     destination = secure_mkdir(report_dir / "bin")
-    with (work / ".agent-build.lock").open("a") as lock, (report_dir / "build.log").open("w") as log:
+    with build_lock.open("a") as lock, (report_dir / "build.log").open("w") as log:
         fcntl.flock(lock, fcntl.LOCK_EX)
         try:
             subprocess.run(["bash", "-c", 'set -euo pipefail; source "$1/scripts/lib/common.sh"; require_onnxruntime; exec "$1/scripts/cargo.sh" build --manifest-path "$1/Cargo.toml" --locked -p a4n-server -p a4n-cli -p a4n-migration -p a4n-novel-planning-worker --features a4n-server/embedded-capabilities', "creation-e2e", str(source)],
@@ -150,6 +147,46 @@ def build_binaries(report_dir: Path, supplied: Path | None, source: Path) -> Pat
             subprocess.run([str(ROOT / "scripts/cargo.sh"), "clean"], cwd=ROOT, env=env,
                            stdout=log, stderr=subprocess.STDOUT, check=True)
     return destination
+
+
+def build_cache_paths() -> tuple[Path, Path]:
+    override = os.environ.get("A4N_E2E_CARGO_TARGET_DIR")
+    if override:
+        target = Path(override).expanduser()
+        target_dir = (target if target.is_absolute() else ROOT / target).resolve()
+        target_root = (ROOT / "target").resolve()
+        if (
+            not target_dir.is_relative_to(ROOT)
+            or not target_dir.is_relative_to(target_root)
+            or target_dir == target_root
+        ):
+            raise RunnerError("A4N_E2E_CARGO_TARGET_DIR 必须是 checkout/target 下的专用目录")
+        target_dir.parent.mkdir(parents=True, exist_ok=True)
+        return target_dir, target_dir.parent / ".creation-e2e-build.lock"
+
+    configured_target = os.environ.get("CARGO_TARGET_DIR")
+    target = Path(configured_target).expanduser() if configured_target else None
+    target_dir = (
+        (target if target.is_absolute() else ROOT / target).resolve()
+        if target is not None
+        else None
+    )
+    common = Path(subprocess.check_output(
+        ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+        cwd=ROOT,
+        text=True,
+    ).strip())
+    work = common.parent / "work"
+    if ROOT in (work / "debug", work / "integration"):
+        return target_dir or ROOT / "target", work / f".{ROOT.name}-build.lock"
+    if ROOT.is_relative_to(work / "agent"):
+        return target_dir or work / ".build/agent-target", work / ".agent-build.lock"
+    if target_dir is not None:
+        target_dir.parent.mkdir(parents=True, exist_ok=True)
+        return target_dir, target_dir.parent / ".creation-e2e-build.lock"
+    raise RunnerError(
+        "必须从 work/debug、work/integration、work/agent 工作树运行，或显式设置 CARGO_TARGET_DIR"
+    )
 
 
 def selected_suites(stages: set[str]) -> list[str]:

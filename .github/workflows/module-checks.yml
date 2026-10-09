@@ -77,12 +77,6 @@ jobs:
       - name: Check export Worker isolation boundary
         run: timeout 900 ./scripts/checks/check-worker-isolation.sh
 
-      - name: Check generation contracts and safety
-        run: |
-          ./scripts/checks/check-generation-contracts.sh
-          ./scripts/checks/check-generation-safety-boundary.sh
-          cargo test -p a4n-service-protocol --lib events_artifacts
-
       - name: Run CLI integration contract tests
         run: timeout 900 cargo test -p a4n-cli --test cli_e2e -- --nocapture --test-threads=1
 
@@ -187,29 +181,6 @@ jobs:
             timeout 300 cargo test -p "${{ matrix.package }}" --test process -- --nocapture --test-threads=1
           fi
 
-  full-backend:
-    name: Full backend check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Install Linux build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libayatana-appindicator3-dev \
-            libgtk-3-dev \
-            libwebkit2gtk-4.1-dev \
-            pkg-config
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
-
-      - name: Check full workspace
-        run: |
-          ./scripts/dev/setup-onnxruntime.sh
-          ./scripts/build.sh --all --check
-
   build-feedback:
     name: Cold and warm build feedback budget
     runs-on: ubuntu-24.04
@@ -256,45 +227,6 @@ jobs:
             target/build-feedback
             scripts/checks/build-feedback-baseline.tsv
           retention-days: 30
-
-  postgres-integration:
-    name: PostgreSQL migration and integration gate
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: a4n_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d a4n_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
-    env:
-      A4N_TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/a4n_test
-      A4N_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/a4n_test
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
-
-      - name: Run all migrations against PostgreSQL
-        run: timeout 300 cargo run -p a4n-migration
-
-      - name: Run database integration tests
-        run: timeout 900 cargo test -p a4n-db --lib --tests -- --nocapture
-
-      - name: Run orchestrator database integration tests
-        run: timeout 900 cargo test -p a4n-orchestrator --lib --tests --no-default-features -- --nocapture
-
-      - name: Run runtime database integration tests
-        run: timeout 900 cargo test -p a4n-runtime --lib --no-default-features -- --nocapture
 
   release-package:
     name: Release package layout ${{ matrix.target }}
@@ -616,49 +548,6 @@ jobs:
             artifacts/qdrant
           retention-days: 30
 
-  frontend:
-    name: Frontend and API parity
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Install Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
-
-      - name: Run frontend tests
-        working-directory: frontend
-        run: |
-          npm run test:run
-          npm run test:browser-helpers
-
-      - name: Build frontend
-        working-directory: frontend
-        run: npm run build
-
-      - name: Check Web API parity
-        working-directory: frontend
-        run: npm run check:web-api-parity
-
-  python-contract-tests:
-    name: Python contract and preflight tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Install FFmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
-
-      - name: Run Python test scripts
-        run: python3 -m unittest discover -s scripts/tests -p 'test_*.py'
-
   media-ffmpeg-smoke:
     name: FFmpeg media smoke tests
     runs-on: ubuntu-latest
@@ -697,17 +586,24 @@ jobs:
           wait_for_qdrant "$qdrant_pid" "$qdrant_log"
           timeout 600 cargo test -p a4n-rag-index --test qdrant_live -- --ignored --nocapture --test-threads=1
 
-  frontend-browser-smoke:
-    name: Frontend browser smoke tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+  nightly-matrix:
+    name: Nightly quick test matrix
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Install Chromium, ChromeDriver and FFmpeg
+      - name: Install Linux test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y chromium chromium-driver ffmpeg xvfb
+          sudo apt-get install -y \
+            chromium \
+            chromium-driver \
+            ffmpeg \
+            xvfb
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
 
       - name: Install Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -720,75 +616,21 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Run browser smoke specs
-        working-directory: frontend
-        run: |
-          npm run test:browser-llm-cache
-          npm run test:browser-llm-presets
-          npm run test:browser-video-mode
-          npm run test:browser-video-scrub
-          npm run test:browser-ui-presentation
+      - name: Run nightly test matrix
+        run: python3 scripts/tests/run_test_matrix.py --profile nightly-quick --report-dir artifacts/nightly-test-matrix
 
-  generation-host-process:
-    name: Generation Web and Tauri process
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: a4n_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d a4n_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
-    env:
-      A4N_TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/a4n_test
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Install Linux build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libayatana-appindicator3-dev \
-            libgtk-3-dev \
-            libwebkit2gtk-4.1-dev \
-            pkg-config
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
-
-      - name: Prepare ONNX Runtime
-        run: |
-          ./scripts/dev/setup-onnxruntime.sh
-          source scripts/lib/common.sh
-          require_onnxruntime
-
-      - name: Run 1 MiB generation reconnect recovery
-        run: >-
-          timeout 900 cargo test -p a4n-server
-          --features embedded-llm-provider,embedded-media-providers
-          --test cleanup_recovery
-          server_process_reconnects_inspiration_sse_ten_times_without_losing_one_mib
-          -- --nocapture --test-threads=1
-
-      - name: Run Tauri Channel generation process
-        run: >-
-          timeout 900 cargo test -p a4n-tauri
-          --features embedded-media-providers
-          tauri_channel_remounts_active_image_generation_after_window_cleanup
-          -- --nocapture --test-threads=1
+      - name: Upload nightly test evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nightly-test-matrix
+          path: artifacts/nightly-test-matrix
+          retention-days: 14
 
   workspace-tests:
     name: Full Rust workspace tests
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -804,31 +646,34 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
 
-      - name: Prepare ONNX Runtime
+      - name: Install ONNX Runtime
+        run: ./scripts/dev/setup-onnxruntime.sh
+
+      - name: Run Rust workspace suite
         run: |
-          ./scripts/dev/setup-onnxruntime.sh
           source scripts/lib/common.sh
           require_onnxruntime
+          python3 scripts/tests/run_test_matrix.py \
+            --profile nightly \
+            --suite rust-workspace \
+            --report-dir artifacts/rust-workspace
 
-      - name: Run all Rust targets in a disposable database
-        run: >-
-          python3 scripts/tests/run_with_test_database.py
-          --report-dir artifacts/workspace-tests
-          --timeout 7200 --
-          cargo test --locked --workspace --all-targets --no-fail-fast
-
-      - name: Upload workspace test report
+      - name: Upload workspace test evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nightly-workspace-tests
-          path: artifacts/workspace-tests
+          path: |
+            artifacts/rust-workspace
+            data/test-runs
           retention-days: 14
 
   creation-e2e:
     name: Full creation E2E matrix
     runs-on: ubuntu-24.04
     timeout-minutes: 240
+    env:
+      A4N_E2E_CARGO_TARGET_DIR: ${{ github.workspace }}/target/creation-e2e
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -859,23 +704,70 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Prepare fixed runtime dependencies
+      - name: Prepare pinned runtime dependencies
         run: |
           ./scripts/dev/setup-onnxruntime.sh
           ./scripts/dev/setup-qdrant.sh
 
       - name: Run full creation acceptance
-        run: >-
-          python3 scripts/tests/run_creation_e2e.py
-          --stage all
-          --report-dir artifacts/creation-e2e
+        run: python3 scripts/tests/run_test_matrix.py --profile nightly --suite creation-e2e --report-dir artifacts/creation-e2e-matrix
 
       - name: Upload creation E2E evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nightly-creation-e2e
-          path: artifacts/creation-e2e
+          path: |
+            artifacts/creation-e2e-matrix
+            data/creation-e2e
+          retention-days: 14
+
+  generation-host-process:
+    name: Generation Web and Tauri process
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libayatana-appindicator3-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            pkg-config
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
+
+      - name: Install ONNX Runtime
+        run: ./scripts/dev/setup-onnxruntime.sh
+
+      - name: Run Web and Tauri generation process tests in one disposable database
+        run: |
+          source scripts/lib/common.sh
+          require_onnxruntime
+          python3 scripts/tests/run_with_test_database.py \
+          --report-dir artifacts/generation-host-process \
+          --timeout 2400 -- \
+          bash -c 'set -euo pipefail;
+          timeout 900 cargo test --locked -p a4n-server
+          --features embedded-llm-provider,embedded-media-providers
+          --test cleanup_recovery
+          server_process_reconnects_inspiration_sse_ten_times_without_losing_one_mib
+          -- --nocapture --test-threads=1;
+          timeout 900 cargo test --locked -p a4n-tauri
+          --features embedded-media-providers
+          tauri_channel_remounts_active_image_generation_after_window_cleanup
+          -- --nocapture --test-threads=1'
+
+      - name: Upload generation process evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nightly-generation-host-process
+          path: artifacts/generation-host-process
           retention-days: 14
 
   supply-chain:

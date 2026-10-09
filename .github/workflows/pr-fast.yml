@@ -14,9 +14,11 @@ jobs:
   matrix:
     name: Declared fast test matrix
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
 
       - name: Install Linux browser dependencies
         run: |
@@ -45,35 +47,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pr-fast-test-matrix
-          path: artifacts/test-matrix
-          retention-days: 14
-
-  postgres-core:
-    name: Disposable PostgreSQL core integration
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
-
-      - name: Run database and migration tests in one disposable database
-        run: >-
-          python3 scripts/tests/run_with_test_database.py
-          --report-dir artifacts/test-database
-          --timeout 2400 --
-          bash -lc 'set -euo pipefail;
-          cargo run --locked -p a4n-migration;
-          cargo test --locked -p a4n-migration --lib --tests -- --nocapture --test-threads=1;
-          cargo test --locked -p a4n-db --lib --tests -- --nocapture --test-threads=1;
-          cargo test --locked -p a4n-orchestrator --lib --tests --no-default-features -- --nocapture --test-threads=1;
-          cargo test --locked -p a4n-runtime --lib --no-default-features -- --nocapture --test-threads=1'
-
-      - name: Upload database report
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: pr-fast-test-database
-          path: artifacts/test-database
+          path: |
+            artifacts/test-matrix
+            data/test-runs
           retention-days: 14
