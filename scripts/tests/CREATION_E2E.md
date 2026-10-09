@@ -68,6 +68,7 @@ Nightly Full Checks workflow 会自动运行 `--stage all --browser-feature-flow
 | 首页与 Agent | 项目筛选、邀请查看、创建/导入入口、线程活动、审批、子线程和预算操作 | `browser-ui-functional`：`H01-H08`、`A01-A12` |
 | 设置 | 提示词/主题、模型配置、用户和项目管理、任务队列、账号认证、日志、用量与备份 | `browser-ui-functional`：`SD01-SD27` 及 `S02`、`S05`、`S06` 操作用例 |
 | 创作编辑器 | 草稿确认/丢弃、章节导入与数值范围、阶段切换、视频时间输入 | `browser-ui-functional`：`UX-B60`、`UX-B72`、`UX-B73`、`UX-B74`、`UX-698` |
+| 正文事实反馈 | 保存归纳周期、执行反馈、关闭进行中的预览 | `browser-fact-feedback`：两个隔离 UI 流程 |
 | 视频画布 | 键盘添加节点 | `browser-ui-functional`：`X01` |
 | 创作阶段 | 灵感到媒体九个阶段的创建、生成、编辑、刷新重读和下游使用 | `creation-e2e`：`generation-stages.e2e.mjs` |
 | 完整项目 | 登录、项目创建、RAG、Agent、衍生项目和项目族导出 | `creation-e2e --browser-feature-flows`：`full-project.e2e.mjs` |
@@ -75,7 +76,7 @@ Nightly Full Checks workflow 会自动运行 `--stage all --browser-feature-flow
 | CLI | 九个创作阶段，以及媒体、同步、Agent、LLM、图片/立绘与工作流任务 | `creation-e2e --stage all` |
 | Tauri Native 生成路径 | 桌面端创建项目、流式生成、离开后返回并读取完成结果 | macOS `tauri-functional` profile |
 
-`browser-ui-functional` 在 nightly 和 nightly-quick 执行；Tauri 用例需要设置 `A4N_WDIO_APP_BINARY`、隔离数据库 `A4N_DATABASE_URL`、`A4N_QDRANT_URL` 和 `A4N_JWT_SECRET`，运行命令为 `python3 scripts/tests/run_test_matrix.py --profile tauri-functional`。该 profile 和本页新增覆盖只验证用户功能行为，不扩展性能、安全或视觉质量门禁。
+`browser-ui-functional` 和 `browser-fact-feedback` 在 nightly 与 nightly-quick 执行；Tauri 用例需要设置 `A4N_WDIO_APP_BINARY`、隔离数据库 `A4N_DATABASE_URL`、`A4N_QDRANT_URL` 和 `A4N_JWT_SECRET`，运行命令为 `python3 scripts/tests/run_test_matrix.py --profile tauri-functional`。这些流程只验证用户功能行为，不扩展性能、安全或视觉质量门禁。
 
 原 `resume-existing.e2e.mjs` 的独有断言已并入非线性测试，旧文件退役。现在由同一次运行创建项目、导入第 7 章、完成同步，再验证分部归纳保留稀疏章纲和蓝图正式写入；不再依赖人工留下的项目 ID，也不以自动重试掩盖生成或同步失败。
 

@@ -140,6 +140,16 @@
       ],
       "timeout_seconds": 1800
     },
+    "browser-fact-feedback": {
+      "command": [
+        "npm",
+        "--prefix",
+        "frontend",
+        "run",
+        "test:browser-fact-feedback"
+      ],
+      "timeout_seconds": 600
+    },
     "rust-workspace": {
       "command": [
         "python3",
@@ -213,6 +223,7 @@
       "suites": [
         "browser-canvas",
         "browser-ui-functional",
+        "browser-fact-feedback",
         "rust-workspace",
         "creation-e2e"
       ]
