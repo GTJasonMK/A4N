@@ -324,6 +324,10 @@
     #[test]
     fn prompt_commands_use_authenticated_identity_and_strict_contracts() {
         let commands = [
+            "prompt_assembly_get",
+            "prompt_assembly_list",
+            "prompt_assembly_reset",
+            "prompt_assembly_save",
             "prompt_list",
             "prompt_list_categories",
             "prompt_list_project_overrides",
@@ -341,6 +345,9 @@
         assert_commands_use_authenticated_host_identity(&commands);
 
         for command in [
+            "prompt_assembly_get",
+            "prompt_assembly_reset",
+            "prompt_assembly_save",
             "prompt_remove_project_override",
             "prompt_render",
             "prompt_render_ab",

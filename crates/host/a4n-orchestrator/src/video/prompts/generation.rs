@@ -1,3 +1,6 @@
+pub(in crate::video) const VIDEO_PROMPT_ASSEMBLY_CALL_KEY: &str =
+    "video::prompts::generation::llm_chat::build_video_prompt_request";
+
 mod frame_prompts;
 mod llm_chat;
 pub(in crate::video) mod task;

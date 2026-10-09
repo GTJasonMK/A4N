@@ -49,23 +49,33 @@ pub async fn preview_reference_media_video_request(
     state: &AppState,
     input: GenerateReferenceMediaVideoInput,
 ) -> Result<ModelRequestPreview, String> {
+    let project_id = input.project_id;
     let host_port = RuntimeVideoProviderHostPort::new(state);
     let preview = state
         .reference_media_video_request_preview_application()
         .preview_reference_media(&host_port, input)
         .await
         .map_err(crate::actions::app_error_message)?;
+    let mut step = provider_request_step(
+        "reference_media_video",
+        "参考媒体视频 provider 请求",
+        "video_provider_request",
+        Some("video_generation_request".to_string()),
+        "ready",
+        Some(preview.note),
+        &preview.request,
+    )?;
+    crate::actions::request_preview::attach_prompt_assembly_metadata(
+        state,
+        Some(project_id),
+        "video_generation.provider",
+        "video_generation_request",
+        &mut step,
+    )
+    .await?;
     Ok(model_request_preview(
         "reference_media_video_generation",
         "参考媒体视频模型请求",
-        vec![provider_request_step(
-            "reference_media_video",
-            "参考媒体视频 provider 请求",
-            "video_provider_request",
-            Some("reference_media_video".to_string()),
-            "ready",
-            Some(preview.note),
-            &preview.request,
-        )?],
+        vec![step],
     ))
 }

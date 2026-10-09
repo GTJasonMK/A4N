@@ -17,11 +17,17 @@ pub(super) async fn prepare_galgame_llm_stage(
 ) -> Result<PreparedGalgameLlmStage, AppError> {
     let stage_prompt = input
         .prompt_renderer
-        .render_prompt(input.prompt_name, &HashMap::new(), Some(input.project_id))
+        .render_prompt_for_call(
+            "GalgamePipelineRunner.run",
+            input.prompt_name,
+            &HashMap::new(),
+            Some(input.project_id),
+        )
         .await?;
     let session_prompt = input
         .prompt_renderer
-        .render_prompt(
+        .render_prompt_for_call(
+            "GalgamePipelineRunner.run",
             GALGAME_PIPELINE_SESSION_PROMPT,
             &HashMap::new(),
             Some(input.project_id),

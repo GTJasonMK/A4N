@@ -692,6 +692,7 @@ impl OrchestratorContext {
                     Some(&part),
                     self,
                     &variables,
+                    "OutlineService.generate_chapter_outlines",
                     &context,
                 )
                 .await?;

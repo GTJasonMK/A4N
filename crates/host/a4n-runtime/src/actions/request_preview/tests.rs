@@ -78,6 +78,7 @@ fn chat_request_step_renders_context_aware_preview() {
             key: "step".to_string(),
             title: "上下文预览".to_string(),
             prompt_name: Some("prompt".to_string()),
+            prompt_assembly: None,
             state: "ready".to_string(),
             note: None,
             request,

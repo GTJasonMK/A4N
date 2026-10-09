@@ -5,7 +5,9 @@ mod messages;
 mod page_context;
 mod validation;
 
-pub(in crate::manga) use contracts::{MangaLlmCallInput, MangaPromptGenerationTrace};
+pub(in crate::manga) use contracts::{
+    MangaLlmCallInput, MangaPromptGenerationTrace, manga_pipeline_prompt_assembly_call_key,
+};
 pub(in crate::manga) use fingerprint::manga_pipeline_prompt_fingerprint;
 pub(in crate::manga) use llm::{
     MangaRenderTraceInput, load_manga_restored_llm_checkpoint, prepare_manga_llm_call,

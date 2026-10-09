@@ -15,6 +15,7 @@ pub(in crate::outline::parts) async fn build_part_outline_request(
 ) -> Result<ChatRequest, AppError> {
     let PartOutlineRequestInput {
         project_id,
+        prompt_assembly_call_key,
         part_num,
         start_ch,
         end_ch,
@@ -27,7 +28,12 @@ pub(in crate::outline::parts) async fn build_part_outline_request(
         variables,
     } = input;
     let prompt_content = prompt_renderer
-        .render_prompt("part_outline_single", variables, Some(project_id))
+        .render_prompt_for_call(
+            prompt_assembly_call_key,
+            "part_outline_single",
+            variables,
+            Some(project_id),
+        )
         .await?;
     let user_content = part_generation_manifest_user_message(
         chapters_per_part,
@@ -52,6 +58,7 @@ pub(in crate::outline::parts) async fn build_part_outline_request(
         Some(0.7),
         None,
     )?
+    .with_prompt_assembly_key(prompt_assembly_call_key)
     .with_json_response_format()
     .with_trace_context(LlmTraceContext {
         project_id: Some(project_id),

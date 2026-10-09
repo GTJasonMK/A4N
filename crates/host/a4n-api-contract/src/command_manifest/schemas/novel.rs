@@ -372,6 +372,12 @@ pub(crate) fn args_preview_sync_character_from_chapters_request() -> Value {
 pub(crate) fn args_prompt_name() -> Value {
     typed_schema::<crate::prompt::PromptNameArgs>()
 }
+pub(crate) fn args_prompt_assembly_input() -> Value {
+    strict_typed_input_schema::<crate::prompt::PromptAssemblyInput>()
+}
+pub(crate) fn args_prompt_assembly_save() -> Value {
+    strict_typed_input_schema::<crate::prompt::SavePromptAssemblyInput>()
+}
 pub(crate) fn args_prompt_remove_project_override() -> Value {
     strict_typed_input_schema::<crate::prompt::RemoveOverrideInput>()
 }
@@ -693,6 +699,12 @@ pub(crate) fn result_prompt_validate_variables() -> Value {
 }
 pub(crate) fn result_prompt_list() -> Value {
     typed_schema::<Vec<crate::prompt::PromptEntrySummary>>()
+}
+pub(crate) fn result_prompt_assembly_get() -> Value {
+    typed_schema::<crate::prompt::PromptAssemblyOutput>()
+}
+pub(crate) fn result_prompt_assembly_list() -> Value {
+    typed_schema::<Vec<crate::prompt::PromptAssemblySummary>>()
 }
 pub(crate) fn result_prompt_list_categories() -> Value {
     typed_schema::<Vec<crate::prompt::CategoryInfo>>()

@@ -26,7 +26,8 @@ pub(super) async fn build_implicit_update_request(
         implicit_update_call_key(input.profile_id, input.attribute_key, input.start_chapter)
             .map_err(AppError::InvalidArgument)?;
     let system_prompt = prompt_renderer
-        .render_prompt(
+        .render_prompt_for_call(
+            "character::implicit_review::request::build_implicit_update_request",
             IMPLICIT_UPDATE_PROMPT_NAME,
             &HashMap::new(),
             Some(input.project_id),
@@ -84,7 +85,8 @@ pub(super) async fn build_implicit_update_request(
             call_key: Some(call_key.clone()),
         },
     )
-    .map_err(AppError::InvalidArgument)?;
+    .map_err(AppError::InvalidArgument)?
+    .with_prompt_assembly_key("character::implicit_review::request::build_implicit_update_request");
     let request_json = context_aware_chat_request_trace_json(&request)?;
     Ok(PreparedImplicitUpdateRequest {
         call_key,

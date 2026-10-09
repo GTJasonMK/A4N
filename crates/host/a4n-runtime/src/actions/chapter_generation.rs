@@ -96,6 +96,7 @@ pub async fn preview_chapter_prompt(
                     key: "chapter_generation".to_string(),
                     title: "章节正文生成 LLM 请求".to_string(),
                     prompt_name: Some("writing".to_string()),
+                    prompt_assembly: None,
                     state: "ready".to_string(),
                     note: Some(preview.note),
                     request: preview.request,

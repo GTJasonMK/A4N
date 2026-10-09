@@ -29,6 +29,7 @@ pub(super) struct ChapterOutlineSequenceInput<'a, 'progress> {
 
 pub(super) struct SingleChapterOutlineJsonInput<'a> {
     pub project_id: i64,
+    pub prompt_assembly_call_key: &'a str,
     pub context: &'a ChapterOutlineGenerationContext,
     pub focus_part: Option<&'a PartOutlineRecord>,
     pub chapter_number: i32,
@@ -39,6 +40,7 @@ pub(super) struct SingleChapterOutlineJsonInput<'a> {
 
 pub(super) struct ChapterOutlineRequestInput<'a> {
     pub project_id: i64,
+    pub prompt_assembly_call_key: &'a str,
     pub context: &'a ChapterOutlineGenerationContext,
     pub focus_part: Option<&'a PartOutlineRecord>,
     pub start_chapter: i32,

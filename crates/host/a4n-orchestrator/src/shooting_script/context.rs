@@ -27,6 +27,7 @@ pub(super) fn shooting_context_request<T: Serialize>(
     );
     Ok(
         context_aware_system_user_request(system_prompt, manifest, Some(0.2), None)?
+            .with_prompt_assembly_key("OrchestratorContext.prepare_chapter_shooting_script_request")
             .with_json_response_format()
             .with_trace_context(LlmTraceContext {
                 project_id: Some(prepared.source.requested_project_id),

@@ -7,8 +7,28 @@ use a4n_provider_contract::LlmProviderConfig;
 
 pub(crate) async fn chat_request_step_for_state(
     state: &AppState,
-    step: ChatRequestStepInput,
+    mut step: ChatRequestStepInput,
 ) -> Result<ModelRequestPreviewStep, String> {
+    if step.prompt_assembly.is_none()
+        && let (Some(call_key), Some(prompt_name)) = (
+            step.request.prompt_assembly_key.as_deref(),
+            step.prompt_name.as_deref(),
+        )
+    {
+        let project_id = step
+            .request
+            .trace_context
+            .as_ref()
+            .and_then(|context| context.project_id);
+        let context = crate::actions::prompt_records::prompt_context(state);
+        step.prompt_assembly = Some(
+            state
+                .prompt_read_application()
+                .resolve_assembly_record(&context, call_key, prompt_name, project_id)
+                .await
+                .map_err(|error| error.to_string())?,
+        );
+    }
     let model = resolve_preview_llm_model_for_state(state).await?;
     let budget = dynamic_llm::resolve_effective_llm_preview_budget_for_config(model, &step.request)
         .map_err(|err| err.to_string())?;

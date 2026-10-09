@@ -315,6 +315,10 @@ export const HOST_API_COMMANDS = [
   "preview_test_llm_config_request",
   "preview_video_provider_request_by_video_id",
   "preview_visual_plan_point_generation",
+  "prompt_assembly_get",
+  "prompt_assembly_list",
+  "prompt_assembly_reset",
+  "prompt_assembly_save",
   "prompt_list",
   "prompt_list_categories",
   "prompt_list_project_overrides",
@@ -1725,6 +1729,9 @@ export interface ModelRequestPreviewStep {
   kind: string;
   messages: unknown;
   note: string | null;
+  prompt_assembly_blocks: string[] | null;
+  prompt_assembly_key: string | null;
+  prompt_assembly_source: string | null;
   prompt_name: string | null;
   request: unknown;
   state: string;
@@ -1816,6 +1823,66 @@ export interface PromptEntrySummary {
   title: string;
   used_by: string[];
   version: string;
+}
+
+export type PromptAssemblyBlockKind = "template" | "variable" | "custom";
+
+export type PromptAssemblySource = "system_default" | "global" | "project";
+
+export interface PromptAssemblyBlock {
+  enabled: boolean;
+  id: string;
+  kind: PromptAssemblyBlockKind;
+  value: string;
+}
+
+export interface PromptAssemblyConfig {
+  blocks: PromptAssemblyBlock[];
+}
+
+export interface PromptAssemblySnapshot {
+  call_key: string;
+  config: PromptAssemblyConfig;
+  prompt_name: string;
+  source: PromptAssemblySource;
+}
+
+export interface PromptAssemblyTemplateOption {
+  description: string;
+  name: string;
+  title: string;
+}
+
+export interface PromptAssemblySummary {
+  allowed_blocks: PromptAssemblyBlockKind[];
+  available_templates: PromptAssemblyTemplateOption[];
+  call_key: string;
+  defaults: PromptAssemblyConfig;
+  description: string;
+  prompt_name: string;
+  title: string;
+  variables: string[];
+}
+
+export interface PromptAssemblyInput {
+  call_key?: string;
+  preview_config?: PromptAssemblyConfig | null;
+  project_id: number | null;
+  prompt_name: string;
+}
+
+export interface SavePromptAssemblyInput {
+  call_key: string;
+  config: PromptAssemblyConfig;
+  project_id?: number | null;
+  prompt_name: string;
+}
+
+export interface PromptAssemblyOutput {
+  config: PromptAssemblyConfig;
+  has_project_override: boolean;
+  rendered_preview: string;
+  source: PromptAssemblySource;
 }
 
 export interface PromptVersionSummary {

@@ -4,6 +4,7 @@ use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use super::{LlmContextManifest, PromptRenderer, source_content_sha256};
+use crate::video::prompts::generation::VIDEO_PROMPT_ASSEMBLY_CALL_KEY;
 
 /// 模板版本参与断点指纹，但 hash 和其他阶段的模板不是模型输入。
 pub(super) async fn record_prompt_dependencies(
@@ -21,7 +22,12 @@ pub(super) async fn record_prompt_dependencies(
     let mut dependencies = Vec::new();
     for name in names {
         let rendered = renderer
-            .render_prompt(name, variables, Some(project_id))
+            .render_prompt_for_call(
+                VIDEO_PROMPT_ASSEMBLY_CALL_KEY,
+                name,
+                variables,
+                Some(project_id),
+            )
             .await?;
         dependencies.push(json!({"prompt_name": name, "sha256": source_content_sha256(&rendered)}));
     }

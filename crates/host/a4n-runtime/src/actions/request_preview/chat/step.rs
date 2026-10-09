@@ -15,6 +15,7 @@ pub(crate) fn chat_request_step_with_budget(
                 key,
                 title,
                 prompt_name,
+                prompt_assembly,
                 state,
                 note,
                 mut request,
@@ -44,6 +45,7 @@ pub(crate) fn chat_request_step_with_budget(
         .rev()
         .find(|message| matches!(message.role, MessageRole::User))
         .map(|message| message.content.clone());
+    let prompt_assembly_key = request.prompt_assembly_key.clone();
     let messages =
         sanitize_preview_value(serde_json::to_value(&request.messages).map_err(|e| e.to_string())?);
     let request =
@@ -62,6 +64,35 @@ pub(crate) fn chat_request_step_with_budget(
         title,
         kind: "llm_chat".to_string(),
         prompt_name,
+        prompt_assembly_source: prompt_assembly
+            .as_ref()
+            .map(|assembly| match assembly.source {
+                a4n_api_contract::prompt::PromptAssemblySource::SystemDefault => {
+                    "system_default".to_string()
+                }
+                a4n_api_contract::prompt::PromptAssemblySource::Global => "global".to_string(),
+                a4n_api_contract::prompt::PromptAssemblySource::Project => "project".to_string(),
+            }),
+        prompt_assembly_blocks: prompt_assembly.map(|assembly| {
+            assembly
+                .config
+                .blocks
+                .into_iter()
+                .filter(|block| block.enabled)
+                .map(|block| match block.kind {
+                    a4n_api_contract::prompt::PromptAssemblyBlockKind::Template => {
+                        format!("模板 {}", block.value)
+                    }
+                    a4n_api_contract::prompt::PromptAssemblyBlockKind::Variable => {
+                        format!("变量 {}", block.value)
+                    }
+                    a4n_api_contract::prompt::PromptAssemblyBlockKind::Custom => {
+                        "自定义模块".into()
+                    }
+                })
+                .collect()
+        }),
+        prompt_assembly_key,
         state,
         note: merge_preview_notes(note, budget_note),
         system_prompt: system_prompt.map(|text| redact_data_uris_in_text(&text)),

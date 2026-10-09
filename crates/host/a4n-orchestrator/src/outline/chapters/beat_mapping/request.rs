@@ -18,22 +18,30 @@ pub(super) async fn build_beat_mapping_request(
     variables: &HashMap<String, Value>,
 ) -> Result<ChatRequest, AppError> {
     let prompt_content = prompt_renderer
-        .render_prompt("outline", variables, Some(project_id))
+        .render_prompt_for_call(
+            "OutlineService.apply_beat_mapping",
+            "outline",
+            variables,
+            Some(project_id),
+        )
         .await?;
     let user_content =
         beat_mapping_manifest_user_message(&prepared.part, &prepared.beat_payload, prepared.count)?;
-    build_context_aware_chapter_outline_request(ContextAwareChapterOutlineRequestInput {
-        project_id,
-        context: &prepared.context,
-        prompt_content,
-        user_content,
-        count: prepared.count,
-        start_chapter: prepared.part.start_chapter,
-        end_chapter: prepared.part.end_chapter,
-        temperature: Some(0.6),
-        workflow: "chapter_outline_beat_mapping",
-        step_key: format!("part_{}_beat_mapping", prepared.part.part_number),
-    })
+    Ok(
+        build_context_aware_chapter_outline_request(ContextAwareChapterOutlineRequestInput {
+            project_id,
+            context: &prepared.context,
+            prompt_content,
+            user_content,
+            count: prepared.count,
+            start_chapter: prepared.part.start_chapter,
+            end_chapter: prepared.part.end_chapter,
+            temperature: Some(0.6),
+            workflow: "chapter_outline_beat_mapping",
+            step_key: format!("part_{}_beat_mapping", prepared.part.part_number),
+        })?
+        .with_prompt_assembly_key("OutlineService.apply_beat_mapping"),
+    )
 }
 
 pub(super) fn beat_mapping_call_fingerprint_json(

@@ -54,6 +54,7 @@ impl OrchestratorContext {
         let generated = self
             .generate_part_outline_json(PartOutlineJsonInput {
                 project_id: prepared.project_id,
+                prompt_assembly_call_key: "OutlineService.regenerate_part_outline",
                 part_num: prepared.target.part_number,
                 start_ch: prepared.target.start_chapter,
                 end_ch: prepared.target.end_chapter,

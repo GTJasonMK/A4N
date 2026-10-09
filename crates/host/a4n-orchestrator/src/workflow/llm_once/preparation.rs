@@ -13,7 +13,12 @@ pub(super) async fn prepare_workflow_llm_once(
 ) -> Result<PreparedWorkflowLlmOnce, AppError> {
     let system_prompt = input
         .prompt_renderer
-        .render_prompt(input.prompt_name, &HashMap::new(), Some(input.project_id))
+        .render_prompt_for_call(
+            input.prompt_assembly_call_key,
+            input.prompt_name,
+            &HashMap::new(),
+            Some(input.project_id),
+        )
         .await?;
     let fingerprint_json = json!({
         "workflow": input.workflow,

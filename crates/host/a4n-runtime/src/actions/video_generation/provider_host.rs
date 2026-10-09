@@ -14,7 +14,7 @@ use a4n_video_host_contract::{
     ChapterVideoImageInput, ResolvedChapterVideoImageInputs, VideoGenerationProgressPort,
     VideoProviderRequestBody, VideoProviderRequestInput,
 };
-use serde_json::Value;
+use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -23,6 +23,7 @@ use crate::{
         common::relay_video_sidecar_progress, video_sidecar_root_project_id,
     },
 };
+use a4n_video_sidecar_contract::VideoGenerationInput;
 
 pub(crate) struct RuntimeVideoProviderHostPort<'state> {
     pub(crate) state: &'state AppState,
@@ -49,14 +50,32 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
 
     async fn provider_request_body(
         &self,
-        input: VideoProviderRequestInput,
+        mut input: VideoProviderRequestInput,
     ) -> Result<VideoProviderRequestBody, AppError> {
+        self.assemble_video_prompt(input.project_id, &mut input.request)
+            .await?;
         super::preview::provider_request_body(self.state, input).await
+    }
+
+    async fn assemble_video_prompt(
+        &self,
+        project_id: i64,
+        request: &mut VideoGenerationInput,
+    ) -> Result<(), AppError> {
+        request.prompt = a4n_api_contract::prompt::PromptRenderPort::render_prompt_for_call(
+            self.state,
+            "video_generation.provider",
+            "video_generation_request",
+            &std::collections::HashMap::from([("prompt".to_string(), json!(request.prompt))]),
+            Some(project_id),
+        )
+        .await?;
+        Ok(())
     }
 
     async fn submit_video(
         &self,
-        input: VideoProviderRequestInput,
+        mut input: VideoProviderRequestInput,
         progress: &mut dyn VideoGenerationProgressPort,
     ) -> Result<VideoGenerationResult, AppError> {
         let root_project_id = video_sidecar_root_project_id(
@@ -75,6 +94,8 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                 None
             }
         };
+        self.assemble_video_prompt(input.project_id, &mut input.request)
+            .await?;
         let cost_record = self
             .state
             .provider_runtime()

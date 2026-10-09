@@ -47,6 +47,8 @@ use std::collections::HashMap;
 
 const OPTIMIZATION_PROMPT_NAME: &str = "chapter_video_prompt_optimization";
 const OPTIMIZATION_USER_PROMPT_NAME: &str = "chapter_video_prompt_optimization_user";
+const VIDEO_PROMPT_OPTIMIZATION_ASSEMBLY_CALL_KEY: &str =
+    "video_prompts::optimize_chapter_video_prompt";
 
 pub(in crate::video) struct VideoPromptOptimizationInput {
     pub(in crate::video) prompt: ChapterVideoPromptRecord,
@@ -460,14 +462,16 @@ async fn build_video_prompt_optimization_request(
     let payload = serde_json::to_string(&contract)?;
     let variables = HashMap::from([("payload".to_string(), json!(payload))]);
     let system_prompt = prompt_renderer
-        .render_prompt(
+        .render_prompt_for_call(
+            VIDEO_PROMPT_OPTIMIZATION_ASSEMBLY_CALL_KEY,
             OPTIMIZATION_PROMPT_NAME,
             &variables,
             Some(prompt.project_id),
         )
         .await?;
     let user_prompt = prompt_renderer
-        .render_prompt(
+        .render_prompt_for_call(
+            VIDEO_PROMPT_OPTIMIZATION_ASSEMBLY_CALL_KEY,
             OPTIMIZATION_USER_PROMPT_NAME,
             &variables,
             Some(prompt.project_id),
@@ -522,6 +526,7 @@ fn build_video_prompt_optimization_request_with_prompts(
     }))?);
     Ok(
         context_aware_system_user_request(system_prompt, manifest, Some(0.25), None)?
+            .with_prompt_assembly_key(VIDEO_PROMPT_OPTIMIZATION_ASSEMBLY_CALL_KEY)
             .with_json_response_format()
             .with_trace_context(LlmTraceContext {
                 project_id: Some(prompt.project_id),

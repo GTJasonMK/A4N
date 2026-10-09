@@ -7,6 +7,29 @@ impl PromptRegistry {
         let mut errors = Vec::new();
 
         for (name, entry) in &self.file.prompts {
+            let mut block_ids = std::collections::HashSet::new();
+            let mut assembly_call_keys = std::collections::HashSet::new();
+            for call_key in &entry.assembly_call_keys {
+                if call_key.trim().is_empty() || !assembly_call_keys.insert(call_key.as_str()) {
+                    errors.push(format!(
+                        "装配调用 key 为空或重复：{call_key}（prompt: {name})"
+                    ));
+                }
+            }
+            for block in &entry.assembly_blocks {
+                if block.id.trim().is_empty() || !block_ids.insert(block.id.as_str()) {
+                    errors.push(format!(
+                        "装配模块 ID 为空或重复：{}（prompt: {name})",
+                        block.id
+                    ));
+                }
+                if block.label.trim().is_empty() || block.value.trim().is_empty() {
+                    errors.push(format!(
+                        "装配模块 label/value 不能为空：{}（prompt: {name})",
+                        block.id
+                    ));
+                }
+            }
             if entry.path.trim().is_empty() {
                 errors.push(format!("path 不能为空（prompt: {name})"));
             } else {

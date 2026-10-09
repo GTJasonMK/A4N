@@ -26,6 +26,7 @@ pub(crate) async fn traced_chat_request_step_for_state(
             key,
             title: title.to_string(),
             prompt_name: Some(prompt_name.to_string()),
+            prompt_assembly: None,
             state: "ready".to_string(),
             note: None,
             request,

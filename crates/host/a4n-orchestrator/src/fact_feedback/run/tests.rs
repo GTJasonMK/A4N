@@ -25,6 +25,16 @@ impl PromptRenderer for Template {
             Err(AppError::ConfigError("测试归纳模板不可用".into()))
         }
     }
+
+    async fn render_prompt_for_call(
+        &self,
+        _: &str,
+        name: &str,
+        variables: &HashMap<String, Value>,
+        project_id: Option<i64>,
+    ) -> Result<String, AppError> {
+        self.render_prompt(name, variables, project_id).await
+    }
 }
 
 struct UnusedMaterialIndex;

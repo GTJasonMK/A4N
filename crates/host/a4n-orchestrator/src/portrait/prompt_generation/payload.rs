@@ -30,7 +30,8 @@ pub(in crate::portrait) fn portrait_prompt_request(
         "payload_json".to_string(),
         Value::String(serde_json::to_string_pretty(&payload)?),
     );
-    futures::executor::block_on(prompt_renderer.render_prompt(
+    futures::executor::block_on(prompt_renderer.render_prompt_for_call(
+        "PortraitService.generate",
         "character_portrait_generation_user",
         &variables,
         Some(project_id),

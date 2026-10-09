@@ -51,6 +51,7 @@ pub async fn preview_test_llm_config_request(
                     key: "llm_connectivity_test".to_string(),
                     title: "LLM 连接测试请求".to_string(),
                     prompt_name: None,
+                    prompt_assembly: None,
                     state: "ready".to_string(),
                     note: Some("固定连接测试请求：ping".to_string()),
                     request,

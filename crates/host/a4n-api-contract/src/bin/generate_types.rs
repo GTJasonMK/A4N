@@ -270,8 +270,11 @@ use a4n_api_contract::{
         PROJECT_FAMILY_PACKAGE_SUFFIX, ProjectBundleImportReport, ProjectBundleProviderSlotReport,
     },
     prompt::{
-        AbRenderResult, CategoryInfo, ProjectPromptOverrideSummary, PromptEntrySummary,
-        PromptVersionSummary, RemoveOverrideInput, RenderInput, SetOverrideInput,
+        AbRenderResult, CategoryInfo, ProjectPromptOverrideSummary, PromptAssemblyBlock,
+        PromptAssemblyBlockKind, PromptAssemblyConfig, PromptAssemblyInput, PromptAssemblyOutput,
+        PromptAssemblySnapshot, PromptAssemblySource, PromptAssemblySummary,
+        PromptAssemblyTemplateOption, PromptEntrySummary, PromptVersionSummary,
+        RemoveOverrideInput, RenderInput, SavePromptAssemblyInput, SetOverrideInput,
         UpdatePromptInput, ValidateVarsInput, VersionDiffInput,
     },
     provider_catalog::{

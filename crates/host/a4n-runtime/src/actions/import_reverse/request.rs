@@ -35,6 +35,7 @@ pub async fn preview_reverse_engineer_request(
             key: target.prompt_name().to_string(),
             title: target.preview_step_title().to_string(),
             prompt_name: Some(target.prompt_name().to_string()),
+            prompt_assembly: None,
             state: "ready".to_string(),
             note: None,
             request,

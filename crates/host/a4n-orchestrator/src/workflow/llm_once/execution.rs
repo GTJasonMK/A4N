@@ -20,6 +20,7 @@ where
     F: Fn(Value) -> Result<T, AppError>,
 {
     let request = super::workflow_json_request(prepared.system_prompt, input.user_prompt.clone())
+        .with_prompt_assembly_key(input.prompt_assembly_call_key)
         .with_trace_context(LlmTraceContext {
             project_id: Some(input.project_id),
             root_project_id: Some(input.root_project_id),

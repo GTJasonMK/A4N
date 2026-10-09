@@ -26,7 +26,12 @@ pub(super) async fn build_inspiration_request_from_context(
     let user_input = required_message_content(user_input)?;
     let variables = HashMap::new();
     let system_content = prompt_renderer
-        .render_prompt("inspiration", &variables, Some(project_id))
+        .render_prompt_for_call(
+            "OrchestratorContext.prepare_inspiration_request_validated",
+            "inspiration",
+            &variables,
+            Some(project_id),
+        )
         .await?;
     let project_context = inspiration_project_context(project_context_rows);
     let mut context_variables = HashMap::new();
@@ -35,7 +40,8 @@ pub(super) async fn build_inspiration_request_from_context(
         json!("参见同一稳定上下文包中的 project_context 字段。"),
     );
     let project_context_guard = prompt_renderer
-        .render_prompt(
+        .render_prompt_for_call(
+            "OrchestratorContext.prepare_inspiration_request_validated",
             "inspiration_project_context_guard",
             &context_variables,
             Some(project_id),
@@ -84,6 +90,7 @@ pub(super) async fn build_inspiration_request_from_context(
     );
 
     let mut request = context_aware_system_user_request(system_content, manifest, Some(0.8), None)?
+        .with_prompt_assembly_key("OrchestratorContext.prepare_inspiration_request_validated")
         .with_stream_usage()
         .with_trace_context(LlmTraceContext {
             project_id: Some(project_id),

@@ -137,7 +137,12 @@ impl OrchestratorContext {
         }
         let system_prompt = match context
             .prompt_renderer
-            .render_prompt("writing", &prepared.variables, Some(input.project_id))
+            .render_prompt_for_call(
+                "ChapterService.generate_stream",
+                "writing",
+                &prepared.variables,
+                Some(input.project_id),
+            )
             .await
         {
             Ok(prompt) => prompt,
@@ -177,6 +182,7 @@ impl OrchestratorContext {
                 .await;
             }
         };
+        request = request.with_prompt_assembly_key("ChapterService.generate_stream");
         let workflow_run_id = match self
             .start_chapter_generation_workflow(super::StartChapterGenerationWorkflowInput {
                 project_id: input.project_id,
@@ -542,7 +548,12 @@ impl OrchestratorContext {
             .await?;
         let system_prompt = context
             .prompt_renderer
-            .render_prompt("writing", &prepared.variables, Some(input.project_id))
+            .render_prompt_for_call(
+                "ChapterService.generate_stream",
+                "writing",
+                &prepared.variables,
+                Some(input.project_id),
+            )
             .await
             .map_err(|error| format!("渲染 writing 提示词失败: {error}"))?;
         let request = a4n_prompt::chapter_generation::build_chapter_generation_request(
@@ -552,7 +563,8 @@ impl OrchestratorContext {
             &prepared.outline_text,
             prepared.context_before.as_deref(),
         )
-        .map_err(|error| format!("构建章节生成请求失败: {error}"))?;
+        .map_err(|error| format!("构建章节生成请求失败: {error}"))?
+        .with_prompt_assembly_key("ChapterService.generate_stream");
         Ok(ChapterGenerationRequestPreview {
             title: format!("第 {} 章生成请求预览", input.chapter_number),
             note: format!(

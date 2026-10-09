@@ -241,6 +241,7 @@ impl OrchestratorContext {
                     step_key: format!("adaptation_plan:{}", source.source_chapter_id),
                     call_order: 1,
                     prompt_name: "chapter_media_adaptation_plan",
+                    prompt_assembly_call_key: "OrchestratorContext.generate_adaptation_plan",
                     user_prompt,
                     cancel_token: input.cancel_token,
                 },

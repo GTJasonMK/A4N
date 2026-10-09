@@ -148,7 +148,12 @@ impl OrchestratorContext {
             .await;
         }
         let prompt_content = match prompt_renderer
-            .render_prompt(BLUEPRINT_BASE_PROMPT, &variables, Some(project_id))
+            .render_prompt_for_call(
+                "OrchestratorContext.run_blueprint_generation_task",
+                BLUEPRINT_BASE_PROMPT,
+                &variables,
+                Some(project_id),
+            )
             .await
         {
             Ok(prompt) => prompt,

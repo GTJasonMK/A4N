@@ -35,6 +35,7 @@ async fn chat_status_preview_steps_for_state(
                         key: step.key,
                         title: step.title,
                         prompt_name: step.prompt_name,
+                        prompt_assembly: None,
                         state: step.state,
                         note: step.note,
                         request,

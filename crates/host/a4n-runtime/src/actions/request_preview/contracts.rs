@@ -6,6 +6,7 @@ pub(crate) struct ChatRequestStepInput {
     pub(crate) key: String,
     pub(crate) title: String,
     pub(crate) prompt_name: Option<String>,
+    pub(crate) prompt_assembly: Option<a4n_api_contract::prompt::PromptAssemblySnapshot>,
     pub(crate) state: String,
     pub(crate) note: Option<String>,
     pub(crate) request: ChatRequest,

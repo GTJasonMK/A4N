@@ -144,7 +144,12 @@ impl OrchestratorContext {
             })?;
         }
         let system = prompt_renderer
-            .render_prompt(FACT_CONSOLIDATION_PROMPT, &HashMap::new(), Some(project_id))
+            .render_prompt_for_call(
+                "fact_feedback::prepare_consolidation",
+                FACT_CONSOLIDATION_PROMPT,
+                &HashMap::new(),
+                Some(project_id),
+            )
             .await?;
         let request = context_aware_system_user_request(
             system,
@@ -155,6 +160,7 @@ impl OrchestratorContext {
             Some(0.2),
             None,
         )?
+        .with_prompt_assembly_key("fact_feedback::prepare_consolidation")
         .with_json_response_format()
         .with_trace_context(LlmTraceContext {
             project_id: Some(project_id),

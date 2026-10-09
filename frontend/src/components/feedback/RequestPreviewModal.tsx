@@ -204,6 +204,16 @@ const StepView: React.FC<{
     locale,
     t,
   );
+  const assemblySource = step.prompt_assembly_source
+    ? t(
+        step.prompt_assembly_source === "project"
+          ? "feedback.promptAssemblyProject"
+          : step.prompt_assembly_source === "global"
+            ? "feedback.promptAssemblyGlobal"
+            : "feedback.promptAssemblyDefault",
+      )
+    : null;
+  const assemblyBlocks = step.prompt_assembly_blocks ?? [];
   const requestLength = lengthLabel(
     numericField(step.char_counts, "request_chars"),
     numericField(step.char_counts, "request_bytes"),
@@ -214,6 +224,13 @@ const StepView: React.FC<{
     modelName ? { label: t("feedback.modelLabel"), value: modelName } : null,
     providerName ? { label: t("feedback.providerLabel"), value: providerName } : null,
     step.prompt_name ? { label: t("feedback.templateLabel"), value: step.prompt_name } : null,
+    assemblySource ? { label: t("feedback.promptAssemblySourceLabel"), value: assemblySource } : null,
+    assemblyBlocks.length > 0
+      ? {
+          label: t("feedback.promptAssemblyBlocksLabel"),
+          value: assemblyBlocks.join(t("common.listSeparator")),
+        }
+      : null,
     promptLength ? { label: t("feedback.promptLengthLabel"), value: promptLength } : null,
     requestLength ? { label: t("feedback.requestLengthLabel"), value: requestLength } : null,
     maxTokens != null ? { label: t("feedback.outputTokenLimitLabel"), value: formatNumber(maxTokens, locale) } : null,
@@ -540,6 +557,9 @@ const buildAllText = (data: ModelRequestPreview | null): string =>
         .map((step) =>
           [
             `## ${step.title}${step.prompt_name ? ` (${step.prompt_name})` : ""}`,
+            step.prompt_assembly_source
+              ? `Assembly source: ${step.prompt_assembly_source} [${(step.prompt_assembly_blocks ?? []).join(", ")}]`
+              : null,
             step.note ? `Note: ${step.note}` : null,
             step.system_prompt ? `### System\n${textValue(step.system_prompt)}` : null,
             step.user_prompt ? `### User / Prompt\n${textValue(step.user_prompt)}` : null,

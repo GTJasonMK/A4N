@@ -4,10 +4,12 @@ use std::{
 };
 
 use a4n_api_contract::prompt::{
-    AbRenderResult, CategoryInfo, ProjectPromptOverrideSummary, PromptEntrySummary,
+    AbRenderResult, CategoryInfo, ProjectPromptOverrideSummary, PromptAssemblyBlockKind,
+    PromptAssemblyConfig, PromptAssemblyInput, PromptAssemblyOutput, PromptAssemblySnapshot,
+    PromptAssemblySource, PromptAssemblySummary, PromptAssemblyTemplateOption, PromptEntrySummary,
     PromptExecutionContext, PromptMutationApplicationPort, PromptReadApplicationPort,
-    PromptVersionSummary, RemoveOverrideInput, RenderInput, SetOverrideInput, UpdatePromptInput,
-    ValidateVarsInput, VersionDiffInput,
+    PromptVersionSummary, RemoveOverrideInput, RenderInput, SavePromptAssemblyInput,
+    SetOverrideInput, UpdatePromptInput, ValidateVarsInput, VersionDiffInput,
 };
 use a4n_error::AppError;
 use a4n_prompt::engine::PromptVersion;
@@ -50,6 +52,18 @@ impl PromptRenderer for PromptRendererAdapter<'_> {
             .render_prompt(template_name, variables, project_id)
             .await
     }
+
+    async fn render_prompt_for_call(
+        &self,
+        call_key: &str,
+        template_name: &str,
+        variables: &HashMap<String, Value>,
+        project_id: Option<i64>,
+    ) -> Result<String, AppError> {
+        self.0
+            .render_prompt_for_call(call_key, template_name, variables, project_id)
+            .await
+    }
 }
 
 impl OrchestratorContext {
@@ -78,6 +92,266 @@ impl OrchestratorContext {
         context: &PromptExecutionContext,
     ) -> Result<Vec<PromptEntry>, AppError> {
         self.prompt_entries_for_execution(context).await
+    }
+
+    fn prompt_assembly_definition(
+        &self,
+        call_key: &str,
+        prompt_name: &str,
+    ) -> Result<(PromptAssemblyConfig, PromptAssemblySummary, Vec<String>), AppError> {
+        let prompt = self.prompt_entry(prompt_name)?;
+        let allowed_call_keys = self
+            .prompt_registry_assembly_call_keys(prompt_name)
+            .into_iter()
+            .chain(std::iter::once(format!("prompt:{prompt_name}")))
+            .collect::<Vec<_>>();
+        if !allowed_call_keys.iter().any(|key| key == call_key) {
+            return Err(AppError::InvalidArgument(format!(
+                "提示词 {prompt_name} 未注册调用归属 {call_key}"
+            )));
+        }
+        let variables = self.prompt_template_variables(prompt_name, None)?;
+        let defaults = self
+            .prompt_registry_assembly_definitions(prompt_name)
+            .filter(|blocks| !blocks.is_empty())
+            .map(|blocks| PromptAssemblyConfig { blocks })
+            .unwrap_or_else(|| self.prompt_default_assembly(prompt_name));
+        defaults.validate().map_err(|error| {
+            AppError::ConfigError(format!("{prompt_name} 默认装配无效：{error}"))
+        })?;
+        let templates = self
+            .prompt_entries()
+            .into_iter()
+            .filter_map(|entry| {
+                let required = self.prompt_template_variables(&entry.name, None).ok()?;
+                required
+                    .iter()
+                    .all(|variable| variables.contains(variable))
+                    .then_some(PromptAssemblyTemplateOption {
+                        name: entry.name,
+                        title: entry.title,
+                        description: entry.description,
+                    })
+            })
+            .collect::<Vec<_>>();
+        let summary = PromptAssemblySummary {
+            call_key: call_key.to_string(),
+            prompt_name: prompt_name.to_string(),
+            title: prompt.title,
+            description: prompt.description,
+            variables: variables.clone(),
+            available_templates: templates,
+            defaults: defaults.clone(),
+            allowed_blocks: vec![
+                PromptAssemblyBlockKind::Template,
+                PromptAssemblyBlockKind::Variable,
+                PromptAssemblyBlockKind::Custom,
+            ],
+        };
+        Ok((defaults, summary, variables))
+    }
+
+    pub(crate) fn prompt_default_assembly_call_key(
+        &self,
+        prompt_name: &str,
+    ) -> Result<String, AppError> {
+        self.prompt_entry(prompt_name)?;
+        Ok(format!("prompt:{prompt_name}"))
+    }
+
+    pub(crate) async fn resolve_prompt_assembly_snapshot(
+        &self,
+        call_key: &str,
+        prompt_name: &str,
+        project_id: Option<i64>,
+    ) -> Result<PromptAssemblySnapshot, AppError> {
+        let (default, summary, variables) =
+            self.prompt_assembly_definition(call_key, prompt_name)?;
+        let project_value = if let Some(project_id) = project_id {
+            self.load_prompt_assembly_override(Some(project_id), call_key, prompt_name)
+                .await?
+        } else {
+            None
+        };
+        if let Some(value) = project_value {
+            let config = serde_json::from_value(value).map_err(|error| {
+                AppError::InvalidArgument(format!("项目提示词装配配置无效：{error}"))
+            })?;
+            validate_assembly_config(&config, &variables, &summary.available_templates)?;
+            return Ok(PromptAssemblySnapshot {
+                call_key: call_key.into(),
+                prompt_name: prompt_name.into(),
+                config,
+                source: PromptAssemblySource::Project,
+            });
+        }
+        if let Some(value) = self
+            .load_prompt_assembly_override(None, call_key, prompt_name)
+            .await?
+        {
+            let config = serde_json::from_value(value).map_err(|error| {
+                AppError::InvalidArgument(format!("全局提示词装配配置无效：{error}"))
+            })?;
+            validate_assembly_config(&config, &variables, &summary.available_templates)?;
+            return Ok(PromptAssemblySnapshot {
+                call_key: call_key.into(),
+                prompt_name: prompt_name.into(),
+                config,
+                source: PromptAssemblySource::Global,
+            });
+        }
+        Ok(PromptAssemblySnapshot {
+            call_key: call_key.into(),
+            prompt_name: prompt_name.into(),
+            config: default,
+            source: PromptAssemblySource::SystemDefault,
+        })
+    }
+
+    pub(crate) async fn render_prompt_for_call_validated(
+        &self,
+        context: &PromptExecutionContext,
+        call_key: &str,
+        template_name: &str,
+        variables: &HashMap<String, Value>,
+        project_id: Option<i64>,
+    ) -> Result<String, AppError> {
+        let snapshot = self
+            .resolve_prompt_assembly_snapshot(call_key, template_name, project_id)
+            .await?;
+        self.render_prompt_snapshot_validated(context, &snapshot, variables, project_id)
+            .await
+    }
+
+    async fn render_prompt_snapshot_validated(
+        &self,
+        context: &PromptExecutionContext,
+        snapshot: &PromptAssemblySnapshot,
+        variables: &HashMap<String, Value>,
+        project_id: Option<i64>,
+    ) -> Result<String, AppError> {
+        let Some(client) = self.prompt_client_for_execution(context)? else {
+            return self.prompt_render_assembled(snapshot, variables, project_id);
+        };
+        let root_project_id = self
+            .hydrate_prompt_project_overrides(context, client.clone(), project_id)
+            .await?;
+        let response = client
+            .render(prompt_service_request(
+                context,
+                project_id,
+                root_project_id,
+                PromptRenderPayload {
+                    template_name: snapshot.prompt_name.clone(),
+                    variables: variables.clone(),
+                    assembly: Some(snapshot.clone()),
+                },
+            )?)
+            .await
+            .map_err(prompt_sidecar_error)?;
+        Ok(prompt_response_payload::<PromptRenderOutput>(response)?.rendered)
+    }
+
+    pub(crate) async fn list_prompt_assembly_summaries(
+        &self,
+    ) -> Result<Vec<PromptAssemblySummary>, AppError> {
+        let mut summaries = Vec::new();
+        for prompt in self.prompt_entries() {
+            for call_key in self
+                .prompt_registry_assembly_call_keys(&prompt.name)
+                .into_iter()
+                .chain(std::iter::once(format!("prompt:{}", prompt.name)))
+            {
+                let (_, summary, _) = self.prompt_assembly_definition(&call_key, &prompt.name)?;
+                summaries.push(summary);
+            }
+        }
+        Ok(summaries)
+    }
+
+    pub(crate) async fn get_prompt_assembly_output(
+        &self,
+        context: &PromptExecutionContext,
+        user_id: i64,
+        input: PromptAssemblyInput,
+    ) -> Result<PromptAssemblyOutput, AppError> {
+        let PromptAssemblyInput {
+            call_key,
+            prompt_name,
+            project_id,
+            preview_config,
+        } = input;
+        if let Some(project_id) = project_id {
+            self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
+                .await?;
+        }
+        let snapshot = self
+            .resolve_prompt_assembly_snapshot(&call_key, &prompt_name, project_id)
+            .await?;
+        let (_, summary, variables) = self.prompt_assembly_definition(&call_key, &prompt_name)?;
+        let preview_config = preview_config.unwrap_or_else(|| snapshot.config.clone());
+        validate_assembly_config(&preview_config, &variables, &summary.available_templates)?;
+        let preview_snapshot = PromptAssemblySnapshot {
+            config: preview_config,
+            ..snapshot.clone()
+        };
+        let preview_variables = prompt_assembly_preview_variables(&variables);
+        let rendered_preview = self
+            .render_prompt_snapshot_validated(
+                context,
+                &preview_snapshot,
+                &preview_variables,
+                project_id,
+            )
+            .await?;
+        let has_project_override = if let Some(project_id) = project_id {
+            self.load_prompt_assembly_override(Some(project_id), &call_key, &prompt_name)
+                .await?
+                .is_some()
+        } else {
+            false
+        };
+        Ok(PromptAssemblyOutput {
+            config: snapshot.config,
+            source: snapshot.source,
+            has_project_override,
+            rendered_preview,
+        })
+    }
+
+    pub(crate) async fn save_prompt_assembly_config(
+        &self,
+        user_id: i64,
+        input: SavePromptAssemblyInput,
+    ) -> Result<(), AppError> {
+        if let Some(project_id) = input.project_id {
+            self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
+                .await?;
+        }
+        let (_, summary, variables) =
+            self.prompt_assembly_definition(&input.call_key, &input.prompt_name)?;
+        validate_assembly_config(&input.config, &variables, &summary.available_templates)?;
+        self.save_prompt_assembly_override(
+            input.project_id,
+            &input.call_key,
+            &input.prompt_name,
+            serde_json::to_value(input.config).map_err(AppError::Serialization)?,
+        )
+        .await
+    }
+
+    pub(crate) async fn reset_prompt_assembly_config(
+        &self,
+        user_id: i64,
+        input: PromptAssemblyInput,
+    ) -> Result<(), AppError> {
+        if let Some(project_id) = input.project_id {
+            self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
+                .await?;
+        }
+        self.prompt_assembly_definition(&input.call_key, &input.prompt_name)?;
+        self.delete_prompt_assembly_override(input.project_id, &input.call_key, &input.prompt_name)
+            .await
     }
 
     pub(crate) async fn update_many_prompt_records_validated(
@@ -275,6 +549,7 @@ impl OrchestratorContext {
                 PromptRenderPayload {
                     template_name: template_name.to_string(),
                     variables,
+                    assembly: None,
                 },
             )?)
             .await
@@ -309,6 +584,7 @@ impl OrchestratorContext {
                     PromptRenderPayload {
                         template_name,
                         variables,
+                        assembly: None,
                     },
                 )?)
                 .await
@@ -681,6 +957,34 @@ impl OrchestratorContext {
 
 #[async_trait]
 impl PromptReadApplicationPort for OrchestratorContext {
+    async fn list_assembly_records(
+        &self,
+        _context: &PromptExecutionContext,
+    ) -> Result<Vec<PromptAssemblySummary>, AppError> {
+        self.list_prompt_assembly_summaries().await
+    }
+
+    async fn get_assembly_record(
+        &self,
+        context: &PromptExecutionContext,
+        user_id: i64,
+        input: PromptAssemblyInput,
+    ) -> Result<PromptAssemblyOutput, AppError> {
+        self.get_prompt_assembly_output(context, user_id, input)
+            .await
+    }
+
+    async fn resolve_assembly_record(
+        &self,
+        _context: &PromptExecutionContext,
+        call_key: &str,
+        prompt_name: &str,
+        project_id: Option<i64>,
+    ) -> Result<PromptAssemblySnapshot, AppError> {
+        self.resolve_prompt_assembly_snapshot(call_key, prompt_name, project_id)
+            .await
+    }
+
     async fn list_records(
         &self,
         context: &PromptExecutionContext,
@@ -713,8 +1017,33 @@ impl PromptReadApplicationPort for OrchestratorContext {
         variables: HashMap<String, Value>,
         project_id: Option<i64>,
     ) -> Result<String, AppError> {
-        self.render_prompt_record_template_validated(context, template_name, variables, project_id)
-            .await
+        let call_key = self.prompt_default_assembly_call_key(template_name)?;
+        self.render_prompt_for_call_validated(
+            context,
+            &call_key,
+            template_name,
+            &variables,
+            project_id,
+        )
+        .await
+    }
+
+    async fn render_template_for_call(
+        &self,
+        context: &PromptExecutionContext,
+        call_key: &str,
+        template_name: &str,
+        variables: HashMap<String, Value>,
+        project_id: Option<i64>,
+    ) -> Result<String, AppError> {
+        self.render_prompt_for_call_validated(
+            context,
+            call_key,
+            template_name,
+            &variables,
+            project_id,
+        )
+        .await
     }
 
     async fn render_ab(
@@ -779,6 +1108,24 @@ impl PromptReadApplicationPort for OrchestratorContext {
 
 #[async_trait]
 impl PromptMutationApplicationPort for OrchestratorContext {
+    async fn save_assembly_record(
+        &self,
+        _context: &PromptExecutionContext,
+        user_id: i64,
+        input: SavePromptAssemblyInput,
+    ) -> Result<(), AppError> {
+        self.save_prompt_assembly_config(user_id, input).await
+    }
+
+    async fn reset_assembly_record(
+        &self,
+        _context: &PromptExecutionContext,
+        user_id: i64,
+        input: PromptAssemblyInput,
+    ) -> Result<(), AppError> {
+        self.reset_prompt_assembly_config(user_id, input).await
+    }
+
     async fn hydrate_overrides(&self) -> Result<(), AppError> {
         self.hydrate_prompt_overrides().await
     }
@@ -835,6 +1182,54 @@ impl PromptMutationApplicationPort for OrchestratorContext {
         self.update_many_prompt_records_validated(context, updates, author, overwrite)
             .await
     }
+}
+
+fn prompt_assembly_preview_variables(variables: &[String]) -> HashMap<String, Value> {
+    variables
+        .iter()
+        .map(|name| (name.clone(), Value::String(format!("⟦{name}⟧"))))
+        .collect()
+}
+
+fn validate_assembly_config(
+    config: &PromptAssemblyConfig,
+    variables: &[String],
+    templates: &[PromptAssemblyTemplateOption],
+) -> Result<(), AppError> {
+    config.validate().map_err(AppError::InvalidArgument)?;
+    let template_names = templates
+        .iter()
+        .map(|template| template.name.as_str())
+        .collect::<HashSet<_>>();
+    for block in &config.blocks {
+        match block.kind {
+            PromptAssemblyBlockKind::Template if !template_names.contains(block.value.as_str()) => {
+                return Err(AppError::InvalidArgument(format!(
+                    "当前调用不可用模板：{}",
+                    block.value
+                )));
+            }
+            PromptAssemblyBlockKind::Variable if !variables.contains(&block.value) => {
+                return Err(AppError::InvalidArgument(format!(
+                    "当前调用不可用变量：{}",
+                    block.value
+                )));
+            }
+            PromptAssemblyBlockKind::Custom => {
+                let required = a4n_prompt::variables::required_template_variables(&block.value)
+                    .map_err(|error| {
+                        AppError::InvalidArgument(format!("自定义模块模板无效：{error}"))
+                    })?;
+                if let Some(variable) = required.iter().find(|name| !variables.contains(name)) {
+                    return Err(AppError::InvalidArgument(format!(
+                        "当前调用不可用变量：{variable}"
+                    )));
+                }
+            }
+            PromptAssemblyBlockKind::Template | PromptAssemblyBlockKind::Variable => {}
+        }
+    }
+    Ok(())
 }
 
 fn prompt_service_request<T>(

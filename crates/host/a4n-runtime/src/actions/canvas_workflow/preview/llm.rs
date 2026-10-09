@@ -21,6 +21,7 @@ pub(super) async fn preview_canvas_llm_node(
                     key: "canvas_llm_text".to_string(),
                     title: "画布 LLM provider 请求".to_string(),
                     prompt_name: None,
+                    prompt_assembly: None,
                     state: "ready".to_string(),
                     note: None,
                     request,

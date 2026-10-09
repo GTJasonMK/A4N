@@ -18,4 +18,20 @@ impl PromptRenderer for TeraPromptEngine {
     ) -> Result<String, AppError> {
         self.render(template_name, variables, project_id)
     }
+
+    async fn render_prompt_for_call(
+        &self,
+        call_key: &str,
+        template_name: &str,
+        variables: &HashMap<String, Value>,
+        project_id: Option<i64>,
+    ) -> Result<String, AppError> {
+        let snapshot = crate::engine::PromptAssemblySnapshot {
+            call_key: call_key.to_string(),
+            prompt_name: template_name.to_string(),
+            config: self.default_assembly(template_name),
+            source: crate::engine::PromptAssemblySource::SystemDefault,
+        };
+        self.render_assembled(&snapshot, variables, project_id)
+    }
 }

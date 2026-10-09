@@ -81,6 +81,9 @@ impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
         &self,
         input: CanvasVideoProviderInput,
     ) -> Result<VideoGenerationResult, AppError> {
+        let mut request = input.request.clone();
+        self.assemble_video_prompt(input.project_id, &mut request)
+            .await?;
         let root_project_id = video_sidecar_root_project_id(
             self.state.runtime_profile(),
             self.state.project_access_application(),
@@ -144,7 +147,7 @@ impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
                         self.state.capabilities().video.clone(),
                         self.state.data_dir(),
                         &input.config,
-                        input.request,
+                        request,
                         None,
                         Some(input.project_id),
                         root_project_id,

@@ -99,7 +99,8 @@ impl OrchestratorContext {
                 .into(),
         );
         let system_prompt = prompt_renderer
-            .render_prompt(
+            .render_prompt_for_call(
+                "OptimizeService.propose_patches",
                 "content_optimization_patch",
                 &prompt_vars,
                 Some(base.session.project_id),

@@ -16,6 +16,15 @@ impl TeraPromptEngine {
         variables: &HashMap<String, serde_json::Value>,
         project_id: Option<i64>,
     ) -> Result<String, AppError> {
+        self.render_template(template_name, variables, project_id)
+    }
+
+    pub(super) fn render_template(
+        &self,
+        template_name: &str,
+        variables: &HashMap<String, serde_json::Value>,
+        project_id: Option<i64>,
+    ) -> Result<String, AppError> {
         let (content, is_override) = self.resolve_content(template_name, project_id)?;
         let mut context = Context::new();
         for (key, value) in variables {

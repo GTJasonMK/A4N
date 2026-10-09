@@ -82,6 +82,7 @@ impl OrchestratorContext {
         )?;
         self.build_galgame_preview_requests(
             prompt_renderer,
+            project_id,
             start_from_stage,
             &context,
             &adaptation_projection,
@@ -151,6 +152,7 @@ impl OrchestratorContext {
     async fn build_galgame_preview_requests(
         &self,
         prompt_renderer: &dyn PromptRenderer,
+        project_id: i64,
         start_from_stage: Option<GalgamePipelineStartStage>,
         context: &GalgamePipelinePromptContext,
         adaptation_projection: &Value,
@@ -218,7 +220,14 @@ impl OrchestratorContext {
         }
         futures::future::join_all(pending.into_iter().map(
             |(key, title, prompt_name, user_prompt)| {
-                build_preview_request(prompt_renderer, key, title, prompt_name, user_prompt)
+                build_preview_request(
+                    prompt_renderer,
+                    project_id,
+                    key,
+                    title,
+                    prompt_name,
+                    user_prompt,
+                )
             },
         ))
         .await
@@ -283,13 +292,19 @@ impl PreviewCheckpointInputs {
 
 async fn build_preview_request(
     prompt_renderer: &dyn PromptRenderer,
+    project_id: i64,
     key: &str,
     title: &str,
     prompt_name: &str,
     user_prompt: String,
 ) -> Result<GalgamePipelinePreviewRequest, AppError> {
     let system_prompt = prompt_renderer
-        .render_prompt(prompt_name, &HashMap::new(), None)
+        .render_prompt_for_call(
+            "GalgamePipelineRunner.run",
+            prompt_name,
+            &HashMap::new(),
+            Some(project_id),
+        )
         .await
         .map_err(|error| AppError::InvalidState {
             current: "galgame_preview_prompt".to_string(),
@@ -307,6 +322,7 @@ async fn build_preview_request(
             Some(0.25),
             None,
         )
+        .with_prompt_assembly_key("GalgamePipelineRunner.run")
         .with_json_response_format(),
     })
 }

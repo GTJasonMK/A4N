@@ -11,10 +11,11 @@ mod mutation {
     mod update;
     mod validation;
 }
+mod assembly;
 mod operations;
 mod overrides;
 mod state;
-mod variables;
+pub(crate) mod variables;
 mod version;
 
 #[cfg(test)]

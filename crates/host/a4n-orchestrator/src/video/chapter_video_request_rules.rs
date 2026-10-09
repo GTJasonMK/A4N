@@ -20,6 +20,8 @@ use super::{
 const CHAPTER_VIDEO_PROVIDER_PROMPT_NAME: &str = "chapter_video_provider_prompt";
 const CHAPTER_VIDEO_FIRST_FRAME_PROVIDER_PROMPT_NAME: &str =
     "chapter_video_first_frame_provider_prompt";
+const VIDEO_PROVIDER_ASSEMBLY_CALL_KEY: &str =
+    "video_generation::build_chapter_video_provider_request";
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct BoundaryFrameImageIds {
@@ -113,7 +115,12 @@ pub async fn build_video_generation_provider_prompt_with_renderer(
     let (prompt_name, variables) =
         build_provider_prompt_plan(prompt, provider_workflow, image_binding)?;
     prompt_renderer
-        .render_prompt(prompt_name, &variables, Some(prompt.project_id))
+        .render_prompt_for_call(
+            VIDEO_PROVIDER_ASSEMBLY_CALL_KEY,
+            prompt_name,
+            &variables,
+            Some(prompt.project_id),
+        )
         .await
         .map(|value| value.trim().to_string())
         .map_err(|error| format!("视频 provider 提示词模板 {prompt_name} 渲染失败：{error}"))

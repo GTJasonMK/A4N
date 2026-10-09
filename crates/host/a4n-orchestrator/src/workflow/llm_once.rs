@@ -38,6 +38,7 @@ pub(crate) struct WorkflowLlmOnceInput<'a> {
     pub stage_key: &'a str,
     pub call_order: i32,
     pub prompt_name: &'a str,
+    pub prompt_assembly_call_key: &'a str,
     pub user_prompt: String,
     pub cancel_token: Option<&'a CancellationToken>,
 }

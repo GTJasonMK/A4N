@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::{ChatRequest, UsageInfo};
 use serde::Serialize;
 use serde_json::Value;
@@ -15,6 +16,23 @@ pub(in crate::manga) const MANGA_PIPELINE_PROMPT_NAMES: &[&str] = &[
     "manga_page_reference_discovery",
     "manga_page_drawing_prompt",
 ];
+
+pub(in crate::manga) fn manga_pipeline_prompt_assembly_call_key(
+    prompt_name: &str,
+) -> Result<&'static str, AppError> {
+    match prompt_name {
+        "manga_preprocessing" => Ok("OrchestratorContext.run_manga_preprocessing"),
+        "manga_page_slots" => Ok("MangaPipeline.generate_page_prompts"),
+        "manga_page_adaptation_plan"
+        | "manga_page_storyboard"
+        | "manga_page_reference_discovery"
+        | "manga_page_drawing_prompt" => Ok("MangaPipeline.process_page"),
+        _ => Err(AppError::InvalidArgument(format!(
+            "漫画流水线提示词未注册装配调用：{prompt_name}"
+        ))),
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub(in crate::manga) struct MangaPromptGenerationTrace {
     pub(in crate::manga) prompt_name: String,

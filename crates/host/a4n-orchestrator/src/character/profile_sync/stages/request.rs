@@ -18,6 +18,8 @@ use crate::{
 use super::contracts::{CharacterProfileSyncStage, CharacterProfileSyncStageInput};
 
 pub(super) const CHARACTER_PROFILE_SYNC_SESSION_PROMPT: &str = "character_sync_session";
+const CHARACTER_PROFILE_SYNC_ASSEMBLY_CALL_KEY: &str =
+    "character::profile_sync_stages::request::build_character_profile_sync_stage_request";
 const PROFILE_SYNC_CHAPTERS: &str = "profile_sync_chapters";
 
 pub(super) struct PreparedCharacterProfileSyncStageCall {
@@ -33,10 +35,16 @@ pub(super) async fn build_character_profile_sync_stage_request(
     prompt_renderer: &dyn PromptRenderer,
 ) -> Result<ChatRequest, AppError> {
     let stage_prompt = prompt_renderer
-        .render_prompt(stage.prompt_name(), &HashMap::new(), Some(input.project_id))
+        .render_prompt_for_call(
+            CHARACTER_PROFILE_SYNC_ASSEMBLY_CALL_KEY,
+            stage.prompt_name(),
+            &HashMap::new(),
+            Some(input.project_id),
+        )
         .await?;
     let system_prompt = prompt_renderer
-        .render_prompt(
+        .render_prompt_for_call(
+            CHARACTER_PROFILE_SYNC_ASSEMBLY_CALL_KEY,
             CHARACTER_PROFILE_SYNC_SESSION_PROMPT,
             &HashMap::new(),
             Some(input.project_id),
@@ -92,6 +100,7 @@ pub(super) async fn build_character_profile_sync_stage_request(
             Some(stage.temperature()),
             None,
         )?
+        .with_prompt_assembly_key(CHARACTER_PROFILE_SYNC_ASSEMBLY_CALL_KEY)
         .with_json_response_format()
         .with_trace_context(LlmTraceContext {
             project_id: Some(input.project_id),

@@ -31,7 +31,12 @@ pub(super) async fn build_character_discovery_request(
         .collect::<Result<Vec<_>, _>>()
         .map_err(AppError::InvalidArgument)?;
     let system_prompt = prompt_renderer
-        .render_prompt(CHARACTER_DISCOVERY_KIND, &HashMap::new(), Some(project_id))
+        .render_prompt_for_call(
+            "character::discovery::request::build_character_discovery_request",
+            CHARACTER_DISCOVERY_KIND,
+            &HashMap::new(),
+            Some(project_id),
+        )
         .await?;
     let stable_context =
         character_discovery_stable_context(&existing_prompt_profiles, chapters, text_anchors)?;
@@ -68,6 +73,11 @@ pub(super) async fn build_character_discovery_request(
             call_key: Some(CHARACTER_DISCOVERY_CALL_KEY.to_string()),
         },
     )
+    .map(|request| {
+        request.with_prompt_assembly_key(
+            "character::discovery::request::build_character_discovery_request",
+        )
+    })
     .map_err(AppError::InvalidArgument)
 }
 

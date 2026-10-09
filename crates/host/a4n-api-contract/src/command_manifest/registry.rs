@@ -325,6 +325,10 @@ command_specs! {
     "preview_test_llm_config_request" => args_preview_test_image_config_request, result_model_request_preview, "settings", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_video_provider_request_by_video_id" => args_preview_video_provider_request_by_video_id, result_model_request_preview, "video", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT);
     "preview_visual_plan_point_generation" => args_preview_visual_plan_point_generation, result_visual_plan_point_generation_preview, "chapter", effect(READ_EFFECT);
+    "prompt_assembly_get" => args_prompt_assembly_input, result_prompt_assembly_get, "prompt", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
+    "prompt_assembly_list" => empty_args_schema, result_prompt_assembly_list, "prompt", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
+    "prompt_assembly_reset" => args_prompt_assembly_input, result_unit, "prompt", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_PROMPT);
+    "prompt_assembly_save" => args_prompt_assembly_save, result_unit, "prompt", context(NO_CONTEXT), capabilities(CAPABILITIES_PROMPT);
     "prompt_list" => empty_args_schema, result_prompt_list, "prompt", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
     "prompt_list_categories" => empty_args_schema, result_prompt_list_categories, "prompt", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
     "prompt_list_project_overrides" => args_project_id, result_prompt_list_project_overrides, "prompt", context(PROJECT_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);

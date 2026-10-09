@@ -27,6 +27,7 @@ pub async fn preview_chapter_scene_request(
                 preview.chapter_number, input.scene_number
             ),
             prompt_name: Some("chapter_scene_generation".to_string()),
+            prompt_assembly: None,
             state: "ready".to_string(),
             note: None,
             request: preview.request,

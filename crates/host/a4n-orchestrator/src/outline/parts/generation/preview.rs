@@ -58,6 +58,11 @@ impl OrchestratorContext {
         };
         let request = build_part_outline_request(PartOutlineRequestInput {
             project_id,
+            prompt_assembly_call_key: if regenerate {
+                "OutlineService.regenerate_last_part"
+            } else {
+                "OutlineService.generate_parts"
+            },
             part_num,
             start_ch,
             end_ch,

@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use a4n_error::AppError;
 use serde_json::Value;
 
+pub use crate::tera_engine::variables::required_template_variables;
+
 const DEFAULT_INVALID_MESSAGE: &str = "variables 必须是对象或 null";
 
 pub fn parse_template_variables(value: Option<&Value>) -> Result<HashMap<String, Value>, String> {

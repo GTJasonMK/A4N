@@ -42,14 +42,22 @@ pub(crate) async fn render_prompt(
         return Json(request.error_response(error));
     }
     let payload = &request.payload;
-    let result = state
-        .engine
-        .render(
+    let result = match payload.assembly.as_ref() {
+        Some(snapshot) if snapshot.prompt_name != payload.template_name => Err(
+            a4n_error::AppError::InvalidArgument("提示词装配所属模板与请求模板不匹配".to_string()),
+        ),
+        Some(snapshot) => {
+            state
+                .engine
+                .render_assembled(snapshot, &payload.variables, request.project_id)
+        }
+        None => state.engine.render(
             &payload.template_name,
             &payload.variables,
             request.project_id,
-        )
-        .map(|rendered| PromptRenderOutput { rendered });
+        ),
+    }
+    .map(|rendered| PromptRenderOutput { rendered });
     Json(result_response(&request, result))
 }
 

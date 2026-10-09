@@ -27,6 +27,8 @@ pub struct ChatRequest {
     pub trace_context: Option<LlmTraceContext>,
     #[serde(skip)]
     pub context_manifest_json: Option<Value>,
+    #[serde(skip)]
+    pub prompt_assembly_key: Option<String>,
     pub tools: Option<Vec<Value>>,
     pub tool_choice: Option<String>,
     pub stop_sequences: Option<Vec<String>>,
@@ -50,6 +52,7 @@ impl ChatRequest {
             cache_mode: None,
             trace_context: None,
             context_manifest_json: None,
+            prompt_assembly_key: None,
             tools: None,
             tool_choice: None,
             stop_sequences: None,
@@ -87,6 +90,11 @@ impl ChatRequest {
         self
     }
 
+    pub fn with_prompt_assembly_key(mut self, call_key: impl Into<String>) -> Self {
+        self.prompt_assembly_key = Some(call_key.into());
+        self
+    }
+
     pub fn with_json_response_format(mut self) -> Self {
         self.response_format = Some(ResponseFormat::json_object());
         self
@@ -97,6 +105,11 @@ impl ChatRequest {
         let mut value = serde_json::to_value(self)?;
         value["trace_context"] = serde_json::to_value(&self.trace_context)?;
         value["context_manifest_json"] = self.context_manifest_json.clone().unwrap_or(Value::Null);
+        value["prompt_assembly_key"] = self
+            .prompt_assembly_key
+            .clone()
+            .map(Value::String)
+            .unwrap_or(Value::Null);
         Ok(value)
     }
 
@@ -118,6 +131,11 @@ impl ChatRequest {
         let manifest = object
             .remove("context_manifest_json")
             .filter(|value| !value.is_null());
+        let prompt_assembly_key = object
+            .remove("prompt_assembly_key")
+            .filter(|value| !value.is_null())
+            .map(serde_json::from_value::<String>)
+            .transpose()?;
         let mut request: Self = serde_json::from_value(value)?;
         if let Some(byte_offset) = legacy_user_prefix_len {
             let message_index = request
@@ -132,6 +150,7 @@ impl ChatRequest {
         request.cache_breakpoints = request.normalized_cache_breakpoints()?;
         request.trace_context = trace.map(serde_json::from_value).transpose()?.flatten();
         request.context_manifest_json = manifest;
+        request.prompt_assembly_key = prompt_assembly_key;
         Ok(request)
     }
 }

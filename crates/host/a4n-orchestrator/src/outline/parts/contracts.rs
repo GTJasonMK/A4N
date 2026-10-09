@@ -15,6 +15,7 @@ pub(super) struct GeneratedPartOutline {
 
 pub(super) struct PartOutlineJsonInput<'a> {
     pub(super) project_id: i64,
+    pub(super) prompt_assembly_call_key: &'a str,
     pub(super) part_num: i32,
     pub(super) start_ch: i32,
     pub(super) end_ch: i32,
@@ -30,6 +31,7 @@ pub(super) struct PartOutlineJsonInput<'a> {
 
 pub(super) struct PartOutlineRequestInput<'a> {
     pub(super) project_id: i64,
+    pub(super) prompt_assembly_call_key: &'a str,
     pub(super) part_num: i32,
     pub(super) start_ch: i32,
     pub(super) end_ch: i32,

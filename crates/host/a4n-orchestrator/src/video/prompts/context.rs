@@ -3,6 +3,9 @@ use serde_json::Value;
 
 use super::super::ChapterVideoSourceContext;
 
+pub(in crate::video) const VIDEO_CONTEXT_BUILDER_ASSEMBLY_CALL_KEY: &str =
+    "video::prompt_context::builders";
+
 mod builders;
 mod ledger;
 mod project_context;

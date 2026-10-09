@@ -360,14 +360,16 @@ impl MediaAuthoringApplicationPort for OrchestratorContext {
             )
             .await?;
         let system = renderer
-            .render_prompt(
+            .render_prompt_for_call(
+                "OrchestratorContext.generate_adaptation_plan",
                 "chapter_media_adaptation_plan",
                 &Default::default(),
                 Some(input.project_id),
             )
             .await?;
         Ok(serde_json::to_value(
-            crate::workflow::workflow_json_request(system, user),
+            crate::workflow::workflow_json_request(system, user)
+                .with_prompt_assembly_key("OrchestratorContext.generate_adaptation_plan"),
         )?)
     }
 }

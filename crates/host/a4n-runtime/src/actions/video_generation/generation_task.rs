@@ -33,6 +33,23 @@ impl VideoPromptGenerationHostPort for RuntimeVideoPromptGenerationHostPort<'_> 
         .await
     }
 
+    async fn render_prompt_for_call(
+        &self,
+        call_key: &str,
+        template_name: &str,
+        variables: &HashMap<String, Value>,
+        project_id: Option<i64>,
+    ) -> Result<String, AppError> {
+        a4n_prompt::rendering::PromptRenderer::render_prompt_for_call(
+            self.state,
+            call_key,
+            template_name,
+            variables,
+            project_id,
+        )
+        .await
+    }
+
     fn runtime_video_config(&self) -> Option<VideoProviderConfig> {
         crate::runtime_config::current_video_provider_config()
     }

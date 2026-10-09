@@ -12,6 +12,9 @@ pub use identity::{normalize_project_override_identity, validate_project_overrid
 pub use storage::{
     delete_project_override, load_project_override_persisted_content, save_project_override,
 };
+pub use storage::{
+    delete_prompt_assembly_override, load_prompt_assembly_override, save_prompt_assembly_override,
+};
 pub use types::{
     ProjectOverrideHydration, ProjectOverrideIdentity, ProjectPromptOverrideSummary,
     PromptOverrideDbError,

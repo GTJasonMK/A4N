@@ -1,3 +1,4 @@
+mod assembly;
 mod loader;
 mod mutation;
 mod overrides;

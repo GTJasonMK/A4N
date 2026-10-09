@@ -19,6 +19,14 @@ pub(super) fn missing_template_variables(
         .collect())
 }
 
+pub fn required_template_variables(content: &str) -> Result<Vec<String>, tera::Error> {
+    let template = tera::Template::new("__prompt_variable_validation__", None, content)?;
+    let mut collector = VariableCollector::default();
+    collector.collect_nodes(&template.ast, &mut vec![HashSet::new()]);
+    collector.required.sort();
+    Ok(collector.required)
+}
+
 #[derive(Default)]
 struct VariableCollector {
     required: Vec<String>,
