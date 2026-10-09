@@ -7,6 +7,7 @@ import { QueueTab } from "./QueueTab";
 import { LlmTab } from "./LlmTab";
 import { LogsTab } from "./logs/LogsTab";
 import { PromptTab } from "./PromptTab";
+import { PromptAssemblyTab } from "./PromptAssemblyTab";
 import { ThemeTab } from "./ThemeTab";
 import { ProjectsSection } from "./admin/ProjectsSection";
 
@@ -45,12 +46,15 @@ describe("initial reads", () => {
 
   it("keeps prompt, model, theme, and log reads unknown until their first response", () => {
     const prompts = render(<PromptTab />);
+    const assembly = render(<PromptAssemblyTab />);
     const llm = render(<LlmTab />);
     const themes = render(<ThemeTab />);
     const logs = render(<LogsTab />);
 
     expect(prompts).toContain("加载…");
     expect(prompts).not.toContain("该分类下没有匹配的提示词");
+    expect(assembly).toContain("加载…");
+    expect(assembly).not.toContain("该分类下没有匹配的提示词");
     expect(llm).toContain("加载中…");
     expect(llm).not.toContain("选择“新增”添加配置。");
     expect(themes).toContain("正在加载主题…");

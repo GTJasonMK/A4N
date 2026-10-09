@@ -8,6 +8,7 @@ interface PromptListProps {
   loading: boolean;
   disabled?: boolean;
   unavailable?: boolean;
+  maxHeightClassName?: string;
   selectedName: string | null;
   onSelect: (name: string) => void;
 }
@@ -17,6 +18,7 @@ export const PromptList: React.FC<PromptListProps> = ({
   loading,
   disabled = false,
   unavailable = false,
+  maxHeightClassName = "max-h-48 md:max-h-none",
   selectedName,
   onSelect,
 }) => {
@@ -37,7 +39,7 @@ export const PromptList: React.FC<PromptListProps> = ({
   }, [prompts.length, selectedName]);
 
   return (
-    <ul className="a4n-flat-surface custom-scrollbar max-h-48 divide-y divide-book-border/35 overflow-y-auto overflow-x-hidden md:max-h-none">
+    <ul className={`a4n-flat-surface custom-scrollbar divide-y divide-book-border/35 overflow-y-auto overflow-x-hidden ${maxHeightClassName}`}>
       {loading && prompts.length === 0 && (
         <li className="flex items-center gap-2 p-3 text-xs text-book-text-muted">
           <LoadingSpinner size="sm" /> {t("settingsPrompt.loading")}

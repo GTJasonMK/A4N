@@ -32,6 +32,7 @@ export const settings = {
   image: "Image model",
   video: "Video generation",
   prompt: "Prompt management",
+  promptAssembly: "Prompt assembly",
   theme: "Theme",
   advanced: "Advanced",
   admin: "Administrator",

@@ -37,6 +37,9 @@ const WebSearchTab = lazy(() =>
 const PromptTab = lazy(() =>
   import("./PromptTab").then((module) => ({ default: module.PromptTab })),
 );
+const PromptAssemblyTab = lazy(() =>
+  import("./PromptAssemblyTab").then((module) => ({ default: module.PromptAssemblyTab })),
+);
 const ThemeTab = lazy(() =>
   import("./ThemeTab").then((module) => ({ default: module.ThemeTab })),
 );
@@ -201,7 +204,7 @@ export const SettingsPage: React.FC = () => {
           aria-label={activeTab ? t(activeTab.labelKey) : t("settings.content")}
           className="a4n-settings-content content-wide min-w-0 flex min-h-0 flex-col overflow-y-auto overflow-x-hidden a4n-page-container md:overflow-hidden"
         >
-          <div className="min-h-0 flex-1 overflow-visible md:overflow-hidden">
+          <div className="min-h-0 flex-1 overflow-visible md:flex md:flex-col md:overflow-hidden">
             <Suspense
               fallback={
                 <div className="flex min-h-48 items-center justify-center">
@@ -216,6 +219,7 @@ export const SettingsPage: React.FC = () => {
               {tab === "video" && <VideoTab />}
               {tab === "web-search" && <WebSearchTab />}
               {tab === "prompt" && <PromptTab />}
+              {tab === "prompt-assembly" && <PromptAssemblyTab />}
               {tab === "theme" && <ThemeTab />}
               {tab === "queue" && <QueueTab />}
               {tab === "advanced" && <AdvancedTab />}

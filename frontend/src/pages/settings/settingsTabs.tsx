@@ -2,6 +2,7 @@ import React from "react";
 import type { MessageKey } from "../../i18n";
 import {
   Activity,
+  Blocks,
   Bot,
   Brain,
   CircleUserRound,
@@ -25,6 +26,7 @@ export type TabId =
   | "web-search"
   | "queue"
   | "prompt"
+  | "prompt-assembly"
   | "theme"
   | "advanced"
   | "admin"
@@ -46,6 +48,7 @@ export const TABS: TabDef[] = [
   { id: "image", labelKey: "settings.image", icon: <ImageIcon size={14} />, groupKey: "settings.local" },
   { id: "video", labelKey: "settings.video", icon: <Film size={14} />, groupKey: "settings.local" },
   { id: "prompt", labelKey: "settings.prompt", icon: <FileText size={14} />, groupKey: "settings.local" },
+  { id: "prompt-assembly", labelKey: "settings.promptAssembly", icon: <Blocks size={14} />, groupKey: "settings.local" },
   { id: "theme", labelKey: "settings.theme", icon: <Palette size={14} />, groupKey: "settings.local" },
   { id: "advanced", labelKey: "settings.advanced", icon: <Wrench size={14} />, groupKey: "settings.local" },
   { id: "admin", labelKey: "settings.admin", icon: <Shield size={14} />, groupKey: "settings.cloud" },

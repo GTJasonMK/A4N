@@ -13,7 +13,8 @@ const pages = [
   ["S01-llm", "llm"], ["S02-image", "image"], ["S03-video", "video"], ["S04-embedding", "embedding"],
   ["S05-web-search", "web-search"], ["S06-agent-skills", "agent"], ["S07-prompts", "prompt"],
   ["S08-themes", "theme"], ["S09-backup", "advanced"], ["S10-admin", "admin"],
-  ["S17-queue", "queue"], ["S18-analytics", "logs"], ["S20-account", "about"],
+  ["S17-queue", "queue"], ["S18-analytics", "logs"], ["S19-prompt-assembly", "prompt-assembly"],
+  ["S20-account", "about"],
 ];
 
 describe("Settings pages with populated records", () => {
@@ -62,6 +63,16 @@ describe("Settings pages with populated records", () => {
           width: innerWidth, height: innerHeight,
           overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
           text: document.querySelector(".a4n-settings-content").innerText,
+          verticalScroll: [...document.querySelectorAll(".a4n-settings-content, .a4n-settings-content *")]
+            .filter((element) => ["auto", "scroll"].includes(getComputedStyle(element).overflowY))
+            .map((element) => ({
+              tag: element.tagName.toLowerCase(),
+              className: typeof element.className === "string" ? element.className : "",
+              scrollHeight: element.scrollHeight,
+              clientHeight: element.clientHeight,
+              scrollTop: element.scrollTop,
+            }))
+            .filter((element) => element.scrollHeight > element.clientHeight + 1),
           unexpected: window.__uiAudit.unexpected, errors: window.__uiAudit.errors,
         }));
         const file = `${phase}-${id}-${width}.png`;
@@ -69,6 +80,12 @@ describe("Settings pages with populated records", () => {
         report.push({ id, tab, file, ...state });
         assert.equal(state.width, width);
         assert.equal(state.overflow, 0);
+        if (tab === "prompt-assembly") {
+          assert(
+            state.verticalScroll.some((element) => element.tag === "ul"),
+            `The prompt list must scroll at ${width}px`,
+          );
+        }
         assert.deepEqual(state.unexpected, []);
         assert.deepEqual(state.errors, []);
         const clippedItems = await browser.execute(() => [...document.querySelectorAll(".a4n-settings-content aside li")]
@@ -76,8 +93,73 @@ describe("Settings pages with populated records", () => {
           .map((item) => item.textContent));
         assert.deepEqual(clippedItems, [], "Configuration list cards must fit inside their rail");
       }
+      if (tab === "prompt-assembly") {
+        const target = await browser.execute(() => {
+          const list = document.querySelector(".a4n-settings-content aside ul");
+          if (!list) throw new Error("Prompt list is missing");
+          const rect = list.getBoundingClientRect();
+          list.scrollTop = 0;
+          return {
+            x: Math.round(rect.left + rect.width / 2),
+            y: Math.round(rect.top + rect.height * 0.75),
+            maxScroll: list.scrollHeight - list.clientHeight,
+          };
+        });
+        assert(target.maxScroll > 0, "The prompt list must have vertical overflow on phone width");
+        await browser.performActions([{
+          type: "pointer",
+          id: "prompt-list-touch-scroll",
+          parameters: { pointerType: "touch" },
+          actions: [
+            { type: "pointerMove", duration: 0, x: target.x, y: target.y },
+            { type: "pointerDown", button: 0 },
+            { type: "pause", duration: 80 },
+            { type: "pointerMove", duration: 250, x: target.x, y: target.y - 160 },
+            { type: "pointerUp", button: 0 },
+          ],
+        }]);
+        await browser.releaseActions();
+        await browser.waitUntil(
+          () => browser.execute(() => document.querySelector(".a4n-settings-content aside ul")?.scrollTop > 0),
+          { timeout: 2000, timeoutMsg: "Touch swipe did not scroll the prompt list" },
+        );
+      }
     });
   }
+
+  it("S19-prompt-assembly switches prompts without leaving the settings page", async () => {
+    await browser.setWindowSize(900, 1000);
+    await browser.url("/");
+    await browser.url("/settings#prompt-assembly");
+    const region = await $(".a4n-settings-content");
+    await region.waitForDisplayed();
+    const promptTitle = await region.$("main h3");
+    await browser.waitUntil(async () => (await promptTitle.getText()).includes("灵感对话"));
+    const selects = await region.$$('button[role="combobox"]');
+    assert.equal(selects.length, 4, "Assembly controls must use the themed select component");
+    const modelCall = await region.$('button[role="combobox"][aria-label="模型调用"]');
+    await modelCall.click();
+    await $('[role="listbox"]').waitForDisplayed();
+    await browser.keys("Escape");
+    await browser.waitUntil(() => browser.execute(() => document.querySelector('[role="listbox"]') == null));
+
+    const search = await region.$('input[type="search"]');
+    await search.setValue("蓝图");
+    const blueprint = await $("//aside//button[contains(normalize-space(.), '蓝图生成')]");
+    await blueprint.waitForDisplayed();
+    await blueprint.click();
+    await browser.waitUntil(async () => (await promptTitle.getText()).includes("蓝图生成"));
+
+    const state = await browser.execute(() => ({
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      unexpected: window.__uiAudit.unexpected,
+      errors: window.__uiAudit.errors,
+    }));
+    assert.equal(state.overflow, 0);
+    assert.deepEqual(state.unexpected, []);
+    assert.deepEqual(state.errors, []);
+    await browser.saveScreenshot(`${output}/${phase}-S19-prompt-assembly-selection.png`);
+  });
 
   for (const [id, tab, price] of [
     ["S01-editor", "llm", "LLM 输入 / 百万 token"],

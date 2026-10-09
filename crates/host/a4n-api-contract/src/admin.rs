@@ -138,6 +138,7 @@ pub enum TestScenarioEffect {
     Read,
     Write,
     Destructive,
+    Test,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -145,6 +146,7 @@ pub enum TestScenarioEffect {
 pub enum TestTargetMode {
     TestProject,
     CurrentProject,
+    Repository,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -163,6 +165,7 @@ pub enum TestRunStatus {
 pub enum TestTarget {
     TestProject { source_project_id: Option<i64> },
     CurrentProject { project_id: i64 },
+    Repository,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

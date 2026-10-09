@@ -2047,13 +2047,13 @@ export interface AdminOverviewSummary {
   total_users: number;
 }
 
-export type TestScenarioEffect = "read" | "write" | "destructive";
+export type TestScenarioEffect = "read" | "write" | "destructive" | "test";
 
-export type TestTargetMode = "test_project" | "current_project";
+export type TestTargetMode = "test_project" | "current_project" | "repository";
 
 export type TestRunStatus = "queued" | "running" | "passed" | "failed" | "cancelled" | "timed_out";
 
-export type TestTarget = { mode: "test_project"; source_project_id?: number | null } | { mode: "current_project"; project_id: number };
+export type TestTarget = { mode: "test_project"; source_project_id?: number | null } | { mode: "current_project"; project_id: number } | { mode: "repository" };
 
 export interface TestScenarioDescriptor {
   category: string;

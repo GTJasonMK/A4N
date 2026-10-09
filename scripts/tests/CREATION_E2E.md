@@ -8,7 +8,7 @@ python3 scripts/tests/run_creation_e2e.py --stage inspiration
 python3 scripts/tests/run_creation_e2e.py --list
 ```
 
-`python3 scripts/tests/run_creation_e2e.py --stage all --browser-feature-flows` 是完整 Web 与 CLI 功能链路 Mock 验收入口。它运行下列阶段测试和浏览器流程，并覆盖媒体改编、角色/场景同步、Agent 委派与领域 Agent、LLM 生命周期/缓存、图片/立绘生成与恢复，以及 `run_all_workflows_e2e.py` 的全业务 fixture。任一子套件缺失、无断言、超时或失败，均使整轮失败；报告中的 `generation_matrix` 汇总全量 CLI 套件状态。
+`python3 scripts/tests/run_creation_e2e.py --stage all --browser-feature-flows` 是完整 Web 与 CLI 功能链路 Mock 验收入口。它运行下列阶段测试和浏览器流程，并覆盖媒体改编、角色/场景同步、Agent 委派与领域 Agent、LLM 生命周期/缓存、图片/立绘生成与恢复、媒体创作工作区、特化 Agent 工作区、镜头同步浏览器流程，以及 `run_all_workflows_e2e.py` 的全业务 fixture。任一子套件缺失、无断言、超时或失败，均使整轮失败；报告中的 `generation_matrix` 汇总全量 CLI 套件状态。
 
 Nightly Full Checks workflow 会自动运行 `--stage all --browser-feature-flows`；PR 只运行轻量矩阵和核心数据库集成。需要在本地复现同一组测试时使用 `./scripts/test-all.sh --profile full`，不要把完整 E2E 当作只编译或只启动服务的检查。
 

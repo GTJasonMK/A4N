@@ -5,7 +5,6 @@ import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
 import type { PromptEntry } from "../../../api/prompt";
 import { PromptAdvancedPanels } from "./AdvancedPanels";
-import { PromptAssemblyPanel } from "./PromptAssemblyPanel";
 import { ProjectOverridePanel } from "./ProjectOverridePanel";
 import { PromptHistoryPanel } from "./PromptHistoryPanel";
 import { useI18n } from "../../../i18n";
@@ -90,7 +89,6 @@ export const PromptEditorPanel: React.FC<PromptEditorPanelProps> = ({
             </summary>
             {advancedOpen ? (
               <div className="mt-1 divide-y divide-book-border/35 border-t border-book-border/35">
-                <PromptAssemblyPanel promptName={prompt.name} />
                 <PromptHistoryPanel prompt={prompt} />
                 <ProjectOverridePanel
                   prompt={prompt}

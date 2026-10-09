@@ -17,8 +17,12 @@ import { useToast } from "../../../components/feedback/Toast";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { BookButton } from "../../../components/ui/BookButton";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import { PromptProjectSelect } from "./PromptProjectSelect";
 import { useI18n } from "../../../i18n";
+import { useDirty } from "../../../components/navigation/dirtyRegistry";
+
+export const PROMPT_ASSEMBLY_DIRTY_KEY = "settings-prompt-assembly";
 
 interface PromptAssemblyPanelProps {
   promptName: string;
@@ -102,6 +106,16 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
   const contextVariables = selected?.project_context_variables ?? [];
   const dirty = JSON.stringify(draft) !== JSON.stringify(savedConfig);
   const busy = loadingList || loadingConfig || saving || resetting;
+
+  const discardDraft = useCallback(() => {
+    previewSeqRef.current += 1;
+    setDraft(savedConfig);
+    setPreview(savedPreview);
+    setPreviewError(null);
+    setPreviewing(false);
+  }, [savedConfig, savedPreview]);
+
+  useDirty(PROMPT_ASSEMBLY_DIRTY_KEY, dirty, discardDraft, () => !busy);
 
   useEffect(() => {
     let active = true;
@@ -381,19 +395,20 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
           <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,0.6fr)]">
             <label className="grid min-w-0 gap-1 text-small text-book-text-muted">
               <span>{t("settingsPrompt.assemblyCall")}</span>
-              <select
+              <ThemedSelect
                 className="pyqt-input min-w-0 w-full"
                 value={selected.call_key}
                 title={selected.call_key}
+                aria-label={t("settingsPrompt.assemblyCall")}
                 disabled={busy}
-                onChange={(event) => void confirmScopeChange(() => setCallKey(event.target.value))}
+                onChange={(value) => void confirmScopeChange(() => setCallKey(value))}
               >
                 {calls.map((call) => (
                   <option key={call.call_key} value={call.call_key} title={call.call_key}>
                     {callOptionLabel(call.call_key, t)}
                   </option>
                 ))}
-              </select>
+              </ThemedSelect>
             </label>
             <label className="grid min-w-0 gap-1 text-small text-book-text-muted">
               <span>{t("settingsPrompt.apply")}</span>
@@ -595,40 +610,51 @@ const AssemblyBlockRow: React.FC<{
       </label>
       <label className="grid min-w-0 gap-1 text-small text-book-text-muted">
         <span>{kindLabel}</span>
-        <select
+        <ThemedSelect
           className="pyqt-input min-w-0 w-full"
           value={block.kind}
+          aria-label={kindLabel}
           disabled={disabled}
-          onChange={(event) => {
-            const kind = event.target.value as PromptAssemblyBlockKind;
-            const value = kind === "template"
+          onChange={(selectedKind) => {
+            const kind = selectedKind as PromptAssemblyBlockKind;
+            const blockValue = kind === "template"
               ? summary.available_templates[0]?.name ?? ""
               : kind === "variable"
                 ? defaultVariable
                 : `{{ ${summary.variables[0] ?? ""} }}`;
-            onChange({ kind, value });
+            onChange({ kind, value: blockValue });
           }}
         >
           <option value="template">{t("settingsPrompt.assemblyTemplate")}</option>
           <option value="variable">{t("settingsPrompt.assemblyVariable")}</option>
           <option value="custom">{t("settingsPrompt.assemblyCustom")}</option>
-        </select>
+        </ThemedSelect>
       </label>
       {block.kind === "template" ? (
-        <select className="pyqt-input min-w-0 w-full self-end" value={block.value} disabled={disabled} onChange={(event) => onChange({ value: event.target.value })} aria-label={t("settingsPrompt.assemblyTemplateSelect")}>
+        <ThemedSelect className="pyqt-input min-w-0 w-full self-end" value={block.value} disabled={disabled} onChange={(value) => onChange({ value })} aria-label={t("settingsPrompt.assemblyTemplateSelect")}>
           {summary.available_templates.map((template) => <option key={template.name} value={template.name}>{template.title || template.name}</option>)}
-        </select>
+        </ThemedSelect>
       ) : block.kind === "variable" ? (
-        <select className="pyqt-input min-w-0 w-full self-end" value={block.value} disabled={disabled} onChange={(event) => onChange({ value: event.target.value })} aria-label={t("settingsPrompt.assemblyVariableSelect")}>
-          <optgroup label={t("settingsPrompt.assemblyVariableGroup")}>
-            {summary.variables.map((variable) => <option key={variable} value={variable}>{`{{ ${variable} }}`}</option>)}
-          </optgroup>
-          {projectContextEnabled && summary.project_context_variables.length > 0 ? (
-            <optgroup label={t("settingsPrompt.projectContextGroup")}>
-              {summary.project_context_variables.map((variable) => <option key={variable} value={variable}>{`{{ ${variable} }}`}</option>)}
-            </optgroup>
-          ) : null}
-        </select>
+        <ThemedSelect
+          className="pyqt-input min-w-0 w-full self-end"
+          value={block.value}
+          disabled={disabled}
+          onChange={(value) => onChange({ value })}
+          aria-label={t("settingsPrompt.assemblyVariableSelect")}
+        >
+          {summary.variables.map((variable) => (
+            <option key={variable} value={variable}>
+              {`${t("settingsPrompt.assemblyVariableGroup")}: {{ ${variable} }}`}
+            </option>
+          ))}
+          {projectContextEnabled && summary.project_context_variables.length > 0
+            ? summary.project_context_variables.map((variable) => (
+                <option key={variable} value={variable}>
+                  {`${t("settingsPrompt.projectContextGroup")}: {{ ${variable} }}`}
+                </option>
+              ))
+            : null}
+        </ThemedSelect>
       ) : (
         <textarea className="book-control min-h-10 min-w-0 w-full resize-y self-end p-2 font-mono text-small" value={block.value} disabled={disabled} onChange={(event) => onChange({ value: event.target.value })} aria-label={t("settingsPrompt.assemblyCustomPlaceholder")} placeholder={t("settingsPrompt.assemblyCustomPlaceholder")} />
       )}
