@@ -84,17 +84,118 @@ function authoringWorkspace() {
 
 const sourceIndex = Array.from({ length: chapterCount }, (_, index) => chapterIndex(index + 1));
 let workspacePayload: SerializedJson | null = null;
+let scriptPayload: SerializedJson | null = null;
+let assetPlanPayload: SerializedJson | null = null;
+
+function galgameScript() {
+  return {
+    id: 1,
+    media_bindings: [],
+    root_project_id: 1,
+    scenes: Array.from({ length: chapterCount }, (_, index) => ({
+      choices: [],
+      lines: [{
+        expression: null,
+        id: index + 1,
+        line_index: 0,
+        line_type: "narration",
+        pose: null,
+        position: null,
+        presentation_json: {
+          after_beat_ref: null,
+          beat_ref: null,
+          branch: null,
+          branch_id: null,
+          cg: null,
+          cg_importance: null,
+          cg_note: null,
+          enter: [],
+          exit: [],
+          focus_character_profile_id: null,
+          hold: false,
+          origin: "manual",
+          player_knowledge: [],
+          returns_to_scene_index: null,
+          schema_version: "galgame_line_presentation_v3",
+          transition: null,
+          visible_cast: [],
+        },
+        scene_id: index + 1,
+        speaker_profile_id: null,
+        text: `性能叙事行 ${index + 1}`,
+        text_anchor_id: null,
+      }],
+      scene: {
+        adaptation_plan_id: null,
+        adaptation_unit_id: null,
+        background_note: null,
+        entry_kind: "main",
+        id: index + 1,
+        location: "性能场景",
+        next_scene_id: index + 2 <= chapterCount ? index + 2 : null,
+        scene_index: index,
+        source_snapshot_chapter_id: index + 1001,
+        time_of_day: null,
+        title: `性能场景 ${index + 1}`,
+      },
+    })),
+    speaker_profiles: [],
+    story_graph: null,
+    story_graph_status: null,
+    text_anchors: [],
+    title: "性能 Galgame 脚本",
+  };
+}
+
+function galgameAssetPlan() {
+  const item = (index: number) => ({
+    canonical_key: `background:${index + 1}`,
+    generation_spec_id: index + 1,
+    label: `性能背景 ${index + 1}`,
+    outcome: null,
+    params_json: { prompt: `性能资产提示词 ${index + 1}` },
+    source_label: `性能场景 ${index + 1}`,
+    source_snapshot_id: snapshotId,
+    status: "pending",
+    target_entity_id: index + 1,
+    target_entity_kind: "galgame_scene",
+    target_kind: "galgame_background",
+  });
+  return {
+    backgrounds: Array.from({ length: chapterCount }, (_, index) => item(index)),
+    event_cgs: [],
+    portrait_expressions: [],
+    summary: {
+      background_specs: chapterCount,
+      created_specs: 0,
+      event_cg_specs: 0,
+      portrait_expression_specs: 0,
+      reused_specs: 0,
+      updated_specs: 0,
+    },
+  };
+}
 
 async function preparePayloads() {
   workspacePayload = await serializeJson(authoringWorkspace());
+  scriptPayload = await serializeJson(galgameScript());
+  assetPlanPayload = await serializeJson(galgameAssetPlan());
 }
 
 function responseFor(command: string): unknown {
   switch (command) {
     case "get_galgame_pipeline_status":
-    case "get_galgame_script":
-    case "get_galgame_asset_plan":
       return null;
+    case "get_galgame_script": {
+      const response = scriptPayload;
+      check(response, "Galgame script fixture was not prepared");
+      return response;
+    }
+    case "get_galgame_asset_plan": {
+      const response = assetPlanPayload;
+      check(response, "Galgame asset plan fixture was not prepared");
+      return response;
+    }
     case "get_media_authoring_workspace": {
       const response = workspacePayload;
       check(response, "Media authoring fixture was not prepared");
@@ -176,12 +277,12 @@ async function measureGalgameSource() {
   const deadline = performance.now() + 30_000;
   const requiredCommands = [
     "get_galgame_pipeline_status",
-    "get_galgame_script",
-    "get_galgame_asset_plan",
     "list_image_configs",
     "list_portraits_by_project",
     "list_profiles",
-    ...(variant === "before" ? ["get_media_authoring_workspace"] : []),
+    ...(variant === "before"
+      ? ["get_galgame_script", "get_galgame_asset_plan", "get_media_authoring_workspace"]
+      : []),
   ];
   while (
     (pendingRequests > 0 || requiredCommands.some((command) =>
@@ -212,6 +313,7 @@ Object.assign(window, {
   measureGalgameSource,
   galgameWorkspaceRequestCount: () => requestLog.filter((request) => request.command === "get_media_authoring_workspace").length,
   galgameWorkspaceCompleteCount: () => requestLog.filter((request) => request.command === "get_media_authoring_workspace" && request.complete).length,
+  galgameCompletedCount: (command: string) => requestLog.filter((request) => request.command === command && request.complete).length,
   performanceReady: false,
 });
 void preparePayloads().then(() => { window.performanceReady = true; }).catch((error) => {

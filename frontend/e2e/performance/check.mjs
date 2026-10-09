@@ -129,6 +129,12 @@ try {
     if (!baselineRef) {
       await browser.execute(() => document.querySelector("[role=tab][id$='-tab-adaptation']")?.click());
       await browser.waitUntil(() => browser.execute(() => window.galgameWorkspaceCompleteCount() === 1));
+      await browser.execute(() => document.querySelector("[role=tab][id$='-tab-script']")?.click());
+      await browser.waitUntil(() => browser.execute(() => window.galgameCompletedCount("get_galgame_script") === 1));
+      await browser.execute(() => document.querySelector("[role=tab][id$='-tab-asset_plan']")?.click());
+      await browser.waitUntil(() => browser.execute(() =>
+        window.galgameCompletedCount("get_galgame_asset_plan") === 1
+        && window.galgameCompletedCount("get_galgame_script") === 2));
     }
     report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
       galgameSource };

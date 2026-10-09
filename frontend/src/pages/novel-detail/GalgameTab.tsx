@@ -105,6 +105,18 @@ const GALGAME_STAGE_IDS = [
   "export",
 ] as const;
 
+type GalgameStageId = (typeof GALGAME_STAGE_IDS)[number];
+type GalgameLoadOptions = {
+  includeAssetPlan?: boolean;
+  includeScript?: boolean;
+};
+
+const galgameStageNeedsScript = (stage: GalgameStageId): boolean =>
+  stage !== "materials" && stage !== "adaptation" && stage !== "branches";
+
+const galgameStageNeedsAssetPlan = (stage: GalgameStageId): boolean =>
+  stage === "asset_plan" || stage === "asset_generation";
+
 export const GalgameTab: React.FC<GalgameTabProps> = ({
   projectId,
   materialProjectId,
@@ -179,15 +191,18 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   activeProjectIdRef.current = projectId;
   const isCurrentProject = (requestProjectId: number) => activeProjectIdRef.current === requestProjectId;
 
-  const load = React.useCallback(async (): Promise<boolean> => {
+  const load = React.useCallback(async ({
+    includeScript = true,
+    includeAssetPlan = true,
+  }: GalgameLoadOptions = {}): Promise<boolean> => {
     const seq = requestSeqRef.current + 1;
     requestSeqRef.current = seq;
     setLoading(true);
     try {
       const [statusResult, scriptResult, assetPlanResult] = await Promise.allSettled([
         getGalgamePipelineStatus(projectId),
-        getGalgameScript(projectId),
-        getGalgameAssetPlan(projectId),
+        includeScript ? getGalgameScript(projectId) : Promise.resolve(null),
+        includeAssetPlan ? getGalgameAssetPlan(projectId) : Promise.resolve(null),
       ]);
       if (requestSeqRef.current !== seq) return false;
       if (statusResult.status === "fulfilled") {
@@ -199,27 +214,38 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
           "error",
         );
       }
-      if (scriptResult.status === "fulfilled") {
+      if (includeScript) {
+        if (scriptResult.status === "fulfilled") {
+          setLoadError(null);
+          setDetail(scriptResult.value);
+          setSelectedSceneId(
+            (current) =>
+              current ?? scriptResult.value?.scenes[0]?.scene.id ?? null,
+          );
+        } else {
+          setLoadError(extractErrorMessage(scriptResult.reason, t("galgame.loadFailed")));
+        }
+      } else {
+        setDetail(null);
+        setSelectedSceneId(null);
         setLoadError(null);
-        setDetail(scriptResult.value);
-        setSelectedSceneId(
-          (current) =>
-            current ?? scriptResult.value?.scenes[0]?.scene.id ?? null,
-        );
-      } else {
-        setLoadError(extractErrorMessage(scriptResult.reason, t("galgame.loadFailed")));
       }
-      if (assetPlanResult.status === "fulfilled") {
-        setAssetPlan(assetPlanResult.value);
+      if (includeAssetPlan) {
+        if (assetPlanResult.status === "fulfilled") {
+          setAssetPlan(assetPlanResult.value);
+          setAssetPlanError(null);
+        } else {
+          setAssetPlanError(extractErrorMessage(assetPlanResult.reason, t("galgame.planLoadFailed")));
+        }
+      } else {
+        setAssetPlan(null);
         setAssetPlanError(null);
-      } else {
-        setAssetPlanError(extractErrorMessage(assetPlanResult.reason, t("galgame.planLoadFailed")));
       }
-      return scriptResult.status === "fulfilled";
+      return !includeScript || scriptResult.status === "fulfilled";
     } finally {
       if (requestSeqRef.current === seq) setLoading(false);
     }
-  }, [addToast, projectId]);
+  }, [addToast, projectId, t]);
 
   const reloadAfterMutation = async (requestProjectId: number): Promise<boolean> => {
     const refreshed = await load();
@@ -248,11 +274,20 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     setRequestPreviewLoading(false);
     setRequestPreviewData(null);
     previewSeqRef.current += 1;
-    void load();
     return () => {
       requestSeqRef.current += 1;
     };
-  }, [load]);
+  }, [projectId]);
+
+  useEffect(() => {
+    void load({
+      includeScript: galgameStageNeedsScript(workspaceStage),
+      includeAssetPlan: galgameStageNeedsAssetPlan(workspaceStage),
+    });
+    return () => {
+      requestSeqRef.current += 1;
+    };
+  }, [load, workspaceStage]);
 
   useEffect(() => {
     setAssetBindingDrafts({});
@@ -399,7 +434,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
 
   const handleRefreshScript = async () => {
     if (busyTarget != null || !await confirmDiscardScriptDrafts()) return;
-    await load();
+    await load({ includeScript: true, includeAssetPlan: true });
   };
 
   const currentPipelineStartStage = (): GalgamePipelineStartStage | null =>
@@ -969,12 +1004,19 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     <div className="flex min-h-[60vh] flex-col gap-3 lg:h-full lg:min-h-0">
       {loadError ? <p role="alert" className="text-small text-error">{loadError}</p> : null}
       <MediaStageHeader id={stageId} label={t("common.mediaAuthoring.stages")} tabs={stageTabs} activeTab={workspaceStage}
-        onTabChange={async (stage) => { if (!await confirmLeaveStage()) return false; if (workspaceStage === "materials") void load(); setWorkspaceStage(stage); return true; }} />
+        onTabChange={async (stage) => {
+          if (!await confirmLeaveStage()) return false;
+          setWorkspaceStage(stage);
+          return true;
+        }} />
       {outputState?.stale && workspaceStage !== "adaptation" && workspaceStage !== "branches" && <p role="status" className="text-xs text-warning">{t("common.mediaAuthoring.outputsStale")}</p>}
       {authoring.error && workspaceStage !== "adaptation" && workspaceStage !== "branches" && <p role="alert" className="text-xs text-error">{authoring.error}</p>}
       <div id={`${stageId}-panel`} role="tabpanel" aria-labelledby={`${stageId}-tab-${workspaceStage}`} className="flex min-h-0 flex-1 flex-col gap-3">
       {workspaceStage === "materials" ? <BaseMaterialsWorkspace projectId={materialProjectId} canEdit={canEditGalgame}
-        onChanged={load} onNext={async () => { if (await load()) setWorkspaceStage("adaptation"); }} />
+        onChanged={() => load({ includeScript: true, includeAssetPlan: true })}
+        onNext={async () => {
+          if (await load({ includeScript: true, includeAssetPlan: true })) setWorkspaceStage("adaptation");
+        }} />
       : workspaceStage === "adaptation" || workspaceStage === "branches" ? <MediaAuthoringPanel key={`${projectId}:${workspaceStage}:${discardVersion}`} projectId={projectId}
         kind={workspaceStage === "adaptation" ? "adaptation_plan" : "galgame_branch_plan"}
         workspace={authoring.workspace} loading={authoring.loading} error={authoring.error} canEdit={canEditGalgame} stageRunning={pipelineRunning}

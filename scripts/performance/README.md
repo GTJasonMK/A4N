@@ -275,4 +275,10 @@ A4N_PERF_ARTIFACTS=../data/performance-audit-20261010/manga-before-02 \
 - 请求位置：Galgame 工作区默认 `materials` 阶段。旧实现挂载 `GalgameTab` 即请求 `get_media_authoring_workspace`，该响应包含整个源快照的章节跨度；材料页只显示角色/素材，不读取创作工作区。新实现把读取开关绑定到 `adaptation`/`branches` 阶段，进入这两个阶段后仍按原命令读取并保留错误/权限处理。
 - 真实 Chromium 153.0.8010.52 夹具使用 1000 个源章节、4 Mbps/50 ms 传输模型，前后版本只替换 `GalgameTab.tsx`，三轮交错取中位数。初始请求 JSON **9,460,572 → 20 B（99.9998%）**，gzip 字节 **46,854 → 20 B（99.96%）**；初始可用时间 **226.8 → 154.0 ms（32.10%）**；JS heap **30.30 → 23.96 MB（20.94%）**。DOM、章节计数和 780px 窄屏宽度保持一致。
 - 夹具随后点击 `adaptation` tab，候选版本确认发出且完成一次 `get_media_authoring_workspace`，证明延迟读取没有删除工作流。证据为 `data/performance-audit-20261010/galgame-before-{02,03,04}/` 与 `galgame-after-{05,06,07}/`；复现命令沿用 `A4N_PERF_CASE=galgame-source` 和 `A4N_PERF_BASELINE_REF=3f6a2408c`。
+
+### PERF-022：Galgame 脚本与资产计划按阶段读取
+
+- 请求位置：Galgame `materials`、`adaptation`、`branches` 阶段不使用完整脚本和资产计划；`script`/`export` 阶段需要脚本，`asset_plan`/`asset_generation` 阶段需要脚本和资产计划。旧实现三类数据在所有阶段挂载时并行读取；新实现按阶段显式投影，刷新和材料页“下一阶段”仍可强制完整刷新。
+- 真实 Chromium 153.0.8010.52 夹具生成 1000 个脚本场景、1000 个资产规格和 1000 个源章节，三轮交错取中位数：初始可用 **303.7 → 138.4 ms（54.45%）**，初始 JSON **10,616,545 → 12 B（99.9999%）**，gzip 字节 **90,431 → 12 B（99.99%）**，JS heap **33.52 → 26.37 MB（21.34%）**。DOM、章节计数和窄屏宽度保持一致。
+- 同一夹具随后依次点击 `adaptation`、`script`、`asset_plan`：候选版本分别完成一次媒体编排读取、一次脚本读取，以及第二次脚本读取加一次资产计划读取；因此延迟加载没有把后续业务功能变成空状态。证据为 `data/performance-audit-20261010/galgame-script-before-{02,03,04}/` 与 `galgame-script-after-{06,07,08}/`，入口为 `A4N_PERF_CASE=galgame-source`。
 ```
