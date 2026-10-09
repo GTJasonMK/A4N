@@ -1,8 +1,6 @@
 use a4n_manga_record_worker_contract::MANGA_RECORD_WORKER_ID;
 pub(super) use a4n_worker_contract::WorkerFailure;
-use a4n_worker_contract::{
-    WorkerEnvelope, WorkerOperationRef, WorkerOperationStatus, WorkerResponse,
-};
+use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
 pub(super) fn validate_request<T: serde::Serialize>(
     request: &WorkerEnvelope<T>,
@@ -109,44 +107,12 @@ pub(super) fn completed<T>(
     request: &WorkerEnvelope<impl serde::Serialize>,
     payload: T,
 ) -> WorkerResponse<T> {
-    WorkerResponse {
-        schema_version: a4n_worker_contract::WORKER_SCHEMA_VERSION,
-        request_id: request.request_id.clone(),
-        trace_id: request.trace_id.clone(),
-        operation: WorkerOperationRef {
-            operation_id: request.operation_id.clone(),
-            task_id: None,
-        },
-        status: WorkerOperationStatus::Completed,
-        payload: Some(payload),
-        resource_refs: Vec::new(),
-        committed_revision: None,
-        provider_job_id: None,
-        result_summary: None,
-        pagination: None,
-        error: None,
-    }
+    WorkerResponse::completed_for(request, payload)
 }
 
 pub(super) fn failed<T>(
     request: &WorkerEnvelope<impl serde::Serialize>,
     failure: WorkerFailure,
 ) -> WorkerResponse<T> {
-    WorkerResponse {
-        schema_version: a4n_worker_contract::WORKER_SCHEMA_VERSION,
-        request_id: request.request_id.clone(),
-        trace_id: request.trace_id.clone(),
-        operation: WorkerOperationRef {
-            operation_id: request.operation_id.clone(),
-            task_id: None,
-        },
-        status: WorkerOperationStatus::Failed,
-        payload: None,
-        resource_refs: Vec::new(),
-        committed_revision: None,
-        provider_job_id: None,
-        result_summary: None,
-        pagination: None,
-        error: Some(failure.into()),
-    }
+    WorkerResponse::failed_for(request, failure.into())
 }

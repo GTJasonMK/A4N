@@ -14,7 +14,7 @@ use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
     WorkerCapability, WorkerEnvelope, WorkerFailure, WorkerHealth, WorkerHealthStatus,
-    WorkerOperationRef, WorkerOperationStatus, WorkerResponse,
+    WorkerResponse,
 };
 use axum::{
     Json, Router,
@@ -289,46 +289,14 @@ fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> Wo
 }
 
 fn completed<T>(request: &WorkerEnvelope<impl serde::Serialize>, payload: T) -> WorkerResponse<T> {
-    WorkerResponse {
-        schema_version: WORKER_SCHEMA_VERSION,
-        request_id: request.request_id.clone(),
-        trace_id: request.trace_id.clone(),
-        operation: WorkerOperationRef {
-            operation_id: request.operation_id.clone(),
-            task_id: None,
-        },
-        status: WorkerOperationStatus::Completed,
-        payload: Some(payload),
-        resource_refs: Vec::new(),
-        committed_revision: None,
-        provider_job_id: None,
-        result_summary: None,
-        pagination: None,
-        error: None,
-    }
+    WorkerResponse::completed_for(request, payload)
 }
 
 fn failed<T>(
     request: &WorkerEnvelope<impl serde::Serialize>,
     failure: WorkerFailure,
 ) -> WorkerResponse<T> {
-    WorkerResponse {
-        schema_version: WORKER_SCHEMA_VERSION,
-        request_id: request.request_id.clone(),
-        trace_id: request.trace_id.clone(),
-        operation: WorkerOperationRef {
-            operation_id: request.operation_id.clone(),
-            task_id: None,
-        },
-        status: WorkerOperationStatus::Failed,
-        payload: None,
-        resource_refs: Vec::new(),
-        committed_revision: None,
-        provider_job_id: None,
-        result_summary: None,
-        pagination: None,
-        error: Some(failure.into()),
-    }
+    WorkerResponse::failed_for(request, failure.into())
 }
 
 fn unauthorized() -> Response {

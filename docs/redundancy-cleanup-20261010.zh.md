@@ -97,6 +97,15 @@ CodeGraph 无法解析跨 crate 的 `a4n_config::worker_listen_addr`（29 处）
 - 新增 contract 单测覆盖六种错误码、retryable 和消息转换；contract 46 项、worker client 14 项通过；workspace all-targets check 通过，无告警，覆盖全部 Worker producer 与 Control/Host consumer。
 - 记录文件：`crates/process/a4n-worker-contract/{src/wire.rs,src/wire_tests.rs}`、29 个 Worker crate 的失败类型/响应模块及相应专属调用点。
 
+### R-11：集中 Worker 完成/失败响应元数据装配
+
+- 类别：重复协议响应实现。
+- BFS 从 Worker catalog 和 Axum 路由注册进入 29 个 Worker command handler，沿 `completed`/`failed` helper、`WorkerResponse` 构造和 Host/Control 消费者追踪 request、trace、operation identity；逐处搜索 `WorkerResponse` 直接字面量、`WorkerOperationRef` 装配、导入链和测试入口，确认重复只存在于响应元数据装配，不改变各 Worker 的业务 payload、错误分类或 HTTP 未授权路径。
+- `a4n-worker-contract::WorkerResponse` 新增 `completed_for` 与 `failed_for`，统一 schema version、request/trace ID、operation ID、空 task ID、状态、payload/error 和其余可选字段的初始化。29 个 Worker 的本地 builder 改为薄转发，共删除约 1,033 行重复 wire 初始化；Canvas Record 为保留 `RequestMeta` 的所有权边界使用 `completed_for_parts`/`failed_for_parts`，避免重新借用或复制完整请求 payload。
+- 保留所有本地 helper 名称和调用关系，避免扩大路由/响应转换改动；共享入口只负责协议字段，业务错误仍由各 Worker 先映射为 `WorkerFailure`，再通过既有 `From<WorkerFailure> for WorkerError` 转换。未新增默认值、兼容分支、异常吞并或重试路径。
+- 新增合同测试覆盖成功/失败响应的 request、trace、operation identity、状态、payload/error 和 parts 构造校验；静态搜索确认 29 个生产 helper 都只转发到共享入口，生产侧唯一直接使用 parts 的路径是 Canvas Record，其他路径不再自行装配 `WorkerOperationRef`。
+- 记录文件：`crates/process/a4n-worker-contract/src/wire.rs`、`wire_tests.rs`，以及 29 个 Worker 的响应 helper 文件。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -109,9 +118,9 @@ CodeGraph 无法解析跨 crate 的 `a4n_config::worker_listen_addr`（29 处）
 ## 验证
 
 - `cargo check --workspace --locked --offline`：续作后全 workspace 通过，无警告。
-- `cargo check --workspace --all-targets --locked --offline`：通过，编译全 workspace 的测试/示例目标，无警告；本轮 R-10 后再次执行通过。
+- `cargo check --workspace --all-targets --locked --offline`：通过，编译全 workspace 的测试/示例目标，无警告；本轮 R-11 后再次执行通过。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-client --lib`：14/14 通过，覆盖共享传输与响应错误映射。
-- `timeout 60s cargo test --locked --offline -p a4n-worker-contract -p a4n-worker-client --lib`：46/46 和 14/14 通过，覆盖共享失败构造、wire 序列化和 client 错误映射。
+- `timeout 60s cargo test --locked --offline -p a4n-worker-contract -p a4n-worker-client --lib`：47/47 和 14/14 通过，覆盖共享失败构造、响应元数据装配、wire 序列化和 client 错误映射。
 - `cargo check --locked --offline -p a4n-worker-runtime -p a4n-service-manager -p a4n-server -p a4n-tauri`：通过，验证共享父进程退出信号 helper 的三个集成点和更新后的 lockfile。
 - `timeout 60s cargo test --locked --offline -p a4n-config worker_listen_addr_requires_loopback_and_nonzero_port --lib`：1/1 通过。
 - Worker client Debug 脱敏定向测试：30 个 client 各 1 项通过；共享 URL/token 解析测试 1/1 通过；28 个环境读取消费者 `cargo check` 通过。

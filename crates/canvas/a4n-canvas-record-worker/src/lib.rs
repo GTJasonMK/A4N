@@ -20,7 +20,7 @@ use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
     WorkerCapability, WorkerEnvelope, WorkerFailure, WorkerHealth, WorkerHealthStatus,
-    WorkerOperationRef, WorkerOperationStatus, WorkerResponse,
+    WorkerResponse,
 };
 use axum::{
     Json, Router,
@@ -411,43 +411,16 @@ fn canvas_db_error(error: CanvasDbError) -> WorkerFailure {
 }
 
 fn completed<T: Serialize>(meta: RequestMeta, payload: T) -> WorkerResponse<T> {
-    WorkerResponse {
-        schema_version: WORKER_SCHEMA_VERSION,
-        request_id: meta.request_id,
-        trace_id: meta.trace_id,
-        operation: WorkerOperationRef {
-            operation_id: meta.operation_id,
-            task_id: None,
-        },
-        status: WorkerOperationStatus::Completed,
-        payload: Some(payload),
-        resource_refs: Vec::new(),
-        committed_revision: None,
-        provider_job_id: None,
-        result_summary: None,
-        pagination: None,
-        error: None,
-    }
+    WorkerResponse::completed_for_parts(meta.request_id, meta.trace_id, meta.operation_id, payload)
 }
 
 fn failed<T>(meta: RequestMeta, failure: WorkerFailure) -> WorkerResponse<T> {
-    WorkerResponse {
-        schema_version: WORKER_SCHEMA_VERSION,
-        request_id: meta.request_id,
-        trace_id: meta.trace_id,
-        operation: WorkerOperationRef {
-            operation_id: meta.operation_id,
-            task_id: None,
-        },
-        status: WorkerOperationStatus::Failed,
-        payload: None,
-        resource_refs: Vec::new(),
-        committed_revision: None,
-        provider_job_id: None,
-        result_summary: None,
-        pagination: None,
-        error: Some(failure.into()),
-    }
+    WorkerResponse::failed_for_parts(
+        meta.request_id,
+        meta.trace_id,
+        meta.operation_id,
+        failure.into(),
+    )
 }
 
 impl RequestMeta {

@@ -64,6 +64,56 @@ fn worker_failure_constructors_share_wire_error_semantics() {
     }
 }
 
+#[test]
+fn worker_responses_share_canonical_command_metadata() {
+    let request = valid_envelope();
+    let completed = WorkerResponse::completed_for(&request, serde_json::json!({"ok": true}));
+    assert_eq!(completed.schema_version, WORKER_SCHEMA_VERSION);
+    assert_eq!(completed.request_id, request.request_id);
+    assert_eq!(completed.trace_id, request.trace_id);
+    assert_eq!(completed.operation.operation_id, request.operation_id);
+    assert_eq!(completed.operation.task_id, None);
+    assert_eq!(completed.status, WorkerOperationStatus::Completed);
+    assert_eq!(completed.payload, Some(serde_json::json!({"ok": true})));
+    completed.validate().expect("completed response validates");
+
+    let failed = WorkerResponse::<serde_json::Value>::failed_for(
+        &request,
+        WorkerFailure::unavailable("database unavailable").into(),
+    );
+    assert_eq!(failed.request_id, request.request_id);
+    assert_eq!(failed.trace_id, request.trace_id);
+    assert_eq!(failed.operation.operation_id, request.operation_id);
+    assert_eq!(failed.operation.task_id, None);
+    assert_eq!(failed.status, WorkerOperationStatus::Failed);
+    assert_eq!(failed.payload, None);
+    assert_eq!(
+        failed.error.as_ref().map(|error| error.code),
+        Some(WorkerErrorCode::Unavailable)
+    );
+    failed.validate().expect("failed response validates");
+
+    let failed_from_parts = WorkerResponse::<serde_json::Value>::failed_for_parts(
+        "request-2".into(),
+        "trace-2".into(),
+        "content.update".into(),
+        WorkerFailure::internal("conversion failed").into(),
+    );
+    assert_eq!(failed_from_parts.request_id, "request-2");
+    assert_eq!(failed_from_parts.trace_id, "trace-2");
+    assert_eq!(failed_from_parts.operation.operation_id, "content.update");
+    assert_eq!(failed_from_parts.operation.task_id, None);
+    assert_eq!(failed_from_parts.status, WorkerOperationStatus::Failed);
+    assert_eq!(failed_from_parts.payload, None);
+    assert_eq!(
+        failed_from_parts.error.as_ref().map(|error| error.code),
+        Some(WorkerErrorCode::Internal)
+    );
+    failed_from_parts
+        .validate()
+        .expect("failed response from parts validates");
+}
+
 fn valid_envelope() -> WorkerEnvelope<serde_json::Value> {
     WorkerEnvelope {
         schema_version: WORKER_SCHEMA_VERSION,

@@ -431,6 +431,74 @@ where
 }
 
 impl<T> WorkerResponse<T> {
+    pub fn completed_for<P>(request: &WorkerEnvelope<P>, payload: T) -> Self {
+        Self::completed_for_parts(
+            request.request_id.clone(),
+            request.trace_id.clone(),
+            request.operation_id.clone(),
+            payload,
+        )
+    }
+
+    pub fn failed_for<P>(request: &WorkerEnvelope<P>, error: WorkerError) -> Self {
+        Self::failed_for_parts(
+            request.request_id.clone(),
+            request.trace_id.clone(),
+            request.operation_id.clone(),
+            error,
+        )
+    }
+
+    pub fn completed_for_parts(
+        request_id: String,
+        trace_id: String,
+        operation_id: String,
+        payload: T,
+    ) -> Self {
+        Self {
+            schema_version: WORKER_SCHEMA_VERSION,
+            request_id,
+            trace_id,
+            operation: WorkerOperationRef {
+                operation_id,
+                task_id: None,
+            },
+            status: WorkerOperationStatus::Completed,
+            payload: Some(payload),
+            resource_refs: Vec::new(),
+            committed_revision: None,
+            provider_job_id: None,
+            result_summary: None,
+            pagination: None,
+            error: None,
+        }
+    }
+
+    pub fn failed_for_parts(
+        request_id: String,
+        trace_id: String,
+        operation_id: String,
+        error: WorkerError,
+    ) -> Self {
+        Self {
+            schema_version: WORKER_SCHEMA_VERSION,
+            request_id,
+            trace_id,
+            operation: WorkerOperationRef {
+                operation_id,
+                task_id: None,
+            },
+            status: WorkerOperationStatus::Failed,
+            payload: None,
+            resource_refs: Vec::new(),
+            committed_revision: None,
+            provider_job_id: None,
+            result_summary: None,
+            pagination: None,
+            error: Some(error),
+        }
+    }
+
     pub fn validate(&self) -> Result<(), WorkerContractError> {
         validate_worker_schema_version(self.schema_version)?;
         validate_non_blank("request_id", &self.request_id)?;
