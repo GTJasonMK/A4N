@@ -235,18 +235,6 @@ fn validate_request<T: serde::Serialize>(
     Ok(())
 }
 
-fn scoped_project_id<T>(
-    request: &WorkerEnvelope<T>,
-    project_id: i64,
-) -> Result<i64, WorkerFailure> {
-    if project_id <= 0 || request.project_id != Some(project_id) {
-        return Err(WorkerFailure::invalid_request(
-            "worker scope project_id 与 payload 不一致或无效",
-        ));
-    }
-    Ok(project_id)
-}
-
 async fn review_for_editor(
     database: &DbHandle,
     user_id: i64,

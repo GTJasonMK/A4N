@@ -7,7 +7,7 @@ impl WorkerState {
     ) -> Result<SceneSyncRecordResult, WorkerFailure> {
         validate_request(&request, SCENE_PROFILE_SYNC_RECORDS_OPERATION)?;
         let project_id = request.payload.project_id;
-        validate_required_project_scope(request.project_id, project_id)?;
+        request.require_project_scope(project_id)?;
         let user_id = user_id(&request)?;
         self.verify_editor(project_id, user_id).await?;
         let SceneProfileSyncRecordsInput {

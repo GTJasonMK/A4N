@@ -221,18 +221,6 @@ fn validate_request<T: serde::Serialize>(
     )
 }
 
-fn ensure_project_scope(
-    scope_project_id: Option<i64>,
-    payload_project_id: i64,
-) -> Result<(), WorkerFailure> {
-    if payload_project_id <= 0 || scope_project_id != Some(payload_project_id) {
-        return Err(WorkerFailure::invalid_request(
-            "worker scope project_id 与 payload 不一致或无效",
-        ));
-    }
-    Ok(())
-}
-
 fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
     request.principal.require_user_id()
 }
@@ -343,7 +331,7 @@ fn unauthorized() -> Response {
 
 #[cfg(test)]
 mod tests {
-    use super::{WorkerEnvelope, collaboration_error, ensure_project_scope, validate_request};
+    use super::{WorkerEnvelope, collaboration_error, validate_request};
     use a4n_foreshadowing_worker_contract::{
         FORESHADOWING_LIST_OPERATION, FORESHADOWING_WORKER_ID, ForeshadowingProjectInput,
     };
@@ -377,14 +365,6 @@ mod tests {
         };
         assert!(validate_request(&request, FORESHADOWING_LIST_OPERATION).is_err());
         assert_eq!(FORESHADOWING_LIST_OPERATION, "profile.foreshadowing.list");
-    }
-
-    #[test]
-    fn mutation_scope_must_match_request_project() {
-        assert!(ensure_project_scope(Some(7), 7).is_ok());
-        assert!(ensure_project_scope(Some(8), 7).is_err());
-        assert!(ensure_project_scope(None, 7).is_err());
-        assert!(ensure_project_scope(Some(7), 0).is_err());
     }
 
     #[test]

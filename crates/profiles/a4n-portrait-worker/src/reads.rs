@@ -6,7 +6,7 @@ impl WorkerState {
         request: WorkerEnvelope<PortraitProjectInput>,
     ) -> Result<Vec<PortraitSummary>, WorkerFailure> {
         validate_request(&request, PORTRAIT_LIST_OPERATION)?;
-        let project_id = scoped_project_id(&request, request.payload.project_id)?;
+        let project_id = request.require_project_scope(request.payload.project_id)?;
         let user_id = user_id(&request)?;
         verify_permission(
             self,
@@ -94,7 +94,7 @@ impl WorkerState {
         request: WorkerEnvelope<PortraitProjectInput>,
     ) -> Result<Vec<PortraitGenerationSeedWire>, WorkerFailure> {
         validate_request(&request, PORTRAIT_MISSING_SEEDS_OPERATION)?;
-        let project_id = scoped_project_id(&request, request.payload.project_id)?;
+        let project_id = request.require_project_scope(request.payload.project_id)?;
         let user_id = user_id(&request)?;
         verify_permission(
             self,

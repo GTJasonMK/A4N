@@ -207,18 +207,6 @@ fn validate_request<T: serde::Serialize>(
     request.validate_worker_command(operation, BLUEPRINT_WORKER_ID, "blueprint worker")
 }
 
-fn validate_project_scope<T>(
-    request: &WorkerEnvelope<T>,
-    project_id: i64,
-) -> Result<(), WorkerFailure> {
-    if project_id <= 0 || request.project_id != Some(project_id) {
-        return Err(WorkerFailure::invalid_request(
-            "worker scope project_id 与 payload 不一致或无效",
-        ));
-    }
-    Ok(())
-}
-
 fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
     request.principal.require_user_id()
 }

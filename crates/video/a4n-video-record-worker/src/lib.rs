@@ -353,12 +353,12 @@ fn validate_required_project_scope<T>(
     request: &WorkerEnvelope<T>,
     project_id: i64,
 ) -> Result<(), WorkerFailure> {
-    if project_id <= 0 || request.project_id != Some(project_id) {
-        return Err(WorkerFailure::invalid_request(
+    request
+        .require_project_scope_with_message(
+            project_id,
             "worker scope project_id 与资源 project_id 不一致或无效",
-        ));
-    }
-    Ok(())
+        )
+        .map(|_| ())
 }
 
 fn validate_optional_project_scope(

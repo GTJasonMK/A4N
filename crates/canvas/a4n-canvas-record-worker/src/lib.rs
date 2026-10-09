@@ -341,18 +341,6 @@ fn validate_request<T: Serialize>(
     )
 }
 
-fn validate_project_scope<T>(
-    request: &WorkerEnvelope<T>,
-    project_id: i64,
-) -> Result<(), WorkerFailure> {
-    if project_id <= 0 || request.project_id != Some(project_id) {
-        return Err(WorkerFailure::invalid_request(
-            "worker scope project_id 与 payload 不一致或无效",
-        ));
-    }
-    Ok(())
-}
-
 fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
     request.principal.require_user_id()
 }
@@ -445,7 +433,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::graph::{apply_operation, read_canvas_graph};
-    use super::{validate_project_scope, validate_request};
+    use super::validate_request;
     use a4n_canvas_record_worker_contract::{
         CANVAS_GRAPH_EDIT_OPERATION, CANVAS_RECORD_WORKER_ID, CanvasEdgeInput, CanvasEdgeSummary,
         CanvasGraphDocument, CanvasGraphEditOperation, CanvasGraphProjection, CanvasGraphSummary,
@@ -527,8 +515,8 @@ mod tests {
     fn request_scope_and_operation_are_enforced() {
         let request = request(Some(1), CANVAS_GRAPH_EDIT_OPERATION);
         assert!(validate_request(&request, CANVAS_GRAPH_EDIT_OPERATION).is_ok());
-        assert!(validate_project_scope(&request, 1).is_ok());
-        assert!(validate_project_scope(&request, 2).is_err());
+        assert!(request.require_project_scope(1).is_ok());
+        assert!(request.require_project_scope(2).is_err());
         assert!(validate_request(&request, "canvas.graph.read").is_err());
     }
 

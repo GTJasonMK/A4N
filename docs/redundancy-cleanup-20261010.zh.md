@@ -3,12 +3,12 @@
 ## 范围与方法
 
 - 工作分支：`agent/redundancy-cleanup-20261010`，基线 `debug@3f6a2408c9e78c4719259e77d5443f2befdd8fda`。
-- 建立分支本地 CodeGraph 索引后持续同步；当前索引覆盖 6,242 个文件、86,257 个符号、275,825 条边，状态为 up to date。
+- 建立分支本地 CodeGraph 索引后持续同步；当前索引覆盖 6,242 个文件、86,246 个符号、275,760 条边，状态为 up to date。
 - 从 `a4n-server`、Tauri 本地 Server、`a4n-component-host`、Worker/Sidecar catalog、Axum route 注册、`a4n-control` 动态 command 分派和 `frontend/src/App.tsx` 路由入口追踪生产调用与注册点。前端索引包含 444 个 TS 和 318 个 TSX 文件。
 - 基线 Cargo workspace 有 213 个 crate manifest；本次增加 runtime crate 后共 214 个。`cargo metadata` 核对了 Worker 对共享配置/runtime crate 的依赖。静态搜索补查脚本启动、环境变量、历史迁移、测试 fixture、生成合同脚本和运行时路由字符串。
 - 检查了 `#[allow(dead_code)]`、兼容/legacy 命名、候选无入边符号、Cargo 直接依赖和可复用的前端格式工具。
 
-CodeGraph 当前索引仍有 96 条 unresolved references，跨 crate helper 导入和部分动态/宏式 route 注册未必能形成完整调用边；例如共享 runtime helper 的包外调用需要用静态搜索复核。所有本批跨 crate helper 消费者均经源码搜索确认，并由 workspace 或对应 crate 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
+最后一次 CodeGraph sync 报告仍有 10 条 unresolved references；跨 crate helper 导入和部分动态/宏式 route 注册未必能形成完整调用边，例如共享 runtime helper 的包外调用需要用静态搜索复核。所有本批跨 crate helper 消费者均经源码搜索确认，并由 workspace 或对应 crate 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
 
 本记录说明实际检查的入口和结果，不声称仅凭静态分析证明了所有运行环境、外部调用者、反射或部署配置均无遗漏。未对所有产品模块做逐函数人工审阅，也未运行浏览器端到端流程。
 
@@ -142,6 +142,15 @@ CodeGraph 当前索引仍有 96 条 unresolved references，跨 crate helper 导
 - 新增 contract 单测覆盖 User、Service、正整数 subject 和零 ID 边界；contract 49 项通过，受影响 Worker/runtime 的 all-targets 检查通过，无警告。
 - 记录文件：`crates/process/a4n-worker-contract/{src/wire.rs,src/wire_tests.rs}`、26 个 Worker 的 `user_id` helper 和 Agent user-command 校验。
 
+### R-16：统一 Worker 必选项目范围校验
+
+- 类别：重复协议校验。
+- BFS 覆盖：从 Worker catalog 与 Axum route 注册进入 command handler，追踪 `validate_request`、读写操作中的 payload project ID 校验、权限查询与后续数据库调用；复用 R-12/R-13 已核对的 Worker route/handler 注册关系。CodeGraph 同步后探查 `WorkerEnvelope::require_project_scope` 的调用关系；静态搜索复核全部引用和原有谓词，覆盖 `a4n-asset-graph-worker`、`a4n-canvas-record-worker`、`a4n-inspiration-worker`、`a4n-project-access-worker`、`a4n-project-read-worker`、`a4n-project-status-worker`、`a4n-project-mutation-worker`、`a4n-project-collaboration-worker`、`a4n-source-snapshot-worker`、`a4n-import-review-worker`、`a4n-portrait-worker`、`a4n-profile-material-worker`、`a4n-scene-profile-worker`、`a4n-object-profile-worker`、`a4n-blueprint-worker`、`a4n-foreshadowing-worker` 和 `a4n-video-record-worker` 共 17 个 Worker crate。
+- 同一必选 scope 规则收敛到 `a4n-worker-contract::WorkerEnvelope::require_project_scope`：payload project ID 必须为正数，并与 envelope 的 `project_id` 完全相等。删除重复的本地比较 helper 与内联分支；项目 mutation/collaboration 的“缺少 project scope”专属错误仍在本地先行返回，然后将非空 scope 的比较委托给合同方法。
+- Video Record 保留资源范围错误文案，由本地 `validate_required_project_scope` 映射到 `require_project_scope_with_message`；该函数不再自行比较或验证 ID。场景资料与 Video Record 的可选 envelope scope、Outline/Novel Planning 的 scope/payload 诊断信息、Object Profile 的资源归属授权、AgentScope 和 video-service 协议仍是不同合同，逐项确认后保留。
+- 新增合同测试覆盖匹配、缺失 scope、零/负 ID 和不匹配 ID；原有 Asset Graph、Canvas Record、Video Record scope 用例改为验证共享入口及 Video 专属错误消息。未增加默认值、兼容转换、回退或吞错路径。
+- 记录文件：`crates/process/a4n-worker-contract/{src/wire.rs,src/wire_tests.rs}`，以及上述 17 个 Worker 的 project-scope 调用点。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -159,6 +168,7 @@ CodeGraph 当前索引仍有 96 条 unresolved references，跨 crate helper 导
 - `timeout 60s cargo test --locked --offline -p a4n-worker-runtime --lib`：1/1 通过，覆盖未授权短路、成功响应元数据和失败 wire 映射。
 - R-14 `cargo check --all-targets --locked --offline`：`a4n-worker-runtime` 与 27 个 raw-byte authorizer 消费 Worker 通过，无警告；`timeout 60s cargo test --locked --offline -p a4n-worker-runtime --lib`：2/2 通过，覆盖 token bytes 和 command response 路径。
 - R-15 `cargo check --all-targets --locked --offline`：`a4n-worker-contract`、runtime 和 26 个 Worker 消费者通过，无警告；contract 测试 49/49 通过。
+- R-16 `cargo test -p a4n-worker-contract --offline --locked`：50/50 通过；Asset Graph、Canvas Record、Video Record 的 scope 定向测试各 1/1 通过；`cargo check --workspace --all-targets --offline --locked`：全 workspace 通过，无警告。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-contract --lib`：49/49 通过，覆盖共享失败构造、响应元数据、请求身份校验、principal ID 边界和 wire 序列化。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-client --lib`：14/14 通过，覆盖共享传输与响应错误映射。
 - `cargo check --locked --offline -p a4n-worker-runtime -p a4n-service-manager -p a4n-server -p a4n-tauri`：通过，验证共享父进程退出信号 helper 的三个集成点和更新后的 lockfile。
@@ -166,6 +176,7 @@ CodeGraph 当前索引仍有 96 条 unresolved references，跨 crate helper 导
 - Worker client Debug 脱敏定向测试：30 个 client 各 1 项通过；共享 URL/token 解析测试 1/1 通过；28 个环境读取消费者 `cargo check` 通过。
 - `cargo fmt --all -- --check`：通过。
 - `git diff --check`：通过。
+- R-16 完成后在 `/home/fufu/Code/A4N/work/.agent-build.lock` 独占锁内清理 `/home/fufu/Code/A4N/work/.build/agent-target`。
 - `cargo-machete`：未发现未使用依赖；R-14 移除的 Worker `subtle` 直接依赖无遗漏。
 - `cargo clippy --workspace --all-targets --locked --offline -- -D warnings`：未通过；命中基线 `a4n-domain` 的 5 个既有 lint（`large_enum_variant`、`collapsible_if`、`nonminimal_bool`），未涉及本批改动，未修改以掩盖该失败。
 - `npm ci`：成功；Vitest 配置时间、Agent Context Meter 和 i18n 三份测试文件 10/10 通过；`npm run build` 通过。构建保留既有 >500 kB chunk 提示；npm audit 显示 37 项现有依赖漏洞（1 low、5 moderate、31 high），本次未修改锁定的三方依赖。

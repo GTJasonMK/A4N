@@ -88,6 +88,24 @@ impl<T> WorkerEnvelope<T> {
         Ok(())
     }
 
+    pub fn require_project_scope(&self, payload_project_id: i64) -> Result<i64, WorkerFailure> {
+        self.require_project_scope_with_message(
+            payload_project_id,
+            "worker scope project_id 与 payload 不一致或无效",
+        )
+    }
+
+    pub fn require_project_scope_with_message(
+        &self,
+        payload_project_id: i64,
+        error_message: &'static str,
+    ) -> Result<i64, WorkerFailure> {
+        if payload_project_id <= 0 || self.project_id != Some(payload_project_id) {
+            return Err(WorkerFailure::invalid_request(error_message));
+        }
+        Ok(payload_project_id)
+    }
+
     pub fn scope(&self) -> WorkerScope {
         WorkerScope {
             project_id: self.project_id,

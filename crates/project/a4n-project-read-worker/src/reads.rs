@@ -7,7 +7,7 @@ impl WorkerState {
     ) -> Result<ProjectSummary, WorkerFailure> {
         validate_request(&request, PROJECT_READ_SUMMARY_OPERATION, false)?;
         let user_id = user_id(&request)?;
-        let project_id = scoped_project_id(&request, request.payload.project_id)?;
+        let project_id = request.require_project_scope(request.payload.project_id)?;
         let project =
             a4n_db::project::project_summary_by_id_record(self.database.connection(), project_id)
                 .await
@@ -71,7 +71,7 @@ impl WorkerState {
     ) -> Result<bool, WorkerFailure> {
         validate_request(&request, PROJECT_READ_EXISTS_OPERATION, true)?;
         service_principal(&request)?;
-        let project_id = scoped_project_id(&request, request.payload.project_id)?;
+        let project_id = request.require_project_scope(request.payload.project_id)?;
         a4n_db::project::project_by_id_record(self.database.connection(), project_id)
             .await
             .map(|project| project.is_some())

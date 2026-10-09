@@ -7,7 +7,7 @@ impl WorkerState {
     ) -> Result<Vec<ImportReviewSummary>, WorkerFailure> {
         validate_request(&request, IMPORT_REVIEW_LIST_OPERATION)?;
         let user_id = user_id(&request)?;
-        let project_id = scoped_project_id(&request, request.payload.project_id)?;
+        let project_id = request.require_project_scope(request.payload.project_id)?;
         verify_editor(&self.database, project_id, user_id).await?;
         a4n_db::import_review::import_reviews_by_project(self.database.connection(), project_id)
             .await
@@ -24,7 +24,7 @@ impl WorkerState {
     ) -> Result<a4n_import_review_worker_contract::DedupResult, WorkerFailure> {
         validate_request(&request, IMPORT_REVIEW_DEDUP_OPERATION)?;
         let user_id = user_id(&request)?;
-        let project_id = scoped_project_id(&request, request.payload.project_id)?;
+        let project_id = request.require_project_scope(request.payload.project_id)?;
         let input = request.payload;
         verify_editor(&self.database, project_id, user_id).await?;
         let chapters =

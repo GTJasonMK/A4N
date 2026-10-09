@@ -98,7 +98,7 @@ impl WorkerState {
         request: WorkerEnvelope<BlueprintProjectInput>,
     ) -> Result<Option<BlueprintSummary>, WorkerFailure> {
         validate_request(&request, BLUEPRINT_SUMMARY_OPERATION)?;
-        validate_project_scope(&request, request.payload.project_id)?;
+        request.require_project_scope(request.payload.project_id)?;
         let user_id = user_id(&request)?;
         self.verify_permission(
             request.payload.project_id,
@@ -130,7 +130,7 @@ impl WorkerState {
         request: WorkerEnvelope<ListBlueprintVersionsInput>,
     ) -> Result<Vec<BlueprintVersionSummary>, WorkerFailure> {
         validate_request(&request, BLUEPRINT_VERSIONS_OPERATION)?;
-        validate_project_scope(&request, request.payload.project_id)?;
+        request.require_project_scope(request.payload.project_id)?;
         let user_id = user_id(&request)?;
         self.verify_permission(
             request.payload.project_id,
@@ -154,7 +154,7 @@ impl WorkerState {
         request: WorkerEnvelope<DiffBlueprintVersionsInput>,
     ) -> Result<BlueprintDiffSummary, WorkerFailure> {
         validate_request(&request, BLUEPRINT_DIFF_OPERATION)?;
-        validate_project_scope(&request, request.payload.project_id)?;
+        request.require_project_scope(request.payload.project_id)?;
         let user_id = user_id(&request)?;
         self.verify_permission(
             request.payload.project_id,

@@ -7,12 +7,7 @@ impl WorkerState {
     ) -> Result<ObjectProfileMutationResponse, WorkerFailure> {
         validate_request(&request, OBJECT_PROFILE_CREATE_OPERATION)?;
         let user_id = user_id(&request)?;
-        let project_id = request.payload.project_id;
-        if request.project_id != Some(project_id) || project_id <= 0 {
-            return Err(WorkerFailure::invalid_request(
-                "worker scope project_id 与 payload 不一致或无效",
-            ));
-        }
+        let project_id = request.require_project_scope(request.payload.project_id)?;
         a4n_db::collaboration::verify_project_permission(
             self.database.connection(),
             project_id,

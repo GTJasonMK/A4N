@@ -6,7 +6,7 @@ impl WorkerState {
         request: WorkerEnvelope<SetProfilePrimaryMaterialInput>,
     ) -> Result<ProfileMaterialSetPrimaryResponse, WorkerFailure> {
         validate_request(&request, PROFILE_MATERIAL_SET_PRIMARY_OPERATION)?;
-        validate_input_scope(&request, request.payload.project_id)?;
+        request.require_project_scope(request.payload.project_id)?;
         let user_id = user_id(&request)?;
         let input = request.payload;
         verify_permission(

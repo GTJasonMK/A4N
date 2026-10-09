@@ -317,15 +317,10 @@ fn project_request<T: serde::Serialize>(
     payload_project_id: i64,
 ) -> Result<i64, WorkerFailure> {
     request_validate(request, operation)?;
-    let project_id = request
-        .project_id
-        .ok_or_else(|| WorkerFailure::invalid_request("项目 scope 缺少 project_id"))?;
-    if project_id <= 0 || payload_project_id != project_id {
-        return Err(WorkerFailure::invalid_request(
-            "worker scope project_id 与 payload 不一致或无效",
-        ));
+    if request.project_id.is_none() {
+        return Err(WorkerFailure::invalid_request("项目 scope 缺少 project_id"));
     }
-    Ok(project_id)
+    request.require_project_scope(payload_project_id)
 }
 
 fn unscoped_request<T: serde::Serialize>(

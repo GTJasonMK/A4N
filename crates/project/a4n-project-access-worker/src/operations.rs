@@ -7,7 +7,7 @@ impl WorkerState {
     ) -> Result<ProjectAccessRole, WorkerFailure> {
         validate_user_request(&request, PROJECT_ACCESS_VERIFY_OPERATION)?;
         let user_id = user_id(&request)?;
-        let project_id = scoped_project_id(&request, request.payload.project_id)?;
+        let project_id = request.require_project_scope(request.payload.project_id)?;
         a4n_db::collaboration::verify_project_permission(
             self.database.connection(),
             project_id,
@@ -62,7 +62,7 @@ impl WorkerState {
                 "project access root 仅允许 runtime service principal",
             ));
         }
-        let project_id = scoped_project_id(&request, request.payload.project_id)?;
+        let project_id = request.require_project_scope(request.payload.project_id)?;
         let root =
             a4n_db::collaboration::resolve_root_project(self.database.connection(), project_id)
                 .await

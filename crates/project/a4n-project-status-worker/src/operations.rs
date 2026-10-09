@@ -6,7 +6,7 @@ impl WorkerState {
         request: WorkerEnvelope<ProjectStatusProjectInput>,
     ) -> Result<ProjectStatusMachineSummary, WorkerFailure> {
         validate_request(&request, PROJECT_STATUS_MACHINE_OPERATION)?;
-        let project_id = scoped_project_id(&request, request.payload.project_id)?;
+        let project_id = request.require_project_scope(request.payload.project_id)?;
         let user_id = user_id(&request)?;
         verify_viewer(&self.database, project_id, user_id).await?;
         let (_, current_status) = self
@@ -44,7 +44,7 @@ impl WorkerState {
         request: WorkerEnvelope<ProjectStatusRollbackInput>,
     ) -> Result<ProjectRollbackPreview, WorkerFailure> {
         validate_request(&request, PROJECT_STATUS_PREVIEW_ROLLBACK_OPERATION)?;
-        scoped_project_id(&request, request.payload.project_id)?;
+        request.require_project_scope(request.payload.project_id)?;
         let user_id = user_id(&request)?;
         let input = request.payload;
         let project_id = input.project_id;
@@ -82,7 +82,7 @@ impl WorkerState {
         request: WorkerEnvelope<ProjectStatusRollbackInput>,
     ) -> Result<ProjectStatusMutationResult, WorkerFailure> {
         validate_request(&request, PROJECT_STATUS_FORWARD_OPERATION)?;
-        let project_id = scoped_project_id(&request, request.payload.project_id)?;
+        let project_id = request.require_project_scope(request.payload.project_id)?;
         let user_id = user_id(&request)?;
         verify_permission(
             &self.database,
@@ -135,7 +135,7 @@ impl WorkerState {
         request: WorkerEnvelope<ProjectStatusRollbackInput>,
     ) -> Result<ProjectStatusMutationResult, WorkerFailure> {
         validate_request(&request, PROJECT_STATUS_ROLLBACK_OPERATION)?;
-        let project_id = scoped_project_id(&request, request.payload.project_id)?;
+        let project_id = request.require_project_scope(request.payload.project_id)?;
         let user_id = user_id(&request)?;
         verify_permission(
             &self.database,

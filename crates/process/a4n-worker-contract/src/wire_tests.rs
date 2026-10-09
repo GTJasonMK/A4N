@@ -52,6 +52,33 @@ fn worker_command_validation_shares_identity_checks() {
 }
 
 #[test]
+fn worker_project_scope_requires_positive_payload_matching_envelope() {
+    let request = valid_envelope();
+
+    assert_eq!(request.require_project_scope(7).expect("scope"), 7);
+    for project_id in [0, -1, 8] {
+        let error = request
+            .require_project_scope(project_id)
+            .expect_err("invalid or mismatched project ID should fail");
+        assert_eq!(
+            error.message(),
+            "worker scope project_id 与 payload 不一致或无效"
+        );
+    }
+
+    let mut unscoped = request;
+    unscoped.project_id = None;
+    unscoped.root_project_id = None;
+    let error = unscoped
+        .require_project_scope(7)
+        .expect_err("required project scope should not be absent");
+    assert_eq!(
+        error.message(),
+        "worker scope project_id 与 payload 不一致或无效"
+    );
+}
+
+#[test]
 fn worker_failure_constructors_share_wire_error_semantics() {
     let cases = [
         (

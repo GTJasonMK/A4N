@@ -6,12 +6,7 @@ impl WorkerState {
         request: WorkerEnvelope<SourceSnapshotProjectInput>,
     ) -> Result<Vec<SourceSnapshotChapterSummary>, WorkerFailure> {
         validate_request(&request)?;
-        let project_id = request.payload.project_id;
-        if request.project_id != Some(project_id) || project_id <= 0 {
-            return Err(WorkerFailure::invalid_request(
-                "worker scope project_id 与 payload 不一致或无效",
-            ));
-        }
+        let project_id = request.require_project_scope(request.payload.project_id)?;
         let user_id = user_id(&request)?;
         a4n_db::collaboration::verify_project_permission(
             self.database.connection(),

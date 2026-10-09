@@ -199,18 +199,6 @@ fn validate_request<T: serde::Serialize>(
     request.validate_worker_command(operation, ASSET_GRAPH_WORKER_ID, "asset graph worker")
 }
 
-fn validate_project_scope<T>(
-    request: &WorkerEnvelope<T>,
-    project_id: i64,
-) -> Result<(), WorkerFailure> {
-    if project_id <= 0 || request.project_id != Some(project_id) {
-        return Err(WorkerFailure::invalid_request(
-            "worker scope project_id 与 payload 不一致或无效",
-        ));
-    }
-    Ok(())
-}
-
 fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
     request.principal.require_user_id()
 }
@@ -260,7 +248,7 @@ fn unauthorized() -> Response {
 
 #[cfg(test)]
 mod tests {
-    use super::{validate_project_scope, validate_request};
+    use super::validate_request;
     use a4n_asset_graph_worker_contract::{
         ASSET_GRAPH_OPERATION, ASSET_GRAPH_WORKER_ID, ProjectAssetGraphInput,
     };
@@ -297,6 +285,6 @@ mod tests {
     fn project_scope_rejects_mismatched_ids() {
         let request = request(Some(2), ASSET_GRAPH_OPERATION);
         assert!(validate_request(&request, ASSET_GRAPH_OPERATION).is_ok());
-        assert!(validate_project_scope(&request, 1).is_err());
+        assert!(request.require_project_scope(1).is_err());
     }
 }

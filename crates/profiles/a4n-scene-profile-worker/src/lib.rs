@@ -259,18 +259,6 @@ fn validate_project_scope<T>(
     Ok(())
 }
 
-fn validate_required_project_scope(
-    request_project_id: Option<i64>,
-    project_id: i64,
-) -> Result<(), WorkerFailure> {
-    if project_id <= 0 || request_project_id != Some(project_id) {
-        return Err(WorkerFailure::invalid_request(
-            "worker scope project_id 与 payload 不一致或无效",
-        ));
-    }
-    Ok(())
-}
-
 fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
     request.principal.require_user_id()
 }
@@ -380,7 +368,7 @@ fn unauthorized() -> Response {
 
 #[cfg(test)]
 mod tests {
-    use super::{WorkerEnvelope, validate_request, validate_required_project_scope};
+    use super::{WorkerEnvelope, validate_request};
     use a4n_scene_profile_worker_contract::{
         SCENE_PROFILE_LIST_OPERATION, SCENE_PROFILE_WORKER_ID, SceneProfileProjectInput,
     };
@@ -414,13 +402,5 @@ mod tests {
         };
         assert!(validate_request(&request, SCENE_PROFILE_LIST_OPERATION).is_err());
         assert_eq!(SCENE_PROFILE_LIST_OPERATION, "profile.scene.list");
-    }
-
-    #[test]
-    fn required_project_scope_must_match_the_payload() {
-        assert!(validate_required_project_scope(Some(7), 7).is_ok());
-        assert!(validate_required_project_scope(None, 7).is_err());
-        assert!(validate_required_project_scope(Some(8), 7).is_err());
-        assert!(validate_required_project_scope(Some(0), 0).is_err());
     }
 }
