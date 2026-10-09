@@ -32,7 +32,7 @@ def read_json(path: Path) -> dict[str, Any]:
     return value
 
 
-def scenario_catalog() -> tuple[list[str], list[str]]:
+def scenario_catalog() -> list[str]:
     try:
         source = SCENARIO_SOURCE.read_text(encoding="utf-8")
     except OSError as error:
@@ -47,7 +47,10 @@ def scenario_catalog() -> tuple[list[str], list[str]]:
     missing_handlers = sorted(set(declared) - set(handlers))
     if missing_handlers:
         raise CatalogError(f"场景没有 handler 分支：{missing_handlers}")
-    return declared, handlers
+    orphan_handlers = sorted(set(handlers) - set(declared))
+    if orphan_handlers:
+        raise CatalogError(f"handler 没有注册场景：{orphan_handlers}")
+    return declared
 
 
 def resolve_profile(profiles: dict[str, Any], suites: dict[str, Any], name: str, stack: tuple[str, ...] = ()) -> list[str]:
@@ -102,7 +105,7 @@ def check_package_scripts() -> list[str]:
 
 
 def build_report() -> dict[str, Any]:
-    scenarios, _ = scenario_catalog()
+    scenarios = scenario_catalog()
     matrix = check_matrix()
     scripts = check_package_scripts()
     return {

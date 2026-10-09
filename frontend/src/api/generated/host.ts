@@ -1987,7 +1987,7 @@ export type TestScenarioEffect = "read" | "write" | "destructive";
 
 export type TestTargetMode = "test_project" | "current_project";
 
-export type TestRunStatus = "queued" | "running" | "passed" | "failed" | "blocked" | "cancelled" | "timed_out";
+export type TestRunStatus = "queued" | "running" | "passed" | "failed" | "cancelled" | "timed_out";
 
 export type TestTarget = { mode: "test_project"; source_project_id?: number | null } | { mode: "current_project"; project_id: number };
 

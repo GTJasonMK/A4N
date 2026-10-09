@@ -154,7 +154,6 @@ pub enum TestRunStatus {
     Running,
     Passed,
     Failed,
-    Blocked,
     Cancelled,
     TimedOut,
 }

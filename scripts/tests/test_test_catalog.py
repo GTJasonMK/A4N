@@ -4,8 +4,16 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
-from check_test_catalog import CatalogError, build_report, resolve_profile
+from check_test_catalog import (
+    CatalogError,
+    build_report,
+    resolve_profile,
+    scenario_catalog,
+)
 
 
 class TestCatalog(unittest.TestCase):
@@ -24,6 +32,17 @@ class TestCatalog(unittest.TestCase):
                 {"one": {"command": ["true"]}},
                 "first",
             )
+
+    def test_unregistered_handler_is_rejected(self) -> None:
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / "test_console.rs"
+            source.write_text(
+                'scenario("declared");\n"declared" => {}\n"orphan" => {}\n',
+                encoding="utf-8",
+            )
+            with patch("check_test_catalog.SCENARIO_SOURCE", source):
+                with self.assertRaisesRegex(CatalogError, "没有注册场景"):
+                    scenario_catalog()
 
 
 if __name__ == "__main__":

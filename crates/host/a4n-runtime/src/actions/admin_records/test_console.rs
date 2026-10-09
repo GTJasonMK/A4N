@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
@@ -25,10 +25,13 @@ use crate::{
 };
 
 const SCENARIO_VERSION: u32 = 1;
+const PROJECT_TITLE_MAX_LENGTH: usize = 120;
+const PROJECT_DESCRIPTION_MAX_LENGTH: usize = 2000;
 #[derive(Default)]
 struct ControlState {
     active_run_id: Option<String>,
-    cancellations: HashMap<String, CancellationToken>,
+    cancellation: Option<CancellationToken>,
+    deleting_run_ids: HashSet<String>,
 }
 
 #[derive(Clone)]
@@ -36,6 +39,7 @@ pub struct TestConsole {
     root: Arc<PathBuf>,
     control: Arc<Mutex<ControlState>>,
     runs: Arc<Mutex<HashMap<String, TestRunDetail>>>,
+    mutation_lock: Arc<Mutex<()>>,
 }
 
 impl TestConsole {
@@ -44,6 +48,7 @@ impl TestConsole {
             root: Arc::new(root),
             control: Arc::new(Mutex::new(ControlState::default())),
             runs: Arc::new(Mutex::new(HashMap::new())),
+            mutation_lock: Arc::new(Mutex::new(())),
         }
     }
 
@@ -86,8 +91,8 @@ impl TestConsole {
                 json!({
                     "type":"object",
                     "properties":{
-                        "title":{"type":"string","minLength":1,"maxLength":120},
-                        "description":{"type":"string","maxLength":2000}
+                        "title":{"type":"string","minLength":1,"maxLength":PROJECT_TITLE_MAX_LENGTH},
+                        "description":{"type":"string","maxLength":PROJECT_DESCRIPTION_MAX_LENGTH}
                     },
                     "additionalProperties":false
                 }),
@@ -135,6 +140,7 @@ impl TestConsole {
             return Err("当前项目测试需要确认数据影响".to_string());
         }
 
+        let scenario_timeout = scenario.timeout_seconds;
         let run_id = Uuid::new_v4().to_string();
         let created_at = now();
         let detail = TestRunDetail {
@@ -159,15 +165,14 @@ impl TestConsole {
         };
 
         let cancellation = CancellationToken::new();
+        let _guard = self.mutation_lock.lock().await;
         {
             let mut control = self.control.lock().await;
             if let Some(active) = control.active_run_id.as_ref() {
                 return Err(format!("已有测试正在运行：{active}"));
             }
             control.active_run_id = Some(run_id.clone());
-            control
-                .cancellations
-                .insert(run_id.clone(), cancellation.clone());
+            control.cancellation = Some(cancellation.clone());
         }
         self.runs
             .lock()
@@ -176,23 +181,36 @@ impl TestConsole {
         if let Err(error) = self.persist(&detail).await {
             self.runs.lock().await.remove(&run_id);
             let mut control = self.control.lock().await;
-            control.cancellations.remove(&run_id);
             if control.active_run_id.as_deref() == Some(run_id.as_str()) {
                 control.active_run_id = None;
+                control.cancellation = None;
             }
             return Err(error);
         }
+        drop(_guard);
 
         let manager = self.clone();
         tokio::spawn(async move {
             manager
-                .run(state, user_id, run_id, input, cancellation)
+                .run(
+                    state,
+                    user_id,
+                    run_id,
+                    input,
+                    scenario_timeout,
+                    cancellation,
+                )
                 .await;
         });
         Ok(detail.summary)
     }
 
     pub async fn get(&self, run_id: &str) -> Result<TestRunDetail, String> {
+        let _guard = self.mutation_lock.lock().await;
+        self.get_unlocked(run_id).await
+    }
+
+    async fn get_unlocked(&self, run_id: &str) -> Result<TestRunDetail, String> {
         if let Some(detail) = self.runs.lock().await.get(run_id).cloned() {
             return Ok(detail);
         }
@@ -202,11 +220,16 @@ impl TestConsole {
             .map_err(|error| format!("读取测试运行失败：{error}"))?;
         let mut detail: TestRunDetail =
             serde_json::from_slice(&bytes).map_err(|error| format!("测试运行报告损坏：{error}"))?;
-        self.recover_interrupted(&mut detail).await?;
+        let is_active =
+            self.control.lock().await.active_run_id.as_deref() == Some(detail.summary.id.as_str());
+        if !is_active {
+            self.recover_interrupted(&mut detail).await?;
+        }
         Ok(detail)
     }
 
     pub async fn list(&self, input: ListTestRunsInput) -> Result<Vec<TestRunSummary>, String> {
+        let _guard = self.mutation_lock.lock().await;
         let limit = input.limit.clamp(1, 100) as usize;
         let mut details = Vec::new();
         let mut entries = match tokio::fs::read_dir(self.root.as_ref()).await {
@@ -228,7 +251,13 @@ impl TestConsole {
                     .map_err(|error| format!("读取测试运行报告失败：{error}"))?;
                 let mut detail = serde_json::from_slice::<TestRunDetail>(&bytes)
                     .map_err(|error| format!("测试运行报告损坏：{error}"))?;
-                self.recover_interrupted(&mut detail).await?;
+                let cached = self.runs.lock().await.get(&detail.summary.id).cloned();
+                let active = self.control.lock().await.active_run_id.clone();
+                if let Some(cached) = cached {
+                    detail = cached;
+                } else if active.as_deref() != Some(detail.summary.id.as_str()) {
+                    self.recover_interrupted(&mut detail).await?;
+                }
                 details.push(detail);
             }
         }
@@ -249,7 +278,12 @@ impl TestConsole {
     }
 
     pub async fn cancel(&self, run_id: &str) -> Result<TestRunSummary, String> {
-        let token = self.control.lock().await.cancellations.get(run_id).cloned();
+        let token = {
+            let control = self.control.lock().await;
+            (control.active_run_id.as_deref() == Some(run_id))
+                .then(|| control.cancellation.clone())
+                .flatten()
+        };
         if let Some(token) = token {
             token.cancel();
         }
@@ -257,38 +291,58 @@ impl TestConsole {
     }
 
     pub async fn delete(&self, state: &AppState, input: DeleteTestRunInput) -> Result<(), String> {
-        if self.control.lock().await.active_run_id.as_deref() == Some(input.run_id.as_str()) {
-            return Err("运行中的测试不能删除".to_string());
-        }
-        let detail = self.get(&input.run_id).await?;
-        if input.delete_test_project {
-            if !matches!(&detail.summary.target, TestTarget::TestProject { .. }) {
-                return Err("当前项目测试不能由测试历史删除项目".to_string());
+        {
+            let mut control = self.control.lock().await;
+            if control.active_run_id.as_deref() == Some(input.run_id.as_str()) {
+                return Err("运行中的测试不能删除".to_string());
             }
-            let mut project_ids = detail
-                .summary
-                .impact
-                .iter()
-                .filter(|impact| impact.action == "create" && impact.resource == "project")
-                .filter_map(|impact| impact.project_id)
-                .collect::<Vec<_>>();
-            project_ids.sort_unstable();
-            project_ids.dedup();
-            if project_ids.is_empty() {
-                return Err("该运行没有由测试中心创建的项目".to_string());
-            }
-            for project_id in project_ids.into_iter().rev() {
-                project_records::delete_project(state, detail.summary.created_by, project_id)
-                    .await?;
+            if !control.deleting_run_ids.insert(input.run_id.clone()) {
+                return Err("该测试运行正在删除".to_string());
             }
         }
-        self.runs.lock().await.remove(&input.run_id);
-        let path = self.path_for(&input.run_id)?;
-        match tokio::fs::remove_file(path).await {
-            Ok(()) => Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(error) => Err(format!("删除测试历史失败：{error}")),
+        let result = async {
+            let detail = self.get(&input.run_id).await?;
+            if input.delete_test_project {
+                if !matches!(&detail.summary.target, TestTarget::TestProject { .. }) {
+                    return Err("当前项目测试不能由测试历史删除项目".to_string());
+                }
+                let mut project_ids = detail
+                    .summary
+                    .impact
+                    .iter()
+                    .filter(|impact| impact.action == "create" && impact.resource == "project")
+                    .filter_map(|impact| impact.project_id)
+                    .collect::<Vec<_>>();
+                project_ids.sort_unstable();
+                project_ids.dedup();
+                if project_ids.is_empty() {
+                    return Err("该运行没有由测试中心创建的项目".to_string());
+                }
+                for project_id in project_ids.into_iter().rev() {
+                    // Test projects belong to the run creator; the deleting admin may differ.
+                    project_records::delete_project(state, detail.summary.created_by, project_id)
+                        .await?;
+                }
+            }
+            let _guard = self.mutation_lock.lock().await;
+            let path = self.path_for(&input.run_id)?;
+            let remove_result = match tokio::fs::remove_file(path).await {
+                Ok(()) => Ok(()),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                Err(error) => Err(format!("删除测试历史失败：{error}")),
+            };
+            if remove_result.is_ok() {
+                self.runs.lock().await.remove(&input.run_id);
+            }
+            remove_result
         }
+        .await;
+        self.control
+            .lock()
+            .await
+            .deleting_run_ids
+            .remove(&input.run_id);
+        result
     }
 
     async fn run(
@@ -297,28 +351,43 @@ impl TestConsole {
         user_id: i64,
         run_id: String,
         input: StartTestRunInput,
+        scenario_timeout: u64,
         cancellation: CancellationToken,
     ) {
         let started = Instant::now();
-        let _ = self
+        if let Err(error) = self
             .mutate(&run_id, |detail| {
                 detail.summary.started_at = Some(now());
                 detail.summary.status = TestRunStatus::Running;
             })
-            .await;
-        let scenario_timeout = Self::scenarios()
-            .into_iter()
-            .find(|scenario| scenario.id == input.scenario_id)
-            .map(|scenario| scenario.timeout_seconds)
-            .unwrap_or(300);
+            .await
+        {
+            tracing::error!(run_id = %run_id, %error, "测试运行状态无法切换为运行中");
+            self.runs.lock().await.remove(&run_id);
+            let mut control = self.control.lock().await;
+            if control.active_run_id.as_deref() == Some(run_id.as_str()) {
+                control.active_run_id = None;
+                control.cancellation = None;
+            }
+            return;
+        }
         let result = tokio::select! {
             _ = cancellation.cancelled() => Err((TestRunStatus::Cancelled, "测试已取消".to_string())),
             result = tokio::time::timeout(
                 Duration::from_secs(scenario_timeout),
                 self.run_scenario(&state, user_id, &run_id, &input, &cancellation),
             ) => match result {
+                Ok(Ok(())) if cancellation.is_cancelled() => {
+                    Err((TestRunStatus::Cancelled, "测试已取消".to_string()))
+                }
                 Ok(Ok(())) => Ok(()),
+                Ok(Err(_)) if cancellation.is_cancelled() => {
+                    Err((TestRunStatus::Cancelled, "测试已取消".to_string()))
+                }
                 Ok(Err(error)) => Err((TestRunStatus::Failed, error)),
+                Err(_) if cancellation.is_cancelled() => {
+                    Err((TestRunStatus::Cancelled, "测试已取消".to_string()))
+                }
                 Err(_) => Err((TestRunStatus::TimedOut, format!("测试超过 {scenario_timeout} 秒限制"))),
             }
         };
@@ -326,7 +395,7 @@ impl TestConsole {
             Ok(()) => (TestRunStatus::Passed, Some("测试通过".to_string())),
             Err((status, error)) => (status, Some(error)),
         };
-        let _ = self
+        if let Err(error) = self
             .mutate(&run_id, |detail| {
                 detail.summary.status = status.clone();
                 detail.summary.message = message;
@@ -345,11 +414,15 @@ impl TestConsole {
                     detail.summary.message.as_deref().unwrap_or_default()
                 ));
             })
-            .await;
+            .await
+        {
+            tracing::error!(run_id = %run_id, %error, "测试运行终态无法持久化");
+        }
+        self.runs.lock().await.remove(&run_id);
         let mut control = self.control.lock().await;
-        control.cancellations.remove(&run_id);
         if control.active_run_id.as_deref() == Some(run_id.as_str()) {
             control.active_run_id = None;
+            control.cancellation = None;
         }
     }
 
@@ -402,7 +475,6 @@ impl TestConsole {
             }
             "project_create_update" => {
                 let target = ensure_project(state, user_id, input, run_id, self).await?;
-                self.record_target(run_id, target).await?;
                 let title = parameter_string(&input.parameters, "title")
                     .unwrap_or_else(|| format!("A4N 测试项目 {}", &run_id[..8]));
                 let description = parameter_string(&input.parameters, "description")
@@ -422,15 +494,6 @@ impl TestConsole {
                     .map(|_| ())
                 })
                 .await?;
-                self.step(run_id, "重新读取项目", || async {
-                    state
-                        .project_read_application()
-                        .summary(user_id, target)
-                        .await
-                        .map_err(app_error_message)
-                        .map(|_| ())
-                })
-                .await?;
                 self.impact(
                     run_id,
                     TestImpact {
@@ -440,6 +503,15 @@ impl TestConsole {
                         detail: "更新项目标题和描述".to_string(),
                     },
                 )
+                .await?;
+                self.step(run_id, "重新读取项目", || async {
+                    state
+                        .project_read_application()
+                        .summary(user_id, target)
+                        .await
+                        .map_err(app_error_message)
+                        .map(|_| ())
+                })
                 .await?;
             }
             "project_duplicate" => {
@@ -480,7 +552,14 @@ impl TestConsole {
                         .await
                     })
                     .await?;
-                self.record_target(run_id, copied.id).await?;
+                self.record_created_project(
+                    state,
+                    user_id,
+                    run_id,
+                    copied.id,
+                    format!("复制源项目 {source}"),
+                )
+                .await?;
                 self.step(run_id, "读取复制结果", || async {
                     state
                         .project_read_application()
@@ -490,20 +569,9 @@ impl TestConsole {
                         .map(|_| ())
                 })
                 .await?;
-                self.impact(
-                    run_id,
-                    TestImpact {
-                        action: "create".to_string(),
-                        resource: "project".to_string(),
-                        project_id: Some(copied.id),
-                        detail: format!("复制源项目 {source}"),
-                    },
-                )
-                .await?;
             }
             "project_status_read" => {
                 let target = ensure_project(state, user_id, input, run_id, self).await?;
-                self.record_target(run_id, target).await?;
                 self.step(run_id, "读取项目状态机", || async {
                     state
                         .project_status_read_application()
@@ -588,12 +656,34 @@ impl TestConsole {
         .map(|_| ())
     }
 
-    async fn record_target(&self, run_id: &str, project_id: i64) -> Result<(), String> {
-        self.mutate(run_id, |detail| {
-            detail.summary.target_project_id = Some(project_id);
-        })
-        .await
-        .map(|_| ())
+    async fn record_created_project(
+        &self,
+        state: &AppState,
+        user_id: i64,
+        run_id: &str,
+        project_id: i64,
+        detail: String,
+    ) -> Result<(), String> {
+        let result = self
+            .mutate(run_id, |run| {
+                run.summary.target_project_id = Some(project_id);
+                run.summary.impact.push(TestImpact {
+                    action: "create".to_string(),
+                    resource: "project".to_string(),
+                    project_id: Some(project_id),
+                    detail,
+                });
+            })
+            .await;
+        if let Err(record_error) = result {
+            return match project_records::delete_project(state, user_id, project_id).await {
+                Ok(()) => Err(record_error),
+                Err(cleanup_error) => Err(format!(
+                    "{record_error}；清理未能登记的测试项目失败：{cleanup_error}"
+                )),
+            };
+        }
+        Ok(())
     }
 
     async fn recover_interrupted(&self, detail: &mut TestRunDetail) -> Result<(), String> {
@@ -629,13 +719,14 @@ impl TestConsole {
     where
         F: FnOnce(&mut TestRunDetail),
     {
-        let mut detail = self.get(run_id).await?;
+        let _guard = self.mutation_lock.lock().await;
+        let mut detail = self.get_unlocked(run_id).await?;
         change(&mut detail);
+        self.persist(&detail).await?;
         self.runs
             .lock()
             .await
             .insert(run_id.to_string(), detail.clone());
-        self.persist(&detail).await?;
         Ok(detail)
     }
 
@@ -647,12 +738,15 @@ impl TestConsole {
         let temporary = path.with_extension("json.tmp");
         let bytes = serde_json::to_vec_pretty(detail)
             .map_err(|error| format!("序列化测试运行失败：{error}"))?;
-        tokio::fs::write(&temporary, bytes)
-            .await
-            .map_err(|error| format!("写入测试运行失败：{error}"))?;
-        tokio::fs::rename(temporary, path)
-            .await
-            .map_err(|error| format!("提交测试运行失败：{error}"))
+        if let Err(error) = tokio::fs::write(&temporary, bytes).await {
+            let _ = tokio::fs::remove_file(&temporary).await;
+            return Err(format!("写入测试运行失败：{error}"));
+        }
+        if let Err(error) = tokio::fs::rename(&temporary, &path).await {
+            let _ = tokio::fs::remove_file(&temporary).await;
+            return Err(format!("提交测试运行失败：{error}"));
+        }
+        Ok(())
     }
 
     fn path_for(&self, run_id: &str) -> Result<PathBuf, String> {
@@ -745,16 +839,13 @@ async fn ensure_project(
                     },
                 )
                 .await?;
-                console.record_target(run_id, copied.id).await?;
                 console
-                    .impact(
+                    .record_created_project(
+                        state,
+                        user_id,
                         run_id,
-                        TestImpact {
-                            action: "create".to_string(),
-                            resource: "project".to_string(),
-                            project_id: Some(copied.id),
-                            detail: format!("从项目 {source_project_id} 创建测试副本"),
-                        },
+                        copied.id,
+                        format!("从项目 {source_project_id} 创建测试副本"),
                     )
                     .await?;
                 Ok(copied.id)
@@ -769,16 +860,13 @@ async fn ensure_project(
                     },
                 )
                 .await?;
-                console.record_target(run_id, created.id).await?;
                 console
-                    .impact(
+                    .record_created_project(
+                        state,
+                        user_id,
                         run_id,
-                        TestImpact {
-                            action: "create".to_string(),
-                            resource: "project".to_string(),
-                            project_id: Some(created.id),
-                            detail: "创建独立测试项目".to_string(),
-                        },
+                        created.id,
+                        "创建独立测试项目".to_string(),
                     )
                     .await?;
                 Ok(created.id)
@@ -817,19 +905,24 @@ fn validate_parameters(
     }
     if scenario.id == "project_create_update" {
         if let Some(title) = object.get("title") {
-            let title = title
-                .as_str()
-                .map(str::trim)
-                .filter(|value| !value.is_empty() && value.chars().count() <= 120)
-                .ok_or_else(|| "项目标题必须为 1 到 120 个字符".to_string())?;
-            let _ = title;
+            let valid = title.as_str().map(str::trim).is_some_and(|value| {
+                !value.is_empty() && value.chars().count() <= PROJECT_TITLE_MAX_LENGTH
+            });
+            if !valid {
+                return Err(format!(
+                    "项目标题必须为 1 到 {PROJECT_TITLE_MAX_LENGTH} 个字符"
+                ));
+            }
         }
-        if object.get("description").is_some_and(|description| {
-            description
-                .as_str()
-                .is_none_or(|value| value.chars().count() > 2000)
-        }) {
-            return Err("项目描述不能超过 2000 个字符".to_string());
+        if let Some(description) = object.get("description") {
+            let Some(value) = description.as_str() else {
+                return Err("项目描述必须是字符串".to_string());
+            };
+            if value.chars().count() > PROJECT_DESCRIPTION_MAX_LENGTH {
+                return Err(format!(
+                    "项目描述不能超过 {PROJECT_DESCRIPTION_MAX_LENGTH} 个字符"
+                ));
+            }
         }
     }
     Ok(())
@@ -841,7 +934,6 @@ fn status_label(status: &TestRunStatus) -> &'static str {
         TestRunStatus::Running => "运行中",
         TestRunStatus::Passed => "通过",
         TestRunStatus::Failed => "失败",
-        TestRunStatus::Blocked => "受阻",
         TestRunStatus::Cancelled => "已取消",
         TestRunStatus::TimedOut => "超时",
     }
@@ -893,6 +985,7 @@ mod tests {
         assert!(validate_parameters(mutation, &json!({"title": "  "})).is_err());
         assert!(validate_parameters(mutation, &json!({"title": "x".repeat(121)})).is_err());
         assert!(validate_parameters(mutation, &json!({"description": "x".repeat(2001)})).is_err());
+        assert!(validate_parameters(mutation, &json!({"description": 42})).is_err());
         assert!(
             validate_parameters(mutation, &json!({"title": "Test", "description": "ok"})).is_ok()
         );
@@ -927,5 +1020,69 @@ mod tests {
         );
         assert!(console.path_for("../escape").is_err());
         assert!(console.path_for("").is_err());
+    }
+
+    fn sample_detail(id: &str, status: TestRunStatus) -> TestRunDetail {
+        TestRunDetail {
+            summary: TestRunSummary {
+                id: id.to_string(),
+                scenario_id: "project_list".to_string(),
+                scenario_version: SCENARIO_VERSION,
+                status,
+                target: TestTarget::TestProject {
+                    source_project_id: None,
+                },
+                target_project_id: None,
+                created_by: 1,
+                created_at: now(),
+                started_at: None,
+                finished_at: None,
+                duration_ms: None,
+                message: None,
+                impact: Vec::new(),
+            },
+            parameters: json!({}),
+            steps: Vec::new(),
+            logs: Vec::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn list_does_not_recover_the_active_persisted_run() {
+        let root = tempfile::tempdir().expect("create test run directory");
+        let console = TestConsole::new(root.path().to_path_buf());
+        let detail = sample_detail(
+            "123e4567-e89b-42d3-a456-426614174000",
+            TestRunStatus::Running,
+        );
+        console.persist(&detail).await.expect("persist active run");
+        {
+            let mut control = console.control.lock().await;
+            control.active_run_id = Some(detail.summary.id.clone());
+            control.cancellation = Some(CancellationToken::new());
+        }
+
+        let summaries = console
+            .list(ListTestRunsInput { limit: 1 })
+            .await
+            .expect("list active run");
+        assert_eq!(summaries[0].status, TestRunStatus::Running);
+    }
+
+    #[tokio::test]
+    async fn persist_replaces_an_existing_report() {
+        let root = tempfile::tempdir().expect("create test run directory");
+        let console = TestConsole::new(root.path().to_path_buf());
+        let id = "123e4567-e89b-42d3-a456-426614174000";
+        let mut detail = sample_detail(id, TestRunStatus::Queued);
+        console
+            .persist(&detail)
+            .await
+            .expect("persist first report");
+        detail.summary.status = TestRunStatus::Passed;
+        console.persist(&detail).await.expect("replace report");
+
+        let loaded = console.get(id).await.expect("read replaced report");
+        assert_eq!(loaded.summary.status, TestRunStatus::Passed);
     }
 }

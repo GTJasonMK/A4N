@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -45,7 +45,6 @@ const STATUS_KEYS: Record<TestRunStatus, MessageKey> = {
   running: "settingsAdmin.testCenter.running",
   passed: "settingsAdmin.testCenter.passed",
   failed: "settingsAdmin.testCenter.failed",
-  blocked: "settingsAdmin.testCenter.blocked",
   cancelled: "settingsAdmin.testCenter.cancelled",
   timed_out: "settingsAdmin.testCenter.timedOut",
 };
@@ -55,7 +54,6 @@ const STATUS_STYLES: Record<TestRunStatus, string> = {
   running: "text-book-primary",
   passed: "text-success",
   failed: "text-error",
-  blocked: "text-warning",
   cancelled: "text-book-text-muted",
   timed_out: "text-warning",
 };
@@ -90,6 +88,10 @@ const SCENARIO_COPY_KEYS: Record<string, { title: MessageKey; description: Messa
   },
 };
 
+const RESOURCE_COPY_KEYS: Record<string, MessageKey> = {
+  project: "settingsAdmin.testCenter.resourceProject",
+};
+
 const numberParameter = (value: string): number | null => {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
@@ -118,6 +120,8 @@ export const TestCenterPage: React.FC = () => {
   const [projectLoading, setProjectLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const syncedRunId = useRef("");
+  const runRequestId = useRef(0);
 
   const selectedScenario = scenarios.find((item) => item.id === selectedScenarioId) ?? null;
   const categories = useMemo(
@@ -176,18 +180,27 @@ export const TestCenterPage: React.FC = () => {
     void loadProjects();
   }, [load, loadProjects]);
 
+  useEffect(() => {
+    if (!selectedScenario || selectedScenario.target_modes.includes(targetMode)) return;
+    const fallback = selectedScenario.target_modes[0];
+    if (fallback) setTargetMode(fallback);
+  }, [selectedScenario, targetMode]);
+
   const loadRun = useCallback(async (runId: string) => {
+    const requestId = ++runRequestId.current;
     if (!runId) {
       setDetail(null);
       return;
     }
     try {
       const next = await getTestRun(runId);
+      if (requestId !== runRequestId.current) return;
       setDetail(next);
       if (next.summary.status !== "running" && next.summary.status !== "queued") {
         await refreshRuns();
       }
     } catch (cause) {
+      if (requestId !== runRequestId.current) return;
       setError(extractErrorMessage(cause, t("settingsAdmin.testCenter.loadFailed")));
     }
   }, [refreshRuns, t]);
@@ -205,6 +218,21 @@ export const TestCenterPage: React.FC = () => {
   }, [loadRun, selectedRunId, setSearchParams]);
 
   useEffect(() => {
+    if (!selectedRunId) {
+      syncedRunId.current = "";
+      return;
+    }
+    if (
+      !detail
+      || detail.summary.id !== selectedRunId
+      || syncedRunId.current === selectedRunId
+      || !scenarios.some((scenario) => scenario.id === detail.summary.scenario_id)
+    ) return;
+    syncedRunId.current = selectedRunId;
+    setSelectedScenarioId(detail.summary.scenario_id);
+  }, [detail, scenarios, selectedRunId]);
+
+  useEffect(() => {
     if (!detail || !isActive(detail.summary.status)) return undefined;
     const timer = window.setInterval(() => void loadRun(detail.summary.id), 800);
     return () => window.clearInterval(timer);
@@ -212,9 +240,23 @@ export const TestCenterPage: React.FC = () => {
 
   const runScenario = async () => {
     if (!selectedScenario || busy) return;
-    if (targetMode === "current_project" && !currentProjectId) {
-      setError(t("settingsAdmin.testCenter.currentProjectRequired"));
+    if (!selectedScenario.target_modes.includes(targetMode)) {
+      setError(t("settingsAdmin.testCenter.targetModeUnsupported"));
       return;
+    }
+    let target: TestTarget;
+    if (targetMode === "current_project") {
+      const projectId = numberParameter(currentProjectId);
+      if (projectId == null) {
+        setError(t("settingsAdmin.testCenter.currentProjectRequired"));
+        return;
+      }
+      target = { mode: "current_project", project_id: projectId };
+    } else {
+      target = {
+        mode: "test_project",
+        source_project_id: numberParameter(sourceProjectId),
+      };
     }
     const mutatesProject = selectedScenario.effect !== "read";
     if (targetMode === "current_project" && mutatesProject) {
@@ -238,12 +280,6 @@ export const TestCenterPage: React.FC = () => {
     setBusy(true);
     setError(null);
     try {
-      const target: TestTarget = targetMode === "current_project"
-        ? { mode: "current_project", project_id: Number(currentProjectId) }
-        : {
-            mode: "test_project",
-            source_project_id: numberParameter(sourceProjectId),
-          };
       const run = await startTestRun({
         scenario_id: selectedScenario.id,
         target,
@@ -452,22 +488,26 @@ export const TestCenterPage: React.FC = () => {
               <section className="border-b border-book-border/60 py-4">
                 <h3 className="mb-3 text-xs font-semibold">{t("settingsAdmin.testCenter.target")}</h3>
                 <div className="flex flex-wrap gap-2" role="group" aria-label={t("settingsAdmin.testCenter.target")}>
-                  <button
-                    type="button"
-                    aria-pressed={targetMode === "test_project"}
-                    onClick={() => setTargetMode("test_project")}
-                    className={`min-h-9 border px-3 text-xs ${targetMode === "test_project" ? "border-book-primary bg-book-bg-paper text-book-primary" : "border-book-border/70 text-book-text-sub"}`}
-                  >
-                    {t("settingsAdmin.testCenter.testProject")}
-                  </button>
-                  <button
-                    type="button"
-                    aria-pressed={targetMode === "current_project"}
-                    onClick={() => setTargetMode("current_project")}
-                    className={`min-h-9 border px-3 text-xs ${targetMode === "current_project" ? "border-book-primary bg-book-bg-paper text-book-primary" : "border-book-border/70 text-book-text-sub"}`}
-                  >
-                    {t("settingsAdmin.testCenter.currentProject")}
-                  </button>
+                  {selectedScenario.target_modes.includes("test_project") ? (
+                    <button
+                      type="button"
+                      aria-pressed={targetMode === "test_project"}
+                      onClick={() => setTargetMode("test_project")}
+                      className={`min-h-9 border px-3 text-xs ${targetMode === "test_project" ? "border-book-primary bg-book-bg-paper text-book-primary" : "border-book-border/70 text-book-text-sub"}`}
+                    >
+                      {t("settingsAdmin.testCenter.testProject")}
+                    </button>
+                  ) : null}
+                  {selectedScenario.target_modes.includes("current_project") ? (
+                    <button
+                      type="button"
+                      aria-pressed={targetMode === "current_project"}
+                      onClick={() => setTargetMode("current_project")}
+                      className={`min-h-9 border px-3 text-xs ${targetMode === "current_project" ? "border-book-primary bg-book-bg-paper text-book-primary" : "border-book-border/70 text-book-text-sub"}`}
+                    >
+                      {t("settingsAdmin.testCenter.currentProject")}
+                    </button>
+                  ) : null}
                 </div>
                 <div className="mt-3 max-w-xl">
                   {targetMode === "current_project" || selectedScenario.id === "project_duplicate" ? (
@@ -534,7 +574,7 @@ export const TestCenterPage: React.FC = () => {
               ) : null}
 
               <RunResult
-                detail={detail?.summary.scenario_id === selectedScenario.id ? detail : null}
+                detail={detail?.summary.id === selectedRunId && detail.summary.scenario_id === selectedScenario.id ? detail : null}
                 statusLabel={statusLabel}
                 formatDuration={formatDuration}
                 locale={locale}
@@ -568,7 +608,10 @@ export const TestCenterPage: React.FC = () => {
                   <button
                     type="button"
                     aria-current={selectedRunId === run.id ? "true" : undefined}
-                    onClick={() => setSelectedRunId(run.id)}
+                    onClick={() => {
+                      setSelectedScenarioId(run.scenario_id);
+                      setSelectedRunId(run.id);
+                    }}
                     className={`min-w-0 flex-1 px-2 py-2 text-left hover:bg-book-bg-paper ${selectedRunId === run.id ? "bg-book-bg-paper" : ""}`}
                   >
                     <span className="block truncate text-xs font-medium">
@@ -709,7 +752,11 @@ function RunResult({
                 <li key={`${impact.action}-${impact.project_id}-${index}`} className="py-2">
                   <p className="flex flex-wrap items-center gap-x-2 text-xs">
                     <span className="font-medium">{t(`settingsAdmin.testCenter.effect${impact.action[0].toUpperCase()}${impact.action.slice(1)}` as MessageKey)}</span>
-                    <span className="text-book-text-muted">{impact.resource}</span>
+                    <span className="text-book-text-muted">
+                      {RESOURCE_COPY_KEYS[impact.resource]
+                        ? t(RESOURCE_COPY_KEYS[impact.resource])
+                        : impact.resource}
+                    </span>
                     {impact.project_id != null ? <span className="font-mono text-caption">#{impact.project_id}</span> : null}
                   </p>
                   <p className="mt-1 break-words text-caption text-book-text-muted">{impact.detail}</p>
