@@ -1,4 +1,11 @@
-import { ControlButton, Controls, useReactFlow, useStore, useStoreApi } from "@xyflow/react";
+import {
+  ControlButton,
+  Controls,
+  useReactFlow,
+  useStore,
+  useStoreApi,
+  type PanelPosition,
+} from "@xyflow/react";
 import { LockKeyhole, LockKeyholeOpen, Map as MapIcon, Minus, Plus, Scan } from "lucide-react";
 
 export function FlowControls({
@@ -7,12 +14,16 @@ export function FlowControls({
   miniMapVisible,
   miniMapLabel,
   onToggleMiniMap,
+  position = "bottom-left",
+  orientation = "vertical",
 }: {
   showInteractive?: boolean;
   onViewportChange?: () => void;
   miniMapVisible?: boolean;
   miniMapLabel?: string;
   onToggleMiniMap?: () => void;
+  position?: PanelPosition;
+  orientation?: "horizontal" | "vertical";
 }) {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
   const store = useStoreApi();
@@ -27,7 +38,14 @@ export function FlowControls({
   });
 
   return (
-    <Controls className="a4n-flow-controls" showZoom={false} showFitView={false} showInteractive={false}>
+    <Controls
+      className="a4n-flow-controls"
+      position={position}
+      orientation={orientation}
+      showZoom={false}
+      showFitView={false}
+      showInteractive={false}
+    >
       <ControlButton className="react-flow__controls-zoomin" disabled={maxZoomReached}
         title={labels["controls.zoomIn.ariaLabel"]} aria-label={labels["controls.zoomIn.ariaLabel"]} onClick={() => { void zoomIn().then(onViewportChange); }}>
         <Plus size={16} aria-hidden="true" />

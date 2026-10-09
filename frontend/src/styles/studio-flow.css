@@ -140,14 +140,6 @@
   animation: a4n-studio-workflow-running-pulse 1.4s ease-in-out infinite;
 }
 
-.react-flow__node.a4n-studio-workflow-node-completed .a4n-studio-node,
-.a4n-studio-node.a4n-studio-node-run-completed {
-  border-color: rgb(var(--status-success));
-  box-shadow:
-    0 0 0 2px rgb(var(--status-success) / 0.32),
-    0 12px 28px rgb(0 0 0 / 0.2);
-}
-
 .react-flow__node.a4n-studio-workflow-node-failed .a4n-studio-node,
 .a4n-studio-node.a4n-studio-node-run-failed {
   border-color: rgb(var(--status-error));
@@ -244,11 +236,17 @@
 
 .a4n-flow-controls {
   bottom: 2.75rem;
+  width: fit-content;
+  height: fit-content;
   overflow: hidden;
   border: 1px solid rgb(var(--color-border));
   border-radius: var(--pyqt-radius-sm);
   background: rgb(var(--color-bg-secondary) / var(--a4n-control-opacity));
   box-shadow: 0 10px 24px rgb(0 0 0 / 0.16);
+}
+
+.a4n-studio-flow .a4n-flow-controls {
+  bottom: auto;
 }
 
 .a4n-flow-controls button {

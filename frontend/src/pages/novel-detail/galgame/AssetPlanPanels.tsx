@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { ChevronRight, Images, RefreshCw } from "lucide-react";
+import { ArrowLeftRight, ChevronRight, Images, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -211,12 +211,13 @@ export const PortraitExpressionMatrix: React.FC<{
     <div className="border-t border-book-border pt-2">
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <span className="font-semibold text-book-text-main">{t("galgame.portraitExpressions")}</span>
-        <span className="text-caption tabular-nums text-book-text-subtle">
+        <span className="inline-flex items-center gap-1 text-caption tabular-nums text-book-text-subtle">
           {t("galgame.itemCount", { count: cells.length })}
+          <ArrowLeftRight className="text-book-text-muted sm:hidden" size={14} aria-hidden="true" />
         </span>
       </div>
-      <div className="custom-scrollbar overflow-x-auto" role="region" tabIndex={0} aria-label={t("galgame.portraitExpressions")}>
-        <table className="w-full min-w-[360px] border-collapse text-small">
+      <div className="a4n-galgame-expression-scroll custom-scrollbar overflow-x-auto" role="region" tabIndex={0} aria-label={t("galgame.portraitExpressions")}>
+        <table className="w-full min-w-[600px] border-collapse text-small">
           <thead>
             <tr className="text-left text-book-text-muted">
               <th className="border border-book-border bg-book-bg-paper px-2 py-1 font-medium">
@@ -274,7 +275,11 @@ export const PortraitExpressionMatrix: React.FC<{
                             <BookButton
                               variant="secondary"
                               size="sm"
-                              className="w-full"
+                              className={
+                                disabled
+                                  ? "w-full"
+                                  : "w-full border-book-primary/35 bg-book-primary/5 text-book-primary hover:border-book-primary/55 hover:bg-book-primary/10 hover:text-book-primary"
+                              }
                               disabled={disabled}
                               onClick={() =>
                                 onGenerateSpec(cell.item.generation_spec_id)

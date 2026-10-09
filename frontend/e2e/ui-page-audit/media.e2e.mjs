@@ -303,7 +303,7 @@ async function inspectVideoEditorEnd(record) {
 }
 
 async function openCanvas(nodeId = null) {
-  await openRoute("/video-project/6/studio");
+  await openRoute("/canvas-project/6");
   await browser.waitUntil(async () => (await $$(".react-flow__node")).length === 17, {
     timeoutMsg: "The media graph must contain seventeen populated nodes",
   });
@@ -325,12 +325,18 @@ async function openCanvas(nodeId = null) {
   await browser.waitUntil(async () => (await node.getAttribute("class")).includes("selected"));
   const width = await browser.execute(() => innerWidth);
   if (width <= 1100) {
-    const properties = await $('button[aria-label="打开属性面板"]');
-    await properties.waitForClickable();
-    await properties.click();
+    await openCanvasProperties();
     await $(dialog).waitForDisplayed();
   }
   await ready();
+}
+
+async function openCanvasProperties() {
+  const trigger = await $('.a4n-video-canvas-header button[aria-label="更多操作"]');
+  await trigger.click();
+  const action = await $('//*[@role="menuitem" and normalize-space(.)="打开属性面板"]');
+  await action.waitForClickable();
+  await action.click();
 }
 
 async function openCanvasThumbnail() {
@@ -367,10 +373,9 @@ async function openCanvasDraft(label) {
   const selected = await $$(".react-flow__node.selected");
   assert.equal(selected.length, 1);
   assert.match(await selected[0].getAttribute("data-id"), /^node-/);
-  const properties = await $('button[aria-label="打开属性面板"]');
-  if (await properties.isDisplayed()) {
+  if ((await browser.execute(() => innerWidth)) <= 1100) {
     await $(dialog).waitForExist({ reverse: true });
-    await properties.click();
+    await openCanvasProperties();
     await $(dialog).waitForDisplayed();
   }
   await ready();
@@ -427,7 +432,7 @@ async function openCanvasEdge() {
   await browser.releaseActions();
   await browser.waitUntil(async () => (await edge.getAttribute("class")).includes("selected"));
   if ((await browser.execute(() => innerWidth)) <= 1100) {
-    await $('button[aria-label="打开属性面板"]').click();
+    await openCanvasProperties();
     await $(dialog).waitForDisplayed();
   }
   await openDetails(`${await canvasInspector()} details`);

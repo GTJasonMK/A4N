@@ -124,6 +124,15 @@
     height: 44px;
   }
 
+  .a4n-galgame-expression-scroll.custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--color-primary) / 0.42) transparent;
+  }
+
+  .a4n-galgame-expression-scroll.custom-scrollbar::-webkit-scrollbar {
+    height: 8px;
+  }
+
   .chat-composer .a4n-dropdown-trigger,
   .chat-composer .a4n-composer-send {
     min-height: 44px !important;

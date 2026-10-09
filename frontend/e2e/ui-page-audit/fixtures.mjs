@@ -61,6 +61,19 @@ export async function buildPageFixtures(baseUrl) {
   data.list_images_by_project = images;
   data.list_images_by_chapter = images;
   for (const [id, values] of Object.entries(data.byProject)) {
+    if (id === "2") values.list_manga_pipeline_artifacts ??= [];
+    for (const page of values.list_manga_page_prompts ?? []) {
+      page.page_id ??= `page-${String(page.page_number).padStart(4, "0")}`;
+      page.orphaned ??= false;
+      page.page_content ??= null;
+      page.page_adaptation ??= null;
+      page.reference_discovery ??= null;
+      page.pipeline_error ??= null;
+      page.pipeline_stage ??= null;
+      page.pipeline_status ??= null;
+      page.stale_stages ??= [];
+      page.system_reference_images ??= [];
+    }
     if (id === "2" || id === "5") {
       values.get_media_authoring_workspace = authoringWorkspace(Number(id), id === "2" ? "manga" : "galgame", values.list_source_snapshot_chapters);
     }
