@@ -10,6 +10,8 @@ python3 scripts/tests/run_creation_e2e.py --list
 
 `python3 scripts/tests/run_creation_e2e.py --stage all` 是全量生成链路 Mock 验收入口。除下列阶段测试和真实浏览器流程外，还运行媒体改编、角色/场景同步、Agent 委派与领域 Agent、LLM 生命周期/缓存、图片/立绘生成与恢复，以及 `run_all_workflows_e2e.py` 的全业务 fixture。任一子套件缺失、无断言、超时或失败，均使整轮失败；报告中的 `generation_matrix` 汇总全量套件状态。
 
+Nightly Full Checks workflow 会自动运行 `--stage all`；PR 只运行轻量矩阵和核心数据库集成。需要在本地复现同一组测试时使用 `./scripts/test-all.sh --profile full`，不要把完整 E2E 当作只编译或只启动服务的检查。
+
 需要已有 Rust、Node/npm 依赖、Docker、FFmpeg、Chromium/ChromeDriver、项目固定版本的 ONNX Runtime 和 `tools/qdrant/bin/qdrant`。PostgreSQL 默认使用 `postgres:16` 并设置 `max_connections=300`，以容纳全量并行 worker 的连接池；私有镜像地址可通过 `--postgres-image` 或 `A4N_E2E_POSTGRES_IMAGE` 指定。
 
 入口把启动时工作区保存为完整源码快照，持共享构建锁编译，并保存可校验的独立二进制；随后创建自己的 PostgreSQL 容器、Qdrant、Mock Provider、Server/Worker 和浏览器。不会连接已有开发库，也不会改用真实付费模型。`--binaries-dir` 只能复用本工具构建、文件哈希和当前输入快照均匹配的二进制。`--application-source <旧报告/source>` 用于复现保存的应用版本，测试脚本仍取当前工作区；报告分别记录被测后端、前端哈希及是否与当前工作区一致。

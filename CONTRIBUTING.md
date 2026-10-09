@@ -131,6 +131,16 @@ npm --prefix frontend run build
 git diff --check
 ```
 
+统一测试矩阵入口：
+
+```bash
+./scripts/test-all.sh --profile fast
+./scripts/test-all.sh --profile full
+./scripts/test-all.sh --profile fast --list
+```
+
+`fast` 在临时 PostgreSQL 中应用迁移，再运行固定数据库核心 package 和 Git 变更涉及的 Rust package 及其传递反向依赖；根 Cargo 锁文件、迁移、API/进程合同和共享构建脚本变化会升级为 workspace 全量测试。`nightly` 覆盖全 workspace、全部浏览器 smoke 和完整创作链路；`full` 另外执行核心边界与 worker 隔离门禁。需要 PostgreSQL 的测试批次由 `scripts/tests/run_with_test_database.py` 创建临时容器，结束后连同匿名数据卷一起删除；不要把 `A4N_TEST_DATABASE_URL` 指向日常开发库。
+
 整体构建使用 `./scripts/build.sh`，后端编译检查使用 `./scripts/build.sh --backend --check`；复杂 Cargo/test 参数走 `scripts/cargo.sh`，`scripts/test.sh` 只支持 `--crate` 和 `--nocapture`。不能把超时、跳过、旧二进制或仅编译成功写成当前行为验证通过；无法验证时说明原因和剩余范围。
 
 ## 构建缓存管理

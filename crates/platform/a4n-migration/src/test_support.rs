@@ -1,5 +1,6 @@
 use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbErr, Statement};
 use std::sync::atomic::{AtomicU64, Ordering};
+use uuid::Uuid;
 
 static SCHEMA_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -42,9 +43,10 @@ async fn connect_test_database_result() -> Result<DatabaseConnection, DbErr> {
         .map_err(|error| DbErr::Custom(error.to_string()))?;
 
     let schema = format!(
-        "a4n_test_{}_{}",
+        "a4n_test_{}_{}_{}",
         std::process::id(),
-        SCHEMA_COUNTER.fetch_add(1, Ordering::Relaxed)
+        SCHEMA_COUNTER.fetch_add(1, Ordering::Relaxed),
+        Uuid::new_v4().simple()
     );
     let admin_db = Database::connect(&database_url).await?;
     admin_db

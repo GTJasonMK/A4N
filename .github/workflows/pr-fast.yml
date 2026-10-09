@@ -1,0 +1,53 @@
+name: PR Fast Checks
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: short
+
+jobs:
+  matrix:
+    name: Declared fast test matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Linux browser dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium chromium-driver ffmpeg xvfb
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
+
+      - name: Install Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run fast matrix
+        run: python3 scripts/tests/run_test_matrix.py --profile fast --report-dir artifacts/test-matrix
+
+      - name: Upload fast matrix report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pr-fast-test-matrix
+          path: |
+            artifacts/test-matrix
+            data/test-runs
+          retention-days: 14

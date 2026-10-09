@@ -528,6 +528,7 @@ class CliContractRunnerTest(unittest.TestCase):
             "start_chapter_shooting_script_generation",
             "get_chapter_shooting_script",
             "create_profile",
+            "list_profiles",
             "create_object_profile",
             "create_scene_profile",
             "create_foreshadowing",
@@ -591,6 +592,7 @@ class CliContractRunnerTest(unittest.TestCase):
             "delete_latest_chapter_outlines": {"warnings": []},
             "list_chapters": [{"id": 4}],
             "create_profile": {"id": 5},
+            "list_profiles": [],
             "create_object_profile": {"id": 6},
             "create_scene_profile": {"id": 7},
             "create_foreshadowing": {"id": 8},
@@ -612,7 +614,7 @@ class CliContractRunnerTest(unittest.TestCase):
             "get_galgame_script": {},
             "plan_galgame_assets": {"backgrounds": [{"generation_spec_id": 21}], "portrait_expressions": [], "event_cgs": [], "summary": {}},
             "run_galgame_asset_generation": {},
-            "start_manga_pipeline": "manga-task",
+            "start_manga_pipeline": {"task_id": "manga-task", "attempt": 1},
             "get_manga_pipeline_status": {"pipeline_status": "completed", "total": 1, "completed": 1},
             "list_manga_page_prompts": [{"id": 22}],
             "list_videos_by_chapter": [{"id": 23}],
@@ -690,12 +692,20 @@ class CliContractRunnerTest(unittest.TestCase):
                 data = ids.get(command, {})
             return {"ok": True, "classification": "business_success", "duration_ms": 1, "data": data}
 
-        def fake_watch(_cli, task_id, records, label):
-            records.append({"command": "task watch", "task_id": task_id, "label": label})
+        def fake_watch(_cli, task_id, records, label, attempt=1):
+            records.append({"command": "task watch", "task_id": task_id, "label": label, "attempt": attempt})
+
+        checked_attempts = []
+
+        def fake_checked(_cli, parts, _label, *args, **kwargs):
+            self.assertEqual(parts[:2], ["task", "get"])
+            self.assertEqual(parts[-2:], ["--attempt", "1"])
+            checked_attempts.append(parts[-1])
+            return ({"data": {"handle": {"status": "running"}}}, {"duration_ms": 1})
 
         with patch("run_all_workflows_e2e.invoke", side_effect=fake_invoke), patch(
             "run_all_workflows_e2e._watch_seed_task", side_effect=fake_watch
-        ):
+        ), patch("run_all_workflows_e2e.checked", side_effect=fake_checked):
             state, records = {}, []
             seed_fixtures(
                 object(),
@@ -717,6 +727,7 @@ class CliContractRunnerTest(unittest.TestCase):
         self.assertIn("save_chapter_visual_plan_draft", calls)
         self.assertIn("confirm_chapter_visual_plan", calls)
         self.assertIn("apply_source_sync_decisions", calls)
+        self.assertTrue(checked_attempts)
         coverage = fixture_path_coverage(records)
         self.assertTrue(coverage["complete"], coverage)
         video_prompt_calls = [payload for command, payload in payloads if command == "start_video_generation"]
@@ -835,6 +846,7 @@ class CliContractRunnerTest(unittest.TestCase):
                 "video_config_id": 13,
                 "embedding_config_id": 14,
             },
+            384,
         )
         self.assertEqual(snapshot["llm"]["id"], 11)
         self.assertEqual(snapshot["llm_configs"][0]["id"], 11)
@@ -848,6 +860,7 @@ class CliContractRunnerTest(unittest.TestCase):
             "canvas_project_id": 12,
             "galgame_project_id": 13,
             "derived_project_id": 14,
+            "video_project_id": 37,
             "chapter_id": 15,
             "profile_id": 16,
             "object_profile_id": 17,
@@ -919,7 +932,7 @@ class CliContractRunnerTest(unittest.TestCase):
         )
         self.assertEqual(
             nested,
-            {"input": {"project_id": 11, "ids": [{"video_id": 34}]}},
+            {"input": {"project_id": 37, "ids": [{"video_id": 34}]}},
         )
 
     def test_fixture_failure_is_a_real_failure_even_for_expected_state_error(self) -> None:

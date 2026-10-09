@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 
 from run_creation_e2e import (
     FULL_GENERATION_SUITES, ROOT, RunnerError, STAGES, acceptance_passed,
-    acceptance_result, files_fingerprint, frontend_fingerprint,
+    acceptance_result, build_cache_paths, files_fingerprint, frontend_fingerprint,
     full_generation_matrix_report, read_all_workflows_report, read_suite_report,
     selected_suites, source_fingerprint, stop_owned_workers, stop_postgres,
 )
@@ -146,6 +146,31 @@ class CreationAcceptanceTest(unittest.TestCase):
         (root / "a").write_text("bc")
         (root / "ab").write_text("c")
         self.assertNotEqual(files_fingerprint(root, [root / "a"]), files_fingerprint(root, [root / "ab"]))
+
+    def test_ci_build_cache_stays_inside_checkout_and_uses_a_private_lock(self):
+        target = ROOT / "target" / "creation-e2e"
+        with patch.dict("os.environ", {"A4N_E2E_CARGO_TARGET_DIR": str(target)}):
+            self.assertEqual(
+                build_cache_paths(),
+                (target.resolve(), ROOT / "target" / ".creation-e2e-build.lock"),
+            )
+
+    def test_build_cache_override_rejects_paths_outside_checkout(self):
+        with patch.dict("os.environ", {"A4N_E2E_CARGO_TARGET_DIR": "/tmp/external-target"}):
+            with self.assertRaisesRegex(RunnerError, "必须是 checkout/target 下"):
+                build_cache_paths()
+
+        with patch.dict("os.environ", {"A4N_E2E_CARGO_TARGET_DIR": str(ROOT / "target")}):
+            with self.assertRaisesRegex(RunnerError, "必须是 checkout/target 下"):
+                build_cache_paths()
+
+    def test_cargo_target_dir_override_is_preserved(self):
+        target = ROOT / "target" / "caller-selected"
+        with patch.dict(
+            "os.environ",
+            {"A4N_E2E_CARGO_TARGET_DIR": "", "CARGO_TARGET_DIR": str(target)},
+        ):
+            self.assertEqual(build_cache_paths()[0], target.resolve())
 
     def test_failed_process_shutdown_is_not_swallowed_and_closes_its_log(self):
         process, log = Mock(pid=123), Mock()
