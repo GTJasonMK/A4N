@@ -19,7 +19,7 @@ pub fn run() -> anyhow::Result<()> {
 }
 
 async fn async_main() -> anyhow::Result<()> {
-    init_tracing();
+    a4n_worker_runtime::init_worker_tracing();
     let control_address = control_addr()?;
     let control_base_url = format!("http://{control_address}");
     let worker_address = health::bind_addr(control_address)?;
@@ -100,12 +100,6 @@ async fn async_main() -> anyhow::Result<()> {
         anyhow::bail!("A4N Agent driver stopped unexpectedly");
     }
     health_result
-}
-
-fn init_tracing() {
-    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
-    let _ = tracing_subscriber::fmt().with_env_filter(filter).try_init();
 }
 
 async fn shutdown_signal() {

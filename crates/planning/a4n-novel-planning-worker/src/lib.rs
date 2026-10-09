@@ -1,6 +1,6 @@
 //! PostgreSQL-backed shooting-script CRUD worker.
 
-use std::{env, net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc};
 
 use a4n_api_contract::chapter_visual_plan::{
     ChapterVisualPlanReadResult, ChapterVisualPlanRecordInput, ChapterVisualPlanRecordSummary,

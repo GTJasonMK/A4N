@@ -1,6 +1,6 @@
 //! PostgreSQL-backed Canvas graph document worker.
 
-use std::{env, future::Future, net::SocketAddr, sync::Arc};
+use std::{future::Future, net::SocketAddr, sync::Arc};
 
 use a4n_canvas_record_worker_contract::{
     CANVAS_GRAPH_EDIT_OPERATION, CANVAS_GRAPH_GET_OPERATION, CANVAS_GRAPH_MUTATION_CAPABILITY,
@@ -128,26 +128,15 @@ pub fn run() -> anyhow::Result<()> {
 }
 
 async fn async_main() -> anyhow::Result<()> {
-    init_tracing();
+    a4n_worker_runtime::init_worker_tracing();
     let database_url = a4n_config::required_non_empty_env_string(DATABASE_URL_ENV)?;
     a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
     let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
-    let address = worker_addr()?;
+    let address = a4n_config::worker_listen_addr(WORKER_ADDR_ENV, DEFAULT_ADDR)?;
     let database = DbHandle::connect_default(database_url).await?;
     CanvasRecordWorker::new_with_handle(database, CANVAS_RECORD_WORKER_ID, auth_token)
         .serve(address)
         .await
-}
-
-fn worker_addr() -> anyhow::Result<SocketAddr> {
-    let value = env::var(WORKER_ADDR_ENV).unwrap_or_else(|_| DEFAULT_ADDR.into());
-    let address: SocketAddr = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{WORKER_ADDR_ENV} 无效: {error}"))?;
-    if !address.ip().is_loopback() || address.port() == 0 {
-        anyhow::bail!("{WORKER_ADDR_ENV} 必须是 loopback 且端口大于 0")
-    }
-    Ok(address)
 }
 
 async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Response {
@@ -555,14 +544,6 @@ async fn shutdown_signal() {
     {
         let _ = tokio::signal::ctrl_c().await;
     }
-}
-
-fn init_tracing() {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
-        )
-        .try_init();
 }
 
 #[cfg(test)]

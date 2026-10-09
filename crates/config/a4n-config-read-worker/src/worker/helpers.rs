@@ -199,15 +199,3 @@ fn failed<T>(
 fn unauthorized() -> Response {
     StatusCode::UNAUTHORIZED.into_response()
 }
-
-async fn shutdown_signal() {
-    let _ = tokio::signal::ctrl_c().await;
-}
-
-fn init_tracing() {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
-        )
-        .try_init();
-}

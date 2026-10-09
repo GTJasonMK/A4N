@@ -1,6 +1,6 @@
 //! PostgreSQL-backed Manga page prompt read worker.
 
-use std::{env, net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc};
 
 use a4n_db::DbHandle;
 use a4n_manga_record_worker_contract::MANGA_RECORD_WORKER_ID;
@@ -51,7 +51,7 @@ impl MangaRecordWorker {
     pub async fn serve(self, address: SocketAddr) -> anyhow::Result<()> {
         let listener = tokio::net::TcpListener::bind(address).await?;
         axum::serve(listener, self.router())
-            .with_graceful_shutdown(shutdown_signal())
+            .with_graceful_shutdown(a4n_worker_runtime::wait_for_ctrl_c())
             .await
             .map_err(anyhow::Error::from)
     }
@@ -65,36 +65,13 @@ pub fn run() -> anyhow::Result<()> {
 }
 
 async fn async_main() -> anyhow::Result<()> {
-    init_tracing();
+    a4n_worker_runtime::init_worker_tracing();
     let database_url = a4n_config::required_non_empty_env_string(DATABASE_URL_ENV)?;
     a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
     let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
-    let address = worker_addr()?;
+    let address = a4n_config::worker_listen_addr(WORKER_ADDR_ENV, DEFAULT_ADDR)?;
     let database = a4n_db::manga::connect_manga_record_worker_database(database_url).await?;
     MangaRecordWorker::new(database, MANGA_RECORD_WORKER_ID, auth_token)
         .serve(address)
         .await
-}
-
-fn worker_addr() -> anyhow::Result<SocketAddr> {
-    let value = env::var(WORKER_ADDR_ENV).unwrap_or_else(|_| DEFAULT_ADDR.into());
-    let address: SocketAddr = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{WORKER_ADDR_ENV} 无效: {error}"))?;
-    if !address.ip().is_loopback() || address.port() == 0 {
-        anyhow::bail!("{WORKER_ADDR_ENV} 必须是 loopback 且端口大于 0")
-    }
-    Ok(address)
-}
-
-async fn shutdown_signal() {
-    let _ = tokio::signal::ctrl_c().await;
-}
-
-fn init_tracing() {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
-        )
-        .try_init();
 }

@@ -12,6 +12,7 @@ a4n-db-models = { workspace = true }
 a4n-domain = { workspace = true }
 a4n-outline-worker-contract = { workspace = true }
 a4n-worker-contract = { workspace = true }
+a4n-worker-runtime = { workspace = true }
 
 anyhow = { workspace = true }
 axum = { workspace = true }
@@ -20,4 +21,3 @@ serde_json = { workspace = true }
 subtle = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
