@@ -202,3 +202,10 @@
 - 独立实屏复核看过 390px 亮暗首屏及滚动后的操作区、1024/1440px 布局：手机先呈现完整可辨的成图，再呈现元数据和页级操作；按钮样式清楚，无新增遮挡或碰撞，未发现可确认的 P1/P2/P3。截图：[首屏亮色](../.dev-runtime/ui-design-20261010/media/comic-image-390-light.png)、[首屏暗色](../.dev-runtime/ui-design-20261010/media/comic-image-390-dark.png)、[图后操作区](../.dev-runtime/ui-pages/media/frontend-design-20261010-action-proof-MC05-390-interaction.png)、[桌面](../.dev-runtime/ui-design-20261010/media/comic-image-1440-light.png)。
 - MC03/MC05/MC06 三宽度回归 9/9 通过；加入按钮位置断言及真实滚动截图后的 MC05 三宽度回归 3/3 通过。MC03 测试改为选中当前断点可见的“编辑提示词”按钮，避免把隐藏的桌面副本当作目标。媒体/画布视觉矩阵 5/5，通过 1440/1024/390px 与亮暗主题共 30 个场景，横向溢出、屏外控件和浏览器错误均为 0。
 - 构建及设计预算检查通过。CSS 源码 4,739 行 / 134,319 字节，构建 CSS 260,886 字节；相对既有基线分别 +0.87%、−2.59%、+1.33%，均低于 +20% 限制；亮暗 palette 一致、UI emoji 为 0、无依赖变更。Node 24.21.0 构建通过并保留既有大 chunk 提示；项目要求 Node 22，本环境未提供。视觉素材为审查 fixture，不代表真实生成、上传或后端写回验收。
+
+## W08 写作助手章节上下文（2026-10-10）
+
+- 根因：900/1440px 优化模式重复显示外层“第 N 章”、优化器“第 N 章 · 标题”和“已绑定第 N 章 · 标题”，占用窄侧栏高度；390px 全屏助手标题没有固定显示当前章节，滚动消息时目标章节不易确认。
+- 修复：优化模式在 `md` 及以上隐藏外层短章节标签和 OptimizeHeader 重复绑定副标题；完整章节标题与 DomainAgentConsole 的“已绑定 标题”状态保留。手机助手对话框在固定标题下增加当前章节副标题，标题取当前章节号，并仅在详情章号一致时附加章节名。
+- W08 现有真实工作流回归覆盖 1440/900/390px：正文优化历史、可达输入与可发送状态、切章后草稿保留、离页保护取消继续通过；新增展示断言确认桌面标题去重且绑定状态保留、手机对话框固定显示章节。六张新截图均无横向溢出或测试发现；[390px](../.dev-runtime/ui-pages/novel/frontend-design-20261010-w08-final-W08-optimizer-390-initial.png)、[900px](../.dev-runtime/ui-pages/novel/frontend-design-20261010-w08-final-W08-optimizer-900-initial.png)、[1440px](../.dev-runtime/ui-pages/novel/frontend-design-20261010-w08-final-W08-optimizer-1440-initial.png)。
+- 独立实屏复核确认 390px 固定标题显示“第 1 章 · 雨夜来信”，900/1440px 只保留一个章节标题并保留绑定状态，无碰撞或文字截断；未发现可确认的 P1/P2/P3。改动只调整现有文字位置与呈现，没有新增依赖或生成新 CSS 规则；构建及 +20% 设计预算检查通过。

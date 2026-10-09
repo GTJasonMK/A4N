@@ -2084,6 +2084,44 @@ describe("Novel page audit - Runtime blueprints and bound optimizer", function (
     }, text: ["正文优化 Agent", "雨夜来信"], check: async (scope, width) => {
       const rows = await scope.$$(".agent-message-list > *");
       assert.equal(rows.length, runtimeSeed.agent.snapshot.messages.length);
+      const context = await browser.execute(() => {
+        const assistant = document.querySelector('aside[aria-label="写作助手"]');
+        const visible = (element) => Boolean(element && getComputedStyle(element).display !== "none" && element.getClientRects().length > 0);
+        const optimizerHeader = assistant?.querySelector("header");
+        const optimizerTitle = optimizerHeader?.querySelector("p");
+        const modalTitle = assistant?.closest('[role="dialog"]')?.querySelector("h3");
+        const modalSubtitle = modalTitle?.parentElement?.querySelector(":scope > div");
+        return {
+          dialogs: [...document.querySelectorAll('[role="dialog"]')].map((dialog) => {
+            const title = dialog.querySelector("h3");
+            const subtitle = title?.parentElement?.querySelector(":scope > div");
+            return {
+              visible: visible(dialog),
+              title: title?.textContent.trim() ?? "",
+              subtitle: subtitle?.textContent.trim() ?? "",
+              subtitleVisible: visible(subtitle),
+            };
+          }).filter((dialog) => dialog.visible),
+          assistantChapterVisible: visible(assistant?.querySelector(":scope > div > span")),
+          optimizerTitle: optimizerTitle?.textContent.trim() ?? "",
+          repeatedBindingVisible: visible(optimizerTitle?.nextElementSibling),
+          boundResource: assistant?.querySelector(".agent-console-subtitle")?.textContent.trim() ?? "",
+          boundResourceVisible: visible(assistant?.querySelector(".agent-console-subtitle")),
+          modalChapter: modalSubtitle?.textContent.trim() ?? "",
+          modalChapterVisible: visible(modalSubtitle),
+        };
+      });
+      current.evidence = { ...current.evidence, chapterContext: context };
+      if (width >= 768) {
+        assert.equal(context.assistantChapterVisible, false, "The outer assistant rail must not repeat the active chapter number");
+        assert(context.optimizerTitle.includes("雨夜来信"), "The optimizer header must retain the full chapter context");
+        assert.equal(context.repeatedBindingVisible, false, "The optimizer header must not repeat its chapter binding in a subtitle");
+        assert.equal(context.boundResourceVisible, true, "The domain agent must retain its bound-resource status");
+        assert(context.boundResource.includes("雨夜来信"), "The bound-resource status must keep the active chapter");
+      } else {
+        assert.equal(context.modalChapterVisible, true, "The mobile assistant dialog must expose its chapter context");
+        assert(context.modalChapter.includes("第 1 章 · 雨夜来信"), "The mobile assistant dialog must name the bound chapter");
+      }
       const commands = await browser.execute(() => [...window.__uiAudit.commands]);
       assert.ok(commands.includes(runtimeSeed.agent.snapshot.thread.id), "Must load the chapter-bound optimizer snapshot");
       const input = await scope.$("textarea");
@@ -2153,7 +2191,7 @@ describe("Novel page audit - Runtime blueprints and bound optimizer", function (
       }
       await browser.waitUntil(async () => (await activeScope.$("textarea").getValue()) === draft, { timeout });
       await activeScope.$("textarea").clearValue();
-      return { scope: activeScope, boundThread: runtimeSeed.agent.snapshot.thread.id, messages: rows.length, composer, sendEnabled: true, chapterSwitch: "draft preserved", routeLeave: "blocked and cancelled", runCoverage: "idle only" };
+      return { scope: activeScope, boundThread: runtimeSeed.agent.snapshot.thread.id, messages: rows.length, composer, chapterContext: context, sendEnabled: true, chapterSwitch: "draft preserved", routeLeave: "blocked and cancelled", runCoverage: "idle only" };
     }, last: async (scope) => (await scope.$$(".agent-message-list > *")).at(-1) },
   ];
   for (const spec of pages) it(spec.id + " follows the runtime-backed UI path", async () => matrix(spec));

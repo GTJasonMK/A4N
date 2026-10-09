@@ -100,7 +100,7 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
           embeddedInModal ? "pt-0" : ""
         }`}
       >
-        <span className="text-small text-book-text-muted">
+        <span className={`text-small text-book-text-muted ${assistantMode === "optimize" && activeChapter ? "md:hidden" : ""}`}>
           {activeNumber != null ? t("writing.chapterLabel", { number: activeNumber }) : t("writing.assistantChapterNotSelected")}
         </span>
         <SegmentedControl

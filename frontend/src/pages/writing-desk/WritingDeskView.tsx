@@ -99,6 +99,14 @@ export const WritingDeskView: React.FC<WritingDeskViewProps> = ({
 }) => {
   const { t } = useI18n();
   const hasDialogs = scenesOpen || previewOpen || profilesOpen;
+  const assistantContext = assistantPanelProps.activeNumber == null
+    ? undefined
+    : [
+        t("writing.chapterLabel", { number: assistantPanelProps.activeNumber }),
+        assistantPanelProps.activeChapter?.chapter_number === assistantPanelProps.activeNumber
+          ? assistantPanelProps.activeChapter.title?.trim()
+          : "",
+      ].filter(Boolean).join(" · ");
 
   return (
     <div className="flex h-full w-full min-w-0 flex-col overflow-hidden">
@@ -164,6 +172,7 @@ export const WritingDeskView: React.FC<WritingDeskViewProps> = ({
           isOpen
           onClose={onCloseRightPanel}
           title={rightPanel === "rag" ? t("writing.rag") : t("writing.assistant")}
+          subtitle={rightPanel === "optimize" ? assistantContext : undefined}
           maxWidthClassName="max-w-3xl"
           bodyClassName="min-h-0 flex-1 overflow-hidden p-0"
         >

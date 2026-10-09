@@ -37,7 +37,7 @@ export function OptimizeHeader({
         <p className="truncate text-xs font-semibold text-book-text-main">
           {chapterLabel}
         </p>
-        <p className="mt-0.5 truncate text-small text-book-text-muted">
+        <p className={`mt-0.5 truncate text-small text-book-text-muted ${activeChapter ? "md:hidden" : ""}`}>
           {activeChapter
             ? t("agent.domain.contentSubtitle", { resource: chapterLabel })
             : t("writing.chooseGeneratedChapterForAssistant")}
