@@ -316,3 +316,20 @@ flock -x /home/fufu/Code/A4N/work/.agent-build.lock -c \
    cargo test -p a4n-db --test video_reference_batch \
    performance_video_reference_status_batch_1000_scripts -- --ignored --nocapture'
 ```
+
+### PERF-025：视频参考列表的源快照批量解析
+
+- 请求链路：`video_references` 列表需要校验每个候选视频剧本冻结的源章节。旧路径对每个剧本单独读取并校验快照正文，同时逐项验证权限；新路径复用批量项目权限结果，按 `(video_project_id, root_project_id, snapshot_id)` 分组，一次读取该组全部源章节，并用章节索引替代源列表线性查找。候选顺序、权限过滤、源快照身份和内容哈希校验保持不变。
+- 数据量与频率：独立 PostgreSQL 中 1000 个冻结源章节，15 轮交错测量、2 轮预热；旧路径每轮 1000 次快照查询，新路径每轮 1 次批量查询。逐条 `ResolvedChapterSource` 完整字段一致。
+- A/B 结果：逐条解析 P50/P95 **713.831/2151.846 ms**，批量解析 **45.791/55.295 ms**；P50 下降 **93.59%**，P95 下降 **97.43%**，超过 30% 时延门槛。
+- 验证：`a4n-db` 源解析批量基准 1 passed；`a4n-orchestrator` 受影响 crate check 通过。基准只使用独立 PostgreSQL schema。
+
+复现：
+
+```bash
+export A4N_TEST_DATABASE_URL=postgres://a4n:a4n@127.0.0.1:5432/a4n_perf_20261010_manga_batch
+flock -x /home/fufu/Code/A4N/work/.agent-build.lock -c \
+  'CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target CARGO_INCREMENTAL=0 \
+   cargo test -p a4n-db --test video_reference_source_batch \
+   performance_video_reference_source_resolution_batch_1000_chapters -- --ignored --nocapture'
+```

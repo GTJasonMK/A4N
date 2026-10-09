@@ -56,23 +56,91 @@ impl OrchestratorContext {
         let scripts =
             records::video_reference_scripts(self.database.executor(), root, input.chapter_id)
                 .await?;
-        let mut candidates = Vec::new();
-        for (project, script) in scripts {
-            let Some(current) = sources
-                .iter()
-                .find(|source| source.source_chapter_id == script.source_chapter_id)
-            else {
+        let mut sources_by_chapter = HashMap::with_capacity(sources.len());
+        for source in &sources {
+            sources_by_chapter
+                .entry(source.source_chapter_id)
+                .or_insert(source);
+        }
+        let matching_scripts = scripts
+            .into_iter()
+            .filter_map(|(project, script)| {
+                sources_by_chapter
+                    .get(&script.source_chapter_id)
+                    .map(|current| (project, script, *current))
+            })
+            .collect::<Vec<_>>();
+        let mut project_ids = matching_scripts
+            .iter()
+            .map(|(project, _, _)| project.id)
+            .collect::<Vec<_>>();
+        project_ids.sort_unstable();
+        project_ids.dedup();
+        let accessible_project_ids = self
+            .project_ids_with_permission(&project_ids, user_id, ProjectAccessRole::Viewer)
+            .await?
+            .into_iter()
+            .collect::<HashSet<_>>();
+
+        let mut group_indexes = HashMap::<(i64, i64, i64), usize>::new();
+        let mut groups = Vec::<((i64, i64, i64), Vec<i64>)>::new();
+        let mut requested_source_keys = HashSet::new();
+        for (project, script, _) in &matching_scripts {
+            if !accessible_project_ids.contains(&project.id) {
                 continue;
-            };
-            match self
-                .verify_project_permission(project.id, user_id, ProjectAccessRole::Viewer)
-                .await
-            {
-                Ok(_) => {}
-                Err(AppError::Forbidden(_) | AppError::NotFound(_)) => continue,
-                Err(error) => return Err(error),
             }
-            let source = self.reference_script_source(&script).await?;
+            let snapshot_id = script
+                .source_snapshot_id
+                .ok_or_else(|| AppError::InvalidArgument("参考剧本缺少冻结原文".into()))?;
+            let group_key = (project.id, script.root_project_id, snapshot_id);
+            let group_index = match group_indexes.get(&group_key) {
+                Some(index) => *index,
+                None => {
+                    let index = groups.len();
+                    groups.push((group_key, Vec::new()));
+                    group_indexes.insert(group_key, index);
+                    index
+                }
+            };
+            if requested_source_keys.insert((project.id, snapshot_id, script.source_chapter_id)) {
+                groups[group_index].1.push(script.source_chapter_id);
+            }
+        }
+        let mut sources_by_identity = HashMap::new();
+        for ((project_id, root_project_id, snapshot_id), source_chapter_ids) in groups {
+            let resolved_sources = a4n_db::project::resolve_snapshot_sources(
+                self.database.executor(),
+                project_id,
+                root_project_id,
+                snapshot_id,
+                &source_chapter_ids,
+            )
+            .await
+            .map_err(crate::shooting_script::errors::resolve_source_error)?;
+            for source in resolved_sources {
+                sources_by_identity
+                    .insert((project_id, snapshot_id, source.source_chapter_id), source);
+            }
+        }
+
+        let mut candidates = Vec::with_capacity(matching_scripts.len());
+        for (project, script, current) in matching_scripts {
+            if !accessible_project_ids.contains(&project.id) {
+                continue;
+            }
+            let snapshot_id = script
+                .source_snapshot_id
+                .ok_or_else(|| AppError::InvalidArgument("参考剧本缺少冻结原文".into()))?;
+            let source = sources_by_identity
+                .get(&(project.id, snapshot_id, script.source_chapter_id))
+                .cloned()
+                .ok_or_else(|| {
+                    AppError::NotFound(format!(
+                        "媒体项目 {} 的源快照 {} 不包含章节 {}",
+                        project.id, snapshot_id, script.source_chapter_id
+                    ))
+                })?;
+            let source = validate_reference_script_source(&script, source)?;
             candidates.push(VideoScriptReferenceCandidate {
                 selection: VideoScriptSelection {
                     video_project_id: project.id,
@@ -169,13 +237,20 @@ impl OrchestratorContext {
         let source = sources
             .pop()
             .ok_or_else(|| AppError::NotFound("参考剧本的原文章节不存在".into()))?;
-        if source.source_snapshot_chapter_id != record.source_snapshot_chapter_id
-            || source.content_sha256 != record.source_content_sha256
-        {
-            return Err(AppError::InvalidArgument("参考剧本原文身份不一致".into()));
-        }
-        Ok(source)
+        validate_reference_script_source(record, source)
     }
+}
+
+fn validate_reference_script_source(
+    record: &ChapterShootingScriptReferenceRecord,
+    source: ResolvedChapterSource,
+) -> Result<ResolvedChapterSource, AppError> {
+    if source.source_snapshot_chapter_id != record.source_snapshot_chapter_id
+        || source.content_sha256 != record.source_content_sha256
+    {
+        return Err(AppError::InvalidArgument("参考剧本原文身份不一致".into()));
+    }
+    Ok(source)
 }
 
 #[cfg(test)]
