@@ -92,6 +92,8 @@ export const VIDEO_UPLOAD_MIME_TYPES: Readonly<Record<string, readonly [string, 
   "m4v": ["video/x-m4v", "video/mp4", "application/mp4"],
 };
 
+export const TEMP_MEDIA_VIDEO_MIME_TYPES: readonly string[] = ["video/mp4", "video/quicktime", "video/webm"];
+
 export interface ImageConfigSummary {
   backend: string;
   base_url: string;

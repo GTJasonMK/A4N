@@ -553,6 +553,15 @@
 - 验证：`cargo check --all-targets --locked --offline -p a4n-video-providers` 通过；`timeout 60s cargo test --locked --offline -p a4n-video-providers --lib` 85/85 通过；`cargo fmt --all -- --check` 与 `git diff --check` 通过。
 - 记录范围：`crates/video/a4n-video-providers/src/{format.rs,http/response.rs,http/tests.rs}`，及 R-66 的 `a4n-domain::media::VIDEO_MEDIA_TYPES` 定义和消费者图。
 
+### R-68：统一临时媒体视频 MIME 子集
+
+- 类别：重复的临时媒体 MIME→扩展名映射及前端文件类型列表。
+- BFS 覆盖：从参考媒体组件的 `selectLocalFile` 追到 `ReferenceMediaUploadInput`、Orchestrator `prepare_reference_media_video_generation`、Runtime `upload_reference_media_input_for_preview -> preview::upload_reference_media_input -> media_bytes_to_remote_temp_media_url`，再到 Control `POST /temp-media`；同时追到 metadata/file 两次 MIME 校验、文件名后缀校验、artifact filename serving 的 `find_temp_media_path` 和过期清理。从生成图片 `image_file_to_remote_temp_media_url` 复核同一临时媒体入口的其他生产 caller。
+- 将临时媒体限定的视频扩展名 `mp4/mov/webm` 收敛到 `a4n-api-contract::temp_media::TEMP_MEDIA_VIDEO_EXTENSIONS`。合同生成器据此与 R-66 domain MIME 表生成 `TEMP_MEDIA_VIDEO_MIME_TYPES`；Control MIME→扩展名和前端参考媒体文件选择都消费生成规则。Control 的文件名校验与 artifact lookup 共用同一扩展名迭代器，保留原图片、视频、音频搜索顺序。
+- Provider `video_format_from_content_type` 与 Control Temp Media 共用 domain canonical MIME 反查；provider 独有 `video/x-m4v -> m4v` 响应头别名仍保留。TEMP_MEDIA 继续仅允许 mp4/mov/webm 三种视频扩展，拒绝 m4v 和 `application/mp4` / `video/mov` 上传别名。Magic-byte 校验保留为独立内容完整性合同。
+- 验证：4 个受影响 Rust package all-targets 检查通过；domain MIME 测试 1/1、Control Temp Media 子集测试 1/1、video-provider 85/85 通过；API 类型生成检查和 `npm run check:web-api-parity` 通过；`referenceMediaWorkspace.test.ts` 2/2、前端构建、格式和 diff 检查通过。
+- 记录范围：`crates/platform/a4n-domain/src/media/{files.rs,media.rs}`、`crates/host/a4n-api-contract/src/{temp_media.rs,bin/generate_types.rs,bin/generate_types/stages.rs}`、Control temp-media rules/storage、`crates/video/a4n-video-providers/src/format.rs`、生成配置与 `referenceMediaWorkspace.tsx`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

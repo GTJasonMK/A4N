@@ -1,21 +1,32 @@
-use a4n_domain::media::canonical_audio_mime;
+use a4n_api_contract::temp_media::TEMP_MEDIA_VIDEO_EXTENSIONS;
+use a4n_domain::media::{canonical_audio_mime, canonical_video_mime};
 use std::ffi::OsStr;
 use std::path::Path;
 
-pub(super) const TEMP_MEDIA_ARTIFACT_EXTENSIONS: &[&str] = &[
-    "png", "jpg", "webp", "mp4", "mov", "webm", "mp3", "wav", "m4a", "ogg",
-];
+const TEMP_MEDIA_IMAGE_ARTIFACT_EXTENSIONS: &[&str] = &["png", "jpg", "webp"];
+const TEMP_MEDIA_AUDIO_ARTIFACT_EXTENSIONS: &[&str] = &["mp3", "wav", "m4a", "ogg"];
+
+pub(super) fn temp_media_artifact_extensions() -> impl Iterator<Item = &'static str> {
+    TEMP_MEDIA_IMAGE_ARTIFACT_EXTENSIONS
+        .iter()
+        .copied()
+        .chain(TEMP_MEDIA_VIDEO_EXTENSIONS.iter().copied())
+        .chain(TEMP_MEDIA_AUDIO_ARTIFACT_EXTENSIONS.iter().copied())
+}
 
 pub(super) fn normalize_temp_media_type(
     value: &str,
 ) -> Result<(&'static str, &'static str), String> {
-    match value.trim().to_ascii_lowercase().as_str() {
+    let normalized = value.trim().to_ascii_lowercase();
+    if let Some((mime_type, extension)) = canonical_video_mime(&normalized)
+        && TEMP_MEDIA_VIDEO_EXTENSIONS.contains(&extension)
+    {
+        return Ok((mime_type, extension));
+    }
+    match normalized.as_str() {
         "image/png" => Ok(("image/png", "png")),
         "image/jpeg" => Ok(("image/jpeg", "jpg")),
         "image/webp" => Ok(("image/webp", "webp")),
-        "video/mp4" => Ok(("video/mp4", "mp4")),
-        "video/quicktime" => Ok(("video/quicktime", "mov")),
-        "video/webm" => Ok(("video/webm", "webm")),
         other => {
             if !matches!(
                 other,
@@ -96,7 +107,7 @@ pub(super) fn validate_temp_media_file_name(value: &str) -> Result<String, Strin
         return Err("临时媒体文件名无效".to_string());
     }
     let extension = extension.to_ascii_lowercase();
-    if TEMP_MEDIA_ARTIFACT_EXTENSIONS.contains(&extension.as_str()) {
+    if temp_media_artifact_extensions().any(|supported| supported == extension.as_str()) {
         Ok(trimmed.to_string())
     } else {
         Err("临时媒体文件扩展名不支持".to_string())
@@ -109,4 +120,30 @@ pub(super) fn validate_temp_media_artifact_id(value: &str) -> Result<String, Str
         return Err("临时媒体 artifact_id 无效".to_string());
     }
     Ok(trimmed.to_ascii_lowercase())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn temp_media_uses_the_shared_video_mime_and_extension_contract() {
+        assert_eq!(
+            normalize_temp_media_type(" VIDEO/MP4 "),
+            Ok(("video/mp4", "mp4"))
+        );
+        assert_eq!(
+            normalize_temp_media_type("video/quicktime"),
+            Ok(("video/quicktime", "mov"))
+        );
+        assert_eq!(
+            normalize_temp_media_type("video/webm"),
+            Ok(("video/webm", "webm"))
+        );
+        for mime_type in ["video/x-m4v", "application/mp4", "video/mov"] {
+            assert!(normalize_temp_media_type(mime_type).is_err());
+        }
+        assert!(validate_temp_media_file_name("0123456789abcdef0123456789abcdef.mp4").is_ok());
+        assert!(validate_temp_media_file_name("0123456789abcdef0123456789abcdef.m4v").is_err());
+    }
 }

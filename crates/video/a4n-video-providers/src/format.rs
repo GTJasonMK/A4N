@@ -1,4 +1,7 @@
-use a4n_domain::{ProviderError as AppError, media::canonical_video_extension};
+use a4n_domain::{
+    ProviderError as AppError,
+    media::{canonical_video_extension, canonical_video_mime},
+};
 
 pub(crate) fn normalize_video_format_str(raw: &str) -> Result<String, AppError> {
     let format = raw.trim().trim_start_matches('.');
@@ -27,13 +30,9 @@ pub(crate) fn video_format_from_content_type(content_type: &str) -> Option<Strin
         .unwrap_or(content_type)
         .trim()
         .to_ascii_lowercase();
-    match media_type.as_str() {
-        "video/mp4" => Some("mp4".into()),
-        "video/webm" => Some("webm".into()),
-        "video/quicktime" => Some("mov".into()),
-        "video/x-m4v" => Some("m4v".into()),
-        _ => None,
-    }
+    canonical_video_mime(&media_type)
+        .map(|(_, extension)| extension.to_string())
+        .or_else(|| (media_type == "video/x-m4v").then(|| "m4v".into()))
 }
 
 pub(crate) fn video_format_from_content_type_or_bytes(
@@ -131,6 +130,11 @@ mod tests {
             video_format_from_content_type("video/quicktime"),
             Some("mov".into())
         );
+        assert_eq!(
+            video_format_from_content_type("video/x-m4v"),
+            Some("m4v".into())
+        );
+        assert_eq!(video_format_from_content_type("video/mov"), None);
         assert_eq!(video_format_from_content_type("application/json"), None);
     }
 

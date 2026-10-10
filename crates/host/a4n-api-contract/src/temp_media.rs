@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 pub const TEMP_MEDIA_MAX_TTL_SECONDS: i64 = 24 * 60 * 60;
 pub const TEMP_MEDIA_METADATA_PART: &str = "metadata";
 pub const TEMP_MEDIA_FILE_PART: &str = "file";
+pub const TEMP_MEDIA_VIDEO_EXTENSIONS: &[&str] = &["mp4", "mov", "webm"];
 
 /// Metadata part of a multipart upload; the file part carries the original bytes.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

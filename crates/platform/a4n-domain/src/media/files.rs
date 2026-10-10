@@ -109,6 +109,14 @@ pub fn canonical_video_extension(value: &str) -> Option<&'static str> {
         .map(|media_type| media_type.extension)
 }
 
+pub fn canonical_video_mime(value: &str) -> Option<(&'static str, &'static str)> {
+    let value = value.trim();
+    VIDEO_MEDIA_TYPES
+        .iter()
+        .find(|media_type| value.eq_ignore_ascii_case(media_type.mime_type))
+        .map(|media_type| (media_type.mime_type, media_type.extension))
+}
+
 pub fn video_upload_mime_matches(extension: &str, mime_type: &str) -> bool {
     let mime_type = mime_type.trim();
     VIDEO_MEDIA_TYPES.iter().any(|media_type| {

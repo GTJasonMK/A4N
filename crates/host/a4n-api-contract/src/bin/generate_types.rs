@@ -7,6 +7,7 @@ use a4n_api_contract::fact_feedback::{
     RunProjectFactFeedbackInput,
 };
 use a4n_api_contract::generation_tasks::GENERATION_START_ROUTES;
+use a4n_api_contract::temp_media::TEMP_MEDIA_VIDEO_EXTENSIONS;
 use a4n_api_contract::{
     admin::{
         AdminOverviewSummary, AdminProjectSummary, CallKindOverview, CreateInviteCodeInput,
@@ -478,6 +479,22 @@ fn typescript_video_upload_mime_types() -> String {
     format!(
         "export const VIDEO_UPLOAD_MIME_TYPES: Readonly<Record<string, readonly [string, ...string[]]>> = {{\n{media_types}}};\n\n"
     )
+}
+
+fn typescript_temp_media_video_mime_types() -> String {
+    let mime_types = TEMP_MEDIA_VIDEO_EXTENSIONS
+        .iter()
+        .map(|extension| {
+            VIDEO_MEDIA_TYPES
+                .iter()
+                .find(|media_type| media_type.extension == *extension)
+                .expect("temp media video extensions must exist in the domain media table")
+                .mime_type
+        })
+        .map(|mime_type| format!("{mime_type:?}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("export const TEMP_MEDIA_VIDEO_MIME_TYPES: readonly string[] = [{mime_types}];\n\n")
 }
 
 fn typescript_type<T: JsonSchema>(name: &str) -> String {

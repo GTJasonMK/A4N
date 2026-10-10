@@ -481,6 +481,14 @@ mod tests {
             assert_eq!(canonical_video_extension(input), Some(expected));
         }
         assert_eq!(canonical_video_extension("avi"), None);
+        for (mime_type, expected) in [
+            ("video/mp4", ("video/mp4", "mp4")),
+            ("VIDEO/WEBM", ("video/webm", "webm")),
+            ("video/quicktime", ("video/quicktime", "mov")),
+        ] {
+            assert_eq!(canonical_video_mime(mime_type), Some(expected));
+        }
+        assert_eq!(canonical_video_mime("video/x-m4v"), None);
         for (extension, mime_type) in [
             ("mp4", "video/mp4"),
             ("mp4", "application/mp4"),
