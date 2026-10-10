@@ -397,6 +397,14 @@
 - 9 个已注册 Sidecar 的 health handler 都调用 `known_service_health`。Demo sidecar 使用未注册的 `demo` 身份直接构造 health；该 helper 对未知身份会 panic，不能替代。Agent Worker health 需要 token 鉴权并报告 WorkerHealth，Control health 返回简单存活响应；它们的合同和职责不同。
 - 记录范围：Control/Runtime Storage Paths dispatch 与 action、API command manifest、9 个 Sidecar health handler、`a4n-service-protocol` registry、Demo sidecar、Agent Worker 与 Control health endpoints。
 
+### R-48：删除 Prompt tracing 转发函数
+
+- 类别：无行为的单调用点 wrapper。
+- BFS 覆盖：从 Prompt Service 的二进制入口追到 `run_from_args -> run -> init_tracing -> a4n-sidecar-bootstrap::init_tracing`；CodeGraph 确认私有 wrapper 唯一 caller 为服务 `run`，backup/restore 分支不经过该初始化路径。与 R-46 的 RAG Service 对照确认传入的是同一类服务日志配置，不涉及其他 runtime 状态。
+- 在 `run` 中直接调用 bootstrap helper 并删除 wrapper，保留 `A4N_PROMPT_SERVICE_LOG`、原 default filter、启动顺序和 `?` 错误传播。
+- 验证：`cargo check --all-targets --locked --offline -p a4n-prompt-service`、`cargo fmt --all -- --check`、`git diff --check` 通过。
+- 记录文件：`crates/prompt/a4n-prompt-service/src/app.rs`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

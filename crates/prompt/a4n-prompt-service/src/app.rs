@@ -22,7 +22,10 @@ pub(crate) struct PromptServiceState {
 }
 
 pub(crate) async fn run() -> anyhow::Result<()> {
-    init_tracing()?;
+    a4n_sidecar_bootstrap::init_tracing(
+        "A4N_PROMPT_SERVICE_LOG",
+        "a4n_prompt_service=info,tower_http=warn",
+    )?;
 
     let prompts_dir = prompts_dir()?;
     let git_dir = git_dir()?;
@@ -82,13 +85,6 @@ pub(crate) async fn run_from_args() -> anyhow::Result<()> {
         }
     }
     Ok(())
-}
-
-fn init_tracing() -> anyhow::Result<()> {
-    a4n_sidecar_bootstrap::init_tracing(
-        "A4N_PROMPT_SERVICE_LOG",
-        "a4n_prompt_service=info,tower_http=warn",
-    )
 }
 
 fn optional_non_empty_env_path(key: &str) -> anyhow::Result<Option<PathBuf>> {
