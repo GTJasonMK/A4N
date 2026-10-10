@@ -179,3 +179,66 @@ pub enum ProjectOutlineRecordError {
     #[error(transparent)]
     Database(#[from] DbErr),
 }
+
+impl From<crate::outline::OutlineDbError> for ProjectOutlineRecordError {
+    fn from(error: crate::outline::OutlineDbError) -> Self {
+        match error {
+            crate::outline::OutlineDbError::Database(error) => Self::Database(error),
+            crate::outline::OutlineDbError::InvalidArgument(message) => {
+                Self::InvalidArgument(message)
+            }
+            crate::outline::OutlineDbError::InvalidState { current, operation } => {
+                Self::InvalidState { current, operation }
+            }
+            crate::outline::OutlineDbError::Generation(error) => {
+                Self::InvalidArgument(error.to_string())
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProjectOutlineRecordError;
+    use crate::{generation::GenerationDbError, outline::OutlineDbError};
+
+    #[test]
+    fn outline_db_errors_preserve_project_outline_record_mapping() {
+        let converted: ProjectOutlineRecordError =
+            OutlineDbError::InvalidArgument("invalid outline".into()).into();
+        assert!(matches!(
+            converted,
+            ProjectOutlineRecordError::InvalidArgument(message)
+                if message == "invalid outline"
+        ));
+
+        let converted: ProjectOutlineRecordError = OutlineDbError::InvalidState {
+            current: "stale outline".into(),
+            operation: "save outline".into(),
+        }
+        .into();
+        assert!(matches!(
+            converted,
+            ProjectOutlineRecordError::InvalidState { current, operation }
+                if current == "stale outline" && operation == "save outline"
+        ));
+
+        let generation_error = GenerationDbError::InvalidArgument("bad generation input".into());
+        let converted: ProjectOutlineRecordError =
+            OutlineDbError::Generation(generation_error).into();
+        assert!(matches!(
+            converted,
+            ProjectOutlineRecordError::InvalidArgument(message)
+                if message == "bad generation input"
+        ));
+
+        let database_error = sea_orm::DbErr::Custom("database unavailable".into());
+        let database_message = database_error.to_string();
+        let converted: ProjectOutlineRecordError = OutlineDbError::Database(database_error).into();
+        assert!(matches!(
+            converted,
+            ProjectOutlineRecordError::Database(error)
+                if error.to_string() == database_message
+        ));
+    }
+}

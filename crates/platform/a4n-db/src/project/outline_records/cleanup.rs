@@ -26,7 +26,7 @@ pub async fn delete_latest_part_outline_records(
         query = query.lock_exclusive();
     }
     let parts = query.all(&txn).await?;
-    crate::outline::validate_part_outline_records(&parts).map_err(map_outline_error)?;
+    crate::outline::validate_part_outline_records(&parts)?;
     ensure_latest_targets_match(
         parts
             .iter()
@@ -215,21 +215,4 @@ fn validate_existing_chapter_outlines(
         }
     }
     Ok(())
-}
-
-fn map_outline_error(error: crate::outline::OutlineDbError) -> ProjectOutlineRecordError {
-    match error {
-        crate::outline::OutlineDbError::Database(error) => {
-            ProjectOutlineRecordError::Database(error)
-        }
-        crate::outline::OutlineDbError::InvalidArgument(message) => {
-            ProjectOutlineRecordError::InvalidArgument(message)
-        }
-        crate::outline::OutlineDbError::InvalidState { current, operation } => {
-            ProjectOutlineRecordError::InvalidState { current, operation }
-        }
-        crate::outline::OutlineDbError::Generation(error) => {
-            ProjectOutlineRecordError::InvalidArgument(error.to_string())
-        }
-    }
 }
