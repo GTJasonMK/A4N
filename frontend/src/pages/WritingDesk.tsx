@@ -12,6 +12,7 @@ import { confirmDialog } from "../components/feedback/ConfirmDialog";
 import { promptDialog } from "../components/feedback/PromptDialog";
 import { useToast } from "../components/feedback/Toast";
 import { extractErrorMessage } from "../api";
+import { isPositiveSafeInteger } from "../utils/numberRange";
 import { resumeWorkflowRun } from "../api/streaming";
 import {
   canEditProjectMaterials,
@@ -93,8 +94,7 @@ export const WritingDesk: React.FC = () => {
   const dirtyRegistry = useDirtyRegistry();
   const { locale, t } = useI18n();
   const agentRequested = searchParams.get("agent") === "1";
-  const projectIdKey =
-    Number.isFinite(projectId) && projectId > 0 ? String(projectId) : "";
+  const projectIdKey = isPositiveSafeInteger(projectId) ? String(projectId) : "";
 
   const [project, setProject] = useState<NovelProject | null>(null);
   const lifecycleBlockedReason = project
@@ -464,7 +464,7 @@ export const WritingDesk: React.FC = () => {
     setSavingContent(false);
     const isCurrentLoad = () => mountedRef.current && loadSeqRef.current === requestSeq;
 
-    if (!Number.isFinite(projectId) || projectId <= 0) {
+    if (!isPositiveSafeInteger(projectId)) {
       addToast(t("novel.projectIdInvalid"), "error");
       navigate("/");
       return () => {

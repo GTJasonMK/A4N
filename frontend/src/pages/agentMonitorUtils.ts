@@ -1,4 +1,5 @@
 import type { AgentMessageView } from "../api/agent";
+import { isPositiveSafeInteger } from "../utils/numberRange";
 
 export type WritingTargetNavigation = {
   projectId: number;
@@ -18,8 +19,7 @@ export function extractWritingTarget(
   const projectId = Number(project?.id);
   const chapterNumber = Number(result?.chapter_number);
   if (
-    !Number.isSafeInteger(projectId) ||
-    projectId <= 0 ||
+    !isPositiveSafeInteger(projectId) ||
     !Number.isSafeInteger(chapterNumber) ||
     chapterNumber <= 0
   ) {

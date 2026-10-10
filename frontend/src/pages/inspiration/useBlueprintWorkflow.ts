@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { extractErrorMessage } from "../../api";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 import {
   type Blueprint,
   generateBlueprint,
@@ -200,7 +201,7 @@ export const useBlueprintWorkflow = ({
 
   // Reattach a still-active task after a page remount; the persisted target is the owner.
   useLayoutEffect(() => {
-    if (!project || project.id !== projectId || !Number.isFinite(projectId) || projectId <= 0) return;
+    if (!project || project.id !== projectId || !isPositiveSafeInteger(projectId)) return;
     let active = true;
     void generationClient.listActive(projectId).then((items) => {
       if (!active || !isCurrentProject(projectId) || generationHandleRef.current) return;

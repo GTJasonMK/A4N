@@ -52,6 +52,18 @@ describe("provider config IDs", () => {
     );
   });
 
+  it("rejects IDs outside JavaScript's exact integer range", () => {
+    expect(() => providerConfigIdOrSystem(Number.MAX_SAFE_INTEGER + 1, "图片配置 ID", -1)).toThrow(
+      "图片配置 ID 必须是整数",
+    );
+  });
+
+  it("rejects IDs outside JavaScript's exact integer range", () => {
+    expect(() => providerConfigIdOrSystem(Number.MAX_SAFE_INTEGER + 1, "图片配置 ID", -1)).toThrow(
+      "图片配置 ID 必须是整数",
+    );
+  });
+
   it("rejects system-default mutations explicitly", () => {
     expect(rejectSystemDefaultMutation).toThrow(
       "系统默认配置由管理员维护，不能在用户配置页编辑",

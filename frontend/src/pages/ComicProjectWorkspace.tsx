@@ -9,6 +9,7 @@ import {
   type SourceSnapshotChapterSummary,
 } from "../api/project";
 import { extractErrorMessage } from "../api";
+import { isPositiveSafeInteger } from "../utils/numberRange";
 import { useToast } from "../components/feedback/Toast";
 import { BookButton, BookIconButton } from "../components/ui/BookButton";
 import { BackButton } from "../components/ui/BackButton";
@@ -43,7 +44,7 @@ export const ComicProjectWorkspace: React.FC = () => {
     const requestId = refreshRequestRef.current + 1;
     refreshRequestRef.current = requestId;
     setLoadError(null);
-    if (!Number.isFinite(projectId) || projectId <= 0) {
+    if (!isPositiveSafeInteger(projectId)) {
       const message = translatorRef.current("comic.projectInvalid");
       setLoadError(message);
       setProject(null);

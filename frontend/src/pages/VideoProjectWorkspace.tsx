@@ -18,6 +18,7 @@ import {
   type SourceSnapshotChapterSummary,
 } from "../api/project";
 import { extractErrorMessage } from "../api";
+import { isPositiveSafeInteger } from "../utils/numberRange";
 import { useToast } from "../components/feedback/Toast";
 import { confirmDiscardMediaChanges } from "../components/feedback/UnsavedChangesGuard";
 import { BookButton, BookIconButton } from "../components/ui/BookButton";
@@ -64,7 +65,7 @@ export const VideoProjectWorkspace: React.FC = () => {
     const requestId = refreshRequestRef.current + 1;
     refreshRequestRef.current = requestId;
     setLoadError(null);
-    if (!Number.isFinite(projectId) || projectId <= 0) {
+    if (!isPositiveSafeInteger(projectId)) {
       const message = translatorRef.current("video.projectInvalid");
       setLoadError(message);
       setProject(null);

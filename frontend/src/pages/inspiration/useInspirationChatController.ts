@@ -10,6 +10,7 @@ import {
 import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "../../components/feedback/Toast";
 import { extractErrorMessage } from "../../api";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 import { generationClient } from "../../api/generationTasks";
 import {
   getInspirationHistory,
@@ -175,7 +176,7 @@ export const useInspirationChatController = () => {
   }, []);
 
   useLayoutEffect(() => {
-    if (!Number.isFinite(projectId) || projectId <= 0) {
+    if (!isPositiveSafeInteger(projectId)) {
       addToast(t("errors.invalidProjectId"), "error");
       navigate("/");
       return;

@@ -11,6 +11,7 @@ import {
   type SourceSnapshotChapterSummary,
 } from "../api/project";
 import { extractErrorMessage } from "../api";
+import { isPositiveSafeInteger } from "../utils/numberRange";
 import { confirmDialog } from "../components/feedback/ConfirmDialog";
 import { useToast } from "../components/feedback/Toast";
 import { BookButton, BookIconButton } from "../components/ui/BookButton";
@@ -63,7 +64,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
     const requestId = refreshRequestRef.current + 1;
     refreshRequestRef.current = requestId;
     setLoadError(null);
-    if (!Number.isFinite(projectId) || projectId <= 0) {
+    if (!isPositiveSafeInteger(projectId)) {
       const message = translatorRef.current("galgame.projectInvalid");
       setLoadError(message);
       setProject(null);

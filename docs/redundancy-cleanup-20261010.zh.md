@@ -8,7 +8,7 @@
 - 基线 Cargo workspace 有 213 个 crate manifest；本次增加 Worker runtime 与 DB adapter 后共 215 个。`cargo metadata` 核对了 Worker 对共享配置/runtime crate 的依赖。静态搜索补查脚本启动、环境变量、历史迁移、测试 fixture、生成合同脚本和运行时路由字符串。
 - 检查了 `#[allow(dead_code)]`、兼容/legacy 命名、候选无入边符号、Cargo 直接依赖和可复用的前端格式工具。
 
-R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 个 unresolved references，第二轮解析 25 个待处理引用。R-75 同步 6 个文件并解析 2 个待处理引用。R-76 首轮同步 27 个 Worker/helper 文件时报告 83 个 unresolved references；最终 helper/test 同步后报告 10 个。R-77 更新后 sync 报告 11 个 unresolved references；R-78 更新后报告 48 个；R-79 更新后报告 25 个。R-80 最新 sync 解析了 6 个 pending references；当前索引 up to date，但 CLI 不显示剩余 unresolved references 的总数或符号。跨 crate helper 导入和部分动态/宏式 route 注册仍可能无法形成完整调用边，例如共享 runtime helper 的包外调用需要用静态搜索复核。R-74—R-80 的消费者均另经全仓静态搜索确认，并由受影响 workspace package 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
+R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 个 unresolved references，第二轮解析 25 个待处理引用。R-75 同步 6 个文件并解析 2 个待处理引用。R-76 首轮同步 27 个 Worker/helper 文件时报告 83 个 unresolved references；最终 helper/test 同步后报告 10 个。R-77 更新后 sync 报告 11 个 unresolved references；R-78 更新后报告 48 个；R-79 更新后报告 25 个。R-80 最新 sync 解析了 6 个 pending references；R-81 更新并同步 1 个文件。当前索引 up to date，但 CLI 不显示剩余 unresolved references 的总数或符号。跨 crate helper 导入和部分动态/宏式 route 注册仍可能无法形成完整调用边，例如共享 runtime helper 的包外调用需要用静态搜索复核。R-74—R-81 的消费者均另经全仓静态搜索确认，并由受影响 workspace package 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
 
 本记录说明实际检查的入口和结果，不声称仅凭静态分析证明了所有运行环境、外部调用者、反射或部署配置均无遗漏。未对所有产品模块做逐函数人工审阅，也未运行浏览器端到端流程。
 
@@ -662,6 +662,14 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 新增 `frontend/src/utils/timestamp.ts::parseApiTimestampMs` 作为 API 时间解析唯一实现：保留显式偏移，按 UTC 解释无偏移 ISO datetime，保留 date-only 的原生 ISO 语义；非法/空值返回 null。Canvas/Panel、Agent budget/消息列表、灵感历史、视频提示排序、项目更新时间排序、Session expiry 和 i18n 日期格式复用该 helper。调用方原有的抛错、null、elapsed=0、排序 NaN、invalid session expiry 状态策略不变。灵感历史现在按 UTC 解释服务端 naive UTC 时间，消除浏览器本地时区造成的消息顺序/显示偏移。
 - 静态复核 `frontend/src` 后，生产代码的 `Date.parse` 仅留在该 helper；其它直接调用都只在测试中。受影响 Vitest 7 文件共 33/33 通过；`TZ=America/Los_Angeles` 下 timestamp、i18n、inspiration 3 文件 15/15 通过；`npm run build` 通过，保留已有大 chunk 提示；`git diff --check` 通过。
 - 记录范围：`frontend/src/utils/timestamp{.ts,.test.ts}`、Canvas workflow state/panel、Inspiration history、Agent budget/message list、video frame prompt utilities、Novel List sorting、Account Session expiry 和 i18n date formatting。
+
+### R-81：统一前端正安全整数 ID 边界
+
+- 类别：API ID shared parser、路由守卫和选择回调分散校验正数/整数/安全整数；有限正数守卫会让小数路由进入 API 后才失败，`idNum` 通过 `Number.isInteger` 会接受超过 JS 安全精度的值。
+- BFS 覆盖：从 `App.tsx` 注册的 Novel/Video/Comic/Galgame/Canvas/Writing 路由追到各 page 的 `Number(useParams().id)`、加载/恢复 callback、localStorage tab key 和对应 `getProject` API；继续追踪 Inspiration controller/blueprint、Novel List project selector 和 Agent monitor writing-target 到 API/导航。CodeGraph 确认 `idNum` 有 236 个调用者；全仓搜索列出全部 project-ID 条件并确认 API `idNum` 是其失败边界。
+- 在 `numberRange.ts` 集中 `isSafeInteger` 与 `isPositiveSafeInteger`；`integerNum` 拒绝不安全整数但继续允许安全的负系统哨兵，`idNum` 与所有上述项目 ID 守卫共用正安全整数规则。页面现有错误文案、导航、状态清理和选择无效时返回 null 均保留。
+- 回归覆盖零、负数、小数、非数字、`MAX_SAFE_INTEGER` 边界和系统哨兵。相关 Vitest 6 文件 26/26 通过；前端生产构建通过；迁移后搜索不再发现 projectId/requestProjectId 的有限正数/安全整数分叉；`git diff --check` 通过。
+- 记录范围：`frontend/src/utils/numberRange.{ts,test.ts}`、`frontend/src/api/shared.ts`、API config shared test、Novel/Video/Comic/Galgame/Canvas/Writing/Inspiration/Agent Monitor 前端项目 ID 使用点。
 
 ## 核验后保留
 
