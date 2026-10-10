@@ -489,6 +489,14 @@
 - Host helper 处理普通/URI 路径，URI 版本先 percent-decode；它只负责拒绝空值和绝对路径，调用方再执行 Data root 授权或 canonical root 检查。Wire `MediaFileRef` validator 直接拒绝 `..`、`.`、反斜杠和绝对路径，避免不规范路径进入 Sidecar 合同。移除其中任一层会把部署边界校验移到另一层或改变允许输入，不视为同一合同。
 - 记录范围：`crates/media/a4n-media/src/media_file/path.rs`、Control media route、Runtime token path authorization、Tauri media protocol、`crates/media/a4n-media-contract/src/lib.rs::validate_relative_media_path` 与 `MediaFileRef`。
 
+### R-60：复核 MediaAsset 文件大小事实读取
+
+- 类别：核验后保留，不改代码。
+- BFS 覆盖：从 `OrchestratorContext::create_media_asset` 追到三个生产 caller（Galgame visual asset、Canvas audio import、Galgame audio import）、`resolve_data_file`、`media_file_size`、checksum 和 DB record input；同时枚举 `a4n-storage::data_file_record_facts` 的 9 个外部生产调用与 storage crate 内调用。
+- 两处都读取 metadata 长度，但 `data_file_record_facts` 还校验数据根、生成 DB 相对路径并返回 `String` 错误；Orchestrator 使用 `AppError::Io` 表示文件系统失败、用 `InvalidArgument` 表示超过 `i64` 大小，并原样持久化已由各 importer 生成的 `input.file_path`。直接替换会改 API 错误分类，若同时改存储路径则扩大行为变化；为一处轻量长度读取新增 typed adapter 也会增加结构。
+- `media_file_checksum` 读取内容并服务 MediaAsset checksum 合同，与 storage 的路径/size facts 不同。保留 Orchestrator 本地 size/checksum 逻辑，不新增错误转译或路径规范化。
+- 记录范围：`crates/host/a4n-orchestrator/src/media.rs` 与 `crates/platform/a4n-storage/src/files/persistence.rs::data_file_record_facts` 的全部生产调用者。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
