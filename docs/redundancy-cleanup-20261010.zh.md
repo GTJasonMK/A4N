@@ -711,6 +711,14 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 静态搜索确认本批设置与视频选项文件不再直接使用 `Number.isSafeInteger`/`Number.isInteger`；允许 0 或有独立时间轴合同的路径未被强行合并。
 - 记录范围：`frontend/src/pages/settings/{image/imageConfigUtils.ts,llm/llmConfigUtils.ts,video/videoConfigUtils.ts,WebSearchConfigPanel.tsx}`、`frontend/src/components/agent/AgentBudgetDialog.tsx`、`frontend/src/pages/novel-detail/video/videoOptionUtils.ts`。
 
+### R-87：统一页面视频与内容工具安全整数校验
+
+- 类别：重复边界校验。
+- BFS 覆盖：从大纲/游戏循环/改编页数、Embedding 参数、漫画来源、导演时间轴，到视频组装、后处理、参考媒体、结果展示、插入段生成和章节时长编辑入口，追踪到 localStorage 恢复、编辑状态、视频 API payload、排序与显示路径；CodeGraph 复核已有视频测试及动态组件调用。
+- 14 个页面/视频工具改用 `isPositiveSafeInteger` 或 `isSafeInteger`，保留 0 合法的章节分段/时间轴位置、漫画 `startSection` 的非负合同、视频时长范围、循环 1–10000 上限和原错误文案。未新增兜底、兼容或回退逻辑。
+- 静态搜索确认本批文件不再直接复制 `Number.isSafeInteger`/`Number.isInteger`；其他 segment index/时长状态机路径仍待下一轮按其专属合同复核。
+- 记录范围：`frontend/src/pages/{derived/AdaptationPlanEditor.tsx,novel-detail/{OverviewTab,OutlinesTab,ChapterVisualPlanTab,MangaTab}.tsx,novel-detail/galgame/StoryGraphPanel.tsx,novel-detail/video/{VideoAssemblyWorkspace,videoAssemblyUtils,VideoResultsPane,VideoPostProcessWorkspace,referenceMediaWorkspace,useVideoTabActions,VideoGenerationEditor}.tsx,settings/EmbeddingTab.tsx}`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

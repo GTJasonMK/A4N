@@ -22,6 +22,7 @@ import { SynopsisCard } from "./overview/SynopsisCard";
 import { FactFeedbackPanel } from "./FactFeedbackPanel";
 import { getProjectAccessRoleLabel } from "../../utils/projectRouting";
 import { isCancelledOperation } from "../../utils/cancellation";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 import { nonEmptyText } from "../../utils/text";
 import { useProgressTask } from "../../hooks/useProgressTask";
 import { runBlueprintRefinementWithProgress } from "./blueprintRefinement";
@@ -323,7 +324,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       addToast(t("novel.blueprintGenreRequired"), "error");
       return;
     }
-    if (!Number.isSafeInteger(totalChapters) || totalChapters < 1 || totalChapters > 10_000) {
+    if (!isPositiveSafeInteger(totalChapters) || totalChapters > 10_000) {
       addToast(t("novel.totalChaptersRange"), "error");
       return;
     }

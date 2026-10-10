@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
+import { isPositiveSafeInteger } from "../../../utils/numberRange";
 import {
   assembleChapterVideos,
   deleteVideo,
@@ -73,7 +74,7 @@ const assemblyInsertMetadata = (
 
 const assemblyInsertAfterVideoId = (video: GeneratedVideo): number | null => {
   const value = assemblyInsertMetadata(video)?.insert_after_video_id;
-  return Number.isInteger(value) && Number(value) > 0 ? Number(value) : null;
+  return isPositiveSafeInteger(value) ? value : null;
 };
 
 const assemblyClipSortOrder = (
@@ -106,8 +107,8 @@ const assemblyClipLabel = (
       : t("video.chapter.timelineItem", { number: displayIndex });
   }
   const afterShot = assemblyInsertMetadata(video)?.insert_after_shot_number;
-  if (Number.isInteger(afterShot) && Number(afterShot) > 0) {
-    return t("video.chapter.assemblyAfter", { number: Number(afterShot) });
+  if (isPositiveSafeInteger(afterShot)) {
+    return t("video.chapter.assemblyAfter", { number: afterShot });
   }
   return t("video.chapter.assemblyStart");
 };

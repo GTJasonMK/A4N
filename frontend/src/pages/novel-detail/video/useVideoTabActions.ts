@@ -27,6 +27,7 @@ import { runGenerationProgressTaskThen } from "../../../hooks/runGenerationProgr
 import { copyTextToClipboard } from "../../../utils/clipboard";
 import { readFileAsBase64 } from "../../../utils/fileUpload";
 import { isCancelledOperation } from "../../../utils/cancellation";
+import { isPositiveSafeInteger, isSafeInteger } from "../../../utils/numberRange";
 import { pickVideoUploadFile, type VideoUploadFile } from "../../../utils/videoUpload";
 import type { MessageTranslator } from "../../../i18n";
 import {
@@ -255,7 +256,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
       typeof sourceShotId !== "string" ||
       !sourceShotId.trim() ||
       typeof segmentIndexInShot !== "number" ||
-      !Number.isInteger(segmentIndexInShot) ||
+      !isSafeInteger(segmentIndexInShot) ||
       segmentIndexInShot <= 0
     ) {
       addToast(
@@ -544,7 +545,7 @@ export function useVideoTabActions(context: VideoTabActionInput) {
             throw new Error(currentT()("video.chapter.insertedDraftMissing"));
           }
           const parsed = Number(result.id);
-          if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+          if (!isPositiveSafeInteger(parsed)) {
             throw new Error(currentT()("video.chapter.invalidInsertedWorkflowId"));
           }
           return parsed;

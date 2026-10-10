@@ -18,6 +18,7 @@ import {
 } from "../../components/agent/domainAgentDrafts";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
+import { isSafeInteger } from "../../utils/numberRange";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { ZoomableImage } from "../../components/ui/ImageLightbox";
@@ -454,7 +455,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
       if (operation.kind === "inspect") await respond({ kind: "state", state });
       else if (operation.kind === "control") {
         const action = operation.input.action;
-        if ("at_ms" in action && (!Number.isSafeInteger(action.at_ms) || action.at_ms < 0 || action.at_ms > total)) throw new Error("播放位置超出时间线范围");
+        if ("at_ms" in action && (!isSafeInteger(action.at_ms) || action.at_ms < 0 || action.at_ms > total)) throw new Error("播放位置超出时间线范围");
         if (action.kind === "select") {
           if (action.object_kind !== "point" && action.object_kind !== "segment") throw new Error("未知时间线对象类型");
           const items = action.object_kind === "point" ? model.planRef.current.points : model.planRef.current.segments;

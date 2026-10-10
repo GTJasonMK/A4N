@@ -16,6 +16,7 @@ import { ImageZoomButton, ZoomableImage } from "../../../components/ui/ImageLigh
 import { Modal } from "../../../components/ui/Modal";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import { readFileAsBase64 } from "../../../utils/fileUpload";
+import { isPositiveSafeInteger } from "../../../utils/numberRange";
 import { imageTypeLabel } from "../images/imageTabUtils";
 import type { ChapterRow } from "../shared";
 import { useI18n, type MessageKey, type MessageTranslator } from "../../../i18n";
@@ -111,13 +112,9 @@ export const referenceMediaDraftScopeKey = (
     typeof sourceShotId === "string" ? sourceShotId.trim() : "";
   if (
     !normalizedPlanIdentity ||
-    typeof segmentNumber !== "number" ||
-    !Number.isInteger(segmentNumber) ||
-    segmentNumber <= 0 ||
+    !isPositiveSafeInteger(segmentNumber) ||
     !normalizedSourceShotId ||
-    typeof segmentIndexInShot !== "number" ||
-    !Number.isInteger(segmentIndexInShot) ||
-    segmentIndexInShot <= 0
+    !isPositiveSafeInteger(segmentIndexInShot)
   ) {
     return null;
   }
@@ -291,7 +288,7 @@ export const referenceMediaDraftError = (
 const assertImageIdSelection = (ids: number[], field: string, t: MessageTranslator) => {
   const seen = new Set<number>();
   for (const [index, id] of ids.entries()) {
-    if (!Number.isInteger(id) || id <= 0) {
+    if (!isPositiveSafeInteger(id)) {
       throw new Error(t("video.reference.positiveId", { field, index }));
     }
     if (seen.has(id)) {
@@ -307,7 +304,7 @@ const toggleImageIdSelection = (
   field: string,
   t: MessageTranslator,
 ): number[] => {
-  if (!Number.isInteger(id) || id <= 0) {
+  if (!isPositiveSafeInteger(id)) {
     throw new Error(t("video.reference.togglePositiveId", { field }));
   }
   assertImageIdSelection(ids, field, t);

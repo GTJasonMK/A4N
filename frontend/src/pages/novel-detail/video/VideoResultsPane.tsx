@@ -30,6 +30,7 @@ import { Dropdown } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
 import { EmptyHint } from "../shared";
 import { copyTextToClipboard } from "../../../utils/clipboard";
+import { isPositiveSafeInteger } from "../../../utils/numberRange";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
 import { formatNumber, useI18n, type Locale } from "../../../i18n";
@@ -68,7 +69,7 @@ const videoRecordTitle = (video: GeneratedVideo, locale: Locale, t: MessageTrans
       : null;
   const shotNumber = metadata?.shot_number;
   if (video.video_type === VIDEO_TYPE_CHAPTER) {
-    return typeof shotNumber === "number" && Number.isInteger(shotNumber) && shotNumber > 0
+    return isPositiveSafeInteger(shotNumber)
       ? t("video.chapter.shot", { number: formatNumber(shotNumber, locale) })
       : t("video.chapter.videoTypeChapter");
   }

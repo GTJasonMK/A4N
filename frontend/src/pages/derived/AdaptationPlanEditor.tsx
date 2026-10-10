@@ -3,6 +3,7 @@ import { ChevronRight } from "lucide-react";
 import { BookButton } from "../../components/ui/BookButton";
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import { useI18n } from "../../i18n";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 
 export function PlanTextField({ label, value, onChange, rows = 2 }: { label: string; value: string; onChange: (value: string) => void; rows?: number }) {
   return <label className="grid min-w-0 gap-1 text-xs text-book-text-sub">
@@ -12,7 +13,7 @@ export function PlanTextField({ label, value, onChange, rows = 2 }: { label: str
 }
 
 export const isValidMangaPageCount = (value: unknown): value is number =>
-  typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 100;
+  isPositiveSafeInteger(value) && value <= 100;
 
 function ReadOnlyPlanValue({ label, value, compact = false }: { label: string; value: string | null; compact?: boolean }) {
   return <div className={compact ? "grid min-w-0 gap-1" : "grid min-w-0 gap-1 py-2.5 sm:grid-cols-[112px_minmax(0,1fr)] sm:gap-3"}>

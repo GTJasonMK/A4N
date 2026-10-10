@@ -9,6 +9,7 @@ import {
   useProgressTask,
 } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 import {
   canUseLocalDesktopEmbedding,
   shouldUseHttpBackend,
@@ -370,10 +371,10 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
             }
             if (!f.name.trim()) return t("settingsForm.nameRequired");
             if (!f.model.trim()) return t("settingsForm.modelRequired");
-            if (!Number.isInteger(Number(f.dimension)) || Number(f.dimension) <= 0) {
+            if (!isPositiveSafeInteger(Number(f.dimension))) {
               return t("settingsForm.dimensionPositive");
             }
-            if (!Number.isInteger(Number(f.batch_size)) || Number(f.batch_size) <= 0) {
+            if (!isPositiveSafeInteger(Number(f.batch_size))) {
               return t("settingsForm.batchPositive");
             }
             if (f.backend === "api" && !f.api_base_url.trim()) {

@@ -16,6 +16,7 @@ import {
 } from "@xyflow/react";
 import { ArrowRight, CircleDot, GitBranch, Play, Plus, Repeat2, Save, Trash2 } from "lucide-react";
 import { extractErrorMessage } from "../../../api";
+import { isPositiveSafeInteger } from "../../../utils/numberRange";
 import {
   advanceGalgameStoryRuntime,
   getGalgameStoryRuntimeState,
@@ -629,7 +630,7 @@ export const StoryGraphPanel: React.FC<StoryGraphPanelProps> = ({ canEdit, graph
   const addLoop = () => {
     if (!draft || !selectedNodeId) return;
     const maxIterations = Number(loopMaxIterations);
-    if (!Number.isInteger(maxIterations) || maxIterations < 1 || maxIterations > 10_000) {
+    if (!isPositiveSafeInteger(maxIterations) || maxIterations > 10_000) {
       setError(t("galgame.graph.loopLimitInvalid"));
       return;
     }
