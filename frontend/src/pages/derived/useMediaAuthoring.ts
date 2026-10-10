@@ -9,11 +9,22 @@ export function authoringStageLabel(workspace: MediaAuthoringWorkspace | null, k
   if (!workspace) return undefined;
   const scopes = kind === "galgame_branch_plan" ? [null] : chapterId ? [chapterId] : workspace.chapters.map((chapter) => chapter.source.source_chapter_id);
   const versions = workspace.documents.filter(({ record }) => record.kind === kind);
-  const selected = scopes.map((id) => {
-    const rows = versions.filter(({ record }) => record.source_chapter_id === id && record.source_snapshot_id === workspace.source_snapshot_id);
-    return rows.find(({ record }) => record.status === "draft") ?? rows.find(({ record }) => record.status === "adopted");
+  const selectedByScope = new Map<number | null, { draft?: typeof versions[number]; adopted?: typeof versions[number] }>();
+  const anyVersionByScope = new Set<number | null>();
+  for (const view of versions) {
+    const scope = view.record.source_chapter_id;
+    anyVersionByScope.add(scope);
+    if (view.record.source_snapshot_id !== workspace.source_snapshot_id) continue;
+    const selected = selectedByScope.get(scope) ?? {};
+    if (view.record.status === "draft" && !selected.draft) selected.draft = view;
+    if (view.record.status === "adopted" && !selected.adopted) selected.adopted = view;
+    selectedByScope.set(scope, selected);
+  }
+  const selected = scopes.map((scope) => {
+    const candidate = selectedByScope.get(scope);
+    return candidate?.draft ?? candidate?.adopted;
   });
-  if (selected.some((view, index) => view?.stale || (!view && versions.some(({ record }) => record.source_chapter_id === scopes[index])))) return t("common.mediaAuthoring.needsUpdate");
+  if (selected.some((view, index) => view?.stale || (!view && anyVersionByScope.has(scopes[index])))) return t("common.mediaAuthoring.needsUpdate");
   if (selected.some((view) => view?.record.status === "draft")) return t("common.mediaAuthoring.draft");
   const completed = selected.filter((view) => view?.record.status === "adopted").length;
   if (!completed) return undefined;
