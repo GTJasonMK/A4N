@@ -340,6 +340,13 @@
 - 仅替换显式数据库变体；`Generation`、通用 AppError 的其他分支、InvalidData、NotFound、冲突和领域错误维持原映射。测试固定 Unavailable wire code、retryable 与原 Display 文案。
 - 记录文件：`crates/process/a4n-worker-db-adapter/src/lib.rs`、`Cargo.lock`，以及上述 17 个 Worker 的 DB mapper 文件和 3 个新增 adapter 依赖 manifest。
 
+### R-41：审查剩余边界映射组合
+
+- 类别：核验后保留，不改代码。
+- BFS 覆盖：从 `ProjectSummaryError` 的定义出发，追到 Project Read、Project Mutation、Project Status 三个 Worker 的 summary handler 和所有生产调用；同时搜索全仓把 Display 错误转为 `WorkerFailure::InvalidRequest` 的 closures。
+- 三个 `ProjectSummaryError -> WorkerFailure` 组合映射逐变体一致，子类型映射已由 R-34/R-38/R-40 分别集中。将组合函数放进通用 process adapter 会使所有 adapter 消费者依赖 `a4n-project-read-core`；另建项目专用 crate 只服务三个调用点，成本高于这 4 分支 match，故保持在 Worker 边界。
+- Object Profile/Scene Profile 的显示错误到 InvalidRequest 只有四处输入规范化闭包，另有两处已直接使用 `WorkerFailure::invalid_request` 处理 String。尚无所有者合适且收益足以覆盖的共享 helper，不增添新的 contract API。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -349,6 +356,8 @@
 - `cargo-machete` 未发现未使用 Cargo 依赖。`cargo tree -d` 中的多个版本属于传递依赖组合，没有足够证据作为可移除的直接重复实现。
 - `ProjectStatusWriteError` 在 Blueprint DB、Import Reverse DB、Project Status Worker wire 与 Orchestrator AppError 边界的转换分类不同：`StatusChanged` 分别变为 InvalidArgument、InvalidState 或 Conflict，消息也保留各自的 expected/actual 与 operation 语义；对应源码为 `blueprint/manual.rs`、`import_reverse/candidate_apply.rs`、`a4n-project-status-worker/src/lib.rs` 和 `project/errors/lifecycle.rs`，不合并。
 - `CanvasDbError` 的 Worker mapper 与 Orchestrator mapper 分别保留 wire Conflict 消息和具体 AppError operation；`CharacterDbError` 的 Worker mapper 把 Internal/Generation/Serialization 归为 Unavailable，而 Orchestrator 保留各自 AppError 类型。`GenerationDbError -> WorkerFailure` 只核到 Outline Worker 一个生产消费者，不增加单调用点 helper。
+- Project Read、Project Mutation、Project Status 的 `ProjectSummaryError -> WorkerFailure` 四路组合 match 当前相同。其 Progress/Family/Collaboration 子映射已分别共享；把组合 match 放入通用 process adapter 会令所有 adapter 消费者依赖 `a4n-project-read-core`，另建项目专用 adapter 又只服务 3 个调用点，因此保留这三处小型组合 match。
+- Object Profile/Scene Profile 的四处 `ObjectProfileInputError`/`SceneProfileInputError -> InvalidRequest` 和两处 Downstream conflict `String -> InvalidRequest` 都只有少数局部调用，且前者要求 Display 到 String 的额外适配；没有为几行转换再新增 Worker contract helper。
 - 前端日期解析已由 `frontend/src/i18n/format.ts::parseDate` 共用；数值范围与 CSS RGB 解析已有共享 utility。本次未发现需要再拆分的新事实来源。
 
 ## 验证
