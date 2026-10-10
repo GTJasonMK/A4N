@@ -472,6 +472,30 @@ mod tests {
             Ok("image/png")
         );
         assert!(image_mime_from_path(Path::new("image.gif")).is_err());
+        for (input, expected) in [
+            ("MP4", "mp4"),
+            ("m4v", "m4v"),
+            ("WebM", "webm"),
+            ("mov", "mov"),
+        ] {
+            assert_eq!(canonical_video_extension(input), Some(expected));
+        }
+        assert_eq!(canonical_video_extension("avi"), None);
+        for (extension, mime_type) in [
+            ("mp4", "video/mp4"),
+            ("mp4", "application/mp4"),
+            ("webm", "video/webm"),
+            ("mov", "video/quicktime"),
+            ("mov", "video/mov"),
+            ("m4v", "video/x-m4v"),
+            ("m4v", "video/mp4"),
+            ("m4v", "application/mp4"),
+        ] {
+            assert!(video_upload_mime_matches(extension, mime_type));
+        }
+        assert!(video_upload_mime_matches("mp4", " APPLICATION/MP4 "));
+        assert!(!video_upload_mime_matches("MP4", "video/mp4"));
+        assert!(!video_upload_mime_matches("mp4", "video/x-m4v"));
         assert_eq!(video_mime_from_path(Path::new("clip.M4V")), Ok("video/mp4"));
         assert!(video_mime_from_path(Path::new("clip.avi")).is_err());
     }

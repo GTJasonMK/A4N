@@ -372,6 +372,7 @@ use a4n_domain::galgame::{
     StoryValue,
 };
 use a4n_domain::import_review::ImportReviewStatus;
+use a4n_domain::media::VIDEO_MEDIA_TYPES;
 use a4n_domain::profile_material::{
     ProfileMaterialFilter, ProfileMaterialImageStaleness, ProfileMaterialKind,
     ProfileMaterialKindFilter, ProfileMaterialSort, ProfileMaterialState,
@@ -462,6 +463,21 @@ fn typescript_image_constants() -> String {
         .map(|size| format!("  {{ width: {}, height: {} }},\n", size.width, size.height))
         .collect::<String>();
     format!("export const DEFAULT_IMAGE_SIZES: readonly ImageSize[] = [\n{sizes}];\n\n")
+}
+
+fn typescript_video_upload_mime_types() -> String {
+    let media_types = VIDEO_MEDIA_TYPES
+        .iter()
+        .map(|media_type| {
+            format!(
+                "  {:?}: {:?},\n",
+                media_type.extension, media_type.accepted_upload_mime_types
+            )
+        })
+        .collect::<String>();
+    format!(
+        "export const VIDEO_UPLOAD_MIME_TYPES: Readonly<Record<string, readonly [string, ...string[]]>> = {{\n{media_types}}};\n\n"
+    )
 }
 
 fn typescript_type<T: JsonSchema>(name: &str) -> String {

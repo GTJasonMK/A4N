@@ -1,5 +1,35 @@
 use std::path::Path;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VideoMediaType {
+    pub extension: &'static str,
+    pub mime_type: &'static str,
+    pub accepted_upload_mime_types: &'static [&'static str],
+}
+
+pub const VIDEO_MEDIA_TYPES: &[VideoMediaType] = &[
+    VideoMediaType {
+        extension: "mp4",
+        mime_type: "video/mp4",
+        accepted_upload_mime_types: &["video/mp4", "application/mp4"],
+    },
+    VideoMediaType {
+        extension: "webm",
+        mime_type: "video/webm",
+        accepted_upload_mime_types: &["video/webm"],
+    },
+    VideoMediaType {
+        extension: "mov",
+        mime_type: "video/quicktime",
+        accepted_upload_mime_types: &["video/quicktime", "video/mov"],
+    },
+    VideoMediaType {
+        extension: "m4v",
+        mime_type: "video/mp4",
+        accepted_upload_mime_types: &["video/x-m4v", "video/mp4", "application/mp4"],
+    },
+];
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct VideoFileProperties {
     pub width: i32,
@@ -67,11 +97,27 @@ pub fn image_mime_from_path(path: &Path) -> Result<&'static str, String> {
 
 pub fn video_mime_from_path(path: &Path) -> Result<&'static str, String> {
     let extension = media_file_extension(path, "视频文件")?;
-    if !matches!(extension.as_str(), "mp4" | "m4v" | "webm" | "mov") {
-        return Err(format!("视频文件扩展名不支持：{extension}"));
-    }
-    media_mime_from_extension(&extension)
+    video_mime_from_extension(&extension)
         .ok_or_else(|| format!("视频文件扩展名不支持：{extension}"))
+}
+
+pub fn canonical_video_extension(value: &str) -> Option<&'static str> {
+    let value = value.trim();
+    VIDEO_MEDIA_TYPES
+        .iter()
+        .find(|media_type| value.eq_ignore_ascii_case(media_type.extension))
+        .map(|media_type| media_type.extension)
+}
+
+pub fn video_upload_mime_matches(extension: &str, mime_type: &str) -> bool {
+    let mime_type = mime_type.trim();
+    VIDEO_MEDIA_TYPES.iter().any(|media_type| {
+        media_type.extension == extension
+            && media_type
+                .accepted_upload_mime_types
+                .iter()
+                .any(|accepted| mime_type.eq_ignore_ascii_case(accepted))
+    })
 }
 
 pub fn canonical_audio_mime(value: &str) -> Result<(&'static str, &'static str), String> {
@@ -109,15 +155,19 @@ fn media_mime_from_extension(extension: &str) -> Option<&'static str> {
         "png" => Some("image/png"),
         "svg" => Some("image/svg+xml"),
         "webp" => Some("image/webp"),
-        "mp4" | "m4v" => Some("video/mp4"),
-        "webm" => Some("video/webm"),
-        "mov" => Some("video/quicktime"),
         "mp3" => Some("audio/mpeg"),
         "m4a" => Some("audio/mp4"),
         "wav" => Some("audio/wav"),
         "ogg" => Some("audio/ogg"),
         "aac" => Some("audio/aac"),
         "flac" => Some("audio/flac"),
-        _ => None,
+        _ => video_mime_from_extension(extension),
     }
+}
+
+fn video_mime_from_extension(extension: &str) -> Option<&'static str> {
+    VIDEO_MEDIA_TYPES
+        .iter()
+        .find(|media_type| media_type.extension == extension)
+        .map(|media_type| media_type.mime_type)
 }

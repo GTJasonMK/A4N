@@ -1,4 +1,5 @@
 use super::paths::{ensure_chapter_videos_dir, ensure_project_videos_dir};
+use a4n_domain::media::canonical_video_extension;
 use a4n_storage::{persist_created_media_file, remove_created_file_on_error_sync};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -25,13 +26,8 @@ pub(crate) fn required_video_file_extension(format: &str) -> Result<&'static str
     if format.is_empty() {
         return Err("视频 provider 未返回文件格式，无法保存视频".to_string());
     }
-    match format.to_ascii_lowercase().as_str() {
-        "mp4" => Ok("mp4"),
-        "webm" => Ok("webm"),
-        "mov" => Ok("mov"),
-        "m4v" => Ok("m4v"),
-        _ => Err(format!("视频 provider 返回了不支持的文件格式：{format}")),
-    }
+    canonical_video_extension(format)
+        .ok_or_else(|| format!("视频 provider 返回了不支持的文件格式：{format}"))
 }
 
 pub(crate) fn persist_canvas_video_bytes(

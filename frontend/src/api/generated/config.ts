@@ -85,6 +85,13 @@ export const DEFAULT_IMAGE_SIZES: readonly ImageSize[] = [
   { width: 768, height: 1024 },
 ];
 
+export const VIDEO_UPLOAD_MIME_TYPES: Readonly<Record<string, readonly [string, ...string[]]>> = {
+  "mp4": ["video/mp4", "application/mp4"],
+  "webm": ["video/webm"],
+  "mov": ["video/quicktime", "video/mov"],
+  "m4v": ["video/x-m4v", "video/mp4", "application/mp4"],
+};
+
 export interface ImageConfigSummary {
   backend: string;
   base_url: string;

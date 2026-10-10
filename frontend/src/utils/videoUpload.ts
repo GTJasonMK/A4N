@@ -1,3 +1,4 @@
+import { VIDEO_UPLOAD_MIME_TYPES } from "../api/generated/config";
 import { pickLocalFile } from "./fileUpload";
 import type { MessageTranslator } from "../i18n";
 
@@ -8,27 +9,12 @@ export interface VideoUploadFile {
   mimeType: string;
 }
 
-const VIDEO_MIME_BY_EXTENSION: Record<string, string[]> = {
-  mp4: ["video/mp4", "application/mp4"],
-  webm: ["video/webm"],
-  mov: ["video/quicktime", "video/mov"],
-  m4v: ["video/x-m4v", "video/mp4", "application/mp4"],
-};
-
-function supportedVideoExtensions(): string[] {
-  return Object.keys(VIDEO_MIME_BY_EXTENSION);
-}
-
-function supportedVideoAccept(): string {
-  return supportedVideoExtensions().map((ext) => `.${ext}`).join(",");
-}
-
 function videoMimeForUploadFile(file: File): string | null {
   const extension = uploadVideoExtension(file.name);
   if (!extension) return null;
-  const candidates = VIDEO_MIME_BY_EXTENSION[extension];
+  const candidates = VIDEO_UPLOAD_MIME_TYPES[extension];
   const actualMime = file.type.trim().toLowerCase();
-  if (!actualMime) return candidates[0] ?? null;
+  if (!actualMime) return candidates[0];
   return candidates.includes(actualMime) ? actualMime : null;
 }
 
@@ -36,7 +22,10 @@ export async function pickVideoUploadFile(
   t: MessageTranslator,
   sizeLabel?: string,
 ): Promise<VideoUploadFile | null> {
-  const file = await pickLocalFile(supportedVideoAccept());
+  const accept = Object.keys(VIDEO_UPLOAD_MIME_TYPES)
+    .map((extension) => `.${extension}`)
+    .join(",");
+  const file = await pickLocalFile(accept);
   if (!file) return null;
   const mimeType = videoMimeForUploadFile(file);
   if (!mimeType) {
@@ -55,5 +44,7 @@ function uploadVideoExtension(fileName: string): string | null {
   const match = /\.([^.]+)$/.exec(fileName.trim());
   if (!match) return null;
   const extension = match[1].toLowerCase();
-  return extension in VIDEO_MIME_BY_EXTENSION ? extension : null;
+  return Object.prototype.hasOwnProperty.call(VIDEO_UPLOAD_MIME_TYPES, extension)
+    ? extension
+    : null;
 }

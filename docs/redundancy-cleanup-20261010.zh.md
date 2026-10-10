@@ -535,6 +535,15 @@
 - `a4n-media::requested_byte_range` 的多段 Range 拒绝和 header-to-invalid mapping 由其单测覆盖；Control 的实际 Range 语义由 ServeFile 集成测试覆盖。
 - 记录范围：`crates/media/a4n-media/src/media_file/{range.rs,response.rs}`、Control media/temp-media routes 与 tests、Tauri media protocol。
 
+### R-66：统一本地视频文件与上传格式合同
+
+- 类别：重复的视频扩展名与 MIME 上传映射。
+- BFS 覆盖：从 `a4n-domain::media::{canonical_video_extension,video_mime_from_path,video_upload_mime_matches}` 追到 Video Record 导入、预览与播放；从 `a4n-video` 的导入/上传校验追到 Canvas、章节、参考媒体和后处理上传入口；从 Runtime `required_video_file_extension` 追到 provider 完成保存及 Canvas provider file persistence；从前端 `pickVideoUploadFile` 追到 8 个用户调用点。另追踪 `a4n-api-contract::generate_types` 的配置生成阶段，确认已有 Rust→TypeScript 生成路径可复用。
+- 将 `mp4/m4v/webm/mov` 扩展、规范 MIME 和各扩展上传可接受的 MIME 别名集中到 `a4n-domain::media::VIDEO_MEDIA_TYPES`。Runtime 扩展校验、视频导入和后端上传 MIME 校验均从该表读取；API 合同生成器从同表生成前端 `VIDEO_UPLOAD_MIME_TYPES`，前端文件选择器不再维护副本。
+- 保持既有合同：文件扩展名按原有路径规范大小写/空白；上传 MIME 仍忽略 ASCII 大小写并去首尾空白；后端上传仍要求小写扩展名。生成的前端类型要求每个扩展至少有一个 MIME，移除了不可能为空的首候选 `null` 回退。文件名扩展查表改为自有键检查，避免原型链键被当作支持格式。
+- 验证：`a4n-domain` MIME/扩展定向测试 1/1、`a4n-video` 上传合同定向测试 1/1、Runtime provider 扩展定向测试 1/1；4 个受影响 Rust package 的 all-targets 检查通过；`generate_types --check`、`npm run check:web-api-parity`、Video Assembly 组件 Vitest 2/2、`videoUpload.test.ts` 2/2、前端生产构建、格式与 diff 检查通过。
+- 记录范围：`crates/platform/a4n-domain/src/media/{files.rs,media.rs}`、`crates/video/a4n-video/src/import.rs`、Runtime video file persistence、`crates/host/a4n-api-contract/src/bin/generate_types{.rs,/stages.rs}`、生成的 `frontend/src/api/generated/config.ts`、`frontend/src/utils/videoUpload{.ts,.test.ts}`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
