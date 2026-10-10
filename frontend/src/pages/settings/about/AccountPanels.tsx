@@ -15,6 +15,7 @@ import {
   type SessionSummary,
 } from "../../../api/auth";
 import { nonEmptyText, textInputValue } from "../../../utils/text";
+import { parseApiTimestampMs } from "../../../utils/timestamp";
 import { formatDateTime, useI18n } from "../../../i18n";
 import { useAuthStore } from "../../../store/auth";
 import { shouldUseHttpBackend } from "../../../utils/runtimeMode";
@@ -508,8 +509,8 @@ export const SessionManager: React.FC = () => {
 
 const SessionRow: React.FC<{ session: SessionSummary }> = ({ session }) => {
   const { t, locale } = useI18n();
-  const expiresAt = new Date(session.expires_at);
-  const expired = !Number.isNaN(expiresAt.getTime()) && expiresAt <= new Date();
+  const expiresAt = parseApiTimestampMs(session.expires_at);
+  const expired = expiresAt !== null && expiresAt <= Date.now();
   return (
     <li className="a4n-flat-surface p-3 text-small">
       <div className="flex min-w-0 items-center gap-2">

@@ -1,5 +1,6 @@
 import type { WorkflowRunDetailSummary, WorkflowRunSummary } from "../../api/streaming";
 import type { MessageTranslator } from "../../i18n";
+import { parseApiTimestampMs } from "../../utils/timestamp";
 import { nodeDisplayTitle } from "./StudioCanvasNode";
 import { studioNodeContract, type StudioNodeContractMap } from "./nodeContracts";
 import type { StudioEdge, StudioNode } from "./types";
@@ -222,8 +223,8 @@ function workflowRunCurrentStepElapsedSeconds(
   detail: WorkflowRunDetailSummary,
   nowMs: number,
 ): number | null {
-  const updatedAtMs = parseWorkflowTimestampMs(detail.run.updated_at);
-  const createdAtMs = parseWorkflowTimestampMs(detail.run.created_at);
+  const updatedAtMs = parseApiTimestampMs(detail.run.updated_at);
+  const createdAtMs = parseApiTimestampMs(detail.run.created_at);
   const startedAtMs = updatedAtMs ?? createdAtMs;
   return startedAtMs === null ? null : Math.max(0, Math.floor((nowMs - startedAtMs) / 1000));
 }
@@ -233,11 +234,11 @@ function canvasWorkflowCheckpointRunState(
   status: CanvasWorkflowNodeRunStatus,
   nowMs: number,
 ): CanvasWorkflowNodeRunState {
-  const startedAtMs = parseWorkflowTimestampMs(checkpoint.created_at);
+  const startedAtMs = parseApiTimestampMs(checkpoint.created_at);
   const finishedAtMs =
     status === "running"
       ? null
-      : parseWorkflowTimestampMs(checkpoint.completed_at) ?? parseWorkflowTimestampMs(checkpoint.updated_at);
+      : parseApiTimestampMs(checkpoint.completed_at) ?? parseApiTimestampMs(checkpoint.updated_at);
   const elapsedSeconds =
     startedAtMs === null ? null : Math.max(0, Math.floor(((finishedAtMs ?? nowMs) - startedAtMs) / 1000));
   return {
@@ -269,16 +270,6 @@ export function canvasNodeIdFromStepKey(stepKey: string | null | undefined): str
   return match?.[1] ?? null;
 }
 
-export function parseWorkflowTimestampMs(value: string | null | undefined): number | null {
-  if (!value) return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(trimmed);
-  const normalized = trimmed.includes("T") ? trimmed : trimmed.replace(" ", "T");
-  const parsed = Date.parse(hasTimezone ? normalized : `${normalized}Z`);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
 export function workflowRunGraphVersion(run: WorkflowRunSummary): number | null {
   const fingerprint = run.input_fingerprint_json;
   if (
@@ -308,7 +299,7 @@ export function findSubmittedCanvasWorkflowRun(
       ) {
         return false;
       }
-      const createdAtMs = parseWorkflowTimestampMs(run.created_at);
+      const createdAtMs = parseApiTimestampMs(run.created_at);
       return createdAtMs !== null && createdAtMs >= submittedFloorMs;
     }) ?? null
   );

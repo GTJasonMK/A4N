@@ -6,7 +6,7 @@ import {
   resolveInitialLocale,
   writeLocalePreference,
 } from "./locale";
-import { formatBytes, formatDate, formatNumber } from "./format";
+import { formatBytes, formatDate, formatDateTime, formatNumber } from "./format";
 import zhCN from "./messages/zh-CN";
 import enUS from "./messages/en-US";
 import { translateMessage } from "./translate";
@@ -110,6 +110,9 @@ describe("locale formatting", () => {
     expect(formatNumber(1234567, "zh-CN")).toBe("1,234,567");
     expect(formatDate("2020-01-02T00:00:00Z", "en-US")).toMatch(/2020/);
     expect(formatDate("2020-01-02T00:00:00Z", "zh-CN")).toMatch(/2020/);
+    expect(formatDateTime("2020-01-02 00:00:00", "en-US")).toBe(
+      formatDateTime("2020-01-02T00:00:00Z", "en-US"),
+    );
   });
 
   it("applies caller precision through the shared number formatter", () => {

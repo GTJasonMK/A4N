@@ -7,6 +7,7 @@ import type { WorkflowRunDetailSummary } from "../../api/streaming";
 import { Dropdown, type DropdownItem } from "../../components/ui/Dropdown";
 import { progressDisplayModel } from "../../utils/progressPresentation";
 import { getOperationStatusLabel } from "../../utils/workflowPresentation";
+import { parseApiTimestampMs } from "../../utils/timestamp";
 import { formatNumber, useI18n, type MessageTranslator } from "../../i18n";
 import { canvasNodeIdFromStepKey } from "./canvasWorkflowState";
 import { nodeDisplayTitle } from "./StudioCanvasNode";
@@ -315,19 +316,9 @@ function canvasVideoProviderWait(checkpoint: NonNullable<WorkflowRunDetailSummar
 }
 
 function runningWorkflowLooksStale(updatedAt: string | null | undefined): boolean {
-  const updatedAtMs = parseWorkflowPanelTimestampMs(updatedAt);
+  const updatedAtMs = parseApiTimestampMs(updatedAt);
   if (updatedAtMs === null) return false;
   return Date.now() - updatedAtMs > 10 * 60 * 1000;
-}
-
-function parseWorkflowPanelTimestampMs(value: string | null | undefined): number | null {
-  if (!value) return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(trimmed);
-  const normalized = trimmed.includes("T") ? trimmed : trimmed.replace(" ", "T");
-  const parsed = Date.parse(hasTimezone ? normalized : `${normalized}Z`);
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

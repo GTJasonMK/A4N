@@ -1,4 +1,5 @@
 import type { Locale } from "./locale";
+import { parseApiTimestampMs } from "../utils/timestamp";
 
 export type UiDateInput = string | number | Date | null | undefined;
 
@@ -22,7 +23,16 @@ const relativeTimeFormatters = {
 
 const parseDate = (value: UiDateInput): Date | null => {
   if (value == null || value === "") return null;
-  const date = value instanceof Date ? value : new Date(value);
+  let date: Date;
+  if (value instanceof Date) {
+    date = value;
+  } else if (typeof value === "string") {
+    const timestamp = parseApiTimestampMs(value);
+    if (timestamp === null) return null;
+    date = new Date(timestamp);
+  } else {
+    date = new Date(value);
+  }
   return Number.isNaN(date.getTime()) ? null : date;
 };
 

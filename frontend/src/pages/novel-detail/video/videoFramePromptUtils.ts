@@ -11,6 +11,7 @@ import {
   type VideoSegmentWorkflowMode,
 } from "../../../api/video";
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
+import { parseApiTimestampMs } from "../../../utils/timestamp";
 import type { MessageTranslator } from "../../../i18n";
 import {
   VIDEO_ASPECT_RATIOS,
@@ -142,8 +143,7 @@ export function isBoundaryFramePrompt(
 
 function promptUpdatedAtMillis(prompt: ChapterVideoPrompt): number {
   if (!prompt.updated_at) return 0;
-  const millis = Date.parse(prompt.updated_at);
-  return Number.isFinite(millis) ? millis : 0;
+  return parseApiTimestampMs(prompt.updated_at) ?? 0;
 }
 
 function newerPrompt(
