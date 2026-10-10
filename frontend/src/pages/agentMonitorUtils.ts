@@ -20,8 +20,7 @@ export function extractWritingTarget(
   const chapterNumber = Number(result?.chapter_number);
   if (
     !isPositiveSafeInteger(projectId) ||
-    !Number.isSafeInteger(chapterNumber) ||
-    chapterNumber <= 0
+    !isPositiveSafeInteger(chapterNumber)
   ) {
     return null;
   }

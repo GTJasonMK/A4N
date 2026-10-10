@@ -1,4 +1,5 @@
 import type { StudioEdge, StudioNode } from "./types";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 
 export function nextAssembleClipOrder(edges: StudioEdge[], targetNodeId: string): number {
   return assembleClipEdgesForTarget(edges, targetNodeId).length + 1;
@@ -87,5 +88,5 @@ function applyClipOrder(edges: StudioEdge[], nextOrderByEdgeId: ReadonlyMap<stri
 
 export function edgeOrderIndex(edge: StudioEdge): number | null {
   const value = edge.data?.config?.order_index;
-  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null;
+  return isPositiveSafeInteger(value) ? value : null;
 }

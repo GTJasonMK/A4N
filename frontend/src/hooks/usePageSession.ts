@@ -14,6 +14,7 @@ import {
 import { extractErrorMessage } from "../api";
 import { useAuthStore } from "../store/auth";
 import { shouldUseHttpBackend } from "../utils/runtimeMode";
+import { isPositiveSafeInteger } from "../utils/numberRange";
 import { useI18n } from "../i18n";
 import { useDirtyRegistry, useDirtyRegistryVersion } from "../components/navigation/dirtyRegistry";
 
@@ -46,7 +47,7 @@ export function pageKindForPath(pathname: string): string {
 function positiveId(value: string | null): number | null {
   if (!value || !/^\d+$/.test(value)) return null;
   const id = Number(value);
-  return Number.isSafeInteger(id) && id > 0 ? id : null;
+  return isPositiveSafeInteger(id) ? id : null;
 }
 
 function projectIdForPath(pathname: string): number | null {

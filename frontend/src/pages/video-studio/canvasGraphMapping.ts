@@ -12,6 +12,7 @@ import type { StudioEdge, StudioNode } from "./types";
 import type { Viewport } from "@xyflow/react";
 import { isInputNodeKind } from "./canvasNodeKinds";
 import { defaultRefTypeForNode } from "./canvasNodeRefs";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 
 export function canvasGraphViewport(value: unknown): Viewport | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
@@ -250,7 +251,7 @@ function nodeLabel(node: CanvasGraphDocument["nodes"][number]): string {
 export function numericId(id: string): number | null {
   if (!/^\d+$/.test(id)) return null;
   const value = Number(id);
-  return Number.isSafeInteger(value) && value > 0 ? value : null;
+  return isPositiveSafeInteger(value) ? value : null;
 }
 
 export function canvasNodePosition(index: number): { x: number; y: number } {

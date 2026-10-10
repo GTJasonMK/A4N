@@ -679,6 +679,14 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 静态搜索确认 `frontend/src/api` 已无直接 `Number.isSafeInteger`/`Number.isInteger`；未新增兜底、兼容或回退逻辑。
 - 记录范围：`frontend/src/api/{agent,authStorage,blueprint,canvas,chapter,generationResultVerification,visualPlanEdits}.ts`、`frontend/src/api/image/types.ts`、`frontend/src/api/localRuntimeSettingsValidation.ts`。
 
+### R-83：收敛前端页面正安全整数校验
+
+- 类别：重复边界校验。
+- BFS 覆盖：从 Page Session URL/query 上下文、Domain Agent 绑定、Agent 监控写作目标、内容优化 diff、角色章节输入、视频画布配置/连线/节点引用、视频参考图元数据/提示词，以及写作台/优化/导演时间线选择回调出发，沿测试调用和下游导航、API 请求、图像/提示词消费路径核对校验语义。
+- 14 个页面/组件工具改用 `numberRange.isPositiveSafeInteger`，删除逐处的 `typeof`、`Number.isInteger`/`Number.isSafeInteger` 与 `> 0` 组合；字符串正则、引用数量上限、时间线总时长和其他字段合同保持原样。允许 0 的通用视频时长整数解析、带独立范围的配置校验和 32 位上限路径未合并。
+- 静态复核确认本批选定的正 ID/引用路径不再复制安全整数谓词；未新增兜底、兼容或回退逻辑。
+- 记录范围：`frontend/src/hooks/usePageSession.ts`、`frontend/src/components/agent/{DomainAgentBinding,contentOptimizationDiff}.tsx/ts`、`frontend/src/pages/{agentMonitorUtils.ts,character-detail-dialog/manageViewUtils.ts,video-studio/{canvasAssemblyEdges,canvasConfig,canvasGraphMapping,canvasNodeRefs}.ts,novel-detail/video/{videoImageUtils,videoFramePromptUtils}.ts,writing-desk/WritingDeskHeader.tsx,novel-detail/optimize/OptimizeHeader.tsx,novel-detail/visual-plan/DirectorTimeline.tsx}`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

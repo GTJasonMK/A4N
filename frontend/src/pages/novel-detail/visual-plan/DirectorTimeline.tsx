@@ -6,6 +6,7 @@ import { BookButton } from "../../../components/ui/BookButton";
 import { Modal } from "../../../components/ui/Modal";
 import { durationMs, formatTime, segmentBackground, sceneLabel, segmentTimes, timelineTrackWidth, type DirectorSelection } from "./timeline";
 import type { DirectorPlayback } from "./playback";
+import { isPositiveSafeInteger } from "../../../utils/numberRange";
 
 interface Props {
   viewRef?: React.Ref<DirectorTimelineView>;
@@ -106,7 +107,7 @@ export function DirectorTimeline({ plan, record, selection, clock, editable, sce
     id: crypto.randomUUID(), at_ms: Math.round(clock.getState().time), label: "分镜", image_id: null, description: "", reference_image_ids: [],
   } });
   const scaleTimeline = (target: number) => {
-    if (Number.isSafeInteger(target) && target > 0 && target !== total) void onEdit({ kind: "scale_timeline", duration_ms: target });
+    if (isPositiveSafeInteger(target) && target !== total) void onEdit({ kind: "scale_timeline", duration_ms: target });
     else setDuration(String(total / 1000));
   };
   const scaleCommit = () => {

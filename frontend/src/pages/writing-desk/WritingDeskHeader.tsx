@@ -15,6 +15,7 @@ import {
 import { type NovelProject } from "../../api/project";
 import { type ChapterMetadata } from "../../api/chapter";
 import { type ChapterOutline } from "../../api/outline";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
 import { BackButton } from "../../components/ui/BackButton";
 import { Dropdown } from "../../components/ui/Dropdown";
@@ -124,7 +125,7 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
       value={activeNumber == null ? "" : String(activeNumber)}
       onChange={(selectedValue) => {
         const nextNumber = Number(selectedValue);
-        if (Number.isSafeInteger(nextNumber) && nextNumber > 0) {
+        if (isPositiveSafeInteger(nextNumber)) {
           void onSelectChapter(nextNumber);
         }
       }}

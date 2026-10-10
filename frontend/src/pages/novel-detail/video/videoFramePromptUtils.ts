@@ -11,6 +11,7 @@ import {
   type VideoSegmentWorkflowMode,
 } from "../../../api/video";
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
+import { isPositiveSafeInteger } from "../../../utils/numberRange";
 import { parseApiTimestampMs } from "../../../utils/timestamp";
 import type { MessageTranslator } from "../../../i18n";
 import {
@@ -316,7 +317,7 @@ export function shiftReferenceLabels(prompt: string, offset: number): string {
   if (offset === 0) return prompt;
   return prompt.replace(/参考图\s+(\d+)/g, (_match, raw: string) => {
     const index = Number(raw);
-    return Number.isSafeInteger(index) && index > 0
+    return isPositiveSafeInteger(index)
       ? `参考图 ${index + offset}`
       : `参考图 ${raw}`;
   });
@@ -340,7 +341,7 @@ export function referenceLabelOrderError(
       return t("video.chapter.leadingZeroReferenceLabel", { number: raw });
     }
     const index = Number(raw);
-    if (!Number.isSafeInteger(index) || index < 1 || index > referenceCount) {
+    if (!isPositiveSafeInteger(index) || index > referenceCount) {
       return referenceCount === 0
         ? t("video.chapter.noReferenceLabelAllowed")
         : t("video.chapter.invalidReferenceLabel", {
