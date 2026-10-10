@@ -750,6 +750,14 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - `cargo machete` 全仓扫描未发现未使用 Cargo 依赖。未新增兜底、兼容或回退逻辑。
 - 记录范围：`crates/host/a4n-runtime/src/baseline_configs/{mod,llm,image,video,env}.rs`、`crates/host/a4n-runtime/src/state/app/bootstrap.rs`、相关 `ConfigRead/ConfigMutation` ports。
 
+### R-92：全仓死代码与兼容标记复核
+
+- 类别：显性死代码/伪安全路径审计，未删除不确定命中。
+- BFS 覆盖：CodeGraph 扫描 Host、Runtime、Platform、Process、Worker、Frontend 和 Scripts 的零调用候选；`rg` 复核 `allow(dead_code)`、兼容/legacy/fallback 标记、生成入口、迁移注册、trait 实现和路由注册；`cargo machete` 检查 workspace 直接依赖。
+- 零调用候选均落在迁移 `up/down`、测试夹具、schema/合同生成二进制、trait/动态路由入口或已有生产消费者；legacy/compat 命中均有数据库迁移、历史导入、持久快照重放或明确 UI fallback 调用。未发现可在所有活跃路径中证明无用的生产模块、配置项或异常分支，因此没有删除。
+- `cargo machete` 结果：未发现未使用 Cargo 依赖。未新增兜底、兼容或回退逻辑。
+- 记录范围：全仓 `crates/{host,platform,process,agent,planning,project,video}`、`frontend/src`、`scripts` 的 CodeGraph/静态搜索结果；具体保留证据继续汇总在本节后续条目。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
