@@ -21,7 +21,7 @@ impl WorkerState {
             project_id,
         )
         .await
-        .map_err(asset_error)?;
+        .map_err(a4n_worker_db_adapter::map_asset_db_error)?;
         let profile_ids = profiles
             .iter()
             .map(|profile| profile.id)
@@ -33,7 +33,7 @@ impl WorkerState {
             &profile_ids,
         )
         .await
-        .map_err(profile_material_error)?;
+        .map_err(a4n_worker_db_adapter::map_profile_material_db_error)?;
         Ok(profiles
             .iter()
             .map(|profile| {

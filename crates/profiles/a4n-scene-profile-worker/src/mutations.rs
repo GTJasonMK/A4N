@@ -30,7 +30,7 @@ impl WorkerState {
             generation_run,
         )
         .await
-        .map_err(scene_profile_error)
+        .map_err(a4n_worker_db_adapter::map_scene_profile_db_error)
     }
 
     pub(super) async fn create(
@@ -52,7 +52,7 @@ impl WorkerState {
             record,
         )
         .await
-        .map_err(scene_profile_error)?;
+        .map_err(a4n_worker_db_adapter::map_scene_profile_db_error)?;
         Ok(SceneProfileMutationWorkerResult {
             result: SceneProfileMutationResult {
                 profile: scene_profile_summary(&profile, 0, 0),
@@ -73,7 +73,7 @@ impl WorkerState {
             request.payload.scene_profile_id,
         )
         .await
-        .map_err(scene_profile_error)?;
+        .map_err(a4n_worker_db_adapter::map_scene_profile_db_error)?;
         validate_optional_project_scope(request.project_id, existing.project_id)?;
         self.verify_editor(existing.project_id, user_id).await?;
         let image_ids = self
@@ -87,7 +87,7 @@ impl WorkerState {
             existing.id,
         )
         .await
-        .map_err(scene_profile_error)?;
+        .map_err(a4n_worker_db_adapter::map_scene_profile_db_error)?;
         let downstream_image_ids = resolve_downstream_image_ids(
             image_ids,
             request.payload.downstream_strategy,
@@ -105,7 +105,7 @@ impl WorkerState {
             record,
         )
         .await
-        .map_err(scene_profile_error)?;
+        .map_err(a4n_worker_db_adapter::map_scene_profile_db_error)?;
         Ok(SceneProfileMutationWorkerResult {
             result: SceneProfileMutationResult {
                 profile: scene_profile_summary(&profile, occurrence_count, image_count),
@@ -126,7 +126,7 @@ impl WorkerState {
             request.payload.scene_profile_id,
         )
         .await
-        .map_err(scene_profile_error)?;
+        .map_err(a4n_worker_db_adapter::map_scene_profile_db_error)?;
         validate_optional_project_scope(request.project_id, existing.project_id)?;
         self.verify_editor(existing.project_id, user_id).await?;
         let downstream_image_ids = resolve_downstream_image_ids(
@@ -142,7 +142,7 @@ impl WorkerState {
             existing.id,
         )
         .await
-        .map_err(scene_profile_error)?;
+        .map_err(a4n_worker_db_adapter::map_scene_profile_db_error)?;
         Ok(SceneProfileDeleteWorkerResult {
             result: SceneProfileDeleteResult {
                 warnings: Vec::new(),
@@ -176,6 +176,6 @@ impl WorkerState {
             profile_id,
         )
         .await
-        .map_err(profile_material_error)
+        .map_err(a4n_worker_db_adapter::map_profile_material_db_error)
     }
 }

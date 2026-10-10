@@ -49,7 +49,7 @@ impl WorkerState {
                 image_id,
             )
             .await
-            .map_err(profile_material_error)?;
+            .map_err(a4n_worker_db_adapter::map_profile_material_db_error)?;
         } else {
             a4n_db::profile_material::delete_profile_primary_material(
                 self.database.connection(),
@@ -58,7 +58,7 @@ impl WorkerState {
                 input.profile_id,
             )
             .await
-            .map_err(profile_material_error)?;
+            .map_err(a4n_worker_db_adapter::map_profile_material_db_error)?;
         }
         let group = self
             .profile_material_group(input.project_id, input.profile_kind, input.profile_id)
@@ -78,11 +78,11 @@ impl WorkerState {
                 profile_id,
             )
             .await
-            .map_err(scene_profile_error)?,
+            .map_err(a4n_worker_db_adapter::map_scene_profile_db_error)?,
             ProfileMaterialKind::Object => {
                 a4n_db::asset::object_profile_project_id(self.database.connection(), profile_id)
                     .await
-                    .map_err(asset_error)?
+                    .map_err(a4n_worker_db_adapter::map_asset_db_error)?
             }
         };
         if profile_project_id != project_id {
@@ -117,7 +117,7 @@ impl WorkerState {
                             a4n_db::profile_material::scene_profile_source_record(&profile),
                         )
                     })
-                    .map_err(scene_profile_error),
+                    .map_err(a4n_worker_db_adapter::map_scene_profile_db_error),
                     ProfileMaterialKind::Object => {
                         a4n_db::asset::object_profile_by_id(self.database.connection(), profile_id)
                             .await
@@ -128,7 +128,7 @@ impl WorkerState {
                                     ),
                                 )
                             })
-                            .map_err(asset_error)
+                            .map_err(a4n_worker_db_adapter::map_asset_db_error)
                     }
                 }
             },
@@ -139,7 +139,7 @@ impl WorkerState {
                     &image_types,
                 )
                 .await
-                .map_err(profile_material_error)
+                .map_err(a4n_worker_db_adapter::map_profile_material_db_error)
             },
         );
         let source = source?;

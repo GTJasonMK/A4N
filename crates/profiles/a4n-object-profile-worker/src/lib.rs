@@ -273,34 +273,6 @@ fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> Wo
     a4n_worker_db_adapter::map_collaboration_db_error(error)
 }
 
-fn asset_error(error: a4n_db::asset::AssetDbError) -> WorkerFailure {
-    match error {
-        a4n_db::asset::AssetDbError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::asset::AssetDbError::NotFound(message) => WorkerFailure::not_found(message),
-        a4n_db::asset::AssetDbError::InvalidState { current, operation } => {
-            WorkerFailure::conflict(format!("{operation}: {current}"))
-        }
-        a4n_db::asset::AssetDbError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
-}
-
-fn profile_material_error(
-    error: a4n_db::profile_material::ProfileMaterialDbError,
-) -> WorkerFailure {
-    match error {
-        a4n_db::profile_material::ProfileMaterialDbError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::profile_material::ProfileMaterialDbError::Database { source, .. } => {
-            WorkerFailure::unavailable(source.to_string())
-        }
-    }
-}
-
 fn completed<T>(request: &WorkerEnvelope<impl serde::Serialize>, payload: T) -> WorkerResponse<T> {
     WorkerResponse::completed_for(request, payload)
 }

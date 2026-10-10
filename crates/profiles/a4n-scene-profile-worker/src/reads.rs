@@ -22,7 +22,7 @@ impl WorkerState {
             project_id,
         )
         .await
-        .map_err(scene_profile_error)?;
+        .map_err(a4n_worker_db_adapter::map_scene_profile_db_error)?;
         let profile_ids = profiles
             .iter()
             .map(|profile| profile.id)
@@ -33,7 +33,7 @@ impl WorkerState {
             &profile_ids,
         )
         .await
-        .map_err(scene_profile_error)?;
+        .map_err(a4n_worker_db_adapter::map_scene_profile_db_error)?;
         let image_counts = a4n_db::profile_material::profile_material_image_counts_by_profile(
             self.database.connection(),
             project_id,
@@ -41,7 +41,7 @@ impl WorkerState {
             &profile_ids,
         )
         .await
-        .map_err(profile_material_error)?;
+        .map_err(a4n_worker_db_adapter::map_profile_material_db_error)?;
         Ok(profiles
             .iter()
             .map(|profile| {

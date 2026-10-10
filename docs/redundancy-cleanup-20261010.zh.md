@@ -291,6 +291,15 @@
 - 新增 adapter 测试覆盖 InvalidArgument、Conflict、Database 及 retryable；adapter 测试 9/9，adapter 与三个 Worker all-targets 检查通过。
 - 记录文件：`crates/process/a4n-worker-db-adapter/src/lib.rs`，以及 Project Read、Project Mutation、Project Status Workers 的 summary/error call sites。
 
+### R-35：统一 Profile DB 错误到 Worker wire 的映射
+
+- 类别：重复错误适配。
+- BFS 覆盖：从 Object Profile、Profile Material、Scene Profile 三个 Worker 的 catalog/route handler 进入 `reads.rs` 与 `mutations.rs`，沿所有数据库 `Result` 的 `map_err` 调用追到 `WorkerFailure`/`WorkerResponse` 失败路径；静态搜索枚举三种 DB error 的全部生产消费者，并核对 Cargo 依赖、模块导入和测试入口。共覆盖 9 个 Worker 源文件、1 个共享 adapter 源文件、29 个 `map_err` 调用：`AssetDbError` 由 Object Profile 与 Profile Material 消费，`ProfileMaterialDbError` 由三个 Worker 消费，`SceneProfileDbError` 由 Profile Material 与 Scene Profile 消费。
+- `AssetDbError` 与 `SceneProfileDbError` 的 `InvalidArgument`、`NotFound`、`InvalidState`、`Database` 映射完全一致；`ProfileMaterialDbError` 的 `InvalidArgument` 与 `Database { source, .. }` 映射在三个 Worker 中完全一致。共享 adapter 分别新增 `map_asset_db_error`、`map_profile_material_db_error`、`map_scene_profile_db_error`，删除三个 Worker 中共 7 份局部 mapper，所有调用点直连唯一实现。错误码、`{operation}: {current}` 冲突文案、数据库 source 文案和 retryable 标志保持原值。
+- Orchestrator 的 Asset/Profile Material/Scene Profile 到 `AppError` 映射仍保留：它们跨越不同 wire/API 边界，`ProfileMaterialDbError` 的 operation 信息和 Host `AppError` 合同不能与 WorkerFailure 合并。没有新增默认值、兼容转换、回退或吞错路径。
+- adapter 测试覆盖三种 enum 的全部变体、wire code、消息和 retryable；三 Worker 的 route/response 链只改变映射函数来源，不改变授权、范围校验、数据库调用或 payload。
+- 记录文件：`crates/process/a4n-worker-db-adapter/src/lib.rs`，以及 Object Profile、Profile Material、Scene Profile Workers 的 `src/lib.rs`、`reads.rs`、`mutations.rs`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -328,6 +337,7 @@
 - R-31 `timeout 60s cargo test --locked --offline -p a4n-worker-db-adapter --lib`：7/7 通过；`cargo check --all-targets --locked --offline -p a4n-worker-db-adapter -p a4n-chapter-content-worker -p a4n-video-record-worker` 通过且无警告。
 - R-32 `cargo check --all-targets --locked --offline -p a4n-db`：通过；`timeout 60s cargo test --locked --offline -p a4n-db --lib outline_db_errors_preserve_project_outline_record_mapping`：1/1 通过。
 - R-34 `cargo check --all-targets --locked --offline -p a4n-worker-db-adapter -p a4n-project-read-worker -p a4n-project-mutation-worker -p a4n-project-status-worker`：通过；`timeout 60s cargo test --locked --offline -p a4n-worker-db-adapter --lib`：9/9 通过。
+- R-35 `cargo test -p a4n-worker-db-adapter --locked`：12/12 通过；`cargo check --all-targets -p a4n-object-profile-worker -p a4n-profile-material-worker -p a4n-scene-profile-worker --locked`：通过且无警告。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-contract --lib`：49/49 通过，覆盖共享失败构造、响应元数据、请求身份校验、principal ID 边界和 wire 序列化。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-client --lib`：14/14 通过，覆盖共享传输与响应错误映射。
 - `cargo check --locked --offline -p a4n-worker-runtime -p a4n-service-manager -p a4n-server -p a4n-tauri`：通过，验证共享父进程退出信号 helper 的三个集成点和更新后的 lockfile。

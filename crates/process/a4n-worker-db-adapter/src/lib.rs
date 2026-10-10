@@ -1,8 +1,11 @@
+use a4n_db::asset::AssetDbError;
 use a4n_db::collaboration::CollaborationDbError;
+use a4n_db::profile_material::ProfileMaterialDbError;
 use a4n_db::project::{
     ProjectFamilyDbError, ProjectFamilyMetadataReadError, ProjectMutationError,
     ProjectProgressReadError,
 };
+use a4n_db::scene_profile::SceneProfileDbError;
 use a4n_db::workflow::WorkflowReadError;
 use a4n_error::AppError;
 use a4n_worker_contract::WorkerFailure;
@@ -26,6 +29,37 @@ pub fn map_app_error(error: AppError) -> WorkerFailure {
             WorkerFailure::conflict(format!("{current}: {operation}"))
         }
         other => WorkerFailure::unavailable(other.to_string()),
+    }
+}
+
+pub fn map_asset_db_error(error: AssetDbError) -> WorkerFailure {
+    match error {
+        AssetDbError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
+        AssetDbError::NotFound(message) => WorkerFailure::not_found(message),
+        AssetDbError::InvalidState { current, operation } => {
+            WorkerFailure::conflict(format!("{operation}: {current}"))
+        }
+        AssetDbError::Database(error) => WorkerFailure::unavailable(error.to_string()),
+    }
+}
+
+pub fn map_profile_material_db_error(error: ProfileMaterialDbError) -> WorkerFailure {
+    match error {
+        ProfileMaterialDbError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
+        ProfileMaterialDbError::Database { source, .. } => {
+            WorkerFailure::unavailable(source.to_string())
+        }
+    }
+}
+
+pub fn map_scene_profile_db_error(error: SceneProfileDbError) -> WorkerFailure {
+    match error {
+        SceneProfileDbError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
+        SceneProfileDbError::NotFound(message) => WorkerFailure::not_found(message),
+        SceneProfileDbError::InvalidState { current, operation } => {
+            WorkerFailure::conflict(format!("{operation}: {current}"))
+        }
+        SceneProfileDbError::Database(error) => WorkerFailure::unavailable(error.to_string()),
     }
 }
 
@@ -446,5 +480,119 @@ mod tests {
         assert_eq!(unavailable.code, WorkerErrorCode::Unavailable);
         assert!(unavailable.retryable);
         assert_eq!(unavailable.message, database_message);
+    }
+
+    #[test]
+    fn asset_db_errors_map_to_the_worker_contract() {
+        let database_error = DbErr::Custom("database unavailable".into());
+        let database_message = database_error.to_string();
+        let cases = [
+            (
+                AssetDbError::InvalidArgument("invalid input".into()),
+                WorkerErrorCode::InvalidRequest,
+                false,
+                "invalid input".to_string(),
+            ),
+            (
+                AssetDbError::NotFound("missing asset".into()),
+                WorkerErrorCode::NotFound,
+                false,
+                "missing asset".to_string(),
+            ),
+            (
+                AssetDbError::InvalidState {
+                    current: "processing".into(),
+                    operation: "delete asset".into(),
+                },
+                WorkerErrorCode::Conflict,
+                false,
+                "delete asset: processing".to_string(),
+            ),
+            (
+                AssetDbError::Database(database_error),
+                WorkerErrorCode::Unavailable,
+                true,
+                database_message,
+            ),
+        ];
+
+        for (error, code, retryable, message) in cases {
+            let mapped: WorkerError = map_asset_db_error(error).into();
+            assert_eq!(mapped.code, code);
+            assert_eq!(mapped.retryable, retryable);
+            assert_eq!(mapped.message, message);
+        }
+    }
+
+    #[test]
+    fn profile_material_db_errors_map_to_the_worker_contract() {
+        let database_error = DbErr::Custom("database unavailable".into());
+        let database_message = database_error.to_string();
+        let cases = [
+            (
+                ProfileMaterialDbError::InvalidArgument("invalid input".into()),
+                WorkerErrorCode::InvalidRequest,
+                false,
+                "invalid input".to_string(),
+            ),
+            (
+                ProfileMaterialDbError::Database {
+                    operation: "load profile materials",
+                    source: database_error,
+                },
+                WorkerErrorCode::Unavailable,
+                true,
+                database_message,
+            ),
+        ];
+
+        for (error, code, retryable, message) in cases {
+            let mapped: WorkerError = map_profile_material_db_error(error).into();
+            assert_eq!(mapped.code, code);
+            assert_eq!(mapped.retryable, retryable);
+            assert_eq!(mapped.message, message);
+        }
+    }
+
+    #[test]
+    fn scene_profile_db_errors_map_to_the_worker_contract() {
+        let database_error = DbErr::Custom("database unavailable".into());
+        let database_message = database_error.to_string();
+        let cases = [
+            (
+                SceneProfileDbError::InvalidArgument("invalid input".into()),
+                WorkerErrorCode::InvalidRequest,
+                false,
+                "invalid input".to_string(),
+            ),
+            (
+                SceneProfileDbError::NotFound("missing scene".into()),
+                WorkerErrorCode::NotFound,
+                false,
+                "missing scene".to_string(),
+            ),
+            (
+                SceneProfileDbError::InvalidState {
+                    current: "processing".into(),
+                    operation: "delete scene".into(),
+                },
+                WorkerErrorCode::Conflict,
+                false,
+                "delete scene: processing".to_string(),
+            ),
+            (
+                SceneProfileDbError::Database(database_error),
+                WorkerErrorCode::Unavailable,
+                true,
+                database_message,
+            ),
+        ];
+
+        for (error, code, retryable, message) in cases {
+            let mapped: WorkerError = map_scene_profile_db_error(error).into();
+            assert_eq!(mapped.code, code);
+            assert_eq!(mapped.retryable, retryable);
+            assert_eq!(mapped.message, message);
+        }
     }
 }
