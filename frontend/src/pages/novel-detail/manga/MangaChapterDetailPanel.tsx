@@ -50,10 +50,8 @@ import { isCancelledOperation } from "../../../utils/cancellation";
 import { EmptyHint, isChapterGenerating, type ChapterRow } from "../shared";
 import { MangaPagePromptList } from "./MangaPagePromptList";
 import { readFileAsBase64 } from "../../../utils/fileUpload";
-import {
-  isSupportedImageMime,
-  MAX_UPLOAD_IMAGE_BYTES,
-} from "../../../utils/imageUpload";
+import { MAX_UPLOAD_IMAGE_BYTES } from "../../../api/generated/config";
+import { isSupportedImageMime } from "../../../utils/imageUpload";
 import {
   chapterHeading,
   countStaleMangaPagePrompts,

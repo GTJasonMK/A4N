@@ -3,12 +3,12 @@
 ## 范围与方法
 
 - 工作分支：`agent/redundancy-cleanup-20261010`，基线 `debug@3f6a2408c9e78c4719259e77d5443f2befdd8fda`。
-- 建立分支本地 CodeGraph 索引后持续同步；当前索引覆盖 6,245 个文件、86,284 个符号、275,084 条边，状态为 up to date。
+- 建立分支本地 CodeGraph 索引后持续同步；当前索引覆盖 6,245 个文件、86,292 个符号、275,096 条边，状态为 up to date。
 - 从 `a4n-server`、Tauri 本地 Server、`a4n-component-host`、Worker/Sidecar catalog、Axum route 注册、`a4n-control` 动态 command 分派和 `frontend/src/App.tsx` 路由入口追踪生产调用与注册点。前端索引包含 444 个 TS 和 318 个 TSX 文件。
 - 基线 Cargo workspace 有 213 个 crate manifest；本次增加 Worker runtime 与 DB adapter 后共 215 个。`cargo metadata` 核对了 Worker 对共享配置/runtime crate 的依赖。静态搜索补查脚本启动、环境变量、历史迁移、测试 fixture、生成合同脚本和运行时路由字符串。
 - 检查了 `#[allow(dead_code)]`、兼容/legacy 命名、候选无入边符号、Cargo 直接依赖和可复用的前端格式工具。
 
-最新 CodeGraph sync 已解析此前待处理引用，未报告剩余 unresolved references；跨 crate helper 导入和部分动态/宏式 route 注册仍可能无法形成完整调用边，例如共享 runtime helper 的包外调用需要用静态搜索复核。所有本批跨 crate helper 消费者均经源码搜索确认，并由 workspace 或对应 crate 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
+本轮 R-74 的两次 CodeGraph sync 分别同步 17 个和 6 个文件；第一轮解析 24 个待处理引用并报告 52 个 unresolved references，第二轮再解析 25 个待处理引用；当前 `codegraph status` 显示索引 up to date，但 CLI 未列出剩余 unresolved references。跨 crate helper 导入和部分动态/宏式 route 注册仍可能无法形成完整调用边，例如共享 runtime helper 的包外调用需要用静态搜索复核。R-74 的合同常量消费者均另经全仓静态搜索确认，并由受影响 workspace package 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
 
 本记录说明实际检查的入口和结果，不声称仅凭静态分析证明了所有运行环境、外部调用者、反射或部署配置均无遗漏。未对所有产品模块做逐函数人工审阅，也未运行浏览器端到端流程。
 
@@ -604,6 +604,15 @@
 - Image Metadata 改用 `i18n::formatBytes`，显式设置 `maxUnit: MB` 和一位固定小数，保留图片条目的 MB 上限及 KB/MB 展示精度；null、负数和非有限值仍显示“未知”。共享 formatter 仅增加 `maxUnit` 与 `minimumFractionDigits` 选项，不保留图片库本地换算。
 - 验证：`i18n.test.ts` 与 `EmbeddingConfigEditor.test.tsx` 2 个文件、11/11 通过；新增断言覆盖 MB 上限及固定小数；`npm run build` 和 `git diff --check` 通过。
 - 记录范围：`frontend/src/i18n/format.ts`、`frontend/src/i18n/i18n.test.ts` 与 `frontend/src/pages/novel-detail/images/imageMetadata.ts`。
+
+### R-74：统一图片上传大小合同
+
+- 类别：通用图像上传、Profile Material 图片上传和 Theme 资源上传的大小限制分别在前端、Orchestrator、Runtime、Tauri 和错误文案中重复定义。
+- BFS 覆盖：从通用图片上传的五个前端消费者追到 `uploadImage` API、Orchestrator `prepare_imported_image_upload_for_user_validated` 和共享图像解码器；从 `readLocalImageFile` 经既有 Tauri command 注册路径追到 `read_local_image_file` 的文件读取边界；从 `VideoMaterialWorkspace.uploadMaterialFile` 追到 `uploadProfileMaterialImage`、`ProfileMaterialUploadApplicationPort` 实现和图像解码；从 Theme Editor 文件选择追到 controller/API、Runtime 资源持久化与主题包导入。CodeGraph 检查三类常量及调用点，全仓静态搜索复核 20/50 MiB 字面量、大小常量、生成配置、翻译和测试 fixture。
+- 在 `a4n-api-contract::image`、`profile`、`theme` 分别定义 `MAX_UPLOAD_IMAGE_BYTES`（50 MiB）、`MAX_PROFILE_MATERIAL_IMAGE_UPLOAD_BYTES`（20 MiB）和 `MAX_THEME_RESOURCE_BYTES`（20 MiB）；`generate_types` 将三者写入生成的 `config.ts`。Rust 调用端读取对应合同常量，前端消费者直接读取生成常量；`imageUpload.ts` 只保留 MIME helpers，不再转发大小常量。Tauri 文件读取仍最多读取上限加 1 字节并明确拒绝超限文件，错误文案从合同常量计算；Theme 中英文错误文案改为插值上限。
+- 保留独立边界：视频 sidecar 图片引用 20 MiB、参考媒体本地选择 20 MiB、视觉分析单图 8 MiB/总量 16 MiB、图片 provider 压缩后参考图 700 KiB 和 Temp Media 配置上限各自服务不同合同或处理阶段，不按数值相同合并。Theme 迁移中的历史 8 MiB→20 MiB 说明保持为历史事实。
+- 验证：API contract、Orchestrator、Runtime、Tauri、host-assembly 的 `cargo check --all-targets --locked --offline` 通过；生成器 `--write`/`--check` 和 `npm run check:web-api-parity` 通过；`npm run build` 通过（保留仓库已有大 chunk 提示）；`cargo fmt --all -- --check`、`git diff --check` 通过。未运行测试套件；all-targets 检查编译了测试目标。
+- 记录范围：API contract 的 image/profile/theme 常量与生成器、生成的 `frontend/src/api/generated/config.ts`、Orchestrator/Runtime/Tauri/host-assembly 上传消费者、前端五个通用图像上传消费者、Profile Material/Theme Editor 消费者及 Theme 中英文消息。
 
 ## 核验后保留
 

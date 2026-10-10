@@ -1,6 +1,6 @@
 use a4n_api_contract::theme::{
-    DeleteThemeResourceInput, PersistThemeResourceInput, ThemeResourceRecord, ThemeResourceSummary,
-    ThemeResourceUploadInput,
+    DeleteThemeResourceInput, MAX_THEME_RESOURCE_BYTES, PersistThemeResourceInput,
+    ThemeResourceRecord, ThemeResourceSummary, ThemeResourceUploadInput,
 };
 use a4n_error::AppError;
 use base64::Engine as _;
@@ -8,8 +8,6 @@ use sha2::{Digest, Sha256};
 
 use crate::AppState;
 use a4n_storage::{remove_data_file_in_data_dir, write_new_data_file};
-
-pub(super) const MAX_THEME_RESOURCE_BYTES: usize = 20 * 1024 * 1024;
 
 pub async fn upload_theme_resource_for_user(
     state: &AppState,

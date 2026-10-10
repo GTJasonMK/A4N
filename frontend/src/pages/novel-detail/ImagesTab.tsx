@@ -41,10 +41,8 @@ import { isCancelledOperation } from "../../utils/cancellation";
 import { copyTextToClipboard } from "../../utils/clipboard";
 import { readFileAsBase64 } from "../../utils/fileUpload";
 import { isDesktopTauriRuntime } from "../../utils/runtimeMode";
-import {
-  isSupportedImageMime,
-  MAX_UPLOAD_IMAGE_BYTES,
-} from "../../utils/imageUpload";
+import { MAX_UPLOAD_IMAGE_BYTES } from "../../api/generated/config";
+import { isSupportedImageMime } from "../../utils/imageUpload";
 import { ImageActionDialog } from "./images/ImageActionDialog";
 import { ImageGalleryPanel } from "./images/ImageGalleryPanel";
 import { ImageGenerationDialog } from "./images/ImageGenerationDialog";

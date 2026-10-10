@@ -1,4 +1,4 @@
-use a4n_api_contract::portrait::PortraitReferenceImageSource;
+use a4n_api_contract::{image::MAX_UPLOAD_IMAGE_BYTES, portrait::PortraitReferenceImageSource};
 use a4n_config::{ensure_image_size_supported, image_sizes_from_json};
 use a4n_domain::EXTERNAL_IMPORT_MODEL;
 use a4n_domain::cost::{
@@ -301,7 +301,7 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
         data_base64: &str,
     ) -> Result<DecodedPortraitImage, AppError> {
         let decoded =
-            decode_uploaded_image_data(file_name, mime_type, data_base64, 50 * 1024 * 1024)
+            decode_uploaded_image_data(file_name, mime_type, data_base64, MAX_UPLOAD_IMAGE_BYTES)
                 .map_err(host_error)?;
         Ok(DecodedPortraitImage {
             bytes: decoded.bytes,

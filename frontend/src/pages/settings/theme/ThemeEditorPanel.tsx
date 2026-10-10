@@ -12,7 +12,10 @@ import {
   type ThemeMode,
   type ThemeStreamDisplaySettings,
 } from "../../../api/theme";
-import { IMAGE_UPLOAD_MIME_TYPES } from "../../../api/generated/config";
+import {
+  IMAGE_UPLOAD_MIME_TYPES,
+  MAX_THEME_RESOURCE_BYTES,
+} from "../../../api/generated/config";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
@@ -270,8 +273,10 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
 
   const handleFile = (file: File | undefined) => {
     if (!file) return;
-    if (!SUPPORTED_THEME_IMAGE_TYPES.includes(file.type) || file.size > 20 * 1024 * 1024) {
-      setError(t("settingsTheme.resourceInvalid"));
+    if (!SUPPORTED_THEME_IMAGE_TYPES.includes(file.type) || file.size > MAX_THEME_RESOURCE_BYTES) {
+      setError(t("settingsTheme.resourceInvalid", {
+        size: MAX_THEME_RESOURCE_BYTES / (1024 * 1024),
+      }));
       return;
     }
     setPendingFiles((current) => ({ ...current, [backgroundRoute]: file }));

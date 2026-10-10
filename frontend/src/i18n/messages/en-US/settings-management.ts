@@ -676,7 +676,7 @@ export const settingsTheme = {
   chooseBackground: "Choose image",
   filePickerFailed: "Failed to open the image picker",
   removeBackground: "Remove image",
-  resourceInvalid: "Backgrounds must be PNG, JPEG, WebP, or GIF and no larger than 20 MiB",
+  resourceInvalid: "Backgrounds must be PNG, JPEG, WebP, or GIF and no larger than {{size}} MiB",
   advancedTokens: "Advanced tokens",
   tokenFallback: "Leave empty to use the built-in value",
   restoreDefault: "Restore default theme",

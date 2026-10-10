@@ -4,7 +4,8 @@ use std::{
 };
 
 use a4n_api_contract::theme::{
-    CreateThemeInput, ThemePackageExport, ThemePackageUploadInput, ThemeResourceUploadInput,
+    CreateThemeInput, MAX_THEME_RESOURCE_BYTES, ThemePackageExport, ThemePackageUploadInput,
+    ThemeResourceUploadInput,
 };
 use a4n_archive_core::{ArchiveEntry, write_zip};
 use a4n_error::AppError;
@@ -14,8 +15,7 @@ use sha2::{Digest, Sha256};
 use zip::ZipArchive;
 
 use super::resources::{
-    MAX_THEME_RESOURCE_BYTES, theme_resource_relative_path, upload_theme_resource_for_user,
-    validate_resource_metadata,
+    theme_resource_relative_path, upload_theme_resource_for_user, validate_resource_metadata,
 };
 use crate::AppState;
 use a4n_storage::{canonicalize_data_file_path, remove_data_file_in_data_dir};

@@ -676,7 +676,7 @@ export const settingsTheme = {
   chooseBackground: "选择图片",
   filePickerFailed: "打开图片选择器失败",
   removeBackground: "移除图片",
-  resourceInvalid: "背景图片必须是 PNG、JPEG、WebP 或 GIF，且不超过 20 MiB",
+  resourceInvalid: "背景图片必须是 PNG、JPEG、WebP 或 GIF，且不超过 {{size}} MiB",
   advancedTokens: "高级 Token",
   tokenFallback: "留空表示使用内置值",
   restoreDefault: "恢复默认主题",

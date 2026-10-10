@@ -91,6 +91,10 @@ export const IMAGE_UPLOAD_MIME_TYPES: readonly string[] = [
   "image/webp",
 ];
 
+export const MAX_UPLOAD_IMAGE_BYTES = 52428800;
+export const MAX_PROFILE_MATERIAL_IMAGE_UPLOAD_BYTES = 20971520;
+export const MAX_THEME_RESOURCE_BYTES = 20971520;
+
 export const VIDEO_UPLOAD_MIME_TYPES: Readonly<Record<string, readonly [string, ...string[]]>> = {
   "mp4": ["video/mp4", "application/mp4"],
   "webm": ["video/webm"],

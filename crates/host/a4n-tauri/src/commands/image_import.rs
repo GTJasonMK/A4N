@@ -1,9 +1,8 @@
+use a4n_api_contract::image::MAX_UPLOAD_IMAGE_BYTES;
 use a4n_domain::media::image_upload_format_from_extension;
 use base64::{Engine, engine::general_purpose::STANDARD};
 use std::path::PathBuf;
 use tokio::io::AsyncReadExt;
-
-const MAX_PICKED_IMAGE_BYTES: u64 = 50 * 1024 * 1024;
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -41,12 +40,15 @@ async fn read_image_file(path: PathBuf) -> Result<PickedImageFile, String> {
     tokio::fs::File::open(&path)
         .await
         .map_err(|error| format!("打开图片失败：{error}"))?
-        .take(MAX_PICKED_IMAGE_BYTES + 1)
+        .take(MAX_UPLOAD_IMAGE_BYTES as u64 + 1)
         .read_to_end(&mut bytes)
         .await
         .map_err(|error| format!("读取图片失败：{error}"))?;
-    if bytes.len() as u64 > MAX_PICKED_IMAGE_BYTES {
-        return Err("图片文件不能超过 50 MiB".to_owned());
+    if bytes.len() as u64 > MAX_UPLOAD_IMAGE_BYTES as u64 {
+        return Err(format!(
+            "图片文件不能超过 {} MiB",
+            MAX_UPLOAD_IMAGE_BYTES / (1024 * 1024)
+        ));
     }
 
     Ok(PickedImageFile {

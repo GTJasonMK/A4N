@@ -30,9 +30,9 @@ import { StyleTemplatePicker } from "../StyleTemplatePicker";
 import { imageTypeLabel } from "../images/imageTabUtils";
 import { DEFAULT_IMAGE_STYLE, VISUAL_STYLE_TEMPLATES } from "../styleTemplates";
 import { firstProfileName } from "./characterUtils";
+import { MAX_UPLOAD_IMAGE_BYTES } from "../../../api/generated/config";
 import {
   isSupportedImageMime,
-  MAX_UPLOAD_IMAGE_BYTES,
   supportedImageAccept,
 } from "../../../utils/imageUpload";
 import { useI18n } from "../../../i18n";

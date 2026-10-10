@@ -468,8 +468,12 @@ fn typescript_image_constants() -> String {
         .flat_map(|format| format.browser_mime_types.iter().copied())
         .map(|mime_type| format!("  {mime_type:?},\n"))
         .collect::<String>();
+    let max_upload_image_bytes = a4n_api_contract::image::MAX_UPLOAD_IMAGE_BYTES;
+    let max_profile_material_image_upload_bytes =
+        a4n_api_contract::profile::MAX_PROFILE_MATERIAL_IMAGE_UPLOAD_BYTES;
+    let max_theme_resource_bytes = a4n_api_contract::theme::MAX_THEME_RESOURCE_BYTES;
     format!(
-        "export const DEFAULT_IMAGE_SIZES: readonly ImageSize[] = [\n{sizes}];\n\nexport const IMAGE_UPLOAD_MIME_TYPES: readonly string[] = [\n{mime_types}];\n\n"
+        "export const DEFAULT_IMAGE_SIZES: readonly ImageSize[] = [\n{sizes}];\n\nexport const IMAGE_UPLOAD_MIME_TYPES: readonly string[] = [\n{mime_types}];\n\nexport const MAX_UPLOAD_IMAGE_BYTES = {max_upload_image_bytes};\nexport const MAX_PROFILE_MATERIAL_IMAGE_UPLOAD_BYTES = {max_profile_material_image_upload_bytes};\nexport const MAX_THEME_RESOURCE_BYTES = {max_theme_resource_bytes};\n\n"
     )
 }
 
