@@ -68,6 +68,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 故事事件 | PERF-018 减少筛选时未变化卡片的重复渲染；PERF-019 从数据库到前端仅读取所需的五个分析字段；PERF-045 延迟默认收起的伏笔索引。千章/4500事件首屏仍需渲染大量卡片，未将受控夹具的首屏收益外推为完整后端端到端提升。 |
 | Agent 消息流 | PERF-029/044 已覆盖 Agent 后端维护扫描和历史预算投影；PERF-046 处理前端高频无关状态更新，消息数组或流式事件变化仍走完整渲染。 |
 | 档案素材与图片 | PERF-047 只优化档案列表图片计数和删除下游 ID 的读取；完整素材列表、主素材绑定和图片详情仍保留原字段与顺序。 |
+| Canvas 文本素材 | 窄索引候选已用 256 份 × 4 KiB 正文的 Chromium 夹具复核；传输字节下降 98%，但首屏中位数仅下降 14.0%，GC 后 JS heap 仅下降 8.2%，不满足保留门槛，未改合同或生产代码。 |
 | 漫画来源读取 | 当前 MangaTab 产品入口 ComicProjectWorkspace、VideoProjectWorkspace 和 GalgameProjectWorkspace 均使用 `listSourceSnapshotChapterIndex`；PERF-020 已用 1000 章真实 PostgreSQL/Chromium 夹具测量目录与单章详情，完整正文只在选章后读取。旧 `listSourceSnapshotChapters` API 仍保留给兼容调用方，但不是当前页面活跃路径。 |
 | 项目包传输 | PERF-037 批量读取独立漫画包的文本资产版本与来源实体；PERF-038—042 批量写入历史消息、workflow progress event、模型用量账本、LLM trace 与 generation target。SQL 数随数据行数增长，未引入缓存或预取。 |
 
@@ -526,6 +527,13 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 量化结果：隔离 PostgreSQL 16、9 次交错样本。计数旧/新 P50/P95 **277.905/307.716 → 39.846/44.813 ms**，下降 **85.7%/85.4%**；删除 ID 旧/新 P50/P95 **275.986/283.187 → 27.412/36.981 ms**，下降 **90.1%/86.9%**。20,000 张图片的计数逐档案相同，删除 ID 按原 ID 顺序相同。
 - 语义验证：夹具包含字符串、错误 kind、负数、小数和 null profile ID，旧/新计数与 ID 结果逐项相等；`a4n-db` profile_material 单测 **7/7** 通过。SQL 使用绑定参数，无用户输入拼接；完整素材列表读取路径没有改变。
 - 证据与复现：`data/performance-audit-20261010/profile-material-image-counts/command.log`；从工作树执行 `flock -x /home/fufu/Code/A4N/work/.agent-build.lock env A4N_TEST_DATABASE_URL=postgres://.../a4n_test CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target CARGO_INCREMENTAL=0 cargo test --locked -p a4n-db --test profile_material_image_counts_batch benchmark_profile_material_image_counts -- --ignored --nocapture --test-threads=1`。
+
+### 拒绝候选：Canvas 文本素材窄索引
+
+- 链路与规模：`ProjectTextMaterialsPanel` 初载 **256 份**文本素材，每份正文约 **4 KiB**；旧列表响应包含全部正文，而页面只展示目录并读取当前选中版本。候选增加不含正文的索引命令，切换素材仍通过版本接口读取正文，并验证第二份素材内容和标题。
+- 量化结果：真实 Chromium 153 受控三轮中位数首屏 **128.2 → 110.2 ms（14.0%）**；GC 后 JS heap **38.30 → 35.16 MB（8.2%）**；请求 JSON **3,206,959 → 65,583 B（98.0%）**。首屏时间和内存均未达到门槛，候选撤回。
+- 语义验证：旧/新均保留 256 项、首项和第二项正文各 4,096 字符、第二项标题一致；仅保留夹具和报告，不改 API 合同、worker、数据库或面板。
+- 证据：`data/performance-audit-20261010/text-materials/{before-4,before-5,before-6,after-1,after-2,after-3,before-7,before-8,before-9,after-5,after-6,after-7}/report.json`；该受控数据说明载荷浪费，但不足以证明满足本项目保留标准。
 
 ### 拒绝候选：项目包 workflow checkpoint 批量导入
 
