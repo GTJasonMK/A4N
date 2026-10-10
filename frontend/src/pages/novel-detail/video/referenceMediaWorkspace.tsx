@@ -3,7 +3,7 @@ import { Check, Eye, Images, Plus, Trash2, Upload } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import type { GeneratedImage } from "../../../api/image";
-import { TEMP_MEDIA_VIDEO_MIME_TYPES } from "../../../api/generated/config";
+import { TEMP_MEDIA_BROWSER_MIME_TYPES } from "../../../api/generated/config";
 import {
   VIDEO_WORKFLOW_MODE_CHAT_VIDEO,
   type SegmentReferenceMediaRecipe,
@@ -80,11 +80,6 @@ const referenceMediaKindLabel = (kind: ReferenceMediaKind, t: MessageTranslator)
   t(REFERENCE_MEDIA_KIND_META[kind].labelKey);
 
 const REFERENCE_MEDIA_KINDS: ReferenceMediaKind[] = ["image", "video", "audio"];
-const REFERENCE_MEDIA_ACCEPT: Record<ReferenceMediaKind, string> = {
-  image: "image/png,image/jpeg,image/webp",
-  video: TEMP_MEDIA_VIDEO_MIME_TYPES.join(","),
-  audio: "audio/mpeg,audio/wav,audio/x-wav,audio/mp4,audio/x-m4a,audio/ogg",
-};
 const MAX_REFERENCE_MEDIA_UPLOAD_BYTES = 20 * 1024 * 1024;
 
 let referenceMediaRowSeq = 0;
@@ -938,7 +933,7 @@ export const ReferenceMediaWorkspace: React.FC<{
     const selectLocalFile = async (rowId: string, file: File | undefined) => {
       if (!file) return;
       setUploadError(null);
-      const allowedMimes = REFERENCE_MEDIA_ACCEPT[kind].split(",");
+      const allowedMimes = TEMP_MEDIA_BROWSER_MIME_TYPES[kind];
       if (!allowedMimes.includes(file.type)) {
         setUploadError(
           t("video.reference.unsupportedType", { label, type: file.type || file.name }),
@@ -1039,7 +1034,7 @@ export const ReferenceMediaWorkspace: React.FC<{
                       {t("video.reference.localFile")}
                       <input
                         type="file"
-                        accept={REFERENCE_MEDIA_ACCEPT[kind]}
+                        accept={TEMP_MEDIA_BROWSER_MIME_TYPES[kind].join(",")}
                         className="sr-only"
                         onChange={(event) => {
                           const file = event.currentTarget.files?.[0];

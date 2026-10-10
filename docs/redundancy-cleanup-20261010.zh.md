@@ -562,6 +562,15 @@
 - 验证：4 个受影响 Rust package all-targets 检查通过；domain MIME 测试 1/1、Control Temp Media 子集测试 1/1、video-provider 85/85 通过；API 类型生成检查和 `npm run check:web-api-parity` 通过；`referenceMediaWorkspace.test.ts` 2/2、前端构建、格式和 diff 检查通过。
 - 记录范围：`crates/platform/a4n-domain/src/media/{files.rs,media.rs}`、`crates/host/a4n-api-contract/src/{temp_media.rs,bin/generate_types.rs,bin/generate_types/stages.rs}`、Control temp-media rules/storage、`crates/video/a4n-video-providers/src/format.rs`、生成配置与 `referenceMediaWorkspace.tsx`。
 
+### R-69：统一 Temp Media 全部 MIME 与扩展名合同
+
+- 类别：同一临时媒体上传能力在 API、Control 与前端各自维护 MIME/扩展名列表。
+- BFS 覆盖：从参考媒体组件本地文件选择追到 `ReferenceMediaUploadInput`；从 Orchestrator 生成预览/任务准备追到 Runtime `upload_reference_media_input_for_preview`、临时文件上传请求和 Control `POST /temp-media`。继续追踪 metadata/file MIME 校验、文件名扩展约束、artifact ID serving 查找及过期清理；另外核对生成图片走同一临时媒体服务的路径。
+- 在 `a4n-api-contract::temp_media::TEMP_MEDIA_FORMATS` 保存 Temp Media 支持的 image/video/audio canonical MIME、扩展名、服务端 MIME aliases 和浏览器 MIME 列表。Control normalization、artifact filename validation/search 统一读取此表；生成器从表生成 `TEMP_MEDIA_BROWSER_MIME_TYPES`，前端 picker 的 `accept` 和实际 `File.type` 检查都使用同一份数据。删除 Control 与 UI 的局部 MIME→扩展名/允许列表副本。
+- 保持原始输入边界：服务端接受 `audio/mp3` 并规范化为 `audio/mpeg`；浏览器列表仍不包含 `audio/mp3`，因为本地选择器之前使用的是更窄的 File.type 子集。Temp Media 继续拒绝 `application/ogg`、`video/x-m4v` 和 `video/mov`；magic-byte 验证继续独立检查真实文件内容。
+- 验证：4 个受影响 Rust package all-targets 检查通过；domain、Control Temp Media、API contract 定向测试各 1/1，video-provider 85/85；`generate_types --check`、`npm run check:web-api-parity`、`referenceMediaWorkspace.test.ts` 2/2、前端构建、`cargo fmt --all -- --check` 和 `git diff --check` 通过。
+- 记录范围：`crates/host/a4n-api-contract/src/temp_media.rs` 与 generator/stages、`crates/host/a4n-control/src/routes/temp_media/{rules.rs,storage.rs}`、`frontend/src/pages/novel-detail/video/referenceMediaWorkspace.tsx` 和生成的 `config.ts`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

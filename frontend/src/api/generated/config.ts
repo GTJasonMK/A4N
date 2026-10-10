@@ -92,7 +92,11 @@ export const VIDEO_UPLOAD_MIME_TYPES: Readonly<Record<string, readonly [string, 
   "m4v": ["video/x-m4v", "video/mp4", "application/mp4"],
 };
 
-export const TEMP_MEDIA_VIDEO_MIME_TYPES: readonly string[] = ["video/mp4", "video/quicktime", "video/webm"];
+export const TEMP_MEDIA_BROWSER_MIME_TYPES: Readonly<Record<"image" | "video" | "audio", readonly string[]>> = {
+  image: ["image/png", "image/jpeg", "image/webp"],
+  video: ["video/mp4", "video/quicktime", "video/webm"],
+  audio: ["audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp4", "audio/x-m4a", "audio/ogg"],
+};
 
 export interface ImageConfigSummary {
   backend: string;

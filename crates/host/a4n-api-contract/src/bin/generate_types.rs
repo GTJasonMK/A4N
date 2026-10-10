@@ -7,7 +7,7 @@ use a4n_api_contract::fact_feedback::{
     RunProjectFactFeedbackInput,
 };
 use a4n_api_contract::generation_tasks::GENERATION_START_ROUTES;
-use a4n_api_contract::temp_media::TEMP_MEDIA_VIDEO_EXTENSIONS;
+use a4n_api_contract::temp_media::{TEMP_MEDIA_FORMATS, TempMediaFormatKind};
 use a4n_api_contract::{
     admin::{
         AdminOverviewSummary, AdminProjectSummary, CallKindOverview, CreateInviteCodeInput,
@@ -481,20 +481,26 @@ fn typescript_video_upload_mime_types() -> String {
     )
 }
 
-fn typescript_temp_media_video_mime_types() -> String {
-    let mime_types = TEMP_MEDIA_VIDEO_EXTENSIONS
-        .iter()
-        .map(|extension| {
-            VIDEO_MEDIA_TYPES
-                .iter()
-                .find(|media_type| media_type.extension == *extension)
-                .expect("temp media video extensions must exist in the domain media table")
-                .mime_type
-        })
-        .map(|mime_type| format!("{mime_type:?}"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!("export const TEMP_MEDIA_VIDEO_MIME_TYPES: readonly string[] = [{mime_types}];\n\n")
+fn typescript_temp_media_browser_mime_types() -> String {
+    let mut output = String::from(
+        "export const TEMP_MEDIA_BROWSER_MIME_TYPES: Readonly<Record<\"image\" | \"video\" | \"audio\", readonly string[]>> = {\n",
+    );
+    for (name, kind) in [
+        ("image", TempMediaFormatKind::Image),
+        ("video", TempMediaFormatKind::Video),
+        ("audio", TempMediaFormatKind::Audio),
+    ] {
+        let mime_types = TEMP_MEDIA_FORMATS
+            .iter()
+            .filter(|format| format.kind == kind)
+            .flat_map(|format| format.browser_mime_types.iter().copied())
+            .map(|mime_type| format!("{mime_type:?}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        output.push_str(&format!("  {name}: [{mime_types}],\n"));
+    }
+    output.push_str("};\n\n");
+    output
 }
 
 fn typescript_type<T: JsonSchema>(name: &str) -> String {

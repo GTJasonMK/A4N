@@ -1,48 +1,25 @@
-use a4n_api_contract::temp_media::TEMP_MEDIA_VIDEO_EXTENSIONS;
-use a4n_domain::media::{canonical_audio_mime, canonical_video_mime};
+use a4n_api_contract::temp_media::TEMP_MEDIA_FORMATS;
 use std::ffi::OsStr;
 use std::path::Path;
 
-const TEMP_MEDIA_IMAGE_ARTIFACT_EXTENSIONS: &[&str] = &["png", "jpg", "webp"];
-const TEMP_MEDIA_AUDIO_ARTIFACT_EXTENSIONS: &[&str] = &["mp3", "wav", "m4a", "ogg"];
-
 pub(super) fn temp_media_artifact_extensions() -> impl Iterator<Item = &'static str> {
-    TEMP_MEDIA_IMAGE_ARTIFACT_EXTENSIONS
-        .iter()
-        .copied()
-        .chain(TEMP_MEDIA_VIDEO_EXTENSIONS.iter().copied())
-        .chain(TEMP_MEDIA_AUDIO_ARTIFACT_EXTENSIONS.iter().copied())
+    TEMP_MEDIA_FORMATS.iter().map(|format| format.extension)
 }
 
 pub(super) fn normalize_temp_media_type(
     value: &str,
 ) -> Result<(&'static str, &'static str), String> {
     let normalized = value.trim().to_ascii_lowercase();
-    if let Some((mime_type, extension)) = canonical_video_mime(&normalized)
-        && TEMP_MEDIA_VIDEO_EXTENSIONS.contains(&extension)
-    {
-        return Ok((mime_type, extension));
-    }
-    match normalized.as_str() {
-        "image/png" => Ok(("image/png", "png")),
-        "image/jpeg" => Ok(("image/jpeg", "jpg")),
-        "image/webp" => Ok(("image/webp", "webp")),
-        other => {
-            if !matches!(
-                other,
-                "audio/mpeg"
-                    | "audio/mp3"
-                    | "audio/wav"
-                    | "audio/x-wav"
-                    | "audio/mp4"
-                    | "audio/x-m4a"
-                    | "audio/ogg"
-            ) {
-                return Err(format!("临时媒体 MIME 不支持：{other}"));
-            }
-            canonical_audio_mime(other).map_err(|_| format!("临时媒体 MIME 不支持：{other}"))
-        }
-    }
+    TEMP_MEDIA_FORMATS
+        .iter()
+        .find(|format| {
+            format
+                .accepted_mime_types
+                .iter()
+                .any(|accepted| accepted.eq_ignore_ascii_case(&normalized))
+        })
+        .map(|format| (format.mime_type, format.extension))
+        .ok_or_else(|| format!("临时媒体 MIME 不支持：{normalized}"))
 }
 
 pub(super) fn validate_upload_file_name_hint(
@@ -127,22 +104,30 @@ mod tests {
     use super::*;
 
     #[test]
-    fn temp_media_uses_the_shared_video_mime_and_extension_contract() {
-        assert_eq!(
-            normalize_temp_media_type(" VIDEO/MP4 "),
-            Ok(("video/mp4", "mp4"))
-        );
-        assert_eq!(
-            normalize_temp_media_type("video/quicktime"),
-            Ok(("video/quicktime", "mov"))
-        );
-        assert_eq!(
-            normalize_temp_media_type("video/webm"),
-            Ok(("video/webm", "webm"))
-        );
-        for mime_type in ["video/x-m4v", "application/mp4", "video/mov"] {
-            assert!(normalize_temp_media_type(mime_type).is_err());
+    fn temp_media_maps_only_contract_mime_types_and_extensions() {
+        for format in TEMP_MEDIA_FORMATS {
+            for mime_type in format.accepted_mime_types {
+                assert_eq!(
+                    normalize_temp_media_type(mime_type),
+                    Ok((format.mime_type, format.extension))
+                );
+            }
+            assert!(
+                format
+                    .browser_mime_types
+                    .iter()
+                    .all(|mime_type| { format.accepted_mime_types.contains(mime_type) })
+            );
         }
+        assert!(normalize_temp_media_type("application/ogg").is_err());
+        assert!(normalize_temp_media_type("video/x-m4v").is_err());
+        assert_eq!(
+            temp_media_artifact_extensions().collect::<Vec<_>>(),
+            TEMP_MEDIA_FORMATS
+                .iter()
+                .map(|format| format.extension)
+                .collect::<Vec<_>>()
+        );
         assert!(validate_temp_media_file_name("0123456789abcdef0123456789abcdef.mp4").is_ok());
         assert!(validate_temp_media_file_name("0123456789abcdef0123456789abcdef.m4v").is_err());
     }
