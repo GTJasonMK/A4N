@@ -14,15 +14,18 @@ const port = Number(process.env.A4N_PERF_PORT ?? 48966);
 const outDir = path.join(artifacts, "dist");
 const baselineRef = process.env.A4N_PERF_BASELINE_REF;
 const scenario = process.env.A4N_PERF_CASE ?? "core";
-assert.ok(["core", "sidebar", "story-events", "story-events-loader", "manga-source", "galgame-source"].includes(scenario));
+assert.ok(["core", "sidebar", "story-events", "story-events-loader", "agent-messages", "manga-source", "galgame-source"].includes(scenario));
 const entry = scenario === "sidebar" ? "sidebar.html" : scenario === "story-events" ? "story-events.html"
   : scenario === "story-events-loader" ? "story-events-loader.html"
+  : scenario === "agent-messages" ? "agent-messages.html"
   : scenario === "manga-source" ? "manga-source.html"
   : scenario === "galgame-source" ? "galgame-source.html" : "index.html";
 const sourceFiles = scenario === "story-events"
   ? ["src/pages/novel-detail/story-events/storyEventUtils.ts", "src/pages/novel-detail/story-events/ChapterEventSection.tsx"]
   : scenario === "story-events-loader"
   ? ["src/pages/novel-detail/StoryEventsTab.tsx"]
+  : scenario === "agent-messages"
+  ? ["src/components/agent/AgentMessageList.tsx"]
   : scenario === "sidebar"
   ? ["src/pages/writing-desk/ChapterSidebar.tsx", "src/pages/writing-desk/ChapterCard.tsx"]
   : scenario === "manga-source"
@@ -166,6 +169,11 @@ try {
     await browser.waitUntil(() => browser.execute(() => document.querySelector("details")?.open === true));
     assert.equal(await browser.execute(() => document.querySelectorAll("details article").length), 1000);
     report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion, loader };
+  } else if (scenario === "agent-messages") {
+    const agentMessages = await browser.execute(() => window.measureAgentMessages());
+    assert.equal(agentMessages.messageCount, 1000);
+    assert.equal(agentMessages.renderedRows, 1000);
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion, agentMessages };
   } else if (scenario === "galgame-source") {
     const galgameSource = await browser.execute(() => window.measureGalgameSource());
     assert.equal(galgameSource.chapterCount, 1000);

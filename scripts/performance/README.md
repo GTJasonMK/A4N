@@ -44,6 +44,7 @@
 | [PERF-043](../../crates/platform/a4n-db/src/asset/generation.rs) | 章节分析物体发现持久化；单次 16/32/64/128 个档案 | 首次事实沿用已写入的当前投影，档案结果由逐条回读改为按 ID 批量读取；事实审计、锚点证据和事务语义不变 | PostgreSQL P50 **55.350/36.873/45.468/91.485 → 9.991/16.905/29.935/41.031 ms**，分别下降 **82.0%/54.1%/34.2%/55.1%**；P95 降幅 **84.3%/65.4%/78.0%/51.3%** |
 | [PERF-044](../../crates/platform/a4n-db/src/agent/thread_commands.rs) | Agent thread history 请求；32 个 Run，每次打开历史读取消息、运行、执行和预算投影 | 旧实现对每个 Run 单独计算预算快照；复用已有 `run_budget_snapshots` 一次读取所有 Run 家族和执行事实，按 Run 回填 usage | PostgreSQL P50/P95 **8.185/11.335 → 2.766/3.851 ms**，下降 **66.2%/66.0%**；预算查询约 **96 → 3** |
 | [PERF-045](../../frontend/src/pages/novel-detail/StoryEventsTab.tsx) | 故事事件页初载；1000 章、5000 事件，伏笔索引 1000 条且默认收起 | 初载不再读取默认收起的伏笔索引；用户展开时按需读取，刷新和展开共享同一项目的 in-flight 请求，保留完整列表、错误和键盘语义 | 真实 Chromium 153 受控夹具三轮中位数 **342.7 → 196.2 ms（42.7%）**；初始伏笔 JSON **505,677 → 0 B**；展开后 1000 条记录完整渲染 |
+| [PERF-046](../../frontend/src/components/agent/AgentMessageList.tsx) | Agent Monitor／领域 Agent 控制台高频状态更新；1000 条消息、80 次与消息无关的重渲染 | 消息列表组件按消息数组、流式 ID、待发送消息和运行状态做语义比较；无关输入/活动状态更新跳过整段分组与行协调，消息变化仍完整渲染 | 真实 Chromium 153 受控夹具三轮中位数 **149.6 → 0.1 ms（99.9%）**；1000 行 DOM 与首尾 HTML SHA-256 一致 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -64,6 +65,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 嵌入模型生命周期 | PERF-014／015 已处理本地模型和 API 连接的重复初始化。模型文件删除／下载会使额外持有的资源失效；仍存活的 provider 保留原有拥有权，避免破坏已在使用的模型。没有缓存业务向量结果。 |
 | 语义分块 | 已复用向量范数并利用相似矩阵对称性；本次只消除额外矩阵。将全矩阵换成局部带状算法可能改变浮点抵消和相同分数时的切分，未作为无风险替换。 |
 | 故事事件 | PERF-018 减少筛选时未变化卡片的重复渲染；PERF-019 从数据库到前端仅读取所需的五个分析字段；PERF-045 延迟默认收起的伏笔索引。千章/4500事件首屏仍需渲染大量卡片，未将受控夹具的首屏收益外推为完整后端端到端提升。 |
+| Agent 消息流 | PERF-029/044 已覆盖 Agent 后端维护扫描和历史预算投影；PERF-046 处理前端高频无关状态更新，消息数组或流式事件变化仍走完整渲染。 |
 | 漫画来源读取 | 当前 MangaTab 产品入口 ComicProjectWorkspace、VideoProjectWorkspace 和 GalgameProjectWorkspace 均使用 `listSourceSnapshotChapterIndex`；PERF-020 已用 1000 章真实 PostgreSQL/Chromium 夹具测量目录与单章详情，完整正文只在选章后读取。旧 `listSourceSnapshotChapters` API 仍保留给兼容调用方，但不是当前页面活跃路径。 |
 | 项目包传输 | PERF-037 批量读取独立漫画包的文本资产版本与来源实体；PERF-038—042 批量写入历史消息、workflow progress event、模型用量账本、LLM trace 与 generation target。SQL 数随数据行数增长，未引入缓存或预取。 |
 
@@ -506,6 +508,14 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 量化结果：真实 Chromium **153.0.8010.52**、相同生产构建、1000 章/5000 事件/1000 条伏笔、章节接口 25 ms、伏笔接口 150 ms 的受控三轮 A/B 中位数，首屏可用时间 **342.7 → 196.2 ms（下降 42.7%）**；初始伏笔 JSON **505,677 → 0 B**。新版展开后的完整列表读取和渲染中位数约 245.7 ms，属于用户主动打开索引后的延迟，未隐藏或截断数据。
 - 语义验证：每轮均确认展开后 1000 条记录、Enter 收起/重新展开后仍为 1000 条；初始请求数只包含章节分析，展开后恰好一次 `list_foreshadowing`。生产构建、API parity、现有伏笔索引 Vitest 2 项和 `git diff --check` 通过。夹具只证明首屏请求路径与渲染行为，不代替真实数据库端到端延迟。
 - 证据与复现：`data/performance-audit-20261010/perf045/{before-1-retry,before-2,before-3,after-1,after-2,after-3}/report.json`；从 `frontend` 执行 `env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NODE_USE_ENV_PROXY A4N_PERF_CASE=story-events-loader A4N_PERF_BASELINE_REF=HEAD A4N_PERF_ARTIFACTS=<独立目录> A4N_PERF_PORT=<空闲端口> node e2e/performance/check.mjs`，新版去掉 `A4N_PERF_BASELINE_REF`。
+
+### PERF-046：Agent 消息列表无关状态重渲染
+
+- 调用链与频率：Agent Monitor 和领域 Agent 控制台在输入草稿、展开活动面板、刷新 loading 或事件连接状态变化时会重渲染消息区域；真实历史可达数百到上千条消息，Agent 流式更新还会持续触发状态更新。旧 `AgentMessageList` 每次都重新分组全部消息并协调全部消息行。
+- 根因与改动：消息列表只依赖 `messages`、`locale`、流式消息 ID、待发送消息和当前运行状态。组件改为 React `memo`，比较这些语义输入；空的待发送数组按长度处理，父级每次创建的新空数组不会误触发。任一消息数组、流式集合、待发送消息或运行状态变化仍会完整渲染，工具调用配对和消息顺序未改变。
+- 量化结果：真实 Chromium **153.0.8010.52**、生产构建、1000 条交替用户/助手消息、80 次无关状态更新的三轮 A/B，中位数 **149.6 → 0.1 ms（下降 99.9%）**；两侧均保留 1000 个消息行，首尾 HTML SHA-256 均为 `9b86859086ff3fe964b663ae17f28aa79353c9035a6979dbbbc291b09de29ea7`。该基准测量的是高频前端重渲染 CPU，不把消息 API 或模型响应延迟写成收益。
+- 语义验证：`AgentMessageRow.test.tsx` 12 项通过；基准每轮检查 1000 个 `[data-agent-message-role]` 行和 DOM 摘要，memo 只跳过无关父状态更新，不减少数据或改变工具结果配对。
+- 证据与复现：`data/performance-audit-20261010/agent-messages/{before-1,before-2,before-3,after-1,after-2,after-3,before-4,after-4}/report.json`；从 `frontend` 执行 `env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NODE_USE_ENV_PROXY A4N_PERF_CASE=agent-messages A4N_PERF_BASELINE_REF=HEAD A4N_PERF_ARTIFACTS=<独立目录> A4N_PERF_PORT=<空闲端口> node e2e/performance/check.mjs`，新版去掉 `A4N_PERF_BASELINE_REF`。
 
 ### 拒绝候选：项目包 workflow checkpoint 批量导入
 
