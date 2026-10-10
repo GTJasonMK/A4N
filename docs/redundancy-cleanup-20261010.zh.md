@@ -290,6 +290,8 @@
 - `normalize_legacy_editor_source` 有 `parse_persisted_editor_source` 生产调用；`archive_legacy_source_sync_payload` 由媒体迁移调用；`maximum_manifest_id` 参与旧 family package 导入。它们仍覆盖输入或持久数据路径，不能按名称认定为伪安全回退。
 - Sidecar bootstrap 的 tracing 初始化还负责文件日志保留、鉴权和关闭路由，不能替代普通 Worker runtime；`a4n-control` 与 `a4n-edge` 的日志、关闭行为也独立保留。
 - `cargo-machete` 未发现未使用 Cargo 依赖。`cargo tree -d` 中的多个版本属于传递依赖组合，没有足够证据作为可移除的直接重复实现。
+- `ProjectStatusWriteError` 在 Blueprint DB、Import Reverse DB、Project Status Worker wire 与 Orchestrator AppError 边界的转换分类不同：`StatusChanged` 分别变为 InvalidArgument、InvalidState 或 Conflict，消息也保留各自的 expected/actual 与 operation 语义；对应源码为 `blueprint/manual.rs`、`import_reverse/candidate_apply.rs`、`a4n-project-status-worker/src/lib.rs` 和 `project/errors/lifecycle.rs`，不合并。
+- `CanvasDbError` 的 Worker mapper 与 Orchestrator mapper 分别保留 wire Conflict 消息和具体 AppError operation；`CharacterDbError` 的 Worker mapper 把 Internal/Generation/Serialization 归为 Unavailable，而 Orchestrator 保留各自 AppError 类型。`GenerationDbError -> WorkerFailure` 只核到 Outline Worker 一个生产消费者，不增加单调用点 helper。
 - 前端日期解析已由 `frontend/src/i18n/format.ts::parseDate` 共用；数值范围与 CSS RGB 解析已有共享 utility。本次未发现需要再拆分的新事实来源。
 
 ## 验证
