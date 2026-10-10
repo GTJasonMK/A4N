@@ -172,10 +172,9 @@ fn validate_request<T: serde::Serialize>(request: &WorkerEnvelope<T>) -> Result<
         INSPIRATION_HISTORY_WORKER_ID,
         "inspiration history worker",
     )?;
-    if request.principal.kind != WorkerPrincipalKind::User {
-        return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
-    }
-    Ok(())
+    request
+        .principal
+        .require_kind(WorkerPrincipalKind::User, "仅允许用户 principal")
 }
 
 fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {

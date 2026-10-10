@@ -199,13 +199,15 @@ fn validate_request<T: serde::Serialize>(
     service: bool,
 ) -> Result<(), WorkerFailure> {
     request.validate_worker_command(operation, PROJECT_READ_WORKER_ID, "project read worker")?;
-    if service && request.principal.kind != WorkerPrincipalKind::Service {
-        return Err(WorkerFailure::unauthorized(
+    if service {
+        request.principal.require_kind(
+            WorkerPrincipalKind::Service,
             "该操作仅允许 service principal",
-        ));
-    }
-    if !service && request.principal.kind != WorkerPrincipalKind::User {
-        return Err(WorkerFailure::unauthorized("该操作仅允许 user principal"));
+        )?;
+    } else {
+        request
+            .principal
+            .require_kind(WorkerPrincipalKind::User, "该操作仅允许 user principal")?;
     }
     Ok(())
 }

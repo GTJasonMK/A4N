@@ -203,10 +203,9 @@ fn validate_user_request<T: serde::Serialize>(
     operation: &str,
 ) -> Result<(), WorkerFailure> {
     request_validate(request, operation)?;
-    if request.principal.kind != WorkerPrincipalKind::User {
-        return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
-    }
-    Ok(())
+    request
+        .principal
+        .require_kind(WorkerPrincipalKind::User, "仅允许用户 principal")
 }
 
 fn request_validate<T: serde::Serialize>(

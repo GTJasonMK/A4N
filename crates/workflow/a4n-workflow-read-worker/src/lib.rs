@@ -273,12 +273,10 @@ where
 }
 
 fn require_service_principal(principal: &WorkerPrincipal) -> Result<(), WorkerFailure> {
-    if principal.kind != WorkerPrincipalKind::Service {
-        return Err(WorkerFailure::unauthorized(
-            "workflow task lookup 仅允许 service principal",
-        ));
-    }
-    Ok(())
+    principal.require_kind(
+        WorkerPrincipalKind::Service,
+        "workflow task lookup 仅允许 service principal",
+    )
 }
 
 fn validate_request<T: serde::Serialize>(

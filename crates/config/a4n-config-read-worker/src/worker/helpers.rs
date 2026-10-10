@@ -28,10 +28,9 @@ fn validate_service_request<T: serde::Serialize>(
     operation: &str,
 ) -> Result<(), WorkerFailure> {
     validate_request(request, operation)?;
-    if request.principal.kind != WorkerPrincipalKind::Service {
-        return Err(WorkerFailure::unauthorized("仅允许 service principal"));
-    }
-    Ok(())
+    request
+        .principal
+        .require_kind(WorkerPrincipalKind::Service, "仅允许 service principal")
 }
 
 fn validate_user_request<T: serde::Serialize>(
@@ -39,10 +38,9 @@ fn validate_user_request<T: serde::Serialize>(
     operation: &str,
 ) -> Result<(), WorkerFailure> {
     validate_request(request, operation)?;
-    if request.principal.kind != WorkerPrincipalKind::User {
-        return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
-    }
-    Ok(())
+    request
+        .principal
+        .require_kind(WorkerPrincipalKind::User, "仅允许用户 principal")
 }
 
 fn positive_id(value: i64) -> Result<i64, WorkerFailure> {

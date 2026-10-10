@@ -7,11 +7,10 @@ impl WorkerState {
         principal: &WorkerPrincipal,
         payload_user_id: i64,
     ) -> Result<i64, WorkerFailure> {
-        if principal.kind != WorkerPrincipalKind::User {
-            return Err(WorkerFailure::unauthorized(
-                "admin worker 仅允许 user principal",
-            ));
-        }
+        principal.require_kind(
+            WorkerPrincipalKind::User,
+            "admin worker 仅允许 user principal",
+        )?;
         let caller = principal
             .subject
             .parse::<i64>()

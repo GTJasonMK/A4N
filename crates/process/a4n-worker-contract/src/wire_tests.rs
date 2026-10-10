@@ -190,6 +190,24 @@ fn worker_principal_user_id_validation_preserves_kind_and_parse_boundaries() {
 }
 
 #[test]
+fn worker_principal_kind_validation_preserves_custom_unauthorized_message() {
+    let service = WorkerPrincipal {
+        kind: WorkerPrincipalKind::Service,
+        subject: "runtime".into(),
+    };
+    service
+        .require_kind(WorkerPrincipalKind::Service, "service required")
+        .expect("matching principal kind");
+    let error: WorkerError = service
+        .require_kind(WorkerPrincipalKind::User, "user required")
+        .expect_err("mismatched principal kind")
+        .into();
+    assert_eq!(error.code, WorkerErrorCode::Unauthorized);
+    assert!(!error.retryable);
+    assert_eq!(error.message, "user required");
+}
+
+#[test]
 fn worker_responses_share_canonical_command_metadata() {
     let request = valid_envelope();
     let completed = WorkerResponse::completed_for(&request, serde_json::json!({"ok": true}));

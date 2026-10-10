@@ -149,10 +149,19 @@ impl WorkerPrincipal {
         validate_non_blank("principal.subject", &self.subject)
     }
 
-    pub fn require_user_id(&self) -> Result<i64, WorkerFailure> {
-        if self.kind != WorkerPrincipalKind::User {
-            return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
+    pub fn require_kind(
+        &self,
+        kind: WorkerPrincipalKind,
+        error_message: &'static str,
+    ) -> Result<(), WorkerFailure> {
+        if self.kind != kind {
+            return Err(WorkerFailure::unauthorized(error_message));
         }
+        Ok(())
+    }
+
+    pub fn require_user_id(&self) -> Result<i64, WorkerFailure> {
+        self.require_kind(WorkerPrincipalKind::User, "仅允许用户 principal")?;
         self.parse_user_id()
     }
 

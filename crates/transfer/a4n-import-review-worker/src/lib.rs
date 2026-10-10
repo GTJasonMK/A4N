@@ -229,10 +229,9 @@ fn validate_request<T: serde::Serialize>(
         IMPORT_REVIEW_READ_WORKER_ID,
         "import review read worker",
     )?;
-    if request.principal.kind != WorkerPrincipalKind::User {
-        return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
-    }
-    Ok(())
+    request
+        .principal
+        .require_kind(WorkerPrincipalKind::User, "仅允许用户 principal")
 }
 
 async fn review_for_editor(

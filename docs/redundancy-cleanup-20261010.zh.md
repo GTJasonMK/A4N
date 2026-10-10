@@ -223,6 +223,14 @@
 - adapter 回归测试覆盖 InvalidArgument、NotFound、Forbidden、InvalidState、Internal 两种策略、Database message、wire code 和 retryable。adapter 测试 2/2 通过；24 个 Worker 与 adapter 的 all-targets 检查通过且无警告。
 - 记录文件：`Cargo.toml`、`Cargo.lock`、新 adapter crate、上述 24 个 Worker 的 manifest 与错误 mapper。
 
+### R-26：统一 Worker principal kind 校验
+
+- 类别：重复身份边界校验。
+- BFS 覆盖：从 Worker route/command validators 进入 principal kind 条件，追踪 Unauthorized 返回到 HTTP Worker response；静态搜索复核 `require_user_id`、Admin caller、Config Read、Inspiration、Import Review、Project Access/Read、Workflow Read/Lifecycle 的所有严格 kind guard。其谓词都只是枚举相等判断，差异仅为所需 kind 和本地错误文案。
+- `WorkerPrincipal::require_kind(kind, error_message)` 成为唯一 kind 比较入口；`require_user_id` 委托给它后继续调用 `parse_user_id`。各 Worker 保留原文案和错误顺序；Project Read 的 User/Service 分支仍按原参数选择，Admin 随后仍执行 caller ID 与 payload ID 绑定。Project Access 的 runtime subject 联合校验及 Artifact Media 的 User-or-Service 协议不是单一 kind guard，保留。
+- 新增合同测试覆盖匹配类型、不匹配类型、自定义文案、Unauthorized code 和不可重试属性；`a4n-worker-contract` 53/53，8 个消费 Worker 的 all-targets 检查通过且无警告。
+- 记录文件：`crates/process/a4n-worker-contract/{src/wire.rs,src/wire_tests.rs}`，以及 Admin、Config Read、Inspiration、Import Review、Project Access/Read、Workflow Read/Lifecycle Worker 的 principal validator。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -250,6 +258,7 @@
 - R-23 `cargo check --workspace --all-targets --locked --offline`：首轮暴露 Chapter Content 与 Manga worker 的残余 import；修复后，`cargo check --all-targets --locked --offline -p a4n-asset-graph-worker -p a4n-canvas-record-worker -p a4n-chapter-content-worker -p a4n-chapter-scene-worker -p a4n-config-read-worker -p a4n-inspiration-worker -p a4n-manga-record-worker -p a4n-blueprint-worker -p a4n-foreshadowing-worker -p a4n-novel-planning-worker -p a4n-outline-worker -p a4n-character-mutation-worker -p a4n-object-profile-worker -p a4n-portrait-worker -p a4n-profile-material-worker -p a4n-scene-profile-worker -p a4n-project-access-worker -p a4n-project-collaboration-worker -p a4n-project-mutation-worker -p a4n-project-read-worker -p a4n-project-status-worker -p a4n-source-snapshot-worker -p a4n-theme-read-worker -p a4n-import-review-worker -p a4n-video-record-worker -p a4n-workflow-read-worker`：通过且无警告。全 workspace 首轮的 client unused `WorkerPrincipal` import 警告是既有代码，不属于本次改动；此检查不作为通过结果记录。
 - R-24 `cargo check --all-targets --locked --offline -p a4n-agent-worker-client -p a4n-asset-graph-worker-client -p a4n-canvas-record-worker-client -p a4n-blueprint-worker-client -p a4n-foreshadowing-worker-client -p a4n-novel-planning-worker-client -p a4n-outline-worker-client -p a4n-object-profile-worker-client -p a4n-portrait-worker-client -p a4n-profile-material-worker-client -p a4n-scene-profile-worker-client -p a4n-project-status-worker-client -p a4n-source-snapshot-worker-client -p a4n-theme-read-worker-client`：通过且无警告。静态搜索确认 14 个文件不再引用已移除类型。
 - R-25 `cargo test --locked --offline -p a4n-worker-db-adapter --lib`：2/2 通过；adapter 与 24 个受影响 Worker 的 `cargo check --all-targets --locked --offline`：通过且无警告。
+- R-26 `cargo test --locked --offline -p a4n-worker-contract --lib`：53/53 通过；`cargo check --all-targets --locked --offline` 覆盖 contract 和 8 个受影响 Worker，通过且无警告。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-contract --lib`：49/49 通过，覆盖共享失败构造、响应元数据、请求身份校验、principal ID 边界和 wire 序列化。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-client --lib`：14/14 通过，覆盖共享传输与响应错误映射。
 - `cargo check --locked --offline -p a4n-worker-runtime -p a4n-service-manager -p a4n-server -p a4n-tauri`：通过，验证共享父进程退出信号 helper 的三个集成点和更新后的 lockfile。
