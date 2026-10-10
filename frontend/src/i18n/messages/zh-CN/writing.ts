@@ -99,7 +99,6 @@ export const writing = {
   editorRevisionUnavailable: "缺少章节编辑版本，请重新打开章节后再保存",
   savedBodySyncFailed: "章节正文已保存，但派生资料同步失败；可在章节顶部重试",
   savedBodySyncRunning: "章节正文已保存，派生资料正在同步",
-  savedBodyAndMaterials: "章节正文与派生资料已保存",
   savedBodyWithUnsavedEdits: "章节正文已保存；当前编辑器还有未保存修改",
   chooseGeneratedChapterFirst: "请先选择已生成的章节",
   chapterAnalysisPreview: "章节分析请求预览",

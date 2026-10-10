@@ -60,7 +60,10 @@ async function openMenu(scope, label, index = 0) {
 async function openDetails(selector) {
   const details = await $(selector);
   await details.waitForExist();
-  if (!(await details.getProperty("open"))) await details.$("summary").click();
+  const summary = await details.$("summary");
+  const reached = await reachByWheel(summary);
+  assert.equal(reached.reached, true, `Disclosure summary must be reachable through its scroll container: ${selector}`);
+  if (!(await details.getProperty("open"))) await summary.click();
   await browser.waitUntil(async () => (await details.getProperty("open")) === true, {
     timeout: 2500, timeoutMsg: `Details did not open: ${selector}`,
   });
@@ -925,10 +928,35 @@ const cases = [
   { id: "MG05", title: "Galgame独白与演出", task: "对照独白和舞台指示的编辑差异", open: () => openGalgame(), tail: `${galgameLines}:nth-of-type(5) textarea`, expected: ["独白", "演出"], note: "保留五种行类型各自字段，不以同一个空行代表。" },
   { id: "MG06", title: "Galgame末行选择支", task: "滚到第8行确认分支目标与合流", open: () => openGalgame(), tail: '//section[@aria-label="编辑"]//article[8]//button[normalize-space()="保存选择支"]', expected: ["保存选择支"], note: "900px是外层与内层滚动接管的重点断点。" },
   { id: "MG07", title: "GalgameCG与转场", task: "查看启用CG的台词及演出说明", open: () => openGalgamePerformance(6), tail: '//section[@aria-label="编辑"]//article[6]//textarea[@placeholder="事件 CG 画面描述"]', expected: ["CG"], note: "实际展开演出；已启用CG保留默认展开，正文仍是视觉主体。" },
-  { id: "MG08", title: "Galgame音频媒体", task: "展开台词媒体并播放已有BGM", open: async () => { await openGalgame(); await openDetails(`${galgameLines}:first-of-type > details:not([class*="group/performance"])`); }, scope: galgameEditor, expected: ["BGM", "SFX"], after: async () => {
+  { id: "MG08", title: "Galgame音频媒体", task: "展开台词媒体并播放已有BGM", open: async () => {
+    await openGalgame();
+    await openDetails('div[role="tabpanel"] > details.a4n-flat-surface');
+    const mobileWorkspace = await $('[aria-label="GALGame 移动工作区"]');
+    if (await mobileWorkspace.isDisplayed()) {
+      await mobileWorkspace.$('.//button[normalize-space()="编辑"]').click();
+      await ready();
+    }
+    await openDetails(`${galgameLines}:first-of-type > details:not([class*="group/performance"])`);
+  }, scope: galgameEditor, expected: ["BGM", "SFX"], after: async () => {
     const audio = `${galgameLines}:first-of-type audio`;
-    assert.equal((await reachByWheel(audio)).reached, true, "The native BGM player must be visibly reachable before playback");
-    return provePlayback(audio);
+    const playerRow = `${galgameLines}:first-of-type div.grid:has(> audio)`;
+    const rowReachability = await reachByWheel(playerRow);
+    const playerRect = await browser.execute((selector) => {
+      const { x, y, width, height } = document.querySelector(selector).getBoundingClientRect();
+      return { x, y, width, height };
+    }, audio);
+    const viewport = await browser.execute(() => ({ width: innerWidth, height: innerHeight }));
+    assert.equal(rowReachability.reached, true,
+      `The BGM row must be reachable before playback: ${JSON.stringify({ rowReachability, playerRect, viewport })}`);
+    assert(playerRect.width > 0 && playerRect.height > 0, "The native BGM player must have a visible rectangle");
+    assert(playerRect.x >= 0 && playerRect.y >= 0 && playerRect.x + playerRect.width <= viewport.width && playerRect.y + playerRect.height <= viewport.height,
+      `The complete native BGM player must be within the viewport: ${JSON.stringify({ playerRect, viewport })}`);
+    return {
+      rowReachability,
+      playerRect,
+      viewport,
+      playback: await provePlayback(audio),
+    };
   }, note: "先真实滚到BGM控制区再验证播放时间推进，保留可见音频控件的interaction截图。" },
   { id: "MG09", title: "Galgame视觉资产计划", task: "查看6背景、12立绘单元和2CG", open: openGalgameAssets, scope: 'section[aria-label="资产规划"]', expected: ["角色差分", "CG", "站台·镜中出口"], count: ['section[aria-label="资产规划"] tbody td', 12], after: async () => { assert.equal(await $$('//section[@aria-label="资产规划"]//tbody//button[normalize-space()="生成素材"]').length, 0); return { perAssetActionsHiddenDuringPlanning: true }; }, note: "规划阶段只承担清单与状态核对，逐项生成留在素材生成阶段。" },
   { id: "MG10", title: "Galgame矩阵末项", task: "找到矩阵最右列并读取生成状态", open: async () => { await openGalgameAssets(); await chooseGalgameStage("asset_generation", "素材生成"); const target = 'section[aria-label="资产规划"] tbody tr:last-child td:last-child button'; await browser.waitUntil(async () => (await $$(target)).length === 1, { timeout: 2500, timeoutMsg: "Per-asset generation actions must appear in the generation stage" }); await reachByWheel(target, "y"); }, scope: 'section[aria-label="资产规划"]', tail: 'section[aria-label="资产规划"] tbody tr:last-child td:last-child button', axis: "x", expected: ["视觉资产", "生成素材"], note: "逐项生成只在素材生成阶段出现；窄屏保留真实横向滚动与大图预览。" },

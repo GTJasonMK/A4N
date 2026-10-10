@@ -129,7 +129,7 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
           void onSelectChapter(nextNumber);
         }
       }}
-      className="a4n-mobile-chapter-select pyqt-input min-w-0 flex-1 !px-2 text-xs"
+      className="a4n-mobile-chapter-select pyqt-input min-w-[10rem] flex-1 !px-2 text-xs"
     >
       {activeNumber == null ? <option value="">{t("writing.chooseChapterTitle")}</option> : null}
       {chapterNumbers.map((chapterNumber) => {
@@ -147,7 +147,14 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
     <BookButton
       variant="primary"
       size="sm"
-      onClick={onSaveContent}
+      onClick={(event) => {
+        void onSaveContent();
+        if (event.detail === 0) {
+          window.requestAnimationFrame(() => {
+            document.querySelector<HTMLTextAreaElement>(".a4n-writing-editor")?.focus();
+          });
+        }
+      }}
       disabled={savingContent || activeChapterBusy || Boolean(editBlockedReason)}
       className="!w-11 !px-0 !text-xs sm:!w-auto sm:!px-3"
       title={
@@ -169,17 +176,12 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
     return (
       <div className="min-w-0 shrink-0">
         <PageHeader
-          className="a4n-app-page-header--detail min-w-0 flex-nowrap py-1.5"
+          className="a4n-app-page-header--desk min-w-0 py-1.5"
           leading={<BackButton iconOnly title={t("nav.backToPrevious")} onClick={() => void onSmartBack()} />}
           title={
-            <>
+            <span className="block min-w-0 max-w-full truncate" title={project.title}>
               {project.title}
-              {activeNumber != null ? (
-                <span className="ml-1.5 font-sans text-body font-medium text-book-text-muted">
-                  · {t("writing.chapterLabel", { number: activeNumber })}
-                </span>
-              ) : null}
-            </>
+            </span>
           }
           actions={
             <>
@@ -207,7 +209,7 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
             </>
           }
         />
-        <div className="flex min-w-0 items-center gap-1.5 border-b border-book-border/50 bg-book-bg-paper/70 px-2 py-1.5">
+        <div className="a4n-writing-chapter-toolbar flex min-w-0 flex-wrap items-center gap-1.5 border-b border-book-border/50 bg-book-bg-paper/70 px-2 py-1.5">
           {chapterSelect}
           <BookIconButton
             label={t("writing.previousChapter")}

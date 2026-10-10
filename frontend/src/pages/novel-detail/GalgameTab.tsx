@@ -988,8 +988,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
           story_graph_status: "edited",
         } : current)}
       />
-      <details className="a4n-flat-surface border border-book-border/40">
-        <summary className="cursor-pointer px-4 py-3 text-xs font-medium text-book-text-muted hover:text-book-text-main">
+      <details className="a4n-flat-surface border border-book-border/40 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-y-auto custom-scrollbar">
+        <summary className="cursor-pointer px-4 py-3 text-xs font-medium text-book-text-muted hover:text-book-text-main lg:sticky lg:top-0 lg:z-10 lg:bg-[rgb(var(--color-bg-secondary))]">
           {t("galgame.sceneProjection")}
         </summary>
       <div className="lg:hidden">

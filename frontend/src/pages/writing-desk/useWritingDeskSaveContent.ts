@@ -140,8 +140,6 @@ export const useWritingDeskSaveContent = ({
         );
       } else if (savedChapter?.derived_sync_status === "running") {
         addToast(t("writing.savedBodySyncRunning"), "info");
-      } else {
-        addToast(t("writing.savedBodyAndMaterials"), "success");
       }
       return;
     }

@@ -25,6 +25,20 @@ async function prepareMediaFixtures() {
     if (result.error) throw result.error;
     if (result.status !== 0) throw new Error(`生成 ${path} 失败：${result.stderr}`);
   }
+
+  const audioPath = `${mediaDirectory}/audio.wav`;
+  try {
+    await access(audioPath);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    generatedMedia.push(audioPath);
+    const result = spawnSync("ffmpeg", [
+      "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100",
+      "-t", "2", "-ac", "1", "-c:a", "pcm_s16le", audioPath,
+    ], { encoding: "utf8" });
+    if (result.error) throw result.error;
+    if (result.status !== 0) throw new Error(`生成 ${audioPath} 失败：${result.stderr}`);
+  }
 }
 
 async function cleanMediaFixtures() {

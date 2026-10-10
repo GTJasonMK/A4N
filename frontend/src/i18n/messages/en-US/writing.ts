@@ -99,7 +99,6 @@ export const writing = {
   editorRevisionUnavailable: "The chapter edit revision is missing. Reopen the chapter before saving",
   savedBodySyncFailed: "Chapter body saved, but derived material sync failed; retry it from the chapter header",
   savedBodySyncRunning: "Chapter body saved; derived materials are syncing",
-  savedBodyAndMaterials: "Chapter body and derived materials saved",
   savedBodyWithUnsavedEdits: "Chapter body saved; the editor still has unsaved changes",
   chooseGeneratedChapterFirst: "Select a generated chapter first",
   chapterAnalysisPreview: "Chapter analysis request preview",

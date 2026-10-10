@@ -850,6 +850,192 @@ describe("Novel page audit - ordinary populated pages", function () {
     } : undefined,
   }));
 
+  it("W01 keeps chapter editing keyboard-operable at a 702 x 393 viewport", async function () {
+    this.timeout(60000);
+    const id = "W01-keyboard-702css";
+    current = { id, task: "键盘进入正文、200% 等效窄视口选章、编辑并保存", visited: [], plannedWidths: [702] };
+    await browser.setWindowSize(1440, height);
+    await home();
+
+    const enterDesk = await (await rootRow()).$('button[aria-label$=" · 进入写作台"]');
+    await browser.execute(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    });
+    let entryTabs = 0;
+    while (!await enterDesk.isFocused() && entryTabs < 80) {
+      await browser.keys("Tab");
+      entryTabs += 1;
+    }
+    assert.equal(await enterDesk.isFocused(), true, "The writing desk entry must be reachable by Tab");
+    await browser.keys("Enter");
+    await $(".a4n-writing-workspace").waitForDisplayed({ timeout });
+
+    const initialViewport = await browser.execute(() => ({
+      devicePixelRatio, width: innerWidth, height: innerHeight, outerHeight,
+    }));
+    const browserFrameHeight = initialViewport.outerHeight - initialViewport.height;
+    await browser.setWindowSize(702, 393 + browserFrameHeight);
+    await browser.waitUntil(async () => (await browser.execute(() => innerWidth)) <= 710, { timeout });
+    await browser.waitUntil(async () => Math.abs(await browser.execute(() => innerHeight) - 393) <= 5, { timeout });
+    await browser.waitUntil(async () => await browser.execute(() => Boolean(document.querySelector('[role="combobox"]'))), {
+      timeout,
+      timeoutMsg: "The mobile chapter selector must appear after the viewport reflows",
+    });
+
+    const narrowViewport = await browser.execute(() => {
+      const rect = (element) => {
+        const box = element.getBoundingClientRect();
+        return { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height };
+      };
+      const header = document.querySelector(".a4n-app-page-header--desk");
+      const title = header?.querySelector("h1");
+      const projectTitle = title?.firstElementChild;
+      const actions = header?.querySelector(".a4n-app-page-header__actions");
+      const chapterToolbar = document.querySelector(".a4n-writing-chapter-toolbar");
+      const chapterControls = chapterToolbar ? [...chapterToolbar.querySelectorAll("button")].map(rect) : [];
+      return {
+        devicePixelRatio,
+        innerWidth,
+        innerHeight,
+        outerWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+        editor: rect(document.querySelector('textarea[aria-label="章节正文"]')),
+        title: title ? rect(title) : null,
+        titleTextOverflow: projectTitle ? getComputedStyle(projectTitle).textOverflow : null,
+        actions: actions ? rect(actions) : null,
+        chapterToolbar: chapterToolbar ? rect(chapterToolbar) : null,
+        chapterToolbarOverflow: chapterToolbar ? chapterToolbar.scrollWidth - chapterToolbar.clientWidth : null,
+        chapterControls,
+        chapterPickerVisible: [...document.querySelectorAll('[role="combobox"], select')]
+          .some((element) => element.getBoundingClientRect().width > 0),
+      };
+    });
+    current.evidence = { initialViewport, narrowViewport };
+    current.width = 702;
+    assert.ok(initialViewport.width >= 1400, "The equivalent viewport must start from a 1440px layout");
+    assert.ok(Math.abs(narrowViewport.innerWidth - 702) <= 8, "The writing desk must be measured at a 702px CSS width");
+    assert.ok(Math.abs(narrowViewport.innerHeight - 393) <= 5, "The writing desk must be measured at a 393px CSS height");
+    assert.ok(narrowViewport.innerWidth <= initialViewport.width / 1.9, "702 CSS px approximates a 1440px viewport at 200% zoom");
+    assert.equal(narrowViewport.scrollWidth - narrowViewport.clientWidth, 0, "The writing desk must not overflow at the narrow viewport");
+    assert.ok(narrowViewport.editor.width > 0, "The chapter editor must remain visible at the narrow viewport");
+    assert.ok(narrowViewport.editor.top < narrowViewport.innerHeight, "The chapter editor must begin within the first viewport");
+    assert.ok(narrowViewport.title?.width > 0 && narrowViewport.title.right <= narrowViewport.clientWidth + 1, "The project title must stay inside the page header");
+    assert.equal(narrowViewport.titleTextOverflow, "ellipsis", "The project title must stay in a bounded single-line container");
+    assert.ok(narrowViewport.actions?.width > 0 && narrowViewport.actions.right <= narrowViewport.clientWidth + 1, "Page actions must remain visible inside the viewport");
+    assert.ok(narrowViewport.chapterToolbar?.width > 0 && narrowViewport.chapterToolbarOverflow === 0, "The chapter toolbar must not clip its controls");
+    assert.ok(narrowViewport.chapterControls.every((control) => control.left >= 0 && control.right <= narrowViewport.clientWidth + 1), "Every chapter control must remain inside the viewport");
+    assert.equal(narrowViewport.chapterPickerVisible, true, "The chapter selector must remain available at the narrow viewport");
+
+    const chapterPicker = await $('[role="combobox"], select');
+    const tabTo = async (element, reverse = false) => {
+      for (let count = 0; count < 80; count += 1) {
+        if (await element.isFocused()) return count;
+        await browser.keys(reverse ? ["Shift", "Tab"] : "Tab");
+      }
+      assert.fail("Keyboard focus did not reach " + await element.getAttribute("aria-label"));
+    };
+    const chapterPickerTabs = await tabTo(chapterPicker);
+    await browser.keys("Enter");
+    await $('[role="listbox"]').waitForDisplayed({ timeout });
+    await browser.keys("Home");
+    await browser.keys("ArrowDown");
+    await browser.keys("Enter");
+    await assertFocus(chapterPicker);
+
+    const editor = await $('textarea[aria-label="章节正文"]');
+    await browser.waitUntil(async () => (await editor.getValue()) === seed.commands.list_chapters[1].content, { timeout });
+    const file = phase + "-" + id + "-702-css-viewport.png";
+    await browser.saveScreenshot(output + file);
+    const screenshot = await readFile(output + file);
+
+    const editorTabs = await tabTo(editor);
+    await browser.keys(["Control", "End"]);
+    await browser.keys("x");
+    const saveState = await $('.a4n-writing-save-state');
+    await browser.waitUntil(async () => await saveState.getAttribute("data-state") === "dirty", { timeout });
+
+    const saveButton = await $('button[aria-label="保存修改"]');
+    await saveButton.waitForDisplayed({ timeout });
+    const saveTabs = await tabTo(saveButton, true);
+    const contentToSave = await editor.getValue();
+    await browser.execute((content) => {
+      const chapter = window.__uiAudit.fixtures.byChapter[2]?.get_chapter;
+      if (!chapter) throw new Error("Missing chapter 2 save fixture");
+      window.__uiAudit.fixtures.update_chapter_content = { ...chapter, content };
+    }, contentToSave);
+    await browser.keys("Enter");
+    await browser.waitUntil(async () => await saveState.getAttribute("data-state") === "saved", { timeout });
+    assert.deepEqual(await browser.execute(() => window.__uiAudit.unexpected), [], "Saving must use a declared fixture response");
+    assert.equal(await $(".a4n-toast").isExisting(), false, "The saved state already confirms successful content saves");
+    const focusAfterSave = await browser.execute(() => ({
+      tag: document.activeElement?.tagName ?? null,
+      label: document.activeElement?.getAttribute("aria-label") ?? null,
+      text: document.activeElement?.textContent?.trim().slice(0, 80) ?? null,
+    }));
+    assert.equal(focusAfterSave.tag, "TEXTAREA", "Keyboard save must return focus to the chapter editor");
+    assert.equal(focusAfterSave.label, "章节正文");
+
+    await browser.setWindowSize(1024, height);
+    await browser.waitUntil(async () => (await browser.execute(() => innerWidth)) >= 1000, { timeout });
+    const mediumViewport = await browser.execute(() => {
+      const rect = (element) => {
+        const box = element.getBoundingClientRect();
+        return { left: box.left, right: box.right, width: box.width };
+      };
+      const header = document.querySelector(".a4n-app-page-header--desk");
+      return {
+        innerWidth,
+        innerHeight,
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+        title: header?.querySelector("h1") ? rect(header.querySelector("h1")) : null,
+        actions: header?.querySelector(".a4n-app-page-header__actions")
+          ? rect(header.querySelector(".a4n-app-page-header__actions"))
+          : null,
+        editor: document.querySelector('textarea[aria-label="章节正文"]')
+          ? rect(document.querySelector('textarea[aria-label="章节正文"]'))
+          : null,
+      };
+    });
+    assert.ok(Math.abs(mediumViewport.innerWidth - 1024) <= 8, "The writing desk must be measured at a 1024px CSS width");
+    assert.equal(mediumViewport.scrollWidth - mediumViewport.clientWidth, 0, "The writing desk must not overflow at 1024px");
+    assert.ok(mediumViewport.title?.width > 0 && mediumViewport.title.right <= mediumViewport.clientWidth + 1, "The project title must fit the 1024px header");
+    assert.ok(mediumViewport.actions?.width > 0 && mediumViewport.actions.right <= mediumViewport.clientWidth + 1, "Page actions must fit the 1024px header");
+    assert.ok(mediumViewport.editor?.width > 0 && mediumViewport.editor.right <= mediumViewport.clientWidth + 1, "The chapter editor must fit the 1024px workspace");
+    const mediumFile = phase + "-" + id + "-1024-css-viewport.png";
+    await browser.saveScreenshot(output + mediumFile);
+
+    report.push({
+      id,
+      task: current.task,
+      stage: "1440px-layout-equivalent-702-css-px-plus-1024px-overflow-check",
+      file,
+      mediumFile,
+      browserZoom: false,
+      initialViewport,
+      narrowViewport,
+      mediumViewport,
+      keyboard: { entryTabs, chapterPickerTabs, editorTabs, saveTabs, focusAfterSave },
+      findings: [],
+    });
+    current.evidence = {
+      initialViewport,
+      narrowViewport,
+      mediumViewport,
+      keyboard: { entryTabs, chapterPickerTabs, editorTabs, saveTabs, focusAfterSave },
+      screenshotPixels: { width: screenshot.readUInt32BE(16), height: screenshot.readUInt32BE(20) },
+    };
+    await saveReport();
+
+    await browser.setWindowSize(1440, height);
+    await browser.waitUntil(async () => {
+      const width = await browser.execute(() => innerWidth);
+      return width >= initialViewport.width - 20;
+    }, { timeout, timeoutMsg: "The original viewport width must be restored" });
+    current.visited.push(702);
+  });
+
   const inner = [
     { id: "N01-fact-feedback", task: "区分已更新、待采用和已撤回的事实变化，核对正文证据", open: async () => {
       const page = await project();
