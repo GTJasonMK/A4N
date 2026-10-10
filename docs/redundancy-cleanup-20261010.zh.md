@@ -497,6 +497,13 @@
 - `media_file_checksum` 读取内容并服务 MediaAsset checksum 合同，与 storage 的路径/size facts 不同。保留 Orchestrator 本地 size/checksum 逻辑，不新增错误转译或路径规范化。
 - 记录范围：`crates/host/a4n-orchestrator/src/media.rs` 与 `crates/platform/a4n-storage/src/files/persistence.rs::data_file_record_facts` 的全部生产调用者。
 
+### R-61：复核 MediaRoots 根目录解析
+
+- 类别：核验后保留，不改代码。
+- BFS 覆盖：从 `MediaRoots::new` 追到 Data/Temp 两个根字段，再追踪 `input`/`output` 的 `MediaFileRef` 验证、canonical target/parent 检查和各 media processing worker 调用；对照 `a4n-storage::canonicalize_path_in_data_dir` 的根/目标责任。
+- `canonical_root` 每次只由 `MediaRoots::new` 调用，用于两个配置根各自的初始化；它在 canonicalize 后验证根本身是目录。`canonicalize_path_in_data_dir` 用于验证单个存在目标是否位于 data root 内，不负责根目录必须为目录，也不接受 temp root 语义。把 storage 平台依赖引入 media render core，或为 7 行标准库检查新建跨层公共 API，均会扩大依赖而不消除同一业务实现。
+- 记录范围：`crates/media/a4n-media-render-core/src/paths.rs`、`MediaRoots` 的 worker callers、`crates/platform/a4n-storage/src/files/paths.rs::canonicalize_path_in_data_dir`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
