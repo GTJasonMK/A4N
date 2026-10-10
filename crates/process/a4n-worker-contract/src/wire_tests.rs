@@ -610,3 +610,30 @@ fn health_and_capabilities_validate_schema_identity_and_duplicates() {
         Err(WorkerContractError::InvalidRelation(_))
     ));
 }
+
+#[test]
+fn enabled_capability_requires_matching_name_version_and_enabled_status() {
+    let capabilities = WorkerCapabilities {
+        schema_version: WORKER_SCHEMA_VERSION,
+        worker_id: "content-worker".into(),
+        capabilities: vec![WorkerCapability {
+            name: "content.read".into(),
+            version: "v1".into(),
+            enabled: true,
+        }],
+    };
+
+    assert!(capabilities.has_enabled_capability("content.read", "v1"));
+    assert!(!capabilities.has_enabled_capability("content.read", "v2"));
+    assert!(!capabilities.has_enabled_capability("content.write", "v1"));
+
+    let disabled = WorkerCapabilities {
+        capabilities: vec![WorkerCapability {
+            name: "content.read".into(),
+            version: "v1".into(),
+            enabled: false,
+        }],
+        ..capabilities
+    };
+    assert!(!disabled.has_enabled_capability("content.read", "v1"));
+}

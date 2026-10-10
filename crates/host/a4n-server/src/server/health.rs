@@ -174,11 +174,7 @@ pub(crate) fn validate_worker_capabilities(
         }
     }
     for required in required_capabilities {
-        if !capabilities
-            .capabilities
-            .iter()
-            .any(|capability| capability.enabled && capability.name == *required)
-        {
+        if !capabilities.has_enabled_capability(required, expected_capability_version) {
             anyhow::bail!("{worker_name} capabilities 缺少已启用操作: {required}");
         }
     }

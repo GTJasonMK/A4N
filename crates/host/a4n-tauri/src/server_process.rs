@@ -349,11 +349,7 @@ fn validate_native_worker_capabilities(
     capabilities: &a4n_worker_client::WorkerCapabilities,
 ) -> Result<(), io::Error> {
     let missing = metadata.capabilities.iter().find(|expected| {
-        !capabilities.capabilities.iter().any(|reported| {
-            reported.name == expected.as_str()
-                && reported.enabled
-                && reported.version == metadata.capability_version.as_str()
-        })
+        !capabilities.has_enabled_capability(expected, &metadata.capability_version)
     });
     if let Some(missing) = missing {
         return Err(io::Error::other(format!(
