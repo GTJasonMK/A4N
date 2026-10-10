@@ -39,7 +39,7 @@ impl WorkerState {
             },
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         let projects = page
             .items
             .into_iter()
@@ -126,7 +126,7 @@ impl WorkerState {
                     user_id,
                 )
                 .await
-                .map_err(collaboration_error)
+                .map_err(a4n_worker_db_adapter::map_collaboration_db_error)
             },
             async {
                 a4n_db::project::project_progress_summaries(

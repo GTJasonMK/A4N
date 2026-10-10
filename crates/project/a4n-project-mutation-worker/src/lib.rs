@@ -260,10 +260,6 @@ fn project_scope<T: serde::Serialize>(
     request.require_project_scope(payload_project_id)
 }
 
-fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_collaboration_db_error(error)
-}
-
 fn project_mutation_error(error: a4n_db::project::ProjectMutationError) -> WorkerFailure {
     a4n_worker_db_adapter::map_project_mutation_error(error)
 }
@@ -280,7 +276,7 @@ fn summary_error(error: a4n_project_read_core::ProjectSummaryError) -> WorkerFai
             a4n_worker_db_adapter::map_project_family_metadata_read_error(error)
         }
         a4n_project_read_core::ProjectSummaryError::Collaboration(error) => {
-            collaboration_error(error)
+            a4n_worker_db_adapter::map_collaboration_db_error(error)
         }
     }
 }

@@ -221,10 +221,6 @@ fn service_principal<T>(request: &WorkerEnvelope<T>) -> Result<(), WorkerFailure
     Ok(())
 }
 
-fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_collaboration_db_error(error)
-}
-
 fn summary_error(error: a4n_project_read_core::ProjectSummaryError) -> WorkerFailure {
     match error {
         a4n_project_read_core::ProjectSummaryError::Database(error) => {
@@ -237,7 +233,7 @@ fn summary_error(error: a4n_project_read_core::ProjectSummaryError) -> WorkerFai
             a4n_worker_db_adapter::map_project_family_metadata_read_error(error)
         }
         a4n_project_read_core::ProjectSummaryError::Collaboration(error) => {
-            collaboration_error(error)
+            a4n_worker_db_adapter::map_collaboration_db_error(error)
         }
     }
 }

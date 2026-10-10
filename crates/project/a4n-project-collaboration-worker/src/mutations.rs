@@ -23,7 +23,7 @@ impl WorkerState {
             request.payload.role,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         Ok(ProjectCollaborationAck {})
     }
 
@@ -39,7 +39,7 @@ impl WorkerState {
             request.payload.invite_id,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         Ok(ProjectCollaborationAck {})
     }
 
@@ -55,7 +55,7 @@ impl WorkerState {
             request.payload.invite_id,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         Ok(ProjectCollaborationAck {})
     }
 
@@ -76,7 +76,7 @@ impl WorkerState {
             request.payload.invite_id,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         Ok(ProjectCollaborationAck {})
     }
 
@@ -98,7 +98,7 @@ impl WorkerState {
             request.payload.role,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         Ok(ProjectCollaborationAck {})
     }
 
@@ -119,7 +119,7 @@ impl WorkerState {
             request.payload.member_user_id,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         Ok(ProjectCollaborationAck {})
     }
 
@@ -138,7 +138,7 @@ impl WorkerState {
             project_id,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         Ok(ProjectCollaborationAck {})
     }
 }

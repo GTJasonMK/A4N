@@ -227,7 +227,7 @@ async fn verify_project_editor(
     )
     .await
     .map(|_| ())
-    .map_err(collaboration_error)
+    .map_err(a4n_worker_db_adapter::map_collaboration_db_error)
 }
 
 fn scene_summary(scene: a4n_domain::chapter::ChapterSceneRecord) -> ChapterSceneSummary {
@@ -251,10 +251,6 @@ fn scene_summary(scene: a4n_domain::chapter::ChapterSceneRecord) -> ChapterScene
 
 fn trim_optional(value: String) -> String {
     value.trim().to_string()
-}
-
-fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_collaboration_db_error(error)
 }
 
 fn record_error(error: a4n_db::project::ProjectChapterSceneRecordError) -> WorkerFailure {

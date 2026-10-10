@@ -36,5 +36,5 @@ pub(super) async fn verify_manga_viewer(
     )
     .await
     .map(|_| ())
-    .map_err(super::protocol::collaboration_error)
+    .map_err(a4n_worker_db_adapter::map_collaboration_db_error)
 }

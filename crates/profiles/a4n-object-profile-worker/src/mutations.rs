@@ -15,7 +15,7 @@ impl WorkerState {
             a4n_domain::collaboration::ProjectAccessRole::Editor,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         let record = normalize_object_profile_record_input(request.payload.profile)
             .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
         let profile = a4n_db::asset::create_object_profile_read_record(
@@ -54,7 +54,7 @@ impl WorkerState {
             a4n_domain::collaboration::ProjectAccessRole::Editor,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         let image_ids = self
             .object_profile_image_ids(existing.project_id, existing.id)
             .await?;
@@ -105,7 +105,7 @@ impl WorkerState {
             a4n_domain::collaboration::ProjectAccessRole::Editor,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         let downstream_image_ids = resolve_downstream_image_ids(
             self.object_profile_image_ids(existing.project_id, existing.id)
                 .await?,

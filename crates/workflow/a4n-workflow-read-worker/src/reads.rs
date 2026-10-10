@@ -111,7 +111,7 @@ impl WorkerState {
                 ProjectAccessRole::Editor,
             )
             .await
-            .map_err(collaboration_error)?
+            .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?
             .into_iter()
             .collect::<HashSet<_>>();
             let unscoped_visible = is_active_admin(&self.database, user_id).await?;

@@ -39,12 +39,6 @@ pub(super) fn import_error(
     }
 }
 
-pub(super) fn collaboration_error(
-    error: a4n_db::collaboration::CollaborationDbError,
-) -> WorkerFailure {
-    a4n_worker_db_adapter::map_collaboration_db_error(error)
-}
-
 pub(super) fn project_error(error: a4n_db::project::ProjectMutationError) -> WorkerFailure {
     a4n_worker_db_adapter::map_project_mutation_error(error)
 }

@@ -15,7 +15,7 @@ impl WorkerState {
             request.payload.required,
         )
         .await
-        .map_err(collaboration_error)
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)
     }
 
     pub(super) async fn verify_batch(
@@ -31,7 +31,7 @@ impl WorkerState {
             request.payload.required,
         )
         .await
-        .map_err(collaboration_error)
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)
     }
 
     pub(super) async fn filter(
@@ -47,7 +47,7 @@ impl WorkerState {
             request.payload.required,
         )
         .await
-        .map_err(collaboration_error)
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)
     }
 
     pub(super) async fn root(
@@ -66,7 +66,7 @@ impl WorkerState {
         let root =
             a4n_db::collaboration::resolve_root_project(self.database.connection(), project_id)
                 .await
-                .map_err(collaboration_error)?;
+                .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         Ok(ProjectCollaborationRootSummary {
             id: root.id,
             user_id: root.user_id,

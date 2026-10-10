@@ -1,4 +1,4 @@
-use super::errors::{WorkerFailure, collaboration_error};
+use super::errors::WorkerFailure;
 use a4n_db::DbHandle;
 use a4n_domain::collaboration::ProjectAccessRole;
 
@@ -32,5 +32,5 @@ async fn verify_project_permission(
     )
     .await
     .map(|_| ())
-    .map_err(collaboration_error)
+    .map_err(a4n_worker_db_adapter::map_collaboration_db_error)
 }

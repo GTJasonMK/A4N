@@ -188,7 +188,7 @@ impl WorkerState {
         )
         .await
         .map(|_| ())
-        .map_err(collaboration_error)
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)
     }
 
     fn authorized(&self, headers: &HeaderMap) -> bool {
@@ -209,10 +209,6 @@ fn validate_request<T: serde::Serialize>(
 
 fn project_mutation_error(error: a4n_db::project::ProjectMutationError) -> WorkerFailure {
     a4n_worker_db_adapter::map_project_mutation_error(error)
-}
-
-fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_collaboration_db_error(error)
 }
 
 fn unauthorized() -> Response {

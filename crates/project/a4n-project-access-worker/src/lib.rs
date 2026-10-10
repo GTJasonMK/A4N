@@ -215,10 +215,6 @@ fn request_validate<T: serde::Serialize>(
     request.validate_worker_command(operation, PROJECT_ACCESS_WORKER_ID, "project access worker")
 }
 
-fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_collaboration_db_error(error)
-}
-
 fn unauthorized() -> Response {
     StatusCode::UNAUTHORIZED.into_response()
 }

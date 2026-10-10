@@ -299,7 +299,7 @@ async fn verify_project_editor(
     )
     .await
     .map(|_| ())
-    .map_err(collaboration_error)
+    .map_err(a4n_worker_db_adapter::map_collaboration_db_error)
 }
 
 async fn is_active_admin(database: &DbHandle, user_id: i64) -> Result<bool, WorkerFailure> {
@@ -316,10 +316,6 @@ async fn is_active_admin(database: &DbHandle, user_id: i64) -> Result<bool, Work
 
 fn workflow_error(error: a4n_db::workflow::WorkflowReadError) -> WorkerFailure {
     a4n_worker_db_adapter::map_workflow_read_error_as_conflict(error)
-}
-
-fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_collaboration_db_error(error)
 }
 
 fn app_error(error: a4n_error::AppError) -> WorkerFailure {

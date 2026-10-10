@@ -160,7 +160,7 @@ impl WorkerState {
             a4n_domain::collaboration::ProjectAccessRole::Editor,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         Ok(())
     }
 

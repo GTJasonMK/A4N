@@ -347,10 +347,6 @@ fn request_validate<T: serde::Serialize>(
     )
 }
 
-fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_collaboration_db_error(error)
-}
-
 fn unauthorized() -> Response {
     StatusCode::UNAUTHORIZED.into_response()
 }

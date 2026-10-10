@@ -13,7 +13,7 @@ impl WorkerState {
         let user_id = request.principal.require_user_id()?;
         a4n_db::collaboration::list_project_members(self.database.connection(), user_id, project_id)
             .await
-            .map_err(collaboration_error)
+            .map_err(a4n_worker_db_adapter::map_collaboration_db_error)
     }
 
     pub(super) async fn list_invites(
@@ -28,7 +28,7 @@ impl WorkerState {
         let user_id = request.principal.require_user_id()?;
         a4n_db::collaboration::list_project_invites(self.database.connection(), user_id, project_id)
             .await
-            .map_err(collaboration_error)
+            .map_err(a4n_worker_db_adapter::map_collaboration_db_error)
     }
 
     pub(super) async fn list_my_invites(
@@ -41,6 +41,6 @@ impl WorkerState {
             request.principal.require_user_id()?,
         )
         .await
-        .map_err(collaboration_error)
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)
     }
 }

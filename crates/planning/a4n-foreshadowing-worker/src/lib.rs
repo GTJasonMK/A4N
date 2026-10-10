@@ -247,10 +247,6 @@ fn foreshadowing_summary(
     })
 }
 
-fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_collaboration_db_error_preserving_internal(error)
-}
-
 fn foreshadowing_error(error: a4n_db::project::ForeshadowingDbError) -> WorkerFailure {
     match error {
         a4n_db::project::ForeshadowingDbError::InvalidArgument(message) => {
@@ -308,7 +304,7 @@ fn unauthorized() -> Response {
 
 #[cfg(test)]
 mod tests {
-    use super::{WorkerEnvelope, collaboration_error, validate_request};
+    use super::{WorkerEnvelope, validate_request};
     use a4n_foreshadowing_worker_contract::{
         FORESHADOWING_LIST_OPERATION, FORESHADOWING_WORKER_ID, ForeshadowingProjectInput,
     };
@@ -346,9 +342,9 @@ mod tests {
 
     #[test]
     fn collaboration_internal_errors_are_not_reported_as_conflicts() {
-        let error = collaboration_error(a4n_db::collaboration::CollaborationDbError::Internal(
-            "query failed".into(),
-        ));
+        let error = a4n_worker_db_adapter::map_collaboration_db_error_preserving_internal(
+            a4n_db::collaboration::CollaborationDbError::Internal("query failed".into()),
+        );
 
         let error: a4n_worker_contract::WorkerError = error.into();
         assert_eq!(error.code, a4n_worker_contract::WorkerErrorCode::Internal);

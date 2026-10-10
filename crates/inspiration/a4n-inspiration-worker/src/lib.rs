@@ -177,10 +177,6 @@ fn validate_request<T: serde::Serialize>(request: &WorkerEnvelope<T>) -> Result<
         .require_kind(WorkerPrincipalKind::User, "仅允许用户 principal")
 }
 
-fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_collaboration_db_error(error)
-}
-
 fn inspiration_error(error: a4n_db::inspiration::InspirationDbError) -> WorkerFailure {
     match error {
         a4n_db::inspiration::InspirationDbError::InvalidArgument(message) => {

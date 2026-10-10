@@ -161,10 +161,6 @@ fn validate_request<T: serde::Serialize>(request: &WorkerEnvelope<T>) -> Result<
     )
 }
 
-fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_collaboration_db_error(error)
-}
-
 fn project_error(error: a4n_db::project::ProjectMutationError) -> WorkerFailure {
     a4n_worker_db_adapter::map_project_mutation_error(error)
 }

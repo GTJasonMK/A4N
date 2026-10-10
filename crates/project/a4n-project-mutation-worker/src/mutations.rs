@@ -49,7 +49,7 @@ impl WorkerState {
         let root =
             a4n_db::collaboration::resolve_root_project(self.database.connection(), project_id)
                 .await
-                .map_err(collaboration_error)?;
+                .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         a4n_db::collaboration::verify_project_permission(
             self.database.connection(),
             project_id,
@@ -57,7 +57,7 @@ impl WorkerState {
             ProjectAccessRole::Editor,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         let project = a4n_db::project::create_derived_project_record(
             self.database.connection(),
             root.user_id,
@@ -136,7 +136,7 @@ impl WorkerState {
             ProjectAccessRole::Editor,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         let input = request.payload;
         let title = input
             .title

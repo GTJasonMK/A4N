@@ -521,7 +521,7 @@ async fn verify_project_editor(
     )
     .await
     .map(|_| ())
-    .map_err(collaboration_error)
+    .map_err(a4n_worker_db_adapter::map_collaboration_db_error)
 }
 
 fn character_db_error(error: a4n_db::character::CharacterDbError) -> WorkerFailure {
@@ -568,10 +568,6 @@ fn character_profile_delete_error(
         }
         other => WorkerFailure::unavailable(other.to_string()),
     }
-}
-
-fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_collaboration_db_error(error)
 }
 
 fn unauthorized() -> Response {

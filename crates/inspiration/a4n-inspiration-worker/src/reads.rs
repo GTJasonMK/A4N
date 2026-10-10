@@ -15,7 +15,7 @@ impl WorkerState {
             ProjectAccessRole::Editor,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         let messages = a4n_db::inspiration::inspiration_messages(
             self.database.connection(),
             project_id,

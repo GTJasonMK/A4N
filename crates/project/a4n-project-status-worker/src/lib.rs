@@ -215,7 +215,7 @@ async fn verify_viewer(
     )
     .await
     .map(|_| ())
-    .map_err(collaboration_error)
+    .map_err(a4n_worker_db_adapter::map_collaboration_db_error)
 }
 
 async fn verify_permission(
@@ -232,7 +232,7 @@ async fn verify_permission(
     )
     .await
     .map(|_| ())
-    .map_err(collaboration_error)
+    .map_err(a4n_worker_db_adapter::map_collaboration_db_error)
 }
 
 fn validate_request<T: serde::Serialize>(
@@ -240,10 +240,6 @@ fn validate_request<T: serde::Serialize>(
     operation: &str,
 ) -> Result<(), WorkerFailure> {
     request.validate_worker_command(operation, PROJECT_STATUS_WORKER_ID, "project status worker")
-}
-
-fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_collaboration_db_error(error)
 }
 
 fn project_mutation_error(error: a4n_db::project::ProjectMutationError) -> WorkerFailure {
@@ -304,7 +300,7 @@ fn summary_error(error: a4n_project_read_core::ProjectSummaryError) -> WorkerFai
             a4n_worker_db_adapter::map_project_family_metadata_read_error(error)
         }
         a4n_project_read_core::ProjectSummaryError::Collaboration(error) => {
-            collaboration_error(error)
+            a4n_worker_db_adapter::map_collaboration_db_error(error)
         }
     }
 }

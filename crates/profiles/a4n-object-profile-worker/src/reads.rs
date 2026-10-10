@@ -15,7 +15,7 @@ impl WorkerState {
             a4n_domain::collaboration::ProjectAccessRole::Viewer,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         let profiles = a4n_db::asset::object_profile_records_by_project(
             self.database.connection(),
             project_id,

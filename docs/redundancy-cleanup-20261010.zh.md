@@ -219,7 +219,7 @@
 
 - 类别：跨 Worker 重复错误适配。
 - BFS 覆盖：从 24 个 Worker 的 route/command 调用进入本地 `collaboration_error`，追踪 `CollaborationDbError` 的五种变体到 `WorkerFailure` wire code/message/retryable；CodeGraph 加静态搜索核对全部 24 个生产映射及调用点。22 个映射的变体分类完全相同；Canvas Record 和 Foreshadowing 对 `Internal` 保持 `Internal`，其余 22 个把 `Internal` 与 `InvalidState` 同映射为 Conflict。`Database` 都以底层 `DbErr::to_string()` 映射为 retryable `Unavailable`；Video Record 原本转入本地 `database_error`，经逐项核验行为相同。
-- 新增 `crates/process/a4n-worker-db-adapter`，将 DB 错误到 Worker wire failure 的边界放在 process adapter 层，不让 `a4n-db` 或通用 worker contract 依赖彼此。共享 match 只有一份；默认入口保留 Conflict 规则，第二入口明确保留 Internal。24 个 Worker 的本地 `collaboration_error` 名称保留为薄委托，以避免更改各模块调用拓扑；两处例外显式调用 preserving Internal 入口。其他 DB 错误类型和 worker-specific 错误映射未迁入。
+- 新增 `crates/process/a4n-worker-db-adapter`，将 DB 错误到 Worker wire failure 的边界放在 process adapter 层，不让 `a4n-db` 或通用 worker contract 依赖彼此。共享 match 只有一份；默认入口保留 Conflict 规则，第二入口明确保留 Internal。R-25 当时保留 24 个本地 `collaboration_error` 薄委托；这些转发层已由 R-38 删除，调用点现直接选择对应 adapter mapper。其他 DB 错误类型和 worker-specific 错误映射未迁入。
 - adapter 回归测试覆盖 InvalidArgument、NotFound、Forbidden、InvalidState、Internal 两种策略、Database message、wire code 和 retryable。adapter 测试 2/2 通过；24 个 Worker 与 adapter 的 all-targets 检查通过且无警告。
 - 记录文件：`Cargo.toml`、`Cargo.lock`、新 adapter crate、上述 24 个 Worker 的 manifest 与错误 mapper。
 
@@ -316,6 +316,14 @@
 - 本项不扩展到带多变体的本地 `match`：`WorkflowWriteError`、`CanvasDbError`、`CharacterDbError` 等仍需保留各自业务分类，已在 R-33/既有保留项记录。
 - 记录文件：`crates/process/a4n-worker-db-adapter/src/lib.rs`，以及上述七个 Worker 的 `src/` 调用文件。
 
+### R-38：删除 Collaboration DB mapper 转发包装
+
+- 类别：无行为的转发层。
+- BFS 覆盖：从 `CollaborationDbError` 的 DB 变体和 R-25/R-26 adapter 映射合同出发，静态枚举所有 24 个 Worker 对本地 `collaboration_error` 的生产调用，追到 command/权限/Project Summary 失败响应，并检查跨模块 `pub(super)` helper、测试引用和 Cargo 依赖。
+- 删除 22 个仅转发 `map_collaboration_db_error` 的 wrapper，调用点直接使用 adapter。Canvas Record 与 Foreshadowing 的 wrapper 原本分别转发 `map_collaboration_db_error_preserving_internal`；改为调用点显式选择同一 mapper，并把 Foreshadowing 回归测试改为直接断言 adapter。两种 Internal 分类策略仍只定义在 adapter 内。
+- 未改普通 Collaboration 错误映射，也未改 Canvas Record/Foreshadowing 对 Internal 的保留分类；现已不存在 Worker 本地 `collaboration_error` 符号。
+- 记录文件：`crates/process/a4n-worker-db-adapter/src/lib.rs` 与上述 24 个 Worker 的 Collaboration caller 文件。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -356,6 +364,7 @@
 - R-35 `cargo test -p a4n-worker-db-adapter --locked`：12/12 通过；`cargo check --all-targets -p a4n-object-profile-worker -p a4n-profile-material-worker -p a4n-scene-profile-worker --locked`：通过且无警告。
 - R-36 `cargo test -p a4n-worker-db-adapter --locked`：13/13 通过；`cargo check --all-targets -p a4n-portrait-worker -p a4n-import-review-worker -p a4n-video-record-worker --locked`：通过且无警告。
 - R-37 `cargo test -p a4n-worker-db-adapter --locked`：13/13 通过；`cargo check --all-targets -p a4n-chapter-scene-worker -p a4n-chapter-content-worker -p a4n-project-read-worker -p a4n-profile-material-worker -p a4n-blueprint-worker -p a4n-manga-record-worker -p a4n-character-mutation-worker --locked`：通过且无警告。
+- R-38 `cargo test -p a4n-worker-db-adapter --locked`：13/13 通过；Foreshadowing 保留 Internal 分类回归 1/1 通过；覆盖 24 个 Collaboration 消费 Worker 的 `cargo check --all-targets --locked`：通过且无警告。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-contract --lib`：49/49 通过，覆盖共享失败构造、响应元数据、请求身份校验、principal ID 边界和 wire 序列化。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-client --lib`：14/14 通过，覆盖共享传输与响应错误映射。
 - `cargo check --locked --offline -p a4n-worker-runtime -p a4n-service-manager -p a4n-server -p a4n-tauri`：通过，验证共享父进程退出信号 helper 的三个集成点和更新后的 lockfile。

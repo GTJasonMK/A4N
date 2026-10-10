@@ -336,7 +336,7 @@ async fn verify_project_permission(
     )
     .await
     .map(|_| ())
-    .map_err(collaboration_error)
+    .map_err(a4n_worker_db_adapter::map_collaboration_db_error)
 }
 
 fn validate_request<T: serde::Serialize>(
@@ -437,10 +437,6 @@ fn video_error(error: a4n_db::video::VideoDbError) -> WorkerFailure {
             a4n_worker_db_adapter::map_database_error(error)
         }
     }
-}
-
-fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_collaboration_db_error(error)
 }
 
 fn unauthorized() -> Response {

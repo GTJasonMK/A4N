@@ -318,7 +318,7 @@ impl WorkerState {
         )
         .await
         .map(|_| ())
-        .map_err(collaboration_error)
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error_preserving_internal)
     }
 
     fn authorized(&self, headers: &HeaderMap) -> bool {
@@ -339,10 +339,6 @@ fn validate_request<T: Serialize>(
         CANVAS_RECORD_WORKER_ID,
         "Canvas record worker",
     )
-}
-
-fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_collaboration_db_error_preserving_internal(error)
 }
 
 fn canvas_db_error(error: CanvasDbError) -> WorkerFailure {

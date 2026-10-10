@@ -217,7 +217,7 @@ async fn verify_editor(
     )
     .await
     .map(|_| ())
-    .map_err(collaboration_error)
+    .map_err(a4n_worker_db_adapter::map_collaboration_db_error)
 }
 
 fn validate_request<T: serde::Serialize>(
@@ -288,10 +288,6 @@ mod tests {
         assert_eq!(summary.filename, "chapters.md");
         assert_eq!(summary.created_at, created_at);
     }
-}
-
-fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_collaboration_db_error(error)
 }
 
 fn mutation_error(error: a4n_db::import_review::ImportReviewMutationError) -> WorkerFailure {

@@ -79,6 +79,6 @@ impl WorkerState {
         )
         .await
         .map(|_| ())
-        .map_err(collaboration_error)
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error_preserving_internal)
     }
 }

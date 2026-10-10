@@ -1,4 +1,4 @@
-use super::errors::{collaboration_error, project_family_error, source_error};
+use super::errors::{project_family_error, source_error};
 use crate::*;
 
 pub(super) async fn verify_family_permission(
@@ -19,11 +19,11 @@ pub(super) async fn verify_family_permission(
             required,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
     } else {
         a4n_db::collaboration::verify_project_permission(db, project_id, user_id, required)
             .await
-            .map_err(collaboration_error)?;
+            .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
     }
     Ok(())
 }

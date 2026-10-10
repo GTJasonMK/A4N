@@ -314,7 +314,7 @@ impl WorkerState {
         )
         .await
         .map(|_| ())
-        .map_err(collaboration_error)
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)
     }
 
     fn authorized(&self, headers: &HeaderMap) -> bool {
@@ -420,10 +420,6 @@ fn update_error(error: a4n_db::project::ProjectChapterOutlineUpdateError) -> Wor
             WorkerFailure::unavailable(error.to_string())
         }
     }
-}
-
-fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_collaboration_db_error(error)
 }
 
 fn unauthorized() -> Response {

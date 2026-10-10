@@ -36,9 +36,3 @@ pub(super) fn workflow_error(error: a4n_db::workflow::WorkflowReadError) -> Work
 pub(super) fn project_family_error(error: a4n_db::project::ProjectFamilyDbError) -> WorkerFailure {
     a4n_worker_db_adapter::map_project_family_db_error(error)
 }
-
-pub(super) fn collaboration_error(
-    error: a4n_db::collaboration::CollaborationDbError,
-) -> WorkerFailure {
-    a4n_worker_db_adapter::map_collaboration_db_error(error)
-}
