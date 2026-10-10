@@ -364,6 +364,15 @@
 - 测试覆盖默认、无效/非 UTF-8 Web 地址、显式 Control 地址和 Web 端口 0/65535。`a4n-config` 定向测试 1/1；`a4n-config`、Agent Worker、Server all-targets 检查通过。
 - 记录文件：`crates/config/a4n-config/src/lib.rs`、Agent Worker config/runtime、Server worker catalog/startup/process 测试。
 
+### R-44：核验 Edge/Control 地址解析边界
+
+- 类别：核验后保留，不改代码。
+- BFS 覆盖：从 R-43 的 `a4n_config::{web_listen_addr, control_listen_addr}` 追到 `a4n-server::startup::configuration::load`，再追踪 `spawn_control_from_workers`、`spawn_edge`、`spawn_managed_worker` 注入的 Control 地址和 Agent Worker `async_main`；同时从 `a4n-edge::run`、`a4n-control::run` 分别追到环境读取、监听绑定及可执行入口。补查 Tauri `LocalServerProcess::start` 的端口预留/地址文件、CLI `spawn_server`、Server cleanup 测试、`scripts/run.sh`、`.env.example` 和中英文配置/入门文档。
+- Edge 独立运行时缺省监听 Web `127.0.0.1:8080`、转发 Control `127.0.0.1:18080`；桌面 Tauri 路径则通过 `A4N_WEB_LISTEN_FILE` 为 Server/Edge 选择并发布端口，Edge 在地址文件存在时支持端口占用后的动态分配及重启复用。其监听地址解析与 `a4n-config` 的固定 Server 配置不是同一生命周期。
+- `a4n-server` 运行路径以 R-43 的配置 owner 解析地址，并把明确的 Control 地址注入 Control、Edge 和托管 Workers；Agent Worker 通过同一 owner 读取 Control 地址。独立 `a4n-control` 可执行入口则使用自己的 `127.0.0.1:18080` 缺省值，不从 Web 地址派生，并保留标准 SocketAddr 对端口 0 的接受行为；空环境值由 `optional_non_empty_env_string` 明确拒绝。
+- 全仓文本检索确认这些环境变量入口只落在上述代码、测试、脚本、示例和公开文档中。Edge 与 `a4n-config` 的低层 `SocketAddr::parse` 调用虽相同，但错误上下文、监听生命周期和默认/端口语义不同；抽出公共解析 API 只会包装标准库语法，不会收敛业务规则，因此不合并、不增加依赖。
+- 记录范围：`crates/host/a4n-edge/{src/lib.rs,src/main.rs}`、`crates/host/a4n-control/{src/lib.rs,src/main.rs,src/state.rs}`、`crates/config/a4n-config/src/lib.rs`、`crates/host/a4n-server/src/server/{startup/configuration.rs,process.rs}`、Agent Worker runtime、Tauri server process、CLI local runtime、cleanup recovery 测试、启动脚本、环境示例和公开文档。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
