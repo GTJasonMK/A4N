@@ -1,7 +1,10 @@
 use a4n_db_models::models::{ai::generated_image, asset::profile_primary_material};
 use std::collections::{BTreeMap, HashSet};
 
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{
+    ColumnTrait, DbBackend, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Statement,
+};
+use serde_json::Value;
 
 use super::{
     contracts::{ProfileMaterialDbError, ProfileMaterialImageIdentityRow, ProfileMaterialListRows},
@@ -90,15 +93,39 @@ pub async fn profile_material_image_counts_by_profile(
     if profile_ids.is_empty() {
         return Ok(BTreeMap::new());
     }
+    let expected_kind = match image_type {
+        a4n_domain::image::IMAGE_TYPE_SCENE_MATERIAL => PROFILE_KIND_SCENE,
+        a4n_domain::image::IMAGE_TYPE_OBJECT_MATERIAL => PROFILE_KIND_OBJECT,
+        _ => return Ok(BTreeMap::new()),
+    };
     let requested = profile_ids.iter().copied().collect::<HashSet<_>>();
+    let rows = db
+        .query_all(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "SELECT (metadata_json->'profile_id')::jsonb AS profile_id, COUNT(*) AS count \
+             FROM generated_image \
+             WHERE project_id = $1 AND image_type = $2 \
+               AND metadata_json->>'profile_kind' = $3 \
+             GROUP BY (metadata_json->'profile_id')::jsonb",
+            [project_id.into(), image_type.into(), expected_kind.into()],
+        ))
+        .await
+        .map_err(|source| database("统计档案素材图片数量失败", source))?;
     let mut counts = BTreeMap::new();
-    for image in profile_material_image_identity_rows_by_type(db, project_id, image_type).await? {
-        if let Some((_, profile_id)) =
-            profile_material_identity(&image.image_type, image.metadata_json.as_ref())
-            && requested.contains(&profile_id)
-        {
-            *counts.entry(profile_id).or_insert(0) += 1;
-        }
+    for row in rows {
+        let profile_id = row
+            .try_get::<Value>("", "profile_id")
+            .ok()
+            .and_then(|value| value.as_i64())
+            .filter(|profile_id| *profile_id > 0);
+        let Some(profile_id) = profile_id.filter(|profile_id| requested.contains(profile_id))
+        else {
+            continue;
+        };
+        let count = row
+            .try_get::<i64>("", "count")
+            .map_err(|source| database("解析档案素材图片数量失败", source))?;
+        counts.insert(profile_id, count);
     }
     Ok(counts)
 }

@@ -45,6 +45,7 @@
 | [PERF-044](../../crates/platform/a4n-db/src/agent/thread_commands.rs) | Agent thread history 请求；32 个 Run，每次打开历史读取消息、运行、执行和预算投影 | 旧实现对每个 Run 单独计算预算快照；复用已有 `run_budget_snapshots` 一次读取所有 Run 家族和执行事实，按 Run 回填 usage | PostgreSQL P50/P95 **8.185/11.335 → 2.766/3.851 ms**，下降 **66.2%/66.0%**；预算查询约 **96 → 3** |
 | [PERF-045](../../frontend/src/pages/novel-detail/StoryEventsTab.tsx) | 故事事件页初载；1000 章、5000 事件，伏笔索引 1000 条且默认收起 | 初载不再读取默认收起的伏笔索引；用户展开时按需读取，刷新和展开共享同一项目的 in-flight 请求，保留完整列表、错误和键盘语义 | 真实 Chromium 153 受控夹具三轮中位数 **342.7 → 196.2 ms（42.7%）**；初始伏笔 JSON **505,677 → 0 B**；展开后 1000 条记录完整渲染 |
 | [PERF-046](../../frontend/src/components/agent/AgentMessageList.tsx) | Agent Monitor／领域 Agent 控制台高频状态更新；1000 条消息、80 次与消息无关的重渲染 | 消息列表组件按消息数组、流式 ID、待发送消息和运行状态做语义比较；无关输入/活动状态更新跳过整段分组与行协调，消息变化仍完整渲染 | 真实 Chromium 153 受控夹具三轮中位数 **149.6 → 0.1 ms（99.9%）**；1000 行 DOM 与首尾 HTML SHA-256 一致 |
+| [PERF-047](../../crates/platform/a4n-db/src/profile_material/queries.rs) | 对象/场景档案列表读取图片数量；20,000 张素材图片，单条元数据约 1.75 KB | 旧实现把该项目该类型所有 `metadata_json` 读回进程再逐条解析；改为 PostgreSQL 按 `profile_kind/profile_id` 聚合，仅回传每档案计数，数值类型和正整数校验仍在 Rust 侧保留 | 真实 PostgreSQL P50/P95 **286.120/301.139 → 42.428/55.102 ms（85.2%/81.7%）**；旧/新每个 profile 计数逐项一致 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -66,6 +67,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 语义分块 | 已复用向量范数并利用相似矩阵对称性；本次只消除额外矩阵。将全矩阵换成局部带状算法可能改变浮点抵消和相同分数时的切分，未作为无风险替换。 |
 | 故事事件 | PERF-018 减少筛选时未变化卡片的重复渲染；PERF-019 从数据库到前端仅读取所需的五个分析字段；PERF-045 延迟默认收起的伏笔索引。千章/4500事件首屏仍需渲染大量卡片，未将受控夹具的首屏收益外推为完整后端端到端提升。 |
 | Agent 消息流 | PERF-029/044 已覆盖 Agent 后端维护扫描和历史预算投影；PERF-046 处理前端高频无关状态更新，消息数组或流式事件变化仍走完整渲染。 |
+| 档案素材与图片 | PERF-047 只优化档案列表所需的图片计数聚合；完整素材列表、主素材绑定和图片详情仍保留原字段与顺序。 |
 | 漫画来源读取 | 当前 MangaTab 产品入口 ComicProjectWorkspace、VideoProjectWorkspace 和 GalgameProjectWorkspace 均使用 `listSourceSnapshotChapterIndex`；PERF-020 已用 1000 章真实 PostgreSQL/Chromium 夹具测量目录与单章详情，完整正文只在选章后读取。旧 `listSourceSnapshotChapters` API 仍保留给兼容调用方，但不是当前页面活跃路径。 |
 | 项目包传输 | PERF-037 批量读取独立漫画包的文本资产版本与来源实体；PERF-038—042 批量写入历史消息、workflow progress event、模型用量账本、LLM trace 与 generation target。SQL 数随数据行数增长，未引入缓存或预取。 |
 
@@ -516,6 +518,14 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 量化结果：真实 Chromium **153.0.8010.52**、生产构建、1000 条交替用户/助手消息、80 次无关状态更新的三轮 A/B，中位数 **149.6 → 0.1 ms（下降 99.9%）**；两侧均保留 1000 个消息行，首尾 HTML SHA-256 均为 `9b86859086ff3fe964b663ae17f28aa79353c9035a6979dbbbc291b09de29ea7`。该基准测量的是高频前端重渲染 CPU，不把消息 API 或模型响应延迟写成收益。
 - 语义验证：`AgentMessageRow.test.tsx` 12 项通过；基准每轮检查 1000 个 `[data-agent-message-role]` 行和 DOM 摘要，memo 只跳过无关父状态更新，不减少数据或改变工具结果配对。
 - 证据与复现：`data/performance-audit-20261010/agent-messages/{before-1,before-2,before-3,after-1,after-2,after-3,before-4,after-4}/report.json`；从 `frontend` 执行 `env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NODE_USE_ENV_PROXY A4N_PERF_CASE=agent-messages A4N_PERF_BASELINE_REF=HEAD A4N_PERF_ARTIFACTS=<独立目录> A4N_PERF_PORT=<空闲端口> node e2e/performance/check.mjs`，新版去掉 `A4N_PERF_BASELINE_REF`。
+
+### PERF-047：档案素材图片计数聚合
+
+- 调用链与规模：对象/场景档案 worker 列表请求需要为每个档案显示已生成素材图数量；旧路径按项目和图片类型读取全部 `id/image_type/metadata_json`，再在 Rust 中解析每条图片并筛选请求的 profile ID。基准为 **20,000 张**对象素材图片，每条元数据约 **1.75 KB**，100 个档案。
+- 根因与改动：计数只需要 `profile_kind/profile_id` 和行数，完整 JSON 回传与逐条反序列化属于请求链路中的无效开销。改为 PostgreSQL 按 JSON profile identity 聚合，Rust 只解析聚合后的 JSON 数值并保留正整数及请求 ID 过滤；未知图片类型、错误 profile kind、字符串/负数/小数/null ID 仍不计入。
+- 量化结果：隔离 PostgreSQL 16、9 次交错样本，旧全量 metadata 读取 P50/P95 **286.120/301.139 ms**，聚合实现 **42.428/55.102 ms**，下降 **85.2%/81.7%**。20,000 张图片的计数逐档案相同，聚合结果只回传 100 个分组而非 20,000 条元数据。
+- 语义验证：夹具包含字符串、错误 kind、负数、小数和 null profile ID，旧/新结果逐项相等；`a4n-db` profile_material 单测 **7/7** 通过。SQL 使用绑定参数，无用户输入拼接；完整素材列表读取路径没有改变。
+- 证据与复现：`data/performance-audit-20261010/profile-material-image-counts/command.log`；从工作树执行 `flock -x /home/fufu/Code/A4N/work/.agent-build.lock env A4N_TEST_DATABASE_URL=postgres://.../a4n_test CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target CARGO_INCREMENTAL=0 cargo test --locked -p a4n-db --test profile_material_image_counts_batch benchmark_profile_material_image_counts -- --ignored --nocapture --test-threads=1`。
 
 ### 拒绝候选：项目包 workflow checkpoint 批量导入
 
