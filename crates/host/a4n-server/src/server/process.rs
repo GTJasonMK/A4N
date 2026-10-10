@@ -79,7 +79,7 @@ mod tests {
         let mut permissions = std::fs::metadata(&binary).unwrap().permissions();
         permissions.set_mode(0o755);
         std::fs::set_permissions(&binary, permissions).unwrap();
-        let control_addr = control_addr_from_web("127.0.0.1:0".parse().unwrap()).unwrap();
+        let control_addr = a4n_config::control_addr_from_web("127.0.0.1:0".parse().unwrap());
         assert_eq!(control_addr.to_string(), "127.0.0.1:18080");
         let config = ManagedWorkerConfig {
             metadata: stateful_worker_catalog_entry_ref("agent-worker").unwrap(),

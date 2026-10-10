@@ -355,6 +355,15 @@
 - Edge 的 Axum fallback 是 SPA index 路由；Runtime baseline config 的 fallback 参数在 env 缺失时用于播种配置；editor source / source-sync / family package / media-authoring legacy converters 分别有生产解析、迁移或导入调用。它们均为活跃路径，不按标识符中的 `fallback`/`legacy` 做症状性删除。
 - `cargo machete` 未发现未使用 Cargo 依赖；本轮没有新增删除候选。
 
+### R-43：统一 Web/Control 监听地址解析
+
+- 类别：重复配置解析与伪安全 fallback。
+- BFS 覆盖：从 Server startup configuration、`WorkerSpec.control_addr` 注入和 Agent Worker `async_main` 启动入口出发，追踪 `A4N_WEB_ADDR`/`A4N_CONTROL_ADDR` 到 Edge/Control、托管 Worker 和 Agent 自身 health listener。确认 Agent Worker 和 Server catalog 各自解析同一组环境变量并派生 Control 地址；Agent client 的 `A4N_AGENT_WORKER_URL`/旧式 `A4N_AGENT_WORKER_ADDR` 分支与此无关，保留。
+- 将网页监听地址、显式 Control 地址解析及从 Web 端口派生 Control 端口收敛到 `a4n-config`。`A4N_CONTROL_ADDR` 仍优先；缺失时使用 `A4N_WEB_ADDR` 缺省值 `127.0.0.1:8080` 并派生 loopback `port + 1`，遇到网页端口 0 或 65535 时按 Server 现有规则使用 18080。显式 Control 端口 0、非法地址和非 UTF-8 值报错。
+- 移除 Agent 对 `env::var("A4N_WEB_ADDR").unwrap_or_else(...)` 的错误吞并：仅变量缺失采用默认值，非 UTF-8 和非法配置现在失败；修复 Agent 在 Web 端口 0 时错误派生到端口 1 的分叉。
+- 测试覆盖默认、无效/非 UTF-8 Web 地址、显式 Control 地址和 Web 端口 0/65535。`a4n-config` 定向测试 1/1；`a4n-config`、Agent Worker、Server all-targets 检查通过。
+- 记录文件：`crates/config/a4n-config/src/lib.rs`、Agent Worker config/runtime、Server worker catalog/startup/process 测试。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -400,6 +409,7 @@
 - R-38 `cargo test -p a4n-worker-db-adapter --locked`：13/13 通过；Foreshadowing 保留 Internal 分类回归 1/1 通过；覆盖 24 个 Collaboration 消费 Worker 的 `cargo check --all-targets --locked`：通过且无警告。
 - R-39 `cargo test -p a4n-worker-db-adapter --locked`：13/13 通过；Chapter Content、Manga Record、Blueprint、Novel Planning、Portrait、Project Mutation、Project Read、Project Status、Source Snapshot、Video Record、Workflow Read 的 all-targets 检查通过且无警告。
 - R-40 `cargo test -p a4n-worker-db-adapter --locked`：13/13 通过；覆盖 17 个受影响 Worker 的 `cargo check --all-targets --locked` 通过且无警告，新增 Admin、Config Read、Workflow Lifecycle 的 adapter Cargo 依赖并更新 lockfile。
+- R-43 `cargo test -p a4n-config web_and_control_addresses_share_environment_and_port_rules --locked`：1/1 通过；`cargo check --all-targets -p a4n-config -p a4n-agent-worker -p a4n-server --locked` 通过且无警告。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-contract --lib`：49/49 通过，覆盖共享失败构造、响应元数据、请求身份校验、principal ID 边界和 wire 序列化。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-client --lib`：14/14 通过，覆盖共享传输与响应错误映射。
 - `cargo check --locked --offline -p a4n-worker-runtime -p a4n-service-manager -p a4n-server -p a4n-tauri`：通过，验证共享父进程退出信号 helper 的三个集成点和更新后的 lockfile。

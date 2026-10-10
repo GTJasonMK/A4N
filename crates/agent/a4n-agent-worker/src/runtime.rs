@@ -1,8 +1,4 @@
-use super::{
-    config::{control_addr, worker_id},
-    health,
-    host::HttpAgentRuntimeHost,
-};
+use super::{config::worker_id, health, host::HttpAgentRuntimeHost};
 use a4n_agent_application::agent::AgentApplication;
 use a4n_agent_runtime::{AgentRuntimeState, engine};
 use a4n_db::DbHandle;
@@ -20,7 +16,7 @@ pub fn run() -> anyhow::Result<()> {
 
 async fn async_main() -> anyhow::Result<()> {
     a4n_worker_runtime::init_worker_tracing();
-    let control_address = control_addr()?;
+    let control_address = a4n_config::control_listen_addr()?;
     let control_base_url = format!("http://{control_address}");
     let worker_address = health::bind_addr(control_address)?;
     let worker_id = worker_id()?;

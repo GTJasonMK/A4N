@@ -84,39 +84,6 @@ pub(crate) fn optional_binary_fingerprint(
     }
 }
 
-pub(crate) fn web_addr() -> anyhow::Result<SocketAddr> {
-    env::var("A4N_WEB_ADDR")
-        .unwrap_or_else(|_| "127.0.0.1:8080".to_string())
-        .parse::<SocketAddr>()
-        .map_err(|error| anyhow::anyhow!("A4N_WEB_ADDR 无效: {error}"))
-}
-
-pub(crate) fn control_addr() -> anyhow::Result<SocketAddr> {
-    if let Some(value) = env::var_os("A4N_CONTROL_ADDR") {
-        let value = value
-            .into_string()
-            .map_err(|_| anyhow::anyhow!("A4N_CONTROL_ADDR 必须是有效 UTF-8 地址"))?;
-        let address = value
-            .parse()
-            .map_err(|error| anyhow::anyhow!("A4N_CONTROL_ADDR 无效: {error}"))?;
-        ensure_nonzero_port("A4N_CONTROL_ADDR", address)
-    } else {
-        control_addr_from_web(web_addr()?)
-    }
-}
-
-pub(crate) fn control_addr_from_web(web_addr: SocketAddr) -> anyhow::Result<SocketAddr> {
-    if web_addr.port() == 0 {
-        return Ok(SocketAddr::from(([127, 0, 0, 1], 18080)));
-    }
-    let control_port = web_addr
-        .port()
-        .checked_add(1)
-        .filter(|port| *port != 0)
-        .unwrap_or(18080);
-    Ok(SocketAddr::from(([127, 0, 0, 1], control_port)))
-}
-
 pub(crate) fn ensure_nonzero_port(name: &str, address: SocketAddr) -> anyhow::Result<SocketAddr> {
     if address.port() == 0 {
         anyhow::bail!("{name} 不允许使用端口 0；Edge 必须知道 Control 的固定地址");
