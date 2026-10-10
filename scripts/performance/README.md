@@ -47,6 +47,7 @@
 | [PERF-046](../../frontend/src/components/agent/AgentMessageList.tsx) | Agent Monitor／领域 Agent 控制台高频状态更新；1000 条消息、80 次与消息无关的重渲染 | 消息列表组件按消息数组、流式 ID、待发送消息和运行状态做语义比较；无关输入/活动状态更新跳过整段分组与行协调，消息变化仍完整渲染 | 真实 Chromium 153 受控夹具三轮中位数 **149.6 → 0.1 ms（99.9%）**；1000 行 DOM 与首尾 HTML SHA-256 一致 |
 | [PERF-047](../../crates/platform/a4n-db/src/profile_material/queries.rs) | 对象/场景档案列表计数与删除下游图片 ID；20,000 张素材图片，单条元数据约 1.75 KB | 旧实现把该项目该类型所有 `metadata_json` 读回进程再逐条解析；计数改为 PostgreSQL 按 `profile_kind/profile_id` 聚合，删除改为数据库按 JSON identity 直接筛选 ID，数值类型和正整数校验仍在 Rust 侧保留 | 计数 PostgreSQL P50/P95 **277.905/307.716 → 39.846/44.813 ms（85.7%/85.4%）**；删除 ID P50/P95 **275.986/283.187 → 27.412/36.981 ms（90.1%/86.9%）**；计数和 ID 顺序逐项一致 |
 | [PERF-048](../../frontend/src/pages/derived/useMediaAuthoring.ts) | 漫画/Galgame 媒体阶段标签；1000 章、1000 份同类文档、80 次状态更新 | 旧实现每个章节范围反复过滤全部文档并再次扫描缺失版本；一次建立当前快照的 draft/adopted 索引与历史存在集合，状态优先级和 stale 语义不变 | 真实 Chromium 153 受控三轮中位数 **100.3 → 6.2 ms（93.8%）**；1000 章/1000 文档和标签文本一致 |
+| [PERF-049](../../crates/platform/a4n-db/src/project/dependency_graph/graph/records/family.rs) | 依赖图初载 → 族级图片摘要投影；12,000 张图片，其中 600 张参与图计数，项目打开时每次读取 | 旧实现把项目族所有 `generated_image.metadata_json` 反序列化后再按类型计数；图摘要查询增加实际消费的 6 个图片类型过滤，节点详情仍走完整独立读取 | PostgreSQL 图摘要投影 P50/P95 **56.783/65.582 → 3.324/5.278 ms（94.1%/92.0%）**；返回行 **12,000 → 600**，元数据字节 **42,942,240 → 32,640**，图计数逐项一致 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -69,6 +70,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 故事事件 | PERF-018 减少筛选时未变化卡片的重复渲染；PERF-019 从数据库到前端仅读取所需的五个分析字段；PERF-045 延迟默认收起的伏笔索引。千章/4500事件首屏仍需渲染大量卡片，未将受控夹具的首屏收益外推为完整后端端到端提升。 |
 | Agent 消息流 | PERF-029/044 已覆盖 Agent 后端维护扫描和历史预算投影；PERF-046 处理前端高频无关状态更新，消息数组或流式事件变化仍走完整渲染。 |
 | 档案素材与图片 | PERF-047 只优化档案列表图片计数和删除下游 ID 的读取；完整素材列表、主素材绑定和图片详情仍保留原字段与顺序。 |
+| 依赖图 | PERF-049 将族级图摘要限制为漫画页、对象/场景素材和三类视频帧；节点详情仍按节点类型独立读取完整记录，未改变详情合同。 |
 | Canvas 文本素材 | 窄索引候选已用 256 份 × 4 KiB 正文的 Chromium 夹具复核；传输字节下降 98%，但首屏中位数仅下降 14.0%，GC 后 JS heap 仅下降 8.2%，不满足保留门槛，未改合同或生产代码。 |
 | 媒体阶段状态 | PERF-048 将状态标签计算从章节数 × 文档数的重复过滤降为一次索引；文档状态、快照范围和 stale 判断保持原语义。 |
 | 漫画来源读取 | 当前 MangaTab 产品入口 ComicProjectWorkspace、VideoProjectWorkspace 和 GalgameProjectWorkspace 均使用 `listSourceSnapshotChapterIndex`；PERF-020 已用 1000 章真实 PostgreSQL/Chromium 夹具测量目录与单章详情，完整正文只在选章后读取。旧 `listSourceSnapshotChapters` API 仍保留给兼容调用方，但不是当前页面活跃路径。 |
@@ -529,6 +531,14 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 量化结果：隔离 PostgreSQL 16、9 次交错样本。计数旧/新 P50/P95 **277.905/307.716 → 39.846/44.813 ms**，下降 **85.7%/85.4%**；删除 ID 旧/新 P50/P95 **275.986/283.187 → 27.412/36.981 ms**，下降 **90.1%/86.9%**。20,000 张图片的计数逐档案相同，删除 ID 按原 ID 顺序相同。
 - 语义验证：夹具包含字符串、错误 kind、负数、小数和 null profile ID，旧/新计数与 ID 结果逐项相等；`a4n-db` profile_material 单测 **7/7** 通过。SQL 使用绑定参数，无用户输入拼接；完整素材列表读取路径没有改变。
 - 证据与复现：`data/performance-audit-20261010/profile-material-image-counts/command.log`；从工作树执行 `flock -x /home/fufu/Code/A4N/work/.agent-build.lock env A4N_TEST_DATABASE_URL=postgres://.../a4n_test CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target CARGO_INCREMENTAL=0 cargo test --locked -p a4n-db --test profile_material_image_counts_batch benchmark_profile_material_image_counts -- --ignored --nocapture --test-threads=1`。
+
+### PERF-049：依赖图族级图片窄投影
+
+- 调用链与规模：Canvas 资产图 worker 的 `get_project_asset_dependency_graph` 先加载项目族记录，再由图 builder 只计算漫画页、对象/场景素材和视频帧图片数量；节点详情接口不复用这批摘要记录。基准使用 PostgreSQL 16、**12,000 张** `generated_image`，其中 **600 张**属于图摘要消费的六种类型，其余图片携带约 3.5 KiB 无关 JSON。
+- 根因与改动：旧查询按项目族读取每张图片的 `image_type/metadata_json`，随后在 Rust 中丢弃无关类型并解析剩余元数据。族级摘要查询增加 `image_type IN (...)` 过滤，只把计数所需的六种类型交给现有 builder；没有改变节点详情查询，也没有新增缓存或预取。
+- 量化结果：隔离 PostgreSQL 16，9 次交错样本，优化构建。窄投影返回行 **12,000 → 600**，元数据字节 **42,942,240 → 32,640**；查询 P50/P95 **56.783/65.582 → 3.324/5.278 ms**，下降 **94.1%/92.0%**，超过保留门槛。
+- 语义验证：过滤前结果按六种类型筛选后与新查询逐行相等；完整依赖图的漫画图片计数保持 100，视频帧和素材类型测试通过；节点详情仍使用原始完整图片字段和排序。SQL 使用 SeaORM 绑定参数，用户项目范围仍由既有 scope 查询决定。
+- 证据与复现：`data/performance-audit-20261010/dependency-graph-image-projection/command.log`；从工作树执行 `flock -x /home/fufu/Code/A4N/work/.agent-build.lock env A4N_TEST_DATABASE_URL=postgres://.../a4n_perf_arch_20261011 CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target CARGO_INCREMENTAL=0 cargo test --locked --release -p a4n-db --test dependency_graph_batch benchmark_dependency_graph_image_projection -- --ignored --nocapture --test-threads=1`。
 
 ### 拒绝候选：Canvas 文本素材窄索引
 

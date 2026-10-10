@@ -7,6 +7,10 @@ use a4n_db_models::models::{
     character::character_portrait,
     project::standalone_comic_text_source,
 };
+use a4n_domain::image::{
+    IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL, IMAGE_TYPE_VIDEO_KEY_FRAME,
+    IMAGE_TYPE_VIDEO_START_FRAME, IMAGE_TYPE_VIDEO_STORYBOARD_FRAME,
+};
 use a4n_error::AppError;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
@@ -14,6 +18,15 @@ use super::{
     ComicTextSourceGraphRow, GeneratedImageGraphRow, GeneratedVideoGraphRow, MangaPromptGraphRow,
     PortraitGraphRow, VideoPromptGraphRow,
 };
+
+const GRAPH_IMAGE_TYPES: [&str; 6] = [
+    "manga_page",
+    IMAGE_TYPE_OBJECT_MATERIAL,
+    IMAGE_TYPE_SCENE_MATERIAL,
+    IMAGE_TYPE_VIDEO_KEY_FRAME,
+    IMAGE_TYPE_VIDEO_START_FRAME,
+    IMAGE_TYPE_VIDEO_STORYBOARD_FRAME,
+];
 
 pub(super) struct FamilyAssetGraphRecords {
     pub(super) portraits: Vec<PortraitGraphRow>,
@@ -87,6 +100,7 @@ pub(super) async fn load_family_asset_graph_records(
             .column(generated_image::Column::ImageType)
             .column(generated_image::Column::MetadataJson)
             .filter(generated_image::Column::ProjectId.is_in(family_project_ids.iter().copied()))
+            .filter(generated_image::Column::ImageType.is_in(GRAPH_IMAGE_TYPES))
             .order_by_asc(generated_image::Column::Id)
             .into_model::<GeneratedImageGraphRow>()
             .all(db),
