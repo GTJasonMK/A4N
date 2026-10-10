@@ -3,7 +3,7 @@
 ## 范围与方法
 
 - 工作分支：`agent/redundancy-cleanup-20261010`，基线 `debug@3f6a2408c9e78c4719259e77d5443f2befdd8fda`。
-- 建立分支本地 CodeGraph 索引后持续同步；当前索引覆盖 6,245 个文件、86,279 个符号、275,076 条边，状态为 up to date。
+- 建立分支本地 CodeGraph 索引后持续同步；当前索引覆盖 6,245 个文件、86,284 个符号、275,084 条边，状态为 up to date。
 - 从 `a4n-server`、Tauri 本地 Server、`a4n-component-host`、Worker/Sidecar catalog、Axum route 注册、`a4n-control` 动态 command 分派和 `frontend/src/App.tsx` 路由入口追踪生产调用与注册点。前端索引包含 444 个 TS 和 318 个 TSX 文件。
 - 基线 Cargo workspace 有 213 个 crate manifest；本次增加 Worker runtime 与 DB adapter 后共 215 个。`cargo metadata` 核对了 Worker 对共享配置/runtime crate 的依赖。静态搜索补查脚本启动、环境变量、历史迁移、测试 fixture、生成合同脚本和运行时路由字符串。
 - 检查了 `#[allow(dead_code)]`、兼容/legacy 命名、候选无入边符号、Cargo 直接依赖和可复用的前端格式工具。
@@ -592,10 +592,18 @@
 ### R-72：统一前端字节大小格式化
 
 - 类别：Embedding 下载面板与 Storage 清理面板分别实现 locale-aware 字节大小格式化。
-- BFS 覆盖：从 AboutTab 动态渲染到 `StoragePathsPanel`，追踪 orphan summary、删除确认、清理结果及单项目录大小的 formatter 调用；从 EmbeddingTab/`EmbeddingConfigEditor` 到 `FastembedModelPanel`，追踪总大小、缓存/缺失大小、下载按钮和进度提示的 formatter 调用。CodeGraph 与静态引用搜索确认生产代码中仅有这两份字节大小实现，二者都委托 `i18n::formatNumber`。
+- BFS 覆盖：从 AboutTab 动态渲染到 `StoragePathsPanel`，追踪 orphan summary、删除确认、清理结果及单项目录大小的 formatter 调用；从 EmbeddingTab/`EmbeddingConfigEditor` 到 `FastembedModelPanel`，追踪总大小、缓存/缺失大小、下载按钮和进度提示的 formatter 调用。CodeGraph 与静态引用搜索确认生产代码中原有两份字节大小实现，二者都委托 `i18n::formatNumber`。
 - 将 formatter 收敛到 `frontend/src/i18n/format.ts::formatBytes`，并从 i18n barrel 导出。统一使用 1024 进位、B 到 TB、locale 数字分组和最多一位小数；超出 TB 时继续显示 TB。Embedding 不再截在 GB；Storage 面板大于等于 10 的 unit 值不再显示超过一位小数。非有限或非正值继续显示 locale 格式的 `0 B`。
-- 验证：`i18n.test.ts` 与 `EmbeddingConfigEditor.test.tsx` 共 2 个文件、11/11 通过；新增用例覆盖 0、Infinity、KB 精度和 TB 上限；`npm run build` 通过，`git diff --check` 通过。
+- 验证：`i18n.test.ts` 与 `EmbeddingConfigEditor.test.tsx` 共 2 个文件、11/11 通过；新增用例覆盖 0、Infinity、KB 精度和 TB 上限；`npm run build` 通过，`git diff --check` 通过。首次 build 发现并清理局部 formatter 移除后遗留的未使用 import，之后重跑通过。
 - 记录范围：`frontend/src/i18n/{format.ts,index.ts,i18n.test.ts}`、Embedding formatter consumers/utility 与 `StoragePathsPanel.tsx`。
+
+### R-73：复用 Image Metadata 字节格式化
+
+- 类别：图片库 `fileSizeLabel` 保留第三份 MIME 无关的字节单位换算。
+- BFS 覆盖：从 `fileSizeLabel` 追到 `imageBaseMetadataFields` 的调用点和图片 metadata 展示；静态搜索 `formatBytes`/字节单位转换确认该路径与 R-72 的 Storage/Embedding formatter 是三个生产实现。
+- Image Metadata 改用 `i18n::formatBytes`，显式设置 `maxUnit: MB` 和一位固定小数，保留图片条目的 MB 上限及 KB/MB 展示精度；null、负数和非有限值仍显示“未知”。共享 formatter 仅增加 `maxUnit` 与 `minimumFractionDigits` 选项，不保留图片库本地换算。
+- 验证：`i18n.test.ts` 与 `EmbeddingConfigEditor.test.tsx` 2 个文件、11/11 通过；新增断言覆盖 MB 上限及固定小数；`npm run build` 和 `git diff --check` 通过。
+- 记录范围：`frontend/src/i18n/format.ts`、`frontend/src/i18n/i18n.test.ts` 与 `frontend/src/pages/novel-detail/images/imageMetadata.ts`。
 
 ## 核验后保留
 

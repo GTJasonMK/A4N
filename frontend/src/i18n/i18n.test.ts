@@ -124,5 +124,8 @@ describe("locale formatting", () => {
     expect(formatBytes(1536, "en-US")).toBe("1.5 KB");
     expect(formatBytes(11 * 1024, "en-US")).toBe("11 KB");
     expect(formatBytes(1024 ** 4, "en-US")).toBe("1 TB");
+    expect(
+      formatBytes(1024 ** 3, "en-US", { maxUnit: "MB", minimumFractionDigits: 1 }),
+    ).toBe("1,024.0 MB");
   });
 });

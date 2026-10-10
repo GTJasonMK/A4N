@@ -1,7 +1,14 @@
 import type { GeneratedImage } from "../../../api/image";
 import { imageTypeLabel } from "./imageTabUtils";
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
-import { formatDateTime, formatNumber, type Locale, type MessageKey, type MessageTranslator } from "../../../i18n";
+import {
+  formatBytes,
+  formatDateTime,
+  formatNumber,
+  type Locale,
+  type MessageKey,
+  type MessageTranslator,
+} from "../../../i18n";
 
 export interface MetadataField {
   label: string;
@@ -63,10 +70,10 @@ const presentFields = (fields: MetadataField[], t: MessageTranslator): MetadataF
   fields.filter((item) => item.value !== t("novel.imageLibrary.none"));
 
 const fileSizeLabel = (value: number | null, t: MessageTranslator, locale: Locale): string => {
-  if (value == null || value < 0) return t("novel.imageLibrary.unknown");
-  if (value < 1024) return `${formatNumber(value, locale)} B`;
-  if (value < 1024 * 1024) return `${formatNumber(value / 1024, locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} KB`;
-  return `${formatNumber(value / 1024 / 1024, locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB`;
+  if (value == null || !Number.isFinite(value) || value < 0) {
+    return t("novel.imageLibrary.unknown");
+  }
+  return formatBytes(value, locale, { maxUnit: "MB", minimumFractionDigits: 1 });
 };
 
 export const imageBaseMetadataFields = (image: GeneratedImage, t: MessageTranslator, locale: Locale): MetadataField[] => [
