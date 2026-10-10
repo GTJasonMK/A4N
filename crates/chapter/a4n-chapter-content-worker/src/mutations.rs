@@ -1,6 +1,6 @@
 use super::{
     WorkerState,
-    errors::{WorkerFailure, app_error, chapter_error, import_error, project_error},
+    errors::{WorkerFailure, chapter_error, import_error, project_error},
     permissions::verify_project_editor,
     transactions::finish_transaction,
     validation::validate_request,
@@ -55,7 +55,7 @@ impl WorkerState {
                     .map_err(chapter_error)?;
             let run = begin_chapter_content_sync_in_transaction(&tx, &chapter_record)
                 .await
-                .map_err(app_error)?;
+                .map_err(a4n_worker_db_adapter::map_app_error)?;
             Ok(ChapterContentMutationResult {
                 chapter_id: chapter.id,
                 workflow_run_id: run.id,
@@ -103,7 +103,7 @@ impl WorkerState {
                     .map_err(chapter_error)?;
             let run = begin_chapter_content_sync_in_transaction(&tx, &chapter_record)
                 .await
-                .map_err(app_error)?;
+                .map_err(a4n_worker_db_adapter::map_app_error)?;
             Ok(ChapterContentMutationResult {
                 chapter_id: chapter.id,
                 workflow_run_id: run.id,

@@ -1,6 +1,6 @@
 use super::{
     WorkerState,
-    errors::{WorkerFailure, app_error, chapter_error, workflow_error},
+    errors::{WorkerFailure, chapter_error, workflow_error},
     permissions::verify_project_viewer,
     validation::validate_request,
 };
@@ -169,7 +169,7 @@ impl WorkerState {
             &content_runs,
             checkpoints,
         )
-        .map_err(app_error)?;
+        .map_err(a4n_worker_db_adapter::map_app_error)?;
         Ok(summaries)
     }
 }

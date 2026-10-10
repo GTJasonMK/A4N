@@ -2,6 +2,7 @@ use a4n_db::collaboration::CollaborationDbError;
 use a4n_db::project::ProjectFamilyDbError;
 use a4n_db::project::ProjectMutationError;
 use a4n_db::workflow::WorkflowReadError;
+use a4n_error::AppError;
 use a4n_worker_contract::WorkerFailure;
 
 enum InternalErrorPolicy {
@@ -12,6 +13,18 @@ enum InternalErrorPolicy {
 enum InvalidDataPolicy {
     Conflict,
     InvalidRequest,
+}
+
+pub fn map_app_error(error: AppError) -> WorkerFailure {
+    match error {
+        AppError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
+        AppError::NotFound(message) => WorkerFailure::not_found(message),
+        AppError::Forbidden(message) => WorkerFailure::unauthorized(message),
+        AppError::InvalidState { current, operation } => {
+            WorkerFailure::conflict(format!("{current}: {operation}"))
+        }
+        other => WorkerFailure::unavailable(other.to_string()),
+    }
 }
 
 pub fn map_collaboration_db_error(error: CollaborationDbError) -> WorkerFailure {
@@ -274,6 +287,58 @@ mod tests {
 
         for (error, code, retryable, message) in cases {
             let mapped: WorkerError = map_workflow_read_error_as_conflict(error).into();
+            assert_eq!(mapped.code, code);
+            assert_eq!(mapped.retryable, retryable);
+            assert_eq!(mapped.message, message);
+        }
+    }
+
+    #[test]
+    fn app_errors_map_to_the_chapter_and_video_worker_contract() {
+        let cases = [
+            (
+                AppError::InvalidArgument("invalid input".into()),
+                WorkerErrorCode::InvalidRequest,
+                false,
+                "invalid input".to_string(),
+            ),
+            (
+                AppError::NotFound("missing record".into()),
+                WorkerErrorCode::NotFound,
+                false,
+                "missing record".to_string(),
+            ),
+            (
+                AppError::Forbidden("permission denied".into()),
+                WorkerErrorCode::Unauthorized,
+                false,
+                "permission denied".to_string(),
+            ),
+            (
+                AppError::InvalidState {
+                    current: "stale revision".into(),
+                    operation: "update record".into(),
+                },
+                WorkerErrorCode::Conflict,
+                false,
+                "stale revision: update record".to_string(),
+            ),
+            (
+                AppError::Unauthorized("credentials rejected".into()),
+                WorkerErrorCode::Unavailable,
+                true,
+                "未认证：credentials rejected".to_string(),
+            ),
+            (
+                AppError::ConfigError("invalid configuration".into()),
+                WorkerErrorCode::Unavailable,
+                true,
+                "配置错误：invalid configuration".to_string(),
+            ),
+        ];
+
+        for (error, code, retryable, message) in cases {
+            let mapped: WorkerError = map_app_error(error).into();
             assert_eq!(mapped.code, code);
             assert_eq!(mapped.retryable, retryable);
             assert_eq!(mapped.message, message);

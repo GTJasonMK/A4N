@@ -96,7 +96,7 @@ impl WorkerState {
             (Vec::new(), Vec::new(), 0, 0)
         } else {
             a4n_video_contract::load_video_segment_plan_draft_recipe_state(&checkpoints, style)
-                .map_err(worker_app_error)?
+                .map_err(a4n_worker_db_adapter::map_app_error)?
         };
         Ok(VideoSegmentPlanDraftSummary {
             run: a4n_workflow_core::workflow_run_summary_to_api(run),
@@ -152,7 +152,7 @@ impl WorkerState {
             input.recipe,
         )
         .await
-        .map_err(worker_app_error)
+        .map_err(a4n_worker_db_adapter::map_app_error)
     }
 
     pub(super) async fn list_prompts(

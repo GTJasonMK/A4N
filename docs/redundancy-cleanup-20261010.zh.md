@@ -265,6 +265,16 @@
 - 新增 helper 测试覆盖完成 payload、缺失 payload、Failed mapper 透传，以及带/不带 operation 的 Running 错误文案；`a4n-worker-client` 测试 18/18，`a4n-worker-client` 与全部 29 个消费者 all-targets 检查通过且无警告。
 - 记录文件：`crates/process/a4n-worker-client/{src/lib.rs,src/responses.rs,src/tests.rs}`，以及上述 29 个 client crate 的 `src/lib.rs`。
 
+### R-31：统一 Chapter Content 与 Video Record AppError 映射
+
+- 类别：重复错误适配。
+- BFS 覆盖：静态枚举并对比 9 个 Worker 的 `AppError -> WorkerFailure` mapper，再沿 Chapter Content 的 3 个 `map_err` 调用点（Reads、Mutations）与 Video Record 的 2 个 prompt 调用点追到 Worker 响应路径。Chapter Content 与 Video Record 使用完全相同的 `InvalidArgument`、`NotFound`、`Forbidden`、`InvalidState` 和其他错误映射；静态核对两份 Cargo.toml 确认这两处消费者均已依赖 `a4n-worker-db-adapter`。
+- 新增共享 `map_app_error`，两处调用直接使用它，删除局部 mapper；错误码、`InvalidState` 消息格式及 retryable 保持一致。测试特意固定两处原有的 `AppError::Unauthorized -> Unavailable` 行为。
+- 其余 7 个 mapper 保持局部映射：Agent Health 使用 Internal 回退和不同的 Conflict 消息；Asset Graph 改写 operation/current 顺序；Config Read 会映射 Unauthorized 并保留 InvalidState operation；Admin/Workflow Read 的变体分类不同；Import Review/Theme Read 把部分 ConfigError 映射为 Conflict。未强行统一这些合同。
+- Chapter Content 与 Video Record 删除已无直接引用的 `a4n-error` Cargo 依赖；adapter 增加无默认 features 的 `a4n-error` 依赖，Cargo.lock 仅更新依赖列表。
+- adapter 测试 7/7；adapter、Chapter Content Worker、Video Record Worker all-targets 检查通过且无警告；`cargo machete` 未发现未使用依赖。
+- 记录文件：`crates/process/a4n-worker-db-adapter/{Cargo.toml,src/lib.rs}`，Chapter Content 与 Video Record Workers 的 Cargo.toml、mapper 和调用点，以及 `Cargo.lock`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -297,6 +307,7 @@
 - R-28 `cargo test --locked --offline -p a4n-worker-db-adapter --lib`：3/3 通过；adapter 与 6 个消费者的 all-targets 检查通过且无警告。
 - R-29 `cargo test --locked --offline -p a4n-worker-db-adapter --lib`：6/6 通过；adapter 与 Chapter Content、Manga Record、Video Record、Workflow Read、Novel Planning、Portrait 六个消费者的 all-targets 检查通过且无警告。
 - R-30 `timeout 60s cargo test --locked --offline -p a4n-worker-client --lib`：18/18 通过；`cargo check --all-targets --locked --offline` 覆盖 `a4n-worker-client` 与 29 个 typed Worker client crate，通过且无警告。
+- R-31 `timeout 60s cargo test --locked --offline -p a4n-worker-db-adapter --lib`：7/7 通过；`cargo check --all-targets --locked --offline -p a4n-worker-db-adapter -p a4n-chapter-content-worker -p a4n-video-record-worker` 通过且无警告。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-contract --lib`：49/49 通过，覆盖共享失败构造、响应元数据、请求身份校验、principal ID 边界和 wire 序列化。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-client --lib`：14/14 通过，覆盖共享传输与响应错误映射。
 - `cargo check --locked --offline -p a4n-worker-runtime -p a4n-service-manager -p a4n-server -p a4n-tauri`：通过，验证共享父进程退出信号 helper 的三个集成点和更新后的 lockfile。

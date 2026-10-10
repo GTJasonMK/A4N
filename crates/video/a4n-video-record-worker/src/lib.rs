@@ -420,18 +420,6 @@ fn database_error(error: impl std::fmt::Display) -> WorkerFailure {
     WorkerFailure::unavailable(error.to_string())
 }
 
-fn worker_app_error(error: a4n_error::AppError) -> WorkerFailure {
-    match error {
-        a4n_error::AppError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
-        a4n_error::AppError::InvalidState { current, operation } => {
-            WorkerFailure::conflict(format!("{current}: {operation}"))
-        }
-        a4n_error::AppError::NotFound(message) => WorkerFailure::not_found(message),
-        a4n_error::AppError::Forbidden(message) => WorkerFailure::unauthorized(message),
-        other => WorkerFailure::unavailable(other.to_string()),
-    }
-}
-
 #[cfg(test)]
 mod tests;
 
