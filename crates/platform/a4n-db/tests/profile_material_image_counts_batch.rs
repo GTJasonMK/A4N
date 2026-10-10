@@ -1,5 +1,6 @@
 use a4n_db::profile_material::{
     profile_material_image_counts_by_profile, profile_material_image_identity_rows_by_type,
+    profile_material_image_ids_by_profile,
 };
 use a4n_db::project::{CreateProjectRecordInput, create_project_record};
 use a4n_db_models::models::ai::generated_image;
@@ -138,6 +139,33 @@ async fn legacy_counts(
     counts
 }
 
+async fn legacy_ids(
+    db: &sea_orm::DatabaseConnection,
+    project_id: i64,
+    profile_id: i64,
+) -> Vec<i64> {
+    profile_material_image_identity_rows_by_type(db, project_id, "object_material")
+        .await
+        .expect("full metadata ID read must succeed")
+        .into_iter()
+        .filter(|image| {
+            image
+                .metadata_json
+                .as_ref()
+                .and_then(|metadata| metadata.get("profile_kind"))
+                .and_then(Value::as_str)
+                == Some("object")
+                && image
+                    .metadata_json
+                    .as_ref()
+                    .and_then(|metadata| metadata.get("profile_id"))
+                    .and_then(Value::as_i64)
+                    == Some(profile_id)
+        })
+        .map(|image| image.id)
+        .collect()
+}
+
 #[tokio::test]
 #[ignore = "manual PostgreSQL performance benchmark; requires isolated A4N_TEST_DATABASE_URL"]
 async fn benchmark_profile_material_image_counts() {
@@ -145,6 +173,8 @@ async fn benchmark_profile_material_image_counts() {
     let (project_id, profile_ids) = fixture(&db).await;
     let mut previous = Vec::with_capacity(SAMPLES);
     let mut grouped = Vec::with_capacity(SAMPLES);
+    let mut previous_ids = Vec::with_capacity(SAMPLES);
+    let mut grouped_ids = Vec::with_capacity(SAMPLES);
     for sample in 0..SAMPLES {
         if sample % 2 == 0 {
             let started = Instant::now();
@@ -164,6 +194,17 @@ async fn benchmark_profile_material_image_counts() {
             grouped.push(started.elapsed().as_secs_f64() * 1000.0);
             assert_eq!(next.values().sum::<i64>(), IMAGE_COUNT as i64);
             assert_eq!(next, old);
+
+            let started = Instant::now();
+            let old_ids = legacy_ids(&db, project_id, 1).await;
+            previous_ids.push(started.elapsed().as_secs_f64() * 1000.0);
+            let started = Instant::now();
+            let new_ids =
+                profile_material_image_ids_by_profile(&db, project_id, "object_material", 1)
+                    .await
+                    .expect("grouped image ID read must succeed");
+            grouped_ids.push(started.elapsed().as_secs_f64() * 1000.0);
+            assert_eq!(new_ids, old_ids);
         } else {
             let started = Instant::now();
             let next = profile_material_image_counts_by_profile(
@@ -181,16 +222,33 @@ async fn benchmark_profile_material_image_counts() {
             let old = legacy_counts(&db, project_id, &profile_ids).await;
             previous.push(started.elapsed().as_secs_f64() * 1000.0);
             assert_eq!(old, next);
+
+            let started = Instant::now();
+            let new_ids =
+                profile_material_image_ids_by_profile(&db, project_id, "object_material", 1)
+                    .await
+                    .expect("grouped image ID read must succeed");
+            grouped_ids.push(started.elapsed().as_secs_f64() * 1000.0);
+            let started = Instant::now();
+            let old_ids = legacy_ids(&db, project_id, 1).await;
+            previous_ids.push(started.elapsed().as_secs_f64() * 1000.0);
+            assert_eq!(old_ids, new_ids);
         }
     }
     let previous_p50 = percentile(&previous, 0.50);
     let previous_p95 = percentile(&previous, 0.95);
     let grouped_p50 = percentile(&grouped, 0.50);
     let grouped_p95 = percentile(&grouped, 0.95);
+    let previous_ids_p50 = percentile(&previous_ids, 0.50);
+    let previous_ids_p95 = percentile(&previous_ids, 0.95);
+    let grouped_ids_p50 = percentile(&grouped_ids, 0.50);
+    let grouped_ids_p95 = percentile(&grouped_ids, 0.95);
     eprintln!(
-        "profile_material_image_counts images={IMAGE_COUNT} metadata_bytes={} previous_p50_p95_ms={previous_p50:.3}/{previous_p95:.3} grouped_p50_p95_ms={grouped_p50:.3}/{grouped_p95:.3} improvement={:.1}%/{:.1}%",
+        "profile_material_image_counts images={IMAGE_COUNT} metadata_bytes={} previous_p50_p95_ms={previous_p50:.3}/{previous_p95:.3} grouped_p50_p95_ms={grouped_p50:.3}/{grouped_p95:.3} improvement={:.1}%/{:.1}% ids_previous_p50_p95_ms={previous_ids_p50:.3}/{previous_ids_p95:.3} ids_grouped_p50_p95_ms={grouped_ids_p50:.3}/{grouped_ids_p95:.3} ids_improvement={:.1}%/{:.1}%",
         "metadata payload ".repeat(100).len() + 50,
         (1.0 - grouped_p50 / previous_p50) * 100.0,
         (1.0 - grouped_p95 / previous_p95) * 100.0,
+        (1.0 - grouped_ids_p50 / previous_ids_p50) * 100.0,
+        (1.0 - grouped_ids_p95 / previous_ids_p95) * 100.0,
     );
 }

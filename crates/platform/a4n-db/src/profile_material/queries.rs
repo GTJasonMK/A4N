@@ -8,7 +8,7 @@ use serde_json::Value;
 
 use super::{
     contracts::{ProfileMaterialDbError, ProfileMaterialImageIdentityRow, ProfileMaterialListRows},
-    identity::{PROFILE_KIND_OBJECT, PROFILE_KIND_SCENE, profile_material_identity},
+    identity::{PROFILE_KIND_OBJECT, PROFILE_KIND_SCENE},
     records::primary_material_record,
     validation::{database, require_positive, require_text},
 };
@@ -148,15 +148,28 @@ pub async fn profile_material_image_ids_by_profile(
             ));
         }
     };
-    Ok(
-        profile_material_image_identity_rows_by_type(db, project_id, image_type)
-            .await?
-            .into_iter()
-            .filter(|image| {
-                profile_material_identity(&image.image_type, image.metadata_json.as_ref())
-                    == Some((expected_kind, profile_id))
-            })
-            .map(|image| image.id)
-            .collect(),
-    )
+    let rows = db
+        .query_all(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            "SELECT id \
+             FROM generated_image \
+             WHERE project_id = $1 AND image_type = $2 \
+               AND metadata_json->>'profile_kind' = $3 \
+               AND (metadata_json->'profile_id')::jsonb = to_jsonb($4::bigint) \
+             ORDER BY id",
+            [
+                project_id.into(),
+                image_type.into(),
+                expected_kind.into(),
+                profile_id.into(),
+            ],
+        ))
+        .await
+        .map_err(|source| database("读取档案素材图片 ID 失败", source))?;
+    rows.into_iter()
+        .map(|row| {
+            row.try_get::<i64>("", "id")
+                .map_err(|source| database("解析档案素材图片 ID 失败", source))
+        })
+        .collect()
 }
