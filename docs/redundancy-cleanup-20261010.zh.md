@@ -231,6 +231,14 @@
 - 新增合同测试覆盖匹配类型、不匹配类型、自定义文案、Unauthorized code 和不可重试属性；`a4n-worker-contract` 53/53，8 个消费 Worker 的 all-targets 检查通过且无警告。
 - 记录文件：`crates/process/a4n-worker-contract/{src/wire.rs,src/wire_tests.rs}`，以及 Admin、Config Read、Inspiration、Import Review、Project Access/Read、Workflow Read/Lifecycle Worker 的 principal validator。
 
+### R-27：统一 Worker 非空文本校验
+
+- 类别：重复输入边界校验。
+- BFS 覆盖：从 6 个 Worker 的 route/command 到字段消费者追踪空白判断、规范化后的值、持久化调用与错误响应；CodeGraph/静态搜索核对 8 个调用点。它们都按 Unicode `trim()` 判空并返回不可重试的 InvalidRequest，错误文案由字段/操作传入。Video Update 对空字符串使用原始 `is_empty()`、不拒绝纯空格，保留其不同合同。
+- 新增 `WorkerFailure::require_non_blank(value, error_message)`，返回 trim 后的借用文本；`validate_non_blank` 与该入口共用唯一 `trimmed_non_blank` 谓词。章节正文/场景类型、角色名、快照哈希、主题名和 asset graph node ID 消费裁剪后的返回值；取消原因、active task ID、协作邀请身份仅校验并保留下游原始值。删除 Chapter Scene 单调用 `required_text` wrapper。
+- 合同测试覆盖边缘空白/全空白、返回的裁剪值、InvalidRequest code、原错误文案及 retryable=false；contract 54/54，6 个受影响 Worker all-targets 检查通过且无警告。
+- 记录文件：`crates/process/a4n-worker-contract/{src/wire.rs,src/wire_tests.rs}`，以及 Asset Graph、Chapter Scene、Workflow Lifecycle、Character Mutation、Theme Read 和 Project Collaboration Worker 的字段校验调用点。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -259,6 +267,7 @@
 - R-24 `cargo check --all-targets --locked --offline -p a4n-agent-worker-client -p a4n-asset-graph-worker-client -p a4n-canvas-record-worker-client -p a4n-blueprint-worker-client -p a4n-foreshadowing-worker-client -p a4n-novel-planning-worker-client -p a4n-outline-worker-client -p a4n-object-profile-worker-client -p a4n-portrait-worker-client -p a4n-profile-material-worker-client -p a4n-scene-profile-worker-client -p a4n-project-status-worker-client -p a4n-source-snapshot-worker-client -p a4n-theme-read-worker-client`：通过且无警告。静态搜索确认 14 个文件不再引用已移除类型。
 - R-25 `cargo test --locked --offline -p a4n-worker-db-adapter --lib`：2/2 通过；adapter 与 24 个受影响 Worker 的 `cargo check --all-targets --locked --offline`：通过且无警告。
 - R-26 `cargo test --locked --offline -p a4n-worker-contract --lib`：53/53 通过；`cargo check --all-targets --locked --offline` 覆盖 contract 和 8 个受影响 Worker，通过且无警告。
+- R-27 `cargo test --locked --offline -p a4n-worker-contract --lib`：54/54 通过；`cargo check --all-targets --locked --offline` 覆盖 contract 和 6 个受影响 Worker，通过且无警告。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-contract --lib`：49/49 通过，覆盖共享失败构造、响应元数据、请求身份校验、principal ID 边界和 wire 序列化。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-client --lib`：14/14 通过，覆盖共享传输与响应错误映射。
 - `cargo check --locked --offline -p a4n-worker-runtime -p a4n-service-manager -p a4n-server -p a4n-tauri`：通过，验证共享父进程退出信号 helper 的三个集成点和更新后的 lockfile。

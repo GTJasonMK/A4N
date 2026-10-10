@@ -371,11 +371,7 @@ fn validate_request<T: serde::Serialize>(
 }
 
 fn normalize_name(name: String) -> Result<String, WorkerFailure> {
-    let name = name.trim().to_string();
-    if name.is_empty() {
-        return Err(WorkerFailure::invalid_request("主题名称不能为空"));
-    }
-    Ok(name)
+    WorkerFailure::require_non_blank(&name, "主题名称不能为空").map(str::to_owned)
 }
 
 fn app_error(error: AppError) -> WorkerFailure {

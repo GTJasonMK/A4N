@@ -23,12 +23,7 @@ impl WorkerState {
         let content = input
             .content
             .map(|value| {
-                let value = value.trim().to_string();
-                if value.is_empty() {
-                    Err(WorkerFailure::invalid_request("场景正文不能为空"))
-                } else {
-                    Ok(value)
-                }
+                WorkerFailure::require_non_blank(&value, "场景正文不能为空").map(str::to_owned)
             })
             .transpose()?;
         let scene = a4n_db::project::update_chapter_scene_record(
@@ -40,7 +35,10 @@ impl WorkerState {
                 summary: input.summary.map(|value| Some(trim_optional(value))),
                 scene_type: input
                     .scene_type
-                    .map(|value| required_text(value, "场景类型"))
+                    .map(|value| {
+                        WorkerFailure::require_non_blank(&value, "场景类型不能为空")
+                            .map(str::to_owned)
+                    })
                     .transpose()?,
                 location: input.location.map(|value| Some(trim_optional(value))),
                 timeline_position: input

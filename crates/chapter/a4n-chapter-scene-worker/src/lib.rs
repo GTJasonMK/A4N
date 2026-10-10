@@ -253,15 +253,6 @@ fn trim_optional(value: String) -> String {
     value.trim().to_string()
 }
 
-fn required_text(value: String, field: &str) -> Result<String, WorkerFailure> {
-    let value = value.trim().to_string();
-    if value.is_empty() {
-        Err(WorkerFailure::invalid_request(format!("{field}不能为空")))
-    } else {
-        Ok(value)
-    }
-}
-
 fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
     a4n_worker_db_adapter::map_collaboration_db_error(error)
 }

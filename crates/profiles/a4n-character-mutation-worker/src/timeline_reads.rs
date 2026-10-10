@@ -51,10 +51,8 @@ impl WorkerState {
     ) -> Result<SnapshotSummary, WorkerFailure> {
         validate_request(&request, CHARACTER_TIMELINE_SNAPSHOT_BY_HASH_OPERATION)?;
         let user_id = request.principal.require_user_id()?;
-        let content_hash = request.payload.content_hash.trim();
-        if content_hash.is_empty() {
-            return Err(WorkerFailure::invalid_request("快照哈希不能为空"));
-        }
+        let content_hash =
+            WorkerFailure::require_non_blank(&request.payload.content_hash, "快照哈希不能为空")?;
         let snapshot_store =
             a4n_db::character::Sha256SnapshotStore::new(self.database.shared_connection());
         let snapshot = snapshot_store

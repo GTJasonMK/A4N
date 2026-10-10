@@ -5,10 +5,7 @@ pub(super) async fn named_profile(
     project_id: i64,
     name: &str,
 ) -> Result<a4n_domain::character::CharacterProfileRecord, WorkerFailure> {
-    let name = name.trim();
-    if name.is_empty() {
-        return Err(WorkerFailure::invalid_request("角色名称不能为空"));
-    }
+    let name = WorkerFailure::require_non_blank(name, "角色名称不能为空")?;
     a4n_db::character::profile_record_by_project_name(database.connection(), project_id, name)
         .await
         .map_err(|error| WorkerFailure::unavailable(error.to_string()))?

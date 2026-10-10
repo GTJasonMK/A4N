@@ -160,6 +160,22 @@ fn worker_positive_id_validation_shares_invalid_request_semantics() {
 }
 
 #[test]
+fn worker_non_blank_validation_preserves_trimmed_value_and_error() {
+    assert_eq!(
+        WorkerFailure::require_non_blank("  value  ", "field 不能为空").expect("nonblank"),
+        "value"
+    );
+    for value in ["", "  ", "\t\n"] {
+        let error: WorkerError = WorkerFailure::require_non_blank(value, "field 不能为空")
+            .expect_err("blank value should fail")
+            .into();
+        assert_eq!(error.code, WorkerErrorCode::InvalidRequest);
+        assert!(!error.retryable);
+        assert_eq!(error.message, "field 不能为空");
+    }
+}
+
+#[test]
 fn worker_principal_user_id_validation_preserves_kind_and_parse_boundaries() {
     let user = WorkerPrincipal {
         kind: WorkerPrincipalKind::User,

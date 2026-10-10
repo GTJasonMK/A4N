@@ -10,9 +10,10 @@ impl WorkerState {
             PROJECT_COLLABORATION_INVITE_MEMBER_OPERATION,
             request.payload.project_id,
         )?;
-        if request.payload.username_or_email.trim().is_empty() {
-            return Err(WorkerFailure::invalid_request("username_or_email 不能为空"));
-        }
+        WorkerFailure::require_non_blank(
+            &request.payload.username_or_email,
+            "username_or_email 不能为空",
+        )?;
         let user_id = request.principal.require_user_id()?;
         a4n_db::collaboration::invite_project_member(
             self.database.connection(),

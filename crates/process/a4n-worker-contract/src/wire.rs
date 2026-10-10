@@ -429,6 +429,10 @@ impl WorkerFailure {
         Ok(value)
     }
 
+    pub fn require_non_blank(value: &str, error_message: impl Into<String>) -> Result<&str, Self> {
+        trimmed_non_blank(value).ok_or_else(|| Self::invalid_request(error_message))
+    }
+
     pub fn invalid_request(message: impl Into<String>) -> Self {
         Self::new(WorkerErrorCode::InvalidRequest, message, false)
     }
@@ -644,10 +648,15 @@ pub(crate) fn validate_non_blank(
     field: &'static str,
     value: &str,
 ) -> Result<(), WorkerContractError> {
-    if value.trim().is_empty() {
+    if trimmed_non_blank(value).is_none() {
         return Err(WorkerContractError::BlankField { field });
     }
     Ok(())
+}
+
+fn trimmed_non_blank(value: &str) -> Option<&str> {
+    let value = value.trim();
+    (!value.is_empty()).then_some(value)
 }
 
 pub(crate) fn validate_positive_optional_id(
