@@ -256,7 +256,7 @@ fn status_write_error(error: a4n_db::project::ProjectStatusWriteError) -> Worker
             ))
         }
         a4n_db::project::ProjectStatusWriteError::Database { source } => {
-            WorkerFailure::unavailable(source.to_string())
+            a4n_worker_db_adapter::map_database_error(source)
         }
     }
 }
@@ -278,7 +278,7 @@ fn project_reset_error(error: a4n_db::project::reset::ProjectResetDbError) -> Wo
             ))
         }
         a4n_db::project::reset::ProjectResetDbError::Database { source } => {
-            WorkerFailure::unavailable(source.to_string())
+            a4n_worker_db_adapter::map_database_error(source)
         }
         other => WorkerFailure::conflict(other.to_string()),
     }
@@ -287,7 +287,7 @@ fn project_reset_error(error: a4n_db::project::reset::ProjectResetDbError) -> Wo
 fn summary_error(error: a4n_project_read_core::ProjectSummaryError) -> WorkerFailure {
     match error {
         a4n_project_read_core::ProjectSummaryError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
+            a4n_worker_db_adapter::map_database_error(error)
         }
         a4n_project_read_core::ProjectSummaryError::Progress(error) => {
             a4n_worker_db_adapter::map_project_progress_read_error(error)
@@ -307,7 +307,7 @@ fn status_read_error(error: a4n_db::project::ProjectStatusReadError) -> WorkerFa
             WorkerFailure::invalid_request(message)
         }
         a4n_db::project::ProjectStatusReadError::Database { source, .. } => {
-            WorkerFailure::unavailable(source.to_string())
+            a4n_worker_db_adapter::map_database_error(source)
         }
     }
 }
@@ -318,7 +318,7 @@ fn rollback_impact_error(error: a4n_db::project::ProjectRollbackImpactReadError)
             WorkerFailure::invalid_request(message)
         }
         a4n_db::project::ProjectRollbackImpactReadError::Database { source, .. } => {
-            WorkerFailure::unavailable(source.to_string())
+            a4n_worker_db_adapter::map_database_error(source)
         }
     }
 }

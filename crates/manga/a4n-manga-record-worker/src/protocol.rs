@@ -21,7 +21,7 @@ pub(super) fn manga_error(error: a4n_db::manga::MangaPromptRecordError) -> Worke
             WorkerFailure::conflict(message)
         }
         a4n_db::manga::MangaPromptRecordError::Database { source, .. } => {
-            WorkerFailure::unavailable(source.to_string())
+            a4n_worker_db_adapter::map_database_error(source)
         }
         a4n_db::manga::MangaPromptRecordError::Generation(error) => {
             WorkerFailure::unavailable(error.to_string())

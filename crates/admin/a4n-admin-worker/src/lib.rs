@@ -255,7 +255,7 @@ fn admin_error(error: a4n_db::admin::AdminDbError) -> WorkerFailure {
         }
         a4n_db::admin::AdminDbError::Database(error)
         | a4n_db::admin::AdminDbError::DatabaseOperation { source: error, .. } => {
-            WorkerFailure::unavailable(error.to_string())
+            a4n_worker_db_adapter::map_database_error(error)
         }
     }
 }

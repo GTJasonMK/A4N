@@ -360,7 +360,7 @@ fn canvas_db_error(error: CanvasDbError) -> WorkerFailure {
         } => WorkerFailure::conflict(format!(
             "canvas_text_asset_version_conflict:asset_id={canvas_text_asset_id},expected={expected_version},current={current_version}"
         )),
-        CanvasDbError::Database(error) => WorkerFailure::unavailable(error.to_string()),
+        CanvasDbError::Database(error) => a4n_worker_db_adapter::map_database_error(error),
     }
 }
 

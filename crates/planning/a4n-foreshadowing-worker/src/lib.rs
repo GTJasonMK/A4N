@@ -278,7 +278,7 @@ fn foreshadowing_error(error: a4n_db::project::ForeshadowingDbError) -> WorkerFa
             "第 {chapter_number} 章重复回收伏笔 {foreshadowing_id}"
         )),
         a4n_db::project::ForeshadowingDbError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
+            a4n_worker_db_adapter::map_database_error(error)
         }
     }
 }

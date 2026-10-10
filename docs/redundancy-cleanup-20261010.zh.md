@@ -332,6 +332,14 @@
 - 没有合并领域错误的多变体 `match`，例如 Chapter Content edit/import、Project Status write/reset/read、Video DB 等仍有独立业务状态映射；这些并非单行 adapter 转发。
 - 记录文件：`crates/process/a4n-worker-db-adapter/src/lib.rs`，以及上述 11 个 Worker 的 mapper 和消费者文件。
 
+### R-40：收敛 typed DB 错误的 Unavailable 分支
+
+- 类别：重复错误适配。
+- BFS 覆盖：从 17 个 Worker 中各类 DB error enum 的 `Database` 变体开始，核对每个变体的定义和 match 分支，再沿 mapper 调用追至 Worker failed response。共收敛 27 个显式数据库分支，覆盖 Admin、Canvas Record、Chapter Content、Chapter Scene、Config Read、Inspiration、Import Review、Manga Record、Outline、Novel Planning、Portrait、Character Mutation、Project Read、Project Mutation、Project Status、Foreshadowing、Workflow Lifecycle；相关 Worker 均已有或新增 `a4n-worker-db-adapter` 依赖。
+- 这些数据库分支原来都以底层错误的 `Display` 文案构造 retryable `Unavailable`。现在统一调用 `map_database_error`，包括 `Database { source, .. }`、`DatabaseOperation { source, .. }` 和 Project Summary 的数据库错误。adapter 内既有 Asset/Profile/Scene/Project/Workflow/Collaboration DB mapper 也复用同一 helper，避免第二份 `Unavailable` 格式规则。
+- 仅替换显式数据库变体；`Generation`、通用 AppError 的其他分支、InvalidData、NotFound、冲突和领域错误维持原映射。测试固定 Unavailable wire code、retryable 与原 Display 文案。
+- 记录文件：`crates/process/a4n-worker-db-adapter/src/lib.rs`、`Cargo.lock`，以及上述 17 个 Worker 的 DB mapper 文件和 3 个新增 adapter 依赖 manifest。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -374,6 +382,7 @@
 - R-37 `cargo test -p a4n-worker-db-adapter --locked`：13/13 通过；`cargo check --all-targets -p a4n-chapter-scene-worker -p a4n-chapter-content-worker -p a4n-project-read-worker -p a4n-profile-material-worker -p a4n-blueprint-worker -p a4n-manga-record-worker -p a4n-character-mutation-worker --locked`：通过且无警告。
 - R-38 `cargo test -p a4n-worker-db-adapter --locked`：13/13 通过；Foreshadowing 保留 Internal 分类回归 1/1 通过；覆盖 24 个 Collaboration 消费 Worker 的 `cargo check --all-targets --locked`：通过且无警告。
 - R-39 `cargo test -p a4n-worker-db-adapter --locked`：13/13 通过；Chapter Content、Manga Record、Blueprint、Novel Planning、Portrait、Project Mutation、Project Read、Project Status、Source Snapshot、Video Record、Workflow Read 的 all-targets 检查通过且无警告。
+- R-40 `cargo test -p a4n-worker-db-adapter --locked`：13/13 通过；覆盖 17 个受影响 Worker 的 `cargo check --all-targets --locked` 通过且无警告，新增 Admin、Config Read、Workflow Lifecycle 的 adapter Cargo 依赖并更新 lockfile。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-contract --lib`：49/49 通过，覆盖共享失败构造、响应元数据、请求身份校验、principal ID 边界和 wire 序列化。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-client --lib`：14/14 通过，覆盖共享传输与响应错误映射。
 - `cargo check --locked --offline -p a4n-worker-runtime -p a4n-service-manager -p a4n-server -p a4n-tauri`：通过，验证共享父进程退出信号 helper 的三个集成点和更新后的 lockfile。

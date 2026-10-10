@@ -390,11 +390,11 @@ fn outline_record_error(error: a4n_db::project::ProjectOutlineRecordError) -> Wo
                 WorkerFailure::not_found(message)
             }
             a4n_db::generation::GenerationDbError::Database(error) => {
-                WorkerFailure::unavailable(error.to_string())
+                a4n_worker_db_adapter::map_database_error(error)
             }
         },
         a4n_db::project::ProjectOutlineRecordError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
+            a4n_worker_db_adapter::map_database_error(error)
         }
     }
 }
@@ -417,7 +417,7 @@ fn update_error(error: a4n_db::project::ProjectChapterOutlineUpdateError) -> Wor
             WorkerFailure::conflict(error.to_string())
         }
         a4n_db::project::ProjectChapterOutlineUpdateError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
+            a4n_worker_db_adapter::map_database_error(error)
         }
     }
 }

@@ -43,16 +43,14 @@ pub fn map_asset_db_error(error: AssetDbError) -> WorkerFailure {
         AssetDbError::InvalidState { current, operation } => {
             WorkerFailure::conflict(format!("{operation}: {current}"))
         }
-        AssetDbError::Database(error) => WorkerFailure::unavailable(error.to_string()),
+        AssetDbError::Database(error) => map_database_error(error),
     }
 }
 
 pub fn map_profile_material_db_error(error: ProfileMaterialDbError) -> WorkerFailure {
     match error {
         ProfileMaterialDbError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
-        ProfileMaterialDbError::Database { source, .. } => {
-            WorkerFailure::unavailable(source.to_string())
-        }
+        ProfileMaterialDbError::Database { source, .. } => map_database_error(source),
     }
 }
 
@@ -63,7 +61,7 @@ pub fn map_scene_profile_db_error(error: SceneProfileDbError) -> WorkerFailure {
         SceneProfileDbError::InvalidState { current, operation } => {
             WorkerFailure::conflict(format!("{operation}: {current}"))
         }
-        SceneProfileDbError::Database(error) => WorkerFailure::unavailable(error.to_string()),
+        SceneProfileDbError::Database(error) => map_database_error(error),
     }
 }
 
@@ -83,7 +81,7 @@ pub fn map_project_mutation_error(error: ProjectMutationError) -> WorkerFailure 
         ProjectMutationError::NotFound(message) => WorkerFailure::not_found(message),
         ProjectMutationError::Forbidden(message) => WorkerFailure::unauthorized(message),
         ProjectMutationError::Internal(message) => WorkerFailure::conflict(message),
-        ProjectMutationError::Database(error) => WorkerFailure::unavailable(error.to_string()),
+        ProjectMutationError::Database(error) => map_database_error(error),
     }
 }
 
@@ -91,7 +89,7 @@ pub fn map_project_family_db_error(error: ProjectFamilyDbError) -> WorkerFailure
     match error {
         ProjectFamilyDbError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
         ProjectFamilyDbError::NotFound(message) => WorkerFailure::not_found(message),
-        ProjectFamilyDbError::Database(error) => WorkerFailure::unavailable(error.to_string()),
+        ProjectFamilyDbError::Database(error) => map_database_error(error),
     }
 }
 
@@ -106,9 +104,7 @@ pub fn map_project_family_metadata_read_error(
         | ProjectFamilyMetadataReadError::SourceSnapshotMissing { .. }) => {
             WorkerFailure::conflict(error.to_string())
         }
-        ProjectFamilyMetadataReadError::Database { source, .. } => {
-            WorkerFailure::unavailable(source.to_string())
-        }
+        ProjectFamilyMetadataReadError::Database { source, .. } => map_database_error(source),
     }
 }
 
@@ -126,9 +122,7 @@ pub fn map_project_progress_read_error(error: ProjectProgressReadError) -> Worke
         | ProjectProgressReadError::SummaryMissing { .. }) => {
             WorkerFailure::conflict(error.to_string())
         }
-        ProjectProgressReadError::Database { source, .. } => {
-            WorkerFailure::unavailable(source.to_string())
-        }
+        ProjectProgressReadError::Database { source, .. } => map_database_error(source),
     }
 }
 
@@ -151,7 +145,7 @@ fn map_workflow_read_error(
             InvalidDataPolicy::Conflict => WorkerFailure::conflict(message),
             InvalidDataPolicy::InvalidRequest => WorkerFailure::invalid_request(message),
         },
-        WorkflowReadError::Database(error) => WorkerFailure::unavailable(error.to_string()),
+        WorkflowReadError::Database(error) => map_database_error(error),
     }
 }
 
@@ -168,7 +162,7 @@ fn map_collaboration_error(
             InternalErrorPolicy::Conflict => WorkerFailure::conflict(message),
             InternalErrorPolicy::Internal => WorkerFailure::internal(message),
         },
-        CollaborationDbError::Database(error) => WorkerFailure::unavailable(error.to_string()),
+        CollaborationDbError::Database(error) => map_database_error(error),
     }
 }
 

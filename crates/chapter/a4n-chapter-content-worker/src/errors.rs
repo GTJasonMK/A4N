@@ -14,7 +14,7 @@ pub(super) fn chapter_error(
             WorkerFailure::conflict(format!("{current}: {operation}"))
         }
         a4n_db::chapter_content::ChapterContentEditError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
+            a4n_worker_db_adapter::map_database_error(error)
         }
     }
 }
@@ -34,7 +34,7 @@ pub(super) fn import_error(
             "第 {chapter_number} 章正在生成中，请等待当前生成完成后再{operation}（当前状态：{status}）"
         )),
         a4n_db::chapter_content::ChapterContentImportError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
+            a4n_worker_db_adapter::map_database_error(error)
         }
     }
 }

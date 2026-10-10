@@ -259,7 +259,7 @@ fn record_error(error: a4n_db::project::ProjectChapterSceneRecordError) -> Worke
             WorkerFailure::invalid_request(message)
         }
         a4n_db::project::ProjectChapterSceneRecordError::Database { source, .. } => {
-            WorkerFailure::unavailable(source.to_string())
+            a4n_worker_db_adapter::map_database_error(source)
         }
     }
 }
@@ -273,7 +273,7 @@ fn write_error(error: a4n_db::project::ProjectChapterSceneWriteError) -> WorkerF
             WorkerFailure::not_found(message)
         }
         a4n_db::project::ProjectChapterSceneWriteError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
+            a4n_worker_db_adapter::map_database_error(error)
         }
     }
 }

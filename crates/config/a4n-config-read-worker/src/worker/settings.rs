@@ -119,7 +119,7 @@ fn settings_import_error(error: a4n_db::config::SettingsAllConfigImportError) ->
             WorkerFailure::invalid_request(message)
         }
         a4n_db::config::SettingsAllConfigImportError::Database { source, .. } => {
-            WorkerFailure::unavailable(source.to_string())
+            a4n_worker_db_adapter::map_database_error(source)
         }
     }
 }

@@ -293,7 +293,7 @@ mod tests {
 fn mutation_error(error: a4n_db::import_review::ImportReviewMutationError) -> WorkerFailure {
     match error {
         a4n_db::import_review::ImportReviewMutationError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
+            a4n_worker_db_adapter::map_database_error(error)
         }
         a4n_db::import_review::ImportReviewMutationError::NotFound(message) => {
             WorkerFailure::not_found(message)

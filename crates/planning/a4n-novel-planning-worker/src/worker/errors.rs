@@ -12,7 +12,7 @@ pub(super) fn source_error(error: a4n_db::project::ResolveChapterSourceError) ->
             WorkerFailure::not_found(message)
         }
         a4n_db::project::ResolveChapterSourceError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
+            a4n_worker_db_adapter::map_database_error(error)
         }
     }
 }
@@ -30,7 +30,9 @@ pub(super) fn visual_plan_error(error: ChapterVisualPlanDbError) -> WorkerFailur
         } => WorkerFailure::conflict(format!(
             "chapter_visual_plan_revision_conflict:id={record_id},expected={expected_revision}"
         )),
-        ChapterVisualPlanDbError::Database(error) => WorkerFailure::unavailable(error.to_string()),
+        ChapterVisualPlanDbError::Database(error) => {
+            a4n_worker_db_adapter::map_database_error(error)
+        }
     }
 }
 
@@ -54,7 +56,7 @@ pub(crate) fn shooting_script_error(
             "shooting_script_revision_conflict:id={record_id},expected={expected_revision}"
         )),
         a4n_db::shooting_script::ShootingScriptDbError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
+            a4n_worker_db_adapter::map_database_error(error)
         }
     }
 }

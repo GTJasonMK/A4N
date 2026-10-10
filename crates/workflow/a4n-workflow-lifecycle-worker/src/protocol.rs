@@ -28,7 +28,7 @@ pub(super) fn workflow_error(error: a4n_db::workflow::WorkflowWriteError) -> Wor
             WorkerFailure::conflict(message)
         }
         a4n_db::workflow::WorkflowWriteError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
+            a4n_worker_db_adapter::map_database_error(error)
         }
     }
 }

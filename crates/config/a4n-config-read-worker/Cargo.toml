@@ -16,6 +16,7 @@ a4n-llm-config = { workspace = true }
 a4n-provider-contract = { workspace = true }
 a4n-video = { workspace = true }
 a4n-worker-contract = { workspace = true }
+a4n-worker-db-adapter = { workspace = true }
 a4n-worker-runtime = { workspace = true }
 
 anyhow = { workspace = true }

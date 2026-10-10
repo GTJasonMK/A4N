@@ -546,7 +546,7 @@ fn create_error(error: a4n_db::character::CharacterProfileCreateError) -> Worker
             WorkerFailure::invalid_request(message)
         }
         a4n_db::character::CharacterProfileCreateError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
+            a4n_worker_db_adapter::map_database_error(error)
         }
         a4n_db::character::CharacterProfileCreateError::Generation(error) => {
             WorkerFailure::unavailable(error.to_string())

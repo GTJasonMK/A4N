@@ -302,7 +302,7 @@ fn portrait_record_error(error: a4n_db::character::CharacterPortraitRecordError)
             WorkerFailure::invalid_request(message)
         }
         a4n_db::character::CharacterPortraitRecordError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
+            a4n_worker_db_adapter::map_database_error(error)
         }
     }
 }

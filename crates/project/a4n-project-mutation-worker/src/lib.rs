@@ -263,7 +263,7 @@ fn project_scope<T: serde::Serialize>(
 fn summary_error(error: a4n_project_read_core::ProjectSummaryError) -> WorkerFailure {
     match error {
         a4n_project_read_core::ProjectSummaryError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
+            a4n_worker_db_adapter::map_database_error(error)
         }
         a4n_project_read_core::ProjectSummaryError::Progress(error) => {
             a4n_worker_db_adapter::map_project_progress_read_error(error)

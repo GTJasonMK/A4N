@@ -186,7 +186,7 @@ fn inspiration_error(error: a4n_db::inspiration::InspirationDbError) -> WorkerFa
             WorkerFailure::not_found(message)
         }
         a4n_db::inspiration::InspirationDbError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
+            a4n_worker_db_adapter::map_database_error(error)
         }
     }
 }
