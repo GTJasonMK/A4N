@@ -52,7 +52,10 @@ use a4n_domain::media::{CreateMediaAssetRecordInput, MediaProvenanceRecordInput}
 use a4n_error::AppError;
 use a4n_storage::{
     create_unique_timestamped_file,
-    paths::{ProjectPaths, data_dir_relative_file_path},
+    paths::{
+        CanonicalDataPathError, ProjectPaths, canonicalize_path_in_data_dir,
+        data_dir_relative_file_path,
+    },
     remove_created_file_on_error,
 };
 use sha2::{Digest, Sha256};
@@ -204,9 +207,15 @@ fn resolve_data_file(data_dir: &Path, path: &str, label: &str) -> Result<PathBuf
             "{label}必须是应用数据目录内的相对路径"
         )));
     }
-    let canonical_data_dir = data_dir.canonicalize()?;
-    let canonical_file = data_dir.join(raw).canonicalize()?;
-    if !canonical_file.starts_with(&canonical_data_dir) || !canonical_file.is_file() {
+    let canonical_file = canonicalize_path_in_data_dir(data_dir, &data_dir.join(raw), label)
+        .map_err(|error| match error {
+            CanonicalDataPathError::DataDirectory(source)
+            | CanonicalDataPathError::Target { source, .. } => AppError::Io(source),
+            CanonicalDataPathError::OutsideDataDirectory { .. } => {
+                AppError::InvalidArgument(format!("{label}不在应用数据目录内或不是文件"))
+            }
+        })?;
+    if !canonical_file.is_file() {
         return Err(AppError::InvalidArgument(format!(
             "{label}不在应用数据目录内或不是文件"
         )));

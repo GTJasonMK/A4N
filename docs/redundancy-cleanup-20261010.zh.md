@@ -436,6 +436,14 @@
 - `a4n-sidecar-bootstrap` 是多个 Sidecar 共用的进程层，当前不依赖 Host `a4n-config`。把配置层引入进程 bootstrap 会扩大所有 Sidecar 的依赖并混合错误 owner；抽到新底层 crate 也只为几行标准 env 解析增加组件。因此保留各自当前 owner，不添加回退或转换层。
 - 记录范围：`crates/process/a4n-sidecar-bootstrap/{src/environment.rs,src/lib.rs,src/metrics.rs,Cargo.toml}`、`crates/config/a4n-config/src/lib.rs`、Runtime baseline config callers。
 
+### R-53：复用数据目录文件路径校验
+
+- 类别：重复安全路径校验。
+- BFS 覆盖：从 `a4n-storage::canonicalize_path_in_data_dir` 追踪其 11 个调用点及 typed `CanonicalDataPathError`，并对照 `canonicalize_data_file_path`、`data_dir_relative_file_path` 的共享读写路径；再从 Orchestrator `create_media_asset` 的 file/thumbnail 两个输入追到 `resolve_data_file`，以及 Galgame asset、Canvas audio、media asset 的调用入口和已有路径边界测试。
+- `resolve_data_file` 原先重复 canonicalize data root/target 并手工检查 `starts_with`。现在复用 `canonicalize_path_in_data_dir`；保留 `required_text`、绝对路径前置拒绝、I/O 错误到 `AppError::Io` 的映射、原越界文案和最终 `is_file` 检查。数据库写入、文件 checksum 和 provenance 流程不变。
+- 验证：`cargo check --all-targets --locked --offline -p a4n-orchestrator` 通过；`cargo test --no-run --locked --offline -p a4n-orchestrator --lib` 编译通过；`timeout 60s cargo test --locked --offline -p a4n-orchestrator --lib media_thumbnail_path_must_be_relative_to_data_dir` 1/1 通过；`cargo fmt --all -- --check`、`git diff --check` 通过。
+- 记录文件：`crates/host/a4n-orchestrator/src/media.rs`，共享实现位于 `crates/platform/a4n-storage/src/files/paths.rs`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
