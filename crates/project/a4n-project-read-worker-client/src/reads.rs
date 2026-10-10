@@ -16,7 +16,7 @@ impl ProjectReadApplicationPort for ProjectReadWorkerClient {
             return Err(AppError::InvalidArgument("project_id 必须大于 0".into()));
         }
         self.command(
-            Self::user_principal(user_id)?,
+            a4n_worker_client::user_principal(user_id)?,
             PROJECT_READ_SUMMARY_OPERATION,
             Some(project_id),
             ProjectIdInput { project_id },
@@ -30,7 +30,7 @@ impl ProjectReadApplicationPort for ProjectReadWorkerClient {
         input: ProjectListInput,
     ) -> Result<PaginatedProjects, AppError> {
         self.command(
-            Self::user_principal(user_id)?,
+            a4n_worker_client::user_principal(user_id)?,
             PROJECT_READ_LIST_OPERATION,
             None,
             input,

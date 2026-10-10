@@ -15,7 +15,8 @@ use tokio::{
 use super::{
     HttpWorkerClient, WORKER_AUTH_HEADER, WorkerClientConfig, WorkerClientError,
     WorkerClientErrorPolicy, WorkerJsonResponse, map_worker_client_error,
-    map_worker_response_error, resolve_worker_client_connection,
+    map_worker_response_error, resolve_worker_client_connection, user_principal,
+    user_principal_with_scope,
 };
 
 #[test]
@@ -82,6 +83,40 @@ fn worker_response_error_mapping_preserves_basic_contract() {
         a4n_error::AppError::ConfigError(message)
             if message == "demo worker demo.save 失败: internal failure"
     ));
+}
+
+#[test]
+fn user_principal_requires_a_positive_id() {
+    let principal = user_principal(7).expect("positive user ID should build a principal");
+    assert_eq!(principal.kind, WorkerPrincipalKind::User);
+    assert_eq!(principal.subject, "7");
+
+    for user_id in [0, -1] {
+        assert!(matches!(
+            user_principal(user_id),
+            Err(a4n_error::AppError::InvalidArgument(message))
+                if message == "user_id 必须大于 0"
+        ));
+    }
+}
+
+#[test]
+fn user_principal_with_scope_preserves_project_validation_policy() {
+    const ERROR: &str = "user_id 和 project_id 必须大于 0";
+    assert_eq!(
+        user_principal_with_scope(7, Some(3), ERROR)
+            .expect("valid project-scoped principal")
+            .subject,
+        "7"
+    );
+    assert!(user_principal_with_scope(7, None, ERROR).is_ok());
+
+    for (user_id, project_id) in [(0, Some(3)), (7, Some(0)), (7, Some(-1))] {
+        assert!(matches!(
+            user_principal_with_scope(user_id, project_id, ERROR),
+            Err(a4n_error::AppError::InvalidArgument(message)) if message == ERROR
+        ));
+    }
 }
 
 #[test]

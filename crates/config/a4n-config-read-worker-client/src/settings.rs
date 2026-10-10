@@ -6,7 +6,7 @@ impl SettingsExportApplicationPort for ConfigReadWorkerClient {
         host: &dyn SettingsAllHostPort,
     ) -> Result<String, AppError> {
         self.command(
-            Self::user(caller_user_id)?,
+            a4n_worker_client::user_principal(caller_user_id)?,
             CONFIG_SETTINGS_EXPORT_OPERATION,
             SettingsExportInput {
                 prompts_modified: host.modified_prompts().await?,
@@ -27,7 +27,7 @@ impl SettingsImportApplicationPort for ConfigReadWorkerClient {
         let overwrite = input.overwrite;
         let prepared: SettingsPrepareImportResult = self
             .command(
-                Self::user(caller_user_id)?,
+                a4n_worker_client::user_principal(caller_user_id)?,
                 CONFIG_SETTINGS_PREPARE_IMPORT_OPERATION,
                 input,
             )
@@ -54,7 +54,7 @@ impl SettingsImportApplicationPort for ConfigReadWorkerClient {
         prompt_snapshots.retain(|(name, _)| imported_names.contains(name));
         match self
             .command::<_, Vec<String>>(
-                Self::user(caller_user_id)?,
+                a4n_worker_client::user_principal(caller_user_id)?,
                 CONFIG_SETTINGS_IMPORT_OPERATION,
                 SettingsImportCommand {
                     settings_json: prepared.settings_json,

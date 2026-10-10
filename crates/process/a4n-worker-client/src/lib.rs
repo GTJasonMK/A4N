@@ -131,6 +131,24 @@ pub fn map_worker_client_error(
     }
 }
 
+pub fn user_principal(user_id: i64) -> Result<WorkerPrincipal, AppError> {
+    user_principal_with_scope(user_id, None, "user_id 必须大于 0")
+}
+
+pub fn user_principal_with_scope(
+    user_id: i64,
+    project_id: Option<i64>,
+    error_message: &'static str,
+) -> Result<WorkerPrincipal, AppError> {
+    if user_id <= 0 || project_id.is_some_and(|project_id| project_id <= 0) {
+        return Err(AppError::InvalidArgument(error_message.into()));
+    }
+    Ok(WorkerPrincipal {
+        kind: WorkerPrincipalKind::User,
+        subject: user_id.to_string(),
+    })
+}
+
 pub fn map_worker_response_error(
     error: &WorkerError,
     worker_name: &str,

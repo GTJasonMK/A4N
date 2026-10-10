@@ -43,18 +43,17 @@ impl SourceSnapshotWorkerClient {
         I: serde::Serialize,
         O: serde::de::DeserializeOwned,
     {
-        if user_id <= 0 || project_id <= 0 {
-            return Err(AppError::InvalidArgument("请求范围 ID 必须大于 0".into()));
-        }
+        let principal = a4n_worker_client::user_principal_with_scope(
+            user_id,
+            Some(project_id),
+            "请求范围 ID 必须大于 0",
+        )?;
         let request_id = uuid::Uuid::new_v4().to_string();
         let request = WorkerEnvelope {
             schema_version: WORKER_SCHEMA_VERSION,
             request_id: request_id.clone(),
             trace_id: request_id,
-            principal: WorkerPrincipal {
-                kind: WorkerPrincipalKind::User,
-                subject: user_id.to_string(),
-            },
+            principal,
             operation_id: SOURCE_SNAPSHOT_CHAPTERS_OPERATION.into(),
             idempotency_key: uuid::Uuid::new_v4().to_string(),
             project_id: Some(project_id),

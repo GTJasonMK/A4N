@@ -119,16 +119,6 @@ impl ConfigReadWorkerClient {
         }
     }
 
-    fn user(user_id: i64) -> Result<WorkerPrincipal, AppError> {
-        if user_id <= 0 {
-            return Err(AppError::InvalidArgument("user_id 必须大于 0".into()));
-        }
-        Ok(WorkerPrincipal {
-            kind: WorkerPrincipalKind::User,
-            subject: user_id.to_string(),
-        })
-    }
-
     fn service() -> WorkerPrincipal {
         WorkerPrincipal {
             kind: WorkerPrincipalKind::Service,

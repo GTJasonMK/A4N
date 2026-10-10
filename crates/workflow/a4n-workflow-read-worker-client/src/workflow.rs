@@ -8,7 +8,7 @@ impl WorkflowReadApplicationPort for WorkflowReadWorkerClient {
         input: ListWorkflowRunsInput,
     ) -> Result<Vec<WorkflowRunSummary>, AppError> {
         self.command(
-            Self::user_principal(user_id)?,
+            a4n_worker_client::user_principal(user_id)?,
             input.project_id,
             WORKFLOW_READ_LIST_OPERATION,
             input,
@@ -22,7 +22,7 @@ impl WorkflowReadApplicationPort for WorkflowReadWorkerClient {
         input: GetWorkflowRunInput,
     ) -> Result<WorkflowRunDetailSummary, AppError> {
         self.command(
-            Self::user_principal(user_id)?,
+            a4n_worker_client::user_principal(user_id)?,
             None,
             WORKFLOW_READ_DETAIL_OPERATION,
             input,

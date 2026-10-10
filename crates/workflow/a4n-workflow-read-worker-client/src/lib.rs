@@ -108,16 +108,6 @@ impl WorkflowReadWorkerClient {
         }
     }
 
-    fn user_principal(user_id: i64) -> Result<WorkerPrincipal, AppError> {
-        if user_id <= 0 {
-            return Err(AppError::InvalidArgument("user_id 必须大于 0".into()));
-        }
-        Ok(WorkerPrincipal {
-            kind: WorkerPrincipalKind::User,
-            subject: user_id.to_string(),
-        })
-    }
-
     fn service_principal() -> WorkerPrincipal {
         WorkerPrincipal {
             kind: WorkerPrincipalKind::Service,

@@ -120,19 +120,9 @@ impl VideoRecordWorkerClient {
         I: Serialize,
         O: DeserializeOwned,
     {
-        if user_id <= 0 {
-            return Err(AppError::InvalidArgument("user_id 必须大于 0".into()));
-        }
-        self.command_with_principal(
-            WorkerPrincipal {
-                kind: WorkerPrincipalKind::User,
-                subject: user_id.to_string(),
-            },
-            project_id,
-            operation,
-            payload,
-        )
-        .await
+        let principal = a4n_worker_client::user_principal(user_id)?;
+        self.command_with_principal(principal, project_id, operation, payload)
+            .await
     }
 
     fn service_principal() -> WorkerPrincipal {

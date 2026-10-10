@@ -62,14 +62,7 @@ impl ProjectCollaborationWorkerClient {
         I: serde::Serialize,
         O: serde::de::DeserializeOwned,
     {
-        let principal = if user_id > 0 {
-            WorkerPrincipal {
-                kind: WorkerPrincipalKind::User,
-                subject: user_id.to_string(),
-            }
-        } else {
-            return Err(AppError::InvalidArgument("user_id 必须大于 0".into()));
-        };
+        let principal = a4n_worker_client::user_principal(user_id)?;
         let request_id = uuid::Uuid::new_v4().to_string();
         let request = WorkerEnvelope {
             schema_version: WORKER_SCHEMA_VERSION,

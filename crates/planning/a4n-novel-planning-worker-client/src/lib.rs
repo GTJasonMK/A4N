@@ -49,11 +49,11 @@ impl NovelPlanningWorkerClient {
         I: serde::Serialize,
         O: serde::de::DeserializeOwned,
     {
-        if user_id <= 0 || project_id <= 0 {
-            return Err(AppError::InvalidArgument(
-                "user_id 和 project_id 必须大于 0".into(),
-            ));
-        }
+        let principal = a4n_worker_client::user_principal_with_scope(
+            user_id,
+            Some(project_id),
+            "user_id 和 project_id 必须大于 0",
+        )?;
         if target_revision.is_some_and(|revision| revision <= 0) {
             return Err(AppError::InvalidArgument(
                 "expected_revision 必须大于 0".into(),
@@ -64,10 +64,7 @@ impl NovelPlanningWorkerClient {
             schema_version: WORKER_SCHEMA_VERSION,
             request_id: request_id.clone(),
             trace_id: request_id,
-            principal: WorkerPrincipal {
-                kind: WorkerPrincipalKind::User,
-                subject: user_id.to_string(),
-            },
+            principal,
             operation_id: operation_id.to_string(),
             idempotency_key: uuid::Uuid::new_v4().to_string(),
             project_id: Some(project_id),

@@ -34,7 +34,7 @@ impl ConfigReadApplicationPort for ConfigReadWorkerClient {
         config_id: i64,
     ) -> Result<Option<String>, AppError> {
         self.command(
-            Self::user(caller_user_id)?,
+            a4n_worker_client::user_principal(caller_user_id)?,
             CONFIG_READ_SAVED_API_KEY_OPERATION,
             SavedApiKeyInput {
                 kind: Self::kind(kind),
@@ -50,7 +50,7 @@ impl ConfigReadApplicationPort for ConfigReadWorkerClient {
         config_id: i64,
     ) -> Result<LlmProviderConfig, AppError> {
         self.command(
-            Self::user(caller_user_id)?,
+            a4n_worker_client::user_principal(caller_user_id)?,
             CONFIG_READ_LLM_CONNECTIVITY_OPERATION,
             ConfigIdInput { config_id },
         )
@@ -63,7 +63,7 @@ impl ConfigReadApplicationPort for ConfigReadWorkerClient {
         config_id: i64,
     ) -> Result<EmbeddingProviderConfig, AppError> {
         self.command(
-            Self::user(caller_user_id)?,
+            a4n_worker_client::user_principal(caller_user_id)?,
             CONFIG_READ_EMBEDDING_CONNECTIVITY_OPERATION,
             ConfigIdInput { config_id },
         )
@@ -76,7 +76,7 @@ impl ConfigReadApplicationPort for ConfigReadWorkerClient {
         config_id: i64,
     ) -> Result<ImageConfigForConnectivityTest, AppError> {
         self.command(
-            Self::user(caller_user_id)?,
+            a4n_worker_client::user_principal(caller_user_id)?,
             CONFIG_READ_IMAGE_CONNECTIVITY_OPERATION,
             ConfigIdInput { config_id },
         )
