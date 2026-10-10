@@ -452,6 +452,13 @@
 - 新增测试覆盖有效文件读取、绝对路径拒绝以及 `../` 越出数据根拒绝。验证：`cargo check --all-targets --locked --offline -p a4n-orchestrator` 通过；`cargo test --no-run --locked --offline -p a4n-orchestrator --lib` 编译通过；WebGAL 定向测试 1/1 通过；`cargo fmt --all -- --check`、`git diff --check` 通过。
 - 记录文件：`crates/host/a4n-orchestrator/src/galgame/webgal_export_application.rs`，共享实现位于 `crates/platform/a4n-storage/src/files/paths.rs`。
 
+### R-55：复核 Sidecar 多根输出路径解析
+
+- 类别：核验后保留，不改代码。
+- BFS 覆盖：从 `AppState::{data_media_file_ref,temp_media_file_ref}` 追到 `media_file_ref` 的 14 个实际输入/输出调用，覆盖 Canvas frame、video generation、assembly、thumbnail、trim、scrub-frame 和 audio probe；比较现有 `canonicalize_path_in_data_dir` 与 `deletable_data_file_path` 的输入合同、目标是否必须存在、文件类型约束及 symlink 处理。
+- Sidecar helper 根据 `MediaRoot` 在 Data 与 Temp 根之间选择，并接收 `Path`（含绝对路径），对已存在目标 canonicalize、对尚不存在的输出文件 canonicalize 父目录后返回目标引用；`canonicalize_path_in_data_dir` 只接受已存在目标，`deletable_data_file_path` 仅服务数据根的相对字符串、要求已存在对象为普通文件，缺失时返回 `None`。它们的边界无法在不增加泛化 API 或改变接受规则的前提下合并。
+- 记录范围：`crates/host/a4n-runtime/src/state/app/sidecar_media.rs`、所有 `data_media_file_ref`/`temp_media_file_ref` 调用点、`a4n-storage::canonicalize_path_in_data_dir` 与 `deletable_data_file_path`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
