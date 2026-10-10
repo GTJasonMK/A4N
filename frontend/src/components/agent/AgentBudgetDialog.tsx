@@ -3,6 +3,7 @@ import { controlAgentRun, getAgentRun, type AgentBudget, type AgentRunView } fro
 import { extractErrorMessage } from "../../api";
 import { useI18n } from "../../i18n";
 import { parseApiTimestampMs } from "../../utils/timestamp";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 import { BookButton } from "../ui/BookButton";
 import { BookInput } from "../ui/BookInput";
 import { LoadingSpinner } from "../ui/LoadingSpinner";
@@ -51,7 +52,7 @@ export function AgentBudgetDialog({ run, onClose, onResumed }: {
       for (const field of FIELDS) {
         const limit = next.budget[field];
         if (limit == null) continue;
-        if (!Number.isSafeInteger(limit) || limit <= 0 || limit > maximumFor(field)) throw new Error(t("agent.budget.invalid"));
+        if (!isPositiveSafeInteger(limit) || limit > maximumFor(field)) throw new Error(t("agent.budget.invalid"));
         const used = usageFor(next, field);
         const increase = used >= limit || (field === "max_tokens" && run.waiting_reason === "budget");
         draft[field] = String(increase ? Math.min(maximumFor(field), Math.max(limit * 2, used + limit)) : limit);
@@ -64,7 +65,7 @@ export function AgentBudgetDialog({ run, onClose, onResumed }: {
   }, [run.id, run.budget_limiting_run_id, run.waiting_reason, t]);
 
   const invalidFields = new Set(FIELDS.filter((field) => values[field] != null && (
-    !Number.isSafeInteger(Number(values[field])) || Number(values[field]) <= 0
+    !isPositiveSafeInteger(Number(values[field]))
     || Number(values[field]) < (owner?.budget[field] ?? 0) || Number(values[field]) > maximumFor(field)
   )));
   const invalid = invalidFields.size > 0;

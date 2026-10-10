@@ -9,6 +9,7 @@ import type { VideoForm } from "./types";
 import type { VideoProviderDescriptor } from "../../../api/generated/config";
 import type { MessageKey, MessageParams } from "../../../i18n";
 import { clonePricingPlan, DEFAULT_PRICING_PLAN } from "../config-list/pricing";
+import { isPositiveSafeInteger, isSafeInteger } from "../../../utils/numberRange";
 
 type Translate = (key: MessageKey, params?: MessageParams) => string;
 
@@ -231,7 +232,7 @@ function validateDurationCapability(
 
 function parseVideoSize(value: string, t: Translate): { width: number; height: number } {
   const [width, height] = value.split("x").map((part) => Number(part));
-  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) {
+  if (!isPositiveSafeInteger(width) || !isPositiveSafeInteger(height)) {
     throw new Error(t("settingsForm.videoSizeInvalid", { value }));
   }
   return { width, height };
@@ -256,7 +257,7 @@ function ensureIntRangeOrNull(
 
 function intRangeError(value: string, label: string, min: number, max: number, t: Translate): string | null {
   const number = Number(value);
-  if (!value.trim() || !Number.isInteger(number) || number < min || number > max) {
+  if (!value.trim() || !isSafeInteger(number) || number < min || number > max) {
     return t("settingsForm.rangeInvalid", { label, min, max });
   }
   return null;
@@ -279,7 +280,7 @@ function parseSupportedDurationsText(form: VideoForm, t: Translate): number[] {
     .filter(Boolean)
     .map((part) => {
       const value = Number(part);
-      if (!Number.isInteger(value)) {
+      if (!isSafeInteger(value)) {
         throw new Error(t("settingsForm.fixedInteger", { value: part }));
       }
       return value;
@@ -291,7 +292,7 @@ function validateSupportedDurations(values: number[], label: string, t: Translat
   const seen = new Set<number>();
   const supported: number[] = [];
   values.forEach((value, index) => {
-    if (!Number.isInteger(value)) {
+    if (!isSafeInteger(value)) {
       throw new Error(t("settingsForm.fixedOnlyIntegers", { label, value: String(value) }));
     }
     if (value < 1 || value > 60) {

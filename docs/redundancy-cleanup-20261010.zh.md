@@ -703,6 +703,14 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 静态搜索确认本批文件不再直接复制 `Number.isSafeInteger`/`Number.isInteger` 组合；0、时间轴位置和其他不同合同仍保留原实现。
 - 记录范围：`frontend/src/pages/novel-detail/{ObjectProfilesTab,SceneProfilesTab,ChaptersTab,FactFeedbackPanel}.tsx`、`frontend/src/pages/character-detail-dialog/DeletionManager.tsx`。
 
+### R-86：统一设置与视频选项安全整数底层校验
+
+- 类别：重复边界校验。
+- BFS 覆盖：从图像/LLM/视频设置表单、Agent 预算编辑、Web Search/Web Fetch 保存入口和视频章节选项解析器出发，追踪到配置 input、提交 API、时长范围判定和视频生成调用；CodeGraph/static search 核对各字段的 0/正数/范围语义。
+- 6 个文件改用 `isSafeInteger`/`isPositiveSafeInteger` 作为底层整数谓词，保留每个模块自己的尺寸上限、预算上限、时长 1–60 范围、上下文/输出比较、重复值和错误文案。未新增兜底、兼容或回退逻辑。
+- 静态搜索确认本批设置与视频选项文件不再直接使用 `Number.isSafeInteger`/`Number.isInteger`；允许 0 或有独立时间轴合同的路径未被强行合并。
+- 记录范围：`frontend/src/pages/settings/{image/imageConfigUtils.ts,llm/llmConfigUtils.ts,video/videoConfigUtils.ts,WebSearchConfigPanel.tsx}`、`frontend/src/components/agent/AgentBudgetDialog.tsx`、`frontend/src/pages/novel-detail/video/videoOptionUtils.ts`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

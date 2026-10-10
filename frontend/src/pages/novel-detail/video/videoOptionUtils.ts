@@ -7,6 +7,7 @@ import {
   type VideoGenConfig,
 } from "../../../api/video";
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
+import { isSafeInteger } from "../../../utils/numberRange";
 import type { ChapterRow } from "../shared";
 import type { MessageTranslator } from "../../../i18n";
 import {
@@ -59,13 +60,13 @@ export const promptLengthError = (
 
 export const parseNumberInput = (value: unknown): number | null => {
   if (typeof value === "number") {
-    return Number.isSafeInteger(value) ? value : null;
+    return isSafeInteger(value) ? value : null;
   }
   if (typeof value !== "string") return null;
   const text = value.trim();
   if (!/^\d+$/.test(text)) return null;
   const parsed = Number(text);
-  return Number.isSafeInteger(parsed) ? parsed : null;
+  return isSafeInteger(parsed) ? parsed : null;
 };
 
 const strictVideoOptionInt = (
@@ -76,7 +77,7 @@ const strictVideoOptionInt = (
   t: MessageTranslator,
 ): number => {
   if (
-    !Number.isInteger(value) ||
+    !isSafeInteger(value) ||
     (value as number) < min ||
     (value as number) > max
   ) {
@@ -94,7 +95,7 @@ const durationOptionsValidationError = (
     !Array.isArray(options) ||
     options.some(
       (duration) =>
-        !Number.isInteger(duration) || duration < 1 || duration > 60,
+        !isSafeInteger(duration) || duration < 1 || duration > 60,
     )
   ) {
     return t("video.chapter.invalidDurationOptionsValues");
@@ -126,7 +127,7 @@ export const videoOptionsValidationError = (
     return t("video.chapter.invalidVideoOptionType", { field: "style" });
   }
   if (
-    !Number.isInteger(options.durationSecs) ||
+    !isSafeInteger(options.durationSecs) ||
     options.durationSecs < 1 ||
     options.durationSecs > 60
   ) {
@@ -297,7 +298,7 @@ export function isDurationAllowed(
   limits: VideoDurationLimits,
 ): boolean {
   if (limits.configError) return false;
-  if (!Number.isInteger(durationSecs)) return false;
+  if (!isSafeInteger(durationSecs)) return false;
   if (
     durationSecs < limits.minDurationSecs ||
     durationSecs > limits.maxDurationSecs

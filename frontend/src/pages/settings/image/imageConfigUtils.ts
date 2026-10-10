@@ -5,6 +5,7 @@ import type { ImageForm } from "./types";
 import type { MessageKey, MessageParams } from "../../../i18n";
 import type { ImageProviderDescriptor } from "../../../api/generated/config";
 import { clonePricingPlan, DEFAULT_PRICING_PLAN } from "../config-list/pricing";
+import { isPositiveSafeInteger } from "../../../utils/numberRange";
 
 type Translate = (key: MessageKey, params?: MessageParams) => string;
 
@@ -45,10 +46,8 @@ export function validateImageForm(
     const width = Number(size.width);
     const height = Number(size.height);
     if (
-      !Number.isSafeInteger(width) ||
-      !Number.isSafeInteger(height) ||
-      width <= 0 ||
-      height <= 0 ||
+      !isPositiveSafeInteger(width) ||
+      !isPositiveSafeInteger(height) ||
       width > 2147483647 ||
       height > 2147483647
     ) {
@@ -60,7 +59,7 @@ export function validateImageForm(
     if (seen.has(key)) return t("settingsForm.imageSizeDuplicate", { value: key });
     seen.add(key);
   }
-  if (!Number.isInteger(Number(form.max_concurrent)) || Number(form.max_concurrent) <= 0) {
+  if (!isPositiveSafeInteger(Number(form.max_concurrent))) {
     return t("settingsForm.concurrencyPositive");
   }
   return null;
