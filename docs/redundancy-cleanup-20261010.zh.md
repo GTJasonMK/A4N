@@ -504,6 +504,20 @@
 - `canonical_root` 每次只由 `MediaRoots::new` 调用，用于两个配置根各自的初始化；它在 canonicalize 后验证根本身是目录。`canonicalize_path_in_data_dir` 用于验证单个存在目标是否位于 data root 内，不负责根目录必须为目录，也不接受 temp root 语义。把 storage 平台依赖引入 media render core，或为 7 行标准库检查新建跨层公共 API，均会扩大依赖而不消除同一业务实现。
 - 记录范围：`crates/media/a4n-media-render-core/src/paths.rs`、`MediaRoots` 的 worker callers、`crates/platform/a4n-storage/src/files/paths.rs::canonicalize_path_in_data_dir`。
 
+### R-62：复核数值环境配置解析
+
+- 类别：核验后保留，不改代码。
+- BFS 覆盖：从 Sidecar `optional_u32`/`u64_or_default` 追到 metrics restart count 与日志保留配置；从 Runtime `env_i32_or` 追到 public image/LLM/video baseline 配置。逐项比较缺失默认、整数符号范围、解析错误类型、调用者依赖和下游值语义。
+- Sidecar 两处解析分别要求非负 `u32`、`u64` 并返回 `anyhow`；Runtime parser 支持完整 `i32`，缺失时返回调用方 fallback 并使用 `AppError::ConfigError`。即使底层都调用 `parse`，范围和配置 owner 不同，抽公共 parser 会引入类型参数/trait 或重分类错误，保留。
+- 记录范围：`crates/process/a4n-sidecar-bootstrap/src/environment.rs`、Sidecar metrics/logging callers、`crates/host/a4n-runtime/src/baseline_configs/env.rs` 与 image/LLM/video callers。
+
+### R-63：复核 Sidecar 日志目录环境解析
+
+- 类别：核验后保留，不改代码。
+- BFS 覆盖：从 Sidecar 私有 `optional_non_empty_path` 追到唯一生产 caller `a4n-sidecar-bootstrap::logging::init`，再追到服务日志目录创建、轮转文件和周期清理；对照 `a4n-config::optional_non_empty_env_path` 的 9 个 Host/Runtime 调用及直接依赖关系。
+- `var_os`、未设置/空白和 `PathBuf` 语义相同，但 Sidecar parser 是 process bootstrap 本地 anyhow 环境模块；依赖 `a4n-config` 会把 Host 配置错误 owner 及其依赖引入所有 Sidecar bootstrap 消费者。该局部读取只有一处调用，提取新低层 crate 成本更高，故保留。
+- 记录范围：`crates/process/a4n-sidecar-bootstrap/{src/environment.rs,src/logging.rs,Cargo.toml}`、`crates/config/a4n-config/src/lib.rs` 与其 Host/Runtime callers。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
