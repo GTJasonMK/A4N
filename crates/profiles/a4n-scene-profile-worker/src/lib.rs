@@ -247,10 +247,6 @@ fn validate_request<T: serde::Serialize>(
     )
 }
 
-fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    request.principal.require_user_id()
-}
-
 fn scene_profile_summary(
     profile: &a4n_domain::scene_profile::SceneProfileRecord,
     occurrence_count: u64,

@@ -73,7 +73,7 @@ impl WorkerState {
         request: WorkerEnvelope<ListWorkflowRunsInput>,
     ) -> Result<Vec<a4n_api_contract::workflow::WorkflowRunSummary>, WorkerFailure> {
         validate_request(&request, WORKFLOW_READ_LIST_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         if !(1..=200).contains(&input.limit) {
             return Err(WorkerFailure::invalid_request("limit 必须在 1 到 200 之间"));
@@ -134,7 +134,7 @@ impl WorkerState {
     ) -> Result<a4n_api_contract::workflow::WorkflowRunDetailSummary, WorkerFailure> {
         validate_request(&request, WORKFLOW_READ_DETAIL_OPERATION)?;
         WorkerFailure::require_positive_id(request.payload.workflow_run_id, "workflow_run_id")?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let detail = a4n_db::workflow::workflow_run_detail(
             self.database.executor(),
             a4n_db::workflow::GetWorkflowRunInput {

@@ -16,7 +16,7 @@ impl WorkerState {
     ) -> Result<VideoSegmentPlanDraftSummary, WorkerFailure> {
         validate_request(&request, VIDEO_PROMPT_DRAFT_LOAD_OPERATION)?;
         validate_required_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         WorkerFailure::require_positive_id(input.project_id, "project_id")?;
         WorkerFailure::require_positive_id(input.chapter_id, "chapter_id")?;
@@ -161,7 +161,7 @@ impl WorkerState {
     ) -> Result<Vec<ChapterVideoPromptSummary>, WorkerFailure> {
         validate_request(&request, VIDEO_PROMPT_LIST_OPERATION)?;
         validate_required_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         WorkerFailure::require_positive_id(input.project_id, "project_id")?;
         WorkerFailure::require_positive_id(input.chapter_id, "chapter_id")?;

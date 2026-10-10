@@ -240,10 +240,6 @@ fn ensure_scope_project<T>(
     Ok(())
 }
 
-fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    request.principal.require_user_id()
-}
-
 fn object_profile_summary(
     profile: &ObjectProfileRecord,
     generated_image_count: i64,

@@ -6,7 +6,7 @@ impl WorkerState {
         request: WorkerEnvelope<ListSnapshotsInput>,
     ) -> Result<Vec<SnapshotReferenceSummary>, WorkerFailure> {
         validate_request(&request, CHARACTER_TIMELINE_SNAPSHOTS_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         validate_snapshot_range(input.start_chapter, input.end_chapter)?;
         profile_for_editor(&self.database, user_id, input.profile_id).await?;
@@ -26,7 +26,7 @@ impl WorkerState {
         request: WorkerEnvelope<GetProfileStateAtChapterInput>,
     ) -> Result<ProfileChapterStateSummary, WorkerFailure> {
         validate_request(&request, CHARACTER_TIMELINE_STATE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         if input.chapter_number <= 0 {
             return Err(WorkerFailure::invalid_request("章节号必须大于 0"));
@@ -50,7 +50,7 @@ impl WorkerState {
         request: WorkerEnvelope<GetSnapshotInput>,
     ) -> Result<SnapshotSummary, WorkerFailure> {
         validate_request(&request, CHARACTER_TIMELINE_SNAPSHOT_BY_HASH_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let content_hash = request.payload.content_hash.trim();
         if content_hash.is_empty() {
             return Err(WorkerFailure::invalid_request("快照哈希不能为空"));
@@ -82,7 +82,7 @@ impl WorkerState {
         request: WorkerEnvelope<AttributeHistoryInput>,
     ) -> Result<Vec<AttributeEventSummary>, WorkerFailure> {
         validate_request(&request, CHARACTER_TIMELINE_ATTRIBUTE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         profile_for_editor(&self.database, user_id, input.profile_id).await?;
         let events = a4n_db::character::attribute_history(
@@ -107,7 +107,7 @@ impl WorkerState {
         request: WorkerEnvelope<ListBehaviorsInput>,
     ) -> Result<Vec<BehaviorRecordSummary>, WorkerFailure> {
         validate_request(&request, CHARACTER_TIMELINE_BEHAVIOR_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         if input.limit.is_some_and(|limit| !(1..=100).contains(&limit)) {
             return Err(WorkerFailure::invalid_request(
@@ -132,7 +132,7 @@ impl WorkerState {
         request: WorkerEnvelope<ListDeletionMarksInput>,
     ) -> Result<Vec<DeletionMarkSummary>, WorkerFailure> {
         validate_request(&request, CHARACTER_TIMELINE_DELETION_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         profile_for_editor(&self.database, user_id, input.profile_id).await?;
         let marks = a4n_db::character::deletion_mark_records_by_profile(
@@ -151,7 +151,7 @@ impl WorkerState {
         request: WorkerEnvelope<CheckProfileSyncConflictInput>,
     ) -> Result<ProfileSyncConflictSummary, WorkerFailure> {
         validate_request(&request, CHARACTER_TIMELINE_SYNC_CONFLICT_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let profile =
             profile_for_editor(&self.database, user_id, request.payload.profile_id).await?;
         let chapters = a4n_db::project::character_sync_chapter_records(
@@ -189,7 +189,7 @@ impl WorkerState {
         request: WorkerEnvelope<DiffProfileChaptersInput>,
     ) -> Result<SnapshotDeltaSummary, WorkerFailure> {
         validate_request(&request, CHARACTER_TIMELINE_DIFF_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         if input.from_chapter < 0 {
             return Err(WorkerFailure::invalid_request("起始章节号不能小于 0"));

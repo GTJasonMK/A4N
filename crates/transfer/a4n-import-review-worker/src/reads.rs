@@ -6,7 +6,7 @@ impl WorkerState {
         request: WorkerEnvelope<ImportProjectReviewsInput>,
     ) -> Result<Vec<ImportReviewSummary>, WorkerFailure> {
         validate_request(&request, IMPORT_REVIEW_LIST_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.parse_user_id()?;
         let project_id = request.require_project_scope(request.payload.project_id)?;
         verify_editor(&self.database, project_id, user_id).await?;
         a4n_db::import_review::import_reviews_by_project(self.database.connection(), project_id)
@@ -23,7 +23,7 @@ impl WorkerState {
         request: WorkerEnvelope<CheckImportDedupInput>,
     ) -> Result<a4n_import_review_worker_contract::DedupResult, WorkerFailure> {
         validate_request(&request, IMPORT_REVIEW_DEDUP_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.parse_user_id()?;
         let project_id = request.require_project_scope(request.payload.project_id)?;
         let input = request.payload;
         verify_editor(&self.database, project_id, user_id).await?;

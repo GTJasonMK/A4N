@@ -6,7 +6,7 @@ impl WorkerState {
         request: WorkerEnvelope<ProfileIdInput>,
     ) -> Result<i64, WorkerFailure> {
         validate_request(&request, CHARACTER_OVERVIEW_PROJECT_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let profile_id =
             WorkerFailure::require_positive_id(request.payload.profile_id, "profile_id")?;
         let profile =
@@ -23,7 +23,7 @@ impl WorkerState {
         request: WorkerEnvelope<ListProfilesInput>,
     ) -> Result<Vec<CharacterProfileSummary>, WorkerFailure> {
         validate_request(&request, CHARACTER_OVERVIEW_LIST_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let project_id =
             WorkerFailure::require_positive_id(request.payload.project_id, "project_id")?;
         verify_project_editor(&self.database, project_id, user_id).await?;
@@ -45,7 +45,7 @@ impl WorkerState {
         request: WorkerEnvelope<NamedProfileInput>,
     ) -> Result<Option<Value>, WorkerFailure> {
         validate_request(&request, CHARACTER_OVERVIEW_ARC_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         verify_project_editor(&self.database, input.project_id, user_id).await?;
         let profile = named_profile(&self.database, input.project_id, &input.name).await?;
@@ -57,7 +57,7 @@ impl WorkerState {
         request: WorkerEnvelope<NamedProfileInput>,
     ) -> Result<Option<Value>, WorkerFailure> {
         validate_request(&request, CHARACTER_OVERVIEW_VOICE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         verify_project_editor(&self.database, input.project_id, user_id).await?;
         let profile = named_profile(&self.database, input.project_id, &input.name).await?;

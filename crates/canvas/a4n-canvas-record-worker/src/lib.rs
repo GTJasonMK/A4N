@@ -341,10 +341,6 @@ fn validate_request<T: Serialize>(
     )
 }
 
-fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    request.principal.require_user_id()
-}
-
 fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
     use a4n_db::collaboration::CollaborationDbError;
     match error {

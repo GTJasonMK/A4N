@@ -6,7 +6,7 @@ impl WorkerState {
         request: WorkerEnvelope<CreateInput>,
     ) -> Result<ForeshadowingMutationResult, WorkerFailure> {
         validate_request(&request, FORESHADOWING_CREATE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let project_id = request.require_project_scope(request.payload.0.project_id)?;
         let input = request.payload.0;
         self.verify_editor(project_id, user_id).await?;
@@ -28,7 +28,7 @@ impl WorkerState {
         request: WorkerEnvelope<UpdateInput>,
     ) -> Result<ForeshadowingMutationResult, WorkerFailure> {
         validate_request(&request, FORESHADOWING_UPDATE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let project_id = request.require_project_scope(request.payload.0.project_id)?;
         let input = request.payload.0;
         self.verify_editor(project_id, user_id).await?;
@@ -52,7 +52,7 @@ impl WorkerState {
         request: WorkerEnvelope<DeleteInput>,
     ) -> Result<ForeshadowingMutationResult, WorkerFailure> {
         validate_request(&request, FORESHADOWING_DELETE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let project_id = request.require_project_scope(request.payload.0.project_id)?;
         let input = request.payload.0;
         self.verify_editor(project_id, user_id).await?;

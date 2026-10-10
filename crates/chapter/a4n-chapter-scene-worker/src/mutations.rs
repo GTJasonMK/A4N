@@ -9,7 +9,7 @@ impl WorkerState {
         request: WorkerEnvelope<UpdateSceneInput>,
     ) -> Result<ChapterSceneSummary, WorkerFailure> {
         validate_request(&request, CHAPTER_SCENE_UPDATE_OPERATION)?;
-        let actor_user_id = user_id(&request)?;
+        let actor_user_id = request.principal.require_user_id()?;
         let input = request.payload;
         let scene =
             a4n_db::project::chapter_scene_by_id(self.database.connection(), input.scene_id)
@@ -68,7 +68,7 @@ impl WorkerState {
         .ok_or_else(|| {
             WorkerFailure::not_found(format!("场景不存在: scene_id={}", request.payload.scene_id))
         })?;
-        self.authorized_chapter(scene.chapter_id, user_id(&request)?)
+        self.authorized_chapter(scene.chapter_id, request.principal.require_user_id()?)
             .await?;
         let rows =
             a4n_db::project::delete_chapter_scene_record(self.database.connection(), scene.id)
@@ -97,7 +97,12 @@ impl WorkerState {
         )
         .await
         .map_err(write_error)?;
-        verify_project_editor(&self.database, project_id, user_id(&request)?).await?;
+        verify_project_editor(
+            &self.database,
+            project_id,
+            request.principal.require_user_id()?,
+        )
+        .await?;
         let scenes = a4n_db::project::reorder_chapter_scene_records(
             self.database.connection(),
             &request.payload.order,

@@ -6,7 +6,7 @@ impl WorkerState {
         request: WorkerEnvelope<ThemeUserInput>,
     ) -> Result<Vec<ThemeSummary>, WorkerFailure> {
         validate_request(&request, THEME_LIST_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let themes =
             a4n_db::config::list_themes_visible_to_user(self.database.connection(), user_id)
                 .await
@@ -41,7 +41,7 @@ impl WorkerState {
         request: WorkerEnvelope<ThemeIdInput>,
     ) -> Result<ThemeSummary, WorkerFailure> {
         validate_request(&request, THEME_EXPORT_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let theme = self
             .require_theme_access(user_id, request.payload.theme_id)
             .await?;
@@ -56,7 +56,7 @@ impl WorkerState {
         request: WorkerEnvelope<ThemeIdInput>,
     ) -> Result<Vec<ThemeResourceRecord>, WorkerFailure> {
         validate_request(&request, THEME_RESOURCES_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let theme = self
             .require_theme_access(user_id, request.payload.theme_id)
             .await?;
@@ -71,7 +71,7 @@ impl WorkerState {
         request: WorkerEnvelope<ThemeUserInput>,
     ) -> Result<ThemePreferenceSummary, WorkerFailure> {
         validate_request(&request, THEME_PREFERENCE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let preference = a4n_db::config::theme_preference(self.database.connection(), user_id)
             .await
             .map_err(app_error)?;

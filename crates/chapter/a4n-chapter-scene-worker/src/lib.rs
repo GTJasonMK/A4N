@@ -214,10 +214,6 @@ fn validate_request<T: serde::Serialize>(
     request.validate_worker_command(operation, CHAPTER_SCENE_WORKER_ID, "chapter scene worker")
 }
 
-fn user_id<T: serde::Serialize>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    request.principal.require_user_id()
-}
-
 async fn verify_project_editor(
     database: &DbHandle,
     project_id: i64,

@@ -378,10 +378,6 @@ fn normalize_name(name: String) -> Result<String, WorkerFailure> {
     Ok(name)
 }
 
-fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    request.principal.require_user_id()
-}
-
 fn app_error(error: AppError) -> WorkerFailure {
     match error {
         AppError::InvalidArgument(message) => WorkerFailure::invalid_request(message),

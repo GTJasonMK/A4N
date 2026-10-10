@@ -6,7 +6,7 @@ impl WorkerState {
         request: WorkerEnvelope<ProjectIdInput>,
     ) -> Result<ProjectSummary, WorkerFailure> {
         validate_request(&request, PROJECT_READ_SUMMARY_OPERATION, false)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.parse_user_id()?;
         let project_id = request.require_project_scope(request.payload.project_id)?;
         let project =
             a4n_db::project::project_summary_by_id_record(self.database.connection(), project_id)
@@ -21,7 +21,7 @@ impl WorkerState {
         request: WorkerEnvelope<ProjectListInput>,
     ) -> Result<PaginatedProjects, WorkerFailure> {
         validate_request(&request, PROJECT_READ_LIST_OPERATION, false)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.parse_user_id()?;
         let input = request.payload;
         let offset = a4n_domain::project::project_list_offset(input.page, input.page_size)
             .map_err(WorkerFailure::invalid_request)?;

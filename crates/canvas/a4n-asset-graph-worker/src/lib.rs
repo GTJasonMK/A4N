@@ -199,10 +199,6 @@ fn validate_request<T: serde::Serialize>(
     request.validate_worker_command(operation, ASSET_GRAPH_WORKER_ID, "asset graph worker")
 }
 
-fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    request.principal.require_user_id()
-}
-
 fn app_error(error: AppError) -> WorkerFailure {
     match error {
         AppError::InvalidArgument(message) => WorkerFailure::invalid_request(message),

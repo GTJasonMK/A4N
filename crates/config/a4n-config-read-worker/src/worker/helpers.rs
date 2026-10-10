@@ -13,7 +13,7 @@ async fn validate_admin_request<T: serde::Serialize>(
     database: &DbHandle,
 ) -> Result<(), WorkerFailure> {
     validate_user_request(request, operation)?;
-    require_admin(database, user_id(request)?).await
+    require_admin(database, request.principal.parse_user_id()?).await
 }
 
 fn validate_request<T: serde::Serialize>(
@@ -43,10 +43,6 @@ fn validate_user_request<T: serde::Serialize>(
         return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
     }
     Ok(())
-}
-
-fn user_id<T: serde::Serialize>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    request.principal.parse_user_id()
 }
 
 fn positive_id(value: i64) -> Result<i64, WorkerFailure> {

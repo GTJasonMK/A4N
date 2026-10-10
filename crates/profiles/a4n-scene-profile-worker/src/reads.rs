@@ -8,7 +8,7 @@ impl WorkerState {
         validate_request(&request, SCENE_PROFILE_LIST_OPERATION)?;
         let project_id = request.payload.project_id;
         request.require_project_scope(project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         a4n_db::collaboration::verify_project_permission(
             self.database.connection(),
             project_id,

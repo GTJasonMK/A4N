@@ -210,10 +210,6 @@ fn validate_request<T: serde::Serialize>(
     Ok(())
 }
 
-fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    request.principal.parse_user_id()
-}
-
 fn service_principal<T>(request: &WorkerEnvelope<T>) -> Result<(), WorkerFailure> {
     if request.principal.subject != "runtime" {
         return Err(WorkerFailure::unauthorized(

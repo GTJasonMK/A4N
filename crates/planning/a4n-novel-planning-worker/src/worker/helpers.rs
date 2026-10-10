@@ -74,10 +74,6 @@ pub(super) fn validate_optional_target_revision<T>(
     }
 }
 
-pub(super) fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    request.principal.require_user_id()
-}
-
 pub(super) async fn resolve_source(
     state: &WorkerState,
     project_id: i64,

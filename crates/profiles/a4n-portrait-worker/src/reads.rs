@@ -7,7 +7,7 @@ impl WorkerState {
     ) -> Result<Vec<PortraitSummary>, WorkerFailure> {
         validate_request(&request, PORTRAIT_LIST_OPERATION)?;
         let project_id = request.require_project_scope(request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_permission(
             self,
             project_id,
@@ -37,7 +37,7 @@ impl WorkerState {
             a4n_db::project::protagonist_profile_project_id(self.database.connection(), profile_id)
                 .await
                 .map_err(project_error)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_permission(
             self,
             project_id,
@@ -72,7 +72,7 @@ impl WorkerState {
         else {
             return Ok(PortraitLookupResponse { portrait: None });
         };
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_permission(
             self,
             portrait.project_id,
@@ -91,7 +91,7 @@ impl WorkerState {
     ) -> Result<Vec<PortraitGenerationSeedWire>, WorkerFailure> {
         validate_request(&request, PORTRAIT_MISSING_SEEDS_OPERATION)?;
         let project_id = request.require_project_scope(request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_permission(
             self,
             project_id,

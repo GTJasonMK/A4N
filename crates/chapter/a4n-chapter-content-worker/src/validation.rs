@@ -11,9 +11,3 @@ pub(super) fn validate_request<T: serde::Serialize>(
         "chapter content worker",
     )
 }
-
-pub(super) fn user_id<T: serde::Serialize>(
-    request: &WorkerEnvelope<T>,
-) -> Result<i64, WorkerFailure> {
-    request.principal.require_user_id()
-}

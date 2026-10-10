@@ -346,10 +346,6 @@ fn validate_request<T: serde::Serialize>(
     request.validate_worker_command(operation, VIDEO_RECORD_WORKER_ID, "video record worker")
 }
 
-fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    request.principal.require_user_id()
-}
-
 fn validate_required_project_scope<T>(
     request: &WorkerEnvelope<T>,
     project_id: i64,

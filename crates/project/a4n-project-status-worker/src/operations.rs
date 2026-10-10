@@ -7,7 +7,7 @@ impl WorkerState {
     ) -> Result<ProjectStatusMachineSummary, WorkerFailure> {
         validate_request(&request, PROJECT_STATUS_MACHINE_OPERATION)?;
         let project_id = request.require_project_scope(request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_viewer(&self.database, project_id, user_id).await?;
         let (_, current_status) = self
             .project_with_status(project_id, "读取项目状态机")
@@ -45,7 +45,7 @@ impl WorkerState {
     ) -> Result<ProjectRollbackPreview, WorkerFailure> {
         validate_request(&request, PROJECT_STATUS_PREVIEW_ROLLBACK_OPERATION)?;
         request.require_project_scope(request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         let project_id = input.project_id;
         verify_viewer(&self.database, project_id, user_id).await?;
@@ -83,7 +83,7 @@ impl WorkerState {
     ) -> Result<ProjectStatusMutationResult, WorkerFailure> {
         validate_request(&request, PROJECT_STATUS_FORWARD_OPERATION)?;
         let project_id = request.require_project_scope(request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_permission(
             &self.database,
             project_id,
@@ -136,7 +136,7 @@ impl WorkerState {
     ) -> Result<ProjectStatusMutationResult, WorkerFailure> {
         validate_request(&request, PROJECT_STATUS_ROLLBACK_OPERATION)?;
         let project_id = request.require_project_scope(request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_permission(
             &self.database,
             project_id,

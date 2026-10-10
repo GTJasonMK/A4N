@@ -8,7 +8,10 @@ impl WorkerState {
     ) -> Result<Vec<ChapterSceneSummary>, WorkerFailure> {
         validate_request(&request, CHAPTER_SCENE_LIST_OPERATION)?;
         let chapter = self
-            .authorized_chapter(request.payload.chapter_id, user_id(&request)?)
+            .authorized_chapter(
+                request.payload.chapter_id,
+                request.principal.require_user_id()?,
+            )
             .await?;
         let scenes =
             a4n_db::project::chapter_scenes_by_chapter(self.database.connection(), chapter.id)

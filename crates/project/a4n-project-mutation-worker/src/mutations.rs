@@ -6,7 +6,7 @@ impl WorkerState {
         request: WorkerEnvelope<CreateProjectInput>,
     ) -> Result<ProjectSummary, WorkerFailure> {
         unscoped_request(&request, PROJECT_MUTATION_CREATE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         let title = required_text(&input.title, "项目标题")
             .map_err(WorkerFailure::invalid_request)?
@@ -38,7 +38,7 @@ impl WorkerState {
             PROJECT_MUTATION_CREATE_DERIVED_OPERATION,
             request.payload.root_project_id,
         )?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         let title = required_text(&input.title, "项目标题")
             .map_err(WorkerFailure::invalid_request)?
@@ -82,7 +82,7 @@ impl WorkerState {
         request: WorkerEnvelope<CreateCanvasProjectInput>,
     ) -> Result<ProjectSummary, WorkerFailure> {
         unscoped_request(&request, PROJECT_MUTATION_CREATE_CANVAS_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         let title = required_text(&input.title, "项目标题")
             .map_err(WorkerFailure::invalid_request)?
@@ -103,7 +103,7 @@ impl WorkerState {
         request: WorkerEnvelope<CreateStandaloneComicProjectInput>,
     ) -> Result<ProjectSummary, WorkerFailure> {
         unscoped_request(&request, PROJECT_MUTATION_CREATE_STANDALONE_COMIC_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         let title = required_text(&input.title, "项目标题")
             .map_err(WorkerFailure::invalid_request)?
@@ -128,7 +128,7 @@ impl WorkerState {
             PROJECT_MUTATION_UPDATE_OPERATION,
             request.payload.project_id,
         )?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         a4n_db::collaboration::verify_project_permission(
             self.database.connection(),
             project_id,

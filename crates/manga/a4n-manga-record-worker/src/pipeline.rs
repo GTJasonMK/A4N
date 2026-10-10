@@ -21,7 +21,7 @@ use a4n_worker_contract::WorkerEnvelope;
 
 use super::{
     WorkerState,
-    access::{user_id, verify_manga_viewer},
+    access::verify_manga_viewer,
     protocol::{
         WorkerFailure, manga_error, project_family_error, validate_request, workflow_error,
     },
@@ -33,7 +33,7 @@ impl WorkerState {
         request: WorkerEnvelope<MangaChapterInput>,
     ) -> Result<MangaPipelineStatusSummary, WorkerFailure> {
         validate_request(&request, MANGA_PIPELINE_STATUS_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         let mut statuses = self
             .pipeline_statuses_for(user_id, input.project_id, &[input.chapter_id])
@@ -48,7 +48,7 @@ impl WorkerState {
         request: WorkerEnvelope<MangaPipelineStatusesInput>,
     ) -> Result<Vec<MangaPipelineStatusSummary>, WorkerFailure> {
         validate_request(&request, MANGA_PIPELINE_STATUSES_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         self.pipeline_statuses_for(user_id, input.project_id, &input.chapter_ids)
             .await

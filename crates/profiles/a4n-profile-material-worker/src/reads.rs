@@ -7,7 +7,7 @@ impl WorkerState {
     ) -> Result<Vec<ProfileMaterialGroup>, WorkerFailure> {
         validate_request(&request, PROFILE_MATERIAL_LIST_OPERATION)?;
         request.require_project_scope(request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         if input.image_limit_per_profile == 0 || input.image_limit_per_profile > MAX_IMAGE_LIMIT {
             return Err(WorkerFailure::invalid_request(

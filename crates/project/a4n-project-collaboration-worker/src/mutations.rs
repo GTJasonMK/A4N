@@ -13,7 +13,7 @@ impl WorkerState {
         if request.payload.username_or_email.trim().is_empty() {
             return Err(WorkerFailure::invalid_request("username_or_email 不能为空"));
         }
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         a4n_db::collaboration::invite_project_member(
             self.database.connection(),
             user_id,
@@ -34,7 +34,7 @@ impl WorkerState {
         WorkerFailure::require_positive_id(request.payload.invite_id, "invite_id")?;
         a4n_db::collaboration::accept_project_invite(
             self.database.connection(),
-            user_id(&request)?,
+            request.principal.require_user_id()?,
             request.payload.invite_id,
         )
         .await
@@ -50,7 +50,7 @@ impl WorkerState {
         WorkerFailure::require_positive_id(request.payload.invite_id, "invite_id")?;
         a4n_db::collaboration::decline_project_invite(
             self.database.connection(),
-            user_id(&request)?,
+            request.principal.require_user_id()?,
             request.payload.invite_id,
         )
         .await
@@ -70,7 +70,7 @@ impl WorkerState {
         WorkerFailure::require_positive_id(request.payload.invite_id, "invite_id")?;
         a4n_db::collaboration::revoke_project_invite(
             self.database.connection(),
-            user_id(&request)?,
+            request.principal.require_user_id()?,
             project_id,
             request.payload.invite_id,
         )
@@ -91,7 +91,7 @@ impl WorkerState {
         WorkerFailure::require_positive_id(request.payload.member_user_id, "member_user_id")?;
         a4n_db::collaboration::update_project_member_role(
             self.database.connection(),
-            user_id(&request)?,
+            request.principal.require_user_id()?,
             project_id,
             request.payload.member_user_id,
             request.payload.role,
@@ -113,7 +113,7 @@ impl WorkerState {
         WorkerFailure::require_positive_id(request.payload.member_user_id, "member_user_id")?;
         a4n_db::collaboration::remove_project_member(
             self.database.connection(),
-            user_id(&request)?,
+            request.principal.require_user_id()?,
             project_id,
             request.payload.member_user_id,
         )
@@ -133,7 +133,7 @@ impl WorkerState {
         )?;
         a4n_db::collaboration::leave_project(
             self.database.connection(),
-            user_id(&request)?,
+            request.principal.require_user_id()?,
             project_id,
         )
         .await

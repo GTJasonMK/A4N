@@ -508,10 +508,6 @@ fn validate_request<T: serde::Serialize>(
     )
 }
 
-fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    request.principal.require_user_id()
-}
-
 async fn verify_project_editor(
     database: &DbHandle,
     project_id: i64,

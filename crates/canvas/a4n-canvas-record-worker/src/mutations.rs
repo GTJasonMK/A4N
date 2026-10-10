@@ -9,7 +9,7 @@ impl WorkerState {
         &self,
         request: WorkerEnvelope<SaveCanvasGraphInput>,
     ) -> Result<CanvasGraphSaveResult, WorkerFailure> {
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         request.require_project_scope(request.payload.project_id)?;
         self.verify_project_permission(
             request.payload.project_id,
@@ -37,7 +37,7 @@ impl WorkerState {
         &self,
         request: WorkerEnvelope<EditCanvasGraphInput>,
     ) -> Result<CanvasGraphEditResult, WorkerFailure> {
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         request.require_project_scope(request.payload.project_id)?;
         self.verify_project_permission(
             request.payload.project_id,
@@ -117,7 +117,7 @@ impl WorkerState {
         &self,
         request: WorkerEnvelope<SaveCanvasTextAssetInput>,
     ) -> Result<CanvasTextAssetSummary, WorkerFailure> {
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         request.require_project_scope(request.payload.project_id)?;
         self.verify_project_permission(
             request.payload.project_id,

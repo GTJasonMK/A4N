@@ -200,6 +200,14 @@
 - 调用顺序仍在任何数据库查询或权限检查前执行；可选 project scope 仍允许 `None`。未增加默认值、兼容转换或回退路径。
 - 记录文件：`crates/profiles/a4n-portrait-worker/{src/reads.rs,src/mutations.rs}`、`crates/workflow/a4n-workflow-read-worker/src/reads.rs`、`crates/transfer/a4n-import-review-worker/src/lib.rs`、`crates/theme/a4n-theme-read-worker/src/lib.rs`。
 
+### R-23：删除 Worker user principal 直通包装
+
+- 类别：重复身份访问包装和无效转发层。
+- BFS 覆盖：从 27 个 Worker route/command 入口沿 `user_id` 调用追到 `WorkerPrincipal::{require_user_id,parse_user_id}`，再到权限查询或 Admin/Service 资格判断；静态搜索确认 27 个本地函数均只有单条直通表达式，生产调用合计 145 处。保留 Artifact Media 的 `actor_user_id`，其解析结果使用字符串错误，并同时验证 user/project pair 和 request kind，不是直通包装。
+- 删除 27 个 `user_id` wrapper，调用端直接使用 principal 合同方法；保留 5 个 parse-only Worker 对 Service numeric subject 的原有接受行为，其余仍要求 User principal。删除随 Chapter Content helper 删除后无用的导入；Manga access 模块仍保留真实的权限 helper。
+- 首轮 workspace all-targets 检查捕获 4 个残留 import；移除后重新对 27 个消费 Worker 执行 all-targets 检查通过。身份语义、检查顺序、错误码和消息均不变。
+- 记录文件：27 个 Worker 内部 `user_id` wrapper/调用点；不包含拥有独立行为的 Artifact Media `actor_user_id`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -224,6 +232,7 @@
 - R-20 `cargo test --locked --offline -p a4n-worker-contract --lib`：52/52 通过；`cargo check --all-targets --locked --offline` 覆盖 6 个受影响 Worker package，通过且无警告。
 - R-21 `cargo check --all-targets --locked --offline -p a4n-chapter-content-worker-client -p a4n-chapter-scene-worker-client`：通过且无警告。
 - R-22 `cargo check --all-targets --locked --offline -p a4n-portrait-worker -p a4n-theme-read-worker -p a4n-import-review-worker -p a4n-workflow-read-worker`：通过且无警告。
+- R-23 `cargo check --workspace --all-targets --locked --offline`：首轮暴露 Chapter Content 与 Manga worker 的残余 import；修复后，`cargo check --all-targets --locked --offline -p a4n-asset-graph-worker -p a4n-canvas-record-worker -p a4n-chapter-content-worker -p a4n-chapter-scene-worker -p a4n-config-read-worker -p a4n-inspiration-worker -p a4n-manga-record-worker -p a4n-blueprint-worker -p a4n-foreshadowing-worker -p a4n-novel-planning-worker -p a4n-outline-worker -p a4n-character-mutation-worker -p a4n-object-profile-worker -p a4n-portrait-worker -p a4n-profile-material-worker -p a4n-scene-profile-worker -p a4n-project-access-worker -p a4n-project-collaboration-worker -p a4n-project-mutation-worker -p a4n-project-read-worker -p a4n-project-status-worker -p a4n-source-snapshot-worker -p a4n-theme-read-worker -p a4n-import-review-worker -p a4n-video-record-worker -p a4n-workflow-read-worker`：通过且无警告。全 workspace 首轮的 client unused `WorkerPrincipal` import 警告是既有代码，不属于本次改动；此检查不作为通过结果记录。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-contract --lib`：49/49 通过，覆盖共享失败构造、响应元数据、请求身份校验、principal ID 边界和 wire 序列化。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-client --lib`：14/14 通过，覆盖共享传输与响应错误映射。
 - `cargo check --locked --offline -p a4n-worker-runtime -p a4n-service-manager -p a4n-server -p a4n-tauri`：通过，验证共享父进程退出信号 helper 的三个集成点和更新后的 lockfile。

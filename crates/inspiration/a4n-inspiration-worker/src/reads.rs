@@ -6,7 +6,7 @@ impl WorkerState {
         request: WorkerEnvelope<InspirationHistoryInput>,
     ) -> Result<Vec<InspirationMessageSummary>, WorkerFailure> {
         validate_request(&request)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.parse_user_id()?;
         let project_id = request.require_project_scope(request.payload.project_id)?;
         a4n_db::collaboration::verify_project_permission(
             self.database.connection(),

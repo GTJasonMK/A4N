@@ -6,7 +6,7 @@ impl WorkerState {
         request: WorkerEnvelope<ProjectAccessInput>,
     ) -> Result<ProjectAccessRole, WorkerFailure> {
         validate_user_request(&request, PROJECT_ACCESS_VERIFY_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.parse_user_id()?;
         let project_id = request.require_project_scope(request.payload.project_id)?;
         a4n_db::collaboration::verify_project_permission(
             self.database.connection(),
@@ -23,7 +23,7 @@ impl WorkerState {
         request: WorkerEnvelope<ProjectAccessBatchInput>,
     ) -> Result<(), WorkerFailure> {
         validate_user_request(&request, PROJECT_ACCESS_VERIFY_BATCH_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.parse_user_id()?;
         a4n_db::collaboration::verify_project_permissions(
             self.database.connection(),
             &request.payload.project_ids,
@@ -39,7 +39,7 @@ impl WorkerState {
         request: WorkerEnvelope<ProjectAccessBatchInput>,
     ) -> Result<Vec<i64>, WorkerFailure> {
         validate_user_request(&request, PROJECT_ACCESS_FILTER_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.parse_user_id()?;
         a4n_db::collaboration::project_ids_with_permission(
             self.database.connection(),
             &request.payload.project_ids,

@@ -1,7 +1,6 @@
 use a4n_db::DbHandle;
 use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_worker_contract::WORKER_AUTH_HEADER;
-use a4n_worker_contract::WorkerEnvelope;
 use axum::http::HeaderMap;
 
 use super::{WorkerState, protocol::WorkerFailure};
@@ -38,10 +37,4 @@ pub(super) async fn verify_manga_viewer(
     .await
     .map(|_| ())
     .map_err(super::protocol::collaboration_error)
-}
-
-pub(super) fn user_id<T: serde::Serialize>(
-    request: &WorkerEnvelope<T>,
-) -> Result<i64, WorkerFailure> {
-    request.principal.require_user_id()
 }

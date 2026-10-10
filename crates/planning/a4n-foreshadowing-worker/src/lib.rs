@@ -221,10 +221,6 @@ fn validate_request<T: serde::Serialize>(
     )
 }
 
-fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    request.principal.require_user_id()
-}
-
 fn foreshadowing_summary(
     record: ForeshadowingIndexRecord,
 ) -> Result<ForeshadowingSummary, WorkerFailure> {

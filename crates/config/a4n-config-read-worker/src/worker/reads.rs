@@ -31,7 +31,7 @@ impl WorkerState {
         request: WorkerEnvelope<SavedApiKeyInput>,
     ) -> Result<Option<String>, WorkerFailure> {
         validate_user_request(&request, CONFIG_READ_SAVED_API_KEY_OPERATION)?;
-        require_admin(&self.database, user_id(&request)?).await?;
+        require_admin(&self.database, request.principal.parse_user_id()?).await?;
         let config_id = positive_id(request.payload.config_id)?;
         let value = match request.payload.kind {
             ConfigProviderKindWire::Llm => {
@@ -72,7 +72,7 @@ impl WorkerState {
         request: WorkerEnvelope<ConfigIdInput>,
     ) -> Result<LlmProviderConfig, WorkerFailure> {
         validate_user_request(&request, CONFIG_READ_LLM_CONNECTIVITY_OPERATION)?;
-        require_admin(&self.database, user_id(&request)?).await?;
+        require_admin(&self.database, request.principal.parse_user_id()?).await?;
         let model = a4n_db::config::read_records::llm_config_read_record_by_id(
             self.database.executor(),
             positive_id(request.payload.config_id)?,
@@ -87,7 +87,7 @@ impl WorkerState {
         request: WorkerEnvelope<ConfigIdInput>,
     ) -> Result<EmbeddingProviderConfig, WorkerFailure> {
         validate_user_request(&request, CONFIG_READ_EMBEDDING_CONNECTIVITY_OPERATION)?;
-        require_admin(&self.database, user_id(&request)?).await?;
+        require_admin(&self.database, request.principal.parse_user_id()?).await?;
         let model = a4n_db::config::read_records::embedding_config_read_record_by_id(
             self.database.executor(),
             positive_id(request.payload.config_id)?,
@@ -102,7 +102,7 @@ impl WorkerState {
         request: WorkerEnvelope<ConfigIdInput>,
     ) -> Result<ImageConfigForConnectivityTest, WorkerFailure> {
         validate_user_request(&request, CONFIG_READ_IMAGE_CONNECTIVITY_OPERATION)?;
-        require_admin(&self.database, user_id(&request)?).await?;
+        require_admin(&self.database, request.principal.parse_user_id()?).await?;
         let model = a4n_db::config::read_records::image_config_read_record_by_id(
             self.database.executor(),
             positive_id(request.payload.config_id)?,

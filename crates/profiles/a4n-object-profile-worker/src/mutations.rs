@@ -6,7 +6,7 @@ impl WorkerState {
         request: WorkerEnvelope<CreateObjectProfileInput>,
     ) -> Result<ObjectProfileMutationResponse, WorkerFailure> {
         validate_request(&request, OBJECT_PROFILE_CREATE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let project_id = request.require_project_scope(request.payload.project_id)?;
         a4n_db::collaboration::verify_project_permission(
             self.database.connection(),
@@ -39,7 +39,7 @@ impl WorkerState {
         request: WorkerEnvelope<UpdateObjectProfileInput>,
     ) -> Result<ObjectProfileMutationResponse, WorkerFailure> {
         validate_request(&request, OBJECT_PROFILE_UPDATE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let existing = a4n_db::asset::object_profile_record_by_id(
             self.database.connection(),
             request.payload.object_profile_id,
@@ -90,7 +90,7 @@ impl WorkerState {
         request: WorkerEnvelope<DeleteObjectProfileInput>,
     ) -> Result<ObjectProfileDeleteResponse, WorkerFailure> {
         validate_request(&request, OBJECT_PROFILE_DELETE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let existing = a4n_db::asset::object_profile_record_by_id(
             self.database.connection(),
             request.payload.object_profile_id,

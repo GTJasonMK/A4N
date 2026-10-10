@@ -7,7 +7,7 @@ impl WorkerState {
     ) -> Result<ProfileMaterialSetPrimaryResponse, WorkerFailure> {
         validate_request(&request, PROFILE_MATERIAL_SET_PRIMARY_OPERATION)?;
         request.require_project_scope(request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         verify_permission(
             &self.database,

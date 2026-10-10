@@ -356,10 +356,6 @@ fn validate_project_scope<T>(
     Ok(())
 }
 
-fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    request.principal.require_user_id()
-}
-
 fn ensure_project_ownership(
     actual_project_id: i64,
     expected_project_id: i64,

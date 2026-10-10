@@ -207,10 +207,6 @@ fn validate_request<T: serde::Serialize>(
     request.validate_worker_command(operation, BLUEPRINT_WORKER_ID, "blueprint worker")
 }
 
-fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    request.principal.require_user_id()
-}
-
 fn project_mutation_error(error: a4n_db::project::ProjectMutationError) -> WorkerFailure {
     match error {
         a4n_db::project::ProjectMutationError::InvalidArgument(message) => {

@@ -6,7 +6,7 @@ impl WorkerState {
         request: WorkerEnvelope<CreateInput>,
     ) -> Result<CharacterProfileCreateResult, WorkerFailure> {
         validate_request(&request, CHARACTER_MUTATION_CREATE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload.0;
         verify_project_editor(&self.database, input.project_id, user_id).await?;
         let profile = a4n_db::character::create_profile_domain_record(
@@ -28,7 +28,7 @@ impl WorkerState {
         request: WorkerEnvelope<UpdateInput>,
     ) -> Result<CharacterProfileMutationResult, WorkerFailure> {
         validate_request(&request, CHARACTER_MUTATION_UPDATE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload.0;
         verify_project_editor(&self.database, input.project_id, user_id).await?;
         let profile = a4n_db::character::update_initial_profile_record(
@@ -51,7 +51,7 @@ impl WorkerState {
         request: WorkerEnvelope<ProfileIdInput>,
     ) -> Result<CharacterProfileDeleteResult, WorkerFailure> {
         validate_request(&request, CHARACTER_MUTATION_DELETE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let profile =
             profile_for_editor(&self.database, user_id, request.payload.profile_id).await?;
         a4n_db::character::delete_profile_cascade_transaction(

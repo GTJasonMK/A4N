@@ -242,10 +242,6 @@ fn validate_request<T: serde::Serialize>(
     request.validate_worker_command(operation, PROJECT_STATUS_WORKER_ID, "project status worker")
 }
 
-fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    request.principal.require_user_id()
-}
-
 fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
     match error {
         a4n_db::collaboration::CollaborationDbError::InvalidArgument(message) => {

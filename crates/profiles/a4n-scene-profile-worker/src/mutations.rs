@@ -8,7 +8,7 @@ impl WorkerState {
         validate_request(&request, SCENE_PROFILE_SYNC_RECORDS_OPERATION)?;
         let project_id = request.payload.project_id;
         request.require_project_scope(project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         self.verify_editor(project_id, user_id).await?;
         let SceneProfileSyncRecordsInput {
             project_id,
@@ -40,7 +40,7 @@ impl WorkerState {
         validate_request(&request, SCENE_PROFILE_CREATE_OPERATION)?;
         let project_id = request.payload.project_id;
         validate_optional_project_scope(request.project_id, project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         self.verify_editor(project_id, user_id).await?;
         let record = a4n_domain::scene_profile::normalize_scene_profile_record_input(
             request.payload.profile,
@@ -67,7 +67,7 @@ impl WorkerState {
         request: WorkerEnvelope<UpdateSceneProfileInput>,
     ) -> Result<SceneProfileMutationWorkerResult, WorkerFailure> {
         validate_request(&request, SCENE_PROFILE_UPDATE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let existing = a4n_db::scene_profile::scene_profile_by_id(
             self.database.connection(),
             request.payload.scene_profile_id,
@@ -120,7 +120,7 @@ impl WorkerState {
         request: WorkerEnvelope<DeleteSceneProfileInput>,
     ) -> Result<SceneProfileDeleteWorkerResult, WorkerFailure> {
         validate_request(&request, SCENE_PROFILE_DELETE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let existing = a4n_db::scene_profile::scene_profile_by_id(
             self.database.connection(),
             request.payload.scene_profile_id,

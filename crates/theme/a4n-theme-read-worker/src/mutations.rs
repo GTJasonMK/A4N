@@ -6,7 +6,7 @@ impl WorkerState {
         request: WorkerEnvelope<a4n_api_contract::theme::CreateThemeInput>,
     ) -> Result<ThemeSummary, WorkerFailure> {
         validate_request(&request, THEME_CREATE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         let name = normalize_name(input.name)?;
         a4n_domain::validate_theme_document(&input.document)
@@ -31,7 +31,7 @@ impl WorkerState {
         request: WorkerEnvelope<ThemeUpdateInput>,
     ) -> Result<ThemeSummary, WorkerFailure> {
         validate_request(&request, THEME_UPDATE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let theme = self
             .require_owner(user_id, request.payload.theme_id)
             .await?;
@@ -50,7 +50,7 @@ impl WorkerState {
         request: WorkerEnvelope<ThemeIdInput>,
     ) -> Result<(), WorkerFailure> {
         validate_request(&request, THEME_DELETE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let theme = self
             .require_owner(user_id, request.payload.theme_id)
             .await?;
@@ -72,7 +72,7 @@ impl WorkerState {
         request: WorkerEnvelope<ThemeIdInput>,
     ) -> Result<ThemeSummary, WorkerFailure> {
         validate_request(&request, THEME_ACTIVATE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         self.require_owner(user_id, request.payload.theme_id)
             .await?;
         self.summary(
@@ -88,7 +88,7 @@ impl WorkerState {
         request: WorkerEnvelope<a4n_api_contract::theme::CreateThemeInput>,
     ) -> Result<ThemeSummary, WorkerFailure> {
         validate_request(&request, THEME_IMPORT_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         self.require_user(user_id).await?;
         let mut input = request.payload;
         let base = normalize_name(input.name.clone())?;
@@ -133,7 +133,7 @@ impl WorkerState {
         request: WorkerEnvelope<a4n_api_contract::theme::PersistThemeResourceInput>,
     ) -> Result<ThemeResourceRecord, WorkerFailure> {
         validate_request(&request, THEME_RESOURCE_UPSERT_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         self.require_owner(user_id, input.theme_id).await?;
         let resource = a4n_db::config::upsert_theme_resource(
@@ -156,7 +156,7 @@ impl WorkerState {
         request: WorkerEnvelope<ResourceIdInput>,
     ) -> Result<ThemeResourceRecord, WorkerFailure> {
         validate_request(&request, THEME_RESOURCE_DELETE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let resource = a4n_db::config::theme_resource_by_id(
             self.database.connection(),
             request.payload.resource_id,
@@ -177,7 +177,7 @@ impl WorkerState {
         request: WorkerEnvelope<a4n_api_contract::theme::UpdateThemePreferenceInput>,
     ) -> Result<ThemePreferenceSummary, WorkerFailure> {
         validate_request(&request, THEME_PREFERENCE_UPDATE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         self.require_user(user_id).await?;
         let preference = a4n_db::config::upsert_theme_preference(
             self.database.connection(),

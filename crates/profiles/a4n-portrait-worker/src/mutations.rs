@@ -15,7 +15,7 @@ impl WorkerState {
         .await
         .map_err(database_error)?
         .ok_or_else(|| WorkerFailure::not_found("立绘不存在"))?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_permission(
             self,
             portrait.project_id,

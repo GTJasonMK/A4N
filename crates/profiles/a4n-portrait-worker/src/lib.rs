@@ -259,10 +259,6 @@ fn validate_request<T: serde::Serialize>(
     request.validate_worker_command(operation, PORTRAIT_WORKER_ID, "portrait worker")
 }
 
-fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    request.principal.require_user_id()
-}
-
 fn portrait_profile(profile: &CharacterProfileRecord) -> CharacterPortraitProfile {
     CharacterPortraitProfile {
         name: profile.name.clone(),

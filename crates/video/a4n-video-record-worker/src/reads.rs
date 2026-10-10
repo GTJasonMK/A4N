@@ -19,7 +19,7 @@ impl WorkerState {
         verify_project_permission(
             &self.database,
             video.project_id,
-            user_id(&request)?,
+            request.principal.require_user_id()?,
             ProjectAccessRole::Editor,
         )
         .await?;
@@ -32,7 +32,7 @@ impl WorkerState {
     ) -> Result<Vec<GeneratedVideoSummary>, WorkerFailure> {
         validate_request(&request, VIDEO_RECORD_LIST_OPERATION)?;
         validate_required_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         WorkerFailure::require_positive_id(input.project_id, "project_id")?;
         WorkerFailure::require_positive_id(input.chapter_id, "chapter_id")?;
@@ -66,7 +66,7 @@ impl WorkerState {
     ) -> Result<Vec<GeneratedImageSummary>, WorkerFailure> {
         validate_request(&request, VIDEO_RECORD_REFERENCE_IMAGES_OPERATION)?;
         validate_required_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         WorkerFailure::require_positive_id(input.project_id, "project_id")?;
         if let Some(chapter_id) = input.chapter_id {
