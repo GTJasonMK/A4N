@@ -9,7 +9,7 @@ pub use a4n_api_contract::workflow::{
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
 pub const WORKFLOW_READ_WORKER_ID: &str = "workflow-read-worker";
-pub const WORKFLOW_READ_WORKER_CONTRACT_VERSION: &str = "workflow-read-v2";
+pub const WORKFLOW_READ_WORKER_CONTRACT_VERSION: &str = "workflow-read-v3";
 pub const WORKFLOW_READ_LIST_OPERATION: &str = "workflow.read.list";
 pub const WORKFLOW_READ_DETAIL_OPERATION: &str = "workflow.read.detail";
 pub const WORKFLOW_READ_SUMMARY_OPERATION: &str = "workflow.read.summary";
@@ -71,6 +71,7 @@ mod tests {
             payload: GetWorkflowRunInput {
                 workflow_run_id: 9,
                 include_generation_runs: true,
+                include_generation_run_payloads: None,
             },
         };
         request.validate().expect("workflow read request validates");

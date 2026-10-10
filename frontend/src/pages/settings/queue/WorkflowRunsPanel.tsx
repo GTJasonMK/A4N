@@ -94,7 +94,7 @@ const WorkflowRunRow: React.FC<{
     setDetail(undefined);
     setDetailError(null);
     setDetailLoading(true);
-    void getWorkflowRunDetail(run.id, true).then((next) => {
+    void getWorkflowRunDetail(run.id, true, false).then((next) => {
       if (current) setDetail(next);
     }).catch((error: unknown) => {
       if (current) setDetailError({ reason: error });
@@ -318,9 +318,9 @@ const WorkflowRunDiagnostics: React.FC<{ detail: WorkflowRunDetailSummary }> = (
           {detail.generation_runs.map((run) => (
             <div key={run.id} className="break-all">
               {t("settingsQueue.generation", { id: run.id })} · {run.call_key ?? run.step_key} · {run.status}
-              {run.raw_response_json != null ? ` · ${t("settingsQueue.raw")}` : ""}
-              {run.parsed_output_json != null ? ` · ${t("settingsQueue.parsed")}` : ""}
-              {run.validation_json != null ? ` · ${t("settingsQueue.validated")}` : ""}
+              {run.has_raw_response ? ` · ${t("settingsQueue.raw")}` : ""}
+              {run.has_parsed_output ? ` · ${t("settingsQueue.parsed")}` : ""}
+              {run.has_validation ? ` · ${t("settingsQueue.validated")}` : ""}
             </div>
           ))}
         </div>

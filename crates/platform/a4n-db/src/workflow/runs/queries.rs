@@ -45,7 +45,13 @@ pub async fn workflow_run_detail(
     let checkpoints_result = workflow_checkpoints(db, workflow_run_id);
     let generation_runs_result = async {
         if input.include_generation_runs {
-            generation_runs_for_workflow(db, workflow_run_id, 300).await
+            generation_runs_for_workflow(
+                db,
+                workflow_run_id,
+                300,
+                input.include_generation_run_payloads.unwrap_or(true),
+            )
+            .await
         } else {
             Ok(Vec::new())
         }
@@ -473,9 +479,10 @@ async fn generation_runs_for_workflow(
     db: &impl crate::DbExecutor,
     workflow_run_id: i64,
     limit: u64,
+    include_payloads: bool,
 ) -> Result<Vec<GenerationRunSummary>, WorkflowReadError> {
     validate_positive_i64(workflow_run_id, "workflow_run_id")?;
-    generation_run::Entity::find()
+    let mut query = generation_run::Entity::find()
         .select_only()
         .column(generation_run::Column::Id)
         .column(generation_run::Column::WorkflowRunId)
@@ -488,16 +495,54 @@ async fn generation_runs_for_workflow(
         .column(generation_run::Column::Model)
         .column(generation_run::Column::Status)
         .column(generation_run::Column::InputFingerprintSha256)
-        .column(generation_run::Column::InputFingerprintJson)
-        .column(generation_run::Column::RawResponseJson)
-        .column(generation_run::Column::ParsedOutputJson)
-        .column(generation_run::Column::ValidationJson)
-        .column(generation_run::Column::ArtifactRefsJson)
         .column(generation_run::Column::Attempt)
         .column(generation_run::Column::ResponseSummaryJson)
         .column(generation_run::Column::ErrorMessage)
         .column(generation_run::Column::CreatedAt)
-        .column(generation_run::Column::CompletedAt)
+        .column(generation_run::Column::CompletedAt);
+    if include_payloads {
+        query = query
+            .column(generation_run::Column::InputFingerprintJson)
+            .column(generation_run::Column::RawResponseJson)
+            .column(generation_run::Column::ParsedOutputJson)
+            .column(generation_run::Column::ValidationJson)
+            .column(generation_run::Column::ArtifactRefsJson);
+    } else {
+        query = query
+            .column_as(
+                sea_orm::sea_query::Expr::cust("NULL::jsonb"),
+                "input_fingerprint_json",
+            )
+            .column_as(
+                sea_orm::sea_query::Expr::cust("NULL::jsonb"),
+                "raw_response_json",
+            )
+            .column_as(
+                sea_orm::sea_query::Expr::cust("NULL::jsonb"),
+                "parsed_output_json",
+            )
+            .column_as(
+                sea_orm::sea_query::Expr::cust("NULL::jsonb"),
+                "validation_json",
+            )
+            .column_as(
+                sea_orm::sea_query::Expr::cust("NULL::jsonb"),
+                "artifact_refs_json",
+            );
+    }
+    query
+        .column_as(
+            sea_orm::sea_query::Expr::cust("raw_response_json IS NOT NULL"),
+            "has_raw_response",
+        )
+        .column_as(
+            sea_orm::sea_query::Expr::cust("parsed_output_json IS NOT NULL"),
+            "has_parsed_output",
+        )
+        .column_as(
+            sea_orm::sea_query::Expr::cust("validation_json IS NOT NULL"),
+            "has_validation",
+        )
         .filter(generation_run::Column::WorkflowRunId.eq(workflow_run_id))
         .order_by_asc(generation_run::Column::CreatedAt)
         .limit(limit.clamp(1, 500))

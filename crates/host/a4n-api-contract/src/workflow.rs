@@ -102,6 +102,9 @@ pub struct GenerationRunSummary {
     pub parsed_output_json: Option<Value>,
     pub validation_json: Option<Value>,
     pub artifact_refs_json: Option<Value>,
+    pub has_raw_response: bool,
+    pub has_parsed_output: bool,
+    pub has_validation: bool,
     pub attempt: i32,
     pub response_summary_json: Option<Value>,
     pub error_message: Option<String>,
@@ -149,6 +152,8 @@ pub struct ListWorkflowRunsInput {
 pub struct GetWorkflowRunInput {
     pub workflow_run_id: i64,
     pub include_generation_runs: bool,
+    /// Defaults to full payloads for existing clients that omit this field.
+    pub include_generation_run_payloads: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -309,4 +314,20 @@ pub trait WorkflowReadApplicationPort: Send + Sync {
         user_id: i64,
         input: GetWorkflowRunInput,
     ) -> Result<WorkflowRunDetailSummary, a4n_error::AppError>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::GetWorkflowRunInput;
+
+    #[test]
+    fn legacy_workflow_detail_request_defaults_to_full_generation_payloads() {
+        let input: GetWorkflowRunInput = serde_json::from_value(serde_json::json!({
+            "workflow_run_id": 7,
+            "include_generation_runs": true
+        }))
+        .expect("legacy workflow detail input must deserialize");
+
+        assert_eq!(input.include_generation_run_payloads, None);
+    }
 }

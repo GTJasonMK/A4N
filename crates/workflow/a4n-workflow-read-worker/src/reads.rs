@@ -142,6 +142,7 @@ impl WorkerState {
             a4n_db::workflow::GetWorkflowRunInput {
                 workflow_run_id: request.payload.workflow_run_id,
                 include_generation_runs: request.payload.include_generation_runs,
+                include_generation_run_payloads: request.payload.include_generation_run_payloads,
             },
         )
         .await

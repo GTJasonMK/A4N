@@ -554,6 +554,7 @@ async fn workflow_snapshot_survives_progress_reads_updates_and_cancellation() {
             GetWorkflowRunInput {
                 workflow_run_id: run.id,
                 include_generation_runs: false,
+                include_generation_run_payloads: None,
             },
         )
         .await
@@ -1056,6 +1057,7 @@ async fn workflow_detail_returns_generation_run_summary_fields() {
         GetWorkflowRunInput {
             workflow_run_id: workflow.id,
             include_generation_runs: true,
+            include_generation_run_payloads: None,
         },
     )
     .await
@@ -1066,6 +1068,33 @@ async fn workflow_detail_returns_generation_run_summary_fields() {
     assert_eq!(summary.workflow_run_id, Some(workflow.id));
     assert_eq!(summary.workflow, "detail-workflow");
     assert_eq!(summary.parsed_output_json, Some(json!({"value": 1})));
+    assert!(summary.has_raw_response);
+    assert!(summary.has_parsed_output);
+    assert!(summary.has_validation);
     assert_eq!(summary.response_summary_json, Some(json!({"output": "ok"})));
     assert_eq!(summary.attempt, 2);
+
+    let light_detail = workflow_run_detail(
+        &db,
+        GetWorkflowRunInput {
+            workflow_run_id: workflow.id,
+            include_generation_runs: true,
+            include_generation_run_payloads: Some(false),
+        },
+    )
+    .await
+    .expect("light workflow detail query must succeed");
+    let light_summary = &light_detail.generation_runs[0];
+    assert_eq!(light_summary.id, generation.id);
+    assert_eq!(light_summary.raw_response_json, None);
+    assert_eq!(light_summary.parsed_output_json, None);
+    assert_eq!(light_summary.validation_json, None);
+    assert_eq!(light_summary.artifact_refs_json, None);
+    assert!(light_summary.has_raw_response);
+    assert!(light_summary.has_parsed_output);
+    assert!(light_summary.has_validation);
+    assert_eq!(
+        light_summary.response_summary_json,
+        summary.response_summary_json
+    );
 }

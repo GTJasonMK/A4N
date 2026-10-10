@@ -4888,6 +4888,9 @@ export interface GenerationRunSummary {
   completed_at: string | null;
   created_at: string;
   error_message: string | null;
+  has_parsed_output: boolean;
+  has_raw_response: boolean;
+  has_validation: boolean;
   id: number;
   input_fingerprint_json: unknown;
   input_fingerprint_sha256: string | null;
@@ -4932,6 +4935,7 @@ export interface ListWorkflowRunsInput {
 }
 
 export interface GetWorkflowRunInput {
+  include_generation_run_payloads?: boolean | null;
   include_generation_runs: boolean;
   workflow_run_id: number;
 }

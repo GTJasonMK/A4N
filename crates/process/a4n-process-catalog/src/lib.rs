@@ -472,8 +472,8 @@ mod tests {
             .expect("workflow read worker entry");
         assert_eq!(workflow_read.kind, ProcessKind::StatefulWorker);
         assert_eq!(workflow_read.binary, "a4n-workflow-read-worker");
-        assert_eq!(workflow_read.contract_version, "workflow-read-v2");
-        assert_eq!(workflow_read.capability_version, "workflow-read-v2");
+        assert_eq!(workflow_read.contract_version, "workflow-read-v3");
+        assert_eq!(workflow_read.capability_version, "workflow-read-v3");
         assert_eq!(workflow_read.addr_env, "A4N_WORKFLOW_READ_WORKER_ADDR");
         assert_eq!(workflow_read.default_addr, "127.0.0.1:47672");
         assert_eq!(
