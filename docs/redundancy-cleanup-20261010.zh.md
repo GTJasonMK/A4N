@@ -780,6 +780,14 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 新增 shared helper 的 server/system/local 回归测试；相关 Vitest 15/15、生产构建和 `git diff --check` 通过。未新增兜底、兼容或回退逻辑。
 - 记录范围：`frontend/src/api/config/shared.ts`、`frontend/src/api/config/{llm.ts,embedding.ts}`、`frontend/src/api/image/configs.ts`、`frontend/src/api/config/shared.test.ts`。
 
+### R-96：删除 Rust DB workflow/Agent 同类型转换
+
+- 类别：显性冗余表达式。
+- BFS 覆盖：从 Clippy 报告的 `AgentInboxRecord` tuple 返回和 Workflow summary wrapper 追到 `a4n-db` delegation、workflow mutation/claim/progress callers，核对 `WorkflowWriteError` 与返回记录的具体类型。
+- 删除 2 个同类型 `AgentInboxRecord.into()` 和 12 个同类型 `WorkflowWriteError::from`；保留 summary projection 的真实错误转换以及其它 ActiveModel/跨层转换。行为、错误类型和 API 合同不变。
+- 验证：目标 workspace Clippy 完成；本批警告消失，剩余仅参数数量、类型体积和既有结构提示；`cargo fmt --all -- --check`、`git diff --check` 通过。
+- 记录范围：`crates/platform/a4n-db/src/agent/delegations.rs`、`crates/platform/a4n-db/src/workflow/runs/{claim,mutations,progress}.rs`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

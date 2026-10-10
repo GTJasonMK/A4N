@@ -123,7 +123,6 @@ pub async fn upsert_workflow_run_summary(
 ) -> Result<WorkflowRunSummary, WorkflowWriteError> {
     upsert_workflow_run(db, input)
         .await
-        .map_err(WorkflowWriteError::from)
         .and_then(|run| workflow_run_summary(run).map_err(WorkflowWriteError::from))
 }
 
@@ -173,7 +172,6 @@ pub async fn resume_or_upsert_workflow_run_summary(
 ) -> Result<WorkflowRunSummary, WorkflowWriteError> {
     resume_or_upsert_workflow_run(db, input)
         .await
-        .map_err(WorkflowWriteError::from)
         .and_then(|run| workflow_run_summary(run).map_err(WorkflowWriteError::from))
 }
 
@@ -221,7 +219,6 @@ pub async fn continue_completed_workflow_run_summary(
 ) -> Result<WorkflowRunSummary, WorkflowWriteError> {
     continue_completed_workflow_run(db, source_run_id, input)
         .await
-        .map_err(WorkflowWriteError::from)
         .and_then(|run| workflow_run_summary(run).map_err(WorkflowWriteError::from))
 }
 
@@ -287,7 +284,6 @@ pub async fn restart_interrupted_workflow_run_summary(
 ) -> Result<WorkflowRunSummary, WorkflowWriteError> {
     restart_interrupted_workflow_run(db, source_run_id, input)
         .await
-        .map_err(WorkflowWriteError::from)
         .and_then(|run| workflow_run_summary(run).map_err(WorkflowWriteError::from))
 }
 
@@ -513,7 +509,6 @@ pub async fn mark_workflow_status_summary(
 ) -> Result<WorkflowRunSummary, WorkflowWriteError> {
     mark_workflow_status(db, workflow_run_id, status, can_resume, error_message)
         .await
-        .map_err(WorkflowWriteError::from)
         .and_then(|run| workflow_run_summary(run).map_err(WorkflowWriteError::from))
 }
 
@@ -530,7 +525,6 @@ pub async fn resume_workflow_run_summary(
 ) -> Result<WorkflowRunSummary, WorkflowWriteError> {
     resume_workflow_run(db, workflow_run_id)
         .await
-        .map_err(WorkflowWriteError::from)
         .and_then(|run| workflow_run_summary(run).map_err(WorkflowWriteError::from))
 }
 
@@ -555,7 +549,6 @@ pub async fn resume_workflow_run_with_active_task_summary(
 ) -> Result<WorkflowRunSummary, WorkflowWriteError> {
     resume_workflow_run_with_active_task(db, workflow_run_id, active_task_id)
         .await
-        .map_err(WorkflowWriteError::from)
         .and_then(|run| workflow_run_summary(run).map_err(WorkflowWriteError::from))
 }
 
@@ -727,6 +720,5 @@ pub async fn mark_workflow_current_step_summary(
 ) -> Result<WorkflowRunSummary, WorkflowWriteError> {
     mark_workflow_current_step(db, workflow_run_id, current_step_key)
         .await
-        .map_err(WorkflowWriteError::from)
         .and_then(|run| workflow_run_summary(run).map_err(WorkflowWriteError::from))
 }

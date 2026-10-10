@@ -72,7 +72,6 @@ pub async fn claim_exclusive_workflow_run_summary(
 ) -> Result<WorkflowRunSummary, WorkflowWriteError> {
     claim_exclusive_workflow_run(db, input)
         .await
-        .map_err(WorkflowWriteError::from)
         .and_then(|run| {
             super::projections::workflow_run_summary(run).map_err(WorkflowWriteError::from)
         })
