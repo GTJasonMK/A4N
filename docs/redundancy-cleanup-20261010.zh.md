@@ -459,6 +459,14 @@
 - Sidecar helper 根据 `MediaRoot` 在 Data 与 Temp 根之间选择，并接收 `Path`（含绝对路径），对已存在目标 canonicalize、对尚不存在的输出文件 canonicalize 父目录后返回目标引用；`canonicalize_path_in_data_dir` 只接受已存在目标，`deletable_data_file_path` 仅服务数据根的相对字符串、要求已存在对象为普通文件，缺失时返回 `None`。它们的边界无法在不增加泛化 API 或改变接受规则的前提下合并。
 - 记录范围：`crates/host/a4n-runtime/src/state/app/sidecar_media.rs`、所有 `data_media_file_ref`/`temp_media_file_ref` 调用点、`a4n-storage::canonicalize_path_in_data_dir` 与 `deletable_data_file_path`。
 
+### R-56：统一导入图片相对路径转换
+
+- 类别：重复文件路径校验与单调用 wrapper。
+- BFS 覆盖：从 `persist_imported_image` 追到 staging/final 输出生成与 publication intent，确认两条路径都先创建项目图片父目录、目标文件尚未写入，再转换成 DB 相对路径；对照 `a4n-storage::data_dir_relative_path`、其消费者 `data_dir_relative_file_path` 及所有 `path_to_db_string` 调用。
+- 删除 `data_path_to_db_string` 手写实现和该单调用 wrapper。staging 与 final 路径直接交给 `data_dir_relative_path`，由存储层统一 canonicalize 根/父目录、拒绝根外目录并规范平台分隔符；目标文件缺失仍被允许。越界诊断使用共享 helper 的 `{label}不在应用数据目录内` 文案。
+- 在 `a4n-storage` 增加测试覆盖缺失目标的相对路径生成和根外父目录拒绝。验证：`cargo check --all-targets --locked --offline -p a4n-storage -p a4n-runtime` 通过；`timeout 60s cargo test --locked --offline -p a4n-storage --lib data_dir_relative_path_accepts_missing_target_and_rejects_outside_parent` 1/1 通过；`cargo fmt --all -- --check`、`git diff --check` 通过。
+- 记录文件：`crates/platform/a4n-storage/src/files/paths.rs`、`crates/host/a4n-runtime/src/actions/image_records/upload/{file.rs,record.rs}`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

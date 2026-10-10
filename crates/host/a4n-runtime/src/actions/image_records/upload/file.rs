@@ -1,4 +1,4 @@
-use a4n_storage::paths::{ProjectPaths, path_to_db_string};
+use a4n_storage::paths::ProjectPaths;
 use std::path::{Path, PathBuf};
 
 pub(super) fn create_imported_image_output(
@@ -35,23 +35,4 @@ pub(super) fn create_imported_image_output(
         return Err("导入图片发布路径已存在".to_string());
     }
     Ok((staging_path, final_path))
-}
-
-pub(super) fn data_path_to_db_string(data_dir: &Path, path: &Path) -> Result<String, String> {
-    let canonical_data_dir = data_dir
-        .canonicalize()
-        .map_err(|error| format!("无法解析数据目录：{error}"))?;
-    let file_name = path
-        .file_name()
-        .ok_or_else(|| "导入图片路径缺少文件名".to_string())?;
-    let canonical_path = path
-        .parent()
-        .ok_or_else(|| "导入图片路径缺少父目录".to_string())?
-        .canonicalize()
-        .map_err(|error| format!("无法解析导入图片目录：{error}"))?
-        .join(file_name);
-    let relative = canonical_path
-        .strip_prefix(&canonical_data_dir)
-        .map_err(|_| "导入图片路径不在数据目录内".to_string())?;
-    path_to_db_string(relative)
 }

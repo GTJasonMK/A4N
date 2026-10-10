@@ -1,4 +1,4 @@
-use super::file::{create_imported_image_output, data_path_to_db_string};
+use super::file::create_imported_image_output;
 use crate::{
     AppState,
     cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
@@ -8,6 +8,7 @@ use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_artifact_media_contract::PublishImageRequest;
 use a4n_domain::media::{IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED};
 use a4n_image_host_contract::PreparedImportedImageUpload;
+use a4n_storage::paths::data_dir_relative_path;
 use sha2::{Digest, Sha256};
 use std::{
     fs::OpenOptions,
@@ -32,8 +33,9 @@ pub(super) async fn persist_imported_image(
     let stem = format!("imported_image_{}", Uuid::new_v4().simple());
     let (staging_path, final_path) =
         create_imported_image_output(state.data_dir(), project_id, chapter_id, extension, &stem)?;
-    let staging_relative_path = data_path_to_db_string(state.data_dir(), &staging_path)?;
-    let final_relative_path = data_path_to_db_string(state.data_dir(), &final_path)?;
+    let staging_relative_path =
+        data_dir_relative_path(state.data_dir(), &staging_path, "导入图片")?;
+    let final_relative_path = data_dir_relative_path(state.data_dir(), &final_path, "导入图片")?;
     let (publication, _publication_guard) = state
         .image_import_publication_application()
         .create_imported_publication_intent(
