@@ -14,12 +14,15 @@ const port = Number(process.env.A4N_PERF_PORT ?? 48966);
 const outDir = path.join(artifacts, "dist");
 const baselineRef = process.env.A4N_PERF_BASELINE_REF;
 const scenario = process.env.A4N_PERF_CASE ?? "core";
-assert.ok(["core", "sidebar", "story-events", "manga-source", "galgame-source"].includes(scenario));
+assert.ok(["core", "sidebar", "story-events", "story-events-loader", "manga-source", "galgame-source"].includes(scenario));
 const entry = scenario === "sidebar" ? "sidebar.html" : scenario === "story-events" ? "story-events.html"
+  : scenario === "story-events-loader" ? "story-events-loader.html"
   : scenario === "manga-source" ? "manga-source.html"
   : scenario === "galgame-source" ? "galgame-source.html" : "index.html";
 const sourceFiles = scenario === "story-events"
   ? ["src/pages/novel-detail/story-events/storyEventUtils.ts", "src/pages/novel-detail/story-events/ChapterEventSection.tsx"]
+  : scenario === "story-events-loader"
+  ? ["src/pages/novel-detail/StoryEventsTab.tsx"]
   : scenario === "sidebar"
   ? ["src/pages/writing-desk/ChapterSidebar.tsx", "src/pages/writing-desk/ChapterCard.tsx"]
   : scenario === "manga-source"
@@ -41,7 +44,41 @@ let server;
 let browser;
 let driverLog = "";
 try {
-  if (process.env.A4N_PERF_REUSE_BUILD !== "1") await build({ root: frontend, logLevel: "warn", plugins: [{
+  const loaderMocks = scenario === "story-events-loader" ? [{
+    name: "story-events-loader-mocks",
+    resolveId(source, importer) {
+      if (!source.includes("api/chapter") && !source.includes("api/foreshadowing")) return null;
+      if (source.includes("api/chapter")) return "\0perf-story-events-chapter";
+      if (source.includes("api/foreshadowing")) return "\0perf-story-events-foreshadowing";
+      return null;
+    },
+    load(id) {
+      if (id === "\0perf-story-events-chapter" || id.endsWith("/src/api/chapter.ts")) return `
+        const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        const event = (chapter, index) => ({ description: "调查线索 \${index}: \${chapter} 章的记录".repeat(8), type: "discovery", importance: "high", involved_characters: ["林舟"] });
+        export async function listChapterAnalyses() {
+          await delay(25);
+          const rows = Array.from({ length: 1000 }, (_, index) => ({ id: index + 1, chapter_number: index + 1, title: "调查线索 " + (index + 1), summary: "章节摘要", analysis_data: { metadata: { characters: ["林舟"], locations: ["河岸"], tone: "紧张", timeline_marker: "第" + (index + 1) + "天" }, summaries: { compressed: "调查线索摘要", keywords: ["账本"] }, key_events: Array.from({ length: 5 }, (_, eventIndex) => event(index + 1, eventIndex)), foreshadowing: { planted: ["账本"], resolved: [], tensions: [] } } }));
+          return rows;
+        }
+      `;
+      if (id === "\0perf-story-events-foreshadowing" || id.endsWith("/src/api/foreshadowing.ts")) return `
+        const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        const calls = (window.storyEventsLoaderCalls ??= []);
+        export async function listForeshadowing() {
+          await delay(150);
+          const rows = Array.from({ length: 1000 }, (_, index) => ({ id: index + 1, project_id: 1, description: "伏笔记录 " + index + "：" + "灯火照亮河岸，等待后续回收。".repeat(20), importance: 1, payoff_chapter: null, related_characters: ["林舟"], setup_chapter: index + 1, status: "pending", created_at: "2026-01-01T00:00:00", updated_at: "2026-01-01T00:00:00" }));
+          calls.push({ command: "list_foreshadowing", bytes: JSON.stringify(rows).length });
+          return rows;
+        }
+        export async function createForeshadowing() { throw new Error("not used in performance fixture"); }
+        export async function updateForeshadowing() { throw new Error("not used in performance fixture"); }
+        export async function deleteForeshadowing() { throw new Error("not used in performance fixture"); }
+      `;
+      return null;
+    },
+  }] : [];
+  if (process.env.A4N_PERF_REUSE_BUILD !== "1") await build({ root: frontend, logLevel: "warn", plugins: [...loaderMocks, {
     name: "performance-baseline", enforce: "pre", load: (id) => baselineSources.get(id),
   }], build: {
     outDir, emptyOutDir: true,
@@ -118,6 +155,17 @@ try {
     for (const count of [100, 1000]) storyEvents.push(await browser.execute((count) => window.measureStoryEvents(count), count));
     report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
       viewports: [1440, 390], trace: traces[0], storyEvents };
+  } else if (scenario === "story-events-loader") {
+    const loader = await browser.execute(() => window.measureStoryEventsLoader());
+    assert.equal(loader.detailsOpen, true);
+    assert.equal(loader.foreshadowingRows, 1000);
+    await browser.execute(() => document.querySelector("details summary")?.focus());
+    await browser.keys("Enter");
+    assert.equal(await browser.execute(() => document.querySelector("details")?.open), false);
+    await browser.keys("Enter");
+    await browser.waitUntil(() => browser.execute(() => document.querySelector("details")?.open === true));
+    assert.equal(await browser.execute(() => document.querySelectorAll("details article").length), 1000);
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion, loader };
   } else if (scenario === "galgame-source") {
     const galgameSource = await browser.execute(() => window.measureGalgameSource());
     assert.equal(galgameSource.chapterCount, 1000);

@@ -43,6 +43,7 @@
 | [PERF-042](../../crates/platform/a4n-db/src/project/bundle.rs) | 用户触发项目包导入中的 generation target 关联；1 个 generation run、1,000 个 target | 原实现逐条映射 generation run / domain entity 并 INSERT；映射转换不变，按 1,000 行批量插入 | 真实 PostgreSQL SQL **1004 → 5**；P50 **88.124 → 14.407 ms（83.7%）**，P95 **115.431 → 22.759 ms（80.3%）**；target 表/ID、kind、role、时间与序列顺序一致 |
 | [PERF-043](../../crates/platform/a4n-db/src/asset/generation.rs) | 章节分析物体发现持久化；单次 16/32/64/128 个档案 | 首次事实沿用已写入的当前投影，档案结果由逐条回读改为按 ID 批量读取；事实审计、锚点证据和事务语义不变 | PostgreSQL P50 **55.350/36.873/45.468/91.485 → 9.991/16.905/29.935/41.031 ms**，分别下降 **82.0%/54.1%/34.2%/55.1%**；P95 降幅 **84.3%/65.4%/78.0%/51.3%** |
 | [PERF-044](../../crates/platform/a4n-db/src/agent/thread_commands.rs) | Agent thread history 请求；32 个 Run，每次打开历史读取消息、运行、执行和预算投影 | 旧实现对每个 Run 单独计算预算快照；复用已有 `run_budget_snapshots` 一次读取所有 Run 家族和执行事实，按 Run 回填 usage | PostgreSQL P50/P95 **8.185/11.335 → 2.766/3.851 ms**，下降 **66.2%/66.0%**；预算查询约 **96 → 3** |
+| [PERF-045](../../frontend/src/pages/novel-detail/StoryEventsTab.tsx) | 故事事件页初载；1000 章、5000 事件，伏笔索引 1000 条且默认收起 | 初载不再读取默认收起的伏笔索引；用户展开时按需读取，刷新和展开共享同一项目的 in-flight 请求，保留完整列表、错误和键盘语义 | 真实 Chromium 153 受控夹具三轮中位数 **342.7 → 196.2 ms（42.7%）**；初始伏笔 JSON **505,677 → 0 B**；展开后 1000 条记录完整渲染 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -62,7 +63,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | LLM 上游连接 | PERF-012 保留每次构造 provider 的配置与凭证隔离，仅延长 HTTP Client 的生命周期。原连接／逐次读取超时、错误、取消与背压检查通过；不缓存模型响应。 |
 | 嵌入模型生命周期 | PERF-014／015 已处理本地模型和 API 连接的重复初始化。模型文件删除／下载会使额外持有的资源失效；仍存活的 provider 保留原有拥有权，避免破坏已在使用的模型。没有缓存业务向量结果。 |
 | 语义分块 | 已复用向量范数并利用相似矩阵对称性；本次只消除额外矩阵。将全矩阵换成局部带状算法可能改变浮点抵消和相同分数时的切分，未作为无风险替换。 |
-| 故事事件 | PERF-018 减少筛选时未变化卡片的重复渲染；PERF-019 从数据库到前端仅读取所需的五个分析字段。千章/4500事件首屏仍需渲染大量卡片，页面总体加载提升仅约12.5%，未将 API 提升外推为首屏提升。 |
+| 故事事件 | PERF-018 减少筛选时未变化卡片的重复渲染；PERF-019 从数据库到前端仅读取所需的五个分析字段；PERF-045 延迟默认收起的伏笔索引。千章/4500事件首屏仍需渲染大量卡片，未将受控夹具的首屏收益外推为完整后端端到端提升。 |
 | 漫画来源读取 | 当前 MangaTab 产品入口 ComicProjectWorkspace、VideoProjectWorkspace 和 GalgameProjectWorkspace 均使用 `listSourceSnapshotChapterIndex`；PERF-020 已用 1000 章真实 PostgreSQL/Chromium 夹具测量目录与单章详情，完整正文只在选章后读取。旧 `listSourceSnapshotChapters` API 仍保留给兼容调用方，但不是当前页面活跃路径。 |
 | 项目包传输 | PERF-037 批量读取独立漫画包的文本资产版本与来源实体；PERF-038—042 批量写入历史消息、workflow progress event、模型用量账本、LLM trace 与 generation target。SQL 数随数据行数增长，未引入缓存或预取。 |
 
@@ -497,6 +498,14 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 根因与改动：历史数据主查询已批量化，但旧实现随后对每个 Run 调用 `run_budget_snapshot`，重复读取目标 Run、Run 家族和执行事实。改用已有 `run_budget_snapshots` 一次读取所有预算树，并按 Run ID 回填 usage；缺少快照仍显式报错，事务隔离和返回字段不变。
 - 量化结果：隔离 PostgreSQL 16、release、15 次交错样本；P50/P95 **8.185/11.335 → 2.766/3.851 ms**，下降 **66.2%/66.0%**。预算相关 SQL 由约 **96 → 3**，消息、turn、execution、事件和预算 usage 逐项一致。
 - 证据与复现：`data/performance-audit-20261010/agent-thread-history-before.log`、`agent-thread-history-after.log`；基准及非忽略语义回归位于 `crates/platform/a4n-db/tests/agent_thread_history_batch.rs`。
+
+### PERF-045：故事事件页延迟伏笔索引读取
+
+- 调用链与规模：用户打开小说详情的故事事件页时，页面初载读取章节分析并渲染 **1000 章/5000 个事件**；伏笔索引包含 **1000 条**记录，但 `<details>` 默认收起。此前首屏仍通过 `loadChapters` 请求完整伏笔列表，响应体约 505 KB，且请求与章节渲染竞争浏览器主线程。
+- 根因与改动：初载只请求章节分析；用户展开伏笔索引时才调用 `listForeshadowing`。已请求过索引的刷新仍保持原有刷新语义；按项目复用 in-flight Promise，避免展开和刷新同时触发重复读取。项目切换、迟到错误和 loading 状态均按当前项目门控，完整记录、错误提示、编辑/删除和键盘展开行为不变。
+- 量化结果：真实 Chromium **153.0.8010.52**、相同生产构建、1000 章/5000 事件/1000 条伏笔、章节接口 25 ms、伏笔接口 150 ms 的受控三轮 A/B 中位数，首屏可用时间 **342.7 → 196.2 ms（下降 42.7%）**；初始伏笔 JSON **505,677 → 0 B**。新版展开后的完整列表读取和渲染中位数约 245.7 ms，属于用户主动打开索引后的延迟，未隐藏或截断数据。
+- 语义验证：每轮均确认展开后 1000 条记录、Enter 收起/重新展开后仍为 1000 条；初始请求数只包含章节分析，展开后恰好一次 `list_foreshadowing`。生产构建、API parity、现有伏笔索引 Vitest 2 项和 `git diff --check` 通过。夹具只证明首屏请求路径与渲染行为，不代替真实数据库端到端延迟。
+- 证据与复现：`data/performance-audit-20261010/perf045/{before-1-retry,before-2,before-3,after-1,after-2,after-3}/report.json`；从 `frontend` 执行 `env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NODE_USE_ENV_PROXY A4N_PERF_CASE=story-events-loader A4N_PERF_BASELINE_REF=HEAD A4N_PERF_ARTIFACTS=<独立目录> A4N_PERF_PORT=<空闲端口> node e2e/performance/check.mjs`，新版去掉 `A4N_PERF_BASELINE_REF`。
 
 ### 拒绝候选：项目包 workflow checkpoint 批量导入
 
