@@ -6,7 +6,7 @@ import {
   resolveInitialLocale,
   writeLocalePreference,
 } from "./locale";
-import { formatDate, formatNumber } from "./format";
+import { formatBytes, formatDate, formatNumber } from "./format";
 import zhCN from "./messages/zh-CN";
 import enUS from "./messages/en-US";
 import { translateMessage } from "./translate";
@@ -116,5 +116,13 @@ describe("locale formatting", () => {
     expect(
       formatNumber(1.5, "en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
     ).toBe("1.50");
+  });
+
+  it("formats byte sizes consistently through terabytes", () => {
+    expect(formatBytes(0, "en-US")).toBe("0 B");
+    expect(formatBytes(Number.POSITIVE_INFINITY, "en-US")).toBe("0 B");
+    expect(formatBytes(1536, "en-US")).toBe("1.5 KB");
+    expect(formatBytes(11 * 1024, "en-US")).toBe("11 KB");
+    expect(formatBytes(1024 ** 4, "en-US")).toBe("1 TB");
   });
 });

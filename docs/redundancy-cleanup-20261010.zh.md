@@ -3,12 +3,12 @@
 ## 范围与方法
 
 - 工作分支：`agent/redundancy-cleanup-20261010`，基线 `debug@3f6a2408c9e78c4719259e77d5443f2befdd8fda`。
-- 建立分支本地 CodeGraph 索引后持续同步；当前索引覆盖 6,245 个文件、86,281 个符号、275,072 条边，状态为 up to date。
+- 建立分支本地 CodeGraph 索引后持续同步；当前索引覆盖 6,245 个文件、86,279 个符号、275,076 条边，状态为 up to date。
 - 从 `a4n-server`、Tauri 本地 Server、`a4n-component-host`、Worker/Sidecar catalog、Axum route 注册、`a4n-control` 动态 command 分派和 `frontend/src/App.tsx` 路由入口追踪生产调用与注册点。前端索引包含 444 个 TS 和 318 个 TSX 文件。
 - 基线 Cargo workspace 有 213 个 crate manifest；本次增加 Worker runtime 与 DB adapter 后共 215 个。`cargo metadata` 核对了 Worker 对共享配置/runtime crate 的依赖。静态搜索补查脚本启动、环境变量、历史迁移、测试 fixture、生成合同脚本和运行时路由字符串。
 - 检查了 `#[allow(dead_code)]`、兼容/legacy 命名、候选无入边符号、Cargo 直接依赖和可复用的前端格式工具。
 
-最后一次 CodeGraph sync 报告仍有 1 条 unresolved reference；跨 crate helper 导入和部分动态/宏式 route 注册未必能形成完整调用边，例如共享 runtime helper 的包外调用需要用静态搜索复核。所有本批跨 crate helper 消费者均经源码搜索确认，并由 workspace 或对应 crate 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
+最新 CodeGraph sync 已解析此前待处理引用，未报告剩余 unresolved references；跨 crate helper 导入和部分动态/宏式 route 注册仍可能无法形成完整调用边，例如共享 runtime helper 的包外调用需要用静态搜索复核。所有本批跨 crate helper 消费者均经源码搜索确认，并由 workspace 或对应 crate 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
 
 本记录说明实际检查的入口和结果，不声称仅凭静态分析证明了所有运行环境、外部调用者、反射或部署配置均无遗漏。未对所有产品模块做逐函数人工审阅，也未运行浏览器端到端流程。
 
@@ -588,6 +588,14 @@
 - 保留合同差异：Temp Media 仅列出 MP3/WAV/M4A/OGG；其 OGG accepted MIME 仍采用 browser 子集 `audio/ogg`，拒绝 domain 通用上传规则接受的 `application/ogg`。MP3 服务端仍接受 `audio/mp3`，浏览器列表仍仅为 `audio/mpeg`。AAC/FLAC 保留在通用 domain audio mapping，但不加入 Temp Media。Control signature/magic 检查继续作为独立的真实内容校验。
 - 验证：5 个受影响 Rust package all-targets 检查通过；domain canonical/path 测试 1/1、media audio upload 1/1、API contract Temp Media 4/4、Control MIME/扩展名测试 1/1、Orchestrator Canvas audio path 1/1。`generate_types --check`、`npm run check:web-api-parity`、`cargo fmt --all -- --check` 和 `git diff --check` 通过。
 - 记录范围：`crates/platform/a4n-domain/src/media/{files.rs,media.rs}`、`crates/media/a4n-media/src/upload.rs`、`crates/host/a4n-api-contract/src/temp_media.rs`、Control Temp Media rules 与 `crates/host/a4n-orchestrator/src/canvas/audio_rules.rs`。
+
+### R-72：统一前端字节大小格式化
+
+- 类别：Embedding 下载面板与 Storage 清理面板分别实现 locale-aware 字节大小格式化。
+- BFS 覆盖：从 AboutTab 动态渲染到 `StoragePathsPanel`，追踪 orphan summary、删除确认、清理结果及单项目录大小的 formatter 调用；从 EmbeddingTab/`EmbeddingConfigEditor` 到 `FastembedModelPanel`，追踪总大小、缓存/缺失大小、下载按钮和进度提示的 formatter 调用。CodeGraph 与静态引用搜索确认生产代码中仅有这两份字节大小实现，二者都委托 `i18n::formatNumber`。
+- 将 formatter 收敛到 `frontend/src/i18n/format.ts::formatBytes`，并从 i18n barrel 导出。统一使用 1024 进位、B 到 TB、locale 数字分组和最多一位小数；超出 TB 时继续显示 TB。Embedding 不再截在 GB；Storage 面板大于等于 10 的 unit 值不再显示超过一位小数。非有限或非正值继续显示 locale 格式的 `0 B`。
+- 验证：`i18n.test.ts` 与 `EmbeddingConfigEditor.test.tsx` 共 2 个文件、11/11 通过；新增用例覆盖 0、Infinity、KB 精度和 TB 上限；`npm run build` 通过，`git diff --check` 通过。
+- 记录范围：`frontend/src/i18n/{format.ts,index.ts,i18n.test.ts}`、Embedding formatter consumers/utility 与 `StoragePathsPanel.tsx`。
 
 ## 核验后保留
 
