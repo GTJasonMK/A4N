@@ -518,6 +518,15 @@
 - `var_os`、未设置/空白和 `PathBuf` 语义相同，但 Sidecar parser 是 process bootstrap 本地 anyhow 环境模块；依赖 `a4n-config` 会把 Host 配置错误 owner 及其依赖引入所有 Sidecar bootstrap 消费者。该局部读取只有一处调用，提取新低层 crate 成本更高，故保留。
 - 记录范围：`crates/process/a4n-sidecar-bootstrap/{src/environment.rs,src/logging.rs,Cargo.toml}`、`crates/config/a4n-config/src/lib.rs` 与其 Host/Runtime callers。
 
+### R-64：统一图片发布 staging durable write
+
+- 类别：重复 durable file write 与失败清理。
+- BFS 覆盖：从 imported-image `persist_imported_image` 追踪 publication intent、staging facts、staging write、final promote、发布和 cleanup outbox；从 generated/portrait `persist_reserved_generated_image_file` 追踪 `PreparedGeneratedImageFile` 校验、exclusive staging create、写入/flush/fsync、promote 和 file facts；静态枚举 `create_new(true)` 后续写入并 sync 的 workspace 调用，确认另有 RAG 空 mutation marker（只创建空标记并 sync），不属于内容文件写入。
+- 将重复的 exclusive create、write_all、flush、sync_all 和数据根路径处理收敛到 `a4n-storage::write_new_synced_data_file`，基于既有 `write_new_data_file` 路径生命周期/失败清理实现；普通非 durable `write_new_data_file` 调用保持原行为。两个图片发布流程直接调用 shared helper，各自的 intent、facts/hash 校验、严格 prepared-path validation、promotion 和 publish 顺序保留。
+- 失败路径变化：生成图片此前写入/flush/fsync 失败会留下部分 staging file；现在和导入图片一样，写入失败会尝试删除，并在清理失败时返回附带次错误的主错误。新增 storage 测试覆盖根目录范围和不覆盖；生成图片既有 durable persistence 测试确认输出和 size 合同。
+- 验证：`cargo check --all-targets --locked --offline -p a4n-storage -p a4n-runtime` 通过；storage durable-writer 定向测试 1/1、Runtime `generated_image_file_persistence_keeps_output_and_reports_actual_size` 1/1 通过；`cargo fmt --all -- --check`、`git diff --check` 通过。
+- 记录文件：`crates/platform/a4n-storage/{src/files/path_lifecycle.rs,src/files/mod.rs,src/lib.rs}`、`crates/host/a4n-runtime/src/actions/{image_records/upload/record.rs,image_generation/generation_io/files.rs}`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
