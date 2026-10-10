@@ -373,6 +373,14 @@
 - 全仓文本检索确认这些环境变量入口只落在上述代码、测试、脚本、示例和公开文档中。Edge 与 `a4n-config` 的低层 `SocketAddr::parse` 调用虽相同，但错误上下文、监听生命周期和默认/端口语义不同；抽出公共解析 API 只会包装标准库语法，不会收敛业务规则，因此不合并、不增加依赖。
 - 记录范围：`crates/host/a4n-edge/{src/lib.rs,src/main.rs}`、`crates/host/a4n-control/{src/lib.rs,src/main.rs,src/state.rs}`、`crates/config/a4n-config/src/lib.rs`、`crates/host/a4n-server/src/server/{startup/configuration.rs,process.rs}`、Agent Worker runtime、Tauri server process、CLI local runtime、cleanup recovery 测试、启动脚本、环境示例和公开文档。
 
+### R-45：复核 Qdrant 环境变量读取重复
+
+- 类别：核验后保留，不改代码。
+- BFS 覆盖：从 `QdrantStoreConfig::from_env` 追到 `QdrantVectorStore::connect_from_env`，再到 Host `create_embedded_rag_store` 与 RAG Service `run` 两个生产调用；核对 `qdrant_live` 集成测试直接构造 `QdrantStoreConfig` 并调用 `connect`，不会绕过或覆盖生产环境读取路径。静态搜索枚举 workspace 中 `optional_non_empty_env_string` 的定义和调用。
+- RAG adapter 的 optional/required helper 只在私有 `qdrant_store/config.rs` 内使用，并返回 `a4n_domain::ProviderError::Configuration`；`a4n-config` 的同名 helper 返回 `a4n_error::AppError::ConfigError`。Host 边界只定义了 ProviderError 到 AppError 的单向转换，错误 owner 和依赖层不同。
+- 将 RAG adapter 改为依赖 `a4n-config` 会把 Host 配置 crate 引入低层存储 adapter；增加错误转译 wrapper 仍需维护一个反向适配层，且没有减少业务规则。因此保留小型本地解析器，不新增依赖、fallback 或错误分类变化。
+- 记录范围：`crates/rag/a4n-rag-index/src/qdrant_store/{config.rs,store.rs,mod.rs}`、`crates/rag/a4n-rag-index/tests/qdrant_live.rs`、Runtime RAG factory、RAG Service app、`a4n-config` env helper、`a4n-domain::ProviderError` 与 Host 错误转换。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
