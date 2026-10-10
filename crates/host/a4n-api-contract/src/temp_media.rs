@@ -1,4 +1,4 @@
-use a4n_domain::media::ImageUploadFormat;
+use a4n_domain::media::{AudioMediaType, ImageUploadFormat};
 use a4n_service_protocol::JS_SAFE_INTEGER_U64;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 pub const TEMP_MEDIA_MAX_TTL_SECONDS: i64 = 24 * 60 * 60;
 pub const TEMP_MEDIA_METADATA_PART: &str = "metadata";
 pub const TEMP_MEDIA_FILE_PART: &str = "file";
+const TEMP_MEDIA_OGG_MIME_TYPES: &[&str] = &[AudioMediaType::OGG.mime_type];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TempMediaFormatKind {
@@ -32,6 +33,20 @@ impl TempMediaFormat {
             extension: format.extension,
             accepted_mime_types: format.accepted_upload_mime_types,
             browser_mime_types: format.browser_mime_types,
+        }
+    }
+
+    const fn audio(
+        format: AudioMediaType,
+        accepted_mime_types: &'static [&'static str],
+        browser_mime_types: &'static [&'static str],
+    ) -> Self {
+        Self {
+            kind: TempMediaFormatKind::Audio,
+            mime_type: format.mime_type,
+            extension: format.extension,
+            accepted_mime_types,
+            browser_mime_types,
         }
     }
 }
@@ -62,34 +77,26 @@ pub const TEMP_MEDIA_FORMATS: &[TempMediaFormat] = &[
         accepted_mime_types: &["video/webm"],
         browser_mime_types: &["video/webm"],
     },
-    TempMediaFormat {
-        kind: TempMediaFormatKind::Audio,
-        mime_type: "audio/mpeg",
-        extension: "mp3",
-        accepted_mime_types: &["audio/mpeg", "audio/mp3"],
-        browser_mime_types: &["audio/mpeg"],
-    },
-    TempMediaFormat {
-        kind: TempMediaFormatKind::Audio,
-        mime_type: "audio/wav",
-        extension: "wav",
-        accepted_mime_types: &["audio/wav", "audio/x-wav"],
-        browser_mime_types: &["audio/wav", "audio/x-wav"],
-    },
-    TempMediaFormat {
-        kind: TempMediaFormatKind::Audio,
-        mime_type: "audio/mp4",
-        extension: "m4a",
-        accepted_mime_types: &["audio/mp4", "audio/x-m4a"],
-        browser_mime_types: &["audio/mp4", "audio/x-m4a"],
-    },
-    TempMediaFormat {
-        kind: TempMediaFormatKind::Audio,
-        mime_type: "audio/ogg",
-        extension: "ogg",
-        accepted_mime_types: &["audio/ogg"],
-        browser_mime_types: &["audio/ogg"],
-    },
+    TempMediaFormat::audio(
+        AudioMediaType::MP3,
+        AudioMediaType::MP3.accepted_upload_mime_types,
+        &[AudioMediaType::MP3.mime_type],
+    ),
+    TempMediaFormat::audio(
+        AudioMediaType::WAV,
+        AudioMediaType::WAV.accepted_upload_mime_types,
+        AudioMediaType::WAV.accepted_upload_mime_types,
+    ),
+    TempMediaFormat::audio(
+        AudioMediaType::M4A,
+        AudioMediaType::M4A.accepted_upload_mime_types,
+        AudioMediaType::M4A.accepted_upload_mime_types,
+    ),
+    TempMediaFormat::audio(
+        AudioMediaType::OGG,
+        TEMP_MEDIA_OGG_MIME_TYPES,
+        TEMP_MEDIA_OGG_MIME_TYPES,
+    ),
 ];
 
 /// Metadata part of a multipart upload; the file part carries the original bytes.

@@ -59,6 +59,77 @@ pub fn image_upload_format_from_mime(mime_type: &str) -> Option<&'static ImageUp
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AudioMediaType {
+    pub extension: &'static str,
+    pub mime_type: &'static str,
+    pub accepted_upload_mime_types: &'static [&'static str],
+}
+
+impl AudioMediaType {
+    pub const MP3: Self = Self {
+        extension: "mp3",
+        mime_type: "audio/mpeg",
+        accepted_upload_mime_types: &["audio/mpeg", "audio/mp3"],
+    };
+    pub const WAV: Self = Self {
+        extension: "wav",
+        mime_type: "audio/wav",
+        accepted_upload_mime_types: &["audio/wav", "audio/x-wav"],
+    };
+    pub const OGG: Self = Self {
+        extension: "ogg",
+        mime_type: "audio/ogg",
+        accepted_upload_mime_types: &["audio/ogg", "application/ogg"],
+    };
+    pub const M4A: Self = Self {
+        extension: "m4a",
+        mime_type: "audio/mp4",
+        accepted_upload_mime_types: &["audio/mp4", "audio/x-m4a"],
+    };
+    pub const AAC: Self = Self {
+        extension: "aac",
+        mime_type: "audio/aac",
+        accepted_upload_mime_types: &["audio/aac"],
+    };
+    pub const FLAC: Self = Self {
+        extension: "flac",
+        mime_type: "audio/flac",
+        accepted_upload_mime_types: &["audio/flac", "audio/x-flac"],
+    };
+}
+
+pub const AUDIO_MEDIA_TYPES: &[AudioMediaType] = &[
+    AudioMediaType::MP3,
+    AudioMediaType::WAV,
+    AudioMediaType::OGG,
+    AudioMediaType::M4A,
+    AudioMediaType::AAC,
+    AudioMediaType::FLAC,
+];
+
+pub fn audio_media_type_from_extension(extension: &str) -> Option<&'static AudioMediaType> {
+    AUDIO_MEDIA_TYPES
+        .iter()
+        .find(|format| format.extension.eq_ignore_ascii_case(extension))
+}
+
+pub fn audio_media_type_from_mime(mime_type: &str) -> Option<&'static AudioMediaType> {
+    let mime_type = mime_type.trim();
+    AUDIO_MEDIA_TYPES.iter().find(|format| {
+        format
+            .accepted_upload_mime_types
+            .iter()
+            .any(|accepted| mime_type.eq_ignore_ascii_case(accepted))
+    })
+}
+
+pub fn audio_media_type_from_path(path: &Path) -> Result<&'static AudioMediaType, String> {
+    let extension = media_file_extension(path, "音频")?;
+    audio_media_type_from_extension(&extension)
+        .ok_or_else(|| format!("音频扩展名不支持：{extension}"))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VideoMediaType {
     pub extension: &'static str,
     pub mime_type: &'static str,
@@ -186,15 +257,10 @@ pub fn video_upload_mime_matches(extension: &str, mime_type: &str) -> bool {
 }
 
 pub fn canonical_audio_mime(value: &str) -> Result<(&'static str, &'static str), String> {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "audio/mpeg" | "audio/mp3" => Ok(("audio/mpeg", "mp3")),
-        "audio/wav" | "audio/x-wav" => Ok(("audio/wav", "wav")),
-        "audio/ogg" | "application/ogg" => Ok(("audio/ogg", "ogg")),
-        "audio/mp4" | "audio/x-m4a" => Ok(("audio/mp4", "m4a")),
-        "audio/aac" => Ok(("audio/aac", "aac")),
-        "audio/flac" | "audio/x-flac" => Ok(("audio/flac", "flac")),
-        other => Err(format!("音频 MIME 不支持：{other}")),
-    }
+    let mime_type = value.trim();
+    audio_media_type_from_mime(mime_type)
+        .map(|format| (format.mime_type, format.extension))
+        .ok_or_else(|| format!("音频 MIME 不支持：{}", mime_type.to_ascii_lowercase()))
 }
 
 fn media_file_extension(path: &Path, label: &str) -> Result<String, String> {
@@ -215,17 +281,14 @@ fn media_mime_from_extension(extension: &str) -> Option<&'static str> {
     if let Some(format) = image_upload_format_from_extension(extension) {
         return Some(format.mime_type);
     }
+    if let Some(format) = audio_media_type_from_extension(extension) {
+        return Some(format.mime_type);
+    }
     match extension {
         "apng" => Some("image/apng"),
         "avif" => Some("image/avif"),
         "gif" => Some("image/gif"),
         "svg" => Some("image/svg+xml"),
-        "mp3" => Some("audio/mpeg"),
-        "m4a" => Some("audio/mp4"),
-        "wav" => Some("audio/wav"),
-        "ogg" => Some("audio/ogg"),
-        "aac" => Some("audio/aac"),
-        "flac" => Some("audio/flac"),
         _ => video_mime_from_extension(extension),
     }
 }

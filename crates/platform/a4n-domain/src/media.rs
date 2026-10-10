@@ -549,6 +549,23 @@ mod tests {
             canonical_audio_mime("audio/x-flac"),
             Ok(("audio/flac", "flac"))
         );
+        for format in AUDIO_MEDIA_TYPES {
+            assert_eq!(
+                audio_media_type_from_extension(format.extension).map(|media| media.mime_type),
+                Some(format.mime_type)
+            );
+            for mime_type in format.accepted_upload_mime_types {
+                assert_eq!(
+                    canonical_audio_mime(mime_type),
+                    Ok((format.mime_type, format.extension))
+                );
+            }
+        }
+        assert_eq!(
+            audio_media_type_from_path(Path::new("voice.M4A"))
+                .map(|format| (format.mime_type, format.extension)),
+            Ok(("audio/mp4", "m4a"))
+        );
         assert!(canonical_audio_mime("application/octet-stream").is_err());
     }
 }

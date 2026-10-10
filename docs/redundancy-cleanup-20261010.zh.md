@@ -3,12 +3,12 @@
 ## 范围与方法
 
 - 工作分支：`agent/redundancy-cleanup-20261010`，基线 `debug@3f6a2408c9e78c4719259e77d5443f2befdd8fda`。
-- 建立分支本地 CodeGraph 索引后持续同步；当前索引覆盖 6,245 个文件、86,268 个符号、275,056 条边，状态为 up to date。
+- 建立分支本地 CodeGraph 索引后持续同步；当前索引覆盖 6,245 个文件、86,281 个符号、275,072 条边，状态为 up to date。
 - 从 `a4n-server`、Tauri 本地 Server、`a4n-component-host`、Worker/Sidecar catalog、Axum route 注册、`a4n-control` 动态 command 分派和 `frontend/src/App.tsx` 路由入口追踪生产调用与注册点。前端索引包含 444 个 TS 和 318 个 TSX 文件。
 - 基线 Cargo workspace 有 213 个 crate manifest；本次增加 Worker runtime 与 DB adapter 后共 215 个。`cargo metadata` 核对了 Worker 对共享配置/runtime crate 的依赖。静态搜索补查脚本启动、环境变量、历史迁移、测试 fixture、生成合同脚本和运行时路由字符串。
 - 检查了 `#[allow(dead_code)]`、兼容/legacy 命名、候选无入边符号、Cargo 直接依赖和可复用的前端格式工具。
 
-最后一次 CodeGraph sync 报告仍有 3 条 unresolved references；跨 crate helper 导入和部分动态/宏式 route 注册未必能形成完整调用边，例如共享 runtime helper 的包外调用需要用静态搜索复核。所有本批跨 crate helper 消费者均经源码搜索确认，并由 workspace 或对应 crate 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
+最后一次 CodeGraph sync 报告仍有 1 条 unresolved reference；跨 crate helper 导入和部分动态/宏式 route 注册未必能形成完整调用边，例如共享 runtime helper 的包外调用需要用静态搜索复核。所有本批跨 crate helper 消费者均经源码搜索确认，并由 workspace 或对应 crate 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
 
 本记录说明实际检查的入口和结果，不声称仅凭静态分析证明了所有运行环境、外部调用者、反射或部署配置均无遗漏。未对所有产品模块做逐函数人工审阅，也未运行浏览器端到端流程。
 
@@ -579,6 +579,15 @@
 - 保留合同差异：主题资源仍额外接受 GIF；Image Provider 的响应头仍额外接受 `image/jpg`；通用媒体路径的 APNG/AVIF/GIF/SVG MIME 不属于上传编解码 allowlist；New API 视频首帧仅 PNG/JPEG、EPUB 封面仅 PNG/JPEG，均是目的地专属限制。Temp Media 魔数签名仍单独核对真实内容，图片解码、MIME 与内容一致性、尺寸/字节限制及压缩逻辑不合并。
 - 验证：8 个受影响 Rust package all-targets 检查通过；domain/media/API contract/Control 测试分别 1/1、1/1、4/4、1/1；Runtime 参考图 5/5、主题 metadata 1/1；Video Provider lib 44/44、Image Provider lib 测试通过。`generate_types --check`、`npm run check:web-api-parity`、新增 `imageUpload.test.ts` 1/1、前端生产构建、`cargo fmt --all -- --check` 和 `git diff --check` 通过。首次 Control 冷编译超过单测 60 秒上限，预编译后重跑测试通过。
 - 记录范围：`a4n-domain::media`、`a4n-media`、API contract Temp Media/generator/生成的 `config.ts`、Control Temp Media rules、Runtime image reference/theme resource、Tauri image import、Image/Video Providers，以及前端 `imageUpload.ts`、Theme Editor、Chapter Visual Plan 与定向单测。
+
+### R-71：统一 canonical 音频格式来源
+
+- 类别：音频 canonical MIME/扩展名分别出现在 domain MIME 归一化、通用媒体扩展名表、Temp Media API 记录和 Canvas 路径再反查中。
+- BFS 覆盖：从 `canonical_audio_mime` 沿 `a4n-media::decode_uploaded_audio_data` 到 Canvas 与 Galgame 音频导入；沿 Canvas `canvas_audio_format` 追到本地路径导入和 `persist_canvas_audio`；从 `media_mime_from_path` 追到 `a4n-media::read_media_file_response`；从 `TEMP_MEDIA_FORMATS` 追到 Control 上传元数据/file MIME 校验、文件名扩展名检查、artifact 查找和生成的浏览器类型。静态引用搜索复核所有音频 MIME/扩展名常量及 `application/ogg` 特例。
+- 在 `a4n-domain::media::AUDIO_MEDIA_TYPES` 集中 MP3/WAV/OGG/M4A/AAC/FLAC 的 canonical MIME、扩展名和服务端 MIME aliases。`canonical_audio_mime`、`media_mime_from_extension` 与音频路径解析统一读取该表；Canvas 改为直接接收解析后的 `AudioMediaType`，删除原来“路径→通用 MIME→canonical MIME→扩展名”的第二次查表。Temp Media 记录从对应 audio format 构造，不再复制 MP3/WAV/M4A canonical MIME、扩展名和服务端 alias；browser MIME 列表继续由 Temp Media API contract 持有。
+- 保留合同差异：Temp Media 仅列出 MP3/WAV/M4A/OGG；其 OGG accepted MIME 仍采用 browser 子集 `audio/ogg`，拒绝 domain 通用上传规则接受的 `application/ogg`。MP3 服务端仍接受 `audio/mp3`，浏览器列表仍仅为 `audio/mpeg`。AAC/FLAC 保留在通用 domain audio mapping，但不加入 Temp Media。Control signature/magic 检查继续作为独立的真实内容校验。
+- 验证：5 个受影响 Rust package all-targets 检查通过；domain canonical/path 测试 1/1、media audio upload 1/1、API contract Temp Media 4/4、Control MIME/扩展名测试 1/1、Orchestrator Canvas audio path 1/1。`generate_types --check`、`npm run check:web-api-parity`、`cargo fmt --all -- --check` 和 `git diff --check` 通过。
+- 记录范围：`crates/platform/a4n-domain/src/media/{files.rs,media.rs}`、`crates/media/a4n-media/src/upload.rs`、`crates/host/a4n-api-contract/src/temp_media.rs`、Control Temp Media rules 与 `crates/host/a4n-orchestrator/src/canvas/audio_rules.rs`。
 
 ## 核验后保留
 
