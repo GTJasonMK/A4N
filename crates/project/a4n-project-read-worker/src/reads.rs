@@ -109,7 +109,7 @@ impl WorkerState {
             .iter()
             .map(a4n_db::project::ProjectProgressQuery::from_project)
             .collect::<Result<Vec<_>, _>>()
-            .map_err(progress_error)?;
+            .map_err(a4n_worker_db_adapter::map_project_progress_read_error)?;
         let (metadata_by_id, access_by_id, progress_by_id, intervals) = tokio::try_join!(
             async {
                 a4n_db::project::project_family_metadata_batch(
@@ -117,7 +117,7 @@ impl WorkerState {
                     &family_queries,
                 )
                 .await
-                .map_err(family_error)
+                .map_err(a4n_worker_db_adapter::map_project_family_metadata_read_error)
             },
             async {
                 a4n_db::collaboration::project_access_info_batch(
@@ -134,7 +134,7 @@ impl WorkerState {
                     &progress_queries,
                 )
                 .await
-                .map_err(progress_error)
+                .map_err(a4n_worker_db_adapter::map_project_progress_read_error)
             },
             async {
                 a4n_db::fact_feedback::feedback_intervals(

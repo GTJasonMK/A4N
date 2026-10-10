@@ -230,38 +230,15 @@ fn summary_error(error: a4n_project_read_core::ProjectSummaryError) -> WorkerFai
         a4n_project_read_core::ProjectSummaryError::Database(error) => {
             WorkerFailure::unavailable(error.to_string())
         }
-        a4n_project_read_core::ProjectSummaryError::Progress(error) => progress_error(error),
-        a4n_project_read_core::ProjectSummaryError::Family(error) => family_error(error),
+        a4n_project_read_core::ProjectSummaryError::Progress(error) => {
+            a4n_worker_db_adapter::map_project_progress_read_error(error)
+        }
+        a4n_project_read_core::ProjectSummaryError::Family(error) => {
+            a4n_worker_db_adapter::map_project_family_metadata_read_error(error)
+        }
         a4n_project_read_core::ProjectSummaryError::Collaboration(error) => {
             collaboration_error(error)
         }
-    }
-}
-
-fn family_error(error: a4n_db::project::ProjectFamilyMetadataReadError) -> WorkerFailure {
-    match error {
-        a4n_db::project::ProjectFamilyMetadataReadError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::project::ProjectFamilyMetadataReadError::RootProjectMissing { .. }
-        | a4n_db::project::ProjectFamilyMetadataReadError::SourceSnapshotMissing { .. } => {
-            WorkerFailure::conflict(error.to_string())
-        }
-        a4n_db::project::ProjectFamilyMetadataReadError::Database { source, .. } => {
-            WorkerFailure::unavailable(source.to_string())
-        }
-    }
-}
-
-fn progress_error(error: a4n_db::project::ProjectProgressReadError) -> WorkerFailure {
-    match error {
-        a4n_db::project::ProjectProgressReadError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::project::ProjectProgressReadError::Database { source, .. } => {
-            WorkerFailure::unavailable(source.to_string())
-        }
-        error => WorkerFailure::conflict(error.to_string()),
     }
 }
 

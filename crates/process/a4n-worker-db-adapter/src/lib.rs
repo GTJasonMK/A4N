@@ -1,6 +1,8 @@
 use a4n_db::collaboration::CollaborationDbError;
-use a4n_db::project::ProjectFamilyDbError;
-use a4n_db::project::ProjectMutationError;
+use a4n_db::project::{
+    ProjectFamilyDbError, ProjectFamilyMetadataReadError, ProjectMutationError,
+    ProjectProgressReadError,
+};
 use a4n_db::workflow::WorkflowReadError;
 use a4n_error::AppError;
 use a4n_worker_contract::WorkerFailure;
@@ -52,6 +54,43 @@ pub fn map_project_family_db_error(error: ProjectFamilyDbError) -> WorkerFailure
         ProjectFamilyDbError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
         ProjectFamilyDbError::NotFound(message) => WorkerFailure::not_found(message),
         ProjectFamilyDbError::Database(error) => WorkerFailure::unavailable(error.to_string()),
+    }
+}
+
+pub fn map_project_family_metadata_read_error(
+    error: ProjectFamilyMetadataReadError,
+) -> WorkerFailure {
+    match error {
+        ProjectFamilyMetadataReadError::InvalidArgument(message) => {
+            WorkerFailure::invalid_request(message)
+        }
+        error @ (ProjectFamilyMetadataReadError::RootProjectMissing { .. }
+        | ProjectFamilyMetadataReadError::SourceSnapshotMissing { .. }) => {
+            WorkerFailure::conflict(error.to_string())
+        }
+        ProjectFamilyMetadataReadError::Database { source, .. } => {
+            WorkerFailure::unavailable(source.to_string())
+        }
+    }
+}
+
+pub fn map_project_progress_read_error(error: ProjectProgressReadError) -> WorkerFailure {
+    match error {
+        ProjectProgressReadError::InvalidArgument(message) => {
+            WorkerFailure::invalid_request(message)
+        }
+        error @ (ProjectProgressReadError::InvalidProjectKind { .. }
+        | ProjectProgressReadError::InvalidProjectStatus { .. }
+        | ProjectProgressReadError::InvalidProjectSource { .. }
+        | ProjectProgressReadError::InvalidChapterProgress { .. }
+        | ProjectProgressReadError::InvalidPersistedStatus { .. }
+        | ProjectProgressReadError::InvalidPersistedReference { .. }
+        | ProjectProgressReadError::SummaryMissing { .. }) => {
+            WorkerFailure::conflict(error.to_string())
+        }
+        ProjectProgressReadError::Database { source, .. } => {
+            WorkerFailure::unavailable(source.to_string())
+        }
     }
 }
 
@@ -343,5 +382,69 @@ mod tests {
             assert_eq!(mapped.retryable, retryable);
             assert_eq!(mapped.message, message);
         }
+    }
+
+    #[test]
+    fn project_family_metadata_read_errors_map_to_the_worker_contract() {
+        let invalid = map_project_family_metadata_read_error(
+            ProjectFamilyMetadataReadError::InvalidArgument("invalid project".into()),
+        );
+        let invalid: WorkerError = invalid.into();
+        assert_eq!(invalid.code, WorkerErrorCode::InvalidRequest);
+        assert!(!invalid.retryable);
+        assert_eq!(invalid.message, "invalid project");
+
+        let error = ProjectFamilyMetadataReadError::RootProjectMissing { root_project_id: 7 };
+        let message = error.to_string();
+        let conflict: WorkerError = map_project_family_metadata_read_error(error).into();
+        assert_eq!(conflict.code, WorkerErrorCode::Conflict);
+        assert!(!conflict.retryable);
+        assert_eq!(conflict.message, message);
+
+        let database_error = DbErr::Custom("database unavailable".into());
+        let database_message = database_error.to_string();
+        let unavailable: WorkerError =
+            map_project_family_metadata_read_error(ProjectFamilyMetadataReadError::Database {
+                operation: "read project family",
+                source: database_error,
+            })
+            .into();
+        assert_eq!(unavailable.code, WorkerErrorCode::Unavailable);
+        assert!(unavailable.retryable);
+        assert_eq!(unavailable.message, database_message);
+    }
+
+    #[test]
+    fn project_progress_read_errors_preserve_invalid_data_classification() {
+        let invalid = map_project_progress_read_error(ProjectProgressReadError::InvalidArgument(
+            "invalid query".into(),
+        ));
+        let invalid: WorkerError = invalid.into();
+        assert_eq!(invalid.code, WorkerErrorCode::InvalidRequest);
+        assert!(!invalid.retryable);
+        assert_eq!(invalid.message, "invalid query");
+
+        let error = ProjectProgressReadError::InvalidPersistedStatus {
+            table: "novel_project",
+            record_id: 7,
+            value: "unknown".into(),
+        };
+        let message = error.to_string();
+        let conflict: WorkerError = map_project_progress_read_error(error).into();
+        assert_eq!(conflict.code, WorkerErrorCode::Conflict);
+        assert!(!conflict.retryable);
+        assert_eq!(conflict.message, message);
+
+        let database_error = DbErr::Custom("database unavailable".into());
+        let database_message = database_error.to_string();
+        let unavailable: WorkerError =
+            map_project_progress_read_error(ProjectProgressReadError::Database {
+                operation: "read progress",
+                source: database_error,
+            })
+            .into();
+        assert_eq!(unavailable.code, WorkerErrorCode::Unavailable);
+        assert!(unavailable.retryable);
+        assert_eq!(unavailable.message, database_message);
     }
 }
