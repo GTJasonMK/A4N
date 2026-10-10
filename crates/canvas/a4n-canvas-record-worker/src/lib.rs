@@ -342,15 +342,7 @@ fn validate_request<T: Serialize>(
 }
 
 fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
-    use a4n_db::collaboration::CollaborationDbError;
-    match error {
-        CollaborationDbError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
-        CollaborationDbError::NotFound(message) => WorkerFailure::not_found(message),
-        CollaborationDbError::Forbidden(message) => WorkerFailure::unauthorized(message),
-        CollaborationDbError::InvalidState(message) => WorkerFailure::conflict(message),
-        CollaborationDbError::Internal(message) => WorkerFailure::internal(message),
-        CollaborationDbError::Database(error) => WorkerFailure::unavailable(error.to_string()),
-    }
+    a4n_worker_db_adapter::map_collaboration_db_error_preserving_internal(error)
 }
 
 fn canvas_db_error(error: CanvasDbError) -> WorkerFailure {

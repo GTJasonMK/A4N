@@ -34,24 +34,7 @@ pub(super) fn project_family_error(error: a4n_db::project::ProjectFamilyDbError)
 pub(super) fn collaboration_error(
     error: a4n_db::collaboration::CollaborationDbError,
 ) -> WorkerFailure {
-    match error {
-        a4n_db::collaboration::CollaborationDbError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::NotFound(message) => {
-            WorkerFailure::not_found(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::Forbidden(message) => {
-            WorkerFailure::unauthorized(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::InvalidState(message)
-        | a4n_db::collaboration::CollaborationDbError::Internal(message) => {
-            WorkerFailure::conflict(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
+    a4n_worker_db_adapter::map_collaboration_db_error(error)
 }
 
 pub(super) fn visual_plan_error(error: ChapterVisualPlanDbError) -> WorkerFailure {

@@ -1,0 +1,105 @@
+use a4n_db::collaboration::CollaborationDbError;
+use a4n_worker_contract::WorkerFailure;
+
+enum InternalErrorPolicy {
+    Conflict,
+    Internal,
+}
+
+pub fn map_collaboration_db_error(error: CollaborationDbError) -> WorkerFailure {
+    map_collaboration_error(error, InternalErrorPolicy::Conflict)
+}
+
+pub fn map_collaboration_db_error_preserving_internal(
+    error: CollaborationDbError,
+) -> WorkerFailure {
+    map_collaboration_error(error, InternalErrorPolicy::Internal)
+}
+
+fn map_collaboration_error(
+    error: CollaborationDbError,
+    internal_error_policy: InternalErrorPolicy,
+) -> WorkerFailure {
+    match error {
+        CollaborationDbError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
+        CollaborationDbError::NotFound(message) => WorkerFailure::not_found(message),
+        CollaborationDbError::Forbidden(message) => WorkerFailure::unauthorized(message),
+        CollaborationDbError::InvalidState(message) => WorkerFailure::conflict(message),
+        CollaborationDbError::Internal(message) => match internal_error_policy {
+            InternalErrorPolicy::Conflict => WorkerFailure::conflict(message),
+            InternalErrorPolicy::Internal => WorkerFailure::internal(message),
+        },
+        CollaborationDbError::Database(error) => WorkerFailure::unavailable(error.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use a4n_worker_contract::{WorkerError, WorkerErrorCode};
+    use sea_orm::DbErr;
+
+    use super::*;
+
+    #[test]
+    fn collaboration_errors_map_to_the_worker_failure_contract() {
+        let database_error = DbErr::Custom("database unavailable".into());
+        let database_message = database_error.to_string();
+        let cases = [
+            (
+                CollaborationDbError::InvalidArgument("invalid input".into()),
+                WorkerErrorCode::InvalidRequest,
+                false,
+                "invalid input".to_string(),
+            ),
+            (
+                CollaborationDbError::NotFound("missing member".into()),
+                WorkerErrorCode::NotFound,
+                false,
+                "missing member".to_string(),
+            ),
+            (
+                CollaborationDbError::Forbidden("permission denied".into()),
+                WorkerErrorCode::Unauthorized,
+                false,
+                "permission denied".to_string(),
+            ),
+            (
+                CollaborationDbError::InvalidState("invalid state".into()),
+                WorkerErrorCode::Conflict,
+                false,
+                "invalid state".to_string(),
+            ),
+            (
+                CollaborationDbError::Internal("internal failure".into()),
+                WorkerErrorCode::Conflict,
+                false,
+                "internal failure".to_string(),
+            ),
+            (
+                CollaborationDbError::Database(database_error),
+                WorkerErrorCode::Unavailable,
+                true,
+                database_message,
+            ),
+        ];
+
+        for (error, code, retryable, message) in cases {
+            let mapped: WorkerError = map_collaboration_db_error(error).into();
+            assert_eq!(mapped.code, code);
+            assert_eq!(mapped.retryable, retryable);
+            assert_eq!(mapped.message, message);
+        }
+    }
+
+    #[test]
+    fn collaboration_internal_error_can_preserve_internal_classification() {
+        let mapped: WorkerError = map_collaboration_db_error_preserving_internal(
+            CollaborationDbError::Internal("internal failure".into()),
+        )
+        .into();
+
+        assert_eq!(mapped.code, WorkerErrorCode::Internal);
+        assert!(!mapped.retryable);
+        assert_eq!(mapped.message, "internal failure");
+    }
+}

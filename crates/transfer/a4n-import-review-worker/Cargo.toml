@@ -12,6 +12,7 @@ a4n-error = { workspace = true, features = ["database"], default-features = true
 a4n-import-review-core = { workspace = true }
 a4n-import-review-worker-contract = { workspace = true }
 a4n-worker-contract = { workspace = true }
+a4n-worker-db-adapter = { workspace = true }
 a4n-worker-runtime = { workspace = true }
 
 anyhow = { workspace = true }

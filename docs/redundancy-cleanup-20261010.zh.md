@@ -5,7 +5,7 @@
 - 工作分支：`agent/redundancy-cleanup-20261010`，基线 `debug@3f6a2408c9e78c4719259e77d5443f2befdd8fda`。
 - 建立分支本地 CodeGraph 索引后持续同步；当前索引覆盖 6,242 个文件、86,246 个符号、275,613 条边，状态为 up to date。
 - 从 `a4n-server`、Tauri 本地 Server、`a4n-component-host`、Worker/Sidecar catalog、Axum route 注册、`a4n-control` 动态 command 分派和 `frontend/src/App.tsx` 路由入口追踪生产调用与注册点。前端索引包含 444 个 TS 和 318 个 TSX 文件。
-- 基线 Cargo workspace 有 213 个 crate manifest；本次增加 runtime crate 后共 214 个。`cargo metadata` 核对了 Worker 对共享配置/runtime crate 的依赖。静态搜索补查脚本启动、环境变量、历史迁移、测试 fixture、生成合同脚本和运行时路由字符串。
+- 基线 Cargo workspace 有 213 个 crate manifest；本次增加 Worker runtime 与 DB adapter 后共 215 个。`cargo metadata` 核对了 Worker 对共享配置/runtime crate 的依赖。静态搜索补查脚本启动、环境变量、历史迁移、测试 fixture、生成合同脚本和运行时路由字符串。
 - 检查了 `#[allow(dead_code)]`、兼容/legacy 命名、候选无入边符号、Cargo 直接依赖和可复用的前端格式工具。
 
 最后一次 CodeGraph sync 报告仍有 14 条 unresolved references；跨 crate helper 导入和部分动态/宏式 route 注册未必能形成完整调用边，例如共享 runtime helper 的包外调用需要用静态搜索复核。所有本批跨 crate helper 消费者均经源码搜索确认，并由 workspace 或对应 crate 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
@@ -215,6 +215,14 @@
 - 删除 `a4n-agent-worker-client`、`a4n-asset-graph-worker-client`、`a4n-canvas-record-worker-client`、`a4n-blueprint-worker-client`、`a4n-foreshadowing-worker-client`、`a4n-novel-planning-worker-client`、`a4n-outline-worker-client`、`a4n-object-profile-worker-client`、`a4n-portrait-worker-client`、`a4n-profile-material-worker-client`、`a4n-scene-profile-worker-client`、`a4n-project-status-worker-client`、`a4n-source-snapshot-worker-client` 和 `a4n-theme-read-worker-client` 共 28 个无用类型导入（14 个文件）。保留仍自行构造 Service/User principal 的 Admin、Config Read、Project Access/Read、Video Record、Workflow Read/Lifecycle clients。
 - 记录文件：上述 14 个 client 的 `src/lib.rs`。
 
+### R-25：统一 Collaboration DB 错误映射
+
+- 类别：跨 Worker 重复错误适配。
+- BFS 覆盖：从 24 个 Worker 的 route/command 调用进入本地 `collaboration_error`，追踪 `CollaborationDbError` 的五种变体到 `WorkerFailure` wire code/message/retryable；CodeGraph 加静态搜索核对全部 24 个生产映射及调用点。22 个映射的变体分类完全相同；Canvas Record 和 Foreshadowing 对 `Internal` 保持 `Internal`，其余 22 个把 `Internal` 与 `InvalidState` 同映射为 Conflict。`Database` 都以底层 `DbErr::to_string()` 映射为 retryable `Unavailable`；Video Record 原本转入本地 `database_error`，经逐项核验行为相同。
+- 新增 `crates/process/a4n-worker-db-adapter`，将 DB 错误到 Worker wire failure 的边界放在 process adapter 层，不让 `a4n-db` 或通用 worker contract 依赖彼此。共享 match 只有一份；默认入口保留 Conflict 规则，第二入口明确保留 Internal。24 个 Worker 的本地 `collaboration_error` 名称保留为薄委托，以避免更改各模块调用拓扑；两处例外显式调用 preserving Internal 入口。其他 DB 错误类型和 worker-specific 错误映射未迁入。
+- adapter 回归测试覆盖 InvalidArgument、NotFound、Forbidden、InvalidState、Internal 两种策略、Database message、wire code 和 retryable。adapter 测试 2/2 通过；24 个 Worker 与 adapter 的 all-targets 检查通过且无警告。
+- 记录文件：`Cargo.toml`、`Cargo.lock`、新 adapter crate、上述 24 个 Worker 的 manifest 与错误 mapper。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -241,6 +249,7 @@
 - R-22 `cargo check --all-targets --locked --offline -p a4n-portrait-worker -p a4n-theme-read-worker -p a4n-import-review-worker -p a4n-workflow-read-worker`：通过且无警告。
 - R-23 `cargo check --workspace --all-targets --locked --offline`：首轮暴露 Chapter Content 与 Manga worker 的残余 import；修复后，`cargo check --all-targets --locked --offline -p a4n-asset-graph-worker -p a4n-canvas-record-worker -p a4n-chapter-content-worker -p a4n-chapter-scene-worker -p a4n-config-read-worker -p a4n-inspiration-worker -p a4n-manga-record-worker -p a4n-blueprint-worker -p a4n-foreshadowing-worker -p a4n-novel-planning-worker -p a4n-outline-worker -p a4n-character-mutation-worker -p a4n-object-profile-worker -p a4n-portrait-worker -p a4n-profile-material-worker -p a4n-scene-profile-worker -p a4n-project-access-worker -p a4n-project-collaboration-worker -p a4n-project-mutation-worker -p a4n-project-read-worker -p a4n-project-status-worker -p a4n-source-snapshot-worker -p a4n-theme-read-worker -p a4n-import-review-worker -p a4n-video-record-worker -p a4n-workflow-read-worker`：通过且无警告。全 workspace 首轮的 client unused `WorkerPrincipal` import 警告是既有代码，不属于本次改动；此检查不作为通过结果记录。
 - R-24 `cargo check --all-targets --locked --offline -p a4n-agent-worker-client -p a4n-asset-graph-worker-client -p a4n-canvas-record-worker-client -p a4n-blueprint-worker-client -p a4n-foreshadowing-worker-client -p a4n-novel-planning-worker-client -p a4n-outline-worker-client -p a4n-object-profile-worker-client -p a4n-portrait-worker-client -p a4n-profile-material-worker-client -p a4n-scene-profile-worker-client -p a4n-project-status-worker-client -p a4n-source-snapshot-worker-client -p a4n-theme-read-worker-client`：通过且无警告。静态搜索确认 14 个文件不再引用已移除类型。
+- R-25 `cargo test --locked --offline -p a4n-worker-db-adapter --lib`：2/2 通过；adapter 与 24 个受影响 Worker 的 `cargo check --all-targets --locked --offline`：通过且无警告。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-contract --lib`：49/49 通过，覆盖共享失败构造、响应元数据、请求身份校验、principal ID 边界和 wire 序列化。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-client --lib`：14/14 通过，覆盖共享传输与响应错误映射。
 - `cargo check --locked --offline -p a4n-worker-runtime -p a4n-service-manager -p a4n-server -p a4n-tauri`：通过，验证共享父进程退出信号 helper 的三个集成点和更新后的 lockfile。
