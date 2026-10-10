@@ -474,6 +474,14 @@
 - `resolve_reserved_path` 除 canonicalize 父目录及根目录包含外，还拒绝绝对、空和任何非 `Component::Normal` 路径段，确保 prepared reservation 不接受 `.`/`..` 别名。`a4n-storage::data_dir_relative_path` 面向已解析的输出 `Path`，允许可规范化的相对路径段，不能替代此跨 crate 持久化入口的更严格合同。
 - 记录范围：`crates/host/a4n-runtime/src/actions/image_generation/generation_io/files.rs`、相关 Runtime Host Ports/Orchestrator caller、`crates/image/a4n-image-host-contract/src/lib.rs::PreparedGeneratedImageFile`、`a4n-storage::data_dir_relative_path`。
 
+### R-58：复核外部音频/视频文件导入校验
+
+- 类别：核验后保留，不改代码。
+- BFS 覆盖：从 Canvas Audio `CanvasAudioImportSource::from_path` 追到 validated import、落盘/probe 和媒体资产创建；从 Video Record `import_video_source_path` 追到本地视频导入、上传 staging/copy 和最终资源落库。横向比较 trim/空路径、metadata、regular-file、canonicalize 的重复低层步骤及后续扩展名/文件名处理。
+- 两者都读取用户提供的外部路径，不是应用数据目录内的持久化路径：视频入口在 canonicalize 前检查原始扩展名，并在 `import_video_source` 后续再次检查 canonical target 扩展名；音频入口还执行独立最大字节限制、canonical 文件名提取和音频 MIME/格式识别。空值和错误文案也属于各自导入交互合同。将这些流程合成 helper 会需要回调/配置多个验证阶段，或改变验证顺序和错误分类。
+- 当前分别通过 `a4n-video::import_video_extension`、`decode_uploaded_audio_data`/`canvas_audio_format` 等领域 owner 验证格式；保留两处外部文件读取入口，不新增通用 path abstraction。已存在的数据目录内文件仍由 `a4n-storage` helper 唯一校验。
+- 记录范围：`crates/host/a4n-orchestrator/src/canvas/audio_import.rs`、`crates/host/a4n-runtime/src/actions/video_records/imports/source/{paths.rs,upload.rs,copying.rs}`、`crates/video/a4n-video/src/import.rs`、`crates/media/a4n-media/src/upload.rs`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
