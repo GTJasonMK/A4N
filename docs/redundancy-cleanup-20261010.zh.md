@@ -742,6 +742,14 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 这些方法不是同一事实的重复 API：每个方法返回不同的 application port trait object，形成编译期能力边界；`agent_worker_lease_application` 与 `agent_worker_failure_application` 返回 `Arc`，调用者需要跨异步调用持有所有权。收敛为一个具体字段 accessor 会暴露实现、绕过端口隔离并增加耦合，因此保留。
 - 记录范围：`crates/host/a4n-runtime/src/state/app/agent.rs`、`crates/host/a4n-runtime/src/actions/agent_runtime/**`、`crates/host/a4n-runtime/src/agent_runtime_host.rs`、`crates/agent/a4n-agent-runtime-contract/src/ports.rs`。
 
+### R-91：核验 baseline model config seed 分叉
+
+- 类别：候选重复实现，未合并。
+- BFS 覆盖：从 `ensure_baseline_model_configs` 追到 LLM、Image、Video 三条 seed 路径及 `bootstrap` 调用，核对环境变量表、fallback 配置、API key 优先级、base URL 推导、数值转换、输入结构和插入端口。
+- LLM/Image 虽共享“配置表为空才 seed”的外壳，但字段集合、缺少凭证错误、OpenAI 专用环境变量、默认 URL、JSON extra body 和输出合同不同；Video 还使用独立 provider 配置。抽成泛型会把这些业务差异塞进闭包，保留三条清晰 owner 更低耦合。
+- `cargo machete` 全仓扫描未发现未使用 Cargo 依赖。未新增兜底、兼容或回退逻辑。
+- 记录范围：`crates/host/a4n-runtime/src/baseline_configs/{mod,llm,image,video,env}.rs`、`crates/host/a4n-runtime/src/state/app/bootstrap.rs`、相关 `ConfigRead/ConfigMutation` ports。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
