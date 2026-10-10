@@ -10,6 +10,7 @@ use a4n_domain::{
     },
 };
 use a4n_error::AppError;
+use a4n_storage::canonicalize_data_file_path;
 use base64::Engine as _;
 
 use crate::OrchestratorContext;
@@ -1034,18 +1035,8 @@ fn read_webgal_data_file(data_dir: &Path, relative_path: &str) -> Result<Vec<u8>
             "WebGAL 媒体文件必须是应用数据目录内的相对路径",
         ));
     }
-    let canonical_data_dir = data_dir
-        .canonicalize()
-        .map_err(|error| invalid_webgal(format!("解析应用数据目录失败：{error}")))?;
-    let canonical_file = data_dir
-        .join(raw)
-        .canonicalize()
-        .map_err(|error| invalid_webgal(format!("解析 WebGAL 媒体路径失败：{error}")))?;
-    if !canonical_file.starts_with(&canonical_data_dir) || !canonical_file.is_file() {
-        return Err(invalid_webgal(
-            "WebGAL 媒体文件不在应用数据目录内或不是文件",
-        ));
-    }
+    let canonical_file = canonicalize_data_file_path(data_dir, relative_path, "WebGAL 媒体文件")
+        .map_err(invalid_webgal)?;
     std::fs::read(&canonical_file).map_err(|error| {
         invalid_webgal(format!(
             "读取 WebGAL 媒体文件失败: {}: {error}",
@@ -1071,6 +1062,7 @@ mod tests {
         GalgameStageLayerV2, GalgameStagePositionV2, GalgameVisibleCastMemberV2, StoryGraph,
         StoryNarrativeLine, StoryNode, StoryNodeKind,
     };
+    use a4n_test_support::process::SidecarProcessTestDir;
     use serde_json::Value;
 
     fn scene(lines: Vec<GalgameLine>) -> GalgameSceneDetail {
@@ -1195,6 +1187,27 @@ mod tests {
                 thumbnail_path: None,
             },
         }
+    }
+
+    #[test]
+    fn reads_only_relative_files_inside_the_application_data_directory() {
+        let temp = SidecarProcessTestDir::new("webgal-export");
+        let data_dir = temp.path().join("data");
+        std::fs::create_dir_all(&data_dir).unwrap();
+        std::fs::write(data_dir.join("media.png"), b"media").unwrap();
+        std::fs::write(temp.path().join("outside.png"), b"outside").unwrap();
+
+        assert_eq!(
+            read_webgal_data_file(&data_dir, "media.png").unwrap(),
+            b"media"
+        );
+        let absolute = read_webgal_data_file(&data_dir, "/tmp/outside.png").unwrap_err();
+        assert!(matches!(
+            absolute,
+            AppError::InvalidState { operation, .. }
+                if operation == "WebGAL 媒体文件必须是应用数据目录内的相对路径"
+        ));
+        assert!(read_webgal_data_file(&data_dir, "../outside.png").is_err());
     }
 
     #[test]

@@ -444,6 +444,14 @@
 - 验证：`cargo check --all-targets --locked --offline -p a4n-orchestrator` 通过；`cargo test --no-run --locked --offline -p a4n-orchestrator --lib` 编译通过；`timeout 60s cargo test --locked --offline -p a4n-orchestrator --lib media_thumbnail_path_must_be_relative_to_data_dir` 1/1 通过；`cargo fmt --all -- --check`、`git diff --check` 通过。
 - 记录文件：`crates/host/a4n-orchestrator/src/media.rs`，共享实现位于 `crates/platform/a4n-storage/src/files/paths.rs`。
 
+### R-54：复用 WebGAL 媒体文件路径校验
+
+- 类别：重复安全路径校验。
+- BFS 覆盖：从 WebGAL 导出入口 `run_export_galgame_webgal_validated -> build_webgal_package -> read_webgal_data_file` 追到所有导出资产 zip entry；并对照 `a4n-storage::canonicalize_data_file_path` 的空路径、绝对路径、canonicalize、数据根包含和文件类型规则。搜索确认 WebGAL helper 只有该打包调用点。
+- WebGAL helper 改用 `canonicalize_data_file_path` 完成相对路径规范化、越界拒绝和 regular file 检查，之后仍由本地代码读取 bytes 并生成 zip entry。保留已有绝对路径 WebGAL 专属错误；空路径、越界、目录目标和 I/O 诊断转为 storage helper 的错误文字，并统一包装为现有 `InvalidState(current=webgal_export)`。
+- 新增测试覆盖有效文件读取、绝对路径拒绝以及 `../` 越出数据根拒绝。验证：`cargo check --all-targets --locked --offline -p a4n-orchestrator` 通过；`cargo test --no-run --locked --offline -p a4n-orchestrator --lib` 编译通过；WebGAL 定向测试 1/1 通过；`cargo fmt --all -- --check`、`git diff --check` 通过。
+- 记录文件：`crates/host/a4n-orchestrator/src/galgame/webgal_export_application.rs`，共享实现位于 `crates/platform/a4n-storage/src/files/paths.rs`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
