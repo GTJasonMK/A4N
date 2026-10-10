@@ -727,6 +727,14 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 全仓前端静态搜索目前只剩 `CharacterDetailDialog` 的通用整数解析和 `numberRange` 自身实现；前者不属于正 ID/安全范围合同，保留并记录为待独立语义审查。
 - 记录范围：`frontend/src/hooks/useProgressTask.tsx`、`frontend/src/pages/novel-detail/video/{videoSegmentPlan,videoExecutionIdentity,loadVideoTabData,useVideoTabState,useVideoTabViewState}.ts`、`frontend/src/pages/novel-detail/galgame/GalgameChoiceEditor.tsx`、`frontend/src/pages/video-studio/CanvasNodeInspector.tsx`。
 
+### R-89：统一 Character Detail 可选章节安全整数解析
+
+- 类别：重复边界校验。
+- BFS 覆盖：从 Character Detail 冲突范围表单的 start/end chapter 输入追踪到冲突检查与同步 API payload；确认空值仍映射为 `null`，负数/零的既有业务语义不被改写。
+- 将通用整数判断替换为 `isSafeInteger`，只拒绝超过 JS 安全精度的数；错误文案、空值处理和下游请求保持不变。
+- 静态搜索确认 `frontend/src` 生产代码仅剩 `numberRange.ts` 自身直接调用 `Number.isSafeInteger`；未新增兜底、兼容或回退逻辑。
+- 记录范围：`frontend/src/pages/CharacterDetailDialog.tsx`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
