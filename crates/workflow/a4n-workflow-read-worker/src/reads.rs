@@ -133,9 +133,7 @@ impl WorkerState {
         request: WorkerEnvelope<GetWorkflowRunInput>,
     ) -> Result<a4n_api_contract::workflow::WorkflowRunDetailSummary, WorkerFailure> {
         validate_request(&request, WORKFLOW_READ_DETAIL_OPERATION)?;
-        if request.payload.workflow_run_id <= 0 {
-            return Err(WorkerFailure::invalid_request("workflow_run_id 必须大于 0"));
-        }
+        WorkerFailure::require_positive_id(request.payload.workflow_run_id, "workflow_run_id")?;
         let user_id = user_id(&request)?;
         let detail = a4n_db::workflow::workflow_run_detail(
             self.database.executor(),
@@ -163,8 +161,8 @@ impl WorkerState {
         validate_request(&request, TASK_READ_HISTORY_OPERATION)?;
         require_service_principal(&request.principal)?;
         let input = request.payload;
-        if input.project_id.is_some_and(|id| id <= 0) {
-            return Err(WorkerFailure::invalid_request("project_id 必须大于 0"));
+        if let Some(project_id) = input.project_id {
+            WorkerFailure::require_positive_id(project_id, "project_id")?;
         }
         if input.limit == 0 {
             return Err(WorkerFailure::invalid_request("limit 必须大于 0"));

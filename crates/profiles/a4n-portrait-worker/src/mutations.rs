@@ -6,10 +6,8 @@ impl WorkerState {
         request: WorkerEnvelope<PortraitRecordInput>,
     ) -> Result<(), WorkerFailure> {
         validate_request(&request, PORTRAIT_SET_PRIMARY_OPERATION)?;
-        let portrait_id = request.payload.portrait_id;
-        if portrait_id <= 0 {
-            return Err(WorkerFailure::invalid_request("portrait_id 必须大于 0"));
-        }
+        let portrait_id =
+            WorkerFailure::require_positive_id(request.payload.portrait_id, "portrait_id")?;
         let portrait = a4n_db::character::character_portrait_record_by_id(
             self.database.connection(),
             portrait_id,

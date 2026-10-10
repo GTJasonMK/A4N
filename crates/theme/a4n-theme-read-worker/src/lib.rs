@@ -343,9 +343,7 @@ impl WorkerState {
         user_id: i64,
         theme_id: i64,
     ) -> Result<ThemeRecord, WorkerFailure> {
-        if theme_id <= 0 {
-            return Err(WorkerFailure::invalid_request("theme_id 必须大于 0"));
-        }
+        WorkerFailure::require_positive_id(theme_id, "theme_id")?;
         let theme = a4n_db::config::theme_by_id(self.database.connection(), theme_id)
             .await
             .map_err(app_error)?

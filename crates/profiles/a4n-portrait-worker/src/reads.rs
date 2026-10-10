@@ -31,10 +31,8 @@ impl WorkerState {
         request: WorkerEnvelope<PortraitProfileInput>,
     ) -> Result<PortraitLookupResponse, WorkerFailure> {
         validate_request(&request, PORTRAIT_PRIMARY_OPERATION)?;
-        let profile_id = request.payload.profile_id;
-        if profile_id <= 0 {
-            return Err(WorkerFailure::invalid_request("profile_id 必须大于 0"));
-        }
+        let profile_id =
+            WorkerFailure::require_positive_id(request.payload.profile_id, "profile_id")?;
         let project_id =
             a4n_db::project::protagonist_profile_project_id(self.database.connection(), profile_id)
                 .await
@@ -63,10 +61,8 @@ impl WorkerState {
         request: WorkerEnvelope<PortraitRecordInput>,
     ) -> Result<PortraitLookupResponse, WorkerFailure> {
         validate_request(&request, PORTRAIT_BY_ID_OPERATION)?;
-        let portrait_id = request.payload.portrait_id;
-        if portrait_id <= 0 {
-            return Err(WorkerFailure::invalid_request("portrait_id 必须大于 0"));
-        }
+        let portrait_id =
+            WorkerFailure::require_positive_id(request.payload.portrait_id, "portrait_id")?;
         let Some(portrait) = a4n_db::character::character_portrait_record_by_id(
             self.database.connection(),
             portrait_id,

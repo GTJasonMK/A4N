@@ -240,9 +240,7 @@ async fn review_for_editor(
     user_id: i64,
     review_id: i64,
 ) -> Result<ImportReviewRecord, WorkerFailure> {
-    if review_id <= 0 {
-        return Err(WorkerFailure::invalid_request("review_id 必须大于 0"));
-    }
+    WorkerFailure::require_positive_id(review_id, "review_id")?;
     let review = a4n_db::import_review::import_review_by_id(database.connection(), review_id)
         .await
         .map_err(database_error)?
