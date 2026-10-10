@@ -8,7 +8,7 @@
 - 基线 Cargo workspace 有 213 个 crate manifest；本次增加 Worker runtime 与 DB adapter 后共 215 个。`cargo metadata` 核对了 Worker 对共享配置/runtime crate 的依赖。静态搜索补查脚本启动、环境变量、历史迁移、测试 fixture、生成合同脚本和运行时路由字符串。
 - 检查了 `#[allow(dead_code)]`、兼容/legacy 命名、候选无入边符号、Cargo 直接依赖和可复用的前端格式工具。
 
-R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 个 unresolved references，第二轮解析 25 个待处理引用。R-75 同步 6 个文件并解析 2 个待处理引用。R-76 首轮同步 27 个 Worker/helper 文件时报告 83 个 unresolved references；最终 helper/test 同步后报告 10 个。当前 `codegraph status` 显示索引 up to date，但 CLI 未列出这些 unresolved references 对应的符号。跨 crate helper 导入和部分动态/宏式 route 注册仍可能无法形成完整调用边，例如共享 runtime helper 的包外调用需要用静态搜索复核。R-74—R-76 的消费者均另经全仓静态搜索确认，并由受影响 workspace package 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
+R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 个 unresolved references，第二轮解析 25 个待处理引用。R-75 同步 6 个文件并解析 2 个待处理引用。R-76 首轮同步 27 个 Worker/helper 文件时报告 83 个 unresolved references；最终 helper/test 同步后报告 10 个。R-77 更新后最新 sync 报告 11 个 unresolved references。当前 `codegraph status` 显示索引 up to date，但 CLI 未列出这些 unresolved references 对应的符号。跨 crate helper 导入和部分动态/宏式 route 注册仍可能无法形成完整调用边，例如共享 runtime helper 的包外调用需要用静态搜索复核。R-74—R-77 的消费者均另经全仓静态搜索确认，并由受影响 workspace package 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
 
 本记录说明实际检查的入口和结果，不声称仅凭静态分析证明了所有运行环境、外部调用者、反射或部署配置均无遗漏。未对所有产品模块做逐函数人工审阅，也未运行浏览器端到端流程。
 
@@ -631,6 +631,14 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：`cargo check --all-targets --locked --offline` 覆盖 `a4n-worker-runtime` 和全部 30 个 Worker package，通过；`timeout 60s cargo test --locked --offline -p a4n-worker-runtime --lib wait_for_shutdown_signal_handles_sigterm -- --nocapture`：1/1 通过，子进程在收到 SIGTERM 后正常完成；`cargo fmt --all -- --check` 与 `git diff --check` 通过。
 - 记录范围：`a4n-worker-runtime` signal helper，以及 30 个 managed Worker 的 startup/serve 调用点。
 
+### R-77：统一 Server/Tauri 子进程终止流程
+
+- 类别：重复子进程关闭实现。
+- BFS 覆盖：从 `a4n-server::stop_child` 追踪 8 个 managed Worker/startup caller，覆盖 Worker readiness 失败、binary fingerprint 失败、重启、批量更新回滚和 Server shutdown；另追踪 `stop_control`/`stop_edge` 在生命周期、supervision 与 startup 回滚中的调用和错误聚合。从 Tauri `terminate_child` 追踪 Native Worker readiness/Drop、Local Server stderr 启动失败/健康检查失败/正常退出路径，并用 `rg` 复核该符号的所有生产引用。两处实现均为 Unix SIGTERM、最多 50 次 100ms 轮询、超时后强制 kill；Sidecar 的 HTTP shutdown 协议、CLI 按 PID/marker 校验的终止、控制台任务进程组关闭和测试夹具进程管理合同不同，排除在本项之外。
+- 将等待与终止流程集中到 `a4n-worker-runtime::terminate_child`，Server/Tauri 调用同一实现并删除 Tauri 私有副本。SIGTERM 命令失败时先用 `try_wait` 区分已退出子进程，再记录失败并强制终止；最终 `kill`/`wait` 错误由 helper 显式返回。Server 保留 `anyhow` 错误传播；Tauri 保留既有调用点日志和启动错误策略，但不再吞掉最终 wait 错误。
+- 新增 SIGTERM 被忽略时升级到强制终止的 Unix 回归用例；复用原 SIGTERM graceful-shutdown 子进程测试验证共享 helper。`timeout 60s cargo test --locked --offline -p a4n-worker-runtime`：5/5 通过；`cargo check --all-targets --locked --offline -p a4n-server -p a4n-tauri` 通过；`cargo fmt --all -- --check` 与 `git diff --check` 通过。构建期间在锁内离线更新了 `Cargo.lock`，并在验证结束后清理共享 agent target。
+- 记录范围：`crates/process/a4n-worker-runtime/`、`crates/host/a4n-server/src/server/process.rs`、`crates/host/a4n-tauri/src/server_process.rs`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -644,6 +652,7 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - `CanvasDbError` 的 Worker mapper 与 Orchestrator mapper 分别保留 wire Conflict 消息和具体 AppError operation；`CharacterDbError` 的 Worker mapper 把 Internal/Generation/Serialization 归为 Unavailable，而 Orchestrator 保留各自 AppError 类型。`GenerationDbError -> WorkerFailure` 只核到 Outline Worker 一个生产消费者，不增加单调用点 helper。
 - Project Read、Project Mutation、Project Status 的 `ProjectSummaryError -> WorkerFailure` 四路组合 match 当前相同。其 Progress/Family/Collaboration 子映射已分别共享；把组合 match 放入通用 process adapter 会令所有 adapter 消费者依赖 `a4n-project-read-core`，另建项目专用 adapter 又只服务 3 个调用点，因此保留这三处小型组合 match。
 - Object Profile/Scene Profile 的四处 `ObjectProfileInputError`/`SceneProfileInputError -> InvalidRequest` 和两处 Downstream conflict `String -> InvalidRequest` 都只有少数局部调用，且前者要求 Display 到 String 的额外适配；没有为几行转换再新增 Worker contract helper。
+- Worker readiness 的 Server `wait_for_worker_contract` 与 Tauri `wait_for_native_worker` 都轮询子进程和 health，但 Server 验证所有已上报 capability 的版本并要求 catalog 操作启用，Tauri 使用 async Worker client 且只按 Native catalog 要求项核对名称、启用状态和版本。两处 caller 的 capability 接受规则不同；共享轮询抽象要么改变接受范围，要么引入策略回调，故保留宿主边界。CodeGraph 确认各自生产调用均只有一处，静态复核对应的 readiness 和 capability validation 路径。
 - 前端日期解析已由 `frontend/src/i18n/format.ts::parseDate` 共用；数值范围与 CSS RGB 解析已有共享 utility。本次未发现需要再拆分的新事实来源。
 
 ## 验证

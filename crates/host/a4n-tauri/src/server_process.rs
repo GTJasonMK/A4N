@@ -185,7 +185,7 @@ impl NativeWorkerSettings {
                 .with_auth_token(worker.token.clone());
             if let Err(error) = wait_for_native_worker(&mut child, &client, &worker.metadata).await
             {
-                if let Err(stop_error) = terminate_child(&mut child) {
+                if let Err(stop_error) = a4n_worker_runtime::terminate_child(&mut child) {
                     tracing::error!(
                         worker = %worker.metadata.name,
                         error = %stop_error,
@@ -297,7 +297,7 @@ impl NativeWorkerProcesses {
 }
 
 fn stop_native_child(name: String, mut child: Child) {
-    if let Err(error) = terminate_child(&mut child)
+    if let Err(error) = a4n_worker_runtime::terminate_child(&mut child)
         && error.kind() != io::ErrorKind::InvalidInput
     {
         tracing::warn!(worker = %name, %error, "停止 Native worker 失败");
@@ -426,7 +426,7 @@ impl LocalServerProcess {
             .spawn()
             .map_err(|error| format!("启动 A4N Server 失败: {}: {error}", server.display()))?;
         let Some(stderr) = child.stderr.take() else {
-            if let Err(error) = terminate_child(&mut child) {
+            if let Err(error) = a4n_worker_runtime::terminate_child(&mut child) {
                 tracing::warn!(%error, "停止 stderr 未能捕获的 A4N Server 失败");
             }
             return Err(io::Error::other("A4N Server stderr 未开启捕获").into());
@@ -437,7 +437,7 @@ impl LocalServerProcess {
         let stderr_reader = match spawn_server_stderr_reader(stderr, config, stderr_tail.clone()) {
             Ok(reader) => reader,
             Err(error) => {
-                if let Err(stop_error) = terminate_child(&mut child) {
+                if let Err(stop_error) = a4n_worker_runtime::terminate_child(&mut child) {
                     tracing::warn!(%stop_error, "启动 stderr 捕获失败后停止 A4N Server 失败");
                 }
                 return Err(format!("启动 A4N Server stderr 捕获失败: {error}").into());
@@ -506,7 +506,7 @@ impl LocalServerProcess {
         let Some(mut child_process) = child.take() else {
             return;
         };
-        if let Err(error) = terminate_child(&mut child_process)
+        if let Err(error) = a4n_worker_runtime::terminate_child(&mut child_process)
             && error.kind() != std::io::ErrorKind::InvalidInput
         {
             tracing::warn!(%error, "停止 A4N Server 失败");
@@ -722,28 +722,6 @@ fn run_migration(
     let detail = String::from_utf8_lossy(&output.stderr);
     let detail = detail.replace(database_url, "[REDACTED]");
     Err(format!("数据库迁移失败: {}", detail.trim()).into())
-}
-
-fn terminate_child(child: &mut Child) -> Result<(), std::io::Error> {
-    #[cfg(unix)]
-    {
-        let status = Command::new("kill")
-            .args(["-TERM", &child.id().to_string()])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()?;
-        if status.success() {
-            for _ in 0..50 {
-                if child.try_wait()?.is_some() {
-                    return Ok(());
-                }
-                std::thread::sleep(Duration::from_millis(100));
-            }
-        }
-    }
-    child.kill()?;
-    let _ = child.wait();
-    Ok(())
 }
 
 fn resolve_binary(

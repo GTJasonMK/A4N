@@ -123,24 +123,6 @@ pub(crate) fn stop_edge(child: &mut Child) -> anyhow::Result<()> {
 }
 
 pub(crate) fn stop_child(child: &mut Child) -> anyhow::Result<()> {
-    if child.try_wait()?.is_some() {
-        return Ok(());
-    }
-
-    #[cfg(unix)]
-    {
-        let _ = Command::new("kill")
-            .args(["-TERM", &child.id().to_string()])
-            .status();
-        for _ in 0..50 {
-            if child.try_wait()?.is_some() {
-                return Ok(());
-            }
-            std::thread::sleep(Duration::from_millis(100));
-        }
-    }
-
-    child.kill()?;
-    child.wait()?;
+    a4n_worker_runtime::terminate_child(child)?;
     Ok(())
 }

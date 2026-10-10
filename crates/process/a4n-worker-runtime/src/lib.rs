@@ -70,6 +70,48 @@ pub fn wait_for_shutdown_signal() -> impl Future<Output = ()> + Send {
     }
 }
 
+/// Send SIGTERM, wait for graceful exit, then force termination if needed.
+pub fn terminate_child(child: &mut std::process::Child) -> std::io::Result<()> {
+    if child.try_wait()?.is_some() {
+        return Ok(());
+    }
+
+    #[cfg(unix)]
+    {
+        let signal = std::process::Command::new("kill")
+            .args(["-TERM", &child.id().to_string()])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+        match signal {
+            Ok(status) if status.success() => {
+                for _ in 0..50 {
+                    if child.try_wait()?.is_some() {
+                        return Ok(());
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+            }
+            Ok(status) => {
+                if child.try_wait()?.is_some() {
+                    return Ok(());
+                }
+                tracing::warn!(pid = child.id(), %status, "向子进程发送 SIGTERM 失败，将强制终止");
+            }
+            Err(error) => {
+                if child.try_wait()?.is_some() {
+                    return Ok(());
+                }
+                tracing::warn!(pid = child.id(), %error, "无法向子进程发送 SIGTERM，将强制终止");
+            }
+        }
+    }
+
+    child.kill()?;
+    child.wait()?;
+    Ok(())
+}
+
 #[cfg(target_os = "linux")]
 /// Deliver SIGTERM to a child process when its parent exits.
 pub fn configure_parent_death_signal(command: &mut std::process::Command) {
@@ -95,15 +137,11 @@ pub fn configure_parent_death_signal(_: &mut std::process::Command) {}
 mod tests {
     #[cfg(unix)]
     use std::io::{BufRead, BufReader};
+    #[cfg(unix)]
+    use std::process::{Command, Stdio};
     use std::sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
-    };
-    #[cfg(unix)]
-    use std::{
-        process::{Command, Stdio},
-        thread,
-        time::{Duration, Instant},
     };
 
     use a4n_worker_contract::{
@@ -147,29 +185,34 @@ mod tests {
             }
         }
 
-        let signal = Command::new("kill")
-            .args(["-TERM", &child.id().to_string()])
-            .status()
-            .expect("send SIGTERM to shutdown signal child");
-        if !signal.success() {
-            let _ = child.kill();
-            let _ = child.wait();
-            panic!("SIGTERM delivery failed: {signal}");
-        }
+        terminate_child(&mut child).expect("terminate shutdown signal child");
+        let status = child.wait().expect("wait for shutdown signal child");
+        assert!(status.success(), "shutdown child failed: {status}");
+    }
 
-        let deadline = Instant::now() + Duration::from_secs(5);
-        loop {
-            if let Some(status) = child.try_wait().expect("check shutdown child status") {
-                assert!(status.success(), "shutdown child failed: {status}");
-                return;
-            }
-            if Instant::now() >= deadline {
-                let _ = child.kill();
-                let _ = child.wait();
-                panic!("shutdown signal waiter did not exit after SIGTERM");
-            }
-            thread::sleep(Duration::from_millis(10));
-        }
+    #[cfg(unix)]
+    #[test]
+    fn terminate_child_forces_process_when_sigterm_is_ignored() {
+        let mut child = Command::new("sh")
+            .args(["-c", "trap '' TERM; printf 'READY\\n'; read input"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("SIGTERM-ignoring child starts");
+        let _stdin = child.stdin.take().expect("child stdin is piped");
+        let stdout = child.stdout.take().expect("child stdout is piped");
+        let mut reader = BufReader::new(stdout);
+        let mut line = String::new();
+        let bytes = reader.read_line(&mut line).expect("read child readiness");
+        assert_ne!(bytes, 0, "child exited before readiness");
+        assert_eq!(line.trim(), "READY");
+
+        terminate_child(&mut child).expect("force termination after SIGTERM timeout");
+        let status = child.wait().expect("wait for force-terminated child");
+        assert!(
+            !status.success(),
+            "force-terminated child exited successfully"
+        );
     }
 
     #[cfg(unix)]
