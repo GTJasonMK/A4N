@@ -695,6 +695,14 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 静态搜索确认本批选定文件不再直接调用 `Number.isSafeInteger`/`Number.isInteger`；允许空值或 0 的通用数值解析不在本批合并。
 - 记录范围：`frontend/src/pages/{NovelList.tsx,WritingDesk.tsx,admin/TestCenterPage.tsx,inspiration/{useBlueprintWorkflow,useInspirationChatController}.ts,novel-detail/galgame/MediaAssetIdBinder.tsx,novel-detail/outlines/outlineTabUtils.ts,novel-detail/video/videoTabShared.ts,settings/prompt/PromptProjectSelect.tsx,writing-desk/{generationWordCount,useChapterStreamGeneration}.ts}`。
 
+### R-85：统一档案与章节表单正安全整数校验
+
+- 类别：重复边界校验。
+- BFS 覆盖：从 Object/Scene Profile 编辑器、章节手动导入、角色属性删除标记和事实反馈间隔入口，追踪到 API input payload、章节/档案数据库消费者、并发操作状态和现有表单测试；CodeGraph/static search 复核五个路径的字段类型与范围。
+- 五个页面组件改用 `isPositiveSafeInteger`，保留对象/场景的首末章节顺序检查、事实反馈的 `2147483647` 上限、删除标记字段完整性和原错误提示。未新增兜底、兼容或回退逻辑。
+- 静态搜索确认本批文件不再直接复制 `Number.isSafeInteger`/`Number.isInteger` 组合；0、时间轴位置和其他不同合同仍保留原实现。
+- 记录范围：`frontend/src/pages/novel-detail/{ObjectProfilesTab,SceneProfilesTab,ChaptersTab,FactFeedbackPanel}.tsx`、`frontend/src/pages/character-detail-dialog/DeletionManager.tsx`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

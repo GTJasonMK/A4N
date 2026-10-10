@@ -53,6 +53,7 @@ import { DEFAULT_IMAGE_STYLE } from "./styleTemplates";
 import { useProjectProfileCollection } from "./useProjectProfileCollection";
 import { useI18n, type MessageKey, type MessageTranslator } from "../../i18n";
 import { useNovelDetailDirty } from "./novelDetailDirty";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 
 const SCENE_TYPE_KEYS: Record<string, MessageKey> = {
   room: "novel.sceneType.room",
@@ -943,10 +944,10 @@ function sceneProfileToInput(profile: SceneProfile): SceneProfileInput {
 
 export function validateSceneProfileDraft(draft: SceneProfileInput): MessageKey | null {
   if (!draft.name.trim()) return "novel.profile.sceneNameRequired";
-  if (!Number.isInteger(draft.first_seen_chapter) || draft.first_seen_chapter <= 0) {
+  if (!isPositiveSafeInteger(draft.first_seen_chapter)) {
     return "novel.profile.firstChapterPositive";
   }
-  if (!Number.isInteger(draft.last_seen_chapter) || draft.last_seen_chapter <= 0) {
+  if (!isPositiveSafeInteger(draft.last_seen_chapter)) {
     return "novel.profile.lastChapterPositive";
   }
   if (draft.last_seen_chapter < draft.first_seen_chapter) {

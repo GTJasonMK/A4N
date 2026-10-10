@@ -12,6 +12,7 @@ import { useToast } from "../../components/feedback/Toast";
 import { useProgressTask } from "../../hooks/useProgressTask";
 import { useI18n, type MessageKey } from "../../i18n";
 import { useNovelDetailDirty } from "./novelDetailDirty";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 
 const MATERIAL_LABELS: Record<string, MessageKey> = {
   world_setting: "novel.factFeedback.world",
@@ -158,7 +159,7 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
   const saveInterval = async (event: React.FormEvent) => {
     event.preventDefault();
     const value = Number(interval);
-    if (!canEdit || operationBusy.current || !Number.isSafeInteger(value) || value <= 0 || value > 2147483647) return;
+    if (!canEdit || operationBusy.current || !isPositiveSafeInteger(value) || value > 2147483647) return;
     operationBusy.current = true;
     setBusy(true);
     const requestProject = projectId;

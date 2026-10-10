@@ -29,6 +29,7 @@ import { Modal } from "../../components/ui/Modal";
 import { runGenerationProgressTaskThen } from "../../hooks/runGenerationProgressTask";
 import { useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 import {
   getObjectProfileImportanceLabel,
   getObjectProfileTypeLabel,
@@ -737,10 +738,10 @@ function objectProfileToInput(profile: ObjectProfile): ObjectProfileInput {
 
 export function validateObjectProfileDraft(draft: ObjectProfileInput): MessageKey | null {
   if (!draft.name.trim()) return "novel.profile.objectNameRequired";
-  if (!Number.isInteger(draft.first_seen_chapter) || draft.first_seen_chapter <= 0) {
+  if (!isPositiveSafeInteger(draft.first_seen_chapter)) {
     return "novel.profile.objectFirstChapterPositive";
   }
-  if (!Number.isInteger(draft.last_seen_chapter) || draft.last_seen_chapter <= 0) {
+  if (!isPositiveSafeInteger(draft.last_seen_chapter)) {
     return "novel.profile.objectLastChapterPositive";
   }
   if (draft.last_seen_chapter < draft.first_seen_chapter) {
