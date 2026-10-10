@@ -33,7 +33,7 @@ const baselineSources = new Map(baselineRef ? sourceFiles.map((file) => [
 ]) : []);
 await mkdir(artifacts, { recursive: true });
 await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ success: false, state: "running" }));
-const tempRoot = path.resolve(process.env.A4N_PERF_TMPDIR ?? path.join(frontend, "../.dev-runtime"));
+const tempRoot = path.resolve(process.env.A4N_PERF_TMPDIR ?? path.join(frontend, "../../../.p"));
 await mkdir(tempRoot, { recursive: true });
 const temp = await mkdtemp(path.join(tempRoot, "perf-"));
 let driver;
@@ -69,7 +69,7 @@ try {
     browserName: "chrome", "goog:chromeOptions": {
       binary: process.env.A4N_WDIO_CHROMIUM_BINARY ?? "/usr/bin/chromium",
       args: ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage",
-        ...(scenario === "manga-source" || scenario === "galgame-source" ? ["--js-flags=--expose-gc"] : []),
+        ...(scenario === "manga-source" || scenario === "galgame-source" || scenario === "story-events" ? ["--js-flags=--expose-gc"] : []),
         `--user-data-dir=${path.join(temp, "chrome")}`],
     },
   } });

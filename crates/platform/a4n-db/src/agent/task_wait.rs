@@ -1,4 +1,5 @@
 use super::*;
+use std::collections::HashMap;
 
 pub async fn list_external_task_waits(
     db: &impl crate::DbExecutor,
@@ -11,24 +12,45 @@ pub async fn list_external_task_waits(
         .filter(run::Column::WaitingReason.eq("external"))
         .filter(sea_orm::sea_query::Expr::cust("EXISTS (SELECT 1 FROM agent_execution WHERE run_id = agent_run.id AND execution_kind = 'wait' AND status = 'running')"))
         .order_by_asc(run::Column::Id).limit(32).all(db).await?;
+    if runs.is_empty() {
+        return Ok(Vec::new());
+    }
+    let run_ids = runs.iter().map(|run| run.id).collect::<Vec<_>>();
+    let thread_ids = runs.iter().map(|run| run.thread_id).collect::<Vec<_>>();
+    let threads_by_id: HashMap<_, _> = thread::Entity::find()
+        .filter(thread::Column::Id.is_in(thread_ids))
+        .all(db)
+        .await?
+        .into_iter()
+        .map(|thread| (thread.id, thread))
+        .collect();
+    let mut executions_by_run = HashMap::<i64, Vec<_>>::new();
+    for execution in execution::Entity::find()
+        .filter(execution::Column::RunId.is_in(run_ids))
+        .filter(execution::Column::ExecutionKind.eq("wait"))
+        .filter(execution::Column::Status.eq("running"))
+        .all(db)
+        .await?
+    {
+        executions_by_run
+            .entry(execution.run_id)
+            .or_default()
+            .push(execution);
+    }
+
     let mut waits = Vec::new();
     for run in runs {
-        let owner = thread::Entity::find_by_id(run.thread_id)
-            .one(db)
-            .await?
+        let owner = threads_by_id
+            .get(&run.thread_id)
             .ok_or_else(|| AgentDbError::NotFound("等待任务的 Agent Thread 不存在".into()))?;
-        let executions = execution::Entity::find()
-            .filter(execution::Column::RunId.eq(run.id))
-            .filter(execution::Column::ExecutionKind.eq("wait"))
-            .filter(execution::Column::Status.eq("running"))
-            .all(db)
-            .await?;
-        for execution in executions {
-            waits.push(AgentExternalTaskWaitRecord {
-                run: run.clone().into(),
-                thread: owner.clone().into(),
-                execution: execution.into(),
-            });
+        if let Some(executions) = executions_by_run.remove(&run.id) {
+            for execution in executions {
+                waits.push(AgentExternalTaskWaitRecord {
+                    run: run.clone().into(),
+                    thread: owner.clone().into(),
+                    execution: execution.into(),
+                });
+            }
         }
     }
     Ok(waits)

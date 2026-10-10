@@ -84,6 +84,10 @@ async function measureStoryEvents(count: number) {
   const view = session(count, "zh-CN");
   const settleStart = performance.now();
   await settle();
+  const gc = (globalThis as typeof globalThis & { gc?: () => void }).gc;
+  const memory = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory;
+  if (gc) gc();
+  const initialHeapBytes = memory?.usedJSHeapSize ?? null;
   const initialSections = rootElement.querySelectorAll(".a4n-story-event-section");
   const initialLastRect = initialSections[initialSections.length - 1]?.getBoundingClientRect();
   const initial = { ...view.initialRender,
@@ -114,13 +118,16 @@ async function measureStoryEvents(count: number) {
     }
   }
   const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(rootElement.innerHTML));
-  const visibleTextHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(rootElement.innerText));
+  const renderedTextHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(rootElement.textContent ?? ""));
+  if (gc) gc();
   return { chapters: count, events: count * 5, samplesMs: measurements,
     medianMs: [...measurements].sort((a, b) => a - b)[2],
     initial,
+    initialHeapBytes,
+    finalHeapBytes: memory?.usedJSHeapSize ?? null,
     filterSamplesMs: filterSamples,
     reactCommitSamplesMs: commitSamples,
     htmlSha256: Array.from(new Uint8Array(hash), (value) => value.toString(16).padStart(2, "0")).join(""),
-    visibleTextSha256: Array.from(new Uint8Array(visibleTextHash), (value) => value.toString(16).padStart(2, "0")).join("") };
+    renderedTextSha256: Array.from(new Uint8Array(renderedTextHash), (value) => value.toString(16).padStart(2, "0")).join("") };
 }
 Object.assign(window, { verifyStoryEvents, measureStoryEvents, storyEventsOpened: () => opened, performanceReady: true });

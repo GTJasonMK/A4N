@@ -35,6 +35,13 @@
 | [PERF-017](../../frontend/src/pages/WritingDesk.tsx) | 写作桌/只读目录/导入预览 → Chapter Content Worker；1000章、4Mbps/50ms | 目录原先携带整本正文/分析；目录窄投影与带项目归属的单章读取共用权限/状态规则，正文按选择读取 | 页面可编辑中位数 **5264.6 → 741.1 ms（85.92%）**；真实千章目录 **11,601,686 → 742,686 字节（93.60%）**；业务/权限/草稿回归通过 |
 | [PERF-018](../../frontend/src/pages/novel-detail/story-events/ChapterEventSection.tsx) | 故事事件筛选 → 章节卡片渲染；100／1000 章，每章 5 事件，连续 8 次含收窄和放宽的筛选 | 原过滤为所有匹配章节创建新对象，未变化卡片也反复渲染；完整保留的章节维持原对象，卡片使用 React 原生 memo | CPU18/19 三轮交错中位数 **135.2 → 50.4 ms（62.72%）／1328.1 → 503.9 ms（62.06%）**；完整 DOM 和筛选行为一致 |
 | [PERF-019](../../crates/platform/a4n-db/src/chapter_content/queries.rs) | 故事事件初载/刷新 → Control → Chapter Content Worker → PostgreSQL；1000章、900章有分析、4500事件 | 旧接口读取正文并生成未使用的同步状态；新分析读口仅选取 id/章号/标题/摘要/分析五列，复用项目权限和删除过滤 | 三轮真实 API P50 **126.56 → 43.34 ms（65.76%）**，P95 **160.61 → 66.36 ms（58.68%）**；JSON **13,650,788 → 2,172,288 字节（84.09%）** |
+| [PERF-037](../../crates/platform/a4n-db/src/project/bundle.rs) | 用户触发的独立漫画项目包导出；128 个来源章节、32 个文本资产，每资产 2 个版本 | 原先逐资产验证并读版本、逐来源并发读章节/快照/快照章节；改为 1,000 ID 分批查询、按 ID 映射并保留来源排序与原错误 | 真实 PostgreSQL 完整导出 SQL **484 → 10**；P50 **51.346 → 5.365 ms（89.6%）**，P95 **51.885 → 6.007 ms（88.4%）**；完整序列化包逐项相同 |
+| [PERF-038](../../crates/platform/a4n-db/src/project/bundle.rs) | 用户触发项目包导入中的对话历史阶段；1 个会话、1,000 条消息，每条约 280 B | 原实现每条消息执行单独 INSERT；同一事务中将消息按 1,000 条分批后执行 `insert_many`，导入计数和会话映射规则不变 | 真实 PostgreSQL 历史导入 SQL **1003 → 4**；同时间戳排序复测 P50 **86.847 → 14.987 ms（82.7%）**，P95 **98.599 → 18.369 ms（81.4%）**；消息字段和顺序一致 |
+| [PERF-039](../../crates/platform/a4n-db/src/project/bundle.rs) | 用户触发项目包历史导入中的 workflow progress；单 workflow 保留上限 200 条事件 | 原实现每条事件执行单独 INSERT；先映射 workflow ID，再按 1,000 行批量插入，task_id 清理与 JSON 重映射不变 | 真实 PostgreSQL SQL **203 → 4**；P50 **29.598 → 6.707 ms（77.3%）**，P95 **65.253 → 13.312 ms（79.6%）**；事件字段、时间与 event_index 顺序一致 |
+| [PERF-040](../../crates/platform/a4n-db/src/project/bundle.rs) | 用户触发项目包历史导入中的模型用量账本；1,000 条记录关联单个 workflow | 每条记录重新执行 request ID 生成、user/project/workflow 映射与 pricing 脱敏后单独 INSERT；保留转换规则，在同一事务内每批 1,000 条执行 `insert_many` | 真实 PostgreSQL SQL **1003 → 4**；P50 **192.535 → 42.019 ms（78.2%）**，P95 **305.936 → 52.018 ms（83.0%）**；映射、账本字段与 JSON 内容一致 |
+| [PERF-041](../../crates/platform/a4n-db/src/project/bundle.rs) | 用户触发项目包导入中的模型调用追踪；1 个 workflow、1,000 条 LLM trace | 原实现逐条映射 project/root/workflow/generation ID、脱敏上下文 JSON 并 INSERT；按 1,000 行分批写入，字段转换不变 | 真实 PostgreSQL SQL **1003 → 4**；P50 **314.611 → 50.811 ms（83.8%）**，P95 **526.321 → 74.528 ms（85.8%）**；trace 字段逐项一致 |
+| [PERF-042](../../crates/platform/a4n-db/src/project/bundle.rs) | 用户触发项目包导入中的 generation target 关联；1 个 generation run、1,000 个 target | 原实现逐条映射 generation run / domain entity 并 INSERT；映射转换不变，按 1,000 行批量插入 | 真实 PostgreSQL SQL **1004 → 5**；P50 **88.124 → 14.407 ms（83.7%）**，P95 **115.431 → 22.759 ms（80.3%）**；target 表/ID、kind、role、时间与序列顺序一致 |
+| [PERF-043](../../crates/platform/a4n-db/src/asset/generation.rs) | 章节分析物体发现持久化；单次 16/32/64/128 个档案 | 首次事实沿用已写入的当前投影，档案结果由逐条回读改为按 ID 批量读取；事实审计、锚点证据和事务语义不变 | PostgreSQL P50 **55.350/36.873/45.468/91.485 → 9.991/16.905/29.935/41.031 ms**，分别下降 **82.0%/54.1%/34.2%/55.1%**；P95 降幅 **84.3%/65.4%/78.0%/51.3%** |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -49,12 +56,14 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 章节列表 | PERF-011 消除未使用历史读取及检查点深复制，PERF-017 将写作桌/只读目录/导入预览改为按需读取。原 `ChapterSummary` 完整合同保留，目录与正文类型分开；故事事件/来源快照读取仍另行审查。 |
 | 数据库权限和协作 | 读取使用连接池、绑定参数和批量根项目查询。邀请／成员统计仍可能随大型协作人数增长；暂无代表性数据证明其为当前瓶颈，未为凑指标添加索引或改写权限查询。 |
 | 工作流轮询和恢复 | 旧任务进度轮询间隔 500 ms，已有单次进行中保护和结束清理；新生成任务走事件订阅。未通过减少进度频率来换取表面收益。恢复快照的读取需求与公开进度投影分开评估。 |
+| Agent 维护扫描 | PERF-029 批量读取外部等待与预算；PERF-030/031 批量读取仍活动的 Generation/Workflow owner 预算；PERF-034/036 测量 root/child 过期 lease 的完整恢复批次；PERF-035 为高基数 Generation owner JSON 关联增加表达式索引。审批和编辑器等待的局部预读候选未达门槛并拒绝保留。 |
 | HTTP 与媒体 | Worker／service client 已持有并复用 HTTP client；Web 媒体使用 `ServeFile`，Edge 使用流式 body。桌面自定义协议要求字节响应，不能直接套用 Web 的传输方案。 |
 | LLM 上游连接 | PERF-012 保留每次构造 provider 的配置与凭证隔离，仅延长 HTTP Client 的生命周期。原连接／逐次读取超时、错误、取消与背压检查通过；不缓存模型响应。 |
 | 嵌入模型生命周期 | PERF-014／015 已处理本地模型和 API 连接的重复初始化。模型文件删除／下载会使额外持有的资源失效；仍存活的 provider 保留原有拥有权，避免破坏已在使用的模型。没有缓存业务向量结果。 |
 | 语义分块 | 已复用向量范数并利用相似矩阵对称性；本次只消除额外矩阵。将全矩阵换成局部带状算法可能改变浮点抵消和相同分数时的切分，未作为无风险替换。 |
 | 故事事件 | PERF-018 减少筛选时未变化卡片的重复渲染；PERF-019 从数据库到前端仅读取所需的五个分析字段。千章/4500事件首屏仍需渲染大量卡片，页面总体加载提升仅约12.5%，未将 API 提升外推为首屏提升。 |
 | 漫画来源读取 | 当前 MangaTab 产品入口 ComicProjectWorkspace、VideoProjectWorkspace 和 GalgameProjectWorkspace 均使用 `listSourceSnapshotChapterIndex`；PERF-020 已用 1000 章真实 PostgreSQL/Chromium 夹具测量目录与单章详情，完整正文只在选章后读取。旧 `listSourceSnapshotChapters` API 仍保留给兼容调用方，但不是当前页面活跃路径。 |
+| 项目包传输 | PERF-037 批量读取独立漫画包的文本资产版本与来源实体；PERF-038—042 批量写入历史消息、workflow progress event、模型用量账本、LLM trace 与 generation target。SQL 数随数据行数增长，未引入缓存或预取。 |
 
 ## 可复现入口
 
@@ -354,6 +363,136 @@ flock -x /home/fufu/Code/A4N/work/.agent-build.lock -c \
 ### 拒绝候选：PERF-027 故事事件列表渲染
 
 - 目标链路：故事事件页面 1000 章/5000 事件的筛选更新与初次卡片渲染。分段 Chromium 基准显示初次 React commit 约 **167.6 ms**，章节/事件数据转换约 **24.6 ms**，筛选八次更新主要耗在卡片协调；初始 DOM 约 **69,008 个元素**。
-- 候选 A：移除每个事件行的装饰 bullet 和分隔符 DOM，改用 CSS 伪元素。DOM 降至 **49,008**，可见文本哈希、1440/390px 横向溢出检查和键盘路径保持一致；但八次筛选总耗时 P50 仅 **177.1 → 154.0 ms（13.0%）**，低于 30% 门槛，拒绝保留。
+- 候选 A：移除每个事件行的装饰 bullet 和分隔符 DOM，改用 CSS 伪元素。DOM 降至 **49,008**，完整 HTML trace、1440/390px 横向溢出检查和键盘路径保持一致；但八次筛选总耗时 P50 仅 **177.1 → 154.0 ms（13.0%）**，低于 30% 门槛，拒绝保留。
 - 候选 B：对章节数组做自定义引用比较以跳过列表协调。实际 Chromium P50 **667.3 ms**，相对基线反而约 **3.77 倍**，立即撤回。
-- 结论：两项产品改动均未进入源码；仅保留性能夹具中的分段计时、DOM 计数和可见文本哈希，用于后续评估真正的列表窗口化方案。当前实现仍保留完整 DOM、查找、键盘和打印语义。
+- 结论：两项产品改动均未进入源码；仅保留性能夹具中的分段计时、DOM 计数和完整 DOM trace，用于后续评估真正的列表窗口化方案。当前实现仍保留完整 DOM、查找、键盘和打印语义。
+
+### 拒绝候选：PERF-028 故事事件搜索筛选
+
+- 链路与规模：搜索输入触发 `filterStorySections`，扫描 1000 章/5000 个事件；其后 React 列表协调占八次交互的大部分时间。测量使用 Chromium 153、1440/390px，固定源码基线 `01bcafc8d`，文本/HTML 哈希、事件数、Enter 跳章和横向溢出一致。
+- 候选 A：在章节/事件上预计算规范化搜索字符串。筛选阶段 P50 `27.9 → 3.4 ms`（下降 87.8%），但整段八次交互 `171.0 → 171.7 ms`，初始 heap `28.9 → 35.0 MB`（增加 21.2%）；拒绝。
+- 候选 B：章节文本命中时跳过事件扫描、输出未变时复用数组并 memo 章节列表。一次新鲜 A/B 的筛选阶段 P50 `27.9 → 5.8 ms`（下降 79.2%），但整段交互 P50 `184.2 → 159.7 ms`（下降 13.3%），仍低于 30% 门槛；产品改动撤回。heap 读数受浏览器运行波动影响，不作为收益证据。
+- 结论：两种搜索候选均未保留。证据在 `data/performance-audit-20261010/story-search-before-01/report.json`、`story-search-after-02/report.json` 和 `story-search-memo/`。夹具保留分段计时、DOM/HTML/渲染文本校验与 heap 观测，供后续端到端列表候选复用。
+- 夹具临时 profile 默认放在 `/home/fufu/Code/A4N/work/.p`，保持在 work 管理目录内，并避免深层工作树路径导致 Chromium socket 超长。
+- 恢复候选后的基线复核：`story-search-final/{before,after}/report.json` 的 1000 章完整 HTML 与渲染文本 SHA-256 一致。单轮中位数 `355.8/289.5 ms` 有明显运行波动，产品源码没有符合因果归属的性能差异，因此不计入任何优化收益。
+
+### PERF-029：Agent 外部等待恢复批量读取
+
+- 链路与频率：Agent worker 的维护扫描每 **2 秒**运行一次；`task_wait::reconcile` 最多分页读取 **32 个**外部任务等待项，再从 DB 读取 Thread、Execution 与每个 Run 的预算快照。旧实现每次最多执行 **161 条查询**（等待 Run 1 条，Thread/Execution 各 32 条，预算快照每项 3 条）。
+- 根因与改动：列表读取改为一次批量 Thread 和一次批量 Execution 查询；新增 `run_budget_snapshots`，每个扫描批次只读一次目标 Run、一次所有目标根的 Run 家族、一次家族 Execution，再在内存中沿原有祖先链规则计算预算。单项 `run_budget_snapshot` 委托同一批量实现，保留唯一业务计算；应用层批量调用并在缺少结果时显式报错。空等待列表仍在首条查询后早返回。
+- 量化结果：隔离 PostgreSQL 16、32 个真实等待 Run、2 次预热、15 次热样本。DB 扫描 P50/P95 **67.503/89.189 → 7.913/17.294 ms**，分别下降 **88.3%/80.6%**；SQL 数 **161 → 6（下降96.3%）**。数据量和调用频率符合维护扫描上限；未更改等待状态、游标、执行身份、预算限制或唤醒条件。
+- 语义验证：基准逐项比较批量等待记录与 `external_task_wait`，并逐项比较批量预算快照与单项快照；父/子/兄弟 Run 共用预算树也逐项对照一致。预算回归 **5/5**、外部等待身份及唤醒 **1/1** 通过；`a4n-db` 与 `a4n-agent-application` 测试目标编译通过。
+- 证据：最终复测 `data/performance-audit-20261010/agent-waits-final/command.log`、`database.json`；先前完整 A/B `agent-waits-before-final/command.log` 与最终运行均通过。初次默认镜像标签拉取失败、冷编译超过单测 60 秒窗口及一次报告目录参数错误均保留报告；最终使用已存在的镜像 `docker.m.daocloud.io/library/postgres:16` 和隔离临时库，编译后以 `timeout 60s` 单独运行测试。临时容器退出，agent target 已清理。
+
+### PERF-030：Generation 取消候选批量预算读取
+
+- 链路与频率：Agent worker 每 **2 秒**调用一次 `cancel_stopped_owned_tasks`；Generation 候选按 task ID 分页、每页最多 **32 项**。旧实现每项读取 owner/attempt，再读取 owner 状态和完整预算事实；32 个活动 root owner 的基线为 **193 条 SQL**。
+- 根因与改动：owner/attempt 校验仍逐候选解析；祖先状态改为一次递归 CTE 批量读取，在内存中保持停止、循环和缺失祖先检查次序；仅对仍活动 owner 调用共用 `run_budget_snapshots`。停止候选仍早返回且不解析预算。
+- 量化结果：隔离 PostgreSQL 16、32 个真实 pending Generation task 及活动 Agent owner，2 次预热、15 次交错样本。完整候选扫描 SQL **193 → 69**；最终同轮 A/B P50 **87.297 → 39.672 ms（54.5%）**，P95 **110.532 → 42.642 ms（61.4%）**。新旧候选 task/attempt/user/status/owner-stop tuple 逐项一致。
+- 业务回归：Generation attempt 所有权、任务终态费用回执定向测试 **1 passed**；父/子/兄弟 Run 的状态批量判定在取消前后分别与期望状态一致；`a4n-db` 与 `a4n-agent-application` 测试目标编译通过。证据：`generation-cancel-before/command.log` 保存基线，`agent-cancel-batched-status-retry/command.log` 保存批量状态读取 A/B，`agent-cancel-final/command.log` 保存去重单项 owner 查询后的测试。
+
+### PERF-031：Workflow 取消候选批量预算读取
+
+- 链路与频率：与 Generation 扫描同属 Agent worker 每 **2 秒**维护任务；Workflow owner 依据工作流 ID 和获批的 `run_canvas_graph`/`run_canvas_node` execution 身份确定，每页最多 **32 项**。旧实现每候选一次 owner 查找，再逐项查 owner、祖先 Run 与预算树；32 个活动 root owner 约 **161 条 SQL**。
+- 根因与改动：Workflow owner 身份查询仍逐候选解析；祖先状态改为同一批递归 CTE 读取，之后只为活动 owner 批量计算预算。
+- 量化结果：隔离 PostgreSQL 16、32 个真实未完成 Workflow 与有效 Agent start execution、2 次预热、15 次交错样本。候选 tuple（workflow ID、owner ID、stopped）逐项一致；SQL **161 → 37**，P50 **186.456 → 54.368 ms（70.8%）**，P95 **319.796 → 87.222 ms（72.7%）**。
+- 验证：最终同库交错报告 `data/performance-audit-20261010/agent-cancel-batched-status-retry/command.log` 中，Generation/Workflow 两项基准、父子状态检查、Generation 所有权、等待唤醒与预算回归均通过。中间单项状态候选已被批量祖先 CTE 取代，其数据不作为最终收益。
+
+### 拒绝候选：PERF-033 编辑器等待过期预读
+
+- 链路与规模：Agent worker 每 2 秒检查过期编辑器等待，TTL 为 **30 秒**，单次上限 32 个。每项候选需重查最近 `run_waiting` 请求与 Thread owner，随后在事务内按 thread → run → event → execution 锁序复查并转换状态。
+- 候选：把候选请求/Thread owner 预读放进同一条有界查询，并将扫描时读取的 thread ID 传入事务前置函数，事务内部锁定和状态/执行身份复查不变。
+- 量化结果：隔离 PostgreSQL 16、32 个真实编辑器等待、2 次预热、15 次样本；完整过期转换 P50/P95 **458.219/652.326 → 355.461/458.863 ms**，下降 **22.4%/29.7%**，未达到任一 30% 门槛。候选版本没有保留：P50 无阈值收益，且尾延迟只由单组样本测得。
+- 验证与证据：前后均使 32 个等待执行进入失败终态；`editor_wait_is_fenced_and_expires_without_dispatching` **1 passed**。报告 `data/performance-audit-20261010/editor-expiry-{before,after}/command.log`。`runs.rs` 产品改动已撤回；仅保留可重放夹具和拒绝记录。
+
+### 拒绝候选：PERF-032 审批过期预读
+
+- 链路与规模：Agent worker 每 2 秒扫描一次过期审批，单次上限 32 项；每项须按 thread → run → execution → approval 顺序锁定并事务化更新多个状态及追加事件。隔离 PostgreSQL 的真实 32 项完整过期流程 P50/P95 为 **256.884/489.065 ms**。
+- 候选：移除事务前重复的 Run identity 读取，把 approval/thread 与 Run 一致性检查移动到已锁定的 Run。另一次同库重复流程 P50/P95 为 **257.446/341.937 ms**：P50 无改善，P95 单次约下降 30.1%，未证明稳定满足门槛，且候选改变了不一致数据的校验时机；产品实现已撤回。
+- 结论：保留基准夹具与拒绝记录，不保留产品变更。证据 `data/performance-audit-20261010/approval-expiry-{before,after-candidate}/command.log`；两次过期转换均 **32 项全部 expired**，另 `expired_approval_rejects_execution_and_requeues_run` 与 `approval_is_consumed_only_after_execution_succeeds` 各 1 项通过。
+
+### PERF-034：expired-run recovery 基线
+
+- 链路与频率：Agent worker 每 **2 秒**扫描一次，最多取 **16 个**过期 lease；应用层顺序调用每个 Run 的恢复事务。恢复需原子完成状态 fencing、执行/流消息终态化、审计事件及 Thread 状态投影。
+- 量化结果：隔离 PostgreSQL 16、16 个真实过期 root Run、2 次预热、15 个样本；包含候选扫描和全部恢复事务的批次 P50/P95 **111.002/263.408 ms**，约占 2 秒维护周期 **5.6%/13.2%**。16 个 Run 均进入 `recovery_required`。
+- 决定：本轮不改逐 Run 事务。批量跨 Run 重写锁和状态转换会改变隔离/冲突边界，当前基线未显示低复杂度替代方案能稳定带来 30% 以上的端到端收益；live lease 拒绝和恢复重放幂等测试仍通过。报告 `data/performance-audit-20261010/expired-run-recovery-before/command.log`。
+- 覆盖限制：这里只测独立 root Run；child/delegation 恢复会多读 delegation 和 parent Run，尚未单独量化，仍需继续审查。
+
+### PERF-035：Generation owner JSON 关联索引
+
+- 链路与数据量：Generation owner 查找在取消扫描中按 `resource_preconditions_json->generation_task_id/generation_attempt` 关联 `agent_execution`；夹具写入 **50,000 条**无关 execution，并保留一个有效 owner。
+- 根因与改动：原 schema 只有 `(run_id, status, sequence)` 索引，无法支持 JSON 表达式条件。新增幂等 migration `agent_owner_lookup_indexes`，建立 `(generation_task_id expression, generation_attempt expression, run_id)` 索引；未为 Workflow JSON 条件添加未达门槛的索引。
+- 量化结果：同一隔离 PostgreSQL 16 schema、2 次预热、15 个样本，正式索引前后 Generation owner lookup P50/P95 **35.696/39.994 → 1.469/1.832 ms**，改善 **95.9%/95.4%**；索引占用 **2,056,192 B**。候选 task 身份保持一致。
+- 边界与验证：同一压力夹具的 Workflow 临时索引增量约 14%，拒绝落库。`a4n-db` owner lookup 基准、migration 编译和格式/diff 检查通过。证据 `data/performance-audit-20261010/owner-json-index-final-run/command.log`。
+
+### PERF-036：child/delegation expired-run recovery 基线
+
+- 链路与规模：过期 child Run 恢复除 root 路径的状态 fencing、执行/消息终态和审计事件外，还必须读取并锁定 parent Run、parent/child Thread 与 delegation，更新 delegation 并写入父任务恢复通知。Agent worker 每 2 秒最多处理 16 个过期 lease。
+- 量化结果：隔离 PostgreSQL 16、16 个真实 parent/child delegation lineage、2 次预热、15 个样本；完整恢复批次 P50/P95 **194.970/533.421 ms**，16/16 child Run 进入 `recovery_required`。相对 PERF-034 root 批次 111.002/263.408 ms，额外成本来自 parent/delegation/inbox 原子写入。
+- 决定：本轮不做跨 child Run 的批量事务重构。它会改变 parent/delegation 锁顺序、并发 fencing 和通知幂等边界，当前没有低复杂度方案能证明稳定达到 30% 收益。证据 `data/performance-audit-20261010/expired-child-recovery-before/command.log`；基准夹具未改产品恢复逻辑。
+
+### PERF-037：独立漫画项目包导出批量读取
+
+- 调用链与规模：用户触发 `export_project_bundle_data` 后，导出应用读取独立漫画包。读取频率由用户操作决定；单次成本随文本资产和冻结来源章节数增长。基准使用 PostgreSQL 16、32 个文本资产（每个 2 个版本）和 128 个来源章节。
+- 根因与改动：旧实现每个资产重复校验项目、读取资产及其全部版本；每个来源章节再读章节、来源快照和快照章节。版本读取改为校验项目及资产归属后按 1,000 个资产 ID 分批查询；来源实体按三类 ID 分批查询，再按原来源 ID 顺序组装，缺失和跨项目错误保持显性。
+- 量化结果：由查询路径推导 SQL 数 **484 → 10**；2 次预热、15 次交错完整导出，最终复测 P50 **51.346 → 5.365 ms（89.6%）**，P95 **51.885 → 6.007 ms（88.4%）**。每轮完整序列化的导出包逐值相同。
+- 语义验证：夹具检查缺失资产仍返回 `NotFound`、跨项目资产仍返回 `Forbidden`；完整包包含所有章节、快照和两个资产版本，源顺序不变。
+- 相邻迁移修正：夹具执行 `canvas_project_split::ensure_complete` 时发现预检 SQL 的 Rust 字符串续行把 `m` 与 `JOIN` 拼成 `mJOIN`。改用等价原始多行 SQL；预检和 `ensure_complete` 已由同一真实 PostgreSQL 基准路径覆盖。该修正不计为性能收益。
+- 证据：最终运行 `data/performance-audit-20261010/project-bundle-batch/command-05.log` 与 `build-05.log`。前两次初始化失败没有计入性能结果。命令：`cargo test --locked --release -p a4n-db --test project_bundle_batch -- --ignored --nocapture --test-threads=1`，需设置独立的 `A4N_TEST_DATABASE_URL`；性能比较在 release 优化级运行，关闭 LTO 以缩短冷构建。
+
+### PERF-038：项目包历史消息批量导入
+
+- 调用链与规模：项目包导入完成实体/媒体映射后，`import_project_bundle_history` 在一个事务内导入会话及其消息，再导入工作流和生成历史。此处测量对话历史阶段，输入为 1 个会话、1,000 条约 280 B 消息；导入由用户发起。
+- 根因与改动：会话先插入以建立源会话到新会话 ID 的映射，之后旧实现逐条 INSERT 消息。现在仍先插入会话并建立同一映射，将消息 ActiveModel 按 1,000 条分批后通过单次 `insert_many` 插入，仍处于原事务中。
+- 量化结果：1,000 条消息时由查询路径推导 SQL 数 **1003 → 4**；2 次预热、15 次交错完整历史导入调用。同时间戳排序复测 P50 **86.847 → 14.987 ms（82.7%）**，P95 **98.599 → 18.369 ms（81.4%）**。结果只代表数据库历史导入阶段，不外推到包解析、媒体复制或整体导入响应。
+- 语义验证：单条插入基线与正式导入结果计数相同；每两条相邻消息共享时间戳，逐项比较角色、内容、工具调用、token 数、章节号、重要标记和创建时间，含同时间戳的 ID 顺序一致。所有写入仍在单事务中。
+- 证据：同库完整双基准见 `data/performance-audit-20261010/project-bundle-batch/command-05.log`；独立同时间戳顺序复测见 `command-06.log` 和 `build-06.log`。数据库名 `a4n_perf_20261010_bundle_arch`，PostgreSQL 16。
+
+### PERF-039：项目包 workflow progress 批量导入
+
+- 调用链与规模：项目包历史导入映射出新 workflow ID 后，导入该 workflow 的 progress 记录。生产路径每个 workflow 最多保留 **200 条**事件；性能夹具使用 1 个 workflow、200 条 progress event。
+- 根因与改动：每条事件不需要新的数据库 ID 参与后续映射，但原实现逐条 INSERT。先对所有事件完成 workflow ID 映射、`task_id = None` 和 meta JSON 重映射，再按 1,000 行一批 `insert_many`，事务和失败传播不变。
+- 量化结果：查询数由 **203 → 4**；2 次预热、15 次交错完整历史导入，P50 **29.598 → 6.707 ms（77.3%）**，P95 **65.253 → 13.312 ms（79.6%）**。
+- 语义验证：event_index、current、total、message、percent、meta、created_at 按顺序逐项一致；来源 task ID 仍在导入时清除。事件源使用两条共用时间戳，排序依靠原 event_index。
+- 证据：`data/performance-audit-20261010/project-bundle-batch/command-07.log` 与 `build-07.log`；使用前文相同隔离 PostgreSQL 数据库和定向 ignored benchmark 命令。
+
+### PERF-040：项目包模型用量账本批量导入
+
+- 调用链与规模：项目包导入的 `import_project_bundle_history` 写入工作流历史后，逐条导入关联其 workflow ID 的模型成本账本。基准输入为 1 个 workflow、1,000 条 `model_usage_record`，项目包由用户发起。
+- 根因与改动：每条记录都要重生成唯一 request ID、替换 user ID、映射 project/root/workflow/generation ID、清除 provider config ID 并脱敏 pricing snapshot，旧实现每条单独 INSERT。现在仍逐条应用这些转换，再每 1,000 条通过 `insert_many` 写入原事务；无映射/数据库错误仍使整个事务失败。
+- 量化结果：SQL **1003 → 4**；2 次预热、15 次交错导入 P50 **192.535 → 42.019 ms（78.2%）**，P95 **305.936 → 52.018 ms（83.0%）**。
+- 语义验证：逐行核对生成 request ID 唯一且不同于来源 ID、user/project/root/workflow/generation 映射、provider config 清理、账本金额/状态/时间字段，以及 meter/pricing/request JSON 内容。
+- 证据：`data/performance-audit-20261010/project-bundle-batch/command-08.log` 与 `build-08.log`；PostgreSQL 16 独立库，同 PERF-037—039。
+
+### PERF-041：项目包 LLM trace 批量导入
+
+- 调用链与规模：项目包历史导入完成新 workflow ID 映射后，导入模型调用追踪。输入为 1 个 workflow 和 1,000 条 LLM trace，代表约 1,000 次模型调用的历史记录。
+- 根因与改动：每条 trace 都独立映射可选的 project/root/workflow/generation ID、脱敏上下文字段并执行 INSERT；这些行不依赖插入结果生成后续 ID。保留逐行映射和脱敏逻辑，将 ActiveModel 按 1,000 条聚合后执行一次 `insert_many`，事务不变。
+- 量化结果：真实 PostgreSQL SQL **1003 → 4**；2 次预热、15 次交错导入，P50 **314.611 → 50.811 ms（83.8%）**，P95 **526.321 → 74.528 ms（85.8%）**。
+- 语义验证：逐行检查 ID 映射及 call key/fingerprint、workflow/step/provider/model、token 与 cache 用量、上下文 JSON、duration/stream/status/error/finish reason/created_at。
+- 证据：`data/performance-audit-20261010/project-bundle-batch/command-09.log` 与 `build-09.log`；PostgreSQL 16 独立库，同 PERF-037—040。
+
+### PERF-042：项目包 generation target 批量导入
+
+- 调用链与规模：项目包历史导入先插入 generation run 建立旧/新 run 映射，再导入该 run 的生成目标。基准为 1 个 workflow、1 个 generation run、1,000 个 target 引用。
+- 根因与改动：target 不依赖新 target ID 返回给调用方，但旧实现每行独立执行 generation ID 映射、目标实体 ID 映射/归档和 INSERT。保留这些转换，在同一事务内每 1,000 行批量写入。
+- 量化结果：真实 PostgreSQL SQL **1004 → 5**；2 次预热、15 次交错导入，P50 **88.124 → 14.407 ms（83.7%）**，P95 **115.431 → 22.759 ms（80.3%）**。
+- 语义验证：target kind/table/映射后 ID/role/created_at 逐项一致，保持原输入顺序；夹具使用专用 `chapter_ids` map 验证 canonical chapter 映射。
+- 证据：`data/performance-audit-20261010/project-bundle-batch/command-11.log` 与 `build-11.log`。夹具首次用错通用 entity map，失败发生在计时前，修正为专用 chapter map 后通过。
+
+workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批量写入候选的收益未稳定达到 30% 门槛，故保留逐行转换和插入。每条仍需做 checkpoint contract 校验、source/entity remap、fingerprint 重算和 generation ID 重映射；输入 JSON 体积增长时，后续如有新证据再评估批量化和峰值内存。
+
+### PERF-043：物体档案生成首次事实投影与回读批处理
+
+- 调用链与规模：章节分析的 `object_discovery` 完成模型校验后进入 `upsert_object_profiles_with_generation_run_record`；通常按单章写入一批物体档案，基准覆盖 **16/32/64/128 个**新档案。该路径在同一事务中还要写事实反馈和 text-anchor 证据。
+- 根因与改动：每个新 AI 档案的首次事实已经从刚写入的档案生成，旧实现仍查询空历史、重新读取档案并执行等值投影更新；生成结果随后又按档案逐条 `find_by_id`。首次事实现在只保留审计记录，已有投影直接作为当前值；最终档案按 ID 一次批量读取并按原输入顺序组装。已有档案的历史回放、人工字段保护和错误传播保持原路径。
+- 量化结果：隔离 PostgreSQL 16、release、2 次预热、15 次样本。最终原始/组合实现的 P50（16/32/64/128）为 **55.350/36.873/45.468/91.485 → 9.991/16.905/29.935/41.031 ms**，下降 **82.0%/54.1%/34.2%/55.1%**；P95 为 **89.445/64.444/159.310/117.310 → 14.008/22.289/34.985/57.138 ms**，下降 **84.3%/65.4%/78.0%/51.3%**。按代码路径，每个全新档案省去历史读取和等值投影的 3 条 SQL，最终回读由 N 条降为 1 条；事务边界没有变化。
+- 语义验证：新增成功路径检查确认返回档案与数据库投影字段一致、每个首次事实仍保留 1 条 `material_fact_change`、text-anchor 档案证据仍保留；既有章节来源过期、物体与场景无效证据事务回滚测试通过。小批量单独复测的波动未作为收益结论，以上最终数字来自原始/组合实现各 15 次样本。
+- 复现：`A4N_TEST_DATABASE_URL=postgres://.../a4n_perf_20261010_object_generation` 下运行 `cargo test --locked --release -p a4n-db --test object_profile_generation_batch -- --ignored --nocapture --test-threads=1`；基准夹具和成功路径回归位于 `crates/platform/a4n-db/tests/object_profile_generation_batch.rs`。原始和组合命令输出保存在 `data/performance-audit-20261010/object-profile-generation-{before,after}/command.log`。
+
+### 拒绝候选：项目包 workflow checkpoint 批量导入
+
+- 链路与规模：用户导入项目包历史时，`import_project_bundle_history` 逐条校验 checkpoint contract、原始输入指纹、递归 ID 映射和升级回执，再在同一事务中写入 checkpoint；基准为 **128 条** checkpoint、输入 JSON **3,217,197 B**。
+- 候选：保留全部逐条转换和校验，仅把已转换的 ActiveModel 按现有 1,000 行批次 `insert_many` 写入。
+- 量化结果：两轮同库交错 A/B 的 P50/P95 分别为 **70.703/124.546 → 44.487/66.161 ms（37.1%/46.9%）**、**47.221/58.071 → 35.944/44.202 ms（23.9%/23.9%）**；第二轮未达到 30% 门槛，收益不稳定，候选已撤回。恢复后的正式入口字段、映射后 JSON、指纹和顺序逐项一致；基准输出保留在 `data/performance-audit-20261010/workflow-checkpoint-import-{before,after,after-repeat}/`。
+- 决定：不改变 checkpoint 的逐条写入路径。输入 JSON 体积和指纹/升级校验成本需要更多代表性数据后再评估；当前夹具保留用于后续复测，不把首轮尾延迟降幅计入性能收益。

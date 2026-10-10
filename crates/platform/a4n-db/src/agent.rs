@@ -105,11 +105,12 @@ pub use thread_commands::{
     update_thread_record,
 };
 mod budget;
-pub use budget::{AgentBudgetSnapshot, resume_run, run_budget_snapshot};
+pub use budget::{AgentBudgetSnapshot, resume_run, run_budget_snapshot, run_budget_snapshots};
 mod generation;
 pub use generation::{
     AgentOwnedTask, AgentTaskExecutionInput, active_owned_generation_tasks, create_task_execution,
-    generation_owner, generation_owner_stopped, update_task_execution,
+    generation_owner, generation_owner_statuses, generation_owner_stopped,
+    generation_owner_stopped_by_status, update_task_execution,
 };
 mod workflow;
 pub use workflow::{active_owned_workflows, bind_owned_workflow, workflow_owner};

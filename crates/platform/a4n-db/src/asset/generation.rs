@@ -125,11 +125,27 @@ where
         .await
         .map_err(|error| AssetDbError::InvalidArgument(error.to_string()))?;
     }
-    for profile in result.created.iter_mut().chain(&mut result.updated) {
-        *profile = object_profile::Entity::find_by_id(profile.id)
-            .one(&txn)
+    let profile_ids = result
+        .created
+        .iter()
+        .chain(&result.updated)
+        .map(|profile| profile.id)
+        .collect::<Vec<_>>();
+    if !profile_ids.is_empty() {
+        let profiles_by_id = object_profile::Entity::find()
+            .filter(object_profile::Column::ProjectId.eq(project_id))
+            .filter(object_profile::Column::Id.is_in(profile_ids.iter().copied()))
+            .all(&txn)
             .await?
-            .ok_or_else(|| AssetDbError::InvalidArgument("物体投影记录丢失".into()))?;
+            .into_iter()
+            .map(|profile| (profile.id, profile))
+            .collect::<HashMap<_, _>>();
+        for profile in result.created.iter_mut().chain(&mut result.updated) {
+            *profile = profiles_by_id
+                .get(&profile.id)
+                .cloned()
+                .ok_or_else(|| AssetDbError::InvalidArgument("物体投影记录丢失".into()))?;
+        }
     }
     merge_object_profile_evidence_records(&txn, project_id, &result, profile_evidence).await?;
     generation_run.targets = result

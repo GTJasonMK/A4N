@@ -82,16 +82,45 @@ pub async fn run_budget_snapshot<C: ConnectionTrait>(
     db: &C,
     run_id: i64,
 ) -> Result<AgentBudgetSnapshot, AgentDbError> {
-    let current = run::Entity::find_by_id(run_id)
-        .one(db)
+    run_budget_snapshots(db, &[run_id])
         .await?
-        .ok_or_else(|| AgentDbError::NotFound("Agent run 不存在".into()))?;
-    let root_id = current.root_run_id.unwrap_or(run_id);
+        .remove(&run_id)
+        .ok_or_else(|| AgentDbError::NotFound("Agent run 不存在".into()))
+}
+
+/// Computes snapshots for multiple runs while reading each distinct budget tree once.
+pub async fn run_budget_snapshots<C: ConnectionTrait>(
+    db: &C,
+    run_ids: &[i64],
+) -> Result<HashMap<i64, AgentBudgetSnapshot>, AgentDbError> {
+    if run_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let current_by_id: HashMap<_, _> = run::Entity::find()
+        .filter(run::Column::Id.is_in(run_ids.iter().copied()))
+        .all(db)
+        .await?
+        .into_iter()
+        .map(|row| (row.id, row))
+        .collect();
+    for run_id in run_ids {
+        if !current_by_id.contains_key(run_id) {
+            return Err(AgentDbError::NotFound("Agent run 不存在".into()));
+        }
+    }
+
+    let mut root_ids = current_by_id
+        .values()
+        .map(|current| current.root_run_id.unwrap_or(current.id))
+        .collect::<Vec<_>>();
+    root_ids.sort_unstable();
+    root_ids.dedup();
     let rows = run::Entity::find()
         .filter(
             sea_orm::Condition::any()
-                .add(run::Column::Id.eq(root_id))
-                .add(run::Column::RootRunId.eq(root_id)),
+                .add(run::Column::Id.is_in(root_ids.iter().copied()))
+                .add(run::Column::RootRunId.is_in(root_ids)),
         )
         .all(db)
         .await?;
@@ -126,12 +155,6 @@ pub async fn run_budget_snapshot<C: ConnectionTrait>(
             usage[2] += 1;
         }
     }
-    let keys = [
-        "steps_used",
-        "model_calls_used",
-        "tool_calls_used",
-        "tokens_used",
-    ];
     for row in &rows {
         // Only durable reservations/receipts count. Worker progress projections
         // may describe a request still being prepared and are not consumption.
@@ -155,6 +178,34 @@ pub async fn run_budget_snapshot<C: ConnectionTrait>(
             ancestor = target.parent_run_id;
         }
     }
+    let mut snapshots = HashMap::with_capacity(current_by_id.len());
+    for run_id in run_ids {
+        if snapshots.contains_key(run_id) {
+            continue;
+        }
+        let current = current_by_id
+            .get(run_id)
+            .expect("requested Agent run was validated above");
+        snapshots.insert(
+            *run_id,
+            budget_snapshot_from_facts(current, &by_id, &totals)?,
+        );
+    }
+    Ok(snapshots)
+}
+
+fn budget_snapshot_from_facts(
+    current: &run::Model,
+    by_id: &HashMap<i64, &run::Model>,
+    totals: &HashMap<i64, [u64; 5]>,
+) -> Result<AgentBudgetSnapshot, AgentDbError> {
+    let run_id = current.id;
+    let keys = [
+        "steps_used",
+        "model_calls_used",
+        "tool_calls_used",
+        "tokens_used",
+    ];
     let mut remaining = AgentBudget::default();
     let mut limiting_run_id = None;
     let mut token_budget_run_id = None;
@@ -229,7 +280,7 @@ pub async fn run_budget_snapshot<C: ConnectionTrait>(
         }
         ancestor = row.parent_run_id;
     }
-    let mut usage = current.usage_json;
+    let mut usage = current.usage_json.clone();
     if !usage.is_object() {
         return Err(AgentDbError::InvalidArgument(
             "Agent usage_json 必须是对象".into(),

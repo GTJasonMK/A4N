@@ -133,6 +133,10 @@ pub(crate) async fn record_profile_fact_observation<C: ConnectionTrait>(
         },
     )
     .await?;
+    // New object profiles already contain the first observation's current projection.
+    if before.is_null() && kind == "object_profile" {
+        return Ok(());
+    }
     if let Some(projected) =
         profile_facts_before_chapter(db, project_id, kind, id, i32::MAX).await?
     {

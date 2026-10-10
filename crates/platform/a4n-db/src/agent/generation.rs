@@ -1,7 +1,18 @@
 use super::*;
 use a4n_db_models::models::generation::generation_task_checkpoint;
 use sea_orm::ConnectionTrait;
-use sea_orm::{DatabaseBackend, Statement};
+use sea_orm::{DatabaseBackend, FromQueryResult, Statement};
+
+#[derive(Debug, FromQueryResult)]
+struct GenerationOwnerAncestorRow {
+    owner_id: i64,
+    id: i64,
+    parent_run_id: Option<i64>,
+    status: String,
+    waiting_reason: Option<String>,
+    depth: i64,
+    is_cycle: bool,
+}
 
 async fn generation_owner_model<C: ConnectionTrait>(
     db: &C,
@@ -317,7 +328,131 @@ pub async fn generation_owner_stopped<C: ConnectionTrait>(
     generation_owner_stopped_model(db, &owner_model).await
 }
 
+pub async fn generation_owner_stopped_by_status<C: ConnectionTrait>(
+    db: &C,
+    owner: &AgentRunRecord,
+) -> Result<bool, AgentDbError> {
+    generation_owner_statuses(db, std::slice::from_ref(owner))
+        .await?
+        .remove(&owner.id)
+        .ok_or_else(|| AgentDbError::NotFound(format!("Agent run 不存在: {}", owner.id)))
+}
+
+pub async fn generation_owner_statuses<C: ConnectionTrait>(
+    db: &C,
+    owners: &[AgentRunRecord],
+) -> Result<std::collections::HashMap<i64, bool>, AgentDbError> {
+    if owners.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+
+    let owner_ids = owners
+        .iter()
+        .map(|owner| owner.id)
+        .collect::<std::collections::HashSet<_>>();
+    let placeholders = (1..=owner_ids.len())
+        .map(|index| format!("${index}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let values: Vec<sea_orm::Value> = owner_ids.iter().copied().map(Into::into).collect();
+    let rows = run::Entity::find()
+        .from_raw_sql(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            format!(
+                r#"
+                WITH RECURSIVE owner_ancestors(
+                    owner_id, id, parent_run_id, status, waiting_reason, depth, path, is_cycle
+                ) AS (
+                    SELECT r.id, r.id, r.parent_run_id, r.status, r.waiting_reason,
+                           0::bigint, ARRAY[r.id], FALSE
+                    FROM agent_run r
+                    WHERE r.id IN ({placeholders})
+                    UNION ALL
+                    SELECT chain.owner_id, parent.id, parent.parent_run_id,
+                           parent.status, parent.waiting_reason, chain.depth + 1,
+                           chain.path || parent.id, parent.id = ANY(chain.path)
+                    FROM owner_ancestors chain
+                    JOIN agent_run parent ON parent.id = chain.parent_run_id
+                    WHERE NOT chain.is_cycle
+                )
+                SELECT owner_id, id, parent_run_id, status, waiting_reason, depth, is_cycle
+                FROM owner_ancestors
+                ORDER BY owner_id, depth
+                "#
+            ),
+            values,
+        ))
+        .into_model::<GenerationOwnerAncestorRow>()
+        .all(db)
+        .await?;
+    let mut ancestors_by_owner = std::collections::HashMap::<i64, Vec<_>>::new();
+    for row in rows {
+        ancestors_by_owner
+            .entry(row.owner_id)
+            .or_default()
+            .push(row);
+    }
+
+    let mut stopped_by_owner = std::collections::HashMap::with_capacity(owner_ids.len());
+    for owner_id in owner_ids {
+        let ancestors = ancestors_by_owner
+            .remove(&owner_id)
+            .ok_or_else(|| AgentDbError::NotFound(format!("Agent run 不存在: {owner_id}")))?;
+        let mut seen = HashSet::new();
+        let mut stopped = false;
+        let mut reached_root = false;
+        for (index, ancestor) in ancestors.iter().enumerate() {
+            if ancestor.depth != index as i64 {
+                return Err(AgentDbError::Conflict("Agent lineage 缺少祖先".into()));
+            }
+            if !seen.insert(ancestor.id) {
+                return Err(AgentDbError::Conflict("Agent lineage 存在环".into()));
+            }
+            if generation_run_blocks_generation(
+                &ancestor.status,
+                ancestor.waiting_reason.as_deref(),
+            ) {
+                stopped = true;
+                break;
+            }
+            if ancestor.is_cycle {
+                return Err(AgentDbError::Conflict("Agent lineage 存在环".into()));
+            }
+            match ancestor.parent_run_id {
+                None => {
+                    reached_root = true;
+                    break;
+                }
+                Some(parent_id) => {
+                    if ancestors.get(index + 1).map(|parent| parent.id) != Some(parent_id) {
+                        return Err(AgentDbError::Conflict("Agent lineage 缺少祖先".into()));
+                    }
+                }
+            }
+        }
+        if !stopped && !reached_root {
+            return Err(AgentDbError::Conflict("Agent lineage 缺少祖先".into()));
+        }
+        stopped_by_owner.insert(owner_id, stopped);
+    }
+    Ok(stopped_by_owner)
+}
+
 async fn generation_owner_stopped_model<C: ConnectionTrait>(
+    db: &C,
+    owner: &run::Model,
+) -> Result<bool, AgentDbError> {
+    if generation_owner_stopped_by_status_model(db, owner).await? {
+        return Ok(true);
+    }
+    Ok(budget::run_budget_snapshot(db, owner.id)
+        .await?
+        .remaining
+        .max_duration_seconds
+        == Some(0))
+}
+
+async fn generation_owner_stopped_by_status_model<C: ConnectionTrait>(
     db: &C,
     owner: &run::Model,
 ) -> Result<bool, AgentDbError> {
@@ -330,11 +465,7 @@ async fn generation_owner_stopped_model<C: ConnectionTrait>(
         // A completed owner may still send a late receipt, but it cannot start
         // another inner execution; update_task_execution bypasses this guard
         // only when it is recording that receipt.
-        if !matches!(
-            run.status.as_str(),
-            "running" | "queued" | "waiting" | "paused" | "pausing"
-        ) || run.waiting_reason.as_deref() == Some("budget")
-        {
+        if generation_run_blocks_generation(&run.status, run.waiting_reason.as_deref()) {
             return Ok(true);
         }
         ancestor = match run.parent_run_id {
@@ -347,11 +478,14 @@ async fn generation_owner_stopped_model<C: ConnectionTrait>(
             None => None,
         };
     }
-    Ok(budget::run_budget_snapshot(db, owner.id)
-        .await?
-        .remaining
-        .max_duration_seconds
-        == Some(0))
+    Ok(false)
+}
+
+fn generation_run_blocks_generation(status: &str, waiting_reason: Option<&str>) -> bool {
+    !matches!(
+        status,
+        "running" | "queued" | "waiting" | "paused" | "pausing"
+    ) || waiting_reason == Some("budget")
 }
 
 async fn ensure_generation_running<C: ConnectionTrait>(

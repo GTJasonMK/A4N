@@ -113,13 +113,13 @@ pub async fn preflight(db: &DatabaseConnection) -> Result<Preflight, DbErr> {
         .ok_or_else(|| DbErr::Custom("查询 Canvas 拆分迁移状态失败".to_string()))?
         .try_get_by_index::<bool>(0)?;
     let mapping_filter = if contract_table_exists {
-        "AND NOT EXISTS (\
-            SELECT 1 FROM canvas_project_split_mapping m\
-            JOIN novel_project canvas ON canvas.id = m.new_project_id\
-            WHERE m.old_project_id = p.id\
-              AND m.action = 'derived_copy'\
-              AND canvas.project_kind = 'canvas'\
-        )"
+        r#"AND NOT EXISTS (
+            SELECT 1 FROM canvas_project_split_mapping m
+            JOIN novel_project canvas ON canvas.id = m.new_project_id
+            WHERE m.old_project_id = p.id
+              AND m.action = 'derived_copy'
+              AND canvas.project_kind = 'canvas'
+        )"#
     } else {
         ""
     };
