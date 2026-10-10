@@ -758,6 +758,13 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - `cargo machete` 结果：未发现未使用 Cargo 依赖。未新增兜底、兼容或回退逻辑。
 - 记录范围：全仓 `crates/{host,platform,process,agent,planning,project,video}`、`frontend/src`、`scripts` 的 CodeGraph/静态搜索结果；具体保留证据继续汇总在本节后续条目。
 
+### R-93：核验 Agent Control Worker route 骨架分叉
+
+- 类别：候选重复路由骨架复核，未合并。
+- BFS 覆盖：从 `worker_routes.rs` 的 52 个 Agent Worker handler 追到 Control 路由注册、每个 `AgentWorker*Request` 的校验实现、runtime action、响应类型和 204/JSON 状态分支。
+- 共同的鉴权与 bad-request 映射只是薄协议边界；实际校验既有普通 `validate`，也有 `validate_agent_run` 等专用方法，响应同时包含 `Json<Value>`、具体 wire 类型、`Response`/204 和不带 payload 的 action。泛化为闭包/trait/macro 会隐藏 route 合同并增加抽象层，因此保留显式 handler。
+- 记录范围：`crates/host/a4n-control/src/routes/agent_runtime/worker_routes.rs`、`crates/host/a4n-control/src/routes/mod.rs`、`crates/host/a4n-runtime/src/actions/agent_runtime/**`、`crates/agent/a4n-agent-runtime-contract/src`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
