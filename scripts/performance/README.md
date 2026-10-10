@@ -48,6 +48,7 @@
 | [PERF-047](../../crates/platform/a4n-db/src/profile_material/queries.rs) | 对象/场景档案列表计数与删除下游图片 ID；20,000 张素材图片，单条元数据约 1.75 KB | 旧实现把该项目该类型所有 `metadata_json` 读回进程再逐条解析；计数改为 PostgreSQL 按 `profile_kind/profile_id` 聚合，删除改为数据库按 JSON identity 直接筛选 ID，数值类型和正整数校验仍在 Rust 侧保留 | 计数 PostgreSQL P50/P95 **277.905/307.716 → 39.846/44.813 ms（85.7%/85.4%）**；删除 ID P50/P95 **275.986/283.187 → 27.412/36.981 ms（90.1%/86.9%）**；计数和 ID 顺序逐项一致 |
 | [PERF-048](../../frontend/src/pages/derived/useMediaAuthoring.ts) | 漫画/Galgame 媒体阶段标签；1000 章、1000 份同类文档、80 次状态更新 | 旧实现每个章节范围反复过滤全部文档并再次扫描缺失版本；一次建立当前快照的 draft/adopted 索引与历史存在集合，状态优先级和 stale 语义不变 | 真实 Chromium 153 受控三轮中位数 **100.3 → 6.2 ms（93.8%）**；1000 章/1000 文档和标签文本一致 |
 | [PERF-049](../../crates/platform/a4n-db/src/project/dependency_graph/graph/records/family.rs) | 依赖图初载 → 族级图片摘要投影；12,000 张图片，其中 600 张参与图计数，项目打开时每次读取 | 旧实现把项目族所有 `generated_image.metadata_json` 反序列化后再按类型计数；图摘要查询增加实际消费的 6 个图片类型过滤，节点详情仍走完整独立读取 | PostgreSQL 图摘要投影 P50/P95 **56.783/65.582 → 3.324/5.278 ms（94.1%/92.0%）**；返回行 **12,000 → 600**，元数据字节 **42,942,240 → 32,640**，图计数逐项一致 |
+| [PERF-050](../../crates/platform/a4n-db/src/workflow/tasks/queries.rs) | `get_task_history` → task worker → PostgreSQL；200 条任务历史页，单条持久 payload 约 32.5 KB | 旧查询读取完整 `task_queue` 行，包括 API 摘要不使用的 `payload` 和 `dag_id`；历史及按 ID 读取改为显式选取状态投影字段，共用原校验和错误映射 | PostgreSQL P50/P95 **7.266/13.174 → 2.096/2.677 ms（71.1%/79.7%）**；旧路径该页 payload **6,505,200 B**，新路径不读取 payload；字段、顺序、失败错误和进度投影一致 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -71,6 +72,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | Agent 消息流 | PERF-029/044 已覆盖 Agent 后端维护扫描和历史预算投影；PERF-046 处理前端高频无关状态更新，消息数组或流式事件变化仍走完整渲染。 |
 | 档案素材与图片 | PERF-047 只优化档案列表图片计数和删除下游 ID 的读取；完整素材列表、主素材绑定和图片详情仍保留原字段与顺序。 |
 | 依赖图 | PERF-049 将族级图摘要限制为漫画页、对象/场景素材和三类视频帧；节点详情仍按节点类型独立读取完整记录，未改变详情合同。 |
+| 任务历史 | PERF-050 的历史页和按 ID 查询只读取摘要字段；完整任务 payload 仍留在任务详情/执行路径所需处，没有改变队列持久化或取消行为。 |
 | Canvas 文本素材 | 窄索引候选已用 256 份 × 4 KiB 正文的 Chromium 夹具复核；传输字节下降 98%，但首屏中位数仅下降 14.0%，GC 后 JS heap 仅下降 8.2%，不满足保留门槛，未改合同或生产代码。 |
 | 媒体阶段状态 | PERF-048 将状态标签计算从章节数 × 文档数的重复过滤降为一次索引；文档状态、快照范围和 stale 判断保持原语义。 |
 | 漫画来源读取 | 当前 MangaTab 产品入口 ComicProjectWorkspace、VideoProjectWorkspace 和 GalgameProjectWorkspace 均使用 `listSourceSnapshotChapterIndex`；PERF-020 已用 1000 章真实 PostgreSQL/Chromium 夹具测量目录与单章详情，完整正文只在选章后读取。旧 `listSourceSnapshotChapters` API 仍保留给兼容调用方，但不是当前页面活跃路径。 |
@@ -539,6 +541,14 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 量化结果：隔离 PostgreSQL 16，9 次交错样本，优化构建。窄投影返回行 **12,000 → 600**，元数据字节 **42,942,240 → 32,640**；查询 P50/P95 **56.783/65.582 → 3.324/5.278 ms**，下降 **94.1%/92.0%**，超过保留门槛。
 - 语义验证：过滤前结果按六种类型筛选后与新查询逐行相等；完整依赖图的漫画图片计数保持 100，视频帧和素材类型测试通过；节点详情仍使用原始完整图片字段和排序。SQL 使用 SeaORM 绑定参数，用户项目范围仍由既有 scope 查询决定。
 - 证据与复现：`data/performance-audit-20261010/dependency-graph-image-projection/command.log`；从工作树执行 `flock -x /home/fufu/Code/A4N/work/.agent-build.lock env A4N_TEST_DATABASE_URL=postgres://.../a4n_perf_arch_20261011 CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target CARGO_INCREMENTAL=0 cargo test --locked --release -p a4n-db --test dependency_graph_batch benchmark_dependency_graph_image_projection -- --ignored --nocapture --test-threads=1`。
+
+### PERF-050：任务历史窄投影
+
+- 调用链与规模：设置页/任务历史经 `get_task_history`、`TaskReadApplicationPort` 进入 `persisted_task_history`；列表读取由用户操作触发，分页参数由既有 Runtime 校验。基准使用 PostgreSQL 16 中 **2,000 条任务**、每条约 **32.5 KB payload**，对比 **200 条**历史页。
+- 根因与改动：摘要转换实际只消费 ID、任务类别/优先级/状态、项目归属、workflow ID、进度、错误和时间字段；旧 ORM `all` 同时读取并反序列化 `payload`、`dag_id`。列表和按 ID 读取现在共用显式列投影；两种行类型转成同一组内部字段，再走原来的 task kind/status/progress 校验和错误映射。
+- 量化结果：隔离 PostgreSQL 16，9 次交错样本，release 构建。200 行旧路径读取 **6,505,200 B payload**；新查询不读取该列，Rust 投影记录序列化为 **82,990 B**。查询 P50/P95 **7.266/13.174 → 2.096/2.677 ms**，分别下降 **71.1%/79.7%**，超过门槛。
+- 语义验证：新旧 200 条记录按时间顺序逐行比较 ID、任务类别、优先级、状态、失败/中断原因、workflow/project/source scope、进度 JSON 和创建/开始/完成时间；按 ID 读取与列表首行序列化一致。`workflow::tests::task_info_from_row` 2/2 通过，保留 failed 缺失错误时显式失败的既有行为。数据库队列行及取消/恢复流程未修改。
+- 证据与复现：`data/performance-audit-20261010/task-history-projection/benchmark.log`；从工作树执行 `flock -x /home/fufu/Code/A4N/work/.agent-build.lock env A4N_TEST_DATABASE_URL=postgres://.../a4n_perf_task_hist_arch_20261011 CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target CARGO_INCREMENTAL=0 cargo test --locked --release -p a4n-db --test task_history_projection benchmark_task_history_projection -- --ignored --nocapture --test-threads=1`。
 
 ### 拒绝候选：Canvas 文本素材窄索引
 

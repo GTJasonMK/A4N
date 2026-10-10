@@ -5,7 +5,50 @@ use sea_orm::FromQueryResult;
 use serde_json::Value;
 use std::collections::BTreeSet;
 
+#[derive(Debug, FromQueryResult)]
+pub(crate) struct TaskInfoProjectionRow {
+    pub(crate) id: String,
+    pub(crate) task_type: String,
+    pub(crate) priority: String,
+    pub(crate) status: String,
+    pub(crate) project_id: Option<i64>,
+    pub(crate) root_project_id: Option<i64>,
+    pub(crate) source_snapshot_id: Option<i64>,
+    pub(crate) task_scope: Option<String>,
+    pub(crate) workflow_run_id: Option<i64>,
+    pub(crate) progress: Option<Value>,
+    pub(crate) error_message: Option<String>,
+    pub(crate) created_at: chrono::NaiveDateTime,
+    pub(crate) started_at: Option<chrono::NaiveDateTime>,
+    pub(crate) completed_at: Option<chrono::NaiveDateTime>,
+}
+
+impl From<task_queue::Model> for TaskInfoProjectionRow {
+    fn from(row: task_queue::Model) -> Self {
+        Self {
+            id: row.id,
+            task_type: row.task_type,
+            priority: row.priority,
+            status: row.status,
+            project_id: row.project_id,
+            root_project_id: row.root_project_id,
+            source_snapshot_id: row.source_snapshot_id,
+            task_scope: row.task_scope,
+            workflow_run_id: row.workflow_run_id,
+            progress: row.progress,
+            error_message: row.error_message,
+            created_at: row.created_at,
+            started_at: row.started_at,
+            completed_at: row.completed_at,
+        }
+    }
+}
+
 pub(crate) fn task_info_from_row(row: task_queue::Model) -> Result<TaskInfo, WorkflowReadError> {
+    task_info_from_fields(row.into())
+}
+
+fn task_info_from_fields(row: TaskInfoProjectionRow) -> Result<TaskInfo, WorkflowReadError> {
     Ok(TaskInfo {
         id: row.id,
         task_type: TaskKind::parse_storage(&row.task_type)
@@ -29,6 +72,18 @@ pub(crate) fn task_info_from_row(row: task_queue::Model) -> Result<TaskInfo, Wor
     })
 }
 
+pub(crate) fn persisted_task_info_from_projection_row(
+    row: TaskInfoProjectionRow,
+) -> Result<PersistedTaskInfo, WorkflowReadError> {
+    let workflow_run_id = row.workflow_run_id;
+    let task = task_info_from_fields(row)?;
+    Ok(PersistedTaskInfo {
+        task,
+        workflow_run_id,
+    })
+}
+
+#[cfg(test)]
 pub(in crate::workflow) fn persisted_task_info_from_row(
     row: task_queue::Model,
 ) -> Result<PersistedTaskInfo, WorkflowReadError> {
