@@ -544,6 +544,15 @@
 - 验证：`a4n-domain` MIME/扩展定向测试 1/1、`a4n-video` 上传合同定向测试 1/1、Runtime provider 扩展定向测试 1/1；4 个受影响 Rust package 的 all-targets 检查通过；`generate_types --check`、`npm run check:web-api-parity`、Video Assembly 组件 Vitest 2/2、`videoUpload.test.ts` 2/2、前端生产构建、格式与 diff 检查通过。
 - 记录范围：`crates/platform/a4n-domain/src/media/{files.rs,media.rs}`、`crates/video/a4n-video/src/import.rs`、Runtime video file persistence、`crates/host/a4n-api-contract/src/bin/generate_types{.rs,/stages.rs}`、生成的 `frontend/src/api/generated/config.ts`、`frontend/src/utils/videoUpload{.ts,.test.ts}`。
 
+### R-67：统一 provider 视频扩展名白名单
+
+- 类别：重复的 provider 视频格式 allowlist。
+- BFS 覆盖：从 `normalize_video_format_str` 追到 chat response classification、format hint、download request 与 NewAPI result decode；从 `video_format_from_url` 追到 chat URL classification 与 download；从 HTTP `required_video_format` 追到 `decode_result` 的同步返回和 poll 完成路径。逐一核对 3 处扩展名集合和现有 provider 单测。
+- provider 的规范化、URL 扩展名解析和 HTTP 响应 format 校验改用 R-66 的 `canonical_video_extension`，移除三份 `mp4/webm/mov/m4v` allowlist。保留各输入原合同：format 字段先去空白并小写；通用 provider format 继续去首尾空白及前导点；URL extension 保持不接受尾随空白。
+- 保留 provider `Content-Type` 到格式的映射与字节魔数嗅探：`video/x-m4v` 是响应头映射别名；`ftyp` 同时覆盖 MOV/MP4 容器而返回 `mp4`；二者的语义不同于文件扩展名 allowlist。只有响应头缺失或无法映射时才尝试 magic sniff，仍由既有输入路径使用。
+- 验证：`cargo check --all-targets --locked --offline -p a4n-video-providers` 通过；`timeout 60s cargo test --locked --offline -p a4n-video-providers --lib` 85/85 通过；`cargo fmt --all -- --check` 与 `git diff --check` 通过。
+- 记录范围：`crates/video/a4n-video-providers/src/{format.rs,http/response.rs,http/tests.rs}`，及 R-66 的 `a4n-domain::media::VIDEO_MEDIA_TYPES` 定义和消费者图。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

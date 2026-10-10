@@ -1,12 +1,12 @@
-use a4n_domain::ProviderError as AppError;
+use a4n_domain::{ProviderError as AppError, media::canonical_video_extension};
 
 pub(crate) fn normalize_video_format_str(raw: &str) -> Result<String, AppError> {
-    let f = raw.trim().trim_start_matches('.').to_ascii_lowercase();
-    if matches!(f.as_str(), "mp4" | "webm" | "mov" | "m4v") {
-        Ok(f)
-    } else {
-        Err(AppError::Internal(format!("不支持的视频格式：{f}")))
-    }
+    let format = raw.trim().trim_start_matches('.');
+    canonical_video_extension(format)
+        .map(str::to_string)
+        .ok_or_else(|| {
+            AppError::Internal(format!("不支持的视频格式：{}", format.to_ascii_lowercase()))
+        })
 }
 
 /// 从 URL 路径推断视频扩展名（忽略 query 与 fragment）。
@@ -15,11 +15,9 @@ pub(crate) fn video_format_from_url(url: &str) -> Option<String> {
     let last = path.rsplit('/').next().unwrap_or(path);
     let dot = last.rfind('.')?;
     let ext = last[dot + 1..].to_ascii_lowercase();
-    if matches!(ext.as_str(), "mp4" | "webm" | "mov" | "m4v") {
-        Some(ext)
-    } else {
-        None
-    }
+    canonical_video_extension(&ext)
+        .filter(|extension| *extension == ext.as_str())
+        .map(str::to_string)
 }
 
 pub(crate) fn video_format_from_content_type(content_type: &str) -> Option<String> {
@@ -104,8 +102,23 @@ mod tests {
             video_format_from_url("https://e.com/path/x.WebM#t=1"),
             Some("webm".into())
         );
+        assert_eq!(
+            video_format_from_url("https://e.com/path/x.MOV#t=1"),
+            Some("mov".into())
+        );
+        assert_eq!(
+            video_format_from_url("https://e.com/path/x.M4V#t=1"),
+            Some("m4v".into())
+        );
         assert_eq!(video_format_from_url("https://e.com/streaming"), None);
         assert_eq!(video_format_from_url("https://e.com/x.gif"), None);
+        assert_eq!(video_format_from_url("https://e.com/x.mp4 "), None);
+    }
+
+    #[test]
+    fn normalize_video_format_str_uses_the_domain_video_format_set() {
+        assert_eq!(normalize_video_format_str(" .M4V ").unwrap(), "m4v");
+        assert!(normalize_video_format_str("avi").is_err());
     }
 
     #[test]

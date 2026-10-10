@@ -91,6 +91,10 @@ fn requires_top_level_status() {
 }
 
 #[test]
-fn rejects_unknown_video_format() {
+fn normalizes_supported_video_format_and_rejects_unknown() {
+    assert_eq!(
+        required_video_format(&json!({"format": "MP4"})).unwrap(),
+        "mp4"
+    );
     assert!(required_video_format(&json!({"format": "avi"})).is_err());
 }
