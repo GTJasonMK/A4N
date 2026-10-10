@@ -428,6 +428,14 @@
 - `data_dir` 不只是可选路径读取：它实现 RAG sidecar 必填 `A4N_RAG_SERVICE_DATA_DIR` 的领域错误合同，并将路径交给 RAG 专属 manifest/marker 生命周期。该模块返回 `a4n_domain::ProviderError::Configuration`，通用 helper 返回 `a4n_error::AppError::ConfigError`；仓库只定义 ProviderError 向 Host AppError 的单向转换。加入 Host 配置依赖并反向转译错误会新增 adapter，超过这段局部校验的重复收益，因此保留。
 - 记录范围：`crates/rag/a4n-rag-service/src/app.rs`、RAG Service manifest/mutation marker、`a4n-config::optional_non_empty_env_path`、ProviderError 到 Host AppError 转换。
 
+### R-52：复核 Sidecar 默认字符串环境解析
+
+- 类别：核验后保留，不改代码。
+- BFS 覆盖：从 Sidecar `string_or_default` 追到 tracing filter 与 service socket bind；再从 `optional_non_empty_string` 追到数值配置、服务鉴权、metrics 和缺省值解析。对照 Host `a4n-config::optional_non_empty_env_string` 与 Runtime baseline `env_string_or` 的调用路径及 Cargo 依赖边界。
+- 两边对环境变量的 trim、缺失和显式空值检查相同，但 Sidecar bootstrap 的默认值也经 `normalize_non_empty_string` 验证非空；Runtime `env_string_or` 只 trim fallback。前者还承载 anyhow 错误、认证和数值读取，后者承载 Host `AppError::ConfigError`。
+- `a4n-sidecar-bootstrap` 是多个 Sidecar 共用的进程层，当前不依赖 Host `a4n-config`。把配置层引入进程 bootstrap 会扩大所有 Sidecar 的依赖并混合错误 owner；抽到新底层 crate 也只为几行标准 env 解析增加组件。因此保留各自当前 owner，不添加回退或转换层。
+- 记录范围：`crates/process/a4n-sidecar-bootstrap/{src/environment.rs,src/lib.rs,src/metrics.rs,Cargo.toml}`、`crates/config/a4n-config/src/lib.rs`、Runtime baseline config callers。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
