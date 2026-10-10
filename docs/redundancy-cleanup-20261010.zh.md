@@ -482,6 +482,13 @@
 - 当前分别通过 `a4n-video::import_video_extension`、`decode_uploaded_audio_data`/`canvas_audio_format` 等领域 owner 验证格式；保留两处外部文件读取入口，不新增通用 path abstraction。已存在的数据目录内文件仍由 `a4n-storage` helper 唯一校验。
 - 记录范围：`crates/host/a4n-orchestrator/src/canvas/audio_import.rs`、`crates/host/a4n-runtime/src/actions/video_records/imports/source/{paths.rs,upload.rs,copying.rs}`、`crates/video/a4n-video/src/import.rs`、`crates/media/a4n-media/src/upload.rs`。
 
+### R-59：复核媒体 URI 与 Sidecar 路径合同
+
+- 类别：核验后保留，不改代码。
+- BFS 覆盖：从 Host `relative_media_path` 追到 Control `/media` 查询路径、Runtime token expected path 和 `relative_media_uri_path`；从 URI parser 追到 Tauri media protocol 的 canonical root 检查。另从 `MediaFileRef::new` 追到 `validate_relative_media_path` 和其 Sidecar 请求合同。
+- Host helper 处理普通/URI 路径，URI 版本先 percent-decode；它只负责拒绝空值和绝对路径，调用方再执行 Data root 授权或 canonical root 检查。Wire `MediaFileRef` validator 直接拒绝 `..`、`.`、反斜杠和绝对路径，避免不规范路径进入 Sidecar 合同。移除其中任一层会把部署边界校验移到另一层或改变允许输入，不视为同一合同。
+- 记录范围：`crates/media/a4n-media/src/media_file/path.rs`、Control media route、Runtime token path authorization、Tauri media protocol、`crates/media/a4n-media-contract/src/lib.rs::validate_relative_media_path` 与 `MediaFileRef`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
