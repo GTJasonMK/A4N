@@ -42,6 +42,7 @@
 | [PERF-041](../../crates/platform/a4n-db/src/project/bundle.rs) | 用户触发项目包导入中的模型调用追踪；1 个 workflow、1,000 条 LLM trace | 原实现逐条映射 project/root/workflow/generation ID、脱敏上下文 JSON 并 INSERT；按 1,000 行分批写入，字段转换不变 | 真实 PostgreSQL SQL **1003 → 4**；P50 **314.611 → 50.811 ms（83.8%）**，P95 **526.321 → 74.528 ms（85.8%）**；trace 字段逐项一致 |
 | [PERF-042](../../crates/platform/a4n-db/src/project/bundle.rs) | 用户触发项目包导入中的 generation target 关联；1 个 generation run、1,000 个 target | 原实现逐条映射 generation run / domain entity 并 INSERT；映射转换不变，按 1,000 行批量插入 | 真实 PostgreSQL SQL **1004 → 5**；P50 **88.124 → 14.407 ms（83.7%）**，P95 **115.431 → 22.759 ms（80.3%）**；target 表/ID、kind、role、时间与序列顺序一致 |
 | [PERF-043](../../crates/platform/a4n-db/src/asset/generation.rs) | 章节分析物体发现持久化；单次 16/32/64/128 个档案 | 首次事实沿用已写入的当前投影，档案结果由逐条回读改为按 ID 批量读取；事实审计、锚点证据和事务语义不变 | PostgreSQL P50 **55.350/36.873/45.468/91.485 → 9.991/16.905/29.935/41.031 ms**，分别下降 **82.0%/54.1%/34.2%/55.1%**；P95 降幅 **84.3%/65.4%/78.0%/51.3%** |
+| [PERF-044](../../crates/platform/a4n-db/src/agent/thread_commands.rs) | Agent thread history 请求；32 个 Run，每次打开历史读取消息、运行、执行和预算投影 | 旧实现对每个 Run 单独计算预算快照；复用已有 `run_budget_snapshots` 一次读取所有 Run 家族和执行事实，按 Run 回填 usage | PostgreSQL P50/P95 **8.185/11.335 → 2.766/3.851 ms**，下降 **66.2%/66.0%**；预算查询约 **96 → 3** |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -489,6 +490,13 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 量化结果：隔离 PostgreSQL 16、release、2 次预热、15 次样本。最终原始/组合实现的 P50（16/32/64/128）为 **55.350/36.873/45.468/91.485 → 9.991/16.905/29.935/41.031 ms**，下降 **82.0%/54.1%/34.2%/55.1%**；P95 为 **89.445/64.444/159.310/117.310 → 14.008/22.289/34.985/57.138 ms**，下降 **84.3%/65.4%/78.0%/51.3%**。按代码路径，每个全新档案省去历史读取和等值投影的 3 条 SQL，最终回读由 N 条降为 1 条；事务边界没有变化。
 - 语义验证：新增成功路径检查确认返回档案与数据库投影字段一致、每个首次事实仍保留 1 条 `material_fact_change`、text-anchor 档案证据仍保留；既有章节来源过期、物体与场景无效证据事务回滚测试通过。小批量单独复测的波动未作为收益结论，以上最终数字来自原始/组合实现各 15 次样本。
 - 复现：`A4N_TEST_DATABASE_URL=postgres://.../a4n_perf_20261010_object_generation` 下运行 `cargo test --locked --release -p a4n-db --test object_profile_generation_batch -- --ignored --nocapture --test-threads=1`；基准夹具和成功路径回归位于 `crates/platform/a4n-db/tests/object_profile_generation_batch.rs`。原始和组合命令输出保存在 `data/performance-audit-20261010/object-profile-generation-{before,after}/command.log`。
+
+### PERF-044：Agent thread history 批量预算投影
+
+- 调用链与频率：用户打开 Agent thread history 时，`thread_history` 在同一只读 Repeatable Read 事务中读取最近消息/turn/run/execution/delegation 等数据；基准为单线程 **32 个 Run**，代表历史页一次请求的有界上限。
+- 根因与改动：历史数据主查询已批量化，但旧实现随后对每个 Run 调用 `run_budget_snapshot`，重复读取目标 Run、Run 家族和执行事实。改用已有 `run_budget_snapshots` 一次读取所有预算树，并按 Run ID 回填 usage；缺少快照仍显式报错，事务隔离和返回字段不变。
+- 量化结果：隔离 PostgreSQL 16、release、15 次交错样本；P50/P95 **8.185/11.335 → 2.766/3.851 ms**，下降 **66.2%/66.0%**。预算相关 SQL 由约 **96 → 3**，消息、turn、execution、事件和预算 usage 逐项一致。
+- 证据与复现：`data/performance-audit-20261010/agent-thread-history-before.log`、`agent-thread-history-after.log`；基准及非忽略语义回归位于 `crates/platform/a4n-db/tests/agent_thread_history_batch.rs`。
 
 ### 拒绝候选：项目包 workflow checkpoint 批量导入
 
