@@ -48,24 +48,25 @@ pub fn init_worker_tracing() {
     let _ = tracing_subscriber::fmt().with_env_filter(filter).try_init();
 }
 
-pub async fn wait_for_ctrl_c() {
-    let _ = tokio::signal::ctrl_c().await;
-}
-
-pub async fn wait_for_shutdown_signal() {
+/// Wait for Ctrl-C or SIGTERM before beginning graceful process shutdown.
+pub fn wait_for_shutdown_signal() -> impl Future<Output = ()> + Send {
     #[cfg(unix)]
     {
         let mut terminate =
             tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
                 .expect("install SIGTERM handler");
-        tokio::select! {
-            _ = tokio::signal::ctrl_c() => {},
-            _ = terminate.recv() => {},
+        async move {
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {},
+                _ = terminate.recv() => {},
+            }
         }
     }
     #[cfg(not(unix))]
     {
-        wait_for_ctrl_c().await;
+        async {
+            let _ = tokio::signal::ctrl_c().await;
+        }
     }
 }
 
@@ -92,9 +93,17 @@ pub fn configure_parent_death_signal(_: &mut std::process::Command) {}
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
+    use std::io::{BufRead, BufReader};
     use std::sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
+    };
+    #[cfg(unix)]
+    use std::{
+        process::{Command, Stdio},
+        thread,
+        time::{Duration, Instant},
     };
 
     use a4n_worker_contract::{
@@ -108,6 +117,71 @@ mod tests {
     use serde_json::Value;
 
     use super::*;
+
+    #[cfg(unix)]
+    const SHUTDOWN_SIGNAL_CHILD: &str = "A4N_WORKER_RUNTIME_SIGTERM_TEST_CHILD";
+
+    #[cfg(unix)]
+    #[test]
+    fn wait_for_shutdown_signal_handles_sigterm() {
+        let executable = std::env::current_exe().expect("test executable path");
+        let mut child = Command::new(executable)
+            .args([
+                "--exact",
+                "tests::wait_for_shutdown_signal_child",
+                "--nocapture",
+            ])
+            .env(SHUTDOWN_SIGNAL_CHILD, "1")
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("shutdown signal child starts");
+        let stdout = child.stdout.take().expect("child stdout is piped");
+        let mut reader = BufReader::new(stdout);
+        let mut line = String::new();
+        loop {
+            line.clear();
+            let bytes = reader.read_line(&mut line).expect("read child readiness");
+            assert_ne!(bytes, 0, "shutdown signal child exited before readiness");
+            if line.trim() == "READY" {
+                break;
+            }
+        }
+
+        let signal = Command::new("kill")
+            .args(["-TERM", &child.id().to_string()])
+            .status()
+            .expect("send SIGTERM to shutdown signal child");
+        if !signal.success() {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("SIGTERM delivery failed: {signal}");
+        }
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Some(status) = child.try_wait().expect("check shutdown child status") {
+                assert!(status.success(), "shutdown child failed: {status}");
+                return;
+            }
+            if Instant::now() >= deadline {
+                let _ = child.kill();
+                let _ = child.wait();
+                panic!("shutdown signal waiter did not exit after SIGTERM");
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn wait_for_shutdown_signal_child() {
+        if std::env::var_os(SHUTDOWN_SIGNAL_CHILD).is_none() {
+            return;
+        }
+        let shutdown = wait_for_shutdown_signal();
+        println!("READY");
+        shutdown.await;
+    }
 
     #[test]
     fn worker_token_authorization_compares_raw_header_bytes() {

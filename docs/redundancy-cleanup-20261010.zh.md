@@ -3,12 +3,12 @@
 ## 范围与方法
 
 - 工作分支：`agent/redundancy-cleanup-20261010`，基线 `debug@3f6a2408c9e78c4719259e77d5443f2befdd8fda`。
-- 建立分支本地 CodeGraph 索引后持续同步；当前索引覆盖 6,245 个文件、86,289 个符号、275,090 条边，状态为 up to date。
+- 建立分支本地 CodeGraph 索引后持续同步；当前索引覆盖 6,245 个文件、86,293 个符号、275,099 条边，状态为 up to date。
 - 从 `a4n-server`、Tauri 本地 Server、`a4n-component-host`、Worker/Sidecar catalog、Axum route 注册、`a4n-control` 动态 command 分派和 `frontend/src/App.tsx` 路由入口追踪生产调用与注册点。前端索引包含 444 个 TS 和 318 个 TSX 文件。
 - 基线 Cargo workspace 有 213 个 crate manifest；本次增加 Worker runtime 与 DB adapter 后共 215 个。`cargo metadata` 核对了 Worker 对共享配置/runtime crate 的依赖。静态搜索补查脚本启动、环境变量、历史迁移、测试 fixture、生成合同脚本和运行时路由字符串。
 - 检查了 `#[allow(dead_code)]`、兼容/legacy 命名、候选无入边符号、Cargo 直接依赖和可复用的前端格式工具。
 
-R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 个 unresolved references，第二轮解析 25 个待处理引用。R-75 同步 6 个文件、解析 2 个待处理引用并报告 20 个 unresolved references；当前 `codegraph status` 显示索引 up to date，但 CLI 未列出这些 unresolved references 对应的符号。跨 crate helper 导入和部分动态/宏式 route 注册仍可能无法形成完整调用边，例如共享 runtime helper 的包外调用需要用静态搜索复核。R-74/R-75 的消费者均另经全仓静态搜索确认，并由受影响 workspace package 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
+R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 个 unresolved references，第二轮解析 25 个待处理引用。R-75 同步 6 个文件并解析 2 个待处理引用。R-76 首轮同步 27 个 Worker/helper 文件时报告 83 个 unresolved references；最终 helper/test 同步后报告 10 个。当前 `codegraph status` 显示索引 up to date，但 CLI 未列出这些 unresolved references 对应的符号。跨 crate helper 导入和部分动态/宏式 route 注册仍可能无法形成完整调用边，例如共享 runtime helper 的包外调用需要用静态搜索复核。R-74—R-76 的消费者均另经全仓静态搜索确认，并由受影响 workspace package 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
 
 本记录说明实际检查的入口和结果，不声称仅凭静态分析证明了所有运行环境、外部调用者、反射或部署配置均无遗漏。未对所有产品模块做逐函数人工审阅，也未运行浏览器端到端流程。
 
@@ -622,6 +622,14 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 保留边界：Control 在 serve 后还关闭 managed sidecars；Edge 还响应父进程 stop flag；Tauri 收到信号后触发应用退出。这三者的生命周期和清理合同不同，没有改为依赖 Worker runtime。
 - 验证：`cargo check --all-targets --locked --offline -p a4n-worker-runtime -p a4n-agent-worker -p a4n-canvas-record-worker -p a4n-artifact-media-worker -p a4n-novel-planning-worker`、`cargo fmt --all -- --check` 和 `git diff --check` 通过。未运行测试套件；all-targets 检查编译了测试目标。
 - 记录范围：`a4n-worker-runtime` signal helper 与四个 Worker 的启动/serve 路径。
+
+### R-76：统一 managed Worker 的 SIGTERM graceful shutdown
+
+- 类别：26 个 Worker 只等 Ctrl-C，4 个 Worker 等 Ctrl-C 或 SIGTERM；同一 managed Worker 关闭行为分叉。
+- BFS 覆盖：从 `a4n-server` 的 `spawn_managed_worker` 追到 `configure_parent_death_signal`，Linux 父进程退出会发 SIGTERM；从所有 30 个 Worker `run`/`serve` 入口追到 Axum `with_graceful_shutdown`。继续追到 `stop_child`：管理器发送 SIGTERM，最多轮询 50 次、每次间隔 100ms，之后才调用强制 `child.kill()`。`rg` 全仓列举 30 个 Worker helper 调用点，并确认不再有 `wait_for_ctrl_c` 引用。
+- 将所有 30 个 Worker 的 graceful-shutdown future 统一为 `a4n-worker-runtime::wait_for_shutdown_signal()`，删除 Ctrl-C-only helper。Unix 统一响应 Ctrl-C/SIGTERM；非 Unix 维持 Ctrl-C 行为。Control 关闭 managed sidecars、Edge 响应父进程 stop flag、Tauri 触发应用退出的宿主级路径仍保持独立。
+- 验证：`cargo check --all-targets --locked --offline` 覆盖 `a4n-worker-runtime` 和全部 30 个 Worker package，通过；`timeout 60s cargo test --locked --offline -p a4n-worker-runtime --lib wait_for_shutdown_signal_handles_sigterm -- --nocapture`：1/1 通过，子进程在收到 SIGTERM 后正常完成；`cargo fmt --all -- --check` 与 `git diff --check` 通过。
+- 记录范围：`a4n-worker-runtime` signal helper，以及 30 个 managed Worker 的 startup/serve 调用点。
 
 ## 核验后保留
 
