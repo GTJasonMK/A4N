@@ -27,8 +27,8 @@ pub(crate) fn run(runtime: Runtime) -> anyhow::Result<()> {
         failures.push(format!("Worker supervision: {error:#}"));
     }
     for (name, result) in [
-        ("Edge", stop_edge(&mut edge)),
-        ("Control", stop_control(&mut control)),
+        ("Edge", stop_child(&mut edge)),
+        ("Control", stop_child(&mut control)),
     ] {
         if let Err(error) = result {
             failures.push(format!("{name}: {error:#}"));

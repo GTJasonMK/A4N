@@ -114,14 +114,6 @@ pub(crate) fn spawn_edge(binary: &Path, control_addr: SocketAddr) -> anyhow::Res
         .map_err(|error| anyhow::anyhow!("启动 A4N Edge 失败: {}: {error}", binary.display()))
 }
 
-pub(crate) fn stop_control(child: &mut Child) -> anyhow::Result<()> {
-    stop_child(child)
-}
-
-pub(crate) fn stop_edge(child: &mut Child) -> anyhow::Result<()> {
-    stop_child(child)
-}
-
 pub(crate) fn stop_child(child: &mut Child) -> anyhow::Result<()> {
     a4n_worker_runtime::terminate_child(child)?;
     Ok(())

@@ -8,7 +8,7 @@
 - 基线 Cargo workspace 有 213 个 crate manifest；本次增加 Worker runtime 与 DB adapter 后共 215 个。`cargo metadata` 核对了 Worker 对共享配置/runtime crate 的依赖。静态搜索补查脚本启动、环境变量、历史迁移、测试 fixture、生成合同脚本和运行时路由字符串。
 - 检查了 `#[allow(dead_code)]`、兼容/legacy 命名、候选无入边符号、Cargo 直接依赖和可复用的前端格式工具。
 
-R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 个 unresolved references，第二轮解析 25 个待处理引用。R-75 同步 6 个文件并解析 2 个待处理引用。R-76 首轮同步 27 个 Worker/helper 文件时报告 83 个 unresolved references；最终 helper/test 同步后报告 10 个。R-77 更新后 sync 报告 11 个 unresolved references；R-78 更新后报告 48 个。当前 `codegraph status` 显示索引 up to date，但 CLI 未列出这些 unresolved references 对应的符号。跨 crate helper 导入和部分动态/宏式 route 注册仍可能无法形成完整调用边，例如共享 runtime helper 的包外调用需要用静态搜索复核。R-74—R-78 的消费者均另经全仓静态搜索确认，并由受影响 workspace package 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
+R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 个 unresolved references，第二轮解析 25 个待处理引用。R-75 同步 6 个文件并解析 2 个待处理引用。R-76 首轮同步 27 个 Worker/helper 文件时报告 83 个 unresolved references；最终 helper/test 同步后报告 10 个。R-77 更新后 sync 报告 11 个 unresolved references；R-78 更新后报告 48 个；R-79 更新后报告 25 个。当前 `codegraph status` 显示索引 up to date，但 CLI 未列出这些 unresolved references 对应的符号。跨 crate helper 导入和部分动态/宏式 route 注册仍可能无法形成完整调用边，例如共享 runtime helper 的包外调用需要用静态搜索复核。R-74—R-79 的消费者均另经全仓静态搜索确认，并由受影响 workspace package 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
 
 本记录说明实际检查的入口和结果，不声称仅凭静态分析证明了所有运行环境、外部调用者、反射或部署配置均无遗漏。未对所有产品模块做逐函数人工审阅，也未运行浏览器端到端流程。
 
@@ -646,6 +646,14 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 将 required capability 的单项判断移入 `WorkerCapabilities::has_enabled_capability`，Server 和 Tauri 复用；保留各自错误消息、调用顺序以及 Server 对全部上报项的严格版本检查。
 - contract 回归用例覆盖名称、版本、enabled 三个条件。`timeout 60s cargo test --locked --offline -p a4n-worker-contract --lib`：55/55 通过；`cargo check --all-targets --locked --offline -p a4n-worker-contract -p a4n-server -p a4n-tauri` 通过；`cargo fmt --all -- --check` 与 `git diff --check` 通过。验证后在构建锁内清理共享 agent target。
 - 记录范围：`crates/process/a4n-worker-contract/src/capabilities.rs`、`crates/process/a4n-worker-contract/src/wire_tests.rs`、`crates/host/a4n-server/src/server/health.rs`、`crates/host/a4n-tauri/src/server_process.rs`。
+
+### R-79：删除 Server 子进程停止转发包装
+
+- 类别：无策略的单行转发函数。
+- BFS 覆盖：CodeGraph 与 `rg` 全仓搜索确认 `stop_control` 有 3 个调用点、`stop_edge` 有 2 个调用点，定义均只调用 `stop_child` 且没有额外错误映射、日志或资源清理；调用分别位于 startup lifecycle、remaining 和 supervision 重启/回滚流程。
+- 删除两个 wrapper，5 个生产调用改为直接使用 `stop_child`。进程对象、停止顺序、结果聚合和错误消息上下文均保留。
+- `cargo check --all-targets --locked --offline -p a4n-server` 通过；`cargo fmt --all -- --check` 与 `git diff --check` 通过。CodeGraph 同步修改文件后索引 up to date，报告 25 个 unresolved references；构建后在锁内清理 agent target。
+- 记录范围：`crates/host/a4n-server/src/server/process.rs`、`crates/host/a4n-server/src/server/startup/{lifecycle,remaining,supervision}.rs`。
 
 ## 核验后保留
 

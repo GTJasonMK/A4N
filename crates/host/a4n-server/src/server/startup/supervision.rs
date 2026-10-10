@@ -136,13 +136,13 @@ fn restart_control(
     stop_first: bool,
 ) -> anyhow::Result<()> {
     if stop_first {
-        stop_control(control)?;
+        stop_child(control)?;
     }
     std::thread::sleep(WORKER_RESTART_DELAY);
     let mut replacement =
         spawn_control_from_workers(&config.control_binary, config.control_addr, &config.workers)?;
     if let Err(error) = wait_for_control(&mut replacement, config.control_addr) {
-        return match stop_control(&mut replacement) {
+        return match stop_child(&mut replacement) {
             Ok(()) => Err(error),
             Err(cleanup_error) => Err(anyhow::anyhow!(
                 "Control readiness 失败: {error:#}; 停止新进程失败: {cleanup_error:#}"
@@ -162,7 +162,7 @@ fn restart_edge(
     stop_first: bool,
 ) -> anyhow::Result<()> {
     if stop_first {
-        stop_edge(edge)?;
+        stop_child(edge)?;
     }
     std::thread::sleep(WORKER_RESTART_DELAY);
     let replacement = spawn_edge(&config.edge_binary, config.control_addr)?;
