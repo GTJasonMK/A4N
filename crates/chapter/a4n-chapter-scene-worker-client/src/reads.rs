@@ -11,7 +11,7 @@ impl ChapterSceneReadApplicationPort for ChapterSceneWorkerClient {
             user_id,
             CHAPTER_SCENE_LIST_OPERATION,
             ChapterInput {
-                chapter_id: Self::positive("chapter_id", chapter_id)?,
+                chapter_id: a4n_worker_client::positive_id("chapter_id", chapter_id)?,
             },
         )
         .await

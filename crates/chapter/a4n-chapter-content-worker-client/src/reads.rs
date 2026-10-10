@@ -16,7 +16,7 @@ impl ChapterContentReadApplicationPort for ChapterContentWorkerClient {
         user_id: i64,
         project_id: i64,
     ) -> Result<Vec<ChapterAnalysisEntry>, AppError> {
-        let project_id = Self::positive("project_id", project_id)?;
+        let project_id = a4n_worker_client::positive_id("project_id", project_id)?;
         self.command(
             user_id,
             project_id,
@@ -31,7 +31,7 @@ impl ChapterContentReadApplicationPort for ChapterContentWorkerClient {
         user_id: i64,
         project_id: i64,
     ) -> Result<Vec<ChapterIndexEntry>, AppError> {
-        let project_id = Self::positive("project_id", project_id)?;
+        let project_id = a4n_worker_client::positive_id("project_id", project_id)?;
         self.command(
             user_id,
             project_id,
@@ -42,7 +42,7 @@ impl ChapterContentReadApplicationPort for ChapterContentWorkerClient {
     }
 
     async fn list(&self, user_id: i64, project_id: i64) -> Result<Vec<ChapterSummary>, AppError> {
-        let project_id = Self::positive("project_id", project_id)?;
+        let project_id = a4n_worker_client::positive_id("project_id", project_id)?;
         self.command(
             user_id,
             project_id,
@@ -58,7 +58,7 @@ impl ChapterContentReadApplicationPort for ChapterContentWorkerClient {
         chapter_id: i64,
         project_id: Option<i64>,
     ) -> Result<ChapterSummary, AppError> {
-        let chapter_id = Self::positive("chapter_id", chapter_id)?;
+        let chapter_id = a4n_worker_client::positive_id("chapter_id", chapter_id)?;
         self.command_with_project(
             user_id,
             project_id,

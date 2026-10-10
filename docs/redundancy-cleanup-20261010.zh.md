@@ -185,6 +185,13 @@
 - 合同测试覆盖正数、零、负数、错误码和不可重试属性；未增加默认值、兼容分支或吞错路径。
 - 记录文件：`crates/process/a4n-worker-contract/src/wire.rs`、`wire_tests.rs`，以及上述 6 个 Worker 的 validation/protocol/command 调用点。
 
+### R-21：复用 Chapter client 正数 ID 校验
+
+- 类别：重复输入校验。
+- BFS 覆盖：从 `ChapterContentWorkerClient` 和 `ChapterSceneWorkerClient` 的 application port 实现进入 reads/mutations，追踪每个 `Self::positive` 调用到 envelope/payload 构造；CodeGraph 与静态搜索确认两处 helper 都只服务于本 client，且与 `a4n-worker-client::positive_id` 的 `AppError::InvalidArgument`、正数边界和错误文案完全一致。内容 client 覆盖 6 个调用，场景 client 覆盖 3 个调用。
+- 删除两个 client 的本地 helper，全部调用改用现有共享 `a4n-worker-client::positive_id`；移除场景 client 中随旧 helper 遗留且无引用的 `WorkerPrincipal`/`WorkerPrincipalKind` 导入。没有改变 optional project scope、User principal 或 transport 错误策略。
+- 记录文件：`crates/chapter/a4n-chapter-content-worker-client/{src/lib.rs,src/reads.rs,src/mutations.rs}`、`crates/chapter/a4n-chapter-scene-worker-client/{src/lib.rs,src/reads.rs,src/mutations.rs}`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -207,6 +214,7 @@
 - R-18 `cargo test -p a4n-worker-client --offline --locked --no-run`：测试 binary 编译通过；随后 `timeout 60s cargo test -p a4n-worker-client --offline --locked`：16/16 通过。`cargo check --workspace --all-targets --offline --locked` 完成且无编译错误；该组合 shell 的最终状态为 124，因为首次冷构建测试超时，后续独立测试重跑通过。
 - R-19 `cargo test -p a4n-worker-client --offline --locked --no-run` 后，`timeout 60s cargo test -p a4n-worker-client --offline --locked`：17/17 通过；`cargo check --all-targets --offline --locked` 覆盖 11 个受影响 Worker client package，通过且无警告。
 - R-20 `cargo test --locked --offline -p a4n-worker-contract --lib`：52/52 通过；`cargo check --all-targets --locked --offline` 覆盖 6 个受影响 Worker package，通过且无警告。
+- R-21 `cargo check --all-targets --locked --offline -p a4n-chapter-content-worker-client -p a4n-chapter-scene-worker-client`：通过且无警告。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-contract --lib`：49/49 通过，覆盖共享失败构造、响应元数据、请求身份校验、principal ID 边界和 wire 序列化。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-client --lib`：14/14 通过，覆盖共享传输与响应错误映射。
 - `cargo check --locked --offline -p a4n-worker-runtime -p a4n-service-manager -p a4n-server -p a4n-tauri`：通过，验证共享父进程退出信号 helper 的三个集成点和更新后的 lockfile。

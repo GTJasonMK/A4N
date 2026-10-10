@@ -122,13 +122,6 @@ impl ChapterContentWorkerClient {
             ))),
         }
     }
-
-    fn positive(field: &str, value: i64) -> Result<i64, AppError> {
-        if value <= 0 {
-            return Err(AppError::InvalidArgument(format!("{field} 必须大于 0")));
-        }
-        Ok(value)
-    }
 }
 
 fn worker_response_error(error: &WorkerError, operation: &str) -> AppError {
