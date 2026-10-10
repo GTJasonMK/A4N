@@ -471,7 +471,25 @@ mod tests {
             image_mime_from_path(Path::new("image.PNG")),
             Ok("image/png")
         );
+        assert_eq!(
+            image_mime_from_path(Path::new("image.JPEG")),
+            Ok("image/jpeg")
+        );
         assert!(image_mime_from_path(Path::new("image.gif")).is_err());
+        for format in IMAGE_UPLOAD_MEDIA_TYPES {
+            for extension in format.accepted_extensions {
+                assert_eq!(
+                    image_upload_format_from_extension(extension).map(|media| media.mime_type),
+                    Some(format.mime_type)
+                );
+            }
+            for mime_type in format.accepted_upload_mime_types {
+                assert_eq!(
+                    image_upload_format_from_mime(mime_type).map(|media| media.mime_type),
+                    Some(format.mime_type)
+                );
+            }
+        }
         for (input, expected) in [
             ("MP4", "mp4"),
             ("m4v", "m4v"),

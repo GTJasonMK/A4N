@@ -3,12 +3,12 @@
 ## 范围与方法
 
 - 工作分支：`agent/redundancy-cleanup-20261010`，基线 `debug@3f6a2408c9e78c4719259e77d5443f2befdd8fda`。
-- 建立分支本地 CodeGraph 索引后持续同步；当前索引覆盖 6,242 个文件、86,246 个符号、275,613 条边，状态为 up to date。
+- 建立分支本地 CodeGraph 索引后持续同步；当前索引覆盖 6,245 个文件、86,268 个符号、275,056 条边，状态为 up to date。
 - 从 `a4n-server`、Tauri 本地 Server、`a4n-component-host`、Worker/Sidecar catalog、Axum route 注册、`a4n-control` 动态 command 分派和 `frontend/src/App.tsx` 路由入口追踪生产调用与注册点。前端索引包含 444 个 TS 和 318 个 TSX 文件。
 - 基线 Cargo workspace 有 213 个 crate manifest；本次增加 Worker runtime 与 DB adapter 后共 215 个。`cargo metadata` 核对了 Worker 对共享配置/runtime crate 的依赖。静态搜索补查脚本启动、环境变量、历史迁移、测试 fixture、生成合同脚本和运行时路由字符串。
 - 检查了 `#[allow(dead_code)]`、兼容/legacy 命名、候选无入边符号、Cargo 直接依赖和可复用的前端格式工具。
 
-最后一次 CodeGraph sync 报告仍有 14 条 unresolved references；跨 crate helper 导入和部分动态/宏式 route 注册未必能形成完整调用边，例如共享 runtime helper 的包外调用需要用静态搜索复核。所有本批跨 crate helper 消费者均经源码搜索确认，并由 workspace 或对应 crate 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
+最后一次 CodeGraph sync 报告仍有 3 条 unresolved references；跨 crate helper 导入和部分动态/宏式 route 注册未必能形成完整调用边，例如共享 runtime helper 的包外调用需要用静态搜索复核。所有本批跨 crate helper 消费者均经源码搜索确认，并由 workspace 或对应 crate 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
 
 本记录说明实际检查的入口和结果，不声称仅凭静态分析证明了所有运行环境、外部调用者、反射或部署配置均无遗漏。未对所有产品模块做逐函数人工审阅，也未运行浏览器端到端流程。
 
@@ -570,6 +570,15 @@
 - 保持原始输入边界：服务端接受 `audio/mp3` 并规范化为 `audio/mpeg`；浏览器列表仍不包含 `audio/mp3`，因为本地选择器之前使用的是更窄的 File.type 子集。Temp Media 继续拒绝 `application/ogg`、`video/x-m4v` 和 `video/mov`；magic-byte 验证继续独立检查真实文件内容。
 - 验证：4 个受影响 Rust package all-targets 检查通过；domain、Control Temp Media、API contract 定向测试各 1/1，video-provider 85/85；`generate_types --check`、`npm run check:web-api-parity`、`referenceMediaWorkspace.test.ts` 2/2、前端构建、`cargo fmt --all -- --check` 和 `git diff --check` 通过。
 - 记录范围：`crates/host/a4n-api-contract/src/temp_media.rs` 与 generator/stages、`crates/host/a4n-control/src/routes/temp_media/{rules.rs,storage.rs}`、`frontend/src/pages/novel-detail/video/referenceMediaWorkspace.tsx` 和生成的 `config.ts`。
+
+### R-70：统一图像上传格式事实来源
+
+- 类别：PNG/JPEG/WebP 的规范 MIME、扩展名和浏览器接收列表在 domain、解码器、Tauri 选图、API/Temp Media 合同、provider 适配和前端各自重复维护。
+- BFS 覆盖：从 `a4n-media::decode_uploaded_image_data` 追到 Portrait、图片记录、Profile Material 三个生产入口及魔数识别、格式解码、尺寸检查和持久化准备；从 `a4n-domain::image_mime_from_path` 追到 Runtime 图片生成/视频引用与 Video Provider 的四个调用点；从 `imageUpload.ts` 的 MIME 校验和 `accept` 追到 12 个消费者，并补查 Chapter Visual Plan 的内联文件类型列表。另从 `TEMP_MEDIA_FORMATS` 追到 Control MIME/扩展名校验、临时文件查找和生成的浏览器类型；从 Tauri `read_local_image_file` 经 command registry 追到前端 invoke；从 ThemeTab/`uploadThemeResource` 追到 Control command dispatch、Runtime 上传校验和主题包导入/导出；从 Image Provider `normalize_image_format` 追到声明格式、URL 扩展名与响应 MIME 的四个调用点。静态搜索复核 Rust/TypeScript、Tauri 注册、主题路由和生成配置中的 MIME/扩展名字面量。
+- 在 `a4n-domain::media::IMAGE_UPLOAD_MEDIA_TYPES` 集中 canonical MIME、保存扩展名、接收的 `.jpeg` 别名、服务端 MIME 与浏览器 MIME。`a4n-media` 的输入 MIME 归一化、图像字节格式识别及 `DecodedUploadedImage` 扩展名复用该目录；Runtime 参考图与 Video Provider 的 ImageFormat→MIME 适配也共用它。Temp Media 的三个图像记录由该目录构造；API 生成器输出 `IMAGE_UPLOAD_MIME_TYPES`，Temp Media 浏览器图像集合、前端选择/检查、主题 PNG/JPEG/WebP 列表和 Chapter Visual Plan `accept` 复用生成结果。Tauri 本地选图与 Image Provider 的 canonical 扩展名映射改用 domain helper；移除 Control 中单独的 `.jpeg` alias 判断。
+- 保留合同差异：主题资源仍额外接受 GIF；Image Provider 的响应头仍额外接受 `image/jpg`；通用媒体路径的 APNG/AVIF/GIF/SVG MIME 不属于上传编解码 allowlist；New API 视频首帧仅 PNG/JPEG、EPUB 封面仅 PNG/JPEG，均是目的地专属限制。Temp Media 魔数签名仍单独核对真实内容，图片解码、MIME 与内容一致性、尺寸/字节限制及压缩逻辑不合并。
+- 验证：8 个受影响 Rust package all-targets 检查通过；domain/media/API contract/Control 测试分别 1/1、1/1、4/4、1/1；Runtime 参考图 5/5、主题 metadata 1/1；Video Provider lib 44/44、Image Provider lib 测试通过。`generate_types --check`、`npm run check:web-api-parity`、新增 `imageUpload.test.ts` 1/1、前端生产构建、`cargo fmt --all -- --check` 和 `git diff --check` 通过。首次 Control 冷编译超过单测 60 秒上限，预编译后重跑测试通过。
+- 记录范围：`a4n-domain::media`、`a4n-media`、API contract Temp Media/generator/生成的 `config.ts`、Control Temp Media rules、Runtime image reference/theme resource、Tauri image import、Image/Video Providers，以及前端 `imageUpload.ts`、Theme Editor、Chapter Visual Plan 与定向单测。
 
 ## 核验后保留
 

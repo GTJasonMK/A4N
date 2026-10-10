@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 a4n-domain = { workspace = true }
+a4n-media = { workspace = true }
 a4n-storage = { workspace = true }
 a4n-video-provider-contract = { workspace = true }
 a4n-video-sidecar-contract = { workspace = true }

@@ -12,6 +12,7 @@ import {
   type ThemeMode,
   type ThemeStreamDisplaySettings,
 } from "../../../api/theme";
+import { IMAGE_UPLOAD_MIME_TYPES } from "../../../api/generated/config";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
@@ -49,12 +50,7 @@ const DEFAULT_BACKGROUND: ThemeBackgroundSettings = {
   position: "center",
   size: "cover",
 };
-const SUPPORTED_THEME_IMAGE_TYPES = [
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/gif",
-];
+const SUPPORTED_THEME_IMAGE_TYPES = [...IMAGE_UPLOAD_MIME_TYPES, "image/gif"];
 export const THEME_EDITOR_FORM_ID = "theme-editor-form";
 
 interface ThemeEditorPanelProps {

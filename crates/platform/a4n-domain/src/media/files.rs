@@ -1,6 +1,64 @@
 use std::path::Path;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ImageUploadFormat {
+    pub extension: &'static str,
+    pub accepted_extensions: &'static [&'static str],
+    pub mime_type: &'static str,
+    pub accepted_upload_mime_types: &'static [&'static str],
+    pub browser_mime_types: &'static [&'static str],
+}
+
+impl ImageUploadFormat {
+    pub const PNG: Self = Self {
+        extension: "png",
+        accepted_extensions: &["png"],
+        mime_type: "image/png",
+        accepted_upload_mime_types: &["image/png"],
+        browser_mime_types: &["image/png"],
+    };
+    pub const JPEG: Self = Self {
+        extension: "jpg",
+        accepted_extensions: &["jpg", "jpeg"],
+        mime_type: "image/jpeg",
+        accepted_upload_mime_types: &["image/jpeg"],
+        browser_mime_types: &["image/jpeg"],
+    };
+    pub const WEBP: Self = Self {
+        extension: "webp",
+        accepted_extensions: &["webp"],
+        mime_type: "image/webp",
+        accepted_upload_mime_types: &["image/webp"],
+        browser_mime_types: &["image/webp"],
+    };
+}
+
+pub const IMAGE_UPLOAD_MEDIA_TYPES: &[ImageUploadFormat] = &[
+    ImageUploadFormat::PNG,
+    ImageUploadFormat::JPEG,
+    ImageUploadFormat::WEBP,
+];
+
+pub fn image_upload_format_from_extension(extension: &str) -> Option<&'static ImageUploadFormat> {
+    IMAGE_UPLOAD_MEDIA_TYPES.iter().find(|format| {
+        format
+            .accepted_extensions
+            .iter()
+            .any(|accepted| extension.eq_ignore_ascii_case(accepted))
+    })
+}
+
+pub fn image_upload_format_from_mime(mime_type: &str) -> Option<&'static ImageUploadFormat> {
+    let mime_type = mime_type.trim();
+    IMAGE_UPLOAD_MEDIA_TYPES.iter().find(|format| {
+        format
+            .accepted_upload_mime_types
+            .iter()
+            .any(|accepted| mime_type.eq_ignore_ascii_case(accepted))
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VideoMediaType {
     pub extension: &'static str,
     pub mime_type: &'static str,
@@ -89,10 +147,9 @@ pub fn media_mime_from_path(path: &Path) -> Result<&'static str, String> {
 
 pub fn image_mime_from_path(path: &Path) -> Result<&'static str, String> {
     let extension = media_file_extension(path, "图片")?;
-    if !matches!(extension.as_str(), "png" | "jpg" | "jpeg" | "webp") {
-        return Err(format!("图片扩展名不支持：{extension}"));
-    }
-    media_mime_from_extension(&extension).ok_or_else(|| format!("图片扩展名不支持：{extension}"))
+    image_upload_format_from_extension(&extension)
+        .map(|format| format.mime_type)
+        .ok_or_else(|| format!("图片扩展名不支持：{extension}"))
 }
 
 pub fn video_mime_from_path(path: &Path) -> Result<&'static str, String> {
@@ -155,14 +212,14 @@ fn media_file_extension(path: &Path, label: &str) -> Result<String, String> {
 }
 
 fn media_mime_from_extension(extension: &str) -> Option<&'static str> {
+    if let Some(format) = image_upload_format_from_extension(extension) {
+        return Some(format.mime_type);
+    }
     match extension {
         "apng" => Some("image/apng"),
         "avif" => Some("image/avif"),
         "gif" => Some("image/gif"),
-        "jpg" | "jpeg" => Some("image/jpeg"),
-        "png" => Some("image/png"),
         "svg" => Some("image/svg+xml"),
-        "webp" => Some("image/webp"),
         "mp3" => Some("audio/mpeg"),
         "m4a" => Some("audio/mp4"),
         "wav" => Some("audio/wav"),

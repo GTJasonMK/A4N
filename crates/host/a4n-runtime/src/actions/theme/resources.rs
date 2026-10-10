@@ -162,17 +162,13 @@ pub(super) fn validate_resource_metadata(
     {
         return Err(AppError::InvalidArgument("主题图片文件名无效".to_string()));
     }
-    Ok(match mime_type {
-        "image/png" => "png",
-        "image/jpeg" => "jpg",
-        "image/webp" => "webp",
-        "image/gif" => "gif",
-        _ => {
-            return Err(AppError::InvalidArgument(
-                "主题背景只支持 PNG、JPEG、WebP 或 GIF".to_string(),
-            ));
-        }
-    })
+    a4n_domain::media::image_upload_format_from_mime(mime_type)
+        .filter(|format| format.mime_type == mime_type)
+        .map(|format| format.extension)
+        .or_else(|| (mime_type == "image/gif").then_some("gif"))
+        .ok_or_else(|| {
+            AppError::InvalidArgument("主题背景只支持 PNG、JPEG、WebP 或 GIF".to_string())
+        })
 }
 
 pub(super) fn theme_resource_relative_path(

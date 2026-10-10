@@ -1,6 +1,7 @@
 use a4n_domain::media::image_mime_from_path;
 use a4n_error::AppError;
 use a4n_image_contract::ImageReference;
+use a4n_media::image_upload_format_from_image_format;
 use a4n_storage::canonicalize_data_file_path;
 use base64::Engine as _;
 use image::GenericImageView;
@@ -42,12 +43,9 @@ fn compact_reference_image(
     let format = reader
         .format()
         .ok_or_else(|| host_error(format!("参考图 {label} 格式无法识别")))?;
-    let actual_mime = match format {
-        image::ImageFormat::Png => "image/png",
-        image::ImageFormat::Jpeg => "image/jpeg",
-        image::ImageFormat::WebP => "image/webp",
-        _ => return Err(host_error(format!("参考图 {label} 格式不支持"))),
-    };
+    let actual_mime = image_upload_format_from_image_format(format)
+        .map(|image_format| image_format.mime_type)
+        .ok_or_else(|| host_error(format!("参考图 {label} 格式不支持")))?;
     if actual_mime != mime {
         return Err(host_error(format!(
             "参考图 {label} MIME 类型 {mime} 与实际格式 {actual_mime} 不一致"
@@ -69,7 +67,10 @@ fn compact_reference_image(
     image::codecs::jpeg::JpegEncoder::new_with_quality(&mut compacted, REFERENCE_JPEG_QUALITY)
         .encode_image(&image::DynamicImage::ImageRgb8(resized.to_rgb8()))
         .map_err(|error| host_error(format!("参考图 {label} 压缩失败：{error}")))?;
-    Ok(("image/jpeg", compacted))
+    let jpeg_mime = image_upload_format_from_image_format(image::ImageFormat::Jpeg)
+        .map(|image_format| image_format.mime_type)
+        .ok_or_else(|| host_error("参考图 JPEG 输出格式不支持".to_string()))?;
+    Ok((jpeg_mime, compacted))
 }
 
 fn host_error(message: String) -> AppError {

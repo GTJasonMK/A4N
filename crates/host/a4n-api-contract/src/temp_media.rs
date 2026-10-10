@@ -1,3 +1,4 @@
+use a4n_domain::media::ImageUploadFormat;
 use a4n_service_protocol::JS_SAFE_INTEGER_U64;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -23,29 +24,23 @@ pub struct TempMediaFormat {
     pub browser_mime_types: &'static [&'static str],
 }
 
+impl TempMediaFormat {
+    const fn image(format: ImageUploadFormat) -> Self {
+        Self {
+            kind: TempMediaFormatKind::Image,
+            mime_type: format.mime_type,
+            extension: format.extension,
+            accepted_mime_types: format.accepted_upload_mime_types,
+            browser_mime_types: format.browser_mime_types,
+        }
+    }
+}
+
 /// MIME aliases, canonical MIME, and extensions accepted by the temp-media API.
 pub const TEMP_MEDIA_FORMATS: &[TempMediaFormat] = &[
-    TempMediaFormat {
-        kind: TempMediaFormatKind::Image,
-        mime_type: "image/png",
-        extension: "png",
-        accepted_mime_types: &["image/png"],
-        browser_mime_types: &["image/png"],
-    },
-    TempMediaFormat {
-        kind: TempMediaFormatKind::Image,
-        mime_type: "image/jpeg",
-        extension: "jpg",
-        accepted_mime_types: &["image/jpeg"],
-        browser_mime_types: &["image/jpeg"],
-    },
-    TempMediaFormat {
-        kind: TempMediaFormatKind::Image,
-        mime_type: "image/webp",
-        extension: "webp",
-        accepted_mime_types: &["image/webp"],
-        browser_mime_types: &["image/webp"],
-    },
+    TempMediaFormat::image(ImageUploadFormat::PNG),
+    TempMediaFormat::image(ImageUploadFormat::JPEG),
+    TempMediaFormat::image(ImageUploadFormat::WEBP),
     TempMediaFormat {
         kind: TempMediaFormatKind::Video,
         mime_type: "video/mp4",

@@ -85,6 +85,12 @@ export const DEFAULT_IMAGE_SIZES: readonly ImageSize[] = [
   { width: 768, height: 1024 },
 ];
 
+export const IMAGE_UPLOAD_MIME_TYPES: readonly string[] = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+];
+
 export const VIDEO_UPLOAD_MIME_TYPES: Readonly<Record<string, readonly [string, ...string[]]>> = {
   "mp4": ["video/mp4", "application/mp4"],
   "webm": ["video/webm"],
@@ -93,7 +99,7 @@ export const VIDEO_UPLOAD_MIME_TYPES: Readonly<Record<string, readonly [string, 
 };
 
 export const TEMP_MEDIA_BROWSER_MIME_TYPES: Readonly<Record<"image" | "video" | "audio", readonly string[]>> = {
-  image: ["image/png", "image/jpeg", "image/webp"],
+  image: IMAGE_UPLOAD_MIME_TYPES,
   video: ["video/mp4", "video/quicktime", "video/webm"],
   audio: ["audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp4", "audio/x-m4a", "audio/ogg"],
 };

@@ -25,6 +25,7 @@ import { Modal } from "../../components/ui/Modal";
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import { ImageSizeSelect, useImageGenerationSize } from "../../components/image/ImageSizeSelect";
 import { readFileAsBase64 } from "../../utils/fileUpload";
+import { supportedImageAccept } from "../../utils/imageUpload";
 import { toMediaSrc } from "../../utils/mediaSrc";
 import { DirectorGeneration } from "./visual-plan/DirectorGeneration";
 import { DirectorScrubber, DirectorTimeline, type DirectorTimelineView } from "./visual-plan/DirectorTimeline";
@@ -565,7 +566,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
               {point && !imageSizeState.loading && !imageSizeState.error && pointImageSizes.length === 0 && <p role="alert" className="director-context-line">当前图片配置没有与方案画幅匹配的尺寸，请先在图片模型设置中添加对应尺寸。</p>}
               <div className="director-point-media-actions">
                 <BookButton variant="secondary" size="sm" onClick={() => openModal("media")}><ImagePlus size={15} />从素材库选择</BookButton>
-                <label className="director-upload-button"><Upload size={15} />上传本地图片<input type="file" accept="image/png,image/jpeg,image/webp" disabled={disabled || uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); event.target.value = ""; }} /></label>
+                <label className="director-upload-button"><Upload size={15} />上传本地图片<input type="file" accept={supportedImageAccept()} disabled={disabled || uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); event.target.value = ""; }} /></label>
               </div>
               <BookButton variant="secondary" size="sm" disabled={pointCandidates.length === 0} onClick={() => openModal("candidates")}><Images size={15} />分镜候选{pointCandidates.length > 0 ? `（${pointCandidates.length}）` : ""}</BookButton>
               <DirectorGeneration

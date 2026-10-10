@@ -373,7 +373,7 @@ use a4n_domain::galgame::{
     StoryValue,
 };
 use a4n_domain::import_review::ImportReviewStatus;
-use a4n_domain::media::VIDEO_MEDIA_TYPES;
+use a4n_domain::media::{IMAGE_UPLOAD_MEDIA_TYPES, VIDEO_MEDIA_TYPES};
 use a4n_domain::profile_material::{
     ProfileMaterialFilter, ProfileMaterialImageStaleness, ProfileMaterialKind,
     ProfileMaterialKindFilter, ProfileMaterialSort, ProfileMaterialState,
@@ -463,7 +463,14 @@ fn typescript_image_constants() -> String {
         .iter()
         .map(|size| format!("  {{ width: {}, height: {} }},\n", size.width, size.height))
         .collect::<String>();
-    format!("export const DEFAULT_IMAGE_SIZES: readonly ImageSize[] = [\n{sizes}];\n\n")
+    let mime_types = IMAGE_UPLOAD_MEDIA_TYPES
+        .iter()
+        .flat_map(|format| format.browser_mime_types.iter().copied())
+        .map(|mime_type| format!("  {mime_type:?},\n"))
+        .collect::<String>();
+    format!(
+        "export const DEFAULT_IMAGE_SIZES: readonly ImageSize[] = [\n{sizes}];\n\nexport const IMAGE_UPLOAD_MIME_TYPES: readonly string[] = [\n{mime_types}];\n\n"
+    )
 }
 
 fn typescript_video_upload_mime_types() -> String {
@@ -490,6 +497,10 @@ fn typescript_temp_media_browser_mime_types() -> String {
         ("video", TempMediaFormatKind::Video),
         ("audio", TempMediaFormatKind::Audio),
     ] {
+        if kind == TempMediaFormatKind::Image {
+            output.push_str("  image: IMAGE_UPLOAD_MIME_TYPES,\n");
+            continue;
+        }
         let mime_types = TEMP_MEDIA_FORMATS
             .iter()
             .filter(|format| format.kind == kind)
