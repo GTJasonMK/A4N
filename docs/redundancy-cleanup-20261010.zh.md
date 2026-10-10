@@ -527,6 +527,14 @@
 - 验证：`cargo check --all-targets --locked --offline -p a4n-storage -p a4n-runtime` 通过；storage durable-writer 定向测试 1/1、Runtime `generated_image_file_persistence_keeps_output_and_reports_actual_size` 1/1 通过；`cargo fmt --all -- --check`、`git diff --check` 通过。
 - 记录文件：`crates/platform/a4n-storage/{src/files/path_lifecycle.rs,src/files/mod.rs,src/lib.rs}`、`crates/host/a4n-runtime/src/actions/{image_records/upload/record.rs,image_generation/generation_io/files.rs}`。
 
+### R-65：复核 HTTP media byte-range 实现
+
+- 类别：核验后保留，不改代码。
+- BFS 覆盖：从 `/media` 和 `/temp-media` Axum route 追到 `a4n-control::file_response -> tower_http::ServeFile`；从 Tauri `handle_request` 追到 `file_response -> a4n-media::read_media_file_response -> requested_byte_range_header -> requested_byte_range`。同时检查两侧 Range 测试与所有 workspace `Range` header parser 搜索结果。
+- Tauri custom URI 需要本 crate 构造 Tauri response body，因此使用共享 `a4n-media` parser/response builder；Control 使用 Tower `ServeFile` 获取异步文件流。Control regression test 覆盖标准/后缀/suffix ranges、无效 range 与 32 MiB body 首块不超过 64 KiB。把 Control 切换到当前返回 `Vec<u8>` 的 shared response 会一次性缓冲文件，改变已测试的大文件内存合同；另写一套 custom streaming response 则会复制传输实现。故保留标准框架服务路径和 Tauri shared parser 两个适配，不合并。
+- `a4n-media::requested_byte_range` 的多段 Range 拒绝和 header-to-invalid mapping 由其单测覆盖；Control 的实际 Range 语义由 ServeFile 集成测试覆盖。
+- 记录范围：`crates/media/a4n-media/src/media_file/{range.rs,response.rs}`、Control media/temp-media routes 与 tests、Tauri media protocol。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
