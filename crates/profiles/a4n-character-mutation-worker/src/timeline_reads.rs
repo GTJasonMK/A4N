@@ -17,7 +17,7 @@ impl WorkerState {
             input.end_chapter,
         )
         .await
-        .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
+        .map_err(a4n_worker_db_adapter::map_database_error)?;
         snapshots.iter().map(snapshot_reference_summary).collect()
     }
 
@@ -38,7 +38,7 @@ impl WorkerState {
             input.chapter_number,
         )
         .await
-        .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
+        .map_err(a4n_worker_db_adapter::map_database_error)?
         .ok_or_else(|| {
             WorkerFailure::not_found(format!("第 {} 章没有角色快照", input.chapter_number))
         })?;
@@ -58,7 +58,7 @@ impl WorkerState {
         let snapshot = snapshot_store
             .load_snapshot(content_hash)
             .await
-            .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
+            .map_err(a4n_worker_db_adapter::map_database_error)?
             .ok_or_else(|| WorkerFailure::not_found(format!("快照不存在: {content_hash}")))?;
         profile_for_editor(&self.database, user_id, snapshot.entity_id).await?;
         if snapshot.entity_type != "character_profile" {
@@ -121,7 +121,7 @@ impl WorkerState {
             input.limit,
         )
         .await
-        .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
+        .map_err(a4n_worker_db_adapter::map_database_error)?;
         records.iter().map(behavior_record_summary).collect()
     }
 
@@ -140,7 +140,7 @@ impl WorkerState {
             input.status,
         )
         .await
-        .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
+        .map_err(a4n_worker_db_adapter::map_database_error)?;
         marks.iter().map(deletion_mark_summary).collect()
     }
 
@@ -157,7 +157,7 @@ impl WorkerState {
             profile.project_id,
         )
         .await
-        .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
+        .map_err(a4n_worker_db_adapter::map_database_error)?;
         let max_available_chapter = chapters
             .iter()
             .map(|chapter| chapter.chapter_number)
@@ -170,7 +170,7 @@ impl WorkerState {
             Some(max_available_chapter),
         )
         .await
-        .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
+        .map_err(a4n_worker_db_adapter::map_database_error)?;
         Ok(ProfileSyncConflictSummary {
             has_conflict: profile.last_synced_chapter > max_available_chapter,
             last_synced_chapter: profile.last_synced_chapter,
@@ -207,7 +207,7 @@ impl WorkerState {
             input.to_chapter,
         )
         .await
-        .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
+        .map_err(a4n_worker_db_adapter::map_database_error)?
         .ok_or_else(|| {
             WorkerFailure::not_found(format!("第 {} 章没有角色快照", input.to_chapter))
         })?;
@@ -220,13 +220,13 @@ impl WorkerState {
                 input.from_chapter,
             )
             .await
-            .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
+            .map_err(a4n_worker_db_adapter::map_database_error)?
         };
         let store = a4n_db::character::Sha256SnapshotStore::new(self.database.shared_connection());
         let to_snapshot = store
             .load_snapshot(&to_ref.snapshot_hash)
             .await
-            .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
+            .map_err(a4n_worker_db_adapter::map_database_error)?
             .ok_or_else(|| {
                 WorkerFailure::not_found(format!("快照不存在: {}", to_ref.snapshot_hash))
             })?;
@@ -235,7 +235,7 @@ impl WorkerState {
                 store
                     .load_snapshot(&from_ref.snapshot_hash)
                     .await
-                    .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
+                    .map_err(a4n_worker_db_adapter::map_database_error)?
                     .ok_or_else(|| {
                         WorkerFailure::not_found(format!("快照不存在: {}", from_ref.snapshot_hash))
                     })?

@@ -12,7 +12,7 @@ impl WorkerState {
         let profile =
             a4n_db::character::profile_record_by_id(self.database.connection(), profile_id)
                 .await
-                .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
+                .map_err(a4n_worker_db_adapter::map_database_error)?
                 .ok_or_else(|| WorkerFailure::not_found(format!("角色档案不存在: {profile_id}")))?;
         verify_project_editor(&self.database, profile.project_id, user_id).await?;
         Ok(profile.project_id)

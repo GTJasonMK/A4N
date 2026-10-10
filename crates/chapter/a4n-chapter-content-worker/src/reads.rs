@@ -35,7 +35,7 @@ impl WorkerState {
             project_id,
         )
         .await
-        .map_err(|error| WorkerFailure::unavailable(error.to_string()))
+        .map_err(a4n_worker_db_adapter::map_database_error)
     }
 
     pub(super) async fn list(
@@ -77,7 +77,7 @@ impl WorkerState {
         verify_project_viewer(&self.database, project_id, user_id).await?;
         a4n_db::chapter_content::chapters_for_project(self.database.connection(), project_id)
             .await
-            .map_err(|error| WorkerFailure::unavailable(error.to_string()))
+            .map_err(a4n_worker_db_adapter::map_database_error)
     }
 
     pub(super) async fn summary(

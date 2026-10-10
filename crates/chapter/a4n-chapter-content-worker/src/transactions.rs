@@ -10,7 +10,7 @@ pub(super) async fn finish_transaction<T>(
         Ok(value) => {
             tx.commit()
                 .await
-                .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
+                .map_err(a4n_worker_db_adapter::map_database_error)?;
             Ok(value)
         }
         Err(error) => {

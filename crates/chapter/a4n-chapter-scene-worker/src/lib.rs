@@ -190,7 +190,7 @@ impl WorkerState {
     ) -> Result<a4n_domain::chapter::ChapterRecord, WorkerFailure> {
         let chapter = a4n_db::project::chapter_by_id(self.database.connection(), chapter_id)
             .await
-            .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
+            .map_err(a4n_worker_db_adapter::map_database_error)?
             .ok_or_else(|| {
                 WorkerFailure::not_found(format!("章节不存在: chapter_id={chapter_id}"))
             })?;

@@ -145,7 +145,7 @@ impl WorkerState {
                         .collect::<Vec<_>>(),
                 )
                 .await
-                .map_err(|error| WorkerFailure::unavailable(error.to_string()))
+                .map_err(a4n_worker_db_adapter::map_database_error)
             },
         )?;
         projects

@@ -111,7 +111,7 @@ impl WorkerState {
             request.payload.project_id,
         )
         .await
-        .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
+        .map_err(a4n_worker_db_adapter::map_database_error)?
         else {
             return Ok(None);
         };
@@ -121,7 +121,7 @@ impl WorkerState {
             blueprint.updated_at,
         )
         .await
-        .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
+        .map_err(a4n_worker_db_adapter::map_database_error)?;
         Ok(Some(blueprint_summary(blueprint, needs_review)))
     }
 

@@ -24,7 +24,7 @@ impl WorkerState {
                 image_id,
             )
             .await
-            .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
+            .map_err(a4n_worker_db_adapter::map_database_error)?
             .ok_or_else(|| WorkerFailure::not_found("图片不存在"))?;
             if image.project_id != input.project_id {
                 return Err(WorkerFailure::invalid_request(format!(

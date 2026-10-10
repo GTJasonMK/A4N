@@ -36,7 +36,7 @@ impl WorkerState {
             .database
             .begin()
             .await
-            .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
+            .map_err(a4n_worker_db_adapter::map_database_error)?;
         let result = async {
             let chapter = a4n_db::chapter_content::save_chapter_content_edit_record(
                 &tx,
@@ -83,7 +83,7 @@ impl WorkerState {
             .database
             .begin()
             .await
-            .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
+            .map_err(a4n_worker_db_adapter::map_database_error)?;
         let result = async {
             let chapter = a4n_db::chapter_content::import_chapter_content_record(
                 &tx,
