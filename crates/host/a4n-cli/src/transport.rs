@@ -14,9 +14,7 @@ use crate::client::{
     ApiBody, JsonRequest, ensure_success_response, read_response, redact_error_values,
     transport_error,
 };
-use crate::config::{
-    StoredConfig, lock_config, non_empty_env_string, normalize_api_base, resolve_api_base,
-};
+use crate::config::{StoredConfig, lock_config, normalize_api_base, resolve_api_base};
 use crate::routing;
 
 mod oauth;
@@ -45,7 +43,7 @@ impl ApiClient {
         if !stored_server_matches {
             stored.clear_auth();
         }
-        let access_token_override = non_empty_env_string("A4N_ACCESS_TOKEN")?;
+        let access_token_override = a4n_config::optional_non_empty_env_string("A4N_ACCESS_TOKEN")?;
         let http = reqwest::Client::builder()
             .user_agent(concat!("a4n-cli/", env!("CARGO_PKG_VERSION")))
             .build()

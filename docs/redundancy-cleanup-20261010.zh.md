@@ -413,6 +413,14 @@
 - 验证：`cargo check --all-targets --offline -p a4n-config -p a4n-cli -p a4n-prompt-service` 通过；`timeout 60s cargo test --locked --offline -p a4n-config --lib optional_path_distinguishes_unset_empty_and_configured_values` 1/1 通过；`cargo fmt --all -- --check`、`git diff --check` 通过。
 - 记录文件：`crates/config/a4n-config/src/lib.rs`、`crates/host/a4n-cli/{Cargo.toml,src/config.rs,src/local/mod.rs,src/local/runtime.rs}`、`crates/prompt/a4n-prompt-service/{Cargo.toml,src/app.rs}`、`Cargo.lock`。
 
+### R-50：统一 CLI 可选字符串环境变量解析
+
+- 类别：重复配置解析。
+- BFS 覆盖：从 CLI 私有 `non_empty_env_string` 追踪 5 个实际调用点：Server URL、Access Token、local doctor/start 的 Qdrant URL，以及 `required_env`；继续从 `required_env` 追到 local start/migrate。与 `a4n-config::optional_non_empty_env_string` 的 var/trim/missing/empty/invalid-Unicode 分支逐项对比，并核对 `a4n-config` 已在 CLI 的直接依赖中。
+- 删除 CLI 私有 parser，5 个调用路径改用 `a4n-config` owner。缺失仍为 `None`，空值仍显式失败；`required_env` 对缺失值的专属错误未变。非法空值/Unicode 错误现在使用 `AppError::ConfigError` 文案并由 anyhow 边界返回，不再保留 CLI 的局部措辞。
+- 验证：`cargo check --all-targets --locked --offline -p a4n-cli`、`cargo fmt --all -- --check`、`git diff --check` 通过。
+- 记录文件：`crates/host/a4n-cli/src/{config.rs,local/mod.rs,local/runtime.rs,transport.rs}`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

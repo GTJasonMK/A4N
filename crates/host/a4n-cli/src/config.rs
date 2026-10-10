@@ -154,7 +154,7 @@ pub(crate) fn resolve_api_base(
     cli_server: Option<&str>,
     stored_server: Option<&str>,
 ) -> Result<String> {
-    let env_server = non_empty_env_string("A4N_SERVER_URL")?;
+    let env_server = a4n_config::optional_non_empty_env_string("A4N_SERVER_URL")?;
     normalize_api_base(
         cli_server
             .or(env_server.as_deref())
@@ -189,20 +189,6 @@ pub(crate) fn normalize_api_base(raw: &str) -> Result<String> {
     };
     url.set_path(&api_path);
     Ok(url.as_str().trim_end_matches('/').to_string())
-}
-
-pub(crate) fn non_empty_env_string(key: &str) -> Result<Option<String>> {
-    match std::env::var(key) {
-        Ok(value) => {
-            let value = value.trim().to_string();
-            if value.is_empty() {
-                bail!("{key} 不能为空");
-            }
-            Ok(Some(value))
-        }
-        Err(std::env::VarError::NotPresent) => Ok(None),
-        Err(error) => bail!("读取 {key} 失败: {error}"),
-    }
 }
 
 #[cfg(test)]

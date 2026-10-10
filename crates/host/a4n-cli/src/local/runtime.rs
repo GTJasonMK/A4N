@@ -755,7 +755,7 @@ pub(super) fn tail_lines(path: &Path, lines: usize) -> Result<Vec<String>> {
 }
 
 pub(super) fn required_env(key: &str) -> Result<String> {
-    non_empty_env_string(key)?.ok_or_else(|| anyhow::anyhow!("缺少 {key}"))
+    a4n_config::optional_non_empty_env_string(key)?.ok_or_else(|| anyhow::anyhow!("缺少 {key}"))
 }
 
 pub(super) fn push_check(
