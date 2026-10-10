@@ -11,7 +11,7 @@ impl WorkerState {
         let project =
             a4n_db::project::project_summary_by_id_record(self.database.connection(), project_id)
                 .await
-                .map_err(project_error)?
+                .map_err(a4n_worker_db_adapter::map_project_mutation_error)?
                 .ok_or_else(|| WorkerFailure::not_found(format!("项目不存在: {project_id}")))?;
         self.summary_for_project(user_id, project).await
     }
@@ -62,7 +62,7 @@ impl WorkerState {
         service_principal(&request)?;
         a4n_db::project::project_ids(self.database.connection())
             .await
-            .map_err(project_error)
+            .map_err(a4n_worker_db_adapter::map_project_mutation_error)
     }
 
     pub(super) async fn exists(
@@ -75,7 +75,7 @@ impl WorkerState {
         a4n_db::project::project_by_id_record(self.database.connection(), project_id)
             .await
             .map(|project| project.is_some())
-            .map_err(project_error)
+            .map_err(a4n_worker_db_adapter::map_project_mutation_error)
     }
 
     async fn summary_for_project(

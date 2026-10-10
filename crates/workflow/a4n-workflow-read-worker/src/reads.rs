@@ -96,7 +96,7 @@ impl WorkerState {
             },
         )
         .await
-        .map_err(workflow_error)?;
+        .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_conflict)?;
         let visible = if input.project_id.is_some() {
             runs
         } else {
@@ -143,7 +143,7 @@ impl WorkerState {
             },
         )
         .await
-        .map_err(workflow_error)?;
+        .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_conflict)?;
         match detail.run.project_id.or(detail.run.root_project_id) {
             Some(project_id) => verify_project_editor(&self.database, project_id, user_id).await?,
             None if !is_active_admin(&self.database, user_id).await? => {
@@ -174,7 +174,7 @@ impl WorkerState {
             input.limit,
         )
         .await
-        .map_err(workflow_error)?;
+        .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_conflict)?;
         Ok(tasks
             .into_iter()
             .map(|task| task_info_summary(&task.task))
@@ -192,7 +192,7 @@ impl WorkerState {
             &request.payload.task_id,
         )
         .await
-        .map_err(workflow_error)?;
+        .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_conflict)?;
         Ok(persisted.map(|persisted| TaskLookupRecord {
             task_id: persisted.task.id,
             project_id: persisted.task.project_id,
@@ -211,7 +211,7 @@ impl WorkerState {
         let persisted =
             a4n_db::workflow::persisted_task_history(self.database.executor(), None, 0, 100)
                 .await
-                .map_err(workflow_error)?;
+                .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_conflict)?;
         Ok(persisted
             .into_iter()
             .map(active_task_lookup_record)
@@ -230,7 +230,7 @@ impl WorkerState {
                 &request.payload.task_id,
             )
             .await
-            .map_err(workflow_error)?
+            .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_conflict)?
             .map(|record| WorkflowTaskAccessRecord {
                 workflow_run_id: record.id,
                 project_id: record.project_id,
@@ -250,7 +250,7 @@ impl WorkerState {
             request.payload.workflow_run_id,
         )
         .await
-        .map_err(workflow_error)?;
+        .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_conflict)?;
         Ok(WorkflowResumeRecord {
             id: run.id,
             workflow_kind: run.workflow_kind,
@@ -278,7 +278,7 @@ impl WorkerState {
         )
         .await
         .map(workflow_run_summary_to_api)
-        .map_err(workflow_error)
+        .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_conflict)
     }
 
     pub(super) async fn progress_events(
@@ -314,7 +314,7 @@ impl WorkerState {
                 })
                 .collect()
         })
-        .map_err(workflow_error)
+        .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_conflict)
     }
 
     pub(super) fn authorized(&self, headers: &HeaderMap) -> bool {

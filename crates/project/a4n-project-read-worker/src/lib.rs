@@ -238,10 +238,6 @@ fn summary_error(error: a4n_project_read_core::ProjectSummaryError) -> WorkerFai
     }
 }
 
-fn project_error(error: a4n_db::project::ProjectMutationError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_project_mutation_error(error)
-}
-
 fn unauthorized() -> Response {
     StatusCode::UNAUTHORIZED.into_response()
 }

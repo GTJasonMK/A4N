@@ -324,6 +324,14 @@
 - 未改普通 Collaboration 错误映射，也未改 Canvas Record/Foreshadowing 对 Internal 的保留分类；现已不存在 Worker 本地 `collaboration_error` 符号。
 - 记录文件：`crates/process/a4n-worker-db-adapter/src/lib.rs` 与上述 24 个 Worker 的 Collaboration caller 文件。
 
+### R-39：删除其他 DB adapter 的单行转发 wrapper
+
+- 类别：无行为的转发层。
+- BFS 覆盖：静态枚举仍直接返回 `a4n_worker_db_adapter::*_error(error)` 的 14 个 Worker wrapper，逐个搜索其全部调用点，并沿 command/read/mutation handler 追至 `WorkerFailure` response。覆盖 Chapter Content、Manga Record、Blueprint、Novel Planning、Portrait、Project Mutation、Project Read、Project Status、Source Snapshot、Video Record、Workflow Read 11 个 Worker；11 个 manifest 均已依赖 adapter。
+- 删除 14 个仅隐藏 adapter mapper 名称的本地函数，调用处改为直接选择共享 mapper。ProjectMutation 与 ProjectFamily 的错误码/消息不变；WorkflowRead 的分类策略按调用方保留：Chapter Content 与 Workflow Read 使用 Conflict，Manga Record 与 Video Record 使用 InvalidRequest。共享 adapter 是策略和 wire 分类的唯一事实来源。
+- 没有合并领域错误的多变体 `match`，例如 Chapter Content edit/import、Project Status write/reset/read、Video DB 等仍有独立业务状态映射；这些并非单行 adapter 转发。
+- 记录文件：`crates/process/a4n-worker-db-adapter/src/lib.rs`，以及上述 11 个 Worker 的 mapper 和消费者文件。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -365,6 +373,7 @@
 - R-36 `cargo test -p a4n-worker-db-adapter --locked`：13/13 通过；`cargo check --all-targets -p a4n-portrait-worker -p a4n-import-review-worker -p a4n-video-record-worker --locked`：通过且无警告。
 - R-37 `cargo test -p a4n-worker-db-adapter --locked`：13/13 通过；`cargo check --all-targets -p a4n-chapter-scene-worker -p a4n-chapter-content-worker -p a4n-project-read-worker -p a4n-profile-material-worker -p a4n-blueprint-worker -p a4n-manga-record-worker -p a4n-character-mutation-worker --locked`：通过且无警告。
 - R-38 `cargo test -p a4n-worker-db-adapter --locked`：13/13 通过；Foreshadowing 保留 Internal 分类回归 1/1 通过；覆盖 24 个 Collaboration 消费 Worker 的 `cargo check --all-targets --locked`：通过且无警告。
+- R-39 `cargo test -p a4n-worker-db-adapter --locked`：13/13 通过；Chapter Content、Manga Record、Blueprint、Novel Planning、Portrait、Project Mutation、Project Read、Project Status、Source Snapshot、Video Record、Workflow Read 的 all-targets 检查通过且无警告。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-contract --lib`：49/49 通过，覆盖共享失败构造、响应元数据、请求身份校验、principal ID 边界和 wire 序列化。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-client --lib`：14/14 通过，覆盖共享传输与响应错误映射。
 - `cargo check --locked --offline -p a4n-worker-runtime -p a4n-service-manager -p a4n-server -p a4n-tauri`：通过，验证共享父进程退出信号 helper 的三个集成点和更新后的 lockfile。

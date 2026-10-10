@@ -25,7 +25,7 @@ impl WorkerState {
             },
         )
         .await
-        .map_err(project_mutation_error)?;
+        .map_err(a4n_worker_db_adapter::map_project_mutation_error)?;
         self.summary_for_user(user_id, project.id).await
     }
 
@@ -73,7 +73,7 @@ impl WorkerState {
             },
         )
         .await
-        .map_err(project_mutation_error)?;
+        .map_err(a4n_worker_db_adapter::map_project_mutation_error)?;
         self.summary_for_user(user_id, project.id).await
     }
 
@@ -94,7 +94,7 @@ impl WorkerState {
             a4n_db::project::CreateCanvasProjectParams { title, description },
         )
         .await
-        .map_err(project_mutation_error)?;
+        .map_err(a4n_worker_db_adapter::map_project_mutation_error)?;
         self.summary_for_user(user_id, project.id).await
     }
 
@@ -115,7 +115,7 @@ impl WorkerState {
             a4n_db::project::CreateStandaloneComicProjectParams { title, description },
         )
         .await
-        .map_err(project_mutation_error)?;
+        .map_err(a4n_worker_db_adapter::map_project_mutation_error)?;
         self.summary_for_user(user_id, project.id).await
     }
 
@@ -161,7 +161,7 @@ impl WorkerState {
             },
         )
         .await
-        .map_err(project_mutation_error)?;
+        .map_err(a4n_worker_db_adapter::map_project_mutation_error)?;
         self.summary_for_user(user_id, project.id).await
     }
 
@@ -173,7 +173,7 @@ impl WorkerState {
         let project =
             a4n_db::project::project_summary_by_id_record(self.database.connection(), project_id)
                 .await
-                .map_err(project_mutation_error)?
+                .map_err(a4n_worker_db_adapter::map_project_mutation_error)?
                 .ok_or_else(|| WorkerFailure::not_found(format!("项目不存在: {project_id}")))?;
         a4n_project_read_core::project_summary_for_user(
             self.database.connection(),

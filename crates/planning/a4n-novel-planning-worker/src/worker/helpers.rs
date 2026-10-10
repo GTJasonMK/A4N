@@ -1,4 +1,4 @@
-use super::errors::{project_family_error, source_error};
+use super::errors::source_error;
 use crate::*;
 
 pub(super) async fn verify_family_permission(
@@ -10,7 +10,7 @@ pub(super) async fn verify_family_permission(
     let (project_id, root_project_id) =
         a4n_db::project::project_or_derived_family_access_ids(db, project_id)
             .await
-            .map_err(project_family_error)?;
+            .map_err(a4n_worker_db_adapter::map_project_family_db_error)?;
     if let Some(root_project_id) = root_project_id {
         a4n_db::collaboration::verify_project_permissions(
             db,

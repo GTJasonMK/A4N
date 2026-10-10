@@ -207,10 +207,6 @@ fn validate_request<T: serde::Serialize>(
     request.validate_worker_command(operation, BLUEPRINT_WORKER_ID, "blueprint worker")
 }
 
-fn project_mutation_error(error: a4n_db::project::ProjectMutationError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_project_mutation_error(error)
-}
-
 fn unauthorized() -> Response {
     (
         StatusCode::UNAUTHORIZED,

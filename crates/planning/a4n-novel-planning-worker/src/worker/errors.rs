@@ -17,10 +17,6 @@ pub(super) fn source_error(error: a4n_db::project::ResolveChapterSourceError) ->
     }
 }
 
-pub(super) fn project_family_error(error: a4n_db::project::ProjectFamilyDbError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_project_family_db_error(error)
-}
-
 pub(super) fn visual_plan_error(error: ChapterVisualPlanDbError) -> WorkerFailure {
     match error {
         ChapterVisualPlanDbError::InvalidArgument(message) => {

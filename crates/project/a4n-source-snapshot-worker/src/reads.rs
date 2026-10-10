@@ -18,6 +18,6 @@ impl WorkerState {
         .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         a4n_db::project::source_snapshot_chapters(self.database.connection(), project_id)
             .await
-            .map_err(project_error)
+            .map_err(a4n_worker_db_adapter::map_project_mutation_error)
     }
 }

@@ -314,10 +314,6 @@ async fn is_active_admin(database: &DbHandle, user_id: i64) -> Result<bool, Work
         .map_err(|error| app_error(error.into()))
 }
 
-fn workflow_error(error: a4n_db::workflow::WorkflowReadError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_workflow_read_error_as_conflict(error)
-}
-
 fn app_error(error: a4n_error::AppError) -> WorkerFailure {
     match error {
         a4n_error::AppError::InvalidArgument(message) => WorkerFailure::invalid_request(message),

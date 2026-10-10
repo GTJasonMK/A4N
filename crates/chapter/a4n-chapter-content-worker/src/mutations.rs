@@ -1,6 +1,6 @@
 use super::{
     WorkerState,
-    errors::{WorkerFailure, chapter_error, import_error, project_error},
+    errors::{WorkerFailure, chapter_error, import_error},
     permissions::verify_project_editor,
     transactions::finish_transaction,
     validation::validate_request,
@@ -122,7 +122,7 @@ impl WorkerState {
         verify_project_editor(&self.database, project_id, user_id).await?;
         let project = a4n_db::project::project_by_id_record(self.database.connection(), project_id)
             .await
-            .map_err(project_error)?
+            .map_err(a4n_worker_db_adapter::map_project_mutation_error)?
             .ok_or_else(|| WorkerFailure::not_found(format!("项目不存在: {project_id}")))?;
         if project.project_kind != a4n_db::project::PROJECT_KIND_TEXT {
             return Err(WorkerFailure::invalid_request(format!(

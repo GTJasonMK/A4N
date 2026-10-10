@@ -161,10 +161,6 @@ fn validate_request<T: serde::Serialize>(request: &WorkerEnvelope<T>) -> Result<
     )
 }
 
-fn project_error(error: a4n_db::project::ProjectMutationError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_project_mutation_error(error)
-}
-
 fn completed<T>(request: &WorkerEnvelope<impl serde::Serialize>, payload: T) -> WorkerResponse<T> {
     WorkerResponse::completed_for(request, payload)
 }

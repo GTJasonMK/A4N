@@ -242,10 +242,6 @@ fn validate_request<T: serde::Serialize>(
     request.validate_worker_command(operation, PROJECT_STATUS_WORKER_ID, "project status worker")
 }
 
-fn project_mutation_error(error: a4n_db::project::ProjectMutationError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_project_mutation_error(error)
-}
-
 fn status_write_error(error: a4n_db::project::ProjectStatusWriteError) -> WorkerFailure {
     match error {
         a4n_db::project::ProjectStatusWriteError::InvalidArgument(message) => {

@@ -260,10 +260,6 @@ fn project_scope<T: serde::Serialize>(
     request.require_project_scope(payload_project_id)
 }
 
-fn project_mutation_error(error: a4n_db::project::ProjectMutationError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_project_mutation_error(error)
-}
-
 fn summary_error(error: a4n_project_read_core::ProjectSummaryError) -> WorkerFailure {
     match error {
         a4n_project_read_core::ProjectSummaryError::Database(error) => {

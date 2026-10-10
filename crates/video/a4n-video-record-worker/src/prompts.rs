@@ -33,7 +33,7 @@ impl WorkerState {
             input.workflow_run_id,
         )
         .await
-        .map_err(workflow_error)?;
+        .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_invalid_request)?;
         if run.workflow_kind != "video_segment_plan"
             || run.project_id != Some(input.project_id)
             || run.chapter_id != Some(input.chapter_id)

@@ -1,6 +1,6 @@
 use super::{
     WorkerState,
-    errors::{WorkerFailure, chapter_error, workflow_error},
+    errors::{WorkerFailure, chapter_error},
     permissions::verify_project_viewer,
     validation::validate_request,
 };
@@ -151,7 +151,7 @@ impl WorkerState {
                 &chapter_ids,
             ),
         )
-        .map_err(workflow_error)?;
+        .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_conflict)?;
         let run_ids = analysis_runs
             .iter()
             .chain(&content_runs)
@@ -160,7 +160,7 @@ impl WorkerState {
         let checkpoints =
             a4n_db::workflow::workflow_checkpoint_summaries_for_runs(&self.database, &run_ids)
                 .await
-                .map_err(workflow_error)?;
+                .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_conflict)?;
         let mut summaries = chapters.iter().map(chapter_metadata).collect::<Vec<_>>();
         attach_chapter_sync_state(
             chapters,

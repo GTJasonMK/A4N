@@ -23,7 +23,7 @@ pub(super) async fn verify_manga_viewer(
     let (project_id, root_project_id) =
         a4n_db::project::project_or_derived_family_access_ids(database.connection(), project_id)
             .await
-            .map_err(super::protocol::project_family_error)?;
+            .map_err(a4n_worker_db_adapter::map_project_family_db_error)?;
     let project_ids = root_project_id
         .into_iter()
         .chain([project_id])

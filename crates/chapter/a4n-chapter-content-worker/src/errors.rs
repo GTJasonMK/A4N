@@ -38,11 +38,3 @@ pub(super) fn import_error(
         }
     }
 }
-
-pub(super) fn project_error(error: a4n_db::project::ProjectMutationError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_project_mutation_error(error)
-}
-
-pub(super) fn workflow_error(error: a4n_db::workflow::WorkflowReadError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_workflow_read_error_as_conflict(error)
-}

@@ -419,10 +419,6 @@ async fn validate_video_source(
 #[cfg(test)]
 mod tests;
 
-fn workflow_error(error: a4n_db::workflow::WorkflowReadError) -> WorkerFailure {
-    a4n_worker_db_adapter::map_workflow_read_error_as_invalid_request(error)
-}
-
 fn video_error(error: a4n_db::video::VideoDbError) -> WorkerFailure {
     match error {
         a4n_db::video::VideoDbError::InvalidArgument(message) => {

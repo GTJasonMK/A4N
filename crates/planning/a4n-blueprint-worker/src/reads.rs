@@ -143,7 +143,7 @@ impl WorkerState {
             request.payload.project_id,
         )
         .await
-        .map_err(project_mutation_error)?
+        .map_err(a4n_worker_db_adapter::map_project_mutation_error)?
         .into_iter()
         .map(blueprint_version_summary)
         .collect()
@@ -168,7 +168,7 @@ impl WorkerState {
             &request.payload.version_a,
         )
         .await
-        .map_err(project_mutation_error)?
+        .map_err(a4n_worker_db_adapter::map_project_mutation_error)?
         .ok_or_else(|| {
             WorkerFailure::not_found(format!("版本 {} 不存在", request.payload.version_a))
         })?;
@@ -178,7 +178,7 @@ impl WorkerState {
             &request.payload.version_b,
         )
         .await
-        .map_err(project_mutation_error)?
+        .map_err(a4n_worker_db_adapter::map_project_mutation_error)?
         .ok_or_else(|| {
             WorkerFailure::not_found(format!("版本 {} 不存在", request.payload.version_b))
         })?;

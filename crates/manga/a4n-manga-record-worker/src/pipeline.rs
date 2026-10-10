@@ -22,9 +22,7 @@ use a4n_worker_contract::WorkerEnvelope;
 use super::{
     WorkerState,
     access::verify_manga_viewer,
-    protocol::{
-        WorkerFailure, manga_error, project_family_error, validate_request, workflow_error,
-    },
+    protocol::{WorkerFailure, manga_error, validate_request},
 };
 
 impl WorkerState {
@@ -109,7 +107,7 @@ impl WorkerState {
                     },
                 )
                 .await
-                .map_err(workflow_error)
+                .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_invalid_request)
             },
             async {
                 a4n_db::generation::active_generation_tasks_for_project(
@@ -167,7 +165,7 @@ impl WorkerState {
                         run.id,
                     )
                     .await
-                    .map_err(workflow_error)?;
+                    .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_invalid_request)?;
                     if latest.status != run.status || latest.active_task_id != run.active_task_id {
                         run = latest;
                         latest_runs.insert(chapter_id, run.clone());
@@ -199,7 +197,9 @@ impl WorkerState {
                             run.id,
                         )
                         .await
-                        .map_err(workflow_error)?;
+                        .map_err(
+                            a4n_worker_db_adapter::map_workflow_read_error_as_invalid_request,
+                        )?;
                         if latest.status != run.status
                             || latest.active_task_id != run.active_task_id
                         {
@@ -223,7 +223,7 @@ impl WorkerState {
                         run.id,
                     )
                     .await
-                    .map_err(workflow_error)?;
+                    .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_invalid_request)?;
                     if latest.status != run.status || latest.active_task_id != run.active_task_id {
                         run = latest;
                         latest_runs.insert(chapter_id, run.clone());
@@ -267,7 +267,7 @@ impl WorkerState {
             &run_ids,
         )
         .await
-        .map_err(workflow_error)?;
+        .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_invalid_request)?;
         let completed_checkpoint_runs = checkpoints
             .into_iter()
             .filter_map(|(run_id, status)| (status == "completed").then_some(run_id))
@@ -289,7 +289,7 @@ impl WorkerState {
                     false,
                 )
                 .await
-                .map_err(project_family_error)
+                .map_err(a4n_worker_db_adapter::map_project_family_db_error)
             },
             async {
                 if checkpoint_chapter_ids.is_empty() {
@@ -300,7 +300,7 @@ impl WorkerState {
                         project_id,
                     )
                     .await
-                    .map_err(project_family_error)
+                    .map_err(a4n_worker_db_adapter::map_project_family_db_error)
                 }
             },
         )?;

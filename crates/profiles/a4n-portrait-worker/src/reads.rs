@@ -36,7 +36,7 @@ impl WorkerState {
         let project_id =
             a4n_db::project::protagonist_profile_project_id(self.database.connection(), profile_id)
                 .await
-                .map_err(project_error)?;
+                .map_err(a4n_worker_db_adapter::map_project_family_db_error)?;
         let user_id = request.principal.require_user_id()?;
         verify_permission(
             self,
