@@ -7,7 +7,7 @@ use a4n_source_snapshot_worker_contract::{
 use a4n_worker_client::{HttpWorkerClient, WorkerClientErrorPolicy, map_worker_client_error};
 use a4n_worker_contract::{
     WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerLease,
-    WorkerOperationStatus, WorkerResponse,
+    WorkerResponse,
 };
 
 const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47660";
@@ -74,17 +74,12 @@ impl SourceSnapshotWorkerClient {
                     WorkerClientErrorPolicy::Configuration,
                 )
             })?;
-        match response.status {
-            WorkerOperationStatus::Completed => response.payload.ok_or_else(|| {
-                AppError::ConfigError("source snapshot worker 完成响应缺少 payload".into())
-            }),
-            WorkerOperationStatus::Failed => Err(worker_response_error(
-                response.error.as_ref().expect("validated failed response"),
-            )),
-            status => Err(AppError::ConfigError(format!(
-                "source snapshot worker 返回未完成状态: {status:?}"
-            ))),
-        }
+        a4n_worker_client::worker_response_payload(
+            response,
+            "source snapshot worker",
+            None,
+            worker_response_error,
+        )
     }
 }
 

@@ -36,7 +36,7 @@ use a4n_worker_client::{
 };
 use a4n_worker_contract::{
     AGENT_WORKER_AUTH_HEADER, WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerLease,
-    WorkerOperationStatus, WorkerResponse,
+    WorkerResponse,
 };
 
 const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47650";
@@ -115,18 +115,12 @@ impl AgentWorkerClient {
                     WorkerClientErrorPolicy::Configuration,
                 )
             })?;
-        match response.status {
-            WorkerOperationStatus::Completed => response.payload.ok_or_else(|| {
-                AppError::ConfigError(format!("agent worker 完成响应缺少 payload: {operation}"))
-            }),
-            WorkerOperationStatus::Failed => Err(worker_response_error(
-                response.error.as_ref().expect("validated failed response"),
-                operation,
-            )),
-            status => Err(AppError::ConfigError(format!(
-                "agent worker 返回未完成状态: operation={operation}, status={status:?}"
-            ))),
-        }
+        a4n_worker_client::worker_response_payload(
+            response,
+            "agent worker",
+            Some(operation),
+            |error| worker_response_error(error, operation),
+        )
     }
 }
 

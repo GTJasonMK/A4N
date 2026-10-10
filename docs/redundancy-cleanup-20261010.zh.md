@@ -247,6 +247,24 @@
 - adapter 新测试覆盖五种变体的 wire code、消息与 retryable；adapter 测试 3/3，六个消费者与 adapter all-targets 检查通过且无警告。
 - 记录文件：`crates/process/a4n-worker-db-adapter/src/lib.rs`，以及上述 6 个 Worker 错误映射文件。
 
+### R-29：统一 Workflow Read 与 Project Family DB 错误映射
+
+- 类别：重复错误适配。
+- BFS 覆盖：从 `WorkflowReadError` 和 `ProjectFamilyDbError` 两个 DB 合同追到各 Worker 的本地 mapper、`WorkerFailure` wire 分类和 response builder；CodeGraph caller 路径及仓库静态引用核对确认触及 Chapter Content、Manga Record、Video Record、Workflow Read、Novel Planning、Portrait 六个 Worker。
+- 将重复的 Project Family DB 映射收敛到 adapter；Workflow Read 复用同一映射主体，并用显式 `InvalidDataPolicy` 保留两条路径原有的 Conflict 与 InvalidRequest 分类。其余 InvalidArgument、NotFound、Database 的 wire code、消息与 retryable 维持原合同。
+- adapter 测试覆盖两种 `InvalidData` 分类及其他错误变体；测试 6/6，adapter 与 6 个消费者 all-targets 检查通过且无警告。
+- 记录文件：`crates/process/a4n-worker-db-adapter/src/lib.rs`，以及上述 6 个 Worker 的错误映射文件。
+
+### R-30：统一 typed Worker client 响应状态解码
+
+- 类别：重复响应处理。
+- BFS 覆盖：从 `HttpWorkerClient::command` 追到请求合同校验、HTTP JSON 解析、`validate_command_response`、`WorkerResponse::validate` 及 request/trace identity 核验，再静态枚举所有 typed client 对 Completed/Failed/其他状态的消费点。共覆盖 `a4n-agent-worker-client`、`a4n-admin-worker-client`、`a4n-asset-graph-worker-client`、`a4n-canvas-record-worker-client`、`a4n-chapter-content-worker-client`、`a4n-chapter-scene-worker-client`、`a4n-config-read-worker-client`、`a4n-inspiration-worker-client`、`a4n-manga-record-worker-client`、`a4n-blueprint-worker-client`、`a4n-foreshadowing-worker-client`、`a4n-novel-planning-worker-client`、`a4n-outline-worker-client`、`a4n-character-mutation-worker-client`、`a4n-object-profile-worker-client`、`a4n-portrait-worker-client`、`a4n-profile-material-worker-client`、`a4n-scene-profile-worker-client`、`a4n-project-access-worker-client`、`a4n-project-collaboration-worker-client`、`a4n-project-mutation-worker-client`、`a4n-project-read-worker-client`、`a4n-project-status-worker-client`、`a4n-source-snapshot-worker-client`、`a4n-theme-read-worker-client`、`a4n-import-review-worker-client`、`a4n-video-record-worker-client`、`a4n-workflow-read-worker-client`、`a4n-workflow-lifecycle-worker-client` 共 29 个 client crate；逐一确认它们依赖 `a4n-worker-client`。
+- 将重复状态分支收敛到 `a4n-worker-client::worker_response_payload`。每个调用仍传入自己的 worker 标签、operation 上下文和原 `worker_response_error` mapper；helper 保留完成 payload 缺失、Failed 与非终态的原错误类别及原诊断文案。传输层先行校验 Failed 必须带错误，因此保留既有 `expect("validated failed response")` 前置条件。
+- Inspiration 与 Source Snapshot 原本不带 operation 的诊断格式通过显式 `None` 保留。Artifact Media client 使用专属 `ArtifactMediaClientError` 和不同的缺失错误合同，故不并入；Worker Runtime 的通用响应入口也没有 typed payload 分支，不改。
+- 修改后对 `crates/` 做状态分支全仓搜索，只剩共享 decoder 与 Artifact Media 专属 decoder 两处生产 match；其余命中为 wire 构造/合同校验或测试。
+- 新增 helper 测试覆盖完成 payload、缺失 payload、Failed mapper 透传，以及带/不带 operation 的 Running 错误文案；`a4n-worker-client` 测试 18/18，`a4n-worker-client` 与全部 29 个消费者 all-targets 检查通过且无警告。
+- 记录文件：`crates/process/a4n-worker-client/{src/lib.rs,src/responses.rs,src/tests.rs}`，以及上述 29 个 client crate 的 `src/lib.rs`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -277,6 +295,8 @@
 - R-26 `cargo test --locked --offline -p a4n-worker-contract --lib`：53/53 通过；`cargo check --all-targets --locked --offline` 覆盖 contract 和 8 个受影响 Worker，通过且无警告。
 - R-27 `cargo test --locked --offline -p a4n-worker-contract --lib`：54/54 通过；`cargo check --all-targets --locked --offline` 覆盖 contract 和 6 个受影响 Worker，通过且无警告。
 - R-28 `cargo test --locked --offline -p a4n-worker-db-adapter --lib`：3/3 通过；adapter 与 6 个消费者的 all-targets 检查通过且无警告。
+- R-29 `cargo test --locked --offline -p a4n-worker-db-adapter --lib`：6/6 通过；adapter 与 Chapter Content、Manga Record、Video Record、Workflow Read、Novel Planning、Portrait 六个消费者的 all-targets 检查通过且无警告。
+- R-30 `timeout 60s cargo test --locked --offline -p a4n-worker-client --lib`：18/18 通过；`cargo check --all-targets --locked --offline` 覆盖 `a4n-worker-client` 与 29 个 typed Worker client crate，通过且无警告。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-contract --lib`：49/49 通过，覆盖共享失败构造、响应元数据、请求身份校验、principal ID 边界和 wire 序列化。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-client --lib`：14/14 通过，覆盖共享传输与响应错误映射。
 - `cargo check --locked --offline -p a4n-worker-runtime -p a4n-service-manager -p a4n-server -p a4n-tauri`：通过，验证共享父进程退出信号 helper 的三个集成点和更新后的 lockfile。

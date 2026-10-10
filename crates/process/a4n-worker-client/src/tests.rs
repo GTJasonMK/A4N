@@ -16,7 +16,7 @@ use super::{
     HttpWorkerClient, WORKER_AUTH_HEADER, WorkerClientConfig, WorkerClientError,
     WorkerClientErrorPolicy, WorkerJsonResponse, map_worker_client_error,
     map_worker_response_error, optional_positive_id, positive_id, resolve_worker_client_connection,
-    user_principal, user_principal_with_scope,
+    user_principal, user_principal_with_scope, worker_response_payload,
 };
 
 #[test]
@@ -83,6 +83,101 @@ fn worker_response_error_mapping_preserves_basic_contract() {
         a4n_error::AppError::ConfigError(message)
             if message == "demo worker demo.save 失败: internal failure"
     ));
+}
+
+#[test]
+fn worker_response_payload_preserves_status_and_diagnostic_semantics() {
+    assert_eq!(
+        worker_response_payload(
+            typed_worker_response(WorkerOperationStatus::Completed, Some("payload"), None,),
+            "demo worker",
+            Some("demo.read"),
+            |_| unreachable!("completed response does not map an error"),
+        )
+        .expect("completed payload should be returned"),
+        "payload"
+    );
+
+    assert!(matches!(
+        worker_response_payload::<()>(
+            typed_worker_response(WorkerOperationStatus::Completed, None, None),
+            "demo worker",
+            Some("demo.read"),
+            |_| unreachable!("completed response does not map an error"),
+        ),
+        Err(a4n_error::AppError::ConfigError(message))
+            if message == "demo worker 完成响应缺少 payload: demo.read"
+    ));
+    assert!(matches!(
+        worker_response_payload::<()>(
+            typed_worker_response(WorkerOperationStatus::Completed, None, None),
+            "demo worker",
+            None,
+            |_| unreachable!("completed response does not map an error"),
+        ),
+        Err(a4n_error::AppError::ConfigError(message))
+            if message == "demo worker 完成响应缺少 payload"
+    ));
+
+    assert!(matches!(
+        worker_response_payload(
+            typed_worker_response::<()>(
+                WorkerOperationStatus::Failed,
+                None,
+                Some(WorkerError {
+                    code: WorkerErrorCode::InvalidRequest,
+                    message: "invalid input".into(),
+                    retryable: false,
+                }),
+            ),
+            "demo worker",
+            Some("demo.read"),
+            |error| a4n_error::AppError::InvalidArgument(error.message.clone()),
+        ),
+        Err(a4n_error::AppError::InvalidArgument(message)) if message == "invalid input"
+    ));
+
+    assert!(matches!(
+        worker_response_payload::<()>(
+            typed_worker_response(WorkerOperationStatus::Running, None, None),
+            "demo worker",
+            Some("demo.read"),
+            |_| unreachable!("running response does not map an error"),
+        ),
+        Err(a4n_error::AppError::ConfigError(message))
+            if message == "demo worker 返回未完成状态: operation=demo.read, status=Running"
+    ));
+    assert!(matches!(
+        worker_response_payload::<()>(
+            typed_worker_response(WorkerOperationStatus::Running, None, None),
+            "demo worker",
+            None,
+            |_| unreachable!("running response does not map an error"),
+        ),
+        Err(a4n_error::AppError::ConfigError(message))
+            if message == "demo worker 返回未完成状态: Running"
+    ));
+}
+
+fn typed_worker_response<T>(
+    status: WorkerOperationStatus,
+    payload: Option<T>,
+    error: Option<WorkerError>,
+) -> WorkerResponse<T> {
+    WorkerResponse {
+        schema_version: WORKER_SCHEMA_VERSION,
+        request_id: "request".into(),
+        trace_id: "trace".into(),
+        operation: operation("demo.read"),
+        status,
+        payload,
+        resource_refs: Vec::new(),
+        committed_revision: None,
+        provider_job_id: None,
+        result_summary: None,
+        pagination: None,
+        error,
+    }
 }
 
 #[test]

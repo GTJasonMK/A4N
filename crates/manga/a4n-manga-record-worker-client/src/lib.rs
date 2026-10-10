@@ -14,8 +14,7 @@ use a4n_worker_client::{
     HttpWorkerClient, WorkerClientErrorPolicy, map_worker_client_error, map_worker_response_error,
 };
 use a4n_worker_contract::{
-    WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerLease, WorkerOperationStatus,
-    WorkerResponse,
+    WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerLease, WorkerResponse,
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -88,20 +87,12 @@ impl MangaRecordWorkerClient {
                     WorkerClientErrorPolicy::Configuration,
                 )
             })?;
-        match response.status {
-            WorkerOperationStatus::Completed => response.payload.ok_or_else(|| {
-                AppError::ConfigError(format!(
-                    "manga record worker 完成响应缺少 payload: {operation}"
-                ))
-            }),
-            WorkerOperationStatus::Failed => Err(worker_response_error(
-                response.error.as_ref().expect("validated failed response"),
-                operation,
-            )),
-            status => Err(AppError::ConfigError(format!(
-                "manga record worker 返回未完成状态: operation={operation}, status={status:?}"
-            ))),
-        }
+        a4n_worker_client::worker_response_payload(
+            response,
+            "manga record worker",
+            Some(operation),
+            |error| worker_response_error(error, operation),
+        )
     }
 }
 

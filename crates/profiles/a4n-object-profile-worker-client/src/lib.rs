@@ -15,8 +15,7 @@ use a4n_worker_client::{
     HttpWorkerClient, WorkerClientErrorPolicy, map_worker_client_error, map_worker_response_error,
 };
 use a4n_worker_contract::{
-    WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerLease, WorkerOperationStatus,
-    WorkerResponse,
+    WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerLease, WorkerResponse,
 };
 
 const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47657";
@@ -90,20 +89,12 @@ impl ObjectProfileWorkerClient {
                     WorkerClientErrorPolicy::Configuration,
                 )
             })?;
-        match response.status {
-            WorkerOperationStatus::Completed => response.payload.ok_or_else(|| {
-                AppError::ConfigError(format!(
-                    "object profile worker 完成响应缺少 payload: {operation_id}"
-                ))
-            }),
-            WorkerOperationStatus::Failed => Err(worker_response_error(
-                response.error.as_ref().expect("validated failed response"),
-                operation_id,
-            )),
-            status => Err(AppError::ConfigError(format!(
-                "object profile worker 返回未完成状态: operation={operation_id}, status={status:?}"
-            ))),
-        }
+        a4n_worker_client::worker_response_payload(
+            response,
+            "object profile worker",
+            Some(operation_id),
+            |error| worker_response_error(error, operation_id),
+        )
     }
 }
 

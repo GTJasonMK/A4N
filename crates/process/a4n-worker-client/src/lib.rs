@@ -22,6 +22,7 @@ pub use a4n_worker_contract::WORKER_AUTH_HEADER;
 mod paths;
 use paths::{command_path, operation_path};
 mod responses;
+pub use responses::worker_response_payload;
 use responses::{validate_command_response, validate_operation_response};
 
 pub const WORKER_COMMANDS_PATH: &str = "/v1/commands";
