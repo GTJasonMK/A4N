@@ -13,7 +13,7 @@ impl WorkerState {
         let video =
             a4n_db::video::read_models::generated_video_by_id(self.database.connection(), video_id)
                 .await
-                .map_err(database_error)?
+                .map_err(a4n_worker_db_adapter::map_database_error)?
                 .ok_or_else(|| WorkerFailure::not_found("视频不存在"))?;
         validate_optional_project_scope(request.project_id, video.project_id)?;
         verify_project_permission(
@@ -56,7 +56,7 @@ impl WorkerState {
             input.chapter_id,
         )
         .await
-        .map_err(database_error)
+        .map_err(a4n_worker_db_adapter::map_database_error)
         .map(|videos| videos.iter().map(video_summary).collect())
     }
 

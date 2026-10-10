@@ -186,7 +186,7 @@ impl WorkerState {
             input.chapter_id,
         )
         .await
-        .map_err(database_error)?;
+        .map_err(a4n_worker_db_adapter::map_database_error)?;
         let mut result = Vec::with_capacity(prompts.len());
         for prompt in prompts {
             let prompt = a4n_db::video::read_models::with_video_plan_source_sync(

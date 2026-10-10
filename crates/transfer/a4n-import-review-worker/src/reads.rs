@@ -11,7 +11,7 @@ impl WorkerState {
         verify_editor(&self.database, project_id, user_id).await?;
         a4n_db::import_review::import_reviews_by_project(self.database.connection(), project_id)
             .await
-            .map_err(database_error)?
+            .map_err(a4n_worker_db_adapter::map_database_error)?
             .into_iter()
             .map(summary_from_record)
             .collect::<Result<Vec<_>, _>>()
@@ -30,7 +30,7 @@ impl WorkerState {
         let chapters =
             a4n_db::import_review::import_dedup_chapters(self.database.connection(), project_id)
                 .await
-                .map_err(database_error)?;
+                .map_err(a4n_worker_db_adapter::map_database_error)?;
         calculate_dedup(&input.content, &chapters).map_err(app_error)
     }
 }

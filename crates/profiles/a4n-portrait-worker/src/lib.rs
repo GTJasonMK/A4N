@@ -301,10 +301,6 @@ fn project_error(error: a4n_db::project::ProjectFamilyDbError) -> WorkerFailure 
     a4n_worker_db_adapter::map_project_family_db_error(error)
 }
 
-fn database_error(error: impl std::fmt::Display) -> WorkerFailure {
-    WorkerFailure::unavailable(error.to_string())
-}
-
 fn portrait_record_error(error: a4n_db::character::CharacterPortraitRecordError) -> WorkerFailure {
     match error {
         a4n_db::character::CharacterPortraitRecordError::NotFound(message) => {

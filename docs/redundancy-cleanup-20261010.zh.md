@@ -300,6 +300,14 @@
 - adapter 测试覆盖三种 enum 的全部变体、wire code、消息和 retryable；三 Worker 的 route/response 链只改变映射函数来源，不改变授权、范围校验、数据库调用或 payload。
 - 记录文件：`crates/process/a4n-worker-db-adapter/src/lib.rs`，以及 Object Profile、Profile Material、Scene Profile Workers 的 `src/lib.rs`、`reads.rs`、`mutations.rs`。
 
+### R-36：统一通用数据库不可用错误映射
+
+- 类别：重复错误适配。
+- BFS 覆盖：从 Portrait、Import Review、Video Record 三个 Worker 的 route/command handler 进入 reads、mutations、prompts 和 Video DB error 分支，逐处追踪 `database_error` 的生产调用和最终 `WorkerResponse` 失败路径。静态搜索确认共 15 个调用点，全部来自数据库查询/持久化 `Result` 或 `VideoDbError::Database`，没有将 NotFound、权限或业务校验错误送入通用映射。
+- 三个 Worker 原有的 `database_error(error: impl Display)` 逐字相同，均生成 retryable `Unavailable` 并透传 `Display` 文案。新增 `a4n-worker-db-adapter::map_database_error` 作为唯一实现，删除三份局部 wrapper；Video Record 的 `VideoDbError` 其他变体仍保留本地分类和文案。
+- adapter 测试固定 `Unavailable` wire code、retryable=true 和 SeaORM `DbErr` 的实际 Display 文案；没有新增默认值、兼容分支、回退或吞错路径。
+- 记录文件：`crates/process/a4n-worker-db-adapter/src/lib.rs`，以及 Portrait、Import Review、Video Record Workers 的 `src/lib.rs`、`reads.rs`、`mutations.rs`、`prompts.rs`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -338,6 +346,7 @@
 - R-32 `cargo check --all-targets --locked --offline -p a4n-db`：通过；`timeout 60s cargo test --locked --offline -p a4n-db --lib outline_db_errors_preserve_project_outline_record_mapping`：1/1 通过。
 - R-34 `cargo check --all-targets --locked --offline -p a4n-worker-db-adapter -p a4n-project-read-worker -p a4n-project-mutation-worker -p a4n-project-status-worker`：通过；`timeout 60s cargo test --locked --offline -p a4n-worker-db-adapter --lib`：9/9 通过。
 - R-35 `cargo test -p a4n-worker-db-adapter --locked`：12/12 通过；`cargo check --all-targets -p a4n-object-profile-worker -p a4n-profile-material-worker -p a4n-scene-profile-worker --locked`：通过且无警告。
+- R-36 `cargo test -p a4n-worker-db-adapter --locked`：13/13 通过；`cargo check --all-targets -p a4n-portrait-worker -p a4n-import-review-worker -p a4n-video-record-worker --locked`：通过且无警告。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-contract --lib`：49/49 通过，覆盖共享失败构造、响应元数据、请求身份校验、principal ID 边界和 wire 序列化。
 - `timeout 60s cargo test --locked --offline -p a4n-worker-client --lib`：14/14 通过，覆盖共享传输与响应错误映射。
 - `cargo check --locked --offline -p a4n-worker-runtime -p a4n-service-manager -p a4n-server -p a4n-tauri`：通过，验证共享父进程退出信号 helper 的三个集成点和更新后的 lockfile。

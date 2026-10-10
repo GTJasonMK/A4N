@@ -20,7 +20,7 @@ impl WorkerState {
             project_id,
         )
         .await
-        .map_err(database_error)?
+        .map_err(a4n_worker_db_adapter::map_database_error)?
         .iter()
         .map(portrait_summary)
         .collect()
@@ -50,7 +50,7 @@ impl WorkerState {
             profile_id,
         )
         .await
-        .map_err(database_error)?;
+        .map_err(a4n_worker_db_adapter::map_database_error)?;
         Ok(PortraitLookupResponse {
             portrait: portrait.as_ref().map(portrait_summary).transpose()?,
         })
@@ -68,7 +68,7 @@ impl WorkerState {
             portrait_id,
         )
         .await
-        .map_err(database_error)?
+        .map_err(a4n_worker_db_adapter::map_database_error)?
         else {
             return Ok(PortraitLookupResponse { portrait: None });
         };
@@ -101,7 +101,7 @@ impl WorkerState {
         .await?;
         a4n_db::character::missing_portrait_profile_records(self.database.connection(), project_id)
             .await
-            .map_err(database_error)?
+            .map_err(a4n_worker_db_adapter::map_database_error)?
             .iter()
             .map(|profile| {
                 profile_portrait_seed_prompt(&portrait_profile(profile))

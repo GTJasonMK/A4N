@@ -32,6 +32,10 @@ pub fn map_app_error(error: AppError) -> WorkerFailure {
     }
 }
 
+pub fn map_database_error(error: impl std::fmt::Display) -> WorkerFailure {
+    WorkerFailure::unavailable(error.to_string())
+}
+
 pub fn map_asset_db_error(error: AssetDbError) -> WorkerFailure {
     match error {
         AssetDbError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
@@ -522,6 +526,17 @@ mod tests {
             assert_eq!(mapped.retryable, retryable);
             assert_eq!(mapped.message, message);
         }
+    }
+
+    #[test]
+    fn database_errors_map_to_retryable_unavailable_failures() {
+        let database_error = DbErr::Custom("database unavailable".into());
+        let database_message = database_error.to_string();
+        let mapped: WorkerError = map_database_error(database_error).into();
+
+        assert_eq!(mapped.code, WorkerErrorCode::Unavailable);
+        assert!(mapped.retryable);
+        assert_eq!(mapped.message, database_message);
     }
 
     #[test]

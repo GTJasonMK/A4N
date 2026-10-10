@@ -416,10 +416,6 @@ async fn validate_video_source(
     }
 }
 
-fn database_error(error: impl std::fmt::Display) -> WorkerFailure {
-    WorkerFailure::unavailable(error.to_string())
-}
-
 #[cfg(test)]
 mod tests;
 
@@ -437,7 +433,9 @@ fn video_error(error: a4n_db::video::VideoDbError) -> WorkerFailure {
         a4n_db::video::VideoDbError::InvalidState { current, operation } => {
             WorkerFailure::conflict(format!("{current}: {operation}"))
         }
-        a4n_db::video::VideoDbError::Database(error) => database_error(error),
+        a4n_db::video::VideoDbError::Database(error) => {
+            a4n_worker_db_adapter::map_database_error(error)
+        }
     }
 }
 

@@ -242,7 +242,7 @@ async fn review_for_editor(
     WorkerFailure::require_positive_id(review_id, "review_id")?;
     let review = a4n_db::import_review::import_review_by_id(database.connection(), review_id)
         .await
-        .map_err(database_error)?
+        .map_err(a4n_worker_db_adapter::map_database_error)?
         .ok_or_else(|| {
             WorkerFailure::not_found(format!("导入审核不存在: review_id={review_id}"))
         })?;
@@ -292,10 +292,6 @@ mod tests {
 
 fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
     a4n_worker_db_adapter::map_collaboration_db_error(error)
-}
-
-fn database_error(error: impl std::fmt::Display) -> WorkerFailure {
-    WorkerFailure::unavailable(error.to_string())
 }
 
 fn mutation_error(error: a4n_db::import_review::ImportReviewMutationError) -> WorkerFailure {

@@ -13,7 +13,7 @@ impl WorkerState {
             portrait_id,
         )
         .await
-        .map_err(database_error)?
+        .map_err(a4n_worker_db_adapter::map_database_error)?
         .ok_or_else(|| WorkerFailure::not_found("立绘不存在"))?;
         let user_id = request.principal.require_user_id()?;
         verify_permission(

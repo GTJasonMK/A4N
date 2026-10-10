@@ -67,7 +67,7 @@ impl WorkerState {
             WorkerFailure::invalid_request(format!("当前规划缺少片段 {segment_number} 的执行方案"))
         })?;
         let video = video_result
-            .map_err(database_error)?
+            .map_err(a4n_worker_db_adapter::map_database_error)?
             .ok_or_else(|| WorkerFailure::not_found("视频不存在"))?;
         let plan_identity = plan
             .metadata_json
@@ -124,7 +124,7 @@ impl WorkerState {
         let video =
             a4n_db::video::read_models::generated_video_by_id(self.database.connection(), video_id)
                 .await
-                .map_err(database_error)?
+                .map_err(a4n_worker_db_adapter::map_database_error)?
                 .ok_or_else(|| WorkerFailure::not_found("视频不存在"))?;
         validate_optional_project_scope(request_project_id, video.project_id)?;
         verify_project_permission(
@@ -187,7 +187,7 @@ impl WorkerState {
             chapter_id,
         )
         .await
-        .map_err(database_error)?;
+        .map_err(a4n_worker_db_adapter::map_database_error)?;
         for row in rows.into_iter().filter(|row| {
             row.video_type == a4n_domain::video_workflow::VIDEO_TYPE_ASSEMBLY_PUSH
                 && row.workflow_mode.as_deref() == Some(workflow_mode)
