@@ -22,7 +22,7 @@ pub(super) async fn profile_for_editor(
     user_id: i64,
     profile_id: i64,
 ) -> Result<a4n_domain::character::CharacterProfileRecord, WorkerFailure> {
-    let profile_id = positive(profile_id, "profile_id")?;
+    let profile_id = WorkerFailure::require_positive_id(profile_id, "profile_id")?;
     let profile = a4n_db::character::profile_record_by_id(database.connection(), profile_id)
         .await
         .map_err(|error| WorkerFailure::unavailable(error.to_string()))?

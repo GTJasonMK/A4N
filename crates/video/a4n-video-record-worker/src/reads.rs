@@ -9,7 +9,7 @@ impl WorkerState {
         request: WorkerEnvelope<VideoIdInput>,
     ) -> Result<GeneratedVideoSummary, WorkerFailure> {
         validate_request(&request, VIDEO_RECORD_PLAYBACK_OPERATION)?;
-        let video_id = positive(request.payload.video_id, "video_id")?;
+        let video_id = WorkerFailure::require_positive_id(request.payload.video_id, "video_id")?;
         let video =
             a4n_db::video::read_models::generated_video_by_id(self.database.connection(), video_id)
                 .await
@@ -34,8 +34,8 @@ impl WorkerState {
         validate_required_project_scope(&request, request.payload.project_id)?;
         let user_id = user_id(&request)?;
         let input = request.payload;
-        positive(input.project_id, "project_id")?;
-        positive(input.chapter_id, "chapter_id")?;
+        WorkerFailure::require_positive_id(input.project_id, "project_id")?;
+        WorkerFailure::require_positive_id(input.chapter_id, "chapter_id")?;
         verify_project_permission(
             &self.database,
             input.project_id,
@@ -68,9 +68,9 @@ impl WorkerState {
         validate_required_project_scope(&request, request.payload.project_id)?;
         let user_id = user_id(&request)?;
         let input = request.payload;
-        positive(input.project_id, "project_id")?;
+        WorkerFailure::require_positive_id(input.project_id, "project_id")?;
         if let Some(chapter_id) = input.chapter_id {
-            positive(chapter_id, "chapter_id")?;
+            WorkerFailure::require_positive_id(chapter_id, "chapter_id")?;
         }
         verify_project_permission(
             &self.database,

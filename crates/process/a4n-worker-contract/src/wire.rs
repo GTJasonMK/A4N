@@ -413,6 +413,13 @@ impl WorkerFailure {
         &self.message
     }
 
+    pub fn require_positive_id(value: i64, field: &str) -> Result<i64, Self> {
+        if value <= 0 {
+            return Err(Self::invalid_request(format!("{field} 必须大于 0")));
+        }
+        Ok(value)
+    }
+
     pub fn invalid_request(message: impl Into<String>) -> Self {
         Self::new(WorkerErrorCode::InvalidRequest, message, false)
     }

@@ -23,8 +23,7 @@ use super::{
     WorkerState,
     access::{user_id, verify_manga_viewer},
     protocol::{
-        WorkerFailure, manga_error, positive, project_family_error, validate_request,
-        workflow_error,
+        WorkerFailure, manga_error, project_family_error, validate_request, workflow_error,
     },
 };
 
@@ -61,7 +60,7 @@ impl WorkerState {
         project_id: i64,
         chapter_ids: &[i64],
     ) -> Result<Vec<MangaPipelineStatusSummary>, WorkerFailure> {
-        positive(project_id, "project_id")?;
+        WorkerFailure::require_positive_id(project_id, "project_id")?;
         verify_manga_viewer(&self.database, project_id, user_id).await?;
         if chapter_ids.is_empty() {
             return Err(WorkerFailure::invalid_request("chapter_ids 不能为空"));
@@ -73,7 +72,7 @@ impl WorkerState {
         }
         let mut seen = HashSet::with_capacity(chapter_ids.len());
         for chapter_id in chapter_ids {
-            positive(*chapter_id, "chapter_id")?;
+            WorkerFailure::require_positive_id(*chapter_id, "chapter_id")?;
             if !seen.insert(*chapter_id) {
                 return Err(WorkerFailure::invalid_request(format!(
                     "chapter_id 重复: {chapter_id}"

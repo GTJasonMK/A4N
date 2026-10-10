@@ -18,9 +18,9 @@ impl WorkerState {
         validate_required_project_scope(&request, request.payload.project_id)?;
         let user_id = user_id(&request)?;
         let input = request.payload;
-        positive(input.project_id, "project_id")?;
-        positive(input.chapter_id, "chapter_id")?;
-        positive(input.workflow_run_id, "workflow_run_id")?;
+        WorkerFailure::require_positive_id(input.project_id, "project_id")?;
+        WorkerFailure::require_positive_id(input.chapter_id, "chapter_id")?;
+        WorkerFailure::require_positive_id(input.workflow_run_id, "workflow_run_id")?;
         verify_project_permission(
             &self.database,
             input.project_id,
@@ -163,8 +163,8 @@ impl WorkerState {
         validate_required_project_scope(&request, request.payload.project_id)?;
         let user_id = user_id(&request)?;
         let input = request.payload;
-        positive(input.project_id, "project_id")?;
-        positive(input.chapter_id, "chapter_id")?;
+        WorkerFailure::require_positive_id(input.project_id, "project_id")?;
+        WorkerFailure::require_positive_id(input.chapter_id, "chapter_id")?;
         verify_project_permission(
             &self.database,
             input.project_id,
@@ -207,8 +207,8 @@ impl WorkerState {
         validate_request(&request, VIDEO_PROMPT_VALIDATE_SOURCE_OPERATION)?;
         validate_required_project_scope(&request, request.payload.project_id)?;
         let input = request.payload;
-        positive(input.project_id, "project_id")?;
-        positive(input.chapter_id, "chapter_id")?;
+        WorkerFailure::require_positive_id(input.project_id, "project_id")?;
+        WorkerFailure::require_positive_id(input.chapter_id, "chapter_id")?;
         validate_video_source(
             &self.database,
             input.project_id,

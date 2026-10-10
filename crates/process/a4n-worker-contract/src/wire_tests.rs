@@ -144,6 +144,22 @@ fn worker_failure_constructors_share_wire_error_semantics() {
 }
 
 #[test]
+fn worker_positive_id_validation_shares_invalid_request_semantics() {
+    assert_eq!(
+        WorkerFailure::require_positive_id(7, "project_id").expect("positive ID"),
+        7
+    );
+    for value in [0, -1] {
+        let error: WorkerError = WorkerFailure::require_positive_id(value, "project_id")
+            .expect_err("non-positive ID should fail")
+            .into();
+        assert_eq!(error.code, WorkerErrorCode::InvalidRequest);
+        assert!(!error.retryable);
+        assert_eq!(error.message, "project_id 必须大于 0");
+    }
+}
+
+#[test]
 fn worker_principal_user_id_validation_preserves_kind_and_parse_boundaries() {
     let user = WorkerPrincipal {
         kind: WorkerPrincipalKind::User,

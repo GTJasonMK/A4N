@@ -346,20 +346,11 @@ fn validate_project_scope<T>(
     request: &WorkerEnvelope<T>,
     project_id: i64,
 ) -> Result<(), WorkerFailure> {
-    positive(project_id, "project_id")?;
+    WorkerFailure::require_positive_id(project_id, "project_id")?;
     if request.project_id != Some(project_id) {
         return Err(WorkerFailure::invalid_request(format!(
             "worker scope project_id 与 payload 不一致: scope={:?}, payload={project_id}",
             request.project_id
-        )));
-    }
-    Ok(())
-}
-
-fn positive(value: i64, field: &str) -> Result<(), WorkerFailure> {
-    if value <= 0 {
-        return Err(WorkerFailure::invalid_request(format!(
-            "{field} 必须大于 0"
         )));
     }
     Ok(())

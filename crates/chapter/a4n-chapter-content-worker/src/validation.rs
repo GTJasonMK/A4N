@@ -17,12 +17,3 @@ pub(super) fn user_id<T: serde::Serialize>(
 ) -> Result<i64, WorkerFailure> {
     request.principal.require_user_id()
 }
-
-pub(super) fn positive(field: &str, value: i64) -> Result<i64, WorkerFailure> {
-    if value <= 0 {
-        return Err(WorkerFailure::invalid_request(format!(
-            "{field} 必须大于 0"
-        )));
-    }
-    Ok(value)
-}

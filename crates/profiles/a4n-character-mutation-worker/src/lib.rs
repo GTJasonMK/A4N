@@ -528,16 +528,6 @@ async fn verify_project_editor(
     .map_err(collaboration_error)
 }
 
-fn positive(value: i64, field: &str) -> Result<i64, WorkerFailure> {
-    if value > 0 {
-        Ok(value)
-    } else {
-        Err(WorkerFailure::invalid_request(format!(
-            "{field} 必须大于 0"
-        )))
-    }
-}
-
 fn character_db_error(error: a4n_db::character::CharacterDbError) -> WorkerFailure {
     match error {
         a4n_db::character::CharacterDbError::InvalidArgument(message) => {

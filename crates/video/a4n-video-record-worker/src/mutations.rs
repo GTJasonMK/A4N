@@ -10,9 +10,9 @@ impl WorkerState {
         validate_required_project_scope(&request, request.payload.project_id)?;
         let user_id = user_id(&request)?;
         let input = request.payload;
-        let project_id = positive(input.project_id, "project_id")?;
-        let chapter_id = positive(input.chapter_id, "chapter_id")?;
-        let video_id = positive(input.video_id, "video_id")?;
+        let project_id = WorkerFailure::require_positive_id(input.project_id, "project_id")?;
+        let chapter_id = WorkerFailure::require_positive_id(input.chapter_id, "chapter_id")?;
+        let video_id = WorkerFailure::require_positive_id(input.video_id, "video_id")?;
         verify_project_permission(
             &self.database,
             project_id,
@@ -117,7 +117,7 @@ impl WorkerState {
         let user_id = user_id(&request)?;
         let request_project_id = request.project_id;
         let input = request.payload;
-        let video_id = positive(input.video_id, "video_id")?;
+        let video_id = WorkerFailure::require_positive_id(input.video_id, "video_id")?;
         if input.input.is_empty() {
             return Err(WorkerFailure::invalid_request("视频更新内容不能为空"));
         }

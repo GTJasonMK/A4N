@@ -7,7 +7,8 @@ impl WorkerState {
     ) -> Result<i64, WorkerFailure> {
         validate_request(&request, CHARACTER_OVERVIEW_PROJECT_OPERATION)?;
         let user_id = user_id(&request)?;
-        let profile_id = positive(request.payload.profile_id, "profile_id")?;
+        let profile_id =
+            WorkerFailure::require_positive_id(request.payload.profile_id, "profile_id")?;
         let profile =
             a4n_db::character::profile_record_by_id(self.database.connection(), profile_id)
                 .await
@@ -23,7 +24,8 @@ impl WorkerState {
     ) -> Result<Vec<CharacterProfileSummary>, WorkerFailure> {
         validate_request(&request, CHARACTER_OVERVIEW_LIST_OPERATION)?;
         let user_id = user_id(&request)?;
-        let project_id = positive(request.payload.project_id, "project_id")?;
+        let project_id =
+            WorkerFailure::require_positive_id(request.payload.project_id, "project_id")?;
         verify_project_editor(&self.database, project_id, user_id).await?;
         a4n_db::character::profiles_with_timeline_state_records(
             self.database.connection(),

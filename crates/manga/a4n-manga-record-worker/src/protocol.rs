@@ -9,16 +9,6 @@ pub(super) fn validate_request<T: serde::Serialize>(
     request.validate_worker_command(operation, MANGA_RECORD_WORKER_ID, "manga record worker")
 }
 
-pub(super) fn positive(value: i64, field: &str) -> Result<i64, WorkerFailure> {
-    if value > 0 {
-        Ok(value)
-    } else {
-        Err(WorkerFailure::invalid_request(format!(
-            "{field} 必须大于 0"
-        )))
-    }
-}
-
 pub(super) fn manga_error(error: a4n_db::manga::MangaPromptRecordError) -> WorkerFailure {
     match error {
         a4n_db::manga::MangaPromptRecordError::InvalidArgument(message) => {

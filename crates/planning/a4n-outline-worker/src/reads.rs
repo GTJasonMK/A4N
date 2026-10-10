@@ -98,7 +98,7 @@ impl WorkerState {
     ) -> Result<(), WorkerFailure> {
         validate_request(&request, ENSURE_CHAPTER_ACCESS_OPERATION)?;
         validate_project_scope(&request, request.payload.project_id)?;
-        positive(request.payload.outline_id, "outline_id")?;
+        WorkerFailure::require_positive_id(request.payload.outline_id, "outline_id")?;
         let user_id = user_id(&request)?;
         verify_project_permission(
             self,
@@ -125,7 +125,7 @@ impl WorkerState {
     ) -> Result<(), WorkerFailure> {
         validate_request(&request, ENSURE_PART_ACCESS_OPERATION)?;
         validate_project_scope(&request, request.payload.project_id)?;
-        positive(request.payload.part_id, "part_id")?;
+        WorkerFailure::require_positive_id(request.payload.part_id, "part_id")?;
         let user_id = user_id(&request)?;
         verify_project_permission(
             self,

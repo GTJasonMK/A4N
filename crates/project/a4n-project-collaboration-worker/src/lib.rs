@@ -351,15 +351,6 @@ fn user_id<T: serde::Serialize>(request: &WorkerEnvelope<T>) -> Result<i64, Work
     request.principal.require_user_id()
 }
 
-fn positive_id(field: &str, value: i64) -> Result<(), WorkerFailure> {
-    if value <= 0 {
-        return Err(WorkerFailure::invalid_request(format!(
-            "{field} 必须大于 0"
-        )));
-    }
-    Ok(())
-}
-
 fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
     match error {
         a4n_db::collaboration::CollaborationDbError::InvalidArgument(message) => {

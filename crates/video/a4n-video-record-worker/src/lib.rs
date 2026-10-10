@@ -362,16 +362,6 @@ fn validate_required_project_scope<T>(
         .map(|_| ())
 }
 
-fn positive(value: i64, field: &str) -> Result<i64, WorkerFailure> {
-    if value > 0 {
-        Ok(value)
-    } else {
-        Err(WorkerFailure::invalid_request(format!(
-            "{field} 必须大于 0"
-        )))
-    }
-}
-
 async fn validate_video_source(
     database: &DbHandle,
     project_id: i64,
