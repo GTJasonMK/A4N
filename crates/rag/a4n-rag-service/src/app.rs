@@ -83,7 +83,10 @@ impl RagMutationMarker {
 }
 
 pub(crate) async fn run() -> anyhow::Result<()> {
-    init_tracing()?;
+    a4n_sidecar_bootstrap::init_tracing(
+        "A4N_RAG_SERVICE_LOG",
+        "a4n_rag_service=info,tower_http=warn",
+    )?;
 
     let data_dir = data_dir()?;
     std::fs::create_dir_all(&data_dir)?;
@@ -115,13 +118,6 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         a4n_service_protocol::RAG_SERVICE_NAME,
     )
     .await
-}
-
-fn init_tracing() -> anyhow::Result<()> {
-    a4n_sidecar_bootstrap::init_tracing(
-        "A4N_RAG_SERVICE_LOG",
-        "a4n_rag_service=info,tower_http=warn",
-    )
 }
 
 fn data_dir() -> Result<PathBuf, AppError> {

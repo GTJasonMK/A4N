@@ -381,6 +381,22 @@
 - 将 RAG adapter 改为依赖 `a4n-config` 会把 Host 配置 crate 引入低层存储 adapter；增加错误转译 wrapper 仍需维护一个反向适配层，且没有减少业务规则。因此保留小型本地解析器，不新增依赖、fallback 或错误分类变化。
 - 记录范围：`crates/rag/a4n-rag-index/src/qdrant_store/{config.rs,store.rs,mod.rs}`、`crates/rag/a4n-rag-index/tests/qdrant_live.rs`、Runtime RAG factory、RAG Service app、`a4n-config` env helper、`a4n-domain::ProviderError` 与 Host 错误转换。
 
+### R-46：删除 RAG tracing 转发函数
+
+- 类别：无行为的单调用点 wrapper。
+- BFS 覆盖：从 RAG Service `run` 追到私有 `init_tracing` 和 `a4n-sidecar-bootstrap::init_tracing`；CodeGraph 与模块内静态搜索都确认唯一 caller 是 `run`，没有外部导出或测试引用。对照 Embedding、Image、LLM Service 启动入口，它们都直接调用同一 bootstrap helper。
+- 在 `run` 中直接调用 shared bootstrap helper，删除只转发服务日志 env 名称和 filter 的本地函数；保留相同参数、`?` 错误传播及启动顺序。
+- 验证：`cargo check --all-targets --locked --offline -p a4n-rag-service`、`cargo fmt --all -- --check`、`git diff --check` 通过。
+- 记录文件：`crates/rag/a4n-rag-service/src/app.rs`。
+
+### R-47：复核 Storage Paths 与 Sidecar health 适配
+
+- 类别：核验后保留，不改代码。
+- BFS 覆盖：从 `get_storage_paths` 命令字符串追到 Control dispatch、`operations::get_storage_paths`，再追到 Runtime action 的管理员权限校验、环境读取和 `StoragePathsSummary` 构造；同时枚举所有 `known_service_health` 调用及各 `healthz` 路由注册，并核对 Sidecar service registry。
+- Control 层函数负责校验命令参数并序列化 Runtime 结果；Runtime action 承担权限和数据构造。两者不是两套业务实现，删除 Control adapter 会把 API/序列化边界移入 dispatch。
+- 9 个已注册 Sidecar 的 health handler 都调用 `known_service_health`。Demo sidecar 使用未注册的 `demo` 身份直接构造 health；该 helper 对未知身份会 panic，不能替代。Agent Worker health 需要 token 鉴权并报告 WorkerHealth，Control health 返回简单存活响应；它们的合同和职责不同。
+- 记录范围：Control/Runtime Storage Paths dispatch 与 action、API command manifest、9 个 Sidecar health handler、`a4n-service-protocol` registry、Demo sidecar、Agent Worker 与 Control health endpoints。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
