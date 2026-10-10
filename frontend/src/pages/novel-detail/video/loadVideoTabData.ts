@@ -25,6 +25,7 @@ import type { ChapterRow } from "../shared";
 import type { GenerationTaskSummary } from "../../../api/generated/generationContracts";
 import { generationClient } from "../../../api/generationTasks";
 import { asJsonRecord } from "../../../utils/jsonRecord";
+import { isPositiveSafeInteger, isSafeInteger } from "../../../utils/numberRange";
 import { VIDEO_ASPECT_RATIOS } from "./videoTabConstants";
 import type { MessageTranslator } from "../../../i18n";
 
@@ -118,9 +119,7 @@ const segmentPlanResumeOptions = (
   const targetNarrativeUnitIndex = options.target_narrative_unit_index;
   if (
     targetNarrativeUnitIndex != null &&
-    (typeof targetNarrativeUnitIndex !== "number" ||
-      !Number.isInteger(targetNarrativeUnitIndex) ||
-      targetNarrativeUnitIndex <= 0)
+    !isPositiveSafeInteger(targetNarrativeUnitIndex)
   ) {
     invalidSegmentPlanWorkflowInput(
       run.id,
@@ -138,9 +137,7 @@ const segmentPlanResumeOptions = (
 
   const durationSecs = options.duration_secs;
   if (
-    typeof durationSecs !== "number" ||
-    !Number.isInteger(durationSecs) ||
-    durationSecs < 1 ||
+    !isPositiveSafeInteger(durationSecs) ||
     durationSecs > 60
   ) {
     invalidSegmentPlanWorkflowInput(run.id, "options.duration_secs", t);
@@ -156,7 +153,7 @@ const segmentPlanResumeOptions = (
   }
   if (
     rawDurationOptions.some(
-      (value) => typeof value !== "number" || !Number.isInteger(value),
+      (value) => !isSafeInteger(value),
     )
   ) {
     invalidSegmentPlanWorkflowInput(run.id, "options.duration_secs_options", t);

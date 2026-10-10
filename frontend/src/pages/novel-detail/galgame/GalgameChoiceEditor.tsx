@@ -10,6 +10,7 @@ import type {
   UpdateGalgameChoiceOptionInput,
 } from "../../../api/galgame";
 import { sceneSelectLabel } from "./galgameTabShared";
+import { isSafeInteger } from "../../../utils/numberRange";
 
 export interface ChoiceDraft {
   option_text: string;
@@ -41,7 +42,7 @@ export const ChoiceEditor: React.FC<{
         const targetSceneId = Number(draft.target_scene_id);
         if (
           !optionText ||
-          !Number.isInteger(targetSceneId) ||
+          !isSafeInteger(targetSceneId) ||
           !sceneById.has(targetSceneId)
         ) {
           return null;
@@ -224,7 +225,7 @@ function inspectChoiceTarget(
     return { kind: "empty", message: t("galgame.choiceTarget.notSelected") };
   }
   const sceneId = Number(targetSceneId);
-  if (!Number.isInteger(sceneId)) {
+  if (!isSafeInteger(sceneId)) {
     return { kind: "error", message: t("galgame.choiceTarget.invalid") };
   }
   const target = sceneById.get(sceneId);

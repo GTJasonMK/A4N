@@ -14,6 +14,7 @@ import {
 } from "../../../api/video";
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
 import { canonicalJson } from "../../../utils/contentHash";
+import { isPositiveSafeInteger } from "../../../utils/numberRange";
 import type { MessageTranslator } from "../../../i18n";
 import {
   DEFAULT_VIDEO_OPTIONS,
@@ -180,18 +181,14 @@ export function videoSegmentCardsFromSegments(
     .map((segment) => {
       const segmentNumber = segment.segment_number;
       if (
-        typeof segmentNumber !== "number" ||
-        !Number.isInteger(segmentNumber) ||
-        segmentNumber <= 0
+        !isPositiveSafeInteger(segmentNumber)
       ) {
         throw new Error(t("video.chapter.invalidSegmentNumber"));
       }
       const durationSecs = segment.duration_secs;
       const aspectRatio = segment.aspect_ratio;
       if (
-        typeof durationSecs !== "number" ||
-        !Number.isInteger(durationSecs) ||
-        durationSecs <= 0
+        !isPositiveSafeInteger(durationSecs)
       ) {
         throw new Error(t("video.chapter.invalidSegmentDuration", { number: segmentNumber }));
       }
@@ -269,9 +266,7 @@ function parseVideoSegmentRecipeArray(
     }
     const segmentNumber = recipe.segment_number;
     if (
-      typeof segmentNumber !== "number" ||
-      !Number.isInteger(segmentNumber) ||
-      segmentNumber <= 0
+      !isPositiveSafeInteger(segmentNumber)
     ) {
       throw new Error(t("video.chapter.recipeSegmentNumberInvalid", { index }));
     }

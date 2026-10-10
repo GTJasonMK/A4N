@@ -35,6 +35,7 @@ import {
   type StudioConfigLoadStatusByKind,
   type StudioConfigOptionsByKind,
 } from "./canvasConfig";
+import { isSafeInteger } from "../../utils/numberRange";
 import { assembleClipEdges, edgeOrderIndex } from "./canvasAssemblyEdges";
 import { isProbeNodeKind, nodeHasContentPreview } from "./canvasNodeKinds";
 import {
@@ -879,7 +880,7 @@ const NumberField: React.FC<NumberFieldProps> = ({ label, value, disabled, min =
   const valueTextRef = React.useRef(valueText);
   const validValue = (candidate: string) => {
     const parsed = numberOrNull(candidate, min);
-    return parsed !== null && (step === "any" || Number.isInteger(parsed)) ? parsed : null;
+    return parsed !== null && (step === "any" || isSafeInteger(parsed)) ? parsed : null;
   };
   const invalidDraft = draft !== "" && validValue(draft) === null;
 

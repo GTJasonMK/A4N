@@ -719,6 +719,14 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 静态搜索确认本批文件不再直接复制 `Number.isSafeInteger`/`Number.isInteger`；其他 segment index/时长状态机路径仍待下一轮按其专属合同复核。
 - 记录范围：`frontend/src/pages/{derived/AdaptationPlanEditor.tsx,novel-detail/{OverviewTab,OutlinesTab,ChapterVisualPlanTab,MangaTab}.tsx,novel-detail/galgame/StoryGraphPanel.tsx,novel-detail/video/{VideoAssemblyWorkspace,videoAssemblyUtils,VideoResultsPane,VideoPostProcessWorkspace,referenceMediaWorkspace,useVideoTabActions,VideoGenerationEditor}.tsx,settings/EmbeddingTab.tsx}`。
 
+### R-88：收敛视频 segment 与进度整数校验
+
+- 类别：重复边界校验。
+- BFS 覆盖：从视频 segment plan/recipe、execution identity、draft loader、tab state/view state，到 Galgame choice、Canvas 数字字段和通用 workflow progress total，追踪到持久化恢复、视频 API 请求、图谱选择和 UI 进度显示；CodeGraph 复核对应测试与调用链。
+- 8 个文件改用安全整数谓词，正 segment/identity/duration 使用 `isPositiveSafeInteger`，允许任意整数的字段使用 `isSafeInteger`；保留现有 1–60 时长范围、segment 关系、`step === "any"`、场景查找和默认总量行为。未新增兜底、兼容或回退逻辑。
+- 全仓前端静态搜索目前只剩 `CharacterDetailDialog` 的通用整数解析和 `numberRange` 自身实现；前者不属于正 ID/安全范围合同，保留并记录为待独立语义审查。
+- 记录范围：`frontend/src/hooks/useProgressTask.tsx`、`frontend/src/pages/novel-detail/video/{videoSegmentPlan,videoExecutionIdentity,loadVideoTabData,useVideoTabState,useVideoTabViewState}.ts`、`frontend/src/pages/novel-detail/galgame/GalgameChoiceEditor.tsx`、`frontend/src/pages/video-studio/CanvasNodeInspector.tsx`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
