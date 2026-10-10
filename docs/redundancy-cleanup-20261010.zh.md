@@ -467,6 +467,13 @@
 - 在 `a4n-storage` 增加测试覆盖缺失目标的相对路径生成和根外父目录拒绝。验证：`cargo check --all-targets --locked --offline -p a4n-storage -p a4n-runtime` 通过；`timeout 60s cargo test --locked --offline -p a4n-storage --lib data_dir_relative_path_accepts_missing_target_and_rejects_outside_parent` 1/1 通过；`cargo fmt --all -- --check`、`git diff --check` 通过。
 - 记录文件：`crates/platform/a4n-storage/src/files/paths.rs`、`crates/host/a4n-runtime/src/actions/image_records/upload/{file.rs,record.rs}`。
 
+### R-57：复核生成图片预留路径验证
+
+- 类别：核验后保留，不改代码。
+- BFS 覆盖：从 `prepare_generated_image_file` 的 staging/final 相对路径生成追到 `persist_reserved_generated_image_file` 两个解析点、exclusive `create_new` 写入和 `promote_data_file`；继续追踪 Runtime Image/Portrait Host Port 与 Orchestrator 生成流程。检查 `PreparedGeneratedImageFile` 的 contract 定义确认结构公开且路径字段可由跨 crate 调用方构造。
+- `resolve_reserved_path` 除 canonicalize 父目录及根目录包含外，还拒绝绝对、空和任何非 `Component::Normal` 路径段，确保 prepared reservation 不接受 `.`/`..` 别名。`a4n-storage::data_dir_relative_path` 面向已解析的输出 `Path`，允许可规范化的相对路径段，不能替代此跨 crate 持久化入口的更严格合同。
+- 记录范围：`crates/host/a4n-runtime/src/actions/image_generation/generation_io/files.rs`、相关 Runtime Host Ports/Orchestrator caller、`crates/image/a4n-image-host-contract/src/lib.rs::PreparedGeneratedImageFile`、`a4n-storage::data_dir_relative_path`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
