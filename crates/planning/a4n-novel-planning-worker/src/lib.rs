@@ -139,7 +139,7 @@ impl NovelPlanningWorker {
     pub async fn serve(self, address: SocketAddr) -> anyhow::Result<()> {
         let listener = tokio::net::TcpListener::bind(address).await?;
         axum::serve(listener, self.router())
-            .with_graceful_shutdown(worker::runtime::shutdown_signal())
+            .with_graceful_shutdown(a4n_worker_runtime::wait_for_shutdown_signal())
             .await
             .map_err(anyhow::Error::from)
     }

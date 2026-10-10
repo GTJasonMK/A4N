@@ -18,20 +18,3 @@ async fn async_main() -> anyhow::Result<()> {
     tracing::info!(%address, "A4N novel-planning worker listening");
     worker.serve(address).await
 }
-
-pub(crate) async fn shutdown_signal() {
-    #[cfg(unix)]
-    {
-        let mut terminate =
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                .expect("install SIGTERM handler");
-        tokio::select! {
-            _ = tokio::signal::ctrl_c() => {},
-            _ = terminate.recv() => {},
-        }
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = tokio::signal::ctrl_c().await;
-    }
-}

@@ -61,7 +61,7 @@ async fn async_main() -> anyhow::Result<()> {
         worker_id,
     ));
     let mut driver_stopped = false;
-    let mut shutdown = Box::pin(shutdown_signal());
+    let mut shutdown = Box::pin(a4n_worker_runtime::wait_for_shutdown_signal());
 
     let mut health_server_result = None;
     tokio::select! {
@@ -96,21 +96,4 @@ async fn async_main() -> anyhow::Result<()> {
         anyhow::bail!("A4N Agent driver stopped unexpectedly");
     }
     health_result
-}
-
-async fn shutdown_signal() {
-    #[cfg(unix)]
-    {
-        let mut terminate =
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                .expect("install SIGTERM handler");
-        tokio::select! {
-            _ = tokio::signal::ctrl_c() => {},
-            _ = terminate.recv() => {},
-        }
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = tokio::signal::ctrl_c().await;
-    }
 }

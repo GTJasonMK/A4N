@@ -3,12 +3,12 @@
 ## 范围与方法
 
 - 工作分支：`agent/redundancy-cleanup-20261010`，基线 `debug@3f6a2408c9e78c4719259e77d5443f2befdd8fda`。
-- 建立分支本地 CodeGraph 索引后持续同步；当前索引覆盖 6,245 个文件、86,292 个符号、275,096 条边，状态为 up to date。
+- 建立分支本地 CodeGraph 索引后持续同步；当前索引覆盖 6,245 个文件、86,289 个符号、275,090 条边，状态为 up to date。
 - 从 `a4n-server`、Tauri 本地 Server、`a4n-component-host`、Worker/Sidecar catalog、Axum route 注册、`a4n-control` 动态 command 分派和 `frontend/src/App.tsx` 路由入口追踪生产调用与注册点。前端索引包含 444 个 TS 和 318 个 TSX 文件。
 - 基线 Cargo workspace 有 213 个 crate manifest；本次增加 Worker runtime 与 DB adapter 后共 215 个。`cargo metadata` 核对了 Worker 对共享配置/runtime crate 的依赖。静态搜索补查脚本启动、环境变量、历史迁移、测试 fixture、生成合同脚本和运行时路由字符串。
 - 检查了 `#[allow(dead_code)]`、兼容/legacy 命名、候选无入边符号、Cargo 直接依赖和可复用的前端格式工具。
 
-本轮 R-74 的两次 CodeGraph sync 分别同步 17 个和 6 个文件；第一轮解析 24 个待处理引用并报告 52 个 unresolved references，第二轮再解析 25 个待处理引用；当前 `codegraph status` 显示索引 up to date，但 CLI 未列出剩余 unresolved references。跨 crate helper 导入和部分动态/宏式 route 注册仍可能无法形成完整调用边，例如共享 runtime helper 的包外调用需要用静态搜索复核。R-74 的合同常量消费者均另经全仓静态搜索确认，并由受影响 workspace package 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
+R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 个 unresolved references，第二轮解析 25 个待处理引用。R-75 同步 6 个文件、解析 2 个待处理引用并报告 20 个 unresolved references；当前 `codegraph status` 显示索引 up to date，但 CLI 未列出这些 unresolved references 对应的符号。跨 crate helper 导入和部分动态/宏式 route 注册仍可能无法形成完整调用边，例如共享 runtime helper 的包外调用需要用静态搜索复核。R-74/R-75 的消费者均另经全仓静态搜索确认，并由受影响 workspace package 编译覆盖。图谱孤立符号也包含 trait 实现、路由 handler 和测试入口，未把“无入边”直接当作删除证据。
 
 本记录说明实际检查的入口和结果，不声称仅凭静态分析证明了所有运行环境、外部调用者、反射或部署配置均无遗漏。未对所有产品模块做逐函数人工审阅，也未运行浏览器端到端流程。
 
@@ -614,6 +614,15 @@
 - 验证：API contract、Orchestrator、Runtime、Tauri、host-assembly 的 `cargo check --all-targets --locked --offline` 通过；生成器 `--write`/`--check` 和 `npm run check:web-api-parity` 通过；`npm run build` 通过（保留仓库已有大 chunk 提示）；`cargo fmt --all -- --check`、`git diff --check` 通过。未运行测试套件；all-targets 检查编译了测试目标。
 - 记录范围：API contract 的 image/profile/theme 常量与生成器、生成的 `frontend/src/api/generated/config.ts`、Orchestrator/Runtime/Tauri/host-assembly 上传消费者、前端五个通用图像上传消费者、Profile Material/Theme Editor 消费者及 Theme 中英文消息。
 
+### R-75：复用 Worker shutdown signal waiter
+
+- 类别：Agent、Canvas Record、Artifact Media、Novel Planning Worker 分别实现了相同的 Ctrl-C/SIGTERM 等待分支。
+- BFS 覆盖：从四个 Worker 的启动入口追到 Agent `async_main` 的 shutdown/driver/health select，以及其余三者的 `axum::serve().with_graceful_shutdown(...)`；继续检查 shutdown 后的 runtime cancellation、maintenance task 终止和 server 返回路径。CodeGraph 确认四个局部 waiter 各只有一个生产调用；全仓搜索 `SignalKind::terminate()` 找到四个 Worker 副本及 Control、Edge、Tauri 的宿主级处理。
+- 新增 `a4n-worker-runtime::wait_for_shutdown_signal()`，集中等待 Ctrl-C 或 Unix SIGTERM，非 Unix 继续等待 Ctrl-C。四个 Worker 直接调用该 helper；既有 `wait_for_ctrl_c()` 保持 Ctrl-C-only 行为。Agent 仍取消 runtime 并等待 driver/health server，Artifact Media 仍在 serve 返回后 abort maintenance，Canvas/Novel Planning 仍由 Axum 完成 graceful shutdown。
+- 保留边界：Control 在 serve 后还关闭 managed sidecars；Edge 还响应父进程 stop flag；Tauri 收到信号后触发应用退出。这三者的生命周期和清理合同不同，没有改为依赖 Worker runtime。
+- 验证：`cargo check --all-targets --locked --offline -p a4n-worker-runtime -p a4n-agent-worker -p a4n-canvas-record-worker -p a4n-artifact-media-worker -p a4n-novel-planning-worker`、`cargo fmt --all -- --check` 和 `git diff --check` 通过。未运行测试套件；all-targets 检查编译了测试目标。
+- 记录范围：`a4n-worker-runtime` signal helper 与四个 Worker 的启动/serve 路径。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -680,4 +689,4 @@
 
 - 前端检查覆盖路由/API 关系、共享日期/数字 formatter、配置测试时间和 Agent Context Meter 调用；生产 TypeScript/Vite build 与定向测试通过，未运行浏览器端到端流程。
 - Cargo 未使用依赖扫描不检查未使用的公开 API；Rust workspace 检查只编译当前平台的默认生产目标，不能证明跨平台运行或外部二进制调用不存在。
-- 仓库中第三方传递依赖的重复版本、仍在使用的 legacy 输入/数据库迁移、4 个具有不同终止语义的 Worker 生命周期代码，本批保留并记录为后续人工架构审阅对象；本次没有对它们做广泛删除。
+- 仓库中第三方传递依赖的重复版本和仍在使用的 legacy 输入/数据库迁移仍需后续人工架构审阅。Worker 现在共用相同的 Ctrl-C/SIGTERM 等待逻辑，但各服务的信号后清理流程仍独立保留。

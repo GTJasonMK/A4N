@@ -52,6 +52,23 @@ pub async fn wait_for_ctrl_c() {
     let _ = tokio::signal::ctrl_c().await;
 }
 
+pub async fn wait_for_shutdown_signal() {
+    #[cfg(unix)]
+    {
+        let mut terminate =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .expect("install SIGTERM handler");
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {},
+            _ = terminate.recv() => {},
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        wait_for_ctrl_c().await;
+    }
+}
+
 #[cfg(target_os = "linux")]
 /// Deliver SIGTERM to a child process when its parent exits.
 pub fn configure_parent_death_signal(command: &mut std::process::Command) {

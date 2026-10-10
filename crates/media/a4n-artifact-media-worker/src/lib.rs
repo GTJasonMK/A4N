@@ -99,7 +99,7 @@ async fn async_main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!(worker_id = ARTIFACT_MEDIA_WORKER_ID, %addr, "artifact media worker listening");
     let result = axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
+        .with_graceful_shutdown(a4n_worker_runtime::wait_for_shutdown_signal())
         .await;
     maintenance.abort();
     result?;
@@ -341,23 +341,6 @@ mod recovery;
 mod references;
 mod support;
 use support::*;
-
-async fn shutdown_signal() {
-    #[cfg(unix)]
-    {
-        let mut terminate =
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                .expect("install SIGTERM handler");
-        tokio::select! {
-            _ = tokio::signal::ctrl_c() => {},
-            _ = terminate.recv() => {},
-        }
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = tokio::signal::ctrl_c().await;
-    }
-}
 
 #[cfg(test)]
 mod tests {

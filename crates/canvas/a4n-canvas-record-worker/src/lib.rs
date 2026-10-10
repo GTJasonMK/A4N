@@ -106,7 +106,7 @@ impl CanvasRecordWorker {
     pub async fn serve(self, address: SocketAddr) -> anyhow::Result<()> {
         let listener = tokio::net::TcpListener::bind(address).await?;
         axum::serve(listener, self.router())
-            .with_graceful_shutdown(shutdown_signal())
+            .with_graceful_shutdown(a4n_worker_runtime::wait_for_shutdown_signal())
             .await
             .map_err(anyhow::Error::from)
     }
@@ -393,23 +393,6 @@ fn unauthorized() -> Response {
         "Canvas record worker authentication required",
     )
         .into_response()
-}
-
-async fn shutdown_signal() {
-    #[cfg(unix)]
-    {
-        let mut terminate =
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                .expect("install SIGTERM handler");
-        tokio::select! {
-            _ = tokio::signal::ctrl_c() => {},
-            _ = terminate.recv() => {},
-        }
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = tokio::signal::ctrl_c().await;
-    }
 }
 
 #[cfg(test)]
