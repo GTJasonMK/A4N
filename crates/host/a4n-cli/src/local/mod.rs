@@ -24,9 +24,7 @@ use state::{
 };
 pub(crate) use state::{DoctorOutcome, StartOptions};
 
-use crate::config::{
-    lock_config, non_empty_env_path, non_empty_env_string, write_private_json_unlocked,
-};
+use crate::config::{lock_config, non_empty_env_string, write_private_json_unlocked};
 
 pub(crate) async fn doctor(
     api_base: &str,

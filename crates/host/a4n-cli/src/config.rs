@@ -132,19 +132,19 @@ pub(crate) fn resolve_config_path(override_path: Option<PathBuf>) -> Result<Path
     if let Some(path) = override_path {
         return Ok(path);
     }
-    if let Some(path) = non_empty_env_path("A4N_CLI_CONFIG")? {
+    if let Some(path) = a4n_config::optional_non_empty_env_path("A4N_CLI_CONFIG")? {
         return Ok(path);
     }
 
     #[cfg(windows)]
-    if let Some(root) = non_empty_env_path("APPDATA")? {
+    if let Some(root) = a4n_config::optional_non_empty_env_path("APPDATA")? {
         return Ok(root.join("A4N").join("cli.json"));
     }
 
-    if let Some(root) = non_empty_env_path("XDG_CONFIG_HOME")? {
+    if let Some(root) = a4n_config::optional_non_empty_env_path("XDG_CONFIG_HOME")? {
         return Ok(root.join("a4n").join("cli.json"));
     }
-    if let Some(root) = non_empty_env_path("HOME")? {
+    if let Some(root) = a4n_config::optional_non_empty_env_path("HOME")? {
         return Ok(root.join(".config").join("a4n").join("cli.json"));
     }
     bail!("无法确定 CLI 配置目录；请使用 --config 或 A4N_CLI_CONFIG")
@@ -189,16 +189,6 @@ pub(crate) fn normalize_api_base(raw: &str) -> Result<String> {
     };
     url.set_path(&api_path);
     Ok(url.as_str().trim_end_matches('/').to_string())
-}
-
-pub(crate) fn non_empty_env_path(key: &str) -> Result<Option<PathBuf>> {
-    let Some(value) = std::env::var_os(key) else {
-        return Ok(None);
-    };
-    if value.to_string_lossy().trim().is_empty() {
-        bail!("{key} 不能为空");
-    }
-    Ok(Some(PathBuf::from(value)))
 }
 
 pub(crate) fn non_empty_env_string(key: &str) -> Result<Option<String>> {

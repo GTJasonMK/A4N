@@ -615,6 +615,7 @@ name = "a4n-cli"
 version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
+ "a4n-config",
  "a4n-process-catalog",
  "a4n-service-protocol",
  "anyhow",
@@ -2395,6 +2396,7 @@ dependencies = [
 name = "a4n-prompt-service"
 version = "0.1.0"
 dependencies = [
+ "a4n-config",
  "a4n-error",
  "a4n-prompt",
  "a4n-prompt-contract",

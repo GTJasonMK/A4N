@@ -10,6 +10,7 @@ path = "src/main.rs"
 
 [dependencies]
 a4n-api-contract = { workspace = true }
+a4n-config = { workspace = true }
 a4n-process-catalog = { workspace = true }
 a4n-service-protocol = { workspace = true }
 

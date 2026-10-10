@@ -116,12 +116,13 @@ pub(super) fn onnxruntime_library_dir(sidecar_bin_dir: Option<&Path>) -> Result<
         }
     }
 
-    let root = if let Some(root) = non_empty_env_path("A4N_ONNXRUNTIME_ROOT")? {
+    let root = if let Some(root) = a4n_config::optional_non_empty_env_path("A4N_ONNXRUNTIME_ROOT")?
+    {
         root
     } else {
-        let data_home = match non_empty_env_path("XDG_DATA_HOME")? {
+        let data_home = match a4n_config::optional_non_empty_env_path("XDG_DATA_HOME")? {
             Some(root) => root,
-            None => non_empty_env_path("HOME")?
+            None => a4n_config::optional_non_empty_env_path("HOME")?
                 .map(|root| root.join(".local/share"))
                 .ok_or_else(|| {
                     anyhow::anyhow!("无法确定 ONNX Runtime 目录；请设置 A4N_ONNXRUNTIME_ROOT")
@@ -223,7 +224,7 @@ pub(super) fn spawn_qdrant(
 }
 
 pub(super) fn resolve_or_build_sidecars(source_root: Option<&Path>) -> Result<PathBuf> {
-    if let Some(directory) = non_empty_env_path(SIDECAR_BIN_DIR_ENV)? {
+    if let Some(directory) = a4n_config::optional_non_empty_env_path(SIDECAR_BIN_DIR_ENV)? {
         validate_sidecar_directory(&directory)?;
         return Ok(directory);
     }
@@ -328,7 +329,7 @@ pub(super) fn sibling_binary(name: &str) -> Option<PathBuf> {
 }
 
 pub(super) fn source_root() -> Result<Option<PathBuf>> {
-    if let Some(path) = non_empty_env_path("A4N_SOURCE_ROOT")? {
+    if let Some(path) = a4n_config::optional_non_empty_env_path("A4N_SOURCE_ROOT")? {
         if is_source_root(&path) {
             return Ok(Some(path));
         }
@@ -349,16 +350,18 @@ pub(super) fn is_source_root(path: &Path) -> bool {
 }
 
 pub(super) fn target_debug_dir(root: &Path) -> Result<PathBuf> {
-    Ok(match non_empty_env_path("CARGO_TARGET_DIR")? {
-        Some(path) => {
-            if path.is_absolute() {
-                path.join("debug")
-            } else {
-                root.join(path).join("debug")
+    Ok(
+        match a4n_config::optional_non_empty_env_path("CARGO_TARGET_DIR")? {
+            Some(path) => {
+                if path.is_absolute() {
+                    path.join("debug")
+                } else {
+                    root.join(path).join("debug")
+                }
             }
-        }
-        None => root.join("target/debug"),
-    })
+            None => root.join("target/debug"),
+        },
+    )
 }
 
 pub(super) fn load_state(path: &Path) -> Result<Option<LocalState>> {

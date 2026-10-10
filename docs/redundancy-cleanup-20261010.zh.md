@@ -405,6 +405,14 @@
 - 验证：`cargo check --all-targets --locked --offline -p a4n-prompt-service`、`cargo fmt --all -- --check`、`git diff --check` 通过。
 - 记录文件：`crates/prompt/a4n-prompt-service/src/app.rs`。
 
+### R-49：统一可选非空路径环境变量解析
+
+- 类别：重复配置解析。
+- BFS 覆盖：从 `a4n_config::optional_non_empty_env_path` 追踪已有 9 个 Host/Runtime 调用点及其 unset/empty/configured 定向测试；对比 Prompt Service 的 prompts/git/data path 入口，以及 CLI 配置路径、ONNX Runtime、Sidecar binary、source root、target directory 五条流程。静态搜索确认 Prompt 的 3 个调用点和 CLI 的 10 个调用点都使用相同的 `var_os`、lossy-trim 空值判定与 `PathBuf` 构造。
+- 删除 Prompt Service 和 CLI 的局部解析器，13 个调用点改用 `a4n-config` owner；两个 crate 增加直接依赖并更新 Cargo.lock。Unset、空白、非 UTF-8 `OsString` 和有效路径的判定保持一致；错误通过 `AppError::ConfigError` 进入 anyhow 边界后会带 `配置错误：` 前缀，缺失的必填路径仍由各业务入口返回原有专属错误。
+- 验证：`cargo check --all-targets --offline -p a4n-config -p a4n-cli -p a4n-prompt-service` 通过；`timeout 60s cargo test --locked --offline -p a4n-config --lib optional_path_distinguishes_unset_empty_and_configured_values` 1/1 通过；`cargo fmt --all -- --check`、`git diff --check` 通过。
+- 记录文件：`crates/config/a4n-config/src/lib.rs`、`crates/host/a4n-cli/{Cargo.toml,src/config.rs,src/local/mod.rs,src/local/runtime.rs}`、`crates/prompt/a4n-prompt-service/{Cargo.toml,src/app.rs}`、`Cargo.lock`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
