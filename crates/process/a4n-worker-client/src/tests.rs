@@ -15,8 +15,8 @@ use tokio::{
 use super::{
     HttpWorkerClient, WORKER_AUTH_HEADER, WorkerClientConfig, WorkerClientError,
     WorkerClientErrorPolicy, WorkerJsonResponse, map_worker_client_error,
-    map_worker_response_error, resolve_worker_client_connection, user_principal,
-    user_principal_with_scope,
+    map_worker_response_error, optional_positive_id, positive_id, resolve_worker_client_connection,
+    user_principal, user_principal_with_scope,
 };
 
 #[test]
@@ -115,6 +115,32 @@ fn user_principal_with_scope_preserves_project_validation_policy() {
         assert!(matches!(
             user_principal_with_scope(user_id, project_id, ERROR),
             Err(a4n_error::AppError::InvalidArgument(message)) if message == ERROR
+        ));
+    }
+}
+
+#[test]
+fn positive_id_helpers_preserve_field_errors_and_optional_none() {
+    assert_eq!(positive_id("project_id", 7).expect("positive ID"), 7);
+    assert_eq!(
+        optional_positive_id("project_id", None).expect("optional ID"),
+        None
+    );
+    assert_eq!(
+        optional_positive_id("project_id", Some(7)).expect("positive optional ID"),
+        Some(7)
+    );
+
+    for value in [0, -1] {
+        assert!(matches!(
+            positive_id("project_id", value),
+            Err(a4n_error::AppError::InvalidArgument(message))
+                if message == "project_id 必须大于 0"
+        ));
+        assert!(matches!(
+            optional_positive_id("project_id", Some(value)),
+            Err(a4n_error::AppError::InvalidArgument(message))
+                if message == "project_id 必须大于 0"
         ));
     }
 }

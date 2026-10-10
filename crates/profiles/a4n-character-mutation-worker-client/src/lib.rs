@@ -38,7 +38,7 @@ use a4n_worker_client::{
 };
 use a4n_worker_contract::{
     WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerLease, WorkerOperationStatus,
-    WorkerPrincipal, WorkerPrincipalKind, WorkerResponse,
+    WorkerResponse,
 };
 
 const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47674";
@@ -78,9 +78,7 @@ impl CharacterMutationWorkerClient {
         I: serde::Serialize,
         O: serde::de::DeserializeOwned,
     {
-        if project_id <= 0 {
-            return Err(AppError::InvalidArgument("project_id 必须大于 0".into()));
-        }
+        let project_id = a4n_worker_client::positive_id("project_id", project_id)?;
         self.command_with_project(user_id, Some(project_id), operation, payload)
             .await
     }

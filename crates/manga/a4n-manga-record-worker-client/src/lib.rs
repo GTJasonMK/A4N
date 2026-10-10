@@ -15,7 +15,7 @@ use a4n_worker_client::{
 };
 use a4n_worker_contract::{
     WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerLease, WorkerOperationStatus,
-    WorkerPrincipal, WorkerPrincipalKind, WorkerResponse,
+    WorkerResponse,
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -61,9 +61,7 @@ impl MangaRecordWorkerClient {
         O: DeserializeOwned,
     {
         let principal = a4n_worker_client::user_principal(user_id)?;
-        if project_id <= 0 {
-            return Err(AppError::InvalidArgument("project_id 必须大于 0".into()));
-        }
+        a4n_worker_client::positive_id("project_id", project_id)?;
         let request_id = uuid::Uuid::new_v4().to_string();
         let request = WorkerEnvelope {
             schema_version: WORKER_SCHEMA_VERSION,

@@ -8,7 +8,7 @@ use a4n_inspiration_worker_contract::{
 use a4n_worker_client::{HttpWorkerClient, WorkerClientErrorPolicy, map_worker_client_error};
 use a4n_worker_contract::{
     WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerLease,
-    WorkerOperationStatus, WorkerPrincipal, WorkerPrincipalKind, WorkerResponse,
+    WorkerOperationStatus, WorkerResponse,
 };
 
 const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47666";
@@ -44,9 +44,7 @@ impl InspirationWorkerClient {
         O: serde::de::DeserializeOwned,
     {
         let principal = a4n_worker_client::user_principal(user_id)?;
-        if input.project_id <= 0 {
-            return Err(AppError::InvalidArgument("project_id 必须大于 0".into()));
-        }
+        a4n_worker_client::positive_id("project_id", input.project_id)?;
         let request_id = uuid::Uuid::new_v4().to_string();
         let request = WorkerEnvelope {
             schema_version: WORKER_SCHEMA_VERSION,

@@ -14,7 +14,7 @@ use a4n_worker_client::{
 };
 use a4n_worker_contract::{
     WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerLease, WorkerOperationStatus,
-    WorkerPrincipal, WorkerPrincipalKind, WorkerResponse,
+    WorkerResponse,
 };
 
 const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47665";
@@ -58,9 +58,7 @@ impl ImportReviewWorkerClient {
         O: serde::de::DeserializeOwned,
     {
         let principal = a4n_worker_client::user_principal(user_id)?;
-        if project_id.is_some_and(|project_id| project_id <= 0) {
-            return Err(AppError::InvalidArgument("project_id 必须大于 0".into()));
-        }
+        let project_id = a4n_worker_client::optional_positive_id("project_id", project_id)?;
         let request_id = uuid::Uuid::new_v4().to_string();
         let request = WorkerEnvelope {
             schema_version: WORKER_SCHEMA_VERSION,

@@ -19,7 +19,7 @@ use a4n_worker_client::{
 };
 use a4n_worker_contract::{
     WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerLease, WorkerOperationStatus,
-    WorkerPrincipal, WorkerPrincipalKind, WorkerResponse,
+    WorkerResponse,
 };
 
 const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47668";
@@ -103,29 +103,6 @@ impl ProjectCollaborationWorkerClient {
                 "project collaboration worker 返回未完成状态: operation={operation}, status={status:?}"
             ))),
         }
-    }
-
-    fn project_id(project_id: i64) -> Result<i64, AppError> {
-        if project_id <= 0 {
-            return Err(AppError::InvalidArgument("project_id 必须大于 0".into()));
-        }
-        Ok(project_id)
-    }
-
-    fn invite_id(invite_id: i64) -> Result<i64, AppError> {
-        if invite_id <= 0 {
-            return Err(AppError::InvalidArgument("invite_id 必须大于 0".into()));
-        }
-        Ok(invite_id)
-    }
-
-    fn member_id(member_user_id: i64) -> Result<i64, AppError> {
-        if member_user_id <= 0 {
-            return Err(AppError::InvalidArgument(
-                "member_user_id 必须大于 0".into(),
-            ));
-        }
-        Ok(member_user_id)
     }
 
     async fn unit<I>(

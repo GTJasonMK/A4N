@@ -63,9 +63,7 @@ impl WorkflowReadWorkerClient {
         I: serde::Serialize,
         O: serde::de::DeserializeOwned,
     {
-        if project_id.is_some_and(|id| id <= 0) {
-            return Err(AppError::InvalidArgument("project_id 必须大于 0".into()));
-        }
+        let project_id = a4n_worker_client::optional_positive_id("project_id", project_id)?;
         let request_id = uuid::Uuid::new_v4().to_string();
         let request = WorkerEnvelope {
             schema_version: WORKER_SCHEMA_VERSION,

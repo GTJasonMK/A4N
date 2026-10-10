@@ -12,9 +12,7 @@ use super::ProjectReadWorkerClient;
 #[async_trait::async_trait]
 impl ProjectReadApplicationPort for ProjectReadWorkerClient {
     async fn summary(&self, user_id: i64, project_id: i64) -> Result<ProjectSummary, AppError> {
-        if project_id <= 0 {
-            return Err(AppError::InvalidArgument("project_id 必须大于 0".into()));
-        }
+        a4n_worker_client::positive_id("project_id", project_id)?;
         self.command(
             a4n_worker_client::user_principal(user_id)?,
             PROJECT_READ_SUMMARY_OPERATION,
@@ -49,9 +47,7 @@ impl ProjectReadApplicationPort for ProjectReadWorkerClient {
     }
 
     async fn exists(&self, project_id: i64) -> Result<bool, AppError> {
-        if project_id <= 0 {
-            return Err(AppError::InvalidArgument("project_id 必须大于 0".into()));
-        }
+        a4n_worker_client::positive_id("project_id", project_id)?;
         self.command(
             Self::service_principal(),
             PROJECT_READ_EXISTS_OPERATION,

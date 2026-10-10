@@ -7,7 +7,7 @@ use a4n_worker_client::{
 };
 use a4n_worker_contract::{
     WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerLease, WorkerOperationStatus,
-    WorkerPrincipal, WorkerPrincipalKind, WorkerResponse,
+    WorkerResponse,
 };
 
 mod mutations;
@@ -90,13 +90,6 @@ impl ProjectMutationWorkerClient {
                 "project mutation worker 返回未完成状态: operation={operation}, status={status:?}"
             ))),
         }
-    }
-
-    fn positive_id(field: &str, value: i64) -> Result<i64, AppError> {
-        if value <= 0 {
-            return Err(AppError::InvalidArgument(format!("{field} 必须大于 0")));
-        }
-        Ok(value)
     }
 }
 

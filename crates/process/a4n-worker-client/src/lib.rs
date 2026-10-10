@@ -140,13 +140,29 @@ pub fn user_principal_with_scope(
     project_id: Option<i64>,
     error_message: &'static str,
 ) -> Result<WorkerPrincipal, AppError> {
-    if user_id <= 0 || project_id.is_some_and(|project_id| project_id <= 0) {
+    if !is_positive_id(user_id) || project_id.is_some_and(|project_id| !is_positive_id(project_id))
+    {
         return Err(AppError::InvalidArgument(error_message.into()));
     }
     Ok(WorkerPrincipal {
         kind: WorkerPrincipalKind::User,
         subject: user_id.to_string(),
     })
+}
+
+pub fn positive_id(field: &str, value: i64) -> Result<i64, AppError> {
+    if !is_positive_id(value) {
+        return Err(AppError::InvalidArgument(format!("{field} 必须大于 0")));
+    }
+    Ok(value)
+}
+
+pub fn optional_positive_id(field: &str, value: Option<i64>) -> Result<Option<i64>, AppError> {
+    value.map(|value| positive_id(field, value)).transpose()
+}
+
+fn is_positive_id(value: i64) -> bool {
+    value > 0
 }
 
 pub fn map_worker_response_error(

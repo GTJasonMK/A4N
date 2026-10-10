@@ -18,9 +18,7 @@ impl ProjectAccessApplicationPort for ProjectAccessWorkerClient {
         project_id: i64,
         required: ProjectAccessRole,
     ) -> Result<ProjectAccessRole, AppError> {
-        if project_id <= 0 {
-            return Err(AppError::InvalidArgument("project_id 必须大于 0".into()));
-        }
+        a4n_worker_client::positive_id("project_id", project_id)?;
         self.command(
             a4n_worker_client::user_principal(user_id)?,
             Some(project_id),
@@ -73,9 +71,7 @@ impl ProjectAccessApplicationPort for ProjectAccessWorkerClient {
         &self,
         project_id: i64,
     ) -> Result<ProjectCollaborationRootSummary, AppError> {
-        if project_id <= 0 {
-            return Err(AppError::InvalidArgument("project_id 必须大于 0".into()));
-        }
+        a4n_worker_client::positive_id("project_id", project_id)?;
         self.command(
             Self::service_principal(),
             Some(project_id),

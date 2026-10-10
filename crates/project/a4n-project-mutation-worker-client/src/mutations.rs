@@ -41,7 +41,8 @@ impl ProjectMutationApplicationPort for ProjectMutationWorkerClient {
         user_id: i64,
         input: CreateDerivedProjectInput,
     ) -> Result<ProjectSummary, AppError> {
-        let root_project_id = Self::positive_id("root_project_id", input.root_project_id)?;
+        let root_project_id =
+            a4n_worker_client::positive_id("root_project_id", input.root_project_id)?;
         self.command(
             user_id,
             Some(root_project_id),
@@ -98,7 +99,7 @@ impl ProjectMutationApplicationPort for ProjectMutationWorkerClient {
         project_id: i64,
         input: UpdateProjectInput,
     ) -> Result<ProjectSummary, AppError> {
-        let project_id = Self::positive_id("project_id", project_id)?;
+        let project_id = a4n_worker_client::positive_id("project_id", project_id)?;
         self.command(
             user_id,
             Some(project_id),
