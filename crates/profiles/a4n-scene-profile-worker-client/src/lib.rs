@@ -18,7 +18,7 @@ use a4n_worker_client::WorkerClientError;
 use a4n_worker_client::{HttpWorkerClient, WorkerClientErrorPolicy, map_worker_client_error};
 use a4n_worker_contract::{
     WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerLease,
-    WorkerOperationStatus, WorkerPrincipal, WorkerPrincipalKind, WorkerResponse,
+    WorkerOperationStatus, WorkerResponse,
 };
 
 const DEFAULT_WORKER_URL: &str = "http://127.0.0.1:47658";
