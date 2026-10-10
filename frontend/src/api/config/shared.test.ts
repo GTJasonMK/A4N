@@ -5,6 +5,7 @@ import {
   providerConfigIdOrSystem,
   rejectSystemDefaultMutation,
   requireSystemDefaultKeyUpdate,
+  resolveProviderConnectivityTarget,
 } from "./shared";
 
 type Config = { id: number; is_default: boolean };
@@ -70,5 +71,44 @@ describe("provider config IDs", () => {
     );
     expect(() => requireSystemDefaultKeyUpdate({ api_key_encrypted: "personal-key" })).not.toThrow();
     expect(() => requireSystemDefaultKeyUpdate({ pricing: { currency: "CNY" } })).toThrow("系统默认配置由管理员维护");
+  });
+});
+
+describe("provider connectivity target", () => {
+  const base = {
+    label: "配置 ID",
+    systemConfigId: -1,
+    isSystemDefault: (configId: number | string) => Number(configId) === -1,
+  };
+
+  it("keeps server scope on the server without loading local state", async () => {
+    const target = await resolveProviderConnectivityTarget({
+      ...base,
+      configId: "7",
+      scope: "server",
+      requireApiKey: true,
+      loadSystemDefault: async () => ({ source: "system" }),
+      getLocalConfig: () => ({ source: "local" }),
+    });
+    expect(target).toEqual({ configId: 7, config: null });
+  });
+
+  it("loads system and local targets through their owner callbacks", async () => {
+    await expect(resolveProviderConnectivityTarget({
+      ...base,
+      configId: -1,
+      scope: "local",
+      requireApiKey: false,
+      loadSystemDefault: async (requireApiKey) => ({ source: String(requireApiKey) }),
+      getLocalConfig: () => ({ source: "local" }),
+    })).resolves.toEqual({ configId: -1, config: { source: "false" } });
+    await expect(resolveProviderConnectivityTarget({
+      ...base,
+      configId: 4,
+      scope: "local",
+      requireApiKey: true,
+      loadSystemDefault: async () => ({ source: "system" }),
+      getLocalConfig: (configId) => ({ source: String(configId) }),
+    })).resolves.toEqual({ configId: 4, config: { source: "4" } });
   });
 });

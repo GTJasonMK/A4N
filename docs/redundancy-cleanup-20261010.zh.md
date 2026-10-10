@@ -772,6 +772,14 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 已共享的事实源包括 `mutateSettings`、`serializeSettingsWrite`、`allocateId`、`setSingleDefault`、`removeConfigById`、`activeLocalConfig` 和各自的 `normalizeLocal*Config`。各 provider CRUD 剩余差异是结构化字段、可选密钥更新策略、系统默认源和必填/可空字段；再抽一个泛型 CRUD 会隐藏合同差异，保留显式类型边界。
 - 记录范围：`frontend/src/api/localRuntimeSettings.ts`、`frontend/src/api/localRuntimeSettingsValidation.ts`、`frontend/src/api/{config, image, video}.ts`、设置页面调用方。
 
+### R-95：统一 LLM/Image connectivity target 解析
+
+- 类别：重复配置目标解析。
+- BFS 覆盖：从 LLM/Image 的 test/preview API 入口追到 server/local scope、system sentinel、系统默认加载器、本机配置读取和 runtime snapshot；确认两条 resolver 仅在 ID 标签、配置类型和 provider loader 上有差异。
+- 新增 `frontend/src/api/config/shared.ts::resolveProviderConnectivityTarget`，LLM/Image resolver 复用同一 server/system/local 分支逻辑；Embedding 没有 system sentinel，保留独立 resolver。系统 API key 要求、本地 runtime 判断、错误和 snapshot 选项均由调用方继续持有。
+- 新增 shared helper 的 server/system/local 回归测试；相关 Vitest 15/15、生产构建和 `git diff --check` 通过。未新增兜底、兼容或回退逻辑。
+- 记录范围：`frontend/src/api/config/shared.ts`、`frontend/src/api/config/{llm.ts,embedding.ts}`、`frontend/src/api/image/configs.ts`、`frontend/src/api/config/shared.test.ts`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

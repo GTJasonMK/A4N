@@ -33,6 +33,7 @@ import {
   requireSystemDefaultProviderConfig,
   rejectSystemDefaultMutation,
   requireSystemDefaultKeyUpdate,
+  resolveProviderConnectivityTarget,
   systemDefaultProviderConfig,
 } from "./shared";
 
@@ -207,20 +208,18 @@ async function resolveLlmConnectivityTarget(
   scope: ModelConfigScope,
   requireApiKey: boolean,
 ): Promise<{ configId: number; config: LlmConfigSummary | null }> {
-  if (scope === "server") {
-    return { configId: llmConfigId(configId), config: null };
-  }
-  if (isSystemDefaultLlmConfigId(configId)) {
-    return {
-      configId: SYSTEM_LLM_CONFIG_ID,
-      config: await loadSystemDefaultRuntimeLlmConfig({ requireApiKey }),
-    };
-  }
-  const id = llmConfigId(configId);
-  return {
-    configId: id,
-    config: usesLocalRuntimeSettings() ? getLocalLlmConfig(id) : null,
-  };
+  return resolveProviderConnectivityTarget({
+    configId,
+    scope,
+    requireApiKey,
+    label: "LLM 配置 ID",
+    systemConfigId: SYSTEM_LLM_CONFIG_ID,
+    isSystemDefault: isSystemDefaultLlmConfigId,
+    loadSystemDefault: (includeApiKey) =>
+      loadSystemDefaultRuntimeLlmConfig({ requireApiKey: includeApiKey }),
+    getLocalConfig: (id) =>
+      usesLocalRuntimeSettings() ? getLocalLlmConfig(id) : null,
+  });
 }
 
 export async function testLlmConfig(
