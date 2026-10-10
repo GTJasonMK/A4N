@@ -1,10 +1,17 @@
 use a4n_db::collaboration::CollaborationDbError;
+use a4n_db::project::ProjectFamilyDbError;
 use a4n_db::project::ProjectMutationError;
+use a4n_db::workflow::WorkflowReadError;
 use a4n_worker_contract::WorkerFailure;
 
 enum InternalErrorPolicy {
     Conflict,
     Internal,
+}
+
+enum InvalidDataPolicy {
+    Conflict,
+    InvalidRequest,
 }
 
 pub fn map_collaboration_db_error(error: CollaborationDbError) -> WorkerFailure {
@@ -24,6 +31,37 @@ pub fn map_project_mutation_error(error: ProjectMutationError) -> WorkerFailure 
         ProjectMutationError::Forbidden(message) => WorkerFailure::unauthorized(message),
         ProjectMutationError::Internal(message) => WorkerFailure::conflict(message),
         ProjectMutationError::Database(error) => WorkerFailure::unavailable(error.to_string()),
+    }
+}
+
+pub fn map_project_family_db_error(error: ProjectFamilyDbError) -> WorkerFailure {
+    match error {
+        ProjectFamilyDbError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
+        ProjectFamilyDbError::NotFound(message) => WorkerFailure::not_found(message),
+        ProjectFamilyDbError::Database(error) => WorkerFailure::unavailable(error.to_string()),
+    }
+}
+
+pub fn map_workflow_read_error_as_conflict(error: WorkflowReadError) -> WorkerFailure {
+    map_workflow_read_error(error, InvalidDataPolicy::Conflict)
+}
+
+pub fn map_workflow_read_error_as_invalid_request(error: WorkflowReadError) -> WorkerFailure {
+    map_workflow_read_error(error, InvalidDataPolicy::InvalidRequest)
+}
+
+fn map_workflow_read_error(
+    error: WorkflowReadError,
+    invalid_data_policy: InvalidDataPolicy,
+) -> WorkerFailure {
+    match error {
+        WorkflowReadError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
+        WorkflowReadError::NotFound(message) => WorkerFailure::not_found(message),
+        WorkflowReadError::InvalidData(message) => match invalid_data_policy {
+            InvalidDataPolicy::Conflict => WorkerFailure::conflict(message),
+            InvalidDataPolicy::InvalidRequest => WorkerFailure::invalid_request(message),
+        },
+        WorkflowReadError::Database(error) => WorkerFailure::unavailable(error.to_string()),
     }
 }
 
@@ -153,6 +191,89 @@ mod tests {
 
         for (error, code, retryable, message) in cases {
             let mapped: WorkerError = map_project_mutation_error(error).into();
+            assert_eq!(mapped.code, code);
+            assert_eq!(mapped.retryable, retryable);
+            assert_eq!(mapped.message, message);
+        }
+    }
+
+    #[test]
+    fn project_family_errors_map_to_the_worker_failure_contract() {
+        let database_error = DbErr::Custom("database unavailable".into());
+        let database_message = database_error.to_string();
+        let cases = [
+            (
+                ProjectFamilyDbError::InvalidArgument("invalid input".into()),
+                WorkerErrorCode::InvalidRequest,
+                false,
+                "invalid input".to_string(),
+            ),
+            (
+                ProjectFamilyDbError::NotFound("missing project".into()),
+                WorkerErrorCode::NotFound,
+                false,
+                "missing project".to_string(),
+            ),
+            (
+                ProjectFamilyDbError::Database(database_error),
+                WorkerErrorCode::Unavailable,
+                true,
+                database_message,
+            ),
+        ];
+
+        for (error, code, retryable, message) in cases {
+            let mapped: WorkerError = map_project_family_db_error(error).into();
+            assert_eq!(mapped.code, code);
+            assert_eq!(mapped.retryable, retryable);
+            assert_eq!(mapped.message, message);
+        }
+    }
+
+    #[test]
+    fn workflow_invalid_data_policy_preserves_worker_classification() {
+        let error = WorkflowReadError::InvalidData("invalid persisted workflow".into());
+        let conflict: WorkerError = map_workflow_read_error_as_conflict(error).into();
+        assert_eq!(conflict.code, WorkerErrorCode::Conflict);
+        assert!(!conflict.retryable);
+        assert_eq!(conflict.message, "invalid persisted workflow");
+
+        let invalid_request: WorkerError = map_workflow_read_error_as_invalid_request(
+            WorkflowReadError::InvalidData("invalid persisted workflow".into()),
+        )
+        .into();
+        assert_eq!(invalid_request.code, WorkerErrorCode::InvalidRequest);
+        assert!(!invalid_request.retryable);
+        assert_eq!(invalid_request.message, "invalid persisted workflow");
+    }
+
+    #[test]
+    fn workflow_read_errors_preserve_common_error_mapping() {
+        let database_error = DbErr::Custom("database unavailable".into());
+        let database_message = database_error.to_string();
+        let cases = [
+            (
+                WorkflowReadError::InvalidArgument("invalid input".into()),
+                WorkerErrorCode::InvalidRequest,
+                false,
+                "invalid input".to_string(),
+            ),
+            (
+                WorkflowReadError::NotFound("missing workflow".into()),
+                WorkerErrorCode::NotFound,
+                false,
+                "missing workflow".to_string(),
+            ),
+            (
+                WorkflowReadError::Database(database_error),
+                WorkerErrorCode::Unavailable,
+                true,
+                database_message,
+            ),
+        ];
+
+        for (error, code, retryable, message) in cases {
+            let mapped: WorkerError = map_workflow_read_error_as_conflict(error).into();
             assert_eq!(mapped.code, code);
             assert_eq!(mapped.retryable, retryable);
             assert_eq!(mapped.message, message);

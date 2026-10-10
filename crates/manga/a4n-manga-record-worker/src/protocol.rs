@@ -30,30 +30,11 @@ pub(super) fn manga_error(error: a4n_db::manga::MangaPromptRecordError) -> Worke
 }
 
 pub(super) fn workflow_error(error: a4n_db::workflow::WorkflowReadError) -> WorkerFailure {
-    match error {
-        a4n_db::workflow::WorkflowReadError::InvalidArgument(message)
-        | a4n_db::workflow::WorkflowReadError::InvalidData(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::workflow::WorkflowReadError::NotFound(message) => WorkerFailure::not_found(message),
-        a4n_db::workflow::WorkflowReadError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
+    a4n_worker_db_adapter::map_workflow_read_error_as_invalid_request(error)
 }
 
 pub(super) fn project_family_error(error: a4n_db::project::ProjectFamilyDbError) -> WorkerFailure {
-    match error {
-        a4n_db::project::ProjectFamilyDbError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::project::ProjectFamilyDbError::NotFound(message) => {
-            WorkerFailure::not_found(message)
-        }
-        a4n_db::project::ProjectFamilyDbError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
+    a4n_worker_db_adapter::map_project_family_db_error(error)
 }
 
 pub(super) fn collaboration_error(

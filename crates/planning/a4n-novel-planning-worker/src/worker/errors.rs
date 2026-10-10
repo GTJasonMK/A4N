@@ -18,17 +18,7 @@ pub(super) fn source_error(error: a4n_db::project::ResolveChapterSourceError) ->
 }
 
 pub(super) fn project_family_error(error: a4n_db::project::ProjectFamilyDbError) -> WorkerFailure {
-    match error {
-        a4n_db::project::ProjectFamilyDbError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::project::ProjectFamilyDbError::NotFound(message) => {
-            WorkerFailure::not_found(message)
-        }
-        a4n_db::project::ProjectFamilyDbError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
+    a4n_worker_db_adapter::map_project_family_db_error(error)
 }
 
 pub(super) fn collaboration_error(

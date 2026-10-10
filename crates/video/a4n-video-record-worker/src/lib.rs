@@ -436,14 +436,7 @@ fn worker_app_error(error: a4n_error::AppError) -> WorkerFailure {
 mod tests;
 
 fn workflow_error(error: a4n_db::workflow::WorkflowReadError) -> WorkerFailure {
-    match error {
-        a4n_db::workflow::WorkflowReadError::InvalidArgument(message)
-        | a4n_db::workflow::WorkflowReadError::InvalidData(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::workflow::WorkflowReadError::NotFound(message) => WorkerFailure::not_found(message),
-        a4n_db::workflow::WorkflowReadError::Database(error) => database_error(error),
-    }
+    a4n_worker_db_adapter::map_workflow_read_error_as_invalid_request(error)
 }
 
 fn video_error(error: a4n_db::video::VideoDbError) -> WorkerFailure {

@@ -298,17 +298,7 @@ fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> Wo
 }
 
 fn project_error(error: a4n_db::project::ProjectFamilyDbError) -> WorkerFailure {
-    match error {
-        a4n_db::project::ProjectFamilyDbError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::project::ProjectFamilyDbError::NotFound(message) => {
-            WorkerFailure::not_found(message)
-        }
-        a4n_db::project::ProjectFamilyDbError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
+    a4n_worker_db_adapter::map_project_family_db_error(error)
 }
 
 fn database_error(error: impl std::fmt::Display) -> WorkerFailure {
