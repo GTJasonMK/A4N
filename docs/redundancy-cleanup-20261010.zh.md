@@ -735,6 +735,13 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 静态搜索确认 `frontend/src` 生产代码仅剩 `numberRange.ts` 自身直接调用 `Number.isSafeInteger`；未新增兜底、兼容或回退逻辑。
 - 记录范围：`frontend/src/pages/CharacterDetailDialog.tsx`。
 
+### R-90：核验并保留 Agent Runtime application accessor 边界
+
+- 类别：候选转发层复核，未删除。
+- BFS 覆盖：从 `AppState` 的全部 Agent/Agent Worker application accessor 追到 Runtime actions、Agent Runtime Host、Control route 和 `a4n-agent-runtime-contract` trait；共核对 30 余个 accessor 的返回 trait、调用点、所有权和异步生命周期。
+- 这些方法不是同一事实的重复 API：每个方法返回不同的 application port trait object，形成编译期能力边界；`agent_worker_lease_application` 与 `agent_worker_failure_application` 返回 `Arc`，调用者需要跨异步调用持有所有权。收敛为一个具体字段 accessor 会暴露实现、绕过端口隔离并增加耦合，因此保留。
+- 记录范围：`crates/host/a4n-runtime/src/state/app/agent.rs`、`crates/host/a4n-runtime/src/actions/agent_runtime/**`、`crates/host/a4n-runtime/src/agent_runtime_host.rs`、`crates/agent/a4n-agent-runtime-contract/src/ports.rs`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
