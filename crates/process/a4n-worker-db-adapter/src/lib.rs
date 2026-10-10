@@ -1,4 +1,5 @@
 use a4n_db::collaboration::CollaborationDbError;
+use a4n_db::project::ProjectMutationError;
 use a4n_worker_contract::WorkerFailure;
 
 enum InternalErrorPolicy {
@@ -14,6 +15,16 @@ pub fn map_collaboration_db_error_preserving_internal(
     error: CollaborationDbError,
 ) -> WorkerFailure {
     map_collaboration_error(error, InternalErrorPolicy::Internal)
+}
+
+pub fn map_project_mutation_error(error: ProjectMutationError) -> WorkerFailure {
+    match error {
+        ProjectMutationError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
+        ProjectMutationError::NotFound(message) => WorkerFailure::not_found(message),
+        ProjectMutationError::Forbidden(message) => WorkerFailure::unauthorized(message),
+        ProjectMutationError::Internal(message) => WorkerFailure::conflict(message),
+        ProjectMutationError::Database(error) => WorkerFailure::unavailable(error.to_string()),
+    }
 }
 
 fn map_collaboration_error(
@@ -101,5 +112,50 @@ mod tests {
         assert_eq!(mapped.code, WorkerErrorCode::Internal);
         assert!(!mapped.retryable);
         assert_eq!(mapped.message, "internal failure");
+    }
+
+    #[test]
+    fn project_mutation_errors_map_to_the_worker_failure_contract() {
+        let database_error = DbErr::Custom("database unavailable".into());
+        let database_message = database_error.to_string();
+        let cases = [
+            (
+                ProjectMutationError::InvalidArgument("invalid input".into()),
+                WorkerErrorCode::InvalidRequest,
+                false,
+                "invalid input".to_string(),
+            ),
+            (
+                ProjectMutationError::NotFound("missing project".into()),
+                WorkerErrorCode::NotFound,
+                false,
+                "missing project".to_string(),
+            ),
+            (
+                ProjectMutationError::Forbidden("permission denied".into()),
+                WorkerErrorCode::Unauthorized,
+                false,
+                "permission denied".to_string(),
+            ),
+            (
+                ProjectMutationError::Internal("internal failure".into()),
+                WorkerErrorCode::Conflict,
+                false,
+                "internal failure".to_string(),
+            ),
+            (
+                ProjectMutationError::Database(database_error),
+                WorkerErrorCode::Unavailable,
+                true,
+                database_message,
+            ),
+        ];
+
+        for (error, code, retryable, message) in cases {
+            let mapped: WorkerError = map_project_mutation_error(error).into();
+            assert_eq!(mapped.code, code);
+            assert_eq!(mapped.retryable, retryable);
+            assert_eq!(mapped.message, message);
+        }
     }
 }

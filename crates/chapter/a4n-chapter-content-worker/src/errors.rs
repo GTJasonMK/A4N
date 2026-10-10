@@ -46,23 +46,7 @@ pub(super) fn collaboration_error(
 }
 
 pub(super) fn project_error(error: a4n_db::project::ProjectMutationError) -> WorkerFailure {
-    match error {
-        a4n_db::project::ProjectMutationError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::project::ProjectMutationError::NotFound(message) => {
-            WorkerFailure::not_found(message)
-        }
-        a4n_db::project::ProjectMutationError::Forbidden(message) => {
-            WorkerFailure::unauthorized(message)
-        }
-        a4n_db::project::ProjectMutationError::Internal(message) => {
-            WorkerFailure::conflict(message)
-        }
-        a4n_db::project::ProjectMutationError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
+    a4n_worker_db_adapter::map_project_mutation_error(error)
 }
 
 pub(super) fn workflow_error(error: a4n_db::workflow::WorkflowReadError) -> WorkerFailure {
