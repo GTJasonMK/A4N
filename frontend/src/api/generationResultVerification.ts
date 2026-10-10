@@ -1,6 +1,7 @@
 import type { GenerationArtifactRef } from "./generated/generationContracts";
 import type { GenerationTaskViewState } from "../utils/generationEventReducer";
 import { sha256Json } from "../utils/contentHash";
+import { isPositiveSafeInteger } from "../utils/numberRange";
 import { markGenerationConsistencyFailure } from "./generationTasks";
 
 interface GeneratedMediaRecord {
@@ -101,5 +102,5 @@ function canonicalArtifact(artifact: GenerationArtifactRef): boolean {
 function positiveInteger(value: string): number | null {
   if (!/^[1-9]\d*$/.test(value)) return null;
   const parsed = Number(value);
-  return Number.isSafeInteger(parsed) ? parsed : null;
+  return isPositiveSafeInteger(parsed) ? parsed : null;
 }

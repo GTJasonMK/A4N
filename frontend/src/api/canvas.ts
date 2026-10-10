@@ -1,4 +1,5 @@
 import { apiInvoke } from "./index";
+import { isPositiveSafeInteger } from "../utils/numberRange";
 export { CANVAS_MEDIA_INPUT_METADATA_KEYS, CANVAS_MEDIA_INPUT_REF_TYPES } from "./generated/host";
 import type { GeneratedImage } from "./image/types";
 import type { ModelRequestPreview } from "./requestPreview";
@@ -121,7 +122,7 @@ export async function saveCanvasGraph(
   const nodeIds = new Set(saved.nodes.map(node => node.id));
   if (!saved.node_ids || typeof saved.node_ids !== "object" || Array.isArray(saved.node_ids) || graph.nodes.some(node => {
     const id = saved.node_ids[node.client_id.trim()];
-    return !Number.isSafeInteger(id) || id <= 0 || !nodeIds.has(id);
+    return !isPositiveSafeInteger(id) || !nodeIds.has(id);
   })) {
     throw new Error("保存画布返回的节点标识映射不完整");
   }

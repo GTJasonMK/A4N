@@ -3,6 +3,7 @@ import { buildRuntimeConfigSnapshot } from "./runtimeConfigSnapshot";
 import { readSseStream } from "../utils/sseParser";
 import { runtimeInvoke } from "./runtime";
 import { shouldUseHttpBackend } from "../utils/runtimeMode";
+import { isPositiveSafeInteger, isSafeInteger } from "../utils/numberRange";
 import type {
   AgentApprovalView,
   RespondAgentEditorInput,
@@ -519,7 +520,7 @@ function validateAgentEvent(
 ): void {
   if (
     event.thread_id !== expectedThreadId
-    || !Number.isSafeInteger(event.sequence)
+    || !isSafeInteger(event.sequence)
     || event.sequence <= previousSequence
     || typeof event.kind !== "string"
     || !event.kind
@@ -633,8 +634,7 @@ function parseAgentEvent(data: string, expectedThreadId: string): AgentEvent {
   const event = value as Partial<AgentEvent>;
   if (
     event.thread_id !== expectedThreadId
-    || !Number.isSafeInteger(event.sequence)
-    || (event.sequence ?? 0) <= 0
+    || !isPositiveSafeInteger(event.sequence)
     || typeof event.kind !== "string"
     || !event.kind
     || typeof event.actor_kind !== "string"

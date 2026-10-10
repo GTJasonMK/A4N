@@ -671,6 +671,14 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 回归覆盖零、负数、小数、非数字、`MAX_SAFE_INTEGER` 边界和系统哨兵。相关 Vitest 6 文件 26/26 通过；前端生产构建通过；迁移后搜索不再发现 projectId/requestProjectId 的有限正数/安全整数分叉；`git diff --check` 通过。
 - 记录范围：`frontend/src/utils/numberRange.{ts,test.ts}`、`frontend/src/api/shared.ts`、API config shared test、Novel/Video/Comic/Galgame/Canvas/Writing/Inspiration/Agent Monitor 前端项目 ID 使用点。
 
+### R-82：收敛前端 API 安全整数校验
+
+- 类别：重复边界校验。
+- BFS 覆盖：从 Agent SSE 事件、Auth portable storage、Blueprint/Canvas/Chapter API、生成结果校验、图像尺寸、运行时设置和 Visual Plan SSE 回执入口出发，沿各自的调用方、测试和 generated API 类型追踪到下游 API 请求、状态更新与错误路径；CodeGraph 与 `rg` 复核这些模块的全部 `Number.isSafeInteger`/`Number.isInteger` 生产引用。
+- 9 个 API 文件改用现有 `frontend/src/utils/numberRange.ts` 的 `isSafeInteger`/`isPositiveSafeInteger`，删除重复的类型、整数和正数组合判断；运行时设置校验直接返回已完成类型收窄的数值，图像尺寸保留 32 位上限，其他错误文案、顺序和失败策略不变。章节生成目标原本只要求安全整数，因此保留非正章节号的正则边界，不扩大为正数校验。
+- 静态搜索确认 `frontend/src/api` 已无直接 `Number.isSafeInteger`/`Number.isInteger`；未新增兜底、兼容或回退逻辑。
+- 记录范围：`frontend/src/api/{agent,authStorage,blueprint,canvas,chapter,generationResultVerification,visualPlanEdits}.ts`、`frontend/src/api/image/types.ts`、`frontend/src/api/localRuntimeSettingsValidation.ts`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
