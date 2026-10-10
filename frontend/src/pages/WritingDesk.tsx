@@ -114,7 +114,7 @@ export const WritingDesk: React.FC = () => {
     const value = searchParamsRef.current.get("chapter");
     if (!value || !/^[1-9]\d*$/.test(value)) return null;
     const number = Number(value);
-    return Number.isSafeInteger(number) && number <= 2_147_483_647 ? number : null;
+    return isPositiveSafeInteger(number) && number <= 2_147_483_647 ? number : null;
   };
   // URL owns chapter selection; changing chapters must not remount the workspace.
   const activeNumber = loading ? null : requestedChapterNumber();
@@ -845,7 +845,7 @@ export const WritingDesk: React.FC = () => {
       return;
     }
     const chapterNumber = Number(normalized);
-    if (!Number.isSafeInteger(chapterNumber) || chapterNumber > 2_147_483_647) {
+    if (!isPositiveSafeInteger(chapterNumber) || chapterNumber > 2_147_483_647) {
       addToast(t("writing.chapterNumberRange"), "error");
       return;
     }

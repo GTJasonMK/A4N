@@ -1,12 +1,11 @@
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
+import { isPositiveSafeInteger } from "../../../utils/numberRange";
 
 export const trimmedText = (value: string | null | undefined): string =>
   value == null ? "" : value.trim();
 
 export const positiveIntegerOrNull = (value: unknown): number | null =>
-  typeof value === "number" && Number.isInteger(value) && value > 0
-    ? value
-    : null;
+  isPositiveSafeInteger(value) ? value : null;
 
 export const extractSourceContentHash = (metadata: unknown): string | null => {
   const source = asRecord(metadata)?.source;

@@ -31,6 +31,7 @@ import {
   type AdminProjectSummary,
 } from "../../api/admin";
 import { extractErrorMessage } from "../../api";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
@@ -94,7 +95,7 @@ const RESOURCE_COPY_KEYS: Record<string, MessageKey> = {
 
 const numberParameter = (value: string): number | null => {
   const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  return isPositiveSafeInteger(parsed) ? parsed : null;
 };
 
 export const TestCenterPage: React.FC = () => {

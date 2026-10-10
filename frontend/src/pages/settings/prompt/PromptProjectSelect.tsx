@@ -5,6 +5,7 @@ import { extractErrorMessage } from "../../../api";
 import { hasProjectEditorRole, listAllProjects, type NovelProject } from "../../../api/project";
 import { BookButton } from "../../../components/ui/BookButton";
 import { useI18n } from "../../../i18n";
+import { isPositiveSafeInteger } from "../../../utils/numberRange";
 
 interface PromptProjectSelectProps {
   value: number | null;
@@ -58,7 +59,7 @@ export const PromptProjectSelect: React.FC<PromptProjectSelectProps> = ({
       value={value ?? ""}
       onChange={(selectedValue) => {
         const next = Number(selectedValue);
-        onChange(Number.isInteger(next) && next > 0 ? next : null);
+        onChange(isPositiveSafeInteger(next) ? next : null);
       }}
       className={`pyqt-input min-w-0 ${className}`}
       aria-label={ariaLabel}

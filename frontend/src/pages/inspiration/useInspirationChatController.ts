@@ -329,7 +329,7 @@ export const useInspirationChatController = () => {
         const resultRef = generationTask.resultRef;
         const resultId = resultRef ? Number(resultRef.id) : NaN;
         const canResolveResult = resultRef?.kind === "inspiration_message"
-          && Number.isSafeInteger(resultId);
+          && isPositiveSafeInteger(resultId);
         const history = canResolveResult
           ? await getInspirationHistory(requestProjectId)
           : [];

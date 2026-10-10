@@ -687,6 +687,14 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 静态复核确认本批选定的正 ID/引用路径不再复制安全整数谓词；未新增兜底、兼容或回退逻辑。
 - 记录范围：`frontend/src/hooks/usePageSession.ts`、`frontend/src/components/agent/{DomainAgentBinding,contentOptimizationDiff}.tsx/ts`、`frontend/src/pages/{agentMonitorUtils.ts,character-detail-dialog/manageViewUtils.ts,video-studio/{canvasAssemblyEdges,canvasConfig,canvasGraphMapping,canvasNodeRefs}.ts,novel-detail/video/{videoImageUtils,videoFramePromptUtils}.ts,writing-desk/WritingDeskHeader.tsx,novel-detail/optimize/OptimizeHeader.tsx,novel-detail/visual-plan/DirectorTimeline.tsx}`。
 
+### R-84：统一前端结果引用与正整数输入校验
+
+- 类别：重复边界校验。
+- BFS 覆盖：从章节/灵感/蓝图生成结果引用恢复路径、Galgame 媒体绑定、视频媒体引用与大纲工具，到写作台章节范围、项目列表派生章节范围、管理测试中心和提示词项目选择，追踪到历史记录查找、章节重载、导航和 API 请求；CodeGraph 复核调用方、既有测试和生成合同 ID 类型。
+- 11 个路径改用 `isPositiveSafeInteger`，蓝图章节数改用 `isSafeInteger` 后继续保留 5–10000 范围；保留正则格式、章节 32 位上限、范围关系和错误文案。结果引用 ID 现在拒绝 0，避免把无效标识当作可恢复记录；未新增兜底、兼容或回退逻辑。
+- 静态搜索确认本批选定文件不再直接调用 `Number.isSafeInteger`/`Number.isInteger`；允许空值或 0 的通用数值解析不在本批合并。
+- 记录范围：`frontend/src/pages/{NovelList.tsx,WritingDesk.tsx,admin/TestCenterPage.tsx,inspiration/{useBlueprintWorkflow,useInspirationChatController}.ts,novel-detail/galgame/MediaAssetIdBinder.tsx,novel-detail/outlines/outlineTabUtils.ts,novel-detail/video/videoTabShared.ts,settings/prompt/PromptProjectSelect.tsx,writing-desk/{generationWordCount,useChapterStreamGeneration}.ts}`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
