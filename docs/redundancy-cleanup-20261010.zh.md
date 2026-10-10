@@ -347,6 +347,14 @@
 - 三个 `ProjectSummaryError -> WorkerFailure` 组合映射逐变体一致，子类型映射已由 R-34/R-38/R-40 分别集中。将组合函数放进通用 process adapter 会使所有 adapter 消费者依赖 `a4n-project-read-core`；另建项目专用 crate 只服务三个调用点，成本高于这 4 分支 match，故保持在 Worker 边界。
 - Object Profile/Scene Profile 的显示错误到 InvalidRequest 只有四处输入规范化闭包，另有两处已直接使用 `WorkerFailure::invalid_request` 处理 String。尚无所有者合适且收益足以覆盖的共享 helper，不增添新的 contract API。
 
+### R-42：复核显性死代码与兼容入口
+
+- 类别：全仓核验，无代码删除。
+- BFS 覆盖：再次枚举 `#[allow(dead_code)]`、行注释中的代码样式、`legacy`/`compat`/`fallback` 入口，并沿可见 import、脚本调用、路由和测试 fixture 查引用；`cargo machete` 检查所有 workspace manifest。
+- 三处 `allow(dead_code)` 分别用于脚本调用的 Generation schema 导出类型，以及 `cfg(test)` 项目包 record fixture。检索到的 33 行代码样式注释均为约束或未来条件说明，没有注释掉的可执行实现。
+- Edge 的 Axum fallback 是 SPA index 路由；Runtime baseline config 的 fallback 参数在 env 缺失时用于播种配置；editor source / source-sync / family package / media-authoring legacy converters 分别有生产解析、迁移或导入调用。它们均为活跃路径，不按标识符中的 `fallback`/`legacy` 做症状性删除。
+- `cargo machete` 未发现未使用 Cargo 依赖；本轮没有新增删除候选。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
