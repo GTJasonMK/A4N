@@ -1042,6 +1042,14 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：Runtime 测试二进制编译通过；`dynamic_llm::` 20/20 通过；`cargo fmt --all -- --check`、`git diff --check` 通过；共享 agent target 已清理。
 - 记录范围：`crates/host/a4n-runtime/src/dynamic_llm/config.rs` 及其 model/budget/provider consumers。
 
+### R-127：核验 DB provider 配置 resolution 分叉
+
+- 类别：跨 provider 的相似默认/ID 查询候选，核验后保留。
+- BFS 覆盖：从 `a4n-db::config::providers::{llm,image,video,embedding}` 的 resolution/records 入口追到 `read_records`、Orchestrator settings application、Runtime Dynamic LLM/Embedding facade、Image/Video Runtime config paths 及 Host/sidecar consumers；同时核对 DB entity `is_default`、config ID、provider job 查找和 Tauri/local snapshot 路径。
+- 保留理由：LLM/Image 同时支持 optional config ID 与默认配置，且各自模型/错误合同不同；Video resolution 是 provider-job 场景的默认配置 owner，不提供同形 ID resolver；Embedding 必须同时提供 optional default、required default、参数验证和独立 CRUD，Dynamic Embedding 依赖 optional 结果决定 runtime snapshot/DB fallback。合并会混淆 optional 语义、错误文本或实体类型，新增泛型只会隐藏这些边界。
+- 本项无代码改动；未改变默认配置、权限、provider job 查找或 runtime snapshot 优先级。
+- 记录范围：`crates/platform/a4n-db/src/config/providers/{llm,image,video,embedding.rs}`、resolution/records/read-records modules，以及对应 Orchestrator/Runtime/Host consumers。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
