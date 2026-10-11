@@ -164,17 +164,8 @@ async fn upload_remote_temp_media(
             truncate_error_body(&text)
         )
     })?;
-    let (url, expires_at_ms) = validate_remote_temp_media_response(
-        &parsed,
-        payload.owner_user_id,
-        payload.project_id,
-        &payload.source_media_kind,
-        payload.source_media_id,
-        &payload.mime_type,
-        &sha256,
-        byte_size,
-        Utc::now(),
-    )?;
+    let (url, expires_at_ms) =
+        validate_remote_temp_media_response(&parsed, &payload, &sha256, byte_size, Utc::now())?;
     tracing::info!(
         artifact_id = parsed.artifact_id.trim(),
         owner_user_id = payload.owner_user_id,
@@ -201,11 +192,7 @@ async fn upload_remote_temp_media(
 
 fn validate_remote_temp_media_response<'a>(
     response: &'a TempMediaUploadResponse,
-    owner_user_id: i64,
-    project_id: i64,
-    source_media_kind: &str,
-    source_media_id: i64,
-    mime_type: &str,
+    request: &TempMediaUploadRequest,
     sha256: &str,
     byte_size: usize,
     now: DateTime<Utc>,
@@ -214,14 +201,17 @@ fn validate_remote_temp_media_response<'a>(
     if !valid_remote_temp_artifact_id(artifact_id) {
         return Err("远端临时媒体响应 artifact_id 无效".to_string());
     }
-    if response.owner_user_id != owner_user_id
-        || response.project_id != project_id
-        || response.source_media_kind != source_media_kind
-        || response.source_media_id != source_media_id
+    if response.owner_user_id != request.owner_user_id
+        || response.project_id != request.project_id
+        || response.source_media_kind != request.source_media_kind
+        || response.source_media_id != request.source_media_id
     {
         return Err("远端临时媒体响应 owner/project/source 不匹配".to_string());
     }
-    if !response.content_type.eq_ignore_ascii_case(mime_type) {
+    if !response
+        .content_type
+        .eq_ignore_ascii_case(&request.mime_type)
+    {
         return Err("远端临时媒体响应 content_type 与请求 MIME 不一致".to_string());
     }
     let expected_byte_size =
@@ -278,14 +268,7 @@ mod tests {
         let image = base64::engine::general_purpose::STANDARD
             .decode(encoded)
             .unwrap();
-        let metadata = TempMediaUploadRequest {
-            owner_user_id: 7,
-            project_id: 11,
-            source_media_kind: "generated_image".into(),
-            source_media_id: 13,
-            file_name: "参考图片.png".into(),
-            mime_type: "image/png".into(),
-        };
+        let metadata = upload_request();
         let metadata_json = serde_json::to_string(&metadata).unwrap();
         let mut output = response();
         output.sha256 = format!("{:x}", Sha256::digest(&image));
@@ -357,57 +340,39 @@ mod tests {
         }
     }
 
+    fn upload_request() -> TempMediaUploadRequest {
+        TempMediaUploadRequest {
+            owner_user_id: 7,
+            project_id: 11,
+            source_media_kind: "generated_image".into(),
+            source_media_id: 13,
+            file_name: "参考图片.png".into(),
+            mime_type: "image/png".into(),
+        }
+    }
+
     #[test]
     fn remote_temp_media_requires_https_and_bounded_ttl() {
         let now = DateTime::parse_from_rfc3339("2026-07-22T12:00:00Z")
             .unwrap()
             .with_timezone(&Utc);
+        let request = upload_request();
         assert_eq!(
-            validate_remote_temp_media_response(
-                &response(),
-                7,
-                11,
-                "generated_image",
-                13,
-                "image/png",
-                &"a".repeat(64),
-                3,
-                now
-            )
-            .unwrap(),
+            validate_remote_temp_media_response(&response(), &request, &"a".repeat(64), 3, now)
+                .unwrap(),
             ("https://media.example.test/a.png", 1_784_807_999_000)
         );
         let mut invalid = response();
         invalid.url = "http://media.example.test/a.png".into();
         assert!(
-            validate_remote_temp_media_response(
-                &invalid,
-                7,
-                11,
-                "generated_image",
-                13,
-                "image/png",
-                &"a".repeat(64),
-                3,
-                now
-            )
-            .is_err()
+            validate_remote_temp_media_response(&invalid, &request, &"a".repeat(64), 3, now)
+                .is_err()
         );
         let mut invalid = response();
         invalid.expires_at = "2026-07-24T12:00:00Z".into();
         assert!(
-            validate_remote_temp_media_response(
-                &invalid,
-                7,
-                11,
-                "generated_image",
-                13,
-                "image/png",
-                &"a".repeat(64),
-                3,
-                now
-            )
-            .is_err()
+            validate_remote_temp_media_response(&invalid, &request, &"a".repeat(64), 3, now)
+                .is_err()
         );
     }
 
@@ -416,19 +381,10 @@ mod tests {
         let now = Utc::now();
         let mut response = response();
         response.project_id = 99;
+        let request = upload_request();
         assert!(
-            validate_remote_temp_media_response(
-                &response,
-                7,
-                11,
-                "generated_image",
-                13,
-                "image/png",
-                &"a".repeat(64),
-                3,
-                now,
-            )
-            .is_err()
+            validate_remote_temp_media_response(&response, &request, &"a".repeat(64), 3, now,)
+                .is_err()
         );
     }
 

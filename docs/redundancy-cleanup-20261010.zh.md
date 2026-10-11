@@ -864,6 +864,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 退出 0；`a4n-runtime` lib Clippy 告警由 19 条降为 18 条，目标 `too_many_arguments` 告警消失。`cargo fmt --all -- --check`、`git diff --check` 通过。all-targets Clippy 编译覆盖 Runtime 测试目标；当前无该转换函数的直接测试。
 - 记录范围：`crates/host/a4n-runtime/src/actions/video_generation/media/{provider_images.rs,provider_images/input.rs,reference_images/provider.rs}`。
 
+### R-107：复用远端临时媒体请求 metadata 校验响应
+
+- 类别：上传请求 metadata 拆成多个参数后重复传入 response validator。
+- BFS 覆盖：从 Clippy `too_many_arguments` 命中追到 `upload_remote_temp_media` 的唯一生产 validator 调用，再追到 `media_bytes_to_remote_temp_media_url`、图像转换、参考媒体和预览上传入口。CodeGraph 核对 `TempMediaUploadRequest` 在 multipart 请求序列化及 Control 上传合同中的生产流向，并确认 Runtime 单测覆盖 metadata mismatch、HTTPS/TTL 与 binary multipart 上传。
+- Validator 改为接收 `&TempMediaUploadRequest`，直接对照唯一上传请求事实中的 owner、project、source 和 MIME；checksum、byte size 与可注入的 `now` 继续显式传入。测试用共享 `upload_request()` fixture 复用相同合同数据，减少四处重复字段构造。
+- 保持校验分支、错误文案、字段比较、URL/TTL 条件及 artifact 投影不变；未新增兜底、兼容或回退逻辑。
+- 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 退出 0；`a4n-runtime` lib Clippy 告警由 18 条降为 17 条，目标高参数告警消失。`timeout 180s cargo test --no-run --offline --locked -p a4n-runtime --lib` 通过；`timeout 60s cargo test --offline --locked -p a4n-runtime --lib remote_temp -- --test-threads=1` 7/7 通过；格式与 diff 检查通过。首轮冷编译在 60 秒测试命令内超时，预编译后重跑通过。
+- 记录范围：`crates/host/a4n-runtime/src/actions/video_generation/media/provider_images/remote_upload.rs`、`crates/host/a4n-api-contract/src/temp_media.rs`、Control temp media upload route 及 Runtime remote media upload callers。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
