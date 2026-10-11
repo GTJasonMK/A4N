@@ -36,8 +36,8 @@ pub(crate) use request_context::{
     typed_service_request_with_context_provider_secret_policy,
 };
 use response::{
-    GenerationEvent, parse_generation_event, service_app_error, service_error_app_error,
-    service_error_string,
+    GenerationEvent, GenerationStreamError, collect_generation_output, parse_generation_event,
+    service_app_error, service_error_app_error, service_error_string,
 };
 pub(crate) use response::{response_payload, typed_response_payload};
 pub(crate) use service_manager::{

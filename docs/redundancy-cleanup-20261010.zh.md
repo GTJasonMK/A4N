@@ -909,6 +909,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 退出 0；`a4n-runtime` lib Clippy 告警由 14 条降为 13 条，目标高参数告警消失。`timeout 180s cargo test --no-run --offline --locked -p a4n-runtime --lib` 通过；`timeout 60s cargo test --offline --locked -p a4n-runtime --lib assembly_cache -- --test-threads=1` 8/8 通过；格式与 diff 检查通过。
 - 记录范围：`crates/host/a4n-runtime/src/actions/video_records/{assembly.rs,assembly/cache.rs,assembly/cache/manifest.rs,assembly/push.rs,assembly/actions/push.rs,imports/canvas/assembly.rs,tests/support.rs}`。
 
+### R-112：统一 Image/Video Sidecar 生成事件消费
+
+- 类别：Image 与 Video 各自重复实现 sidecar generate-events 的 transport/event select、终止事件等待和 progress/completed 分派。
+- BFS 覆盖：CodeGraph/静态引用从 `generate_image`、`generate_video` 路由追到各自 sidecar payload builder、`ImageClient`/`VideoClient::generate_events`、共享 `parse_generation_event` 和结果 materialization；另核对 RAG 只解析单事件，不拥有完整生成流生命周期。
+- 在 `sidecar_clients::response` 新增 `collect_generation_output`，统一 request future 与事件 receiver 的并发等待，并显式返回 Transport/Event/Progress 错误类别。Image 保留 `service_error_string`、无失败的 callback progress 和 base64 解码；Video 保留 `video_service_error`、AppError 分类、发送失败语义及 `video_generation_result`。Wire parser 继续是唯一解析 owner。
+- 新增 4 项 collector 单测覆盖 progress 后完成、流关闭缺少终止事件、transport error 和 progress sink error；不改变服务请求、event payload、结果转换或错误分类合同，不新增 fallback。
+- 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 退出 0；`timeout 180s cargo test --no-run --offline --locked -p a4n-runtime --lib` 通过；`timeout 60s cargo test --offline --locked -p a4n-runtime --lib collect_generation_output -- --test-threads=1` 4/4 通过；`cargo fmt --all -- --check`、`git diff --check` 通过。
+- 记录范围：`crates/host/a4n-runtime/src/{sidecar_clients.rs,sidecar_clients/response.rs,sidecar_clients/image/operations/sidecar.rs,sidecar_clients/video/events.rs}`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

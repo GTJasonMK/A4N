@@ -7,7 +7,8 @@ use a4n_video_client::VideoClient;
 use tokio::sync::mpsc::UnboundedSender;
 
 use super::super::{
-    GenerationEvent, parse_generation_event, sidecar_context_for_workflow_operation_with_root,
+    GenerationStreamError, collect_generation_output,
+    sidecar_context_for_workflow_operation_with_root,
     typed_service_request_with_context_provider_secret_policy,
 };
 use super::contracts::{VideoGenerationOutput, video_generation_result, video_provider_payload};
@@ -53,39 +54,28 @@ pub(in crate::sidecar_clients::video) async fn generate_video_via_sidecar(
         payload,
     )
     .map_err(AppError::ConfigError)?;
-    let (event_tx, mut event_rx) =
+    let (event_tx, event_rx) =
         tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
-    let mut request_future = Box::pin(client.generate_events(request, event_tx));
-    let mut transport_complete = false;
-    let output = loop {
-        tokio::select! {
-            result = &mut request_future, if !transport_complete => {
-                result.map_err(video_service_error)?;
-                transport_complete = true;
+    let output = collect_generation_output::<VideoGenerationOutput, _, _>(
+        client.generate_events(request, event_tx),
+        event_rx,
+        "video",
+        |message| {
+            if let Some(progress_tx) = progress_tx.as_ref() {
+                progress_tx
+                    .send(message)
+                    .map_err(|_| "video sidecar progress 接收端已关闭".to_string())?;
             }
-            event = event_rx.recv() => {
-                let event = event.ok_or_else(|| {
-                    AppError::ConfigError("video sidecar 生成事件流结束但缺少终止事件".to_string())
-                })?;
-                match parse_generation_event::<VideoGenerationOutput>(event, "video")
-                    .map_err(AppError::ConfigError)?
-                {
-                    GenerationEvent::Progress(message) => {
-                        if let Some(progress_tx) = progress_tx.as_ref() {
-                            progress_tx
-                                .send(message)
-                                .map_err(|_| {
-                                    AppError::ConfigError(
-                                        "video sidecar progress 接收端已关闭".to_string(),
-                                    )
-                                })?;
-                        }
-                    }
-                    GenerationEvent::Completed(output) => break output,
-                }
-            }
+            Ok(())
+        },
+    )
+    .await
+    .map_err(|error| match error {
+        GenerationStreamError::Transport(error) => video_service_error(error),
+        GenerationStreamError::Event(error) | GenerationStreamError::Progress(error) => {
+            AppError::ConfigError(error)
         }
-    };
+    })?;
     video_generation_result(output).map_err(AppError::ConfigError)
 }
 

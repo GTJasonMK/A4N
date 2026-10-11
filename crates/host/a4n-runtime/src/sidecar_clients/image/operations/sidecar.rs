@@ -8,8 +8,8 @@ use base64::Engine as _;
 use serde_json::Value;
 
 use super::super::super::{
-    GenerationEvent, SidecarRequestContext, missing_sidecar_capability_message,
-    parse_generation_event, response_payload, service_error_string,
+    GenerationStreamError, SidecarRequestContext, collect_generation_output,
+    missing_sidecar_capability_message, response_payload, service_error_string,
     sidecar_context_for_workflow_operation_with_root,
     typed_service_request_with_context_provider_secret_policy,
 };
@@ -55,31 +55,24 @@ pub(super) async fn generate_image_via_sidecar(
         a4n_service_protocol::IMAGE_PROVIDER_CAPABILITY_VERSION,
         payload,
     )?;
-    let (event_tx, mut event_rx) =
+    let (event_tx, event_rx) =
         tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
-    let mut request_future = Box::pin(client.generate_events(request, event_tx));
-    let mut transport_complete = false;
-    let output = loop {
-        tokio::select! {
-            result = &mut request_future, if !transport_complete => {
-                result.map_err(service_error_string)?;
-                transport_complete = true;
+    let output = collect_generation_output::<ImageGenerationOutput, _, _>(
+        client.generate_events(request, event_tx),
+        event_rx,
+        "image",
+        |message| {
+            if let Some(progress) = progress {
+                progress(&message);
             }
-            event = event_rx.recv() => {
-                let event = event.ok_or_else(|| {
-                    "image sidecar 生成事件流结束但缺少终止事件".to_string()
-                })?;
-                match parse_generation_event::<ImageGenerationOutput>(event, "image")? {
-                    GenerationEvent::Progress(message) => {
-                        if let Some(progress) = progress {
-                            progress(&message);
-                        }
-                    }
-                    GenerationEvent::Completed(output) => break output,
-                }
-            }
-        }
-    };
+            Ok::<(), String>(())
+        },
+    )
+    .await
+    .map_err(|error| match error {
+        GenerationStreamError::Transport(error) => service_error_string(error),
+        GenerationStreamError::Event(error) | GenerationStreamError::Progress(error) => error,
+    })?;
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(output.bytes_base64)
         .map_err(|err| format!("image sidecar 返回的 bytes_base64 无效: {err}"))?;
