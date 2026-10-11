@@ -178,16 +178,18 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
         let request_json = serde_json::to_value(&request)?;
         let request_body_snapshot =
             match crate::actions::image_generation::image_generation_preview_step(
-                self.state.runtime_profile(),
-                self.state.capabilities().image.clone(),
-                self.state.project_access_application(),
-                project_id,
-                "portrait_generation",
-                "Portrait image provider request",
-                Some("image_generation_request".to_string()),
-                None,
-                &config,
-                request.clone(),
+                crate::actions::image_generation::ImageGenerationPreviewInput {
+                    runtime_profile: self.state.runtime_profile(),
+                    client: self.state.capabilities().image.clone(),
+                    collaboration: self.state.project_access_application(),
+                    project_id,
+                    key: "portrait_generation".to_string(),
+                    title: "Portrait image provider request".to_string(),
+                    prompt_name: Some("image_generation_request".to_string()),
+                    note: None,
+                    config: &config,
+                    request: request.clone(),
+                },
             )
             .await
             {

@@ -69,16 +69,18 @@ impl ImageGenerationHostPort for RuntimeImageGenerationHostPort<'_> {
             .await
             .map_err(host_error)?;
         let request_json = match super::preview::image_generation_preview_step(
-            self.state.runtime_profile(),
-            self.state.capabilities().image.clone(),
-            self.state.project_access_application(),
-            input.project_id,
-            "image_generation",
-            "Image provider request",
-            Some("image_generation_request".to_string()),
-            None,
-            &input.config,
-            input.request.clone(),
+            super::ImageGenerationPreviewInput {
+                runtime_profile: self.state.runtime_profile(),
+                client: self.state.capabilities().image.clone(),
+                collaboration: self.state.project_access_application(),
+                project_id: input.project_id,
+                key: "image_generation".to_string(),
+                title: "Image provider request".to_string(),
+                prompt_name: Some("image_generation_request".to_string()),
+                note: None,
+                config: &input.config,
+                request: input.request.clone(),
+            },
         )
         .await
         {

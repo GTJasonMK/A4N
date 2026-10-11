@@ -936,6 +936,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 通过，lib 告警由 12 条降至 11 条（Image route 的高参数告警消失）；`timeout 180s cargo test --no-run --offline --locked -p a4n-runtime --lib` 通过。`timeout 60s cargo test --offline --locked -p a4n-runtime --lib sidecar_clients:: -- --test-threads=1` 共运行 77 项，76 项通过；另 1 项未通过的是未改动 `service_manager::tests::selected_export_without_binary_fails_sidecar_configuration`，其预期错误子串断言失败，与本次 scope 路径无调用关系。此次修改相关的 image generation、video generation、video poll 和 scope 校验用例均通过。`cargo fmt --all -- --check`、`git diff --check` 通过；构建和测试期间持有共享锁，命令结束时执行 agent target 清理。
 - 记录范围：Runtime Image/Video route、request context scope 定义/导出、图像连通性/生成/肖像调用、视频提交/Canvas/恢复轮询调用及 Sidecar 测试。
 
+### R-115：命名 Image provider preview 输入
+
+- 类别：Image provider preview helper 接收 10 个位置参数，三类调用方重复展开相同的运行时依赖和预览字段。
+- BFS 覆盖：CodeGraph 从 `image_generation_preview_step` 追到三个直接调用方：预备图片流程、普通 Image Provider Host 和 Portrait Provider Host；静态搜索确认无其他直接生产调用。预备图片 helper 另有 batch、direct、page、profiles 五处调用，均复用同一 preview 装配入口。Embedded 与 Sidecar 的 request-preview 实现继续各自调用其唯一 owner，payload 构造、媒体脱敏和错误映射不混合。
+- 新增内部 `ImageGenerationPreviewInput` 命名输入，收纳 Runtime profile、Image client、project access、project ID、预览 key/title/prompt/note、provider config 和 request。helper 只解构该结构后执行原逻辑；保留显式注入的依赖，不获取完整 `AppState`。
+- 不改变 preview 选择、项目授权读取、prompt/note、配置、request 内容或错误传播；未新增 fallback、兼容或默认逻辑。
+- 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 通过，Runtime lib 告警由 11 条降至 10 条，Image preview 的高参数告警消失；`cargo fmt --all -- --check` 和 `git diff --check` 通过。该 helper 没有直接测试；all-targets Clippy 编译了 Runtime 测试目标。未运行单测：唯一可选的下游 request-preview 用例并不调用此 helper，共享构建锁正由其他会话的 release benchmark 持有，排队命令在开始构建前取消。
+- 记录范围：`crates/host/a4n-runtime/src/actions/image_generation/{preview.rs,mod.rs,host_port.rs}`、`actions/portrait_generation/host_port.rs`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
