@@ -24,6 +24,7 @@ export const HOST_API_COMMANDS = [
   "batch_accept_reviews",
   "bind_galgame_media",
   "bind_manga_reference_image",
+  "broadcast_creator_notification",
   "cancel_admin_task",
   "cancel_embedding_model_download",
   "cancel_galgame_pipeline",
@@ -207,6 +208,7 @@ export const HOST_API_COMMANDS = [
   "list_chapter_scenes",
   "list_chapter_video_prompts",
   "list_chapters",
+  "list_creator_notifications",
   "list_deletion_marks",
   "list_embedding_config",
   "list_foreshadowing",
@@ -255,6 +257,7 @@ export const HOST_API_COMMANDS = [
   "load_video_segment_plan_draft",
   "login_user",
   "modify_profile_attribute",
+  "mark_creator_notification_read",
   "move_inserted_segment",
   "oauth2_authorize_url",
   "oauth2_available_providers",
@@ -1963,6 +1966,30 @@ export interface CreateUserInput {
   password: string;
   role: string;
   username: string;
+}
+
+export interface BroadcastNotificationInput {
+  body: string;
+  title: string;
+}
+
+export interface BroadcastNotificationReceipt {
+  created_at: string;
+  notification_id: number;
+  recipient_count: number;
+}
+
+export interface CreatorNotificationItem {
+  body: string;
+  created_at: string;
+  id: number;
+  is_read: boolean;
+  title: string;
+}
+
+export interface CreatorNotificationInbox {
+  items: CreatorNotificationItem[];
+  unread_count: number;
 }
 
 export interface UpdateUserRoleInput {

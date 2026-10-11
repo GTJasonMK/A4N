@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("./runtimeMode", () => ({ isTauriRuntime: mocks.isTauriRuntime }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mocks.invoke }));
+vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => vi.fn()) }));
 
 function storage(): Storage {
   const values = new Map<string, string>();

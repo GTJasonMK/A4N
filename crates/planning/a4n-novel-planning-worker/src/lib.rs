@@ -231,21 +231,6 @@ mod tests {
     }
 
     #[test]
-    fn worker_address_rejects_public_bindings() {
-        assert!(worker_addr_from_value("0.0.0.0:47651").is_err());
-        assert!(worker_addr_from_value("127.0.0.1:0").is_err());
-        assert!(worker_addr_from_value("127.0.0.1:47651").is_ok());
-    }
-
-    fn worker_addr_from_value(value: &str) -> anyhow::Result<SocketAddr> {
-        let address: SocketAddr = value.parse()?;
-        if !address.ip().is_loopback() || address.port() == 0 {
-            anyhow::bail!("invalid worker address")
-        }
-        Ok(address)
-    }
-
-    #[test]
     fn revision_conflict_preserves_explicit_error_code() {
         let failure = shooting_script_error(
             a4n_db::shooting_script::ShootingScriptDbError::RevisionConflict {

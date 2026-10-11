@@ -5,12 +5,11 @@ pub(crate) use a4n_domain::project::normalized_blueprint_identity;
 
 pub(in crate::project::blueprint_sync) fn blueprint_relationship_model_identity(
     relationship: &blueprint_relationship::Model,
-) -> String {
-    format!(
-        "{}|{}|{}",
-        normalized_blueprint_identity(&relationship.relationship_type),
-        normalized_blueprint_identity(&relationship.character_a),
-        normalized_blueprint_identity(&relationship.character_b)
+) -> (String, String, String) {
+    a4n_domain::project::normalized_blueprint_relationship_identity(
+        &relationship.relationship_type,
+        &relationship.character_a,
+        &relationship.character_b,
     )
 }
 

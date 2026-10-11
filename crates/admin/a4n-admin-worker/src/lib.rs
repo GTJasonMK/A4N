@@ -3,15 +3,18 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use a4n_admin_worker_contract::{
-    ADMIN_ACTIVE_OPERATION, ADMIN_CREATE_INVITE_OPERATION, ADMIN_CREATE_USER_OPERATION,
-    ADMIN_DATABASE_HEALTH_OPERATION, ADMIN_GENERATION_ANALYTICS_OPERATION, ADMIN_INVITES_OPERATION,
-    ADMIN_OVERVIEW_OPERATION, ADMIN_PENDING_TASKS_OPERATION, ADMIN_PERMISSION_OPERATION,
-    ADMIN_PROJECTS_OPERATION, ADMIN_READ_CAPABILITY, ADMIN_TOKEN_SUMMARY_OPERATION,
-    ADMIN_UPDATE_ROLE_OPERATION, ADMIN_USAGE_TRENDS_OPERATION, ADMIN_USER_USAGE_OPERATION,
-    ADMIN_USERS_OPERATION, ADMIN_WORKER_CONTRACT_VERSION, ADMIN_WORKER_ID, ADMIN_WRITE_CAPABILITY,
-    AdminCallerInput, AdminCreateInviteInput, AdminCreateUserInput, AdminGenerationAnalyticsInput,
-    AdminPermissionInput, AdminUpdateRoleInput, AdminUsageTrendsInput, AdminUserInput,
-    AdminUserUsageInput, OperationAck,
+    ADMIN_ACTIVE_OPERATION, ADMIN_BROADCAST_NOTIFICATION_OPERATION, ADMIN_CREATE_INVITE_OPERATION,
+    ADMIN_CREATE_USER_OPERATION, ADMIN_DATABASE_HEALTH_OPERATION,
+    ADMIN_GENERATION_ANALYTICS_OPERATION, ADMIN_INVITES_OPERATION, ADMIN_OVERVIEW_OPERATION,
+    ADMIN_PENDING_TASKS_OPERATION, ADMIN_PERMISSION_OPERATION, ADMIN_PROJECTS_OPERATION,
+    ADMIN_READ_CAPABILITY, ADMIN_TOKEN_SUMMARY_OPERATION, ADMIN_UPDATE_ROLE_OPERATION,
+    ADMIN_USAGE_TRENDS_OPERATION, ADMIN_USER_USAGE_OPERATION, ADMIN_USERS_OPERATION,
+    ADMIN_WORKER_CONTRACT_VERSION, ADMIN_WORKER_ID, ADMIN_WRITE_CAPABILITY,
+    AdminBroadcastNotificationInput, AdminCallerInput, AdminCreateInviteInput,
+    AdminCreateUserInput, AdminGenerationAnalyticsInput, AdminPermissionInput,
+    AdminUpdateRoleInput, AdminUsageTrendsInput, AdminUserInput, AdminUserUsageInput,
+    BroadcastNotificationReceipt, CreatorNotificationInbox, NOTIFICATION_INBOX_OPERATION,
+    NOTIFICATION_READ_OPERATION, NotificationCallerInput, NotificationReadInput, OperationAck,
 };
 use a4n_api_contract::admin::AdminPermission;
 #[cfg(test)]
@@ -96,6 +99,12 @@ impl AdminWorker {
             .route("/v1/commands/admin.users.create", post(create_user))
             .route("/v1/commands/admin.invites.create", post(create_invite))
             .route("/v1/commands/admin.users.role.update", post(update_role))
+            .route(
+                "/v1/commands/admin.notifications.broadcast",
+                post(broadcast_notification),
+            )
+            .route("/v1/commands/notifications.inbox", post(notification_inbox))
+            .route("/v1/commands/notifications.read", post(notification_read))
             .with_state(self.state.clone())
     }
 
@@ -218,6 +227,24 @@ handler!(
     AdminUpdateRoleInput,
     ADMIN_UPDATE_ROLE_OPERATION,
     update_role
+);
+handler!(
+    broadcast_notification,
+    AdminBroadcastNotificationInput,
+    ADMIN_BROADCAST_NOTIFICATION_OPERATION,
+    broadcast_notification
+);
+handler!(
+    notification_inbox,
+    NotificationCallerInput,
+    NOTIFICATION_INBOX_OPERATION,
+    notification_inbox
+);
+handler!(
+    notification_read,
+    NotificationReadInput,
+    NOTIFICATION_READ_OPERATION,
+    mark_notification_read
 );
 
 async fn command_response<T, O, F, Fut>(

@@ -37,6 +37,11 @@ import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useAuthStore } from "../../store/auth";
 import { formatDateTime, useI18n } from "../../i18n";
+import {
+  closeStandaloneWindow,
+  isStandaloneWindow,
+  requestMainWindowNavigation,
+} from "../../utils/standaloneWindow";
 
 type TargetMode = "test_project" | "current_project" | "repository";
 type MessageKey = Parameters<ReturnType<typeof useI18n>["t"]>[0];
@@ -102,6 +107,7 @@ export const TestCenterPage: React.FC = () => {
   const { user } = useAuthStore();
   const { t, locale } = useI18n();
   const navigate = useNavigate();
+  const standaloneWindow = isStandaloneWindow();
   const [searchParams, setSearchParams] = useSearchParams();
   const [scenarios, setScenarios] = useState<TestScenarioDescriptor[]>([]);
   const [runs, setRuns] = useState<TestRunSummary[]>([]);
@@ -355,7 +361,26 @@ export const TestCenterPage: React.FC = () => {
           : project?.project_kind === "galgame"
             ? "galgame-project"
             : "novel";
-    navigate(`/${prefix}/${projectId}`);
+    const route = `/${prefix}/${projectId}`;
+    if (!standaloneWindow) {
+      navigate(route);
+      return;
+    }
+    void requestMainWindowNavigation(route).catch(() => {
+      setError(t("settingsAdmin.testCenter.mainWindowNavigationFailed"));
+    });
+  };
+
+  const closeOrReturn = () => {
+    if (!standaloneWindow) {
+      navigate("/settings#admin");
+      return;
+    }
+    void closeStandaloneWindow()
+      .then((closed) => {
+        if (!closed) navigate("/settings#admin");
+      })
+      .catch(() => navigate("/settings#admin"));
   };
 
   if (!user || user.role !== "admin") {
@@ -384,7 +409,7 @@ export const TestCenterPage: React.FC = () => {
       <header className="flex flex-wrap items-center gap-3 border-b border-book-border/70 px-4 py-3 md:px-6">
         <BookIconButton
           label={t("nav.backToPrevious")}
-          onClick={() => navigate("/settings#admin")}
+          onClick={closeOrReturn}
         >
           <ArrowLeft size={15} />
         </BookIconButton>

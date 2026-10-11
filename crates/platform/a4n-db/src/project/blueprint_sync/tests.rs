@@ -31,7 +31,7 @@ fn normalized_identity_collapses_whitespace_and_case() {
 fn relationship_identity_preserves_endpoint_order() {
     assert_eq!(
         blueprint_relationship_identity_keys([("friend", "alice", "bob")]).unwrap(),
-        ["friend|alice|bob"]
+        [("friend".to_string(), "alice".to_string(), "bob".to_string())]
     );
     assert_ne!(
         blueprint_relationship_identity_keys([("friend", "alice", "bob")]).unwrap(),

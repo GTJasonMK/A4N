@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use a4n_db_models::models::project::project_member;
-use a4n_domain::auth::ROLE_READ_ONLY;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 
 use super::super::{
@@ -90,16 +89,13 @@ pub async fn project_access_info_batch(
     let mut manager_root_ids = Vec::new();
     for root_id in &root_ids {
         let root = roots_by_id.get(root_id).expect("root was validated above");
-        let mut role = if root.user_id == user_id {
+        let role = if root.user_id == user_id {
             ProjectAccessRole::Owner
         } else {
             member_roles.get(root_id).copied().ok_or_else(|| {
                 CollaborationDbError::Forbidden(format!("无权访问项目: {root_id}"))
             })?
         };
-        if user.role == ROLE_READ_ONLY {
-            role = ProjectAccessRole::Viewer;
-        }
         if role.satisfies(ProjectAccessRole::Manager) {
             manager_root_ids.push(*root_id);
         }

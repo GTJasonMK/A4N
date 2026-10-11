@@ -7,6 +7,7 @@ import { Dropdown } from "../../components/ui/Dropdown";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import { StatusBarToggle } from "../../components/ui/StatusBar";
+import { CreatorNotificationButton } from "../../components/shell/CreatorNotificationButton";
 import {
   AllProjectList,
   RecentProjectList,
@@ -170,6 +171,7 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
                 ))}
               </ThemedSelect>
             </label>
+            <CreatorNotificationButton />
             <StatusBarToggle />
             {loading && (
               <span className="col-span-2 inline-flex items-center justify-end sm:col-span-1">

@@ -607,14 +607,14 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await (await inputFor("用户名")).setValue("界面审查作者");
     await (await inputFor("邮箱")).setValue("new-ui-author@example.invalid");
     await (await inputFor("初始密码")).setValue(fakePassword);
-    await choose(await (await inputFor("角色")), "只读用户");
+    await choose(await (await inputFor("角色")), "创作者");
     await capture("create-user-filled");
     await defer("create_user");
     await click(await dialog("新增用户").$('button=新增用户'), "提交新增用户");
     const request = await pending("create_user");
     assert.equal(request.input.username, "界面审查作者");
     assert.equal(request.input.email, "new-ui-author@example.invalid");
-    assert.equal(request.input.role, "read_only");
+    assert.equal(request.input.role, "user");
     assert.equal(request.input.password, fakePassword);
     const created = {
       ...seed.invoke.list_all_users[2], id: 4, username: request.input.username,
@@ -624,7 +624,7 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await respond("create_user", created, { fixtures: { list_all_users: [...seed.invoke.list_all_users, created] } });
     await dialog("新增用户").waitForExist({ reverse: true });
     await capture("created-user");
-    assert((await (await rowWith(created.username)).getText()).includes("只读用户"));
+    assert((await (await rowWith(created.username)).getText()).includes("创作者"));
   });
 
   workflow("SD10-admin-role-disable-invite preserves explicit role and disable boundaries", async () => {
@@ -635,15 +635,15 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await click(await menuItem("调整角色"), "打开固定角色调整");
     await dialog("修改用户角色").waitForDisplayed();
     await capture("role-dialog");
-    await $('input[aria-label="修改用户角色"]').setValue("只读用户");
+    await $('input[aria-label="修改用户角色"]').setValue("管理员");
     await defer("update_user_role");
-    await click(await dialog("修改用户角色").$('button=更新角色'), "提交只读角色");
+    await click(await dialog("修改用户角色").$('button=更新角色'), "提升为管理员");
     const role = await pending("update_user_role");
     assert.equal(role.userId, user.id);
-    assert.equal(role.input.role, "read_only");
-    let users = seed.invoke.list_all_users.map((item) => item.id === user.id ? { ...item, role: "read_only" } : item);
+    assert.equal(role.input.role, "admin");
+    let users = seed.invoke.list_all_users.map((item) => item.id === user.id ? { ...item, role: "admin" } : item);
     await respond("update_user_role", users.find((item) => item.id === user.id), { fixtures: { list_all_users: users } });
-    await browser.waitUntil(async () => (await (await rowWith(user.username)).getText()).includes("只读用户"));
+    await browser.waitUntil(async () => (await (await rowWith(user.username)).getText()).includes("管理员"));
     row = await rowWith(user.username);
     await openMenu(row);
     await click(await menuItem("禁用用户"), "打开禁用用户确认");
@@ -1232,8 +1232,8 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await click(await button("返回用户名登录"), "从回调错误返回");
   });
 
-  for (const user of seed.invoke.list_all_users.filter((item) => item.id !== 1)) {
-    workflow(`SD27-account-role-${user.role} preserves the non-admin account boundary`, async () => {
+  for (const user of seed.invoke.list_all_users.filter((item) => item.role === "user").slice(0, 1)) {
+    workflow("SD27-account-role-user preserves the non-admin account boundary", async () => {
       await install({
         get_current_user: user,
         get_theme_preference: { ...seed.invoke.get_theme_preference, user_id: user.id },

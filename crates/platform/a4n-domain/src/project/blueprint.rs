@@ -44,6 +44,18 @@ pub fn normalized_blueprint_identity(value: &str) -> String {
         .to_lowercase()
 }
 
+pub fn normalized_blueprint_relationship_identity(
+    kind: &str,
+    character_a: &str,
+    character_b: &str,
+) -> (String, String, String) {
+    (
+        normalized_blueprint_identity(kind),
+        normalized_blueprint_identity(character_a),
+        normalized_blueprint_identity(character_b),
+    )
+}
+
 pub fn blueprint_character_identity_keys<'a>(
     names: impl IntoIterator<Item = &'a str>,
 ) -> Result<Vec<String>, String> {
@@ -65,7 +77,7 @@ pub fn blueprint_character_identity_keys<'a>(
 
 pub fn blueprint_relationship_identity_keys<'a>(
     relationships: impl IntoIterator<Item = (&'a str, &'a str, &'a str)>,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<(String, String, String)>, String> {
     let mut seen = std::collections::HashSet::new();
     relationships
         .into_iter()
@@ -76,11 +88,10 @@ pub fn blueprint_relationship_identity_keys<'a>(
                     BLUEPRINT_RELATIONSHIP_TYPES.join(", ")
                 ));
             }
-            let keys = [kind, a, b].map(normalized_blueprint_identity);
-            if keys.iter().any(String::is_empty) {
+            let key = normalized_blueprint_relationship_identity(kind, a, b);
+            if key.0.is_empty() || key.1.is_empty() || key.2.is_empty() {
                 return Err("蓝图关系的角色和类型不能为空".to_string());
             }
-            let key = keys.join("|");
             if !seen.insert(key.clone()) {
                 return Err(format!("蓝图关系重复: {kind} / {a} / {b}"));
             }

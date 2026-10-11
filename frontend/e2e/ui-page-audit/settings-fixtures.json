@@ -174,7 +174,7 @@
     "list_all_users": [
       { "id": 1, "username": "林知微", "email": "lin.zhiwei.editor@example.invalid", "role": "admin", "is_active": true, "page_cli_enabled": false, "avatar_url": "https://ui.invalid/image-1.png", "created_at": "2026-08-01T03:00:00Z", "updated_at": "2026-09-25T08:00:00Z", "last_login_at": "2026-09-25T08:00:00Z", "oauth_provider": null, "oauth_subject": null },
       { "id": 2, "username": "陈望舟 · 雾港故事协作作者", "email": "chen.wangzhou.long-form.collaboration@example.invalid", "role": "user", "is_active": true, "page_cli_enabled": true, "avatar_url": null, "created_at": "2026-08-10T09:00:00Z", "updated_at": "2026-09-24T10:15:00Z", "last_login_at": "2026-09-24T10:15:00Z", "oauth_provider": null, "oauth_subject": null },
-      { "id": 3, "username": "顾遥", "email": "gu.yao.proofreader@example.invalid", "role": "read_only", "is_active": true, "page_cli_enabled": false, "avatar_url": null, "created_at": "2026-09-20T02:00:00Z", "updated_at": "2026-09-20T02:00:00Z", "last_login_at": null, "oauth_provider": null, "oauth_subject": null }
+      { "id": 3, "username": "顾遥", "email": "gu.yao.proofreader@example.invalid", "role": "user", "is_active": true, "page_cli_enabled": false, "avatar_url": null, "created_at": "2026-09-20T02:00:00Z", "updated_at": "2026-09-20T02:00:00Z", "last_login_at": null, "oauth_provider": null, "oauth_subject": null }
     ],
     "list_sessions": [
       { "id": "ui-session-current", "created_at": "2026-09-25T08:00:00Z", "expires_at": "2026-10-25T08:00:00Z", "last_used_at": "2026-09-25T08:29:00Z", "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 A4N-UI-Fixture" },

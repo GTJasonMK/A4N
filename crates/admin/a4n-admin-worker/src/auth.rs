@@ -42,6 +42,19 @@ impl WorkerState {
         Ok(())
     }
 
+    pub(super) async fn require_active_creator(&self, user_id: i64) -> Result<(), WorkerFailure> {
+        let user = a4n_db::auth::user_authorization_by_id(self.database.connection(), user_id)
+            .await
+            .map_err(app_error)?;
+        if !user.is_active {
+            return Err(WorkerFailure::unauthorized("当前账号已停用"));
+        }
+        if parse_user_role(&user.role).map_err(|error| app_error(error.into()))? != UserRole::User {
+            return Err(WorkerFailure::unauthorized("通知收件箱仅供创作者使用"));
+        }
+        Ok(())
+    }
+
     pub(super) fn authorized(&self, headers: &HeaderMap) -> bool {
         headers
             .get(WORKER_AUTH_HEADER)

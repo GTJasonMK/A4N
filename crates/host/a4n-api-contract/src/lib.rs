@@ -32,6 +32,7 @@ pub mod logging;
 pub mod manga;
 pub mod media;
 pub mod media_authoring;
+pub mod notifications;
 pub mod optimize;
 pub mod outline;
 pub mod package;

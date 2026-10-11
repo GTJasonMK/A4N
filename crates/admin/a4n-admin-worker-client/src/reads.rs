@@ -12,6 +12,7 @@ use a4n_api_contract::admin::{
     TaskQueueSummary, UsageLogSummary, UsageTrendsInput,
 };
 use a4n_api_contract::auth::UserSummary;
+use a4n_api_contract::notifications::NotificationApplicationPort;
 use a4n_error::AppError;
 
 use super::AdminWorkerClient;
@@ -172,5 +173,53 @@ impl AdminReadApplicationPort for AdminWorkerClient {
             AdminCallerInput { caller_user_id },
         )
         .await
+    }
+}
+
+#[async_trait::async_trait]
+impl NotificationApplicationPort for AdminWorkerClient {
+    async fn broadcast_to_creators(
+        &self,
+        caller_user_id: i64,
+        input: a4n_api_contract::notifications::BroadcastNotificationInput,
+    ) -> Result<a4n_api_contract::notifications::BroadcastNotificationReceipt, AppError> {
+        self.command(
+            caller_user_id,
+            a4n_admin_worker_contract::ADMIN_BROADCAST_NOTIFICATION_OPERATION,
+            a4n_admin_worker_contract::AdminBroadcastNotificationInput {
+                caller_user_id,
+                input,
+            },
+        )
+        .await
+    }
+
+    async fn creator_inbox(
+        &self,
+        caller_user_id: i64,
+    ) -> Result<a4n_api_contract::notifications::CreatorNotificationInbox, AppError> {
+        self.command(
+            caller_user_id,
+            a4n_admin_worker_contract::NOTIFICATION_INBOX_OPERATION,
+            a4n_admin_worker_contract::NotificationCallerInput { caller_user_id },
+        )
+        .await
+    }
+
+    async fn mark_creator_notification_read(
+        &self,
+        caller_user_id: i64,
+        notification_id: i64,
+    ) -> Result<(), AppError> {
+        self.command::<_, a4n_admin_worker_contract::OperationAck>(
+            caller_user_id,
+            a4n_admin_worker_contract::NOTIFICATION_READ_OPERATION,
+            a4n_admin_worker_contract::NotificationReadInput {
+                caller_user_id,
+                notification_id,
+            },
+        )
+        .await
+        .map(|_| ())
     }
 }

@@ -39,6 +39,8 @@ pub struct ApplicationPorts {
     pub model_usage_read_application:
         Arc<dyn a4n_api_contract::cost::ModelUsageReadApplicationPort>,
     pub admin_mutation_application: Arc<dyn a4n_api_contract::admin::AdminMutationApplicationPort>,
+    pub notification_application:
+        Arc<dyn a4n_api_contract::notifications::NotificationApplicationPort>,
     /// Host-facing project status boundary. Status transitions and family
     /// projections stay in the project owner and return API DTOs only.
     pub project_status_read_application:

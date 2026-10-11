@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use a4n_db_models::models::project::project_member;
-use a4n_domain::auth::ROLE_READ_ONLY;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 
 use super::super::{
@@ -112,14 +111,11 @@ pub async fn verify_project_permissions(
         let root = roots_by_id
             .get(&root_id)
             .expect("root existence checked above");
-        let mut role = if root.user_id == user_id {
+        let role = if root.user_id == user_id {
             Some(ProjectAccessRole::Owner)
         } else {
             member_roles.get(&root.id).copied()
         };
-        if user.role == ROLE_READ_ONLY && role.is_some() {
-            role = Some(ProjectAccessRole::Viewer);
-        }
         let Some(role) = role else {
             return Err(CollaborationDbError::Forbidden(
                 "无权访问该项目".to_string(),
@@ -229,14 +225,11 @@ pub async fn project_ids_with_permission(
         let Some(root) = roots_by_id.get(&root_id) else {
             continue;
         };
-        let mut role = if root.user_id == user_id {
+        let role = if root.user_id == user_id {
             Some(ProjectAccessRole::Owner)
         } else {
             member_roles.get(&root.id).copied()
         };
-        if user.role == ROLE_READ_ONLY && role.is_some() {
-            role = Some(ProjectAccessRole::Viewer);
-        }
         if role.is_some_and(|role| role.satisfies(required)) {
             visible.push(project_id);
         }

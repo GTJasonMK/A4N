@@ -144,6 +144,7 @@ export const agent = {
   workbench: "Agent 工作台",
   polling: "轮询模式",
   refresh: "刷新 Agent 状态",
+  mainWindowNavigationFailed: "无法将 Agent 定位结果打开到主窗口。",
   connectionLost: "Agent 实时连接已断开",
   loadFailed: "加载 Agent 状态失败",
   clearContext: "清空 Agent 上下文",

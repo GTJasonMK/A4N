@@ -7,6 +7,7 @@ mod galgame;
 mod import_project;
 mod input;
 mod media;
+mod notifications;
 mod package;
 mod request;
 mod source_sync;
@@ -48,6 +49,13 @@ mod dispatch {
             )
             .await?;
             return Ok(serde_json::json!(reply));
+        }
+        if let Some(result) = Box::pin(super::notifications::try_dispatch(
+            state, user_id, args, cmd,
+        ))
+        .await?
+        {
+            return Ok(result);
         }
         if let Some(result) =
             Box::pin(config_and_rag::try_dispatch(state, user_id, args, cmd)).await?

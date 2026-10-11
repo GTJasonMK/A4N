@@ -15,13 +15,13 @@ fn creates_bearer_pair() {
 }
 
 #[test]
-fn preserves_read_only_claim() {
-    let pair = create_token_pair_with_role("reader-1", Some("读者"), "read_only", TEST_SECRET)
+fn preserves_user_claim() {
+    let pair = create_token_pair_with_role("user-1", Some("作者"), "user", TEST_SECRET)
         .expect("创建令牌对失败");
 
     let claims = verify_token(&pair.access_token, TEST_SECRET).expect("验证令牌失败");
 
-    assert_eq!(claims.sub, "reader-1");
-    assert_eq!(claims.name.as_deref(), Some("读者"));
-    assert_eq!(claims.role.as_deref(), Some("read_only"));
+    assert_eq!(claims.sub, "user-1");
+    assert_eq!(claims.name.as_deref(), Some("作者"));
+    assert_eq!(claims.role.as_deref(), Some("user"));
 }

@@ -27,6 +27,7 @@ pub mod llm;
 pub mod manga;
 pub mod media;
 pub mod media_authoring;
+pub mod notifications;
 pub mod object_profile;
 pub mod package;
 pub mod profile_material;

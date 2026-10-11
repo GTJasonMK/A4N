@@ -150,4 +150,18 @@ mod tests {
             AppError::Timeout(_)
         ));
     }
+
+    #[test]
+    fn unauthorized_worker_failures_map_to_forbidden() {
+        let error = WorkerError {
+            code: WorkerErrorCode::Unauthorized,
+            message: "creator access required".into(),
+            retryable: false,
+        };
+
+        assert!(matches!(
+            worker_response_error(&error, ADMIN_OVERVIEW_OPERATION),
+            AppError::Forbidden(message) if message == "creator access required"
+        ));
+    }
 }

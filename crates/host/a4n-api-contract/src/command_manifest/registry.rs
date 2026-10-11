@@ -34,6 +34,7 @@ command_specs! {
     "batch_accept_reviews" => args_batch_accept_reviews, result_import_reviews, "import", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::Full);
     "bind_galgame_media" => args_bind_galgame_media, result_bind_galgame_media, "galgame", context(NO_CONTEXT), references(REFERENCES_MEDIA_BINDING_IDS_MEDIA_ASSET_IDS);
     "bind_manga_reference_image" => args_bind_manga_reference_image, result_bind_manga_reference_image, "manga", context(NO_CONTEXT);
+    "broadcast_creator_notification" => args_broadcast_creator_notification, result_broadcast_creator_notification, "notifications", identity(ADMIN_IDENTITY), effect(DESTRUCTIVE_EFFECT);
     "cancel_admin_task" => args_task_id, result_unit, "task", identity(ADMIN_IDENTITY), effect(DESTRUCTIVE_EFFECT);
     "cancel_embedding_model_download" => args_cancel_embedding_model_download, result_unit, "rag", effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
     "cancel_galgame_pipeline" => args_cancel_galgame_pipeline, result_cancel_galgame_pipeline, "galgame", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), execution("workflow"), references(REFERENCES_WORKFLOW_RUN_IDS), idempotency("server_workflow");
@@ -217,6 +218,7 @@ command_specs! {
     "list_chapter_scenes" => args_list_chapter_scenes, result_chapter_scenes, "chapter", context(CHAPTER_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_chapter_video_prompts" => args_list_chapter_video_prompts, result_list_chapter_video_prompts, "video", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT);
     "list_chapters" => args_project_id, result_chapter_summaries, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
+    "list_creator_notifications" => empty_args_schema, result_creator_notifications, "notifications", effect(READ_EFFECT);
     "list_deletion_marks" => args_list_deletion_marks, result_list_deletion_marks, "profile", effect(READ_EFFECT);
     "list_embedding_config" => empty_args_schema, result_list_embedding_config, "settings", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
     "list_foreshadowing" => args_list_foreshadowing, result_list_foreshadowing, "profile", effect(READ_EFFECT);
@@ -265,6 +267,7 @@ command_specs! {
     "load_video_segment_plan_draft" => args_load_video_segment_plan_draft, result_video_segment_plan_draft, "video", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO);
     "login_user" => args_login_user, result_login_user, "auth", identity(PUBLIC_IDENTITY), secrets(PASSWORD_SECRET_POINTERS);
     "modify_profile_attribute" => args_modify_profile_attribute, result_unit, "profile";
+    "mark_creator_notification_read" => args_notification_id, result_unit, "notifications", effect(DESTRUCTIVE_EFFECT);
     "move_inserted_segment" => args_move_inserted_segment, result_video_timeline, "video";
     "oauth2_authorize_url" => args_oauth2_authorize_url, result_string, "auth", identity(PUBLIC_IDENTITY);
     "oauth2_available_providers" => args_oauth2_available_providers, result_oauth2_available_providers, "auth", identity(PUBLIC_IDENTITY), effect(READ_EFFECT);

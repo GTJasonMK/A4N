@@ -6,6 +6,7 @@ import { Modal } from "../../components/ui/Modal";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { StatusBarToggle } from "../../components/ui/StatusBar";
+import { CreatorNotificationButton } from "../../components/shell/CreatorNotificationButton";
 import { useAuthStore } from "../../store/auth";
 import { extractErrorMessage } from "../../api";
 import { usePackagePreferences } from "../../store/packagePreferences";
@@ -65,15 +66,19 @@ const LogsTab = lazy(() =>
  * 页面入口只负责设置页框架、深链同步与 Tab 编排；具体设置面板在各自目录内维护。
  */
 export const SettingsPage: React.FC = () => {
+  const { user, logout } = useAuthStore();
   const { isVisible } = usePackagePreferences();
-  const visibleTabs = TABS.filter(item => item.id !== "agent" || isVisible("agent"));
+  const visibleTabs = TABS.filter(
+    (item) =>
+      (item.id !== "agent" || isVisible("agent")) &&
+      (item.id !== "admin" || user?.role === "admin"),
+  );
   const visibleTabIds = visibleTabs.map((item) => item.id);
   const [lastTab, setLastTab] = usePersistedTab<TabId>("a4n:settings:tab", "llm", TAB_IDS);
   const location = useLocation();
   const navigate = useNavigate();
   const requestedTab = visibleTabIds.find((id) => id === location.hash.slice(1));
   const tab = resolveVisibleSettingsTab(location.hash.slice(1), lastTab, visibleTabIds);
-  const { user, logout } = useAuthStore();
   const { t } = useI18n();
   const addToast = useToast((state) => state.addToast);
   const activeTab = TABS.find((item) => item.id === tab);
@@ -155,6 +160,7 @@ export const SettingsPage: React.FC = () => {
               }))}
             />
           </div>
+          <CreatorNotificationButton />
           <StatusBarToggle />
         </div>
         <nav
@@ -169,6 +175,7 @@ export const SettingsPage: React.FC = () => {
                 onClick={smartBack}
               />
               <span className="mr-auto ml-2 font-serif text-lg font-semibold">{t("settings.title")}</span>
+              <CreatorNotificationButton />
               <StatusBarToggle />
             </li>
             {(["settings.local", "settings.cloud", "settings.diagnostics"] as const).map((group) => (

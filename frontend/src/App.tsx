@@ -41,6 +41,11 @@ import { useI18n } from "./i18n";
 import { usePageSession } from "./hooks/usePageSession";
 import { PageSessionControlBar } from "./components/page/PageSessionControlBar";
 import { OAuthCallbackPage } from "./pages/OAuthCallbackPage";
+import {
+  installMainWindowNavigation,
+  isStandaloneWindow,
+  openStandaloneWindow,
+} from "./utils/standaloneWindow";
 
 const NovelList = lazy(() =>
   import("./pages/NovelList").then((m) => ({ default: m.NovelList })),
@@ -85,6 +90,9 @@ const SettingsPage = lazy(() =>
 );
 const AgentMonitor = lazy(() =>
   import("./pages/AgentMonitor").then((m) => ({ default: m.AgentMonitor })),
+);
+const CreatorNotificationsPage = lazy(() =>
+  import("./pages/CreatorNotificationsPage").then((m) => ({ default: m.CreatorNotificationsPage })),
 );
 const TestCenterPage = lazy(() =>
   import("./pages/admin/TestCenterPage").then((m) => ({ default: m.TestCenterPage })),
@@ -197,6 +205,7 @@ function RouteContent() {
             element={<GalgameProjectWorkspace />}
           />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/notifications" element={<CreatorNotificationsPage />} />
           <Route path="/admin/test-center" element={<TestCenterPage />} />
           <Route path="/agents" element={<AgentMonitor />} />
           <Route path="*" element={<Navigate to="/" replace />} />
@@ -228,13 +237,15 @@ function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const pageSession = usePageSession();
+  const standaloneWindow = isStandaloneWindow();
   const projectId = currentProjectIdFromPath(location.pathname);
   const dependencyGraphAvailable =
-    projectId != null && isPackageVisible("lineage-view") &&
+    !standaloneWindow && projectId != null && isPackageVisible("lineage-view") &&
     !/^\/canvas-project\/\d+(?:\/|$)/.test(location.pathname);
   const settingsShortcutAvailable =
-    location.pathname !== "/" && location.pathname !== "/settings";
-  const agentMonitorAvailable = user != null && location.pathname !== "/agents" && isPackageVisible("agent");
+    !standaloneWindow && location.pathname !== "/" && location.pathname !== "/settings";
+  const agentMonitorAvailable =
+    !standaloneWindow && user != null && location.pathname !== "/agents" && isPackageVisible("agent");
   const [dependencyGraphOpen, setDependencyGraphOpen] = useState(false);
   const [themeMode, setThemeMode] = useState<"light" | "dark">(() =>
     document.documentElement.dataset.themeMode === "dark" ? "dark" : "light",
@@ -255,6 +266,19 @@ function Layout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setThemeRouteFamily(themeRouteFamilyForPath(location.pathname));
   }, [location.pathname]);
+
+  useEffect(() => {
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
+    void installMainWindowNavigation((route) => navigate(route)).then((unlisten) => {
+      if (disposed) unlisten();
+      else cleanup = unlisten;
+    });
+    return () => {
+      disposed = true;
+      cleanup?.();
+    };
+  }, [navigate]);
 
   useEffect(() => {
     const syncThemeMode = () => {
@@ -332,7 +356,11 @@ function Layout({ children }: { children: React.ReactNode }) {
                 type="button"
                 aria-label={t("nav.viewAgentStatus")}
                 title={t("nav.viewAgentStatus")}
-                onClick={() => navigate("/agents")}
+                onClick={() => {
+                  if (!openStandaloneWindow("agent")) {
+                    addToast(t("nav.agentWindowOpenFailed"), "error");
+                  }
+                }}
                 className="a4n-status-bar-action"
               >
                 <Activity size={12} />

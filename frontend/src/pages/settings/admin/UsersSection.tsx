@@ -34,11 +34,10 @@ const emptyCreateUserForm: CreateUserInput = {
   password: "",
   role: "user",
 };
-const USER_ROLES = ["user", "admin", "read_only"] as const;
+const USER_ROLES = ["user", "admin"] as const;
 const USER_ROLE_LABEL_KEYS: Record<(typeof USER_ROLES)[number], MessageKey> = {
   user: "settingsAdmin.roleUser",
   admin: "settingsAdmin.roleAdmin",
-  read_only: "settingsAdmin.roleReadOnly",
 };
 
 type UserRole = (typeof USER_ROLES)[number];
