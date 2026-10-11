@@ -20,20 +20,11 @@ pub(super) fn validated_timeout_secs(m: &LlmProviderConfig) -> Result<u64, AppEr
 }
 
 pub(super) fn model_capabilities(m: &LlmProviderConfig) -> Result<ModelCapabilities, AppError> {
-    let max_context_tokens = usize::try_from(m.max_context_tokens).map_err(|_| {
-        AppError::ConfigError(format!(
-            "LLM 配置 {} 的 max_context_tokens 必须大于 0",
-            m.name
-        ))
-    })?;
-    let max_output_tokens = usize::try_from(m.max_output_tokens).map_err(|_| {
-        AppError::ConfigError(format!(
-            "LLM 配置 {} 的 max_output_tokens 必须大于 0",
-            m.name
-        ))
-    })?;
-    if max_context_tokens == 0 || max_output_tokens == 0 || max_output_tokens >= max_context_tokens
-    {
+    let max_context_tokens =
+        positive_model_limit(m.max_context_tokens, "max_context_tokens", &m.name)?;
+    let max_output_tokens =
+        positive_model_limit(m.max_output_tokens, "max_output_tokens", &m.name)?;
+    if max_output_tokens >= max_context_tokens {
         return Err(AppError::ConfigError(format!(
             "LLM 配置 {} 的模型能力无效：max_context_tokens={}, max_output_tokens={}",
             m.name, max_context_tokens, max_output_tokens
@@ -44,6 +35,15 @@ pub(super) fn model_capabilities(m: &LlmProviderConfig) -> Result<ModelCapabilit
         max_context_tokens,
         max_output_tokens,
     })
+}
+
+fn positive_model_limit(value: i32, field: &str, config_name: &str) -> Result<usize, AppError> {
+    if value <= 0 {
+        return Err(AppError::ConfigError(format!(
+            "LLM 配置 {config_name} 的 {field} 必须大于 0"
+        )));
+    }
+    Ok(value as usize)
 }
 
 #[cfg(feature = "embedded-llm-provider")]

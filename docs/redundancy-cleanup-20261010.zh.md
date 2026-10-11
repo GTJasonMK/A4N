@@ -1033,6 +1033,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：Runtime 测试二进制编译通过；`dynamic_llm::` 20/20 通过；`cargo fmt --all -- --check`、`git diff --check` 通过；共享 agent target 已清理。CodeGraph pending reference 为 0；其失败解析项来自报告脚本和外部/动态依赖。
 - 记录范围：`crates/host/a4n-runtime/src/dynamic_llm/config.rs`、`contracts/model.rs`、`budget.rs`、provider resolution/embedded provider 调用链及 dynamic LLM tests。
 
+### R-126：统一动态 LLM 模型上限正数转换
+
+- 类别：同一配置字段校验的重复实现；`max_context_tokens` 与 `max_output_tokens` 分别复制 i32→usize 和正数错误分支。
+- BFS 覆盖：从 `model_capabilities` 追到 `ResolvedLlmModel::new`、budget resolver、provider resolution、embedded provider 和 dynamic LLM tests；静态比较确认两字段只有字段名/错误文案不同，后续“输出上限必须小于上下文上限”仍是共享校验。
+- 新增私有 `positive_model_limit`，集中正数检查与 usize 转换，两个字段保留原错误字段名；删除重复的 `try_from`/zero 分支，不改变能力比较或 provider 合同。
+- 未改变默认值、回退、兼容或错误优先级行为。
+- 验证：Runtime 测试二进制编译通过；`dynamic_llm::` 20/20 通过；`cargo fmt --all -- --check`、`git diff --check` 通过；共享 agent target 已清理。
+- 记录范围：`crates/host/a4n-runtime/src/dynamic_llm/config.rs` 及其 model/budget/provider consumers。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
