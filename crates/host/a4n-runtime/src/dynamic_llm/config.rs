@@ -10,16 +10,13 @@ use a4n_provider_contract::LlmProviderConfig;
 use super::contracts::{LlmProbeOutput, ResolvedLlmModel};
 
 pub(super) fn validated_timeout_secs(m: &LlmProviderConfig) -> Result<u64, AppError> {
-    let timeout_secs = u64::try_from(m.timeout_secs).map_err(|_| {
-        AppError::ConfigError(format!("LLM 配置 {} 的 timeout_secs 必须大于 0", m.name))
-    })?;
-    if timeout_secs == 0 {
+    if m.timeout_secs <= 0 {
         return Err(AppError::ConfigError(format!(
             "LLM 配置 {} 的 timeout_secs 必须大于 0",
             m.name
         )));
     }
-    Ok(timeout_secs)
+    Ok(m.timeout_secs as u64)
 }
 
 pub(super) fn model_capabilities(m: &LlmProviderConfig) -> Result<ModelCapabilities, AppError> {

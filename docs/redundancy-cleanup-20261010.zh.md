@@ -1024,6 +1024,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：`cargo clippy --offline --locked --all-targets -p a4n-runtime` 通过（仅既有结构性 warnings）；测试二进制编译通过，`dynamic_embedding::` 3/3 通过；`cargo fmt --all -- --check`、`git diff --check` 通过；共享 agent target 已清理。CodeGraph 同步覆盖两处改动，保留索引中既有 1 条 unresolved reference。
 - 记录范围：`crates/host/a4n-runtime/src/dynamic_embedding/{factory.rs,mod.rs}`、Runtime config snapshot/provider facade/sidecar factory 调用链及 `dynamic_embedding/tests.rs`。
 
+### R-125：合并动态 LLM timeout 非法分支
+
+- 类别：同一校验错误的重复分支；负数转换失败和零值分别构造同一 `ConfigError`。
+- BFS 覆盖：从 `validated_timeout_secs` 追到 `ResolvedLlmModel::new`、embedded `make_provider` 和动态 LLM budget/config consumers；核对 `LlmProviderConfig.timeout_secs` 的 i32 合同、provider HTTP timeout 输入和现有动态 LLM 测试。所有调用都需要正数秒数，负值与零值错误类型/文本相同。
+- 将 `u64::try_from` 失败分支与零值分支合并为 `m.timeout_secs <= 0`，通过正值转换为 u64；模型能力校验、provider 选择和错误文本保持不变。
+- 未改变超时默认、兼容、回退或 provider 行为。
+- 验证：Runtime 测试二进制编译通过；`dynamic_llm::` 20/20 通过；`cargo fmt --all -- --check`、`git diff --check` 通过；共享 agent target 已清理。CodeGraph pending reference 为 0；其失败解析项来自报告脚本和外部/动态依赖。
+- 记录范围：`crates/host/a4n-runtime/src/dynamic_llm/config.rs`、`contracts/model.rs`、`budget.rs`、provider resolution/embedded provider 调用链及 dynamic LLM tests。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
