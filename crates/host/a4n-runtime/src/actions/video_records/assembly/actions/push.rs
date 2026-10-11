@@ -5,7 +5,9 @@ use super::persistence::persist_assembly_record_output;
 use crate::AppState;
 use crate::actions::app_error_message;
 use crate::actions::video_generation::media::best_effort_video_thumbnail_path;
-use crate::actions::video_records::{complete_video_record, video_record_output_path};
+use crate::actions::video_records::{
+    VideoRecordCompletionAttempt, complete_video_record, video_record_output_path,
+};
 use a4n_api_contract::video::AssemblyPushClipInput;
 use a4n_domain::video_workflow::ASSEMBLY_PUSH_STATUS_PENDING;
 
@@ -114,13 +116,15 @@ pub async fn push_assembled_chapter_video(
         best_effort_video_thumbnail_path(state, project_id, chapter_id, record.id, &output).await;
     let updated = complete_video_record(
         state,
-        record.id,
-        &output_path_str,
-        thumbnail_path.as_deref(),
-        size,
-        None,
-        None,
-        "推送成片记录完成失败",
+        VideoRecordCompletionAttempt {
+            record_id: record.id,
+            output_path: &output_path_str,
+            thumbnail_path: thumbnail_path.as_deref(),
+            file_size: size,
+            prompt_id: None,
+            metadata_json: None,
+            failure_prefix: "推送成片记录完成失败",
+        },
     )
     .await?;
     Ok(AssemblyPushResult {

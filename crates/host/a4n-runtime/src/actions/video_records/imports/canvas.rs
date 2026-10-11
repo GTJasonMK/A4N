@@ -7,7 +7,9 @@ use super::source::{
     stage_imported_video_source, uploaded_video_source,
 };
 use crate::AppState;
-use crate::actions::video_records::{complete_video_record, video_record_output_path};
+use crate::actions::video_records::{
+    VideoRecordCompletionAttempt, complete_video_record, video_record_output_path,
+};
 use a4n_canvas_contract::CanvasVideoImportHostInput;
 use a4n_video_host_contract::ImportedVideoRecordFacts;
 use chrono::Utc;
@@ -96,13 +98,15 @@ async fn create_imported_canvas_video(
     .await?;
     let updated = complete_video_record(
         state,
-        record.id,
-        &output_path_str,
-        None,
-        source.file_size,
-        None,
-        None,
-        "更新画布导入视频记录失败",
+        VideoRecordCompletionAttempt {
+            record_id: record.id,
+            output_path: &output_path_str,
+            thumbnail_path: None,
+            file_size: source.file_size,
+            prompt_id: None,
+            metadata_json: None,
+            failure_prefix: "更新画布导入视频记录失败",
+        },
     )
     .await?;
     Ok(updated.id)

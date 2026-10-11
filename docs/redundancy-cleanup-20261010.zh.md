@@ -882,6 +882,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：本项与 R-109 的合并源码下，`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 退出 0；Runtime 原有 `poll_provider_job` 高参数告警消失。`cargo fmt --all -- --check`、`git diff --check` 通过；all-targets Clippy 编译 Runtime 测试目标，未单独运行测试。
 - 记录范围：`crates/host/a4n-runtime/src/actions/video_generation/{job_lifecycle/polling.rs,provider_host/video_provider.rs}`；调用核验另含 `poll.rs`、`VideoProviderHostPort` 和 Orchestrator video provider execution paths。
 
+### R-109：命名视频记录完成 attempt 输入
+
+- 类别：视频记录完成 helper 的同一组七项 attempt 数据在 8 个调用点重复以位置参数传递，多个 `None` 难以辨认。
+- BFS 覆盖：从 Clippy `too_many_arguments` 命中追到 Runtime 的 8 个直接调用点，覆盖章节/画布/参考媒体导入、assembly push/edit 与 trim；再追到文件 canonicalization/probe、完成 port 的 `CompleteVideoRecordInput`、Orchestrator completion owner，以及 probe/提交失败和已采用记录的 cleanup 分支。
+- 新增 Runtime 内部 `VideoRecordCompletionAttempt`，将 record/path/thumbnail/file size/prompt/metadata/failure prefix 改为命名字段，调用方差异与值保持原样。该结构代表文件探测前的 attempt；现有 `CompleteVideoRecordInput` 代表 probe 后携带 `VideoFileProperties` 的 Orchestrator 提交合同，两个生命周期阶段继续分开。
+- 保持字段求值顺序、canonicalization/probe、completion transaction、authoritative adoption 和 cleanup error 合并逻辑不变；未新增兜底、兼容或回退逻辑。
+- 验证：与 R-108 合并源码下，`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 退出 0；`a4n-runtime` lib Clippy 告警由 17 条降为 15 条，poll helper 与 completion helper 的高参数告警均消失。`cargo fmt --all -- --check`、`git diff --check` 通过。all-targets Clippy 编译 Runtime 测试目标；当前无该 Runtime completion helper 的直接测试。
+- 记录范围：`crates/host/a4n-runtime/src/actions/video_records.rs`、`video_records/completion.rs`，以及 `video_records/{imports/chapter.rs,imports/canvas.rs,imports/canvas/assembly.rs,imports/reference/{media.rs,assembly_insert.rs},imports/processing/trim.rs,assembly/actions/{push.rs,edit.rs}}`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

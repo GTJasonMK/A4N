@@ -7,7 +7,9 @@ use crate::actions::access;
 use crate::actions::app_error_message;
 use crate::actions::video_generation::GeneratedVideoSummary;
 use crate::actions::video_generation::media::best_effort_video_thumbnail_path;
-use crate::actions::video_records::{complete_video_record, video_record_output_path};
+use crate::actions::video_records::{
+    VideoRecordCompletionAttempt, complete_video_record, video_record_output_path,
+};
 use a4n_video_host_contract::ImportedVideoRecordFacts;
 use chrono::Utc;
 
@@ -91,13 +93,15 @@ async fn create_assembly_insert_video(
         best_effort_video_thumbnail_path(state, project_id, chapter_id, record.id, &output).await;
     let updated = complete_video_record(
         state,
-        record.id,
-        &output_path_str,
-        thumbnail_path.as_deref(),
-        source.file_size,
-        None,
-        None,
-        "插入视频记录完成失败",
+        VideoRecordCompletionAttempt {
+            record_id: record.id,
+            output_path: &output_path_str,
+            thumbnail_path: thumbnail_path.as_deref(),
+            file_size: source.file_size,
+            prompt_id: None,
+            metadata_json: None,
+            failure_prefix: "插入视频记录完成失败",
+        },
     )
     .await?;
     Ok(updated)

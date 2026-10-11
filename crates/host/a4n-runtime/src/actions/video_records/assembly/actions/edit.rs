@@ -9,7 +9,8 @@ use crate::actions::app_error_message;
 use crate::actions::video_generation::GeneratedVideoSummary;
 use crate::actions::video_generation::media::best_effort_video_thumbnail_path;
 use crate::actions::video_records::{
-    complete_video_record, probe_video_properties, video_record_output_path,
+    VideoRecordCompletionAttempt, complete_video_record, probe_video_properties,
+    video_record_output_path,
 };
 use a4n_api_contract::video::AssemblyPostprocessEditRecordInput;
 use a4n_media_contract::MediaRoot;
@@ -134,13 +135,15 @@ pub async fn apply_assembly_postprocess_edit(
         best_effort_video_thumbnail_path(state, project_id, chapter_id, record.id, &output).await;
     let updated = complete_video_record(
         state,
-        record.id,
-        &output_path_str,
-        thumbnail_path.as_deref(),
-        size,
-        None,
-        None,
-        "后处理编辑视频记录完成失败",
+        VideoRecordCompletionAttempt {
+            record_id: record.id,
+            output_path: &output_path_str,
+            thumbnail_path: thumbnail_path.as_deref(),
+            file_size: size,
+            prompt_id: None,
+            metadata_json: None,
+            failure_prefix: "后处理编辑视频记录完成失败",
+        },
     )
     .await?;
     Ok(updated)
