@@ -87,9 +87,17 @@ mod tests {
         );
 
         let err = validate_reference_image_ids(&[0]).unwrap_err();
-        assert!(err.contains("必须为正整数"));
+        assert_eq!(err, "参考图 ID 必须为正整数：0");
         let err = validate_reference_image_ids(&[2, 2]).unwrap_err();
-        assert!(err.contains("重复 ID：2"));
+        assert_eq!(err, "参考图包含重复 ID：2");
+        assert_eq!(
+            validate_reference_image_id_list(&[0]).unwrap_err(),
+            "reference_image_ids[0] 必须是正整数"
+        );
+        assert_eq!(
+            validate_reference_image_id_list(&[2, 2]).unwrap_err(),
+            "reference_image_ids 包含重复 ID：2"
+        );
     }
 
     #[test]
@@ -100,8 +108,14 @@ mod tests {
             batch_item_reference_image_ids(&json!({"reference_image_ids": [1, 2]})),
             Ok(vec![1, 2])
         );
-        assert!(reference_image_ids(Some(&json!([3, 3]))).is_err());
-        assert!(validate_reference_image_id_list(&[0]).is_err());
+        assert_eq!(
+            reference_image_ids(Some(&json!([3, 3, "invalid"]))),
+            Err("reference_image_ids 包含重复 ID：3".to_string())
+        );
+        assert_eq!(
+            reference_image_ids(Some(&json!([0]))),
+            Err("reference_image_ids[0] 必须是正整数".to_string())
+        );
     }
 
     #[test]

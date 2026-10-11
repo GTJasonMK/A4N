@@ -805,6 +805,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - `cargo clippy --workspace --all-targets --locked --offline --message-format short` 退出 0；workspace warning 诊断从 196 条降至 174 条，所有本批目标 lint 消失。保留其余参数数量、枚举体积、复杂类型、模块/测试模块顺序提示，未据此新增 DTO、抽象或类型别名。Runtime `test_console` 定向单测 8/8，rustfmt 与 diff 检查通过。
 - 记录范围：`crates/host/a4n-runtime/src/actions/admin_records/test_console.rs`、`crates/host/a4n-orchestrator/src/{galgame/webgal_export_application.rs,import_reverse/candidate.rs,manga/pipeline/run/{page.rs,single_stage.rs},manga/pipeline/preview/planning/page_pipeline.rs,optimize/runtime_tools/read.rs}`、`crates/host/a4n-tauri/src/commands/updates.rs`、`crates/host/a4n-server/src/server/process.rs`、`crates/manga/a4n-manga-core/src/lib.rs`。
 
+### R-99：集中参考图 ID 唯一性校验
+
+- 类别：相同正数/去重遍历在 Domain API、JSON parser 和视频 provider 路径重复实现。
+- BFS 覆盖：CodeGraph 从 `validate_reference_image_ids` 追到 Portrait preview/Host port/Orchestrator image callers；从 `validate_reference_image_id_list` 追到 Runtime provider、preview、插入视频段校验；从 `reference_image_ids` 追到视频生成规则、family package、DB records 和 batch parser。另从 `VideoRecordReadApplicationPort::validated_reference_images` 追到 Video Record client/Worker 路由与 DB reader，确认它是独立进程信任边界的请求/权限/资源校验。
+- 新增私有 per-ID 校验 owner，共享正数和 HashSet 唯一性判断；既有两个 public wrapper 保留不同返回类型与错误文案。JSON parser 去掉 `Vec::contains` 的重复检查，逐项调用共用校验器，因此保持首个坏值的错误优先顺序并将去重复杂度降为线性。
+- Worker 边界上的再次校验保留：Runtime 预检不能替代进程间 WorkerEnvelope、project scope、用户权限和 DB 资源可用性校验。未改调用合同、空值/空数组行为或错误文本。
+- 验证：`cargo clippy --offline --locked --all-targets -p a4n-domain` 通过（保留既有大 enum 提示）；`timeout 60s cargo test --offline --locked -p a4n-domain --lib` 153/153；`cargo fmt --all -- --check`、`git diff --check` 通过。回归断言覆盖两类错误文案、输入顺序、空数组和先遇到重复值时的错误优先级。
+- 记录范围：`crates/platform/a4n-domain/src/image/references.rs`、`crates/platform/a4n-domain/src/image/mod.rs`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
