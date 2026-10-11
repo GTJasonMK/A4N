@@ -78,12 +78,11 @@ pub(super) fn read_source(
                 })
                 .collect::<Vec<_>>();
             let marked_content = marker_map.mark_ranges(&page, ranges)?;
-            let content = marker_map.encode_input(&json!({
+            marker_map.encode_input(&json!({
                 "chapter_number": value["chapter_number"],
                 "content": marked_content,
                 "source_span_ids": source_spans.iter().map(|span| span.id.as_str()).collect::<Vec<_>>(),
-            }))?;
-            content
+            }))?
         } else {
             json!(page)
         };

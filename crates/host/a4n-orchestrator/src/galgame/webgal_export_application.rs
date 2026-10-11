@@ -775,17 +775,14 @@ fn render_webgal_scene(
             }
         }
     }
-    match scene.scene.next_scene_id {
-        Some(next_scene_id) => {
-            let next_file = scene_file_by_id.get(&next_scene_id).ok_or_else(|| {
-                invalid_webgal(format!(
-                    "Galgame 场 {} next_scene_id 指向不存在的场 {next_scene_id}，无法导出 WebGAL",
-                    scene.scene.id
-                ))
-            })?;
-            output.push_str(&format!("changeScene:{next_file};\n"));
-        }
-        None => {}
+    if let Some(next_scene_id) = scene.scene.next_scene_id {
+        let next_file = scene_file_by_id.get(&next_scene_id).ok_or_else(|| {
+            invalid_webgal(format!(
+                "Galgame 场 {} next_scene_id 指向不存在的场 {next_scene_id}，无法导出 WebGAL",
+                scene.scene.id
+            ))
+        })?;
+        output.push_str(&format!("changeScene:{next_file};\n"));
     }
     Ok(output)
 }

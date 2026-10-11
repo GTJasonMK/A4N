@@ -1,7 +1,6 @@
 use super::*;
 
 #[cfg(target_os = "linux")]
-
 pub(crate) fn spawn_control_from_workers(
     binary: &Path,
     address: SocketAddr,

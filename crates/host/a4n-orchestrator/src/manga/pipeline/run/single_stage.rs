@@ -13,12 +13,10 @@ pub(super) async fn run_single_stage(
 ) -> Result<Vec<a4n_domain::manga::MangaPagePromptRecord>, AppError> {
     context.check_cancelled()?;
     match stage {
-        MangaPipelineArtifactStage::Preprocessing => {
-            return Err(AppError::InvalidState {
-                current: "preprocessing_requires_source_context".into(),
-                operation: "请通过章节预处理步骤运行".into(),
-            });
-        }
+        MangaPipelineArtifactStage::Preprocessing => Err(AppError::InvalidState {
+            current: "preprocessing_requires_source_context".into(),
+            operation: "请通过章节预处理步骤运行".into(),
+        }),
         MangaPipelineArtifactStage::PageSlots => {
             let preprocessing = required_preprocessing(context).await?;
             let extraction_summary = manga_preprocessing_summary(&preprocessing)?;
@@ -29,12 +27,10 @@ pub(super) async fn run_single_stage(
             ));
             return complete_pipeline(&scoped_context, extraction, slots).await;
         }
-        MangaPipelineArtifactStage::PageContent => {
-            return Err(AppError::InvalidState {
-                current: "page_content_is_user_editable".into(),
-                operation: "重新生成页面内容请运行分页步骤".into(),
-            });
-        }
+        MangaPipelineArtifactStage::PageContent => Err(AppError::InvalidState {
+            current: "page_content_is_user_editable".into(),
+            operation: "重新生成页面内容请运行分页步骤".into(),
+        }),
         MangaPipelineArtifactStage::PageAdaptation
         | MangaPipelineArtifactStage::Storyboard
         | MangaPipelineArtifactStage::ReferenceDiscovery
@@ -120,11 +116,9 @@ pub(super) async fn run_single_stage(
             let scoped_context = context.with_stop_after(stop_after);
             return complete_pipeline(&scoped_context, extraction, slots).await;
         }
-        MangaPipelineArtifactStage::ReferenceBindings => {
-            return Err(AppError::InvalidArgument(
-                "参考图绑定通过参考图面板管理".into(),
-            ));
-        }
+        MangaPipelineArtifactStage::ReferenceBindings => Err(AppError::InvalidArgument(
+            "参考图绑定通过参考图面板管理".into(),
+        )),
     }
 }
 

@@ -219,11 +219,11 @@ pub(super) async fn preview_single_page_stage(
     Ok(())
 }
 
-fn required_artifact<'a>(
-    artifacts: &'a [MangaPipelineArtifactRecord],
+fn required_artifact(
+    artifacts: &[MangaPipelineArtifactRecord],
     stage: MangaPipelineArtifactStage,
     page_number: Option<u32>,
-) -> Result<&'a MangaPipelineArtifactRecord, AppError> {
+) -> Result<&MangaPipelineArtifactRecord, AppError> {
     let artifact = artifacts
         .iter()
         .find(|artifact| artifact.stage == stage && artifact.page_number == page_number)

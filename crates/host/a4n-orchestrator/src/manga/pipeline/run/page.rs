@@ -646,62 +646,60 @@ async fn process_manga_page_stages(
             operation: format!("生成漫画第 {page_number} 页下游阶段前，请先重跑页面改编"),
         });
     }
-    if run_stage.is_none() || run_stage == Some(MangaPipelineArtifactStage::PageAdaptation) {
-        if run_stage == Some(MangaPipelineArtifactStage::PageAdaptation) || !adaptation_is_current {
-            work.pipeline.stage = MangaPagePipelineStage::Adaptation;
-            work.pipeline.status = MangaPagePipelineStatus::Running;
-            work.pipeline.error = None;
-            persist_page_state(context, persist, work, Vec::new()).await?;
-            context.check_cancelled()?;
-            let user_content = manga_page_adaptation_user_message(
-                page_number,
-                total_pages,
-                &content,
-                adaptation_plan,
-                work.previous_content.as_ref(),
-                work.next_content.as_ref(),
-                &context.source_markers,
-            )?;
-            let (trace, adaptation) = context
-                .service
-                .render_and_validate_manga_call(
-                    MangaRenderTraceInput {
-                        prompt_renderer: context.prompt_renderer,
-                        prompt_name: "manga_page_adaptation_plan",
-                        project_id: context.project_id,
-                        workflow_run_id: context.workflow_run_id,
-                        call_key: format!(
-                            "manga_pipeline:{}:page:{}:adaptation",
-                            context.chapter_id, page_number
-                        ),
-                        call_order: manga_page_pipeline_call_order(work.page_index, 0)?,
-                        restore_from_checkpoint: context.resume_from_checkpoint,
-                        variables: &context.variables,
-                        user_content,
-                        temperature: 0.3,
-                        cancel_token: context.cancel_token,
-                        stream_id: format!("page_{page_number}_adaptation"),
-                        stream_reporter: context.stream_reporter,
-                    },
-                    |value| {
-                        parse_manga_page_adaptation(value, &content, "manga_page_adaptation_plan")
-                    },
-                )
-                .await?;
-            work.pipeline.page_adaptation = Some(adaptation);
-            work.stale_stages
-                .remove(&MangaPipelineArtifactStage::PageAdaptation);
-            work.changed_stage = Some(MangaPipelineArtifactStage::PageAdaptation);
-            work.pipeline
-                .stage_fingerprints
-                .insert("adaptation".into(), adaptation_fingerprint);
-            work.pipeline.stage = MangaPagePipelineStage::Storyboard;
-            work.pipeline.status = MangaPagePipelineStatus::Pending;
-            persist_page_state(context, persist, work, vec![trace.clone()]).await?;
-            progress
-                .llm_usage(context, MangaPagePipelineStage::Adaptation, &trace)
-                .await?;
-        }
+    if (run_stage.is_none() || run_stage == Some(MangaPipelineArtifactStage::PageAdaptation))
+        && (run_stage == Some(MangaPipelineArtifactStage::PageAdaptation) || !adaptation_is_current)
+    {
+        work.pipeline.stage = MangaPagePipelineStage::Adaptation;
+        work.pipeline.status = MangaPagePipelineStatus::Running;
+        work.pipeline.error = None;
+        persist_page_state(context, persist, work, Vec::new()).await?;
+        context.check_cancelled()?;
+        let user_content = manga_page_adaptation_user_message(
+            page_number,
+            total_pages,
+            &content,
+            adaptation_plan,
+            work.previous_content.as_ref(),
+            work.next_content.as_ref(),
+            &context.source_markers,
+        )?;
+        let (trace, adaptation) = context
+            .service
+            .render_and_validate_manga_call(
+                MangaRenderTraceInput {
+                    prompt_renderer: context.prompt_renderer,
+                    prompt_name: "manga_page_adaptation_plan",
+                    project_id: context.project_id,
+                    workflow_run_id: context.workflow_run_id,
+                    call_key: format!(
+                        "manga_pipeline:{}:page:{}:adaptation",
+                        context.chapter_id, page_number
+                    ),
+                    call_order: manga_page_pipeline_call_order(work.page_index, 0)?,
+                    restore_from_checkpoint: context.resume_from_checkpoint,
+                    variables: &context.variables,
+                    user_content,
+                    temperature: 0.3,
+                    cancel_token: context.cancel_token,
+                    stream_id: format!("page_{page_number}_adaptation"),
+                    stream_reporter: context.stream_reporter,
+                },
+                |value| parse_manga_page_adaptation(value, &content, "manga_page_adaptation_plan"),
+            )
+            .await?;
+        work.pipeline.page_adaptation = Some(adaptation);
+        work.stale_stages
+            .remove(&MangaPipelineArtifactStage::PageAdaptation);
+        work.changed_stage = Some(MangaPipelineArtifactStage::PageAdaptation);
+        work.pipeline
+            .stage_fingerprints
+            .insert("adaptation".into(), adaptation_fingerprint);
+        work.pipeline.stage = MangaPagePipelineStage::Storyboard;
+        work.pipeline.status = MangaPagePipelineStatus::Pending;
+        persist_page_state(context, persist, work, vec![trace.clone()]).await?;
+        progress
+            .llm_usage(context, MangaPagePipelineStage::Adaptation, &trace)
+            .await?;
     }
     if run_stage.is_none() || run_stage == Some(MangaPipelineArtifactStage::PageAdaptation) {
         progress
@@ -757,72 +755,72 @@ async fn process_manga_page_stages(
             operation: format!("生成漫画第 {page_number} 页下游阶段前，请先重跑分镜"),
         });
     }
-    if run_stage.is_none() || run_stage == Some(MangaPipelineArtifactStage::Storyboard) {
-        if run_stage == Some(MangaPipelineArtifactStage::Storyboard) || !storyboard_is_current {
-            work.pipeline.stage = MangaPagePipelineStage::Storyboard;
-            work.pipeline.status = MangaPagePipelineStatus::Running;
-            work.pipeline.error = None;
-            persist_page_state(context, persist, work, Vec::new()).await?;
-            context.check_cancelled()?;
-            let adaptation_beats = manga_page_adaptation_source(&context.adaptation, &content);
-            let user_content = manga_page_storyboard_user_message(
-                page_number,
-                total_pages,
-                &content,
-                &page_adaptation,
-                work.previous_content.as_ref(),
-                work.next_content.as_ref(),
-                adaptation_beats,
-                extraction_summary,
-                &context.reference_assets,
-                &context.source_markers,
-            )?;
-            let (trace, storyboard) = context
-                .service
-                .render_and_validate_manga_call(
-                    MangaRenderTraceInput {
-                        prompt_renderer: context.prompt_renderer,
-                        prompt_name: "manga_page_storyboard",
-                        project_id: context.project_id,
-                        workflow_run_id: context.workflow_run_id,
-                        call_key: format!(
-                            "manga_pipeline:{}:page:{}:storyboard",
-                            context.chapter_id, page_number
-                        ),
-                        call_order: manga_page_pipeline_call_order(work.page_index, 1)?,
-                        restore_from_checkpoint: context.resume_from_checkpoint,
-                        variables: &context.variables,
-                        user_content,
-                        temperature: 0.3,
-                        cancel_token: context.cancel_token,
-                        stream_id: format!("page_{page_number}_storyboard"),
-                        stream_reporter: context.stream_reporter,
-                    },
-                    |value| {
-                        parse_manga_page_storyboard(
-                            value,
-                            page_number,
-                            &content,
-                            &page_adaptation,
-                            "manga_page_storyboard",
-                        )
-                    },
-                )
-                .await?;
-            work.pipeline.storyboard = Some(storyboard);
-            work.stale_stages
-                .remove(&MangaPipelineArtifactStage::Storyboard);
-            work.changed_stage = Some(MangaPipelineArtifactStage::Storyboard);
-            work.pipeline
-                .stage_fingerprints
-                .insert("storyboard".into(), storyboard_fingerprint);
-            work.pipeline.stage = MangaPagePipelineStage::ReferenceDiscovery;
-            work.pipeline.status = MangaPagePipelineStatus::Pending;
-            persist_page_state(context, persist, work, vec![trace.clone()]).await?;
-            progress
-                .llm_usage(context, MangaPagePipelineStage::Storyboard, &trace)
-                .await?;
-        }
+    if (run_stage.is_none() || run_stage == Some(MangaPipelineArtifactStage::Storyboard))
+        && (run_stage == Some(MangaPipelineArtifactStage::Storyboard) || !storyboard_is_current)
+    {
+        work.pipeline.stage = MangaPagePipelineStage::Storyboard;
+        work.pipeline.status = MangaPagePipelineStatus::Running;
+        work.pipeline.error = None;
+        persist_page_state(context, persist, work, Vec::new()).await?;
+        context.check_cancelled()?;
+        let adaptation_beats = manga_page_adaptation_source(&context.adaptation, &content);
+        let user_content = manga_page_storyboard_user_message(
+            page_number,
+            total_pages,
+            &content,
+            &page_adaptation,
+            work.previous_content.as_ref(),
+            work.next_content.as_ref(),
+            adaptation_beats,
+            extraction_summary,
+            &context.reference_assets,
+            &context.source_markers,
+        )?;
+        let (trace, storyboard) = context
+            .service
+            .render_and_validate_manga_call(
+                MangaRenderTraceInput {
+                    prompt_renderer: context.prompt_renderer,
+                    prompt_name: "manga_page_storyboard",
+                    project_id: context.project_id,
+                    workflow_run_id: context.workflow_run_id,
+                    call_key: format!(
+                        "manga_pipeline:{}:page:{}:storyboard",
+                        context.chapter_id, page_number
+                    ),
+                    call_order: manga_page_pipeline_call_order(work.page_index, 1)?,
+                    restore_from_checkpoint: context.resume_from_checkpoint,
+                    variables: &context.variables,
+                    user_content,
+                    temperature: 0.3,
+                    cancel_token: context.cancel_token,
+                    stream_id: format!("page_{page_number}_storyboard"),
+                    stream_reporter: context.stream_reporter,
+                },
+                |value| {
+                    parse_manga_page_storyboard(
+                        value,
+                        page_number,
+                        &content,
+                        &page_adaptation,
+                        "manga_page_storyboard",
+                    )
+                },
+            )
+            .await?;
+        work.pipeline.storyboard = Some(storyboard);
+        work.stale_stages
+            .remove(&MangaPipelineArtifactStage::Storyboard);
+        work.changed_stage = Some(MangaPipelineArtifactStage::Storyboard);
+        work.pipeline
+            .stage_fingerprints
+            .insert("storyboard".into(), storyboard_fingerprint);
+        work.pipeline.stage = MangaPagePipelineStage::ReferenceDiscovery;
+        work.pipeline.status = MangaPagePipelineStatus::Pending;
+        persist_page_state(context, persist, work, vec![trace.clone()]).await?;
+        progress
+            .llm_usage(context, MangaPagePipelineStage::Storyboard, &trace)
+            .await?;
     }
     if run_stage.is_none() || run_stage == Some(MangaPipelineArtifactStage::Storyboard) {
         progress
@@ -891,71 +889,70 @@ async fn process_manga_page_stages(
             operation: format!("生成漫画第 {page_number} 页下游阶段前，请先重跑参考图发现"),
         });
     }
-    if run_stage.is_none() || run_stage == Some(MangaPipelineArtifactStage::ReferenceDiscovery) {
-        if run_stage == Some(MangaPipelineArtifactStage::ReferenceDiscovery)
-            || !reference_discovery_is_usable
-        {
-            work.pipeline.stage = MangaPagePipelineStage::ReferenceDiscovery;
-            work.pipeline.status = MangaPagePipelineStatus::Running;
-            work.pipeline.error = None;
-            persist_page_state(context, persist, work, Vec::new()).await?;
-            context.check_cancelled()?;
-            let page_adaptation =
-                work.pipeline
-                    .page_adaptation
-                    .as_ref()
-                    .ok_or_else(|| AppError::InvalidState {
-                        current: "page_adaptation_missing".into(),
-                        operation: format!("为漫画第 {page_number} 页发现参考素材"),
-                    })?;
-            let user_content = manga_page_reference_discovery_user_message(
-                page_number,
-                &storyboard,
-                &content,
-                page_adaptation,
-                extraction_summary,
-                candidate_assets,
-                &context.source_markers,
-            )?;
-            let (trace, discovery) = context
-                .service
-                .render_and_validate_manga_call(
-                    MangaRenderTraceInput {
-                        prompt_renderer: context.prompt_renderer,
-                        prompt_name: "manga_page_reference_discovery",
-                        project_id: context.project_id,
-                        workflow_run_id: context.workflow_run_id,
-                        call_key: format!(
-                            "manga_pipeline:{}:page:{}:reference_discovery",
-                            context.chapter_id, page_number
-                        ),
-                        call_order: manga_page_pipeline_call_order(work.page_index, 2)?,
-                        restore_from_checkpoint: context.resume_from_checkpoint,
-                        variables: &context.variables,
-                        user_content,
-                        temperature: 0.2,
-                        cancel_token: context.cancel_token,
-                        stream_id: format!("page_{page_number}_reference_discovery"),
-                        stream_reporter: context.stream_reporter,
-                    },
-                    |value| parse_manga_page_reference_discovery(value, page_number, &candidates),
-                )
-                .await?;
-            work.pipeline.reference_discovery = Some(discovery);
-            work.stale_stages
-                .remove(&MangaPipelineArtifactStage::ReferenceDiscovery);
-            work.changed_stage = Some(MangaPipelineArtifactStage::ReferenceDiscovery);
-            work.pipeline.stage_fingerprints.insert(
-                "reference_discovery".into(),
-                reference_discovery_fingerprint,
-            );
-            work.pipeline.stage = MangaPagePipelineStage::DrawingPrompt;
-            work.pipeline.status = MangaPagePipelineStatus::Pending;
-            persist_page_state(context, persist, work, vec![trace.clone()]).await?;
-            progress
-                .llm_usage(context, MangaPagePipelineStage::ReferenceDiscovery, &trace)
-                .await?;
-        }
+    if (run_stage.is_none() || run_stage == Some(MangaPipelineArtifactStage::ReferenceDiscovery))
+        && (run_stage == Some(MangaPipelineArtifactStage::ReferenceDiscovery)
+            || !reference_discovery_is_usable)
+    {
+        work.pipeline.stage = MangaPagePipelineStage::ReferenceDiscovery;
+        work.pipeline.status = MangaPagePipelineStatus::Running;
+        work.pipeline.error = None;
+        persist_page_state(context, persist, work, Vec::new()).await?;
+        context.check_cancelled()?;
+        let page_adaptation =
+            work.pipeline
+                .page_adaptation
+                .as_ref()
+                .ok_or_else(|| AppError::InvalidState {
+                    current: "page_adaptation_missing".into(),
+                    operation: format!("为漫画第 {page_number} 页发现参考素材"),
+                })?;
+        let user_content = manga_page_reference_discovery_user_message(
+            page_number,
+            &storyboard,
+            &content,
+            page_adaptation,
+            extraction_summary,
+            candidate_assets,
+            &context.source_markers,
+        )?;
+        let (trace, discovery) = context
+            .service
+            .render_and_validate_manga_call(
+                MangaRenderTraceInput {
+                    prompt_renderer: context.prompt_renderer,
+                    prompt_name: "manga_page_reference_discovery",
+                    project_id: context.project_id,
+                    workflow_run_id: context.workflow_run_id,
+                    call_key: format!(
+                        "manga_pipeline:{}:page:{}:reference_discovery",
+                        context.chapter_id, page_number
+                    ),
+                    call_order: manga_page_pipeline_call_order(work.page_index, 2)?,
+                    restore_from_checkpoint: context.resume_from_checkpoint,
+                    variables: &context.variables,
+                    user_content,
+                    temperature: 0.2,
+                    cancel_token: context.cancel_token,
+                    stream_id: format!("page_{page_number}_reference_discovery"),
+                    stream_reporter: context.stream_reporter,
+                },
+                |value| parse_manga_page_reference_discovery(value, page_number, &candidates),
+            )
+            .await?;
+        work.pipeline.reference_discovery = Some(discovery);
+        work.stale_stages
+            .remove(&MangaPipelineArtifactStage::ReferenceDiscovery);
+        work.changed_stage = Some(MangaPipelineArtifactStage::ReferenceDiscovery);
+        work.pipeline.stage_fingerprints.insert(
+            "reference_discovery".into(),
+            reference_discovery_fingerprint,
+        );
+        work.pipeline.stage = MangaPagePipelineStage::DrawingPrompt;
+        work.pipeline.status = MangaPagePipelineStatus::Pending;
+        persist_page_state(context, persist, work, vec![trace.clone()]).await?;
+        progress
+            .llm_usage(context, MangaPagePipelineStage::ReferenceDiscovery, &trace)
+            .await?;
     }
     let reference_count = work
         .pipeline

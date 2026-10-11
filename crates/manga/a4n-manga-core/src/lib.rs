@@ -181,10 +181,10 @@ fn manga_page_number(prompt_id: i64, page_number: i32) -> Result<u32, String> {
         .ok_or_else(|| format!("漫画页面提示词 #{prompt_id} 的 page_number 必须大于 0"))
 }
 
-fn manga_page_layout_value<'a>(
+fn manga_page_layout_value(
     prompt_id: i64,
-    layout: Option<&'a Value>,
-) -> Result<(&'a Value, &'a str), String> {
+    layout: Option<&Value>,
+) -> Result<(&Value, &str), String> {
     let layout = layout.ok_or_else(|| format!("漫画页面提示词 #{prompt_id} 缺少 layout"))?;
     let schema_version = layout
         .get("schema_version")

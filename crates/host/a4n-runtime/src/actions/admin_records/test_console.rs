@@ -1264,26 +1264,26 @@ async fn matrix_suite_message(
     if let Some(error) = result.error.as_deref().filter(|error| !error.is_empty()) {
         parts.push(error.chars().take(240).collect());
     }
-    if let Some(log) = result.log.as_deref() {
-        if result.status != "passed" {
-            let log_path = Path::new(log);
-            let report_root = tokio::fs::canonicalize(report_dir)
-                .await
-                .map_err(|error| format!("解析测试报告目录失败：{error}"))?;
-            let log_path = if log_path.is_absolute() {
-                log_path.to_path_buf()
-            } else {
-                report_dir.join(log_path)
-            };
-            let log_path = tokio::fs::canonicalize(log_path)
-                .await
-                .map_err(|error| format!("读取 suite 失败日志路径失败：{error}"))?;
-            if !log_path.starts_with(&report_root) {
-                return Err("测试 suite 日志路径越出报告目录".to_string());
-            }
-            let visible_path = log_path.strip_prefix(&report_root).unwrap_or(&log_path);
-            parts.push(format!("失败日志：{}", visible_path.display()));
+    if let Some(log) = result.log.as_deref()
+        && result.status != "passed"
+    {
+        let log_path = Path::new(log);
+        let report_root = tokio::fs::canonicalize(report_dir)
+            .await
+            .map_err(|error| format!("解析测试报告目录失败：{error}"))?;
+        let log_path = if log_path.is_absolute() {
+            log_path.to_path_buf()
+        } else {
+            report_dir.join(log_path)
+        };
+        let log_path = tokio::fs::canonicalize(log_path)
+            .await
+            .map_err(|error| format!("读取 suite 失败日志路径失败：{error}"))?;
+        if !log_path.starts_with(&report_root) {
+            return Err("测试 suite 日志路径越出报告目录".to_string());
         }
+        let visible_path = log_path.strip_prefix(&report_root).unwrap_or(&log_path);
+        parts.push(format!("失败日志：{}", visible_path.display()));
     }
     if parts.is_empty() {
         Ok(status_label(&matrix_suite_status(&result.status)).to_string())

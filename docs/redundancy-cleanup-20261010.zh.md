@@ -797,6 +797,14 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：`cargo check --all-targets --offline --locked -p a4n-domain -p a4n-migration -p a4n-db` 通过；`a4n-domain` 单测 153/153 通过。直接运行 `a4n-migration --lib` 时有 68 项通过、40 项因未设置 `A4N_TEST_DATABASE_URL` 在测试库初始化阶段失败；随后通过 `run_with_test_database.py` 的临时 PostgreSQL 16 容器运行 `media_authoring_legacy::legacy_game_keeps_main_and_branch_edits_and_enforces_local_beat_identity`，1/1 通过，容器清理成功。定向 `cargo clippy --offline --locked --all-targets --message-format short -p a4n-domain -p a4n-migration -p a4n-db` 退出 0，本批 collapsible/nonminimal/map-entry/needless-borrow 告警已消失；剩余为枚举布局、参数数量、复杂类型、模块命名与测试模块顺序提示。`cargo fmt --all -- --check` 和 `git diff --check` 通过。
 - 记录范围：`crates/platform/a4n-domain/src/galgame/graph.rs`、`crates/platform/a4n-domain/src/manga/contracts/pipeline.rs`、`crates/platform/a4n-migration/src/migrations/media_authoring/galgame.rs`、`crates/platform/a4n-migration/src/main.rs`、`crates/platform/a4n-db/tests/media_authoring_documents.rs`。
 
+### R-98：清理全 workspace Clippy 等价表达
+
+- 类别：嵌套条件、单分支匹配、无效借用/返回、显式生命周期和排序比较器。
+- BFS 覆盖：CodeGraph 从 Admin Test Center `TestConsole::start -> run_scenario -> run_repository_test_group -> matrix_suite_message` 追到前端 API、运行时状态 owner 和同模块测试；从 WebGAL `render_webgal_scene` 追到三个 exporter 调用；从 Manga `process_manga_page_stages` 追到三个页级 stage gate 与生成/检查点使用，并从 `run_single_stage` 追到 pipeline execution；从 `manga_page_layout_value` 追到三个 Domain 投影调用，从 `read_source` 追到 Optimize tool executor 与其 marker/hash 测试。Tauri `clear_update_recovery_state` 已注册在 `command_registry.rs`，`retain_recent_backups` 由验证数据库备份流程调用。
+- 合并 TestConsole 失败日志投影的两层条件、三个 Manga stage 的等价嵌套 gate，以及 WebGAL next-scene 单分支匹配。删除多余引用、临时返回变量和 match 臂 `return`，省略单输入生命周期，简化 Tauri updater 的 `Ok(...?)`、失败状态谓词和降序 backup 排序键；保留日志路径 canonicalization/目录 containment、stage 选择、更新错误传播、备份顺序及现有 API 合同。
+- `cargo clippy --workspace --all-targets --locked --offline --message-format short` 退出 0；workspace warning 诊断从 196 条降至 174 条，所有本批目标 lint 消失。保留其余参数数量、枚举体积、复杂类型、模块/测试模块顺序提示，未据此新增 DTO、抽象或类型别名。Runtime `test_console` 定向单测 8/8，rustfmt 与 diff 检查通过。
+- 记录范围：`crates/host/a4n-runtime/src/actions/admin_records/test_console.rs`、`crates/host/a4n-orchestrator/src/{galgame/webgal_export_application.rs,import_reverse/candidate.rs,manga/pipeline/run/{page.rs,single_stage.rs},manga/pipeline/preview/planning/page_pipeline.rs,optimize/runtime_tools/read.rs}`、`crates/host/a4n-tauri/src/commands/updates.rs`、`crates/host/a4n-server/src/server/process.rs`、`crates/manga/a4n-manga-core/src/lib.rs`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
