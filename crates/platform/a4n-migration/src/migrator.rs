@@ -145,6 +145,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::galgame_generation_spec_source_hash::Migration),
             Box::new(crate::migrations::video_shot_source_identity::Migration),
             Box::new(crate::migrations::body_fact_feedback::Migration),
+            Box::new(crate::migrations::fact_feedback_read_indexes::Migration),
             Box::new(crate::migrations::galgame_scene_source_identity::Migration),
             Box::new(crate::migrations::galgame_scene_snapshot_scope::Migration),
             Box::new(crate::migrations::retire_stale_live_text_anchors::Migration),

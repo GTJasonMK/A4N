@@ -119,12 +119,18 @@ async function measureStoryEvents(count: number) {
   }
   const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(rootElement.innerHTML));
   const renderedTextHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(rootElement.textContent ?? ""));
+  const semanticText = (rootElement.textContent ?? "")
+    .replace(/\s*·\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const semanticTextHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(semanticText));
   if (gc) gc();
   return { chapters: count, events: count * 5, samplesMs: measurements,
     medianMs: [...measurements].sort((a, b) => a - b)[2],
     initial,
     initialHeapBytes,
     finalHeapBytes: memory?.usedJSHeapSize ?? null,
+    semanticTextSha256: Array.from(new Uint8Array(semanticTextHash), (value) => value.toString(16).padStart(2, "0")).join(""),
     filterSamplesMs: filterSamples,
     reactCommitSamplesMs: commitSamples,
     htmlSha256: Array.from(new Uint8Array(hash), (value) => value.toString(16).padStart(2, "0")).join(""),

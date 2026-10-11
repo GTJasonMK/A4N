@@ -45,6 +45,7 @@ pub mod cleanup_outbox_generation_scope;
 pub mod directing_workflow_v2;
 pub mod drop_chapter_video_prompt_identity_unique;
 pub mod external_import_model_identity_cleanup;
+pub mod fact_feedback_read_indexes;
 pub mod foreshadowing_index_integrity_contract;
 pub mod freeform_canonical_media;
 pub mod freeform_generation_context;

@@ -10,7 +10,7 @@ use a4n_domain::{
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder,
-    Set, sea_query::OnConflict,
+    QuerySelect, Set, sea_query::OnConflict,
 };
 use serde_json::{Value, json};
 
@@ -168,12 +168,34 @@ pub async fn feedback_changes<C: ConnectionTrait>(
     db: &C,
     project_id: i64,
 ) -> Result<Vec<material_fact_change::Model>, DbErr> {
-    material_fact_change::Entity::find()
-        .filter(material_fact_change::Column::ProjectId.eq(project_id))
-        .filter(material_fact_change::Column::MaterialKind.ne("chapter_feedback"))
-        .order_by_desc(material_fact_change::Column::Id)
-        .all(db)
-        .await
+    const PAGE_SIZE: u64 = 128;
+    const RESULT_LIMIT: usize = 100;
+    let mut changes = Vec::with_capacity(RESULT_LIMIT);
+    let mut before_id = None;
+    loop {
+        let mut query = material_fact_change::Entity::find()
+            .filter(material_fact_change::Column::ProjectId.eq(project_id))
+            .filter(material_fact_change::Column::MaterialKind.ne("chapter_feedback"))
+            .order_by_desc(material_fact_change::Column::Id)
+            .limit(PAGE_SIZE);
+        if let Some(before_id) = before_id {
+            query = query.filter(material_fact_change::Column::Id.lt(before_id));
+        }
+        let page = query.all(db).await?;
+        if page.is_empty() {
+            break;
+        }
+        before_id = page.last().map(|row| row.id);
+        changes.extend(
+            page.into_iter()
+                .filter(|row| row.before_json != row.after_json)
+                .take(RESULT_LIMIT.saturating_sub(changes.len())),
+        );
+        if changes.len() == RESULT_LIMIT {
+            break;
+        }
+    }
+    Ok(changes)
 }
 
 pub struct FactChangeRecordInput {

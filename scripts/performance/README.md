@@ -598,6 +598,14 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 语义验证：新旧人物记录序列化字节逐项相同；集成回归 **1/1** 覆盖 future profile 排除、AI 时间线与用户删除标记优先级、未来章节语音事实撤销；ignored A/B 基准 **1/1**。`cargo clippy --offline --locked --all-targets -p a4n-db` 通过，输出仅有既有 lint 告警。工作集分批限制为最多 128 份人物时间线记录。
 - 证据与复现：旧路径基线 `data/performance-audit-20261010/chapter-generation-reference-context/baseline.log`；同进程交错 A/B `data/performance-audit-20261010/chapter-generation-reference-context/after-candidate.log`。在隔离库 `a4n_perf_ctx_arch` 中运行 `cargo test --locked --release -p a4n-db --test chapter_generation_reference_context_batch -- --ignored --nocapture --test-threads=1`。
 
+### PERF-056：事实反馈摘要仅读取最新有效变更
+
+- 调用链与频率：Fact Feedback 面板在归纳工作流运行时每 **1.5 秒**轮询 `get_project_fact_feedback`；`material_fact_change` 越积越多，但面板仅显示 ID 最新的 **100** 条非章节反馈且 `before != after` 的变更。旧路径读取项目全部非章节变更及大 JSON，再由 Orchestrator 过滤、截断。
+- 根因与改动：查询按 `id DESC` 以 **128** 条分页，数据库使用 `(project_id, id DESC) WHERE material_kind <> 'chapter_feedback'` 部分索引；Rust 按原 `serde_json::Value` 相等语义过滤并在凑齐 100 条后停止。保留原始记录顺序和摘要序列化。没有在 SQL 使用 JSONB 不等式：PostgreSQL 会认为 `1` 与 `1.0` 相等，但 `serde_json::Value` 会区分两者；新旧对照夹具特意把这类记录放在最新位置，确保它被包含。
+- 量化结果：隔离 PostgreSQL 16 release，目标项目 **5,000** 条大变更（每行 before/after/evidence 各约 10.5 KiB，共约 32 KiB），另加入 **50,000** 条其他项目记录模拟全库索引噪声。旧路径物化 **4,545** 个目标项目模型，新路径从部分索引读取 **128** 条以取得 100 条摘要。15 次交错样本、2 次预热，数据库行序列化结果字节相同；P50/P95 **386.297/391.092 → 15.198/16.787 ms**，下降 **96.1%/95.7%**。按行数估算目标路径模型物化量约下降 **97.2%**，未把估算写成实测 RSS。
+- 语义验证：返回的 100 项序列化字节逐项一致，包含最新 `1`/`1.0` 差异、相等 before/after 过滤、`chapter_feedback` 排除和 ID 降序；release A/B **1/1** 通过。`EXPLAIN` 确认分页查询使用 `idx_material_fact_change_summary_latest`，按 `project_id` 索引扫描；`a4n-db` 与 `a4n-migration` 编译、全仓格式检查通过。
+- 证据与复现：`data/performance-audit-20261010/fact-feedback-read-projection/benchmark.log`；隔离库 `a4n_perf_fact_feedback_20261011` 中执行 `cargo test --locked --release -p a4n-db --test fact_feedback_read_projection benchmark_fact_feedback_summary_projection -- --ignored --nocapture --test-threads=1`。索引迁移为 `fact_feedback_read_indexes`。
+
 ### 拒绝候选：Canvas 文本素材窄索引
 
 - 链路与规模：`ProjectTextMaterialsPanel` 初载 **256 份**文本素材，每份正文约 **4 KiB**；旧列表响应包含全部正文，而页面只展示目录并读取当前选中版本。候选增加不含正文的索引命令，切换素材仍通过版本接口读取正文，并验证第二份素材内容和标题。
@@ -619,3 +627,11 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 候选：保留全部逐条转换和校验，仅把已转换的 ActiveModel 按现有 1,000 行批次 `insert_many` 写入。
 - 量化结果：两轮同库交错 A/B 的 P50/P95 分别为 **70.703/124.546 → 44.487/66.161 ms（37.1%/46.9%）**、**47.221/58.071 → 35.944/44.202 ms（23.9%/23.9%）**；第二轮未达到 30% 门槛，收益不稳定，候选已撤回。恢复后的正式入口字段、映射后 JSON、指纹和顺序逐项一致；基准输出保留在 `data/performance-audit-20261010/workflow-checkpoint-import-{before,after,after-repeat}/`。
 - 决定：不改变 checkpoint 的逐条写入路径。输入 JSON 体积和指纹/升级校验成本需要更多代表性数据后再评估；当前夹具保留用于后续复测，不把首轮尾延迟降幅计入性能收益。
+
+### 拒绝候选：故事事件行 DOM 压缩
+
+- 链路与规模：故事事件页初次渲染及筛选更新，基准为 **1000 章/5000 个事件**，连续执行包含收窄和放宽的 8 次筛选；每轮覆盖 1440/390px、Enter 打开章节和横向溢出检查。
+- 候选：将事件 bullet 与元数据分隔点改为 CSS 伪元素，并合并事件行的无意义包裹节点。字段顺序、重要性颜色、章节跳转和打印容器保持不变；分隔点使用 `::before/::after` 后不进入屏幕阅读器文本。
+- 量化结果：真实 Chromium 153 三轮交错中位数（1000 章）交互总耗时 **421.1 → 360.5 ms（14.4%）**，GC 后 JS heap **29.01 → 25.46 MB（12.2%）**；DOM 元素 **69,008 → 39,008（43.5%）**。前两项未达到本项目 30% 时延或 20% 内存保留门槛，产品候选撤回。
+- 语义验证：三轮旧/新语义文本 SHA-256 分别为 `144f2d96682153aecececec18dcf867402034de132c19ad113a19eb396cb6124`，事件行数、章节末端位置、两种视口截图和键盘路径一致；候选视觉 HTML 哈希不同仅来自装饰节点重排。夹具保留规范化语义哈希，避免后续重复评估时误把 CSS 装饰当业务文本。
+- 证据：`data/performance-audit-20261010/story-event-markup-final/{before-01,before-02,before-03,after-compact-01,after-compact-02,after-compact-03}/report.json`；产品代码恢复为基线实现，本条仅记录拒绝结论和夹具校验。
