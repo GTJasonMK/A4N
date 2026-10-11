@@ -17,7 +17,7 @@ pub(in crate::character) use projection::{
 };
 pub use projection::{
     replay_profile_state_through_chapter, replay_profile_state_through_chapter_by_id,
-    retract_profile_chapter_facts,
+    replay_profile_states_through_chapter_batch, retract_profile_chapter_facts,
 };
 pub use records::behavior_records_before_chapter;
 pub(in crate::character) use records::upsert_state_index;

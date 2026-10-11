@@ -70,8 +70,8 @@ pub use timeline::{
     behavior_records_before_chapter, character_conflict_context_rows,
     delete_ai_timeline_artifacts_from_chapter_checked,
     delete_timeline_artifacts_from_chapter_checked, replay_profile_state_through_chapter,
-    replay_profile_state_through_chapter_by_id, retract_profile_chapter_facts,
-    rollback_profile_to_chapter,
+    replay_profile_state_through_chapter_by_id, replay_profile_states_through_chapter_batch,
+    retract_profile_chapter_facts, rollback_profile_to_chapter,
 };
 
 use sea_orm::DbErr;

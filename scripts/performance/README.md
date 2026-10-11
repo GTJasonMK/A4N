@@ -52,6 +52,8 @@
 | [PERF-051](../../crates/platform/a4n-db/src/workflow/runs/queries.rs) | Canvas workflow 状态每秒轮询及设置页展开详情；最多 300 个 generation run | UI 只使用 generation run 状态、标题、次数和 JSON 存在标记；UI 显式请求省略 fingerprint/raw/parsed/validation/artifact JSON，CLI 缺省仍取完整诊断内容 | 完整 workflow detail **17,324,230 → 195,978 B**；真实 PostgreSQL P50/P95 **18.561/26.785 → 2.528/3.145 ms（86.4%/88.3%）**；300 个项目顺序、摘要字段和 3 个内容存在标记一致 |
 | [PERF-052](../../crates/host/a4n-runtime/src/actions/admin_records/test_console.rs) | 测试中心活动 run 详情每 800 ms 轮询；最多 500 条日志，每条 append 日志最多 2,000 字符 | 默认/旧请求仍返回完整日志；前端轮询带独占 log cursor，后端只克隆和序列化 cursor 之后的日志，并从缓存详情中投影摘要/步骤 | release TestConsole read + JSON serialization：500×2,000 字符时响应 **1,001,914 → 415 B**；P50/P95 **0.676/0.947 → 0.001/0.002 ms**（P50 下降 99.8%）；日志轮转和过期游标语义一致 |
 | [PERF-053](../../crates/platform/a4n-task-runtime/src/channel/handle.rs) | `useProgressTask` 每 500 ms 请求和 Canvas workflow 每秒请求，最多 200 个历史事件；活体文本尾部固定 512 字符 | 两处 UI 将最近事件 ID 作为可选 cursor；task 内存 ring 从游标后克隆事件，持久 workflow 查询按 ID 过滤；无游标的旧调用仍返回最近完整页，stream text 仍每次返回 | 200 条×256 字符时 task response **71,031 → 894 B**、P50/P95 **0.332/0.420 → 0.004/0.006 ms（98.7%）**；隔离 PostgreSQL workflow response **73,213 → 398 B**、P50/P95 **3.068/5.256 → 0.639/1.016 ms（79.2%/80.7%）**；cursor 后只保留新增事件 |
+| [PERF-054](../../crates/host/a4n-runtime/src/actions/admin_records/test_console.rs) | Test Center `list_test_runs(30)` 扫描全部 JSON 报告；每份最多 500×2,000 字符日志 | 终态/缓存报告走 typed summary projection；仅 stale queued/running 报告完整解析并恢复，错误类型和列表排序保持一致 | 40 份报告的 response bytes 相同，P50/P95 **17.778/37.523 → 11.510/14.530 ms**（35.3%/61.3%），peak RSS **51,268 → 13,004 KiB**（74.6%） |
+| [PERF-055](../../crates/platform/a4n-db/src/project/chapter/context/generation.rs) | 每次章节生成构造人物参考上下文；16/32/64 个有首见证据的人物档案 | 首见证据、人物时间线/归属、反馈事实改为 owner 内批量查询；时间线每 128 档案分块，保留旧投影与排序语义 | PostgreSQL 交错 A/B 的 P50/P95：16 档 **62.964/75.181 → 7.428/9.614 ms**；32 档 **127.599/141.437 → 8.199/10.110 ms**；64 档 **247.041/290.149 → 7.523/10.703 ms**；档案响应字节逐项相同 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -587,6 +589,14 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 量化结果：Linux 独立子进程、**40** 份报告、每份 **500×2,000** 字符日志、返回 30 条，release 交错测量；基线复刻旧完整 `list()` 路径（包括缓存/活动状态检查），摘要 JSON 字节完全一致。P50/P95 **17.778/37.523 → 11.510/14.530 ms**（下降 **35.3%/61.3%**），峰值 RSS **51,268 → 13,004 KiB**（下降 **74.6%**），同时达到时延和内存门槛。
 - 语义验证：projection 与完整解析摘要及响应字节逐项一致；错误日志类型与旧解析路径返回相同错误文本；stale queued 报告仍恢复为 failed 并持久化，活动 running 报告不恢复。Runtime 列表/恢复/结构模块测试 **14 passed、2 ignored**；`cargo clippy --offline --locked --all-targets -p a4n-runtime` 通过，输出仅有既有代码告警。
 - 证据与复现：`data/performance-audit-20261010/test-run-list-projection/benchmark.log`；`flock -x /home/fufu/Code/A4N/work/.agent-build.lock env CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target CARGO_INCREMENTAL=0 cargo test --locked --release -p a4n-runtime benchmark_test_run_summary_list_projection --lib -- --ignored --nocapture --test-threads=1`。
+
+### PERF-055：章节生成人物参考上下文批处理
+
+- 调用链与频率：每次章节生成准备阶段构造人物参考上下文；测试覆盖 **16/32/64 个**已发现人物档案，每个档案均绑定当前首见章节锚点及完成的 `character_discovery` run。
+- 根因与改动：旧路径逐档案校验文本根项目和身份、查询首见证据/锚点/章节正文、读取时间线事件/删除标记/discovery run，并读取可回滚的语音/弧线事实。现在文本证据、时间线所有权与回放、profile enrichment 在各自 owner 中批量读取；时间线档案按 **128** 项分批，原状态回放与事实撤销规则保持不变，不增加业务缓存或预取。
+- 量化结果：同一隔离 PostgreSQL 16 库和同一 fixtures 下交错执行旧逐档案基线与完整新 `chapter_generation_reference_context_rows`，15 个样本、2 次预热，包含结果序列化且逐次响应字节相同。P50/P95：16 档 **62.964/75.181 → 7.428/9.614 ms**（88.2%/87.2%）；32 档 **127.599/141.437 → 8.199/10.110 ms**（93.6%/92.9%）；64 档 **247.041/290.149 → 7.523/10.703 ms**（97.0%/96.3%）。这是数据库 context read/projection，不包含 LLM 上游生成时延。
+- 语义验证：新旧人物记录序列化字节逐项相同；集成回归 **1/1** 覆盖 future profile 排除、AI 时间线与用户删除标记优先级、未来章节语音事实撤销；ignored A/B 基准 **1/1**。`cargo clippy --offline --locked --all-targets -p a4n-db` 通过，输出仅有既有 lint 告警。工作集分批限制为最多 128 份人物时间线记录。
+- 证据与复现：旧路径基线 `data/performance-audit-20261010/chapter-generation-reference-context/baseline.log`；同进程交错 A/B `data/performance-audit-20261010/chapter-generation-reference-context/after-candidate.log`。在隔离库 `a4n_perf_ctx_arch` 中运行 `cargo test --locked --release -p a4n-db --test chapter_generation_reference_context_batch -- --ignored --nocapture --test-threads=1`。
 
 ### 拒绝候选：Canvas 文本素材窄索引
 

@@ -19,6 +19,7 @@ pub use records::{
     feedback_config, feedback_interval, feedback_intervals, record_fact_change,
     record_feedback_completion, source_revision, update_feedback_interval,
 };
+pub(crate) use replay::profile_enrichment_before_chapter_batch;
 pub use replay::{
     invalidate_feedback_sources, profile_enrichment_before_chapter, world_setting_before_chapter,
 };
