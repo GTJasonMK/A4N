@@ -180,7 +180,7 @@ use a4n_api_contract::{
     },
     import_review::{
         AcceptImportReviewInput, BatchAcceptImportReviewsInput, CheckImportDedupInput, DedupResult,
-        ImportProjectReviewsInput, ImportReviewIdInput, ImportReviewSummary,
+        ImportProjectReviewsInput, ImportReviewIdInput, ImportReviewListItem, ImportReviewSummary,
     },
     inspiration::{
         InspirationHistoryInput, InspirationMessageSummary, PreviewInspirationRequestInput,

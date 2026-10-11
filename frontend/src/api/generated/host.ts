@@ -147,6 +147,7 @@ export const HOST_API_COMMANDS = [
   "get_generation_call_analytics",
   "get_generation_progress",
   "get_implicit_review",
+  "get_import_review",
   "get_inspiration_history",
   "get_log_dir",
   "get_manga_pipeline_status",
@@ -217,6 +218,7 @@ export const HOST_API_COMMANDS = [
   "list_images_by_project",
   "list_images_by_projects",
   "list_import_queue",
+  "list_import_queue_index",
   "list_invite_codes",
   "list_llm_config",
   "list_local_embedding_models",
@@ -3736,6 +3738,15 @@ export type ImportReviewStatus = "pending" | "accepted" | "rejected" | "modified
 
 export interface ImportReviewSummary {
   analysis_result: unknown;
+  created_at: string;
+  filename: string;
+  id: number;
+  project_id: number;
+  review_status: ImportReviewStatus;
+  updated_at: string;
+}
+
+export interface ImportReviewListItem {
   created_at: string;
   filename: string;
   id: number;

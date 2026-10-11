@@ -66,14 +66,14 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 首屏和路由 | `App.tsx` 已按路由和依赖图弹窗懒加载。PERF-009 已通过真实 Edge 和生产登录页验证压缩交付；同一份入口文件从 1,010,285 原始字节变为 310,789 传输字节。两种语言字典仍静态加载，未宣称这一部分代码拆分已经完成。 |
 | 项目列表 | `ProjectReadWorker::summary_for_projects` 已批量查询项目族、权限、进度和反馈间隔；不重新引入逐项目请求或重复批处理层。 |
 | 章节列表 | PERF-011 消除未使用历史读取及检查点深复制，PERF-017 将写作桌/只读目录/导入预览改为按需读取。原 `ChapterSummary` 完整合同保留，目录与正文类型分开；故事事件/来源快照读取仍另行审查。 |
-| 数据库权限和协作 | 读取使用连接池、绑定参数和批量根项目查询。邀请／成员统计仍可能随大型协作人数增长；暂无代表性数据证明其为当前瓶颈，未为凑指标添加索引或改写权限查询。 |
+| 数据库权限和协作 | 读取使用连接池、绑定参数和批量根项目查询。PERF-059 用 20 项目 × 1000 成员测量了项目列表成员聚合候选，完整访问摘要 P50/P95 只下降 8.8%/24.8%，已拒绝；线上团队规模分布仍未证明更大的协作组是常见负载。 |
 | 工作流轮询和恢复 | 旧任务进度轮询间隔 500 ms，已有单次进行中保护和结束清理；新生成任务走事件订阅。未通过减少进度频率来换取表面收益。恢复快照的读取需求与公开进度投影分开评估。 |
 | Agent 维护扫描 | PERF-029 批量读取外部等待与预算；PERF-030/031 批量读取仍活动的 Generation/Workflow owner 预算；PERF-034/036 测量 root/child 过期 lease 的完整恢复批次；PERF-035 为高基数 Generation owner JSON 关联增加表达式索引。审批和编辑器等待的局部预读候选未达门槛并拒绝保留。 |
 | HTTP 与媒体 | Worker／service client 已持有并复用 HTTP client；Web 媒体使用 `ServeFile`，Edge 使用流式 body。桌面自定义协议要求字节响应，不能直接套用 Web 的传输方案。 |
 | LLM 上游连接 | PERF-012 保留每次构造 provider 的配置与凭证隔离，仅延长 HTTP Client 的生命周期。原连接／逐次读取超时、错误、取消与背压检查通过；不缓存模型响应。 |
 | 嵌入模型生命周期 | PERF-014／015 已处理本地模型和 API 连接的重复初始化。模型文件删除／下载会使额外持有的资源失效；仍存活的 provider 保留原有拥有权，避免破坏已在使用的模型。没有缓存业务向量结果。 |
 | 语义分块 | 已复用向量范数并利用相似矩阵对称性；本次只消除额外矩阵。将全矩阵换成局部带状算法可能改变浮点抵消和相同分数时的切分，未作为无风险替换。 |
-| 故事事件 | PERF-018 减少筛选时未变化卡片的重复渲染；PERF-019 从数据库到前端仅读取所需的五个分析字段；PERF-045 延迟默认收起的伏笔索引。千章/4500事件首屏仍需渲染大量卡片，未将受控夹具的首屏收益外推为完整后端端到端提升。 |
+| 故事事件 | PERF-018 减少筛选时未变化卡片的重复渲染；PERF-019 从数据库到前端仅读取所需的五个分析字段；PERF-045 延迟默认收起的伏笔索引；PERF-058 将只读事件页的 GC 后 JS heap 降低 32.9%。千章/4500事件仍需渲染大量卡片，DOM 压缩和搜索候选均因未达门槛拒绝。 |
 | Agent 消息流 | PERF-029/044 已覆盖 Agent 后端维护扫描和历史预算投影；PERF-046 处理前端高频无关状态更新，消息数组或流式事件变化仍走完整渲染。 |
 | 档案素材与图片 | PERF-047 只优化档案列表图片计数和删除下游 ID 的读取；完整素材列表、主素材绑定和图片详情仍保留原字段与顺序。 |
 | 依赖图 | PERF-049 将族级图摘要限制为漫画页、对象/场景素材和三类视频帧；节点详情仍按节点类型独立读取完整记录，未改变详情合同。 |
@@ -631,6 +631,20 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 量化结果：隔离 PostgreSQL 16，**20 个项目 × 1000 个成员**，同一 viewer 加载 20 个项目，比较完整 `project_access_info_batch`，2 次预热、15 次样本。原查询 P50/P95 **10.472/15.964 ms**；临时聚合候选 **9.547/12.006 ms**，仅下降 **8.83%/24.79%**，未达到 30% 响应时延门槛。候选虽把 DB 返回元组从 **20,000 → 20**，但没有测得总内存降低 20%，所以未保留生产 SQL 改动。
 - 语义验证与决定：两版都返回 **20** 个项目，每个 member_count 为 **1000**，当前角色为 Viewer，owner 字段与 pending-invite 可见性一致。候选实现已撤回；保留当前基线的忽略型 benchmark 与隔离运行日志，避免把大团队的潜在收益当成已达门槛的产品优化。
 - 证据：基准夹具 `crates/platform/a4n-db/tests/project_access_member_projection.rs`；`data/performance-audit-20261010/collaboration-access-member-projection/{before,after}/command.log` 与对应 `database.json`。`before` 测当前实现，`after` 为已撤回的聚合候选。baseline 可在 `.agent-build.lock` 独占锁中用 `CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=2 CARGO_PROFILE_RELEASE_DEBUG=0 TMPDIR=/home/fufu/Code/A4N/work/.p`，再调用 `scripts/tests/run_with_test_database.py --image docker.m.daocloud.io/library/postgres:16 --report-dir <new-worktree-data-dir> -- cargo test --locked --release -p a4n-db --test project_access_member_projection benchmark_project_access_member_projection -- --ignored --nocapture --test-threads=1` 复测。
+
+### 拒绝候选：工作流列表恢复快照窄投影
+
+- 链路与规模：设置页 QueueTab 每 **5 秒**请求最多 **40** 条 `list_workflow_runs`；工作流行的 `progress_json` 同时保存公开进度和恢复 `snapshot`。候选只在公开列表读口中用 PostgreSQL `json::jsonb` 运算移除 `snapshot` 与取消任务字段，恢复、详情和编排读口保持完整模型。
+- 语义验证：夹具包含 **40** 条运行记录，每条恢复快照约 **512 KiB**。候选与旧路径的 `WorkflowRunSummary` 序列化响应逐字节一致，公开进度和排序一致；完整路径显性拒绝非法 `ProgressMeta` 的错误也保留。
+- 量化结果：隔离 PostgreSQL 16、release、15 次交错样本、2 次预热。旧路径 P50/P95 **19.208/25.550 ms**，候选 **76.210/78.058 ms**，反而慢 **296.8%/205.5%**；候选虽把进程内 `progress_json` 从 **20,977,990 B** 降到 **3,840 B**，但数据库端 JSON 转换成本主导请求时延，未达到响应门槛且方向相反。
+- 决定与证据：撤回所有生产代码改动，不改变 `list_workflow_runs` 合同。保留一次输入夹具失败（非法 `ProgressMeta`）和通过样本的私有 runner 报告：`data/performance-audit-20261010/workflow-run-list-projection/`、`data/performance-audit-20261010/workflow-run-list-projection-rerun/`、`data/performance-audit-20261010/workflow-run-list-projection-rerun2/`。后续若要优化该路径，应先在写入侧拆出可直接索引的公开进度列，再重新测量，不能在查询时重建 JSON。
+
+### PERF-061：导入审核队列索引列表
+
+- 调用链与频率：Novel Detail 的 Imports 页在进入页面和每 **5 秒**刷新一次导入审核队列；列表卡片只显示文件名、审核状态和时间，`analysis_result` 只在打开详情或编辑审核 JSON 时使用。基准为 **100** 条审核项，每条分析 JSON 约 **64 KiB**。
+- 根因与改动：旧 `list_import_queue` 每次完整读取并序列化所有 `analysis_result`。保留旧完整命令给兼容调用方，新增 `list_import_queue_index` 的数据库窄投影和 `get_import_review` 详情读口；页面轮询改用索引，点击详情和已打开详情的刷新才按 ID 取完整 JSON。权限、状态解析、排序和旧命令合同不变。
+- 量化结果：隔离 PostgreSQL 16、release、15 次交错样本、2 次预热。完整列表 P50/P95 **7.010/9.507 → 0.382/0.535 ms**，下降 **94.4%/94.4%**；响应序列化 **6,580,311 → 16,627 B**，减少 **99.75%**。索引结果逐项保留 ID、项目、文件名、状态和时间字段。
+- 验证与证据：基准夹具 `crates/platform/a4n-db/tests/import_review_list_projection.rs`；报告 `data/performance-audit-20261010/import-review-list-projection/command.log`。Rust 受影响 crates `cargo check --locked`、前端 `npm run check:web-api-parity` 和 `npm run build` 通过；旧完整读口未删除，详情错误仍显性返回。
 
 ### 拒绝候选：Canvas 文本素材窄索引
 

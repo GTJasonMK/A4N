@@ -678,6 +678,7 @@ pub(super) fn run() {
         &typescript_interface::<ProjectBundleProviderSlotReport>("ProjectBundleProviderSlotReport"),
         &typescript_enum::<ImportReviewStatus>("ImportReviewStatus"),
         &typescript_interface::<ImportReviewSummary>("ImportReviewSummary"),
+        &typescript_interface::<ImportReviewListItem>("ImportReviewListItem"),
         &typescript_interface::<ImportProjectReviewsInput>("ImportProjectReviewsInput"),
         &typescript_interface::<ImportReviewIdInput>("ImportReviewIdInput"),
         &typescript_interface::<AcceptImportReviewInput>("AcceptImportReviewInput"),

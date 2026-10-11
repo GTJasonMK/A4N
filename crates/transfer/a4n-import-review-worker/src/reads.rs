@@ -18,6 +18,33 @@ impl WorkerState {
             .map_err(app_error)
     }
 
+    pub(super) async fn list_index(
+        &self,
+        request: WorkerEnvelope<ImportProjectReviewsInput>,
+    ) -> Result<Vec<ImportReviewListItem>, WorkerFailure> {
+        validate_request(&request, IMPORT_REVIEW_LIST_INDEX_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let project_id = scoped_project_id(&request, request.payload.project_id)?;
+        verify_editor(&self.database, project_id, user_id).await?;
+        a4n_db::import_review::import_review_list_by_project(self.database.connection(), project_id)
+            .await
+            .map_err(database_error)?
+            .into_iter()
+            .map(list_item_from_record)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(app_error)
+    }
+
+    pub(super) async fn detail(
+        &self,
+        request: WorkerEnvelope<ImportReviewIdInput>,
+    ) -> Result<ImportReviewSummary, WorkerFailure> {
+        validate_request(&request, IMPORT_REVIEW_DETAIL_OPERATION)?;
+        let user_id = user_id(&request)?;
+        let review = review_for_editor(&self.database, user_id, request.payload.review_id).await?;
+        summary_from_record(review).map_err(app_error)
+    }
+
     pub(super) async fn dedup(
         &self,
         request: WorkerEnvelope<CheckImportDedupInput>,
@@ -33,4 +60,25 @@ impl WorkerState {
                 .map_err(database_error)?;
         calculate_dedup(&input.content, &chapters).map_err(app_error)
     }
+}
+
+fn list_item_from_record(
+    review: a4n_domain::import_review::ImportReviewListRecord,
+) -> Result<ImportReviewListItem, a4n_error::AppError> {
+    let review_status = a4n_domain::import_review::ImportReviewStatus::parse(&review.review_status)
+        .ok_or_else(|| a4n_error::AppError::InvalidState {
+            current: format!(
+                "导入审核 #{} review_status={:?}",
+                review.id, review.review_status
+            ),
+            operation: "读取导入审核列表状态".to_string(),
+        })?;
+    Ok(ImportReviewListItem {
+        id: review.id,
+        project_id: review.project_id,
+        filename: review.filename,
+        review_status,
+        created_at: review.created_at.to_string(),
+        updated_at: review.updated_at.to_string(),
+    })
 }

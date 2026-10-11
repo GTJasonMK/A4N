@@ -637,6 +637,9 @@ pub(crate) fn result_import_review() -> Value {
 pub(crate) fn result_import_reviews() -> Value {
     typed_schema::<Vec<crate::import_review::ImportReviewSummary>>()
 }
+pub(crate) fn result_import_review_list_items() -> Value {
+    typed_schema::<Vec<crate::import_review::ImportReviewListItem>>()
+}
 pub(crate) fn result_import_analysis_progress() -> Value {
     typed_schema::<Option<crate::import::ProjectImportAnalysisProgress>>()
 }

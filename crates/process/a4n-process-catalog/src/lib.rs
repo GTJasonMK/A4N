@@ -357,7 +357,7 @@ mod tests {
             .expect("import review read worker entry");
         assert_eq!(import_review_read.kind, ProcessKind::StatefulWorker);
         assert_eq!(import_review_read.binary, "a4n-import-review-worker");
-        assert_eq!(import_review_read.contract_version, "import-review-read-v1");
+        assert_eq!(import_review_read.contract_version, "import-review-read-v2");
         assert_eq!(
             import_review_read.addr_env,
             "A4N_IMPORT_REVIEW_READ_WORKER_ADDR"

@@ -5,9 +5,19 @@ use a4n_db_models::models::{chapter::chapter, project::import_review_queue};
 use a4n_domain::import_review::{ImportReviewCreateInput, ImportReviewRecord, ImportReviewStatus};
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, FromQueryResult,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
+
+#[derive(Debug, FromQueryResult)]
+struct ImportReviewListRow {
+    id: i64,
+    project_id: i64,
+    filename: String,
+    review_status: String,
+    created_at: chrono::NaiveDateTime,
+    updated_at: chrono::NaiveDateTime,
+}
 
 pub async fn import_reviews_by_project<C>(
     db: &C,
@@ -22,6 +32,40 @@ where
         .all(db)
         .await
         .map(|rows| rows.into_iter().map(import_review_record).collect())
+}
+
+pub async fn import_review_list_by_project<C>(
+    db: &C,
+    project_id: i64,
+) -> Result<Vec<a4n_domain::import_review::ImportReviewListRecord>, DbErr>
+where
+    C: ConnectionTrait,
+{
+    import_review_queue::Entity::find()
+        .select_only()
+        .column(import_review_queue::Column::Id)
+        .column(import_review_queue::Column::ProjectId)
+        .column(import_review_queue::Column::Filename)
+        .column(import_review_queue::Column::ReviewStatus)
+        .column(import_review_queue::Column::CreatedAt)
+        .column(import_review_queue::Column::UpdatedAt)
+        .filter(import_review_queue::Column::ProjectId.eq(project_id))
+        .order_by_desc(import_review_queue::Column::CreatedAt)
+        .into_model::<ImportReviewListRow>()
+        .all(db)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| a4n_domain::import_review::ImportReviewListRecord {
+                    id: row.id,
+                    project_id: row.project_id,
+                    filename: row.filename,
+                    review_status: row.review_status,
+                    created_at: row.created_at,
+                    updated_at: row.updated_at,
+                })
+                .collect()
+        })
 }
 
 pub async fn import_review_by_id<C>(

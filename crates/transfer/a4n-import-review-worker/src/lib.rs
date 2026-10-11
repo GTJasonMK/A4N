@@ -8,10 +8,11 @@ use a4n_domain::import_review::{ImportReviewCreateInput, ImportReviewRecord};
 use a4n_import_review_core::{calculate_dedup, summary_from_parts};
 use a4n_import_review_worker_contract::{
     CheckImportDedupInput, IMPORT_REVIEW_DEDUP_OPERATION, IMPORT_REVIEW_DELETE_OPERATION,
+    IMPORT_REVIEW_DETAIL_OPERATION, IMPORT_REVIEW_LIST_INDEX_OPERATION,
     IMPORT_REVIEW_LIST_OPERATION, IMPORT_REVIEW_MUTATION_CAPABILITY, IMPORT_REVIEW_READ_CAPABILITY,
     IMPORT_REVIEW_READ_WORKER_CONTRACT_VERSION, IMPORT_REVIEW_READ_WORKER_ID,
     IMPORT_REVIEW_REJECT_OPERATION, ImportProjectReviewsInput, ImportReviewIdInput,
-    ImportReviewSummary,
+    ImportReviewListItem, ImportReviewSummary,
 };
 use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -76,6 +77,11 @@ impl ImportReviewWorker {
             .route(WORKER_HEALTH_PATH, get(health))
             .route(WORKER_CAPABILITIES_PATH, get(capabilities))
             .route("/v1/commands/import_review.read.list", post(list))
+            .route(
+                "/v1/commands/import_review.read.list_index",
+                post(list_index),
+            )
+            .route("/v1/commands/import_review.read.detail", post(detail))
             .route("/v1/commands/import_review.read.dedup", post(dedup))
             .route("/v1/commands/import_review.mutation.delete", post(delete))
             .route("/v1/commands/import_review.mutation.reject", post(reject))
@@ -167,6 +173,25 @@ async fn list(
     Json(request): Json<WorkerEnvelope<ImportProjectReviewsInput>>,
 ) -> Response {
     command_response(&state, &headers, request, |request| state.list(request)).await
+}
+
+async fn list_index(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ImportProjectReviewsInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.list_index(request)
+    })
+    .await
+}
+
+async fn detail(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ImportReviewIdInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| state.detail(request)).await
 }
 
 async fn dedup(

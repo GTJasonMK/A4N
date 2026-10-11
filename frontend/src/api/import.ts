@@ -1,5 +1,6 @@
 export type {
   DedupResult,
+  ImportReviewListItem,
   ImportReviewSummary,
   ImportReviewStatus,
   ImportProjectAnalysisSummary,
