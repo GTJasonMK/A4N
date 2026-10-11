@@ -16,7 +16,7 @@ use a4n_video::{
     completed_provider_metadata, is_first_frame_chain_workflow,
     should_capture_video_tail_frame_fields,
 };
-use a4n_video_host_contract::VideoProviderResultTarget;
+use a4n_video_host_contract::{ImportedVideoRecordFacts, VideoProviderResultTarget};
 use chrono::Utc;
 use serde_json::Value;
 
@@ -62,10 +62,12 @@ async fn create_imported_chapter_video(
             project_id,
             chapter_id,
             prompt_id,
-            properties,
-            &source.file_name,
-            source.extension,
-            &imported_at,
+            ImportedVideoRecordFacts {
+                properties,
+                source_file_name: &source.file_name,
+                source_extension: source.extension,
+                imported_at: &imported_at,
+            },
         )
         .await
         .map_err(crate::actions::app_error_message)?;

@@ -830,6 +830,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-orchestrator` 通过，四阶段高参数告警消失；`cargo test --offline --locked --no-run -p a4n-orchestrator --lib` 通过；Scene Profile application 定向单测 17/17；`cargo fmt --all -- --check` 和 `git diff --check` 通过。全 workspace 其他既有 Clippy 结构提示未在本项扩张修改。
 - 记录范围：`crates/host/a4n-orchestrator/src/scene_profile/application/stages.rs`、`stages/{execution.rs,orchestration.rs}`、`stages/orchestration/{scenes,occurrences,transitions,entity_states}.rs`。
 
+### R-102：收敛四种视频导入共享媒体事实参数
+
+- 类别：相同导入文件事实在多条 Host port/validated owner 路径重复拆分传递。
+- BFS 覆盖：CodeGraph/静态引用从 `create_imported_{chapter,reference_media,assembly_insert,canvas}_video` 四个 Runtime AppState 入口，追到各自 `VideoRecord*ImportApplicationPort`、唯一 `OrchestratorContext` 实现、validated record owner 和 `create_video_record`；同步核对 `probe_imported_video_properties` 与 Runtime 本地 `ImportedVideoSource`。确认所有方法均经 Host assembly 返回同一 Orchestrator owner，未发现额外 implementation、route registry 或外部 JSON DTO 消费者。
+- 在 `a4n-video-host-contract` 定义借用型 `ImportedVideoRecordFacts`，集中 `ImportedVideoProperties`、源文件名、扩展名和导入时间；四个 port、四个 adapter 和三个 validated owner 改收同一事实结构。每种入口的 project/chapter/prompt/segment/workflow 身份仍由其专属参数保留；Runtime 临时文件的 RAII 清理类型 `ImportedVideoSource` 不合并，也不与只读记录 facts 混名。
+- 未改变探测、授权、元数据字段、记录 owner、错误传播、文件持久化或清理行为；借用结构不复制文件名/时间字符串，不新增 fallback。
+- 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-video-host-contract -p a4n-api-contract -p a4n-orchestrator -p a4n-runtime -p a4n-host-assembly` 退出 0，覆盖 all-targets 与依赖调用闭包；rustfmt、`git diff --check` 通过。现有 Runtime 导入测试覆盖源 staging/清理与复制失败语义，没有直接构造四种 port 调用的集成测试；本次改变为编译期合同封装，未运行数据库导入 E2E。
+- 记录范围：`crates/video/a4n-video-host-contract/src/lib.rs`、`crates/host/a4n-api-contract/src/video/record_ports.rs`、`crates/host/a4n-orchestrator/src/video/records/{mod.rs,imports.rs,assembly.rs,ports/imports.rs}`、`crates/host/a4n-runtime/src/actions/video_records/imports/{chapter.rs,canvas.rs,reference/media.rs,reference/assembly_insert.rs}`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

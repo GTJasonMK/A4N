@@ -8,6 +8,7 @@ use crate::actions::app_error_message;
 use crate::actions::video_generation::GeneratedVideoSummary;
 use crate::actions::video_generation::media::best_effort_video_thumbnail_path;
 use crate::actions::video_records::{complete_video_record, video_record_output_path};
+use a4n_video_host_contract::ImportedVideoRecordFacts;
 use chrono::Utc;
 
 pub async fn upload_assembly_insert_video(
@@ -56,10 +57,12 @@ async fn create_assembly_insert_video(
             chapter_id,
             &workflow_mode,
             insert_after_video_id,
-            properties,
-            &source.file_name,
-            source.extension,
-            &imported_at,
+            ImportedVideoRecordFacts {
+                properties,
+                source_file_name: &source.file_name,
+                source_extension: source.extension,
+                imported_at: &imported_at,
+            },
         )
         .await
         .map_err(app_error_message)?;

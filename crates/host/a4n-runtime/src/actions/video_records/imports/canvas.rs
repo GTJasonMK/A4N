@@ -9,6 +9,7 @@ use super::source::{
 use crate::AppState;
 use crate::actions::video_records::{complete_video_record, video_record_output_path};
 use a4n_canvas_contract::CanvasVideoImportHostInput;
+use a4n_video_host_contract::ImportedVideoRecordFacts;
 use chrono::Utc;
 
 pub(crate) use assembly::assemble_canvas_videos;
@@ -63,10 +64,12 @@ async fn create_imported_canvas_video(
         .video_canvas_import_application()
         .create_imported_canvas_video_record(
             project_id,
-            properties,
-            &source.file_name,
-            source.extension,
-            &imported_at,
+            ImportedVideoRecordFacts {
+                properties,
+                source_file_name: &source.file_name,
+                source_extension: source.extension,
+                imported_at: &imported_at,
+            },
         )
         .await
         .map_err(crate::actions::app_error_message)?;

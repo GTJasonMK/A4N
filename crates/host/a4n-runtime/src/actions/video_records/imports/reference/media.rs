@@ -7,6 +7,7 @@ use crate::actions::access;
 use crate::actions::video_generation::GeneratedVideoSummary;
 use crate::actions::video_generation::media::best_effort_video_thumbnail_path;
 use crate::actions::video_records::{complete_video_record, video_record_output_path};
+use a4n_video_host_contract::ImportedVideoRecordFacts;
 use chrono::Utc;
 
 pub async fn upload_reference_media_video(
@@ -52,10 +53,12 @@ async fn create_imported_reference_media_video(
         .create_imported_reference_media_video_record(
             project_id,
             chapter_id,
-            properties,
-            &source.file_name,
-            source.extension,
-            &imported_at,
+            ImportedVideoRecordFacts {
+                properties,
+                source_file_name: &source.file_name,
+                source_extension: source.extension,
+                imported_at: &imported_at,
+            },
             segment_prompt_id,
             &target_segment.source_shot_id,
             target_segment.segment_index_in_shot,

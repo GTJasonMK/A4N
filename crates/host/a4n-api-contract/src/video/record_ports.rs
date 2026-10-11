@@ -58,10 +58,7 @@ pub trait ChapterVideoImportApplicationPort: Send + Sync {
         project_id: i64,
         chapter_id: i64,
         prompt_id: i64,
-        properties: a4n_video_host_contract::ImportedVideoProperties,
-        source_file_name: &str,
-        source_extension: &str,
-        imported_at: &str,
+        facts: a4n_video_host_contract::ImportedVideoRecordFacts<'_>,
     ) -> Result<VideoImportRecordSummary, a4n_error::AppError>;
 }
 
@@ -72,10 +69,7 @@ pub trait ReferenceMediaVideoImportApplicationPort: Send + Sync {
         &self,
         project_id: i64,
         chapter_id: i64,
-        properties: a4n_video_host_contract::ImportedVideoProperties,
-        source_file_name: &str,
-        source_extension: &str,
-        imported_at: &str,
+        facts: a4n_video_host_contract::ImportedVideoRecordFacts<'_>,
         segment_plan_prompt_id: i64,
         target_source_shot_id: &str,
         target_segment_index: i32,
@@ -91,10 +85,7 @@ pub trait AssemblyVideoImportApplicationPort: Send + Sync {
         chapter_id: i64,
         workflow_mode: &str,
         insert_after_video_id: Option<i64>,
-        properties: a4n_video_host_contract::ImportedVideoProperties,
-        source_file_name: &str,
-        source_extension: &str,
-        imported_at: &str,
+        facts: a4n_video_host_contract::ImportedVideoRecordFacts<'_>,
     ) -> Result<VideoImportRecordSummary, a4n_error::AppError>;
 }
 
@@ -104,10 +95,7 @@ pub trait CanvasVideoImportApplicationPort: Send + Sync {
     async fn create_imported_canvas_video_record(
         &self,
         project_id: i64,
-        properties: a4n_video_host_contract::ImportedVideoProperties,
-        source_file_name: &str,
-        source_extension: &str,
-        imported_at: &str,
+        facts: a4n_video_host_contract::ImportedVideoRecordFacts<'_>,
     ) -> Result<VideoImportRecordSummary, a4n_error::AppError>;
 }
 
