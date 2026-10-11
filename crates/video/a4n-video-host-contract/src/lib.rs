@@ -33,6 +33,14 @@ pub struct ImportedVideoProperties {
     pub fps: i32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ImportedVideoRecordFacts<'a> {
+    pub properties: ImportedVideoProperties,
+    pub source_file_name: &'a str,
+    pub source_extension: &'a str,
+    pub imported_at: &'a str,
+}
+
 #[derive(Debug, Clone)]
 pub struct VideoProviderRequestInput {
     pub user_id: i64,

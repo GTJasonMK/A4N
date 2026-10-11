@@ -26,23 +26,22 @@ pub(crate) async fn discover_models(
     image_client: Option<Arc<dyn ImageClient>>,
     video_client: Option<Arc<dyn VideoClient>>,
     kind: ModelDiscoveryKind,
-    provider: &str,
-    base_url: &str,
-    api_key: Option<&str>,
+    request: ModelDiscoveryRequest,
 ) -> Result<ModelDiscoveryResult, String> {
     if !profile.uses_sidecars() {
-        return discover_provider_models(provider, base_url, api_key).await;
+        return discover_provider_models(
+            &request.provider,
+            &request.base_url,
+            request.api_key.as_deref(),
+        )
+        .await;
     }
 
     let service_name = kind.service_name();
     let request = global_typed_provider_service_request(
         expected_capability_version_for_service(service_name)
             .expect("model discovery service must have a capability version"),
-        ModelDiscoveryRequest {
-            provider: provider.to_string(),
-            base_url: base_url.to_string(),
-            api_key: api_key.map(str::to_string),
-        },
+        request,
     )?;
     let response = match kind {
         ModelDiscoveryKind::Llm => {

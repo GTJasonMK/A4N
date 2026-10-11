@@ -31,13 +31,14 @@ import {
   type AdminProjectSummary,
 } from "../../api/admin";
 import { extractErrorMessage } from "../../api";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useAuthStore } from "../../store/auth";
 import { formatDateTime, useI18n } from "../../i18n";
 
-type TargetMode = "test_project" | "current_project";
+type TargetMode = "test_project" | "current_project" | "repository";
 type MessageKey = Parameters<ReturnType<typeof useI18n>["t"]>[0];
 
 const STATUS_KEYS: Record<TestRunStatus, MessageKey> = {
@@ -94,7 +95,7 @@ const RESOURCE_COPY_KEYS: Record<string, MessageKey> = {
 
 const numberParameter = (value: string): number | null => {
   const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  return isPositiveSafeInteger(parsed) ? parsed : null;
 };
 
 export const TestCenterPage: React.FC = () => {
@@ -245,7 +246,9 @@ export const TestCenterPage: React.FC = () => {
       return;
     }
     let target: TestTarget;
-    if (targetMode === "current_project") {
+    if (targetMode === "repository") {
+      target = { mode: "repository" };
+    } else if (targetMode === "current_project") {
       const projectId = numberParameter(currentProjectId);
       if (projectId == null) {
         setError(t("settingsAdmin.testCenter.currentProjectRequired"));
@@ -508,9 +511,24 @@ export const TestCenterPage: React.FC = () => {
                       {t("settingsAdmin.testCenter.currentProject")}
                     </button>
                   ) : null}
+                  {selectedScenario.target_modes.includes("repository") ? (
+                    <button
+                      type="button"
+                      aria-pressed={targetMode === "repository"}
+                      onClick={() => setTargetMode("repository")}
+                      className={`min-h-9 border px-3 text-xs ${targetMode === "repository" ? "border-book-primary bg-book-bg-paper text-book-primary" : "border-book-border/70 text-book-text-sub"}`}
+                    >
+                      {t("settingsAdmin.testCenter.repositoryTests")}
+                    </button>
+                  ) : null}
                 </div>
                 <div className="mt-3 max-w-xl">
-                  {targetMode === "current_project" || selectedScenario.id === "project_duplicate" ? (
+                  {targetMode === "repository" ? (
+                    <p className="text-xs text-book-text-muted">
+                      {t("settingsAdmin.testCenter.repositoryTestsHint")}
+                    </p>
+                  ) : null}
+                  {targetMode !== "repository" && (targetMode === "current_project" || selectedScenario.id === "project_duplicate") ? (
                     <label className="block text-xs text-book-text-sub">
                       <span className="mb-1.5 block">
                         {targetMode === "current_project"

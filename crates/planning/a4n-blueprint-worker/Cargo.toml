@@ -11,11 +11,11 @@ a4n-db = { workspace = true }
 a4n-domain = { workspace = true }
 a4n-blueprint-worker-contract = { workspace = true }
 a4n-worker-contract = { workspace = true }
+a4n-worker-db-adapter = { workspace = true }
+a4n-worker-runtime = { workspace = true }
 
 anyhow = { workspace = true }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-subtle = { workspace = true }
 tokio = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }

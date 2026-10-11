@@ -2,21 +2,33 @@ use crate::provider_runtime::DynamicProviderFacade;
 use a4n_domain::llm::RecordLlmCallTraceInput;
 use a4n_llm_provider_contract::provider::{LlmTraceContext, UsageInfo};
 
+pub(in crate::dynamic_llm) struct DynamicLlmTraceOutcome<'a> {
+    pub(in crate::dynamic_llm) model: &'a str,
+    pub(in crate::dynamic_llm) usage: Option<UsageInfo>,
+    pub(in crate::dynamic_llm) duration_ms: Option<i64>,
+    pub(in crate::dynamic_llm) status: &'a str,
+    pub(in crate::dynamic_llm) error_kind: Option<&'a str>,
+    pub(in crate::dynamic_llm) error_message: Option<&'a str>,
+    pub(in crate::dynamic_llm) finish_reason: Option<&'a str>,
+}
+
 pub(in crate::dynamic_llm) async fn record_dynamic_llm_trace(
     facade: &DynamicProviderFacade,
     trace_context: Option<&LlmTraceContext>,
-    model: Option<&str>,
-    usage: Option<UsageInfo>,
-    duration_ms: Option<i64>,
-    streamed: bool,
-    status: &str,
-    error_kind: Option<&str>,
-    error_message: Option<&str>,
-    finish_reason: Option<&str>,
+    outcome: DynamicLlmTraceOutcome<'_>,
 ) {
     let Some(trace_context) = trace_context else {
         return;
     };
+    let DynamicLlmTraceOutcome {
+        model,
+        usage,
+        duration_ms,
+        status,
+        error_kind,
+        error_message,
+        finish_reason,
+    } = outcome;
     let result = facade
         .record_llm_call_trace(RecordLlmCallTraceInput {
             generation_run_id: trace_context.generation_run_id,
@@ -28,12 +40,12 @@ pub(in crate::dynamic_llm) async fn record_dynamic_llm_trace(
             workflow: trace_context.workflow.clone(),
             step_key: trace_context.step_key.clone(),
             provider: None,
-            model: model.map(ToString::to_string),
+            model: Some(model.to_string()),
             context_plan_json: trace_context.context_plan_json.clone(),
             context_pack_refs_json: trace_context.context_pack_refs_json.clone(),
             usage,
             duration_ms,
-            streamed,
+            streamed: true,
             status: status.to_string(),
             error_kind: error_kind.map(ToString::to_string),
             error_message: error_message.map(ToString::to_string),

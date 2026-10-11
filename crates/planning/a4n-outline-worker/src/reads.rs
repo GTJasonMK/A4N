@@ -16,7 +16,7 @@ impl WorkerState {
     ) -> Result<Vec<ChapterOutlineSummary>, WorkerFailure> {
         validate_request(&request, LIST_CHAPTERS_OPERATION)?;
         validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_project_permission(
             self,
             request.payload.project_id,
@@ -50,7 +50,7 @@ impl WorkerState {
     ) -> Result<Vec<PartOutlineSummary>, WorkerFailure> {
         validate_request(&request, LIST_PARTS_OPERATION)?;
         validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_project_permission(
             self,
             request.payload.project_id,
@@ -75,7 +75,7 @@ impl WorkerState {
     ) -> Result<OutlineGenerationProgressSummary, WorkerFailure> {
         validate_request(&request, GENERATION_PROGRESS_OPERATION)?;
         validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_project_permission(
             self,
             request.payload.project_id,
@@ -98,8 +98,8 @@ impl WorkerState {
     ) -> Result<(), WorkerFailure> {
         validate_request(&request, ENSURE_CHAPTER_ACCESS_OPERATION)?;
         validate_project_scope(&request, request.payload.project_id)?;
-        positive(request.payload.outline_id, "outline_id")?;
-        let user_id = user_id(&request)?;
+        WorkerFailure::require_positive_id(request.payload.outline_id, "outline_id")?;
+        let user_id = request.principal.require_user_id()?;
         verify_project_permission(
             self,
             request.payload.project_id,
@@ -125,8 +125,8 @@ impl WorkerState {
     ) -> Result<(), WorkerFailure> {
         validate_request(&request, ENSURE_PART_ACCESS_OPERATION)?;
         validate_project_scope(&request, request.payload.project_id)?;
-        positive(request.payload.part_id, "part_id")?;
-        let user_id = user_id(&request)?;
+        WorkerFailure::require_positive_id(request.payload.part_id, "part_id")?;
+        let user_id = request.principal.require_user_id()?;
         verify_project_permission(
             self,
             request.payload.project_id,

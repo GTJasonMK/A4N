@@ -32,7 +32,7 @@ use a4n_error::AppError;
 use a4n_worker_contract::{
     AGENT_HOST_COMMAND_OPERATION, AGENT_RUN_OPERATION, AGENT_WORKER_AUTH_HEADER,
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
-    WorkerCapability, WorkerEnvelope, WorkerHealth, WorkerHealthStatus, WorkerPrincipalKind,
+    WorkerCapability, WorkerEnvelope, WorkerHealth, WorkerHealthStatus,
 };
 use anyhow::anyhow;
 use axum::{
@@ -44,7 +44,6 @@ use axum::{
 };
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
-use subtle::ConstantTimeEq;
 use tokio::{net::TcpListener, sync::oneshot};
 
 use self::responses::{WorkerFailure, app_error_failure, completed, failed, unauthorized};
@@ -275,30 +274,8 @@ fn validate_user_request(
     request: &WorkerEnvelope<Value>,
     operation: &str,
 ) -> Result<i64, WorkerFailure> {
-    request
-        .validate()
-        .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
-    if request.operation_id != operation {
-        return Err(WorkerFailure::invalid_request(format!(
-            "operation_id 不匹配: expected={operation}, actual={}",
-            request.operation_id
-        )));
-    }
-    if request.lease.worker_id != "agent-worker" {
-        return Err(WorkerFailure::invalid_request(
-            "lease.worker_id 不属于 agent worker",
-        ));
-    }
-    if request.principal.kind != WorkerPrincipalKind::User {
-        return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
-    }
-    request
-        .principal
-        .subject
-        .parse::<i64>()
-        .ok()
-        .filter(|id| *id > 0)
-        .ok_or_else(|| WorkerFailure::unauthorized("用户 principal subject 无效"))
+    request.validate_worker_command(operation, "agent-worker", "agent worker")?;
+    request.principal.require_user_id()
 }
 
 fn decode_payload<T: DeserializeOwned>(payload: Value) -> Result<T, AppError> {
@@ -370,9 +347,11 @@ async fn capabilities(State(state): State<HealthState>, headers: HeaderMap) -> R
 
 impl HealthState {
     fn authorized(&self, headers: &HeaderMap) -> bool {
-        headers
-            .get(AGENT_WORKER_AUTH_HEADER)
-            .is_some_and(|value| bool::from(value.as_bytes().ct_eq(self.auth_token.as_bytes())))
+        a4n_worker_runtime::worker_token_authorized(
+            headers,
+            AGENT_WORKER_AUTH_HEADER,
+            self.auth_token.as_bytes(),
+        )
     }
 }
 

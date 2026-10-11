@@ -6,8 +6,8 @@ impl WorkerState {
         request: WorkerEnvelope<PortraitProjectInput>,
     ) -> Result<Vec<PortraitSummary>, WorkerFailure> {
         validate_request(&request, PORTRAIT_LIST_OPERATION)?;
-        let project_id = scoped_project_id(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let project_id = request.require_project_scope(request.payload.project_id)?;
+        let user_id = request.principal.require_user_id()?;
         verify_permission(
             self,
             project_id,
@@ -20,7 +20,7 @@ impl WorkerState {
             project_id,
         )
         .await
-        .map_err(database_error)?
+        .map_err(a4n_worker_db_adapter::map_database_error)?
         .iter()
         .map(portrait_summary)
         .collect()
@@ -31,15 +31,13 @@ impl WorkerState {
         request: WorkerEnvelope<PortraitProfileInput>,
     ) -> Result<PortraitLookupResponse, WorkerFailure> {
         validate_request(&request, PORTRAIT_PRIMARY_OPERATION)?;
-        let profile_id = request.payload.profile_id;
-        if profile_id <= 0 {
-            return Err(WorkerFailure::invalid_request("profile_id 必须大于 0"));
-        }
+        let profile_id =
+            WorkerFailure::require_positive_id(request.payload.profile_id, "profile_id")?;
         let project_id =
             a4n_db::project::protagonist_profile_project_id(self.database.connection(), profile_id)
                 .await
-                .map_err(project_error)?;
-        let user_id = user_id(&request)?;
+                .map_err(a4n_worker_db_adapter::map_project_family_db_error)?;
+        let user_id = request.principal.require_user_id()?;
         verify_permission(
             self,
             project_id,
@@ -52,7 +50,7 @@ impl WorkerState {
             profile_id,
         )
         .await
-        .map_err(database_error)?;
+        .map_err(a4n_worker_db_adapter::map_database_error)?;
         Ok(PortraitLookupResponse {
             portrait: portrait.as_ref().map(portrait_summary).transpose()?,
         })
@@ -63,20 +61,18 @@ impl WorkerState {
         request: WorkerEnvelope<PortraitRecordInput>,
     ) -> Result<PortraitLookupResponse, WorkerFailure> {
         validate_request(&request, PORTRAIT_BY_ID_OPERATION)?;
-        let portrait_id = request.payload.portrait_id;
-        if portrait_id <= 0 {
-            return Err(WorkerFailure::invalid_request("portrait_id 必须大于 0"));
-        }
+        let portrait_id =
+            WorkerFailure::require_positive_id(request.payload.portrait_id, "portrait_id")?;
         let Some(portrait) = a4n_db::character::character_portrait_record_by_id(
             self.database.connection(),
             portrait_id,
         )
         .await
-        .map_err(database_error)?
+        .map_err(a4n_worker_db_adapter::map_database_error)?
         else {
             return Ok(PortraitLookupResponse { portrait: None });
         };
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_permission(
             self,
             portrait.project_id,
@@ -94,8 +90,8 @@ impl WorkerState {
         request: WorkerEnvelope<PortraitProjectInput>,
     ) -> Result<Vec<PortraitGenerationSeedWire>, WorkerFailure> {
         validate_request(&request, PORTRAIT_MISSING_SEEDS_OPERATION)?;
-        let project_id = scoped_project_id(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let project_id = request.require_project_scope(request.payload.project_id)?;
+        let user_id = request.principal.require_user_id()?;
         verify_permission(
             self,
             project_id,
@@ -105,7 +101,7 @@ impl WorkerState {
         .await?;
         a4n_db::character::missing_portrait_profile_records(self.database.connection(), project_id)
             .await
-            .map_err(database_error)?
+            .map_err(a4n_worker_db_adapter::map_database_error)?
             .iter()
             .map(|profile| {
                 profile_portrait_seed_prompt(&portrait_profile(profile))

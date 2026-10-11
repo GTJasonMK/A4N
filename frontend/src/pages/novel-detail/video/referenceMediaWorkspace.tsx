@@ -3,6 +3,7 @@ import { Check, Eye, Images, Plus, Trash2, Upload } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import type { GeneratedImage } from "../../../api/image";
+import { TEMP_MEDIA_BROWSER_MIME_TYPES } from "../../../api/generated/config";
 import {
   VIDEO_WORKFLOW_MODE_CHAT_VIDEO,
   type SegmentReferenceMediaRecipe,
@@ -15,6 +16,7 @@ import { ImageZoomButton, ZoomableImage } from "../../../components/ui/ImageLigh
 import { Modal } from "../../../components/ui/Modal";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import { readFileAsBase64 } from "../../../utils/fileUpload";
+import { isPositiveSafeInteger } from "../../../utils/numberRange";
 import { imageTypeLabel } from "../images/imageTabUtils";
 import type { ChapterRow } from "../shared";
 import { useI18n, type MessageKey, type MessageTranslator } from "../../../i18n";
@@ -79,11 +81,6 @@ const referenceMediaKindLabel = (kind: ReferenceMediaKind, t: MessageTranslator)
   t(REFERENCE_MEDIA_KIND_META[kind].labelKey);
 
 const REFERENCE_MEDIA_KINDS: ReferenceMediaKind[] = ["image", "video", "audio"];
-const REFERENCE_MEDIA_ACCEPT: Record<ReferenceMediaKind, string> = {
-  image: "image/png,image/jpeg,image/webp",
-  video: "video/mp4,video/quicktime,video/webm",
-  audio: "audio/mpeg,audio/wav,audio/x-wav,audio/mp4,audio/x-m4a,audio/ogg",
-};
 const MAX_REFERENCE_MEDIA_UPLOAD_BYTES = 20 * 1024 * 1024;
 
 let referenceMediaRowSeq = 0;
@@ -115,13 +112,9 @@ export const referenceMediaDraftScopeKey = (
     typeof sourceShotId === "string" ? sourceShotId.trim() : "";
   if (
     !normalizedPlanIdentity ||
-    typeof segmentNumber !== "number" ||
-    !Number.isInteger(segmentNumber) ||
-    segmentNumber <= 0 ||
+    !isPositiveSafeInteger(segmentNumber) ||
     !normalizedSourceShotId ||
-    typeof segmentIndexInShot !== "number" ||
-    !Number.isInteger(segmentIndexInShot) ||
-    segmentIndexInShot <= 0
+    !isPositiveSafeInteger(segmentIndexInShot)
   ) {
     return null;
   }
@@ -295,7 +288,7 @@ export const referenceMediaDraftError = (
 const assertImageIdSelection = (ids: number[], field: string, t: MessageTranslator) => {
   const seen = new Set<number>();
   for (const [index, id] of ids.entries()) {
-    if (!Number.isInteger(id) || id <= 0) {
+    if (!isPositiveSafeInteger(id)) {
       throw new Error(t("video.reference.positiveId", { field, index }));
     }
     if (seen.has(id)) {
@@ -311,7 +304,7 @@ const toggleImageIdSelection = (
   field: string,
   t: MessageTranslator,
 ): number[] => {
-  if (!Number.isInteger(id) || id <= 0) {
+  if (!isPositiveSafeInteger(id)) {
     throw new Error(t("video.reference.togglePositiveId", { field }));
   }
   assertImageIdSelection(ids, field, t);
@@ -937,7 +930,7 @@ export const ReferenceMediaWorkspace: React.FC<{
     const selectLocalFile = async (rowId: string, file: File | undefined) => {
       if (!file) return;
       setUploadError(null);
-      const allowedMimes = REFERENCE_MEDIA_ACCEPT[kind].split(",");
+      const allowedMimes = TEMP_MEDIA_BROWSER_MIME_TYPES[kind];
       if (!allowedMimes.includes(file.type)) {
         setUploadError(
           t("video.reference.unsupportedType", { label, type: file.type || file.name }),
@@ -1038,7 +1031,7 @@ export const ReferenceMediaWorkspace: React.FC<{
                       {t("video.reference.localFile")}
                       <input
                         type="file"
-                        accept={REFERENCE_MEDIA_ACCEPT[kind]}
+                        accept={TEMP_MEDIA_BROWSER_MIME_TYPES[kind].join(",")}
                         className="sr-only"
                         onChange={(event) => {
                           const file = event.currentTarget.files?.[0];

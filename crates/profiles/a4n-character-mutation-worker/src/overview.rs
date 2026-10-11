@@ -6,12 +6,13 @@ impl WorkerState {
         request: WorkerEnvelope<ProfileIdInput>,
     ) -> Result<i64, WorkerFailure> {
         validate_request(&request, CHARACTER_OVERVIEW_PROJECT_OPERATION)?;
-        let user_id = user_id(&request)?;
-        let profile_id = positive(request.payload.profile_id, "profile_id")?;
+        let user_id = request.principal.require_user_id()?;
+        let profile_id =
+            WorkerFailure::require_positive_id(request.payload.profile_id, "profile_id")?;
         let profile =
             a4n_db::character::profile_record_by_id(self.database.connection(), profile_id)
                 .await
-                .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
+                .map_err(a4n_worker_db_adapter::map_database_error)?
                 .ok_or_else(|| WorkerFailure::not_found(format!("角色档案不存在: {profile_id}")))?;
         verify_project_editor(&self.database, profile.project_id, user_id).await?;
         Ok(profile.project_id)
@@ -22,8 +23,9 @@ impl WorkerState {
         request: WorkerEnvelope<ListProfilesInput>,
     ) -> Result<Vec<CharacterProfileSummary>, WorkerFailure> {
         validate_request(&request, CHARACTER_OVERVIEW_LIST_OPERATION)?;
-        let user_id = user_id(&request)?;
-        let project_id = positive(request.payload.project_id, "project_id")?;
+        let user_id = request.principal.require_user_id()?;
+        let project_id =
+            WorkerFailure::require_positive_id(request.payload.project_id, "project_id")?;
         verify_project_editor(&self.database, project_id, user_id).await?;
         a4n_db::character::profiles_with_timeline_state_records(
             self.database.connection(),
@@ -43,7 +45,7 @@ impl WorkerState {
         request: WorkerEnvelope<NamedProfileInput>,
     ) -> Result<Option<Value>, WorkerFailure> {
         validate_request(&request, CHARACTER_OVERVIEW_ARC_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         verify_project_editor(&self.database, input.project_id, user_id).await?;
         let profile = named_profile(&self.database, input.project_id, &input.name).await?;
@@ -55,7 +57,7 @@ impl WorkerState {
         request: WorkerEnvelope<NamedProfileInput>,
     ) -> Result<Option<Value>, WorkerFailure> {
         validate_request(&request, CHARACTER_OVERVIEW_VOICE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         verify_project_editor(&self.database, input.project_id, user_id).await?;
         let profile = named_profile(&self.database, input.project_id, &input.name).await?;

@@ -2,44 +2,33 @@ use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use a4n_llm_provider_contract::provider::ChatRequest;
-use a4n_progress::ProgressSpan;
-use a4n_prompt::rendering::PromptRenderer;
 
 use super::super::super::parsing::parse_scene_entity_states;
-use crate::{
-    OrchestratorContext,
-    scene_profile::{SceneEntityStateDraft, SceneSyncInput},
-};
+use crate::scene_profile::{SceneEntityStateDraft, SceneSyncInput};
 
 use super::super::super::progress::{
-    SCENE_ENTITY_STATE_PROGRESS_FIELDS, SceneProfileSyncProgress, scene_stage_progress_spec,
+    SCENE_ENTITY_STATE_PROGRESS_FIELDS, scene_stage_progress_spec,
 };
 use super::super::super::types::{
     SCENE_ENTITY_STATE_KEY_RULE, SCENE_ENTITY_STATE_PROMPT, SCENE_ENTITY_TYPE_RULE,
-    SceneProfileSyncRequestContext,
 };
+use super::super::SceneProfileStageContext;
 use super::super::execution::run_scene_profile_stage_with_checkpoint;
 use super::super::request::{
     build_scene_profile_stage_request, scene_profile_stage_step_key, scene_profile_stage_step_order,
 };
 
 pub(super) async fn run(
-    state: &OrchestratorContext,
-    prompt_renderer: &dyn PromptRenderer,
-    workflow_run_id: i64,
-    context: &SceneProfileSyncRequestContext,
-    progress: Option<&SceneProfileSyncProgress<'_>>,
-    model_span: ProgressSpan,
-    chapter_index: usize,
+    context: &mut SceneProfileStageContext<'_, '_>,
     scenes: &[Value],
     occurrences: &[Value],
     known: &SceneSyncInput,
-    response_chars: &mut Vec<Value>,
 ) -> Result<(ChatRequest, Vec<SceneEntityStateDraft>), AppError> {
+    let request_context = context.request_context;
     let mut request = build_scene_profile_stage_request(
-        prompt_renderer,
-        context,
-        Some(workflow_run_id),
+        context.prompt_renderer,
+        request_context,
+        Some(context.workflow_run_id),
         SCENE_ENTITY_STATE_PROMPT,
         "基于场景与出场链抽取场景内实体状态，只输出 entity_states",
         json!({ "scenes": scenes, "occurrences": occurrences }),
@@ -58,22 +47,22 @@ pub(super) async fn run(
         }),
     )
     .await?;
+    let step_key = scene_profile_stage_step_key(request_context, "entity_states");
+    let step_order = scene_profile_stage_step_order(context.chapter_index, 3)?;
+    let stage_progress = scene_stage_progress_spec(
+        "entity_states",
+        "场景实体状态",
+        SCENE_ENTITY_STATE_PROGRESS_FIELDS,
+        context.model_span.split(3, 4),
+    );
     let (_, parsed) = run_scene_profile_stage_with_checkpoint(
-        state,
-        workflow_run_id,
+        context,
         &mut request,
         SCENE_ENTITY_STATE_PROMPT,
-        scene_profile_stage_step_key(context, "entity_states"),
-        scene_profile_stage_step_order(chapter_index, 3)?,
-        scene_stage_progress_spec(
-            "entity_states",
-            "场景实体状态",
-            SCENE_ENTITY_STATE_PROGRESS_FIELDS,
-            model_span.split(3, 4),
-        ),
-        progress,
-        response_chars,
-        |value| parse_scene_entity_states(value, context, known),
+        step_key,
+        step_order,
+        stage_progress,
+        |value| parse_scene_entity_states(value, request_context, known),
     )
     .await?;
     Ok((request, parsed))

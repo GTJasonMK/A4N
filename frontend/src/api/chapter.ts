@@ -28,6 +28,7 @@ import {
   ensureEmbeddingVectorCount,
 } from "./embeddingIdentity";
 import { canUseLocalDesktopEmbedding } from "../utils/runtimeMode";
+import { isSafeInteger } from "../utils/numberRange";
 
 /**
  * Chapter API wrapper —— 对齐 a4n-api-contract::chapter 与通用 Host dispatch。
@@ -115,8 +116,8 @@ export function chapterGenerationNumber(
   if (!match || summary.started.project_id !== projectId) return null;
   const targetProjectId = Number(match[1]);
   const chapterNumber = Number(match[2]);
-  return Number.isSafeInteger(targetProjectId)
-    && Number.isSafeInteger(chapterNumber)
+  return isSafeInteger(targetProjectId)
+    && isSafeInteger(chapterNumber)
     && targetProjectId === projectId
     ? chapterNumber
     : null;

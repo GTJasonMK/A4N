@@ -1,4 +1,6 @@
-use a4n_api_contract::profile::{ProfileMaterialGroup, UploadProfileMaterialImageInput};
+use a4n_api_contract::profile::{
+    MAX_PROFILE_MATERIAL_IMAGE_UPLOAD_BYTES, ProfileMaterialGroup, UploadProfileMaterialImageInput,
+};
 use a4n_db::profile_material::profile_material_identity_from_fields;
 use a4n_domain::{
     image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL},
@@ -30,7 +32,6 @@ use a4n_profile_material_core::{
     profile_material_group_projections, scene_source_from_record,
 };
 const MANUAL_UPLOAD_MODEL: &str = "manual_upload";
-const MAX_UPLOAD_IMAGE_BYTES: usize = 20 * 1024 * 1024;
 
 #[derive(Debug, Clone)]
 pub(crate) struct ProfileMaterialStyleMetadata {
@@ -164,7 +165,7 @@ impl OrchestratorContext {
             &input.file_name,
             &input.mime_type,
             &input.data_base64,
-            MAX_UPLOAD_IMAGE_BYTES,
+            MAX_PROFILE_MATERIAL_IMAGE_UPLOAD_BYTES,
         )
         .map_err(AppError::InvalidArgument)?;
         let prompt = non_empty(&input.prompt_snapshot)

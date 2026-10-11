@@ -16,11 +16,11 @@ impl WorkerState {
     ) -> Result<VideoSegmentPlanDraftSummary, WorkerFailure> {
         validate_request(&request, VIDEO_PROMPT_DRAFT_LOAD_OPERATION)?;
         validate_required_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
-        positive(input.project_id, "project_id")?;
-        positive(input.chapter_id, "chapter_id")?;
-        positive(input.workflow_run_id, "workflow_run_id")?;
+        WorkerFailure::require_positive_id(input.project_id, "project_id")?;
+        WorkerFailure::require_positive_id(input.chapter_id, "chapter_id")?;
+        WorkerFailure::require_positive_id(input.workflow_run_id, "workflow_run_id")?;
         verify_project_permission(
             &self.database,
             input.project_id,
@@ -33,7 +33,7 @@ impl WorkerState {
             input.workflow_run_id,
         )
         .await
-        .map_err(workflow_error)?;
+        .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_invalid_request)?;
         if run.workflow_kind != "video_segment_plan"
             || run.project_id != Some(input.project_id)
             || run.chapter_id != Some(input.chapter_id)
@@ -96,7 +96,7 @@ impl WorkerState {
             (Vec::new(), Vec::new(), 0, 0)
         } else {
             a4n_video_contract::load_video_segment_plan_draft_recipe_state(&checkpoints, style)
-                .map_err(worker_app_error)?
+                .map_err(a4n_worker_db_adapter::map_app_error)?
         };
         Ok(VideoSegmentPlanDraftSummary {
             run: a4n_workflow_core::workflow_run_summary_to_api(run),
@@ -152,7 +152,7 @@ impl WorkerState {
             input.recipe,
         )
         .await
-        .map_err(worker_app_error)
+        .map_err(a4n_worker_db_adapter::map_app_error)
     }
 
     pub(super) async fn list_prompts(
@@ -161,10 +161,10 @@ impl WorkerState {
     ) -> Result<Vec<ChapterVideoPromptSummary>, WorkerFailure> {
         validate_request(&request, VIDEO_PROMPT_LIST_OPERATION)?;
         validate_required_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
-        positive(input.project_id, "project_id")?;
-        positive(input.chapter_id, "chapter_id")?;
+        WorkerFailure::require_positive_id(input.project_id, "project_id")?;
+        WorkerFailure::require_positive_id(input.chapter_id, "chapter_id")?;
         verify_project_permission(
             &self.database,
             input.project_id,
@@ -186,7 +186,7 @@ impl WorkerState {
             input.chapter_id,
         )
         .await
-        .map_err(database_error)?;
+        .map_err(a4n_worker_db_adapter::map_database_error)?;
         let mut result = Vec::with_capacity(prompts.len());
         for prompt in prompts {
             let prompt = a4n_db::video::read_models::with_video_plan_source_sync(
@@ -207,8 +207,8 @@ impl WorkerState {
         validate_request(&request, VIDEO_PROMPT_VALIDATE_SOURCE_OPERATION)?;
         validate_required_project_scope(&request, request.payload.project_id)?;
         let input = request.payload;
-        positive(input.project_id, "project_id")?;
-        positive(input.chapter_id, "chapter_id")?;
+        WorkerFailure::require_positive_id(input.project_id, "project_id")?;
+        WorkerFailure::require_positive_id(input.chapter_id, "chapter_id")?;
         validate_video_source(
             &self.database,
             input.project_id,

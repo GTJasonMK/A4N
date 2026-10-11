@@ -1,5 +1,6 @@
 import type { ProgressDialogStatus } from "../../components/feedback/ProgressDialog";
 import type { InspirationMessageSummary } from "../../api/generated/host";
+import { parseApiTimestampMs } from "../../utils/timestamp";
 import { parseInspirationResponse } from "./responseParser";
 import type { Message } from "./shared";
 import type { MessageTranslator } from "../../i18n";
@@ -44,8 +45,8 @@ export const generationFailureMessage = (id: string, message: string): Message =
 });
 
 const parseHistoryTime = (value: string, messageId: number): number => {
-  const parsed = Date.parse(value);
-  if (!Number.isFinite(parsed)) {
+  const parsed = parseApiTimestampMs(value);
+  if (parsed === null) {
     throw new Error(`灵感历史消息 ${messageId} 的 created_at 无效`);
   }
   return parsed;

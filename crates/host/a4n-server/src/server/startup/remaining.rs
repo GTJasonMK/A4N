@@ -19,7 +19,7 @@ pub(crate) fn start(
         }
     };
     if let Err(error) = wait_for_control(&mut control, config.control_addr) {
-        let cleanup: Vec<_> = stop_control(&mut control)
+        let cleanup: Vec<_> = stop_child(&mut control)
             .err()
             .into_iter()
             .map(|error| ("control".to_string(), Err(error)))
@@ -30,7 +30,7 @@ pub(crate) fn start(
     let edge = match spawn_edge(&config.edge_binary, config.control_addr) {
         Ok(child) => child,
         Err(error) => {
-            let cleanup: Vec<_> = stop_control(&mut control)
+            let cleanup: Vec<_> = stop_child(&mut control)
                 .err()
                 .into_iter()
                 .map(|error| ("control".to_string(), Err(error)))

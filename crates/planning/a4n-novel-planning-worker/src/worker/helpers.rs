@@ -1,4 +1,4 @@
-use super::errors::{collaboration_error, project_family_error, source_error};
+use super::errors::source_error;
 use crate::*;
 
 pub(super) async fn verify_family_permission(
@@ -10,7 +10,7 @@ pub(super) async fn verify_family_permission(
     let (project_id, root_project_id) =
         a4n_db::project::project_or_derived_family_access_ids(db, project_id)
             .await
-            .map_err(project_family_error)?;
+            .map_err(a4n_worker_db_adapter::map_project_family_db_error)?;
     if let Some(root_project_id) = root_project_id {
         a4n_db::collaboration::verify_project_permissions(
             db,
@@ -19,11 +19,11 @@ pub(super) async fn verify_family_permission(
             required,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
     } else {
         a4n_db::collaboration::verify_project_permission(db, project_id, user_id, required)
             .await
-            .map_err(collaboration_error)?;
+            .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
     }
     Ok(())
 }
@@ -32,21 +32,7 @@ pub(super) fn validate_request<T>(
     request: &WorkerEnvelope<T>,
     operation: &str,
 ) -> Result<(), WorkerFailure> {
-    request
-        .validate()
-        .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
-    if request.operation_id != operation {
-        return Err(WorkerFailure::invalid_request(format!(
-            "operation_id 不匹配: expected={operation}, actual={}",
-            request.operation_id
-        )));
-    }
-    if request.lease.worker_id != NOVEL_PLANNING_WORKER_ID {
-        return Err(WorkerFailure::invalid_request(
-            "lease.worker_id 不属于 novel-planning worker",
-        ));
-    }
-    Ok(())
+    request.validate_worker_command(operation, NOVEL_PLANNING_WORKER_ID, "novel-planning worker")
 }
 
 pub(super) fn validate_project_scope<T>(
@@ -86,20 +72,6 @@ pub(super) fn validate_optional_target_revision<T>(
         )),
         None => Ok(()),
     }
-}
-
-pub(super) fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    if request.principal.kind != a4n_worker_contract::WorkerPrincipalKind::User {
-        return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
-    }
-    let user_id = request
-        .principal
-        .subject
-        .parse::<i64>()
-        .ok()
-        .filter(|id| *id > 0)
-        .ok_or_else(|| WorkerFailure::unauthorized("用户 principal subject 无效"))?;
-    Ok(user_id)
 }
 
 pub(super) async fn resolve_source(

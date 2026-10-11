@@ -1,37 +1,26 @@
-use a4n_domain::media::canonical_audio_mime;
+use a4n_api_contract::temp_media::TEMP_MEDIA_FORMATS;
+use a4n_domain::media::image_upload_format_from_extension;
 use std::ffi::OsStr;
 use std::path::Path;
 
-pub(super) const TEMP_MEDIA_ARTIFACT_EXTENSIONS: &[&str] = &[
-    "png", "jpg", "webp", "mp4", "mov", "webm", "mp3", "wav", "m4a", "ogg",
-];
+pub(super) fn temp_media_artifact_extensions() -> impl Iterator<Item = &'static str> {
+    TEMP_MEDIA_FORMATS.iter().map(|format| format.extension)
+}
 
 pub(super) fn normalize_temp_media_type(
     value: &str,
 ) -> Result<(&'static str, &'static str), String> {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "image/png" => Ok(("image/png", "png")),
-        "image/jpeg" => Ok(("image/jpeg", "jpg")),
-        "image/webp" => Ok(("image/webp", "webp")),
-        "video/mp4" => Ok(("video/mp4", "mp4")),
-        "video/quicktime" => Ok(("video/quicktime", "mov")),
-        "video/webm" => Ok(("video/webm", "webm")),
-        other => {
-            if !matches!(
-                other,
-                "audio/mpeg"
-                    | "audio/mp3"
-                    | "audio/wav"
-                    | "audio/x-wav"
-                    | "audio/mp4"
-                    | "audio/x-m4a"
-                    | "audio/ogg"
-            ) {
-                return Err(format!("临时媒体 MIME 不支持：{other}"));
-            }
-            canonical_audio_mime(other).map_err(|_| format!("临时媒体 MIME 不支持：{other}"))
-        }
-    }
+    let normalized = value.trim().to_ascii_lowercase();
+    TEMP_MEDIA_FORMATS
+        .iter()
+        .find(|format| {
+            format
+                .accepted_mime_types
+                .iter()
+                .any(|accepted| accepted.eq_ignore_ascii_case(&normalized))
+        })
+        .map(|format| (format.mime_type, format.extension))
+        .ok_or_else(|| format!("临时媒体 MIME 不支持：{normalized}"))
 }
 
 pub(super) fn validate_upload_file_name_hint(
@@ -53,13 +42,19 @@ pub(super) fn validate_upload_file_name_hint(
         .extension()
         .and_then(OsStr::to_str)
         .map(str::to_ascii_lowercase);
-    if let Some(extension) = extension
-        && extension != expected_extension
-        && !(expected_extension == "jpg" && extension == "jpeg")
-    {
-        return Err(format!(
-            "临时媒体 file_name 扩展名与 MIME 不一致：期望 {expected_extension}，实际 {extension}"
-        ));
+    if let Some(extension) = extension {
+        let image_extension_matches = image_upload_format_from_extension(expected_extension)
+            .is_some_and(|format| {
+                format
+                    .accepted_extensions
+                    .iter()
+                    .any(|accepted| *accepted == extension)
+            });
+        if extension != expected_extension && !image_extension_matches {
+            return Err(format!(
+                "临时媒体 file_name 扩展名与 MIME 不一致：期望 {expected_extension}，实际 {extension}"
+            ));
+        }
     }
     Ok(())
 }
@@ -96,7 +91,7 @@ pub(super) fn validate_temp_media_file_name(value: &str) -> Result<String, Strin
         return Err("临时媒体文件名无效".to_string());
     }
     let extension = extension.to_ascii_lowercase();
-    if TEMP_MEDIA_ARTIFACT_EXTENSIONS.contains(&extension.as_str()) {
+    if temp_media_artifact_extensions().any(|supported| supported == extension.as_str()) {
         Ok(trimmed.to_string())
     } else {
         Err("临时媒体文件扩展名不支持".to_string())
@@ -109,4 +104,38 @@ pub(super) fn validate_temp_media_artifact_id(value: &str) -> Result<String, Str
         return Err("临时媒体 artifact_id 无效".to_string());
     }
     Ok(trimmed.to_ascii_lowercase())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn temp_media_maps_only_contract_mime_types_and_extensions() {
+        for format in TEMP_MEDIA_FORMATS {
+            for mime_type in format.accepted_mime_types {
+                assert_eq!(
+                    normalize_temp_media_type(mime_type),
+                    Ok((format.mime_type, format.extension))
+                );
+            }
+            assert!(
+                format
+                    .browser_mime_types
+                    .iter()
+                    .all(|mime_type| { format.accepted_mime_types.contains(mime_type) })
+            );
+        }
+        assert!(normalize_temp_media_type("application/ogg").is_err());
+        assert!(normalize_temp_media_type("video/x-m4v").is_err());
+        assert_eq!(
+            temp_media_artifact_extensions().collect::<Vec<_>>(),
+            TEMP_MEDIA_FORMATS
+                .iter()
+                .map(|format| format.extension)
+                .collect::<Vec<_>>()
+        );
+        assert!(validate_temp_media_file_name("0123456789abcdef0123456789abcdef.mp4").is_ok());
+        assert!(validate_temp_media_file_name("0123456789abcdef0123456789abcdef.m4v").is_err());
+    }
 }

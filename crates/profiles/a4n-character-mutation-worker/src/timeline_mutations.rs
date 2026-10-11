@@ -6,7 +6,7 @@ impl WorkerState {
         request: WorkerEnvelope<RollbackToChapterInput>,
     ) -> Result<CharacterTimelineRollbackMutationResult, WorkerFailure> {
         validate_request(&request, CHARACTER_TIMELINE_ROLLBACK_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         let profile = profile_for_editor(&self.database, user_id, input.profile_id).await?;
         let result = a4n_db::character::rollback_profile_to_chapter(

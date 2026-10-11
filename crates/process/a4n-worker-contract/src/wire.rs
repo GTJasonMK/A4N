@@ -66,6 +66,46 @@ impl<T> WorkerEnvelope<T> {
         Ok(())
     }
 
+    pub fn validate_worker_command(
+        &self,
+        operation: &str,
+        worker_id: &str,
+        worker_label: &str,
+    ) -> Result<(), WorkerFailure> {
+        self.validate()
+            .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
+        if self.operation_id != operation {
+            return Err(WorkerFailure::invalid_request(format!(
+                "operation_id 不匹配: expected={operation}, actual={}",
+                self.operation_id
+            )));
+        }
+        if self.lease.worker_id != worker_id {
+            return Err(WorkerFailure::invalid_request(format!(
+                "lease.worker_id 不属于 {worker_label}"
+            )));
+        }
+        Ok(())
+    }
+
+    pub fn require_project_scope(&self, payload_project_id: i64) -> Result<i64, WorkerFailure> {
+        self.require_project_scope_with_message(
+            payload_project_id,
+            "worker scope project_id 与 payload 不一致或无效",
+        )
+    }
+
+    pub fn require_project_scope_with_message(
+        &self,
+        payload_project_id: i64,
+        error_message: &'static str,
+    ) -> Result<i64, WorkerFailure> {
+        if payload_project_id <= 0 || self.project_id != Some(payload_project_id) {
+            return Err(WorkerFailure::invalid_request(error_message));
+        }
+        Ok(payload_project_id)
+    }
+
     pub fn scope(&self) -> WorkerScope {
         WorkerScope {
             project_id: self.project_id,
@@ -83,6 +123,20 @@ impl<T> WorkerEnvelope<T> {
     }
 }
 
+pub fn validate_optional_project_scope(
+    scope_project_id: Option<i64>,
+    resource_project_id: i64,
+) -> Result<(), WorkerFailure> {
+    if resource_project_id <= 0
+        || scope_project_id.is_some_and(|scope| scope != resource_project_id)
+    {
+        return Err(WorkerFailure::invalid_request(
+            "worker scope project_id 与资源 project_id 不一致或无效",
+        ));
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct WorkerPrincipal {
@@ -93,6 +147,30 @@ pub struct WorkerPrincipal {
 impl WorkerPrincipal {
     pub fn validate(&self) -> Result<(), WorkerContractError> {
         validate_non_blank("principal.subject", &self.subject)
+    }
+
+    pub fn require_kind(
+        &self,
+        kind: WorkerPrincipalKind,
+        error_message: &'static str,
+    ) -> Result<(), WorkerFailure> {
+        if self.kind != kind {
+            return Err(WorkerFailure::unauthorized(error_message));
+        }
+        Ok(())
+    }
+
+    pub fn require_user_id(&self) -> Result<i64, WorkerFailure> {
+        self.require_kind(WorkerPrincipalKind::User, "仅允许用户 principal")?;
+        self.parse_user_id()
+    }
+
+    pub fn parse_user_id(&self) -> Result<i64, WorkerFailure> {
+        self.subject
+            .parse::<i64>()
+            .ok()
+            .filter(|id| *id > 0)
+            .ok_or_else(|| WorkerFailure::unauthorized("用户 principal subject 无效"))
     }
 }
 
@@ -150,6 +228,15 @@ pub struct WorkerLease {
 }
 
 impl WorkerLease {
+    pub fn control_request(worker_id: impl Into<String>) -> Self {
+        Self {
+            worker_id: worker_id.into(),
+            epoch: 1,
+            fence_token: "control-request".into(),
+            expires_at: "9999-12-31T23:59:59Z".into(),
+        }
+    }
+
     pub fn validate(&self) -> Result<(), WorkerContractError> {
         validate_non_blank("lease.worker_id", &self.worker_id)?;
         if self.epoch == 0 {
@@ -323,6 +410,72 @@ pub struct WorkerError {
     pub retryable: bool,
 }
 
+#[derive(Debug)]
+pub struct WorkerFailure {
+    code: WorkerErrorCode,
+    message: String,
+    retryable: bool,
+}
+
+impl WorkerFailure {
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    pub fn require_positive_id(value: i64, field: &str) -> Result<i64, Self> {
+        if value <= 0 {
+            return Err(Self::invalid_request(format!("{field} 必须大于 0")));
+        }
+        Ok(value)
+    }
+
+    pub fn require_non_blank(value: &str, error_message: impl Into<String>) -> Result<&str, Self> {
+        trimmed_non_blank(value).ok_or_else(|| Self::invalid_request(error_message))
+    }
+
+    pub fn invalid_request(message: impl Into<String>) -> Self {
+        Self::new(WorkerErrorCode::InvalidRequest, message, false)
+    }
+
+    pub fn unauthorized(message: impl Into<String>) -> Self {
+        Self::new(WorkerErrorCode::Unauthorized, message, false)
+    }
+
+    pub fn not_found(message: impl Into<String>) -> Self {
+        Self::new(WorkerErrorCode::NotFound, message, false)
+    }
+
+    pub fn conflict(message: impl Into<String>) -> Self {
+        Self::new(WorkerErrorCode::Conflict, message, false)
+    }
+
+    pub fn unavailable(message: impl Into<String>) -> Self {
+        Self::new(WorkerErrorCode::Unavailable, message, true)
+    }
+
+    pub fn internal(message: impl Into<String>) -> Self {
+        Self::new(WorkerErrorCode::Internal, message, false)
+    }
+
+    fn new(code: WorkerErrorCode, message: impl Into<String>, retryable: bool) -> Self {
+        Self {
+            code,
+            message: message.into(),
+            retryable,
+        }
+    }
+}
+
+impl From<WorkerFailure> for WorkerError {
+    fn from(failure: WorkerFailure) -> Self {
+        Self {
+            code: failure.code,
+            message: failure.message,
+            retryable: failure.retryable,
+        }
+    }
+}
+
 impl WorkerError {
     pub fn validate(&self) -> Result<(), WorkerContractError> {
         validate_non_blank("error.message", &self.message)
@@ -367,6 +520,74 @@ where
 }
 
 impl<T> WorkerResponse<T> {
+    pub fn completed_for<P>(request: &WorkerEnvelope<P>, payload: T) -> Self {
+        Self::completed_for_parts(
+            request.request_id.clone(),
+            request.trace_id.clone(),
+            request.operation_id.clone(),
+            payload,
+        )
+    }
+
+    pub fn failed_for<P>(request: &WorkerEnvelope<P>, error: WorkerError) -> Self {
+        Self::failed_for_parts(
+            request.request_id.clone(),
+            request.trace_id.clone(),
+            request.operation_id.clone(),
+            error,
+        )
+    }
+
+    pub fn completed_for_parts(
+        request_id: String,
+        trace_id: String,
+        operation_id: String,
+        payload: T,
+    ) -> Self {
+        Self {
+            schema_version: WORKER_SCHEMA_VERSION,
+            request_id,
+            trace_id,
+            operation: WorkerOperationRef {
+                operation_id,
+                task_id: None,
+            },
+            status: WorkerOperationStatus::Completed,
+            payload: Some(payload),
+            resource_refs: Vec::new(),
+            committed_revision: None,
+            provider_job_id: None,
+            result_summary: None,
+            pagination: None,
+            error: None,
+        }
+    }
+
+    pub fn failed_for_parts(
+        request_id: String,
+        trace_id: String,
+        operation_id: String,
+        error: WorkerError,
+    ) -> Self {
+        Self {
+            schema_version: WORKER_SCHEMA_VERSION,
+            request_id,
+            trace_id,
+            operation: WorkerOperationRef {
+                operation_id,
+                task_id: None,
+            },
+            status: WorkerOperationStatus::Failed,
+            payload: None,
+            resource_refs: Vec::new(),
+            committed_revision: None,
+            provider_job_id: None,
+            result_summary: None,
+            pagination: None,
+            error: Some(error),
+        }
+    }
+
     pub fn validate(&self) -> Result<(), WorkerContractError> {
         validate_worker_schema_version(self.schema_version)?;
         validate_non_blank("request_id", &self.request_id)?;
@@ -427,10 +648,15 @@ pub(crate) fn validate_non_blank(
     field: &'static str,
     value: &str,
 ) -> Result<(), WorkerContractError> {
-    if value.trim().is_empty() {
+    if trimmed_non_blank(value).is_none() {
         return Err(WorkerContractError::BlankField { field });
     }
     Ok(())
+}
+
+fn trimmed_non_blank(value: &str) -> Option<&str> {
+    let value = value.trim();
+    (!value.is_empty()).then_some(value)
 }
 
 pub(crate) fn validate_positive_optional_id(

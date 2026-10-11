@@ -356,6 +356,21 @@
         "dependencies": ["writing", "character_discovery"], "is_modified": false, "path": "prompts/galgame/script_adaptation.md", "tags": ["galgame", "branch"], "used_by": ["GalgameService.adapt"], "version": "ui-v1"
       }
     ],
+    "prompt_assembly_list": [
+      {
+        "call_key": "OrchestratorContext.prepare_inspiration_request_validated",
+        "prompt_name": "inspiration",
+        "variables": ["project_title"],
+        "available_templates": [{ "name": "inspiration", "title": "灵感对话" }]
+      }
+    ],
+    "prompt_assembly_get": {
+      "config": {
+        "blocks": [{ "id": "assembly-block-1", "kind": "template", "value": "inspiration", "enabled": true }]
+      },
+      "rendered_preview": "项目：雾港来信",
+      "source": "system_default"
+    },
     "prompt_version_history": [
       { "version": "ui-commit-003", "author": "林知微", "timestamp": "2026-09-25T06:10:00Z", "message": "补充人物目标、航道限制与最后一段航线的线索约束" },
       { "version": "ui-commit-002", "author": "陈望舟", "timestamp": "2026-09-24T10:20:00Z", "message": "调整蓝图阶段输出顺序，保留已经确定的家庭关系" },

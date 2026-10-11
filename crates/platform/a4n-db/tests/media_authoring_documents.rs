@@ -432,7 +432,7 @@ async fn deleting_adaptation_plan_previews_and_cascades_its_manga_page_and_image
     );
     assert_eq!(
         cleanup_outbox::Entity::find()
-            .filter(cleanup_outbox::Column::DedupeKey.starts_with(&format!(
+            .filter(cleanup_outbox::Column::DedupeKey.starts_with(format!(
                 "media-authoring-delete:{}:{}:",
                 comic.id, adopted.id
             )))

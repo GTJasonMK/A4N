@@ -4,6 +4,7 @@ import {
   type AgentScope,
   type AgentThreadView,
 } from "../../api/agent";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 
 export type DomainAgentCapability =
   "content_optimization" | "canvas" | "director";
@@ -21,7 +22,7 @@ export function domainAgentBindingKey(binding: DomainAgentBinding): string {
 }
 
 export function positiveId(value: number | null | undefined): value is number {
-  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+  return isPositiveSafeInteger(value);
 }
 
 export function matchesEditorSourceScope(

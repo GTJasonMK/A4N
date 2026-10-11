@@ -165,6 +165,25 @@ pub fn write_new_data_file(
     bytes: &[u8],
     label: &str,
 ) -> Result<(), String> {
+    write_new_data_file_inner(data_dir, relative_path, bytes, label, false)
+}
+
+pub fn write_new_synced_data_file(
+    data_dir: &Path,
+    relative_path: &str,
+    bytes: &[u8],
+    label: &str,
+) -> Result<(), String> {
+    write_new_data_file_inner(data_dir, relative_path, bytes, label, true)
+}
+
+fn write_new_data_file_inner(
+    data_dir: &Path,
+    relative_path: &str,
+    bytes: &[u8],
+    label: &str,
+    sync: bool,
+) -> Result<(), String> {
     let relative = normalize_relative_data_path(Path::new(relative_path.trim()), label)?;
     let canonical_data_dir = data_dir
         .canonicalize()
@@ -189,10 +208,51 @@ pub fn write_new_data_file(
         .map_err(|error| format!("创建{label}失败：{}：{error}", target.display()))?;
     let target_display = target.display().to_string();
     super::remove_created_file_on_error_sync(&target, label, move || {
-        let result = file
-            .write_all(bytes)
-            .map_err(|error| format!("写入{label}失败：{target_display}：{error}"));
+        file.write_all(bytes)
+            .map_err(|error| format!("写入{label}失败：{target_display}：{error}"))?;
+        if sync {
+            file.flush()
+                .map_err(|error| format!("刷新{label}失败：{target_display}：{error}"))?;
+            file.sync_all()
+                .map_err(|error| format!("同步{label}失败：{target_display}：{error}"))?;
+        }
         drop(file);
-        result
+        Ok(())
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::write_new_synced_data_file;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn synced_new_data_file_is_scoped_and_never_overwrites() {
+        let root = std::env::temp_dir().join(format!(
+            "a4n_synced_data_file_{}_{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let data_dir = root.join("data");
+        let relative_path = "projects/1/images/generated.png.part";
+        std::fs::create_dir_all(&data_dir).unwrap();
+
+        write_new_synced_data_file(&data_dir, relative_path, b"image", "图片暂存文件").unwrap();
+        assert_eq!(
+            std::fs::read(data_dir.join(relative_path)).unwrap(),
+            b"image"
+        );
+        assert!(
+            write_new_synced_data_file(&data_dir, relative_path, b"overwrite", "图片暂存文件")
+                .is_err()
+        );
+        assert!(
+            write_new_synced_data_file(&data_dir, "../outside", b"escape", "图片暂存文件").is_err()
+        );
+
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }

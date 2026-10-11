@@ -230,10 +230,7 @@ impl crate::OrchestratorContext {
         chapter_id: i64,
         workflow_mode: &str,
         insert_after_video_id: Option<i64>,
-        properties: ImportedVideoProperties,
-        source_file_name: &str,
-        source_extension: &str,
-        imported_at: &str,
+        facts: ImportedVideoRecordFacts<'_>,
     ) -> Result<GeneratedVideoRecord, AppError> {
         let workflow_mode =
             validate_assembly_workflow_mode(workflow_mode).map_err(AppError::InvalidArgument)?;
@@ -244,9 +241,9 @@ impl crate::OrchestratorContext {
                 workflow_mode,
                 Some(serde_json::json!({
                     "assembly_insert": {
-                        "source_file_name": source_file_name,
-                        "source_extension": source_extension,
-                        "imported_at": imported_at,
+                        "source_file_name": facts.source_file_name,
+                        "source_extension": facts.source_extension,
+                        "imported_at": facts.imported_at,
                     }
                 })),
                 insert_after_video_id,
@@ -263,10 +260,10 @@ impl crate::OrchestratorContext {
             prompt: format!("成片衔接片段，插入位置：{anchor_label}。"),
             negative_prompt: None,
             model: EXTERNAL_IMPORT_MODEL.to_string(),
-            width: properties.width,
-            height: properties.height,
-            duration_secs: properties.duration_secs,
-            fps: properties.fps,
+            width: facts.properties.width,
+            height: facts.properties.height,
+            duration_secs: facts.properties.duration_secs,
+            fps: facts.properties.fps,
             source_video_id: None,
             source_image_id: None,
             provider_job_id: None,

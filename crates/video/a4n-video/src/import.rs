@@ -1,6 +1,9 @@
 //! 视频导入、裁剪和抽帧的纯规则。
 
-use a4n_domain::{CanvasFrameKind, VIDEO_TAIL_FRAME_OFFSET_SECS};
+use a4n_domain::{
+    CanvasFrameKind, VIDEO_TAIL_FRAME_OFFSET_SECS,
+    media::{canonical_video_extension, video_upload_mime_matches},
+};
 use serde_json::{Value, json};
 use std::path::Path;
 
@@ -22,28 +25,11 @@ pub fn import_video_extension(path: &Path) -> Result<&'static str, String> {
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .ok_or_else(|| format!("导入视频缺少文件扩展名：{}", path.display()))?;
-    match extension.to_ascii_lowercase().as_str() {
-        "mp4" => Ok("mp4"),
-        "webm" => Ok("webm"),
-        "mov" => Ok("mov"),
-        "m4v" => Ok("m4v"),
-        _ => Err(format!("导入视频格式不支持：{extension}")),
-    }
+    canonical_video_extension(extension).ok_or_else(|| format!("导入视频格式不支持：{extension}"))
 }
 
 pub fn validate_upload_video_mime(mime_type: &str, extension: &str) -> Result<(), String> {
-    let mime = mime_type.trim().to_ascii_lowercase();
-    let valid = match extension {
-        "mp4" => matches!(mime.as_str(), "video/mp4" | "application/mp4"),
-        "webm" => mime == "video/webm",
-        "mov" => matches!(mime.as_str(), "video/quicktime" | "video/mov"),
-        "m4v" => matches!(
-            mime.as_str(),
-            "video/x-m4v" | "video/mp4" | "application/mp4"
-        ),
-        _ => false,
-    };
-    valid
+    video_upload_mime_matches(extension, mime_type)
         .then_some(())
         .ok_or_else(|| "上传视频 MIME 与文件扩展名不匹配".to_string())
 }
@@ -146,7 +132,10 @@ mod tests {
         assert_eq!(import_video_extension(Path::new("a.MP4")).unwrap(), "mp4");
         assert!(import_video_extension(Path::new("a.avi")).is_err());
         validate_upload_video_mime("video/mp4", "mp4").unwrap();
+        validate_upload_video_mime("video/x-m4v", "m4v").unwrap();
+        validate_upload_video_mime("video/mov", "mov").unwrap();
         assert!(validate_upload_video_mime("image/png", "mp4").is_err());
+        assert!(validate_upload_video_mime("video/mp4", "MP4").is_err());
     }
 
     #[test]

@@ -6,7 +6,7 @@ impl WorkerState {
         request: WorkerEnvelope<CreateProjectInput>,
     ) -> Result<ProjectSummary, WorkerFailure> {
         unscoped_request(&request, PROJECT_MUTATION_CREATE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         let title = required_text(&input.title, "项目标题")
             .map_err(WorkerFailure::invalid_request)?
@@ -25,7 +25,7 @@ impl WorkerState {
             },
         )
         .await
-        .map_err(project_mutation_error)?;
+        .map_err(a4n_worker_db_adapter::map_project_mutation_error)?;
         self.summary_for_user(user_id, project.id).await
     }
 
@@ -38,7 +38,7 @@ impl WorkerState {
             PROJECT_MUTATION_CREATE_DERIVED_OPERATION,
             request.payload.root_project_id,
         )?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         let title = required_text(&input.title, "项目标题")
             .map_err(WorkerFailure::invalid_request)?
@@ -49,7 +49,7 @@ impl WorkerState {
         let root =
             a4n_db::collaboration::resolve_root_project(self.database.connection(), project_id)
                 .await
-                .map_err(collaboration_error)?;
+                .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         a4n_db::collaboration::verify_project_permission(
             self.database.connection(),
             project_id,
@@ -57,7 +57,7 @@ impl WorkerState {
             ProjectAccessRole::Editor,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         let project = a4n_db::project::create_derived_project_record(
             self.database.connection(),
             root.user_id,
@@ -73,7 +73,7 @@ impl WorkerState {
             },
         )
         .await
-        .map_err(project_mutation_error)?;
+        .map_err(a4n_worker_db_adapter::map_project_mutation_error)?;
         self.summary_for_user(user_id, project.id).await
     }
 
@@ -82,7 +82,7 @@ impl WorkerState {
         request: WorkerEnvelope<CreateCanvasProjectInput>,
     ) -> Result<ProjectSummary, WorkerFailure> {
         unscoped_request(&request, PROJECT_MUTATION_CREATE_CANVAS_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         let title = required_text(&input.title, "项目标题")
             .map_err(WorkerFailure::invalid_request)?
@@ -94,7 +94,7 @@ impl WorkerState {
             a4n_db::project::CreateCanvasProjectParams { title, description },
         )
         .await
-        .map_err(project_mutation_error)?;
+        .map_err(a4n_worker_db_adapter::map_project_mutation_error)?;
         self.summary_for_user(user_id, project.id).await
     }
 
@@ -103,7 +103,7 @@ impl WorkerState {
         request: WorkerEnvelope<CreateStandaloneComicProjectInput>,
     ) -> Result<ProjectSummary, WorkerFailure> {
         unscoped_request(&request, PROJECT_MUTATION_CREATE_STANDALONE_COMIC_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         let title = required_text(&input.title, "项目标题")
             .map_err(WorkerFailure::invalid_request)?
@@ -115,7 +115,7 @@ impl WorkerState {
             a4n_db::project::CreateStandaloneComicProjectParams { title, description },
         )
         .await
-        .map_err(project_mutation_error)?;
+        .map_err(a4n_worker_db_adapter::map_project_mutation_error)?;
         self.summary_for_user(user_id, project.id).await
     }
 
@@ -128,7 +128,7 @@ impl WorkerState {
             PROJECT_MUTATION_UPDATE_OPERATION,
             request.payload.project_id,
         )?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         a4n_db::collaboration::verify_project_permission(
             self.database.connection(),
             project_id,
@@ -136,7 +136,7 @@ impl WorkerState {
             ProjectAccessRole::Editor,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         let input = request.payload;
         let title = input
             .title
@@ -161,7 +161,7 @@ impl WorkerState {
             },
         )
         .await
-        .map_err(project_mutation_error)?;
+        .map_err(a4n_worker_db_adapter::map_project_mutation_error)?;
         self.summary_for_user(user_id, project.id).await
     }
 
@@ -173,7 +173,7 @@ impl WorkerState {
         let project =
             a4n_db::project::project_summary_by_id_record(self.database.connection(), project_id)
                 .await
-                .map_err(project_mutation_error)?
+                .map_err(a4n_worker_db_adapter::map_project_mutation_error)?
                 .ok_or_else(|| WorkerFailure::not_found(format!("项目不存在: {project_id}")))?;
         a4n_project_read_core::project_summary_for_user(
             self.database.connection(),

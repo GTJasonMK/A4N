@@ -2,14 +2,12 @@
 
 use std::path::Path;
 
-use a4n_domain::media::{canonical_audio_mime, media_mime_from_path};
+use a4n_domain::media::audio_media_type_from_path;
 
 /// 由路径解析支持的画布音频规范 MIME 与扩展名。
 pub(super) fn canvas_audio_format(path: &Path) -> Result<(&'static str, &'static str), String> {
-    let mime_type = media_mime_from_path(path)
-        .map_err(|_| format!("导入音频格式不支持：{}", path.display()))?;
-    canonical_audio_mime(mime_type)
-        .map(|(_, extension)| (mime_type, extension))
+    audio_media_type_from_path(path)
+        .map(|format| (format.mime_type, format.extension))
         .map_err(|_| format!("导入音频格式不支持：{}", path.display()))
 }
 

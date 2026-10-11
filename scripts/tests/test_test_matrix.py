@@ -8,6 +8,8 @@ import os
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
@@ -42,6 +44,28 @@ class TestMatrixTest(unittest.TestCase):
                 )
             )
             with self.assertRaisesRegex(MatrixError, "继承定义"):
+                load_matrix(path)
+
+    def test_load_matrix_rejects_invalid_test_center_group_ids(self) -> None:
+        matrix = {
+            "schema_version": 2,
+            "suites": {"one": {"command": ["true"], "timeout_seconds": 1}},
+            "profiles": {"fast": {"suites": ["one"]}},
+            "test_center": {
+                "functional_suites": ["one"],
+                "groups": [{
+                    "id": "Invalid_Group",
+                    "category": "功能",
+                    "title": "功能",
+                    "description": "功能",
+                    "suites": ["one"],
+                }],
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "matrix.json"
+            path.write_text(json.dumps(matrix))
+            with self.assertRaisesRegex(MatrixError, "group id 无效"):
                 load_matrix(path)
 
     def test_selected_suite_override_is_ordered_and_explicit(self) -> None:
@@ -118,6 +142,29 @@ class TestMatrixTest(unittest.TestCase):
         with patch("sys.argv", ["run_test_matrix.py", "--list"]):
             self.assertEqual(main(), 0)
 
+    def test_matrix_reports_suite_start_before_completion(self) -> None:
+        from run_test_matrix import main
+
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "report"
+            output = StringIO()
+            with (
+                patch("sys.argv", ["run_test_matrix.py", "--suite", "python-tests", "--report-dir", str(report)]),
+                patch(
+                    "run_test_matrix.run_suite",
+                    return_value={"name": "python-tests", "status": "passed", "exit_code": 0},
+                ),
+                redirect_stdout(output),
+            ):
+                self.assertEqual(main(), 0)
+
+            lines = [json.loads(line) for line in output.getvalue().splitlines()]
+            suite_events = [line for line in lines if line.get("suite") == "python-tests"]
+            self.assertEqual(
+                [event["status"] for event in suite_events],
+                ["running", "passed"],
+            )
+
     def test_dry_run_does_not_create_report_directory(self) -> None:
         from run_test_matrix import main
 
@@ -140,6 +187,32 @@ class TestMatrixTest(unittest.TestCase):
             self.assertEqual(result["status"], "timeout")
             with self.assertRaises(ProcessLookupError):
                 os.kill(int(pid_file.read_text()), 0)
+
+    def test_suite_report_directory_placeholder_is_scoped_to_run(self) -> None:
+        class CompletedProcess:
+            pid = 1
+
+            def wait(self, timeout=None):
+                return 0
+
+            def poll(self):
+                return 0
+
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "matrix-report"
+            report.mkdir()
+            with patch("run_test_matrix.subprocess.Popen", return_value=CompletedProcess()) as spawn:
+                result = run_suite(
+                    "creation-e2e",
+                    {
+                        "command": ["python3", "runner.py", "--report-dir", "{report_dir}/creation-e2e"],
+                        "timeout_seconds": 1,
+                    },
+                    report,
+                )
+            self.assertEqual(result["status"], "passed")
+            command = spawn.call_args.args[0]
+            self.assertEqual(command[-1], str(report / "creation-e2e"))
 
 
 if __name__ == "__main__":

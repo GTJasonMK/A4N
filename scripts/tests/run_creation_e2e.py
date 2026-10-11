@@ -544,29 +544,124 @@ def main() -> int:
         browser_runs = []
         browser_path = report_dir / "browser" / "stages.json"
         browser_checks = {}
+
+        def run_browser(
+            name: str,
+            command: list[str],
+            cwd: Path,
+            flow_env: dict[str, str],
+            log_path: Path,
+        ) -> int:
+            browser_process, browser_handle = start_process(
+                command,
+                cwd=cwd,
+                env=flow_env,
+                log_path=log_path,
+            )
+            processes.append((browser_process, browser_handle))
+            try:
+                browser_exit = browser_process.wait(timeout=1800)
+            except subprocess.TimeoutExpired:
+                stop_process(browser_process, browser_handle)
+                browser_exit = 124
+            browser_runs.append({"spec": name, "exit_code": browser_exit, "log": str(log_path)})
+            if browser_exit != 0:
+                report["failures"].append(
+                    f"浏览器功能用例失败({name}, exit={browser_exit})：" + tail(log_path, 2000)
+                )
+            return browser_exit
+
         for index, spec in enumerate(browser_specs):
             name = Path(spec).stem
             browser_log_path = report_dir / ("browser.log" if index == 0 else f"browser-{name}.log")
-            browser, browser_log = start_process(
+            run_browser(
+                spec,
                 ["npm", "run", "test:browser-full-project", "--", "--spec", spec],
-                cwd=frontend,
-                env=browser_env,
-                log_path=browser_log_path,
+                frontend,
+                browser_env,
+                browser_log_path,
             )
-            processes.append((browser, browser_log))
-            try:
-                browser_exit = browser.wait(timeout=1800)
-            except subprocess.TimeoutExpired:
-                stop_process(browser, None)
-                browser_exit = 124
-            browser_runs.append({"spec": spec, "exit_code": browser_exit, "log": str(browser_log_path)})
             if index == 0 and browser_path.exists():
                 browser_checks = json.loads(browser_path.read_text())
-            if browser_exit != 0:
-                report["failures"].append(
-                    f"浏览器功能用例失败({spec}, exit={browser_exit})："
-                    + tail(browser_log_path, 2000)
-                )
+
+        additional_browser_flows = []
+
+        def block_browser_flow(name: str, reason: str) -> None:
+            report["failures"].append(f"浏览器功能用例未执行({name})：{reason}")
+            browser_runs.append({"spec": name, "exit_code": 1, "blocked_by": reason})
+
+        if args.browser_feature_flows and "media_authoring" in suites:
+            media_report = report["suites"].get("media_authoring", {})
+            if media_report.get("success"):
+                additional_browser_flows.append((
+                    "media-authoring-workspaces",
+                    [str(frontend / "node_modules/.bin/wdio"), "run", "e2e/media-authoring/wdio.real.conf.mjs"],
+                    frontend,
+                    {
+                        **browser_env,
+                        "A4N_MEDIA_AUTHORING_CLI_REPORT": str(report_dir / "media_authoring.json"),
+                    },
+                ))
+            else:
+                block_browser_flow("media-authoring-workspaces", "media_authoring CLI suite 未通过")
+
+        if args.browser_feature_flows and "specialized_agent" in suites:
+            specialized_report = report["suites"].get("specialized_agent", {})
+            if specialized_report.get("success"):
+                specialized_path = report_dir / "specialized_agent.json"
+                specialized_data = json.loads(specialized_path.read_text(encoding="utf-8"))
+                specialized_fixture = report_dir / "specialized-agent-browser-fixture.json"
+                secure_json(specialized_fixture, {
+                    "success": specialized_data["success"],
+                    "project_id": specialized_data["project_id"],
+                    "chapter_id": specialized_data["chapter_id"],
+                    "thread_id": specialized_data["thread_id"],
+                })
+                additional_browser_flows.append((
+                    "specialized-agent-workspace",
+                    [
+                        str(frontend / "node_modules/.bin/wdio"),
+                        "run",
+                        "e2e/full-project/wdio.conf.mjs",
+                        "--spec",
+                        "e2e/specialized-agent/specialized-agent.e2e.mjs",
+                    ],
+                    frontend,
+                    {
+                        **browser_env,
+                        "A4N_SPECIALIZED_FIXTURE": str(specialized_fixture),
+                        "A4N_SPECIALIZED_SERVER": server_url,
+                        "A4N_CLI": str(binaries / "a4n"),
+                    },
+                ))
+            else:
+                block_browser_flow("specialized-agent-workspace", "specialized_agent CLI suite 未通过")
+
+        if args.browser_feature_flows and "director" in suites:
+            shot_sync_fixture = report_dir / "browser-fixture.json"
+            if shot_sync_fixture.is_file():
+                additional_browser_flows.append((
+                    "shot-sync-workspace",
+                    ["node", str(source / "frontend/e2e/shot-sync/check.mjs")],
+                    source,
+                    {
+                        **browser_env,
+                        "A4N_SHOT_SYNC_FIXTURE": str(shot_sync_fixture),
+                        "A4N_SHOT_SYNC_ARTIFACTS": str(report_dir / "browser/shot-sync"),
+                    },
+                ))
+            else:
+                block_browser_flow("shot-sync-workspace", "导演 CLI suite 未生成 browser-fixture.json")
+
+        for name, command, cwd, flow_env in additional_browser_flows:
+            log_path = report_dir / f"browser-{name}.log"
+            run_browser(
+                name,
+                command,
+                cwd,
+                flow_env,
+                log_path,
+            )
         report["browser"] = {
             "exit_code": 0 if all(run["exit_code"] == 0 for run in browser_runs) else 1,
             "runs": browser_runs,

@@ -1,5 +1,6 @@
 import type { AgentThreadSnapshot, AgentMessageView } from "../../api/agent";
 import type { OptimizationPatch } from "../../api/generated/host";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 
 export interface PendingContentDiff {
   chapterId: number;
@@ -29,7 +30,7 @@ function stringValue(value: unknown): string | null {
 
 function positiveNumber(value: unknown): number | null {
   const number = typeof value === "number" ? value : Number(value);
-  return Number.isSafeInteger(number) && number > 0 ? number : null;
+  return isPositiveSafeInteger(number) ? number : null;
 }
 
 function patchesValue(value: unknown): OptimizationPatch[] | null {

@@ -5,7 +5,7 @@ use a4n_provider_runtime_contract::ModelUsageRecordHandle;
 use a4n_provider_runtime_contract::TaskLease;
 
 use crate::dynamic_llm::trace::{
-    llm_error_kind, llm_trace_status_for_error, record_dynamic_llm_trace,
+    DynamicLlmTraceOutcome, llm_error_kind, llm_trace_status_for_error, record_dynamic_llm_trace,
 };
 use crate::provider_runtime::DynamicProviderFacade;
 
@@ -43,14 +43,15 @@ pub(super) fn start_completed_sync(
         record_dynamic_llm_trace(
             &context.facade,
             context.trace_context.as_ref(),
-            Some(context.model_name.as_str()),
-            context.usage,
-            context.duration_ms,
-            true,
-            "completed",
-            None,
-            None,
-            context.finish_reason.as_deref(),
+            DynamicLlmTraceOutcome {
+                model: context.model_name.as_str(),
+                usage: context.usage,
+                duration_ms: context.duration_ms,
+                status: "completed",
+                error_kind: None,
+                error_message: None,
+                finish_reason: context.finish_reason.as_deref(),
+            },
         )
         .await;
         match (status_result, cost_result) {
@@ -91,14 +92,15 @@ pub(super) fn start_failed_sync(
         record_dynamic_llm_trace(
             &context.facade,
             context.trace_context.as_ref(),
-            Some(context.model_name.as_str()),
-            context.usage,
-            context.duration_ms,
-            true,
-            llm_trace_status_for_error(&error),
-            Some(llm_error_kind(&error)),
-            Some(message.as_str()),
-            context.finish_reason.as_deref(),
+            DynamicLlmTraceOutcome {
+                model: context.model_name.as_str(),
+                usage: context.usage,
+                duration_ms: context.duration_ms,
+                status: llm_trace_status_for_error(&error),
+                error_kind: Some(llm_error_kind(&error)),
+                error_message: Some(message.as_str()),
+                finish_reason: context.finish_reason.as_deref(),
+            },
         )
         .await;
         cost_result?;

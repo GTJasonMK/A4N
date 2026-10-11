@@ -13,6 +13,8 @@ pub use a4n_domain::{
     validate_theme_document,
 };
 
+pub const MAX_THEME_RESOURCE_BYTES: usize = 20 * 1024 * 1024;
+
 /// 创建主题的 Web/Tauri 请求合同。
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]

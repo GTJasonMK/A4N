@@ -1,0 +1,13 @@
+[package]
+name = "a4n-worker-db-adapter"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-error = { workspace = true, default-features = false }
+a4n-db = { workspace = true }
+a4n-worker-contract = { workspace = true }
+
+[dev-dependencies]
+sea-orm.workspace = true

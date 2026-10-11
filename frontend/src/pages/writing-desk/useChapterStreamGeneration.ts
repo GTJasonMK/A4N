@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import type { ToastType } from "../../components/feedback/Toast";
 import { extractErrorMessage } from "../../api";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 import { generationClient } from "../../api/generationTasks";
 import {
   generationTaskKey,
@@ -306,10 +307,10 @@ export const useChapterStreamGeneration = ({
         const resultId = resultRef ? Number(resultRef.id) : NaN;
         const refreshed = await reloadChapters({
           force: true,
-          chapterId: resultRef?.kind === "chapter" && Number.isSafeInteger(resultId)
-            && resultId > 0 ? resultId : undefined,
+          chapterId: resultRef?.kind === "chapter" && isPositiveSafeInteger(resultId)
+            ? resultId : undefined,
         });
-        const persisted = resultRef?.kind === "chapter" && Number.isSafeInteger(resultId)
+        const persisted = resultRef?.kind === "chapter" && isPositiveSafeInteger(resultId)
           && refreshed?.chapter?.id === resultId ? refreshed.chapter
           : null;
         const persistedHash = persisted ? await sha256Hex(persisted.content) : null;

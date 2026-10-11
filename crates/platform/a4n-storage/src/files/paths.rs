@@ -167,6 +167,29 @@ mod tests {
     }
 
     #[test]
+    fn data_dir_relative_path_accepts_missing_target_and_rejects_outside_parent() {
+        let root = std::env::temp_dir().join(format!(
+            "a4n_data_dir_relative_path_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let data_dir = root.join("data");
+        let image_dir = data_dir.join("projects/1/images");
+        std::fs::create_dir_all(&image_dir).unwrap();
+
+        assert_eq!(
+            data_dir_relative_path(&data_dir, &image_dir.join("image.png"), "图片文件").unwrap(),
+            "projects/1/images/image.png"
+        );
+        assert!(data_dir_relative_path(&data_dir, &root.join("outside.png"), "图片文件").is_err());
+
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn app_paths_create_all_portable_dirs() {
         let tmp = std::env::temp_dir().join(format!(
             "a4n_app_paths_{}_{}",

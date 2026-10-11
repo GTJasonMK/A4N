@@ -107,6 +107,8 @@ pub(super) fn run() {
         &typescript_interface::<UpdateEmbeddingInput>("UpdateEmbeddingInput"),
         &typescript_interface::<ImageSize>("ImageSize"),
         &typescript_image_constants(),
+        &typescript_video_upload_mime_types(),
+        &typescript_temp_media_browser_mime_types(),
         &typescript_interface::<ImageConfigSummary>("ImageConfigSummary"),
         &typescript_interface::<ImageConfigInput>("ImageConfigInput"),
         &typescript_interface::<UpdateImageConfigInput>("UpdateImageConfigInput"),

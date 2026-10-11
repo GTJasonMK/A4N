@@ -17,7 +17,7 @@ impl WorkerState {
     ) -> Result<OutlineMutationResult, WorkerFailure> {
         validate_request(&request, DELETE_CHAPTERS_OPERATION)?;
         validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_project_permission(
             self,
             request.payload.project_id,
@@ -42,7 +42,7 @@ impl WorkerState {
     ) -> Result<OutlineMutationResult, WorkerFailure> {
         validate_request(&request, DELETE_PARTS_OPERATION)?;
         validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_project_permission(
             self,
             request.payload.project_id,
@@ -67,7 +67,7 @@ impl WorkerState {
     ) -> Result<SaveChapterOutlineResult, WorkerFailure> {
         validate_request(&request, SAVE_CHAPTER_OPERATION)?;
         validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_project_permission(
             self,
             request.payload.project_id,
@@ -100,7 +100,7 @@ impl WorkerState {
     ) -> Result<UpdateChapterOutlineResult, WorkerFailure> {
         validate_request(&request, UPDATE_CHAPTER_OPERATION)?;
         validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_project_permission(
             self,
             request.payload.project_id,
@@ -125,7 +125,7 @@ impl WorkerState {
     ) -> Result<SavePartOutlineResult, WorkerFailure> {
         validate_request(&request, SAVE_PART_OPERATION)?;
         validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_project_permission(
             self,
             request.payload.project_id,

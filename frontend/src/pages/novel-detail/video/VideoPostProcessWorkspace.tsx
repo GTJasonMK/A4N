@@ -22,6 +22,7 @@ import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { ZoomableImage } from "../../../components/ui/ImageLightbox";
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
+import { isPositiveSafeInteger } from "../../../utils/numberRange";
 import { readFileAsBase64 } from "../../../utils/fileUpload";
 import {
   pickVideoUploadFile,
@@ -61,7 +62,7 @@ const editPushId = (video: GeneratedVideo): number | null => {
   const value = asRecord(
     asRecord(video.metadata_json)?.postprocess_edit,
   )?.push_video_id;
-  return Number.isInteger(value) && Number(value) > 0 ? Number(value) : null;
+  return isPositiveSafeInteger(value) ? value : null;
 };
 
 const editOperationLabel: Record<string, MessageKey> = {

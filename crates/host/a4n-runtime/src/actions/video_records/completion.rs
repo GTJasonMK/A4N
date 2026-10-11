@@ -30,6 +30,16 @@ impl VideoRecordCleanupFacts for GeneratedVideoSummary {
     }
 }
 
+pub(in crate::actions::video_records) struct VideoRecordCompletionAttempt<'a> {
+    pub(in crate::actions::video_records) record_id: i64,
+    pub(in crate::actions::video_records) output_path: &'a str,
+    pub(in crate::actions::video_records) thumbnail_path: Option<&'a str>,
+    pub(in crate::actions::video_records) file_size: i64,
+    pub(in crate::actions::video_records) prompt_id: Option<i64>,
+    pub(in crate::actions::video_records) metadata_json: Option<Value>,
+    pub(in crate::actions::video_records) failure_prefix: &'a str,
+}
+
 pub(in crate::actions::video_records) async fn enqueue_unadopted_video_file_cleanup(
     state: &AppState,
     dedupe_key: &str,
@@ -62,17 +72,20 @@ pub(in crate::actions::video_records) async fn enqueue_unadopted_video_file_clea
 
 pub(in crate::actions::video_records) async fn complete_video_record(
     state: &AppState,
-    record_id: i64,
-    output_path_str: &str,
-    thumbnail_path: Option<&str>,
-    file_size: i64,
-    prompt_id: Option<i64>,
-    metadata_json: Option<Value>,
-    failure_prefix: &str,
+    attempt: VideoRecordCompletionAttempt<'_>,
 ) -> Result<GeneratedVideoSummary, String> {
+    let VideoRecordCompletionAttempt {
+        record_id,
+        output_path,
+        thumbnail_path,
+        file_size,
+        prompt_id,
+        metadata_json,
+        failure_prefix,
+    } = attempt;
     let properties = match canonicalize_data_file_path(
         state.data_dir(),
-        output_path_str,
+        output_path,
         &format!("{failure_prefix}输出文件"),
     ) {
         Err(error) => Err(error),
@@ -89,7 +102,7 @@ pub(in crate::actions::video_records) async fn complete_video_record(
             let cleanup_error = enqueue_unadopted_video_file_cleanup(
                 state,
                 &format!("video-completion-probe-failure:{record_id}"),
-                output_path_str,
+                output_path,
                 thumbnail_path,
                 None,
             )
@@ -105,7 +118,7 @@ pub(in crate::actions::video_records) async fn complete_video_record(
         .video_record_completion_application()
         .complete(CompleteVideoRecordInput {
             record_id,
-            output_path: output_path_str.to_string(),
+            output_path: output_path.to_string(),
             thumbnail_path: thumbnail_path.map(str::to_string),
             properties,
             prompt_id,
@@ -118,7 +131,7 @@ pub(in crate::actions::video_records) async fn complete_video_record(
                 && let Some(cleanup_error) = enqueue_unadopted_video_file_cleanup(
                     state,
                     &format!("video-completion-duplicate:{record_id}"),
-                    output_path_str,
+                    output_path,
                     thumbnail_path,
                     Some(&completion.summary),
                 )
@@ -153,7 +166,7 @@ pub(in crate::actions::video_records) async fn complete_video_record(
                 let cleanup_error = enqueue_unadopted_video_file_cleanup(
                     state,
                     &format!("video-completion-duplicate:{record_id}"),
-                    output_path_str,
+                    output_path,
                     thumbnail_path,
                     Some(&authoritative.summary),
                 )
@@ -163,7 +176,7 @@ pub(in crate::actions::video_records) async fn complete_video_record(
             let cleanup_error = enqueue_unadopted_video_file_cleanup(
                 state,
                 &format!("video-completion-failure:{record_id}"),
-                output_path_str,
+                output_path,
                 thumbnail_path,
                 None,
             )

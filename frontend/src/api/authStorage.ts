@@ -3,6 +3,7 @@ import {
   removePortableItems,
   writePortableItems,
 } from "../utils/portableStorage";
+import { isPositiveSafeInteger } from "../utils/numberRange";
 import type { AuthResult, TokenPairSummary } from "./generated/auth";
 
 const CURRENT_USER_ID_KEY = "a4n:current_user_id";
@@ -15,7 +16,7 @@ export const readCurrentUserId = (): number | null => {
   const raw = readPortableItem(CURRENT_USER_ID_KEY);
   if (!raw) return null;
   const n = Number(raw);
-  return Number.isSafeInteger(n) && n > 0 ? n : null;
+  return isPositiveSafeInteger(n) ? n : null;
 };
 
 export const requireCurrentUserId = (): number => {
@@ -52,7 +53,7 @@ export const writeCurrentTokens = (tokens: TokenPairSummary): Promise<void> =>
   writePortableItems(tokenEntries(tokens));
 
 export const writeCurrentAuth = (result: AuthResult): Promise<void> => {
-  if (!Number.isSafeInteger(result.user.id) || result.user.id <= 0) {
+  if (!isPositiveSafeInteger(result.user.id)) {
     throw new Error("当前用户 ID 必须是正整数");
   }
   return writePortableItems({

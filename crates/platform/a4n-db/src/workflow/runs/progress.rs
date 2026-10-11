@@ -143,7 +143,6 @@ pub async fn persist_workflow_progress_snapshot_summary(
 ) -> Result<WorkflowRunSummary, WorkflowWriteError> {
     persist_workflow_progress_snapshot(db, workflow_run_id, snapshot)
         .await
-        .map_err(WorkflowWriteError::from)
         .and_then(|run| {
             super::projections::workflow_run_summary(run).map_err(WorkflowWriteError::from)
         })

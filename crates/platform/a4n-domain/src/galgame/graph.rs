@@ -359,16 +359,15 @@ impl StoryGraph {
                 validate_boolean_expression(option.condition.as_ref(), &variable_kinds)?;
                 validate_operations(&option.state_operations, &variable_kinds)?;
             }
-            if let Some(join) = &branch.join_node_id {
-                if !node_by_id
+            if let Some(join) = &branch.join_node_id
+                && !node_by_id
                     .get(join.as_str())
                     .is_some_and(|node| node.kind == StoryNodeKind::Join)
-                {
-                    return Err(format!(
-                        "分叉组 join_node_id 必须引用 Join 节点: {}",
-                        branch.id
-                    ));
-                }
+            {
+                return Err(format!(
+                    "分叉组 join_node_id 必须引用 Join 节点: {}",
+                    branch.id
+                ));
             }
         }
         for edge in &self.edges {

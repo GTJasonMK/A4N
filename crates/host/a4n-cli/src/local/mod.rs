@@ -24,9 +24,7 @@ use state::{
 };
 pub(crate) use state::{DoctorOutcome, StartOptions};
 
-use crate::config::{
-    lock_config, non_empty_env_path, non_empty_env_string, write_private_json_unlocked,
-};
+use crate::config::{lock_config, write_private_json_unlocked};
 
 pub(crate) async fn doctor(
     api_base: &str,
@@ -124,7 +122,7 @@ pub(crate) async fn doctor(
         }
     }
 
-    if let Some(url) = non_empty_env_string("A4N_QDRANT_URL")? {
+    if let Some(url) = a4n_config::optional_non_empty_env_string("A4N_QDRANT_URL")? {
         match endpoint_from_url(&url) {
             Ok(endpoint) if tcp_reachable(endpoint, Duration::from_secs(2)).await => {
                 push_check(&mut checks, "qdrant", "ok", format!("{endpoint} 可连接"));
@@ -272,7 +270,7 @@ pub(crate) async fn start(
 
     let mut qdrant_pid = None;
     let mut qdrant_marker = None;
-    let mut qdrant_url = non_empty_env_string("A4N_QDRANT_URL")?;
+    let mut qdrant_url = a4n_config::optional_non_empty_env_string("A4N_QDRANT_URL")?;
     if options.qdrant && qdrant_url.is_none() {
         qdrant_url = Some(DEFAULT_QDRANT_URL.into());
     }

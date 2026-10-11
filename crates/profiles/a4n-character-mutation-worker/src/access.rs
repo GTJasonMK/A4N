@@ -5,13 +5,10 @@ pub(super) async fn named_profile(
     project_id: i64,
     name: &str,
 ) -> Result<a4n_domain::character::CharacterProfileRecord, WorkerFailure> {
-    let name = name.trim();
-    if name.is_empty() {
-        return Err(WorkerFailure::invalid_request("角色名称不能为空"));
-    }
+    let name = WorkerFailure::require_non_blank(name, "角色名称不能为空")?;
     a4n_db::character::profile_record_by_project_name(database.connection(), project_id, name)
         .await
-        .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
+        .map_err(a4n_worker_db_adapter::map_database_error)?
         .ok_or_else(|| {
             WorkerFailure::not_found(format!("角色不存在: project_id={project_id}, name={name}"))
         })
@@ -22,10 +19,10 @@ pub(super) async fn profile_for_editor(
     user_id: i64,
     profile_id: i64,
 ) -> Result<a4n_domain::character::CharacterProfileRecord, WorkerFailure> {
-    let profile_id = positive(profile_id, "profile_id")?;
+    let profile_id = WorkerFailure::require_positive_id(profile_id, "profile_id")?;
     let profile = a4n_db::character::profile_record_by_id(database.connection(), profile_id)
         .await
-        .map_err(|error| WorkerFailure::unavailable(error.to_string()))?
+        .map_err(a4n_worker_db_adapter::map_database_error)?
         .ok_or_else(|| WorkerFailure::not_found(format!("角色档案不存在: {profile_id}")))?;
     verify_project_editor(database, profile.project_id, user_id).await?;
     Ok(profile)

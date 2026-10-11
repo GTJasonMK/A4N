@@ -8,6 +8,7 @@ import {
   getProjectWorkspaceRoute,
 } from "../utils/projectRouting";
 import { isCancelledOperation } from "../utils/cancellation";
+import { isPositiveSafeInteger } from "../utils/numberRange";
 import { useToast } from "../components/feedback/Toast";
 import { choiceDialog, confirmDialog } from "../components/feedback/ConfirmDialog";
 import { promptDialog } from "../components/feedback/PromptDialog";
@@ -551,7 +552,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
     }
     const start = Number(match[1]);
     const end = Number(match[2]);
-    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start <= 0 || end < start) {
+    if (!isPositiveSafeInteger(start) || !isPositiveSafeInteger(end) || end < start) {
       addToast(tRef.current("novel.projectListActions.chapterRangeInvalid"), "error");
       finishProjectAction(actionKey);
       return;

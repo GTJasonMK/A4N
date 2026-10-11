@@ -106,7 +106,7 @@ pub async fn check_app_update(app: AppHandle) -> Result<Option<AppUpdateInfo>, S
         .check()
         .await
         .map_err(|error| format!("检查更新失败：{error}"))?;
-    Ok(update
+    update
         .map(|update| -> Result<AppUpdateInfo, String> {
             data_migrations(&update.raw_json)?;
             Ok(AppUpdateInfo {
@@ -116,7 +116,7 @@ pub async fn check_app_update(app: AppHandle) -> Result<Option<AppUpdateInfo>, S
                 target: update.target,
             })
         })
-        .transpose()?)
+        .transpose()
 }
 
 #[tauri::command]
@@ -305,17 +305,17 @@ pub async fn install_app_update(
         pending_migrations: prepared.pending_migrations,
         failure_reason: None,
     };
-    write_update_recovery_state(&config, &recovery)?;
+    write_update_recovery_state(config, &recovery)?;
 
     if let Err(failure) = shutdown_for_update(&app, &state).await {
-        mark_update_failed(&config, &recovery, &failure.message);
+        mark_update_failed(config, &recovery, &failure.message);
         if failure.partial_shutdown {
             tauri::process::restart(&app.env());
         }
         return Err(failure.message);
     }
     if let Err(error) = downloaded.update.install(&downloaded.bytes) {
-        mark_update_failed(&config, &recovery, &error.to_string());
+        mark_update_failed(config, &recovery, &error.to_string());
         tracing::error!(%error, "启动应用更新安装器失败，正在恢复旧应用");
     }
     tauri::process::restart(&app.env());
@@ -326,21 +326,21 @@ pub fn get_update_recovery_state(
     state: State<'_, AppState>,
 ) -> Result<Option<UpdateRecoveryState>, String> {
     let config = state.host_app_config();
-    let recovery = read_update_recovery_state(&config)?;
+    let recovery = read_update_recovery_state(config)?;
     Ok(recovery.filter(|value| value.state == "failed"))
 }
 
 #[tauri::command]
 pub fn clear_update_recovery_state(state: State<'_, AppState>) -> Result<(), String> {
     let config = state.host_app_config();
-    let recovery = read_update_recovery_state(&config)?;
-    if !recovery
+    let recovery = read_update_recovery_state(config)?;
+    if recovery
         .as_ref()
-        .is_some_and(|value| value.state == "failed")
+        .is_none_or(|value| value.state != "failed")
     {
         return Err("没有可关闭的更新失败记录".to_string());
     }
-    std::fs::remove_file(update_recovery_path(&config))
+    std::fs::remove_file(update_recovery_path(config))
         .map_err(|error| format!("清理更新失败记录失败：{error}"))
 }
 
@@ -742,7 +742,7 @@ fn retain_recent_backups(directory: &Path, retain: usize) -> Result<(), String> 
             backups.push((modified, path));
         }
     }
-    backups.sort_by(|left, right| right.0.cmp(&left.0));
+    backups.sort_by_key(|(modified, _)| std::cmp::Reverse(*modified));
     for (_, path) in backups.into_iter().skip(retain) {
         std::fs::remove_file(&path)
             .map_err(|error| format!("清理旧更新备份失败（{}）：{error}", path.display()))?;

@@ -1,0 +1,17 @@
+[package]
+name = "a4n-worker-runtime"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-worker-contract = { path = "../a4n-worker-contract" }
+axum.workspace = true
+serde.workspace = true
+subtle.workspace = true
+tokio = { workspace = true }
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
+
+[dev-dependencies]
+serde_json.workspace = true

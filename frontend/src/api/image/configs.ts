@@ -35,6 +35,7 @@ import {
   requireSystemDefaultProviderConfig,
   rejectSystemDefaultMutation,
   requireSystemDefaultKeyUpdate,
+  resolveProviderConnectivityTarget,
   systemDefaultProviderConfig,
 } from "../config/shared";
 
@@ -228,20 +229,18 @@ async function resolveImageConnectivityTarget(
   scope: ModelConfigScope,
   requireApiKey: boolean,
 ): Promise<{ configId: number; config: ImageGenConfig | null }> {
-  if (scope === "server") {
-    return { configId: imageConfigId(configId), config: null };
-  }
-  if (isSystemDefaultImageConfigId(configId)) {
-    return {
-      configId: SYSTEM_IMAGE_CONFIG_ID,
-      config: await loadSystemDefaultRuntimeImageConfig({ requireApiKey }),
-    };
-  }
-  const id = imageConfigId(configId);
-  return {
-    configId: id,
-    config: usesLocalRuntimeSettings() ? getLocalImageConfig(id) : null,
-  };
+  return resolveProviderConnectivityTarget({
+    configId,
+    scope,
+    requireApiKey,
+    label: "图片配置 ID",
+    systemConfigId: SYSTEM_IMAGE_CONFIG_ID,
+    isSystemDefault: isSystemDefaultImageConfigId,
+    loadSystemDefault: (includeApiKey) =>
+      loadSystemDefaultRuntimeImageConfig({ requireApiKey: includeApiKey }),
+    getLocalConfig: (id) =>
+      usesLocalRuntimeSettings() ? getLocalImageConfig(id) : null,
+  });
 }
 
 export async function testImageConfig(

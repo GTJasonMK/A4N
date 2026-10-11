@@ -20,6 +20,7 @@ import {
 } from "../../api/outline";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import { canEditProjectMaterials, type NovelProject } from "../../api/project";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 import type { ChapterOutlineEditForm } from "./outlines/ChapterOutlineSection";
 import type {
   ManualChapterOutlineForm,
@@ -635,7 +636,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
 
   const handleSaveManualChapter = async (form: ManualChapterOutlineForm) => {
     const requestProjectId = projectId;
-    if (!Number.isInteger(form.chapterNumber) || form.chapterNumber <= 0) {
+    if (!isPositiveSafeInteger(form.chapterNumber)) {
       addToast(t("outline.chapterNumberPositive"), "error");
       return;
     }
@@ -707,11 +708,9 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const handleSaveManualPart = async (form: ManualPartOutlineForm) => {
     const requestProjectId = projectId;
     if (
-      !Number.isInteger(form.partNumber) ||
-      !Number.isInteger(form.startChapter) ||
-      !Number.isInteger(form.endChapter) ||
-      form.partNumber <= 0 ||
-      form.startChapter <= 0 ||
+      !isPositiveSafeInteger(form.partNumber) ||
+      !isPositiveSafeInteger(form.startChapter) ||
+      !isPositiveSafeInteger(form.endChapter) ||
       form.endChapter < form.startChapter
     ) {
       addToast(t("outline.validPartRange"), "error");

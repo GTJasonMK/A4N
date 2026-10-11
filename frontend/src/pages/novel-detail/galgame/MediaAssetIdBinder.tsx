@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Images } from "lucide-react";
 import { BookButton } from "../../../components/ui/BookButton";
 import { useI18n } from "../../../i18n";
+import { isPositiveSafeInteger } from "../../../utils/numberRange";
 
 /**
  * 素材编号绑定器
@@ -21,7 +22,7 @@ function parsePositiveInteger(value: string): number | null {
   const trimmed = value.trim();
   if (!/^[1-9]\d*$/.test(trimmed)) return null;
   const parsed = Number(trimmed);
-  return Number.isSafeInteger(parsed) ? parsed : null;
+  return isPositiveSafeInteger(parsed) ? parsed : null;
 }
 
 export const MediaAssetIdBinder: React.FC<MediaAssetIdBinderProps> = ({

@@ -9,6 +9,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from run_test_matrix import MatrixError, load_matrix, resolve_profile as resolve_matrix_profile
+
 
 ROOT = Path(__file__).resolve().parents[2]
 SCENARIO_SOURCE = ROOT / "crates/host/a4n-runtime/src/actions/admin_records/test_console.rs"
@@ -38,7 +40,11 @@ def scenario_catalog() -> list[str]:
     except OSError as error:
         raise CatalogError(f"无法读取场景注册表：{error}") from error
     declared = SCENARIO_RE.findall(source)
-    handlers = HANDLER_RE.findall(source)
+    handler_source = source.split("async fn run_scenario", 1)
+    if len(handler_source) != 2:
+        raise CatalogError("找不到 run_scenario handler")
+    handler_source = handler_source[1].split("async fn run_repository_test_group", 1)
+    handlers = HANDLER_RE.findall(handler_source[0])
     if not declared:
         raise CatalogError("场景注册表没有声明任何 scenario")
     duplicates = sorted({item for item in declared if declared.count(item) > 1})
@@ -50,41 +56,46 @@ def scenario_catalog() -> list[str]:
     orphan_handlers = sorted(set(handlers) - set(declared))
     if orphan_handlers:
         raise CatalogError(f"handler 没有注册场景：{orphan_handlers}")
-    return declared
+    matrix = read_json(MATRIX_SOURCE)
+    test_center = matrix.get("test_center")
+    groups = test_center.get("groups", []) if isinstance(test_center, dict) else []
+    dynamic = [
+        f"repository_test_{group['id']}"
+        for group in groups
+        if isinstance(group, dict) and isinstance(group.get("id"), str)
+    ]
+    if dynamic and (
+        "strip_prefix(REPOSITORY_TEST_PREFIX)" not in source
+        or "run_repository_test_group" not in source
+    ):
+        raise CatalogError("仓库功能测试分组缺少通用执行 handler")
+    return [*declared, *dynamic]
 
 
 def resolve_profile(profiles: dict[str, Any], suites: dict[str, Any], name: str, stack: tuple[str, ...] = ()) -> list[str]:
-    if name in stack:
-        raise CatalogError(f"测试 profile 继承循环：{' -> '.join((*stack, name))}")
-    definition = profiles.get(name)
-    if not isinstance(definition, dict):
-        raise CatalogError(f"测试 profile 无效：{name}")
-    parent = definition.get("extends")
-    inherited = resolve_profile(profiles, suites, parent, (*stack, name)) if parent else []
-    names = definition.get("suites", [])
-    excluded = definition.get("exclude", [])
-    if not isinstance(names, list) or not isinstance(excluded, list):
-        raise CatalogError(f"测试 profile suite 必须是数组：{name}")
-    unknown = sorted((set(names) | set(excluded)) - set(suites))
-    if unknown:
-        raise CatalogError(f"测试 profile 引用了未知 suite：{unknown}")
-    resolved = [item for item in dict.fromkeys([*inherited, *names]) if item not in set(excluded)]
-    if not resolved:
-        raise CatalogError(f"测试 profile 为空：{name}")
-    return resolved
+    try:
+        return resolve_matrix_profile(profiles, suites, name, stack)
+    except MatrixError as error:
+        raise CatalogError(str(error)) from error
 
 
 def check_matrix() -> dict[str, Any]:
-    matrix = read_json(MATRIX_SOURCE)
-    suites = matrix.get("suites")
-    profiles = matrix.get("profiles")
-    if not isinstance(suites, dict) or not isinstance(profiles, dict):
-        raise CatalogError("测试矩阵必须包含 suites 和 profiles")
-    for name, suite in suites.items():
-        if not isinstance(suite, dict) or not isinstance(suite.get("command"), list) or not suite["command"]:
-            raise CatalogError(f"suite 命令无效：{name}")
+    try:
+        matrix = load_matrix(MATRIX_SOURCE)
+    except MatrixError as error:
+        raise CatalogError(str(error)) from error
+    suites = matrix["suites"]
+    profiles = matrix["profiles"]
     resolved = {name: resolve_profile(profiles, suites, name) for name in profiles}
-    return {"suite_count": len(suites), "profiles": resolved}
+    test_center = matrix.get("test_center")
+    if not isinstance(test_center, dict):
+        raise CatalogError("测试矩阵必须包含 test_center 对象")
+    return {
+        "suite_count": len(suites),
+        "profiles": resolved,
+        "test_center_group_count": len(test_center["groups"]),
+        "functional_suite_count": len(test_center["functional_suites"]),
+    }
 
 
 def check_package_scripts() -> list[str]:

@@ -22,7 +22,10 @@ pub(crate) struct PromptServiceState {
 }
 
 pub(crate) async fn run() -> anyhow::Result<()> {
-    init_tracing()?;
+    a4n_sidecar_bootstrap::init_tracing(
+        "A4N_PROMPT_SERVICE_LOG",
+        "a4n_prompt_service=info,tower_http=warn",
+    )?;
 
     let prompts_dir = prompts_dir()?;
     let git_dir = git_dir()?;
@@ -84,34 +87,17 @@ pub(crate) async fn run_from_args() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn init_tracing() -> anyhow::Result<()> {
-    a4n_sidecar_bootstrap::init_tracing(
-        "A4N_PROMPT_SERVICE_LOG",
-        "a4n_prompt_service=info,tower_http=warn",
-    )
-}
-
-fn optional_non_empty_env_path(key: &str) -> anyhow::Result<Option<PathBuf>> {
-    let Some(value) = std::env::var_os(key) else {
-        return Ok(None);
-    };
-    if value.to_string_lossy().trim().is_empty() {
-        return Err(anyhow::anyhow!("{key} 不能为空"));
-    }
-    Ok(Some(PathBuf::from(value)))
-}
-
 fn prompts_dir() -> anyhow::Result<PathBuf> {
-    optional_non_empty_env_path(PROMPT_SERVICE_PROMPTS_DIR_ENV)?.ok_or_else(|| {
+    a4n_config::optional_non_empty_env_path(PROMPT_SERVICE_PROMPTS_DIR_ENV)?.ok_or_else(|| {
         anyhow::anyhow!("缺少 {PROMPT_SERVICE_PROMPTS_DIR_ENV}，无法定位随包 prompts 目录")
     })
 }
 
 fn git_dir() -> anyhow::Result<PathBuf> {
-    if let Some(path) = optional_non_empty_env_path("A4N_PROMPT_SERVICE_GIT_DIR")? {
+    if let Some(path) = a4n_config::optional_non_empty_env_path("A4N_PROMPT_SERVICE_GIT_DIR")? {
         return Ok(path);
     }
-    let data_dir = optional_non_empty_env_path("A4N_DATA_DIR")?
+    let data_dir = a4n_config::optional_non_empty_env_path("A4N_DATA_DIR")?
         .ok_or_else(|| anyhow::anyhow!("缺少 A4N_DATA_DIR，无法定位 prompts.git"))?;
     Ok(data_dir.join("prompts.git"))
 }

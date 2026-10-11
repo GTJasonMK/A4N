@@ -6,6 +6,7 @@
 
 use std::time::Duration;
 
+use a4n_error::AppError;
 use reqwest::{Method, StatusCode, header::CONTENT_TYPE};
 use serde::{Serialize, de::DeserializeOwned};
 
@@ -21,10 +22,36 @@ pub use a4n_worker_contract::WORKER_AUTH_HEADER;
 mod paths;
 use paths::{command_path, operation_path};
 mod responses;
+pub use responses::worker_response_payload;
 use responses::{validate_command_response, validate_operation_response};
 
 pub const WORKER_COMMANDS_PATH: &str = "/v1/commands";
 pub const WORKER_OPERATIONS_PATH: &str = "/v1/operations";
+
+pub fn worker_client_connection_from_env(
+    url_env: &str,
+    token_env: &str,
+    default_url: &str,
+) -> (String, Option<String>) {
+    resolve_worker_client_connection(
+        std::env::var(url_env),
+        std::env::var(token_env),
+        default_url,
+    )
+}
+
+fn resolve_worker_client_connection(
+    url: Result<String, std::env::VarError>,
+    token: Result<String, std::env::VarError>,
+    default_url: &str,
+) -> (String, Option<String>) {
+    let url = url
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| default_url.to_string());
+    let token = token.ok().filter(|value| !value.trim().is_empty());
+    (url, token)
+}
 
 const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
@@ -76,6 +103,84 @@ pub enum WorkerClientError {
     RequestJson(#[source] serde_json::Error),
     #[error("worker response JSON is invalid")]
     ResponseJson(#[source] serde_json::Error),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkerClientErrorPolicy {
+    Configuration,
+    TransientAsTimeout,
+}
+
+pub fn map_worker_client_error(
+    error: WorkerClientError,
+    worker_name: &str,
+    policy: WorkerClientErrorPolicy,
+) -> AppError {
+    match (policy, error) {
+        (WorkerClientErrorPolicy::TransientAsTimeout, WorkerClientError::Timeout) => {
+            AppError::Timeout(format!("{worker_name} 请求超时"))
+        }
+        (WorkerClientErrorPolicy::TransientAsTimeout, WorkerClientError::Transport(error)) => {
+            AppError::Timeout(format!("{worker_name} 请求失败: {error}"))
+        }
+        (WorkerClientErrorPolicy::TransientAsTimeout, WorkerClientError::HttpStatus { status })
+            if status >= 500 =>
+        {
+            AppError::Timeout(format!("{worker_name} 返回 HTTP {status}"))
+        }
+        (_, error) => AppError::ConfigError(format!("{worker_name} 请求失败: {error}")),
+    }
+}
+
+pub fn user_principal(user_id: i64) -> Result<WorkerPrincipal, AppError> {
+    user_principal_with_scope(user_id, None, "user_id 必须大于 0")
+}
+
+pub fn user_principal_with_scope(
+    user_id: i64,
+    project_id: Option<i64>,
+    error_message: &'static str,
+) -> Result<WorkerPrincipal, AppError> {
+    if !is_positive_id(user_id) || project_id.is_some_and(|project_id| !is_positive_id(project_id))
+    {
+        return Err(AppError::InvalidArgument(error_message.into()));
+    }
+    Ok(WorkerPrincipal {
+        kind: WorkerPrincipalKind::User,
+        subject: user_id.to_string(),
+    })
+}
+
+pub fn positive_id(field: &str, value: i64) -> Result<i64, AppError> {
+    if !is_positive_id(value) {
+        return Err(AppError::InvalidArgument(format!("{field} 必须大于 0")));
+    }
+    Ok(value)
+}
+
+pub fn optional_positive_id(field: &str, value: Option<i64>) -> Result<Option<i64>, AppError> {
+    value.map(|value| positive_id(field, value)).transpose()
+}
+
+fn is_positive_id(value: i64) -> bool {
+    value > 0
+}
+
+pub fn map_worker_response_error(
+    error: &WorkerError,
+    worker_name: &str,
+    operation: &str,
+) -> AppError {
+    match error.code {
+        WorkerErrorCode::InvalidRequest => AppError::InvalidArgument(error.message.clone()),
+        WorkerErrorCode::Unauthorized => AppError::Forbidden(error.message.clone()),
+        WorkerErrorCode::NotFound => AppError::NotFound(error.message.clone()),
+        WorkerErrorCode::Conflict => AppError::InvalidState {
+            current: error.message.clone(),
+            operation: operation.to_string(),
+        },
+        _ => AppError::ConfigError(format!("{worker_name} {operation} 失败: {}", error.message)),
+    }
 }
 
 #[derive(Clone)]

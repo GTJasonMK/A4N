@@ -9,6 +9,7 @@ import {
   LLM_RESERVED_REQUEST_OPTION_KEYS,
 } from "./generated/config";
 import type { PricingPlan } from "./generated/config";
+import { isPositiveSafeInteger, isSafeInteger } from "../utils/numberRange";
 
 const LOCAL_RUNTIME_SETTINGS_KEYS = [
   "schema_version",
@@ -281,10 +282,10 @@ function extractParseErrorMessage(err: unknown): string {
 }
 
 function requiredPositiveInt(value: unknown, field: string): number {
-  if (!Number.isSafeInteger(value) || Number(value) <= 0) {
+  if (!isPositiveSafeInteger(value)) {
     throw new Error(`${field} 必须为正整数`);
   }
-  return Number(value);
+  return value;
 }
 
 function requiredPositiveI32(value: unknown, field: string): number {
@@ -297,10 +298,10 @@ function requiredIntRange(
   min: number,
   max: number,
 ): number {
-  if (!Number.isSafeInteger(value) || Number(value) < min || Number(value) > max) {
+  if (!isSafeInteger(value) || value < min || value > max) {
     throw new Error(`${field} 必须在 ${min}-${max} 之间`);
   }
-  return Number(value);
+  return value;
 }
 
 function requiredBoolean(value: unknown, field: string): boolean {

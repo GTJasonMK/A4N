@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import secrets
 import signal
 import subprocess
@@ -60,7 +61,74 @@ def load_matrix(path: Path = MATRIX_PATH) -> dict[str, Any]:
             raise MatrixError(f"suite {name} 的 timeout_seconds 无效")
     for profile in profiles:
         resolve_profile(profiles, suites, profile)
+    validate_test_center_catalog(matrix, suites)
     return matrix
+
+
+def validate_test_center_catalog(matrix: dict[str, Any], suites: dict[str, Any]) -> None:
+    catalog = matrix.get("test_center")
+    if catalog is None:
+        return
+    if not isinstance(catalog, dict):
+        raise MatrixError("test_center 必须是对象")
+
+    functional_suites = catalog.get("functional_suites")
+    groups = catalog.get("groups")
+    if (
+        not isinstance(functional_suites, list)
+        or not functional_suites
+        or not all(isinstance(name, str) for name in functional_suites)
+    ):
+        raise MatrixError("test_center.functional_suites 必须是非空 suite 列表")
+    if len(functional_suites) != len(set(functional_suites)):
+        raise MatrixError("test_center.functional_suites 不能重复")
+    if not isinstance(groups, list) or not groups:
+        raise MatrixError("test_center.groups 必须是非空数组")
+
+    group_ids: set[str] = set()
+    grouped_suites: set[str] = set()
+    all_functional_suites: list[str] | None = None
+    for group in groups:
+        if not isinstance(group, dict):
+            raise MatrixError("test_center group 必须是对象")
+        group_id = group.get("id")
+        suite_names = group.get("suites")
+        if not isinstance(group_id, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", group_id):
+            raise MatrixError("test_center group id 无效")
+        if group_id in group_ids:
+            raise MatrixError(f"test_center group id 重复：{group_id}")
+        group_ids.add(group_id)
+        for field in ("category", "title", "description"):
+            if not isinstance(group.get(field), str) or not group[field].strip():
+                raise MatrixError(f"test_center group {group_id} 的 {field} 无效")
+        if (
+            not isinstance(suite_names, list)
+            or not suite_names
+            or not all(isinstance(name, str) for name in suite_names)
+        ):
+            raise MatrixError(f"test_center group {group_id} 必须包含 suite")
+        if len(suite_names) != len(set(suite_names)):
+            raise MatrixError(f"test_center group {group_id} 的 suite 不能重复")
+        unknown = sorted(set(suite_names) - set(suites))
+        if unknown:
+            raise MatrixError(f"test_center group {group_id} 引用了未知 suite：{unknown}")
+        if group_id == "all-functional":
+            all_functional_suites = suite_names
+        else:
+            overlap = grouped_suites.intersection(suite_names)
+            if overlap:
+                raise MatrixError(f"功能 suite 被多个 test_center 分组重复引用：{sorted(overlap)}")
+            grouped_suites.update(suite_names)
+
+    unknown_functional = sorted(set(functional_suites) - set(suites))
+    if unknown_functional:
+        raise MatrixError(f"test_center 引用了未知功能 suite：{unknown_functional}")
+    if grouped_suites != set(functional_suites):
+        missing = sorted(set(functional_suites) - grouped_suites)
+        extra = sorted(grouped_suites - set(functional_suites))
+        raise MatrixError(f"test_center 分组覆盖不一致；缺少 {missing}，多出 {extra}")
+    if all_functional_suites != functional_suites:
+        raise MatrixError("all-functional 必须按登记顺序完整包含 functional_suites")
 
 
 def resolve_profile(
@@ -109,7 +177,7 @@ def selected_suites(matrix: dict[str, Any], profile: str, requested: list[str]) 
 
 def run_suite(name: str, suite: dict[str, Any], report_dir: Path) -> dict[str, Any]:
     log_path = report_dir / "logs" / f"{name}.log"
-    command = list(suite["command"])
+    command = [part.replace("{report_dir}", str(report_dir)) for part in suite["command"]]
     started = time.monotonic()
     result: dict[str, Any] = {
         "name": name,
@@ -121,11 +189,14 @@ def run_suite(name: str, suite: dict[str, Any], report_dir: Path) -> dict[str, A
     }
     process: subprocess.Popen[bytes] | None = None
     try:
+        env = os.environ.copy()
+        if name.startswith("browser-"):
+            env["A4N_BROWSER_E2E_ARTIFACT_DIR"] = str(report_dir / "browser-artifacts" / name)
         with private_file(log_path) as log:
             process = subprocess.Popen(
                 command,
                 cwd=ROOT,
-                env=os.environ.copy(),
+                env=env,
                 stdin=subprocess.DEVNULL,
                 stdout=log,
                 stderr=subprocess.STDOUT,
@@ -197,6 +268,7 @@ def main() -> int:
         }
         try:
             for name in names:
+                print(json.dumps({"suite": name, "status": "running"}, ensure_ascii=False), flush=True)
                 result = run_suite(name, matrix["suites"][name], report_dir)
                 report["suites"][name] = result
                 print(json.dumps({"suite": name, "status": result["status"]}, ensure_ascii=False), flush=True)

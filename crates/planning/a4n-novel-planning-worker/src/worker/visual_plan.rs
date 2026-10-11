@@ -12,7 +12,7 @@ impl WorkerState {
     ) -> Result<ChapterVisualPlanSetView, WorkerFailure> {
         validate_request(&request, GET_VISUAL_PLAN_OPERATION)?;
         validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_family_permission(
             self.database.connection(),
             request.payload.project_id,
@@ -72,7 +72,7 @@ impl WorkerState {
         validate_request(&request, READ_VISUAL_PLAN_OPERATION)?;
         validate_project_scope(&request, request.payload.project_id)?;
         validate_optional_target_revision(&request, request.payload.expected_revision)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_family_permission(
             self.database.connection(),
             request.payload.project_id,

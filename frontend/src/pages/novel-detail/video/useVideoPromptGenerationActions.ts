@@ -29,9 +29,9 @@ import {
   type VideoSegmentWorkflowMode,
 } from "../../../api/video";
 import { readFileAsBase64, pickLocalFile } from "../../../utils/fileUpload";
+import { MAX_UPLOAD_IMAGE_BYTES } from "../../../api/generated/config";
 import {
   isSupportedImageMime,
-  MAX_UPLOAD_IMAGE_BYTES,
   supportedImageAccept,
 } from "../../../utils/imageUpload";
 import type { RunProgressTask } from "../../../hooks/useProgressTask";

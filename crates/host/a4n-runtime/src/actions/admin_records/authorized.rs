@@ -116,7 +116,10 @@ pub async fn list_test_scenarios_for_admin(
 ) -> Result<Vec<TestScenarioDescriptor>, AppError> {
     permissions::require_admin_permission(state, caller_user_id, AdminPermission::ManageSettings)
         .await?;
-    Ok(super::TestConsole::scenarios())
+    state
+        .test_console()
+        .scenarios()
+        .map_err(|error| AppError::Internal(anyhow::anyhow!(error)))
 }
 
 admin_record_command!(

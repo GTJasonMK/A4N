@@ -1,6 +1,7 @@
 import { apiInvoke, authenticatedWebFetch } from ".";
 import type { ChapterVisualPlanReadResult, ChapterVisualPlanView } from "./generated/host";
 import { shouldUseHttpBackend } from "../utils/runtimeMode";
+import { isPositiveSafeInteger } from "../utils/numberRange";
 import { readSseStream } from "../utils/sseParser";
 
 export class VisualPlanInvalidatedError extends Error {}
@@ -16,7 +17,7 @@ export async function subscribeVisualPlanEdits(
   const receive = (saved: ChapterVisualPlanView) => {
     const receipt = saved.edit_receipt;
     if (!receipt || receipt.project_id !== projectId || receipt.source_chapter_id !== chapterId
-      || !Number.isSafeInteger(receipt.sequence) || receipt.sequence <= 0) {
+      || !isPositiveSafeInteger(receipt.sequence)) {
       throw new Error("编辑回执身份或顺序无效");
     }
     if (receipt.sequence <= cursor) return;

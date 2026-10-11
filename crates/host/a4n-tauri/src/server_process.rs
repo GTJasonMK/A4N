@@ -6,8 +6,6 @@ use std::collections::VecDeque;
 use std::io::{self, BufRead, BufReader, Write};
 use std::net::SocketAddr;
 use std::net::TcpListener;
-#[cfg(target_os = "linux")]
-use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -169,7 +167,7 @@ impl NativeWorkerSettings {
                 .stdout(Stdio::inherit())
                 .stderr(Stdio::inherit());
             configure_component_library_path(&mut command, app)?;
-            configure_parent_death_signal(&mut command);
+            a4n_worker_runtime::configure_parent_death_signal(&mut command);
 
             // ponytail: release each reserved port immediately before bind; retry if a rare race occurs.
             drop(reservations.next());
@@ -187,7 +185,7 @@ impl NativeWorkerSettings {
                 .with_auth_token(worker.token.clone());
             if let Err(error) = wait_for_native_worker(&mut child, &client, &worker.metadata).await
             {
-                if let Err(stop_error) = terminate_child(&mut child) {
+                if let Err(stop_error) = a4n_worker_runtime::terminate_child(&mut child) {
                     tracing::error!(
                         worker = %worker.metadata.name,
                         error = %stop_error,
@@ -299,7 +297,7 @@ impl NativeWorkerProcesses {
 }
 
 fn stop_native_child(name: String, mut child: Child) {
-    if let Err(error) = terminate_child(&mut child)
+    if let Err(error) = a4n_worker_runtime::terminate_child(&mut child)
         && error.kind() != io::ErrorKind::InvalidInput
     {
         tracing::warn!(worker = %name, %error, "停止 Native worker 失败");
@@ -351,11 +349,7 @@ fn validate_native_worker_capabilities(
     capabilities: &a4n_worker_client::WorkerCapabilities,
 ) -> Result<(), io::Error> {
     let missing = metadata.capabilities.iter().find(|expected| {
-        !capabilities.capabilities.iter().any(|reported| {
-            reported.name == expected.as_str()
-                && reported.enabled
-                && reported.version == metadata.capability_version.as_str()
-        })
+        !capabilities.has_enabled_capability(expected, &metadata.capability_version)
     });
     if let Some(missing) = missing {
         return Err(io::Error::other(format!(
@@ -422,13 +416,13 @@ impl LocalServerProcess {
         if let Some(address) = configured_address {
             command.env("A4N_WEB_ADDR", address.to_string());
         }
-        configure_parent_death_signal(&mut command);
+        a4n_worker_runtime::configure_parent_death_signal(&mut command);
 
         let mut child = command
             .spawn()
             .map_err(|error| format!("启动 A4N Server 失败: {}: {error}", server.display()))?;
         let Some(stderr) = child.stderr.take() else {
-            if let Err(error) = terminate_child(&mut child) {
+            if let Err(error) = a4n_worker_runtime::terminate_child(&mut child) {
                 tracing::warn!(%error, "停止 stderr 未能捕获的 A4N Server 失败");
             }
             return Err(io::Error::other("A4N Server stderr 未开启捕获").into());
@@ -439,7 +433,7 @@ impl LocalServerProcess {
         let stderr_reader = match spawn_server_stderr_reader(stderr, config, stderr_tail.clone()) {
             Ok(reader) => reader,
             Err(error) => {
-                if let Err(stop_error) = terminate_child(&mut child) {
+                if let Err(stop_error) = a4n_worker_runtime::terminate_child(&mut child) {
                     tracing::warn!(%stop_error, "启动 stderr 捕获失败后停止 A4N Server 失败");
                 }
                 return Err(format!("启动 A4N Server stderr 捕获失败: {error}").into());
@@ -508,7 +502,7 @@ impl LocalServerProcess {
         let Some(mut child_process) = child.take() else {
             return;
         };
-        if let Err(error) = terminate_child(&mut child_process)
+        if let Err(error) = a4n_worker_runtime::terminate_child(&mut child_process)
             && error.kind() != std::io::ErrorKind::InvalidInput
         {
             tracing::warn!(%error, "停止 A4N Server 失败");
@@ -596,27 +590,6 @@ fn append_server_stderr_tail(tail: &Mutex<VecDeque<u8>>, bytes: &[u8]) {
         tail.push_back(*byte);
     }
 }
-
-#[cfg(target_os = "linux")]
-fn configure_parent_death_signal(command: &mut Command) {
-    // Keep the child server from surviving a Tauri dev rebuild or abrupt exit.
-    unsafe {
-        command.pre_exec(|| {
-            unsafe extern "C" {
-                fn prctl(option: i32, ...) -> i32;
-            }
-            const PR_SET_PDEATHSIG: i32 = 1;
-            const SIGTERM: i32 = 15;
-            if prctl(PR_SET_PDEATHSIG, SIGTERM) != 0 {
-                return Err(std::io::Error::last_os_error());
-            }
-            Ok(())
-        });
-    }
-}
-
-#[cfg(not(target_os = "linux"))]
-fn configure_parent_death_signal(_: &mut Command) {}
 
 impl Drop for LocalServerProcess {
     fn drop(&mut self) {
@@ -745,28 +718,6 @@ fn run_migration(
     let detail = String::from_utf8_lossy(&output.stderr);
     let detail = detail.replace(database_url, "[REDACTED]");
     Err(format!("数据库迁移失败: {}", detail.trim()).into())
-}
-
-fn terminate_child(child: &mut Child) -> Result<(), std::io::Error> {
-    #[cfg(unix)]
-    {
-        let status = Command::new("kill")
-            .args(["-TERM", &child.id().to_string()])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()?;
-        if status.success() {
-            for _ in 0..50 {
-                if child.try_wait()?.is_some() {
-                    return Ok(());
-                }
-                std::thread::sleep(Duration::from_millis(100));
-            }
-        }
-    }
-    child.kill()?;
-    let _ = child.wait();
-    Ok(())
 }
 
 fn resolve_binary(

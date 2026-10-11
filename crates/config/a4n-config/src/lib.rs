@@ -4,6 +4,7 @@
 //! 这样 sidecar、迁移器和宿主可以共享同一份配置边界规则。
 
 use std::ffi::OsString;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use a4n_error::AppError;
@@ -87,6 +88,73 @@ pub fn optional_non_empty_env_string(key: &str) -> Result<Option<String>, AppErr
         Err(std::env::VarError::NotPresent) => Ok(None),
         Err(error) => Err(AppError::ConfigError(format!("{key} 无法读取: {error}"))),
     }
+}
+
+pub fn worker_listen_addr(key: &str, default_addr: &str) -> Result<SocketAddr, AppError> {
+    let value = optional_non_empty_env_string(key)?.unwrap_or_else(|| default_addr.to_string());
+    parse_worker_listen_addr(key, &value)
+}
+
+pub fn web_listen_addr() -> Result<SocketAddr, AppError> {
+    parse_web_listen_addr(std::env::var_os("A4N_WEB_ADDR"))
+}
+
+fn parse_web_listen_addr(value: Option<OsString>) -> Result<SocketAddr, AppError> {
+    let value = match value {
+        Some(value) => value
+            .into_string()
+            .map_err(|_| AppError::ConfigError("A4N_WEB_ADDR 必须是有效 UTF-8 地址".to_string()))?,
+        None => "127.0.0.1:8080".to_string(),
+    };
+    value
+        .parse::<SocketAddr>()
+        .map_err(|error| AppError::ConfigError(format!("A4N_WEB_ADDR 无效: {error}")))
+}
+
+pub fn control_listen_addr() -> Result<SocketAddr, AppError> {
+    match std::env::var_os("A4N_CONTROL_ADDR") {
+        Some(value) => parse_control_listen_addr(value),
+        None => Ok(control_addr_from_web(web_listen_addr()?)),
+    }
+}
+
+fn parse_control_listen_addr(value: OsString) -> Result<SocketAddr, AppError> {
+    let value = value
+        .into_string()
+        .map_err(|_| AppError::ConfigError("A4N_CONTROL_ADDR 必须是有效 UTF-8 地址".to_string()))?;
+    let address = value
+        .parse::<SocketAddr>()
+        .map_err(|error| AppError::ConfigError(format!("A4N_CONTROL_ADDR 无效: {error}")))?;
+    if address.port() == 0 {
+        return Err(AppError::ConfigError(
+            "A4N_CONTROL_ADDR 不允许使用端口 0；Edge 必须知道 Control 的固定地址".to_string(),
+        ));
+    }
+    Ok(address)
+}
+
+pub fn control_addr_from_web(web_addr: SocketAddr) -> SocketAddr {
+    if web_addr.port() == 0 {
+        return SocketAddr::from(([127, 0, 0, 1], 18080));
+    }
+    let control_port = web_addr
+        .port()
+        .checked_add(1)
+        .filter(|port| *port != 0)
+        .unwrap_or(18080);
+    SocketAddr::from(([127, 0, 0, 1], control_port))
+}
+
+fn parse_worker_listen_addr(key: &str, value: &str) -> Result<SocketAddr, AppError> {
+    let address = value
+        .parse::<SocketAddr>()
+        .map_err(|error| AppError::ConfigError(format!("{key} 无效: {error}")))?;
+    if !address.ip().is_loopback() || address.port() == 0 {
+        return Err(AppError::ConfigError(format!(
+            "{key} 必须是 loopback 且端口大于 0"
+        )));
+    }
+    Ok(address)
 }
 
 pub fn required_non_empty_env_string(key: &str) -> Result<String, AppError> {
@@ -242,6 +310,51 @@ mod tests {
             parse_optional_non_empty_env_path("A4N_PATH", Some(OsString::from("data/cache")))
                 .unwrap(),
             Some(PathBuf::from("data/cache"))
+        );
+    }
+
+    #[test]
+    fn worker_listen_addr_requires_loopback_and_nonzero_port() {
+        assert_eq!(
+            parse_worker_listen_addr("A4N_WORKER_ADDR", "127.0.0.1:47641").unwrap(),
+            "127.0.0.1:47641".parse::<SocketAddr>().unwrap()
+        );
+        assert!(parse_worker_listen_addr("A4N_WORKER_ADDR", "0.0.0.0:47641").is_err());
+        assert!(parse_worker_listen_addr("A4N_WORKER_ADDR", "127.0.0.1:0").is_err());
+        assert!(parse_worker_listen_addr("A4N_WORKER_ADDR", "invalid").is_err());
+    }
+
+    #[test]
+    fn web_and_control_addresses_share_environment_and_port_rules() {
+        assert_eq!(
+            parse_web_listen_addr(None).unwrap(),
+            "127.0.0.1:8080".parse::<SocketAddr>().unwrap()
+        );
+        assert!(parse_web_listen_addr(Some(OsString::from("invalid"))).is_err());
+        #[cfg(unix)]
+        {
+            use std::os::unix::ffi::OsStringExt;
+
+            let error = parse_web_listen_addr(Some(OsString::from_vec(vec![0xff])))
+                .expect_err("non-UTF-8 web address must fail");
+            assert!(error.to_string().contains("A4N_WEB_ADDR"));
+        }
+        assert_eq!(
+            parse_control_listen_addr(OsString::from("127.0.0.1:8081")).unwrap(),
+            "127.0.0.1:8081".parse::<SocketAddr>().unwrap()
+        );
+        assert!(parse_control_listen_addr(OsString::from("127.0.0.1:0")).is_err());
+        assert_eq!(
+            control_addr_from_web("127.0.0.1:8080".parse().unwrap()),
+            "127.0.0.1:8081".parse::<SocketAddr>().unwrap()
+        );
+        assert_eq!(
+            control_addr_from_web("127.0.0.1:0".parse().unwrap()),
+            "127.0.0.1:18080".parse::<SocketAddr>().unwrap()
+        );
+        assert_eq!(
+            control_addr_from_web("127.0.0.1:65535".parse().unwrap()),
+            "127.0.0.1:18080".parse::<SocketAddr>().unwrap()
         );
     }
 

@@ -56,8 +56,7 @@ impl VideoProviderHostPort for RuntimeVideoProviderHostPort<'_> {
             project_id,
             root_project_id,
             job_id,
-            TaskPriority::Low,
-            Some(workflow_run_id),
+            workflow_run_id,
             provider_cancel.clone(),
         );
         tokio::pin!(poll);

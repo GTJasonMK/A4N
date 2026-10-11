@@ -6,8 +6,8 @@ impl WorkerState {
         &self,
         request: WorkerEnvelope<ListCanvasTextAssetsInput>,
     ) -> Result<Vec<CanvasTextAssetSummary>, WorkerFailure> {
-        let user_id = user_id(&request)?;
-        validate_project_scope(&request, request.payload.project_id)?;
+        let user_id = request.principal.require_user_id()?;
+        request.require_project_scope(request.payload.project_id)?;
         self.verify_project_permission(
             request.payload.project_id,
             user_id,
@@ -39,8 +39,8 @@ impl WorkerState {
         &self,
         request: WorkerEnvelope<ListCanvasTextAssetVersionsInput>,
     ) -> Result<Vec<CanvasTextAssetVersionSummary>, WorkerFailure> {
-        let user_id = user_id(&request)?;
-        validate_project_scope(&request, request.payload.project_id)?;
+        let user_id = request.principal.require_user_id()?;
+        request.require_project_scope(request.payload.project_id)?;
         self.verify_project_permission(
             request.payload.project_id,
             user_id,
@@ -69,8 +69,8 @@ impl WorkerState {
         &self,
         request: WorkerEnvelope<GetCanvasGraphInput>,
     ) -> Result<CanvasGraphDocument, WorkerFailure> {
-        let user_id = user_id(&request)?;
-        validate_project_scope(&request, request.payload.project_id)?;
+        let user_id = request.principal.require_user_id()?;
+        request.require_project_scope(request.payload.project_id)?;
         self.verify_project_permission(
             request.payload.project_id,
             user_id,
@@ -92,8 +92,8 @@ impl WorkerState {
         &self,
         request: WorkerEnvelope<ReadCanvasGraphInput>,
     ) -> Result<CanvasGraphReadResult, WorkerFailure> {
-        let user_id = user_id(&request)?;
-        validate_project_scope(&request, request.payload.project_id)?;
+        let user_id = request.principal.require_user_id()?;
+        request.require_project_scope(request.payload.project_id)?;
         self.verify_project_permission(
             request.payload.project_id,
             user_id,

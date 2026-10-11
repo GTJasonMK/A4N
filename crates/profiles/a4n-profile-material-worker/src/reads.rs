@@ -6,8 +6,8 @@ impl WorkerState {
         request: WorkerEnvelope<ListProfileMaterialsInput>,
     ) -> Result<Vec<ProfileMaterialGroup>, WorkerFailure> {
         validate_request(&request, PROFILE_MATERIAL_LIST_OPERATION)?;
-        validate_input_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        request.require_project_scope(request.payload.project_id)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         if input.image_limit_per_profile == 0 || input.image_limit_per_profile > MAX_IMAGE_LIMIT {
             return Err(WorkerFailure::invalid_request(
@@ -36,7 +36,7 @@ impl WorkerState {
                         input.project_id,
                     )
                     .await
-                    .map_err(scene_profile_error)
+                    .map_err(a4n_worker_db_adapter::map_scene_profile_db_error)
                 } else {
                     Ok(Vec::new())
                 }
@@ -48,7 +48,7 @@ impl WorkerState {
                         input.project_id,
                     )
                     .await
-                    .map_err(asset_error)
+                    .map_err(a4n_worker_db_adapter::map_asset_db_error)
                 } else {
                     Ok(Vec::new())
                 }
@@ -60,7 +60,7 @@ impl WorkerState {
                     &image_types,
                 )
                 .await
-                .map_err(profile_material_error)
+                .map_err(a4n_worker_db_adapter::map_profile_material_db_error)
             },
         );
         let mut sources = scene_profiles?

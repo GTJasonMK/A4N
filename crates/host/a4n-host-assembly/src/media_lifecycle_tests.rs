@@ -1,5 +1,6 @@
 use std::{path::Path, sync::Arc, time::Duration};
 
+use a4n_api_contract::image::MAX_UPLOAD_IMAGE_BYTES;
 use a4n_config::app_config::{AppConfig, SecurityConfig};
 use a4n_config_read_worker::ConfigReadWorker;
 use a4n_config_read_worker_client::ConfigReadWorkerClient;
@@ -150,7 +151,7 @@ fn prepared_image_upload(project_id: i64) -> PreparedImportedImageUpload {
         "test.png",
         "image/png",
         TEST_IMAGE_BASE64,
-        50 * 1024 * 1024,
+        MAX_UPLOAD_IMAGE_BYTES,
     )
     .unwrap();
     PreparedImportedImageUpload {

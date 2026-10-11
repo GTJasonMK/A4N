@@ -138,9 +138,11 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                             &input.config,
                             input.request,
                             input.provider_idempotency_key_sha256,
-                            Some(input.project_id),
-                            root_project_id,
-                            None,
+                            crate::sidecar_clients::SidecarWorkflowScope {
+                                project_id: Some(input.project_id),
+                                root_project_id,
+                                workflow_run_id: None,
+                            },
                             Some(sidecar_progress_tx),
                         )
                         .await

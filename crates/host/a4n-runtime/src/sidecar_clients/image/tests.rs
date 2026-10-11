@@ -41,9 +41,11 @@ async fn image_sidecar_missing_capability_fails_without_embedded_fallback() {
         None,
         &image_config(),
         image_request(),
-        None,
-        None,
-        None,
+        crate::sidecar_clients::SidecarWorkflowScope {
+            project_id: None,
+            root_project_id: None,
+            workflow_run_id: None,
+        },
         None,
     )
     .await
@@ -71,9 +73,11 @@ async fn image_generation_maps_workflow_run_to_service_trace() {
         Some(client.clone()),
         &image_config(),
         image_request(),
-        Some(42),
-        Some(3),
-        Some(77),
+        crate::sidecar_clients::SidecarWorkflowScope {
+            project_id: Some(42),
+            root_project_id: Some(3),
+            workflow_run_id: Some(77),
+        },
         Some(&progress),
     )
     .await

@@ -13,7 +13,7 @@ impl ChapterContentWorkerClient {
         user_id: i64,
         input: UpdateChapterContentInput,
     ) -> Result<ChapterContentMutationResult, AppError> {
-        Self::positive("chapter_id", input.chapter_id)?;
+        a4n_worker_client::positive_id("chapter_id", input.chapter_id)?;
         self.command_global(user_id, CHAPTER_CONTENT_UPDATE_OPERATION, input)
             .await
     }
@@ -23,7 +23,7 @@ impl ChapterContentWorkerClient {
         user_id: i64,
         input: ImportChapterInput,
     ) -> Result<ChapterContentMutationResult, AppError> {
-        Self::positive("project_id", input.project_id)?;
+        a4n_worker_client::positive_id("project_id", input.project_id)?;
         self.command(
             user_id,
             input.project_id,

@@ -7,6 +7,7 @@ use a4n_api_contract::fact_feedback::{
     RunProjectFactFeedbackInput,
 };
 use a4n_api_contract::generation_tasks::GENERATION_START_ROUTES;
+use a4n_api_contract::temp_media::{TEMP_MEDIA_FORMATS, TempMediaFormatKind};
 use a4n_api_contract::{
     admin::{
         AdminOverviewSummary, AdminProjectSummary, CallKindOverview, CreateInviteCodeInput,
@@ -372,6 +373,7 @@ use a4n_domain::galgame::{
     StoryValue,
 };
 use a4n_domain::import_review::ImportReviewStatus;
+use a4n_domain::media::{IMAGE_UPLOAD_MEDIA_TYPES, VIDEO_MEDIA_TYPES};
 use a4n_domain::profile_material::{
     ProfileMaterialFilter, ProfileMaterialImageStaleness, ProfileMaterialKind,
     ProfileMaterialKindFilter, ProfileMaterialSort, ProfileMaterialState,
@@ -461,7 +463,59 @@ fn typescript_image_constants() -> String {
         .iter()
         .map(|size| format!("  {{ width: {}, height: {} }},\n", size.width, size.height))
         .collect::<String>();
-    format!("export const DEFAULT_IMAGE_SIZES: readonly ImageSize[] = [\n{sizes}];\n\n")
+    let mime_types = IMAGE_UPLOAD_MEDIA_TYPES
+        .iter()
+        .flat_map(|format| format.browser_mime_types.iter().copied())
+        .map(|mime_type| format!("  {mime_type:?},\n"))
+        .collect::<String>();
+    let max_upload_image_bytes = a4n_api_contract::image::MAX_UPLOAD_IMAGE_BYTES;
+    let max_profile_material_image_upload_bytes =
+        a4n_api_contract::profile::MAX_PROFILE_MATERIAL_IMAGE_UPLOAD_BYTES;
+    let max_theme_resource_bytes = a4n_api_contract::theme::MAX_THEME_RESOURCE_BYTES;
+    format!(
+        "export const DEFAULT_IMAGE_SIZES: readonly ImageSize[] = [\n{sizes}];\n\nexport const IMAGE_UPLOAD_MIME_TYPES: readonly string[] = [\n{mime_types}];\n\nexport const MAX_UPLOAD_IMAGE_BYTES = {max_upload_image_bytes};\nexport const MAX_PROFILE_MATERIAL_IMAGE_UPLOAD_BYTES = {max_profile_material_image_upload_bytes};\nexport const MAX_THEME_RESOURCE_BYTES = {max_theme_resource_bytes};\n\n"
+    )
+}
+
+fn typescript_video_upload_mime_types() -> String {
+    let media_types = VIDEO_MEDIA_TYPES
+        .iter()
+        .map(|media_type| {
+            format!(
+                "  {:?}: {:?},\n",
+                media_type.extension, media_type.accepted_upload_mime_types
+            )
+        })
+        .collect::<String>();
+    format!(
+        "export const VIDEO_UPLOAD_MIME_TYPES: Readonly<Record<string, readonly [string, ...string[]]>> = {{\n{media_types}}};\n\n"
+    )
+}
+
+fn typescript_temp_media_browser_mime_types() -> String {
+    let mut output = String::from(
+        "export const TEMP_MEDIA_BROWSER_MIME_TYPES: Readonly<Record<\"image\" | \"video\" | \"audio\", readonly string[]>> = {\n",
+    );
+    for (name, kind) in [
+        ("image", TempMediaFormatKind::Image),
+        ("video", TempMediaFormatKind::Video),
+        ("audio", TempMediaFormatKind::Audio),
+    ] {
+        if kind == TempMediaFormatKind::Image {
+            output.push_str("  image: IMAGE_UPLOAD_MIME_TYPES,\n");
+            continue;
+        }
+        let mime_types = TEMP_MEDIA_FORMATS
+            .iter()
+            .filter(|format| format.kind == kind)
+            .flat_map(|format| format.browser_mime_types.iter().copied())
+            .map(|mime_type| format!("{mime_type:?}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        output.push_str(&format!("  {name}: [{mime_types}],\n"));
+    }
+    output.push_str("};\n\n");
+    output
 }
 
 fn typescript_type<T: JsonSchema>(name: &str) -> String {

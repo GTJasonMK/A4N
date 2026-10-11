@@ -85,6 +85,29 @@ export const DEFAULT_IMAGE_SIZES: readonly ImageSize[] = [
   { width: 768, height: 1024 },
 ];
 
+export const IMAGE_UPLOAD_MIME_TYPES: readonly string[] = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+];
+
+export const MAX_UPLOAD_IMAGE_BYTES = 52428800;
+export const MAX_PROFILE_MATERIAL_IMAGE_UPLOAD_BYTES = 20971520;
+export const MAX_THEME_RESOURCE_BYTES = 20971520;
+
+export const VIDEO_UPLOAD_MIME_TYPES: Readonly<Record<string, readonly [string, ...string[]]>> = {
+  "mp4": ["video/mp4", "application/mp4"],
+  "webm": ["video/webm"],
+  "mov": ["video/quicktime", "video/mov"],
+  "m4v": ["video/x-m4v", "video/mp4", "application/mp4"],
+};
+
+export const TEMP_MEDIA_BROWSER_MIME_TYPES: Readonly<Record<"image" | "video" | "audio", readonly string[]>> = {
+  image: IMAGE_UPLOAD_MIME_TYPES,
+  video: ["video/mp4", "video/quicktime", "video/webm"],
+  audio: ["audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp4", "audio/x-m4a", "audio/ogg"],
+};
+
 export interface ImageConfigSummary {
   backend: string;
   base_url: string;

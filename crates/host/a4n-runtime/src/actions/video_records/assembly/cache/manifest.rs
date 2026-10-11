@@ -5,18 +5,42 @@ use a4n_media_contract::MediaRoot;
 use std::path::Path;
 use std::time::UNIX_EPOCH;
 
+pub(in crate::actions::video_records) struct AssemblyCacheManifestInput<'a> {
+    pub(in crate::actions::video_records) project_id: i64,
+    pub(in crate::actions::video_records) chapter_id: i64,
+    pub(in crate::actions::video_records) workflow_mode: &'a str,
+    pub(in crate::actions::video_records) width: i32,
+    pub(in crate::actions::video_records) height: i32,
+    pub(in crate::actions::video_records) fps: i32,
+    pub(in crate::actions::video_records) clips: &'a [AssemblyClip],
+}
+
+impl AssemblyCacheManifestInput<'_> {
+    fn into_manifest(
+        self,
+        audio_enabled: bool,
+        clips: Vec<AssemblyCacheClip>,
+    ) -> AssemblyCacheManifest {
+        AssemblyCacheManifest {
+            version: 3,
+            project_id: self.project_id,
+            chapter_id: self.chapter_id,
+            workflow_mode: self.workflow_mode.to_string(),
+            width: self.width,
+            height: self.height,
+            fps: self.fps,
+            audio_enabled,
+            clips,
+        }
+    }
+}
+
 pub(in crate::actions::video_records) async fn build_assembly_cache_manifest(
     state: &AppState,
-    project_id: i64,
-    chapter_id: i64,
-    workflow_mode: &str,
-    width: i32,
-    height: i32,
-    fps: i32,
-    clips: &[AssemblyClip],
+    input: AssemblyCacheManifestInput<'_>,
 ) -> Result<AssemblyCacheManifest, String> {
-    let mut cached_clips = Vec::with_capacity(clips.len());
-    for clip in clips {
+    let mut cached_clips = Vec::with_capacity(input.clips.len());
+    for clip in input.clips {
         let has_audio = state
             .probe_media_has_audio(
                 &clip.path,
@@ -26,34 +50,20 @@ pub(in crate::actions::video_records) async fn build_assembly_cache_manifest(
             .await?;
         cached_clips.push(assembly_cache_clip_with_audio(clip, has_audio)?);
     }
-    Ok(AssemblyCacheManifest {
-        version: 3,
-        project_id,
-        chapter_id,
-        workflow_mode: workflow_mode.to_string(),
-        width,
-        height,
-        fps,
-        audio_enabled: cached_clips.iter().any(|clip| clip.has_audio),
-        clips: cached_clips,
-    })
+    let audio_enabled = cached_clips.iter().any(|clip| clip.has_audio);
+    Ok(input.into_manifest(audio_enabled, cached_clips))
 }
 
 #[cfg(test)]
 pub(in crate::actions::video_records) fn build_assembly_cache_manifest_with_audio_probe<F>(
-    project_id: i64,
-    chapter_id: i64,
-    workflow_mode: &str,
-    width: i32,
-    height: i32,
-    fps: i32,
-    clips: &[AssemblyClip],
+    input: AssemblyCacheManifestInput<'_>,
     has_audio: &F,
 ) -> Result<AssemblyCacheManifest, String>
 where
     F: Fn(&Path) -> Result<bool, String>,
 {
-    let clips = clips
+    let clips = input
+        .clips
         .iter()
         .map(|clip| {
             let has_audio = has_audio(&clip.path)?;
@@ -61,17 +71,7 @@ where
         })
         .collect::<Result<Vec<_>, _>>()?;
     let audio_enabled = clips.iter().any(|clip| clip.has_audio);
-    Ok(AssemblyCacheManifest {
-        version: 3,
-        project_id,
-        chapter_id,
-        workflow_mode: workflow_mode.to_string(),
-        width,
-        height,
-        fps,
-        audio_enabled,
-        clips,
-    })
+    Ok(input.into_manifest(audio_enabled, clips))
 }
 
 fn assembly_cache_clip_with_audio(

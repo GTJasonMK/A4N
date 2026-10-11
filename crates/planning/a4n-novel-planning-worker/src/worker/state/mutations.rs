@@ -10,7 +10,7 @@ impl WorkerState {
         validate_request(&request, EDIT_SHOOTING_SCRIPT_OPERATION)?;
         validate_project_scope(&request, request.payload.project_id)?;
         validate_target_revision(&request, request.payload.expected_revision)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_family_permission(
             self.database.connection(),
             request.payload.project_id,
@@ -55,7 +55,7 @@ impl WorkerState {
     ) -> Result<EditedChapterShootingScriptProgressView, WorkerFailure> {
         validate_request(&request, EDIT_SHOOTING_SCRIPT_PROGRESS_OPERATION)?;
         validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_family_permission(
             self.database.connection(),
             request.payload.project_id,
@@ -78,7 +78,7 @@ impl WorkerState {
         validate_request(&request, PUBLISH_SHOOTING_SCRIPT_OPERATION)?;
         validate_project_scope(&request, request.payload.project_id)?;
         validate_optional_target_revision(&request, request.payload.expected_revision)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_family_permission(
             self.database.connection(),
             request.payload.project_id,
@@ -177,7 +177,7 @@ impl WorkerState {
         validate_request(&request, DELETE_SHOOTING_SCRIPT_OPERATION)?;
         validate_project_scope(&request, request.payload.project_id)?;
         validate_target_revision(&request, request.payload.expected_revision)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_family_permission(
             self.database.connection(),
             request.payload.project_id,

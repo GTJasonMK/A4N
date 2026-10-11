@@ -7,8 +7,11 @@ use super::source::{
     stage_imported_video_source, uploaded_video_source,
 };
 use crate::AppState;
-use crate::actions::video_records::{complete_video_record, video_record_output_path};
+use crate::actions::video_records::{
+    VideoRecordCompletionAttempt, complete_video_record, video_record_output_path,
+};
 use a4n_canvas_contract::CanvasVideoImportHostInput;
+use a4n_video_host_contract::ImportedVideoRecordFacts;
 use chrono::Utc;
 
 pub(crate) use assembly::assemble_canvas_videos;
@@ -63,17 +66,18 @@ async fn create_imported_canvas_video(
         .video_canvas_import_application()
         .create_imported_canvas_video_record(
             project_id,
-            properties,
-            &source.file_name,
-            source.extension,
-            &imported_at,
+            ImportedVideoRecordFacts {
+                properties,
+                source_file_name: &source.file_name,
+                source_extension: source.extension,
+                imported_at: &imported_at,
+            },
         )
         .await
         .map_err(crate::actions::app_error_message)?;
 
     let (_output, output_path_str) = persist_imported_video_file(
         state,
-        state.data_dir(),
         record.id,
         &source.path,
         || {
@@ -93,13 +97,15 @@ async fn create_imported_canvas_video(
     .await?;
     let updated = complete_video_record(
         state,
-        record.id,
-        &output_path_str,
-        None,
-        source.file_size,
-        None,
-        None,
-        "更新画布导入视频记录失败",
+        VideoRecordCompletionAttempt {
+            record_id: record.id,
+            output_path: &output_path_str,
+            thumbnail_path: None,
+            file_size: source.file_size,
+            prompt_id: None,
+            metadata_json: None,
+            failure_prefix: "更新画布导入视频记录失败",
+        },
     )
     .await?;
     Ok(updated.id)

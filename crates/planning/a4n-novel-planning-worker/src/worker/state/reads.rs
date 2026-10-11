@@ -9,7 +9,7 @@ impl WorkerState {
     ) -> Result<Option<ChapterShootingScriptView>, WorkerFailure> {
         validate_request(&request, GET_CURRENT_SHOOTING_SCRIPT_OPERATION)?;
         validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_family_permission(
             self.database.connection(),
             request.payload.project_id,
@@ -30,7 +30,7 @@ impl WorkerState {
     ) -> Result<Option<ChapterShootingScriptUnitProgressView>, WorkerFailure> {
         validate_request(&request, GET_SHOOTING_SCRIPT_UNIT_PROGRESS_OPERATION)?;
         validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_family_permission(
             self.database.connection(),
             request.payload.project_id,

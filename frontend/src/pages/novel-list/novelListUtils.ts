@@ -2,6 +2,7 @@ import { extractErrorMessage } from "../../api";
 import type { NovelProject, ProjectKind } from "../../api/project";
 import type { MessageTranslator } from "../../i18n";
 import { isCancelledOperation } from "../../utils/cancellation";
+import { parseApiTimestampMs } from "../../utils/timestamp";
 
 export interface Quote {
   zh: string;
@@ -69,7 +70,7 @@ const titleSortKey = (title: string): string => {
 };
 
 const projectUpdatedAtMs = (project: NovelProject): number =>
-  new Date(project.updated_at).getTime();
+  parseApiTimestampMs(project.updated_at) ?? Number.NaN;
 
 const PROJECT_KIND_ORDER: Record<ProjectKind, number> = {
   text: 0,

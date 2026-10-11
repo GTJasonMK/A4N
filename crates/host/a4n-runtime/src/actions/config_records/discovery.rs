@@ -5,6 +5,7 @@ use crate::{
 };
 use a4n_api_contract::config::ConfigProviderKind;
 use a4n_api_contract::config::ModelDiscoveryInput;
+use a4n_model_discovery_contract::ModelDiscoveryRequest;
 use a4n_model_discovery_contract::ModelDiscoveryResult;
 
 pub async fn detect_llm_config_models(
@@ -38,15 +39,18 @@ async fn detect_config_models(
     input: ModelDiscoveryInput,
 ) -> Result<ModelDiscoveryResult, String> {
     let api_key = resolve_model_discovery_api_key(state, user_id, kind, &input).await?;
+    let request = ModelDiscoveryRequest {
+        provider: input.provider,
+        base_url: input.base_url,
+        api_key,
+    };
     discover_models(
         state.runtime_profile(),
         state.capabilities().llm.clone(),
         state.capabilities().image.clone(),
         state.capabilities().video.clone(),
         kind,
-        &input.provider,
-        &input.base_url,
-        api_key.as_deref(),
+        request,
     )
     .await
 }

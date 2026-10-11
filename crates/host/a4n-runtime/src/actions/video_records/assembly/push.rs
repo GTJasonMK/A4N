@@ -1,4 +1,4 @@
-use super::cache::build_assembly_cache_manifest;
+use super::cache::{AssemblyCacheManifestInput, build_assembly_cache_manifest};
 use super::contracts::{AssemblyClip, AssemblyRequestContext};
 use crate::AppState;
 use crate::actions::access;
@@ -64,13 +64,15 @@ pub(super) async fn assembly_request_context(
     let manifest_path = output_path.with_extension("mp4.cache.json");
     let manifest = build_assembly_cache_manifest(
         state,
-        project_id,
-        chapter_id,
-        &prepared.workflow_mode,
-        width,
-        height,
-        fps,
-        &clips,
+        AssemblyCacheManifestInput {
+            project_id,
+            chapter_id,
+            workflow_mode: &prepared.workflow_mode,
+            width,
+            height,
+            fps,
+            clips: &clips,
+        },
     )
     .await?;
     Ok(Some(AssemblyRequestContext {

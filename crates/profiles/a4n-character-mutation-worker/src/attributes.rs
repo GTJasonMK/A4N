@@ -6,7 +6,7 @@ impl WorkerState {
         request: WorkerEnvelope<AddProfileAttributeInput>,
     ) -> Result<AttributeEventMutationResult, WorkerFailure> {
         validate_request(&request, CHARACTER_ATTRIBUTE_ADD_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         let profile = profile_for_editor(&self.database, user_id, input.profile_id).await?;
         let result = a4n_db::character::add_profile_attribute(
@@ -35,7 +35,7 @@ impl WorkerState {
         request: WorkerEnvelope<ModifyProfileAttributeInput>,
     ) -> Result<AttributeEventMutationResult, WorkerFailure> {
         validate_request(&request, CHARACTER_ATTRIBUTE_MODIFY_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         let profile = profile_for_editor(&self.database, user_id, input.profile_id).await?;
         let result = a4n_db::character::modify_profile_attribute(
@@ -64,7 +64,7 @@ impl WorkerState {
         request: WorkerEnvelope<RequestAttributeDeletionInput>,
     ) -> Result<DeletionMarkSummary, WorkerFailure> {
         validate_request(&request, CHARACTER_ATTRIBUTE_REQUEST_DELETION_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         profile_for_editor(&self.database, user_id, input.profile_id).await?;
         let mark = a4n_db::character::request_attribute_deletion_record(
@@ -88,7 +88,7 @@ impl WorkerState {
         request: WorkerEnvelope<ExecuteAttributeDeletionInput>,
     ) -> Result<AttributeEventMutationResult, WorkerFailure> {
         validate_request(&request, CHARACTER_ATTRIBUTE_EXECUTE_DELETION_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         let profile = profile_for_editor(&self.database, user_id, input.profile_id).await?;
         let result = a4n_db::character::execute_ready_attribute_deletion(
@@ -115,7 +115,7 @@ impl WorkerState {
         request: WorkerEnvelope<ResetDeletionMarksInput>,
     ) -> Result<u64, WorkerFailure> {
         validate_request(&request, CHARACTER_ATTRIBUTE_RESET_DELETION_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         profile_for_editor(&self.database, user_id, input.profile_id).await?;
         a4n_db::character::reset_deletion_marks_in(

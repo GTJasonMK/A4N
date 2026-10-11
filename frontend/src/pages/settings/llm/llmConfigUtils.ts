@@ -14,6 +14,7 @@ import type { ConfigItem } from "../ConfigListPanel";
 import type { LlmForm } from "./types";
 import type { MessageTranslator } from "../../../i18n";
 import { clonePricingPlan, DEFAULT_PRICING_PLAN } from "../config-list/pricing";
+import { isPositiveSafeInteger } from "../../../utils/numberRange";
 
 export const DEFAULT_LLM_FORM: LlmForm = {
   name: "",
@@ -88,16 +89,16 @@ export function validateLlmForm(form: LlmForm, t: MessageTranslator): string | n
   const timeoutSecs = Number(form.timeout_secs);
   const maxContextTokens = Number(form.max_context_tokens);
   const maxOutputTokens = Number(form.max_output_tokens);
-  if (!Number.isInteger(maxConcurrent) || maxConcurrent <= 0) {
+  if (!isPositiveSafeInteger(maxConcurrent)) {
     return t("settingsForm.concurrencyPositive");
   }
-  if (!Number.isInteger(timeoutSecs) || timeoutSecs <= 0) {
+  if (!isPositiveSafeInteger(timeoutSecs)) {
     return t("settingsForm.timeoutPositive");
   }
-  if (!Number.isInteger(maxContextTokens) || maxContextTokens <= 0) {
+  if (!isPositiveSafeInteger(maxContextTokens)) {
     return t("settingsForm.contextWindowPositive");
   }
-  if (!Number.isInteger(maxOutputTokens) || maxOutputTokens <= 0) {
+  if (!isPositiveSafeInteger(maxOutputTokens)) {
     return t("settingsForm.maxOutputPositive");
   }
   if (maxOutputTokens >= maxContextTokens) {

@@ -6,13 +6,8 @@ impl WorkerState {
         request: WorkerEnvelope<CreateObjectProfileInput>,
     ) -> Result<ObjectProfileMutationResponse, WorkerFailure> {
         validate_request(&request, OBJECT_PROFILE_CREATE_OPERATION)?;
-        let user_id = user_id(&request)?;
-        let project_id = request.payload.project_id;
-        if request.project_id != Some(project_id) || project_id <= 0 {
-            return Err(WorkerFailure::invalid_request(
-                "worker scope project_id 与 payload 不一致或无效",
-            ));
-        }
+        let user_id = request.principal.require_user_id()?;
+        let project_id = request.require_project_scope(request.payload.project_id)?;
         a4n_db::collaboration::verify_project_permission(
             self.database.connection(),
             project_id,
@@ -20,7 +15,7 @@ impl WorkerState {
             a4n_domain::collaboration::ProjectAccessRole::Editor,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         let record = normalize_object_profile_record_input(request.payload.profile)
             .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
         let profile = a4n_db::asset::create_object_profile_read_record(
@@ -29,7 +24,7 @@ impl WorkerState {
             record,
         )
         .await
-        .map_err(asset_error)?;
+        .map_err(a4n_worker_db_adapter::map_asset_db_error)?;
         Ok(ObjectProfileMutationResponse {
             result: ObjectProfileMutationResult {
                 profile: object_profile_summary(&profile, 0),
@@ -44,13 +39,13 @@ impl WorkerState {
         request: WorkerEnvelope<UpdateObjectProfileInput>,
     ) -> Result<ObjectProfileMutationResponse, WorkerFailure> {
         validate_request(&request, OBJECT_PROFILE_UPDATE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let existing = a4n_db::asset::object_profile_record_by_id(
             self.database.connection(),
             request.payload.object_profile_id,
         )
         .await
-        .map_err(asset_error)?;
+        .map_err(a4n_worker_db_adapter::map_asset_db_error)?;
         ensure_scope_project(&request, existing.project_id)?;
         a4n_db::collaboration::verify_project_permission(
             self.database.connection(),
@@ -59,7 +54,7 @@ impl WorkerState {
             a4n_domain::collaboration::ProjectAccessRole::Editor,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         let image_ids = self
             .object_profile_image_ids(existing.project_id, existing.id)
             .await?;
@@ -80,7 +75,7 @@ impl WorkerState {
             record,
         )
         .await
-        .map_err(asset_error)?;
+        .map_err(a4n_worker_db_adapter::map_asset_db_error)?;
         Ok(ObjectProfileMutationResponse {
             result: ObjectProfileMutationResult {
                 profile: object_profile_summary(&profile, image_count),
@@ -95,13 +90,13 @@ impl WorkerState {
         request: WorkerEnvelope<DeleteObjectProfileInput>,
     ) -> Result<ObjectProfileDeleteResponse, WorkerFailure> {
         validate_request(&request, OBJECT_PROFILE_DELETE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let existing = a4n_db::asset::object_profile_record_by_id(
             self.database.connection(),
             request.payload.object_profile_id,
         )
         .await
-        .map_err(asset_error)?;
+        .map_err(a4n_worker_db_adapter::map_asset_db_error)?;
         ensure_scope_project(&request, existing.project_id)?;
         a4n_db::collaboration::verify_project_permission(
             self.database.connection(),
@@ -110,7 +105,7 @@ impl WorkerState {
             a4n_domain::collaboration::ProjectAccessRole::Editor,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         let downstream_image_ids = resolve_downstream_image_ids(
             self.object_profile_image_ids(existing.project_id, existing.id)
                 .await?,
@@ -121,7 +116,7 @@ impl WorkerState {
         .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
         a4n_db::asset::delete_object_profile_record(self.database.connection(), existing.id)
             .await
-            .map_err(asset_error)?;
+            .map_err(a4n_worker_db_adapter::map_asset_db_error)?;
         Ok(ObjectProfileDeleteResponse {
             result: ObjectProfileDeleteResult {
                 warnings: Vec::new(),
@@ -141,7 +136,7 @@ impl WorkerState {
             a4n_domain::image::IMAGE_TYPE_OBJECT_MATERIAL,
         )
         .await
-        .map_err(profile_material_error)?;
+        .map_err(a4n_worker_db_adapter::map_profile_material_db_error)?;
         Ok(rows
             .into_iter()
             .filter(|row| {

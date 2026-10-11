@@ -21,6 +21,7 @@ import {
 } from "../../api/project";
 import { ImportsTab } from "../novel-detail/ImportsTab";
 import { useI18n, type MessageKey } from "../../i18n";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 import type { PackageId } from "../../api/generated/page";
 import { usePackagePreferences } from "../../store/packagePreferences";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
@@ -206,7 +207,7 @@ export const VideoProjectSourceDialog: React.FC<VideoProjectSourceDialogProps> =
             value={selectedProjectId ?? ""}
             onChange={(value) => {
               const projectId = Number(value);
-              onSelectProject(Number.isSafeInteger(projectId) && projectId > 0 ? projectId : null);
+              onSelectProject(isPositiveSafeInteger(projectId) ? projectId : null);
             }}
             className="pyqt-input min-w-0 w-full"
             aria-label={t("novel.videoProjectSourceSelect")}

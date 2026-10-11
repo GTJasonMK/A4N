@@ -36,6 +36,13 @@ describe("inspiration completion contract", () => {
       content: "继续",
       created_at: "not-a-date",
     })).toThrow("created_at 无效");
+
+    expect(normalizeHistoryMessage({
+      id: 9,
+      role: "user",
+      content: "继续",
+      created_at: "2026-08-09 10:00:00",
+    }).createdAt).toBe(Date.parse("2026-08-09T10:00:00Z"));
   });
 
   it("does not hide an invalid raw assistant response behind rendered content", () => {

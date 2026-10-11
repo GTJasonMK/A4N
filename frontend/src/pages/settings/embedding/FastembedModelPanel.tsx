@@ -7,8 +7,7 @@ import type {
 } from "../../../api/config";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
-import { formatBytes } from "./embeddingTabUtils";
-import { useI18n } from "../../../i18n";
+import { formatBytes, useI18n } from "../../../i18n";
 
 interface FastembedModelPanelProps {
   model: LocalEmbeddingModel | null;

@@ -1,5 +1,6 @@
 import type { ChapterOutline, PartOutline } from "../../../api/outline";
 import type { MessageTranslator } from "../../../i18n";
+import { isPositiveSafeInteger } from "../../../utils/numberRange";
 import { nonEmptyText } from "../../../utils/text";
 
 export type NumberInputValue = number | "";
@@ -8,8 +9,7 @@ export const MAX_CHAPTER_OUTLINE_GENERATION_COUNT = 50;
 export const isValidChapterOutlineCount = (
   value: NumberInputValue,
 ): value is number =>
-  typeof value === "number" &&
-  Number.isInteger(value) &&
+  isPositiveSafeInteger(value) &&
   value >= 1 &&
   value <= MAX_CHAPTER_OUTLINE_GENERATION_COUNT;
 
@@ -17,8 +17,7 @@ export const isValidDeletionCount = (
   value: NumberInputValue,
   available: number,
 ): value is number =>
-  typeof value === "number" &&
-  Number.isSafeInteger(value) &&
+  isPositiveSafeInteger(value) &&
   value >= 1 &&
   value <= available;
 
@@ -28,7 +27,7 @@ export const parseNumberInput = (value: string): NumberInputValue => {
 };
 
 export const isPositiveInteger = (value: number | null): value is number =>
-  value !== null && Number.isInteger(value) && value > 0;
+  isPositiveSafeInteger(value);
 
 export const outlineOptimizationVariables = (
   direction: string,

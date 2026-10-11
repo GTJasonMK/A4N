@@ -1,3 +1,5 @@
+import { isPositiveSafeInteger, isSafeInteger } from "../utils/numberRange";
+
 export type ApiId = number | string;
 
 const describeIdValue = (id: ApiId): string => {
@@ -11,7 +13,7 @@ const normalizeIdLabel = (label: string | number = "API ID"): string =>
 export const integerNum = (id: ApiId, label: string | number = "API ID"): number => {
   const field = normalizeIdLabel(label);
   const value = typeof id === "number" ? id : Number(id);
-  if (!Number.isInteger(value)) {
+  if (!isSafeInteger(value)) {
     throw new Error(`${field} 必须是整数：收到 ${describeIdValue(id)}`);
   }
   return value;
@@ -20,7 +22,7 @@ export const integerNum = (id: ApiId, label: string | number = "API ID"): number
 export const idNum = (id: ApiId, label: string | number = "API ID"): number => {
   const field = normalizeIdLabel(label);
   const value = integerNum(id, label);
-  if (value <= 0) {
+  if (!isPositiveSafeInteger(value)) {
     throw new Error(`${field} 必须是正整数：收到 ${describeIdValue(id)}`);
   }
   return value;

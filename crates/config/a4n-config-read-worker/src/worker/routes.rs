@@ -1,8 +1,10 @@
 impl WorkerState {
     fn authorized(&self, headers: &HeaderMap) -> bool {
-        headers
-            .get(WORKER_AUTH_HEADER)
-            .is_some_and(|value| bool::from(value.as_bytes().ct_eq(self.auth_token.as_bytes())))
+        a4n_worker_runtime::worker_token_authorized(
+            headers,
+            WORKER_AUTH_HEADER,
+            self.auth_token.as_bytes(),
+        )
     }
 }
 
@@ -118,12 +120,11 @@ where
     F: FnOnce(WorkerEnvelope<T>) -> Fut,
     Fut: std::future::Future<Output = Result<O, WorkerFailure>>,
 {
-    if !state.authorized(headers) {
-        return unauthorized();
-    }
-    let response = match command(request.clone()).await {
-        Ok(payload) => completed(&request, payload),
-        Err(error) => failed(&request, error),
-    };
-    Json(response).into_response()
+    a4n_worker_runtime::worker_command_response(
+        state.authorized(headers),
+        request,
+        command,
+        unauthorized,
+    )
+    .await
 }

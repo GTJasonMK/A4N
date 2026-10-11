@@ -1,6 +1,7 @@
 import { apiInvoke, extractErrorMessage } from "./index";
 import type { ModelRequestPreview } from "./requestPreview";
 import { idNum, type ApiId as Id } from "./shared";
+import { isPositiveSafeInteger } from "../utils/numberRange";
 import { generationClient } from "./generationTasks";
 import type {
   GenerationResultRef,
@@ -59,8 +60,7 @@ export function matchesBlueprintTaskResult(
   return Boolean(
     blueprint
     && resultRef?.kind === "novel_blueprint"
-    && Number.isSafeInteger(resultId)
-    && resultId > 0
+    && isPositiveSafeInteger(resultId)
     && blueprint.id === resultId
     && blueprint.project_id === normalizedProjectId
     && blueprint.current_version === resultRef.revision,

@@ -2,43 +2,31 @@ use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use a4n_llm_provider_contract::provider::ChatRequest;
-use a4n_progress::ProgressSpan;
-use a4n_prompt::rendering::PromptRenderer;
 
 use super::super::super::parsing::parse_scene_occurrences;
-use crate::{
-    OrchestratorContext,
-    scene_profile::{SceneOccurrenceDraft, SceneSyncInput},
-};
+use crate::scene_profile::{SceneOccurrenceDraft, SceneSyncInput};
 
-use super::super::super::progress::{
-    SCENE_OCCURRENCE_PROGRESS_FIELDS, SceneProfileSyncProgress, scene_stage_progress_spec,
-};
+use super::super::super::progress::{SCENE_OCCURRENCE_PROGRESS_FIELDS, scene_stage_progress_spec};
 use super::super::super::types::{
     SCENE_OCCURRENCE_COVERAGE_RULE, SCENE_OCCURRENCE_PROMPT, SCENE_OCCURRENCE_TIMELINE_RULE,
-    SceneProfileSyncRequestContext,
 };
+use super::super::SceneProfileStageContext;
 use super::super::execution::run_scene_profile_stage_with_checkpoint;
 use super::super::request::{
     build_scene_profile_stage_request, scene_profile_stage_step_key, scene_profile_stage_step_order,
 };
 
 pub(super) async fn run(
-    state: &OrchestratorContext,
-    prompt_renderer: &dyn PromptRenderer,
-    workflow_run_id: i64,
-    context: &SceneProfileSyncRequestContext,
-    progress: Option<&SceneProfileSyncProgress<'_>>,
-    model_span: ProgressSpan,
-    chapter_index: usize,
+    context: &mut SceneProfileStageContext<'_, '_>,
     scenes: &[Value],
     known: &SceneSyncInput,
-    response_chars: &mut Vec<Value>,
 ) -> Result<(ChatRequest, Vec<Value>, Vec<SceneOccurrenceDraft>), AppError> {
+    let request_context = context.request_context;
+    let known_profiles = &known.profiles;
     let mut request = build_scene_profile_stage_request(
-        prompt_renderer,
-        context,
-        Some(workflow_run_id),
+        context.prompt_renderer,
+        request_context,
+        Some(context.workflow_run_id),
         SCENE_OCCURRENCE_PROMPT,
         "基于已确认场景抽取当前章节中的场景出场，只输出 occurrences",
         json!({ "scenes": scenes }),
@@ -55,22 +43,22 @@ pub(super) async fn run(
         }),
     )
     .await?;
+    let step_key = scene_profile_stage_step_key(request_context, "occurrences");
+    let step_order = scene_profile_stage_step_order(context.chapter_index, 1)?;
+    let stage_progress = scene_stage_progress_spec(
+        "occurrences",
+        "场景出场",
+        SCENE_OCCURRENCE_PROGRESS_FIELDS,
+        context.model_span.split(1, 4),
+    );
     let (output, parsed) = run_scene_profile_stage_with_checkpoint(
-        state,
-        workflow_run_id,
+        context,
         &mut request,
         SCENE_OCCURRENCE_PROMPT,
-        scene_profile_stage_step_key(context, "occurrences"),
-        scene_profile_stage_step_order(chapter_index, 1)?,
-        scene_stage_progress_spec(
-            "occurrences",
-            "场景出场",
-            SCENE_OCCURRENCE_PROGRESS_FIELDS,
-            model_span.split(1, 4),
-        ),
-        progress,
-        response_chars,
-        |value| parse_scene_occurrences(value, context, &known.profiles),
+        step_key,
+        step_order,
+        stage_progress,
+        |value| parse_scene_occurrences(value, request_context, known_profiles),
     )
     .await?;
     Ok((request, output, parsed))

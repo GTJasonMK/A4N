@@ -514,7 +514,7 @@ fn reverse_candidate_source_is_current(
             context_limit: Some(context_limit),
         },
         target.context_kind(),
-        Some(&rows),
+        Some(rows),
     )?;
     let current_hash = current_hash.ok_or_else(|| "当前反推上下文缺少来源哈希".to_string())?;
     Ok(expected_hash == current_hash)

@@ -10,10 +10,11 @@ impl WorkerState {
             PROJECT_COLLABORATION_INVITE_MEMBER_OPERATION,
             request.payload.project_id,
         )?;
-        if request.payload.username_or_email.trim().is_empty() {
-            return Err(WorkerFailure::invalid_request("username_or_email 不能为空"));
-        }
-        let user_id = user_id(&request)?;
+        WorkerFailure::require_non_blank(
+            &request.payload.username_or_email,
+            "username_or_email 不能为空",
+        )?;
+        let user_id = request.principal.require_user_id()?;
         a4n_db::collaboration::invite_project_member(
             self.database.connection(),
             user_id,
@@ -22,7 +23,7 @@ impl WorkerState {
             request.payload.role,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         Ok(ProjectCollaborationAck {})
     }
 
@@ -31,14 +32,14 @@ impl WorkerState {
         request: WorkerEnvelope<InviteInput>,
     ) -> Result<ProjectCollaborationAck, WorkerFailure> {
         unscoped_request(&request, PROJECT_COLLABORATION_ACCEPT_INVITE_OPERATION)?;
-        positive_id("invite_id", request.payload.invite_id)?;
+        WorkerFailure::require_positive_id(request.payload.invite_id, "invite_id")?;
         a4n_db::collaboration::accept_project_invite(
             self.database.connection(),
-            user_id(&request)?,
+            request.principal.require_user_id()?,
             request.payload.invite_id,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         Ok(ProjectCollaborationAck {})
     }
 
@@ -47,14 +48,14 @@ impl WorkerState {
         request: WorkerEnvelope<InviteInput>,
     ) -> Result<ProjectCollaborationAck, WorkerFailure> {
         unscoped_request(&request, PROJECT_COLLABORATION_DECLINE_INVITE_OPERATION)?;
-        positive_id("invite_id", request.payload.invite_id)?;
+        WorkerFailure::require_positive_id(request.payload.invite_id, "invite_id")?;
         a4n_db::collaboration::decline_project_invite(
             self.database.connection(),
-            user_id(&request)?,
+            request.principal.require_user_id()?,
             request.payload.invite_id,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         Ok(ProjectCollaborationAck {})
     }
 
@@ -67,15 +68,15 @@ impl WorkerState {
             PROJECT_COLLABORATION_REVOKE_INVITE_OPERATION,
             request.payload.project_id,
         )?;
-        positive_id("invite_id", request.payload.invite_id)?;
+        WorkerFailure::require_positive_id(request.payload.invite_id, "invite_id")?;
         a4n_db::collaboration::revoke_project_invite(
             self.database.connection(),
-            user_id(&request)?,
+            request.principal.require_user_id()?,
             project_id,
             request.payload.invite_id,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         Ok(ProjectCollaborationAck {})
     }
 
@@ -88,16 +89,16 @@ impl WorkerState {
             PROJECT_COLLABORATION_UPDATE_ROLE_OPERATION,
             request.payload.project_id,
         )?;
-        positive_id("member_user_id", request.payload.member_user_id)?;
+        WorkerFailure::require_positive_id(request.payload.member_user_id, "member_user_id")?;
         a4n_db::collaboration::update_project_member_role(
             self.database.connection(),
-            user_id(&request)?,
+            request.principal.require_user_id()?,
             project_id,
             request.payload.member_user_id,
             request.payload.role,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         Ok(ProjectCollaborationAck {})
     }
 
@@ -110,15 +111,15 @@ impl WorkerState {
             PROJECT_COLLABORATION_REMOVE_MEMBER_OPERATION,
             request.payload.project_id,
         )?;
-        positive_id("member_user_id", request.payload.member_user_id)?;
+        WorkerFailure::require_positive_id(request.payload.member_user_id, "member_user_id")?;
         a4n_db::collaboration::remove_project_member(
             self.database.connection(),
-            user_id(&request)?,
+            request.principal.require_user_id()?,
             project_id,
             request.payload.member_user_id,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         Ok(ProjectCollaborationAck {})
     }
 
@@ -133,11 +134,11 @@ impl WorkerState {
         )?;
         a4n_db::collaboration::leave_project(
             self.database.connection(),
-            user_id(&request)?,
+            request.principal.require_user_id()?,
             project_id,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         Ok(ProjectCollaborationAck {})
     }
 }

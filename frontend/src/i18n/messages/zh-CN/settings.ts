@@ -32,6 +32,7 @@ export const settings = {
   image: "生图模型",
   video: "视频生成",
   prompt: "提示词管理",
+  promptAssembly: "提示词装配",
   theme: "主题配置",
   advanced: "高级配置",
   admin: "管理员",

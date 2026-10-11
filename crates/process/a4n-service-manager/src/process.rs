@@ -404,7 +404,7 @@ fn spawn_child(
     if let Some(last_error) = last_error {
         command.env(SIDECAR_LAST_ERROR_ENV, last_error);
     }
-    configure_parent_death_signal(&mut command);
+    a4n_worker_runtime::configure_parent_death_signal(command.as_std_mut());
     command.kill_on_drop(true);
     command
         .spawn()
@@ -413,27 +413,6 @@ fn spawn_child(
             source,
         })
 }
-
-#[cfg(target_os = "linux")]
-fn configure_parent_death_signal(command: &mut Command) {
-    // A forced Host/Control shutdown must not orphan its sidecars under PID 1.
-    unsafe {
-        command.pre_exec(|| {
-            unsafe extern "C" {
-                fn prctl(option: i32, ...) -> i32;
-            }
-            const PR_SET_PDEATHSIG: i32 = 1;
-            const SIGTERM: i32 = 15;
-            if prctl(PR_SET_PDEATHSIG, SIGTERM) != 0 {
-                return Err(std::io::Error::last_os_error());
-            }
-            Ok(())
-        });
-    }
-}
-
-#[cfg(not(target_os = "linux"))]
-fn configure_parent_death_signal(_: &mut Command) {}
 
 async fn stop_child(
     config: &ManagedServiceConfig,

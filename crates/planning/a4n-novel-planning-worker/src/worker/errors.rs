@@ -1,47 +1,5 @@
 use crate::*;
 
-impl WorkerFailure {
-    pub(super) fn invalid_request(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::InvalidRequest,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    pub(super) fn unauthorized(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unauthorized,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    pub(super) fn not_found(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::NotFound,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    pub(super) fn conflict(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Conflict,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    pub(super) fn unavailable(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unavailable,
-            message: message.into(),
-            retryable: true,
-        }
-    }
-}
-
 pub(super) fn source_error(error: a4n_db::project::ResolveChapterSourceError) -> WorkerFailure {
     match error {
         a4n_db::project::ResolveChapterSourceError::InvalidArgument(message) => {
@@ -54,44 +12,7 @@ pub(super) fn source_error(error: a4n_db::project::ResolveChapterSourceError) ->
             WorkerFailure::not_found(message)
         }
         a4n_db::project::ResolveChapterSourceError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
-}
-
-pub(super) fn project_family_error(error: a4n_db::project::ProjectFamilyDbError) -> WorkerFailure {
-    match error {
-        a4n_db::project::ProjectFamilyDbError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::project::ProjectFamilyDbError::NotFound(message) => {
-            WorkerFailure::not_found(message)
-        }
-        a4n_db::project::ProjectFamilyDbError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
-}
-
-pub(super) fn collaboration_error(
-    error: a4n_db::collaboration::CollaborationDbError,
-) -> WorkerFailure {
-    match error {
-        a4n_db::collaboration::CollaborationDbError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::NotFound(message) => {
-            WorkerFailure::not_found(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::Forbidden(message) => {
-            WorkerFailure::unauthorized(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::InvalidState(message)
-        | a4n_db::collaboration::CollaborationDbError::Internal(message) => {
-            WorkerFailure::conflict(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
+            a4n_worker_db_adapter::map_database_error(error)
         }
     }
 }
@@ -109,7 +30,9 @@ pub(super) fn visual_plan_error(error: ChapterVisualPlanDbError) -> WorkerFailur
         } => WorkerFailure::conflict(format!(
             "chapter_visual_plan_revision_conflict:id={record_id},expected={expected_revision}"
         )),
-        ChapterVisualPlanDbError::Database(error) => WorkerFailure::unavailable(error.to_string()),
+        ChapterVisualPlanDbError::Database(error) => {
+            a4n_worker_db_adapter::map_database_error(error)
+        }
     }
 }
 
@@ -133,7 +56,7 @@ pub(crate) fn shooting_script_error(
             "shooting_script_revision_conflict:id={record_id},expected={expected_revision}"
         )),
         a4n_db::shooting_script::ShootingScriptDbError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
+            a4n_worker_db_adapter::map_database_error(error)
         }
     }
 }

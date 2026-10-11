@@ -6,8 +6,8 @@ impl WorkerState {
         request: WorkerEnvelope<InspirationHistoryInput>,
     ) -> Result<Vec<InspirationMessageSummary>, WorkerFailure> {
         validate_request(&request)?;
-        let user_id = user_id(&request)?;
-        let project_id = scoped_project_id(&request, request.payload.project_id)?;
+        let user_id = request.principal.parse_user_id()?;
+        let project_id = request.require_project_scope(request.payload.project_id)?;
         a4n_db::collaboration::verify_project_permission(
             self.database.connection(),
             project_id,
@@ -15,7 +15,7 @@ impl WorkerState {
             ProjectAccessRole::Editor,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         let messages = a4n_db::inspiration::inspiration_messages(
             self.database.connection(),
             project_id,
@@ -27,10 +27,6 @@ impl WorkerState {
             .into_iter()
             .map(message_summary)
             .collect::<Result<_, _>>()
-            .map_err(|message| WorkerFailure {
-                code: WorkerErrorCode::Internal,
-                message,
-                retryable: false,
-            })
+            .map_err(WorkerFailure::internal)
     }
 }

@@ -21,6 +21,7 @@ import { formatNumber, useI18n, type Locale } from "../../i18n";
 import { useNovelDetailDirty } from "./novelDetailDirty";
 import { useChapterDetail } from "../../hooks/useChapterDetail";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 
 const chapterWordCount = (chapter: ChapterMetadata): number => {
   return chapter.word_count == null ? 0 : chapter.word_count;
@@ -193,7 +194,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
       addToast(t("novel.chapterContentRequired"), "error");
       return;
     }
-    if (!Number.isInteger(requestForm.chapter_number) || requestForm.chapter_number <= 0) {
+    if (!isPositiveSafeInteger(requestForm.chapter_number)) {
       addToast(t("writing.chapterNumberPositive"), "error");
       return;
     }

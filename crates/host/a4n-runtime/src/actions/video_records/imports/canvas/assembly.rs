@@ -2,9 +2,12 @@ use crate::AppState;
 use crate::actions::access;
 use crate::actions::video_generation::GeneratedVideoSummary;
 use crate::actions::video_records::assembly::{
-    AssemblyClip, build_assembly_cache_manifest, run_ffmpeg_assemble_videos,
+    AssemblyCacheManifestInput, AssemblyClip, build_assembly_cache_manifest,
+    run_ffmpeg_assemble_videos,
 };
-use crate::actions::video_records::{complete_video_record, video_record_output_path};
+use crate::actions::video_records::{
+    VideoRecordCompletionAttempt, complete_video_record, video_record_output_path,
+};
 use a4n_error::append_secondary_message;
 use a4n_storage::{
     canonicalize_data_file_path, data_file_record_facts, remove_created_file_on_error,
@@ -62,13 +65,15 @@ pub(crate) async fn assemble_canvas_videos(
         .map_err(crate::actions::app_error_message)?;
     let manifest = build_assembly_cache_manifest(
         state,
-        project_id,
-        0,
-        "canvas_assembly",
-        width,
-        height,
-        fps,
-        &clips,
+        AssemblyCacheManifestInput {
+            project_id,
+            chapter_id: 0,
+            workflow_mode: "canvas_assembly",
+            width,
+            height,
+            fps,
+            clips: &clips,
+        },
     )
     .await?;
     let (output_path_str, file_size) = persist_canvas_assembly_output(
@@ -97,13 +102,15 @@ pub(crate) async fn assemble_canvas_videos(
     .await?;
     let updated = complete_video_record(
         state,
-        record.id,
-        &output_path_str,
-        None,
-        file_size,
-        None,
-        None,
-        "更新画布成片记录失败",
+        VideoRecordCompletionAttempt {
+            record_id: record.id,
+            output_path: &output_path_str,
+            thumbnail_path: None,
+            file_size,
+            prompt_id: None,
+            metadata_json: None,
+            failure_prefix: "更新画布成片记录失败",
+        },
     )
     .await?;
     Ok(updated)

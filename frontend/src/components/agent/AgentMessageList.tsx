@@ -6,6 +6,7 @@ import {
   agentToolResultCallId,
 } from "./AgentMessageRow";
 import type { Locale } from "../../i18n";
+import { parseApiTimestampMs } from "../../utils/timestamp";
 
 interface AgentMessageListProps {
   messages: AgentMessageView[];
@@ -105,8 +106,8 @@ function AgentRunStatus({
     return () => window.clearInterval(timer);
   }, [isRunning]);
 
-  const startedAt = run.started_at ? Date.parse(run.started_at) : NaN;
-  const elapsed = Number.isFinite(startedAt)
+  const startedAt = parseApiTimestampMs(run.started_at);
+  const elapsed = startedAt !== null
     ? Math.max(0, Math.floor((now - startedAt) / 1000))
     : 0;
   const hours = Math.floor(elapsed / 3_600);

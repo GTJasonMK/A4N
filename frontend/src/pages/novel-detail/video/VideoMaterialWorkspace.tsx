@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, RefreshCw, Search, Sparkles } from "lucide-react";
+import { MAX_PROFILE_MATERIAL_IMAGE_UPLOAD_BYTES } from "../../../api/generated/config";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { ImageSizeSelect, useImageGenerationSize } from "../../../components/image/ImageSizeSelect";
 import type { ImageSize } from "../../../api/image";
@@ -51,7 +52,6 @@ type LoadMaterialsOptions = { force?: boolean };
 const CUSTOM_STYLE_VALUE = "custom";
 const DEFAULT_STYLE_TEMPLATE_ID = VISUAL_STYLE_TEMPLATES[0].id;
 const STYLE_TEMPLATE_VERSION = "1";
-const MAX_UPLOAD_IMAGE_BYTES = 20 * 1024 * 1024;
 
 
 interface VideoMaterialWorkspaceProps {
@@ -423,8 +423,8 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
         onToast(t("video.material.imageFormats"), "error");
         return;
       }
-      if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
-        onToast(t("video.material.imageTooLarge", { size: MAX_UPLOAD_IMAGE_BYTES / 1024 / 1024 }), "error");
+      if (file.size > MAX_PROFILE_MATERIAL_IMAGE_UPLOAD_BYTES) {
+        onToast(t("video.material.imageTooLarge", { size: MAX_PROFILE_MATERIAL_IMAGE_UPLOAD_BYTES / 1024 / 1024 }), "error");
         return;
       }
       setBusyKey(key);

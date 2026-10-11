@@ -2,6 +2,7 @@ import type { LlmConfigSummary } from "../../api/generated/config";
 import type { ImageGenConfig, ImageSize } from "../../api/image/types";
 import type { VideoGenConfig } from "../../api/video/types";
 import type { MessageTranslator } from "../../i18n";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 
 export type StudioConfigKind = "llm" | "image" | "video";
 export type StudioConfigLoadStatus = "loading" | "ready" | "failed";
@@ -41,7 +42,7 @@ export function configNumber(config: Record<string, unknown>, key: string): numb
 
 export function configPositiveNumber(config: Record<string, unknown>, key: string): number | null {
   const value = config[key];
-  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null;
+  return isPositiveSafeInteger(value) ? value : null;
 }
 
 export function numberOrNull(value: string, min: number): number | null {

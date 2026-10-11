@@ -9,6 +9,8 @@ use a4n_provider_contract::ImageProviderConfig;
 
 use crate::serde_update::{deserialize_non_null_update_field, deserialize_nullable_update_field};
 
+pub const MAX_UPLOAD_IMAGE_BYTES: usize = 50 * 1024 * 1024;
+
 /// Host-facing lookup boundary for persisted image provider configuration.
 #[async_trait::async_trait]
 pub trait ImageProviderConfigPort: Send + Sync {

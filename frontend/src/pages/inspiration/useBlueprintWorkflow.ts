@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { extractErrorMessage } from "../../api";
+import { isPositiveSafeInteger, isSafeInteger } from "../../utils/numberRange";
 import {
   type Blueprint,
   generateBlueprint,
@@ -41,8 +42,7 @@ const FREE_BLUEPRINT_INSTRUCTION =
   "用户尚未提供具体灵感，请自由随机生成一个完整、自洽、可写作的小说蓝图，并自行决定题材、人物、世界观与核心冲突。";
 
 const validChapterCount = (value: unknown): value is number =>
-  typeof value === "number"
-  && Number.isInteger(value)
+  isSafeInteger(value)
   && value >= 5
   && value <= 10000;
 
@@ -200,7 +200,7 @@ export const useBlueprintWorkflow = ({
 
   // Reattach a still-active task after a page remount; the persisted target is the owner.
   useLayoutEffect(() => {
-    if (!project || project.id !== projectId || !Number.isFinite(projectId) || projectId <= 0) return;
+    if (!project || project.id !== projectId || !isPositiveSafeInteger(projectId)) return;
     let active = true;
     void generationClient.listActive(projectId).then((items) => {
       if (!active || !isCurrentProject(projectId) || generationHandleRef.current) return;
@@ -275,7 +275,7 @@ export const useBlueprintWorkflow = ({
       if (generationTask.taskStatus === "completed" || recoveryIssue) {
         const resultRef = generationTask.resultRef;
         const canResolveResult = resultRef?.kind === "novel_blueprint"
-          && Number.isSafeInteger(Number(resultRef.id));
+          && isPositiveSafeInteger(Number(resultRef.id));
         let persisted: Blueprint | null = null;
         if (canResolveResult) {
           try {

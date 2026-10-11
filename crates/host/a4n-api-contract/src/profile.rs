@@ -12,6 +12,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub const MAX_PROFILE_MATERIAL_IMAGE_UPLOAD_BYTES: usize = 20 * 1024 * 1024;
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ListObjectProfilesInput {

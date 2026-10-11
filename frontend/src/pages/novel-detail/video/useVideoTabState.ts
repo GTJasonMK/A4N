@@ -21,6 +21,7 @@ import type { ShootingSceneV2 } from "../../../api/shootingScript";
 import { usePersistedState } from "../../../hooks/usePersistedState";
 import { asJsonRecord } from "../../../utils/jsonRecord";
 import { sha256Hex } from "../../../utils/contentHash";
+import { isPositiveSafeInteger } from "../../../utils/numberRange";
 import {
   createReferenceMediaDraft,
   referenceMediaDraftFromRecipe,
@@ -664,9 +665,7 @@ export function useVideoTabState({
               if (
                 typeof sourceShotId !== "string" ||
                 !sourceShotId.trim() ||
-                typeof segmentIndexInShot !== "number" ||
-                !Number.isInteger(segmentIndexInShot) ||
-                segmentIndexInShot <= 0
+                !isPositiveSafeInteger(segmentIndexInShot)
               ) {
                 throw new Error(
                   t("video.chapter.draftIdentityMissing", {

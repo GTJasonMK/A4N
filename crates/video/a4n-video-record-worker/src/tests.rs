@@ -17,13 +17,16 @@ use serde_json::{Value, json};
 #[test]
 fn required_project_scope_rejects_missing_and_mismatched_scope() {
     let mut request = selection_request(7, 9, 10, 11, 12);
+    const ERROR: &str = "worker scope project_id 与资源 project_id 不一致或无效";
     assert!(validate_required_project_scope(&request, 9).is_ok());
 
     request.project_id = None;
     assert!(validate_required_project_scope(&request, 9).is_err());
 
     request.project_id = Some(10);
-    assert!(validate_required_project_scope(&request, 9).is_err());
+    let error = validate_required_project_scope(&request, 9)
+        .expect_err("resource scope mismatch should fail");
+    assert_eq!(error.message(), ERROR);
 }
 
 #[tokio::test]
@@ -127,6 +130,7 @@ async fn select_segment_rejects_stale_or_corrupt_plan_without_adopting_video() {
         ))
         .await
         .expect_err("legacy plans without proven shot sources must not accept videos");
+    let failure: a4n_worker_contract::WorkerError = failure.into();
     assert!(failure.message.contains("来源已更新"), "{failure:?}");
     let unchanged = chapter_video_prompt::Entity::find_by_id(plan.id)
         .one(&db)
@@ -153,6 +157,7 @@ async fn select_segment_rejects_stale_or_corrupt_plan_without_adopting_video() {
         ))
         .await
         .expect_err("adoption must validate the stored plan content before accepting its video");
+    let failure: a4n_worker_contract::WorkerError = failure.into();
     assert!(failure.message.contains("内容指纹"));
     let mut restored: chapter_video_prompt::ActiveModel = unchanged.clone().into();
     restored.metadata_json = Set(unchanged.metadata_json);

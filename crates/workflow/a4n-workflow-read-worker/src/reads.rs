@@ -73,7 +73,7 @@ impl WorkerState {
         request: WorkerEnvelope<ListWorkflowRunsInput>,
     ) -> Result<Vec<a4n_api_contract::workflow::WorkflowRunSummary>, WorkerFailure> {
         validate_request(&request, WORKFLOW_READ_LIST_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         if !(1..=200).contains(&input.limit) {
             return Err(WorkerFailure::invalid_request("limit 必须在 1 到 200 之间"));
@@ -96,7 +96,7 @@ impl WorkerState {
             },
         )
         .await
-        .map_err(workflow_error)?;
+        .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_conflict)?;
         let visible = if input.project_id.is_some() {
             runs
         } else {
@@ -111,7 +111,7 @@ impl WorkerState {
                 ProjectAccessRole::Editor,
             )
             .await
-            .map_err(collaboration_error)?
+            .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?
             .into_iter()
             .collect::<HashSet<_>>();
             let unscoped_visible = is_active_admin(&self.database, user_id).await?;
@@ -133,10 +133,8 @@ impl WorkerState {
         request: WorkerEnvelope<GetWorkflowRunInput>,
     ) -> Result<a4n_api_contract::workflow::WorkflowRunDetailSummary, WorkerFailure> {
         validate_request(&request, WORKFLOW_READ_DETAIL_OPERATION)?;
-        if request.payload.workflow_run_id <= 0 {
-            return Err(WorkerFailure::invalid_request("workflow_run_id 必须大于 0"));
-        }
-        let user_id = user_id(&request)?;
+        WorkerFailure::require_positive_id(request.payload.workflow_run_id, "workflow_run_id")?;
+        let user_id = request.principal.require_user_id()?;
         let detail = a4n_db::workflow::workflow_run_detail(
             self.database.executor(),
             a4n_db::workflow::GetWorkflowRunInput {
@@ -145,7 +143,7 @@ impl WorkerState {
             },
         )
         .await
-        .map_err(workflow_error)?;
+        .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_conflict)?;
         match detail.run.project_id.or(detail.run.root_project_id) {
             Some(project_id) => verify_project_editor(&self.database, project_id, user_id).await?,
             None if !is_active_admin(&self.database, user_id).await? => {
@@ -163,8 +161,8 @@ impl WorkerState {
         validate_request(&request, TASK_READ_HISTORY_OPERATION)?;
         require_service_principal(&request.principal)?;
         let input = request.payload;
-        if input.project_id.is_some_and(|id| id <= 0) {
-            return Err(WorkerFailure::invalid_request("project_id 必须大于 0"));
+        if let Some(project_id) = input.project_id {
+            WorkerFailure::require_positive_id(project_id, "project_id")?;
         }
         if input.limit == 0 {
             return Err(WorkerFailure::invalid_request("limit 必须大于 0"));
@@ -176,7 +174,7 @@ impl WorkerState {
             input.limit,
         )
         .await
-        .map_err(workflow_error)?;
+        .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_conflict)?;
         Ok(tasks
             .into_iter()
             .map(|task| task_info_summary(&task.task))
@@ -194,7 +192,7 @@ impl WorkerState {
             &request.payload.task_id,
         )
         .await
-        .map_err(workflow_error)?;
+        .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_conflict)?;
         Ok(persisted.map(|persisted| TaskLookupRecord {
             task_id: persisted.task.id,
             project_id: persisted.task.project_id,
@@ -213,7 +211,7 @@ impl WorkerState {
         let persisted =
             a4n_db::workflow::persisted_task_history(self.database.executor(), None, 0, 100)
                 .await
-                .map_err(workflow_error)?;
+                .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_conflict)?;
         Ok(persisted
             .into_iter()
             .map(active_task_lookup_record)
@@ -232,7 +230,7 @@ impl WorkerState {
                 &request.payload.task_id,
             )
             .await
-            .map_err(workflow_error)?
+            .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_conflict)?
             .map(|record| WorkflowTaskAccessRecord {
                 workflow_run_id: record.id,
                 project_id: record.project_id,
@@ -252,7 +250,7 @@ impl WorkerState {
             request.payload.workflow_run_id,
         )
         .await
-        .map_err(workflow_error)?;
+        .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_conflict)?;
         Ok(WorkflowResumeRecord {
             id: run.id,
             workflow_kind: run.workflow_kind,
@@ -280,7 +278,7 @@ impl WorkerState {
         )
         .await
         .map(workflow_run_summary_to_api)
-        .map_err(workflow_error)
+        .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_conflict)
     }
 
     pub(super) async fn progress_events(
@@ -316,12 +314,14 @@ impl WorkerState {
                 })
                 .collect()
         })
-        .map_err(workflow_error)
+        .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_conflict)
     }
 
     pub(super) fn authorized(&self, headers: &HeaderMap) -> bool {
-        headers
-            .get(WORKER_AUTH_HEADER)
-            .is_some_and(|value| bool::from(value.as_bytes().ct_eq(self.auth_token.as_bytes())))
+        a4n_worker_runtime::worker_token_authorized(
+            headers,
+            WORKER_AUTH_HEADER,
+            self.auth_token.as_bytes(),
+        )
     }
 }

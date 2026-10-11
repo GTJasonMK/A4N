@@ -9,17 +9,17 @@ impl WorkerState {
         request: WorkerEnvelope<VideoIdInput>,
     ) -> Result<GeneratedVideoSummary, WorkerFailure> {
         validate_request(&request, VIDEO_RECORD_PLAYBACK_OPERATION)?;
-        let video_id = positive(request.payload.video_id, "video_id")?;
+        let video_id = WorkerFailure::require_positive_id(request.payload.video_id, "video_id")?;
         let video =
             a4n_db::video::read_models::generated_video_by_id(self.database.connection(), video_id)
                 .await
-                .map_err(database_error)?
+                .map_err(a4n_worker_db_adapter::map_database_error)?
                 .ok_or_else(|| WorkerFailure::not_found("视频不存在"))?;
         validate_optional_project_scope(request.project_id, video.project_id)?;
         verify_project_permission(
             &self.database,
             video.project_id,
-            user_id(&request)?,
+            request.principal.require_user_id()?,
             ProjectAccessRole::Editor,
         )
         .await?;
@@ -32,10 +32,10 @@ impl WorkerState {
     ) -> Result<Vec<GeneratedVideoSummary>, WorkerFailure> {
         validate_request(&request, VIDEO_RECORD_LIST_OPERATION)?;
         validate_required_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
-        positive(input.project_id, "project_id")?;
-        positive(input.chapter_id, "chapter_id")?;
+        WorkerFailure::require_positive_id(input.project_id, "project_id")?;
+        WorkerFailure::require_positive_id(input.chapter_id, "chapter_id")?;
         verify_project_permission(
             &self.database,
             input.project_id,
@@ -56,7 +56,7 @@ impl WorkerState {
             input.chapter_id,
         )
         .await
-        .map_err(database_error)
+        .map_err(a4n_worker_db_adapter::map_database_error)
         .map(|videos| videos.iter().map(video_summary).collect())
     }
 
@@ -66,11 +66,11 @@ impl WorkerState {
     ) -> Result<Vec<GeneratedImageSummary>, WorkerFailure> {
         validate_request(&request, VIDEO_RECORD_REFERENCE_IMAGES_OPERATION)?;
         validate_required_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
-        positive(input.project_id, "project_id")?;
+        WorkerFailure::require_positive_id(input.project_id, "project_id")?;
         if let Some(chapter_id) = input.chapter_id {
-            positive(chapter_id, "chapter_id")?;
+            WorkerFailure::require_positive_id(chapter_id, "chapter_id")?;
         }
         verify_project_permission(
             &self.database,

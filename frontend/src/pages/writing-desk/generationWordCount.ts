@@ -1,3 +1,5 @@
+import { isPositiveSafeInteger } from "../../utils/numberRange";
+
 export interface GenerationWordCountRange {
   min: number;
   max: number;
@@ -39,7 +41,7 @@ const parsePositiveInteger = (
     return { value: null, error: `${label}${labels.positive}` };
   }
   const value = Number(text);
-  if (!Number.isSafeInteger(value) || value <= 0) {
+  if (!isPositiveSafeInteger(value)) {
     return { value: null, error: `${label}${labels.positive}` };
   }
   return { value, error: null };

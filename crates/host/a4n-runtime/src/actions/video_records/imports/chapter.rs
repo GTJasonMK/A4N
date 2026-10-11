@@ -9,14 +9,15 @@ use crate::actions::video_generation::media::{
     best_effort_video_thumbnail_path, capture_video_tail_frame_asset,
 };
 use crate::actions::video_records::{
-    complete_video_record, delete_video_record_cleanup_error, video_record_output_path,
+    VideoRecordCompletionAttempt, complete_video_record, delete_video_record_cleanup_error,
+    video_record_output_path,
 };
 use a4n_error::append_secondary_message;
 use a4n_video::{
     completed_provider_metadata, is_first_frame_chain_workflow,
     should_capture_video_tail_frame_fields,
 };
-use a4n_video_host_contract::VideoProviderResultTarget;
+use a4n_video_host_contract::{ImportedVideoRecordFacts, VideoProviderResultTarget};
 use chrono::Utc;
 use serde_json::Value;
 
@@ -62,17 +63,18 @@ async fn create_imported_chapter_video(
             project_id,
             chapter_id,
             prompt_id,
-            properties,
-            &source.file_name,
-            source.extension,
-            &imported_at,
+            ImportedVideoRecordFacts {
+                properties,
+                source_file_name: &source.file_name,
+                source_extension: source.extension,
+                imported_at: &imported_at,
+            },
         )
         .await
         .map_err(crate::actions::app_error_message)?;
 
     let (output, output_path_str) = persist_imported_video_file(
         state,
-        state.data_dir(),
         record.id,
         &source.path,
         || {
@@ -138,13 +140,19 @@ async fn create_imported_chapter_video(
     };
     let updated = complete_video_record(
         state,
-        record.id,
-        &output_path_str,
-        thumbnail_path.as_deref(),
-        source.file_size,
-        record.prompt_id,
-        completed_provider_metadata(Value::Null, tail_frame_metadata, tail_frame_capture_error),
-        "导入视频记录完成失败",
+        VideoRecordCompletionAttempt {
+            record_id: record.id,
+            output_path: &output_path_str,
+            thumbnail_path: thumbnail_path.as_deref(),
+            file_size: source.file_size,
+            prompt_id: record.prompt_id,
+            metadata_json: completed_provider_metadata(
+                Value::Null,
+                tail_frame_metadata,
+                tail_frame_capture_error,
+            ),
+            failure_prefix: "导入视频记录完成失败",
+        },
     )
     .await?;
     Ok(updated)

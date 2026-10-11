@@ -20,44 +20,35 @@ pub(super) async fn resolve_chapter_video_image_inputs(
             } else {
                 None
             };
+            let provider_context = ReferenceImageProviderContext {
+                video,
+                data_dir: state.data_dir(),
+                jwt_secret,
+                user_id: input.user_id,
+                project_id: input.project_id,
+                chapter_id: input.chapter_id,
+                transport: input.transport,
+            };
             if input.transport == ProviderImageInputTransport::RemoteTempUpload {
                 let mut staging_artifacts = Vec::new();
                 let reference_image_urls = reference_image_provider_inputs_by_ids(
-                    video,
-                    state.data_dir(),
-                    jwt_secret,
-                    input.user_id,
-                    input.project_id,
-                    input.chapter_id,
+                    &provider_context,
                     input.reference_image_ids,
                     &mut staging_artifacts,
-                    input.transport,
                 )
                 .await
                 .map_err(host_error)?;
                 let first_frame_image_url = reference_image_provider_input_by_id(
-                    video,
-                    state.data_dir(),
-                    jwt_secret,
-                    input.user_id,
-                    input.project_id,
-                    input.chapter_id,
+                    &provider_context,
                     input.first_frame_image_id,
                     &mut staging_artifacts,
-                    input.transport,
                 )
                 .await
                 .map_err(host_error)?;
                 let last_frame_image_url = reference_image_provider_input_by_id(
-                    video,
-                    state.data_dir(),
-                    jwt_secret,
-                    input.user_id,
-                    input.project_id,
-                    input.chapter_id,
+                    &provider_context,
                     input.last_frame_image_id,
                     &mut staging_artifacts,
-                    input.transport,
                 )
                 .await
                 .map_err(host_error)?;
@@ -73,37 +64,19 @@ pub(super) async fn resolve_chapter_video_image_inputs(
             let mut last_frame_staging_artifacts = Vec::new();
             let (reference_result, first_frame_result, last_frame_result) = futures::join!(
                 reference_image_provider_inputs_by_ids(
-                    video,
-                    state.data_dir(),
-                    jwt_secret,
-                    input.user_id,
-                    input.project_id,
-                    input.chapter_id,
+                    &provider_context,
                     input.reference_image_ids,
                     &mut reference_staging_artifacts,
-                    input.transport,
                 ),
                 reference_image_provider_input_by_id(
-                    video,
-                    state.data_dir(),
-                    jwt_secret,
-                    input.user_id,
-                    input.project_id,
-                    input.chapter_id,
+                    &provider_context,
                     input.first_frame_image_id,
                     &mut first_frame_staging_artifacts,
-                    input.transport,
                 ),
                 reference_image_provider_input_by_id(
-                    video,
-                    state.data_dir(),
-                    jwt_secret,
-                    input.user_id,
-                    input.project_id,
-                    input.chapter_id,
+                    &provider_context,
                     input.last_frame_image_id,
                     &mut last_frame_staging_artifacts,
-                    input.transport,
                 ),
             );
             let reference_image_urls = reference_result.map_err(host_error)?;

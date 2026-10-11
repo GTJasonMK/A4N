@@ -1,6 +1,6 @@
 use a4n_api_contract::theme::{
-    DeleteThemeResourceInput, PersistThemeResourceInput, ThemeResourceRecord, ThemeResourceSummary,
-    ThemeResourceUploadInput,
+    DeleteThemeResourceInput, MAX_THEME_RESOURCE_BYTES, PersistThemeResourceInput,
+    ThemeResourceRecord, ThemeResourceSummary, ThemeResourceUploadInput,
 };
 use a4n_error::AppError;
 use base64::Engine as _;
@@ -8,8 +8,6 @@ use sha2::{Digest, Sha256};
 
 use crate::AppState;
 use a4n_storage::{remove_data_file_in_data_dir, write_new_data_file};
-
-pub(super) const MAX_THEME_RESOURCE_BYTES: usize = 20 * 1024 * 1024;
 
 pub async fn upload_theme_resource_for_user(
     state: &AppState,
@@ -162,17 +160,13 @@ pub(super) fn validate_resource_metadata(
     {
         return Err(AppError::InvalidArgument("主题图片文件名无效".to_string()));
     }
-    Ok(match mime_type {
-        "image/png" => "png",
-        "image/jpeg" => "jpg",
-        "image/webp" => "webp",
-        "image/gif" => "gif",
-        _ => {
-            return Err(AppError::InvalidArgument(
-                "主题背景只支持 PNG、JPEG、WebP 或 GIF".to_string(),
-            ));
-        }
-    })
+    a4n_domain::media::image_upload_format_from_mime(mime_type)
+        .filter(|format| format.mime_type == mime_type)
+        .map(|format| format.extension)
+        .or_else(|| (mime_type == "image/gif").then_some("gif"))
+        .ok_or_else(|| {
+            AppError::InvalidArgument("主题背景只支持 PNG、JPEG、WebP 或 GIF".to_string())
+        })
 }
 
 pub(super) fn theme_resource_relative_path(

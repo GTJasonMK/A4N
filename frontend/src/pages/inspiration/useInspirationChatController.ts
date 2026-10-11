@@ -10,6 +10,7 @@ import {
 import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "../../components/feedback/Toast";
 import { extractErrorMessage } from "../../api";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 import { generationClient } from "../../api/generationTasks";
 import {
   getInspirationHistory,
@@ -175,7 +176,7 @@ export const useInspirationChatController = () => {
   }, []);
 
   useLayoutEffect(() => {
-    if (!Number.isFinite(projectId) || projectId <= 0) {
+    if (!isPositiveSafeInteger(projectId)) {
       addToast(t("errors.invalidProjectId"), "error");
       navigate("/");
       return;
@@ -328,7 +329,7 @@ export const useInspirationChatController = () => {
         const resultRef = generationTask.resultRef;
         const resultId = resultRef ? Number(resultRef.id) : NaN;
         const canResolveResult = resultRef?.kind === "inspiration_message"
-          && Number.isSafeInteger(resultId);
+          && isPositiveSafeInteger(resultId);
         const history = canResolveResult
           ? await getInspirationHistory(requestProjectId)
           : [];

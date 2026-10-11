@@ -1,6 +1,7 @@
+use a4n_error::AppError;
 use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
-use super::WorkerClientError;
+use super::{WorkerClientError, WorkerError, WorkerOperationStatus};
 
 fn validate_response<T>(response: &WorkerResponse<T>) -> Result<(), WorkerClientError> {
     response
@@ -35,4 +36,31 @@ pub(super) fn validate_operation_response<T>(
         });
     }
     Ok(())
+}
+
+pub fn worker_response_payload<T>(
+    response: WorkerResponse<T>,
+    worker_name: &str,
+    operation: Option<&str>,
+    map_error: impl FnOnce(&WorkerError) -> AppError,
+) -> Result<T, AppError> {
+    match response.status {
+        WorkerOperationStatus::Completed => response.payload.ok_or_else(|| {
+            AppError::ConfigError(match operation {
+                Some(operation) => {
+                    format!("{worker_name} 完成响应缺少 payload: {operation}")
+                }
+                None => format!("{worker_name} 完成响应缺少 payload"),
+            })
+        }),
+        WorkerOperationStatus::Failed => Err(map_error(
+            response.error.as_ref().expect("validated failed response"),
+        )),
+        status => Err(AppError::ConfigError(match operation {
+            Some(operation) => {
+                format!("{worker_name} 返回未完成状态: operation={operation}, status={status:?}")
+            }
+            None => format!("{worker_name} 返回未完成状态: {status:?}"),
+        })),
+    }
 }

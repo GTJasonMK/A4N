@@ -3,7 +3,7 @@ use crate::actions::video_generation::GeneratedVideoSummary;
 use crate::actions::video_generation::media::{
     best_effort_video_thumbnail_path, run_ffmpeg_trim, trimmed_video_path,
 };
-use crate::actions::video_records::complete_video_record;
+use crate::actions::video_records::{VideoRecordCompletionAttempt, complete_video_record};
 use crate::cleanup_outbox::enqueue_file_artifact_cleanup_by_project;
 use a4n_error::append_secondary_message;
 #[cfg(test)]
@@ -85,13 +85,15 @@ pub async fn trim_video(
     };
     let updated = complete_video_record(
         state,
-        record.id,
-        &output_path_str,
-        thumbnail_path.as_deref(),
-        size,
-        None,
-        None,
-        "裁剪文件已生成但记录完成状态失败",
+        VideoRecordCompletionAttempt {
+            record_id: record.id,
+            output_path: &output_path_str,
+            thumbnail_path: thumbnail_path.as_deref(),
+            file_size: size,
+            prompt_id: None,
+            metadata_json: None,
+            failure_prefix: "裁剪文件已生成但记录完成状态失败",
+        },
     )
     .await?;
     Ok(updated)

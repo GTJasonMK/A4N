@@ -1,6 +1,7 @@
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import type { ChapterMetadata } from "../../../api/chapter";
 import { useI18n } from "../../../i18n";
+import { isPositiveSafeInteger } from "../../../utils/numberRange";
 
 interface OptimizeHeaderProps {
   activeChapter: ChapterMetadata | null;
@@ -52,7 +53,7 @@ export function OptimizeHeader({
             onChange={(selectedValue) => {
               const chapterId = Number(selectedValue);
               onSelectChapter(
-                Number.isSafeInteger(chapterId) && chapterId > 0 ? chapterId : "",
+                isPositiveSafeInteger(chapterId) ? chapterId : "",
               );
             }}
             className="pyqt-input h-9 w-full min-w-0 !py-1.5 text-small sm:h-8"

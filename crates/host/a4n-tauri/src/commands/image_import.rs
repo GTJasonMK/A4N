@@ -1,8 +1,8 @@
+use a4n_api_contract::image::MAX_UPLOAD_IMAGE_BYTES;
+use a4n_domain::media::image_upload_format_from_extension;
 use base64::{Engine, engine::general_purpose::STANDARD};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tokio::io::AsyncReadExt;
-
-const MAX_PICKED_IMAGE_BYTES: u64 = 50 * 1024 * 1024;
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,17 +29,26 @@ async fn read_image_file(path: PathBuf) -> Result<PickedImageFile, String> {
         .and_then(|name| name.to_str())
         .ok_or_else(|| "图片文件名无效".to_owned())?
         .to_owned();
-    let mime_type = image_mime_type(&path)?.to_owned();
+    let mime_type = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .and_then(image_upload_format_from_extension)
+        .map(|format| format.mime_type)
+        .ok_or_else(|| "仅支持 PNG、JPG、JPEG 和 WebP 图片".to_owned())?
+        .to_owned();
     let mut bytes = Vec::new();
     tokio::fs::File::open(&path)
         .await
         .map_err(|error| format!("打开图片失败：{error}"))?
-        .take(MAX_PICKED_IMAGE_BYTES + 1)
+        .take(MAX_UPLOAD_IMAGE_BYTES as u64 + 1)
         .read_to_end(&mut bytes)
         .await
         .map_err(|error| format!("读取图片失败：{error}"))?;
-    if bytes.len() as u64 > MAX_PICKED_IMAGE_BYTES {
-        return Err("图片文件不能超过 50 MiB".to_owned());
+    if bytes.len() as u64 > MAX_UPLOAD_IMAGE_BYTES as u64 {
+        return Err(format!(
+            "图片文件不能超过 {} MiB",
+            MAX_UPLOAD_IMAGE_BYTES / (1024 * 1024)
+        ));
     }
 
     Ok(PickedImageFile {
@@ -48,20 +57,4 @@ async fn read_image_file(path: PathBuf) -> Result<PickedImageFile, String> {
         size: bytes.len() as u64,
         data_base64: STANDARD.encode(bytes),
     })
-}
-
-fn image_mime_type(path: &Path) -> Result<&'static str, String> {
-    let extension = path
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .ok_or_else(|| "仅支持 PNG、JPG、JPEG 和 WebP 图片".to_owned())?;
-    if extension.eq_ignore_ascii_case("png") {
-        Ok("image/png")
-    } else if extension.eq_ignore_ascii_case("jpg") || extension.eq_ignore_ascii_case("jpeg") {
-        Ok("image/jpeg")
-    } else if extension.eq_ignore_ascii_case("webp") {
-        Ok("image/webp")
-    } else {
-        Err("仅支持 PNG、JPG、JPEG 和 WebP 图片".to_owned())
-    }
 }

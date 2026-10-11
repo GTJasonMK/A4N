@@ -1,3 +1,9 @@
+export const isSafeInteger = (value: unknown): value is number =>
+  typeof value === "number" && Number.isSafeInteger(value);
+
+export const isPositiveSafeInteger = (value: unknown): value is number =>
+  isSafeInteger(value) && value > 0;
+
 export const clampFiniteRounded = (
   value: number,
   min: number,

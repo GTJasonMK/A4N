@@ -134,7 +134,7 @@ pub(super) async fn migrate_galgame<C: ConnectionTrait>(
             if scene.adaptation_plan_id.is_some() {
                 continue;
             }
-            if !bindings.contains_key(&scene.id) {
+            if let std::collections::btree_map::Entry::Vacant(binding) = bindings.entry(scene.id) {
                 // Branches keep their own frozen source, including mixed-source
                 // games whose main scene has already moved to a newer snapshot.
                 let source = &sources[&scene.id];
@@ -162,7 +162,7 @@ pub(super) async fn migrate_galgame<C: ConnectionTrait>(
                     now,
                 )
                 .await?;
-                bindings.insert(scene.id, (doc.id, unit_id(scene.id)));
+                binding.insert((doc.id, unit_id(scene.id)));
             }
             let (plan_id, unit) = &bindings[&scene.id];
             let before: Value = db

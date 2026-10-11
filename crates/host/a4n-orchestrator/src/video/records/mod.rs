@@ -23,7 +23,7 @@ use a4n_video::{
 };
 use a4n_video_contract::VideoSegmentWorkflowModeV1;
 use a4n_video_host_contract::{
-    ImportedVideoProperties, VideoProviderHostPort, VideoProviderPollTarget,
+    ImportedVideoRecordFacts, VideoProviderHostPort, VideoProviderPollTarget,
 };
 use chrono::Utc;
 use serde_json::Value;

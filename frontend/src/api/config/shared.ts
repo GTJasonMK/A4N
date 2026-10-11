@@ -1,5 +1,33 @@
 import { idNum, integerNum, type ApiId } from "../shared";
 
+export interface ProviderConnectivityTargetOptions<T> {
+  configId: ApiId;
+  scope: "server" | "local";
+  requireApiKey: boolean;
+  label: string;
+  systemConfigId: number;
+  isSystemDefault: (configId: ApiId) => boolean;
+  loadSystemDefault: (requireApiKey: boolean) => Promise<T>;
+  getLocalConfig: (configId: number) => T | null;
+}
+
+export async function resolveProviderConnectivityTarget<T>(
+  options: ProviderConnectivityTargetOptions<T>,
+): Promise<{ configId: number; config: T | null }> {
+  const { configId, scope, label } = options;
+  if (scope === "server") {
+    return { configId: idNum(configId, label), config: null };
+  }
+  if (options.isSystemDefault(configId)) {
+    return {
+      configId: options.systemConfigId,
+      config: await options.loadSystemDefault(options.requireApiKey),
+    };
+  }
+  const id = idNum(configId, label);
+  return { configId: id, config: options.getLocalConfig(id) };
+}
+
 export function providerConfigIdOrSystem(
   configId: ApiId,
   label: string,

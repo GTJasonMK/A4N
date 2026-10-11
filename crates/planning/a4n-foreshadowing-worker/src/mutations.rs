@@ -6,10 +6,9 @@ impl WorkerState {
         request: WorkerEnvelope<CreateInput>,
     ) -> Result<ForeshadowingMutationResult, WorkerFailure> {
         validate_request(&request, FORESHADOWING_CREATE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
+        let project_id = request.require_project_scope(request.payload.0.project_id)?;
         let input = request.payload.0;
-        let project_id = input.project_id;
-        ensure_project_scope(request.project_id, project_id)?;
         self.verify_editor(project_id, user_id).await?;
         let record = a4n_db::project::create_foreshadowing_read_record(
             self.database.connection(),
@@ -29,10 +28,9 @@ impl WorkerState {
         request: WorkerEnvelope<UpdateInput>,
     ) -> Result<ForeshadowingMutationResult, WorkerFailure> {
         validate_request(&request, FORESHADOWING_UPDATE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
+        let project_id = request.require_project_scope(request.payload.0.project_id)?;
         let input = request.payload.0;
-        let project_id = input.project_id;
-        ensure_project_scope(request.project_id, project_id)?;
         self.verify_editor(project_id, user_id).await?;
         let record = a4n_db::project::update_foreshadowing_read_record(
             self.database.connection(),
@@ -54,10 +52,9 @@ impl WorkerState {
         request: WorkerEnvelope<DeleteInput>,
     ) -> Result<ForeshadowingMutationResult, WorkerFailure> {
         validate_request(&request, FORESHADOWING_DELETE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
+        let project_id = request.require_project_scope(request.payload.0.project_id)?;
         let input = request.payload.0;
-        let project_id = input.project_id;
-        ensure_project_scope(request.project_id, project_id)?;
         self.verify_editor(project_id, user_id).await?;
         let record = a4n_db::project::delete_foreshadowing_record(
             self.database.connection(),
@@ -82,6 +79,6 @@ impl WorkerState {
         )
         .await
         .map(|_| ())
-        .map_err(collaboration_error)
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error_preserving_internal)
     }
 }

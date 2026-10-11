@@ -40,6 +40,7 @@ import {
 import { finalVideoExecutionIdentityIsComplete, videoSegmentRecipeGenerationFingerprintJson } from "./videoSegmentPlan";
 import { latestVideoFrameImageForPrompt } from "./videoFramePromptUtils";
 import { videoOptionsValidationError } from "./videoOptionUtils";
+import { isSafeInteger } from "../../../utils/numberRange";
 
 type DerivedVideoTabState = ReturnType<typeof useVideoTabDerivedState>;
 export interface VideoTabViewStateOptions
@@ -242,7 +243,7 @@ export function useVideoTabViewState({
         );
         return (
           typeof segmentNumber === "number" &&
-          Number.isInteger(segmentNumber) &&
+          isSafeInteger(segmentNumber) &&
           videoExecutionSegmentIdentityMatchesPrompt(
             prompt,
             frameSegmentPlanPromptForCards,

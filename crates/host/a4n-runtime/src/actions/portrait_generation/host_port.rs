@@ -1,4 +1,4 @@
-use a4n_api_contract::portrait::PortraitReferenceImageSource;
+use a4n_api_contract::{image::MAX_UPLOAD_IMAGE_BYTES, portrait::PortraitReferenceImageSource};
 use a4n_config::{ensure_image_size_supported, image_sizes_from_json};
 use a4n_domain::EXTERNAL_IMPORT_MODEL;
 use a4n_domain::cost::{
@@ -42,6 +42,16 @@ pub(super) struct PortraitImageRequestPreviewContext {
     pub(super) config: ImageProviderConfig,
 }
 
+pub(super) struct PortraitImageRequestPreviewInput<'a> {
+    pub(super) user_id: i64,
+    pub(super) project_id: i64,
+    pub(super) prompt: &'a str,
+    pub(super) width: i32,
+    pub(super) height: i32,
+    pub(super) reference_image_ids: &'a [i64],
+    pub(super) config: &'a ImageProviderConfig,
+}
+
 impl<'a> RuntimePortraitGenerationHostPort<'a> {
     pub(super) fn new(state: &'a AppState) -> Self {
         Self { state }
@@ -60,27 +70,32 @@ pub(super) async fn build_portrait_image_request_preview(
     let config = resolve_image_config(state, None).await?;
     build_portrait_image_request_preview_with_config(
         state,
-        user_id,
-        project_id,
-        prompt,
-        width,
-        height,
-        reference_image_ids,
-        &config,
+        PortraitImageRequestPreviewInput {
+            user_id,
+            project_id,
+            prompt,
+            width,
+            height,
+            reference_image_ids,
+            config: &config,
+        },
     )
     .await
 }
 
 pub(super) async fn build_portrait_image_request_preview_with_config(
     state: &AppState,
-    user_id: i64,
-    project_id: i64,
-    prompt: &str,
-    width: i32,
-    height: i32,
-    reference_image_ids: &[i64],
-    config: &ImageProviderConfig,
+    input: PortraitImageRequestPreviewInput<'_>,
 ) -> Result<PortraitImageRequestPreviewContext, String> {
+    let PortraitImageRequestPreviewInput {
+        user_id,
+        project_id,
+        prompt,
+        width,
+        height,
+        reference_image_ids,
+        config,
+    } = input;
     let image_ids = validate_reference_image_ids(reference_image_ids)?;
     let supported_sizes =
         image_sizes_from_json(&config.supported_sizes_json).map_err(|error| error.to_string())?;
@@ -178,16 +193,18 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
         let request_json = serde_json::to_value(&request)?;
         let request_body_snapshot =
             match crate::actions::image_generation::image_generation_preview_step(
-                self.state.runtime_profile(),
-                self.state.capabilities().image.clone(),
-                self.state.project_access_application(),
-                project_id,
-                "portrait_generation",
-                "Portrait image provider request",
-                Some("image_generation_request".to_string()),
-                None,
-                &config,
-                request.clone(),
+                crate::actions::image_generation::ImageGenerationPreviewInput {
+                    runtime_profile: self.state.runtime_profile(),
+                    client: self.state.capabilities().image.clone(),
+                    collaboration: self.state.project_access_application(),
+                    project_id,
+                    key: "portrait_generation".to_string(),
+                    title: "Portrait image provider request".to_string(),
+                    prompt_name: Some("image_generation_request".to_string()),
+                    note: None,
+                    config: &config,
+                    request: request.clone(),
+                },
             )
             .await
             {
@@ -236,9 +253,11 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
                     self.state.capabilities().image.clone(),
                     &config,
                     request,
-                    Some(project_id),
-                    root_project_id,
-                    workflow_run_id,
+                    crate::sidecar_clients::SidecarWorkflowScope {
+                        project_id: Some(project_id),
+                        root_project_id,
+                        workflow_run_id,
+                    },
                     None,
                 )
                 .await
@@ -301,7 +320,7 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
         data_base64: &str,
     ) -> Result<DecodedPortraitImage, AppError> {
         let decoded =
-            decode_uploaded_image_data(file_name, mime_type, data_base64, 50 * 1024 * 1024)
+            decode_uploaded_image_data(file_name, mime_type, data_base64, MAX_UPLOAD_IMAGE_BYTES)
                 .map_err(host_error)?;
         Ok(DecodedPortraitImage {
             bytes: decoded.bytes,

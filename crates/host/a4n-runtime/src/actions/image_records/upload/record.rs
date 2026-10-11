@@ -1,4 +1,4 @@
-use super::file::{create_imported_image_output, data_path_to_db_string};
+use super::file::create_imported_image_output;
 use crate::{
     AppState,
     cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
@@ -8,12 +8,9 @@ use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_artifact_media_contract::PublishImageRequest;
 use a4n_domain::media::{IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED};
 use a4n_image_host_contract::PreparedImportedImageUpload;
+use a4n_storage::{paths::data_dir_relative_path, write_new_synced_data_file};
 use sha2::{Digest, Sha256};
-use std::{
-    fs::OpenOptions,
-    io::Write,
-    path::{Path, PathBuf},
-};
+use std::path::PathBuf;
 use uuid::Uuid;
 
 pub(super) async fn persist_imported_image(
@@ -32,8 +29,9 @@ pub(super) async fn persist_imported_image(
     let stem = format!("imported_image_{}", Uuid::new_v4().simple());
     let (staging_path, final_path) =
         create_imported_image_output(state.data_dir(), project_id, chapter_id, extension, &stem)?;
-    let staging_relative_path = data_path_to_db_string(state.data_dir(), &staging_path)?;
-    let final_relative_path = data_path_to_db_string(state.data_dir(), &final_path)?;
+    let staging_relative_path =
+        data_dir_relative_path(state.data_dir(), &staging_path, "导入图片")?;
+    let final_relative_path = data_dir_relative_path(state.data_dir(), &final_path, "导入图片")?;
     let (publication, _publication_guard) = state
         .image_import_publication_application()
         .create_imported_publication_intent(
@@ -74,7 +72,12 @@ pub(super) async fn persist_imported_image(
         Some(facts) if !facts_match(&facts, file_size, &sha256) => {
             return Err("导入图片暂存文件事实与发布意图不一致".to_string());
         }
-        None => write_staging_file(state.data_dir(), &publication.staging_path, bytes)?,
+        None => write_new_synced_data_file(
+            state.data_dir(),
+            &publication.staging_path,
+            bytes,
+            "导入图片暂存文件",
+        )?,
         Some(_) => {}
     }
 
@@ -156,29 +159,6 @@ pub(super) async fn persist_imported_image(
         );
     }
     Ok(record)
-}
-
-fn write_staging_file(data_dir: &Path, relative_path: &str, bytes: &[u8]) -> Result<(), String> {
-    let path = data_dir.join(relative_path);
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&path)
-        .map_err(|error| format!("创建导入图片暂存文件失败：{error}"))?;
-    let result = (|| {
-        file.write_all(bytes)
-            .map_err(|error| format!("写入导入图片失败：{error}"))?;
-        file.flush()
-            .map_err(|error| format!("刷新导入图片失败：{error}"))?;
-        file.sync_all()
-            .map_err(|error| format!("同步导入图片失败：{error}"))
-    })();
-    drop(file);
-    if let Err(error) = result {
-        let _ = std::fs::remove_file(path);
-        return Err(error);
-    }
-    Ok(())
 }
 
 fn facts_match(facts: &(PathBuf, i64, String), file_size: i64, sha256: &str) -> bool {

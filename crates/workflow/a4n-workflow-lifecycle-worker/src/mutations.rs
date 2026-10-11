@@ -34,9 +34,7 @@ impl WorkerState {
     ) -> Result<WorkflowCancellationResult, WorkerFailure> {
         validate_request(&request, WORKFLOW_LIFECYCLE_CANCEL_OPERATION)?;
         require_service_principal(&request.principal)?;
-        if request.payload.reason.trim().is_empty() {
-            return Err(WorkerFailure::invalid_request("取消原因不能为空"));
-        }
+        WorkerFailure::require_non_blank(&request.payload.reason, "取消原因不能为空")?;
         let result = a4n_db::workflow::cancel_workflow_run_persistence(
             self.database.executor(),
             request.payload.workflow_run_id,
@@ -59,9 +57,10 @@ impl WorkerState {
     ) -> Result<OperationAck, WorkerFailure> {
         validate_request(&request, WORKFLOW_LIFECYCLE_RESUME_OPERATION)?;
         require_service_principal(&request.principal)?;
-        if request.payload.active_task_id.trim().is_empty() {
-            return Err(WorkerFailure::invalid_request("active_task_id 不能为空"));
-        }
+        WorkerFailure::require_non_blank(
+            &request.payload.active_task_id,
+            "active_task_id 不能为空",
+        )?;
         a4n_db::workflow::resume_workflow_run_with_active_task(
             self.database.executor(),
             request.payload.workflow_run_id,

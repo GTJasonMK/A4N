@@ -144,6 +144,10 @@
       ],
       "timeout_seconds": 1800
     },
+    "browser-director-timeline": {
+      "command": ["node", "frontend/e2e/director-timeline/check.mjs"],
+      "timeout_seconds": 900
+    },
     "browser-fact-feedback": {
       "command": [
         "npm",
@@ -181,6 +185,8 @@
       "command": [
         "python3",
         "scripts/tests/run_creation_e2e.py",
+        "--report-dir",
+        "{report_dir}/creation-e2e",
         "--stage",
         "all",
         "--browser-feature-flows"
@@ -188,7 +194,12 @@
       "timeout_seconds": 14100
     },
     "tauri-functional": {
-      "command": ["python3", "scripts/tests/run_tauri_generation_e2e.py"],
+      "command": [
+        "python3",
+        "scripts/tests/run_tauri_generation_e2e.py",
+        "--report-dir",
+        "{report_dir}/tauri-functional"
+      ],
       "timeout_seconds": 1200
     },
     "core-boundaries": {
@@ -199,6 +210,96 @@
       "command": ["bash", "scripts/checks/check-worker-isolation.sh"],
       "timeout_seconds": 1800
     }
+  },
+  "test_center": {
+    "functional_suites": [
+      "rust-service-protocol",
+      "python-tests",
+      "frontend-unit",
+      "frontend-browser-helpers",
+      "affected-rust-integration",
+      "browser-llm-cache",
+      "browser-llm-presets",
+      "browser-video-mode",
+      "browser-video-scrub",
+      "browser-ui-functional",
+      "browser-director-timeline",
+      "browser-fact-feedback",
+      "browser-canvas",
+      "rust-workspace",
+      "creation-e2e",
+      "tauri-functional"
+    ],
+    "groups": [
+      {
+        "id": "core-functional",
+        "category": "核心功能",
+        "title": "核心单元与集成测试",
+        "description": "运行 Rust、Python 和前端功能测试，以及 Rust workspace 集成测试。",
+        "suites": [
+          "rust-service-protocol",
+          "python-tests",
+          "frontend-unit",
+          "frontend-browser-helpers",
+          "affected-rust-integration",
+          "rust-workspace"
+        ]
+      },
+      {
+        "id": "browser-functional",
+        "category": "浏览器功能",
+        "title": "浏览器功能流程",
+        "description": "运行模型配置、缓存、视频、Canvas、页面交互和事实反馈流程。",
+        "suites": [
+          "browser-llm-cache",
+          "browser-llm-presets",
+          "browser-video-mode",
+          "browser-video-scrub",
+          "browser-ui-functional",
+          "browser-director-timeline",
+          "browser-fact-feedback",
+          "browser-canvas"
+        ]
+      },
+      {
+        "id": "authoring-workflows",
+        "category": "完整流程",
+        "title": "创作端到端流程",
+        "description": "运行完整创作阶段和浏览器功能流程端到端测试。",
+        "suites": ["creation-e2e"]
+      },
+      {
+        "id": "desktop-workflows",
+        "category": "桌面功能",
+        "title": "Tauri 桌面流程",
+        "description": "运行 Tauri Native 创建项目、生成和结果恢复流程。需要启动环境提供已构建的 A4N_WDIO_APP_BINARY、隔离数据库、Qdrant 和 JWT 配置。",
+        "suites": ["tauri-functional"]
+      },
+      {
+        "id": "all-functional",
+        "category": "全部功能",
+        "title": "全部功能测试",
+        "description": "按顺序运行项目当前登记的全部功能测试 suite。",
+        "suites": [
+          "rust-service-protocol",
+          "python-tests",
+          "frontend-unit",
+          "frontend-browser-helpers",
+          "affected-rust-integration",
+          "browser-llm-cache",
+          "browser-llm-presets",
+          "browser-video-mode",
+          "browser-video-scrub",
+          "browser-ui-functional",
+          "browser-director-timeline",
+          "browser-fact-feedback",
+          "browser-canvas",
+          "rust-workspace",
+          "creation-e2e",
+          "tauri-functional"
+        ]
+      }
+    ]
   },
   "profiles": {
     "fast": {

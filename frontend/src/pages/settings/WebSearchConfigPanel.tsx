@@ -16,6 +16,7 @@ import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import { useI18n } from "../../i18n";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useDirty } from "../../components/navigation/dirtyRegistry";
+import { isSafeInteger } from "../../utils/numberRange";
 
 interface WebSearchForm {
   protocol: string;
@@ -143,7 +144,7 @@ export const WebSearchConfigPanel: React.FC = () => {
     try {
       const integer = (value: string, label: string): number => {
         const parsed = Number(value);
-        if (!value.trim() || !Number.isSafeInteger(parsed)) {
+        if (!value.trim() || !isSafeInteger(parsed)) {
           throw new Error(t("settingsForm.integerRequired", { label }));
         }
         return parsed;

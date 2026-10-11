@@ -19,8 +19,10 @@ from check_test_catalog import (
 class TestCatalog(unittest.TestCase):
     def test_repository_catalog_has_handlers_and_matrix_profiles(self) -> None:
         report = build_report()
-        self.assertGreaterEqual(report["scenario_count"], 1)
+        self.assertEqual(report["scenario_count"], 11)
         self.assertIn("fast", report["matrix"]["profiles"])
+        self.assertEqual(report["matrix"]["functional_suite_count"], 16)
+        self.assertGreaterEqual(report["matrix"]["test_center_group_count"], 5)
 
     def test_profile_cycles_are_rejected(self) -> None:
         with self.assertRaisesRegex(CatalogError, "循环"):
@@ -37,7 +39,9 @@ class TestCatalog(unittest.TestCase):
         with TemporaryDirectory() as directory:
             source = Path(directory) / "test_console.rs"
             source.write_text(
-                'scenario("declared");\n"declared" => {}\n"orphan" => {}\n',
+                'scenario("declared");\nasync fn run_scenario() {\n'
+                '"declared" => {}\n"orphan" => {}\n}\n'
+                'async fn run_repository_test_group() {}\n',
                 encoding="utf-8",
             )
             with patch("check_test_catalog.SCENARIO_SOURCE", source):

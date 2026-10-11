@@ -57,9 +57,11 @@ async fn video_sidecar_missing_capability_fails_without_embedded_fallback() {
         &video_config(),
         video_request(),
         None,
-        None,
-        None,
-        None,
+        crate::sidecar_clients::SidecarWorkflowScope {
+            project_id: None,
+            root_project_id: None,
+            workflow_run_id: None,
+        },
         None,
     )
     .await
@@ -80,9 +82,11 @@ async fn video_poll_sidecar_missing_capability_fails_without_embedded_fallback()
         None,
         &video_config(),
         "job-1",
-        Some(42),
-        None,
-        None,
+        crate::sidecar_clients::SidecarWorkflowScope {
+            project_id: Some(42),
+            root_project_id: None,
+            workflow_run_id: None,
+        },
     )
     .await
     .expect_err("missing video sidecar capability must fail");
@@ -153,9 +157,11 @@ async fn video_generation_still_requires_secret_with_redacted_config() {
         &redacted_video_config(),
         video_request(),
         None,
-        Some(42),
-        Some(3),
-        None,
+        crate::sidecar_clients::SidecarWorkflowScope {
+            project_id: Some(42),
+            root_project_id: Some(3),
+            workflow_run_id: None,
+        },
         None,
     )
     .await
@@ -182,9 +188,11 @@ async fn video_generation_maps_workflow_run_to_service_trace() {
         &video_config(),
         video_request(),
         Some("a".repeat(64)),
-        Some(42),
-        Some(3),
-        Some(77),
+        crate::sidecar_clients::SidecarWorkflowScope {
+            project_id: Some(42),
+            root_project_id: Some(3),
+            workflow_run_id: Some(77),
+        },
         Some(progress_tx),
     )
     .await
@@ -232,9 +240,11 @@ async fn video_poll_carries_project_scope_in_context_and_payload() {
         Some(client.clone()),
         &video_config(),
         "job-42",
-        Some(42),
-        Some(3),
-        Some(77),
+        crate::sidecar_clients::SidecarWorkflowScope {
+            project_id: Some(42),
+            root_project_id: Some(3),
+            workflow_run_id: Some(77),
+        },
     )
     .await
     .expect("video poll");

@@ -817,7 +817,7 @@ pub async fn complete_child_delegation(
     Ok(Some((
         child_run.into(),
         delegation.into(),
-        inbox_row.into(),
+        inbox_row,
         parent_run.into(),
     )))
 }
@@ -1124,7 +1124,7 @@ pub async fn fail_child_delegation(
     Ok((
         child_run.into(),
         delegation.into(),
-        inbox_row.into(),
+        inbox_row,
         parent_run.into(),
     ))
 }

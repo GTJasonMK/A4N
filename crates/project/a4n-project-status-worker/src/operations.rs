@@ -6,8 +6,8 @@ impl WorkerState {
         request: WorkerEnvelope<ProjectStatusProjectInput>,
     ) -> Result<ProjectStatusMachineSummary, WorkerFailure> {
         validate_request(&request, PROJECT_STATUS_MACHINE_OPERATION)?;
-        let project_id = scoped_project_id(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let project_id = request.require_project_scope(request.payload.project_id)?;
+        let user_id = request.principal.require_user_id()?;
         verify_viewer(&self.database, project_id, user_id).await?;
         let (_, current_status) = self
             .project_with_status(project_id, "读取项目状态机")
@@ -44,8 +44,8 @@ impl WorkerState {
         request: WorkerEnvelope<ProjectStatusRollbackInput>,
     ) -> Result<ProjectRollbackPreview, WorkerFailure> {
         validate_request(&request, PROJECT_STATUS_PREVIEW_ROLLBACK_OPERATION)?;
-        scoped_project_id(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        request.require_project_scope(request.payload.project_id)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         let project_id = input.project_id;
         verify_viewer(&self.database, project_id, user_id).await?;
@@ -82,8 +82,8 @@ impl WorkerState {
         request: WorkerEnvelope<ProjectStatusRollbackInput>,
     ) -> Result<ProjectStatusMutationResult, WorkerFailure> {
         validate_request(&request, PROJECT_STATUS_FORWARD_OPERATION)?;
-        let project_id = scoped_project_id(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let project_id = request.require_project_scope(request.payload.project_id)?;
+        let user_id = request.principal.require_user_id()?;
         verify_permission(
             &self.database,
             project_id,
@@ -135,8 +135,8 @@ impl WorkerState {
         request: WorkerEnvelope<ProjectStatusRollbackInput>,
     ) -> Result<ProjectStatusMutationResult, WorkerFailure> {
         validate_request(&request, PROJECT_STATUS_ROLLBACK_OPERATION)?;
-        let project_id = scoped_project_id(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let project_id = request.require_project_scope(request.payload.project_id)?;
+        let user_id = request.principal.require_user_id()?;
         verify_permission(
             &self.database,
             project_id,
@@ -181,7 +181,7 @@ impl WorkerState {
         let project =
             a4n_db::project::project_summary_by_id_record(self.database.connection(), project_id)
                 .await
-                .map_err(project_mutation_error)?
+                .map_err(a4n_worker_db_adapter::map_project_mutation_error)?
                 .ok_or_else(|| WorkerFailure::not_found(format!("项目不存在: {project_id}")))?;
         a4n_project_read_core::project_summary_for_user(
             self.database.connection(),
@@ -199,7 +199,7 @@ impl WorkerState {
     ) -> Result<(a4n_domain::project::ProjectRecord, ProjectStatus), WorkerFailure> {
         let project = a4n_db::project::project_by_id_record(self.database.connection(), project_id)
             .await
-            .map_err(project_mutation_error)?
+            .map_err(a4n_worker_db_adapter::map_project_mutation_error)?
             .ok_or_else(|| WorkerFailure::not_found(format!("项目不存在: {project_id}")))?;
         if project.project_kind != a4n_db::project::PROJECT_KIND_TEXT {
             return Err(WorkerFailure::invalid_request(
@@ -216,8 +216,10 @@ impl WorkerState {
     }
 
     pub(super) fn authorized(&self, headers: &HeaderMap) -> bool {
-        headers
-            .get(WORKER_AUTH_HEADER)
-            .is_some_and(|value| bool::from(value.as_bytes().ct_eq(self.auth_token.as_bytes())))
+        a4n_worker_runtime::worker_token_authorized(
+            headers,
+            WORKER_AUTH_HEADER,
+            self.auth_token.as_bytes(),
+        )
     }
 }

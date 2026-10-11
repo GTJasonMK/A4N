@@ -6,7 +6,7 @@ import {
   resolveInitialLocale,
   writeLocalePreference,
 } from "./locale";
-import { formatDate, formatNumber } from "./format";
+import { formatBytes, formatDate, formatDateTime, formatNumber } from "./format";
 import zhCN from "./messages/zh-CN";
 import enUS from "./messages/en-US";
 import { translateMessage } from "./translate";
@@ -110,5 +110,25 @@ describe("locale formatting", () => {
     expect(formatNumber(1234567, "zh-CN")).toBe("1,234,567");
     expect(formatDate("2020-01-02T00:00:00Z", "en-US")).toMatch(/2020/);
     expect(formatDate("2020-01-02T00:00:00Z", "zh-CN")).toMatch(/2020/);
+    expect(formatDateTime("2020-01-02 00:00:00", "en-US")).toBe(
+      formatDateTime("2020-01-02T00:00:00Z", "en-US"),
+    );
+  });
+
+  it("applies caller precision through the shared number formatter", () => {
+    expect(
+      formatNumber(1.5, "en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
+    ).toBe("1.50");
+  });
+
+  it("formats byte sizes consistently through terabytes", () => {
+    expect(formatBytes(0, "en-US")).toBe("0 B");
+    expect(formatBytes(Number.POSITIVE_INFINITY, "en-US")).toBe("0 B");
+    expect(formatBytes(1536, "en-US")).toBe("1.5 KB");
+    expect(formatBytes(11 * 1024, "en-US")).toBe("11 KB");
+    expect(formatBytes(1024 ** 4, "en-US")).toBe("1 TB");
+    expect(
+      formatBytes(1024 ** 3, "en-US", { maxUnit: "MB", minimumFractionDigits: 1 }),
+    ).toBe("1,024.0 MB");
   });
 });

@@ -5,7 +5,7 @@ use a4n_api_contract::image::{
     ImagePublicationRecoveryReadPort, ImageRecordMutationApplicationPort,
     ImageRecordReadApplicationPort, ImageReferenceReadApplicationPort, ListImagesByChapterInput,
     ListImagesByProjectInput, ListImagesByProjectsInput, ListVideoReferenceImagesInput,
-    UpdateGeneratedImageInput, UploadImageInput,
+    MAX_UPLOAD_IMAGE_BYTES, UpdateGeneratedImageInput, UploadImageInput,
 };
 use a4n_domain::media::{
     CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput, GeneratedImageRecord,
@@ -36,8 +36,6 @@ use crate::{
 };
 use a4n_domain::collaboration::ProjectAccessRole;
 use a4n_media::decode_uploaded_image_data;
-
-const MAX_IMPORT_IMAGE_BYTES: usize = 50 * 1024 * 1024;
 
 fn image_publication_recovery_record(
     publication: ImagePublicationRecord,
@@ -229,7 +227,7 @@ impl OrchestratorContext {
             &input.file_name,
             &input.mime_type,
             &input.data_base64,
-            MAX_IMPORT_IMAGE_BYTES,
+            MAX_UPLOAD_IMAGE_BYTES,
         )
         .map_err(AppError::InvalidArgument)?;
         Ok(PreparedImportedImageUpload {

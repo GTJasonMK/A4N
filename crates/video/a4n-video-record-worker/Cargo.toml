@@ -10,19 +10,18 @@ a4n-config = { workspace = true }
 a4n-db = { workspace = true }
 a4n-db-models = { workspace = true }
 a4n-domain = { workspace = true }
-a4n-error = { workspace = true, default-features = true }
 a4n-video-record-worker-contract = { workspace = true }
 a4n-video-contract = { workspace = true }
 a4n-workflow-core = { workspace = true }
 a4n-worker-contract = { workspace = true }
+a4n-worker-db-adapter = { workspace = true }
+a4n-worker-runtime = { workspace = true }
 
 anyhow = { workspace = true }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-subtle = { workspace = true }
 tokio = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
 
 [dev-dependencies]
 a4n-migration = { workspace = true }

@@ -1,6 +1,6 @@
 //! PostgreSQL-backed Canvas graph document worker.
 
-use std::{env, future::Future, net::SocketAddr, sync::Arc};
+use std::{future::Future, net::SocketAddr, sync::Arc};
 
 use a4n_canvas_record_worker_contract::{
     CANVAS_GRAPH_EDIT_OPERATION, CANVAS_GRAPH_GET_OPERATION, CANVAS_GRAPH_MUTATION_CAPABILITY,
@@ -19,8 +19,8 @@ use a4n_domain::{canvas::CanvasTextAssetRecordInput, collaboration::ProjectAcces
 use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
-    WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,
-    WorkerHealthStatus, WorkerOperationRef, WorkerOperationStatus, WorkerResponse,
+    WorkerCapability, WorkerEnvelope, WorkerFailure, WorkerHealth, WorkerHealthStatus,
+    WorkerResponse,
 };
 use axum::{
     Json, Router,
@@ -31,7 +31,6 @@ use axum::{
 };
 use chrono::Utc;
 use serde::Serialize;
-use subtle::ConstantTimeEq;
 
 mod graph;
 mod mutations;
@@ -52,13 +51,6 @@ struct WorkerState {
     database: DbHandle,
     worker_id: Arc<str>,
     auth_token: Arc<str>,
-}
-
-#[derive(Debug)]
-struct WorkerFailure {
-    code: WorkerErrorCode,
-    message: String,
-    retryable: bool,
 }
 
 #[derive(Clone)]
@@ -114,7 +106,7 @@ impl CanvasRecordWorker {
     pub async fn serve(self, address: SocketAddr) -> anyhow::Result<()> {
         let listener = tokio::net::TcpListener::bind(address).await?;
         axum::serve(listener, self.router())
-            .with_graceful_shutdown(shutdown_signal())
+            .with_graceful_shutdown(a4n_worker_runtime::wait_for_shutdown_signal())
             .await
             .map_err(anyhow::Error::from)
     }
@@ -128,26 +120,15 @@ pub fn run() -> anyhow::Result<()> {
 }
 
 async fn async_main() -> anyhow::Result<()> {
-    init_tracing();
+    a4n_worker_runtime::init_worker_tracing();
     let database_url = a4n_config::required_non_empty_env_string(DATABASE_URL_ENV)?;
     a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
     let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
-    let address = worker_addr()?;
+    let address = a4n_config::worker_listen_addr(WORKER_ADDR_ENV, DEFAULT_ADDR)?;
     let database = DbHandle::connect_default(database_url).await?;
     CanvasRecordWorker::new_with_handle(database, CANVAS_RECORD_WORKER_ID, auth_token)
         .serve(address)
         .await
-}
-
-fn worker_addr() -> anyhow::Result<SocketAddr> {
-    let value = env::var(WORKER_ADDR_ENV).unwrap_or_else(|_| DEFAULT_ADDR.into());
-    let address: SocketAddr = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{WORKER_ADDR_ENV} 无效: {error}"))?;
-    if !address.ip().is_loopback() || address.port() == 0 {
-        anyhow::bail!("{WORKER_ADDR_ENV} 必须是 loopback 且端口大于 0")
-    }
-    Ok(address)
 }
 
 async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Response {
@@ -337,13 +318,15 @@ impl WorkerState {
         )
         .await
         .map(|_| ())
-        .map_err(collaboration_error)
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error_preserving_internal)
     }
 
     fn authorized(&self, headers: &HeaderMap) -> bool {
-        headers
-            .get(WORKER_AUTH_HEADER)
-            .is_some_and(|value| bool::from(value.as_bytes().ct_eq(self.auth_token.as_bytes())))
+        a4n_worker_runtime::worker_token_authorized(
+            headers,
+            WORKER_AUTH_HEADER,
+            self.auth_token.as_bytes(),
+        )
     }
 }
 
@@ -351,58 +334,11 @@ fn validate_request<T: Serialize>(
     request: &WorkerEnvelope<T>,
     expected_operation: &str,
 ) -> Result<(), WorkerFailure> {
-    request
-        .validate()
-        .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
-    if request.operation_id != expected_operation {
-        return Err(WorkerFailure::invalid_request(format!(
-            "operation_id 不匹配: expected={expected_operation}, actual={}",
-            request.operation_id
-        )));
-    }
-    if request.lease.worker_id != CANVAS_RECORD_WORKER_ID {
-        return Err(WorkerFailure::invalid_request(
-            "lease.worker_id 不属于 Canvas record worker",
-        ));
-    }
-    Ok(())
-}
-
-fn validate_project_scope<T>(
-    request: &WorkerEnvelope<T>,
-    project_id: i64,
-) -> Result<(), WorkerFailure> {
-    if project_id <= 0 || request.project_id != Some(project_id) {
-        return Err(WorkerFailure::invalid_request(
-            "worker scope project_id 与 payload 不一致或无效",
-        ));
-    }
-    Ok(())
-}
-
-fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    if request.principal.kind != a4n_worker_contract::WorkerPrincipalKind::User {
-        return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
-    }
-    request
-        .principal
-        .subject
-        .parse::<i64>()
-        .ok()
-        .filter(|id| *id > 0)
-        .ok_or_else(|| WorkerFailure::unauthorized("用户 principal subject 无效"))
-}
-
-fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
-    use a4n_db::collaboration::CollaborationDbError;
-    match error {
-        CollaborationDbError::InvalidArgument(message) => WorkerFailure::invalid_request(message),
-        CollaborationDbError::NotFound(message) => WorkerFailure::not_found(message),
-        CollaborationDbError::Forbidden(message) => WorkerFailure::unauthorized(message),
-        CollaborationDbError::InvalidState(message) => WorkerFailure::conflict(message),
-        CollaborationDbError::Internal(message) => WorkerFailure::internal(message),
-        CollaborationDbError::Database(error) => WorkerFailure::unavailable(error.to_string()),
-    }
+    request.validate_worker_command(
+        expected_operation,
+        CANVAS_RECORD_WORKER_ID,
+        "Canvas record worker",
+    )
 }
 
 fn canvas_db_error(error: CanvasDbError) -> WorkerFailure {
@@ -424,52 +360,21 @@ fn canvas_db_error(error: CanvasDbError) -> WorkerFailure {
         } => WorkerFailure::conflict(format!(
             "canvas_text_asset_version_conflict:asset_id={canvas_text_asset_id},expected={expected_version},current={current_version}"
         )),
-        CanvasDbError::Database(error) => WorkerFailure::unavailable(error.to_string()),
+        CanvasDbError::Database(error) => a4n_worker_db_adapter::map_database_error(error),
     }
 }
 
 fn completed<T: Serialize>(meta: RequestMeta, payload: T) -> WorkerResponse<T> {
-    WorkerResponse {
-        schema_version: WORKER_SCHEMA_VERSION,
-        request_id: meta.request_id,
-        trace_id: meta.trace_id,
-        operation: WorkerOperationRef {
-            operation_id: meta.operation_id,
-            task_id: None,
-        },
-        status: WorkerOperationStatus::Completed,
-        payload: Some(payload),
-        resource_refs: Vec::new(),
-        committed_revision: None,
-        provider_job_id: None,
-        result_summary: None,
-        pagination: None,
-        error: None,
-    }
+    WorkerResponse::completed_for_parts(meta.request_id, meta.trace_id, meta.operation_id, payload)
 }
 
 fn failed<T>(meta: RequestMeta, failure: WorkerFailure) -> WorkerResponse<T> {
-    WorkerResponse {
-        schema_version: WORKER_SCHEMA_VERSION,
-        request_id: meta.request_id,
-        trace_id: meta.trace_id,
-        operation: WorkerOperationRef {
-            operation_id: meta.operation_id,
-            task_id: None,
-        },
-        status: WorkerOperationStatus::Failed,
-        payload: None,
-        resource_refs: Vec::new(),
-        committed_revision: None,
-        provider_job_id: None,
-        result_summary: None,
-        pagination: None,
-        error: Some(WorkerError {
-            code: failure.code,
-            message: failure.message,
-            retryable: failure.retryable,
-        }),
-    }
+    WorkerResponse::failed_for_parts(
+        meta.request_id,
+        meta.trace_id,
+        meta.operation_id,
+        failure.into(),
+    )
 }
 
 impl RequestMeta {
@@ -482,56 +387,6 @@ impl RequestMeta {
     }
 }
 
-impl WorkerFailure {
-    fn invalid_request(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::InvalidRequest,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn unauthorized(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unauthorized,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn conflict(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Conflict,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn not_found(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::NotFound,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-
-    fn unavailable(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unavailable,
-            message: message.into(),
-            retryable: true,
-        }
-    }
-
-    fn internal(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Internal,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-}
-
 fn unauthorized() -> Response {
     (
         StatusCode::UNAUTHORIZED,
@@ -540,37 +395,12 @@ fn unauthorized() -> Response {
         .into_response()
 }
 
-async fn shutdown_signal() {
-    #[cfg(unix)]
-    {
-        let mut terminate =
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                .expect("install SIGTERM handler");
-        tokio::select! {
-            _ = tokio::signal::ctrl_c() => {},
-            _ = terminate.recv() => {},
-        }
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = tokio::signal::ctrl_c().await;
-    }
-}
-
-fn init_tracing() {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
-        )
-        .try_init();
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
 
     use super::graph::{apply_operation, read_canvas_graph};
-    use super::{validate_project_scope, validate_request};
+    use super::validate_request;
     use a4n_canvas_record_worker_contract::{
         CANVAS_GRAPH_EDIT_OPERATION, CANVAS_RECORD_WORKER_ID, CanvasEdgeInput, CanvasEdgeSummary,
         CanvasGraphDocument, CanvasGraphEditOperation, CanvasGraphProjection, CanvasGraphSummary,
@@ -652,8 +482,8 @@ mod tests {
     fn request_scope_and_operation_are_enforced() {
         let request = request(Some(1), CANVAS_GRAPH_EDIT_OPERATION);
         assert!(validate_request(&request, CANVAS_GRAPH_EDIT_OPERATION).is_ok());
-        assert!(validate_project_scope(&request, 1).is_ok());
-        assert!(validate_project_scope(&request, 2).is_err());
+        assert!(request.require_project_scope(1).is_ok());
+        assert!(request.require_project_scope(2).is_err());
         assert!(validate_request(&request, "canvas.graph.read").is_err());
     }
 

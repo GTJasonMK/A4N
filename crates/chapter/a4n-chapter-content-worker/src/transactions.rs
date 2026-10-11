@@ -10,14 +10,14 @@ pub(super) async fn finish_transaction<T>(
         Ok(value) => {
             tx.commit()
                 .await
-                .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
+                .map_err(a4n_worker_db_adapter::map_database_error)?;
             Ok(value)
         }
         Err(error) => {
             tx.rollback().await.map_err(|rollback_error| {
                 WorkerFailure::unavailable(format!(
                     "{operation}失败：{}；事务回滚失败：{rollback_error}",
-                    error.message
+                    error.message()
                 ))
             })?;
             Err(error)

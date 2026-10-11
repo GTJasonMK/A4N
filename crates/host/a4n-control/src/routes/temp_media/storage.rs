@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use super::super::super::state::ServerState;
 use super::config::temp_media_ttl_seconds;
-use super::rules::TEMP_MEDIA_ARTIFACT_EXTENSIONS;
+use super::rules::temp_media_artifact_extensions;
 
 pub(super) const TEMP_MEDIA_RELATIVE_DIR: &str = "temp-media/video-inputs";
 
@@ -12,10 +12,9 @@ pub(super) fn temp_media_dir(state: &ServerState) -> PathBuf {
 }
 
 pub(super) fn find_temp_media_path(state: &ServerState, artifact_id: &str) -> Option<PathBuf> {
-    TEMP_MEDIA_ARTIFACT_EXTENSIONS
-        .iter()
-        .copied()
-        .map(|extension| temp_media_dir(state).join(format!("{artifact_id}.{extension}")))
+    let dir = temp_media_dir(state);
+    temp_media_artifact_extensions()
+        .map(|extension| dir.join(format!("{artifact_id}.{extension}")))
         .find(|path| path.is_file())
 }
 

@@ -6,7 +6,6 @@ use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::ChatRequest;
 
 use crate::{
-    OrchestratorContext,
     structured_llm::{
         StructuredLlmProgress, StructuredLlmStreamResult, ensure_checkpoint_parsed_output_matches,
     },
@@ -18,19 +17,17 @@ use crate::{
 
 use self::call::chat_scene_profile_stage;
 use super::super::parsing::parse_scene_stage_response;
-use super::super::progress::{SceneProfileSyncProgress, report_scene_profile_sync_progress};
+use super::super::progress::report_scene_profile_sync_progress;
+use super::SceneProfileStageContext;
 use super::request::scene_profile_stage_fingerprint;
 
 pub(super) async fn run_scene_profile_stage_with_checkpoint<T>(
-    state: &OrchestratorContext,
-    workflow_run_id: i64,
+    context: &mut SceneProfileStageContext<'_, '_>,
     request: &mut ChatRequest,
     prompt_name: &str,
     step_key: String,
     step_order: i32,
     stage_progress: StructuredLlmProgress,
-    progress: Option<&SceneProfileSyncProgress<'_>>,
-    response_chars: &mut Vec<Value>,
     parse: impl FnOnce(&Value) -> Result<T, String>,
 ) -> Result<(Vec<Value>, T), AppError> {
     let root_field = stage_progress.spec.root_array_key;
@@ -43,8 +40,9 @@ pub(super) async fn run_scene_profile_stage_with_checkpoint<T>(
     if let Some(trace_context) = request.trace_context.as_mut() {
         trace_context.input_fingerprint_sha256 = Some(fingerprint_sha);
     }
-    let (response, stored_output) = match state
-        .load_completed_llm_call_checkpoint(workflow_run_id, &step_key, &fingerprint)
+    let (response, stored_output) = match context
+        .state
+        .load_completed_llm_call_checkpoint(context.workflow_run_id, &step_key, &fingerprint)
         .await?
     {
         Some(checkpoint) => (
@@ -57,11 +55,11 @@ pub(super) async fn run_scene_profile_stage_with_checkpoint<T>(
         ),
         None => (
             chat_scene_profile_stage(
-                state,
+                context.state,
                 request.clone(),
                 prompt_name,
                 stage_progress,
-                progress,
+                context.progress,
             )
             .await?,
             None,
@@ -82,9 +80,10 @@ pub(super) async fn run_scene_profile_stage_with_checkpoint<T>(
             &format!("场景档案同步 {step_key}"),
         )?;
     } else {
-        state
+        context
+            .state
             .save_completed_llm_call_checkpoint(CompletedLlmCallCheckpointInput {
-                workflow_run_id,
+                workflow_run_id: context.workflow_run_id,
                 call_key: step_key,
                 call_order: step_order,
                 input_fingerprint_json: fingerprint,
@@ -98,7 +97,7 @@ pub(super) async fn run_scene_profile_stage_with_checkpoint<T>(
             })
             .await?;
     }
-    response_chars.push(json!({
+    context.response_chars.push(json!({
         "prompt_name": prompt_name,
         "response_chars": response_length,
         "source": if restored { "llm_call_checkpoint" } else { "llm" },
@@ -110,7 +109,7 @@ pub(super) async fn run_scene_profile_stage_with_checkpoint<T>(
         "已完成"
     };
     report_scene_profile_sync_progress(
-        progress,
+        context.progress,
         stage_progress.span.end(),
         format!("{prompt_name} {source}：校验通过 {item_count} 条{root_field}"),
     )?;

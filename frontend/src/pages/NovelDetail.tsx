@@ -19,6 +19,7 @@ import { useToast } from "../components/feedback/Toast";
 import { confirmDialog } from "../components/feedback/ConfirmDialog";
 import { promptDialog } from "../components/feedback/PromptDialog";
 import { extractErrorMessage } from "../api";
+import { isPositiveSafeInteger } from "../utils/numberRange";
 import {
   canEditProjectMaterials,
   getProject,
@@ -192,7 +193,7 @@ export const NovelDetail: React.FC = () => {
   const [projectLoadError, setProjectLoadError] = useState<unknown | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = usePersistedTab<Tab>(
-    Number.isFinite(projectId) && projectId > 0 ? `a4n:novel-detail:${projectId}:tab` : null,
+    isPositiveSafeInteger(projectId) ? `a4n:novel-detail:${projectId}:tab` : null,
     "overview",
     TAB_IDS,
   );
@@ -263,7 +264,7 @@ export const NovelDetail: React.FC = () => {
   const refresh = async (requestProjectId = projectId): Promise<boolean> => {
     const requestSeq = refreshSeqRef.current + 1;
     refreshSeqRef.current = requestSeq;
-    if (!Number.isFinite(requestProjectId) || requestProjectId <= 0) {
+    if (!isPositiveSafeInteger(requestProjectId)) {
       addToast(tRef.current("novel.projectIdInvalid"), "error");
       navigate("/");
       return false;

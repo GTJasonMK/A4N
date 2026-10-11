@@ -15,6 +15,7 @@ pub(crate) use secrets::{
     global_typed_provider_service_request,
     typed_service_request_with_context_provider_secret_policy,
 };
+pub(crate) use trace::SidecarWorkflowScope;
 pub(crate) use trace::sidecar_context_for_llm_trace;
 pub(super) use trace::sidecar_context_for_workflow_operation_with_root;
 

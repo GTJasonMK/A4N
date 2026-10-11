@@ -2,18 +2,9 @@ use a4n_chapter_content_worker_contract::{
     ChapterInput, ImportChapterInput, ProjectInput, UpdateChapterContentInput,
 };
 use a4n_worker_contract::WorkerEnvelope;
-use axum::{
-    Json,
-    extract::State,
-    http::HeaderMap,
-    response::{IntoResponse, Response},
-};
+use axum::{Json, extract::State, http::HeaderMap, response::Response};
 
-use super::{
-    WorkerState,
-    errors::WorkerFailure,
-    responses::{completed, failed, unauthorized},
-};
+use super::{WorkerState, errors::WorkerFailure, responses::unauthorized};
 
 pub(super) async fn list(
     State(state): State<WorkerState>,
@@ -78,12 +69,11 @@ where
     F: FnOnce(WorkerEnvelope<T>) -> Fut,
     Fut: std::future::Future<Output = Result<O, WorkerFailure>>,
 {
-    if !state.authorized(headers) {
-        return unauthorized();
-    }
-    let response = match command(request.clone()).await {
-        Ok(payload) => completed(&request, payload),
-        Err(error) => failed(&request, error),
-    };
-    Json(response).into_response()
+    a4n_worker_runtime::worker_command_response(
+        state.authorized(headers),
+        request,
+        command,
+        unauthorized,
+    )
+    .await
 }

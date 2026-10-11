@@ -29,6 +29,7 @@ import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown as MenuDropdown } from "../../../components/ui/Dropdown";
 import { EmptyHint } from "../shared";
 import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
+import { isSafeInteger } from "../../../utils/numberRange";
 import {
   durationChoicesForLimits,
   durationLimitsLabel,
@@ -918,7 +919,7 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
                 onChange={(event) => {
                   const nextText = event.currentTarget.value;
                   setDurationText(nextText);
-                  if (nextText.trim() && Number.isSafeInteger(Number(nextText))) {
+                  if (nextText.trim() && isSafeInteger(Number(nextText))) {
                     updateDraft({ duration_secs: Number(nextText) });
                   }
                 }}
@@ -926,7 +927,7 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
                   durationFocused.current = false;
                   const nextText = event.currentTarget.value;
                   const nextValue = Number(nextText);
-                  if (nextText.trim() && Number.isSafeInteger(nextValue)) {
+                  if (nextText.trim() && isSafeInteger(nextValue)) {
                     updateDraft({ duration_secs: nextValue });
                     setDurationText(String(nextValue));
                   } else {

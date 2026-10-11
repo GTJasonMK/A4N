@@ -21,7 +21,7 @@ import {
 } from "../../../api/storagePaths";
 import { copyTextToClipboard } from "../../../utils/clipboard";
 import {
-  formatNumber,
+  formatBytes,
   getActiveLocale,
   translateMessage,
   useI18n,
@@ -35,19 +35,6 @@ interface StoragePathsPanelProps {
   isAdmin?: boolean;
   className?: string;
 }
-
-const formatBytes = (bytes: number, locale: ReturnType<typeof useI18n>["locale"]): string => {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let value = bytes;
-  let unitIndex = 0;
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-  const displayValue = value >= 10 || unitIndex === 0 ? value : Number(value.toFixed(1));
-  return `${formatNumber(displayValue, locale)} ${units[unitIndex]}`;
-};
 
 export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
   isAdmin = false,

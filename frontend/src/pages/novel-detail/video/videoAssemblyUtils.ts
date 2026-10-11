@@ -11,6 +11,7 @@ import {
   type VideoSegmentWorkflowMode,
 } from "../../../api/video";
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
+import { isPositiveSafeInteger } from "../../../utils/numberRange";
 import type { MessageTranslator } from "../../../i18n";
 import { VIDEO_EXECUTION_CONTRACT_EPOCH } from "./videoTabConstants";
 
@@ -32,7 +33,7 @@ export const assemblyPushStatus = (
 
 export const assemblyPushIndex = (video: GeneratedVideo): number | null => {
   const value = assemblyPushMetadata(video)?.push_index;
-  return Number.isInteger(value) && Number(value) > 0 ? Number(value) : null;
+  return isPositiveSafeInteger(value) ? value : null;
 };
 
 export const assemblyPushSourceIds = (
@@ -41,7 +42,7 @@ export const assemblyPushSourceIds = (
   const value = assemblyPushMetadata(video)?.source_video_ids;
   if (!Array.isArray(value) || value.length === 0) return null;
   const ids = value.filter(
-    (item): item is number => Number.isInteger(item) && Number(item) > 0,
+    (item): item is number => isPositiveSafeInteger(item),
   );
   return ids.length === value.length && new Set(ids).size === ids.length
     ? ids

@@ -6,7 +6,13 @@ import type {
 } from "../../../api/config";
 import type { ConfigItem } from "../ConfigListPanel";
 import type { EmbeddingForm } from "./types";
-import { formatNumber, type Locale, type MessageKey, type MessageParams } from "../../../i18n";
+import {
+  formatBytes,
+  formatNumber,
+  type Locale,
+  type MessageKey,
+  type MessageParams,
+} from "../../../i18n";
 import { clonePricingPlan, DEFAULT_PRICING_PLAN } from "../config-list/pricing";
 
 type Translate = (key: MessageKey, params?: MessageParams) => string;
@@ -55,18 +61,6 @@ export function toItem(raw: EmbeddingConfig): ConfigItem<EmbeddingForm> {
       pricing: clonePricingPlan(raw.pricing),
     },
   };
-}
-
-export function formatBytes(value: number, locale: Locale): string {
-  if (!Number.isFinite(value) || value <= 0) return `${formatNumber(0, locale)} B`;
-  const units = ["B", "KB", "MB", "GB"];
-  let size = value;
-  let unit = 0;
-  while (size >= 1024 && unit < units.length - 1) {
-    size /= 1024;
-    unit += 1;
-  }
-  return `${formatNumber(size, locale, { maximumFractionDigits: unit === 0 ? 0 : 1 })} ${units[unit]}`;
 }
 
 export function formatSelectedModelHint(

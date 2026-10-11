@@ -11,7 +11,7 @@ impl ChapterSceneMutationApplicationPort for ChapterSceneWorkerClient {
             user_id,
             CHAPTER_SCENE_UPDATE_OPERATION,
             UpdateSceneInput {
-                scene_id: Self::positive("scene_id", input.scene_id)?,
+                scene_id: a4n_worker_client::positive_id("scene_id", input.scene_id)?,
                 content: input.content,
                 title: input.title,
                 summary: input.summary,
@@ -29,7 +29,7 @@ impl ChapterSceneMutationApplicationPort for ChapterSceneWorkerClient {
                 user_id,
                 CHAPTER_SCENE_DELETE_OPERATION,
                 DeleteSceneInput {
-                    scene_id: Self::positive("scene_id", scene_id)?,
+                    scene_id: a4n_worker_client::positive_id("scene_id", scene_id)?,
                 },
             )
             .await?;

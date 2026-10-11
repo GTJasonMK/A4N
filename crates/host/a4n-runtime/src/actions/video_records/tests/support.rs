@@ -1,7 +1,7 @@
 use super::assembly::{
-    AssemblyCacheManifest, AssemblyClip, assembly_cache_is_fresh, assembly_cache_matches,
-    build_assembly_cache_manifest_with_audio_probe, expired_assembly_cache_files,
-    write_assembly_cache_manifest,
+    AssemblyCacheManifest, AssemblyCacheManifestInput, AssemblyClip, assembly_cache_is_fresh,
+    assembly_cache_matches, build_assembly_cache_manifest_with_audio_probe,
+    expired_assembly_cache_files, write_assembly_cache_manifest,
 };
 use super::imports::import_video_source_path;
 use super::probe::video_probe_error_message;
@@ -37,13 +37,15 @@ fn build_test_assembly_cache_manifest(
     audio_video_ids: &[i64],
 ) -> AssemblyCacheManifest {
     build_assembly_cache_manifest_with_audio_probe(
-        1,
-        1,
-        "first_frame_chain",
-        1280,
-        720,
-        24,
-        clips,
+        AssemblyCacheManifestInput {
+            project_id: 1,
+            chapter_id: 1,
+            workflow_mode: "first_frame_chain",
+            width: 1280,
+            height: 720,
+            fps: 24,
+            clips,
+        },
         &|path| {
             let file_name = path
                 .file_name()

@@ -13,7 +13,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::state::RuntimeProfile;
 
-use super::super::super::missing_sidecar_capability_message;
+use super::super::super::{SidecarWorkflowScope, missing_sidecar_capability_message};
 #[cfg(feature = "embedded-media-providers")]
 use super::super::contracts::video_config_params;
 use super::super::events::generate_video_via_sidecar;
@@ -50,9 +50,7 @@ pub(crate) async fn generate_video(
     config: &VideoProviderConfig,
     request: VideoGenerationRequest,
     provider_idempotency_key_sha256: Option<String>,
-    project_id: Option<i64>,
-    root_project_id: Option<i64>,
-    workflow_run_id: Option<i64>,
+    scope: SidecarWorkflowScope,
     progress_tx: Option<UnboundedSender<String>>,
 ) -> Result<VideoGenerationResult, AppError> {
     if profile.uses_sidecars() {
@@ -63,9 +61,7 @@ pub(crate) async fn generate_video(
             config,
             request,
             provider_idempotency_key_sha256,
-            project_id,
-            root_project_id,
-            workflow_run_id,
+            scope,
             progress_tx,
         )
         .await;
@@ -97,21 +93,11 @@ pub(crate) async fn poll_video(
     client: Option<Arc<dyn VideoClient>>,
     config: &VideoProviderConfig,
     job_id: &str,
-    project_id: Option<i64>,
-    root_project_id: Option<i64>,
-    workflow_run_id: Option<i64>,
+    scope: SidecarWorkflowScope,
 ) -> Result<VideoJobState, String> {
     if profile.uses_sidecars() {
         let client = client.ok_or_else(|| missing_sidecar_capability_message("video"))?;
-        return poll_video_via_sidecar(
-            client,
-            config,
-            job_id,
-            project_id,
-            root_project_id,
-            workflow_run_id,
-        )
-        .await;
+        return poll_video_via_sidecar(client, config, job_id, scope).await;
     }
 
     let provider = pick_provider_for_config(config)?;

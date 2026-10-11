@@ -27,6 +27,7 @@ import {
 } from "./manageViewUtils";
 import { formatDateTime, useI18n } from "../../i18n";
 import { useDirty } from "../../components/navigation/dirtyRegistry";
+import { isPositiveSafeInteger } from "../../utils/numberRange";
 
 type DeletionMarkStatusFilter = "all" | "pending" | "ready" | "executed";
 
@@ -271,7 +272,7 @@ export const DeletionManager: React.FC<{
     const attrKey = key.trim();
     const deletionReason = reason.trim();
     const deletionEvidence = evidence.trim();
-    if (!Number.isSafeInteger(chapter) || chapter <= 0 || !attrKey || !deletionReason || !deletionEvidence) {
+    if (!isPositiveSafeInteger(chapter) || !attrKey || !deletionReason || !deletionEvidence) {
       addToast(t("characterDetail.deletion.required"), "error");
       return;
     }
@@ -398,8 +399,7 @@ export const DeletionManager: React.FC<{
   };
 
   const deletionRequestReady =
-    Number.isSafeInteger(Number(chapterNumber)) &&
-    Number(chapterNumber) > 0 &&
+    isPositiveSafeInteger(Number(chapterNumber)) &&
     key.trim().length > 0 &&
     reason.trim().length > 0 &&
     evidence.trim().length > 0;

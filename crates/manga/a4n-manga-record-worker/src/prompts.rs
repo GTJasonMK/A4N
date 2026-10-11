@@ -5,8 +5,8 @@ use a4n_worker_contract::WorkerEnvelope;
 
 use super::{
     WorkerState,
-    access::{user_id, verify_manga_viewer},
-    protocol::{WorkerFailure, manga_error, positive, validate_request},
+    access::verify_manga_viewer,
+    protocol::{WorkerFailure, manga_error, validate_request},
 };
 
 impl WorkerState {
@@ -15,10 +15,10 @@ impl WorkerState {
         request: WorkerEnvelope<MangaChapterInput>,
     ) -> Result<Vec<MangaPagePromptSummary>, WorkerFailure> {
         validate_request(&request, MANGA_RECORD_LIST_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
-        positive(input.project_id, "project_id")?;
-        positive(input.chapter_id, "chapter_id")?;
+        WorkerFailure::require_positive_id(input.project_id, "project_id")?;
+        WorkerFailure::require_positive_id(input.chapter_id, "chapter_id")?;
         verify_manga_viewer(&self.database, input.project_id, user_id).await?;
         let prompts = a4n_db::manga::manga_page_prompts_by_chapter(
             self.database.connection(),

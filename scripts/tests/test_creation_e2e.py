@@ -9,7 +9,7 @@ from run_creation_e2e import (
     BROWSER_FEATURE_SPECS, FULL_GENERATION_SUITES, ROOT, RunnerError, STAGES, acceptance_passed,
     acceptance_result, build_cache_paths, files_fingerprint, frontend_fingerprint,
     full_generation_matrix_report, read_all_workflows_report, read_suite_report,
-    selected_browser_specs,
+    selected_browser_specs, snapshot_source,
     selected_suites, source_fingerprint, stop_owned_workers, stop_postgres,
 )
 from run_browser_full_project_e2e import secure_mkdir, stop_process, tail
@@ -67,6 +67,15 @@ class CreationAcceptanceTest(unittest.TestCase):
         self.assertEqual(default, ["./e2e/full-project/generation-stages.e2e.mjs"])
         self.assertEqual(complete, [*default, *BROWSER_FEATURE_SPECS])
         self.assertTrue(all((ROOT / "frontend" / spec.removeprefix("./")).is_file() for spec in complete))
+
+    def test_browser_feature_flow_sources_are_registered_and_have_setup(self):
+        source = (ROOT / "scripts/tests/run_creation_e2e.py").read_text()
+        self.assertIn("media-authoring-workspaces", source)
+        self.assertIn("specialized-agent-workspace", source)
+        self.assertIn("shot-sync-workspace", source)
+        self.assertIn('A4N_MEDIA_AUTHORING_CLI_REPORT', source)
+        self.assertIn('A4N_SPECIALIZED_FIXTURE', source)
+        self.assertIn('A4N_SHOT_SYNC_FIXTURE', source)
 
     def test_full_generation_matrix_fails_if_any_suite_is_missing_or_failed(self):
         passed = {name: {"success": True} for name in FULL_GENERATION_SUITES}
@@ -154,6 +163,21 @@ class CreationAcceptanceTest(unittest.TestCase):
         (root / "a").write_text("bc")
         (root / "ab").write_text("c")
         self.assertNotEqual(files_fingerprint(root, [root / "a"]), files_fingerprint(root, [root / "ab"]))
+
+    def test_application_source_snapshot_includes_checkout_root_files_but_not_environment_files(self):
+        root = self.scratch()
+        application = root / "application"
+        (application / "frontend").mkdir(parents=True)
+        (application / "Cargo.toml").write_text("[workspace]\n")
+        (application / ".env.production").write_text("secret=value\n")
+        (application / "frontend/package.json").write_text("{}\n")
+
+        snapshot = snapshot_source(root / "report", application)
+
+        self.assertEqual((snapshot / "Cargo.toml").read_text(), "[workspace]\n")
+        self.assertEqual((snapshot / "frontend/package.json").read_text(), "{}\n")
+        self.assertFalse((snapshot / ".env.production").exists())
+        self.assertTrue((snapshot / ".env").is_file())
 
     def test_ci_build_cache_stays_inside_checkout_and_uses_a_private_lock(self):
         target = ROOT / "target" / "creation-e2e"

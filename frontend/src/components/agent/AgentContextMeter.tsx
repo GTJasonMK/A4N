@@ -1,5 +1,5 @@
 import type { AgentRunView } from "../../api/agent";
-import type { Locale } from "../../i18n";
+import { formatNumber, type Locale } from "../../i18n";
 
 type AgentContextRun = Pick<
   AgentRunView,
@@ -50,5 +50,5 @@ export function AgentContextMeter({
 }
 
 function formatTokens(value: number, locale: Locale): string {
-  return Math.max(0, Math.round(value)).toLocaleString(locale === "zh-CN" ? "zh-CN" : "en-US");
+  return formatNumber(Math.max(0, Math.round(value)), locale);
 }

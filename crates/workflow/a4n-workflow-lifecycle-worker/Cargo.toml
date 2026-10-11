@@ -9,6 +9,8 @@ a4n-api-contract = { workspace = true }
 a4n-config = { workspace = true }
 a4n-db = { workspace = true }
 a4n-worker-contract = { workspace = true }
+a4n-worker-db-adapter = { workspace = true }
+a4n-worker-runtime = { workspace = true }
 a4n-workflow-lifecycle-worker-contract = { workspace = true }
 
 anyhow = { workspace = true }
@@ -16,4 +18,3 @@ axum = { workspace = true }
 serde = { workspace = true }
 subtle = { workspace = true }
 tokio = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }

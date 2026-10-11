@@ -142,8 +142,7 @@ pub async fn save_manual_chapter_outline(
         .order_by_asc(part_outline::Column::PartNumber)
         .all(&txn)
         .await?;
-    let part_id = crate::outline::part_id_for_chapter_number(&parts, input.chapter_number)
-        .map_err(map_outline_error)?;
+    let part_id = crate::outline::part_id_for_chapter_number(&parts, input.chapter_number)?;
 
     let outline = match existing {
         Some(existing) => {
@@ -282,7 +281,7 @@ pub async fn save_manual_part_outline(
         .cloned()
         .chain(std::iter::once(candidate.clone()))
         .collect::<Vec<_>>();
-    crate::outline::validate_part_outline_records(&prospective).map_err(map_outline_error)?;
+    crate::outline::validate_part_outline_records(&prospective)?;
 
     let saved = match existing {
         Some(existing) => {
@@ -328,8 +327,7 @@ pub async fn save_manual_part_outline(
         &current_parts,
         Utc::now().naive_utc(),
     )
-    .await
-    .map_err(map_outline_error)?;
+    .await?;
     txn.commit().await?;
     Ok(part_outline_record_from_model(saved))
 }
@@ -429,21 +427,4 @@ pub(super) fn next_updated_at(current: NaiveDateTime) -> NaiveDateTime {
         Utc::now().naive_utc(),
         current + chrono::Duration::microseconds(1),
     )
-}
-
-fn map_outline_error(error: crate::outline::OutlineDbError) -> ProjectOutlineRecordError {
-    match error {
-        crate::outline::OutlineDbError::Database(error) => {
-            ProjectOutlineRecordError::Database(error)
-        }
-        crate::outline::OutlineDbError::InvalidArgument(message) => {
-            ProjectOutlineRecordError::InvalidArgument(message)
-        }
-        crate::outline::OutlineDbError::InvalidState { current, operation } => {
-            ProjectOutlineRecordError::InvalidState { current, operation }
-        }
-        crate::outline::OutlineDbError::Generation(error) => {
-            ProjectOutlineRecordError::InvalidArgument(error.to_string())
-        }
-    }
 }

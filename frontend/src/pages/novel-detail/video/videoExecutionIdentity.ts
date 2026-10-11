@@ -4,6 +4,7 @@ import {
   type GeneratedVideo,
 } from "../../../api/video";
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
+import { isPositiveSafeInteger } from "../../../utils/numberRange";
 import {
   VIDEO_EXECUTION_CONTRACT_EPOCH,
   VIDEO_FINAL_PROMPT_TYPE,
@@ -101,9 +102,7 @@ export function videoExecutionSegmentIdentityIndex(
     const segment = asRecord(value);
     const segmentNumber = segment?.segment_number;
     if (
-      typeof segmentNumber !== "number" ||
-      !Number.isInteger(segmentNumber) ||
-      segmentNumber <= 0 ||
+      !isPositiveSafeInteger(segmentNumber) ||
       bySegmentNumber.has(segmentNumber)
     ) {
       continue;
@@ -113,9 +112,7 @@ export function videoExecutionSegmentIdentityIndex(
     if (
       typeof sourceShotId !== "string" ||
       !sourceShotId.trim() ||
-      typeof segmentIndexInShot !== "number" ||
-      !Number.isInteger(segmentIndexInShot) ||
-      segmentIndexInShot <= 0
+      !isPositiveSafeInteger(segmentIndexInShot)
     ) {
       bySegmentNumber.set(segmentNumber, null);
       continue;
@@ -160,9 +157,7 @@ export const segmentPlanExecutionIdentityIsComplete = (
     segments.every((value) => {
       const segmentNumber = asRecord(value)?.segment_number;
       return (
-        typeof segmentNumber === "number" &&
-        Number.isInteger(segmentNumber) &&
-        segmentNumber > 0 &&
+        isPositiveSafeInteger(segmentNumber) &&
         (bySegmentNumber.get(segmentNumber) ?? null) != null
       );
     })

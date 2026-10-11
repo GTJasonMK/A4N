@@ -130,8 +130,8 @@ pub(super) fn delete_input(
 pub(super) fn normalize_update_input(
     input: UpdateChapterOutlineInput,
 ) -> Result<a4n_db::project::ProjectChapterOutlineUpdateInput, WorkerFailure> {
-    super::positive(input.project_id, "project_id")?;
-    super::positive(input.outline_id, "outline_id")?;
+    WorkerFailure::require_positive_id(input.project_id, "project_id")?;
+    WorkerFailure::require_positive_id(input.outline_id, "outline_id")?;
     let expected_updated_at = input.expected_updated_at.trim().to_string();
     if expected_updated_at.is_empty() {
         return Err(WorkerFailure::invalid_request(

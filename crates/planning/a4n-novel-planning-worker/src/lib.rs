@@ -1,6 +1,6 @@
 //! PostgreSQL-backed shooting-script CRUD worker.
 
-use std::{env, net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc};
 
 use a4n_api_contract::chapter_visual_plan::{
     ChapterVisualPlanReadResult, ChapterVisualPlanRecordInput, ChapterVisualPlanRecordSummary,
@@ -33,9 +33,11 @@ use a4n_novel_planning_worker_contract::{
 };
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
-    WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,
-    WorkerHealthStatus, WorkerOperationRef, WorkerOperationStatus, WorkerResponse,
+    WorkerCapability, WorkerEnvelope, WorkerFailure, WorkerHealth, WorkerHealthStatus,
+    WorkerResponse,
 };
+#[cfg(test)]
+use a4n_worker_contract::{WorkerErrorCode, WorkerOperationStatus};
 use axum::{
     Json, Router,
     extract::State,
@@ -62,13 +64,6 @@ struct WorkerState {
     database: DbHandle,
     worker_id: Arc<str>,
     auth_token: Arc<str>,
-}
-
-#[derive(Debug)]
-struct WorkerFailure {
-    code: WorkerErrorCode,
-    message: String,
-    retryable: bool,
 }
 
 impl NovelPlanningWorker {
@@ -144,7 +139,7 @@ impl NovelPlanningWorker {
     pub async fn serve(self, address: SocketAddr) -> anyhow::Result<()> {
         let listener = tokio::net::TcpListener::bind(address).await?;
         axum::serve(listener, self.router())
-            .with_graceful_shutdown(worker::runtime::shutdown_signal())
+            .with_graceful_shutdown(a4n_worker_runtime::wait_for_shutdown_signal())
             .await
             .map_err(anyhow::Error::from)
     }
@@ -258,6 +253,7 @@ mod tests {
                 expected_revision: 2,
             },
         );
+        let failure: a4n_worker_contract::WorkerError = failure.into();
         assert_eq!(failure.code, WorkerErrorCode::Conflict);
         assert!(
             failure

@@ -1,5 +1,8 @@
 use super::errors::internal_error;
 use a4n_domain::ProviderError as AppError;
+use a4n_domain::media::{
+    ImageUploadFormat, image_upload_format_from_extension, image_upload_format_from_mime,
+};
 use base64::Engine as _;
 pub(crate) fn decode_base64_image(raw: &str) -> Result<Vec<u8>, AppError> {
     let b64 = raw
@@ -13,22 +16,21 @@ pub(crate) fn decode_base64_image(raw: &str) -> Result<Vec<u8>, AppError> {
 }
 pub(crate) fn normalize_image_format(value: &str) -> Result<String, AppError> {
     let format = value.trim().trim_start_matches('.').to_ascii_lowercase();
-    match format.as_str() {
-        "png" => Ok("png".into()),
-        "jpg" | "jpeg" => Ok("jpg".into()),
-        "webp" => Ok("webp".into()),
-        "" => Err(internal_error("图片响应缺少 format")),
-        other => Err(internal_error(format!("不支持的图片格式：{other}"))),
+    if format.is_empty() {
+        return Err(internal_error("图片响应缺少 format"));
     }
+    image_upload_format_from_extension(&format)
+        .map(|image_format| image_format.extension.to_string())
+        .ok_or_else(|| internal_error(format!("不支持的图片格式：{format}")))
 }
 
 pub(crate) fn detect_format_from_bytes(bytes: &[u8]) -> Result<String, AppError> {
     if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
-        Ok("png".into())
+        Ok(ImageUploadFormat::PNG.extension.into())
     } else if bytes.starts_with(b"\xff\xd8\xff") {
-        Ok("jpg".into())
+        Ok(ImageUploadFormat::JPEG.extension.into())
     } else if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") {
-        Ok("webp".into())
+        Ok(ImageUploadFormat::WEBP.extension.into())
     } else {
         Err(internal_error("无法识别图片字节格式"))
     }
@@ -94,12 +96,12 @@ pub(super) fn format_from_content_type(content_type: &str) -> Option<String> {
         .unwrap_or(content_type)
         .trim()
         .to_ascii_lowercase();
-    match media_type.as_str() {
-        "image/png" => Some("png".into()),
-        "image/jpeg" | "image/jpg" => Some("jpg".into()),
-        "image/webp" => Some("webp".into()),
-        _ => None,
-    }
+    let mime = if media_type == "image/jpg" {
+        ImageUploadFormat::JPEG.mime_type
+    } else {
+        &media_type
+    };
+    image_upload_format_from_mime(mime).map(|image_format| image_format.extension.into())
 }
 
 pub(crate) fn percent_encode_query(value: &str) -> String {

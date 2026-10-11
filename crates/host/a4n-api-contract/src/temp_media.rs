@@ -1,3 +1,4 @@
+use a4n_domain::media::{AudioMediaType, ImageUploadFormat};
 use a4n_service_protocol::JS_SAFE_INTEGER_U64;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -5,6 +6,98 @@ use serde::{Deserialize, Serialize};
 pub const TEMP_MEDIA_MAX_TTL_SECONDS: i64 = 24 * 60 * 60;
 pub const TEMP_MEDIA_METADATA_PART: &str = "metadata";
 pub const TEMP_MEDIA_FILE_PART: &str = "file";
+const TEMP_MEDIA_OGG_MIME_TYPES: &[&str] = &[AudioMediaType::OGG.mime_type];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TempMediaFormatKind {
+    Image,
+    Video,
+    Audio,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TempMediaFormat {
+    pub kind: TempMediaFormatKind,
+    pub mime_type: &'static str,
+    pub extension: &'static str,
+    pub accepted_mime_types: &'static [&'static str],
+    /// Browser `File.type` values accepted by the local file selector.
+    pub browser_mime_types: &'static [&'static str],
+}
+
+impl TempMediaFormat {
+    const fn image(format: ImageUploadFormat) -> Self {
+        Self {
+            kind: TempMediaFormatKind::Image,
+            mime_type: format.mime_type,
+            extension: format.extension,
+            accepted_mime_types: format.accepted_upload_mime_types,
+            browser_mime_types: format.browser_mime_types,
+        }
+    }
+
+    const fn audio(
+        format: AudioMediaType,
+        accepted_mime_types: &'static [&'static str],
+        browser_mime_types: &'static [&'static str],
+    ) -> Self {
+        Self {
+            kind: TempMediaFormatKind::Audio,
+            mime_type: format.mime_type,
+            extension: format.extension,
+            accepted_mime_types,
+            browser_mime_types,
+        }
+    }
+}
+
+/// MIME aliases, canonical MIME, and extensions accepted by the temp-media API.
+pub const TEMP_MEDIA_FORMATS: &[TempMediaFormat] = &[
+    TempMediaFormat::image(ImageUploadFormat::PNG),
+    TempMediaFormat::image(ImageUploadFormat::JPEG),
+    TempMediaFormat::image(ImageUploadFormat::WEBP),
+    TempMediaFormat {
+        kind: TempMediaFormatKind::Video,
+        mime_type: "video/mp4",
+        extension: "mp4",
+        accepted_mime_types: &["video/mp4"],
+        browser_mime_types: &["video/mp4"],
+    },
+    TempMediaFormat {
+        kind: TempMediaFormatKind::Video,
+        mime_type: "video/quicktime",
+        extension: "mov",
+        accepted_mime_types: &["video/quicktime"],
+        browser_mime_types: &["video/quicktime"],
+    },
+    TempMediaFormat {
+        kind: TempMediaFormatKind::Video,
+        mime_type: "video/webm",
+        extension: "webm",
+        accepted_mime_types: &["video/webm"],
+        browser_mime_types: &["video/webm"],
+    },
+    TempMediaFormat::audio(
+        AudioMediaType::MP3,
+        AudioMediaType::MP3.accepted_upload_mime_types,
+        &[AudioMediaType::MP3.mime_type],
+    ),
+    TempMediaFormat::audio(
+        AudioMediaType::WAV,
+        AudioMediaType::WAV.accepted_upload_mime_types,
+        AudioMediaType::WAV.accepted_upload_mime_types,
+    ),
+    TempMediaFormat::audio(
+        AudioMediaType::M4A,
+        AudioMediaType::M4A.accepted_upload_mime_types,
+        AudioMediaType::M4A.accepted_upload_mime_types,
+    ),
+    TempMediaFormat::audio(
+        AudioMediaType::OGG,
+        TEMP_MEDIA_OGG_MIME_TYPES,
+        TEMP_MEDIA_OGG_MIME_TYPES,
+    ),
+];
 
 /// Metadata part of a multipart upload; the file part carries the original bytes.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -64,6 +157,23 @@ pub struct TempMediaDeleteRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn browser_mimes_are_accepted_by_the_temp_media_upload_contract() {
+        assert!(TEMP_MEDIA_FORMATS.iter().all(|format| {
+            format
+                .browser_mime_types
+                .iter()
+                .all(|mime_type| format.accepted_mime_types.contains(mime_type))
+        }));
+
+        let mp3 = TEMP_MEDIA_FORMATS
+            .iter()
+            .find(|format| format.extension == "mp3")
+            .expect("mp3 temp media format");
+        assert_eq!(mp3.accepted_mime_types, &["audio/mpeg", "audio/mp3"]);
+        assert_eq!(mp3.browser_mime_types, &["audio/mpeg"]);
+    }
 
     #[test]
     fn temp_media_contract_round_trips_owner_and_artifact_metadata() {

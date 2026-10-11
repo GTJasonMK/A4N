@@ -67,7 +67,7 @@ async fn run() -> Result<(), String> {
                 .await
                 .map_err(|error| format!("应用数据迁移失败：{error}"))?;
         }
-        Some("canvas-split") => match subcommand.as_deref() {
+        Some("canvas-split") => match subcommand {
             Some("--preflight") => {
                 let report = a4n_migration::migrations::canvas_project_split::preflight(&db)
                     .await

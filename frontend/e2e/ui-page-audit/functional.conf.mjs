@@ -45,11 +45,12 @@ export const config = {
     "./novel.e2e.mjs",
     "./settings-details.e2e.mjs",
     "./settings.e2e.mjs",
+    "./test-center.e2e.mjs",
     "./ui-pages.e2e.mjs",
   ],
   mochaOpts: {
     ...base.mochaOpts,
-    grep: /(?:^Home and global Agent page audit (?:H\d{2}-|A\d{2}[a-z]?-)|^Settings detail pages and complete dialog workflows SD\d{2}-|^Settings pages with populated records (?:S02-size-edit|S05-web-tools|S06-(?:revert|pending-save|retry))|^Novel page audit.* (?:UX-B60|UX-B73|UX-B74|UX-698)|^Populated media pages and task dialogs UX-B(?:72|73)|^Individual page workflows X01-)/,
+    grep: /(?:^Home and global Agent page audit (?:H\d{2}-|A\d{2}[a-z]?-)|^Settings detail pages and complete dialog workflows SD\d{2}-|^Settings pages with populated records (?:S02-size-edit|S05-web-tools|S06-(?:revert|pending-save|retry))|^Novel page audit.* (?:UX-B60|UX-B73|UX-B74|UX-698)|^Populated media pages and task dialogs UX-B(?:72|73)|^Individual page workflows X01-|^Admin test center feature flow)/,
   },
   onPrepare: async (...args) => {
     try {

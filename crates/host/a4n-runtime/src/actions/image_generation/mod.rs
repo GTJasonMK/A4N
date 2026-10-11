@@ -34,5 +34,5 @@ pub use generation_task::start_image_generation_typed;
 
 pub(crate) use self::config::{resolve_image_config, resolve_image_provider_config};
 pub(crate) use preview::assemble_image_generation_request;
-pub(crate) use preview::image_generation_preview_step;
+pub(crate) use preview::{ImageGenerationPreviewInput, image_generation_preview_step};
 pub(crate) use reference::read_reference_image;

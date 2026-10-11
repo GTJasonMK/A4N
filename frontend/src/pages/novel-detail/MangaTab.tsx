@@ -12,6 +12,7 @@ import { useToast } from "../../components/feedback/Toast";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { extractErrorMessage } from "../../api";
+import { isPositiveSafeInteger, isSafeInteger } from "../../utils/numberRange";
 import { listChapters } from "../../api/chapter";
 import { listProfiles, type CharacterProfile } from "../../api/character";
 import {
@@ -107,10 +108,10 @@ function readMangaTextSource(projectId: number): MangaTextSourceSelection | null
     if (!value || typeof value !== "object") return null;
     const source = value as Partial<MangaTextSourceSelection>;
     if (
-      !Number.isInteger(source.assetId) || source.assetId! <= 0 ||
-      !Number.isInteger(source.version) || source.version! <= 0 ||
-      !Number.isInteger(source.startSection) || source.startSection! < 0 ||
-      !Number.isInteger(source.endSection) || source.endSection! < source.startSection!
+      !isPositiveSafeInteger(source.assetId) ||
+      !isPositiveSafeInteger(source.version) ||
+      !isSafeInteger(source.startSection) || source.startSection! < 0 ||
+      !isSafeInteger(source.endSection) || source.endSection! < source.startSection!
     ) return null;
     return source as MangaTextSourceSelection;
   } catch {

@@ -1,4 +1,5 @@
 use a4n_domain::{ProviderError, media::image_mime_from_path};
+use a4n_media::image_upload_format_from_image_format;
 use a4n_storage::canonicalize_data_file_path;
 use a4n_video_sidecar_contract::{
     MAX_VIDEO_IMAGE_BYTES, VideoGenerationInput, VideoGenerationRequest, VideoMediaSource,
@@ -36,19 +37,12 @@ fn inline_image_data_url(mime: &str, bytes: &[u8]) -> Result<String, ProviderErr
         .map_err(|error| {
             ProviderError::InvalidArgument(format!("视频图片格式无法识别：{error}"))
         })?;
-    let actual_mime = match reader.format() {
-        Some(image::ImageFormat::Png) => "image/png",
-        Some(image::ImageFormat::Jpeg) => "image/jpeg",
-        Some(image::ImageFormat::WebP) => "image/webp",
-        Some(_) => {
-            return Err(ProviderError::InvalidArgument("视频图片格式不支持".into()));
-        }
-        None => {
-            return Err(ProviderError::InvalidArgument(
-                "视频图片格式无法识别".into(),
-            ));
-        }
-    };
+    let format = reader
+        .format()
+        .ok_or_else(|| ProviderError::InvalidArgument("视频图片格式无法识别".into()))?;
+    let actual_mime = image_upload_format_from_image_format(format)
+        .map(|image_format| image_format.mime_type)
+        .ok_or_else(|| ProviderError::InvalidArgument("视频图片格式不支持".into()))?;
     if actual_mime != mime {
         return Err(ProviderError::InvalidArgument(
             "视频图片 MIME 与文件格式不一致".into(),
@@ -70,13 +64,17 @@ fn inline_image_data_url(mime: &str, bytes: &[u8]) -> Result<String, ProviderErr
 
     let resized = image.thumbnail(INLINE_IMAGE_MAX_SIDE, INLINE_IMAGE_MAX_SIDE);
     let mut compressed = Vec::new();
-    let mime = if resized.color().has_alpha() {
+    let output_format = if resized.color().has_alpha() {
+        image::ImageFormat::Png
+    } else {
+        image::ImageFormat::Jpeg
+    };
+    if output_format == image::ImageFormat::Png {
         resized
-            .write_to(&mut Cursor::new(&mut compressed), image::ImageFormat::Png)
+            .write_to(&mut Cursor::new(&mut compressed), output_format)
             .map_err(|error| {
                 ProviderError::InvalidArgument(format!("视频图片压缩失败：{error}"))
             })?;
-        "image/png"
     } else {
         image::codecs::jpeg::JpegEncoder::new_with_quality(
             &mut compressed,
@@ -84,10 +82,12 @@ fn inline_image_data_url(mime: &str, bytes: &[u8]) -> Result<String, ProviderErr
         )
         .encode_image(&image::DynamicImage::ImageRgb8(resized.to_rgb8()))
         .map_err(|error| ProviderError::InvalidArgument(format!("视频图片压缩失败：{error}")))?;
-        "image/jpeg"
-    };
+    }
+    let output_mime = image_upload_format_from_image_format(output_format)
+        .map(|image_format| image_format.mime_type)
+        .ok_or_else(|| ProviderError::InvalidArgument("视频图片压缩输出格式不支持".into()))?;
     Ok(format!(
-        "data:{mime};base64,{}",
+        "data:{output_mime};base64,{}",
         base64::engine::general_purpose::STANDARD.encode(compressed)
     ))
 }

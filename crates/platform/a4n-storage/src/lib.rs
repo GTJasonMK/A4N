@@ -12,7 +12,7 @@ pub use files::{
     deletable_data_file_path, inspect_data_file_facts, persist_created_media_file,
     promote_data_file, remove_created_file_on_error, remove_created_file_on_error_sync,
     remove_data_dir_in_data_dir, remove_data_file_in_data_dir, remove_existing_data_file,
-    write_new_data_file,
+    write_new_data_file, write_new_synced_data_file,
 };
 
 pub use files::paths::{

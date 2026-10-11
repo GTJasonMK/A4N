@@ -19,6 +19,7 @@ import {
   type VideoSegmentWorkflowMode,
 } from "../../../api/video";
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
+import { isPositiveSafeInteger } from "../../../utils/numberRange";
 import type { ChapterRow } from "../shared";
 import { formatDateTime, formatNumber, type Locale, type MessageTranslator } from "../../../i18n";
 import {
@@ -55,14 +56,14 @@ export const videoImageGenerationPromptId = (
   img: GeneratedImage,
 ): number | null => {
   const raw = videoImageGenerationContext(img)?.prompt_id;
-  return typeof raw === "number" && Number.isInteger(raw) && raw > 0
+  return isPositiveSafeInteger(raw)
     ? raw
     : null;
 };
 
 const videoImageGenerationShotNumber = (img: GeneratedImage): number | null => {
   const raw = videoImageGenerationContext(img)?.shot_number;
-  return typeof raw === "number" && Number.isInteger(raw) && raw > 0
+  return isPositiveSafeInteger(raw)
     ? raw
     : null;
 };
@@ -93,7 +94,7 @@ export const videoTailFrameSourceVideoId = (
   )
     return null;
   const raw = videoImageGenerationContext(img)?.video_id;
-  return typeof raw === "number" && Number.isInteger(raw) && raw > 0
+  return isPositiveSafeInteger(raw)
     ? raw
     : null;
 };
@@ -239,13 +240,12 @@ export function profileMaterialKindOfImage(
 }
 
 const metadataNumber = (value: unknown): number | null => {
-  if (typeof value === "number" && Number.isInteger(value) && value > 0)
-    return value;
+  if (isPositiveSafeInteger(value)) return value;
   if (typeof value === "string") {
     const text = value.trim();
     if (!/^\+?\d+$/.test(text)) return null;
     const parsed = Number(text);
-    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+    return isPositiveSafeInteger(parsed) ? parsed : null;
   }
   return null;
 };
@@ -305,7 +305,7 @@ export const readSavedReferenceImageIds = (
   const ids: number[] = [];
   const seen = new Set<number>();
   for (const [index, item] of value.entries()) {
-    if (typeof item !== "number" || !Number.isInteger(item) || item <= 0) {
+    if (!isPositiveSafeInteger(item)) {
       return {
         ids: [],
         error: t("video.chapter.invalidReferenceItem", { field, index }),

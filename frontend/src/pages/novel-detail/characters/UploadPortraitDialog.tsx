@@ -12,9 +12,9 @@ import { BookInput, BookTextarea } from "../../../components/ui/BookInput";
 import { ImageZoomButton } from "../../../components/ui/ImageLightbox";
 import { Modal } from "../../../components/ui/Modal";
 import { readFileAsBase64 } from "../../../utils/fileUpload";
+import { MAX_UPLOAD_IMAGE_BYTES } from "../../../api/generated/config";
 import {
   isSupportedImageMime,
-  MAX_UPLOAD_IMAGE_BYTES,
   supportedImageAccept,
 } from "../../../utils/imageUpload";
 import { useI18n, type MessageTranslator } from "../../../i18n";

@@ -1,9 +1,10 @@
 use std::{collections::HashMap, time::Duration};
 
 use a4n_worker_contract::{
-    WORKER_SCHEMA_VERSION, WorkerCancelRequest, WorkerCapabilities, WorkerEnvelope, WorkerHealth,
-    WorkerHealthStatus, WorkerLease, WorkerOperationRef, WorkerOperationStatus, WorkerPrincipal,
-    WorkerPrincipalKind, WorkerRecoveryRequest, WorkerResponse,
+    WORKER_SCHEMA_VERSION, WorkerCancelRequest, WorkerCapabilities, WorkerEnvelope, WorkerError,
+    WorkerErrorCode, WorkerHealth, WorkerHealthStatus, WorkerLease, WorkerOperationRef,
+    WorkerOperationStatus, WorkerPrincipal, WorkerPrincipalKind, WorkerRecoveryRequest,
+    WorkerResponse,
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -12,8 +13,263 @@ use tokio::{
 };
 
 use super::{
-    HttpWorkerClient, WORKER_AUTH_HEADER, WorkerClientConfig, WorkerClientError, WorkerJsonResponse,
+    HttpWorkerClient, WORKER_AUTH_HEADER, WorkerClientConfig, WorkerClientError,
+    WorkerClientErrorPolicy, WorkerJsonResponse, map_worker_client_error,
+    map_worker_response_error, optional_positive_id, positive_id, resolve_worker_client_connection,
+    user_principal, user_principal_with_scope, worker_response_payload,
 };
+
+#[test]
+fn worker_client_error_mapping_preserves_transport_policy() {
+    assert!(matches!(
+        map_worker_client_error(
+            WorkerClientError::Timeout,
+            "worker",
+            WorkerClientErrorPolicy::Configuration,
+        ),
+        a4n_error::AppError::ConfigError(message) if message == "worker 请求失败: worker request timed out"
+    ));
+    assert!(matches!(
+        map_worker_client_error(
+            WorkerClientError::Timeout,
+            "worker",
+            WorkerClientErrorPolicy::TransientAsTimeout,
+        ),
+        a4n_error::AppError::Timeout(message) if message == "worker 请求超时"
+    ));
+    assert!(matches!(
+        map_worker_client_error(
+            WorkerClientError::HttpStatus { status: 503 },
+            "worker",
+            WorkerClientErrorPolicy::TransientAsTimeout,
+        ),
+        a4n_error::AppError::Timeout(message) if message == "worker 返回 HTTP 503"
+    ));
+    assert!(matches!(
+        map_worker_client_error(
+            WorkerClientError::HttpStatus { status: 409 },
+            "worker",
+            WorkerClientErrorPolicy::TransientAsTimeout,
+        ),
+        a4n_error::AppError::ConfigError(message) if message == "worker 请求失败: worker returned HTTP status 409"
+    ));
+}
+
+#[test]
+fn worker_response_error_mapping_preserves_basic_contract() {
+    assert!(matches!(
+        map_worker_response_error(
+            &WorkerError {
+                code: WorkerErrorCode::Conflict,
+                message: "revision conflict".into(),
+                retryable: false,
+            },
+            "demo worker",
+            "demo.save",
+        ),
+        a4n_error::AppError::InvalidState { current, operation }
+            if current == "revision conflict" && operation == "demo.save"
+    ));
+    assert!(matches!(
+        map_worker_response_error(
+            &WorkerError {
+                code: WorkerErrorCode::Internal,
+                message: "internal failure".into(),
+                retryable: false,
+            },
+            "demo worker",
+            "demo.save",
+        ),
+        a4n_error::AppError::ConfigError(message)
+            if message == "demo worker demo.save 失败: internal failure"
+    ));
+}
+
+#[test]
+fn worker_response_payload_preserves_status_and_diagnostic_semantics() {
+    assert_eq!(
+        worker_response_payload(
+            typed_worker_response(WorkerOperationStatus::Completed, Some("payload"), None,),
+            "demo worker",
+            Some("demo.read"),
+            |_| unreachable!("completed response does not map an error"),
+        )
+        .expect("completed payload should be returned"),
+        "payload"
+    );
+
+    assert!(matches!(
+        worker_response_payload::<()>(
+            typed_worker_response(WorkerOperationStatus::Completed, None, None),
+            "demo worker",
+            Some("demo.read"),
+            |_| unreachable!("completed response does not map an error"),
+        ),
+        Err(a4n_error::AppError::ConfigError(message))
+            if message == "demo worker 完成响应缺少 payload: demo.read"
+    ));
+    assert!(matches!(
+        worker_response_payload::<()>(
+            typed_worker_response(WorkerOperationStatus::Completed, None, None),
+            "demo worker",
+            None,
+            |_| unreachable!("completed response does not map an error"),
+        ),
+        Err(a4n_error::AppError::ConfigError(message))
+            if message == "demo worker 完成响应缺少 payload"
+    ));
+
+    assert!(matches!(
+        worker_response_payload(
+            typed_worker_response::<()>(
+                WorkerOperationStatus::Failed,
+                None,
+                Some(WorkerError {
+                    code: WorkerErrorCode::InvalidRequest,
+                    message: "invalid input".into(),
+                    retryable: false,
+                }),
+            ),
+            "demo worker",
+            Some("demo.read"),
+            |error| a4n_error::AppError::InvalidArgument(error.message.clone()),
+        ),
+        Err(a4n_error::AppError::InvalidArgument(message)) if message == "invalid input"
+    ));
+
+    assert!(matches!(
+        worker_response_payload::<()>(
+            typed_worker_response(WorkerOperationStatus::Running, None, None),
+            "demo worker",
+            Some("demo.read"),
+            |_| unreachable!("running response does not map an error"),
+        ),
+        Err(a4n_error::AppError::ConfigError(message))
+            if message == "demo worker 返回未完成状态: operation=demo.read, status=Running"
+    ));
+    assert!(matches!(
+        worker_response_payload::<()>(
+            typed_worker_response(WorkerOperationStatus::Running, None, None),
+            "demo worker",
+            None,
+            |_| unreachable!("running response does not map an error"),
+        ),
+        Err(a4n_error::AppError::ConfigError(message))
+            if message == "demo worker 返回未完成状态: Running"
+    ));
+}
+
+fn typed_worker_response<T>(
+    status: WorkerOperationStatus,
+    payload: Option<T>,
+    error: Option<WorkerError>,
+) -> WorkerResponse<T> {
+    WorkerResponse {
+        schema_version: WORKER_SCHEMA_VERSION,
+        request_id: "request".into(),
+        trace_id: "trace".into(),
+        operation: operation("demo.read"),
+        status,
+        payload,
+        resource_refs: Vec::new(),
+        committed_revision: None,
+        provider_job_id: None,
+        result_summary: None,
+        pagination: None,
+        error,
+    }
+}
+
+#[test]
+fn user_principal_requires_a_positive_id() {
+    let principal = user_principal(7).expect("positive user ID should build a principal");
+    assert_eq!(principal.kind, WorkerPrincipalKind::User);
+    assert_eq!(principal.subject, "7");
+
+    for user_id in [0, -1] {
+        assert!(matches!(
+            user_principal(user_id),
+            Err(a4n_error::AppError::InvalidArgument(message))
+                if message == "user_id 必须大于 0"
+        ));
+    }
+}
+
+#[test]
+fn user_principal_with_scope_preserves_project_validation_policy() {
+    const ERROR: &str = "user_id 和 project_id 必须大于 0";
+    assert_eq!(
+        user_principal_with_scope(7, Some(3), ERROR)
+            .expect("valid project-scoped principal")
+            .subject,
+        "7"
+    );
+    assert!(user_principal_with_scope(7, None, ERROR).is_ok());
+
+    for (user_id, project_id) in [(0, Some(3)), (7, Some(0)), (7, Some(-1))] {
+        assert!(matches!(
+            user_principal_with_scope(user_id, project_id, ERROR),
+            Err(a4n_error::AppError::InvalidArgument(message)) if message == ERROR
+        ));
+    }
+}
+
+#[test]
+fn positive_id_helpers_preserve_field_errors_and_optional_none() {
+    assert_eq!(positive_id("project_id", 7).expect("positive ID"), 7);
+    assert_eq!(
+        optional_positive_id("project_id", None).expect("optional ID"),
+        None
+    );
+    assert_eq!(
+        optional_positive_id("project_id", Some(7)).expect("positive optional ID"),
+        Some(7)
+    );
+
+    for value in [0, -1] {
+        assert!(matches!(
+            positive_id("project_id", value),
+            Err(a4n_error::AppError::InvalidArgument(message))
+                if message == "project_id 必须大于 0"
+        ));
+        assert!(matches!(
+            optional_positive_id("project_id", Some(value)),
+            Err(a4n_error::AppError::InvalidArgument(message))
+                if message == "project_id 必须大于 0"
+        ));
+    }
+}
+
+#[test]
+fn worker_client_connection_keeps_default_and_optional_token_rules() {
+    assert_eq!(
+        resolve_worker_client_connection(
+            Err(std::env::VarError::NotPresent),
+            Err(std::env::VarError::NotPresent),
+            "http://127.0.0.1:47650",
+        ),
+        ("http://127.0.0.1:47650".to_string(), None),
+    );
+    assert_eq!(
+        resolve_worker_client_connection(
+            Ok(" https://worker.example.test ".to_string()),
+            Ok(" token ".to_string()),
+            "http://127.0.0.1:47650",
+        ),
+        (
+            " https://worker.example.test ".to_string(),
+            Some(" token ".to_string()),
+        ),
+    );
+    assert_eq!(
+        resolve_worker_client_connection(
+            Ok("   ".to_string()),
+            Ok("   ".to_string()),
+            "http://127.0.0.1:47650",
+        ),
+        ("http://127.0.0.1:47650".to_string(), None),
+    );
+}
 
 #[tokio::test]
 async fn health_and_capabilities_roundtrip() {

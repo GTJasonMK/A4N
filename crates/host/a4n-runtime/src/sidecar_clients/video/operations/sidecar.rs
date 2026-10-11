@@ -6,9 +6,9 @@ use a4n_video_client::VideoClient;
 use serde_json::Value;
 
 use super::super::super::{
-    SidecarRequestContext, missing_sidecar_capability_message, response_payload,
-    service_error_string, sidecar_context_for_workflow_operation_with_root, typed_response_payload,
-    typed_service_request_with_context_provider_secret_policy,
+    SidecarRequestContext, SidecarWorkflowScope, missing_sidecar_capability_message,
+    response_payload, service_error_string, sidecar_context_for_workflow_operation_with_root,
+    typed_response_payload, typed_service_request_with_context_provider_secret_policy,
 };
 use super::super::contracts::{
     VideoDeleteOutput, VideoJobOutput, VideoPollPayload, VideoStatusOutput, video_config_params,
@@ -39,9 +39,7 @@ pub(super) async fn poll_video_via_sidecar(
     client: Arc<dyn VideoClient>,
     config: &VideoProviderConfig,
     job_id: &str,
-    project_id: Option<i64>,
-    root_project_id: Option<i64>,
-    workflow_run_id: Option<i64>,
+    scope: SidecarWorkflowScope,
 ) -> Result<VideoJobState, String> {
     let params = video_config_params(config)?;
     let api_key = params
@@ -51,17 +49,12 @@ pub(super) async fn poll_video_via_sidecar(
         backend: params.backend,
         base_url: params.base_url,
         api_key,
-        project_id,
+        project_id: scope.project_id,
         job_id: job_id.to_string(),
     };
     let response = client
         .poll(typed_service_request_with_context_provider_secret_policy(
-            sidecar_context_for_workflow_operation_with_root(
-                project_id,
-                root_project_id,
-                workflow_run_id,
-                "video.poll",
-            )?,
+            sidecar_context_for_workflow_operation_with_root(scope, "video.poll")?,
             a4n_service_protocol::VIDEO_PROVIDER_CAPABILITY_VERSION,
             payload,
         )?)

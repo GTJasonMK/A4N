@@ -4,7 +4,10 @@
 
 use std::{io::Cursor, path::Path};
 
-use a4n_domain::media::{DecodedUploadedAudio, DecodedUploadedImage, canonical_audio_mime};
+use a4n_domain::media::{
+    DecodedUploadedAudio, DecodedUploadedImage, ImageUploadFormat, canonical_audio_mime,
+    image_upload_format_from_extension, image_upload_format_from_mime,
+};
 use base64::Engine as _;
 use image::GenericImageView;
 
@@ -116,7 +119,10 @@ pub fn decode_uploaded_image_data(
     let expected_mime = normalize_upload_mime(mime_type)?;
     let bytes = decode_uploaded_bytes(data_base64, "上传图片", max_bytes)?;
     let format = image::guess_format(&bytes).map_err(|_| "上传图片不是有效图片".to_string())?;
-    let (actual_mime, extension) = supported_upload_image_format(format)?;
+    let image_format = image_upload_format_from_image_format(format)
+        .ok_or_else(|| "上传图片格式不支持，仅支持 PNG/JPEG/WebP".to_string())?;
+    let actual_mime = image_format.mime_type;
+    let extension = image_format.extension;
     if actual_mime != expected_mime {
         return Err("上传图片 MIME 与真实图片格式不一致".to_string());
     }
@@ -140,23 +146,18 @@ pub fn decode_uploaded_image_data(
 }
 
 fn normalize_upload_mime(mime_type: &str) -> Result<&'static str, String> {
-    match mime_type.trim().to_ascii_lowercase().as_str() {
-        "image/png" => Ok("image/png"),
-        "image/jpeg" => Ok("image/jpeg"),
-        "image/webp" => Ok("image/webp"),
-        _ => Err("只支持 PNG/JPEG/WebP 图片".to_string()),
-    }
+    image_upload_format_from_mime(mime_type)
+        .map(|format| format.mime_type)
+        .ok_or_else(|| "只支持 PNG/JPEG/WebP 图片".to_string())
 }
 
-fn supported_upload_image_format(
+pub fn image_upload_format_from_image_format(
     format: image::ImageFormat,
-) -> Result<(&'static str, &'static str), String> {
-    match format {
-        image::ImageFormat::Png => Ok(("image/png", "png")),
-        image::ImageFormat::Jpeg => Ok(("image/jpeg", "jpg")),
-        image::ImageFormat::WebP => Ok(("image/webp", "webp")),
-        _ => Err("上传图片格式不支持，仅支持 PNG/JPEG/WebP".to_string()),
-    }
+) -> Option<&'static ImageUploadFormat> {
+    format
+        .extensions_str()
+        .iter()
+        .find_map(|extension| image_upload_format_from_extension(extension))
 }
 
 #[cfg(test)]
@@ -168,10 +169,10 @@ mod tests {
     #[test]
     fn supported_codecs_decode_uploads_and_provider_dimensions() {
         let image = image::DynamicImage::new_rgb8(3, 2);
-        for (format, mime, name) in [
-            (image::ImageFormat::Png, "image/png", "test.png"),
-            (image::ImageFormat::Jpeg, "image/jpeg", "test.jpg"),
-            (image::ImageFormat::WebP, "image/webp", "test.webp"),
+        for (format, mime, extension, name) in [
+            (image::ImageFormat::Png, "image/png", "png", "test.png"),
+            (image::ImageFormat::Jpeg, "image/jpeg", "jpg", "test.jpg"),
+            (image::ImageFormat::WebP, "image/webp", "webp", "test.webp"),
         ] {
             let mut bytes = Cursor::new(Vec::new());
             image.write_to(&mut bytes, format).unwrap();
@@ -182,7 +183,9 @@ mod tests {
             let encoded = base64::engine::general_purpose::STANDARD.encode(bytes.get_ref());
             let decoded = decode_uploaded_image_data(name, mime, &encoded, 1024 * 1024).unwrap();
             assert_eq!((decoded.width, decoded.height), (3, 2));
+            assert_eq!((decoded.mime_type, decoded.extension), (mime, extension));
         }
+        assert!(image_upload_format_from_image_format(image::ImageFormat::Gif).is_none());
     }
 
     #[test]

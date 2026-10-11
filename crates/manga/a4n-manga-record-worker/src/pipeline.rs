@@ -21,11 +21,8 @@ use a4n_worker_contract::WorkerEnvelope;
 
 use super::{
     WorkerState,
-    access::{user_id, verify_manga_viewer},
-    protocol::{
-        WorkerFailure, manga_error, positive, project_family_error, validate_request,
-        workflow_error,
-    },
+    access::verify_manga_viewer,
+    protocol::{WorkerFailure, manga_error, validate_request},
 };
 
 impl WorkerState {
@@ -34,7 +31,7 @@ impl WorkerState {
         request: WorkerEnvelope<MangaChapterInput>,
     ) -> Result<MangaPipelineStatusSummary, WorkerFailure> {
         validate_request(&request, MANGA_PIPELINE_STATUS_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         let mut statuses = self
             .pipeline_statuses_for(user_id, input.project_id, &[input.chapter_id])
@@ -49,7 +46,7 @@ impl WorkerState {
         request: WorkerEnvelope<MangaPipelineStatusesInput>,
     ) -> Result<Vec<MangaPipelineStatusSummary>, WorkerFailure> {
         validate_request(&request, MANGA_PIPELINE_STATUSES_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
         self.pipeline_statuses_for(user_id, input.project_id, &input.chapter_ids)
             .await
@@ -61,7 +58,7 @@ impl WorkerState {
         project_id: i64,
         chapter_ids: &[i64],
     ) -> Result<Vec<MangaPipelineStatusSummary>, WorkerFailure> {
-        positive(project_id, "project_id")?;
+        WorkerFailure::require_positive_id(project_id, "project_id")?;
         verify_manga_viewer(&self.database, project_id, user_id).await?;
         if chapter_ids.is_empty() {
             return Err(WorkerFailure::invalid_request("chapter_ids 不能为空"));
@@ -73,7 +70,7 @@ impl WorkerState {
         }
         let mut seen = HashSet::with_capacity(chapter_ids.len());
         for chapter_id in chapter_ids {
-            positive(*chapter_id, "chapter_id")?;
+            WorkerFailure::require_positive_id(*chapter_id, "chapter_id")?;
             if !seen.insert(*chapter_id) {
                 return Err(WorkerFailure::invalid_request(format!(
                     "chapter_id 重复: {chapter_id}"
@@ -110,7 +107,7 @@ impl WorkerState {
                     },
                 )
                 .await
-                .map_err(workflow_error)
+                .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_invalid_request)
             },
             async {
                 a4n_db::generation::active_generation_tasks_for_project(
@@ -118,7 +115,7 @@ impl WorkerState {
                     project_id,
                 )
                 .await
-                .map_err(|error| WorkerFailure::unavailable(error.to_string()))
+                .map_err(a4n_worker_db_adapter::map_database_error)
             },
         )?;
         let mut active_handles = active_tasks
@@ -168,7 +165,7 @@ impl WorkerState {
                         run.id,
                     )
                     .await
-                    .map_err(workflow_error)?;
+                    .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_invalid_request)?;
                     if latest.status != run.status || latest.active_task_id != run.active_task_id {
                         run = latest;
                         latest_runs.insert(chapter_id, run.clone());
@@ -200,7 +197,9 @@ impl WorkerState {
                             run.id,
                         )
                         .await
-                        .map_err(workflow_error)?;
+                        .map_err(
+                            a4n_worker_db_adapter::map_workflow_read_error_as_invalid_request,
+                        )?;
                         if latest.status != run.status
                             || latest.active_task_id != run.active_task_id
                         {
@@ -224,7 +223,7 @@ impl WorkerState {
                         run.id,
                     )
                     .await
-                    .map_err(workflow_error)?;
+                    .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_invalid_request)?;
                     if latest.status != run.status || latest.active_task_id != run.active_task_id {
                         run = latest;
                         latest_runs.insert(chapter_id, run.clone());
@@ -268,7 +267,7 @@ impl WorkerState {
             &run_ids,
         )
         .await
-        .map_err(workflow_error)?;
+        .map_err(a4n_worker_db_adapter::map_workflow_read_error_as_invalid_request)?;
         let completed_checkpoint_runs = checkpoints
             .into_iter()
             .filter_map(|(run_id, status)| (status == "completed").then_some(run_id))
@@ -290,7 +289,7 @@ impl WorkerState {
                     false,
                 )
                 .await
-                .map_err(project_family_error)
+                .map_err(a4n_worker_db_adapter::map_project_family_db_error)
             },
             async {
                 if checkpoint_chapter_ids.is_empty() {
@@ -301,7 +300,7 @@ impl WorkerState {
                         project_id,
                     )
                     .await
-                    .map_err(project_family_error)
+                    .map_err(a4n_worker_db_adapter::map_project_family_db_error)
                 }
             },
         )?;
@@ -461,6 +460,6 @@ mod tests {
         })
         .unwrap_err();
 
-        assert!(error.message.contains("未知状态"));
+        assert!(error.message().contains("未知状态"));
     }
 }

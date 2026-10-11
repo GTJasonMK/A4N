@@ -1,6 +1,6 @@
 //! PostgreSQL-backed project permission read worker.
 
-use std::{env, net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc};
 
 use a4n_db::DbHandle;
 use a4n_project_access_worker_contract::{
@@ -12,9 +12,8 @@ use a4n_project_access_worker_contract::{
 use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
-    WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,
-    WorkerHealthStatus, WorkerOperationRef, WorkerOperationStatus, WorkerPrincipalKind,
-    WorkerResponse,
+    WorkerCapability, WorkerEnvelope, WorkerFailure, WorkerHealth, WorkerHealthStatus,
+    WorkerPrincipalKind,
 };
 use axum::{
     Json, Router,
@@ -23,7 +22,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use subtle::ConstantTimeEq;
 
 const WORKER_ADDR_ENV: &str = "A4N_PROJECT_ACCESS_WORKER_ADDR";
 const DATABASE_URL_ENV: &str = "A4N_DATABASE_URL";
@@ -40,13 +38,6 @@ struct WorkerState {
     database: DbHandle,
     worker_id: Arc<str>,
     auth_token: Arc<str>,
-}
-
-#[derive(Debug)]
-struct WorkerFailure {
-    code: WorkerErrorCode,
-    message: String,
-    retryable: bool,
 }
 
 mod operations;
@@ -83,7 +74,7 @@ impl ProjectAccessWorker {
     pub async fn serve(self, address: SocketAddr) -> anyhow::Result<()> {
         let listener = tokio::net::TcpListener::bind(address).await?;
         axum::serve(listener, self.router())
-            .with_graceful_shutdown(shutdown_signal())
+            .with_graceful_shutdown(a4n_worker_runtime::wait_for_shutdown_signal())
             .await
             .map_err(anyhow::Error::from)
     }
@@ -97,26 +88,15 @@ pub fn run() -> anyhow::Result<()> {
 }
 
 async fn async_main() -> anyhow::Result<()> {
-    init_tracing();
+    a4n_worker_runtime::init_worker_tracing();
     let database_url = a4n_config::required_non_empty_env_string(DATABASE_URL_ENV)?;
     a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
     let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
-    let address = worker_addr()?;
+    let address = a4n_config::worker_listen_addr(WORKER_ADDR_ENV, DEFAULT_ADDR)?;
     let database = DbHandle::connect(database_url).await?;
     ProjectAccessWorker::new(database, PROJECT_ACCESS_WORKER_ID, auth_token)
         .serve(address)
         .await
-}
-
-fn worker_addr() -> anyhow::Result<SocketAddr> {
-    let value = env::var(WORKER_ADDR_ENV).unwrap_or_else(|_| DEFAULT_ADDR.into());
-    let address: SocketAddr = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{WORKER_ADDR_ENV} 无效: {error}"))?;
-    if !address.ip().is_loopback() || address.port() == 0 {
-        anyhow::bail!("{WORKER_ADDR_ENV} 必须是 loopback 且端口大于 0")
-    }
-    Ok(address)
 }
 
 async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Response {
@@ -199,21 +179,22 @@ where
     F: FnOnce(WorkerEnvelope<T>) -> Fut,
     Fut: std::future::Future<Output = Result<O, WorkerFailure>>,
 {
-    if !state.authorized(headers) {
-        return unauthorized();
-    }
-    let response = match command(request.clone()).await {
-        Ok(payload) => completed(&request, payload),
-        Err(error) => failed(&request, error),
-    };
-    Json(response).into_response()
+    a4n_worker_runtime::worker_command_response(
+        state.authorized(headers),
+        request,
+        command,
+        unauthorized,
+    )
+    .await
 }
 
 impl WorkerState {
     fn authorized(&self, headers: &HeaderMap) -> bool {
-        headers
-            .get(WORKER_AUTH_HEADER)
-            .is_some_and(|value| bool::from(value.as_bytes().ct_eq(self.auth_token.as_bytes())))
+        a4n_worker_runtime::worker_token_authorized(
+            headers,
+            WORKER_AUTH_HEADER,
+            self.auth_token.as_bytes(),
+        )
     }
 }
 
@@ -222,173 +203,18 @@ fn validate_user_request<T: serde::Serialize>(
     operation: &str,
 ) -> Result<(), WorkerFailure> {
     request_validate(request, operation)?;
-    if request.principal.kind != WorkerPrincipalKind::User {
-        return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
-    }
-    Ok(())
+    request
+        .principal
+        .require_kind(WorkerPrincipalKind::User, "仅允许用户 principal")
 }
 
 fn request_validate<T: serde::Serialize>(
     request: &WorkerEnvelope<T>,
     operation: &str,
 ) -> Result<(), WorkerFailure> {
-    request
-        .validate()
-        .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
-    if request.operation_id != operation {
-        return Err(WorkerFailure::invalid_request(format!(
-            "operation_id 不匹配: expected={operation}, actual={}",
-            request.operation_id
-        )));
-    }
-    if request.lease.worker_id != PROJECT_ACCESS_WORKER_ID {
-        return Err(WorkerFailure::invalid_request(
-            "lease.worker_id 不属于 project access worker",
-        ));
-    }
-    Ok(())
-}
-
-fn scoped_project_id<T>(
-    request: &WorkerEnvelope<T>,
-    project_id: i64,
-) -> Result<i64, WorkerFailure> {
-    if project_id <= 0 || request.project_id != Some(project_id) {
-        return Err(WorkerFailure::invalid_request(
-            "worker scope project_id 与 payload 不一致或无效",
-        ));
-    }
-    Ok(project_id)
-}
-
-fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
-    request
-        .principal
-        .subject
-        .parse::<i64>()
-        .ok()
-        .filter(|id| *id > 0)
-        .ok_or_else(|| WorkerFailure::unauthorized("用户 principal subject 无效"))
-}
-
-fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
-    match error {
-        a4n_db::collaboration::CollaborationDbError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::NotFound(message) => {
-            WorkerFailure::not_found(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::Forbidden(message) => {
-            WorkerFailure::unauthorized(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::InvalidState(message)
-        | a4n_db::collaboration::CollaborationDbError::Internal(message) => {
-            WorkerFailure::conflict(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
-}
-
-fn completed<T>(request: &WorkerEnvelope<impl serde::Serialize>, payload: T) -> WorkerResponse<T> {
-    WorkerResponse {
-        schema_version: WORKER_SCHEMA_VERSION,
-        request_id: request.request_id.clone(),
-        trace_id: request.trace_id.clone(),
-        operation: WorkerOperationRef {
-            operation_id: request.operation_id.clone(),
-            task_id: None,
-        },
-        status: WorkerOperationStatus::Completed,
-        payload: Some(payload),
-        resource_refs: Vec::new(),
-        committed_revision: None,
-        provider_job_id: None,
-        result_summary: None,
-        pagination: None,
-        error: None,
-    }
-}
-
-fn failed<T>(
-    request: &WorkerEnvelope<impl serde::Serialize>,
-    failure: WorkerFailure,
-) -> WorkerResponse<T> {
-    WorkerResponse {
-        schema_version: WORKER_SCHEMA_VERSION,
-        request_id: request.request_id.clone(),
-        trace_id: request.trace_id.clone(),
-        operation: WorkerOperationRef {
-            operation_id: request.operation_id.clone(),
-            task_id: None,
-        },
-        status: WorkerOperationStatus::Failed,
-        payload: None,
-        resource_refs: Vec::new(),
-        committed_revision: None,
-        provider_job_id: None,
-        result_summary: None,
-        pagination: None,
-        error: Some(WorkerError {
-            code: failure.code,
-            message: failure.message,
-            retryable: failure.retryable,
-        }),
-    }
+    request.validate_worker_command(operation, PROJECT_ACCESS_WORKER_ID, "project access worker")
 }
 
 fn unauthorized() -> Response {
     StatusCode::UNAUTHORIZED.into_response()
-}
-
-impl WorkerFailure {
-    fn invalid_request(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::InvalidRequest,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-    fn unauthorized(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unauthorized,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-    fn not_found(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::NotFound,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-    fn conflict(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Conflict,
-            message: message.into(),
-            retryable: false,
-        }
-    }
-    fn unavailable(message: impl Into<String>) -> Self {
-        Self {
-            code: WorkerErrorCode::Unavailable,
-            message: message.into(),
-            retryable: true,
-        }
-    }
-}
-
-fn init_tracing() {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
-        )
-        .try_init();
-}
-
-async fn shutdown_signal() {
-    let _ = tokio::signal::ctrl_c().await;
 }

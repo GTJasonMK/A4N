@@ -1,3 +1,5 @@
+import { isPositiveSafeInteger } from "../../utils/numberRange";
+
 export const IMAGE_TYPE_CANVAS = "canvas_image" as const;
 export const IMAGE_TYPE_CANVAS_FRAME = "canvas_frame" as const;
 export const IMAGE_TYPE_OBJECT_MATERIAL = "object_material" as const;
@@ -76,12 +78,8 @@ export function normalizeImageSizes(value: unknown, label: string): ImageSize[] 
     const width = candidate.width;
     const height = candidate.height;
     if (
-      typeof width !== "number" ||
-      typeof height !== "number" ||
-      !Number.isSafeInteger(width) ||
-      !Number.isSafeInteger(height) ||
-      width <= 0 ||
-      height <= 0 ||
+      !isPositiveSafeInteger(width) ||
+      !isPositiveSafeInteger(height) ||
       width > 2147483647 ||
       height > 2147483647
     ) {

@@ -3,9 +3,8 @@ use a4n_image_host_contract::{
     PersistGeneratedImageFileInput, PersistedGeneratedImageFile, PrepareGeneratedImageFileInput,
     PreparedGeneratedImageFile,
 };
-use a4n_storage::data_file_record_facts;
 use a4n_storage::paths::ProjectPaths;
-use std::io::Write;
+use a4n_storage::{data_file_record_facts, write_new_synced_data_file};
 use std::path::{Component, Path, PathBuf};
 
 pub(crate) fn prepare_generated_image_file(
@@ -48,23 +47,14 @@ pub(crate) fn persist_reserved_generated_image_file(
     input: PersistGeneratedImageFileInput<'_>,
     prepared: &PreparedGeneratedImageFile,
 ) -> Result<PersistedGeneratedImageFile, String> {
-    let staging = resolve_reserved_path(data_dir, &prepared.staging_path, input.file_context)?;
+    resolve_reserved_path(data_dir, &prepared.staging_path, input.file_context)?;
     let final_path = resolve_reserved_path(data_dir, &prepared.final_path, input.file_context)?;
-    let mut output_file = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&staging)
-        .map_err(|error| format!("无法创建{}暂存文件：{error}", input.file_context))?;
-    output_file
-        .write_all(input.bytes)
-        .map_err(|error| format!("无法写入{}：{error}", input.file_context))?;
-    output_file
-        .flush()
-        .map_err(|error| format!("刷新{}失败：{error}", input.file_context))?;
-    output_file
-        .sync_all()
-        .map_err(|error| format!("同步{}失败：{error}", input.file_context))?;
-    drop(output_file);
+    write_new_synced_data_file(
+        data_dir,
+        &prepared.staging_path,
+        input.bytes,
+        input.file_context,
+    )?;
     promote_data_file(
         data_dir,
         &prepared.staging_path,

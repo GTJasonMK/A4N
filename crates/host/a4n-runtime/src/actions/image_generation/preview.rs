@@ -30,6 +30,19 @@ use a4n_image_contract::ImageGenerationRequest;
 use a4n_image_host_contract::PreparedImageGenerationRequest;
 use a4n_provider_contract::ImageProviderConfig;
 
+pub(crate) struct ImageGenerationPreviewInput<'a> {
+    pub(crate) runtime_profile: RuntimeProfile,
+    pub(crate) client: Option<Arc<dyn ImageClient>>,
+    pub(crate) collaboration: &'a dyn a4n_api_contract::collaboration::ProjectAccessApplicationPort,
+    pub(crate) project_id: i64,
+    pub(crate) key: String,
+    pub(crate) title: String,
+    pub(crate) prompt_name: Option<String>,
+    pub(crate) note: Option<String>,
+    pub(crate) config: &'a ImageProviderConfig,
+    pub(crate) request: ImageGenerationRequest,
+}
+
 pub(super) async fn prepared_image_generation_preview_step(
     state: &AppState,
     project_id: i64,
@@ -43,18 +56,18 @@ pub(super) async fn prepared_image_generation_preview_step(
     if include_image_type_note {
         notes.insert(0, format!("image_type: {}", prepared.image_type));
     }
-    let mut step = image_generation_preview_step(
-        state.runtime_profile(),
-        state.capabilities().image.clone(),
-        state.project_access_application(),
+    let mut step = image_generation_preview_step(ImageGenerationPreviewInput {
+        runtime_profile: state.runtime_profile(),
+        client: state.capabilities().image.clone(),
+        collaboration: state.project_access_application(),
         project_id,
-        key,
-        title,
-        prepared.prompt_name,
-        (!notes.is_empty()).then(|| notes.join("\n")),
-        &prepared.config,
-        prepared.request,
-    )
+        key: key.into(),
+        title: title.into(),
+        prompt_name: prepared.prompt_name,
+        note: (!notes.is_empty()).then(|| notes.join("\n")),
+        config: &prepared.config,
+        request: prepared.request,
+    })
     .await?;
     step.prompt_name = Some("image_generation_request".to_string());
     crate::actions::request_preview::attach_prompt_assembly_metadata(
@@ -69,19 +82,20 @@ pub(super) async fn prepared_image_generation_preview_step(
 }
 
 pub(crate) async fn image_generation_preview_step(
-    runtime_profile: RuntimeProfile,
-    client: Option<Arc<dyn ImageClient>>,
-    collaboration: &dyn a4n_api_contract::collaboration::ProjectAccessApplicationPort,
-    project_id: i64,
-    key: impl Into<String>,
-    title: impl Into<String>,
-    prompt_name: Option<String>,
-    note: Option<String>,
-    config: &ImageProviderConfig,
-    request: ImageGenerationRequest,
+    input: ImageGenerationPreviewInput<'_>,
 ) -> Result<ModelRequestPreviewStep, String> {
-    let key = key.into();
-    let title = title.into();
+    let ImageGenerationPreviewInput {
+        runtime_profile,
+        client,
+        collaboration,
+        project_id,
+        key,
+        title,
+        prompt_name,
+        note,
+        config,
+        request,
+    } = input;
     if runtime_profile.uses_sidecars() {
         let root_project_id = collaboration
             .collaboration_root(project_id)

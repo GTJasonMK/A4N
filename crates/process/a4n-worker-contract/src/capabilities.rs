@@ -68,6 +68,12 @@ pub struct WorkerCapabilities {
 }
 
 impl WorkerCapabilities {
+    pub fn has_enabled_capability(&self, name: &str, version: &str) -> bool {
+        self.capabilities.iter().any(|capability| {
+            capability.name == name && capability.version == version && capability.enabled
+        })
+    }
+
     pub fn validate(&self) -> Result<(), WorkerContractError> {
         validate_worker_schema_version(self.schema_version)?;
         validate_non_blank("worker_id", &self.worker_id)?;

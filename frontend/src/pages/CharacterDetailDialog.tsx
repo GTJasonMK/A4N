@@ -23,6 +23,7 @@ import type { ModelRequestPreview } from "../api/requestPreview";
 import { cancelWorkflowTask } from "../api/streaming";
 import { createWorkflowTaskId, useProgressTask } from "../hooks/useProgressTask";
 import { isCancelledOperation } from "../utils/cancellation";
+import { isSafeInteger } from "../utils/numberRange";
 import { CharacterDetailContent } from "./character-detail-dialog/CharacterDetailContent";
 import { CharacterDetailTabs } from "./character-detail-dialog/CharacterDetailTabs";
 import { CharacterSummaryCard } from "./character-detail-dialog/CharacterSummaryCard";
@@ -100,7 +101,7 @@ const optionalChapterInput = (
   const trimmed = value.trim();
   if (!trimmed) return null;
   const numeric = Number(trimmed);
-  if (!Number.isInteger(numeric)) {
+  if (!isSafeInteger(numeric)) {
     throw new Error(t("characterDetail.invalidChapterInteger", { label }));
   }
   return numeric;

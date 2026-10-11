@@ -1,4 +1,4 @@
-use a4n_domain::ProviderError as AppError;
+use a4n_domain::{ProviderError as AppError, media::canonical_video_extension};
 use a4n_video_provider_contract::VideoGenerationResult;
 use base64::Engine as _;
 use serde_json::Value;
@@ -97,11 +97,9 @@ pub(super) fn required_video_format(item: &Value) -> Result<String, AppError> {
     let raw = optional_string(item, "format", "data[0].format")?
         .ok_or_else(|| AppError::Internal("视频响应缺少 data[0].format".to_string()))?;
     let format = raw.to_ascii_lowercase();
-    if matches!(format.as_str(), "mp4" | "webm" | "mov" | "m4v") {
-        Ok(format)
-    } else {
-        Err(AppError::Internal(format!("不支持的视频格式：{format}")))
-    }
+    canonical_video_extension(&format)
+        .map(str::to_string)
+        .ok_or_else(|| AppError::Internal(format!("不支持的视频格式：{format}")))
 }
 
 pub(super) fn extract_job_id(value: &Value) -> Result<Option<String>, AppError> {

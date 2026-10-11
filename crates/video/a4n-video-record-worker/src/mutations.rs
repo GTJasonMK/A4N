@@ -8,11 +8,11 @@ impl WorkerState {
     ) -> Result<GeneratedVideoSummary, WorkerFailure> {
         validate_request(&request, VIDEO_RECORD_SELECT_SEGMENT_OPERATION)?;
         validate_required_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
-        let project_id = positive(input.project_id, "project_id")?;
-        let chapter_id = positive(input.chapter_id, "chapter_id")?;
-        let video_id = positive(input.video_id, "video_id")?;
+        let project_id = WorkerFailure::require_positive_id(input.project_id, "project_id")?;
+        let chapter_id = WorkerFailure::require_positive_id(input.chapter_id, "chapter_id")?;
+        let video_id = WorkerFailure::require_positive_id(input.video_id, "video_id")?;
         verify_project_permission(
             &self.database,
             project_id,
@@ -67,7 +67,7 @@ impl WorkerState {
             WorkerFailure::invalid_request(format!("当前规划缺少片段 {segment_number} 的执行方案"))
         })?;
         let video = video_result
-            .map_err(database_error)?
+            .map_err(a4n_worker_db_adapter::map_database_error)?
             .ok_or_else(|| WorkerFailure::not_found("视频不存在"))?;
         let plan_identity = plan
             .metadata_json
@@ -114,17 +114,17 @@ impl WorkerState {
         request: WorkerEnvelope<VideoUpdateInput>,
     ) -> Result<GeneratedVideoSummary, WorkerFailure> {
         validate_request(&request, VIDEO_RECORD_UPDATE_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let request_project_id = request.project_id;
         let input = request.payload;
-        let video_id = positive(input.video_id, "video_id")?;
+        let video_id = WorkerFailure::require_positive_id(input.video_id, "video_id")?;
         if input.input.is_empty() {
             return Err(WorkerFailure::invalid_request("视频更新内容不能为空"));
         }
         let video =
             a4n_db::video::read_models::generated_video_by_id(self.database.connection(), video_id)
                 .await
-                .map_err(database_error)?
+                .map_err(a4n_worker_db_adapter::map_database_error)?
                 .ok_or_else(|| WorkerFailure::not_found("视频不存在"))?;
         validate_optional_project_scope(request_project_id, video.project_id)?;
         verify_project_permission(
@@ -187,7 +187,7 @@ impl WorkerState {
             chapter_id,
         )
         .await
-        .map_err(database_error)?;
+        .map_err(a4n_worker_db_adapter::map_database_error)?;
         for row in rows.into_iter().filter(|row| {
             row.video_type == a4n_domain::video_workflow::VIDEO_TYPE_ASSEMBLY_PUSH
                 && row.workflow_mode.as_deref() == Some(workflow_mode)

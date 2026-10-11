@@ -402,9 +402,11 @@ fn llm_trace_rejects_non_positive_generation_or_workflow_run_id() {
 #[test]
 fn workflow_operation_context_preserves_root_and_rejects_invalid_run_id() {
     let context = sidecar_context_for_workflow_operation_with_root(
-        Some(11),
-        Some(3),
-        Some(77),
+        SidecarWorkflowScope {
+            project_id: Some(11),
+            root_project_id: Some(3),
+            workflow_run_id: Some(77),
+        },
         "image.generate",
     )
     .expect("root-scoped workflow context");
@@ -424,9 +426,11 @@ fn workflow_operation_context_preserves_root_and_rejects_invalid_run_id() {
     );
 
     let error = sidecar_context_for_workflow_operation_with_root(
-        Some(11),
-        Some(3),
-        Some(0),
+        SidecarWorkflowScope {
+            project_id: Some(11),
+            root_project_id: Some(3),
+            workflow_run_id: Some(0),
+        },
         "image.generate",
     )
     .expect_err("invalid workflow run must fail");

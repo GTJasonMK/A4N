@@ -15,12 +15,10 @@ impl WorkerState {
 }
 
 pub(super) fn require_service_principal(principal: &WorkerPrincipal) -> Result<(), WorkerFailure> {
-    if principal.kind != WorkerPrincipalKind::Service {
-        return Err(WorkerFailure::unauthorized(
-            "workflow lifecycle 仅允许 service principal",
-        ));
-    }
-    Ok(())
+    principal.require_kind(
+        WorkerPrincipalKind::Service,
+        "workflow lifecycle 仅允许 service principal",
+    )
 }
 
 #[cfg(test)]

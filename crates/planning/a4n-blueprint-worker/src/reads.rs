@@ -98,8 +98,8 @@ impl WorkerState {
         request: WorkerEnvelope<BlueprintProjectInput>,
     ) -> Result<Option<BlueprintSummary>, WorkerFailure> {
         validate_request(&request, BLUEPRINT_SUMMARY_OPERATION)?;
-        validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        request.require_project_scope(request.payload.project_id)?;
+        let user_id = request.principal.require_user_id()?;
         self.verify_permission(
             request.payload.project_id,
             user_id,
@@ -111,7 +111,7 @@ impl WorkerState {
             request.payload.project_id,
         )
         .await
-        .map_err(WorkerFailure::database)?
+        .map_err(a4n_worker_db_adapter::map_database_error)?
         else {
             return Ok(None);
         };
@@ -121,7 +121,7 @@ impl WorkerState {
             blueprint.updated_at,
         )
         .await
-        .map_err(WorkerFailure::database)?;
+        .map_err(a4n_worker_db_adapter::map_database_error)?;
         Ok(Some(blueprint_summary(blueprint, needs_review)))
     }
 
@@ -130,8 +130,8 @@ impl WorkerState {
         request: WorkerEnvelope<ListBlueprintVersionsInput>,
     ) -> Result<Vec<BlueprintVersionSummary>, WorkerFailure> {
         validate_request(&request, BLUEPRINT_VERSIONS_OPERATION)?;
-        validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        request.require_project_scope(request.payload.project_id)?;
+        let user_id = request.principal.require_user_id()?;
         self.verify_permission(
             request.payload.project_id,
             user_id,
@@ -143,7 +143,7 @@ impl WorkerState {
             request.payload.project_id,
         )
         .await
-        .map_err(project_mutation_error)?
+        .map_err(a4n_worker_db_adapter::map_project_mutation_error)?
         .into_iter()
         .map(blueprint_version_summary)
         .collect()
@@ -154,8 +154,8 @@ impl WorkerState {
         request: WorkerEnvelope<DiffBlueprintVersionsInput>,
     ) -> Result<BlueprintDiffSummary, WorkerFailure> {
         validate_request(&request, BLUEPRINT_DIFF_OPERATION)?;
-        validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        request.require_project_scope(request.payload.project_id)?;
+        let user_id = request.principal.require_user_id()?;
         self.verify_permission(
             request.payload.project_id,
             user_id,
@@ -168,7 +168,7 @@ impl WorkerState {
             &request.payload.version_a,
         )
         .await
-        .map_err(project_mutation_error)?
+        .map_err(a4n_worker_db_adapter::map_project_mutation_error)?
         .ok_or_else(|| {
             WorkerFailure::not_found(format!("版本 {} 不存在", request.payload.version_a))
         })?;
@@ -178,7 +178,7 @@ impl WorkerState {
             &request.payload.version_b,
         )
         .await
-        .map_err(project_mutation_error)?
+        .map_err(a4n_worker_db_adapter::map_project_mutation_error)?
         .ok_or_else(|| {
             WorkerFailure::not_found(format!("版本 {} 不存在", request.payload.version_b))
         })?;

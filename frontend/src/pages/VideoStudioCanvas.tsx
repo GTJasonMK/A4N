@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../api";
+import { isPositiveSafeInteger } from "../utils/numberRange";
 import { listLlmConfig } from "../api/config/llm";
 import type { ModelRequestPreview } from "../api/requestPreview";
 import {
@@ -407,7 +408,7 @@ export const VideoStudioCanvas: React.FC = () => {
   }, [projectId]);
 
   useEffect(() => {
-    if (!Number.isSafeInteger(projectId) || projectId <= 0) return;
+    if (!isPositiveSafeInteger(projectId)) return;
     void refreshCanvasTextAssets().catch((error) =>
       addToast(extractErrorMessage(error, translatorRef.current("novel.textMaterialsLoadFailed")), "error"),
     );
@@ -416,7 +417,7 @@ export const VideoStudioCanvas: React.FC = () => {
   const load = useCallback(async () => {
     const requestId = requestRef.current + 1;
     requestRef.current = requestId;
-    if (!Number.isFinite(projectId) || projectId <= 0) {
+    if (!isPositiveSafeInteger(projectId)) {
       setLoadError(translatorRef.current("video.projectInvalid"));
       setLoading(false);
       return;
