@@ -997,6 +997,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 未改变上述 API、路由、provider 选择、身份校验、取消/清理和错误传播；未新增 fallback、兼容或占位逻辑。本项只更新审计记录。
 - 记录范围：`crates/host/a4n-runtime/src/actions/agent_runtime/optimization.rs`、`actions/manga_pipeline/preview.rs`、`sidecar_clients/video/operations/routing.rs`、`state/app/bootstrap.rs`，以及对应 Control/Host assembly/Orchestrator/VideoClient/Worker 调用链。
 
+### R-122：统一前端 task kind 标签映射
+
+- 类别：重复与分叉实现；Workflow presentation 与 Progress presentation 各自维护同一组 task kind 到 i18n `MessageKey` 的 12 项映射。
+- BFS 覆盖：从 `getTaskTypeLabel` 追到章节卡片、队列历史、模型用量和导入/视频/Agent 页面；从 `progressDisplayModel -> localizedProgressStage` 追到 `ProgressDialog`、Queue panels、Canvas workflow 和 `ProgressMeta.taskKind` 的 Host/generated progress 生产者；静态搜索核对所有 12 个键值及 `ModelUsageCostPanel` 的额外 capability 标签，确认没有第二套 progress task map 或动态 registry。CodeGraph 覆盖两个工具模块、progress API 类型、52 个 `useProgressTask` 调用者和相关队列/页面消费者。
+- 将 `workflowPresentation.ts::TASK_TYPE_LABEL_KEYS` 设为唯一映射 owner，并导出只读 map；`progressPresentation.ts` 直接复用该 map，同时继续使用调用方注入的 `MessageTranslator`，不改 locale、stage 优先级、phase fallback 或未知 task 的既有行为。Workflow 的 `getTaskTypeLabel` 仍保留原默认 chapter-generation label。
+- 未改变任何 API/wire 字段、显示文案、错误处理或 fallback 语义；未新增兼容、默认或占位逻辑。
+- 验证：`npm run test:run -- src/utils/workflowPresentation.test.ts src/utils/progressPresentation.test.ts` 2 文件/8 项通过；`npm run build` 和 `npx tsc --noEmit` 通过，构建仅保留既有大 chunk 提示；CodeGraph 同步解析 1 条 pending reference；`git diff --check` 通过。
+- 记录范围：`frontend/src/utils/workflowPresentation.ts`、`frontend/src/utils/progressPresentation.ts` 及上述 Workflow/Progress/Model Usage/Queue 调用链。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

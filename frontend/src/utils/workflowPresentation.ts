@@ -84,7 +84,7 @@ export const getChapterSyncFailurePresentation = (
   return { summary: fallback, detail, recommendedAction: null };
 };
 
-const TASK_TYPE_LABELS: Record<string, MessageKey> = {
+export const TASK_TYPE_LABEL_KEYS: Readonly<Record<string, MessageKey>> = {
   llm_call: "workflow.taskLanguageCall",
   chapter_generation: "workflow.taskChapterGeneration",
   image_generation: "workflow.taskImageGeneration",
@@ -145,7 +145,7 @@ const mappedLabel = (
 export const getTaskTypeLabel = (
   value: string | null | undefined,
   locale: Locale,
-): string => mappedLabel(value, TASK_TYPE_LABELS, "workflow.taskChapterGeneration", locale);
+): string => mappedLabel(value, TASK_TYPE_LABEL_KEYS, "workflow.taskChapterGeneration", locale);
 
 export const getTaskPriorityLabel = (
   value: string | null | undefined,

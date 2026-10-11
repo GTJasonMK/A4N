@@ -11,6 +11,7 @@ import {
   type MessageTranslator,
 } from "../i18n";
 import { progressDisplayText } from "./progressDisplay";
+import { TASK_TYPE_LABEL_KEYS } from "./workflowPresentation";
 
 export interface ProgressDisplayModel {
   stage: string;
@@ -64,21 +65,6 @@ const STAGE_LABEL_KEYS: Record<string, MessageKey> = {
   video_prompt_generation: "feedback.progressStage.modelStream",
   video_prompt_item_committed: "feedback.progressStage.save",
   video_prompt_checkpoint: "feedback.progressStage.save",
-};
-
-const TASK_LABEL_KEYS: Record<string, MessageKey> = {
-  llm_call: "workflow.taskLanguageCall",
-  chapter_generation: "workflow.taskChapterGeneration",
-  image_generation: "workflow.taskImageGeneration",
-  video_generation: "workflow.taskVideoGeneration",
-  video_poll: "workflow.taskVideoPoll",
-  source_sync: "workflow.taskSourceSync",
-  assembly: "workflow.taskAssembly",
-  embedding_call: "workflow.taskEmbeddingCall",
-  rag_ingestion: "workflow.taskRagIngestion",
-  import_analysis: "workflow.taskImportAnalysis",
-  export_generation: "workflow.taskExportGeneration",
-  embedding_download: "workflow.taskEmbeddingDownload",
 };
 
 const PHASE_LABEL_KEYS: Record<ProgressDisplayPhase, MessageKey> = {
@@ -181,7 +167,7 @@ export function progressDisplayModel({
 function localizedProgressStage(meta: ProgressMeta, t: MessageTranslator): string {
   const key =
     STAGE_LABEL_KEYS[meta.stageCode] ??
-    TASK_LABEL_KEYS[meta.taskKind] ??
+    TASK_TYPE_LABEL_KEYS[meta.taskKind] ??
     PHASE_LABEL_KEYS[meta.phaseKind];
   return t(key);
 }
