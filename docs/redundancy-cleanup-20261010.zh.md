@@ -814,6 +814,13 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：`cargo clippy --offline --locked --all-targets -p a4n-domain` 通过（保留既有大 enum 提示）；`timeout 60s cargo test --offline --locked -p a4n-domain --lib` 153/153；`cargo fmt --all -- --check`、`git diff --check` 通过。回归断言覆盖两类错误文案、输入顺序、空数组和先遇到重复值时的错误优先级。
 - 记录范围：`crates/platform/a4n-domain/src/image/references.rs`、`crates/platform/a4n-domain/src/image/mod.rs`。
 
+### R-100：核验视频参考图 Preview/Provider 分叉
+
+- 类别：相邻的参考图读取/转换实现候选，未合并。
+- BFS 覆盖：CodeGraph 从 Preview 预览 URL 追到 video assembly preview，从 Provider 输入转换追到 chapter video image input；两者都调用 `validated_reference_images_for_ids`，再分别进入 `reference_image_request_preview_url` 或 `image_file_to_provider_input`。Provider helper 的三种 transport 继续追到 public URL 检查、inline 字节预算和 remote temp upload；Video Record API client、Worker command route、project scope、用户权限和 DB 图片可用性路径也已复核。
+- 保留不同实现：Preview 只验证文件路径/MIME 并构造 UI 预览引用；Provider 按 provider 能力选择 URL、inline data 或带签名暂存 artifact，并携带 JWT、字节累计和 staging artifact。合并两者会把预览访问与上游 provider 凭证/上传策略耦合；共用的授权图片读 owner 已是 `validated_reference_images_for_ids`。Worker 侧再次校验保留为进程信任边界。
+- 本项只做拓扑核验，无代码改动。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
