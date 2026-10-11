@@ -954,6 +954,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 通过，Runtime lib 告警由 10 条降至 9 条，目标高参数告警消失；`timeout 180s cargo test --no-run --offline --locked -p a4n-runtime --lib` 通过；`timeout 60s cargo test --offline --locked -p a4n-runtime --lib dynamic_llm:: -- --test-threads=1` 20/20 通过；`cargo fmt --all -- --check` 和 `git diff --check` 通过。共享 agent target 在构建锁内清理。
 - 记录范围：`crates/host/a4n-runtime/src/dynamic_llm/{trace.rs,trace/recording.rs,streams/terminal/sync.rs,llm_provider/embedded_stream.rs}`。
 
+### R-117：复用 ModelDiscoveryRequest 作为路由输入
+
+- 类别：Sidecar discovery helper 将 provider、base URL 和 API key 拆成三个参数，再按相同字段立即构造既有 `ModelDiscoveryRequest`。
+- BFS 覆盖：CodeGraph/静态引用从 helper 追到唯一 Runtime 调用 `detect_config_models`，再追到 LLM、Image、Video 三个配置入口、saved-key resolver、对应 service capability 和 `ModelDiscoveryRequest` wire contract。确认请求字段相同，唯一差异是 `ModelDiscoveryKind` 决定 capability/service name；三种 client 的类型、缺失 capability 错误和分派语义保持独立。
+- Runtime discovery helper 改为接收 `ModelDiscoveryRequest`；配置入口在完成同一 key owner 的解析/互斥校验后，将 provider/base URL/key 直接组成该现存 wire input。Embedded provider 从其字段读取调用；Sidecar request builder 直接消费同一个值，不再复制字段投影。
+- 不改变已保存 key 解析、显式 key 空白处理、profile 分支、service capability 版本、缺失 client 错误或 response 校验；未新增 fallback、兼容或默认逻辑。
+- 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 通过，Runtime lib 告警由 9 条降至 8 条，目标高参数告警消失；`timeout 180s cargo test --no-run --offline --locked -p a4n-runtime --lib` 通过；`timeout 60s cargo test --offline --locked -p a4n-runtime --lib explicit_and_saved_discovery_keys_are_mutually_exclusive -- --test-threads=1` 1/1 通过；格式与 diff 检查通过。共享 agent target 在构建锁内清理。
+- 记录范围：`crates/host/a4n-runtime/src/sidecar_clients/model_discovery.rs`、`actions/config_records/discovery.rs`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
