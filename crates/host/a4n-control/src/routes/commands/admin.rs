@@ -105,7 +105,7 @@ admin_web_json_command!(start_test_run, |state, user_id, args| {
 
 admin_web_json_command!(get_test_run, |state, user_id, args| {
     reject_unknown_command_args(args, "get_test_run", &["input"])?;
-    let input: admin_records_actions::TestRunIdInput = command_input(args, "get_test_run")?;
+    let input: admin_records_actions::GetTestRunInput = command_input(args, "get_test_run")?;
     admin_records_actions::get_test_run_for_admin(state.runtime(), user_id, input).await?
 });
 

@@ -2109,6 +2109,7 @@ export interface TestStepSummary {
 }
 
 export interface TestRunDetail {
+  log_start_index: number;
   logs: string[];
   parameters: unknown;
   steps: TestStepSummary[];
@@ -2120,6 +2121,11 @@ export interface ListTestRunsInput {
 }
 
 export interface TestRunIdInput {
+  run_id: string;
+}
+
+export interface GetTestRunInput {
+  after_log_index?: number | null;
   run_id: string;
 }
 

@@ -181,7 +181,7 @@ command_specs! {
     "get_source_snapshot_chapter" => args_source_snapshot_chapter, result_source_snapshot_chapter, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "get_storage_paths" => empty_args_schema, result_get_storage_paths, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_task_history" => args_get_task_history, result_get_task_history, "task", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_TASK_IDS);
-    "get_test_run" => args_test_run_id, result_test_run_detail, "testing", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
+    "get_test_run" => args_get_test_run, result_test_run_detail, "testing", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_theme_preference" => empty_args_schema, result_theme_preference, "settings", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_token_summary" => args_user_id, result_json_value, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_usage_trends" => args_get_usage_trends, result_get_usage_trends, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);

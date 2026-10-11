@@ -8,9 +8,9 @@ mod users;
 
 pub use a4n_api_contract::admin::{
     AdminOverviewSummary, AdminProjectSummary, DailyUsagePoint, DeleteTestRunInput,
-    ListTestRunsInput, StartTestRunInput, TaskQueueSummary, TestRunDetail, TestRunIdInput,
-    TestRunStatus, TestRunSummary, TestScenarioDescriptor, TestTarget, TestTargetMode,
-    UsageLogSummary, UsageTrendsInput,
+    GetTestRunInput, ListTestRunsInput, StartTestRunInput, TaskQueueSummary, TestRunDetail,
+    TestRunIdInput, TestRunStatus, TestRunSummary, TestScenarioDescriptor, TestTarget,
+    TestTargetMode, UsageLogSummary, UsageTrendsInput,
 };
 pub use a4n_api_contract::admin::{CreateInviteCodeInput, CreateUserInput, UpdateUserRoleInput};
 pub use a4n_api_contract::auth::UserSummary;

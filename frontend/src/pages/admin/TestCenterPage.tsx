@@ -36,6 +36,7 @@ import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useAuthStore } from "../../store/auth";
 import { formatDateTime, useI18n } from "../../i18n";
+import { mergeTestRunLogUpdate } from "./testRunLogUpdates";
 
 type TargetMode = "test_project" | "current_project" | "repository";
 type MessageKey = Parameters<ReturnType<typeof useI18n>["t"]>[0];
@@ -122,6 +123,7 @@ export const TestCenterPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const syncedRunId = useRef("");
   const runRequestId = useRef(0);
+  const logCursor = useRef<{ runId: string; index: number } | null>(null);
 
   const selectedScenario = scenarios.find((item) => item.id === selectedScenarioId) ?? null;
   const categories = useMemo(
@@ -186,16 +188,22 @@ export const TestCenterPage: React.FC = () => {
     if (fallback) setTargetMode(fallback);
   }, [selectedScenario, targetMode]);
 
-  const loadRun = useCallback(async (runId: string) => {
+  const loadRun = useCallback(async (runId: string, afterLogIndex?: number) => {
     const requestId = ++runRequestId.current;
     if (!runId) {
+      logCursor.current = null;
       setDetail(null);
       return;
     }
     try {
-      const next = await getTestRun(runId);
+      const next = await getTestRun(runId, afterLogIndex);
       if (requestId !== runRequestId.current) return;
-      setDetail(next);
+      const nextLogIndex = Math.max(afterLogIndex ?? next.log_start_index, next.log_start_index)
+        + next.logs.length;
+      logCursor.current = { runId, index: nextLogIndex };
+      setDetail((current) => afterLogIndex == null
+        ? next
+        : mergeTestRunLogUpdate(current, next, afterLogIndex));
       if (next.summary.status !== "running" && next.summary.status !== "queued") {
         await refreshRuns();
       }
@@ -234,7 +242,13 @@ export const TestCenterPage: React.FC = () => {
 
   useEffect(() => {
     if (!detail || !isActive(detail.summary.status)) return undefined;
-    const timer = window.setInterval(() => void loadRun(detail.summary.id), 800);
+    const timer = window.setInterval(() => {
+      const cursor = logCursor.current;
+      void loadRun(
+        detail.summary.id,
+        cursor?.runId === detail.summary.id ? cursor.index : undefined,
+      );
+    }, 800);
     return () => window.clearInterval(timer);
   }, [detail, loadRun]);
 
@@ -302,7 +316,11 @@ export const TestCenterPage: React.FC = () => {
     setBusy(true);
     try {
       await cancelTestRun(detail.summary.id);
-      await loadRun(detail.summary.id);
+      const cursor = logCursor.current;
+      await loadRun(
+        detail.summary.id,
+        cursor?.runId === detail.summary.id ? cursor.index : undefined,
+      );
     } catch (cause) {
       setError(extractErrorMessage(cause, t("settingsAdmin.testCenter.runFailed")));
     } finally {

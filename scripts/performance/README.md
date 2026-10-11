@@ -50,6 +50,7 @@
 | [PERF-049](../../crates/platform/a4n-db/src/project/dependency_graph/graph/records/family.rs) | 依赖图初载 → 族级图片摘要投影；12,000 张图片，其中 600 张参与图计数，项目打开时每次读取 | 旧实现把项目族所有 `generated_image.metadata_json` 反序列化后再按类型计数；图摘要查询增加实际消费的 6 个图片类型过滤，节点详情仍走完整独立读取 | PostgreSQL 图摘要投影 P50/P95 **56.783/65.582 → 3.324/5.278 ms（94.1%/92.0%）**；返回行 **12,000 → 600**，元数据字节 **42,942,240 → 32,640**，图计数逐项一致 |
 | [PERF-050](../../crates/platform/a4n-db/src/workflow/tasks/queries.rs) | `get_task_history` → task worker → PostgreSQL；200 条任务历史页，单条持久 payload 约 32.5 KB | 旧查询读取完整 `task_queue` 行，包括 API 摘要不使用的 `payload` 和 `dag_id`；历史及按 ID 读取改为显式选取状态投影字段，共用原校验和错误映射 | PostgreSQL P50/P95 **7.266/13.174 → 2.096/2.677 ms（71.1%/79.7%）**；旧路径该页 payload **6,505,200 B**，新路径不读取 payload；字段、顺序、失败错误和进度投影一致 |
 | [PERF-051](../../crates/platform/a4n-db/src/workflow/runs/queries.rs) | Canvas workflow 状态每秒轮询及设置页展开详情；最多 300 个 generation run | UI 只使用 generation run 状态、标题、次数和 JSON 存在标记；UI 显式请求省略 fingerprint/raw/parsed/validation/artifact JSON，CLI 缺省仍取完整诊断内容 | 完整 workflow detail **17,324,230 → 195,978 B**；真实 PostgreSQL P50/P95 **18.561/26.785 → 2.528/3.145 ms（86.4%/88.3%）**；300 个项目顺序、摘要字段和 3 个内容存在标记一致 |
+| [PERF-052](../../crates/host/a4n-runtime/src/actions/admin_records/test_console.rs) | 测试中心活动 run 详情每 800 ms 轮询；最多 500 条日志，每条 append 日志最多 2,000 字符 | 默认/旧请求仍返回完整日志；前端轮询带独占 log cursor，后端只克隆和序列化 cursor 之后的日志，并从缓存详情中投影摘要/步骤 | release TestConsole read + JSON serialization：500×2,000 字符时响应 **1,001,914 → 415 B**；P50/P95 **0.676/0.947 → 0.001/0.002 ms**（P50 下降 99.8%）；日志轮转和过期游标语义一致 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -75,6 +76,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 依赖图 | PERF-049 将族级图摘要限制为漫画页、对象/场景素材和三类视频帧；节点详情仍按节点类型独立读取完整记录，未改变详情合同。 |
 | 任务历史 | PERF-050 的历史页和按 ID 查询只读取摘要字段；完整任务 payload 仍留在任务详情/执行路径所需处，没有改变队列持久化或取消行为。 |
 | 工作流详情轮询 | PERF-051 让 Canvas 每秒刷新及设置页详情请求只传输 generation run 摘要；未传新选项的 CLI 保留完整原始输出、解析结果和验证 JSON。 |
+| 测试中心详情轮询 | PERF-052 首次读取与旧请求仍拿到完整保留日志；活动轮询带日志游标，只克隆和传输新增行；超过 500 行后的过期游标重取当前窗口。 |
 | Canvas 文本素材 | 窄索引候选已用 256 份 × 4 KiB 正文的 Chromium 夹具复核；传输字节下降 98%，但首屏中位数仅下降 14.0%，GC 后 JS heap 仅下降 8.2%，不满足保留门槛，未改合同或生产代码。 |
 | 媒体阶段状态 | PERF-048 将状态标签计算从章节数 × 文档数的重复过滤降为一次索引；文档状态、快照范围和 stale 判断保持原语义。 |
 | 漫画来源读取 | 当前 MangaTab 产品入口 ComicProjectWorkspace、VideoProjectWorkspace 和 GalgameProjectWorkspace 均使用 `listSourceSnapshotChapterIndex`；PERF-020 已用 1000 章真实 PostgreSQL/Chromium 夹具测量目录与单章详情，完整正文只在选章后读取。旧 `listSourceSnapshotChapters` API 仍保留给兼容调用方，但不是当前页面活跃路径。 |
@@ -559,6 +561,14 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 量化结果：隔离 PostgreSQL 16、**300 条** generation run，每条 fingerprint/raw/parsed JSON 各含约 19 KB 文本，9 轮交错 release 测量。真实 `workflow_run_detail` 完整结果与轻量结果序列化大小 **17,324,230 → 195,978 B（下降 98.9%）**；DB 详情 P50/P95 **18.561/26.785 → 2.528/3.145 ms（下降 86.4%/88.3%）**。
 - 语义验证：新旧 300 条 run 的 ID、工作流/步骤、调用 key、标题、模型、状态、attempt、响应摘要、错误和时间逐项相同；raw/parsed/validation/artifact/fingerprint 大对象仅轻量模式省略，三个 UI 使用的内容存在标记逐项相同。DB 详情测试验证完整模式保留 JSON、轻量模式只省略 JSON；前端诊断改读存在标记。CLI 未设置新字段时默认为完整模式。
 - 证据与复现：`data/performance-audit-20261010/workflow-generation-detail-projection/benchmark.log`；从工作树执行 `flock -x /home/fufu/Code/A4N/work/.agent-build.lock env A4N_TEST_DATABASE_URL=postgres://.../a4n_perf_workflow_detail_arch_20261011 CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target CARGO_INCREMENTAL=0 cargo test --locked --release -p a4n-db --test workflow_generation_detail_projection benchmark_workflow_generation_detail_projection -- --ignored --nocapture --test-threads=1`。
+
+### PERF-052：测试中心日志增量投影
+
+- 调用链与频率：Test Center 对 `queued/running` run 每 **800 ms** 调用 `get_test_run`。`TestConsole::get` 命中活动 run 的内存记录，但旧实现仍克隆完整 `TestRunDetail`，每次返回最多 **500 条**日志；`append_log` 将每条日志限制为 **2,000 字符**。
+- 根因与改动：页面已掌握上次收到的日志数量，却反复下载和克隆此前完整日志。`get_test_run` 增加可选 `after_log_index`，响应报告实际保留窗口的 `log_start_index`；活动缓存命中时仅克隆摘要、参数、步骤和游标后的日志。前端用游标合并增量，服务端移除旧日志时以前端可检测的起点重置窗口。旧请求省略游标仍返回完整日志，旧持久报告缺少起点时默认 0；过期游标返回完整保留窗口，超前游标明确失败。
+- 量化结果：release 测试夹具使用 **500 条 × 2,000 个 ASCII 字符**，计时包含生产 `TestConsole::get` 和 `serde_json` 响应序列化。完整响应 **1,001,914 B**，游标指向末尾时增量响应 **415 B**；完整/增量 P50/P95 **0.676/0.947 → 0.001/0.002 ms**，P50 下降 **99.8%**。该基准测量 Runtime 读取与序列化，不外推 HTTP/网络时延。
+- 语义验证：Runtime 测试 **11/11** 覆盖完整读取、增量读取、过期/超前游标、500 条轮转、旧报告默认值及既有恢复/删除行为；API 合同测试旧请求省略游标、前端 API 测试请求形状和日志窗口合并测试均通过。未轮询的旧调用方仍读取全量日志。
+- 证据与复现：`data/performance-audit-20261010/test-run-log-projection/benchmark.log`；从工作树执行 `flock -x /home/fufu/Code/A4N/work/.agent-build.lock env CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target CARGO_INCREMENTAL=0 cargo test --locked --release -p a4n-runtime benchmark_test_run_detail_log_projection --lib -- --ignored --nocapture --test-threads=1`。
 
 ### 拒绝候选：Canvas 文本素材窄索引
 

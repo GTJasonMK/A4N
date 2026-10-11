@@ -176,6 +176,10 @@ pub(crate) fn args_test_run_id() -> Value {
     strict_typed_input_schema::<crate::admin::TestRunIdInput>()
 }
 
+pub(crate) fn args_get_test_run() -> Value {
+    strict_typed_input_schema::<crate::admin::GetTestRunInput>()
+}
+
 pub(crate) fn args_delete_test_run() -> Value {
     strict_typed_input_schema::<crate::admin::DeleteTestRunInput>()
 }

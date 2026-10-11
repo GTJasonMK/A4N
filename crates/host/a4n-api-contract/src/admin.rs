@@ -235,6 +235,9 @@ pub struct TestRunDetail {
     pub parameters: Value,
     pub steps: Vec<TestStepSummary>,
     pub logs: Vec<String>,
+    /// Index of the first log still retained; a cursor can make `logs` start later.
+    #[serde(default)]
+    pub log_start_index: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -252,8 +255,32 @@ pub struct TestRunIdInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
+pub struct GetTestRunInput {
+    pub run_id: String,
+    /// Exclusive cursor; omitting it requests the full retained log window.
+    #[serde(default)]
+    pub after_log_index: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct DeleteTestRunInput {
     pub run_id: String,
     #[serde(default)]
     pub delete_test_project: bool,
+}
+
+#[cfg(test)]
+mod test_run_input_tests {
+    use super::GetTestRunInput;
+
+    #[test]
+    fn legacy_test_run_request_defaults_to_full_logs() {
+        let input: GetTestRunInput = serde_json::from_value(serde_json::json!({
+            "run_id": "123e4567-e89b-42d3-a456-426614174000"
+        }))
+        .expect("legacy test run request should deserialize");
+
+        assert_eq!(input.after_log_index, None);
+    }
 }

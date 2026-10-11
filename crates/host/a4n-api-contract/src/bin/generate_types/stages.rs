@@ -394,6 +394,7 @@ pub(super) fn run() {
         &typescript_interface::<TestRunDetail>("TestRunDetail"),
         &typescript_interface::<ListTestRunsInput>("ListTestRunsInput"),
         &typescript_interface::<TestRunIdInput>("TestRunIdInput"),
+        &typescript_interface::<GetTestRunInput>("GetTestRunInput"),
         &typescript_interface::<DeleteTestRunInput>("DeleteTestRunInput"),
         &typescript_interface::<GenerationCallAnalyticsInput>("GenerationCallAnalyticsInput"),
         &typescript_interface::<CallKindOverview>("CallKindOverview"),

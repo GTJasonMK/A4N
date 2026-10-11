@@ -1,9 +1,9 @@
 use super::{
     AdminOverviewSummary, AdminPermission, AdminProjectSummary, CreateInviteCodeInput,
-    CreateUserInput, DailyUsagePoint, DeleteTestRunInput, InviteCodeSummary, ListTestRunsInput,
-    StartTestRunInput, TaskQueueSummary, TestRunDetail, TestRunIdInput, TestRunSummary,
-    TestScenarioDescriptor, UpdateUserRoleInput, UsageLogSummary, UsageTrendsInput, UserSummary,
-    permissions, projects, tasks, usage, users,
+    CreateUserInput, DailyUsagePoint, DeleteTestRunInput, GetTestRunInput, InviteCodeSummary,
+    ListTestRunsInput, StartTestRunInput, TaskQueueSummary, TestRunDetail, TestRunIdInput,
+    TestRunSummary, TestScenarioDescriptor, UpdateUserRoleInput, UsageLogSummary, UsageTrendsInput,
+    UserSummary, permissions, projects, tasks, usage, users,
 };
 use crate::AppState;
 use a4n_error::AppError;
@@ -129,9 +129,11 @@ admin_record_command!(
 );
 
 admin_record_command!(
-    get_test_run_for_admin(input: TestRunIdInput) -> TestRunDetail,
+    get_test_run_for_admin(input: GetTestRunInput) -> TestRunDetail,
     AdminPermission::ManageSettings,
-    |state, _caller_user_id| state.test_console().get(&input.run_id),
+    |state, _caller_user_id| state
+        .test_console()
+        .get(&input.run_id, input.after_log_index),
 );
 
 admin_record_command!(

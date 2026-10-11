@@ -11,7 +11,7 @@ use a4n_api_contract::{
     admin::{
         AdminOverviewSummary, AdminProjectSummary, CallKindOverview, CreateInviteCodeInput,
         CreateUserInput, DailyCallMetric, DailyUsagePoint, DeleteTestRunInput,
-        GenerationCallAnalytics, GenerationCallAnalyticsInput, InviteCodeSummary,
+        GenerationCallAnalytics, GenerationCallAnalyticsInput, GetTestRunInput, InviteCodeSummary,
         ListTestRunsInput, LlmWorkflowMetric, MediaWorkflowMetric, RecentLlmCall, RecentMediaCall,
         StartTestRunInput, TaskQueueSummary, TestImpact, TestRunDetail, TestRunIdInput,
         TestRunStatus, TestRunSummary, TestScenarioDescriptor, TestScenarioEffect, TestStepSummary,

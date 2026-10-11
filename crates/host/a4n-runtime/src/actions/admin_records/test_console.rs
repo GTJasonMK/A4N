@@ -253,6 +253,7 @@ impl TestConsole {
             parameters: input.parameters.clone(),
             steps: Vec::new(),
             logs: Vec::new(),
+            log_start_index: 0,
         };
 
         let cancellation = CancellationToken::new();
@@ -296,9 +297,19 @@ impl TestConsole {
         Ok(detail.summary)
     }
 
-    pub async fn get(&self, run_id: &str) -> Result<TestRunDetail, String> {
+    pub async fn get(
+        &self,
+        run_id: &str,
+        after_log_index: Option<u64>,
+    ) -> Result<TestRunDetail, String> {
         let _guard = self.mutation_lock.lock().await;
-        self.get_unlocked(run_id).await
+        let runs = self.runs.lock().await;
+        if let Some(detail) = runs.get(run_id) {
+            return test_run_detail_after_log_index(detail, after_log_index);
+        }
+        drop(runs);
+        let detail = self.get_unlocked(run_id).await?;
+        test_run_detail_after_log_index(&detail, after_log_index)
     }
 
     async fn get_unlocked(&self, run_id: &str) -> Result<TestRunDetail, String> {
@@ -378,7 +389,7 @@ impl TestConsole {
         if let Some(token) = token {
             token.cancel();
         }
-        Ok(self.get(run_id).await?.summary)
+        Ok(self.get(run_id, None).await?.summary)
     }
 
     pub async fn delete(&self, state: &AppState, input: DeleteTestRunInput) -> Result<(), String> {
@@ -392,7 +403,7 @@ impl TestConsole {
             }
         }
         let result = async {
-            let detail = self.get(&input.run_id).await?;
+            let detail = self.get(&input.run_id, None).await?;
             if input.delete_test_project {
                 if !matches!(&detail.summary.target, TestTarget::TestProject { .. }) {
                     return Err("当前项目测试不能由测试历史删除项目".to_string());
@@ -960,6 +971,7 @@ impl TestConsole {
         self.mutate(run_id, |detail| {
             if detail.logs.len() >= 500 {
                 detail.logs.remove(0);
+                detail.log_start_index = detail.log_start_index.saturating_add(1);
             }
             detail.logs.push(message);
         })
@@ -1546,6 +1558,29 @@ fn validate_parameters(
     Ok(())
 }
 
+fn test_run_detail_after_log_index(
+    detail: &TestRunDetail,
+    after_log_index: Option<u64>,
+) -> Result<TestRunDetail, String> {
+    let log_end_index = detail
+        .log_start_index
+        .saturating_add(detail.logs.len() as u64);
+    if after_log_index.is_some_and(|index| index > log_end_index) {
+        return Err("测试日志游标超过当前日志末尾".to_string());
+    }
+    let response_start_index = after_log_index
+        .unwrap_or(detail.log_start_index)
+        .max(detail.log_start_index);
+    let log_offset = (response_start_index - detail.log_start_index) as usize;
+    Ok(TestRunDetail {
+        summary: detail.summary.clone(),
+        parameters: detail.parameters.clone(),
+        steps: detail.steps.clone(),
+        logs: detail.logs.iter().skip(log_offset).cloned().collect(),
+        log_start_index: detail.log_start_index,
+    })
+}
+
 fn status_label(status: &TestRunStatus) -> &'static str {
     match status {
         TestRunStatus::Queued => "排队中",
@@ -1685,7 +1720,18 @@ mod tests {
             parameters: json!({}),
             steps: Vec::new(),
             logs: Vec::new(),
+            log_start_index: 0,
         }
+    }
+
+    #[test]
+    fn old_reports_default_the_log_start_index() {
+        let detail = sample_detail("run-1", TestRunStatus::Passed);
+        let mut value = serde_json::to_value(detail).unwrap();
+        value.as_object_mut().unwrap().remove("log_start_index");
+
+        let restored: TestRunDetail = serde_json::from_value(value).unwrap();
+        assert_eq!(restored.log_start_index, 0);
     }
 
     #[tokio::test]
@@ -1723,7 +1769,7 @@ mod tests {
         detail.summary.status = TestRunStatus::Passed;
         console.persist(&detail).await.expect("replace report");
 
-        let loaded = console.get(id).await.expect("read replaced report");
+        let loaded = console.get(id, None).await.expect("read replaced report");
         assert_eq!(loaded.summary.status, TestRunStatus::Passed);
     }
 
@@ -1746,9 +1792,126 @@ mod tests {
             .await
             .expect("persist interrupted report");
 
-        let recovered = console.get(id).await.expect("recover interrupted report");
+        let recovered = console
+            .get(id, None)
+            .await
+            .expect("recover interrupted report");
         assert_eq!(recovered.summary.status, TestRunStatus::Failed);
         assert_eq!(recovered.steps[0].status, TestRunStatus::Failed);
         assert!(recovered.steps[0].finished_at.is_some());
+    }
+
+    #[tokio::test]
+    async fn get_returns_full_or_incremental_log_windows() {
+        let console = TestConsole::new(PathBuf::from("test-runs"));
+        let id = "123e4567-e89b-42d3-a456-426614174002";
+        let mut detail = sample_detail(id, TestRunStatus::Running);
+        detail.log_start_index = 3;
+        detail.logs = vec!["three".into(), "four".into(), "five".into()];
+        console.runs.lock().await.insert(id.into(), detail);
+
+        let full = console.get(id, None).await.expect("full test run detail");
+        assert_eq!(full.log_start_index, 3);
+        assert_eq!(full.logs, ["three", "four", "five"]);
+
+        let update = console.get(id, Some(5)).await.expect("incremental logs");
+        assert_eq!(update.log_start_index, 3);
+        assert_eq!(update.logs, ["five"]);
+
+        let stale = console.get(id, Some(0)).await.expect("stale log cursor");
+        assert_eq!(stale.log_start_index, 3);
+        assert_eq!(stale.logs, full.logs);
+
+        let future = console.get(id, Some(8)).await;
+        assert!(future.is_err());
+    }
+
+    #[tokio::test]
+    async fn capped_logs_advance_the_start_index() {
+        let root = tempfile::tempdir().expect("create test run directory");
+        let console = TestConsole::new(root.path().to_path_buf());
+        let id = "123e4567-e89b-42d3-a456-426614174003";
+        let mut detail = sample_detail(id, TestRunStatus::Running);
+        detail.logs = (0..500).map(|index| format!("line {index}")).collect();
+        console.runs.lock().await.insert(id.into(), detail);
+
+        console
+            .append_log(id, "new line".into())
+            .await
+            .expect("append log and persist report");
+
+        let update = console.get(id, Some(500)).await.expect("read appended log");
+        assert_eq!(update.log_start_index, 1);
+        assert_eq!(update.logs, ["new line"]);
+        assert_eq!(console.runs.lock().await[id].logs.len(), 500);
+    }
+
+    #[tokio::test]
+    #[ignore = "manual performance benchmark; exercises the production log cap"]
+    async fn benchmark_test_run_detail_log_projection() {
+        const RUN_ID: &str = "123e4567-e89b-42d3-a456-426614174004";
+        const LOG_COUNT: usize = 500;
+        const LOG_LENGTH: usize = 2_000;
+        const SAMPLES: usize = 9;
+
+        async fn measure(
+            console: &TestConsole,
+            run_id: &str,
+            after_log_index: Option<u64>,
+        ) -> (f64, usize) {
+            let started = std::time::Instant::now();
+            let detail = console
+                .get(run_id, after_log_index)
+                .await
+                .expect("test run detail query must succeed");
+            let bytes = serde_json::to_vec(&detail)
+                .expect("test run detail must serialize")
+                .len();
+            (started.elapsed().as_secs_f64() * 1000.0, bytes)
+        }
+
+        fn percentile(samples: &[f64], percentile: f64) -> f64 {
+            let mut sorted = samples.to_vec();
+            sorted.sort_by(f64::total_cmp);
+            sorted[((sorted.len() - 1) as f64 * percentile).round() as usize]
+        }
+
+        let console = TestConsole::new(PathBuf::from("test-runs"));
+        let mut detail = sample_detail(RUN_ID, TestRunStatus::Running);
+        detail.logs = (0..LOG_COUNT).map(|_| "x".repeat(LOG_LENGTH)).collect();
+        console.runs.lock().await.insert(RUN_ID.into(), detail);
+
+        let full = console.get(RUN_ID, None).await.expect("full report");
+        let incremental = console
+            .get(RUN_ID, Some(LOG_COUNT as u64))
+            .await
+            .expect("incremental report");
+        assert_eq!(full.logs.len(), LOG_COUNT);
+        assert!(incremental.logs.is_empty());
+        let full_bytes = serde_json::to_vec(&full).unwrap().len();
+        let incremental_bytes = serde_json::to_vec(&incremental).unwrap().len();
+
+        let mut full_samples = Vec::with_capacity(SAMPLES);
+        let mut incremental_samples = Vec::with_capacity(SAMPLES);
+        for sample in 0..SAMPLES {
+            if sample % 2 == 0 {
+                full_samples.push(measure(&console, RUN_ID, None).await.0);
+                incremental_samples.push(measure(&console, RUN_ID, Some(LOG_COUNT as u64)).await.0);
+            } else {
+                incremental_samples.push(measure(&console, RUN_ID, Some(LOG_COUNT as u64)).await.0);
+                full_samples.push(measure(&console, RUN_ID, None).await.0);
+            }
+        }
+
+        let full_p50 = percentile(&full_samples, 0.50);
+        let full_p95 = percentile(&full_samples, 0.95);
+        let incremental_p50 = percentile(&incremental_samples, 0.50);
+        let incremental_p95 = percentile(&incremental_samples, 0.95);
+        let improvement = (1.0 - incremental_p50 / full_p50) * 100.0;
+        println!(
+            "test_run_detail_log_projection logs={LOG_COUNT} log_length={LOG_LENGTH} full_bytes={full_bytes} incremental_bytes={incremental_bytes} full_p50_p95_ms={full_p50:.3}/{full_p95:.3} incremental_p50_p95_ms={incremental_p50:.3}/{incremental_p95:.3} p50_improvement={improvement:.1}%"
+        );
+        assert!(incremental_bytes < full_bytes / 2);
+        assert!(incremental_p50 < full_p50 * 0.7);
     }
 }

@@ -36,6 +36,12 @@ describe("admin test console API", () => {
       input: { run_id: "run-1" },
     });
 
+    apiInvoke.mockResolvedValueOnce({ summary: { id: "run-1" } });
+    await getTestRun("run-1", 12);
+    expect(apiInvoke).toHaveBeenLastCalledWith("get_test_run", {
+      input: { run_id: "run-1", after_log_index: 12 },
+    });
+
     apiInvoke.mockResolvedValueOnce([]);
     await listTestRuns(15);
     expect(apiInvoke).toHaveBeenLastCalledWith("list_test_runs", {
