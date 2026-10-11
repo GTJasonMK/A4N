@@ -7,10 +7,20 @@ use a4n_error::AppError;
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use tokio::sync::Mutex;
 
+#[derive(Eq, Hash, PartialEq)]
+pub(super) struct LocalEmbeddingProviderKey {
+    pub(super) model: String,
+    pub(super) dimension: usize,
+    pub(super) batch_size: usize,
+    pub(super) cache_dir: PathBuf,
+}
+
+pub(super) type LocalEmbeddingProviderCache =
+    HashMap<LocalEmbeddingProviderKey, Arc<dyn EmbeddingProvider>>;
+
 pub struct LocalEmbeddingProviderRuntime {
     fastembed_cache_dir: PathBuf,
-    pub(super) providers:
-        Mutex<HashMap<(String, usize, usize, PathBuf), Arc<dyn EmbeddingProvider>>>,
+    pub(super) providers: Mutex<LocalEmbeddingProviderCache>,
 }
 
 impl LocalEmbeddingProviderRuntime {

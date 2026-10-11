@@ -7,10 +7,10 @@ use a4n_domain::embedding::{EmbeddingBackendKind, embedding_provider_capabilitie
 use a4n_embedding_fastembed::FastEmbedProvider;
 use a4n_embedding_provider_contract::EmbeddingProvider;
 use a4n_error::AppError;
-#[cfg(feature = "local-embedding")]
-use std::path::PathBuf;
 use std::sync::Arc;
 
+#[cfg(feature = "local-embedding")]
+use super::runtime::LocalEmbeddingProviderKey;
 use super::runtime::LocalEmbeddingProviderRuntime;
 
 pub(super) async fn cached_local_embedding_provider(
@@ -19,16 +19,17 @@ pub(super) async fn cached_local_embedding_provider(
 ) -> Result<Arc<dyn EmbeddingProvider>, AppError> {
     #[cfg(feature = "local-embedding")]
     {
-        let (model, dimension, batch_size, cache_dir) = resolve_fastembed_config(runtime, input)?;
-        let key = (model.clone(), dimension, batch_size, cache_dir.clone());
+        let key = resolve_fastembed_config(runtime, input)?;
         if let Some(provider) = runtime.providers.lock().await.get(&key).cloned() {
             return Ok(provider);
         }
 
-        let provider = FastEmbedProvider::try_new(&model, batch_size, cache_dir)?;
-        if provider.dimension() != dimension {
+        let provider =
+            FastEmbedProvider::try_new(&key.model, key.batch_size, key.cache_dir.clone())?;
+        if provider.dimension() != key.dimension {
             return Err(AppError::ConfigError(format!(
-                "嵌入配置维度为 {dimension}，但 fastembed 模型 {} 实际输出 {} 维",
+                "嵌入配置维度为 {}，但 fastembed 模型 {} 实际输出 {} 维",
+                key.dimension,
                 provider.model_name(),
                 provider.dimension()
             )));
@@ -48,7 +49,7 @@ pub(super) async fn cached_local_embedding_provider(
 pub(super) fn resolve_fastembed_config(
     runtime: &LocalEmbeddingProviderRuntime,
     input: &LocalEmbeddingConfigInput,
-) -> Result<(String, usize, usize, PathBuf), AppError> {
+) -> Result<LocalEmbeddingProviderKey, AppError> {
     let backend = input.backend.trim();
     if backend.is_empty() {
         return Err(AppError::InvalidArgument("嵌入后端不能为空".to_string()));
@@ -83,7 +84,12 @@ pub(super) fn resolve_fastembed_config(
         input.local_model_path.as_deref(),
         runtime.fastembed_cache_dir(),
     )?;
-    Ok((model, dimension, batch_size, cache_dir))
+    Ok(LocalEmbeddingProviderKey {
+        model,
+        dimension,
+        batch_size,
+        cache_dir,
+    })
 }
 
 #[cfg(not(feature = "local-embedding"))]

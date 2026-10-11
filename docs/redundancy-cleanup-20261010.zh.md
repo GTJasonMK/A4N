@@ -980,6 +980,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 通过，Portrait preview 高参数提示消失；`timeout 180s cargo test --no-run --offline --locked -p a4n-runtime --lib` 通过；全仓 rustfmt 和 `git diff --check` 通过。该 helper 无直接单测，未运行行为测试；Clippy all-targets 编译了全部 Runtime 测试目标。
 - 记录范围：`crates/host/a4n-runtime/src/actions/portrait_generation/{host_port.rs,preview/requests.rs}`。
 
+### R-120：命名本地 Embedding provider 缓存 key
+
+- 类别：缓存身份由匿名四元组表达，读取、构造和插入位置重复依赖字段顺序，增加误用风险。
+- BFS 覆盖：从 `LocalEmbeddingProviderRuntime::{test_embedding_config,embed_texts}` 追到唯一缓存 owner `cached_local_embedding_provider`，再追到 `resolve_fastembed_config`、FastEmbed 构造/维度校验、缓存清空和 Tauri local embedding command；静态搜索确认 `providers` 只有该 Runtime 内部读取、写入和清空路径，没有外部 map consumer、序列化合同或动态注册点。
+- 新增 Runtime 私有 `LocalEmbeddingProviderKey` 与 `LocalEmbeddingProviderCache` 类型别名；model、dimension、batch size、cache directory 的值和 Eq/Hash 身份保持不变，provider 构造、维度错误和缓存命中/插入顺序不变。删除 provider helper 中的 tuple 解构与重复 clone，改为按字段名读取。
+- 保持 backend、模型、维度、批量大小和 cache path 的既有边界校验及 local-embedding 未启用时的明确错误；未新增 fallback、兼容、默认或占位逻辑。
+- 验证：`cargo clippy --offline --locked --all-targets -p a4n-runtime --features local-embedding --message-format short` 通过；输出仅含既有 `large_enum_variant`、参数数量和复杂类型提示。`cargo test --offline --locked --no-run -p a4n-runtime --features local-embedding --lib` 在链接阶段因环境未提供 ONNX Runtime 原生库而失败（`OrtGetApiBase` 未定义），未执行测试；该限制已保留。`git diff --check` 通过；共享 agent target 已在锁内清理。
+- 记录范围：`crates/host/a4n-runtime/src/actions/embedding_model/{runtime.rs,provider.rs}` 及其 Runtime/Tauri 调用链。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
