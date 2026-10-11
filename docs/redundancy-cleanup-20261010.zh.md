@@ -1006,6 +1006,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：`npm run test:run -- src/utils/workflowPresentation.test.ts src/utils/progressPresentation.test.ts` 2 文件/8 项通过；`npm run build` 和 `npx tsc --noEmit` 通过，构建仅保留既有大 chunk 提示；CodeGraph 同步解析 1 条 pending reference；`git diff --check` 通过。
 - 记录范围：`frontend/src/utils/workflowPresentation.ts`、`frontend/src/utils/progressPresentation.ts` 及上述 Workflow/Progress/Model Usage/Queue 调用链。
 
+### R-123：统一 Agent 公共状态标签
+
+- 类别：重复与分叉实现；Domain Agent console 与 Agent Monitor 各自维护相同的 19 项 Agent 状态中英文标签和相同未知值处理。
+- BFS 覆盖：从两处 `labelFor` 追到 DomainAgentConsole 的 thread/execution/approval 展示、Agent Monitor 的 thread/run/delegation/execution 展示，再追到生成的 `AgentThreadStatus`、`AgentRunStatus`、`AgentExecutionStatus`、`AgentDelegationStatus`、`AgentApprovalStatus` 类型及 API snapshot/Control/approval 消费者。CodeGraph 确认两个组件是全部生产展示入口；静态比较确认公共 19 项值逐项相同。
+- 新增 `utils/agentStatusPresentation.ts::agentStatusLabel` 作为公共状态 owner；Domain console 直接复用。Agent Monitor 只保留其执行状态专属的 `awaiting_user`、`succeeded`、`outcome_unknown` 三项局部扩展；delegation 的 `accepted`、`awaiting_acceptance`、`revision_requested` 继续走原有字符串 fallback，未把不同业务状态强行并入公共 map。
+- 未改变中英文文案、未知状态下划线转换、空值文案、执行 tone、API/wire 合同或审批/委派行为；未新增 fallback、兼容或占位逻辑。
+- 验证：新增 `agentStatusPresentation` 回归；与 Workflow/Progress 展示测试合计 3 文件/10 项通过；`npm run build` 通过（仅保留既有大 chunk 提示）；CodeGraph 同步新增/修改 5 文件并解析 1 条 pending reference；`git diff --check` 通过。
+- 记录范围：`frontend/src/utils/agentStatusPresentation.ts`、`agentStatusPresentation.test.ts`、`components/agent/{DomainAgentConsole.tsx,DomainAgentConsoleRows.tsx}`、`pages/AgentMonitor.tsx` 及 Agent API generated status contracts。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

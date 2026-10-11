@@ -88,8 +88,8 @@ import {
   ApprovalRow,
   ExecutionRow,
   Notice,
-  labelFor,
 } from "./DomainAgentConsoleRows";
+import { agentStatusLabel } from "../../utils/agentStatusPresentation";
 import {
   domainAgentBinding,
   domainAgentBindingKey,
@@ -1010,7 +1010,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                     : "bg-book-bg-tertiary text-book-text-muted"
                 }`}
               >
-                {labelFor(thread.status, locale)}
+                {agentStatusLabel(thread.status, locale)}
               </span>
             ) : null}
           </div>

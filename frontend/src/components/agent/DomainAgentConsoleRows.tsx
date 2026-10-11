@@ -5,38 +5,7 @@ import type { AgentApprovalView, AgentExecutionView } from "../../api/agent";
 import { BookButton } from "../ui/BookButton";
 import { LoadingSpinner } from "../ui/LoadingSpinner";
 import { useI18n, type Locale } from "../../i18n";
-
-const RUN_STATUS_LABELS: Record<string, { zh: string; en: string }> = {
-  queued: { zh: "排队中", en: "Queued" },
-  running: { zh: "运行中", en: "Running" },
-  waiting: { zh: "等待中", en: "Waiting" },
-  pausing: { zh: "暂停中", en: "Pausing" },
-  paused: { zh: "已暂停", en: "Paused" },
-  cancelling: { zh: "取消中", en: "Cancelling" },
-  cancelled: { zh: "已取消", en: "Cancelled" },
-  completed: { zh: "已完成", en: "Completed" },
-  failed: { zh: "失败", en: "Failed" },
-  interrupted: { zh: "已中断", en: "Interrupted" },
-  recovery_required: { zh: "需要恢复", en: "Recovery required" },
-  active: { zh: "活跃", en: "Active" },
-  archived: { zh: "已归档", en: "Archived" },
-  pending: { zh: "待处理", en: "Pending" },
-  claimed: { zh: "处理中", en: "Claimed" },
-  approved: { zh: "已批准", en: "Approved" },
-  rejected: { zh: "已拒绝", en: "Rejected" },
-  expired: { zh: "已过期", en: "Expired" },
-  consumed: { zh: "已处理", en: "Consumed" },
-};
-
-export const labelFor = (value: string | null | undefined, locale: Locale): string => {
-  if (!value) return locale === "zh-CN" ? "未知" : "Unknown";
-  const known = RUN_STATUS_LABELS[value];
-  return known
-    ? locale === "zh-CN"
-      ? known.zh
-      : known.en
-    : value.replace(/_/g, " ");
-};
+import { agentStatusLabel } from "../../utils/agentStatusPresentation";
 
 function executionTone(execution: AgentExecutionView): string {
   if (execution.status === "succeeded") return "text-success";
@@ -68,7 +37,7 @@ export function ExecutionRow({
           {execution.tool_name || execution.kind}
         </span>
         <span className="shrink-0 text-book-text-muted">
-          {labelFor(execution.status, locale)}
+          {agentStatusLabel(execution.status, locale)}
         </span>
       </div>
       {execution.result_refs.filter((ref) => ref.kind === "agent_thread" && ref.id).map((ref) => (
