@@ -10,6 +10,7 @@ import type {
   ApplyBeatMappingInput,
   BatchGeneratePartOutlinesInput,
   ChapterOutlinePacing,
+  ChapterOutlineListEntry as ChapterOutlineListEntryContract,
   ChapterOutlineSummary,
   ContinuePartOutlinesInput,
   DeleteLatestOutlineRecordsInput,
@@ -31,6 +32,7 @@ import type {
 } from "./generated/host";
 
 export type { ChapterOutlinePacing, OutlineGenerationProgressSummary };
+export type ChapterOutlineListEntry = ChapterOutlineListEntryContract;
 
 /**
  * Outline API wrapper —— 对齐 crates/host/a4n-tauri/src/commands/outline.rs
@@ -45,11 +47,13 @@ export type ChapterOutline = ChapterOutlineSummary;
 
 export const CHAPTER_OUTLINE_SOURCE_RETROSPECTIVE_ANALYSIS = "retrospective_analysis";
 
-export const isDerivedChapterOutline = (outline: ChapterOutline | null | undefined): boolean =>
+export const isDerivedChapterOutline = (
+  outline: Pick<ChapterOutline, "source_kind"> | null | undefined,
+): boolean =>
   Boolean(outline?.source_kind?.trim());
 
 export const isRetrospectiveChapterOutline = (
-  outline: ChapterOutline | null | undefined,
+  outline: Pick<ChapterOutline, "source_kind"> | null | undefined,
 ): boolean => outline?.source_kind === CHAPTER_OUTLINE_SOURCE_RETROSPECTIVE_ANALYSIS;
 
 // ============================================================================
@@ -183,6 +187,14 @@ export async function previewApplyBeatMappingRequest(
 
 export async function listChapterOutlines(projectId: Id): Promise<ChapterOutline[]> {
   return apiInvoke<ChapterOutline[]>("list_chapter_outlines", {
+    projectId: idNum(projectId),
+  });
+}
+
+export async function listChapterOutlineIndex(
+  projectId: Id,
+): Promise<ChapterOutlineListEntry[]> {
+  return apiInvoke<ChapterOutlineListEntry[]>("list_chapter_outline_index", {
     projectId: idNum(projectId),
   });
 }

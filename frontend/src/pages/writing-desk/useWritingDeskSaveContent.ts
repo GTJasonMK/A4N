@@ -9,7 +9,7 @@ import {
   updateChapterContent,
   type ChapterSummary,
 } from "../../api/chapter";
-import type { ChapterOutline } from "../../api/outline";
+import type { ChapterOutlineListEntry } from "../../api/outline";
 import type { Locale, MessageTranslator } from "../../i18n";
 import { formatNumber } from "../../i18n";
 import type { ReloadChapters } from "./chapterIndex";
@@ -20,7 +20,7 @@ interface UseWritingDeskSaveContentParams {
   lifecycleBlockedReason: string | null;
   activeNumber: number | null;
   activeChapter: ChapterSummary | null;
-  activeOutline: ChapterOutline | null;
+  activeOutline: ChapterOutlineListEntry | null;
   activeChapterBusy: boolean;
   activeChapterGeneratingMessage: string;
   editorContent: string;

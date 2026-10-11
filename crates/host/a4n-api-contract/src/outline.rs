@@ -29,6 +29,19 @@ pub struct ChapterOutlineSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct ChapterOutlineListEntry {
+    pub id: i64,
+    pub project_id: i64,
+    pub chapter_number: i32,
+    pub title: Option<String>,
+    pub summary: Option<String>,
+    pub word_count_target: Option<i32>,
+    /// 自动派生来源；`null` 表示用户/正式流程拥有的章纲。
+    pub source_kind: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct PartOutlineSummary {
     pub id: i64,
     pub project_id: i64,
@@ -332,6 +345,12 @@ pub trait OutlineReadApplicationPort: Send + Sync {
         user_id: i64,
         project_id: i64,
     ) -> Result<Vec<ChapterOutlineSummary>, a4n_error::AppError>;
+
+    async fn list_chapter_index(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ChapterOutlineListEntry>, a4n_error::AppError>;
 
     async fn list_parts(
         &self,

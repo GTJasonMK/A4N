@@ -1,17 +1,19 @@
 //! Typed Host adapter for the outline records worker.
 
 use a4n_api_contract::outline::{
-    ChapterOutlineSummary, DeleteLatestOutlineRecordsInput, OutlineGenerationProgressSummary,
-    OutlineMutationApplicationPort, OutlineMutationResult, OutlineReadApplicationPort,
-    PartOutlineSummary, SaveChapterOutlineInput, SaveChapterOutlineResult, SavePartOutlineInput,
-    SavePartOutlineResult, UpdateChapterOutlineInput, UpdateChapterOutlineResult,
+    ChapterOutlineListEntry, ChapterOutlineSummary, DeleteLatestOutlineRecordsInput,
+    OutlineGenerationProgressSummary, OutlineMutationApplicationPort, OutlineMutationResult,
+    OutlineReadApplicationPort, PartOutlineSummary, SaveChapterOutlineInput,
+    SaveChapterOutlineResult, SavePartOutlineInput, SavePartOutlineResult,
+    UpdateChapterOutlineInput, UpdateChapterOutlineResult,
 };
 use a4n_error::AppError;
 use a4n_outline_worker_contract::{
     ChapterOutlineAccessInput, DELETE_CHAPTERS_OPERATION, DELETE_PARTS_OPERATION,
     ENSURE_CHAPTER_ACCESS_OPERATION, ENSURE_PART_ACCESS_OPERATION, GENERATION_PROGRESS_OPERATION,
-    LIST_CHAPTERS_OPERATION, LIST_PARTS_OPERATION, OUTLINE_WORKER_ID, PartOutlineAccessInput,
-    ProjectOutlineInput, SAVE_CHAPTER_OPERATION, SAVE_PART_OPERATION, UPDATE_CHAPTER_OPERATION,
+    LIST_CHAPTER_INDEX_OPERATION, LIST_CHAPTERS_OPERATION, LIST_PARTS_OPERATION, OUTLINE_WORKER_ID,
+    PartOutlineAccessInput, ProjectOutlineInput, SAVE_CHAPTER_OPERATION, SAVE_PART_OPERATION,
+    UPDATE_CHAPTER_OPERATION,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{

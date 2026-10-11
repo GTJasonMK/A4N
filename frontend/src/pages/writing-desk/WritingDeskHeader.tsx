@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { type NovelProject } from "../../api/project";
 import { type ChapterMetadata } from "../../api/chapter";
-import { type ChapterOutline } from "../../api/outline";
+import { type ChapterOutlineListEntry } from "../../api/outline";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
 import { BackButton } from "../../components/ui/BackButton";
 import { Dropdown } from "../../components/ui/Dropdown";
@@ -35,7 +35,7 @@ interface WritingDeskHeaderProps {
   canGoNext: boolean;
   chapterNumbers: number[];
   chapters: ChapterMetadata[];
-  outlines: ChapterOutline[];
+  outlines: ChapterOutlineListEntry[];
   leftSidebarVisible: boolean;
   rightPanel: RightPanel;
   dirty: boolean;

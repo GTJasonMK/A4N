@@ -30,15 +30,16 @@ where
         return Ok(HashMap::new());
     }
     chapter_outline_provenance::Entity::find()
+        .select_only()
+        .columns([
+            chapter_outline_provenance::Column::OutlineId,
+            chapter_outline_provenance::Column::SourceKind,
+        ])
         .filter(chapter_outline_provenance::Column::OutlineId.is_in(outline_ids.to_vec()))
+        .into_tuple::<(i64, String)>()
         .all(db)
         .await
-        .map(|records| {
-            records
-                .into_iter()
-                .map(|record| (record.outline_id, record.source_kind))
-                .collect()
-        })
+        .map(|records| records.into_iter().collect())
         .map_err(ProjectOutlineRecordError::Database)
 }
 

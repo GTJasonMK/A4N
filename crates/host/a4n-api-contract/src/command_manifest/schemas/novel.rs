@@ -559,6 +559,9 @@ pub(crate) fn result_chapter_outline_pacing() -> Value {
 pub(crate) fn result_chapter_outlines() -> Value {
     typed_schema::<Vec<crate::outline::ChapterOutlineSummary>>()
 }
+pub(crate) fn result_chapter_outline_list_entries() -> Value {
+    typed_schema::<Vec<crate::outline::ChapterOutlineListEntry>>()
+}
 pub(crate) fn result_check_implicit_update() -> Value {
     typed_schema::<crate::character::ImplicitUpdateDecisionSummary>()
 }

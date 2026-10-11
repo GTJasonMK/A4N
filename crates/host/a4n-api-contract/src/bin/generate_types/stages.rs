@@ -792,6 +792,7 @@ pub(super) fn run() {
         &typescript_interface::<BlueprintDiffSummary>("BlueprintDiffSummary"),
         &typescript_interface::<BlueprintMutationResult>("BlueprintMutationResult"),
         &typescript_interface::<ChapterOutlineSummary>("ChapterOutlineSummary"),
+        &typescript_interface::<ChapterOutlineListEntry>("ChapterOutlineListEntry"),
         &typescript_interface::<PartOutlineSummary>("PartOutlineSummary"),
         &typescript_interface::<SaveChapterOutlineInput>("SaveChapterOutlineInput"),
         &typescript_interface::<SaveChapterOutlineResult>("SaveChapterOutlineResult"),

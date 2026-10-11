@@ -204,7 +204,7 @@ mod tests {
             .expect("outline worker entry");
         assert_eq!(outline.kind, ProcessKind::StatefulWorker);
         assert_eq!(outline.binary, "a4n-outline-worker");
-        assert_eq!(outline.contract_version, "outline-records-v1");
+        assert_eq!(outline.contract_version, "outline-records-v2");
         assert_eq!(outline.addr_env, "A4N_OUTLINE_WORKER_ADDR");
         assert_eq!(outline.default_addr, "127.0.0.1:47653");
         assert_eq!(

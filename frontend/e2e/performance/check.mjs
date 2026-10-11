@@ -14,9 +14,10 @@ const port = Number(process.env.A4N_PERF_PORT ?? 48966);
 const outDir = path.join(artifacts, "dist");
 const baselineRef = process.env.A4N_PERF_BASELINE_REF;
 const scenario = process.env.A4N_PERF_CASE ?? "core";
-assert.ok(["core", "sidebar", "story-events", "story-events-loader", "agent-messages", "authoring-label", "manga-source", "galgame-source"].includes(scenario));
+assert.ok(["core", "sidebar", "story-events", "story-events-loader", "outline-list", "agent-messages", "authoring-label", "manga-source", "galgame-source"].includes(scenario));
 const entry = scenario === "sidebar" ? "sidebar.html" : scenario === "story-events" ? "story-events.html"
   : scenario === "story-events-loader" ? "story-events-loader.html"
+  : scenario === "outline-list" ? "outline-list.html"
   : scenario === "agent-messages" ? "agent-messages.html"
   : scenario === "authoring-label" ? "authoring-label.html"
   : scenario === "manga-source" ? "manga-source.html"
@@ -25,6 +26,8 @@ const sourceFiles = scenario === "story-events"
   ? ["src/pages/novel-detail/story-events/storyEventUtils.ts", "src/pages/novel-detail/story-events/ChapterEventSection.tsx"]
   : scenario === "story-events-loader"
   ? ["src/pages/novel-detail/StoryEventsTab.tsx"]
+  : scenario === "outline-list"
+  ? ["src/pages/novel-detail/outlines/ChapterOutlineSection.tsx", "src/pages/novel-detail/outlines/outlineTabUtils.ts"]
   : scenario === "agent-messages"
   ? ["src/components/agent/AgentMessageList.tsx"]
   : scenario === "authoring-label"
@@ -172,6 +175,27 @@ try {
     await browser.waitUntil(() => browser.execute(() => document.querySelector("details")?.open === true));
     assert.equal(await browser.execute(() => document.querySelectorAll("details article").length), 1000);
     report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion, loader };
+  } else if (scenario === "outline-list") {
+    const outlineList = [];
+    for (const width of [1440, 390]) {
+      await browser.setViewport({ width, height: 900 });
+      const trace = [];
+      for (const locale of ["zh-CN", "en-US"]) {
+        const result = await browser.execute((locale) => window.verifyOutlineList(locale), locale);
+        assert.equal(result.outlines, 1000);
+        assert.equal(result.htmlEqual, true);
+        assert.equal(result.textEqual, true);
+        trace.push(result);
+        await browser.execute(() => document.querySelector("li button")?.focus());
+        await browser.keys("Enter");
+        assert.deepEqual(await browser.execute(() => window.outlineListOpened()), [1]);
+      }
+      assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+      await browser.saveScreenshot(path.join(artifacts, `outline-list-${width}.png`));
+      outlineList.push({ width, trace });
+    }
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
+      viewports: outlineList };
   } else if (scenario === "agent-messages") {
     const agentMessages = await browser.execute(() => window.measureAgentMessages());
     assert.equal(agentMessages.messageCount, 1000);

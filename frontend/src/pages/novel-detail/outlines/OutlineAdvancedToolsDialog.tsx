@@ -12,14 +12,14 @@ import {
   parseNumberInput,
   type NumberInputValue,
 } from "./outlineTabUtils";
-import type { ChapterOutline, PartOutline } from "../../../api/outline";
+import type { ChapterOutlineListEntry, PartOutline } from "../../../api/outline";
 import { useI18n } from "../../../i18n";
 
 interface OutlineAdvancedToolsDialogProps {
   open: boolean;
   projectId: number;
   parts: PartOutline[];
-  outlines: ChapterOutline[];
+  outlines: ChapterOutlineListEntry[];
   chaptersPerPart: NumberInputValue;
   delPartCount: NumberInputValue;
   delChapterCount: NumberInputValue;

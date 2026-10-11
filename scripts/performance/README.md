@@ -606,6 +606,15 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 语义验证：返回的 100 项序列化字节逐项一致，包含最新 `1`/`1.0` 差异、相等 before/after 过滤、`chapter_feedback` 排除和 ID 降序；release A/B **1/1** 通过。`EXPLAIN` 确认分页查询使用 `idx_material_fact_change_summary_latest`，按 `project_id` 索引扫描；`a4n-db` 与 `a4n-migration` 编译、全仓格式检查通过。
 - 证据与复现：`data/performance-audit-20261010/fact-feedback-read-projection/benchmark.log`；隔离库 `a4n_perf_fact_feedback_20261011` 中执行 `cargo test --locked --release -p a4n-db --test fact_feedback_read_projection benchmark_fact_feedback_summary_projection -- --ignored --nocapture --test-threads=1`。索引迁移为 `fact_feedback_read_indexes`。
 
+### PERF-057：章纲列表窄投影
+
+- 调用链与频率：写作台和小说大纲页在项目初载、手动/写后刷新时读取章纲列表；页面渲染、编辑和章节生成上下文只使用 ID、章节号、标题、摘要、目标字数、来源类型及更新时间。大项目按 **1000 章**测量；不是后台轮询路径。
+- 根因与改动：旧 `list_chapter_outlines` 每次读取、映射并序列化节拍、关键场景、伏笔、角色和状态等完整 JSON；两个列表并不消费这些字段。新增 `list_chapter_outline_index`，数据库仅投影页面字段，来源读取仍只取 `outline_id/source_kind`；两个页面切换到窄读口，原完整命令保留给仍需要完整章纲的调用方。项目权限、章节排序、来源标记、保存/生成后的刷新和错误路径沿用原边界。
+- 量化结果：隔离 PostgreSQL 16，1000 条章纲，完整 JSON 响应平均约 **27 KB/章**；同一 release 测试进程交错读取旧完整模型与新投影，包含读取、映射和 JSON 序列化。完整/窄响应 **27,335,573 → 198,573 B（减少 99.27%）**；P50/P95 **72.082/78.865 → 3.057/3.587 ms（减少 95.76%/95.45%）**。这是 DB 读取与响应序列化测量，不外推网络端到端时延。
+- 语义验证：1000 条旧列表投影与新列表项逐项相同；真实 Chromium 153 检查生产 `ChapterOutlineSection` 的旧/新字段，1440/390px、`zh-CN`/`en-US` 的 HTML 与文本哈希一致，Enter 打开相同章节且无横向溢出。前端 API 测试 **6/6**、Host command manifest/API contract **110/110**、outline worker **2/2**、worker contract **1/1**、process catalog **10/10**、类型生成器 **5/5**、API parity、前端生产构建、受影响 crates all-target Clippy、rustfmt 和 diff 检查通过；Clippy 输出为依赖/既有代码告警，本项新增代码无告警。
+- Mock Provider E2E：按 `scripts/tests/CREATION_E2E.md` 实际运行大纲阶段。Chromium 创作流程中，新 `/api/commands/list_chapter_outline_index` 读口被调用两次且均返回 HTTP 200；后续“生成分部大纲”失败，浏览器错误为提示词装配模块 `primary` 缺少 `optimization_direction`。CLI authoring 也在 outline task 失败；阶段未完成，完整 E2E 不能计为通过。报告为 `data/performance-audit-20261010/outline-list-projection/creation-e2e-outline-rerun/report.json`。性能候选不修改提示词配置。
+- 证据与复现：PostgreSQL A/B 日志 `data/performance-audit-20261010/outline-list-projection/benchmark.log`，Chromium 报告 `data/performance-audit-20261010/outline-list-projection/browser-final-recheck/report.json`，Rust suites 日志 `data/performance-audit-20261010/outline-list-projection/unit-test.log`。在隔离数据库中运行 `flock -x /home/fufu/Code/A4N/work/.agent-build.lock env CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target CARGO_INCREMENTAL=0 A4N_TEST_DATABASE_URL=<isolated-postgres-url> timeout 60s cargo test --locked --release -p a4n-db --test chapter_outline_list_projection benchmark_chapter_outline_list_projection -- --ignored --nocapture --test-threads=1`。
+
 ### 拒绝候选：Canvas 文本素材窄索引
 
 - 链路与规模：`ProjectTextMaterialsPanel` 初载 **256 份**文本素材，每份正文约 **4 KiB**；旧列表响应包含全部正文，而页面只展示目录并读取当前选中版本。候选增加不含正文的索引命令，切换素材仍通过版本接口读取正文，并验证第二份素材内容和标题。

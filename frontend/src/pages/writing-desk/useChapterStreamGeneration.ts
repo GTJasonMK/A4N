@@ -16,7 +16,7 @@ import {
 import type { GenerationTaskHandle } from "../../api/generated/generationContracts";
 import {
   isDerivedChapterOutline,
-  type ChapterOutline,
+  type ChapterOutlineListEntry,
 } from "../../api/outline";
 import { useGenerationTask } from "../../hooks/useGenerationTask";
 import { usePacedStreamText } from "../../hooks/usePacedStreamText";
@@ -39,7 +39,7 @@ interface UseChapterStreamGenerationParams {
   projectIdKey: string;
   activeNumber: number | null;
   activeChapter: ChapterSummary | null;
-  activeOutline: ChapterOutline | null;
+  activeOutline: ChapterOutlineListEntry | null;
   activeOutlineText: string | null;
   projectBlockedReason: string | null;
   writingNotes: string;

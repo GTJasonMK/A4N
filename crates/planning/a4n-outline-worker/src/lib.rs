@@ -80,6 +80,10 @@ impl OutlineWorker {
                 "/v1/commands/outline.records.list_chapters",
                 post(list_chapters),
             )
+            .route(
+                "/v1/commands/outline.records.list_chapter_index",
+                post(list_chapter_index),
+            )
             .route("/v1/commands/outline.records.list_parts", post(list_parts))
             .route(
                 "/v1/commands/outline.records.generation_progress",
@@ -195,6 +199,17 @@ async fn list_chapters(
 ) -> Response {
     command_response(&state, &headers, request, |request| {
         state.list_chapters(request)
+    })
+    .await
+}
+
+async fn list_chapter_index(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ProjectOutlineInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.list_chapter_index(request)
     })
     .await
 }

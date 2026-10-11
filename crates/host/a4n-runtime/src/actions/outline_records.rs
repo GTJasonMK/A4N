@@ -10,22 +10,23 @@ mod parts;
 mod preview;
 
 pub use a4n_api_contract::outline::{
-    ApplyBeatMappingInput, BatchGeneratePartOutlinesInput, ChapterOutlinePacing,
-    ChapterOutlineSummary, ContinuePartOutlinesInput, DeleteLatestOutlineRecordsInput,
-    GenerateChapterOutlinesByCountInput, GeneratePartChapterOutlinesInput, GeneratePartsInput,
-    OutlineGenerationProgressSummary, OutlineMutationResult, PartOutlineSummary,
-    RegenerateChapterOutlineInput, RegenerateLastPartInput, RegeneratePartOutlineInput,
-    RegeneratePartsInput, SaveChapterOutlineInput, SaveChapterOutlineResult, SavePartOutlineInput,
-    SavePartOutlineResult, UpdateChapterOutlineInput, UpdateChapterOutlineResult,
+    ApplyBeatMappingInput, BatchGeneratePartOutlinesInput, ChapterOutlineListEntry,
+    ChapterOutlinePacing, ChapterOutlineSummary, ContinuePartOutlinesInput,
+    DeleteLatestOutlineRecordsInput, GenerateChapterOutlinesByCountInput,
+    GeneratePartChapterOutlinesInput, GeneratePartsInput, OutlineGenerationProgressSummary,
+    OutlineMutationResult, PartOutlineSummary, RegenerateChapterOutlineInput,
+    RegenerateLastPartInput, RegeneratePartOutlineInput, RegeneratePartsInput,
+    SaveChapterOutlineInput, SaveChapterOutlineResult, SavePartOutlineInput, SavePartOutlineResult,
+    UpdateChapterOutlineInput, UpdateChapterOutlineResult,
 };
 pub use batch::{
     preview_apply_beat_mapping_request, preview_batch_generate_part_outlines_request,
     preview_generate_chapter_outlines_by_count_request,
 };
 pub use chapters::{
-    delete_latest_chapter_outlines, get_chapter_outlines_pacing, list_chapter_outlines,
-    preview_generate_part_chapter_outlines_request, preview_regenerate_chapter_outline_request,
-    save_chapter_outline, update_chapter_outline,
+    delete_latest_chapter_outlines, get_chapter_outlines_pacing, list_chapter_outline_index,
+    list_chapter_outlines, preview_generate_part_chapter_outlines_request,
+    preview_regenerate_chapter_outline_request, save_chapter_outline, update_chapter_outline,
 };
 pub use generation_task::start_outline_generation_typed;
 pub use parts::{

@@ -8,14 +8,15 @@ mod provenance;
 
 pub(crate) use chapters::formal_chapter_outline_id_if_unchanged;
 pub use chapters::{
-    chapter_outline_by_id, chapter_outline_by_project_number, chapter_outlines_for_project,
-    chapter_outlines_for_project_chapter_number, formal_chapter_outline_by_project_number,
+    chapter_outline_by_id, chapter_outline_by_project_number, chapter_outline_index_for_project,
+    chapter_outlines_for_project, chapter_outlines_for_project_chapter_number,
+    formal_chapter_outline_by_project_number,
 };
 pub use cleanup::{delete_latest_chapter_outline_records, delete_latest_part_outline_records};
 pub use contracts::{
-    DeleteLatestOutlineRecordsInput, ManualChapterOutlineSaveInput, ManualPartOutlineSaveInput,
-    OutlineDeleteTarget, OutlineGenerationProgressChapter, OutlineGenerationProgressPart,
-    OutlineGenerationProgressRows, ProjectChapterOutlineUpdateError,
+    ChapterOutlineListRecord, DeleteLatestOutlineRecordsInput, ManualChapterOutlineSaveInput,
+    ManualPartOutlineSaveInput, OutlineDeleteTarget, OutlineGenerationProgressChapter,
+    OutlineGenerationProgressPart, OutlineGenerationProgressRows, ProjectChapterOutlineUpdateError,
     ProjectChapterOutlineUpdateInput, ProjectOutlineRecordError, RetrospectiveChapterOutlineAction,
     RetrospectiveChapterOutlineUpsertInput, RetrospectiveChapterOutlineUpsertOutcome,
     chapter_source_snapshot_from_model,

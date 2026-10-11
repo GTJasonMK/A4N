@@ -488,6 +488,7 @@
             "preview_batch_generate_part_outlines_request",
             "get_generation_progress",
             "preview_apply_beat_mapping_request",
+            "list_chapter_outline_index",
             "list_chapter_outlines",
             "save_chapter_outline",
             "preview_generate_chapter_outlines_by_count_request",

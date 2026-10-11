@@ -2,7 +2,7 @@ import React from "react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { RequestPreviewModal } from "../../../components/feedback/RequestPreviewModal";
 import type { ModelRequestPreview } from "../../../api/requestPreview";
-import type { ChapterOutline, PartOutline } from "../../../api/outline";
+import type { ChapterOutlineListEntry, PartOutline } from "../../../api/outline";
 import {
   ChapterOutlineSection,
   type ChapterOutlineEditForm,
@@ -36,7 +36,7 @@ export interface OutlinesTabViewProps {
   outlinesLoaded: boolean;
   activeOutlineView: OutlineView;
   parts: PartOutline[];
-  outlines: ChapterOutline[];
+  outlines: ChapterOutlineListEntry[];
   canEditOutlines: boolean;
   partCount: NumberInputValue;
   chaptersPerPart: NumberInputValue;
@@ -52,8 +52,8 @@ export interface OutlinesTabViewProps {
   manualPartEditor: ManualPartEditor | null;
   manualSaving: "chapter" | "part" | null;
   partDetail: PartOutline | null;
-  outlineDetail: ChapterOutline | null;
-  outlineAction: ChapterOutline | null;
+  outlineDetail: ChapterOutlineListEntry | null;
+  outlineAction: ChapterOutlineListEntry | null;
   advancedOpen: boolean;
   delPartCount: NumberInputValue;
   delChapterCount: NumberInputValue;
@@ -78,11 +78,11 @@ export interface OutlinesTabViewProps {
   onGenerateChapterOutlines: () => void;
   onPreviewGenerateChapterOutlines: () => void;
   onCreateChapter: () => void;
-  onOpenOutlineDetail: (outline: ChapterOutline) => void;
+  onOpenOutlineDetail: (outline: ChapterOutlineListEntry) => void;
   onCancelEdit: () => void;
   onEditFormChange: (form: ChapterOutlineEditForm) => void;
-  onSaveOutline: (outline: ChapterOutline) => void | Promise<void>;
-  onOpenOutlineAction: (outline: ChapterOutline) => void;
+  onSaveOutline: (outline: ChapterOutlineListEntry) => void | Promise<void>;
+  onOpenOutlineAction: (outline: ChapterOutlineListEntry) => void;
   onClosePartDetail: () => void;
   onEditPart: (part: PartOutline) => void;
   onRefinePart: (part: PartOutline) => void;
@@ -92,10 +92,10 @@ export interface OutlinesTabViewProps {
   onSaveManualPart: (form: ManualPartOutlineForm) => void | Promise<void>;
   onCloseOutlineDetail: () => void;
   onCloseOutlineAction: () => void;
-  onStartEdit: (outline: ChapterOutline) => void;
-  onRegenerateOutline: (outline: ChapterOutline) => void | Promise<void>;
-  onPreviewRegenerateOutline: (outline: ChapterOutline) => void | Promise<void>;
-  onDeleteOutline: (outline: ChapterOutline) => void | Promise<void>;
+  onStartEdit: (outline: ChapterOutlineListEntry) => void;
+  onRegenerateOutline: (outline: ChapterOutlineListEntry) => void | Promise<void>;
+  onPreviewRegenerateOutline: (outline: ChapterOutlineListEntry) => void | Promise<void>;
+  onDeleteOutline: (outline: ChapterOutlineListEntry) => void | Promise<void>;
   onCloseAdvanced: () => void;
   onDelPartCountChange: (value: NumberInputValue) => void;
   onDelChapterCountChange: (value: NumberInputValue) => void;

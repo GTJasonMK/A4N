@@ -204,6 +204,7 @@ export const HOST_API_COMMANDS = [
   "list_canvas_text_assets",
   "list_chapter_analyses",
   "list_chapter_index",
+  "list_chapter_outline_index",
   "list_chapter_outlines",
   "list_chapter_scenes",
   "list_chapter_video_prompts",
@@ -4543,6 +4544,17 @@ export interface ChapterOutlineSummary {
   project_id: number;
   source_kind: string | null;
   status: string;
+  summary: string | null;
+  title: string | null;
+  updated_at: string | null;
+  word_count_target: number | null;
+}
+
+export interface ChapterOutlineListEntry {
+  chapter_number: number;
+  id: number;
+  project_id: number;
+  source_kind: string | null;
   summary: string | null;
   title: string | null;
   updated_at: string | null;

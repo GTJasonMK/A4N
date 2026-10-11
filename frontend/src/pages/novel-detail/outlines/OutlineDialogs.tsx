@@ -11,7 +11,7 @@ import {
 } from "./outlineTabUtils";
 import {
   isDerivedChapterOutline,
-  type ChapterOutline,
+  type ChapterOutlineListEntry,
   type PartOutline,
 } from "../../../api/outline";
 import { useI18n } from "../../../i18n";
@@ -374,7 +374,7 @@ export function ChapterOutlineDetailDialog({
   outline,
   onClose,
 }: {
-  outline: ChapterOutline;
+  outline: ChapterOutlineListEntry;
   onClose: () => void;
 }) {
   const { t } = useI18n();
@@ -401,15 +401,15 @@ export function ChapterOutlineDetailDialog({
 }
 
 interface ChapterOutlineActionDialogProps {
-  outline: ChapterOutline | null;
+  outline: ChapterOutlineListEntry | null;
   regenId: number | null;
   delActing: string | null;
   disabled?: boolean;
   onClose: () => void;
-  onEdit: (outline: ChapterOutline) => void;
-  onRegenerate: (outline: ChapterOutline) => Promise<void>;
-  onPreviewRegenerate: (outline: ChapterOutline) => void;
-  onDelete: (outline: ChapterOutline) => Promise<void>;
+  onEdit: (outline: ChapterOutlineListEntry) => void;
+  onRegenerate: (outline: ChapterOutlineListEntry) => Promise<void>;
+  onPreviewRegenerate: (outline: ChapterOutlineListEntry) => void;
+  onDelete: (outline: ChapterOutlineListEntry) => Promise<void>;
 }
 
 export function ChapterOutlineActionDialog({

@@ -7,7 +7,7 @@ import { extractErrorMessage } from "../../api";
 import {
   deleteLatestChapterOutlines,
   deleteLatestParts,
-  listChapterOutlines,
+  listChapterOutlineIndex,
   listParts,
   previewGenerateChapterOutlinesByCountRequest,
   previewGeneratePartsRequest,
@@ -15,7 +15,7 @@ import {
   previewRegenerateLastPartRequest,
   saveChapterOutline,
   savePartOutline,
-  type ChapterOutline,
+  type ChapterOutlineListEntry,
   type PartOutline,
 } from "../../api/outline";
 import type { ModelRequestPreview } from "../../api/requestPreview";
@@ -68,7 +68,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   };
   const { run: runOutlineGeneration } = useOutlineGeneration();
   const [parts, setParts] = useState<PartOutline[]>([]);
-  const [outlines, setOutlines] = useState<ChapterOutline[]>([]);
+  const [outlines, setOutlines] = useState<ChapterOutlineListEntry[]>([]);
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null);
   const [partsLoaded, setPartsLoaded] = useState(false);
   const [outlinesLoaded, setOutlinesLoaded] = useState(false);
@@ -105,8 +105,8 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   } | null>(null);
   const [manualSaving, setManualSaving] = useState<"chapter" | "part" | null>(null);
   const [partDetail, setPartDetail] = useState<PartOutline | null>(null);
-  const [outlineDetail, setOutlineDetail] = useState<ChapterOutline | null>(null);
-  const [outlineAction, setOutlineAction] = useState<ChapterOutline | null>(null);
+  const [outlineDetail, setOutlineDetail] = useState<ChapterOutlineListEntry | null>(null);
+  const [outlineAction, setOutlineAction] = useState<ChapterOutlineListEntry | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   // 危险操作
   const [delPartCount, setDelPartCount] = useState<NumberInputValue>(1);
@@ -119,7 +119,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const mountedRef = useRef(false);
   const activeProjectIdRef = useRef(projectId);
   const partsRef = useRef<PartOutline[]>([]);
-  const outlinesRef = useRef<ChapterOutline[]>([]);
+  const outlinesRef = useRef<ChapterOutlineListEntry[]>([]);
   const loadSeqRef = useRef(0);
   const actionSeqRef = useRef(0);
   const previewSeqRef = useRef(0);
@@ -186,7 +186,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     try {
       const [partsResult, outlinesResult] = await Promise.allSettled([
         listParts(requestProjectId),
-        listChapterOutlines(requestProjectId),
+        listChapterOutlineIndex(requestProjectId),
       ]);
       if (!isLoadCurrent(requestProjectId, requestSeq)) return false;
       const errors: string[] = [];
@@ -546,7 +546,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     }
   };
 
-  const startEdit = (o: ChapterOutline) => {
+  const startEdit = (o: ChapterOutlineListEntry) => {
     if (!canEditOutlines) {
       addToast(t("outline.readOnlyEdit"), "error");
       return;
@@ -578,7 +578,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     await load();
   };
 
-  const handleSaveOutline = async (o: ChapterOutline) => {
+  const handleSaveOutline = async (o: ChapterOutlineListEntry) => {
     const requestProjectId = projectId;
     if (!canEditOutlines) {
       addToast(t("outline.readOnlyEdit"), "error");
@@ -757,7 +757,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     }
   };
 
-  const handleRegenOutline = async (o: ChapterOutline) => {
+  const handleRegenOutline = async (o: ChapterOutlineListEntry) => {
     const requestProjectId = projectId;
     if (!canEditOutlines) {
       addToast(t("outline.readOnlyRegenerateChapter"), "error");
@@ -870,7 +870,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     }
   };
 
-  const handlePreviewRegenOutline = async (o: ChapterOutline) => {
+  const handlePreviewRegenOutline = async (o: ChapterOutlineListEntry) => {
     const requestProjectId = projectId;
     if (!canEditOutlines) {
       addToast(t("outline.readOnlyPreview"), "error");
@@ -909,7 +909,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     }
   };
 
-  const handleDeleteOutline = async (o: ChapterOutline) => {
+  const handleDeleteOutline = async (o: ChapterOutlineListEntry) => {
     const requestProjectId = projectId;
     if (!canEditOutlines) {
       addToast(t("outline.readOnlyDeleteChapter"), "error");
