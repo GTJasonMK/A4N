@@ -89,18 +89,20 @@ impl MangaPreprocessingV3 {
             if !event_ids.insert(event_id) {
                 return Err(format!("{path}.event_id 不能重复"));
             }
-            if !event
+            if event
                 .get("description")
                 .and_then(Value::as_str)
-                .is_some_and(|value| !value.trim().is_empty())
+                .is_none_or(|value| value.trim().is_empty())
             {
                 return Err(format!("{path}.description 必须是非空字符串"));
             }
-            if !event
+            if event
                 .get("type")
                 .and_then(Value::as_str)
-                .is_some_and(|value| !value.trim().is_empty())
-                || !event.get("participants").is_some_and(Value::is_array)
+                .is_none_or(|value| value.trim().is_empty())
+                || event
+                    .get("participants")
+                    .is_none_or(|value| !value.is_array())
             {
                 return Err(format!("{path}.type 和 {path}.participants 无效"));
             }
@@ -656,16 +658,15 @@ impl MangaPagePipelineStateV1 {
             }
         }
         // Keep the previous image available while an earlier stage is being regenerated.
-        if let Some(image) = &self.image {
-            if image
+        if let Some(image) = &self.image
+            && (image
                 .workflow_run_id
                 .is_some_and(|workflow_run_id| workflow_run_id <= 0)
                 || image.generated_image_id <= 0
                 || image.width <= 0
-                || image.height <= 0
-            {
-                return Err("pipeline.image 的身份和尺寸必须有效".into());
-            }
+                || image.height <= 0)
+        {
+            return Err("pipeline.image 的身份和尺寸必须有效".into());
         }
         if self.stage == MangaPagePipelineStage::Slots {
             return Err("页面记录不能停留在 slots 阶段".into());

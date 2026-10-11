@@ -788,6 +788,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：目标 workspace Clippy 完成；本批警告消失，剩余仅参数数量、类型体积和既有结构提示；`cargo fmt --all -- --check`、`git diff --check` 通过。
 - 记录范围：`crates/platform/a4n-db/src/agent/delegations.rs`、`crates/platform/a4n-db/src/workflow/runs/{claim,mutations,progress}.rs`。
 
+### R-97：简化 Rust 校验分支与迁移 map 查找
+
+- 类别：等价条件表达式、重复有序 map 查找和无效借用。
+- BFS 覆盖：CodeGraph 从 `StoryGraph::validate` 追到 DB 保存、Orchestrator 投影/导出及 Domain graph 测试；从 `MangaPreprocessingV3::validate` 追到模型结果反序列化、stage artifact、预览、生成和 media-authoring 调用；从 `MangaPagePipelineStateV1::validate` 追到草稿持久化及 family import 测试。Galgame 路径从 `Migrator::migrations` 的 `media_authoring::Migration::up` 追到事务中的 `migrate_legacy_media -> migrate_galgame` 和 `media_authoring_legacy` 测试；确认缺少绑定时才生成历史 plan，且绑定在文档写入成功后加入内存 map。
+- 收敛 StoryGraph join、Manga image 与两组 JSON 字段校验的嵌套/否定条件；`Option::is_none_or` 保留缺失、错误类型、空白和非数组输入的拒绝语义。Galgame migration 改用 `BTreeMap::Entry::Vacant` 复用存在性查询，仍在 DB 文档插入成功后写入绑定。另删除 CLI `Option<&str>::as_deref()` 和测试 `starts_with(&format!(...))` 的无效借用。
+- 未改变校验错误、短路顺序、migration 事务/写入顺序、wire/schema 合同；未增加兼容、兜底或回退路径。
+- 验证：`cargo check --all-targets --offline --locked -p a4n-domain -p a4n-migration -p a4n-db` 通过；`a4n-domain` 单测 153/153 通过。直接运行 `a4n-migration --lib` 时有 68 项通过、40 项因未设置 `A4N_TEST_DATABASE_URL` 在测试库初始化阶段失败；随后通过 `run_with_test_database.py` 的临时 PostgreSQL 16 容器运行 `media_authoring_legacy::legacy_game_keeps_main_and_branch_edits_and_enforces_local_beat_identity`，1/1 通过，容器清理成功。定向 `cargo clippy --offline --locked --all-targets --message-format short -p a4n-domain -p a4n-migration -p a4n-db` 退出 0，本批 collapsible/nonminimal/map-entry/needless-borrow 告警已消失；剩余为枚举布局、参数数量、复杂类型、模块命名与测试模块顺序提示。`cargo fmt --all -- --check` 和 `git diff --check` 通过。
+- 记录范围：`crates/platform/a4n-domain/src/galgame/graph.rs`、`crates/platform/a4n-domain/src/manga/contracts/pipeline.rs`、`crates/platform/a4n-migration/src/migrations/media_authoring/galgame.rs`、`crates/platform/a4n-migration/src/main.rs`、`crates/platform/a4n-db/tests/media_authoring_documents.rs`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
@@ -803,6 +812,9 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - Object Profile/Scene Profile 的四处 `ObjectProfileInputError`/`SceneProfileInputError -> InvalidRequest` 和两处 Downstream conflict `String -> InvalidRequest` 都只有少数局部调用，且前者要求 Display 到 String 的额外适配；没有为几行转换再新增 Worker contract helper。
 - Worker readiness 的 Server `wait_for_worker_contract` 与 Tauri `wait_for_native_worker` 都轮询子进程和 health，但同步/异步 transport、退出状态、超时错误和 Server 对全部上报项的严格版本策略不同；未合并整段轮询。共同的 required-capability 单项判断已在 R-78 收敛到 Worker contract。CodeGraph 确认各自生产调用均只有一处，静态复核对应的 readiness 和 capability validation 路径。
 - 前端日期解析已由 `frontend/src/i18n/format.ts::parseDate` 共用；数值范围与 CSS RGB 解析已有共享 utility。本次未发现需要再拆分的新事实来源。
+- `a4n-domain::character::CharacterDiscoveryCandidateRecordInput` 的四个 variant 是互斥的持久化命令，DB owner 按 ExistingProfile、ExistingWithoutEvidence、PreviouslyResolvedCandidate、Create 分别处理；Create 携带 `RecordCompletedGenerationRunInput`，是大 variant 的直接来源。CodeGraph 核对 Domain 与 DB 两个调用点，没有重复业务分支；改成 `Box` 会改变公开构造形状并增加分配，保留。
+- Clippy `module_inception` 命中 `a4n-db-models::models::{user::user, chapter::chapter}`。这是 domain namespace 下的 SeaORM entity 名称，不是同一模块内容复制；静态引用搜索在 112 个文件中发现活跃的 user/chapter entity import，保留现有路径。
+- Agent Run 更新入口共用 `update_run_state_on_with_options` 持久化核心：`update_run_state_on` 可从既有事务直接调用，另外三个 public API 先按需要取得 thread 锁/事务，并分别承载 budget 更新或 expected snapshot 条件。`update_run_state_inner` 的 `validate_run_status` 在第一次 DB 读取前拒绝非法输入；核心函数保留校验以覆盖绕过该 wrapper 的事务调用。CodeGraph 确认调用和 `agent_runtime.rs` 测试路径；删除任一校验会改变错误优先级或留下未经校验的入口，保留。
 
 ## 验证
 
