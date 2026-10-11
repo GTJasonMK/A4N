@@ -1,16 +1,17 @@
+use super::RagIngestProgressReporter;
 use tokio_util::sync::CancellationToken;
 
 pub struct RagIngestProgress<'a> {
     current: u32,
     total: u32,
-    reporter: Option<&'a (dyn Fn(u32, u32, &str) + Send + Sync)>,
+    reporter: Option<RagIngestProgressReporter<'a>>,
     cancel_token: Option<&'a CancellationToken>,
 }
 
 impl<'a> RagIngestProgress<'a> {
     pub fn new(
         total: u32,
-        reporter: Option<&'a (dyn Fn(u32, u32, &str) + Send + Sync)>,
+        reporter: Option<RagIngestProgressReporter<'a>>,
         cancel_token: Option<&'a CancellationToken>,
     ) -> Self {
         Self {

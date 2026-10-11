@@ -963,6 +963,14 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 通过，Runtime lib 告警由 9 条降至 8 条，目标高参数告警消失；`timeout 180s cargo test --no-run --offline --locked -p a4n-runtime --lib` 通过；`timeout 60s cargo test --offline --locked -p a4n-runtime --lib explicit_and_saved_discovery_keys_are_mutually_exclusive -- --test-threads=1` 1/1 通过；格式与 diff 检查通过。共享 agent target 在构建锁内清理。
 - 记录范围：`crates/host/a4n-runtime/src/sidecar_clients/model_discovery.rs`、`actions/config_records/discovery.rs`。
 
+### R-118：命名 RAG 同步进度 reporter 类型
+
+- 类别：`RagIngestProgress` 字段与构造函数重复书写同一复杂 callback trait-object 类型。
+- BFS 覆盖：CodeGraph/静态引用从 `RagIngestProgress::new`、`stage`、`advance`、内部 `report` 追到 batch sync、full orchestration 和取消/计数测试；确认两处复杂类型描述同一个无返回值的 `(current,total,message)` reporter，CancellationToken 仍独立承担取消检查。其他模块相似的 progress callbacks 有不同的返回值/可变性或领域 owner，不跨模块合并。
+- 在 `rag_ingest::sync::progress` 定义并导出 `RagIngestProgressReporter`，字段和 `new` 共用该别名；取消检查、进度递增/上限校验和回调顺序不变。
+- 验证：Runtime all-targets Clippy 通过，两处 RAG reporter type-complexity 提示消失；测试目标编译通过；`timeout 60s cargo test --offline --locked -p a4n-runtime --lib rag_ingest_progress_ -- --test-threads=1` 2/2 通过；格式与 diff 检查通过。Clippy 首轮指出父模块多余 re-export 后，别名移至 `progress` owner 并在 reporter 子模块引用，修正后再次编译/测试通过。
+- 记录范围：`crates/host/a4n-runtime/src/rag_ingest/sync/progress.rs`、`progress/reporter.rs`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
