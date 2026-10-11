@@ -1,4 +1,5 @@
 import React from "react";
+import { CreatorNotificationButton } from "./CreatorNotificationButton";
 import { StatusBarToggle } from "../ui/StatusBar";
 
 interface PageHeaderProps {
@@ -8,6 +9,7 @@ interface PageHeaderProps {
   title: React.ReactNode;
   meta?: React.ReactNode;
   actions?: React.ReactNode;
+  showNotificationButton?: boolean;
   titleId?: string;
   className?: string;
 }
@@ -25,6 +27,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   title,
   meta,
   actions,
+  showNotificationButton = true,
   titleId,
   className = "",
 }) => (
@@ -44,6 +47,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
 
     <div className="a4n-app-page-header__actions">
       {actions}
+      {showNotificationButton ? <CreatorNotificationButton /> : null}
       <StatusBarToggle />
     </div>
   </header>

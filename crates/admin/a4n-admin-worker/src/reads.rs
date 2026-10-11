@@ -2,6 +2,18 @@ use super::*;
 use a4n_domain::auth::{UserRole, parse_user_role};
 
 impl WorkerState {
+    pub(super) async fn notification_inbox(
+        &self,
+        request: WorkerEnvelope<NotificationCallerInput>,
+    ) -> Result<CreatorNotificationInbox, WorkerFailure> {
+        validate_request(&request, NOTIFICATION_INBOX_OPERATION)?;
+        let caller = self.caller(&request.principal, request.payload.caller_user_id)?;
+        self.require_active_creator(caller).await?;
+        a4n_db::notifications::creator_inbox(self.database.connection(), caller)
+            .await
+            .map_err(app_error)
+    }
+
     pub(super) async fn require_permission(
         &self,
         request: WorkerEnvelope<AdminPermissionInput>,

@@ -3,7 +3,6 @@ use crate::collaboration::{
     CollaborationDbError, CollaborationRootProject, ProjectAccessRole, ProjectMemberRole,
 };
 use a4n_db_models::models::project::project_member;
-use a4n_domain::auth::ROLE_READ_ONLY;
 use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 
@@ -44,7 +43,7 @@ pub(in crate::collaboration) async fn effective_role_for_root(
         return Err(CollaborationDbError::Forbidden("账户已被禁用".to_string()));
     }
 
-    let mut role = if root.user_id == user_id {
+    let role = if root.user_id == user_id {
         Some(ProjectAccessRole::Owner)
     } else {
         let member = project_member::Entity::find()
@@ -62,9 +61,6 @@ pub(in crate::collaboration) async fn effective_role_for_root(
         }
     };
 
-    if user.role == ROLE_READ_ONLY && role.is_some() {
-        role = Some(ProjectAccessRole::Viewer);
-    }
     Ok(role)
 }
 

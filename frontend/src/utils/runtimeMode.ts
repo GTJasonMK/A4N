@@ -1,6 +1,7 @@
 declare global {
   interface Window {
     readonly __A4N_API_BASE_URL__?: string;
+    readonly __A4N_WINDOW_LABEL__?: string;
   }
 }
 

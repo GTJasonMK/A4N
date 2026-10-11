@@ -1,4 +1,5 @@
 import React from "react";
+import { CreatorNotificationButton } from "./CreatorNotificationButton";
 import { useI18n } from "../../i18n";
 import { StatusBarToggle } from "../ui/StatusBar";
 
@@ -48,6 +49,7 @@ export const DerivedProjectHeader: React.FC<DerivedProjectHeaderProps> = ({
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           {actions}
+          <CreatorNotificationButton />
           <StatusBarToggle />
         </div>
       </div>

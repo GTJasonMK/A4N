@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use a4n_api_contract::image::{
     DeleteImageInput, ListImagesByChapterInput, ListImagesByProjectInput,
@@ -58,7 +58,7 @@ pub fn run() -> anyhow::Result<()> {
 }
 
 async fn async_main() -> anyhow::Result<()> {
-    init_tracing();
+    a4n_worker_runtime::init_worker_tracing();
     let database_url = a4n_config::required_non_empty_env_string("A4N_DATABASE_URL")?;
     a4n_config::validate_postgres_database_url("A4N_DATABASE_URL", &database_url)?;
     let data_dir = a4n_config::app_config::AppConfig::default().data_dir;
@@ -66,7 +66,7 @@ async fn async_main() -> anyhow::Result<()> {
     let token = a4n_config::required_non_empty_env_string(
         a4n_artifact_media_contract::ARTIFACT_MEDIA_WORKER_TOKEN_ENV,
     )?;
-    let addr = worker_addr()?;
+    let addr = a4n_config::worker_listen_addr("A4N_ARTIFACT_MEDIA_WORKER_ADDR", DEFAULT_ADDR)?;
     let db = a4n_db::DbHandle::connect_default(database_url).await?;
     let state = WorkerState {
         db,
@@ -99,7 +99,7 @@ async fn async_main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!(worker_id = ARTIFACT_MEDIA_WORKER_ID, %addr, "artifact media worker listening");
     let result = axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
+        .with_graceful_shutdown(a4n_worker_runtime::wait_for_shutdown_signal())
         .await;
     maintenance.abort();
     result?;
@@ -341,37 +341,6 @@ mod recovery;
 mod references;
 mod support;
 use support::*;
-
-fn worker_addr() -> anyhow::Result<SocketAddr> {
-    let value = std::env::var("A4N_ARTIFACT_MEDIA_WORKER_ADDR")
-        .unwrap_or_else(|_| DEFAULT_ADDR.to_string());
-    value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("A4N_ARTIFACT_MEDIA_WORKER_ADDR 无效: {error}"))
-}
-
-fn init_tracing() {
-    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
-    let _ = tracing_subscriber::fmt().with_env_filter(filter).try_init();
-}
-
-async fn shutdown_signal() {
-    #[cfg(unix)]
-    {
-        let mut terminate =
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                .expect("install SIGTERM handler");
-        tokio::select! {
-            _ = tokio::signal::ctrl_c() => {},
-            _ = terminate.recv() => {},
-        }
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = tokio::signal::ctrl_c().await;
-    }
-}
 
 #[cfg(test)]
 mod tests {

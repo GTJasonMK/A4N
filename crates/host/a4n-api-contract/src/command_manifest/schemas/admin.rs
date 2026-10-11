@@ -58,6 +58,18 @@ pub(crate) fn args_create_invite_code() -> Value {
 pub(crate) fn args_create_user() -> Value {
     strict_typed_input_schema::<crate::admin::CreateUserInput>()
 }
+pub(crate) fn args_broadcast_creator_notification() -> Value {
+    strict_typed_input_schema::<crate::notifications::BroadcastNotificationInput>()
+}
+pub(crate) fn args_notification_id() -> Value {
+    json!({
+        "type": "object",
+        "properties": { "notificationId": { "type": "integer", "minimum": 1 } },
+        "required": ["notificationId"],
+        "additionalProperties": false,
+        "x-a4n-schema-quality": "typed",
+    })
+}
 pub(crate) fn args_cleanup_orphan_project_data_dirs() -> Value {
     strict_typed_input_schema::<crate::storage::CleanupOrphanProjectDataDirsInput>()
 }
@@ -298,6 +310,12 @@ pub(crate) fn result_invite_codes() -> Value {
 }
 pub(crate) fn result_users() -> Value {
     typed_schema::<Vec<crate::auth::UserSummary>>()
+}
+pub(crate) fn result_broadcast_creator_notification() -> Value {
+    typed_schema::<crate::notifications::BroadcastNotificationReceipt>()
+}
+pub(crate) fn result_creator_notifications() -> Value {
+    typed_schema::<crate::notifications::CreatorNotificationInbox>()
 }
 pub(crate) fn result_rag_enhanced_search() -> Value {
     typed_schema::<crate::rag::RagEnhancedSearchOutput>()

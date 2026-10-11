@@ -1,17 +1,20 @@
 //! PostgreSQL-backed administrative application worker.
 
-use std::{env, net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc};
 
 use a4n_admin_worker_contract::{
-    ADMIN_ACTIVE_OPERATION, ADMIN_CREATE_INVITE_OPERATION, ADMIN_CREATE_USER_OPERATION,
-    ADMIN_DATABASE_HEALTH_OPERATION, ADMIN_GENERATION_ANALYTICS_OPERATION, ADMIN_INVITES_OPERATION,
-    ADMIN_OVERVIEW_OPERATION, ADMIN_PENDING_TASKS_OPERATION, ADMIN_PERMISSION_OPERATION,
-    ADMIN_PROJECTS_OPERATION, ADMIN_READ_CAPABILITY, ADMIN_TOKEN_SUMMARY_OPERATION,
-    ADMIN_UPDATE_ROLE_OPERATION, ADMIN_USAGE_TRENDS_OPERATION, ADMIN_USER_USAGE_OPERATION,
-    ADMIN_USERS_OPERATION, ADMIN_WORKER_CONTRACT_VERSION, ADMIN_WORKER_ID, ADMIN_WRITE_CAPABILITY,
-    AdminCallerInput, AdminCreateInviteInput, AdminCreateUserInput, AdminGenerationAnalyticsInput,
-    AdminPermissionInput, AdminUpdateRoleInput, AdminUsageTrendsInput, AdminUserInput,
-    AdminUserUsageInput, OperationAck,
+    ADMIN_ACTIVE_OPERATION, ADMIN_BROADCAST_NOTIFICATION_OPERATION, ADMIN_CREATE_INVITE_OPERATION,
+    ADMIN_CREATE_USER_OPERATION, ADMIN_DATABASE_HEALTH_OPERATION,
+    ADMIN_GENERATION_ANALYTICS_OPERATION, ADMIN_INVITES_OPERATION, ADMIN_OVERVIEW_OPERATION,
+    ADMIN_PENDING_TASKS_OPERATION, ADMIN_PERMISSION_OPERATION, ADMIN_PROJECTS_OPERATION,
+    ADMIN_READ_CAPABILITY, ADMIN_TOKEN_SUMMARY_OPERATION, ADMIN_UPDATE_ROLE_OPERATION,
+    ADMIN_USAGE_TRENDS_OPERATION, ADMIN_USER_USAGE_OPERATION, ADMIN_USERS_OPERATION,
+    ADMIN_WORKER_CONTRACT_VERSION, ADMIN_WORKER_ID, ADMIN_WRITE_CAPABILITY,
+    AdminBroadcastNotificationInput, AdminCallerInput, AdminCreateInviteInput,
+    AdminCreateUserInput, AdminGenerationAnalyticsInput, AdminPermissionInput,
+    AdminUpdateRoleInput, AdminUsageTrendsInput, AdminUserInput, AdminUserUsageInput,
+    BroadcastNotificationReceipt, CreatorNotificationInbox, NOTIFICATION_INBOX_OPERATION,
+    NOTIFICATION_READ_OPERATION, NotificationCallerInput, NotificationReadInput, OperationAck,
 };
 use a4n_api_contract::admin::AdminPermission;
 #[cfg(test)]
@@ -104,13 +107,19 @@ impl AdminWorker {
             .route("/v1/commands/admin.users.create", post(create_user))
             .route("/v1/commands/admin.invites.create", post(create_invite))
             .route("/v1/commands/admin.users.role.update", post(update_role))
+            .route(
+                "/v1/commands/admin.notifications.broadcast",
+                post(broadcast_notification),
+            )
+            .route("/v1/commands/notifications.inbox", post(notification_inbox))
+            .route("/v1/commands/notifications.read", post(notification_read))
             .with_state(self.state.clone())
     }
 
     pub async fn serve(self, address: SocketAddr) -> anyhow::Result<()> {
         let listener = tokio::net::TcpListener::bind(address).await?;
         axum::serve(listener, self.router())
-            .with_graceful_shutdown(shutdown_signal())
+            .with_graceful_shutdown(a4n_worker_runtime::wait_for_shutdown_signal())
             .await
             .map_err(anyhow::Error::from)
     }
@@ -124,26 +133,15 @@ pub fn run() -> anyhow::Result<()> {
 }
 
 async fn async_main() -> anyhow::Result<()> {
-    init_tracing();
+    a4n_worker_runtime::init_worker_tracing();
     let database_url = a4n_config::required_non_empty_env_string(DATABASE_URL_ENV)?;
     a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
     let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
-    let address = worker_addr()?;
+    let address = a4n_config::worker_listen_addr(WORKER_ADDR_ENV, DEFAULT_ADDR)?;
     let database = DbHandle::connect(database_url).await?;
     AdminWorker::new(database, ADMIN_WORKER_ID, auth_token)
         .serve(address)
         .await
-}
-
-fn worker_addr() -> anyhow::Result<SocketAddr> {
-    let value = env::var(WORKER_ADDR_ENV).unwrap_or_else(|_| DEFAULT_ADDR.into());
-    let address: SocketAddr = value
-        .parse()
-        .map_err(|error| anyhow::anyhow!("{WORKER_ADDR_ENV} 无效: {error}"))?;
-    if !address.ip().is_loopback() || address.port() == 0 {
-        anyhow::bail!("{WORKER_ADDR_ENV} 必须是 loopback 且端口大于 0")
-    }
-    Ok(address)
 }
 
 macro_rules! handler {
@@ -237,6 +235,24 @@ handler!(
     AdminUpdateRoleInput,
     ADMIN_UPDATE_ROLE_OPERATION,
     update_role
+);
+handler!(
+    broadcast_notification,
+    AdminBroadcastNotificationInput,
+    ADMIN_BROADCAST_NOTIFICATION_OPERATION,
+    broadcast_notification
+);
+handler!(
+    notification_inbox,
+    NotificationCallerInput,
+    NOTIFICATION_INBOX_OPERATION,
+    notification_inbox
+);
+handler!(
+    notification_read,
+    NotificationReadInput,
+    NOTIFICATION_READ_OPERATION,
+    mark_notification_read
 );
 
 async fn command_response<T, O, F, Fut>(
@@ -396,18 +412,6 @@ fn failed<T>(
 
 fn unauthorized() -> Response {
     StatusCode::UNAUTHORIZED.into_response()
-}
-
-async fn shutdown_signal() {
-    let _ = tokio::signal::ctrl_c().await;
-}
-
-fn init_tracing() {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
-        )
-        .try_init();
 }
 
 #[cfg(test)]

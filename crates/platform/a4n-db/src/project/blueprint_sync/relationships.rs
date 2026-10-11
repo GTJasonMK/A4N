@@ -83,7 +83,8 @@ where
         .all(db)
         .await
         .map_err(BlueprintSyncError::Database)?;
-    let mut existing_by_key: HashMap<String, Vec<blueprint_relationship::Model>> = HashMap::new();
+    let mut existing_by_key: HashMap<(String, String, String), Vec<blueprint_relationship::Model>> =
+        HashMap::new();
     for relationship in existing {
         existing_by_key
             .entry(blueprint_relationship_model_identity(&relationship))

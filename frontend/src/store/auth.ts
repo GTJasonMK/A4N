@@ -24,6 +24,7 @@ import {
 import { completeOAuthLogin } from "../api/oauth";
 import { getActiveLocale, translateMessage } from "../i18n";
 import { logger } from "../utils/logger";
+import { PORTABLE_STORAGE_UPDATED_EVENT } from "../utils/portableStorage";
 
 const authLog = logger.scoped("AuthStore");
 
@@ -50,6 +51,7 @@ const readCurrentUserIfStored = async (): Promise<UserSummary | null> => {
 
 let authInitPromise: Promise<void> | null = null;
 let authInitSessionId: string | null = null;
+let observedSessionId: string | null = null;
 
 export const useAuthStore = create<AuthStore>((set, get) => ({
   initialized: false,
@@ -58,6 +60,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
   init: async () => {
     const sessionId = readCurrentSessionId();
+    observedSessionId = sessionId;
     if (authInitPromise && authInitSessionId === sessionId) return authInitPromise;
 
     authInitSessionId = sessionId;
@@ -71,10 +74,12 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
           initialized: true,
           error: null,
         });
+        observedSessionId = readCurrentSessionId();
       } catch (error) {
         if (readCurrentSessionId() !== sessionId) return;
         if (isUnauthorizedError(error)) {
           await clearCurrentAuth();
+          observedSessionId = null;
           set({ user: null, initialized: true, error: null });
           return;
         }
@@ -97,6 +102,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
   login: async (username: string, password: string) => {
     const res = await loginUser(username, password);
+    observedSessionId = res.tokens.session_id;
     set({ user: res.user, initialized: true, error: null });
   },
 
@@ -105,12 +111,14 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     if (readCurrentSessionId() !== auth.tokens.session_id) {
       throw new Error(translateMessage(getActiveLocale(), "auth.sessionChanged"));
     }
+    observedSessionId = auth.tokens.session_id;
     set({ user: auth.user, initialized: true, error: null });
     return { user: auth.user, returnTo };
   },
 
   register: async (username: string, email: string, password: string, inviteCode: string) => {
     const res = await registerUser(username, email, password, inviteCode);
+    observedSessionId = res.tokens.session_id;
     set({ user: res.user, initialized: true, error: null });
   },
 
@@ -133,6 +141,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       await logoutUser();
     } finally {
       if (readCurrentSessionId() === null || readCurrentSessionId() === sessionId) {
+        observedSessionId = readCurrentSessionId();
         set({ user: null });
       }
     }
@@ -140,6 +149,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
   onUnauthorized: async () => {
     // 401 时清空登录态，交由 AuthGate 展示登录页
+    observedSessionId = null;
     set({ user: null, initialized: true, error: null });
     try {
       await clearCurrentAuth();
@@ -158,6 +168,13 @@ if (typeof window !== "undefined") {
   window.addEventListener("storage", (event) => {
     if (event.storageArea !== window.localStorage) return;
     if (event.key !== null && event.key !== CURRENT_SESSION_ID_KEY) return;
+    useAuthStore.setState({ user: null, initialized: false, error: null });
+    void useAuthStore.getState().init().catch(() => undefined);
+  });
+  window.addEventListener(PORTABLE_STORAGE_UPDATED_EVENT, () => {
+    const nextSessionId = readCurrentSessionId();
+    if (nextSessionId === observedSessionId) return;
+    observedSessionId = nextSessionId;
     useAuthStore.setState({ user: null, initialized: false, error: null });
     void useAuthStore.getState().init().catch(() => undefined);
   });

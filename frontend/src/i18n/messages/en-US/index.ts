@@ -42,10 +42,13 @@ import { characterDetail } from "./character";
 import { scenes } from "./scenes";
 import { inspiration } from "./inspiration";
 import { units } from "./units";
+import { notifications, settingsNotification } from "./notifications";
 
 const messages = {
   common,
   nav,
+  notifications,
+  settingsNotification,
   settings,
   settingsAgent,
   auth,

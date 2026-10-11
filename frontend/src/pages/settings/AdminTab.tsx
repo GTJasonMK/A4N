@@ -10,11 +10,20 @@ import { TasksSection } from "./admin/TasksSection";
 import { TrendsSection } from "./admin/TrendsSection";
 import { UsersSection } from "./admin/UsersSection";
 import { PackageSection } from "./admin/PackageSection";
+import { NotificationBroadcastSection } from "./admin/NotificationBroadcastSection";
 import { useI18n } from "../../i18n";
 import { useDirtyRegistry, useDirtyRegistryVersion } from "../../components/navigation/dirtyRegistry";
-import { routerBasename } from "../../utils/routerBase";
+import { openStandaloneWindow } from "../../utils/standaloneWindow";
 
-type Section = "overview" | "users" | "projects" | "tasks" | "api" | "trends" | "packages";
+type Section =
+  | "overview"
+  | "users"
+  | "projects"
+  | "tasks"
+  | "api"
+  | "trends"
+  | "packages"
+  | "notifications";
 
 export const AdminTab: React.FC = () => {
   const { user } = useAuthStore();
@@ -33,6 +42,7 @@ export const AdminTab: React.FC = () => {
     { id: "api", label: t("settingsAdmin.configuration") },
     { id: "trends", label: t("settingsAdmin.trends") },
     { id: "packages", label: t("settingsAdmin.packages") },
+    { id: "notifications", label: t("settingsAdmin.notifications") },
   ];
 
   const selectSection = async (nextSection: Section) => {
@@ -91,7 +101,11 @@ export const AdminTab: React.FC = () => {
       <div className="flex flex-wrap items-center justify-end gap-2">
         <button
           type="button"
-          onClick={() => window.open(`${routerBasename() ?? ""}/admin/test-center`, "_blank", "noopener,noreferrer")}
+          onClick={() => {
+            if (!openStandaloneWindow("test-center")) {
+              addToast(t("settingsAdmin.testCenter.windowOpenFailed"), "error");
+            }
+          }}
           className="a4n-btn-ghost inline-flex min-h-9 items-center gap-2 border border-book-border/60 px-3 text-xs text-book-text-main"
         >
           <FlaskConical size={14} />
@@ -123,6 +137,7 @@ export const AdminTab: React.FC = () => {
         {section === "api" && <ApiConfigSection />}
         {section === "trends" && <TrendsSection />}
         {section === "packages" && <PackageSection />}
+        {section === "notifications" && <NotificationBroadcastSection />}
       </div>
     </div>
   );

@@ -35,7 +35,7 @@ export const AboutTab: React.FC<{ user: AboutUser | null; onLogout: () => Promis
                   {user.username}
                 </h2>
                 <p className="mt-0.5 text-small text-book-text-muted">
-                  {user.role === "admin" ? t("settingsAdmin.roleAdmin") : user.role === "read_only" ? t("settingsAdmin.roleReadOnly") : t("settingsAdmin.roleUser")} · {t("settingsAbout.currentAccount")}
+                  {user.role === "admin" ? t("settingsAdmin.roleAdmin") : t("settingsAdmin.roleUser")} · {t("settingsAbout.currentAccount")}
                 </p>
               </div>
               <Dropdown

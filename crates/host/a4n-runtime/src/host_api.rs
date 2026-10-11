@@ -9,12 +9,12 @@ pub use crate::actions::{
     embedding_model, export_files, foreshadowing_records, galgame_records, generation_analytics,
     generation_tasks, image_generation, image_records, import_analysis, import_file,
     import_reverse, import_review, inspiration_records, logging, manga_pipeline, manga_records,
-    media_authoring, model_usage, oauth, object_profile_records, optimize, outline_records,
-    package, portrait_generation, portrait_records, profile_materials, project_collaboration,
-    project_duplication, project_records, project_status, project_transfer, prompt_records,
-    rag_search, scene_profile_records, scene_profile_sync, settings_all, shooting_script_records,
-    source_sync, storage_paths, task_records, theme, video_generation, video_prompts,
-    video_records,
+    media_authoring, model_usage, notifications, oauth, object_profile_records, optimize,
+    outline_records, package, portrait_generation, portrait_records, profile_materials,
+    project_collaboration, project_duplication, project_records, project_status, project_transfer,
+    prompt_records, rag_search, scene_profile_records, scene_profile_sync, settings_all,
+    shooting_script_records, source_sync, storage_paths, task_records, theme, video_generation,
+    video_prompts, video_records,
 };
 
 pub mod chapter_analysis {

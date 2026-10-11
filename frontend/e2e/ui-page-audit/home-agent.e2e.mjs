@@ -11,7 +11,7 @@ assert.match(phase, /^[a-z0-9_-]+$/i);
 const widths = [1440, 900, 390];
 const timeout = 6000;
 const report = [];
-let fixtures, current, auditWindow;
+let fixtures, current, auditWindow, agentWindow;
 let navigation = 0;
 const mainSeed = homeAgentFixtures.agentSnapshots[0];
 const budgetSeed = homeAgentFixtures.agentSnapshots[1];
@@ -134,8 +134,19 @@ async function home() {
 }
 async function agent(threadId = mainSeed.thread.id, activity = false) {
   await home();
+  const handlesBefore = await browser.getWindowHandles();
   await click("展开快捷工具");
   await click("查看 Agent 工作状态");
+  await browser.waitUntil(async () => {
+    const handles = await browser.getWindowHandles();
+    return agentWindow ? handles.includes(agentWindow) : handles.length > handlesBefore.length;
+  }, { timeout, timeoutMsg: "首页应打开独立 Agent 窗口" });
+  const handles = await browser.getWindowHandles();
+  agentWindow ??= handles.find((handle) => handle !== auditWindow);
+  assert.ok(agentWindow, "Agent window handle must exist");
+  await browser.switchToWindow(agentWindow);
+  await installUiFixtures(browser, fixtures);
+  await browser.refresh();
   await browser.waitUntil(async () => new URL(await browser.getUrl()).pathname === "/agents", { timeout });
   const scope = await $(".agent-monitor-page");
   await scope.$(".agent-monitor-thread-list").waitForDisplayed({ timeout });
@@ -224,6 +235,15 @@ describe("Home and global Agent page audit", function () {
       await writeFile(output + file.replace(/\.png$/, ".json"), JSON.stringify(failure, null, 2));
     }
     await writeFile(output + phase + "-report.json", JSON.stringify(report, null, 2));
+  });
+
+  after(async () => {
+    if (!agentWindow) return;
+    const handles = await browser.getWindowHandles();
+    if (!handles.includes(agentWindow)) return;
+    await browser.switchToWindow(agentWindow);
+    await browser.closeWindow();
+    await browser.switchToWindow(auditWindow);
   });
 
   const homePages = [

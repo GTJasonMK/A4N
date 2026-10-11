@@ -16,6 +16,7 @@ import { useAuthStore } from "../store/auth";
 import { shouldUseHttpBackend } from "../utils/runtimeMode";
 import { useI18n } from "../i18n";
 import { useDirtyRegistry, useDirtyRegistryVersion } from "../components/navigation/dirtyRegistry";
+import { isStandaloneWindow } from "../utils/standaloneWindow";
 
 const PAGE_CLIENT = "a4n-web";
 const TAB_ID_KEY = "a4n:page-session-tab-id";
@@ -136,7 +137,13 @@ export function usePageSession(): PageSessionState {
   translatorRef.current = t;
   const location = useLocation();
   const navigate = useNavigate();
-  const enabled = user != null && user.page_cli_enabled && shouldUseHttpBackend();
+  const standaloneRoute = /^\/(?:agents|admin\/test-center)(?:\/|$)/.test(location.pathname);
+  const enabled =
+    !isStandaloneWindow() &&
+    !standaloneRoute &&
+    user != null &&
+    user.page_cli_enabled &&
+    shouldUseHttpBackend();
   const [session, setSession] = useState<PageSessionView | null>(null);
   const [authorizationCode, setAuthorizationCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);

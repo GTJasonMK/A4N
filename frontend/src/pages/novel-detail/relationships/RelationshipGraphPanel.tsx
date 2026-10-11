@@ -484,9 +484,9 @@ function buildRelationshipGraph(
     const from = ensureNode(relationship.character_a);
     const to = ensureNode(relationship.character_b);
     from.degree += 1;
-    to.degree += 1;
     relationshipsByNodeId.get(from.id)?.push(relationship);
     if (from.id !== to.id) {
+      to.degree += 1;
       relationshipsByNodeId.get(to.id)?.push(relationship);
     }
     return {
@@ -500,7 +500,7 @@ function buildRelationshipGraph(
 
   const parallelGroups = new Map<string, RelationshipEdge[]>();
   edges.forEach((edge) => {
-    const key = [edge.fromId, edge.toId].sort().join("::");
+    const key = JSON.stringify([edge.fromId, edge.toId].sort());
     const group = parallelGroups.get(key) ?? [];
     group.push(edge);
     parallelGroups.set(key, group);
@@ -745,7 +745,7 @@ function pruneRelationshipNodePositions(
 }
 
 export function relationshipNodeId(name: string): string {
-  return name.trim().toLocaleLowerCase();
+  return name.trim().toLowerCase();
 }
 
 function initialOf(value: string): string {

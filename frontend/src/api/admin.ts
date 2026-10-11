@@ -21,3 +21,4 @@ export * from "./admin/users";
 export * from "./admin/projects";
 export * from "./admin/tasks";
 export * from "./admin/testConsole";
+export * from "./admin/notifications";

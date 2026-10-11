@@ -1,6 +1,6 @@
 //! PostgreSQL-backed shooting-script CRUD worker.
 
-use std::{env, net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc};
 
 use a4n_api_contract::chapter_visual_plan::{
     ChapterVisualPlanReadResult, ChapterVisualPlanRecordInput, ChapterVisualPlanRecordSummary,
@@ -144,7 +144,7 @@ impl NovelPlanningWorker {
     pub async fn serve(self, address: SocketAddr) -> anyhow::Result<()> {
         let listener = tokio::net::TcpListener::bind(address).await?;
         axum::serve(listener, self.router())
-            .with_graceful_shutdown(worker::runtime::shutdown_signal())
+            .with_graceful_shutdown(a4n_worker_runtime::wait_for_shutdown_signal())
             .await
             .map_err(anyhow::Error::from)
     }
@@ -233,21 +233,6 @@ mod tests {
             response.error.as_ref().map(|error| error.code),
             Some(WorkerErrorCode::InvalidRequest)
         );
-    }
-
-    #[test]
-    fn worker_address_rejects_public_bindings() {
-        assert!(worker_addr_from_value("0.0.0.0:47651").is_err());
-        assert!(worker_addr_from_value("127.0.0.1:0").is_err());
-        assert!(worker_addr_from_value("127.0.0.1:47651").is_ok());
-    }
-
-    fn worker_addr_from_value(value: &str) -> anyhow::Result<SocketAddr> {
-        let address: SocketAddr = value.parse()?;
-        if !address.ip().is_loopback() || address.port() == 0 {
-            anyhow::bail!("invalid worker address")
-        }
-        Ok(address)
     }
 
     #[test]

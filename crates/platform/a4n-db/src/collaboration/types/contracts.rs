@@ -59,7 +59,6 @@ pub(in crate::collaboration) struct UserDisplayRow {
 
 #[derive(Debug, Clone, FromQueryResult)]
 pub(in crate::collaboration) struct UserAccessRow {
-    pub role: String,
     pub is_active: bool,
 }
 

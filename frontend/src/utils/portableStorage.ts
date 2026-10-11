@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen as tauriListen } from "@tauri-apps/api/event";
 import { isTauriRuntime } from "./runtimeMode";
 
 const A4N_KEY_RE = /^a4n[:-]/;
@@ -9,6 +10,9 @@ let initialized = false;
 let backendAvailable = false;
 let desktopRuntime = false;
 let writePromise: Promise<void> = Promise.resolve();
+
+export const PORTABLE_STORAGE_UPDATED_EVENT = "a4n:portable-storage-updated";
+const FRONTEND_STATE_CHANGED_EVENT = "a4n:frontend-state-changed";
 
 const isBrowser = (): boolean => typeof window !== "undefined";
 
@@ -73,17 +77,41 @@ export const initializePortableStorage = async (): Promise<void> => {
   const backendEntries = await invoke<Record<string, string>>(
     "get_all_frontend_state",
   );
-  for (const [key, value] of Object.entries(backendEntries)) {
-    if (isA4nKey(key) && typeof value === "string") entries.set(key, value);
-  }
+  applyDesktopEntries(backendEntries);
 
   backendAvailable = true;
   initialized = true;
+  await tauriListen<{ keys?: unknown }>(
+    FRONTEND_STATE_CHANGED_EVENT,
+    () => {
+      void reloadDesktopStorage();
+    },
+  );
   const browserSettings = readBrowserItem(LOCAL_RUNTIME_SETTINGS_KEY);
   if (!entries.has(LOCAL_RUNTIME_SETTINGS_KEY) && browserSettings !== null) {
     await writePortableItem(LOCAL_RUNTIME_SETTINGS_KEY, browserSettings);
   }
 };
+
+function applyDesktopEntries(values: Record<string, string>): void {
+  entries.clear();
+  for (const [key, value] of Object.entries(values)) {
+    if (isA4nKey(key) && typeof value === "string") entries.set(key, value);
+  }
+}
+
+async function reloadDesktopStorage(): Promise<void> {
+  if (!desktopRuntime || !backendAvailable) return;
+  try {
+    const backendEntries = await invoke<Record<string, string>>(
+      "get_all_frontend_state",
+    );
+    applyDesktopEntries(backendEntries);
+    window.dispatchEvent(new Event(PORTABLE_STORAGE_UPDATED_EVENT));
+  } catch (error) {
+    console.error("跨窗口读取前端状态失败", error);
+  }
+}
 
 export const readPortableItem = (key: string): string | null => {
   if (!isA4nKey(key)) return null;

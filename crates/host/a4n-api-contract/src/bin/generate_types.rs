@@ -204,6 +204,10 @@ use a4n_api_contract::{
         PrepareStandaloneComicSourceInput, PreviewMangaPipelineArtifactDeletionInput,
         SaveMangaPipelineArtifactInput, UpdateMangaPromptInput,
     },
+    notifications::{
+        BroadcastNotificationInput, BroadcastNotificationReceipt, CreatorNotificationInbox,
+        CreatorNotificationItem,
+    },
     optimize::{
         AnalyzeChapterInput, ApplyOptimizationPatchesInput, ApplyOptimizationPatchesResponse,
         CreateOptimizationChatSessionInput, DiscardOptimizationPatchSetInput,

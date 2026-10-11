@@ -24,8 +24,8 @@ fn uses_current_user_claims() {
 
     let pair = refresh_access_token_with_role(
         &old_refresh,
-        Some("只读用户"),
-        "read_only",
+        Some("创作者"),
+        "user",
         "session-6",
         TEST_SECRET,
     )
@@ -34,8 +34,8 @@ fn uses_current_user_claims() {
     let claims = verify_token(&pair.access_token, TEST_SECRET).expect("access claims");
 
     assert_eq!(claims.sub, "user-6");
-    assert_eq!(claims.name.as_deref(), Some("只读用户"));
-    assert_eq!(claims.role.as_deref(), Some("read_only"));
+    assert_eq!(claims.name.as_deref(), Some("创作者"));
+    assert_eq!(claims.role.as_deref(), Some("user"));
     assert_eq!(claims.token_type, "access");
     assert_eq!(claims.session_id.as_deref(), Some("session-6"));
 }

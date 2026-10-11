@@ -164,6 +164,8 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::manga_preprocessing_contract_v2::Migration),
             Box::new(crate::migrations::manga_preprocessing_contract_v3::Migration),
             Box::new(crate::migrations::manga_page_image_artifacts::Migration),
+            Box::new(crate::migrations::user_read_only_role_removal::Migration),
+            Box::new(crate::migrations::creator_notifications::Migration),
         ]
     }
 }

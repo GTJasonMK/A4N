@@ -1,6 +1,6 @@
 //! PostgreSQL-backed provider configuration read worker.
 
-use std::{env, net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc};
 
 use a4n_api_contract::config::{
     EmbeddingConfigSummary, ImageConfigForConnectivityTest, ImageConfigSummary, LlmConfigSummary,
@@ -197,7 +197,7 @@ impl ConfigReadWorker {
     pub async fn serve(self, address: SocketAddr) -> anyhow::Result<()> {
         let listener = tokio::net::TcpListener::bind(address).await?;
         axum::serve(listener, self.router())
-            .with_graceful_shutdown(shutdown_signal())
+            .with_graceful_shutdown(a4n_worker_runtime::wait_for_shutdown_signal())
             .await
             .map_err(anyhow::Error::from)
     }

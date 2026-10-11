@@ -78,6 +78,8 @@ pub mod media {
     pub mod media_provenance;
 }
 
+pub mod notification;
+
 pub mod package;
 
 pub mod video_project {

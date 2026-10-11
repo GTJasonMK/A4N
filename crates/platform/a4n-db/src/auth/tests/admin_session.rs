@@ -18,18 +18,12 @@ async fn create_user_stores_requested_role() {
     let admin = create_user(db.as_ref(), "root", "root@example.com", "pw", "admin")
         .await
         .unwrap();
-    let read_only = create_user(
-        db.as_ref(),
-        "reader",
-        "reader@example.com",
-        "pw",
-        "read_only",
-    )
-    .await
-    .unwrap();
+    let regular = create_user(db.as_ref(), "member", "member@example.com", "pw", "user")
+        .await
+        .unwrap();
 
     assert_eq!(admin.role, "admin");
-    assert_eq!(read_only.role, "read_only");
+    assert_eq!(regular.role, "user");
 }
 
 #[tokio::test]
@@ -50,15 +44,9 @@ async fn list_users_returns_ordered_summaries() {
     let first = create_user(db.as_ref(), "first", "first@example.com", "pw", "admin")
         .await
         .unwrap();
-    let second = create_user(
-        db.as_ref(),
-        "second",
-        "second@example.com",
-        "pw",
-        "read_only",
-    )
-    .await
-    .unwrap();
+    let second = create_user(db.as_ref(), "second", "second@example.com", "pw", "user")
+        .await
+        .unwrap();
 
     let users = list_users(db.as_ref()).await.unwrap();
 
@@ -68,7 +56,7 @@ async fn list_users_returns_ordered_summaries() {
     assert_eq!(users[0].role, "admin");
     assert_eq!(users[1].id, second.id);
     assert_eq!(users[1].username, "second");
-    assert_eq!(users[1].role, "read_only");
+    assert_eq!(users[1].role, "user");
     assert!(users.iter().all(|user| user.is_active));
     let created_at =
         chrono::DateTime::parse_from_rfc3339(users[0].created_at.as_deref().expect("created_at"))
@@ -106,14 +94,6 @@ async fn disabled_user_has_admin_summary_but_no_active_session_summary() {
         current_user_summary(db.as_ref(), user.id).await,
         Err(AppError::Unauthorized(_))
     ));
-
-    update_user_role(db.as_ref(), user.id, "read_only")
-        .await
-        .unwrap();
-    assert_eq!(
-        user_summary_by_id(db.as_ref(), user.id).await.unwrap().role,
-        "read_only"
-    );
 }
 
 #[tokio::test]

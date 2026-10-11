@@ -115,8 +115,7 @@
 | SD24-account-storage | 查看路径/清理 / 偶发 | 信息 → 路径 → 扫描 → 影响确认 | H-I：15 图全看，路径换行、数量/大小、取消与清理结果一致。 | `SD24-account-storage-orphan-cleanup-result-390.png` |
 | SD25-auth-login-register | 登录/注册 / 偶发 | 必填 → 提交 → 错误/重试 | H-I：401/400 与保留输入可见，没有假成功凭证。 | `SD25-auth-login-register-registration-failure-390.png` |
 | SD26-auth-oauth | 第三方登录 / 偶发 | 服务 → 等待 → 失败/返回 | H-I：选择、等待、失败、失效回调 12 图已看；未跳真实第三方。 | `SD26-auth-oauth-oauth-callback-error-390.png` |
-| SD27-account-role-user | 普通用户账户 / 偶发 | 身份 → 偏好 → 管理边界 | H-I：PageSession 等待绑定与管理/队列拒绝清楚，没有未允许读取。 | `SD27-account-role-user-account-persona-390.png` |
-| SD27-account-role-read_only | 只读用户账户 / 偶发 | 身份 → 偏好 → 权限边界 | H-I：无前一身份遗留会话，不出现清理或 Host 管理入口。 | `SD27-account-role-read_only-account-persona-390.png` |
+| SD27-account-role-user | 创作者账户 / 偶发 | 身份 → 偏好 → 管理边界 | H-I：PageSession 等待绑定与管理/队列拒绝清楚，没有未允许读取。 | `SD27-account-role-user-account-persona-390.png` |
 
 ## 首页与 Agent 的 24 项历史继承索引
 

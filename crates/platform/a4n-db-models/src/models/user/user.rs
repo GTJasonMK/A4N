@@ -15,7 +15,7 @@ pub struct Model {
     /// 密码哈希（argon2）
     pub password_hash: String,
 
-    /// 角色：admin / user / read_only
+    /// 角色：admin / user
     pub role: String,
 
     /// OAuth2 提供商

@@ -63,6 +63,11 @@ import {
 import { useI18n, type Locale } from "../i18n";
 import { useBeforeUnload, useBlocker, useNavigate } from "react-router-dom";
 import { extractWritingTarget } from "./agentMonitorUtils";
+import {
+  closeStandaloneWindow,
+  isStandaloneWindow,
+  requestMainWindowNavigation,
+} from "../utils/standaloneWindow";
 import { useDirty, useDirtyRegistry } from "../components/navigation/dirtyRegistry";
 import {
   reduceAgentEvent,
@@ -119,6 +124,7 @@ export const AgentMonitor: React.FC = () => {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { locale, t } = useI18n();
+  const standaloneWindow = isStandaloneWindow();
   const dirtyRegistry = useDirtyRegistry();
   const [threads, setThreads] = useState<AgentThreadView[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
@@ -382,10 +388,15 @@ export const AgentMonitor: React.FC = () => {
       .find(({ message, target }) => target != null && !handledLocateMessageIdsRef.current.has(message.id));
     if (!next?.target || navigationBlocker.state === "blocked") return;
     handledLocateMessageIdsRef.current.add(next.message.id);
-    navigate(
-      `/write/${next.target.projectId}?chapter=${next.target.chapterNumber}&agent=1`,
-    );
-  }, [navigate, navigationBlocker.state, snapshot]);
+    const route = `/write/${next.target.projectId}?chapter=${next.target.chapterNumber}&agent=1`;
+    if (!standaloneWindow) {
+      navigate(route);
+      return;
+    }
+    void requestMainWindowNavigation(route).catch((error) => {
+      addToast(extractErrorMessage(error, t("agent.mainWindowNavigationFailed")), "error");
+    });
+  }, [addToast, navigate, navigationBlocker.state, snapshot, standaloneWindow, t]);
 
   const currentRun = useMemo(() => activeAgentRun(snapshot), [snapshot]);
   const contextRun = currentRun ?? (
@@ -583,6 +594,18 @@ export const AgentMonitor: React.FC = () => {
     }
   };
 
+  const closeOrReturn = () => {
+    if (!standaloneWindow) {
+      smartBack();
+      return;
+    }
+    void closeStandaloneWindow()
+      .then((closed) => {
+        if (!closed) smartBack();
+      })
+      .catch(() => smartBack());
+  };
+
   return (
     <div className="agent-monitor-page flex h-full min-h-0 flex-col bg-book-bg">
       {navigationBlocker.state === "blocked" ? (
@@ -608,7 +631,7 @@ export const AgentMonitor: React.FC = () => {
       {budgetRun ? <AgentBudgetDialog run={budgetRun} onClose={() => setBudgetRun(null)} onResumed={() => Promise.all([loadSnapshot(budgetRun.thread_id, true), refreshThreads()])} /> : null}
       <PageHeader
         className="agent-monitor-page-header"
-        leading={<BackButton iconOnly title={t("nav.backToPrevious")} onClick={smartBack} />}
+        leading={<BackButton iconOnly title={t("nav.backToPrevious")} onClick={closeOrReturn} />}
         icon={<span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-book-primary/10 text-book-primary"><Bot size={18} /></span>}
         eyebrow={t("agent.collaborationHub")}
         title={t("agent.workbench")}

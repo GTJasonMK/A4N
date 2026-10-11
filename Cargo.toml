@@ -47,6 +47,7 @@ a4n-service-protocol = { path = "crates/process/a4n-service-protocol" }
 a4n-sidecar-bootstrap = { path = "crates/process/a4n-sidecar-bootstrap" }
 a4n-worker-client = { path = "crates/process/a4n-worker-client" }
 a4n-worker-contract = { path = "crates/process/a4n-worker-contract" }
+a4n-worker-runtime = { path = "crates/process/a4n-worker-runtime" }
 
 # config
 a4n-config = { path = "crates/config/a4n-config" }

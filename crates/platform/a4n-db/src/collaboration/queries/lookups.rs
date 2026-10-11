@@ -15,7 +15,6 @@ where
 {
     user::Entity::find_by_id(user_id)
         .select_only()
-        .column(user::Column::Role)
         .column(user::Column::IsActive)
         .into_model::<UserAccessRow>()
         .one(db)

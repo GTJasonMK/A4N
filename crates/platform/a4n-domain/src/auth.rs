@@ -4,13 +4,11 @@ use thiserror::Error;
 
 pub const ROLE_ADMIN: &str = "admin";
 pub const ROLE_USER: &str = "user";
-pub const ROLE_READ_ONLY: &str = "read_only";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UserRole {
     Admin,
     User,
-    ReadOnly,
 }
 
 impl UserRole {
@@ -18,7 +16,6 @@ impl UserRole {
         match self {
             Self::Admin => ROLE_ADMIN,
             Self::User => ROLE_USER,
-            Self::ReadOnly => ROLE_READ_ONLY,
         }
     }
 }
@@ -27,8 +24,7 @@ impl std::fmt::Display for UserRole {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let label = match self {
             Self::Admin => "管理员",
-            Self::User => "用户",
-            Self::ReadOnly => "只读",
+            Self::User => "创作者",
         };
         write!(f, "{label}")
     }
@@ -42,7 +38,6 @@ pub fn parse_user_role(value: &str) -> Result<UserRole, UserRoleParseError> {
     match value {
         ROLE_ADMIN => Ok(UserRole::Admin),
         ROLE_USER => Ok(UserRole::User),
-        ROLE_READ_ONLY => Ok(UserRole::ReadOnly),
         other => Err(UserRoleParseError(other.to_string())),
     }
 }
@@ -91,10 +86,13 @@ mod tests {
     fn parses_known_roles_and_rejects_unknown_values() {
         assert_eq!(parse_user_role(ROLE_ADMIN), Ok(UserRole::Admin));
         assert_eq!(parse_user_role(ROLE_USER), Ok(UserRole::User));
-        assert_eq!(parse_user_role(ROLE_READ_ONLY), Ok(UserRole::ReadOnly));
         assert_eq!(
             parse_user_role("owner"),
             Err(UserRoleParseError("owner".into()))
+        );
+        assert_eq!(
+            parse_user_role("read_only"),
+            Err(UserRoleParseError("read_only".into()))
         );
     }
 }

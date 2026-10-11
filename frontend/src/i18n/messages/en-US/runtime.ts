@@ -144,6 +144,7 @@ export const agent = {
   workbench: "Agent workbench",
   polling: "Polling mode",
   refresh: "Refresh Agent status",
+  mainWindowNavigationFailed: "Unable to open the Agent target in the main window.",
   connectionLost: "Agent live connection disconnected",
   loadFailed: "Failed to load Agent status",
   clearContext: "Clear Agent context",

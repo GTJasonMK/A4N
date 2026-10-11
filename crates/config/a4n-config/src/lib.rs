@@ -4,6 +4,7 @@
 //! 这样 sidecar、迁移器和宿主可以共享同一份配置边界规则。
 
 use std::ffi::OsString;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use a4n_error::AppError;
@@ -87,6 +88,23 @@ pub fn optional_non_empty_env_string(key: &str) -> Result<Option<String>, AppErr
         Err(std::env::VarError::NotPresent) => Ok(None),
         Err(error) => Err(AppError::ConfigError(format!("{key} 无法读取: {error}"))),
     }
+}
+
+pub fn worker_listen_addr(key: &str, default_addr: &str) -> Result<SocketAddr, AppError> {
+    let value = optional_non_empty_env_string(key)?.unwrap_or_else(|| default_addr.to_string());
+    parse_worker_listen_addr(key, &value)
+}
+
+fn parse_worker_listen_addr(key: &str, value: &str) -> Result<SocketAddr, AppError> {
+    let address = value
+        .parse::<SocketAddr>()
+        .map_err(|error| AppError::ConfigError(format!("{key} 无效: {error}")))?;
+    if !address.ip().is_loopback() || address.port() == 0 {
+        return Err(AppError::ConfigError(format!(
+            "{key} 必须是 loopback 且端口大于 0"
+        )));
+    }
+    Ok(address)
 }
 
 pub fn required_non_empty_env_string(key: &str) -> Result<String, AppError> {
@@ -243,6 +261,17 @@ mod tests {
                 .unwrap(),
             Some(PathBuf::from("data/cache"))
         );
+    }
+
+    #[test]
+    fn worker_listen_addr_requires_loopback_and_nonzero_port() {
+        assert_eq!(
+            parse_worker_listen_addr("A4N_WORKER_ADDR", "127.0.0.1:47641").unwrap(),
+            "127.0.0.1:47641".parse::<SocketAddr>().unwrap()
+        );
+        assert!(parse_worker_listen_addr("A4N_WORKER_ADDR", "0.0.0.0:47641").is_err());
+        assert!(parse_worker_listen_addr("A4N_WORKER_ADDR", "127.0.0.1:0").is_err());
+        assert!(parse_worker_listen_addr("A4N_WORKER_ADDR", "invalid").is_err());
     }
 
     #[test]

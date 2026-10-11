@@ -37,6 +37,7 @@ pub mod manga_pipeline;
 pub mod manga_records;
 pub mod media_authoring;
 pub mod model_usage;
+pub mod notifications;
 pub(crate) use request_preview::sanitize_preview_value;
 pub mod oauth;
 pub mod object_profile_records;

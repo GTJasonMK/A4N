@@ -6,6 +6,9 @@ pub use a4n_api_contract::admin::{
     InviteCodeSummary, TaskQueueSummary, UpdateUserRoleInput, UsageLogSummary, UsageTrendsInput,
 };
 pub use a4n_api_contract::auth::UserSummary;
+pub use a4n_api_contract::notifications::{
+    BroadcastNotificationInput, BroadcastNotificationReceipt, CreatorNotificationInbox,
+};
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
 pub const ADMIN_WORKER_ID: &str = "admin-worker";
@@ -28,6 +31,9 @@ pub const ADMIN_INVITES_OPERATION: &str = "admin.invites.list";
 pub const ADMIN_CREATE_USER_OPERATION: &str = "admin.users.create";
 pub const ADMIN_CREATE_INVITE_OPERATION: &str = "admin.invites.create";
 pub const ADMIN_UPDATE_ROLE_OPERATION: &str = "admin.users.role.update";
+pub const ADMIN_BROADCAST_NOTIFICATION_OPERATION: &str = "admin.notifications.broadcast";
+pub const NOTIFICATION_INBOX_OPERATION: &str = "notifications.inbox";
+pub const NOTIFICATION_READ_OPERATION: &str = "notifications.read";
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -91,6 +97,26 @@ pub struct AdminUpdateRoleInput {
     pub caller_user_id: i64,
     pub user_id: i64,
     pub input: UpdateUserRoleInput,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AdminBroadcastNotificationInput {
+    pub caller_user_id: i64,
+    pub input: BroadcastNotificationInput,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct NotificationCallerInput {
+    pub caller_user_id: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct NotificationReadInput {
+    pub caller_user_id: i64,
+    pub notification_id: i64,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
