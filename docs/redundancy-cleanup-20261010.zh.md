@@ -945,6 +945,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 通过，Runtime lib 告警由 11 条降至 10 条，Image preview 的高参数告警消失；`cargo fmt --all -- --check` 和 `git diff --check` 通过。该 helper 没有直接测试；all-targets Clippy 编译了 Runtime 测试目标。未运行单测：唯一可选的下游 request-preview 用例并不调用此 helper，共享构建锁正由其他会话的 release benchmark 持有，排队命令在开始构建前取消。
 - 记录范围：`crates/host/a4n-runtime/src/actions/image_generation/{preview.rs,mod.rs,host_port.rs}`、`actions/portrait_generation/host_port.rs`。
 
+### R-116：集中动态 LLM trace 结果字段
+
+- 类别：trace 记录 helper 接收模型、usage、耗时、streamed、状态、错误与 finish reason 等 8 个结果字段作为位置参数，三处调用重复传递同一类观测结果。
+- BFS 覆盖：CodeGraph/静态搜索从 `record_dynamic_llm_trace` 追到 terminal stream 完成、terminal stream 失败和 embedded provider 建流失败三个生产调用，并核对 `dynamic_llm::trace` re-export、queue terminal/status 映射、cost completion 与 `RecordLlmCallTraceInput` 投影。三处都显式提供 model 且 `streamed=true`；成功路径无错误字段，失败路径按既有 `llm_trace_status_for_error`/`llm_error_kind` 计算状态和错误分类。
+- 新增 `DynamicLlmTraceOutcome` 命名结果输入，集中可变观测字段；model 改为必填，`streamed=true` 由唯一 trace owner 固定。record helper 保留可选 `LlmTraceContext` 的无记录语义，trace context 的 scope/计划字段与原字段投影不变。
+- 不改变 success/cancel/failure 状态映射、usage、耗时、error message、finish reason、日志和 cost-record 写入顺序；未新增 fallback 或吞错。
+- 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 通过，Runtime lib 告警由 10 条降至 9 条，目标高参数告警消失；`timeout 180s cargo test --no-run --offline --locked -p a4n-runtime --lib` 通过；`timeout 60s cargo test --offline --locked -p a4n-runtime --lib dynamic_llm:: -- --test-threads=1` 20/20 通过；`cargo fmt --all -- --check` 和 `git diff --check` 通过。共享 agent target 在构建锁内清理。
+- 记录范围：`crates/host/a4n-runtime/src/dynamic_llm/{trace.rs,trace/recording.rs,streams/terminal/sync.rs,llm_provider/embedded_stream.rs}`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

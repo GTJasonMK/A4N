@@ -6,7 +6,10 @@ use super::super::{
     contracts::DynamicLlmProvider,
     provider::PreparedLlmCall,
     streams::QueueTrackedLlmStream,
-    trace::{llm_error_kind, llm_trace_status_for_error, record_dynamic_llm_trace},
+    trace::{
+        DynamicLlmTraceOutcome, llm_error_kind, llm_trace_status_for_error,
+        record_dynamic_llm_trace,
+    },
 };
 
 impl DynamicLlmProvider {
@@ -64,17 +67,19 @@ impl DynamicLlmProvider {
                         },
                     )
                     .await;
+                let error_message = error.to_string();
                 record_dynamic_llm_trace(
                     &self.facade,
                     trace.as_ref(),
-                    Some(&model_name),
-                    None,
-                    Some(started.elapsed().as_millis() as i64),
-                    true,
-                    llm_trace_status_for_error(&error),
-                    Some(llm_error_kind(&error)),
-                    Some(&error.to_string()),
-                    None,
+                    DynamicLlmTraceOutcome {
+                        model: &model_name,
+                        usage: None,
+                        duration_ms: Some(started.elapsed().as_millis() as i64),
+                        status: llm_trace_status_for_error(&error),
+                        error_kind: Some(llm_error_kind(&error)),
+                        error_message: Some(&error_message),
+                        finish_reason: None,
+                    },
                 )
                 .await;
                 Err(error)
