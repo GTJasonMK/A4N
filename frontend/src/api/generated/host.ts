@@ -244,6 +244,7 @@ export const HOST_API_COMMANDS = [
   "list_snapshots",
   "list_source_snapshot_chapter_index",
   "list_source_snapshot_chapters",
+  "list_story_event_chapters",
   "list_test_runs",
   "list_test_scenarios",
   "list_themes",
@@ -1662,6 +1663,21 @@ export interface ChapterAnalysisEntry {
   id: number;
   summary: string | null;
   title: string | null;
+}
+
+export interface ChapterStoryEventEntry {
+  analysis_data: unknown;
+  chapter_number: number;
+  foreshadowing_counts: ChapterStoryEventForeshadowingCounts;
+  id: number;
+  summary: string | null;
+  title: string | null;
+}
+
+export interface ChapterStoryEventForeshadowingCounts {
+  planted: number;
+  resolved: number;
+  tensions: number;
 }
 
 export interface GetChapterInput {

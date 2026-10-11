@@ -1,5 +1,7 @@
 use super::{embedding::EmbeddingModelIdentity, generation_tasks::GenerationStartRequestMeta};
-pub use a4n_domain::chapter::ChapterAnalysisEntry;
+pub use a4n_domain::chapter::{
+    ChapterAnalysisEntry, ChapterStoryEventEntry, ChapterStoryEventForeshadowingCounts,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -331,6 +333,11 @@ pub trait ChapterContentReadApplicationPort: Send + Sync {
         user_id: i64,
         project_id: i64,
     ) -> Result<Vec<ChapterAnalysisEntry>, a4n_error::AppError>;
+    async fn story_events(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ChapterStoryEventEntry>, a4n_error::AppError>;
     async fn index(
         &self,
         user_id: i64,

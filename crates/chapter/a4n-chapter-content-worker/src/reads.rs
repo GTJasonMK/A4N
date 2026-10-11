@@ -10,8 +10,9 @@ use a4n_chapter_content_core::{
 };
 use a4n_chapter_content_worker_contract::{
     CHAPTER_CONTENT_ANALYSES_OPERATION, CHAPTER_CONTENT_INDEX_OPERATION,
-    CHAPTER_CONTENT_LIST_OPERATION, CHAPTER_CONTENT_SUMMARY_OPERATION, ChapterAnalysisEntry,
-    ChapterIndexEntry, ChapterInput, ChapterMetadata, ChapterSummary, ProjectInput,
+    CHAPTER_CONTENT_LIST_OPERATION, CHAPTER_CONTENT_STORY_EVENTS_OPERATION,
+    CHAPTER_CONTENT_SUMMARY_OPERATION, ChapterAnalysisEntry, ChapterIndexEntry, ChapterInput,
+    ChapterMetadata, ChapterStoryEventEntry, ChapterSummary, ProjectInput,
 };
 use a4n_domain::chapter::ChapterRecord;
 use a4n_worker_contract::WorkerEnvelope;
@@ -25,6 +26,21 @@ impl WorkerState {
         let project_id = positive("project_id", request.payload.project_id)?;
         verify_project_viewer(&self.database, project_id, user_id(&request)?).await?;
         a4n_db::chapter_content::chapter_analyses_for_project(
+            self.database.connection(),
+            project_id,
+        )
+        .await
+        .map_err(|error| WorkerFailure::unavailable(error.to_string()))
+    }
+
+    pub(super) async fn story_events(
+        &self,
+        request: WorkerEnvelope<ProjectInput>,
+    ) -> Result<Vec<ChapterStoryEventEntry>, WorkerFailure> {
+        validate_request(&request, CHAPTER_CONTENT_STORY_EVENTS_OPERATION)?;
+        let project_id = positive("project_id", request.payload.project_id)?;
+        verify_project_viewer(&self.database, project_id, user_id(&request)?).await?;
+        a4n_db::chapter_content::chapter_story_events_for_project(
             self.database.connection(),
             project_id,
         )

@@ -22,7 +22,7 @@ use super::super::{
     list_chapter_scenes, list_chapters, list_my_project_invites, list_optimize_patch_sets,
     list_optimize_sessions, list_optimize_turns, list_orphan_project_data_dirs,
     list_project_invites, list_project_members, list_projects, list_source_snapshot_chapter_index,
-    list_source_snapshot_chapters, preview_apply_beat_mapping_request,
+    list_source_snapshot_chapters, list_story_event_chapters, preview_apply_beat_mapping_request,
     preview_batch_generate_part_outlines_request, preview_chapter_analysis_request,
     preview_chapter_prompt, preview_chapter_scene_request, preview_continue_part_outlines_request,
     preview_generate_blueprint_request, preview_generate_chapter_outlines_by_count_request,
@@ -170,6 +170,7 @@ async fn try_dispatch_content(
     let result = match cmd {
         "list_chapters" => list_chapters(state, user_id, args).await?,
         "list_chapter_analyses" => list_chapter_analyses(state, user_id, args).await?,
+        "list_story_event_chapters" => list_story_event_chapters(state, user_id, args).await?,
         "list_chapter_index" => list_chapter_index(state, user_id, args).await?,
         "get_chapter" => get_chapter(state, user_id, args).await?,
         "preview_chapter_prompt" => preview_chapter_prompt(state, user_id, args).await?,

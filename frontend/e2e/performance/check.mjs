@@ -14,9 +14,10 @@ const port = Number(process.env.A4N_PERF_PORT ?? 48966);
 const outDir = path.join(artifacts, "dist");
 const baselineRef = process.env.A4N_PERF_BASELINE_REF;
 const scenario = process.env.A4N_PERF_CASE ?? "core";
-assert.ok(["core", "sidebar", "story-events", "story-events-loader", "outline-list", "agent-messages", "authoring-label", "manga-source", "galgame-source"].includes(scenario));
+assert.ok(["core", "sidebar", "story-events", "story-events-loader", "story-events-analysis-projection", "outline-list", "agent-messages", "authoring-label", "manga-source", "galgame-source"].includes(scenario));
 const entry = scenario === "sidebar" ? "sidebar.html" : scenario === "story-events" ? "story-events.html"
   : scenario === "story-events-loader" ? "story-events-loader.html"
+  : scenario === "story-events-analysis-projection" ? "story-events.html"
   : scenario === "outline-list" ? "outline-list.html"
   : scenario === "agent-messages" ? "agent-messages.html"
   : scenario === "authoring-label" ? "authoring-label.html"
@@ -26,6 +27,8 @@ const sourceFiles = scenario === "story-events"
   ? ["src/pages/novel-detail/story-events/storyEventUtils.ts", "src/pages/novel-detail/story-events/ChapterEventSection.tsx"]
   : scenario === "story-events-loader"
   ? ["src/pages/novel-detail/StoryEventsTab.tsx"]
+  : scenario === "story-events-analysis-projection"
+  ? ["src/pages/novel-detail/story-events/storyEventUtils.ts", "src/pages/novel-detail/story-events/StoryEventsListCard.tsx", "src/pages/novel-detail/story-events/ChapterEventSection.tsx"]
   : scenario === "outline-list"
   ? ["src/pages/novel-detail/outlines/ChapterOutlineSection.tsx", "src/pages/novel-detail/outlines/outlineTabUtils.ts"]
   : scenario === "agent-messages"
@@ -115,7 +118,7 @@ try {
     browserName: "chrome", "goog:chromeOptions": {
       binary: process.env.A4N_WDIO_CHROMIUM_BINARY ?? "/usr/bin/chromium",
       args: ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage",
-        ...(scenario === "manga-source" || scenario === "galgame-source" || scenario === "story-events" ? ["--js-flags=--expose-gc"] : []),
+        ...(scenario === "manga-source" || scenario === "galgame-source" || scenario === "story-events" || scenario === "story-events-analysis-projection" ? ["--js-flags=--expose-gc"] : []),
         `--user-data-dir=${path.join(temp, "chrome")}`],
     },
   } });
@@ -164,6 +167,33 @@ try {
     for (const count of [100, 1000]) storyEvents.push(await browser.execute((count) => window.measureStoryEvents(count), count));
     report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
       viewports: [1440, 390], trace: traces[0], storyEvents };
+  } else if (scenario === "story-events-analysis-projection") {
+    const variant = process.env.A4N_PERF_PROJECTION_VARIANT;
+    const width = Number(process.env.A4N_PERF_VIEWPORT ?? 1440);
+    assert.ok(["full", "projected"].includes(variant));
+    assert.equal(Boolean(baselineRef), variant === "full", "full data must use the baseline component and projection");
+    assert.ok([1440, 390].includes(width));
+    await browser.setViewport({ width, height: 900 });
+    await browser.url(`http://127.0.0.1:${port}/e2e/performance/${entry}?projection=${variant}`);
+    await browser.waitUntil(() => browser.execute(() => window.performanceReady === true), { timeout: 30_000 });
+    const result = await browser.execute((variant) => window.measureStoryEventAnalysisProjection("zh-CN", variant), variant);
+    assert.equal(result.chapters, 900);
+    assert.equal(result.analyzedChapters, 900);
+    assert.equal(result.eventRows, 4500);
+    assert.ok(result.heapBytes > result.baselineHeapBytes, "retained page heap must exceed the empty-page baseline");
+    const filtered = await browser.execute(() => window.filterStoryEventProjection("999"));
+    assert.equal(filtered.visibleChapters, 1);
+    assert.equal(filtered.eventRows, 5);
+    assert.ok(filtered.text.includes("999"));
+    await browser.execute(() => document.querySelector("section section button")?.focus());
+    await browser.keys("Enter");
+    const opened = await browser.execute(() => window.storyEventsOpened());
+    assert.deepEqual(opened, [999]);
+    const horizontalOverflow = await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    assert.equal(horizontalOverflow, 0);
+    await browser.saveScreenshot(path.join(artifacts, `story-events-analysis-projection-${variant}-${width}.png`));
+    report = { success: true, scenario, variant, width, baselineRef: baselineRef ?? null,
+      browser: browser.capabilities.browserVersion, result, filtered, opened, horizontalOverflow };
   } else if (scenario === "story-events-loader") {
     const loader = await browser.execute(() => window.measureStoryEventsLoader());
     assert.equal(loader.detailsOpen, true);

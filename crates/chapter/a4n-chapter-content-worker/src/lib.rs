@@ -64,6 +64,10 @@ impl ChapterContentWorker {
                 "/v1/commands/chapter.content.analyses",
                 post(commands::analyses),
             )
+            .route(
+                "/v1/commands/chapter.content.story_events",
+                post(commands::story_events),
+            )
             .route("/v1/commands/chapter.content.list", post(commands::list))
             .route("/v1/commands/chapter.content.index", post(commands::index))
             .route(

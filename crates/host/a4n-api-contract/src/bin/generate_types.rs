@@ -76,8 +76,9 @@ use a4n_api_contract::{
         ChapterAnalysisInput, ChapterAnalysisMutationResult, ChapterIndexEntry,
         ChapterMaterialSyncState, ChapterMaterialSyncStatus, ChapterMaterialUpdate,
         ChapterMaterialUpdateAction, ChapterMaterialUpdateKind, ChapterMetadata,
-        ChapterSceneSummary, ChapterSummary, GenerateChapterSceneInput, GetChapterInput,
-        ImportChapterInput, PreparedGenerationRagEmbeddingRequest, ReorderChapterScenesInput,
+        ChapterSceneSummary, ChapterStoryEventEntry, ChapterStoryEventForeshadowingCounts,
+        ChapterSummary, GenerateChapterSceneInput, GetChapterInput, ImportChapterInput,
+        PreparedGenerationRagEmbeddingRequest, ReorderChapterScenesInput,
         UpdateChapterContentInput, UpdateChapterSceneInput,
     },
     chapter_visual_plan::{

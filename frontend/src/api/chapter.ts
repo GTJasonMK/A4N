@@ -10,6 +10,7 @@ import type {
   ChapterAnalysisInput,
   ChapterAnalysisMutationResult,
   ChapterIndexEntry,
+  ChapterStoryEventEntry,
   ChapterSceneSummary,
   ChapterSummary,
   GenerateChapterSceneInput,
@@ -42,6 +43,8 @@ export type {
   ChapterAnalysisInput,
   ChapterAnalysisMutationResult,
   ChapterIndexEntry,
+  ChapterStoryEventEntry,
+  ChapterStoryEventForeshadowingCounts,
   ChapterMetadata,
   ChapterMaterialSyncState,
   ChapterMaterialSyncStatus,
@@ -90,6 +93,12 @@ export async function listChapterIndex(projectId: Id): Promise<ChapterIndexEntry
 
 export async function listChapterAnalyses(projectId: Id): Promise<ChapterAnalysisEntry[]> {
   return apiInvoke<ChapterAnalysisEntry[]>("list_chapter_analyses", {
+    projectId: idNum(projectId),
+  });
+}
+
+export async function listStoryEventChapters(projectId: Id): Promise<ChapterStoryEventEntry[]> {
+  return apiInvoke<ChapterStoryEventEntry[]>("list_story_event_chapters", {
     projectId: idNum(projectId),
   });
 }

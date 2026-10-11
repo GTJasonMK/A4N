@@ -1,5 +1,5 @@
 use a4n_db_models::models::chapter::chapter;
-use a4n_domain::chapter::{ChapterAnalysisEntry, ChapterRecord};
+use a4n_domain::chapter::{ChapterAnalysisEntry, ChapterRecord, ChapterStoryEventEntry};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use super::ChapterContentEditError;
@@ -39,6 +39,17 @@ pub async fn chapter_analyses_for_project<C: ConnectionTrait>(
                 analysis_data,
             },
         )
+        .collect())
+}
+
+pub async fn chapter_story_events_for_project<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+) -> Result<Vec<ChapterStoryEventEntry>, sea_orm::DbErr> {
+    Ok(chapter_analyses_for_project(db, project_id)
+        .await?
+        .into_iter()
+        .map(ChapterStoryEventEntry::from)
         .collect())
 }
 

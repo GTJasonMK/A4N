@@ -11,7 +11,7 @@ pub(in crate::routes::commands) use analysis::{
 };
 pub(in crate::routes::commands) use content::{
     get_chapter, import_chapter, list_chapter_analyses, list_chapter_index, list_chapters,
-    update_chapter_content,
+    list_story_event_chapters, update_chapter_content,
 };
 pub(in crate::routes::commands) use generation::{
     prepare_chapter_generation_rag_embedding, preview_chapter_prompt,

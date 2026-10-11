@@ -31,6 +31,17 @@ pub(super) async fn analyses(
     command_response(&state, &headers, request, |request| state.analyses(request)).await
 }
 
+pub(super) async fn story_events(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ProjectInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.story_events(request)
+    })
+    .await
+}
+
 pub(super) async fn index(
     State(state): State<WorkerState>,
     headers: HeaderMap,

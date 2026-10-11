@@ -319,6 +319,10 @@ pub(super) fn run() {
         &typescript_interface::<ChapterMetadata>("ChapterMetadata"),
         &typescript_interface::<ChapterIndexEntry>("ChapterIndexEntry"),
         &typescript_interface::<ChapterAnalysisEntry>("ChapterAnalysisEntry"),
+        &typescript_interface::<ChapterStoryEventEntry>("ChapterStoryEventEntry"),
+        &typescript_interface::<ChapterStoryEventForeshadowingCounts>(
+            "ChapterStoryEventForeshadowingCounts",
+        ),
         &typescript_interface::<GetChapterInput>("GetChapterInput"),
         &typescript_interface::<ChapterAnalysisMutationResult>("ChapterAnalysisMutationResult"),
         &typescript_interface::<ChapterSceneSummary>("ChapterSceneSummary"),

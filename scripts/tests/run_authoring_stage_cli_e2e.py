@@ -78,6 +78,33 @@ def main():
             project = checked(cli, ["project", "create", "--title", "创作阶段验收", "--project-type", "novel_long", "--use-context"], "project")[0]["data"]
             project_id = project["id"]
             report["project_id"] = project_id
+            projection_project = checked(
+                cli,
+                ["project", "create", "--title", "故事事件读口验收", "--project-type", "novel_long"],
+                "story event projection project",
+            )[0]["data"]
+            projection_project_id = projection_project["id"]
+            checked(cli, ["project", "use", str(projection_project_id)], "select story event projection project")
+            call("import_chapter", {
+                "project_id": projection_project_id,
+                "chapter_number": 1,
+                "title": "测试章节",
+                "content": "夜雨里，林岚在旧车站找到一只停在七分钟前的钟。",
+            })
+            full_analysis = call("list_chapter_analyses", {"projectId": projection_project_id}, raw=True)
+            story_events = call("list_story_event_chapters", {"projectId": projection_project_id}, raw=True)
+            assert len(full_analysis) == len(story_events) == 1
+            assert all(story_events[0][field] == full_analysis[0][field] for field in (
+                "id", "chapter_number", "title", "summary", "analysis_data",
+            ))
+            assert story_events[0]["foreshadowing_counts"] == {
+                "planted": 0,
+                "resolved": 0,
+                "tensions": 0,
+            }
+            checked(cli, ["project", "use", str(project_id)], "restore authoring project")
+            passed("inspiration", "story event projection CLI read preserves chapter fields and returns counts")
+
             first_message = "首轮不可丢失：林岚必须保留旧怀表，故事为六章都市时间悬疑。"
             request = {"project_id": project_id, "meta": meta(), "message": first_message}
             before = len(calls())

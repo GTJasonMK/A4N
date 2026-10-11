@@ -541,6 +541,9 @@ pub(crate) fn result_chapter_index() -> Value {
 pub(crate) fn result_chapter_analyses() -> Value {
     typed_schema::<Vec<crate::chapter::ChapterAnalysisEntry>>()
 }
+pub(crate) fn result_chapter_story_event_entries() -> Value {
+    typed_schema::<Vec<crate::chapter::ChapterStoryEventEntry>>()
+}
 pub(crate) fn result_chapter_summaries() -> Value {
     typed_schema::<Vec<crate::chapter::ChapterSummary>>()
 }

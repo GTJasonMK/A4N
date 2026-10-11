@@ -14,6 +14,72 @@ pub struct ChapterAnalysisEntry {
     pub analysis_data: Option<Value>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq, Eq, Default)]
+pub struct ChapterStoryEventForeshadowingCounts {
+    pub planted: usize,
+    pub resolved: usize,
+    pub tensions: usize,
+}
+
+/// Chapter analysis data reduced to the fields displayed by the story events page.
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq)]
+pub struct ChapterStoryEventEntry {
+    pub id: i64,
+    pub chapter_number: i32,
+    pub title: Option<String>,
+    pub summary: Option<String>,
+    pub analysis_data: Option<Value>,
+    pub foreshadowing_counts: ChapterStoryEventForeshadowingCounts,
+}
+
+impl From<ChapterAnalysisEntry> for ChapterStoryEventEntry {
+    fn from(mut entry: ChapterAnalysisEntry) -> Self {
+        let mut foreshadowing_counts = ChapterStoryEventForeshadowingCounts::default();
+        if let Some(Value::Object(analysis)) = entry.analysis_data.as_mut() {
+            if let Some(Value::Object(foreshadowing)) = analysis.remove("foreshadowing") {
+                foreshadowing_counts = ChapterStoryEventForeshadowingCounts {
+                    planted: array_length(&foreshadowing, "planted"),
+                    resolved: array_length(&foreshadowing, "resolved"),
+                    tensions: array_length(&foreshadowing, "tensions"),
+                };
+            }
+            if let Some(Value::Object(metadata)) = analysis.get_mut("metadata") {
+                metadata.retain(|key, _| {
+                    matches!(
+                        key.as_str(),
+                        "characters" | "locations" | "tone" | "timeline_marker"
+                    )
+                });
+            }
+            if let Some(Value::Object(summaries)) = analysis.get_mut("summaries") {
+                summaries.retain(|key, _| {
+                    matches!(
+                        key.as_str(),
+                        "compressed" | "summary" | "short" | "one_line" | "keywords"
+                    )
+                });
+            }
+            analysis
+                .retain(|key, _| matches!(key.as_str(), "metadata" | "summaries" | "key_events"));
+        }
+        Self {
+            id: entry.id,
+            chapter_number: entry.chapter_number,
+            title: entry.title,
+            summary: entry.summary,
+            analysis_data: entry.analysis_data,
+            foreshadowing_counts,
+        }
+    }
+}
+
+fn array_length(object: &serde_json::Map<String, Value>, field: &str) -> usize {
+    object
+        .get(field)
+        .and_then(Value::as_array)
+        .map_or(0, Vec::len)
+}
+
 pub mod chapter_outline_status {
     pub const STATUS_DRAFT: &str = "draft";
     pub const STATUS_COMPLETED: &str = "completed";
@@ -270,7 +336,11 @@ pub fn required_outline_pacing_score(
 
 #[cfg(test)]
 mod tests {
-    use super::{ChapterRecord, chapter_outline_status, chapter_status};
+    use super::{
+        ChapterAnalysisEntry, ChapterRecord, ChapterStoryEventEntry,
+        ChapterStoryEventForeshadowingCounts, chapter_outline_status, chapter_status,
+    };
+    use serde_json::json;
 
     #[test]
     fn chapter_outline_status_accepts_only_supported_values() {
@@ -315,5 +385,93 @@ mod tests {
         assert!(!chapter.has_available_content());
         chapter.status = chapter_status::STATUS_GENERATING.into();
         assert!(chapter.is_generating());
+    }
+
+    #[test]
+    fn story_event_projection_keeps_display_fields_and_replaces_foreshadowing_with_counts() {
+        let entry = ChapterAnalysisEntry {
+            id: 9,
+            chapter_number: 3,
+            title: Some("第三章".into()),
+            summary: Some("章节摘要".into()),
+            analysis_data: Some(json!({
+                "metadata": {
+                    "characters": ["林岚"],
+                    "locations": ["旧城"],
+                    "items": ["omit item facts"],
+                    "tags": ["omit tags"],
+                    "tone": "紧张",
+                    "timeline_marker": "第二天"
+                },
+                "summaries": {
+                    "compressed": "压缩摘要",
+                    "summary": "legacy summary",
+                    "short": "legacy short",
+                    "one_line": "单行摘要",
+                    "keywords": ["线索"],
+                    "unused": "omit"
+                },
+                "character_states": {"林岚": {"status": "omit"}},
+                "world_facts": [{"statement": "omit"}],
+                "foreshadowing": {
+                    "planted": [{"description": "plant", "original_text": "large source"}],
+                    "resolved": [{"resolution": "resolve"}],
+                    "tensions": ["tension", "tension 2"],
+                    "progressed": [{"resolution": "omit"}]
+                },
+                "key_events": [{"description": "事件", "type": "discovery"}],
+                "unused_root": "omit"
+            })),
+        };
+
+        let projected = ChapterStoryEventEntry::from(entry);
+
+        assert_eq!(projected.id, 9);
+        assert_eq!(projected.chapter_number, 3);
+        assert_eq!(
+            projected.analysis_data,
+            Some(json!({
+                "metadata": {
+                    "characters": ["林岚"],
+                    "locations": ["旧城"],
+                    "tone": "紧张",
+                    "timeline_marker": "第二天"
+                },
+                "summaries": {
+                    "compressed": "压缩摘要",
+                    "summary": "legacy summary",
+                    "short": "legacy short",
+                    "one_line": "单行摘要",
+                    "keywords": ["线索"]
+                },
+                "key_events": [{"description": "事件", "type": "discovery"}]
+            }))
+        );
+        assert_eq!(
+            projected.foreshadowing_counts,
+            ChapterStoryEventForeshadowingCounts {
+                planted: 1,
+                resolved: 1,
+                tensions: 2,
+            }
+        );
+    }
+
+    #[test]
+    fn story_event_projection_preserves_null_and_non_object_analysis_values() {
+        for analysis_data in [None, Some(json!("legacy"))] {
+            let projected = ChapterStoryEventEntry::from(ChapterAnalysisEntry {
+                id: 1,
+                chapter_number: 1,
+                title: None,
+                summary: None,
+                analysis_data: analysis_data.clone(),
+            });
+            assert_eq!(projected.analysis_data, analysis_data);
+            assert_eq!(
+                projected.foreshadowing_counts,
+                ChapterStoryEventForeshadowingCounts::default()
+            );
+        }
     }
 }

@@ -254,6 +254,7 @@ command_specs! {
     "list_snapshots" => args_list_snapshots, result_list_snapshots, "profile", effect(READ_EFFECT);
     "list_source_snapshot_chapter_index" => args_project_id, result_source_snapshot_chapter_index, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_source_snapshot_chapters" => args_project_id, result_source_snapshot_chapters, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
+    "list_story_event_chapters" => args_project_id, result_chapter_story_event_entries, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_test_runs" => args_list_test_runs, result_test_runs, "testing", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "list_test_scenarios" => empty_args_schema, result_test_scenarios, "testing", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "list_themes" => empty_args_schema, result_list_themes, "settings", context(NO_CONTEXT), effect(READ_EFFECT);

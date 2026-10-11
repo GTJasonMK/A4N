@@ -181,7 +181,7 @@ use self::import_project::{
     list_chapter_outline_index, list_chapter_outlines, list_chapter_scenes, list_chapters,
     list_import_queue, list_my_project_invites, list_orphan_project_data_dirs, list_parts,
     list_portraits_by_project, list_project_invites, list_project_members, list_projects,
-    list_source_snapshot_chapter_index, list_source_snapshot_chapters,
+    list_source_snapshot_chapter_index, list_source_snapshot_chapters, list_story_event_chapters,
     prepare_chapter_generation_rag_embedding, preview_apply_beat_mapping_request,
     preview_batch_generate_part_outlines_request, preview_chapter_analysis_request,
     preview_chapter_prompt, preview_chapter_scene_request, preview_continue_part_outlines_request,
