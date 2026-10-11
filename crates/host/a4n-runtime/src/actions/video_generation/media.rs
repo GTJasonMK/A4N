@@ -14,9 +14,9 @@ pub(crate) use self::provider_images::{
     media_bytes_to_remote_temp_media_url,
 };
 pub(crate) use self::reference_images::{
-    reference_image_provider_input_by_id, reference_image_provider_inputs_by_ids,
-    reference_image_request_preview_url_by_id, reference_image_request_preview_urls_by_ids,
-    remote_temp_upload_config,
+    ReferenceImageProviderContext, reference_image_provider_input_by_id,
+    reference_image_provider_inputs_by_ids, reference_image_request_preview_url_by_id,
+    reference_image_request_preview_urls_by_ids, remote_temp_upload_config,
 };
 pub(crate) use self::tail_frames::{
     capture_video_tail_frame_asset, delete_video_tail_frame_assets,

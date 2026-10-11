@@ -846,6 +846,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 不引入共同参数 DTO：`run_task` 执行已有 task handle 并注入 renderer/page-image generator；`preflight` 在启动/恢复前验证资源、prompt 和阶段范围；`preview` 生成带 `resume_from_checkpoint` 的请求预览步骤。虽共享 project/chapter/page/stage 字段，但 resume 语义仅属 preview/start，preflight 没有该状态，也返回不同结果并执行不同校验。统一成 StartInput 会向 preflight 暴露无关字段，统一成窄 context 则新增包装但仍需保留三套不同操作合同；当前显式 API 更准确。
 - 本项只做拓扑核验，无代码改动。
 
+### R-105：收敛视频参考图 Provider 上下文参数
+
+- 类别：同一 Provider 转换流程重复传递文件存储、凭证、用户/项目/章节范围和 transport。
+- BFS 覆盖：CodeGraph 从 `ChapterVideoPreviewHostPort`/Runtime action 追到 `resolve_chapter_video_image_inputs`，再追到 Generate 分支的批量参考图、首帧和尾帧 helper、`validated_reference_images_for_ids`、Provider 文件转换及三种 transport。核对 Control/Orchestrator 输入边界、Video Record Worker scope/用户授权和 DB 图片可用性；Preview 分支单独追到预览 URL/MIME helper。确认 Provider helper 仅由该 Runtime resolver 调用；`image_file_to_provider_input` 仅有这一处生产调用。
+- 新增 Runtime 内部 `ReferenceImageProviderContext`，集中视频读取 port、data dir、JWT、user/project/chapter scope 和 transport；resolver 每次生成只构造一次，批量参考图与首尾帧 helper 共用。`image_file_to_provider_input` 保留自己的单调用点参数，因为图片、inline 累计字节和 staging artifacts 是逐转换状态，没有重复调用方可复用该结构。
+- Preview 继续使用独立 URL/MIME 读取路径；Provider 的 public URL/JWT 校验、inline 字节限额、remote temp upload 与 staging artifact 行为不变。未改变校验顺序、并发/串行分支、错误传播或 API 合同，未新增兜底、兼容或回退逻辑。
+- 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 退出 0；`cargo fmt --all -- --check`、`git diff --check` 通过。Clippy 全目标编译覆盖 Runtime 测试目标；该 Provider 转换目前没有直接测试。
+- 记录范围：`crates/host/a4n-runtime/src/actions/video_generation/{image_inputs.rs,media.rs,media/reference_images.rs,media/reference_images/provider.rs}`；核验调用范围另含 `provider_host.rs`、`provider_host/chapter.rs`、`media/reference_images/{preview.rs,records.rs}`、`media/provider_images/input.rs` 及对应 Video Record contract/Worker 路径。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
