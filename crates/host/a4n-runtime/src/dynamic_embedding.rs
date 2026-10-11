@@ -25,8 +25,8 @@ pub(crate) use contracts::model_identity_from_config;
 #[cfg(feature = "local-embedding")]
 pub(crate) use contracts::resolve_fastembed_cache_dir;
 pub(crate) use contracts::{positive_usize, required_text};
-use factory::make_provider_from_default_model;
 pub(crate) use factory::make_provider_from_model;
+use factory::{make_provider_from_default_model, missing_default_embedding_config_error};
 
 pub(crate) fn embedding_request_snapshot(
     model: &str,
@@ -84,8 +84,7 @@ impl DynamicEmbeddingProvider {
         }
 
         let model = self.facade.default_embedding_config_optional().await?;
-        let model = model
-            .ok_or_else(|| AppError::ConfigError("请先设置默认 Embedding 配置".to_string()))?;
+        let model = model.ok_or_else(missing_default_embedding_config_error)?;
         let provider = make_provider_from_default_model(
             Some(model.clone()),
             self.fastembed_cache_dir.clone(),

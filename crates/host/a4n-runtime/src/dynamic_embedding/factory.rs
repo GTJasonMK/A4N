@@ -109,6 +109,6 @@ fn make_fastembed_provider(
     )))
 }
 
-fn missing_default_embedding_config_error() -> AppError {
+pub(super) fn missing_default_embedding_config_error() -> AppError {
     AppError::ConfigError("请先设置默认 Embedding 配置".to_string())
 }

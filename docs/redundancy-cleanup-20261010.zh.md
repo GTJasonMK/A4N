@@ -1015,6 +1015,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：新增 `agentStatusPresentation` 回归；与 Workflow/Progress 展示测试合计 3 文件/10 项通过；`npm run build` 通过（仅保留既有大 chunk 提示）；CodeGraph 同步新增/修改 5 文件并解析 1 条 pending reference；`git diff --check` 通过。
 - 记录范围：`frontend/src/utils/agentStatusPresentation.ts`、`agentStatusPresentation.test.ts`、`components/agent/{DomainAgentConsole.tsx,DomainAgentConsoleRows.tsx}`、`pages/AgentMonitor.tsx` 及 Agent API generated status contracts。
 
+### R-124：复用默认 Embedding 缺失错误 owner
+
+- 类别：同一默认配置缺失边界的错误构造重复实现。
+- BFS 覆盖：从 `make_provider_from_default_model` 追到 factory 测试和 `DynamicEmbeddingProvider::resolve_default` 的 runtime snapshot / provider facade 两条配置解析路径；核对 `current_embedding_provider_config`、`default_embedding_config_optional`、`make_provider_from_model`、sidecar embedding factory 以及 Orchestrator default-config port。确认两处缺失分支都表示“未找到默认 Embedding 配置”，没有不同的权限、来源或错误合同。
+- 将 `missing_default_embedding_config_error` 提升为 dynamic embedding 模块可见的唯一 owner；`resolve_default` 改为复用该构造器，原错误类型和中文文本保持不变。未合并配置来源、未改变 local runtime snapshot 优先级或 provider 构造路径。
+- 未改变任何 fallback、兼容或默认配置行为；只是删除重复错误字符串。
+- 验证：`cargo clippy --offline --locked --all-targets -p a4n-runtime` 通过（仅既有结构性 warnings）；测试二进制编译通过，`dynamic_embedding::` 3/3 通过；`cargo fmt --all -- --check`、`git diff --check` 通过；共享 agent target 已清理。CodeGraph 同步覆盖两处改动，保留索引中既有 1 条 unresolved reference。
+- 记录范围：`crates/host/a4n-runtime/src/dynamic_embedding/{factory.rs,mod.rs}`、Runtime config snapshot/provider facade/sidecar factory 调用链及 `dynamic_embedding/tests.rs`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
