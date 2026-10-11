@@ -873,6 +873,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 退出 0；`a4n-runtime` lib Clippy 告警由 18 条降为 17 条，目标高参数告警消失。`timeout 180s cargo test --no-run --offline --locked -p a4n-runtime --lib` 通过；`timeout 60s cargo test --offline --locked -p a4n-runtime --lib remote_temp -- --test-threads=1` 7/7 通过；格式与 diff 检查通过。首轮冷编译在 60 秒测试命令内超时，预编译后重跑通过。
 - 记录范围：`crates/host/a4n-runtime/src/actions/video_generation/media/provider_images/remote_upload.rs`、`crates/host/a4n-api-contract/src/temp_media.rs`、Control temp media upload route 及 Runtime remote media upload callers。
 
+### R-108：固定视频轮询任务合同
+
+- 类别：单调用轮询 helper 重复传入恒定优先级，并把必填 workflow ID 降为可空值。
+- BFS 覆盖：CodeGraph 从 Runtime `poll_provider_job` 追到唯一真实调用 `VideoProviderHostPort::poll_video_job`，再追到 Orchestrator 恢复轮询、queue cancellation/workflow tracking 和 Video sidecar poll。静态搜索区分 `poll.rs` 调用的 Orchestrator application-port 同名方法；它不是该 Runtime helper 的调用点。
+- 移除 helper 的 `priority` 参数并在唯一 owner 内固定为 `TaskPriority::Low`；workflow ID 改为必填 `i64`，只在通用 queue/sidecar 合同边界包装为 `Some`。`root_project_id` 仍可选，取消令牌与等待行为不变。
+- 未改变 queue kind、workflow tracking、provider request identity、取消传播或错误映射；未新增兜底、兼容或回退逻辑。
+- 验证：本项与 R-109 的合并源码下，`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 退出 0；Runtime 原有 `poll_provider_job` 高参数告警消失。`cargo fmt --all -- --check`、`git diff --check` 通过；all-targets Clippy 编译 Runtime 测试目标，未单独运行测试。
+- 记录范围：`crates/host/a4n-runtime/src/actions/video_generation/{job_lifecycle/polling.rs,provider_host/video_provider.rs}`；调用核验另含 `poll.rs`、`VideoProviderHostPort` 和 Orchestrator video provider execution paths。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

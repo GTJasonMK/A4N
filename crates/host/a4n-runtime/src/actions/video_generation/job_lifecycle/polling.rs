@@ -12,16 +12,15 @@ pub(in crate::actions) async fn poll_provider_job(
     project_id: i64,
     root_project_id: Option<i64>,
     job_id: &str,
-    priority: TaskPriority,
-    workflow_run_id: Option<i64>,
+    workflow_run_id: i64,
     cancel_token: CancellationToken,
 ) -> Result<VideoJobState, String> {
     run_queued_request_with_cancel_and_workflow(
         state,
         QueueTaskKind::VideoPoll,
-        priority,
+        TaskPriority::Low,
         Some(project_id),
-        workflow_run_id,
+        Some(workflow_run_id),
         cancel_token,
         || async {
             crate::sidecar_clients::poll_video(
@@ -31,7 +30,7 @@ pub(in crate::actions) async fn poll_provider_job(
                 job_id,
                 Some(project_id),
                 root_project_id,
-                workflow_run_id,
+                Some(workflow_run_id),
             )
             .await
         },
