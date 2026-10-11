@@ -1,6 +1,6 @@
 use super::records::validated_reference_images_for_ids;
 use crate::actions::video_generation::media::provider_images::{
-    image_file_to_provider_input, public_media_base_url,
+    ProviderImageInputContext, image_file_to_provider_input, public_media_base_url,
 };
 use crate::actions::video_generation::media::types::ProviderImageInputTransport;
 use a4n_api_contract::video::VideoRecordReadApplicationPort;
@@ -63,17 +63,20 @@ async fn reference_image_provider_inputs_for_ids(
         ProviderImageInputTransport::InlineDataUrl
         | ProviderImageInputTransport::RemoteTempUpload => None,
     };
+    let input_context = ProviderImageInputContext {
+        data_dir: context.data_dir,
+        jwt_secret: context.jwt_secret,
+        user_id: context.user_id,
+        media_base_url: media_base_url.as_deref(),
+        transport: context.transport,
+    };
     let mut inline_total_bytes = 0_u64;
     for image in images {
         let input = image_file_to_provider_input(
-            context.data_dir,
-            context.jwt_secret,
-            context.user_id,
-            media_base_url.as_deref(),
+            &input_context,
             &image,
             &mut inline_total_bytes,
             staging_artifacts,
-            context.transport,
         )
         .await?;
         urls.push(input);

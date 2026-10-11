@@ -855,6 +855,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 退出 0；`cargo fmt --all -- --check`、`git diff --check` 通过。Clippy 全目标编译覆盖 Runtime 测试目标；该 Provider 转换目前没有直接测试。
 - 记录范围：`crates/host/a4n-runtime/src/actions/video_generation/{image_inputs.rs,media.rs,media/reference_images.rs,media/reference_images/provider.rs}`；核验调用范围另含 `provider_host.rs`、`provider_host/chapter.rs`、`media/reference_images/{preview.rs,records.rs}`、`media/provider_images/input.rs` 及对应 Video Record contract/Worker 路径。
 
+### R-106：收敛单图 Provider 转换配置参数
+
+- 类别：Provider 图片转换函数重复接收同一 transport 配置。
+- BFS 覆盖：从 Clippy `too_many_arguments` 命中和 `image_file_to_provider_input` 追到唯一生产调用 `reference_image_provider_inputs_for_ids`；CodeGraph/static search 核对 `provider_images` re-export 不是第二个调用点，并检查转换内 canonical path/元数据/MIME 检查、public URL/JWT 校验、remote temp upload/staging artifact 与 inline 字节预算分支。
+- 新增 media 私有 `ProviderImageInputContext` 集中 data dir、JWT、user、media base URL 和 transport，逐图转换复用；单张 image、inline 字节累计和 staging artifact 输出仍显式按调用传入，保留其逐图/可变状态所有权。
+- 保持路径校验、文件大小和 MIME 检查顺序、transport 错误、URL 与 artifact 内容及 staging 顺序不变；未新增兜底、兼容或回退逻辑。
+- 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 退出 0；`a4n-runtime` lib Clippy 告警由 19 条降为 18 条，目标 `too_many_arguments` 告警消失。`cargo fmt --all -- --check`、`git diff --check` 通过。all-targets Clippy 编译覆盖 Runtime 测试目标；当前无该转换函数的直接测试。
+- 记录范围：`crates/host/a4n-runtime/src/actions/video_generation/media/{provider_images.rs,provider_images/input.rs,reference_images/provider.rs}`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

@@ -15,18 +15,22 @@ use sha2::{Digest, Sha256};
 use std::io::Read;
 use std::path::Path;
 
+pub(in crate::actions::video_generation::media) struct ProviderImageInputContext<'a> {
+    pub(in crate::actions::video_generation::media) data_dir: &'a Path,
+    pub(in crate::actions::video_generation::media) jwt_secret: Option<&'a str>,
+    pub(in crate::actions::video_generation::media) user_id: i64,
+    pub(in crate::actions::video_generation::media) media_base_url: Option<&'a str>,
+    pub(in crate::actions::video_generation::media) transport: ProviderImageInputTransport,
+}
+
 pub(in crate::actions::video_generation::media) async fn image_file_to_provider_input(
-    data_dir: &Path,
-    jwt_secret: Option<&str>,
-    user_id: i64,
-    media_base_url: Option<&str>,
+    context: &ProviderImageInputContext<'_>,
     image: &GeneratedImageSummary,
     inline_total_bytes: &mut u64,
     staging_artifacts: &mut Vec<GenerationArtifactRef>,
-    transport: ProviderImageInputTransport,
 ) -> Result<VideoMediaSource, String> {
     let canonical_path = canonicalize_data_file_path(
-        data_dir,
+        context.data_dir,
         &image.file_path,
         &format!("参考图片 #{}", image.id),
     )?;
@@ -40,19 +44,22 @@ pub(in crate::actions::video_generation::media) async fn image_file_to_provider_
         ));
     }
     let mime = image_mime_from_path(&canonical_path)?;
-    match transport {
+    match context.transport {
         ProviderImageInputTransport::PublicUrl => {
-            let Some(base) = media_base_url else {
+            let Some(base) = context.media_base_url else {
                 return Err("public_url 传输缺少公网媒体入口".to_string());
             };
-            let secret = jwt_secret.ok_or_else(|| "public_url 传输缺少 JWT secret".to_string())?;
-            let url = image_file_to_provider_media_url(secret, user_id, base, image)?;
+            let secret = context
+                .jwt_secret
+                .ok_or_else(|| "public_url 传输缺少 JWT secret".to_string())?;
+            let url = image_file_to_provider_media_url(secret, context.user_id, base, image)?;
             validate_provider_public_image_url(&url, &format!("参考图片 #{}", image.id)).await?;
             Ok(url.into())
         }
         ProviderImageInputTransport::RemoteTempUpload => {
             let uploaded =
-                image_file_to_remote_temp_media_url(&canonical_path, user_id, image, mime).await?;
+                image_file_to_remote_temp_media_url(&canonical_path, context.user_id, image, mime)
+                    .await?;
             staging_artifacts.push(uploaded.artifact);
             Ok(uploaded.url.into())
         }
@@ -79,13 +86,13 @@ pub(in crate::actions::video_generation::media) async fn image_file_to_provider_
                 artifact: ArtifactRef {
                     artifact_id: format!("generated-image-{}", image.id),
                     artifact_kind: "generated_image".into(),
-                    owner_user_id: Some(user_id),
+                    owner_user_id: Some(context.user_id),
                     project_id: Some(image.project_id),
                     content_type: mime.to_string(),
                     sha256: format!("{:x}", digest.finalize()),
                     byte_size,
                     location: ArtifactLocation::LocalPath(data_dir_relative_file_path(
-                        data_dir,
+                        context.data_dir,
                         &canonical_path,
                         "视频图片",
                     )?),
