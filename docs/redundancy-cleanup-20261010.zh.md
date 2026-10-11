@@ -900,6 +900,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 退出 0；`a4n-runtime` lib Clippy 告警由 15 条降为 14 条，目标高参数告警消失。`cargo fmt --all -- --check`、`git diff --check` 通过；all-targets Clippy 编译 Runtime 测试目标，未单独运行测试。
 - 记录范围：`crates/host/a4n-runtime/src/actions/video_records/imports/source/copying.rs`、`imports/{chapter.rs,canvas.rs,canvas/assembly.rs,reference/{media.rs,assembly_insert.rs}}`。
 
+### R-111：收敛 assembly cache manifest 输入
+
+- 类别：生产与测试 manifest builder 分别接收同一组身份、画面规格和 clips 参数，并重复投影输出 manifest 字段。
+- BFS 覆盖：CodeGraph/静态搜索从 Clippy 命中追到 3 个生产调用点（章节 assembly request、推送和 canvas assembly）、cache module re-export 及测试 `build_test_assembly_cache_manifest`。核对 manifest 命中/失效比较、序列化写入、FFmpeg 消费与 audio probe；确认 canvas 的 `chapter_id = 0`、`canvas_assembly` 是其业务合同的一部分。
+- 新增 Runtime 内部 `AssemblyCacheManifestInput`，将身份、workflow mode、宽高/FPS 和 clips 组成命名输入；生产和测试构造器复用同一 `into_manifest` 字段投影。输出 `AssemblyCacheManifest` 仍携带探测后的 audio 标记与缓存 clips，不把输入 DTO 当作输出或持久格式。
+- 保持 manifest version、字段值、clip 顺序、audio probe、cache identity 和 JSON 形状不变；未新增兜底、兼容或回退逻辑。
+- 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 退出 0；`a4n-runtime` lib Clippy 告警由 14 条降为 13 条，目标高参数告警消失。`timeout 180s cargo test --no-run --offline --locked -p a4n-runtime --lib` 通过；`timeout 60s cargo test --offline --locked -p a4n-runtime --lib assembly_cache -- --test-threads=1` 8/8 通过；格式与 diff 检查通过。
+- 记录范围：`crates/host/a4n-runtime/src/actions/video_records/{assembly.rs,assembly/cache.rs,assembly/cache/manifest.rs,assembly/push.rs,assembly/actions/push.rs,imports/canvas/assembly.rs,tests/support.rs}`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

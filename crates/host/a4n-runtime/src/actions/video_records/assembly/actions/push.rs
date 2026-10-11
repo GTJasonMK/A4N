@@ -1,4 +1,6 @@
-use super::super::cache::{build_assembly_cache_manifest, run_ffmpeg_assemble_videos};
+use super::super::cache::{
+    AssemblyCacheManifestInput, build_assembly_cache_manifest, run_ffmpeg_assemble_videos,
+};
 use super::super::contracts::{AssemblyPushResult, PushAssembledChapterVideoInput};
 use super::super::push::assembly_request_context;
 use super::persistence::persist_assembly_record_output;
@@ -66,13 +68,15 @@ pub async fn push_assembled_chapter_video(
         .collect::<Result<Vec<_>, _>>()?;
     let manifest = build_assembly_cache_manifest(
         state,
-        project_id,
-        chapter_id,
-        &context.manifest.workflow_mode,
-        prepared.video.width,
-        prepared.video.height,
-        prepared.video.fps,
-        &source_clips,
+        AssemblyCacheManifestInput {
+            project_id,
+            chapter_id,
+            workflow_mode: &context.manifest.workflow_mode,
+            width: prepared.video.width,
+            height: prepared.video.height,
+            fps: prepared.video.fps,
+            clips: &source_clips,
+        },
     )
     .await?;
     let record = prepared.video;
