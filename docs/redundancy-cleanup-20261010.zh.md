@@ -971,6 +971,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：Runtime all-targets Clippy 通过，两处 RAG reporter type-complexity 提示消失；测试目标编译通过；`timeout 60s cargo test --offline --locked -p a4n-runtime --lib rag_ingest_progress_ -- --test-threads=1` 2/2 通过；格式与 diff 检查通过。Clippy 首轮指出父模块多余 re-export 后，别名移至 `progress` owner 并在 reporter 子模块引用，修正后再次编译/测试通过。
 - 记录范围：`crates/host/a4n-runtime/src/rag_ingest/sync/progress.rs`、`progress/reporter.rs`。
 
+### R-119：命名 Portrait image request preview 输入
+
+- 类别：Portrait request preview builder 接收用户/项目身份、prompt、图像尺寸、reference IDs 和 provider config 七个离散请求字段，常规预览与批量补齐调用重复展开同一输入形状。
+- BFS 覆盖：CodeGraph/静态引用从 `build_portrait_image_request_preview_with_config` 追到配置已解析包装器和 `preview_generate_missing_portraits_request` 两条生产调用路径，以及 age-variant/regenerate/批量 missing-profile 上层 preview routes。确认常规路径先解析默认 provider config；批量 missing 路径一次解析 config 并向每张 profile 请求传空 reference IDs。两种配置获取时机不同，均最终调用同一 reference lookup、文件解码和 request builder。
+- 新增内部 `PortraitImageRequestPreviewInput` 命名用户/项目、prompt、尺寸、reference IDs 和 config 输入；with-config helper 解构该输入后沿用原逻辑。保留独立的输出 `PortraitImageRequestPreviewContext`，不把 request 和 config 的阶段输入/输出合并为同一类型。
+- 不改变 reference ID 校验、project-scoped image lookup、尺寸支持检查、reference 文件读取、provider reference-image 能力校验或错误传播；未新增 fallback、兼容或默认逻辑。
+- 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 通过，Portrait preview 高参数提示消失；`timeout 180s cargo test --no-run --offline --locked -p a4n-runtime --lib` 通过；全仓 rustfmt 和 `git diff --check` 通过。该 helper 无直接单测，未运行行为测试；Clippy all-targets 编译了全部 Runtime 测试目标。
+- 记录范围：`crates/host/a4n-runtime/src/actions/portrait_generation/{host_port.rs,preview/requests.rs}`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

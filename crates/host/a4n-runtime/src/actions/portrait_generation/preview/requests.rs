@@ -13,7 +13,8 @@ use a4n_domain::image::validate_reference_image_ids;
 use a4n_prompt::variables::parse_template_variables;
 
 use super::super::host_port::{
-    build_portrait_image_request_preview, build_portrait_image_request_preview_with_config,
+    PortraitImageRequestPreviewInput, build_portrait_image_request_preview,
+    build_portrait_image_request_preview_with_config,
 };
 
 pub async fn preview_generate_portrait_prompt_request(
@@ -158,13 +159,15 @@ pub async fn preview_generate_missing_portraits_request(
         let prompt = &profile.prompt;
         let context = build_portrait_image_request_preview_with_config(
             state,
-            user_id,
-            input.project_id,
-            prompt,
-            input.width,
-            input.height,
-            &[],
-            &config,
+            PortraitImageRequestPreviewInput {
+                user_id,
+                project_id: input.project_id,
+                prompt,
+                width: input.width,
+                height: input.height,
+                reference_image_ids: &[],
+                config: &config,
+            },
         )
         .await?;
         steps.push(

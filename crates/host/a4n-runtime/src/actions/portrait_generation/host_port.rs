@@ -42,6 +42,16 @@ pub(super) struct PortraitImageRequestPreviewContext {
     pub(super) config: ImageProviderConfig,
 }
 
+pub(super) struct PortraitImageRequestPreviewInput<'a> {
+    pub(super) user_id: i64,
+    pub(super) project_id: i64,
+    pub(super) prompt: &'a str,
+    pub(super) width: i32,
+    pub(super) height: i32,
+    pub(super) reference_image_ids: &'a [i64],
+    pub(super) config: &'a ImageProviderConfig,
+}
+
 impl<'a> RuntimePortraitGenerationHostPort<'a> {
     pub(super) fn new(state: &'a AppState) -> Self {
         Self { state }
@@ -60,27 +70,32 @@ pub(super) async fn build_portrait_image_request_preview(
     let config = resolve_image_config(state, None).await?;
     build_portrait_image_request_preview_with_config(
         state,
-        user_id,
-        project_id,
-        prompt,
-        width,
-        height,
-        reference_image_ids,
-        &config,
+        PortraitImageRequestPreviewInput {
+            user_id,
+            project_id,
+            prompt,
+            width,
+            height,
+            reference_image_ids,
+            config: &config,
+        },
     )
     .await
 }
 
 pub(super) async fn build_portrait_image_request_preview_with_config(
     state: &AppState,
-    user_id: i64,
-    project_id: i64,
-    prompt: &str,
-    width: i32,
-    height: i32,
-    reference_image_ids: &[i64],
-    config: &ImageProviderConfig,
+    input: PortraitImageRequestPreviewInput<'_>,
 ) -> Result<PortraitImageRequestPreviewContext, String> {
+    let PortraitImageRequestPreviewInput {
+        user_id,
+        project_id,
+        prompt,
+        width,
+        height,
+        reference_image_ids,
+        config,
+    } = input;
     let image_ids = validate_reference_image_ids(reference_image_ids)?;
     let supported_sizes =
         image_sizes_from_json(&config.supported_sizes_json).map_err(|error| error.to_string())?;
