@@ -236,9 +236,11 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
                     self.state.capabilities().image.clone(),
                     &config,
                     request,
-                    Some(project_id),
-                    root_project_id,
-                    workflow_run_id,
+                    crate::sidecar_clients::SidecarWorkflowScope {
+                        project_id: Some(project_id),
+                        root_project_id,
+                        workflow_run_id,
+                    },
                     None,
                 )
                 .await

@@ -4,10 +4,10 @@ use a4n_service_protocol::TraceContext;
 use super::context::SidecarRequestContext;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::sidecar_clients) struct SidecarWorkflowScope {
-    pub(in crate::sidecar_clients) project_id: Option<i64>,
-    pub(in crate::sidecar_clients) root_project_id: Option<i64>,
-    pub(in crate::sidecar_clients) workflow_run_id: Option<i64>,
+pub(crate) struct SidecarWorkflowScope {
+    pub(crate) project_id: Option<i64>,
+    pub(crate) root_project_id: Option<i64>,
+    pub(crate) workflow_run_id: Option<i64>,
 }
 
 pub(crate) fn sidecar_context_for_llm_trace(

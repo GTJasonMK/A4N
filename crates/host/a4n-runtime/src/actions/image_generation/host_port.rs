@@ -130,9 +130,11 @@ impl ImageGenerationHostPort for RuntimeImageGenerationHostPort<'_> {
                     self.state.capabilities().image.clone(),
                     &input.config,
                     input.request,
-                    Some(input.project_id),
-                    root_project_id,
-                    Some(input.workflow_run_id),
+                    crate::sidecar_clients::SidecarWorkflowScope {
+                        project_id: Some(input.project_id),
+                        root_project_id,
+                        workflow_run_id: Some(input.workflow_run_id),
+                    },
                     Some(&sidecar_progress),
                 )
                 .await

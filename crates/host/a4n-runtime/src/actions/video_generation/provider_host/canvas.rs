@@ -149,9 +149,11 @@ impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
                         &input.config,
                         request,
                         None,
-                        Some(input.project_id),
-                        root_project_id,
-                        Some(input.workflow_run_id),
+                        crate::sidecar_clients::SidecarWorkflowScope {
+                            project_id: Some(input.project_id),
+                            root_project_id,
+                            workflow_run_id: Some(input.workflow_run_id),
+                        },
                         None,
                     )
                     .await

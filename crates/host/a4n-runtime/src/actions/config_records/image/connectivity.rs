@@ -66,9 +66,11 @@ pub async fn test_image_config(
                     image_client,
                     &config,
                     request,
-                    None,
-                    None,
-                    None,
+                    crate::sidecar_clients::SidecarWorkflowScope {
+                        project_id: None,
+                        root_project_id: None,
+                        workflow_run_id: None,
+                    },
                     None,
                 )
                 .await

@@ -28,9 +28,11 @@ pub(in crate::actions) async fn poll_provider_job(
                 state.capabilities().video.clone(),
                 cfg,
                 job_id,
-                Some(project_id),
-                root_project_id,
-                Some(workflow_run_id),
+                crate::sidecar_clients::SidecarWorkflowScope {
+                    project_id: Some(project_id),
+                    root_project_id,
+                    workflow_run_id: Some(workflow_run_id),
+                },
             )
             .await
         },

@@ -46,25 +46,12 @@ pub(crate) async fn generate_image(
     client: Option<Arc<dyn ImageClient>>,
     config: &ImageProviderConfig,
     request: ImageGenerationRequest,
-    project_id: Option<i64>,
-    root_project_id: Option<i64>,
-    workflow_run_id: Option<i64>,
+    scope: SidecarWorkflowScope,
     progress: Option<&(dyn Fn(&str) + Send + Sync)>,
 ) -> Result<ImageGenerationResult, String> {
     if profile.uses_sidecars() {
         let client = client.ok_or_else(|| missing_sidecar_capability_message("image"))?;
-        return generate_image_via_sidecar(
-            client,
-            config,
-            request,
-            SidecarWorkflowScope {
-                project_id,
-                root_project_id,
-                workflow_run_id,
-            },
-            progress,
-        )
-        .await;
+        return generate_image_via_sidecar(client, config, request, scope, progress).await;
     }
 
     let provider = configured_image_provider(config).map_err(|e| e.to_string())?;

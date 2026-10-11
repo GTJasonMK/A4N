@@ -927,6 +927,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：Runtime all-targets Clippy 通过，lib Clippy 告警由 13 条降为 12 条，目标高参数告警消失；workflow scope、video generation trace 和 video poll scope 三项定向测试通过；全仓 rustfmt 与 `git diff --check` 通过。agent target 在构建锁内清理。
 - 记录范围：`crates/host/a4n-runtime/src/sidecar_clients.rs`、`request_context/{trace.rs,tests.rs}`、Image/Video `operations/{routing.rs,sidecar.rs}` 及 Video `events.rs`。
 
+### R-114：将 Sidecar workflow scope 传至 Provider 路由边界
+
+- 类别：Image/Video 路由和 poll 函数接收 `project_id`、`root_project_id`、`workflow_run_id` 三个离散字段后立即重建 R-113 的命名 scope。
+- BFS 覆盖：CodeGraph 与静态引用从 Image `generate_image` 追到配置连通性、普通图片生成、肖像生成及测试；从 Video `generate_video`/`poll_video` 追到章节/Canvas 提交、恢复轮询及测试。枚举并核对所有直接调用点；embedded provider 分支不读取 scope，Sidecar branch 仍将同一字段交给既有 context builder 和 payload builder。
+- 将 `SidecarWorkflowScope` 的可见性扩展为 crate 内可见，并由 `sidecar_clients` 导出；调用者在已有项目/workflow owner 边界构造一次，Image/Video route 与 poll 直接接收和传递该值，删除三字段的重复拆包/重组。所有 `Option` 值、请求载荷、trace 校验、provider 选择、错误和进度语义保持不变。
+- 未新增 fallback、兼容、默认或占位逻辑。
+- 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 通过，lib 告警由 12 条降至 11 条（Image route 的高参数告警消失）；`timeout 180s cargo test --no-run --offline --locked -p a4n-runtime --lib` 通过。`timeout 60s cargo test --offline --locked -p a4n-runtime --lib sidecar_clients:: -- --test-threads=1` 共运行 77 项，76 项通过；另 1 项未通过的是未改动 `service_manager::tests::selected_export_without_binary_fails_sidecar_configuration`，其预期错误子串断言失败，与本次 scope 路径无调用关系。此次修改相关的 image generation、video generation、video poll 和 scope 校验用例均通过。`cargo fmt --all -- --check`、`git diff --check` 通过；构建和测试期间持有共享锁，命令结束时执行 agent target 清理。
+- 记录范围：Runtime Image/Video route、request context scope 定义/导出、图像连通性/生成/肖像调用、视频提交/Canvas/恢复轮询调用及 Sidecar 测试。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
