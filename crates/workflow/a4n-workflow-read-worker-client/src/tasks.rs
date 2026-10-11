@@ -78,12 +78,14 @@ impl WorkflowTaskLookupApplicationPort for WorkflowReadWorkerClient {
         &self,
         workflow_run_id: i64,
         limit: usize,
+        after_event_id: Option<i64>,
     ) -> Result<Vec<WorkflowProgressEvent>, AppError> {
         self.service_command(
             WORKFLOW_READ_PROGRESS_EVENTS_OPERATION,
             WorkflowProgressEventsInput {
                 task_id: None,
                 workflow_run_id: Some(workflow_run_id),
+                after_event_id,
                 limit,
             },
         )

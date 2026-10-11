@@ -3324,6 +3324,7 @@ dependencies = [
  "a4n-worker-contract",
  "schemars 1.2.1",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

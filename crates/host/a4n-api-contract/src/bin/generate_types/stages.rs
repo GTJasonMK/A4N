@@ -839,6 +839,8 @@ pub(super) fn run() {
         &typescript_interface::<QueueStatsSummary>("QueueStatsSummary"),
         &typescript_interface::<WorkflowProgressEvent>("WorkflowProgressEvent"),
         &typescript_interface::<WorkflowProgressEventsResponse>("WorkflowProgressEventsResponse"),
+        &typescript_interface::<GetWorkflowProgressEventsInput>("GetWorkflowProgressEventsInput"),
+        &typescript_interface::<WorkflowProgressEventsInput>("WorkflowProgressEventsInput"),
         &typescript_interface::<WorkflowStateSummary>("WorkflowStateSummary"),
         &typescript_interface::<WorkflowRunProgressSummary>("WorkflowRunProgressSummary"),
         &typescript_interface::<WorkflowRunSummary>("WorkflowRunSummary"),

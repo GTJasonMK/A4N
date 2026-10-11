@@ -8,12 +8,12 @@ use a4n_db::workflow::{
     record_workflow_progress_event, restart_interrupted_workflow_run,
     resume_or_upsert_workflow_run, resume_workflow_run_with_active_task,
     save_completed_llm_call_checkpoint, upsert_workflow_checkpoint, upsert_workflow_run,
-    workflow_checkpoint_statuses_for_runs, workflow_checkpoint_step_statuses, workflow_run_detail,
-    workflow_run_model_by_id, workflow_run_models_by_ids, workflow_run_statuses_by_ids,
-    workflow_run_summary_by_id,
+    workflow_checkpoint_statuses_for_runs, workflow_checkpoint_step_statuses,
+    workflow_progress_events, workflow_run_detail, workflow_run_model_by_id,
+    workflow_run_models_by_ids, workflow_run_statuses_by_ids, workflow_run_summary_by_id,
 };
 use a4n_db_models::models::{
-    generation::{generation_run, workflow_run},
+    generation::{generation_run, workflow_progress_event, workflow_run},
     task::task_queue,
 };
 use a4n_domain::workflow::{
@@ -533,6 +533,16 @@ async fn workflow_snapshot_survives_progress_reads_updates_and_cancellation() {
             )
             .await
             .unwrap();
+            let events = workflow_progress_events(&db, run.id, 200, None)
+                .await
+                .unwrap();
+            assert_eq!(events.len(), 2);
+            let after_event_id = events[0].id.parse::<i64>().unwrap();
+            let incremental = workflow_progress_events(&db, run.id, 200, Some(after_event_id))
+                .await
+                .unwrap();
+            assert_eq!(incremental.len(), 1);
+            assert_eq!(incremental[0].id, events[1].id);
             let stored = workflow_run_model_by_id(&db, run.id).await.unwrap();
             assert_eq!(stored.progress_json.unwrap()["snapshot"], snapshot);
         }
@@ -632,6 +642,130 @@ async fn workflow_snapshot_survives_progress_reads_updates_and_cancellation() {
             Some(active_task_id.as_str())
         );
     }
+}
+
+#[tokio::test]
+#[ignore = "manual PostgreSQL performance benchmark; requires isolated A4N_TEST_DATABASE_URL"]
+async fn benchmark_workflow_progress_event_cursor_projection() {
+    const EVENT_COUNT: usize = 200;
+    const MESSAGE_LENGTH: usize = 256;
+    const SAMPLES: usize = 15;
+
+    fn percentile(samples: &[f64], percentile: f64) -> f64 {
+        let mut sorted = samples.to_vec();
+        sorted.sort_by(f64::total_cmp);
+        sorted[((sorted.len() - 1) as f64 * percentile).round() as usize]
+    }
+
+    fn response_bytes(events: &[a4n_db::workflow::TaskProgressEventSummary]) -> usize {
+        serde_json::to_vec(&json!({
+            "events": events.iter().map(|event| json!({
+                "id": event.id,
+                "current": event.current,
+                "total": event.total,
+                "message": event.message,
+                "meta": event.meta,
+                "timestamp": event.timestamp,
+            })).collect::<Vec<_>>(),
+            "stream_text": null,
+        }))
+        .expect("progress response must serialize")
+        .len()
+    }
+
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let run = upsert_workflow_run(
+        &db,
+        workflow_input(
+            &format!("progress-cursor:{}", uuid::Uuid::new_v4()),
+            "progress-cursor",
+            WORKFLOW_STATUS_RUNNING,
+        ),
+    )
+    .await
+    .expect("workflow fixture must be created");
+    let now = Utc::now().naive_utc();
+    let rows = (0..EVENT_COUNT)
+        .map(|index| workflow_progress_event::ActiveModel {
+            workflow_run_id: Set(run.id),
+            task_id: Set(Some("progress-cursor-task".into())),
+            event_index: Set(index as i64 + 1),
+            current: Set(index as i32),
+            total: Set(EVENT_COUNT as i32),
+            message: Set("x".repeat(MESSAGE_LENGTH)),
+            percent: Set(index as f32 / EVENT_COUNT as f32 * 100.0),
+            meta_json: Set(None),
+            created_at: Set(now + chrono::Duration::microseconds(index as i64)),
+            ..Default::default()
+        })
+        .collect::<Vec<_>>();
+    workflow_progress_event::Entity::insert_many(rows)
+        .exec(&db)
+        .await
+        .expect("progress fixtures must be inserted");
+    let rows = workflow_progress_events(&db, run.id, 200, None)
+        .await
+        .expect("progress event fixture query must succeed");
+    let cursor = rows[EVENT_COUNT - 2]
+        .id
+        .parse::<i64>()
+        .expect("persisted event ID must be numeric");
+    let full = workflow_progress_events(&db, run.id, 200, None)
+        .await
+        .expect("full event query must succeed");
+    let incremental = workflow_progress_events(&db, run.id, 200, Some(cursor))
+        .await
+        .expect("incremental event query must succeed");
+    assert_eq!(full.len(), EVENT_COUNT);
+    assert_eq!(incremental.len(), 1);
+    assert_eq!(incremental[0].id, full[EVENT_COUNT - 1].id);
+
+    let mut full_samples = Vec::with_capacity(SAMPLES);
+    let mut incremental_samples = Vec::with_capacity(SAMPLES);
+    for sample in 0..SAMPLES {
+        if sample % 2 == 0 {
+            let started = std::time::Instant::now();
+            let events = workflow_progress_events(&db, run.id, 200, None)
+                .await
+                .unwrap();
+            full_samples.push(started.elapsed().as_secs_f64() * 1000.0);
+            assert_eq!(events.len(), EVENT_COUNT);
+
+            let started = std::time::Instant::now();
+            let events = workflow_progress_events(&db, run.id, 200, Some(cursor))
+                .await
+                .unwrap();
+            incremental_samples.push(started.elapsed().as_secs_f64() * 1000.0);
+            assert_eq!(events.len(), 1);
+        } else {
+            let started = std::time::Instant::now();
+            let events = workflow_progress_events(&db, run.id, 200, Some(cursor))
+                .await
+                .unwrap();
+            incremental_samples.push(started.elapsed().as_secs_f64() * 1000.0);
+            assert_eq!(events.len(), 1);
+
+            let started = std::time::Instant::now();
+            let events = workflow_progress_events(&db, run.id, 200, None)
+                .await
+                .unwrap();
+            full_samples.push(started.elapsed().as_secs_f64() * 1000.0);
+            assert_eq!(events.len(), EVENT_COUNT);
+        }
+    }
+
+    let full_p50 = percentile(&full_samples, 0.50);
+    let full_p95 = percentile(&full_samples, 0.95);
+    let incremental_p50 = percentile(&incremental_samples, 0.50);
+    let incremental_p95 = percentile(&incremental_samples, 0.95);
+    let full_bytes = response_bytes(&full);
+    let incremental_bytes = response_bytes(&incremental);
+    let improvement = (1.0 - incremental_p50 / full_p50) * 100.0;
+    println!(
+        "workflow_progress_event_cursor events={EVENT_COUNT} message_length={MESSAGE_LENGTH} full_bytes={full_bytes} incremental_bytes={incremental_bytes} full_p50_p95_ms={full_p50:.3}/{full_p95:.3} incremental_p50_p95_ms={incremental_p50:.3}/{incremental_p95:.3} p50_improvement={improvement:.1}%"
+    );
+    assert!(incremental_bytes < full_bytes / 2);
+    assert!(incremental_p50 < full_p50 * 0.7);
 }
 
 #[tokio::test]

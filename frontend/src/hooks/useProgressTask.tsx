@@ -81,6 +81,7 @@ interface ProgressTaskController extends ProgressTaskApi {
 }
 
 const MAX_PROGRESS_EVENTS = 160;
+const PROGRESS_EVENT_POLL_LIMIT = 200;
 const WORKFLOW_PROGRESS_POLL_MS = 500;
 
 export async function runTaskWithPolling<T, TUpdate>(
@@ -120,15 +121,22 @@ export async function runTaskWithProgressEvents<T>(
   setStreamText?: ProgressTaskControl["setStreamText"],
 ): Promise<T> {
   const seenEventIds = new Set<string>();
+  let afterEventId: string | undefined;
   return runTaskWithPolling(
     task,
-    () => getTaskProgressEvents(taskId, 200),
+    () => getTaskProgressEvents(taskId, PROGRESS_EVENT_POLL_LIMIT, afterEventId),
     (response) => {
       for (const event of response.events) {
         if (seenEventIds.has(event.id)) continue;
         seenEventIds.add(event.id);
+        if (seenEventIds.size > PROGRESS_EVENT_POLL_LIMIT) {
+          const oldestEventId = seenEventIds.values().next().value;
+          if (oldestEventId !== undefined) seenEventIds.delete(oldestEventId);
+        }
         setProgress(event.message, event.current, event.total, event.meta ?? null);
       }
+      const latestEvent = response.events.at(-1);
+      if (latestEvent) afterEventId = latestEvent.id;
       // 活体信号是快照而非事件：不去重，每次轮询取最新尾巴覆盖。
       if (response.stream_text) setStreamText?.(response.stream_text);
     },

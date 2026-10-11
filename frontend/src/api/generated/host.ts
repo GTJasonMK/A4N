@@ -4828,6 +4828,20 @@ export interface WorkflowProgressEventsResponse {
   stream_text: string | null;
 }
 
+export interface GetWorkflowProgressEventsInput {
+  after_event_id?: string | null;
+  limit: number;
+  task_id?: string | null;
+  workflow_run_id?: number | null;
+}
+
+export interface WorkflowProgressEventsInput {
+  after_event_id?: number | null;
+  limit: number;
+  task_id?: string | null;
+  workflow_run_id?: number | null;
+}
+
 export interface WorkflowStateSummary {
   progress: TaskProgressSummary | null;
   progress_events: WorkflowProgressEvent[];
@@ -4926,6 +4940,7 @@ export interface CancelWorkflowInput {
 }
 
 export interface WorkflowProgressEventsInput {
+  after_event_id?: number | null;
   limit: number;
   task_id?: string | null;
   workflow_run_id?: number | null;

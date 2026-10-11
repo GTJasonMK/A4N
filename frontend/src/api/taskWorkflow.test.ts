@@ -42,12 +42,14 @@ describe("task and workflow host contracts", () => {
     await getQueueStats();
     await getTaskHistory(7, 0, 30);
     await getTaskProgressEvents("task-1", 20);
+    await getTaskProgressEvents("task-1", 20, "task-1-event-20");
     await listActiveWorkflows();
     await listWorkflowRuns({ resumable_only: false, limit: 40 });
     await getWorkflowRunDetail(9, true);
     await getWorkflowRunDetail(10, true, false);
     await resumeWorkflowRun(9);
     await getWorkflowRunProgressEvents(9, 20);
+    await getWorkflowRunProgressEvents(9, 20, "81");
     await expect(cancelWorkflowTask("task-1")).resolves.toBe(false);
     await expect(cancelWorkflow({ task_id: null, workflow_run_id: 9 })).resolves.toBe(false);
 
@@ -59,6 +61,17 @@ describe("task and workflow host contracts", () => {
       [
         "get_workflow_progress_events",
         { input: { task_id: "task-1", workflow_run_id: null, limit: 20 } },
+      ],
+      [
+        "get_workflow_progress_events",
+        {
+          input: {
+            task_id: "task-1",
+            workflow_run_id: null,
+            limit: 20,
+            after_event_id: "task-1-event-20",
+          },
+        },
       ],
       ["list_active_workflows"],
       ["list_workflow_runs", { input: { resumable_only: false, limit: 40 } }],
@@ -78,6 +91,10 @@ describe("task and workflow host contracts", () => {
       [
         "get_workflow_progress_events",
         { input: { task_id: null, workflow_run_id: 9, limit: 20 } },
+      ],
+      [
+        "get_workflow_progress_events",
+        { input: { task_id: null, workflow_run_id: 9, limit: 20, after_event_id: "81" } },
       ],
       [
         "cancel_workflow",

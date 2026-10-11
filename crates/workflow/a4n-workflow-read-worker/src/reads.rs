@@ -302,6 +302,7 @@ impl WorkerState {
             self.database.executor(),
             workflow_run_id,
             request.payload.limit,
+            request.payload.after_event_id,
         )
         .await
         .map(|events| {

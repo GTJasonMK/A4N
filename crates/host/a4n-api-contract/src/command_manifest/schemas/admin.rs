@@ -161,7 +161,7 @@ pub(crate) fn args_get_usage_trends() -> Value {
     strict_typed_input_schema::<crate::admin::UsageTrendsInput>()
 }
 pub(crate) fn args_get_workflow_progress_events() -> Value {
-    strict_typed_input_schema::<crate::workflow::WorkflowProgressEventsInput>()
+    strict_typed_input_schema::<crate::workflow::GetWorkflowProgressEventsInput>()
 }
 
 pub(crate) fn args_start_test_run() -> Value {

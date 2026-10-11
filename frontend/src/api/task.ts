@@ -51,10 +51,12 @@ export async function getTaskHistory(
 export async function getTaskProgressEvents(
   taskId: string,
   limit: number,
+  afterEventId?: string,
 ): Promise<WorkflowProgressEventsResponse> {
   return getWorkflowProgressEvents({
     task_id: taskId,
     workflow_run_id: null,
     limit,
+    ...(afterEventId === undefined ? {} : { after_event_id: afterEventId }),
   });
 }

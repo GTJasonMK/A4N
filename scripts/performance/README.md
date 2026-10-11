@@ -51,6 +51,7 @@
 | [PERF-050](../../crates/platform/a4n-db/src/workflow/tasks/queries.rs) | `get_task_history` → task worker → PostgreSQL；200 条任务历史页，单条持久 payload 约 32.5 KB | 旧查询读取完整 `task_queue` 行，包括 API 摘要不使用的 `payload` 和 `dag_id`；历史及按 ID 读取改为显式选取状态投影字段，共用原校验和错误映射 | PostgreSQL P50/P95 **7.266/13.174 → 2.096/2.677 ms（71.1%/79.7%）**；旧路径该页 payload **6,505,200 B**，新路径不读取 payload；字段、顺序、失败错误和进度投影一致 |
 | [PERF-051](../../crates/platform/a4n-db/src/workflow/runs/queries.rs) | Canvas workflow 状态每秒轮询及设置页展开详情；最多 300 个 generation run | UI 只使用 generation run 状态、标题、次数和 JSON 存在标记；UI 显式请求省略 fingerprint/raw/parsed/validation/artifact JSON，CLI 缺省仍取完整诊断内容 | 完整 workflow detail **17,324,230 → 195,978 B**；真实 PostgreSQL P50/P95 **18.561/26.785 → 2.528/3.145 ms（86.4%/88.3%）**；300 个项目顺序、摘要字段和 3 个内容存在标记一致 |
 | [PERF-052](../../crates/host/a4n-runtime/src/actions/admin_records/test_console.rs) | 测试中心活动 run 详情每 800 ms 轮询；最多 500 条日志，每条 append 日志最多 2,000 字符 | 默认/旧请求仍返回完整日志；前端轮询带独占 log cursor，后端只克隆和序列化 cursor 之后的日志，并从缓存详情中投影摘要/步骤 | release TestConsole read + JSON serialization：500×2,000 字符时响应 **1,001,914 → 415 B**；P50/P95 **0.676/0.947 → 0.001/0.002 ms**（P50 下降 99.8%）；日志轮转和过期游标语义一致 |
+| [PERF-053](../../crates/platform/a4n-task-runtime/src/channel/handle.rs) | `useProgressTask` 每 500 ms 请求和 Canvas workflow 每秒请求，最多 200 个历史事件；活体文本尾部固定 512 字符 | 两处 UI 将最近事件 ID 作为可选 cursor；task 内存 ring 从游标后克隆事件，持久 workflow 查询按 ID 过滤；无游标的旧调用仍返回最近完整页，stream text 仍每次返回 | 200 条×256 字符时 task response **71,031 → 894 B**、P50/P95 **0.332/0.420 → 0.004/0.006 ms（98.7%）**；隔离 PostgreSQL workflow response **73,213 → 398 B**、P50/P95 **3.068/5.256 → 0.639/1.016 ms（79.2%/80.7%）**；cursor 后只保留新增事件 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -77,6 +78,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 任务历史 | PERF-050 的历史页和按 ID 查询只读取摘要字段；完整任务 payload 仍留在任务详情/执行路径所需处，没有改变队列持久化或取消行为。 |
 | 工作流详情轮询 | PERF-051 让 Canvas 每秒刷新及设置页详情请求只传输 generation run 摘要；未传新选项的 CLI 保留完整原始输出、解析结果和验证 JSON。 |
 | 测试中心详情轮询 | PERF-052 首次读取与旧请求仍拿到完整保留日志；活动轮询带日志游标，只克隆和传输新增行；超过 500 行后的过期游标重取当前窗口。 |
+| 任务进度轮询 | PERF-053 task ring 和 workflow progress query 支持 event cursor；缺省游标仍返回最近页，丢失 ring 历史后退回最近完整窗口，活体 stream text 继续按原快照返回。 |
 | Canvas 文本素材 | 窄索引候选已用 256 份 × 4 KiB 正文的 Chromium 夹具复核；传输字节下降 98%，但首屏中位数仅下降 14.0%，GC 后 JS heap 仅下降 8.2%，不满足保留门槛，未改合同或生产代码。 |
 | 媒体阶段状态 | PERF-048 将状态标签计算从章节数 × 文档数的重复过滤降为一次索引；文档状态、快照范围和 stale 判断保持原语义。 |
 | 漫画来源读取 | 当前 MangaTab 产品入口 ComicProjectWorkspace、VideoProjectWorkspace 和 GalgameProjectWorkspace 均使用 `listSourceSnapshotChapterIndex`；PERF-020 已用 1000 章真实 PostgreSQL/Chromium 夹具测量目录与单章详情，完整正文只在选章后读取。旧 `listSourceSnapshotChapters` API 仍保留给兼容调用方，但不是当前页面活跃路径。 |
@@ -569,6 +571,14 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 量化结果：release 测试夹具使用 **500 条 × 2,000 个 ASCII 字符**，计时包含生产 `TestConsole::get` 和 `serde_json` 响应序列化。完整响应 **1,001,914 B**，游标指向末尾时增量响应 **415 B**；完整/增量 P50/P95 **0.676/0.947 → 0.001/0.002 ms**，P50 下降 **99.8%**。该基准测量 Runtime 读取与序列化，不外推 HTTP/网络时延。
 - 语义验证：Runtime 测试 **11/11** 覆盖完整读取、增量读取、过期/超前游标、500 条轮转、旧报告默认值及既有恢复/删除行为；API 合同测试旧请求省略游标、前端 API 测试请求形状和日志窗口合并测试均通过。未轮询的旧调用方仍读取全量日志。
 - 证据与复现：`data/performance-audit-20261010/test-run-log-projection/benchmark.log`；从工作树执行 `flock -x /home/fufu/Code/A4N/work/.agent-build.lock env CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target CARGO_INCREMENTAL=0 cargo test --locked --release -p a4n-runtime benchmark_test_run_detail_log_projection --lib -- --ignored --nocapture --test-threads=1`。
+
+### PERF-053：任务进度事件增量轮询
+
+- 调用链与频率：通用 Host progress task 每 **500 ms** 拉取最多 **200** 个事件；Canvas workflow 状态每秒同时拉取最多 **20** 个事件。通用任务事件位于有界 200 项内存 ring，workflow 事件持久化在 PostgreSQL；两处前端都以事件 ID 去重/展示，Canvas 只呈现最后五条。stream text 已独立限制为 **512 字符尾部**，不纳入事件 cursor 改动。
+- 根因与改动：旧请求每次都克隆、反序列化/投影并传输最近完整事件页，前端再丢掉已见的 ID。增加可选公开 `after_event_id`，task ring 按 ID 返回后续窗口，workflow read worker 按持久事件 ID 过滤；前端每次成功后推进 cursor。task cursor 在 200 项 ring 内找不到时回退当前最近窗口；workflow 按 cursor 后续 ID 读取。worker 输入增加数值 cursor，合同版本升为 `workflow-read-v4`。旧客户端不传游标时仍取完整最近页，stream text 照旧每次返回。
+- 量化结果：release task fixture 使用 **200 条 × 256 ASCII 字符**和 512 字符 stream snapshot，序列化 response **71,031 → 894 B**，读事件加序列化 P50/P95 **0.332/0.420 → 0.004/0.006 ms（P50 下降 98.7%）**。隔离 PostgreSQL 16 workflow fixture 使用 **200 条 × 256 ASCII 字符**，Rust debug 测试 profile 数据库读的 P50/P95 **3.068/5.256 → 0.639/1.016 ms（下降 79.2%/80.7%）**，序列化 response **73,213 → 398 B**。两组新查询均只返回 cursor 后剩余的 1 条事件。
+- 语义验证：task ring cursor 命中、过期 cursor 回退、数据库 cursor 顺序与既有 progress snapshot/cancellation 回归通过；API 合同旧请求缺省和 command manifest 自检通过；前端定向 Vitest 4/4 检查首次全页和后续 cursor 参数。`workflow-read-worker` request contract/caller 与全部受影响 crate tests 编译通过，worker v4 catalog 一致。`a4n-task-runtime` 全 crate 串行测试有 35 项通过、3 项因既有 image/LLM/video 配置 fixture 缺少现为 NOT NULL 的 `pricing_json`/`agent_protocol` 失败，另 1 项 benchmark 忽略；内存 task ring 定向测试通过，这些配置 fixture 与 progress cursor 无关。
+- 证据与复现：`data/performance-audit-20261010/progress-event-cursor/benchmark.log`。task 基准命令 `cargo test --locked --release -p a4n-task-runtime benchmark_progress_event_cursor_projection --lib -- --ignored --nocapture --test-threads=1`；PostgreSQL 基准在隔离库 `a4n_perf_progress_cursor_20261011` 中运行 `cargo test --locked -p a4n-db --test workflow_batch_queries benchmark_workflow_progress_event_cursor_projection -- --ignored --nocapture --test-threads=1`。初次测试 runner 拉取 `postgres:16` 因 Docker Hub 超时失败；改在本机现存 PostgreSQL 16 容器里新建独立 benchmark 数据库后完成同一 fixture，不使用 debug 数据库。
 
 ### 拒绝候选：Canvas 文本素材窄索引
 

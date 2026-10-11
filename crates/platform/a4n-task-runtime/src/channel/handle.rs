@@ -50,6 +50,27 @@ impl TaskHandle {
         self.cancel_token.is_cancelled()
     }
 
+    pub fn progress_events_after(
+        &self,
+        after_event_id: Option<&str>,
+        limit: usize,
+    ) -> Vec<TaskProgressEvent> {
+        let events = self.progress_events.read();
+        let limit = limit.clamp(1, MAX_TASK_PROGRESS_EVENTS);
+        let first = after_event_id
+            .and_then(|id| events.iter().position(|event| event.id == id))
+            .map(|index| {
+                let first_after_cursor = index + 1;
+                if events.len() - first_after_cursor > limit {
+                    events.len() - limit
+                } else {
+                    first_after_cursor
+                }
+            })
+            .unwrap_or_else(|| events.len().saturating_sub(limit));
+        events.iter().skip(first).cloned().collect()
+    }
+
     /// 更新进度
     pub fn update_progress(&self, current: u32, total: u32, message: &str) {
         self.update_progress_with_meta(

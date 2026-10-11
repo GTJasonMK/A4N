@@ -46,6 +46,8 @@ describe("Host progress tasks", () => {
     await vi.advanceTimersByTimeAsync(500);
     await vi.advanceTimersByTimeAsync(500);
 
+    expect(mocks.getTaskProgressEvents).toHaveBeenNthCalledWith(1, "task-1", 200, undefined);
+    expect(mocks.getTaskProgressEvents).toHaveBeenNthCalledWith(2, "task-1", 200, "task-1-20");
     expect(setProgress).toHaveBeenCalledTimes(1);
     expect(setProgress).toHaveBeenCalledWith(
       "正在分析章节结构",

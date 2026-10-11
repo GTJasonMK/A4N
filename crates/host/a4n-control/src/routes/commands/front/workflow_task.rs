@@ -8,8 +8,8 @@ use a4n_api_contract::generation_tasks::CancelGenerationTaskInput;
 use a4n_api_contract::{
     task::{CancelTaskInput, GetTaskHistoryInput},
     workflow::{
-        CancelWorkflowInput, GetWorkflowRunInput, ListWorkflowRunsInput, ResumeWorkflowRunInput,
-        WorkflowProgressEventsInput,
+        CancelWorkflowInput, GetWorkflowProgressEventsInput, GetWorkflowRunInput,
+        ListWorkflowRunsInput, ResumeWorkflowRunInput,
     },
 };
 use a4n_runtime::host_api::generation_tasks as generation_task_actions;
@@ -68,7 +68,7 @@ pub(in crate::routes::commands) async fn get_workflow_progress_events(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let input: WorkflowProgressEventsInput =
+    let input: GetWorkflowProgressEventsInput =
         strict_command_input(args, "get_workflow_progress_events")?;
     let events =
         task_records_actions::get_workflow_progress_events(state.runtime(), user_id, input)

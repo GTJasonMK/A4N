@@ -103,6 +103,110 @@ fn task_progress_updates_snapshot_and_history() {
 }
 
 #[test]
+fn progress_event_cursor_reads_new_events_and_resets_when_expired() {
+    let handle = test_handle();
+    let events = (0..200)
+        .map(|index| TaskProgressEvent {
+            id: format!("task-1-{index}"),
+            current: index,
+            total: 200,
+            message: format!("progress {index}"),
+            meta: None,
+            timestamp: "2026-10-11T00:00:00Z".into(),
+        })
+        .collect::<VecDeque<_>>();
+    *handle.progress_events.write() = events;
+
+    let incremental = handle.progress_events_after(Some("task-1-198"), 200);
+    assert_eq!(
+        incremental
+            .iter()
+            .map(|event| event.id.as_str())
+            .collect::<Vec<_>>(),
+        ["task-1-199"]
+    );
+
+    let expired = handle.progress_events_after(Some("task-1-expired"), 200);
+    assert_eq!(expired.len(), 200);
+    assert_eq!(expired.first().unwrap().id, "task-1-0");
+    assert_eq!(expired.last().unwrap().id, "task-1-199");
+}
+
+#[test]
+#[ignore = "manual performance benchmark; exercises the production progress ring limit"]
+fn benchmark_progress_event_cursor_projection() {
+    const EVENT_COUNT: usize = 200;
+    const MESSAGE_LENGTH: usize = 256;
+    const SAMPLES: usize = 15;
+    const CURSOR: &str = "task-1-000198";
+
+    fn response_bytes(events: &[TaskProgressEvent]) -> usize {
+        serde_json::to_vec(&serde_json::json!({
+            "events": events,
+            "stream_text": "x".repeat(512),
+        }))
+        .unwrap()
+        .len()
+    }
+
+    fn measure(handle: &TaskHandle, cursor: Option<&str>) -> (f64, usize) {
+        let started = std::time::Instant::now();
+        let events = handle.progress_events_after(cursor, EVENT_COUNT);
+        let bytes = response_bytes(&events);
+        (started.elapsed().as_secs_f64() * 1000.0, bytes)
+    }
+
+    fn percentile(samples: &[f64], percentile: f64) -> f64 {
+        let mut sorted = samples.to_vec();
+        sorted.sort_by(f64::total_cmp);
+        sorted[((sorted.len() - 1) as f64 * percentile).round() as usize]
+    }
+
+    let handle = test_handle();
+    let events = (0..EVENT_COUNT)
+        .map(|index| TaskProgressEvent {
+            id: format!("task-1-{index:06}"),
+            current: index as u32,
+            total: EVENT_COUNT as u32,
+            message: "x".repeat(MESSAGE_LENGTH),
+            meta: None,
+            timestamp: "2026-10-11T00:00:00Z".into(),
+        })
+        .collect::<VecDeque<_>>();
+    *handle.progress_events.write() = events;
+
+    let full = handle.progress_events_after(None, EVENT_COUNT);
+    let incremental = handle.progress_events_after(Some(CURSOR), EVENT_COUNT);
+    assert_eq!(full.len(), EVENT_COUNT);
+    assert_eq!(incremental.len(), 1);
+    let full_bytes = response_bytes(&full);
+    let incremental_bytes = response_bytes(&incremental);
+
+    let mut full_samples = Vec::with_capacity(SAMPLES);
+    let mut incremental_samples = Vec::with_capacity(SAMPLES);
+    for sample in 0..SAMPLES {
+        if sample % 2 == 0 {
+            full_samples.push(measure(&handle, None).0);
+            incremental_samples.push(measure(&handle, Some(CURSOR)).0);
+        } else {
+            incremental_samples.push(measure(&handle, Some(CURSOR)).0);
+            full_samples.push(measure(&handle, None).0);
+        }
+    }
+
+    let full_p50 = percentile(&full_samples, 0.50);
+    let full_p95 = percentile(&full_samples, 0.95);
+    let incremental_p50 = percentile(&incremental_samples, 0.50);
+    let incremental_p95 = percentile(&incremental_samples, 0.95);
+    let improvement = (1.0 - incremental_p50 / full_p50) * 100.0;
+    println!(
+        "progress_event_cursor events={EVENT_COUNT} message_length={MESSAGE_LENGTH} full_bytes={full_bytes} incremental_bytes={incremental_bytes} full_p50_p95_ms={full_p50:.3}/{full_p95:.3} incremental_p50_p95_ms={incremental_p50:.3}/{incremental_p95:.3} p50_improvement={improvement:.1}%"
+    );
+    assert!(incremental_bytes < full_bytes / 2);
+    assert!(incremental_p50 < full_p50 * 0.7);
+}
+
+#[test]
 fn stream_text_updates_snapshot_without_polluting_event_history() {
     let handle = test_handle();
     handle.update_progress(3, 10, "生成中");

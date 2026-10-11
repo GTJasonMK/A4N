@@ -349,10 +349,11 @@ use a4n_api_contract::{
     web_fetch::{WebFetchInput, WebFetchResult},
     web_search::{WebSearchInput, WebSearchResult, WebSearchSource},
     workflow::{
-        CancelWorkflowInput, GenerationRunSummary, GetWorkflowRunInput, ListWorkflowRunsInput,
-        ResumeWorkflowRunInput, WorkflowCheckpointSummary, WorkflowProgressEvent,
-        WorkflowProgressEventsInput, WorkflowProgressEventsResponse, WorkflowRunDetailSummary,
-        WorkflowRunProgressSummary, WorkflowRunSummary, WorkflowStateSummary,
+        CancelWorkflowInput, GenerationRunSummary, GetWorkflowProgressEventsInput,
+        GetWorkflowRunInput, ListWorkflowRunsInput, ResumeWorkflowRunInput,
+        WorkflowCheckpointSummary, WorkflowProgressEvent, WorkflowProgressEventsInput,
+        WorkflowProgressEventsResponse, WorkflowRunDetailSummary, WorkflowRunProgressSummary,
+        WorkflowRunSummary, WorkflowStateSummary,
     },
 };
 use a4n_domain::agent::{AGENT_PROTOCOL_JSON_COMPAT, AGENT_PROTOCOL_NATIVE_TOOL_CALLING};

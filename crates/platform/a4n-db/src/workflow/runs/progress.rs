@@ -8,8 +8,9 @@ pub async fn workflow_progress_events(
     db: &impl crate::DbExecutor,
     workflow_run_id: i64,
     limit: usize,
+    after_event_id: Option<i64>,
 ) -> Result<Vec<TaskProgressEventSummary>, WorkflowReadError> {
-    let events = workflow_progress_event_models(db, workflow_run_id, limit).await?;
+    let events = workflow_progress_event_models(db, workflow_run_id, limit, after_event_id).await?;
     events
         .into_iter()
         .map(workflow_progress_event_summary)
@@ -171,12 +172,20 @@ async fn workflow_progress_event_models(
     db: &impl crate::DbExecutor,
     workflow_run_id: i64,
     limit: usize,
+    after_event_id: Option<i64>,
 ) -> Result<Vec<workflow_progress_event::Model>, WorkflowReadError> {
     validate_positive_i64(workflow_run_id, "workflow_run_id")?;
-    workflow_progress_event::Entity::find()
+    if let Some(after_event_id) = after_event_id {
+        validate_positive_i64(after_event_id, "after_event_id")?;
+    }
+    let mut query = workflow_progress_event::Entity::find()
         .filter(workflow_progress_event::Column::WorkflowRunId.eq(workflow_run_id))
         .order_by_desc(workflow_progress_event::Column::EventIndex)
-        .limit(limit.clamp(1, MAX_PERSISTED_PROGRESS_EVENTS) as u64)
+        .limit(limit.clamp(1, MAX_PERSISTED_PROGRESS_EVENTS) as u64);
+    if let Some(after_event_id) = after_event_id {
+        query = query.filter(workflow_progress_event::Column::Id.gt(after_event_id));
+    }
+    query
         .all(db)
         .await
         .map(|events| events.into_iter().rev().collect())

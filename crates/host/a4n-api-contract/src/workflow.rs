@@ -131,6 +131,20 @@ pub struct CancelWorkflowInput {
 pub struct WorkflowProgressEventsInput {
     pub task_id: Option<String>,
     pub workflow_run_id: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after_event_id: Option<i64>,
+    #[schemars(range(min = 1, max = 200))]
+    pub limit: usize,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct GetWorkflowProgressEventsInput {
+    pub task_id: Option<String>,
+    pub workflow_run_id: Option<i64>,
+    /// Last event ID; task handles use opaque IDs and persisted workflows use numeric IDs.
+    #[serde(default)]
+    pub after_event_id: Option<String>,
     #[schemars(range(min = 1, max = 200))]
     pub limit: usize,
 }
@@ -243,6 +257,7 @@ pub trait WorkflowTaskLookupApplicationPort: Send + Sync {
         &self,
         workflow_run_id: i64,
         limit: usize,
+        after_event_id: Option<i64>,
     ) -> Result<Vec<WorkflowProgressEvent>, a4n_error::AppError>;
 }
 
@@ -318,7 +333,19 @@ pub trait WorkflowReadApplicationPort: Send + Sync {
 
 #[cfg(test)]
 mod tests {
-    use super::GetWorkflowRunInput;
+    use super::{GetWorkflowProgressEventsInput, GetWorkflowRunInput};
+
+    #[test]
+    fn legacy_progress_events_request_defaults_to_full_page() {
+        let input: GetWorkflowProgressEventsInput = serde_json::from_value(serde_json::json!({
+            "task_id": "task-1",
+            "workflow_run_id": null,
+            "limit": 200
+        }))
+        .expect("legacy progress request must deserialize");
+
+        assert_eq!(input.after_event_id, None);
+    }
 
     #[test]
     fn legacy_workflow_detail_request_defaults_to_full_generation_payloads() {
