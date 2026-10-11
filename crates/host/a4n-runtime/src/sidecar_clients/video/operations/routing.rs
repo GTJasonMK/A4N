@@ -13,7 +13,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::state::RuntimeProfile;
 
-use super::super::super::missing_sidecar_capability_message;
+use super::super::super::{SidecarWorkflowScope, missing_sidecar_capability_message};
 #[cfg(feature = "embedded-media-providers")]
 use super::super::contracts::video_config_params;
 use super::super::events::generate_video_via_sidecar;
@@ -63,9 +63,11 @@ pub(crate) async fn generate_video(
             config,
             request,
             provider_idempotency_key_sha256,
-            project_id,
-            root_project_id,
-            workflow_run_id,
+            SidecarWorkflowScope {
+                project_id,
+                root_project_id,
+                workflow_run_id,
+            },
             progress_tx,
         )
         .await;
@@ -107,9 +109,11 @@ pub(crate) async fn poll_video(
             client,
             config,
             job_id,
-            project_id,
-            root_project_id,
-            workflow_run_id,
+            SidecarWorkflowScope {
+                project_id,
+                root_project_id,
+                workflow_run_id,
+            },
         )
         .await;
     }

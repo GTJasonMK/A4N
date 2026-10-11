@@ -3,6 +3,13 @@ use a4n_service_protocol::TraceContext;
 
 use super::context::SidecarRequestContext;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::sidecar_clients) struct SidecarWorkflowScope {
+    pub(in crate::sidecar_clients) project_id: Option<i64>,
+    pub(in crate::sidecar_clients) root_project_id: Option<i64>,
+    pub(in crate::sidecar_clients) workflow_run_id: Option<i64>,
+}
+
 pub(crate) fn sidecar_context_for_llm_trace(
     trace_context: &LlmTraceContext,
 ) -> Result<SidecarRequestContext, String> {
@@ -16,14 +23,12 @@ pub(crate) fn sidecar_context_for_llm_trace(
 }
 
 pub(in crate::sidecar_clients) fn sidecar_context_for_workflow_operation_with_root(
-    project_id: Option<i64>,
-    root_project_id: Option<i64>,
-    workflow_run_id: Option<i64>,
+    scope: SidecarWorkflowScope,
     operation: &str,
 ) -> Result<SidecarRequestContext, String> {
-    let context =
-        SidecarRequestContext::current_global().with_project_scope(project_id, root_project_id);
-    let Some(workflow_run_id) = workflow_run_id else {
+    let context = SidecarRequestContext::current_global()
+        .with_project_scope(scope.project_id, scope.root_project_id);
+    let Some(workflow_run_id) = scope.workflow_run_id else {
         return Ok(context);
     };
     if workflow_run_id <= 0 {

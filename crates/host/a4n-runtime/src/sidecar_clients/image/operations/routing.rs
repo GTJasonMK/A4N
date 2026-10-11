@@ -12,7 +12,7 @@ use a4n_provider_contract::ImageProviderConfig;
 
 use crate::state::RuntimeProfile;
 
-use super::super::super::missing_sidecar_capability_message;
+use super::super::super::{SidecarWorkflowScope, missing_sidecar_capability_message};
 use super::super::contracts::image_provider_error_with_config;
 #[cfg(feature = "embedded-media-providers")]
 use super::super::contracts::validated_image_provider_config;
@@ -57,9 +57,11 @@ pub(crate) async fn generate_image(
             client,
             config,
             request,
-            project_id,
-            root_project_id,
-            workflow_run_id,
+            SidecarWorkflowScope {
+                project_id,
+                root_project_id,
+                workflow_run_id,
+            },
             progress,
         )
         .await;

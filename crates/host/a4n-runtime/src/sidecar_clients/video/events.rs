@@ -7,7 +7,7 @@ use a4n_video_client::VideoClient;
 use tokio::sync::mpsc::UnboundedSender;
 
 use super::super::{
-    GenerationStreamError, collect_generation_output,
+    GenerationStreamError, SidecarWorkflowScope, collect_generation_output,
     sidecar_context_for_workflow_operation_with_root,
     typed_service_request_with_context_provider_secret_policy,
 };
@@ -34,22 +34,19 @@ pub(in crate::sidecar_clients::video) async fn generate_video_via_sidecar(
     config: &VideoProviderConfig,
     request: VideoGenerationRequest,
     provider_idempotency_key_sha256: Option<String>,
-    project_id: Option<i64>,
-    root_project_id: Option<i64>,
-    workflow_run_id: Option<i64>,
+    scope: SidecarWorkflowScope,
     progress_tx: Option<UnboundedSender<String>>,
 ) -> Result<VideoGenerationResult, AppError> {
-    let payload =
-        video_provider_payload(config, request, provider_idempotency_key_sha256, project_id)
-            .map_err(AppError::ConfigError)?;
+    let payload = video_provider_payload(
+        config,
+        request,
+        provider_idempotency_key_sha256,
+        scope.project_id,
+    )
+    .map_err(AppError::ConfigError)?;
     let request = typed_service_request_with_context_provider_secret_policy(
-        sidecar_context_for_workflow_operation_with_root(
-            project_id,
-            root_project_id,
-            workflow_run_id,
-            "video.generate",
-        )
-        .map_err(AppError::ConfigError)?,
+        sidecar_context_for_workflow_operation_with_root(scope, "video.generate")
+            .map_err(AppError::ConfigError)?,
         a4n_service_protocol::VIDEO_PROVIDER_CAPABILITY_VERSION,
         payload,
     )

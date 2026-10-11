@@ -918,6 +918,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 退出 0；`timeout 180s cargo test --no-run --offline --locked -p a4n-runtime --lib` 通过；`timeout 60s cargo test --offline --locked -p a4n-runtime --lib collect_generation_output -- --test-threads=1` 4/4 通过；`cargo fmt --all -- --check`、`git diff --check` 通过。
 - 记录范围：`crates/host/a4n-runtime/src/{sidecar_clients.rs,sidecar_clients/response.rs,sidecar_clients/image/operations/sidecar.rs,sidecar_clients/video/events.rs}`。
 
+### R-113：命名 Sidecar workflow project scope
+
+- 类别：Image/Video Sidecar workflow 操作重复传递相同的 project、root project 与 workflow run 标识。
+- BFS 覆盖：从 Image `generate_image`、Video `generate_video`/`poll_video` 路由追到 Sidecar request context builder、typed request 和 Image/Video client 调用；静态引用搜索确认 context builder 的全部生产调用点均处于这三条路由，测试直接覆盖 workflow ID 非正值拒绝和 root project 保留。workflow ID 的上游可选性仍由既有 Runtime/queue 合同负责，本次只封装 Sidecar scope 输入，不改变可空语义。
+- 新增 `SidecarWorkflowScope` 命名结构，统一传递 `project_id`、`root_project_id`、`workflow_run_id`；Video generation payload 与 poll payload 仍从同一 scope 读取 project ID，context builder 仍是 trace 校验唯一 owner。
+- 保持 payload、trace 字段、校验时机、错误分类及 Image/Video 业务行为不变；未添加 fallback、兼容或回退路径。
+- 验证：Runtime all-targets Clippy 通过，lib Clippy 告警由 13 条降为 12 条，目标高参数告警消失；workflow scope、video generation trace 和 video poll scope 三项定向测试通过；全仓 rustfmt 与 `git diff --check` 通过。agent target 在构建锁内清理。
+- 记录范围：`crates/host/a4n-runtime/src/sidecar_clients.rs`、`request_context/{trace.rs,tests.rs}`、Image/Video `operations/{routing.rs,sidecar.rs}` 及 Video `events.rs`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

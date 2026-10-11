@@ -8,7 +8,7 @@ use base64::Engine as _;
 use serde_json::Value;
 
 use super::super::super::{
-    GenerationStreamError, SidecarRequestContext, collect_generation_output,
+    GenerationStreamError, SidecarRequestContext, SidecarWorkflowScope, collect_generation_output,
     missing_sidecar_capability_message, response_payload, service_error_string,
     sidecar_context_for_workflow_operation_with_root,
     typed_service_request_with_context_provider_secret_policy,
@@ -39,19 +39,12 @@ pub(super) async fn generate_image_via_sidecar(
     client: Arc<dyn ImageClient>,
     config: &ImageProviderConfig,
     request: ImageGenerationRequest,
-    project_id: Option<i64>,
-    root_project_id: Option<i64>,
-    workflow_run_id: Option<i64>,
+    scope: SidecarWorkflowScope,
     progress: Option<&(dyn Fn(&str) + Send + Sync)>,
 ) -> Result<ImageGenerationResult, String> {
     let payload = image_provider_payload(config, request)?;
     let request = typed_service_request_with_context_provider_secret_policy(
-        sidecar_context_for_workflow_operation_with_root(
-            project_id,
-            root_project_id,
-            workflow_run_id,
-            "image.generate",
-        )?,
+        sidecar_context_for_workflow_operation_with_root(scope, "image.generate")?,
         a4n_service_protocol::IMAGE_PROVIDER_CAPABILITY_VERSION,
         payload,
     )?;
