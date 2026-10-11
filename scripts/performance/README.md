@@ -646,6 +646,13 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 量化结果：隔离 PostgreSQL 16、release、15 次交错样本、2 次预热。完整列表 P50/P95 **7.010/9.507 → 0.382/0.535 ms**，下降 **94.4%/94.4%**；响应序列化 **6,580,311 → 16,627 B**，减少 **99.75%**。索引结果逐项保留 ID、项目、文件名、状态和时间字段。
 - 验证与证据：基准夹具 `crates/platform/a4n-db/tests/import_review_list_projection.rs`；报告 `data/performance-audit-20261010/import-review-list-projection/command.log`。Rust 受影响 crates `cargo check --locked`、前端 `npm run check:web-api-parity` 和 `npm run build` 通过；旧完整读口未删除，详情错误仍显性返回。
 
+### 拒绝候选：图片图库元数据索引
+
+- 链路与规模：Novel Detail 的 Images 页进入项目图库时读取全部图片摘要；候选项目为 **1000** 张图片、每条约 **8 KiB** `metadata_json`。页面仍需要提示词、路径、收藏、页码和源内容哈希，详情操作需要完整元数据。
+- 候选：数据库列表仅读取卡片字段，并通过 JSON 标量提取 `page_number` 与 `source.content_sha256`；完整元数据改为按图片 ID 详情读取。旧完整读取与候选索引逐项核对卡片字段、分组页码和 stale 源哈希。
+- 量化结果：隔离 PostgreSQL 16、release、15 次交错样本、2 次预热。完整/索引响应 **8,584,691 → 348,691 B**；P50/P95 **11.410/18.936 → 8.601/11.447 ms**，下降 **24.6%/39.5%**。P50 未达到 30% 门槛，且没有独立进程 RSS 下降 20% 证据，候选撤回。
+- 证据与决定：`crates/platform/a4n-db/tests/generated_image_list_projection.rs` 和 `data/performance-audit-20261010/generated-image-list-projection/command.log` 保留基准。当前 `list_images_by_project` 合同与 Images 页保持原样；后续只有在真实图库规模或写入侧拆分元数据列有新证据时再评估。
+
 ### 拒绝候选：Canvas 文本素材窄索引
 
 - 链路与规模：`ProjectTextMaterialsPanel` 初载 **256 份**文本素材，每份正文约 **4 KiB**；旧列表响应包含全部正文，而页面只展示目录并读取当前选中版本。候选增加不含正文的索引命令，切换素材仍通过版本接口读取正文，并验证第二份素材内容和标题。
