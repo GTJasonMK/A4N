@@ -580,6 +580,14 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 语义验证：task ring cursor 命中、过期 cursor 回退、数据库 cursor 顺序与既有 progress snapshot/cancellation 回归通过；API 合同旧请求缺省和 command manifest 自检通过；前端定向 Vitest 4/4 检查首次全页和后续 cursor 参数。`workflow-read-worker` request contract/caller 与全部受影响 crate tests 编译通过，worker v4 catalog 一致。`a4n-task-runtime` 全 crate 串行测试有 35 项通过、3 项因既有 image/LLM/video 配置 fixture 缺少现为 NOT NULL 的 `pricing_json`/`agent_protocol` 失败，另 1 项 benchmark 忽略；内存 task ring 定向测试通过，这些配置 fixture 与 progress cursor 无关。
 - 证据与复现：`data/performance-audit-20261010/progress-event-cursor/benchmark.log`。task 基准命令 `cargo test --locked --release -p a4n-task-runtime benchmark_progress_event_cursor_projection --lib -- --ignored --nocapture --test-threads=1`；PostgreSQL 基准在隔离库 `a4n_perf_progress_cursor_20261011` 中运行 `cargo test --locked -p a4n-db --test workflow_batch_queries benchmark_workflow_progress_event_cursor_projection -- --ignored --nocapture --test-threads=1`。初次测试 runner 拉取 `postgres:16` 因 Docker Hub 超时失败；改在本机现存 PostgreSQL 16 容器里新建独立 benchmark 数据库后完成同一 fixture，不使用 debug 数据库。
 
+### PERF-054：测试中心历史列表终态报告窄投影
+
+- 调用链与频率：Test Center 页面初始化和测试结束刷新调用 `list_test_runs(30)`。旧实现扫描并读取目录内**全部** JSON 报告，再只返回最近 30 条；每份报告最多 **500 条、每条 2,000 字符**日志，而列表只返回 `TestRunSummary`。
+- 根因与改动：终态报告不需要 parameters、steps 或日志正文。新增 typed summary projection，仍解析参数/步骤结构、日志字符串类型和游标字段以保留损坏报告错误；只有 queued/running（需要 Host 重启恢复）才再次完整解析，缓存优先级、活动运行、排序、重复文件和旧报告默认值保持原行为。
+- 量化结果：Linux 独立子进程、**40** 份报告、每份 **500×2,000** 字符日志、返回 30 条，release 交错测量；基线复刻旧完整 `list()` 路径（包括缓存/活动状态检查），摘要 JSON 字节完全一致。P50/P95 **17.778/37.523 → 11.510/14.530 ms**（下降 **35.3%/61.3%**），峰值 RSS **51,268 → 13,004 KiB**（下降 **74.6%**），同时达到时延和内存门槛。
+- 语义验证：projection 与完整解析摘要及响应字节逐项一致；错误日志类型与旧解析路径返回相同错误文本；stale queued 报告仍恢复为 failed 并持久化，活动 running 报告不恢复。Runtime 列表/恢复/结构模块测试 **14 passed、2 ignored**；`cargo clippy --offline --locked --all-targets -p a4n-runtime` 通过，输出仅有既有代码告警。
+- 证据与复现：`data/performance-audit-20261010/test-run-list-projection/benchmark.log`；`flock -x /home/fufu/Code/A4N/work/.agent-build.lock env CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target CARGO_INCREMENTAL=0 cargo test --locked --release -p a4n-runtime benchmark_test_run_summary_list_projection --lib -- --ignored --nocapture --test-threads=1`。
+
 ### 拒绝候选：Canvas 文本素材窄索引
 
 - 链路与规模：`ProjectTextMaterialsPanel` 初载 **256 份**文本素材，每份正文约 **4 KiB**；旧列表响应包含全部正文，而页面只展示目录并读取当前选中版本。候选增加不含正文的索引命令，切换素材仍通过版本接口读取正文，并验证第二份素材内容和标题。

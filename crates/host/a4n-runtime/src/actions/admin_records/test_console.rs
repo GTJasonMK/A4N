@@ -16,6 +16,7 @@ use a4n_api_contract::{
     project::{CreateProjectInput, DuplicateProjectInput, UpdateProjectInput},
 };
 use chrono::Utc;
+use serde::{Deserialize, Deserializer, de};
 use serde_json::{Value, json};
 use tokio::{
     io::{AsyncBufReadExt, AsyncRead, BufReader},
@@ -90,6 +91,62 @@ struct ControlState {
     active_run_id: Option<String>,
     cancellation: Option<CancellationToken>,
     deleting_run_ids: HashSet<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TestRunListProjection {
+    summary: TestRunSummary,
+    #[serde(rename = "parameters")]
+    _parameters: de::IgnoredAny,
+    #[serde(rename = "steps")]
+    _steps: Vec<a4n_api_contract::admin::TestStepSummary>,
+    #[serde(rename = "logs")]
+    _logs: Vec<IgnoredTestLog>,
+    #[serde(default)]
+    _log_start_index: u64,
+}
+
+#[derive(Debug)]
+struct IgnoredTestLog;
+
+impl<'de> Deserialize<'de> for IgnoredTestLog {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct LogVisitor;
+
+        impl<'de> de::Visitor<'de> for LogVisitor {
+            type Value = IgnoredTestLog;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a string")
+            }
+
+            fn visit_str<E>(self, _value: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(IgnoredTestLog)
+            }
+
+            fn visit_borrowed_str<E>(self, _value: &'de str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(IgnoredTestLog)
+            }
+
+            fn visit_string<E>(self, _value: String) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(IgnoredTestLog)
+            }
+        }
+
+        deserializer.deserialize_str(LogVisitor)
+    }
 }
 
 #[derive(Clone)]
@@ -333,12 +390,13 @@ impl TestConsole {
     pub async fn list(&self, input: ListTestRunsInput) -> Result<Vec<TestRunSummary>, String> {
         let _guard = self.mutation_lock.lock().await;
         let limit = input.limit.clamp(1, 100) as usize;
-        let mut details = Vec::new();
+        let mut summaries = Vec::new();
         let mut entries = match tokio::fs::read_dir(self.root.as_ref()).await {
             Ok(entries) => Some(entries),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
             Err(error) => return Err(format!("读取测试运行目录失败：{error}")),
         };
+        let active = self.control.lock().await.active_run_id.clone();
         if let Some(entries) = entries.as_mut() {
             while let Some(entry) = entries
                 .next_entry()
@@ -351,32 +409,37 @@ impl TestConsole {
                 let bytes = tokio::fs::read(entry.path())
                     .await
                     .map_err(|error| format!("读取测试运行报告失败：{error}"))?;
-                let mut detail = serde_json::from_slice::<TestRunDetail>(&bytes)
+                let projection = serde_json::from_slice::<TestRunListProjection>(&bytes)
                     .map_err(|error| format!("测试运行报告损坏：{error}"))?;
-                let cached = self.runs.lock().await.get(&detail.summary.id).cloned();
-                let active = self.control.lock().await.active_run_id.clone();
+                let run_id = projection.summary.id.clone();
+                let cached = self.runs.lock().await.get(&run_id).cloned();
                 if let Some(cached) = cached {
-                    detail = cached;
-                } else if active.as_deref() != Some(detail.summary.id.as_str()) {
-                    self.recover_interrupted(&mut detail).await?;
+                    summaries.push(cached.summary);
+                } else if active.as_deref() != Some(run_id.as_str()) {
+                    if matches!(
+                        projection.summary.status,
+                        TestRunStatus::Queued | TestRunStatus::Running
+                    ) {
+                        let mut detail = serde_json::from_slice::<TestRunDetail>(&bytes)
+                            .map_err(|error| format!("测试运行报告损坏：{error}"))?;
+                        self.recover_interrupted(&mut detail).await?;
+                        summaries.push(detail.summary);
+                    } else {
+                        summaries.push(projection.summary);
+                    }
+                } else {
+                    summaries.push(projection.summary);
                 }
-                details.push(detail);
             }
         }
         for detail in self.runs.lock().await.values().cloned() {
-            if !details
-                .iter()
-                .any(|item| item.summary.id == detail.summary.id)
-            {
-                details.push(detail);
+            if !summaries.iter().any(|item| item.id == detail.summary.id) {
+                summaries.push(detail.summary);
             }
         }
-        details.sort_by(|left, right| right.summary.created_at.cmp(&left.summary.created_at));
-        Ok(details
-            .into_iter()
-            .take(limit)
-            .map(|detail| detail.summary)
-            .collect())
+        summaries.sort_by(|left, right| right.created_at.cmp(&left.created_at));
+        summaries.truncate(limit);
+        Ok(summaries)
     }
 
     pub async fn cancel(&self, run_id: &str) -> Result<TestRunSummary, String> {
@@ -1600,6 +1663,157 @@ fn now() -> String {
 mod tests {
     use super::*;
 
+    async fn full_test_run_list(
+        console: &TestConsole,
+        limit: u32,
+    ) -> Result<Vec<TestRunSummary>, String> {
+        let mut details = Vec::new();
+        let mut entries = match tokio::fs::read_dir(console.root.as_ref()).await {
+            Ok(entries) => Some(entries),
+            Err(error) if error.kind() == ErrorKind::NotFound => None,
+            Err(error) => return Err(format!("读取测试运行目录失败：{error}")),
+        };
+        if let Some(entries) = entries.as_mut() {
+            while let Some(entry) = entries
+                .next_entry()
+                .await
+                .map_err(|error| format!("读取测试运行目录失败：{error}"))?
+            {
+                if entry.path().extension().and_then(|value| value.to_str()) != Some("json") {
+                    continue;
+                }
+                let bytes = tokio::fs::read(entry.path())
+                    .await
+                    .map_err(|error| format!("读取测试运行报告失败：{error}"))?;
+                let mut detail = serde_json::from_slice::<TestRunDetail>(&bytes)
+                    .map_err(|error| format!("测试运行报告损坏：{error}"))?;
+                let cached = console.runs.lock().await.get(&detail.summary.id).cloned();
+                let active = console.control.lock().await.active_run_id.clone();
+                if let Some(cached) = cached {
+                    detail = cached;
+                } else if active.as_deref() != Some(detail.summary.id.as_str()) {
+                    console.recover_interrupted(&mut detail).await?;
+                }
+                details.push(detail);
+            }
+        }
+        for detail in console.runs.lock().await.values().cloned() {
+            if !details
+                .iter()
+                .any(|item| item.summary.id == detail.summary.id)
+            {
+                details.push(detail);
+            }
+        }
+        details.sort_by(|left, right| right.summary.created_at.cmp(&left.summary.created_at));
+        Ok(details
+            .into_iter()
+            .take(limit.clamp(1, 100) as usize)
+            .map(|detail| detail.summary)
+            .collect())
+    }
+
+    fn serialized_list_bytes(summaries: &[TestRunSummary]) -> usize {
+        serde_json::to_vec(summaries)
+            .expect("test run list must serialize")
+            .len()
+    }
+
+    #[cfg(target_os = "linux")]
+    fn process_peak_rss_kib() -> u64 {
+        let mut usage = std::mem::MaybeUninit::<libc::rusage>::uninit();
+        // SAFETY: getrusage initializes the supplied record on success.
+        let result = unsafe { libc::getrusage(libc::RUSAGE_SELF, usage.as_mut_ptr()) };
+        assert_eq!(result, 0, "getrusage must succeed");
+        // SAFETY: successful getrusage initialized the record above.
+        unsafe { usage.assume_init().ru_maxrss as u64 }
+    }
+
+    #[tokio::test]
+    async fn measure_test_run_summary_list_projection_child() {
+        let Ok(root) = std::env::var("A4N_PERF_TEST_RUN_LIST_ROOT") else {
+            return;
+        };
+        let projected = std::env::var("A4N_PERF_TEST_RUN_LIST_MODE").expect("benchmark child mode")
+            == "projected";
+        const LIMIT: u32 = 30;
+        const SAMPLES: usize = 5;
+        let console = TestConsole::new(PathBuf::from(&root));
+
+        fn percentile(samples: &[f64], percentile: f64) -> f64 {
+            let mut sorted = samples.to_vec();
+            sorted.sort_by(f64::total_cmp);
+            sorted[((sorted.len() - 1) as f64 * percentile).round() as usize]
+        }
+
+        let mut times = Vec::with_capacity(SAMPLES);
+        let mut result_bytes = 0;
+        let mut last_summaries = Vec::new();
+        for _ in 0..SAMPLES {
+            let started = Instant::now();
+            let summaries = if projected {
+                console.list(ListTestRunsInput { limit: LIMIT }).await
+            } else {
+                full_test_run_list(&console, LIMIT).await
+            }
+            .expect("test run list read must succeed");
+            times.push(started.elapsed().as_secs_f64() * 1000.0);
+            result_bytes = serialized_list_bytes(&summaries);
+            last_summaries = summaries;
+        }
+        #[cfg(target_os = "linux")]
+        let peak_rss_kib = Some(process_peak_rss_kib());
+        #[cfg(not(target_os = "linux"))]
+        let peak_rss_kib: Option<u64> = None;
+        println!(
+            "TEST_RUN_LIST_RESULT {}",
+            json!({
+                "mode": if projected { "projected" } else { "full" },
+                "result_bytes": result_bytes,
+                "summaries": last_summaries,
+                "p50_ms": percentile(&times, 0.50),
+                "p95_ms": percentile(&times, 0.95),
+                "peak_rss_kib": peak_rss_kib,
+            })
+        );
+    }
+
+    async fn run_test_run_list_measurement(
+        executable: &Path,
+        root: &Path,
+        projected: bool,
+    ) -> Value {
+        let output = Command::new(executable)
+            .args([
+                "--exact",
+                "actions::admin_records::test_console::tests::measure_test_run_summary_list_projection_child",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env("A4N_PERF_TEST_RUN_LIST_ROOT", root)
+            .env(
+                "A4N_PERF_TEST_RUN_LIST_MODE",
+                if projected { "projected" } else { "full" },
+            )
+            .output()
+            .await
+            .expect("start isolated list measurement process");
+        assert!(
+            output.status.success(),
+            "list measurement child failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let result = stdout
+            .lines()
+            .find_map(|line| {
+                line.split_once("TEST_RUN_LIST_RESULT ")
+                    .map(|(_, value)| value)
+            })
+            .unwrap_or_else(|| panic!("list measurement child result missing: {stdout}"));
+        serde_json::from_str(result).expect("parse list measurement child result")
+    }
+
     #[test]
     fn registered_scenarios_have_unique_ids_and_bounded_timeouts() {
         let scenarios = TestConsole::new(PathBuf::from("test-runs"))
@@ -1725,6 +1939,150 @@ mod tests {
     }
 
     #[test]
+    fn test_run_list_projection_keeps_summary_and_report_shape_errors() {
+        let id = "123e4567-e89b-42d3-a456-426614174005";
+        let mut detail = sample_detail(id, TestRunStatus::Passed);
+        detail.logs = vec!["completed".into()];
+        let bytes = serde_json::to_vec(&detail).unwrap();
+        let projected: TestRunListProjection = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(projected.summary, detail.summary);
+
+        let mut invalid = serde_json::to_value(detail).unwrap();
+        invalid["logs"][0] = json!(42);
+        let invalid = serde_json::to_vec(&invalid).unwrap();
+        let full_error = serde_json::from_slice::<TestRunDetail>(&invalid)
+            .unwrap_err()
+            .to_string();
+        let projection_error = serde_json::from_slice::<TestRunListProjection>(&invalid)
+            .unwrap_err()
+            .to_string();
+        assert_eq!(projection_error, full_error);
+    }
+
+    #[tokio::test]
+    #[ignore = "manual performance benchmark; compares full and summary-only report parsing"]
+    async fn benchmark_test_run_summary_list_projection() {
+        #[cfg(not(target_os = "linux"))]
+        {
+            println!("test_run_summary_list benchmark requires Linux peak RSS measurement");
+            return;
+        }
+
+        const RUN_COUNT: usize = 40;
+        const LOG_COUNT: usize = 500;
+        const LOG_LENGTH: usize = 2_000;
+        const LIMIT: u32 = 30;
+        const ROUNDS: usize = 3;
+
+        fn median(samples: &[f64]) -> f64 {
+            let mut sorted = samples.to_vec();
+            sorted.sort_by(f64::total_cmp);
+            sorted[sorted.len() / 2]
+        }
+
+        let benchmark_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../data/performance-audit-20261010/test-run-list-projection");
+        std::fs::create_dir_all(&benchmark_root).expect("create in-worktree benchmark directory");
+        let root = tempfile::tempdir_in(benchmark_root)
+            .expect("create in-worktree test run report directory");
+        let console = TestConsole::new(root.path().to_path_buf());
+        let base_time = chrono::Utc::now();
+        let log_line = "x".repeat(LOG_LENGTH);
+        for index in 0..RUN_COUNT {
+            let id = Uuid::new_v4().to_string();
+            let mut detail = sample_detail(&id, TestRunStatus::Passed);
+            detail.summary.created_at =
+                (base_time + chrono::Duration::seconds(index as i64)).to_rfc3339();
+            detail.logs = vec![log_line.clone(); LOG_COUNT];
+            console
+                .persist(&detail)
+                .await
+                .expect("persist benchmark report");
+        }
+
+        let executable = std::env::current_exe().expect("test executable path");
+        let mut full_results = Vec::with_capacity(ROUNDS);
+        let mut projected_results = Vec::with_capacity(ROUNDS);
+        for round in 0..ROUNDS {
+            if round % 2 == 0 {
+                full_results
+                    .push(run_test_run_list_measurement(&executable, root.path(), false).await);
+                projected_results
+                    .push(run_test_run_list_measurement(&executable, root.path(), true).await);
+            } else {
+                projected_results
+                    .push(run_test_run_list_measurement(&executable, root.path(), true).await);
+                full_results
+                    .push(run_test_run_list_measurement(&executable, root.path(), false).await);
+            }
+        }
+
+        let full = &full_results[0];
+        let projected = &projected_results[0];
+        assert_eq!(full["summaries"], projected["summaries"]);
+        assert_eq!(full["result_bytes"], projected["result_bytes"]);
+        let full_p50 = median(
+            &full_results
+                .iter()
+                .map(|result| result["p50_ms"].as_f64().unwrap())
+                .collect::<Vec<_>>(),
+        );
+        let full_p95 = median(
+            &full_results
+                .iter()
+                .map(|result| result["p95_ms"].as_f64().unwrap())
+                .collect::<Vec<_>>(),
+        );
+        let projected_p50 = median(
+            &projected_results
+                .iter()
+                .map(|result| result["p50_ms"].as_f64().unwrap())
+                .collect::<Vec<_>>(),
+        );
+        let projected_p95 = median(
+            &projected_results
+                .iter()
+                .map(|result| result["p95_ms"].as_f64().unwrap())
+                .collect::<Vec<_>>(),
+        );
+        let improvement = (1.0 - projected_p50 / full_p50) * 100.0;
+        #[cfg(target_os = "linux")]
+        let (full_peak_rss_kib, projected_peak_rss_kib, memory_reduction) = {
+            let full_peak = median(
+                &full_results
+                    .iter()
+                    .map(|result| result["peak_rss_kib"].as_f64().unwrap())
+                    .collect::<Vec<_>>(),
+            );
+            let projected_peak = median(
+                &projected_results
+                    .iter()
+                    .map(|result| result["peak_rss_kib"].as_f64().unwrap())
+                    .collect::<Vec<_>>(),
+            );
+            (
+                full_peak as u64,
+                projected_peak as u64,
+                (1.0 - projected_peak / full_peak) * 100.0,
+            )
+        };
+        let full_bytes = full["result_bytes"].as_u64().unwrap();
+        let projected_bytes = projected["result_bytes"].as_u64().unwrap();
+        println!(
+            "test_run_summary_list reports={RUN_COUNT} returned={LIMIT} logs_per_report={LOG_COUNT} log_length={LOG_LENGTH} full_page_bytes={full_bytes} projected_page_bytes={projected_bytes} full_p50_p95_ms={full_p50:.3}/{full_p95:.3} projected_p50_p95_ms={projected_p50:.3}/{projected_p95:.3} p50_improvement={improvement:.1}%"
+        );
+        #[cfg(target_os = "linux")]
+        {
+            println!(
+                "test_run_summary_list full_peak_rss_kib={full_peak_rss_kib} projected_peak_rss_kib={projected_peak_rss_kib} peak_rss_reduction={memory_reduction:.1}%"
+            );
+            assert!(improvement >= 30.0 || memory_reduction >= 20.0);
+        }
+        #[cfg(not(target_os = "linux"))]
+        assert!(improvement >= 30.0);
+    }
+
+    #[test]
     fn old_reports_default_the_log_start_index() {
         let detail = sample_detail("run-1", TestRunStatus::Passed);
         let mut value = serde_json::to_value(detail).unwrap();
@@ -1754,6 +2112,39 @@ mod tests {
             .await
             .expect("list active run");
         assert_eq!(summaries[0].status, TestRunStatus::Running);
+    }
+
+    #[tokio::test]
+    async fn list_recovers_a_stale_report_after_summary_projection() {
+        let root = tempfile::tempdir().expect("create test run directory");
+        let console = TestConsole::new(root.path().to_path_buf());
+        let id = "123e4567-e89b-42d3-a456-426614174006";
+        let mut detail = sample_detail(id, TestRunStatus::Queued);
+        detail.steps.push(a4n_api_contract::admin::TestStepSummary {
+            index: 0,
+            name: "未启动步骤".to_string(),
+            status: TestRunStatus::Queued,
+            started_at: now(),
+            finished_at: None,
+            message: None,
+        });
+        console
+            .persist(&detail)
+            .await
+            .expect("persist stale report");
+
+        let summaries = console
+            .list(ListTestRunsInput { limit: 1 })
+            .await
+            .expect("list stale report");
+        assert_eq!(summaries[0].status, TestRunStatus::Failed);
+        assert_eq!(
+            summaries[0].message.as_deref(),
+            Some("Host 重启时测试尚未完成")
+        );
+        let persisted = console.get(id, None).await.expect("read recovered report");
+        assert_eq!(persisted.summary.status, TestRunStatus::Failed);
+        assert_eq!(persisted.steps[0].status, TestRunStatus::Failed);
     }
 
     #[tokio::test]
