@@ -2,44 +2,31 @@ use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use a4n_llm_provider_contract::provider::ChatRequest;
-use a4n_progress::ProgressSpan;
-use a4n_prompt::rendering::PromptRenderer;
 
 use super::super::super::parsing::parse_scene_transitions;
-use crate::{
-    OrchestratorContext,
-    scene_profile::{SceneSyncInput, SceneTransitionDraft},
-};
+use crate::scene_profile::{SceneSyncInput, SceneTransitionDraft};
 
-use super::super::super::progress::{
-    SCENE_TRANSITION_PROGRESS_FIELDS, SceneProfileSyncProgress, scene_stage_progress_spec,
-};
+use super::super::super::progress::{SCENE_TRANSITION_PROGRESS_FIELDS, scene_stage_progress_spec};
 use super::super::super::types::{
     SCENE_TRANSITION_MOVEMENT_TYPE_RULE, SCENE_TRANSITION_PROMPT, SCENE_TRANSITION_REFERENCE_RULE,
-    SceneProfileSyncRequestContext,
 };
+use super::super::SceneProfileStageContext;
 use super::super::execution::run_scene_profile_stage_with_checkpoint;
 use super::super::request::{
     build_scene_profile_stage_request, scene_profile_stage_step_key, scene_profile_stage_step_order,
 };
 
 pub(super) async fn run(
-    state: &OrchestratorContext,
-    prompt_renderer: &dyn PromptRenderer,
-    workflow_run_id: i64,
-    context: &SceneProfileSyncRequestContext,
-    progress: Option<&SceneProfileSyncProgress<'_>>,
-    model_span: ProgressSpan,
-    chapter_index: usize,
+    context: &mut SceneProfileStageContext<'_, '_>,
     scenes: &[Value],
     occurrences: &[Value],
     known: &SceneSyncInput,
-    response_chars: &mut Vec<Value>,
 ) -> Result<(ChatRequest, Vec<SceneTransitionDraft>), AppError> {
+    let request_context = context.request_context;
     let mut request = build_scene_profile_stage_request(
-        prompt_renderer,
-        context,
-        Some(workflow_run_id),
+        context.prompt_renderer,
+        request_context,
+        Some(context.workflow_run_id),
         SCENE_TRANSITION_PROMPT,
         "基于场景与出场链抽取场景间转场，只输出 transitions",
         json!({ "scenes": scenes, "occurrences": occurrences }),
@@ -56,22 +43,22 @@ pub(super) async fn run(
         }),
     )
     .await?;
+    let step_key = scene_profile_stage_step_key(request_context, "transitions");
+    let step_order = scene_profile_stage_step_order(context.chapter_index, 2)?;
+    let stage_progress = scene_stage_progress_spec(
+        "transitions",
+        "场景转场",
+        SCENE_TRANSITION_PROGRESS_FIELDS,
+        context.model_span.split(2, 4),
+    );
     let (_, parsed) = run_scene_profile_stage_with_checkpoint(
-        state,
-        workflow_run_id,
+        context,
         &mut request,
         SCENE_TRANSITION_PROMPT,
-        scene_profile_stage_step_key(context, "transitions"),
-        scene_profile_stage_step_order(chapter_index, 2)?,
-        scene_stage_progress_spec(
-            "transitions",
-            "场景转场",
-            SCENE_TRANSITION_PROGRESS_FIELDS,
-            model_span.split(2, 4),
-        ),
-        progress,
-        response_chars,
-        |value| parse_scene_transitions(value, context, known),
+        step_key,
+        step_order,
+        stage_progress,
+        |value| parse_scene_transitions(value, request_context, known),
     )
     .await?;
     Ok((request, parsed))

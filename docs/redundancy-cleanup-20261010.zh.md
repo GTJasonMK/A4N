@@ -821,6 +821,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 保留不同实现：Preview 只验证文件路径/MIME 并构造 UI 预览引用；Provider 按 provider 能力选择 URL、inline data 或带签名暂存 artifact，并携带 JWT、字节累计和 staging artifact。合并两者会把预览访问与上游 provider 凭证/上传策略耦合；共用的授权图片读 owner 已是 `validated_reference_images_for_ids`。Worker 侧再次校验保留为进程信任边界。
 - 本项只做拓扑核验，无代码改动。
 
+### R-101：收敛 Scene Profile 四阶段共享上下文参数
+
+- 类别：同一章节同步工作流在四个阶段函数重复传递相同执行上下文。
+- BFS 覆盖：CodeGraph 从 `sync_scene_profiles_validated -> sync_scene_profile_chapters -> run_scene_profile_sync_stages` 追到 scenes、occurrences、transitions、entity_states 四阶段及 `run_scene_profile_stage_with_checkpoint`；横向比较四个 runner 的签名、请求构造、parser、stage key/order、progress span 和调用顺序。额外追到 stage checkpoint fingerprint/read/write、response_chars 汇总、progress cancellation、prompt renderer 和 SceneProfileSyncRequestContext 所有权路径。
+- 新增仅在私有 stages 模块使用的 `SceneProfileStageContext`，集中四个阶段共用的 Orchestrator、renderer、workflow run、请求上下文、progress、model span、chapter index 和 response character 累计；各 runner 仍显式接收自己需要的 scenes/occurrences/known 数据，阶段 prompt、解析函数、step order/span 与输出类型保持独立。Checkpoint helper 继续是唯一 checkpoint 执行 owner。
+- `sync_scene_profiles_validated` public 调用合同、四阶段顺序、解析输入、checkpoint key/fingerprint/payload、错误传播与最终 response 排列不变；未增加 fallback 或兼容路径。
+- 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-orchestrator` 通过，四阶段高参数告警消失；`cargo test --offline --locked --no-run -p a4n-orchestrator --lib` 通过；Scene Profile application 定向单测 17/17；`cargo fmt --all -- --check` 和 `git diff --check` 通过。全 workspace 其他既有 Clippy 结构提示未在本项扩张修改。
+- 记录范围：`crates/host/a4n-orchestrator/src/scene_profile/application/stages.rs`、`stages/{execution.rs,orchestration.rs}`、`stages/orchestration/{scenes,occurrences,transitions,entity_states}.rs`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
