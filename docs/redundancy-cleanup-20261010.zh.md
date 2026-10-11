@@ -839,6 +839,13 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-video-host-contract -p a4n-api-contract -p a4n-orchestrator -p a4n-runtime -p a4n-host-assembly` 退出 0，覆盖 all-targets 与依赖调用闭包；rustfmt、`git diff --check` 通过。现有 Runtime 导入测试覆盖源 staging/清理与复制失败语义，没有直接构造四种 port 调用的集成测试；本次改变为编译期合同封装，未运行数据库导入 E2E。
 - 记录范围：`crates/video/a4n-video-host-contract/src/lib.rs`、`crates/host/a4n-api-contract/src/video/record_ports.rs`、`crates/host/a4n-orchestrator/src/video/records/{mod.rs,imports.rs,assembly.rs,ports/imports.rs}`、`crates/host/a4n-runtime/src/actions/video_records/imports/{chapter.rs,canvas.rs,reference/media.rs,reference/assembly_insert.rs}`。
 
+### R-103：核验 Manga pipeline 高参数 preview/preflight 合同
+
+- 类别：Clippy 高参数合同候选，未合并。
+- BFS 覆盖：从 `MangaPipelineExecutionApplicationPort::{run_task,preflight}` 与 `MangaPipelinePreviewApplicationPort::preview` 追到 Control routes、Runtime action wrapper、`OrchestratorContext` implementation 和真实调用；核对 `MangaPipelineStartInput` 字段及 preview result 的步骤合同。
+- 不引入共同参数 DTO：`run_task` 执行已有 task handle 并注入 renderer/page-image generator；`preflight` 在启动/恢复前验证资源、prompt 和阶段范围；`preview` 生成带 `resume_from_checkpoint` 的请求预览步骤。虽共享 project/chapter/page/stage 字段，但 resume 语义仅属 preview/start，preflight 没有该状态，也返回不同结果并执行不同校验。统一成 StartInput 会向 preflight 暴露无关字段，统一成窄 context 则新增包装但仍需保留三套不同操作合同；当前显式 API 更准确。
+- 本项只做拓扑核验，无代码改动。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
