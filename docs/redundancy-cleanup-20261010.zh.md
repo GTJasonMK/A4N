@@ -989,6 +989,14 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：`cargo clippy --offline --locked --all-targets -p a4n-runtime --features local-embedding --message-format short` 通过；输出仅含既有 `large_enum_variant`、参数数量和复杂类型提示。`cargo test --offline --locked --no-run -p a4n-runtime --features local-embedding --lib` 在链接阶段因环境未提供 ONNX Runtime 原生库而失败（`OrtGetApiBase` 未定义），未执行测试；该限制已保留。`git diff --check` 通过；共享 agent target 已在锁内清理。
 - 记录范围：`crates/host/a4n-runtime/src/actions/embedding_model/{runtime.rs,provider.rs}` 及其 Runtime/Tauri 调用链。
 
+### R-121：核验 Runtime 剩余复杂签名候选
+
+- 类别：Clippy `too_many_arguments`/`type_complexity` 候选的冗余核验，未做症状式抽象。
+- BFS 覆盖：从 Agent Host command registry、Control route 和 Agent worker tool executor 追到 `actions/agent_runtime::dispatch_agent_host_command` 的全部参数消费者；从 Manga command manifest 的 start/resume route 追到 Control 共用 preview wrapper、Runtime preview application port 和 Orchestrator implementation；从 Video provider host、Canvas host、恢复轮询与 cleanup outbox 追到 `generate_video`、`poll_video`、`video_job_status`、`delete_video_job` 的 embedded/sidecar 分支、VideoClient 合同和 provider trait；从 Host assembly composition root 追到 `RuntimeBootstrap::create_provider` 的闭包调用和三项 provider 消费者。
+- 保留 Agent 参数：user/scope/run/turn/execution/lease/command/arguments 是跨进程 Host command 的身份、授权和请求内容，提前封装会把只对 Canvas 生效的 `execution_id` 校验扩散到其他动态命令。保留 Manga 参数：preview 只需要 project/chapter/page/resume/stop/stage，公开 start/resume DTO 还含 meta、image size 和不同默认值，执行与 preflight 也有独立合同；现有 Control wrapper 已是唯一共享装配点。保留 Video 参数：生成需要 data dir、request、idempotency、progress，轮询需要必填 workflow scope，状态/删除使用可选 project/root scope；embedded 与 sidecar 的依赖和错误 owner 不同，未发现可复用而不增加包装层的上下文。保留 bootstrap 返回 tuple：仅有 Host assembly 一个消费者，三项分别进入 DynamicProviderFacade、LLM 和 Embedding provider，命名别名不会消除重复事实。
+- 未改变上述 API、路由、provider 选择、身份校验、取消/清理和错误传播；未新增 fallback、兼容或占位逻辑。本项只更新审计记录。
+- 记录范围：`crates/host/a4n-runtime/src/actions/agent_runtime/optimization.rs`、`actions/manga_pipeline/preview.rs`、`sidecar_clients/video/operations/routing.rs`、`state/app/bootstrap.rs`，以及对应 Control/Host assembly/Orchestrator/VideoClient/Worker 调用链。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。
