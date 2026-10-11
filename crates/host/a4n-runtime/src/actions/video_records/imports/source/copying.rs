@@ -29,7 +29,6 @@ pub(in crate::actions::video_records) fn stage_imported_video_source(
 
 pub(in crate::actions::video_records::imports) async fn persist_imported_video_file<F>(
     state: &AppState,
-    data_dir: &Path,
     record_id: i64,
     source: &Path,
     build_output: F,
@@ -42,7 +41,7 @@ where
 {
     let result = build_output().and_then(|output| {
         copy_imported_video_file(
-            data_dir,
+            state.data_dir(),
             source,
             &output,
             copy_failure_prefix,

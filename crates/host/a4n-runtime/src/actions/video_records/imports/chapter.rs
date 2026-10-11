@@ -75,7 +75,6 @@ async fn create_imported_chapter_video(
 
     let (output, output_path_str) = persist_imported_video_file(
         state,
-        state.data_dir(),
         record.id,
         &source.path,
         || {

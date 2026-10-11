@@ -78,7 +78,6 @@ async fn create_imported_canvas_video(
 
     let (_output, output_path_str) = persist_imported_video_file(
         state,
-        state.data_dir(),
         record.id,
         &source.path,
         || {

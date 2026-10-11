@@ -891,6 +891,15 @@ R-74 的 CodeGraph sync 分两轮同步了 17 和 6 个文件；首轮报告 52 
 - 验证：与 R-108 合并源码下，`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 退出 0；`a4n-runtime` lib Clippy 告警由 17 条降为 15 条，poll helper 与 completion helper 的高参数告警均消失。`cargo fmt --all -- --check`、`git diff --check` 通过。all-targets Clippy 编译 Runtime 测试目标；当前无该 Runtime completion helper 的直接测试。
 - 记录范围：`crates/host/a4n-runtime/src/actions/video_records.rs`、`video_records/completion.rs`，以及 `video_records/{imports/chapter.rs,imports/canvas.rs,imports/canvas/assembly.rs,imports/reference/{media.rs,assembly_insert.rs},imports/processing/trim.rs,assembly/actions/{push.rs,edit.rs}}`。
 
+### R-110：从视频导入状态读取 data dir
+
+- 类别：视频文件持久化 helper 同时接收 `AppState` 和其同源的 data directory。
+- BFS 覆盖：CodeGraph 从 Clippy `too_many_arguments` 命中追到 `persist_imported_video_file` 及其 copy/cleanup continuation；静态搜索核对四个直接导入调用点均传入同一个 `state.data_dir()`。另追到低层 `copy_imported_video_file` 的独立调用者，确认它不持有 AppState、仍需要显式 directory。
+- 移除持有 AppState 的 `persist_imported_video_file` 的重复 `data_dir` 参数，在此 helper 内读取唯一 owner 的 `state.data_dir()`；低层 copy helper 保留 path 输入，以维持其独立调用合同。
+- 文件复制、输出路径相对化、失败清理与原错误前缀不变；未新增兜底、兼容或回退逻辑。
+- 验证：`cargo clippy --offline --locked --all-targets --message-format short -p a4n-runtime` 退出 0；`a4n-runtime` lib Clippy 告警由 15 条降为 14 条，目标高参数告警消失。`cargo fmt --all -- --check`、`git diff --check` 通过；all-targets Clippy 编译 Runtime 测试目标，未单独运行测试。
+- 记录范围：`crates/host/a4n-runtime/src/actions/video_records/imports/source/copying.rs`、`imports/{chapter.rs,canvas.rs,canvas/assembly.rs,reference/{media.rs,assembly_insert.rs}}`。
+
 ## 核验后保留
 
 - `crates/host/a4n-api-contract/src/bin/export_generation_schema.rs` 的 `GenerationContractBundle` 由 schema derive 读取，且 `scripts/contracts/generate-generation-contracts.sh` 明确调用该二进制；它不是未使用模块。

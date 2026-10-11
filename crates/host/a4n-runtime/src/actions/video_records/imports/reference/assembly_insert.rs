@@ -71,7 +71,6 @@ async fn create_assembly_insert_video(
 
     let (output, output_path_str) = persist_imported_video_file(
         state,
-        state.data_dir(),
         record.id,
         &source.path,
         || {
