@@ -14,7 +14,7 @@ const port = Number(process.env.A4N_PERF_PORT ?? 48966);
 const outDir = path.join(artifacts, "dist");
 const baselineRef = process.env.A4N_PERF_BASELINE_REF;
 const scenario = process.env.A4N_PERF_CASE ?? "core";
-assert.ok(["core", "sidebar", "story-events", "story-events-loader", "story-events-analysis-projection", "outline-list", "agent-messages", "authoring-label", "manga-source", "manga-chapter-list", "galgame-source", "canvas-invalidation", "canvas-workflow-timer"].includes(scenario));
+assert.ok(["core", "sidebar", "story-events", "story-events-loader", "story-events-analysis-projection", "outline-list", "agent-messages", "authoring-label", "manga-source", "manga-chapter-list", "admin-pending-task-list", "galgame-source", "canvas-invalidation", "canvas-workflow-timer"].includes(scenario));
 const entry = scenario === "sidebar" ? "sidebar.html" : scenario === "story-events" ? "story-events.html"
   : scenario === "story-events-loader" ? "story-events-loader.html"
   : scenario === "story-events-analysis-projection" ? "story-events.html"
@@ -23,6 +23,7 @@ const entry = scenario === "sidebar" ? "sidebar.html" : scenario === "story-even
   : scenario === "authoring-label" ? "authoring-label.html"
   : scenario === "manga-source" ? "manga-source.html"
   : scenario === "manga-chapter-list" ? "manga-chapter-list.html"
+  : scenario === "admin-pending-task-list" ? "admin-pending-task-list.html"
   : scenario === "galgame-source" ? "galgame-source.html"
   : scenario === "canvas-invalidation" ? "canvas-invalidation.html"
   : scenario === "canvas-workflow-timer" ? "canvas-workflow-timer.html" : "index.html";
@@ -44,6 +45,8 @@ const sourceFiles = scenario === "story-events"
   ? ["src/pages/novel-detail/MangaTab.tsx"]
   : scenario === "manga-chapter-list"
   ? ["src/pages/novel-detail/manga/MangaChapterList.tsx"]
+  : scenario === "admin-pending-task-list"
+  ? ["src/pages/settings/admin/TasksSection.tsx"]
   : scenario === "galgame-source"
   ? ["src/pages/novel-detail/GalgameTab.tsx"]
   : scenario === "canvas-invalidation"
@@ -264,6 +267,25 @@ try {
     assert.deepEqual(selected, [{ chapterId: 1000, revision: 51 }]);
     report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
       mangaChapterList, selected };
+  } else if (scenario === "admin-pending-task-list") {
+    await browser.waitUntil(() => browser.execute(() =>
+      document.querySelectorAll("#root ul > li").length === 1000
+      && typeof window.measureAdminPendingTaskList === "function",
+    ), { timeout: 30_000 }).catch(async (error) => {
+      const state = await browser.execute(() => ({
+        ready: window.performanceReady,
+        rowCount: document.querySelectorAll("#root ul > li").length,
+        text: document.querySelector("#root")?.textContent?.slice(0, 300),
+        refreshAvailable: typeof window.measureAdminPendingTaskList === "function",
+      }));
+      throw new Error(`${error.message}; admin task fixture state=${JSON.stringify(state)}`);
+    });
+    const adminPendingTaskList = await browser.execute(() => window.measureAdminPendingTaskList());
+    assert.equal(adminPendingTaskList.initialTaskCount, 1000);
+    assert.equal(adminPendingTaskList.finalTaskCount, 1000);
+    assert.ok(adminPendingTaskList.finalTaskText.includes("低优先级"));
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
+      adminPendingTaskList };
   } else if (scenario === "authoring-label") {
     const authoringLabel = await browser.execute(() => window.measureAuthoringLabel());
     assert.equal(authoringLabel.chapterCount, 1000);

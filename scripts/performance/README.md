@@ -91,6 +91,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | Manga 活动状态渲染 | PERF-071 将每 2.5 秒更新的选中章节状态限制在实际变化的行；1000 章列表的渲染提交 P50/P95 分别下降 84.2%/75.6%，选择和最终 DOM 保持一致。 |
 | Page Session lease 清理 | PERF-072 把 session 请求的全表过期扫描改成目标 session 检查，并将多个 SSE 连接的周期扫描合并为进程级 5 秒一次；1000 个 session/1000 次心跳批次的 registry 执行 P50/P95 下降 98.9%/98.9%。 |
 | Page Session SSE 订阅 | PERF-073 让 page/hash/search 改变时复用现有 event stream；3 次路由变化的 `/ui-sessions/events` 请求由 **4 → 1**，路由导致的重连由 **3 → 0**，远程导航仍生效。 |
+| 管理员 pending task 刷新 | PERF-074 对 1000 行列表做 row-level memoization；每 5 秒一次的单行展示字段变化 P50/P95 下降 78.7%/77.2%，未改变 API 数据或可取消任务集合。 |
 | 项目包传输 | PERF-037 批量读取独立漫画包的文本资产版本与来源实体；PERF-038—042 批量写入历史消息、workflow progress event、模型用量账本、LLM trace 与 generation target。SQL 数随数据行数增长，未引入缓存或预取。 |
 
 ## 可复现入口
@@ -710,6 +711,14 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 量化结果：真实 React 应用的 Chromium **153.0.8010.52** UI E2E，用 Page Session fixture 计数。初始 SSE 加三次路由变化（settings theme→LLM→theme，再收到远程 navigate 到 LLM），基线 **4 GET**（初始 1、路由变化新增 3），候选仍为 **1 GET**；总 event stream 请求下降 **75%**，路由引起的重连下降 **100%**。远程 navigate 仍成功到达 `#llm`。
 - 验证与边界：`usePageSession.test.ts` **4/4**、真实 Chromium UI E2E **1/1**、`npm run build` 与 E2E `node --check` 通过。测试通过本地 API fixture 统计请求，不代表真实网络 RTT、服务端数据库时延或 RSS；只测了 hash tab 切换和一次远程 navigate。
 - 证据：`frontend/e2e/ui-presentation/ui-presentation.e2e.mjs` 的 Page Session 订阅回归与 `fixtures.mjs` 事件流 fixture；基线在提交 `a71f42fd2` 上跑，候选在 PERF-073 实现后跑。命令（从 `frontend/`、持有 agent build lock 并清除本机代理）为 `A4N_UI_PORT=4325 node_modules/.bin/wdio run ./e2e/ui-presentation/wdio.conf.mjs --mochaOpts.grep="Page Session event stream"`。
+
+### PERF-074：管理员 pending task 列表只重渲染变化行
+
+- 调用链与频率：Admin Tasks Section 每 **5 秒**调用 `list_pending_tasks`，pending 项全量显示，列表基准为 **1000** 行。旧实现每次将查询结果映射成新数组时，所有 `li` 都重渲染；行包含下拉取消菜单和可展开诊断区。本优化沿用当前全量 API 和返回顺序，只处理前端行渲染。
+- 根因与改动：单独 memoize `PendingTaskRow`；比较 ID、任务类型、优先级、状态、创建时间、项目/来源/DAG 诊断字段、取消忙碌状态及稳定取消代理。列表刷新生成新 task 和新的 payload/progress 对象时，如果行实际显示字段没变就跳过该行；变化行和取消状态仍重新渲染。locale 由 row 自己订阅，语言切换会刷新全部可见文案。
+- 量化结果：真实 `TasksSection` 生产组件 Chromium **153.0.8010.52** fixture；每轮模拟 **1000** 个全新 task 对象、只切换首行的显示优先级，payload/progress 仍生成新对象；每次 2 次预热及 15 次更新，3 轮。复跑一的 P50/P95 **94.5/119.2 → 19.4/27.0 ms**；复跑二 **88.2/105.1 → 19.6/24.2 ms**；汇总轮次中位数 **91.35/112.15 → 19.50/25.60 ms**，下降 **78.7%/77.2%**。新旧最终 DOM SHA-256 均为 `da4575cf1517d006d602b5109f0b048347b6985cb1043adbaf0743af27971655`，1000 行和首行新低优先级文案相同。
+- 验证与边界：夹具 `frontend/e2e/performance/admin-pending-task-list-fixture.tsx`，测试直接调用真实生产组件和其状态/列表映射；两轮基线分别基于 `3d58ac477`，候选为当前 `TasksSection`。基线/候选报告 `data/performance-audit-20261013/admin-pending-tasks/{before-verified,after-01,before-verified-02,after-verified-02}/report.json`。`npm run build` 和性能 Chromium 检查通过。计时包括 React 提交及 DOM mutation observer 回调，不包括 API RTT、完整 JSON 解析/传输、数据库查询或 RSS；server 仍发送完整 TaskQueueSummary。旧端点兼容与后台取消/权限合同均未变。
+- 复现：在 `frontend/` 下持有 `/home/fufu/Code/A4N/work/.agent-build.lock`，清除 HTTP(S)/ALL proxy 后，以相同 fixture 运行 `A4N_PERF_CASE=admin-pending-task-list A4N_PERF_BASELINE_REF=3d58ac477 node e2e/performance/check.mjs` 和移除 `A4N_PERF_BASELINE_REF` 的候选命令；报告目录及端口通过 `A4N_PERF_ARTIFACTS`、`A4N_PERF_PORT` 分别指定以隔离产物。
 
 ### PERF-066：Canvas 下游运行结果失效邻接索引
 
