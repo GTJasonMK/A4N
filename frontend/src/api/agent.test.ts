@@ -186,11 +186,13 @@ describe("Agent API", () => {
       });
     });
     const onEvent = vi.fn();
+    const onConnected = vi.fn();
 
     await subscribeAgentThreadEvents(
       { thread_id: "thread-1", after_sequence: 5, limit: 100 },
       onEvent,
       signal,
+      onConnected,
     );
 
     const [path, init] = mocks.authenticatedWebFetch.mock.calls[0];
@@ -202,6 +204,7 @@ describe("Agent API", () => {
     expect(init.signal).toBe(signal);
     expect(mocks.readSseStream).toHaveBeenCalledWith(body, expect.any(Function), signal);
     expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ sequence: 6 }));
+    expect(onConnected).toHaveBeenCalledOnce();
 
     mocks.readSseStream.mockImplementation(async (_body, emit) => {
       const event = JSON.stringify({
@@ -221,6 +224,28 @@ describe("Agent API", () => {
         signal,
       ),
     ).rejects.toThrow("sequence 非递增");
+  });
+
+  it("reports a healthy native event poll after the first successful read", async () => {
+    mocks.httpBackend = false;
+    mocks.runtimeInvoke.mockResolvedValue([]);
+    const controller = new AbortController();
+    const onConnected = vi.fn();
+    const subscription = subscribeAgentThreadEvents(
+      { thread_id: "thread-1", after_sequence: 5 },
+      vi.fn(),
+      controller.signal,
+      onConnected,
+    );
+
+    await vi.waitFor(() => expect(onConnected).toHaveBeenCalledOnce());
+    controller.abort();
+    await subscription;
+
+    expect(mocks.runtimeInvoke).toHaveBeenCalledWith("invoke_agent_command", {
+      command: "list_agent_events",
+      args: { thread_id: "thread-1", after_sequence: 5 },
+    });
   });
 
   it("exposes the child-thread, memory, and tool discovery REST resources", async () => {
