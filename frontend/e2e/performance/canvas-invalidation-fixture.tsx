@@ -1,4 +1,5 @@
 import { invalidateCanvasRuntimeResults } from "../../src/pages/video-studio/canvasGraphMapping";
+import { renumberAssembleClipEdges } from "../../src/pages/video-studio/canvasAssemblyEdges";
 import type { StudioEdge, StudioNode } from "../../src/pages/video-studio/types";
 
 function graph(nodeCount: number) {
@@ -35,8 +36,32 @@ function graph(nodeCount: number) {
   return { nodes, edges };
 }
 
+function assemblyGraph(nodeCount: number) {
+  const edges: StudioEdge[] = [];
+  const targetsToRenumber = new Set<string>();
+  for (let index = 1; index < nodeCount; index += 1) {
+    const target = `node-${index}`;
+    for (let order = 1; order <= 3; order += 1) {
+      if (order === 2 && index % 2 === 1) {
+        targetsToRenumber.add(target);
+        continue;
+      }
+      edges.push({
+        id: `clip-${index}-${order}`,
+        source: `media-${index}-${order}`,
+        target,
+        sourceHandle: "video",
+        targetHandle: "clip",
+        data: { role: "assembly_clip", config: { order_index: order } },
+      });
+    }
+  }
+  return { edges, targetsToRenumber };
+}
+
 async function measureCanvasInvalidation() {
   const cases = [];
+  const assemblyCases = [];
   for (const nodeCount of [32, 128, 512, 1000]) {
     const input = graph(nodeCount);
     const run = () => invalidateCanvasRuntimeResults(input.nodes, input.edges, ["node-0"]);
@@ -72,8 +97,41 @@ async function measureCanvasInvalidation() {
       clearedNodes,
       resultSha256: Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join(""),
     });
+
+    const assembly = assemblyGraph(nodeCount);
+    for (let warmup = 0; warmup < 2; warmup += 1) {
+      renumberAssembleClipEdges(assembly.edges, assembly.targetsToRenumber);
+    }
+    const renumberSamplesMs = [];
+    let renumberedEdges: StudioEdge[] = [];
+    for (let sample = 0; sample < 15; sample += 1) {
+      const started = performance.now();
+      renumberedEdges = renumberAssembleClipEdges(assembly.edges, assembly.targetsToRenumber);
+      renumberSamplesMs.push(performance.now() - started);
+    }
+    const changedClipOrders = [...assembly.targetsToRenumber].filter((target) => {
+      const orders = renumberedEdges
+        .filter((edge) => edge.target === target && edge.data?.role === "assembly_clip")
+        .map((edge) => edge.data?.config.order_index)
+        .sort((left, right) => Number(left) - Number(right));
+      return orders.length === 2 && orders[0] === 1 && orders[1] === 2;
+    }).length;
+    const renumberDigest = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(JSON.stringify(renumberedEdges)),
+    );
+    const sortedRenumberSamples = [...renumberSamplesMs].sort((left, right) => left - right);
+    assemblyCases.push({
+      nodeCount,
+      edgeCount: assembly.edges.length,
+      targetCount: assembly.targetsToRenumber.size,
+      samplesMs: renumberSamplesMs,
+      medianMs: sortedRenumberSamples[Math.floor(sortedRenumberSamples.length / 2)],
+      changedClipOrders,
+      resultSha256: Array.from(new Uint8Array(renumberDigest), (byte) => byte.toString(16).padStart(2, "0")).join(""),
+    });
   }
-  return { cases };
+  return { cases, assemblyCases };
 }
 
 Object.assign(window, { measureCanvasInvalidation, performanceReady: true });

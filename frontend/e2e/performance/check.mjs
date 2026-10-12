@@ -43,7 +43,7 @@ const sourceFiles = scenario === "story-events"
   : scenario === "galgame-source"
   ? ["src/pages/novel-detail/GalgameTab.tsx"]
   : scenario === "canvas-invalidation"
-  ? ["src/pages/video-studio/canvasGraphMapping.ts"]
+  ? ["src/pages/video-studio/canvasGraphMapping.ts", "src/pages/video-studio/canvasAssemblyEdges.ts"]
   : ["src/hooks/usePacedStreamText.ts", "src/i18n/format.ts", "src/components/ui/MarkdownText.tsx"];
 const baselineSources = new Map(baselineRef ? sourceFiles.map((file) => [
   path.join(frontend, file),
@@ -239,6 +239,8 @@ try {
     const canvasInvalidation = await browser.execute(() => window.measureCanvasInvalidation());
     assert.deepEqual(canvasInvalidation.cases.map((item) => item.clearedNodes), canvasInvalidation.cases.map((item) => item.nodeCount));
     assert.ok(canvasInvalidation.cases.every((item) => /^[a-f0-9]{64}$/.test(item.resultSha256)));
+    assert.ok(canvasInvalidation.assemblyCases.every((item) => item.changedClipOrders === item.targetCount));
+    assert.ok(canvasInvalidation.assemblyCases.every((item) => /^[a-f0-9]{64}$/.test(item.resultSha256)));
     report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion, canvasInvalidation };
   } else if (scenario === "authoring-label") {
     const authoringLabel = await browser.execute(() => window.measureAuthoringLabel());

@@ -51,8 +51,23 @@ export function reorderAssembleClipEdges(edges: StudioEdge[], edgeId: string, di
 
 export function renumberAssembleClipEdges(edges: StudioEdge[], targetNodeIds: ReadonlySet<string>): StudioEdge[] {
   const nextOrderByEdgeId = new Map<string, number>();
-  for (const target of targetNodeIds) {
-    orderedAssembleClipEdges(edges, target).forEach((edge, index) => nextOrderByEdgeId.set(edge.id, index + 1));
+  const clipsByTarget = new Map<string, Array<{ edge: StudioEdge; order: number }>>();
+  for (const edge of edges) {
+    if (
+      !targetNodeIds.has(edge.target) ||
+      edge.sourceHandle !== "video" ||
+      edge.targetHandle !== "clip" ||
+      edge.data?.role !== "assembly_clip"
+    ) continue;
+    const order = edgeOrderIndex(edge);
+    if (order === null) throw new Error(`组装连线 ${edge.id} 缺少有效的 order_index`);
+    const clips = clipsByTarget.get(edge.target);
+    if (clips) clips.push({ edge, order });
+    else clipsByTarget.set(edge.target, [{ edge, order }]);
+  }
+  for (const clips of clipsByTarget.values()) {
+    clips.sort((left, right) => left.order - right.order);
+    clips.forEach(({ edge }, index) => nextOrderByEdgeId.set(edge.id, index + 1));
   }
   return applyClipOrder(edges, nextOrderByEdgeId);
 }

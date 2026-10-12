@@ -75,7 +75,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 语义分块 | 已复用向量范数并利用相似矩阵对称性；本次只消除额外矩阵。将全矩阵换成局部带状算法可能改变浮点抵消和相同分数时的切分，未作为无风险替换。 |
 | 故事事件 | PERF-018 减少筛选时未变化卡片的重复渲染；PERF-019 从数据库到前端仅读取所需的五个分析字段；PERF-045 延迟默认收起的伏笔索引；PERF-058 将只读事件页的 GC 后 JS heap 降低 32.9%。千章/4500事件仍需渲染大量卡片，DOM 压缩和搜索候选均因未达门槛拒绝。 |
 | Agent 消息流 | PERF-029/044 已覆盖 Agent 后端维护扫描和历史预算投影；PERF-046 处理无关父状态更新，PERF-065 让消息数组变化时只重渲染被替换的行及其配对工具结果。 |
-| Video Studio Canvas | PERF-066 将运行结果失效的下游遍历从每个 BFS 节点扫描所有边改为一次邻接表构建；连线、节点配置和引用编辑都复用这个同步函数。 |
+| Video Studio Canvas | PERF-066 将运行结果失效和装配连线批量重排的重复全边扫描改为单次索引；连线、节点配置/引用编辑和批量删除复用这些同步函数。 |
 | 档案素材与图片 | PERF-047 只优化档案列表图片计数和删除下游 ID 的读取；完整素材列表、主素材绑定和图片详情仍保留原字段与顺序。 |
 | 依赖图 | PERF-049 将族级图摘要限制为漫画页、对象/场景素材和三类视频帧；节点详情仍按节点类型独立读取完整记录，未改变详情合同。 |
 | 任务历史 | PERF-050 的历史页和按 ID 查询只读取摘要字段；完整任务 payload 仍留在任务详情/执行路径所需处，没有改变队列持久化或取消行为。 |
@@ -677,10 +677,10 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 
 ### PERF-066：Canvas 下游运行结果失效邻接索引
 
-- 调用链与频率：Video Studio 连线变化、节点配置/引用修改等多个用户操作会调用 `invalidateCanvasRuntimeResults`，它从源节点开始清除所有可达节点已有的运行结果。旧 BFS 每访问一个节点都扫描全部边，最坏为 O(V×E)；工作流为链或稀疏分叉时，每次修改仍反复检查与当前节点无关的边。
-- 根因与改动：调用前一次遍历建立 `source → target[]` 邻接表，BFS 只访问相邻目标；原有 visited Set 保留环路/多路径去重，节点投影和 `clearCanvasRuntimeResult` 字段行为不变。空根集合直接返回原节点数组，不扫描图；临时索引只活在这次用户编辑调用中。
-- 量化结果：真实 Chromium **153.0.8010.52** 生产夹具，实际调用生产 `invalidateCanvasRuntimeResults`；图为含环和跳边的连通图，N 个运行结果节点、2N 条边、单一根节点使全部节点可达，每规模 2 次预热/15 个样本。1000 节点/2000 边 P50 三轮旧版 **7.7/7.5/7.4 ms**，候选 **0.8/0.6/0.7 ms**；轮次中位数 **7.5→0.7 ms（下降 90.7%）**。512 节点/1024 边为 **2.0→0.5 ms（75%）**。32 节点结果在约 0.1 ms 计时粒度内，未宣称有小图收益。每种规模已清除的节点数和新旧结果 SHA-256 逐项一致。
-- 验证与证据：`canvasGraphMapping.test.ts` 增加循环+共享后代覆盖；Video Studio 图映射与边顺序回归 **11/11**，`npm run build`、`node --check frontend/e2e/performance/check.mjs`、`git diff --check` 通过（Node 24.21.0；项目要求 Node 22）。夹具 `frontend/e2e/performance/canvas-invalidation-fixture.tsx`；执行 `A4N_PERF_CASE=canvas-invalidation A4N_PERF_BASELINE_REF=HEAD node e2e/performance/check.mjs` 和去掉 `A4N_PERF_BASELINE_REF` 的候选命令。三轮报告位于 `data/performance-audit-20261010/canvas-invalidation-{before,after}-{01,02,03}/`。数字是生产投影函数 CPU 时间，不代表完整 ReactFlow 交互的端到端时延。
+- 调用链与频率：Video Studio 连线变化、节点配置/引用修改等用户操作会调用 `invalidateCanvasRuntimeResults` 清除源节点及所有可达节点的旧运行结果；节点/边批量删除还会按目标恢复装配剪辑顺序。旧 BFS 每访问一个节点都扫描全部边，`renumberAssembleClipEdges` 又为每个目标过滤全部边，规模大时两者分别是 O(V×E) 和 O(T×E)。
+- 根因与改动：下游失效改为一次建立 `source → target[]` 邻接表，BFS 只访问相邻目标；原 visited Set 继续处理环和多路径，空根集合直接返回原数组。装配重排改为一次扫描收集目标装配边，再逐 target 排序并建立新的顺序索引；没有匹配 clip 的 target 不再重复扫描全部边。缺少或无效 `order_index` 仍显性报错。
+- 量化结果：真实 Chromium **153.0.8010.52**，生产函数夹具，2 次预热/15 样本、3 轮 A/B。含环、跳边且单根可达所有节点的 1000 节点/2000 边图，下游失效旧版 P50 **7.7/7.5/7.4 ms**，候选 **0.8/0.6/0.7 ms**；轮次中位数 **7.5→0.7 ms（下降 90.7%）**。512 节点失效旧/新轮次中位数 **2.0→0.3 ms（85%）**。批量装配重排使用 **1000** 个节点、**2497** 条边、**500** 个目标需把 `[1,3]` 补为 `[1,2]`；旧版 P50 **10.2/9.4/9.3 ms**，候选 **0.2/0.2/0.2 ms**，轮次中位数 **9.4→0.2 ms（下降 97.9%）**。两种函数输出的 SHA-256 逐项一致，失效节点数与修复目标数均吻合。32 节点结果在约 0.1 ms 计时粒度内，不宣称小图收益。
+- 验证与证据：图映射新增环路+共享后代和空根集合测试；装配边测试覆盖跨 target 顺序、缺口修复和错误 `order_index`。Video Studio 两测试文件 **11/11**，`npm run build`、`node --check frontend/e2e/performance/check.mjs`、`git diff --check` 通过（Node 24.21.0；项目要求 Node 22）。夹具 `frontend/e2e/performance/canvas-invalidation-fixture.tsx`；执行 `A4N_PERF_CASE=canvas-invalidation A4N_PERF_BASELINE_REF=HEAD node e2e/performance/check.mjs` 和去掉 `A4N_PERF_BASELINE_REF` 的候选命令。报告位于 `data/performance-audit-20261010/canvas-invalidation-combined-{before,after}-{01,02,03}/`。数字是生产图投影函数 CPU 时间，不代表完整 ReactFlow UI 端到端时延。
 
 ### 拒绝候选：静态语言字典按 locale 拆分
 
