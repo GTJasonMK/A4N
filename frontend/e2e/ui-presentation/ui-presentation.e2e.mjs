@@ -7,6 +7,9 @@ import { installUiFixtures } from "./fixtures.mjs";
 const button = (label) => $(`button[aria-label="${label}"]`);
 const commands = () => browser.execute(() => window.__uiAudit.commands);
 const draws = () => browser.execute(() => window.__uiAudit.draws);
+const pageSessionEventRequestCount = () => browser.execute(() =>
+  window.__uiAudit.requests.filter((request) => request.command === "events").length,
+);
 const fieldInput = (name) => $(`//label[./span[contains(.,"${name}")]]//input`);
 const replaceInput = async (input, value) => {
   await input.click();
@@ -380,6 +383,81 @@ describe("UI presentation and workspace continuity", () => {
     await $('//button[contains(.,"新增 LLM 配置")]').waitForDisplayed();
     assert.equal(new URL(await browser.getUrl()).hash, "#llm");
     assert.equal(await browser.execute(() => window.__settingsStage === document.querySelector(".a4n-route-stage") && window.__settingsDirection === window.__settingsStage.dataset.routeDirection), true);
+  });
+
+  it("keeps the Page Session event stream while switching categories and follows remote navigation", async () => {
+    const now = new Date().toISOString();
+    const uiSessionId = "ui-session-1";
+    const uiSessionToken = "ui-session-token";
+    const session = {
+      active_tab: null,
+      agent_id: null,
+      chapter_id: null,
+      client: "a4n-web",
+      context_revision: 0,
+      created_at: now,
+      dirty_state: false,
+      expires_at: new Date(Date.now() + 30_000).toISOString(),
+      last_operation: null,
+      last_seen_at: now,
+      local_state: {},
+      mode: "page",
+      operation_id: null,
+      page_kind: null,
+      project_id: null,
+      protocol_version: 1,
+      route: null,
+      selected_ids: {},
+      status: "idle",
+      tab_id: "tab-1",
+      ui_session_id: uiSessionId,
+      updated_at: now,
+    };
+    await installUiFixtures(browser, {
+      get_current_user: {
+        id: 1,
+        username: "写作者",
+        email: "writer@example.test",
+        role: "user",
+        is_active: true,
+        page_cli_enabled: true,
+        avatar_url: null,
+        created_at: null,
+        updated_at: null,
+        last_login_at: null,
+        oauth_provider: null,
+        oauth_subject: null,
+      },
+      pageSessions: {
+        createResponse: { lease_seconds: 30, session, ui_session_token: uiSessionToken },
+        authorizationResponse: {
+          authorization_code: "A4N-TEST-CODE",
+          expires_in: 120,
+          ui_session_id: uiSessionId,
+        },
+      },
+    });
+    try {
+      await browser.execute(() => localStorage.setItem("a4n:settings:tab", "theme"));
+      await browser.url("/settings#theme");
+      await $('[aria-label="外观偏好"]').waitForDisplayed();
+      await browser.waitUntil(async () => (await pageSessionEventRequestCount()) === 1);
+
+      await $('//nav//button[contains(.,"LLM")]').click();
+      await $('//button[contains(.,"新增 LLM 配置")]').waitForDisplayed();
+      await browser.waitUntil(async () => new URL(await browser.getUrl()).hash === "#llm");
+      await $('//nav//button[contains(.,"主题")]').click();
+      await $('[aria-label="外观偏好"]').waitForDisplayed();
+      await browser.waitUntil(async () => new URL(await browser.getUrl()).hash === "#theme");
+      assert.equal(await pageSessionEventRequestCount(), 1);
+
+      await browser.execute(() => window.__uiAudit.emitPageSessionNavigate("/settings#llm"));
+      await $('//button[contains(.,"新增 LLM 配置")]').waitForDisplayed();
+      await browser.waitUntil(async () => new URL(await browser.getUrl()).hash === "#llm");
+      assert.equal(await pageSessionEventRequestCount(), 1);
+    } finally {
+      await installUiFixtures(browser);
+    }
   });
 
   it("protects unsaved settings drafts when switching categories", async () => {

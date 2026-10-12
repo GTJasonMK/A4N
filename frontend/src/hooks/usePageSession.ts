@@ -147,6 +147,8 @@ export function usePageSession(): PageSessionState {
   const contextRef = useRef<PageContext>(
     buildPageContext({ pathname: location.pathname, search: location.search, hash: location.hash }, 0),
   );
+  const currentRouteRef = useRef(`${location.pathname}${location.search}${location.hash}`);
+  currentRouteRef.current = `${location.pathname}${location.search}${location.hash}`;
   const sessionIdRef = useRef<string | null>(null);
   const tokenRef = useRef<string | null>(null);
   const createSequenceRef = useRef(0);
@@ -361,7 +363,7 @@ export function usePageSession(): PageSessionState {
       (event: PageSessionEvent) => {
         if (event.session.ui_session_id !== sessionIdRef.current) return;
         applySession(event.session);
-        if (event.kind === "navigate" && event.route && event.route !== location.pathname + location.search + location.hash) {
+        if (event.kind === "navigate" && event.route && event.route !== currentRouteRef.current) {
           navigate(event.route);
         }
       },
@@ -370,7 +372,7 @@ export function usePageSession(): PageSessionState {
       if (!controller.signal.aborted) setError(extractErrorMessage(err, translatorRef.current("pageSession.eventStreamDisconnected")));
     });
     return () => controller.abort();
-  }, [applySession, enabled, location.hash, location.pathname, location.search, navigate, session?.ui_session_id]);
+  }, [applySession, enabled, navigate, session?.ui_session_id]);
 
   const locked = shouldLockPage(session);
   return { session, authorizationCode, loading, busy, error, locked, control, authorize, restart };

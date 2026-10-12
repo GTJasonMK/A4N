@@ -127,7 +127,7 @@ export async function installUiFixtures(browser, overrides = {}) {
         localStorage.removeItem("a4n:current_access_token");
       }
       localStorage.setItem("a4n:settings:locale", params.get("ui-locale") ?? "zh-CN");
-      window.__uiAudit = { fixtures, projectState: params.get("ui-state"), commands: [], requests: [], deferred: [], pending: [], unexpected: [], errors: [], modelRequests: [], agentMessages: [], draws: { attached: 0, detached: 0 } };
+      window.__uiAudit = { fixtures, projectState: params.get("ui-state"), commands: [], requests: [], deferred: [], pending: [], unexpected: [], errors: [], modelRequests: [], agentMessages: [], emitPageSessionNavigate: null, draws: { attached: 0, detached: 0 } };
       window.addEventListener("error", (event) => window.__uiAudit.errors.push(event.message));
       window.addEventListener("unhandledrejection", (event) => window.__uiAudit.errors.push(String(event.reason)));
       const fetch = window.fetch.bind(window);
@@ -158,8 +158,23 @@ export async function installUiFixtures(browser, overrides = {}) {
           }
           if (url.pathname === "/api/ui-sessions/events" && method === "GET") {
             return new Response(new ReadableStream({ start(controller) {
-              if (options?.signal?.aborted) controller.close();
-              else options?.signal?.addEventListener("abort", () => controller.close(), { once: true });
+              const emitPageSessionNavigate = (route) => {
+                const session = fixtures.pageSessions.createResponse.session;
+                session.route = route;
+                session.context_revision += 1;
+                touch();
+                const event = { kind: "navigate", operation: null, reason: "fixture", route, session: { ...session } };
+                controller.enqueue(new TextEncoder().encode(`event: page_session\ndata: ${JSON.stringify(event)}\n\n`));
+              };
+              const close = () => {
+                controller.close();
+                if (window.__uiAudit.emitPageSessionNavigate === emitPageSessionNavigate) {
+                  window.__uiAudit.emitPageSessionNavigate = null;
+                }
+              };
+              window.__uiAudit.emitPageSessionNavigate = emitPageSessionNavigate;
+              if (options?.signal?.aborted) close();
+              else options?.signal?.addEventListener("abort", close, { once: true });
             } }), { headers: { "Content-Type": "text/event-stream" } });
           }
           const prefix = `/api/ui-sessions/${state.session.ui_session_id}`;

@@ -90,6 +90,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 漫画来源读取 | 当前 MangaTab 产品入口 ComicProjectWorkspace、VideoProjectWorkspace 和 GalgameProjectWorkspace 均使用 `listSourceSnapshotChapterIndex`；PERF-020 已用 1000 章真实 PostgreSQL/Chromium 夹具测量目录与单章详情，完整正文只在选章后读取。旧 `listSourceSnapshotChapters` API 仍保留给兼容调用方，但不是当前页面活跃路径。 |
 | Manga 活动状态渲染 | PERF-071 将每 2.5 秒更新的选中章节状态限制在实际变化的行；1000 章列表的渲染提交 P50/P95 分别下降 84.2%/75.6%，选择和最终 DOM 保持一致。 |
 | Page Session lease 清理 | PERF-072 把 session 请求的全表过期扫描改成目标 session 检查，并将多个 SSE 连接的周期扫描合并为进程级 5 秒一次；1000 个 session/1000 次心跳批次的 registry 执行 P50/P95 下降 98.9%/98.9%。 |
+| Page Session SSE 订阅 | PERF-073 让 page/hash/search 改变时复用现有 event stream；3 次路由变化的 `/ui-sessions/events` 请求由 **4 → 1**，路由导致的重连由 **3 → 0**，远程导航仍生效。 |
 | 项目包传输 | PERF-037 批量读取独立漫画包的文本资产版本与来源实体；PERF-038—042 批量写入历史消息、workflow progress event、模型用量账本、LLM trace 与 generation target。SQL 数随数据行数增长，未引入缓存或预取。 |
 
 ## 可复现入口
@@ -701,6 +702,14 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 量化结果：`a4n-control` release 生产 `PageSessionRegistry::heartbeat`，每样本在 **1000** 个不同 session 上调用 **1000** 次；每批开始时有一次到期全表 sweep，2 次预热、15 个样本。单批 P50/P95 **100.581/102.547 → 1.087/1.131 ms**，下降 **98.9%/98.9%**。计时包含 registry 更新和 event broadcast，不含 HTTP 身份认证、JSON 编解码和网络；未测 RSS。
 - 验证与边界：lease 即时失效、活动 operation 取消及 offline 事件断言通过。`cargo test --locked --offline --release -p a4n-control --lib -- --test-threads=1` **43 passed, 0 failed, 1 ignored**；`cargo fmt --all -- --check`、`git diff --check` 通过。为使既有测试匹配原本实现，修正 `page_navigation_rejects_dirty_editor_context_without_changing_route` 的期望 revision：从 context revision 2 导航后应为 3；导航业务逻辑未改。`list` 与 `attach_by_code` 仍保留各自原有全表 sweep，性能数字仅代表 heartbeat/目标 session 路径。
 - 证据：忽略型 release benchmark 位于 `crates/host/a4n-control/src/routes/page_sessions/mod.rs`。在持有 `/home/fufu/Code/A4N/work/.agent-build.lock` 时执行 `CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target CARGO_INCREMENTAL=0 CARGO_PROFILE_RELEASE_LTO=false CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 timeout 60s cargo test --locked --offline --release -p a4n-control --lib benchmark_page_session_heartbeat_expiry_scan -- --ignored --nocapture --test-threads=1`；结果分别保存在 `data/performance-audit-20261013/page-session-expiry/baseline.log` 和 `candidate.log`。
+
+### PERF-073：Page Session 路由变化不重连全局 SSE
+
+- 调用链与频率：`Layout → usePageSession → GET /ui-sessions/events` 为 Web page session 建立全局远程控制事件流。旧 effect 依赖 `location.pathname/search/hash`，settings tab 的 hash 切换等每次 URL 变化都会 abort 并重新认证、建立相同的 SSE；路由上下文另由 `updatePageContext` effect 同步。
+- 根因与改动：事件回调比较远程 navigate 目标时只需要当前 URL。现在 render 时更新 `currentRouteRef`，SSE 回调读 ref，订阅 effect 不再依赖路由字段；Context 更新、页面切换和远程 navigate 都保持原行为。
+- 量化结果：真实 React 应用的 Chromium **153.0.8010.52** UI E2E，用 Page Session fixture 计数。初始 SSE 加三次路由变化（settings theme→LLM→theme，再收到远程 navigate 到 LLM），基线 **4 GET**（初始 1、路由变化新增 3），候选仍为 **1 GET**；总 event stream 请求下降 **75%**，路由引起的重连下降 **100%**。远程 navigate 仍成功到达 `#llm`。
+- 验证与边界：`usePageSession.test.ts` **4/4**、真实 Chromium UI E2E **1/1**、`npm run build` 与 E2E `node --check` 通过。测试通过本地 API fixture 统计请求，不代表真实网络 RTT、服务端数据库时延或 RSS；只测了 hash tab 切换和一次远程 navigate。
+- 证据：`frontend/e2e/ui-presentation/ui-presentation.e2e.mjs` 的 Page Session 订阅回归与 `fixtures.mjs` 事件流 fixture；基线在提交 `a71f42fd2` 上跑，候选在 PERF-073 实现后跑。命令（从 `frontend/`、持有 agent build lock 并清除本机代理）为 `A4N_UI_PORT=4325 node_modules/.bin/wdio run ./e2e/ui-presentation/wdio.conf.mjs --mochaOpts.grep="Page Session event stream"`。
 
 ### PERF-066：Canvas 下游运行结果失效邻接索引
 
