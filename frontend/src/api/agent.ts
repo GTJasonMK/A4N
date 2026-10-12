@@ -447,10 +447,10 @@ export async function subscribeAgentThreadEvents(
   input: AgentEventsInput,
   onEvent: (event: AgentEvent) => void,
   signal: AbortSignal,
-  onConnected?: () => void,
+  onActivity?: () => void,
 ): Promise<void> {
   if (!shouldUseHttpBackend()) {
-    await pollAgentThreadEvents(input, onEvent, signal, onConnected);
+    await pollAgentThreadEvents(input, onEvent, signal, onActivity);
     return;
   }
   let lastSequence = input.after_sequence ?? 0;
@@ -466,7 +466,6 @@ export async function subscribeAgentThreadEvents(
   if (!response.body) {
     throw new AgentRequestError(response.status, "Agent SSE 响应缺少 body");
   }
-  onConnected?.();
   await readSseStream(
     response.body,
     (frame) => {
@@ -486,6 +485,8 @@ export async function subscribeAgentThreadEvents(
       onEvent(event);
     },
     signal,
+    undefined,
+    onActivity,
   );
 }
 
@@ -497,19 +498,15 @@ async function pollAgentThreadEvents(
   input: AgentEventsInput,
   onEvent: (event: AgentEvent) => void,
   signal: AbortSignal,
-  onConnected?: () => void,
+  onActivity?: () => void,
 ): Promise<void> {
   let lastSequence = input.after_sequence ?? 0;
-  let connected = false;
   while (!signal.aborted) {
     const events = await listAgentEvents({
       ...input,
       after_sequence: lastSequence,
     });
-    if (!connected) {
-      connected = true;
-      onConnected?.();
-    }
+    onActivity?.();
     for (const event of events) {
       validateAgentEvent(event, input.thread_id, lastSequence);
       lastSequence = event.sequence;

@@ -530,7 +530,6 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                 stopped || event.thread_id !== threadId ||
                 !isCurrentBinding(requestBindingKey)
               ) return;
-              streamActivityAtRef.current = Date.now();
               rememberStreamedMessages([event]);
               if (hasDomainAgentOperation(resolvedComposerDirtyKey, requestBindingKey, "clear")) return;
               pendingEventsRef.current.push(event);

@@ -343,7 +343,6 @@ export const AgentMonitor: React.FC = () => {
             { thread_id: selectedThreadId, after_sequence: eventCursorRef.current, limit: 200 },
             (event) => {
               if (event.thread_id !== selectedThreadId) return;
-              streamActivityAtRef.current = Date.now();
               rememberStreamedMessages([event]);
               pendingEventsRef.current.push(event);
               if (reloadInFlightRef.current) return;

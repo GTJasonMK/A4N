@@ -171,7 +171,9 @@ describe("Agent API", () => {
     const signal = new AbortController().signal;
     const body = {} as ReadableStream<Uint8Array>;
     mocks.authenticatedWebFetch.mockResolvedValue(response(null, 200, body));
-    mocks.readSseStream.mockImplementation(async (_body, onEvent) => {
+    mocks.readSseStream.mockImplementation(async (_body, onEvent, _signal, _limit, onActivity) => {
+      onActivity?.();
+      onActivity?.();
       onEvent({
         event: "agent_event",
         id: "6",
@@ -186,13 +188,13 @@ describe("Agent API", () => {
       });
     });
     const onEvent = vi.fn();
-    const onConnected = vi.fn();
+    const onActivity = vi.fn();
 
     await subscribeAgentThreadEvents(
       { thread_id: "thread-1", after_sequence: 5, limit: 100 },
       onEvent,
       signal,
-      onConnected,
+      onActivity,
     );
 
     const [path, init] = mocks.authenticatedWebFetch.mock.calls[0];
@@ -202,9 +204,9 @@ describe("Agent API", () => {
       "last-event-id": "5",
     });
     expect(init.signal).toBe(signal);
-    expect(mocks.readSseStream).toHaveBeenCalledWith(body, expect.any(Function), signal);
+    expect(mocks.readSseStream).toHaveBeenCalledWith(body, expect.any(Function), signal, undefined, onActivity);
     expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ sequence: 6 }));
-    expect(onConnected).toHaveBeenCalledOnce();
+    expect(onActivity).toHaveBeenCalledTimes(2);
 
     mocks.readSseStream.mockImplementation(async (_body, emit) => {
       const event = JSON.stringify({
@@ -230,15 +232,15 @@ describe("Agent API", () => {
     mocks.httpBackend = false;
     mocks.runtimeInvoke.mockResolvedValue([]);
     const controller = new AbortController();
-    const onConnected = vi.fn();
+    const onActivity = vi.fn();
     const subscription = subscribeAgentThreadEvents(
       { thread_id: "thread-1", after_sequence: 5 },
       vi.fn(),
       controller.signal,
-      onConnected,
+      onActivity,
     );
 
-    await vi.waitFor(() => expect(onConnected).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(onActivity).toHaveBeenCalledOnce());
     controller.abort();
     await subscription;
 
