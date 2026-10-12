@@ -4,11 +4,46 @@ impl PageSessionRegistry {
         Self {
             records: Arc::new(RwLock::new(HashMap::new())),
             events,
+            last_expiry_sweep: Arc::new(Mutex::new(None)),
         }
     }
 
     fn subscribe(&self) -> tokio::sync::broadcast::Receiver<PageEvent> {
         self.events.subscribe()
+    }
+
+    fn expire_periodically(&self) {
+        let Some(mut last_sweep) = self.last_expiry_sweep.try_lock() else {
+            return;
+        };
+        let now = Instant::now();
+        if let Some(last_sweep) = *last_sweep
+            && now.duration_since(last_sweep) < PAGE_EXPIRY_SWEEP_INTERVAL
+        {
+            return;
+        }
+        self.expire();
+        *last_sweep = Some(Instant::now());
+    }
+
+    fn expire_session(&self, session_id: &str) {
+        self.expire_periodically();
+        let now = chrono::Utc::now();
+        let expired = self
+            .records
+            .write()
+            .get_mut(session_id)
+            .and_then(|record| expire_record(record, now));
+        if let Some((owner_user_id, view, operation)) = expired {
+            self.publish(
+                owner_user_id,
+                "offline",
+                view,
+                operation,
+                None,
+                Some("heartbeat_expired".into()),
+            );
+        }
     }
 
     fn create(
@@ -111,7 +146,7 @@ impl PageSessionRegistry {
     }
 
     fn get(&self, owner_user_id: i64, session_id: &str) -> Result<PageSessionView, ApiError> {
-        self.expire();
+        self.expire_session(session_id);
         self.records
             .read()
             .get(session_id)
@@ -128,7 +163,7 @@ impl PageSessionRegistry {
         is_admin: bool,
         page_cli_enabled: bool,
     ) -> Result<PageCommandManifest, ApiError> {
-        self.expire();
+        self.expire_session(session_id);
         let records = self.records.read();
         let session = records
             .get(session_id)
@@ -212,7 +247,7 @@ impl PageSessionRegistry {
         token: &str,
         page_cli_enabled: bool,
     ) -> Result<PageAuthorization, ApiError> {
-        self.expire();
+        self.expire_session(session_id);
         if !page_cli_enabled {
             return Err(ApiError::forbidden("当前账户未启用 Page CLI"));
         }
@@ -256,7 +291,7 @@ impl PageSessionRegistry {
         agent_token: &str,
         page_cli_enabled: bool,
     ) -> Result<PageAttachResponse, ApiError> {
-        self.expire();
+        self.expire_session(session_id);
         if !page_cli_enabled {
             return Err(ApiError::forbidden("当前账户未启用 Page CLI"));
         }
@@ -307,7 +342,7 @@ impl PageSessionRegistry {
         token: &str,
         context: Option<PageContext>,
     ) -> Result<PageSessionView, ApiError> {
-        self.expire();
+        self.expire_session(session_id);
         let now = chrono::Utc::now();
         let view = {
             let mut records = self.records.write();
@@ -335,7 +370,7 @@ impl PageSessionRegistry {
         token: &str,
         context: PageContext,
     ) -> Result<PageSessionView, ApiError> {
-        self.expire();
+        self.expire_session(session_id);
         let now = chrono::Utc::now();
         let view = {
             let mut records = self.records.write();
@@ -370,7 +405,7 @@ impl PageSessionRegistry {
         is_admin: bool,
         input: PageOperationInput,
     ) -> Result<PageOperationView, ApiError> {
-        self.expire();
+        self.expire_session(session_id);
         if !page_cli_enabled {
             return Err(ApiError::forbidden("当前账户未启用 Page CLI"));
         }
@@ -454,7 +489,7 @@ impl PageSessionRegistry {
         page_cli_enabled: bool,
         update: PageOperationUpdate,
     ) -> Result<PageOperationView, ApiError> {
-        self.expire();
+        self.expire_session(session_id);
         if !page_cli_enabled {
             return Err(ApiError::forbidden("当前账户未启用 Page CLI"));
         }
@@ -516,7 +551,7 @@ impl PageSessionRegistry {
         page_cli_enabled: bool,
         input: PageNavigationInput,
     ) -> Result<PageSessionView, ApiError> {
-        self.expire();
+        self.expire_session(session_id);
         if !page_cli_enabled {
             return Err(ApiError::forbidden("当前账户未启用 Page CLI"));
         }
@@ -563,7 +598,7 @@ impl PageSessionRegistry {
         token: &str,
         action: &str,
     ) -> Result<PageSessionView, ApiError> {
-        self.expire();
+        self.expire_session(session_id);
         let now = chrono::Utc::now();
         let (view, operation) = {
             let mut records = self.records.write();
@@ -634,29 +669,13 @@ impl PageSessionRegistry {
 
     fn expire(&self) {
         let now = chrono::Utc::now();
-        let mut expired = Vec::new();
-        {
+        let expired = {
             let mut records = self.records.write();
-            for record in records.values_mut() {
-                if record.view.expires_at <= now.to_rfc3339()
-                    && record.view.status != PageSessionStatus::Offline
-                {
-                    let operation_id = record.view.operation_id.clone();
-                    record.view.status = PageSessionStatus::Offline;
-                    record.view.agent_id = None;
-                    record.view.operation_id = None;
-                    let operation = cancel_operation(
-                        record,
-                        operation_id.as_deref(),
-                        "Page Session 心跳已过期",
-                        now,
-                    );
-                    record.view.last_operation = operation.clone();
-                    touch(&mut record.view, now);
-                    expired.push((record.owner_user_id, record.view.clone(), operation));
-                }
-            }
-        }
+            records
+                .values_mut()
+                .filter_map(|record| expire_record(record, now.clone()))
+                .collect::<Vec<_>>()
+        };
         for (owner, view, operation) in expired {
             self.publish(
                 owner,

@@ -18,7 +18,7 @@ fn page_sse_stream(
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                         Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
                     },
-                    _ = interval.tick() => registry.expire(),
+                    _ = interval.tick() => registry.expire_periodically(),
                 }
             }
         },
@@ -219,6 +219,30 @@ fn cancel_operation(
         operation.updated_at = now.to_rfc3339();
     }
     Some(operation.clone())
+}
+
+fn expire_record(
+    record: &mut PageRecord,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Option<(i64, PageSessionView, Option<PageOperationView>)> {
+    if record.view.expires_at > now.to_rfc3339()
+        || record.view.status == PageSessionStatus::Offline
+    {
+        return None;
+    }
+    let operation_id = record.view.operation_id.clone();
+    record.view.status = PageSessionStatus::Offline;
+    record.view.agent_id = None;
+    record.view.operation_id = None;
+    let operation = cancel_operation(
+        record,
+        operation_id.as_deref(),
+        "Page Session 心跳已过期",
+        now.clone(),
+    );
+    record.view.last_operation = operation.clone();
+    touch(&mut record.view, now);
+    Some((record.owner_user_id, record.view.clone(), operation))
 }
 
 fn validate_operation_input(input: &PageOperationInput) -> Result<(), ApiError> {

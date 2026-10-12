@@ -89,6 +89,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 媒体阶段状态 | PERF-048 将状态标签计算从章节数 × 文档数的重复过滤降为一次索引；文档状态、快照范围和 stale 判断保持原语义。 |
 | 漫画来源读取 | 当前 MangaTab 产品入口 ComicProjectWorkspace、VideoProjectWorkspace 和 GalgameProjectWorkspace 均使用 `listSourceSnapshotChapterIndex`；PERF-020 已用 1000 章真实 PostgreSQL/Chromium 夹具测量目录与单章详情，完整正文只在选章后读取。旧 `listSourceSnapshotChapters` API 仍保留给兼容调用方，但不是当前页面活跃路径。 |
 | Manga 活动状态渲染 | PERF-071 将每 2.5 秒更新的选中章节状态限制在实际变化的行；1000 章列表的渲染提交 P50/P95 分别下降 84.2%/75.6%，选择和最终 DOM 保持一致。 |
+| Page Session lease 清理 | PERF-072 把 session 请求的全表过期扫描改成目标 session 检查，并将多个 SSE 连接的周期扫描合并为进程级 5 秒一次；1000 个 session/1000 次心跳批次的 registry 执行 P50/P95 下降 98.9%/98.9%。 |
 | 项目包传输 | PERF-037 批量读取独立漫画包的文本资产版本与来源实体；PERF-038—042 批量写入历史消息、workflow progress event、模型用量账本、LLM trace 与 generation target。SQL 数随数据行数增长，未引入缓存或预取。 |
 
 ## 可复现入口
@@ -692,6 +693,14 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 根因与改动：把单章行提取为 `React.memo` 组件，逐行接收 chapter、status、stage 和 selected 值；其余章节对象及状态引用不变时跳过行计算。用 ref 代理 `onSelect` 保持行回调稳定，同时始终转发到最近的选择处理函数；章节切换、状态变化和 locale context 变化仍会更新对应行。
 - 量化结果：生产组件的 Chromium **153.0.8010.52** A/B，模拟 **1000** 章、预热 **2** 次后每轮 **15** 次单章状态更新，共 **3** 轮。`flushSync` 渲染提交 P50 轮次中位数 **3.8 → 0.6 ms**（下降 **84.2%**），P95 **4.5 → 1.1 ms**（下降 **75.6%**）。两版最终列表 DOM SHA-256 均为 `8480f690387f18a9108ee9820b64831516171b2444ba52eed7b59f65b7fe7ed2`；第 500 章更新到第 51 次状态、点击第 1000 章的行为均通过。
 - 验证与边界：夹具 `frontend/e2e/performance/manga-chapter-list-fixture.tsx`；基线源为 `6f9a2d07a`，从 `frontend` 目录持有 `/home/fufu/Code/A4N/work/.agent-build.lock` 运行 `env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy NO_PROXY=localhost,127.0.0.1 A4N_PERF_CASE=manga-chapter-list A4N_PERF_BASELINE_REF=6f9a2d07a A4N_PERF_ARTIFACTS=../data/performance-audit-20261013/manga-chapter-list-before-checked A4N_PERF_PORT=49436 node e2e/performance/check.mjs`，再将 artifacts 目录改为 `../data/performance-audit-20261013/manga-chapter-list-after-checked`、端口改为 `49446` 并移除 `A4N_PERF_BASELINE_REF` 运行候选。真实组件生产构建和列表交互检查通过，最终报告在 `data/performance-audit-20261013/manga-chapter-list-{before-checked,after-checked}/report.json`。耗时是列表状态更新的同步 React/DOM commit，不含 API、浏览器绘制或完整页面交互；未声称网络时延或内存改善。首轮浏览器启动受本机代理变量影响失败，清除 HTTP(S)/ALL proxy 后基线与候选均通过。
+
+### PERF-072：Page Session 过期清理按会话检查并共享周期扫描
+
+- 调用链与频率：Host 进程为每个浏览器 tab 保存一个内存 `PageSession`；前端 heartbeat 约每 **12 秒**一次，每条 SSE 连接原先每 **5 秒**调用一次过期清理。heartbeat、context、manifest、授权、绑定、operation、导航和 control 等 session-ID 请求都先遍历 registry 整张 `HashMap`，之后再处理目标 session。
+- 根因与改动：**1000** 个活跃 session 下，1000 次心跳重复扫描约 **1,000,000** 条 registry 记录。现在 session-ID 路径只按 ID 检查并过期目标记录；全表扫描共用 registry clone 间的 5 秒间隔锁，SSE timer 和到期请求最多触发一次周期扫描。过期目标仍即时进入 Offline、取消活动 operation 并发布原来的 offline event；周期 sweep 保留没有请求的 session 清理。`list` 与 `attach_by_code` 保留原来的即时全表扫描。
+- 量化结果：`a4n-control` release 生产 `PageSessionRegistry::heartbeat`，每样本在 **1000** 个不同 session 上调用 **1000** 次；每批开始时有一次到期全表 sweep，2 次预热、15 个样本。单批 P50/P95 **100.581/102.547 → 1.087/1.131 ms**，下降 **98.9%/98.9%**。计时包含 registry 更新和 event broadcast，不含 HTTP 身份认证、JSON 编解码和网络；未测 RSS。
+- 验证与边界：lease 即时失效、活动 operation 取消及 offline 事件断言通过。`cargo test --locked --offline --release -p a4n-control --lib -- --test-threads=1` **43 passed, 0 failed, 1 ignored**；`cargo fmt --all -- --check`、`git diff --check` 通过。为使既有测试匹配原本实现，修正 `page_navigation_rejects_dirty_editor_context_without_changing_route` 的期望 revision：从 context revision 2 导航后应为 3；导航业务逻辑未改。`list` 与 `attach_by_code` 仍保留各自原有全表 sweep，性能数字仅代表 heartbeat/目标 session 路径。
+- 证据：忽略型 release benchmark 位于 `crates/host/a4n-control/src/routes/page_sessions/mod.rs`。在持有 `/home/fufu/Code/A4N/work/.agent-build.lock` 时执行 `CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target CARGO_INCREMENTAL=0 CARGO_PROFILE_RELEASE_LTO=false CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 timeout 60s cargo test --locked --offline --release -p a4n-control --lib benchmark_page_session_heartbeat_expiry_scan -- --ignored --nocapture --test-threads=1`；结果分别保存在 `data/performance-audit-20261013/page-session-expiry/baseline.log` 和 `candidate.log`。
 
 ### PERF-066：Canvas 下游运行结果失效邻接索引
 
