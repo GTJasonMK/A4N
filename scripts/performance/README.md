@@ -653,6 +653,13 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 量化结果：隔离 PostgreSQL 16、release、2 次预热、15 次交错样本，计时包括 Viewer 权限查询、旧/新数据库读取、批量图片计数、字段映射和 JSON 序列化。完整/窄列表 P50 **97.502 → 53.404 ms（下降 45.2%）**，P95 **104.937 → 58.155 ms（下降 44.6%）**；序列化响应 **15,356,224 → 6,507,334 B（减少 57.6%）**。
 - 语义验证与复现：1000 项顺序、列表消费字段、时间、证据存在语义和每档案图片计数逐项一致；夹具调用生产 DB 读口及图片计数查询，包含权限和序列化。运行 `A4N_TEST_DATABASE_URL=postgres://... cargo test --locked --release -p a4n-db --test object_profile_list_projection -- --ignored --nocapture --test-threads=1`；夹具位于 `crates/platform/a4n-db/tests/object_profile_list_projection.rs`。本轮未测 RSS，不声称内存降幅。
 
+### PERF-063：Agent thread 列表在数据库端过滤和限量
+
+- 调用链与频率：Agent Monitor 首次打开及每 **15 秒**调用一次 `list_agent_threads`，请求当前用户的未归档 thread，最多 **200** 条；同一页面的选中 thread 状态另由事件流更新。基准为当前用户 **10,000** 条历史 thread（其中 **9,800** 条 archived），每条含约 **2 KiB** context summary，实际请求返回 200 条。
+- 根因与改动：旧读路径按 `owner_user_id` 和顺序从数据库取回该用户全部 thread，再在应用层排除 archived 项并截断 200 条；返回的 200 项不变，但 9,800 条历史行及其 context summary 被无谓加载和映射。现在把 `archived_at IS NULL`、可选 capability 与 limit 下推到同一数据库查询；owner 范围、`updated_at DESC, id DESC` 排序、应用层 DTO/校验和请求合同保持不变。该 DB 函数唯一生产调用处已同步传入筛选条件。
+- 量化结果：隔离 PostgreSQL 16、release（opt-level 3，LTO 关闭）、2 次预热、15 次交错样本；旧/新均走完整 Application 读口并序列化相同响应。P50/P95 **66.578/74.168 → 4.320/6.050 ms**，下降 **93.5%/91.8%**；返回 **200** 条，响应均为 **548,002 B**。物化到应用的 DB 行数 **10,000 → 200**。本轮未测 RSS，不声称进程内存降幅。
+- 语义验证与复现：生产 fixture 逐对象及响应字节一致；非忽略测试覆盖 capability 前后空白、archived 开关、过滤后的排序和 limit。日志 `data/performance-audit-20261010/agent-thread-list-projection/command.log`。在隔离 PostgreSQL 16 上设置 `A4N_TEST_DATABASE_URL`，持有 `/home/fufu/Code/A4N/work/.agent-build.lock`，使用 `CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target`、`CARGO_INCREMENTAL=0`、`CARGO_PROFILE_RELEASE_LTO=false` 和 `CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16`；先执行 `cargo test --locked --offline --release -p a4n-agent-application --lib benchmark_agent_thread_list_pushes_filter_and_limit_into_database --no-run`，再用 `timeout 60s` 执行同一命令并追加 `-- --ignored --nocapture --test-threads=1`。受影响 `a4n-db`/`a4n-agent-application` all-targets check、两项 release 定向测试、`cargo fmt --all -- --check` 和 `git diff --check` 通过；临时 PostgreSQL 与共享 agent target 已清理。
+
 ### 拒绝候选：图片图库元数据索引
 
 - 链路与规模：Novel Detail 的 Images 页进入项目图库时读取全部图片摘要；候选项目为 **1000** 张图片、每条约 **8 KiB** `metadata_json`。页面仍需要提示词、路径、收藏、页码和源内容哈希，详情操作需要完整元数据。

@@ -58,14 +58,24 @@ where
 pub async fn list_threads_by_owner<C>(
     db: &C,
     owner_user_id: i64,
+    include_archived: bool,
+    capability: Option<&str>,
+    limit: u64,
 ) -> Result<Vec<AgentThreadRecord>, AgentDbError>
 where
     C: ConnectionTrait,
 {
-    thread::Entity::find()
-        .filter(thread::Column::OwnerUserId.eq(owner_user_id))
+    let mut query = thread::Entity::find().filter(thread::Column::OwnerUserId.eq(owner_user_id));
+    if !include_archived {
+        query = query.filter(thread::Column::ArchivedAt.is_null());
+    }
+    if let Some(capability) = capability {
+        query = query.filter(thread::Column::ProfileId.eq(capability));
+    }
+    query
         .order_by_desc(thread::Column::UpdatedAt)
         .order_by_desc(thread::Column::Id)
+        .limit(limit)
         .all(db)
         .await
         .map(|rows| rows.into_iter().map(AgentThreadRecord::from).collect())

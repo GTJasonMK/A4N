@@ -602,3 +602,305 @@ async fn user_spawn_honors_parent_delegation_budget() {
         .expect_err("max_children must apply to user spawn");
     assert!(error.to_string().contains("max_children"));
 }
+
+#[tokio::test]
+async fn list_threads_preserves_filter_archive_order_and_limit_semantics() {
+    use a4n_db_models::models::agent::thread;
+    use sea_orm::{ActiveModelTrait, Set};
+
+    let database = std::sync::Arc::new(a4n_migration::test_support::connect_test_database().await);
+    let application = AgentApplication::new(DbHandle::new(database.clone()));
+    let now = chrono::Utc::now().naive_utc();
+    let rows = [
+        ("target", false, 3),
+        ("other", false, 5),
+        ("target", true, 4),
+        ("target", false, 1),
+    ];
+    let mut ids = Vec::with_capacity(rows.len());
+    for (index, (profile_id, archived, updated_seconds)) in rows.into_iter().enumerate() {
+        let row = thread::ActiveModel {
+            owner_user_id: Set(1),
+            thread_kind: Set("subagent".into()),
+            profile_id: Set(profile_id.into()),
+            title: Set(Some(format!("Thread {index}"))),
+            project_id: Set(None),
+            resource_type: Set(None),
+            resource_id: Set(None),
+            canonical_binding_key: Set(None),
+            scope_json: Set(serde_json::to_value(AgentScope::default()).unwrap()),
+            default_model_config_id: Set(None),
+            status: Set(if archived { "archived" } else { "idle" }.into()),
+            is_default: Set(false),
+            revision: Set(1),
+            next_turn_sequence: Set(0),
+            next_event_sequence: Set(0),
+            context_summary: Set(None),
+            created_at: Set(now),
+            updated_at: Set(now + chrono::Duration::seconds(updated_seconds)),
+            archived_at: Set(archived.then_some(now)),
+            ..Default::default()
+        }
+        .insert(database.as_ref())
+        .await
+        .expect("Agent thread fixture must be inserted");
+        ids.push(row.id.to_string());
+    }
+
+    let filtered = application
+        .list_threads(
+            1,
+            ListAgentThreadsInput {
+                capability: Some(" target ".into()),
+                include_archived: false,
+                limit: Some(1),
+            },
+        )
+        .await
+        .expect("filtered thread list must load");
+    assert_eq!(
+        filtered
+            .iter()
+            .map(|thread| thread.id.as_str())
+            .collect::<Vec<_>>(),
+        [ids[0].as_str()],
+    );
+
+    let with_archived = application
+        .list_threads(
+            1,
+            ListAgentThreadsInput {
+                capability: Some("target".into()),
+                include_archived: true,
+                limit: Some(10),
+            },
+        )
+        .await
+        .expect("archived thread list must load");
+    assert_eq!(
+        with_archived
+            .iter()
+            .map(|thread| thread.id.as_str())
+            .collect::<Vec<_>>(),
+        [ids[2].as_str(), ids[0].as_str(), ids[3].as_str()],
+    );
+
+    let all = application
+        .list_threads(
+            1,
+            ListAgentThreadsInput {
+                capability: None,
+                include_archived: false,
+                limit: Some(10),
+            },
+        )
+        .await
+        .expect("unfiltered thread list must load");
+    assert_eq!(
+        all.iter()
+            .map(|thread| thread.id.as_str())
+            .collect::<Vec<_>>(),
+        [ids[1].as_str(), ids[0].as_str(), ids[3].as_str()],
+    );
+}
+
+#[tokio::test]
+#[ignore = "manual PostgreSQL performance benchmark; requires isolated A4N_TEST_DATABASE_URL"]
+async fn benchmark_agent_thread_list_pushes_filter_and_limit_into_database() {
+    use a4n_db_models::models::agent::thread;
+    use sea_orm::{ConnectionTrait, EntityTrait, Set};
+    use std::time::Instant;
+
+    const THREAD_COUNT: usize = 10_000;
+    const ARCHIVED_COUNT: usize = 9_800;
+    const RESULT_COUNT: usize = 200;
+    const CONTEXT_SUMMARY_BYTES: usize = 2 * 1024;
+    const WARMUPS: usize = 2;
+    const SAMPLES: usize = 15;
+
+    let database = std::sync::Arc::new(a4n_migration::test_support::connect_test_database().await);
+    let application = AgentApplication::new(DbHandle::new(database.clone()));
+    let now = chrono::Utc::now().naive_utc();
+    let context_summary = serde_json::json!({
+        "schema_version": a4n_agent_runtime_contract::AGENT_CONTEXT_SUMMARY_VERSION,
+        "current_goal": "x".repeat(CONTEXT_SUMMARY_BYTES),
+        "constraints": [],
+        "decisions": [],
+        "facts_resources": [],
+        "completed": [],
+        "pending": [],
+        "tool_state": [],
+        "covered_through_sequence": 0,
+    })
+    .to_string();
+    let scope_json = serde_json::to_value(AgentScope::default()).unwrap();
+    let rows = (0..THREAD_COUNT)
+        .map(|index| {
+            let archived = index < ARCHIVED_COUNT;
+            let profile_id = if archived && index % 2 == 1 {
+                "other"
+            } else {
+                "content_optimization"
+            };
+            let updated_at = if archived {
+                now + chrono::Duration::seconds(index as i64)
+            } else {
+                now - chrono::Duration::days(1)
+                    + chrono::Duration::seconds((index - ARCHIVED_COUNT) as i64)
+            };
+            thread::ActiveModel {
+                owner_user_id: Set(1),
+                thread_kind: Set("subagent".into()),
+                profile_id: Set(profile_id.into()),
+                title: Set(Some(format!("Performance thread {index}"))),
+                project_id: Set(None),
+                resource_type: Set(None),
+                resource_id: Set(None),
+                canonical_binding_key: Set(None),
+                scope_json: Set(scope_json.clone()),
+                default_model_config_id: Set(None),
+                status: Set(if archived { "archived" } else { "idle" }.into()),
+                is_default: Set(false),
+                revision: Set(1),
+                next_turn_sequence: Set(0),
+                next_event_sequence: Set(0),
+                context_summary: Set(Some(context_summary.clone())),
+                created_at: Set(now),
+                updated_at: Set(updated_at),
+                archived_at: Set(archived.then_some(now)),
+                ..Default::default()
+            }
+        })
+        .collect::<Vec<_>>();
+    for chunk in rows.chunks(250) {
+        thread::Entity::insert_many(chunk.iter().cloned())
+            .exec(database.as_ref())
+            .await
+            .expect("Agent thread fixture must be inserted");
+    }
+    database
+        .execute_unprepared("ANALYZE agent_thread")
+        .await
+        .expect("Agent thread statistics must be refreshed");
+
+    let input = ListAgentThreadsInput {
+        capability: None,
+        include_archived: false,
+        limit: Some(RESULT_COUNT as u32),
+    };
+
+    async fn previous_list(
+        db: &sea_orm::DatabaseConnection,
+        user_id: i64,
+        input: &ListAgentThreadsInput,
+    ) -> Vec<AgentThreadView> {
+        use a4n_db_models::models::agent::thread;
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+
+        let capability = input
+            .capability
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        let limit = input.limit.expect("benchmark provides a limit") as usize;
+        thread::Entity::find()
+            .filter(thread::Column::OwnerUserId.eq(user_id))
+            .order_by_desc(thread::Column::UpdatedAt)
+            .order_by_desc(thread::Column::Id)
+            .all(db)
+            .await
+            .expect("legacy Agent thread rows must load")
+            .into_iter()
+            .map(a4n_db::agent::AgentThreadRecord::from)
+            .filter(|row| input.include_archived || row.archived_at.is_none())
+            .filter(|row| capability.is_none_or(|value| row.profile_id == value))
+            .take(limit)
+            .map(thread_view)
+            .collect::<Result<Vec<_>, _>>()
+            .expect("legacy Agent thread rows must project")
+    }
+
+    fn serialize(rows: Vec<AgentThreadView>) -> (Vec<AgentThreadView>, usize) {
+        let bytes = serde_json::to_vec(&rows)
+            .expect("Agent thread list must serialize")
+            .len();
+        (rows, bytes)
+    }
+
+    let old = previous_list(database.as_ref(), 1, &input).await;
+    let new = application
+        .list_threads(1, input.clone())
+        .await
+        .expect("filtered Agent thread list must load");
+    assert_eq!(old, new);
+    assert_eq!(new.len(), RESULT_COUNT);
+    let response_bytes = serde_json::to_vec(&new)
+        .expect("Agent thread response must serialize")
+        .len();
+
+    for _ in 0..WARMUPS {
+        assert_eq!(previous_list(database.as_ref(), 1, &input).await, new);
+        assert_eq!(
+            application
+                .list_threads(1, input.clone())
+                .await
+                .expect("filtered warmup must load"),
+            new,
+        );
+    }
+    let mut old_samples = Vec::with_capacity(SAMPLES);
+    let mut new_samples = Vec::with_capacity(SAMPLES);
+    for sample in 0..SAMPLES {
+        if sample % 2 == 0 {
+            let started = Instant::now();
+            let (old, bytes) = serialize(previous_list(database.as_ref(), 1, &input).await);
+            old_samples.push(started.elapsed().as_secs_f64() * 1_000.0);
+            assert_eq!(bytes, response_bytes);
+            assert_eq!(old, new);
+
+            let started = Instant::now();
+            let (new_sample, bytes) = serialize(
+                application
+                    .list_threads(1, input.clone())
+                    .await
+                    .expect("filtered sample must load"),
+            );
+            new_samples.push(started.elapsed().as_secs_f64() * 1_000.0);
+            assert_eq!(bytes, response_bytes);
+            assert_eq!(new_sample, new);
+        } else {
+            let started = Instant::now();
+            let (new_sample, bytes) = serialize(
+                application
+                    .list_threads(1, input.clone())
+                    .await
+                    .expect("filtered sample must load"),
+            );
+            new_samples.push(started.elapsed().as_secs_f64() * 1_000.0);
+            assert_eq!(bytes, response_bytes);
+            assert_eq!(new_sample, new);
+
+            let started = Instant::now();
+            let (old, bytes) = serialize(previous_list(database.as_ref(), 1, &input).await);
+            old_samples.push(started.elapsed().as_secs_f64() * 1_000.0);
+            assert_eq!(bytes, response_bytes);
+            assert_eq!(old, new);
+        }
+    }
+
+    fn percentile(samples: &[f64], percentile: f64) -> f64 {
+        let mut sorted = samples.to_vec();
+        sorted.sort_by(f64::total_cmp);
+        sorted[((sorted.len() - 1) as f64 * percentile).round() as usize]
+    }
+    let old_p50 = percentile(&old_samples, 0.50);
+    let old_p95 = percentile(&old_samples, 0.95);
+    let new_p50 = percentile(&new_samples, 0.50);
+    let new_p95 = percentile(&new_samples, 0.95);
+    eprintln!(
+        "agent_thread_list total={THREAD_COUNT} archived={ARCHIVED_COUNT} result={} context_summary_bytes={CONTEXT_SUMMARY_BYTES} response_bytes={response_bytes} old_p50_p95_ms={old_p50:.3}/{old_p95:.3} new_p50_p95_ms={new_p50:.3}/{new_p95:.3} improvement={:.1}%/{:.1}%",
+        new.len(),
+        (1.0 - new_p50 / old_p50) * 100.0,
+        (1.0 - new_p95 / old_p95) * 100.0,
+    );
+}
