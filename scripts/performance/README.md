@@ -667,6 +667,12 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 量化结果：隔离 PostgreSQL 16、release（opt-level 3，LTO 关闭）、2 次预热、15 次交错样本。计时覆盖 Worker 请求校验、项目/Viewer 权限查询、提示词与产物读取、摘要映射和 JSON payload 序列化；未计 HTTP body 解析和外层 Worker envelope。完整操作 P50/P95 **12.980/18.542 → 5.199/7.676 ms**，下降 **59.95%/58.60%**；应用读取的 artifact JSON payload **5,775,481 → 25,178 B**，响应 body **256,692 B** 且旧/新字节完全相同。本轮未测 RSS，不声称峰值内存降幅。
 - 语义验证与复现：100 页的 stale/orphaned 列表结果及序列化字节逐轮一致；畸形 PageSlots 在旧/新路径返回相同错误文本。基准夹具 `crates/manga/a4n-manga-record-worker/src/prompts/performance.rs`，日志 `data/performance-audit-20261010/manga-page-prompt-artifact-projection/command.log`。执行 `cargo test --release --locked --offline -p a4n-manga-record-worker --lib performance_manga_prompt_list_artifact_projection -- --ignored --nocapture --test-threads=1`。受影响四个 crates all-targets check、Core 2/2、Worker 2/2、格式检查通过。`a4n-db --lib manga` 为 20 passed、3 failed：两个清理用例的 `data/...png` 夹具路径被项目路径校验拒绝，一个提示词同步顺序断言失败；这些失败位于本次未修改的删除/同步代码路径，未计为通过。
 
+### 拒绝候选：静态语言字典按 locale 拆分
+
+- 调用链与规模：`main.tsx → I18nProvider → translate.ts` 在初始入口静态加载中文和英文两份字典，源码合计 **728,535 B**。当前 production 入口 `.js.gz` 为 **328,672 B**。
+- 上界测量：用只加载中文字典的临时 production build 估算移除另一 locale 的最大收益（该构建把 `en-US` 暂时映射到中文，仅供测量，不保留）。入口由 **1,065,828 → 732,800 B raw**、**328,672 → 234,160 B gzip（28.8%）**。Chromium 153 新建 5 个会话并在首次登录页交互后强制 GC，heap 中位数 **3,108,764 → 2,676,796 B（13.9%）**。实验语言内容不匹配会让候选页面更短，因此内存降幅只作上界参考。
+- 决定：上界 bundle 降幅仍低于 30%，heap 降幅低于 20%；真正的按 locale 动态加载还必须在显示本地化 UI 前取回所选字典，并增加一次关键请求，没有证据证明完整页面响应能达到 30% 门槛。未保留产品改动。构建环境 Node **24.21.0**（项目要求 22）；本项仅做构建体积和 heap 对照，没有声称页面响应时延改善。
+
 ### 拒绝候选：图片图库元数据索引
 
 - 链路与规模：Novel Detail 的 Images 页进入项目图库时读取全部图片摘要；候选项目为 **1000** 张图片、每条约 **8 KiB** `metadata_json`。页面仍需要提示词、路径、收藏、页码和源内容哈希，详情操作需要完整元数据。
