@@ -14,7 +14,7 @@ const port = Number(process.env.A4N_PERF_PORT ?? 48966);
 const outDir = path.join(artifacts, "dist");
 const baselineRef = process.env.A4N_PERF_BASELINE_REF;
 const scenario = process.env.A4N_PERF_CASE ?? "core";
-assert.ok(["core", "sidebar", "story-events", "story-events-loader", "story-events-analysis-projection", "outline-list", "agent-messages", "authoring-label", "manga-source", "galgame-source"].includes(scenario));
+assert.ok(["core", "sidebar", "story-events", "story-events-loader", "story-events-analysis-projection", "outline-list", "agent-messages", "authoring-label", "manga-source", "galgame-source", "canvas-invalidation"].includes(scenario));
 const entry = scenario === "sidebar" ? "sidebar.html" : scenario === "story-events" ? "story-events.html"
   : scenario === "story-events-loader" ? "story-events-loader.html"
   : scenario === "story-events-analysis-projection" ? "story-events.html"
@@ -22,7 +22,8 @@ const entry = scenario === "sidebar" ? "sidebar.html" : scenario === "story-even
   : scenario === "agent-messages" ? "agent-messages.html"
   : scenario === "authoring-label" ? "authoring-label.html"
   : scenario === "manga-source" ? "manga-source.html"
-  : scenario === "galgame-source" ? "galgame-source.html" : "index.html";
+  : scenario === "galgame-source" ? "galgame-source.html"
+  : scenario === "canvas-invalidation" ? "canvas-invalidation.html" : "index.html";
 const sourceFiles = scenario === "story-events"
   ? ["src/pages/novel-detail/story-events/storyEventUtils.ts", "src/pages/novel-detail/story-events/ChapterEventSection.tsx"]
   : scenario === "story-events-loader"
@@ -41,6 +42,8 @@ const sourceFiles = scenario === "story-events"
   ? ["src/pages/novel-detail/MangaTab.tsx"]
   : scenario === "galgame-source"
   ? ["src/pages/novel-detail/GalgameTab.tsx"]
+  : scenario === "canvas-invalidation"
+  ? ["src/pages/video-studio/canvasGraphMapping.ts"]
   : ["src/hooks/usePacedStreamText.ts", "src/i18n/format.ts", "src/components/ui/MarkdownText.tsx"];
 const baselineSources = new Map(baselineRef ? sourceFiles.map((file) => [
   path.join(frontend, file),
@@ -232,6 +235,11 @@ try {
     assert.equal(agentMessages.renderedRows, 1000);
     assert.equal(agentMessages.toolResultUpdateVerified, true);
     report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion, agentMessages };
+  } else if (scenario === "canvas-invalidation") {
+    const canvasInvalidation = await browser.execute(() => window.measureCanvasInvalidation());
+    assert.deepEqual(canvasInvalidation.cases.map((item) => item.clearedNodes), canvasInvalidation.cases.map((item) => item.nodeCount));
+    assert.ok(canvasInvalidation.cases.every((item) => /^[a-f0-9]{64}$/.test(item.resultSha256)));
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion, canvasInvalidation };
   } else if (scenario === "authoring-label") {
     const authoringLabel = await browser.execute(() => window.measureAuthoringLabel());
     assert.equal(authoringLabel.chapterCount, 1000);

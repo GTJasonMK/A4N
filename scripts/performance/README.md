@@ -75,6 +75,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 语义分块 | 已复用向量范数并利用相似矩阵对称性；本次只消除额外矩阵。将全矩阵换成局部带状算法可能改变浮点抵消和相同分数时的切分，未作为无风险替换。 |
 | 故事事件 | PERF-018 减少筛选时未变化卡片的重复渲染；PERF-019 从数据库到前端仅读取所需的五个分析字段；PERF-045 延迟默认收起的伏笔索引；PERF-058 将只读事件页的 GC 后 JS heap 降低 32.9%。千章/4500事件仍需渲染大量卡片，DOM 压缩和搜索候选均因未达门槛拒绝。 |
 | Agent 消息流 | PERF-029/044 已覆盖 Agent 后端维护扫描和历史预算投影；PERF-046 处理无关父状态更新，PERF-065 让消息数组变化时只重渲染被替换的行及其配对工具结果。 |
+| Video Studio Canvas | PERF-066 将运行结果失效的下游遍历从每个 BFS 节点扫描所有边改为一次邻接表构建；连线、节点配置和引用编辑都复用这个同步函数。 |
 | 档案素材与图片 | PERF-047 只优化档案列表图片计数和删除下游 ID 的读取；完整素材列表、主素材绑定和图片详情仍保留原字段与顺序。 |
 | 依赖图 | PERF-049 将族级图摘要限制为漫画页、对象/场景素材和三类视频帧；节点详情仍按节点类型独立读取完整记录，未改变详情合同。 |
 | 任务历史 | PERF-050 的历史页和按 ID 查询只读取摘要字段；完整任务 payload 仍留在任务详情/执行路径所需处，没有改变队列持久化或取消行为。 |
@@ -673,6 +674,13 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 根因与改动：PERF-046 只跳过与消息无关的父状态更新；消息数组变化仍调用每条 `AgentMessageRow`。行改为 `React.memo`，比较消息对象、locale、streamed 标记、紧凑模式和配对工具结果对象；行只在其中一项输入变化时重渲染，列表顺序与行数保持原样。
 - 量化结果：真实 Chromium **153.0.8010.52**，生产 Vite 夹具；1000 条交替用户/助手历史，分 9 个样本，每样本向尾部助手消息应用 **80 次**新对象内容更新，更新批次之后重置到相同初始输入。三轮交错前后 A/B 的 P50：旧版 **149.2/149.2/150.0 ms**，候选 **18.5/19.4/18.8 ms**；轮次中位数 **149.2 → 18.8 ms（下降 87.4%）**。三轮 1000 个 message row、最终 HTML SHA-256 `9b86859086ff3fe964b663ae17f28aa79353c9035a6979dbbbc291b09de29ea7` 完全一致，消息内容更新和工具结果配对更新断言通过。
 - 验证与证据：`npm run test:run -- src/components/agent/AgentMessageRow.test.tsx` **12/12**，`npm run build` 通过（Node 24.21.0；项目要求 Node 22）。基准夹具 `frontend/e2e/performance/agent-messages-fixture.tsx`；对照运行 `A4N_PERF_CASE=agent-messages A4N_PERF_BASELINE_REF=HEAD node e2e/performance/check.mjs` 和同一命令移除 `A4N_PERF_BASELINE_REF`。六份最终报告位于 `data/performance-audit-20261010/agent-message-stream-rerender-final-{before,after}/` 与对应 `*-before-02/after-02`、`*-before-03/after-03/`。早期非确定预热报告在 `agent-message-stream-rerender{,-after}/`，不纳入数字；首个 Chrome 启动失败未保留原报告，摘要补入 `agent-message-stream-rerender/launch-failure.log`，之后短临时目录的 3 轮运行通过。首次临时 DOM 单测因 Vitest Node 环境没有 `document` 未计入验证；工具结果更新断言由真实 Chromium 夹具覆盖。
+
+### PERF-066：Canvas 下游运行结果失效邻接索引
+
+- 调用链与频率：Video Studio 连线变化、节点配置/引用修改等多个用户操作会调用 `invalidateCanvasRuntimeResults`，它从源节点开始清除所有可达节点已有的运行结果。旧 BFS 每访问一个节点都扫描全部边，最坏为 O(V×E)；工作流为链或稀疏分叉时，每次修改仍反复检查与当前节点无关的边。
+- 根因与改动：调用前一次遍历建立 `source → target[]` 邻接表，BFS 只访问相邻目标；原有 visited Set 保留环路/多路径去重，节点投影和 `clearCanvasRuntimeResult` 字段行为不变。空根集合直接返回原节点数组，不扫描图；临时索引只活在这次用户编辑调用中。
+- 量化结果：真实 Chromium **153.0.8010.52** 生产夹具，实际调用生产 `invalidateCanvasRuntimeResults`；图为含环和跳边的连通图，N 个运行结果节点、2N 条边、单一根节点使全部节点可达，每规模 2 次预热/15 个样本。1000 节点/2000 边 P50 三轮旧版 **7.7/7.5/7.4 ms**，候选 **0.8/0.6/0.7 ms**；轮次中位数 **7.5→0.7 ms（下降 90.7%）**。512 节点/1024 边为 **2.0→0.5 ms（75%）**。32 节点结果在约 0.1 ms 计时粒度内，未宣称有小图收益。每种规模已清除的节点数和新旧结果 SHA-256 逐项一致。
+- 验证与证据：`canvasGraphMapping.test.ts` 增加循环+共享后代覆盖；Video Studio 图映射与边顺序回归 **11/11**，`npm run build`、`node --check frontend/e2e/performance/check.mjs`、`git diff --check` 通过（Node 24.21.0；项目要求 Node 22）。夹具 `frontend/e2e/performance/canvas-invalidation-fixture.tsx`；执行 `A4N_PERF_CASE=canvas-invalidation A4N_PERF_BASELINE_REF=HEAD node e2e/performance/check.mjs` 和去掉 `A4N_PERF_BASELINE_REF` 的候选命令。三轮报告位于 `data/performance-audit-20261010/canvas-invalidation-{before,after}-{01,02,03}/`。数字是生产投影函数 CPU 时间，不代表完整 ReactFlow 交互的端到端时延。
 
 ### 拒绝候选：静态语言字典按 locale 拆分
 

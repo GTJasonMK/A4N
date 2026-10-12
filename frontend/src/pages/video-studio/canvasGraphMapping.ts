@@ -136,12 +136,21 @@ export function invalidateCanvasRuntimeResults(
 ): StudioNode[] {
   const invalidated = new Set(sourceNodeIds);
   const queue = [...invalidated];
+  if (queue.length === 0) return nodes;
+
+  const downstreamBySource = new Map<string, string[]>();
+  for (const edge of edges) {
+    const downstream = downstreamBySource.get(edge.source);
+    if (downstream) downstream.push(edge.target);
+    else downstreamBySource.set(edge.source, [edge.target]);
+  }
+
   for (let index = 0; index < queue.length; index += 1) {
-    const source = queue[index];
-    for (const edge of edges) {
-      if (edge.source !== source || invalidated.has(edge.target)) continue;
-      invalidated.add(edge.target);
-      queue.push(edge.target);
+    const source = queue[index]!;
+    for (const target of downstreamBySource.get(source) ?? []) {
+      if (invalidated.has(target)) continue;
+      invalidated.add(target);
+      queue.push(target);
     }
   }
 
