@@ -82,6 +82,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 工作流详情轮询 | PERF-051 让 Canvas 每秒刷新及设置页详情请求只传输 generation run 摘要；未传新选项的 CLI 保留完整原始输出、解析结果和验证 JSON。 |
 | 测试中心详情轮询 | PERF-052 首次读取与旧请求仍拿到完整保留日志；活动轮询带日志游标，只克隆和传输新增行；超过 500 行后的过期游标重取当前窗口。 |
 | 任务进度轮询 | PERF-053 task ring 和 workflow progress query 支持 event cursor；缺省游标仍返回最近页，丢失 ring 历史后退回最近完整窗口，活体 stream text 继续按原快照返回。 |
+| 大纲生成进度轮询 | PERF-068 将分部重叠验证从枚举整个章节区间改为按分部区间处理，完成统计按实际完成章节合并；3 秒轮询频率和权限校验保持不变。 |
 | Canvas 文本素材 | 窄索引候选已用 256 份 × 4 KiB 正文的 Chromium 夹具复核；传输字节下降 98%，但首屏中位数仅下降 14.0%，GC 后 JS heap 仅下降 8.2%，不满足保留门槛，未改合同或生产代码。 |
 | 媒体阶段状态 | PERF-048 将状态标签计算从章节数 × 文档数的重复过滤降为一次索引；文档状态、快照范围和 stale 判断保持原语义。 |
 | 漫画来源读取 | 当前 MangaTab 产品入口 ComicProjectWorkspace、VideoProjectWorkspace 和 GalgameProjectWorkspace 均使用 `listSourceSnapshotChapterIndex`；PERF-020 已用 1000 章真实 PostgreSQL/Chromium 夹具测量目录与单章详情，完整正文只在选章后读取。旧 `listSourceSnapshotChapters` API 仍保留给兼容调用方，但不是当前页面活跃路径。 |
@@ -688,6 +689,14 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 根因与改动：新增仅编码节点 ID 和 run status 的 `canvasWorkflowNodeRunStatusSignature`；elapsed seconds 变化不会改签名，因此已有 `useMemo` 复用 active scope 和 `flowEdges` 投影。节点状态转换仍会改变签名并完整重算，边/节点数组变化仍走原路径；每秒的节点 elapsed 投影继续更新。
 - 量化结果：Chromium **153.0.8010.52**，实际调用生产 workflow state、active scope、节点类和边类投影；模拟 **30** 次 1 秒更新，包含 1000 checkpoint 状态映射和全部 flow node 投影。3 轮旧/候选 P50 **41.3/39.0/40.0 → 26.3/25.4/25.7 ms**，轮次中位数 **40.0→25.7 ms（下降 35.8%）**；每轮最终节点/边投影 SHA-256 相同。新旧数字是 30 个 timer tick 的投影 CPU 累计，未测实际 ReactFlow reconciliation/完整用户感知端到端延迟。
 - 验证与证据：`canvasWorkflowState.test.ts` **4/4**，包括 elapsed 秒变化时签名稳定、状态变更时签名变化；`npm run build` 通过（Node 24.21.0；项目要求 Node 22）。夹具 `frontend/e2e/performance/canvas-workflow-timer-fixture.tsx`，运行 `A4N_PERF_CASE=canvas-workflow-timer node e2e/performance/check.mjs`；三份报告位于 `data/performance-audit-20261010/canvas-workflow-timer-{01,02,03}/`。
+
+### PERF-068：大纲进度投影按实际记录处理章节范围
+
+- 调用链与频率：`OutlineAdvancedPanel` 在启用自动刷新时每 **3 秒**调用 `getGenerationProgress`；Control 经过 Runtime 调用 Outline Worker，Worker 先检查 Viewer 权限，再串行读取分部范围和章节大纲的窄列并生成四个计数。数据库查询只返回 `id/start/end` 与 `id/chapter/status`。
+- 根因与改动：旧投影为检测分部重叠，把每个 `start_chapter..=end_chapter` 中的章节号全部写入 `HashSet`，再逐号查询章节状态；一条百万跨度的分部即使没有章节大纲，也会扩展一百万个整数。现在使用按区间组织的 `BTreeMap` 校验重叠，完成统计将 SQL 已按章节号排序的完成章节与已排序分部区间线性合并；不再按跨度扩展范围。章节状态、重复章节、无效范围和重叠仍返回冲突，摘要合同和计数不变。
+- 量化结果：Rust release 生产投影函数，**3** 次交错复跑，每次 **2** 次预热、**15** 个样本。典型夹具为 **1000** 章、**20** 部、**800** 章完成；三轮 P50/P95 中位数 **56.044/57.194 → 2.039/2.155 µs**（下降 **96.36%/96.23%**）。稀疏边界夹具为 **1** 个 `1..=1,000,000` 分部、**0** 条章节大纲；P50/P95 中位数 **30.518/30.764 ms → 0.175/0.273 µs**（下降超过 **99.999%**）。两种夹具旧/新 `OutlineGenerationProgressSummary` 完全相同。
+- 验证与边界：`a4n-outline-worker --lib` 正确性测试 **3/3**、忽略型 A/B benchmark **3/3**；覆盖大跨度无大纲、未排序分部、重复章节和重叠分部。`cargo fmt --all -- --check` 与 `git diff --check` 通过。额外的 `--all-targets --no-run` 未完成：共享 agent target 在 `a4n-db` 编译期间消失；随后在锁内重新编译并通过 `--lib`。当前环境未设置 `A4N_TEST_DATABASE_URL`，没有测完整 HTTP/数据库往返或 RSS；上述数字只代表每次轮询中的 Worker 投影 CPU，不能写作整条 API 时延。
+- 证据：基准在 `crates/planning/a4n-outline-worker/src/projection.rs` 的忽略型 release 测试中；执行 `cargo test --locked --offline --release -p a4n-outline-worker --lib benchmark_generation_progress_projection -- --ignored --nocapture --test-threads=1`。本次复跑摘要见 `data/performance-audit-20261010/outline-progress-projection/benchmark.log`。
 
 ### 拒绝候选：静态语言字典按 locale 拆分
 
