@@ -88,6 +88,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | Canvas 文本素材 | 窄索引候选已用 256 份 × 4 KiB 正文的 Chromium 夹具复核；传输字节下降 98%，但首屏中位数仅下降 14.0%，GC 后 JS heap 仅下降 8.2%，不满足保留门槛，未改合同或生产代码。 |
 | 媒体阶段状态 | PERF-048 将状态标签计算从章节数 × 文档数的重复过滤降为一次索引；文档状态、快照范围和 stale 判断保持原语义。 |
 | 漫画来源读取 | 当前 MangaTab 产品入口 ComicProjectWorkspace、VideoProjectWorkspace 和 GalgameProjectWorkspace 均使用 `listSourceSnapshotChapterIndex`；PERF-020 已用 1000 章真实 PostgreSQL/Chromium 夹具测量目录与单章详情，完整正文只在选章后读取。旧 `listSourceSnapshotChapters` API 仍保留给兼容调用方，但不是当前页面活跃路径。 |
+| Manga 活动状态渲染 | PERF-071 将每 2.5 秒更新的选中章节状态限制在实际变化的行；1000 章列表的渲染提交 P50/P95 分别下降 84.2%/75.6%，选择和最终 DOM 保持一致。 |
 | 项目包传输 | PERF-037 批量读取独立漫画包的文本资产版本与来源实体；PERF-038—042 批量写入历史消息、workflow progress event、模型用量账本、LLM trace 与 generation target。SQL 数随数据行数增长，未引入缓存或预取。 |
 
 ## 可复现入口
@@ -684,6 +685,13 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 根因与改动：SSE 收到数据块（包括 5 秒 keep-alive 注释）或桌面事件轮询成功后，记录连接活动；流最近 **10 秒**有活动时跳过完整快照。SSE 断开、桌面事件轮询失败或流静默超过 10 秒时恢复 7 秒快照兜底。事件序号、缺口、生命周期事件触发的即时重载、手动操作后的重载和断线重连均保留。SSE API 增加可选活动回调，既有调用方合同不变。
 - 量化结果：生产轮询调度函数的假时钟回放，28 秒窗口每 7 秒一次。健康连接旧/新完整快照请求 **4 → 0（100%）**；断开状态仍 **4 → 4**；连接静默 14 秒后下一轮恢复 **1** 次。该基准量化的是重复数据库读取和传输次数，不宣称单次 snapshot 响应时延或 RSS 改善。
 - 验证与边界：`agentSnapshotPolling` **3/3**、SSE keep-alive 活动、Agent API/SSE、事件 reducer 和 Domain Agent 相关测试合计 **40/40**；`npm run build`、`git diff --check` 通过（Node 24.21.0；项目要求 Node 22）。超过 10 秒没有任何 SSE 数据块/成功桌面事件读取时恢复快照兜底；事件流本身仍由现有游标重放和生命周期快照校正保证语义。
+
+### PERF-071：Manga 活动流水线只重渲染变化章节
+
+- 调用链与频率：`MangaTab` 在选中章节的 pipeline 为 running/cancelable 时，每 **2.5 秒**读取该章状态并更新 `statuses`；一个项目可显示 **1000** 个章节。原 `MangaChapterList` 每次都在父组件中为全部章节计算状态标签、图标、进度条和按钮 JSX，即使本次只有选中章节的状态变化。
+- 根因与改动：把单章行提取为 `React.memo` 组件，逐行接收 chapter、status、stage 和 selected 值；其余章节对象及状态引用不变时跳过行计算。用 ref 代理 `onSelect` 保持行回调稳定，同时始终转发到最近的选择处理函数；章节切换、状态变化和 locale context 变化仍会更新对应行。
+- 量化结果：生产组件的 Chromium **153.0.8010.52** A/B，模拟 **1000** 章、预热 **2** 次后每轮 **15** 次单章状态更新，共 **3** 轮。`flushSync` 渲染提交 P50 轮次中位数 **3.8 → 0.6 ms**（下降 **84.2%**），P95 **4.5 → 1.1 ms**（下降 **75.6%**）。两版最终列表 DOM SHA-256 均为 `8480f690387f18a9108ee9820b64831516171b2444ba52eed7b59f65b7fe7ed2`；第 500 章更新到第 51 次状态、点击第 1000 章的行为均通过。
+- 验证与边界：夹具 `frontend/e2e/performance/manga-chapter-list-fixture.tsx`；基线源为 `6f9a2d07a`，从 `frontend` 目录持有 `/home/fufu/Code/A4N/work/.agent-build.lock` 运行 `env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy NO_PROXY=localhost,127.0.0.1 A4N_PERF_CASE=manga-chapter-list A4N_PERF_BASELINE_REF=6f9a2d07a A4N_PERF_ARTIFACTS=../data/performance-audit-20261013/manga-chapter-list-before-checked A4N_PERF_PORT=49436 node e2e/performance/check.mjs`，再将 artifacts 目录改为 `../data/performance-audit-20261013/manga-chapter-list-after-checked`、端口改为 `49446` 并移除 `A4N_PERF_BASELINE_REF` 运行候选。真实组件生产构建和列表交互检查通过，最终报告在 `data/performance-audit-20261013/manga-chapter-list-{before-checked,after-checked}/report.json`。耗时是列表状态更新的同步 React/DOM commit，不含 API、浏览器绘制或完整页面交互；未声称网络时延或内存改善。首轮浏览器启动受本机代理变量影响失败，清除 HTTP(S)/ALL proxy 后基线与候选均通过。
 
 ### PERF-066：Canvas 下游运行结果失效邻接索引
 

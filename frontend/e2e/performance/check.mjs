@@ -14,7 +14,7 @@ const port = Number(process.env.A4N_PERF_PORT ?? 48966);
 const outDir = path.join(artifacts, "dist");
 const baselineRef = process.env.A4N_PERF_BASELINE_REF;
 const scenario = process.env.A4N_PERF_CASE ?? "core";
-assert.ok(["core", "sidebar", "story-events", "story-events-loader", "story-events-analysis-projection", "outline-list", "agent-messages", "authoring-label", "manga-source", "galgame-source", "canvas-invalidation", "canvas-workflow-timer"].includes(scenario));
+assert.ok(["core", "sidebar", "story-events", "story-events-loader", "story-events-analysis-projection", "outline-list", "agent-messages", "authoring-label", "manga-source", "manga-chapter-list", "galgame-source", "canvas-invalidation", "canvas-workflow-timer"].includes(scenario));
 const entry = scenario === "sidebar" ? "sidebar.html" : scenario === "story-events" ? "story-events.html"
   : scenario === "story-events-loader" ? "story-events-loader.html"
   : scenario === "story-events-analysis-projection" ? "story-events.html"
@@ -22,6 +22,7 @@ const entry = scenario === "sidebar" ? "sidebar.html" : scenario === "story-even
   : scenario === "agent-messages" ? "agent-messages.html"
   : scenario === "authoring-label" ? "authoring-label.html"
   : scenario === "manga-source" ? "manga-source.html"
+  : scenario === "manga-chapter-list" ? "manga-chapter-list.html"
   : scenario === "galgame-source" ? "galgame-source.html"
   : scenario === "canvas-invalidation" ? "canvas-invalidation.html"
   : scenario === "canvas-workflow-timer" ? "canvas-workflow-timer.html" : "index.html";
@@ -41,6 +42,8 @@ const sourceFiles = scenario === "story-events"
   ? ["src/pages/writing-desk/ChapterSidebar.tsx", "src/pages/writing-desk/ChapterCard.tsx"]
   : scenario === "manga-source"
   ? ["src/pages/novel-detail/MangaTab.tsx"]
+  : scenario === "manga-chapter-list"
+  ? ["src/pages/novel-detail/manga/MangaChapterList.tsx"]
   : scenario === "galgame-source"
   ? ["src/pages/novel-detail/GalgameTab.tsx"]
   : scenario === "canvas-invalidation"
@@ -249,6 +252,18 @@ try {
     const canvasWorkflowTimer = await browser.execute(() => window.measureCanvasWorkflowTimer());
     assert.equal(canvasWorkflowTimer.outputEqual, true);
     report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion, canvasWorkflowTimer };
+  } else if (scenario === "manga-chapter-list") {
+    const mangaChapterList = await browser.execute(() => window.measureMangaChapterList());
+    assert.equal(mangaChapterList.chapterCount, 1000);
+    assert.ok(mangaChapterList.activeChapterText.includes("500"));
+    assert.ok(mangaChapterList.activeChapterText.includes("运行中 51"));
+    const selected = await browser.execute(() => {
+      document.querySelectorAll("#root li button")[999]?.click();
+      return window.getMangaChapterSelection();
+    });
+    assert.deepEqual(selected, [{ chapterId: 1000, revision: 51 }]);
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
+      mangaChapterList, selected };
   } else if (scenario === "authoring-label") {
     const authoringLabel = await browser.execute(() => window.measureAuthoringLabel());
     assert.equal(authoringLabel.chapterCount, 1000);

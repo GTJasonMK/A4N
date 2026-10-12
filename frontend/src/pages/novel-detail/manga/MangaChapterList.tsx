@@ -44,6 +44,130 @@ const chapterPipelineIcon = (status: MangaPipelineStatusSummary | null | undefin
   return <Clock3 size={11} />;
 };
 
+const MangaChapterListItem = React.memo(({
+  chapter,
+  status,
+  workspaceStage,
+  isSelected,
+  buttonRef,
+  onSelect,
+}: {
+  chapter: ChapterRow;
+  status: MangaPipelineStatusSummary | null | undefined;
+  workspaceStage?: MangaWorkspaceStage;
+  isSelected: boolean;
+  buttonRef: React.Ref<HTMLButtonElement>;
+  onSelect: (chapter: ChapterRow) => void;
+}) => {
+  const { t } = useI18n();
+  const imageStatusVisible = mangaImageStatusMatchesWorkspaceStage(workspaceStage);
+  const workflowStatus = mangaPipelineStageMatchesWorkspaceStage(workspaceStage, status?.stage)
+    ? status
+    : null;
+  const total =
+    imageStatusVisible && status != null
+      ? status.pending + status.generating + status.completed + status.failed + status.cancelled
+      : 0;
+  const completedRatio = total > 0 ? (status?.completed ?? 0) / total : 0;
+  const failedRatio = total > 0 ? (status?.failed ?? 0) / total : 0;
+  const generatingRatio = total > 0 ? (status?.generating ?? 0) / total : 0;
+  const imageHasFailures = imageStatusVisible && (status?.failed ?? 0) > 0;
+  const workflowFailed = pipelineStoppedWithError(workflowStatus);
+  const showPipelineStatus =
+    imageStatusVisible ||
+    workflowStatus?.pipeline_status != null ||
+    workflowStatus?.can_resume === true ||
+    workflowStatus?.message != null;
+  const statusTone = workflowFailed || imageHasFailures
+    ? "text-error"
+    : workflowStatus
+      ? chapterPipelineTone(workflowStatus)
+      : imageStatusVisible && (status?.completed ?? 0) > 0
+        ? "text-success"
+        : "text-book-text-muted";
+  const statusIcon = workflowFailed || imageHasFailures
+    ? <AlertTriangle size={11} />
+    : workflowStatus
+      ? chapterPipelineIcon(workflowStatus)
+      : imageStatusVisible && (status?.completed ?? 0) > 0
+        ? <CheckCircle2 size={11} />
+        : <Clock3 size={11} />;
+  const stageLabel = workflowStatus?.stage
+    ? mangaStageLabel(workflowStatus.stage, t)
+    : workspaceStage === "image_creation"
+      ? mangaPageStageLabel("image", t)
+      : workspaceStage == null
+        ? mangaStageLabel(undefined, t)
+        : "";
+
+  return (
+    <li>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => onSelect(chapter)}
+        aria-current={isSelected ? "true" : undefined}
+        data-active={isSelected ? "1" : undefined}
+        className="a4n-sidebar-item min-w-[12rem] text-xs md:min-w-0"
+      >
+        <div className="mb-1 truncate font-medium">
+          {t("comic.chapterNumber", { number: chapter.chapter_number })}
+          {nonEmptyText(chapter.title) ? ` · ${nonEmptyText(chapter.title)}` : ""}
+        </div>
+        {showPipelineStatus ? (
+          <div
+            className={`mb-1 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-small ${
+              isSelected ? "text-book-primary" : statusTone
+            }`}
+          >
+            <span className="inline-flex min-w-0 items-center gap-1 truncate">
+              {statusIcon}
+              {stageLabel}
+            </span>
+            {total > 0 ? (
+              <span className="font-mono">
+                {status?.completed ?? 0}/{total}
+              </span>
+            ) : workflowStatus?.can_resume ? (
+              <span>{t("comic.resumable")}</span>
+            ) : (
+              <span>{t("comic.notGenerated")}</span>
+            )}
+          </div>
+        ) : null}
+        {total > 0 ? (
+          <div
+            className={`flex h-1 overflow-hidden rounded-full ${
+              isSelected ? "bg-book-primary/15" : "bg-book-bg-tertiary"
+            }`}
+          >
+            <span
+              className="bg-success"
+              style={{ width: `${completedRatio * 100}%` }}
+            />
+            <span
+              className="bg-error"
+              style={{ width: `${failedRatio * 100}%` }}
+            />
+            <span
+              className="bg-book-primary"
+              style={{ width: `${generatingRatio * 100}%` }}
+            />
+          </div>
+        ) : workflowStatus?.message ? (
+          <div
+            className={`truncate text-small ${
+              isSelected ? "text-book-primary" : "text-book-text-muted"
+            }`}
+          >
+            {workflowStatus.message}
+          </div>
+        ) : null}
+      </button>
+    </li>
+  );
+});
+
 export const MangaChapterList: React.FC<MangaChapterListProps> = ({
   chapters,
   statuses,
@@ -52,6 +176,11 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
   onSelect,
 }) => {
   const { t } = useI18n();
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
+  const stableOnSelect = React.useCallback((chapter: ChapterRow) => {
+    void onSelectRef.current(chapter);
+  }, []);
   const railRef = useRef<HTMLUListElement>(null);
   const selectedButtonRef = useRef<HTMLButtonElement>(null);
   const [hasBefore, setHasBefore] = useState(false);
@@ -107,115 +236,17 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
         className="a4n-tab-rail-wrap a4n-tab-rail-wrap--canvas a4n-mobile-scroll-rail flex w-full min-w-0 gap-1.5 overflow-x-auto p-1 md:min-h-0 md:flex-1 md:flex-col md:gap-1 md:overflow-x-hidden md:overflow-y-auto md:overscroll-contain md:p-0 custom-scrollbar"
       >
         {chapters.map((chapter) => {
-          const status = statuses[chapter.id];
-          const imageStatusVisible = mangaImageStatusMatchesWorkspaceStage(workspaceStage);
-          const workflowStatus = mangaPipelineStageMatchesWorkspaceStage(
-            workspaceStage,
-            status?.stage,
-          )
-            ? status
-            : null;
-          const total =
-            imageStatusVisible && status != null
-              ? status.pending + status.generating + status.completed + status.failed + status.cancelled
-              : 0;
-          const completedRatio = total > 0 ? (status?.completed ?? 0) / total : 0;
-          const failedRatio = total > 0 ? (status?.failed ?? 0) / total : 0;
-          const generatingRatio = total > 0 ? (status?.generating ?? 0) / total : 0;
-          const imageHasFailures = imageStatusVisible && (status?.failed ?? 0) > 0;
-          const workflowFailed = pipelineStoppedWithError(workflowStatus);
-          const showPipelineStatus =
-            imageStatusVisible ||
-            workflowStatus?.pipeline_status != null ||
-            workflowStatus?.can_resume === true ||
-            workflowStatus?.message != null;
-          const statusTone = workflowFailed || imageHasFailures
-            ? "text-error"
-            : workflowStatus
-              ? chapterPipelineTone(workflowStatus)
-              : imageStatusVisible && (status?.completed ?? 0) > 0
-                ? "text-success"
-                : "text-book-text-muted";
-          const statusIcon = workflowFailed || imageHasFailures
-            ? <AlertTriangle size={11} />
-            : workflowStatus
-              ? chapterPipelineIcon(workflowStatus)
-              : imageStatusVisible && (status?.completed ?? 0) > 0
-                ? <CheckCircle2 size={11} />
-                : <Clock3 size={11} />;
-          const stageLabel = workflowStatus?.stage
-            ? mangaStageLabel(workflowStatus.stage, t)
-            : workspaceStage === "image_creation"
-              ? mangaPageStageLabel("image", t)
-              : workspaceStage == null
-                ? mangaStageLabel(undefined, t)
-                : "";
           const isSelected = selectedChapter?.id === chapter.id;
           return (
-            <li key={chapter.id}>
-              <button
-                ref={isSelected ? selectedButtonRef : undefined}
-                type="button"
-                onClick={() => onSelect(chapter)}
-                aria-current={isSelected ? "true" : undefined}
-                data-active={isSelected ? "1" : undefined}
-                className="a4n-sidebar-item min-w-[12rem] text-xs md:min-w-0"
-              >
-                <div className="mb-1 truncate font-medium">
-                  {t("comic.chapterNumber", { number: chapter.chapter_number })}
-                  {nonEmptyText(chapter.title) ? ` · ${nonEmptyText(chapter.title)}` : ""}
-                </div>
-                {showPipelineStatus ? (
-                  <div
-                    className={`mb-1 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-small ${
-                      isSelected ? "text-book-primary" : statusTone
-                    }`}
-                  >
-                    <span className="inline-flex min-w-0 items-center gap-1 truncate">
-                      {statusIcon}
-                      {stageLabel}
-                    </span>
-                    {total > 0 ? (
-                      <span className="font-mono">
-                        {status?.completed ?? 0}/{total}
-                      </span>
-                    ) : workflowStatus?.can_resume ? (
-                      <span>{t("comic.resumable")}</span>
-                    ) : (
-                      <span>{t("comic.notGenerated")}</span>
-                    )}
-                  </div>
-                ) : null}
-                {total > 0 ? (
-                  <div
-                    className={`flex h-1 overflow-hidden rounded-full ${
-                      isSelected ? "bg-book-primary/15" : "bg-book-bg-tertiary"
-                    }`}
-                  >
-                    <span
-                      className="bg-success"
-                      style={{ width: `${completedRatio * 100}%` }}
-                    />
-                    <span
-                      className="bg-error"
-                      style={{ width: `${failedRatio * 100}%` }}
-                    />
-                    <span
-                      className="bg-book-primary"
-                      style={{ width: `${generatingRatio * 100}%` }}
-                    />
-                  </div>
-                ) : workflowStatus?.message ? (
-                  <div
-                    className={`truncate text-small ${
-                      isSelected ? "text-book-primary" : "text-book-text-muted"
-                    }`}
-                  >
-                    {workflowStatus.message}
-                  </div>
-                ) : null}
-              </button>
-            </li>
+            <MangaChapterListItem
+              key={chapter.id}
+              chapter={chapter}
+              status={statuses[chapter.id]}
+              workspaceStage={workspaceStage}
+              isSelected={isSelected}
+              buttonRef={isSelected ? selectedButtonRef : null}
+              onSelect={stableOnSelect}
+            />
           );
         })}
       </ul>
