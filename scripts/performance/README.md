@@ -437,7 +437,7 @@ flock -x /home/fufu/Code/A4N/work/.agent-build.lock -c \
 - 链路与频率：Agent worker 每 **2 秒**扫描一次，最多取 **16 个**过期 lease；应用层顺序调用每个 Run 的恢复事务。恢复需原子完成状态 fencing、执行/流消息终态化、审计事件及 Thread 状态投影。
 - 量化结果：隔离 PostgreSQL 16、16 个真实过期 root Run、2 次预热、15 个样本；包含候选扫描和全部恢复事务的批次 P50/P95 **111.002/263.408 ms**，约占 2 秒维护周期 **5.6%/13.2%**。16 个 Run 均进入 `recovery_required`。
 - 决定：本轮不改逐 Run 事务。批量跨 Run 重写锁和状态转换会改变隔离/冲突边界，当前基线未显示低复杂度替代方案能稳定带来 30% 以上的端到端收益；live lease 拒绝和恢复重放幂等测试仍通过。报告 `data/performance-audit-20261010/expired-run-recovery-before/command.log`。
-- 覆盖限制：这里只测独立 root Run；child/delegation 恢复会多读 delegation 和 parent Run，尚未单独量化，仍需继续审查。
+- 覆盖：本项只记录独立 root Run；child/delegation lineage 已由 PERF-036 单独量化，不能把 root 的批次耗时外推到 child 路径。
 
 ### PERF-035：Generation owner JSON 关联索引
 
