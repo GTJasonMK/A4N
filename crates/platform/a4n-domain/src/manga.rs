@@ -71,6 +71,15 @@ pub struct MangaPipelineArtifactRecord {
     pub updated_at: String,
 }
 
+/// Only the artifact fields needed to project a chapter's prompt list.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MangaPagePromptArtifactMetadata {
+    pub stage: MangaPipelineArtifactStage,
+    pub page_number: Option<u32>,
+    pub stale: bool,
+    pub page_slots_payload: Option<Value>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct MangaPipelineArtifactDraft {

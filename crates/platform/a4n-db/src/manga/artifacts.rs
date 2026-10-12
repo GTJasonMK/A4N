@@ -1,12 +1,15 @@
 use a4n_db_models::models::chapter::chapter_manga_prompt;
 use a4n_db_models::models::chapter::manga_pipeline_artifact::{self, Column as ArtifactColumn};
-use a4n_domain::manga::{MangaPipelineArtifactDraft, MangaPipelineArtifactRecord};
-use a4n_domain::{manga::MangaPipelineArtifactStage, source_text_hash};
+use a4n_domain::manga::{
+    MangaPagePromptArtifactMetadata, MangaPipelineArtifactDraft, MangaPipelineArtifactRecord,
+    MangaPipelineArtifactStage,
+};
+use a4n_domain::source_text_hash;
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::sea_query::{Expr, OnConflict};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, FromQueryResult,
+    QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -43,6 +46,56 @@ pub async fn manga_pipeline_artifacts_by_chapter(
         .map_err(manga_record_database("读取漫画阶段产物失败"))?
         .into_iter()
         .map(manga_pipeline_artifact_record)
+        .collect()
+}
+
+#[derive(Debug, FromQueryResult)]
+struct MangaPagePromptArtifactRow {
+    stage: String,
+    page_number: i32,
+    stale: bool,
+    page_slots_payload: Option<serde_json::Value>,
+}
+
+/// Reads artifact metadata for prompt-list projection without materializing
+/// page payloads that are only needed by the full artifact detail read.
+pub async fn manga_pipeline_artifact_metadata_by_chapter(
+    db: &impl crate::DbExecutor,
+    project_id: i64,
+    chapter_id: i64,
+) -> Result<Vec<MangaPagePromptArtifactMetadata>, MangaPromptRecordError> {
+    require_positive_manga_id(project_id, "project_id")?;
+    require_positive_manga_id(chapter_id, "chapter_id")?;
+    let rows = manga_pipeline_artifact::Entity::find()
+        .select_only()
+        .column(ArtifactColumn::Stage)
+        .column(ArtifactColumn::PageNumber)
+        .column(ArtifactColumn::Stale)
+        .column_as(
+            Expr::cust(
+                "CASE WHEN stage = 'page_slots' AND stale = FALSE THEN payload ELSE NULL END",
+            ),
+            "page_slots_payload",
+        )
+        .filter(ArtifactColumn::ProjectId.eq(project_id))
+        .filter(ArtifactColumn::ChapterId.eq(chapter_id))
+        .order_by_asc(ArtifactColumn::Stage)
+        .order_by_asc(ArtifactColumn::PageNumber)
+        .into_model::<MangaPagePromptArtifactRow>()
+        .all(db)
+        .await
+        .map_err(manga_record_database("读取漫画阶段产物索引失败"))?;
+
+    rows.into_iter()
+        .map(|row| {
+            let (stage, page_number) = manga_pipeline_artifact_scope(&row.stage, row.page_number)?;
+            Ok(MangaPagePromptArtifactMetadata {
+                stage,
+                page_number,
+                stale: row.stale,
+                page_slots_payload: row.page_slots_payload,
+            })
+        })
         .collect()
 }
 
@@ -495,16 +548,7 @@ fn artifact_scope(
 fn manga_pipeline_artifact_record(
     record: manga_pipeline_artifact::Model,
 ) -> Result<MangaPipelineArtifactRecord, MangaPromptRecordError> {
-    let stage = MangaPipelineArtifactStage::from_key(&record.stage).ok_or_else(|| {
-        MangaPromptRecordError::InvalidArgument(format!("数据库中的漫画阶段无效：{}", record.stage))
-    })?;
-    let page_number = if record.page_number == 0 {
-        None
-    } else {
-        Some(u32::try_from(record.page_number).map_err(|_| {
-            MangaPromptRecordError::InvalidArgument("数据库中的漫画页码无效".into())
-        })?)
-    };
+    let (stage, page_number) = manga_pipeline_artifact_scope(&record.stage, record.page_number)?;
     Ok(MangaPipelineArtifactRecord {
         id: record.id,
         project_id: record.project_id,
@@ -518,4 +562,21 @@ fn manga_pipeline_artifact_record(
         created_at: record.created_at.to_string(),
         updated_at: record.updated_at.to_string(),
     })
+}
+
+fn manga_pipeline_artifact_scope(
+    stage: &str,
+    page_number: i32,
+) -> Result<(MangaPipelineArtifactStage, Option<u32>), MangaPromptRecordError> {
+    let stage = MangaPipelineArtifactStage::from_key(stage).ok_or_else(|| {
+        MangaPromptRecordError::InvalidArgument(format!("数据库中的漫画阶段无效：{stage}"))
+    })?;
+    let page_number = if page_number == 0 {
+        None
+    } else {
+        Some(u32::try_from(page_number).map_err(|_| {
+            MangaPromptRecordError::InvalidArgument("数据库中的漫画页码无效".into())
+        })?)
+    };
+    Ok((stage, page_number))
 }

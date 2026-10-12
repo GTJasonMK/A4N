@@ -660,6 +660,13 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 量化结果：隔离 PostgreSQL 16、release（opt-level 3，LTO 关闭）、2 次预热、15 次交错样本；旧/新均走完整 Application 读口并序列化相同响应。P50/P95 **66.578/74.168 → 4.320/6.050 ms**，下降 **93.5%/91.8%**；返回 **200** 条，响应均为 **548,002 B**。物化到应用的 DB 行数 **10,000 → 200**。本轮未测 RSS，不声称进程内存降幅。
 - 语义验证与复现：生产 fixture 逐对象及响应字节一致；非忽略测试覆盖 capability 前后空白、archived 开关、过滤后的排序和 limit。日志 `data/performance-audit-20261010/agent-thread-list-projection/command.log`。在隔离 PostgreSQL 16 上设置 `A4N_TEST_DATABASE_URL`，持有 `/home/fufu/Code/A4N/work/.agent-build.lock`，使用 `CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target`、`CARGO_INCREMENTAL=0`、`CARGO_PROFILE_RELEASE_LTO=false` 和 `CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16`；先执行 `cargo test --locked --offline --release -p a4n-agent-application --lib benchmark_agent_thread_list_pushes_filter_and_limit_into_database --no-run`，再用 `timeout 60s` 执行同一命令并追加 `-- --ignored --nocapture --test-threads=1`。受影响 `a4n-db`/`a4n-agent-application` all-targets check、两项 release 定向测试、`cargo fmt --all -- --check` 和 `git diff --check` 通过；临时 PostgreSQL 与共享 agent target 已清理。
 
+### PERF-064：Manga 页面提示词列表窄读阶段产物
+
+- 调用链与频率：MangaTab 在流水线运行/可取消时每 **2.5 秒**刷新章节状态和页面提示词。基准为 **100** 个页面提示词、**702** 个阶段产物（每页 7 个页级产物，约 **8 KiB** JSON），包含当前 PageSlots、一个 orphaned 提示词和 10 个 stale PageContent 产物。
+- 根因与改动：Worker 列表只消费产物的阶段、页码、stale 标记，以及当前非 stale PageSlots payload；旧路径仍从数据库读取并反序列化全部阶段的大 payload。新增列表专用窄投影，数据库只返回上述元数据，并仅为当前 PageSlots 选择 payload；完整产物详情读口不变。提示词字段、排序、stale/orphaned 计算和 PageSlots 错误仍按原规则返回。
+- 量化结果：隔离 PostgreSQL 16、release（opt-level 3，LTO 关闭）、2 次预热、15 次交错样本。计时覆盖 Worker 请求校验、项目/Viewer 权限查询、提示词与产物读取、摘要映射和 JSON payload 序列化；未计 HTTP body 解析和外层 Worker envelope。完整操作 P50/P95 **12.980/18.542 → 5.199/7.676 ms**，下降 **59.95%/58.60%**；应用读取的 artifact JSON payload **5,775,481 → 25,178 B**，响应 body **256,692 B** 且旧/新字节完全相同。本轮未测 RSS，不声称峰值内存降幅。
+- 语义验证与复现：100 页的 stale/orphaned 列表结果及序列化字节逐轮一致；畸形 PageSlots 在旧/新路径返回相同错误文本。基准夹具 `crates/manga/a4n-manga-record-worker/src/prompts/performance.rs`，日志 `data/performance-audit-20261010/manga-page-prompt-artifact-projection/command.log`。执行 `cargo test --release --locked --offline -p a4n-manga-record-worker --lib performance_manga_prompt_list_artifact_projection -- --ignored --nocapture --test-threads=1`。受影响四个 crates all-targets check、Core 2/2、Worker 2/2、格式检查通过。`a4n-db --lib manga` 为 20 passed、3 failed：两个清理用例的 `data/...png` 夹具路径被项目路径校验拒绝，一个提示词同步顺序断言失败；这些失败位于本次未修改的删除/同步代码路径，未计为通过。
+
 ### 拒绝候选：图片图库元数据索引
 
 - 链路与规模：Novel Detail 的 Images 页进入项目图库时读取全部图片摘要；候选项目为 **1000** 张图片、每条约 **8 KiB** `metadata_json`。页面仍需要提示词、路径、收藏、页码和源内容哈希，详情操作需要完整元数据。

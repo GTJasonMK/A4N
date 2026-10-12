@@ -20,3 +20,9 @@ serde_json = { workspace = true }
 subtle = { workspace = true }
 tokio = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }
+
+[dev-dependencies]
+a4n-db-models = { workspace = true }
+a4n-migration = { workspace = true }
+chrono = { workspace = true }
+sea-orm = { workspace = true }
