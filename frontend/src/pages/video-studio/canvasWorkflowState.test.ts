@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canvasNodeIdFromStepKey,
+  canvasWorkflowNodeRunStatusSignature,
   computeRunToNodeScope,
   computeWorkflowActiveScope,
   findSubmittedCanvasWorkflowRun,
@@ -41,6 +42,28 @@ describe("canvas workflow scope traversal", () => {
     expect([...activeScope.nodeIds]).toEqual(["3", "2", "1"]);
     expect([...activeScope.edgeIds]).toEqual(["2-3", "1-2"]);
   });
+});
+
+it("keeps the active-scope signature stable as elapsed time advances", () => {
+  const first = new Map([[
+    "1",
+    { status: "running", elapsedSeconds: 1 },
+  ]]);
+  const nextTick = new Map([[
+    "1",
+    { status: "running", elapsedSeconds: 2 },
+  ]]);
+  const completed = new Map([[
+    "1",
+    { status: "completed", elapsedSeconds: 2 },
+  ]]);
+
+  expect(canvasWorkflowNodeRunStatusSignature(first)).toBe(
+    canvasWorkflowNodeRunStatusSignature(nextTick),
+  );
+  expect(canvasWorkflowNodeRunStatusSignature(first)).not.toBe(
+    canvasWorkflowNodeRunStatusSignature(completed),
+  );
 });
 
 describe("canvas workflow discovery", () => {

@@ -93,6 +93,7 @@ import {
 import { nodeHasProviderRequest } from "./video-studio/canvasNodeKinds";
 import {
   canvasWorkflowNodeRunStates,
+  canvasWorkflowNodeRunStatusSignature,
   computeRunToNodeScope,
   computeWorkflowActiveScope,
   edgeWithRuntimeClasses,
@@ -266,9 +267,14 @@ export const VideoStudioCanvas: React.FC = () => {
     () => canvasWorkflowNodeRunStates(workflowDetail, workflowNowMs),
     [workflowDetail, workflowNowMs],
   );
+  // Elapsed seconds change every tick; active scope depends only on node statuses.
+  const workflowNodeRunStatusSignature = useMemo(
+    () => canvasWorkflowNodeRunStatusSignature(workflowNodeRunStates),
+    [workflowNodeRunStates],
+  );
   const workflowActiveScope = useMemo(
     () => computeWorkflowActiveScope(nodes, edges, workflowNodeRunStates),
-    [edges, nodes, workflowNodeRunStates],
+    [edges, nodes, workflowNodeRunStatusSignature],
   );
   const flowNodes = useMemo(
     () =>
