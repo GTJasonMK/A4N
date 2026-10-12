@@ -23,15 +23,23 @@ const messages: AgentMessageView[] = Array.from({ length: messageCount }, (_, in
 }));
 
 let bump: (() => void) | null = null;
+let reset: (() => void) | null = null;
 
 function Harness() {
-  const [, setRevision] = useState(0);
+  const [currentMessages, setCurrentMessages] = useState(messages);
   const pendingMessages = useMemo<AgentMessageView[]>(() => [], []);
-  const streamedMessageIds = useMemo(() => new Set<string>(), []);
-  bump = () => setRevision((revision) => revision + 1);
+  const streamedMessageIds = useMemo(() => new Set(messages.map(({ id }) => id)), []);
+  bump = () => setCurrentMessages((current) => {
+    const next = current.slice();
+    const lastIndex = next.length - 1;
+    const last = next[lastIndex];
+    next[lastIndex] = { ...last, content: `${last.content}x` };
+    return next;
+  });
+  reset = () => setCurrentMessages(messages);
   return (
     <AgentMessageList
-      messages={messages}
+      messages={currentMessages}
       locale={"zh-CN" as Locale}
       streamedMessageIds={streamedMessageIds}
       pendingMessages={pendingMessages}
@@ -42,16 +50,68 @@ function Harness() {
 const root = createRoot(document.getElementById("root")!);
 flushSync(() => root.render(<Harness />));
 
+function verifyToolResultUpdate() {
+  const container = document.createElement("div");
+  const checkRoot = createRoot(container);
+  const call: AgentMessageView = {
+    ...messages[1],
+    id: "tool-call-check",
+    metadata: {
+      tool_calls: [{ id: "call-check", name: "list_projects", arguments: {} }],
+    },
+  };
+  const result: AgentMessageView = {
+    ...messages[2],
+    id: "tool-result-check",
+    role: "tool",
+    content: JSON.stringify({ projects: [{ id: 1 }] }),
+    metadata: {
+      tool_call_id: "call-check",
+      result: { projects: [{ id: 1 }] },
+    },
+  };
+
+  try {
+    flushSync(() => checkRoot.render(<AgentMessageList messages={[call]} locale="zh-CN" />));
+    if (!container.textContent?.includes("等待结果")) {
+      throw new Error("the tool call did not render its waiting state");
+    }
+    flushSync(() => checkRoot.render(<AgentMessageList messages={[call, result]} locale="zh-CN" />));
+    if (!container.textContent?.includes("返回 projects 1 项")) {
+      throw new Error("the paired tool result did not update the existing row");
+    }
+  } finally {
+    checkRoot.unmount();
+  }
+  return true;
+}
+
 async function measureAgentMessages() {
   const samples: number[] = [];
   const warmupUntil = performance.now() + 250;
-  for (let sample = 0; samples.length < 9; sample += 1) {
+  const expectedLastMessage = `${messages[messageCount - 1].content}${"x".repeat(80)}`;
+  const updateBatch = () => {
     const started = performance.now();
     for (let update = 0; update < 80; update += 1) {
       flushSync(() => bump?.());
     }
-    const elapsed = performance.now() - started;
-    if (sample >= 3 && started >= warmupUntil) samples.push(elapsed);
+    return performance.now() - started;
+  };
+  const verifyLastMessage = () => {
+    const rows = document.querySelectorAll("[data-agent-message-role]");
+    if (!rows.item(messageCount - 1)?.textContent?.includes(expectedLastMessage)) {
+      throw new Error("the active message did not render its latest content");
+    }
+  };
+  for (let warmups = 0; warmups < 3 || performance.now() < warmupUntil; warmups += 1) {
+    updateBatch();
+    verifyLastMessage();
+    flushSync(() => reset?.());
+  }
+  for (let sample = 0; sample < 9; sample += 1) {
+    samples.push(updateBatch());
+    verifyLastMessage();
+    flushSync(() => reset?.());
   }
   const rows = document.querySelectorAll("[data-agent-message-role]");
   if (rows.length !== messageCount) throw new Error(`message rows changed: ${rows.length}`);
@@ -64,6 +124,7 @@ async function measureAgentMessages() {
   return {
     messageCount,
     updates: 80,
+    toolResultUpdateVerified: verifyToolResultUpdate(),
     samplesMs: samples,
     medianMs: sorted[4],
     renderedRows: rows.length,

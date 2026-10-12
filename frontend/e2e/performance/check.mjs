@@ -32,7 +32,7 @@ const sourceFiles = scenario === "story-events"
   : scenario === "outline-list"
   ? ["src/pages/novel-detail/outlines/ChapterOutlineSection.tsx", "src/pages/novel-detail/outlines/outlineTabUtils.ts"]
   : scenario === "agent-messages"
-  ? ["src/components/agent/AgentMessageList.tsx"]
+  ? ["src/components/agent/AgentMessageList.tsx", "src/components/agent/AgentMessageRow.tsx"]
   : scenario === "authoring-label"
   ? ["src/pages/derived/useMediaAuthoring.ts"]
   : scenario === "sidebar"
@@ -230,6 +230,7 @@ try {
     const agentMessages = await browser.execute(() => window.measureAgentMessages());
     assert.equal(agentMessages.messageCount, 1000);
     assert.equal(agentMessages.renderedRows, 1000);
+    assert.equal(agentMessages.toolResultUpdateVerified, true);
     report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion, agentMessages };
   } else if (scenario === "authoring-label") {
     const authoringLabel = await browser.execute(() => window.measureAuthoringLabel());

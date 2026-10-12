@@ -63,9 +63,9 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 
 | 范围 | 已核对事实与决定 |
 | --- | --- |
-| 首屏和路由 | `App.tsx` 已按路由和依赖图弹窗懒加载。PERF-009 已通过真实 Edge 和生产登录页验证压缩交付；同一份入口文件从 1,010,285 原始字节变为 310,789 传输字节。两种语言字典仍静态加载，未宣称这一部分代码拆分已经完成。 |
+| 首屏和路由 | `App.tsx` 已按路由和依赖图弹窗懒加载。PERF-009 已通过真实 Edge 和生产登录页验证压缩交付；同一份入口文件从 1,010,285 原始字节变为 310,789 传输字节。两种语言字典仍静态加载；临时 locale 拆分上界只减少 28.8% gzip 和 13.9% GC 后 heap，未达到门槛，因此未改实现。 |
 | 项目列表 | `ProjectReadWorker::summary_for_projects` 已批量查询项目族、权限、进度和反馈间隔；不重新引入逐项目请求或重复批处理层。 |
-| 章节列表 | PERF-011 消除未使用历史读取及检查点深复制，PERF-017 将写作桌/只读目录/导入预览改为按需读取。原 `ChapterSummary` 完整合同保留，目录与正文类型分开；故事事件/来源快照读取仍另行审查。 |
+| 章节列表 | PERF-011 消除未使用历史读取及检查点深复制，PERF-017 将写作桌/只读目录/导入预览改为按需读取。原 `ChapterSummary` 完整合同保留，目录与正文类型分开；故事事件由 PERF-019、来源快照由 PERF-020 单独覆盖。 |
 | 数据库权限和协作 | 读取使用连接池、绑定参数和批量根项目查询。PERF-059 用 20 项目 × 1000 成员测量了项目列表成员聚合候选，完整访问摘要 P50/P95 只下降 8.8%/24.8%，已拒绝；线上团队规模分布仍未证明更大的协作组是常见负载。 |
 | 工作流轮询和恢复 | 旧任务进度轮询间隔 500 ms，已有单次进行中保护和结束清理；新生成任务走事件订阅。未通过减少进度频率来换取表面收益。恢复快照的读取需求与公开进度投影分开评估。 |
 | Agent 维护扫描 | PERF-029 批量读取外部等待与预算；PERF-030/031 批量读取仍活动的 Generation/Workflow owner 预算；PERF-034/036 测量 root/child 过期 lease 的完整恢复批次；PERF-035 为高基数 Generation owner JSON 关联增加表达式索引。审批和编辑器等待的局部预读候选未达门槛并拒绝保留。 |
@@ -74,7 +74,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 嵌入模型生命周期 | PERF-014／015 已处理本地模型和 API 连接的重复初始化。模型文件删除／下载会使额外持有的资源失效；仍存活的 provider 保留原有拥有权，避免破坏已在使用的模型。没有缓存业务向量结果。 |
 | 语义分块 | 已复用向量范数并利用相似矩阵对称性；本次只消除额外矩阵。将全矩阵换成局部带状算法可能改变浮点抵消和相同分数时的切分，未作为无风险替换。 |
 | 故事事件 | PERF-018 减少筛选时未变化卡片的重复渲染；PERF-019 从数据库到前端仅读取所需的五个分析字段；PERF-045 延迟默认收起的伏笔索引；PERF-058 将只读事件页的 GC 后 JS heap 降低 32.9%。千章/4500事件仍需渲染大量卡片，DOM 压缩和搜索候选均因未达门槛拒绝。 |
-| Agent 消息流 | PERF-029/044 已覆盖 Agent 后端维护扫描和历史预算投影；PERF-046 处理前端高频无关状态更新，消息数组或流式事件变化仍走完整渲染。 |
+| Agent 消息流 | PERF-029/044 已覆盖 Agent 后端维护扫描和历史预算投影；PERF-046 处理无关父状态更新，PERF-065 让消息数组变化时只重渲染被替换的行及其配对工具结果。 |
 | 档案素材与图片 | PERF-047 只优化档案列表图片计数和删除下游 ID 的读取；完整素材列表、主素材绑定和图片详情仍保留原字段与顺序。 |
 | 依赖图 | PERF-049 将族级图摘要限制为漫画页、对象/场景素材和三类视频帧；节点详情仍按节点类型独立读取完整记录，未改变详情合同。 |
 | 任务历史 | PERF-050 的历史页和按 ID 查询只读取摘要字段；完整任务 payload 仍留在任务详情/执行路径所需处，没有改变队列持久化或取消行为。 |
@@ -666,6 +666,13 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 根因与改动：Worker 列表只消费产物的阶段、页码、stale 标记，以及当前非 stale PageSlots payload；旧路径仍从数据库读取并反序列化全部阶段的大 payload。新增列表专用窄投影，数据库只返回上述元数据，并仅为当前 PageSlots 选择 payload；完整产物详情读口不变。提示词字段、排序、stale/orphaned 计算和 PageSlots 错误仍按原规则返回。
 - 量化结果：隔离 PostgreSQL 16、release（opt-level 3，LTO 关闭）、2 次预热、15 次交错样本。计时覆盖 Worker 请求校验、项目/Viewer 权限查询、提示词与产物读取、摘要映射和 JSON payload 序列化；未计 HTTP body 解析和外层 Worker envelope。完整操作 P50/P95 **12.980/18.542 → 5.199/7.676 ms**，下降 **59.95%/58.60%**；应用读取的 artifact JSON payload **5,775,481 → 25,178 B**，响应 body **256,692 B** 且旧/新字节完全相同。本轮未测 RSS，不声称峰值内存降幅。
 - 语义验证与复现：100 页的 stale/orphaned 列表结果及序列化字节逐轮一致；畸形 PageSlots 在旧/新路径返回相同错误文本。基准夹具 `crates/manga/a4n-manga-record-worker/src/prompts/performance.rs`，日志 `data/performance-audit-20261010/manga-page-prompt-artifact-projection/command.log`。执行 `cargo test --release --locked --offline -p a4n-manga-record-worker --lib performance_manga_prompt_list_artifact_projection -- --ignored --nocapture --test-threads=1`。受影响四个 crates all-targets check、Core 2/2、Worker 2/2、格式检查通过。`a4n-db --lib manga` 为 20 passed、3 failed：两个清理用例的 `data/...png` 夹具路径被项目路径校验拒绝，一个提示词同步顺序断言失败；这些失败位于本次未修改的删除/同步代码路径，未计为通过。
+
+### PERF-065：Agent 消息事件只更新变化的行
+
+- 调用链与频率：Agent Monitor 订阅 message appended/delta/completed/interrupted 事件；每个 `message_delta` 都用新消息对象替换目标 ID，并生成新 `messages` 数组，历史中其他消息对象保持原引用。列表最多显示 **1000** 条消息，流式期间每个事件都会使 `AgentMessageList` 重新分组并协调所有行。
+- 根因与改动：PERF-046 只跳过与消息无关的父状态更新；消息数组变化仍调用每条 `AgentMessageRow`。行改为 `React.memo`，比较消息对象、locale、streamed 标记、紧凑模式和配对工具结果对象；行只在其中一项输入变化时重渲染，列表顺序与行数保持原样。
+- 量化结果：真实 Chromium **153.0.8010.52**，生产 Vite 夹具；1000 条交替用户/助手历史，分 9 个样本，每样本向尾部助手消息应用 **80 次**新对象内容更新，更新批次之后重置到相同初始输入。三轮交错前后 A/B 的 P50：旧版 **149.2/149.2/150.0 ms**，候选 **18.5/19.4/18.8 ms**；轮次中位数 **149.2 → 18.8 ms（下降 87.4%）**。三轮 1000 个 message row、最终 HTML SHA-256 `9b86859086ff3fe964b663ae17f28aa79353c9035a6979dbbbc291b09de29ea7` 完全一致，消息内容更新和工具结果配对更新断言通过。
+- 验证与证据：`npm run test:run -- src/components/agent/AgentMessageRow.test.tsx` **12/12**，`npm run build` 通过（Node 24.21.0；项目要求 Node 22）。基准夹具 `frontend/e2e/performance/agent-messages-fixture.tsx`；对照运行 `A4N_PERF_CASE=agent-messages A4N_PERF_BASELINE_REF=HEAD node e2e/performance/check.mjs` 和同一命令移除 `A4N_PERF_BASELINE_REF`。六份最终报告位于 `data/performance-audit-20261010/agent-message-stream-rerender-final-{before,after}/` 与对应 `*-before-02/after-02`、`*-before-03/after-03/`。早期非确定预热报告在 `agent-message-stream-rerender{,-after}/`，不纳入数字；首个 Chrome 启动失败未保留原报告，摘要补入 `agent-message-stream-rerender/launch-failure.log`，之后短临时目录的 3 轮运行通过。首次临时 DOM 单测因 Vitest Node 环境没有 `document` 未计入验证；工具结果更新断言由真实 Chromium 夹具覆盖。
 
 ### 拒绝候选：静态语言字典按 locale 拆分
 
