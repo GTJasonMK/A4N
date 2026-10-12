@@ -1,3 +1,5 @@
+use std::collections::{BTreeSet, HashSet};
+
 use a4n_db_models::models::{
     chapter::chapter,
     project::{material_fact_change, project_fact_feedback},
@@ -126,13 +128,15 @@ pub async fn current_feedback_sources<C: ConnectionTrait>(
         .order_by_asc(chapter::Column::ChapterNumber)
         .all(db)
         .await?;
-    let completed = material_fact_change::Entity::find()
+    let completed_records = material_fact_change::Entity::find()
         .filter(material_fact_change::Column::ProjectId.eq(project_id))
         .filter(material_fact_change::Column::MaterialKind.eq("chapter_feedback"))
         .filter(material_fact_change::Column::Status.eq("applied"))
         .all(db)
         .await?;
-    let completed: std::collections::BTreeSet<_> = completed
+    // A shorter row count guarantees missing chapters; avoid hashing their source revisions.
+    let filter_unmatched_chapters = completed_records.len() < chapters.len();
+    let completed: BTreeSet<_> = completed_records
         .into_iter()
         .filter_map(|record| {
             record
@@ -140,6 +144,22 @@ pub async fn current_feedback_sources<C: ConnectionTrait>(
                 .map(|id| (id, record.after_json.to_string()))
         })
         .collect();
+    let completed_chapter_ids = if filter_unmatched_chapters {
+        completed
+            .iter()
+            .map(|(chapter_id, _)| *chapter_id)
+            .collect::<HashSet<_>>()
+    } else {
+        HashSet::new()
+    };
+    let chapters = if filter_unmatched_chapters {
+        chapters
+            .into_iter()
+            .filter(|chapter| completed_chapter_ids.contains(&chapter.id))
+            .collect()
+    } else {
+        chapters
+    };
     let mut result = Vec::new();
     for chapter in chapters {
         let chapter = crate::project::chapter_record(chapter);

@@ -68,6 +68,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 章节列表 | PERF-011 消除未使用历史读取及检查点深复制，PERF-017 将写作桌/只读目录/导入预览改为按需读取。原 `ChapterSummary` 完整合同保留，目录与正文类型分开；故事事件由 PERF-019、来源快照由 PERF-020 单独覆盖。 |
 | 数据库权限和协作 | 读取使用连接池、绑定参数和批量根项目查询。PERF-059 用 20 项目 × 1000 成员测量了项目列表成员聚合候选，完整访问摘要 P50/P95 只下降 8.8%/24.8%，已拒绝；线上团队规模分布仍未证明更大的协作组是常见负载。 |
 | 工作流轮询和恢复 | 旧任务进度轮询间隔 500 ms，已有单次进行中保护和结束清理；新生成任务走事件订阅。未通过减少进度频率来换取表面收益。恢复快照的读取需求与公开进度投影分开评估。 |
+| 事实反馈轮询 | PERF-056 限制摘要只读最新 100 条变更；PERF-069 在已应用反馈覆盖稀疏时，先按章节 ID 过滤来源修订，跳过无匹配反馈记录的正文/分析哈希。1.5 秒轮询和完整覆盖路径保持原校验。 |
 | Agent 维护扫描 | PERF-029 批量读取外部等待与预算；PERF-030/031 批量读取仍活动的 Generation/Workflow owner 预算；PERF-034/036 测量 root/child 过期 lease 的完整恢复批次；PERF-035 为高基数 Generation owner JSON 关联增加表达式索引。审批和编辑器等待的局部预读候选未达门槛并拒绝保留。 |
 | HTTP 与媒体 | Worker／service client 已持有并复用 HTTP client；Web 媒体使用 `ServeFile`，Edge 使用流式 body。桌面自定义协议要求字节响应，不能直接套用 Web 的传输方案。 |
 | LLM 上游连接 | PERF-012 保留每次构造 provider 的配置与凭证隔离，仅延长 HTTP Client 的生命周期。原连接／逐次读取超时、错误、取消与背压检查通过；不缓存模型响应。 |
@@ -697,6 +698,14 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 量化结果：Rust release 生产投影函数，**3** 次交错复跑，每次 **2** 次预热、**15** 个样本。典型夹具为 **1000** 章、**20** 部、**800** 章完成；三轮 P50/P95 中位数 **56.044/57.194 → 2.039/2.155 µs**（下降 **96.36%/96.23%**）。稀疏边界夹具为 **1** 个 `1..=1,000,000` 分部、**0** 条章节大纲；P50/P95 中位数 **30.518/30.764 ms → 0.175/0.273 µs**（下降超过 **99.999%**）。两种夹具旧/新 `OutlineGenerationProgressSummary` 完全相同。
 - 验证与边界：`a4n-outline-worker --lib` 正确性测试 **3/3**、忽略型 A/B benchmark **3/3**；覆盖大跨度无大纲、未排序分部、重复章节和重叠分部。`cargo fmt --all -- --check` 与 `git diff --check` 通过。额外的 `--all-targets --no-run` 未完成：共享 agent target 在 `a4n-db` 编译期间消失；随后在锁内重新编译并通过 `--lib`。当前环境未设置 `A4N_TEST_DATABASE_URL`，没有测完整 HTTP/数据库往返或 RSS；上述数字只代表每次轮询中的 Worker 投影 CPU，不能写作整条 API 时延。
 - 证据：基准在 `crates/planning/a4n-outline-worker/src/projection.rs` 的忽略型 release 测试中；执行 `cargo test --locked --offline --release -p a4n-outline-worker --lib benchmark_generation_progress_projection -- --ignored --nocapture --test-threads=1`。本次复跑摘要见 `data/performance-audit-20261010/outline-progress-projection/benchmark.log`。
+
+### PERF-069：未归纳章节跳过无用来源修订哈希
+
+- 调用链与频率：Fact Feedback 面板在工作流运行时每 **1.5 秒**读取一次 `get_project_fact_feedback`；摘要调用 `current_feedback_sources` 读取项目当前章节和已应用的章节反馈记录。旧实现对每章先哈希正文、序列化并哈希分析 JSON，再检查是否存在匹配的已应用记录；未归纳章节的修订永远不会返回。
+- 根因与改动：用已应用记录数量作为安全下界：只有记录行少于当前章节数时，才能确定至少存在未覆盖章节；此时从原有 `(chapter_id, after_json)` 集合建章节 ID 集，缺少记录的章节在 `source_revision` 前跳过。完整覆盖和历史记录较多的情况仍走原 BTreeSet 精确比较；匹配到当前修订后，world_facts 仍按原路径解析并验证。没有改变 DTO、权限、错误或轮询频率。
+- 量化结果：隔离 PostgreSQL 16、release opt-level 3（LTO 关闭）、1000 章、每章 **9 KiB** 正文和 **8 KiB** 分析数据，2 次预热/15 次交错样本，计时 `current_feedback_sources` 读取与来源构造。0 条已应用来源：P50/P95 **42.941/55.226 → 19.717/30.651 ms**（54.1%/44.5%）；100 条来源：**37.927/49.480 → 22.453/24.831 ms**（40.8%/49.8%）；1000 条完整来源：P50 **50.595 → 50.254 ms**（0.7%，视为持平），P95 **60.578 → 75.881 ms**（增加 25.3%，不宣称完整覆盖有收益）。旧/新完整 `FeedbackSource` 对象逐字段相同。
+- 验证与边界：忽略型 benchmark 三种覆盖率 **1/1** 通过；现有 `body_fact_feedback::partial_feedback_is_versioned_source_fenced_and_reversible` **1/1** 先前通过。当前候选在 release、opt-level 3、LTO 关闭下重新编译并运行；`cargo fmt --all -- --check` 和 `git diff --check` 通过。一次全新 release 测试 harness 编译超过总命令 60 秒限制，未进入测试体且不计为结果；解除编译超时后构建完成，实际 benchmark 仍限时 60 秒并通过。指标只代表 `current_feedback_sources` DB/CPU 投影，不代表完整 API 往返或 RSS；反馈覆盖分布的线上均值未知。
+- 证据：`data/performance-audit-20261010/fact-feedback-source-prefilter-rerun-20261013/command.log`、`fact-feedback-source-prefilter-candidate/command.log` 和 `fact-feedback-source-prefilter-regression/command.log`。忽略型基准源码在 `crates/platform/a4n-db/src/fact_feedback/tests.rs`。
 
 ### 拒绝候选：静态语言字典按 locale 拆分
 
