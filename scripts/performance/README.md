@@ -715,6 +715,12 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 验证与边界：忽略型 benchmark 三种覆盖率 **1/1** 通过；现有 `body_fact_feedback::partial_feedback_is_versioned_source_fenced_and_reversible` **1/1** 先前通过。当前候选在 release、opt-level 3、LTO 关闭下重新编译并运行；`cargo fmt --all -- --check` 和 `git diff --check` 通过。一次全新 release 测试 harness 编译超过总命令 60 秒限制，未进入测试体且不计为结果；解除编译超时后构建完成，实际 benchmark 仍限时 60 秒并通过。指标只代表 `current_feedback_sources` DB/CPU 投影，不代表完整 API 往返或 RSS；反馈覆盖分布的线上均值未知。
 - 证据：`data/performance-audit-20261010/fact-feedback-source-prefilter-rerun-20261013/command.log`、`fact-feedback-source-prefilter-candidate/command.log` 和 `fact-feedback-source-prefilter-regression/command.log`。忽略型基准源码在 `crates/platform/a4n-db/src/fact_feedback/tests.rs`。
 
+### 拒绝候选：Fact Feedback 摘要合并重复章节读取
+
+- 根因候选：Fact Feedback 摘要并行读取 `current_feedback_sources` 和 `chapters_for_project`；第二个读口只使用章节 ID、章节号和可用正文标记，但旧查询会再次取回分析 JSON 等完整章节字段。候选让来源读取同时产出可用章节索引，避免第二次章节扫描。
+- 量化结果：隔离 PostgreSQL 16、release opt-level 3（LTO 关闭）、1000 章、每章 **9 KiB** 正文和 **8 KiB** 分析，2 次预热/15 次交错；计时上述章节读取分支，不代表完整 API。0 条已应用来源时 P50/P95 **29.995/38.089 → 18.589/21.498 ms**（下降 **38.0%/43.6%**）；100 条时 **34.936/41.552 → 30.713/39.158 ms**（下降 **12.1%/5.8%**）；1000 条时 **58.211/69.953 → 46.679/49.411 ms**（下降 **19.8%/29.4%**）。三种覆盖下来源记录和可用章节索引逐项一致。
+- 决定：只有 0 条来源的分布超过 30% 时延门槛；100 条和完整覆盖未达标，且没有完整 `fact_feedback_summary_for_user` 端到端基准证明 API 达标。当前不保留候选代码，以免把仅在空覆盖下的收益外推到正在反馈流程通常遇到的覆盖分布。基准日志 `data/performance-audit-20261010/fact-feedback-summary-chapter-read-candidate-20261013/command.log`；原摘要路径和业务代码保持原实现。
+
 ### 拒绝候选：静态语言字典按 locale 拆分
 
 - 调用链与规模：`main.tsx → I18nProvider → translate.ts` 在初始入口静态加载中文和英文两份字典，源码合计 **728,535 B**。当前 production 入口 `.js.gz` 为 **328,672 B**。
