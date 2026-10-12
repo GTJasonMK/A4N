@@ -8,7 +8,8 @@ import type {
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { FactFeedbackPanel } from "../novel-detail/FactFeedbackPanel";
 import {
-  listObjectProfiles,
+  listObjectProfileIndex,
+  type ObjectProfileIndex,
   type ObjectProfile,
 } from "../../api/objectProfiles";
 import { BookButton } from "../../components/ui/BookButton";
@@ -134,14 +135,16 @@ export const materialUpdateSummary = (
 };
 
 export const objectProfilesForChapter = (
-  profiles: ObjectProfile[],
+  profiles: Array<ObjectProfile | ObjectProfileIndex>,
   chapterNumber: number,
-): ObjectProfile[] =>
+): Array<ObjectProfile | ObjectProfileIndex> =>
   profiles.filter(
     (profile) =>
       !(
         profile.ownership_kind === "user" &&
-        asArray(profile.evidence_json).length === 0
+        ("evidence_present" in profile
+          ? !profile.evidence_present
+          : asArray(profile.evidence_json).length === 0)
       ) &&
       profile.first_seen_chapter <= chapterNumber &&
       profile.last_seen_chapter >= chapterNumber,
@@ -249,7 +252,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
   onPreviewResumeSync,
 }) => {
   const { t } = useI18n();
-  const [objectProfiles, setObjectProfiles] = useState<ObjectProfile[]>([]);
+  const [objectProfiles, setObjectProfiles] = useState<ObjectProfileIndex[]>([]);
   const [objectProfilesProjectId, setObjectProfilesProjectId] = useState<number | null>(null);
   const [objectProfilesError, setObjectProfilesError] = useState<string | null>(
     null,
@@ -273,7 +276,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
       return;
     }
     setObjectProfilesLoading(true);
-    void listObjectProfiles(projectId)
+    void listObjectProfileIndex(projectId)
       .then((rows) => {
         if (cancelled) return;
         setObjectProfiles(rows);

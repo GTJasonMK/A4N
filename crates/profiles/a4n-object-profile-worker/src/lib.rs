@@ -4,7 +4,8 @@ use std::{env, net::SocketAddr, sync::Arc};
 
 use a4n_api_contract::profile::{
     CreateObjectProfileInput, DeleteObjectProfileInput, ObjectProfileDeleteResult,
-    ObjectProfileMutationResult, ObjectProfileSummary, UpdateObjectProfileInput,
+    ObjectProfileListItem, ObjectProfileMutationResult, ObjectProfileSummary,
+    UpdateObjectProfileInput,
 };
 use a4n_db::DbHandle;
 use a4n_domain::{
@@ -14,10 +15,11 @@ use a4n_domain::{
 };
 use a4n_object_profile_worker_contract::{
     OBJECT_PROFILE_CREATE_OPERATION, OBJECT_PROFILE_DELETE_OPERATION,
-    OBJECT_PROFILE_LIST_OPERATION, OBJECT_PROFILE_MUTATION_CAPABILITY,
-    OBJECT_PROFILE_READ_CAPABILITY, OBJECT_PROFILE_UPDATE_OPERATION,
-    OBJECT_PROFILE_WORKER_CONTRACT_VERSION, OBJECT_PROFILE_WORKER_ID, ObjectProfileDeleteResponse,
-    ObjectProfileMutationResponse, ObjectProfileProjectInput,
+    OBJECT_PROFILE_LIST_INDEX_OPERATION, OBJECT_PROFILE_LIST_OPERATION,
+    OBJECT_PROFILE_MUTATION_CAPABILITY, OBJECT_PROFILE_READ_CAPABILITY,
+    OBJECT_PROFILE_UPDATE_OPERATION, OBJECT_PROFILE_WORKER_CONTRACT_VERSION,
+    OBJECT_PROFILE_WORKER_ID, ObjectProfileDeleteResponse, ObjectProfileMutationResponse,
+    ObjectProfileProjectInput,
 };
 use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -81,6 +83,7 @@ impl ObjectProfileWorker {
             .route(WORKER_HEALTH_PATH, get(health))
             .route(WORKER_CAPABILITIES_PATH, get(capabilities))
             .route("/v1/commands/profile.object.list", post(list))
+            .route("/v1/commands/profile.object.list_index", post(list_index))
             .route("/v1/commands/profile.object.create", post(create))
             .route("/v1/commands/profile.object.update", post(update))
             .route("/v1/commands/profile.object.delete", post(delete))
@@ -175,6 +178,21 @@ async fn list(
         return unauthorized();
     }
     let response = match state.list(request.clone()).await {
+        Ok(payload) => completed(&request, payload),
+        Err(error) => failed(&request, error),
+    };
+    Json(response).into_response()
+}
+
+async fn list_index(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ObjectProfileProjectInput>>,
+) -> Response {
+    if !state.authorized(&headers) {
+        return unauthorized();
+    }
+    let response = match state.list_index(request.clone()).await {
         Ok(payload) => completed(&request, payload),
         Err(error) => failed(&request, error),
     };

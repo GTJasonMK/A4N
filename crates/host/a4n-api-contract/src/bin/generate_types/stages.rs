@@ -938,6 +938,7 @@ pub(super) fn run() {
         &typescript_interface::<UpdateObjectProfileInput>("UpdateObjectProfileInput"),
         &typescript_interface::<DeleteObjectProfileInput>("DeleteObjectProfileInput"),
         &typescript_interface::<ObjectProfileSummary>("ObjectProfileSummary"),
+        &typescript_interface::<ObjectProfileListItem>("ObjectProfileListItem"),
         &typescript_interface::<ObjectProfileMutationResult>("ObjectProfileMutationResult"),
         &typescript_interface::<ObjectProfileDeleteResult>("ObjectProfileDeleteResult"),
         &typescript_interface::<ListSceneProfilesInput>("ListSceneProfilesInput"),

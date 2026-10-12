@@ -86,6 +86,23 @@ profile_record_web_commands!(
     object_profile_records_actions::delete_object_profile,
 );
 
+pub(in crate::routes::commands) async fn list_object_profile_index(
+    state: &super::super::super::ServerState,
+    user_id: i64,
+    args: &serde_json::Value,
+) -> Result<serde_json::Value, super::super::super::ApiError> {
+    let input: object_profile_records_actions::ListObjectProfilesInput =
+        super::super::super::strict_command_input(args, "list_object_profile_index")?;
+    let profiles = object_profile_records_actions::list_object_profile_index(
+        state.runtime(),
+        user_id,
+        input.project_id,
+    )
+    .await
+    .map_err(super::super::super::ApiError::bad_request)?;
+    super::super::super::to_value(profiles)
+}
+
 profile_record_web_commands!(
     list_scene_profiles,
     create_scene_profile,

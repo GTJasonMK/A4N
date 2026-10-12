@@ -667,6 +667,9 @@ pub(crate) fn result_inspiration_history() -> Value {
 pub(crate) fn result_list_object_profiles() -> Value {
     typed_schema::<Vec<crate::profile::ObjectProfileSummary>>()
 }
+pub(crate) fn result_list_object_profile_index() -> Value {
+    typed_schema::<Vec<crate::profile::ObjectProfileListItem>>()
+}
 pub(crate) fn result_list_foreshadowing() -> Value {
     typed_schema::<Vec<crate::profile::ForeshadowingSummary>>()
 }

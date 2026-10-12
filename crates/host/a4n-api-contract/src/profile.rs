@@ -69,6 +69,25 @@ pub struct ObjectProfileSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct ObjectProfileListItem {
+    pub id: i64,
+    pub project_id: i64,
+    pub ownership_kind: String,
+    pub name: String,
+    pub object_type: String,
+    pub importance: String,
+    pub visual_description: String,
+    pub story_usage: String,
+    pub location_context: Option<String>,
+    pub first_seen_chapter: i32,
+    pub last_seen_chapter: i32,
+    pub evidence_present: bool,
+    pub generated_image_count: i64,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ObjectProfileMutationResult {
     pub profile: ObjectProfileSummary,
     #[serde(default)]
@@ -257,6 +276,12 @@ pub trait ObjectProfileReadApplicationPort: Send + Sync {
         user_id: i64,
         project_id: i64,
     ) -> Result<Vec<ObjectProfileSummary>, a4n_error::AppError>;
+
+    async fn list_index(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ObjectProfileListItem>, a4n_error::AppError>;
 }
 
 /// Host-facing scene profile read boundary.

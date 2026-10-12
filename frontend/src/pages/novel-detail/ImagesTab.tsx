@@ -24,9 +24,9 @@ import {
 } from "../../api/image";
 import {
   generateObjectProfileImagePrompt,
-  listObjectProfiles,
+  listObjectProfileIndex,
   previewObjectProfileImageRequest,
-  type ObjectProfile,
+  type ObjectProfileIndex,
 } from "../../api/objectProfiles";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import {
@@ -94,7 +94,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   const [localPathBusy, setLocalPathBusy] = useState(false);
   const [genPrompt, setGenPrompt] = useState("");
   const [genBusy, setGenBusy] = useState(false);
-  const [objectProfiles, setObjectProfiles] = useState<ObjectProfile[]>([]);
+  const [objectProfiles, setObjectProfiles] = useState<ObjectProfileIndex[]>([]);
   const [objectProfilesError, setObjectProfilesError] = useState<string | null>(null);
   const [selectedObjectProfileId, setSelectedObjectProfileId] = useState<number | null>(null);
   const [objectImageStyle, setObjectImageStyle] = useState(DEFAULT_IMAGE_STYLE);
@@ -115,7 +115,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   const mountedRef = useRef(false);
   const activeScopeRef = useRef(scopeKey);
   const allImagesRef = useRef<GeneratedImage[]>([]);
-  const objectProfilesRef = useRef<ObjectProfile[]>([]);
+  const objectProfilesRef = useRef<ObjectProfileIndex[]>([]);
   const loadSeqRef = useRef(0);
   const loadInFlightRef = useRef<{
     scope: string;
@@ -400,7 +400,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     objectProfilesLoadSeqRef.current = requestSeq;
     setObjectProfilesError(null);
     try {
-      const rows = await listObjectProfiles(requestProjectId);
+      const rows = await listObjectProfileIndex(requestProjectId);
       if (!isCurrentObjectProfilesLoad(requestScope, requestSeq)) return false;
       objectProfilesRef.current = rows;
       setObjectProfiles(rows);

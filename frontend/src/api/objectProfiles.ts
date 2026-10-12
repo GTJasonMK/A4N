@@ -11,6 +11,7 @@ import type {
   DeleteObjectProfileInput,
   ObjectProfileImageInput,
   ObjectProfileImagePromptOutput,
+  ObjectProfileListItem,
   ObjectProfileDeleteResult,
   ObjectProfileInput,
   ObjectProfileMutationResult,
@@ -19,10 +20,17 @@ import type {
 } from "./generated/host";
 
 export type ObjectProfile = ObjectProfileSummary;
+export type ObjectProfileIndex = ObjectProfileListItem;
 export type { ObjectProfileInput };
 
 export async function listObjectProfiles(projectId: Id): Promise<ObjectProfile[]> {
   return apiInvoke<ObjectProfile[]>("list_object_profiles", {
+    input: { project_id: idNum(projectId) },
+  });
+}
+
+export async function listObjectProfileIndex(projectId: Id): Promise<ObjectProfileIndex[]> {
+  return apiInvoke<ObjectProfileIndex[]>("list_object_profile_index", {
     input: { project_id: idNum(projectId) },
   });
 }

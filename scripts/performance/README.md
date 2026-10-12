@@ -646,6 +646,13 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 量化结果：隔离 PostgreSQL 16、release、15 次交错样本、2 次预热。完整列表 P50/P95 **7.010/9.507 → 0.382/0.535 ms**，下降 **94.4%/94.4%**；响应序列化 **6,580,311 → 16,627 B**，减少 **99.75%**。索引结果逐项保留 ID、项目、文件名、状态和时间字段。
 - 验证与证据：基准夹具 `crates/platform/a4n-db/tests/import_review_list_projection.rs`；报告 `data/performance-audit-20261010/import-review-list-projection/command.log`。Rust 受影响 crates `cargo check --locked`、前端 `npm run check:web-api-parity` 和 `npm run build` 通过；旧完整读口未删除，详情错误仍显性返回。
 
+### PERF-062：物体档案工作流列表窄投影
+
+- 调用链与频率：写作台分析页按章节展示用户手工物体证据，Novel Detail 的 Images 页在打开/刷新时为生图选择物体档案；两处都只消费档案索引字段。档案管理页仍依赖完整记录。基准为 **1000** 个档案、每个 **7 个约 2 KiB 文本字段**、**512 B 证据**和 **1000 张**关联物体图片。
+- 根因与改动：旧列表读取、克隆并序列化全部档案字段，包括这些列表不使用的别名、材质状态、视觉/生成用途、证据正文和生图提示词。新增数据库窄投影及 `list_object_profile_index` Worker/API 读口，两处索引消费者切换到新读口；旧完整合同保留给档案管理页及兼容调用方。权限校验、图片计数、项目校验、按首次章节及 ID 排序和缺失图片计数为 0 的行为不变。
+- 量化结果：隔离 PostgreSQL 16、release、2 次预热、15 次交错样本，计时包括 Viewer 权限查询、旧/新数据库读取、批量图片计数、字段映射和 JSON 序列化。完整/窄列表 P50 **97.502 → 53.404 ms（下降 45.2%）**，P95 **104.937 → 58.155 ms（下降 44.6%）**；序列化响应 **15,356,224 → 6,507,334 B（减少 57.6%）**。
+- 语义验证与复现：1000 项顺序、列表消费字段、时间、证据存在语义和每档案图片计数逐项一致；夹具调用生产 DB 读口及图片计数查询，包含权限和序列化。运行 `A4N_TEST_DATABASE_URL=postgres://... cargo test --locked --release -p a4n-db --test object_profile_list_projection -- --ignored --nocapture --test-threads=1`；夹具位于 `crates/platform/a4n-db/tests/object_profile_list_projection.rs`。本轮未测 RSS，不声称内存降幅。
+
 ### 拒绝候选：图片图库元数据索引
 
 - 链路与规模：Novel Detail 的 Images 页进入项目图库时读取全部图片摘要；候选项目为 **1000** 张图片、每条约 **8 KiB** `metadata_json`。页面仍需要提示词、路径、收藏、页码和源内容哈希，详情操作需要完整元数据。

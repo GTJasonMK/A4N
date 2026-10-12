@@ -237,6 +237,7 @@ command_specs! {
     "list_manga_pipeline_statuses" => args_list_manga_pipeline_statuses, result_list_manga_pipeline_statuses, "manga", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow");
     "list_model_provider_catalog" => empty_args_schema, result_list_model_provider_catalog, "system", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_my_project_invites" => empty_args_schema, result_list_my_project_invites, "project", context(NO_CONTEXT), effect(READ_EFFECT);
+    "list_object_profile_index" => args_list_object_profiles, result_list_object_profile_index, "profile", effect(READ_EFFECT);
     "list_object_profiles" => args_list_object_profiles, result_list_object_profiles, "profile", effect(READ_EFFECT);
     "list_optimize_patch_sets" => args_optimize_session, result_optimization_patch_sets, "optimize", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_optimize_sessions" => args_list_optimize_sessions, result_optimization_sessions, "optimize", context(NO_CONTEXT), effect(READ_EFFECT);

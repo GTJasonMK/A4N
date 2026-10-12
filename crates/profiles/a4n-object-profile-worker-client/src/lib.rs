@@ -2,14 +2,15 @@
 
 use a4n_api_contract::profile::{
     CreateObjectProfileInput, DeleteObjectProfileInput, ObjectProfileDeleteOutcome,
-    ObjectProfileMutationApplicationPort, ObjectProfileMutationOutcome,
+    ObjectProfileListItem, ObjectProfileMutationApplicationPort, ObjectProfileMutationOutcome,
     ObjectProfileReadApplicationPort, ObjectProfileSummary, UpdateObjectProfileInput,
 };
 use a4n_error::AppError;
 use a4n_object_profile_worker_contract::{
     OBJECT_PROFILE_CREATE_OPERATION, OBJECT_PROFILE_DELETE_OPERATION,
-    OBJECT_PROFILE_LIST_OPERATION, OBJECT_PROFILE_UPDATE_OPERATION, OBJECT_PROFILE_WORKER_ID,
-    ObjectProfileDeleteResponse, ObjectProfileMutationResponse, ObjectProfileProjectInput,
+    OBJECT_PROFILE_LIST_INDEX_OPERATION, OBJECT_PROFILE_LIST_OPERATION,
+    OBJECT_PROFILE_UPDATE_OPERATION, OBJECT_PROFILE_WORKER_ID, ObjectProfileDeleteResponse,
+    ObjectProfileMutationResponse, ObjectProfileProjectInput,
 };
 use a4n_worker_client::{HttpWorkerClient, WorkerClientError};
 use a4n_worker_contract::{

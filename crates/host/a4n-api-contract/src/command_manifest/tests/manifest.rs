@@ -328,6 +328,7 @@ fn profile_material_commands_expose_one_typed_contract() {
         "update_foreshadowing",
         "delete_foreshadowing",
         "list_object_profiles",
+        "list_object_profile_index",
         "create_object_profile",
         "update_object_profile",
         "delete_object_profile",

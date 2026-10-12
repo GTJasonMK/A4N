@@ -227,6 +227,7 @@ export const HOST_API_COMMANDS = [
   "list_manga_pipeline_statuses",
   "list_model_provider_catalog",
   "list_my_project_invites",
+  "list_object_profile_index",
   "list_object_profiles",
   "list_optimize_patch_sets",
   "list_optimize_sessions",
@@ -5524,6 +5525,24 @@ export interface ObjectProfileSummary {
   updated_at: string | null;
   visual_description: string;
   visual_usage: string;
+}
+
+export interface ObjectProfileListItem {
+  created_at: string | null;
+  evidence_present: boolean;
+  first_seen_chapter: number;
+  generated_image_count: number;
+  id: number;
+  importance: string;
+  last_seen_chapter: number;
+  location_context: string | null;
+  name: string;
+  object_type: string;
+  ownership_kind: string;
+  project_id: number;
+  story_usage: string;
+  updated_at: string | null;
+  visual_description: string;
 }
 
 export interface ObjectProfileMutationResult {

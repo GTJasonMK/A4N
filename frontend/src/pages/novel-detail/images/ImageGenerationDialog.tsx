@@ -9,7 +9,7 @@ import { Boxes,
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { ImageSizeSelect } from "../../../components/image/ImageSizeSelect";
 import type { ImageSize } from "../../../api/image";
-import type { ObjectProfile } from "../../../api/objectProfiles";
+import type { ObjectProfileIndex } from "../../../api/objectProfiles";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
@@ -25,7 +25,7 @@ interface ImageGenerationDialogProps {
   chapter: ChapterRow | null;
   genPrompt: string;
   genBusy: boolean;
-  objectProfiles: ObjectProfile[];
+  objectProfiles: ObjectProfileIndex[];
   objectProfilesError: string | null;
   selectedObjectProfileId: number | null;
   objectImageStyle: string;
