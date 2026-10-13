@@ -55,6 +55,7 @@
 | [PERF-053](../../crates/platform/a4n-task-runtime/src/channel/handle.rs) | `useProgressTask` 每 500 ms 请求和 Canvas workflow 每秒请求，最多 200 个历史事件；活体文本尾部固定 512 字符 | 两处 UI 将最近事件 ID 作为可选 cursor；task 内存 ring 从游标后克隆事件，持久 workflow 查询按 ID 过滤；无游标的旧调用仍返回最近完整页，stream text 仍每次返回 | 200 条×256 字符时 task response **71,031 → 894 B**、P50/P95 **0.332/0.420 → 0.004/0.006 ms（98.7%）**；隔离 PostgreSQL workflow response **73,213 → 398 B**、P50/P95 **3.068/5.256 → 0.639/1.016 ms（79.2%/80.7%）**；cursor 后只保留新增事件 |
 | [PERF-054](../../crates/host/a4n-runtime/src/actions/admin_records/test_console.rs) | Test Center `list_test_runs(30)` 扫描全部 JSON 报告；每份最多 500×2,000 字符日志 | 终态/缓存报告走 typed summary projection；仅 stale queued/running 报告完整解析并恢复，错误类型和列表排序保持一致 | 40 份报告的 response bytes 相同，P50/P95 **17.778/37.523 → 11.510/14.530 ms**（35.3%/61.3%），peak RSS **51,268 → 13,004 KiB**（74.6%） |
 | [PERF-055](../../crates/platform/a4n-db/src/project/chapter/context/generation.rs) | 每次章节生成构造人物参考上下文；16/32/64 个有首见证据的人物档案 | 首见证据、人物时间线/归属、反馈事实改为 owner 内批量查询；时间线每 128 档案分块，保留旧投影与排序语义 | PostgreSQL 交错 A/B 的 P50/P95：16 档 **62.964/75.181 → 7.428/9.614 ms**；32 档 **127.599/141.437 → 8.199/10.110 ms**；64 档 **247.041/290.149 → 7.523/10.703 ms**；档案响应字节逐项相同 |
+| [PERF-076](../../frontend/src/pages/novel-detail/story-events/ChapterEventSection.tsx) | 故事事件页初次渲染；1000 章、5000 个事件，章节卡片全部进入 DOM | 为屏外章节启用浏览器原生 `content-visibility:auto`，用 intrinsic block size 保留滚动估算，打印显式恢复可见；数据、DOM 语义和章节操作不变 | Chromium 153 三轮 A/B：1000 章初始 React commit + layout settle P50 **1120.5 → 189.2 ms（83.1%）**；其中 layout settle **957.1 → 35.1 ms（96.3%）**。筛选更新周期 P50 **167.1 → 168.3 ms**，无收益，未将其计入。 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -75,7 +76,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | LLM 上游连接 | PERF-012 保留每次构造 provider 的配置与凭证隔离，仅延长 HTTP Client 的生命周期。原连接／逐次读取超时、错误、取消与背压检查通过；不缓存模型响应。 |
 | 嵌入模型生命周期 | PERF-014／015 已处理本地模型和 API 连接的重复初始化。模型文件删除／下载会使额外持有的资源失效；仍存活的 provider 保留原有拥有权，避免破坏已在使用的模型。没有缓存业务向量结果。 |
 | 语义分块 | 已复用向量范数并利用相似矩阵对称性；本次只消除额外矩阵。将全矩阵换成局部带状算法可能改变浮点抵消和相同分数时的切分，未作为无风险替换。 |
-| 故事事件 | PERF-018 减少筛选时未变化卡片的重复渲染；PERF-019 从数据库到前端仅读取所需的五个分析字段；PERF-045 延迟默认收起的伏笔索引；PERF-058 将只读事件页的 GC 后 JS heap 降低 32.9%。千章/4500事件仍需渲染大量卡片，DOM 压缩和搜索候选均因未达门槛拒绝。 |
+| 故事事件 | PERF-018 减少筛选时未变化卡片的重复渲染；PERF-019 从数据库到前端仅读取所需的五个分析字段；PERF-045 延迟默认收起的伏笔索引；PERF-058 将只读事件页的 GC 后 JS heap 降低 32.9%；PERF-076 让屏外章节跳过布局/绘制。千章/4500事件的筛选 CPU、DOM 压缩和搜索候选仍按各自基准决定，不把未达门槛的局部结果外推。 |
 | Agent 消息流 | PERF-029/044 已覆盖 Agent 后端维护扫描和历史预算投影；PERF-046 处理无关父状态更新，PERF-065 让消息数组变化时只重渲染被替换的行及其配对工具结果。 |
 | Video Studio Canvas | PERF-066 将运行结果失效和装配连线批量重排的重复全边扫描改为单次索引；PERF-067 将每秒耗时更新与仅按节点状态变化的活动范围/边投影分离。 |
 | 档案素材与图片 | PERF-047 只优化档案列表图片计数和删除下游 ID 的读取；完整素材列表、主素材绑定和图片详情仍保留原字段与顺序。 |
@@ -727,6 +728,14 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 量化结果：隔离 PostgreSQL 16，**1000** 条 pending（每条 16 KiB payload）和 **3000** 条 completed 历史，15 次交错样本、2 次预热；计入数据库读取、DTO 映射和 JSON 序列化。旧/新响应 **16,764,334 → 245,334 B**（减少 **98.54%**）；P50/P95 **30.973/32.653 → 2.738/4.253 ms**，下降 **91.16%/86.98%**。旧/新逐项 ID、类型、优先级、状态、项目/快照/范围/DAG、创建时间及排序一致。
 - 验证与边界：基准夹具 `crates/platform/a4n-db/tests/admin_pending_task_projection.rs`，日志 `data/performance-audit-20261013/admin-pending-tasks/production-candidate.log`；受影响 Rust all-targets check、管理员 Worker **1/1**、Worker Client **2/2**、API identity contract **1/1**、API parity、前端生产构建和 `git diff --check` 通过。真实 SD12 管理员浏览器流程 **1/1** 通过，确认取消选中任务后列表使用 `list_pending_task_index` 更新。另用隔离库直接调用 Admin Worker `admin.tasks.pending.index` HTTP 合同并返回窄 DTO；完整 creation-e2e 的全 Server 启动需要完整发布 manifest、ONNX/9 个 capability sidecar，当前本机缺少这些发行资源，启动在 Control listener 前失败，未将其计为 CLI E2E 通过。性能数字不外推 RSS；旧完整命令和详情语义未改变。
 - 复现：持有 `/home/fufu/Code/A4N/work/.agent-build.lock`，设置 `CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target`、`CARGO_INCREMENTAL=0` 和隔离 `A4N_TEST_DATABASE_URL`，执行 `cargo test --locked --release -p a4n-db --test admin_pending_task_projection benchmark_admin_pending_task_projection -- --ignored --nocapture --test-threads=1`。前端 SD12 用例从 `frontend/` 执行 `env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy npx wdio run ./e2e/ui-page-audit/functional.conf.mjs --mochaOpts.grep='SD12-admin-tasks'`。
+
+### PERF-076：故事事件卡片跳过屏外布局与绘制
+
+- 调用链与频率：故事事件页从 `list_story_event_chapters` 读取分析投影后，一次渲染最多 **1000** 张章节卡片、**5000** 条事件；卡片节点必须保留以支持筛选、查找、键盘导航和打印，但首屏只显示滚动容器可见区域。
+- 根因与改动：章节卡片此前都参加布局、样式计算和绘制。现有卡片 section 使用浏览器原生 `content-visibility:auto`，并设置 `contain-intrinsic-block-size:auto 40rem` 作为屏外高度估算；`print:[content-visibility:visible]` 在打印媒体下恢复完整内容。没有虚拟化、数据缓存或改变读取合同。
+- 量化结果：生产 Chromium **153.0.8010.52**，同一真实组件、1000 章/5000 事件、三轮交错，每轮 2 次预热后 5 次样本。初始 React commit + layout settle P50 **1120.5 → 189.2 ms**，下降 **83.1%**；只计 React commit 后的布局结算则 **957.1 → 35.1 ms**，下降 **96.3%**。筛选更新周期 P50 **167.1 → 168.3 ms**，没有收益，因此不把筛选更新宣称为优化结果。
+- 语义验证与边界：前后 1000 个章节 section、5000 个事件行、69,008 个 DOM 元素及最终语义文本 SHA-256 一致；1440/390px、中文/英文、筛选、章节 Enter 打开、横向溢出检查均通过。`print` CSS 分支保留完整可见性声明，但本轮未把系统打印 PDF 计入数字；性能计时只覆盖本地 React/布局，不含 API、网络、数据库或 RSS。基线为临时 tree `f94e7330`，只移除该 CSS class，未改变其他源码。
+- 证据与复现：`data/performance-audit-20261013/story-events-content-visibility-{before,after}-{01,02,03}/report.json`；在 `frontend/` 持有 `/home/fufu/Code/A4N/work/.agent-build.lock`，清除代理变量后分别执行 `A4N_PERF_CASE=story-events A4N_PERF_BASELINE_REF=f94e733024c81a519e4f398465ad16a639e962b5 node e2e/performance/check.mjs` 和移除 `A4N_PERF_BASELINE_REF` 的候选命令，使用不同 `A4N_PERF_ARTIFACTS`/`A4N_PERF_PORT` 隔离三轮结果。
 
 ### PERF-066：Canvas 下游运行结果失效邻接索引
 

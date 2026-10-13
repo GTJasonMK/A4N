@@ -29,6 +29,7 @@ function chapter(number: number): ChapterSummary {
     derived_sync_error: null, material_updates: [],
     material_sync: { content_index: "completed", outline_and_foreshadowing: "not_analyzed",
       objects: "not_analyzed", characters: "not_analyzed", scenes: "not_analyzed" },
+    foreshadowing_counts: { planted: 1, resolved: 0, tensions: 0 },
   };
 }
 function session(count: number, locale: Locale) {
