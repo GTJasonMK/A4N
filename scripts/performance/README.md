@@ -35,6 +35,7 @@
 | [PERF-017](../../frontend/src/pages/WritingDesk.tsx) | 写作桌/只读目录/导入预览 → Chapter Content Worker；1000章、4Mbps/50ms | 目录原先携带整本正文/分析；目录窄投影与带项目归属的单章读取共用权限/状态规则，正文按选择读取 | 页面可编辑中位数 **5264.6 → 741.1 ms（85.92%）**；真实千章目录 **11,601,686 → 742,686 字节（93.60%）**；业务/权限/草稿回归通过 |
 | [PERF-018](../../frontend/src/pages/novel-detail/story-events/ChapterEventSection.tsx) | 故事事件筛选 → 章节卡片渲染；100／1000 章，每章 5 事件，连续 8 次含收窄和放宽的筛选 | 原过滤为所有匹配章节创建新对象，未变化卡片也反复渲染；完整保留的章节维持原对象，卡片使用 React 原生 memo | CPU18/19 三轮交错中位数 **135.2 → 50.4 ms（62.72%）／1328.1 → 503.9 ms（62.06%）**；完整 DOM 和筛选行为一致 |
 | [PERF-019](../../crates/platform/a4n-db/src/chapter_content/queries.rs) | 故事事件初载/刷新 → Control → Chapter Content Worker → PostgreSQL；1000章、900章有分析、4500事件 | 旧接口读取正文并生成未使用的同步状态；新分析读口仅选取 id/章号/标题/摘要/分析五列，复用项目权限和删除过滤 | 三轮真实 API P50 **126.56 → 43.34 ms（65.76%）**，P95 **160.61 → 66.36 ms（58.68%）**；JSON **13,650,788 → 2,172,288 字节（84.09%）** |
+| [PERF-077](../../crates/host/a4n-orchestrator/src/fact_feedback/mod.rs) | 事实反馈面板仅在工作流运行时每 1.5 秒轮询；1000 章、每章 9 KiB 正文与 8 KiB 分析、每项目 10,161 条变更历史 | 章节修订与可用章节共用一次投影；历史通过部分索引取最近 ID，再读取至多 100 个完整行并保留原 Rust 等值判断 | Orchestrator 摘要 P50 **80.8/86.3/93.5 → 43.9/45.5/53.5 ms（45.7%/47.3%/42.8%）**；三种覆盖率下 DTO 和响应字节相同 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -247,3 +248,13 @@ A4N_PERF_ARTIFACTS=/path/inside/worktree/data/api-transfer \
 - 所有失败均保留：首次发布构建遇到并行健康检查接口尚未补齐；首次CLI的旧Import sidecar缺少新的解析路由；随后一轮错误复用了已被CLI写入的测试库。已重编译对应程序、替换Import/Export/Media sidecar，并按CLI运行分配新数据库。浏览器恢复测试曾过早把“错误暂时隐藏于加载状态”当完成，现同时等待全部事件恢复。
 
 证据目录：`data/performance-audit-20260927/b10/`，最终程序与哈希在 `frozen-candidate` / `binaries-final.json`。真实基准在 `runtime-baseline.py` 增加 `--chapter-analysis-checks`；它准备专用合成数据并与旧接口逐值对比。浏览器使用 `A4N_PERF_VIEW=story`、`A4N_PERF_CHAPTER_FIXTURE=<该运行的chapter-fixture.json>` 调用 `chapter-load.mjs`；旧版加 `A4N_PERF_BASELINE_REF=ecd9fb5b7`。
+
+### PERF-077：事实反馈摘要的重复章节与全量历史读取
+
+- 请求链路：`FactFeedbackPanel` 仅在反馈工作流运行时每 1.5 秒加载摘要。原 Orchestrator 同时读取完整反馈来源章节、完整项目章节和全部非章节事实变更，随后才过滤无变化行并截断到 100 条。
+- 修复：数据库一次读取生成当前来源修订与可用章节投影；事实历史在 PostgreSQL 中按 `project_id, id DESC` 部分索引选取候选 ID，再通过主键读取有限完整行。数据库文本比较只做无漏项的候选筛选，Rust 保留原 `serde_json::Value` 相等判断并以 ID 游标补页，保持最新 100 条、顺序和数字边界行为。
+- A/B 使用隔离 PostgreSQL 与相同 `release -O3, LTO=false` 构建，测完整 Orchestrator 摘要方法、权限检查、数据库读取及 DTO 序列化；不包含 HTTP socket 传输。夹具为 1000 章、每章 9 KiB 正文和 8 KiB 分析数据、每项目 10,161 条事实历史，分别测 0／100／1000 条已应用章节来源。15 次交错调用、2 次预热，报告剩余样本中位数；三类 DTO 和响应字节在每次调用间逐值相同。
+- P50：**80.77 → 43.89 ms（45.67%）／86.26 → 45.49 ms（47.26%）／93.48 → 53.48 ms（42.80%）**。P95：**91.38 → 50.96 ms（44.23%）／98.91 → 53.59 ms（45.82%）／96.78 → 56.06 ms（42.08%）**。响应 JSON 保持 **108,626–108,627 字节**；基准期间 PostgreSQL 记录到目标索引 31 次扫描，测试断言索引被使用。
+- PostgreSQL 与 DTO 等值对照覆盖 `1`／`1.0`、`-0.0`／`0.0`、无变化行、分页补足、来源覆盖及历史顺序。没有减少轮询间隔、增加业务缓存或改变 API。前端本轮无需改动；已核实其轮询只在工作流运行时启用。
+- 验证：隔离 PG 手动性能测试通过；`cargo fmt --all -- --check`、`git diff --check` 通过。原始样本与完整测试输出位于 `data/performance-audit-20261013/fact-feedback-summary/`。
+- 部署边界：索引迁移沿用当前 PostgreSQL 迁移事务，建索引期间会短暂阻塞该表写入；本基准未测生产表上已有大量历史时的迁移耗时。

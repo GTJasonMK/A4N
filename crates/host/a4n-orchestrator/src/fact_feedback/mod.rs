@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod performance_tests;
 mod ports;
 mod request;
 mod run;
@@ -56,18 +58,14 @@ impl OrchestratorContext {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
             .await?;
         let db = self.database.executor();
-        let (config, sources, changes, chapters) = tokio::join!(
+        let (config, source_index, changes) = tokio::join!(
             a4n_db::fact_feedback::feedback_config(db, project_id),
-            a4n_db::fact_feedback::current_feedback_sources(db, project_id),
-            a4n_db::fact_feedback::feedback_changes(db, project_id),
-            self.chapters_for_project(project_id),
+            a4n_db::fact_feedback::current_feedback_summary_sources(db, project_id),
+            a4n_db::fact_feedback::recent_feedback_changes(db, project_id, 100),
         );
         let config = config?;
-        let sources = sources.map_err(feedback_error)?;
-        let revisions: Vec<_> = sources
-            .iter()
-            .map(|source| source.revision.clone())
-            .collect();
+        let source_index = source_index.map_err(feedback_error)?;
+        let revisions = source_index.revisions;
         let consumed: Vec<FactSourceRevision> =
             serde_json::from_value(config.consolidated_sources_json)?;
         let pending_chapters = pending_fact_sources(&revisions, &consumed)
@@ -96,13 +94,13 @@ impl OrchestratorContext {
             interval_chapters: config.interval_chapters,
             pending_chapters,
             consolidated_chapters,
-            legacy_chapters: chapters?
+            legacy_chapters: source_index
+                .available_chapters
                 .into_iter()
                 .filter(|chapter| {
-                    chapter.has_available_content()
-                        && !revisions
-                            .iter()
-                            .any(|source| source.chapter_id == chapter.id)
+                    !revisions
+                        .iter()
+                        .any(|source| source.chapter_id == chapter.chapter_id)
                 })
                 .map(|chapter| chapter.chapter_number)
                 .collect(),
@@ -116,8 +114,6 @@ impl OrchestratorContext {
             error: latest.and_then(|run| run.error_message),
             changes: changes?
                 .into_iter()
-                .filter(|change| change.before_json != change.after_json)
-                .take(100)
                 .map(|change| MaterialFactChangeSummary {
                     id: change.id,
                     material_kind: change.material_kind,

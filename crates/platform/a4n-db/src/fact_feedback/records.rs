@@ -9,8 +9,8 @@ use a4n_domain::{
 };
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder,
-    Set, sea_query::OnConflict,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, DbErr, EntityTrait, FromQueryResult,
+    QueryFilter, QueryOrder, Set, Statement, sea_query::OnConflict,
 };
 use serde_json::{Value, json};
 
@@ -117,10 +117,56 @@ pub struct FeedbackSource {
     pub world_facts: Vec<WorldFact>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AvailableFeedbackChapter {
+    pub chapter_id: i64,
+    pub chapter_number: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CurrentFeedbackSummarySources {
+    pub revisions: Vec<FactSourceRevision>,
+    pub available_chapters: Vec<AvailableFeedbackChapter>,
+}
+
+#[derive(Clone, Copy)]
+enum FeedbackSourceProjection {
+    Full,
+    Summary,
+}
+
+enum FeedbackSourceRead {
+    Full(Vec<FeedbackSource>),
+    Summary(CurrentFeedbackSummarySources),
+}
+
 pub async fn current_feedback_sources<C: ConnectionTrait>(
     db: &C,
     project_id: i64,
 ) -> Result<Vec<FeedbackSource>, FactFeedbackDbError> {
+    match current_feedback_source_read(db, project_id, FeedbackSourceProjection::Full).await? {
+        FeedbackSourceRead::Full(sources) => Ok(sources),
+        FeedbackSourceRead::Summary(_) => unreachable!("full projection must return full sources"),
+    }
+}
+
+pub async fn current_feedback_summary_sources<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+) -> Result<CurrentFeedbackSummarySources, FactFeedbackDbError> {
+    match current_feedback_source_read(db, project_id, FeedbackSourceProjection::Summary).await? {
+        FeedbackSourceRead::Summary(sources) => Ok(sources),
+        FeedbackSourceRead::Full(_) => {
+            unreachable!("summary projection must return summary sources")
+        }
+    }
+}
+
+async fn current_feedback_source_read<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+    projection: FeedbackSourceProjection,
+) -> Result<FeedbackSourceRead, FactFeedbackDbError> {
     let chapters = chapter::Entity::find_current()
         .filter(chapter::Column::ProjectId.eq(project_id))
         .order_by_asc(chapter::Column::ChapterNumber)
@@ -140,9 +186,18 @@ pub async fn current_feedback_sources<C: ConnectionTrait>(
                 .map(|id| (id, record.after_json.to_string()))
         })
         .collect();
-    let mut result = Vec::new();
+    let mut full_sources = Vec::new();
+    let mut revisions = Vec::new();
+    let mut available_chapters = Vec::new();
     for chapter in chapters {
+        let available_content = chapter.has_available_content();
         let chapter = crate::project::chapter_record(chapter);
+        if matches!(projection, FeedbackSourceProjection::Summary) && available_content {
+            available_chapters.push(AvailableFeedbackChapter {
+                chapter_id: chapter.id,
+                chapter_number: chapter.chapter_number,
+            });
+        }
         let Some(revision) = source_revision(&chapter) else {
             continue;
         };
@@ -155,13 +210,24 @@ pub async fn current_feedback_sources<C: ConnectionTrait>(
         for fact in &world_facts {
             fact.validate().map_err(FactFeedbackDbError::Invalid)?;
         }
-        result.push(FeedbackSource {
-            chapter,
-            revision,
-            world_facts,
-        });
+        match projection {
+            FeedbackSourceProjection::Full => full_sources.push(FeedbackSource {
+                chapter,
+                revision,
+                world_facts,
+            }),
+            FeedbackSourceProjection::Summary => revisions.push(revision),
+        }
     }
-    Ok(result)
+    match projection {
+        FeedbackSourceProjection::Full => Ok(FeedbackSourceRead::Full(full_sources)),
+        FeedbackSourceProjection::Summary => {
+            Ok(FeedbackSourceRead::Summary(CurrentFeedbackSummarySources {
+                revisions,
+                available_chapters,
+            }))
+        }
+    }
 }
 
 pub async fn feedback_changes<C: ConnectionTrait>(
@@ -174,6 +240,71 @@ pub async fn feedback_changes<C: ConnectionTrait>(
         .order_by_desc(material_fact_change::Column::Id)
         .all(db)
         .await
+}
+
+/// Returns the latest changed rows while keeping full history out of the summary request.
+pub async fn recent_feedback_changes<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+    limit: usize,
+) -> Result<Vec<material_fact_change::Model>, DbErr> {
+    const BATCH_SIZE: usize = 100;
+    if limit == 0 {
+        return Ok(Vec::new());
+    }
+
+    let batch_size = limit.min(BATCH_SIZE) as i64;
+    let mut result = Vec::with_capacity(batch_size as usize);
+    let mut before_id: Option<i64> = None;
+    while result.len() < limit {
+        let (cursor_filter, limit_parameter) = if before_id.is_some() {
+            ("AND id < $2", "$3")
+        } else {
+            ("", "$2")
+        };
+        let statement = format!(
+            "WITH recent_ids AS MATERIALIZED (
+                SELECT id FROM material_fact_change
+                WHERE project_id = $1
+                  AND material_kind <> 'chapter_feedback'
+                  AND before_json::text <> after_json::text
+                  {cursor_filter}
+                ORDER BY id DESC
+                LIMIT {limit_parameter}
+            )
+            SELECT change.* FROM material_fact_change AS change
+            INNER JOIN recent_ids ON recent_ids.id = change.id
+            ORDER BY change.id DESC"
+        );
+        let mut values: Vec<sea_orm::Value> = vec![project_id.into()];
+        if let Some(before_id) = before_id {
+            values.push(before_id.into());
+        }
+        values.push(batch_size.into());
+        let batch = material_fact_change::Model::find_by_statement(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            statement,
+            values,
+        ))
+        .all(db)
+        .await?;
+        let Some(last_id) = batch.last().map(|row| row.id) else {
+            break;
+        };
+        before_id = Some(last_id);
+        let batch_len = batch.len();
+        let remaining = limit - result.len();
+        result.extend(
+            batch
+                .into_iter()
+                .filter(|row| row.before_json != row.after_json)
+                .take(remaining),
+        );
+        if result.len() < limit && batch_len < batch_size as usize {
+            break;
+        }
+    }
+    Ok(result)
 }
 
 pub struct FactChangeRecordInput {
