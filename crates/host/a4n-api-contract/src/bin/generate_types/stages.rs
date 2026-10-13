@@ -381,6 +381,7 @@ pub(super) fn run() {
         &typescript_interface::<UpdateUserRoleInput>("UpdateUserRoleInput"),
         &typescript_interface::<UsageLogSummary>("UsageLogSummary"),
         &typescript_interface::<TaskQueueSummary>("TaskQueueSummary"),
+        &typescript_interface::<PendingTaskIndexSummary>("PendingTaskIndexSummary"),
         &typescript_interface::<AdminProjectSummary>("AdminProjectSummary"),
         &typescript_interface::<UsageTrendsInput>("UsageTrendsInput"),
         &typescript_interface::<DailyUsagePoint>("DailyUsagePoint"),

@@ -235,6 +235,7 @@ export const HOST_API_COMMANDS = [
   "list_orphan_project_data_dirs",
   "list_package_command_availability",
   "list_parts",
+  "list_pending_task_index",
   "list_pending_tasks",
   "list_portraits_by_project",
   "list_profile_materials",
@@ -2019,6 +2020,19 @@ export interface TaskQueueSummary {
   root_project_id: number | null;
   source_snapshot_id: number | null;
   started_at: string | null;
+  status: string;
+  task_scope: string | null;
+  task_type: string;
+}
+
+export interface PendingTaskIndexSummary {
+  created_at: string;
+  dag_id: string | null;
+  id: string;
+  priority: string;
+  project_id: number | null;
+  root_project_id: number | null;
+  source_snapshot_id: number | null;
   status: string;
   task_scope: string | null;
   task_type: string;

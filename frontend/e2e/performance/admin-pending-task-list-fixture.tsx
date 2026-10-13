@@ -95,7 +95,8 @@ const root = createRoot(document.getElementById("root")!);
 const nativeFetch = window.fetch.bind(window);
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : input.url, location.href);
-  if (url.pathname.endsWith("/commands/list_pending_tasks")) {
+  if (url.pathname.endsWith("/commands/list_pending_tasks")
+    || url.pathname.endsWith("/commands/list_pending_task_index")) {
     return Response.json(window.__adminPendingTasks);
   }
   return nativeFetch(input, init);

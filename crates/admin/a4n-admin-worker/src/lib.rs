@@ -5,13 +5,13 @@ use std::{env, net::SocketAddr, sync::Arc};
 use a4n_admin_worker_contract::{
     ADMIN_ACTIVE_OPERATION, ADMIN_CREATE_INVITE_OPERATION, ADMIN_CREATE_USER_OPERATION,
     ADMIN_DATABASE_HEALTH_OPERATION, ADMIN_GENERATION_ANALYTICS_OPERATION, ADMIN_INVITES_OPERATION,
-    ADMIN_OVERVIEW_OPERATION, ADMIN_PENDING_TASKS_OPERATION, ADMIN_PERMISSION_OPERATION,
-    ADMIN_PROJECTS_OPERATION, ADMIN_READ_CAPABILITY, ADMIN_TOKEN_SUMMARY_OPERATION,
-    ADMIN_UPDATE_ROLE_OPERATION, ADMIN_USAGE_TRENDS_OPERATION, ADMIN_USER_USAGE_OPERATION,
-    ADMIN_USERS_OPERATION, ADMIN_WORKER_CONTRACT_VERSION, ADMIN_WORKER_ID, ADMIN_WRITE_CAPABILITY,
-    AdminCallerInput, AdminCreateInviteInput, AdminCreateUserInput, AdminGenerationAnalyticsInput,
-    AdminPermissionInput, AdminUpdateRoleInput, AdminUsageTrendsInput, AdminUserInput,
-    AdminUserUsageInput, OperationAck,
+    ADMIN_OVERVIEW_OPERATION, ADMIN_PENDING_TASK_INDEX_OPERATION, ADMIN_PENDING_TASKS_OPERATION,
+    ADMIN_PERMISSION_OPERATION, ADMIN_PROJECTS_OPERATION, ADMIN_READ_CAPABILITY,
+    ADMIN_TOKEN_SUMMARY_OPERATION, ADMIN_UPDATE_ROLE_OPERATION, ADMIN_USAGE_TRENDS_OPERATION,
+    ADMIN_USER_USAGE_OPERATION, ADMIN_USERS_OPERATION, ADMIN_WORKER_CONTRACT_VERSION,
+    ADMIN_WORKER_ID, ADMIN_WRITE_CAPABILITY, AdminCallerInput, AdminCreateInviteInput,
+    AdminCreateUserInput, AdminGenerationAnalyticsInput, AdminPermissionInput,
+    AdminUpdateRoleInput, AdminUsageTrendsInput, AdminUserInput, AdminUserUsageInput, OperationAck,
 };
 use a4n_api_contract::admin::AdminPermission;
 #[cfg(test)]
@@ -94,6 +94,10 @@ impl AdminWorker {
             .route("/v1/commands/admin.overview", post(overview))
             .route("/v1/commands/admin.projects.list", post(projects))
             .route("/v1/commands/admin.tasks.pending", post(pending_tasks))
+            .route(
+                "/v1/commands/admin.tasks.pending.index",
+                post(pending_task_index),
+            )
             .route(
                 "/v1/commands/admin.generation.analytics",
                 post(generation_analytics),
@@ -205,6 +209,12 @@ handler!(
     AdminCallerInput,
     ADMIN_PENDING_TASKS_OPERATION,
     pending_tasks
+);
+handler!(
+    pending_task_index,
+    AdminCallerInput,
+    ADMIN_PENDING_TASK_INDEX_OPERATION,
+    pending_task_index
 );
 handler!(
     generation_analytics,

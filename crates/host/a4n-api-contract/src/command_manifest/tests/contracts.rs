@@ -825,6 +825,7 @@
             "list_all_users",
             "list_invite_codes",
             "list_orphan_project_data_dirs",
+            "list_pending_task_index",
             "list_pending_tasks",
         ] {
             let descriptor = command_descriptor(command).unwrap();

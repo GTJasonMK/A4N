@@ -1,15 +1,15 @@
 use a4n_admin_worker_contract::{
     ADMIN_ACTIVE_OPERATION, ADMIN_DATABASE_HEALTH_OPERATION, ADMIN_GENERATION_ANALYTICS_OPERATION,
-    ADMIN_INVITES_OPERATION, ADMIN_OVERVIEW_OPERATION, ADMIN_PENDING_TASKS_OPERATION,
-    ADMIN_PERMISSION_OPERATION, ADMIN_PROJECTS_OPERATION, ADMIN_TOKEN_SUMMARY_OPERATION,
-    ADMIN_USAGE_TRENDS_OPERATION, ADMIN_USER_USAGE_OPERATION, ADMIN_USERS_OPERATION,
-    AdminCallerInput, AdminGenerationAnalyticsInput, AdminPermissionInput, AdminUsageTrendsInput,
-    AdminUserInput, AdminUserUsageInput,
+    ADMIN_INVITES_OPERATION, ADMIN_OVERVIEW_OPERATION, ADMIN_PENDING_TASK_INDEX_OPERATION,
+    ADMIN_PENDING_TASKS_OPERATION, ADMIN_PERMISSION_OPERATION, ADMIN_PROJECTS_OPERATION,
+    ADMIN_TOKEN_SUMMARY_OPERATION, ADMIN_USAGE_TRENDS_OPERATION, ADMIN_USER_USAGE_OPERATION,
+    ADMIN_USERS_OPERATION, AdminCallerInput, AdminGenerationAnalyticsInput, AdminPermissionInput,
+    AdminUsageTrendsInput, AdminUserInput, AdminUserUsageInput,
 };
 use a4n_api_contract::admin::{
     AdminOverviewSummary, AdminPermission, AdminProjectSummary, AdminReadApplicationPort,
     DailyUsagePoint, GenerationCallAnalytics, GenerationCallAnalyticsInput, InviteCodeSummary,
-    TaskQueueSummary, UsageLogSummary, UsageTrendsInput,
+    PendingTaskIndexSummary, TaskQueueSummary, UsageLogSummary, UsageTrendsInput,
 };
 use a4n_api_contract::auth::UserSummary;
 use a4n_error::AppError;
@@ -122,6 +122,18 @@ impl AdminReadApplicationPort for AdminWorkerClient {
         self.command(
             caller_user_id,
             ADMIN_PENDING_TASKS_OPERATION,
+            AdminCallerInput { caller_user_id },
+        )
+        .await
+    }
+
+    async fn pending_task_index(
+        &self,
+        caller_user_id: i64,
+    ) -> Result<Vec<PendingTaskIndexSummary>, AppError> {
+        self.command(
+            caller_user_id,
+            ADMIN_PENDING_TASK_INDEX_OPERATION,
             AdminCallerInput { caller_user_id },
         )
         .await

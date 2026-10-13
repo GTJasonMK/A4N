@@ -10,6 +10,7 @@ export type {
   CreateUserInput,
   DailyUsagePoint,
   InviteCodeSummary,
+  PendingTaskIndexSummary,
   TaskQueueSummary,
   ThemeInfo,
   UsageLogSummary,

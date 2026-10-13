@@ -15,6 +15,29 @@ const widths = [1440, 900, 390];
 const minPromptEditorHeight = 240;
 const report = { phase, runId, setupComplete: false, visualReview: "pending", planned: [], screenshots: [], tests: [] };
 const prompt = seed.invoke.prompt_list.find((item) => item.name === "blueprint");
+const pendingTaskIndex = seed.invoke.list_pending_tasks.map(({
+  id,
+  task_type,
+  priority,
+  status,
+  project_id,
+  root_project_id,
+  source_snapshot_id,
+  task_scope,
+  dag_id,
+  created_at,
+}) => ({
+  id,
+  task_type,
+  priority,
+  status,
+  project_id: project_id ?? null,
+  root_project_id,
+  source_snapshot_id,
+  task_scope,
+  dag_id,
+  created_at,
+}));
 const editableTheme = seed.invoke.list_themes.find((item) => item.id === 13);
 const fakePassword = "UI-audit-only-Password-2026";
 let trace = [];
@@ -226,6 +249,7 @@ async function install(overrides = {}) {
   const data = JSON.parse(JSON.stringify({
     ...visualFixtures,
     ...seed.invoke,
+    list_pending_task_index: pendingTaskIndex,
     pageSessions: seed.rest.pageSessions,
     oauth2_available_providers: ["google"],
     ...overrides,
@@ -692,7 +716,9 @@ describe("Settings detail pages and complete dialog workflows", function () {
     const request = await pending("cancel_admin_task");
     assert.equal(request.taskId, seed.invoke.list_pending_tasks[0].id);
     await respond("cancel_admin_task", null, {
-      fixtures: { list_pending_tasks: seed.invoke.list_pending_tasks.filter((item) => item.id !== request.taskId) },
+      fixtures: {
+        list_pending_task_index: pendingTaskIndex.filter((item) => item.id !== request.taskId),
+      },
     });
     await browser.waitUntil(async () => (await $$(".a4n-settings-content li")).length === seed.invoke.list_pending_tasks.length - 1);
     await capture("task-cancelled");

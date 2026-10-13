@@ -720,6 +720,14 @@ workflow checkpoint 导入已用 128 条、3.22 MB JSON 做代表性基准；批
 - 验证与边界：夹具 `frontend/e2e/performance/admin-pending-task-list-fixture.tsx`，测试直接调用真实生产组件和其状态/列表映射；匹配基线基于 `3d58ac477`，候选为当前 `TasksSection`。报告 `data/performance-audit-20261013/admin-pending-tasks/{before-verified-02,after-verified-02}/report.json`。`npm run build` 和性能 Chromium 检查通过。计时包括 React 提交及 DOM mutation observer 回调，不包括 API RTT、完整 JSON 解析/传输、数据库查询或 RSS；server 仍发送完整 TaskQueueSummary。旧端点兼容与后台取消/权限合同均未变。
 - 复现：在 `frontend/` 下持有 `/home/fufu/Code/A4N/work/.agent-build.lock`，清除 HTTP(S)/ALL proxy 后，以相同 fixture 运行 `A4N_PERF_CASE=admin-pending-task-list A4N_PERF_BASELINE_REF=3d58ac477 node e2e/performance/check.mjs` 和移除 `A4N_PERF_BASELINE_REF` 的候选命令；报告目录及端口通过 `A4N_PERF_ARTIFACTS`、`A4N_PERF_PORT` 分别指定以隔离产物。
 
+### PERF-075：管理员 pending task 列表使用窄数据库投影
+
+- 调用链与频率：设置页 Admin Tasks Section 每 **5 秒**刷新一次 pending 任务；页面只展示任务 ID、类型、优先级、状态、创建时间和诊断关联字段。旧 `list_pending_tasks` 先读取 `task_queue` 完整 ORM 行，再携带每条任务的 `payload`、`progress`、`error_message` JSON 序列化后返回，1000 条 pending 任务的每条 payload 约 **16 KiB**。
+- 根因与改动：新增 `list_pending_task_index` 读口，在数据库查询中只选择页面使用的 10 个标量列，并复用原 priority → created_at → id 排序和 Admin `ManageSettings` 权限。旧完整命令保留给详情/兼容调用；前端轮询改用窄读口，取消任务后的 reload 也读取同一投影。没有新增索引迁移、缓存或异步兜底。
+- 量化结果：隔离 PostgreSQL 16，**1000** 条 pending（每条 16 KiB payload）和 **3000** 条 completed 历史，15 次交错样本、2 次预热；计入数据库读取、DTO 映射和 JSON 序列化。旧/新响应 **16,764,334 → 245,334 B**（减少 **98.54%**）；P50/P95 **30.973/32.653 → 2.738/4.253 ms**，下降 **91.16%/86.98%**。旧/新逐项 ID、类型、优先级、状态、项目/快照/范围/DAG、创建时间及排序一致。
+- 验证与边界：基准夹具 `crates/platform/a4n-db/tests/admin_pending_task_projection.rs`，日志 `data/performance-audit-20261013/admin-pending-tasks/production-candidate.log`；受影响 Rust all-targets check、管理员 Worker **1/1**、Worker Client **2/2**、API identity contract **1/1**、API parity、前端生产构建和 `git diff --check` 通过。真实 SD12 管理员浏览器流程 **1/1** 通过，确认取消选中任务后列表使用 `list_pending_task_index` 更新。另用隔离库直接调用 Admin Worker `admin.tasks.pending.index` HTTP 合同并返回窄 DTO；完整 creation-e2e 的全 Server 启动需要完整发布 manifest、ONNX/9 个 capability sidecar，当前本机缺少这些发行资源，启动在 Control listener 前失败，未将其计为 CLI E2E 通过。性能数字不外推 RSS；旧完整命令和详情语义未改变。
+- 复现：持有 `/home/fufu/Code/A4N/work/.agent-build.lock`，设置 `CARGO_TARGET_DIR=/home/fufu/Code/A4N/work/.build/agent-target`、`CARGO_INCREMENTAL=0` 和隔离 `A4N_TEST_DATABASE_URL`，执行 `cargo test --locked --release -p a4n-db --test admin_pending_task_projection benchmark_admin_pending_task_projection -- --ignored --nocapture --test-threads=1`。前端 SD12 用例从 `frontend/` 执行 `env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy npx wdio run ./e2e/ui-page-audit/functional.conf.mjs --mochaOpts.grep='SD12-admin-tasks'`。
+
 ### PERF-066：Canvas 下游运行结果失效邻接索引
 
 - 调用链与频率：Video Studio 连线变化、节点配置/引用修改等用户操作会调用 `invalidateCanvasRuntimeResults` 清除源节点及所有可达节点的旧运行结果；节点/边批量删除还会按目标恢复装配剪辑顺序。旧 BFS 每访问一个节点都扫描全部边，`renumberAssembleClipEdges` 又为每个目标过滤全部边，规模大时两者分别是 O(V×E) 和 O(T×E)。

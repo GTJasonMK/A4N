@@ -444,6 +444,9 @@ pub(crate) fn result_list_my_project_invites() -> Value {
 pub(crate) fn result_list_pending_tasks() -> Value {
     typed_schema::<Vec<crate::admin::TaskQueueSummary>>()
 }
+pub(crate) fn result_list_pending_task_index() -> Value {
+    typed_schema::<Vec<crate::admin::PendingTaskIndexSummary>>()
+}
 pub(crate) fn result_test_scenarios() -> Value {
     typed_schema::<Vec<crate::admin::TestScenarioDescriptor>>()
 }

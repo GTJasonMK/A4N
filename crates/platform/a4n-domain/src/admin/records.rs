@@ -92,6 +92,20 @@ pub struct TaskQueueSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct PendingTaskIndexSummary {
+    pub id: String,
+    pub task_type: String,
+    pub priority: String,
+    pub status: String,
+    pub project_id: Option<i64>,
+    pub root_project_id: Option<i64>,
+    pub source_snapshot_id: Option<i64>,
+    pub task_scope: Option<String>,
+    pub dag_id: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct AdminProjectSummary {
     pub id: i64,
     pub user_id: i64,

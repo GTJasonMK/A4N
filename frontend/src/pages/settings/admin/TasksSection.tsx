@@ -4,8 +4,8 @@ import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import {
   cancelAdminTask,
-  listPendingTasks,
-  type TaskQueueSummary,
+  listPendingTaskIndex,
+  type PendingTaskIndexSummary,
 } from "../../../api/admin";
 import { useToast } from "../../../components/feedback/Toast";
 import { BookIconButton } from "../../../components/ui/BookButton";
@@ -22,7 +22,7 @@ import { useDirty } from "../../../components/navigation/dirtyRegistry";
 export const TasksSection: React.FC = () => {
   const { addToast } = useToast();
   const { t } = useI18n();
-  const [tasks, setTasks] = useState<TaskQueueSummary[]>([]);
+  const [tasks, setTasks] = useState<PendingTaskIndexSummary[]>([]);
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(new Set());
   const tasksRef = useRef(tasks);
   const cancellingIdsRef = useRef(cancellingIds);
@@ -30,7 +30,7 @@ export const TasksSection: React.FC = () => {
   tasksRef.current = tasks;
   cancellingIdsRef.current = cancellingIds;
 
-  const loadTasks = useCallback(() => listPendingTasks(), []);
+  const loadTasks = useCallback(() => listPendingTaskIndex(), []);
   const { loading, error, load, reload, isCurrentScope } =
     useAdminSectionLoader("admin-tasks", loadTasks, setTasks, "settingsAdmin.loadFailed", {
       intervalMs: 5000,
@@ -122,7 +122,7 @@ const PendingTaskRow = React.memo(({
   cancelling,
   onCancel,
 }: {
-  task: TaskQueueSummary;
+  task: PendingTaskIndexSummary;
   cancelling: boolean;
   onCancel: (id: string) => void;
 }) => {

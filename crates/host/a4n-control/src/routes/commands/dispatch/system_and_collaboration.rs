@@ -73,6 +73,7 @@ pub(super) async fn try_dispatch(
         "get_user_usage" => admin::get_user_usage(state, user_id, args).await?,
         "get_token_summary" => admin::get_token_summary(state, user_id, args).await?,
         "list_pending_tasks" => admin::list_pending_tasks(state, user_id, args).await?,
+        "list_pending_task_index" => admin::list_pending_task_index(state, user_id, args).await?,
         "cancel_admin_task" => admin::cancel_admin_task(state, user_id, args).await?,
         "health_check" => admin::health_check(state, user_id, args).await?,
         "get_usage_trends" => admin::get_usage_trends(state, user_id, args).await?,

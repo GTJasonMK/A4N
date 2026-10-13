@@ -245,6 +245,7 @@ command_specs! {
     "list_orphan_project_data_dirs" => empty_args_schema, result_cleanup_orphan_project_data_dirs, "project", identity(ADMIN_IDENTITY), effect(READ_EFFECT), references(REFERENCES_PROJECT_IDS);
     "list_package_command_availability" => args_list_package_command_availability, result_package_command_availability, "system", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_parts" => args_project_id, result_part_outlines, "outline", context(PROJECT_CONTEXT), effect(READ_EFFECT);
+    "list_pending_task_index" => empty_args_schema, result_list_pending_task_index, "task", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "list_pending_tasks" => empty_args_schema, result_list_pending_tasks, "task", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "list_portraits_by_project" => args_list_portraits_by_project, result_list_portraits, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE);
     "list_profile_materials" => args_list_profile_materials, result_list_profile_materials, "profile", effect(READ_EFFECT);

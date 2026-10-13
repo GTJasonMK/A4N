@@ -3,7 +3,8 @@
 pub use a4n_api_contract::admin::{
     AdminOverviewSummary, AdminPermission, AdminProjectSummary, CreateInviteCodeInput,
     CreateUserInput, DailyUsagePoint, GenerationCallAnalytics, GenerationCallAnalyticsInput,
-    InviteCodeSummary, TaskQueueSummary, UpdateUserRoleInput, UsageLogSummary, UsageTrendsInput,
+    InviteCodeSummary, PendingTaskIndexSummary, TaskQueueSummary, UpdateUserRoleInput,
+    UsageLogSummary, UsageTrendsInput,
 };
 pub use a4n_api_contract::auth::UserSummary;
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
@@ -21,6 +22,7 @@ pub const ADMIN_USAGE_TRENDS_OPERATION: &str = "admin.usage.trends";
 pub const ADMIN_OVERVIEW_OPERATION: &str = "admin.overview";
 pub const ADMIN_PROJECTS_OPERATION: &str = "admin.projects.list";
 pub const ADMIN_PENDING_TASKS_OPERATION: &str = "admin.tasks.pending";
+pub const ADMIN_PENDING_TASK_INDEX_OPERATION: &str = "admin.tasks.pending.index";
 pub const ADMIN_GENERATION_ANALYTICS_OPERATION: &str = "admin.generation.analytics";
 pub const ADMIN_DATABASE_HEALTH_OPERATION: &str = "admin.database.health";
 pub const ADMIN_USERS_OPERATION: &str = "admin.users.list";

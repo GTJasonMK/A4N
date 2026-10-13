@@ -13,6 +13,17 @@ pub(super) async fn list_pending_tasks(
         .map_err(|error| error.to_string())
 }
 
+pub(super) async fn list_pending_task_index(
+    state: &AppState,
+    caller_user_id: i64,
+) -> Result<Vec<a4n_api_contract::admin::PendingTaskIndexSummary>, String> {
+    state
+        .admin_read_application()
+        .pending_task_index(caller_user_id)
+        .await
+        .map_err(|error| error.to_string())
+}
+
 pub(super) async fn cancel_admin_task(state: &AppState, task_id: &str) -> Result<bool, String> {
     state
         .task_cancellation_application()

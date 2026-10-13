@@ -114,6 +114,19 @@ impl WorkerState {
             .map_err(admin_error)
     }
 
+    pub(super) async fn pending_task_index(
+        &self,
+        request: WorkerEnvelope<AdminCallerInput>,
+    ) -> Result<Vec<a4n_admin_worker_contract::PendingTaskIndexSummary>, WorkerFailure> {
+        validate_request(&request, ADMIN_PENDING_TASK_INDEX_OPERATION)?;
+        let caller = self.caller(&request.principal, request.payload.caller_user_id)?;
+        self.require_admin(caller, AdminPermission::ManageSettings)
+            .await?;
+        a4n_db::admin::pending_task_index(self.database.connection())
+            .await
+            .map_err(admin_error)
+    }
+
     pub(super) async fn generation_analytics(
         &self,
         request: WorkerEnvelope<AdminGenerationAnalyticsInput>,

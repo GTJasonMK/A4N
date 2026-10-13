@@ -45,6 +45,12 @@ admin_record_command!(
 );
 
 admin_record_command!(
+    list_pending_task_index_for_admin() -> Vec<a4n_api_contract::admin::PendingTaskIndexSummary>,
+    AdminPermission::ManageSettings,
+    |state, caller_user_id| tasks::list_pending_task_index(state, caller_user_id),
+);
+
+admin_record_command!(
     cancel_admin_task_for_admin(task_id: &str) -> bool,
     AdminPermission::ManageSettings,
     |state, caller_user_id| tasks::cancel_admin_task(state, task_id),

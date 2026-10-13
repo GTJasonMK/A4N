@@ -16,8 +16,8 @@ pub enum AdminPermission {
 pub use a4n_domain::admin::{
     AdminOverviewSummary, AdminProjectSummary, CallKindOverview, DailyCallMetric, DailyUsagePoint,
     GenerationCallAnalytics, GenerationCallAnalyticsInput, InviteCodeSummary, LlmWorkflowMetric,
-    MediaWorkflowMetric, RecentLlmCall, RecentMediaCall, TaskQueueSummary, ThemeInfo,
-    UsageLogSummary, UsageTrendsInput,
+    MediaWorkflowMetric, PendingTaskIndexSummary, RecentLlmCall, RecentMediaCall, TaskQueueSummary,
+    ThemeInfo, UsageLogSummary, UsageTrendsInput,
 };
 pub use a4n_domain::auth::UserSummary;
 
@@ -68,6 +68,11 @@ pub trait AdminReadApplicationPort: Send + Sync {
         &self,
         caller_user_id: i64,
     ) -> Result<Vec<TaskQueueSummary>, a4n_error::AppError>;
+
+    async fn pending_task_index(
+        &self,
+        caller_user_id: i64,
+    ) -> Result<Vec<PendingTaskIndexSummary>, a4n_error::AppError>;
 
     async fn generation_call_analytics(
         &self,

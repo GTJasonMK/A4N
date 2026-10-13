@@ -21,8 +21,8 @@ pub use authorized::{
     get_admin_overview_for_admin, get_test_run_for_admin, get_token_summary_for_admin,
     get_usage_trends_for_admin, get_user_usage_for_admin, health_check_for_admin,
     list_all_projects_for_admin, list_all_users_for_admin, list_invite_codes_for_admin,
-    list_pending_tasks_for_admin, list_test_runs_for_admin, list_test_scenarios_for_admin,
-    start_test_run_for_admin, update_user_role_for_admin,
+    list_pending_task_index_for_admin, list_pending_tasks_for_admin, list_test_runs_for_admin,
+    list_test_scenarios_for_admin, start_test_run_for_admin, update_user_role_for_admin,
 };
 pub use test_console::TestConsole;
 
