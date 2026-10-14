@@ -40,6 +40,7 @@
 | [PERF-079](../../crates/platform/a4n-db/src/collaboration/access/info.rs) | 项目列表／摘要 → 协作摘要；100 个项目、每项目 1000 成员 | 成员数和当前用户角色在 PostgreSQL 分组聚合；不再将所有成员行解码到 Worker | 100,000 行时查询 P50 **29.540 → 19.399 ms（34.33%）**，结果字节 **1,381,300 → 1,492（99.89%）**；这是成员聚合查询，不是完整 API 响应 |
 | [PERF-080](../../frontend/src/utils/videoPlayback.ts) | 每次选中／重载视频 → Host 内联 Base64 → `<video>`；单个文件最高 256 MiB | 删除仅用于校验的前端整串 `atob`；Host 已用 `base64::STANDARD` 编码，播放元素是唯一必要解码者 | Chromium 153、64 MiB：helper P50 **124.7 → 0.1 ms**，临时 JS heap **67,108,955 → 4,836 B**；分别下降 **99.92% / 99.99%** |
 | [PERF-081](../../crates/media/a4n-media/src/upload.rs) | 视频源上传 → Runtime → 临时文件；64 MiB 基准、接口上限 512 MiB | 复用原有空值/长度/Base64 校验，以 `DecoderReader` 分块写入临时文件，避免完整解码 `Vec<u8>` | 固定 CPU 的 release A/B P50 **100.975 → 98.010 ms（2.94%）**；进程峰值 RSS **151.562 → 87.770 MiB（42.09%）**；字节相同 |
+| [PERF-082](../../frontend/src/pages/novel-detail/video/VideoSegmentPlanEditor.tsx) | 长视频分镜编辑；每次文本输入更新整份 segment plan，50／100／200 段 | 路径级不可变更新保留未修改段引用，memoize 未变分段，dirty 检查复用固定基线序列化 | 固定 CPU 18/19、Chromium 153，每 8 次输入总耗时 P50：50 段 **211.5 → 12.7 ms（94.00%）**、100 段 **459.7 → 14.8 ms（96.78%）**、200 段 **976.9 → 20.8 ms（97.87%）**；保存摘要完全相同 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -54,12 +55,13 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 章节列表 | PERF-011 消除未使用历史读取及检查点深复制，PERF-017 将写作桌/只读目录/导入预览改为按需读取。原 `ChapterSummary` 完整合同保留，目录与正文类型分开；故事事件 PERF-019 和派生来源快照 PERF-078 已分别优化。 |
 | 数据库权限和协作 | 读取使用连接池、绑定参数和批量根项目查询。PERF-079 将高基数成员统计收敛为 DB 聚合；未过期邀请统计单独 A/B 仅改善 8.23%，低于门槛，未改写实现或增添索引。 |
 | 工作流轮询和恢复 | 旧任务进度轮询间隔 500 ms，已有单次进行中保护和结束清理；新生成任务走事件订阅。未通过减少进度频率来换取表面收益。恢复快照的读取需求与公开进度投影分开评估。 |
-| HTTP 与媒体 | Worker／service client 已持有并复用 HTTP client；Web 媒体使用 `ServeFile`，Edge 使用流式 body。桌面自定义协议要求字节响应，不能直接套用 Web 的传输方案。PERF-080 去掉播放器 data URL 前多余的完整 Base64 解码，不改 API 载荷。 |
+| HTTP 与媒体 | Worker／service client 已持有并复用 HTTP client；Web 媒体使用 `ServeFile`，Edge 使用流式 body。桌面自定义协议要求字节响应，不能直接套用 Web 的传输方案。PERF-080 去掉播放器 data URL 前多余的完整 Base64 解码；PERF-081 限制上传解码的峰值内存，不改 API 载荷。 |
 | LLM 上游连接 | PERF-012 保留每次构造 provider 的配置与凭证隔离，仅延长 HTTP Client 的生命周期。原连接／逐次读取超时、错误、取消与背压检查通过；不缓存模型响应。 |
 | 嵌入模型生命周期 | PERF-014／015 已处理本地模型和 API 连接的重复初始化。模型文件删除／下载会使额外持有的资源失效；仍存活的 provider 保留原有拥有权，避免破坏已在使用的模型。没有缓存业务向量结果。 |
 | 语义分块 | 已复用向量范数并利用相似矩阵对称性；本次只消除额外矩阵。将全矩阵换成局部带状算法可能改变浮点抵消和相同分数时的切分，未作为无风险替换。 |
 | 故事事件 | PERF-018 减少筛选时未变化卡片的重复渲染；PERF-019 从数据库到前端仅读取所需的五个分析字段。千章/4500事件仍需渲染全部可变高卡片；原生 `content-visibility:auto` 已跳过屏外布局，但页面整体只改善约12.5%。进一步虚拟化会改变屏外 DOM/打印行为，当前没有可复用实现和整页 A/B 证据证明达到30%门槛，因此本轮不改变列表行为。 |
 | 漫画与派生媒体来源读取 | 漫画、视频、Galgame 工作台初载/刷新都使用源快照列表；列表只显示章号/标题，漫画与视频仅当前选中章需要正文。PERF-078 将产品列表改为窄索引，保留项目/快照归属的单章读口；Galgame 全程只取索引，旧完整列表 API 保留兼容。 |
+| 视频分镜编辑 | PERF-082 在每次文本输入时按编辑路径复制并保留未变化段引用，避免全量深拷贝和全段重渲染；完整 dirty/revert 语义与保存内容保持一致。 |
 
 ## 可复现入口
 
@@ -300,3 +302,12 @@ A4N_PERF_ARTIFACTS=/path/inside/worktree/data/api-transfer \
 - 计时只覆盖 Base64 解码和临时文件写入，不含 HTTP JSON 解析、上传传输及后续 ffprobe/导入；请求仍携带 Base64 字符串，网络与解析成本未在本项中降低。
 - 验证：`a4n-media` 流式/缓冲字节和大小边界回归 **1/1** 通过；Runtime 后段 Base64 错误清理部分临时文件 **1/1** 通过；`cargo fmt --all -- --check`、`git diff --check` 通过。
 - 证据：`data/performance-audit-20261014/video-upload-streaming/`，含独立 Release A/B harness、输入与等值输出。
+
+### PERF-082：长视频分镜输入的深拷贝和全量重渲染
+
+- 请求链路：用户编辑 `VideoPlanningWorkspace` 中已保存的视频分镜时，每次 textarea 输入都会进入 `VideoSegmentPlanEditor.update`。旧实现深拷贝整份 `segments`，所有分段对象和更新回调都变成新引用，导致全部 `SegmentEditor` 子树重渲染；父级 dirty 检查也重复序列化基线和草稿。
+- 修复：编辑从现有只读分段引用开始；每次更改用函数式 setter 只复制分段数组、目标段和编辑路径上的容器，未改动分段保留原引用。稳定更新回调配合 `React.memo` 只重渲染目标段。编辑期间只序列化一次基线，仍逐次比较草稿内容，因此把字段改回原值会恢复 clean 状态，保存/取消行为不变。
+- A/B 在 Chromium **153.0.8010.52** 打开生产 Vite 夹具，Node、ChromeDriver 和 Chromium 固定在 CPU 18/19。每个工作负载含 **8** 次文本输入；每版先跑 2 组预热，再以 5 组样本的 P50 汇总八次 `input` dispatch 与同步 React commit 的累计时间。50／100／200 段计划 JSON 分别为 **55,843／111,805／224,905 字节**：P50 **211.5 → 12.7 ms（94.00%）／459.7 → 14.8 ms（96.78%）／976.9 → 20.8 ms（97.87%）**。
+- 完整保存 JSON 的 SHA-256 在前后版本逐负载一致；夹具还断言源计划未被修改、恢复原值会关闭 Save，1440／390 宽度无横向溢出。该计时包含同步事件处理和 React DOM commit，不包含下一帧绘制或真实 API 保存。
+- 验证：`npm run test:run -- src/pages/novel-detail/video/VideoPlanningWorkspace.test.tsx` **8/8**；`npm run build` 通过。生产浏览器 A/B 与上述等值、恢复及布局断言通过；Vite 保留已有超过 500 kB 的 chunk 提示。
+- 证据：`data/performance-audit-20261014/video-plan-editor/{before-final,after-final}/report.json`；运行入口为 `frontend/e2e/performance/check.mjs` 的 `A4N_PERF_CASE=video-planning`。深工作树若触及 Chromium Unix socket 路径长度，可用 `A4N_PERF_CHROME_TMPDIR` 指向 `/home/fufu/Code/A4N/work/` 下的短路径别名；目标临时目录仍须位于该工作树内。

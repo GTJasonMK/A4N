@@ -182,9 +182,14 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
   const [editingPlan, setEditingPlan] = useState(false);
   const [savingPlan, setSavingPlan] = useState(false);
   const [planDraft, setPlanDraft] = useState<VideoSegmentPlanV2[] | null>(null);
+  const planBaselineJson = useMemo(
+    () => planDraft == null ? null : JSON.stringify(editableSegments),
+    [planDraft == null, editableSegments],
+  );
   const planDirty =
     planDraft != null &&
-    JSON.stringify(planDraft) !== JSON.stringify(editableSegments);
+    planDraft !== editableSegments &&
+    JSON.stringify(planDraft) !== planBaselineJson;
   useEffect(() => { onDirtyChange?.(planDirty); }, [onDirtyChange, planDirty]);
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const canEditPlan = Boolean(
@@ -201,7 +206,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
   }, [prompt?.id]);
   const enterPlanEdit = () => {
     if (!canEditPlan || busy || loading) return;
-    setPlanDraft(structuredClone(editableSegments));
+    setPlanDraft(editableSegments);
     setEditingPlan(true);
   };
   const cancelPlanEdit = async () => {
