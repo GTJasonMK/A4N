@@ -1,10 +1,10 @@
-use std::io::{ErrorKind, Write};
+use std::io::{BufWriter, ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use super::super::contracts::{ImportedVideoSource, MAX_UPLOAD_VIDEO_BYTES};
 use super::import_video_source;
-use a4n_media::{decode_uploaded_bytes, required_upload_file_name};
+use a4n_media::{decode_uploaded_bytes_to_writer, required_upload_file_name};
 use a4n_storage::create_unique_timestamped_file;
 use a4n_storage::remove_created_file_on_error_sync;
 use a4n_video::{import_video_extension, validate_upload_video_mime};
@@ -78,9 +78,10 @@ pub(in crate::actions::video_records) fn uploaded_video_source(
     let file_name = required_upload_file_name(file_name, "上传视频文件名")?;
     let extension = import_video_extension(Path::new(&file_name))?;
     validate_upload_video_mime(mime_type, extension)?;
-    let bytes = decode_uploaded_bytes(data_base64, label, MAX_UPLOAD_VIDEO_BYTES)?;
-
-    persist_uploaded_video_source(temp_dir, file_name, extension, &bytes, label)
+    persist_uploaded_video_source_with_writer(temp_dir, file_name, extension, label, |writer| {
+        decode_uploaded_bytes_to_writer(data_base64, label, MAX_UPLOAD_VIDEO_BYTES, writer)
+            .map(|_| ())
+    })
 }
 
 pub(in crate::actions::video_records) fn persist_uploaded_video_source(
@@ -90,12 +91,29 @@ pub(in crate::actions::video_records) fn persist_uploaded_video_source(
     bytes: &[u8],
     label: &str,
 ) -> Result<ImportedVideoSource, String> {
-    let (temp_path, mut output_file) = create_uploaded_video_temp_file(temp_dir, extension)?;
+    persist_uploaded_video_source_with_writer(temp_dir, file_name, extension, label, |writer| {
+        writer
+            .write_all(bytes)
+            .map_err(|error| format!("写入{label}临时文件失败：{error}"))
+    })
+}
+
+fn persist_uploaded_video_source_with_writer(
+    temp_dir: &Path,
+    file_name: String,
+    extension: &'static str,
+    label: &str,
+    write_bytes: impl FnOnce(&mut dyn Write) -> Result<(), String>,
+) -> Result<ImportedVideoSource, String> {
+    let (temp_path, output_file) = create_uploaded_video_temp_file(temp_dir, extension)?;
     let file_label = format!("{label}临时文件");
     remove_created_file_on_error_sync(&temp_path, &file_label, || {
+        let mut output_file = BufWriter::with_capacity(64 * 1024, output_file);
+        write_bytes(&mut output_file)?;
         output_file
-            .write_all(bytes)
+            .flush()
             .map_err(|error| format!("写入{label}临时文件失败：{error}"))?;
+        drop(output_file);
         let mut source = import_video_source(
             temp_path
                 .to_str()

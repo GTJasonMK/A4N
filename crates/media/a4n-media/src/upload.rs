@@ -2,13 +2,16 @@
 //!
 //! 本模块不访问数据库、应用状态或文件系统；调用方负责持久化和权限。
 
-use std::{io::Cursor, path::Path};
+use std::{
+    io::{Cursor, Read, Write},
+    path::Path,
+};
 
 use a4n_domain::media::{
     DecodedUploadedAudio, DecodedUploadedImage, ImageUploadFormat, canonical_audio_mime,
     image_upload_format_from_extension, image_upload_format_from_mime,
 };
-use base64::Engine as _;
+use base64::{Engine as _, read::DecoderReader};
 use image::GenericImageView;
 
 pub const MAX_IMPORT_AUDIO_BYTES: usize = 256 * 1024 * 1024;
@@ -63,24 +66,76 @@ pub fn decode_uploaded_bytes(
     label: &str,
     max_bytes: usize,
 ) -> Result<Vec<u8>, String> {
+    let raw = validate_uploaded_base64(data_base64, label, max_bytes)?;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(raw)
+        .map_err(|error| format!("{label} base64 解码失败：{error}"))?;
+    validate_uploaded_byte_count(bytes.len(), label, max_bytes)?;
+    Ok(bytes)
+}
+
+pub fn decode_uploaded_bytes_to_writer<W: Write + ?Sized>(
+    data_base64: &str,
+    label: &str,
+    max_bytes: usize,
+    writer: &mut W,
+) -> Result<usize, String> {
+    let raw = validate_uploaded_base64(data_base64, label, max_bytes)?;
+    let mut decoder =
+        DecoderReader::new(raw.as_bytes(), &base64::engine::general_purpose::STANDARD);
+    let mut buffer = [0; 64 * 1024];
+    let mut decoded_bytes = 0usize;
+    loop {
+        let count = decoder
+            .read(&mut buffer)
+            .map_err(|error| format!("{label} base64 解码失败：{error}"))?;
+        if count == 0 {
+            break;
+        }
+        let next_length = decoded_bytes
+            .checked_add(count)
+            .filter(|length| *length <= max_bytes)
+            .ok_or_else(|| upload_too_large_error(label, max_bytes))?;
+        writer
+            .write_all(&buffer[..count])
+            .map_err(|error| format!("写入{label}临时文件失败：{error}"))?;
+        decoded_bytes = next_length;
+    }
+    validate_uploaded_byte_count(decoded_bytes, label, max_bytes)?;
+    Ok(decoded_bytes)
+}
+
+fn validate_uploaded_base64<'a>(
+    data_base64: &'a str,
+    label: &str,
+    max_bytes: usize,
+) -> Result<&'a str, String> {
     let raw = data_base64.trim();
     if raw.is_empty() {
         return Err(format!("{label}数据不能为空"));
     }
-    let max_base64_len = max_bytes.div_ceil(3) * 4;
-    if raw.len() > max_base64_len {
-        return Err(format!("{label}不能超过 {}MB", max_bytes / 1024 / 1024));
+    if raw.len() > max_bytes.div_ceil(3) * 4 {
+        return Err(upload_too_large_error(label, max_bytes));
     }
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(raw)
-        .map_err(|error| format!("{label} base64 解码失败：{error}"))?;
-    if bytes.is_empty() {
+    Ok(raw)
+}
+
+fn validate_uploaded_byte_count(
+    byte_count: usize,
+    label: &str,
+    max_bytes: usize,
+) -> Result<(), String> {
+    if byte_count == 0 {
         return Err(format!("{label}文件不能为空"));
     }
-    if bytes.len() > max_bytes {
-        return Err(format!("{label}不能超过 {}MB", max_bytes / 1024 / 1024));
+    if byte_count > max_bytes {
+        return Err(upload_too_large_error(label, max_bytes));
     }
-    Ok(bytes)
+    Ok(())
+}
+
+fn upload_too_large_error(label: &str, max_bytes: usize) -> String {
+    format!("{label}不能超过 {}MB", max_bytes / 1024 / 1024)
 }
 
 pub fn decode_uploaded_audio_data(
@@ -220,5 +275,33 @@ mod tests {
             .decode(PNG_1X1)
             .expect("测试 PNG 应有效");
         assert_eq!(image_dimensions_from_bytes(&bytes).unwrap(), (1, 1));
+    }
+
+    #[test]
+    fn streaming_upload_decode_matches_buffered_decode_and_keeps_limits() {
+        let encoded = base64::engine::general_purpose::STANDARD.encode([0, 1, 2, 3, 254, 255]);
+        let expected = decode_uploaded_bytes(&encoded, "上传视频", 6).unwrap();
+        let mut actual = Vec::new();
+        let written = decode_uploaded_bytes_to_writer(&encoded, "上传视频", 6, &mut actual)
+            .expect("valid streaming payload should decode");
+        assert_eq!(written, expected.len());
+        assert_eq!(actual, expected);
+
+        let oversized = base64::engine::general_purpose::STANDARD.encode([0, 1, 2]);
+        let mut output = Vec::new();
+        let streaming_error =
+            decode_uploaded_bytes_to_writer(&oversized, "上传视频", 2, &mut output)
+                .expect_err("streaming decoder must enforce the decoded byte limit");
+        let buffered_error = decode_uploaded_bytes(&oversized, "上传视频", 2)
+            .expect_err("buffered decoder must enforce the same byte limit");
+        assert_eq!(streaming_error, buffered_error);
+        assert!(output.is_empty(), "do not write bytes past the limit");
+
+        let mut output = Vec::new();
+        assert!(
+            decode_uploaded_bytes_to_writer("%%%", "上传视频", 6, &mut output)
+                .expect_err("invalid Base64 must fail")
+                .starts_with("上传视频 base64 解码失败：")
+        );
     }
 }

@@ -39,6 +39,7 @@
 | [PERF-078](../../crates/platform/a4n-db/src/project/source_snapshot/queries.rs) | 漫画／视频／Galgame 派生工作台初载与刷新；1000 章、每章 9 KiB 正文和 8 KiB 分析，漫画/视频默认选中一章 | 列表改为 id/snapshot_id/源章 ID/章号/标题投影；漫画与视频只按项目及当前源章 ID读取一条完整快照，Galgame仅用索引 | 旧全量列表 **17,913,472 B / P50 41.06 ms / P95 47.39 ms**；索引+当前章 **109,482 B / P50 3.09 ms / P95 6.02 ms**；延迟分别下降 **92.48% / 87.30%**，字节下降 **99.39%** |
 | [PERF-079](../../crates/platform/a4n-db/src/collaboration/access/info.rs) | 项目列表／摘要 → 协作摘要；100 个项目、每项目 1000 成员 | 成员数和当前用户角色在 PostgreSQL 分组聚合；不再将所有成员行解码到 Worker | 100,000 行时查询 P50 **29.540 → 19.399 ms（34.33%）**，结果字节 **1,381,300 → 1,492（99.89%）**；这是成员聚合查询，不是完整 API 响应 |
 | [PERF-080](../../frontend/src/utils/videoPlayback.ts) | 每次选中／重载视频 → Host 内联 Base64 → `<video>`；单个文件最高 256 MiB | 删除仅用于校验的前端整串 `atob`；Host 已用 `base64::STANDARD` 编码，播放元素是唯一必要解码者 | Chromium 153、64 MiB：helper P50 **124.7 → 0.1 ms**，临时 JS heap **67,108,955 → 4,836 B**；分别下降 **99.92% / 99.99%** |
+| [PERF-081](../../crates/media/a4n-media/src/upload.rs) | 视频源上传 → Runtime → 临时文件；64 MiB 基准、接口上限 512 MiB | 复用原有空值/长度/Base64 校验，以 `DecoderReader` 分块写入临时文件，避免完整解码 `Vec<u8>` | 固定 CPU 的 release A/B P50 **100.975 → 98.010 ms（2.94%）**；进程峰值 RSS **151.562 → 87.770 MiB（42.09%）**；字节相同 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -288,4 +289,14 @@ A4N_PERF_ARTIFACTS=/path/inside/worktree/data/api-transfer \
 - 支持性 Node.js 24.21.0/V8 测量：64 MiB helper P50 **145.710 → 0.340 ms**；128 MiB P50 **291.069 → 0.318 ms**，进程 `VmHWM` **530.2 → 231.8 MiB（下降 56.28%）**。这些数字只覆盖 Base64 helper 阶段，不包含 HTTP 传输或媒体解码。
 - 验证：Vitest **138 文件/511 项**、TypeScript/Vite 生产构建通过；Chromium 153 实际打开生产 helper 的 Vite smoke 页通过。`test:browser-video-scrub` 未完成：plain-Web harness 调用了不可用的 Tauri `plugin:event|listen`，首个 `waitUntil` 超时；不记为通过或产品失败。
 - 证据：`data/performance-audit-20261014/video-playback-validation/`。
-- 邻近的下载 Blob 路径也做了 A/B：移除 `.buffer.slice` 仅改善峰值 RSS **13.37%/14.20%**、P50 **9.47%/5.98%**（64/128 MiB），未达门槛；改用 Node `fetch(dataURL).blob()` 在64 MiB时慢 **4.81×** 且峰值 RSS 高 **92%**，未采用。
+
+- 邻近下载 Blob 候选也做了 A/B：移除 `.buffer.slice` 仅改善峰值 RSS **13.37%/14.20%**、P50 **9.47%/5.98%**（64/128 MiB），未达门槛；Node 上改用 `fetch(dataURL).blob()` 在 64 MiB 时慢 **4.81×** 且峰值 RSS 高 **92%**，未采用。
+
+### PERF-081：视频上传 Base64 流式落盘
+
+- 请求链路：视频素材、后期插入/替换、参考媒体和画布导入在前端经 `FileReader` 生成 Base64 JSON；Runtime `uploaded_video_source` 原先用 `decode_uploaded_bytes` 生成完整 `Vec<u8>`，再写入应用临时文件。单文件允许至多 **512 MiB**。
+- 修复：`a4n-media` 新增共享 `decode_uploaded_bytes_to_writer`，复用相同的空值、Base64 长度、解码错误与解码后大小校验；Runtime 用 64 KiB `DecoderReader`/`BufWriter` 直接写既有临时文件。错误时仍由同一 cleanup guard 删除部分文件；API 和 Base64 上传合同不变。
+- 隔离 Rust release A/B 用 64 MiB `base64::STANDARD` 输入，CPU 固定 18/19，交错 12 组并丢弃前三组预热。原路径 P50 **100.975 ms**、`VmHWM` **151.562 MiB**；流式路径 P50 **98.010 ms**、`VmHWM` **87.770 MiB**。时延只改善 **2.94%**，不作为收益；峰值 RSS 下降 **42.09%** 达到门槛。`cmp` 确认两种输出与原始字节完全相同。
+- 计时只覆盖 Base64 解码和临时文件写入，不含 HTTP JSON 解析、上传传输及后续 ffprobe/导入；请求仍携带 Base64 字符串，网络与解析成本未在本项中降低。
+- 验证：`a4n-media` 流式/缓冲字节和大小边界回归 **1/1** 通过；Runtime 后段 Base64 错误清理部分临时文件 **1/1** 通过；`cargo fmt --all -- --check`、`git diff --check` 通过。
+- 证据：`data/performance-audit-20261014/video-upload-streaming/`，含独立 Release A/B harness、输入与等值输出。
