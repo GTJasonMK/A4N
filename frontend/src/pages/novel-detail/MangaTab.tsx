@@ -872,11 +872,14 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     }
   };
 
-  const reloadMangaAssets = async () => {
-    const [characterAssetsOk, projectImagesOk] = await Promise.all([
-      loadCharacterAssets(),
-      loadProjectImages(),
+  const loadMangaAssets = (requestProjectId = projectId) =>
+    Promise.all([
+      loadCharacterAssets(requestProjectId, characterAssetProjectId),
+      loadProjectImages(requestProjectId, imageSourceProjectIds, imageSourceKey),
     ]);
+
+  const reloadMangaAssets = async () => {
+    const [characterAssetsOk, projectImagesOk] = await loadMangaAssets();
     return characterAssetsOk && projectImagesOk;
   };
 
@@ -896,10 +899,12 @@ export const MangaTab: React.FC<MangaTabProps> = ({
 
   const openChapterDetail = async (row: ChapterRow) => {
     const requestProjectId = projectId;
+    const shouldLoadAssets = !staged && selectedChapterIdRef.current == null;
     const requestSeq = snapshotChapterLoadSeqRef.current + 1;
     const needsFullChapter = snapshotChapters !== undefined || !standalone;
     snapshotChapterLoadSeqRef.current = requestSeq;
     selectedChapterIdRef.current = row.id;
+    if (shouldLoadAssets) void loadMangaAssets(requestProjectId);
     resetRequestPreview();
     setSelectedChapter(needsFullChapter ? null : row);
     setSnapshotChapterLoading(needsFullChapter);
@@ -1095,6 +1100,9 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       const nextSelectedRow =
         rows.find((row) => row.id === previousChapterId) ??
         (snapshotChapters || rows.length === 1 ? rows[0] ?? null : null);
+      if (!staged && nextSelectedRow && previousChapterId == null) {
+        void loadMangaAssets(requestProjectId);
+      }
       setChapters(rows);
       setChapterLoadError(null);
       setStatuses({});
@@ -1221,8 +1229,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       setLoading(true);
     }
     void loadChapters(projectId);
-    void loadCharacterAssets(projectId, characterAssetProjectId);
-    void loadProjectImages(projectId, imageSourceProjectIds, imageSourceKey);
+    if (staged || fixedChapter != null) void loadMangaAssets(projectId);
     // snapshotChapters is an external source list; when it changes, the visible chapter list must be rebuilt.
     // imageSourceKey 已表示图片来源的值身份；不能再依赖数组引用，否则父级重渲染会清空当前页。
   }, [

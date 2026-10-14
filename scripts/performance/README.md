@@ -52,6 +52,7 @@
 | [PERF-093](../../crates/platform/a4n-db/src/project/dependency_graph/builder/topology.rs) | 资产依赖图请求 → `GraphBuilder::finish`；8 层 DAG、1000／5000／10000 节点，平均 2.625 边/节点 | 节点 ID 映射到整数索引；使用 Vec 邻接、可复用队列和访问代次，保留精确唯一后代数 | Rust release、CPU 18/19，P50 **94.467→5.335 ms（94.35%）／1155.143→37.748 ms（96.73%）／2735.239→84.155 ms（96.92%）**；后代数与图摘要一致 |
 | [PERF-094](../../frontend/src/pages/novel-detail/asset-graph/graphCanvas.ts) | 打开／刷新资产依赖图 → `buildLayout`；8 层 DAG、1000／5000／10000 节点、2625／13125／26250 边 | 每个可见节点只计算一次聚类排序键，供拓扑堆和五轮分层排序重复比较使用 | Chromium 153.0.8010.52、CPU 18/19、生产 Vite P50 **53.400→25.700 ms（51.87%）／345.600→172.600 ms（50.06%）／781.700→403.100 ms（48.43%）**；坐标与层级摘要完全相同 |
 | [PERF-095](../../frontend/src/pages/novel-detail/MangaTab.tsx) | NovelDetail 根项目漫画页初载 → 章节目录；1000 章 | 目录改用已存在的 `listChapterIndex`；只有当前章节选中时才读完整 `getChapter` | 复用 PERF-017 同一真实 1000 章列表 API 对照：完整章节响应 **11,601,686→742,686 B（减少 93.60%）**；多章节初载不请求正文/分析 |
+| [PERF-096](../../frontend/src/pages/novel-detail/MangaTab.tsx) | 根项目 MangaTab 多章空态 → 角色档案、立绘、全项目图片读取；1000 章、5000／10000 图片 | 没有选中章节时不读取详情面板未使用的三组项目资产；首次选择或单章自动选择时仍读取 | Chromium 153、生产 Vite、4× CPU、4 Mbps/50 ms、三轮：JS heap P50 **14.76→9.01 MB（38.96%）／19.03→9.01 MB（52.65%）**；解压 API JSON **5,722,957→969,812 B（83.05%）／10,274,345→969,812 B（90.56%）**；目录就绪仅快 **7.21%／8.01%**，不计为时延收益 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -85,7 +86,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 资产依赖图布局候选 | PERF-090（原提交 `4337935c5`）对每轮布局排序预计算邻居 barycenter；1k／5k／10k 节点仅改善 **24.5%／22.2%／24.8%**，均低于门槛，坐标/层级输出相同，未采用。 |
 | 资产依赖图后代计数 | PERF-093 将每个节点一次字符串 BTreeSet/队列遍历改为整数索引邻接表和复用的访问代次；输出的精确唯一 `downstream_count` 不变。 |
 | 资产依赖图布局排序 | PERF-094 将 `nodeCluster` 对 ID、类型、标题和摘要的拼接、小写及类别判断从每次 comparator 调用收敛为每个可见节点一次；分层与同级排序规则不变。 |
-| 根项目漫画章节目录 | PERF-095 根项目 MangaTab 不再对所有章节读取正文和分析；保留选中行的 `getChapter` 详情读口。 |
+| 根项目漫画目录与无选章空态 | PERF-095 根项目 MangaTab 不再对所有章节读取正文和分析；PERF-096 在未选章时不取档案、立绘和全项目图片，首次选择时正常加载。单章自动选择、固定章节、派生快照及独立漫画路径保留各自需要的读取。 |
 
 ## 可复现入口
 
@@ -426,6 +427,24 @@ A4N_PERF_ARTIFACTS=/path/inside/worktree/data/api-transfer \
 - 验证：索引行和单章详情投影测试包含在漫画工具与 Chapter API 定向测试中，**13/13** 通过；生产 `npm run build` 通过（保留既有大 chunk 提示）。
 - 边界：未单独重测整个 MangaTab 页面的端到端耗时，复用 PERF-017 的列表 API 数据对照。单章根项目仍保留自动选择，会在目录后读一次该章详情。
 - 证据：`PERF-017` 的千章 `list_chapters`／`list_chapter_index` A/B 记录及 `b08/browser-final-02`；页面来源为 `MangaTab.loadChapters`。
+
+### PERF-096：根项目漫画页未选章时延迟读取资产
+
+- 请求链路：根项目 MangaTab 有多章且没有选中章节时只显示章节侧栏和空态；详情面板不渲染档案、立绘或图库引用，但旧挂载 effect 仍并行调用 list_profiles、list_portraits_by_project、list_images_by_project，并将完整结果保留在组件状态。
+- 修复：只在根项目 MangaTab 确认有当前章节后启动这三项读取。多章初载的首次选择从 openChapterDetail 开始读取；单章自动选择在 loadChapters 确认唯一章节后、并行读取详情时开始。固定章节、派生快照、独立漫画及已有刷新/重试行为保留；没有加预取或业务缓存。
+- A/B：真实 Chromium 153、生产 Vite 组件、4× CPU 与 4 Mbps/50 ms 网络；1000 章目录、50 个角色档案、200 张立绘，三轮交错。图片记录使用 GeneratedImage 合同形状的 DTO，提示词取自项目 prompt 文本。无选章目录就绪 P50：5000 张 2236.1→2074.8 ms（7.21%），10000 张 2253.9→2073.4 ms（8.01%），均未达到 30% 时延门槛。
+- 同一 A/B 的 GC 后 Chromium JS heap P50：5000 张图片 14,758,372→9,008,896 B（38.96%）；10000 张 19,027,196→9,008,704 B（52.65%）。解压 API 响应体（含章节目录与状态）分别为 5,722,957→969,812 B（83.05%）和 10,274,345→969,812 B（90.56%）。
+- 行为检查：多章无选章时三项资产 API 均为 0 次；首次选章后各调用 1 次，前后两版选章后的页面文本 SHA-256 相同。单章自动选择专项确认两版均选中第 1 章并各读取资产一次。1000 图片单次样本的 JS heap 下降 19.42%，低于门槛；保留的目标场景是至少 5000 张图片的高规模项目。
+- 边界：浏览器加载、JSON 解析、React 状态和 JS heap 使用确定性的合同形状夹具；未运行真实 PostgreSQL/Control，因此不把这些数据解释成数据库查询延迟。目录就绪时间改善低于门槛，没有宣称页面响应提升超过 30%。
+- 验证：基线提交 7bb6866c2 与候选生产包的三轮浏览器对照通过；单章自动选择专项对照通过。候选 TypeScript/Vite build、基准脚本 node --check 与 git diff --check 结果见本轮任务记录。
+- 证据：../../data/performance-audit-20261015/manga-assets/report.json 与 ../../data/performance-audit-20261015/manga-assets-single/report.json。复现时从 frontend/ 执行：
+
+~~~bash
+flock -x /home/fufu/Code/A4N/work/.agent-build.lock env \
+  -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy -u NODE_USE_ENV_PROXY \
+  NO_PROXY=localhost,127.0.0.1 A4N_PERF_ARTIFACTS=../data/performance-audit-20261015/manga-assets \
+  node e2e/performance/manga-assets.mjs
+~~~
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
 
