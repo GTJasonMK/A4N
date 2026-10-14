@@ -352,6 +352,47 @@ pub async fn current_authoring_document_rows_by_source_chapters<C: ConnectionTra
         .collect())
 }
 
+/// Reads only adopted authoring plans for one bounded source-chapter batch.
+pub async fn adopted_authoring_document_rows_by_source_chapters<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+    source_snapshot_id: i64,
+    kind: AuthoringDocumentKind,
+    source_chapter_ids: &[i64],
+) -> Result<
+    Vec<Result<Option<UnparsedAuthoringDocument>, AuthoringDocumentError>>,
+    AuthoringDocumentError,
+> {
+    if source_chapter_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    validate_authoring_read_batch_size(source_chapter_ids.len())?;
+    positive(project_id, "project_id")?;
+    positive(source_snapshot_id, "source_snapshot_id")?;
+    positive(source_chapter_ids[0], "source_chapter_id")?;
+    let rows = document::Entity::find()
+        .filter(document::Column::ProjectId.eq(project_id))
+        .filter(document::Column::SourceSnapshotId.eq(source_snapshot_id))
+        .filter(document::Column::SourceChapterId.is_in(source_chapter_ids.iter().copied()))
+        .filter(document::Column::Kind.eq(kind.as_str()))
+        .filter(document::Column::Status.eq(AuthoringDocumentStatus::Adopted.as_str()))
+        .all(db)
+        .await?
+        .into_iter()
+        .filter_map(|row| row.source_chapter_id.map(|chapter_id| (chapter_id, row)))
+        .collect::<HashMap<_, _>>();
+    let mut rows = rows;
+    let selected = take_unparsed_documents_in_order(source_chapter_ids, &mut rows);
+    Ok(source_chapter_ids
+        .iter()
+        .zip(selected)
+        .map(|(id, row)| match positive(*id, "source_chapter_id") {
+            Ok(()) => Ok(row),
+            Err(error) => Err(error),
+        })
+        .collect())
+}
+
 fn validate_authoring_read_batch_size(size: usize) -> Result<(), AuthoringDocumentError> {
     if size > AUTHORING_READ_BATCH_SIZE {
         return Err(AuthoringDocumentError::InvalidArgument(format!(
@@ -1724,6 +1765,56 @@ mod perf_probe {
         Ok(summary)
     }
 
+    async fn adopted_authoring_documents_serial<C: ConnectionTrait>(
+        db: &C,
+        project_id: i64,
+        snapshot_id: i64,
+        source_chapter_ids: &[i64],
+    ) -> Result<Vec<AuthoringLookupSummary>, AuthoringDocumentError> {
+        let mut summary = Vec::with_capacity(source_chapter_ids.len());
+        for source_chapter_id in source_chapter_ids {
+            let record = current_authoring_document(
+                db,
+                project_id,
+                snapshot_id,
+                Some(*source_chapter_id),
+                AuthoringDocumentKind::AdaptationPlan,
+                AuthoringDocumentStatus::Adopted,
+            )
+            .await?
+            .ok_or_else(|| AuthoringDocumentError::NotFound(*source_chapter_id))?;
+            summary.push((*source_chapter_id, record.reference(), record.status));
+        }
+        Ok(summary)
+    }
+
+    async fn adopted_authoring_documents_batched<C: ConnectionTrait>(
+        db: &C,
+        project_id: i64,
+        snapshot_id: i64,
+        source_chapter_ids: &[i64],
+    ) -> Result<Vec<AuthoringLookupSummary>, AuthoringDocumentError> {
+        let mut summary = Vec::with_capacity(source_chapter_ids.len());
+        for chunk in source_chapter_ids.chunks(AUTHORING_READ_BATCH_SIZE) {
+            let rows = adopted_authoring_document_rows_by_source_chapters(
+                db,
+                project_id,
+                snapshot_id,
+                AuthoringDocumentKind::AdaptationPlan,
+                chunk,
+            )
+            .await?;
+            for (source_chapter_id, row) in chunk.iter().zip(rows) {
+                let record = row?
+                    .map(UnparsedAuthoringDocument::parse)
+                    .transpose()?
+                    .ok_or_else(|| AuthoringDocumentError::NotFound(*source_chapter_id))?;
+                summary.push((*source_chapter_id, record.reference(), record.status));
+            }
+        }
+        Ok(summary)
+    }
+
     #[tokio::test]
     #[ignore = "manual performance probe"]
     async fn media_authoring_reference_probe() {
@@ -2097,6 +2188,89 @@ mod perf_probe {
         assert!(
             old_id_ms > new_id_ms * 1.3,
             "document ID batch probe must clear the latency gate"
+        );
+
+        let mut old_adopted_samples = Vec::with_capacity(3);
+        let mut new_adopted_samples = Vec::with_capacity(3);
+        for pair in 0..5 {
+            let sample = if pair % 2 == 0 {
+                let old_started = Instant::now();
+                let old = adopted_authoring_documents_serial(
+                    &db,
+                    project.id,
+                    snapshot.id,
+                    &source_chapter_ids,
+                )
+                .await
+                .expect("serial adopted plan dependencies");
+                let old_ms = old_started.elapsed().as_secs_f64() * 1_000.0;
+                let new_started = Instant::now();
+                let new = adopted_authoring_documents_batched(
+                    &db,
+                    project.id,
+                    snapshot.id,
+                    &source_chapter_ids,
+                )
+                .await
+                .expect("batched adopted plan dependencies");
+                (
+                    old_ms,
+                    new_started.elapsed().as_secs_f64() * 1_000.0,
+                    old,
+                    new,
+                )
+            } else {
+                let new_started = Instant::now();
+                let new = adopted_authoring_documents_batched(
+                    &db,
+                    project.id,
+                    snapshot.id,
+                    &source_chapter_ids,
+                )
+                .await
+                .expect("batched adopted plan dependencies");
+                let new_ms = new_started.elapsed().as_secs_f64() * 1_000.0;
+                let old_started = Instant::now();
+                let old = adopted_authoring_documents_serial(
+                    &db,
+                    project.id,
+                    snapshot.id,
+                    &source_chapter_ids,
+                )
+                .await
+                .expect("serial adopted plan dependencies");
+                (
+                    old_started.elapsed().as_secs_f64() * 1_000.0,
+                    new_ms,
+                    old,
+                    new,
+                )
+            };
+            assert_eq!(sample.2, sample.3);
+            assert_eq!(sample.3.len(), source_chapter_ids.len());
+            assert!(
+                sample
+                    .3
+                    .iter()
+                    .all(|(_, _, status)| status == &AuthoringDocumentStatus::Adopted)
+            );
+            if pair >= 2 {
+                old_adopted_samples.push(sample.0);
+                new_adopted_samples.push(sample.1);
+            }
+            tokio::time::sleep(Duration::from_millis(15)).await;
+        }
+        old_adopted_samples.sort_by(f64::total_cmp);
+        new_adopted_samples.sort_by(f64::total_cmp);
+        let old_adopted_ms = old_adopted_samples[old_adopted_samples.len() / 2];
+        let new_adopted_ms = new_adopted_samples[new_adopted_samples.len() / 2];
+        println!(
+            "adopted_plan_dependency_batch chapters={} p50_old_ms={old_adopted_ms:.3} p50_new_ms={new_adopted_ms:.3} old_samples={old_adopted_samples:?} new_samples={new_adopted_samples:?}",
+            source_chapter_ids.len(),
+        );
+        assert!(
+            old_adopted_ms > new_adopted_ms * 1.3,
+            "adopted authoring dependency batch probe must clear the latency gate"
         );
 
         let mut old_source_samples = Vec::with_capacity(3);
