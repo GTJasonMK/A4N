@@ -167,6 +167,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::manga_page_image_artifacts::Migration),
             Box::new(crate::migrations::user_read_only_role_removal::Migration),
             Box::new(crate::migrations::creator_notifications::Migration),
+            Box::new(crate::migrations::generated_image_project_index::Migration),
         ]
     }
 }
@@ -413,6 +414,7 @@ mod tests {
             "galgame_generation_spec_source_hash",
             "video_shot_source_identity",
             "body_fact_feedback",
+            "fact_feedback_summary_history_index",
             "galgame_scene_source_identity",
             "galgame_scene_snapshot_scope",
             "retire_stale_live_text_anchors",
@@ -433,6 +435,9 @@ mod tests {
             "manga_preprocessing_contract_v2",
             "manga_preprocessing_contract_v3",
             "manga_page_image_artifacts",
+            "user_read_only_role_removal",
+            "creator_notifications",
+            "generated_image_project_index",
         ];
         let history_start = names
             .iter()

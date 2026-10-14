@@ -57,6 +57,7 @@
 | [PERF-098](../../frontend/src/pages/novel-detail/visual-plan/timeline.ts) | ChapterVisualPlan 拆分镜头弹窗每次重渲染 → 计算段内时间点；1000／5000 点和段 | 将循环内反复查找目标段与起止点收敛为各查找一次，再执行相同的段内过滤 | Chromium 153、生产 Vite、2 轮预热＋7 轮交错：1000 项 **10.5→≤0.1 ms**；5000 项 **78.6→0.1 ms（99.87%）**；输出点数、ID 与顺序逐项一致 |
 | [PERF-099](../../frontend/src/pages/novel-detail/visual-plan/timeline.ts) | ChapterVisualPlan 时间点选中／编辑源投影 → 查找所属分镜；1000／5000 点和段 | 一次建立保留首个 ID 的时间点 Map，再按原段顺序扫描并返回首个包含时间的分镜；保留缺失端点错误与总时长边界 | Chromium 153、生产 Vite、2 轮预热＋7 轮交错：靠后段查找 P50 **4.8→≤0.1 ms／32.6→0.2 ms（99.39%）**；选中分镜 ID 完全一致 |
 | [PERF-101](../../frontend/src/pages/novel-detail/images/ImageGalleryPanel.tsx) | 项目图片图库初载；1000／2000 张图片 | 首次仅挂载 500 张卡片，底部按钮按批显示其余图片；过滤和范围切换重置批次 | Chromium 153.0.8010.52、生产 Vite、CPU 18/19、3 轮交错：挂载 P50 **192.1→111.0 ms（42.22%）／339.8→113.9 ms（66.48%）**；首屏后 JS heap 降 **27.08%／51.81%**；图片请求与传输减少 **50%／75%**；完整图片列表仍可逐批到达 |
+| [PERF-102](../../crates/platform/a4n-migration/src/migrations/generated_image_project_index.rs) | 项目图库 API → `generated_image` 按项目查询；100,000 行、每项目 1,000 张 | 为现有 `WHERE project_id = ?` 增加单列数据库索引；保持原 `created_at DESC` 排序和完整 DTO 投影 | 隔离 PostgreSQL 16、5 轮交错、服务器 `EXPLAIN ANALYZE`：P50 **13.108→4.514 ms（65.56%）**；计划从全表扫描变为项目索引 Bitmap Heap Scan；索引 **745,472 B**；结果 1,000 个 ID 顺序完全一致 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -93,6 +94,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 根项目漫画目录与无选章空态 | PERF-095 根项目 MangaTab 不再对所有章节读取正文和分析；PERF-096 在未选章时不取档案、立绘和全项目图片，首次选择时正常加载。单章自动选择、固定章节、派生快照及独立漫画路径保留各自需要的读取。 |
 | 项目图库图片加载候选 | 在 Chromium 153、生产 Vite、1000 张图片卡片和滚动容器中试过原生 `loading="lazy"`（含图片固有宽高、先设置 loading 再设置 src）；两版页面 load 时都发出 **1000** 个图片请求、响应 **414,000 B**。两轮交错 P50 挂载 **75.3→73.3 ms**（未达 30%），JS heap **8,786,947→8,821,295 B**（候选增加 0.39%），故撤回，不计为优化；证据 `../../data/performance-audit-20261015/image-gallery-lazy-final/report.json`。 |
 | 项目图库批量渲染 | PERF-101 将首屏 DOM 限为 500 张并通过按钮追加；1000／2000 张挂载时间下降 **42.22%／66.48%**、GC 后 JS heap 下降 **27.08%／51.81%**。API JSON 和数据库读未变，详见 PERF-101。 |
+| 项目图库数据库过滤 | PERF-102 为 `generated_image.project_id` 增加索引；100,000 行、1,000 行命中时数据库执行 P50 下降 **65.56%**，结果顺序不变；完整 JSON 投影和媒体传输未计入，详见 PERF-102。 |
 
 ## 可复现入口
 
@@ -510,6 +512,22 @@ A4N_PERF_POINT_COUNTS=1000,5000 A4N_PERF_ARTIFACTS=../data/performance-audit-202
 ~~~bash
 taskset -c 18,19 env A4N_PERF_ARTIFACTS=../data/performance-audit-20261015/image-gallery-batches \
   node e2e/performance/image-gallery.mjs
+~~~
+
+### PERF-102：项目图库查询缺少项目过滤索引
+
+- 请求链路：`ImagesTab` 的项目图库调用 `list_images_by_project`；Orchestrator 最终执行 `generated_image` 的 `WHERE project_id = ? ORDER BY created_at DESC`，旧表没有 `project_id` 索引，因此 PostgreSQL 需要扫描整张图片表再排序。该查询返回完整图片 DTO，数据库过滤是请求链路的固定前置成本。
+- 修复：新增 `generated_image_project_index` schema migration，创建 `idx_generated_image_project_id` 单列索引；不改变查询、返回字段、排序、权限或错误行为。迁移注册在现有最后一项 `creator_notifications` 之后，并更新运行时 schema gate。
+- A/B：隔离 PostgreSQL 16，100,000 行合成 `generated_image` 形状数据，100 个项目、目标项目 1,000 行，5 轮交错；同一查询用 `EXPLAIN (ANALYZE, BUFFERS)` 测量。无索引 P50 **13.108 ms**（`Seq Scan` + `Sort`），有索引 **4.514 ms**（`Bitmap Index Scan` + `Bitmap Heap Scan` + `Sort`），下降 **65.56%**；shared hit blocks 由 **7,146** 降至约 **1,006–1,012**，索引大小 **745,472 B**。每轮返回的 1,000 个 ID SHA-256 顺序相同。
+- 验证：`a4n-migration` 与 `a4n-db-models` `cargo check --locked --offline` 通过；迁移 SQL 单测 **1/1**；隔离 PostgreSQL 的 `a4n-db` 源快照集成测试 **1/1** 通过（覆盖全量迁移初始化）；基准脚本 `node --check` 和 `git diff --check` 通过。
+- 边界：A/B 测的是数据库执行时间，不是完整 HTTP/JSON/媒体传输延迟；合成数据每项目命中率为 1%，真实命中率越高索引收益越低，需在生产 `EXPLAIN` 复核。索引迁移使用常规事务型 `CREATE INDEX`，大表部署期间可能短暂阻塞图片表写入；若生产表规模显著更大，应安排维护窗口后再执行。
+- 证据：`../../data/performance-audit-20261015/generated-image-index/report.json`。从仓库根目录的工作树执行：
+
+~~~bash
+A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
+  python3 scripts/tests/run_with_test_database.py \
+  --report-dir data/test-runs/perf-image-index-20261015 \
+  --timeout 60 -- node scripts/performance/generated-image-index.mjs
 ~~~
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
