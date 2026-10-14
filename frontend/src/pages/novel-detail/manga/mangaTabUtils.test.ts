@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { ChapterIndexEntry, ChapterSummary } from "../../../api/chapter";
 import {
   mangaImageStatusMatchesWorkspaceStage,
   mangaPipelineStageMatchesWorkspaceStage,
@@ -9,6 +10,8 @@ import {
   mangaPipelineActionsForWorkspaceStage,
   mangaPipelineTargetForWorkspaceStage,
   mangaStageAllowsReferenceBinding,
+  mangaChapterRowFromIndex,
+  mangaChapterRowFromSummary,
 } from "./mangaTabUtils";
 
 describe("manga pipeline workspace groups", () => {
@@ -166,5 +169,46 @@ describe("manga pipeline workspace groups", () => {
     expect(mangaPipelineStageMatchesWorkspaceStage("materials", "preprocessing")).toBe(false);
     expect(mangaPipelineStageMatchesWorkspaceStage("preprocessing", "preprocessing")).toBe(true);
     expect(mangaPipelineStageMatchesWorkspaceStage(undefined, "image")).toBe(true);
+  });
+});
+
+describe("manga chapter row projections", () => {
+  it("builds the chapter rail from the index without carrying body or analysis", () => {
+    expect(mangaChapterRowFromIndex({
+      id: 17,
+      chapter_number: 4,
+      title: "落雨",
+      status: "completed",
+      summary: "人物在港口汇合",
+    } as ChapterIndexEntry)).toEqual({
+      id: 17,
+      chapter_number: 4,
+      title: "落雨",
+      content: "",
+      content_hash: null,
+      summary: "人物在港口汇合",
+      status: "completed",
+      analysis_data: null,
+    });
+  });
+
+  it("keeps the full selected chapter fields when loaded on demand", () => {
+    expect(mangaChapterRowFromSummary({
+      id: 17,
+      chapter_number: 4,
+      title: "落雨",
+      content: "港口的雨停在钟声落下之前。",
+      status: "completed",
+      summary: "人物在港口汇合",
+      analysis_data: { key_events: [{ description: "人物在港口汇合" }] },
+    } as ChapterSummary)).toEqual({
+      id: 17,
+      chapter_number: 4,
+      title: "落雨",
+      content: "港口的雨停在钟声落下之前。",
+      summary: "人物在港口汇合",
+      status: "completed",
+      analysis_data: { key_events: [{ description: "人物在港口汇合" }] },
+    });
   });
 });
