@@ -50,6 +50,7 @@
 | [PERF-091](../../crates/host/a4n-orchestrator/src/media_authoring/application.rs) | 手动首次保存 Galgame 分支计划 → 收集 1000 章 adopted 改编依赖；每份文档约 8 KiB | 按 project/snapshot/source chapter 每批 64 条仅读 adopted 计划；调用方继续按章节顺序 parse 并生成 reference | 隔离 PostgreSQL 16、CPU 18/19、5 组交错（2 组预热、3 组计量）P50 **475.357 → 100.909 ms（78.8%）**；依赖 ID、revision、hash、status 顺序相同 |
 | [PERF-092](../../crates/host/a4n-orchestrator/src/galgame/webgal_export_application.rs) | WebGAL 导出选择合同 → 1000／5000／10000 场景、每场 2 个选项 | 用现有导出 scene ID Map 校验目标；删除 Map 命中后对详情场景的第二次线性扫描 | Rust release、CPU 18/19，完整合同验证 P50 **2.394→0.288 ms（88.0%）／51.907→1.604 ms（96.9%）／202.676→4.577 ms（97.7%）**；结果与错误语义相同 |
 | [PERF-093](../../crates/platform/a4n-db/src/project/dependency_graph/builder/topology.rs) | 资产依赖图请求 → `GraphBuilder::finish`；8 层 DAG、1000／5000／10000 节点，平均 2.625 边/节点 | 节点 ID 映射到整数索引；使用 Vec 邻接、可复用队列和访问代次，保留精确唯一后代数 | Rust release、CPU 18/19，P50 **94.467→5.335 ms（94.35%）／1155.143→37.748 ms（96.73%）／2735.239→84.155 ms（96.92%）**；后代数与图摘要一致 |
+| [PERF-094](../../frontend/src/pages/novel-detail/asset-graph/graphCanvas.ts) | 打开／刷新资产依赖图 → `buildLayout`；8 层 DAG、1000／5000／10000 节点、2625／13125／26250 边 | 每个可见节点只计算一次聚类排序键，供拓扑堆和五轮分层排序重复比较使用 | Chromium 153.0.8010.52、CPU 18/19、生产 Vite P50 **53.400→25.700 ms（51.87%）／345.600→172.600 ms（50.06%）／781.700→403.100 ms（48.43%）**；坐标与层级摘要完全相同 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -82,6 +83,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | WebGAL 导出 | PERF-092 复用由同一 `detail.scenes` 构建的 export scene ID Map；删除其后的逐 choice 全场景重复查找，保留 Map 上的缺失目标报错。 |
 | 资产依赖图布局候选 | PERF-090（原提交 `4337935c5`）对每轮布局排序预计算邻居 barycenter；1k／5k／10k 节点仅改善 **24.5%／22.2%／24.8%**，均低于门槛，坐标/层级输出相同，未采用。 |
 | 资产依赖图后代计数 | PERF-093 将每个节点一次字符串 BTreeSet/队列遍历改为整数索引邻接表和复用的访问代次；输出的精确唯一 `downstream_count` 不变。 |
+| 资产依赖图布局排序 | PERF-094 将 `nodeCluster` 对 ID、类型、标题和摘要的拼接、小写及类别判断从每次 comparator 调用收敛为每个可见节点一次；分层与同级排序规则不变。 |
 
 ## 可复现入口
 
@@ -404,6 +406,15 @@ A4N_PERF_ARTIFACTS=/path/inside/worktree/data/api-transfer \
 - 验证：release 基准探针 **1/1**；资产依赖图 builder 语义测试 **2/2**，覆盖重复关系和菱形图唯一后代；`cargo fmt --all -- --check`、`git diff --check` 通过。
 - 边界：计时覆盖 `GraphBuilder::finish`，含边投影、后代数、变更策略、环检测和层输出；不含 PostgreSQL 读取与 JSON 序列化，因此这些数据是请求 CPU 阶段耗时，不代表完整 HTTP 延迟。
 - 证据：`../../data/performance-audit-20261015/asset-graph-builder/report.json`；基线提交为 `93cfe476f`。
+
+### PERF-094：资产依赖图排序中的重复节点分类
+
+- 请求链路：打开或刷新资产依赖图时，`AssetDependencyGraphDialog` 对新图调用一次 `buildLayout`。`topologyDepthLayers` 的堆排序和 `orderLayerNodes` 的前后扫描排序会多次比较同一批节点；旧比较器每次对两个节点重新拼接 ID、类型、标题、摘要并转小写，再做多次字符串分类检查。
+- 修复：每次 `buildLayout` 对可见节点计算一次 `nodeCluster`，后续比较器复用该布局内的聚类排序键。堆优先级、邻居 barycenter、排序轮次与同级比较次序保持原规则；没有跨请求状态。
+- A/B 使用 production Vite 构建和 Chromium **153.0.8010.52**，固定 CPU 18/19；8 层 DAG、每个非末层节点连向下一层 3 个节点，平均 2.625 条边/节点。输入为 1000／5000／10000 节点，JSON **808,670／4,079,920／8,183,797 B**；每种规模至少 250 ms 预热后取 5 次 P50：**53.400→25.700 ms（51.87%）／345.600→172.600 ms（50.06%）／781.700→403.100 ms（48.43%）**。三种规模节点位置、层次、画布尺寸和层摘要 SHA-256 均相同。
+- 验证：生产 `npm run build` 通过；`npm run test:run -- src/pages/novel-detail/asset-graph/graphCanvas.test.ts` **4/4**；baseline/candidate Chromium 探针各 3 种负载通过；基准脚本 `node --check`、`git diff --check` 通过。
+- 边界：基准测 `buildLayout` CPU，不含项目族 DB 读取、React 对话框提交或 Canvas 绘制；不把这项阶段收益外推为完整页面响应时间。
+- 证据：`../../data/performance-audit-20261015/asset-graph-layout/{baseline,candidate}/report.json`；基线提交为 `8d480480c`。
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
 
