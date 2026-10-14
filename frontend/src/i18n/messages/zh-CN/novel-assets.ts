@@ -600,6 +600,8 @@ export const novelAssets = {
     group: "{type} · {count} 张",
     shownFavorites: "显示 {count} 张收藏图片",
     totalImages: "共 {count} 张图片",
+    showingImages: "已显示 {shown}/{total} 张图片",
+    showMoreImages: "再显示 {count} 张",
     staleSummary: "{summary}，其中 {count} 张需要更新",
     manage: "管理图片",
     view: "查看图片",

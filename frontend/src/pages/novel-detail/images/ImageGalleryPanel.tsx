@@ -26,6 +26,7 @@ import {
 } from "./imageTabUtils";
 
 const LOCAL_PATH_FALLBACK_DELAY_MS = 1500;
+const IMAGE_GALLERY_BATCH_SIZE = 500;
 
 interface ImageGalleryPanelProps {
   allImages: GeneratedImage[];
@@ -77,6 +78,7 @@ export function ImageGalleryPanel({
   onOpenActions,
 }: ImageGalleryPanelProps) {
   const { locale, t } = useI18n();
+  const [visibleImageLimit, setVisibleImageLimit] = useState(IMAGE_GALLERY_BATCH_SIZE);
   const [showLocalPathFallback, setShowLocalPathFallback] = useState(false);
   const localPathFallbackTimerRef = useRef<number | null>(null);
   const localImageFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -140,21 +142,47 @@ export function ImageGalleryPanel({
     }
     return Array.from(map.entries()).sort(([a], [b]) => compareGroupKey(a, b));
   }, [chapterScoped, images]);
+  const visibleImageCount = Math.min(images.length, visibleImageLimit);
+  const visibleImageGroups = useMemo(() => {
+    let remaining = visibleImageCount;
+    return imageGroups.flatMap(([key, groupImages]) => {
+      const visible = groupImages.slice(0, remaining);
+      remaining -= visible.length;
+      return visible.length > 0
+        ? [{ key, images: visible, totalCount: groupImages.length }]
+        : [];
+    });
+  }, [imageGroups, visibleImageCount]);
   const chapterGroupsAreSingleImages =
     chapterScoped && imageGroups.every(([, groupImages]) => groupImages.length === 1);
 
   const gallerySummary = useMemo(() => {
     if (stats.total === 0) return null;
-    const countText = favOnly
-      ? t("novel.imageLibrary.shownFavorites", { count: formatNumber(stats.visible, locale) })
-      : t("novel.imageLibrary.totalImages", { count: formatNumber(stats.total, locale) });
+    const countText = visibleImageCount < stats.visible
+      ? t("novel.imageLibrary.showingImages", {
+          shown: formatNumber(visibleImageCount, locale),
+          total: formatNumber(stats.visible, locale),
+        })
+      : favOnly
+        ? t("novel.imageLibrary.shownFavorites", { count: formatNumber(stats.visible, locale) })
+        : t("novel.imageLibrary.totalImages", { count: formatNumber(stats.total, locale) });
     return stats.stale > 0
       ? t("novel.imageLibrary.staleSummary", {
           summary: countText,
           count: formatNumber(stats.stale, locale),
         })
       : countText;
-  }, [favOnly, locale, stats.stale, stats.total, stats.visible, t]);
+  }, [favOnly, locale, stats.stale, stats.total, stats.visible, t, visibleImageCount]);
+
+  const handleScopeModeChange = (scope: ImageScope) => {
+    setVisibleImageLimit(IMAGE_GALLERY_BATCH_SIZE);
+    onScopeModeChange(scope);
+  };
+
+  const handleFavoriteOnlyChange = (enabled: boolean) => {
+    setVisibleImageLimit(IMAGE_GALLERY_BATCH_SIZE);
+    onFavoriteOnlyChange(enabled);
+  };
 
   const renderImageCard = (img: GeneratedImage) => {
     const src = toMediaSrc(img.file_path);
@@ -237,7 +265,7 @@ export function ImageGalleryPanel({
               <SegmentedControl
                 ariaLabel={t("novel.imageLibrary.scopeAria")}
                 value={scopeMode}
-                onChange={onScopeModeChange}
+                onChange={handleScopeModeChange}
                 options={CHAPTER_SCOPE_OPTIONS.map((option) => ({
                   id: option.id,
                   label: t(option.labelKey),
@@ -250,7 +278,7 @@ export function ImageGalleryPanel({
                 className="a4n-filter-chip shrink-0"
                 data-active={favOnly ? "1" : undefined}
                 aria-pressed={favOnly}
-                onClick={() => onFavoriteOnlyChange(!favOnly)}
+                onClick={() => handleFavoriteOnlyChange(!favOnly)}
               >
                 <Star size={11} fill={favOnly ? "currentColor" : "none"} />
                 {t("novel.imageLibrary.favoritesOnly")}
@@ -354,7 +382,7 @@ export function ImageGalleryPanel({
         chapterScoped ? (
           chapterGroupsAreSingleImages ? (
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              {imageGroups.map(([key, groupImages]) => (
+              {visibleImageGroups.map(({ key, images: groupImages }) => (
                 <section key={key} className="min-w-0">
                   <h3 className="mb-2 truncate text-xs font-medium text-book-text-sub">
                     {getImageGroupTitle(key, 1, t)}
@@ -365,10 +393,10 @@ export function ImageGalleryPanel({
             </div>
           ) : (
             <div className="space-y-4">
-              {imageGroups.map(([key, groupImages]) => (
+              {visibleImageGroups.map(({ key, images: groupImages, totalCount }) => (
                 <section key={key}>
                   <h3 className="mb-2 text-xs font-medium text-book-text-sub">
-                    {getImageGroupTitle(key, groupImages.length, t)}
+                    {getImageGroupTitle(key, totalCount, t)}
                   </h3>
                   <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                     {groupImages.map(renderImageCard)}
@@ -379,10 +407,33 @@ export function ImageGalleryPanel({
           )
         ) : (
           <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {images.map(renderImageCard)}
+            {images.slice(0, visibleImageCount).map(renderImageCard)}
           </ul>
         )
       )}
+      {visibleImageCount < images.length ? (
+        <div className="mt-4 flex flex-col items-center gap-2">
+          <p className="text-caption text-book-text-muted">
+            {t("novel.imageLibrary.showingImages", {
+              shown: formatNumber(visibleImageCount, locale),
+              total: formatNumber(images.length, locale),
+            })}
+          </p>
+          <BookButton
+            variant="secondary"
+            size="sm"
+            onClick={() =>
+              setVisibleImageLimit((current) =>
+                Math.min(current + IMAGE_GALLERY_BATCH_SIZE, images.length),
+              )
+            }
+          >
+            {t("novel.imageLibrary.showMoreImages", {
+              count: formatNumber(Math.min(IMAGE_GALLERY_BATCH_SIZE, images.length - visibleImageCount), locale),
+            })}
+          </BookButton>
+        </div>
+      ) : null}
     </section>
   );
 }
