@@ -146,5 +146,6 @@ pub mod video_workflow_task_binding;
 pub mod web_search_global_config_retirement;
 pub mod workflow_chapter_identity;
 pub mod workflow_checkpoint_fingerprint_repair;
+pub mod workflow_run_business_updated_index;
 pub mod workflow_run_project_updated_index;
 pub mod workflow_runs;

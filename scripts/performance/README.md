@@ -62,6 +62,7 @@
 | [PERF-105](../../crates/platform/a4n-migration/src/migrations/workflow_run_project_updated_index.rs) | 工作流列表按项目读取最新运行；100,000 行、目标项目 20,000 行、默认返回 100 条 | 为现有 `WHERE project_id = ? ORDER BY updated_at DESC, id DESC LIMIT 100` 增加排序复合索引；保持完整运行 DTO 和排序语义 | 隔离 PostgreSQL 16、已有项目/状态索引、5 轮交错：P50 **7.702→0.292 ms（96.21%）**；计划从 Bitmap Heap + Sort 变为 Limit + Index Scan；索引 **4,079,616 B**；100 个 ID 顺序完全一致 |
 | [PERF-106](../../crates/platform/a4n-migration/src/migrations/task_queue_project_created_index.rs) | 任务历史分页按项目读取；100,000 行、目标项目 20,000 行、默认返回 100 条 | 为现有 `WHERE project_id = ? ORDER BY created_at DESC LIMIT 100` 增加项目/时间排序索引；保持完整任务 DTO 和分页顺序 | 隔离 PostgreSQL 16、5 轮交错：P50 **15.588→0.412 ms（97.36%）**；计划从 Limit + Seq Scan + Sort 变为 Limit + Index Scan；索引 **3,178,496 B**；100 个 ID 顺序完全一致 |
 | [PERF-108](../../crates/platform/a4n-migration/src/migrations/project_status_history_project_changed_index.rs) | 项目状态历史按项目读取；100,000 行、目标项目 20,000 条 | 为现有 `WHERE project_id = ? ORDER BY changed_at DESC, id DESC` 增加项目/时间排序索引；保持完整状态历史投影和顺序 | 隔离 PostgreSQL 16、5 轮交错：P50 **8.627→5.121 ms（40.64%）**；计划从 Sort + Seq Scan 变为 Sort + Bitmap Heap Scan；索引 **4,079,616 B**；20,000 个 ID 顺序完全一致 |
+| [PERF-109](../../crates/platform/a4n-migration/src/migrations/workflow_run_business_updated_index.rs) | 工作流恢复按 business key 取最新运行；100,000 行、每 key 1,000 条历史 | 为现有 `WHERE business_key = ? ORDER BY updated_at DESC, id DESC LIMIT 1` 增加 business key/时间排序索引；保持最新记录身份和完整 DTO | 隔离 PostgreSQL 16、保留 business key 单列索引、5 轮交错：P50 **3.701→0.098 ms（97.35%）**；计划从 Bitmap Heap + Sort 变为 Limit + Index Scan；索引 **4,079,616 B**；最新运行 ID 完全一致 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -105,6 +106,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 任务历史数据库分页 | PERF-106 为 `task_queue(project_id, created_at DESC)` 增加索引；100,000 行、100 条返回时数据库执行 P50 下降 **97.36%**，结果顺序不变；详见 PERF-106。 |
 | 导入审核项目列表索引候选 | PERF-107 在 100,000 行、20,000 条命中、每行约 8 KiB JSON 的完整返回上尝试 `import_review_queue(project_id, created_at DESC)`；P50 **19.251→17.848 ms（7.29%）**，低于门槛，未修改索引。 |
 | 项目状态历史数据库排序 | PERF-108 为 `project_status_history(project_id, changed_at DESC, id DESC)` 增加索引；100,000 行、20,000 条命中时数据库执行 P50 下降 **40.64%**，结果顺序不变；详见 PERF-108。 |
+| 工作流 business key 最新运行 | PERF-109 为 `workflow_run(business_key, updated_at DESC, id DESC)` 增加索引；100,000 行、每 key 1,000 条历史时数据库执行 P50 下降 **97.35%**，最新运行身份不变；详见 PERF-109。 |
 
 ## 可复现入口
 
@@ -623,6 +625,23 @@ A4N_PERF_ARTIFACTS=data/performance-audit-20261015/status-history-index \
   python3 scripts/tests/run_with_test_database.py \
   --report-dir data/test-runs/status-history-index-20261015 \
   --timeout 60 -- node scripts/performance/status-history-index.mjs
+~~~
+
+### PERF-109：工作流 business key 最新运行缺少排序索引
+
+- 请求链路：`latest_workflow_run_by_business_key` 及带状态/加锁变体被章节同步、视频生命周期、蓝图和事实反馈流程调用；旧表只有 `business_key` 单列索引，取最新运行仍需排序该 key 的历史记录。
+- 修复：新增 `workflow_run_business_updated_index` schema migration，创建 `idx_workflow_run_business_updated`（`business_key, updated_at DESC, id DESC`）；不改变最新记录选择、锁、完整运行 DTO、权限或错误行为，并更新运行时 schema gate。
+- A/B：隔离 PostgreSQL 16，100,000 条完整形状工作流运行记录、100 个 business key、目标 key 1,000 条历史，保留已有 business key 单列索引，5 轮交错。无复合索引 P50 **3.701 ms**（`Limit` + `Bitmap Heap Scan` + `Sort`），有复合索引 **0.098 ms**（`Limit` + `Index Scan`），下降 **97.35%**；索引大小 **4,079,616 B**，最新运行 ID 完全一致。
+- 验证：migration SQL 单测、迁移顺序测试、`a4n-migration`/`a4n-db-models` check、隔离 PostgreSQL 全迁移初始化集成测试、基准脚本 `node --check` 和 `git diff --check` 通过。
+- 边界：A/B 测量数据库执行时间，不包含 JSON/HTTP；按多个 business key 批量 `DISTINCT ON` 路径仍需单独评估。索引迁移使用事务型 `CREATE INDEX`，大表部署需安排维护窗口。
+- 证据：`../../data/performance-audit-20261015/business-key-index/report.json`。从工作树根目录执行：
+
+~~~bash
+A4N_PERF_ARTIFACTS=data/performance-audit-20261015/business-key-index \
+  A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
+  python3 scripts/tests/run_with_test_database.py \
+  --report-dir data/test-runs/business-key-index-20261015 \
+  --timeout 60 -- node scripts/performance/business-key-index.mjs
 ~~~
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
