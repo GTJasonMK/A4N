@@ -27,7 +27,7 @@ use sea_orm::{
     QuerySelect, Set, sea_query::Expr,
 };
 use serde_json::Value;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AuthoringDocumentError {
@@ -999,14 +999,52 @@ pub(crate) async fn validate_adopted_authoring_dependencies<C: ConnectionTrait>(
     project_id: i64,
     dependencies: &[a4n_domain::media_authoring::AuthoringDocumentRef],
 ) -> Result<(), AuthoringDocumentError> {
-    let mut seen = std::collections::BTreeSet::new();
+    if dependencies.is_empty() {
+        return Ok(());
+    }
+    positive(project_id, "project_id")?;
+
+    const DEPENDENCY_BATCH_SIZE: usize = 64;
+    let mut seen = BTreeSet::new();
+    for chunk in dependencies.chunks(DEPENDENCY_BATCH_SIZE) {
+        let first = &chunk[0];
+        if seen.contains(&first.id) {
+            return Err(AuthoringDocumentError::InvalidArgument(
+                "创作文档依赖重复".into(),
+            ));
+        }
+        positive(first.id, "record_id")?;
+        let mut records = document::Entity::find()
+            .filter(document::Column::ProjectId.eq(project_id))
+            .filter(document::Column::Id.is_in(chunk.iter().map(|dependency| dependency.id)))
+            .all(db)
+            .await?
+            .into_iter()
+            .map(|record| (record.id, record))
+            .collect::<HashMap<_, _>>();
+        validate_adopted_dependency_rows(project_id, chunk, &mut records, &mut seen)?;
+    }
+    Ok(())
+}
+
+fn validate_adopted_dependency_rows(
+    project_id: i64,
+    dependencies: &[a4n_domain::media_authoring::AuthoringDocumentRef],
+    records: &mut HashMap<i64, document::Model>,
+    seen: &mut BTreeSet<i64>,
+) -> Result<(), AuthoringDocumentError> {
     for dependency in dependencies {
         if !seen.insert(dependency.id) {
             return Err(AuthoringDocumentError::InvalidArgument(
                 "创作文档依赖重复".into(),
             ));
         }
-        let record = authoring_document(db, project_id, dependency.id).await?;
+        positive(project_id, "project_id")?;
+        positive(dependency.id, "record_id")?;
+        let row = records
+            .remove(&dependency.id)
+            .ok_or(AuthoringDocumentError::NotFound(dependency.id))?;
+        let record = parse_record(row)?;
         if record.revision != dependency.revision
             || record.sha256 != dependency.sha256
             || record.status != AuthoringDocumentStatus::Adopted
@@ -1018,6 +1056,123 @@ pub(crate) async fn validate_adopted_authoring_dependencies<C: ConnectionTrait>(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod dependency_validation_tests {
+    use super::*;
+    use a4n_domain::media_authoring::AuthoringDocumentRef;
+
+    fn row(id: i64, status: &str, kind: &str) -> document::Model {
+        let inputs_json = serde_json::json!({"sources": [], "video_reference": null, "dependencies": [], "preprocessing_fingerprint": null});
+        let document_json = serde_json::json!({"units": []});
+        let sha256 = crate::generation::canonical_json_sha256(&(&inputs_json, &document_json))
+            .expect("canonical hash");
+        document::Model {
+            id,
+            project_id: 7,
+            source_snapshot_id: 11,
+            source_chapter_id: Some(id),
+            kind: kind.to_string(),
+            version: 1,
+            revision: 3,
+            status: status.to_string(),
+            inputs_json,
+            document_json,
+            document_sha256: sha256,
+            created_at: Utc::now().naive_utc(),
+            updated_at: Utc::now().naive_utc(),
+        }
+    }
+
+    #[test]
+    fn batched_dependency_validation_preserves_order_and_failure_semantics() {
+        let first = row(10, "adopted", "adaptation_plan");
+        let second = row(20, "adopted", "adaptation_plan");
+        let draft = row(30, "draft", "adaptation_plan");
+        let wrong_kind = row(40, "adopted", "galgame_branch_plan");
+        let mut records = HashMap::from([
+            (first.id, first.clone()),
+            (second.id, second.clone()),
+            (draft.id, draft.clone()),
+            (wrong_kind.id, wrong_kind.clone()),
+        ]);
+        let reference = |record: &document::Model| AuthoringDocumentRef {
+            id: record.id,
+            revision: record.revision,
+            sha256: record.document_sha256.clone(),
+        };
+
+        let mut seen = BTreeSet::new();
+        let mut valid_records = records.clone();
+        assert!(
+            validate_adopted_dependency_rows(
+                7,
+                &[reference(&first), reference(&second)],
+                &mut valid_records,
+                &mut seen,
+            )
+            .is_ok()
+        );
+        assert!(validate_adopted_dependency_rows(7, &[], &mut valid_records, &mut seen).is_ok());
+        assert!(matches!(
+            validate_adopted_dependency_rows(
+                7,
+                &[AuthoringDocumentRef { id: 0, revision: 1, sha256: "0".repeat(64) }],
+                &mut records,
+                &mut BTreeSet::new(),
+            ),
+            Err(AuthoringDocumentError::InvalidArgument(message)) if message == "record_id 必须大于 0"
+        ));
+        assert!(matches!(
+            validate_adopted_dependency_rows(7, &[reference(&second), reference(&second)], &mut records, &mut BTreeSet::new()),
+            Err(AuthoringDocumentError::InvalidArgument(message)) if message == "创作文档依赖重复"
+        ));
+        assert!(matches!(
+            validate_adopted_dependency_rows(
+                7,
+                &[reference(&draft)],
+                &mut records,
+                &mut BTreeSet::new()
+            ),
+            Err(AuthoringDocumentError::InvalidArgument(_))
+        ));
+        assert!(matches!(
+            validate_adopted_dependency_rows(
+                7,
+                &[reference(&wrong_kind)],
+                &mut records,
+                &mut BTreeSet::new()
+            ),
+            Err(AuthoringDocumentError::InvalidArgument(_))
+        ));
+        let mut wrong_revision = reference(&first);
+        wrong_revision.revision += 1;
+        assert!(matches!(
+            validate_adopted_dependency_rows(
+                7,
+                &[wrong_revision],
+                &mut records,
+                &mut BTreeSet::new()
+            ),
+            Err(AuthoringDocumentError::InvalidArgument(_))
+        ));
+        let mut missing_records = records.clone();
+        missing_records.remove(&first.id);
+        assert!(matches!(
+            validate_adopted_dependency_rows(
+                7,
+                &[reference(&first)],
+                &mut missing_records,
+                &mut BTreeSet::new()
+            ),
+            Err(AuthoringDocumentError::NotFound(10))
+        ));
+        assert!(matches!(
+            validate_adopted_dependency_rows(0, &[reference(&first)], &mut records, &mut BTreeSet::new()),
+            Err(AuthoringDocumentError::InvalidArgument(message)) if message == "project_id 必须大于 0"
+        ));
+    }
 }
 
 pub fn parse_record(
@@ -1137,5 +1292,192 @@ fn chapter_shooting_script_reference_record(
         revision: row.revision,
         script_sha256: row.script_sha256,
         script_json: row.script_json,
+    }
+}
+
+#[cfg(test)]
+mod perf_probe {
+    use super::*;
+    use a4n_db_models::models::chapter::chapter as source_chapter;
+    use a4n_db_models::models::project::media_authoring_document as document;
+    use a4n_db_models::models::project::{project_source_snapshot, source_snapshot_chapter};
+    use a4n_domain::media_authoring::{AuthoringDocumentInputs, AuthoringDocumentRef};
+    use chrono::Utc;
+    use sea_orm::Set;
+    use std::time::Instant;
+
+    #[tokio::test]
+    #[ignore = "manual performance probe"]
+    async fn batch_dependency_probe() {
+        use std::time::Duration;
+
+        let db = a4n_migration::test_support::connect_test_database().await;
+        let user = crate::auth::create_user(
+            &db,
+            "media-authoring-perf-user",
+            "media-authoring-perf@example.test",
+            "password",
+            "user",
+        )
+        .await
+        .expect("create user");
+        let project = crate::project::create_project_record(
+            &db,
+            crate::project::CreateProjectRecordInput {
+                user_id: user.id,
+                title: "media authoring perf".to_string(),
+                description: String::new(),
+                project_type: "novel_long".to_string(),
+            },
+        )
+        .await
+        .expect("create project");
+        let now = Utc::now().naive_utc();
+        let dependency_count = 1000_i64;
+        let chapters = (1..=dependency_count)
+            .map(|number| source_chapter::ActiveModel {
+                id: Default::default(),
+                project_id: Set(project.id),
+                outline_id: Set(None),
+                chapter_number: Set(number as i32),
+                title: Set(Some(format!("第 {number} 章"))),
+                content: Set(format!("来源 {number}")),
+                word_count: Set(4),
+                status: Set("imported".to_string()),
+                summary: Set(None),
+                style_tags: Set(None),
+                analysis_data: Set(None),
+                created_at: Set(now),
+                updated_at: Set(now),
+            })
+            .collect::<Vec<_>>();
+        let chapters = source_chapter::Entity::insert_many(chapters)
+            .exec_with_returning_many(&db)
+            .await
+            .expect("insert source chapters");
+        let snapshot = project_source_snapshot::ActiveModel {
+            root_project_id: Set(project.id),
+            source_version_hash: Set("perf-source-snapshot".to_string()),
+            blueprint_version_id: Set(None),
+            chapter_scope_json: Set(
+                serde_json::json!({"start_chapter":1,"end_chapter":dependency_count}),
+            ),
+            chapter_hashes_json: Set(serde_json::json!([])),
+            profile_hashes_json: Set(serde_json::json!({})),
+            created_at: Set(now),
+            ..Default::default()
+        }
+        .insert(&db)
+        .await
+        .expect("insert source snapshot");
+        let snapshot_chapters = chapters
+            .iter()
+            .map(|chapter| source_snapshot_chapter::ActiveModel {
+                snapshot_id: Set(snapshot.id),
+                root_project_id: Set(project.id),
+                source_chapter_id: Set(chapter.id),
+                chapter_number: Set(chapter.chapter_number),
+                title: Set(chapter.title.clone()),
+                content: Set(chapter.content.clone()),
+                summary: Set(None),
+                analysis_data_json: Set(None),
+                content_hash: Set(format!("hash-{}", chapter.chapter_number)),
+                analysis_hash: Set(None),
+                ..Default::default()
+            })
+            .collect::<Vec<_>>();
+        source_snapshot_chapter::Entity::insert_many(snapshot_chapters)
+            .exec(&db)
+            .await
+            .expect("insert snapshot chapters");
+        let now = Utc::now().naive_utc();
+        let mut refs = Vec::with_capacity(dependency_count as usize);
+        let mut rows = Vec::with_capacity(dependency_count as usize);
+        let mut document_bytes = 0usize;
+        for (index, chapter) in chapters.iter().enumerate() {
+            let document_id = index as i64 + 1;
+            let inputs = AuthoringDocumentInputs {
+                sources: Vec::new(),
+                video_reference: None,
+                dependencies: Vec::new(),
+                preprocessing_fingerprint: None,
+            };
+            let document_json = serde_json::json!({
+                "schema_version": "adaptation_plan_v1",
+                "target": "galgame",
+                "intention": "x".repeat(8 * 1024),
+                "decisions": [],
+                "units": [],
+            });
+            document_bytes += serde_json::to_vec(&document_json)
+                .expect("serialize benchmark document")
+                .len();
+            let inputs_json = serde_json::to_value(&inputs).expect("inputs json");
+            let hash = crate::generation::canonical_json_sha256(&(&inputs_json, &document_json))
+                .expect("hash");
+            refs.push(AuthoringDocumentRef {
+                id: document_id,
+                revision: 1,
+                sha256: hash.clone(),
+            });
+            rows.push(document::ActiveModel {
+                id: Set(document_id),
+                project_id: Set(project.id),
+                source_snapshot_id: Set(snapshot.id),
+                source_chapter_id: Set(Some(chapter.id)),
+                kind: Set("adaptation_plan".to_string()),
+                version: Set(1),
+                revision: Set(1),
+                status: Set("adopted".to_string()),
+                inputs_json: Set(inputs_json),
+                document_json: Set(document_json),
+                document_sha256: Set(hash),
+                created_at: Set(now),
+                updated_at: Set(now),
+            });
+        }
+        document::Entity::insert_many(rows)
+            .exec(&db)
+            .await
+            .expect("insert docs");
+
+        let mut old_samples = Vec::with_capacity(3);
+        let mut new_samples = Vec::with_capacity(3);
+        for pair in 0..5 {
+            let old_started = Instant::now();
+            for reference in &refs {
+                let record = authoring_document(&db, project.id, reference.id)
+                    .await
+                    .expect("old dependency lookup");
+                assert_eq!(record.revision, reference.revision);
+                assert_eq!(record.sha256, reference.sha256);
+                assert_eq!(record.status, AuthoringDocumentStatus::Adopted);
+                assert_eq!(record.kind, AuthoringDocumentKind::AdaptationPlan);
+            }
+            let old_ms = old_started.elapsed().as_secs_f64() * 1_000.0;
+
+            let new_started = Instant::now();
+            validate_adopted_authoring_dependencies(&db, project.id, &refs)
+                .await
+                .expect("batch dependency validation");
+            let new_ms = new_started.elapsed().as_secs_f64() * 1_000.0;
+            if pair >= 2 {
+                old_samples.push(old_ms);
+                new_samples.push(new_ms);
+            }
+            tokio::time::sleep(Duration::from_millis(15)).await;
+        }
+        old_samples.sort_by(f64::total_cmp);
+        new_samples.sort_by(f64::total_cmp);
+        let old_ms = old_samples[old_samples.len() / 2];
+        let new_ms = new_samples[new_samples.len() / 2];
+        println!(
+            "dependency_batch rows={} document_bytes={document_bytes} p50_old_ms={old_ms:.3} p50_new_ms={new_ms:.3} old_samples={old_samples:?} new_samples={new_samples:?}",
+            refs.len(),
+        );
+        assert!(
+            old_ms > new_ms * 1.3,
+            "batch probe must clear the latency gate"
+        );
     }
 }
