@@ -38,6 +38,7 @@
 | [PERF-077](../../crates/host/a4n-orchestrator/src/fact_feedback/mod.rs) | 事实反馈面板仅在工作流运行时每 1.5 秒轮询；1000 章、每章 9 KiB 正文与 8 KiB 分析、每项目 10,161 条变更历史 | 章节修订与可用章节共用一次投影；历史通过部分索引取最近 ID，再读取至多 100 个完整行并保留原 Rust 等值判断 | Orchestrator 摘要 P50 **80.8/86.3/93.5 → 43.9/45.5/53.5 ms（45.7%/47.3%/42.8%）**；三种覆盖率下 DTO 和响应字节相同 |
 | [PERF-078](../../crates/platform/a4n-db/src/project/source_snapshot/queries.rs) | 漫画／视频／Galgame 派生工作台初载与刷新；1000 章、每章 9 KiB 正文和 8 KiB 分析，漫画/视频默认选中一章 | 列表改为 id/snapshot_id/源章 ID/章号/标题投影；漫画与视频只按项目及当前源章 ID读取一条完整快照，Galgame仅用索引 | 旧全量列表 **17,913,472 B / P50 41.06 ms / P95 47.39 ms**；索引+当前章 **109,482 B / P50 3.09 ms / P95 6.02 ms**；延迟分别下降 **92.48% / 87.30%**，字节下降 **99.39%** |
 | [PERF-079](../../crates/platform/a4n-db/src/collaboration/access/info.rs) | 项目列表／摘要 → 协作摘要；100 个项目、每项目 1000 成员 | 成员数和当前用户角色在 PostgreSQL 分组聚合；不再将所有成员行解码到 Worker | 100,000 行时查询 P50 **29.540 → 19.399 ms（34.33%）**，结果字节 **1,381,300 → 1,492（99.89%）**；这是成员聚合查询，不是完整 API 响应 |
+| [PERF-080](../../frontend/src/utils/videoPlayback.ts) | 每次选中／重载视频 → Host 内联 Base64 → `<video>`；单个文件最高 256 MiB | 删除仅用于校验的前端整串 `atob`；Host 已用 `base64::STANDARD` 编码，播放元素是唯一必要解码者 | Chromium 153、64 MiB：helper P50 **124.7 → 0.1 ms**，临时 JS heap **67,108,955 → 4,836 B**；分别下降 **99.92% / 99.99%** |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -52,7 +53,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 章节列表 | PERF-011 消除未使用历史读取及检查点深复制，PERF-017 将写作桌/只读目录/导入预览改为按需读取。原 `ChapterSummary` 完整合同保留，目录与正文类型分开；故事事件 PERF-019 和派生来源快照 PERF-078 已分别优化。 |
 | 数据库权限和协作 | 读取使用连接池、绑定参数和批量根项目查询。PERF-079 将高基数成员统计收敛为 DB 聚合；未过期邀请统计单独 A/B 仅改善 8.23%，低于门槛，未改写实现或增添索引。 |
 | 工作流轮询和恢复 | 旧任务进度轮询间隔 500 ms，已有单次进行中保护和结束清理；新生成任务走事件订阅。未通过减少进度频率来换取表面收益。恢复快照的读取需求与公开进度投影分开评估。 |
-| HTTP 与媒体 | Worker／service client 已持有并复用 HTTP client；Web 媒体使用 `ServeFile`，Edge 使用流式 body。桌面自定义协议要求字节响应，不能直接套用 Web 的传输方案。 |
+| HTTP 与媒体 | Worker／service client 已持有并复用 HTTP client；Web 媒体使用 `ServeFile`，Edge 使用流式 body。桌面自定义协议要求字节响应，不能直接套用 Web 的传输方案。PERF-080 去掉播放器 data URL 前多余的完整 Base64 解码，不改 API 载荷。 |
 | LLM 上游连接 | PERF-012 保留每次构造 provider 的配置与凭证隔离，仅延长 HTTP Client 的生命周期。原连接／逐次读取超时、错误、取消与背压检查通过；不缓存模型响应。 |
 | 嵌入模型生命周期 | PERF-014／015 已处理本地模型和 API 连接的重复初始化。模型文件删除／下载会使额外持有的资源失效；仍存活的 provider 保留原有拥有权，避免破坏已在使用的模型。没有缓存业务向量结果。 |
 | 语义分块 | 已复用向量范数并利用相似矩阵对称性；本次只消除额外矩阵。将全矩阵换成局部带状算法可能改变浮点抵消和相同分数时的切分，未作为无风险替换。 |
@@ -278,3 +279,13 @@ A4N_PERF_ARTIFACTS=/path/inside/worktree/data/api-transfer \
 - 同一测量方式下，10,000 行 P50 改善 **28.81%**，低于延迟门槛；500 行增加 **0.022 ms**。因此本项收益只计入高基数场景。单独测试 100,000 条未过期邀请的分组查询只改善 **8.23%**，没有修改邀请统计实现。
 - 验证：独立 PostgreSQL 上 `collaboration::tests::collaboration_flow_keeps_reads_pure_and_mutations_explicit` **1/1** 通过，覆盖所有者成员数、有效/过期邀请和成员角色；Rust 格式检查与 diff 检查通过。
 - 证据：`data/performance-audit-20261014/collaboration-summary/`，包括合成基准 SQL 和各负载结果。
+
+### PERF-080：视频内联播放重复解码 Base64
+
+- 请求链路：`useVideoPlaybackSource`、Video Assembly 和 Postprocess 在每次选择/重载视频时调用 `videoPlaybackDataToDataUrl`。Host 从文件读取至多 256 MiB，再用 Rust `base64::STANDARD` 编成 API 字符串；前端原先用 `atob` 解码整份内容后丢弃结果，随后 `<video>` 又从同一 data URL 解码一次。
+- 修复：保留 MIME 和空载荷校验，移除多余的前端整串 Base64 解码。Host 自己生成该字符串；播放器继续解析原 data URL。下载路径仍通过 `videoPlaybackDataToBlob` 解码实际需要写入的字节。
+- Chromium 153 的实际 Vite 页面测试用 64 MiB Base64 输入，交错测量五个样本。helper P50 **124.7 → 0.1 ms**，`performance.memory.usedJSHeapSize` 增量 **67,108,955 → 4,836 字节**。相同浏览器 smoke 确认 `fetch(data URL)` 的媒体类型和字节尾部与原值相同；非法 Base64 交给 `<video>` 后会触发 `error` 事件，播放器现有错误/回退处理仍负责反馈。
+- 支持性 Node.js 24.21.0/V8 测量：64 MiB helper P50 **145.710 → 0.340 ms**；128 MiB P50 **291.069 → 0.318 ms**，进程 `VmHWM` **530.2 → 231.8 MiB（下降 56.28%）**。这些数字只覆盖 Base64 helper 阶段，不包含 HTTP 传输或媒体解码。
+- 验证：Vitest **138 文件/511 项**、TypeScript/Vite 生产构建通过；Chromium 153 实际打开生产 helper 的 Vite smoke 页通过。`test:browser-video-scrub` 未完成：plain-Web harness 调用了不可用的 Tauri `plugin:event|listen`，首个 `waitUntil` 超时；不记为通过或产品失败。
+- 证据：`data/performance-audit-20261014/video-playback-validation/`。
+- 邻近的下载 Blob 路径也做了 A/B：移除 `.buffer.slice` 仅改善峰值 RSS **13.37%/14.20%**、P50 **9.47%/5.98%**（64/128 MiB），未达门槛；改用 Node `fetch(dataURL).blob()` 在64 MiB时慢 **4.81×** 且峰值 RSS 高 **92%**，未采用。
