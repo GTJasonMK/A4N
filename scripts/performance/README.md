@@ -42,6 +42,7 @@
 | [PERF-081](../../crates/media/a4n-media/src/upload.rs) | 视频源上传 → Runtime → 临时文件；64 MiB 基准、接口上限 512 MiB | 复用原有空值/长度/Base64 校验，以 `DecoderReader` 分块写入临时文件，避免完整解码 `Vec<u8>` | 固定 CPU 的 release A/B P50 **100.975 → 98.010 ms（2.94%）**；进程峰值 RSS **151.562 → 87.770 MiB（42.09%）**；字节相同 |
 | [PERF-082](../../frontend/src/pages/novel-detail/video/VideoSegmentPlanEditor.tsx) | 长视频分镜编辑；每次文本输入更新整份 segment plan，50／100／200 段 | 路径级不可变更新保留未修改段引用，memoize 未变分段，dirty 检查复用固定基线序列化 | 固定 CPU 18/19、Chromium 153，每 8 次输入总耗时 P50：50 段 **211.5 → 11.6 ms（94.52%）**、100 段 **459.7 → 17.0 ms（96.30%）**、200 段 **976.9 → 24.2 ms（97.52%）**；保存摘要完全相同 |
 | [PERF-083](../../frontend/src/pages/novel-detail/shooting-script/StructuredScriptEditor.tsx) | 影片剧本编辑；每次镜头字段输入更新完整剧本，25／50／100 镜头 | 共用 `updateAtPath` 只复制修改路径，稳定更新回调并 memoize 未变化的 ShotEditor | 固定 CPU 18/19、Chromium 153，每 8 次输入总耗时 P50：25 镜头 **183.6 → 34.8 ms（81.05%）**、50 镜头 **385.8 → 60.7 ms（84.27%）**、100 镜头 **775.8 → 103.5 ms（86.66%）**；保存摘要完全相同 |
+| [PERF-084](../../frontend/src/pages/derived/MediaPlanEditors.tsx) | Galgame 分支计划编辑；每个输入重算所有章节改编单元/节拍，500／1000 章 | 以章节 ID Map 替代逐章扫描全部文档的嵌套 `find`，保留文档首个匹配顺序 | 固定 CPU 18/19、Chromium 153，每 8 次输入总耗时 P50：500 章 **30.9 → 11.5 ms（62.78%）**、1000 章 **77.2 → 18.1 ms（76.55%）**；计划摘要相同。100 章为 **11.8 → 12.3 ms**，不计为收益 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -64,6 +65,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 漫画与派生媒体来源读取 | 漫画、视频、Galgame 工作台初载/刷新都使用源快照列表；列表只显示章号/标题，漫画与视频仅当前选中章需要正文。PERF-078 将产品列表改为窄索引，保留项目/快照归属的单章读口；Galgame 全程只取索引，旧完整列表 API 保留兼容。 |
 | 视频分镜编辑 | PERF-082 在每次文本输入时按编辑路径复制并保留未变化段引用，避免全量深拷贝和全段重渲染；完整 dirty/revert 语义与保存内容保持一致。 |
 | 影片剧本编辑 | PERF-083 在每次输入时复制整份场景/镜头数据，改为路径级复制；未变化的镜头子树复用，源剧本和保存数据保持一致。 |
+| Galgame 分支计划编辑 | PERF-084 在每次输入时按章逐个扫描全部创作文档，改为线性构建章节计划索引并映射可选单元/节拍，保留首个有效采用版本的顺序。 |
 
 ## 可复现入口
 
@@ -322,3 +324,12 @@ A4N_PERF_ARTIFACTS=/path/inside/worktree/data/api-transfer \
 - 完整剧本保存摘要逐负载相同；夹具检查源数据不变、更新镜头标题及嵌套构图字段、1440／390 宽度无横向溢出。计时覆盖同步输入事件和 React DOM commit，不包含下一帧绘制或后端保存。
 - 验证：`npm run build` 通过；`npm run test:run -- src/utils/updateAtPath.test.ts src/pages/novel-detail/video/VideoPlanningWorkspace.test.tsx` **10/10**。生产 Chromium A/B 的等值、源对象不变与布局断言通过；Vite 保留已有大 chunk 提示。
 - 证据：`data/performance-audit-20261014/shooting-script/{baseline,after}/report.json`；运行入口为 `frontend/e2e/performance/check.mjs` 的 `A4N_PERF_CASE=shooting-script`。
+
+### PERF-084：Galgame 分支计划编辑的逐章嵌套文档搜索
+
+- 请求链路：用户编辑 Galgame 分支计划时，`MediaAuthoringPanel` 每次输入都会更新 editor document 并重渲染 `GalgameBranchPlanEditor`。该编辑器原先对每个来源章节都在线性扫描整个 `workspace.documents`，寻找首个未过期且已采用的改编计划，复杂度为章节数 × 文档数；随后还要根据适用单元和节拍生成选择项。
+- 修复：每次渲染先按来源章节 ID 建 Map，只收录首个有效的已采用改编计划，再线性遍历章节构造原顺序的单元和节拍选项。算法由 O(C×D) 降到 O(C+D)，不保留跨编辑更新的派生缓存，也不改变 API 或计划字段。
+- A/B 在 Chromium **153.0.8010.52** 打开生产 Vite 夹具，Node、ChromeDriver 和 Chromium 固定在 CPU 18/19。每版每个负载先跑 2 组预热，再以 5 组样本的 P50 汇总 8 次分支问题输入与同步 React commit。工作区有 100／500／1000 章、每章 4 条改编文档（stale、adopted、draft、重复 adopted），分别为 **97,152／495,152／992,674 字节**。总耗时 P50：**11.8 → 12.3 ms（100 章未达门槛）／30.9 → 11.5 ms（62.78%）／77.2 → 18.1 ms（76.55%）**。
+- 保存 JSON SHA-256 前后一致；夹具检查首个有效 adopted 版本仍提供选项，stale/draft/重复版本不改变选择，保存字段正确，1440／390 宽度无横向溢出。计时包含本地 dirty 计算和同步 DOM commit，不包含下一帧绘制或真实保存 API。
+- 验证：`npm run build` 通过；生产 Chromium A/B 的首个有效 adopted 选项身份、保存等值与布局断言通过。100 章负载是 **1.5 ms/输入**，比基线慢约 **0.06 ms/输入**；不计为收益。门槛仅由 500／1000 章工作区的 **62.78%／76.55%** 改善满足。
+- 证据：`data/performance-audit-20261014/galgame-authoring/{baseline-final,after-final}/report.json`；运行入口为 `frontend/e2e/performance/check.mjs` 的 `A4N_PERF_CASE=galgame-authoring`。

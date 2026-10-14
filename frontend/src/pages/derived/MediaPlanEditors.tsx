@@ -12,16 +12,32 @@ export function GalgameBranchPlanEditor({ value, workspace, onChange }: {
   value: GalgameBranchDesign; workspace: MediaAuthoringWorkspace; onChange: (value: GalgameBranchDesign) => void;
 }) {
   const { t } = useI18n();
+  const plansByChapter = new Map<number, AdaptationPlanV1>();
+  for (const { record, stale } of workspace.documents) {
+    if (
+      !stale &&
+      record.kind === "adaptation_plan" &&
+      record.status === "adopted" &&
+      record.source_chapter_id != null &&
+      !plansByChapter.has(record.source_chapter_id)
+    ) {
+      plansByChapter.set(record.source_chapter_id, record.document as AdaptationPlanV1);
+    }
+  }
   const units = workspace.chapters.flatMap((chapter) => {
-    const document = workspace.documents.find(({ record, stale }) => !stale && record.kind === "adaptation_plan" && record.source_chapter_id === chapter.source.source_chapter_id && record.status === "adopted");
-    const plan = document?.record.document as AdaptationPlanV1 | undefined;
+    const chapterId = chapter.source.source_chapter_id;
+    const plan = plansByChapter.get(chapterId);
     return plan?.units.map((unit) => ({
-      unit, chapterId: chapter.source.source_chapter_id,
+      unit,
+      chapterId,
       label: `${chapter.chapter_number} · ${unit.title}`,
-      reference: { source_chapter_id: chapter.source.source_chapter_id, unit_id: unit.id },
+      reference: { source_chapter_id: chapterId, unit_id: unit.id },
     })) ?? [];
   });
-  const beats = units.flatMap((unit) => unit.unit.beats.map((beat) => ({ label: `${unit.label} · ${beat.action}`, reference: { ...unit.reference, beat_id: beat.id } })));
+  const beats = units.flatMap((unit) => unit.unit.beats.map((beat) => ({
+    label: `${unit.label} · ${beat.action}`,
+    reference: { ...unit.reference, beat_id: beat.id },
+  })));
   return <div className="space-y-5">
     {value.choices.length === 0 && <p className="text-sm text-book-text-muted">{t("common.mediaAuthoring.linearStory")}</p>}
     {value.choices.map((choice, index) => {

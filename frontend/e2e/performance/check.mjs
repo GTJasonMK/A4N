@@ -14,8 +14,8 @@ const port = Number(process.env.A4N_PERF_PORT ?? 48966);
 const outDir = path.join(artifacts, "dist");
 const baselineRef = process.env.A4N_PERF_BASELINE_REF;
 const scenario = process.env.A4N_PERF_CASE ?? "core";
-assert.ok(["core", "sidebar", "story-events", "video-planning", "shooting-script"].includes(scenario));
-const entry = scenario === "sidebar" ? "sidebar.html" : scenario === "story-events" ? "story-events.html" : scenario === "video-planning" ? "video-planning.html" : scenario === "shooting-script" ? "shooting-script.html" : "index.html";
+assert.ok(["core", "sidebar", "story-events", "video-planning", "shooting-script", "galgame-authoring"].includes(scenario));
+const entry = scenario === "sidebar" ? "sidebar.html" : scenario === "story-events" ? "story-events.html" : scenario === "video-planning" ? "video-planning.html" : scenario === "shooting-script" ? "shooting-script.html" : scenario === "galgame-authoring" ? "galgame-authoring.html" : "index.html";
 const sourceFiles = scenario === "story-events"
   ? ["src/pages/novel-detail/story-events/storyEventUtils.ts", "src/pages/novel-detail/story-events/ChapterEventSection.tsx"]
   : scenario === "sidebar"
@@ -24,6 +24,8 @@ const sourceFiles = scenario === "story-events"
   ? ["src/pages/novel-detail/video/VideoPlanningWorkspace.tsx", "src/pages/novel-detail/video/VideoSegmentPlanEditor.tsx"]
   : scenario === "shooting-script"
   ? ["src/pages/novel-detail/shooting-script/StructuredScriptEditor.tsx"]
+  : scenario === "galgame-authoring"
+  ? ["src/pages/derived/MediaPlanEditors.tsx"]
   : ["src/hooks/usePacedStreamText.ts", "src/i18n/format.ts", "src/components/ui/MarkdownText.tsx"];
 const baselineSources = new Map(baselineRef ? sourceFiles.map((file) => [
   path.join(frontend, file),
@@ -142,6 +144,20 @@ try {
     }
     report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
       viewports: [1440, 390], trace: traces[0], shootingScript };
+  } else if (scenario === "galgame-authoring") {
+    const traces = [];
+    for (const width of [1440, 390]) {
+      await browser.setViewport({ width, height: 900 });
+      traces.push(await browser.execute(() => window.verifyGalgameAuthoring()));
+      assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+    }
+    assert.deepEqual(traces[0], traces[1]);
+    const galgameAuthoring = [];
+    for (const count of [100, 500, 1000]) {
+      galgameAuthoring.push(await browser.execute((count) => window.measureGalgameAuthoring(count, 8), count));
+    }
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
+      viewports: [1440, 390], trace: traces[0], galgameAuthoring };
   } else {
     const traces = [];
     for (const width of [1440, 390]) {
