@@ -939,16 +939,6 @@ fn validate_webgal_choice_contract(
                     choice.id
                 )));
             }
-            if !detail
-                .scenes
-                .iter()
-                .any(|candidate| candidate.scene.id == target_scene_id)
-            {
-                return Err(invalid_webgal(format!(
-                    "Galgame choice {} 指向详情中不存在的场 {target_scene_id}",
-                    choice.id
-                )));
-            }
             choices_by_line
                 .entry(choice.line_id)
                 .or_default()
@@ -1390,5 +1380,124 @@ mod tests {
             .unwrap();
         assert_eq!(cg.binding.target_kind, GalgameMediaTargetKind::GalgameLine);
         assert_eq!(cg.binding.target_id, export.scenes[0].lines[0].id);
+    }
+
+    #[test]
+    fn rejects_choice_targets_missing_from_export_scene_map() {
+        let line_id = 100;
+        let mut source_scene = scene(vec![line(
+            line_id,
+            GalgameLineType::Choice,
+            presentation(Vec::new(), Vec::new(), Vec::new()),
+        )]);
+        source_scene.lines[0].scene_id = source_scene.scene.id;
+        source_scene.choices = (0..2)
+            .map(|option| GalgameChoice {
+                id: 200 + option,
+                line_id,
+                option_index: option as i32 + 1,
+                option_text: format!("选项 {}", option + 1),
+                target_scene_id: Some(999),
+            })
+            .collect();
+        let detail = GalgameScriptDetail {
+            id: 1,
+            root_project_id: 1,
+            title: "选择目标错误回归".into(),
+            speaker_profiles: Vec::new(),
+            text_anchors: Vec::new(),
+            media_bindings: Vec::new(),
+            scenes: vec![source_scene],
+            story_graph: None,
+            story_graph_status: None,
+        };
+
+        let error = validate_webgal_choice_contract(
+            &detail,
+            &BTreeMap::from([(10, "scene_001_10.txt".to_string())]),
+        )
+        .expect_err("choice target must exist in the export scene map");
+
+        assert!(error.to_string().contains("指向不存在的场 999"));
+    }
+
+    #[tokio::test]
+    #[ignore = "manual performance probe"]
+    async fn webgal_choice_validation_probe() {
+        use std::time::{Duration, Instant};
+
+        for scene_count in [1_000_i64, 5_000, 10_000] {
+            let mut scenes = Vec::with_capacity(scene_count as usize);
+            for index in 0..scene_count {
+                let scene_id = index + 1;
+                let line_id = scene_id * 10;
+                let mut item = scene(vec![line(
+                    line_id,
+                    GalgameLineType::Choice,
+                    presentation(Vec::new(), Vec::new(), Vec::new()),
+                )]);
+                item.scene.id = scene_id;
+                item.scene.scene_index = scene_id as i32;
+                item.lines[0].scene_id = scene_id;
+                item.choices = (0..2)
+                    .map(|option| GalgameChoice {
+                        id: scene_id * 10 + option + 1,
+                        line_id,
+                        option_index: option as i32 + 1,
+                        option_text: format!("选项 {}", option + 1),
+                        target_scene_id: Some(
+                            (scene_count * 3 / 4 + index % (scene_count / 4)).max(1),
+                        ),
+                    })
+                    .collect();
+                scenes.push(item);
+            }
+            let detail = GalgameScriptDetail {
+                id: 1,
+                root_project_id: 1,
+                title: "导出性能夹具".into(),
+                speaker_profiles: Vec::new(),
+                text_anchors: Vec::new(),
+                media_bindings: Vec::new(),
+                scenes,
+                story_graph: None,
+                story_graph_status: None,
+            };
+            let scene_file_by_id = detail
+                .scenes
+                .iter()
+                .enumerate()
+                .map(|(index, scene)| {
+                    (
+                        scene.scene.id,
+                        format!("scene_{:03}_{}.txt", index + 1, scene.scene.id),
+                    )
+                })
+                .collect::<BTreeMap<_, _>>();
+            let mut samples = Vec::with_capacity(5);
+            let warmup_until = Instant::now() + Duration::from_millis(250);
+            let mut iteration = 0;
+            while samples.len() < 5 {
+                let started = Instant::now();
+                validate_webgal_choice_contract(&detail, &scene_file_by_id)
+                    .expect("valid WebGAL choice contract");
+                let elapsed = started.elapsed().as_secs_f64() * 1_000.0;
+                if iteration >= 2 && started >= warmup_until {
+                    samples.push(elapsed);
+                }
+                iteration += 1;
+            }
+            samples.sort_by(f64::total_cmp);
+            println!(
+                "webgal_choice_validation scenes={} choices={} p50_ms={:.3} samples={samples:?}",
+                detail.scenes.len(),
+                detail
+                    .scenes
+                    .iter()
+                    .map(|scene| scene.choices.len())
+                    .sum::<usize>(),
+                samples[samples.len() / 2],
+            );
+        }
     }
 }

@@ -48,6 +48,7 @@
 | [PERF-087](../../crates/host/a4n-orchestrator/src/galgame/read_models/pipeline.rs) | Galgame 千章 context 初装与分支阶段 → 1000 个已采用计划；每份文档约 8 KiB | draft/adopted 当前文档按章批读；分支阶段按计划 ID 批读；仍逐条解析并验证 draft 优先级、记录身份和 revision | 隔离 PostgreSQL 16、CPU 18/19、5 组交错（2 组预热、3 组计量）P50：context **1,037.152 → 95.208 ms（90.8%）**；分支阶段刷新 **252.101 → 80.963 ms（67.9%）**；摘要顺序与状态相同 |
 | [PERF-088](../../frontend/src/pages/novel-detail/visual-plan/useDirectorPlan.ts) | ChapterVisualPlan 每次镜头输入 → dirty 检查、编辑 revision 与本地草稿备份；100／500／1000 段、每份计划 82,583／416,583／834,088 B | 每次更改只序列化一次；dirty、revision、同步备份共用同一表示；效果阶段跳过同一对象的重复 sessionStorage 写入 | Chromium 153、CPU 18/19、8 次输入 P50：100 段 **16.8 → 9.7 ms（42.3%）**、500 段 **114.0 → 56.4 ms（50.5%）**、1000 段 **234.2 → 112.3 ms（52.1%）** |
 | [PERF-091](../../crates/host/a4n-orchestrator/src/media_authoring/application.rs) | 手动首次保存 Galgame 分支计划 → 收集 1000 章 adopted 改编依赖；每份文档约 8 KiB | 按 project/snapshot/source chapter 每批 64 条仅读 adopted 计划；调用方继续按章节顺序 parse 并生成 reference | 隔离 PostgreSQL 16、CPU 18/19、5 组交错（2 组预热、3 组计量）P50 **475.357 → 100.909 ms（78.8%）**；依赖 ID、revision、hash、status 顺序相同 |
+| [PERF-092](../../crates/host/a4n-orchestrator/src/galgame/webgal_export_application.rs) | WebGAL 导出选择合同 → 1000／5000／10000 场景、每场 2 个选项 | 用现有导出 scene ID Map 校验目标；删除 Map 命中后对详情场景的第二次线性扫描 | Rust release、CPU 18/19，完整合同验证 P50 **2.394→0.288 ms（88.0%）／51.907→1.604 ms（96.9%）／202.676→4.577 ms（97.7%）**；结果与错误语义相同 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -77,6 +78,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | ChapterVisualPlan 编辑 | PERF-088 复用当前 plan 的精确 JSON 表示，避免每次编辑分别做 dirty 比较、revision 比较和两次相同本地备份序列化/写入；同步备份仍保留，其他替换仍由 effect 备份。 |
 | ChapterVisualPlan diff 候选 | PERF-089（PERF-088 基线）对共享对象引用相同的点/镜头跳过 JSON 深比较；100／500／1000 段 P50 **9.1→7.1 ms（22.0%）／56.1→44.3 ms（21.0%）／109.3→88.9 ms（18.7%）**，均低于门槛，未采用。完整输入 JSON 为 **82,583／416,583／834,088 B**；证据见 `../../data/performance-audit-20261014/plan-changes/`。 |
 | Galgame 手动分支计划保存 | PERF-091 首次创建全局分支计划时逐章查询 adopted adaptation plan，改为来源章节 ID 的有界批读取；按章节顺序保持完整 parse/hash 和“未采用计划”错误语义。 |
+| WebGAL 导出 | PERF-092 复用由同一 `detail.scenes` 构建的 export scene ID Map；删除其后的逐 choice 全场景重复查找，保留 Map 上的缺失目标报错。 |
 | 资产依赖图布局候选 | PERF-090（原提交 `4337935c5`）对每轮布局排序预计算邻居 barycenter；1k／5k／10k 节点仅改善 **24.5%／22.2%／24.8%**，均低于门槛，坐标/层级输出相同，未采用。 |
 
 ## 可复现入口
@@ -382,6 +384,15 @@ A4N_PERF_ARTIFACTS=/path/inside/worktree/data/api-transfer \
 - 验证：隔离 release PostgreSQL probe 中 5 条批量 A/B 全通过；authoring 语义单测 3/3；`cargo check -p a4n-orchestrator --all-targets --locked --offline`、`cargo fmt --all -- --check`、`git diff --check` 通过。
 - 边界：A/B 计数据库读取、完整文档哈希/解析和 reference 构造；不包括保存 Galgame branch document 的后续事务及 HTTP 往返。
 - 证据：`../../data/performance-audit-20261014/manual-branch-save-batch/recheck.log`。
+
+### PERF-092：WebGAL choice 目标的重复场景扫描
+
+- 请求链路：每次 WebGAL 导出先以全部 `detail.scenes` 构建 `scene_file_by_id`，随后 `validate_webgal_choice_contract` 对每个 choice 查该 Map；旧实现命中 Map 后仍从头 `.iter().any(...)` 扫描相同的场景向量。S 个场景、C 个选项时这项重复验证为 O(S×C)，且导出前每次执行。
+- 修复：保留 Map 查询和原有“选项指向不存在场”错误，删除 Map 命中后不可达的第二次场景扫描。Map 在同一个 `build_webgal_package` 请求中从 `detail.scenes` 构建，因此两个校验集合始终同源。
+- A/B 运行完整生产 `validate_webgal_choice_contract`，构造 1k／5k／10k 个场景、每场 2 个有效 choice，目标集中在后续场景以覆盖线性扫描的高成本位置；每版 5 个样本，warmup 至少 250 ms，CPU 固定 18/19。最新候选 P50 从 **2.394 → 0.288 ms（88.0%）／51.907 → 1.604 ms（96.9%）／202.676 → 4.577 ms（97.7%）**。A/B 两版均对完整有效选择合同返回成功；候选定向测试还确保目标不在导出 scene Map 时仍返回原有错误。
+- 验证：baseline/candidate release `webgal_choice_validation_probe` 各 1/1；候选 WebGAL export 定向单测 **5/5**，包含无效目标错误回归；`cargo fmt --all -- --check`、`git diff --check` 通过。
+- 边界：测量选择合同校验 CPU，不含读取剧本、媒体文件打包、Base64 或 zip 输出。
+- 证据：`../../data/performance-audit-20261014/webgal-choice-validation/report.json`；基线提交为 `83759a956`。
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
 
