@@ -17,7 +17,7 @@ use a4n_domain::media_authoring::{
     AdaptationPlanV1, AdaptationTarget, AuthoringDocumentDeletionDependency,
     AuthoringDocumentDeletionImpact, AuthoringDocumentInputs, AuthoringDocumentKind,
     AuthoringDocumentRecord, AuthoringDocumentRef, AuthoringDocumentStatus,
-    AuthoringGalgameScriptDeletion, AuthoringMangaPageDeletion,
+    AuthoringGalgameScriptDeletion, AuthoringMangaPageDeletion, AuthoringSourceRef,
 };
 use a4n_domain::project::ProjectRecord;
 use a4n_domain::shooting_script::ChapterShootingScriptReferenceRecord;
@@ -940,55 +940,106 @@ async fn validate_owner_and_sources<C: ConnectionTrait>(
             "创作文档基准快照不匹配".into(),
         ));
     }
-    let mut sources = std::collections::BTreeSet::new();
-    for source in &inputs.sources {
-        if !sources.insert(source.source_snapshot_chapter_id) {
-            return Err(AuthoringDocumentError::InvalidArgument(
-                "创作文档原文引用重复".into(),
-            ));
-        }
-        let row = source_snapshot_chapter::Entity::find_by_id(source.source_snapshot_chapter_id)
-            .one(db)
-            .await?
-            .ok_or_else(|| AuthoringDocumentError::InvalidArgument("原文快照章节不存在".into()))?;
-        if source.root_project_id != expected_root_project_id
-            || row.root_project_id != source.root_project_id
-            || row.snapshot_id != source.source_snapshot_id
-            || row.source_chapter_id != source.source_chapter_id
-            || row.content_hash != source.content_sha256
-            || a4n_domain::source_text_hash(&row.content) != source.content_sha256
-        {
-            return Err(AuthoringDocumentError::InvalidArgument(
-                "创作文档原文来源不一致".into(),
-            ));
-        }
-        if standalone_comic {
-            let mapped_source = standalone_comic_text_source::Entity::find()
-                .filter(standalone_comic_text_source::Column::ProjectId.eq(project.id))
-                .filter(
-                    standalone_comic_text_source::Column::ChapterId.eq(source.source_chapter_id),
-                )
-                .filter(
-                    standalone_comic_text_source::Column::SourceSnapshotId
-                        .eq(source.source_snapshot_id),
-                )
-                .filter(
-                    standalone_comic_text_source::Column::SourceSnapshotChapterId
-                        .eq(source.source_snapshot_chapter_id),
-                )
-                .one(db)
-                .await?;
-            if mapped_source.is_none() {
-                return Err(AuthoringDocumentError::InvalidArgument(
-                    "独立漫画改编来源不属于当前素材版本".into(),
-                ));
-            }
-        }
-    }
+    validate_source_references(
+        db,
+        project.id,
+        expected_root_project_id,
+        standalone_comic,
+        &inputs.sources,
+    )
+    .await?;
     validate_adopted_authoring_dependencies(db, project_id, &inputs.dependencies).await?;
     if kind == AuthoringDocumentKind::AdaptationPlan && !inputs.dependencies.is_empty() {
         return Err(AuthoringDocumentError::InvalidArgument(
             "改编计划不能依赖其他本地阶段".into(),
+        ));
+    }
+    Ok(())
+}
+
+async fn validate_source_references<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+    expected_root_project_id: i64,
+    standalone_comic: bool,
+    source_refs: &[AuthoringSourceRef],
+) -> Result<(), AuthoringDocumentError> {
+    const SOURCE_BATCH_SIZE: usize = 64;
+    let mut seen = BTreeSet::new();
+    for chunk in source_refs.chunks(SOURCE_BATCH_SIZE) {
+        let mut rows = source_snapshot_chapter::Entity::find()
+            .filter(
+                source_snapshot_chapter::Column::Id
+                    .is_in(chunk.iter().map(|source| source.source_snapshot_chapter_id)),
+            )
+            .all(db)
+            .await?
+            .into_iter()
+            .map(|row| (row.id, row))
+            .collect::<HashMap<_, _>>();
+
+        for source in chunk {
+            take_valid_source_row(expected_root_project_id, source, &mut rows, &mut seen)?;
+            if standalone_comic {
+                let mapped_source = standalone_comic_text_source::Entity::find()
+                    .filter(standalone_comic_text_source::Column::ProjectId.eq(project_id))
+                    .filter(
+                        standalone_comic_text_source::Column::ChapterId
+                            .eq(source.source_chapter_id),
+                    )
+                    .filter(
+                        standalone_comic_text_source::Column::SourceSnapshotId
+                            .eq(source.source_snapshot_id),
+                    )
+                    .filter(
+                        standalone_comic_text_source::Column::SourceSnapshotChapterId
+                            .eq(source.source_snapshot_chapter_id),
+                    )
+                    .one(db)
+                    .await?;
+                if mapped_source.is_none() {
+                    return Err(AuthoringDocumentError::InvalidArgument(
+                        "独立漫画改编来源不属于当前素材版本".into(),
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn take_valid_source_row(
+    expected_root_project_id: i64,
+    source: &AuthoringSourceRef,
+    rows: &mut HashMap<i64, source_snapshot_chapter::Model>,
+    seen: &mut BTreeSet<i64>,
+) -> Result<(), AuthoringDocumentError> {
+    if !seen.insert(source.source_snapshot_chapter_id) {
+        return Err(AuthoringDocumentError::InvalidArgument(
+            "创作文档原文引用重复".into(),
+        ));
+    }
+    let row = rows
+        .remove(&source.source_snapshot_chapter_id)
+        .ok_or_else(|| AuthoringDocumentError::InvalidArgument("原文快照章节不存在".into()))?;
+    validate_source_row(expected_root_project_id, source, &row)?;
+    Ok(())
+}
+
+fn validate_source_row(
+    expected_root_project_id: i64,
+    source: &AuthoringSourceRef,
+    row: &source_snapshot_chapter::Model,
+) -> Result<(), AuthoringDocumentError> {
+    if source.root_project_id != expected_root_project_id
+        || row.root_project_id != source.root_project_id
+        || row.snapshot_id != source.source_snapshot_id
+        || row.source_chapter_id != source.source_chapter_id
+        || row.content_hash != source.content_sha256
+        || a4n_domain::source_text_hash(&row.content) != source.content_sha256
+    {
+        return Err(AuthoringDocumentError::InvalidArgument(
+            "创作文档原文来源不一致".into(),
         ));
     }
     Ok(())
@@ -1173,6 +1224,64 @@ mod dependency_validation_tests {
             Err(AuthoringDocumentError::InvalidArgument(message)) if message == "project_id 必须大于 0"
         ));
     }
+
+    #[test]
+    fn batched_source_validation_preserves_identity_and_failure_semantics() {
+        let content = "冻结原文".to_string();
+        let hash = a4n_domain::source_text_hash(&content);
+        let row = source_snapshot_chapter::Model {
+            id: 101,
+            snapshot_id: 11,
+            root_project_id: 7,
+            source_chapter_id: 13,
+            chapter_number: 1,
+            title: Some("第一章".into()),
+            content,
+            summary: None,
+            analysis_data_json: None,
+            content_hash: hash.clone(),
+            analysis_hash: None,
+        };
+        let source = AuthoringSourceRef {
+            root_project_id: 7,
+            source_chapter_id: 13,
+            source_snapshot_id: 11,
+            source_snapshot_chapter_id: 101,
+            content_sha256: hash,
+        };
+        assert!(validate_source_row(7, &source, &row).is_ok());
+
+        let mut seen = BTreeSet::new();
+        let mut rows = HashMap::from([(row.id, row.clone())]);
+        assert!(take_valid_source_row(7, &source, &mut rows, &mut seen).is_ok());
+        assert!(matches!(
+            take_valid_source_row(7, &source, &mut rows, &mut seen),
+            Err(AuthoringDocumentError::InvalidArgument(message)) if message == "创作文档原文引用重复"
+        ));
+        assert!(matches!(
+            take_valid_source_row(7, &source, &mut HashMap::new(), &mut BTreeSet::new()),
+            Err(AuthoringDocumentError::InvalidArgument(message)) if message == "原文快照章节不存在"
+        ));
+
+        let mut wrong_snapshot = row.clone();
+        wrong_snapshot.snapshot_id += 1;
+        assert!(matches!(
+            validate_source_row(7, &source, &wrong_snapshot),
+            Err(AuthoringDocumentError::InvalidArgument(message)) if message == "创作文档原文来源不一致"
+        ));
+        let mut wrong_root = row.clone();
+        wrong_root.root_project_id += 1;
+        assert!(matches!(
+            validate_source_row(7, &source, &wrong_root),
+            Err(AuthoringDocumentError::InvalidArgument(message)) if message == "创作文档原文来源不一致"
+        ));
+        let mut wrong_content_hash = row.clone();
+        wrong_content_hash.content_hash = "0".repeat(64);
+        assert!(matches!(
+            validate_source_row(7, &source, &wrong_content_hash),
+            Err(AuthoringDocumentError::InvalidArgument(message)) if message == "创作文档原文来源不一致"
+        ));
+    }
 }
 
 pub fn parse_record(
@@ -1301,14 +1410,40 @@ mod perf_probe {
     use a4n_db_models::models::chapter::chapter as source_chapter;
     use a4n_db_models::models::project::media_authoring_document as document;
     use a4n_db_models::models::project::{project_source_snapshot, source_snapshot_chapter};
-    use a4n_domain::media_authoring::{AuthoringDocumentInputs, AuthoringDocumentRef};
+    use a4n_domain::media_authoring::{
+        AuthoringDocumentInputs, AuthoringDocumentRef, AuthoringSourceRef,
+    };
     use chrono::Utc;
     use sea_orm::Set;
     use std::time::Instant;
 
+    async fn validate_source_references_serial<C: ConnectionTrait>(
+        db: &C,
+        expected_root_project_id: i64,
+        source_refs: &[AuthoringSourceRef],
+    ) -> Result<(), AuthoringDocumentError> {
+        let mut seen = BTreeSet::new();
+        for source in source_refs {
+            if !seen.insert(source.source_snapshot_chapter_id) {
+                return Err(AuthoringDocumentError::InvalidArgument(
+                    "创作文档原文引用重复".into(),
+                ));
+            }
+            let row =
+                source_snapshot_chapter::Entity::find_by_id(source.source_snapshot_chapter_id)
+                    .one(db)
+                    .await?
+                    .ok_or_else(|| {
+                        AuthoringDocumentError::InvalidArgument("原文快照章节不存在".into())
+                    })?;
+            validate_source_row(expected_root_project_id, source, &row)?;
+        }
+        Ok(())
+    }
+
     #[tokio::test]
     #[ignore = "manual performance probe"]
-    async fn batch_dependency_probe() {
+    async fn media_authoring_reference_probe() {
         use std::time::Duration;
 
         let db = a4n_migration::test_support::connect_test_database().await;
@@ -1370,6 +1505,8 @@ mod perf_probe {
         .insert(&db)
         .await
         .expect("insert source snapshot");
+        let snapshot_content = "x".repeat(8 * 1024);
+        let snapshot_content_hash = a4n_domain::source_text_hash(&snapshot_content);
         let snapshot_chapters = chapters
             .iter()
             .map(|chapter| source_snapshot_chapter::ActiveModel {
@@ -1378,10 +1515,10 @@ mod perf_probe {
                 source_chapter_id: Set(chapter.id),
                 chapter_number: Set(chapter.chapter_number),
                 title: Set(chapter.title.clone()),
-                content: Set(chapter.content.clone()),
+                content: Set(snapshot_content.clone()),
                 summary: Set(None),
                 analysis_data_json: Set(None),
-                content_hash: Set(format!("hash-{}", chapter.chapter_number)),
+                content_hash: Set(snapshot_content_hash.clone()),
                 analysis_hash: Set(None),
                 ..Default::default()
             })
@@ -1390,6 +1527,22 @@ mod perf_probe {
             .exec(&db)
             .await
             .expect("insert snapshot chapters");
+        let source_rows = source_snapshot_chapter::Entity::find()
+            .filter(source_snapshot_chapter::Column::SnapshotId.eq(snapshot.id))
+            .order_by_asc(source_snapshot_chapter::Column::ChapterNumber)
+            .all(&db)
+            .await
+            .expect("load source snapshot chapters");
+        let source_refs = source_rows
+            .iter()
+            .map(|row| AuthoringSourceRef {
+                root_project_id: project.id,
+                source_chapter_id: row.source_chapter_id,
+                source_snapshot_id: snapshot.id,
+                source_snapshot_chapter_id: row.id,
+                content_sha256: snapshot_content_hash.clone(),
+            })
+            .collect::<Vec<_>>();
         let now = Utc::now().naive_utc();
         let mut refs = Vec::with_capacity(dependency_count as usize);
         let mut rows = Vec::with_capacity(dependency_count as usize);
@@ -1478,6 +1631,52 @@ mod perf_probe {
         assert!(
             old_ms > new_ms * 1.3,
             "batch probe must clear the latency gate"
+        );
+
+        let mut old_source_samples = Vec::with_capacity(3);
+        let mut new_source_samples = Vec::with_capacity(3);
+        for pair in 0..5 {
+            let (old_source_ms, new_source_ms) = if pair % 2 == 0 {
+                let old_started = Instant::now();
+                validate_source_references_serial(&db, project.id, &source_refs)
+                    .await
+                    .expect("serial source validation");
+                let old_ms = old_started.elapsed().as_secs_f64() * 1_000.0;
+                let new_started = Instant::now();
+                validate_source_references(&db, project.id, project.id, false, &source_refs)
+                    .await
+                    .expect("batched source validation");
+                (old_ms, new_started.elapsed().as_secs_f64() * 1_000.0)
+            } else {
+                let new_started = Instant::now();
+                validate_source_references(&db, project.id, project.id, false, &source_refs)
+                    .await
+                    .expect("batched source validation");
+                let new_ms = new_started.elapsed().as_secs_f64() * 1_000.0;
+                let old_started = Instant::now();
+                validate_source_references_serial(&db, project.id, &source_refs)
+                    .await
+                    .expect("serial source validation");
+                (old_started.elapsed().as_secs_f64() * 1_000.0, new_ms)
+            };
+            if pair >= 2 {
+                old_source_samples.push(old_source_ms);
+                new_source_samples.push(new_source_ms);
+            }
+            tokio::time::sleep(Duration::from_millis(15)).await;
+        }
+        old_source_samples.sort_by(f64::total_cmp);
+        new_source_samples.sort_by(f64::total_cmp);
+        let old_source_ms = old_source_samples[old_source_samples.len() / 2];
+        let new_source_ms = new_source_samples[new_source_samples.len() / 2];
+        println!(
+            "source_reference_batch rows={} content_bytes={} p50_old_ms={old_source_ms:.3} p50_new_ms={new_source_ms:.3} old_samples={old_source_samples:?} new_samples={new_source_samples:?}",
+            source_refs.len(),
+            source_refs.len() * snapshot_content.len(),
+        );
+        assert!(
+            old_source_ms > new_source_ms * 1.3,
+            "source reference batch probe must clear the latency gate"
         );
     }
 }

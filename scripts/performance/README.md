@@ -43,8 +43,8 @@
 | [PERF-082](../../frontend/src/pages/novel-detail/video/VideoSegmentPlanEditor.tsx) | 长视频分镜编辑；每次文本输入更新整份 segment plan，50／100／200 段 | 路径级不可变更新保留未修改段引用，memoize 未变分段，dirty 检查复用固定基线序列化 | 固定 CPU 18/19、Chromium 153，每 8 次输入总耗时 P50：50 段 **211.5 → 11.6 ms（94.52%）**、100 段 **459.7 → 17.0 ms（96.30%）**、200 段 **976.9 → 24.2 ms（97.52%）**；保存摘要完全相同 |
 | [PERF-083](../../frontend/src/pages/novel-detail/shooting-script/StructuredScriptEditor.tsx) | 影片剧本编辑；每次镜头字段输入更新完整剧本，25／50／100 镜头 | 共用 `updateAtPath` 只复制修改路径，稳定更新回调并 memoize 未变化的 ShotEditor | 固定 CPU 18/19、Chromium 153，每 8 次输入总耗时 P50：25 镜头 **183.6 → 34.8 ms（81.05%）**、50 镜头 **385.8 → 60.7 ms（84.27%）**、100 镜头 **775.8 → 103.5 ms（86.66%）**；保存摘要完全相同 |
 | [PERF-084](../../frontend/src/pages/derived/MediaPlanEditors.tsx) | Galgame 分支计划编辑；每个输入重算所有章节改编单元/节拍，500／1000 章 | 以章节 ID Map 替代逐章扫描全部文档的嵌套 `find`，保留文档首个匹配顺序 | 固定 CPU 18/19、Chromium 153，每 8 次输入总耗时 P50：500 章 **30.9 → 11.5 ms（62.78%）**、1000 章 **77.2 → 18.1 ms（76.55%）**；计划摘要相同。100 章为 **11.8 → 12.3 ms**，不计为收益 |
-| [PERF-085](../../crates/platform/a4n-db/src/media_authoring.rs) | Galgame 分支计划保存／漫画计划校验 → 1000 个章节依赖；每份文档约 8 KiB | 按 project 和依赖 ID 分批读取，最多 64 份完整记录；逐条 canonical hash/revision/status/kind 校验 | 隔离 PostgreSQL 16、CPU 18/19、3 组交错样本 P50 **1,382.882 → 874.741 ms（36.8%）**；JSON **8,291,000 B**，校验结果相同 |
-| [PERF-085](../../crates/platform/a4n-db/src/media_authoring.rs) | Galgame 分支计划保存／漫画计划校验 → 验证 1000 个章节改编依赖；每份文档约 8 KiB | 将逐个主键请求改为按 project 与 ID 批量读取，每批最多 64 行，逐行复用完整哈希和依赖校验 | 隔离 PostgreSQL 16、CPU 18/19、3 组交错样本 P50 **1,382.9 → 874.7 ms（36.8%）**；总 JSON 载荷 **8,291,000 字节**，完整验证结果相同 |
+| [PERF-085](../../crates/platform/a4n-db/src/media_authoring.rs) | Galgame 分支计划保存／漫画计划校验 → 1000 个章节依赖；每份文档约 8 KiB | 按 project 和依赖 ID 分批读取，最多 64 份完整记录；逐条 canonical hash/revision/status/kind 校验 | 隔离 PostgreSQL 16、CPU 18/19、5 组交错（2 组预热、3 组计量）P50 **243.056 → 84.936 ms（65.1%）**；JSON **8,291,000 B**，校验结果相同 |
+| [PERF-086](../../crates/platform/a4n-db/src/media_authoring.rs) | 多章节 Galgame 分支计划保存 → 验证 1000 个来源快照章节；正文共 **8,192,000 B** | 按来源快照章节 ID 每批读取最多 64 行；按输入顺序保留来源身份、正文哈希、重复／缺失错误与独立漫画映射检查 | 隔离 PostgreSQL 16、CPU 18/19、5 组交错（2 组预热、3 组计量）P50 **188.106 → 30.453 ms（83.8%）**；内容校验结果相同 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -68,8 +68,8 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 视频分镜编辑 | PERF-082 在每次文本输入时按编辑路径复制并保留未变化段引用，避免全量深拷贝和全段重渲染；完整 dirty/revert 语义与保存内容保持一致。 |
 | 影片剧本编辑 | PERF-083 在每次输入时复制整份场景/镜头数据，改为路径级复制；未变化的镜头子树复用，源剧本和保存数据保持一致。 |
 | Galgame 分支计划编辑 | PERF-084 在每次输入时按章逐个扫描全部创作文档，改为线性构建章节计划索引并映射可选单元/节拍，保留首个有效采用版本的顺序。 |
-| 媒体创作依赖校验 | PERF-085 一次查询最多 64 个依赖记录，逐个保留引用顺序和错误分类；验证完每行即从批次 Map 移除，不跨批缓存完整文档。 |
 | 媒体创作依赖校验 | PERF-085 复用项目/依赖 ID 批量读口，单批最多 64 条完整记录；返回后仍逐项核对引用顺序、哈希、revision、状态、类型和缺失项。 |
+| 媒体创作来源校验 | PERF-086 将多章来源快照主键串行读取改为每批 64 行；保留逐来源完整身份与正文哈希校验，单章漫画校验路径不变。 |
 
 ## 可复现入口
 
@@ -342,16 +342,17 @@ A4N_PERF_ARTIFACTS=/path/inside/worktree/data/api-transfer \
 
 - 请求链路：Galgame 分支计划覆盖多个来源章节；保存、采用及剧本持久化都会经过 `validate_adopted_authoring_dependencies`。漫画页面同步在存在分页计划依赖时也复用该 helper。旧实现对每个依赖依次执行 project-scoped 主键读取，解析完整 JSON 并验证 canonical SHA-256，再逐条检查 revision/hash/adopted/kind。
 - 修复：先拒绝空列表快返及无效 project ID；每批最多取 **64** 个 `(project_id, id)` 记录，建立临时 ID Map。仍按输入引用顺序校验重复、正 ID、缺失、JSON hash、revision/hash、status 和 document kind；每处理一行就从 Map 删除，故完整 JSON 的暂存上限受批大小约束。对外权限、错误分类和首个错误顺序不变。
-- A/B 在同一隔离 PostgreSQL 16 schema 使用 **1000** 个真实 chapter/source snapshot chapter 和 adopted 文档，每份文档 JSON 约 **8 KiB**，合计 **8,291,000 B**。旧路径和有界批量路径都逐个完成相同引用字段及 canonical JSON hash 校验；固定 CPU 18/19，5 组交错采样，前 2 组预热，剩余 3 组 P50。串行 **1,382.882 ms**，每批 64 条 **874.741 ms**，下降 **36.8%**；最大批次载荷约 64×8 KiB，即约 **512 KiB** JSON 文档，未将 8.3 MiB 文档集合同时保存在候选校验 Map 中。
+- A/B 在同一隔离 PostgreSQL 16 schema 使用 **1000** 个真实 chapter/source snapshot chapter 和 adopted 文档，每份文档 JSON 约 **8 KiB**，合计 **8,291,000 B**。旧路径和有界批量路径都逐个完成相同引用字段及 canonical JSON hash 校验；固定 CPU 18/19，5 组交错采样，前 2 组预热，剩余 3 组 P50。与 PERF-086 的 **8,192,000 B** 正文来源负载同时装入同一测试 schema 后，串行 **243.056 ms**，每批 64 条 **84.936 ms**，下降 **65.1%**；最大批次载荷约 64×8 KiB，即约 **512 KiB** JSON 文档，未将 8.3 MiB 文档集合同时保存在候选校验 Map 中。首次记录的绝对耗时 **1,382.882 → 874.741 ms** 在复测中未重现，原因未确认；验收数字采用本次同探针复测值。
 - 验证：非 DB 依赖语义回归 **1/1**，覆盖合法多依赖、重复、缺失/项目范围不匹配、非正 project/record ID、revision、draft 状态和错误 kind；实际 Galgame 分支计划到脚本保存集成路径 **1/1** 通过；`cargo check -p a4n-db --all-targets --locked --offline`、`cargo fmt --all -- --check`、`git diff --check` 通过。
 - 旁路失败如实保留：`cargo test -p a4n-db --test media_authoring_documents -- --test-threads=1` 4 项中 2 项通过，另 2 项分别在删除 fixture 的 media cleanup 路径和跨项目 source-sync snapshot 设置处失败；失败点早于共享依赖校验。Manga sync 定向测试也因既有 fixture 对自增记录顺序的断言次序不一致失败，该用例依赖列表为空，未进入新 helper。
-- 证据：`/tmp/perf085-unit.log`、`/tmp/perf085-bench.log`、`/tmp/perf085-authoring-tests.log`。可用 `A4N_TEST_DATABASE_URL=<独立 PostgreSQL 16>` 运行 `cargo test -p a4n-db dependency_validation_tests::batched_dependency_validation_preserves_order_and_failure_semantics`；手动性能入口是忽略测试 `cargo test -p a4n-db perf_probe::batch_dependency_probe -- --ignored --nocapture`。
-
-### PERF-085：媒体创作文档依赖验证的串行主键读取
-
-- 请求链路：保存多章节 Galgame 分支计划时，每个章节都有一个已采用改编计划依赖；漫画分页/同步也使用同一共享 helper 校验依赖。旧实现逐条调用 `authoring_document`：每个 ID 单独请求数据库，加载完整 JSON 后解析并校验内容哈希，再比对引用 revision/hash、采用状态和文档类型。
-- 修复：一次按 `project_id` 与当前至多 **64** 个依赖 ID 查询，批次 Map 查找时严格按输入依赖顺序逐项校验；完整记录哈希验证、revision/hash/status/kind 检查、重复与缺失错误语义保留。每条记录校验后立即从批次 Map 移除，将保留的完整文档内存限制在 64 条。超过 64 个依赖时逐批执行，保持有界内存。
-- A/B 使用同一隔离 PostgreSQL 16 与测试数据；1000 个真实章节/快照映射、1000 个已采用计划，每份 document JSON 约 8 KiB，总共 **8,291,000 字节**。逐条基线和 64 行有界批次每一轮都执行等价 canonical JSON hash 与引用字段验证；CPU 固定 18/19，5 组交错、前 2 组预热，后 3 组取 P50。串行 P50 **1,382.882 ms**，批量 P50 **874.741 ms**，下降 **36.8%**。批量查询结果逐依赖验证成功，重复、缺失、revision/hash/status/kind 失败分别有错误路径回归。
 - 边界：这项 A/B 覆盖本地 PostgreSQL 查询、完整 JSON 取回/解析和 canonical SHA-256 校验，不包括下游模型生成、Runtime HTTP 或 worker 推理。
-- 验证：共享依赖验证语义回归 **1/1**；隔离 PostgreSQL 16 手动基准 **1/1**；`cargo fmt --all -- --check`、`git diff --check` 通过。
-- 证据：`/home/fufu/Code/A4N/work/.build/agent-target` 定向测试日志 `/tmp/perf085-unit.log` 与 `/tmp/perf085-bench.log`（只保留本机会话输出，不入库）；复现命令：`A4N_TEST_DATABASE_URL=<隔离测试库> cargo test -p a4n-db perf_probe::batch_dependency_probe -- --ignored --nocapture`。
+- 证据：隔离工作树日志 `data/performance-audit-20261014/media-authoring-dependency/recheck-source-final.log`；复现命令：`A4N_TEST_DATABASE_URL=<隔离测试库> cargo test -p a4n-db --lib perf_probe::media_authoring_reference_probe --release -- --ignored --nocapture`。
+
+### PERF-086：Galgame 多章节来源快照的串行读取
+
+- 请求链路：Galgame 分支计划保存时，`run_branch_design_stage` 将每个章节计划中的来源引用合并进分支计划；`save_authoring_document` 在同一事务中逐条读取对应来源快照章节，并检查 root project、snapshot、source chapter、存储哈希和正文 SHA-256。1000 章时旧实现执行 1000 次完整主键读取。
+- 修复：来源 ID 每批最多读取 **64** 行；仍按输入顺序逐条执行原身份、重复、缺失和正文哈希校验。独立漫画素材映射检查保留在原位置；该业务路径在输入校验处限定为单来源。
+- A/B 使用隔离 PostgreSQL 16、固定 CPU 18/19，在同一 schema 建立 **1000** 个来源快照章节，每条正文 **8 KiB**，合计 **8,192,000 B**。串行与批量路径调用相同的行身份检查和 `source_text_hash`；5 组交错、前 2 组预热、后 3 组计量，P50 **188.106 → 30.453 ms（下降 83.8%）**。候选同时将完整来源行保留上限限制为 64 条。
+- 验证：来源身份、哈希、重复和缺失语义单测与 PERF-085 依赖语义单测共 **2/2**；release A/B 探针通过并满足 30% 门槛；`cargo fmt --all -- --check`、`git diff --check` 通过。定向保存集成 `documents_are_project_owned_revision_fenced_and_independent_per_source_snapshot` 在 fixture 的“创作文档基准快照不匹配”断言失败，发生在新来源 helper 前；本次不计为通过。
+- 边界：A/B 覆盖来源行读取、身份检查与正文哈希，不包含完整 Galgame 工作流或模型生成时长。
+- 证据：`data/performance-audit-20261014/media-authoring-dependency/recheck-source-final.log`；手动探针：`A4N_TEST_DATABASE_URL=<独立测试库> cargo test -p a4n-db --lib perf_probe::media_authoring_reference_probe --release -- --ignored --nocapture`。
