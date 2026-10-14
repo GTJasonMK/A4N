@@ -112,6 +112,7 @@ pub mod profile_record_ownership_default_cleanup;
 pub mod project_collaboration;
 pub mod project_derivation_identity_cleanup;
 pub mod project_source_mode_identity_cleanup;
+pub mod project_status_history_project_changed_index;
 pub mod provider_default_config_integrity_contract;
 pub mod retire_stale_live_text_anchors;
 pub mod segment_card_video_workflow;
