@@ -32,6 +32,8 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
   const planRef = useRef(plan);
   const recordRef = useRef(record);
   const baseline = useRef("");
+  const serializedPlan = useRef("");
+  const backedUpPlan = useRef<ChapterVisualPlanV3 | null>(null);
   const scope = useRef(0);
   const scopeKey = useRef("");
   scopeKey.current = `${projectId}:${chapterId}`;
@@ -43,11 +45,13 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
   const editorRevision = useRef(crypto.randomUUID());
   const viewInstanceId = useRef(crypto.randomUUID());
   const storageKey = `a4n:director-draft:${location.origin}:${projectId}:${chapterId}`;
-  const dirty = plan != null && JSON.stringify(plan) !== baseline.current;
+  const dirty = plan != null && serializedPlan.current !== baseline.current;
   const editable = canEdit && !invalidated && (record == null || record.record.status === "draft");
 
   const replace = useCallback((next: ChapterVisualPlanV3) => {
-    if (JSON.stringify(planRef.current) !== JSON.stringify(next)) editorRevision.current = crypto.randomUUID();
+    const nextJson = JSON.stringify(next);
+    if (serializedPlan.current !== nextJson) editorRevision.current = crypto.randomUUID();
+    serializedPlan.current = nextJson;
     planRef.current = next;
     setPlan(next);
     setIssues([]);
@@ -126,7 +130,7 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
 
   const reload = useCallback(async (force = false) => {
     if (chapterId == null) { setLoading(false); return; }
-    if (!force && (mutationLock.current || pending.current || (planRef.current && JSON.stringify(planRef.current) !== baseline.current))) {
+    if (!force && (mutationLock.current || pending.current || (planRef.current && serializedPlan.current !== baseline.current))) {
       report(new Error("当前编辑或保存尚未完成，已保留本地内容。完成后可重新加载方案。"));
       return;
     }
@@ -151,8 +155,8 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
       recordRef.current = current;
       setRecord(current);
       const next = current?.plan ?? result.starter_plan;
-      baseline.current = JSON.stringify(next);
       replace(next);
+      baseline.current = serializedPlan.current;
       setUndo([]);
       setRedo([]);
       setRecovery(sessionStorage.getItem(storageKey) != null);
@@ -165,7 +169,7 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
 
   const reloadWithBackup = useCallback(async () => {
     try {
-      if (planRef.current) sessionStorage.setItem(storageKey, JSON.stringify(planRef.current));
+      if (planRef.current) sessionStorage.setItem(storageKey, serializedPlan.current);
       await reload(true);
     } catch (failure) { report(failure); }
   }, [reload, report, storageKey]);
@@ -173,6 +177,9 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
   useEffect(() => {
     planRef.current = null;
     recordRef.current = null;
+    serializedPlan.current = "";
+    baseline.current = "";
+    backedUpPlan.current = null;
     setPlan(null);
     setRecord(null);
     setSet(null);
@@ -201,7 +208,7 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
     if (!canEdit || chapterId == null || !snapshot || current?.record.status === "confirmed") {
       throw new Error("请先进入草稿编辑模式");
     }
-    if (current && JSON.stringify(snapshot) === baseline.current) return current;
+    if (current && serializedPlan.current === baseline.current) return current;
     const currentScope = scope.current;
     setSaving(true);
     const request = saveChapterVisualPlanDraft(projectId, chapterId, current, snapshot);
@@ -210,8 +217,9 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
       const saved = await request;
       if (currentScope === scope.current) {
         applySaved(saved, snapshot);
-        if (JSON.stringify(planRef.current) === baseline.current) {
+        if (serializedPlan.current === baseline.current) {
           sessionStorage.removeItem(storageKey);
+          backedUpPlan.current = null;
           setRecovery(false);
         }
         setError(null);
@@ -288,15 +296,20 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
 
   useEffect(() => {
     if (!dirty || !editable || !plan || conflict || invalidated) return;
-    try { sessionStorage.setItem(storageKey, JSON.stringify(plan)); }
-    catch (failure) { report(new Error(`本地草稿备份失败：${String(failure)}`)); }
+    // updateFields already wrote this exact object synchronously before React rendered it.
+    if (backedUpPlan.current !== plan) {
+      try {
+        sessionStorage.setItem(storageKey, serializedPlan.current);
+        backedUpPlan.current = plan;
+      } catch (failure) { report(new Error(`本地草稿备份失败：${String(failure)}`)); }
+    }
     const timer = setTimeout(() => { if (!mutationLock.current) void save().catch(report); }, 800);
     return () => clearTimeout(timer);
   }, [conflict, dirty, editable, invalidated, plan, report, save, storageKey]);
 
   useEffect(() => {
     const guard = (event: BeforeUnloadEvent) => {
-      if (planRef.current && JSON.stringify(planRef.current) !== baseline.current) {
+      if (planRef.current && serializedPlan.current !== baseline.current) {
         event.preventDefault();
         event.returnValue = "";
       }
@@ -314,9 +327,11 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
       setRedo([]);
     }
     // Persist the edit buffer immediately; navigation never depends on an unmount request.
-    try { sessionStorage.setItem(storageKey, JSON.stringify(next)); }
-    catch (failure) { report(failure); }
     replace(next);
+    try {
+      sessionStorage.setItem(storageKey, serializedPlan.current);
+      backedUpPlan.current = next;
+    } catch (failure) { report(failure); }
   }, [editable, replace, report, storageKey, projectId, chapterId]);
 
   const mutate = useCallback(async (operation: VisualPlanEditOperation, operationBase?: ChapterVisualPlanView): Promise<boolean> => {
@@ -394,6 +409,7 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
       if (snapshot) applySaved(saved, snapshot);
       else { acceptRecord(saved); replace(saved.plan); }
       sessionStorage.removeItem(storageKey);
+      backedUpPlan.current = null;
       setRecovery(false);
       setError(null);
     } catch (failure) { if (currentScope === scope.current) report(failure); }
