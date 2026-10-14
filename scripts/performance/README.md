@@ -102,6 +102,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 工作流按章最新运行索引候选 | PERF-104 在 100,000 条运行、1,000 个章节、每章 10 条历史上尝试 `workflow_run(project_id, workflow_kind, chapter_id, updated_at DESC, id DESC)`；按实际完整模型投影 P50 **17.005→12.317 ms（27.57%）**，低于门槛，未修改索引；窄投影的 44.33% 不作为收益。 |
 | 工作流项目列表数据库排序 | PERF-105 为 `workflow_run(project_id, updated_at DESC, id DESC)` 增加索引；100,000 行、100 条返回时数据库执行 P50 下降 **96.21%**，结果顺序不变；详见 PERF-105。 |
 | 任务历史数据库分页 | PERF-106 为 `task_queue(project_id, created_at DESC)` 增加索引；100,000 行、100 条返回时数据库执行 P50 下降 **97.36%**，结果顺序不变；详见 PERF-106。 |
+| 导入审核项目列表索引候选 | PERF-107 在 100,000 行、20,000 条命中、每行约 8 KiB JSON 的完整返回上尝试 `import_review_queue(project_id, created_at DESC)`；P50 **19.251→17.848 ms（7.29%）**，低于门槛，未修改索引。 |
 
 ## 可复现入口
 
@@ -596,6 +597,14 @@ A4N_PERF_ARTIFACTS=data/performance-audit-20261015/task-history-index \
   --report-dir data/test-runs/task-history-index-20261015 \
   --timeout 60 -- node scripts/performance/task-history-index.mjs
 ~~~
+
+### PERF-107：导入审核项目列表索引候选（未采用）
+
+- 请求链路：`import_reviews_by_project` 按项目读取全部审核行并按 `created_at DESC` 排序；每行包含完整 `analysis_result` JSON。
+- 候选：增加 `import_review_queue(project_id, created_at DESC)` 索引，尝试避免全表扫描和排序。
+- A/B：隔离 PostgreSQL 16，100,000 行、目标项目 20,000 行、每行约 8 KiB JSON，完整行返回，5 轮交错。无索引 P50 **19.251 ms**（`Sort` + `Seq Scan`），有索引 **17.848 ms**（`Sort` + `Bitmap Heap Scan`），仅下降 **7.29%**；20,000 行 ID 顺序完全一致。
+- 决策：撤回索引候选；完整 JSON 返回和序列化是主要成本，单纯索引不能达到门槛，避免增加写入成本。
+- 证据：`data/test-runs/import-review-index-20261015-v2/command.log`；本候选没有产品提交。
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
 
