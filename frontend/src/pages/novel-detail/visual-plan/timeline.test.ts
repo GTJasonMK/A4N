@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChapterVisualPlanV3 } from "../../../api/chapterVisualPlan";
-import { pointAt, scaledPreview, sceneColor, segmentAt, segmentBackground, timelineTrackWidth } from "./timeline";
+import { pointAt, pointsInsideSegment, scaledPreview, sceneColor, segmentAt, segmentBackground, timelineTrackWidth } from "./timeline";
 
 const plan: ChapterVisualPlanV3 = {
   schema_version: "chapter_visual_plan_v3", frame: { width: 1920, height: 1080 },
@@ -28,6 +28,20 @@ describe("director timeline projections", () => {
     expect(segmentAt(plan, 6000)?.id).toBe("transition");
     expect(pointAt(plan, 12000).at_ms).toBe(12000);
     expect(pointAt(plan, 0).image_id).toBeNull();
+  });
+
+  it("preserves the first matching segment and missing-point error", () => {
+    const overlapping = {
+      ...plan,
+      segments: [plan.segments[0], { ...plan.segments[1], start_point_id: "0", end_point_id: "8000" }],
+    };
+    expect(segmentAt(overlapping, 5000)?.id).toBe("a");
+    expect(() => segmentAt({ ...plan, segments: [{ ...plan.segments[0], start_point_id: "missing" }] }, 1))
+      .toThrow("镜头段引用的时间点不存在");
+  });
+
+  it("returns only the points strictly inside the selected segment", () => {
+    expect(pointsInsideSegment(plan, "a").map((point) => point.id)).toEqual(["2000", "4000"]);
   });
 
   it("retimes every point but preserves bindings and segment identity", () => {

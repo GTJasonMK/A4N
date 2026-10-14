@@ -34,7 +34,7 @@ import { useDirectorPlan } from "./visual-plan/useDirectorPlan";
 import { useDirectorPlayback, type DirectorPlayback } from "./visual-plan/playback";
 import { useNovelDetailDirty } from "./novelDetailDirty";
 import { useI18n } from "../../i18n";
-import { durationMs, formatTime, pointAt, segmentAt, segmentTimes, type DirectorSelection } from "./visual-plan/timeline";
+import { durationMs, formatTime, pointAt, pointsInsideSegment, segmentAt, segmentTimes, type DirectorSelection } from "./visual-plan/timeline";
 import "./visual-plan/director.css";
 
 const SceneLibrary = lazy(() => import("./SceneProfilesTab").then((module) => ({ default: module.SceneProfilesTab })));
@@ -730,7 +730,7 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
       </div>
     </Modal>
     {split && <Modal isOpen title="拆分镜头" onClose={() => void closeSplit()} footer={<BookButton disabled={model.busy} onClick={() => { void model.mutate({ kind: "split_segment", segment_id: split.segmentId, point_id: split.pointId, right_segment_id: crypto.randomUUID(), left_prompt: split.leftPrompt, right_prompt: split.rightPrompt, left_scene_binding: split.leftScene, right_scene_binding: split.rightScene }, split.base).then((succeeded) => { if (succeeded) setSplit(null); }); }}>拆分镜头</BookButton>}>
-        <div className="director-fields"><label>分镜位置<ThemedSelect className="director-select" aria-label="分镜位置" value={split.pointId} onChange={(selectedValue) => setSplit({ ...split, pointId: selectedValue, dirty: true })}>{split.base.plan.points.filter((point) => { const target = split.base.plan.segments.find((segment) => segment.id === split.segmentId)!; const [start, end] = segmentTimes(split.base.plan, target); return point.at_ms > start && point.at_ms < end; }).map((point) => <option key={point.id} value={point.id}>{formatTime(point.at_ms)} · {point.label}</option>)}</ThemedSelect></label>
+        <div className="director-fields"><label>分镜位置<ThemedSelect className="director-select" aria-label="分镜位置" value={split.pointId} onChange={(selectedValue) => setSplit({ ...split, pointId: selectedValue, dirty: true })}>{pointsInsideSegment(split.base.plan, split.segmentId).map((point) => <option key={point.id} value={point.id}>{formatTime(point.at_ms)} · {point.label}</option>)}</ThemedSelect></label>
         <label>前段描述<textarea rows={4} value={split.leftPrompt} onChange={(event) => setSplit({ ...split, leftPrompt: event.target.value, dirty: true })} /></label><SceneBindingEditor draftKey="split:left" setDraftDirty={markSceneCreationDirty} setCreationBusy={setSceneCreationBusy} projectId={projectId} chapterNumber={chapter.chapter_number} binding={split.leftScene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(leftScene) => setSplit({ ...split, leftScene, dirty: true })} />
         <label>后段描述<textarea rows={4} value={split.rightPrompt} onChange={(event) => setSplit({ ...split, rightPrompt: event.target.value, dirty: true })} placeholder="为新镜头填写描述，也可以拆分后生成。" /></label><SceneBindingEditor draftKey="split:right" setDraftDirty={markSceneCreationDirty} setCreationBusy={setSceneCreationBusy} projectId={projectId} chapterNumber={chapter.chapter_number} binding={split.rightScene} scenes={scenes} disabled={model.busy} onSceneCreated={rememberScene} onChange={(rightScene) => setSplit({ ...split, rightScene, dirty: true })} /></div>
     </Modal>}

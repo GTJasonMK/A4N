@@ -79,14 +79,21 @@ type ReferenceBinding = {
   userAddedAssets: MangaBoundReferenceAsset[];
 };
 
-type ReferenceCandidate = {
+export type ReferenceCandidate = {
   key: string;
   assetKind: MangaReferenceAssetKind;
   assetId: number;
   imagePath: string;
   label: string;
   subLabel: string;
+  panelId: string | null;
+  searchPreview: string;
   rank: number;
+};
+
+export type ReferenceCandidateSearchResults = {
+  candidates: ReferenceCandidate[];
+  totalCount: number;
 };
 
 export const mangaReferenceAssetKey = (
@@ -257,6 +264,75 @@ const candidateMatchRank = (
   return rank;
 };
 
+const imageReferenceMatchRank = (
+  binding: ReferenceBinding,
+  image: GeneratedImage,
+  base = 0,
+): number => {
+  const label = binding.characterName.toLowerCase().trim();
+  if (!label) return base;
+  if (
+    image.image_type.toLowerCase().includes(label) ||
+    image.prompt.toLowerCase().includes(label) ||
+    image.panel_id?.toLowerCase().includes(label)
+  ) {
+    return base + 100;
+  }
+  return JSON.stringify(image.metadata_json ?? {}).toLowerCase().includes(label)
+    ? base + 100
+    : base;
+};
+
+const imageMatchesReferenceQuery = (
+  image: GeneratedImage,
+  query: string,
+  t: MessageTranslator,
+): boolean => {
+  if (
+    image.image_type.toLowerCase().includes(query) ||
+    image.prompt.toLowerCase().includes(query) ||
+    image.panel_id?.toLowerCase().includes(query) ||
+    image.file_path.toLowerCase().includes(query) ||
+    String(image.id).includes(query) ||
+    imageTypeLabel(image.image_type, t).toLowerCase().includes(query) ||
+    t("comic.prompt.projectImage").toLowerCase().includes(query) ||
+    (image.is_favorite && t("comic.prompt.favorite").toLowerCase().includes(query))
+  ) {
+    return true;
+  }
+  // Keep cross-field phrase matching while avoiding metadata serialization on ordinary field hits.
+  const searchText = [
+    image.image_type,
+    image.prompt,
+    image.panel_id,
+    JSON.stringify(image.metadata_json ?? {}),
+    image.file_path,
+    String(image.id),
+    imageTypeLabel(image.image_type, t),
+    t("comic.prompt.projectImage"),
+    image.is_favorite ? t("comic.prompt.favorite") : "",
+  ].join(" ").toLowerCase();
+  return searchText.includes(query);
+};
+
+const portraitReferenceText = (
+  name: string,
+  portrait: Portrait,
+): string =>
+  [name, portrait.portrait_type, portrait.expression, portrait.pose, portrait.prompt]
+    .filter(Boolean)
+    .join(" ");
+
+const candidateSearchPreview = (value: string): string =>
+  value.replace(/\s+/g, " ").trim().slice(0, 80);
+
+const compareReferenceCandidates = (
+  a: ReferenceCandidate,
+  b: ReferenceCandidate,
+): number => b.rank !== a.rank
+  ? b.rank - a.rank
+  : a.label.localeCompare(b.label, "zh-Hans-CN");
+
 export const buildReferenceCandidates = (
   binding: ReferenceBinding,
   profiles: CharacterProfile[],
@@ -270,22 +346,16 @@ export const buildReferenceCandidates = (
     .map<ReferenceCandidate>((portrait) => {
       const name =
         names.get(portrait.profile_id) ?? t("comic.prompt.otherPortrait");
-      const text = [
-        name,
-        portrait.portrait_type,
-        portrait.expression,
-        portrait.pose,
-        portrait.prompt,
-      ]
-        .filter(Boolean)
-        .join(" ");
+      const text = portraitReferenceText(name, portrait);
       return {
         key: mangaReferenceAssetKey("character_portrait", portrait.id),
         assetKind: "character_portrait",
         assetId: portrait.id,
         imagePath: portrait.image_path,
+        searchPreview: candidateSearchPreview(portrait.prompt || portrait.image_path),
         label: name,
         subLabel: `${portrait.portrait_type || t("comic.prompt.otherPortrait")}${portrait.is_primary ? ` · ${t("comic.prompt.primaryPortrait")}` : ""}`,
+        panelId: null,
         rank: candidateMatchRank(binding, text, portrait.is_primary ? 10 : 0),
       };
     });
@@ -293,29 +363,62 @@ export const buildReferenceCandidates = (
   const imageCandidates = projectImages
     .filter((image) => image.file_path.trim())
     .map<ReferenceCandidate>((image) => {
-      const text = [
-        image.image_type,
-        image.prompt,
-        image.panel_id,
-        JSON.stringify(image.metadata_json ?? {}),
-      ].join(" ");
       return {
         key: mangaReferenceAssetKey("generated_image", image.id),
         assetKind: "generated_image",
         assetId: image.id,
         imagePath: image.file_path,
+        searchPreview: candidateSearchPreview(image.prompt || image.panel_id || image.file_path),
         label: imageTypeLabel(image.image_type, t),
         subLabel: image.is_favorite ? `${t("comic.prompt.projectImage")} · ${t("comic.prompt.favorite")}` : t("comic.prompt.projectImage"),
-        rank: candidateMatchRank(binding, text, image.is_favorite ? 8 : 0),
+        panelId: image.panel_id,
+        rank: imageReferenceMatchRank(binding, image, image.is_favorite ? 8 : 0),
       };
     });
 
   const candidates = [...portraitCandidates, ...imageCandidates];
 
-  return candidates.sort((a, b) => {
-    if (b.rank !== a.rank) return b.rank - a.rank;
-    return a.label.localeCompare(b.label, "zh-Hans-CN");
+  return candidates.sort(compareReferenceCandidates);
+};
+
+export const searchReferenceCandidates = (
+  binding: ReferenceBinding,
+  profiles: CharacterProfile[],
+  portraits: Portrait[],
+  projectImages: GeneratedImage[],
+  query: string,
+  t: MessageTranslator,
+  limit = 100,
+): ReferenceCandidateSearchResults => {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (normalizedQuery.length < 2 || limit <= 0) {
+    return { candidates: [], totalCount: 0 };
+  }
+
+  const names = profileNameById(profiles);
+  const matchingPortraits = portraits.filter((portrait) => {
+    const name = names.get(portrait.profile_id) ?? t("comic.prompt.otherPortrait");
+    const searchText = [
+      portraitReferenceText(name, portrait),
+      portrait.image_path,
+      String(portrait.id),
+    ].join(" ").toLowerCase();
+    return searchText.includes(normalizedQuery);
   });
+  const matchingImages = projectImages.filter((image) => {
+    return imageMatchesReferenceQuery(image, normalizedQuery, t);
+  });
+  const candidates = buildReferenceCandidates(
+    binding,
+    profiles,
+    matchingPortraits,
+    matchingImages,
+    t,
+  );
+  return {
+    candidates: candidates.slice(0, limit),
+    totalCount: candidates.length,
+  };
 };
 
 export const findGeneratedPageImage = (

@@ -31,11 +31,27 @@ export function segmentTimes(plan: ChapterVisualPlanV3, segment: VisualSegmentV3
   return [start.at_ms, end.at_ms];
 }
 
+export function pointsInsideSegment(
+  plan: ChapterVisualPlanV3,
+  segmentId: string,
+): VisualPointV3[] {
+  const segment = plan.segments.find((item) => item.id === segmentId)!;
+  const [start, end] = segmentTimes(plan, segment);
+  return plan.points.filter((point) => point.at_ms > start && point.at_ms < end);
+}
+
 export function segmentAt(plan: ChapterVisualPlanV3, time: number): VisualSegmentV3 | undefined {
-  return plan.segments.find((segment) => {
-    const [start, end] = segmentTimes(plan, segment);
-    return time >= start && time < end;
-  }) ?? (time === durationMs(plan) ? plan.segments.at(-1) : undefined);
+  const pointTimes = new Map<string, number>();
+  for (const point of plan.points) {
+    if (!pointTimes.has(point.id)) pointTimes.set(point.id, point.at_ms);
+  }
+  for (const segment of plan.segments) {
+    const start = pointTimes.get(segment.start_point_id);
+    const end = pointTimes.get(segment.end_point_id);
+    if (start == null || end == null) throw new Error("镜头段引用的时间点不存在");
+    if (time >= start && time < end) return segment;
+  }
+  return time === durationMs(plan) ? plan.segments.at(-1) : undefined;
 }
 
 export function formatTime(time: number): string {

@@ -944,6 +944,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                         "reference_discovery",
                         t("comic.pipelineStages.referenceDiscovery"),
                         <ReferenceBindingsPanel
+                          key={activePage.prompt.id}
                           page={activePage}
                           profiles={profiles}
                           portraits={portraits}
@@ -1051,6 +1052,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                           {t("comic.prompt.referenceBindings")}
                         </h3>
                         <ReferenceBindingsPanel
+                          key={activePage.prompt.id}
                           page={activePage}
                           profiles={profiles}
                           portraits={portraits}

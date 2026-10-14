@@ -53,6 +53,9 @@
 | [PERF-094](../../frontend/src/pages/novel-detail/asset-graph/graphCanvas.ts) | 打开／刷新资产依赖图 → `buildLayout`；8 层 DAG、1000／5000／10000 节点、2625／13125／26250 边 | 每个可见节点只计算一次聚类排序键，供拓扑堆和五轮分层排序重复比较使用 | Chromium 153.0.8010.52、CPU 18/19、生产 Vite P50 **53.400→25.700 ms（51.87%）／345.600→172.600 ms（50.06%）／781.700→403.100 ms（48.43%）**；坐标与层级摘要完全相同 |
 | [PERF-095](../../frontend/src/pages/novel-detail/MangaTab.tsx) | NovelDetail 根项目漫画页初载 → 章节目录；1000 章 | 目录改用已存在的 `listChapterIndex`；只有当前章节选中时才读完整 `getChapter` | 复用 PERF-017 同一真实 1000 章列表 API 对照：完整章节响应 **11,601,686→742,686 B（减少 93.60%）**；多章节初载不请求正文/分析 |
 | [PERF-096](../../frontend/src/pages/novel-detail/MangaTab.tsx) | 根项目 MangaTab 多章空态 → 角色档案、立绘、全项目图片读取；1000 章、5000／10000 图片 | 没有选中章节时不读取详情面板未使用的三组项目资产；首次选择或单章自动选择时仍读取 | Chromium 153、生产 Vite、4× CPU、4 Mbps/50 ms、三轮：JS heap P50 **14.76→9.01 MB（38.96%）／19.03→9.01 MB（52.65%）**；解压 API JSON **5,722,957→969,812 B（83.05%）／10,274,345→969,812 B（90.56%）**；目录就绪仅快 **7.21%／8.01%**，不计为时延收益 |
+| [PERF-097](../../frontend/src/pages/novel-detail/manga/ReferenceBindingsPanel.tsx) | 漫画参考图绑定器每次打开／搜索；3 个角色、50 档案、200 立绘、5000／10000 项目图片 | 超过 100 个候选时改为关键词过滤并最多渲染 100 项；候选保留稳定 ID/面板身份，选择后预览缩略图；小列表沿用原下拉 | Chromium 153、生产 Vite、三轮交错：候选初载 P50 **59.6→9.5 ms（84.06%）／98.8→8.3 ms（91.60%）**；宽泛 `page` 搜索并打开 **329.1→99.6 ms（69.74%）／576.0→114.7 ms（80.09%）**；GC 后 JS heap **8614→5005 KiB（41.90%）／13738→6625 KiB（51.78%）**；指针/键盘可添加，1440/1024/390px 无溢出 |
+| [PERF-098](../../frontend/src/pages/novel-detail/visual-plan/timeline.ts) | ChapterVisualPlan 拆分镜头弹窗每次重渲染 → 计算段内时间点；1000／5000 点和段 | 将循环内反复查找目标段与起止点收敛为各查找一次，再执行相同的段内过滤 | Chromium 153、生产 Vite、2 轮预热＋7 轮交错：1000 项 **10.5→≤0.1 ms**；5000 项 **78.6→0.1 ms（99.87%）**；输出点数、ID 与顺序逐项一致 |
+| [PERF-099](../../frontend/src/pages/novel-detail/visual-plan/timeline.ts) | ChapterVisualPlan 时间点选中／编辑源投影 → 查找所属分镜；1000／5000 点和段 | 一次建立保留首个 ID 的时间点 Map，再按原段顺序扫描并返回首个包含时间的分镜；保留缺失端点错误与总时长边界 | Chromium 153、生产 Vite、2 轮预热＋7 轮交错：靠后段查找 P50 **4.8→≤0.1 ms／32.6→0.2 ms（99.39%）**；选中分镜 ID 完全一致 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -445,6 +448,44 @@ flock -x /home/fufu/Code/A4N/work/.agent-build.lock env \
   NO_PROXY=localhost,127.0.0.1 A4N_PERF_ARTIFACTS=../data/performance-audit-20261015/manga-assets \
   node e2e/performance/manga-assets.mjs
 ~~~
+
+### PERF-097：漫画参考图高规模候选搜索
+
+- 请求链路：MangaPagePromptList 渲染参考绑定器时，每个角色都把全部角色立绘和项目图片变成 ThemedSelect 选项；打开 ThemedSelect 时再把所有选项投影并渲染到 portal。候选总数为 `立绘 + 项目图片 + 空选项`，每个绑定重复一次。
+- 修复：候选不超过 100 项时保留旧下拉。超过 100 项后，空查询不创建候选对象；输入至少两个字符后按既有角色/提示词/页码/图片 ID/路径/metadata 字段搜索，只保留前 100 个可见候选。候选仍按原来的相关度、收藏优先级和标签顺序排序。下拉项显示图片 ID、面板 ID 和短提示词，选中后显示缩略图与身份，避免大图库中无法辨认候选。搜索状态按面板生命周期管理，切换提示页会重置；没有增加服务端 API、缓存或预取。
+- A/B：基线 `faab71131` 对候选生产 Vite 构建，Chromium **153.0.8010.52**，3 轮交错；使用 50 个角色、200 张立绘、3 个绑定，项目图片分别为 5000 和 10000 项。宽泛查询 `page` 匹配所有合成项目图片的面板 ID。P50：初次挂载 **59.6→9.5 ms（84.06%）／98.8→8.3 ms（91.60%）**；宽泛搜索 **26.8／45.7 ms**，旧版直接打开完整选择器与新版搜索后打开之和 **329.1→99.6 ms（69.74%）／576.0→114.7 ms（80.09%）**。JS heap（挂载后 GC）**8,614,025→5,004,870 B（41.90%）／13,737,522→6,624,898 B（51.78%）**。
+- 行为检查：指针和键盘都能选中搜索结果并启用“添加”，且选择前出现缩略图；候选上限为 100 个可见结果，结果总数与“显示前 100 项”提示一致。1440／1024／390px 页面横向溢出均为 0，已保存默认、搜索和选中态截图。
+- 验证：漫画提示模型 Vitest **2/2**；包含漫画与时间线两个目标文件的 Vitest **8/8**；`npm run build`、基准脚本 `node --check`、`git diff --check` 通过。构建保留既有 >500 kB chunk 警告。
+- 边界：基准使用符合 API 形状的合成 DTO 与本地 SVG data URL，不包含真实 Control/数据库读取或媒体服务；它量化的是候选构造、React 渲染和浏览器选择器开销，不推断图库 API 或真实图片传输耗时。100 项以下保留旧交互，因此不计为性能收益场景。
+- 证据：`../../data/performance-audit-20261015/manga-references-final/report.json` 和该目录下 `screenshots/`。从 `frontend/` 复现：
+
+~~~bash
+A4N_PERF_QUERY=page A4N_PERF_ARTIFACTS=../data/performance-audit-20261015/manga-references-final \
+  node e2e/performance/manga-references.mjs
+~~~
+
+### PERF-098：拆分镜头弹窗的重复时间点扫描
+
+- 请求链路：拆分镜头弹窗中的位置选择器在每次打开或输入变化时重新渲染。旧过滤器对每个时间点都重新查找当前镜头段，并调用 `segmentTimes` 两次线性查找起止点；点数与段数增长时产生嵌套扫描。
+- 修复：新增 `pointsInsideSegment`，先查找目标段一次、计算起止时间一次，再用原来的严格区间条件过滤时间点。拆分可选项的 ID、显示顺序、边界排除和缺失引用错误保持原行为；不增加 memo/cache。
+- A/B：Chromium **153.0.8010.52** 生产 Vite 包；1000／5000 个时间点及段，每个目标段包含中间一半时间点；2 轮预热、7 轮交错，直接测量完整选项投影并逐项校验结果。P50：1000 项 **10.5→≤0.1 ms**；5000 项 **78.6→0.1 ms（99.87%）**。候选计时受 `performance.now()` 精度限制，报告 0.0 ms 的样本按 **≤0.1 ms** 表述。
+- 验证：timeline 定向 Vitest **6/6**（包含 PERF-099 边界检查）；基准脚本 `node --check`、`git diff --check` 和完整前端生产构建通过。
+- 边界：A/B 量化的是弹窗位置选项投影函数，不计 Modal/React 全组件或浏览器绘制时间；5000 项是合成压力场景，不代表常规计划规模。减少投影的 JS 主线程 CPU 时间达到门槛，因此保留局部根因修复。
+- 证据：`../../data/performance-audit-20261015/timeline-split/report.json`。从 `frontend/` 复现：
+
+~~~bash
+A4N_PERF_POINT_COUNTS=1000,5000 A4N_PERF_ARTIFACTS=../data/performance-audit-20261015/timeline-split \
+  node e2e/performance/timeline-split.mjs
+~~~
+
+### PERF-099：时间点到所属分镜的嵌套查找
+
+- 请求链路：拆分弹窗无当前段选择时，编辑器源投影按播放时间确定所属段；原 `segmentAt` 对每个候选段调用 `segmentTimes`，后者再从全部点中线性查找两端点。命中越靠后，段数和点数的乘积会进入同步主线程路径。
+- 修复：一次建立时间点 ID→时间 Map（重复 ID 保留原 `.find` 的第一个结果），仍按原分段顺序扫描；命中首个时间区间即返回。缺失时间点继续抛出相同错误，时长末端仍回落到最后一段。
+- A/B：同 PERF-098 的 Chromium 生产浏览器基准；查询时间落在第 90% 处的分段，2 轮预热＋7 轮交错。1000 点/段 P50 **4.8→≤0.1 ms**；5000 点/段 **32.6→0.2 ms（99.39%）**；命中的 segment ID 前后相同。
+- 验证：timeline 定向 Vitest **6/6**，含重叠区间首匹配与缺失端点错误；共用 `timeline-split.mjs` 报告含投影及查找 A/B。完整前端构建通过。
+- 边界：仅测所属段定位函数，不计编辑器其余工作；合成查询落在靠后区间用于覆盖最坏扫描路径。
+- 证据及复现入口：`../../data/performance-audit-20261015/timeline-split/report.json`，见 PERF-098 命令。
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
 
