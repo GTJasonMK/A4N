@@ -40,7 +40,8 @@
 | [PERF-079](../../crates/platform/a4n-db/src/collaboration/access/info.rs) | 项目列表／摘要 → 协作摘要；100 个项目、每项目 1000 成员 | 成员数和当前用户角色在 PostgreSQL 分组聚合；不再将所有成员行解码到 Worker | 100,000 行时查询 P50 **29.540 → 19.399 ms（34.33%）**，结果字节 **1,381,300 → 1,492（99.89%）**；这是成员聚合查询，不是完整 API 响应 |
 | [PERF-080](../../frontend/src/utils/videoPlayback.ts) | 每次选中／重载视频 → Host 内联 Base64 → `<video>`；单个文件最高 256 MiB | 删除仅用于校验的前端整串 `atob`；Host 已用 `base64::STANDARD` 编码，播放元素是唯一必要解码者 | Chromium 153、64 MiB：helper P50 **124.7 → 0.1 ms**，临时 JS heap **67,108,955 → 4,836 B**；分别下降 **99.92% / 99.99%** |
 | [PERF-081](../../crates/media/a4n-media/src/upload.rs) | 视频源上传 → Runtime → 临时文件；64 MiB 基准、接口上限 512 MiB | 复用原有空值/长度/Base64 校验，以 `DecoderReader` 分块写入临时文件，避免完整解码 `Vec<u8>` | 固定 CPU 的 release A/B P50 **100.975 → 98.010 ms（2.94%）**；进程峰值 RSS **151.562 → 87.770 MiB（42.09%）**；字节相同 |
-| [PERF-082](../../frontend/src/pages/novel-detail/video/VideoSegmentPlanEditor.tsx) | 长视频分镜编辑；每次文本输入更新整份 segment plan，50／100／200 段 | 路径级不可变更新保留未修改段引用，memoize 未变分段，dirty 检查复用固定基线序列化 | 固定 CPU 18/19、Chromium 153，每 8 次输入总耗时 P50：50 段 **211.5 → 12.7 ms（94.00%）**、100 段 **459.7 → 14.8 ms（96.78%）**、200 段 **976.9 → 20.8 ms（97.87%）**；保存摘要完全相同 |
+| [PERF-082](../../frontend/src/pages/novel-detail/video/VideoSegmentPlanEditor.tsx) | 长视频分镜编辑；每次文本输入更新整份 segment plan，50／100／200 段 | 路径级不可变更新保留未修改段引用，memoize 未变分段，dirty 检查复用固定基线序列化 | 固定 CPU 18/19、Chromium 153，每 8 次输入总耗时 P50：50 段 **211.5 → 11.6 ms（94.52%）**、100 段 **459.7 → 17.0 ms（96.30%）**、200 段 **976.9 → 24.2 ms（97.52%）**；保存摘要完全相同 |
+| [PERF-083](../../frontend/src/pages/novel-detail/shooting-script/StructuredScriptEditor.tsx) | 影片剧本编辑；每次镜头字段输入更新完整剧本，25／50／100 镜头 | 共用 `updateAtPath` 只复制修改路径，稳定更新回调并 memoize 未变化的 ShotEditor | 固定 CPU 18/19、Chromium 153，每 8 次输入总耗时 P50：25 镜头 **183.6 → 34.8 ms（81.05%）**、50 镜头 **385.8 → 60.7 ms（84.27%）**、100 镜头 **775.8 → 103.5 ms（86.66%）**；保存摘要完全相同 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -62,6 +63,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 故事事件 | PERF-018 减少筛选时未变化卡片的重复渲染；PERF-019 从数据库到前端仅读取所需的五个分析字段。千章/4500事件仍需渲染全部可变高卡片；原生 `content-visibility:auto` 已跳过屏外布局，但页面整体只改善约12.5%。进一步虚拟化会改变屏外 DOM/打印行为，当前没有可复用实现和整页 A/B 证据证明达到30%门槛，因此本轮不改变列表行为。 |
 | 漫画与派生媒体来源读取 | 漫画、视频、Galgame 工作台初载/刷新都使用源快照列表；列表只显示章号/标题，漫画与视频仅当前选中章需要正文。PERF-078 将产品列表改为窄索引，保留项目/快照归属的单章读口；Galgame 全程只取索引，旧完整列表 API 保留兼容。 |
 | 视频分镜编辑 | PERF-082 在每次文本输入时按编辑路径复制并保留未变化段引用，避免全量深拷贝和全段重渲染；完整 dirty/revert 语义与保存内容保持一致。 |
+| 影片剧本编辑 | PERF-083 在每次输入时复制整份场景/镜头数据，改为路径级复制；未变化的镜头子树复用，源剧本和保存数据保持一致。 |
 
 ## 可复现入口
 
@@ -306,8 +308,17 @@ A4N_PERF_ARTIFACTS=/path/inside/worktree/data/api-transfer \
 ### PERF-082：长视频分镜输入的深拷贝和全量重渲染
 
 - 请求链路：用户编辑 `VideoPlanningWorkspace` 中已保存的视频分镜时，每次 textarea 输入都会进入 `VideoSegmentPlanEditor.update`。旧实现深拷贝整份 `segments`，所有分段对象和更新回调都变成新引用，导致全部 `SegmentEditor` 子树重渲染；父级 dirty 检查也重复序列化基线和草稿。
-- 修复：编辑从现有只读分段引用开始；每次更改用函数式 setter 只复制分段数组、目标段和编辑路径上的容器，未改动分段保留原引用。稳定更新回调配合 `React.memo` 只重渲染目标段。编辑期间只序列化一次基线，仍逐次比较草稿内容，因此把字段改回原值会恢复 clean 状态，保存/取消行为不变。
-- A/B 在 Chromium **153.0.8010.52** 打开生产 Vite 夹具，Node、ChromeDriver 和 Chromium 固定在 CPU 18/19。每个工作负载含 **8** 次文本输入；每版先跑 2 组预热，再以 5 组样本的 P50 汇总八次 `input` dispatch 与同步 React commit 的累计时间。50／100／200 段计划 JSON 分别为 **55,843／111,805／224,905 字节**：P50 **211.5 → 12.7 ms（94.00%）／459.7 → 14.8 ms（96.78%）／976.9 → 20.8 ms（97.87%）**。
+- 修复：编辑从现有只读分段引用开始；每次更改用共享 `updateAtPath` 和函数式 setter 只复制分段数组、目标段和编辑路径上的容器，未改动分段保留原引用。稳定更新回调配合 `React.memo` 只重渲染目标段。编辑期间只序列化一次基线，仍逐次比较草稿内容，因此把字段改回原值会恢复 clean 状态，保存/取消行为不变。
+- A/B 在 Chromium **153.0.8010.52** 打开生产 Vite 夹具，Node、ChromeDriver 和 Chromium 固定在 CPU 18/19。每个工作负载含 **8** 次文本输入；每版先跑 2 组预热，再以 5 组样本的 P50 汇总八次 `input` dispatch 与同步 React commit 的累计时间。50／100／200 段计划 JSON 分别为 **55,843／111,805／224,905 字节**：P50 **211.5 → 11.6 ms（94.52%）／459.7 → 17.0 ms（96.30%）／976.9 → 24.2 ms（97.52%）**。
 - 完整保存 JSON 的 SHA-256 在前后版本逐负载一致；夹具还断言源计划未被修改、恢复原值会关闭 Save，1440／390 宽度无横向溢出。该计时包含同步事件处理和 React DOM commit，不包含下一帧绘制或真实 API 保存。
 - 验证：`npm run test:run -- src/pages/novel-detail/video/VideoPlanningWorkspace.test.tsx` **8/8**；`npm run build` 通过。生产浏览器 A/B 与上述等值、恢复及布局断言通过；Vite 保留已有超过 500 kB 的 chunk 提示。
-- 证据：`data/performance-audit-20261014/video-plan-editor/{before-final,after-final}/report.json`；运行入口为 `frontend/e2e/performance/check.mjs` 的 `A4N_PERF_CASE=video-planning`。深工作树若触及 Chromium Unix socket 路径长度，可用 `A4N_PERF_CHROME_TMPDIR` 指向 `/home/fufu/Code/A4N/work/` 下的短路径别名；目标临时目录仍须位于该工作树内。
+- 证据：`data/performance-audit-20261014/video-plan-editor/{before-final,after-refactor}/report.json`；运行入口为 `frontend/e2e/performance/check.mjs` 的 `A4N_PERF_CASE=video-planning`。深工作树若触及 Chromium Unix socket 路径长度，可用 `A4N_PERF_CHROME_TMPDIR` 指向 `/home/fufu/Code/A4N/work/` 下的短路径别名；目标临时目录仍须位于该工作树内。
+
+### PERF-083：影片剧本逐字段编辑的全量深拷贝和镜头重渲染
+
+- 请求链路：视频工作区进入 screenplay 后，`ShootingScriptTab` 将当前剧本传给 `StructuredScriptEditor`。每次镜头 textarea 输入都会走 `update(path, value)`；旧实现深拷贝全部 scenes/shots/beats，再更新一个字段。新对象和新回调令所有镜头子树重新渲染。父级 dirty 比较仍保留原有完整值语义，本项基准也包含该比较。
+- 修复：视频分镜编辑 PERF-082 共用的 `updateAtPath` 按路径复制剧本、场景、镜头及目标字段容器；更新使用稳定函数式 setter。镜头组件接收稳定的场景/镜头索引并通过 `React.memo` 复用未修改的镜头子树。场景镜头索引数组在剧本编辑器中每次渲染只构造一次。
+- A/B 在 Chromium **153.0.8010.52** 打开生产 Vite 页面，Node、ChromeDriver 和 Chromium 固定在 CPU 18/19。每个工作负载含 **8** 次镜头标题输入；每版先跑 2 组预热，再以 5 组样本的 P50 汇总八次 `input` dispatch 与同步 React commit。25／50／100 镜头剧本 JSON 为 **31,364／62,754／125,626 字节**：P50 **183.6 → 34.8 ms（81.05%）／385.8 → 60.7 ms（84.27%）／775.8 → 103.5 ms（86.66%）**。
+- 完整剧本保存摘要逐负载相同；夹具检查源数据不变、更新镜头标题及嵌套构图字段、1440／390 宽度无横向溢出。计时覆盖同步输入事件和 React DOM commit，不包含下一帧绘制或后端保存。
+- 验证：`npm run build` 通过；`npm run test:run -- src/utils/updateAtPath.test.ts src/pages/novel-detail/video/VideoPlanningWorkspace.test.tsx` **10/10**。生产 Chromium A/B 的等值、源对象不变与布局断言通过；Vite 保留已有大 chunk 提示。
+- 证据：`data/performance-audit-20261014/shooting-script/{baseline,after}/report.json`；运行入口为 `frontend/e2e/performance/check.mjs` 的 `A4N_PERF_CASE=shooting-script`。

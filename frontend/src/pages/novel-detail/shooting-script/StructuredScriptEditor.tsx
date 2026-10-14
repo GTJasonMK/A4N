@@ -8,7 +8,7 @@ import {
   type UpdateValue,
   type ValuePath,
 } from "./StructuredScriptEditorControls";
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { ChevronRight, Plus, Trash2 } from "lucide-react";
 
 import type {
@@ -30,6 +30,7 @@ import {
 import { useI18n, type MessageKey } from "../../../i18n";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
+import { updateAtPath } from "../../../utils/updateAtPath";
 
 const EDITING_MODE_OPTIONS: ReadonlyArray<readonly [string, MessageKey]> = [
   ["continuity", "shootingScript.editor.editingContinuity"],
@@ -118,7 +119,7 @@ const COVERAGE_OPTIONS = ["must_show", "should_show", "optional"] as const;
 
 interface StructuredScriptEditorProps {
   script: ChapterShootingScriptV2;
-  onChange: (script: ChapterShootingScriptV2) => void;
+  onChange: React.Dispatch<React.SetStateAction<ChapterShootingScriptV2 | null>>;
   disabled?: boolean;
   focusShotId?: string | null;
 }
@@ -198,24 +199,17 @@ export const StructuredScriptEditor: React.FC<StructuredScriptEditorProps> = ({
     }
     target.querySelector<HTMLElement>("textarea, input:not([readonly])")?.focus();
   }, [focusShotId]);
-  const update: UpdateValue = (path, value) => {
-    const next = structuredClone(script);
-    let cursor: object = next;
-    for (const key of path.slice(0, -1)) {
-      const child = Reflect.get(cursor, key);
-      if (child == null || typeof child !== "object") {
-        throw new Error(`Invalid shooting script edit path: ${path.join(".")}`);
-      }
-      cursor = child;
-    }
-    const leaf = path[path.length - 1];
-    if (leaf == null || !Reflect.set(cursor, leaf, value)) {
-      throw new Error(`Invalid shooting script edit path: ${path.join(".")}`);
-    }
-    onChange(next);
-  };
+  const update = useCallback<UpdateValue>((path, value) => {
+    onChange((current) => {
+      if (current == null) throw new Error("Cannot edit a missing shooting script draft");
+      return updateAtPath(current, path, value, "shooting script");
+    });
+  }, [onChange]);
 
   const directing = script.directing_statement;
+  const narrativeUnitIndexes = script.scenes.map(
+    ({ narrative_unit_index }) => narrative_unit_index,
+  );
   const deleteDirecting = async () => {
     if (
       !(await confirmDialog({
@@ -371,9 +365,7 @@ export const StructuredScriptEditor: React.FC<StructuredScriptEditorProps> = ({
           key={`${scene.scene_index}-${scene.scene_identity}`}
           scene={scene}
           sceneOffset={sceneOffset}
-          narrativeUnitIndexes={script.scenes.map(
-            ({ narrative_unit_index }) => narrative_unit_index,
-          )}
+          narrativeUnitIndexes={narrativeUnitIndexes}
           onChange={update}
           onDelete={() => void deleteScene(sceneOffset)}
         />
@@ -761,7 +753,8 @@ const SceneEditor: React.FC<{
               <ShotEditor
                 key={shot.shot_id}
                 shot={shot}
-                path={[...base, "shots", shotOffset]}
+                sceneOffset={sceneOffset}
+                shotOffset={shotOffset}
                 onChange={onChange}
               />
             ))}
@@ -795,12 +788,19 @@ const SceneEditor: React.FC<{
   );
 };
 
-const ShotEditor: React.FC<{
+const ShotEditor = React.memo(function ShotEditor({
+  shot,
+  sceneOffset,
+  shotOffset,
+  onChange,
+}: {
   shot: ShootingShotV2;
-  path: ValuePath;
+  sceneOffset: number;
+  shotOffset: number;
   onChange: UpdateValue;
-}> = ({ shot, path, onChange }) => {
+}) {
   const { t, locale } = useI18n();
+  const path: ValuePath = ["scenes", sceneOffset, "shots", shotOffset];
   const updateShot = (next: ShootingShotV2) => onChange(path, next);
   const addBeat = () => {
     const next = structuredClone(shot);
@@ -1166,4 +1166,4 @@ const ShotEditor: React.FC<{
       </div>
     </details>
   );
-};
+});

@@ -12,9 +12,7 @@ import type {
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import { useI18n } from "../../../i18n";
-
-type ValuePath = Array<string | number>;
-type UpdateValue = (path: ValuePath, value: unknown) => void;
+import { updateAtPath, type UpdateValue, type ValuePath } from "../../../utils/updateAtPath";
 
 const TRANSITION_TYPES: readonly ShootingTransitionTypeV1[] = [
   "continuous",
@@ -61,7 +59,7 @@ export const VideoSegmentPlanEditor: React.FC<VideoSegmentPlanEditorProps> = ({
   const update = useCallback<UpdateValue>((path, value) => {
     onChange((current) => {
       if (current == null) throw new Error("Cannot edit a missing video segment plan draft");
-      return updateVideoSegmentPlanAtPath(current, path, value);
+      return updateAtPath(current, path, value, "video segment plan");
     });
   }, [onChange]);
 
@@ -85,34 +83,6 @@ export const VideoSegmentPlanEditor: React.FC<VideoSegmentPlanEditorProps> = ({
     </fieldset>
   );
 };
-
-function updateVideoSegmentPlanAtPath(
-  segments: VideoSegmentPlanV2[],
-  path: ValuePath,
-  value: unknown,
-): VideoSegmentPlanV2[] {
-  const error = () => new Error(`Invalid video segment plan edit path: ${path.join(".")}`);
-  if (path.length === 0) throw error();
-
-  const copyAt = (current: unknown, index: number): unknown => {
-    if (current == null || typeof current !== "object") throw error();
-    const key = path[index];
-    if (key == null) throw error();
-    const copy: object = Array.isArray(current)
-      ? current.slice()
-      : { ...current as Record<string, unknown> };
-    if (index === path.length - 1) {
-      if (!Reflect.set(copy, key, value)) throw error();
-      return copy;
-    }
-    if (!Reflect.set(copy, key, copyAt(Reflect.get(current, key), index + 1))) {
-      throw error();
-    }
-    return copy;
-  };
-
-  return copyAt(segments, 0) as VideoSegmentPlanV2[];
-}
 
 const SegmentEditor = React.memo(function SegmentEditor({
   segment,

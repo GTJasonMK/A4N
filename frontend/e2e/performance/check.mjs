@@ -14,14 +14,16 @@ const port = Number(process.env.A4N_PERF_PORT ?? 48966);
 const outDir = path.join(artifacts, "dist");
 const baselineRef = process.env.A4N_PERF_BASELINE_REF;
 const scenario = process.env.A4N_PERF_CASE ?? "core";
-assert.ok(["core", "sidebar", "story-events", "video-planning"].includes(scenario));
-const entry = scenario === "sidebar" ? "sidebar.html" : scenario === "story-events" ? "story-events.html" : scenario === "video-planning" ? "video-planning.html" : "index.html";
+assert.ok(["core", "sidebar", "story-events", "video-planning", "shooting-script"].includes(scenario));
+const entry = scenario === "sidebar" ? "sidebar.html" : scenario === "story-events" ? "story-events.html" : scenario === "video-planning" ? "video-planning.html" : scenario === "shooting-script" ? "shooting-script.html" : "index.html";
 const sourceFiles = scenario === "story-events"
   ? ["src/pages/novel-detail/story-events/storyEventUtils.ts", "src/pages/novel-detail/story-events/ChapterEventSection.tsx"]
   : scenario === "sidebar"
   ? ["src/pages/writing-desk/ChapterSidebar.tsx", "src/pages/writing-desk/ChapterCard.tsx"]
   : scenario === "video-planning"
   ? ["src/pages/novel-detail/video/VideoPlanningWorkspace.tsx", "src/pages/novel-detail/video/VideoSegmentPlanEditor.tsx"]
+  : scenario === "shooting-script"
+  ? ["src/pages/novel-detail/shooting-script/StructuredScriptEditor.tsx"]
   : ["src/hooks/usePacedStreamText.ts", "src/i18n/format.ts", "src/components/ui/MarkdownText.tsx"];
 const baselineSources = new Map(baselineRef ? sourceFiles.map((file) => [
   path.join(frontend, file),
@@ -126,6 +128,20 @@ try {
     }
     report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
       viewports: [1440, 390], trace: traces[0], videoPlanning };
+  } else if (scenario === "shooting-script") {
+    const traces = [];
+    for (const width of [1440, 390]) {
+      await browser.setViewport({ width, height: 900 });
+      traces.push(await browser.execute(() => window.verifyShootingScriptEditor()));
+      assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+    }
+    assert.deepEqual(traces[0], traces[1]);
+    const shootingScript = [];
+    for (const count of [25, 50, 100]) {
+      shootingScript.push(await browser.execute((count) => window.measureShootingScriptEditor(count, 8), count));
+    }
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
+      viewports: [1440, 390], trace: traces[0], shootingScript };
   } else {
     const traces = [];
     for (const width of [1440, 390]) {
