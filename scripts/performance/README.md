@@ -75,6 +75,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | Galgame 流程文档读取 | PERF-087 将千章 context 的 draft/adopted 两阶段逐章查找和分支阶段按 ID 重读，改为有界批次读取；调用方仍按原顺序执行文档解析和版本校验。 |
 | ChapterVisualPlan 编辑 | PERF-088 复用当前 plan 的精确 JSON 表示，避免每次编辑分别做 dirty 比较、revision 比较和两次相同本地备份序列化/写入；同步备份仍保留，其他替换仍由 effect 备份。 |
 | ChapterVisualPlan diff 候选 | PERF-089（PERF-088 基线）对共享对象引用相同的点/镜头跳过 JSON 深比较；100／500／1000 段 P50 **9.1→7.1 ms（22.0%）／56.1→44.3 ms（21.0%）／109.3→88.9 ms（18.7%）**，均低于门槛，未采用。完整输入 JSON 为 **82,583／416,583／834,088 B**；证据见 `../../data/performance-audit-20261014/plan-changes/`。 |
+| 资产依赖图布局候选 | PERF-090（原提交 `4337935c5`）对每轮布局排序预计算邻居 barycenter；1k／5k／10k 节点仅改善 **24.5%／22.2%／24.8%**，均低于门槛，坐标/层级输出相同，未采用。 |
 
 ## 可复现入口
 
@@ -381,3 +382,10 @@ A4N_PERF_ARTIFACTS=/path/inside/worktree/data/api-transfer \
 - 验证：`npm run build` 通过（保留既有大 chunk 提示）；`npm run test:run -- --maxWorkers=2` 为 **139 文件/513 项通过**；真实浏览器 `node e2e/director-timeline/check.mjs` **18 项通过**，覆盖保存期间继续编辑、SSE 回执、冲突合并/撤销、章节切换、桌面与窄屏布局；director-plan A/B 的 dirty/revert、sessionStorage 内容、editor revision 与布局断言通过。
 - 边界：该 A/B 测量 hook 与同步编辑提交，不包括后端保存请求耗时或完整章节视觉计划页面的所有组件。
 - 证据：`../../data/performance-audit-20261014/director-plan/{baseline/report.json,after-final/report.json,serialization-only-intermediate-report.json,ui-regression-report.json}`。复现入口为 `frontend/e2e/performance/check.mjs` 的 `A4N_PERF_CASE=director-plan`；基线提交为 `b25e60445`。profile 使用 `A4N_PERF_TEMP_ROOT=../.tmp/director-plan-profile` 和 `A4N_PERF_CHROME_TMPDIR=../.tmp/director-plan-chrome`，将 Chromium 临时 socket 放在短路径下；先设 `A4N_PERF_BASELINE_REF=b25e60445` 生成 baseline，再去掉该变量生成候选。
+
+### PERF-090：资产依赖图布局 barycenter 候选（未采用）
+
+- 请求链路：打开项目族资产依赖图时，`buildLayout` 需要对分层节点反复排序；5 轮前后扫描的 comparator 都重新遍历相邻边、分配位置数组并计算邻居 barycenter。每轮排序使用的邻居顺序快照固定，因此尝试每轮先批量计算 barycenter，排序时只读 Map。
+- A/B 在生产 Vite + Chromium **153.0.8010.52**、固定 CPU 18/19，以 8 层 DAG、每节点约 2–3 条跨层边测量完整 `buildLayout`。输入为 1000／5000／10000 节点、581,189／2,945,188／5,912,434 B，分别有 2,625／13,125／26,250 条边；5 组样本 P50 **40.4→30.5 ms（24.5%）／283.5→220.6 ms（22.2%）／616.2→463.4 ms（24.8%）**。三种规模的全部节点坐标、层级、画布尺寸与层摘要逐项完全相同。
+- 决策：全规模均低于 30% 目标，候选代码和夹具未保留。
+- 证据：`../../data/performance-audit-20261014/asset-graph/{baseline/report.json,after/report.json}`；baseline 源码来自 `4337935c5`。
