@@ -49,6 +49,7 @@
 | [PERF-088](../../frontend/src/pages/novel-detail/visual-plan/useDirectorPlan.ts) | ChapterVisualPlan 每次镜头输入 → dirty 检查、编辑 revision 与本地草稿备份；100／500／1000 段、每份计划 82,583／416,583／834,088 B | 每次更改只序列化一次；dirty、revision、同步备份共用同一表示；效果阶段跳过同一对象的重复 sessionStorage 写入 | Chromium 153、CPU 18/19、8 次输入 P50：100 段 **16.8 → 9.7 ms（42.3%）**、500 段 **114.0 → 56.4 ms（50.5%）**、1000 段 **234.2 → 112.3 ms（52.1%）** |
 | [PERF-091](../../crates/host/a4n-orchestrator/src/media_authoring/application.rs) | 手动首次保存 Galgame 分支计划 → 收集 1000 章 adopted 改编依赖；每份文档约 8 KiB | 按 project/snapshot/source chapter 每批 64 条仅读 adopted 计划；调用方继续按章节顺序 parse 并生成 reference | 隔离 PostgreSQL 16、CPU 18/19、5 组交错（2 组预热、3 组计量）P50 **475.357 → 100.909 ms（78.8%）**；依赖 ID、revision、hash、status 顺序相同 |
 | [PERF-092](../../crates/host/a4n-orchestrator/src/galgame/webgal_export_application.rs) | WebGAL 导出选择合同 → 1000／5000／10000 场景、每场 2 个选项 | 用现有导出 scene ID Map 校验目标；删除 Map 命中后对详情场景的第二次线性扫描 | Rust release、CPU 18/19，完整合同验证 P50 **2.394→0.288 ms（88.0%）／51.907→1.604 ms（96.9%）／202.676→4.577 ms（97.7%）**；结果与错误语义相同 |
+| [PERF-093](../../crates/platform/a4n-db/src/project/dependency_graph/builder/topology.rs) | 资产依赖图请求 → `GraphBuilder::finish`；8 层 DAG、1000／5000／10000 节点，平均 2.625 边/节点 | 节点 ID 映射到整数索引；使用 Vec 邻接、可复用队列和访问代次，保留精确唯一后代数 | Rust release、CPU 18/19，P50 **94.467→5.335 ms（94.35%）／1155.143→37.748 ms（96.73%）／2735.239→84.155 ms（96.92%）**；后代数与图摘要一致 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -80,6 +81,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | Galgame 手动分支计划保存 | PERF-091 首次创建全局分支计划时逐章查询 adopted adaptation plan，改为来源章节 ID 的有界批读取；按章节顺序保持完整 parse/hash 和“未采用计划”错误语义。 |
 | WebGAL 导出 | PERF-092 复用由同一 `detail.scenes` 构建的 export scene ID Map；删除其后的逐 choice 全场景重复查找，保留 Map 上的缺失目标报错。 |
 | 资产依赖图布局候选 | PERF-090（原提交 `4337935c5`）对每轮布局排序预计算邻居 barycenter；1k／5k／10k 节点仅改善 **24.5%／22.2%／24.8%**，均低于门槛，坐标/层级输出相同，未采用。 |
+| 资产依赖图后代计数 | PERF-093 将每个节点一次字符串 BTreeSet/队列遍历改为整数索引邻接表和复用的访问代次；输出的精确唯一 `downstream_count` 不变。 |
 
 ## 可复现入口
 
@@ -393,6 +395,15 @@ A4N_PERF_ARTIFACTS=/path/inside/worktree/data/api-transfer \
 - 验证：baseline/candidate release `webgal_choice_validation_probe` 各 1/1；候选 WebGAL export 定向单测 **5/5**，包含无效目标错误回归；`cargo fmt --all -- --check`、`git diff --check` 通过。
 - 边界：测量选择合同校验 CPU，不含读取剧本、媒体文件打包、Base64 或 zip 输出。
 - 证据：`../../data/performance-audit-20261014/webgal-choice-validation/report.json`；基线提交为 `83759a956`。
+
+### PERF-093：资产依赖图的字符串后代遍历
+
+- 请求链路：`asset_dependency_graph` 读取项目族记录后构建 `GraphBuilder`，每次依赖图请求调用一次 `GraphBuilder::finish`。旧 `downstream_counts` 对每个节点重新遍历全部可达节点，并用 `BTreeSet<String>` 和 `VecDeque<String>` 复制、排序与去重节点 ID；后代数会进入 API 输出，因此需要保留精确的唯一可达节点数。
+- 修复：为图节点建立一次 ID→整数索引，构建整数邻接表；每个源节点遍历时复用一个队列，并用访问代次数组去重。重复关系边先映射为唯一相邻节点；菱形图回归确保共享叶节点只计一次。辅助内存为 O(V+E)，没有全图可达矩阵。
+- A/B 固定 CPU 18/19，Rust release；8 层 DAG、边数 2.625×节点数，生成图输入在计时外；每种规模至少 250 ms 预热后取 5 次 P50。1000／5000／10000 节点（2625／13125／26250 边）P50 **94.467→5.335 ms（94.35%）／1155.143→37.748 ms（96.73%）／2735.239→84.155 ms（96.92%）**。各规模排序节点 ID、精确 `downstream_count`、可变标记、变更策略及边摘要均与基线一致。
+- 验证：release 基准探针 **1/1**；资产依赖图 builder 语义测试 **2/2**，覆盖重复关系和菱形图唯一后代；`cargo fmt --all -- --check`、`git diff --check` 通过。
+- 边界：计时覆盖 `GraphBuilder::finish`，含边投影、后代数、变更策略、环检测和层输出；不含 PostgreSQL 读取与 JSON 序列化，因此这些数据是请求 CPU 阶段耗时，不代表完整 HTTP 延迟。
+- 证据：`../../data/performance-audit-20261015/asset-graph-builder/report.json`；基线提交为 `93cfe476f`。
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
 

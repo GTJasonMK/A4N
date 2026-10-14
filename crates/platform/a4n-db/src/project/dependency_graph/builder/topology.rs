@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 
 use crate::project::dependency_graph::AssetGraphEdge;
 
@@ -6,32 +6,49 @@ pub(super) fn downstream_counts(
     node_ids: BTreeSet<String>,
     edges: &[AssetGraphEdge],
 ) -> BTreeMap<String, u64> {
-    let mut adjacency = BTreeMap::<String, BTreeSet<String>>::new();
+    let node_ids = node_ids.into_iter().collect::<Vec<_>>();
+    let index_by_id = node_ids
+        .iter()
+        .enumerate()
+        .map(|(index, node_id)| (node_id.as_str(), index))
+        .collect::<HashMap<_, _>>();
+    let mut adjacency = vec![Vec::<usize>::new(); node_ids.len()];
     for edge in edges {
-        adjacency
-            .entry(edge.from.clone())
-            .or_default()
-            .insert(edge.to.clone());
+        if let (Some(&from), Some(&to)) = (
+            index_by_id.get(edge.from.as_str()),
+            index_by_id.get(edge.to.as_str()),
+        ) {
+            adjacency[from].push(to);
+        }
     }
-    node_ids
-        .into_iter()
-        .map(|node_id| {
-            let mut seen = BTreeSet::<String>::new();
-            let mut queue = VecDeque::<String>::new();
-            if let Some(next) = adjacency.get(&node_id) {
-                queue.extend(next.iter().cloned());
+    drop(index_by_id);
+    for children in &mut adjacency {
+        children.sort_unstable();
+        children.dedup();
+    }
+
+    let mut visited_at = vec![0; node_ids.len()];
+    let mut queue = Vec::<usize>::new();
+    let mut counts = BTreeMap::new();
+    for (source_index, node_id) in node_ids.into_iter().enumerate() {
+        let generation = source_index + 1;
+        let mut cursor = 0;
+        let mut count = 0_u64;
+        queue.clear();
+        queue.extend_from_slice(&adjacency[source_index]);
+        while cursor < queue.len() {
+            let next = queue[cursor];
+            cursor += 1;
+            if visited_at[next] == generation {
+                continue;
             }
-            while let Some(next) = queue.pop_front() {
-                if !seen.insert(next.clone()) {
-                    continue;
-                }
-                if let Some(children) = adjacency.get(&next) {
-                    queue.extend(children.iter().cloned());
-                }
-            }
-            (node_id, seen.len() as u64)
-        })
-        .collect()
+            visited_at[next] = generation;
+            count += 1;
+            queue.extend_from_slice(&adjacency[next]);
+        }
+        counts.insert(node_id, count);
+    }
+    counts
 }
 
 pub(super) fn find_cycle_hint(
