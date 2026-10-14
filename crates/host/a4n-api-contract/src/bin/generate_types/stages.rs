@@ -774,6 +774,8 @@ pub(super) fn run() {
         ),
         &typescript_interface::<CreateDerivedProjectInput>("CreateDerivedProjectInput"),
         &typescript_interface::<SourceSnapshotChapterSummary>("SourceSnapshotChapterSummary"),
+        &typescript_interface::<SourceSnapshotChapterIndex>("SourceSnapshotChapterIndex"),
+        &typescript_interface::<GetSourceSnapshotChapterInput>("GetSourceSnapshotChapterInput"),
         &typescript_interface::<DuplicateProjectInput>("DuplicateProjectInput"),
         &typescript_interface::<UpdateProjectInput>("UpdateProjectInput"),
         &typescript_interface::<ProjectGeneratedDataResetSummary>(

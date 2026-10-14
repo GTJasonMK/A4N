@@ -315,6 +315,22 @@ export async function installUiFixtures(browser, overrides = {}) {
           if (!metadata) throw new Error(`Missing assembly fixture: ${chapterId}`);
           return Response.json({ ...metadata, ...fixtures.playbackData[metadata.duration_secs], cached: command.startsWith("load_cached") });
         }
+        if (command === "list_source_snapshot_chapter_index" || command === "get_source_snapshot_chapter") {
+          const snapshot = [fixtures.byProject?.[projectId], fixtures].find(
+            (item) => item && Object.hasOwn(item, "list_source_snapshot_chapters"),
+          );
+          if (!snapshot) throw new Error(`Missing source snapshot fixture: ${projectId}`);
+          if (command === "list_source_snapshot_chapter_index") {
+            return Response.json(snapshot.list_source_snapshot_chapters.map(({ id, snapshot_id, source_chapter_id, chapter_number, title }) => ({
+              id, snapshot_id, source_chapter_id, chapter_number, title,
+            })));
+          }
+          const chapter = snapshot.list_source_snapshot_chapters.find(
+            (item) => item.source_chapter_id === chapterId,
+          );
+          if (!chapter) throw new Error(`Missing source snapshot chapter fixture: ${projectId}/${chapterId}`);
+          return Response.json(chapter);
+        }
         const sources = [fixtures.byChapter?.[chapterId], fixtures.byProfile?.[profileId], fixtures.byProject?.[projectId], fixtures];
         const source = sources.find((item) => item && Object.hasOwn(item, command));
         if (!source) {

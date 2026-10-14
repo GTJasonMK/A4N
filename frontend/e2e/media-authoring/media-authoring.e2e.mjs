@@ -9,6 +9,11 @@ import { authoringChapters, authoringWorkspace } from "./fixtures.mjs";
 const artifactDir = fileURLToPath(new URL("../../../.dev-runtime/media-authoring/browser/", import.meta.url));
 const text = "雨从旧书店的屋檐落下。她推开门。";
 const hash = createHash("sha256").update(text).digest("hex");
+const snapshotIndex = (projectId) => authoringChapters(projectId).map(
+  ({ id, snapshot_id, source_chapter_id, chapter_number, title }) => ({
+    id, snapshot_id, source_chapter_id, chapter_number, title,
+  }),
+);
 const mangaPages = [1, 2].map((page) => ({
   id: 200 + page,
   chapter_id: 1,
@@ -54,7 +59,9 @@ const projects = visualFixtures.projectRecords.map((project) => ({ ...project, s
 const fixture = {
   ...visualFixtures,
   projectRecords: [...projects, { ...projects.find((project) => project.id === 3), id: 7, title: "第二先导短片" }],
+  list_creator_notifications: { items: [], unread_count: 0 },
   list_source_snapshot_chapters: authoringChapters(3),
+  list_source_snapshot_chapter_index: snapshotIndex(3),
   list_video_adaptation_references: [],
   list_manga_page_prompts: [],
   list_manga_pipeline_statuses: [1, 2].map((chapter_id) => ({ chapter_id, pending: 0, generating: 0, completed: 0, failed: 0, cancelled: 0, pipeline_status: null, stage: null, current: null, total: null, message: null, task_id: null, can_cancel: false, can_resume: false, has_checkpoint: false, checkpoint_valid: false })),
@@ -70,9 +77,53 @@ const fixture = {
     segments: [{ id: "shot-1", title: "镜头 1", start_point_id: "start", end_point_id: "end", prompt: "", scene_binding: null, use_end_point_image: false }],
   } },
   byProject: {
-    2: { list_source_snapshot_chapters: authoringChapters(2), get_media_authoring_workspace: authoringWorkspace(2, "manga"), list_manga_page_prompts: mangaPages },
-    5: { list_source_snapshot_chapters: authoringChapters(5), get_media_authoring_workspace: authoringWorkspace(5, "galgame") },
-    7: { list_source_snapshot_chapters: authoringChapters(7) },
+    2: {
+      list_source_snapshot_chapters: authoringChapters(2),
+      list_source_snapshot_chapter_index: snapshotIndex(2),
+      get_media_authoring_workspace: authoringWorkspace(2, "manga"),
+      list_manga_page_prompts: mangaPages,
+      get_manga_pipeline_status: {
+        chapter_id: 1,
+        pending: 0,
+        generating: 0,
+        completed: 0,
+        failed: 0,
+        cancelled: 0,
+        pipeline_status: null,
+        stage: null,
+        current: null,
+        total: null,
+        message: null,
+        task_handle: null,
+        can_cancel: false,
+        can_resume: false,
+        has_checkpoint: false,
+        checkpoint_valid: false,
+      },
+      list_manga_pipeline_artifacts: [{
+        id: 201,
+        chapter_id: 1,
+        project_id: 2,
+        stage: "preprocessing",
+        page_number: null,
+        stale: false,
+        payload: {
+          schema_version: "manga_preprocessing_v3",
+          comic_synthesis: { chapter_summary: "旧书店门口的相遇", mood_progression: [] },
+          characters: {},
+          items: { items: [] },
+          source_events: { events: [] },
+          speech: { dialogues: [], narrations: [] },
+          visual_anchors: { scenes: [] },
+        },
+        input_fingerprint: "input-fingerprint",
+        output_fingerprint: "output-fingerprint",
+        created_at: "2026-09-29T00:00:00Z",
+        updated_at: "2026-09-29T00:00:00Z",
+      }],
+    },
+    5: { list_source_snapshot_chapters: authoringChapters(5), list_source_snapshot_chapter_index: snapshotIndex(5), get_media_authoring_workspace: authoringWorkspace(5, "galgame") },
+    7: { list_source_snapshot_chapters: authoringChapters(7), list_source_snapshot_chapter_index: snapshotIndex(7) },
   },
 };
 
@@ -93,7 +144,7 @@ const chooseStage = async (label) => {
   await stage(label).click();
 };
 const clickText = (text) => $(`//button[normalize-space()="${text}"]`).click();
-const intention = () => $('//label[span[normalize-space()="改编目标"]]/textarea');
+const objectiveField = () => $('//label[span[normalize-space()="人物目标"]]/textarea');
 const diagnostics = () => browser.execute(() => ({ unexpected: window.__uiAudit.unexpected, errors: window.__uiAudit.errors }));
 
 async function checkLayout(name, width) {
@@ -112,57 +163,60 @@ describe("Derived media authoring stages", () => {
     assert.deepEqual(state.unexpected, []);
   });
 
-  it("keeps a comic draft across cancelled stage and chapter navigation, then saves its version", async () => {
+  it("keeps a comic draft across cancelled stage and chapter navigation, then saves and adopts it", async () => {
     await browser.setWindowSize(1440, 1000);
     await browser.url("/comic-project/2");
     await chooseStage("改编计划");
-    await intention().waitForDisplayed();
-    assert.equal(await $('[role="tablist"]').$$('[role="tab"]').length, 7);
+    await clickText("进入编辑");
+    await objectiveField().waitForDisplayed();
+    assert.equal(await $('[role="tablist"]').$$('[role="tab"]').length, 6);
     assert.match(await $('nav[aria-label="漫画章节"] button[aria-current="true"]').getText(), /旧书店/);
-    await intention().setValue("保留我刚补写的犹豫和反应");
+    await objectiveField().setValue("保留我刚补写的犹豫和反应");
     await stage("改编计划").execute((element) => element.focus());
     await browser.keys("ArrowRight");
     await $('[role="dialog"]').waitForDisplayed();
     await clickText("取消");
     assert.equal(await stage("改编计划").getAttribute("aria-selected"), "true");
-    assert.equal(await intention().getValue(), "保留我刚补写的犹豫和反应");
+    assert.equal(await objectiveField().getValue(), "保留我刚补写的犹豫和反应");
     await $('//button[contains(.,"未寄出的信")]').click();
     await $('[role="dialog"]').waitForDisplayed();
     await clickText("取消");
-    assert.equal(await intention().getValue(), "保留我刚补写的犹豫和反应");
+    assert.equal(await objectiveField().getValue(), "保留我刚补写的犹豫和反应");
     await browser.execute(() => {
       const fixture = window.__uiAudit.fixtures;
       const record = fixture.byProject[2].get_media_authoring_workspace.documents[0].record;
-      record.document.intention = "保留我刚补写的犹豫和反应";
+      record.document.units[0].objective = "保留我刚补写的犹豫和反应";
       record.revision = 2;
       fixture.save_media_authoring_document = structuredClone(record);
+      fixture.adopt_media_authoring_document = { ...record, status: "adopted", revision: 3 };
+      fixture.byProject[2].get_media_authoring_workspace.documents[0].record = fixture.adopt_media_authoring_document;
       window.__uiAudit.deferred.push("save_media_authoring_document");
     });
-    await clickText("保存草稿");
+    await clickText("保存");
     await browser.waitUntil(async () => (await browser.execute(() => window.__uiAudit.requests)).some((request) => request.command === "save_media_authoring_document"));
     const request = await browser.execute(() => window.__uiAudit.requests.find((request) => request.command === "save_media_authoring_document").body.input);
     assert.equal(request.record_id, 2000);
     assert.equal(request.expected_revision, 1);
-    const saveButton = await $('//button[normalize-space()="保存草稿"]');
-    const generateButton = await $('//button[normalize-space()="生成计划草稿" or contains(normalize-space(), "重新生成草稿")]');
-    await browser.waitUntil(async () => await saveButton.$(".animate-spin").isExisting());
-    assert.equal(await generateButton.$(".animate-spin").isExisting(), false);
+    await browser.waitUntil(async () => await $('//button[.//*[contains(@class,"animate-spin")]]').isExisting());
+    assert.equal(
+      await browser.execute(() => window.__uiAudit.commands.some((command) => command === "generate_media_adaptation_plan")),
+      false,
+    );
     await browser.execute(() => {
       const pending = window.__uiAudit.pending.find((item) => item.command === "save_media_authoring_document");
-      const workspace = window.__uiAudit.fixtures.byProject[2].get_media_authoring_workspace;
-      const saved = { ...workspace.documents[0].record, document: pending.body.input.document, revision: 2 };
-      pending.resolve(new Response(JSON.stringify(saved), { headers: { "Content-Type": "application/json" } }));
+      const saved = window.__uiAudit.fixtures.save_media_authoring_document;
+      pending.resolve(Response.json(saved));
     });
-    await browser.waitUntil(async () => (await $("body").getText()).includes("计划草稿已保存"));
+    await browser.waitUntil(async () => await browser.execute(() =>
+      window.__uiAudit.requests.some(({ command }) => command === "adopt_media_authoring_document"),
+    ));
+    await browser.waitUntil(async () => (await $("body").getText()).includes("保留我刚补写的犹豫和反应"));
     await checkLayout("comic-plan", 1440);
     await checkLayout("comic-plan", 1024);
     await checkLayout("comic-plan", 390);
-    const adopt = await $('//button[normalize-space()="采用此版本"]');
-    await adopt.scrollIntoView();
-    assert.equal(await adopt.isClickable(), true);
     await browser.saveScreenshot(`${artifactDir}/comic-plan-footer-390.png`);
-    await chooseStage("页面提示词");
-    assert.equal(await stage("页面提示词").getAttribute("aria-selected"), "true");
+    await chooseStage("提示词与成图");
+    assert.equal(await stage("提示词与成图").getAttribute("aria-selected"), "true");
   });
 
   it("shows preview loading on the preview action and opens the returned request", async () => {
@@ -170,11 +224,13 @@ describe("Derived media authoring stages", () => {
     await browser.url("/comic-project/2");
     const adaptationTab = await stage("改编计划");
     if (await adaptationTab.getAttribute("aria-selected") !== "true") await chooseStage("改编计划");
-    await intention().waitForDisplayed();
     await browser.execute(() => { window.__uiAudit.deferred.push("preview_media_adaptation_plan_request"); });
     const previewButton = await $('//button[normalize-space()="查看生成请求"]');
     const generateButton = await $('//button[normalize-space()="生成计划草稿" or contains(normalize-space(), "重新生成草稿")]');
     await previewButton.click();
+    await $('[role="dialog"] textarea[aria-label="本次生成要求"]').waitForDisplayed();
+    await $('[role="dialog"] textarea[aria-label="本次生成要求"]').setValue("保留当前场景的关键动作");
+    await clickText("确认");
     await browser.waitUntil(async () => await browser.execute(() => window.__uiAudit.pending.some((item) => item.command === "preview_media_adaptation_plan_request")));
     await browser.waitUntil(async () => await previewButton.$(".animate-spin").isExisting());
     assert.equal(await generateButton.$(".animate-spin").isExisting(), false);
@@ -188,73 +244,43 @@ describe("Derived media authoring stages", () => {
     await browser.waitUntil(async () => await browser.execute(() => document.querySelector("[role=dialog]") == null));
   });
 
-  it("starts only the selected page from a per-page pipeline stage", async () => {
+  it("loads full snapshot content only when a comic chapter is selected", async () => {
     await browser.setWindowSize(1440, 1000);
     await browser.url("/comic-project/2");
-    await chooseStage("单页改编计划");
-    const secondPage = await $('//button[contains(.,"第 2 页")]');
-    await secondPage.waitForDisplayed();
-    await secondPage.click();
-    await browser.waitUntil(async () =>
-      (await $("body").getText()).includes("继续生成至单页改编计划 · 第 2 页"),
-    );
-    await checkLayout("comic-selected-page", 1440);
-    await checkLayout("comic-selected-page", 390);
-
-    await browser.execute(() => {
-      window.__uiAudit.previousLocalRuntimeSettings = localStorage.getItem("a4n:local-runtime-settings:v1");
-      localStorage.setItem("a4n:local-runtime-settings:v1", JSON.stringify({
-        schema_version: 1,
-        next_id: 2,
-        llm: [],
-        system_llm_api_key_encrypted: "fixture-key",
-        system_image_api_key_encrypted: null,
-        system_video_api_key_encrypted: null,
-        embedding: [{
-          id: 1, name: "fixture", backend: "local_hash", base_url: null,
-          api_key_encrypted: null, has_api_key: false, model: "local-sha256-hash",
-          dimension: 384, batch_size: 100, local_model_path: null, is_default: true,
-          pricing: {
-            currency: "USD", llm_input_per_million: null,
-            llm_output_per_million: null, llm_cache_read_per_million: null,
-            llm_cache_write_per_million: null, embedding_input_per_million: null,
-            image_per_generation: null, video_per_second: null,
-          },
-        }],
-        image: [],
-        video: [],
-        web_search: null,
-        web_fetch: {
-          enabled: true, timeout_secs: 30, max_redirects: 5,
-          max_response_bytes: 5000000, max_body_chars: 100000,
-          max_output_chars: 200000,
-        },
-        default_source: { llm: "system", image: "system", video: "system" },
-      }));
-      window.__uiAudit.deferred.push("start_manga_pipeline");
-    });
-    const startButton = await $('//button[contains(.,"继续生成至单页改编计划 · 第 2 页")]');
-    await startButton.click();
+    const secondChapter = await $('//nav[@aria-label="漫画章节"]//button[contains(.,"未寄出的信")]');
+    await secondChapter.waitForDisplayed();
+    const initialRequests = await browser.execute(() => window.__uiAudit.requests.map(({ command }) => command));
+    assert.ok(initialRequests.includes("list_source_snapshot_chapter_index"));
+    assert.ok(!initialRequests.includes("list_source_snapshot_chapters"));
+    await browser.execute(() => window.__uiAudit.deferred.push("get_source_snapshot_chapter"));
+    await secondChapter.click();
     await browser.waitUntil(async () => await browser.execute(() =>
-      window.__uiAudit.pending.some((item) => item.command === "start_manga_pipeline"),
+      window.__uiAudit.pending.some((item) => item.command === "get_source_snapshot_chapter" && item.body.input.source_chapter_id === 2),
     ));
     const request = await browser.execute(() =>
-      window.__uiAudit.pending.find((item) => item.command === "start_manga_pipeline").body.input,
+      window.__uiAudit.pending.find((item) => item.command === "get_source_snapshot_chapter" && item.body.input.source_chapter_id === 2).body.input,
     );
-    assert.equal(request.page_number, 2);
-    assert.equal(request.stop_after, "page_adaptation");
+    assert.equal(request.project_id, 2);
+    assert.equal(request.source_chapter_id, 2);
     await browser.execute(() => {
-      const index = window.__uiAudit.pending.findIndex((item) => item.command === "start_manga_pipeline");
-      const [pending] = window.__uiAudit.pending.splice(index, 1);
-      pending.resolve(Response.json({ message: "fixture stops after request capture" }, { status: 400 }));
+      const pending = window.__uiAudit.pending.find((item) => item.command === "get_source_snapshot_chapter" && item.body.input.source_chapter_id === 2);
+      const chapter = window.__uiAudit.fixtures.byProject[2].list_source_snapshot_chapters.find((item) => item.source_chapter_id === 2);
+      pending.resolve(Response.json(chapter));
     });
-    await browser.waitUntil(async () => await startButton.isEnabled());
-    await browser.execute(() => {
-      const previous = window.__uiAudit.previousLocalRuntimeSettings;
-      if (previous == null) localStorage.removeItem("a4n:local-runtime-settings:v1");
-      else localStorage.setItem("a4n:local-runtime-settings:v1", previous);
-      delete window.__uiAudit.previousLocalRuntimeSettings;
-    });
+    await browser.pause(300);
+    const chapterState = await browser.execute(() => ({
+      selected: document.querySelector('nav[aria-label="漫画章节"] button[aria-current="true"]')?.textContent ?? null,
+      requests: window.__uiAudit.requests.filter(({ command }) => command === "get_source_snapshot_chapter"),
+      errors: window.__uiAudit.errors,
+      unexpected: window.__uiAudit.unexpected,
+      pageText: document.body.innerText.slice(-700),
+    }));
+    assert.ok(chapterState.selected?.includes("未寄出的信"), JSON.stringify(chapterState));
+    await browser.waitUntil(async () =>
+      (await $('//nav[@aria-label="漫画章节"]//button[@aria-current="true"]').getText()).includes("未寄出的信"),
+    );
+    await checkLayout("comic-selected-source-chapter", 1440);
+    await checkLayout("comic-selected-source-chapter", 390);
   });
 
   it("clears the previous video's content while the next route project is loading", async () => {
@@ -282,7 +308,6 @@ describe("Derived media authoring stages", () => {
     await browser.setWindowSize(1440, 1000);
     await browser.url("/galgame-project/5");
     await chooseStage("改编计划");
-    await intention().waitForDisplayed();
     assert.equal(await $('[role="tablist"]').$$('[role="tab"]').length, 7);
     await checkLayout("galgame-plan", 1440);
     await checkLayout("galgame-plan", 1024);
@@ -321,28 +346,24 @@ describe("Derived media authoring stages", () => {
 
   it("shows adopted plans and outdated outputs without hiding saved work", async () => {
     await browser.setWindowSize(1024, 900);
+    fixture.byProject[2].get_media_authoring_workspace.documents[0].record.status = "adopted";
+    await installUiFixtures(browser, fixture);
     await browser.url("/comic-project/2");
     await chooseStage("改编计划");
-    await intention().waitForDisplayed();
-    await browser.execute(() => {
-      const workspace = window.__uiAudit.fixtures.byProject[2].get_media_authoring_workspace;
-      workspace.documents[0].record.status = "adopted";
-    });
-    await clickText("刷新");
-    await browser.waitUntil(async () => (await stage("改编计划").getText()).includes("已采用"));
-    assert.match(await stage("改编计划").getText(), /已采用/);
+    await browser.waitUntil(async () => await browser.execute(() => document.body.innerText.includes("已应用")));
+    assert.match(await stage("改编计划").getText(), /已应用/);
     await checkLayout("comic-adopted", 1024);
-    assert.match(await browser.execute(() => getComputedStyle(document.querySelector("footer")).backgroundColor), /^rgb\(/);
+    assert.ok((await browser.execute(() => document.body.innerText)).includes("走进旧书店"));
     await checkLayout("comic-adopted", 390);
     await browser.execute(() => {
       const workspace = window.__uiAudit.fixtures.byProject[2].get_media_authoring_workspace;
       workspace.artifacts = [{ kind: "manga_pages", source_chapter_id: 1, count: 5, stale: true }];
     });
     await clickText("刷新");
-    await chooseStage("页面提示词");
+    await chooseStage("提示词与成图");
     await $('//p[contains(.,"这些产物使用了旧计划")]').waitForDisplayed();
     await checkLayout("comic-outdated", 390);
     await checkLayout("comic-outdated", 1024);
-    assert.match(await stage("页面提示词").getText(), /需更新/);
+    assert.match(await stage("提示词与成图").getText(), /需更新/);
   });
 });

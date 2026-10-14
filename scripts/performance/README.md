@@ -36,6 +36,8 @@
 | [PERF-018](../../frontend/src/pages/novel-detail/story-events/ChapterEventSection.tsx) | 故事事件筛选 → 章节卡片渲染；100／1000 章，每章 5 事件，连续 8 次含收窄和放宽的筛选 | 原过滤为所有匹配章节创建新对象，未变化卡片也反复渲染；完整保留的章节维持原对象，卡片使用 React 原生 memo | CPU18/19 三轮交错中位数 **135.2 → 50.4 ms（62.72%）／1328.1 → 503.9 ms（62.06%）**；完整 DOM 和筛选行为一致 |
 | [PERF-019](../../crates/platform/a4n-db/src/chapter_content/queries.rs) | 故事事件初载/刷新 → Control → Chapter Content Worker → PostgreSQL；1000章、900章有分析、4500事件 | 旧接口读取正文并生成未使用的同步状态；新分析读口仅选取 id/章号/标题/摘要/分析五列，复用项目权限和删除过滤 | 三轮真实 API P50 **126.56 → 43.34 ms（65.76%）**，P95 **160.61 → 66.36 ms（58.68%）**；JSON **13,650,788 → 2,172,288 字节（84.09%）** |
 | [PERF-077](../../crates/host/a4n-orchestrator/src/fact_feedback/mod.rs) | 事实反馈面板仅在工作流运行时每 1.5 秒轮询；1000 章、每章 9 KiB 正文与 8 KiB 分析、每项目 10,161 条变更历史 | 章节修订与可用章节共用一次投影；历史通过部分索引取最近 ID，再读取至多 100 个完整行并保留原 Rust 等值判断 | Orchestrator 摘要 P50 **80.8/86.3/93.5 → 43.9/45.5/53.5 ms（45.7%/47.3%/42.8%）**；三种覆盖率下 DTO 和响应字节相同 |
+| [PERF-078](../../crates/platform/a4n-db/src/project/source_snapshot/queries.rs) | 漫画／视频／Galgame 派生工作台初载与刷新；1000 章、每章 9 KiB 正文和 8 KiB 分析，漫画/视频默认选中一章 | 列表改为 id/snapshot_id/源章 ID/章号/标题投影；漫画与视频只按项目及当前源章 ID读取一条完整快照，Galgame仅用索引 | 旧全量列表 **17,913,472 B / P50 41.06 ms / P95 47.39 ms**；索引+当前章 **109,482 B / P50 3.09 ms / P95 6.02 ms**；延迟分别下降 **92.48% / 87.30%**，字节下降 **99.39%** |
+| [PERF-079](../../crates/platform/a4n-db/src/collaboration/access/info.rs) | 项目列表／摘要 → 协作摘要；100 个项目、每项目 1000 成员 | 成员数和当前用户角色在 PostgreSQL 分组聚合；不再将所有成员行解码到 Worker | 100,000 行时查询 P50 **29.540 → 19.399 ms（34.33%）**，结果字节 **1,381,300 → 1,492（99.89%）**；这是成员聚合查询，不是完整 API 响应 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -47,15 +49,15 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | --- | --- |
 | 首屏和路由 | `App.tsx` 已按路由和依赖图弹窗懒加载。PERF-009 已通过真实 Edge 和生产登录页验证压缩交付；同一份入口文件从 1,010,285 原始字节变为 310,789 传输字节。两种语言字典仍静态加载，未宣称这一部分代码拆分已经完成。 |
 | 项目列表 | `ProjectReadWorker::summary_for_projects` 已批量查询项目族、权限、进度和反馈间隔；不重新引入逐项目请求或重复批处理层。 |
-| 章节列表 | PERF-011 消除未使用历史读取及检查点深复制，PERF-017 将写作桌/只读目录/导入预览改为按需读取。原 `ChapterSummary` 完整合同保留，目录与正文类型分开；故事事件/来源快照读取仍另行审查。 |
-| 数据库权限和协作 | 读取使用连接池、绑定参数和批量根项目查询。邀请／成员统计仍可能随大型协作人数增长；暂无代表性数据证明其为当前瓶颈，未为凑指标添加索引或改写权限查询。 |
+| 章节列表 | PERF-011 消除未使用历史读取及检查点深复制，PERF-017 将写作桌/只读目录/导入预览改为按需读取。原 `ChapterSummary` 完整合同保留，目录与正文类型分开；故事事件 PERF-019 和派生来源快照 PERF-078 已分别优化。 |
+| 数据库权限和协作 | 读取使用连接池、绑定参数和批量根项目查询。PERF-079 将高基数成员统计收敛为 DB 聚合；未过期邀请统计单独 A/B 仅改善 8.23%，低于门槛，未改写实现或增添索引。 |
 | 工作流轮询和恢复 | 旧任务进度轮询间隔 500 ms，已有单次进行中保护和结束清理；新生成任务走事件订阅。未通过减少进度频率来换取表面收益。恢复快照的读取需求与公开进度投影分开评估。 |
 | HTTP 与媒体 | Worker／service client 已持有并复用 HTTP client；Web 媒体使用 `ServeFile`，Edge 使用流式 body。桌面自定义协议要求字节响应，不能直接套用 Web 的传输方案。 |
 | LLM 上游连接 | PERF-012 保留每次构造 provider 的配置与凭证隔离，仅延长 HTTP Client 的生命周期。原连接／逐次读取超时、错误、取消与背压检查通过；不缓存模型响应。 |
 | 嵌入模型生命周期 | PERF-014／015 已处理本地模型和 API 连接的重复初始化。模型文件删除／下载会使额外持有的资源失效；仍存活的 provider 保留原有拥有权，避免破坏已在使用的模型。没有缓存业务向量结果。 |
 | 语义分块 | 已复用向量范数并利用相似矩阵对称性；本次只消除额外矩阵。将全矩阵换成局部带状算法可能改变浮点抵消和相同分数时的切分，未作为无风险替换。 |
-| 故事事件 | PERF-018 减少筛选时未变化卡片的重复渲染；PERF-019 从数据库到前端仅读取所需的五个分析字段。千章/4500事件首屏仍需渲染大量卡片，页面总体加载提升仅约12.5%，未将 API 提升外推为首屏提升。 |
-| 漫画来源读取 | 当前 MangaTab 唯一产品入口 ComicProjectWorkspace 总是传入 snapshotChapters，旧 listChapters 分支不是活跃瓶颈；真实入口使用 listSourceSnapshotChapters，仍需测量大范围来源快照的载荷。 |
+| 故事事件 | PERF-018 减少筛选时未变化卡片的重复渲染；PERF-019 从数据库到前端仅读取所需的五个分析字段。千章/4500事件仍需渲染全部可变高卡片；原生 `content-visibility:auto` 已跳过屏外布局，但页面整体只改善约12.5%。进一步虚拟化会改变屏外 DOM/打印行为，当前没有可复用实现和整页 A/B 证据证明达到30%门槛，因此本轮不改变列表行为。 |
+| 漫画与派生媒体来源读取 | 漫画、视频、Galgame 工作台初载/刷新都使用源快照列表；列表只显示章号/标题，漫画与视频仅当前选中章需要正文。PERF-078 将产品列表改为窄索引，保留项目/快照归属的单章读口；Galgame 全程只取索引，旧完整列表 API 保留兼容。 |
 
 ## 可复现入口
 
@@ -258,3 +260,21 @@ A4N_PERF_ARTIFACTS=/path/inside/worktree/data/api-transfer \
 - PostgreSQL 与 DTO 等值对照覆盖 `1`／`1.0`、`-0.0`／`0.0`、无变化行、分页补足、来源覆盖及历史顺序。没有减少轮询间隔、增加业务缓存或改变 API。前端本轮无需改动；已核实其轮询只在工作流运行时启用。
 - 验证：隔离 PG 手动性能测试通过；`cargo fmt --all -- --check`、`git diff --check` 通过。原始样本与完整测试输出位于 `data/performance-audit-20261013/fact-feedback-summary/`。
 - 部署边界：索引迁移沿用当前 PostgreSQL 迁移事务，建索引期间会短暂阻塞该表写入；本基准未测生产表上已有大量历史时的迁移耗时。
+
+### PERF-078：派生媒体工作台的源快照列表
+
+- 请求链路：漫画、视频和 Galgame 派生工作台初载及刷新先取源快照章节。导航/选择器只显示 snapshot ID、源章 ID、章号和标题；漫画/视频详情才需要完整正文，Galgame 的来源引用只显示章号。旧列表接口仍把每章正文和分析 JSON 全部编码后返回。
+- 修复：新增 `SourceSnapshotChapterIndex` 和 source-snapshot worker v2 的窄索引、单章详情操作。索引按项目当前 source snapshot 筛选并按章号排序，返回 `id/snapshot_id/source_chapter_id/chapter_number/title`；详情查询同时限定派生项目的 root、当前 snapshot 和 source chapter ID。Worker 对新操作沿用 Viewer 权限校验。Comic/Video 首次选中一章时读取窄索引和当前章，切章时按源章 ID读取正文；项目/读取序号保护迟到响应。Galgame只读取索引。原完整读口保留。
+- 隔离 PostgreSQL A/B 使用相同 `release -O3, LTO=false` 构建，1000 章、每章 9 KiB 正文和 8 KiB 分析数据。测数据库投影、完整 DTO 构造与 JSON 序列化，候选包含索引及默认选中章的详情。旧列表 P50/P95 **41.06/47.39 ms**，候选 **3.09/6.02 ms**，分别下降 **92.48%/87.30%**；JSON **17,913,472 → 109,482 字节，减少 99.39%**。每章的 ID、snapshot/source identity、章号、标题相同；候选选中章 DTO 与旧列表相应行逐值相同。
+- 计时未包含 Worker HTTP socket 往返；响应载荷数据来自实际 DB 查询与 API DTO 序列化。变化没有使用缓存、预取或降低刷新频率。
+- 验证：源快照 DB 回归 **1/1** 通过，手动 A/B **1/1** 通过；Host/Worker/API/DB/runtime/control/process catalog/server/assembly `cargo check --all-targets`、rustfmt、diff 检查通过；API type parity 和 generation schema parity 通过，`a4n-api-contract` 单测 **108/108** 通过。Vitest **138 文件/509 项**、生产构建通过；真实 Chromium media-authoring **7/7** 通过，包含默认章、按需选章、保存/采用计划、Video 项目切换及 Galgame workspace，覆盖 390/1024/1440px。
+- 证据：`data/performance-audit-20261013/source-snapshot/`；worker contract capability 更新为 `source-snapshot-read-v2`。
+
+### PERF-079：项目协作摘要成员行聚合
+
+- 请求链路：项目列表最多读取 100 个项目，`ProjectReadWorker` 批量请求 `project_access_info_batch`，该查询原本把项目成员的 `(project_id, user_id, role)` 全部传回 Worker，只为了统计成员数和保留当前用户角色。
+- 修复：PostgreSQL 以项目分组执行 `COUNT(*)`，用参数化 `MAX(role) FILTER (WHERE user_id = $1)` 取当前用户角色；权限判定、角色解析、所有者计数和邀请可见范围保持不变。
+- 隔离 PostgreSQL 16 使用 100 个项目、每项目 1000 名成员。容器固定 CPU 18/19，通过 loopback TCP 运行 1 组预热及 8 组交错采样。成员查询 P50 **29.540 → 19.399 ms（34.33%）**；CSV 结果 **1,381,300 → 1,492 字节（减少 99.89%）**，行数 **100,000 → 100**。计时只覆盖成员 SQL 与 psql 结果传输/格式化，不外推为完整项目列表 API 改善。
+- 同一测量方式下，10,000 行 P50 改善 **28.81%**，低于延迟门槛；500 行增加 **0.022 ms**。因此本项收益只计入高基数场景。单独测试 100,000 条未过期邀请的分组查询只改善 **8.23%**，没有修改邀请统计实现。
+- 验证：独立 PostgreSQL 上 `collaboration::tests::collaboration_flow_keeps_reads_pure_and_mutations_explicit` **1/1** 通过，覆盖所有者成员数、有效/过期邀请和成员角色；Rust 格式检查与 diff 检查通过。
+- 证据：`data/performance-audit-20261014/collaboration-summary/`，包括合成基准 SQL 和各负载结果。

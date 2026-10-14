@@ -155,7 +155,8 @@ pub(crate) use records::{project_record_from_model, project_record_into_model};
 pub use rollback_impact::{ProjectRollbackImpactReadError, project_rollback_impacts};
 pub use source_snapshot::{
     CreateDerivedProjectParams, DerivedChapterScope, create_derived_project_record,
-    source_snapshot_chapter_content_by_snapshot_and_source, source_snapshot_chapters,
+    source_snapshot_chapter_content_by_snapshot_and_source, source_snapshot_chapter_for_project,
+    source_snapshot_chapter_index, source_snapshot_chapters,
 };
 pub use source_snapshot::{authoring_scene_profiles, scene_profiles_for_source};
 pub(crate) use source_snapshot::{create_source_snapshot_in_record, source_snapshot_version_hash};

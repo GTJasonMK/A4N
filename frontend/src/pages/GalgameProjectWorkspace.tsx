@@ -5,10 +5,10 @@ import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import {
   canEditProjectMaterials,
   getProject,
-  listSourceSnapshotChapters,
+  listSourceSnapshotChapterIndex,
   resetProjectGeneratedData,
   type NovelProject,
-  type SourceSnapshotChapterSummary,
+  type SourceSnapshotChapterIndex,
 } from "../api/project";
 import { extractErrorMessage } from "../api";
 import { isPositiveSafeInteger } from "../utils/numberRange";
@@ -37,7 +37,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
   const projectId = Number(id);
 
   const [project, setProject] = useState<NovelProject | null>(null);
-  const [chapters, setChapters] = useState<SourceSnapshotChapterSummary[]>([]);
+  const [chapters, setChapters] = useState<SourceSnapshotChapterIndex[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sourceSyncOpen, setSourceSyncOpen] = useState(false);
@@ -76,7 +76,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
     try {
       const [projectResult, chaptersResult] = await Promise.allSettled([
         getProject(projectId),
-        listSourceSnapshotChapters(projectId),
+        listSourceSnapshotChapterIndex(projectId),
       ]);
       if (projectResult.status === "rejected") throw projectResult.reason;
       const item = projectResult.value;
@@ -227,7 +227,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
       }
       if (formalResetCommitted) {
         try {
-          setChapters(await listSourceSnapshotChapters(project.id));
+          setChapters(await listSourceSnapshotChapterIndex(project.id));
           if (!mountedRef.current || activeProjectIdRef.current !== requestProjectId) return;
         } catch (error) {
           warnings.push(extractErrorMessage(error, t("galgame.refreshSourceChaptersFailed")));

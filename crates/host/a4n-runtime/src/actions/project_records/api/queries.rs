@@ -2,8 +2,8 @@ use crate::AppState;
 use crate::actions::app_error_message;
 use a4n_api_contract::collaboration::ProjectAccessScope;
 use a4n_api_contract::project::{
-    AssetDependencyGraph, AssetGraphNodeDetail, PaginatedProjects, ProjectListInput,
-    ProjectSummary, SourceSnapshotChapterSummary,
+    AssetDependencyGraph, AssetGraphNodeDetail, GetSourceSnapshotChapterInput, PaginatedProjects,
+    ProjectListInput, ProjectSummary, SourceSnapshotChapterIndex, SourceSnapshotChapterSummary,
 };
 use a4n_domain::project::ProjectKind;
 
@@ -84,6 +84,30 @@ pub async fn list_source_snapshot_chapters(
     state
         .project_source_snapshot_read_application()
         .chapters(user_id, project_id)
+        .await
+        .map_err(app_error_message)
+}
+
+pub async fn list_source_snapshot_chapter_index(
+    state: &AppState,
+    user_id: i64,
+    project_id: i64,
+) -> Result<Vec<SourceSnapshotChapterIndex>, String> {
+    state
+        .project_source_snapshot_read_application()
+        .chapter_index(user_id, project_id)
+        .await
+        .map_err(app_error_message)
+}
+
+pub async fn get_source_snapshot_chapter(
+    state: &AppState,
+    user_id: i64,
+    input: GetSourceSnapshotChapterInput,
+) -> Result<SourceSnapshotChapterSummary, String> {
+    state
+        .project_source_snapshot_read_application()
+        .chapter(user_id, input.project_id, input.source_chapter_id)
         .await
         .map_err(app_error_message)
 }

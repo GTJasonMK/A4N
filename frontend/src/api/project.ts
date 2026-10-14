@@ -9,6 +9,7 @@ import type {
   CreateProjectInput,
   ExportProjectBundleDataInput,
   ExportProjectPackageData,
+  GetSourceSnapshotChapterInput,
   ImportProjectPackageUploadInput,
   ProjectBundleImportReport,
   InviteProjectMemberInput,
@@ -24,6 +25,7 @@ import type {
   ProjectStatus,
   ProjectStatusMachineSummary,
   ProjectSummary,
+  SourceSnapshotChapterIndex,
   SourceSnapshotChapterSummary,
   UpdateProjectInput,
 } from "./generated/host";
@@ -53,8 +55,10 @@ export type {
   ProjectStatus,
   ProjectStatusHistorySummary,
   ProjectStatusMachineSummary,
+  GetSourceSnapshotChapterInput,
   ProjectKind,
   ProjectSourceMode,
+  SourceSnapshotChapterIndex,
   SourceSnapshotChapterSummary,
 } from "./generated/host";
 
@@ -220,6 +224,23 @@ export async function listSourceSnapshotChapters(projectId: Id): Promise<SourceS
   return apiInvoke<SourceSnapshotChapterSummary[]>("list_source_snapshot_chapters", {
     projectId: idNum(projectId),
   });
+}
+
+export async function listSourceSnapshotChapterIndex(projectId: Id): Promise<SourceSnapshotChapterIndex[]> {
+  return apiInvoke<SourceSnapshotChapterIndex[]>("list_source_snapshot_chapter_index", {
+    projectId: idNum(projectId),
+  });
+}
+
+export async function getSourceSnapshotChapter(
+  projectId: Id,
+  sourceChapterId: Id,
+): Promise<SourceSnapshotChapterSummary> {
+  const input: GetSourceSnapshotChapterInput = {
+    project_id: idNum(projectId),
+    source_chapter_id: idNum(sourceChapterId),
+  };
+  return apiInvoke<SourceSnapshotChapterSummary>("get_source_snapshot_chapter", { input });
 }
 
 /**

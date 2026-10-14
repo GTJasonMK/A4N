@@ -14,7 +14,8 @@ pub(in crate::routes::commands) use duplication::duplicate_project;
 pub(in crate::routes::commands) use records::{
     create_canvas_project, create_derived_project, create_project, create_standalone_comic_project,
     delete_project, get_project, get_project_asset_dependency_graph,
-    get_project_asset_dependency_graph_node_detail, list_projects, list_source_snapshot_chapters,
+    get_project_asset_dependency_graph_node_detail, get_source_snapshot_chapter, list_projects,
+    list_source_snapshot_chapter_index, list_source_snapshot_chapters,
     reset_project_generated_data, update_project,
 };
 pub(in crate::routes::commands) use status::{

@@ -10,7 +10,7 @@ export interface MangaTabProps {
   projectId: number;
   canEditManga?: boolean;
   standalone?: boolean;
-  snapshotChapters?: import("../../../api/project").SourceSnapshotChapterSummary[];
+  snapshotChapters?: import("../../../api/project").SourceSnapshotChapterIndex[];
   assetProjectId?: number;
   imageProjectIds?: number[];
   /** 当前章节（写作桌联动用）。设置后跳过左侧章节列表，直接显示该章节的漫画详情。 */

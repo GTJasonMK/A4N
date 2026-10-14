@@ -169,6 +169,7 @@ export const HOST_API_COMMANDS = [
   "get_queue_stats",
   "get_reverse_engineering_candidate",
   "get_snapshot",
+  "get_source_snapshot_chapter",
   "get_storage_paths",
   "get_task_history",
   "get_test_run",
@@ -242,6 +243,7 @@ export const HOST_API_COMMANDS = [
   "list_scene_profiles",
   "list_sessions",
   "list_snapshots",
+  "list_source_snapshot_chapter_index",
   "list_source_snapshot_chapters",
   "list_test_runs",
   "list_test_scenarios",
@@ -256,8 +258,8 @@ export const HOST_API_COMMANDS = [
   "load_video_scrub_playback_data",
   "load_video_segment_plan_draft",
   "login_user",
-  "modify_profile_attribute",
   "mark_creator_notification_read",
+  "modify_profile_attribute",
   "move_inserted_segment",
   "oauth2_authorize_url",
   "oauth2_available_providers",
@@ -4387,6 +4389,19 @@ export interface SourceSnapshotChapterSummary {
   source_chapter_id: number;
   summary: string | null;
   title: string | null;
+}
+
+export interface SourceSnapshotChapterIndex {
+  chapter_number: number;
+  id: number;
+  snapshot_id: number;
+  source_chapter_id: number;
+  title: string | null;
+}
+
+export interface GetSourceSnapshotChapterInput {
+  project_id: number;
+  source_chapter_id: number;
 }
 
 export interface DuplicateProjectInput {

@@ -76,6 +76,7 @@ interface MangaChapterDetailPanelProps {
   projectId: number;
   isSingleMode: boolean;
   selectedChapter: ChapterRow | null;
+  selectedSnapshotLoading: boolean;
   selectedStatus: MangaPipelineStatusSummary | null | undefined;
   pagePrompts: MangaPagePromptSummary[];
   pageSlotsNeedsGeneration?: boolean;
@@ -142,6 +143,7 @@ export function MangaChapterDetailPanel({
   projectId,
   isSingleMode,
   selectedChapter,
+  selectedSnapshotLoading,
   selectedStatus,
   pagePrompts,
   pageSlotsNeedsGeneration = false,
@@ -1144,7 +1146,11 @@ export function MangaChapterDetailPanel({
   return (
     <>
       <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-        {!selectedChapter ? (
+        {selectedSnapshotLoading ? (
+          <div role="status" className="a4n-flat-surface flex min-h-[180px] flex-1 items-center justify-center gap-2 text-xs text-book-text-muted">
+            <LoadingSpinner size="sm" /> {t("comic.loadingChapters")}
+          </div>
+        ) : !selectedChapter ? (
           <div className="a4n-flat-surface flex min-h-[180px] flex-1 items-center justify-center">
             <EmptyHint
               text={isSingleMode

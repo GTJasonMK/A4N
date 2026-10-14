@@ -80,6 +80,19 @@ async fn collaboration_flow_keeps_reads_pure_and_mutations_explicit() {
     )
     .await;
 
+    let owner_access = project_access_info(
+        &db,
+        ProjectAccessInfoQuery {
+            project_id: project.id,
+            root_project_id: None,
+        },
+        owner.id,
+    )
+    .await
+    .expect("项目所有者的协作摘要应可读取");
+    assert_eq!(owner_access.member_count, 0);
+    assert_eq!(owner_access.pending_invite_count, Some(1));
+
     let project_invites = list_project_invites(&db, owner.id, project.id)
         .await
         .expect("项目邀请列表应可读取");
@@ -111,6 +124,19 @@ async fn collaboration_flow_keeps_reads_pure_and_mutations_explicit() {
     assert_eq!(members.len(), 2);
     assert_eq!(members[0].role, ProjectAccessRole::Owner);
     assert_eq!(members[1].role, ProjectAccessRole::Editor);
+    let member_access = project_access_info(
+        &db,
+        ProjectAccessInfoQuery {
+            project_id: project.id,
+            root_project_id: None,
+        },
+        invitee.id,
+    )
+    .await
+    .expect("协作者的协作摘要应可读取");
+    assert_eq!(member_access.my_role, ProjectAccessRole::Editor);
+    assert_eq!(member_access.member_count, 1);
+    assert_eq!(member_access.pending_invite_count, None);
     assert_eq!(
         project_invite::Entity::find_by_id(active_invite.id)
             .one(&db)

@@ -53,7 +53,7 @@ import { useToast } from "../../components/feedback/Toast";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
-import type { SourceSnapshotChapterSummary } from "../../api/project";
+import type { SourceSnapshotChapterIndex } from "../../api/project";
 import { pickLocalFile, readFileAsBase64 } from "../../utils/fileUpload";
 import { createWorkflowTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { downloadBase64ExportFile } from "../../utils/downloadFile";
@@ -92,7 +92,7 @@ interface GalgameTabProps {
   projectId: number;
   materialProjectId: number;
   canEditGalgame: boolean;
-  snapshotChapters: SourceSnapshotChapterSummary[];
+  snapshotChapters: SourceSnapshotChapterIndex[];
 }
 
 export const GalgameTab: React.FC<GalgameTabProps> = ({
@@ -293,7 +293,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   );
 
   const chapterBySnapshotId = useMemo(() => {
-    const map = new Map<number, SourceSnapshotChapterSummary>();
+    const map = new Map<number, SourceSnapshotChapterIndex>();
     for (const chapter of snapshotChapters) map.set(chapter.id, chapter);
     return map;
   }, [snapshotChapters]);
