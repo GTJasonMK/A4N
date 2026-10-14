@@ -168,6 +168,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::user_read_only_role_removal::Migration),
             Box::new(crate::migrations::creator_notifications::Migration),
             Box::new(crate::migrations::generated_image_project_index::Migration),
+            Box::new(crate::migrations::generated_image_project_chapter_index::Migration),
         ]
     }
 }
@@ -438,6 +439,7 @@ mod tests {
             "user_read_only_role_removal",
             "creator_notifications",
             "generated_image_project_index",
+            "generated_image_project_chapter_index",
         ];
         let history_start = names
             .iter()

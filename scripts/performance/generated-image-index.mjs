@@ -15,10 +15,16 @@ const reportDir = path.resolve(
 const rowCount = Number(process.env.A4N_PERF_IMAGE_ROWS ?? 100_000);
 const rounds = Number(process.env.A4N_PERF_ROUNDS ?? 5);
 const table = "generated_image_index_probe";
-const index = "idx_generated_image_index_probe_project";
+const queryKind = process.env.A4N_PERF_IMAGE_QUERY ?? "project";
+assert.ok(queryKind === "project" || queryKind === "chapter");
+const index = queryKind === "project"
+  ? "idx_generated_image_index_probe_project"
+  : "idx_generated_image_index_probe_project_chapter";
 const columns = `id, project_id, image_type, file_path, prompt, model, width, height,
   file_size, ai_score, is_favorite, chapter_id, panel_id, metadata_json, created_at`;
-const query = `SELECT ${columns} FROM ${table} WHERE project_id = 42 ORDER BY created_at DESC`;
+const query = queryKind === "project"
+  ? `SELECT ${columns} FROM ${table} WHERE project_id = 42 ORDER BY created_at DESC`
+  : `SELECT ${columns} FROM ${table} WHERE project_id = 42 AND chapter_id = 7 ORDER BY created_at DESC`;
 
 assert.equal(databaseUrl.hostname, "127.0.0.1", "run this benchmark through the isolated test database runner");
 assert.ok(Number.isSafeInteger(rowCount) && rowCount >= 100_000 && rowCount % 100 === 0);
@@ -93,7 +99,7 @@ SELECT id,
   'Generated image prompt ' || id || repeat(' detail', 12),
   'fixture-model', 1024, 1024, 180000, 0.75,
   id % 20 = 0,
-  ((id - 1) % 10) + 1,
+  (((id - 1) / 100) % 10) + 1,
   'panel-' || id,
   jsonb_build_object('payload', repeat('x', 256), 'image_id', id),
   TIMESTAMP '2026-01-01' + id * INTERVAL '1 second'
@@ -102,14 +108,15 @@ ANALYZE ${table};
 `);
 
 function setIndex(enabled) {
+  const definition = queryKind === "project" ? "project_id" : "project_id, chapter_id";
   psql(enabled
-    ? `CREATE INDEX IF NOT EXISTS ${index} ON ${table} (project_id); ANALYZE ${table};`
+    ? `CREATE INDEX IF NOT EXISTS ${index} ON ${table} (${definition}); ANALYZE ${table};`
     : `DROP INDEX IF EXISTS ${index}; ANALYZE ${table};`);
 }
 
 function sample() {
   const plan = JSON.parse(psql(`SET max_parallel_workers_per_gather = 0; EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON, TIMING OFF) ${query};`))[0];
-  const ids = psql(`SELECT id FROM ${table} WHERE project_id = 42 ORDER BY created_at DESC;`)
+  const ids = psql(query.replace(columns, "id") + ";")
     .split("\n")
     .map(Number);
   return {
@@ -148,7 +155,7 @@ for (let round = 0; round < rounds; round += 1) {
 assert.equal(samples.baseline.length, rounds);
 assert.equal(samples.indexed.length, rounds);
 const expectedIds = resultOrders.baseline[0];
-assert.equal(expectedIds.length, rowCount / 100);
+assert.equal(expectedIds.length, queryKind === "project" ? rowCount / 100 : rowCount / 1000);
 for (const ids of [...resultOrders.baseline, ...resultOrders.indexed]) {
   assert.deepEqual(ids, expectedIds, "adding the index must preserve exact ID order");
 }
@@ -163,8 +170,9 @@ const report = {
   rows_per_project: rowCount / 100,
   rounds,
   selected_project_id: 42,
+  selected_chapter_id: queryKind === "chapter" ? 7 : null,
   selected_count: expectedIds.length,
-  index_definition: `${table}(project_id)`,
+  index_definition: `${table}(${queryKind === "project" ? "project_id" : "project_id, chapter_id"})`,
   index_bytes: indexBytes,
   baseline_p50_ms: baselineP50,
   indexed_p50_ms: indexedP50,

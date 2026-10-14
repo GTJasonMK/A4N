@@ -61,6 +61,7 @@ pub mod galgame_script_tables;
 pub mod galgame_story_graph;
 pub mod galgame_story_runtime_state;
 pub mod galgame_target_reverse_integrity_contract;
+pub mod generated_image_project_chapter_index;
 pub mod generated_image_project_index;
 pub mod generation_run_checkpoint_fields;
 pub mod generation_runs;
