@@ -29,6 +29,18 @@ use sea_orm::{
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+pub const AUTHORING_READ_BATCH_SIZE: usize = 64;
+
+/// Keeps batch readers able to parse and validate each document in input order.
+#[derive(Clone)]
+pub struct UnparsedAuthoringDocument(document::Model);
+
+impl UnparsedAuthoringDocument {
+    pub fn parse(self) -> Result<AuthoringDocumentRecord, AuthoringDocumentError> {
+        parse_record(self.0)
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum AuthoringDocumentError {
     #[error("{0}")]
@@ -223,6 +235,41 @@ pub async fn authoring_document<C: ConnectionTrait>(
     parse_record(row)
 }
 
+/// Reads one bounded batch while leaving per-row errors for the caller to handle in order.
+pub async fn authoring_document_rows_by_ids<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+    record_ids: &[i64],
+) -> Result<
+    Vec<Result<Option<UnparsedAuthoringDocument>, AuthoringDocumentError>>,
+    AuthoringDocumentError,
+> {
+    if record_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    validate_authoring_read_batch_size(record_ids.len())?;
+    positive(project_id, "project_id")?;
+    positive(record_ids[0], "record_id")?;
+    let rows = document::Entity::find()
+        .filter(document::Column::ProjectId.eq(project_id))
+        .filter(document::Column::Id.is_in(record_ids.iter().copied()))
+        .all(db)
+        .await?;
+    let mut by_id = rows
+        .into_iter()
+        .map(|row| (row.id, row))
+        .collect::<HashMap<_, _>>();
+    let selected = take_unparsed_documents_in_order(record_ids, &mut by_id);
+    Ok(record_ids
+        .iter()
+        .zip(selected)
+        .map(|(id, row)| match positive(*id, "record_id") {
+            Ok(()) => Ok(row),
+            Err(error) => Err(error),
+        })
+        .collect())
+}
+
 pub async fn current_authoring_document<C: ConnectionTrait>(
     db: &C,
     project_id: i64,
@@ -243,6 +290,105 @@ pub async fn current_authoring_document<C: ConnectionTrait>(
         .await?
         .map(parse_record)
         .transpose()
+}
+
+/// Reads current draft/adopted documents for one source-chapter batch.
+/// Draft rows keep priority, and returned rows remain unparsed for ordered caller validation.
+pub async fn current_authoring_document_rows_by_source_chapters<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+    source_snapshot_id: i64,
+    kind: AuthoringDocumentKind,
+    source_chapter_ids: &[i64],
+) -> Result<
+    Vec<Result<Option<UnparsedAuthoringDocument>, AuthoringDocumentError>>,
+    AuthoringDocumentError,
+> {
+    if source_chapter_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    validate_authoring_read_batch_size(source_chapter_ids.len())?;
+    positive(project_id, "project_id")?;
+    positive(source_snapshot_id, "source_snapshot_id")?;
+    positive(source_chapter_ids[0], "source_chapter_id")?;
+    let draft_rows = document::Entity::find()
+        .filter(document::Column::ProjectId.eq(project_id))
+        .filter(document::Column::SourceSnapshotId.eq(source_snapshot_id))
+        .filter(document::Column::SourceChapterId.is_in(source_chapter_ids.iter().copied()))
+        .filter(document::Column::Kind.eq(kind.as_str()))
+        .filter(document::Column::Status.eq(AuthoringDocumentStatus::Draft.as_str()))
+        .all(db)
+        .await?;
+    let mut by_chapter = draft_rows
+        .into_iter()
+        .filter_map(|row| row.source_chapter_id.map(|chapter_id| (chapter_id, row)))
+        .collect::<HashMap<_, _>>();
+    let adopted_chapter_ids = source_chapter_ids
+        .iter()
+        .copied()
+        .filter(|chapter_id| !by_chapter.contains_key(chapter_id))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    if !adopted_chapter_ids.is_empty() {
+        let adopted_rows = document::Entity::find()
+            .filter(document::Column::ProjectId.eq(project_id))
+            .filter(document::Column::SourceSnapshotId.eq(source_snapshot_id))
+            .filter(document::Column::SourceChapterId.is_in(adopted_chapter_ids))
+            .filter(document::Column::Kind.eq(kind.as_str()))
+            .filter(document::Column::Status.eq(AuthoringDocumentStatus::Adopted.as_str()))
+            .all(db)
+            .await?;
+        by_chapter = prefer_adopted_fallback(by_chapter, adopted_rows);
+    }
+    let selected = take_unparsed_documents_in_order(source_chapter_ids, &mut by_chapter);
+    Ok(source_chapter_ids
+        .iter()
+        .zip(selected)
+        .map(|(id, row)| match positive(*id, "source_chapter_id") {
+            Ok(()) => Ok(row),
+            Err(error) => Err(error),
+        })
+        .collect())
+}
+
+fn validate_authoring_read_batch_size(size: usize) -> Result<(), AuthoringDocumentError> {
+    if size > AUTHORING_READ_BATCH_SIZE {
+        return Err(AuthoringDocumentError::InvalidArgument(format!(
+            "创作文档批量读取超过 {AUTHORING_READ_BATCH_SIZE} 条上限"
+        )));
+    }
+    Ok(())
+}
+
+fn prefer_adopted_fallback(
+    mut drafts: HashMap<i64, document::Model>,
+    adopted_rows: Vec<document::Model>,
+) -> HashMap<i64, document::Model> {
+    for row in adopted_rows {
+        if let Some(chapter_id) = row.source_chapter_id {
+            drafts.entry(chapter_id).or_insert(row);
+        }
+    }
+    drafts
+}
+
+fn take_unparsed_documents_in_order(
+    ids: &[i64],
+    rows: &mut HashMap<i64, document::Model>,
+) -> Vec<Option<UnparsedAuthoringDocument>> {
+    let mut first_positions = HashMap::<i64, usize>::new();
+    let mut result = Vec::<Option<UnparsedAuthoringDocument>>::with_capacity(ids.len());
+    for id in ids {
+        let candidate = if let Some(position) = first_positions.get(id) {
+            result[*position].clone()
+        } else {
+            first_positions.insert(*id, result.len());
+            rows.remove(id).map(UnparsedAuthoringDocument)
+        };
+        result.push(candidate);
+    }
+    result
 }
 
 pub async fn list_authoring_documents<C: ConnectionTrait>(
@@ -964,9 +1110,8 @@ async fn validate_source_references<C: ConnectionTrait>(
     standalone_comic: bool,
     source_refs: &[AuthoringSourceRef],
 ) -> Result<(), AuthoringDocumentError> {
-    const SOURCE_BATCH_SIZE: usize = 64;
     let mut seen = BTreeSet::new();
-    for chunk in source_refs.chunks(SOURCE_BATCH_SIZE) {
+    for chunk in source_refs.chunks(AUTHORING_READ_BATCH_SIZE) {
         let mut rows = source_snapshot_chapter::Entity::find()
             .filter(
                 source_snapshot_chapter::Column::Id
@@ -1055,9 +1200,8 @@ pub(crate) async fn validate_adopted_authoring_dependencies<C: ConnectionTrait>(
     }
     positive(project_id, "project_id")?;
 
-    const DEPENDENCY_BATCH_SIZE: usize = 64;
     let mut seen = BTreeSet::new();
-    for chunk in dependencies.chunks(DEPENDENCY_BATCH_SIZE) {
+    for chunk in dependencies.chunks(AUTHORING_READ_BATCH_SIZE) {
         let first = &chunk[0];
         if seen.contains(&first.id) {
             return Err(AuthoringDocumentError::InvalidArgument(
@@ -1282,6 +1426,50 @@ mod dependency_validation_tests {
             Err(AuthoringDocumentError::InvalidArgument(message)) if message == "创作文档原文来源不一致"
         ));
     }
+
+    #[test]
+    fn batched_authoring_document_reads_preserve_order_and_draft_priority() {
+        let adopted_first = row(10, "adopted", "adaptation_plan");
+        let mut draft_first = row(11, "draft", "adaptation_plan");
+        draft_first.source_chapter_id = Some(adopted_first.id);
+        let adopted_second = row(20, "adopted", "adaptation_plan");
+
+        let by_chapter = prefer_adopted_fallback(
+            HashMap::from([(adopted_first.id, draft_first)]),
+            vec![adopted_first.clone(), adopted_second.clone()],
+        );
+        let mut by_chapter = by_chapter;
+        let current = take_unparsed_documents_in_order(&[20, 10, 404, 20], &mut by_chapter);
+        assert_eq!(
+            current
+                .iter()
+                .map(|row| row.as_ref().map(|row| row.0.id))
+                .collect::<Vec<_>>(),
+            [Some(20), Some(11), None, Some(20)]
+        );
+        assert_eq!(
+            current[1]
+                .clone()
+                .expect("draft selected")
+                .parse()
+                .unwrap()
+                .status,
+            AuthoringDocumentStatus::Draft
+        );
+
+        let mut by_id = HashMap::from([
+            (adopted_first.id, adopted_first),
+            (adopted_second.id, adopted_second),
+        ]);
+        let by_id = take_unparsed_documents_in_order(&[20, 10, 20, 404], &mut by_id);
+        assert_eq!(
+            by_id
+                .iter()
+                .map(|row| row.as_ref().map(|row| row.0.id))
+                .collect::<Vec<_>>(),
+            [Some(20), Some(10), Some(20), None]
+        );
+    }
 }
 
 pub fn parse_record(
@@ -1441,6 +1629,101 @@ mod perf_probe {
         Ok(())
     }
 
+    type AuthoringLookupSummary = (i64, AuthoringDocumentRef, AuthoringDocumentStatus);
+
+    async fn current_authoring_documents_serial<C: ConnectionTrait>(
+        db: &C,
+        project_id: i64,
+        snapshot_id: i64,
+        source_chapter_ids: &[i64],
+    ) -> Result<Vec<AuthoringLookupSummary>, AuthoringDocumentError> {
+        let mut summary = Vec::new();
+        for source_chapter_id in source_chapter_ids {
+            let draft = current_authoring_document(
+                db,
+                project_id,
+                snapshot_id,
+                Some(*source_chapter_id),
+                AuthoringDocumentKind::AdaptationPlan,
+                AuthoringDocumentStatus::Draft,
+            )
+            .await?;
+            let record = match draft {
+                Some(record) => Some(record),
+                None => {
+                    current_authoring_document(
+                        db,
+                        project_id,
+                        snapshot_id,
+                        Some(*source_chapter_id),
+                        AuthoringDocumentKind::AdaptationPlan,
+                        AuthoringDocumentStatus::Adopted,
+                    )
+                    .await?
+                }
+            };
+            if let Some(record) = record {
+                summary.push((*source_chapter_id, record.reference(), record.status));
+            }
+        }
+        Ok(summary)
+    }
+
+    async fn current_authoring_documents_batched<C: ConnectionTrait>(
+        db: &C,
+        project_id: i64,
+        snapshot_id: i64,
+        source_chapter_ids: &[i64],
+    ) -> Result<Vec<AuthoringLookupSummary>, AuthoringDocumentError> {
+        let mut summary = Vec::new();
+        for chunk in source_chapter_ids.chunks(AUTHORING_READ_BATCH_SIZE) {
+            let rows = current_authoring_document_rows_by_source_chapters(
+                db,
+                project_id,
+                snapshot_id,
+                AuthoringDocumentKind::AdaptationPlan,
+                chunk,
+            )
+            .await?;
+            for (source_chapter_id, row) in chunk.iter().zip(rows) {
+                if let Some(record) = row?.map(UnparsedAuthoringDocument::parse).transpose()? {
+                    summary.push((*source_chapter_id, record.reference(), record.status));
+                }
+            }
+        }
+        Ok(summary)
+    }
+
+    async fn authoring_documents_by_ids_serial<C: ConnectionTrait>(
+        db: &C,
+        project_id: i64,
+        record_ids: &[i64],
+    ) -> Result<Vec<AuthoringLookupSummary>, AuthoringDocumentError> {
+        let mut summary = Vec::with_capacity(record_ids.len());
+        for record_id in record_ids {
+            let record = authoring_document(db, project_id, *record_id).await?;
+            summary.push((*record_id, record.reference(), record.status));
+        }
+        Ok(summary)
+    }
+
+    async fn authoring_documents_by_ids_batched<C: ConnectionTrait>(
+        db: &C,
+        project_id: i64,
+        record_ids: &[i64],
+    ) -> Result<Vec<AuthoringLookupSummary>, AuthoringDocumentError> {
+        let mut summary = Vec::with_capacity(record_ids.len());
+        for chunk in record_ids.chunks(AUTHORING_READ_BATCH_SIZE) {
+            let rows = authoring_document_rows_by_ids(db, project_id, chunk).await?;
+            for (record_id, row) in chunk.iter().zip(rows) {
+                let row = row?.ok_or(AuthoringDocumentError::NotFound(*record_id))?;
+                let record = row.parse()?;
+                summary.push((*record_id, record.reference(), record.status));
+            }
+        }
+        Ok(summary)
+    }
+
     #[tokio::test]
     #[ignore = "manual performance probe"]
     async fn media_authoring_reference_probe() {
@@ -1593,6 +1876,41 @@ mod perf_probe {
             .exec(&db)
             .await
             .expect("insert docs");
+        let draft_inputs = serde_json::to_value(&AuthoringDocumentInputs {
+            sources: Vec::new(),
+            video_reference: None,
+            dependencies: Vec::new(),
+            preprocessing_fingerprint: None,
+        })
+        .expect("draft inputs json");
+        let draft_document = serde_json::json!({
+            "schema_version": "adaptation_plan_v1",
+            "target": "galgame",
+            "intention": "x".repeat(8 * 1024),
+            "decisions": [],
+            "units": [],
+        });
+        let draft_hash =
+            crate::generation::canonical_json_sha256(&(&draft_inputs, &draft_document))
+                .expect("draft hash");
+        document::ActiveModel {
+            id: Set(dependency_count + 1),
+            project_id: Set(project.id),
+            source_snapshot_id: Set(snapshot.id),
+            source_chapter_id: Set(Some(chapters[0].id)),
+            kind: Set("adaptation_plan".to_string()),
+            version: Set(2),
+            revision: Set(2),
+            status: Set("draft".to_string()),
+            inputs_json: Set(draft_inputs),
+            document_json: Set(draft_document),
+            document_sha256: Set(draft_hash),
+            created_at: Set(now),
+            updated_at: Set(now),
+        }
+        .insert(&db)
+        .await
+        .expect("insert draft adaptation document");
 
         let mut old_samples = Vec::with_capacity(3);
         let mut new_samples = Vec::with_capacity(3);
@@ -1631,6 +1949,154 @@ mod perf_probe {
         assert!(
             old_ms > new_ms * 1.3,
             "batch probe must clear the latency gate"
+        );
+
+        let source_chapter_ids = chapters
+            .iter()
+            .map(|chapter| chapter.id)
+            .collect::<Vec<_>>();
+        let record_ids = refs
+            .iter()
+            .map(|reference| reference.id)
+            .collect::<Vec<_>>();
+        let mut old_current_samples = Vec::with_capacity(3);
+        let mut new_current_samples = Vec::with_capacity(3);
+        for pair in 0..5 {
+            let sample = if pair % 2 == 0 {
+                let old_started = Instant::now();
+                let old = current_authoring_documents_serial(
+                    &db,
+                    project.id,
+                    snapshot.id,
+                    &source_chapter_ids,
+                )
+                .await
+                .expect("serial current document reads");
+                let old_ms = old_started.elapsed().as_secs_f64() * 1_000.0;
+                let new_started = Instant::now();
+                let new = current_authoring_documents_batched(
+                    &db,
+                    project.id,
+                    snapshot.id,
+                    &source_chapter_ids,
+                )
+                .await
+                .expect("batched current document reads");
+                (
+                    old_ms,
+                    new_started.elapsed().as_secs_f64() * 1_000.0,
+                    old,
+                    new,
+                )
+            } else {
+                let new_started = Instant::now();
+                let new = current_authoring_documents_batched(
+                    &db,
+                    project.id,
+                    snapshot.id,
+                    &source_chapter_ids,
+                )
+                .await
+                .expect("batched current document reads");
+                let new_ms = new_started.elapsed().as_secs_f64() * 1_000.0;
+                let old_started = Instant::now();
+                let old = current_authoring_documents_serial(
+                    &db,
+                    project.id,
+                    snapshot.id,
+                    &source_chapter_ids,
+                )
+                .await
+                .expect("serial current document reads");
+                (
+                    old_started.elapsed().as_secs_f64() * 1_000.0,
+                    new_ms,
+                    old,
+                    new,
+                )
+            };
+            assert_eq!(sample.2, sample.3);
+            assert_eq!(sample.3.len(), source_chapter_ids.len());
+            assert_eq!(sample.3[0].2, AuthoringDocumentStatus::Draft);
+            if pair >= 2 {
+                old_current_samples.push(sample.0);
+                new_current_samples.push(sample.1);
+            }
+            tokio::time::sleep(Duration::from_millis(15)).await;
+        }
+        old_current_samples.sort_by(f64::total_cmp);
+        new_current_samples.sort_by(f64::total_cmp);
+        let old_current_ms = old_current_samples[old_current_samples.len() / 2];
+        let new_current_ms = new_current_samples[new_current_samples.len() / 2];
+        println!(
+            "current_authoring_batch chapters={} p50_old_ms={old_current_ms:.3} p50_new_ms={new_current_ms:.3} old_samples={old_current_samples:?} new_samples={new_current_samples:?}",
+            source_chapter_ids.len(),
+        );
+        assert!(
+            old_current_ms > new_current_ms * 1.3,
+            "current authoring read batch probe must clear the latency gate"
+        );
+
+        let mut old_id_samples = Vec::with_capacity(3);
+        let mut new_id_samples = Vec::with_capacity(3);
+        for pair in 0..5 {
+            let sample = if pair % 2 == 0 {
+                let old_started = Instant::now();
+                let old = authoring_documents_by_ids_serial(&db, project.id, &record_ids)
+                    .await
+                    .expect("serial branch plan document reads");
+                let old_ms = old_started.elapsed().as_secs_f64() * 1_000.0;
+                let new_started = Instant::now();
+                let new = authoring_documents_by_ids_batched(&db, project.id, &record_ids)
+                    .await
+                    .expect("batched branch plan document reads");
+                (
+                    old_ms,
+                    new_started.elapsed().as_secs_f64() * 1_000.0,
+                    old,
+                    new,
+                )
+            } else {
+                let new_started = Instant::now();
+                let new = authoring_documents_by_ids_batched(&db, project.id, &record_ids)
+                    .await
+                    .expect("batched branch plan document reads");
+                let new_ms = new_started.elapsed().as_secs_f64() * 1_000.0;
+                let old_started = Instant::now();
+                let old = authoring_documents_by_ids_serial(&db, project.id, &record_ids)
+                    .await
+                    .expect("serial branch plan document reads");
+                (
+                    old_started.elapsed().as_secs_f64() * 1_000.0,
+                    new_ms,
+                    old,
+                    new,
+                )
+            };
+            assert_eq!(sample.2, sample.3);
+            assert!(
+                sample
+                    .3
+                    .iter()
+                    .all(|(_, _, status)| status == &AuthoringDocumentStatus::Adopted)
+            );
+            if pair >= 2 {
+                old_id_samples.push(sample.0);
+                new_id_samples.push(sample.1);
+            }
+            tokio::time::sleep(Duration::from_millis(15)).await;
+        }
+        old_id_samples.sort_by(f64::total_cmp);
+        new_id_samples.sort_by(f64::total_cmp);
+        let old_id_ms = old_id_samples[old_id_samples.len() / 2];
+        let new_id_ms = new_id_samples[new_id_samples.len() / 2];
+        println!(
+            "authoring_document_id_batch rows={} p50_old_ms={old_id_ms:.3} p50_new_ms={new_id_ms:.3} old_samples={old_id_samples:?} new_samples={new_id_samples:?}",
+            record_ids.len(),
+        );
+        assert!(
+            old_id_ms > new_id_ms * 1.3,
+            "document ID batch probe must clear the latency gate"
         );
 
         let mut old_source_samples = Vec::with_capacity(3);
