@@ -74,6 +74,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 媒体创作来源校验 | PERF-086 将多章来源快照主键串行读取改为每批 64 行；保留逐来源完整身份与正文哈希校验，单章漫画校验路径不变。 |
 | Galgame 流程文档读取 | PERF-087 将千章 context 的 draft/adopted 两阶段逐章查找和分支阶段按 ID 重读，改为有界批次读取；调用方仍按原顺序执行文档解析和版本校验。 |
 | ChapterVisualPlan 编辑 | PERF-088 复用当前 plan 的精确 JSON 表示，避免每次编辑分别做 dirty 比较、revision 比较和两次相同本地备份序列化/写入；同步备份仍保留，其他替换仍由 effect 备份。 |
+| ChapterVisualPlan diff 候选 | PERF-089（PERF-088 基线）对共享对象引用相同的点/镜头跳过 JSON 深比较；100／500／1000 段 P50 **9.1→7.1 ms（22.0%）／56.1→44.3 ms（21.0%）／109.3→88.9 ms（18.7%）**，均低于门槛，未采用。完整输入 JSON 为 **82,583／416,583／834,088 B**；证据见 `../../data/performance-audit-20261014/plan-changes/`。 |
 
 ## 可复现入口
 
@@ -376,6 +377,7 @@ A4N_PERF_ARTIFACTS=/path/inside/worktree/data/api-transfer \
 - 修复：保存当前 plan 对应的 JSON 字符串，并让 dirty、editor revision、save、beforeunload 和本地备份复用它。`updateFields` 仍同步写 sessionStorage，effect 仅在该 plan 对象还没有同步备份时写入；存储失败时不标记完成，因此 effect 仍会重试。其他替换路径仍由 effect 备份。
 - A/B 在真实 Chromium **153.0.8010.52** 的 production Vite fixture 中运行 `useDirectorPlan`、React commit 和同步 sessionStorage；CPU 固定 18/19，每个负载先 2 组预热，再测 5 组，每组 8 次镜头字段编辑。100／500／1000 段计划为 **82,583／416,583／834,088 B**。P50：**16.8 → 9.7 ms（42.3%）／114.0 → 56.4 ms（50.5%）／234.2 → 112.3 ms（52.1%）**。
 - 迭代记录：仅复用序列化字符串、仍让 effect 重复写同一备份时，1000 段 P50 为 **168.4 ms（28.1%）**，未达门槛；添加同对象备份去重后降至 **112.3 ms（52.1%）**。未采用低于门槛的中间实现。
+- 未采用的相邻候选 PERF-089：在 `planChanges` 中对 before/after 引用相同的点和镜头跳过 JSON 深比较；100／500／1000 段分别下降 **22.0%／21.0%／18.7%**，均低于验收门槛，因此没有改动该实现。
 - 验证：`npm run build` 通过（保留既有大 chunk 提示）；`npm run test:run -- --maxWorkers=2` 为 **139 文件/513 项通过**；真实浏览器 `node e2e/director-timeline/check.mjs` **18 项通过**，覆盖保存期间继续编辑、SSE 回执、冲突合并/撤销、章节切换、桌面与窄屏布局；director-plan A/B 的 dirty/revert、sessionStorage 内容、editor revision 与布局断言通过。
 - 边界：该 A/B 测量 hook 与同步编辑提交，不包括后端保存请求耗时或完整章节视觉计划页面的所有组件。
 - 证据：`../../data/performance-audit-20261014/director-plan/{baseline/report.json,after-final/report.json,serialization-only-intermediate-report.json,ui-regression-report.json}`。复现入口为 `frontend/e2e/performance/check.mjs` 的 `A4N_PERF_CASE=director-plan`；基线提交为 `b25e60445`。profile 使用 `A4N_PERF_TEMP_ROOT=../.tmp/director-plan-profile` 和 `A4N_PERF_CHROME_TMPDIR=../.tmp/director-plan-chrome`，将 Chromium 临时 socket 放在短路径下；先设 `A4N_PERF_BASELINE_REF=b25e60445` 生成 baseline，再去掉该变量生成候选。
