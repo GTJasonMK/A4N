@@ -169,6 +169,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::creator_notifications::Migration),
             Box::new(crate::migrations::generated_image_project_index::Migration),
             Box::new(crate::migrations::generated_image_project_chapter_index::Migration),
+            Box::new(crate::migrations::workflow_run_project_updated_index::Migration),
         ]
     }
 }
@@ -440,6 +441,7 @@ mod tests {
             "creator_notifications",
             "generated_image_project_index",
             "generated_image_project_chapter_index",
+            "workflow_run_project_updated_index",
         ];
         let history_start = names
             .iter()

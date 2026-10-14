@@ -59,6 +59,7 @@
 | [PERF-101](../../frontend/src/pages/novel-detail/images/ImageGalleryPanel.tsx) | 项目图片图库初载；1000／2000 张图片 | 首次仅挂载 500 张卡片，底部按钮按批显示其余图片；过滤和范围切换重置批次 | Chromium 153.0.8010.52、生产 Vite、CPU 18/19、3 轮交错：挂载 P50 **192.1→111.0 ms（42.22%）／339.8→113.9 ms（66.48%）**；首屏后 JS heap 降 **27.08%／51.81%**；图片请求与传输减少 **50%／75%**；完整图片列表仍可逐批到达 |
 | [PERF-102](../../crates/platform/a4n-migration/src/migrations/generated_image_project_index.rs) | 项目图库 API → `generated_image` 按项目查询；100,000 行、每项目 1,000 张 | 为现有 `WHERE project_id = ?` 增加单列数据库索引；保持原 `created_at DESC` 排序和完整 DTO 投影 | 隔离 PostgreSQL 16、5 轮交错、服务器 `EXPLAIN ANALYZE`：P50 **14.223→4.265 ms（70.01%）**；计划从全表扫描变为项目索引 Bitmap Heap Scan；索引 **745,472 B**；结果 1,000 个 ID 顺序完全一致 |
 | [PERF-103](../../crates/platform/a4n-migration/src/migrations/generated_image_project_chapter_index.rs) | 章节图库 API → `generated_image` 按项目和章节查询；100,000 行、目标项目/章节 100 张 | 为现有 `WHERE project_id = ? AND chapter_id = ?` 增加复合数据库索引；保持原 `created_at DESC` 排序和完整 DTO 投影 | 隔离 PostgreSQL 16、5 轮交错、服务器 `EXPLAIN ANALYZE`：P50 **17.994→0.812 ms（95.49%）**；计划从全表扫描变为复合索引 Bitmap Heap Scan；索引 **761,856 B**；结果 100 个 ID 顺序完全一致 |
+| [PERF-105](../../crates/platform/a4n-migration/src/migrations/workflow_run_project_updated_index.rs) | 工作流列表按项目读取最新运行；100,000 行、目标项目 20,000 行、默认返回 100 条 | 为现有 `WHERE project_id = ? ORDER BY updated_at DESC, id DESC LIMIT 100` 增加排序复合索引；保持完整运行 DTO 和排序语义 | 隔离 PostgreSQL 16、已有项目/状态索引、5 轮交错：P50 **7.702→0.292 ms（96.21%）**；计划从 Bitmap Heap + Sort 变为 Limit + Index Scan；索引 **4,079,616 B**；100 个 ID 顺序完全一致 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -97,6 +98,8 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 项目图库批量渲染 | PERF-101 将首屏 DOM 限为 500 张并通过按钮追加；1000／2000 张挂载时间下降 **42.22%／66.48%**、GC 后 JS heap 下降 **27.08%／51.81%**。API JSON 和数据库读未变，详见 PERF-101。 |
 | 项目图库数据库过滤 | PERF-102 为 `generated_image.project_id` 增加索引；100,000 行、1,000 行命中时数据库执行 P50 下降 **70.01%**，结果顺序不变；完整 JSON 投影和媒体传输未计入，详见 PERF-102。 |
 | 章节图库数据库过滤 | PERF-103 为 `generated_image(project_id, chapter_id)` 增加复合索引；100,000 行、100 行命中时数据库执行 P50 下降 **95.49%**，结果顺序不变；详见 PERF-103。 |
+| 工作流按章最新运行索引候选 | PERF-104 在 100,000 条运行、1,000 个章节、每章 10 条历史上尝试 `workflow_run(project_id, workflow_kind, chapter_id, updated_at DESC, id DESC)`；按实际完整模型投影 P50 **17.005→12.317 ms（27.57%）**，低于门槛，未修改索引；窄投影的 44.33% 不作为收益。 |
+| 工作流项目列表数据库排序 | PERF-105 为 `workflow_run(project_id, updated_at DESC, id DESC)` 增加索引；100,000 行、100 条返回时数据库执行 P50 下降 **96.21%**，结果顺序不变；详见 PERF-105。 |
 
 ## 可复现入口
 
@@ -548,6 +551,31 @@ A4N_PERF_IMAGE_QUERY=chapter \
   python3 scripts/tests/run_with_test_database.py \
   --report-dir data/test-runs/perf-image-chapter-index-20261015 \
   --timeout 60 -- node scripts/performance/generated-image-index.mjs
+~~~
+
+### PERF-104：工作流按章最新运行复合索引候选（未采用）
+
+- 请求链路：`latest_workflow_runs_for_chapters` 按项目、工作流类型和章节 ID 集合读取历史运行，再用 `DISTINCT ON (chapter_id)` 选每章最新记录；这是恢复和章节摘要路径的批量读模型。
+- 候选：增加 `(project_id, workflow_kind, chapter_id, updated_at DESC, id DESC)` 复合索引，目标是减少全表扫描和排序。
+- A/B：隔离 PostgreSQL 16，100,000 条运行记录、目标项目 20,000 条、`video` 类型 10,000 条、1,000 个章节，每章 10 条历史；5 轮交错，查询选择完整运行行并执行 `DISTINCT ON`。无索引 P50 **17.005 ms**（`Seq Scan` + `Sort` + `Unique`），有索引 **12.317 ms**（`Bitmap Index/Heap Scan` + `Sort` + `Unique`），仅下降 **27.57%**；结果 1,000 个章节 ID 顺序完全一致。窄选列的早期测量为 44.33%，与实际完整模型投影不符，不作为验收依据。
+- 决策：撤回候选索引和夹具，不改变产品 schema；完整行投影受 heap 读取和排序主导，当前索引复杂度与写入成本不值得引入。
+- 证据：`data/test-runs/workflow-run-index-20261015-v3/command.log`；本候选没有产品提交。
+
+### PERF-105：工作流项目列表缺少排序索引
+
+- 请求链路：`list_workflow_run_models` 在项目列表没有额外状态/类型筛选时执行 `WHERE project_id = ? ORDER BY updated_at DESC, id DESC LIMIT 100`。已有 `workflow_run(project_id, status)` 索引只能筛选项目，数据库仍需读取项目历史并排序后取前 100 条。
+- 修复：新增 `workflow_run_project_updated_index` schema migration，创建 `idx_workflow_run_project_updated`（`project_id, updated_at DESC, id DESC`）；不改变列表限制、完整运行 DTO、排序、权限或错误行为，并更新运行时 schema gate。
+- A/B：隔离 PostgreSQL 16，100,000 条完整形状运行记录，目标项目 20,000 条，保留已有 `(project_id, status)` 索引，5 轮交错；无候选索引 P50 **7.702 ms**（`Limit` + `Bitmap Heap Scan` + `Sort`），有候选索引 **0.292 ms**（`Limit` + `Index Scan`），下降 **96.21%**。索引大小 **4,079,616 B**，每轮返回 100 个 ID 顺序完全一致。
+- 验证：migration SQL 单测、迁移顺序测试、`a4n-migration`/`a4n-db-models` check、隔离 PostgreSQL 全迁移初始化集成测试、基准脚本 `node --check` 和 `git diff --check` 通过。
+- 边界：A/B 测量数据库执行时间，不包含 JSON/HTTP；仅覆盖项目列表默认 100 条路径，状态/类型筛选仍由现有索引和查询计划决定。索引迁移使用事务型 `CREATE INDEX`，大表部署需安排维护窗口。
+- 证据：`../../data/performance-audit-20261015/workflow-run-list-index/report.json`。从工作树根目录执行：
+
+~~~bash
+A4N_PERF_ARTIFACTS=data/performance-audit-20261015/workflow-run-list-index \
+  A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
+  python3 scripts/tests/run_with_test_database.py \
+  --report-dir data/test-runs/workflow-list-index-20261015 \
+  --timeout 60 -- node scripts/performance/workflow-run-list-index.mjs
 ~~~
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
