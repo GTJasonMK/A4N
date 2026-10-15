@@ -39,6 +39,7 @@ import {
   useProgressTask,
 } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
+import { resolveScrollBehavior } from "../../utils/scrollRail";
 import { ImportFilePanel } from "./imports/ImportFilePanel";
 import { ImportReviewDetailPanel } from "./imports/ImportReviewDetailPanel";
 import {
@@ -409,14 +410,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       } else if (listResult.status === "rejected") {
         setQueueCurrentState(false);
         if (activeReviewRef.current) {
-          if (activeReviewJsonDirtyRef.current) {
-            setActiveReviewUnavailableReason("queue_unavailable");
-          } else {
-            setActiveReviewState(null);
-            setActiveReviewUnavailableReason(null);
-            setActiveReviewJsonState("", false);
-            setActiveReviewJsonError(null);
-          }
+          setActiveReviewUnavailableReason("queue_unavailable");
         }
         setQueueLoadError(
           extractErrorMessage(listResult.reason, t("novel.importReview.loadQueueFailed")),
@@ -984,7 +978,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     if (window.matchMedia("(max-width: 1023px)").matches) {
       requestAnimationFrame(() => {
         detailPanelRef.current?.scrollIntoView({
-          behavior: "smooth",
+          behavior: resolveScrollBehavior("smooth"),
           block: "start",
         });
       });
@@ -1042,6 +1036,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       applyReviewUpdates([updated]);
       setActiveReviewUnavailableReason(null);
       addToast(tRef.current("novel.importReview.modified"), "success");
+      void load(requestProjectId, { silent: true });
     } catch (err) {
       if (isCurrentAction(requestProjectId, actSeqRef, requestSeq)) {
         refreshReviewQueueAfterActionFailure(requestProjectId);
@@ -1421,6 +1416,8 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         />
         <input
           ref={importFileInputRef}
+          aria-label={t("novel.importReview.file.choose")}
+          tabIndex={-1}
           type="file"
           accept=".txt,.md,.markdown,.epub,.docx,text/plain,text/markdown,application/epub+zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           className="sr-only"
@@ -1485,7 +1482,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         </div>
       </div>
       {previewChapter && (
-        <Modal isOpen onClose={() => setPreviewChapter(null)} title={`${t("novel.chapterRangeSingle", { number: previewChapter.chapter_number })}${previewChapter.title ? ` · ${previewChapter.title}` : ""}`} maxWidthClassName="max-w-3xl">
+        <Modal isOpen onClose={() => setPreviewChapter(null)} title={`${t("novel.chapterRangeSingle", { number: previewChapter.chapter_number })}${previewChapter.title ? ` · ${previewChapter.title}` : ""}`} maxWidthClassName="max-w-3xl" className="[--a4n-dialog-opacity:1]">
           <article aria-label={t("novel.chapterBody")} className="whitespace-pre-wrap break-words font-serif text-sm leading-relaxed text-book-text-main">
             {previewChapter.content}
           </article>

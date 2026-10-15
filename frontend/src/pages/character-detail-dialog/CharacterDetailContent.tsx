@@ -21,6 +21,7 @@ interface CharacterDetailContentProps {
   voiceLoaded: boolean;
   voiceLoadError: string | null;
   conflicts: CharacterConflictSummary[] | null;
+  conflictScopeLabel: string;
   character: CharacterProfile;
   initialManageSection?: "event";
   initialEventFilter?: CharacterDetailInitialEventFilter | null;
@@ -39,6 +40,7 @@ export const CharacterDetailContent: React.FC<CharacterDetailContentProps> = ({
   voiceLoaded,
   voiceLoadError,
   conflicts,
+  conflictScopeLabel,
   character,
   initialManageSection,
   initialEventFilter,
@@ -80,7 +82,7 @@ export const CharacterDetailContent: React.FC<CharacterDetailContentProps> = ({
         </BookButton>
       </div>
     ) : (
-      <ConflictView conflicts={conflicts} />
+      <ConflictView conflicts={conflicts} scopeLabel={conflictScopeLabel} />
     );
   }
 

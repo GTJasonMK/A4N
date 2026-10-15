@@ -1,6 +1,6 @@
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Eye } from "lucide-react";
+import { ChevronDown, Eye } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -1121,6 +1121,11 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           <span className="min-w-0 flex-1 truncate text-right text-small text-book-text-muted">
             {t("outline.advancedPanel.rewriteSectionHint")}
           </span>
+          <ChevronDown
+            size={14}
+            aria-hidden="true"
+            className="shrink-0 text-book-text-muted transition-transform group-open:rotate-180"
+          />
         </summary>
         <div className="mt-2 grid gap-2">
           <AdvancedActionRow
@@ -1150,9 +1155,16 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         </div>
       </details>
 
-      <details className="a4n-flat-surface overflow-hidden">
-        <summary className="cursor-pointer px-3 py-3 text-sm font-medium text-book-text-main">
-          {t("outline.advancedPanel.beatMapping")}
+      <details className="group a4n-flat-surface overflow-hidden">
+        <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-3 text-sm font-medium text-book-text-main marker:content-none">
+          <span className="min-w-0 flex-1">
+            {t("outline.advancedPanel.beatMapping")}
+          </span>
+          <ChevronDown
+            size={14}
+            aria-hidden="true"
+            className="shrink-0 text-book-text-muted transition-transform group-open:rotate-180"
+          />
         </summary>
         <div className="space-y-3 border-t border-book-border/40 p-3 text-xs">
           <p className="text-small leading-relaxed text-book-text-muted">
@@ -1167,6 +1179,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           <div className="flex items-center justify-end gap-2">
             {!beatBusy ? (
               <Dropdown
+                label={t("outline.advanced.viewRequest")}
                 items={[
                   {
                     label: t("outline.advanced.viewRequest"),

@@ -44,8 +44,14 @@ impl WorkerState {
         request: WorkerEnvelope<ProjectInput>,
     ) -> Result<Vec<ChapterStoryEventEntry>, WorkerFailure> {
         validate_request(&request, CHAPTER_CONTENT_STORY_EVENTS_OPERATION)?;
-        let project_id = positive("project_id", request.payload.project_id)?;
-        verify_project_viewer(&self.database, project_id, user_id(&request)?).await?;
+        let project_id =
+            WorkerFailure::require_positive_id(request.payload.project_id, "project_id")?;
+        verify_project_viewer(
+            &self.database,
+            project_id,
+            request.principal.require_user_id()?,
+        )
+        .await?;
         a4n_db::chapter_content::chapter_story_events_for_project(
             self.database.connection(),
             project_id,

@@ -89,6 +89,7 @@ export const SettingsPage: React.FC = () => {
   const canDiscardSettings = dirtyRegistry.canDiscardDirty();
   const settingsNavigationGuardRef = React.useRef(false);
   const authorizedSettingsNavigationRef = React.useRef(false);
+  const pendingSettingsTabRef = React.useRef<TabId | null>(null);
   const settingsNavigationScopeRef = React.useRef({
     tab,
     pathname: location.pathname,
@@ -117,12 +118,17 @@ export const SettingsPage: React.FC = () => {
   }, [blocker.proceed, blocker.state, dirtyRegistry, dirtyRegistryVersion]);
 
   const selectTab = async (nextTab: TabId) => {
-    if (nextTab === tab) return;
+    if (nextTab === tab) {
+      pendingSettingsTabRef.current = null;
+      return;
+    }
     if (dirtyRegistry.hasDirty()) {
       if (!canDiscardSettings) {
+        pendingSettingsTabRef.current = nextTab;
         addToast(t("common.operationInProgress"), "info");
         return;
       }
+      pendingSettingsTabRef.current = null;
       if (settingsNavigationGuardRef.current) return;
       settingsNavigationGuardRef.current = true;
       const requestScope = settingsNavigationScopeRef.current;
@@ -155,6 +161,7 @@ export const SettingsPage: React.FC = () => {
         settingsNavigationGuardRef.current = false;
       }
     }
+    pendingSettingsTabRef.current = null;
     authorizedSettingsNavigationRef.current = true;
     try {
       navigate({ pathname: location.pathname, search: location.search, hash: `#${nextTab}` }, { replace: true });
@@ -162,6 +169,18 @@ export const SettingsPage: React.FC = () => {
       authorizedSettingsNavigationRef.current = false;
     }
   };
+
+  React.useEffect(() => {
+    const nextTab = pendingSettingsTabRef.current;
+    if (!nextTab || dirtyRegistry.hasDirty()) return;
+    pendingSettingsTabRef.current = null;
+    authorizedSettingsNavigationRef.current = true;
+    try {
+      navigate({ pathname: location.pathname, search: location.search, hash: `#${nextTab}` }, { replace: true });
+    } finally {
+      authorizedSettingsNavigationRef.current = false;
+    }
+  }, [dirtyRegistry, dirtyRegistryVersion, location.pathname, location.search, navigate]);
 
   const handleLogout = async () => {
     if (hasUnsavedSettings()) {

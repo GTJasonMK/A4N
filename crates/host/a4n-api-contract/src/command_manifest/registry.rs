@@ -34,6 +34,7 @@ command_specs! {
     "batch_accept_reviews" => args_batch_accept_reviews, result_batch_accept_reviews, "import", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_IMPORT), runtime(RuntimeConfigPolicy::Full);
     "bind_galgame_media" => args_bind_galgame_media, result_bind_galgame_media, "galgame", context(NO_CONTEXT), references(REFERENCES_MEDIA_BINDING_IDS_MEDIA_ASSET_IDS);
     "bind_manga_reference_image" => args_bind_manga_reference_image, result_bind_manga_reference_image, "manga", context(NO_CONTEXT);
+    "broadcast_creator_notification" => args_broadcast_creator_notification, result_broadcast_creator_notification, "admin", identity(ADMIN_IDENTITY), effect(DESTRUCTIVE_EFFECT);
     "cancel_admin_task" => args_task_id, result_unit, "task", identity(ADMIN_IDENTITY), effect(DESTRUCTIVE_EFFECT);
     "cancel_embedding_model_download" => args_cancel_embedding_model_download, result_unit, "rag", effect(DESTRUCTIVE_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
     "cancel_galgame_pipeline" => args_cancel_galgame_pipeline, result_cancel_galgame_pipeline, "galgame", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), execution("workflow"), references(REFERENCES_WORKFLOW_RUN_IDS), idempotency("server_workflow");
@@ -157,6 +158,7 @@ command_specs! {
     "get_generation_call_analytics" => args_get_generation_call_analytics, result_get_generation_call_analytics, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_generation_progress" => args_project_id, result_outline_generation_progress, "task", context(PROJECT_CONTEXT), effect(READ_EFFECT);
     "get_implicit_review" => args_get_implicit_review, result_get_implicit_review, "profile", effect(READ_EFFECT);
+    "get_import_review" => args_import_review_id, result_import_review, "import", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMPORT);
     "get_inspiration_history" => args_get_inspiration_history, result_inspiration_history, "inspiration", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_log_dir" => empty_args_schema, result_string, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_log_level" => empty_args_schema, result_string, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
@@ -179,9 +181,10 @@ command_specs! {
     "get_queue_stats" => empty_args_schema, result_get_queue_stats, "system", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_reverse_engineering_candidate" => args_get_reverse_engineering_candidate, result_optional_reverse_engineering_candidate, "workflow", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_WORKFLOW_RUN_IDS);
     "get_snapshot" => args_get_snapshot, result_get_snapshot, "profile", effect(READ_EFFECT);
+    "get_source_snapshot_chapter" => args_get_source_snapshot_chapter, result_source_snapshot_chapter, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_PROJECT_IDS);
     "get_storage_paths" => empty_args_schema, result_get_storage_paths, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_task_history" => args_get_task_history, result_get_task_history, "task", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_TASK_IDS);
-    "get_test_run" => args_test_run_id, result_test_run_detail, "testing", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
+    "get_test_run" => args_get_test_run, result_test_run_detail, "testing", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_theme_preference" => empty_args_schema, result_theme_preference, "settings", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_token_summary" => args_user_id, result_json_value, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_usage_trends" => args_get_usage_trends, result_get_usage_trends, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
@@ -214,10 +217,12 @@ command_specs! {
     "list_canvas_text_assets" => args_list_canvas_text_assets, result_canvas_text_assets, "canvas", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_chapter_analyses" => args_project_id, result_chapter_analyses, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_chapter_index" => args_project_id, result_chapter_index, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
+    "list_chapter_outline_index" => args_project_id, result_chapter_outline_index, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_chapter_outlines" => args_project_id, result_chapter_outlines, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_chapter_scenes" => args_list_chapter_scenes, result_chapter_scenes, "chapter", context(CHAPTER_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_chapter_video_prompts" => args_list_chapter_video_prompts, result_list_chapter_video_prompts, "video", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT);
     "list_chapters" => args_project_id, result_chapter_summaries, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
+    "list_creator_notifications" => empty_args_schema, result_creator_notifications, "notifications", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_deletion_marks" => args_list_deletion_marks, result_list_deletion_marks, "profile", effect(READ_EFFECT);
     "list_embedding_config" => empty_args_schema, result_list_embedding_config, "settings", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
     "list_foreshadowing" => args_list_foreshadowing, result_list_foreshadowing, "profile", effect(READ_EFFECT);
@@ -226,6 +231,7 @@ command_specs! {
     "list_images_by_project" => args_list_images_by_project, result_list_images_by_chapter, "asset", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_images_by_projects" => args_list_images_by_projects, result_list_images_by_chapter, "asset", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_import_queue" => args_import_project_reviews, result_import_reviews, "import", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMPORT);
+    "list_import_queue_index" => args_import_project_reviews, result_import_queue_index, "import", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMPORT);
     "list_invite_codes" => empty_args_schema, result_invite_codes, "collaboration", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "list_llm_config" => empty_args_schema, result_list_llm_config, "settings", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_local_embedding_models" => empty_args_schema, result_list_local_embedding_models, "rag", effect(READ_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
@@ -234,6 +240,7 @@ command_specs! {
     "list_manga_pipeline_statuses" => args_list_manga_pipeline_statuses, result_list_manga_pipeline_statuses, "manga", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow");
     "list_model_provider_catalog" => empty_args_schema, result_list_model_provider_catalog, "system", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_my_project_invites" => empty_args_schema, result_list_my_project_invites, "project", context(NO_CONTEXT), effect(READ_EFFECT);
+    "list_object_profile_index" => args_list_object_profiles, result_list_object_profile_index, "profile", effect(READ_EFFECT);
     "list_object_profiles" => args_list_object_profiles, result_list_object_profiles, "profile", effect(READ_EFFECT);
     "list_optimize_patch_sets" => args_optimize_session, result_optimization_patch_sets, "optimize", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_optimize_sessions" => args_list_optimize_sessions, result_optimization_sessions, "optimize", context(NO_CONTEXT), effect(READ_EFFECT);
@@ -241,6 +248,7 @@ command_specs! {
     "list_orphan_project_data_dirs" => empty_args_schema, result_cleanup_orphan_project_data_dirs, "project", identity(ADMIN_IDENTITY), effect(READ_EFFECT), references(REFERENCES_PROJECT_IDS);
     "list_package_command_availability" => args_list_package_command_availability, result_package_command_availability, "system", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_parts" => args_project_id, result_part_outlines, "outline", context(PROJECT_CONTEXT), effect(READ_EFFECT);
+    "list_pending_task_index" => empty_args_schema, result_list_pending_task_index, "task", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "list_pending_tasks" => empty_args_schema, result_list_pending_tasks, "task", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "list_portraits_by_project" => args_list_portraits_by_project, result_list_portraits, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE);
     "list_profile_materials" => args_list_profile_materials, result_list_profile_materials, "profile", effect(READ_EFFECT);
@@ -251,7 +259,9 @@ command_specs! {
     "list_scene_profiles" => args_list_scene_profiles, result_list_scene_profiles, "profile", effect(READ_EFFECT);
     "list_sessions" => empty_args_schema, result_list_sessions, "auth", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_snapshots" => args_list_snapshots, result_list_snapshots, "profile", effect(READ_EFFECT);
+    "list_source_snapshot_chapter_index" => args_project_id, result_source_snapshot_chapter_index, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_source_snapshot_chapters" => args_project_id, result_source_snapshot_chapters, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
+    "list_story_event_chapters" => args_project_id, result_story_event_chapters, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_test_runs" => args_list_test_runs, result_test_runs, "testing", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "list_test_scenarios" => empty_args_schema, result_test_scenarios, "testing", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "list_themes" => empty_args_schema, result_list_themes, "settings", context(NO_CONTEXT), effect(READ_EFFECT);

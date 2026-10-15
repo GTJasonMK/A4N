@@ -54,6 +54,8 @@ import { DEFAULT_IMAGE_STYLE } from "./styleTemplates";
 import { useProjectProfileCollection } from "./useProjectProfileCollection";
 import { useI18n, type MessageKey, type MessageTranslator } from "../../i18n";
 import { useNovelDetailDirty } from "./novelDetailDirty";
+import { attributeKeyLabel } from "../character-detail-dialog/manageViewUtils";
+import { firstDistinctText, nonEmptyText } from "../../utils/text";
 
 const SCENE_TYPE_KEYS: Record<string, MessageKey> = {
   room: "novel.sceneType.room",
@@ -507,31 +509,39 @@ export const SceneProfilesTab: React.FC<{
           </div>
         ) : (
           <ul className="grid grid-cols-1 items-start gap-2 sm:grid-cols-2">
-            {profiles.map((profile) => (
-              <li
-                key={profile.id}
-                className="a4n-flat-surface relative flex min-h-16 items-start gap-3 p-3 transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/35"
-              >
-                <BookCardAction label={`${profile.name} · ${t("novel.profile.viewScene")}`} onClick={() => setDetailFor(profile)} />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold text-book-text-main">{profile.name}</div>
-                  <div className="mt-0.5 text-caption text-book-text-muted">
-                    {sceneTypeLabel(profile.scene_type, t)} · {importanceLabel(profile.importance, t)} · {profileOwnershipLabel(profile.ownership_kind, t)} · {profileChapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter, profile.evidence_json, t)}
+            {profiles.map((profile) => {
+              const summary = nonEmptyText(profile.visual_description)
+                ?? nonEmptyText(profile.base_description);
+              const secondaryText = firstDistinctText(
+                [profile.spatial_layout, profile.atmosphere],
+                summary,
+              );
+              return (
+                <li
+                  key={profile.id}
+                  className="a4n-flat-surface relative flex min-h-16 items-start gap-3 p-3 transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/35"
+                >
+                  <BookCardAction label={`${profile.name} · ${t("novel.profile.viewScene")}`} onClick={() => setDetailFor(profile)} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold text-book-text-main">{profile.name}</div>
+                    <div className="mt-0.5 text-caption text-book-text-muted">
+                      {sceneTypeLabel(profile.scene_type, t)} · {importanceLabel(profile.importance, t)} · {profileOwnershipLabel(profile.ownership_kind, t)} · {profileChapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter, profile.evidence_json, t)}
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-small leading-relaxed text-book-text-sub">
+                      {summary ?? t("novel.profile.noSummary")}
+                    </p>
+                    <div className="mt-1 truncate text-caption text-book-text-muted">
+                      {secondaryText ?? t("novel.profile.noLayout")}
+                    </div>
+                    <p className="mt-1 flex flex-wrap gap-x-3 text-caption text-book-text-muted">
+                      {profile.occurrence_count > 0 ? <span>{t("novel.profile.appearances", { count: profile.occurrence_count })}</span> : null}
+                      {profile.generated_image_count > 0 ? <span>{t("novel.profile.materialImages", { count: profile.generated_image_count })}</span> : null}
+                    </p>
                   </div>
-                  <p className="mt-1 line-clamp-2 text-small leading-relaxed text-book-text-sub">
-                    {profile.visual_description || profile.base_description || t("novel.profile.noSummary")}
-                  </p>
-                  <div className="mt-1 truncate text-caption text-book-text-muted">
-                    {profile.spatial_layout || profile.atmosphere || t("novel.profile.noLayout")}
-                  </div>
-                  <p className="mt-1 flex flex-wrap gap-x-3 text-caption text-book-text-muted">
-                    {profile.occurrence_count > 0 ? <span>{t("novel.profile.appearances", { count: profile.occurrence_count })}</span> : null}
-                    {profile.generated_image_count > 0 ? <span>{t("novel.profile.materialImages", { count: profile.generated_image_count })}</span> : null}
-                  </p>
-                </div>
-                <ChevronRight size={14} className="mt-1 shrink-0 text-book-text-muted" />
-              </li>
-            ))}
+                  <ChevronRight size={14} className="mt-1 shrink-0 text-book-text-muted" />
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
@@ -607,6 +617,7 @@ function SceneProfileDetailModal({
       subtitle={profile ? `${sceneTypeLabel(profile.scene_type, t)} · ${importanceLabel(profile.importance, t)}` : undefined}
       icon={<Map size={15} />}
       maxWidthClassName="max-w-3xl"
+      className="[--a4n-dialog-opacity:1]"
       bodyClassName="px-4 py-4"
     >
       {profile ? (
@@ -898,7 +909,7 @@ function formatStructuredSummary(
         const itemText = formatStructuredSummary(item, t);
         const fieldLabel = STRUCTURED_FIELD_LABELS[key]
           ? t(STRUCTURED_FIELD_LABELS[key])
-          : key.replace(/_/g, " ");
+          : attributeKeyLabel(key, t);
         return `${fieldLabel}: ${itemText}`;
       })
       .join(t("common.summarySeparator"));

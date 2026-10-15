@@ -146,6 +146,7 @@ export const visualPlan = {
   },
   timelineUi: {
     summary: "{shots} shots · {points} image points",
+    scrollHint: "Scroll horizontally to view the timeline",
     durationButton: "Duration {duration}",
     adjustDuration: "Adjust total duration",
     splitShot: "Split shot",

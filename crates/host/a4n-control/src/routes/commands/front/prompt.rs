@@ -154,7 +154,7 @@ prompt_web_user_input_command!(
     UpdatePromptInput,
     prompt_records_actions::prompt_update,
 );
-prompt_web_name_unit_command!(prompt_reset, prompt_records_actions::prompt_reset);
+prompt_web_name_sync_command!(prompt_reset, prompt_records_actions::prompt_reset);
 prompt_web_name_sync_command!(
     prompt_version_history,
     prompt_records_actions::prompt_version_history,

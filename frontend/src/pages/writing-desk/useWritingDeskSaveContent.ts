@@ -158,6 +158,7 @@ export const useWritingDeskSaveContent = ({
         savedType = chapterContentCommitToastType(savedChapter.derived_sync_status);
       } else if (savedChapter?.derived_sync_status === "running") {
         savedMessage = t("writing.savedBodySyncRunning");
+        savedType = "info";
       } else {
         savedMessage = t("writing.savedBodyAndMaterials");
       }

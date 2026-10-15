@@ -8,8 +8,7 @@ use super::super::{
     delete_profile, execute_attribute_deletion, export_batch_data, export_epub_data,
     export_markdown_data, export_pdf_data, export_txt_data, get_current_user,
     get_generation_call_analytics, get_implicit_review, get_import_review, get_log_dir,
-    get_log_level,
-    get_model_usage_report, get_queue_stats, get_snapshot, get_task_history,
+    get_log_level, get_model_usage_report, get_queue_stats, get_snapshot, get_task_history,
     get_workflow_progress_events, get_workflow_run_detail, import_project_text_asset_upload,
     import_project_text_upload, list_active_workflows, list_behaviors, list_deletion_marks,
     list_import_queue, list_import_queue_index, list_parts, list_profiles, list_sessions,
@@ -168,6 +167,7 @@ pub(super) async fn try_dispatch(
         "execute_attribute_deletion" => execute_attribute_deletion(state, user_id, args).await?,
         "reset_deletion_marks" => reset_deletion_marks(state, user_id, args).await?,
         "get_log_dir" => get_log_dir(state, user_id, args).await?,
+        "get_log_level" => get_log_level(state, user_id, args).await?,
         "read_recent_logs" => read_recent_logs(state, user_id, args).await?,
         "set_log_level" => set_log_level(state, user_id, args).await?,
         "get_generation_call_analytics" => {

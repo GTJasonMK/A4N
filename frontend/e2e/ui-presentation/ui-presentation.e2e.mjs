@@ -170,13 +170,31 @@ describe("UI presentation and workspace continuity", () => {
     await browser.keys("Tab");
     await $('[role="menu"]').waitForExist({ reverse: true });
 
-    const entry = await $('button[aria-label="山海之间 · 进入写作台"]');
+    const entry = await $('button[aria-label="山海之间 · 进入写作桌"]');
     await entry.execute((element) => element.focus());
     await entry.click({ button: "right" });
     await $('[role="menu"]').waitForDisplayed();
     await browser.keys("Escape");
     await $('[role="menu"]').waitForExist({ reverse: true });
     assert.equal(await entry.isFocused(), true);
+  });
+
+  it("opens the creator notification inbox and marks a single notice read", async () => {
+    await browser.url("/");
+    const notificationButton = await $('button[aria-label^="查看通知"]');
+    await notificationButton.waitForDisplayed();
+    assert.match(await notificationButton.getAttribute("aria-label"), /1 条未读/);
+    await notificationButton.click();
+    await browser.waitUntil(async () => new URL(await browser.getUrl()).pathname === "/notifications");
+
+    await $('//h1[normalize-space()="通知收件箱"]').waitForDisplayed();
+    const unreadItem = await $('//article[.//h2[normalize-space()="项目资料已完成整理"]]');
+    await unreadItem.waitForDisplayed();
+    const markRead = await unreadItem.$('button[aria-label="标记为已读"]');
+    await markRead.click();
+    await markRead.waitForExist({ reverse: true });
+    assert.equal((await unreadItem.getText()).includes("已读"), true);
+    assert.equal((await commands()).includes("mark_creator_notification_read"), true);
   });
 
   it("keeps project loading failures visible and retries without changing filters", async () => {
@@ -206,21 +224,23 @@ describe("UI presentation and workspace continuity", () => {
     await browser.waitUntil(async () => (await editor.getValue()).includes("未寄出的信"));
     assert.equal(await browser.execute(() => window.__initialWorkspace === document.querySelector(".a4n-route-stage")), true);
     assert.equal(await search.getValue(), "旧书店");
-    assert.deepEqual(await commands(), before);
+    const afterChapterRead = await commands();
+    assert.deepEqual(afterChapterRead, [...before, "get_chapter"]);
 
     await browser.execute(() => {
       history.pushState(history.state, "", "?chapter=1");
       window.dispatchEvent(new PopStateEvent("popstate"));
     });
     await browser.waitUntil(async () => (await editor.getValue()).includes("旧书店"));
-    assert.deepEqual(await commands(), before);
+    const afterHistoryNavigation = await commands();
+    assert.deepEqual(afterHistoryNavigation, [...afterChapterRead, "get_chapter"]);
 
     await button("新建章节").click();
     await $('//button[normalize-space()="进入章节"]').click();
     await $('[role="dialog"]').waitForExist({ reverse: true });
     await browser.waitUntil(async () => (await $("h1").getText()).includes("第 3 章"));
     assert.equal(new URL(await browser.getUrl()).searchParams.get("chapter"), "3");
-    assert.deepEqual(await commands(), before);
+    assert.deepEqual(await commands(), afterHistoryNavigation);
     await editor.setValue("第三章尚未保存的正文");
     assert.equal(await editor.getValue(), "第三章尚未保存的正文");
     await button("上一章").click();
@@ -339,7 +359,7 @@ describe("UI presentation and workspace continuity", () => {
     const entry = await $('button[aria-label="只读协作项目 · 进入项目详情"]');
     await entry.waitForDisplayed();
     const card = await entry.$('..');
-    assert.equal(await card.$('button[aria-label="进入写作台"]').isExisting(), false);
+    assert.equal(await card.$('button[aria-label="进入写作桌"]').isExisting(), false);
     assert.equal(await card.$('button[aria-label="更多操作"]').isExisting(), false);
     await entry.click();
     await browser.waitUntil(async () => new URL(await browser.getUrl()).pathname === "/novel/4");
@@ -361,13 +381,36 @@ describe("UI presentation and workspace continuity", () => {
     await browser.waitUntil(async () => (await commands()).includes("update_theme"));
     await name.waitForExist({ reverse: true });
     assert.equal(await $('//button[normalize-space()="书房主题修改"]').isDisplayed(), true);
-    assert.deepEqual(await browser.execute(() => {
-      const toast = document.querySelector(".a4n-toast").getBoundingClientRect();
-      return [...document.querySelectorAll(".a4n-settings-layout button, .a4n-settings-layout input")].filter((element) => {
-        const rect = element.getBoundingClientRect();
-        return rect.width > 1 && rect.height > 1 && toast.left < rect.right && toast.right > rect.left && toast.top < rect.bottom && toast.bottom > rect.top;
-      }).map((element) => element.getAttribute("aria-label") || element.textContent);
-    }), [], "A saved notification must leave settings controls available");
+    await browser.saveScreenshot(fileURLToPath(new URL("../../../.dev-runtime/ui-details/theme-rename-status-feedback.png", import.meta.url)));
+    const feedbackChecks = [];
+    try {
+      for (const width of [1440, 1024, 390]) {
+        await browser.setWindowSize(width, 900);
+        await browser.waitUntil(async () => await browser.execute(() => {
+          const feedback = document.querySelector("[data-theme-rename-feedback]")?.getBoundingClientRect();
+          return feedback != null && feedback.left >= 0 && feedback.right <= window.innerWidth;
+        }));
+        feedbackChecks.push(await browser.execute(() => {
+          const feedback = document.querySelector("[data-theme-rename-feedback]").getBoundingClientRect();
+          return {
+            viewport: window.innerWidth,
+            horizontalOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            edgeClearance: Math.min(feedback.left, feedback.top, window.innerWidth - feedback.right, window.innerHeight - feedback.bottom),
+            occlusions: [...document.querySelectorAll(".a4n-settings-layout button, .a4n-settings-layout input")].filter((element) => {
+              const rect = element.getBoundingClientRect();
+              return rect.width > 1 && rect.height > 1 && feedback.left < rect.right && feedback.right > rect.left && feedback.top < rect.bottom && feedback.bottom > rect.top;
+            }).map((element) => element.getAttribute("aria-label") || element.textContent),
+          };
+        }));
+      }
+    } finally {
+      await browser.setWindowSize(1440, 900);
+    }
+    for (const check of feedbackChecks) {
+      assert.equal(check.horizontalOverflow, 0, `Unexpected horizontal overflow at ${check.viewport}px`);
+      assert.ok(check.edgeClearance >= 15, `Rename feedback is too close to a viewport edge at ${check.viewport}px`);
+      assert.deepEqual(check.occlusions, [], `Rename feedback must leave settings controls available at ${check.viewport}px`);
+    }
   });
 
   it("honors settings deep links and keeps the page stable when switching categories", async () => {
@@ -709,8 +752,9 @@ describe("UI presentation and workspace continuity", () => {
     await replaceInput(editor, "重置前的本地草稿");
     await beginPromptReset();
 
-    await setPromptSnapshot([storyPrompt("默认提示词内容", false, "1")]);
-    await resolveUiCommand("prompt_reset", null);
+    const resetPrompt = storyPrompt("默认提示词内容", false, "1");
+    await setPromptSnapshot([resetPrompt]);
+    await resolveUiCommand("prompt_reset", resetPrompt);
     await browser.waitUntil(async () => (await editor.getValue()) === "默认提示词内容");
     assert.equal(await settingsDraftIsDirty(), false);
   });
@@ -726,8 +770,9 @@ describe("UI presentation and workspace continuity", () => {
     const laterDraft = "重置期间继续编辑";
     await replaceInput(editor, laterDraft);
 
-    await setPromptSnapshot([storyPrompt("默认提示词内容", false, "1")]);
-    await resolveUiCommand("prompt_reset", null);
+    const resetPrompt = storyPrompt("默认提示词内容", false, "1");
+    await setPromptSnapshot([resetPrompt]);
+    await resolveUiCommand("prompt_reset", resetPrompt);
     await browser.waitUntil(async () => (await editor.getValue()) === laterDraft && await settingsDraftIsDirty());
 
     await replaceInput(editor, "默认提示词内容");

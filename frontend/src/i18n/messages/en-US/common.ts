@@ -36,6 +36,7 @@ export const common = {
   disabled: "Disabled",
   yes: "Yes",
   no: "No",
+  to: "to",
   ready: "Ready",
   passed: "Passed",
   readOnly: "Read-only",
@@ -46,7 +47,7 @@ export const common = {
   statusBarCollapse: "Close quick tools",
   imagePreview: {
     title: "Image preview",
-    hint: "Use the zoom controls; drag after zooming in",
+    hint: "Use the controls below to zoom; drag to pan when zoomed",
     zoomIn: "Zoom in",
     zoomOut: "Zoom out",
     reset: "Reset image view",

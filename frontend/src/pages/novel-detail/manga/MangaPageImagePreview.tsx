@@ -16,8 +16,8 @@ export const MangaPageImagePreview: React.FC<{
   const src = toMediaSrc(image?.file_path);
   if (src && image) {
     return (
-      <div className="min-h-[360px] overflow-hidden bg-book-bg-tertiary/40">
-        <div className="relative flex max-h-[60vh] min-h-[320px] w-full items-center justify-center p-2">
+      <div className="min-h-[240px] overflow-hidden bg-book-bg-tertiary/40 sm:min-h-[360px]">
+        <div className="relative flex max-h-[60vh] min-h-[200px] w-full items-center justify-center p-2 sm:min-h-[320px]">
           <ZoomableImage
             src={src}
             alt={t("comic.prompt.alt", { page: page.pageNumber })}
@@ -36,7 +36,7 @@ export const MangaPageImagePreview: React.FC<{
   }
 
   return (
-    <div className="flex min-h-[360px] flex-col items-center justify-center gap-2 bg-book-bg-tertiary/40 p-4 text-center text-xs text-book-text-muted">
+    <div className="flex min-h-[240px] flex-col items-center justify-center gap-2 bg-book-bg-tertiary/40 p-4 text-center text-xs text-book-text-muted sm:min-h-[360px]">
       <ImageIcon size={20} aria-hidden="true" />
       {loading ? (
         <span className="inline-flex items-center gap-2">

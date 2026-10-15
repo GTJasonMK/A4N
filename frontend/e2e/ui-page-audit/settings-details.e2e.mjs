@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { installUiFixtures } from "../ui-presentation/fixtures.mjs";
 import { visualFixtures } from "../ui-presentation/visual-fixtures.mjs";
@@ -11,7 +12,7 @@ const output = fileURLToPath(new URL(
   `../../../.dev-runtime/ui-pages/settings-details/${phase}-${runId}/`,
   import.meta.url,
 ));
-const widths = [1440, 900, 390];
+const widths = [1440, 1024, 900, 390];
 const minPromptEditorHeight = 240;
 const report = { phase, runId, setupComplete: false, visualReview: "pending", planned: [], screenshots: [], tests: [] };
 const prompt = seed.invoke.prompt_list.find((item) => item.name === "blueprint");
@@ -38,6 +39,7 @@ const pendingTaskIndex = seed.invoke.list_pending_tasks.map(({
   dag_id,
   created_at,
 }));
+const secondaryPrompt = seed.invoke.prompt_list.find((item) => item.name !== prompt.name);
 const editableTheme = seed.invoke.list_themes.find((item) => item.id === 13);
 const fakePassword = "UI-audit-only-Password-2026";
 let trace = [];
@@ -224,8 +226,8 @@ async function pageState() {
   });
 }
 
-async function capture(state, { anchor, prepare, verify } = {}) {
-  for (const width of widths) {
+async function capture(state, { anchor, prepare, verify, viewports = widths } = {}) {
+  for (const width of viewports) {
     await browser.setWindowSize(width, 1000);
     await browser.pause(200);
     if (prepare) await prepare(width);
@@ -326,6 +328,31 @@ describe("Settings detail pages and complete dialog workflows", function () {
 
   workflow("SD01-prompt-editor edits, saves and protects a second draft", async () => {
     await openPrompt();
+    await openDetails("高级工具");
+    await openDetails("依赖图 / 反向依赖");
+    const directions = await browser.execute(() => {
+      const panel = [...document.querySelectorAll("details")].find((item) =>
+        item.querySelector("summary")?.textContent.includes("依赖图"),
+      );
+      const grid = panel?.querySelector(".grid");
+      if (!grid) throw new Error("提示词依赖图没有展开");
+      return [...grid.children].map((column) => {
+        const label = column.firstElementChild;
+        return {
+          text: label?.textContent.trim(),
+          direction: [...(label?.querySelectorAll("svg") ?? [])].map((icon) =>
+            icon.classList.contains("lucide-arrow-right") ? "right"
+              : icon.classList.contains("lucide-arrow-left") ? "left" : "other",
+          ),
+          iconsHidden: [...(label?.querySelectorAll("svg") ?? [])].every((icon) => icon.getAttribute("aria-hidden") === "true"),
+        };
+      });
+    });
+    assert.deepEqual(directions, [
+      { text: "此模板依赖", direction: ["right"], iconsHidden: true },
+      { text: "依赖此模板", direction: ["left"], iconsHidden: true },
+    ]);
+    await capture("dependency-directions", { anchor: '//summary[contains(normalize-space(),"依赖图")]' });
     await capture("selected-content", {
       anchor: `textarea[aria-label=${JSON.stringify(prompt.title)}]`,
       verify: assertPromptEditorHeight,
@@ -349,7 +376,32 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await editor.setValue(content + "\n尚未保存的第二次修改。");
     await click(await $('.a4n-settings-content').$('button*=章节正文生成'), "尝试切换到另一模板");
     await dialog("未保存修改").waitForDisplayed();
-    await capture("discard-dialog");
+    await capture("discard-dialog", {
+      verify: async (width) => {
+        const currentDialog = await dialog("未保存修改");
+        const cancel = await currentDialog.$("button=取消");
+        const confirm = await currentDialog.$("button=放弃草稿");
+        const [cancelPosition, confirmPosition] = await Promise.all([
+          cancel.getLocation(),
+          confirm.getLocation(),
+        ]);
+        if (width < 640) {
+          assert.ok(cancelPosition.y < confirmPosition.y, "Mobile warning actions must follow the keyboard order from top to bottom");
+        } else {
+          assert.ok(cancelPosition.x < confirmPosition.x, "Desktop warning actions must follow the keyboard order from left to right");
+        }
+        await cancel.execute((element) => element.focus());
+        await browser.keys("Tab");
+        const focusedAction = await browser.execute(() => ({
+          label: document.activeElement?.textContent?.trim(),
+          visible: document.activeElement?.matches(":focus-visible"),
+        }));
+        assert.deepEqual(focusedAction, { label: "放弃草稿", visible: true });
+        await browser.execute(() => {
+          if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+        });
+      },
+    });
     await click(await dialog("未保存修改").$('button=取消'), "取消丢弃，保留草稿");
     await dialog("未保存修改").waitForExist({ reverse: true });
     assert((await editor.getValue()).includes("尚未保存的第二次修改"));
@@ -361,10 +413,11 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await click(await button("保存"), "提交离页期间仍在保存的提示词");
     const saveRequest = await pending("prompt_update");
     await click(await $("nav").$("button=高级配置"), "保存未完成时请求切换设置页");
-    const operationDialog = await dialog("未保存修改");
-    await operationDialog.waitForDisplayed();
-    assert((await operationDialog.getText()).includes("操作仍在进行"));
-    assert.equal(await operationDialog.$("button=放弃草稿").isEnabled(), false);
+    await browser.waitUntil(async () => browser.execute(() =>
+      [...document.querySelectorAll(".a4n-toast")].some((toast) => toast.textContent?.includes("操作仍在进行")),
+    ));
+    assert.equal(new URL(await browser.getUrl()).hash, "#prompt");
+    assert.equal(await dialog("未保存修改").isExisting(), false);
     await capture("save-blocked-navigation");
     await respond("prompt_update", { ...prompt, content: savedDuringLeave, is_modified: true, version: "ui-details-leave-save" }, {
       fixtures: { prompt_list: seed.invoke.prompt_list.map((item) => item.name === prompt.name
@@ -372,7 +425,6 @@ describe("Settings detail pages and complete dialog workflows", function () {
         : item) },
     });
     await browser.waitUntil(async () => await browser.execute(() => location.hash === "#advanced"));
-    await operationDialog.waitForExist({ reverse: true });
     step("保存成功后完成先前请求的设置页切换", { name: saveRequest.input.name });
     await capture("saved-departure");
     const toastCoversTitle = await browser.execute(() => {
@@ -510,6 +562,145 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await capture("render-comparison", { anchor: '//summary[contains(normalize-space(),"渲染对照")]' });
   });
 
+  workflow("SD28-prompt-list uses immediate selection scrolling for reduced motion", async () => {
+    await openPrompt();
+    try {
+      await capture("desktop-default", { viewports: [1440] });
+      await browser.setWindowSize(390, 1000);
+      await browser.sendCommandAndGetResult("Emulation.setEmulatedMedia", {
+        features: [{ name: "prefers-reduced-motion", value: "reduce" }],
+      });
+      await browser.waitUntil(async () => browser.execute(() => Boolean(document.querySelector("[data-prompt-scroll-hint]"))));
+      const listAtStart = await browser.execute(() => {
+        const list = document.querySelector("[data-prompt-list]");
+        if (!(list instanceof HTMLElement)) throw new Error("提示词列表不可用");
+        return { height: list.clientHeight, scrollHeight: list.scrollHeight };
+      });
+      assert.ok(listAtStart.scrollHeight > listAtStart.height, "The prompt list must expose its overflowing state");
+      await browser.execute(() => {
+        const list = document.querySelector("[data-prompt-list]");
+        if (!(list instanceof HTMLElement)) throw new Error("提示词列表不可用");
+        list.scrollTo({ top: list.scrollHeight, behavior: "auto" });
+      });
+      await browser.waitUntil(async () => browser.execute(() => !document.querySelector("[data-prompt-scroll-hint]")));
+      const hintAtEnd = await browser.execute(() => Boolean(document.querySelector("[data-prompt-scroll-hint]")));
+      assert.equal(hintAtEnd, false, "The scroll hint must disappear at the end of the prompt list");
+      await browser.execute(() => {
+        const list = document.querySelector("[data-prompt-list]");
+        if (!(list instanceof HTMLElement)) throw new Error("提示词列表不可用");
+        list.scrollTo({ top: 0, behavior: "auto" });
+      });
+      await browser.waitUntil(async () => browser.execute(() => Boolean(document.querySelector("[data-prompt-scroll-hint]"))));
+      step("列表仍有内容时显示提示，滚到底收起，再回顶恢复", {
+        scrollHeight: listAtStart.scrollHeight,
+        clientHeight: listAtStart.height,
+      });
+      await browser.execute(() => {
+        const audit = window.__uiAudit;
+        audit.selectedScrollBehaviors = [];
+        audit.originalScrollIntoView = Element.prototype.scrollIntoView;
+        Element.prototype.scrollIntoView = function (options) {
+          if (this.matches('.a4n-settings-content button[aria-current="true"]')) {
+            audit.selectedScrollBehaviors.push(options?.behavior ?? "auto");
+          }
+          return audit.originalScrollIntoView.call(this, options);
+        };
+      });
+
+      await click(
+        await $('.a4n-settings-content').$(`button*=${secondaryPrompt.title}`),
+        `选择提示词 ${secondaryPrompt.name}`,
+      );
+      await browser.waitUntil(async () => browser.execute((title) => {
+        const selected = document.querySelector('.a4n-settings-content button[aria-current="true"]');
+        return Boolean(selected?.textContent?.includes(title) && window.__uiAudit.selectedScrollBehaviors.length > 0);
+      }, secondaryPrompt.title), { timeoutMsg: "The selected prompt did not scroll into view" });
+      const state = await browser.execute(() => ({
+        reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+        behavior: window.__uiAudit.selectedScrollBehaviors.at(-1),
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      }));
+      assert.equal(state.reducedMotion, true);
+      assert.equal(state.behavior, "auto");
+      assert.equal(state.overflow, 0);
+      step("选择提示词后按系统偏好即时滚动", { name: secondaryPrompt.name, behavior: state.behavior });
+      await capture("selected-reduced-motion", { viewports: [390] });
+    } finally {
+      await browser.execute(() => {
+        const audit = window.__uiAudit;
+        if (audit?.originalScrollIntoView) {
+          Element.prototype.scrollIntoView = audit.originalScrollIntoView;
+          delete audit.originalScrollIntoView;
+        }
+        delete audit?.selectedScrollBehaviors;
+      });
+      await browser.sendCommandAndGetResult("Emulation.setEmulatedMedia", { features: [] });
+    }
+  });
+
+  workflow("SD29-prompt-assembly preserves list and editor layout", async () => {
+    await begin("prompt-assembly");
+    await $('.a4n-settings-content main h3').waitForDisplayed();
+    await browser.waitUntil(async () => browser.execute(() => {
+      const main = document.querySelector(".a4n-settings-content main");
+      return [...(main?.querySelectorAll("label") ?? [])].some((label) =>
+        label.textContent.trim().startsWith("模型调用"),
+      );
+    }));
+    const inspectLayout = async () => browser.execute(() => {
+      const list = document.querySelector("[data-prompt-list]");
+      const editor = document.querySelector(".a4n-settings-content main");
+      if (!(list instanceof HTMLElement) || !(editor instanceof HTMLElement)) {
+        throw new Error("提示词装配列表或编辑区不可用");
+      }
+      const callField = [...editor.querySelectorAll("label")].find((label) =>
+        label.textContent.trim().startsWith("模型调用"),
+      );
+      if (!callField) throw new Error("提示词装配的模型调用字段不可用");
+      const listRect = list.getBoundingClientRect();
+      const editorRect = editor.getBoundingClientRect();
+      const callControlRect = callField.getBoundingClientRect();
+      return {
+        width: innerWidth,
+        viewportHeight: innerHeight,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        list: { left: listRect.left, right: listRect.right, bottom: listRect.bottom },
+        editor: { left: editorRect.left, top: editorRect.top, width: editorRect.width },
+        callControlBottom: callControlRect.bottom,
+        listScrollHeight: list.scrollHeight,
+        listClientHeight: list.clientHeight,
+        scrollHintVisible: Boolean(document.querySelector("[data-prompt-scroll-hint]")),
+      };
+    });
+
+    await capture("assembly-desktop", {
+      viewports: [1440],
+      verify: async () => {
+        const layout = await inspectLayout();
+        assert.ok(layout.list.right <= layout.editor.left, "Desktop prompt list must remain beside, not over, the editor");
+        assert.ok(layout.editor.width > 300, "Desktop editor must retain usable width");
+      },
+    });
+    await capture("assembly-mobile", {
+      viewports: [390],
+      verify: async () => {
+        const layout = await inspectLayout();
+        assert.equal(layout.width, 390);
+        assert.equal(layout.overflow, 0);
+        assert.ok(layout.editor.top > layout.list.bottom, "Mobile editor must follow the prompt list");
+        assert.ok(layout.callControlBottom <= layout.viewportHeight, "The primary assembly control must enter the mobile first view");
+        assert.ok(layout.listScrollHeight > layout.listClientHeight, "Mobile prompt list must remain scrollable");
+        assert.equal(layout.scrollHintVisible, true, "Scrollable mobile prompt list must expose its continuation cue");
+        step("收起模板列表后首屏显示模型调用控件", {
+          callControlBottom: layout.callControlBottom,
+          viewportHeight: layout.viewportHeight,
+          listOverflow: layout.listScrollHeight - layout.listClientHeight,
+          scrollHintVisible: layout.scrollHintVisible,
+        });
+      },
+    });
+  });
+
   workflow("SD05-theme-editor exposes every editor section and saves a real draft", async () => {
     await begin("theme");
     const row = await rowWith(editableTheme.name);
@@ -584,7 +775,42 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await choose(await $("#theme-package-theme"), editableTheme.name);
     await capture("package-options");
     await click(await $("#theme-package-theme"), "检查完整主题名称");
-    await capture("package-theme-options");
+    await capture("package-theme-options", {
+      verify: async (width) => {
+        const layout = await browser.execute(() => {
+          const trigger = document.querySelector("#theme-package-theme");
+          const listbox = document.querySelector('[role="listbox"]');
+          const selected = listbox?.querySelector('[role="option"][aria-selected="true"]');
+          const label = selected?.querySelector(":scope > span");
+          const range = document.createRange();
+          if (label) range.selectNodeContents(label);
+          const bounds = listbox?.getBoundingClientRect();
+          return {
+            triggerWidth: trigger?.getBoundingClientRect().width ?? 0,
+            left: bounds?.left ?? null,
+            right: bounds?.right ?? null,
+            width: bounds?.width ?? 0,
+            optionText: label?.textContent?.trim() ?? null,
+            optionLines: range.getClientRects().length,
+          };
+        });
+        assert.equal(layout.optionText, editableTheme.name);
+        assert.equal(
+          layout.optionLines,
+          1,
+          `The selected theme name must stay on one line at ${width}px`,
+        );
+        assert.ok(
+          layout.width >= layout.triggerWidth,
+          `The option popup must fit the trigger at ${width}px`,
+        );
+        assert.ok(
+          layout.left >= 0 && layout.right <= width,
+          `The option popup must stay inside ${width}px viewport`,
+        );
+        step("完整主题名称单行显示，选项弹层未越界", { width, ...layout });
+      },
+    });
     const clippedNames = await browser.execute(() => [...document.querySelectorAll('[role="option"] > span')]
       .filter((element) => element.scrollWidth > element.clientWidth + 1 || element.scrollHeight > element.clientHeight + 1)
       .map((element) => element.textContent));
@@ -625,15 +851,52 @@ describe("Settings detail pages and complete dialog workflows", function () {
       fixtures: { list_themes: seed.invoke.list_themes.map((item) => item.id === renamed.id ? renamed : item) },
     });
     await $('input[aria-label="重命名"]').waitForExist({ reverse: true });
+    const renameFeedback = await $('[data-theme-rename-feedback]');
+    await renameFeedback.waitForDisplayed();
+    assert.equal((await renameFeedback.getText()).trim(), "主题已重命名");
+    step("重命名成功状态以内联方式显示");
+    await capture("rename-feedback-inline", {
+      anchor: "[data-theme-rename-feedback]",
+      viewports: [390],
+      verify: async () => {
+        const overlapsThemeCard = await browser.execute(() => {
+          const notice = document.querySelector("[data-theme-rename-feedback]")?.getBoundingClientRect();
+          if (!notice) return true;
+          return [...document.querySelectorAll(".a4n-settings-content li")].some((card) => {
+            const rect = card.getBoundingClientRect();
+            return notice.left < rect.right && notice.right > rect.left
+              && notice.top < rect.bottom && notice.bottom > rect.top;
+          });
+        });
+        assert.equal(overlapsThemeCard, false, "Rename feedback must not cover theme cards");
+        assert.equal(await browser.execute(() => [...document.querySelectorAll(".a4n-toast")]
+          .some((toast) => toast.textContent?.includes("主题已重命名"))), false);
+      },
+    });
     await click(await button("全选"), "选择允许批量删除的两个主题");
     const checked = await $$('input[type="checkbox"]:checked');
     assert.equal(checked.length, 2);
     await capture("bulk-selection");
     await click(await button("删除选中（2）"), "打开批量删除确认");
-    await dialog("删除选中（2）").waitForDisplayed();
-    await capture("bulk-confirmation");
-    await click(await dialog("删除选中（2）").$('button=取消'), "取消批量删除");
-    await dialog("删除选中（2）").waitForExist({ reverse: true });
+    const confirmation = await dialog("删除选中（2）");
+    await confirmation.waitForDisplayed();
+    await capture("bulk-confirmation", {
+      verify: async (width) => {
+        const message = await confirmation.getText();
+        assert(message.includes(newName));
+        assert(message.includes("深木书房 · 夜间校稿"));
+        assert(message.includes("不可撤销"));
+        const cancelButton = await confirmation.$('button=取消');
+        const deleteButton = await confirmation.$('button=删除选中（2）');
+        const cancelPosition = await cancelButton.getLocation();
+        const deletePosition = await deleteButton.getLocation();
+        if (width < 640) assert(cancelPosition.y < deletePosition.y, "Mobile must place cancel above bulk deletion");
+        else assert(cancelPosition.x < deletePosition.x, "Desktop must place cancel before bulk deletion");
+      },
+    });
+    const cancelButton = await confirmation.$('button=取消');
+    await click(cancelButton, "取消批量删除");
+    await confirmation.waitForExist({ reverse: true });
     assert.equal(await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "delete_theme").length), 0);
     await defer("delete_theme");
     await click(await button("删除选中（2）"), "再次打开批量删除");
@@ -870,8 +1133,12 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await pending("list_all_users");
     await respond("list_all_users", seed.variants.readFailure.body, { status: seed.variants.readFailure.status });
     await undefer("list_all_users");
-    await browser.waitUntil(async () => (await (await rowWith(user.username)).getText()).includes("创作者"));
-    assert((await $('.a4n-settings-content [role="alert"]').getText()).includes(seed.variants.readFailure.body.message));
+    await browser.waitUntil(async () => (await (await rowWith(user.username)).getText()).includes("管理员"));
+    const roleReadError = await $('.a4n-settings-content [role="alert"]');
+    await roleReadError.waitForDisplayed();
+    assert((await roleReadError.getText()).includes(seed.variants.readFailure.body.message));
+    await click(await roleReadError.$("button=重试"), "重试用户目录读取");
+    await browser.waitUntil(async () => !(await $('.a4n-settings-content [role="alert"]').isExisting()));
     row = await rowWith(user.username);
     await openMenu(row);
     await click(await menuItem("禁用用户"), "打开禁用用户确认");
@@ -888,7 +1155,9 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await respond("list_all_users", seed.variants.readFailure.body, { status: seed.variants.readFailure.status });
     await undefer("list_all_users");
     await browser.waitUntil(async () => /禁用|停用/.test(await (await rowWith(user.username)).getText()));
-    assert((await $('.a4n-settings-content [role="alert"]').getText()).includes(seed.variants.readFailure.body.message));
+    const disableReadError = await $('.a4n-settings-content [role="alert"]');
+    await disableReadError.waitForDisplayed();
+    assert((await disableReadError.getText()).includes(seed.variants.readFailure.body.message));
     await click(await button("更多"), "打开用户管理工具");
     await click(await menuItem("新增邀请码"), "打开邀请码表单");
     await dialog("新增邀请码").waitForDisplayed();
@@ -938,7 +1207,9 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await respond("list_pending_task_index", seed.variants.readFailure.body, { status: seed.variants.readFailure.status });
     await undefer("list_pending_task_index");
     await browser.waitUntil(async () => (await $$(".a4n-settings-content li")).length === pendingTaskIndex.length - 1);
-    assert((await $('.a4n-settings-content [role="alert"]').getText()).includes(seed.variants.readFailure.body.message));
+    const taskListError = await $('.a4n-settings-content [role="alert"]');
+    await taskListError.waitForDisplayed();
+    assert((await taskListError.getText()).includes(seed.variants.readFailure.body.message));
     await capture("task-cancelled-list-read-failed");
   });
 
@@ -1133,7 +1404,53 @@ describe("Settings detail pages and complete dialog workflows", function () {
     const filterField = await $('input[aria-label="日志过滤级别"]');
     await browser.waitUntil(async () => (await filterField.getValue()) === "info,sqlx=warn,hyper=warn");
     await filterField.setValue("info,a4n=trace");
-    await capture("log-level-and-location", { anchor: '//summary[contains(normalize-space(),"日志级别")]' });
+    await capture("log-level-and-location", {
+      anchor: '//summary[contains(normalize-space(),"日志级别")]',
+      verify: async (width) => {
+        const state = await browser.execute(() => {
+          const region = document.querySelector("[data-log-scroll-region]");
+          const hint = document.querySelector("[data-log-scroll-hint]");
+          return {
+            canScroll: Boolean(region && region.scrollHeight - region.clientHeight > 2),
+            hintVisible: Boolean(hint && hint.getClientRects().length > 0),
+          };
+        });
+        assert.equal(state.hintVisible, state.canScroll, `Log scroll hint must match overflow at ${width}px`);
+        if (width === 390) assert.equal(state.canScroll, true, "The mobile log sample must exercise its internal scroll region");
+      },
+    });
+    await capture("log-content-bottom", {
+      anchor: "[data-log-scroll-region]",
+      viewports: [390],
+      prepare: async () => {
+        await browser.execute(() => {
+          const region = document.querySelector("[data-log-scroll-region]");
+          if (region) region.scrollTop = region.scrollHeight;
+        });
+        await browser.waitUntil(async () => !await browser.execute(() => Boolean(document.querySelector("[data-log-scroll-hint]"))));
+        step("滚动至日志末尾后收起继续滚动提示");
+      },
+      verify: async () => {
+        const state = await browser.execute(() => {
+          const rect = (element) => {
+            if (!element) return null;
+            const bounds = element.getBoundingClientRect();
+            return { top: bounds.top, bottom: bounds.bottom };
+          };
+          const region = rect(document.querySelector("[data-log-scroll-region]"));
+          const lastLine = rect(document.querySelector("[data-log-scroll-region] pre > div:last-child"));
+          return { hintVisible: Boolean(document.querySelector("[data-log-scroll-hint]")), region, lastLine };
+        });
+        assert.equal(state.hintVisible, false);
+        assert.ok(state.region && state.lastLine && state.lastLine.top >= state.region.top && state.lastLine.bottom <= state.region.bottom,
+          "The last log line must be fully reachable inside the scroll region");
+      },
+    });
+    await browser.execute(() => {
+      const region = document.querySelector("[data-log-scroll-region]");
+      if (region) region.scrollTop = 0;
+    });
+    await browser.setWindowSize(1440, 1000);
     await defer("set_log_level");
     await click(await button("应用级别"), "提交新的运行日志过滤级别");
     const request = await pending("set_log_level");
@@ -1144,7 +1461,14 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await respond("set_log_level", null, { fixtures: { get_log_level: "info,a4n=trace" } });
     await browser.waitUntil(async () => (await $("body").getText()).includes("日志级别已更新"));
     await button("应用级别").waitForEnabled();
-    await capture("log-level-applied", { anchor: '//summary[contains(normalize-space(),"日志级别")]' });
+    await capture("log-level-applied", {
+      anchor: '//summary[contains(normalize-space(),"日志级别")]',
+      verify: async () => {
+        const status = await $('//*[@role="status" and contains(normalize-space(.),"info,a4n=trace")]');
+        assert.equal(await status.isDisplayed(), true);
+        assert.equal(await $(".a4n-toast--success").isExisting(), false);
+      },
+    });
     await click(await $('nav').$("button=账户与应用"), "应用级别完成后切换设置分区");
     await browser.waitUntil(async () => new URL(await browser.getUrl()).hash === "#about");
     await click(await $('nav').$("button=日志"), "返回日志设置并重新读取当前级别");
@@ -1154,6 +1478,8 @@ describe("Settings detail pages and complete dialog workflows", function () {
     const remountedFilterField = await $('input[aria-label="日志过滤级别"]');
     await browser.waitUntil(async () => (await remountedFilterField.getValue()) === "info,a4n=trace");
     await remountedFilterField.setValue("warn,a4n=error");
+    await $('//*[@role="status" and contains(normalize-space(.),"info,a4n=trace")]').waitForExist({ reverse: true });
+    assert.equal(await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "set_log_level").length), 1);
     await click(await $('nav').$("button=账户与应用"), "丢弃前尝试离开未应用的过滤表达式");
     const discardDraft = await dialog("未保存修改");
     await discardDraft.waitForDisplayed();
@@ -1176,6 +1502,37 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await browser.setWindowSize(390, 1000);
     const table = await cost.$("table");
     await table.scrollIntoView({ block: "center" });
+    const modelCell = await table.$("tbody tr:first-child td:nth-child(4)");
+    await modelCell.execute((cell) => {
+      const scroller = cell.closest("[role='region']");
+      const stickyAmount = cell.parentElement?.firstElementChild;
+      if (!scroller || !stickyAmount) throw new Error("The cost table needs its sticky amount column");
+      scroller.scrollLeft += cell.getBoundingClientRect().left - stickyAmount.getBoundingClientRect().right;
+    });
+    const modelCellState = await modelCell.execute((cell) => {
+      const scroller = cell.closest("[role='region']");
+      const stickyAmount = cell.parentElement?.firstElementChild;
+      const content = cell.querySelector("span")?.getBoundingClientRect();
+      const box = cell.getBoundingClientRect();
+      const viewport = scroller?.getBoundingClientRect();
+      return {
+        text: cell.textContent?.trim() ?? "",
+        scrollWidth: cell.scrollWidth,
+        clientWidth: cell.clientWidth,
+        cell: { left: box.left, right: box.right, width: box.width },
+        content: content ? { left: content.left, right: content.right } : null,
+        stickyAmountRight: stickyAmount?.getBoundingClientRect().right ?? null,
+        viewport: viewport ? { left: viewport.left, right: viewport.right } : null,
+      };
+    });
+    assert.match(modelCellState.text, /openai.*ui-structured-model-long-context/);
+    assert.ok(modelCellState.scrollWidth <= modelCellState.clientWidth + 1, "The mobile model cell must not clip its value");
+    assert.ok(modelCellState.content.left >= modelCellState.stickyAmountRight - 1, "The sticky amount column must not cover the model value");
+    assert.ok(modelCellState.content.right <= modelCellState.viewport.right + 1, "The model value must fit beside the sticky amount column");
+    step("将完整 Provider / 模型单元格滚入手机视口", modelCellState);
+    const modelScreenshot = `${currentId}-cost-model-390.png`;
+    await browser.saveScreenshot(`${output}/${modelScreenshot}`);
+    report.screenshots.push({ id: currentId, state: "cost-model", file: modelScreenshot, trace: [...trace], ...await pageState() });
     await table.parentElement().execute((element) => { element.scrollLeft = element.scrollWidth; });
     step("横向滚动成本表以查看金额和时间列");
     const file = `${currentId}-cost-table-right-390.png`;
@@ -1228,10 +1585,42 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await begin("queue");
     const runs = await $('//h3[normalize-space()="持久化工作流"]/ancestor::section[1]');
     await runs.waitForDisplayed();
-    await runs.scrollIntoView({ block: "start" });
+    for (const width of widths) {
+      await browser.setWindowSize(width, 1000);
+      const actionRow = await runs.$("li*=章节分析");
+      await actionRow.scrollIntoView({ block: "center", inline: "nearest" });
+      await openMenu(actionRow);
+      const context = await actionRow.execute((row) => {
+        const trigger = row.querySelector('button[aria-haspopup="menu"]');
+        const menu = document.querySelector('[role="menu"]');
+        const rowBox = row.getBoundingClientRect();
+        const triggerBox = trigger?.getBoundingClientRect();
+        const menuBox = menu?.getBoundingClientRect();
+        return {
+          text: row.innerText,
+          menuText: menu?.innerText ?? "",
+          row: { top: rowBox.top, bottom: rowBox.bottom },
+          trigger: triggerBox ? { top: triggerBox.top, bottom: triggerBox.bottom, right: triggerBox.right } : null,
+          menu: menuBox ? { top: menuBox.top, bottom: menuBox.bottom, left: menuBox.left, right: menuBox.right } : null,
+          viewport: { width: innerWidth, height: innerHeight },
+        };
+      });
+      assert.match(context.text.replace(/\s+/g, " "), /失败.*可恢复|可恢复.*失败/, "The resume action must remain associated with the failed resumable run");
+      assert.ok(context.menuText.includes("查看运行详情") && context.menuText.includes("继续运行"));
+      assert.ok(context.row.top >= 0 && context.row.bottom <= context.viewport.height, "The action row must remain visible while its menu is open");
+      assert.ok(context.menu && context.menu.top >= 0 && context.menu.bottom <= context.viewport.height);
+      assert.ok(context.trigger && Math.abs(context.menu.right - context.trigger.right) <= 1, "The menu must stay aligned with its action trigger");
+      step("在当前视口打开失败且可恢复工作流的菜单", { width, context });
+      const file = `${currentId}-workflow-actions-${width}.png`;
+      await browser.saveScreenshot(`${output}/${file}`);
+      report.screenshots.push({ id: currentId, state: "workflow-actions", file, trace: [...trace], ...await pageState() });
+      await browser.keys("Escape");
+      await browser.waitUntil(async () => !(await $('[role="menu"]').isExisting()));
+    }
+    await browser.setWindowSize(1440, 1000);
     const row = await runs.$("li*=章节分析");
+    await row.scrollIntoView({ block: "center", inline: "nearest" });
     await openMenu(row);
-    await capture("workflow-actions");
     await click(await menuItem("查看运行详情"), "展开第501次工作流的真实详情响应");
     await row.$("ol").waitForDisplayed();
     await capture("workflow-trace", { anchor: '//h3[normalize-space()="持久化工作流"]/ancestor::section[1]' });
@@ -1241,6 +1630,33 @@ describe("Settings detail pages and complete dialog workflows", function () {
     assert.equal((await lists[0].$$("li")).length, seed.invoke.get_workflow_run_detail.checkpoints.length, "All checkpoints must be reachable, including the failed eighth step");
     assert.equal((await lists[1].$$("li")).length, seed.invoke.get_workflow_run_detail.generation_runs.length, "All generation calls must be reachable, including the failed tenth call");
     assert((await row.getText()).includes(seed.invoke.get_workflow_run_detail.generation_runs.at(-1).title));
+    await browser.setWindowSize(390, 1000);
+    const diagnosticStatuses = await browser.execute(() => {
+      const element = [...document.querySelectorAll("li")].find((item) =>
+        item.querySelector("details div.border-t") && item.querySelectorAll("ol").length >= 2
+          && item.innerText.includes("第 7/8 项"),
+      );
+      if (!element) throw new Error("The expanded persistent workflow diagnostics are missing");
+      const values = [...element.querySelectorAll("details div.border-t > div")];
+      return values.flatMap((value) => {
+        const textWalker = document.createTreeWalker(value, NodeFilter.SHOW_TEXT);
+        const tokens = [];
+        while (textWalker.nextNode()) {
+          const text = textWalker.currentNode.textContent ?? "";
+          for (const token of ["completed", "failed"]) {
+            const start = text.indexOf(token);
+            if (start < 0) continue;
+            const range = document.createRange();
+            range.setStart(textWalker.currentNode, start);
+            range.setEnd(textWalker.currentNode, start + token.length);
+            tokens.push({ token, rectCount: range.getClientRects().length });
+          }
+        }
+        return tokens;
+      });
+    });
+    assert.ok(diagnosticStatuses.length > 1);
+    assert.ok(diagnosticStatuses.every((item) => item.rectCount === 1), "Diagnostic status words must stay intact at phone width");
   });
 
   workflow("SD20-queue-resume-cancel records resume and cancel outcomes for the selected jobs", async () => {
@@ -1385,21 +1801,29 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await browser.waitUntil(async () => new URL(await browser.getUrl()).hash === "#advanced", { timeout: 5000 });
     assert.equal(await $('[role="dialog"]').isExisting(), false, "A discarded profile must not trigger a second navigation warning");
     await browser.execute((sessionId) => localStorage.setItem("a4n:current_session_id", sessionId), seed.invoke.list_sessions[0].id);
-    const retryQuery = new URLSearchParams({
-      "ui-run": "profile-read-retry-" + Date.now(),
-      "ui-fail": JSON.stringify([{
-        command: "get_current_user",
-        status: 503,
-        message: "账户资料读取失败",
-      }]),
-    });
-    await begin("about", `?${retryQuery.toString()}`);
+    await begin("advanced");
+    await defer("get_current_user");
+    await click(await $('nav').$("button=账户与应用"), "进入账户设置并失败个人资料读取");
+    await browser.waitUntil(async () => new URL(await browser.getUrl()).hash === "#about");
+    await browser.waitUntil(async () => browser.execute(() =>
+      window.__uiAudit.pending.filter((request) => request.command === "get_current_user").length >= 2,
+    ), { timeout: 5000, timeoutMsg: "Expected both StrictMode profile reads to be deferred" });
+    await browser.execute(({ body, status }) => {
+      const audit = window.__uiAudit;
+      const pending = audit.pending.filter((request) => request.command === "get_current_user");
+      if (pending.length === 0) throw new Error("Expected a pending profile read");
+      audit.pending = audit.pending.filter((request) => request.command !== "get_current_user");
+      audit.deferred = audit.deferred.filter((command) => command !== "get_current_user");
+      for (const request of pending) request.resolve(Response.json(body, { status }));
+    }, { body: seed.variants.readFailure.body, status: seed.variants.readFailure.status });
+    step("显式失败 StrictMode 首次挂载发出的个人资料读取请求", { command: "get_current_user" });
     const profilePanel = () => $('//details[.//summary[contains(normalize-space(),"个人资料")]]');
     await openDetails("个人资料");
-    await browser.waitUntil(async () => (await (await profilePanel()).getText()).includes("账户资料读取失败"));
+    const profileReadError = seed.variants.readFailure.body.message;
+    await browser.waitUntil(async () => (await (await profilePanel()).getText()).includes(profileReadError));
     await click(await (await profilePanel()).$("button*=重试"), "重试账户资料读取");
     await browser.waitUntil(async () => await (await profilePanel()).$("input[type=email]").isEnabled());
-    assert.equal((await (await profilePanel()).getText()).includes("账户资料读取失败"), false, "A successful retry clears the prior profile load error");
+    assert.equal((await (await profilePanel()).getText()).includes(profileReadError), false, "A successful retry clears the prior profile load error");
     await begin("about");
     await openDetails("登录修复");
     await capture("session-repair-explanation", { anchor: '//summary[contains(normalize-space(),"登录修复")]' });
@@ -1574,10 +1998,10 @@ describe("Settings detail pages and complete dialog workflows", function () {
 
     const advancedTab = await $('.a4n-settings-layout nav').$('button*=高级');
     await click(advancedTab, "删除请求 pending 时尝试切换设置类别");
-    const operationGuard = await dialog("未保存修改");
-    await operationGuard.waitForDisplayed({ timeout: 5000 });
-    assert.ok((await operationGuard.getText()).includes("操作仍在进行"));
-    assert.equal(await operationGuard.$("button=放弃草稿").isEnabled(), false);
+    await browser.waitUntil(async () => browser.execute(() =>
+      [...document.querySelectorAll(".a4n-toast")].some((toast) => toast.textContent?.includes("操作仍在进行")),
+    ));
+    assert.equal(await dialog("未保存修改").isExisting(), false);
     assert.equal(new URL(await browser.getUrl()).hash, "#about");
 
     await respond("cleanup_orphan_project_data_dirs", seed.variants.orphanScan, {
@@ -1587,6 +2011,7 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await browser.waitUntil(async () => (await $("body").getText()).includes("已清理 1 个孤儿项目目录"), { timeout: 5000 });
     await browser.url("/settings#about");
     const reopenedCleanup = await section("存储清理");
+    await click(await reopenedCleanup.$("button=扫描"), "重新扫描清理后的孤儿目录");
     await browser.waitUntil(async () => (await reopenedCleanup.getText()).includes("未发现可清理目录"), { timeout: 5000 });
     await capture("orphan-cleanup-result", { anchor: 'section[aria-label="存储清理"]' });
   });
@@ -1654,33 +2079,94 @@ describe("Settings detail pages and complete dialog workflows", function () {
     });
     await click(await button("重新获取凭证"), "刷新凭证请求失败后检查列表状态归属");
     await browser.waitUntil(async () => (await $('[role="alert"]').getText()).includes("模拟凭证服务错误"));
-    const failedRefreshToasts = await browser.execute(() =>
-      [...document.querySelectorAll(".a4n-toast")].filter((toast) => toast.textContent?.includes("刷新失败")).length,
-    );
-    assert.equal(failedRefreshToasts, 1, "The failed credential request must produce one feedback channel");
+    const failedCredentialAlerts = await browser.execute((message) =>
+      [...document.querySelectorAll('[role="alert"]')]
+        .filter((alert) => alert.textContent?.includes(message)).length,
+    "模拟凭证服务错误");
+    assert.equal(failedCredentialAlerts, 1, "The failed credential request must produce one accessible feedback channel");
   });
 
-  workflow("UX-2530-advanced-backup continues file preparation after leaving advanced settings", async () => {
+  workflow("SD27-UX-2530-advanced-backup supports cancellation, recovery, and operation persistence", async () => {
     await begin("advanced");
-    const panel = await section("服务器配置备份");
+    let panel = await section("服务器配置备份");
     await capture("advanced-backup-default", { anchor: 'section[aria-label="服务器配置备份"]' });
     await click(await panel.$("summary=导入选项"), "打开覆盖选项");
     const overwrite = await panel.$('[role="switch"]');
+    assert.equal(await overwrite.getAttribute("aria-checked"), "false");
     await click(overwrite, "启用覆盖现有配置");
     assert.equal(await overwrite.getAttribute("aria-checked"), "true");
+    await browser.sendCommand("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: output });
+    const backupContents = JSON.stringify({ version: 1, scope: "server", settings: [{ name: "ui-fixture", api_key: "ui-only-secret" }] });
+    const exportButton = await panel.$("button*=导出配置文件");
+    let importButton = await panel.$("button*=导入配置文件");
+    let fileInput = await panel.$('input[type="file"]');
+    assert.equal(await exportButton.getAttribute("type"), "button");
+    assert.equal(await importButton.getAttribute("type"), "button");
+    assert.equal(await fileInput.getAttribute("aria-label"), "导入配置文件");
+    assert.equal(await fileInput.getAttribute("tabindex"), "-1", "The hidden file input must not duplicate the visible keyboard action");
     await browser.execute(() => {
-      const panel = document.querySelector('section[aria-label="服务器配置备份"]');
-      const input = panel?.querySelector('input[type="file"]');
-      if (!(input instanceof HTMLInputElement)) throw new Error("Server backup file input not found");
-      const file = new File(["{}"], "ui-backup.json", { type: "application/json" });
-      Object.defineProperty(file, "text", {
-        value: () => new Promise((resolve) => { window.__uiAudit.resolveBackupRead = resolve; }),
-      });
-      const transfer = new DataTransfer();
-      transfer.items.add(file);
-      input.files = transfer.files;
-      input.dispatchEvent(new Event("change", { bubbles: true }));
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     });
+    let tabsToExport = 0;
+    while (!await exportButton.isFocused() && tabsToExport < 80) {
+      await browser.keys("Tab");
+      tabsToExport += 1;
+    }
+    assert.equal(await exportButton.isFocused(), true, "Backup export must be reachable with Tab");
+    await browser.keys("Tab");
+    assert.equal(await importButton.isFocused(), true, "The visible import action must follow export without a hidden tab stop");
+    step("键盘顺序连续到达导出和导入按钮，隐藏文件输入不占用 Tab 顺序", { tabsToExport });
+
+    await defer("export_all_configs_json");
+    await click(exportButton, "导出服务器配置备份");
+    const exportRequest = await pending("export_all_configs_json");
+    assert.deepEqual(exportRequest, {});
+    assert.equal(await exportButton.isEnabled(), false, "Backup actions must remain disabled while exporting");
+    await respond("export_all_configs_json", backupContents);
+    await browser.waitUntil(async () => await exportButton.isEnabled());
+    const exportDetails = await panel.$("section.a4n-flat-surface:first-of-type details");
+    await exportDetails.waitForDisplayed();
+    await click(await exportDetails.$("summary"), "查看最近导出的文件名");
+    const exportedFileName = await exportDetails.$("div").getText();
+    assert.match(exportedFileName, /^a4n-server-config-\d{8}T\d{6}\.json$/);
+    await browser.waitUntil(async () => (await readdir(output)).includes(exportedFileName), { timeout: 5000 });
+    const exportedFilePath = join(output, exportedFileName);
+    assert.equal(await readFile(exportedFilePath, "utf8"), backupContents, "The browser download must contain the exported JSON");
+    await capture("advanced-backup-exported", { anchor: 'section[aria-label="服务器配置备份"]' });
+
+    const selectBackupFile = async (contents, name = "ui-backup.json", deferRead = false) => {
+      await browser.execute((text, fileName, delayedRead) => {
+        const panel = document.querySelector('section[aria-label="服务器配置备份"]');
+        const input = panel?.querySelector('input[type="file"]');
+        if (!(input instanceof HTMLInputElement)) throw new Error("Server backup file input not found");
+        const file = new File([text], fileName, { type: "application/json" });
+        if (delayedRead) {
+          delete window.__uiAudit.resolveBackupRead;
+          Object.defineProperty(file, "text", {
+            value: () => new Promise((resolve) => { window.__uiAudit.resolveBackupRead = resolve; }),
+          });
+        }
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        input.files = transfer.files;
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      }, contents, name, deferRead);
+      if (deferRead) {
+        await browser.waitUntil(async () => browser.execute(() =>
+          typeof window.__uiAudit.resolveBackupRead === "function",
+        ), { timeout: 5000, timeoutMsg: "Expected the selected backup's File.text() reader to register" });
+      }
+    };
+    const selectDownloadedBackup = async () => fileInput.setValue(await browser.uploadFile(exportedFilePath));
+
+    await defer("import_all_configs");
+    step("选择空配置文件，确认错误反馈且不调用导入");
+    await selectBackupFile("  ", "empty-backup.json");
+    await browser.waitUntil(async () => (await browser.execute(() => document.body.innerText)).includes("配置文件内容为空"));
+    assert.equal(await browser.execute(() => window.__uiAudit.requests.some((item) => item.command === "import_all_configs")), false);
+    await browser.waitUntil(async () => importButton.isEnabled());
+
+    await selectBackupFile("{}", "ui-backup.json", true);
     await browser.waitUntil(async () => (await panel.getText()).includes("正在准备导入…"));
     await capture("advanced-backup-preparing", { anchor: 'section[aria-label="服务器配置备份"]' });
     await click(await $('nav').$("button=账户与应用"), "文件读取 pending 时离开高级设置");
@@ -1692,14 +2178,55 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await confirmation.waitForDisplayed();
     assert((await confirmation.getText()).includes("服务器密钥"));
     assert((await confirmation.getText()).includes("覆盖"), "Confirmation must reflect the selected overwrite mode");
+    assert.match(await confirmation.$("button=导入完整配置").getAttribute("class"), /!border-current/);
     await capture("advanced-backup-confirmation", { anchor: '//div[@role="dialog"][.//h3[normalize-space()="导入配置"]]' });
-    await defer("import_all_configs");
     assert.equal(await browser.execute(() => window.__uiAudit.requests.some((item) => item.command === "import_all_configs")), false);
-    await click(await confirmation.$("button=导入完整配置"), "确认导入备份");
+    await closeDialog("导入配置");
+    await click(await $('nav').$("button=高级配置"), "返回高级设置继续测试备份操作");
+    await browser.waitUntil(async () => new URL(await browser.getUrl()).hash === "#advanced");
+    panel = await section("服务器配置备份");
+    importButton = await panel.$("button*=导入配置文件");
+    fileInput = await panel.$('input[type="file"]');
+    await browser.waitUntil(async () => importButton.isEnabled());
+    await click(await panel.$("summary=导入选项"), "重新打开导入选项");
+    const retryOverwrite = await panel.$('[role="switch"]');
+    await click(retryOverwrite, "重新启用覆盖现有配置");
+    assert.equal(await retryOverwrite.getAttribute("aria-checked"), "true");
+    assert.equal(await browser.execute(() => window.__uiAudit.requests.some((item) => item.command === "import_all_configs")), false,
+      "Cancelling import confirmation must not send a request");
+
+    step("读取备份并在确认框取消，不创建导入请求");
+    await selectBackupFile("{}", "ui-backup.json", true);
+    await browser.waitUntil(async () => (await panel.getText()).includes("正在准备导入…"));
+    await browser.execute(() => window.__uiAudit.resolveBackupRead("{}"));
+    const failedConfirmation = await dialog("导入配置");
+    await failedConfirmation.waitForDisplayed();
+    await click(await failedConfirmation.$("button=导入完整配置"), "确认并验证失败可恢复");
+    const failedRequest = await pending("import_all_configs");
+    assert.equal(failedRequest.input.settings_json, "{}");
+    assert.equal(failedRequest.input.overwrite, true);
+    const importFailure = {
+      ...seed.variants.readFailure.body,
+      message: "服务器暂时无法完成配置导入，请稍后重试。",
+    };
+    await respond("import_all_configs", importFailure, { status: 503 });
+    await browser.waitUntil(async () => (await browser.execute(() => document.body.innerText)).includes(importFailure.message));
+    await browser.waitUntil(async () => importButton.isEnabled());
+    assert.equal(await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "import_all_configs").length), 1);
+    await capture("advanced-backup-import-failed", { anchor: 'section[aria-label="服务器配置备份"]' });
+
+    step("选择刚下载的真实文件，服务器拒绝导入后保留重试入口");
+    await selectDownloadedBackup();
+    const retryConfirmation = await dialog("导入配置");
+    await retryConfirmation.waitForDisplayed();
+    await click(await retryConfirmation.$("button=导入完整配置"), "重试并确认导入备份");
     const request = await pending("import_all_configs");
-    assert.equal(request.input.settings_json, "{}");
+    assert.equal(request.input.settings_json, backupContents);
     assert.equal(request.input.overwrite, true);
-    await click(await $('nav').$("button=高级配置"), "返回查看仍在执行的导入");
+    assert((await panel.getText()).includes("导入中…"));
+    await capture("advanced-backup-importing", { anchor: 'section[aria-label="服务器配置备份"]' });
+    await click(await $('nav').$("button=账户与应用"), "离开仍在执行导入的高级设置页");
+    await click(await $('nav').$("button=高级配置"), "返回高级设置页");
     const remountedPanel = await section("服务器配置备份");
     await browser.waitUntil(async () => (await remountedPanel.getText()).includes("导入中…"));
     assert.equal(await remountedPanel.$("button*=导入配置文件").isEnabled(), false);
@@ -1707,7 +2234,7 @@ describe("Settings detail pages and complete dialog workflows", function () {
     const remountedOverwrite = await remountedPanel.$('[role="switch"]');
     assert.equal(await remountedOverwrite.isEnabled(), false);
     assert.equal(await remountedOverwrite.getAttribute("aria-checked"), "true");
-    assert.equal(await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "import_all_configs").length), 1);
+    assert.equal(await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "import_all_configs").length), 2);
     await capture("advanced-backup-remount-importing", { anchor: 'section[aria-label="服务器配置备份"]' });
     await click(await $('nav').$("button=账户与应用"), "导入请求 pending 时离开高级设置");
     await respond("import_all_configs", ["模拟设置已导入"]);

@@ -20,6 +20,12 @@ const resultPane = 'section[aria-label="视频结果"]';
 
 const buttonText = text => $(`//button[normalize-space()=${JSON.stringify(text)}]`);
 const inputModeConfirmation = () => $('//div[@role="dialog"][.//h3[normalize-space()="切换视频输入模式"]]');
+async function visibleButtonText(text) {
+  for (const button of await $$(`//button[normalize-space()=${JSON.stringify(text)}]`)) {
+    if (await button.isDisplayed()) return button;
+  }
+  throw new Error(`Visible button not found: ${text}`);
+}
 const comicFixture = page => fixtures.byChapter[1].list_manga_page_prompts.find(row => row.page_number === page);
 
 async function ready() {
@@ -82,7 +88,10 @@ async function openMenu(scope, label, index = 0) {
 async function openDetails(selector) {
   const details = await $(selector);
   await details.waitForExist();
-  if (!(await details.getProperty("open"))) await details.$("summary").click();
+  const summary = await details.$("summary");
+  const reached = await reachByWheel(summary);
+  assert.equal(reached.reached, true, `Disclosure summary must be reachable through its scroll container: ${selector}`);
+  if (!(await details.getProperty("open"))) await summary.click();
   await browser.waitUntil(async () => (await details.getProperty("open")) === true, {
     timeout: 2500, timeoutMsg: `Details did not open: ${selector}`,
   });
@@ -99,30 +108,27 @@ async function selectOption(trigger, label) {
 
 async function openComic(page = 1, view = "prompt", chapter = 1) {
   await openRoute("/comic-project/2");
-  const stageLabel = view === "image" ? "成图" : "页面提示词";
-  if (await browser.execute(() => innerWidth) < 640) {
-    const select = await $('[role="combobox"][id="comic-stages-2-select"]');
+  const stageId = view === "references" ? "visual_design" : "image_creation";
+  const stageLabel = view === "references" ? "分镜与参考图" : "提示词与成图";
+  const select = await $('[role="combobox"][id="comic-stages-2-select"]');
+  if (await select.isDisplayed()) {
     await select.click();
     const option = await $(`//*[@role="option" and contains(normalize-space(.), ${JSON.stringify(stageLabel)})]`);
     await option.waitForClickable();
     await option.click();
-    await ready();
   } else {
-    const stage = await $(`button[id="comic-stages-2-tab-${view === "image" ? "images" : "prompts"}"]`);
+    const stage = await $(`button[id="comic-stages-2-tab-${stageId}"]`);
+    await stage.waitForDisplayed();
     if (await stage.getAttribute("aria-selected") !== "true") await stage.click();
   }
-  const chapterButtons = await $('nav[aria-label="漫画章节"]').$$("ul > li > button");
+  await ready();
+  const chapterNav = $('nav[aria-label="漫画章节"]');
+  await chapterNav.waitForDisplayed({ timeout: 15_000 });
+  const chapterButtons = await chapterNav.$$("ul > li > button");
   assert.equal(chapterButtons.length, 3, "The comic audit needs all three source chapters");
   await chapterButtons[chapter - 1].click();
   await $('nav[aria-label="漫画页列表"]').waitForDisplayed();
   await selectComicPage(page);
-  const detailView = await buttonText(view === "image" ? "成图" : "提示词与参考图");
-  if (await detailView.isExisting()) await detailView.click();
-  if (view === "image") {
-    await browser.execute((selector) => {
-      document.querySelector(selector)?.scrollIntoView({ block: "center" });
-    }, `${comicPage} img`);
-  }
   await ready();
 }
 
@@ -140,8 +146,8 @@ async function selectComicPage(page) {
 
 async function openVideo(tab = "片段生成") {
   await openRoute("/video-project/3");
-  if (await browser.execute(() => innerWidth) < 640) {
-    const mobileSelector = await $('[role="combobox"][id="video-stages-3-select"]');
+  const mobileSelector = await $('[role="combobox"][id="video-stages-3-select"]');
+  if (await mobileSelector.isDisplayed()) {
     await mobileSelector.waitForDisplayed();
     await mobileSelector.click();
     const option = await $(`//*[@role="option" and contains(normalize-space(.), ${JSON.stringify(tab)})]`);
@@ -281,10 +287,10 @@ async function openMaterialDetails(tab = "概览") {
   await ready();
 }
 
-async function openGalgame(view = "editor") {
+async function openGalgame(view = "editor", { openSceneProjection = true } = {}) {
   await openRoute("/galgame-project/5");
-  if (await browser.execute(() => innerWidth) < 640) {
-    const select = await $('[role="combobox"][id="galgame-stages-5-select"]');
+  const select = await $('[role="combobox"][id="galgame-stages-5-select"]');
+  if (await select.isDisplayed()) {
     await select.click();
     const option = await $('//*[@role="option" and contains(normalize-space(.), "剧本")]');
     await option.waitForClickable();
@@ -297,8 +303,11 @@ async function openGalgame(view = "editor") {
   await browser.waitUntil(async () => (await $$(galgameLines)).length === 8, {
     timeoutMsg: "The first Galgame scene must contain eight real line editors",
   });
-  if (await $('[aria-label="GALGame 移动工作区"]').isDisplayed()) {
-    await $('[aria-label="GALGame 移动工作区"]').$(`.//button[normalize-space()="${view === "editor" ? "编辑" : "场次"}"]`).click();
+  if (openSceneProjection) {
+    await openDetails('//details[./summary[normalize-space()="场景投影（只读）"]]');
+    if (await $('[aria-label="GALGame 移动工作区"]').isDisplayed()) {
+      await $('[aria-label="GALGame 移动工作区"]').$(`.//button[normalize-space()="${view === "editor" ? "编辑" : "场次"}"]`).click();
+    }
   }
   await ready();
   await browser.waitUntil(isFirstGalgameLineVisible, {
@@ -528,19 +537,37 @@ async function isFirstGalgameLineVisible() {
   return lines.length > 0 && await lines[0].isDisplayed();
 }
 
+async function installStoryGraphReviewFixture(graph) {
+  const project = fixtures.byProject[5];
+  await installUiFixtures(browser, {
+    ...fixtures,
+    byProject: {
+      ...fixtures.byProject,
+      5: {
+        ...project,
+        get_galgame_script: {
+          ...project.get_galgame_script,
+          story_graph: graph,
+          story_graph_status: "generated",
+        },
+      },
+    },
+  });
+}
+
+async function openGalgameScriptControls() {
+  await openGalgame();
+  await openDetails('//details[./summary[normalize-space()="场景投影（只读）"]]');
+  const mobileWorkspace = await $('[aria-label="GALGame 移动工作区"]');
+  if (await mobileWorkspace.isDisplayed()) {
+    await mobileWorkspace.$('button=场次').click();
+    await ready();
+  }
+}
+
 async function openGalgameAssets() {
   await openGalgame("scenes");
-  if (await browser.execute(() => innerWidth) < 640) {
-    const select = await $('[role="combobox"][id="galgame-stages-5-select"]');
-    await select.click();
-    const option = await $('//*[@role="option" and contains(normalize-space(.), "资产规划")]');
-    await option.waitForClickable();
-    await option.click();
-    await ready();
-  } else {
-    const stage = await $('button[id="galgame-stages-5-tab-asset_plan"]');
-    if (await stage.getAttribute("aria-selected") !== "true") await stage.click();
-  }
+  await chooseGalgameStage("asset_plan", "资产规划");
   const entry = await buttonText("规划视觉资产");
   await entry.waitForClickable();
   await entry.click();
@@ -550,6 +577,20 @@ async function openGalgameAssets() {
   await browser.waitUntil(async () => (await $$('section[aria-label="资产规划"] tbody td')).length === 12, {
     timeout: 2500, timeoutMsg: "The asset planning dialog must render all twelve portrait cells",
   });
+  await ready();
+}
+
+async function chooseGalgameStage(stageId, label) {
+  if (await browser.execute(() => innerWidth) < 640) {
+    const select = await $('[role="combobox"][id="galgame-stages-5-select"]');
+    await select.click();
+    const option = await $(`//*[@role="option" and contains(normalize-space(.), ${JSON.stringify(label)})]`);
+    await option.waitForClickable();
+    await option.click();
+  } else {
+    const stage = await $(`button[id="galgame-stages-5-tab-${stageId}"]`);
+    if (await stage.getAttribute("aria-selected") !== "true") await stage.click();
+  }
   await ready();
 }
 
@@ -646,12 +687,18 @@ async function openCanvas(nodeId = null) {
   await browser.waitUntil(async () => (await node.getAttribute("class")).includes("selected"));
   const width = await browser.execute(() => innerWidth);
   if (width <= 1100) {
-    const properties = await $('button[aria-label="打开属性面板"]');
-    await properties.waitForClickable();
-    await properties.click();
+    await openCanvasProperties();
     await $(dialog).waitForDisplayed();
   }
   await ready();
+}
+
+async function openCanvasProperties() {
+  const trigger = await $('.a4n-video-canvas-header button[aria-label="更多操作"]');
+  await trigger.click();
+  const action = await $('//*[@role="menuitem" and normalize-space(.)="打开属性面板"]');
+  await action.waitForClickable();
+  await action.click();
 }
 
 async function openCanvasThumbnail() {
@@ -688,10 +735,9 @@ async function openCanvasDraft(label) {
   const selected = await $$(".react-flow__node.selected");
   assert.equal(selected.length, 1);
   assert.match(await selected[0].getAttribute("data-id"), /^node-/);
-  const properties = await $('button[aria-label="打开属性面板"]');
-  if (await properties.isDisplayed()) {
+  if ((await browser.execute(() => innerWidth)) <= 1100) {
     await $(dialog).waitForExist({ reverse: true });
-    await properties.click();
+    await openCanvasProperties();
     await $(dialog).waitForDisplayed();
   }
   await ready();
@@ -748,7 +794,7 @@ async function openCanvasEdge() {
   await browser.releaseActions();
   await browser.waitUntil(async () => (await edge.getAttribute("class")).includes("selected"));
   if ((await browser.execute(() => innerWidth)) <= 1100) {
-    await $('button[aria-label="打开属性面板"]').click();
+    await openCanvasProperties();
     await $(dialog).waitForDisplayed();
   }
   await openDetails(`${await canvasInspector()} details`);
@@ -838,9 +884,13 @@ async function reachByWheel(selector, axis = "y", pointerAnchor = "center") {
       : center.x;
     const span = direction === "x" ? bounds.right - bounds.left : bounds.bottom - bounds.top;
     const distance = direction === "x" ? x - center.x : y - center.y;
+    if (!scroll && document.scrollingElement?.scrollHeight > document.scrollingElement?.clientHeight + 1) {
+      scroll = document.scrollingElement;
+    }
     return {
       reached, scrollable: Boolean(scroll), target: { x, y }, bounds,
       x: Math.round(Math.max(2, Math.min(innerWidth - 2, wheelX))),
+      scrollTarget: scroll?.className || scroll?.id || scroll?.tagName || null,
       y: Math.round(Math.max(2, Math.min(innerHeight - 2, center.y))),
       delta: Math.round(Math.max(-span / 2, Math.min(span / 2, distance))),
     };
@@ -949,11 +999,75 @@ const cases = [
     count: ['nav[aria-label="漫画页列表"] button', 6],
     note: "离开素材阶段后，角色档案、立绘和项目图片候选都应读取最新数据。",
   },
-  { id: "MC02", title: "漫画整页提示词与参考", task: "从选页进入提示词、角色参考与布局信息", open: () => openComic(), expected: ["参考图绑定", "林岚", "周衡"], count: ['nav[aria-label="漫画页列表"] button', 6], note: "检查章节状态、页状态与操作栏是否挤压正文。" },
-  { id: "MC03", title: "漫画提示词编辑", task: "修改提示词并确认保存入口及取消恢复", open: async () => { await openComic(); await openMenu(comicPrompt, "编辑提示词"); await $(`${comicPrompt} textarea`).addValue("\n审查草稿"); }, expected: ["保存", "取消"], after: async () => { await $(comicPrompt).$('.//button[normalize-space()="取消"]').click(); assert.equal(await $(`${comicPrompt} textarea`).isExisting(), false); return { cancelled: true }; }, note: "保留草稿取消，不触发下游写回。" },
-  { id: "MC04", title: "漫画缺失角色参考", task: "查看第4页缺失的角色绑定及候选", open: () => openComic(4), expected: ["参考图绑定", "周衡"], tail: '(//nav[@aria-label="漫画页列表"]/following-sibling::section/article//button[@role="combobox"])[last()]', note: "候选选择后的图像是否仍显示旧绑定，需要视觉复核。" },
-  { id: "MC05", title: "漫画成图", task: "阅读完整漫画页并查看尺寸", open: () => openComic(1, "image"), scope: comicPage, expected: ["漫画成图"], images: 1, note: "保留图像原比例，检查媒体区域与重复状态的比例。" },
-  { id: "MC06", title: "漫画灯箱", task: "完整查看纵图、放大并重置后返回页内", open: async () => { await openComic(1, "image"); await $(`${comicPage} img`).click(); await $(dialog).waitForDisplayed(); }, scope: dialog, images: 1, expected: ["100%"], after: async (record, width) => {
+  { id: "MC02", title: "漫画分镜与参考", task: "查看当前页的分镜布局与角色参考发现", open: () => openComic(1, "references"), expected: ["发现参考图", "林岚", "周衡"], count: ['nav[aria-label="漫画页列表"] button', 6], note: "检查章节状态、页状态与操作栏是否挤压正文。" },
+  { id: "MC03", title: "漫画提示词编辑", task: "修改提示词并确认保存入口及取消恢复", open: async () => { await openComic(); await (await visibleButtonText("编辑提示词")).click(); await $(`${comicPrompt} textarea`).addValue("\n审查草稿"); }, expected: ["保存", "取消"], after: async () => { await $(comicPrompt).$('.//button[normalize-space()="取消"]').click(); assert.equal(await $(`${comicPrompt} textarea`).isExisting(), false); return { cancelled: true }; }, note: "通过当前页的直接编辑按钮修改；保留草稿取消，不触发下游写回。" },
+  { id: "MC04", title: "漫画缺失角色参考", task: "查看第4页缺失的角色参考及候选", open: () => openComic(4, "references"), expected: ["发现参考图", "周衡"], tail: '(//nav[@aria-label="漫画页列表"]/following-sibling::section/article//button[@role="combobox"])[last()]', note: "候选选择后的图像是否仍显示旧绑定，需要视觉复核。" },
+  { id: "MC05", title: "漫画成图", task: "阅读完整漫画页并查看尺寸", open: () => openComic(1, "image"), scope: comicPage, expected: ["漫画成图"], after: async (_record, width) => {
+    const initial = await browser.execute((selector) => {
+      const image = document.querySelector(selector);
+      if (!image) return null;
+      const bounds = image.getBoundingClientRect();
+      const rect = (element) => {
+        if (!element) return null;
+        const box = element.getBoundingClientRect();
+        return { top: Math.round(box.top), bottom: Math.round(box.bottom), height: Math.round(box.height) };
+      };
+      const visibleButton = (label) => [...document.querySelectorAll("button")].find((button) => {
+        const style = getComputedStyle(button);
+        return button.textContent.trim() === label && style.display !== "none" && style.visibility !== "hidden" && button.getClientRects().length > 0;
+      });
+      const scrollArea = image.closest(".overflow-y-auto");
+      const scrollBounds = scrollArea?.getBoundingClientRect();
+      const visibleTop = Math.max(bounds.top, scrollBounds?.top ?? 0, 0);
+      const visibleBottom = Math.min(bounds.bottom, scrollBounds?.bottom ?? innerHeight, innerHeight);
+      return {
+        top: Math.round(bounds.top),
+        bottom: Math.round(bounds.bottom),
+        height: Math.round(bounds.height),
+        viewportHeight: innerHeight,
+        visibleHeight: Math.max(0, Math.round(visibleBottom - visibleTop)),
+        pageActions: {
+          edit: rect(visibleButton("编辑提示词")),
+          regenerate: rect(visibleButton("重新生成图片")),
+        },
+        scrollArea: scrollArea ? { ...rect(scrollArea), clientHeight: scrollArea.clientHeight, scrollHeight: scrollArea.scrollHeight, scrollTop: scrollArea.scrollTop } : null,
+        chapterRail: rect(document.querySelector('nav[aria-label="漫画章节"]')),
+        pageRail: rect(document.querySelector('nav[aria-label="漫画页列表"]')),
+        headers: [...document.querySelectorAll("header")].map((header) => ({ text: header.innerText.trim().slice(0, 64), ...rect(header) })),
+      };
+    }, `${comicPage} img`);
+    assert(initial, "The selected comic image must be present before scrolling");
+    if (width === 390) {
+      assert(initial.visibleHeight >= initial.height - 1,
+        `The complete generated image must fit inside the phone image viewport: ${JSON.stringify(initial)}`);
+    }
+    assert(initial.pageActions.edit && initial.pageActions.regenerate, "The page-level edit and regenerate actions must remain available");
+    const actionsAfterImage = await browser.execute(() => innerWidth < 1280);
+    if (actionsAfterImage) {
+      assert(initial.pageActions.edit.top >= initial.bottom, "On narrow layouts, prompt editing follows the image preview");
+      assert(initial.pageActions.regenerate.top >= initial.bottom, "On narrow layouts, image regeneration follows the image preview");
+    } else {
+      assert(initial.pageActions.edit.top < initial.top, "On desktop, prompt editing remains in the page header");
+      assert(initial.pageActions.regenerate.top < initial.top, "On desktop, image regeneration remains in the page header");
+    }
+    const reachable = await reachByWheel(`${comicPage} img`, "y");
+    assert.equal(reachable.reached, true, "The page image must be reachable through its visible scroll area");
+    await browser.waitUntil(async () => browser.execute((selector) => {
+      const image = document.querySelector(selector);
+      return image?.complete === true && image.naturalWidth > 0;
+    }, `${comicPage} img`), { timeout: 5000, timeoutMsg: "The selected comic image must decode after scrolling into view" });
+    const decoded = await browser.execute((selector) => {
+      const image = document.querySelector(selector);
+      return { width: image.naturalWidth, height: image.naturalHeight };
+    }, `${comicPage} img`);
+    let pageActionsReachability = null;
+    if (actionsAfterImage) {
+      pageActionsReachability = await reachByWheel(await visibleButtonText("编辑提示词"), "y");
+      assert.equal(pageActionsReachability.reached, true, "The page-level actions must be reachable after the image preview");
+    }
+    return { initialImageBounds: initial, imageReachable: reachable.reached, reachability: reachable, pageActionsReachability, decoded };
+  }, widths: [1440, 1024, 900, 390], note: "首张截图保留未滚动首屏；首屏可见高度按真实滚动裁剪区测量，再验证图片和页级操作可达性。" },
+  { id: "MC06", title: "漫画灯箱", task: "完整查看纵图、放大并重置后返回页内", open: async () => { await openComic(1, "image"); await browser.execute((selector) => { document.querySelector(selector)?.scrollIntoView({ block: "center" }); }, `${comicPage} img`); await $(`${comicPage} img`).click(); await $(dialog).waitForDisplayed(); }, scope: dialog, images: 1, expected: ["100%"], after: async (record, width) => {
     const geometry = () => browser.execute(() => {
       const image = document.querySelector('.a4n-image-lightbox-image');
       const stage = image.closest('.a4n-image-lightbox-stage').getBoundingClientRect();
@@ -963,6 +1077,7 @@ const cases = [
       return {
         width: box.width, height: box.height,
         naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight,
+        objectFit: getComputedStyle(image).objectFit,
         scale: new DOMMatrixReadOnly(getComputedStyle(image).transform).a,
         insideStage: inside(stage), insideBody: inside(body),
       };
@@ -972,7 +1087,7 @@ const cases = [
       assert(Math.abs(value.scale - 1) < 0.001, "The fitted view must be at 100% scale");
       assert.equal(value.insideStage, true, "The full portrait image must fit inside the stage at 100%");
       assert.equal(value.insideBody, true, "The modal body must not clip the portrait image at 100%");
-      assert(Math.abs(value.width / value.height - value.naturalWidth / value.naturalHeight) < 0.001, "The image aspect ratio must remain unchanged");
+      assert.equal(value.objectFit, "contain", "The image must keep its natural aspect ratio inside the stage");
     };
     const initial = await geometry();
     assertFit(initial);
@@ -1118,7 +1233,49 @@ const cases = [
   { id: "MV27", title: "创建插入片段", task: "在既有片段间准备插入内容", open: openInserted, scope: dialog, expected: ["生成插入片段", "参考"], note: "清楚区分生成描述与确认插入，不在审查中生成。" },
   { id: "MV28", title: "插入参考图选择", task: "点击图片主体选中参考图", open: openInserted, scope: dialog, expected: ["生成插入片段"], after: async () => { const option = await $(`${dialog} button:has(img)`); await option.$("img").click(); await browser.waitUntil(async () => (await option.getAttribute("class")).includes("ring-1"), { timeout: 2500, timeoutMsg: "Clicking the reference image must select it, not replace the task with a lightbox" }); assert.equal(await $(`${dialog} h3`).getText(), "生成插入片段"); return { imageClickSelectedReference: true }; }, note: "图片主体选择，独立预览按钮放大；两种操作不能吞事件。" },
   { id: "MV29", title: "插入片段详情", task: "查看插入位置、提示词与移动/删除动作", open: async () => { await openVideo(); await $('//button[.//div[normalize-space()="信封暗记特写"] and not(ancestor::*[@role="dialog"])]').click(); await $(dialog).waitForDisplayed(); }, scope: dialog, expected: ["插入片段详情", "选择新的位置"], after: async () => { const location = await $(`${dialog} button[role="combobox"]`); assert.equal(await location.isEnabled(), true); await location.click(); const options = await $$('[role="option"]'); assert(options.length > 2, "An inserted segment must expose real alternative positions"); await browser.keys("Escape"); return { moveOptions: options.length }; }, note: "保留位置编辑与已有视频操作，不执行删除。" },
-  { id: "MV30", title: "成片合成", task: "审查四个可用片段的顺序与已推送前缀", open: async () => { await openVideo("成片合成"); await waitForPlayable(".a4n-page-container video"); }, expected: ["成片预览", "片段顺序"], after: () => provePlayback(".a4n-page-container video"), note: "检查确认操作与顺序列表的距离，预览需包含真实媒体。" },
+  { id: "MV30", title: "成片合成", task: "审查四个可用片段的顺序与已推送前缀", open: async () => {
+    await openVideo("成片合成");
+    const video = ".a4n-page-container video";
+    await waitForPlayable(video);
+    await browser.waitUntil(async () => $(video).execute(element => element.readyState >= 3), {
+      timeout: 10000, timeoutMsg: "The preview must be ready to play before the loading state clears",
+    });
+  }, expected: ["成片预览", "片段顺序"], count: ['[role="region"][aria-label="片段顺序"] ul > li', 4], after: async (_record, width) => {
+    const playback = await provePlayback(".a4n-page-container video");
+    const clipOrder = await $('[role="region"][aria-label="片段顺序"]');
+    const lastClip = await clipOrder.$("ul > li:last-child");
+    const scrollMetrics = await clipOrder.execute(element => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      scrollTop: element.scrollTop,
+      keyboardFocusable: element.tabIndex >= 0,
+      scrollbarWidth: getComputedStyle(element).scrollbarWidth,
+    }));
+    assert.equal(scrollMetrics.keyboardFocusable, true);
+    const previewHeight = await $(".a4n-video-assembly-preview-media").getSize("height");
+    if (width < 1280) {
+      assert(scrollMetrics.scrollHeight <= scrollMetrics.clientHeight + 1, "Stacked clip lists must flow with the page instead of nesting a scroller");
+      assert(previewHeight > 100, "The stacked preview must retain a visible media frame");
+    }
+    const previewLoading = await $(".a4n-video-assembly-preview [role=\"status\"]");
+    assert.equal(await previewLoading.isDisplayed(), false, "The loading state must clear after media data is ready");
+    let keyboardScrollTop = null;
+    if (width === 390) {
+      await clipOrder.execute(element => element.focus());
+      await browser.keys("PageDown");
+      const assemblyPanel = await $(".a4n-video-assembly-tabpanel");
+      await browser.waitUntil(async () => (await assemblyPanel.getProperty("scrollTop")) > 32, { timeout: 2500 });
+      keyboardScrollTop = await assemblyPanel.getProperty("scrollTop");
+      assert(keyboardScrollTop > 32, "Keyboard users must be able to scroll the clip order");
+    }
+    const reachability = await reachByWheel(lastClip, "y");
+    assert.equal(reachability.reached, true, "The last assembly clip must be reachable by scrolling");
+    if (width === 390) {
+      assert(reachability.scrollable, "The last phone clip must be reachable through page scrolling");
+      assert(!String(reachability.scrollTarget).includes("a4n-video-assembly-clip-list"), "The phone order list must not create a nested scroller");
+    }
+    return { playback, lastClipReachability: reachability, scrollMetrics, keyboardScrollTop };
+  }, note: "预览保留真实媒体解码；手机端顺序区检查真实滚动、末项与键盘可达性。" },
   { id: "MV31", title: "后处理批次", task: "从两批成片进入待确认的编辑版本", open: () => openPostprocess(0), expected: ["推送批次", "后处理预览", "剪辑条"], count: ["[data-video-push-id]", 2], note: "播放器不应把实际编辑时间条压到不可见处。" },
   { id: "MV32", title: "后处理插入点", task: "点击时间条设置一个插入点", open: () => openPostprocess(1), expected: ["上传并插入"], count: [`${timeline} [role="slider"]`, 1], note: "命中区、时间读数和撤销选择入口需明确。" },
   { id: "MV33", title: "后处理选区", task: "用两个标记定义可替换的片段", open: () => openPostprocess(2), expected: ["上传并替换"], count: [`${timeline} [role="slider"]`, 2], note: "检查双标记间距、选区高亮和长时间读数的碰撞。" },
@@ -1127,30 +1284,270 @@ const cases = [
   { id: "MV36", title: "帧图独立预览", task: "用独立预览按钮放大首帧并返回配置页", open: async () => { await openSegment(1); await $(`${dialog} button[aria-label="图片预览"]`).click(); await $(dialog).waitForDisplayed(); }, scope: dialog, expected: ["100%"], images: 1, after: async () => { await browser.keys("Escape"); await browser.waitUntil(async () => (await $(`${dialog} h3`).getText()) === "片段 1 · 配置"); return { returnedToSegmentConfig: true }; }, note: "独立放大保留，关闭只退出顶部灯箱。" },
   { id: "MV37", title: "插入参考图独立预览", task: "放大参考图时保持原选择状态", open: openInserted, scope: dialog, expected: ["生成插入片段"], after: async (record, width) => { const option = await $(`${dialog} button:has(img)`); const selected = (await option.getAttribute("class")).includes("ring-1"); await $(`${dialog} button[aria-label="图片预览"]`).click(); await browser.waitUntil(async () => (await $(dialog).getText()).includes("100%")); record.lightbox = await capture({ id: "MV37", scope: dialog }, width, "-lightbox"); await browser.keys("Escape"); await browser.waitUntil(async () => (await $(`${dialog} h3`).getText()) === "生成插入片段"); assert.equal((await option.getAttribute("class")).includes("ring-1"), selected); return { selectionUnchanged: true }; }, note: "放大与选择分别验证，不能以灯箱打开替代选择成功。" },
 
-  { id: "MG01", title: "Galgame场次与恢复", task: "查看三个场次、来源与失败恢复", open: () => openGalgame("scenes"), expected: ["铜铃之后的来信", "纸背上的另一条路", "第三站台的约定"], note: "场次长列表和状态面板不能淹没素材制作入口。" },
-  { id: "MG02", title: "Galgame混合台词", task: "阅读八行不同类型的剧本", open: () => openGalgame(), count: [galgameLines, 8], expected: ["林岚", "周衡"], note: "重复的姿态、表情、CG和转场控件是否打断台词阅读。" },
-  { id: "MG03", title: "Galgame背景绑定", task: "核对场景背景与既有素材绑定入口", open: async () => { await openGalgame(); await openDetails(`${galgameEditor} > div:nth-child(2) details`); }, scope: galgameEditor, images: 1, expected: ["背景"], note: "背景、当前素材与编号输入应有清楚关联。" },
+  { id: "MG01", title: "Galgame场次与恢复", task: "查看三个场次、来源与失败恢复", open: () => openGalgame("scenes"), expected: ["铜铃之后的来信", "纸背上的另一条路", "第三站台的约定"], after: async () => {
+    const firstSceneRow = '//div[contains(@class,"divide-y")]/button[contains(., "铜铃之后的来信")]';
+    const reachability = await reachByWheel(firstSceneRow);
+    assert.equal(reachability.reached, true, "The first scene row must be visible through real scrolling");
+    const rowText = await $(firstSceneRow).getText();
+    assert(rowText.includes("主线") && rowText.includes("场次 3"), "The transition must remain readable beside its scene kind");
+    const arrow = await $(firstSceneRow).$('svg.lucide-arrow-right');
+    assert.equal(await arrow.isExisting(), true, "Scene transitions must use a Lucide icon");
+    assert.equal(await arrow.getAttribute("aria-hidden"), "true", "Decorative transition icons must be hidden from assistive technology");
+    return { transitionIcons: 1, decorativeIconsHidden: true, firstSceneRow: rowText, reachability };
+  }, note: "场次长列表和状态面板不能淹没素材制作入口。" },
+  { id: "MG02", title: "Galgame混合台词", task: "阅读八行不同类型的剧本", open: () => openGalgame(), count: [galgameLines, 8], expected: ["林岚", "周衡"], after: async (_record, width) => {
+    const disclosure = await $(`${galgameEditor} details[data-scene-meta-disclosure]`);
+    const summary = await disclosure.$("summary");
+    const firstLine = await $(`${galgameLines}:first-of-type`);
+    const open = await disclosure.getProperty("open");
+    const firstLineRect = await firstLine.execute(element => {
+      const { top, bottom } = element.getBoundingClientRect();
+      return { top, bottom, viewportHeight: innerHeight };
+    });
+    const body = await firstLine.$("textarea");
+    const bodyRect = await body.execute(element => {
+      const { top, bottom } = element.getBoundingClientRect();
+      return { top, bottom, viewportHeight: innerHeight };
+    });
+    let keyboardDisclosureToggle = false;
+    let summaryFocus;
+    if (width < 768) {
+      assert.equal(await summary.isDisplayed(), true, "Mobile scene metadata needs a visible disclosure trigger");
+      assert.equal(open, false, "Mobile scene metadata should start collapsed so the script leads");
+      assert(bodyRect.top >= 0 && bodyRect.bottom <= bodyRect.viewportHeight, `The first script body must be fully visible on the phone: ${JSON.stringify(bodyRect)}`);
+      const activeView = await $('[aria-label="GALGame 移动工作区"] button[aria-pressed="true"]');
+      await activeView.execute(element => element.focus());
+      await browser.keys("Tab");
+      summaryFocus = await summary.execute(element => {
+        const style = getComputedStyle(element);
+        return {
+          active: document.activeElement === element,
+          visible: element.matches(":focus-visible"),
+          outlineStyle: style.outlineStyle,
+          outlineWidth: style.outlineWidth,
+        };
+      });
+      assert.equal(summaryFocus.active, true, `Tab must move from the mobile workspace switch to scene information: ${JSON.stringify(summaryFocus)}`);
+      assert.equal(summaryFocus.visible, true, "Keyboard focus must use the visible focus-visible state");
+      assert.equal(summaryFocus.outlineStyle, "solid");
+      assert.equal(summaryFocus.outlineWidth, "2px");
+      await browser.keys("Enter");
+      await browser.waitUntil(async () => (await disclosure.getProperty("open")) === true);
+      await ready();
+      assert.equal(await disclosure.getProperty("open"), true, "React must retain the keyboard-expanded disclosure state");
+      await browser.keys("Enter");
+      await browser.waitUntil(async () => !(await disclosure.getProperty("open")));
+      keyboardDisclosureToggle = true;
+    } else {
+      assert.equal(open, true, "Wide Galgame layouts keep scene metadata expanded");
+    }
+    return { sceneMetaOpen: open, sceneMetaSummaryVisible: await summary.isDisplayed(), firstLine: firstLineRect, firstLineBody: bodyRect, keyboardDisclosureToggle, summaryFocus: width < 768 ? summaryFocus : undefined };
+  }, note: "重复的姿态、表情、CG和转场控件是否打断台词阅读；窄屏先呈现首行，场景信息仍可展开。" },
+  { id: "MG03", title: "Galgame背景绑定", task: "核对场景背景与既有素材绑定入口", open: async () => {
+    await openGalgame();
+    const sceneMeta = await $(`${galgameEditor} details[data-scene-meta-disclosure]`);
+    if (!(await sceneMeta.getProperty("open"))) await sceneMeta.$("summary").click();
+    await openDetails(`${galgameEditor} > div:nth-child(2) details:not([data-scene-meta-disclosure])`);
+  }, scope: galgameEditor, images: 1, expected: ["背景"], note: "背景、当前素材与编号输入应有清楚关联。" },
   { id: "MG04", title: "Galgame对白", task: "查看说话角色、台词与姿态表情", open: () => openGalgamePerformance(2), tail: `${galgameLines}:nth-of-type(2) button[aria-label="表情"]`, expected: ["林岚", "表情"], note: "演出默认收起；实际展开后验证持久字段名与当前值。" },
   { id: "MG05", title: "Galgame独白与演出", task: "对照独白和舞台指示的编辑差异", open: () => openGalgame(), tail: `${galgameLines}:nth-of-type(5) textarea`, expected: ["独白", "演出"], note: "保留五种行类型各自字段，不以同一个空行代表。" },
   { id: "MG06", title: "Galgame末行选择支", task: "滚到第8行确认分支目标与合流", open: () => openGalgame(), tail: '//section[@aria-label="编辑"]//article[8]//button[normalize-space()="保存选择支"]', expected: ["保存选择支"], note: "900px是外层与内层滚动接管的重点断点。" },
   { id: "MG07", title: "GalgameCG与转场", task: "查看启用CG的台词及演出说明", open: () => openGalgamePerformance(6), tail: '//section[@aria-label="编辑"]//article[6]//textarea[@placeholder="事件 CG 画面描述"]', expected: ["CG"], note: "实际展开演出；已启用CG保留默认展开，正文仍是视觉主体。" },
-  { id: "MG08", title: "Galgame音频媒体", task: "展开台词媒体并播放已有BGM", open: async () => { await openGalgame(); await openDetails(`${galgameLines}:first-of-type > details:not([class*="group/performance"])`); }, scope: galgameEditor, expected: ["BGM", "SFX"], after: async () => {
+  { id: "MG08", title: "Galgame音频媒体", task: "展开台词媒体并播放已有BGM", open: async () => {
+    await openGalgame("editor", { openSceneProjection: false });
+    await openDetails('div[role="tabpanel"] > details.a4n-flat-surface');
+    const mobileWorkspace = await $('[aria-label="GALGame 移动工作区"]');
+    if (await mobileWorkspace.isDisplayed()) {
+      await mobileWorkspace.$('.//button[normalize-space()="编辑"]').click();
+      await ready();
+    }
+    await openDetails(`${galgameLines}:first-of-type > details:not([class*="group/performance"])`);
+  }, scope: galgameEditor, expected: ["BGM", "SFX"], after: async (record, width) => {
     const audio = `${galgameLines}:first-of-type audio`;
-    assert.equal((await reachByWheel(audio)).reached, true, "The native BGM player must be visibly reachable before playback");
-    return provePlayback(audio);
-  }, note: "先真实滚到BGM控制区再验证播放时间推进，保留可见音频控件的interaction截图。" },
-  { id: "MG09", title: "Galgame视觉资产计划", task: "查看6背景、12立绘单元和2CG", open: openGalgameAssets, scope: 'section[aria-label="资产规划"]', expected: ["角色差分", "CG", "站台·镜中出口"], count: ['section[aria-label="资产规划"] tbody td', 12], note: "资产计划在独立阶段内展示完整背景、矩阵和操作入口。" },
-  { id: "MG10", title: "Galgame矩阵末项", task: "找到矩阵最右列并读取生成状态", open: async () => { await openGalgameAssets(); await reachByWheel('section[aria-label="资产规划"] tbody tr:last-child td:last-child button', "y"); }, scope: 'section[aria-label="资产规划"]', tail: 'section[aria-label="资产规划"] tbody tr:last-child td:last-child button', axis: "x", expected: ["视觉资产", "生成素材"], note: "单格动作准确标为生成素材；窄屏保留真实横向滚动与大图预览。" },
-  { id: "MG11", title: "Galgame生成选项", task: "区分断点续跑与指定阶段重新生成", open: async () => { await openGalgame("scenes"); await openDetails('details[aria-label="剧本生成"]'); await openDetails('details[aria-label="剧本生成"] details'); }, expected: ["继续生成", "自动选择起点"], after: async () => {
+    const firstLine = `${galgameLines}:first-of-type`;
+    const playerRow = `${firstLine} div.grid:has(> audio)`;
+    const bgmImport = await $(firstLine).$('.//button[normalize-space()="导入 BGM"]');
+    const sfxImport = await $(firstLine).$('.//button[normalize-space()="导入 SFX"]');
+    const order = await browser.execute((lineSelector) => {
+      const line = document.querySelector(lineSelector);
+      const rect = (element) => {
+        const bounds = element?.getBoundingClientRect();
+        return bounds ? { top: bounds.top, bottom: bounds.bottom } : null;
+      };
+      const audio = line?.querySelector("audio");
+      const buttons = [...(line?.querySelectorAll("button") ?? [])];
+      return {
+        player: rect(audio?.closest(".grid")),
+        bgmImport: rect(buttons.find((button) => button.textContent.trim() === "导入 BGM")),
+        sfxImport: rect(buttons.find((button) => button.textContent.trim() === "导入 SFX")),
+      };
+    }, firstLine);
+    const sfxReachability = await reachByWheel(sfxImport);
+    assert.equal(sfxReachability.reached, true, "The SFX import control must remain reachable after the existing player");
+    record.importControls = await capture({ id: "MG08", scope: galgameEditor }, width, "-import-controls");
+    const viewport = await browser.execute(() => ({ width: innerWidth, height: innerHeight }));
+    const playerReachability = await reachByWheel(audio);
+    const playerRect = await browser.execute((selector) => {
+      const { x, y, width, height } = document.querySelector(selector).getBoundingClientRect();
+      return { x, y, width, height };
+    }, audio);
+    const playerLayout = await browser.execute((selector, viewportWidth) => {
+      const row = document.querySelector(selector);
+      const rect = (element) => {
+        const bounds = element?.getBoundingClientRect();
+        return bounds ? { left: bounds.left, right: bounds.right, top: bounds.top, bottom: bounds.bottom } : null;
+      };
+      return {
+        width: viewportWidth,
+        row: rect(row),
+        label: rect(row?.querySelector("span")),
+        player: rect(row?.querySelector("audio")),
+        unbind: rect(row?.querySelector("button")),
+      };
+    }, playerRow, width);
+    assert.equal(playerReachability.reached, true,
+      `The complete BGM player must be reachable before playback: ${JSON.stringify({ playerReachability, playerRect, viewport })}`);
+    assert(playerRect.width > 0 && playerRect.height > 0, "The native BGM player must have a visible rectangle");
+    assert(playerRect.x >= 0 && playerRect.y >= 0 && playerRect.x + playerRect.width <= viewport.width && playerRect.y + playerRect.height <= viewport.height,
+      `The complete native BGM player must be within the viewport: ${JSON.stringify({ playerRect, viewport })}`);
+    assert(order.player && order.bgmImport && order.sfxImport, "The player and both audio import controls must render");
+    assert(order.player.bottom <= order.bgmImport.top && order.player.bottom <= order.sfxImport.top,
+      `Existing audio must precede import controls: ${JSON.stringify(order)}`);
+    assert(playerLayout.row && playerLayout.label && playerLayout.player && playerLayout.unbind,
+      `The bound BGM row must include its label, player, and unbind control: ${JSON.stringify(playerLayout)}`);
+    if (playerLayout.width < 768) {
+      assert(playerLayout.label.bottom <= playerLayout.player.top
+        && playerLayout.unbind.bottom <= playerLayout.player.top,
+      `The phone player must sit beneath its label and unbind action: ${JSON.stringify(playerLayout)}`);
+      assert(playerLayout.row.left <= playerLayout.player.left + 1
+        && playerLayout.player.right >= playerLayout.row.right - 1
+        && playerLayout.label.right <= playerLayout.unbind.left,
+      `The phone player must use the row width while the unbind action stays beside its label: ${JSON.stringify(playerLayout)}`);
+    } else {
+      assert(playerLayout.row.left <= playerLayout.label.left
+        && playerLayout.label.right <= playerLayout.player.left
+        && playerLayout.player.right <= playerLayout.unbind.left
+        && playerLayout.unbind.right <= playerLayout.row.right,
+      `Desktop BGM controls must stay aligned in one row: ${JSON.stringify(playerLayout)}`);
+    }
+    return {
+      playerReachability,
+      playerRect,
+      playerLayout,
+      playerBeforeImportControls: true,
+      sfxReachability,
+      viewport,
+      playback: await provePlayback(audio),
+    };
+  }, widths: [1440, 1024, 900, 390], note: "先真实滚到BGM控制区再验证播放时间推进，保留可见音频控件的interaction截图。" },
+  { id: "MG09", title: "Galgame视觉资产计划", task: "查看6背景、12立绘单元和2CG", open: openGalgameAssets, scope: 'section[aria-label="资产规划"]', expected: ["角色差分", "CG", "站台·镜中出口"], count: ['section[aria-label="资产规划"] tbody td', 12], after: async () => { assert.equal(await $$('//section[@aria-label="资产规划"]//tbody//button[normalize-space()="生成素材"]').length, 0); return { perAssetActionsHiddenDuringPlanning: true }; }, note: "规划阶段只承担清单与状态核对，逐项生成留在素材生成阶段。" },
+  { id: "MG10", title: "Galgame矩阵末项", task: "找到矩阵最右列并读取生成状态", open: async () => { await openGalgameAssets(); await chooseGalgameStage("asset_generation", "素材生成"); const target = 'section[aria-label="资产规划"] tbody tr:last-child td:last-child button'; await browser.waitUntil(async () => (await $$(target)).length === 1, { timeout: 2500, timeoutMsg: "Per-asset generation actions must appear in the generation stage" }); await reachByWheel(target, "y"); }, scope: 'section[aria-label="资产规划"]', tail: 'section[aria-label="资产规划"] tbody tr:last-child td:last-child button', axis: "x", expected: ["视觉资产", "生成素材"], note: "逐项生成只在素材生成阶段出现；窄屏保留真实横向滚动与大图预览。" },
+  { id: "MG11", title: "Galgame生成选项", task: "区分断点续跑与指定阶段重新生成", open: async () => { await openGalgameScriptControls(); await openDetails('details[aria-label="剧本生成"]'); await openDetails('details[aria-label="剧本生成"] details'); }, widths: [1440, 1024, 900, 390], expected: ["继续生成", "自动选择起点"], after: async () => {
     const options = await $('details[aria-label="剧本生成"]');
+    const primary = await options.$("button.w-full");
+    assert.equal((await primary.getText()).trim(), "继续生成");
     await options.$('button[role="combobox"]').click();
     await $('//*[@role="option" and normalize-space()="资产意图"]').click();
-    assert.equal(await options.$('button=从资产意图重新生成').isDisplayed(), true);
+    assert.equal((await primary.getText()).trim(), "从资产意图重新生成");
     assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("start_galgame_pipeline")), false);
     return { selectedStage: "asset_generation", operationLabel: "从资产意图重新生成", submitted: false };
   }, note: "未指定阶段时由续跑/生成操作决定起点；指定阶段后主按钮准确说明重生成范围，原请求参数不变。" },
-  { id: "MG12", title: "Galgame请求预览", task: "从生成选项查看完整请求", open: async () => { await openGalgame("scenes"); await openDetails('details[aria-label="剧本生成"]'); await openMenu('details[aria-label="剧本生成"]', "查看模型请求"); await $(dialog).waitForDisplayed(); }, scope: dialog, expected: ["请求"], note: "保留阶段、来源、提示词和退出路径。" },
-  { id: "MG13", title: "Galgame重置确认", task: "审查重置影响范围后安全取消", frequency: "低", open: async () => { await openGalgame(); await openMenu(".a4n-page-header", "重置生成数据"); await $(dialog).waitForDisplayed(); }, scope: dialog, expected: ["不可恢复", "重置"], after: async () => { assert.equal(await $(`${dialog} button[aria-label="关闭"]`).isDisplayed(), true); await browser.keys("Escape"); await $(dialog).waitForExist({ reverse: true }); assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("reset_project_generated_data")), false); return { cancelledBeforeMutation: true }; }, note: "使用既有关闭/Escape安全取消，不要求新增底栏取消按钮。" },
+  { id: "MG12", title: "Galgame请求预览", task: "从生成选项查看请求并确认其不会触发生成", open: async () => { await openGalgameScriptControls(); await openDetails('details[aria-label="剧本生成"]'); await openMenu('details[aria-label="剧本生成"]', "查看模型请求"); await $(dialog).waitForDisplayed(); }, widths: [1440, 1024, 900, 390], scope: dialog, expected: ["模型请求预览", "不会发送模型请求", "模型", "模板", "实际提示内容", "完整请求", "上下文详情", "复制全部"], after: async () => {
+    const commands = await browser.execute(() => window.__uiAudit.commands);
+    assert(commands.includes("preview_galgame_pipeline_request"));
+    assert.equal(commands.includes("start_galgame_pipeline"), false);
+    return { previewOnly: true };
+  }, note: "读请求正文与模型/模板来源；请求预览只读，不发起生成。" },
+  { id: "MG13", title: "Galgame重置确认", task: "核对删除与保留范围，并安全取消", frequency: "低", widths: [1440, 1024, 900, 390], open: async () => { await openGalgame(); await openMenu(".a4n-page-header", "重置生成数据"); await $(dialog).waitForDisplayed(); }, scope: dialog, expected: ["不可恢复", "剧本", "视觉生成设置", "已生成媒体", "来源内容", "来源同步关系", "模型配置", "重置"], after: async (_record, width) => {
+    const confirm = await $(dialog);
+    const cancelButton = await confirm.$('.//button[normalize-space()="取消"]');
+    const resetButton = await confirm.$('.//button[normalize-space()="重置"]');
+    assert.equal(await cancelButton.isDisplayed(), true, "The destructive confirmation must expose a visible cancel action");
+    assert.equal(await resetButton.isDisplayed(), true, "The destructive action must remain explicit");
+    assert.equal(await $(`${dialog} button[aria-label="关闭"]`).isDisplayed(), true);
+    const cancelPosition = await cancelButton.getLocation();
+    const resetPosition = await resetButton.getLocation();
+    if (width < 640) assert(cancelPosition.y < resetPosition.y, "Mobile must place cancel above the destructive action");
+    else assert(cancelPosition.x < resetPosition.x, "Desktop must place cancel before the destructive action");
+    await cancelButton.click();
+    await $(dialog).waitForExist({ reverse: true });
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("reset_project_generated_data")), false);
+
+    await openMenu(".a4n-page-header", "重置生成数据");
+    await $(dialog).waitForDisplayed();
+    await browser.keys("Escape");
+    await $(dialog).waitForExist({ reverse: true });
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("reset_project_generated_data")), false);
+    return { visibleCancelAction: true, cancelPrecedesReset: true, cancelledWithButton: true, escapeCloses: true, cancelledBeforeMutation: true };
+  }, note: "核对删除/保留范围，实际使用取消按钮与 Escape 退出；不触发重置。" },
+  { id: "MG14", title: "Galgame剧情图连线方向", task: "选中一条连线并核对来源、去向和读屏方向", widths: [1440, 900, 390], open: async () => {
+    const graph = {
+      branch_groups: [],
+      edges: [{ branch_group_id: null, display_order: 1, from_node_id: "source-node", from_port: "out", guard: null, id: "graph-edge-1", kind: "sequence", state_operations: [], to_node_id: "target-node", to_port: "in" }],
+      entry_node_id: "source-node",
+      id: "graph-direction-review",
+      loop_groups: [],
+      nodes: [
+        { id: "source-node", kind: "narrative", layout_x: 0, layout_y: 0, lines: [], media_intents: [], primary_source: null, source_refs: [], state_after: {}, state_before: {}, state_operations: [], summary: "剧情起点", title: "剧情起点" },
+        { id: "target-node", kind: "terminal", layout_x: 360, layout_y: 0, lines: [], media_intents: [], primary_source: null, source_refs: [], state_after: {}, state_before: {}, state_operations: [], summary: "剧情终点", title: "剧情终点" },
+      ],
+      project_id: 5,
+      revision: 1,
+      schema_version: "galgame_story_graph_v1",
+      source_snapshot_id: 50,
+      state_variables: [],
+      terminal_node_ids: ["target-node"],
+    };
+    await installStoryGraphReviewFixture(graph);
+    await openGalgame("editor", { openSceneProjection: false });
+    if ((await browser.execute(() => innerWidth)) < 1024) {
+      const graphPane = await $('[aria-label="节点工作区"]');
+      const graphButton = await graphPane.$('.//button[normalize-space()="图谱"]');
+      assert.equal((await reachByWheel(graphButton)).reached, true);
+      await graphButton.click();
+      await ready();
+    }
+    const edgeSelector = '.react-flow__edge[data-id="graph-edge-1"]';
+    const edge = await $(edgeSelector);
+    await edge.waitForDisplayed();
+    assert.equal((await reachByWheel(edge)).reached, true, "The graph connection must be visible and pointer-reachable");
+    const point = await browser.execute((selector) => {
+      const path = document.querySelector(`${selector} .react-flow__edge-interaction`);
+      const group = path?.closest(".react-flow__edge");
+      const matrix = path?.getScreenCTM();
+      const length = path?.getTotalLength() ?? 0;
+      if (!path || !group || !matrix || length <= 0) return null;
+      for (const fraction of [0.5, 0.25, 0.75, 0.1, 0.9]) {
+        const local = path.getPointAtLength(length * fraction);
+        const screen = new DOMPoint(local.x, local.y).matrixTransform(matrix);
+        const x = Math.round(screen.x), y = Math.round(screen.y);
+        if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) continue;
+        const hit = document.elementFromPoint(x, y);
+        if (hit && group.contains(hit)) return { x, y };
+      }
+      return null;
+    }, edgeSelector);
+    assert(point, "The selected story edge must expose a real hit point in the graph viewport");
+    await browser.performActions([{ type: "pointer", id: "story-graph-edge-pointer", parameters: { pointerType: "mouse" }, actions: [
+      { type: "pointerMove", origin: "viewport", x: point.x, y: point.y },
+      { type: "pointerDown", button: 0 }, { type: "pointerUp", button: 0 },
+    ] }]);
+    await browser.releaseActions();
+    await browser.waitUntil(async () => await $(".a4n-story-graph-edge-direction").isDisplayed());
+  }, expected: ["graph-edge-1", "source-node", "target-node"], after: async () => {
+    const direction = await browser.execute(() => {
+      const row = document.querySelector(".a4n-story-graph-edge-direction");
+      return {
+        from: row?.querySelector(".a4n-story-graph-edge-from")?.textContent.trim(),
+        to: row?.querySelector(".a4n-story-graph-edge-to")?.textContent.trim(),
+        icon: row?.querySelector("svg.lucide-arrow-right")?.getAttribute("aria-hidden"),
+        spokenDirection: row?.querySelector(".sr-only")?.textContent.trim(),
+      };
+    });
+    assert.deepEqual(direction, { from: "source-node", to: "target-node", icon: "true", spokenDirection: "到" });
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("save_galgame_story_graph")), false);
+    return { ...direction, selectedWithoutMutation: true };
+  }, note: "只选中并读取图边详情；起点/终点方向用 Lucide 表示，读屏仍读到方向词。" },
 
   { id: "MX01", title: "画布保存视角", task: "按已保存视角阅读节点与主要数据流", open: () => openCanvas(), widths: canvasWidths, count: [".react-flow__node", 17], expected: ["节点"], note: "图中17节点均已加载；初始呈现遵守保存视角，不声称所有节点同时在屏内。" },
   ...[
@@ -1158,7 +1555,19 @@ const cases = [
     ["MX04", 6003, "图片生成节点", "图片配置"], ["MX05", 6005, "视频生成节点", "输入模式"],
     ["MX06", 6017, "缺失首尾帧节点", "首尾帧"], ["MX07", 6008, "组装顺序", "成片轨道"],
   ].map(([id, node, title, text]) => ({ id, title, task: `选择${title}并修改前核对属性`, open: () => openCanvas(node), widths: canvasWidths, expected: [text], note: "1024px属性必须有入口；参数、输入与输出分组和字号待复核。" })),
-  { id: "MX08", title: "画布工作流", task: "读取已完成节点、失败原因及恢复入口", open: () => openCanvas(6008), widths: canvasWidths, expected: ["结尾镜头缺少首帧与尾帧", "运行状态", "失败节点", "定位节点"], note: "运行状态位于属性尾部，长参数下的可见性需检查。" },
+  { id: "MX08", title: "画布工作流", task: "读取已完成节点、失败原因及恢复入口", open: () => openCanvas(6008), widths: canvasWidths, expected: ["结尾镜头缺少首帧与尾帧", "运行状态", "失败节点", "定位节点"], after: async (record) => {
+    const workflow = 'section[aria-label="工作流运行记录"]';
+    const rows = await $$(`${workflow} > div[class*="mt-2"][class*="divide-y"] > div`);
+    assert.equal(rows.length, 3, "The populated run timeline must keep all three fixture events");
+    const lastEvent = rows.at(-1);
+    const reachability = await reachByWheel(lastEvent);
+    assert.equal(reachability.reached, true, "The oldest visible run event must be reachable inside the inspector scroll area");
+    const text = await lastEvent.getText();
+    assert(text.includes("47%") && text.includes("首帧和连续镜头已完成"));
+    record.reachability = reachability;
+    record.visualReview = `主流程已看${record.width}px末态，无遮挡或可确认发现；非独立审图。`;
+    return { eventCount: rows.length, lastEvent: text };
+  }, note: "运行状态位于属性尾部；滚到最早事件确认长面板中的历史进度仍能完整阅读。" },
   ...[
     ["MX09", 6014, "文本核验", "text"], ["MX10", 6016, "尾帧核验", "image"],
     ["MX11", 6009, "成片输出", "video"], ["MX12", 6011, "雨声监听", "audio"],
@@ -1242,13 +1651,13 @@ const cases = [
     assert.equal((await reachByWheel(values.at(-1))).reached, true);
     return { edgeId: source.id, sourcePort: source.source_port, targetPort: source.target_port, role: source.role };
   }, note: "SVG 实际点击后逐值核对 context/text/input，并检查末项可达。" },
-  { id: "MX20", title: "画布单节点运行确认", task: "核对当前运行目标后取消", open: async () => { await openCanvas(6005); if ((await browser.execute(() => innerWidth)) <= 1100) await browser.keys("Escape"); await openMenu(".a4n-page-header", "只运行所选节点"); await $(dialog).waitForDisplayed(); }, widths: canvasWidths, scope: dialog, expected: ["只运行此节点", "连续镜头", "取消"], after: async () => {
+  { id: "MX20", title: "画布单节点运行确认", task: "核对当前运行目标与输入来源规则后取消", open: async () => { await openCanvas(6005); if ((await browser.execute(() => innerWidth)) <= 1100) await browser.keys("Escape"); await openMenu(".a4n-page-header", "只运行所选节点"); await $(dialog).waitForDisplayed(); }, widths: [1440, 1024, 900, 390], scope: dialog, expected: ["只运行此节点", "连续镜头", "最近成功结果", "无结果时先运行到此节点", "取消"], after: async () => {
     await $(dialog).$('.//button[normalize-space()="取消"]').click();
     await $(dialog).waitForExist({ reverse: true });
     assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("run_canvas_node")), false);
     assert((await $('.react-flow__node[data-id="6005"]').getAttribute("class")).includes("selected"));
     return { selectedNodeId: 6005, cancelledBeforeCanvasRun: true };
-  }, note: "确认内容必须指向连续镜头；取消后保留节点选择，不启动执行。" },
+  }, note: "说明复用的上游结果与无结果时的处理；取消后保留节点选择，不启动执行。" },
   { id: "MX21", title: "画布图片主体选择", task: "点击已有视频的缩略图主体选择对应节点", open: async () => {
     await openCanvasThumbnail();
     const node = await $('.react-flow__node[data-id="6006"]');
@@ -1264,6 +1673,41 @@ const cases = [
     const before = await selected();
     assert.deepEqual(before, []);
     const button = await $('.react-flow__node[data-id="6006"] button[aria-label="图片预览"]');
+    let mobileTarget = null;
+    if (width <= 640) {
+      const bounds = await button.execute(element => {
+        const buttonRect = element.getBoundingClientRect();
+        const canvasRect = document.querySelector(".react-flow").getBoundingClientRect();
+        const zoom = new DOMMatrixReadOnly(getComputedStyle(document.querySelector(".react-flow__viewport")).transform).a;
+        const hitTarget = getComputedStyle(element, "::before");
+        const targetWidth = parseFloat(hitTarget.width) * zoom;
+        const hitPoint = document.elementFromPoint(
+          buttonRect.left + (buttonRect.width + targetWidth) / 2,
+          buttonRect.top + buttonRect.height / 2,
+        );
+        return {
+          button: buttonRect.toJSON(),
+          canvas: canvasRect.toJSON(),
+          targetWidth,
+          targetHeight: parseFloat(hitTarget.height) * zoom,
+          expandedHit: hitPoint?.closest('button[aria-label="图片预览"]') === element,
+        };
+      });
+      assert(bounds.button.left >= bounds.canvas.left && bounds.button.right <= bounds.canvas.right,
+        "The mobile image preview target must stay inside the visible canvas");
+      assert(bounds.targetWidth >= 44 && bounds.targetHeight >= 44,
+        `The scaled mobile preview target must stay at least 44 CSS px: ${JSON.stringify(bounds)}`);
+      if (bounds.targetWidth > bounds.button.width + 1) {
+        assert.equal(bounds.expandedHit, true, "The transparent area beyond the icon button must still activate its preview");
+      }
+      mobileTarget = {
+        buttonWidth: bounds.button.width,
+        buttonHeight: bounds.button.height,
+        targetWidth: bounds.targetWidth,
+        targetHeight: bounds.targetHeight,
+        expandedHit: bounds.expandedHit,
+      };
+    }
     await button.waitForClickable();
     await button.click();
     await $(dialog).waitForDisplayed();
@@ -1278,7 +1722,7 @@ const cases = [
       timeout: 2500, timeoutMsg: "Closing the canvas image preview must restore focus to its own preview button",
     });
     assert.deepEqual(await selected(), before, "Independent preview must preserve the canvas selection");
-    return { nodeId: 6006, imageMatches: true, selectionUnchanged: true, focusRestored: true };
+    return { nodeId: 6006, mobileTarget, imageMatches: true, selectionUnchanged: true, focusRestored: true };
   }, note: "独立记录灯箱图；Escape 后精确核对原预览按钮获得焦点，不仅检查弹窗消失。" },
   { id: "MX23", title: "画布缩放与交互锁", task: "放大、缩小、适配画布并锁定后恢复编辑", open: () => openCanvas(), widths: canvasWidths, expected: ["影像画布"], after: async (record, width) => {
     const controls = '.a4n-flow-controls';
@@ -1402,16 +1846,12 @@ const cases = [
     return inspectCanvasDraft("VideoProbeNode");
   }, note: "真实修改探针草稿，保留尚未运行的说明，不注入视频、缩略图或观察数据。" },
   { id: "MX30", title: "画布文本输出草稿", task: "从节点库新建text_output并核对终点输入与未运行结果", frequency: "中", open: () => openCanvasDraft("文本输出"), widths: canvasWidths, expected: ["文本输出", "输入", "输出", "运行后在这里显示最终交付结果"], after: () => inspectCanvasDraft("TextOutputNode"), note: "实际输出节点没有额外参数；检查其真实属性与未运行提示，不复用已有文本探针充当输出。" },
-  { id: "MX31", title: "来源视频画布返回", task: "从来源视频工作区进入画布并用页头返回", open: async () => {
-    await openRoute("/video-project/3");
-    await buttonText("画布模式").click();
-    await browser.waitUntil(async () => new URL(await browser.getUrl()).pathname === "/video-project/3/studio");
-    await $(".a4n-app-page-header h1").waitForDisplayed();
-  }, widths: [1440, 390], expected: ["山海之间"], after: async () => {
-    await $(".a4n-app-page-header button").click();
-    await browser.waitUntil(async () => new URL(await browser.getUrl()).pathname === "/video-project/3");
-    return { returnedToSourceWorkspace: true };
-  }, note: "从用户实际入口检验画布左上返回保留当前派生视频项目。" },
+  { id: "MX31", title: "独立画布返回", task: "从独立画布通过页头返回项目列表", open: () => openCanvas(), widths: [1440, 390], expected: ["山海之间"], after: async () => {
+    await $('button[aria-label="返回上一页"]').click();
+    await browser.waitUntil(async () => new URL(await browser.getUrl()).pathname === "/");
+    await $(".a4n-home-content").waitForDisplayed();
+    return { returnedToProjectList: true, path: "/" };
+  }, note: "画布是独立 project_kind=canvas；核对其真实页头返回合同，不将视频工作区映射到未注册的 /studio 路由。" },
   { id: "MX32", title: "画布视口保存", task: "用画布缩放控件调整视口并保存当前图", open: () => openCanvas(), widths: [1440, 390], expected: ["影像画布"], after: async (_record, width) => {
     if (width >= 640) {
       assert.equal(await $(".a4n-studio-minimap").isDisplayed(), false, "The minimap starts collapsed so it cannot cover nodes");
@@ -1434,6 +1874,55 @@ const cases = [
     assert.notEqual(saved.zoom, before.zoom, "The write must carry the user's changed viewport");
     return { before, savedViewport: saved };
   }, note: "检查用户视口进入真实画布写请求；不只检查保存 Toast。" },
+  { id: "MX33", title: "画布节点拖拽预览图标", task: "从节点库拖动节点并核对预览沿用 Lucide 图标", open: () => openCanvas(), widths: [1440], expected: ["节点库"], after: async (_record, width) => {
+    const before = (await $$(".react-flow__node")).length;
+    const template = await $('button[draggable="true"]');
+    const drag = await template.execute(element => {
+      const sourceIcon = element.querySelector("svg.lucide");
+      let preview = null;
+      let anchor = null;
+      const dataTransfer = new DataTransfer();
+      Object.defineProperty(dataTransfer, "setDragImage", {
+        configurable: true,
+        value(image, x, y) {
+          preview = image.cloneNode(true);
+          preview.dataset.auditDragPreview = "true";
+          Object.assign(preview.style, { left: "330px", top: "120px", zIndex: "2147483647" });
+          document.body.appendChild(preview);
+          anchor = { x, y };
+        },
+      });
+      const event = new DragEvent("dragstart", { bubbles: true, cancelable: true, dataTransfer });
+      element.dispatchEvent(event);
+      const previewIcon = preview?.querySelector(".a4n-studio-node-icon svg.lucide");
+      return {
+        prevented: event.defaultPrevented,
+        dragTypes: [...dataTransfer.types],
+        dragLabel: dataTransfer.getData("application/a4n-studio-node-label"),
+        sourceLabel: element.textContent.trim(),
+        sourceIconClass: sourceIcon?.getAttribute("class") ?? null,
+        previewIconClass: previewIcon?.getAttribute("class") ?? null,
+        previewIconWidth: previewIcon?.getAttribute("width") ?? null,
+        iconText: preview?.querySelector(".a4n-studio-node-icon")?.textContent?.trim() ?? null,
+        anchor,
+      };
+    });
+    try {
+      assert.equal(drag.prevented, false);
+      assert(drag.dragTypes.includes("application/a4n-studio-node-kind"), `The drag payload must retain its node type: ${JSON.stringify(drag)}`);
+      assert.equal(drag.dragLabel, drag.sourceLabel, "The drag payload must retain the node label");
+      assert(drag.sourceIconClass?.includes("lucide"), "The node library entry must have a Lucide icon");
+      assert(drag.previewIconClass, `The real dragstart handler must install its drag image: ${JSON.stringify(drag)}`);
+      assert.equal(drag.previewIconClass, drag.sourceIconClass, "The drag image must reuse the source Lucide icon");
+      assert.equal(drag.iconText, "", "The drag image must not replace its icon with a character glyph");
+      assert(drag.anchor && drag.anchor.x > 0 && drag.anchor.y > 0, "The drag image must retain its centered pointer anchor");
+      await browser.saveScreenshot(`${output}/${phase}-MX33-drag-preview-${width}.png`);
+      assert.equal((await $$(".react-flow__node")).length, before, "Starting a drag must not create a node before drop");
+      return { ...drag, nodeCountUnchanged: true, screenshot: `${phase}-MX33-drag-preview-${width}.png` };
+    } finally {
+      await browser.execute(() => document.querySelector('[data-audit-drag-preview="true"]')?.remove());
+    }
+  }, note: "只触发拖拽开始并截图真实 setDragImage 节点；不执行 drop 或新增节点。" },
   ...[["MS01", 2, "漫画"], ["MS02", 3, "视频"], ["MS03", 5, "Galgame"]].map(([id, project, label]) => ({ id, title: `${label}来源同步冲突`, task: "比较三条来源变化与当前改编，关闭前不应用决定", frequency: "低", open: () => openSourceSync(project), scope: dialog, count: [`${dialog} article`, 3], expected: ["冲突清单", "来源变化", "当前项目", "未寄出的信"], after: inspectSourceSyncEnd, note: "typed dry_run预览；真实滚到末条冲突并补充conflicts-end截图，不为应用/解绑提供假成功mutation。" })),
   {
     id: "UX-2250", title: "来源同步预览进行中关闭", task: "预览请求未返回时关闭只读同步对话框，并确认迟到结果不会重新载入",
@@ -1496,7 +1985,14 @@ describe("Populated media pages and task dialogs", () => {
   before(async () => {
     await mkdir(output, { recursive: true });
     fixtures = await buildPageFixtures(browser.options.baseUrl);
+    const canvasProject = fixtures.projectRecords.find((project) => project.id === 6);
+    assert.ok(canvasProject, "Media canvas fixture requires project 6");
+    canvasProject.project_kind = "canvas";
+    canvasProject.project_type = "canvas";
+    fixtures.list_projects.items = fixtures.projectRecords;
+    fixtures.byProject[6].list_canvas_text_assets = [];
     const canvas = fixtures.byProject[6].get_canvas_graph;
+    canvas.graph.graph_kind = "video_studio";
     fixtures.byProject[3].get_canvas_graph = {
       ...canvas,
       graph: { ...canvas.graph, id: 3, graph_kind: "video_studio", name: "来源视频画布" },
@@ -1537,6 +2033,7 @@ describe("Populated media pages and task dialogs", () => {
     }
     report.push(record);
     await writeFile(`${output}/${phase}-${record.id}-${record.width}.json`, JSON.stringify(record, null, 2));
+    if (record.id === "MG14") await installUiFixtures(browser, fixtures);
   });
 
   for (const entry of cases) for (const width of entry.widths ?? widths) {
@@ -2043,7 +2540,7 @@ describe("Populated media pages and task dialogs", () => {
     await browser.waitUntil(async () => (await scriptStage.getAttribute("aria-selected")) === "true");
 
     const editor = await $(galgameEditor);
-    const backgroundDetails = await editor.$("details");
+    const backgroundDetails = await editor.$("details:not([data-scene-meta-disclosure])");
     const backgroundSummary = await backgroundDetails.$("summary");
     assert((await backgroundSummary.getText()).includes("背景"));
     await backgroundSummary.click();
@@ -2062,7 +2559,7 @@ describe("Populated media pages and task dialogs", () => {
     await browser.waitUntil(async () => (await materialsStage.getAttribute("aria-selected")) === "true");
     await scriptStage.click();
     await browser.waitUntil(async () => (await scriptStage.getAttribute("aria-selected")) === "true");
-    const reopenedBackground = await $(galgameEditor).$("details");
+    const reopenedBackground = await $(galgameEditor).$("details:not([data-scene-meta-disclosure])");
     await reopenedBackground.$("summary").click();
     const reopenedBinder = await reopenedBackground.$("details");
     await reopenedBinder.$("summary").click();
@@ -2192,15 +2689,17 @@ describe("Populated media pages and task dialogs", () => {
     this.mediaRecord = { id: "UX-1791-galgame-editor-enabled", title: "Galgame台词编辑权限", width: 1440, task: "有编辑权限时台词字段和动作应真正可操作" };
     await browser.setWindowSize(1440, 1000);
     await openGalgame();
-    const line = await $(galgameLines).at(0);
+    const line = (await $$(galgameLines))[0];
     const textarea = await line.$("textarea");
     assert.equal(await textarea.isEnabled(), true, "An editor must be able to edit a script line");
     const savedLine = { ...fixtures.byProject[5].get_galgame_script.scenes[0].lines[0], text: "编辑权限已生效。" };
-    fixtures.update_galgame_line = savedLine;
+    await browser.execute((updatedLine) => {
+      window.__uiAudit.fixtures.update_galgame_line = updatedLine;
+    }, savedLine);
     await textarea.setValue(savedLine.text);
     await textarea.click();
-    await browser.keys("TAB");
-    await browser.waitUntil(() => browser.execute(() => window.__uiAudit.requests.some((item) => item.command === "update_galgame_line")), { timeout });
+    await browser.keys("Tab");
+    await browser.waitUntil(() => browser.execute(() => window.__uiAudit.requests.some((item) => item.command === "update_galgame_line")), { timeout: 5000 });
     this.mediaRecord.interaction = { lineEditorEnabled: true, updateCommandSent: true };
   });
 
@@ -2208,13 +2707,13 @@ describe("Populated media pages and task dialogs", () => {
     this.mediaRecord = { id: "UX-1792-galgame-delete-readback", title: "Galgame台词删除回包", width: 1440, task: "删除命令成功后不因剧本读回失败误报" };
     await browser.setWindowSize(1440, 1000);
     await openGalgame();
-    fixtures.delete_galgame_line = null;
+    await browser.execute(() => { window.__uiAudit.fixtures.delete_galgame_line = null; });
     await browser.execute(() => window.__uiAudit.failNext.push({ command: "get_galgame_script", status: 503, message: "删除后的 Galgame 剧本读取失败" }));
-    const line = await $(galgameLines).at(0);
+    const line = (await $$(galgameLines))[0];
     await line.$('button[aria-haspopup="menu"]').click();
     await $(`//*[@role="menuitem" and normalize-space(.)=${JSON.stringify("删除此行")}]`).click();
-    await browser.waitUntil(async () => (await $("body").getText()).includes("剧本行已删除"), { timeout });
-    await browser.waitUntil(async () => (await $$(galgameLines)).length === 7, { timeout });
+    await browser.waitUntil(async () => (await $("body").getText()).includes("剧本行已删除"), { timeout: 5000 });
+    await browser.waitUntil(async () => (await $$(galgameLines)).length === 7, { timeout: 5000 });
     this.mediaRecord.interaction = { deleteCommandCommitted: true, localLineRemoved: true, scriptReadback: "failed" };
   });
 
@@ -2223,16 +2722,17 @@ describe("Populated media pages and task dialogs", () => {
     await browser.setWindowSize(1440, 1000);
     await openGalgame();
     const firstLine = fixtures.byProject[5].get_galgame_script.scenes[0].lines[0];
-    fixtures.insert_galgame_line = { ...firstLine, id: 59999, line_index: firstLine.line_index + 1, text: "新增旁白回包。" };
+    const insertedLine = { ...firstLine, id: 59999, line_index: firstLine.line_index + 1, text: "新增旁白回包。" };
+    await browser.execute((line) => { window.__uiAudit.fixtures.insert_galgame_line = line; }, insertedLine);
     await browser.execute(() => window.__uiAudit.failNext.push({ command: "get_galgame_script", status: 503, message: "插入后的 Galgame 剧本读取失败" }));
-    const line = await $(galgameLines).at(0);
+    const line = (await $$(galgameLines))[0];
     await line.$('button[aria-haspopup="menu"]').click();
     await $(`//*[@role="menuitem" and normalize-space(.)=${JSON.stringify("在下方插入旁白")}]`).click();
     const prompt = await $(dialog);
     await prompt.$("input").setValue("新增旁白回包。");
-    await prompt.$('.//button[normalize-space()="新增旁白"]').click();
-    await browser.waitUntil(async () => (await $("body").getText()).includes("剧本行已新增"), { timeout });
-    await browser.waitUntil(async () => (await $$(galgameLines)).length === 9, { timeout });
+    await prompt.$('.//button[normalize-space()="添加旁白"]').click();
+    await browser.waitUntil(async () => (await $("body").getText()).includes("剧本行已新增"), { timeout: 5000 });
+    await browser.waitUntil(async () => (await $$(galgameLines)).length === 9, { timeout: 5000 });
     this.mediaRecord.interaction = { insertCommandCommitted: true, localLineInserted: true, scriptReadback: "failed" };
   });
 
@@ -2242,13 +2742,13 @@ describe("Populated media pages and task dialogs", () => {
     await openGalgame();
     const scene = fixtures.byProject[5].get_galgame_script.scenes[0];
     const reordered = [scene.lines[1], scene.lines[0], ...scene.lines.slice(2)].map((line, index) => ({ ...line, line_index: index + 1 }));
-    fixtures.reorder_galgame_lines = reordered;
+    await browser.execute((lines) => { window.__uiAudit.fixtures.reorder_galgame_lines = lines; }, reordered);
     await browser.execute(() => window.__uiAudit.failNext.push({ command: "get_galgame_script", status: 503, message: "重排后的 Galgame 剧本读取失败" }));
-    const firstLine = await $(galgameLines).at(0);
+    const firstLine = (await $$(galgameLines))[0];
     await firstLine.$('button[aria-haspopup="menu"]').click();
     await $(`//*[@role="menuitem" and normalize-space(.)=${JSON.stringify("下移一行")}]`).click();
-    await browser.waitUntil(async () => (await $("body").getText()).includes("剧本行顺序已更新"), { timeout });
-    const firstText = await (await $(galgameLines).at(0)).$("textarea").getValue();
+    await browser.waitUntil(async () => (await $("body").getText()).includes("剧本行顺序已更新"), { timeout: 5000 });
+    const firstText = await (await $$(galgameLines))[0].$("textarea").getValue();
     assert.equal(firstText, scene.lines[1].text);
     this.mediaRecord.interaction = { reorderCommandCommitted: true, localOrderApplied: true, scriptReadback: "failed" };
   });

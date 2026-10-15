@@ -10,7 +10,12 @@ import type { ChapterOutline } from "../../src/api/outline";
 import "../../src/index.css";
 
 const poseOptions = ["普通", "思考", "惊讶"].map((value) => ({ value, label: value }));
-const catalogOptions = Array.from({ length: 80 }, (_, index) => ({ value: `model-${index}`, label: `创作模型 ${index + 1}` }));
+const catalogOptions = Array.from({ length: 80 }, (_, index) => ({
+  value: `model-${index}`,
+  label: index === 0
+    ? "openai/ui-structured-long-context-instruction-tuned-tool-use-128k-2026-10-14"
+    : `创作模型 ${index + 1}`,
+}));
 const outline: ChapterOutline = {
   id: 1, project_id: 1, chapter_number: 1, part_id: null, source_kind: null, status: "draft",
   title: "雨夜", summary: "旅人在旧书店发现一封信。", word_count_target: 2000,

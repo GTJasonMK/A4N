@@ -1,6 +1,7 @@
 import React from "react";
 import { BookOpen, ChevronRight, Gamepad2, Image, Layers3, Video } from "lucide-react";
 import { Dropdown } from "../../components/ui/Dropdown";
+import { BookButton } from "../../components/ui/BookButton";
 import { BookCardAction } from "../../components/ui/BookCard";
 import { useContextMenu, type ContextMenuEntry } from "../../components/ui/ContextMenu";
 import { canEditProjectMaterials, type NovelProject } from "../../api/project";
@@ -24,6 +25,7 @@ interface ProjectListProps {
   families: ProjectFamily[];
   groups: [string, ProjectFamily[]][];
   empty: boolean;
+  onClearFilters: () => void;
   onOpen: (project: NovelProject) => void;
   onWrite: (project: NovelProject) => void;
   getActions: (project: NovelProject) => ProjectActionItems;
@@ -31,8 +33,8 @@ interface ProjectListProps {
 }
 
 export const RecentProjectList: React.FC<
-  Pick<ProjectListProps, "families" | "empty" | "onOpen" | "onWrite" | "getActions" | "canUseProjectRows">
-> = ({ families, empty, onOpen, onWrite, getActions, canUseProjectRows = true }) => {
+  Pick<ProjectListProps, "families" | "empty" | "onClearFilters" | "onOpen" | "onWrite" | "getActions" | "canUseProjectRows">
+> = ({ families, empty, onClearFilters, onOpen, onWrite, getActions, canUseProjectRows = true }) => {
   const { t } = useI18n();
   if (empty) {
     return (
@@ -40,7 +42,7 @@ export const RecentProjectList: React.FC<
     );
   }
   if (families.length === 0) {
-    return null;
+    return <FilteredProjectEmptyHint onClearFilters={onClearFilters} />;
   }
   return (
     <ul className="a4n-motion-stagger space-y-3">
@@ -59,11 +61,14 @@ export const RecentProjectList: React.FC<
 };
 
 export const AllProjectList: React.FC<
-  Pick<ProjectListProps, "groups" | "empty" | "onOpen" | "onWrite" | "getActions" | "canUseProjectRows">
-> = ({ groups, empty, onOpen, onWrite, getActions, canUseProjectRows = true }) => {
+  Pick<ProjectListProps, "groups" | "empty" | "onClearFilters" | "onOpen" | "onWrite" | "getActions" | "canUseProjectRows">
+> = ({ groups, empty, onClearFilters, onOpen, onWrite, getActions, canUseProjectRows = true }) => {
   const { t } = useI18n();
   if (empty) {
     return <EmptyHint text={t("novel.noProjects")} />;
+  }
+  if (groups.length === 0) {
+    return <FilteredProjectEmptyHint onClearFilters={onClearFilters} />;
   }
   return (
     <div className="a4n-motion-stagger space-y-5">
@@ -249,13 +254,13 @@ const ProjectRow: React.FC<{
           </span>
           <div className="min-w-0 flex-1">
             <h3 className="text-base font-semibold text-book-text-main sm:text-lg">
-              <span className="block truncate">{project.title}</span>
+              <span className="line-clamp-2 leading-snug sm:line-clamp-1">{project.title}</span>
             </h3>
             <p className="mt-1 truncate text-small text-book-text-muted">
               {project.owner_username} · {formatDate(project.updated_at, locale)}
             </p>
             <p
-              className="mt-1 break-words text-small text-book-text-sub sm:truncate"
+              className="mt-1 break-words text-small text-book-text-sub [word-break:keep-all] sm:truncate"
               title={progressText}
             >
               {projectMeta}
@@ -282,9 +287,16 @@ const ProjectRow: React.FC<{
                 <span className="sm:hidden">{t("novel.writeShortcut")}</span>
               </button>
             ) : (
-              <span className="hidden text-body-sm font-semibold text-book-primary sm:inline">
-                {entryLabel}
-              </span>
+              <>
+                <span className="hidden text-body-sm font-semibold text-book-primary sm:inline">
+                  {entryLabel}
+                </span>
+                {project.project_kind === "text" && entryRoute === workspaceRoute ? (
+                  <span className="text-body-sm font-semibold text-book-primary sm:hidden">
+                    {t("novel.writeShortcut")}
+                  </span>
+                ) : null}
+              </>
             )}
             {hasActionItems ? (
               <span className="pointer-events-auto relative z-20">
@@ -304,3 +316,15 @@ const ProjectRow: React.FC<{
 const EmptyHint: React.FC<{ text: string }> = ({ text }) => (
   <div className="a4n-empty-state a4n-empty-state--framed text-sm">{text}</div>
 );
+
+const FilteredProjectEmptyHint: React.FC<{ onClearFilters: () => void }> = ({ onClearFilters }) => {
+  const { t } = useI18n();
+  return (
+    <div className="a4n-empty-state a4n-empty-state--framed text-sm">
+      <p>{t("novel.noProjectsMatchFilters")}</p>
+      <BookButton variant="secondary" size="sm" onClick={onClearFilters}>
+        {t("novel.clearProjectFilters")}
+      </BookButton>
+    </div>
+  );
+};

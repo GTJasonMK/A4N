@@ -446,7 +446,7 @@ export const PromptTab: React.FC = () => {
           ? t("settingsPrompt.defaultsLoaded", { count: loadedCount })
           : t("settingsPrompt.defaultsAlreadyLoaded");
       addToast(successMessage, "success");
-      markClean();
+      if (editVersionRef.current === requestEditVersion) markClean();
       void refresh({ preserveDraft: true }).then((refreshed) => {
         if (!mountedRef.current || defaultsSeqRef.current !== requestSeq) return;
         if (!refreshed) {

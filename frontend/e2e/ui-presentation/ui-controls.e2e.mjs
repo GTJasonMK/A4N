@@ -142,6 +142,60 @@ describe("nested editor and input contracts", () => {
     assert.ok(Math.abs(closed.offset) < 1 && closed.direction > 0, "Closing must restore only the arrow direction");
   });
 
+  it("keeps long model suggestions readable and inside the viewport", async () => {
+    const output = fileURLToPath(new URL("../../../.dev-runtime/ui-pages/media/", import.meta.url));
+    await mkdir(output, { recursive: true });
+    const input = await $("#long-combobox");
+    for (const width of [1440, 900, 390]) {
+      await browser.setWindowSize(width, 900);
+      await browser.waitUntil(async () => browser.execute((expectedWidth) => innerWidth === expectedWidth, width), {
+        timeout: 5000,
+      });
+      await input.click();
+      const listbox = await $('[role="listbox"]');
+      await listbox.waitForDisplayed();
+      const layout = await listbox.execute((box) => {
+        const selected = box.querySelector('[role="option"][aria-selected="true"]');
+        const label = selected?.querySelector(":scope > span");
+        const range = document.createRange();
+        if (label) range.selectNodeContents(label);
+        const bounds = box.getBoundingClientRect();
+        const trigger = document.querySelector("#long-combobox");
+        return {
+          viewportWidth: innerWidth,
+          overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          triggerWidth: trigger?.getBoundingClientRect().width ?? 0,
+          listboxWidth: bounds.width,
+          listboxLeft: bounds.left,
+          listboxRight: bounds.right,
+          optionText: label?.textContent?.trim() ?? null,
+          optionLines: range.getClientRects().length,
+          visibleOptionMinHeight: Math.min(
+            ...[...box.querySelectorAll('[role="option"]')]
+              .slice(0, 8)
+              .map((option) => option.getBoundingClientRect().height),
+          ),
+          clipped: Boolean(label && (
+            label.scrollWidth > label.clientWidth + 1 ||
+            label.scrollHeight > label.clientHeight + 1
+          )),
+        };
+      });
+      console.info(`[ui-controls] long model listbox ${width}px: ${JSON.stringify(layout)}`);
+      assert.match(layout.optionText, /openai\/ui-structured-long-context/);
+      assert.equal(layout.viewportWidth, width);
+      assert.equal(layout.overflow, 0);
+      assert.equal(layout.clipped, false);
+      assert.ok(layout.listboxWidth >= layout.triggerWidth);
+      assert.ok(layout.listboxLeft >= 0 && layout.listboxRight <= width);
+      assert.ok(layout.optionLines <= (width < 768 ? 2 : 1));
+      if (width < 768) assert.ok(layout.visibleOptionMinHeight >= 44);
+      await browser.saveScreenshot(`${output}themed-combobox-long-model-${width}.png`);
+      await browser.keys("Escape");
+      await browser.waitUntil(async () => !(await listbox.isDisplayed()));
+    }
+  });
+
   it("keeps IME confirmation from committing a combobox suggestion", async () => {
     const input = await $('input[role="combobox"]');
     await replaceInput(input, "思");

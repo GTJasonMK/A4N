@@ -250,6 +250,10 @@ export const TestCenterPage: React.FC = () => {
   const visibleScenarios = category === "all"
     ? scenarios
     : scenarios.filter((item) => item.category === category);
+  const mobileScenarioOptions = selectedScenario
+    && !visibleScenarios.some((item) => item.id === selectedScenario.id)
+    ? [selectedScenario, ...visibleScenarios]
+    : visibleScenarios;
   const scenarioCopy = (scenario: TestScenarioDescriptor) => {
     const keys = SCENARIO_COPY_KEYS[scenario.id];
     return keys
@@ -692,14 +696,12 @@ export const TestCenterPage: React.FC = () => {
               value={category}
               onChange={(event) => {
                 const nextCategory = event.target.value;
-                const nextVisible = nextCategory === "all"
-                  ? scenarios
-                  : scenarios.filter((scenario) => scenario.category === nextCategory);
                 setCategory(nextCategory);
-                if (!nextVisible.some((scenario) => scenario.id === selectedScenarioId)) {
-                  const nextScenario = nextVisible[0];
-                  if (nextScenario) selectScenario(nextScenario.id);
-                  else setSelectedScenarioId("");
+                if (!selectedScenarioId) {
+                  const firstVisible = nextCategory === "all"
+                    ? scenarios[0]
+                    : scenarios.find((scenario) => scenario.category === nextCategory);
+                  if (firstVisible) selectScenario(firstVisible.id);
                 }
               }}
               className="max-w-full border border-book-border/70 bg-book-bg-paper px-2 py-1.5 text-xs"
@@ -708,7 +710,22 @@ export const TestCenterPage: React.FC = () => {
               {categories.map((item) => <option key={item} value={item}>{categoryCopy(item)}</option>)}
             </select>
           </div>
-          <div className="flex flex-col gap-1.5">
+          <select
+            aria-label={t("settingsAdmin.testCenter.scenarios")}
+            value={selectedScenarioId}
+            onChange={(event) => setSelectedScenarioId(event.target.value)}
+            disabled={mobileScenarioOptions.length === 0}
+            className="mb-3 min-h-10 w-full border border-book-border/70 bg-book-bg-paper px-3 text-xs xl:hidden"
+          >
+            {mobileScenarioOptions.length === 0 ? (
+              <option value="">{t("settingsAdmin.testCenter.noScenarios")}</option>
+            ) : mobileScenarioOptions.map((scenario) => (
+              <option key={scenario.id} value={scenario.id}>
+                {scenarioCopy(scenario).title} · {scenario.category} · {t(`settingsAdmin.testCenter.effect${scenario.effect[0].toUpperCase()}${scenario.effect.slice(1)}` as MessageKey)}
+              </option>
+            ))}
+          </select>
+          <div className="hidden flex-col gap-1.5 xl:flex">
             {visibleScenarios.map((scenario) => (
               <button
                 key={scenario.id}
@@ -993,7 +1010,7 @@ function RunResult({
 }) {
   if (!detail) {
     return (
-      <div className="flex min-h-40 items-center gap-2 py-5 text-xs text-book-text-muted">
+      <div className="flex min-h-14 items-center gap-2 py-3 text-xs text-book-text-muted xl:min-h-40 xl:py-5">
         <CircleHelp size={14} />{t("settingsAdmin.testCenter.noSteps")}
       </div>
     );

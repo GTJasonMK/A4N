@@ -66,6 +66,14 @@ export const uiFixtures = {
     page_cli_enabled: false, avatar_url: null, created_at: null, updated_at: null,
     last_login_at: null, oauth_provider: null, oauth_subject: null,
   },
+  list_creator_notifications: {
+    items: [
+      { id: 401, title: "项目资料已完成整理", body: "最近一次整理已完成，涉及 3 个章节。", created_at: "2026-10-13T02:00:00Z", is_read: false },
+      { id: 402, title: "补充创作计划", body: "请在下次编辑前确认角色关系与场景信息。", created_at: "2026-10-12T16:00:00Z", is_read: true },
+    ],
+    unread_count: 1,
+  },
+  mark_creator_notification_read: null,
   get_package_preferences: { host_scope: "ui-fixture-host", hidden_package_ids: [] },
   get_project_fact_feedback: {
     project_id: 1, interval_chapters: 5, consolidated_chapters: [], pending_chapters: [],
@@ -75,6 +83,11 @@ export const uiFixtures = {
   list_projects: { items: projects, page: 1, page_size: 20, total: projects.length },
   get_project: project,
   list_chapters: chapters,
+  list_chapter_outline_index: [],
+  list_chapter_index: chapters.map(({ content: _content, ...chapter }) => ({
+    ...chapter,
+    body_character_count: 28,
+  })),
   list_chapter_outlines: [],
   list_my_project_invites: [],
   list_themes: [{
@@ -115,10 +128,22 @@ export const uiFixtures = {
 let fixtureScript;
 export async function installUiFixtures(browser, overrides = {}) {
     await fixtureScript?.remove();
-    fixtureScript = await browser.addInitScript((encodedFixtures) => {
+    const installFixtures = (encodedFixtures) => {
       const fixtures = JSON.parse(decodeURIComponent(encodedFixtures));
       const params = new URL(location.href).searchParams;
       Object.assign(fixtures, JSON.parse(params.get("ui-fixtures") ?? "{}"));
+      if (params.has("ui-creator")) {
+        fixtures.get_current_user = { ...fixtures.get_current_user, role: "user" };
+      }
+      const profileReviewRole = params.has("ui-object-summary-review") || params.has("ui-n11-viewer")
+        ? "viewer"
+        : "owner";
+      for (const record of [
+        fixtures.projectRecords?.find((item) => item.id === 1),
+        fixtures.list_projects?.items?.find((item) => item.id === 1),
+      ]) {
+        if (record) record.my_role = profileReviewRole;
+      }
       const authenticated = !params.has("ui-auth");
       const deferred = [...new Set([...(fixtures.deferred ?? []), ...params.getAll("ui-defer")])];
       if (authenticated) {
@@ -149,7 +174,7 @@ export async function installUiFixtures(browser, overrides = {}) {
         emitPageSessionNavigate: null,
         draws: { attached: 0, detached: 0 },
       };
-      window.addEventListener("error", (event) => window.__uiAudit.errors.push(event.message));
+      window.addEventListener("error", (event) => window.__uiAudit.errors.push(`${event.message}\n${event.error?.stack ?? ""}`));
       window.addEventListener("unhandledrejection", (event) => window.__uiAudit.errors.push(String(event.reason)));
       const fetch = window.fetch.bind(window);
       window.fetch = async (input, options) => {
@@ -261,11 +286,23 @@ export async function installUiFixtures(browser, overrides = {}) {
         }
         if (url.pathname === "/api/agent-threads") {
           if (method === "POST") {
-            if (!("create_agent_thread" in fixtures)) {
-              throw new Error("Missing create_agent_thread fixture");
+            if (fixtures.agentThreadCreateResponses) {
+              const created = fixtures.agentThreadCreateResponses.find(({ thread }) =>
+                thread.kind === body.kind && thread.capability === body.capability
+                && thread.scope?.project_id === body.scope?.project_id
+                && thread.scope?.chapter_id === body.scope?.chapter_id
+                && thread.scope?.resource_kind === body.scope?.resource_kind
+                && thread.scope?.resource_id === body.scope?.resource_id,
+              );
+              if (!created) throw new Error(`Missing Agent thread creation fixture for ${body.capability ?? "unscoped"}`);
+              return Response.json(created.thread, { status: 201 });
             }
-            return Response.json(fixtures.create_agent_thread);
+            if ("create_agent_thread" in fixtures) {
+              return Response.json(fixtures.create_agent_thread, { status: 201 });
+            }
+            throw new Error("Missing create_agent_thread fixture");
           }
+          if (method !== "GET") throw new Error(`Unexpected Agent thread fixture method: ${method}`);
           return new Response(JSON.stringify(fixtures.agentSnapshots.map((item) => item.thread)), { headers: { "Content-Type": "application/json" } });
         }
         const agentRunControlPath = url.pathname.match(/^\/api\/agent-runs\/([^/]+)\/control$/);
@@ -315,7 +352,8 @@ export async function installUiFixtures(browser, overrides = {}) {
         }
         const agentPath = url.pathname.match(/^\/api\/agent-threads\/([^/]+)(?:\/(messages|events))?$/);
         if (agentPath) {
-          const snapshot = fixtures.agentSnapshots.find((item) => item.thread.id === agentPath[1]);
+          const snapshot = [...fixtures.agentSnapshots, ...(fixtures.agentThreadCreateResponses ?? [])]
+            .find((item) => item.thread.id === agentPath[1]);
           if (!snapshot) throw new Error(`Missing Agent fixture: ${agentPath[1]}`);
           if (agentPath[2] === "messages" && options.method === "POST") {
             return new Promise((resolve) => window.__uiAudit.agentMessages.push({ input: JSON.parse(options.body), resolve }));
@@ -365,9 +403,28 @@ export async function installUiFixtures(browser, overrides = {}) {
         const profileName = body.input?.name ?? body.name;
         const profileId = body.input?.profile_id ?? body.profileId ?? body.characterId
           ?? fixtures.list_profiles?.find((profile) => profile.name === profileName)?.id;
+        if (command === "list_import_queue_index" && Array.isArray(fixtures.list_import_queue)) {
+          return Response.json(fixtures.list_import_queue
+            .filter((review) => review.project_id === projectId)
+            .map(({ id, project_id, filename, review_status, created_at, updated_at }) => ({
+              id, project_id, filename, review_status, created_at, updated_at,
+            })));
+        }
+        if (command === "get_import_review" && Array.isArray(fixtures.list_import_queue)) {
+          const review = fixtures.list_import_queue.find((item) => item.id === body.input?.review_id);
+          if (!review) throw new Error(`Missing import review fixture: ${body.input?.review_id}`);
+          return Response.json(review);
+        }
         if (command === "get_profile_state_at_chapter" && fixtures.byProfileChapter) {
           const value = fixtures.byProfileChapter[profileId]?.[body.input?.chapter_number];
           if (!value) throw new Error(`Missing profile chapter fixture: ${profileId}/${body.input?.chapter_number}`);
+          return Response.json(value);
+        }
+        if (command === "get_chapter" && fixtures.list_chapters) {
+          const requestedChapterId = body.input?.chapter_id ?? body.chapter_id;
+          const value = fixtures.list_chapters.find((chapter) => chapter.id === requestedChapterId)
+            ?? fixtures.list_chapters[0];
+          if (!value) throw new Error(`Missing chapter fixture: ${requestedChapterId}`);
           return Response.json(value);
         }
         if (command === "get_snapshot" && fixtures.bySnapshot) {
@@ -409,7 +466,7 @@ export async function installUiFixtures(browser, overrides = {}) {
           if (!chapter) throw new Error(`Missing source snapshot chapter fixture: ${projectId}/${chapterId}`);
           return Response.json(chapter);
         }
-        const sources = [fixtures.byChapter?.[chapterId], fixtures.byProfile?.[profileId], fixtures.byProject?.[projectId], fixtures];
+        const sources = [fixtures.byProject?.[projectId]?.byChapter?.[chapterId], fixtures.byChapter?.[chapterId], fixtures.byProfile?.[profileId], fixtures.byProject?.[projectId], fixtures];
         const source = sources.find((item) => item && Object.hasOwn(item, command));
         if (!source) {
           window.__uiAudit.unexpected.push(command);
@@ -432,6 +489,20 @@ export async function installUiFixtures(browser, overrides = {}) {
           fixtures.get_project_import_analysis_progress = value;
         } else if (command === "run_import_project_analysis") {
           fixtures.get_project_import_analysis_progress = value.progress;
+        } else if (command === "import_project_text_upload" && Array.isArray(fixtures.list_import_queue)) {
+          fixtures.list_import_queue.push(...value);
+        } else if (command === "batch_accept_reviews" && Array.isArray(fixtures.list_import_queue)) {
+          const accepted = new Map(value.accepted_reviews.map((review) => [review.id, review]));
+          fixtures.list_import_queue = fixtures.list_import_queue.map((review) => accepted.get(review.id) ?? review);
+        } else if (["accept_import_review", "reject_import_review"].includes(command)
+          && Array.isArray(fixtures.list_import_queue)) {
+          fixtures.list_import_queue = fixtures.list_import_queue.map((review) =>
+            review.id === value.id ? value : review,
+          );
+        } else if (command === "delete_import_review" && Array.isArray(fixtures.list_import_queue)) {
+          fixtures.list_import_queue = fixtures.list_import_queue.filter(
+            (review) => review.id !== body.input?.review_id,
+          );
         }
         return Response.json(value);
       };
@@ -494,5 +565,11 @@ export async function installUiFixtures(browser, overrides = {}) {
         }
         return clearRect.apply(this, args);
       };
-    }, encodeURIComponent(JSON.stringify({ ...uiFixtures, ...overrides })));
+    };
+    const result = await browser.scriptAddPreloadScript({
+      functionDeclaration: `() => (${installFixtures.toString()})(${JSON.stringify(encodeURIComponent(JSON.stringify({ ...uiFixtures, ...overrides })))})`,
+    });
+    fixtureScript = {
+      remove: () => browser.scriptRemovePreloadScript({ script: result.script }),
+    };
 }

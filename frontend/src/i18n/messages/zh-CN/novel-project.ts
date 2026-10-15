@@ -16,6 +16,8 @@ export const novelProject = {
   importProject: "导入项目",
   projectList: "项目列表",
   noProjects: "暂无项目",
+  noProjectsMatchFilters: "没有符合当前筛选条件的项目",
+  clearProjectFilters: "清除筛选",
   loadingProjects: "正在加载项目…",
   projectLoadFailed: "加载项目列表失败",
   novel: "小说",

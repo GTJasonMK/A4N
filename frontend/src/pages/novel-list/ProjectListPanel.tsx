@@ -89,6 +89,10 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
     owned: t("novel.owned"),
     collaborating: t("novel.collaborating"),
   };
+  const clearProjectFilters = () => {
+    onAccessScopeChange("all");
+    onProjectKindFilterChange("all");
+  };
   return (
   <section aria-label={t("novel.projectList")} className="a4n-home-content flex min-w-0 flex-1 flex-col md:overflow-hidden">
     <header className="a4n-home-heading content-wide">
@@ -96,7 +100,7 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
       <h1>{t("novel.projectWorkbench")}</h1>
     </header>
     <nav aria-label={t("novel.projectFilter")} className="a4n-home-filter-bar content-wide mb-3 border-b border-book-border/60 pb-2.5">
-      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2.5 md:flex-row md:items-center md:justify-between">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SegmentedControl
             ariaLabel={t("novel.projectView")}
@@ -136,7 +140,7 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
             </BookIconButton>
           </div>
         </div>
-        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:justify-end">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2 md:flex md:justify-end">
             <label className="inline-flex min-w-0 flex-col items-stretch gap-1.5 text-small font-semibold text-book-text-muted max-md:flex-1 xl:flex-row xl:items-center">
               <span>{t("novel.projectTypeFilter")}</span>
               <ThemedSelect
@@ -227,6 +231,7 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
         <RecentProjectList
           families={recentProjectFamilies}
           empty={empty}
+          onClearFilters={clearProjectFilters}
           onOpen={onOpenProject}
           onWrite={onOpenWorkspace}
           getActions={getActions}
@@ -236,6 +241,7 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
         <AllProjectList
           groups={groupedProjectFamilies}
           empty={empty}
+          onClearFilters={clearProjectFilters}
           onOpen={onOpenProject}
           onWrite={onOpenWorkspace}
           getActions={getActions}

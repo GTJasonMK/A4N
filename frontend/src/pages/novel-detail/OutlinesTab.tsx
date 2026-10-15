@@ -20,7 +20,6 @@ import {
 } from "../../api/outline";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import { canEditProjectMaterials, type NovelProject } from "../../api/project";
-import { isPositiveSafeInteger } from "../../utils/numberRange";
 import type { ChapterOutlineEditForm } from "./outlines/ChapterOutlineSection";
 import type {
   ManualChapterOutlineForm,
@@ -65,7 +64,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       warnings.length > 0 ? "info" : "success",
     );
   };
-  const commitOutlines = (next: ChapterOutline[]) => {
+  const commitOutlines = (next: ChapterOutlineListEntry[]) => {
     mutationVersionRef.current += 1;
     outlinesRef.current = next;
     setOutlines(next);

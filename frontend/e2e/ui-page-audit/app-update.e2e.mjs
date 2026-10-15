@@ -138,7 +138,7 @@ describe("App update state projection", function () {
     await (await view.$('.//button[normalize-space(.)="下载并重启更新"]')).click();
 
     await browser.waitUntil(async () => (await view.getText()).includes("active generation task prevents update"), { timeout });
-    assert.equal(await $('.//div[@role="dialog"]').isDisplayed().catch(() => false), false);
+    assert.equal(await $('[role="dialog"]').isDisplayed().catch(() => false), false);
     assert.equal(await draft.getValue(), originalDraft, "A failed preflight must not discard drafts for an update that never started");
     assert.deepEqual(await browser.execute(() => window.__appUpdateAudit.calls.slice(-1)), ["prepare_app_update_install"]);
   });
@@ -152,8 +152,23 @@ describe("App update state projection", function () {
     await draft.setValue(originalDraft);
     await (await view.$('.//button[normalize-space(.)="下载并重启更新"]')).click();
 
-    const migrationDialog = await $('.//div[@role="dialog"]');
-    await browser.waitUntil(async () => migrationDialog.isDisplayed(), { timeout });
+    await browser.waitUntil(async () => browser.execute(() =>
+      window.__appUpdateAudit.calls.includes("prepare_app_update_install"),
+    ), { timeout, timeoutMsg: "The update button must complete preflight before showing migration confirmation" });
+    await browser.waitUntil(async () => $('[role="dialog"]').isDisplayed().catch(() => false), { timeout })
+      .catch(async () => {
+        const state = await browser.execute(() => ({
+          calls: [...window.__appUpdateAudit.calls],
+          url: location.href,
+          text: document.body.innerText,
+          rootMarkup: document.querySelector("#app")?.innerHTML.slice(0, 8000) ?? null,
+          dialogs: [...document.querySelectorAll('[role="dialog"]')].map((dialog) => dialog.innerText),
+          alerts: [...document.querySelectorAll('[role="alert"]')].map((alert) => alert.innerText),
+        }));
+        const browserLogs = await browser.getLogs("browser").catch((error) => [{ message: String(error) }]);
+        assert.fail(`Migration preflight did not show its confirmation: ${JSON.stringify({ state, browserLogs })}`);
+      });
+    const migrationDialog = await $('[role="dialog"]');
     assert.ok((await migrationDialog.getText()).includes("media layout migration"));
     await (await migrationDialog.$('.//button[normalize-space(.)="取消"]')).click();
     await browser.waitUntil(async () => !(await migrationDialog.isDisplayed().catch(() => false)), { timeout });
@@ -171,7 +186,7 @@ describe("App update state projection", function () {
     await (await view.$('.//button[normalize-space(.)="下载并重启更新"]')).click();
 
     await browser.waitUntil(async () => (await view.getText()).includes("update package unavailable"), { timeout });
-    assert.equal(await $('.//div[@role="dialog"]').isDisplayed().catch(() => false), false);
+    assert.equal(await $('[role="dialog"]').isDisplayed().catch(() => false), false);
     assert.equal(await draft.getValue(), originalDraft);
     assert.deepEqual(await browser.execute(() => window.__appUpdateAudit.calls.slice(-2)), [
       "prepare_app_update_install", "download_app_update",
@@ -192,6 +207,6 @@ describe("App update state projection", function () {
     await browser.execute(() => window.__appUpdateAudit.downloadResolvers[0]("Injected detached update download failure"));
     await browser.waitUntil(async () => (await $("body").getText()).includes("Injected detached update download failure"), { timeout });
     assert.ok(await $('[role="alert"]').isDisplayed());
-    assert.equal(await panel().isExisting(), false);
+    assert.equal(await $('[aria-label="应用更新"]').isExisting(), false);
   });
 });

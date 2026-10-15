@@ -42,19 +42,24 @@ describe("Individual page workflows", () => {
     });
   });
 
-  it("X02-tablet-properties keeps selected node properties reachable at 1024px", async () => {
-    await browser.setWindowSize(1024, 1000);
-    await browser.url("/canvas-project/6");
-    const node = await $('.react-flow__node[data-id="1"]');
-    await node.waitForDisplayed();
-    await node.click();
-    const trigger = await $('button[aria-label="打开属性面板"]');
-    assert.equal(await trigger.isDisplayed(), true, "A hidden sidebar needs a visible properties entry");
-    await trigger.click();
-    await $('[role="dialog"]').waitForDisplayed();
-    assert.equal(await $('[role="dialog"] textarea').isDisplayed(), true);
-    await browser.keys("Escape");
-    await $('[role="dialog"]').waitForExist({ reverse: true });
-    assert.equal(await trigger.isFocused(), true);
+  it("X02-responsive-properties keeps selected node properties reachable on tablet and phone", async () => {
+    for (const width of [1024, 390]) {
+      await browser.setWindowSize(width, 1000);
+      await browser.url("/canvas-project/6");
+      const node = await $('.react-flow__node[data-id="1"]');
+      await node.waitForDisplayed();
+      await node.click();
+      const trigger = await $('.a4n-video-canvas-header button[aria-label="更多操作"]');
+      assert.equal(await trigger.isDisplayed(), true, `${width}px: the hidden sidebar needs a visible properties entry`);
+      await trigger.click();
+      const properties = await $('//*[@role="menuitem" and normalize-space(.)="打开属性面板"]');
+      await properties.waitForClickable();
+      await properties.click();
+      await $('[role="dialog"]').waitForDisplayed();
+      assert.equal(await $('[role="dialog"] textarea').isDisplayed(), true);
+      await browser.keys("Escape");
+      await $('[role="dialog"]').waitForExist({ reverse: true });
+      assert.equal(await trigger.isFocused(), true);
+    }
   });
 });

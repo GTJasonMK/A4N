@@ -6,7 +6,7 @@ pub(super) async fn invite_project_member(
     project_id: i64,
     input: InviteProjectMemberInput,
 ) -> Result<ProjectInviteSummary, AppError> {
-    let project_id = ProjectCollaborationWorkerClient::project_id(project_id)?;
+    let project_id = a4n_worker_client::positive_id("project_id", project_id)?;
     if input.username_or_email.trim().is_empty() {
         return Err(AppError::InvalidArgument(
             "username_or_email 不能为空".into(),

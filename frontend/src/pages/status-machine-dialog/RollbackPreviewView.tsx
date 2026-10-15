@@ -1,4 +1,5 @@
 import React from "react";
+import { ArrowRight } from "lucide-react";
 import type {
   ProjectRollbackImpactSummary,
   ProjectRollbackPreview,
@@ -16,8 +17,18 @@ export const RollbackPreviewView: React.FC<RollbackPreviewViewProps> = ({ previe
     <div className="space-y-2 text-xs text-book-text-sub">
       <div>
         <div className="mb-1 text-book-text-muted">{t("statusMachine.rollbackPath")}</div>
-        <div className="break-words text-book-text-sub">
-          {preview.path.map((status) => projectStatusLabel(status, t)).join(" → ")}
+        <div className="a4n-rollback-path flex flex-wrap items-center gap-x-1.5 gap-y-1 break-words text-book-text-sub">
+          {preview.path.map((status, index) => (
+            <span key={`${index}-${status}`} className="inline-flex items-center gap-1">
+              {index > 0 ? (
+                <>
+                  <ArrowRight size={12} className="shrink-0" aria-hidden="true" />
+                  <span className="sr-only">{t("common.to")}</span>
+                </>
+              ) : null}
+              <span>{projectStatusLabel(status, t)}</span>
+            </span>
+          ))}
         </div>
       </div>
 

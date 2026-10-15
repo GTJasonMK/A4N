@@ -202,7 +202,7 @@ export const comic = {
     interruptedNotice: "The comic pipeline was interrupted. Resume it to keep completed checkpoints.",
     resumableNotice: "A resumable checkpoint was found. Resuming first can reuse completed stages.",
     staleCheckpointNotice: "A checkpoint was found, but the body changed. Running the pipeline again is recommended.",
-    missingPortraitNotice: "{count} characters have no system portrait. The pipeline discovers available references first; portraits are optional.",
+    missingPortraitNotice: "{count} system portraits are missing; the pipeline checks references first. Portraits are optional.",
     stalePromptNotice: "{count} prompts were generated from an older body. Regenerate from the beginning.",
     readyNotice: "The chapter body is ready. Start the comic pipeline.",
     emptyBodyGenerate: "The chapter body is empty; a full-page comic image cannot be generated",

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Archive, CheckCheck, Plus, RefreshCw, Square, Trash2, Upload } from "lucide-react";
+import { AlertCircle, Archive, CheckCheck, CheckCircle2, Plus, RefreshCw, Square, Trash2, Upload } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { type Theme } from "../../../api/theme";
 import { BookButton } from "../../../components/ui/BookButton";
@@ -23,6 +23,7 @@ interface ThemeListSectionProps {
   renamingId: number | null;
   renameValue: string;
   renameSaving: boolean;
+  renameFeedback: { type: "success" | "error"; message: string } | null;
   mutationBusy: boolean;
   bulkDeleting: boolean;
   onScopeChange: (scope: ThemeScope) => void;
@@ -54,6 +55,7 @@ export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
   renamingId,
   renameValue,
   renameSaving,
+  renameFeedback,
   mutationBusy,
   bulkDeleting,
   onScopeChange,
@@ -164,6 +166,18 @@ export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
     </div>
 
     {loadError ? <p role="alert" className="mb-3 text-sm text-error">{loadError}</p> : null}
+    {renameFeedback ? (
+      <p
+        role={renameFeedback.type === "error" ? "alert" : "status"}
+        data-theme-rename-feedback
+        className={`mb-3 inline-flex min-w-0 items-center gap-2 text-small ${renameFeedback.type === "error" ? "text-error" : "text-success"}`}
+      >
+        {renameFeedback.type === "error"
+          ? <AlertCircle size={14} aria-hidden="true" className="shrink-0" />
+          : <CheckCircle2 size={14} aria-hidden="true" className="shrink-0" />}
+        <span className="min-w-0 break-words">{renameFeedback.message}</span>
+      </p>
+    ) : null}
     {loading && themes.length === 0 ? (
       <div className="text-xs text-book-text-muted flex items-center gap-2">
         <LoadingSpinner size="sm" /> {t("settingsTheme.loading")}

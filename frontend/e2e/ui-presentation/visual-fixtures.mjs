@@ -1,13 +1,15 @@
 import { uiFixtures } from "./fixtures.mjs";
+import { authoringChapters } from "../media-authoring/fixtures.mjs";
 
 const project = uiFixtures.projectRecords[0];
 const records = [
   ...uiFixtures.projectRecords.map((item) => item.id === 3 ? { ...item, lifecycle_gate: "active" } : item),
   { ...project, id: 5, title: "山海之间 · 交互叙事", project_kind: "galgame", root_project_id: 1, root_project_title: project.title, source_mode: "derived" },
-  { ...project, id: 6, title: "山海之间 · 影像画布", project_kind: "canvas", source_mode: "freeform" },
+  { ...project, id: 6, title: "山海之间 · 影像画布", project_kind: "canvas", project_type: "canvas", source_mode: "freeform" },
 ];
 const port = (id, direction, dataType) => ({ id, label: id, direction, data_type: dataType, multiple: false, required: false });
 export const visualFixtures = {
+  list_creator_notifications: uiFixtures.list_creator_notifications,
   projectRecords: records,
   list_projects: {
     ...uiFixtures.list_projects,
@@ -18,7 +20,7 @@ export const visualFixtures = {
   list_chapters: uiFixtures.list_chapters.map((chapter) => chapter.id === 2
     ? { ...chapter, content: "第 2 章 未寄出的信\n\n" + Array.from({ length: 8 }, () => "雨从旧书店的屋檐落下。她把那封信放在桌上，纸页的边缘已经微微卷起。窗外的灯光映着街道，来往的人都有自己的归途，而她还在等待一个足以启程的答案。\n\n老人没有催促，只是翻开书，把一枚旧车票夹在他们都熟悉的那一页。那些没有说出口的话，终于有了可以停留的地方。").join("\n\n") }
     : chapter),
-  list_source_snapshot_chapters: [],
+  list_source_snapshot_chapters: authoringChapters(1),
   get_inspiration_history: [],
   list_portraits_by_project: [],
   list_images_by_project: [],
@@ -30,6 +32,7 @@ export const visualFixtures = {
   list_workflow_runs: [],
   get_galgame_pipeline_status: { run: null, checkpoints: [] },
   get_galgame_script: { id: 5, root_project_id: 1, title: "山海之间", scenes: [], media_bindings: [], speaker_profiles: [], text_anchors: [] },
+  oauth2_available_providers: [],
   get_canvas_graph: {
     graph: { id: 6, graph_kind: "video_studio", name: "影像画布", version: 1, viewport_json: null },
     nodes: [

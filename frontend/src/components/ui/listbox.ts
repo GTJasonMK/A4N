@@ -34,12 +34,15 @@ export function useListboxPosition(
     const viewportHeight = viewport?.height ?? window.innerHeight;
     const padding = 8;
     const gap = 4;
-    const width = Math.min(Math.max(rect.width, 180), Math.max(1, viewportWidth - padding * 2));
+    const maxWidth = Math.max(1, viewportWidth - padding * 2);
+    // Long option labels may need more room than their trigger provides.
+    listbox.style.width = "max-content";
+    const contentWidth = listbox.getBoundingClientRect().width;
+    const width = Math.min(Math.max(rect.width, 180, contentWidth), maxWidth);
     const spaceBelow = viewportTop + viewportHeight - rect.bottom - gap - padding;
     const spaceAbove = rect.top - viewportTop - gap - padding;
     const opensAbove = spaceAbove > spaceBelow;
     const maxHeight = Math.max(1, Math.min(320, opensAbove ? spaceAbove : spaceBelow));
-    // Wrapped labels need their final width before measuring the popup height.
     listbox.style.width = `${width}px`;
     const height = Math.min(listbox.scrollHeight, maxHeight);
     const preferredTop = opensAbove ? rect.top - height - gap : rect.bottom + gap;

@@ -18,6 +18,7 @@ import type {
   MangaReferenceBindingSummary,
 } from "../../../api/manga";
 import type { Portrait } from "../../../api/portrait";
+import { portraitTypeLabel } from "../characters/characterUtils";
 import { imageTypeLabel } from "../images/imageTabUtils";
 import {
   extractMangaPagePromptSource,
@@ -346,7 +347,10 @@ export const buildReferenceCandidates = (
     .map<ReferenceCandidate>((portrait) => {
       const name =
         names.get(portrait.profile_id) ?? t("comic.prompt.otherPortrait");
-      const text = portraitReferenceText(name, portrait);
+      const portraitType = portrait.portrait_type
+        ? portraitTypeLabel(portrait.portrait_type, t)
+        : t("comic.prompt.otherPortrait");
+      const text = `${portraitReferenceText(name, portrait)} ${portraitType}`;
       return {
         key: mangaReferenceAssetKey("character_portrait", portrait.id),
         assetKind: "character_portrait",
@@ -354,7 +358,7 @@ export const buildReferenceCandidates = (
         imagePath: portrait.image_path,
         searchPreview: candidateSearchPreview(portrait.prompt || portrait.image_path),
         label: name,
-        subLabel: `${portrait.portrait_type || t("comic.prompt.otherPortrait")}${portrait.is_primary ? ` · ${t("comic.prompt.primaryPortrait")}` : ""}`,
+        subLabel: `${portraitType}${portrait.is_primary ? ` · ${t("comic.prompt.primaryPortrait")}` : ""}`,
         panelId: null,
         rank: candidateMatchRank(binding, text, portrait.is_primary ? 10 : 0),
       };

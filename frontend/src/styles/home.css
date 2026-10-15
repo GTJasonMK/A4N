@@ -6,7 +6,7 @@
 
 .a4n-home-sidebar {
   display: flex;
-  flex: 0 0 clamp(248px, 22vw, 304px);
+  flex: 0 0 clamp(240px, 20vw, 280px);
   min-width: 0;
   overflow: hidden;
   border-right: 1px solid rgb(var(--color-border) / 0.5);
@@ -26,7 +26,7 @@
 .a4n-home-wordmark {
   font-size: 20px;
   font-weight: 700;
-  letter-spacing: -0.06em;
+  letter-spacing: 0;
 }
 
 .a4n-home-logo {
@@ -36,8 +36,9 @@
 .a4n-home-quote {
   margin-top: auto;
   padding: 16px;
-  border-radius: var(--pyqt-radius-lg);
-  background: rgb(var(--color-primary) / 0.045);
+  border-left: 2px solid rgb(var(--color-accent) / 0.55);
+  border-radius: var(--pyqt-radius-xs);
+  background: rgb(var(--color-bg-tertiary) / 0.55);
   color: rgb(var(--color-text-secondary));
 }
 
@@ -54,9 +55,9 @@
 .a4n-home-heading h1 {
   margin-top: 8px;
   font-family: var(--font-sans);
-  font-size: clamp(28px, 2.5vw, 34px);
+  font-size: 34px;
   font-weight: 700;
-  letter-spacing: -0.025em;
+  letter-spacing: 0;
   line-height: 1.25;
 }
 
@@ -65,16 +66,16 @@
 }
 
 .a4n-project-row {
-  min-height: 6rem;
+  min-height: 5.5rem;
   transition: background-color var(--a4n-motion-fast) var(--a4n-ease-out);
   border-radius: inherit;
 }
 
 .a4n-project-list-entry {
-  border: 1px solid rgb(var(--color-border) / 0.4);
-  border-radius: var(--pyqt-radius-lg);
+  border: 1px solid rgb(var(--color-border) / 0.52);
+  border-radius: var(--pyqt-radius-md);
   background: rgb(var(--color-bg-secondary) / var(--a4n-card-opacity));
-  box-shadow: var(--shadow-card);
+  box-shadow: none;
 }
 
 .a4n-project-row[data-project-relation="derived"] h3 {
@@ -147,7 +148,7 @@
 
 .a4n-project-skeleton-row {
   display: flex;
-  min-height: 6rem;
+  min-height: 5.5rem;
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
@@ -209,7 +210,7 @@
 
 @media (max-width: 639px) {
   .a4n-project-skeleton-row {
-    min-height: 6rem;
+    min-height: 5.5rem;
     padding-inline: 0.75rem;
   }
 
@@ -227,5 +228,6 @@
 @media (max-width: 767px) {
   .a4n-home-content { padding: 24px 16px; }
   .a4n-home-heading { padding-bottom: 20px; }
+  .a4n-home-heading h1 { font-size: 28px; }
   .a4n-home-page { padding-bottom: env(safe-area-inset-bottom, 0px); scrollbar-gutter: stable; }
 }

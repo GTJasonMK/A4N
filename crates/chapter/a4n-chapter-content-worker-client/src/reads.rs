@@ -33,7 +33,7 @@ impl ChapterContentReadApplicationPort for ChapterContentWorkerClient {
         user_id: i64,
         project_id: i64,
     ) -> Result<Vec<ChapterStoryEventEntry>, AppError> {
-        let project_id = Self::positive("project_id", project_id)?;
+        let project_id = a4n_worker_client::positive_id("project_id", project_id)?;
         self.command(
             user_id,
             project_id,

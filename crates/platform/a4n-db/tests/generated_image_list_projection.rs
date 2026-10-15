@@ -147,7 +147,7 @@ fn serialized_bytes<T: Serialize>(value: &T) -> usize {
 async fn benchmark_generated_image_list_projection() {
     let db = a4n_migration::test_support::connect_test_database().await;
     fixture(&db).await;
-    let full = generated_images_for_project(&db, PROJECT_ID)
+    let full = generated_images_for_project(&db, PROJECT_ID, None)
         .await
         .expect("full image list must load");
     let index = index_images(&db).await;
@@ -211,7 +211,7 @@ async fn benchmark_generated_image_list_projection() {
     let index_bytes = serialized_bytes(&index);
 
     for _ in 0..WARMUPS {
-        let _ = generated_images_for_project(&db, PROJECT_ID)
+        let _ = generated_images_for_project(&db, PROJECT_ID, None)
             .await
             .expect("full warmup must load");
         let _ = index_images(&db).await;
@@ -221,7 +221,7 @@ async fn benchmark_generated_image_list_projection() {
     for sample in 0..SAMPLES {
         if sample % 2 == 0 {
             let started = Instant::now();
-            let full = generated_images_for_project(&db, PROJECT_ID)
+            let full = generated_images_for_project(&db, PROJECT_ID, None)
                 .await
                 .expect("full sample must load");
             full_samples.push(started.elapsed().as_secs_f64() * 1_000.0);
@@ -238,7 +238,7 @@ async fn benchmark_generated_image_list_projection() {
             assert_eq!(index.len(), IMAGE_COUNT);
 
             let started = Instant::now();
-            let full = generated_images_for_project(&db, PROJECT_ID)
+            let full = generated_images_for_project(&db, PROJECT_ID, None)
                 .await
                 .expect("full sample must load");
             full_samples.push(started.elapsed().as_secs_f64() * 1_000.0);

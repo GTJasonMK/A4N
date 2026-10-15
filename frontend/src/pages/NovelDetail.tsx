@@ -401,19 +401,23 @@ export const NovelDetail: React.FC = () => {
       setTabRailHasBefore(cue.hasBefore);
       setTabRailHasMore(cue.hasMore);
     };
-    const frame = window.requestAnimationFrame(updateCue);
+    const revealActiveTab = () => {
+      scrollRailItemIntoView(rail, activeTabRef.current, "instant");
+      updateCue();
+    };
+    const frame = window.requestAnimationFrame(revealActiveTab);
     rail.addEventListener("scroll", updateCue, { passive: true });
-    window.addEventListener("resize", updateCue);
+    window.addEventListener("resize", revealActiveTab);
     const resizeObserver =
-      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateCue);
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(revealActiveTab);
     resizeObserver?.observe(rail);
-    document.fonts?.addEventListener("loadingdone", updateCue);
+    document.fonts?.addEventListener("loadingdone", revealActiveTab);
     return () => {
       window.cancelAnimationFrame(frame);
       rail.removeEventListener("scroll", updateCue);
-      window.removeEventListener("resize", updateCue);
+      window.removeEventListener("resize", revealActiveTab);
       resizeObserver?.disconnect();
-      document.fonts?.removeEventListener("loadingdone", updateCue);
+      document.fonts?.removeEventListener("loadingdone", revealActiveTab);
     };
   }, [canEditCurrentProject, locale, project?.id]);
 
@@ -788,7 +792,7 @@ export const NovelDetail: React.FC = () => {
       ) : null}
       {/* 项目身份、当前进度和高频入口；维护操作统一收进更多菜单。 */}
       <PageHeader
-        className="a4n-app-page-header--detail h-auto shrink-0 py-2 sm:flex-nowrap sm:py-0"
+        className="a4n-app-page-header--detail a4n-app-page-header--project-detail h-auto shrink-0 py-2 sm:flex-nowrap sm:py-0"
         leading={<BackButton iconOnly title={t("novel.backToPreviousPage")} onClick={smartBack} />}
         title={project.title}
         actions={
@@ -858,7 +862,7 @@ export const NovelDetail: React.FC = () => {
       >
         <nav
           ref={tabListRef}
-          className="tab-bar a4n-mobile-scroll-rail scroll-px-[var(--a4n-content-gutter)] border-b border-book-border/80 bg-book-bg-paper/90 px-[var(--a4n-content-gutter)]"
+          className="tab-bar a4n-mobile-scroll-rail a4n-novel-detail-tabs scroll-px-[var(--a4n-content-gutter)] border-b border-book-border/80 bg-book-bg-paper/90 px-[var(--a4n-content-gutter)]"
           role="tablist"
           aria-label={t("novel.detailTabs")}
           aria-describedby="novel-tab-scroll-hint"
@@ -879,7 +883,7 @@ export const NovelDetail: React.FC = () => {
                 )
               }
               data-active={tab === t.id ? "1" : undefined}
-              className="pyqt-tab"
+              className="pyqt-tab a4n-novel-detail-tab"
               aria-label={t.accessibleLabel}
               title={t.accessibleLabel}
             >

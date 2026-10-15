@@ -16,39 +16,39 @@
 
 | ID | 用户任务 / 推定频率 / 注意力 | 实屏判断、保留依据或缺点 | 实际打开图 |
 | --- | --- | --- | --- |
-| MC05 | 阅读当前页成图并辨认尺寸 / 高 / 成图优先，章页位置与生成尺寸辅助 | 1440 下第 1 页选中、成图页签及当前完成状态明确；竖图按自身比例显示，左右留白合理。390 下章轨、状态、生成设置、缺参考提醒、页轨叠在成图前，图片约从 y=680 才出现，首屏仅露上部，已有成图的阅读入口较深，记为 minor。保留缺参考提醒的内容及页轨，若压缩则复用既有折叠方式。两图均未显示图片底端及结果尺寸，不能单凭这两图宣称“整页与实际尺寸已经视觉核销”；生成尺寸下拉框可读。 | [1440](../../../../.dev-runtime/ui-pages/media/media-final-MC05-1440.png)、[390](../../../../.dev-runtime/ui-pages/media/media-final-MC05-390.png) |
-| MG08 | 展开台词媒体、试听已有 BGM / 高 / 当前台词与已绑音频优先，导入入口辅助 | 宽屏 BGM/SFX 两列、已有音频独立一行，原生进度/音量/移除清楚；390 改为单列，仍能辨认第 1 行、台词和音效种类。音频时长真实显示 0:03；播放器截图不单独证明已经播放，播放证据来自 report 中时间推进。手机先经过 BGM 与 SFX 两个导入区才到已有 BGM，播放器位于所看屏底，试听滚动成本偏高，记为 minor；不把正常纵向滚动当作横向溢出或不可达。 | [1440 播放后](../../../../.dev-runtime/ui-pages/media/media-closeout-MG08-1440-interaction.png)、[390 播放后](../../../../.dev-runtime/ui-pages/media/media-closeout-MG08-390-interaction.png) |
+| MC05 | 阅读当前页成图并辨认尺寸 / 高 / 成图优先，章页位置与生成尺寸辅助 | 1440 下第 1 页选中、成图页签及当前完成状态明确；竖图按自身比例显示，左右留白合理。390 下章轨、状态、生成设置、缺参考提醒、页轨叠在成图前，图片约从 y=680 才出现，首屏仅露上部，已有成图的阅读入口较深，记为 minor。保留缺参考提醒的内容及页轨，若压缩则复用既有折叠方式。两图均未显示图片底端及结果尺寸，不能单凭这两图宣称“整页与实际尺寸已经视觉核销”；生成尺寸下拉框可读。 | 1440（证据文件缺失：`.dev-runtime/ui-pages/media/media-final-MC05-1440.png`）、390（证据文件缺失：`.dev-runtime/ui-pages/media/media-final-MC05-390.png`） |
+| MG08 | 展开台词媒体、试听已有 BGM / 高 / 当前台词与已绑音频优先，导入入口辅助 | 宽屏 BGM/SFX 两列、已有音频独立一行，原生进度/音量/移除清楚；390 改为单列，仍能辨认第 1 行、台词和音效种类。音频时长真实显示 0:03；播放器截图不单独证明已经播放，播放证据来自 report 中时间推进。手机先经过 BGM 与 SFX 两个导入区才到已有 BGM，播放器位于所看屏底，试听滚动成本偏高，记为 minor；不把正常纵向滚动当作横向溢出或不可达。 | 1440 播放后（证据文件缺失：`.dev-runtime/ui-pages/media/media-closeout-MG08-1440-interaction.png`）、390 播放后（证据文件缺失：`.dev-runtime/ui-pages/media/media-closeout-MG08-390-interaction.png`） |
 
-第 1 批辅助证据：MC05 取 [media-final-report.json](../../../../.dev-runtime/ui-pages/media/media-final-report.json)，MG08 取 [media-closeout-report.json](../../../../.dev-runtime/ui-pages/media/media-closeout-report.json)。相应原始功能项均 `passed`、overflow=0、errors/unexpected 为空；MG08 时间分别推进至 0.122541s / 0.186529s，总长 3s。这些由主流程原测试执行，本审查者没有播放或发送请求。
+第 1 批辅助证据：MC05 取 media-final-report.json（证据文件缺失：`.dev-runtime/ui-pages/media/media-final-report.json`），MG08 取 media-closeout-report.json（证据文件缺失：`.dev-runtime/ui-pages/media/media-closeout-report.json`）。相应原始功能项均 `passed`、overflow=0、errors/unexpected 为空；MG08 时间分别推进至 0.122541s / 0.186529s，总长 3s。这些由主流程原测试执行，本审查者没有播放或发送请求。
 
 ## 第 2 批：4 张已打开（累计 8 张）
 
 | ID | 用户任务 / 推定频率 / 注意力 | 实屏判断、保留依据或缺点 | 实际打开图 |
 | --- | --- | --- | --- |
-| MG11 | 确认失败阶段、决定续跑或改变生成起点 / 高 / 当前恢复动作、影响范围和失败原因优先 | 两种宽度都能看到“可继续”、醒目的“继续生成”、起点选择及失败阶段；错误明确指出角色立绘第 8 项失败、剧本与其余素材已保存，信息可读且未吞错。疑点：主按钮写“继续生成”，展开的当前起点却同时写“从头开始”，失败提示又建议“从素材阶段继续”；仅看屏幕不能确定本次点击究竟恢复还是重跑。先记录为需要主流程确认的执行语义歧义，不能用 `passed` 消除。其余阶段成功/错误、手机 44px 主按钮和场次/编辑切换均保留。 | [1440](../../../../.dev-runtime/ui-pages/media/media-final-MG11-1440.png)、[390](../../../../.dev-runtime/ui-pages/media/media-final-MG11-390.png) |
-| MX03 | 核对 LLM 配置、输入来源、指令和输出类型 / 高 / 当前节点属性优先，画布全图辅助 | 1440 右栏对应“导演动作校对”，输入“镜头描述模板”、完整指令和“镜头脚本”输出类型均可读。390 用全高属性面板，标题与关闭保留，指令完整展示，没有将主任务塞进缩略画布。保留现有参数顺序与输入/输出分组。配置选项后半的提供商/模型标识在关闭态省略，当前行同样省略；友好名称仍能辨认，未查看展开选择态，因此不把它判成配置不可选。属性本体可核销，运行状态尾部不借此核销。 | [1440](../../../../.dev-runtime/ui-pages/media/media-details-complete-MX03-1440.png)、[390](../../../../.dev-runtime/ui-pages/media/media-details-complete-MX03-390.png) |
+| MG11 | 确认失败阶段、决定续跑或改变生成起点 / 高 / 当前恢复动作、影响范围和失败原因优先 | 两种宽度都能看到“可继续”、醒目的“继续生成”、起点选择及失败阶段；错误明确指出角色立绘第 8 项失败、剧本与其余素材已保存，信息可读且未吞错。疑点：主按钮写“继续生成”，展开的当前起点却同时写“从头开始”，失败提示又建议“从素材阶段继续”；仅看屏幕不能确定本次点击究竟恢复还是重跑。先记录为需要主流程确认的执行语义歧义，不能用 `passed` 消除。其余阶段成功/错误、手机 44px 主按钮和场次/编辑切换均保留。 | 1440（证据文件缺失：`.dev-runtime/ui-pages/media/media-final-MG11-1440.png`）、390（证据文件缺失：`.dev-runtime/ui-pages/media/media-final-MG11-390.png`） |
+| MX03 | 核对 LLM 配置、输入来源、指令和输出类型 / 高 / 当前节点属性优先，画布全图辅助 | 1440 右栏对应“导演动作校对”，输入“镜头描述模板”、完整指令和“镜头脚本”输出类型均可读。390 用全高属性面板，标题与关闭保留，指令完整展示，没有将主任务塞进缩略画布。保留现有参数顺序与输入/输出分组。配置选项后半的提供商/模型标识在关闭态省略，当前行同样省略；友好名称仍能辨认，未查看展开选择态，因此不把它判成配置不可选。属性本体可核销，运行状态尾部不借此核销。 | 1440（证据文件缺失：`.dev-runtime/ui-pages/media/media-details-complete-MX03-1440.png`）、390（证据文件缺失：`.dev-runtime/ui-pages/media/media-details-complete-MX03-390.png`） |
 
-第 2 批辅助证据：MG11 取 [media-final-report.json](../../../../.dev-runtime/ui-pages/media/media-final-report.json)，MX03 取 [media-details-complete-report.json](../../../../.dev-runtime/ui-pages/media/media-details-complete-report.json)，对应功能项均 `passed`、overflow=0、errors/unexpected 为空。这里的 MG11 轨迹没有实际发起生成，不证明“继续生成”与起点字段的执行关系。
+第 2 批辅助证据：MG11 取 media-final-report.json（证据文件缺失：`.dev-runtime/ui-pages/media/media-final-report.json`），MX03 取 media-details-complete-report.json（证据文件缺失：`.dev-runtime/ui-pages/media/media-details-complete-report.json`），对应功能项均 `passed`、overflow=0、errors/unexpected 为空。这里的 MG11 轨迹没有实际发起生成，不证明“继续生成”与起点字段的执行关系。
 
 ## 第 3 批：4 张已打开（累计 12 张）
 
 | ID | 用户任务 / 推定频率 / 注意力 | 实屏判断、保留依据或缺点 | 实际打开图 |
 | --- | --- | --- | --- |
-| MX05 | 核对视频生成节点输入、模式、负面提示词、尺寸及帧率 / 高 / 选中节点与其参数优先 | 1440 选中“连续镜头”与右侧同名属性对应，文本来自“镜头描述模板”，首帧来自“书店首帧”，不要求用户记节点编号。390 所有核心字段在面板中完整可见：首帧模式、完整负面提示词、1920×1080、6 秒、24 FPS；数值保持两列，关闭不被内容挤走。节点连线和属性各司其职，保留现有分组与两列数值，不增加布局结构。本体未见阻断或明显阅读缺陷；未打开视频配置选项，不评其长名称完整性。 | [1440](../../../../.dev-runtime/ui-pages/media/media-details-complete-MX05-1440.png)、[390](../../../../.dev-runtime/ui-pages/media/media-details-complete-MX05-390.png) |
-| MX08 | 读工作流完成量、失败原因并找到恢复入口 / 高 / 失败原因和已完成量优先，事件轨迹辅助 | 长属性下方的“运行状态”在两张图里实际出现：失败、71%、结尾镜头缺首帧/尾帧的具体原因均可读，390 底端还显示“已完成 12 / 17、模型调用 3”。失败使用文本加语义色，不靠节点色推断。1440 继续运行在顶部，390 状态区的更多操作和面板关闭均可見；未展开该菜单或执行续跑，故只核销状态正文的可见性。事件列表的 59%/47% 行不在所看手机画面内，完整历史可达性保留证据边界。已有参数/输出说明占上半屏，但此例核心错误已落在首屏，不判作被长属性遮断。 | [1440](../../../../.dev-runtime/ui-pages/media/media-final-MX08-1440.png)、[390](../../../../.dev-runtime/ui-pages/media/media-final-MX08-390.png) |
+| MX05 | 核对视频生成节点输入、模式、负面提示词、尺寸及帧率 / 高 / 选中节点与其参数优先 | 1440 选中“连续镜头”与右侧同名属性对应，文本来自“镜头描述模板”，首帧来自“书店首帧”，不要求用户记节点编号。390 所有核心字段在面板中完整可见：首帧模式、完整负面提示词、1920×1080、6 秒、24 FPS；数值保持两列，关闭不被内容挤走。节点连线和属性各司其职，保留现有分组与两列数值，不增加布局结构。本体未见阻断或明显阅读缺陷；未打开视频配置选项，不评其长名称完整性。 | 1440（证据文件缺失：`.dev-runtime/ui-pages/media/media-details-complete-MX05-1440.png`）、390（证据文件缺失：`.dev-runtime/ui-pages/media/media-details-complete-MX05-390.png`） |
+| MX08 | 读工作流完成量、失败原因并找到恢复入口 / 高 / 失败原因和已完成量优先，事件轨迹辅助 | 长属性下方的“运行状态”在两张图里实际出现：失败、71%、结尾镜头缺首帧/尾帧的具体原因均可读，390 底端还显示“已完成 12 / 17、模型调用 3”。失败使用文本加语义色，不靠节点色推断。1440 继续运行在顶部，390 状态区的更多操作和面板关闭均可見；未展开该菜单或执行续跑，故只核销状态正文的可见性。事件列表的 59%/47% 行不在所看手机画面内，完整历史可达性保留证据边界。已有参数/输出说明占上半屏，但此例核心错误已落在首屏，不判作被长属性遮断。 | 1440（证据文件缺失：`.dev-runtime/ui-pages/media/media-final-MX08-1440.png`）、390（证据文件缺失：`.dev-runtime/ui-pages/media/media-final-MX08-390.png`） |
 
-第 3 批辅助证据：MX05 取 [media-details-complete-report.json](../../../../.dev-runtime/ui-pages/media/media-details-complete-report.json)，MX08 取 [media-final-report.json](../../../../.dev-runtime/ui-pages/media/media-final-report.json)。对应项均 `passed`、overflow=0、errors/unexpected 为空；MX08 未记录 `reachability` 或 `afterInteraction`，DOM 存在事件行不等于本次亲看其滚到末项。
+第 3 批辅助证据：MX05 取 media-details-complete-report.json（证据文件缺失：`.dev-runtime/ui-pages/media/media-details-complete-report.json`），MX08 取 media-final-report.json（证据文件缺失：`.dev-runtime/ui-pages/media/media-final-report.json`）。对应项均 `passed`、overflow=0、errors/unexpected 为空；MX08 未记录 `reachability` 或 `afterInteraction`，DOM 存在事件行不等于本次亲看其滚到末项。
 
-补充 MC05 的元数据边界：[390 原始记录](../../../../.dev-runtime/ui-pages/media/media-final-MC05-390.json) 文字确有“漫画成图、1,080×1,440、213 KB”；这些来自 DOM，区别于画面上的 1024×1024 生成设置。本次两张首屏仍未展示这组实际尺寸，不能混淆两者。
+补充 MC05 的元数据边界：390 原始记录（证据文件缺失：`.dev-runtime/ui-pages/media/media-final-MC05-390.json`） 文字确有“漫画成图、1,080×1,440、213 KB”；这些来自 DOM，区别于画面上的 1024×1024 生成设置。本次两张首屏仍未展示这组实际尺寸，不能混淆两者。
 
 ## 第 4 批：4 张已打开（累计 16 张，完成）
 
 | ID | 用户任务 / 推定频率 / 注意力 | 实屏判断、保留依据或缺点 | 实际打开图 |
 | --- | --- | --- | --- |
-| MX14 | 从手机节点库找类型并添加节点 / 高 / 节点类别、名称与命中区优先 | 首屏使用“点击节点即可添加到当前画布视图中心”，与触屏任务相符；输入/操作/观察类别按组呈现，名称加 Lucide 图标，长列表无需记忆手势。滚动后的第二张真正显示输出分组末项“音频输出”，没有被底边或浮层覆盖，标题/关闭固定在上方。两张之间保留同一列表结构，未见横向溢出。保留完整 19 项及单列命中区，不为压缩高度改成小图标网格。实际添加行为属于 MX13，本批不冒领。 | [390 首屏](../../../../.dev-runtime/ui-pages/media/media-closeout-MX14-390.png)、[390 滚动末项](../../../../.dev-runtime/ui-pages/media/media-closeout-MX14-390-interaction.png) |
-| MX20 | 在运行前核对节点和输入读取范围，然后取消 / 高 / 目标、执行范围、退出优先 | 1440 居中确认框、390 底部确认面板均完整显示“目标节点：连续镜头”、只执行当前节点、不自动执行上游、读取已保存输入或上游最近完成结果。正文、关闭、运行与取消均在视口内，手机按钮各自整行，不存在文本挤出或底部操作被遮挡。必要范围说明保留，它影响本次运行决定，不是无关说明墙。取消是否发送命令独立引用原轨迹，不从按钮外观推断。 | [1440](../../../../.dev-runtime/ui-pages/media/media-final-MX20-1440.png)、[390](../../../../.dev-runtime/ui-pages/media/media-final-MX20-390.png) |
+| MX14 | 从手机节点库找类型并添加节点 / 高 / 节点类别、名称与命中区优先 | 首屏使用“点击节点即可添加到当前画布视图中心”，与触屏任务相符；输入/操作/观察类别按组呈现，名称加 Lucide 图标，长列表无需记忆手势。滚动后的第二张真正显示输出分组末项“音频输出”，没有被底边或浮层覆盖，标题/关闭固定在上方。两张之间保留同一列表结构，未见横向溢出。保留完整 19 项及单列命中区，不为压缩高度改成小图标网格。实际添加行为属于 MX13，本批不冒领。 | 390 首屏（证据文件缺失：`.dev-runtime/ui-pages/media/media-closeout-MX14-390.png`）、390 滚动末项（证据文件缺失：`.dev-runtime/ui-pages/media/media-closeout-MX14-390-interaction.png`） |
+| MX20 | 在运行前核对节点、输入来源规则，然后取消 / 高 / 目标、范围、退出优先 | 确认框说明只运行当前节点；已保存输入沿用，上游操作节点复用最近成功结果，缺少结果时先“运行到此节点”。目标始终是“连续镜头”。390/900/1024/1440px 正文与按钮完整；手机句意换行、不拆词，桌面居中且遮罩层级清楚。取消保留节点选择且不发送运行命令。夹具的 6005 上游是 6002 RenderTextNode 和 6004 ImageOutputNode；只核对 UI，没有执行真实工作流。独立复审无 P1/P2/P3。 | [四宽报告](../../../../.dev-runtime/ui-pages/media/mx20-source-rule-closeout-20261013-report.json)、[390](../../../../.dev-runtime/ui-pages/media/mx20-source-rule-closeout-20261013-MX20-390.png)、[1440](../../../../.dev-runtime/ui-pages/media/mx20-source-rule-closeout-20261013-MX20-1440.png) |
 
-第 4 批辅助证据：MX14 的 [media-closeout-report.json](../../../../.dev-runtime/ui-pages/media/media-closeout-report.json) 记录 `templates=19,lastTemplate=音频输出,lastTemplateReachable=true`；MX20 的 [media-final-report.json](../../../../.dev-runtime/ui-pages/media/media-final-report.json) 两宽度均记录 `selectedNodeId=6005,cancelledBeforeCanvasRun=true`。对应项 `passed`、overflow=0、errors/unexpected 为空。两次取消后的图片没有计入本次 16 张，也没有伪称本审查者点了取消。
+第 4 批辅助证据：MX14 的 media-closeout-report.json（证据文件缺失：`.dev-runtime/ui-pages/media/media-closeout-report.json`） 记录 `templates=19,lastTemplate=音频输出,lastTemplateReachable=true`；MX20 的 media-final-report.json（证据文件缺失：`.dev-runtime/ui-pages/media/media-final-report.json`） 两宽度均记录 `selectedNodeId=6005,cancelledBeforeCanvasRun=true`。对应项 `passed`、overflow=0、errors/unexpected 为空。两次取消后的图片没有计入本次 16 张，也没有伪称本审查者点了取消。
 
 ## Nielsen 十项评分
 
@@ -75,3 +75,67 @@
 4. **执行边界：** 本批亲看 1440×823、390×823，七项各两宽度，MX14 为两张 390；未新验 900/1024。读取的 15 个 ID/宽度原始结果均通过，另取 MG08 播放后、MX14 滚动后截图作为本批视觉证据。截图由既有真实页面测试产生，测试输入为本地审查资产；没有实发模型生成、上传或后端写入。本审查没有运行新测试，不把读取历史报告记作本次执行。
 
 本批完成独立专用图审范围，结论为 **0 blocker、1 major、2 minor**，另列屏外证据缺口。只写本报告；未修改代码、测试、协调记录或其他审查报告。16 张图片分四批立即落盘。
+
+## 当前分支收敛（2026-10-10）
+
+- MG11 的 major 已由当前实现收敛：无指定起点时主按钮走“继续生成”；选定起点后主按钮走“从{阶段}重新生成”，与 `start_from_stage` 同源。原截图中的“继续生成 / 从头开始”并列属于历史状态，不能继续作为当前缺陷。
+- MV17 的当前三宽度回归显示“请先准备当前片段的首尾帧提示词”只出现一次，生成最终提示词保持禁用；旧报告中的重复提示记录来自较早状态。
+- MG08 的已有 BGM/SFX 已移到导入与绑定控件之前，手机先看到可试听内容，再看到添加入口。旧回归中的 `openDetails` 未先滚动到摘要导致 element-not-interactable，属于审查选择器边界；下一批应补真实滚动入口后再截图核销。
+- MC05 的“图片首屏较深”是旧截图下的历史 minor。2026-10-13 当前版首屏及真实滚动裁剪区复核已关闭；没有重排制作阶段，也没有改变默认工作流。
+
+## MG08 当前分支复核（2026-10-13）
+
+- 历史 minor“手机先看到导入入口、后看到已有 BGM”已关闭：已有 BGM/SFX 在导入与绑定控件之前；手机把标签/解绑放在播放器上方，原生播放器占满下一行；768px 及以上保持单行。
+- 当前只读夹具的导入按钮确实 disabled，因为提示显示尚未生成节点图。首轮独立复核将它们判为低对比 P2；移除全局禁用规则中冗余的 `opacity: 0.6` 后，复审确认四宽度仍能辨认禁用状态，文字更清晰，无 P1/P2/P3。禁用语义与操作条件未改。
+- Chrome 153 MG08 E2E 1440/1024/900/390px 4/4 通过，页面横向溢出、浏览器错误、未声明请求均为 0；本地 2 秒音频在四宽度实际播放，播放器和 SFX 入口滚动可达。没有触发文件选择、导入或绑定。
+- 首次 1024px 测试点击了隐藏的 stage tab；根因是测试助手把阶段下拉控件的断点写死为 640px。助手现依据下拉框实际可见性选择控件，产品未改。
+- 截图/报告：`.dev-runtime/ui-pages/media/mg08-disabled-state-final-20261013-report.json` 与同前缀 390/900/1024/1440 interaction、import-controls 文件。此补记来自主流程；本报告 2026-09-26 亲看尺寸及历史 minor 保持原始记录。
+
+## MC05 当前分支复核（2026-10-13）
+
+- E2E 旧测量把浏览器视口当作图片裁剪区；复核发现 390px 内层滚动区曾只显示图片的 151/178px。成图态现在收起页面列表已有的重复状态摘要，压缩卡片头部与图片前间距，页码、页面状态、更多操作、尺寸、警告和生成/编辑回调保持。
+- 修正后的浏览器用裁剪容器与视口的交集计算可见高度，并在 390px 断言完整成图可见。Chrome 153 4/4（1440/1024/900/390px），页面 overflow、浏览器错误和未声明请求为 0；390px `visibleHeight=178,imageHeight=178`，页级操作经真实滚动仍可达。
+- 第一位截图审查者把 390px 首屏判为图片截断 P1；几何复审使用相同截图和浏览器坐标确认 `img` 178px 全部位于滚动裁剪区内，图像比例与 267×150 解码结果一致。900/1024px 预览超出初始视口但可正常滚动，不视作操作阻断；1440px 另有短提示词导致的左列留白 P3，属于 fixture 内容差异，不加填充装饰。此证据不涵盖真实模型生成或生产图片比例。
+- 稳定证据：`.dev-runtime/ui-pages/media/mc05-first-view-final-20261013-report.json`，以及同前缀的 390/900/1024/1440 截图。
+
+## MG11 当前分支复核（2026-10-13）
+
+- 上方“MG11 major”是 2026-10-10 截图下的历史发现；当前代码已将续跑与指定起点的范围写入同一个主按钮：可续跑且自动起点显示“继续生成”，选中“资产意图”后显示“从资产意图重新生成”。后端的 `start_from_stage` 优先决定保留哪些先前阶段 checkpoint、清理哪些后续阶段；`resume_from_checkpoint` 只决定是否沿用现有 workflow run，不会覆盖选择的重生成起点。
+- 修正 E2E 入口：脚本生成控件位于折叠的“场景投影（只读）”内部。旧用例没有展开外层 disclosure，手机端也未切到含生成控件的“场次”视图，导致控件不存在于当前可见路径。现有 MG11/MG12 用共享导航先展开外层再打开生成选项；产品界面没有因此改动。
+- Chrome 153 在 390/900/1024/1440px 通过 4/4：同一主按钮从“继续生成”切换到“从资产意图重新生成”，保持 `start_galgame_pipeline` 未调用；页面 overflow、浏览器错误、意外请求均为0。共享入口下 MG12 请求预览三宽度 3/3。
+- 独立复审确认错误阶段、已保存成果提示及按钮文案足以区分续跑和重生成范围；390 的按钮和失败说明完整可见，桌面无裁切或重叠；当前无 P1/P2/P3。运行来自状态 fixture，未调用真实模型管线。
+- 证据：[MG11 报告](../../../../.dev-runtime/ui-pages/media/mg11-source-rule-final2-20261013-report.json)、[390 初态](../../../../.dev-runtime/ui-pages/media/mg11-source-rule-final2-20261013-MG11-390.png)、[390 选定起点](../../../../.dev-runtime/ui-pages/media/mg11-source-rule-final2-20261013-MG11-390-interaction.png)、[1440 初态](../../../../.dev-runtime/ui-pages/media/mg11-source-rule-final2-20261013-MG11-1440.png)、[1440 选定起点](../../../../.dev-runtime/ui-pages/media/mg11-source-rule-final2-20261013-MG11-1440-interaction.png)。
+
+## MX08 运行历史末项复核（2026-10-13）
+
+- 原始 MX08 初始截图显示失败原因和恢复入口，但 59%/47% 两条较早事件在属性滚动区下方；旧审查没有到达末项截图。不能因报告 DOM 文本含事件就认定末项可见。
+- 主流程扩展现有检查，真实滚动至最早的47%事件。1440/1024/390px 3/3 通过；三条进度、失败信息与恢复节点在滚动末态完整显示，页面 overflow=0，浏览器错误/意外请求为0。实看390/1024/1440末态，无新增视觉问题或 P1/P2/P3。
+- 只滚动读取，没有执行定位节点、恢复工作流或写入画布。当前报告 `.dev-runtime/ui-pages/media/mx08-history-tail-final2-20261013-report.json` 和同前缀 MX08 interaction 截图逐宽记录主流程已实看。本项关闭“历史事件末项缺实屏证据”边界，不扩大为真实服务端恢复验证。
+
+## MG12 Galgame 请求预览（2026-10-13）
+
+- Chrome 153 在 390/900/1024/1440px 四宽度 4/4 通过；请求预览正文、模型/模板信息、关闭和复制入口可读，弹窗纵向滚动可达后续详情。页面 overflow、浏览器错误和意外请求均为 0；调用仅限预览命令，没有启动 Galgame 生成或发送真实模型请求。
+- 独立审图确认四宽度无 P1/P2/P3。步骤卡片技术副标签在窄卡片中省略，但主要阶段名称和正文中的完整模型/模板信息仍清楚；无需增加装饰或改动产品布局。
+- 报告及截图：`.dev-runtime/ui-pages/media/mg12-request-preview-final-20261013-report.json` 与同前缀 `MG12-390/900/1024/1440.png`。1024px 补审由独立审图者完成；本审查不代表真实模型管线执行验收。
+
+## MG13 Galgame 重置确认（2026-10-13）
+
+- 初审独立发现 390px 全宽红色「重置」排在白色「取消」上方（P2）；900/1024/1440px 的桌面布局已是取消在前。根因是共用 Modal footer 使用 `flex-col-reverse`，使移动端危险动作先于取消。
+- 修复后仅危险确认框在窄屏把取消排在首位、重置放在末位；桌面顺序与所有行为不变。Chrome 153 四宽度 4/4，检查删除/保留数据、不可恢复提示、位置顺序，并实际点击取消及用 Escape 关闭，均未发起 `reset_project_generated_data`。页面 overflow、浏览器错误、意外请求均为 0。
+- 独立复审修复后的四张截图，确认手机和桌面顺序正确、说明及按钮无裁切，无剩余 P1/P2/P3。截图：[390](../../../../.dev-runtime/ui-pages/media/mg13-reset-order-final-20261013-MG13-390.png)、[900](../../../../.dev-runtime/ui-pages/media/mg13-reset-order-final-20261013-MG13-900.png)、[1024](../../../../.dev-runtime/ui-pages/media/mg13-reset-order-final-20261013-MG13-1024.png)、[1440](../../../../.dev-runtime/ui-pages/media/mg13-reset-order-final-20261013-MG13-1440.png)。
+
+## MX13–MX32 视频画布属性与预览补审（2026-10-14）
+
+- Chrome 153 在 1440/1024/390px 覆盖画布键盘添加、节点库、请求预览、裁剪/抽帧、媒体引用、连线属性、单节点运行确认、图片选择/预览、缩放/交互锁、文本/图片/音频输入输出和草稿、返回与视口保存。MX20 另覆盖 900px；按各用例视口累计 55 项最终通过，`overflow=0`、浏览器错误/意外请求均为 0。保存与生成来自 UI fixture，不代表真实 Host/工作流写入。
+- 独立审图发现 MX22 390px 放大按钮贴在节点右上，随节点被画布右边缘裁切（P3）。预览按钮现仅在 `<640px` 改锚到缩略图左上，桌面/中屏保持右上。修复后的浏览器断言检查按钮 bounds 完全处于画布视口内，仍核对图片资源、Esc 关闭及焦点回到原预览按钮；390/1024/1440 均通过。独立复审确认手机新位置完整可见、未挡标题、只覆盖少量缩略图边缘且主要画面清楚，原 P3 已关闭。
+- 审查脚本发现两个夹具合同偏差并修正：音频文件生成时长由 2 秒改为匹配资产元数据的 3 秒；MX31 从过期的 video workspace `/studio` 入口改为验证当前独立 Canvas 项目的页头返回项目列表行为。产品没有新增路由或 API。
+- 长批次中 Chrome 有数次 tab crash/timeout；失败断在浏览器会话/打开入口阶段的测试在隔离复跑通过。MX26 的时长断言和 MX31 的选择器失败则按夹具/路由合同定位后修正，不作为产品缺陷隐藏。
+- 证据：[MX22 手机修复末态](../../../../.dev-runtime/ui-pages/media/canvas-mx22-mobile-fix-20261014-MX22-390-interaction.png)、[MX26 音频时长修正报告](../../../../.dev-runtime/ui-pages/media/canvas-mx26-correct-audio-20261014-report.json)、[MX31 返回报告](../../../../.dev-runtime/ui-pages/media/canvas-mx31-corrected-20261014-report.json)、[MX32 视口保存报告](../../../../.dev-runtime/ui-pages/media/canvas-mx32-20261014-report.json)。
+- 最终生产构建与设计预算通过：CSS 源 4,753 行 / 135,065 字节（批准基线 +1.17% / −2.05%），构建 CSS 265,538 字节（+3.13%）；palette 一致、界面 emoji=0、无新增依赖，保留既有大 JS chunk 警告。
+- `npm run build` 与设计预算通过；CSS 源规则不变，构建 CSS 263,996 字节，较调整前增加 77 字节；未加依赖。该流程由 UI fixture 驱动，没有执行真实项目重置。
+
+## MS01–MS03 来源同步冲突当前版复核（2026-10-13）
+
+- 主流程使用现有 `media.e2e.mjs` 的三类来源同步 fixture，在 1440/900/390px 共 9/9 通过；三条冲突、来源/当前项目摘要和末项真实滚动均有记录，页面溢出、浏览器错误、意外请求均为 0。
+- 390px 两侧摘要上下排列，保留漫画“生成内容”、视频“片段”和 Galgame“场次”等领域名称；底部“重新检查 / 应用安全更新”与卡片内“保留当前”分层，无文本碰撞。预览退出未触发 `apply_source_sync_decisions` 或 `detach_derived_project`。
+- 当前截图与报告：`.dev-runtime/ui-pages/media/current-report.json` 及 `current-MS01/02/03-*`。本轮为主流程 fixture 复核，未执行真实同步或解除派生关系；上方历史独立审图记录仍保留其原始证据边界。

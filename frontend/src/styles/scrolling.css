@@ -324,16 +324,6 @@
   color: rgb(var(--color-text-secondary));
 }
 
-@media (min-width: 768px) and (max-width: 1200px) {
-  .a4n-media-stage-tab__label {
-    max-width: 8rem;
-  }
-
-  .a4n-media-stage-tab__status {
-    max-width: 5rem;
-  }
-}
-
 /* 移动端横滑选择轨道：保留原生滚动能力，隐藏桌面式滚动条。 */
 .a4n-mobile-scroll-rail {
   -webkit-overflow-scrolling: touch;
@@ -345,7 +335,7 @@
   position: relative;
   min-width: 0;
   --a4n-tab-rail-surface: var(--color-bg-secondary);
-  --a4n-tab-rail-edge-space: 2rem;
+  --a4n-tab-rail-edge-space: 2.5rem;
 }
 
 .a4n-tab-rail-wrap--canvas {
@@ -385,7 +375,7 @@
     left: 0;
     width: var(--a4n-tab-rail-edge-space);
     place-items: center;
-    background: linear-gradient(90deg, rgb(var(--a4n-tab-rail-surface)) 38%, rgb(var(--a4n-tab-rail-surface) / 0.78) 68%, transparent);
+    background: rgb(var(--a4n-tab-rail-surface));
     box-shadow: inset -1px 0 0 rgb(var(--color-primary) / 0.16);
     content: "‹";
     font-size: 1.25rem;
@@ -406,5 +396,9 @@
     scroll-padding-inline: var(--a4n-tab-rail-edge-space);
     scroll-snap-type: none;
     padding-right: var(--a4n-tab-rail-edge-space);
+  }
+
+  .a4n-tab-rail-wrap .a4n-novel-detail-tabs {
+    scroll-snap-type: inline mandatory;
   }
 }

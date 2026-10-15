@@ -288,10 +288,10 @@ async fn legacy_list_page_prompts(
     request: WorkerEnvelope<MangaChapterInput>,
 ) -> Result<Vec<MangaPagePromptSummary>, WorkerFailure> {
     validate_request(&request, MANGA_RECORD_LIST_OPERATION)?;
-    let user_id = user_id(&request)?;
+    let user_id = request.principal.require_user_id()?;
     let input = request.payload;
-    positive(input.project_id, "project_id")?;
-    positive(input.chapter_id, "chapter_id")?;
+    WorkerFailure::require_positive_id(input.project_id, "project_id")?;
+    WorkerFailure::require_positive_id(input.chapter_id, "chapter_id")?;
     verify_manga_viewer(&state.database, input.project_id, user_id).await?;
     let prompts = a4n_db::manga::manga_page_prompts_by_chapter(
         state.database.connection(),
@@ -470,5 +470,5 @@ async fn performance_manga_prompt_list_artifact_projection() {
         .list_page_prompts(request)
         .await
         .expect_err("optimized path must reject invalid page slots");
-    assert_eq!(legacy_error.message, optimized_error.message);
+    assert_eq!(legacy_error.message(), optimized_error.message());
 }

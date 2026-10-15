@@ -177,7 +177,7 @@
 
 设计约束继续有效：当前暖书房配色、iOS 控件、现有 Lucide、静态界面零 emoji、零新依赖。CSS 基线仍为 4,698 行 / 137,890 字节，增长上限 20%。这些为既有约束与主流程验证口径，不是本代理重新扫描所得；本代理只新增审查 Markdown，未改 CSS 或依赖。
 
-本轮未亲看的新截图共 38 张，以下是明确的交接清单，**不算新增视觉通过，也不影响已有历史结论**：
+原 R 历史快照中当时未亲看的新截图共 38 张，以下是明确的交接清单，**不算新增视觉通过，也不影响已有历史结论**：
 
 | ID | R 下未亲看状态及宽度 | 数量 |
 | --- | --- | --- |
@@ -190,3 +190,44 @@
 本代理任务完成：16 张亲看、分四批落盘，五组都有新关键状态证据；13 默认页、31 内页及 24 首页/Agent 工作面的历史引用已恢复。是否需要再查上述 38 张由主流程根据新增问题决定，不为重复覆盖无限继续看图。
 
 收尾检查：报告中 84 个具体 PNG 引用全部存在；亲看序号严格为 1–16；三份历史索引行数分别为 13、31、24。`git diff --check` 通过。该检查只验证引用与文本完整性，不增加视觉覆盖。
+
+## SD07 当前分支补审（2026-10-13）
+
+- 当前 `settings-details` fixture 在 1440/900/390px 生成菜单、重命名、批量选择、确认和结果共15张截图。独立看图确认选择数与选中卡片一致、当前主题未选中、结果保留内置和当前主题。
+- 当前批量确认曾因只显示数量和“不可撤销”缺少具体对象名称而判 P2。主流程修复后在三宽复审：两个待删除主题名称与数量一致，取消顺序符合危险操作保护，内容完整，无 P1/P2/P3。
+- 390px 重命名成功 toast 暂时覆盖卡片下缘；本次审查当时因未挡选择计数或批量删除入口，未登记为缺陷。2026-10-15 对同状态当前分支截图重新 fresh-eyes 审查后发现它仍遮住卡片标题，后续 P2 修复记录见文末收尾。
+
+## SD16 当前分支补审（2026-10-13）
+
+- 当前三宽度九张 SD16 状态截图均已实际打开。首审在 390px 应用级别后的底部 toast 上发现 P3：它短暂遮住日志末尾，但没有遮筛选按钮；筛选项、路径和其余日志状态可读。
+- 成功反馈现显示在「应用级别」旁，独立复审 390/900/1440px 修复截图无 P1/P2/P3。390px 按钮与状态同排可读，日志正文末尾不再被 toast 遮挡；错误仍使用原错误提示。
+- 本轮新增截图来自当前分支 fixture；`set_log_level` 由测试本地显式响应。原 R 下未亲看的历史截图清单仍保留，不把新截图计作旧快照的追补。
+
+## SD05 当前分支补审（2026-10-13）
+
+- 当前主题编辑器 390/900/1440px 六种状态共18张截图均已实际打开。颜色标签/色值、效果滑杆/数值、背景预览与页面范围、流式模式/速率说明及高级 Token 字段均清楚；手机固定保存/取消不遮编辑字段。
+- 独立审图无 P1/P2/P3。主题保存是在浏览器 fixture 中显式模拟；本补审不声称真实服务器持久化，也不覆盖旧 R 目录的 11 张未亲看历史截图。
+- 当前报告：`.dev-runtime/ui-pages/settings-details/sd05-theme-editor-current-20261013-2026-10-12T22-28-58-446Z/settings-details-report.json`。
+
+## SD11 当前分支补审（2026-10-13）
+
+- 主流程补看当前版 `settings-details` 三张截图（390/900/1440px），确认管理项目列表使用 `novel_long` 样本后，类型显示为“长篇小说 · 写作中”，项目/用户编号和 12 / 24 章信息均完整可读。
+- 390px 项目标题按当前列表模式省略；可见前缀、类型、状态、章节数和项目编号共同提供识别线索，没有碰撞或遮挡。900/1440px 标题完整，展开诊断信息的层级稳定。
+- 当前版独立复核无 P1/P2/P3。旧 `final-extras-2026-09-24T23-50-14-728Z` 下的历史截图清单仍代表旧快照边界，不能用本补审替代或回写原始亲看统计；当前报告由 UI fixture 显式提供列表响应，不代表真实服务端权限与持久化。
+- 当前报告：`.dev-runtime/ui-pages/settings-details/sd11-admin-projects-current-20261013-2026-10-12T22-35-02-837Z/settings-details-report.json`。
+
+## SD06 当前分支完整主题名选项补审（2026-10-14）
+
+- 旧 R 截图表第 10 项保留其历史观察：主题包弹窗的长名称选择值省略，且当时没有亲看展开选项；不重写旧图片亲看统计。本轮检查当前分支 `settings-details` 运行于 390/900/1440px 的三张 `package-theme-options` 截图。
+- 桌面展开菜单的根因是共享列表框宽度等于触发器宽度，导致最长主题名最后一个字单独换行。共享列表框现按选项内容扩展并受视口边界约束；现有 E2E 对选中名逐宽度验证为完整单行、弹层不越界，SD06 工作流 1/1 通过。桌面弹层 265.7px、手机 356px；390px 名称原本完整，菜单仍没有裁切。
+- 三张当前截图均已实际打开复核，无遮挡或文本裁切、无 P1/P2/P3。截图只验证 UI fixture；没有执行 ZIP 选择、导入或真实服务导出。
+- 证据：[报告](../../../../.dev-runtime/ui-pages/settings-details/current-2026-10-14T13-58-03-578Z/settings-details-report.json)、[390px](../../../../.dev-runtime/ui-pages/settings-details/current-2026-10-14T13-58-03-578Z/SD06-theme-create-import-package-package-theme-options-390.png)、[900px](../../../../.dev-runtime/ui-pages/settings-details/current-2026-10-14T13-58-03-578Z/SD06-theme-create-import-package-package-theme-options-900.png)、[1440px](../../../../.dev-runtime/ui-pages/settings-details/current-2026-10-14T13-58-03-578Z/SD06-theme-create-import-package-package-theme-options-1440.png)。
+
+## 当前分支设置截图补审与收尾（2026-10-15）
+
+- 对原 38 项状态/宽度清单，使用当前分支 10/14 生成的等效截图复审：SD05/SD07/SD11/SD16 位于 `current-2026-10-14T05-23-15-517Z`，SD06 位于 `current-2026-10-14T13-58-03-578Z`。38 张图均存在并逐张查看；它们覆盖当前代码的相关设置状态，原 R 历史图保留为历史材料，不回写原亲看统计。
+- 首轮复审发现 SD07 手机重命名成功 toast 遮住首张主题卡标题（P2），以及 SD16 手机日志内部滚动没有视觉提示、WARN 行在初始视口底部被截（P3）。根因分别是全局 toast 只避让可交互控件、不避让主题卡文字，以及窄屏 `custom-scrollbar` 隐藏滚动条。
+- 修复后，重命名成功与失败反馈以内联 `role=status/alert` 显示，主题名更新和 API 行为保持原样；日志区只在底部仍有内容时显示 Lucide 下箭头与滚动提示，滚到底即收起。SD05 两个主题编辑折叠区和 SD16 两个日志折叠区也统一使用 Lucide `ChevronDown`，仍是原生 `<details>/<summary>`。
+- 当前版 Chrome 153 SD05、SD07、SD16 定向回归 3/3，在 390/900/1024/1440px 通过，横向溢出、浏览器错误、意外请求均为 0。SD07 390px 内联提示与主题卡不相交；SD16 滚动提示与剩余内容状态同步，底部截图中最后一条 DEBUG 日志完整可见。独立审图重新检查 14 张修复后截图，无可确认 P1/P2/P3。
+- 验证：`npm run build`、`node e2e/ui-presentation/check-design-budget.mjs`、E2E `node --check`、`git diff --check` 通过。CSS 源 4,767 行 / 135,470 字节，构建 CSS 265,993 字节，较批准基线分别 +1.47%、−1.76%、+3.31%；调色板一致、UI emoji=0、无新增依赖。UI fixture 模拟 `update_theme` / `set_log_level` 响应，不代表真实 Host 或数据库持久化。
+- 证据：[当前浏览器报告](../../../../.dev-runtime/ui-pages/settings-details/settings-fixes-verified-2026-10-15T10-11-13-278Z/settings-details-report.json)、[SD07 手机内联反馈](../../../../.dev-runtime/ui-pages/settings-details/settings-fixes-verified-2026-10-15T10-11-13-278Z/SD07-theme-more-rename-bulk-rename-feedback-inline-390.png)、[SD16 手机滚动提示](../../../../.dev-runtime/ui-pages/settings-details/settings-fixes-verified-2026-10-15T10-11-13-278Z/SD16-runtime-logs-log-level-and-location-390.png)、[SD16 手机滚动到底](../../../../.dev-runtime/ui-pages/settings-details/settings-fixes-verified-2026-10-15T10-11-13-278Z/SD16-runtime-logs-log-content-bottom-390.png)。

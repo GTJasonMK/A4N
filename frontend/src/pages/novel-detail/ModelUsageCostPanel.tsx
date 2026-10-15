@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Eye, RefreshCw } from "lucide-react";
+import { ArrowLeftRight, Eye, RefreshCw } from "lucide-react";
 import {
   getModelUsageReport,
   getModelUsageRequest,
@@ -12,7 +12,7 @@ import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { useToast } from "../../components/feedback/Toast";
 import type { ModelRequestPreview } from "../../api/requestPreview";
-import { formatDateTime, formatNumber, useI18n, type Locale, type MessageKey } from "../../i18n";
+import { formatDateTime, formatNumber, useI18n, type MessageKey } from "../../i18n";
 import { getOperationStatusLabel } from "../../utils/workflowPresentation";
 import { formatMicros } from "./modelUsageCostFormatting";
 
@@ -57,7 +57,7 @@ export const ModelUsageCostPanel: React.FC<{ projectId: number | null }> = ({ pr
   };
 
   const viewRequest = async (id: number) => {
-    if (loading || requestLoading) return;
+    if (requestLoading) return;
     const requestSeq = ++requestPreviewRef.current;
     setRequestModalOpen(true);
     setRequestLoading(true);
@@ -153,56 +153,64 @@ export const ModelUsageCostPanel: React.FC<{ projectId: number | null }> = ({ pr
               })}
             </p>
           )}
-          <div className="custom-scrollbar overflow-x-auto border-y border-book-border/40" role="region" tabIndex={0} aria-label={t("novel.costTitle")}>
-            <table className="w-full min-w-[760px] text-left text-small">
-              <thead className="text-book-text-muted">
-                <tr className="border-b border-book-border/40">
-                  <th className="px-2 py-2 font-medium">{t("novel.costAmount")}</th>
-                  <th className="px-2 py-2 font-medium">{t("novel.costStatus")}</th>
-                  <th className="px-2 py-2 font-medium">{t("novel.costCapability")}</th>
-                  <th className="px-2 py-2 font-medium">{t("novel.costModel")}</th>
-                  <th className="px-2 py-2 font-medium">{t("novel.costTime")}</th>
-                  <th className="px-2 py-2 text-right font-medium">{t("novel.costRequest")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.recent.map((entry) => (
-                  <tr key={entry.id} className="border-b border-book-border/25 last:border-0">
-                    <td className="whitespace-nowrap px-2 py-2 font-mono tabular-nums text-book-text-main">
-                      {entry.amountMicros == null
-                        ? t("novel.costUnpriced")
-                        : entry.currency + " " + formatMicros(entry.amountMicros, locale)}
-                    </td>
-                    <td className="px-2 py-2 text-book-text-muted" title={`${entry.status} · ${entry.confidence}`}>
-                      <div className={entry.status === "failed" ? "text-error" : undefined}>{getOperationStatusLabel(entry.status, locale)}</div>
-                      <div className="text-caption">{entry.confidence === "reported" ? t("novel.costReported") : entry.confidence === "partial" ? t("novel.costPartial") : entry.confidence === "unpriced" ? t("novel.costUnpriced") : entry.confidence}</div>
-                    </td>
-                    <td className="px-2 py-2 text-book-text-main">
-                      <div>{CAPABILITY_LABELS[entry.capability] ? t(CAPABILITY_LABELS[entry.capability]) : entry.capability}</div>
-                      <div className="text-caption text-book-text-muted">{entry.workflow} / {entry.stepKey}</div>
-                    </td>
-                    <td className="max-w-[240px] truncate px-2 py-2 text-book-text-muted" title={`${entry.provider ?? ""} · ${entry.model ?? ""}`}>
-                      {entry.provider ?? "-"} · {entry.model ?? "-"}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-2 text-book-text-muted">
-                      {formatDateTime(entry.startedAt, locale)}
-                    </td>
-                    <td className="px-2 py-1 text-right">
-                      {entry.requestAvailable ? (
-                        <BookIconButton
-                          label={t("novel.costViewRequest")}
-                          size="sm"
-                          disabled={loading || requestLoading}
-                          onClick={() => void viewRequest(entry.id)}
-                        >
-                          <Eye size={14} />
-                        </BookIconButton>
-                      ) : <span aria-label={t("novel.costRequestUnavailable")}>-</span>}
-                    </td>
+          <div className="space-y-2">
+            <p className="flex items-center gap-1.5 text-caption text-book-text-muted sm:hidden">
+              <ArrowLeftRight size={14} aria-hidden="true" />
+              {t("novel.costSwipeHint")}
+            </p>
+            <div className="custom-scrollbar max-h-[65vh] overflow-auto border-y border-book-border/40" role="region" tabIndex={0} aria-label={t("novel.costTitle")}>
+              <table className="w-full min-w-[760px] text-left text-small">
+                <thead className="sticky top-0 z-20 bg-[rgb(var(--color-bg-primary))] text-book-text-muted">
+                  <tr className="border-b border-book-border/40">
+                    <th className="sticky left-0 z-30 border-r border-book-border/40 bg-[rgb(var(--color-bg-primary))] px-2 py-2 font-medium">{t("novel.costAmount")}</th>
+                    <th className="px-2 py-2 font-medium">{t("novel.costStatus")}</th>
+                    <th className="px-2 py-2 font-medium">{t("novel.costCapability")}</th>
+                    <th className="px-2 py-2 font-medium">{t("novel.costModel")}</th>
+                    <th className="px-2 py-2 font-medium">{t("novel.costTime")}</th>
+                    <th className="px-2 py-2 text-right font-medium">{t("novel.costRequest")}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {report.recent.map((entry) => (
+                    <tr key={entry.id} className="border-b border-book-border/25 last:border-0">
+                      <td className="sticky left-0 z-10 whitespace-nowrap border-r border-book-border/40 bg-[rgb(var(--color-bg-primary))] px-2 py-2 font-mono tabular-nums text-book-text-main">
+                        {entry.amountMicros == null
+                          ? t("novel.costUnpriced")
+                          : entry.currency + " " + formatMicros(entry.amountMicros, locale)}
+                      </td>
+                      <td className="px-2 py-2 text-book-text-muted" title={`${entry.status} · ${entry.confidence}`}>
+                        <div className={entry.status === "failed" ? "text-error" : undefined}>{getOperationStatusLabel(entry.status, locale)}</div>
+                        <div className="text-caption">{entry.confidence === "reported" ? t("novel.costReported") : entry.confidence === "partial" ? t("novel.costPartial") : entry.confidence === "unpriced" ? t("novel.costUnpriced") : entry.confidence}</div>
+                      </td>
+                      <td className="px-2 py-2 text-book-text-main">
+                        <div>{CAPABILITY_LABELS[entry.capability] ? t(CAPABILITY_LABELS[entry.capability]) : entry.capability}</div>
+                        <div className="text-caption text-book-text-muted">{entry.workflow} / {entry.stepKey}</div>
+                      </td>
+                      <td className="max-w-[240px] px-2 py-2 text-book-text-muted" title={`${entry.provider ?? ""} · ${entry.model ?? ""}`}>
+                        <span className="block max-w-[240px] truncate max-sm:max-w-[220px] max-sm:whitespace-normal max-sm:break-words max-sm:[overflow-wrap:anywhere]">
+                          {entry.provider ?? "-"} · {entry.model ?? "-"}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-2 text-book-text-muted">
+                        {formatDateTime(entry.startedAt, locale)}
+                      </td>
+                      <td className="px-2 py-1 text-right">
+                        {entry.requestAvailable ? (
+                          <BookIconButton
+                            label={t("novel.costViewRequest")}
+                            size="sm"
+                            disabled={loading || requestLoading}
+                            onClick={() => void viewRequest(entry.id)}
+                          >
+                            <Eye size={14} />
+                          </BookIconButton>
+                        ) : <span aria-label={t("novel.costRequestUnavailable")}>-</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       )}

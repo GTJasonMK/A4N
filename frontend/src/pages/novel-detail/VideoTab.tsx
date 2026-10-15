@@ -712,7 +712,16 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           )}
         </MediaStageHeader>
 
-        <section id={`${stageId}-panel`} role="tabpanel" aria-labelledby={`${stageId}-tab-${workspaceTab}`} className="flex min-h-0 flex-1 flex-col">
+        <section
+          id={`${stageId}-panel`}
+          role="tabpanel"
+          aria-labelledby={`${stageId}-tab-${workspaceTab}`}
+          className={`flex min-h-0 flex-1 flex-col ${
+            workspaceTab === "assembly"
+              ? "a4n-video-assembly-tabpanel custom-scrollbar"
+              : ""
+          }`}
+        >
         {workspaceTab === "director" ? (
           <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
             <Suspense fallback={<VideoWorkspaceFallback text={t("writing.loadingVisualPlan")} />}>

@@ -868,7 +868,6 @@ pub(super) fn run() {
         &typescript_interface::<GenerationRunSummary>("GenerationRunSummary"),
         &typescript_interface::<WorkflowRunDetailSummary>("WorkflowRunDetailSummary"),
         &typescript_interface::<CancelWorkflowInput>("CancelWorkflowInput"),
-        &typescript_interface::<WorkflowProgressEventsInput>("WorkflowProgressEventsInput"),
         &typescript_interface::<ListWorkflowRunsInput>("ListWorkflowRunsInput"),
         &typescript_interface::<GetWorkflowRunInput>("GetWorkflowRunInput"),
         &typescript_interface::<ResumeWorkflowRunInput>("ResumeWorkflowRunInput"),

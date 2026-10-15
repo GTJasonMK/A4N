@@ -63,7 +63,7 @@ export function PartOutlineSection({
           </p>
         </div>
         {canEdit ? (
-          <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
             <BookButton
               variant="secondary"
               size="sm"
@@ -74,14 +74,14 @@ export function PartOutlineSection({
             </BookButton>
             <BookButton
               aria-label={t("outline.partSection.openAdvanced")}
-              variant="ghost"
+              variant="secondary"
               size="sm"
               onClick={onOpenAdvanced}
               disabled={disabled || !loaded}
-              className="inline-flex items-center gap-1.5"
+              className="inline-flex shrink-0 items-center gap-1.5"
             >
               <SlidersHorizontal size={13} aria-hidden="true" />
-              {t("outline.partSection.openAdvanced")}
+              {t("outline.partSection.advancedTools")}
             </BookButton>
           </div>
         ) : null}
@@ -94,7 +94,7 @@ export function PartOutlineSection({
           onToggle={(event) => setGenerationOpen(event.currentTarget.open)}
         >
           <summary className="flex cursor-pointer items-center justify-between gap-3 py-1 text-xs font-medium text-book-text-sub">
-            <span>{generationActionLabel}</span>
+            <span>{t("outline.partSection.settingsTitle")}</span>
             <span className="text-caption font-normal text-book-text-muted">{t("outline.partSection.settingsHint")}</span>
             <ChevronRight size={13} className="shrink-0 transition-transform group-open:rotate-90" />
           </summary>
@@ -126,17 +126,17 @@ export function PartOutlineSection({
                 className="pyqt-input h-10 w-full"
               />
             </label>
-            <div className="flex items-center justify-end gap-2 md:pb-0">
+            <div className="flex flex-wrap items-center justify-end gap-2 md:pb-0">
               {!generating ? (
                 <BookButton
                   variant="secondary"
                   size="sm"
                   onClick={onPreviewGenerate}
                   disabled={disabled || !loaded}
-                  className="inline-flex h-10 !min-h-10 min-w-0 items-center gap-1.5 !px-2 !text-xs"
+                  className="inline-flex h-10 !min-h-10 min-w-0 shrink-0 items-center gap-1.5 !px-2 !text-xs"
                 >
-                  <Eye size={14} />
-                  {hasParts ? t("outline.partSection.viewAppendRequest") : t("outline.partSection.viewGenerateRequest")}
+                  <Eye size={14} aria-hidden="true" />
+                  {t(hasParts ? "outline.partSection.viewAppendRequest" : "outline.partSection.viewGenerateRequest")}
                 </BookButton>
               ) : null}
               <BookButton

@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Clipboard,
+import {
+  ArrowLeftRight,
+  Clipboard,
   Image as ImageIcon,
   Save,
   Star,
-  Trash2, } from "lucide-react";
+  Trash2,
+} from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { ZoomableImage } from "../../../components/ui/ImageLightbox";
@@ -194,9 +197,10 @@ export function ImageActionDialog({
       isOpen
       onClose={() => void requestClose()}
       title={imageTypeLabel(image.image_type, t)}
-      subtitle={`${image.width} × ${image.height}${image.is_favorite ? ` · ${t("novel.imageLibrary.favorite")}` : ""}`}
+      subtitle={`${t("novel.assetGraph.recordId")}: ${image.id} · ${image.width} × ${image.height}${image.is_favorite ? ` · ${t("novel.imageLibrary.favorite")}` : ""}`}
       icon={<ImageIcon size={15} />}
       maxWidthClassName="max-w-5xl"
+      className="[--a4n-dialog-opacity:1]"
       bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar px-4 py-4"
       closeOnBackdrop={!busy}
       closeOnEscape={!busy}
@@ -249,7 +253,13 @@ export function ImageActionDialog({
           <details className="a4n-flat-surface overflow-hidden">
             <summary className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-xs font-medium text-book-text-sub">
               <span>{t("novel.imageLibrary.diagnostics")}</span>
-              <span className="text-caption font-normal text-book-text-muted">{t("novel.imageLibrary.rawRecord")}</span>
+              <span className="inline-flex items-center gap-1.5 text-caption font-normal text-book-text-muted">
+                {t("novel.imageLibrary.rawRecord")}
+                <span className="a4n-raw-record-scroll-hint inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-book-primary sm:hidden">
+                  <ArrowLeftRight size={12} aria-hidden="true" />
+                  {t("novel.imageLibrary.rawRecordScrollHint")}
+                </span>
+              </span>
             </summary>
             <div className="border-t border-book-border/40">
               <div className="flex justify-end px-3 pt-2">
@@ -262,9 +272,16 @@ export function ImageActionDialog({
                   {copied ? t("novel.imageLibrary.copied") : t("novel.imageLibrary.copyJson")}
                 </button>
               </div>
-          <pre className="whitespace-pre-wrap break-words p-3 font-mono text-caption leading-relaxed text-book-text-sub">
-                {rawJson}
-              </pre>
+              <div
+                role="region"
+                aria-label={t("novel.imageLibrary.rawRecord")}
+                tabIndex={0}
+                className="custom-scrollbar max-w-full overflow-x-auto focus-visible:outline-2 focus-visible:outline-book-primary/35"
+              >
+                <pre className="m-0 w-max min-w-full whitespace-pre p-3 font-mono text-caption leading-relaxed text-book-text-sub">
+                  {rawJson}
+                </pre>
+              </div>
             </div>
           </details>
         </div>

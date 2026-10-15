@@ -53,7 +53,7 @@ impl WorkerState {
                 "worker scope project_id 与 payload 不一致或无效",
             ));
         }
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         a4n_db::collaboration::verify_project_permission(
             self.database.connection(),
             project_id,
@@ -61,13 +61,13 @@ impl WorkerState {
             a4n_domain::collaboration::ProjectAccessRole::Viewer,
         )
         .await
-        .map_err(collaboration_error)?;
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
         let profiles = a4n_db::asset::object_profile_list_records_by_project(
             self.database.connection(),
             project_id,
         )
         .await
-        .map_err(asset_error)?;
+        .map_err(a4n_worker_db_adapter::map_asset_db_error)?;
         let profile_ids = profiles
             .iter()
             .map(|profile| profile.id)
@@ -79,7 +79,7 @@ impl WorkerState {
             &profile_ids,
         )
         .await
-        .map_err(profile_material_error)?;
+        .map_err(a4n_worker_db_adapter::map_profile_material_db_error)?;
         Ok(profiles
             .into_iter()
             .map(|profile| ObjectProfileListItem {

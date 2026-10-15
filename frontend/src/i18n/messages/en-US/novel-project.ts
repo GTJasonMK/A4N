@@ -16,6 +16,8 @@ export const novelProject = {
   importProject: "Import project",
   projectList: "Project list",
   noProjects: "No projects",
+  noProjectsMatchFilters: "No projects match the current filters",
+  clearProjectFilters: "Clear filters",
   loadingProjects: "Loading projects…",
   projectLoadFailed: "Failed to load projects",
   novel: "Novel",

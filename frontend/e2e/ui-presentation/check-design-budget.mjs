@@ -31,7 +31,7 @@ for (const [mode, selector] of [["light", ":root"], ["dark", ".dark"]]) {
   assert.ok(start >= 0, `Missing ${mode} palette`);
   const body = theme.slice(start, theme.indexOf("\n}", start));
   const palette = Object.fromEntries([...body.matchAll(/(--(?:color|status)-[\w-]+):\s*([^;]+);/g)].map((match) => [match[1], match[2].trim()]));
-  assert.deepEqual(palette, baseline.palette[mode], `Keep the original ${mode} colors`);
+  assert.deepEqual(palette, baseline.palette[mode], `The ${mode} palette must match the approved baseline`);
 }
 
 const emojiFiles = [];
@@ -39,4 +39,4 @@ for (const file of sourceFiles.filter((file) => /\.(?:ts|tsx)$/.test(file) && !/
   if (/\p{Extended_Pictographic}/u.test(await readFile(file, "utf8"))) emojiFiles.push(path.relative(frontend, file));
 }
 assert.deepEqual(emojiFiles, [], "Product UI source must not contain emoji");
-console.log(JSON.stringify({ ...measured, originalPalette: "preserved", uiEmoji: 0 }, null, 2));
+console.log(JSON.stringify({ ...measured, paletteMatchesBaseline: true, uiEmoji: 0 }, null, 2));

@@ -76,7 +76,7 @@ impl WorkerState {
     ) -> Result<Vec<ChapterOutlineListEntry>, WorkerFailure> {
         validate_request(&request, LIST_CHAPTER_INDEX_OPERATION)?;
         validate_project_scope(&request, request.payload.project_id)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         verify_project_permission(
             self,
             request.payload.project_id,

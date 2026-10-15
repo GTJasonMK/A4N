@@ -457,6 +457,7 @@ dependencies = [
  "a4n-config",
  "a4n-db",
  "a4n-domain",
+ "a4n-error",
  "a4n-worker-contract",
  "a4n-worker-db-adapter",
  "a4n-worker-runtime",
@@ -2312,6 +2313,7 @@ dependencies = [
  "axum",
  "chrono",
  "serde",
+ "subtle",
  "tokio",
 ]
 

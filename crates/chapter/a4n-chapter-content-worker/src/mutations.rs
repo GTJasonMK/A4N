@@ -6,7 +6,7 @@ use super::{
     },
     permissions::verify_project_editor,
     transactions::finish_transaction,
-    validation::{positive, user_id, validate_request},
+    validation::validate_request,
 };
 use a4n_chapter_content_core::begin_chapter_content_sync_in_transaction;
 use a4n_chapter_content_worker_contract::{
@@ -22,8 +22,9 @@ impl WorkerState {
         request: WorkerEnvelope<UpdateChapterContentInput>,
     ) -> Result<ChapterContentMutationResult, WorkerFailure> {
         validate_request(&request, CHAPTER_CONTENT_UPDATE_OPERATION)?;
-        let user_id = user_id(&request)?;
-        let chapter_id = positive("chapter_id", request.payload.chapter_id)?;
+        let user_id = request.principal.require_user_id()?;
+        let chapter_id =
+            WorkerFailure::require_positive_id(request.payload.chapter_id, "chapter_id")?;
         let existing = a4n_db::chapter_content::chapter_by_id_for_analysis(
             self.database.connection(),
             chapter_id,
@@ -75,9 +76,9 @@ impl WorkerState {
         request: WorkerEnvelope<ImportChapterInput>,
     ) -> Result<ChapterContentMutationResult, WorkerFailure> {
         validate_request(&request, CHAPTER_CONTENT_IMPORT_OPERATION)?;
-        let user_id = user_id(&request)?;
+        let user_id = request.principal.require_user_id()?;
         let input = request.payload;
-        let project_id = positive("project_id", input.project_id)?;
+        let project_id = WorkerFailure::require_positive_id(input.project_id, "project_id")?;
         if input.chapter_number <= 0 {
             return Err(WorkerFailure::invalid_request("章节序号必须大于 0"));
         }

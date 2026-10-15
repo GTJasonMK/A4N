@@ -3,61 +3,60 @@
    ============================================================================ */
 
 :root {
-  /* 保留原有书房配色：赭石、陶土与暖纸色。 */
-  --color-primary: 151 72 29;
-  --color-primary-light: 177 93 48;
-  --color-primary-dark: 116 52 20;
-  --color-primary-pale: 249 234 222;
+  /* 创作台：石墨中性色、珊瑚主操作与蓝绿色内容标记。 */
+  --color-primary: 190 65 49;
+  --color-primary-light: 211 91 70;
+  --color-primary-dark: 150 46 36;
+  --color-primary-pale: 250 232 228;
 
-  /* ==================== 强调色 — 陶土（亮色，与主色同系）==================== */
-  --color-accent: 183 116 61;
-  --color-accent-light: 205 143 83;
-  --color-accent-dark: 148 83 38;
-  --color-accent-pale: 251 242 231;
+  /* ==================== 强调色 — 蓝绿色内容标记 ==================== */
+  --color-accent: 29 116 108;
+  --color-accent-light: 52 142 132;
+  --color-accent-dark: 22 86 79;
+  --color-accent-pale: 230 244 240;
 
   /* ==================== 文字 ==================== */
-  --color-text-primary: 44 24 16;
-  --color-text-secondary: 93 64 55;
-  --color-text-tertiary: 109 101 96;
-  --color-text-placeholder: 141 133 128;
-  --color-text-disabled: 176 168 160;
+  --color-text-primary: 30 37 38;
+  --color-text-secondary: 69 82 80;
+  --color-text-tertiary: 96 108 105;
+  --color-text-placeholder: 102 113 110;
+  --color-text-disabled: 166 176 173;
 
   /* ==================== 背景 ==================== */
-  --color-bg-primary: 241 238 232;
-  --color-bg-secondary: 255 252 245;
-  --color-bg-tertiary: 234 228 219;
-  --color-bg-card-hover: 248 242 233;
-  --color-bg-muted: 234 228 219;
-  --color-bg-accent: 229 214 193;
+  --color-bg-primary: 242 245 244;
+  --color-bg-secondary: 255 255 254;
+  --color-bg-tertiary: 230 236 233;
+  --color-bg-card-hover: 238 244 241;
+  --color-bg-muted: 230 236 233;
+  --color-bg-accent: 224 241 236;
 
   /* ==================== 边框 ==================== */
-  --color-border: 205 194 181;
-  --color-border-light: 229 221 211;
-  --color-border-dark: 182 166 150;
+  --color-border: 198 211 207;
+  --color-border-light: 223 232 229;
+  --color-border-dark: 172 190 185;
 
-  /* ==================== 状态色（带背景 tint）====================
+  /* ==================== 状态色（前景与底色成对定义）====================
      原始通道值用 --status-* 命名，避免与 @theme 暴露的 --color-* 同名自指；
-     语义 Tailwind 类（text-success/bg-error-bg/border-warning…）在 @theme 中映射。
-     前景状态色亮暗共用（暖土色系两模式皆适配），仅 -bg tint 在 .dark 反转。 */
-  --status-success: 38 120 73;
-  --status-success-bg: 240 249 244;
-  --status-error: 168 84 72;
-  --status-error-bg: 253 243 242;
-  --status-warning: 132 84 18;
-  --status-warning-bg: 253 248 240;
-  --status-info: 38 103 139;
-  --status-info-bg: 240 246 250;
+     语义 Tailwind 类（text-success/bg-error-bg/border-warning…）在 @theme 中映射。 */
+  --status-success: 33 116 83;
+  --status-success-bg: 234 247 240;
+  --status-error: 171 64 54;
+  --status-error-bg: 252 237 234;
+  --status-warning: 133 84 24;
+  --status-warning-bg: 251 244 228;
+  --status-info: 42 103 131;
+  --status-info-bg: 236 245 250;
 
   /* ==================== 按钮文字 ==================== */
-  --color-button-text: 255 251 240;
-  --color-button-text-secondary: 44 24 16;
+  --color-button-text: 255 255 255;
+  --color-button-text-secondary: 30 37 38;
 
   /* 圆角与 Tailwind 使用同一来源，保留主题编辑器的现有 token 合同。 */
-  --pyqt-radius-xs: 6px;
-  --pyqt-radius-sm: 10px;
-  --pyqt-radius-md: 12px;
-  --pyqt-radius-lg: 16px;
-  --pyqt-radius-xl: 22px;
+  --pyqt-radius-xs: 4px;
+  --pyqt-radius-sm: 6px;
+  --pyqt-radius-md: 8px;
+  --pyqt-radius-lg: 8px;
+  --pyqt-radius-xl: 12px;
 
   /* ==================== 主题可调表面效果 ==================== */
   --a4n-workspace-opacity: 0.78;
@@ -95,60 +94,54 @@
   /* ==================== 8px 网格间距 ==================== */
   --pyqt-spacing-sm: 16px;
 
-  /* 柔和的 iOS 浮层层级；列表内部不重复叠加阴影。 */
-  --shadow-card: 0 1px 2px rgb(61 43 28 / calc(0.04 * var(--a4n-shadow-strength))),
-    0 12px 26px -16px rgb(61 43 28 / calc(0.18 * var(--a4n-shadow-strength)));
-  --shadow-card-hover: 0 5px 10px rgb(61 43 28 / calc(0.06 * var(--a4n-shadow-strength))),
-    0 18px 38px -16px rgb(61 43 28 / calc(0.22 * var(--a4n-shadow-strength)));
-  --shadow-overlay: 0 26px 64px -20px rgb(61 43 28 / calc(0.3 * var(--a4n-shadow-strength))),
-    0 10px 22px -8px rgb(61 43 28 / calc(0.14 * var(--a4n-shadow-strength)));
+  /* Elevation separates overlays from working surfaces without floating every row. */
+  --shadow-card: 0 1px 2px rgb(27 39 37 / calc(0.035 * var(--a4n-shadow-strength))),
+    0 8px 22px -16px rgb(27 39 37 / calc(0.15 * var(--a4n-shadow-strength)));
+  --shadow-card-hover: 0 3px 8px rgb(27 39 37 / calc(0.04 * var(--a4n-shadow-strength))),
+    0 14px 30px -16px rgb(27 39 37 / calc(0.19 * var(--a4n-shadow-strength)));
+  --shadow-overlay: 0 20px 52px -22px rgb(20 30 29 / calc(0.26 * var(--a4n-shadow-strength))),
+    0 8px 18px -9px rgb(20 30 29 / calc(0.12 * var(--a4n-shadow-strength)));
 }
 
 .dark {
-  /* 保留原有暗色配色：深木色、羊皮纸文字与琥珀强调。 */
-  --color-primary: 232 155 108;
-  --color-primary-light: 240 176 136;
-  --color-primary-dark: 212 132 90;
-  --color-primary-pale: 42 37 32;
+  --color-primary: 238 133 107;
+  --color-primary-light: 252 162 140;
+  --color-primary-dark: 206 96 74;
+  --color-primary-pale: 59 39 36;
 
-  /* ==================== 强调色 — 暖陶土（暗色）==================== */
-  --color-accent: 212 132 90;
-  --color-accent-light: 232 155 108;
-  --color-accent-dark: 184 110 72;
-  --color-accent-pale: 45 33 24;
+  --color-accent: 112 190 177;
+  --color-accent-light: 140 214 198;
+  --color-accent-dark: 79 155 144;
+  --color-accent-pale: 33 54 50;
 
-  --color-text-primary: 232 223 212;
-  --color-text-secondary: 196 179 162;
-  --color-text-tertiary: 172 154 136;
-  --color-text-placeholder: 137 121 105;
-  --color-text-disabled: 104 91 78;
+  --color-text-primary: 235 240 238;
+  --color-text-secondary: 194 205 201;
+  --color-text-tertiary: 160 173 170;
+  --color-text-placeholder: 139 153 150;
+  --color-text-disabled: 105 119 115;
 
-  --color-bg-primary: 28 23 20;
-  --color-bg-secondary: 37 30 25;
-  --color-bg-tertiary: 61 51 43;
-  --color-bg-card-hover: 45 37 32;
-  --color-bg-muted: 61 51 43;
-  --color-bg-accent: 50 43 36;
+  --color-bg-primary: 23 29 30;
+  --color-bg-secondary: 31 39 39;
+  --color-bg-tertiary: 45 56 54;
+  --color-bg-card-hover: 37 48 46;
+  --color-bg-muted: 45 56 54;
+  --color-bg-accent: 36 59 54;
 
-  --color-border: 74 63 53;
-  --color-border-light: 61 51 43;
-  --color-border-dark: 90 77 64;
+  --color-border: 65 78 75;
+  --color-border-light: 50 62 59;
+  --color-border-dark: 83 98 94;
 
-  /* ==================== 状态色 BG 反转为深色 ==================== */
-  --status-success-bg: 26 47 34;
-  --status-error-bg: 45 31 28;
-  --status-warning-bg: 45 37 24;
-  --status-info-bg: 26 37 48;
+  --status-success: 121 202 159;
+  --status-success-bg: 29 55 44;
+  --status-error: 248 138 123;
+  --status-error-bg: 58 38 35;
+  --status-warning: 237 187 105;
+  --status-warning-bg: 59 48 28;
+  --status-info: 130 190 221;
+  --status-info-bg: 30 46 58;
 
-  /* 暗色前景单独提亮，避免复用亮色深绿后失去对比度 */
-  --status-success: 103 192 137;
-
-  --status-warning: 240 181 94;
-  --status-info: 120 188 227;
-
-  /* ==================== 按钮文字反转 ==================== */
-  --color-button-text: 28 23 20;
-  --color-button-text-secondary: 232 223 212;
+  --color-button-text: 27 31 32;
+  --color-button-text-secondary: 235 240 238;
 
   /* ==================== 阴影（暗色浮层）==================== */
   --shadow-card: 0 1px 2px rgb(0 0 0 / calc(0.28 * var(--a4n-shadow-strength))),

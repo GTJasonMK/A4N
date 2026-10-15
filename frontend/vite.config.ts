@@ -37,6 +37,14 @@ export default defineConfig({
   ],
   build: {
     target: "esnext",
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Keep reused Lucide icons together instead of issuing dozens of tiny shared-module requests.
+          if (/[\\/]node_modules[\\/]lucide-react[\\/]/.test(id)) return "lucide-icons";
+        },
+      },
+    },
   },
   server: {
     host: "127.0.0.1",

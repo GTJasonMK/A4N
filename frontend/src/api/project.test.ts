@@ -67,12 +67,11 @@ it("loads a narrow snapshot index and reads chapter details within that snapshot
   mocks.apiInvoke.mockResolvedValueOnce(index).mockResolvedValueOnce(chapter);
 
   expect(await listSourceSnapshotChapterIndex(7)).toEqual(index);
-  expect(await getSourceSnapshotChapter(7, 23, 11)).toEqual(chapter);
+  expect(await getSourceSnapshotChapter(7, 11, 23)).toEqual(chapter);
   expect(mocks.apiInvoke.mock.calls).toEqual([
     ["list_source_snapshot_chapter_index", { projectId: 7 }],
     ["get_source_snapshot_chapter", {
-      projectId: 7,
-      input: { snapshot_id: 23, source_chapter_id: 11 },
+      input: { project_id: 7, snapshot_id: 23, source_chapter_id: 11 },
     }],
   ]);
 });

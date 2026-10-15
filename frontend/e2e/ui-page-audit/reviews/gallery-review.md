@@ -4,7 +4,7 @@
 
 结论：8 / 8 项、16 / 16 张实看完成。发现 1 个 major（G1，可读来源缺少章号）、1 个 minor（G2，窄屏缩放提示）；未见 blocker。其余布局保留。修复后的界面未包含在本轮截图中，不能据此报告已修复。
 
-范围限定为指定的 8 个 N09 页面任务，每项只选 1440 × 823、390 × 823 各一个关键态。证据目录为 `../novel/`，交互轨迹为 [resume-novel-full-report.json](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-report.json)。频率是按创作者工作流推定，没有使用统计。暖色 iOS、现有线性图标与组件语言作为保留约束，不提出新依赖。
+范围限定为指定的 8 个 N09 页面任务，每项只选 1440 × 823、390 × 823 各一个关键态。证据目录为 `../novel/`，交互轨迹为 resume-novel-full-report.json（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-report.json`）。频率是按创作者工作流推定，没有使用统计。暖色 iOS、现有线性图标与组件语言作为保留约束，不提出新依赖。
 
 本报告由未参与实现的独立 Codex judge 查看实际截图；未另行调用图像模型，当前会话计费数据不可见。112 项回归通过不作为视觉通过依据。截图使用合成图像，不能证明真实图片内容、生成质量或模型一致性。
 
@@ -14,14 +14,14 @@
 
 | ID | 任务 / 推定频率 / 注意力 | 实看结论与保留依据 | 实看图片 |
 | --- | --- | --- | --- |
-| N09-images | 查找、收藏和打开图像；高频；缩略图与短描述优先，收藏/生成其次 | 保留。桌面五列、窄屏两列，图片是主体；数量、收藏过滤和生成入口清楚。390 下长描述省略，但场景开头仍可辨认，详情入口可补全；预览、收藏各有独立图标，不需为普通浏览增加说明墙。未把合成缩略图重复计作产品缺陷。轨迹记录 43 张图，末项经自然滚动可到达。 | [1440 initial](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N09-images-1440-initial.png)；[390 initial](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N09-images-390-initial.png) |
-| N09-image-detail-0 | 核对选中图片、提示词和基本信息；高频；图片/提示词优先，大小和评分辅助 | 保留。桌面图像与信息并排，390 单列；概览/来源/管理、标题与关闭键清楚。窄屏提示词靠近底部但完整可见，未见遮挡、横向裁切或信息重叠。轨迹支持点击图片中央进入管理详情、概览元数据和末段提示词可见。 | [1440 initial](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N09-image-detail-0-1440-initial.png)；[390 initial](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N09-image-detail-0-390-initial.png) |
-| N09-image-detail-1 | 追溯生成来源与所属章节；中频；可读来源优先，模型与原始诊断其次 | **G1 / major：来源章节需要读 JSON。** 两尺寸的可读摘要只有配置、服务、模型和尺寸；章节归属仍埋在原始字段中。轨迹已有 `source.chapter_number=1`，应由现有来源摘要直接呈现“第 1 章”，不从数据库 ID 推断章号。截图的诊断从约 y=397 / y=382 起占据余下视口，**但这是测试主动展开后的状态，不能据此判为默认展开**；主流程已核对源码确认默认折叠，应保留。无需改主题、新建数据源或增加卡片系统。 | [1440 initial](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N09-image-detail-1-1440-initial.png)；[390 initial](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N09-image-detail-1-390-initial.png) |
-| N09-image-detail-2 | 收藏、修改保存的提示词、评分或删除；中频；可编辑字段与保存优先，危险操作最后 | 保留。收藏开关、提示词、评分依任务分开，未修改时保存为禁用态；窄屏输入和按钮完整，危险操作折叠在末尾且有文字名称。说明明确“修改这张图片保存的提示词记录”，没有暗示会立即重新生图。截图未覆盖实际保存或删除，不据此判定持久化或确认流程通过。 | [1440 initial](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N09-image-detail-2-1440-initial.png)；[390 initial](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N09-image-detail-2-390-initial.png) |
-| N09-image-preview | 放大检查图片后回到图库；高频；图片优先，缩放/复位/关闭其次 | **G2 / minor：390 仍只用“滚轮缩放”指导用户**，触屏场景措辞不适配；可直接提示使用已有的加减按钮，无需增加手势系统。其余保留：完整图像在独立预览中居中，黑底提供观察背景；比例、加减、复位和关闭一直可见。轨迹支持独立预览、Escape 关闭后焦点返回预览按钮。 | [1440 initial](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N09-image-preview-1440-initial.png)；[390 initial](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N09-image-preview-390-initial.png) |
-| N09-generate-project | 写项目图像提示词、选尺寸、核对请求再生成；高频；提示词与开始生成优先，物体素材为辅助路径 | 保留。已填表态只有必要字段，提示词焦点清晰；桌面紧凑居中，390 为底部表单，主按钮宽且完整。项目用途写在标题，物体档案作为另一个带名称的入口放在下方。轨迹支持预览请求后草稿保留，输入为项目 1、章节空、1920 × 1080；未把预览等同于真实生成成功。 | [1440 filled-form](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N09-generate-project-1440-filled-form.png)；[390 filled-form](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N09-generate-project-390-filled-form.png) |
-| N09-generate-chapter | 为当前章节写提示词并生成场景图；高频；提示词、章节用途、提交优先 | 保留。标题和说明明确“当前章节”，章节绑定说明位于提示词下方；窄屏全部字段、主按钮及辅助入口均可见。与项目生成复用同一表单视觉，差异信息没有藏入二级菜单。轨迹中的请求含 `chapter_id=1`，预览返回后草稿保留；这支持入口绑定，不代表真实落库结果已验证。 | [1440 filled-form](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N09-generate-chapter-1440-filled-form.png)；[390 filled-form](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N09-generate-chapter-390-filled-form.png) |
-| N09-generate-object | 从物体档案选择对象和风格生成素材；中频；对象名、风格与生成素材图优先 | 保留。展开后的辅助区有独立标题，“旧怀表”、8 个可用档案和“电影感写实”清楚；风格细节继续折叠。空提示词的普通生成禁用，物体素材按钮有独立名称和强调色，未混成同一个提交。390 主按钮完整落在底部可达区域。轨迹支持对象 2011、1920 × 1080、风格内容进入请求且预览返回保留选择；没有逐条拆算风格 JSON。 | [1440 filled-form](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N09-generate-object-1440-filled-form.png)；[390 filled-form](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N09-generate-object-390-filled-form.png) |
+| N09-images | 查找、收藏和打开图像；高频；缩略图与短描述优先，收藏/生成其次 | 保留。桌面五列、窄屏两列，图片是主体；数量、收藏过滤和生成入口清楚。390 下长描述省略，但场景开头仍可辨认，详情入口可补全；预览、收藏各有独立图标，不需为普通浏览增加说明墙。未把合成缩略图重复计作产品缺陷。轨迹记录 43 张图，末项经自然滚动可到达。 | 1440 initial（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N09-images-1440-initial.png`）；390 initial（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N09-images-390-initial.png`） |
+| N09-image-detail-0 | 核对选中图片、提示词和基本信息；高频；图片/提示词优先，大小和评分辅助 | 保留。桌面图像与信息并排，390 单列；概览/来源/管理、标题与关闭键清楚。窄屏提示词靠近底部但完整可见，未见遮挡、横向裁切或信息重叠。轨迹支持点击图片中央进入管理详情、概览元数据和末段提示词可见。 | 1440 initial（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N09-image-detail-0-1440-initial.png`）；390 initial（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N09-image-detail-0-390-initial.png`） |
+| N09-image-detail-1 | 追溯生成来源与所属章节；中频；可读来源优先，模型与原始诊断其次 | **G1 / major：来源章节需要读 JSON。** 两尺寸的可读摘要只有配置、服务、模型和尺寸；章节归属仍埋在原始字段中。轨迹已有 `source.chapter_number=1`，应由现有来源摘要直接呈现“第 1 章”，不从数据库 ID 推断章号。截图的诊断从约 y=397 / y=382 起占据余下视口，**但这是测试主动展开后的状态，不能据此判为默认展开**；主流程已核对源码确认默认折叠，应保留。无需改主题、新建数据源或增加卡片系统。 | 1440 initial（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N09-image-detail-1-1440-initial.png`）；390 initial（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N09-image-detail-1-390-initial.png`） |
+| N09-image-detail-2 | 收藏、修改保存的提示词、评分或删除；中频；可编辑字段与保存优先，危险操作最后 | 保留。收藏开关、提示词、评分依任务分开，未修改时保存为禁用态；窄屏输入和按钮完整，危险操作折叠在末尾且有文字名称。说明明确“修改这张图片保存的提示词记录”，没有暗示会立即重新生图。截图未覆盖实际保存或删除，不据此判定持久化或确认流程通过。 | 1440 initial（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N09-image-detail-2-1440-initial.png`）；390 initial（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N09-image-detail-2-390-initial.png`） |
+| N09-image-preview | 放大检查图片后回到图库；高频；图片优先，缩放/复位/关闭其次 | **G2 / minor：390 仍只用“滚轮缩放”指导用户**，触屏场景措辞不适配；可直接提示使用已有的加减按钮，无需增加手势系统。其余保留：完整图像在独立预览中居中，黑底提供观察背景；比例、加减、复位和关闭一直可见。轨迹支持独立预览、Escape 关闭后焦点返回预览按钮。 | 1440 initial（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N09-image-preview-1440-initial.png`）；390 initial（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N09-image-preview-390-initial.png`） |
+| N09-generate-project | 写项目图像提示词、选尺寸、核对请求再生成；高频；提示词与开始生成优先，物体素材为辅助路径 | 保留。已填表态只有必要字段，提示词焦点清晰；桌面紧凑居中，390 为底部表单，主按钮宽且完整。项目用途写在标题，物体档案作为另一个带名称的入口放在下方。轨迹支持预览请求后草稿保留，输入为项目 1、章节空、1920 × 1080；未把预览等同于真实生成成功。 | 1440 filled-form（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N09-generate-project-1440-filled-form.png`）；390 filled-form（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N09-generate-project-390-filled-form.png`） |
+| N09-generate-chapter | 为当前章节写提示词并生成场景图；高频；提示词、章节用途、提交优先 | 保留。标题和说明明确“当前章节”，章节绑定说明位于提示词下方；窄屏全部字段、主按钮及辅助入口均可见。与项目生成复用同一表单视觉，差异信息没有藏入二级菜单。轨迹中的请求含 `chapter_id=1`，预览返回后草稿保留；这支持入口绑定，不代表真实落库结果已验证。 | 1440 filled-form（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N09-generate-chapter-1440-filled-form.png`）；390 filled-form（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N09-generate-chapter-390-filled-form.png`） |
+| N09-generate-object | 从物体档案选择对象和风格生成素材；中频；对象名、风格与生成素材图优先 | 保留。展开后的辅助区有独立标题，“旧怀表”、8 个可用档案和“电影感写实”清楚；风格细节继续折叠。空提示词的普通生成禁用，物体素材按钮有独立名称和强调色，未混成同一个提交。390 主按钮完整落在底部可达区域。轨迹支持对象 2011、1920 × 1080、风格内容进入请求且预览返回保留选择；没有逐条拆算风格 JSON。 | 1440 filled-form（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N09-generate-object-1440-filled-form.png`）；390 filled-form（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N09-generate-object-390-filled-form.png`） |
 
 ## 优先修复
 
@@ -52,3 +52,24 @@
 - 静态图无法判定触屏实际缩放/拖动、键盘遍历与焦点陷阱、图标的可访问名称、工具提示时序、返回滚动位置、200% 缩放和屏幕键盘遮挡；现有关闭图标或可见焦点不能替代这些动态检查。
 - 实际生成进度、错误与重试、持久化、非法评分、收藏后过滤变化、删除确认、并发重复提交及真实模型输出均未在本轮直接操作。三个请求快照只证明捕获了相应输入，不证明生成成功或服务端幂等。
 - 未修改源码、测试或运行服务；仅写本审查文件。G1 / G2 均为原始证据上的审查结果，修复后应由主流程另行复核，不以本报告自动关闭问题。
+
+## 修复后复核（2026-10-10）
+
+原始 G1/G2 记录保留。主流程将来源章号投影为本地化的“第 N 章”，将缩放提示改为使用既有按钮。N09-image-detail-1 与 N09-image-preview 在 1440/900/390px 重跑通过；Escape 仍返回原预览按钮焦点，横向溢出为 0。代表截图：[390 来源摘要](../../../../.dev-runtime/ui-pages/novel/final-20261010-closeout-novel-N09-image-detail-1-390-source-summary.png)、[390 图像预览](../../../../.dev-runtime/ui-pages/novel/final-20261010-closeout-novel-N09-image-preview-390-initial.png)。
+
+当前独立实屏复核没有确认 P1/P2 或截图可确认的 Nielsen 违规。N08、N09、MV30 这组截图的启发式结果如下；静态图无法替代真实触屏、读屏和完整键盘验证。
+
+| 启发式 | 状态 | 证据 / 边界 |
+| --- | --- | --- |
+| 1. 系统状态可见 | Pass | 显示大纲生成范围、来源章节和已推送段数；MV30 暂停首帧的加载圈来源无法仅凭截图判定 |
+| 2. 贴近真实世界 | Pass | “本次生成章数”“追加分部”“计划片段”等范围文案与动作对象一致 |
+| 3. 用户控制与退出 | Pass | 大纲可折叠、详情可关闭；N09 Escape 后焦点返回有浏览器证据 |
+| 4. 一致性与标准 | Pass | Lucide 图标、折叠箭头、关闭和播放控件使用已有模式 |
+| 5. 错误预防 | Unverified | 未覆盖非法数量、重复提交和离开未保存 |
+| 6. 识别优于记忆 | Pass | 追加摘要、计划段号和来源章节均使用可读标签 |
+| 7. 灵活与高效 | Unverified | 未覆盖完整快捷键和高频路径效率 |
+| 8. 简洁与重点 | Pass | 窄屏采用单一纵向滚动区域；没有新增说明墙 |
+| 9. 错误识别与恢复 | Unverified | 未操作缺失视频后的素材补齐恢复路径 |
+| 10. 情境帮助 | Unverified | 缩放提示已修正；本组未检查其他帮助内容 |
+
+MV30 的静止 0:00 截图仍出现加载圈。测试确认应用 `role=status` 已隐藏，视频可播放且 `currentTime` 推进，播放后截图未见该圈；fixture 是 24 秒纯色视频。该视觉提示在真实用户素材上的来源和停留时长仍未验证。测试图像由本地 fixture 生成，不代表真实生成图的内容或质量。

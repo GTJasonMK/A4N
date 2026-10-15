@@ -1,6 +1,6 @@
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { ArrowRight, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../api";
 import {
@@ -639,7 +639,10 @@ export const SnapshotManager: React.FC<{
                   </option>
                 ))}
               </ThemedSelect>
-              <span className="text-book-text-muted">→</span>
+              <span className="inline-flex shrink-0 items-center text-book-text-muted">
+                <ArrowRight size={14} aria-hidden="true" />
+                <span className="sr-only">{t("characterDetail.snapshot.compareTo")}</span>
+              </span>
               <ThemedSelect
                 value={diffToChapterValue}
                 onChange={(selectedValue) => {

@@ -65,7 +65,7 @@ export function MediaStageHeader<T extends string>({
 
   return (
     <div className="a4n-media-stage-header grid min-w-0 shrink-0 gap-2 border-b border-book-border/60 pb-2 sm:flex sm:items-center">
-      <label className="grid min-w-0 gap-1 text-xs text-book-text-muted sm:hidden">
+      <label className="grid min-w-0 gap-1 text-xs text-book-text-muted xl:hidden">
         <span>{label}</span>
         <ThemedSelect id={`${id}-select`} aria-label={label} className="w-full min-w-0 text-sm" value={activeTab}
           onChange={(value) => { if (value !== activeTab) void onTabChange(value as T); }}>
@@ -73,7 +73,7 @@ export function MediaStageHeader<T extends string>({
         </ThemedSelect>
       </label>
       <div
-        className="a4n-media-stage-tabs a4n-tab-rail-wrap a4n-tab-rail-wrap--canvas hidden min-w-0 w-full flex-1 sm:block"
+        className="a4n-media-stage-tabs a4n-tab-rail-wrap a4n-tab-rail-wrap--canvas hidden min-w-0 w-full flex-1 xl:block"
         data-has-before={tabRailHasBefore ? "true" : undefined}
         data-has-more={tabRailHasMore ? "true" : undefined}
       >

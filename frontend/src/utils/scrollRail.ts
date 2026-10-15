@@ -1,4 +1,17 @@
 const DEFAULT_SCROLL_PADDING = 12;
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
+export function resolveScrollBehavior(behavior: ScrollBehavior): ScrollBehavior {
+  if (
+    behavior !== "smooth" ||
+    typeof window === "undefined" ||
+    typeof window.matchMedia !== "function"
+  ) {
+    return behavior;
+  }
+
+  return window.matchMedia(REDUCED_MOTION_QUERY).matches ? "auto" : behavior;
+}
 
 function scrollPadding(rail: HTMLElement, side: "left" | "right"): number {
   if (typeof window === "undefined") return DEFAULT_SCROLL_PADDING;
@@ -46,5 +59,5 @@ export function scrollRailItemIntoView(
     Math.max(0, rail.scrollLeft + delta),
   );
   if (Math.abs(left - rail.scrollLeft) < 1) return;
-  rail.scrollTo({ left, behavior });
+  rail.scrollTo({ left, behavior: resolveScrollBehavior(behavior) });
 }

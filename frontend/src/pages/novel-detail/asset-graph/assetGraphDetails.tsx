@@ -32,7 +32,7 @@ export const ZoomControls: React.FC<{
   const { locale, t } = useI18n();
   const zoomPercent = formatNumber(Math.round(zoom * 100), locale);
   return (
-    <div className="absolute left-3 top-3 z-10 flex w-max items-center gap-1 rounded-2xl border border-book-border/45 bg-book-bg-paper/90 p-1 shadow-[0_8px_24px_-16px_rgb(0_0_0/0.45)] backdrop-blur-xl">
+    <div className="relative pointer-events-auto flex w-max items-center gap-1 rounded-2xl border border-book-border/45 bg-book-bg-paper/90 p-1 shadow-[0_8px_24px_-16px_rgb(0_0_0/0.45)] backdrop-blur-xl">
       <button
         type="button"
         onClick={onZoomOut}

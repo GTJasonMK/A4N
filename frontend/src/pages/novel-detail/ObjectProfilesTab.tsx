@@ -36,6 +36,7 @@ import {
   OBJECT_PROFILE_IMPORTANCE_KEYS,
   OBJECT_PROFILE_TYPE_KEYS,
 } from "../../utils/objectProfilePresentation";
+import { firstDistinctText, nonEmptyText } from "../../utils/text";
 import { chooseDownstreamConflictStrategy } from "./dependencyConflict";
 import {
   DetailRow,
@@ -369,7 +370,7 @@ export const ObjectProfilesTab: React.FC<{
                 : t("novel.profile.objectHint")}
             </p>
           </div>
-          <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
+          <div className={`flex w-full items-center gap-2 sm:w-auto sm:shrink-0 ${canEditProfiles ? "" : "justify-end"}`}>
             <Dropdown
               items={[
                 {
@@ -401,28 +402,36 @@ export const ObjectProfilesTab: React.FC<{
           </div>
         ) : (
           <ul className="grid grid-cols-1 items-start gap-2 sm:grid-cols-2">
-            {profiles.map((profile) => (
-              <li
-                key={profile.id}
-                className="a4n-flat-surface relative flex min-h-16 items-start gap-3 p-3 transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/35"
-              >
-                <BookCardAction label={`${profile.name} · ${t("novel.profile.viewObject")}`} onClick={() => setDetailFor(profile)} />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold text-book-text-main">{profile.name}</div>
-                  <div className="mt-0.5 text-caption text-book-text-muted">
-                    {getObjectProfileTypeLabel(profile.object_type, t)} · {getObjectProfileImportanceLabel(profile.importance, t)} · {profileOwnershipLabel(profile.ownership_kind, t)} · {profileChapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter, profile.evidence_json, t)}
+            {profiles.map((profile) => {
+              const summary = nonEmptyText(profile.visual_description)
+                ?? nonEmptyText(profile.story_usage);
+              const secondaryText = firstDistinctText(
+                [profile.story_usage, profile.location_context],
+                summary,
+              );
+              return (
+                <li
+                  key={profile.id}
+                  className="a4n-flat-surface relative flex min-h-16 items-start gap-3 p-3 transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/35"
+                >
+                  <BookCardAction label={`${profile.name} · ${t("novel.profile.viewObject")}`} onClick={() => setDetailFor(profile)} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold text-book-text-main">{profile.name}</div>
+                    <div className="mt-0.5 text-caption text-book-text-muted">
+                      {getObjectProfileTypeLabel(profile.object_type, t)} · {getObjectProfileImportanceLabel(profile.importance, t)} · {profileOwnershipLabel(profile.ownership_kind, t)} · {profileChapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter, profile.evidence_json, t)}
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-small leading-relaxed text-book-text-sub">
+                      {summary ?? t("novel.profile.noValue", { label: t("novel.profile.object") })}
+                    </p>
+                    <div className="mt-1 truncate text-caption text-book-text-muted">
+                      {secondaryText || t("novel.notRecorded")}
+                    </div>
+                    {profile.generated_image_count > 0 ? <p className="mt-1 text-caption text-book-text-muted">{t("novel.profile.materialImages", { count: profile.generated_image_count })}</p> : null}
                   </div>
-                  <p className="mt-1 line-clamp-2 text-small leading-relaxed text-book-text-sub">
-                    {profile.visual_description || profile.story_usage || t("novel.profile.noValue", { label: t("novel.profile.object") })}
-                  </p>
-                  <div className="mt-1 truncate text-caption text-book-text-muted">
-                    {profile.story_usage || profile.location_context || t("novel.notRecorded")}
-                  </div>
-                  {profile.generated_image_count > 0 ? <p className="mt-1 text-caption text-book-text-muted">{t("novel.profile.materialImages", { count: profile.generated_image_count })}</p> : null}
-                </div>
-                <ChevronRight size={14} className="mt-1 shrink-0 text-book-text-muted" />
-              </li>
-            ))}
+                  <ChevronRight size={14} className="mt-1 shrink-0 text-book-text-muted" />
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
@@ -497,6 +506,7 @@ function ObjectProfileDetailModal({
       subtitle={profile ? `${getObjectProfileTypeLabel(profile.object_type, t)} · ${getObjectProfileImportanceLabel(profile.importance, t)}` : undefined}
       icon={<Boxes size={15} />}
       maxWidthClassName="max-w-3xl"
+      className="[--a4n-dialog-opacity:1]"
       bodyClassName="px-4 py-4"
     >
       {profile ? (

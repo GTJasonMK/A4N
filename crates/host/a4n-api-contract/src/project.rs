@@ -189,6 +189,7 @@ pub struct GetSourceSnapshotChapterInput {
     #[schemars(range(min = 1))]
     pub project_id: i64,
     #[serde(default)]
+    #[schemars(range(min = 1))]
     pub snapshot_id: Option<i64>,
     #[schemars(range(min = 1))]
     pub source_chapter_id: i64,

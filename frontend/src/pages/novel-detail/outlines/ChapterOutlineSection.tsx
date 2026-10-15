@@ -75,6 +75,12 @@ export function ChapterOutlineSection({
   const generationActionLabel = hasOutlines
     ? t("outline.chapterSection.appendAction")
     : t("outline.chapterSection.generateAction");
+  const generationHint = hasOutlines
+    ? t("outline.chapterSection.appendHint")
+    : t("outline.chapterSection.generateHint");
+  const chapterCountLabel = hasOutlines
+    ? t("outline.chapterSection.appendCount")
+    : t("outline.chapterSection.generateCount");
   const sourceLabel = (outline: ChapterOutlineListEntry) =>
     isRetrospectiveChapterOutline(outline)
       ? t("outline.chapterSection.sourceRetrospective")
@@ -119,12 +125,13 @@ export function ChapterOutlineSection({
           onToggle={(event) => setGenerationOpen(event.currentTarget.open)}
         >
           <summary className="flex cursor-pointer items-center justify-between gap-3 py-1 text-xs font-medium text-book-text-sub">
-            <span>{generationActionLabel}</span>
-            <span className="text-caption font-normal text-book-text-muted">{t("outline.chapterSection.appendHint")}</span>
+            <span className="min-w-0">{t("outline.chapterSection.settingsTitle")}</span>
+            <span className="min-w-0 flex-1 text-right text-caption font-normal text-book-text-muted">{generationHint}</span>
+            <ChevronRight size={13} className="shrink-0 transition-transform group-open:rotate-90" />
           </summary>
           <div className="mt-3 grid grid-cols-1 items-end gap-3 border-t border-book-border/35 pt-3 md:grid-cols-[minmax(12rem,20rem)_auto]">
             <label className="flex min-w-0 flex-col gap-1 text-small text-book-text-muted">
-              {t("outline.chapterSection.appendCount")}
+              {chapterCountLabel}
               <input
                 type="number"
                 min={1}
@@ -142,10 +149,10 @@ export function ChapterOutlineSection({
                   size="sm"
                   onClick={onPreviewGenerate}
                   disabled={disabled || !loaded}
-                  className="inline-flex h-10 !min-h-10 min-w-0 flex-1 items-center justify-center gap-1.5 !px-2 !text-xs md:flex-none"
+                  className="inline-flex h-10 !min-h-10 min-w-0 flex-1 shrink-0 items-center justify-center gap-1.5 !px-2 !text-xs md:flex-none"
                 >
-                  <Eye size={14} />
-                  {hasOutlines ? t("outline.chapterSection.viewAppendRequest") : t("outline.chapterSection.viewGenerateRequest")}
+                  <Eye size={14} aria-hidden="true" />
+                  {t(hasOutlines ? "outline.chapterSection.viewAppendRequest" : "outline.chapterSection.viewGenerateRequest")}
                 </BookButton>
               ) : null}
               <BookButton
@@ -253,6 +260,11 @@ export function ChapterOutlineSection({
                         </p>
                       ) : null}
                     </div>
+                    <ChevronRight
+                      size={14}
+                      aria-hidden="true"
+                      className="mt-1 shrink-0 text-book-text-muted chapter-outline-entry-cue"
+                    />
                     {canEdit && (
                       <div className="relative z-20 flex shrink-0 items-center">
                         <button

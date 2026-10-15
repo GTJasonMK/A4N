@@ -143,8 +143,8 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       inviteCodes: InviteCodeSummary[] | null;
       errors: UserLoadError[];
     }) => {
-      setUsers(loaded.users ?? []);
-      setInviteCodes(loaded.inviteCodes ?? []);
+      setUsers((current) => loaded.users ?? current);
+      setInviteCodes((current) => loaded.inviteCodes ?? current);
       setLoadErrors(loaded.errors);
     },
     [],

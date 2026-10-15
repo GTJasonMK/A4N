@@ -146,6 +146,7 @@ export const visualPlan = {
   },
   timelineUi: {
     summary: "{shots} 个镜头 · {points} 个图片点",
+    scrollHint: "横向滑动查看时间线",
     durationButton: "时长 {duration}",
     adjustDuration: "调整整体时长",
     splitShot: "拆分镜头",

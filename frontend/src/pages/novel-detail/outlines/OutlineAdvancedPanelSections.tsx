@@ -130,6 +130,7 @@ export function AdvancedActionRow({
       <div className="flex items-center justify-end gap-2 sm:shrink-0">
         {!busy ? (
           <Dropdown
+            label={t("outline.advanced.viewRequest")}
             items={[
               {
                 label: t("outline.advanced.viewRequest"),

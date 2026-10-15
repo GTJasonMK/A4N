@@ -312,7 +312,7 @@ const WorkflowRunDiagnostics: React.FC<{ detail: WorkflowRunDetailSummary }> = (
       {detail.checkpoints.length > 0 ? (
         <div className="border-t border-book-border/30 pt-2">
           {detail.checkpoints.map((checkpoint) => (
-            <div key={checkpoint.id} className="break-all">
+            <div key={checkpoint.id} className="break-words">
               {t("settingsQueue.checkpoint", { id: checkpoint.id })} · {checkpoint.step_key} · {checkpoint.status}
             </div>
           ))}
@@ -321,7 +321,7 @@ const WorkflowRunDiagnostics: React.FC<{ detail: WorkflowRunDetailSummary }> = (
       {detail.generation_runs.length > 0 ? (
         <div className="border-t border-book-border/30 pt-2">
           {detail.generation_runs.map((run) => (
-            <div key={run.id} className="break-all">
+            <div key={run.id} className="break-words">
               {t("settingsQueue.generation", { id: run.id })} · {run.call_key ?? run.step_key} · {run.status}
               {run.has_raw_response ? ` · ${t("settingsQueue.raw")}` : ""}
               {run.has_parsed_output ? ` · ${t("settingsQueue.parsed")}` : ""}

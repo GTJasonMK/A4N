@@ -512,16 +512,6 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   }, [bindingKey, connected, isCurrentBinding, loadSnapshot, resolvedComposerDirtyKey, threadId]);
 
   useEffect(() => {
-    const acceptedMessageId = pendingSubmission?.acceptedMessageId;
-    if (
-      acceptedMessageId &&
-      snapshot?.messages.some((message) => message.id === acceptedMessageId)
-    ) {
-      setPendingSubmission(null);
-    }
-  }, [pendingSubmission?.acceptedMessageId, snapshot]);
-
-  useEffect(() => {
     if (!snapshot || pendingSubmissions.length === 0) return;
     updateDomainAgentPendingMessages(resolvedComposerDirtyKey, (current) =>
       reconcilePendingAgentMessages(current, bindingKey, snapshot.messages));

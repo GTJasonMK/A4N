@@ -554,11 +554,18 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
             <section className="director-property-group">
               <h4>{t("visualPlan.workspace.pointInformation")}</h4>
               <label>{t("visualPlan.workspace.name")}<input value={point.label} onChange={(event) => updatePoint(point.id, { label: event.target.value })} /></label>
-              <label>{t("visualPlan.workspace.imageDescription")}<textarea rows={4} value={point.description} placeholder={t("visualPlan.workspace.imageDescriptionPlaceholder")} onChange={(event) => updatePoint(point.id, { description: event.target.value })} /></label>
+              <label>{t("visualPlan.workspace.imageDescription")}<textarea rows={narrow ? 2 : 4} value={point.description} placeholder={t("visualPlan.workspace.imageDescriptionPlaceholder")} onChange={(event) => updatePoint(point.id, { description: event.target.value })} /></label>
             </section>
             <section className="director-property-group">
               <h4>{t("visualPlan.workspace.imageAssets")}</h4>
               <p className="director-binding-status" role="status">{point.image_id ? t("visualPlan.workspace.boundStoryboardImage") : t("visualPlan.workspace.noStoryboardImageBound")} · {t("visualPlan.workspace.referenceImageCount", { count: point.reference_image_ids.length })}</p>
+              <div className="director-point-media-actions">
+                <BookButton variant="secondary" size="sm" onClick={() => openModal("media")}><ImagePlus size={15} />{t("visualPlan.workspace.selectFromLibrary")}</BookButton>
+                <label className="director-upload-button" aria-busy={uploading}>
+                  {uploading ? <span role="status" className="inline-flex items-center gap-1.5"><LoadingSpinner size="sm" />{t("video.chapter.director.uploading")}</span> : <><Upload size={15} />{t("visualPlan.workspace.uploadLocalImage")}</>}
+                  <input type="file" accept={supportedImageAccept()} disabled={disabled || uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); event.target.value = ""; }} />
+                </label>
+              </div>
               <ImageSizeSelect
                 label={t("visualPlan.workspace.imageSize")}
                 disabled={disabled}
@@ -569,10 +576,6 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
                 value={effectiveImageSize}
               />
               {point && !imageSizeState.loading && !imageSizeState.error && pointImageSizes.length === 0 && <p role="alert" className="director-context-line">{t("visualPlan.workspace.noCompatibleSize")}</p>}
-              <div className="director-point-media-actions">
-                <BookButton variant="secondary" size="sm" onClick={() => openModal("media")}><ImagePlus size={15} />{t("visualPlan.workspace.selectFromLibrary")}</BookButton>
-                <label className="director-upload-button"><Upload size={15} />{t("visualPlan.workspace.uploadLocalImage")}<input type="file" accept={supportedImageAccept()} disabled={disabled || uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); event.target.value = ""; }} /></label>
-              </div>
               <BookButton variant="secondary" size="sm" disabled={pointCandidates.length === 0} onClick={() => openModal("candidates")}><Images size={15} />{t("visualPlan.workspace.storyboardCandidates")}{pointCandidates.length > 0 ? ` (${pointCandidates.length})` : ""}</BookButton>
               <DirectorGeneration
                 key={`point:${point.id}`}

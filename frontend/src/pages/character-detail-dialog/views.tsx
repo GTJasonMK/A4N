@@ -185,16 +185,27 @@ const conflictFieldLabel = (value: string, t: MessageTranslator): string => {
   return key ? t(key) : t("characterDetail.profileField");
 };
 
-export const ConflictView: React.FC<{ conflicts: CharacterConflictSummary[] }> = ({ conflicts }) => {
+export const ConflictView: React.FC<{
+  conflicts: CharacterConflictSummary[];
+  scopeLabel: string;
+}> = ({ conflicts, scopeLabel }) => {
   const { locale, t } = useI18n();
+  const scopeSummary = (
+    <p className="mb-1 text-caption text-book-text-muted">
+      {t("characterDetail.checkedScope")}<span className="font-medium text-book-text-sub">{scopeLabel}</span>
+    </p>
+  );
   if (conflicts.length === 0) {
     return (
-      <div className="inline-flex items-center gap-2 py-4 text-xs text-success">
-        <Check size={16} aria-hidden="true" /> {t("characterDetail.noConflicts")}
-      </div>
+      <>
+        {scopeSummary}
+        <div className="inline-flex items-center gap-2 py-4 text-xs text-success">
+          <Check size={16} aria-hidden="true" /> {t("characterDetail.noConflicts")}
+        </div>
+      </>
     );
   }
-  return (
+  const conflictList = (
     <ul className="a4n-flat-surface divide-y divide-book-border/45 overflow-hidden">
       {conflicts.map((conflict, index) => {
         const severity = conflict.severity;
@@ -236,5 +247,11 @@ export const ConflictView: React.FC<{ conflicts: CharacterConflictSummary[] }> =
         );
       })}
     </ul>
+  );
+  return (
+    <>
+      {scopeSummary}
+      {conflictList}
+    </>
   );
 };

@@ -98,9 +98,9 @@
   max-width: 11ch;
   margin: 0;
   font-family: var(--font-serif);
-  font-size: clamp(2.35rem, 5vw, 4.7rem);
+  font-size: 3.5rem;
   font-weight: 600;
-  letter-spacing: -0.035em;
+  letter-spacing: 0;
   line-height: 1.22;
   text-wrap: balance;
 }
@@ -158,9 +158,9 @@
   margin: 0.45rem 0 0;
   color: rgb(var(--color-text-primary));
   font-family: var(--font-serif);
-  font-size: clamp(1.55rem, 3vw, 2rem);
+  font-size: 1.75rem;
   font-weight: 600;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
 }
 
 .a4n-auth-form-header > p:last-child {
@@ -228,7 +228,7 @@
 
   .a4n-auth-intro h1 {
     max-width: 18ch;
-    font-size: clamp(1.85rem, 9vw, 2.5rem);
+    font-size: 2rem;
   }
 
   .a4n-auth-intro-copy > p:last-child {

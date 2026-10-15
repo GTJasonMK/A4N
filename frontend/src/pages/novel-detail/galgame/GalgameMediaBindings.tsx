@@ -47,6 +47,42 @@ export const LineMediaBindings: React.FC<{
           }
           onUnbindMedia={onUnbindMedia}
         />
+        {audioBindings.length ? (
+          <div className="mb-2 divide-y divide-book-border/35 rounded-xl bg-book-bg-paper/45 px-2.5">
+            {audioBindings.map((item) => {
+              const src = item.asset.file_path
+                ? toMediaSrc(item.asset.file_path)
+                : "";
+              return (
+                <div
+                  key={item.binding.id}
+                  className="grid grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-x-2 gap-y-1.5 py-2.5 text-small text-book-text-muted md:grid-cols-[64px_minmax(0,1fr)_auto] md:grid-rows-1 md:gap-2"
+                >
+                  <span className="row-start-1 col-start-1 font-semibold text-book-text-main">
+                    {item.binding.role === "bgm" ? "BGM" : "SFX"}
+                  </span>
+                  {src ? (
+                    <audio src={src} controls className="col-span-2 row-start-2 h-8 w-full md:col-span-1 md:col-start-2 md:row-start-1" />
+                  ) : (
+                    <span className="col-span-2 row-start-2 md:col-span-1 md:col-start-2 md:row-start-1">{t("galgame.audioMissing")}</span>
+                  )}
+                  <BookButton
+                    variant="secondary"
+                    size="sm"
+                    className="row-start-1 col-start-2 justify-self-end md:col-start-3"
+                    onClick={() => onUnbindMedia(item)}
+                    disabled={disabled}
+                    aria-label={t("galgame.unbindMedia", {
+                      title: item.binding.role === "bgm" ? "BGM" : "SFX",
+                    })}
+                  >
+                    <X size={13} />
+                  </BookButton>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
         <div className="mb-2 divide-y divide-book-border/35 rounded-xl bg-book-bg-paper/45 lg:grid lg:grid-cols-2 lg:divide-x lg:divide-y-0">
           <AudioBindingControl
             label="BGM"
@@ -65,41 +101,6 @@ export const LineMediaBindings: React.FC<{
             onChange={(value) => onMediaAssetDraftChange(`line:${lineId}:sfx`, value)}
           />
         </div>
-        {audioBindings.length ? (
-          <div className="divide-y divide-book-border/35 rounded-xl bg-book-bg-paper/45 px-2.5">
-            {audioBindings.map((item) => {
-              const src = item.asset.file_path
-                ? toMediaSrc(item.asset.file_path)
-                : "";
-              return (
-                <div
-                  key={item.binding.id}
-                  className="grid gap-2 py-2.5 text-small text-book-text-muted md:grid-cols-[64px_minmax(0,1fr)_auto]"
-                >
-                  <span className="font-semibold text-book-text-main">
-                    {item.binding.role === "bgm" ? "BGM" : "SFX"}
-                  </span>
-                  {src ? (
-                    <audio src={src} controls className="h-8 w-full" />
-                  ) : (
-                    <span>{t("galgame.audioMissing")}</span>
-                  )}
-                  <BookButton
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => onUnbindMedia(item)}
-                    disabled={disabled}
-                    aria-label={t("galgame.unbindMedia", {
-                      title: item.binding.role === "bgm" ? "BGM" : "SFX",
-                    })}
-                  >
-                    <X size={13} />
-                  </BookButton>
-                </div>
-              );
-            })}
-          </div>
-        ) : null}
       </div>
     </details>
   );

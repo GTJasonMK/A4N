@@ -4457,19 +4457,6 @@ export interface CreateDerivedProjectInput {
   title: string;
 }
 
-export interface SourceSnapshotChapterIndexEntry {
-  chapter_number: number;
-  id: number;
-  snapshot_id: number;
-  source_chapter_id: number;
-  title: string | null;
-}
-
-export interface SourceSnapshotChapterReadInput {
-  snapshot_id: number;
-  source_chapter_id: number;
-}
-
 export interface SourceSnapshotChapterSummary {
   analysis_data_json: unknown;
   analysis_hash: string | null;
@@ -4494,6 +4481,7 @@ export interface SourceSnapshotChapterIndex {
 
 export interface GetSourceSnapshotChapterInput {
   project_id: number;
+  snapshot_id?: number | null;
   source_chapter_id: number;
 }
 
@@ -5070,13 +5058,6 @@ export interface WorkflowRunDetailSummary {
 }
 
 export interface CancelWorkflowInput {
-  task_id?: string | null;
-  workflow_run_id?: number | null;
-}
-
-export interface WorkflowProgressEventsInput {
-  after_event_id?: number | null;
-  limit: number;
   task_id?: string | null;
   workflow_run_id?: number | null;
 }

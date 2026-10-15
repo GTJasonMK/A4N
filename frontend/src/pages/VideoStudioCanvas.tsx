@@ -753,7 +753,16 @@ export const VideoStudioCanvas: React.FC = () => {
 
   const headerActionItems = useMemo<DropdownItem[]>(() => {
     const importDisabled = !canvasReady || canvasWriteBusy || !canEdit;
-    const items: DropdownItem[] = [
+    const items: DropdownItem[] = [];
+    if (!rightSidebarVisible) {
+      items.push({
+        label: t("video.openProperties"),
+        icon: <SlidersHorizontal size={13} />,
+        onClick: () => setMobileInspectorOpen(true),
+      });
+      items.push({ type: "divider" });
+    }
+    items.push(
       {
         label: t("video.importImage"),
         icon: <Upload size={13} />,
@@ -766,7 +775,7 @@ export const VideoStudioCanvas: React.FC = () => {
         disabled: importDisabled,
         onClick: () => void importMedia("video"),
       },
-    ];
+    );
     items.push({
       label: t("video.importAudio"),
       icon: <Upload size={13} />,
@@ -809,6 +818,7 @@ export const VideoStudioCanvas: React.FC = () => {
     previewNode,
     runNode,
     runToNode,
+    rightSidebarVisible,
     selectedNode,
     selectedNodeRunToTarget,
     selectedNodeRunnable,
@@ -994,16 +1004,6 @@ export const VideoStudioCanvas: React.FC = () => {
                     <ListPlus size={14} />
                   </BookIconButton>
               ) : null}
-              {!rightSidebarVisible ? (
-                  <BookIconButton
-                    label={t("video.openProperties")}
-                    onClick={() => setMobileInspectorOpen(true)}
-                    variant="secondary"
-                    size="sm"
-                  >
-                    <SlidersHorizontal size={14} />
-                  </BookIconButton>
-              ) : null}
               <Dropdown items={headerActionItems} />
               {dirty || saving ? (
                 <BookButton
@@ -1153,6 +1153,8 @@ export const VideoStudioCanvas: React.FC = () => {
                     />
                   ) : null}
                   <FlowControls
+                    position="top-left"
+                    orientation="horizontal"
                     miniMapVisible={miniMapVisible}
                     miniMapLabel={!isMobileLayout ? t(miniMapVisible ? "video.hideCanvasMiniMap" : "video.showCanvasMiniMap") : undefined}
                     onToggleMiniMap={!isMobileLayout ? () => setMiniMapVisible((visible) => !visible) : undefined}

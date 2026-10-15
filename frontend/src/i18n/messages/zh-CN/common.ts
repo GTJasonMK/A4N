@@ -36,6 +36,7 @@ export const common = {
   disabled: "已停用",
   yes: "是",
   no: "否",
+  to: "到",
   ready: "就绪",
   passed: "通过",
   readOnly: "只读",
@@ -46,7 +47,7 @@ export const common = {
   statusBarCollapse: "收起快捷工具",
   imagePreview: {
     title: "图片预览",
-    hint: "使用缩放按钮调整图片，放大后可拖动查看",
+    hint: "用下方按钮缩放；放大后可拖动查看",
     zoomIn: "放大图片",
     zoomOut: "缩小图片",
     reset: "重置图片视图",

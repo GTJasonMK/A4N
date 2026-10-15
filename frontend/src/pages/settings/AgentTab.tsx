@@ -281,7 +281,7 @@ export const AgentTab: React.FC = () => {
                         type="checkbox"
                         checked={enabled}
                         onChange={() => toggleSkill(skill)}
-                        disabled={loading || loadError != null || saving}
+                        disabled={loading || loadError != null}
                         className="mt-0.5 h-4 w-4 shrink-0 accent-book-primary"
                       />
                       <span className="min-w-0 flex-1">

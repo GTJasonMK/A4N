@@ -83,6 +83,7 @@
     }
   ],
   "commands": {
+    "list_chapter_analyses": [],
     "get_project_fact_feedback": {
       "project_id": 1,
       "interval_chapters": 3,

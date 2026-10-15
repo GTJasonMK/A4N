@@ -108,7 +108,7 @@ const MangaChapterListItem = React.memo(({
         onClick={() => onSelect(chapter)}
         aria-current={isSelected ? "true" : undefined}
         data-active={isSelected ? "1" : undefined}
-        className="a4n-sidebar-item min-w-[12rem] text-xs md:min-w-0"
+        className={`a4n-sidebar-item min-w-[12rem] text-xs md:min-w-0 ${workspaceStage === "image_creation" ? "max-md:!py-1.5" : ""}`}
       >
         <div className="mb-1 truncate font-medium">
           {t("comic.chapterNumber", { number: chapter.chapter_number })}

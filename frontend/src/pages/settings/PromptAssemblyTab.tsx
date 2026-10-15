@@ -184,7 +184,7 @@ export const PromptAssemblyTab: React.FC = () => {
             loading={loading}
             disabled={loading || loadError != null}
             unavailable={Boolean(errorMessage) || (!loading && prompts.length === 0)}
-            maxHeightClassName="max-h-[min(72dvh,42rem)] md:h-full md:max-h-none"
+            maxHeightClassName="max-h-[min(38dvh,20rem)] md:h-full md:max-h-none"
             selectedName={selectedName}
             onSelect={(name) => void selectPrompt(name)}
           />

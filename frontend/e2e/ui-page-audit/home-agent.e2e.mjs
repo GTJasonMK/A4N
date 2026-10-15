@@ -230,6 +230,14 @@ async function matrix(spec) {
       current.width = width;
       await browser.setWindowSize(width, 1000);
       const scope = await spec.open(width);
+      // Agent pages open in a separate window. Apply the matrix width after
+      // navigation as well, otherwise the new window keeps Chrome's default
+      // 800px viewport and invalidates the screenshot geometry assertions.
+      await browser.setWindowSize(width, 1000);
+      await browser.waitUntil(async () => (await browser.execute(() => innerWidth)) === width, {
+        timeout,
+        timeoutMsg: `The opened page must use the requested ${width}px viewport`,
+      });
       if (spec.text) await browser.waitUntil(async () => (await scope.getText()).includes(spec.text), { timeout, timeoutMsg: "Populated content missing: " + spec.text });
       const evidence = spec.check ? await spec.check(scope, width) : {};
       await shot(scope, width, "initial", evidence);
@@ -261,7 +269,15 @@ describe("Home and global Agent page audit", function () {
   });
   afterEach(async function () {
     if (this.currentTest.state === "failed") {
-      const state = await browser.execute(() => ({ width: innerWidth, url: location.href, text: document.body.innerText, errors: window.__uiAudit?.errors, unexpected: window.__uiAudit?.unexpected }));
+      const state = await browser.execute(() => ({
+        width: innerWidth,
+        url: location.href,
+        text: document.body.innerText,
+        commands: window.__uiAudit?.commands,
+        requests: window.__uiAudit?.requests?.slice(-24),
+        errors: window.__uiAudit?.errors,
+        unexpected: window.__uiAudit?.unexpected,
+      }));
       const file = `${phase}-${current?.id ?? "setup"}-${state.width}-failure.png`;
       await browser.saveScreenshot(output + file);
       const failure = { id: current?.id, file, outcome: "failed", error: current?.error ?? this.currentTest.err?.stack, ...state };
@@ -309,7 +325,7 @@ describe("Home and global Agent page audit", function () {
     await press(await scope.$('button[aria-label="返回上一页"]'));
     const navigationGuard = await dialog("未保存修改");
     assert.match(await navigationGuard.getText(), /操作仍在进行/);
-    assert.equal(await navigationGuard.$("button=操作仍在进行").isEnabled(), false);
+    assert.equal(await navigationGuard.$("button=操作仍在进行，请等待完成。").isEnabled(), false);
     assert.equal(new URL(await browser.getUrl()).pathname, "/agents");
     await click("取消", navigationGuard);
     await browser.execute(() => {
@@ -476,6 +492,30 @@ describe("Home and global Agent page audit", function () {
       const root = fixtures.projectRecords.find((project) => project.id === 1);
       assert.equal(await scope.$(`.//h3[normalize-space(.)=${literal(root.title)}]`).isExisting(), false);
       return { deletedProject: root.id, absentBeforeRefreshResponse: true };
+    } },
+    { id: "H09-filtered-empty", task: "筛选无匹配项目时识别原因并恢复列表", open: async () => {
+      const scope = await home();
+      await choose("项目类型", "视频画布", scope);
+      await choose("访问权限", "我协作的", scope);
+      return scope;
+    }, text: "没有符合当前筛选条件的项目", check: async (scope) => {
+      const empty = await scope.$(".a4n-empty-state");
+      assert.ok(await empty.isDisplayed());
+      assert.ok((await empty.getText()).includes("清除筛选"));
+      assert.deepEqual(await projectTitles(scope), []);
+      const request = await browser.execute(() => window.__uiAudit.requests.findLast((item) => item.command === "list_projects").body);
+      assert.equal(request.projectKind, "canvas");
+      assert.equal(request.accessScope, "collaborating");
+      return { noMatches: true, projectKind: request.projectKind, accessScope: request.accessScope, clearActionVisible: true };
+    }, after: async (scope) => {
+      await click("清除筛选", scope);
+      const restored = await expectProjects(scope, fixtures.projectRecords);
+      const request = await browser.execute(() => window.__uiAudit.requests.findLast((item) => item.command === "list_projects").body);
+      assert.ok(!request.projectKind || request.projectKind === "all");
+      assert.ok(!request.accessScope || request.accessScope === "all");
+      await choose("项目类型", "全部", scope);
+      await choose("访问权限", "全部可访问", scope);
+      await shot(scope, current.width, "filters-cleared", { ...restored, filtersReset: true });
     } },
   ];
   for (const spec of homePages) it(spec.id + " follows the existing home entry", async () => matrix(spec));
@@ -923,6 +963,7 @@ describe("Home and global Agent page audit", function () {
   it("UX-1746 keeps a failed snapshot notice scoped to its thread", async () => {
     current = { id: "UX-1746", task: "Keep a prior thread's read failure out of the newly selected thread" };
     const scope = await agent(mainSeed.thread.id, true);
+    await browser.setWindowSize(1440, 1000);
     const child = await scope.$('.//button[contains(@class,"agent-monitor-thread-item") and .//span[normalize-space(.)=' + literal(budgetSeed.thread.title) + ']]');
     await browser.execute((threadId) => window.__uiAudit.failNext.push({
       command: threadId, status: 503, message: "子线程快照读取失败",
@@ -970,6 +1011,7 @@ describe("Home and global Agent page audit", function () {
       };
     });
     const scope = await agent(mainSeed.thread.id);
+    await browser.setWindowSize(1440, 1000);
     const refresh = await button("刷新 Agent 状态", scope);
     const previousCount = await browser.execute(() =>
       window.__uiAudit.requests.filter((request) => request.command === "agent-threads").length,

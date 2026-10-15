@@ -35,7 +35,10 @@ pub(crate) async fn galgame_pipeline_branch_plan_candidate(
         video_reference: None,
         preprocessing_fingerprint: None,
     };
-    for adaptations in context.adaptations.chunks(records::AUTHORING_READ_BATCH_SIZE) {
+    for adaptations in context
+        .adaptations
+        .chunks(records::AUTHORING_READ_BATCH_SIZE)
+    {
         let record_ids = adaptations
             .iter()
             .map(|adaptation| adaptation.adaptation_plan_id)

@@ -3,6 +3,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { installUiFixtures } from "../ui-presentation/fixtures.mjs";
 import { visualFixtures } from "../ui-presentation/visual-fixtures.mjs";
+import { buildPageFixtures } from "./fixtures.mjs";
 
 const artifacts = fileURLToPath(new URL("../../../.dev-runtime/ui-pages/test-center/", import.meta.url));
 const settingsSeed = JSON.parse(
@@ -68,6 +69,11 @@ const testFixtures = {
 describe("Admin test center feature flow", () => {
   before(async () => {
     await mkdir(artifacts, { recursive: true });
+    const sharedPageFixtures = await buildPageFixtures(browser.options.baseUrl);
+    Object.assign(testFixtures, {
+      byProject: sharedPageFixtures.byProject,
+      byChapter: sharedPageFixtures.byChapter,
+    });
     await installUiFixtures(browser, testFixtures);
     await browser.url("/settings#admin");
     try {
@@ -125,7 +131,7 @@ describe("Admin test center feature flow", () => {
     await allFunctionalButton.click();
     assert.equal(await allFunctionalButton.getAttribute("aria-pressed"), "true");
 
-    for (const width of [1440, 1024, 390]) {
+    for (const width of [1440, 1280, 1279, 1024, 390]) {
       await browser.setWindowSize(width, 900);
       await browser.pause(150);
       const state = await browser.execute(() => ({
@@ -134,6 +140,42 @@ describe("Admin test center feature flow", () => {
       }));
       assert.equal(state.viewport, width);
       assert.equal(state.overflow, 0, `Test center must fit at ${width}px`);
+      assert.equal(
+        await $('select[aria-label="功能场景"]').isDisplayed(),
+        width < 1280,
+        `Scenario picker must match the ${width}px layout`,
+      );
+      if (width === 390) {
+        const picker = await $('select[aria-label="功能场景"]');
+        const selectedScenarioId = `repository_test_${group.id}`;
+        const selectedScenario = scenarios.find((scenario) => scenario.id === selectedScenarioId);
+        const alternateScenario = scenarios.find((scenario) => scenario.id !== selectedScenarioId);
+        assert.ok(alternateScenario);
+        const categoryPicker = await $('select[aria-label="分类"]');
+        await browser.execute(() => document.querySelector('select[aria-label="分类"]')?.focus());
+        await browser.keys("Tab");
+        const scenarioFocus = await browser.execute(() => ({
+          label: document.activeElement?.getAttribute("aria-label"),
+          visible: document.activeElement?.matches(":focus-visible"),
+        }));
+        assert.deepEqual(scenarioFocus, { label: "功能场景", visible: true });
+        await browser.keys("Tab");
+        const runFocus = await browser.execute(() => ({
+          text: document.activeElement?.textContent?.trim(),
+          visible: document.activeElement?.matches(":focus-visible"),
+        }));
+        assert.deepEqual(runFocus, { text: "运行测试", visible: true });
+        await picker.selectByAttribute("value", alternateScenario.id);
+        assert.equal(await picker.getValue(), alternateScenario.id);
+        await picker.selectByAttribute("value", selectedScenarioId);
+        assert.equal(await picker.getValue(), selectedScenarioId);
+        const filteredCategory = scenarios.find((scenario) => scenario.category !== selectedScenario?.category)?.category;
+        if (filteredCategory) {
+          await categoryPicker.selectByAttribute("value", filteredCategory);
+          assert.equal(await picker.getValue(), selectedScenarioId, "Category filtering must retain the selected scenario");
+          await categoryPicker.selectByAttribute("value", "all");
+        }
+      }
       await browser.saveScreenshot(`${artifacts}/test-center-${width}.png`);
     }
 
@@ -152,6 +194,18 @@ describe("Admin test center feature flow", () => {
     const pageText = await browser.$("main").getText();
     assert.ok(pageText.includes("测试通过"));
     for (const suite of group.suites) assert.ok(pageText.includes(suite), `Missing suite result: ${suite}`);
+    const resultLayout = await browser.execute(() => ({
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      viewport: document.documentElement.clientWidth,
+      visibleSteps: [...document.querySelectorAll("ol li")].filter((item) => {
+        const rect = item.getBoundingClientRect();
+        return rect.top >= 0 && rect.bottom <= window.innerHeight;
+      }).length,
+    }));
+    assert.equal(resultLayout.viewport, 390);
+    assert.equal(resultLayout.overflow, 0, "The test result must fit the phone viewport");
+    assert.ok(resultLayout.visibleSteps > 0, "Suite details must be visible after a phone run");
+    await browser.saveScreenshot(`${artifacts}/test-center-result-390.png`);
     assert.deepEqual(
       (await browser.execute(() => window.__uiAudit.unexpected)),
       [],
@@ -219,9 +273,13 @@ describe("Admin test center feature flow", () => {
     const fixtures = {
       ...testFixtures,
       list_test_scenarios: scenarios,
-      list_test_runs: [],
+      list_test_runs: [runningDetail.summary],
       get_test_run: runningDetail,
       list_all_projects: [sourceSummary],
+      byProject: {
+        ...testFixtures.byProject,
+        [copyProject.id]: structuredClone(testFixtures.byProject[sourceProject.id]),
+      },
       projectRecords: [...testFixtures.projectRecords.filter((project) => project.id !== copyProject.id), copyProject],
       deferred: ["get_test_run"],
       delete_test_run: null,
@@ -302,13 +360,25 @@ describe("Admin test center feature flow", () => {
     const category = await $('select[aria-label="分类"]');
     await category.selectByAttribute("value", "system");
     await browser.waitUntil(async () => browser.execute(() =>
+      document.querySelector('select[aria-label="分类"]')?.value === "system",
+    ));
+    await $('//button[contains(normalize-space(.),"管理员运行概览")]').click();
+    await browser.waitUntil(async () => browser.execute(() =>
       document.querySelector('main > div > aside:first-child button[aria-pressed="true"]')?.textContent?.includes("管理员运行概览"),
     ));
     await category.selectByAttribute("value", "projects");
     await browser.waitUntil(async () => browser.execute(() =>
+      document.querySelector('select[aria-label="分类"]')?.value === "projects",
+    ));
+    await $('//button[contains(normalize-space(.),"项目复制")]').click();
+    await browser.waitUntil(async () => browser.execute(() =>
       document.querySelector('main > div > aside:first-child button[aria-pressed="true"]')?.textContent?.includes("项目复制"),
     ));
     await category.selectByAttribute("value", "system");
+    await $('//button[contains(normalize-space(.),"管理员运行概览")]').click();
+    await browser.waitUntil(async () => browser.execute(() =>
+      document.querySelector('main > div > aside:first-child button[aria-pressed="true"]')?.textContent?.includes("管理员运行概览"),
+    ));
     await $("button*=查看正在运行的测试").waitForDisplayed();
     const historyRow = await $("main > div > aside:last-child li button");
     await historyRow.click();

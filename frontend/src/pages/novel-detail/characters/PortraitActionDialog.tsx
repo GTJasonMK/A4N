@@ -11,7 +11,6 @@ import { ImageSizeSelect } from "../../../components/image/ImageSizeSelect";
 import type { ImageSize } from "../../../api/image";
 import type { Portrait } from "../../../api/portrait";
 import { BookButton } from "../../../components/ui/BookButton";
-import { Dropdown } from "../../../components/ui/Dropdown";
 import { ZoomableImage } from "../../../components/ui/ImageLightbox";
 import { Modal } from "../../../components/ui/Modal";
 import { toMediaSrc } from "../../../utils/mediaSrc";
@@ -80,19 +79,18 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
       closeOnEscape={!busy}
       showCloseButton={!busy}
       footer={
-        <div className="flex w-full items-center gap-2">
-          <Dropdown
-            items={[
-              {
-                label: t("characterDetail.portrait.viewRegenerateRequest"),
-                icon: <Eye size={12} />,
-                onClick: () => {
-                  if (imageSize) void onPreviewRegenerate(portrait, imageSize);
-                },
-                disabled: !writesEnabled || busy || sizeUnavailable,
-              },
-            ]}
-          />
+        <div className="flex w-full flex-wrap items-center gap-2">
+          <BookButton
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              if (imageSize) void onPreviewRegenerate(portrait, imageSize);
+            }}
+            disabled={!writesEnabled || busy || sizeUnavailable}
+            className="!text-xs"
+          >
+            <Eye size={13} /> {t("characterDetail.portrait.viewRegenerateRequest")}
+          </BookButton>
           <span className="min-w-0 flex-1" />
           <BookButton
             variant="primary"

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { visualFixtures } from "../ui-presentation/visual-fixtures.mjs";
 import { uiFixtures } from "../ui-presentation/fixtures.mjs";
-import { directorSnapshot } from "./home-agent-fixtures.mjs";
+import { directorSnapshot, videoDirectorBridgeSnapshot, videoDirectorSnapshot } from "./home-agent-fixtures.mjs";
 import { authoringWorkspace } from "../media-authoring/fixtures.mjs";
 
 const [novel, media, settings] = await Promise.all(["novel", "media", "settings"].map(async (name) =>
@@ -10,6 +10,23 @@ const [novel, media, settings] = await Promise.all(["novel", "media", "settings"
 ));
 const byId = (...lists) => [...new Map(lists.flat().map((item) => [item.id, item])).values()];
 const runtime = JSON.parse(await readFile(new URL("./novel-runtime.json", import.meta.url), "utf8"));
+const normalizeMangaPagePrompts = (pages = []) => {
+  for (const page of pages) {
+    page.page_id ??= `page-${String(page.page_number).padStart(4, "0")}`;
+    page.orphaned ??= false;
+    page.page_content ??= null;
+    page.page_adaptation ??= null;
+    page.reference_discovery ??= null;
+    page.pipeline_error ??= null;
+    page.pipeline_stage ??= null;
+    page.pipeline_status ??= null;
+    page.stale_stages ??= [];
+    page.system_reference_images ??= [];
+    for (const binding of page.reference_bindings ?? []) {
+      binding.user_added_assets ??= [];
+    }
+  }
+};
 
 // Current script responses use stable director shot IDs; frozen media snapshots stay unchanged.
 for (const chapter of Object.values(media.byChapter)) {
@@ -41,8 +58,9 @@ export async function buildPageFixtures(baseUrl) {
     ...visualFixtures, ...settings.invoke, ...media.commands, ...novel.commands, ...runtime.commands,
     [runtime.generation.blueprint.start_command]: runtime.generation.blueprint.handle,
     generationTasks: { [runtime.generation.blueprint.handle.task_id]: runtime.generation.blueprint },
-    agentSnapshots: [...uiFixtures.agentSnapshots, runtime.agent.snapshot, directorSnapshot],
+    agentSnapshots: [...uiFixtures.agentSnapshots, runtime.agent.snapshot, directorSnapshot, videoDirectorSnapshot],
     create_agent_thread: directorSnapshot.thread,
+    agentThreadCreateResponses: [videoDirectorBridgeSnapshot],
     pageSessions: settings.rest.pageSessions,
     get_current_user: settings.invoke.get_current_user,
     projectRecords: byId(visualFixtures.projectRecords, novel.projectRecords),
@@ -60,10 +78,23 @@ export async function buildPageFixtures(baseUrl) {
   for (const project of data.projectRecords) project.content_revision ??= 0;
   data.list_projects = { items: data.projectRecords, page: 1, page_size: 20, total: data.projectRecords.length };
   const images = byId(media.commands.list_images_by_projects, novel.commands.list_images_by_projects);
+  const videoCandidates = [100201, 100202].map((sourceId, index) => {
+    const source = images.find((image) => image.id === sourceId);
+    assert.ok(source, `Missing director candidate source image: ${sourceId}`);
+    return {
+      ...source,
+      id: 31001 + index,
+      project_id: 3,
+      metadata_json: { ...source.metadata_json, director_candidate: { point_id: "p0" } },
+    };
+  });
+  images.push(...videoCandidates);
   data.list_images_by_projects = images;
   data.list_images_by_project = images;
   data.list_images_by_chapter = images;
   for (const [id, values] of Object.entries(data.byProject)) {
+    if (id === "2") values.list_manga_pipeline_artifacts ??= [];
+    normalizeMangaPagePrompts(values.list_manga_page_prompts);
     if (id === "2" || id === "5") {
       values.get_media_authoring_workspace = authoringWorkspace(Number(id), id === "2" ? "manga" : "galgame", values.list_source_snapshot_chapters);
     }
@@ -88,9 +119,52 @@ export async function buildPageFixtures(baseUrl) {
     chapter.get_chapter_visual_plan.scene_choices = sceneChoices;
   }
   for (const [id, values] of Object.entries(data.byChapter)) {
+    normalizeMangaPagePrompts(values.list_manga_page_prompts);
     values.list_images_by_chapter = images.filter((image) => image.chapter_id === Number(id));
     values.get_chapter = data.list_chapters.find((chapter) => chapter.id === Number(id));
+    if (values.get_chapter_visual_plan) {
+      assert.ok(Array.isArray(data.list_scene_profiles), "Visual plan fixtures require scene profile choices");
+      values.get_chapter_visual_plan.scene_choices = data.list_scene_profiles
+        .filter((scene) => scene.project_id === 1)
+        .map(({ id: sceneId, project_id, name }) => ({ id: sceneId, project_id, name }));
+    }
   }
+
+  // Video project 3 reuses source chapter IDs, so its project-scoped records need their own fixtures.
+  const videoSceneSources = data.list_scene_profiles.filter((scene) => scene.project_id === 1);
+  const videoSceneIds = new Map(videoSceneSources.map((scene) => [scene.id, scene.id + 3000]));
+  const videoSceneProfiles = videoSceneSources.map((scene) => ({
+    ...scene,
+    id: videoSceneIds.get(scene.id),
+    project_id: 3,
+    parent_scene_id: scene.parent_scene_id == null ? null : videoSceneIds.get(scene.parent_scene_id) ?? null,
+  }));
+  const videoVisualPlan = structuredClone(data.byChapter[1].get_chapter_visual_plan);
+  videoVisualPlan.scene_choices = videoSceneProfiles.map(({ id, project_id, name }) => ({ id, project_id, name }));
+  for (const view of [videoVisualPlan.draft, videoVisualPlan.confirmed]) {
+    view.plan.points[0].image_id = videoCandidates[0].id;
+    view.plan.points.splice(1, 0, {
+      id: "ui-interior-point",
+      at_ms: 3000,
+      label: "段内稳定构图",
+      image_id: null,
+      description: "雨幕中保持人物位置和道具连续。",
+      reference_image_ids: [],
+    });
+    for (const segment of view.plan.segments) {
+      const binding = segment.scene_binding;
+      if (binding?.kind === "scene") binding.scene_profile_id = videoSceneIds.get(binding.scene_profile_id) ?? binding.scene_profile_id;
+      if (binding?.kind === "transition") {
+        binding.from_scene_profile_id = videoSceneIds.get(binding.from_scene_profile_id) ?? binding.from_scene_profile_id;
+        binding.to_scene_profile_id = videoSceneIds.get(binding.to_scene_profile_id) ?? binding.to_scene_profile_id;
+      }
+    }
+  }
+  data.byProject[3].list_scene_profiles = videoSceneProfiles;
+  data.byProject[3].byChapter = {
+    ...data.byProject[3].byChapter,
+    1: { get_chapter_visual_plan: videoVisualPlan },
+  };
   data.videoDurations = Object.fromEntries([
     ...Object.values(data.byChapter).flatMap((values) => values.list_videos_by_chapter ?? []),
     ...media.byProject[6].list_videos_by_project,
@@ -124,11 +198,27 @@ export async function buildPageFixtures(baseUrl) {
     const data = JSON.parse(decodeURIComponent(encoded));
     const { chapterIndexEntry } = await import("/src/pages/writing-desk/chapterIndex.ts");
     data.list_chapter_index = data.list_chapters.map(chapterIndexEntry);
+    data.list_chapter_outline_index = data.list_chapter_outlines.map((outline) => ({
+      chapter_number: outline.chapter_number,
+      id: outline.id,
+      project_id: outline.project_id,
+      source_kind: outline.source_kind ?? null,
+      summary: outline.summary ?? null,
+      title: outline.title ?? null,
+      updated_at: outline.updated_at ?? null,
+      word_count_target: outline.word_count_target ?? null,
+    }));
     const { GENERATION_START_PATHS } = await import("/src/api/generated/host.ts");
     data.commandByPath = Object.fromEntries(Array.from(GENERATION_START_PATHS, ([command, path]) => [`/api${path}`, command]));
     const { videoSegmentRecipeFrameFingerprintJson: frame, videoSegmentRecipeGenerationFingerprintJson: generation } =
       await import("/src/pages/novel-detail/video/videoSegmentPlan.ts");
-    const { sha256Hex } = await import("/src/utils/contentHash.ts");
+    const { sha256Hex, sha256Json } = await import("/src/utils/contentHash.ts");
+    for (const chapter of Object.values(data.byProject?.[3]?.byChapter ?? {})) {
+      const plan = chapter.get_chapter_visual_plan;
+      for (const view of [plan?.draft, plan?.confirmed]) {
+        if (view) view.record.plan_sha256 = await sha256Json(view.plan);
+      }
+    }
     for (const chapter of Object.values(data.byChapter)) {
       const plan = chapter.list_chapter_video_prompts.find((prompt) => prompt.prompt_type === "frame_segment_plan");
       const fingerprints = new Map();

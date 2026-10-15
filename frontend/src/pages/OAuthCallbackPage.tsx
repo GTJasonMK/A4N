@@ -12,19 +12,22 @@ export function OAuthCallbackPage() {
   const oauthLogin = useAuthStore((state) => state.oauthLogin);
   const navigate = useNavigate();
   const { t } = useI18n();
-  const startedRef = useRef(false);
+  const loginCompletionRef = useRef<Promise<string> | null>(null);
 
   useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
-    let mounted = true;
-    window.history.replaceState(window.history.state, "", new URL(callbackUrl).pathname);
-    void oauthLogin(callbackUrl).then(({ returnTo }) => {
-      if (mounted) navigate(returnTo, { replace: true });
+    let active = true;
+    let loginCompletion = loginCompletionRef.current;
+    if (!loginCompletion) {
+      window.history.replaceState(window.history.state, "", new URL(callbackUrl).pathname);
+      loginCompletion = oauthLogin(callbackUrl).then(({ returnTo }) => returnTo);
+      loginCompletionRef.current = loginCompletion;
+    }
+    void loginCompletion.then((returnTo) => {
+      if (active) navigate(returnTo, { replace: true });
     }).catch((failure: unknown) => {
-      if (mounted) setError(extractErrorMessage(failure, t("auth.oauthLoginFailed")));
+      if (active) setError(extractErrorMessage(failure, t("auth.oauthLoginFailed")));
     });
-    return () => { mounted = false; };
+    return () => { active = false; };
   }, [callbackUrl, navigate, oauthLogin, t]);
 
   return (

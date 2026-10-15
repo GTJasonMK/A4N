@@ -134,7 +134,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
             displayedContent
           ) : (
             <MarkdownText
-              className="text-body-lg leading-relaxed tracking-tight"
+              className="text-body-lg leading-relaxed"
               text={displayedContent}
             />
           )}

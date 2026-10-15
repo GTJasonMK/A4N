@@ -241,7 +241,7 @@ export const videoCore = {
   noRunnableCanvasNodes: "画布中没有可运行节点，请先添加并连接操作或输出节点",
   saveNodeBeforeRun: "请先保存新节点再运行",
   runNodeConfirmDescription: "系统只执行当前节点，不会自动运行上游节点。",
-  runNodeInputHint: "当前节点会读取已保存输入，或读取上游节点最近一次完成的运行结果。",
+  runNodeInputHint: "已保存输入会沿用；上游操作节点复用最近成功结果。\n无结果时先运行到此节点。",
   runNodeSubmitting: "正在只运行：{name}",
   runToNodeSubmitting: "正在运行到：{name}",
   runCanvasSubmitting: "正在运行画布",

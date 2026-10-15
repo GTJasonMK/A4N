@@ -1,6 +1,6 @@
 import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useStore } from "zustand";
-import { Clock3, Plus, Scissors, ZoomIn, ZoomOut } from "lucide-react";
+import { ArrowLeftRight, Clock3, Plus, Scissors, ZoomIn, ZoomOut } from "lucide-react";
 import type { ChapterVisualPlanV3, ChapterVisualPlanView, VisualPlanEditOperation } from "../../../api/chapterVisualPlan";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Modal } from "../../../components/ui/Modal";
@@ -35,13 +35,26 @@ export function DirectorTimeline({ plan, record, selection, clock, editable, sce
   const { t } = useI18n();
   const [zoom, setZoom] = useState(1);
   const [fit, setFit] = useState(true);
+  const [scrollable, setScrollable] = useState(false);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [duration, setDuration] = useState(String(durationMs(plan) / 1000));
   const [scale, setScale] = useState(100);
   const [timingOpen, setTimingOpen] = useState(false);
   const rail = useRef<HTMLDivElement>(null);
+  const timelineViewport = useRef<HTMLDivElement>(null);
   const scaleStart = useRef(durationMs(plan));
   const total = durationMs(plan);
+  useEffect(() => {
+    const viewport = timelineViewport.current;
+    const track = rail.current;
+    if (!viewport || !track) return;
+    const update = () => setScrollable(viewport.scrollWidth > viewport.clientWidth + 1);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(viewport);
+    observer.observe(track);
+    return () => observer.disconnect();
+  }, [fit, plan, zoom]);
   useImperativeHandle(viewRef, () => ({
     fit: () => { setFit(true); setZoom(1); },
     locate: (atMs) => {
@@ -131,10 +144,11 @@ export function DirectorTimeline({ plan, record, selection, clock, editable, sce
       : `${sceneName(binding.from_scene_profile_id)} → ${sceneName(binding.to_scene_profile_id)}`;
   };
 
-  return <section className="director-timeline" aria-label={t("visualPlan.chapterTimeline")}>
+  return <section className="director-timeline" aria-label={t("visualPlan.chapterTimeline")} data-scrollable={scrollable}>
     <div className="director-timeline-heading">
       <div className="director-timeline-summary"><h3>{t("visualPlan.timeline")}</h3><span>{t("visualPlan.timelineUi.summary", { shots: plan.segments.length, points: plan.points.length })}</span>
         <BookButton variant="ghost" size="sm" aria-label={t("visualPlan.timelineUi.adjustDuration")} aria-haspopup="dialog" aria-expanded={timingOpen} title={t("visualPlan.timelineUi.adjustDuration")} onClick={() => setTimingOpen(true)}><Clock3 size={14} />{t("visualPlan.timelineUi.durationButton", { duration: formatTime(total) })}</BookButton>
+        <span className="director-timeline-scroll-hint"><ArrowLeftRight size={14} aria-hidden="true" />{t("visualPlan.timelineUi.scrollHint")}</span>
       </div>
       <div className="director-inline-actions">
         <AddPointButton clock={clock} plan={plan} editable={editable} onClick={insertPoint} />
@@ -143,7 +157,7 @@ export function DirectorTimeline({ plan, record, selection, clock, editable, sce
         <button type="button" aria-label={t("visualPlan.timelineUi.zoomIn")} onClick={() => { setFit(false); setZoom((value) => fit ? 1 : Math.min(12, value * 1.5)); }} disabled={!fit && zoom === 12}><ZoomIn size={16} />{t("visualPlan.timelineUi.zoomInForEditing")}</button>
       </div>
     </div>
-    <div className="director-timeline-scroll">
+    <div className="director-timeline-scroll" ref={timelineViewport}>
       <div
         className="director-timeline-track"
         style={{ width: `max(100%, ${timelineTrackWidth(plan, zoom, fit)}px)` }}

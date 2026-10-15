@@ -278,6 +278,11 @@ export function useFollowLatest<T>(
         }
         scheduleFollow();
       });
+    const resizeObserver = typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(scheduleFollow);
+    resizeObserver?.observe(viewport);
+    if (viewport.firstElementChild) resizeObserver?.observe(viewport.firstElementChild);
     observer?.observe(viewport, {
       characterData: true,
       childList: true,
@@ -299,6 +304,7 @@ export function useFollowLatest<T>(
       if (followFrame != null) window.cancelAnimationFrame(followFrame);
       clearUserScrollIntent();
       observer?.disconnect();
+      resizeObserver?.disconnect();
     };
   }, [scrollToLatest, updateFollowing, viewportElement]);
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { Handle, Position, useUpdateNodeInternals, type NodeProps } from "@xyflow/react";
+import { Handle, Position, useStore, useUpdateNodeInternals, type NodeProps } from "@xyflow/react";
 import {
   CANVAS_TEXT_OUTPUT_KIND_DIALOGUE,
   CANVAS_TEXT_OUTPUT_KIND_IMAGE_PROMPT,
@@ -67,6 +67,7 @@ export function buildNodeTemplateGroups(contracts: StudioNodeContract[], t: Mess
 
 const StudioCanvasNode: React.FC<NodeProps<StudioNode>> = ({ id, data, selected, isConnectable }) => {
   const { locale, t } = useI18n();
+  const canvasZoom = useStore((state) => state.transform[2]);
   const updateNodeInternals = useUpdateNodeInternals();
   const meta = nodeKindMeta(data.nodeKind, t);
   const contract = useStudioNodeContract(data.nodeKind);
@@ -155,9 +156,9 @@ const StudioCanvasNode: React.FC<NodeProps<StudioNode>> = ({ id, data, selected,
       </div>
 
       {previewSrc ? (
-        <div className="relative h-[76px] bg-book-bg">
+        <div className="relative h-[76px] bg-book-bg" style={{ "--a4n-studio-canvas-zoom": canvasZoom } as React.CSSProperties}>
           <img src={previewSrc} alt="" className="h-full w-full object-cover" />
-          <ImageZoomButton src={previewSrc} alt={nodeDisplayTitle(data, t)} className="nodrag nopan absolute right-1 top-1" />
+          <ImageZoomButton src={previewSrc} alt={nodeDisplayTitle(data, t)} className="a4n-studio-image-zoom nodrag nopan absolute left-1 top-1 sm:left-auto sm:right-1" />
         </div>
       ) : videoPreview ? (
         <StudioNodeVideoPreview preview={videoPreview} />

@@ -1,5 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
-import { getScrollRailCue, scrollRailItemIntoView } from "./scrollRail";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { getScrollRailCue, resolveScrollBehavior, scrollRailItemIntoView } from "./scrollRail";
+
+afterEach(() => vi.unstubAllGlobals());
 
 const rect = (left: number, right: number): DOMRect => ({ left, right } as DOMRect);
 
@@ -42,6 +44,38 @@ describe("scrollRailItemIntoView", () => {
 
     expect(scrollTo).toHaveBeenCalledWith({ left: 168, behavior: "instant" });
   });
+
+  it("uses an immediate scroll when the user requests reduced motion", () => {
+    vi.stubGlobal("window", {
+      getComputedStyle: vi.fn().mockReturnValue({ scrollPaddingLeft: "12px", scrollPaddingRight: "12px" }),
+      matchMedia: vi.fn().mockReturnValue({ matches: true }),
+    });
+    const { rail, scrollTo } = railFixture();
+    const item = { getBoundingClientRect: () => rect(280, 340) } as HTMLElement;
+
+    scrollRailItemIntoView(rail, item, "smooth");
+
+    expect(scrollTo).toHaveBeenCalledWith({ left: 132, behavior: "auto" });
+  });
+});
+
+describe("resolveScrollBehavior", () => {
+  it("keeps smooth scrolling when reduced motion is not requested", () => {
+    vi.stubGlobal("window", {
+      matchMedia: vi.fn().mockReturnValue({ matches: false }),
+    });
+
+    expect(resolveScrollBehavior("smooth")).toBe("smooth");
+  });
+
+  it("does not rewrite explicitly immediate scroll behavior", () => {
+    vi.stubGlobal("window", {
+      matchMedia: vi.fn().mockReturnValue({ matches: true }),
+    });
+
+    expect(resolveScrollBehavior("instant")).toBe("instant");
+    expect(resolveScrollBehavior("auto")).toBe("auto");
+  });
 });
 
 describe("getScrollRailCue", () => {
@@ -52,7 +86,6 @@ describe("getScrollRailCue", () => {
     const rail = { clientWidth: 320, scrollWidth: 352, scrollLeft: 0 } as HTMLElement;
 
     expect(getScrollRailCue(rail)).toEqual({ hasBefore: false, hasMore: false });
-    vi.unstubAllGlobals();
   });
 
   it("reports the remaining content at either end", () => {

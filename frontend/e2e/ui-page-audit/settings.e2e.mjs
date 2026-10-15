@@ -977,13 +977,12 @@ describe("Settings pages with populated records", () => {
     assert.equal(await browser.execute(() => document.querySelector('[data-settings-dirty="true"]') !== null), true);
   });
 
-  it("S06-retry asks before replacing unsaved skill changes", async () => {
+  it("S06-retry keeps stale skill controls read-only until the retry succeeds", async () => {
     await browser.setWindowSize(1440, 1000);
     await browser.url("/");
     await browser.url("/settings#agent");
     const checkbox = await $('input[type="checkbox"]');
     await checkbox.waitForDisplayed();
-    const before = await checkbox.isSelected();
     await browser.execute(() => { window.__uiAudit.deferred.push("list_agent_skills"); });
     await $('[aria-label="刷新技能配置"]').click();
     await browser.waitUntil(async () => browser.execute(() => window.__uiAudit.pending.some((item) => item.command === "list_agent_skills")));
@@ -993,15 +992,15 @@ describe("Settings pages with populated records", () => {
     });
     const retry = await $('//button[normalize-space()="重试"]');
     await retry.waitForDisplayed();
-    await checkbox.click();
-    const edited = await checkbox.isSelected();
-    assert.notEqual(edited, before);
+    assert.equal(await $('input[type="checkbox"]').isEnabled(), false, "A failed read must not allow edits from a stale skill snapshot");
+    assert.equal(await $('//button[normalize-space()="保存"]').isEnabled(), false);
+    await browser.execute(() => {
+      window.__uiAudit.deferred = window.__uiAudit.deferred.filter((command) => command !== "list_agent_skills");
+    });
     await retry.click();
-    const discardDialog = await $('[role="dialog"]');
-    await discardDialog.waitForDisplayed();
-    await discardDialog.$('//button[normalize-space()="取消"]').click();
-    assert.equal(await $('input[type="checkbox"]').isSelected(), edited);
-    assert.equal(await $('//button[normalize-space()="保存"]').isEnabled(), true);
+    await browser.waitUntil(async () => !(await $('[role="alert"]').isExisting()));
+    assert.equal(await $('input[type="checkbox"]').isEnabled(), true, "A successful retry must restore skill editing");
+    assert.equal(await $('//button[normalize-space()="保存"]').isEnabled(), false);
   });
 
   it("S06-refresh confirms before replacing unsaved skill changes", async () => {

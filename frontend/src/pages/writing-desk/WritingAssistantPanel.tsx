@@ -101,11 +101,9 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
           embeddedInModal ? "pt-0" : ""
         }`}
       >
-        {assistantMode === "generate" ? (
-          <span className="text-small text-book-text-muted">
-            {activeNumber != null ? t("writing.chapterLabel", { number: activeNumber }) : t("writing.assistantChapterNotSelected")}
-          </span>
-        ) : null}
+        <span className={`text-small text-book-text-muted ${assistantMode === "optimize" && activeChapter ? "md:hidden" : ""}`}>
+          {activeNumber != null ? t("writing.chapterLabel", { number: activeNumber }) : t("writing.assistantChapterNotSelected")}
+        </span>
         <SegmentedControl
           ariaLabel={t("writing.assistantMode")}
           value={assistantMode}

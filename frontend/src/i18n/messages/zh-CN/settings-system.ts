@@ -16,6 +16,7 @@ export const settingsLogs = {
   apply: "应用级别",
   applying: "应用中…",
   lines: "已显示 {returned} / {total} 行",
+  scrollHint: "向下滚动查看更多",
   readFailed: "读取日志失败",
   adminOnlyAction: "服务器诊断数据仅管理员可操作",
   levelApplying: "日志级别正在更新，请等待完成",

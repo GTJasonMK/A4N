@@ -52,7 +52,7 @@ export const PortraitGalleryGrid: React.FC<PortraitGalleryGridProps> = ({
             type="button"
             onClick={() => onOpenActions(portrait)}
             disabled={busy}
-            className="group w-full min-w-0 overflow-hidden rounded-[14px] border border-book-border/55 bg-book-bg-paper/45 text-left transition-colors hover:border-book-primary/45 disabled:cursor-wait disabled:opacity-60"
+            className="group h-full w-full min-w-0 overflow-hidden rounded-[14px] border border-book-border/55 bg-book-bg-paper/45 text-left transition-colors hover:border-book-primary/45 disabled:cursor-wait disabled:opacity-60"
             title={t("characterDetail.portrait.manage")}
           >
             <div className="relative flex aspect-square w-full items-center justify-center overflow-hidden bg-book-bg-tertiary text-xs text-book-text-muted">
@@ -81,9 +81,11 @@ export const PortraitGalleryGrid: React.FC<PortraitGalleryGridProps> = ({
                   ? "characterDetail.portrait.profileUnavailable"
                   : "characterDetail.portrait.unlinked")}
               </div>
-              <div className="portrait-card-metadata mt-1 flex min-w-0 flex-col gap-0.5 text-caption text-book-text-muted">
-                <span className="break-words leading-snug">{portraitTypeLabel(portrait.portrait_type, t)}</span>
-                {portrait.expression ? <span className="break-words leading-snug">{portrait.expression}</span> : null}
+              <div className="portrait-card-metadata mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-caption text-book-text-muted">
+                <span className="max-w-full break-words leading-snug">{portraitTypeLabel(portrait.portrait_type, t)}</span>
+                {portrait.expression ? (
+                  <span className="max-w-full break-words font-medium leading-snug text-book-text-sub">{portrait.expression}</span>
+                ) : null}
               </div>
             </div>
           </button>
