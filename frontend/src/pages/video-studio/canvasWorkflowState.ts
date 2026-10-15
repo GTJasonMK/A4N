@@ -6,6 +6,7 @@ import { studioNodeContract, type StudioNodeContractMap } from "./nodeContracts"
 import type { StudioEdge, StudioNode } from "./types";
 
 const CANVAS_WORKFLOW_KIND = "video_canvas_graph";
+export const CANVAS_WORKFLOW_VISIBLE_PROGRESS_EVENT_COUNT = 5;
 
 type CanvasWorkflowNodeRunStatus = "running" | "completed" | "failed";
 

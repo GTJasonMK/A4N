@@ -9,7 +9,10 @@ import { progressDisplayModel } from "../../utils/progressPresentation";
 import { getOperationStatusLabel } from "../../utils/workflowPresentation";
 import { parseApiTimestampMs } from "../../utils/timestamp";
 import { formatNumber, useI18n, type MessageTranslator } from "../../i18n";
-import { canvasNodeIdFromStepKey } from "./canvasWorkflowState";
+import {
+  CANVAS_WORKFLOW_VISIBLE_PROGRESS_EVENT_COUNT,
+  canvasNodeIdFromStepKey,
+} from "./canvasWorkflowState";
 import { nodeDisplayTitle } from "./StudioCanvasNode";
 import type { StudioNode } from "./types";
 
@@ -238,7 +241,7 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
           <div role="alert" className="mt-2 border-y border-error/35 px-2.5 py-2 text-small text-error">{eventsError}</div>
         ) : events.length > 0 ? (
           <div className="mt-2 divide-y divide-book-border/45 border-y border-book-border/45">
-            {events.slice(-5).map((event) => {
+            {events.slice(-CANVAS_WORKFLOW_VISIBLE_PROGRESS_EVENT_COUNT).map((event) => {
               const display = progressDisplayModel({
                 ...event,
                 locale,
