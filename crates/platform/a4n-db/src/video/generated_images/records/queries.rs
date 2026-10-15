@@ -2,6 +2,7 @@ use super::super::{VideoDbError, validate_positive_video_ids};
 use a4n_db_models::models::ai::generated_image;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+    sea_query::{Expr, extension::postgres::PgFunc},
 };
 
 pub async fn generated_images_by_ids(
@@ -104,12 +105,20 @@ where
 pub async fn generated_images_for_project<C>(
     db: &C,
     project_id: i64,
+    image_ids: Option<Vec<i64>>,
 ) -> Result<Vec<generated_image::Model>, DbErr>
 where
     C: ConnectionTrait,
 {
-    generated_image::Entity::find()
-        .filter(generated_image::Column::ProjectId.eq(project_id))
+    let mut query =
+        generated_image::Entity::find().filter(generated_image::Column::ProjectId.eq(project_id));
+    if let Some(image_ids) = image_ids {
+        if image_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        query = query.filter(Expr::col(generated_image::Column::Id).eq(PgFunc::any(image_ids)));
+    }
+    query
         .order_by_desc(generated_image::Column::CreatedAt)
         .all(db)
         .await

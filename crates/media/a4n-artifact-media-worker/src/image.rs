@@ -40,6 +40,7 @@ impl WorkerState {
         a4n_db::video::read_models::generated_images_for_project(
             self.db.connection(),
             request.project_id,
+            None,
         )
         .await
         .map(|images| images.iter().map(generated_image_summary).collect())

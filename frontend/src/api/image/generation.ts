@@ -6,7 +6,10 @@ import { buildRuntimeConfigSnapshot } from "../runtimeConfigSnapshot";
 import { usesLocalRuntimeSettings } from "../../utils/runtimeMode";
 import { normalizeImageConfigId } from "./configs";
 import { generationClient } from "../generationTasks";
-import { verifyGeneratedMediaResult } from "../generationResultVerification";
+import {
+  generatedMediaResultIds,
+  verifyGeneratedMediaResult,
+} from "../generationResultVerification";
 import { sha256Json } from "../../utils/contentHash";
 import type { GenerationTaskViewState } from "../../utils/generationEventReducer";
 import type {
@@ -45,17 +48,20 @@ export async function verifyImageGenerationResult(
   projectId: Id,
 ): Promise<[GeneratedImage, ...GeneratedImage[]]> {
   const project = idNum(projectId, "项目 ID");
-  const images = await listImagesByProject(project);
-  return verifyGeneratedMediaResult(task, images, {
+  const spec = {
     projectId: project,
     singleKind: "generated_image",
     batchKind: "generated_image_batch",
     artifactKind: "generated_image",
     artifactIdPrefix: "generated-image:",
-    recordInScope: (image) => image.project_id === project,
+    recordInScope: (image: GeneratedImage) => image.project_id === project,
     recordRevision: imageRevision,
     errorMessage: translateMessage(getActiveLocale(), "errors.mediaGenerationConsistencyFailed"),
-  });
+  };
+  const imageIds = generatedMediaResultIds(task, spec);
+  if (imageIds == null) return verifyGeneratedMediaResult(task, [], spec);
+  const images = await listImagesByProject(project, imageIds);
+  return verifyGeneratedMediaResult(task, images, spec);
 }
 
 export async function previewSceneImageRequest(

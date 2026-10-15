@@ -80,10 +80,15 @@ impl VideoApplication {
     pub(in crate::context) async fn generated_images_for_project(
         &self,
         project_id: i64,
+        image_ids: Option<Vec<i64>>,
     ) -> Result<Vec<GeneratedImageRecord>, AppError> {
-        a4n_db::video::read_models::generated_images_for_project(self.connection(), project_id)
-            .await
-            .map_err(AppError::from)
+        a4n_db::video::read_models::generated_images_for_project(
+            self.connection(),
+            project_id,
+            image_ids,
+        )
+        .await
+        .map_err(AppError::from)
     }
 
     pub(in crate::context) async fn generated_images_for_projects(

@@ -128,10 +128,19 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         project_id: i64,
+        image_ids: Option<Vec<i64>>,
     ) -> Result<Vec<GeneratedImageRecord>, AppError> {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
             .await?;
-        self.generated_images_for_project(project_id).await
+        if let Some(ids) = &image_ids {
+            if ids.is_empty() || ids.iter().any(|id| *id <= 0) {
+                return Err(AppError::InvalidArgument(
+                    "图片 image_ids 必须包含正整数".to_string(),
+                ));
+            }
+        }
+        self.generated_images_for_project(project_id, image_ids)
+            .await
     }
 
     pub async fn list_generated_images_for_projects_for_user_validated(
@@ -397,7 +406,7 @@ impl ImageRecordReadApplicationPort for OrchestratorContext {
         input: ListImagesByProjectInput,
     ) -> Result<Vec<GeneratedImageSummary>, AppError> {
         Ok(self
-            .list_generated_images_for_user_validated(user_id, input.project_id)
+            .list_generated_images_for_user_validated(user_id, input.project_id, input.image_ids)
             .await?
             .iter()
             .map(super::generation::generated_image_record_summary)

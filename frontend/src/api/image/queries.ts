@@ -8,8 +8,12 @@ import type {
 import type { GeneratedImage } from "./types";
 import { idNum, type ApiId as Id } from "../shared";
 
-export async function listImagesByProject(projectId: Id): Promise<GeneratedImage[]> {
+export async function listImagesByProject(
+  projectId: Id,
+  imageIds?: readonly Id[],
+): Promise<GeneratedImage[]> {
   const input: ListImagesByProjectInput = { project_id: idNum(projectId) };
+  if (imageIds !== undefined) input.image_ids = imageIds.map(idNum);
   return apiInvoke<GeneratedImage[]>("list_images_by_project", {
     input,
   });

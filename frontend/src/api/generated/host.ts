@@ -2344,6 +2344,7 @@ export interface ModelUsageRequest {
 }
 
 export interface ListImagesByProjectInput {
+  image_ids?: number[] | null;
   project_id: number;
 }
 
