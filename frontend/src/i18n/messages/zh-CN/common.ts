@@ -36,6 +36,7 @@ export const common = {
   disabled: "已停用",
   yes: "是",
   no: "否",
+  to: "到",
   ready: "就绪",
   passed: "通过",
   readOnly: "只读",

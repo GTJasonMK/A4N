@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
+import type { CharacterProfile } from "../../../api/character";
 import type { MangaPagePromptSummary } from "../../../api/manga";
-import { buildPagePrompts, type MangaPagePromptLabels } from "./mangaPagePromptModel";
+import type { Portrait } from "../../../api/portrait";
+import { translateMessage, type MessageTranslator } from "../../../i18n";
+import { buildPagePrompts, buildReferenceCandidates, type MangaPagePromptLabels } from "./mangaPagePromptModel";
+
+const t: MessageTranslator = (key, params) => translateMessage("zh-CN", key, params);
 
 const labels: MangaPagePromptLabels = {
   role: {
@@ -142,5 +147,33 @@ describe("buildPagePrompts", () => {
     expect(imageStagePage.pipelineStatus).toBe("failed");
     expect(storyboardPage.pipelineStage).toBeNull();
     expect(storyboardPage.pipelineStatus).toBeNull();
+  });
+});
+
+describe("buildReferenceCandidates", () => {
+  it("localizes portrait type labels in manga reference options", () => {
+    const portraits: Portrait[] = [{
+      id: 1,
+      profile_id: 10,
+      project_id: 1,
+      portrait_type: "full_body",
+      image_path: "/portrait.png",
+      prompt: "",
+      expression: null,
+      pose: null,
+      is_primary: true,
+      created_at: "2026-10-11T00:00:00Z",
+    }];
+    const profiles = [{ id: 10, name: "林岚" } as CharacterProfile];
+
+    const candidates = buildReferenceCandidates(
+      { characterName: "林岚", systemAsset: null, userAddedAssets: [] },
+      profiles,
+      portraits,
+      [],
+      t,
+    );
+
+    expect(candidates[0].subLabel).toBe("全身三视图拆解 · 主图");
   });
 });

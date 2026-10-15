@@ -1052,7 +1052,12 @@ export const StoryGraphPanel: React.FC<StoryGraphPanelProps> = ({ canEdit, graph
               <p className="text-caption text-book-text-muted">{edgeKindLabel(selectedEdge.kind, t)}</p>
               <h3 className="mt-1 break-all text-sm font-semibold text-book-text-main">{selectedEdge.id}</h3>
             </div>
-            <p className="break-all text-caption text-book-text-muted">{selectedEdge.from_node_id} → {selectedEdge.to_node_id}</p>
+            <p className="a4n-story-graph-edge-direction break-all text-caption text-book-text-muted">
+              <span className="a4n-story-graph-edge-from">{selectedEdge.from_node_id}</span>{" "}
+              <ArrowRight size={12} className="mx-0.5 inline align-middle" aria-hidden="true" />{" "}
+              <span className="sr-only">{t("common.to")}</span>
+              <span className="a4n-story-graph-edge-to">{selectedEdge.to_node_id}</span>
+            </p>
             {canEditGraph ? <>
               <JsonValueField label={t("galgame.graph.edgeCondition")} value={selectedEdge.guard}
                 onChange={(value) => updateEdge(selectedEdge.id, (edge) => ({ ...edge, guard: value as StoryEdge["guard"] }))} />

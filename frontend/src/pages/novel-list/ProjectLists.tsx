@@ -238,7 +238,7 @@ const ProjectRow: React.FC<{
           </span>
           <div className="min-w-0 flex-1">
             <h3 className="text-base font-semibold text-book-text-main sm:text-lg">
-              <span className="block line-clamp-2 leading-snug sm:line-clamp-1">{project.title}</span>
+              <span className="line-clamp-2 leading-snug sm:line-clamp-1">{project.title}</span>
             </h3>
             <p className="mt-1 truncate text-small text-book-text-muted">
               {project.owner_username} · {formatDate(project.updated_at, locale)}
@@ -270,9 +270,16 @@ const ProjectRow: React.FC<{
                 <span className="sm:hidden">{t("novel.writeShortcut")}</span>
               </button>
             ) : (
-              <span className="hidden text-body-sm font-semibold text-book-primary sm:inline">
-                {entryLabel}
-              </span>
+              <>
+                <span className="hidden text-body-sm font-semibold text-book-primary sm:inline">
+                  {entryLabel}
+                </span>
+                {project.project_kind === "text" && entryRoute === workspaceRoute ? (
+                  <span className="text-body-sm font-semibold text-book-primary sm:hidden">
+                    {t("novel.writeShortcut")}
+                  </span>
+                ) : null}
+              </>
             )}
             {hasActionItems ? (
               <span className="pointer-events-auto relative z-20">

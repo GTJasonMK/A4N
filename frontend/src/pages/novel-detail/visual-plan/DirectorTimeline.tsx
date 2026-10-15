@@ -1,6 +1,6 @@
 import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useStore } from "zustand";
-import { Clock3, Plus, Scissors, ZoomIn, ZoomOut } from "lucide-react";
+import { ArrowLeftRight, Clock3, Plus, Scissors, ZoomIn, ZoomOut } from "lucide-react";
 import type { ChapterVisualPlanV3, ChapterVisualPlanView, VisualPlanEditOperation } from "../../../api/chapterVisualPlan";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Modal } from "../../../components/ui/Modal";
@@ -33,13 +33,26 @@ type Drag = { kind: "point" | "boundary"; id: string; startX: number; startTime:
 export function DirectorTimeline({ plan, record, selection, clock, editable, sceneNames, onSelect, onEdit, onSplit, onError, viewRef }: Props) {
   const [zoom, setZoom] = useState(1);
   const [fit, setFit] = useState(true);
+  const [scrollable, setScrollable] = useState(false);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [duration, setDuration] = useState(String(durationMs(plan) / 1000));
   const [scale, setScale] = useState(100);
   const [timingOpen, setTimingOpen] = useState(false);
   const rail = useRef<HTMLDivElement>(null);
+  const timelineViewport = useRef<HTMLDivElement>(null);
   const scaleStart = useRef(durationMs(plan));
   const total = durationMs(plan);
+  useEffect(() => {
+    const viewport = timelineViewport.current;
+    const track = rail.current;
+    if (!viewport || !track) return;
+    const update = () => setScrollable(viewport.scrollWidth > viewport.clientWidth + 1);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(viewport);
+    observer.observe(track);
+    return () => observer.disconnect();
+  }, [fit, plan, zoom]);
   useImperativeHandle(viewRef, () => ({
     fit: () => { setFit(true); setZoom(1); },
     locate: (atMs) => {
@@ -121,10 +134,11 @@ export function DirectorTimeline({ plan, record, selection, clock, editable, sce
     setScale(100);
   };
 
-  return <section className="director-timeline" aria-label="导演时间线">
+  return <section className="director-timeline" aria-label="导演时间线" data-scrollable={scrollable}>
     <div className="director-timeline-heading">
       <div className="director-timeline-summary"><h3>时间线</h3><span>{plan.segments.length} 个镜头 · {plan.points.length} 个图片点</span>
         <BookButton variant="ghost" size="sm" aria-label="调整整体时长" aria-haspopup="dialog" aria-expanded={timingOpen} title="调整整体时长" onClick={() => setTimingOpen(true)}><Clock3 size={14} />时长 {formatTime(total)}</BookButton>
+        <span className="director-timeline-scroll-hint"><ArrowLeftRight size={14} aria-hidden="true" />横向滑动</span>
       </div>
       <div className="director-inline-actions">
         <AddPointButton clock={clock} plan={plan} editable={editable} onClick={insertPoint} />
@@ -133,7 +147,7 @@ export function DirectorTimeline({ plan, record, selection, clock, editable, sce
         <button type="button" aria-label="放大视图" onClick={() => { setFit(false); setZoom((value) => fit ? 1 : Math.min(12, value * 1.5)); }} disabled={!fit && zoom === 12}><ZoomIn size={16} />放大编辑</button>
       </div>
     </div>
-    <div className="director-timeline-scroll">
+    <div className="director-timeline-scroll" ref={timelineViewport}>
       <div
         className="director-timeline-track"
         style={{ width: `max(100%, ${timelineTrackWidth(plan, zoom, fit)}px)` }}

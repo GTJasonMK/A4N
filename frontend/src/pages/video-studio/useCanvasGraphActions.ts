@@ -218,6 +218,11 @@ export function useCanvasGraphActions({
         event.preventDefault();
         return;
       }
+      const sourceIcon = event.currentTarget.querySelector<SVGSVGElement>("svg.lucide");
+      if (!sourceIcon) {
+        event.preventDefault();
+        throw new Error("Canvas node template drag source is missing its Lucide icon");
+      }
       event.dataTransfer.effectAllowed = "copy";
       event.dataTransfer.setData(NODE_DRAG_KIND, kind);
       event.dataTransfer.setData(NODE_DRAG_LABEL, label);
@@ -227,6 +232,7 @@ export function useCanvasGraphActions({
         label,
         flowInstance?.getZoom() ?? 1,
         studioNodeContract(nodeContractsByKind, kind),
+        sourceIcon,
         t,
       );
     },

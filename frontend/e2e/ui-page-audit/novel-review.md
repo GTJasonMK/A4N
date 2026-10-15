@@ -9,93 +9,167 @@
 | ID | 工作面角色 | 注意力顺序 | 已实际看图的批次、宽度和阶段 | 当前结论或未完成项 |
 |---|---|---|---|---|
 | N00-home | 项目与派生资料入口 | 项目身份 → 进度/来源 → 继续创作 → 更多操作 | novel-final，1440/900/390 initial+last | 保留：项目身份、只读权限与派生缩进可辨；桌面入口文字明确，手机整行进入与独立更多按钮分开；末项完整可达。 |
-| N01-overview | 项目摘要与维护入口 | 项目进度 → 故事核心 → 完整梗概 → 蓝图版本 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N02-world | 世界设定总览 | 世界前提 → 核心规则 → 地点/阵营 → 完整设定/编辑 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N03-characters | 人物档案目录 | 姓名/身份 → 特征摘要 → 同步章号 → 档案入口 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N04-objects | 道具资料目录 | 名称/类型 → 用途/视觉特征 → 图片数/来源 → 详情 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N05-scenes | 场景资料目录 | 地点名称 → 空间特征 → 出场/图片计数 → 详情 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
+| N01-overview | 项目摘要与维护入口 | 项目进度 → 故事核心 → 完整梗概 → 蓝图版本 | 2026-10-12 当前版，1440/1024/900/390 initial | 当前矩阵四宽度溢出为0，项目标题完整可见。首轮独立审图发现390px标题截断 P3；修复后独立复审无新 P1/P2/P3。梗概/蓝图弹窗仍按下方独立行状态记录。证据：[报告](../../../.dev-runtime/ui-pages/novel/n01-n03-title-wrap-report.json)、[390px](../../../.dev-runtime/ui-pages/novel/n01-n03-title-wrap-N01-overview-390-initial.png)。 |
+| N02-world | 世界设定总览 | 世界前提 → 核心规则 → 地点/阵营 → 完整设定/编辑 | 2026-10-12 当前版，1440/1024/900/390 initial | 完整设定入口、结构摘要及地点/阵营分层在四宽度可读，页面溢出为0；项目标题窄屏 P3 已随共享页头修复。独立复审无新 P1/P2/P3。深层编辑器/完整设定仍按下方独立行状态记录。证据：[报告](../../../.dev-runtime/ui-pages/novel/n01-n03-title-wrap-report.json)、[390px](../../../.dev-runtime/ui-pages/novel/n01-n03-title-wrap-N02-world-390-initial.png)。 |
+| N03-characters | 人物档案目录 | 姓名/身份 → 特征摘要 → 同步章号 → 档案入口 | 2026-10-12 当前版，1440/1024/900/390 initial+last | 姓名、年龄/身份、同步状态和档案入口保持清楚；性格摘要不重复性别/年龄，自定义地点标签显示“当前位置”，不是裸 key。手机单列、桌面双列、末项可达，页面溢出为0。共享页头项目标题 P3 已修复；独立复审无新 P1/P2/P3。详情及管理子页仍按下方独立行记录。证据：[当前报告](../../../.dev-runtime/ui-pages/novel/n01-n03-title-wrap-report.json)、[390初始](../../../.dev-runtime/ui-pages/novel/n01-n03-title-wrap-N03-characters-390-initial.png)、[390末项](../../../.dev-runtime/ui-pages/novel/n01-n03-title-wrap-N03-characters-390-last.png)、[390属性标签](../../../.dev-runtime/ui-pages/novel/frontend-design-20261012-scene-modal-final-profile-summary-character-390.png)、[1440属性标签](../../../.dev-runtime/ui-pages/novel/frontend-design-20261012-scene-modal-final-profile-summary-character-1440.png)。 |
+| N04-objects | 道具资料目录 | 名称/类型 → 用途/视觉特征 → 图片数/来源 → 详情 | 2026-10-12，390/1024/1440 | 用途摘要不重复，来源/图片计数分层；390px 更多操作靠右，1024/1440px 双列边界与行首对齐。独立审图无新 P1/P2/P3。证据：[报告](../../../.dev-runtime/ui-pages/novel/frontend-design-20261012-object-list-final-N04-object-summary-report.json)、[390](../../../.dev-runtime/ui-pages/novel/frontend-design-20261012-object-list-final-N04-object-summary-390.png)、[1024](../../../.dev-runtime/ui-pages/novel/frontend-design-20261012-object-list-final-N04-object-summary-1024.png)、[1440](../../../.dev-runtime/ui-pages/novel/frontend-design-20261012-object-list-final-N04-object-summary-1440.png)。 |
+| N05-scenes | 场景资料目录 | 地点名称 → 空间特征 → 出场/图片计数 → 详情 | 2026-10-12，390/1024/1440 | 摘要去重、出场/图片计数独立；手机标签轨道无页面溢出。独立审图将“事”半字和右箭头判为横滑提示，无新 P1/P2/P3。证据：[390](../../../.dev-runtime/ui-pages/novel/frontend-design-20261012-scene-modal-final-profile-summary-scene-390.png)、[1024](../../../.dev-runtime/ui-pages/novel/frontend-design-20261012-scene-modal-final-profile-summary-scene-1024.png)、[1440](../../../.dev-runtime/ui-pages/novel/frontend-design-20261012-scene-modal-final-profile-summary-scene-1440.png)。 |
 | N06-relationships | 人物关系导航 | 可读角色列表 → 关系总量/全图 → 具体关系 | novel-closeout，1440/900/390 initial+last | 复验保留：1440图与列表并列；900/390列表优先、图在其下，旧覆盖问题已消失；12名角色首尾可读，白砚末项完整。窄屏图承担概览、列表承担具体阅读。 |
 | N07-events | 情节事件检索 | 检索/筛选 → 章节事实 → 具体事件 → 展开伏笔 | novel-final，1440/900/390 initial | 复验保留：伏笔索引默认折叠，首屏恢复搜索、筛选和章内事实；390控件自然换行，事件不再被伏笔区挤出。此项未额外截图末章。 |
-| N08-parts | 分部规划入口 | 分部名称/区间 → 剧情概要 → 详情 → 追加工具 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N09-images | 项目图像库 | 图像/收藏范围 → 图像分组 → 主点击管理 → 独立放大 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N10-imports | 资料导入与审核队列 | 导入方式 → 分析状态 → 审核条目 → 候选详情 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N11-chapters | 已写正文目录 | 章号/标题 → 字数 → 进入正文 → 导入 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N12-cost | 项目成本核算 | 分币种合计 → 金额/状态 → 能力/模型/时间 → 未定价说明 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| W01-body | 章节正文阅读编辑 | 章节身份/保存状态 → 正文 → 章间导航 → 辅助工具 | 390 initial | 末句与光标完整可见；正文内滚动边界明确，字号与段落间距可保留。1440/900待审。 |
-| W02-analysis | 本章分析结果核对 | 摘要/关键事件 → 人物/物品/场景 → 资料同步明细 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| W03-images | 章内图像工作区 | 本章/项目范围 → 收藏 → 图像分组 → 生成/管理 | 390 initial | 章内/项目范围、收藏、生成主操作与双列图像清楚，无当前宽度横向挤压。1440/900及完整末项待审。 |
-| W04-director | 章节导演时间线 | 章节身份 → 图片点/镜头段 → 当前画面 → 选中项属性 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| W05-script | 拍摄剧本阅读 | 场次目录 → 场内动作/对白 → 镜头规格 → 编辑/导演意图 | 待审 | 本批三场戏默认折叠，尚未进入完整内容；主流程已补真实展开，待新批次视审。 |
-| N01-synopsis | 完整梗概阅读 | 标题 → 连续正文 → 段落末尾 → 关闭返回 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N01-blueprint-edit | 正式蓝图编辑 | 既有字段 → 长梗概 → 章节规模 → 保存/取消 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N01-versions | 蓝图版本选择 | 版本号/时间 → 改动说明 → 选中状态 → 对比入口 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N01-version-compare | 版本差异阅读 | 所选版本对 → 字段差异 → 原/新内容 → 恢复入口 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
+| N08-parts | 分部规划入口 | 分部名称/区间 → 剧情概要 → 详情 → 追加工具 | 生产预览，390/900/1440px initial/settings/last | 追加表单“查看追加请求”与主动作语义清楚；高级工具入口显示“查看模型请求”，继续使用原下拉菜单和请求回调。三宽度 page overflow=0；未触发生成/追加。高级工具弹窗已设局部不透明，独立审图无 P1/P2/P3。截图：[追加表单 390](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-N08-parts-390-settings.png)、[高级工具 390](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-N08-advanced-390.png)、[900](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-N08-advanced-900.png)、[1440](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-N08-advanced-1440.png)。报告：[390/900](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-outline-import-review-390-900-report.json)、[1440](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-outline-import-review-1440-report.json)。 |
+| N09-images | 项目图像库 | 图像/收藏范围 → 图像分组 → 主点击管理 → 独立放大 | gallery-review，1440/390 initial；原始生成记录生产预览390/900/1440 | 独立审图 8 项中的图库主入口：桌面五列、手机两列，缩略图为主体；收藏/预览入口清楚，43 张末项可达。原始记录路径/哈希完整保留；390px 提供 Lucide 左右滑动提示，900/1440 不显示多余提示。弹窗不透出底层内容，三宽度 overflow=0，独立审图无 P1/P2/P3。素材为 UI fixture。报告：[原始记录](../../../.dev-runtime/ui-pages/novel/n09-diagnostic-20261011/report.json)，[390](../../../.dev-runtime/ui-pages/novel/n09-diagnostic-20261011/N09-diagnostics-390.png)。 |
+| N10-imports | 资料导入与审核队列 | 导入方式 → 分析状态 → 审核条目 → 候选详情 | N10 queue 与 review-detail 生产预览390/900/1440；2026-10-14 上传流程390 | 分析请求预览入口显示“查看分析模型请求”，三宽度无遮挡、overflow=0；不触发预览调用。隐藏文件 input 有本地化名称且不占额外 Tab 顺序，可见按钮保持键盘入口。390px 上传中显示禁用按钮和 spinner，完成后文件选择器复位且新审核项可见；输入内容与请求 Base64 一致。N10-dedup 只读预览与审核结构 label/未修改禁用原因仍通过。fixture 模拟上传回包，不代表真实 Host/DB。证据：[三宽报告](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-outline-import-review-report.json)、[上传中](../../../.dev-runtime/ui-pages/novel/frontend-design-20261014-N10-import-390-uploading.png)、[已上传](../../../.dev-runtime/ui-pages/novel/frontend-design-20261014-N10-import-390-uploaded.png)。 |
+| N11-chapters | 已写正文目录 | 章号/标题 → 字数 → 阅读/续写 → 导入 | 章节目录及只读正文390/900/1440；导入弹窗390/900/1440；短屏390×363 | 目录三宽度3行、每行约65–67px、overflow=0；viewer 不显示写作/导入动作。只读打开第1/2章时标题带章号、正文匹配对应章节；长文末句可达，弹窗opacity=1，Escape 返回焦点到章节行。手工导入弹窗 label、空正文禁用及焦点返回通过；短屏正文首屏111px、确认按钮44px完整可达。独立审图确认手机标签栏裁字P3已关闭，无新P1/P2/P3。截图：[390目录](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-N11-viewer-390-chapters.png)、[390正文](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-N11-viewer-390-chapter-1.png)、[390末句](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-N11-viewer-390-chapter-1-last.png)、[900正文](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-N11-viewer-900-chapter-1.png)、[1440正文](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-N11-viewer-1440-chapter-1.png)、[viewer报告](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-outline-import-review-390-900-1440-report.json)。 |
+| N12-cost | 项目成本核算 | 分币种合计 → 金额/状态 → 能力/模型/时间 → 未定价说明 | novel-final，1440/900/390 initial+last | 生产预览 3/3：60 条记录完整、横向溢出为 0，表头与手机金额列固定；手机横纵滚动提示清楚。独立审图确认原 major 已关闭，无新 P1/P2/P3。证据见 [报告](../../../.dev-runtime/ui-pages/novel/n12-preview-20261011/report.json)。 |
+| W01-body | 章节正文阅读编辑 | 章节身份/保存状态 → 正文 → 章间导航 → 辅助工具 | current，390/900/1440 正文末端；w01-native-20261012-real 原生 200% | 独立审图无 P1/P2/P3：三宽度章节身份、保存状态和正文标签清楚，行距舒适；390px 无横向裁切，900/1440 阅读列宽适中，末句与插入光标完整可见。最终 Chrome 153 原生 200% profile 1/1 通过：实际 1440×1000 窗口 / 702×393 CSS 视口 / DPR 4，键盘选章、编辑、保存和焦点返回均通过，overflow=0。截图：[390px](../../../.dev-runtime/ui-pages/novel/current-W01-body-390-initial.png)、[900px](../../../.dev-runtime/ui-pages/novel/current-W01-body-900-initial.png)、[1440px](../../../.dev-runtime/ui-pages/novel/current-W01-body-1440-initial.png)、[原生 200%](../../../.dev-runtime/ui-pages/novel/w01-native-20261012-real-W01-keyboard-702css-702-css-viewport.png)。报告：[原生 200%](../../../.dev-runtime/ui-pages/novel/w01-native-20261012-real-report.json)。 |
+| W02-analysis | 本章分析结果核对 | 摘要/关键事件 → 人物/物品/场景 → 资料同步明细 | frontend-design-20261010-writing-core-final，1440/1024/900/390 initial+last | 完整分析字段四宽可读，摘要/事实同步/归纳动作层级清楚，长内容末项可达；overflow=0。独立审图无P1/P2/P3。报告：[本章分析](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-writing-core-final-report.json)。 |
+| W03-images | 章内图像工作区 | 本章/项目范围 → 收藏 → 图像分组 → 生成/管理 | frontend-design-20261010-writing-core-final，1440/1024/900/390 initial+last | 桌面三列、手机双列；导入/生成入口成组，放大/收藏按钮未遮住主体，末项可达且overflow=0。独立审图无P1/P2/P3。图像为 UI fixture，只据此验布局与控件，不评真实生成质量。报告：[章内图像](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-writing-core-final-report.json)。 |
+| W04-director | 章节导演时间线 | 视频项目阶段 2 → 章节 → 图片点/镜头段 → 当前画面/属性 | frontend-design-20261010-w04-no-thread-toast + w04-subflows-20261011，真实路由 1440/1024/900/390 initial；专项 fixture 1440/1366/1280/1024/900/390 | `/video-project/3` 主工作面与 12 个属性/弹窗子流程通过，子流程覆盖 1440/900/390 initial+last，overflow=0、无未声明请求或前端错误。阶段选择与手机横向时间线提示仍完整；独立审图未发现 P1/P2/P3。真实路由本身的末项滚动及真实上传/提交操作未做。报告：[主路由](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-w04-no-thread-toast-report.json)、[子流程](../../../.dev-runtime/ui-pages/novel/w04-subflows-20261011-report.json)、[专项断点](../../.dev-runtime/ui-pages/novel/director-timeline-final/report.json)。 |
+| W04-confirm-plan | 导演方案确认状态 | 草稿状态 → 校验 → 确认 → 编辑新版本 | w04-confirm-plan-20261013，1440/1024/900/390 initial/verified/last | 四宽 fixture 验证同一版本先校验再确认，成功态显示“方案已确认”并切换到“编辑新版本”，未启动媒体生成；overflow=0、错误/意外请求为0。390/1440 初态和成功态实看，未验证真实持久化。报告：[确认状态](../../../.dev-runtime/ui-pages/novel/w04-confirm-plan-20261013-report.json)。 |
+| W04-point-upload | 本地图像补充当前分镜 | 当前图片点 → 选择文件 → 上传等待 → 当前画面预览/草稿回包 | w04-upload-feedback-final-20261013，1440/1024/900/390 initial/uploading/verified/last | 本地 PNG 在 UI fixture 中编码并走 `upload_image`，草稿回包引用新图片，当前画面预览加载成功。上传等待时原上传按钮原位显示“上传中…”和 Lucide spinner、文件输入禁用；四宽共16状态 overflow/错误/意外请求/发现均0。只验证浏览器夹具，不代表真实服务器存储。报告：[上传忙碌态](../../../.dev-runtime/ui-pages/novel/w04-upload-feedback-final-20261013-report.json)。 |
+| W05-script | 拍摄剧本阅读 | 视频项目阶段 → 场次目录 → 目标/阻碍与镜头节拍 → 编辑/导演意图 | frontend-design-20261010-w05-script-verified，1440/900/390 initial+last | 已从旧写作台迁到视频项目第 3 阶段。桌面七阶段轨道明确，390 显示“3/7 · 拍摄剧本”并保留来源章节；三场六镜按需展开，首场和末场完整可达。自动溢出为 0；独立实屏复核未发现 P1/P2/P3。报告：[读视图](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-w05-script-verified-report.json)。 |
+| N01-fact-feedback | 正文事实变化核对 | 更新/待采用/撤回状态 → 正文证据 → 归纳范围 | n01-n02-deep-review，390/900/1024/1440 | 三种变化状态与原文证据可区分；报告中 176 个视口/状态记录无溢出、浏览器错误或断言发现。独立审图无 P1/P2/P3。报告：[N01/N02 深层路径](../../../.dev-runtime/ui-pages/novel/n01-n02-deep-review-report.json)。 |
+| N01-synopsis | 完整梗概阅读 | 标题 → 连续正文 → 段落末尾 → 关闭返回 | n01-n02-deep-review，390/900/1024/1440 initial+last | 长梗概可连续阅读并到达末段；页面溢出为0。独立审图无 P1/P2/P3。报告：[N01/N02 深层路径](../../../.dev-runtime/ui-pages/novel/n01-n02-deep-review-report.json)。 |
+| N01-blueprint-edit | 正式蓝图编辑 | 既有字段 → 长梗概 → 章节规模 → 保存/取消 | n01-n02-deep-review，390/900/1024/1440 initial+last | 已有字段和最终操作可读可达，长梗概未横向裁切。独立审图无 P1/P2/P3。报告：[N01/N02 深层路径](../../../.dev-runtime/ui-pages/novel/n01-n02-deep-review-report.json)。 |
+| N01-versions | 蓝图版本选择 | 版本号/时间 → 改动说明 → 选中状态 → 对比入口 | visual-closeout-20261012-final，390/900/1440 initial+last | “刷新版本”显示为 Lucide 文字按钮，点击后实际调用原版本列表读取；版本说明完整、末项可达、overflow=0。独立审图无 P1/P2/P3。报告：[当前版本列表与图谱](../../../.dev-runtime/ui-pages/novel/visual-closeout-20261012-final-report.json)。 |
+| N01-version-restore | 蓝图版本恢复确认 | 目标版本 → 覆盖范围 → 确认/取消 | n01-n02-deep-review，390/900/1024/1440 before-cancel | 覆盖说明可辨；取消后列表保留且未发送恢复写请求。独立审图无 P1/P2/P3。报告：[N01/N02 深层路径](../../../.dev-runtime/ui-pages/novel/n01-n02-deep-review-report.json)。 |
+| N01-version-compare | 版本差异阅读 | 所选版本对 → 字段差异 → 原/新内容 → 恢复入口 | n01-n02-deep-review，390/900/1024/1440 initial+last | 第一版与第三版的正文差异可辨，选择范围和差异结果匹配；末项可达。独立审图无 P1/P2/P3。报告：[N01/N02 深层路径](../../../.dev-runtime/ui-pages/novel/n01-n02-deep-review-report.json)。 |
 | N01-members | 协作角色管理 | 已有成员/权限 → 待邀请 → 邀请输入 → 成员操作 | 移交 settings_page_review | 见其独立复审记录。 |
-| N01-stage | 项目阶段核对 | 当前阶段 → 可选推进/回退 → 历史原因 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N01-export | 小说导出配置 | 输出格式 → 包含内容/元数据 → 导出确认 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N01-lineage | 内容来源与影响浏览 | 资产总览 → 目标节点 → 上游/下游 → 节点详情 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N02-editor-0 | 世界观结构化维护 | 核心规则 → 地点/阵营字段 → 保存/退出 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N02-editor-1 | 世界观JSON精确编辑 | 完整JSON → 校验反馈 → 保存/退出 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N02-editor-2 | 世界观纯文本维护 | 完整文字 → 存储形式提示 → 保存/退出 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N02-detail | 完整世界设定阅读 | 前提/规则 → 全部地点/阵营 → 扩展字段 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N03-create | 新增人物资料 | 必填姓名 → 性格/背景/外貌 → 保存 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N03-arc | 人物成长线参考 | 当前弧光 → 进度/阶段 → 后续发展 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N03-voice | 人物台词风格参考 | 说话方式 → 句式/节奏 → 例句 → 诊断 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N03-portraits | 人物主图与变体目录 | 人物筛选 → 主图标识 → 图像 → 管理/放大 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N03-portrait-detail | 立绘管理与派生操作 | 当前图 → 类型/表情 → 提示词/年龄变体 → 重绘 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N03-portrait-preview | 立绘细节查看 | 图像 → 缩放 → 关闭与焦点返回 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N03-reference-selection | 角色图像生成参考选择 | 人物/尺寸/风格 → 参考图与选中数量 → 生成 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N03-manage-behavior | 行为证据追溯 | 章节/过滤 → 行为描述 → 原文证据 → 影响 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N03-manage-implicit | 隐性属性复审 | 待复审数量 → 复审范围 → 属性结论/符合率 → 证据 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N03-manage-event | 属性变化追溯 | 章号/时间 → 原值/新值 → 原因/原文 → 手动维护 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N03-manage-snapshot | 章级快照目录 | 同步范围 → 快照列表 → 状态/详情 → 比较/回滚 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N03-manage-deletion | 属性删除保护记录 | 保护状态 → 连续标记 → 原因/证据 → 请求/处理 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N03-snapshot-state | 某章完整人物状态 | 章号/摘要 → 显性属性 → 隐性属性 → 社会关系 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N03-snapshot-detail | 某章变更与行为证据 | 章号/位置 → 属性变化 → 原因/证据 → 行为原文 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N04-object-detail | 道具用途与视觉参考 | 名称/来源 → 视觉状态 → 叙事用途 → 素材操作 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N05-scene-detail | 地点空间与规则核对 | 地点/入口 → 光线/规则 → 当前状态 → 素材操作 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
+| N01-stage | 项目阶段核对 | 当前阶段 → 可选推进/回退 → 历史原因 | n01-n02-deep-review，390/900/1024/1440 | 当前阶段、历史和可选动作可读；独立审图无 P1/P2/P3。报告：[N01/N02 深层路径](../../../.dev-runtime/ui-pages/novel/n01-n02-deep-review-report.json)。 |
+| N01-stage-flow | 完整项目阶段流程 | 当前阶段 → 后续阶段 → 末端阶段 | n01-n02-deep-review，390/900/1024/1440 initial+last | 六阶段和唯一当前阶段状态清楚，末端阶段可达。独立审图无 P1/P2/P3。报告：[N01/N02 深层路径](../../../.dev-runtime/ui-pages/novel/n01-n02-deep-review-report.json)。 |
+| N01-rollback | 阶段回滚影响确认 | 目标阶段 → 影响条目/章范围 → 取消 | n01-n02-deep-review，390/900/1024/1440 impact-preview | 影响数量和章节范围可读；取消后没有发送回滚写请求。独立审图无 P1/P2/P3。报告：[N01/N02 深层路径](../../../.dev-runtime/ui-pages/novel/n01-n02-deep-review-report.json)。 |
+| N01-export | 小说导出配置 | 输出格式 → 包含内容/元数据 → 导出确认 | n01-n02-deep-review，390/900/1024/1440 各格式 | TXT、Markdown、EPUB、PDF 与批量格式切换均可读；元数据字段按格式出现。结构数据 `<details>` 使用 Lucide `ChevronDown` 显示展开状态，未下载真实导出。独立审图无 P1/P2/P3。报告：[N01/N02 深层路径](../../../.dev-runtime/ui-pages/novel/n01-n02-deep-review-report.json)。 |
+| N01-lineage | 内容来源与影响浏览 | 资产总览 → 目标节点 → 上游/下游 → 节点详情 | 2026-10-12 当前版，390/768/900/1024/1440 graph/details/inputs/last；n01-keyboard-pan-20261013 390/900/1440 | 1024/1440 深层 JSON 的窄值列已修：900px 起详情栏自 380px 渐增至 400px；768–899px 保持 360px 以留出图谱空间。五宽路径末项“沿海邮路档案室”均可达；图谱滚动容器现可聚焦并用方向键平移，三宽实际键盘平移通过，页面 overflow=0。独立复审确认390/1440目标文字完整，无 P1/P2。768px 图谱右缘和1440px左缘仍属于画布平移范围内的 P3。报告见[主台账](../../UI_PAGE_AUDIT.md)的 N01 详情列收敛记录与[键盘平移报告](../../../.dev-runtime/ui-pages/novel/n01-keyboard-pan-20261013-report.json)。 |
+| N02-editor-0 | 世界观结构化维护 | 核心规则 → 地点/阵营字段 → 保存/退出 | n02-editor-sticky-opaque-final，390/900 initial+last；n01-lineage-n02-editor-final，1024/1440 | 手机/中屏滚动至末段时固定操作条仍在视口，背景不透字；保存/退出可见。独立审图复看当前截图无 P1/P2/P3。报告：[固定保存栏](../../../.dev-runtime/ui-pages/novel/n02-editor-sticky-opaque-final-report.json)。 |
+| N02-editor-1 | 世界观JSON精确编辑 | 完整JSON → 校验反馈 → 保存/退出 | n01-lineage-n02-editor-final，390/900/1024/1440 initial+last | JSON 内容、末字段和保存操作可辨；无页面横向溢出。独立审图无 P1/P2/P3。报告：[N01/N02 编辑及详情](../../../.dev-runtime/ui-pages/novel/n01-lineage-n02-editor-final-report.json)。 |
+| N02-editor-2 | 世界观纯文本维护 | 完整文字 → 存储形式提示 → 保存/退出 | n01-lineage-n02-editor-final，390/900/1024/1440 initial+last | 纯文本末段可读，保存/退出操作可见；无页面横向溢出。独立审图无 P1/P2/P3。报告：[N01/N02 编辑及详情](../../../.dev-runtime/ui-pages/novel/n01-lineage-n02-editor-final-report.json)。 |
+| N02-detail | 完整世界设定阅读 | 前提/规则 → 全部地点/阵营 → 扩展字段 | n01-lineage-n02-editor-final，390/900/1024/1440 initial/verified/last | 最新 `initial` 从世界前提开始，地点/阵营末项和扩展字段均可到达。独立审图无 P1/P2/P3；旧的滚动后截图不再充当首屏证据。报告：[N01/N02 编辑及详情](../../../.dev-runtime/ui-pages/novel/n01-lineage-n02-editor-final-report.json)。 |
+| N03-create | 新增人物资料 | 必填姓名 → 性格/背景/外貌 → 保存 | n03-deep-review，390/900/1024/1440 initial+last | 必填/可选字段和末端保存可达；独立审图无 P1/P2/P3。 |
+| N03-arc | 人物成长线参考 | 当前弧光 → 进度/阶段 → 后续发展 | n03-readable-final-20261013，390/900/1024/1440 initial+last | 4 项发展阶段与 fixture 一致，42% 进度条仅一处表达；手机末阶段可达，四宽页面 overflow=0。实看 390/1440 初末态，层级与间距保持清楚，无需额外装饰。只读核对，没有修改角色资料。报告：[当前末态](../../../.dev-runtime/ui-pages/novel/n03-readable-final-20261013-report.json)。 |
+| N03-voice | 人物台词风格参考 | 说话方式 → 句式/节奏 → 例句 → 诊断 | n03-readable-final-20261013，390/900/1024/1440 initial+last | 4 条口头禅/例句与 fixture 完整匹配；诊断 JSON 可展开并在末端完整滚动查看。四宽页面 overflow=0。实看 390/1440 初末态，例句、折叠诊断及正文顺序清楚，无需增加入口或说明。未修改角色资料。报告：[当前末态](../../../.dev-runtime/ui-pages/novel/n03-readable-final-20261013-report.json)。 |
+| N03-consistency | 人物一致性对照 | 检查范围 → 章节/属性 → 期望与实际 | n03-consistency-scope-final-r3-20261013，390/900/1024/1440 initial/verified/last | 结果上方显示实际范围：初态为“全项目”，改为 1–3 章后摘要同步更新；改范围会先清除旧结果，避免将之前结论误认作当前结果。两条结果保留第1/3章和期望/实际。四宽12状态 overflow/错误/意外请求/发现均0；独立复审无 P1/P2/P3。报告：[范围与清空旧结果回归](../../../.dev-runtime/ui-pages/novel/n03-consistency-scope-final-r3-20261013-report.json)、[390自定义范围](../../../.dev-runtime/ui-pages/novel/n03-consistency-scope-final-r3-20261013-N03-consistency-390-verified.png)、[1440自定义范围](../../../.dev-runtime/ui-pages/novel/n03-consistency-scope-final-r3-20261013-N03-consistency-1440-verified.png)。 |
+| N03-portraits | 人物主图与变体目录 | 人物筛选 → 主图标识 → 图像 → 管理/放大 | n03-portrait-cards-final-20261013，390/900/1024/1440 initial/last-filter/last | 12 个角色筛选均可达，末项“沈照”可选；桌面筛选完整显示，手机末项有滚动提示。窄卡片的类型与表情按空间换行，表情层级更清楚，同排卡片底边对齐。四宽页面 overflow=0，错误/意外请求/断言发现均0；独立复审无新 P1/P2/P3。证据：[报告](../../../.dev-runtime/ui-pages/novel/n03-portrait-cards-final-20261013-report.json)、[390末态](../../../.dev-runtime/ui-pages/novel/n03-portrait-cards-final-20261013-N03-portraits-390-last.png)、[1440初态](../../../.dev-runtime/ui-pages/novel/n03-portrait-cards-final-20261013-N03-portraits-1440-initial.png)。 |
+| N03-portrait-detail | 立绘管理与派生操作 | 当前图 → 类型/表情 → 提示词/年龄变体 → 重绘 | n03-portrait-detail-affordance-20261013，390/900/1024/1440 initial/request-preview/last | 原隐藏在省略号内的唯一“查看重绘模型请求”移到固定栏，显示 Lucide Eye 次级按钮；保留原预览回调、尺寸条件和禁用条件。四宽确认请求预览仍调用 `preview_regenerate_portrait_request`、Escape 后焦点返回、未调用生成，底部重绘入口可达。390/1440实看布局层级与按钮间距，无新发现。报告：[立绘管理与请求预览](../../../.dev-runtime/ui-pages/novel/n03-portrait-detail-affordance-20261013-report.json)。 |
+| N03-portrait-age | 立绘年龄变体设置 | 目标年龄 → 变体说明 → 生成入口 | n03-deep-review，390/900/1024/1440 initial+last | 表单末段与操作区未遮挡；独立审图无 P1/P2/P3。 |
+| N03-portrait-prompt | 立绘提示词编辑 | 现有提示词 → 编辑内容 → 保存/预览 → 关闭返回 | n03-deep-review + n03-portrait-prompt-focus-20261013，390/900/1024/1440 | 长提示词可滚动，保存/预览入口可达；打开提示词弹窗后按 Escape，焦点返回立绘卡片；四宽回归通过，无页面溢出/错误/意外请求。报告：[当前焦点回返](../../../.dev-runtime/ui-pages/novel/n03-portrait-prompt-focus-20261013-report.json)。 |
+| N03-portrait-upload | 立绘上传 | 选择图片 → 类型/表情 → 确认 | n03-deep-review，390/900/1024/1440 initial+last | 已选图下方明确显示“更换图片”和文件名，放大预览是独立操作；固定上传操作栏可见。只检查夹具布局，未写入文件；独立审图无新 P1/P2/P3。证据：[390](../../../.dev-runtime/ui-pages/novel/n03-deep-review-N03-portrait-upload-390-initial.png)、[1440](../../../.dev-runtime/ui-pages/novel/n03-deep-review-N03-portrait-upload-1440-initial.png)。 |
+| N03-portrait-preview | 立绘细节查看 | 图像 → 缩放 → 重置/关闭与焦点返回 | n03-portrait-preview-final-r3-20261013，390/900/1024/1440 initial+last | 四宽实测从100%放大到175%、重置回100%；Escape 关闭后焦点返回原入口。缩放状态和按钮可见，页面 overflow=0；390/1440 初末态实看无碰撞或新发现。末态断言针对可点击的重置控件，非将展示图像误当按钮。报告：[四宽缩放与焦点](../../../.dev-runtime/ui-pages/novel/n03-portrait-preview-final-r3-20261013-report.json)。 |
+| N03-reference-selection | 角色图像生成参考选择 | 人物/尺寸/风格 → 参考图与选中数量 → 生成 | n03-deep-review，390/900/1024/1440 initial+last | 390/1440px 滚至末项后，固定底栏仍显示“已选 1 张，最多 4 张”，末张卡片完整可见；用例断言数量无需回顶核对。独立审图无新 P1/P2/P3。证据：[390末项](../../../.dev-runtime/ui-pages/novel/n03-deep-review-N03-reference-selection-390-last.png)、[1440末项](../../../.dev-runtime/ui-pages/novel/n03-deep-review-N03-reference-selection-1440-last.png)。 |
+| N03-manage-behavior | 行为证据追溯 | 章节/过滤 → 行为描述 → 原文证据 → 影响 | n03-deep-review，390/900/1024/1440 initial+last | 原文证据与影响信息可读；独立审图无 P1/P2/P3。 |
+| N03-manage-implicit | 隐性属性复审 | 待复审数量 → 复审范围 → 属性结论/符合率 → 证据 | n03-deep-review，390/900/1024/1440 initial+last | 复审范围、结论与证据分层明确；独立审图无 P1/P2/P3。 |
+| N03-manage-event | 属性变化追溯 | 章号/时间 → 原值/新值 → 原因/原文 → 手动维护 | n03-deep-review，390/900/1024/1440 initial+last | 原值/新值与原因证据可对照；独立审图无 P1/P2/P3。 |
+| N03-manage-snapshot | 章级快照目录 | 同步范围 → 快照列表 → 状态/详情 → 比较/回滚 | n03-deep-review，390/900/1024/1440 initial+last | 快照状态、详情和维护入口可辨；独立审图无 P1/P2/P3。 |
+| N03-manage-deletion | 属性删除保护记录 | 保护状态 → 连续标记 → 原因/证据 → 请求/处理 | n03-deep-review，390/900/1024/1440 initial+last | 保护状态及原因/证据可读；独立审图无 P1/P2/P3。 |
+| N03-snapshot-compare | 快照差异对照 | 两个快照 → 属性变化 → 行为证据 | n03-deep-review，390/900/1024/1440 initial+last | 差异字段和变化证据有清晰层级；选择器与结果摘要统一使用 Lucide `ArrowRight`，并保留读屏方向文本；当前 390/900/1440px 回归与独立复核无未关闭发现。 |
+| N03-snapshot-state | 某章完整人物状态 | 章号/摘要 → 显性属性 → 隐性属性 → 社会关系 | n03-deep-review，390/900/1024/1440 initial+last | 章节身份和各属性组可辨；独立审图无 P1/P2/P3。 |
+| N03-snapshot-detail | 某章变更与行为证据 | 章号/位置 → 属性变化 → 原因/证据 → 行为原文 | n03-deep-review，390/900/1024/1440 initial+last | 变化与原文证据可追溯；独立审图无 P1/P2/P3。 |
+| N04-object-detail | 道具用途与视觉参考 | 名称/来源 → 视觉状态 → 叙事用途 → 素材操作 | 2026-10-12，390/1024/1440 | 只读详情局部不透明；用途、状态、视觉描述和来源可读。三宽均可滚到末尾素材操作；无图片尺寸时禁用原因可见，Escape 返回焦点。独立审图确认底层文字不再透出，无新 P1/P2/P3。证据：[390详情](../../../.dev-runtime/ui-pages/novel/frontend-design-20261012-object-detail-final-object-detail-390-initial.png)、[390末尾](../../../.dev-runtime/ui-pages/novel/frontend-design-20261012-object-detail-final-object-detail-390-last.png)、[1024详情](../../../.dev-runtime/ui-pages/novel/frontend-design-20261012-object-detail-final-object-detail-1024-initial.png)、[1440详情](../../../.dev-runtime/ui-pages/novel/frontend-design-20261012-object-detail-final-object-detail-1440-initial.png)、[报告](../../../.dev-runtime/ui-pages/novel/frontend-design-20261012-object-detail-final-object-detail-390-1024-1440-report.json)。 |
+| N05-scene-detail | 地点空间与规则核对 | 地点/入口 → 光线/规则 → 当前状态 → 素材操作 | 2026-10-12，390/1024/1440 | 只读弹窗局部不透明；字段、当前状态、规则和出入口清楚。三宽均可滚到末尾素材操作；无图片尺寸时禁用原因可见，Escape 返回焦点。独立审图确认稳定帧无透字及 P1/P2/P3。证据：[390详情](../../../.dev-runtime/ui-pages/novel/frontend-design-20261012-scene-modal-final-profile-structured-label-390.png)、[390末尾](../../../.dev-runtime/ui-pages/novel/frontend-design-20261012-scene-modal-final-profile-actions-390.png)、[1024详情](../../../.dev-runtime/ui-pages/novel/frontend-design-20261012-scene-modal-final-profile-structured-label-1024.png)、[1440详情](../../../.dev-runtime/ui-pages/novel/frontend-design-20261012-scene-modal-final-profile-structured-label-1440.png)、[报告](../../../.dev-runtime/ui-pages/novel/frontend-design-20261012-scene-modal-final-profile-summary-390-1024-1440-report.json)。 |
 | N06-character-relations | 指定角色的关系列表 | 当前人物 → 关联对象/描述 → 完整关系 → 其他人物 | novel-closeout，1440/900/390 initial+last | 保留：林岚与6条关系先呈现，方向、完整描述和选中态清楚；900/390独立窗口避免挤压图内标签；末条顾川→林岚完整。 |
 | N06-relationship-detail | 单条关系核对 | 关系双方 → 完整描述 → 维护范围 → 章节时间线 | novel-closeout，1440/900/390 initial | 保留：双方、同步章号与完整描述先行；维护限制提供明确的章节时间线入口，390底部操作与说明完整。 |
 | N06-reset-layout | 关系图个人布局整理 | 拖动节点 → 连线保留 → 恢复自动布局 → 节点/边一致 | novel-closeout，1440/900/390 dragged+initial（恢复后） | 复验保留：三宽拖后林岚实际位移、连线随动；恢复后返回原位置、个人布局菜单消失。真实事件、位移与26条有效边另见报告读数。 |
 | N07-foreshadow-index | 已登记伏笔目录 | 状态 → 描述/埋设章 → 回收信息 → 编辑 | novel-final，1440/900/390 initial+last | 保留：8条按描述、状态/重要度、埋设回收章号呈现；390操作独立换行；最后已放弃条目与编辑/删除完整可见。 |
 | N07-foreshadow-editor | 既有伏笔维护 | 描述 → 埋设章/状态 → 重要度/角色 → 保存/取消 | novel-final，1440/900/390 initial+last | 保留：既有长描述及角色分行内容完整，字段标签持续可见；390单列后保存/取消均有完整点击区域，无底部裁切。 |
-| N08-chapter-outlines | 逐章规划目录 | 章号/标题 → 章纲摘要 → 详情/维护 → 追加 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N08-part-detail | 分部完整剧情阅读 | 分部名称/区间 → 完整正文 → 编辑 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N08-create-part | 手工分部录入 | 分部名称/章节区间 → 剧情正文 → 确认 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N08-advanced | 大纲进度与维护工具 | 生成进度 → 节奏 → 范围选择 → 维护操作 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N09-image-detail-0 | 图像概览 | 图像 → 基本信息 → 生成提示词 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N09-image-detail-1 | 图像来源核对 | 来源记录 → 章节/生成关联 → 完整元数据 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N09-image-detail-2 | 图像管理 | 收藏 → 提示词编辑 → 评分 → 危险操作 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N09-image-preview | 项目图像放大 | 图像 → 缩放 → 关闭与焦点返回 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N10-review-detail | 导入候选审核 | 文件/状态 → 解析摘要 → 完整JSON → 审核操作 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| N11-import | 手工章节录入 | 章号 → 可选标题 → 正文 → 确认导入 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| W04-point | 图片点属性维护 | 点位时间/画面 → 场景 → 提示词/参考 → 候选 | 待审 | 本批未满足图片点信息文字断言；等待主流程复验真实选中视图，未视审。 |
-| W04-segment | 镜头段变化维护 | 起止/长度 → 变化描述 → 场景/尾帧 → 拆分合并 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| W04-source | 导演工作中的正文参考 | 章节身份 → 完整原文 → 末句 → 关闭返回 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| W04-scenes | 导演场景资料选择 | 地点名称 → 空间/规则 → 关联或关闭 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| W04-media | 绑定分镜或参考素材 | 素材范围 → 图像/来源 → 用作分镜/参考 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| W04-candidates | 选中图片点的候选 | 当前绑定 → 候选图 → 采用或保留 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| W04-frame | 画幅选择 | 当前比例 → 四种画幅 → 选择/返回 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| W04-duration | 时间线总时长调整 | 当前总时长 → 目标总时长 → 等比伸缩说明 → 确认 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| W04-merge | 合并镜头前核对 | 两个原镜头 → 新描述 → 场景绑定 → 合并确认 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| W04-split | 拆分镜头前核对 | 分割点 → 前后段描述 → 场景 → 拆分确认 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| W05-script-editor | 完整拍摄剧本编辑 | 编辑状态 → 场次字段 → 最后一场 → 保存/取消 | 待审 | 本批390末项检查未通过；主流程已补场次展开，待新批次视审。 |
-| W06-search | 写作资料检索 | 查询内容 → 相关度 → 来源/原文证据 → 最后一条 | 待审 | 本批仅1440捕获，900右栏前置失败；主流程已修记忆状态下的入口操作，待新批次视审。 |
-| W07-assistant | 正文生成要求 | 本章简报 → 字数范围 → 上下文 → 生成 | 待审 | 本批仅1440捕获，900右栏前置失败；待新批次实际打开后视审。 |
-| W09-scenes | 章内分场阅读 | 场景顺序 → 摘要 → 完整场景与角色 | 待审 | 本批仅1440捕获，900写作助手前置失败；待新批次场景窗口视审。 |
-| W10-profiles | 写作中的角色资料 | 选择人物 → 档案信息 → 当前章节角色资料 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| I01-conversation | 灵感互动与选择 | 当前回复 → 结构化选项 → 输入 → 创作进度 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| I01-history | 回查早期灵感 | 首条消息 → 对话时序 → 返回最新 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| I02-progress | 已确认设定与下一步 | 已确认事实 → 下一步建议 → 返回对话 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| I03-turn-preview | 当前轮模型请求核对 | 系统/用户消息 → 请求信息 → 完整请求/上下文 → 复制/关闭 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| I04-blueprint-preview | 蓝图生成请求核对 | 目标/章节规模 → 提示词 → 上下文来源 → 返回 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| I05-confirm | 生成蓝图确认 | 故事核心 → 完整梗概 → 调整/确认 → 返回对话 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| I06-refine | 蓝图调整要求输入 | 具体调整要求 → 请求预览 → 提交优化 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| I07-refine-preview | 调整请求核对 | 调整要求 → 系统/用户消息 → 上下文 → 返回 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| I08-display | 确认后的过渡状态 | 确认成功 → 正在打开项目 → 自动到达详情 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| I09-refine-failure | 调整失败后的输入恢复 | 503原文 → 关闭错误窗口 → 保留的输入 → 重试入口 | 待审 | 本批自动检查通过；待独立视审，尚无保留结论。 |
-| W08-optimizer | 章级正文优化讨论 | 绑定章节 → 历史消息 → 输入 → 上下文/执行模式 | 待审 | 本批仅1440捕获，900写作助手前置失败；待新批次绑定线程/输入区视审。 |
-| W04-agent | 章级导演讨论 | 绑定章节 → 历史讨论 → 输入 → 上下文/任务控制 | 待审 | 尚无本批图片；待新批次视审。 |
-| W05-direction | 导演意图与策略核对 | 导演意图 → 完整策略 → 具体创作约束 | 待审 | 尚无本批图片；待新批次视审。 |
+| N08-chapter-outlines | 逐章规划目录 | 章号/标题 → 章纲摘要 → 详情/维护 → 追加 | n08-deep-review，390/900/1024/1440 initial+last | 分部/章纲切换、范围设置和条目操作完整；18 张 390/900/1440 初末态截图独立复核无 P1/P2/P3，所有四宽自动检查无错误/意外请求。未执行生成/追加。报告：[N08 深层路径](../../../.dev-runtime/ui-pages/novel/n08-deep-review-report.json)。 |
+| N08-part-detail | 分部完整剧情阅读 | 分部名称/区间 → 完整正文 → 编辑 | n08-deep-review，390/900/1024/1440 initial+last | 手机正文可纵向阅读，底部操作不遮挡；桌面弹窗居中。独立审图无 P1/P2/P3，未编辑或保存。报告：[N08 深层路径](../../../.dev-runtime/ui-pages/novel/n08-deep-review-report.json)。 |
+| N08-create-part | 手工分部录入 | 分部名称/章节区间 → 剧情正文 → 确认 | n08-deep-review，390/900/1024/1440 initial+last | 窄屏表单与保存/取消完整可达；桌面数字字段标签对应清晰。独立审图无 P1/P2/P3，未提交表单。报告：[N08 深层路径](../../../.dev-runtime/ui-pages/novel/n08-deep-review-report.json)。 |
+| N08-advanced | 大纲进度与维护工具 | 生成进度 → 节奏 → 范围选择 → 维护操作 | 生产预览，390/900/1440px | 各高级操作旁显示“查看模型请求”，保留原菜单/回调；弹窗主体不透明，底层文字不再透出。390 全屏、900/1440 居中布局都无控件挤压、横向溢出或遮挡。独立审图无 P1/P2/P3。未触发生成或维护动作。 |
+| N09-image-detail-0 | 图像概览 | 图像 → 基本信息 → 生成提示词 | gallery-review，1440/390 initial | 独立审图：桌面并排、手机单列，提示词与标题完整，来源/管理/关闭清楚；未见遮挡或横向裁切。只读检查，不据此声称保存通过。 |
+| N09-image-detail-1 | 图像来源核对 | 来源记录 → 章节/生成关联 → 完整元数据 | n09-diagnostic-20261011 当前构建，390/900/1440 | 标题副行显示“记录标识: 40001”；来源章节与完整 SHA-256/路径仍可核对。390px 原始 JSON 内部滚动宽 672px/视口354px，标题有 Lucide 滑动提示；900/1440 隐藏提示。生产预览 1/1、各宽 overflow=0、opacity=1，独立复审无 P1/P2/P3。fixture 未执行图片写入。报告和截图：[报告](../../../.dev-runtime/ui-pages/novel/n09-diagnostic-20261011/report.json)、[390](../../../.dev-runtime/ui-pages/novel/n09-diagnostic-20261011/N09-diagnostics-390.png)、[900](../../../.dev-runtime/ui-pages/novel/n09-diagnostic-20261011/N09-diagnostics-900.png)、[1440](../../../.dev-runtime/ui-pages/novel/n09-diagnostic-20261011/N09-diagnostics-1440.png)。 |
+| N09-image-detail-2 | 图像管理 | 收藏 → 提示词编辑 → 评分 → 危险操作 | gallery-review，1440/390 initial | 独立审图：收藏、提示词、评分分区清楚，未修改时保存禁用，危险操作折叠；真实保存/删除未执行，不据截图声称写回通过。 |
+| N09-image-preview | 项目图像放大 | 图像 → 缩放 → 关闭与焦点返回 | gallery-review + final-20261010-closeout-novel，1440/900/390 initial | 原 G2 已修复：手机提示使用已有缩放按钮，不再只写滚轮；三宽复核 Escape 关闭并将焦点还给预览入口，溢出为0。独立审图未发现新 P1/P2/P3。报告见 [关闭批次报告](../../../.dev-runtime/ui-pages/novel/final-20261010-closeout-novel-report.json)。 |
+| N10-review-detail | 导入候选审核 | 文件/状态 → 解析摘要 → 完整 JSON → 审核操作 | frontend-design-20261011 与当前版2026-10-14，390/900/1440 | 已关联“分析结构” label，未修改时显示禁用原因。当前版三宽度候选结构可编辑、主操作可达且 overflow=0；保存中显示 spinner，焦点留在审核上下文，接受完成后同区播报“已接受”，不重复弹成功 Toast。390px 保存中/已接受截图由独立审图复核无发现。fixture 响应模拟 `accept_import_review`，不代表真实持久化。报告：[当前回归](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-outline-import-review-report.json)、[保存中](../../../.dev-runtime/ui-pages/novel/frontend-design-20261014-N10-review-390-saving.png)、[已接受](../../../.dev-runtime/ui-pages/novel/frontend-design-20261014-N10-review-390-accepted.png)；[三宽按钮状态](../../../.dev-runtime/ui-pages/novel/frontend-design-20261014-N10-review-390-ready.png)。 |
+| N11-import | 手工章节录入 | 章号 → 可选标题 → 正文 → 确认导入 | 390/900/1440；390×363短屏 | label 关联、空正文 CTA 禁用、Escape 焦点返回通过；手机元数据并排后正文首屏111px可见，短屏确认按钮44px完整可达，三宽度 overflow=0。fixture 未执行实际导入。 |
+| W04-point | 图片点属性维护 | 点位时间/画面 → 场景 → 提示词/参考 → 候选 | w04-subflows-20261011，1440/900/390 initial+last；另有390×667属性弹窗 | 名称、完整画面描述、素材入口和固定端点操作可达。390×667 下素材操作、尺寸选择器、候选按钮依次落在 y395–439、472–516、522–566，均完整处于 footer 的 y574 以上。独立审图无 P1/P2/P3；桌面保留四行描述，手机收为两行、字段间距压缩。报告：[属性子流程](../../../.dev-runtime/ui-pages/novel/w04-subflows-20261011-report.json)、[手机底栏几何](../../../.dev-runtime/ui-pages/novel/w04-footer-final/report.json)。 |
+| W04-segment | 镜头段变化维护 | 起止/长度 → 变化描述 → 场景/尾帧 → 拆分合并 | w04-subflows-20261011，1440/900/390 initial+last | 完整变化描述、场景绑定、尾帧选项和拆分/合并入口均可读可达；独立审图无 P1/P2/P3。未提交拆分/合并。报告：[镜头段](../../../.dev-runtime/ui-pages/novel/w04-subflows-20261011-report.json)。 |
+| W04-source | 导演工作中的正文参考 | 章节身份 → 完整原文 → 末句 → 关闭返回 | w04-subflows-20261011，1440/900/390 initial+last | 3073 字原文可纵向读到末句，末句和关闭入口完整；独立审图未发现可确认问题。仅核对阅读，不改正文。报告：[正文弹窗](../../../.dev-runtime/ui-pages/novel/w04-subflows-20261011-report.json)。 |
+| W04-scenes | 导演场景资料选择 | 地点名称 → 空间/规则 → 关联或关闭 | w04-subflows-20261011，1440/900/390 initial+last | 项目 3 的 6 个场景档案可见，末项“沿海邮路档案室”完整可达；桌面和手机独立审图无 P1/P2/P3。项目范围由测试夹具按 project_id 隔离。未创建或修改场景。报告：[场景库](../../../.dev-runtime/ui-pages/novel/w04-subflows-20261011-report.json)。 |
+| W04-media | 绑定分镜或参考素材 | 素材范围 → 图像/来源 → 用作分镜/参考 | w04-subflows-20261011，1440/900/390 initial+last | 素材缩略图、图注、选作分镜和选作参考操作均有清晰层级，最后一项可达；独立审图无 P1/P2/P3。未实际绑定或上传素材。报告：[素材库](../../../.dev-runtime/ui-pages/novel/w04-subflows-20261011-report.json)。 |
+| W04-candidates | 选中图片点的候选 | 当前绑定 → 候选图 → 采用或保留 | w04-subflows-20261011，1440/900/390 initial+last | 当前绑定候选与另一候选状态可区分，末项和切换入口可达；独立审图无 P1/P2/P3。只查看，没有切换绑定。报告：[候选选择](../../../.dev-runtime/ui-pages/novel/w04-subflows-20261011-report.json)。 |
+| W04-frame | 画幅选择 | 当前比例 → 四种画幅 → 选择/返回 | w04-subflows-20261011，1440/900/390 initial+last | 当前 16:9 状态和其他三个比例、关闭入口可辨；键盘/点击选择与容器比例已有专项回归，独立审图无 P1/P2/P3。未更改当前比例。报告：[画幅选择](../../../.dev-runtime/ui-pages/novel/w04-subflows-20261011-report.json)、[四比例回归](../../../frontend/.dev-runtime/ui-pages/novel/director-timeline-final/report.json)。 |
+| W04-duration | 时间线总时长调整 | 当前总时长 → 目标总时长 → 等比伸缩说明 → 确认 | w04-subflows-20261011，1440/900/390 initial+last | 时长输入、等比缩放和说明完整；完成按钮在三宽可达，手机按钮不被底栏遮挡。独立审图无 P1/P2/P3；本次未确认修改。报告：[时长调整](../../../.dev-runtime/ui-pages/novel/w04-subflows-20261011-report.json)。 |
+| W04-merge | 合并镜头前核对 | 两个原镜头 → 新描述 → 场景绑定 → 合并确认 | w04-subflows-20261011，1440/900/390 initial+last | 两个原镜头、合并描述、场景绑定与确认按钮可读；独立审图无 P1/P2/P3。填写的是 UI fixture 草稿，没有提交合并。报告：[合并表单](../../../.dev-runtime/ui-pages/novel/w04-subflows-20261011-report.json)。 |
+| W04-split | 拆分镜头前核对 | 分割点 → 前后段描述 → 场景 → 拆分确认 | w04-subflows-20261011，1440/900/390 initial+last | 段内关键帧可选，前后描述、场景方式/场景和拆分按钮完整可达；独立审图无 P1/P2/P3。只填写 UI fixture 草稿，没有提交拆分。报告：[拆分表单](../../../.dev-runtime/ui-pages/novel/w04-subflows-20261011-report.json)。 |
+| W05-script-editor | 完整拍摄剧本编辑 | 编辑状态 → 结构化场次字段 → 最后一场 → 保存/取消 | frontend-design-20261010-w05-short-tmp，1440/900/390 initial+last | 视频项目拍摄剧本进入编辑后字段桌面两列、手机单列；首末场结构字段均可达，操作区不遮挡内容。最新三路径复跑 18 张截图均为 overflow=0、无前端错误或视觉发现；未改值或提交保存，不据此宣称写入成功。报告：[本轮 W05 复核](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-w05-short-tmp-report.json)。 |
+| W06-search | 写作资料检索 | 查询内容 → 相关度 → 来源/原文证据 → 最后一条 | frontend-design-20261010-w06-responsive-final，1440/1024/900/390 initial+last | 1440保留三栏；1024/900折叠章节侧栏并用现有章节选择器导航，正文工作区为792/668px，检索栏保持220px；390继续用现有弹层。8条结果实际检索且末项可达，四宽overflow=0。独立审图无P1/P2/P3。报告：[W06响应式复核](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-w06-responsive-final-report.json)。 |
+| W07-assistant | 正文生成要求 | 本章简报 → 字数范围 → 上下文 → 生成 | frontend-design-20261010-writing-panels，1440/1024/900/390 initial+last | 生成要求与字数范围可见，正文宽度保留；四宽实际打开助手面板、无溢出。独立审图无P1/P2/P3。生成未提交，UI fixture 不代表真实生成验收。报告：[写作助手响应式复核](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-writing-panels-report.json)。 |
+| W09-scenes | 章内分场阅读 | 场景顺序 → 摘要 → 完整场景与角色 | frontend-design-20261010-w09-prompt-height-final，1440/1024/900/390 initial+last | 8场分场按需展开，末场完整可达，overflow=0。390px 将“生成下一场景”提示词框调整为128px，默认文本完整显示且不再产生textarea内部滚动；独立审图无P1/P2/P3。只调整高度，生成/预览操作不变。报告：[分场阅读](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-w09-prompt-height-final-report.json)。 |
+| W10-profiles | 写作中的角色资料 | 选择人物 → 档案信息 → 当前章节角色资料 | frontend-design-20261010-writing-core，1440/1024/900/390 initial | 名单/详情主次清楚；手机角色条用人数与露出的下一张提示横向滚动，字段改单列，深度详情操作全宽可达。四宽overflow=0；独立审图无P1/P2/P3。仅核对档案展示，不做写入。报告：[角色档案](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-writing-core-report.json)。 |
+| I01-conversation | 灵感互动与选择 | 当前回复 → 结构化选项 → 输入 → 创作进度 | inspiration-workflows-preview-20261011，390/900/1440 | 三条当前选择均可见且可用；普通状态只保留 textarea placeholder，390px 固定输入区无横向溢出。独立审图无 P1/P2/P3。证据：[390](../../../.dev-runtime/ui-pages/novel/inspiration-workflows-preview-20261011/390/conversation.png)、[900](../../../.dev-runtime/ui-pages/novel/inspiration-workflows-preview-20261011/900/conversation.png)、[1440](../../../.dev-runtime/ui-pages/novel/inspiration-workflows-preview-20261011/1440/conversation.png)。 |
+| I01-history | 回查早期灵感 | 首条消息 → 对话时序 → 返回最新 | i01-history-preview-20261011，1440/390 实际入口滚至首条 | 首条消息完整位于对话滚动裁剪区内；390/1440 页面溢出为 0。生产预览几何回归通过，独立审图无 P1/P2/P3；旧报告只记录 `top`、未验证 `bottom` 的证据缺口已关闭。证据：[报告](../../../.dev-runtime/ui-pages/novel/i01-history-preview-20261011/report.json)、[390](../../../.dev-runtime/ui-pages/novel/i01-history-preview-20261011/history-390.png)、[1440](../../../.dev-runtime/ui-pages/novel/i01-history-preview-20261011/history-1440.png)。 |
+| I02-progress | 已确认设定与下一步 | 已确认事实 → 下一步建议 → 返回对话 | inspiration-workflows-preview-20261011，390/900/1440 | 六项摘要及下一步均完整可读；390/900px 弹窗使用不透明主题底色，1440px 保留右侧摘要栏。独立审图无 P1/P2/P3，横向溢出为 0。证据：[390](../../../.dev-runtime/ui-pages/novel/inspiration-workflows-preview-20261011/390/progress.png)、[900](../../../.dev-runtime/ui-pages/novel/inspiration-workflows-preview-20261011/900/progress.png)、[1440](../../../.dev-runtime/ui-pages/novel/inspiration-workflows-preview-20261011/1440/progress.png)。 |
+| I03-turn-preview | 当前轮模型请求核对 | 系统/用户消息 → 请求信息 → 完整请求/上下文 → 复制/关闭 | inspiration-ui-preview-20261011，390/1440 initial+last | 390px 已去掉重复标题、完整显示模板路径、弹窗背景不透明；末条消息滚到复制栏上方后完整可读并留有 24px 间距。1440布局完整；生产预览溢出为 0，Escape 关闭通过，独立审图无 P1/P2/P3。证据见 [报告](../../../.dev-runtime/ui-pages/novel/inspiration-ui-preview-20261011/report.json)。 |
+| I04-blueprint-preview | 蓝图生成请求核对 | 目标/章节规模 → 提示词 → 上下文来源 → 返回 | inspiration-ui-preview-20261011，390/1440 initial+last | 与 I03 共用预览组件；390px 标题不重复、模板路径完整、背景不透字；末条消息滚动后与复制栏间距 24px。1440布局完整；生产预览溢出为 0，Escape 关闭通过，独立审图无 P1/P2/P3。证据见 [报告](../../../.dev-runtime/ui-pages/novel/inspiration-ui-preview-20261011/report.json)。 |
+| I05-confirm | 生成蓝图确认 | 故事核心 → 完整梗概 → 调整/确认 → 返回对话 | frontend-design-20261011，1440/900/390 initial+last | 三宽度横向溢出为0；长梗概末段与固定底栏间约36px，调整/确认入口完整。成功 fixture 未出现 toast，独立审图确认旧遮挡未复现，无 P1/P2/P3。只完成阅读与入口复核，没有持久化项目。证据：[报告](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-inspiration-confirmation-single-report.json)、[390末态](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-I05-confirm-390-I05-last.png)、[1440首屏](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-I05-confirm-1440-I05-initial.png)。 |
+| I06-refine | 蓝图调整要求输入 | 具体调整要求 → 请求预览 → 提交优化 | frontend-design-20261011，1440/900/390 filled | 预填调整文本完整，手机 textarea 与全宽提交按钮互不遮挡；900/1440字段与操作区对齐，溢出为0。独立审图无 P1/P2/P3。另用同一 fixture 触发 503 检查失败恢复，没有真实模型调用。证据：[报告](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-inspiration-confirmation-single-report.json)、[390表单](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-I06-refine-390-I06-filled.png)。 |
+| I07-refine-preview | 调整请求核对 | 调整要求 → 系统/用户消息 → 上下文 → 返回 | frontend-design-20261011，1440/900/390 initial+last | 三宽度请求标题、模板路径、两条提示卡及折叠 JSON/上下文层级清楚；手机末态与固定复制栏不重叠，溢出为0。独立审图无 P1/P2/P3。证据：[报告](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-inspiration-confirmation-report.json)、[390首屏](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-inspiration-confirmation-I07-refine-preview-390-initial.png)。 |
+| I08-display | 确认后的过渡状态 | 确认成功 → 正在打开项目 → 自动到达详情 | frontend-design-20261011，1440/900/390 initial+last | 三宽度确认/跳转状态清楚，过渡留白符合短暂打开过程；末态到达同一 fixture 项目详情，溢出为0。独立审图无 P1/P2/P3；未据 fixture 声称真实服务端写回。证据：[报告](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-inspiration-confirmation-report.json)、[390过渡态](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-inspiration-confirmation-I08-display-390-initial.png)。 |
+| I09-refine-failure | 调整失败后的输入恢复 | 503原文 → 关闭错误窗口 → 保留的输入 → 重试入口 | frontend-design-20261011，1440/900/390 error+reopen | fixture 注入503后保留服务端错误，新增本地化说明“调整内容已保留，关闭后可重新打开调整蓝图重试”；错误只在进度弹窗呈现，toast为0。关闭并重开后原文本不变，三宽度溢出为0；独立审图无 P1/P2/P3。证据：[报告](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-inspiration-confirmation-single-report.json)、[390失败态](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-I09-refine-failure-390-I09-error.png)、[390重开](../../../.dev-runtime/ui-pages/novel/frontend-design-20261011-I09-refine-failure-390-reopened.png)。 |
+| W08-optimizer | 章级正文优化讨论 | 绑定章节 → 历史消息 → 输入 → 上下文/执行模式 | frontend-design-20261010-optimizer-widths，1440/1024/900/390 initial+last | 四宽打开真实 UI fixture 线程，历史消息、章节绑定、输入和最后一条均可达，overflow=0。独立审图无P1/P2；900聊天栏窄但可读。截图从历史中段开始是 `useFollowLatest` 默认跟随最新消息的结果，不是丢失上下文。未发送或执行优化。报告：[优化器响应式复核](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-optimizer-widths-report.json)。 |
+| W04-agent | 章级导演讨论 | 绑定章节 → 历史讨论 → 输入 → 上下文/任务控制 | w04-subflows-20261011，1440/900/390 initial+last | 项目 3 章节讨论线程正确绑定，4 条消息、上下文与输入区可读；底部任务状态/输入/发送区无重叠，独立审图无 P1/P2/P3。只输入未发送。报告：[导演 Agent](../../../.dev-runtime/ui-pages/novel/w04-subflows-20261011-report.json)。 |
+| W05-direction | 导演意图与策略核对 | 导演意图 → 核心策略 → 更多创作策略 | frontend-design-20261010-w05-short-tmp，1440/900/390 initial+last | 视频项目中展开导演意图及更多策略；手机字段纵向排列，桌面层级清楚。末项可达；最新 W05 3/3 序列共 18 张截图均为 overflow=0、无前端错误或视觉发现。报告：[本轮 W05 复核](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-w05-short-tmp-report.json)。 |
 
-已发现并交主流程的旧批次问题仍需以新图逐项核销：小屏世界观摘要的完整查看入口、人物/道具/场景摘要冗余、关系图文字不可读与图区重叠、事件列表被伏笔区挤出首屏、费用金额与状态后置及50条截断、textarea最小高度被全局规则覆盖、灵感小屏长副标题、立绘类型枚举、人物/场景通用属性标签、蓝图确认页重复成功toast遮挡底栏。每项的核销写入对应ID，不以公共CSS变更或全局测试数代替。
+2026-10-12 收敛：此前列出的四组旧项均已逐项复核。N02 手机摘要旁的“查看完整设定”入口可见；N03 角色档案摘要不重复性别/年龄，参考选择数量在滚至末项后仍固定可见，上传后可直接“更换图片”；N04 道具用途与场景用途摘要无重复，N03/N05 自定义属性以“当前位置”等可读标签显示，未暴露裸 key；I01 当前灵感对话只显示“灵感对话”标题，没有旧的长副标题。独立审图无新增 P1/P2/P3。N01-lineage 的旧 L1 输入树末项证据缺口现已由当前 390/1440px 滚动至“沿海邮路档案室”截图关闭。证据见上方 N01–N05、I01 与 N03 深层行，以及 [N01-lineage 报告](../../../.dev-runtime/ui-pages/novel/n01-lineage-tail-20261012-final-report.json)、[N04 报告](../../../.dev-runtime/ui-pages/novel/frontend-design-20261012-object-list-final-N04-object-summary-report.json)、[N05 结构化标签报告](../../../.dev-runtime/ui-pages/novel/frontend-design-20261012-scene-modal-final-profile-summary-390-1024-1440-report.json)。关系图重叠/可读性、事件列表首屏、N12 费用记录、W09 手机 textarea 和蓝图确认页旧 toast 遮挡均已有复验结论，不再列为待核销。不以公共 CSS 变更或全局测试数代替逐项证据。
+
+## N03 管理与快照当前版补审（2026-10-13）
+
+- 当前版 Chrome 153 复核行为、复审、属性、快照、删除、快照比较/状态/详情八条路径，在 1440/900/390px 共 48 个 initial/last 状态通过；报告中 `overflow=0`、`findings=0`、浏览器错误与意外请求均为 0。
+- 快照详情和差异生成后，结果区作为可聚焦 `role="region"` 自动进入视口；390px 初末态能直接看到比较结果、完整状态或变更详情。删除记录显示具体属性名，桌面快照长值按可读宽度排列。未执行回滚、删除或真实服务端写回。
+- 证据：[当前报告](../../../.dev-runtime/ui-pages/novel/current-report.json)、[比较390初态](../../../.dev-runtime/ui-pages/novel/current-N03-snapshot-compare-390-initial.png)、[比较390末态](../../../.dev-runtime/ui-pages/novel/current-N03-snapshot-compare-390-last.png)、[状态390末态](../../../.dev-runtime/ui-pages/novel/current-N03-snapshot-state-390-last.png)、[删除390末态](../../../.dev-runtime/ui-pages/novel/current-N03-manage-deletion-390-last.png)。
+
+## W05 路径迁移复核（2026-10-10）
+
+- 旧测试在写作台寻找“拍摄剧本”tab；该入口已迁至独立视频项目的第 3 阶段，旧工作台只保留书签迁移说明。测试已改为经 `/video-project/3` 选择“拍摄剧本”，没有修改产品逻辑。
+- 旧分项中 `W05-script`、`W05-script-editor` 与 `W05-direction` 均曾分别通过；最新将三条用例串行复跑也稳定通过 3/3，覆盖 1440/900/390px initial/last 共 18 张截图，overflow=0，未发现前端错误或视觉问题。真实保存/删除没有执行，脚本读取和路由来自 UI fixture。
+- 历史上曾出现 390px 空白页与 WebDriver 截图 API 失败，未发现对应 JS 错误或 fixture 缺失；最新完整序列通过后，这些记录保留为间歇性浏览器/测试会话波动，不再阻止 W05 视觉复核结论。
+
+## W06–W08 写作桌中屏复核（2026-10-10）
+
+- 根因：写作桌在900px仍同时分配240px章节侧栏、正文和检索/助手右栏，正文工作区只剩394px，中文长段频繁短行换行。
+- 1024px及以下使用现有紧凑页头和章节选择器，章节侧栏从网格中收起；1024/900保留检索或助手右栏，390继续使用现有模态面板。没有新增章节导航合同，也未改变搜索、生成、优化动作。
+- W06、W07、W08分别以 Chrome 153 独立用例通过1/1；1440/1024/900/390初始与末项截图均记录overflow=0。独立审图确认W06/W07没有可确认问题；W08中屏历史从末段开始符合 `useFollowLatest` 的默认行为，无新增缺陷。
+- 报告：[W06](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-w06-responsive-final-report.json)、[W07](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-writing-panels-report.json)、[W08](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-optimizer-widths-report.json)。
+
+## W02/W03/W10 内容工作面复核（2026-10-10）
+
+- W02、W03、W10分别通过 Chrome 153 独立用例 1/1，覆盖 1440/1024/900/390px 初始与末项（W10仅初始状态）；横向溢出为0，独立审图未发现可确认的P1/P2/P3。
+- W02 使用完整分析数据；W03 使用 UI 图像 fixture，结论限于排版和控件位置；W10只读打开角色档案，没有修改档案。手机角色名单保留露出的下一项作为横滑提示。
+- 报告：[本章分析](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-writing-core-final-report.json)、[章内图像](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-writing-core-final-report.json)、[角色档案](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-writing-core-report.json)。
+
+## W04 入口迁移与浏览器证据（2026-10-10）
+
+- 旧审查脚本在写作台寻找“导演编排”标签，但该工作面已迁至视频项目阶段 2；W04 主流程与点/镜头属性、场景库、素材库、画幅、时长、拆分和 Agent 用例已改用 `/video-project/3` 实际入口。
+- 两处夹具合同问题已在测试侧修正：`get_chapter_visual_plan.scene_choices` 按 API 必填字段补齐；导演 Agent 快照新增与视频项目 3/章节 1 匹配的线程，避免用父项目线程制造“thread_id 不能为空”提示。
+- 早期 W04 路由尝试曾在页面挂载前白屏，且夹具修正前的截图有空线程 toast；两类失败记录均保留，不当作验收结果。
+
+## W04 响应式导航与时间线（2026-10-10）
+
+- 根因：七阶段轨道在 1024/900px 仍以横向标签显示，尾部阶段被裁；手机隐藏原生滚动条后，36 秒时间线首屏只显示前半段且没有提示。
+- 修复：`MediaStageHeader` 在 1280px 以下显示现有阶段选择器，宽屏保留标签轨道；手机时间线标题旁显示 Lucide `ArrowLeftRight` 与“横向滑动”，不改变时间线编辑、拖动或 seek 行为。移除此断点切换后已不再生效的 768–1200px 标签限宽规则。
+- 专项 Chrome fixture 挂载真实 `MediaStageHeader` 与 `ChapterVisualPlanTab`，覆盖 1440/1366/1280/1024/900/390px；1024px 键盘从第 2 阶段选至第 7 阶段并可返回，390px 提示可见、时间线实际横向滚动，所有视口 `overflow=0`，原有导演编辑/键盘/弹窗等专项用例通过。
+- 独立实屏审查确认中屏阶段不再裁切，手机横滑提示清楚；无 P1/P2。900px 仍需滚动到时间线末端是正常工作区行为，现有提示和滚动条足以表达范围。
+- 后续使用短工作树 `TMPDIR` 重跑完整 `/video-project/3`，Chrome 153 真实页面在1440/1024/900/390px通过；页面实际加载视觉计划、媒体、Agent fixtures，`unexpected/errors/overflow=0`。修复测试侧 `POST /api/agent-threads` 错误返回列表的问题后，新增 toast 断言通过，四张最终真实路由截图：[1440](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-w04-no-thread-toast-W04-director-1440-initial.png)、[1024](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-w04-no-thread-toast-W04-director-1024-initial.png)、[900](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-w04-no-thread-toast-W04-director-900-initial.png)、[390](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-w04-no-thread-toast-W04-director-390-initial.png)；断言报告：[真实路由回归](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-w04-no-thread-toast-report.json)。本轮仍未走属性/弹窗和末项流程。
+
+## W04 属性与弹窗子流程（2026-10-11）
+
+- `/video-project/3` 的 W04 主流程与图片点、镜头段、原文、场景库、素材库、候选、画幅、时长、合并、拆分、Agent 共 12 项在 1440/900/390px initial+last 通过；所有报告均为 `overflow=0`、无未声明请求和前端错误。独立审图未发现 blocker/major/minor。
+- 早期三项失败是审查夹具问题：场景档案误返回项目 1 数据、候选集没有项目 3 图片、拆分关键帧在计划载入后才注入。现按 project/chapter 隔离视频 fixture，并由生产 `sha256Json` 合同计算修改后的测试计划摘要；产品 API 与业务逻辑未改。
+- 图片点属性曾在手机固定 footer 下露出半截素材/尺寸/候选控件。素材操作移到生成尺寸之前；手机描述框收为 2 行、字段间距缩小，桌面仍为 4 行。390×667 实测素材操作 y395–439、尺寸 y472–516、候选 y522–566，滚动区/footer 交界 y574；独立复审确认无遮挡或新问题。
+- 本批只浏览和填写 UI fixture 草稿；未执行真实上传、图像生成、绑定切换、保存、合并或拆分。报告：[W04 子流程](../../../.dev-runtime/ui-pages/novel/w04-subflows-20261011-report.json)、[手机属性几何](../../../.dev-runtime/ui-pages/novel/w04-footer-final/report.json)。
+
+## W09 分场弹窗与手机输入（2026-10-10）
+
+- W09 此前两次独立 Chrome 运行均在首页等待阶段 tab crash。本轮清除本地 WebDriver 代理环境并使用工作树内短临时路径后，真实 UI fixture 用例稳定通过 1440/1024/900/390px initial+last；8 场末项均可达、横向溢出为 0、无未声明请求或前端错误。
+- 独立审图发现 390px 场景生成提示词输入框只有72px，长文本需在textarea内滚动，与弹窗自身纵向滚动叠加。手机高度改为128px，sm以上保留72px；不修改提示词、生成、预览或保存状态。
+- 修复后四宽度 E2E 再次通过；390px textarea 外框128px、内容区126px、scrollHeight与内容区相等，默认提示词完整显示且没有内部滚动。外层弹窗仍正常纵向滚动，末场完整可达；独立复审确认 P3 已核销，未发现新问题。图：[390px初始](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-w09-prompt-height-final-W09-scenes-390-initial.png)、[390px末场](../../../.dev-runtime/ui-pages/novel/frontend-design-20261010-w09-prompt-height-final-W09-scenes-390-last.png)。
+
+## W04 主路由时间线末段与横滑提示收敛（2026-10-13）
+
+- 当前复核补齐此前主路由末项滚动缺口：Chrome 153 在 390/900px 经真实横向滚轮到达最后镜头及最大 `scrollLeft`（338/68）；1440/1024px 时间线无横向溢出。四宽无页面 overflow、浏览器错误或断言发现。
+- 独立审图发现 900px 有 68px 时间线溢出，但旧提示受窄宽阈值限制而不出现。提示现根据时间线轨道和视口实际尺寸显示；390/900px 都有 Lucide 双向箭头和“横向滑动”，无溢出时不显示。当前末态无 P1/P2/P3。
+- 最终截图和报告见[主台账 W04 收敛记录](../../UI_PAGE_AUDIT.md)。本次只读浏览，没有执行上传、保存或方案确认；旧行关于主路由末项未测的记录由本节当前结果更新。
+
+## W01 矮视口正文空间复核（2026-10-14）
+
+- 独立 design-ux 复核发现 702×393 CSS px 下正文编辑区仅142.5px（36%）。短视口规则收紧上下工具区留白及 textarea 内边距后，编辑区为184px（46.8%）；章节控制维持44px触控目标，无溢出，原键盘保存路径不变。独立复审确认 P3 已关闭，无新 P1/P2/P3。
+- Chrome 153 `W01-body` 三宽度 1/1、键盘选章/编辑/保存与错误恢复专项 1/1 通过；保存失败后正文仍 dirty 且可重试，重试后保存成功、焦点回正文；离开时“留在当前/继续”可用，本地草稿可重进恢复。1024px 与702×393页面 overflow=0。独立 UX 审图未发现新 P1/P2/P3。默认与窄视口证据：[702×393](../../../.dev-runtime/ui-pages/novel/w01-short-editor-20261014-final-W01-keyboard-702css-702-css-viewport.png)、[390px](../../../.dev-runtime/ui-pages/novel/w01-short-editor-20261014-body-W01-body-390-initial.png)、[1440px](../../../.dev-runtime/ui-pages/novel/w01-short-editor-20261014-body-W01-body-1440-initial.png)；错误与恢复状态：[503错误](../../../.dev-runtime/ui-pages/novel/w01-save-recovery-20261014-W01-keyboard-702css-save-error.png)、[离开确认](../../../.dev-runtime/ui-pages/novel/w01-save-recovery-20261014-W01-keyboard-702css-leave-guard.png)、[草稿恢复](../../../.dev-runtime/ui-pages/novel/w01-save-recovery-20261014-W01-keyboard-702css-draft-restore.png)、[报告](../../../.dev-runtime/ui-pages/novel/w01-save-recovery-20261014-report.json)。

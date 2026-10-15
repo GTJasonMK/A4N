@@ -146,6 +146,7 @@ export const InspirationChat: React.FC = () => {
         title={t("inspiration.progressTitle")}
         icon={<ListChecks size={15} />}
         maxWidthClassName="max-w-md"
+        className="[--a4n-dialog-opacity:1]"
         bodyClassName="px-4 py-4"
       >
         <InspirationProgressContent

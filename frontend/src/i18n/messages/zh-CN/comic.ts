@@ -196,7 +196,7 @@ export const comic = {
     assetMeta: "素材 {count} 张",
     pipelineMeta: "流水线 {current}/{total}",
     noSelection: "选择一章查看漫画详情",
-    noSelectionSingle: "请先在写作桌选择章节",
+    noSelectionSingle: "请先在写作台选择章节",
     emptyBodyNotice: "当前章节正文为空，需先完成正文后再生成整页漫画提示词。",
     generatingNotice: "当前章节正文仍在生成中，漫画操作已锁定。",
     interruptedNotice: "漫画流水线中断，可使用续传保留已完成断点。",

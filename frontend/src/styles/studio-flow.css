@@ -82,6 +82,19 @@
   font-family: inherit;
 }
 
+@media (max-width: 767px), (pointer: coarse) {
+  .a4n-studio-flow .a4n-studio-image-zoom::before {
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    left: 0;
+    width: max(100%, calc(44.5px / min(var(--a4n-studio-canvas-zoom, 1), 1)));
+    height: max(100%, calc(44.5px / min(var(--a4n-studio-canvas-zoom, 1), 1)));
+    content: "";
+    pointer-events: auto;
+  }
+}
+
 .a4n-studio-edge .react-flow__edge-path {
   stroke: rgb(var(--color-primary) / 0.7);
   stroke-width: 1.6;

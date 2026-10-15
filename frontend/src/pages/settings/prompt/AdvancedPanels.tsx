@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
-import { CheckCircle2, Network as NetworkIcon, Play } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Network as NetworkIcon, Play } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { useToast } from "../../../components/feedback/Toast";
@@ -287,7 +287,10 @@ export const PromptAdvancedPanels: React.FC<{
         <div className="mt-2 text-small">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <div className="text-book-text-muted mb-1">{t("settingsPrompt.dependenciesForward")}</div>
+              <div className="mb-1 flex items-center gap-1.5 text-book-text-muted">
+                <ArrowRight size={12} className="shrink-0" aria-hidden="true" />
+                {t("settingsPrompt.dependenciesForward")}
+              </div>
               {prompt.dependencies.length === 0 ? (
                 <div className="italic text-book-text-muted">{t("common.none")}</div>
               ) : (
@@ -297,7 +300,10 @@ export const PromptAdvancedPanels: React.FC<{
               )}
             </div>
             <div>
-              <div className="text-book-text-muted mb-1">{t("settingsPrompt.dependenciesReverse")}</div>
+              <div className="mb-1 flex items-center gap-1.5 text-book-text-muted">
+                <ArrowLeft size={12} className="shrink-0" aria-hidden="true" />
+                {t("settingsPrompt.dependenciesReverse")}
+              </div>
               {reverseDependencies.length === 0 ? (
                 <div className="italic text-book-text-muted">{t("common.none")}</div>
               ) : (

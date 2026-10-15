@@ -241,7 +241,7 @@ export const videoCore = {
   noRunnableCanvasNodes: "This canvas has no runnable nodes. Add and connect an operation or output node first.",
   saveNodeBeforeRun: "Save the new node before running it",
   runNodeConfirmDescription: "Only the current node will run; upstream nodes will not run automatically.",
-  runNodeInputHint: "The node reads saved inputs or the latest completed result from an upstream node.",
+  runNodeInputHint: "Saved inputs are reused; upstream operations reuse their latest successful result.\nIf no result exists, run to this node first.",
   runNodeSubmitting: "Running only: {name}",
   runToNodeSubmitting: "Running to: {name}",
   runCanvasSubmitting: "Running canvas",

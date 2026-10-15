@@ -12,7 +12,7 @@ export const novelWorld = {
     editTitle: "Edit world setting",
     viewFull: "View full setting",
     edit: "Edit world setting",
-    refine: "Refine world with LLM",
+    refine: "Refine world setting",
     refining: "Refining world setting…",
     refineMessage: "Optional: enter a direction for this pass. Leave blank for a comprehensive world-setting review.",
     refinePlaceholder: "For example: clarify the costs of the power system, strengthen faction conflicts and historical causality…",

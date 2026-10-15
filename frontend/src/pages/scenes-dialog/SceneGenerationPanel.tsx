@@ -55,7 +55,7 @@ export const SceneGenerationPanel: React.FC<SceneGenerationPanelProps> = ({
       onChange={(event) => onPromptChange(event.target.value)}
       disabled={generating}
       spellCheck={false}
-      className="book-control min-h-[72px] w-full resize-none rounded-xl p-2.5 text-xs leading-relaxed"
+      className="book-control min-h-[128px] sm:min-h-[72px] w-full resize-none rounded-xl p-2.5 text-xs leading-relaxed"
       placeholder={t("scenes.generatePlaceholder")}
     />
     <div className="mt-2 flex items-center justify-end gap-2">

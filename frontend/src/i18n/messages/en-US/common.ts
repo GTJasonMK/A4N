@@ -36,6 +36,7 @@ export const common = {
   disabled: "Disabled",
   yes: "Yes",
   no: "No",
+  to: "to",
   ready: "Ready",
   passed: "Passed",
   readOnly: "Read-only",

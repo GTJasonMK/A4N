@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Check } from "lucide-react";
+import { Check, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -252,17 +252,17 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
             ? t("novel.blueprintVersions.summary", { count: versions.length })
             : t("novel.blueprintVersions.emptySummary")}
         </p>
-        <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
-          <Dropdown
-            items={[
-              {
-                label: loading ? t("novel.blueprintVersions.refreshing") : t("novel.blueprintVersions.refresh"),
-                icon: loading ? <LoadingSpinner size="sm" /> : undefined,
-                onClick: load,
-                disabled: loading || restoring != null,
-              },
-            ]}
-          />
+        <div className="flex w-full items-center justify-end gap-2 sm:w-auto sm:shrink-0">
+          <BookButton
+            variant="ghost"
+            size="sm"
+            onClick={() => void load()}
+            disabled={loading || restoring != null}
+            className="inline-flex items-center gap-1.5"
+          >
+            {loading ? <LoadingSpinner size="sm" /> : <RefreshCw size={14} />}
+            {loading ? t("novel.blueprintVersions.refreshing") : t("novel.blueprintVersions.refresh")}
+          </BookButton>
           {picked.length === 2 ? (
             <BookButton
               variant="secondary"

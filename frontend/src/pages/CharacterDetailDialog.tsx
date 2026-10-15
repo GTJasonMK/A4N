@@ -35,7 +35,7 @@ import type {
   CharacterDetailInitialEventFilter,
   CharacterDetailTab,
 } from "./character-detail-dialog/characterDetailUtils";
-import { useI18n, type MessageTranslator } from "../i18n";
+import { formatNumber, useI18n, type Locale, type MessageTranslator } from "../i18n";
 import { useDirtyRegistry, useDirtyRegistryVersion } from "../components/navigation/dirtyRegistry";
 
 export type { CharacterDetailInitialEventFilter } from "./character-detail-dialog/characterDetailUtils";
@@ -92,6 +92,25 @@ const conflictScopeFromDraft = (
   start_chapter: optionalChapterInput(draft.startChapter, t("characterDetail.startChapter"), t),
   end_chapter: optionalChapterInput(draft.endChapter, t("characterDetail.endChapter"), t),
 });
+
+const describeConflictScope = (
+  draft: ConflictScopeDraft,
+  locale: Locale,
+  t: MessageTranslator,
+): string => {
+  const start = draft.startChapter.trim();
+  const end = draft.endChapter.trim();
+  if (!start && !end) return t("characterDetail.wholeProject");
+  const chapter = (value: string) => {
+    const number = Number(value);
+    return Number.isInteger(number) ? formatNumber(number, locale) : value;
+  };
+  if (start && end) {
+    return t("characterDetail.event.chapterRange", { start: chapter(start), end: chapter(end) });
+  }
+  if (start) return t("characterDetail.event.fromChapter", { chapter: chapter(start) });
+  return t("characterDetail.event.toChapter", { chapter: chapter(end) });
+};
 
 const optionalChapterInput = (
   value: string,
@@ -188,7 +207,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
   onChanged,
   onEditInitial,
 }) => {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const addToast = useToast((state) => state.addToast);
   const registry = useDirtyRegistry();
   useDirtyRegistryVersion();
@@ -228,6 +247,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
     : null;
   const currentConflicts =
     conflictCacheKey && conflicts?.key === conflictCacheKey ? conflicts.value : null;
+  const conflictScopeLabel = describeConflictScope(conflictScopeDraft, locale, t);
   const activeChapterNumber =
     currentChapterNumber && currentChapterNumber > 0 ? currentChapterNumber : null;
   const activeCharacterScope = characterCacheKey;
@@ -890,6 +910,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
               voiceLoaded={currentVoiceCache != null}
               voiceLoadError={currentVoiceLoadError}
               conflicts={currentConflicts}
+              conflictScopeLabel={conflictScopeLabel}
               character={character}
               initialManageSection={initialTab === "manage" ? "event" : undefined}
               initialEventFilter={initialEventFilter}

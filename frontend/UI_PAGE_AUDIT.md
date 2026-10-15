@@ -10,18 +10,20 @@
 
 | 分组 | 独立页面与必须逐项覆盖的子工作面 | 当前进度 |
 | --- | --- | --- |
-| 首页 | 最近/全部、类型/权限、长项目族、邀请、创建、包导入、正文导入 | H01–H08 已有三宽度实屏；合并 H/A 矩阵仍保留一次旧样本文案失败 |
+| 首页 | 最近/全部、类型/权限、长项目族、邀请、创建、包导入、正文导入 | H01–H08 三宽度复核；702×393 中窄视口完整信息/键盘/弹窗路径有当前版专项回归；完整 Home/Agent functional 25/25 通过，旧失败只留作历史 |
 | 认证 | 登录、注册、第三方授权、回调错误、认证初始化错误 | SD25/SD26 三宽度失败恢复与回调流程通过 |
-| 项目资料 | 概览、世界观、角色档案/立绘、物体、场景、关系、事件/伏笔、分部/章纲、图库、导入审核、章节、成本 | N01–N12 及角色/来源/图库/成本定向证据完成 |
+| 项目资料 | 概览、世界观、角色档案/立绘、物体、场景、关系、事件/伏笔、分部/章纲、图库、导入审核、章节、成本 | N01–N03 主页面与 18/19 条深层路径、N08 三条深层路径及 N09 来源记录已有当前版多宽度证据；N10 队列/详情、N11 目录/只读正文/导入弹窗也已复核。其他子工作面仍按逐项状态追踪 |
 | 写作 | 正文、分析、章节图像、导演编排、拍摄剧本、资料检索、生成助手、优化助手、场景管理、角色档案 | 112 项小说/写作/灵感矩阵通过，深层入口另有定向回归 |
-| 灵感 | 对话/选项、整理进度、蓝图确认/调整、成功交接 | 112 项矩阵通过，失败保留输入与交接结果有证据 |
-| 设置 | LLM、图片、视频、嵌入的已有/新建/编辑/测试；搜索/抓取；Agent 技能；提示词及历史/覆盖/校验；主题及完整编辑；备份 | 原 31 项内页/管理/账户/认证，加 B72 的 35 项三宽度交互；模型新建/计价入口与系统模板锁定行为已补覆盖，真实服务调用仍未冒领 |
+| 灵感 | 对话/选项、整理进度、蓝图确认/调整、成功交接 | 112 项矩阵通过，失败保留输入与交接结果有证据；I01/I02 与 I05–I09 完成三宽度定向视觉复核，I01-history 首条消息完整落在 390/1440px 滚动视口内，独立审图无 P1/P2/P3 |
+| 设置 | LLM、图片、视频、嵌入的已有/新建/编辑/测试；搜索/抓取；Agent 技能；提示词及历史/覆盖/校验；主题及完整编辑；备份 | 原 31 项内页/管理/账户/认证，加 B72 的 35 项三宽度交互；SD06 长主题名手机端显示已修复并三宽复核；模型真实服务调用仍未冒领 |
 | 管理/诊断 | 总览、用户/邀请/用量、项目、任务、默认API及四类配置、趋势、组件包、队列/工作流详情、调用统计、日志 | SD08–SD20 及失败恢复通过，视觉复审保留未亲看的图片清单 |
+| 管理测试中心 | 管理员选择功能场景与目标 → 运行 → 查看步骤、项目变化和历史；取消/清理 | 当前版三宽度视觉与浏览器用户路径已复核，见文末 |
 | 账户 | 资料、页面CLI、密码、设备会话、应用信息、存储和清理、退出时草稿 | SD21–SD27 三角色、错误恢复和草稿保护通过 |
-| 全局 Agent | 主/子线程、消息与草稿、活动栏、审批/执行/事件、线程详情、新建、清理确认和预算 | A01–A12 定向 12 项通过；合并矩阵的旧 A10 样本失败仍保留 |
+| 通知收件箱 | 高频查看未读 → 阅读广播 → 标记单条已读 | 当前版创作者 fixture 覆盖 390/1024/1440px 亮暗主题；单条已读交互有定向回归 |
+| 全局 Agent | 主/子线程、消息与草稿、活动栏、审批/执行/事件、线程详情、新建、清理确认和预算 | A01–A12 加审批排除项在三宽度当前版完整 functional 13 项通过；A10 当前预算弹窗三宽复核；跨窗口 fixture 使用浏览器级 preload |
 | 漫画 | 章节/页码、提示词阅读/编辑、参考绑定、版式/元数据、成图/放大、过期/失败/续跑、请求预览、来源同步 | MC 工作面与来源同步有媒体定向证据，未把非关键重复图扩展为全覆盖 |
 | 视频 | 素材/上传/详情、分段规划/编辑、5种生成模式、首尾帧/连续性、参考图/视频/音频、结果版本、插入段、组装、后处理 | 媒体定向矩阵、模式 20 项及拖动 13 项通过；保留旧矩阵失败日志边界 |
-| 画布 | 节点库/图、各类节点属性、连线属性、运行/停止/恢复、内容预览、移动面板、画布Agent | 视口、内容预览、连线和属性三宽度定向回归通过 |
+| 画布 | 节点库/图、各类节点属性、连线属性、运行/停止/恢复、内容预览、移动面板、画布Agent | MX13–MX32 补齐节点属性、图片预览、缩放、视口保存和独立画布返回；见文末三宽专项记录 |
 | GALGame | 场景导航/元数据、5种台词、演出参数、分支、图像/音频绑定、素材计划/矩阵、生成/导出/同步 | 主要场景/台词/矩阵/来源流程有定向证据；MG09 1440 旧夹具计数失败保留 |
 | 任务弹窗 | 项目管理/状态/协作/导出/依赖图、角色深层页、各领域详情与编辑、请求预览、进度、确认和输入 | 设置、媒体、画布定向弹窗已覆盖；未把未渲染的重复状态记为通过 |
 
@@ -34,7 +36,7 @@
 - 代码证据：`VideoStudioCanvas.tsx` 桌面节点按钮只有 drag，没有 click；属性栏在 1100px 以下隐藏，按钮和弹窗却仅在 768px 以下出现。
 - 缺点：桌面键盘不能添加节点；平板宽度无法打开节点和连线属性，也找不到属性栏中的运行信息。
 - 修复：抽屉按现有侧栏是否可见决定入口；节点库保留拖动并支持点击/键盘添加。
-- 证据：`ui-page-audit/ui-pages.e2e.mjs` 两项优化前失败、优化后通过；`canvas-before.log` / `canvas-after.log`。完整有内容画布的各类属性仍单独验收。
+- 证据：`ui-page-audit/ui-pages.e2e.mjs` 两项优化前失败、优化后通过；`canvas-before.log` / `canvas-after.log`。完整有内容画布的各类节点、连线、内容预览及视口操作已补充逐项验收，见文末 MX13–MX32。
 
 ### S02：图片配置尺寸输入
 
@@ -65,7 +67,7 @@
 | S06 Agent 技能 | 按需；类别 → 技能用途和勾选 → 草稿/保存 | 空白大卡、原始标识抢层级；卡片随内容，移动类别收拢，修复两类草稿缺陷 | 三宽度及慢保存动作通过，见 `settings-interaction-after.log` |
 | S07 提示词 | 按需；分类/搜索 → 模板 → 编辑/校验 | 手机列表只露两条，却有大片空编辑区；首次加载选择首个模板，中宽列表列收缩 | SD01–SD04 编辑、历史、覆盖、变量校验和渲染通过 |
 | S08 主题 | 偶发；选择外观 → 看名称/色带 → 应用或编辑 | 色带和不可用勾选挤压标题；缩小色带、长名称换行、仅可删除主题显示勾选 | SD05–SD07 完整编辑、导入、改名和批删通过 |
-| S09 备份 | 偶发；导出或选择导入 → 检查范围 → 确认 | 默认布局三宽度清楚，保留；“最近导出位置”实际是文件名，已改为“最近导出文件” | 文件选取、确认和失败待动作验证 |
+| S09 备份 | 偶发；导出或选择导入 → 检查范围 → 确认 | 默认布局三宽度清楚，保留；确认操作加深边界以明确主次 | 浏览器下载并读回 JSON、重新上传、空文件提示、取消不请求、失败后重试及成功路径通过；服务端回包由 fixture 模拟 |
 | S10 管理概览 | 按需诊断；总体状态 → 异常服务 → 详情 | disabled显示绿色正常、错误藏进诊断；明确停用状态，错误直接显示 | SD08–SD15 和初始失败→刷新恢复流程通过 |
 | S17 队列 | 经常；运行任务 → 阻塞/失败 → 详情/恢复 | flex把负载卡压成线；禁止卡片收缩 | SD19–SD20 三宽度的检查点、调用、恢复和取消通过 |
 | S18 统计 | 按需；时段 → 成败 → 趋势 → 具体调用 | 手机SVG整体缩小到无法读；保留本征字号与横向浏览。长时段不再只取末30天；LLM展示失败/待完成，最近记录补状态/时间/模型/错误 | SD14、SD17、SD18 的 7/30/90 天、成本和详细调用通过 |
@@ -73,11 +75,41 @@
 
 ### 共享修复不等于跳过逐页验收
 
-- 配置字段容器使用 `page-layout.css` 的现有命名空间；未改暖书房色值。最终预算为 CSS 源 `4589` 行 / `130734` 字节，打包 CSS `251027` 字节，调色盘保持原值、界面 emoji 为 `0`。
+- 配置字段容器使用 `page-layout.css` 的现有命名空间；未改暖书房色值。当前设计预算为 CSS 源 `4739` 行 / `134319` 字节，打包 CSS `261263` 字节；相对批准基线分别 +0.87%、−2.59%、+1.47%，均在 +20% 限制内。调色盘一致、界面 emoji 为 `0`。
 - 管理数据加载失败由现有 `useAdminSectionLoader` 统一返回带作用域的错误；趋势停止把失败当作永久加载，SD14–SD20 已实测错误保留、刷新恢复、取消和诊断入口。
 - 图片卡片原来在按钮内嵌入交互图片，放大阻断父按钮；现在主操作使用普通图片，独立兄弟放大按钮共用原灯箱。已逐个追踪通用图库、立绘、立绘参考、写作资料卡、视频首尾帧/连续性/参考媒体/插入参考图。各入口分别留下主点击与放大动作证据后才闭环。
 
 完整的逐页结论和证据以本文件及对应报告为准；通过项不外推到未渲染的重复状态。
+
+## 首页窄视口与常规审查入口收尾（2026-10-13）
+
+- `functional.conf.mjs` 现将 `home-zoom-equivalent.e2e.mjs` 纳入常规审查规格，并保留标题匹配，避免单独脚本绕过统一启动和错误收集。
+- Chrome 153 通过该入口完成 702×393 CSS 视口复核：标题、创建/导入入口和首个项目卡均在视口内，页面横向溢出为 0；键盘焦点环可见，创建弹窗不产生项目写入，末项类型可在弹窗滚动区完整到达，Escape 后焦点返回触发按钮。
+- 该证据是等效窄 CSS 视口检查，不宣称浏览器原生 200% 缩放；原生缩放由 W01 独立报告记录。
+- 证据：[首页报告](../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-13T03-02-04-328Z/report.json)、[首页截图](../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-13T03-02-04-328Z/home-702x393.png)、[创建弹窗末项](../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-13T03-02-04-328Z/create-dialog-last-option-702x393.png)。
+
+### 702px 权限筛选器完整显示（2026-10-13）
+
+- 实屏发现此前 640px 就切成页签/操作与筛选器同一行，702px 可用宽度不足，权限筛选值被截成“全部…”；控件虽然未越界，当前筛选状态却不完整。
+- 并排布局断点改为 768px，与隐藏侧栏的断点一致；640–767px 将筛选器放到下一行，390px 和 ≥768px 布局保持原结构。
+- 首页专项回归现断言权限值“全部可访问”完整显示、值容器 `scrollWidth <= clientWidth`、首个项目仍在视口内。Chrome 153 702×393 通过 1/1，横向溢出 0；标题、操作入口和创建弹窗路径仍通过。
+- 修复后截图与报告：[首页](../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-13T04-02-41-584Z/home-702x393.png)、[创建弹窗](../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-13T04-02-41-584Z/create-dialog-702x393.png)、[报告](../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-13T04-02-41-584Z/report.json)。
+- 原生 200% 补试未通过：headful Chrome profile 与 WebDriver `Ctrl++` 均未改变布局，读数为 CSS 视口 1404×787、DPR 2、`visualViewport.scale=1`；不记为缩放验收。W01 仍由既有报告单独覆盖真实 200%，首页真实 200% 待环境可控后复核。
+
+### 首页末项滚动终点复核（2026-10-14）
+
+- 独立审图首轮将创建弹窗末项判为底部留白不足。根因为审查脚本用 `scrollIntoView({ block: "end" })` 将卡片下沿贴到滚动口边缘；产品弹窗已有 16px 底部内边距。
+- 审查脚本改为把弹窗内容滚动到 `scrollHeight` 的真实末端，并断言末项保留至少 12px 底部间距；Chrome 153 当前版 702×393 功能回归 1/1 通过，实际 `bottomGap=15.81px`、页面横向溢出/控件越界/错误/意外请求均为 0。创建、Tab 焦点环、末项可达、Escape 返回焦点及不产生创建请求仍通过。
+- 独立审图复看末项真末态，无剩余 P1/P2/P3；未改产品布局、CSS、功能或依赖。
+- 证据：[当前报告](../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-14T03-42-51-145Z/report.json)、[702px 首页](../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-14T03-42-51-145Z/home-702x393.png)、[弹窗末项真实末态](../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-14T03-42-51-145Z/create-dialog-last-option-702x393.png)。
+- 同一审查器现记录初始 CSS 视口并严格区分 `native-200-percent` 与 `resized-css-viewport`。首页本轮 profile 偏好与 X11 `Ctrl++` 仍无法改变 1404×787、DPR 2 的读数；不记作原生缩放通过，继续只认可 702×393 等效视口证据。失败读数：[报告](../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-14T03-37-42-564Z/report.json)。
+- 2026-10-14 追加严格门禁复试：新的工作树隔离 profile 仍读到 1404×787 CSS px、DPR 2、`visualViewport.scale=1`；原生 200% 断言在改尺寸前失败，页面布局断言未运行。报告：[初始视口读数](../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-14T09-50-28-316Z/report.json)。这不是产品失败；首页真实 200% 仍未验收。
+
+## N08 大纲草稿离开保护回归（2026-10-13）
+
+- UX-B60 复核自定义节拍映射 JSON 离开确认时，审查器原来查找已废弃的 `aria-label="打开大纲高级工具"`；当前界面显示可见按钮“高级工具”。同时，页面真实读取章节分析，但 fixture 未声明 `list_chapter_analyses`，造成未声明请求。
+- 仅修正审查器为可见按钮文案定位，并为只读章节分析读取补空列表 fixture；不改产品布局、交互或草稿保护行为。
+- Chrome 153 通过常规 functional 配置的小说专项规格 5/5，包括伏笔草稿和自定义节拍映射取消/放弃路径。初次全量 runner 的该单项旧定位失败保留在首轮报告，不视作当前产品失败。
 
 ## 作品资料、写作与灵感
 
@@ -89,21 +121,23 @@
 | N01 概览；经常确认进度并进入写作 | 手机长作品名被完整按钮文字挤压；主摘要与辅助文同级 | 手机按钮改用既有“写作”短名，ARIA保留完整动作；蓝图、阶段、协作、导出、依赖图分别检查 |
 | N02 世界观；经常查规则，偶发编辑 | 核心规则被截断，全文藏在菜单；“还有若干项”不能点击 | 全文改为直接按钮，更多条目进入同一详情；结构、文本、JSON编辑分别验证，未改变存储结构 |
 | N03 角色；经常查人物 | 性别、年龄和性格在同卡重复出现 | 列表摘要去重；档案4标签与历史、快照、冲突、立绘、参考选择各自有用例 |
-| N04 物体；按需查道具 | 素材数被长用途说明挤出手机一行 | 素材数独立显示，原详情/编辑/生成不变 |
-| N05 场景；按需查空间和出场 | 出场/图片数被空间长描述截掉 | 计数分离、允许换行；详情、编辑与图像入口分别验证 |
+| N04 物体；按需查道具 | 素材数曾被长用途说明挤出手机一行；只读详情继承主题透明度 | 素材数独立显示；详情弹窗局部不透明。列表 390/1024/1440px 计数和摘要层级清楚、手机更多操作靠右、桌面网格对齐；详情三宽度覆盖完整资料、末尾素材操作、不可用尺寸提示及 Escape 焦点返回，overflow=0。独立审图无新 P1/P2/P3。证据：[列表报告](../.dev-runtime/ui-pages/novel/frontend-design-20261012-object-list-final-N04-object-summary-report.json)、[390列表](../.dev-runtime/ui-pages/novel/frontend-design-20261012-object-list-final-N04-object-summary-390.png)、[1024列表](../.dev-runtime/ui-pages/novel/frontend-design-20261012-object-list-final-N04-object-summary-1024.png)、[1440列表](../.dev-runtime/ui-pages/novel/frontend-design-20261012-object-list-final-N04-object-summary-1440.png)、[详情报告](../.dev-runtime/ui-pages/novel/frontend-design-20261012-object-detail-final-object-detail-390-1024-1440-report.json)、[390详情末尾](../.dev-runtime/ui-pages/novel/frontend-design-20261012-object-detail-final-object-detail-390-last.png)、[1440详情](../.dev-runtime/ui-pages/novel/frontend-design-20261012-object-detail-final-object-detail-1440-initial.png)。 |
+| N05 场景；按需查空间和出场 | 出场/图片数被空间长描述截掉；多行详情背景继承主题透明度 | 计数分离、允许换行；只读详情局部设为不透明。390/1024/1440px 回归场景摘要、结构化字段标签、Escape 焦点返回和末尾素材操作可达性；无有效图片尺寸时保留禁用态及原因。独立审图无新 P1/P2/P3；手机“事”半字与右箭头判断为横滑提示。证据见 [场景复核报告](../.dev-runtime/ui-pages/novel/frontend-design-20261012-scene-modal-final-profile-summary-390-1024-1440-report.json)。 |
 | N06 关系；经常查询角色邻域 | 手机全图姓名只有约6–8px，连线交叉，主任务难读 | 小屏先显示已有角色列表，点击打开既有关系详情；图、拖放、缩放和位置存储保留 |
 | N07 事件/伏笔；经常检索事件 | 8条伏笔把18条事件的检索推到屏外 | 伏笔按需展开，事件搜索提前；伏笔页头允许动作换行，新增/编辑/删除均保留 |
-| N08 大纲；经常查章节结构，按需调整 | 空章纲的数量标签和生成入口缺少一致范围；追加区折叠摘要未直接说明设置对象 | 空章纲统一写“本次生成章数”，分部/章纲追加各自明确范围；详情与追加仍独立进入 |
-| N09 图库；经常找图和管理 | 首次测试过早把栏目加载当空图库；收藏按钮图标换行；来源章号只显数字；缩放提示只提滚轮 | 等待解码后复核；共享chip改inline-flex；收藏空态准确；来源显示“第 N 章”；提示改为使用缩放按钮；管理与放大分开 |
-| N10 导入/归纳；按需审核资料 | 旧测试点不存在的“导入”标签，未到达栏目 | 已更正真实入口；`resume-20260926/import-confirmed.log` 的去重、蓝图/大纲/分部归纳 12 项三宽度通过 |
-| N11 章节；经常进入正文 | 三章默认列表清楚，保留 | 只读正文、章节身份切换、长正文末端另验 |
-| N12 成本；按需检查费用与失败 | 手机首屏只有技术列；60条被额外截成50，状态/日期为原始码 | 金额/状态前置、状态和日期格式化、保留全部已返回记录；错误明确显示并防旧项目响应串入 |
-| W01 正文 | 高；定位章节 → 读写正文 → 保存/生成 | 3073 字正文、三章身份与 Ctrl+End 已验；修复真实缩放截图暴露的窄宽页头/章节栏裁切，702×393 CSS px 等效窗口和 390/900/1024/1440px 回归通过；修复后真实浏览器 200% 缩放仍待验 |
-| W02 分析 | 经常；摘要 → 事件 → 角色状态/伏笔 | 使用完整分析字段，不用空分析证明排版；与正文独立截图 |
-| W03 图像 | 按需；章节范围 → 图像 → 管理/放大 | 复用图库交互修复，章节/项目范围单独检查 |
-| W04 导演编排 | 按需；图片点 → 视频段 → 属性 → 预演 | 7点6段及已确认/草稿版本，图片点、片段、素材、场景、来源、画幅各入口另验 |
-| W05 拍摄剧本 | 按需；场景 → 镜头 → 表演/声音 → 编辑 | 三场六镜完整内容；只读/编辑与末端保存分别检查 |
-| W06–W08 检索/生成/优化 | 经常；提供上下文 → 检查方案 → 操作 | 112 项矩阵包含真实检索/生成/优化路径；绑定 chapter 1 的线程与失败输入保留均有证据 |
+| N08 大纲；经常查章节结构，按需调整 | 空章纲的数量标签和生成入口缺少一致范围；追加区折叠摘要未直接说明设置对象；高级工具预览入口是无文字的更多菜单；弹窗透出底层页面字 | 空章纲统一写“本次生成章数”，分部/章纲追加范围明确；高级工具各行显示“查看模型请求”，保留原菜单与预览回调；弹窗局部不透明。当前版三宽生产预览无 overflow/错误；章纲目录、分部详情和手工录入另有 24 条四宽状态记录，独立审图 18 张 390/900/1440 初末态无 P1/P2/P3。未触发生成、追加或保存。报告：[深层路径](../.dev-runtime/ui-pages/novel/n08-deep-review-report.json)、[高级工具](../.dev-runtime/ui-pages/novel/frontend-design-20261011-N08-advanced-390.png)。 |
+| N09 图库；经常找图和管理 | 首次测试过早把栏目加载当空图库；收藏按钮图标换行；来源章号只显数字；缩放提示只提滚轮；图片详情弹窗透出底层大图；原始 JSON 横向滚动没有提示 | 共享 chip 改 inline-flex；来源摘要显示“第 N 章”；原始记录保留完整 hash/path 和键盘横滚；标题副行增加记录标识，便于区分同类型图片；手机标题旁用 Lucide `ArrowLeftRight` 提示左右滑动，仅在 640px 以下显示。当前构建生产预览 390/900/1440px 1/1：opacity=1、page overflow=0、fixture/JS/severe logs=0；独立审图确认 P3 已关闭，无新 P1/P2/P3。证据：[报告](../.dev-runtime/ui-pages/novel/n09-diagnostic-20261011/report.json)、[390](../.dev-runtime/ui-pages/novel/n09-diagnostic-20261011/N09-diagnostics-390.png)、[900](../.dev-runtime/ui-pages/novel/n09-diagnostic-20261011/N09-diagnostics-900.png)、[1440](../.dev-runtime/ui-pages/novel/n09-diagnostic-20261011/N09-diagnostics-1440.png)。 |
+| N10 导入/归纳；按需审核资料 | 旧测试点不存在的“导入”标签，未到达栏目；审核结构 textarea 缺少关联 label；未修改时禁用原因不清楚；项目分析请求预览只有眼睛图标 | 已更正真实入口；去重和蓝图/大纲/分部归纳 12 项流程沿用既有三宽证据。审核队列的分析请求入口改为带 Lucide 图标和“查看分析模型请求”的可见按钮，仍调用原预览回调。审核详情 textarea label 与未修改原因通过；隐藏文件选择器有本地化名称且不成为额外 Tab 停靠点。保存期间保留审核上下文并播报进度，成功后在详情区播报“已接受”，不再叠加成功 Toast。最新 Chrome 153 回归覆盖 390/900/1440px，横向溢出为 0；独立复核最新手机末态无发现。浏览器 fixture 明确模拟文件导入/接受回包，不代表真实 Host 或数据库写入。证据：[三宽报告](../.dev-runtime/ui-pages/novel/frontend-design-20261011-outline-import-review-report.json)、[390上传中](../.dev-runtime/ui-pages/novel/frontend-design-20261014-N10-import-390-uploading.png)、[390已上传](../.dev-runtime/ui-pages/novel/frontend-design-20261014-N10-import-390-uploaded.png)、[390保存中](../.dev-runtime/ui-pages/novel/frontend-design-20261014-N10-review-390-saving.png)、[390已接受](../.dev-runtime/ui-pages/novel/frontend-design-20261014-N10-review-390-accepted.png)。 |
+| N11 章节；经常进入正文 | 章号/标题、字数 → 阅读正文或继续写作 → 手工导入 | 390/900/1440px 目录三行、每行高约 65–67px、页面 overflow=0；viewer 不显示写作/导入动作。只读打开第 1、2 章时标题保留章节号，正文完整匹配对应记录；长正文可滚至末句，弹窗局部 opacity=1，Escape 返回焦点到所选章节。手工导入弹窗检查 label 关联、空正文禁用和焦点返回；390×363px 下正文首屏可见111px、确认按钮完整44px。独立审图确认 390px 标签栏裁字问题关闭，无新 P1/P2/P3。证据：[390 目录](../.dev-runtime/ui-pages/novel/frontend-design-20261011-N11-viewer-390-chapters.png)、[390 正文首屏](../.dev-runtime/ui-pages/novel/frontend-design-20261011-N11-viewer-390-chapter-1.png)、[390 正文末端](../.dev-runtime/ui-pages/novel/frontend-design-20261011-N11-viewer-390-chapter-1-last.png)、[900 正文](../.dev-runtime/ui-pages/novel/frontend-design-20261011-N11-viewer-900-chapter-1.png)、[1440 正文末端](../.dev-runtime/ui-pages/novel/frontend-design-20261011-N11-viewer-1440-chapter-1-last.png)、[报告](../.dev-runtime/ui-pages/novel/frontend-design-20261011-outline-import-review-390-900-1440-report.json)。 |
+| N12 成本；按需检查费用与失败 | 手机 Provider 列只露半列，末行滚动时表头离开视口 | 已保留 60 条完整记录；加双向滚动提示、限高滚动区、sticky 表头与金额首列。1440/900/390px 生产预览回归 3/3，page overflow=0；独立审图无 P1/P2/P3，证据见 N12 复核记录 |
+| W01 正文 | 高；定位章节 → 读写正文 → 保存/生成 | 3073 字正文、三章身份与 Ctrl+End 已验；修复真实缩放截图暴露的窄宽页头/章节栏裁切，702×393 CSS px 等效窗口和 390/900/1024/1440px 回归通过。独立审图复核 390/900/1440px 正文末态，无 P1/P2/P3。最终 Chrome 153 原生 200% profile 1/1 通过：1440×1000 浏览器窗口实际为 702×393 CSS px、DPR 4、`visualViewport.scale=1`；键盘进入写作台、选第 2 章、编辑、保存、焦点返回、页头/章节栏边界和 overflow=0 均通过。报告：[W01 原生 200%](../.dev-runtime/ui-pages/novel/w01-native-20261012-real-report.json)。 |
+| W02 分析 | 经常；摘要 → 事件 → 角色状态/伏笔 | 1440/1024/900/390px 使用完整分析字段，末项可达、overflow=0；独立审图无可确认问题 |
+| W03 图像 | 按需；章节范围 → 图像 → 管理/放大 | 1440/1024/900/390px：桌面三列、手机双列；素材动作未遮主体，末项可达；独立审图无可确认问题。图像为 UI fixture |
+| W04 导演编排 | 按需；图片点 → 视频段 → 属性 → 预演 | 真实 `/video-project/3` 主工作面在 1440/1024/900/390px 通过，overflow=0，页面无 `thread_id` toast；七阶段选择与 390px Lucide 横滑提示有效。W04 属性/弹窗子流程 12/12 在 1440/900/390px initial+last 通过，overflow=0；独立审图无 blocker/major/minor。时间线末段已在 390/900px 实际滚动验收；点位本地文件选择与上传忙碌态已用夹具四宽度复核，真实后端上传和确认方案写入仍未验收。报告：[主路由](../.dev-runtime/ui-pages/novel/frontend-design-20261010-w04-no-thread-toast-report.json)、[子流程](../.dev-runtime/ui-pages/novel/w04-subflows-20261011-report.json)、[手机属性几何](../.dev-runtime/ui-pages/novel/w04-footer-final/report.json)、[专项断点](./.dev-runtime/ui-pages/novel/director-timeline-final/report.json)、[点位上传态](../.dev-runtime/ui-pages/novel/w04-upload-feedback-final-20261013-report.json) |
+| W05 拍摄剧本 | 按需；视频项目阶段 3 → 场景/镜头 → 编辑/导演意图；桌面阶段轨道、手机阶段选择器 | 最新完整序列 3/3 通过，覆盖三场六镜、编辑末场与导演意图的 1440/900/390px initial+last 共 18 张截图，overflow=0、无前端错误或视觉发现。历史 Chrome 白屏/截图失败留在台账，不再阻止本轮结论。未提交保存/删除，不代表真实服务端写回已验收。报告：[W05 本轮复核](../.dev-runtime/ui-pages/novel/frontend-design-20261010-w05-short-tmp-report.json) |
+| W06–W08 检索/生成/优化 | 经常；提供上下文 → 检查方案 → 操作 | 写作桌中屏收起章节侧栏、保留章节选择器与检索/助手右栏；W06/W07/W08 在 1440/1024/900/390px 实际路径通过，overflow=0，独立审图无可确认问题。检索、生成、优化仍按 fixture 边界分别记录，详见 [逐页复核](e2e/ui-page-audit/novel-review.md) |
+| W09 章节分场 | 按需；查看场景顺序 → 阅读展开正文 → 到达末场 | W09 在 1440/1024/900/390px initial+last 通过，8 场末项可达，overflow=0。独立审图确认手机提示词已完整显示、无嵌套滚动，未发现 P1/P2/P3；报告：[W09 分场](../.dev-runtime/ui-pages/novel/frontend-design-20261010-w09-prompt-height-final-report.json) |
+| W10 角色档案 | 写作时查人物信息；选择角色 → 档案 → 当前章节资料 | 1440/1024/900/390px 列表/详情可读，手机保留下一个角色卡片作为横滑提示；overflow=0，独立审图无可确认问题。仅核对展示，不做写入；报告：[W10 角色档案](../.dev-runtime/ui-pages/novel/frontend-design-20261010-writing-core-report.json) |
 | I01–I08 灵感 | 经常；长对话 → 选项 → 整理 → 蓝图确认 | 112 项矩阵覆盖 10 轮对话、3 选项、Generation handle/summary/snapshot/events 及失败恢复 |
 
 ## 漫画、视频、画布与 Galgame
@@ -123,12 +157,26 @@
 | MV30 组装 | 计划段号与成片顺序都称“片段”，缺素材提示看似与已推送状态冲突；窄屏预览被压薄且列表嵌套滚动 | 提示区分计划段号和已采纳素材；1280px 以下预览保持 16:9，片段随主 tabpanel 纵向滚动；加载状态持续到 canplay |
 | MV31–MV34 后处理 | 时间条只有32px，控制面弱于播放器 | 轨道48px、标记命中32px；视频可在小屏收缩，原拖动、键盘、两标记编辑不变 |
 | MV35–MV37 主点击与放大 | 同一图片两种动作互相阻断 | 各入口分别做选择/配置和放大/Escape复核 |
-| MG01–MG08 场景与五类台词 | 字段无名称、地点/时间纵排、重复演出控件挤压正文，已绑定音频被导入区压后 | 可见标签、手机地点/时间同排、背景不拉伸；演出按需展开且摘要保留已配状态；已有 BGM/SFX 先于导入与绑定控件展示，CG保留直接展开 |
+| MG01–MG08 场景与五类台词 | 字段无名称、地点/时间纵排、只读场景元数据挤出手机首行正文、重复演出控件挤压正文，已绑定音频被导入区压后 | 可见标签、手机地点/时间同排；390px 场景信息原生折叠以优先展示首行正文，900/1440px 保持展开；背景不拉伸；演出按需展开且摘要保留已配状态；已有 BGM/SFX 先于导入入口展示，手机将标签/解绑与满宽播放器分为两行，768px 以上维持单行；CG保留直接展开 |
 | MG09–MG10 素材计划/矩阵 | 248px侧栏放不下360px矩阵，背景只显示4项；“打开”实际生成 | 复用Modal承载完整规划清单；规划阶段只核对清单和状态，逐项生成入口仅在素材生成阶段出现 |
-| MG11–MG13 请求/来源/重置 | 默认宽屏入口可用，确认应有明确取消 | 共用确认框恢复取消；新增旁白复用已有输入弹窗，保留原API与验证 |
+| MG11–MG13 请求/来源/重置 | 默认宽屏入口可用，确认应有明确取消 | 共用确认框恢复取消；MG11 主按钮随起点从“继续生成”切换为“从{阶段}重新生成”；MG13 窄屏危险操作把取消排在重置前；新增旁白复用已有输入弹窗，保留原API与验证，见下方 |
 | MX01 画布视口 | fitView覆盖已存0.75视口，17节点文字缩成4–5px | 优先已保存视口，保留总览/缩放；不存在视口时沿用fitView |
-| MX02–MX20 属性、连线、内容与运行确认 | 中宽属性入口缺失、节点库不支持点击；正常节点的模型样本ID不匹配 | 按侧栏是否可见提供抽屉，保留拖动并支持点击；内容预览、连线属性和各节点属性三宽度定向回归通过，旧选择器失败保留在历史日志 |
+| MX02–MX32 属性、连线、内容、预览与运行确认 | 中宽属性入口缺失、节点库不支持点击；正常节点的模型样本ID不匹配；手机图片预览按钮会被画布右边缘裁切 | 按侧栏是否可见提供抽屉，保留拖动并支持点击；节点属性、连线、缩放/锁定、内容预览、返回与视口保存均有定向回归；手机预览按钮改锚到节点图片左上，MX08 历史事件末项、MX20 输入来源规则也已复核，见下方 |
 | MS01–MS03 来源同步 | 初始说明不能代替冲突态 | 三类派生项目各有3条完整冲突、两侧摘要与原始选择；只读预览/取消分别验收 |
+
+## MG11 Galgame 续跑与生成起点实屏复核（2026-10-14）
+
+- 任务/频率：高；查看失败阶段及保留结果 → 选择继续生成或指定阶段重生成 → 运行。
+- Chrome 153 当前分支四宽度回归 4/4（1440/1024/900/390px）：默认按钮“继续生成”与“自动选择起点”一致；选择“资产意图”后主按钮明确为“从资产意图图重新生成”，未调用 `start_galgame_pipeline`。页面横向溢出、浏览器错误和意外请求均为 0。
+- 独立审图复核 390px 初始/交互、900px 初始、1440px 交互截图，无可确认 P1/P2/P3。手机错误原因、保留内容和续跑路径完整可读；桌面阶段导航、生成进度与剧本编辑区域分层清楚。未改产品代码、样式或操作行为。
+- 证据：[390px 初始](../.dev-runtime/ui-pages/media/mg11-visual-20261014-MG11-390.png)、[390px 选定起点](../.dev-runtime/ui-pages/media/mg11-visual-20261014-MG11-390-interaction.png)、[900px 初始](../.dev-runtime/ui-pages/media/mg11-visual-20261014-MG11-900.png)、[1440px 选定起点](../.dev-runtime/ui-pages/media/mg11-visual-20261014-MG11-1440-interaction.png)、[四宽度浏览器报告](../.dev-runtime/ui-pages/media/mg11-visual-20261014-report.json)。
+
+## MG12 Galgame 模型请求预览实屏复核（2026-10-14）
+
+- 任务/频率：高；运行前核对来源和目标生成阶段、模型/模板及实际提示词，再决定是否启动生成。
+- Chrome 153 当前分支四宽度路径 4/4；只请求 `preview_galgame_pipeline_request`，未调用 `start_galgame_pipeline`。390px 标题明确表示“不会发送请求”，模型/模板及两条提示消息完整可读，复制按钮与正文之间无遮挡；可见操作和折叠项高度至少44px。1440px 阶段步骤与正文分栏，信息顺序清楚。页面横向溢出、浏览器错误及意外请求均为0。
+- 独立审图复核390/900/1440px，无可确认 P1/P2/P3。未改产品代码、样式或请求行为。
+- 证据：[390px](../.dev-runtime/ui-pages/media/mg12-visual-20261014-MG12-390.png)、[900px](../.dev-runtime/ui-pages/media/mg12-visual-20261014-MG12-900.png)、[1440px](../.dev-runtime/ui-pages/media/mg12-visual-20261014-MG12-1440.png)、[四宽度浏览器报告](../.dev-runtime/ui-pages/media/mg12-visual-20261014-report.json)。
 
 所有“修复”均以对应行为报告为证据；历史失败仍保留。B72 的模型新建/计价用隔离接口夹具验证了控件路径，不代表真实模型供应商调用；未覆盖范围包括非关键图片的逐图复审、真实第三方服务和读屏/触屏实机等环境边界。
 
@@ -143,7 +191,7 @@
 
 ## B72 用户路径补充（2026-09-29）
 
-- 修复视频基础素材“下一阶段”绕过统一草稿确认、系统模板的 LLM/图片/视频模型检测按钮在模型字段锁定时仍可点击、图片 Provider Catalog 要求密钥但表单未验证，以及图像/视频/API 嵌入端点和远程 HTTP 凭据校验不一致等问题。详情见 [B72 操作与根因台账](../../docs/user-experience-audit-20260924/B72-LEDGER.md)。
+- 修复视频基础素材“下一阶段”绕过统一草稿确认、系统模板的 LLM/图片/视频模型检测按钮在模型字段锁定时仍可点击、图片 Provider Catalog 要求密钥但表单未验证，以及图像/视频/API 嵌入端点和远程 HTTP 凭据校验不一致等问题。详情见 [B72 操作与根因台账](../../../docs/user-experience-audit-20260924/B72-LEDGER.md)。
 - 后端共用 HTTP(S) URL 与凭据传输校验，应用于 LLM、图像、视频、API 嵌入配置写入和配置导入；图像表单按 Provider Catalog 的 `requires_api_key` 提示并验证。
 - 集中验证：Vitest 123 文件/461 项、Web API/生成合同检查、生产构建、Rust 域层 135 项、视频配置 17 项、LLM 配置 6 项、配置读取 Worker 1 项、rustfmt/diff 检查通过。设置 Chromium 35 项通过；媒体 Chromium 的 MV01–MV04、MV30–MV37 三宽度通过，UX-B72 阶段草稿取消/确认在 1440/390 通过。截图未打开。
 - 全项目 UX 审查仍继续；真实 OAuth Web 成功沿用用户实际确认，桌面真实第三方授权与模型服务调用未在本批执行。
@@ -184,7 +232,7 @@
 
 ## 逐页收尾复核（2026-10-10）
 
-- N08 空章纲、追加分部、追加章纲各在 1440/900/390px 验收；数量字段、生成/追加动作和折叠摘要语义一致，两个追加摘要均有 Lucide 方向箭头。N08 三项及 N09 来源/预览两项均通过；报告见 [N08](../.dev-runtime/ui-pages/novel/final-20261010-arrow-closeout-report.json) 和 [N09](../.dev-runtime/ui-pages/novel/final-20261010-closeout-novel-report.json)。独立复核确认 [手机章纲追加折叠态](../.dev-runtime/ui-pages/novel/final-20261010-arrow-closeout-N08-append-chapter-390-collapsed.png) 的箭头与“从下一章开始追加”均清楚可辨。
+- N08 空章纲、追加分部、追加章纲各在 1440/900/390px 验收；数量字段、生成/追加动作和折叠摘要语义一致，两个追加摘要均有 Lucide 方向箭头。独立审图确认三组设置无 P1/P2/P3：手机输入与提交顺序清楚，900/1440 无拥挤遮挡。N08 三项及 N09 来源/预览两项均通过；报告见 [N08](../.dev-runtime/ui-pages/novel/final-20261010-arrow-closeout-report.json) 和 [N09](../.dev-runtime/ui-pages/novel/final-20261010-closeout-novel-report.json)。独立复核确认 [手机章纲追加折叠态](../.dev-runtime/ui-pages/novel/final-20261010-arrow-closeout-N08-append-chapter-390-collapsed.png) 的箭头与“从下一章开始追加”均清楚可辨。
 - N09 来源摘要使用既有 `writing.chapterLabel` 显示“第 N 章”；图片预览说明改为使用缩放按钮并保留拖动、Escape 与焦点返回。来源详情和预览三宽度流程通过；测试 Vite 配置为 `ui.invalid` 图片 URL 提供离线合成图，不改产品媒体路径。[来源摘要手机截图](../.dev-runtime/ui-pages/novel/final-20261010-closeout-novel-N09-image-detail-1-390-source-summary.png)。
 - MV30 缺失提示区分计划段号和成片顺序；1280px 以下播放器保持 16:9，列表内容由主 tabpanel 承载，取消子列表内滚动。1440/900/390px 检查无横向溢出，四段与末段可达；390px PageDown 可滚动，24 秒合成预览 readyState >= 3 且播放时间推进。[MV30 报告](../.dev-runtime/ui-pages/media/final-20261010-final-media-report.json)、[桌面图](../.dev-runtime/ui-pages/media/final-20261010-final-media-MV30-1440.png)、[手机交互图](../.dev-runtime/ui-pages/media/final-20261010-final-media-MV30-390-interaction.png)。
 - 独立实屏复核未发现确认的 P1/P2 或截图可确认的 Nielsen 违规。MV30 的纯色合成视频在 0:00 静止截图中显示加载圈；应用 `role=status` 已隐藏，实际播放能推进时间，播放后的交互截图不再显示加载圈。测试素材不代表真实用户视频；真实素材的首帧状态仍需复核。
@@ -203,6 +251,16 @@
 - MC03/MC05/MC06 三宽度回归 9/9 通过；加入按钮位置断言及真实滚动截图后的 MC05 三宽度回归 3/3 通过。MC03 测试改为选中当前断点可见的“编辑提示词”按钮，避免把隐藏的桌面副本当作目标。媒体/画布视觉矩阵 5/5，通过 1440/1024/390px 与亮暗主题共 30 个场景，横向溢出、屏外控件和浏览器错误均为 0。
 - 构建及设计预算检查通过。CSS 源码 4,739 行 / 134,319 字节，构建 CSS 260,886 字节；相对既有基线分别 +0.87%、−2.59%、+1.33%，均低于 +20% 限制；亮暗 palette 一致、UI emoji 为 0、无依赖变更。Node 24.21.0 构建通过并保留既有大 chunk 提示；项目要求 Node 22，本环境未提供。视觉素材为审查 fixture，不代表真实生成、上传或后端写回验收。
 
+## MC05 手机成图首屏裁剪收敛（2026-10-13）
+
+- 根因：旧 E2E 的 `visibleHeight` 按浏览器视口计算，没有与实际 `.overflow-y-auto` 内容区求交；390px 旧记录把 viewport 的 178px 当成完整可见，实际图片底部在内层滚动区之外。成图区还重复显示了页列表已有的当前页状态。
+- 修复：`image_creation` 在 `xl` 以下收起成图区标题里的重复状态摘要，状态仍留在当前页列表；压缩成图卡头部垂直留白和图片区上方间距。页码、页面状态、更多操作、尺寸、警告、生成/编辑回调和权限条件不变。E2E 现按真实滚动裁剪区计算图片可见高度，并在 390px 断言首屏成图完整。
+- Chrome 153 MC05 回归 4/4（1440/1024/900/390px）：四宽页面 `overflow=0`、浏览器错误/未声明请求均为 0；390px 图片边界 y=611–789、内层裁剪区 y=576–790，178/178px 可见，源图解码 267×150；“编辑提示词 / 重新生成图片”在图后仍可滚动到达。900/1024px 较大图片继续由正常滚动浏览，1440px 操作留在页头。
+- 独立审图首轮把 390px 首屏判为 P1，认为图片内容被截断；第二位审图者结合原图及同一浏览器几何读数确认图片本体完整，裁剪区覆盖全部图片，视口也未截断。900/1024px 需要滚动属于长内容浏览；没有证据表明操作不可达。另一位审图者指出 1440px 提示词列下方留白（P3）；该样本提示词较短，不增加装饰性填充或改变双列比例。素材是 UI fixture，不代表真实模型生成或生产图片比例。
+- 首次扩到 1024/900px 时，E2E 助手按 640px 判断阶段下拉框是否显示，误点隐藏 tab；改为检查实际可见控件后四宽度通过。该失败是测试助手断点不匹配，不是产品导航失败。
+- 报告与截图：[四宽度报告](../.dev-runtime/ui-pages/media/mc05-first-view-final-20261013-report.json)、[390 初态](../.dev-runtime/ui-pages/media/mc05-first-view-final-20261013-MC05-390.png)、[390 交互后](../.dev-runtime/ui-pages/media/mc05-first-view-final-20261013-MC05-390-interaction.png)、[900](../.dev-runtime/ui-pages/media/mc05-first-view-final-20261013-MC05-900.png)、[1024](../.dev-runtime/ui-pages/media/mc05-first-view-final-20261013-MC05-1024.png)、[1440](../.dev-runtime/ui-pages/media/mc05-first-view-final-20261013-MC05-1440.png)。
+- `npm run build`、设计预算、`node --check frontend/e2e/ui-page-audit/media.e2e.mjs`、`git diff --check` 通过（Node 24.21.0，仓库要求 Node 22 未提供；保留现有大 chunk 提示）。CSS 源 4,740 行 / 134,563 字节、构建 CSS 263,541 字节；palette 匹配基线、UI emoji=0，无依赖变更，样式总量低于 +20%。
+
 ## W08 写作助手章节上下文（2026-10-10）
 
 - 根因：900/1440px 优化模式重复显示外层“第 N 章”、优化器“第 N 章 · 标题”和“已绑定第 N 章 · 标题”，占用窄侧栏高度；390px 全屏助手标题没有固定显示当前章节，滚动消息时目标章节不易确认。
@@ -219,8 +277,14 @@
 - 修复：移动写作页头改用既有 writing desk 的可换行布局；项目名作为独立单行省略内容并保留完整 `title`，当前章节仍由完整章节选择器和编辑区标题表达；章节栏允许换行，选择器保留 10rem 最小宽度。前后章、检索、助手、保存和菜单的回调/禁用条件不变。
 - W01 键盘实测：1440 布局缩至 702×393 CSS px，Tab 进入写作台，键盘选第 2 章、编辑并保存；保存状态为 saved，焦点返回正文 textarea，未产生未声明请求或重复成功 toast。页面无横向溢出；标题、页头操作和所有章节控件均在视口内；正文编辑器位于首屏且完整可见。截图：[702×393](../.dev-runtime/ui-pages/novel/current-W01-keyboard-702css-702-css-viewport.png)。
 - 横向溢出与布局：W01 正文 1440/900/390px 浏览器工作流通过；额外 1024px 检查 `scrollWidth-clientWidth=0`，标题、操作和编辑区边界在视口内。截图：[390px](../.dev-runtime/ui-pages/novel/current-W01-body-390-initial.png)、[1024px](../.dev-runtime/ui-pages/novel/current-W01-keyboard-702css-1024-css-viewport.png)、[1440px](../.dev-runtime/ui-pages/novel/current-W01-body-1440-initial.png)。独立审图未发现可确认的 P1/P2/P3；390px 项目名省略，但完整当前章节仍可见。
-- 本轮再次尝试真实浏览器缩放时，桌面环境的 `Ctrl++` 未改变浏览器缩放比例，手动实测在 200% 前置断言处停止；因此只记录 702×393 CSS px 等效窗口通过，不宣称真实 200% 已通过。其他页面完整键盘路径仍是全站审查边界。
+- 2026-10-12 原生缩放中间尝试：Xwayland 下 `xdotool` 快捷键未改变 DPR 或 CSS 视口；失败读数保留在 [报告](../.dev-runtime/ui-pages/novel/w01-native-zoom-20261012-W01-keyboard-702css-1404-failure.json)，不作为产品结论。
+- 2026-10-12 原生缩放最终复核：将 Chrome 临时目录移出已耗尽的系统 `/tmp` 后，预置 `default_zoom_level.x=3.8017840169` 的 profile 成功挂载完整 fixture。W01 键盘路径 1/1 通过，实际窗口 1440×1000、CSS 视口 702×393、DPR 4、`visualViewport.scale=1`，标题/操作区/章节控件均在视口内，overflow=0；证据：[报告](../.dev-runtime/ui-pages/novel/w01-native-20261012-real-report.json)、[702px截图](../.dev-runtime/ui-pages/novel/w01-native-20261012-real-W01-keyboard-702css-702-css-viewport.png)。
 - `npm run build` 和设计预算检查通过（Node 24.21.0，项目要求的 Node 22 未提供）。CSS 源码 4,739 行 / 134,319 字节，构建 CSS 261,070 字节；palette 与基线一致，UI emoji 为 0，无依赖清单变更，均低于 +20% 限额。保留既有大 chunk 提示。
+- 2026-10-14 独立 design-ux 复核发现 702×393 CSS px 矮视口的正文区仅142.5px（36%），判为 P3。仅对 `max-width:767px` 且 `max-height:480px` 收紧写作页头/章节栏/编辑工作区留白与正文内边距；写作页头最小高度改为44px，按钮命中区、正文字号、焦点与操作不变。复测正文区184px（46.8%），章节控件仍44px。
+- Chrome 153 键盘编辑/保存路径 1/1 与三宽度 W01 正文路径 1/1 通过；702×393、390/900/1440及1024px均 overflow=0，键盘选章/编辑/保存、保存状态和焦点返回正文通过。独立复审关闭原 P3，无新发现。当前图：[702×393](../.dev-runtime/ui-pages/novel/w01-short-editor-20261014-final-W01-keyboard-702css-702-css-viewport.png)、[390px](../.dev-runtime/ui-pages/novel/w01-short-editor-20261014-body-W01-body-390-initial.png)、[1440px](../.dev-runtime/ui-pages/novel/w01-short-editor-20261014-body-W01-body-1440-initial.png)；报告：[短视口键盘路径](../.dev-runtime/ui-pages/novel/w01-short-editor-20261014-final-report.json)、[三宽正文](../.dev-runtime/ui-pages/novel/w01-short-editor-20261014-body-report.json)。
+- 补充交互闭环：键盘保存遇标准503时显示明确错误，saving 状态禁重复提交；正文保持 dirty、焦点回编辑器、保存按钮可重试，重试成功后清除 dirty。离开操作说明已先保存本地草稿；“留在当前”保留输入，“继续”离开后再次进入可选“恢复草稿”，恢复文本与离开前一致；共两次模拟正文保存请求，没有为离开草稿额外调用 API。独立 UX 审图确认错误提示、离开与恢复选择无 P1/P2/P3；toast 暂盖部分字数/状态，但正文、光标和重试按钮仍可见。截图：[503错误](../.dev-runtime/ui-pages/novel/w01-save-recovery-20261014-W01-keyboard-702css-save-error.png)、[离开确认](../.dev-runtime/ui-pages/novel/w01-save-recovery-20261014-W01-keyboard-702css-leave-guard.png)、[恢复草稿](../.dev-runtime/ui-pages/novel/w01-save-recovery-20261014-W01-keyboard-702css-draft-restore.png)；[报告](../.dev-runtime/ui-pages/novel/w01-save-recovery-20261014-report.json)。fixture 不代表真实 Host/数据库持久化。
+- 2026-10-14 当前版续验：Chrome 153 的 W01 702×393 键盘编辑/保存路径 1/1、390px 正文路径 1/1 通过；702px 报告记录编辑区高 184px（视口的 46.8%）、章节操作最小高 44px、1024px 与 702px 横向溢出均为 0，390px 正文报告 findings 为空。独立 fresh-eyes 审图复核 702px 和 390px 当前截图，无可确认 P1/P2/P3。证据：[702px 当前版报告](../.dev-runtime/ui-pages/novel/w01-verification-current-20261014-report.json)、[390px 当前版报告](../.dev-runtime/ui-pages/novel/w01-390-verification-current-20261014-report.json)。本轮尝试用 X11 快捷键为短视口改动后重做原生 200% 验收，但 Chrome 始终读回 1404×787 CSS px、DPR 2，未达到本回归要求的 200%；该次环境尝试不算产品失败，也不扩展 2026-10-12 原生缩放证据对本次改动的覆盖。
+- 当前预算：CSS 源4753行/135065 bytes、构建 CSS 265469 bytes，较批准基线 +1.17% / −2.05% / +3.11%；palette匹配、UI emoji=0、无新增依赖。Node 24.21.0 `npm run build` 通过，保留既有 >500 kB chunk 警告。
 
 ## MG08 Galgame 投影展开与音频可达性（2026-10-10）
 
@@ -229,3 +293,521 @@
 - 修正测试路径：先展开真实的“场景投影”，再按移动端现有“编辑”切换进入台词；到达播放器所在行后检查完整播放器矩形，再实际播放。原 `https://ui.invalid/audio.wav` 只有 URL，没有可解码媒体；浏览器测试启动时按需生成 2 秒 PCM WAV，并在结束时删除本次生成文件。
 - MG08 在 1440/900/390px 通过 3/3；横向溢出、浏览器错误和未声明请求均为 0。播放器完整处于视口内，三种宽度的播放进度分别推进约 0.16/0.20/0.17 秒，时长均为 2 秒。独立实屏复核确认固定摘要无重影，场景列、台词区及播放器没有互相遮挡：[1440px](../.dev-runtime/ui-pages/media/frontend-design-20261010-mg08-opaque-summary-MG08-1440-interaction.png)、[900px](../.dev-runtime/ui-pages/media/frontend-design-20261010-mg08-opaque-summary-MG08-900-interaction.png)、[390px](../.dev-runtime/ui-pages/media/frontend-design-20261010-mg08-opaque-summary-MG08-390-interaction.png)。
 - 本轮前端构建通过（Node 24.21.0；环境未提供项目要求的 Node 22）。设计预算为 CSS 源码 4,739 行 / 134,319 字节、构建 CSS 261,070 字节；相对初始基线分别 +0.87%、−2.59%、+1.40%，均低于 +20%。亮暗 palette 校验一致，UI emoji 为 0。
+
+### MG08 绑定音频布局与禁用态复核（2026-10-13）
+
+- 手机端把 BGM/SFX 标签与解绑动作放在第一行，把原生播放器放在下一行并占满可用宽度；768px 以上保留标签、播放器、解绑动作同排。已有音频仍先于导入与绑定入口，播放、解绑权限和导入行为未改。
+- 独立审图先指出导入按钮的禁用文字过淡。根因是全局 `:disabled` 同时使用中性色和 `opacity: 0.6`；删除冗余透明度，保留 `disabled` 属性、中性背景、禁用文字色、无边框和禁止光标。只读状态仍明确，标签可读。最新独立审图覆盖 390/900/1024/1440px，无 P1/P2/P3。
+- MG08 Chrome 153 回归 4/4（1440/1024/900/390px）：各宽度 `overflow=0`、浏览器错误/未声明请求为 0；原生 2 秒 BGM 时间推进约 0.16–0.21 秒，播放器和 SFX 入口均实际滚动可达。1024px 初次回归曾因测试助手按 640px 硬编码点击隐藏的阶段 tab 而失败；助手现依据实际可见的下拉框/tab 选择，失败未归因产品布局。
+- 当前夹具处于“尚未生成节点图”的只读状态，导入和解绑按钮按既有行为禁用；未触发文件选择、导入或绑定。证据：[报告](../.dev-runtime/ui-pages/media/mg08-disabled-state-final-20261013-report.json)、[390](../.dev-runtime/ui-pages/media/mg08-disabled-state-final-20261013-MG08-390-interaction.png)、[1024](../.dev-runtime/ui-pages/media/mg08-disabled-state-final-20261013-MG08-1024-interaction.png)、[1440](../.dev-runtime/ui-pages/media/mg08-disabled-state-final-20261013-MG08-1440-interaction.png)。
+- `npm run build` 通过（Node 24.21.0；仓库要求的 Node 22 未提供，保留既有大 chunk 提示）。设计预算检查通过：CSS 源 4,740 行 / 134,563 字节、构建 CSS 263,015 字节；亮暗 palette 与基线一致，UI emoji=0，没有依赖清单变更，样式增量低于 +20%。
+
+## N12 成本表跨宽度复核（2026-10-11）
+
+- 根因：横向滚动容器同时成为 `thead` 的最近滚动祖先；页面纵向滚动时，表头不能跟随页面固定。390px 初态 Provider 列只露出开头，读者不易发现可横向浏览；到末行后也失去字段上下文。
+- 修复：使用现有 Lucide `ArrowLeftRight` 加中英文双向滚动提示；成本明细区限高并由同一滚动区承载横纵滚动，`thead` 固定在列表顶部；金额首列在横向滚动时固定并用边线区分。没有改请求、刷新、状态映射、数据数量或请求快照行为。
+- 生产预览浏览器回归 3/3（1440/900/390px）：每档完整显示 60 条返回记录，页面横向溢出均为 0；表头固定位置通过，390px 金额首列固定位置通过。390px 提示说明横向查看列、纵向浏览记录；各视口末行完整可见。证据：[报告](../.dev-runtime/ui-pages/novel/n12-preview-20261011/report.json)、[390 初态](../.dev-runtime/ui-pages/novel/n12-preview-20261011/cost-390-initial.png)、[390 末态](../.dev-runtime/ui-pages/novel/n12-preview-20261011/cost-390-last.png)、[900 末态](../.dev-runtime/ui-pages/novel/n12-preview-20261011/cost-900-last.png)、[1440 末态](../.dev-runtime/ui-pages/novel/n12-preview-20261011/cost-1440-last.png)。独立审图确认原 major 已关闭，未发现新的 P1/P2/P3。
+- `npm run build` 与 `check-design-budget.mjs` 通过。CSS 源码 4,733 行 / 134,460 字节，构建 CSS 261,503 字节；颜色 palette 与基线一致、UI emoji 为 0、无依赖变更，样式增量低于 +20%。环境使用 Node 24.21.0，仓库要求 Node 22，本机未提供。真实服务端账单、屏幕阅读器及触屏实机未在此项验证；全站审查仍进行中。
+
+## SD06 主题包长名称（2026-10-11）
+
+- 根因：390px 主题包弹窗把选择器与“导出 ZIP”按钮放在同一行，长主题名被选择器的截断样式省略。
+- 修复：选择器在窄屏占满一行，导出按钮顺接其下；640px 及以上保留原并排布局。只改变现有控件的响应式宽度和顺序，不改选择、导出、导入行为。
+- 生产预览浏览器复核 3/3（1440/900/390px）：当前主题名 `暖书房 · 雾港背景与长篇写作专用布局` 全文可见，选择值 `scrollWidth <= clientWidth`，页面横向溢出为 0。独立审图未发现新 P1/P2/P3，确认手机操作顺序清晰、桌面布局不变。证据：[报告](../.dev-runtime/ui-pages/settings/sd06-preview-20261011/report.json)、[390px](../.dev-runtime/ui-pages/settings/sd06-preview-20261011/package-options-390.png)、[900px](../.dev-runtime/ui-pages/settings/sd06-preview-20261011/package-options-900.png)、[1440px](../.dev-runtime/ui-pages/settings/sd06-preview-20261011/package-options-1440.png)。
+- `npm run build`、设计预算和 `git diff --check` 通过；未增加 CSS 文件规则或依赖。主题服务端实际 ZIP 传输仍属于原有验证边界。
+
+### SD06 当前分支主题选项弹层宽度（2026-10-14）
+
+- 当前展开态截图发现桌面端主题包选择器弹层按触发器宽度固定；最长名称最后一个“局”落到孤行。根因位于共享列表框定位器，而非主题包按钮布局。
+- 共享列表框现在按选项内容测量自然宽度，再限制到视口安全边距内；触发器和导出操作行不变。SD06 现有真实浏览器流程在 390/900/1440px 逐档断言选中名完整、单行显示、列表框不越界；最长名称在三档都完整一行呈现。桌面弹层为 265.7px、手机为 356px，均未越界。
+- 当前分支截图目视复核：手机列表未遮挡导入区，桌面弹层宽度足以容纳完整主题名，其他选项行距和选中态稳定。未发现 P1/P2/P3。该流程使用 UI fixture，未执行真实 ZIP 文件选择、导入或导出。
+- 证据：[当前运行报告](../.dev-runtime/ui-pages/settings-details/current-2026-10-14T13-58-03-578Z/settings-details-report.json)、[390px](../.dev-runtime/ui-pages/settings-details/current-2026-10-14T13-58-03-578Z/SD06-theme-create-import-package-package-theme-options-390.png)、[900px](../.dev-runtime/ui-pages/settings-details/current-2026-10-14T13-58-03-578Z/SD06-theme-create-import-package-package-theme-options-900.png)、[1440px](../.dev-runtime/ui-pages/settings-details/current-2026-10-14T13-58-03-578Z/SD06-theme-create-import-package-package-theme-options-1440.png)。
+- 构建和 +20% 样式预算通过；ThemedSelect 定向单测 2/2、SD06 浏览器工作流 1/1 通过。未增加样式规则或依赖；现有 UI fixture 的 ZIP 传输边界仍保留。
+- 同一定位器也服务搜索型 `ThemedCombobox`。专用控件回归将长模型标签放入真实建议列表并打开菜单：桌面 900/1440px 保持单行，390px 在视口内折为两行；菜单和正文均无横向溢出。完整控件/键盘/IME/只读交互组 18/18 通过。证据：[390px](../.dev-runtime/ui-pages/media/themed-combobox-long-model-390.png)、[900px](../.dev-runtime/ui-pages/media/themed-combobox-long-model-900.png)、[1440px](../.dev-runtime/ui-pages/media/themed-combobox-long-model-1440.png)。模型名来自 UI fixture，不代表真实供应商目录。
+- 触控尺寸复核先测得 390px Combobox 建议项仅 36px；窄屏规则当时只覆盖 ThemedSelect，遗漏同一共享列表框的 Combobox。现统一为 44px：390px 首八项最小高度实测 44px，桌面保留 36px；修复后完整控件交互组 18/18 通过。390px 长名称折为两行但文本不裁切，列表仍距左右视口边缘至少 8px。
+- 此轮构建后的预算为 CSS 4,767 行 / 135,470 字节，构建 CSS 265,894 字节；相对批准基线分别 +1.47% / −1.76% / +3.27%，palette 匹配、UI emoji=0、无新增依赖。
+
+## I01-history 首条消息可视性（2026-10-11）
+
+- 根因：旧浏览器断言只检查首条消息的顶部与滚动裁剪区相交，390px 历史截图也只显示消息尾部，无法证明消息完整可读；这是证据缺口，并非已证实的产品遮挡。
+- 在现有 I01-history 用户路径中增加消息底部边界断言。生产预览从真实项目菜单进入灵感对话并滚至首条消息，1440/390px 均完整处于对话视口内，页面横向溢出为 0；独立审图确认页头、固定输入区均未遮挡首条，无 P1/P2/P3。390px 后续消息的一部分位于固定输入区后方，属于正常的长对话滚动状态，不影响首条定位。
+- 证据：[报告](../.dev-runtime/ui-pages/novel/i01-history-preview-20261011/report.json)、[390px](../.dev-runtime/ui-pages/novel/i01-history-preview-20261011/history-390.png)、[1440px](../.dev-runtime/ui-pages/novel/i01-history-preview-20261011/history-1440.png)。本地生产预览目标路径 2/2 通过；共享 Vite 开发态仍有 Chromium 模块资源加载问题，不据此声称同路径开发模式通过。
+
+## I01/I02 灵感对话与创作进度（2026-10-11）
+
+- I01：三条结构化选择均可用；普通输入态只保留 textarea placeholder，不重复显示提示。390/900/1440px 均无页面横向溢出，独立审图无 P1/P2/P3。
+- I02：六项已确认信息和下一步建议完整可读；390/900px 的进度弹窗不透出底层对话，1440px 保留右侧摘要栏。独立审图无 P1/P2/P3。
+- 证据：[I01/I02 报告](../.dev-runtime/ui-pages/novel/inspiration-workflows-preview-20261011/390/report.json)、[I01 手机](../.dev-runtime/ui-pages/novel/inspiration-workflows-preview-20261011/390/conversation.png)、[I02 手机](../.dev-runtime/ui-pages/novel/inspiration-workflows-preview-20261011/390/progress.png)。
+
+## N10 去重匹配章节只读预览（2026-10-11）
+
+- 根因：全局弹窗底色继承可编辑的 `--a4n-dialog-opacity: 0.94`。在手机窄视口阅读长篇章节时，底层导入表单和按钮轮廓透过背景，干扰正文。
+- 修复：仅匹配章节阅读弹窗将 `--a4n-dialog-opacity` 设为 `1`；保留全局主题透明度设置及其他弹窗原有表现，不改变章节内容、打开/关闭、焦点返回或滚动行为。
+- 生产预览回归 2/2（1440/390px）：章节标题与完整正文正确，计算后的透明度 token 为 `1`，横向溢出为 0，Escape 关闭通过；独立审图确认手机透字已消失，桌面阅读布局清楚，未发现新 P1/P2/P3。临时预览回归完成后已将透明度断言加入长期 `novel.e2e.mjs`。
+- 证据：[报告](../.dev-runtime/ui-pages/novel/n10-dedup-preview-20261011/report.json)、[390px](../.dev-runtime/ui-pages/novel/n10-dedup-preview-20261011/matched-chapter-390.png)、[1440px](../.dev-runtime/ui-pages/novel/n10-dedup-preview-20261011/matched-chapter-1440.png)。
+- 本项完成时设计预算：CSS 源码 4,733 行 / 134,460 字节，构建 CSS 261,555 字节；相对批准基线分别 +0.75%、−2.49%、+1.59%，亮暗 palette 一致、UI emoji 为 0，无依赖变更，均低于 +20%。
+- 当前记录只关闭 N10-dedup 阅读弹窗问题；导入队列、候选审核详情及全站其余待审工作面仍未全部复核。
+
+## I03/I04 请求预览阅读层级（2026-10-11）
+
+- 根因：共用请求预览在单步骤时重复显示弹窗标题和步骤标题；模板路径又在步骤副标题与元数据中重复，手机上都被截断。可调全局弹窗透明度还会让底层对话透入长篇请求内容；手机固定复制栏会让初始视口中的末条消息只显示一部分。
+- 修复：共用 `RequestPreviewModal` 单步骤标题改为“请求信息”，移除重复模板副标题；模板路径只在元数据中完整换行。请求预览自身使用不透明背景，手机元数据单列；滚动区底部留白增至 32px，桌面为 24px。全局主题透明度和其他弹窗不变，复制/关闭/请求内容与模型行为不变。
+- 生产预览回归 4/4（I03/I04 × 390/1440px）：标题不重复、模板路径完整、计算透明度 token 为 1、横向溢出为 0；Escape 关闭通过。手机滚动到第二条消息后，消息卡完整可读，与固定复制栏相隔约 24px。独立审图确认上述 P2/P3 已解决，未发现新 P1/P2/P3。长期 `novel.e2e.mjs` 已加入标题、透明背景及末条消息可滚动断言。
+- 证据：[报告](../.dev-runtime/ui-pages/novel/inspiration-ui-preview-20261011/report.json)、[390 初始态](../.dev-runtime/ui-pages/novel/inspiration-ui-preview-20261011/chat-390.png)、[390 滚动末态](../.dev-runtime/ui-pages/novel/inspiration-ui-preview-20261011/chat-390-last.png)、[蓝图末态](../.dev-runtime/ui-pages/novel/inspiration-ui-preview-20261011/blueprint-390-last.png)、[桌面](../.dev-runtime/ui-pages/novel/inspiration-ui-preview-20261011/chat-1440.png)。
+- 最终设计预算：CSS 源码 4,733 行 / 134,460 字节，构建 CSS 261,649 字节；相对批准基线分别 +0.75%、−2.49%、+1.62%，亮暗 palette 一致、UI emoji 为 0，无依赖变更，低于 +20%。`npm run build`、预算和 `git diff --check` 通过；环境使用 Node 24.21.0，仓库要求 Node 22，本机未提供。
+- 长期 Vite E2E 本轮未能在 4198 启动：该端口由 `user-journey-audit` 工作树的活动测试占用，未终止其进程。另用隔离 4200 端口尝试开发态时，Chromium 在应用挂载前对多个 Vite 模块返回 `ERR_INSUFFICIENT_RESOURCES`；这是浏览器资源失败，不作为产品回归证据。I03/I04 结论来自生产预览夹具路径 4/4，当前全站审查仍未结束。
+
+## I05–I09 蓝图确认与恢复（2026-10-11）
+
+- I05/I06 使用单次导航 fixture 流程复核 390/900/1440px：确认页长梗概可滚动，手机末段与固定操作栏约留 36px，调整/确认入口始终可见；调整输入框与提交栏完整、不重叠，页面横向溢出为 0。`sync_blueprint_materials` 的 fixture 无警告，本次没有成功 toast；独立审图未复现旧“成功 toast 遮挡底栏”问题，也未发现 P1/P2/P3。
+- 流程审查器原先等待已不再显示的“首版蓝图已生成”文案，现改为等待成功态“查看蓝图”操作；未改产品工作流。
+- I07/I08/I09 均在 390/900/1440px 的真实 UI fixture 路径通过。独立审图确认请求预览层级、蓝图跳转状态清楚；I09 的 503 弹窗不透底，现明确说明调整内容已保留及关闭后可重新打开重试。
+- I09 失败态由 fixture 注入 503，服务端原文仍保留；错误只由进度弹窗呈现，不再同时发 toast。关闭错误弹窗再打开调整表单，原输入保持不变；三宽度溢出为 0，P3 已核销。没有声称真实服务端重试或持久化通过。
+- 证据：[I05/I06/I09 几何与交互报告](../.dev-runtime/ui-pages/novel/frontend-design-20261011-inspiration-confirmation-single-report.json)、[I05 手机末态](../.dev-runtime/ui-pages/novel/frontend-design-20261011-I05-confirm-390-I05-last.png)、[I06 手机表单](../.dev-runtime/ui-pages/novel/frontend-design-20261011-I06-refine-390-I06-filled.png)、[I09 手机失败态](../.dev-runtime/ui-pages/novel/frontend-design-20261011-I09-refine-failure-390-I09-error.png)、[I09 重开并保留输入](../.dev-runtime/ui-pages/novel/frontend-design-20261011-I09-refine-failure-390-reopened.png)。
+
+## N09/N10/N11 可发现性与短屏复核（2026-10-11）
+
+- N09 的根因是长 JSON 行在窄屏被裁切，但滚动区没有可见方向提示。现于记录标题旁加入本地化的 Lucide 双向箭头提示，仅在 640px 以下显示；路径和哈希继续留在键盘可聚焦的内部滚动区。390/900/1440px 生产预览通过：提示只在390px出现，page overflow=0，弹窗 opacity=1，fixture/JS/severe logs=0。独立审图确认提示直观且没有挤压标题，无 P1/P2/P3。
+- N10 队列标题旁的分析请求预览原为只有眼睛图标的按钮；现显示“查看分析模型请求”，继续调用同一预览回调。生产预览三宽度通过，按钮边界完整、overflow=0；独立审图未发现 P1/P2/P3。没有触发预览请求或审核写入。
+- N11 手工导入在手机短视口中原先将章节号、可选标题纵向堆叠，正文框首屏只露少量内容。两项元数据现于窄屏并排，正文区域 390×363 CSS px 首屏可见111px并可在弹窗正文区滚动；确认按钮高44px、底边在视口内。390/900/1440px 导入弹窗通过，Escape 后焦点返回入口；短屏独立审图无 P1/P2/P3。未提交导入。
+- 验证：Node 24.21.0（仓库要求 Node 22，本环境未提供）的 `npm run build` 通过，保留既有大 chunk 警告；设计预算 CSS 源 4,733 行 / 134,460 bytes，构建 CSS 261,599 bytes，相对基线 4,698 行 / 137,890 bytes / 257,470 bytes 分别 +0.75%、−2.49%、+1.60%；palette 匹配、UI emoji=0、无依赖变更。N09/N10 生产预览回归通过，N11 Chrome 153 两项通过；`node --check` 与 `git diff --check` 通过。
+- 证据：N09 [报告](../.dev-runtime/ui-pages/novel/n09-diagnostic-20261011/report.json)；N10 队列 [报告](../.dev-runtime/ui-pages/novel/frontend-design-20261011-outline-import-review-report.json)；N11 [报告](../.dev-runtime/ui-pages/novel/n11-current-report.json)。
+
+## N11 只读章节阅读与移动标签栏（2026-10-11）
+
+- 根因：只读正文弹窗标题不含章节号，且沿用全局 `--a4n-dialog-opacity: 0.94`，手机长文阅读时底层内容透出；移动标签栏左侧提示蒙层仅部分不透明，前一标签仍露出尾字。
+- 修复：弹窗标题统一为“第 N 章 · 标题”，章节名为空时仅显示章号；只读弹窗局部设 `--a4n-dialog-opacity: 1`；两侧滚动提示与 `scroll-padding` 同步从 32px 扩为 40px，左侧提示使用不透明栏面色。只改信息呈现和滚动提示，不改变章节读取、权限、导航与关闭行为。
+- Chrome 153 生产预览 viewer 流程 2/2，通过 390/900/1440px：目录三行且每行至少44px、overflow=0、viewer 隐藏导入入口；第1/2章标题和正文对应，长正文末句可达，Escape 返回章节行焦点；opacity=1，JS错误、未声明 fixture 和导入写请求均为0。独立审图确认手机裁字 P3 已关闭，无新 P1/P2/P3。
+- 最终 `npm run build` 与设计预算通过；CSS 源4,733行/134,376字节，构建 CSS 261,519 字节，palette匹配、UI emoji=0。浏览器使用 Node 24.21.0，仓库要求 Node 22，本环境未提供；保留既有大 chunk 提示。
+- 截图和报告：[390目录](../.dev-runtime/ui-pages/novel/frontend-design-20261011-N11-viewer-390-chapters.png)、[390正文](../.dev-runtime/ui-pages/novel/frontend-design-20261011-N11-viewer-390-chapter-1.png)、[390末句](../.dev-runtime/ui-pages/novel/frontend-design-20261011-N11-viewer-390-chapter-1-last.png)、[900正文](../.dev-runtime/ui-pages/novel/frontend-design-20261011-N11-viewer-900-chapter-1.png)、[1440正文](../.dev-runtime/ui-pages/novel/frontend-design-20261011-N11-viewer-1440-chapter-1.png)、[报告](../.dev-runtime/ui-pages/novel/frontend-design-20261011-outline-import-review-390-900-1440-report.json)。
+
+## N08/N10 可见操作与禁用原因（2026-10-11）
+
+- 根因：章节/分部请求预览与大纲高级工具使用图标按钮，入口含义需要依赖悬停提示或回忆；候选审核在 JSON 未修改时禁用“保存并接受”，没有解释下一步条件。审核结构的可见 label 也没有和 textarea 关联。
+- 调整：请求预览与高级工具改成带 Lucide 图标的文字按钮；审核详情为 textarea 建立 label/id 关联，在未修改或其他操作进行时显示状态说明。写作工作面中文名称统一为“写作台”，章纲操作文案移除面向实现的 `LLM` 术语。未改请求、编辑或审核逻辑。
+- E2E 新增可见高级工具/预览文案、JSON label 关联和禁用原因断言。`npm run build`、三份 E2E 脚本的 `node --check`、`git diff --check` 通过。设计预算检查通过：CSS 源码 4,733 行 / 134,460 字节，构建 CSS 261,548 字节；palette 一致、界面 emoji 为 0，无依赖变更，均低于 +20% 上限。
+- 历史挂载诊断：4211 开发预览曾因系统临时目录资源不足报 `ERR_INSUFFICIENT_RESOURCES`，4222 生产预览曾进入错误边界；相关失败报告保留在 `.dev-runtime/ui-pages/novel/cdp-outline-preview-20261011/report.json`，不计为产品缺陷。
+- 2026-10-12 N08 证据一致性修正：专项 runner 在每个宽度的 `initial` 截图前显式收起原生设置 `<details>`，再单独生成 `settings` 截图，避免 390px 展开状态泄漏到 900/1440px。该修正只校准审查状态，不改变产品交互。
+- 2026-10-12 当前版 N08/N10 production preview 复核：将 WebDriver 临时目录移出已耗尽的系统 `/tmp` 后，`outline-preview.e2e.mjs` 直达 `/novel/1`，N08 分部/高级工具与 N10 队列/审核详情三宽度全部通过（4 passing，N11 单独跳过）；截图覆盖 390/900/1440px，页面 overflow=0，fixture/浏览器错误为 0，分析请求入口显示“查看分析模型请求”。当前截图：[N08 高级工具 390](../.dev-runtime/ui-pages/novel/frontend-design-20261011-N08-advanced-390.png)、[N10 队列 390](../.dev-runtime/ui-pages/novel/frontend-design-20261011-N10-import-queue-390.png)、[N10 审核详情 390](../.dev-runtime/ui-pages/novel/frontend-design-20261011-N10-review-detail-390.png)；报告：[N08/N10 三宽度](../.dev-runtime/ui-pages/novel/frontend-design-20261011-outline-import-review-390-900-1440-report.json)。
+- 2026-10-12 N01–N03 首轮 headful runner 曾遇系统 DPR 导致的 viewport mismatch，不作为产品失败。后续使用匹配 CSS 宽度的当前版矩阵重新截图并补足独立审图，见下节。
+
+## N01–N03 项目主工作面复核（2026-10-12）
+
+- 当前分支的项目概览、世界观、角色目录经 Vite 页面夹具路径复核；四个页面宽度为 1440/1024/900/390 CSS px，DPR=1、视觉缩放=1。3/3 个主路径通过；16 张初始截图和角色列表末项截图的 `scrollWidth - clientWidth` 均为 0，fixture 缺失、浏览器错误和断言发现均为 0。
+- 独立审图首轮实看 N01/N02/N03 的四宽度初态与角色列表末项，共 16 张。唯一发现是390px 项目页头标题被省略，读者难以辨认完整作品身份（P3）。项目页头在640px以下改为自然换行、字号16px；动作回调和入口不变。
+- 修复后，N01/N02/N03 当前路径在1440/1024/900/390px重跑 3/3。新增自动断言检查项目标题没有水平或垂直裁切；报告中的四宽度标题全文一致，页面溢出为0。独立复审实际看图10张（390/1024/1440三页初态及角色390末项），确认标题完整、操作无碰撞、桌面无回归；未发现新 P1/P2/P3。
+- 证据：[四宽度与完整标题报告](../.dev-runtime/ui-pages/novel/n01-n03-title-wrap-report.json)、[N01手机](../.dev-runtime/ui-pages/novel/n01-n03-title-wrap-N01-overview-390-initial.png)、[N02手机](../.dev-runtime/ui-pages/novel/n01-n03-title-wrap-N02-world-390-initial.png)、[N03手机初态](../.dev-runtime/ui-pages/novel/n01-n03-title-wrap-N03-characters-390-initial.png)、[N03列表末项](../.dev-runtime/ui-pages/novel/n01-n03-title-wrap-N03-characters-390-last.png)。
+- 生产构建、`node --check frontend/e2e/ui-page-audit/novel.e2e.mjs`、`git diff --check` 通过。设计预算：CSS源码4741行/134,567字节、构建CSS261,671字节；相对2026-10-10批准基线分别+0.91%、−2.41%、+1.63%，低于+20%；palette一致、UI emoji=0、无依赖变更。构建环境为Node 24.21.0（仓库要求Node 22），并保留既有大 chunk 警告。
+- 本节只关闭N01/N02/N03主工作面和共享页头项目标题问题；深层子工作面另见下节，不外推主页面结论。
+
+## N01–N03 深层、N08/N09 当前版复核（2026-10-12）
+
+- N01/N02 深层 Vite fixture 报告覆盖 18 个路径、176 条视口/状态记录，含完整梗概、蓝图编辑/版本比较与恢复、阶段/回滚/导出/事实反馈/内容关联、三种世界观编辑和完整设定；四宽度为 390/900/1024/1440，报告错误与意外请求均为0。独立审图复核窄屏与桌面任务路径无 P1/P2/P3。
+- 旧 N02 世界观截图有两处状态误标：结构化编辑的旧末态没有 sticky 保存栏，完整设定旧首屏已滚动到中段。当前证据已更换：390/900px 末字段截图显示不透明的“退出编辑 / 保存世界观”栏；完整设定 390/1440px `initial` 从“世界前提”开始。固定保存栏几何断言和文本/JSON/结构化编辑路径检查通过。
+- N01 版本列表将只有一个动作的省略号菜单改为就地“刷新版本”按钮；点击断言确认仍触发 `list_blueprint_versions`。内容关联图在 1024px 以下提供 Lucide“滑动画布查看”提示，1440px 隐藏。最终 Vite fixture 4/4（版本列表、390/900/1440图谱），三个宽度页面 overflow=0，错误/意外请求为0；独立审图无新 P1/P2/P3。报告：[当前版版本列表和图谱](../.dev-runtime/ui-pages/novel/visual-closeout-20261012-final-report.json)。第一次将源码夹具 E2E 指向静态预览时，夹具模块无法从 `/src` 导入，发生在页面挂载前；该运行不计产品失败，之后已用 Vite fixture runner 完成。
+- N03 深层报告覆盖 19 条路径、140 张状态截图与 390/900/1024/1440px；fixture 缺失、浏览器错误和报告异常均为0。成长线、声音指纹与立绘预览现有四宽度末态回归；立绘详情现有四宽度直接请求预览、焦点返回和重绘入口可达证据。390/1440 初末态经主流程实看无新问题。报告：[N03 深层路径](../.dev-runtime/ui-pages/novel/n03-deep-review-report.json)、[成长线与声音指纹末态](../.dev-runtime/ui-pages/novel/n03-readable-final-20261013-report.json)、[立绘缩放与焦点](../.dev-runtime/ui-pages/novel/n03-portrait-preview-final-r3-20261013-report.json)、[立绘管理操作](../.dev-runtime/ui-pages/novel/n03-portrait-detail-affordance-20261013-report.json)。
+- 旧 `materials-4-review` 的两项 N03 major 已由当前证据关闭：角色参考图计数在 390/1440px 滚到列表末尾后仍固定可见；立绘选择文件后显示“更换图片”，放大操作独立。N03/N04/N05 的摘要与角色/场景自定义标签也经当前截图复核，无新增 P1/P2/P3。成长线、声音指纹、立绘预览和立绘详情管理末态均已补验。证据：[参考图末态 390](../.dev-runtime/ui-pages/novel/n03-deep-review-N03-reference-selection-390-last.png)、[上传态 390](../.dev-runtime/ui-pages/novel/n03-deep-review-N03-portrait-upload-390-initial.png)、[人物标签 390](../.dev-runtime/ui-pages/novel/frontend-design-20261012-scene-modal-final-profile-summary-character-390.png)、[场景标签 390](../.dev-runtime/ui-pages/novel/frontend-design-20261012-scene-modal-final-profile-structured-label-390.png)。
+- N08 的章纲目录、分部详情、手工分部录入 3/3；390/900/1024/1440px 自动矩阵 24 条记录无错误/意外请求，独立审图覆盖 390/900/1440px 的 initial/last 共18张，无 P1/P2/P3。没有提交新增、编辑或生成动作。报告：[N08 深层路径](../.dev-runtime/ui-pages/novel/n08-deep-review-report.json)。
+- N09 当前生产预览 1/1，390/900/1440px 都有 `dialogOpacity=1`、`pageOverflow=0`；新增的记录标识副标题可见，完整 SHA-256 和路径仍在可聚焦的横向滚动区，独立审图确认 P3 已关闭。素材为 UI fixture，未写入图片。
+- 验证：Node 24.21.0 下 `npm run build` 通过，保留既有大 chunk 警告；设计预算 CSS 源 4,741 行 / 134,567 bytes、构建 CSS 262,524 bytes，较批准基线分别 +0.91%、−2.41%、+1.96%，低于 +20%；palette 匹配、UI emoji=0、依赖未变。仓库要求 Node 22，本机未提供。完整前端审查仍按逐项台账继续。
+
+## N03 管理记录与快照结果定位当前版复核（2026-10-13）
+
+- 历史图审曾指出快照详情/比较结果追加到列表末端，初始视口看不到；删除记录只有“显性/隐性”笼统分类；桌面快照属性三列挤窄长值。当前代码已把详情、状态和差异结果放进可聚焦的 `role="region"`，请求完成后自动定位；字段标题从原始 key 投影为可读属性名，并按宽度在桌面/手机使用不同的字段排列。
+- Chrome 153 当前版角色管理与快照路径在 1440/900/390px 共 48 个 initial/last 状态通过（行为、复审、属性、快照、删除、快照比较、快照状态、快照详情各三宽）；`overflow=0`、浏览器错误/意外请求/断言发现均为 0。快照比较结果在生成后立即进入视区，删除对象显示具体属性名，快照长值在桌面可读。
+- 390px 实看：比较结果、完整状态和删除记录均有稳定的页头/关闭入口；快照属性按纵向字段展开，末项可滚动到达，没有固定页脚遮挡。当前路径未执行回滚、删除或写回。
+- 证据：[当前报告](../.dev-runtime/ui-pages/novel/current-report.json)、[比较390初态](../.dev-runtime/ui-pages/novel/current-N03-snapshot-compare-390-initial.png)、[比较390末态](../.dev-runtime/ui-pages/novel/current-N03-snapshot-compare-390-last.png)、[状态390末态](../.dev-runtime/ui-pages/novel/current-N03-snapshot-state-390-last.png)、[删除390](../.dev-runtime/ui-pages/novel/current-N03-manage-deletion-390-last.png)。本项只验证 UI fixture 呈现与结果定位，不代表真实角色数据计算或写回服务端验收。
+
+## N10 蓝图归纳上下文说明核对（2026-10-12）
+
+- 旧独立审查中的 F2 是历史发现：项目上下文关闭时，蓝图归纳说明仍称使用当前项目资料。
+- 当前 `ImportToolsPanel` 根据 `reverseAutoContext` 切换“依据当前正文、简介、大纲和正式资料”与“依据下方样本文本”说明；既有 N10 浏览器路径验证关闭态、开启态、再次关闭态的文案，并确认切换后样本输入保留。流程未触发生成或写入，归纳行为没有改变。
+- F2 已关闭，不再作为当前问题。N10 审核详情的禁用原因也已在当前三宽度记录中复核；原始评审文件保留当时的判断，结论以本节和逐页台账为准。
+
+## N01 导出与 N08 大纲入口历史发现收敛（2026-10-12）
+
+- N01 导出的“结构数据”折叠项已有 Lucide `ChevronDown`，展开时提供状态反馈；原 E1 不再是当前问题。未实际下载导出文件，不扩大为导出合同验证。
+- N08 原 N08-01 至 N08-03 均有当前证据：章节卡整行可进入，右侧箭头提示去向，章节号/标题同时作为控件名称；页面摘要统一称“写作台”。分部详情使用“优化第 N 部大纲”，入口不再显示 `LLM`；分部页以带 Lucide 图标的“高级工具”文字按钮打开工具面板。当前 390/900/1440px 页面截图与深层路径没有发现新的视觉问题，不增加重复动作按钮。
+- 项目决策旧审查中的 L1（世界观输入树末项）现已由当前浏览器回归关闭：N01-lineage 在 390/1440px 展开蓝图原始结果的世界观地点列表并滚至“沿海邮路档案室”，2/2 通过；两宽 `last.reached=true`、`wheelSteps=3`、overflow=0、无浏览器发现。独立审图确认两宽目标名称/说明/ID 完整，无 P1/P2；1440px 图谱左缘有卡片超出当前画布视区（P3），底部水平滚动条可见，属于可平移画布范围，不是页面溢出。截图与报告见[逐页台账](./e2e/ui-page-audit/novel-review.md)。该结果只证明夹具呈现与末项可达性，不推断服务端数据正确性。
+
+## N01 内容关联详情列与画布宽度平衡（2026-10-12）
+
+- 根因：桌面详情栏固定 360px，深层世界观 JSON 多级缩进后值列偏窄；地点末项“沿海邮路档案室”在 1024/1440px 的“名称”值中最后一个字单独换行。
+- 修复：768–899px 保持 360px 详情栏；900px 起按 `clamp(380px, 38vw, 400px)` 扩宽。390、768、900、1024、1440px 的内容关联完整浏览器路径均通过，页面横向溢出为 0；节点、生成输入与最后一处地点均可达。原始回归的第一次 Chrome 会话在 fixture 初始化前断开，隔离工作树临时目录后重跑成功，不计为产品缺陷。
+- 独立截图复核无 P1/P2。768px 图谱右缘有节点被画布视口裁切，属于可通过横向浏览访问的 P3；横滑提示可见，详情扩宽按 900px 起生效，以保留平板图谱空间。静态图审未验证真实拖动或键盘操作。
+- 最终 `npm run build`、`check-design-budget.mjs` 与 `git diff --check` 通过。CSS 源 4,741 行 / 134,567 字节，构建 CSS 262,684 字节；相对批准基线分别 +0.91%、−2.41%、+2.03%，亮暗 palette 一致、UI emoji=0、无依赖变更。Node 24.21.0（仓库要求 Node 22），保留既有大 chunk 警告。
+- 最终截图：[390](../.dev-runtime/ui-pages/novel/visual-tailfix-v2-20261012-N01-lineage-390-last.png)、[768](../.dev-runtime/ui-pages/novel/visual-tailfix-final-20261012-N01-lineage-768-last.png)、[900](../.dev-runtime/ui-pages/novel/visual-tailfix-final-20261012-N01-lineage-900-last.png)、[1024](../.dev-runtime/ui-pages/novel/visual-tailfix-v2-20261012-N01-lineage-1024-last.png)、[1440](../.dev-runtime/ui-pages/novel/visual-tailfix-v2-20261012-N01-lineage-1440-last.png)。对应路径报告见 [390/1024/1440](../.dev-runtime/ui-pages/novel/visual-tailfix-v2-20261012-report.json)、[768/900 首轮](../.dev-runtime/ui-pages/novel/visual-tailfix-v3-20261012-report.json)、[768/900 最终断点](../.dev-runtime/ui-pages/novel/visual-tailfix-final-20261012-report.json)。
+
+## N01 图谱横向浏览提示按实际溢出显示（2026-10-13）
+
+- 根因：横向提示原先按 `lg` 断点隐藏；1440px 内容关联图仍有节点超出画布视口，桌面端只能从滚动条发现需要横向浏览。
+- 修复：用 `ResizeObserver` 监听画布视口与 canvas 尺寸，只在实际 `scrollWidth > clientWidth` 时显示现有 Lucide 双向箭头和“滑动画布查看”提示；不改变画布布局、缩放、选中或详情读取行为。
+- Chrome 153 N01-lineage 完整路径在 1440/900/768/390px 通过 4/4。四个宽度均有局部画布横向溢出时提示可见、页面 `overflow=0`，且浏览器错误、意外请求和断言发现均为 0；蓝图节点选择与生成输入查看仍可达。
+- 当前大图超出视口的节点仍需在画布内平移查看；该局部滚动属于图谱空间，页面没有横向溢出。最终截图及报告：[1440](../.dev-runtime/ui-pages/novel/n01-overflow-cue-20261013-N01-lineage-1440-graph.png)、[900](../.dev-runtime/ui-pages/novel/n01-overflow-cue-20261013-N01-lineage-900-graph.png)、[768](../.dev-runtime/ui-pages/novel/n01-overflow-cue-20261013-768-N01-lineage-768-graph.png)、[390](../.dev-runtime/ui-pages/novel/n01-overflow-cue-20261013-N01-lineage-390-graph.png)、[1440/900/390 报告](../.dev-runtime/ui-pages/novel/n01-overflow-cue-20261013-report.json)、[768 报告](../.dev-runtime/ui-pages/novel/n01-overflow-cue-20261013-768-report.json)。
+- `npm run build`、E2E `node --check` 和 `git diff --check` 通过；本次未增样式规则、依赖或图谱操作。
+
+## W04 导演时间线末段与横滑提示（2026-10-13）
+
+- 根因：900px 中屏时间线有 68px 横向溢出，但原提示只按窄工作区宽度显示，未提示实际溢出。
+- 修复：`DirectorTimeline` 用 `ResizeObserver` 监听可视区与轨道尺寸，只在 `scrollWidth > clientWidth` 时显示 Lucide“横向滑动”；无溢出时隐藏。没有改变时间线缩放、拖动、播放或编辑行为。
+- Chrome 153 `/video-project/3` 回归 4/4（1440/1024/900/390px）。390/900px 以真实横向滚轮到达最后镜头与最大滚动位置，分别为 `scrollLeft=338/68`；末段提示仍可见。四宽页面 overflow=0、浏览器错误与断言发现为0；独立复核无 P1/P2/P3。
+- 证据：[900初态](../.dev-runtime/ui-pages/novel/w04-timeline-cue-final-20261013-W04-director-900-initial.png)、[900末段](../.dev-runtime/ui-pages/novel/w04-timeline-cue-final-20261013-W04-director-900-timeline-end.png)、[390初态](../.dev-runtime/ui-pages/novel/w04-timeline-cue-final-20261013-W04-director-390-initial.png)、[390末段](../.dev-runtime/ui-pages/novel/w04-timeline-cue-final-20261013-W04-director-390-timeline-end.png)、[报告](../.dev-runtime/ui-pages/novel/w04-timeline-cue-final-20261013-report.json)。未执行真实上传或确认方案写入。
+- `npm run build`、设计预算、E2E `node --check` 与 `git diff --check` 通过。CSS 源 4,741 行 / 134,581 字节，构建 CSS 262,698 字节；相对批准基线分别 +0.91%、−2.40%、+2.03%，亮暗 palette 一致、UI emoji=0、无依赖变更。Node 24.21.0（仓库要求 Node 22），保留既有大 chunk 警告。
+
+## N03 成长线与声音指纹末态（2026-10-13）
+
+- 之前只有初始态截图，不能确认手机长内容末项和声音诊断展开状态。本次为现有 fixture 流程加入只读末态：校验 4 项成长阶段与 42% 进度；滚到最后阶段；声音指纹逐条核对 4 条短语/例句，再展开已有诊断并滚到完整 JSON。
+- Chrome 153 在 1440/1024/900/390px 两项路径 2/2；所有 16 份状态记录页面 overflow=0，浏览器错误、意外请求和断言发现均为 0。390/1440 初始与末态实看：成长阶段、进度唯一表达清楚；声音样本列表和按需诊断分层明确，末端完整可达。没有证据支持改产品布局或增加装饰。
+- 未调用模型或改写角色数据。报告：[四宽度成长线/声音末态](../.dev-runtime/ui-pages/novel/n03-readable-final-20261013-report.json)；本项只关闭 N03-arc、N03-voice 的末态证据。立绘子路径见后续两个 N03 结项；这不表示全站审查已结束。
+- E2E `node --check`、目标 Chrome 流程和 `git diff --check` 通过；只扩展现有审查脚本及台账，没有产品 CSS/依赖变更。
+
+## N03 立绘预览缩放与返回焦点（2026-10-13）
+
+- Chrome 153 在 1440/1024/900/390px 验证独立预览：打开后 Escape 关闭并返回原“图片预览”控件；重新打开后通过 Lucide 缩放控件从100%到175%，再用“重置图片视图”恢复100%。四宽末态重置入口均真实可达、页面 overflow=0，错误/意外请求/断言发现均为0。
+- 390/1440 初态和末态截图确认放大后局部查看、重置后的完整构图，以及底部缩放读数和三个操作的间距；没有新增遮挡或布局缺陷。末态使用实际可点击的重置按钮作为可达性锚点，避免把被动展示图误当成按钮。
+- 证据：[回归报告](../.dev-runtime/ui-pages/novel/n03-portrait-preview-final-r3-20261013-report.json)、[390 放大](../.dev-runtime/ui-pages/novel/n03-portrait-preview-final-r3-20261013-N03-portrait-preview-390-initial.png)、[390 重置](../.dev-runtime/ui-pages/novel/n03-portrait-preview-final-r3-20261013-N03-portrait-preview-390-last.png)、[1440 放大](../.dev-runtime/ui-pages/novel/n03-portrait-preview-final-r3-20261013-N03-portrait-preview-1440-initial.png)、[1440 重置](../.dev-runtime/ui-pages/novel/n03-portrait-preview-final-r3-20261013-N03-portrait-preview-1440-last.png)。
+- 本轮只增加审查路径覆盖，没有改产品组件、CSS 或依赖。本项只核销独立预览的缩放与返回焦点；立绘详情管理入口和全站余项见后续记录。
+
+## N03 立绘重绘请求入口可发现性（2026-10-13）
+
+- 根因：固定栏仅把一个次级动作“查看重绘模型请求”放在省略号菜单中；常用重绘动作已直显，辅助预览却需要先猜菜单内容。
+- 修复：在底栏用现有 Eye Lucide 和可见文案显示同一预览动作；沿用原 `onPreviewRegenerate` 回调、图像尺寸校验、忙碌态和禁用条件。重绘主按钮不变，不增加接口或操作。
+- Chrome 153 在 1440/1024/900/390px 回归 4/4：直接按钮触发原 `preview_regenerate_portrait_request`，请求仍绑定当前立绘和已选尺寸；Escape 关闭后焦点返回入口，未调用 `start_portrait_generation`。底部“重绘立绘”入口四宽均可达；页面 overflow、浏览器错误、意外请求、断言发现均为0。
+- 390/1440 截图实看：按钮文案与 Eye 图标完整，次级预览和主重绘操作分区清楚、未挤压。截图：[390 初态](../.dev-runtime/ui-pages/novel/n03-portrait-detail-affordance-20261013-N03-portrait-detail-390-initial.png)、[390 请求预览](../.dev-runtime/ui-pages/novel/n03-portrait-detail-affordance-20261013-N03-portrait-detail-390-request-preview.png)、[1440 初态](../.dev-runtime/ui-pages/novel/n03-portrait-detail-affordance-20261013-N03-portrait-detail-1440-initial.png)、[1440 请求预览](../.dev-runtime/ui-pages/novel/n03-portrait-detail-affordance-20261013-N03-portrait-detail-1440-request-preview.png)，[四宽报告](../.dev-runtime/ui-pages/novel/n03-portrait-detail-affordance-20261013-report.json)。
+- 修改未增加 CSS 规则、依赖或重绘行为；真实第三方生图和上传仍未执行。
+
+## MX08 画布运行状态历史末项（2026-10-13）
+
+- 旧证据只检查了失败原因和“定位节点”，390px 首屏下方的历史进度项没有通过真实滚动到达。
+- Chrome 153 在1440/1024/390px实测滚到最新状态面板末项；71%、59%、47%三条事件均完整呈现，最旧“47% 首帧和连续镜头已完成”进入可视区。三宽页面 overflow=0、浏览器错误和意外请求均为0；没有触发定位、继续、重试或画布写入。
+- 实看390/1024/1440初态与末态：手机与平板需在节点属性抽屉/面板内纵向浏览，末项可达且未被固定页脚遮挡；末态各行和失败原因层次保持清楚，没有新 P1/P2/P3。不增加常驻重复摘要，也不把正常长面板滚动改成页面溢出。
+- 证据：[390末态](../.dev-runtime/ui-pages/media/mx08-history-tail-final2-20261013-MX08-390-interaction.png)、[1024末态](../.dev-runtime/ui-pages/media/mx08-history-tail-final2-20261013-MX08-1024-interaction.png)、[1440末态](../.dev-runtime/ui-pages/media/mx08-history-tail-final2-20261013-MX08-1440-interaction.png)、[三宽报告](../.dev-runtime/ui-pages/media/mx08-history-tail-final2-20261013-report.json)。
+- 本轮只扩展现有审查脚本和记录，无产品 UI/CSS/依赖改动；服务端真实工作流恢复仍未执行。
+
+## W04 导演方案确认成功态（2026-10-13）
+
+- 原主路由只有草稿状态和时间线末段截图，确认后的状态变化缺少当前证据。本项使用清洁草稿夹具执行“校验 → 确认”UI 流程。
+- Chrome 153 在 1440/1024/900/390px 4/4：先发 `validate_chapter_visual_plan(mode=confirmed)`，成功后对同一 record/revision 发 `confirm_chapter_visual_plan`；状态变为“方案已确认”，主按钮转为“编辑新版本”。没有重复保存请求、图片/视频生成请求、浏览器错误或意外请求；四宽页面 overflow=0。
+- 初态与成功态实看 390/1440：确认入口位于章节标题/草稿状态操作组，确认后名称和状态位置稳定，主动作单一且明确；手机无挤压或遮挡。操作使用 fixture response，不代表服务端持久化。
+- 证据：[四宽完整报告](../.dev-runtime/ui-pages/novel/w04-confirm-plan-20261013-report.json)、[390 初态](../.dev-runtime/ui-pages/novel/w04-confirm-plan-20261013-W04-confirm-plan-390-initial.png)、[390 确认后](../.dev-runtime/ui-pages/novel/w04-confirm-plan-20261013-W04-confirm-plan-390-verified.png)、[1440 初态](../.dev-runtime/ui-pages/novel/w04-confirm-plan-20261013-W04-confirm-plan-1440-initial.png)、[1440 确认后](../.dev-runtime/ui-pages/novel/w04-confirm-plan-20261013-W04-confirm-plan-1440-verified.png)。
+- 仅扩展既有 UI 审查脚本与台账；没有修改产品确认合同、CSS 或依赖。真实服务端确认和方案持久化仍未验收。
+
+## W04 点位图片上传忙碌态（2026-10-13）
+
+- 根因：选择图片后立即上传并保存草稿，但上传控件只禁用文件输入，等待期间仍写“上传本地图片”，没有进度状态。
+- 修复：同一按钮位置在上传时显示现有 Lucide `LoadingSpinner` 与本地化“上传中…”；完成后恢复上传图标和文案。文件选择、上传、采用图片及保存草稿链路不变，添加 `aria-busy` 和 `role=status` 表达忙碌状态。
+- Chrome 153 在1440/1024/900/390px 4/4；16个状态报告 overflow/错误/意外请求/断言发现均0。延迟 fixture 验证上传中 spinner/文案可见且 input 禁用；放行本地 fixture 后上传 payload 含目标项目/章节/文件信息，草稿回包引用图片且预览加载。不是实际服务器持久化验收。
+- 390/1440 上传中截图实看：按钮原位切换，双操作行、输入、生成尺寸和底栏的间距未改变。截图：[390](../.dev-runtime/ui-pages/novel/w04-upload-feedback-final-20261013-W04-point-upload-390-uploading.png)、[1440](../.dev-runtime/ui-pages/novel/w04-upload-feedback-final-20261013-W04-point-upload-1440-uploading.png)、[四宽报告](../.dev-runtime/ui-pages/novel/w04-upload-feedback-final-20261013-report.json)。
+- 改动复用现有依赖和样式规则，无新增 CSS 规则；真实服务端文件上传、确认方案持久化仍未验收。
+
+## N01 内容关联图键盘平移（2026-10-13）
+
+- 根因：内容关联图已有横向滚动提示，但画布滚动容器没有焦点入口，键盘用户无法平移到视口外节点。
+- 修复：图谱滚动容器增加可聚焦语义、焦点环和本地化辅助标签；方向键平移 120px，Shift+方向键平移 240px。鼠标点击节点、滚轮缩放、详情读取和现有滚动条行为保持不变。
+- Chrome 153 N01-lineage 在 1440/900/390px 通过 3/3：实际聚焦容器后按 ArrowRight，scrollLeft 分别增加 126/120/120；焦点标签正确，页面 overflow=0，浏览器错误/意外请求/断言发现均为0，原节点选择和输入查看路径仍通过。
+- 390px 实看截图显示滚动后节点内容仍清楚，方向提示与缩放控件不重叠；不增加常驻说明文字。报告：[键盘平移回归](../.dev-runtime/ui-pages/novel/n01-keyboard-pan-20261013-report.json)、[390图谱](../.dev-runtime/ui-pages/novel/n01-keyboard-pan-20261013-N01-lineage-390-graph.png)。
+- 新增仅为现有画布的键盘可发现性增强；无新依赖，CSS 仅使用已有 utility，设计预算仍在限制内。
+
+## N03 立绘筛选与卡片说明可读性（2026-10-13）
+
+- 当前 Chrome 153 回归覆盖 390/900/1024/1440px 三种状态；12 个角色筛选全部可达，末项“沈照”能选中并显示对应空态。桌面 12 个角色完整显示，手机横滑可到末项且选中状态清楚；档案/立绘切换在初始视图可见，末态截图只是已滚到图库下方。
+- 复验同时复现一个独立的手机卡片问题：狭窄卡片里的立绘类型与表情共用一行并分别截断，难以辨认相近变体。现允许元信息按可用宽度换行，表情采用略深字色和中等字重；卡片填满所在网格行，使多行说明不会造成同排底边错位。筛选回调、卡片操作、图片及人物数据不变。
+- E2E 现对元信息横向裁切和同排卡片底边做断言；四宽度 4/4 通过，12 个状态均为页面 overflow=0、浏览器错误/意外请求/断言发现 0。独立实屏复审确认入口、字号层级、卡片对齐和桌面密度，无剩余 P1/P2/P3。
+- 证据：[四宽报告](../.dev-runtime/ui-pages/novel/n03-portrait-cards-final-20261013-report.json)、[390初态](../.dev-runtime/ui-pages/novel/n03-portrait-cards-final-20261013-N03-portraits-390-initial.png)、[390末态](../.dev-runtime/ui-pages/novel/n03-portrait-cards-final-20261013-N03-portraits-390-last.png)、[1440初态](../.dev-runtime/ui-pages/novel/n03-portrait-cards-final-20261013-N03-portraits-1440-initial.png)。当前图片是固定审查夹具，未验证真实立绘质量或服务端数据。
+- 改动仅用既有 Lucide/主题 token 与 Tailwind utility，无外部依赖和新增 CSS 源规则。生产构建与设计预算通过：CSS 源 4,740 行/134,563 字节，构建 CSS 263,919 字节；相对批准基线 +0.89%/−2.41%/+2.50%，palette 一致、UI emoji=0。
+
+## N03 一致性检测结果范围（2026-10-13）
+
+- 旧审查指出全项目检测按钮像重置操作，结果区没有确认实际范围。修复后，结果列表前显示“本次范围：全项目”；手工起止章会派生为对应区间，单边范围也会明确标注起点或终点。标签读取既有筛选草稿；筛选变化仍按原逻辑清除旧结果，没有新增状态、请求参数或检测行为。
+- Chrome 153 的现有一致性流程在 390/900/1024/1440px 四宽通过；12 个状态覆盖初始全项目、切换到第 1–3 章后的新结果和末项。范围变化会先清空旧发现，新标签跟随当前起止章更新；每条结果仍有章节归属，页面 overflow、浏览器错误、意外请求和断言发现均为0。
+- 独立审图确认范围标签紧邻结果、全项目与自定义区间均清楚，390px 两条结果完整可见，桌面无挤压；无剩余 P1/P2/P3。首轮文字断言因中文冒号后多余空格未匹配；移除多余空格后重跑通过。
+- 证据：[范围与旧结果清理报告](../.dev-runtime/ui-pages/novel/n03-consistency-scope-final-r3-20261013-report.json)、[390全项目初态](../.dev-runtime/ui-pages/novel/n03-consistency-scope-final-r3-20261013-N03-consistency-390-initial.png)、[390自定义范围](../.dev-runtime/ui-pages/novel/n03-consistency-scope-final-r3-20261013-N03-consistency-390-verified.png)、[1440自定义范围](../.dev-runtime/ui-pages/novel/n03-consistency-scope-final-r3-20261013-N03-consistency-1440-verified.png)。路径使用 UI fixture；没有调用真实模型或服务端，范围筛选服务端行为仍未验收。
+- `npm run build`、设计预算、E2E `node --check` 和 `git diff --check` 通过；CSS 源 4,740 行/134,563 字节、构建 CSS 263,919 字节，较批准基线 +0.89%/−2.41%/+2.50%，无依赖变化、palette 一致、UI emoji=0。Node 24.21.0，仓库要求 Node 22 的环境不可用；构建保留既有大 chunk 警告。
+
+## MX20 单节点运行确认输入来源（2026-10-13）
+
+- 根因：旧确认文案用“已保存输入，或上游最近一次完成结果”并列两种来源，没有说明使用规则。单节点准备只把所选节点放入本次 runnable 列表；上游不会自动执行。已保存的普通输入继续使用，上游操作节点只有最近成功结果可复用；没有结果时应先使用“运行到此节点”。后端依据见 `crates/host/a4n-orchestrator/src/canvas/graph_execution/preparation.rs`、`source_checkpoint.rs` 与 `source_text.rs`。
+- 夹具中的目标 6005「连续镜头」接收 6002「镜头描述模板」的操作结果和 6004「书店首帧」的已保存图片。6002 没有已保存运行结果时，单节点执行会在上游解析处失败；本项只核实确认/取消 UI，不发起节点运行或模型调用。
+- 修复：中英文提示改为“已保存输入会沿用；上游操作节点复用最近成功结果。无结果时先运行到此节点。”英文同步明确规则。未改运行逻辑、API、权限、按钮回调、CSS 或依赖。
+- Chrome 153 在 390/900/1024/1440px 回归 4/4：确认框始终指向 6005「连续镜头」，取消后保留节点选择且未调用 `run_canvas_node`；页面 overflow、浏览器错误、意外请求均为 0。独立实屏复审确认输入规则可理解、手机断词已消失、所有按钮可见；无 P1/P2/P3。
+- 证据：[四宽报告](../.dev-runtime/ui-pages/media/mx20-source-rule-closeout-20261013-report.json)、[390](../.dev-runtime/ui-pages/media/mx20-source-rule-closeout-20261013-MX20-390.png)、[900](../.dev-runtime/ui-pages/media/mx20-source-rule-closeout-20261013-MX20-900.png)、[1024](../.dev-runtime/ui-pages/media/mx20-source-rule-closeout-20261013-MX20-1024.png)、[1440](../.dev-runtime/ui-pages/media/mx20-source-rule-closeout-20261013-MX20-1440.png)。这是 UI fixture 回归，不代表真实工作流或模型服务已执行。
+- `npm run build`、`node --check e2e/ui-page-audit/media.e2e.mjs`、`check-design-budget.mjs` 与 `git diff --check` 通过。CSS 4,740 行/134,563 字节，构建 CSS 263,919 字节；较批准基线 +0.89%/−2.41%/+2.50%，palette 一致、UI emoji=0，无新增 CSS 或依赖。构建环境为 Node 24.21.0（仓库要求 Node 22），保留既有大 chunk 警告。
+
+## MG11 续跑与指定阶段重新生成范围（2026-10-13）
+
+- 旧独立审图记录了“继续生成”和“从头开始”同时可见的冲突。当前 UI 中，不选起点时可续跑任务的主按钮显示“继续生成”；选择“资产意图”后，同一主按钮显示“从资产意图重新生成”，阶段选择器也同步显示“资产意图”。
+- 源码路径核对确认按钮文案读取 `pipelineStartStage`，运行输入也使用同一个值写入 `start_from_stage`。后端遇到指定起点时保留其之前阶段的 checkpoint、清理该起点及后续 checkpoint，因此续跑与阶段重生成可以组合：复用前序成果，从选定阶段重新生成。
+- 修正审查路径：原 MG11 用例在外层“场景投影（只读）”折叠区未打开时查找内层生成选项，错选了隐藏的只读投影。现先展开场景投影，再在窄屏选择含生成控件的“场次”面板；不改产品布局或执行逻辑。共享导航也用于 MG12 请求预览回归。
+- Chrome 153 在 390/900/1024/1440px 验证 MG11 4/4：初态主按钮为“继续生成”，选择“资产意图”后主按钮为“从资产意图重新生成”；没有调用 `start_galgame_pipeline`。四宽页面 overflow、浏览器错误、意外请求均为 0。MG12 请求预览使用同一入口路径，四宽度 4/4 通过，独立视觉复核见下节。
+- 独立实屏复审确认续跑/重生成范围、当前失败阶段及已保存内容提示清楚；390px 操作与失败说明完整可见，900/1024/1440 无可见裁切或重叠；无 P1/P2/P3。旧 major 只作为历史记录保留。
+- 证据：[MG11 四宽报告](../.dev-runtime/ui-pages/media/mg11-source-rule-final2-20261013-report.json)、[390 初态](../.dev-runtime/ui-pages/media/mg11-source-rule-final2-20261013-MG11-390.png)、[390 选定阶段](../.dev-runtime/ui-pages/media/mg11-source-rule-final2-20261013-MG11-390-interaction.png)、[1440 初态](../.dev-runtime/ui-pages/media/mg11-source-rule-final2-20261013-MG11-1440.png)、[1440 选定阶段](../.dev-runtime/ui-pages/media/mg11-source-rule-final2-20261013-MG11-1440-interaction.png)。回归使用状态 fixture，没有执行真实模型管线。
+- 本项只修正审查脚本的工作区打开路径并增加主按钮状态断言；无产品 CSS、依赖、API 或权限变更。`node --check` 与 `git diff --check` 通过。
+
+## MG12 Galgame 请求预览（2026-10-13）
+
+- 任务/频率：生成前查看提示内容及模型、模板来源；高频但只读。注意顺序是当前步骤与“不会发送请求”说明 → 模型/模板 → 消息正文 → 完整请求/上下文详情。
+- Chrome 153 四宽度（390/900/1024/1440px）功能断言 4/4 通过，页面横向溢出、浏览器错误和意外请求均为 0。路径只调用 `preview_galgame_pipeline_request`，未调用 `start_galgame_pipeline`；未向真实模型发送请求。
+- 独立复核覆盖 390/900/1024/1440px，无 P1/P2/P3。模型、模板、系统/用户消息完整可读；关闭、逐条复制、完整请求、上下文详情与复制全部入口可见或可在弹窗内滚动到达。步骤卡中的技术副标签会省略，但同一信息在模型/模板正文区域完整呈现，不影响辨认当前步骤。
+- 证据：[四宽报告](../.dev-runtime/ui-pages/media/mg12-request-preview-final-20261013-report.json)、[390](../.dev-runtime/ui-pages/media/mg12-request-preview-final-20261013-MG12-390.png)、[900](../.dev-runtime/ui-pages/media/mg12-request-preview-final-20261013-MG12-900.png)、[1024](../.dev-runtime/ui-pages/media/mg12-request-preview-final-20261013-MG12-1024.png)、[1440](../.dev-runtime/ui-pages/media/mg12-request-preview-final-20261013-MG12-1440.png)。
+- 四宽度无需产品改动；仅补齐 1024px 独立视觉复核与台账，保持既有预览和生成行为不变。
+
+## MG13 Galgame 重置确认（2026-10-13）
+
+- 任务/频率：低频高后果；确认前核对会删除哪些生成数据、会保留哪些来源与项目数据，并安全退出。
+- 初审发现 390px 下全宽红色「重置」在白色「取消」上方，误触风险高于桌面。根因是共用弹窗页脚在窄屏反转 DOM 顺序。危险确认现将取消放在视觉和键盘顺序前，重置留在末位；桌面仍为取消在左、重置在右，所有文案、回调、API 与重置条件保持不变。
+- Chrome 153 在 390/900/1024/1440px 通过 4/4：各宽度核对删除/保留范围、不可恢复提示和按钮顺序；分别点击取消、按 Escape 退出，`reset_project_generated_data` 均未调用。页面 overflow、浏览器错误、意外请求均为 0。独立审图者复核修复后四张截图，无 P1/P2/P3。
+- 证据：[四宽报告](../.dev-runtime/ui-pages/media/mg13-reset-order-final-20261013-report.json)、[390](../.dev-runtime/ui-pages/media/mg13-reset-order-final-20261013-MG13-390.png)、[900](../.dev-runtime/ui-pages/media/mg13-reset-order-final-20261013-MG13-900.png)、[1024](../.dev-runtime/ui-pages/media/mg13-reset-order-final-20261013-MG13-1024.png)、[1440](../.dev-runtime/ui-pages/media/mg13-reset-order-final-20261013-MG13-1440.png)。旧 390px 顺序问题截图见 `mg13-reset-final-20261013-MG13-390.png`。
+- 仅对现有危险确认按钮添加响应式顺序 utility，无新增 CSS 源规则或依赖。`npm run build` 与设计预算通过：CSS 源 4,740 行/134,563 字节、构建 CSS 263,996 字节；主题色匹配、界面 emoji=0。构建环境 Node 24.21.0（项目要求 Node 22），保留既有大 chunk 警告。
+- 2026-10-14 当前共享确认弹窗样式变更后复验：Chrome 153 四宽度仍 4/4，删除/保留文案及不可恢复提示完整；390px 按钮尺寸 356×44px，取消在重置之前，900/1440顺序为取消在左、重置在右。四宽分别点取消并按 Escape 退出，`reset_project_generated_data` 未调用；overflow/错误/意外请求为0。独立审图复核390/900/1440无 P1/P2/P3；本轮未改产品代码、样式或依赖。证据：[390](../.dev-runtime/ui-pages/media/mg13-visual-20261014-MG13-390.png)、[390交互后](../.dev-runtime/ui-pages/media/mg13-visual-20261014-MG13-390-interaction.png)、[900](../.dev-runtime/ui-pages/media/mg13-visual-20261014-MG13-900.png)、[1440](../.dev-runtime/ui-pages/media/mg13-visual-20261014-MG13-1440.png)、[四宽报告](../.dev-runtime/ui-pages/media/mg13-visual-20261014-report.json)。
+
+## MS01–MS03 来源同步冲突当前版复核（2026-10-13）
+
+- 任务/频率：低频但涉及跨项目资料一致性；先读来源与当前改编的差异，再按需保留本地或重新检查，最后安全退出。当前只读预览不替代应用决定。
+- Chrome 153 在漫画、视频、Galgame 三类派生项目的 1440/900/390px 共 9 条路径通过；每条均显示三条冲突、来源与当前项目两列摘要，390px 自然上下排列，三条冲突可通过真实滚动到达末项。页面 `overflow=0`，浏览器错误和意外请求均为 0。
+- 冲突类型和领域名称保持准确：漫画显示“生成内容”，视频显示“片段”，Galgame 显示“Galgame 场次”；固定底栏的“重新检查 / 应用安全更新”与当前只读预览分层清楚。退出后没有调用 `apply_source_sync_decisions` 或 `detach_derived_project`。
+- 390px 实看：标题、冲突级别、来源变化、当前项目、保留当前按钮与底部操作均未碰撞；长摘要在卡片内换行，诊断按需折叠，不增加常驻说明。1440px 两列对照保持足够阅读宽度。
+- 证据：[当前版报告](../.dev-runtime/ui-pages/media/current-report.json)、[漫画390](../.dev-runtime/ui-pages/media/current-MS01-390.png)、[视频390](../.dev-runtime/ui-pages/media/current-MS02-390.png)、[Galgame390](../.dev-runtime/ui-pages/media/current-MS03-390.png)、[三类末项截图](../.dev-runtime/ui-pages/media/current-MS01-390-conflicts-end.png)。本轮只做 UI fixture 预览与滚动读取，没有应用同步、解绑来源或写入服务端。
+
+## 派生改编计划字段语义修复（2026-10-13）
+
+- `AdaptationPlanView` 的只读字段此前直接渲染 `<dt>/<dd>`，缺少合法的 `<dl>` 容器，视觉不变但读屏结构不完整。
+- 现将每个只读字段容器改为 `<dl>`，保留原有网格、间距、换行和响应式布局，不改变计划数据、编辑行为或保存合同。
+- `npm run build` 通过；本次设计预算仍为 CSS 源 4,740 行 / 134,563 字节、构建 CSS 263,996 字节，palette 一致、UI emoji=0、无依赖变化。
+
+## MV12/MV13/MV17 视频输入阻塞态当前版复核（2026-10-13）
+
+- 审查脚本原先按 640px 硬编码阶段入口；产品在 1280px 以下已切换为阶段选择器，导致 900px 旧脚本误报不可点击。现按实际可见控件选择阶段，不改产品交互。
+- Chrome 153 当前版在 1440/900/390px 的首尾帧、首帧续接和未准备首尾帧共 9/9 通过；`overflow=0`、浏览器错误/意外请求均为 0。MV17 的“请先准备当前片段的首尾帧提示词”在三宽度 DOM 各出现 1 次，最终提示词按钮保持禁用。
+- 本项只修正 E2E 导航条件并补充当前证据，没有改变视频输入、生成或禁用逻辑。报告与截图在 `.dev-runtime/ui-pages/media/current-report.json`、`current-MV12/13/17-*`；未执行真实模型生成。
+
+## 全局视觉矩阵夹具收敛（2026-10-13）
+
+- 原 `ui-visual.e2e.mjs` 只安装轻量视觉夹具，却覆盖写作、漫画、视频、Galgame、画布和认证路由，导致真实页面请求被误报为缺失 fixture。现改用已有 `buildPageFixtures`，补齐章节索引、媒体工作区和只读 OAuth provider 响应；没有改产品 API 或页面逻辑。
+- 默认 UI presentation Vite 配置下，25 个视觉场景通过，生成 144 条宽度/主题记录：亮/暗主题、1440/1024/390px、首页/写作/设置/主题/提示词/Agent/灵感/项目/漫画/视频/Galgame/画布/认证、对话框状态及 reduced-motion 均覆盖；页面 overflow、裁切控件、标题重叠、浏览器错误、意外请求和 UI emoji 断言均为 0。
+- 对首页、设置、Agent、认证及主要对话框的 390px 状态再运行 deterministic layout audit，共 18 条审计记录，finding=0；没有发现控件越界、标题与操作重叠或局部布局失衡。
+- 媒体视觉场景进一步断言所有可视图片已完成解码；漫画、视频、Galgame 的可视图片无 broken image，截图使用确定性本地 SVG fixture，真实媒体质量仍由媒体专用回归单独验收。
+- 当前共享控件交互回归 17/17 通过，覆盖弹窗层级 Escape、焦点回返、Tab 循环、原生 disclosure、组合框键盘/IME、只读值保护、文本 Home/End、菜单键盘路径和快捷工具发现性。
+- 这项修复让视觉矩阵的失败真正代表页面问题；媒体图片的专用生成/解码证据仍以 `media.e2e.mjs` 的生产 fixture 为准，不把轻量视觉矩阵冒充真实媒体质量验收。
+
+## A10 Agent 预算弹窗当前样本复核（2026-10-13）
+
+- 任务/频率：继续已有任务前查看共享预算与各项新上限；按需。信息顺序是“已有用量不清零”及已确认总量 → 模型步骤/模型调用/工具调用/token 总限额 → 继续任务。
+- 定向 Chrome 153 回归在 390/900/1440px 3/3 通过：本地化用量文案为“已确认 6,000 token”，四个输入分别为 24/16/8/12000；继续按钮在各宽度可达，页面 overflow、错误和意外请求均为 0。没有提交预算修改或继续任务。
+- 独立审图确认三宽度无 P1/P2/P3。390px 字段自然单列，关闭/继续按钮完整；900/1440px 为 2×2 字段，说明、标签与按钮无裁切。旧合并矩阵中的样本文案失败保留为历史记录，不代表当前定向路径失败。
+- 证据：[三宽报告](../.dev-runtime/ui-pages/home-agent/home-agent-a10-final-20261013-report.json)、[390](../.dev-runtime/ui-pages/home-agent/home-agent-a10-final-20261013-A10-budget-390-initial.png)、[900](../.dev-runtime/ui-pages/home-agent/home-agent-a10-final-20261013-A10-budget-900-initial.png)、[1440](../.dev-runtime/ui-pages/home-agent/home-agent-a10-final-20261013-A10-budget-1440-initial.png)。
+
+## SD07 主题批量删除对象核对（2026-10-13）
+
+- 任务/频率：偶发但不可逆；按已勾选对象核对名称与数量 → 确认或取消。
+- 初审发现批量删除确认框只显示“删除 2 个主题”及不可撤销提示，没有列出主题名称；背景模糊后无法复核具体对象，判为 P2。
+- 修复：确认文案列出同一组 `deletableTargets` 中实际将删除的主题名称，使用编号列表置于不可撤销提示之前；删除筛选、按钮数量、回调与 API 不变。正文沿用已有弹窗滚动区，长列表可滚动查看。
+- Chrome 153 在 390/900/1440px 回归通过：15 张状态截图覆盖菜单、重命名草稿、选择、确认和结果；确认框三宽度都检查两个具体主题名、数量与不可撤销提示，390px 取消按钮在删除按钮上方，桌面取消在左。首次取消后 `delete_theme` 调用数仍为 0；随后仅由本地 UI fixture 模拟确认删除两项，列表保留内置与当前主题。overflow、浏览器错误和意外请求均为 0。
+- 独立审图覆盖 15 张当前分支截图，首审 P2 仅为缺少对象名称；修复后独立复核三宽确认截图无 P1/P2/P3。390px 重命名 toast 短暂覆盖卡片下缘，但不遮住选择数量或批量删除入口，不单列缺陷。
+- 证据：[三宽报告](../.dev-runtime/ui-pages/settings-details/sd07-theme-confirm-names-20261013-2026-10-12T22-14-06-999Z/settings-details-report.json)、[390 确认](../.dev-runtime/ui-pages/settings-details/sd07-theme-confirm-names-20261013-2026-10-12T22-14-06-999Z/SD07-theme-more-rename-bulk-bulk-confirmation-390.png)、[900 确认](../.dev-runtime/ui-pages/settings-details/sd07-theme-confirm-names-20261013-2026-10-12T22-14-06-999Z/SD07-theme-more-rename-bulk-bulk-confirmation-900.png)、[1440 确认](../.dev-runtime/ui-pages/settings-details/sd07-theme-confirm-names-20261013-2026-10-12T22-14-06-999Z/SD07-theme-more-rename-bulk-bulk-confirmation-1440.png)。历史独立审图的旧截图缺口仍保留在其原记录中，不用新证据覆盖旧快照边界。
+- 仅更新确认文案与测试断言，没有新增 CSS 或依赖。`npm run build`、设计预算、`node --check` 和 `git diff --check` 通过；CSS 源 4,740 行/134,563 字节，构建 CSS 263,996 字节，配色匹配、界面 emoji=0。构建使用 Node 24.21.0（项目要求 Node 22），保留既有大 chunk 警告。
+
+## SD16 日志筛选反馈不遮内容（2026-10-13）
+
+- 任务/频率：按需读取运行日志并应用等级过滤；日志正文是诊断主面，筛选状态与应用结果提供辅助上下文。
+- 独立审图在 390px 发现应用级别后的绿色成功 toast 固定在底部，短暂遮住日志末尾（P3）；它未挡筛选按钮，900/1440px 没有遮挡。根因是全局 toast 在顶部候选覆盖控件时退到底部，无法避开长日志内容。
+- 修复：仅日志级别设置成功反馈改为紧邻「应用级别」按钮的内联 `role="status"`；编辑筛选值或再次应用时清除旧状态。真实读取/设置请求、错误 toast 与筛选行为不变。
+- Chrome 153 三宽度 3/3、三状态共 9 张截图通过：日志正文、过滤级别/位置和应用结果均可读；成功状态不再显示全局 toast，末行无遮挡。E2E 显式响应 UI fixture 的 `set_log_level`，并验证编辑输入后旧成功状态消失，未触发真实日志配置写入。页面 overflow、错误和意外请求均为 0。独立复审修复后应用态无 P1/P2/P3。
+- 证据：[三宽报告](../.dev-runtime/ui-pages/settings-details/sd16-inline-success-final-20261013-2026-10-12T22-25-52-497Z/settings-details-report.json)、[390 应用态](../.dev-runtime/ui-pages/settings-details/sd16-inline-success-final-20261013-2026-10-12T22-25-52-497Z/SD16-runtime-logs-log-level-applied-390.png)、[900 应用态](../.dev-runtime/ui-pages/settings-details/sd16-inline-success-final-20261013-2026-10-12T22-25-52-497Z/SD16-runtime-logs-log-level-applied-900.png)、[1440 应用态](../.dev-runtime/ui-pages/settings-details/sd16-inline-success-final-20261013-2026-10-12T22-25-52-497Z/SD16-runtime-logs-log-level-applied-1440.png)。
+- 无新增依赖或 CSS 源规则；生产构建与设计预算通过，CSS 源 4,740 行/134,563 字节、构建 CSS 263,996 字节、palette 匹配、UI emoji=0。
+
+## SD05 主题编辑器当前版实屏复核（2026-10-13）
+
+- 任务/频率：偶发主题定制；主题身份与模式 → 色彩 token → 表面效果和背景 → 流式显示/高级 token → 保存或取消。
+- Chrome 153 当前版在 390/900/1440px 复核六种编辑状态，共18张截图；`overflow=0`、浏览器错误和意外请求为 0。主题名称、颜色名称/数值、滑杆标签/当前值、背景定位/尺寸及高级 Token 字段均可读；手机保存/取消固定可达，编辑区可滚动，900px 双列与1440px 多列保留清晰对齐。
+- 独立复审无 P1/P2/P3。主题保存请求被 UI fixture 接收并显式响应，只验证浏览器交互与草稿显示，不代表真实服务器主题持久化。
+- 证据：[三宽报告](../.dev-runtime/ui-pages/settings-details/sd05-theme-editor-current-20261013-2026-10-12T22-28-58-446Z/settings-details-report.json)、[390 顶部](../.dev-runtime/ui-pages/settings-details/sd05-theme-editor-current-20261013-2026-10-12T22-28-58-446Z/SD05-theme-editor-editor-top-390.png)、[390 背景](../.dev-runtime/ui-pages/settings-details/sd05-theme-editor-current-20261013-2026-10-12T22-28-58-446Z/SD05-theme-editor-editor-background-390.png)、[1440 顶部](../.dev-runtime/ui-pages/settings-details/sd05-theme-editor-current-20261013-2026-10-12T22-28-58-446Z/SD05-theme-editor-editor-top-1440.png)。
+- 此项未修改产品代码或 CSS；当前版独立审图覆盖不替代原 R 目录旧截图记录，后者仍保留其未看清单。
+
+## SD11 管理项目列表当前版复核（2026-10-13）
+
+- 旧 `final-extras` 样本曾把项目类型显示为“未知”；复核确认原因是混合夹具样本，不是管理项目列表的产品行为，当前证据改用 `novel_long` 项目类型。
+- Chrome 153 当前版在 390/900/1440px 打开管理 → 项目并展开归属诊断，三宽状态均显示“长篇小说 · 写作中”、12 / 24 章、项目编号 1 和用户编号 1；页面溢出、浏览器错误与意外请求均为 0。390px 项目标题按现有列表规则省略，但类型、状态、章节数和编号足以识别当前项目。
+- 独立审图复核三张当前截图，无 P1/P2/P3；桌面标题完整，手机导航与诊断信息未碰撞。旧 `final-extras` 下的 900px 历史截图清单仍保留，不能与当前三宽证据混为一谈。
+- 证据：[三宽报告](../.dev-runtime/ui-pages/settings-details/sd11-admin-projects-current-20261013-2026-10-12T22-35-02-837Z/settings-details-report.json)、[390](../.dev-runtime/ui-pages/settings-details/sd11-admin-projects-current-20261013-2026-10-12T22-35-02-837Z/SD11-admin-projects-projects-with-diagnostics-390.png)、[900](../.dev-runtime/ui-pages/settings-details/sd11-admin-projects-current-20261013-2026-10-12T22-35-02-837Z/SD11-admin-projects-projects-with-diagnostics-900.png)、[1440](../.dev-runtime/ui-pages/settings-details/sd11-admin-projects-current-20261013-2026-10-12T22-35-02-837Z/SD11-admin-projects-projects-with-diagnostics-1440.png)。
+- 本项只补齐当前版浏览器与独立审图证据，没有改产品代码、样式或依赖；fixture 响应不代表真实服务端权限或数据持久化验收。
+
+## 全局 Toast 避让与视口边距（2026-10-13）
+
+- 主题重命名成功提示原先固定在左下角，会覆盖设置侧栏的「日志」入口。现按可见交互控件避让，必要时收窄通知，并统一保留 16px 视口边距；定位观察器只在 Toast 显示期间工作。通知文案、时长、关闭按钮和操作回调不变。
+- Chrome 153 的主题重命名路径 1/1 通过；1440/1024/390px 三宽均断言设置控件无遮挡、页面横向溢出为 0、Toast 距离视口边缘至少 15px。当前桌面截图由独立审图复核，无 P1/P2/P3；窄屏结论来自真实浏览器测量。
+- 证据：[Toast 成功态](../.dev-runtime/ui-details/theme-rename-toast-collision.png)。测试通过本地 UI fixture 接收 `update_theme`，不代表真实服务端持久化。
+- `npm run build`、设计预算、E2E 语法与 `git diff --check` 通过；设计预算结果为 CSS 源 4,740 行/134,563 字节、构建 CSS 263,658 字节，palette 匹配、UI emoji=0，无新增依赖。
+
+## Galgame 场次跳转图标统一（2026-10-13）
+
+- 场次卡片用文本箭头 `→` 表示下一场，改为已有 Lucide 的 `ArrowRight` 图标；保留分隔点、下一场文案、分支校验颜色和点击行为。图标为装饰信息并设置 `aria-hidden`，读屏仍读取原文案。
+- 修正 MG01 审查助手：先展开原有「场景投影（只读）」区域，再用真实滚轮定位到场次行；之前脚本只数到收起区域里的隐藏编辑器，没有验证场次列表实屏。
+- Chrome 153 在 1440/900/390px 回归 3/3。三宽页面溢出、浏览器错误和未声明请求均为 0；首个场次行真实可达，显示“主线 · [方向图标] 场次 3”，Lucide 图标存在且对读屏隐藏。独立复审桌面与手机场次行；390px 行间距、单行和对齐正常，无 P1/P2/P3。
+- 当前行截图：[390px 场次行](../.dev-runtime/ui-pages/media/lucide-arrow-review-final-MG01-390-interaction.png)、[1440px 场次行](../.dev-runtime/ui-pages/media/lucide-arrow-review-final-MG01-1440-interaction.png)。仅改组件和现有审查助手，无新增 CSS 或依赖；生产构建、设计预算、E2E 语法及 `git diff --check` 通过。预算为 CSS 源 4,740 行/134,563 字节、构建 CSS 263,658 字节，palette 匹配、UI emoji=0。
+
+## MG01/MG02 Galgame场景与台词当前版（2026-10-15）
+
+- MG01 当前三宽度回归 1440/900/390px 3/3：场次首行真实滚动可达，跳转箭头为 Lucide 且对读屏隐藏；失败步骤、保留结果和素材阶段恢复说明均能读取，overflow/errors/unexpected 均为0。独立 fresh-eyes 复核无可确认 P1/P2/P3。390px 初始截图没有首场卡，已用真实滚动后的[交互截图](../.dev-runtime/ui-pages/media/mg01-visual-current-20261014-MG01-390-interaction.png)补齐，确认首条“主线 → 场次 3”单行、间距自然；此前的截图覆盖缺口关闭。宽/中/窄初始截图与[报告](../.dev-runtime/ui-pages/media/mg01-visual-current-20261014-report.json)保留。
+- MG02 根因：编辑态把只读场景元数据（标题、地点/时间、背景需求、下一场与背景绑定）放在八行台词前，手机首屏只能看到台词行头。现于 `GalgameTab` 将原有 `SceneMetaEditor` 放入原生 `<details>`：768px 以下默认折叠，摘要展示 Lucide `ChevronRight`、“场景信息”和当前场景名；900/1440px 保持原来的展开字段布局。字段、绑定、台词顺序、请求和保存行为均未改变。
+- Chrome 153 当前版 MG02 1440/900/390px 3/3：390px 首行正文 textarea 完整位于视口（y=553–633，视口高823），标题行和说话人控件可见；900px 正文框 y=727–807，1440px y=606–686。390px 按 Tab 从工作区切换项到场景摘要后，`document.activeElement` 命中该摘要，`:focus-visible` 为真，计算焦点环为2px实线；按 Enter 展开和再次收起成功，展开状态经 React 同步保留。三宽页面横向溢出、浏览器错误、未声明请求均为0；仅执行读取 fixture 请求，没有写入或生成命令。
+- 独立 fresh-eyes 复核当前三宽截图，无可确认 P1/P2/P3；确认手机折叠入口、场景名、首行正文及桌面层级清楚。[390px](../.dev-runtime/ui-pages/media/mg02-merge-final-20261015-MG02-390.png)、[900px](../.dev-runtime/ui-pages/media/mg02-merge-final-20261015-MG02-900.png)、[1440px](../.dev-runtime/ui-pages/media/mg02-merge-final-20261015-MG02-1440.png)、[三宽浏览器报告](../.dev-runtime/ui-pages/media/mg02-merge-final-20261015-report.json)。
+- 最终验证：前端 `npm run build` 已对该组件及中英文文案通过；MG02 Chrome 三宽回归、E2E `node --check` 与 `git diff --check` 通过。键盘焦点/切换断言期间先后修正了 WDIO `getRect()`、按键大小写、立即可见判定三个测试助手问题；这些测试辅助失败均已被通过的最终三宽报告取代，不作为产品回归。仅新增 Tailwind utility 类，没有手写 CSS 规则或依赖；本批后续设计预算脚本仍需在集成收尾时复核。
+
+## 快照比较范围方向图标统一（2026-10-13）
+
+- 快照管理的起止选择器与差异结果都用 Lucide `ArrowRight` 表示方向，图标对读屏隐藏并提供本地化“至 / to”；比较章节、生成差异和回滚行为不变。
+- 2026-10-14 补齐结果摘要：原始 `→` 替换为相同 Lucide 图标及辅助文本。Chrome 153 N03 路径 1/1 在 1440/900/390px 通过，比较请求仍为第 1 章到第 3 章，页面 overflow、浏览器错误和意外请求均为 0。独立审图确认方向标记与选择器一致；对 390px 结果态“范围控件不在当前视口”的初始 P2 意见，经检查同一弹窗可滚动且结果完整显示范围后撤回，不重复增加粘性控件。
+- 证据：[390px 起止控件](../.dev-runtime/ui-pages/novel/snapshot-lucide-review-final-N03-snapshot-compare-390-range-controls.png)、[900px](../.dev-runtime/ui-pages/novel/snapshot-lucide-review-final-N03-snapshot-compare-900-range-controls.png)、[1440px](../.dev-runtime/ui-pages/novel/snapshot-lucide-review-final-N03-snapshot-compare-1440-range-controls.png)；[390px 结果](../.dev-runtime/ui-pages/novel/n03-snapshot-lucide-20261014-no-proxy-N03-snapshot-compare-390-initial.png)、[900px](../.dev-runtime/ui-pages/novel/n03-snapshot-lucide-20261014-no-proxy-N03-snapshot-compare-900-initial.png)、[1440px](../.dev-runtime/ui-pages/novel/n03-snapshot-lucide-20261014-no-proxy-N03-snapshot-compare-1440-initial.png)、[报告](../.dev-runtime/ui-pages/novel/n03-snapshot-lucide-20261014-no-proxy-report.json)。
+- `npm run build`、N03 定向浏览器回归、设计预算和 `git diff --check` 通过；未增加 CSS 规则或依赖。预算为 CSS 源 4,744 行 / 134,654 bytes、构建 CSS 265,121 bytes（较批准基线 +0.98% / −2.35% / +2.97%），palette 匹配、UI emoji=0。
+
+## 角色关系方向图标统一（2026-10-13）
+
+- 关系悬停摘要和选中关系卡片都以 `角色 A → 角色 B` 表示有向关系。现将两处字符替换为 Lucide `ArrowRight`，并加本地化屏幕阅读器文本“指向 / to”；关系对象、描述、React Flow 连线、选择状态和详情点击行为不变。
+- N06 `character-relations` 在 1440/900/390px 通过；三宽均检查 6 条关系项的 Lucide 图标和读屏方向文本，末项可达，页面 `overflow=0`、浏览器错误和意外请求均为 0。独立审图确认箭头权重、姓名间距和手机单行清楚，无 P1/P2/P3。
+- 证据：[1440px](../.dev-runtime/ui-pages/novel/relationship-arrow-after-N06-character-relations-1440-initial.png)、[390px 末项](../.dev-runtime/ui-pages/novel/relationship-arrow-after-N06-character-relations-390-last.png)。只改组件、已有中英文文案和测试断言，无新增 CSS 或依赖；生产构建、设计预算、E2E 语法与 `git diff --check` 通过。预算为 CSS 源 4,740 行/134,563 字节、构建 CSS 263,658 字节，palette 匹配、UI emoji=0。
+
+## 默认浅色辅助文字对比度（2026-10-13）
+
+- 根因：默认浅色 `--color-text-tertiary`（99 111 108）放在 tertiary 表面（230 236 233）上只有 4.36:1；界面多处将其用于 10–12px 状态、占位和辅助文字。将浅色默认值小幅调为 96 108 105，原始 token 组合达到 4.56:1；暗色 token、布局、交互和自定义主题覆盖不变。
+- 现有全局视觉矩阵增加浏览器内 contrast gate：临时渲染真实 Tailwind tertiary 与 success/error/warning/info 状态色样式，读取浏览器计算色值并按 alpha 和 body 底色合成，再检查 WCAG 2 普通文本 4.5:1。Chrome 153 完整复跑 25/25 个场景、144 条视口/主题记录及 reduced-motion；tertiary 对比为 4.56–5.44:1、状态色配对为 4.79–7.33:1，overflow、控件裁切、标题重叠、破图、浏览器错误、意外请求和 UI emoji 均为 0。
+- SD05 主题编辑流程 1/1 通过；390/900/1440px 六个编辑区域共 18 张截图，token 标签/色值、滚动和固定操作区可读。独立审图无 blocker/major；390px 截图底部露出下一行的一部分，属于滚动视口边界，当前行可读且未被操作栏遮挡，不作为产品缺陷。
+- 证据：[390px 编辑颜色](../.dev-runtime/ui-pages/settings-details/contrast-review-2026-10-13T01-36-15-836Z/SD05-theme-editor-editor-colors-390.png)、[1440px 编辑颜色](../.dev-runtime/ui-pages/settings-details/contrast-review-2026-10-13T01-36-15-836Z/SD05-theme-editor-editor-colors-1440.png)、[浏览器对比度/三宽报告](../.dev-runtime/ui-design-20261010/visual/report.json)。用户保存的自定义 token 仍可覆盖默认配色，本次未增加主题编辑校验。
+- `npm run build`、设计预算、E2E `node --check` 与 `git diff --check` 通过；CSS 源 4,740 行/134,563 字节、构建 CSS 263,658 字节，相对批准基线分别 +0.89%/−2.41%/+2.40%，界面 emoji=0、无依赖变化。整体前端审查继续。
+
+## 提示词依赖方向图标统一（2026-10-13）
+
+- 提示词高级工具的依赖/反向依赖标签原本把方向箭头写在翻译文本里；现改用 Lucide `ArrowRight` / `ArrowLeft`，标签分别改为“此模板依赖 / 依赖此模板”和 “Depends on / Used by”。图标对读屏隐藏，文字仍完整表达方向；依赖数据、展开行为和业务关系不变。
+- SD01 实际打开“高级工具”与依赖面板，Chrome 153 在 390/900/1440px 3/3 通过；三个宽度均检查图标方向、`aria-hidden`、双列标签、末项文本及 overflow/errors/unexpected=0。独立审图无 blocker/major/minor，手机无挤压、换行或裁切，桌面留白与对齐正常。
+- 首次审查脚本没有先展开“高级工具”，因此找不到嵌套依赖面板；补上真实导航后同一路径通过。保存操作由本地 UI fixture 明确响应，不代表真实服务端提示词持久化。
+- 证据：[390px](../.dev-runtime/ui-pages/settings-details/arrow-review-2026-10-13T01-51-32-587Z/SD01-prompt-editor-dependency-directions-390.png)、[1440px](../.dev-runtime/ui-pages/settings-details/arrow-review-2026-10-13T01-51-32-587Z/SD01-prompt-editor-dependency-directions-1440.png)、[三宽报告](../.dev-runtime/ui-pages/settings-details/arrow-review-2026-10-13T01-51-32-587Z/settings-details-report.json)。仅改组件、现有中英文文案和 E2E 断言；无新 CSS/依赖，构建、设计预算、`node --check` 和 `git diff --check` 通过。
+
+## 通知收件箱当前版视觉与交互复核（2026-10-14）
+
+- 任务/频率：创作者高频查看广播；优先顺序为未读数 → 标题/时间/状态 → 正文 → 标记已读。未读数同时展示在页头和单条状态上，标记动作位于对应消息行内。
+- Chrome 153 全局视觉矩阵新增 `/notifications` 场景，使用独立创作者角色夹具，在 390/1024/1440px、亮/暗主题共 6 条视口状态检查。横向溢出、控件越界、标题碰撞、浏览器错误、意外请求和 UI emoji 均为 0；独立实看 390px 亮暗及 1440px 亮色，标题、未读数、两条通知和行内动作层级清楚，无裁切或重叠。
+- `ui-presentation.e2e.mjs` 增加真实首页通知入口 → 收件箱 → 标记一条通知已读路径，确认已读状态更新、该条操作按钮消失并发出 `mark_creator_notification_read`。读回与标记由本地 fixture 明确响应；不代表真实服务端持久化验收。
+- 审查 fixture 现使用全浏览器上下文 preload，并按脚本句柄整体替换。原因是全局 UI 测试从首页打开 Agent 独立窗口时，窗口级 preload 未覆盖新窗口，首屏认证调用曾误走 Vite 代理并出现 500。修复后 Home/Agent 25/25、完整页面 functional 8/8 与全局 presentation 3/3 均通过。
+- 报告与截图：[全局矩阵报告](../.dev-runtime/ui-design-20261010/visual/report.json)、[390 亮色](../.dev-runtime/ui-design-20261010/visual/a4n-20261010-notifications-390-light.png)、[390 暗色](../.dev-runtime/ui-design-20261010/visual/a4n-20261010-notifications-390-dark.png)、[1440 亮色](../.dev-runtime/ui-design-20261010/visual/a4n-20261010-notifications-1440-light.png)。
+- 本次全局矩阵 25 个页面视觉场景 + reduced-motion 场景均通过，生成 150 条视口/主题记录及 1 条动效记录；共享控件 17/17、UI presentation 30/30、完整 functional 71 项通过。生产构建、Vitest 139 文件/512 项、预算、相关 E2E `node --check`、`git diff --check` 通过。CSS 源 4,740 行 / 134,563 字节、构建 CSS 264,320 字节，较批准基线分别 +0.89% / -2.41% / +2.66%；palette 匹配、界面 emoji=0、无新增依赖。
+
+## 回滚路径与 Galgame 连线方向图标（2026-10-14）
+
+- 回滚预览的阶段路径和 Galgame 选中连线的起点/终点改用 Lucide `ArrowRight`；图标对读屏隐藏，紧邻路径/端点并提供隐藏的本地化“到 / to”。状态顺序、连线 ID、编辑/保存和取消行为不变。章节范围与时间值中的箭头仍作为数据关系文本保留。
+- N01-rollback Chrome 153 三宽路径检查 1440/900/390px 通过：四个阶段、三枚方向图标、三条读屏方向文本一致；影响数量/范围和取消后不发回滚请求仍通过。
+- MG14 用内存剧情图夹具实际选择连线，Chrome 153 在 1440/900/390px 3/3 通过。来源 ID、目标 ID、Lucide `aria-hidden`、读屏方向词均符合预期；未保存图、不产生 `save_galgame_story_graph` 请求。两组路径 overflow/errors/unexpected 均为 0。
+- 独立审图复核四张回滚/剧情图截图，无 blocker/major/minor；窄屏方向行无挤压或裁切。
+- 证据：[N01 回滚 390px](../.dev-runtime/ui-pages/novel/current-N01-rollback-390-impact-preview.png)、[MG14 三宽报告](../.dev-runtime/ui-pages/media/current-MG14-1440.json)、[1440px](../.dev-runtime/ui-pages/media/current-MG14-1440-interaction.png)、[900px](../.dev-runtime/ui-pages/media/current-MG14-900-interaction.png)、[390px](../.dev-runtime/ui-pages/media/current-MG14-390-interaction.png)。
+- `npm run build`、设计预算、E2E 语法与 `git diff --check` 通过；CSS 源仍为 4,740 行 / 134,563 字节，构建 CSS 264,369 字节，相对批准基线 +0.89% / -2.41% / +2.68%，低于 +20%；配色一致、界面 emoji=0、无新增依赖。保留既有 >500 kB chunk 警告。
+
+## N10 导入与审核的进行中反馈（2026-10-14）
+
+- 任务顺序：选取文本文件 → 等待上传 → 定位队列项 → 阅读候选 → 修改结构 → 保存并接受。文件导入和审核提交只在需要时发生，但每次都要求明确反馈。
+- 根因：隐藏文件选择器没有可访问名称且出现在自然 Tab 顺序中；审核按钮进入禁用忙碌态后会失去焦点，长摘要区又让成功 Toast 与当前审核对象分离。
+- 调整：文件输入补本地化 `aria-label` 并移出 Tab 顺序，仍由原可见按钮触发；保存期间标题获得可见焦点环，原位显示忙碌状态，接受后审核区播报新状态并去掉重复成功 Toast。API 命令、提交数据和审核顺序不变。
+- Chrome 153 专项流程覆盖 390/900/1440px：导入队列、隐藏文件控件可访问性、三宽度待保存/可提交态、390px 上传中/上传完成/保存中/接受完成。溢出均为 0；文件内容按 Base64 到达 UI fixture，输入复位且新队列项可见；接受请求包含编辑后的结构。运行时 JS 错误、未声明请求和严重浏览器日志均为 0。新文件实际选择器与 Host/数据库持久化不在此 fixture 覆盖范围。
+- 独立复核 390px 保存中/已接受截图，没有发现视觉问题。证据：[回归报告](../.dev-runtime/ui-pages/novel/frontend-design-20261011-outline-import-review-report.json)、[上传中](../.dev-runtime/ui-pages/novel/frontend-design-20261014-N10-import-390-uploading.png)、[已上传](../.dev-runtime/ui-pages/novel/frontend-design-20261014-N10-import-390-uploaded.png)、[保存中](../.dev-runtime/ui-pages/novel/frontend-design-20261014-N10-review-390-saving.png)、[已接受](../.dev-runtime/ui-pages/novel/frontend-design-20261014-N10-review-390-accepted.png)。
+- 设计预算实测：CSS 源码 4,744 行 / 134,654 字节，构建 CSS 264,849 字节；相对批准基线分别 +0.98% / −2.35% / +2.87%，均低于 +20%。亮暗调色板一致，界面 emoji=0，无新增依赖；生产构建保留既有大 chunk 警告。全站审查仍有其他逐页与真实读屏/触屏环境边界，不能据此宣称整站已完成。
+
+## 全局视觉矩阵 702px 断点与灵感滚动跟随（2026-10-14）
+
+- 全局矩阵新增 702px CSS 视口，用于覆盖手机与平板之间的响应式断点；25 个场景现覆盖 1440/1024/702/390px 亮暗主题，共 200 条视口记录。Chrome 153 `ui-visual.e2e.mjs` 为 26 项全通过（25 个页面场景 + reduced-motion）；所有 200 条记录 overflow、控件越界、标题碰撞、浏览器错误、未声明请求、emoji 与破图均为 0，最低辅助文字/状态对比度为 4.56:1 / 4.79:1。
+- 独立审图在灵感页 702px 明暗截图发现最新一张建议卡被固定输入栏遮住（Minor）。根因是 `useFollowLatest` 监听 DOM 变化但不监听宽度引发的文本换行和消息区高度重排，滚动位置因此不再贴住最新消息。
+- `useFollowLatest` 现在观察滚动视口与首层消息内容的尺寸变化；只有原本仍跟随最新消息时才恢复到底部。用户主动向上浏览时保留原滚动位置和“有新内容”状态。灵感页在 1440/1024/702/390px、亮暗主题都断言最新建议完整位于消息视口内，距底边至少 12px；本轮测得 15.64–16.22px，横向溢出为 0。
+- 修复后独立复审 702px 浅/深色和真实滚动末态，确认三张建议卡的标题、说明、标签完整，输入栏上方间距清楚，无新发现。截图：[702 浅色](../.dev-runtime/ui-design-20261010/visual/a4n-20261010-inspiration-702-light.png)、[702 深色](../.dev-runtime/ui-design-20261010/visual/a4n-20261010-inspiration-702-dark.png)、[滚动末态](../.dev-runtime/ui-design-20261010/visual/a4n-20261010-inspiration-702-options-bottom-dark.png)；[全局矩阵报告](../.dev-runtime/ui-design-20261010/visual/report.json)。
+- `npm run build`、设计预算、`node --check` 和 `git diff --check` 通过；CSS 预算不变、无新增依赖。构建保留既有 >500 kB JavaScript chunk 提示。真实读屏器和触屏实机仍不在浏览器矩阵范围内。
+
+## SD17–SD19 调用记录与工作流排障细读（2026-10-14）
+
+- 独立审图在 390px 成本表横滚图中发现 Provider/模型值只露出尾部，表头和数据身份难以对照（Minor）。现让手机端该字段在 220px 内容宽度内自然换行，桌面仍保留省略显示及完整 title；实际把模型列滚到粘性金额列右侧后，完整 `openai · ui-structured-model-long-context` 与 `Provider / 模型` 表头同屏可读。现有水平滚动和请求预览不变。
+- SD19 队列菜单截图的首轮问题来自审查顺序：脚本先在 1440px 打开“继续运行”，再改视口宽度截图；菜单在窄视口与原触发卡片分离，画面容易误读成对运行中任务执行恢复。核对数据与源码确认，该动作属于“章节分析 · 失败 · 可恢复 · 第 7/8 项”的持久化工作流；当前菜单与卡片状态一致，不需更改产品动作。审查脚本现按每个宽度重新滚入目标行、打开菜单，并断言行身份、菜单锚点和视口边界。
+- 独立审图还发现诊断字段将 `completed`、`failed` 等状态词在任意字符处拆行（Minor）。持久化工作流诊断行改为优先在字段分隔处换行，保留长字段可折行；手机端状态词保持完整。
+- Chrome 153 SD17/SD19 定向浏览器回归 2/2 通过；390/900/1440 菜单状态均为页面 overflow=0、浏览器错误/意外请求=0。手机 Provider/模型列可读，诊断状态 Range 各为单行。fixture 模拟调用/队列响应，不代表真实后端服务状态或持久化。
+- 独立修复后审图复核三张手机图 no finding：模型名和表头完整、恢复菜单对应可恢复的失败项、诊断状态未断词。弹层虽覆盖部分下方视频任务卡，但不遮挡当前触发卡的身份信息，不作为新增问题。
+- 证据：[当前报告](../.dev-runtime/ui-pages/settings-details/current-2026-10-14T05-32-58-171Z/settings-details-report.json)、[手机模型列](../.dev-runtime/ui-pages/settings-details/current-2026-10-14T05-32-58-171Z/SD17-call-details-cost-model-390.png)、[手机恢复菜单](../.dev-runtime/ui-pages/settings-details/current-2026-10-14T05-32-58-171Z/SD19-queue-trace-workflow-actions-390.png)、[手机诊断末态](../.dev-runtime/ui-pages/settings-details/current-2026-10-14T05-32-58-171Z/SD19-queue-trace-workflow-diagnostics-390.png)。
+
+## 管理员功能测试中心当前版复核（2026-10-14）
+
+- 任务/频率：管理员按需运行注册场景或项目测试集；顺序为选择场景 → 确认目标 → 运行 → 查看步骤、变化和运行历史。
+- 首轮独立审图发现 Major：390px 下五张场景卡片纵向占位，将 suite 结果推到首屏外。根因是窄屏沿用桌面场景列表。1280px 以下现用原生选择器呈现场景标题、分类和操作影响；桌面按钮列表不变，分类筛选及同一选中状态保留。结果摘要随场景/目标之后紧接显示。
+- 窄屏初始空态的步骤提示原有 160px 最小高度，会把运行历史继续下推；1280px 以下收为 56px 级紧凑提示，桌面居中留白不变。文本和结果呈现不变。
+- Chrome 153 当前版通过设置页入口打开独立测试中心窗口，选择“全部功能测试”项目测试集并运行；目标和 `start_test_run` 请求一致，页面显示完整 suite 结果，意外请求为 0。场景选择、运行前首屏和运行后结果态在 390/1024/1279/1280/1440px 检查，页面横向溢出均为 0；1279/1280px 断点切换清楚，分类变化保留当前场景。390px 首屏含通过状态和 16 条中的 4 条步骤，其余结果可沿页面滚动读取。
+- 修复后独立审图复核三宽、断点和手机结果态 no finding：场景选择明确，运行后状态、摘要和步骤进入首屏，列表顺序清楚；空提示与历史区间距紧凑但不拥挤，无遮挡/裁切。
+- 证据：[390px 选择与目标](../.dev-runtime/ui-pages/test-center/test-center-390.png)、[1024px](../.dev-runtime/ui-pages/test-center/test-center-1024.png)、[1279px](../.dev-runtime/ui-pages/test-center/test-center-1279.png)、[1280px](../.dev-runtime/ui-pages/test-center/test-center-1280.png)、[1440px](../.dev-runtime/ui-pages/test-center/test-center-1440.png)、[390px 运行结果](../.dev-runtime/ui-pages/test-center/test-center-result-390.png)。本地 UI fixture 明确响应测试服务调用；验证浏览器交互路径，不代表真实测试服务端执行或数据库持久化。
+- `test-center.e2e.mjs` 定向回归最终 1/1，覆盖桌面列表与手机选择器切换、分类保留、键盘 Tab 顺序和焦点环、1279/1280px 断点、横向溢出及运行后结果可见性。Node 24.21.0 `npm run build` 通过（仓库要求 Node 22，本环境未提供；保留既有 >500 kB JavaScript chunk 警告），E2E `node --check`、设计预算和 `git diff --check` 通过。CSS 源 4,744 行 / 134,654 bytes、构建 CSS 265,142 bytes；较批准基线分别 +0.98%、−2.35%、+2.98%，低于 +20%；亮暗 palette 匹配、界面 emoji=0、无新增依赖。
+
+## 共享确认弹窗动作顺序与键盘焦点（2026-10-14）
+
+- SD01 未保存提示词的警告框在 390px 原来把“放弃草稿”放在“取消”上方，但 DOM/Tab 顺序仍是取消 → 放弃；键盘焦点从较低位置跳到较高位置。桌面横排原本与 DOM 顺序一致。
+- 共享 `ConfirmDialog` 现在为所有确认类型统一映射动作顺序：手机纵向从上到下、桌面从左到右都为取消 → 次级操作 → 确认；颜色语义、按钮回调、Promise 结果与确认业务逻辑不变。危险确认沿用原来的安全顺序。
+- Chrome 153 在 SD01 未保存草稿流程通过三宽度视觉/交互回归 1/1；检查按钮几何顺序、取消后草稿保留，以及从取消按钮 Tab 到确认按钮的可见焦点环。页面溢出、浏览器错误和意外请求均为 0。独立审图复核 390/1440px 无裁切、错位或顺序歧义。
+- 证据：[390px](../.dev-runtime/ui-pages/settings-details/confirm-order-review-2026-10-14T07-11-50-577Z/SD01-prompt-editor-discard-dialog-390.png)、[900px](../.dev-runtime/ui-pages/settings-details/confirm-order-review-2026-10-14T07-11-50-577Z/SD01-prompt-editor-discard-dialog-900.png)、[1440px](../.dev-runtime/ui-pages/settings-details/confirm-order-review-2026-10-14T07-11-50-577Z/SD01-prompt-editor-discard-dialog-1440.png)、[报告](../.dev-runtime/ui-pages/settings-details/confirm-order-review-2026-10-14T07-11-50-577Z/settings-details-report.json)。
+- `npm run build`、定向 E2E（1/1）、E2E `node --check`、预算和 `git diff --check` 通过。CSS 源 4,744 行 / 134,654 bytes、构建 CSS 265,121 bytes；较批准基线分别 +0.98%、−2.35%、+2.97%，低于 +20%；palette 匹配、界面 emoji=0、无新增依赖。仓库要求 Node 22，本环境为 Node 24.21.0；保留既有 >500 kB JavaScript chunk 警告。
+
+## N01 内容关联图键盘区域语义（2026-10-14）
+
+- 已有方向键平移的图谱滚动容器现在使用命名 `region`，让可聚焦画布区域及“用方向键平移”的说明能以语义地标暴露；滚动、缩放、选中节点与 API 行为不变。
+- 首次复跑在打开项目之前等待 `.a4n-home-content` 超时，空报告不计为验证。随后清除 Node/HTTP 代理环境变量后，Chrome 153 N01-lineage 1440/900/390px 通过 3/3；新增的 `role=region`、命名文本、方向键平移、图内提示、缩放控件可见性与节点末项可达断言均执行通过，页面 overflow、浏览器错误、意外请求和 findings 均为 0。报告：[三宽度 N01 语义与交互回归](../.dev-runtime/ui-pages/novel/n01-graph-a11y-region-20261014-no-proxy-report.json)。
+- CSS 源 4,744 行 / 134,654 bytes、构建 CSS 265,121 bytes（较批准基线 +0.98% / −2.35% / +2.97%），palette 匹配、UI emoji=0、无新增依赖。
+
+## 视频画布节点属性与图片预览（2026-10-14）
+
+- 高频任务链为：节点库添加或选中节点 → 核对输入/参数/输出 → 识别连线 → 预览内容或确认运行范围。`MX13–MX32` 补齐各节点属性、真实连线、图片/音频内容预览、移动端节点选择、缩放/锁定、视口保存与独立画布返回；在 1440/1024/390px（MX20 另含 900px）累计 55 个宽度用例最终通过，页面横向溢出、浏览器错误与意外请求均为 0。
+- 独立审图在 MX22 手机交互末态发现 P3：当已有视频节点处在画布右边缘时，右上角放大按钮被画布裁切。根因是预览按钮固定锚定节点右侧，而节点图在手机需要横向平移浏览。现在仅在 `<640px` 将按钮锚定到缩略图左上，640px 及以上仍在右上；节点位置、画布缩放、预览回调和 Escape 焦点返回不变。MX22 增加按钮完全落在画布视口内的几何断言，390px 修复后通过；独立复审确认不遮节点标题、图标清楚且 P3 关闭。
+- 两项审查助手合同也作了校准：MX26 的音频夹具原生成 2 秒 WAV，而节点合同声明 3 秒；夹具现生成匹配的 3 秒样本，MX26 三宽播放与解码时长通过。MX31 原脚本查找产品中不存在的“画布模式”和 `/video-project/:id/studio` 路由；当前画布是独立 `project_kind=canvas`，脚本改为验证现有页头返回项目列表合同，1440/390px 通过，没有新增路由或功能。
+- 长序列里曾遇到 Chrome 标签页崩溃/超时；相应 1024px MX16、MX19、MX20、MX22 项目在隔离复跑均通过，不记作产品缺陷。上述 MX26 时长差异和 MX31 失效入口均先定位根因再修正夹具，原失败报告仍保留。
+- 证据：[手机放大按钮修复后截图](../.dev-runtime/ui-pages/media/canvas-mx22-mobile-fix-20261014-MX22-390-interaction.png)、[三宽报告](../.dev-runtime/ui-pages/media/canvas-mx26-correct-audio-20261014-report.json)、[独立画布返回报告](../.dev-runtime/ui-pages/media/canvas-mx31-corrected-20261014-report.json)、[视口保存报告](../.dev-runtime/ui-pages/media/canvas-mx32-20261014-report.json)。UI fixture 仅核对命令和浏览器交互，不代表真实 Host/工作流执行或数据库持久化。
+- 最终 `npm run build` 与设计预算通过；CSS 源 4,753 行 / 135,065 字节（批准基线 +1.17% / −2.05%），构建 CSS 265,538 字节（+3.13%）。调色板一致、界面 emoji=0、无新增依赖；仍保留既有 >500 kB JS chunk 警告。
+
+## MX22 移动画布图片预览触控区（2026-10-14）
+
+- 根因：手机端预览按钮原有 44×44px 触控尺寸随 React Flow 节点缩放至 33×33px；按钮是次级预览入口，用户仍可选中节点后使用属性面板预览。
+- 调整：只为画布缩略图预览按钮添加透明命中区，按当前画布缩放补偿到约 44.5 CSS px；按钮可见大小、图标、位置和预览行为不变。通过 `useStore` 只订阅缩放值，不订阅平移坐标。
+- Chrome 153 MX22 在 1440/1024/390px 通过 3/3。390px 实测按钮可见边界 33×33px、透明目标 44.496×44.496px；按钮边界外的探测点仍命中同一个预览按钮。原图匹配，节点选择保持不变，Esc 关闭后焦点返回按钮，页面横向溢出为 0。
+- 独立审图未发现新 P1/P2/P3。手机左上与桌面右上位置差异是既有响应式安排：手机端避免画布右缘裁切，桌面保留原右侧定位。
+- 证据：[390px 手机画布](../.dev-runtime/ui-pages/media/mx22-hit-area-20261014-MX22-390.png)、[1440px 桌面画布](../.dev-runtime/ui-pages/media/mx22-hit-area-20261014-MX22-1440.png)、[三宽度报告](../.dev-runtime/ui-pages/media/mx22-hit-area-20261014-report.json)。
+- `npm run build`、设计预算、E2E `node --check`、`git diff --check` 通过。CSS 总量 4,766 行 / 135,438 字节，构建 CSS 265,836 字节；较批准基线分别 +1.45% / −1.78% / +3.25%，低于 +20% 限制。调色板一致、界面 emoji=0、无新增依赖；Node 24.21.0（仓库要求 Node 22），保留既有 >500 kB JS chunk 警告。
+
+## MX33 画布拖拽预览统一使用 Lucide（2026-10-14）
+
+- 高频任务是从桌面节点库把节点拖入画布。根因：拖拽预览卡片单独按节点类型生成 `T/I/V/A/*` 字符，和节点库/画布卡片的 Lucide 图标不一致，也维护了第二份类型映射。
+- 现在直接克隆拖动源按钮里的 `svg.lucide` 作为原生 `setDragImage` 图标；移除字符图标映射。节点类型、标签、copy 拖放合同、锚点、drop 处理与新增节点时机不变；缺少源 Lucide 图标时明确阻止这次拖动并报错。
+- Chrome 153 的 MX33 1440px 用例通过；标准 functional 筛选批次中 MX33、UX-B72、UX-B73 共 3/3。MX33 派发当前 React `dragstart` handler 并截获生产的 `setDragImage` DOM：节点类型和标签数据保留，预览/来源 SVG 同为 `lucide lucide-type`，字符文本为空，锚点有效，未 drop 前节点数不变。页面 overflow=0，浏览器错误/意外请求均为 0。此用例验证拖拽开始与预览，没有执行 drop 或持久化。
+- 独立审图没有发现新 P1/P2/P3；预览图标与左侧节点库及画布节点卡一致。为检查原生拖拽图而在截图里临时把预览 DOM 放到画布上，覆盖下方卡片的部分区域是审查辅助，不是额外产品遮挡。
+- 证据：[拖拽预览截图](../.dev-runtime/ui-pages/media/mx33-lucide-20261014-MX33-drag-preview-1440.png)、[MX33 报告](../.dev-runtime/ui-pages/media/mx33-lucide-20261014-report.json)。
+- `npm run build`、E2E `node --check`、设计预算与 `git diff --check` 通过。CSS 总量 4,766 行 / 135,438 字节，构建 CSS 265,836 字节；较批准基线 +1.45% / −1.78% / +3.25%，低于 +20%。palette 一致、界面 emoji=0、无新增依赖；保留既有大 chunk 警告。
+
+## 首页窄屏筛选边界复核（2026-10-14）
+
+- 独立审图曾把一张 200% 浏览器截图右侧的“访问”标题判为裁切。复核原图物理边界后，字形完整落在截图内；报告对应 CSS 视口 702×393、DPR 4，截图分辨率为 1404×786，不能单靠该图判定完整 CSS 视口的视觉边界。独立审图撤回 P2，当前不登记产品缺陷。
+- 为防止标签被截但页面 `scrollWidth` 仍为 0，首页回归现检查“项目类型 / 访问权限”标签的实际文字边界、筛选值容器以及控件视口边界，并在创建弹窗关闭后分别复核 390、702、1024 CSS px。
+- 同一轮独立审图另发现 390px 项目卡主入口只有箭头、缺少可见文字。根因是已进入写作台的文本项目落在 `entryRoute === workspaceRoute` 分支，该分支的说明标签仅在 `sm` 以上显示；另一个拥有独立写作台入口的分支才显示手机短标签。
+- 这类文本项目在手机现在显示现有本地化短标签“写作”，桌面继续显示原“进入写作台”文案；整卡入口、路由、权限、点击处理和读屏名称不变。同期去掉标题上的 `block` 类，它覆盖 Tailwind `line-clamp-2` 的 `display` 规则；长标题恢复手机两行、桌面单行截断，避免新增可见标签后占用额外首屏空间。
+- Chrome 153 当前版回归 1/1；在 390/702/1024 CSS px 检查筛选标题和值、控件和项目卡边界、横向溢出。390px 短标签可见、长标题两行截断，首项目卡仍完整落在 393px 高视口内；1024px 原完整入口和单行标题保留。页面 overflow、浏览器错误和意外请求均为 0。独立审图复核修复后 390px 无 P1/P2/P3。
+- 证据：[最终布局报告](../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-14T11-36-20-284Z/report.json)、[390px](../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-14T11-36-20-284Z/home-390x393.png)、[1024px](../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-14T11-36-20-284Z/home-1024x393.png)。
+- 原生 200% 历史报告 [显示 viewport 702×393、DPR 4、`visualViewport.scale=1`、overflow=0](../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-14T11-10-28-521Z/report.json)，但新增标签几何断言没有在原生 200% 环境执行；隔离 profile 的严格重试未能恢复页面缩放设置，故不扩写原生缩放覆盖结论。
+- `npm run build`、首页定向浏览器回归 1/1、E2E `node --check`、设计预算及 `git diff --check` 通过。CSS 源 4,766 行 / 135,438 字节、构建 CSS 265,865 字节；palette 匹配、UI emoji=0、无依赖变化，低于 +20% 上限。Node 24.21.0（项目要求 Node 22）；构建保留既有大 JS chunk 警告。
+
+## 首页原生 200% 缩放与键盘流程复核（2026-10-14）
+
+- 使用全新隔离 Chrome profile，从浏览器外观设置显式选择 Page zoom 200%。Chrome 153 实际读回 702×393 CSS px、DPR 2、`visualViewport.scale=1`，本轮模式确认为 `native-200-percent`，不是手工缩小页面后的 CSS 视口等效测试。
+- 首页原生缩放状态下，筛选标签和值、创建/导入入口、首个项目卡和可见控件边界均完整，页面横向溢出为 0，浏览器错误与意外请求均为 0。同一回归另以 390、1024 CSS px 复核窄屏“写作”入口、项目标题行数、筛选和卡片边界；两宽度 overflow=0，控件越界项为空。
+- 键盘 3 次 Tab 可到达创建入口并显示 2px 焦点环；打开对话框不会提交创建请求，主体可滚至最后一种项目类型且按钮完整可见，Escape 后焦点返回创建入口。对话框边界留在视口内，横向溢出为 0。
+- Chrome 153 headful 定向回归 1/1 通过，修订后再次实跑。完整 X11 窗口图与网页裁剪图用于目视检查；ChromeDriver PNG 在原生缩放下不代表完整实屏比例，故不作为缩放截图证据。独立审图未发现 P1/P2/P3。
+- 证据：[当前回归报告](../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-14T12-24-07-026Z/report.json)、[原生 200% 实屏裁剪](../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-14T12-24-07-026Z/home-native-200-cropped.png)、[390px](../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-14T12-24-07-026Z/home-390x393.png)、[1024px](../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-14T12-24-07-026Z/home-1024x393.png)。旧的“新增标签未在原生缩放执行”记录是此前版本状态，由本节当前报告覆盖；全站审查仍继续。
+
+## N08 高级工具弹窗窄屏滚动提示（2026-10-14）
+
+- 独立审图在 702px 发现弹窗首屏只到“续作下一部”，其后的“覆盖性重写 / 节拍映射”没有继续提示。根因是 702px 将进度与节奏分析卡纵向排列；弹窗正文 `scrollHeight=767`、`clientHeight=577`，浏览器采用零宽覆盖滚动条，两个折叠区在首屏都不可见。1024px 下正文虽仍可滚动，但滚动条占 10px 且两个折叠区已在首屏。
+- 在弹窗标题下为 768px 以下添加本地化 Lucide 下箭头提示“向下滚动查看更多工具”；1024px 及以上隐藏。没有改动生成、请求预览、折叠、删除、键盘关闭或数据操作。
+- Chrome 153 生产预览 N08 路径在 390/702/1024px 通过。390/702 显示提示、1024 隐藏；三宽度页面 overflow 均为 0。正文滚动后，“覆盖性重写”和“节拍映射”各自完整落入滚动视口：390px `scrollTop=168/229`，702px `60/121`；1024px 两个区段在初始视口中完整可见。未触发模型分析、生成、重写或写入。
+- 独立复审 390/702 初始及滚动状态与 1024 对照图，确认提示清楚、关闭按钮持续可见、桌面隐藏后没有空洞或错位；无新 P1/P2/P3。
+- 证据：[报告](../.dev-runtime/ui-pages/novel/frontend-design-20261014-outline-import-review-390-702-1024-report.json)、[390px 初始](../.dev-runtime/ui-pages/novel/frontend-design-20261014-N08-advanced-390.png)、[702px 初始](../.dev-runtime/ui-pages/novel/frontend-design-20261014-N08-advanced-702.png)、[702px 重写区](../.dev-runtime/ui-pages/novel/frontend-design-20261014-N08-advanced-702-rewrite-scrolled.png)、[702px 节拍区](../.dev-runtime/ui-pages/novel/frontend-design-20261014-N08-advanced-702-beatMapping-scrolled.png)、[1024px](../.dev-runtime/ui-pages/novel/frontend-design-20261014-N08-advanced-1024.png)。
+- `npm run build`、定向 Chrome 回归（N08 三宽度及同期物体摘要/详情路径共 3 项通过，N11 与角色/场景摘要检查按本次筛选跳过）、E2E `node --check`、设计预算和 `git diff --check` 通过。CSS 源 4,766 行 / 135,438 字节，构建 CSS 265,865 字节，仍低于 +20% 上限；palette 一致、UI emoji=0、无新增依赖。Node 24.21.0（仓库要求 Node 22），保留既有大 JS chunk 警告。
+
+### N08 折叠指示统一与原生 200% 交互复核（2026-10-14）
+
+- 高频视觉问题是相邻的两个原生折叠区使用不同指示：`覆盖性重写`没有展开箭头，`节拍映射`显示浏览器默认三角。两者现统一使用项目已有的 Lucide `ChevronDown`；展开时旋转方向提示状态，保留原生 `<details>/<summary>` 键盘和开合行为。
+- E2E 现在检查两个箭头可见且对读屏器隐藏，并分别点击摘要验证展开和收起。生产预览 Chrome 153 在 390/702/1024px 通过；原生 Chrome 200% 通过 1/1，实际视口 702×393 CSS px、DPR 2、`visualViewport.scale=1`，页面横向溢出为 0。滚动正文 `scrollHeight=767`、`clientHeight=281`；“覆盖性重写”和“节拍映射”分别在 `scrollTop=356/417` 到达。关闭按钮和滚动提示持续可见，未执行分析、生成、重写或写入。
+- 独立审图确认两个摘要在 702px 下为同尺寸、同边距、方向一致的 Lucide 下箭头；原生 200% 初始态从正文顶部开始，滚动提示、固定标题栏和关闭按钮清楚可见。无可确认 P1/P2/P3。
+- 证据：[原生 200% 报告](../.dev-runtime/ui-pages/novel/frontend-design-20261014-native200-arrow-capturefix2-outline-import-review-702-report.json)、[原生初始态](../.dev-runtime/ui-pages/novel/frontend-design-20261014-native200-arrow-capturefix2-N08-native-200-advanced-702-initial-window.png)、[原生重写区](../.dev-runtime/ui-pages/novel/frontend-design-20261014-native200-arrow-capturefix2-N08-native-200-advanced-702-rewrite-scrolled-window.png)、[702px 重写区](../.dev-runtime/ui-pages/novel/frontend-design-20261014-fold-icons-regular-N08-advanced-702-rewrite-scrolled.png)、[702px 节拍映射区](../.dev-runtime/ui-pages/novel/frontend-design-20261014-fold-icons-regular-N08-advanced-702-beatMapping-scrolled.png)。
+- `npm run build`、Chrome 153 常规宽度回归（5 项通过）、原生 200% N08 回归（1 项通过，4 项按筛选跳过）、E2E `node --check`、设计预算与 `git diff --check` 通过。样式量未因本次改动增加；总量为 CSS 4,766 行 / 135,438 字节、构建 CSS 265,865 字节，低于 +20% 限制；调色板一致、UI emoji=0、无新增依赖。保留既有 >500 kB JS chunk 警告。

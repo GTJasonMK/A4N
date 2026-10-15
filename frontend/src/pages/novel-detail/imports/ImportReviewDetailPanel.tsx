@@ -29,9 +29,25 @@ export const ImportReviewDetailPanel: React.FC<ImportReviewDetailPanelProps> = (
   onModify,
 }) => {
   const { locale, t } = useI18n();
+  const analysisStructureId = React.useId();
+  const reviewTitleRef = React.useRef<HTMLHeadingElement>(null);
   const actionBusy =
     actBusy !== null || externalBusy || activeReview?.review_status !== "pending";
   const modifyReady = activeReviewJsonDirty && activeReviewJsonError == null;
+
+  React.useEffect(() => {
+    if (actBusy?.startsWith("modify-")) reviewTitleRef.current?.focus();
+  }, [actBusy]);
+
+  const modifyDisabledHint = activeReview?.review_status !== "pending" || activeReviewJsonError
+    ? null
+    : actBusy?.startsWith("modify-")
+      ? null
+      : actBusy !== null || externalBusy
+        ? t("novel.importReview.detail.actionInProgress")
+        : !activeReviewJsonDirty
+          ? t("novel.importReview.detail.editToEnable")
+          : null;
 
   if (activeReview == null) return null;
   const analysisSummary = importAnalysisSummary(activeReview.analysis_result);
@@ -39,10 +55,14 @@ export const ImportReviewDetailPanel: React.FC<ImportReviewDetailPanelProps> = (
   return (
     <BookCard className="sticky top-2 h-fit p-3">
       <div className="mb-3 border-b border-book-border/35 pb-3">
-        <h3 className="break-words text-sm font-semibold text-book-text-main">
+        <h3
+          ref={reviewTitleRef}
+          tabIndex={-1}
+          className="break-words text-sm font-semibold text-book-text-main focus:outline-2 focus:outline-book-primary/35 focus:outline-offset-2"
+        >
           {activeReview.filename}
         </h3>
-        <p className="mt-1 text-small leading-relaxed text-book-text-muted">
+        <p role="status" className="mt-1 text-small leading-relaxed text-book-text-muted">
           {getOperationStatusLabel(activeReview.review_status, locale)}
         </p>
       </div>
@@ -77,8 +97,9 @@ export const ImportReviewDetailPanel: React.FC<ImportReviewDetailPanelProps> = (
             <span className="text-caption">{t("novel.importReview.detail.importStructure")}</span>
           </summary>
           <div className="mt-2">
-            <label className="mb-1 block text-caption text-book-text-muted">{t("novel.importReview.detail.analysisStructure")}</label>
+            <label htmlFor={analysisStructureId} className="mb-1 block text-caption text-book-text-muted">{t("novel.importReview.detail.analysisStructure")}</label>
             <textarea
+              id={analysisStructureId}
               value={activeReviewJson}
               disabled={actionBusy}
               onChange={(e) => onAnalysisJsonChange(e.target.value)}
@@ -87,14 +108,20 @@ export const ImportReviewDetailPanel: React.FC<ImportReviewDetailPanelProps> = (
             {activeReviewJsonError && (
               <div role="alert" className="mt-1 text-small text-error">{activeReviewJsonError}</div>
             )}
-            <div className="mt-2 flex justify-end">
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              {modifyDisabledHint ? (
+                <p role="status" className="min-w-0 flex-1 text-caption leading-relaxed text-book-text-muted">
+                  {modifyDisabledHint}
+                </p>
+              ) : null}
               <BookButton
                 variant="secondary"
                 onClick={() => void onModify()}
                 disabled={actionBusy || !modifyReady}
+                className="ml-auto shrink-0"
               >
                 {actBusy?.startsWith("modify-") ? (
-                  <span className="inline-flex items-center gap-1.5">
+                  <span role="status" className="inline-flex items-center gap-1.5">
                     <LoadingSpinner size="sm" /> {t("novel.importReview.detail.saving")}
                   </span>
                 ) : (

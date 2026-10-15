@@ -31,7 +31,7 @@ export type RightPanel = "none" | "rag" | "optimize";
 interface WritingDeskHeaderProps {
   project: NovelProject;
   activeNumber: number | null;
-  isMobileLayout: boolean;
+  isCompactLayout: boolean;
   canGoPrev: boolean;
   canGoNext: boolean;
   chapterNumbers: number[];
@@ -74,7 +74,7 @@ const PANEL_OPTIONS: ReadonlyArray<{
 export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
   project,
   activeNumber,
-  isMobileLayout,
+  isCompactLayout,
   canGoPrev,
   canGoNext,
   chapterNumbers,
@@ -172,7 +172,7 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
     </BookButton>
   ) : null;
 
-  if (isMobileLayout) {
+  if (isCompactLayout) {
     return (
       <div className="min-w-0 shrink-0">
         <PageHeader

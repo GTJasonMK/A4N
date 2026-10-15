@@ -1,6 +1,8 @@
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowRight,
+  ChevronRight,
   Download,
   FileSearch,
   FileText,
@@ -139,6 +141,12 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   const [mobileWorkspaceView, setMobileWorkspaceView] = useState<
     "scenes" | "editor"
   >("scenes");
+  const [isWideViewport, setIsWideViewport] = useState(
+    () => typeof window === "undefined" || window.matchMedia("(min-width: 768px)").matches,
+  );
+  const [sceneMetaOpen, setSceneMetaOpen] = useState(
+    () => typeof window === "undefined" || window.matchMedia("(min-width: 768px)").matches,
+  );
   const [pipelineControlsOpen, setPipelineControlsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -165,6 +173,17 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   const activeProjectIdRef = useRef(projectId);
   activeProjectIdRef.current = projectId;
   const isCurrentProject = (requestProjectId: number) => activeProjectIdRef.current === requestProjectId;
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 768px)");
+    const sync = () => {
+      setIsWideViewport(media.matches);
+      setSceneMetaOpen(media.matches);
+    };
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
 
   const load = React.useCallback(async (): Promise<boolean> => {
     const seq = requestSeqRef.current + 1;
@@ -1221,16 +1240,19 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                           }
                         >
                           {" · "}
-                          {nextScene
-                            ? item.scene.entry_kind === "branch" &&
-                              nextScene.scene.entry_kind !== "main"
-                              ? t("galgame.nextSceneNonMain", {
-                                  number: nextScene.scene.scene_index,
-                                })
-                              : t("galgame.nextSceneLabel", {
-                                  number: nextScene.scene.scene_index,
-                                })
-                            : t("galgame.nextSceneMissingLabel")}
+                          <span className="inline-flex min-w-0 items-center gap-1">
+                            <ArrowRight size={12} aria-hidden="true" className="shrink-0" />
+                            {nextScene
+                              ? item.scene.entry_kind === "branch" &&
+                                nextScene.scene.entry_kind !== "main"
+                                ? t("galgame.nextSceneNonMain", {
+                                    number: nextScene.scene.scene_index,
+                                  })
+                                : t("galgame.nextSceneLabel", {
+                                    number: nextScene.scene.scene_index,
+                                  })
+                              : t("galgame.nextSceneMissingLabel")}
+                          </span>
                         </span>
                       ) : item.scene.entry_kind === "branch" ? (
                         <span className="text-error">
@@ -1274,32 +1296,54 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
           </div>
 
           {selectedScene ? (
-            <SceneMetaEditor
-              key={`${selectedScene.scene.id}:${discardVersion}`}
-              scene={selectedScene.scene}
-              scenes={detail?.scenes ?? []}
-              mediaBindings={
-                mediaBindingsByScene.get(selectedScene.scene.id) ?? []
-              }
-              disabled
-              fieldDraftResetRevision={fieldDraftResetRevision}
-              fieldDraft={fieldDrafts[`scene:${selectedScene.scene.id}`] ?? null}
-              mediaAssetIdDraft={assetBindingDrafts[`scene:${selectedScene.scene.id}:background`] ?? ""}
-              onMediaAssetIdDraftChange={(value) =>
-                updateAssetBindingDraft(`scene:${selectedScene.scene.id}:background`, value)
-              }
-              onPatch={(patch) => handleScenePatch(selectedScene.scene, patch)}
-              onDraftChange={updateFieldDraft}
-              onBindMedia={(mediaAssetId) =>
-                handleBindMedia(
-                  "galgame_scene",
-                  selectedScene.scene.id,
-                  "background",
-                  mediaAssetId,
-                )
-              }
-              onUnbindMedia={handleUnbindMedia}
-            />
+            <div className="min-w-0">
+              <details
+                className="group/scene-meta"
+                data-scene-meta-disclosure
+                open={isWideViewport || sceneMetaOpen}
+                onToggle={(event) => {
+                  if (!isWideViewport) setSceneMetaOpen(event.currentTarget.open);
+                }}
+              >
+                <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 border-b border-book-border/40 px-3 py-2.5 text-xs font-medium text-book-text-main md:hidden [&::-webkit-details-marker]:hidden">
+                  <ChevronRight
+                    size={14}
+                    aria-hidden="true"
+                    className="shrink-0 transition-transform group-open/scene-meta:rotate-90"
+                  />
+                  <span>{t("galgame.sceneInfo")}</span>
+                  <span className="min-w-0 flex-1 truncate text-book-text-muted">
+                    {selectedScene.scene.title}
+                  </span>
+                </summary>
+                <SceneMetaEditor
+                  key={`${selectedScene.scene.id}:${discardVersion}`}
+                  scene={selectedScene.scene}
+                  scenes={detail?.scenes ?? []}
+                  mediaBindings={
+                    mediaBindingsByScene.get(selectedScene.scene.id) ?? []
+                  }
+                  disabled
+                  fieldDraftResetRevision={fieldDraftResetRevision}
+                  fieldDraft={fieldDrafts[`scene:${selectedScene.scene.id}`] ?? null}
+                  mediaAssetIdDraft={assetBindingDrafts[`scene:${selectedScene.scene.id}:background`] ?? ""}
+                  onMediaAssetIdDraftChange={(value) =>
+                    updateAssetBindingDraft(`scene:${selectedScene.scene.id}:background`, value)
+                  }
+                  onPatch={(patch) => handleScenePatch(selectedScene.scene, patch)}
+                  onDraftChange={updateFieldDraft}
+                  onBindMedia={(mediaAssetId) =>
+                    handleBindMedia(
+                      "galgame_scene",
+                      selectedScene.scene.id,
+                      "background",
+                      mediaAssetId,
+                    )
+                  }
+                  onUnbindMedia={handleUnbindMedia}
+                />
+              </details>
+            </div>
           ) : null}
 
           <div

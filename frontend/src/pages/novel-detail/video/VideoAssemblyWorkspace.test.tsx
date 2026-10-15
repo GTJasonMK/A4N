@@ -73,7 +73,7 @@ describe("VideoAssemblyWorkspace", () => {
     ].find(([button]) => button.includes("生成预览"))?.[0];
 
     expect(html).toContain("1 段");
-    expect(html).toContain("本次仅合成已有视频；片段 2 尚无有效视频");
+    expect(html).toContain("计划片段 2 尚无有效视频；本次预览仅包含已采纳素材");
     expect(generateButton).not.toContain('disabled=""');
   });
 

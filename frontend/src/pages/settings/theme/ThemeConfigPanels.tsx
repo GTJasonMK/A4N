@@ -164,7 +164,7 @@ export const ThemePackagePanel: React.FC<ThemePackagePanelProps> = ({
             value={selectedId ?? ""}
             onChange={(selectedValue) => setSelectedId(Number(selectedValue))}
             disabled={disabled || themes.length === 0}
-            className="pyqt-input min-w-0 flex-1 !min-h-9 !px-2 text-xs"
+            className="pyqt-input w-full min-w-0 !min-h-9 !px-2 text-xs sm:flex-1"
           >
             {themes.map((theme) => (
               <option key={theme.id} value={theme.id}>{theme.name}</option>

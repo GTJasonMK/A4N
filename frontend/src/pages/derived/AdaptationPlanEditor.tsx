@@ -16,10 +16,10 @@ export const isValidMangaPageCount = (value: unknown): value is number =>
   isPositiveSafeInteger(value) && value <= 100;
 
 function ReadOnlyPlanValue({ label, value, compact = false }: { label: string; value: string | null; compact?: boolean }) {
-  return <div className={compact ? "grid min-w-0 gap-1" : "grid min-w-0 gap-1 py-2.5 sm:grid-cols-[112px_minmax(0,1fr)] sm:gap-3"}>
+  return <dl className={compact ? "grid min-w-0 gap-1" : "grid min-w-0 gap-1 py-2.5 sm:grid-cols-[112px_minmax(0,1fr)] sm:gap-3"}>
     <dt className="text-small text-book-text-muted">{label}</dt>
     <dd className="whitespace-pre-wrap break-words text-xs leading-relaxed text-book-text-main">{value || "—"}</dd>
-  </div>;
+  </dl>;
 }
 
 export function AdaptationPlanView({ value, chapter }: {

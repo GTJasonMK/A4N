@@ -1,5 +1,6 @@
-import { config as browserConfig } from "../video-mode-switch/wdio.conf.mjs";
 import { startVite, stopProcess } from "../process.mjs";
+
+import { config as browserConfig } from "../video-mode-switch/wdio.conf.mjs";
 
 const port = Number(process.env.A4N_UI_PORT ?? 4187);
 const baseUrl = `http://127.0.0.1:${port}`;

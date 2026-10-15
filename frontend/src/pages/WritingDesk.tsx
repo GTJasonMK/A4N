@@ -158,6 +158,9 @@ export const WritingDesk: React.FC = () => {
   const [isMobileLayout, setIsMobileLayout] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth < 768 : false,
   );
+  const [isCompactLayout, setIsCompactLayout] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth <= 1024 : false,
+  );
   const [rightPanel, setRightPanel] = usePersistedTab<RightPanel>(
     projectIdKey ? `a4n:writing-desk:${projectIdKey}:right-panel` : null,
     agentRequested ? "optimize" : "none",
@@ -440,17 +443,19 @@ export const WritingDesk: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const updateMobileLayout = () => {
-      const mobile = window.innerWidth < 768;
+    const updateWritingDeskLayout = () => {
+      const width = window.innerWidth;
+      const mobile = width < 768;
+      setIsCompactLayout(width <= 1024);
       setIsMobileLayout(mobile);
       if (mobile) {
         setLeftSidebarVisible(false);
         if (!agentRequested) setRightPanel("none");
       }
     };
-    updateMobileLayout();
-    window.addEventListener("resize", updateMobileLayout);
-    return () => window.removeEventListener("resize", updateMobileLayout);
+    updateWritingDeskLayout();
+    window.addEventListener("resize", updateWritingDeskLayout);
+    return () => window.removeEventListener("resize", updateWritingDeskLayout);
   }, [agentRequested]);
 
   useEffect(() => {
@@ -1181,7 +1186,7 @@ export const WritingDesk: React.FC = () => {
   };
 
   const writingDeskGridTemplateColumns =
-    `${!isMobileLayout && leftSidebarVisible ? `${LEFT_SIDEBAR_WIDTH}px ` : ""}minmax(0,1fr)` +
+    `${!isCompactLayout && leftSidebarVisible ? `${LEFT_SIDEBAR_WIDTH}px ` : ""}minmax(0,1fr)` +
     (isMobileLayout || rightPanel === "none"
       ? ""
       : ` ${RIGHT_PANEL_RESIZER_WIDTH}px ${rightPanelWidth}px`);
@@ -1241,7 +1246,7 @@ export const WritingDesk: React.FC = () => {
       outlineLoadError={outlineLoadError}
       onRefreshOutlines={reloadOutlines}
       isMobileLayout={isMobileLayout}
-      leftSidebarVisible={leftSidebarVisible}
+      leftSidebarVisible={!isCompactLayout && leftSidebarVisible}
       rightPanel={rightPanel}
       assistantOpen={assistantOpen}
       writingDeskGridTemplateColumns={writingDeskGridTemplateColumns}
@@ -1250,13 +1255,13 @@ export const WritingDesk: React.FC = () => {
       headerProps={{
         project,
         activeNumber,
-        isMobileLayout,
+        isCompactLayout,
         canGoPrev: previousChapterNumber != null,
         canGoNext: nextChapterNumber != null,
         chapterNumbers,
         chapters,
         outlines,
-        leftSidebarVisible: !isMobileLayout && leftSidebarVisible,
+        leftSidebarVisible: !isCompactLayout && leftSidebarVisible,
         rightPanel,
         dirty,
         savingContent,

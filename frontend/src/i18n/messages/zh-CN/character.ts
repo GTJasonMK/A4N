@@ -1,5 +1,6 @@
 export const characterDetail = {
   checkScope: "检查范围",
+  checkedScope: "本次范围：",
   startChapter: "起始章",
   endChapter: "结束章",
   currentChapter: "当前章",
@@ -532,6 +533,7 @@ export const characterDetail = {
     refresh: "刷新",
     compareRollback: "比较与回滚",
     compareChapterState: "比较章节状态",
+    compareTo: "至",
     initial: "初始",
     noSnapshot: "无快照",
     chapterCompact: "第 {chapter} 章",

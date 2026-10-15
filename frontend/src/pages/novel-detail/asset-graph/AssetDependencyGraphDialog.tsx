@@ -6,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Network, RefreshCw } from "lucide-react";
+import { ArrowLeftRight, Network, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import {
   getProjectAssetDependencyGraph,
@@ -73,6 +73,7 @@ export const AssetDependencyGraphDialog: React.FC<
   const [themeVersion, setThemeVersion] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [mobilePane, setMobilePane] = useState<"graph" | "details">("graph");
+  const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false);
 
   const loadGraph = useCallback(async () => {
     if (graphLoadingRef.current) return;
@@ -206,6 +207,35 @@ export const AssetDependencyGraphDialog: React.FC<
     drawGraph(canvas, layout, graph?.edges ?? [], selectedId, t);
   }, [graph?.edges, layout, selectedId, t, themeVersion]);
 
+  useLayoutEffect(() => {
+    const container = networkScrollRef.current;
+    const canvas = canvasRef.current;
+    if (!open || mobilePane !== "graph" || !container || !canvas) {
+      setHasHorizontalOverflow(false);
+      return undefined;
+    }
+
+    const updateOverflow = () => {
+      const overflowing = container.scrollWidth > container.clientWidth + 1;
+      setHasHorizontalOverflow((current) =>
+        current === overflowing ? current : overflowing,
+      );
+    };
+    updateOverflow();
+
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(updateOverflow);
+    observer?.observe(container);
+    observer?.observe(canvas);
+    window.addEventListener("resize", updateOverflow);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateOverflow);
+    };
+  }, [open, mobilePane, layout, scaledCanvasWidth, scaledCanvasHeight]);
+
   useEffect(() => {
     const container = networkScrollRef.current;
     if (!open || !container || !selectedNode) return;
@@ -314,10 +344,29 @@ export const AssetDependencyGraphDialog: React.FC<
             />
           </div>
 
-          <div className="grid min-h-0 flex-1 md:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="grid min-h-0 flex-1 md:grid-cols-[minmax(0,1fr)_360px] min-[900px]:grid-cols-[minmax(0,1fr)_clamp(380px,38vw,400px)]">
             <div
               ref={networkScrollRef}
-              className={`${mobilePane === "graph" ? "block" : "hidden"} relative min-w-0 overflow-auto bg-book-bg md:block md:border-r md:border-book-border/45 custom-scrollbar`}
+              role="region"
+              tabIndex={0}
+              aria-label={t("novel.assetGraph.keyboardPanHint")}
+              onKeyDown={(event) => {
+                const direction = {
+                  ArrowLeft: { left: -1, top: 0 },
+                  ArrowRight: { left: 1, top: 0 },
+                  ArrowUp: { left: 0, top: -1 },
+                  ArrowDown: { left: 0, top: 1 },
+                }[event.key as "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown"];
+                if (!direction) return;
+                event.preventDefault();
+                const step = event.shiftKey ? 240 : 120;
+                event.currentTarget.scrollBy({
+                  left: direction.left * step,
+                  top: direction.top * step,
+                  behavior: "smooth",
+                });
+              }}
+              className={`${mobilePane === "graph" ? "block" : "hidden"} relative min-w-0 overflow-auto bg-book-bg focus:outline-none focus-visible:ring-2 focus-visible:ring-book-primary/60 md:block md:border-r md:border-book-border/45 custom-scrollbar`}
             >
               {loading && !graph ? (
                 <div className="flex h-full items-center justify-center text-sm text-book-text-muted">
@@ -330,16 +379,26 @@ export const AssetDependencyGraphDialog: React.FC<
                 </div>
               ) : (
                 <>
-                  <ZoomControls
-                    zoom={zoom}
-                    onZoomIn={() =>
-                      updateZoom((current) => current + ZOOM_STEP)
-                    }
-                    onZoomOut={() =>
-                      updateZoom((current) => current - ZOOM_STEP)
-                    }
-                    onReset={() => updateZoom(1)}
-                  />
+                  <div className="pointer-events-none sticky left-3 top-3 z-10 h-0 w-0">
+                    <div className="flex items-center gap-2">
+                      <ZoomControls
+                        zoom={zoom}
+                        onZoomIn={() =>
+                          updateZoom((current) => current + ZOOM_STEP)
+                        }
+                        onZoomOut={() =>
+                          updateZoom((current) => current - ZOOM_STEP)
+                        }
+                        onReset={() => updateZoom(1)}
+                      />
+                      {hasHorizontalOverflow && (
+                        <span className="a4n-asset-graph-pan-hint inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-book-border/45 bg-book-bg-paper/90 px-2.5 py-2 text-caption text-book-text-muted shadow-sm">
+                          <ArrowLeftRight size={12} aria-hidden="true" />
+                          {t("novel.assetGraph.panHint")}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                   <div className="grid min-h-full min-w-max place-items-center p-4 pt-16">
                     <canvas
                       ref={canvasRef}

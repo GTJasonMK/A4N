@@ -145,6 +145,42 @@ export const directorSnapshot = snapshot(
   ],
 );
 
+const videoDirectorThreadId = "dcde3bd8-5f0a-4a88-8a0c-769f84be9f10";
+export const videoDirectorSnapshot = {
+  ...directorSnapshot,
+  thread: {
+    ...directorSnapshot.thread,
+    id: videoDirectorThreadId,
+    title: "山海之间 · 先导短片 · 导演编排讨论",
+    bound_resource: { ...chapterRef },
+    scope: { ...directorSnapshot.thread.scope, project_id: 3 },
+  },
+  messages: directorSnapshot.messages.map((message, index) => ({
+    ...message,
+    id: `${videoDirectorThreadId}-message-${index + 1}`,
+    thread_id: videoDirectorThreadId,
+  })),
+};
+
+const videoDirectorBridgeThreadId = "d54f5960-17c0-4c70-9e85-23c4d4bba22a";
+export const videoDirectorBridgeSnapshot = {
+  ...videoDirectorSnapshot,
+  thread: {
+    ...videoDirectorSnapshot.thread,
+    id: videoDirectorBridgeThreadId,
+    title: "山海之间 · 先导短片 · 导演编辑桥接",
+  },
+  messages: [],
+  turns: [],
+  runs: [],
+  events: [],
+  executions: [],
+  delegations: [],
+  approvals: [],
+  inbox: [],
+  memories: [],
+};
+
 export const homeAgentFixtures = {
   list_my_project_invites: [
     { id: 8101, project_title: "旧车站档案补记：关于迟到信件与沿海邮路的协作长篇", inviter_username: "正文协作者", invitee_username: user.username, role: "editor" },

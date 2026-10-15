@@ -196,6 +196,14 @@ async function matrix(spec) {
       current.width = width;
       await browser.setWindowSize(width, 1000);
       const scope = await spec.open(width);
+      // Agent pages open in a separate window. Apply the matrix width after
+      // navigation as well, otherwise the new window keeps Chrome's default
+      // 800px viewport and invalidates the screenshot geometry assertions.
+      await browser.setWindowSize(width, 1000);
+      await browser.waitUntil(async () => (await browser.execute(() => innerWidth)) === width, {
+        timeout,
+        timeoutMsg: `The opened page must use the requested ${width}px viewport`,
+      });
       if (spec.text) await browser.waitUntil(async () => (await scope.getText()).includes(spec.text), { timeout, timeoutMsg: "Populated content missing: " + spec.text });
       const evidence = spec.check ? await spec.check(scope, width) : {};
       await shot(scope, width, "initial", evidence);
@@ -227,7 +235,15 @@ describe("Home and global Agent page audit", function () {
   });
   afterEach(async function () {
     if (this.currentTest.state === "failed") {
-      const state = await browser.execute(() => ({ width: innerWidth, url: location.href, text: document.body.innerText, errors: window.__uiAudit?.errors, unexpected: window.__uiAudit?.unexpected }));
+      const state = await browser.execute(() => ({
+        width: innerWidth,
+        url: location.href,
+        text: document.body.innerText,
+        commands: window.__uiAudit?.commands,
+        requests: window.__uiAudit?.requests?.slice(-24),
+        errors: window.__uiAudit?.errors,
+        unexpected: window.__uiAudit?.unexpected,
+      }));
       const file = `${phase}-${current?.id ?? "setup"}-${state.width}-failure.png`;
       await browser.saveScreenshot(output + file);
       const failure = { id: current?.id, file, outcome: "failed", error: current?.error ?? this.currentTest.err?.stack, ...state };

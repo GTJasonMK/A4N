@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ChevronRight, Eye, MoreHorizontal, Plus } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
-import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
+import { BookButton } from "../../../components/ui/BookButton";
 import { BookCardAction } from "../../../components/ui/BookCard";
 import { nonEmptyText } from "../../../utils/text";
 import { EmptyHint } from "../shared";
@@ -144,16 +144,16 @@ export function ChapterOutlineSection({
             </label>
             <div className="flex items-center justify-end gap-2 md:justify-start">
               {!generating ? (
-                <BookIconButton
-                  label={hasOutlines ? t("outline.chapterSection.viewAppendRequest") : t("outline.chapterSection.viewGenerateRequest")}
+                <BookButton
                   variant="secondary"
-                  size="md"
+                  size="sm"
                   onClick={onPreviewGenerate}
                   disabled={disabled || !loaded}
-                  className="!h-10 !w-10"
+                  className="h-10 shrink-0 !min-h-10 !px-2.5 !text-xs"
                 >
-                  <Eye size={14} />
-                </BookIconButton>
+                  <Eye size={14} aria-hidden="true" />
+                  {t(hasOutlines ? "outline.chapterSection.viewAppendRequest" : "outline.chapterSection.viewGenerateRequest")}
+                </BookButton>
               ) : null}
               <BookButton
                 variant="primary"
@@ -260,6 +260,11 @@ export function ChapterOutlineSection({
                         </p>
                       ) : null}
                     </div>
+                    <ChevronRight
+                      size={14}
+                      aria-hidden="true"
+                      className="mt-1 shrink-0 text-book-text-muted chapter-outline-entry-cue"
+                    />
                     {canEdit && (
                       <div className="relative z-20 flex shrink-0 items-center">
                         <button

@@ -132,7 +132,12 @@ export function ConfirmDialogHost() {
     ) : (
       <Info size={15} />
     );
-
+  const confirmActionBorder =
+    current.dialogType === "normal"
+      ? "!border-book-primary-dark"
+      : current.dialogType === "warning"
+        ? "!border-current"
+        : "";
   return (
     <Modal
       isOpen
@@ -144,11 +149,21 @@ export function ConfirmDialogHost() {
       zIndexClassName="z-[120]"
       footer={
         <>
-          <BookButton variant="secondary" size="sm" onClick={cancel}>
+          <BookButton
+            variant="secondary"
+            size="sm"
+            onClick={cancel}
+            className="order-last sm:order-first"
+          >
             {current.cancelText}
           </BookButton>
           {current.secondaryText ? (
-            <BookButton variant="secondary" size="sm" onClick={secondary} className="!min-h-8 !text-xs">
+            <BookButton
+              variant="secondary"
+              size="sm"
+              onClick={secondary}
+              className="!min-h-8 !text-xs order-2"
+            >
               {current.secondaryText}
             </BookButton>
           ) : null}
@@ -156,7 +171,7 @@ export function ConfirmDialogHost() {
             variant={confirmVariant}
             size="sm"
             onClick={confirm}
-            className="!min-h-8 !text-xs"
+            className={`!min-h-8 !text-xs ${confirmActionBorder} order-first sm:order-last`}
           >
             {current.confirmText}
           </BookButton>

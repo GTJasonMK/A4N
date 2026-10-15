@@ -295,7 +295,10 @@ export const useThemeTabController = () => {
     const requestUserKey = userKey;
     const confirmed = await confirmDialog({
       title: t("settingsTheme.deleteSelected", { count: deletableTargets.length }),
-      message: t("settingsTheme.deleteSelectedMessage", { count: deletableTargets.length }),
+      message: t("settingsTheme.deleteSelectedMessage", {
+        count: deletableTargets.length,
+        names: deletableTargets.map((target, index) => `${index + 1}. ${target.name}`).join("\n"),
+      }),
       confirmText: t("settingsTheme.deleteSelected", { count: deletableTargets.length }),
       dialogType: "danger",
     });

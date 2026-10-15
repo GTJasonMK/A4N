@@ -7,26 +7,29 @@ import type { ToastType } from "./toastStore";
 export { useToast } from "./toastStore";
 export type { ToastAction, ToastType } from "./toastStore";
 
+const TOAST_EDGE_INSET = 16;
+
 export function ToastContainer() {
   const { toasts, removeToast } = useToast();
   const { t } = useI18n();
-  const [mobileTop, setMobileTop] = useState<number | null>(88);
+  const [placement, setPlacement] = useState<{ left: number; top: number; width: number } | null>(null);
   const [canvasAnchor, setCanvasAnchor] = useState<{ left: number; bottom: number } | null>(null);
 
   useLayoutEffect(() => {
+    if (toasts.length === 0) return;
+
     const updatePosition = () => {
       const isCanvasPage = document.querySelector(".a4n-video-canvas-header") != null;
       const flowRect = document.querySelector<HTMLElement>(".a4n-studio-flow")?.getBoundingClientRect();
-      const toastWidth = Math.min(window.innerWidth * 0.92, 368);
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const toastWidth = Math.min(viewportWidth * 0.92, 368, viewportWidth - TOAST_EDGE_INSET * 2);
       const nextCanvasAnchor = isCanvasPage && window.innerWidth >= 640 && flowRect && flowRect.width > 0
         ? {
-            left: Math.max(flowRect.left + 12, flowRect.right - toastWidth - 12),
-            bottom: Math.max(12, window.innerHeight - flowRect.bottom + 12),
+            left: Math.max(flowRect.left + TOAST_EDGE_INSET, flowRect.right - toastWidth - TOAST_EDGE_INSET),
+            bottom: Math.max(TOAST_EDGE_INSET, window.innerHeight - flowRect.bottom + TOAST_EDGE_INSET),
           }
         : null;
-      setCanvasAnchor((current) => current?.left === nextCanvasAnchor?.left && current?.bottom === nextCanvasAnchor?.bottom
-        ? current
-        : nextCanvasAnchor);
       const candidates = [
         ...document.querySelectorAll<HTMLElement>(".a4n-page-header"),
         ...document.querySelectorAll<HTMLElement>(".a4n-settings-layout > div:first-child"),
@@ -40,20 +43,62 @@ export function ToastContainer() {
         .filter((bottom) => bottom >= 0 && bottom <= window.innerHeight);
       const nextTop = Math.ceil((visibleBottoms.length > 0 ? Math.max(...visibleBottoms) : 56) + 8);
       const toastContainer = document.querySelector<HTMLElement>(".a4n-toast-container");
-      const toastRect = toastContainer?.getBoundingClientRect();
-      const toastHeight = toastRect?.height || 72;
-      const coversContent = window.innerWidth < 640 && toastRect != null && [
+      const toastHeight = toastContainer?.getBoundingClientRect().height || 72;
+      const blockers = [
         ...document.querySelectorAll<HTMLElement>("h1:not(.sr-only), h2, h3, button, input, textarea, select, [role='button']"),
-      ].some((element) => {
-        if (element.closest(".a4n-toast-container, .a4n-page-header, .sr-only, [aria-hidden='true'], [role='dialog']")) return false;
+      ].flatMap((element) => {
+        if (element.closest(".a4n-toast-container, .sr-only, [aria-hidden='true']")) return [];
         const rect = element.getBoundingClientRect();
         const style = getComputedStyle(element);
         return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden"
-          && rect.left < toastRect.right && rect.right > toastRect.left
-          && rect.top < nextTop + toastHeight && rect.bottom > nextTop;
+          ? [rect]
+          : [];
       });
-      const position = coversContent ? null : nextTop;
-      setMobileTop((current) => current === position ? current : position);
+      const widths = [...new Set([
+        toastWidth,
+        Math.min(toastWidth, 280),
+        Math.min(toastWidth, 220),
+        Math.min(toastWidth, 180),
+      ])];
+      let nextPlacement: { left: number; top: number; width: number } | null = null;
+      for (const width of widths) {
+        const lefts = [...new Set([TOAST_EDGE_INSET, viewportWidth - width - TOAST_EDGE_INSET])];
+        const gaps = blockers.flatMap((rect) => [
+          Math.ceil(rect.bottom + 8),
+          Math.floor(rect.top - toastHeight - 8),
+        ]);
+        const preferredTops = viewportWidth < 640
+          ? [nextTop, viewportHeight - toastHeight - TOAST_EDGE_INSET, ...gaps]
+          : [viewportHeight - toastHeight - TOAST_EDGE_INSET, nextTop, TOAST_EDGE_INSET, ...gaps];
+        for (const left of lefts) {
+          for (const top of [...new Set(preferredTops)]) {
+            if (top < TOAST_EDGE_INSET || top + toastHeight > viewportHeight - TOAST_EDGE_INSET) continue;
+            const collides = blockers.some((rect) =>
+              rect.left < left + width && rect.right > left
+              && rect.top < top + toastHeight && rect.bottom > top,
+            );
+            if (!collides) {
+              nextPlacement = { left, top, width };
+              break;
+            }
+          }
+          if (nextPlacement) break;
+        }
+        if (nextPlacement) break;
+      }
+      nextPlacement ??= {
+        left: viewportWidth - toastWidth - TOAST_EDGE_INSET,
+        top: viewportHeight - toastHeight - TOAST_EDGE_INSET,
+        width: toastWidth,
+      };
+      setPlacement((current) => current?.left === nextPlacement.left
+        && current.top === nextPlacement.top
+        && current.width === nextPlacement.width
+        ? current
+        : nextPlacement);
+      setCanvasAnchor((current) => current?.left === nextCanvasAnchor?.left && current?.bottom === nextCanvasAnchor?.bottom
+        ? current
+        : nextCanvasAnchor);
     };
 
     updatePosition();
@@ -77,11 +122,15 @@ export function ToastContainer() {
       childList: true,
       subtree: true,
     });
+    const toastContainer = document.querySelector<HTMLElement>(".a4n-toast-container");
+    const resizeObserver = toastContainer ? new ResizeObserver(observeHeaders) : null;
+    if (toastContainer) resizeObserver?.observe(toastContainer);
     observeHeaders();
     return () => {
       window.removeEventListener("resize", scheduleUpdate);
       if (frame != null) window.cancelAnimationFrame(frame);
       observer.disconnect();
+      resizeObserver?.disconnect();
     };
   }, [toasts.length]);
 
@@ -102,15 +151,21 @@ export function ToastContainer() {
       aria-live="polite"
       aria-relevant="additions removals"
       style={{
-        ...(mobileTop == null ? {} : { "--a4n-toast-mobile-top": `${mobileTop}px` }),
         ...(canvasAnchor ? {
           left: `${canvasAnchor.left}px`,
           right: "auto",
           bottom: `${canvasAnchor.bottom}px`,
           top: "auto",
+          width: `${Math.min(window.innerWidth * 0.92, 368)}px`,
+        } : placement ? {
+          left: `${placement.left}px`,
+          right: "auto",
+          top: `${placement.top}px`,
+          bottom: "auto",
+          width: `${placement.width}px`,
         } : {}),
       } as CSSProperties}
-      className={`a4n-toast-container pointer-events-none fixed inset-x-3 ${mobileTop == null ? "bottom-3 top-auto" : "top-[var(--a4n-toast-mobile-top)]"} z-[110] flex flex-col items-end gap-2 sm:inset-x-auto sm:bottom-3 sm:left-3 sm:top-auto sm:w-[min(92vw,23rem)]`}
+      className="a4n-toast-container pointer-events-none fixed z-[110] flex flex-col items-end gap-2"
     >
       {toasts.map((toast) => (
         <div

@@ -26,6 +26,7 @@ export function setNodeTemplateDragImage(
   label: string,
   zoom: number,
   contract: StudioNodeContract | null,
+  sourceIcon: SVGSVGElement,
   t: MessageTranslator,
 ): void {
   const nodeWidth = 218;
@@ -76,8 +77,7 @@ export function setNodeTemplateDragImage(
 
   const icon = document.createElement("div");
   icon.className = "a4n-studio-node-icon flex h-6 w-6 shrink-0 items-center justify-center rounded border";
-  icon.textContent = nodeKindDragGlyph(kind);
-  icon.style.fontSize = "14px";
+  icon.appendChild(sourceIcon.cloneNode(true));
   header.appendChild(icon);
 
   const titleBox = document.createElement("div");
@@ -141,14 +141,6 @@ function createDragPreviewPort(kind: "input" | "output", index: number, total: n
     transform: "translateY(-50%)",
   });
   return port;
-}
-
-function nodeKindDragGlyph(kind: string): string {
-  if (kind.includes("Text")) return "T";
-  if (kind.includes("Image")) return "I";
-  if (kind.includes("Video")) return "V";
-  if (kind.includes("Audio")) return "A";
-  return "*";
 }
 
 function dragPreviewBodyText(kind: string, t: MessageTranslator): string {

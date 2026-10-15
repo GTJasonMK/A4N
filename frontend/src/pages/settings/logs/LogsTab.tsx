@@ -31,6 +31,7 @@ export const LogsTab: React.FC = () => {
   const [filterInput, setFilterInput] = useState("info,a4n=debug");
   const [loading, setLoading] = useState(true);
   const [applyingFilter, setApplyingFilter] = useState(false);
+  const [appliedFilter, setAppliedFilter] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const requestKey = `${lines}:${daysAgo}`;
   const callerUserId = user?.id ?? null;
@@ -174,12 +175,13 @@ export const LogsTab: React.FC = () => {
     const requestSeq = applyFilterSeqRef.current + 1;
     applyFilterSeqRef.current = requestSeq;
     applyingFilterRef.current = true;
+    setAppliedFilter(null);
     setApplyingFilter(true);
     try {
       await setLogLevel({ filter: requestFilter });
       if (!mountedRef.current || applyFilterSeqRef.current !== requestSeq)
         return;
-      addToast(t("settingsLogs.levelUpdated", { filter: requestFilter }), "success");
+      setAppliedFilter(requestFilter);
     } catch (err) {
       if (!mountedRef.current || applyFilterSeqRef.current !== requestSeq)
         return;
@@ -308,7 +310,10 @@ export const LogsTab: React.FC = () => {
               <input
                 aria-label={t("settingsLogs.filterLevel")}
                 value={filterInput}
-                onChange={(e) => setFilterInput(e.target.value)}
+                onChange={(e) => {
+                  setFilterInput(e.target.value);
+                  setAppliedFilter(null);
+                }}
                 placeholder={t("settingsLogs.filterPlaceholder")}
                 className="pyqt-input w-full text-xs sm:w-72"
               />
@@ -320,6 +325,11 @@ export const LogsTab: React.FC = () => {
               >
                 {applyingFilter ? t("settingsLogs.applying") : t("settingsLogs.apply")}
               </BookButton>
+              {appliedFilter ? (
+                <span role="status" className="min-w-0 break-words text-xs text-success [overflow-wrap:anywhere]">
+                  {t("settingsLogs.levelUpdated", { filter: appliedFilter })}
+                </span>
+              ) : null}
             </div>
           </details>
 

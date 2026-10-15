@@ -34,7 +34,7 @@ async function prepareMediaFixtures() {
     generatedMedia.push(audioPath);
     const result = spawnSync("ffmpeg", [
       "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100",
-      "-t", "2", "-ac", "1", "-c:a", "pcm_s16le", audioPath,
+      "-t", "3", "-ac", "1", "-c:a", "pcm_s16le", audioPath,
     ], { encoding: "utf8" });
     if (result.error) throw result.error;
     if (result.status !== 0) throw new Error(`生成 ${audioPath} 失败：${result.stderr}`);
@@ -55,6 +55,7 @@ export const config = {
   maxInstances: 1,
   specs: [
     "./home-agent.e2e.mjs",
+    "./home-zoom-equivalent.e2e.mjs",
     "./media.e2e.mjs",
     "./novel.e2e.mjs",
     "./settings-details.e2e.mjs",
@@ -64,7 +65,7 @@ export const config = {
   ],
   mochaOpts: {
     ...base.mochaOpts,
-    grep: /(?:^Home and global Agent page audit (?:H\d{2}-|A\d{2}[a-z]?-)|^Settings detail pages and complete dialog workflows SD\d{2}-|^Settings pages with populated records (?:S02-size-edit|S05-web-tools|S06-(?:revert|pending-save|retry))|^Novel page audit.* (?:UX-B60|UX-B73|UX-B74|UX-698)|^Populated media pages and task dialogs UX-B(?:72|73)|^Individual page workflows X01-|^Admin test center feature flow)/,
+    grep: /(?:^Home page at a 702 x 393 CSS viewport|^Home and global Agent page audit (?:H\d{2}-|A\d{2}[a-z]?-)|^Settings detail pages and complete dialog workflows SD\d{2}-|^Settings pages with populated records (?:S02-size-edit|S05-web-tools|S06-(?:revert|pending-save|retry))|^Novel page audit.* (?:UX-B60|UX-B73|UX-B74|UX-698)|^Populated media pages and task dialogs (?:MX33-|UX-B(?:72|73))|^Individual page workflows X01-|^Admin test center feature flow)/,
   },
   onPrepare: async (...args) => {
     try {

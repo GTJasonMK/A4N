@@ -1,5 +1,6 @@
 export const characterDetail = {
   checkScope: "Check scope",
+  checkedScope: "Checked range: ",
   startChapter: "Start chapter",
   endChapter: "End chapter",
   currentChapter: "Current chapter",
@@ -532,6 +533,7 @@ export const characterDetail = {
     refresh: "Refresh",
     compareRollback: "Compare and roll back",
     compareChapterState: "Compare chapter state",
+    compareTo: "to",
     initial: "Initial",
     noSnapshot: "No snapshot",
     chapterCompact: "Chapter {chapter}",

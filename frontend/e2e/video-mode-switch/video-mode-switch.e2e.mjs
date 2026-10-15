@@ -1080,7 +1080,7 @@ describe("video segment mode switching in Chromium", () => {
     await previewTitle.waitForExist();
     const body = await $("body");
     await browser.waitUntil(async () =>
-      (await body.getText()).includes("本次仅合成已有视频；片段 2 尚无有效视频"),
+      (await body.getText()).includes("计划片段 2 尚无有效视频；本次预览仅包含已采纳素材"),
     );
     assert.match(await body.getText(), /成片片段 1 有效视频|镜头 1/);
     assert.doesNotMatch(await body.getText(), /成片片段 2 有效视频/);
@@ -1116,7 +1116,7 @@ describe("video segment mode switching in Chromium", () => {
       (await body.getText()).includes("成片片段 1 有效视频"),
     );
     assert.match(await body.getText(), /成片片段 2 有效视频/);
-    assert.doesNotMatch(await body.getText(), /本次仅合成已有视频/);
+    assert.doesNotMatch(await body.getText(), /本次预览仅包含已采纳素材/);
 
     const generate = await $(
       '//button[contains(normalize-space(), "生成预览")]',

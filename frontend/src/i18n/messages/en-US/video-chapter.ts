@@ -643,6 +643,7 @@ export const videoChapter = {
       shadow: "Shadow",
       continuity: "Continuity",
       character: "Character",
+      uploading: "Uploading…",
       emotion: "Emotion",
       visibleAction: "Visible action",
       timing: "Timing",

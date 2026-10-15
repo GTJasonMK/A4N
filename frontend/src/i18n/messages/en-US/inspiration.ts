@@ -40,6 +40,7 @@ export const inspiration = {
   blueprintStopped: "Blueprint generation stopped",
   blueprintFailed: "Blueprint generation failed",
   blueprintRefineFailed: "Blueprint optimization failed",
+  refineFailureDetails: "{error}. Your adjustment text is preserved. Close this dialog, reopen “Adjust blueprint,” and try again.",
   startBlueprint: "Starting blueprint generation…",
   stopBlueprintRequest: "Requesting that blueprint generation stop…",
   stopBlueprintRequested: "Stop requested for blueprint generation",

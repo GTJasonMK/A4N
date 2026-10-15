@@ -1,9 +1,11 @@
 import { createRoot } from "react-dom/client";
 import { useState } from "react";
+import { Clapperboard, Film, FileText, ImagePlus, PanelTop, Scissors } from "lucide-react";
 import { I18nProvider } from "../../src/i18n";
 import { ConfirmDialogHost } from "../../src/components/feedback/ConfirmDialog";
 import { ToastContainer } from "../../src/components/feedback/Toast";
 import { ImageLightboxProvider } from "../../src/components/ui/ImageLightbox";
+import { MediaStageHeader } from "../../src/components/shell/MediaStageHeader";
 import { ChapterVisualPlanTab } from "../../src/pages/novel-detail/ChapterVisualPlanTab";
 import { planChanges } from "../../src/pages/novel-detail/visual-plan/changes";
 import { writeFixtureAuth } from "../fixtureAuth";
@@ -86,6 +88,15 @@ let imageGenerationCount = 0;
 const editStreams = new Set<ReadableStreamDefaultController<Uint8Array>>();
 let holdSave = false;
 let releaseSave: (() => void) | null = null;
+const stages = [
+  { id: "materials", label: "基础素材", icon: <ImagePlus size={13} /> },
+  { id: "director", label: "导演编排", icon: <Clapperboard size={13} /> },
+  { id: "screenplay", label: "拍摄剧本", icon: <FileText size={13} /> },
+  { id: "frames", label: "片段规划", icon: <PanelTop size={13} /> },
+  { id: "video", label: "片段生成", icon: <Film size={13} /> },
+  { id: "assembly", label: "成片合成", icon: <Clapperboard size={13} /> },
+  { id: "postprocess", label: "后期处理", icon: <Scissors size={13} /> },
+];
 Object.assign(window, {
   holdDirectorSave: () => { holdSave = true; },
   releaseDirectorSave: () => releaseSave?.(),
@@ -188,9 +199,14 @@ window.fetch = async (resource, options) => {
 function Fixture() {
   const [chapterId, setChapterId] = useState(1);
   const [canEdit, setCanEdit] = useState(true);
+  const [workspaceStage, setWorkspaceStage] = useState("director");
   Object.assign(window, { switchDirectorChapter: setChapterId });
   Object.assign(window, { setDirectorCanEdit: setCanEdit });
   return <I18nProvider initialLocale="zh-CN"><ImageLightboxProvider><div className="a4n-app-shell flex h-dvh flex-col bg-book-bg">
+    <header className="shrink-0 px-3 pt-2">
+      <MediaStageHeader id="video-stages-3" label="视频工作区" tabs={stages} activeTab={workspaceStage}
+        onTabChange={(stage) => { setWorkspaceStage(stage); return true; }} />
+    </header>
     <main className="grid min-h-0 flex-1 p-2 sm:p-3">
       <ChapterVisualPlanTab
         projectId={1} canEdit={canEdit}

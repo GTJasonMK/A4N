@@ -1,4 +1,5 @@
 import React from "react";
+import { ArrowRight } from "lucide-react";
 import type {
   ProfileChapterState,
   Snapshot,
@@ -463,8 +464,13 @@ export const SnapshotDeltaView: React.FC<{ delta: SnapshotDelta }> = ({
       <div className="px-3 py-3">
         <div className="font-semibold text-book-text-main">{t("characterDetail.snapshot.changeSummary")}</div>
         {fromChapter != null && toChapter != null ? (
-          <div className="mt-1 text-caption text-book-text-muted">
-            {t("characterDetail.chapter", { chapter: fromChapter })} → {t("characterDetail.chapter", { chapter: toChapter })}
+          <div className="mt-1 inline-flex items-center gap-1.5 text-caption text-book-text-muted">
+            <span>{t("characterDetail.chapter", { chapter: fromChapter })}</span>
+            <span className="inline-flex items-center">
+              <ArrowRight size={12} aria-hidden="true" />
+              <span className="sr-only">{t("characterDetail.snapshot.compareTo")}</span>
+            </span>
+            <span>{t("characterDetail.chapter", { chapter: toChapter })}</span>
           </div>
         ) : null}
       </div>

@@ -73,6 +73,14 @@
 }
 
 @media (max-width: 767px) {
+  .a4n-app-page-header--project-detail .a4n-app-page-header__title {
+    overflow: visible;
+    font-size: 16px;
+    line-height: 1.25;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
   .a4n-video-canvas-header .a4n-app-page-header__actions {
     box-sizing: border-box;
     width: 100%;
@@ -147,7 +155,8 @@
     min-height: 44px;
   }
 
-  .a4n-themed-select__option {
+  .a4n-themed-select__option,
+  .a4n-themed-combobox__option {
     min-height: 44px;
   }
 
@@ -293,4 +302,13 @@
       min-height: 44px !important;
     }
   }
+}
+
+@media (max-width: 767px) and (max-height: 480px) {
+  .a4n-page-header.a4n-app-page-header--desk { min-height: 44px; padding-block: 0; }
+  .a4n-writing-chapter-toolbar { padding-block: 0.25rem; }
+  .a4n-writing-workspace { padding-block: 0.5rem; }
+  .a4n-writing-workspace-heading { margin-bottom: 0.25rem; }
+  .a4n-writing-tab-panel { margin-top: 0.25rem; }
+  .a4n-writing-editor { padding-block: 0.5rem; }
 }

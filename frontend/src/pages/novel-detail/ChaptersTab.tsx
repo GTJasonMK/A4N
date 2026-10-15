@@ -244,6 +244,12 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
     () => displayChapters.reduce((sum, chapter) => sum + chapterWordCount(chapter), 0),
     [displayChapters],
   );
+  const previewTitle = previewChapter
+    ? [
+        t("novel.chapterRangeSingle", { number: previewChapter.chapter_number }),
+        previewChapter.title?.trim(),
+      ].filter((part): part is string => Boolean(part)).join(" · ")
+    : "";
 
   if (displayLoading) {
     return (
@@ -314,8 +320,9 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
         <Modal
           isOpen
           onClose={() => setPreviewChapterId(null)}
-          title={previewChapter.title || t("novel.chapterRangeSingle", { number: previewChapter.chapter_number })}
+          title={previewTitle}
           maxWidthClassName="max-w-3xl"
+          className="[--a4n-dialog-opacity:1]"
         >
           <article
             aria-label={t("novel.chapterBody")}
@@ -357,7 +364,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
           }
         >
           <div className="space-y-3">
-            <div className="mb-3 grid gap-3 sm:grid-cols-[100px_1fr]">
+            <div className="mb-3 grid grid-cols-[100px_minmax(0,1fr)] gap-3">
               <label className="flex flex-col gap-1">
                 <span className="text-xs text-book-text-sub">{t("novel.chapterNumber")}</span>
                 <input

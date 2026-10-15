@@ -40,6 +40,7 @@ export const inspiration = {
   blueprintStopped: "蓝图生成已停止",
   blueprintFailed: "蓝图生成失败",
   blueprintRefineFailed: "蓝图优化失败",
+  refineFailureDetails: "{error}；调整内容已保留。关闭后可重新打开“调整蓝图”重试。",
   startBlueprint: "启动蓝图生成…",
   stopBlueprintRequest: "正在请求停止蓝图生成…",
   stopBlueprintRequested: "已请求停止蓝图生成",

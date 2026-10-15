@@ -786,7 +786,6 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       const loaded = await load(requestProjectId);
       if (!isCurrentAction(requestProjectId, actSeqRef, requestSeq)) return;
       if (!loaded) return;
-      addToast(tRef.current("novel.importReview.modified"), "success");
     } catch (err) {
       if (isCurrentAction(requestProjectId, actSeqRef, requestSeq)) {
         addToast(extractErrorMessage(err, tRef.current("novel.importReview.saveAndAcceptFailed")), "error");
@@ -1163,6 +1162,8 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         />
         <input
           ref={importFileInputRef}
+          aria-label={t("novel.importReview.file.choose")}
+          tabIndex={-1}
           type="file"
           accept=".txt,.md,.markdown,.epub,.docx,text/plain,text/markdown,application/epub+zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           className="sr-only"
@@ -1207,7 +1208,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         </div>
       </div>
       {previewChapter && (
-        <Modal isOpen onClose={() => setPreviewChapter(null)} title={`${t("novel.chapterRangeSingle", { number: previewChapter.chapter_number })}${previewChapter.title ? ` · ${previewChapter.title}` : ""}`} maxWidthClassName="max-w-3xl">
+        <Modal isOpen onClose={() => setPreviewChapter(null)} title={`${t("novel.chapterRangeSingle", { number: previewChapter.chapter_number })}${previewChapter.title ? ` · ${previewChapter.title}` : ""}`} maxWidthClassName="max-w-3xl" className="[--a4n-dialog-opacity:1]">
           <article aria-label={t("novel.chapterBody")} className="whitespace-pre-wrap break-words font-serif text-sm leading-relaxed text-book-text-main">
             {previewChapter.content}
           </article>

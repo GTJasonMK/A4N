@@ -373,14 +373,15 @@ export const useBlueprintWorkflow = ({
         return;
       }
       const message = extractErrorMessage(error, t("inspiration.blueprintFailed"));
+      const refinementFailed = currentOperation === "refinement";
       logger.scoped("InspirationChat").error("blueprint generation failed", { error });
       setBlueprintProgress((previous) => ({
         ...previous,
         status: "error",
-        message: currentOperation === "refinement" ? t("inspiration.blueprintRefineFailed") : t("inspiration.blueprintFailed"),
-        error: message,
+        message: refinementFailed ? t("inspiration.blueprintRefineFailed") : t("inspiration.blueprintFailed"),
+        error: refinementFailed ? t("inspiration.refineFailureDetails", { error: message }) : message,
       }));
-      addToast(message, "error");
+      if (!refinementFailed) addToast(message, "error");
     }).finally(() => {
       if (!isCurrentProject(requestProjectId)) return;
       setGenerating(false);
@@ -553,9 +554,8 @@ export const useBlueprintWorkflow = ({
         ...previous,
         status: "error",
         message: t("inspiration.blueprintRefineFailed"),
-        error: message,
+        error: t("inspiration.refineFailureDetails", { error: message }),
       }));
-      addToast(message, "error");
     }
   }, [addToast, isCurrentProject, project, projectId, refining, t]);
 

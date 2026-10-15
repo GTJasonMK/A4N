@@ -6,7 +6,7 @@ import type {
   ImportReviewSummary,
   ProjectImportAnalysisProgress,
 } from "../../../api/import";
-import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
+import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
 import { EmptyHint } from "../shared";
@@ -123,14 +123,15 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
           ) : (
             <>
               {!analyzeBusy && !cancelBusy && !externalBusy ? (
-                <BookIconButton
-                  label={t("novel.importReview.queue.previewRequest")}
+                <BookButton
                   variant="secondary"
                   size="sm"
                   onClick={() => void onPreviewAnalysisRequest()}
+                  className="!min-h-8 !text-xs"
                 >
-                  <Eye size={14} />
-                </BookIconButton>
+                  <Eye size={13} aria-hidden="true" />
+                  {t("novel.importReview.queue.previewRequest")}
+                </BookButton>
               ) : null}
               <BookButton
                 variant={selected.size > 0 ? "secondary" : "primary"}

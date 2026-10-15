@@ -115,12 +115,13 @@ describe("Admin test center feature flow", () => {
       throw error;
     }
 
+    await browser.setWindowSize(1440, 900);
     const allFunctionalButton = await $(`button*=${group.title}`);
     await allFunctionalButton.waitForDisplayed();
     await allFunctionalButton.click();
     assert.equal(await allFunctionalButton.getAttribute("aria-pressed"), "true");
 
-    for (const width of [1440, 1024, 390]) {
+    for (const width of [1440, 1280, 1279, 1024, 390]) {
       await browser.setWindowSize(width, 900);
       await browser.pause(150);
       const state = await browser.execute(() => ({
@@ -129,6 +130,42 @@ describe("Admin test center feature flow", () => {
       }));
       assert.equal(state.viewport, width);
       assert.equal(state.overflow, 0, `Test center must fit at ${width}px`);
+      assert.equal(
+        await $('select[aria-label="功能场景"]').isDisplayed(),
+        width < 1280,
+        `Scenario picker must match the ${width}px layout`,
+      );
+      if (width === 390) {
+        const picker = await $('select[aria-label="功能场景"]');
+        const selectedScenarioId = `repository_test_${group.id}`;
+        const selectedScenario = scenarios.find((scenario) => scenario.id === selectedScenarioId);
+        const alternateScenario = scenarios.find((scenario) => scenario.id !== selectedScenarioId);
+        assert.ok(alternateScenario);
+        const categoryPicker = await $('select[aria-label="分类"]');
+        await browser.execute(() => document.querySelector('select[aria-label="分类"]')?.focus());
+        await browser.keys("Tab");
+        const scenarioFocus = await browser.execute(() => ({
+          label: document.activeElement?.getAttribute("aria-label"),
+          visible: document.activeElement?.matches(":focus-visible"),
+        }));
+        assert.deepEqual(scenarioFocus, { label: "功能场景", visible: true });
+        await browser.keys("Tab");
+        const runFocus = await browser.execute(() => ({
+          text: document.activeElement?.textContent?.trim(),
+          visible: document.activeElement?.matches(":focus-visible"),
+        }));
+        assert.deepEqual(runFocus, { text: "运行测试", visible: true });
+        await picker.selectByAttribute("value", alternateScenario.id);
+        assert.equal(await picker.getValue(), alternateScenario.id);
+        await picker.selectByAttribute("value", selectedScenarioId);
+        assert.equal(await picker.getValue(), selectedScenarioId);
+        const filteredCategory = scenarios.find((scenario) => scenario.category !== selectedScenario?.category)?.category;
+        if (filteredCategory) {
+          await categoryPicker.selectByAttribute("value", filteredCategory);
+          assert.equal(await picker.getValue(), selectedScenarioId, "Category filtering must retain the selected scenario");
+          await categoryPicker.selectByAttribute("value", "all");
+        }
+      }
       await browser.saveScreenshot(`${artifacts}/test-center-${width}.png`);
     }
 
@@ -147,6 +184,18 @@ describe("Admin test center feature flow", () => {
     const pageText = await browser.$("main").getText();
     assert.ok(pageText.includes("测试通过"));
     for (const suite of group.suites) assert.ok(pageText.includes(suite), `Missing suite result: ${suite}`);
+    const resultLayout = await browser.execute(() => ({
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      viewport: document.documentElement.clientWidth,
+      visibleSteps: [...document.querySelectorAll("ol li")].filter((item) => {
+        const rect = item.getBoundingClientRect();
+        return rect.top >= 0 && rect.bottom <= window.innerHeight;
+      }).length,
+    }));
+    assert.equal(resultLayout.viewport, 390);
+    assert.equal(resultLayout.overflow, 0, "The test result must fit the phone viewport");
+    assert.ok(resultLayout.visibleSteps > 0, "Suite details must be visible after a phone run");
+    await browser.saveScreenshot(`${artifacts}/test-center-result-390.png`);
     assert.deepEqual(
       (await browser.execute(() => window.__uiAudit.unexpected)),
       [],

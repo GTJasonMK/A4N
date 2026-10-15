@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { installUiFixtures } from "../ui-presentation/fixtures.mjs";
 import { buildPageFixtures, seedLocalModels } from "./fixtures.mjs";
-import { directorSnapshot } from "./home-agent-fixtures.mjs";
+import { videoDirectorSnapshot } from "./home-agent-fixtures.mjs";
 
 const seed = JSON.parse(await readFile(new URL("./novel-fixtures.json", import.meta.url)));
 const runtimeSeed = JSON.parse(await readFile(new URL("./novel-runtime.json", import.meta.url)));
@@ -12,7 +13,9 @@ const directorPlan = mediaSeed.byChapter[1].get_chapter_visual_plan.draft.plan;
 const output = fileURLToPath(new URL("../../../.dev-runtime/ui-pages/novel/", import.meta.url));
 const phase = process.env.A4N_UI_PAGE_PHASE ?? "current";
 assert.match(phase, /^[a-z0-9_-]+$/i);
-const widths = [1440, 900, 390];
+const widths = process.env.A4N_UI_WIDTHS
+  ? process.env.A4N_UI_WIDTHS.split(",").map(Number)
+  : [1440, 900, 390];
 const height = 1000;
 const timeout = 5000;
 const report = [];
@@ -135,7 +138,7 @@ async function blueprintConfirmation() {
   const scope = await inspiration();
   await clickText("生成首版蓝图", scope);
   const progress = await dialog("生成首版蓝图");
-  await waitText(progress, "首版蓝图已生成");
+  await (await textButton("查看蓝图", progress)).waitForDisplayed({ timeout });
   await clickText("查看蓝图", progress);
   await browser.waitUntil(async () => !await progress.isDisplayed(), { timeout });
   await waitText(scope, "确认进入项目");
@@ -150,6 +153,38 @@ async function blueprintRefinement() {
 }
 async function checkRequestPreview(scope, command) {
   const step = seed.commands[command].steps[0];
+  const preview = seed.commands[command];
+  if (preview.steps.length === 1 && step.title === preview.title) {
+    assert.equal(await scope.$("h2").getText(), "请求信息");
+    const presentation = await scope.execute((node) => {
+      const templateRow = [...node.querySelectorAll("dl > div")].find((item) => item.querySelector("dt")?.textContent?.trim() === "模板");
+      return {
+        dialogOpacity: getComputedStyle(node).getPropertyValue("--a4n-dialog-opacity").trim(),
+        template: templateRow?.querySelector("dd")?.textContent?.trim() ?? null,
+      };
+    });
+    assert.equal(presentation.dialogOpacity, "1", "Request preview content must use an opaque surface");
+    if (step.prompt_name) assert.equal(presentation.template, step.prompt_name);
+  }
+  const messageViewport = await scope.execute((node) => {
+    const body = node.querySelector('[data-modal-body="1"]');
+    const lastMessage = node.querySelector("#request-preview-step-0 > section > div.grid > section:last-child");
+    if (!body || !lastMessage) return null;
+    const startScrollTop = body.scrollTop;
+    const bodyRect = body.getBoundingClientRect();
+    const messageRect = lastMessage.getBoundingClientRect();
+    const targetScrollTop = Math.min(
+      body.scrollHeight - body.clientHeight,
+      startScrollTop + Math.max(0, messageRect.bottom - bodyRect.bottom + 16),
+    );
+    body.scrollTop = targetScrollTop;
+    const visibleRect = lastMessage.getBoundingClientRect();
+    const gap = body.getBoundingClientRect().bottom - visibleRect.bottom;
+    const visible = visibleRect.top >= bodyRect.top - 1 && gap >= 15;
+    body.scrollTop = startScrollTop;
+    return { visible, gap, scrollRange: body.scrollHeight - body.clientHeight };
+  });
+  if (step.messages.length > 0) assert.ok(messageViewport?.visible, "The last prompt message must scroll fully above the fixed footer");
   for (const message of step.messages) {
     const prompt = await scope.$(".//pre[normalize-space(.)=" + literal(message.content) + "]");
     await prompt.waitForDisplayed({ timeout });
@@ -163,7 +198,7 @@ async function checkRequestPreview(scope, command) {
     assert.equal(request.target_length, 9);
     assert.ok(request.variables.inspiration_transcript.includes(seed.commands.get_inspiration_history[0].content));
   }
-  return { previewCommand: command, promptMessages: step.messages.length, promptCharacters: step.total_chars };
+  return { previewCommand: command, promptMessages: step.messages.length, promptCharacters: step.total_chars, messageViewport };
 }
 async function lastRequestPreview(scope) {
   await press(await containing("完整请求", scope, "summary"));
@@ -196,7 +231,7 @@ async function writingPanel(label) {
   return panel;
 }
 async function directorInspector(kind = "point") {
-  await writing("导演编排");
+  await videoDirector();
   await press(await $(`.director-${kind}`));
   return selectedDirectorInspector(kind);
 }
@@ -238,6 +273,23 @@ async function project(tab = "概览") {
   await clickText(tab, rail);
   return $(pageSelector);
 }
+async function assertProjectTitleVisible() {
+  const state = await browser.execute(() => {
+    const title = document.querySelector(".a4n-app-page-header--project-detail h1");
+    return title ? {
+      text: title.textContent?.trim() ?? "",
+      width: title.clientWidth,
+      scrollWidth: title.scrollWidth,
+      height: title.clientHeight,
+      scrollHeight: title.scrollHeight,
+    } : null;
+  });
+  assert.ok(state?.text, "The project title must be present");
+  assert.ok(state.width > 0, "The project title must have a visible box");
+  assert.ok(state.scrollWidth <= state.width + 1, "The project title must not be horizontally clipped");
+  assert.ok(state.scrollHeight <= state.height + 1, "The project title must not be vertically clipped");
+  return { projectTitle: state.text, titleFullyVisible: true };
+}
 async function writing(tab = "正文") {
   await home();
   const row = await rootRow();
@@ -265,6 +317,26 @@ async function writing(tab = "正文") {
   if (tab !== "正文") await clickText(tab, await $(".a4n-writing-tabs"));
   return $(".a4n-writing-workspace");
 }
+async function videoProjectStage(stage, beforeSelect) {
+  await browser.url("/video-project/3");
+  const scope = await $(pageSelector);
+  await scope.waitForDisplayed({ timeout });
+  await beforeSelect?.();
+  const selector = await $('[role="combobox"][id="video-stages-3-select"]');
+  if (await selector.isDisplayed()) {
+    await selector.click();
+    const option = await $(`//*[@role="option" and contains(normalize-space(.), ${literal(stage)})]`);
+    await option.waitForClickable();
+    await option.click();
+  } else {
+    await press(await $(`//*[@role="tab" and contains(normalize-space(.), ${literal(stage)})]`));
+  }
+  if (stage === "导演编排") await scope.$(".director-timeline").waitForDisplayed({ timeout });
+  else await browser.waitUntil(async () => (await scope.getText()).includes("场景 1"), { timeout });
+  return scope;
+}
+const videoScreenplay = () => videoProjectStage("拍摄剧本");
+const videoDirector = (beforeSelect) => videoProjectStage("导演编排", beforeSelect);
 async function closeDialog() {
   const closing = await dialog();
   await browser.keys("Escape");
@@ -356,7 +428,8 @@ async function snapshot(id, width, stage, scope, evidence = {}) {
   await browser.switchToWindow(auditWindow);
   await browser.pause(220); // CSS transitions only; the particle logo never finishes animating.
   const state = await browser.execute(() => ({
-    width: innerWidth, height: innerHeight, url: location.pathname + location.search,
+    width: innerWidth, height: innerHeight, devicePixelRatio, visualScale: visualViewport?.scale ?? null,
+    url: location.pathname + location.search,
     overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     theme: document.documentElement.classList.contains("dark") ? "dark" : "light",
     unexpected: [...window.__uiAudit.unexpected], errors: [...window.__uiAudit.errors],
@@ -386,10 +459,13 @@ async function matrix(spec, selectedWidths = widths) {
       await browser.setWindowSize(width, height);
       const scope = await spec.open(width);
       for (const text of spec.text ?? []) await waitText(scope, text);
+      if (spec.captureInitialBeforeCheck) {
+        failures.push(...await snapshot(spec.id, width, "initial", scope));
+      }
       const result = spec.check ? await spec.check(scope, width) : {};
       const captureScope = result?.scope ?? scope;
       const evidence = Object.fromEntries(Object.entries(result ?? {}).filter(([key]) => key !== "scope"));
-      failures.push(...await snapshot(spec.id, width, "initial", captureScope, evidence));
+      failures.push(...await snapshot(spec.id, width, spec.captureInitialBeforeCheck ? "verified" : "initial", captureScope, evidence));
       if (spec.last) {
         const target = await spec.last(captureScope);
         const last = await reach(target);
@@ -442,15 +518,19 @@ afterEach(async function () {
   if (this.currentTest.state === "failed") {
     const state = await browser.execute(() => ({
       url: location.href, width: innerWidth, text: document.body.innerText.slice(0, 12000),
+      readyState: document.readyState, rootMarkup: document.querySelector("#root")?.innerHTML.slice(0, 2400) ?? null,
+      scriptUrls: [...document.scripts].map((script) => script.src).filter(Boolean),
       unexpected: window.__uiAudit?.unexpected, errors: window.__uiAudit?.errors,
       workspaceTab: document.querySelector('.a4n-writing-tabs [aria-selected="true"]')?.textContent?.trim(),
       errorDetails: window.__uiAudit?.errorDetails ?? [],
       dependencyUrls: performance.getEntriesByType("resource").map((entry) => entry.name).filter((url) => /react|xyflow/.test(url)),
     }));
+    const browserLogs = await browser.getLogs("browser").catch((error) => [{ level: "error", message: String(error) }]);
     const file = phase + "-" + (current?.id ?? "setup") + "-" + state.width + "-failure.png";
     await browser.saveScreenshot(output + file);
     const failure = {
       id: current?.id, file, outcome: "failed", ...state,
+      browserLogs,
       error: current?.error ?? this.currentTest.err?.message,
       evidence: current?.evidence,
       notCapturedWidths: (current?.plannedWidths ?? widths).filter((width) => !current?.visited.includes(width)),
@@ -466,9 +546,9 @@ describe("Novel page audit - ordinary populated pages", function () {
 
   const pages = [
     { id: "N00-home", task: "找到原项目、派生项目和继续创作入口", open: home, text: [rootTitle], last: async () => (await $$(".a4n-project-row")).at(-1) },
-    { id: "N01-overview", tab: "概览", task: "核对项目概况与正式蓝图", text: ["一封未寄出的信", "蓝图版本"] },
-    { id: "N02-world", tab: "世界观", task: "阅读世界规则、地点与阵营", text: ["所有异常都必须依附", "旧书店", "书店守望者"] },
-    { id: "N03-characters", tab: "角色", task: "查找12个角色并打开档案", text: ["林岚", "周衡", "沈照"], last: async (scope) => scope.$('button[aria-label^="沈照 ·"]') },
+    { id: "N01-overview", tab: "概览", task: "核对项目概况与正式蓝图", text: ["一封未寄出的信", "蓝图版本"], check: assertProjectTitleVisible },
+    { id: "N02-world", tab: "世界观", task: "阅读世界规则、地点与阵营", text: ["所有异常都必须依附", "旧书店", "书店守望者", "优化世界观"], check: assertProjectTitleVisible },
+    { id: "N03-characters", tab: "角色", task: "查找12个角色并打开档案", text: ["林岚", "周衡", "沈照"], check: assertProjectTitleVisible, last: async (scope) => scope.$('button[aria-label^="沈照 ·"]') },
     { id: "N04-objects", tab: "物体", task: "查找道具及其来源", text: ["旧怀表", "未寄出的信", "褪色梧桐叶"], last: async (scope) => scope.$('button[aria-label^="褪色梧桐叶 ·"]') },
     { id: "N05-scenes", tab: "场景", task: "查找地点及跨章引用", text: ["旧书店", "阁楼", "沿海邮路档案室"], last: async (scope) => scope.$('button[aria-label^="沿海邮路档案室 ·"]') },
     { id: "N06-relationships", tab: "关系", task: "阅读有节点与连线的人物关系图", text: ["林岚", "周衡"], check: async (scope) => {
@@ -631,7 +711,7 @@ describe("Novel page audit - ordinary populated pages", function () {
 
       let page = await project("大纲");
       await clickText("分部大纲", page);
-      const openAdvanced = await ariaButton("打开大纲高级工具", page);
+      const openAdvanced = await textButton("高级工具", page);
       await openAdvanced.waitForEnabled({ timeout });
       await press(openAdvanced);
       let advanced = await dialog("大纲高级工具");
@@ -793,62 +873,113 @@ describe("Novel page audit - ordinary populated pages", function () {
   for (const [id, tab, expected] of [
     ["W01-body", "正文", null], ["W02-analysis", "分析", "林岚"],
     ["W03-images", "图像", "旧书店"], ["W04-director", "导演编排", "导演编排"],
-    ["W05-script", "拍摄剧本", "林岚"],
-  ]) it(id + " opens the independent chapter workspace", async () => matrix({
-    id, task: "在真实写作台切换到" + tab, open: async () => {
-      const scope = await writing(tab);
-      if (tab === "拍摄剧本") await openScriptScene(scope, 0);
-      return scope;
-    }, text: expected ? [expected] : [],
-    check: tab === "正文" ? async () => {
-      const editor = await $('textarea[aria-label="章节正文"]');
-      assert.equal(await editor.getValue(), seed.commands.list_chapters[0].content);
-      const readEnd = () => editor.execute((element) => {
-        const style = getComputedStyle(element);
-        return {
-          caret: element.selectionStart, selectionEnd: element.selectionEnd, length: element.value.length,
-          focused: element === document.activeElement,
-          scrollHeight: element.scrollHeight, clientHeight: element.clientHeight, scrollTop: element.scrollTop,
-          remaining: element.scrollHeight - element.clientHeight - element.scrollTop,
-          paddingTop: parseFloat(style.paddingTop), paddingBottom: parseFloat(style.paddingBottom),
-          paddingLeft: parseFloat(style.paddingLeft), paddingRight: parseFloat(style.paddingRight),
-          borderTop: parseFloat(style.borderTopWidth), borderBottom: parseFloat(style.borderBottomWidth),
-          lineHeight: parseFloat(style.lineHeight), fontSize: parseFloat(style.fontSize),
-          offsetHeight: element.offsetHeight, rectHeight: element.getBoundingClientRect().height,
-        };
-      });
-      await press(editor);
-      const samples = [{ phase: "before-shortcut", ...await readEnd() }];
-      await browser.keys(["Control", "End"]);
-      const started = Date.now();
-      let end;
-      try {
-        await browser.waitUntil(async () => {
-          end = await readEnd();
-          samples.push({ phase: "after-shortcut", elapsedMs: Date.now() - started, ...end });
-          current.evidence = { longChapterEnd: end, longChapterEndSamples: samples };
-          // Ctrl+End exposes the final caret line; trailing padding and line-box space need not scroll to the pixel bottom.
-          return end.focused && end.caret === end.length && end.remaining <= end.paddingBottom + end.lineHeight;
-        }, { timeout, timeoutMsg: "The final text line must be reachable with Ctrl+End" });
-      } catch (error) {
-        throw new Error("The final text line must be reachable with Ctrl+End; last metrics: " + JSON.stringify(end), { cause: error });
-      }
-      assert.ok(end.focused, "Ctrl+End must leave keyboard focus in the chapter editor");
-      assert.equal(end.caret, end.length);
-      return { longChapterEnd: end, longChapterEndSamples: samples };
-    } : undefined,
-    last: ["拍摄剧本", "分析", "图像"].includes(tab) ? async (scope) => {
-      if (tab === "拍摄剧本") {
-        await press(await scope.$('details[class~="group/scene"] > summary'));
-        return openScriptScene(scope, -1);
-      }
-      if (tab === "分析") {
-        const tension = seed.commands.list_chapters[0].analysis_data.foreshadowing.tensions.at(-1);
-        return scope.$('.//li[normalize-space(.)=' + literal(tension) + ']');
-      }
-      return (await scope.$$("li img")).at(-1);
-    } : undefined,
-  }));
+    ["W05-script", "拍摄剧本", "场景 1"],
+  ]) {
+    const selectedWidths = ["W02-analysis", "W03-images", "W04-director"].includes(id)
+      ? [1440, 1024, 900, 390]
+      : widths;
+    it(id + (tab === "拍摄剧本" ? " opens the video project screenplay workspace" : " opens the independent chapter workspace"), async () => matrix({
+      id,
+      task: tab === "拍摄剧本" ? "从视频项目进入拍摄剧本工作面" : "在真实写作台切换到" + tab,
+      open: async () => {
+        const scope = tab === "拍摄剧本"
+          ? await videoScreenplay()
+          : tab === "导演编排"
+            ? await videoDirector()
+            : await writing(tab);
+        if (tab === "拍摄剧本") await openScriptScene(scope, 0);
+        return scope;
+      }, text: expected ? [expected] : [],
+      check: id === "W04-director" ? async (_scope, width) => {
+        await browser.pause(250);
+        const threadError = await browser.execute(() => [...document.querySelectorAll(".a4n-toast")]
+          .map((toast) => toast.textContent ?? "")
+          .find((text) => text.includes("thread_id")) ?? null);
+        assert.equal(threadError, null, "The director background bridge must not request an empty thread id");
+        const stageSelector = await $('[role="combobox"][id="video-stages-3-select"]');
+        const stageTabs = await _scope.$(".a4n-media-stage-tabs nav");
+        assert.equal(await stageSelector.isDisplayed(), width < 1280, "Medium and narrow layouts must expose direct stage selection");
+        assert.equal(await stageTabs.isDisplayed(), width >= 1280, "Wide layouts must retain the stage tab rail");
+        const timeline = await _scope.$(".director-timeline-scroll");
+        const timelineState = await timeline.execute((node) => ({
+          clientWidth: node.clientWidth,
+          scrollWidth: node.scrollWidth,
+          scrollLeft: node.scrollLeft,
+        }));
+        const directorWidth = await _scope.$(".director-workspace").getSize().then(({ width }) => width);
+        const compactTimeline = directorWidth <= 600;
+        const timelineScrollable = timelineState.scrollWidth > timelineState.clientWidth;
+        const scrollHint = await _scope.$(".director-timeline-scroll-hint");
+        await browser.waitUntil(async () => (await scrollHint.isDisplayed()) === timelineScrollable, {
+          timeout,
+          timeoutMsg: "The horizontal-scroll cue must match the timeline's actual overflow",
+        });
+        if (compactTimeline) assert.ok(timelineScrollable, "The full timeline must remain horizontally scrollable");
+        if (timelineScrollable) {
+          const lastSegment = await _scope.$(".director-segment:last-child");
+          const reachedLastSegment = await wheelTo(lastSegment, "end");
+          assert.equal(reachedLastSegment.reached, true, "The final timeline segment must be user-scrollable");
+          const end = await timeline.execute((node) => {
+            const maxScrollLeft = node.scrollWidth - node.clientWidth;
+            return { maxScrollLeft, scrollLeft: node.scrollLeft };
+          });
+          assert.ok(end.maxScrollLeft > 0, "The timeline must have later time ranges");
+          assert.ok(end.scrollLeft >= end.maxScrollLeft - 1, "The timeline must reach its final time range");
+          const endFindings = await snapshot("W04-director", width, "timeline-end", _scope, { timelineEnd: end, reachedLastSegment });
+          assert.deepEqual(endFindings, [], "The final timeline viewport must remain visible and error-free");
+          await timeline.execute((node, scrollLeft) => { node.scrollLeft = scrollLeft; }, timelineState.scrollLeft);
+        }
+        return { stageNavigation: width < 1280 ? "compact selector" : "tab rail", directorWidth, timeline: timelineState, scrollCueVisible: timelineScrollable };
+      } : tab === "正文" ? async () => {
+        const editor = await $('textarea[aria-label="章节正文"]');
+        assert.equal(await editor.getValue(), seed.commands.list_chapters[0].content);
+        const readEnd = () => editor.execute((element) => {
+          const style = getComputedStyle(element);
+          return {
+            caret: element.selectionStart, selectionEnd: element.selectionEnd, length: element.value.length,
+            focused: element === document.activeElement,
+            scrollHeight: element.scrollHeight, clientHeight: element.clientHeight, scrollTop: element.scrollTop,
+            remaining: element.scrollHeight - element.clientHeight - element.scrollTop,
+            paddingTop: parseFloat(style.paddingTop), paddingBottom: parseFloat(style.paddingBottom),
+            paddingLeft: parseFloat(style.paddingLeft), paddingRight: parseFloat(style.paddingRight),
+            borderTop: parseFloat(style.borderTopWidth), borderBottom: parseFloat(style.borderBottomWidth),
+            lineHeight: parseFloat(style.lineHeight), fontSize: parseFloat(style.fontSize),
+            offsetHeight: element.offsetHeight, rectHeight: element.getBoundingClientRect().height,
+          };
+        });
+        await press(editor);
+        const samples = [{ phase: "before-shortcut", ...await readEnd() }];
+        await browser.keys(["Control", "End"]);
+        const started = Date.now();
+        let end;
+        try {
+          await browser.waitUntil(async () => {
+            end = await readEnd();
+            samples.push({ phase: "after-shortcut", elapsedMs: Date.now() - started, ...end });
+            current.evidence = { longChapterEnd: end, longChapterEndSamples: samples };
+            // Ctrl+End exposes the final caret line; trailing padding and line-box space need not scroll to the pixel bottom.
+            return end.focused && end.caret === end.length && end.remaining <= end.paddingBottom + end.lineHeight;
+          }, { timeout, timeoutMsg: "The final text line must be reachable with Ctrl+End" });
+        } catch (error) {
+          throw new Error("The final text line must be reachable with Ctrl+End; last metrics: " + JSON.stringify(end), { cause: error });
+        }
+        assert.ok(end.focused, "Ctrl+End must leave keyboard focus in the chapter editor");
+        assert.equal(end.caret, end.length);
+        return { longChapterEnd: end, longChapterEndSamples: samples };
+      } : undefined,
+      last: ["拍摄剧本", "分析", "图像"].includes(tab) ? async (scope) => {
+        if (tab === "拍摄剧本") {
+          await press(await scope.$('details[class~="group/scene"] > summary'));
+          return openScriptScene(scope, -1);
+        }
+        if (tab === "分析") {
+          const tension = seed.commands.list_chapters[0].analysis_data.foreshadowing.tensions.at(-1);
+          return scope.$('.//li[normalize-space(.)=' + literal(tension) + ']');
+        }
+        return (await scope.$$("li img")).at(-1);
+      } : undefined,
+    }, selectedWidths));
+  }
 
   it("W01 keeps chapter editing keyboard-operable at a 702 x 393 viewport", async function () {
     this.timeout(60000);
@@ -868,11 +999,85 @@ describe("Novel page audit - ordinary populated pages", function () {
     }
     assert.equal(await enterDesk.isFocused(), true, "The writing desk entry must be reachable by Tab");
     await browser.keys("Enter");
-    await $(".a4n-writing-workspace").waitForDisplayed({ timeout });
+    await $('textarea[aria-label="章节正文"]').waitForDisplayed({ timeout });
 
     const initialViewport = await browser.execute(() => ({
       devicePixelRatio, width: innerWidth, height: innerHeight, outerHeight,
     }));
+    if (process.env.A4N_UI_ACTUAL_ZOOM_ONLY === "1") {
+      const runXdotool = (args) => {
+        const result = spawnSync("xdotool", args, { encoding: "utf8" });
+        if (result.error) throw result.error;
+        if (result.status !== 0) throw new Error(result.stderr || "xdotool command failed");
+        return result.stdout ?? "";
+      };
+      const windowIds = runXdotool(["search", "--onlyvisible", "--class", "chromium"])
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+      assert.ok(windowIds.length > 0, "The visible Chromium window must be available for native browser zoom");
+      const windowId = windowIds.at(-1);
+      runXdotool(["windowactivate", "--sync", windowId]);
+      assert.equal(runXdotool(["getwindowfocus"]).trim(), windowId, "The browser zoom shortcut must reach the active Chromium window");
+      try {
+        const actualZoomSteps = [];
+        let actualBrowserZoom = null;
+        for (const shortcut of ["ctrl+plus", "ctrl+shift+equal"]) {
+          for (let step = 0; step < 6; step += 1) {
+            runXdotool(["key", "--clearmodifiers", shortcut]);
+            await browser.pause(150);
+            actualBrowserZoom = await browser.execute(() => ({
+              devicePixelRatio,
+              innerWidth,
+              innerHeight,
+              visualScale: visualViewport?.scale ?? null,
+            }));
+            actualZoomSteps.push({ shortcut, step: step + 1, ...actualBrowserZoom });
+            if (actualBrowserZoom.devicePixelRatio >= initialViewport.devicePixelRatio * 1.9
+              && actualBrowserZoom.innerWidth <= initialViewport.width / 1.9) break;
+          }
+          if (actualBrowserZoom.devicePixelRatio >= initialViewport.devicePixelRatio * 1.9
+            && actualBrowserZoom.innerWidth <= initialViewport.width / 1.9) break;
+          runXdotool(["key", "--clearmodifiers", "ctrl+0"]);
+          await browser.pause(150);
+        }
+        const layout = await browser.execute(() => {
+          const box = (element) => {
+            const bounds = element?.getBoundingClientRect();
+            return bounds ? { top: bounds.top, right: bounds.right, width: bounds.width } : null;
+          };
+          const header = document.querySelector(".a4n-app-page-header--desk");
+          const title = header?.querySelector("h1");
+          const actions = header?.querySelector(".a4n-app-page-header__actions");
+          return {
+            innerWidth,
+            innerHeight,
+            overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            editor: box(document.querySelector('textarea[aria-label="章节正文"]')),
+            title: box(title),
+            actions: box(actions),
+          };
+        });
+        current.width = actualBrowserZoom?.innerWidth ?? null;
+        current.evidence = { initialViewport, actualBrowserZoom, actualZoomSteps, layout };
+        await browser.saveScreenshot(`${output}${phase}-W01-200-percent-browser-zoom.png`);
+        assert.ok(actualBrowserZoom.devicePixelRatio >= initialViewport.devicePixelRatio * 1.9, "Native Chromium zoom must reach 200%");
+        assert.ok(actualBrowserZoom.innerWidth <= initialViewport.width / 1.9, "Native 200% zoom must halve the CSS viewport width");
+        assert.equal(layout.overflow, 0);
+        assert.ok(layout.editor?.width > 0 && layout.editor.top < layout.innerHeight);
+        assert.ok(layout.title?.right <= layout.innerWidth + 1);
+        assert.ok(layout.actions?.right <= layout.innerWidth + 1);
+        current.visited.push(current.width);
+        return;
+      } finally {
+        runXdotool(["key", "--clearmodifiers", "ctrl+0"]);
+        await browser.waitUntil(async () => {
+          const state = await browser.execute(() => ({ devicePixelRatio, width: innerWidth }));
+          return Math.abs(state.devicePixelRatio - initialViewport.devicePixelRatio) < 0.02
+            && Math.abs(state.width - initialViewport.width) <= 8;
+        }, { timeout, timeoutMsg: "Native browser zoom must reset before closing the audit session" });
+      }
+    }
     const browserFrameHeight = initialViewport.outerHeight - initialViewport.height;
     await browser.setWindowSize(702, 393 + browserFrameHeight);
     await browser.waitUntil(async () => (await browser.execute(() => innerWidth)) <= 710, { timeout });
@@ -893,6 +1098,17 @@ describe("Novel page audit - ordinary populated pages", function () {
       const actions = header?.querySelector(".a4n-app-page-header__actions");
       const chapterToolbar = document.querySelector(".a4n-writing-chapter-toolbar");
       const chapterControls = chapterToolbar ? [...chapterToolbar.querySelectorAll("button")].map(rect) : [];
+      const spacing = (element) => {
+        if (!element) return null;
+        const style = getComputedStyle(element);
+        return {
+          minHeight: style.minHeight,
+          paddingBlockStart: style.paddingBlockStart,
+          paddingBlockEnd: style.paddingBlockEnd,
+          marginBlockStart: style.marginBlockStart,
+          marginBlockEnd: style.marginBlockEnd,
+        };
+      };
       return {
         devicePixelRatio,
         innerWidth,
@@ -909,6 +1125,14 @@ describe("Novel page audit - ordinary populated pages", function () {
         chapterControls,
         chapterPickerVisible: [...document.querySelectorAll('[role="combobox"], select')]
           .some((element) => element.getBoundingClientRect().width > 0),
+        spacing: {
+          header: spacing(header),
+          chapterToolbar: spacing(chapterToolbar),
+          workspace: spacing(document.querySelector(".a4n-writing-workspace")),
+          heading: spacing(document.querySelector(".a4n-writing-workspace-heading")),
+          tabPanel: spacing(document.querySelector(".a4n-writing-tab-panel")),
+          editor: spacing(document.querySelector('textarea[aria-label="章节正文"]')),
+        },
       };
     });
     current.evidence = { initialViewport, narrowViewport };
@@ -920,11 +1144,13 @@ describe("Novel page audit - ordinary populated pages", function () {
     assert.equal(narrowViewport.scrollWidth - narrowViewport.clientWidth, 0, "The writing desk must not overflow at the narrow viewport");
     assert.ok(narrowViewport.editor.width > 0, "The chapter editor must remain visible at the narrow viewport");
     assert.ok(narrowViewport.editor.top < narrowViewport.innerHeight, "The chapter editor must begin within the first viewport");
+    assert.ok(narrowViewport.editor.height >= narrowViewport.innerHeight * 0.45, "Short viewports must reserve enough height for the chapter editor");
     assert.ok(narrowViewport.title?.width > 0 && narrowViewport.title.right <= narrowViewport.clientWidth + 1, "The project title must stay inside the page header");
     assert.equal(narrowViewport.titleTextOverflow, "ellipsis", "The project title must stay in a bounded single-line container");
     assert.ok(narrowViewport.actions?.width > 0 && narrowViewport.actions.right <= narrowViewport.clientWidth + 1, "Page actions must remain visible inside the viewport");
     assert.ok(narrowViewport.chapterToolbar?.width > 0 && narrowViewport.chapterToolbarOverflow === 0, "The chapter toolbar must not clip its controls");
     assert.ok(narrowViewport.chapterControls.every((control) => control.left >= 0 && control.right <= narrowViewport.clientWidth + 1), "Every chapter control must remain inside the viewport");
+    assert.ok(narrowViewport.chapterControls.every((control) => control.height >= 44), "Compact chapter controls must preserve 44px touch targets");
     assert.equal(narrowViewport.chapterPickerVisible, true, "The chapter selector must remain available at the narrow viewport");
 
     const chapterPicker = await $('[role="combobox"], select');
@@ -959,11 +1185,46 @@ describe("Novel page audit - ordinary populated pages", function () {
     await saveButton.waitForDisplayed({ timeout });
     const saveTabs = await tabTo(saveButton, true);
     const contentToSave = await editor.getValue();
+    const saveFailureMessage = "正文保存暂时不可用，请重试。";
+    await browser.execute(() => window.__uiAudit.deferred.push("update_chapter_content"));
+    await browser.keys("Enter");
+    await browser.waitUntil(async () => browser.execute(() => window.__uiAudit.pending.some((item) => item.command === "update_chapter_content")), { timeout });
+    const failedRequest = await browser.execute(() => window.__uiAudit.pending.find((item) => item.command === "update_chapter_content").body.input);
+    assert.equal(failedRequest.content, contentToSave, "The failed save must contain the current editor draft");
+    const savingState = await browser.execute(() => ({
+      state: document.querySelector(".a4n-writing-save-state")?.getAttribute("data-state"),
+      disabled: document.querySelector('button[aria-label="保存修改"]')?.disabled,
+    }));
+    assert.deepEqual(savingState, { state: "saving", disabled: true }, "Saving must disable duplicate submissions and expose progress");
+    await browser.execute((errorMessage) => {
+      const audit = window.__uiAudit;
+      const index = audit.pending.findIndex((item) => item.command === "update_chapter_content");
+      const [request] = audit.pending.splice(index, 1);
+      audit.deferred = audit.deferred.filter((command) => command !== "update_chapter_content");
+      request.resolve(Response.json({ code: "unavailable", message: errorMessage, retryable: true, trace_id: null, details: {} }, { status: 503 }));
+    }, saveFailureMessage);
+    await browser.waitUntil(async () => await saveState.getAttribute("data-state") === "dirty", { timeout });
+    const saveErrorToast = await $(".a4n-toast--error");
+    await saveErrorToast.waitForDisplayed({ timeout });
+    await waitText(saveErrorToast, saveFailureMessage);
+    assert.equal(await editor.getValue(), contentToSave, "A failed save must preserve the editor draft");
+    const focusAfterFailure = await browser.execute(() => ({
+      tag: document.activeElement?.tagName ?? null,
+      label: document.activeElement?.getAttribute("aria-label") ?? null,
+    }));
+    assert.deepEqual(focusAfterFailure, { tag: "TEXTAREA", label: "章节正文" }, "Keyboard save failure must return focus to the editor");
+    const saveErrorFile = phase + "-" + id + "-save-error.png";
+    await browser.saveScreenshot(output + saveErrorFile);
+    await press(await saveErrorToast.$("button[aria-label]"));
+    await browser.waitUntil(async () => !await saveErrorToast.isExisting(), { timeout });
+
     await browser.execute((content) => {
       const chapter = window.__uiAudit.fixtures.byChapter[2]?.get_chapter;
       if (!chapter) throw new Error("Missing chapter 2 save fixture");
       window.__uiAudit.fixtures.update_chapter_content = { ...chapter, content };
     }, contentToSave);
+    const retryButton = await $('button[aria-label="保存修改"]');
+    const retrySaveTabs = await tabTo(retryButton, true);
     await browser.keys("Enter");
     await browser.waitUntil(async () => await saveState.getAttribute("data-state") === "saved", { timeout });
     assert.deepEqual(await browser.execute(() => window.__uiAudit.unexpected), [], "Saving must use a declared fixture response");
@@ -1006,24 +1267,63 @@ describe("Novel page audit - ordinary populated pages", function () {
     const mediumFile = phase + "-" + id + "-1024-css-viewport.png";
     await browser.saveScreenshot(output + mediumFile);
 
+    const leaveDraft = contentToSave + "临时未保存离开保护测试";
+    await editor.setValue(leaveDraft);
+    await browser.waitUntil(async () => await saveState.getAttribute("data-state") === "dirty", { timeout });
+    const beforeLeaveUrl = await browser.getUrl();
+    const bodySaveRequestsBeforeLeave = await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "update_chapter_content").length);
+    assert.equal(bodySaveRequestsBeforeLeave, 2, "The retry should follow one failed chapter save");
+    await press(await ariaButton("返回上一页"));
+    const leaveGuard = await dialog("未保存修改");
+    await waitText(leaveGuard, "返回前已自动保存本地草稿");
+    const leaveGuardFile = phase + "-" + id + "-leave-guard.png";
+    await browser.saveScreenshot(output + leaveGuardFile);
+    await clickText("留在当前", leaveGuard);
+    await browser.waitUntil(async () => await browser.getUrl() === beforeLeaveUrl, { timeout });
+    assert.equal(await editor.getValue(), leaveDraft, "Canceling navigation must preserve the unsaved chapter draft");
+    assert.equal(await saveState.getAttribute("data-state"), "dirty");
+    await press(await ariaButton("返回上一页"));
+    const leaveAgain = await dialog("未保存修改");
+    await waitText(leaveAgain, "可随时恢复");
+    await clickText("继续", leaveAgain);
+    await browser.waitUntil(async () => new URL(await browser.getUrl()).pathname === "/", { timeout });
+    await $(".a4n-home-content").waitForDisplayed({ timeout });
+    assert.equal(await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "update_chapter_content").length), bodySaveRequestsBeforeLeave, "Discarding on navigation must not save the draft");
+    await browser.url("/write/1?chapter=2");
+    const restorePrompt = await dialog("恢复草稿");
+    await waitText(restorePrompt, "是否恢复到编辑器");
+    const draftRestoreFile = phase + "-" + id + "-draft-restore.png";
+    await browser.saveScreenshot(output + draftRestoreFile);
+    await clickText("恢复草稿", restorePrompt);
+    const restoredEditor = await $('textarea[aria-label="章节正文"]');
+    await browser.waitUntil(async () => await restoredEditor.getValue() === leaveDraft, { timeout });
+    const routeLeave = { stayPreservedDraft: true, continueSavedLocalDraft: true, restoredDraft: true, bodySaveRequests: bodySaveRequestsBeforeLeave };
+
     report.push({
       id,
       task: current.task,
       stage: "1440px-layout-equivalent-702-css-px-plus-1024px-overflow-check",
       file,
       mediumFile,
+      saveErrorFile,
+      leaveGuardFile,
+      draftRestoreFile,
       browserZoom: false,
       initialViewport,
       narrowViewport,
       mediumViewport,
-      keyboard: { entryTabs, chapterPickerTabs, editorTabs, saveTabs, focusAfterSave },
+      keyboard: { entryTabs, chapterPickerTabs, editorTabs, saveTabs, retrySaveTabs, focusAfterFailure, focusAfterSave },
+      saveFailure: { status: 503, dirtyDraftPreserved: true, retryEnabled: true },
+      routeLeave,
       findings: [],
     });
     current.evidence = {
       initialViewport,
       narrowViewport,
       mediumViewport,
-      keyboard: { entryTabs, chapterPickerTabs, editorTabs, saveTabs, focusAfterSave },
+      keyboard: { entryTabs, chapterPickerTabs, editorTabs, saveTabs, retrySaveTabs, focusAfterFailure, focusAfterSave },
+      saveFailure: { status: 503, dirtyDraftPreserved: true, retryEnabled: true },
+      routeLeave,
       screenshotPixels: { width: screenshot.readUInt32BE(16), height: screenshot.readUInt32BE(20) },
     };
     await saveReport();
@@ -1066,6 +1366,15 @@ describe("Novel page audit - ordinary populated pages", function () {
     { id: "N01-versions", task: "查看真实版本记录并找到比较入口", open: async () => {
       const scope = await project(); await press(await containing("蓝图版本", scope)); return dialog();
     }, text: ["第一版蓝图", "第三站台"], check: async (scope) => {
+      const refresh = await textButton("刷新版本", scope);
+      assert.ok(await refresh.isDisplayed());
+      const beforeRefresh = await browser.execute(() =>
+        window.__uiAudit.commands.filter((command) => command === "list_blueprint_versions").length,
+      );
+      await press(refresh);
+      await browser.waitUntil(async () => await browser.execute(() =>
+        window.__uiAudit.commands.filter((command) => command === "list_blueprint_versions").length,
+      ) > beforeRefresh, { timeout });
       const descriptions = seed.commands.list_blueprint_versions.map((version) => version.change_description);
       const clipped = await scope.execute((node, values) => [...node.querySelectorAll("li span")].filter((span) => values.includes(span.textContent) && span.scrollWidth > span.clientWidth + 1).map((span) => span.textContent), descriptions);
       assert.deepEqual(clipped, [], "The version's change description must be readable before selecting or restoring it");
@@ -1136,6 +1445,20 @@ describe("Novel page audit - ordinary populated pages", function () {
     }, check: async (scope, width) => {
       const request = await browser.execute(() => window.__uiAudit.requests.findLast((item) => item.command === "preview_rollback")?.body);
       assert.deepEqual(request, { projectId: 1, target: "blueprint_ready" });
+      const pathPresentation = await browser.execute(() => {
+        const path = document.querySelector(".a4n-rollback-path");
+        return {
+          statuses: path?.children.length ?? 0,
+          arrows: [...(path?.querySelectorAll("svg.lucide-arrow-right") ?? [])]
+            .map((icon) => icon.getAttribute("aria-hidden")),
+          directions: [...(path?.querySelectorAll(".sr-only") ?? [])].map((item) => item.textContent.trim()),
+        };
+      });
+      const transitionCount = seed.commands.preview_rollback.path.length - 1;
+      assert.equal(pathPresentation.statuses, seed.commands.preview_rollback.path.length);
+      assert.equal(pathPresentation.arrows.length, transitionCount);
+      assert.deepEqual(pathPresentation.arrows, Array(transitionCount).fill("true"));
+      assert.deepEqual(pathPresentation.directions, Array(transitionCount).fill("到"));
       for (const impact of seed.commands.preview_rollback.impacts) {
         await waitText(scope, impact.title);
         await waitText(scope, impact.note);
@@ -1168,7 +1491,61 @@ describe("Novel page audit - ordinary populated pages", function () {
     }, last: async (scope) => (await scope.$$("details button")).at(-1) },
     { id: "N01-lineage", task: "检查有来源与下游关系的内容图", open: () => openProjectAction("内容关联"), text: ["内容"], check: async (scope, width) => {
       await scope.$("canvas").waitForDisplayed({ timeout });
-      assert.deepEqual(await snapshot("N01-lineage", width, "graph", scope), []);
+      const zoomControls = await scope.execute((dialog) => {
+        const canvas = dialog.querySelector("canvas");
+        const viewport = canvas?.parentElement?.parentElement;
+        const buttons = [
+          dialog.querySelector('button[aria-label="缩小依赖图"]'),
+          dialog.querySelector('button[aria-label="放大依赖图"]'),
+        ];
+        if (!viewport || buttons.some((button) => !button)) return null;
+        const view = viewport.getBoundingClientRect();
+        const controls = buttons.map((button) => {
+          const rect = button.getBoundingClientRect();
+          return {
+            left: rect.left,
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+            visible: rect.left >= view.left - 1 && rect.right <= view.right + 1
+              && rect.top >= view.top - 1 && rect.bottom <= view.bottom + 1,
+          };
+        });
+        return { controls, visible: controls.every((control) => control.visible) };
+      });
+      assert.ok(zoomControls?.visible, "Zoom controls must remain visible inside the graph viewport");
+      const graphViewport = await scope.$("canvas").$("..").$("..");
+      assert.equal(await graphViewport.getAttribute("role"), "region");
+      assert.equal(await graphViewport.getAttribute("aria-label"), "画布已聚焦，可用方向键平移");
+      await graphViewport.execute((node) => node.focus());
+      const keyboardPan = await browser.execute(() => ({
+        before: document.querySelector("canvas")?.closest(".overflow-auto")?.scrollLeft ?? 0,
+        focused: document.activeElement?.getAttribute("aria-label"),
+      }));
+      await browser.keys("ArrowRight");
+      await browser.pause(180);
+      const keyboardPanAfter = await browser.execute(() => ({
+        after: document.querySelector("canvas")?.closest(".overflow-auto")?.scrollLeft ?? 0,
+        focused: document.activeElement?.getAttribute("aria-label"),
+      }));
+      assert.equal(keyboardPanAfter.focused, "画布已聚焦，可用方向键平移");
+      assert.ok(keyboardPanAfter.after >= keyboardPan.before, "Focused graph canvas must respond to arrow-key panning");
+      const panningState = await scope.execute((dialog) => {
+        const hint = dialog.querySelector(".a4n-asset-graph-pan-hint");
+        const viewport = dialog.querySelector("canvas")?.closest(".overflow-auto");
+        return {
+          hintVisible: Boolean(hint && getComputedStyle(hint).display !== "none"),
+          hasHorizontalOverflow: Boolean(
+            viewport && viewport.scrollWidth > viewport.clientWidth + 1,
+          ),
+        };
+      });
+      assert.equal(
+        panningState.hintVisible,
+        panningState.hasHorizontalOverflow,
+        "Canvas panning guidance must match the graph viewport's actual overflow",
+      );
+      assert.deepEqual(await snapshot("N01-lineage", width, "graph", scope, { zoomControls, keyboardPan: { ...keyboardPan, ...keyboardPanAfter }, ...panningState }), []);
       if (width < 768) await clickText("资产详情", scope);
       const aside = await scope.$("aside");
       await aside.waitForDisplayed({ timeout });
@@ -1190,7 +1567,12 @@ describe("Novel page audit - ordinary populated pages", function () {
         if (await summary.execute((node) => !node.parentElement.open)) await press(summary);
       }
       return { expectedNodes: seed.commands.get_project_asset_dependency_graph.nodes.length, selectedNodeId: node.id, inputViewerOpened: true };
-    }, last: async (scope) => (await scope.$$("aside pre")).at(-1) },
+    }, last: async (scope) => {
+      const name = seed.commands.get_blueprint.world_setting.key_locations.at(-1).name;
+      const lastLocation = await scope.$('.//aside//div[normalize-space(.)=' + literal(name) + ']');
+      assert.ok(await lastLocation.isExisting(), "The world-setting input tree must render its last location");
+      return lastLocation;
+    } },
     ...["结构化", "JSON", "纯文本"].map((mode, index) => ({
       id: "N02-editor-" + index, task: "检查世界观" + mode + "编辑及末端字段",
       open: async () => { const scope = await project("世界观"); await clickText("编辑世界观", scope); await clickText(mode, scope); return scope; },
@@ -1213,12 +1595,36 @@ describe("Novel page audit - ordinary populated pages", function () {
         }));
         assert.equal(end.caret, end.length);
         assert.ok(end.remaining <= end.allowance, "The final world-setting line must be visible: " + JSON.stringify(end));
+        await reach(field);
+        const saveVisibility = await scope.execute((root) => {
+          const button = [...root.querySelectorAll("button")].find((item) => item.textContent?.trim() === "保存世界观");
+          const header = root.querySelector("section.a4n-flat-surface > header");
+          if (!button || !header) return null;
+          const action = button.getBoundingClientRect();
+          const viewport = root.getBoundingClientRect();
+          const stickyHeader = header.getBoundingClientRect();
+          const background = getComputedStyle(header).backgroundColor.match(/[\d.]+/g) ?? [];
+          return {
+            visible: action.width > 0 && action.height > 0
+              && action.top >= viewport.top - 1 && action.bottom <= viewport.bottom + 1,
+            action: { top: action.top, bottom: action.bottom },
+            viewport: { top: viewport.top, bottom: viewport.bottom },
+            headerPosition: getComputedStyle(header).position,
+            headerTop: stickyHeader.top,
+            headerBackgroundAlpha: background.length > 3 ? Number(background[3]) : 1,
+          };
+        });
+        assert.ok(saveVisibility?.visible, "The world-setting save action must stay visible at the final field: " + JSON.stringify(saveVisibility));
+        if (await browser.execute(() => innerWidth < 1024)) {
+          assert.equal(saveVisibility.headerPosition, "sticky", "The editor action header must remain anchored below 1024px");
+          assert.equal(saveVisibility.headerBackgroundAlpha, 1, "The sticky editor header must not reveal scrolled field text");
+        }
         return field;
       },
     })),
     { id: "N02-detail", task: "查看摘要之外的完整世界观字段", open: async () => {
       const scope = await project("世界观"); await clickText("查看完整设定", scope); return dialog();
-    }, text: ["林岚尚不能确认镜中人身份"], check: async (scope, width) => {
+    }, text: ["林岚尚不能确认镜中人身份"], captureInitialBeforeCheck: true, check: async (scope, width) => {
       for (const key of ["key_locations", "factions"]) {
         const item = seed.commands.get_blueprint.world_setting[key].at(-1);
         const label = await scope.$('.//*[normalize-space(.)=' + literal(item.name) + ']');
@@ -1238,12 +1644,22 @@ describe("Novel page audit - ordinary populated pages", function () {
       assert.ok((await scope.$$("input,textarea")).length >= 4, "Role form fields missing");
       return { inputs: (await scope.$$("input,textarea")).length };
     }, last: async (scope) => (await scope.$$("button")).at(-1) },
-    { id: "N03-arc", task: "阅读角色弧光与阶段", open: () => characterTab("弧光"), text: ["从等待答案到主动核验", "主动承担下一步行动"] },
+    { id: "N03-arc", task: "阅读角色弧光与阶段", open: () => characterTab("弧光"), text: ["从等待答案到主动核验", "主动承担下一步行动"], check: async (scope) => {
+      const arc = seed.commands.get_character_arc_status;
+      const stages = await scope.$$("ol li");
+      assert.deepEqual(await Promise.all([...stages].map((stage) => stage.getText())), arc.stages);
+      assert.equal(await scope.$$(".bg-book-primary\\/75").length, 1, "Current arc progress must have one visual bar");
+      return { stageCount: stages.length, progress: arc.progress };
+    }, last: async (scope) => (await scope.$$("ol li")).at(-1) },
     { id: "N03-voice", task: "阅读声音指纹和逐条示例", open: () => characterTab("声音指纹"), text: ["以具体问题替代情绪指控", "这封信，你为什么留到今天"], check: async (scope) => {
       const voice = seed.commands.get_character_voice_fingerprint;
       const lines = await scope.$$("ul > li");
       assert.deepEqual(await Promise.all([...lines].map((line) => line.getText())), [...voice.catchphrases, ...voice.examples]);
       return { separateExampleLines: lines.length };
+    }, last: async (scope) => {
+      const diagnostics = await containing("诊断信息", scope, "summary");
+      if (!(await scope.$("details").getAttribute("open"))) await press(diagnostics);
+      return scope.$("details pre");
     } },
     { id: "N03-consistency", task: "检查角色一致性并对照具体章节的预期与实际证据", open: async () => {
       const scope = await characterTab("一致性");
@@ -1254,15 +1670,50 @@ describe("Novel page audit - ordinary populated pages", function () {
       await closeDialog();
       await waitText(scope, "第三章已抵达旧车站第三站台");
       return scope;
-    }, check: async (scope) => {
+    }, captureInitialBeforeCheck: true, check: async (scope) => {
       const conflicts = seed.byProfile[1011].check_character_conflict;
       assert.equal((await scope.$$("li")).length, conflicts.length);
       for (const conflict of conflicts) for (const value of [conflict.expected, conflict.actual]) await waitText(scope, value);
-      return { profileId: 1011, conflicts: conflicts.length };
+      assert.ok((await scope.getText()).includes("本次范围：全项目"), "The result must state that this run covers the whole project");
+      const rangeInputs = await scope.$$('input[type="number"]');
+      assert.equal(rangeInputs.length, 2);
+      await rangeInputs[0].setValue("1");
+      await rangeInputs[1].setValue("3");
+      await waitText(scope, "尚未检测一致性");
+      assert.equal((await scope.$$("li")).length, 0, "Changing the range must clear stale findings");
+      await clickText("开始检测", scope);
+      const progress = await dialog("角色一致性检查");
+      await waitText(progress, "任务已完成");
+      await closeDialog();
+      await waitText(scope, "第三章已抵达旧车站第三站台");
+      const scopedText = await scope.getText();
+      assert.ok(scopedText.includes("本次范围：第 1-3 章"), "Custom chapter ranges must be reflected beside their results");
+      for (const conflict of conflicts) for (const value of [conflict.expected, conflict.actual]) await waitText(scope, value);
+      return { profileId: 1011, conflicts: conflicts.length, checkedScopes: ["全项目", "第 1-3 章"], staleFindingsCleared: true };
     }, last: async (scope) => (await scope.$$("li")).at(-1) },
     { id: "N03-portraits", task: "查找已有立绘并浏览全部角色筛选", open: portraits, text: ["林岚", "周衡"], check: async (scope, width) => {
       const cards = await scope.$$('button[title="管理人物三视图拆解"]');
       assert.equal(cards.length, 4, "Need the four populated portraits");
+      const clippedMetadata = await scope.execute((root) =>
+        [...root.querySelectorAll('button[title="管理人物三视图拆解"] .mt-1.flex.flex-wrap > span')]
+          .filter((label) => label.scrollWidth > label.clientWidth + 1)
+          .map((label) => label.textContent?.trim()),
+      );
+      assert.deepEqual(clippedMetadata, [], "Portrait type and expression labels must remain readable");
+      const misalignedRows = await scope.execute((root) => {
+        const rows = new Map();
+        for (const card of root.querySelectorAll('button[title="管理人物三视图拆解"]')) {
+          const rect = card.getBoundingClientRect();
+          const top = Math.round(rect.top);
+          const row = rows.get(top) ?? [];
+          row.push(Math.round(rect.bottom));
+          rows.set(top, row);
+        }
+        return [...rows.values()].filter((bottoms) =>
+          bottoms.length > 1 && Math.max(...bottoms) - Math.min(...bottoms) > 1,
+        );
+      });
+      assert.deepEqual(misalignedRows, [], "Portrait cards in the same row must align at the bottom");
       const filters = await scope.$$(".a4n-filter-chips button");
       assert.equal(filters.length, seed.commands.list_profiles.length + 1);
       const lastFilter = filters.at(-1);
@@ -1278,10 +1729,34 @@ describe("Novel page audit - ordinary populated pages", function () {
       const scope = await portraits();
       await press(await scope.$('button[title="管理人物三视图拆解"] img'));
       return dialog("立绘详情");
-    }, text: ["查看提示词"], check: async () => {
+    }, text: ["查看提示词"], check: async (scope, width) => {
       assert.equal(await $(".a4n-image-lightbox-panel").isDisplayed(), false, "Image center must open portrait details");
-      return { imageCenterOpenedDetails: true };
-    } },
+      const requestButton = await containing("查看重绘模型请求", scope);
+      const redrawButton = await textButton("重绘立绘", scope);
+      assert.equal(await requestButton.isDisplayed(), true, "The existing request preview must be directly discoverable");
+      assert.equal(await requestButton.isEnabled(), true, "Request preview remains available when image size is ready");
+      assert.equal(await scope.$('button[aria-haspopup="menu"]').isExisting(), false, "A single auxiliary action should not be hidden in an overflow menu");
+      await browser.execute(() => {
+        const generated = window.__uiAudit.fixtures.preview_generate_portrait_request;
+        window.__uiAudit.fixtures.preview_regenerate_portrait_request = {
+          ...structuredClone(generated),
+          title: "立绘重绘请求",
+          workflow: "portrait_regenerate",
+          steps: generated.steps.map((step) => ({ ...step, title: "立绘重绘请求" })),
+        };
+      });
+      await press(requestButton);
+      const preview = await dialog("立绘重绘请求");
+      const request = await browser.execute(() => window.__uiAudit.requests.findLast((item) => item.command === "preview_regenerate_portrait_request")?.body.input);
+      assert.ok(request?.portrait_id > 0);
+      assert.ok(request?.width > 0 && request?.height > 0);
+      assert.deepEqual(request?.reference_image_ids, []);
+      assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("start_portrait_generation")), false, "Preview must not start generation");
+      assert.deepEqual(await snapshot("N03-portrait-detail", width, "request-preview", preview, { previewCommand: "preview_regenerate_portrait_request", portraitId: request.portrait_id }), []);
+      await closeDialog();
+      await assertFocus(requestButton);
+      return { imageCenterOpenedDetails: true, requestPreviewVisible: true, focusRestored: true, imageSize: { width: request.width, height: request.height } };
+    }, last: async (scope) => textButton("重绘立绘", scope) },
     { id: "N03-portrait-age", task: "基于明确人物填写年龄段，保留原立绘并取消生成", open: async () => {
       const scope = await portraits();
       await press(await scope.$('button[title="管理人物三视图拆解"] img'));
@@ -1316,7 +1791,12 @@ describe("Novel page audit - ordinary populated pages", function () {
       const form = await dialog("人物三视图拆解提示词");
       assert.equal(await form.$("pre").getText(), expected.prompt);
       return form;
-    }, text: ["林岚", "当前提示词"], last: async (scope) => scope.$("pre") },
+    }, text: ["林岚", "当前提示词"], last: async (scope) => scope.$("pre"), cleanup: async () => {
+      const portraitCard = await $('.a4n-page-container button[title="管理人物三视图拆解"]');
+      await closeDialog();
+      await assertFocus(portraitCard);
+      return { closedWithEscape: true, focusReturnedToPortraitCard: true };
+    } },
     { id: "N03-portrait-upload", task: "为明确人物选择本地图片，区分重新选图与独立预览", open: async () => {
       const scope = await portraits();
       await press(await scope.$('button[aria-label="更多操作"]'));
@@ -1359,7 +1839,19 @@ describe("Novel page audit - ordinary populated pages", function () {
       const scope = await portraits();
       const card = await scope.$('button[title="管理人物三视图拆解"]').$("..");
       return previewRoundTrip(await ariaButton("图片预览", card));
-    }, check: async (scope) => ({ separatePreview: true, escapeFocusRestored: true, previewSource: await scope.$("img").getAttribute("src") }) },
+    }, check: async (scope) => {
+      const scale = scope.$(".a4n-image-lightbox-toolbar > span");
+      assert.equal(await scale.getText(), "100%");
+      const zoomIn = await ariaButton("放大图片", scope);
+      for (let step = 0; step < 3; step += 1) await press(zoomIn);
+      assert.equal(await scale.getText(), "175%", "Zoom controls must update the visible image scale");
+      return { separatePreview: true, escapeFocusRestored: true, zoomScale: await scale.getText(), previewSource: await scope.$("img").getAttribute("src") };
+    }, last: async (scope) => {
+      const reset = await ariaButton("重置图片视图", scope);
+      await press(reset);
+      assert.equal(await scope.$(".a4n-image-lightbox-toolbar > span").getText(), "100%");
+      return reset;
+    } },
     { id: "N03-reference-selection", task: "图片中央选择参考图，独立预览保留选择并恢复焦点", open: async () => {
       const scope = await portraits();
       await press(await scope.$('button[aria-label="更多操作"]'));
@@ -1423,6 +1915,11 @@ describe("Novel page audit - ordinary populated pages", function () {
       const summary = await containing("比较与回滚", scope, "summary");
       await press(summary);
       const tools = await summary.$("..");
+      const directionIcon = await tools.$('button[role="combobox"] + span svg.lucide-arrow-right');
+      assert.equal(await directionIcon.isExisting(), true, "The comparison range must use the Lucide direction icon");
+      assert.equal(await directionIcon.getAttribute("aria-hidden"), "true");
+      assert.equal(await tools.$(".sr-only").getText(), "至", "The comparison direction must remain available to assistive technology");
+      assert.deepEqual(await snapshot("N03-snapshot-compare", current.width, "range-controls", tools), []);
       const selects = await tools.$$('button[role="combobox"]');
       for (const [index, chapter] of [[0, 1], [1, 3]]) {
         await press(selects[index]);
@@ -1430,6 +1927,11 @@ describe("Novel page audit - ordinary populated pages", function () {
       }
       await clickText("生成差异", tools);
       await waitText(scope, "旧车站第三站台");
+      const delta = await scope.$('.//section[.//div[normalize-space(.)="快照变化"]]');
+      const deltaDirectionIcon = await delta.$("svg.lucide-arrow-right");
+      assert.equal(await deltaDirectionIcon.isExisting(), true, "The compared chapter range must use the Lucide direction icon");
+      assert.equal(await deltaDirectionIcon.getAttribute("aria-hidden"), "true");
+      assert.equal(await delta.$(".sr-only").getText(), "至", "The compared chapter direction must remain available to assistive technology");
       assert.equal(await scope.$('[role="region"][tabindex="-1"]').isFocused(), true, "Snapshot comparison must reveal and focus its result");
       return scope;
     }, check: async () => {
@@ -1483,7 +1985,13 @@ describe("Novel page audit - ordinary populated pages", function () {
     }, text: ["林岚", "周衡"], check: async (scope) => {
       const relationships = await scope.$$('button[title="查看关系详情"]');
       assert.ok(relationships.length >= 2, "Selected character relationships must be readable");
-      return { visibleRelationshipEntries: relationships.length };
+      const directions = await scope.execute((root) => [...root.querySelectorAll('button[title="查看关系详情"]')].map((button) => ({
+        icon: button.querySelector('svg.lucide-arrow-right[aria-hidden="true"]') != null,
+        label: button.querySelector(".sr-only")?.textContent.trim(),
+      })));
+      assert.equal(directions.length, relationships.length);
+      assert.ok(directions.every((direction) => direction.icon && direction.label === "指向"), "Relationship direction must use Lucide and remain available to screen readers");
+      return { visibleRelationshipEntries: relationships.length, lucideDirections: directions.length, directionText: "指向" };
     }, last: async (scope) => (await scope.$$('button[title="查看关系详情"]')).at(-1) },
     { id: "N06-relationship-detail", task: "从角色列表打开一条关系的完整说明", open: async (width) => {
       const scope = await project("关系");
@@ -1617,11 +2125,14 @@ describe("Novel page audit - ordinary populated pages", function () {
       const summary = await scope.$("summary").getText();
       const countLabel = await scope.$("label").getText();
       const action = await textButton("生成章纲", scope);
+      const preview = await textButton("查看生成请求", scope);
       assert.equal(await scope.execute(element => element.open), true);
       assert(summary.includes("设置本次生成章数"));
       assert(countLabel.includes("本次生成章数"));
       assert.equal(await action.isEnabled(), true);
-      return { emptyOutlines: true, summary, countLabel, actionEnabled: true };
+      assert.equal(await preview.isDisplayed(), true);
+      assert.equal(await preview.isEnabled(), true);
+      return { emptyOutlines: true, summary, countLabel, actionEnabled: true, previewVisible: true };
     }, last: async (scope) => textButton("生成章纲", scope) },
     { id: "N08-create-part", task: "检查手工录入分部的范围和正文输入", open: async () => {
       const scope = await project("大纲"); await clickText("分部大纲", scope); await clickText("直接录入", scope); return dialog();
@@ -1646,8 +2157,11 @@ describe("Novel page audit - ordinary populated pages", function () {
         const fields = await scope.$$('input[type="number"]');
         assert.equal(fields.length, count);
         for (const field of fields) assert.ok((await field.getValue()).length > 0);
+        const preview = await textButton("查看追加请求", scope);
         assert.ok(await (await textButton(action, scope)).isEnabled());
-        return { numericFields: count, generated: false };
+        assert.equal(await preview.isDisplayed(), true);
+        assert.equal(await preview.isEnabled(), true);
+        return { numericFields: count, generated: false, previewVisible: true };
       }, last: async (scope) => textButton(action, scope),
     })),
     { id: "N08-chapter-editor", task: "编辑已有章纲的标题和长摘要，保留保存与取消", open: async () => {
@@ -1677,7 +2191,7 @@ describe("Novel page audit - ordinary populated pages", function () {
     }, last: async (scope) => (await scope.$$("textarea")).at(-1) },
     { id: "N08-advanced", task: "发现进度、节奏和维护工具", open: async () => {
       const scope = await project("大纲"); await clickText("分部大纲", scope);
-      await press(await scope.$('button[aria-label="打开大纲高级工具"]')); return dialog();
+      await press(await textButton("高级工具", scope)); return dialog();
     }, text: ["生成进度"], check: async (scope, width) => {
       const actions = [];
       for (const expected of [
@@ -1729,10 +2243,27 @@ describe("Novel page audit - ordinary populated pages", function () {
           assert.equal((await scope.getText()).includes("没有可展示的图片详情。"), false);
           assert.deepEqual(await snapshot("N09-image-detail-1", width, "source-summary", scope, { metadataText }), []);
           await press(await scope.$("summary"));
+          const rawRegion = await scope.$('[role="region"][aria-label="原始生成记录"]');
+          const rawLayout = await browser.execute((region) => {
+            const code = region.querySelector("pre");
+            return {
+              tabIndex: region.tabIndex,
+              overflowX: getComputedStyle(region).overflowX,
+              whiteSpace: getComputedStyle(code).whiteSpace,
+              clientWidth: region.clientWidth,
+              scrollWidth: region.scrollWidth,
+              pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            };
+          }, rawRegion);
+          assert.equal(rawLayout.tabIndex, 0, "Raw diagnostics must be keyboard-scrollable");
+          assert.equal(rawLayout.overflowX, "auto");
+          assert.equal(rawLayout.whiteSpace, "pre", "Paths and hashes must keep their JSON line structure");
+          assert.equal(rawLayout.pageOverflow, 0, "The code region must contain long lines without widening the page");
+          if (width === 390) assert.ok(rawLayout.scrollWidth > rawLayout.clientWidth, "Long diagnostic values must scroll inside the narrow code region");
           const actual = JSON.parse(await scope.$("pre").getText());
           assert.equal(actual.record.id, expected.id);
           assert.deepEqual(actual.metadata_json.source, expected.metadata_json.source);
-          return { imageCenterOpenedManagement: true, selectedTab: tab, imageId: actual.record.id, source: actual.metadata_json.source, metadataText };
+          return { imageCenterOpenedManagement: true, selectedTab: tab, imageId: actual.record.id, source: actual.metadata_json.source, metadataText, rawLayout };
         }
         return { imageCenterOpenedManagement: true, selectedTab: tab };
       },
@@ -1803,7 +2334,14 @@ describe("Novel page audit - ordinary populated pages", function () {
     }, check: async (scope) => {
       const value = await scope.$("textarea").getValue();
       assert.ok(value.includes('"chapter_title"') && value.includes('"content"'));
-      return { reviewJsonLength: value.length };
+      const fieldId = await (await scope.$("textarea")).getAttribute("id");
+      assert.ok(fieldId, "The analysis structure field must have an ID");
+      assert.equal(await (await scope.$("label[for]")).getAttribute("for"), fieldId);
+      const action = await textButton("保存并接受", scope);
+      const reason = await scope.$('[role="status"]');
+      assert.equal(await action.isEnabled(), false);
+      assert.equal(await reason.getText(), "修改分析结构后即可保存并接受。");
+      return { reviewJsonLength: value.length, labelLinked: true, disabledReason: await reason.getText() };
     }, last: async (scope) => (await scope.$$("button")).at(-1) },
     { id: "N10-dedup", task: "对照已有章节检查重复，阅读结论与完整诊断且保留输入", open: async (width) => {
       const page = await project("导入/归纳");
@@ -1839,6 +2377,12 @@ describe("Novel page audit - ordinary populated pages", function () {
         pending.resolve(Response.json(window.__uiAudit.fixtures.byChapter[1].get_chapter));
       });
       const matched = await dialog();
+      const dialogOpacity = await browser.execute(() =>
+        getComputedStyle(document.querySelector('[role="dialog"]')).getPropertyValue("--a4n-dialog-opacity").trim(),
+      );
+      assert.equal(dialogOpacity, "1", "The long chapter preview must use an opaque surface");
+      const chapterTitle = await matched.$("h3").getText();
+      assert.ok(chapterTitle.includes("第 1 章") && chapterTitle.includes("雨夜来信"), "The read-only match preview must identify the matched chapter");
       const body = await matched.$("article");
       assert.equal(await body.getText(), seed.commands.list_chapters[0].content);
       assert.ok((await reach(body)).reached);
@@ -1880,16 +2424,135 @@ describe("Novel page audit - ordinary populated pages", function () {
     { id: "N11-import", task: "发现手动导入章节的输入与确认动作", open: async () => {
       const scope = await project("章节"); await clickText("导入章节", scope); return dialog();
     }, text: ["确认导入"], check: async (scope) => {
-      assert.equal(await scope.$('input[type="number"]').isExisting(), true);
-      assert.equal(await scope.$("textarea").isExisting(), true);
-      return { chapterImportFields: true };
-    }, last: async (scope) => textButton("确认导入", scope) },
+      const semantics = await scope.execute((dialogNode) => {
+        const number = dialogNode.querySelector('input[type="number"]');
+        const body = dialogNode.querySelector("textarea");
+        const confirm = [...dialogNode.querySelectorAll("button")]
+          .find((button) => button.textContent?.trim() === "确认导入");
+        return {
+          numberLabels: [...(number?.labels ?? [])].map((label) => label.textContent?.trim()),
+          bodyLabels: [...(body?.labels ?? [])].map((label) => label.textContent?.trim()),
+          confirmDisabled: confirm?.disabled ?? null,
+        };
+      });
+      assert.deepEqual(semantics.numberLabels, ["章节序号"]);
+      assert.deepEqual(semantics.bodyLabels, ["正文"]);
+      assert.equal(semantics.confirmDisabled, true, "Empty chapter content must not be importable");
+      return { chapterNumberLabel: semantics.numberLabels[0], bodyLabel: semantics.bodyLabels[0], emptySubmitDisabled: true };
+    }, last: async (scope) => textButton("确认导入", scope), cleanup: async () => {
+      await closeDialog();
+      await assertFocus(await textButton("导入章节", await $(pageSelector)));
+      return { closedWithEscape: true, focusReturned: true };
+    } },
     { id: "W04-point", task: "选中首个图片点，核对名称、完整画面描述及素材操作", open: () => directorInspector(),
       text: ["名称", "画面描述", "固定端点不能拆分或删除"], check: async (scope) => {
         assert.equal(await scope.$('input:not([type="file"])').getValue(), directorPlan.points[0].label);
         assert.equal(await scope.$("textarea").getValue(), directorPlan.points[0].description);
         return { point: directorPlan.points[0].id, fullDescription: true };
       }, last: async (scope) => scope.$(".director-property-actions") },
+    { id: "W04-point-upload", task: "选取本地图像并核对上传后的分镜预览与草稿保存", open: async () => {
+      const scope = await directorInspector();
+      await browser.execute((baseUrl) => {
+        const fixtures = window.__uiAudit.fixtures;
+        const current = fixtures.byProject[3].byChapter[1].get_chapter_visual_plan.draft;
+        const image = {
+          id: 990041, project_id: 3, chapter_id: 1, panel_id: null,
+          file_path: `${baseUrl}/e2e/ui-page-audit/media/image-42.svg`,
+          width: 640, height: 360, file_size: 0, image_type: "chapter_reference",
+          prompt: current.plan.points[0].description, model: "ui-upload-fixture",
+          ai_score: null, is_favorite: false, is_system_managed: false,
+          metadata_json: null, created_at: "2026-10-13T00:00:00Z",
+        };
+        const plan = structuredClone(current.plan);
+        plan.points = plan.points.map((point) => point.id === "p0" ? { ...point, image_id: image.id } : point);
+        fixtures.upload_image = image;
+        fixtures.save_chapter_visual_plan_draft = {
+          ...structuredClone(current), plan,
+          record: { ...current.record, revision: current.record.revision + 1, plan_sha256: "ui-upload-fixture-plan" },
+        };
+      }, browser.options.baseUrl);
+      return scope;
+    }, captureInitialBeforeCheck: true, check: async (scope) => {
+      const file = await scope.$('input[type="file"]');
+      assert.equal(await file.isEnabled(), true);
+      await browser.execute(() => window.__uiAudit.deferred.push("upload_image"));
+      await file.setValue(fileURLToPath(new URL("../../resources/thelittleprince.png", import.meta.url)));
+      await browser.waitUntil(async () => browser.execute(() =>
+        window.__uiAudit.pending.some((item) => item.command === "upload_image"),
+      ), { timeout, timeoutMsg: "The selected local image must reach the upload request fixture" });
+      const uploadLabel = await scope.$(".director-upload-button");
+      const uploadStatus = {
+        label: await uploadLabel.getText(),
+        inputDisabled: !(await file.isEnabled()),
+        spinnerVisible: await uploadLabel.$("svg.animate-spin").isDisplayed(),
+      };
+      assert.match(uploadStatus.label, /上传中/, "Users need visible feedback while the selected image is uploading");
+      assert.equal(uploadStatus.inputDisabled, true);
+      assert.equal(uploadStatus.spinnerVisible, true, "The upload action should visibly distinguish its busy state");
+      assert.deepEqual(await snapshot("W04-point-upload", current.width, "uploading", scope, uploadStatus), []);
+      await browser.execute(() => {
+        window.__uiAudit.deferred = window.__uiAudit.deferred.filter((command) => command !== "upload_image");
+        const pending = window.__uiAudit.pending.findLast((item) => item.command === "upload_image");
+        pending.resolve(Response.json(window.__uiAudit.fixtures.upload_image));
+      });
+      await browser.waitUntil(async () => browser.execute(() =>
+        window.__uiAudit.requests.some((item) => item.command === "save_chapter_visual_plan_draft")
+        && document.querySelector(".director-frame-image")?.currentSrc.includes("image-42.svg"),
+      ), { timeout, timeoutMsg: "The selected image must upload and become the point preview after the draft save" });
+      const requests = await browser.execute(() => ({
+        upload: window.__uiAudit.requests.findLast((item) => item.command === "upload_image")?.body.input,
+        save: window.__uiAudit.requests.findLast((item) => item.command === "save_chapter_visual_plan_draft")?.body.input,
+      }));
+      assert.equal(requests.upload.project_id, 3);
+      assert.equal(requests.upload.chapter_id, 1);
+      assert.equal(requests.upload.image_type, "chapter_reference");
+      assert.equal(requests.upload.file_name, "thelittleprince.png");
+      assert.ok(requests.upload.data_base64.length > 1000, "The selected local image must be encoded in the upload request");
+      assert.equal(requests.save.plan.points.find((point) => point.id === "p0").image_id, 990041);
+      assert.equal(await scope.$('input[type="file"]').isEnabled(), true, "The file chooser must be available after upload completes");
+      return { uploadCommand: "upload_image", fileName: requests.upload.file_name, imageType: requests.upload.image_type,
+        selectedBytesEncoded: true, uploadingFeedback: uploadStatus, savedPointId: "p0", savedImageId: 990041, previewLoaded: true, actualServerWrite: false };
+    }, last: async (scope) => scope.$(".director-point-media-actions") },
+    { id: "W04-confirm-plan", task: "确认已保存的导演编排草稿并核对只读状态", open: async () => {
+      const scope = await videoDirector();
+      await browser.execute(() => {
+        const fixture = window.__uiAudit.fixtures.byProject[3].byChapter[1];
+        const draft = structuredClone(fixture.get_chapter_visual_plan.draft);
+        fixture.validate_chapter_visual_plan = {
+          resource: { kind: "chapter_visual_plan", id: String(draft.record.id), hash: draft.record.plan_sha256, label: "导演编排", revision: String(draft.record.revision) },
+          validation: { mode: "confirmed", valid: true, diagnostics: [] },
+        };
+        fixture.confirm_chapter_visual_plan = {
+          invalidated_project_ids: [],
+          shooting_script_sync: null,
+          visual_plan: {
+            ...draft,
+            record: { ...draft.record, status: "confirmed", confirmed_at: "2026-10-13T00:00:00Z", revision: draft.record.revision + 1, plan_version: draft.record.plan_version + 1 },
+          },
+        };
+      });
+      return scope;
+    }, captureInitialBeforeCheck: true, check: async (scope) => {
+      const confirm = await textButton("确认方案", scope);
+      assert.equal(await confirm.isDisplayed(), true);
+      assert.equal(await confirm.isEnabled(), true);
+      await press(confirm);
+      await waitText(scope, "方案已确认");
+      const editNewVersion = await textButton("编辑新版本", scope);
+      assert.equal(await editNewVersion.isDisplayed(), true, "Confirmed plans should leave edit mode and expose the existing new-version action");
+      const commands = await browser.execute(() => window.__uiAudit.requests
+        .filter((item) => ["validate_chapter_visual_plan", "confirm_chapter_visual_plan", "save_chapter_visual_plan_draft"].includes(item.command))
+        .map((item) => ({ command: item.command, input: item.body.input })));
+      assert.deepEqual(commands.map((item) => item.command), ["validate_chapter_visual_plan", "confirm_chapter_visual_plan"]);
+      assert.equal(commands[0].input.mode, "confirmed");
+      assert.equal(commands[0].input.project_id, 3);
+      assert.equal(commands[1].input.project_id, 3);
+      assert.equal(commands[1].input.record_id, commands[0].input.record_id);
+      assert.equal(commands[1].input.expected_revision, commands[0].input.expected_revision);
+      assert.equal(await browser.execute(() => window.__uiAudit.requests.some((item) =>
+        ["start_image_generation", "start_video_generation"].includes(item.command))), false);
+      return { confirmedStateVisible: true, editModeEnded: true, actions: commands.map((item) => item.command), generationStarted: false };
+    }, last: async (scope) => textButton("编辑新版本", scope) },
     { id: "W04-segment", task: "选中镜头段，检查变化描述、场景绑定、尾帧和时间线操作", open: () => directorInspector("segment"),
       text: ["镜头名称", "变化描述", "场景方式"], check: async (scope) => {
         assert.equal(await scope.$("input").getValue(), directorPlan.segments[0].title);
@@ -1897,16 +2560,16 @@ describe("Novel page audit - ordinary populated pages", function () {
         return { segment: directorPlan.segments[0].id, fullPrompt: true };
       }, last: async (scope) => textButton("与后一段合并", scope) },
     { id: "W04-source", task: "从导演工具打开本章完整原文并到达末句", open: async () => {
-      await writing("导演编排"); await press(await ariaButton("原文")); return dialog("章节原文");
+      await videoDirector(); await press(await ariaButton("原文")); return dialog("章节原文");
     }, check: async (scope) => {
       assert.equal(await scope.$(".director-source").getText(), seed.commands.list_chapters[0].content);
       return { chapterId: 1, characters: seed.commands.list_chapters[0].content.length };
     }, last: async (scope) => scope.$(".director-source") },
     { id: "W04-scenes", task: "从导演工具查阅全部场景和最后一个地点", open: async () => {
-      await writing("导演编排"); await press(await ariaButton("场景库")); return dialog("场景库");
+      await videoDirector(); await press(await ariaButton("场景库")); return dialog("本项目场景库");
     }, text: ["旧书店", "沿海邮路档案室"], last: async (scope) => scope.$('button[aria-label^="沿海邮路档案室 ·"]') },
     { id: "W04-media", task: "查看图片点的素材库，保留选作分镜与参考两个动作", open: async () => {
-      await writing("导演编排"); await press(await ariaButton("素材库")); return dialog(`${directorPlan.points[0].label} · 选择分镜与参考图`);
+      await videoDirector(); await press(await ariaButton("素材库")); return dialog(`${directorPlan.points[0].label} · 选择分镜与参考图`);
     }, check: async (scope) => {
       await browser.waitUntil(async () => (await scope.$$(".director-media-grid article")).length >= 12, { timeout });
       const captions = await scope.$$(".director-media-grid article > p");
@@ -1925,10 +2588,10 @@ describe("Novel page audit - ordinary populated pages", function () {
       const bound = await scope.$('button[aria-label="当前绑定候选图"]');
       assert.equal(await bound.getAttribute("aria-pressed"), "true");
       assert.equal(await bound.isEnabled(), false);
-      return { candidates: candidates.length, boundImageId: directorPlan.points[0].image_id };
+      return { candidates: candidates.length, currentImageBound: true };
     }, last: async (scope) => (await scope.$$(".director-point-candidate")).at(-1) },
     { id: "W04-frame", task: "查看四种画幅选择并保留现有比例", open: async () => {
-      await writing("导演编排"); await press(await ariaButton("画幅")); return dialog("画幅");
+      await videoDirector(); await press(await ariaButton("画幅")); return dialog("画幅");
     }, text: ["16:9 横屏", "9:16 竖屏", "1:1 方形", "4:3"], check: async (scope) => {
       const selected = await scope.$$('button[aria-pressed="true"]');
       assert.equal(selected.length, 1, "The current aspect ratio must have one selected choice");
@@ -1936,7 +2599,7 @@ describe("Novel page audit - ordinary populated pages", function () {
       return { currentAspectRatio: "16:9" };
     }, last: async (scope) => textButton("4:3", scope) },
     { id: "W04-duration", task: "打开完整时间调整，核对总时长和等比伸缩", open: async () => {
-      await writing("导演编排"); await press(await ariaButton("调整整体时长")); return dialog("调整时长");
+      await videoDirector(); await press(await ariaButton("调整整体时长")); return dialog("调整时长");
     }, check: async (scope) => {
       assert.equal(await scope.$('input[aria-label="整体时长（秒）"]').getValue(), "36");
       assert.equal(await scope.$('input[aria-label="等比伸缩全部时间点"]').getValue(), "100");
@@ -1951,16 +2614,7 @@ describe("Novel page audit - ordinary populated pages", function () {
     }, text: [directorPlan.segments[0].prompt, directorPlan.segments[1].prompt],
     last: async (scope) => textButton("合并镜头", scope) },
     { id: "W04-split", task: "在有段内图片点的编排中检查拆分前后描述和场景", open: async () => {
-      await writing();
-      await browser.execute(async () => {
-        const view = window.__uiAudit.fixtures.byChapter[1].get_chapter_visual_plan.draft;
-        // A declared read fixture with one interior keyframe makes the existing split dialog reachable.
-        view.plan.points.splice(1, 0, { id: "ui-interior-point", at_ms: 3000, label: "段内稳定构图", image_id: null,
-          description: "雨幕中保持人物位置和道具连续。", reference_image_ids: [] });
-        const { sha256Json } = await import("/src/utils/contentHash.ts");
-        view.record.plan_sha256 = await sha256Json(view.plan);
-      });
-      await clickText("导演编排", await $(".a4n-writing-tabs"));
+      await videoDirector();
       await press(await $('.director-point[aria-label*="段内稳定构图"]'));
       await clickText("从此处分镜", await selectedDirectorInspector("point"));
       const scope = await dialog("拆分镜头");
@@ -1971,23 +2625,23 @@ describe("Novel page audit - ordinary populated pages", function () {
       return scope;
     }, text: ["前段描述", "后段描述", "分镜位置"], last: async (scope) => (await scope.$$('button[role="combobox"]')).at(-1) },
     { id: "W04-agent", task: "打开第一章导演讨论，核对独立线程并到达输入区", open: async () => {
-      await writing("导演编排");
+      await videoDirector();
       await press(await ariaButton("导演 Agent"));
       const scope = await $('[aria-label="领域 Agent 控制台"]');
       await waitText(scope, "本轮停在编排讨论");
       return scope;
     }, check: async (scope) => {
-      assert.equal((await scope.$$(".agent-message-list > *")).length, directorSnapshot.messages.length);
+      assert.equal((await scope.$$(".agent-message-list > *")).length, videoDirectorSnapshot.messages.length);
       const requested = await browser.execute(() => window.__uiAudit.commands);
-      assert.ok(requested.includes(directorSnapshot.thread.id));
+      assert.ok(requested.includes(videoDirectorSnapshot.thread.id));
       const input = await scope.$("textarea");
       assert.ok((await reach(input)).reached);
       await input.setValue("先核对门口到柜台的视线，再讨论剪辑接点。");
       assert.equal(await (await ariaButton("发送给领域 Agent", scope)).isEnabled(), true);
-      return { boundThread: directorSnapshot.thread.id, messages: directorSnapshot.messages.length, sendEnabled: true };
+      return { boundThread: videoDirectorSnapshot.thread.id, messages: videoDirectorSnapshot.messages.length, sendEnabled: true };
     }, last: async (scope) => scope.$("textarea") },
-    { id: "W05-script-editor", task: "进入完整拍摄剧本编辑并读到最后一个场景", open: async () => {
-      const scope = await writing("拍摄剧本");
+    { id: "W05-script-editor", task: "进入视频项目的完整拍摄剧本编辑并读到最后一个场景", open: async () => {
+      const scope = await videoScreenplay();
       await clickText("进入编辑", scope);
       await openScriptScene(scope, 0);
       return scope;
@@ -1999,8 +2653,8 @@ describe("Novel page audit - ordinary populated pages", function () {
       await press(await scope.$('details[class~="group/scene"] > summary'));
       return openScriptScene(scope, -1);
     } },
-    { id: "W05-direction", task: "单独阅读拍摄剧本的导演意图和完整策略", open: async () => {
-      const scope = await writing("拍摄剧本");
+    { id: "W05-direction", task: "单独阅读视频项目拍摄剧本的导演意图和完整策略", open: async () => {
+      const scope = await videoScreenplay();
       const summary = await containing("导演意图", scope, "summary");
       await press(summary);
       const detail = await summary.$("..");
@@ -2013,7 +2667,41 @@ describe("Novel page audit - ordinary populated pages", function () {
       await clickText("检索", panel);
       await browser.waitUntil(async () => (await panel.$$("li")).length === 8, { timeout });
       return panel;
-    }, text: ["相关度"], last: async (scope) => (await scope.$$("li")).at(-1) },
+    }, text: ["相关度"], check: async (scope, width) => {
+      const layout = await scope.execute((panel) => {
+        const rect = (element) => {
+          const bounds = element?.getBoundingClientRect();
+          return bounds ? { width: bounds.width, left: bounds.left, right: bounds.right } : null;
+        };
+        const chapterSelector = document.querySelector(".a4n-writing-chapter-toolbar [role=combobox], .a4n-writing-chapter-toolbar select");
+        return {
+          viewportWidth: innerWidth,
+          overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          chapterSidebar: rect(document.querySelector(".a4n-writing-sidebar")),
+          chapterSelector: rect(chapterSelector),
+          workspace: rect(document.querySelector(".a4n-writing-workspace")),
+          searchPanel: rect(panel),
+          searchPanelInDialog: Boolean(panel.closest(".a4n-modal-layer")),
+        };
+      });
+      assert.equal(layout.overflow, 0, "The writing desk must not overflow horizontally");
+      if (width > 1024) {
+        assert.ok(layout.chapterSidebar?.width > 0, "Wide writing desks must retain the chapter sidebar");
+        assert.equal(layout.chapterSelector, null, "The compact chapter selector is only needed below 1024px");
+        assert.equal(layout.searchPanelInDialog, false, "Wide search remains a side rail");
+      } else if (width >= 768) {
+        assert.equal(layout.chapterSidebar, null, "Compact writing desks must give the editor its width back");
+        assert.ok(layout.chapterSelector?.width > 0, "Compact writing desks must retain direct chapter selection");
+        assert.ok(layout.workspace?.width > 500, "The editor must remain readable beside the search rail");
+        assert.ok(layout.searchPanel?.width >= 180, "The search rail must remain available beside the editor");
+        assert.equal(layout.searchPanelInDialog, false, "The tablet search panel remains in the workspace");
+      } else {
+        assert.equal(layout.chapterSidebar, null, "Phone layout must not render a desktop chapter sidebar");
+        assert.ok(layout.chapterSelector?.width > 0, "Phone layout must retain direct chapter selection");
+        assert.equal(layout.searchPanelInDialog, true, "Phone search must remain in the existing modal");
+      }
+      return { layout };
+    }, last: async (scope) => (await scope.$$("li")).at(-1) },
     { id: "W07-assistant", task: "查看生成要求、字数范围和上下文入口", open: async () => {
       const panel = await writingPanel("写作助手");
       await clickText("生成", panel);
@@ -2029,7 +2717,19 @@ describe("Novel page audit - ordinary populated pages", function () {
       await press(await scope.$('li button[aria-expanded="false"]'));
       assert.equal(await scope.$("li pre").getText(), seed.byChapter[1].list_chapter_scenes[0].content);
       return scope;
-    }, text: ["观察与核验", "行动与回应"], last: async (scope) => (await scope.$$("li")).at(-1) },
+    }, text: ["观察与核验", "行动与回应"], check: async (scope, width) => {
+      const prompt = await scope.$("#scene-generation-prompt");
+      const layout = await prompt.execute((element) => ({
+        height: element.getBoundingClientRect().height,
+        clientHeight: element.clientHeight,
+        contentHeight: element.scrollHeight,
+      }));
+      if (width < 640) {
+        assert.ok(layout.height >= 128, "The phone prompt must expose enough lines to avoid nested scrolling");
+        assert.ok(layout.contentHeight <= layout.clientHeight + 1, "The default phone prompt must not scroll inside its textarea");
+      }
+      return { prompt: layout };
+    }, last: async (scope) => (await scope.$$("li")).at(-1) },
     { id: "W10-profiles", task: "在写作过程中打开角色档案工作台", open: async () => {
       await writing();
       const trigger = await $('button[title="打开角色档案工作台"]');
@@ -2044,8 +2744,56 @@ describe("Novel page audit - ordinary populated pages", function () {
   for (const spec of inner) {
     if (spec.id === "N01-lineage" || spec.id === "N10-dedup" || spec.id.startsWith("N10-consolidate-")) {
       for (const width of widths) it(`${spec.id}-${width} checks its complete workflow`, async () => matrix(spec, [width]));
+    } else if (["W02-analysis", "W03-images", "W06-search", "W07-assistant", "W08-optimizer", "W09-scenes", "W10-profiles"].includes(spec.id)) {
+      it(spec.id + " exercises its inner page", async () => matrix(spec, [1440, 1024, 900, 390]));
     } else it(spec.id + " exercises its inner page", async () => matrix(spec));
   }
+
+  it("N11-import keeps the footer reachable on a short viewport", async () => {
+    current = { id: "N11-import-short", task: "在短视口中确认导入操作并关闭弹窗", visited: [], plannedWidths: [390] };
+    await browser.setWindowSize(390, 540);
+    const page = await project("章节");
+    const trigger = await textButton("导入章节", page);
+    await press(trigger);
+    const scope = await dialog();
+    await browser.pause(220);
+    const layout = await browser.execute(() => {
+      const panel = document.querySelector('[role="dialog"]');
+      const body = panel?.querySelector('[data-modal-body="1"]');
+      const footer = body?.nextElementSibling;
+      const textarea = panel?.querySelector("textarea");
+      const confirm = [...(footer?.querySelectorAll("button") ?? [])]
+        .find((button) => button.textContent?.trim() === "确认导入");
+      const rect = (node) => {
+        const bounds = node?.getBoundingClientRect();
+        return bounds ? { top: bounds.top, bottom: bounds.bottom, height: bounds.height } : null;
+      };
+      const bodyBounds = body?.getBoundingClientRect();
+      const textareaBounds = textarea?.getBoundingClientRect();
+      return {
+        viewportHeight: innerHeight,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        bodyClientHeight: body?.clientHeight ?? 0,
+        bodyScrollHeight: body?.scrollHeight ?? 0,
+        textareaVisibleHeight: bodyBounds && textareaBounds
+          ? Math.max(0, Math.min(bodyBounds.bottom, textareaBounds.bottom) - Math.max(bodyBounds.top, textareaBounds.top))
+          : 0,
+        footer: rect(footer),
+        confirm: rect(confirm),
+      };
+    });
+    current.evidence = { layout };
+    assert.equal(layout.overflow, 0);
+    assert.ok(layout.bodyScrollHeight > layout.bodyClientHeight, "The form body must scroll independently on a short screen");
+    assert.ok(layout.footer?.bottom <= layout.viewportHeight + 2, "The dialog footer must remain inside the viewport");
+    assert.ok(Math.round(layout.confirm?.height ?? 0) >= 44, "The confirm action must retain a touch-sized target");
+    assert.ok(layout.confirm.bottom <= layout.viewportHeight + 1, "The confirm action must remain fully visible");
+    assert.ok(layout.textareaVisibleHeight >= 80, "The short viewport must expose enough of the body editor to signal that it continues below");
+    assert.deepEqual(await snapshot("N11-import-short", 390, "short-screen", scope, { layout }), []);
+    await closeDialog();
+    await assertFocus(trigger);
+    current.visited.push(390);
+  });
 
   it("UX-698 closes scene and generation drafts after one confirmation", async () => {
     current = { id: "UX-698", task: "同时丢弃场景字段和下一场景提示词草稿", visited: [], plannedWidths: [390] };
@@ -2128,7 +2876,7 @@ describe("Novel page audit - ordinary populated pages", function () {
     current = { id: "UX-B60-beat-map", task: "浏览器返回时保护未应用的节拍映射 JSON", visited: [], plannedWidths: [1440], width: 1440 };
     await browser.setWindowSize(1440, height);
     const page = await project("大纲");
-    await press(await page.$('button[aria-label="打开大纲高级工具"]'));
+    await press(await containing("高级工具", page, "button"));
     const form = await dialog();
     await press(await containing("节拍映射", form, "summary"));
     const field = await form.$("textarea");
@@ -2157,8 +2905,10 @@ describe("Novel page audit - ordinary populated pages", function () {
         const options = await scope.$$(".inspiration-option-card");
         assert.equal(options.length, 3);
         assert.ok((await Promise.all([...options].map((option) => option.isEnabled()))).every(Boolean));
-        const composer = await reach(await scope.$('textarea[aria-label="输入灵感对话内容"]'));
+        const composerInput = await scope.$('textarea[aria-label="输入灵感对话内容"]');
+        const composer = await reach(composerInput);
         assert.ok(composer.reached, "Conversation composer must remain reachable");
+        assert.equal(await composerInput.getAttribute("aria-describedby"), null, "The placeholder must not be repeated above the composer in its normal state");
         return { historyMessages: seed.commands.get_inspiration_history.length, currentOptions: options.length, composer };
       }, last: async (scope) => (await scope.$$(".inspiration-option-card")).at(-1),
     },
@@ -2167,15 +2917,20 @@ describe("Novel page audit - ordinary populated pages", function () {
       const firstMessage = await wheelTo(first, "start");
       assert.ok(firstMessage.reached, "The first message must be user-scrollable");
       assert.ok(firstMessage.rect.y >= firstMessage.clip.top - 1, "The first message must start below the clipping boundary");
+      assert.ok(firstMessage.rect.bottom <= firstMessage.clip.bottom + 1, "The first message must be fully visible inside the conversation viewport");
       return { firstMessage };
     } },
     { id: "I02-progress", task: "查看已确认故事信息与下一步建议", open: async (width) => {
       const scope = await inspiration();
       if (width >= 1024) return scope.$("aside");
       await openHeaderMenu(); await menuItem("创作进度"); return dialog("创作进度");
-    }, text: ["主角：林岚离家七年后归来", "先核对地图、听周衡经历"], check: async (scope) => {
+    }, text: ["主角：林岚离家七年后归来", "先核对地图、听周衡经历"], check: async (scope, width) => {
       assert.equal((await scope.$$("li")).length, 6);
-      return { populatedProgressLines: 6 };
+      const dialogOpacity = width < 1024
+        ? await scope.execute((node) => getComputedStyle(node).getPropertyValue("--a4n-dialog-opacity").trim())
+        : null;
+      if (width < 1024) assert.equal(dialogOpacity, "1", "The mobile progress dialog must have an opaque surface");
+      return { populatedProgressLines: 6, dialogOpacity };
     } },
     { id: "I03-turn-preview", task: "输入补充要求并查看本轮模型请求", open: async () => {
       const scope = await inspiration();
@@ -2252,6 +3007,13 @@ describe("Novel page audit - Runtime blueprints and bound optimizer", function (
       }, message);
       const progress = await dialog("调整蓝图");
       await waitText(progress, message);
+      await waitText(progress, "调整内容已保留");
+      const failureNotice = await browser.execute(() => ({
+        details: document.querySelector('[role="dialog"] [role="alert"]')?.textContent?.trim() ?? "",
+        duplicateToasts: document.querySelectorAll(".a4n-toast-container [role='alert']").length,
+      }));
+      assert.ok(failureNotice.details.includes("调整内容已保留"));
+      assert.equal(failureNotice.duplicateToasts, 0, "The progress dialog must be the single refinement failure notice");
       assert.deepEqual(await snapshot("I09-refine-failure", width, "error-response", progress, { command: "start_blueprint_refinement", httpStatus: 503, focus }), []);
       await clickText("关闭", progress);
       await browser.waitUntil(async () => !await progress.isDisplayed(), { timeout });
@@ -2380,5 +3142,9 @@ describe("Novel page audit - Runtime blueprints and bound optimizer", function (
       return { scope: activeScope, boundThread: runtimeSeed.agent.snapshot.thread.id, messages: rows.length, composer, chapterContext: context, sendEnabled: true, chapterSwitch: "draft preserved", routeLeave: "blocked and cancelled", runCoverage: "idle only" };
     }, last: async (scope) => (await scope.$$(".agent-message-list > *")).at(-1) },
   ];
-  for (const spec of pages) it(spec.id + " follows the runtime-backed UI path", async () => matrix(spec));
+  for (const spec of pages) {
+    if (spec.id === "W08-optimizer") {
+      it(spec.id + " follows the runtime-backed UI path", async () => matrix(spec, [1440, 1024, 900, 390]));
+    } else it(spec.id + " follows the runtime-backed UI path", async () => matrix(spec));
+  }
 });

@@ -12,7 +12,7 @@ import {
   type NodeChange,
   type ReactFlowInstance,
 } from "@xyflow/react";
-import { RefreshCcw, Users } from "lucide-react";
+import { ArrowRight, RefreshCcw, Users } from "lucide-react";
 import { BookButton } from "../../../components/ui/BookButton";
 import { FlowControls } from "../../../components/ui/FlowControls";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -368,7 +368,10 @@ const RelationshipGraphPanel: React.FC<{
         <section className="border-b border-book-primary/15 bg-book-primary/5 px-4 py-3">
           <div className="mb-1 flex min-w-0 items-center gap-1.5 text-small font-semibold text-book-text-main">
             <span className="truncate">{hoveredRelationship.character_a}</span>
-            <span className="text-book-primary">→</span>
+            <span className="inline-flex shrink-0 items-center text-book-primary">
+              <ArrowRight size={13} aria-hidden="true" />
+              <span className="sr-only">{t("novel.relationships.directionTo")}</span>
+            </span>
             <span className="truncate">{hoveredRelationship.character_b}</span>
           </div>
           <div className="line-clamp-2 text-small leading-relaxed text-book-text-muted">
@@ -407,7 +410,10 @@ const RelationshipGraphPanel: React.FC<{
               >
                 <div className="flex min-w-0 items-center gap-1.5 text-small font-semibold text-book-text-main">
                   <span className="truncate">{relationship.character_a}</span>
-                  <span className="text-book-primary">→</span>
+                  <span className="inline-flex shrink-0 items-center text-book-primary">
+                    <ArrowRight size={13} aria-hidden="true" />
+                    <span className="sr-only">{t("novel.relationships.directionTo")}</span>
+                  </span>
                   <span className="truncate">{relationship.character_b}</span>
                 </div>
                 <div className="mt-0.5 line-clamp-2 text-small leading-relaxed text-book-text-muted">

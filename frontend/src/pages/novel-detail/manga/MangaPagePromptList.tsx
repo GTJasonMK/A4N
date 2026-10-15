@@ -889,13 +889,13 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
         <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             {activePage ? (
               <article className="a4n-flat-surface flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                <header className={`shrink-0 border-b border-book-border/40 ${stageMode === "image_creation" ? "p-2 sm:p-3" : "p-3"}`}>
+                <header className={`shrink-0 border-b border-book-border/40 ${stageMode === "image_creation" ? "px-1 py-0 sm:px-1.5 sm:py-0.5 xl:p-3" : "p-3"}`}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0 flex-1 basis-32">
                       <h3 className="text-sm font-semibold text-book-text-main">
                         {t("comic.prompt.pageHeading", { page: activePage.pageNumber })}
                       </h3>
-                      <p title={activePageSummary} className={`mt-1 text-small text-book-text-muted ${stageMode === "image_creation" ? "truncate" : ""}`}>
+                      <p title={activePageSummary} className={`mt-1 text-small text-book-text-muted ${stageMode === "image_creation" ? "max-xl:hidden xl:truncate" : ""}`}>
                         {activePageSummary}
                       </p>
                     </div>
@@ -946,7 +946,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                   />
                 </div>}
 
-                <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-3 custom-scrollbar">
+                <div className={`min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain ${stageMode === "image_creation" ? "px-3 pb-3 pt-1 xl:pt-3" : "p-3"} custom-scrollbar`}>
                   {stageMode === "page_planning" ? (
                     <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-2">
                       {renderStageArtifact(
@@ -1060,7 +1060,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                     </section>
 
                     {stageMode === "image_creation" ? (
-                      <section className="order-1 min-w-0 space-y-2 xl:order-2">
+                      <section className="order-1 min-w-0 space-y-1 xl:order-2 xl:space-y-2">
                         <h3 className="text-xs font-semibold text-book-text-main">
                           {t("comic.pipelineStages.pageImage")}
                         </h3>

@@ -9,6 +9,7 @@ const records = [
 ];
 const port = (id, direction, dataType) => ({ id, label: id, direction, data_type: dataType, multiple: false, required: false });
 export const visualFixtures = {
+  list_creator_notifications: uiFixtures.list_creator_notifications,
   projectRecords: records,
   list_projects: {
     ...uiFixtures.list_projects,
@@ -31,6 +32,7 @@ export const visualFixtures = {
   list_workflow_runs: [],
   get_galgame_pipeline_status: { run: null, checkpoints: [] },
   get_galgame_script: { id: 5, root_project_id: 1, title: "山海之间", scenes: [], media_bindings: [], speaker_profiles: [], text_anchors: [] },
+  oauth2_available_providers: [],
   get_canvas_graph: {
     graph: { id: 6, graph_kind: "video_studio", name: "影像画布", version: 1, viewport_json: null },
     nodes: [

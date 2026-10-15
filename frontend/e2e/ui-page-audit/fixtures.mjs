@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { visualFixtures } from "../ui-presentation/visual-fixtures.mjs";
 import { uiFixtures } from "../ui-presentation/fixtures.mjs";
-import { directorSnapshot } from "./home-agent-fixtures.mjs";
+import { directorSnapshot, videoDirectorBridgeSnapshot, videoDirectorSnapshot } from "./home-agent-fixtures.mjs";
 import { authoringWorkspace } from "../media-authoring/fixtures.mjs";
 
 const [novel, media, settings] = await Promise.all(["novel", "media", "settings"].map(async (name) =>
@@ -58,7 +58,8 @@ export async function buildPageFixtures(baseUrl) {
     ...visualFixtures, ...settings.invoke, ...media.commands, ...novel.commands, ...runtime.commands,
     [runtime.generation.blueprint.start_command]: runtime.generation.blueprint.handle,
     generationTasks: { [runtime.generation.blueprint.handle.task_id]: runtime.generation.blueprint },
-    agentSnapshots: [...uiFixtures.agentSnapshots, runtime.agent.snapshot, directorSnapshot],
+    agentSnapshots: [...uiFixtures.agentSnapshots, runtime.agent.snapshot, directorSnapshot, videoDirectorSnapshot],
+    agentThreadCreateResponses: [videoDirectorBridgeSnapshot],
     pageSessions: settings.rest.pageSessions,
     get_current_user: settings.invoke.get_current_user,
     projectRecords: byId(visualFixtures.projectRecords, novel.projectRecords),
@@ -74,6 +75,17 @@ export async function buildPageFixtures(baseUrl) {
   });
   data.list_projects = { items: data.projectRecords, page: 1, page_size: 20, total: data.projectRecords.length };
   const images = byId(media.commands.list_images_by_projects, novel.commands.list_images_by_projects);
+  const videoCandidates = [100201, 100202].map((sourceId, index) => {
+    const source = images.find((image) => image.id === sourceId);
+    assert.ok(source, `Missing director candidate source image: ${sourceId}`);
+    return {
+      ...source,
+      id: 31001 + index,
+      project_id: 3,
+      metadata_json: { ...source.metadata_json, director_candidate: { point_id: "p0" } },
+    };
+  });
+  images.push(...videoCandidates);
   data.list_images_by_projects = images;
   data.list_images_by_project = images;
   data.list_images_by_chapter = images;
@@ -102,7 +114,49 @@ export async function buildPageFixtures(baseUrl) {
     normalizeMangaPagePrompts(values.list_manga_page_prompts);
     values.list_images_by_chapter = images.filter((image) => image.chapter_id === Number(id));
     values.get_chapter = data.list_chapters.find((chapter) => chapter.id === Number(id));
+    if (values.get_chapter_visual_plan) {
+      assert.ok(Array.isArray(data.list_scene_profiles), "Visual plan fixtures require scene profile choices");
+      values.get_chapter_visual_plan.scene_choices = data.list_scene_profiles
+        .filter((scene) => scene.project_id === 1)
+        .map(({ id: sceneId, project_id, name }) => ({ id: sceneId, project_id, name }));
+    }
   }
+
+  // Video project 3 reuses source chapter IDs, so its project-scoped records need their own fixtures.
+  const videoSceneSources = data.list_scene_profiles.filter((scene) => scene.project_id === 1);
+  const videoSceneIds = new Map(videoSceneSources.map((scene) => [scene.id, scene.id + 3000]));
+  const videoSceneProfiles = videoSceneSources.map((scene) => ({
+    ...scene,
+    id: videoSceneIds.get(scene.id),
+    project_id: 3,
+    parent_scene_id: scene.parent_scene_id == null ? null : videoSceneIds.get(scene.parent_scene_id) ?? null,
+  }));
+  const videoVisualPlan = structuredClone(data.byChapter[1].get_chapter_visual_plan);
+  videoVisualPlan.scene_choices = videoSceneProfiles.map(({ id, project_id, name }) => ({ id, project_id, name }));
+  for (const view of [videoVisualPlan.draft, videoVisualPlan.confirmed]) {
+    view.plan.points[0].image_id = videoCandidates[0].id;
+    view.plan.points.splice(1, 0, {
+      id: "ui-interior-point",
+      at_ms: 3000,
+      label: "段内稳定构图",
+      image_id: null,
+      description: "雨幕中保持人物位置和道具连续。",
+      reference_image_ids: [],
+    });
+    for (const segment of view.plan.segments) {
+      const binding = segment.scene_binding;
+      if (binding?.kind === "scene") binding.scene_profile_id = videoSceneIds.get(binding.scene_profile_id) ?? binding.scene_profile_id;
+      if (binding?.kind === "transition") {
+        binding.from_scene_profile_id = videoSceneIds.get(binding.from_scene_profile_id) ?? binding.from_scene_profile_id;
+        binding.to_scene_profile_id = videoSceneIds.get(binding.to_scene_profile_id) ?? binding.to_scene_profile_id;
+      }
+    }
+  }
+  data.byProject[3].list_scene_profiles = videoSceneProfiles;
+  data.byProject[3].byChapter = {
+    ...data.byProject[3].byChapter,
+    1: { get_chapter_visual_plan: videoVisualPlan },
+  };
   data.videoDurations = Object.fromEntries([
     ...Object.values(data.byChapter).flatMap((values) => values.list_videos_by_chapter ?? []),
     ...media.byProject[6].list_videos_by_project,
@@ -138,7 +192,13 @@ export async function buildPageFixtures(baseUrl) {
     data.list_chapter_index = data.list_chapters.map(chapterIndexEntry);
     const { videoSegmentRecipeFrameFingerprintJson: frame, videoSegmentRecipeGenerationFingerprintJson: generation } =
       await import("/src/pages/novel-detail/video/videoSegmentPlan.ts");
-    const { sha256Hex } = await import("/src/utils/contentHash.ts");
+    const { sha256Hex, sha256Json } = await import("/src/utils/contentHash.ts");
+    for (const chapter of Object.values(data.byProject?.[3]?.byChapter ?? {})) {
+      const plan = chapter.get_chapter_visual_plan;
+      for (const view of [plan?.draft, plan?.confirmed]) {
+        if (view) view.record.plan_sha256 = await sha256Json(view.plan);
+      }
+    }
     const { GENERATION_START_PATHS } = await import("/src/api/generated/host.ts");
     data.commandByPath = Object.fromEntries(Array.from(GENERATION_START_PATHS, ([command, path]) => [`/api${path}`, command]));
     for (const chapter of Object.values(data.byChapter)) {

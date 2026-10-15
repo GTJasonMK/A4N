@@ -11,6 +11,7 @@ import {
 import { attributeKeyLabel } from "../../character-detail-dialog/manageViewUtils";
 import { EmptyHint } from "../shared";
 import { useI18n, type MessageTranslator } from "../../../i18n";
+import { isDistinctText } from "../../../utils/text";
 
 const profileDescription = (profile: CharacterProfile, t: MessageTranslator): string =>
   characterAttributeText(profile, "implicit", "personality") ??
@@ -78,7 +79,9 @@ export const CharacterProfilesPanel: React.FC<{
         </header>
         <ul className="grid grid-cols-1 items-start gap-2 sm:grid-cols-2">
           {profiles.map((profile) => {
-            const attributes = visibleAttributeEntries(profile, t);
+            const description = profileDescription(profile, t);
+            const attributes = visibleAttributeEntries(profile, t)
+              .filter(([, value]) => isDistinctText(value, description));
             const gender = characterAttributeText(profile, "explicit", "gender");
             const age = characterAttributeText(profile, "explicit", "age");
             return (
@@ -98,7 +101,7 @@ export const CharacterProfilesPanel: React.FC<{
                       .join(" · ")}
                   </div>
                   <p className="mt-1 line-clamp-2 text-small leading-relaxed text-book-text-sub">
-                    {profileDescription(profile, t)}
+                    {description}
                   </p>
                   {attributes.length > 0 ? (
                     <p className="mt-1 truncate text-caption text-book-text-muted">

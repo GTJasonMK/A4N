@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Eye, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, Eye, SlidersHorizontal } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -104,8 +104,15 @@ export function OutlineAdvancedToolsDialog({
         if (!actionBusy) onClose();
       }}
       title={t("outline.advanced.title")}
+      subtitle={(
+        <span className="a4n-advanced-tools-scroll-hint inline-flex items-center gap-1.5 md:hidden">
+          <ChevronDown size={12} aria-hidden="true" />
+          {t("outline.advanced.scrollHint")}
+        </span>
+      )}
       icon={<SlidersHorizontal size={15} />}
       maxWidthClassName="max-w-5xl"
+      className="[--a4n-dialog-opacity:1]"
       bodyClassName="px-4 py-4"
       closeOnBackdrop={!actionBusy}
       closeOnEscape={!actionBusy}
@@ -140,6 +147,7 @@ export function OutlineAdvancedToolsDialog({
               <div className="flex items-center justify-end gap-2 sm:shrink-0">
                 {!regenLastPart ? (
                   <Dropdown
+                    label={t("outline.advanced.viewRequest")}
                     items={[
                       {
                         label: t("outline.advanced.viewRequest"),

@@ -17,8 +17,10 @@ it("parses only safe positive whole chapter numbers", () => {
 
 it("keeps custom attribute identities distinct in records and deletion confirmations", () => {
   const t: MessageTranslator = (key) => key;
-  expect(attributeKeyLabel("temporary_item", t)).toBe("temporary_item");
-  expect(attributeKeyLabel("avoidance", t)).toBe("avoidance");
+  expect(attributeKeyLabel("temporary_item", t)).toBe("Temporary Item");
+  expect(attributeKeyLabel("avoidance", t)).toBe("Avoidance");
+  expect(attributeKeyLabel("current_location", t)).toBe("characterDetail.labels.currentLocation");
+  expect(attributeKeyLabel("临时物品", t)).toBe("临时物品");
   expect(attributeKeyLabel("", t)).toBe("characterDetail.labels.unnamedAttribute");
 });
 

@@ -6,7 +6,7 @@
 
 范围仅为 N02-editor-1、N02-editor-2、N03-create、N03-arc、N03-voice、N04-object-detail。依据 `ui-design-hybrid` 与 `design-ux` 的实屏审查要求，保留现有暖色、iOS 风格与 Lucide 图标，不提出新增依赖或无关重构。
 
-首轮证据批次：[resume-novel-full-report.json](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-report.json)。首轮读取时 debug 为 `d07261552`，工作树干净。补证为下文三张 `resume-text-ends` / `resume-character-results` 新图。主流程说明编辑器以真实 Ctrl+End 验证光标和滚动末尾、相关浏览器三宽检查通过；本审查只独立复核指定 390 宽新图，不把该说明当作自己已重跑交互或已审其他宽度。主流程的用例通过数不等于独立审图通过；报告中的 DOM 文本和 overflow 只作为辅助证据。媒体数据为合成示例。
+首轮证据批次：resume-novel-full-report.json（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-report.json`）。首轮读取时 debug 为 `d07261552`，工作树干净。补证为下文三张 `resume-text-ends` / `resume-character-results` 新图。主流程说明编辑器以真实 Ctrl+End 验证光标和滚动末尾、相关浏览器三宽检查通过；本审查只独立复核指定 390 宽新图，不把该说明当作自己已重跑交互或已审其他宽度。主流程的用例通过数不等于独立审图通过；报告中的 DOM 文本和 overflow 只作为辅助证据。媒体数据为合成示例。
 
 ## 已看工作面
 
@@ -17,10 +17,10 @@
 - 当前结论：首屏保留，390 内容末端补证通过。JSON 模式清楚，原生内滚动条可见；390 下长行折行且没有页面横向截断。
 - **末端缺口已关闭**：首轮 `last` 只确认 textarea 在屏内，仍显示内容开头。新图实际显示完整 `visual_motifs`、`premise` 和最后的 `}`，光标在闭合括号之后，内滚动条已在底部；保存与退出仍在上方可见。可据新图核销 390 末端内容未入图的问题，不追认首轮假末端证据。
 - 实际已看：
-  - [1440 initial](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N02-editor-1-1440-initial.png)
-  - [390 initial](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N02-editor-1-390-initial.png)
-  - [390 last（仍为内容开头）](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N02-editor-1-390-last.png)
-  - [补证：390 真实内容末端](../../../../.dev-runtime/ui-pages/novel/resume-text-ends-N02-editor-1-390-last.png)
+  - 1440 initial（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N02-editor-1-1440-initial.png`）
+  - 390 initial（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N02-editor-1-390-initial.png`）
+  - 390 last（仍为内容开头）（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N02-editor-1-390-last.png`）
+  - 补证：390 真实内容末端（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-text-ends-N02-editor-1-390-last.png`）
 
 ### N02-editor-2：世界观纯文本编辑
 
@@ -29,10 +29,10 @@
 - 当前结论：首屏保留，390 内容末端补证通过。模式选中状态与「保存后世界观将以纯文本形式存储」提示相邻；正文与页面操作分离明确，390 的保存按钮够宽，未见溢出或操作被遮挡。
 - **末端缺口已关闭**：首轮 `last` 仍停在开头六条核心规则；新图已显示末端知识边界、五项视觉母题和完整「世界前提」，最后一行「系交叉核验。」及其后的光标在框内可见，滚动条位于底部。保存/退出同时可见，核销 390 真实末端缺证；未据此宣称中间每一行都已逐行审读。
 - 实际已看：
-  - [1440 initial](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N02-editor-2-1440-initial.png)
-  - [390 initial](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N02-editor-2-390-initial.png)
-  - [390 last（仍为内容开头）](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N02-editor-2-390-last.png)
-  - [补证：390 真实内容末端](../../../../.dev-runtime/ui-pages/novel/resume-text-ends-N02-editor-2-390-last.png)
+  - 1440 initial（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N02-editor-2-1440-initial.png`）
+  - 390 initial（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N02-editor-2-390-initial.png`）
+  - 390 last（仍为内容开头）（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N02-editor-2-390-last.png`）
+  - 补证：390 真实内容末端（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-text-ends-N02-editor-2-390-last.png`）
 
 ### N03-create：创建角色档案
 
@@ -40,8 +40,8 @@
 - 注意力顺序：新建角色档案 → 姓名必填 → 性别/年龄 → 性格、背景、外貌 → 保存；关闭在右上角。桌面性别与年龄并排，390 下改为单列，符合从上到下的填写顺序。
 - 结论：保留。两种宽度均在一屏内看到所有六个输入、右上关闭和底部保存。姓名有明确星号；姓名为空时保存呈禁用状态，和辅助报告的 `enabled: false` 一致。示例贴合小说角色，可填写「弱冠 / 不详」，无需另加选择器或说明墙。390 的底部保存为通栏按钮，没有压住外貌输入。
 - 实际已看：
-  - [1440 initial](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N03-create-1440-initial.png)
-  - [390 initial](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N03-create-390-initial.png)
+  - 1440 initial（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N03-create-1440-initial.png`）
+  - 390 initial（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N03-create-390-initial.png`）
 - 未看：`last` 图（首屏已实际露出底部保存，预算优先覆盖其余工作面）；未验证填写后的提交、报错、软键盘升起或 Escape 关闭。
 
 ### N03-arc：角色弧光
@@ -50,8 +50,8 @@
 - 注意力顺序：角色姓名与已同步章号 → 当前弧光页签 → 弧光主题与行动方向 → 42% 进度 → 四项发展阶段。390 下页签仍全部可见，右侧刷新未挤掉「管理」。
 - 结论：保留。桌面居中弹窗、390 底部面板均完整容纳四阶段清单，标题和进度有明确层次，无需增加卡片或装饰。百分比可读；不从百分比擅自推断某阶段已经完成。关闭入口可见，具体焦点/刷新结果不由截图判定。
 - 实际已看：
-  - [1440 initial](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N03-arc-1440-initial.png)
-  - [390 initial](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N03-arc-390-initial.png)
+  - 1440 initial（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N03-arc-1440-initial.png`）
+  - 390 initial（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N03-arc-390-initial.png`）
 
 ### N03-voice：角色声音指纹
 
@@ -60,9 +60,9 @@
 - 保留理由：两种宽度下八项内容及底部诊断入口全部可见，关键内容没有省略号或横向截断；诊断默认折叠，未抢占对白特征的注意力。
 - **UI-M1 / minor，已核销**：首轮口头禅与示例的完整句子被顿号连接，出现「答案。、这一次」及「今天？、离开以后」。本轮 390 新图中两条口头禅、两条例句均各自成行，句末标点和句子内容保留，没有多余连接顿号；两组全文、底部诊断入口与顶部关闭均可见，没有因增高而截断关键内容。仅核销实际复审的新图，不把三宽自动检查当成另外两宽的独立视审。
 - 实际已看：
-  - [1440 initial](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N03-voice-1440-initial.png)
-  - [390 initial](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N03-voice-390-initial.png)
-  - [修复后：390 逐条例句](../../../../.dev-runtime/ui-pages/novel/resume-character-results-N03-voice-390-initial.png)
+  - 1440 initial（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N03-voice-1440-initial.png`）
+  - 390 initial（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N03-voice-390-initial.png`）
+  - 修复后：390 逐条例句（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-character-results-N03-voice-390-initial.png`）
 - 未看：诊断展开、刷新加载与失败态。
 
 ### N04-object-detail：物件详情
@@ -72,8 +72,8 @@
 - 保留理由：两种宽度均能实际看到完整描述、尺寸选择、更多操作和主按钮；390 底部按钮未压住字段，关闭图标仍在首屏。正文、配置与生成动作分组清楚，沿用暖色和 Lucide，不需要重排整个对话框。
 - **DATA-M1，已归类为夹具正文，非 UI 缺陷**：图像描述中的「九点十七分。，保留真实材质」经主流程确认属于夹具原句。保留这一来源说明，不要求 UI 修剪或改写用户正文；本轮未追加物件截图，也未独立审计生成逻辑。
 - 实际已看：
-  - [1440 initial](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N04-object-detail-1440-initial.png)
-  - [390 initial](../../../../.dev-runtime/ui-pages/novel/resume-novel-full-N04-object-detail-390-initial.png)
+  - 1440 initial（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N04-object-detail-1440-initial.png`）
+  - 390 initial（证据文件缺失：`.dev-runtime/ui-pages/novel/resume-novel-full-N04-object-detail-390-initial.png`）
 - 未看：尺寸下拉选项、更多菜单、生成进行中/失败/成功、已有两张素材图的预览；本项没有 `last` 图。
 
 ## Nielsen 十项简表

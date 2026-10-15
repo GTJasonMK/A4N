@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ChevronRight, Eye, Plus, SlidersHorizontal } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
-import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
+import { BookButton } from "../../../components/ui/BookButton";
 import { BookCardAction } from "../../../components/ui/BookCard";
 import { nonEmptyText } from "../../../utils/text";
 import { EmptyHint } from "../shared";
@@ -63,7 +63,7 @@ export function PartOutlineSection({
           </p>
         </div>
         {canEdit ? (
-          <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
             <BookButton
               variant="secondary"
               size="sm"
@@ -72,15 +72,15 @@ export function PartOutlineSection({
             >
               <Plus size={13} /> {t("outline.partSection.directEntry")}
             </BookButton>
-            <BookIconButton
-              label={t("outline.partSection.openAdvanced")}
+            <BookButton
+              variant="secondary"
+              size="sm"
               onClick={onOpenAdvanced}
               disabled={disabled || !loaded}
-              variant="ghost"
-              size="sm"
+              className="shrink-0"
             >
-              <SlidersHorizontal size={13} />
-            </BookIconButton>
+              <SlidersHorizontal size={13} aria-hidden="true" /> {t("outline.partSection.advancedTools")}
+            </BookButton>
           </div>
         ) : null}
       </header>
@@ -124,18 +124,18 @@ export function PartOutlineSection({
                 className="pyqt-input h-10 w-full"
               />
             </label>
-            <div className="flex items-center justify-end gap-2 md:pb-0">
+            <div className="flex flex-wrap items-center justify-end gap-2 md:pb-0">
               {!generating ? (
-                <BookIconButton
-                  label={hasParts ? t("outline.partSection.viewAppendRequest") : t("outline.partSection.viewGenerateRequest")}
+                <BookButton
                   variant="secondary"
-                  size="md"
+                  size="sm"
                   onClick={onPreviewGenerate}
                   disabled={disabled || !loaded}
-                  className="!h-10 !w-10"
+                  className="h-10 shrink-0 !min-h-10 !px-2.5 !text-xs"
                 >
-                  <Eye size={14} />
-                </BookIconButton>
+                  <Eye size={14} aria-hidden="true" />
+                  {t(hasParts ? "outline.partSection.viewAppendRequest" : "outline.partSection.viewGenerateRequest")}
+                </BookButton>
               ) : null}
               <BookButton
                 variant="primary"

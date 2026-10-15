@@ -177,8 +177,9 @@ const StepView: React.FC<{
   stepIndex: number;
   recorded: boolean;
   copiedKey: string | null;
+  showRequestInfoLabel: boolean;
   onCopy: (text: string, key: string) => void;
-}> = ({ step, stepIndex, recorded, copiedKey, onCopy }) => {
+}> = ({ step, stepIndex, recorded, copiedKey, showRequestInfoLabel, onCopy }) => {
   const { locale, t } = useI18n();
   const request = normalizedPreviewValue(step.request);
   const contextManifest = normalizedPreviewValue(step.context_manifest);
@@ -220,10 +221,10 @@ const StepView: React.FC<{
     locale,
     t,
   );
-  const metadata = [
+  const metadata: Array<{ label: string; value: string; wrap?: boolean }> = [
     modelName ? { label: t("feedback.modelLabel"), value: modelName } : null,
     providerName ? { label: t("feedback.providerLabel"), value: providerName } : null,
-    step.prompt_name ? { label: t("feedback.templateLabel"), value: step.prompt_name } : null,
+    step.prompt_name ? { label: t("feedback.templateLabel"), value: step.prompt_name, wrap: true } : null,
     assemblySource ? { label: t("feedback.promptAssemblySourceLabel"), value: assemblySource } : null,
     assemblyBlocks.length > 0
       ? {
@@ -234,7 +235,7 @@ const StepView: React.FC<{
     promptLength ? { label: t("feedback.promptLengthLabel"), value: promptLength } : null,
     requestLength ? { label: t("feedback.requestLengthLabel"), value: requestLength } : null,
     maxTokens != null ? { label: t("feedback.outputTokenLimitLabel"), value: formatNumber(maxTokens, locale) } : null,
-  ].filter((item): item is { label: string; value: string } => item != null);
+  ].filter((item) => item != null);
   const hasContextDetails = Boolean(
     contextPlanJson.trim() || contextPackRefsJson.trim() || contextManifestJson.trim(),
   );
@@ -244,8 +245,9 @@ const StepView: React.FC<{
     <section id={`request-preview-step-${stepIndex}`} className="min-w-0 space-y-4">
       <header className="flex min-w-0 flex-wrap items-start justify-between gap-3 border-b border-book-border/45 pb-3">
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-semibold leading-relaxed text-book-text-main">{step.title}</h2>
-          {step.prompt_name ? <p className="mt-1 truncate text-small text-book-text-muted">{t("feedback.template", { name: step.prompt_name })}</p> : null}
+          <h2 className="text-sm font-semibold leading-relaxed text-book-text-main">
+            {showRequestInfoLabel ? t("feedback.requestInfo") : step.title}
+          </h2>
         </div>
         <StepState state={step.state} recorded={recorded} t={t} />
       </header>
@@ -257,9 +259,9 @@ const StepView: React.FC<{
       ) : null}
 
       {metadata.length > 0 ? (
-        <dl className="grid min-w-0 grid-cols-2 gap-3 border-y border-book-border/40 py-3 sm:grid-cols-3 xl:grid-cols-4">
+        <dl className="grid min-w-0 grid-cols-1 gap-3 border-y border-book-border/40 py-3 sm:grid-cols-3 xl:grid-cols-4">
           {metadata.map((item) => (
-            <Metric key={`${item.label}:${item.value}`} label={item.label} value={item.value || "—"} />
+            <Metric key={`${item.label}:${item.value}`} label={item.label} value={item.value || "—"} wrap={item.wrap} />
           ))}
         </dl>
       ) : null}
@@ -478,10 +480,10 @@ const StepNavigationButton: React.FC<{
   </button>
 );
 
-const Metric: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+const Metric: React.FC<{ label: string; value: string; wrap?: boolean }> = ({ label, value, wrap = false }) => (
   <div className="min-w-0 border-l border-book-border/50 pl-3 first:border-l-0 first:pl-0">
     <dt className="text-caption text-book-text-muted">{label}</dt>
-    <dd className="mt-1 truncate text-small font-semibold tabular-nums text-book-text-main" title={value}>
+    <dd className={`mt-1 ${wrap ? "break-words" : "truncate"} text-small font-semibold tabular-nums text-book-text-main`} title={value}>
       {value}
     </dd>
   </div>
@@ -656,8 +658,8 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
       title={data?.title ?? fallbackTitle ?? t("feedback.requestPreviewTitle")}
       subtitle={contextSummary}
       maxWidthClassName="max-w-[min(96vw,86rem)]"
-      className="sm:max-h-[88vh]"
-      bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar px-3 py-3 sm:px-5 sm:py-4"
+      className="sm:max-h-[88vh] [--a4n-dialog-opacity:1]"
+      bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar px-3 pt-3 pb-8 sm:px-5 sm:pt-4 sm:pb-6"
       zIndexClassName="z-[80]"
       footer={
         <div className="flex w-full items-center justify-end gap-2">
@@ -710,6 +712,7 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
             stepIndex={activeStepIndex}
             recorded={recorded}
             copiedKey={copiedKey}
+            showRequestInfoLabel={steps.length === 1 && activeStep.title === data.title}
             onCopy={copyText}
           />
         </div>

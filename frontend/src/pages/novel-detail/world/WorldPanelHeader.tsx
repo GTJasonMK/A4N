@@ -34,7 +34,7 @@ export const WorldPanelHeader: React.FC<WorldPanelHeaderProps> = ({
 }) => {
   const { t } = useI18n();
   const headerClassName = editing
-    ? "mb-4 flex flex-col gap-3 border-b border-book-border/45 pb-3 sm:flex-row sm:items-center sm:justify-between"
+    ? "sticky top-0 z-20 -mx-4 -mt-4 mb-4 flex flex-col gap-3 rounded-t-[var(--pyqt-radius-lg)] border-b border-book-border/45 bg-[rgb(var(--color-bg-secondary))] px-4 pb-3 pt-4 sm:-mx-5 sm:-mt-5 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:pt-5 lg:static lg:z-auto lg:mx-0 lg:mt-0 lg:rounded-none lg:bg-transparent lg:px-0 lg:pt-0"
     : "flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between";
 
   return (

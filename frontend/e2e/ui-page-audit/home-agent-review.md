@@ -42,3 +42,18 @@
 | A12-delegation-entry | 从委派进入子线程 | 目标身份 → 讨论 → 暂停原因 → 预算入口 | A三宽 initial | 保留：实际“打开子线程”后标题和列表选中态同步，390讨论与预算入口完整；未继续任务。 |
 
 这些是合成的UI读取与输入状态，不是实际模型执行、审批、项目恢复或媒体生成结果。浏览器操作、视口/PNG尺寸、零横溢出、fixture覆盖及错误断言由主流程执行；独立视审以上述实际打开的图片为依据。
+
+## 首页 702×393 窄视口复核（2026-10-13）
+
+- Chrome 153 通过常规 `functional.conf.mjs` 入口运行 `home-zoom-equivalent.e2e.mjs`，实际 CSS 视口为 702×393；标题、创建/导入入口和首个项目卡均完整落在视口内，`scrollWidth - clientWidth = 0`。
+- 键盘连续 Tab 可到达“创建项目”，焦点环可见；打开创建弹窗不提交项目，弹窗内部滚动区可到达最后的项目类型；Escape 关闭后焦点返回触发按钮。
+- 本项是窄 CSS 视口等效检查，不替代原生浏览器 200% 缩放；原生缩放由 W01 独立报告覆盖。报告与截图：[当前报告](../../../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-13T03-02-04-328Z/report.json)、[窄视口首页](../../../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-13T03-02-04-328Z/home-702x393.png)、[创建弹窗末项](../../../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-13T03-02-04-328Z/create-dialog-last-option-702x393.png)。
+- 复看 702px 截图后发现访问权限筛选值被截断；根因为 `sm`（640px）就让筛选栏与页签共行。该布局断点现改为 `md`（768px），中窄屏筛选器换行。专项回归增加完整选值和无裁切断言，Chrome 153 1/1 通过，`全部可访问` 的文本与滚动宽度均为 258px，首个项目完整留在首屏。修复后证据：[报告](../../../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-13T04-02-41-584Z/report.json)、[702px首页](../../../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-13T04-02-41-584Z/home-702x393.png)。
+- headful Chrome 原生 200% 补试读数仍为 1404×787 CSS px、DPR 2、`visualViewport.scale=1`；profile 默认缩放与 WebDriver `Ctrl++` 均未生效，因此当前只认可本项 702×393 CSS 视口等效证据。首页原生 200% 尚未关闭。
+- 2026-10-14 使用全新工作树隔离 profile 并要求原生 200% 的严格门禁复试仍得到 1404×787 / DPR 2 / `visualViewport.scale=1`，在任何窄视口改尺寸或页面断言前失败，不作通过或产品问题结论。读数报告：[初始视口](../../../.dev-runtime/ui-pages/home-agent/zoom-equivalent-2026-10-14T09-50-28-316Z/report.json)。原生首页缩放仍待可控 profile 设置后复核。
+
+## A10 预算弹窗当前样本复核（2026-10-13）
+
+- 当前定向用例在 1440/900/390px 通过，使用 `Intl.NumberFormat("zh-CN")` 读取“已确认 6,000 token”，并检查四个上限输入 24/16/8/12000；继续入口可达，无页面溢出、浏览器错误或意外请求。未提交预算，也未继续任务。
+- 独立复审三宽截图无 P1/P2/P3：手机单列字段与底部关闭/继续操作完整可读，900/1440 保持 2×2 字段。旧合并矩阵样本文案失败保留为历史记录，当前用例不再复现。
+- 截图与报告：[三宽报告](../../../.dev-runtime/ui-pages/home-agent/home-agent-a10-final-20261013-report.json)、[390](../../../.dev-runtime/ui-pages/home-agent/home-agent-a10-final-20261013-A10-budget-390-initial.png)、[900](../../../.dev-runtime/ui-pages/home-agent/home-agent-a10-final-20261013-A10-budget-900-initial.png)、[1440](../../../.dev-runtime/ui-pages/home-agent/home-agent-a10-final-20261013-A10-budget-1440-initial.png)。

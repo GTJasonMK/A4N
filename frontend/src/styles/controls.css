@@ -95,7 +95,6 @@
     box-shadow: none;
     cursor: not-allowed;
     transform: none;
-    opacity: 0.6;
   }
 
   :is(.pyqt-btn-primary, .pyqt-btn-secondary, .pyqt-btn-icon, .a4n-btn-ghost, .a4n-btn-warning, .a4n-btn-danger):focus-visible {

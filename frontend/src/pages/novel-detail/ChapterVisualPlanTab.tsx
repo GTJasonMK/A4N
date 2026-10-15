@@ -550,11 +550,18 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
             <section className="director-property-group">
               <h4>图片点信息</h4>
               <label>名称<input value={point.label} onChange={(event) => updatePoint(point.id, { label: event.target.value })} /></label>
-              <label>画面描述<textarea rows={4} value={point.description} placeholder="这个时刻的主体、构图和画面状态…" onChange={(event) => updatePoint(point.id, { description: event.target.value })} /></label>
+              <label>画面描述<textarea rows={narrow ? 2 : 4} value={point.description} placeholder="这个时刻的主体、构图和画面状态…" onChange={(event) => updatePoint(point.id, { description: event.target.value })} /></label>
             </section>
             <section className="director-property-group">
               <h4>图片素材</h4>
               <p className="director-binding-status" role="status">{point.image_id ? "已绑定分镜图片" : "尚未绑定分镜图片"} · {point.reference_image_ids.length} 张参考图</p>
+              <div className="director-point-media-actions">
+                <BookButton variant="secondary" size="sm" onClick={() => openModal("media")}><ImagePlus size={15} />从素材库选择</BookButton>
+                <label className="director-upload-button" aria-busy={uploading}>
+                  {uploading ? <span role="status" className="inline-flex items-center gap-1.5"><LoadingSpinner size="sm" />{t("video.chapter.director.uploading")}</span> : <><Upload size={15} />上传本地图片</>}
+                  <input type="file" accept={supportedImageAccept()} disabled={disabled || uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); event.target.value = ""; }} />
+                </label>
+              </div>
               <ImageSizeSelect
                 label="生成尺寸"
                 disabled={disabled}
@@ -565,10 +572,6 @@ export function ChapterVisualPlanTab({ projectId, canEdit, chapter, onDirtyChang
                 value={effectiveImageSize}
               />
               {point && !imageSizeState.loading && !imageSizeState.error && pointImageSizes.length === 0 && <p role="alert" className="director-context-line">当前图片配置没有与方案画幅匹配的尺寸，请先在图片模型设置中添加对应尺寸。</p>}
-              <div className="director-point-media-actions">
-                <BookButton variant="secondary" size="sm" onClick={() => openModal("media")}><ImagePlus size={15} />从素材库选择</BookButton>
-                <label className="director-upload-button"><Upload size={15} />上传本地图片<input type="file" accept={supportedImageAccept()} disabled={disabled || uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); event.target.value = ""; }} /></label>
-              </div>
               <BookButton variant="secondary" size="sm" disabled={pointCandidates.length === 0} onClick={() => openModal("candidates")}><Images size={15} />分镜候选{pointCandidates.length > 0 ? `（${pointCandidates.length}）` : ""}</BookButton>
               <DirectorGeneration
                 key={`point:${point.id}`}

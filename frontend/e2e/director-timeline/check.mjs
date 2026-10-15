@@ -84,6 +84,39 @@ async function assertWorkspaceFits(state) {
     if (region.selector === ".director-timeline") assert.ok(region.height <= (measurement.width >= 768 ? 180 : 240), `${state}: timeline must leave room for the preview`);
   }
 }
+async function assertStageNavigation(width) {
+  const compact = width < 1280;
+  const selector = await browser.$("#video-stages-3-select");
+  const tabs = await browser.$(".a4n-media-stage-tabs nav");
+  assert.equal(await selector.isDisplayed(), compact, `${width}px: compact stage selector visibility`);
+  assert.equal(await tabs.isDisplayed(), !compact, `${width}px: wide stage tabs visibility`);
+  const compactTimeline = await browser.execute(() =>
+    document.querySelector(".director-workspace").getBoundingClientRect().width <= 600,
+  );
+  assert.equal(await browser.$(".director-timeline-scroll-hint").isDisplayed(), compactTimeline,
+    `${width}px: compact timeline must explain horizontal scrolling`);
+  if (compactTimeline) {
+    const scroll = await browser.execute(() => {
+      const timeline = document.querySelector(".director-timeline-scroll");
+      const start = timeline.scrollLeft;
+      timeline.scrollLeft = timeline.clientWidth;
+      const moved = timeline.scrollLeft > start;
+      timeline.scrollLeft = start;
+      return { moved, clientWidth: timeline.clientWidth, scrollWidth: timeline.scrollWidth };
+    });
+    assert.ok(scroll.moved && scroll.scrollWidth > scroll.clientWidth,
+      `${width}px: later timeline ranges must remain reachable`);
+  }
+  if (width === 1024) {
+    await selector.click();
+    await browser.keys(["End", "Enter"]);
+    assert.match(await selector.getText(), /后期处理/, "the compact selector must expose the last stage");
+    await selector.click();
+    await browser.keys(["Home", "ArrowDown", "Enter"]);
+    assert.match(await selector.getText(), /导演编排/, "the active stage must remain directly selectable");
+  }
+  return { width, compact, compactTimeline };
+}
 try {
   const vite = launch(process.execPath, ["node_modules/vite/bin/vite.js", "--host", "127.0.0.1", "--port", String(port), "--strictPort"]);
   const driver = launch(process.env.A4N_WDIO_CHROMEDRIVER_BINARY ?? "/usr/bin/chromedriver", [`--port=${driverPort}`, "--verbose", `--log-path=${path.join(artifacts, "driver.log")}`]);
@@ -274,11 +307,12 @@ try {
   await browser.$('[role="dialog"]').waitForDisplayed({ reverse: true });
   assert.equal(await browser.execute(() => window.directorCommands.some((call) => call.command === "edit_chapter_visual_plan_draft" && call.input.operation.duration_ms === 30000)), false, "Escape must cancel an uncommitted duration edit");
   assert.match(await browser.$('[aria-label="调整整体时长"]').getText(), /24s/);
-  for (const [width, height] of [[1440, 900], [1366, 768], [1280, 720], [1024, 768], [390, 844], [390, 667]]) {
+  for (const [width, height] of [[1440, 900], [1366, 768], [1280, 720], [1024, 768], [900, 844], [390, 844], [390, 667]]) {
     await setViewport(width, height);
     await browser.execute(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     if (width >= 1024 && !await browser.$(".director-inspector").isExisting()) await browser.$('[aria-label="属性"]').click();
     await assertWorkspaceFits(`${width}x${height}`);
+    measurements.push({ state: "stage navigation", ...(await assertStageNavigation(width)) });
     await browser.saveScreenshot(path.join(artifacts, `viewport-${width}x${height}.png`));
   }
   await setInput('[aria-label="播放位置"]', "3000");
@@ -296,6 +330,40 @@ try {
   await browser.$('[role="dialog"]').waitForDisplayed();
   await browser.waitUntil(async () => browser.execute(() => getComputedStyle(document.querySelector('[role="dialog"]')).opacity === "1"));
   assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+  const mediaActionsLayout = await browser.execute(() => {
+    const actions = document.querySelector(".director-mobile-inspector .director-point-media-actions");
+    const body = actions?.closest('[data-modal-body="1"]');
+    const sizeSelect = document.querySelector('.director-mobile-inspector .director-fields [role="combobox"]');
+    const candidates = [...document.querySelectorAll(".director-mobile-inspector .director-fields button")]
+      .find((button) => button.textContent.includes("分镜候选"));
+    const footer = document.querySelector(".director-mobile-inspector > .a4n-dialog-section:last-child");
+    if (!actions || !body || !sizeSelect || !candidates || !footer) return null;
+    const actionRect = actions.getBoundingClientRect();
+    const sizeRect = sizeSelect.getBoundingClientRect();
+    const candidateRect = candidates.getBoundingClientRect();
+    const bodyRect = body.getBoundingClientRect();
+    const footerTop = footer.getBoundingClientRect().top;
+    return {
+      width: innerWidth,
+      height: innerHeight,
+      actionTop: actionRect.top,
+      actionBottom: actionRect.bottom,
+      bodyTop: bodyRect.top,
+      bodyBottom: bodyRect.bottom,
+      footerTop,
+      fullyVisible: actionRect.top >= bodyRect.top && actionRect.bottom <= bodyRect.bottom && actionRect.bottom <= footerTop,
+      sizeSelectTop: sizeRect.top,
+      sizeSelectBottom: sizeRect.bottom,
+      sizeSelectFullyVisible: sizeRect.top >= bodyRect.top && sizeRect.bottom <= bodyRect.bottom && sizeRect.bottom <= footerTop,
+      candidatesTop: candidateRect.top,
+      candidatesBottom: candidateRect.bottom,
+      candidatesFullyVisible: candidateRect.top >= bodyRect.top && candidateRect.bottom <= bodyRect.bottom && candidateRect.bottom <= footerTop,
+    };
+  });
+  measurements.push({ state: "mobile media actions", ...mediaActionsLayout });
+  assert.equal(mediaActionsLayout?.fullyVisible, true, "primary media actions must be fully visible above the mobile footer");
+  assert.equal(mediaActionsLayout?.sizeSelectFullyVisible, true, "the generation size selector must be fully visible above the mobile footer");
+  assert.equal(mediaActionsLayout?.candidatesFullyVisible, true, "the candidate entry must be fully visible above the mobile footer");
   await browser.saveScreenshot(path.join(artifacts, "mobile-properties.png"));
   const imageSizeSelect = await browser.$('.director-fields [role="combobox"]');
   await imageSizeSelect.waitForDisplayed();
@@ -474,7 +542,7 @@ try {
   await browser.$(".director-empty").waitForDisplayed();
   await browser.$("button=重新加载").waitForDisplayed();
   assert.equal(await browser.$(".director-viewer").isExisting(), false, "a failed chapter load must never display the previous chapter's plan");
-  const report = { passed: true, cases: ["all four frame aspect ratios", "viewport fitting inside the real chapter workspace", "compact timeline reserves preview space", "shared track hit targets", "timing dialog and cancelled edits", "default desktop inspector", "container resize without viewport resize", "read-only controls", "points independent of segments", "play/pause", "prompt autosave payload", "proportional retime request", "responsive overflow", "mobile dialog and Escape", "mobile bottom actions reachable", "dialog keyboard isolation", "point and segment boundary pointer gestures", "chapter switch during pending mutation", "chapter load failure never displays the previous plan"], measurements };
+  const report = { passed: true, cases: ["all four frame aspect ratios", "viewport fitting inside the real chapter workspace", "compact timeline reserves preview space", "shared track hit targets", "timing dialog and cancelled edits", "default desktop inspector", "container resize without viewport resize", "read-only controls", "points independent of segments", "play/pause", "prompt autosave payload", "proportional retime request", "responsive overflow", "mobile dialog and Escape", "mobile media, size and candidate actions clear of footer", "mobile bottom actions reachable", "dialog keyboard isolation", "point and segment boundary pointer gestures", "chapter switch during pending mutation", "chapter load failure never displays the previous plan"], measurements };
   report.nativeEditingChecks = ["late save preserves newer manual input", "SSE receipts apply without editor reload or remount", "selection, playhead and focus survive receipt application", "batch undo preserves intervening manual edits", "overlapping changes pause autosave and preserve both versions", "conflict resolution merges unaffected fields"];
   await writeFile(path.join(artifacts, "report.json"), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report));

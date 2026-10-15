@@ -55,7 +55,7 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
 }) => {
   const inputHintId = useId();
   const { locale, t } = useI18n();
-  const inputHint = sending ? t("inspiration.inputHintSending") : placeholder;
+  const inputHint = sending ? t("inspiration.inputHintSending") : null;
   const latestMessageId = messages[messages.length - 1]?.id;
 
   return (
@@ -99,13 +99,11 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
       }`}
       >
         <div className="mx-auto w-full min-w-0 max-w-3xl">
-          <p
-            id={inputHintId}
-            title={inputHint}
-            className="mb-1.5 truncate text-small text-book-text-muted"
-          >
-            {inputHint}
-          </p>
+          {inputHint ? (
+            <p id={inputHintId} title={inputHint} className="mb-1.5 truncate text-small text-book-text-muted">
+              {inputHint}
+            </p>
+          ) : null}
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
             <textarea
               ref={inputRef}
@@ -117,7 +115,7 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
               onFocus={onInputFocus}
               onBlur={onInputBlur}
               aria-label={t("inspiration.inputConversation")}
-              aria-describedby={inputHintId}
+              aria-describedby={inputHint ? inputHintId : undefined}
               placeholder={placeholder || t("inspiration.inputPlaceholder")}
               rows={Math.min(5, Math.max(1, input.split("\n").length))}
               spellCheck={false}

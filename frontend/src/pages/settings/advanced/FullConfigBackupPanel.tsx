@@ -95,6 +95,8 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
           </button>
           <input
             ref={fileInputRef}
+            aria-label={t("settingsAdvanced.importFile")}
+            tabIndex={-1}
             type="file"
             accept=".json,application/json"
             className="sr-only"

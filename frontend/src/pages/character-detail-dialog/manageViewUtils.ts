@@ -142,12 +142,14 @@ export const attributeKeyLabel = (
   if (exactKey) return label(t, exactKey);
   if (/[^\x00-\x7f]/.test(text) || /\s/.test(text)) return text;
   const tokens = normalized.split(/[_-]+/).filter(Boolean);
-  if (tokens.length === 0 || tokens.some((token) => !ATTRIBUTE_TOKEN_LABELS[token])) {
-    return text;
-  }
+  if (tokens.length === 0) return text;
   return tokens
-    .map((token) => label(t, ATTRIBUTE_TOKEN_LABELS[token]))
-    .join("");
+    .map((token) => {
+      const key = ATTRIBUTE_TOKEN_LABELS[token];
+      if (key) return label(t, key);
+      return token.replace(/^\w/, (char) => char.toUpperCase());
+    })
+    .join(" ");
 };
 
 export const behaviorTypeLabel = (
