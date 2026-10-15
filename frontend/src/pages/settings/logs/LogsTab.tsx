@@ -1,6 +1,6 @@
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Copy, RefreshCw } from "lucide-react";
+import { ChevronDown, Copy, RefreshCw } from "lucide-react";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { useToast } from "../../../components/feedback/Toast";
@@ -33,6 +33,7 @@ export const LogsTab: React.FC = () => {
   const [applyingFilter, setApplyingFilter] = useState(false);
   const [appliedFilter, setAppliedFilter] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showLogScrollHint, setShowLogScrollHint] = useState(false);
   const requestKey = `${lines}:${daysAgo}`;
   const callerUserId = user?.id ?? null;
   const canReadDiagnostics = user?.role === "admin";
@@ -44,6 +45,7 @@ export const LogsTab: React.FC = () => {
   const applyingFilterRef = useRef(false);
   const copySeqRef = useRef(0);
   const copiedTimerRef = useRef<number | null>(null);
+  const logScrollRegionRef = useRef<HTMLDivElement>(null);
 
   activeRequestKeyRef.current = requestKey;
 
@@ -148,6 +150,31 @@ export const LogsTab: React.FC = () => {
     ? extractErrorMessage(logDirError.reason, t("settingsLogs.pathUnavailable"))
     : null;
   const displayLoading = loading || (resultKey !== requestKey && currentLoadError == null);
+
+  useEffect(() => {
+    const region = logScrollRegionRef.current;
+    if (!region || activeTab !== "logs") {
+      setShowLogScrollHint(false);
+      return;
+    }
+
+    const updateHint = () => {
+      const remaining = region.scrollHeight - region.clientHeight - region.scrollTop;
+      setShowLogScrollHint(remaining > 2);
+    };
+    const observer = new ResizeObserver(updateHint);
+    observer.observe(region);
+    if (region.firstElementChild) observer.observe(region.firstElementChild);
+    region.addEventListener("scroll", updateHint, { passive: true });
+    window.addEventListener("resize", updateHint);
+    updateHint();
+
+    return () => {
+      observer.disconnect();
+      region.removeEventListener("scroll", updateHint);
+      window.removeEventListener("resize", updateHint);
+    };
+  }, [activeTab, currentLoadError, displayLoading, visibleResult]);
 
   useEffect(() => {
     setResult(null);
@@ -284,8 +311,14 @@ export const LogsTab: React.FC = () => {
               <option value={7}>{t("settingsLogs.daysAgo", { count: 7 })}</option>
             </ThemedSelect>
             {visibleResult ? (
-              <span className="text-book-text-muted sm:ml-auto">
-                {t("settingsLogs.lines", { returned: formatNumber(visibleResult.returned_lines, locale), total: formatNumber(visibleResult.total_lines, locale) })}
+              <span className="inline-flex min-w-0 flex-wrap items-center gap-x-2 text-book-text-muted sm:ml-auto">
+                <span>{t("settingsLogs.lines", { returned: formatNumber(visibleResult.returned_lines, locale), total: formatNumber(visibleResult.total_lines, locale) })}</span>
+                {showLogScrollHint ? (
+                  <span data-log-scroll-hint className="inline-flex items-center gap-1 text-caption">
+                    <ChevronDown size={12} aria-hidden="true" className="shrink-0" />
+                    {t("settingsLogs.scrollHint")}
+                  </span>
+                ) : null}
               </span>
             ) : (
               <span className="flex-1" />
@@ -303,7 +336,8 @@ export const LogsTab: React.FC = () => {
           ) : null}
 
           <details className="group border-y border-book-border/35 text-xs">
-            <summary className="w-fit cursor-pointer py-2 text-book-text-muted transition-colors hover:text-book-text-main">
+            <summary className="inline-flex w-fit cursor-pointer list-none items-center gap-1.5 py-2 text-book-text-muted transition-colors hover:text-book-text-main [&::-webkit-details-marker]:hidden">
+              <ChevronDown size={12} aria-hidden="true" className="shrink-0 transition-transform group-open:rotate-180" />
               {t("settingsLogs.level")}
             </summary>
             <div className="flex flex-wrap items-center gap-2 pb-2">
@@ -333,8 +367,9 @@ export const LogsTab: React.FC = () => {
             </div>
           </details>
 
-          <details className="text-xs text-book-text-muted">
-            <summary className="w-fit cursor-pointer transition-colors hover:text-book-text-main">
+          <details className="group text-xs text-book-text-muted">
+            <summary className="inline-flex w-fit cursor-pointer list-none items-center gap-1.5 transition-colors hover:text-book-text-main [&::-webkit-details-marker]:hidden">
+              <ChevronDown size={12} aria-hidden="true" className="shrink-0 transition-transform group-open:rotate-180" />
               {t("settingsLogs.location")}
             </summary>
             {currentLogDirError ? (
@@ -359,7 +394,11 @@ export const LogsTab: React.FC = () => {
             </div>
           </details>
 
-          <div className="a4n-flat-surface flex-1 min-h-0 p-3 overflow-y-auto custom-scrollbar font-mono text-small leading-relaxed bg-book-bg-tertiary/40">
+          <div
+            ref={logScrollRegionRef}
+            data-log-scroll-region
+            className="a4n-flat-surface flex-1 min-h-0 p-3 overflow-y-auto custom-scrollbar font-mono text-small leading-relaxed bg-book-bg-tertiary/40"
+          >
             {!visibleResult ? (
               displayLoading ? (
                 <div className="text-book-text-muted">{t("settingsLogs.loading")}</div>

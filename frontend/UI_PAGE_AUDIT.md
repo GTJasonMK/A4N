@@ -15,8 +15,8 @@
 | 项目资料 | 概览、世界观、角色档案/立绘、物体、场景、关系、事件/伏笔、分部/章纲、图库、导入审核、章节、成本 | N01–N03 主页面与 18/19 条深层路径、N08 三条深层路径及 N09 来源记录已有当前版多宽度证据；N10 队列/详情、N11 目录/只读正文/导入弹窗也已复核。其他子工作面仍按逐项状态追踪 |
 | 写作 | 正文、分析、章节图像、导演编排、拍摄剧本、资料检索、生成助手、优化助手、场景管理、角色档案 | 112 项小说/写作/灵感矩阵通过，深层入口另有定向回归 |
 | 灵感 | 对话/选项、整理进度、蓝图确认/调整、成功交接 | 112 项矩阵通过，失败保留输入与交接结果有证据；I01/I02 与 I05–I09 完成三宽度定向视觉复核，I01-history 首条消息完整落在 390/1440px 滚动视口内，独立审图无 P1/P2/P3 |
-| 设置 | LLM、图片、视频、嵌入的已有/新建/编辑/测试；搜索/抓取；Agent 技能；提示词及历史/覆盖/校验；主题及完整编辑；备份 | 原 31 项内页/管理/账户/认证，加 B72 的 35 项三宽度交互；SD06 长主题名手机端显示已修复并三宽复核；模型真实服务调用仍未冒领 |
-| 管理/诊断 | 总览、用户/邀请/用量、项目、任务、默认API及四类配置、趋势、组件包、队列/工作流详情、调用统计、日志 | SD08–SD20 及失败恢复通过，视觉复审保留未亲看的图片清单 |
+| 设置 | LLM、图片、视频、嵌入的已有/新建/编辑/测试；搜索/抓取；Agent 技能；提示词及历史/覆盖/校验；主题及完整编辑；备份 | 原 31 项内页/管理/账户/认证，加 B72 的 35 项三宽度交互；SD05/06/07/11/16 当前版 38 种状态复审完成；重命名反馈遮挡与日志滚动提示缺失已修复；SD05/SD16 折叠图标统一为 Lucide；模型真实服务调用仍未冒领 |
+| 管理/诊断 | 总览、用户/邀请/用量、项目、任务、默认API及四类配置、趋势、组件包、队列/工作流详情、调用统计、日志 | SD08–SD20 及失败恢复通过；SD11/SD16 当前状态纳入 38 种状态复审；真实后端服务未验 |
 | 管理测试中心 | 管理员选择功能场景与目标 → 运行 → 查看步骤、项目变化和历史；取消/清理 | 当前版三宽度视觉与浏览器用户路径已复核，见文末 |
 | 账户 | 资料、页面CLI、密码、设备会话、应用信息、存储和清理、退出时草稿 | SD21–SD27 三角色、错误恢复和草稿保护通过 |
 | 通知收件箱 | 高频查看未读 → 阅读广播 → 标记单条已读 | 当前版创作者 fixture 覆盖 390/1024/1440px 亮暗主题；单条已读交互有定向回归 |
@@ -811,3 +811,11 @@
 - 独立审图确认两个摘要在 702px 下为同尺寸、同边距、方向一致的 Lucide 下箭头；原生 200% 初始态从正文顶部开始，滚动提示、固定标题栏和关闭按钮清楚可见。无可确认 P1/P2/P3。
 - 证据：[原生 200% 报告](../.dev-runtime/ui-pages/novel/frontend-design-20261014-native200-arrow-capturefix2-outline-import-review-702-report.json)、[原生初始态](../.dev-runtime/ui-pages/novel/frontend-design-20261014-native200-arrow-capturefix2-N08-native-200-advanced-702-initial-window.png)、[原生重写区](../.dev-runtime/ui-pages/novel/frontend-design-20261014-native200-arrow-capturefix2-N08-native-200-advanced-702-rewrite-scrolled-window.png)、[702px 重写区](../.dev-runtime/ui-pages/novel/frontend-design-20261014-fold-icons-regular-N08-advanced-702-rewrite-scrolled.png)、[702px 节拍映射区](../.dev-runtime/ui-pages/novel/frontend-design-20261014-fold-icons-regular-N08-advanced-702-beatMapping-scrolled.png)。
 - `npm run build`、Chrome 153 常规宽度回归（5 项通过）、原生 200% N08 回归（1 项通过，4 项按筛选跳过）、E2E `node --check`、设计预算与 `git diff --check` 通过。样式量未因本次改动增加；总量为 CSS 4,766 行 / 135,438 字节、构建 CSS 265,865 字节，低于 +20% 限制；调色板一致、UI emoji=0、无新增依赖。保留既有 >500 kB JS chunk 警告。
+
+## SD05/SD07/SD16 设置状态补审与移动反馈收尾（2026-10-15）
+
+- 独立审图检查了当前分支 SD05/SD06/SD07/SD11/SD16 共 38 个先前未覆盖的状态/宽度截图。初审确认两个问题：SD07 手机主题重命名成功 toast 覆盖卡片标题；SD16 手机日志内部滚动隐藏滚动条，末行被截断且没有继续滚动提示。
+- SD07 重命名成功/失败反馈现在以内联状态显示在主题列表上方，维持原有成功/错误文案与更新操作，不再用全局浮层压住列表。SD16 仅在日志滚动区还有内容时显示 Lucide `ChevronDown` 与“向下滚动查看更多”；到达末尾后提示收起。SD05 主题编辑与 SD16 日志的原生 `<details>` 标记统一替换为 Lucide `ChevronDown`，保留原生 summary 键盘和开合行为。
+- 当前版 Chrome 153 定向回归 SD05/SD07/SD16 共 3 条工作流全部通过，视口为 390/900/1024/1440px；页面横向溢出、浏览器错误和意外请求均为 0。390px 重命名提示不与主题卡相交；日志滚动提示只在有剩余内容时出现，滚动到底后隐藏，末条日志完整可见。独立复审修复后的 14 张相关截图，无可确认 P1/P2/P3。
+- 验证：`npm run build`；`node e2e/ui-presentation/check-design-budget.mjs`；`git diff --check`；E2E `node --check`。CSS 源码 4,767 行 / 135,470 字节，构建 CSS 265,993 字节；相对设计基线分别 +1.47%、−1.76%、+3.31%，均低于 +20%。调色盘一致、界面 emoji=0、无新增依赖。浏览器 API 响应由 UI fixture 模拟，未声称真实 Host/数据库写入。
+- 浏览器报告：[`settings-fixes-verified`](../.dev-runtime/ui-pages/settings-details/settings-fixes-verified-2026-10-15T10-11-13-278Z/settings-details-report.json)；独立审图详情见 [`settings-independent-review.md`](./e2e/ui-page-audit/reviews/settings-independent-review.md)。

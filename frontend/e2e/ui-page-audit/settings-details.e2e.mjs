@@ -12,7 +12,7 @@ const output = fileURLToPath(new URL(
   `../../../.dev-runtime/ui-pages/settings-details/${phase}-${runId}/`,
   import.meta.url,
 ));
-const widths = [1440, 900, 390];
+const widths = [1440, 1024, 900, 390];
 const minPromptEditorHeight = 240;
 const report = { phase, runId, setupComplete: false, visualReview: "pending", planned: [], screenshots: [], tests: [] };
 const prompt = seed.invoke.prompt_list.find((item) => item.name === "blueprint");
@@ -195,8 +195,8 @@ async function pageState() {
   });
 }
 
-async function capture(state, { anchor, prepare, verify } = {}) {
-  for (const width of widths) {
+async function capture(state, { anchor, prepare, verify, viewports = widths } = {}) {
+  for (const width of viewports) {
     await browser.setWindowSize(width, 1000);
     await browser.pause(200);
     if (prepare) await prepare(width);
@@ -638,6 +638,28 @@ describe("Settings detail pages and complete dialog workflows", function () {
       fixtures: { list_themes: seed.invoke.list_themes.map((item) => item.id === renamed.id ? renamed : item) },
     });
     await $('input[aria-label="重命名"]').waitForExist({ reverse: true });
+    const renameFeedback = await $('[data-theme-rename-feedback]');
+    await renameFeedback.waitForDisplayed();
+    assert.equal((await renameFeedback.getText()).trim(), "主题已重命名");
+    step("重命名成功状态以内联方式显示");
+    await capture("rename-feedback-inline", {
+      anchor: "[data-theme-rename-feedback]",
+      viewports: [390],
+      verify: async () => {
+        const overlapsThemeCard = await browser.execute(() => {
+          const notice = document.querySelector("[data-theme-rename-feedback]")?.getBoundingClientRect();
+          if (!notice) return true;
+          return [...document.querySelectorAll(".a4n-settings-content li")].some((card) => {
+            const rect = card.getBoundingClientRect();
+            return notice.left < rect.right && notice.right > rect.left
+              && notice.top < rect.bottom && notice.bottom > rect.top;
+          });
+        });
+        assert.equal(overlapsThemeCard, false, "Rename feedback must not cover theme cards");
+        assert.equal(await browser.execute(() => [...document.querySelectorAll(".a4n-toast")]
+          .some((toast) => toast.textContent?.includes("主题已重命名"))), false);
+      },
+    });
     await click(await button("全选"), "选择允许批量删除的两个主题");
     const checked = await $$('input[type="checkbox"]:checked');
     assert.equal(checked.length, 2);
@@ -923,7 +945,53 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await openDetails("日志级别");
     await openDetails("日志位置");
     await $('input[aria-label="日志过滤级别"]').setValue("info,a4n=trace");
-    await capture("log-level-and-location", { anchor: '//summary[contains(normalize-space(),"日志级别")]' });
+    await capture("log-level-and-location", {
+      anchor: '//summary[contains(normalize-space(),"日志级别")]',
+      verify: async (width) => {
+        const state = await browser.execute(() => {
+          const region = document.querySelector("[data-log-scroll-region]");
+          const hint = document.querySelector("[data-log-scroll-hint]");
+          return {
+            canScroll: Boolean(region && region.scrollHeight - region.clientHeight > 2),
+            hintVisible: Boolean(hint && hint.getClientRects().length > 0),
+          };
+        });
+        assert.equal(state.hintVisible, state.canScroll, `Log scroll hint must match overflow at ${width}px`);
+        if (width === 390) assert.equal(state.canScroll, true, "The mobile log sample must exercise its internal scroll region");
+      },
+    });
+    await capture("log-content-bottom", {
+      anchor: "[data-log-scroll-region]",
+      viewports: [390],
+      prepare: async () => {
+        await browser.execute(() => {
+          const region = document.querySelector("[data-log-scroll-region]");
+          if (region) region.scrollTop = region.scrollHeight;
+        });
+        await browser.waitUntil(async () => !await browser.execute(() => Boolean(document.querySelector("[data-log-scroll-hint]"))));
+        step("滚动至日志末尾后收起继续滚动提示");
+      },
+      verify: async () => {
+        const state = await browser.execute(() => {
+          const rect = (element) => {
+            if (!element) return null;
+            const bounds = element.getBoundingClientRect();
+            return { top: bounds.top, bottom: bounds.bottom };
+          };
+          const region = rect(document.querySelector("[data-log-scroll-region]"));
+          const lastLine = rect(document.querySelector("[data-log-scroll-region] pre > div:last-child"));
+          return { hintVisible: Boolean(document.querySelector("[data-log-scroll-hint]")), region, lastLine };
+        });
+        assert.equal(state.hintVisible, false);
+        assert.ok(state.region && state.lastLine && state.lastLine.top >= state.region.top && state.lastLine.bottom <= state.region.bottom,
+          "The last log line must be fully reachable inside the scroll region");
+      },
+    });
+    await browser.execute(() => {
+      const region = document.querySelector("[data-log-scroll-region]");
+      if (region) region.scrollTop = 0;
+    });
+    await browser.setWindowSize(1440, 1000);
     await defer("set_log_level");
     await click(await button("应用级别"), "提交新的运行日志过滤级别");
     const request = await pending("set_log_level");

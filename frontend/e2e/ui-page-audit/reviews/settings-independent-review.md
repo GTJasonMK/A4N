@@ -177,7 +177,7 @@
 
 设计约束继续有效：当前暖书房配色、iOS 控件、现有 Lucide、静态界面零 emoji、零新依赖。CSS 基线仍为 4,698 行 / 137,890 字节，增长上限 20%。这些为既有约束与主流程验证口径，不是本代理重新扫描所得；本代理只新增审查 Markdown，未改 CSS 或依赖。
 
-本轮未亲看的新截图共 38 张，以下是明确的交接清单，**不算新增视觉通过，也不影响已有历史结论**：
+原 R 历史快照中当时未亲看的新截图共 38 张，以下是明确的交接清单，**不算新增视觉通过，也不影响已有历史结论**：
 
 | ID | R 下未亲看状态及宽度 | 数量 |
 | --- | --- | --- |
@@ -195,7 +195,7 @@
 
 - 当前 `settings-details` fixture 在 1440/900/390px 生成菜单、重命名、批量选择、确认和结果共15张截图。独立看图确认选择数与选中卡片一致、当前主题未选中、结果保留内置和当前主题。
 - 当前批量确认曾因只显示数量和“不可撤销”缺少具体对象名称而判 P2。主流程修复后在三宽复审：两个待删除主题名称与数量一致，取消顺序符合危险操作保护，内容完整，无 P1/P2/P3。
-- 390px 重命名成功 toast 暂时覆盖卡片下缘，但未挡选择计数或批量删除入口；不作为当前缺陷。原 R 下未亲看的38张历史截图仍为旧快照清单，本补审只覆盖当前分支新生成的 SD07 状态。
+- 390px 重命名成功 toast 暂时覆盖卡片下缘；本次审查当时因未挡选择计数或批量删除入口，未登记为缺陷。2026-10-15 对同状态当前分支截图重新 fresh-eyes 审查后发现它仍遮住卡片标题，后续 P2 修复记录见文末收尾。
 
 ## SD16 当前分支补审（2026-10-13）
 
@@ -222,3 +222,12 @@
 - 桌面展开菜单的根因是共享列表框宽度等于触发器宽度，导致最长主题名最后一个字单独换行。共享列表框现按选项内容扩展并受视口边界约束；现有 E2E 对选中名逐宽度验证为完整单行、弹层不越界，SD06 工作流 1/1 通过。桌面弹层 265.7px、手机 356px；390px 名称原本完整，菜单仍没有裁切。
 - 三张当前截图均已实际打开复核，无遮挡或文本裁切、无 P1/P2/P3。截图只验证 UI fixture；没有执行 ZIP 选择、导入或真实服务导出。
 - 证据：[报告](../../../../.dev-runtime/ui-pages/settings-details/current-2026-10-14T13-58-03-578Z/settings-details-report.json)、[390px](../../../../.dev-runtime/ui-pages/settings-details/current-2026-10-14T13-58-03-578Z/SD06-theme-create-import-package-package-theme-options-390.png)、[900px](../../../../.dev-runtime/ui-pages/settings-details/current-2026-10-14T13-58-03-578Z/SD06-theme-create-import-package-package-theme-options-900.png)、[1440px](../../../../.dev-runtime/ui-pages/settings-details/current-2026-10-14T13-58-03-578Z/SD06-theme-create-import-package-package-theme-options-1440.png)。
+
+## 当前分支设置截图补审与收尾（2026-10-15）
+
+- 对原 38 项状态/宽度清单，使用当前分支 10/14 生成的等效截图复审：SD05/SD07/SD11/SD16 位于 `current-2026-10-14T05-23-15-517Z`，SD06 位于 `current-2026-10-14T13-58-03-578Z`。38 张图均存在并逐张查看；它们覆盖当前代码的相关设置状态，原 R 历史图保留为历史材料，不回写原亲看统计。
+- 首轮复审发现 SD07 手机重命名成功 toast 遮住首张主题卡标题（P2），以及 SD16 手机日志内部滚动没有视觉提示、WARN 行在初始视口底部被截（P3）。根因分别是全局 toast 只避让可交互控件、不避让主题卡文字，以及窄屏 `custom-scrollbar` 隐藏滚动条。
+- 修复后，重命名成功与失败反馈以内联 `role=status/alert` 显示，主题名更新和 API 行为保持原样；日志区只在底部仍有内容时显示 Lucide 下箭头与滚动提示，滚到底即收起。SD05 两个主题编辑折叠区和 SD16 两个日志折叠区也统一使用 Lucide `ChevronDown`，仍是原生 `<details>/<summary>`。
+- 当前版 Chrome 153 SD05、SD07、SD16 定向回归 3/3，在 390/900/1024/1440px 通过，横向溢出、浏览器错误、意外请求均为 0。SD07 390px 内联提示与主题卡不相交；SD16 滚动提示与剩余内容状态同步，底部截图中最后一条 DEBUG 日志完整可见。独立审图重新检查 14 张修复后截图，无可确认 P1/P2/P3。
+- 验证：`npm run build`、`node e2e/ui-presentation/check-design-budget.mjs`、E2E `node --check`、`git diff --check` 通过。CSS 源 4,767 行 / 135,470 字节，构建 CSS 265,993 字节，较批准基线分别 +1.47%、−1.76%、+3.31%；调色板一致、UI emoji=0、无新增依赖。UI fixture 模拟 `update_theme` / `set_log_level` 响应，不代表真实 Host 或数据库持久化。
+- 证据：[当前浏览器报告](../../../../.dev-runtime/ui-pages/settings-details/settings-fixes-verified-2026-10-15T10-11-13-278Z/settings-details-report.json)、[SD07 手机内联反馈](../../../../.dev-runtime/ui-pages/settings-details/settings-fixes-verified-2026-10-15T10-11-13-278Z/SD07-theme-more-rename-bulk-rename-feedback-inline-390.png)、[SD16 手机滚动提示](../../../../.dev-runtime/ui-pages/settings-details/settings-fixes-verified-2026-10-15T10-11-13-278Z/SD16-runtime-logs-log-level-and-location-390.png)、[SD16 手机滚动到底](../../../../.dev-runtime/ui-pages/settings-details/settings-fixes-verified-2026-10-15T10-11-13-278Z/SD16-runtime-logs-log-content-bottom-390.png)。

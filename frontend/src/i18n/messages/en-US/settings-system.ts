@@ -14,6 +14,7 @@ export const settingsLogs = {
   apply: "Apply level",
   applying: "Applying…",
   lines: "Showing {returned} / {total} lines",
+  scrollHint: "Scroll down to view more",
   readFailed: "Failed to read logs",
   adminOnlyAction: "Only administrators can operate server diagnostics",
   levelApplying: "The log level is being updated; please wait",

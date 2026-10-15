@@ -1,6 +1,7 @@
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
+  ChevronDown,
   ImagePlus,
   RotateCcw,
   Trash2,
@@ -687,13 +688,17 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
           </div>
         </section>
 
-        <details>
-          <summary className="cursor-pointer py-2 text-xs font-semibold text-book-text-main">{t("settingsTheme.streamDisplay")}</summary>
+        <details className="group">
+          <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 py-2 text-xs font-semibold text-book-text-main [&::-webkit-details-marker]:hidden">
+            <ChevronDown size={12} aria-hidden="true" className="shrink-0 transition-transform group-open:rotate-180" />
+            {t("settingsTheme.streamDisplay")}
+          </summary>
           <StreamDisplaySettingsPanel value={streamDisplay} disabled={saving} onChange={updateStreamDisplay} />
         </details>
 
-        <details className="min-w-0 rounded-[var(--pyqt-radius-md)] border border-book-border/30 bg-book-bg-tertiary/15">
-          <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-book-text-main">
+        <details className="group min-w-0 rounded-[var(--pyqt-radius-md)] border border-book-border/30 bg-book-bg-tertiary/15">
+          <summary className="flex w-full cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-xs font-semibold text-book-text-main [&::-webkit-details-marker]:hidden">
+            <ChevronDown size={12} aria-hidden="true" className="shrink-0 transition-transform group-open:rotate-180" />
             {t("settingsTheme.advancedTokens")}
           </summary>
           <div className="grid min-w-0 gap-2 border-t border-book-border/25 p-3 sm:grid-cols-2">

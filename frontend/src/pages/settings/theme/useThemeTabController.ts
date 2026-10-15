@@ -76,6 +76,7 @@ export const useThemeTabController = () => {
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [renameSaving, setRenameSaving] = useState(false);
+  const [renameFeedback, setRenameFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [exportingId, setExportingId] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
   const [importText, setImportText] = useState("");
@@ -161,6 +162,12 @@ export const useThemeTabController = () => {
     syncAppearance();
     return () => window.removeEventListener(THEME_APPLIED_EVENT, syncAppearance);
   }, []);
+
+  useEffect(() => {
+    if (!renameFeedback) return;
+    const timeout = window.setTimeout(() => setRenameFeedback(null), 4000);
+    return () => window.clearTimeout(timeout);
+  }, [renameFeedback]);
 
   useEffect(() => {
     mutationInFlightRef.current = false;
@@ -376,6 +383,7 @@ export const useThemeTabController = () => {
 
   const handleStartRename = (theme: Theme) => {
     if (mutationInFlightRef.current) return;
+    setRenameFeedback(null);
     setRenamingId(theme.id);
     setRenameValue(theme.name);
   };
@@ -384,7 +392,7 @@ export const useThemeTabController = () => {
     if (renamingId == null) return;
     const name = renameValue.trim();
     if (!name) {
-      addToast(t("settingsTheme.nameEmpty"), "error");
+      setRenameFeedback({ type: "error", message: t("settingsTheme.nameEmpty") });
       return;
     }
     const themeId = renamingId;
@@ -397,13 +405,16 @@ export const useThemeTabController = () => {
       const saved = await updateTheme(themeId, { name });
       if (!isCurrentUser(requestUserKey)) return;
       commitTheme(saved);
-      addToast(tRef.current("settingsTheme.renameSuccess"), "success");
+      setRenameFeedback({ type: "success", message: tRef.current("settingsTheme.renameSuccess") });
       notifyThemeChanged();
       setRenamingId(null);
       setRenameValue("");
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
-        addToast(extractErrorMessage(err, tRef.current("settingsTheme.renameFailed")), "error");
+        setRenameFeedback({
+          type: "error",
+          message: extractErrorMessage(err, tRef.current("settingsTheme.renameFailed")),
+        });
       }
     } finally {
       if (finishMutation(requestUserKey)) setRenameSaving(false);
@@ -604,6 +615,7 @@ export const useThemeTabController = () => {
     renamingId,
     renameValue,
     renameSaving,
+    renameFeedback,
     exportingId,
     importing,
     importText,

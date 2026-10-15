@@ -169,6 +169,7 @@ export const ThemeTab: React.FC = () => {
         renamingId={themeTab.renamingId}
         renameValue={themeTab.renameValue}
         renameSaving={themeTab.renameSaving}
+        renameFeedback={themeTab.renameFeedback}
         mutationBusy={themeTab.mutationBusy || themeTab.loading}
         onScopeChange={themeTab.setScope}
         onRefresh={themeTab.refresh}
