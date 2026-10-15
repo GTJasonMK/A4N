@@ -574,6 +574,69 @@ describe("Settings detail pages and complete dialog workflows", function () {
     }
   });
 
+  workflow("SD29-prompt-assembly preserves list and editor layout", async () => {
+    await begin("prompt-assembly");
+    await $('.a4n-settings-content main h3').waitForDisplayed();
+    await browser.waitUntil(async () => browser.execute(() => {
+      const main = document.querySelector(".a4n-settings-content main");
+      return [...(main?.querySelectorAll("label") ?? [])].some((label) =>
+        label.textContent.trim().startsWith("模型调用"),
+      );
+    }));
+    const inspectLayout = async () => browser.execute(() => {
+      const list = document.querySelector("[data-prompt-list]");
+      const editor = document.querySelector(".a4n-settings-content main");
+      if (!(list instanceof HTMLElement) || !(editor instanceof HTMLElement)) {
+        throw new Error("提示词装配列表或编辑区不可用");
+      }
+      const callField = [...editor.querySelectorAll("label")].find((label) =>
+        label.textContent.trim().startsWith("模型调用"),
+      );
+      if (!callField) throw new Error("提示词装配的模型调用字段不可用");
+      const listRect = list.getBoundingClientRect();
+      const editorRect = editor.getBoundingClientRect();
+      const callControlRect = callField.getBoundingClientRect();
+      return {
+        width: innerWidth,
+        viewportHeight: innerHeight,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        list: { left: listRect.left, right: listRect.right, bottom: listRect.bottom },
+        editor: { left: editorRect.left, top: editorRect.top, width: editorRect.width },
+        callControlBottom: callControlRect.bottom,
+        listScrollHeight: list.scrollHeight,
+        listClientHeight: list.clientHeight,
+        scrollHintVisible: Boolean(document.querySelector("[data-prompt-scroll-hint]")),
+      };
+    });
+
+    await capture("assembly-desktop", {
+      viewports: [1440],
+      verify: async () => {
+        const layout = await inspectLayout();
+        assert.ok(layout.list.right <= layout.editor.left, "Desktop prompt list must remain beside, not over, the editor");
+        assert.ok(layout.editor.width > 300, "Desktop editor must retain usable width");
+      },
+    });
+    await capture("assembly-mobile", {
+      viewports: [390],
+      verify: async () => {
+        const layout = await inspectLayout();
+        assert.equal(layout.width, 390);
+        assert.equal(layout.overflow, 0);
+        assert.ok(layout.editor.top > layout.list.bottom, "Mobile editor must follow the prompt list");
+        assert.ok(layout.callControlBottom <= layout.viewportHeight, "The primary assembly control must enter the mobile first view");
+        assert.ok(layout.listScrollHeight > layout.listClientHeight, "Mobile prompt list must remain scrollable");
+        assert.equal(layout.scrollHintVisible, true, "Scrollable mobile prompt list must expose its continuation cue");
+        step("收起模板列表后首屏显示模型调用控件", {
+          callControlBottom: layout.callControlBottom,
+          viewportHeight: layout.viewportHeight,
+          listOverflow: layout.listScrollHeight - layout.listClientHeight,
+          scrollHintVisible: layout.scrollHintVisible,
+        });
+      },
+    });
+  });
+
   workflow("SD05-theme-editor exposes every editor section and saves a real draft", async () => {
     await begin("theme");
     const row = await rowWith(editableTheme.name);

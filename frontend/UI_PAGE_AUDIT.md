@@ -829,3 +829,11 @@
 - Chrome 153 设置页 SD28 路径在桌面和 390px 手机验证布局；手机模拟 `prefers-reduced-motion: reduce`，以真实提示词列表选择验证传给 `scrollIntoView` 的行为为 `auto`。滚动提示在有剩余项时出现、到底消失、回顶恢复；390px 页面 overflow、浏览器错误和意外请求均为 0。独立审图复核桌面与手机截图，无可确认 P1/P2/P3。[浏览器报告](../.dev-runtime/ui-pages/settings-details/motion-scroll-20261015-final-2026-10-15T10-51-17-549Z/settings-details-report.json)、[1440px 桌面](../.dev-runtime/ui-pages/settings-details/motion-scroll-20261015-final-2026-10-15T10-51-17-549Z/SD28-prompt-list-desktop-default-1440.png)、[390px 手机](../.dev-runtime/ui-pages/settings-details/motion-scroll-20261015-final-2026-10-15T10-51-17-549Z/SD28-prompt-list-selected-reduced-motion-390.png)。
 - 验证：`scrollRail.test.ts` 8/8、SD28 Chrome 回归 1/1、`npm run build`、E2E `node --check`、设计预算与 `git diff --check` 通过。CSS 源码 4,767 行 / 135,470 字节，构建 CSS 266,038 字节；较批准基线约 +1.47% / −1.76% / +3.33%，低于 +20%。palette 匹配、界面 emoji=0、无新增依赖。构建保留既有 >500 kB JS chunk 提示。
 - 边界：此修复覆盖显式程序化滚动和全局 CSS 动效策略，不等于已逐页验证全部第三方/自定义 JavaScript 动画；全站减弱动态偏好复核仍继续。
+
+## SD29 提示词装配手机首屏（2026-10-15）
+
+- 独立审图发现原手机列表最高占 72dvh，导致装配编辑区只露出标题，模型调用等主控件需要继续滚动才能找到（P3）。根因是模板列表优先占满首屏，挤出了当前已选模板的配置。
+- 手机列表上限收紧为 `min(38dvh, 20rem)`；项目表单、调用选择、变量块编辑、预览和保存进入首屏。列表仍可单独滚动，存在剩余模板时显示已有 Lucide 下箭头提示；桌面列表与右侧编辑区保持原并排布局。没有改模板筛选、选中、草稿、保存或恢复行为。
+- Chrome 153 通过 `/settings#prompt-assembly` 实测 1440/390px：桌面列表与编辑区对齐，编辑区宽度可用；390px 实际视口高 823px，列表剩余滚动 461px，提示可见且不遮挡，`inspiration` 的“模型调用”字段底边在 662.22px；页面 overflow=0，浏览器错误和意外请求均为0。独立审图复核最终桌面与手机截图，无 P1/P2/P3。
+- 证据：[浏览器报告](../.dev-runtime/ui-pages/settings-details/prompt-assembly-closeout-20261015-2026-10-15T11-10-59-340Z/settings-details-report.json)、[1440px 桌面](../.dev-runtime/ui-pages/settings-details/prompt-assembly-closeout-20261015-2026-10-15T11-10-59-340Z/SD29-prompt-assembly-assembly-desktop-1440.png)、[390px 手机](../.dev-runtime/ui-pages/settings-details/prompt-assembly-closeout-20261015-2026-10-15T11-10-59-340Z/SD29-prompt-assembly-assembly-mobile-390.png)。
+- 验证：SD29 Chrome 回归 1/1、E2E `node --check`、`npm run build`、设计预算、`git diff --check` 通过。CSS 源码 4,767 行 / 135,470 字节，构建 CSS 266,038 字节（较批准基线约 +1.47% / −1.76% / +3.33%）；调色板匹配、界面 emoji=0、无新增依赖。构建保留既有 >500 kB JS chunk 提示。
