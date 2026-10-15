@@ -135,6 +135,7 @@ pub mod source_sync_regenerate_scene_strategy;
 pub mod standalone_comic_project;
 pub mod standalone_comic_text_sources;
 pub mod system_settings_key_unique;
+pub mod task_queue_created_index;
 pub mod task_queue_project_created_index;
 pub mod theme_config_integrity_contract;
 pub mod theme_resource_size_limit_v2;

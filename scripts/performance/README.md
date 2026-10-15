@@ -71,6 +71,7 @@
 | [PERF-115](../../crates/platform/a4n-migration/src/migrations/character_portrait_primary_profile_index.rs) | 写作台项目上下文卡读取主立绘；100,000 行、40,000 档案、每档 2–3 张立绘 | 为 `profile_id = ? AND is_primary = TRUE` 增加仅包含主立绘行的 `(profile_id)` 部分索引；完整主立绘记录保持一致 | 隔离 PostgreSQL 16、保留 project_id 索引、7 轮交错：P50 **10.602→0.076 ms（99.28%）**；全表扫描变为部分索引扫描；索引 **917,504 B**；主立绘完整 JSON 完全一致 |
 | [PERF-116](../../crates/platform/a4n-db/src/project/family/context/portraits.rs) | Manga pipeline 启动/预览/断点恢复 → 项目角色立绘索引 | 删除用于选择主图但被下游全扫描 HashMap 取代的项目级排序；单次扫描按 `created_at` 显式选每档最新主图 | PostgreSQL 16、完整立绘投影及已有项目索引；1k／20k／100k 行 P50 **1.439→0.270 ms（81.24%）／23.022→3.578 ms（84.46%）／166.665→15.989 ms（90.41%）**；完整行集合和每档选中主图 ID 相同 |
 | [PERF-117](../../crates/platform/a4n-migration/src/migrations/generated_video_project_chapter_index.rs) | 视频时间线摘要/组装 → 按项目和章节读取全部生成视频并按时间排序；100,000 行、目标章节 100 条 | 为 `project_id = ? AND chapter_id = ?` 增加两列索引；完整视频投影和 `created_at DESC` 顺序不变 | 隔离 PostgreSQL 16、7 轮交错：SQL P50 **21.442→0.657 ms（96.94%）**；100 行完整响应 JSON 完全一致；索引 **761,856 B**。额外 created_at 索引列未改变排序计划，候选索引达到 **4,087,808 B**，故使用最小两列索引 |
+| [PERF-119](../../crates/platform/a4n-migration/src/migrations/task_queue_created_index.rs) | 管理员队列页全局任务历史，5 秒刷新一次、每页 30 条；300,000 行 | 为无 project_id 的 `ORDER BY created_at DESC` 增加全局降序索引；保留现有项目/时间索引和完整任务 DTO | 隔离 PostgreSQL 16.15、7 轮交错：完整 30 行查询 P50 **46.174→0.068 ms（99.85%）**；Seq Scan + top-N Sort 变为 Index Scan + Limit；索引 **6,758,400 B**；前后完整 DTO 顺序/hash 完全一致 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -749,6 +750,15 @@ A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
 - 决策：候选显著减少数据库返回行字节，但数据库执行时间超过 2 倍、增加约 49.6 MB 索引，拒绝该实现；PERF-116 的无序完整读取＋HashMap 单次选择保留。
 - 边界：A/B 测量完整行 SQL；不能把 60% 行数下降直接宣称为进程内存下降。候选 SQL/索引已仅留在隔离测试库，没有产品代码或 schema 变更。
 - 证据：`../../data/performance-audit-20261015/manga-portrait-distinct-candidate/`，包括交错样本、执行计划、所选主图 ID 映射和缺主图档案对照。
+
+### PERF-119：管理员全局任务历史缺少时间索引
+
+- 请求链路：设置页 QueueTab 每 5 秒并行刷新统计、活跃工作流和全局 `get_task_history(null, 0, 30)`；无项目筛选时 `persisted_task_history` 仅按 `created_at DESC` 分页。现有 PERF-106 索引以 `project_id` 为首列，不能支持这个管理员全局查询，故每次轮询扫描全表并取 top 30 排序。
+- 修复：新增 `task_queue_created_index` migration，为 `task_queue(created_at DESC)` 建全局索引并更新 schema gate。不改任务行 DTO、管理员权限、offset/limit 参数、排序、poll 频率或错误行为；项目过滤查询继续使用既有 project/created index。
+- A/B：隔离 PostgreSQL 16.15，300,000 条完整任务行，保留 `(project_id, created_at DESC)` 索引；payload/progress 都是 JSON，按管理员 UI 的完整模型投影执行 `ORDER BY created_at DESC LIMIT 30`，7 轮交错。P50 **46.174→0.068 ms（99.85%）**；计划从 Seq Scan + top-N Sort 改为 Index Scan + Limit。索引大小 **6,758,400 B**。前后 30 行 JSON（含顺序、payload 和 progress）SHA-256 完全一致。
+- 验证：migration SQL 单测 **1/1**、迁移顺序测试 **1/1**、`cargo check -p a4n-migration -p a4n-db-models --locked --offline`、隔离 PostgreSQL 全迁移/schema index 断言 **1/1**、`cargo fmt --all -- --check` 和 `git diff --check` 通过。
+- 边界：A/B 测数据库执行时间，未把收益外推到 SeaORM 转换、权限验证、5 秒轮询全链路或传输；索引按每条新任务增加一次索引维护，生产表建索引需安排迁移维护窗口。
+- 证据：`../../data/performance-audit-20261015/task-global-history-index/`，含交错样本、执行计划和前后完整列表 JSON。
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
 
