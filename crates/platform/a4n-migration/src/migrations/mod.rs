@@ -68,6 +68,7 @@ pub mod generated_image_project_index;
 pub mod generated_video_project_chapter_index;
 pub mod generation_run_checkpoint_fields;
 pub mod generation_run_created_index;
+pub mod generation_run_workflow_created_index;
 pub mod generation_runs;
 pub mod generation_snapshot_hash_contract;
 pub mod generation_snapshot_retention;
