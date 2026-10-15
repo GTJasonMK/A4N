@@ -69,6 +69,7 @@
 | [PERF-113](../../frontend/src/api/image/generation.ts) | 每次图片生成完成后的结果校验；目标项目 1,000 张图、任务产出 2 张 | 从 `result_ref` 和非临时产物 ID 读取目标记录；旧 `list_images_by_project` 命令增加可选 ID 过滤，未传 ID 仍返回全项目列表 | 隔离 PostgreSQL 16、7 轮交错：项目查询 P50 **4.924→0.076 ms（98.46%）**；结果行 **1,000→2**；合成摘要 JSON **958,890→1,922 B（99.80%）**；ID、完整字段和顺序与全量结果子集相同 |
 | [PERF-114](../../crates/platform/a4n-migration/src/migrations/character_portrait_project_index.rs) | 立绘 worker 项目列表与生成结果校验；100,000 行、目标项目 1,000 张 | 为现有 `WHERE project_id = ?` 增加单列索引；完整立绘投影和返回集合保持一致 | 隔离 PostgreSQL 16、7 轮交错：完整立绘查询 P50 **8.183→2.387 ms（70.83%）**；Seq Scan 变为 Bitmap Heap Scan；索引 **745,472 B**；1,000 条完整摘要 JSON 与实际查询返回顺序完全一致 |
 | [PERF-115](../../crates/platform/a4n-migration/src/migrations/character_portrait_primary_profile_index.rs) | 写作台项目上下文卡读取主立绘；100,000 行、40,000 档案、每档 2–3 张立绘 | 为 `profile_id = ? AND is_primary = TRUE` 增加仅包含主立绘行的 `(profile_id)` 部分索引；完整主立绘记录保持一致 | 隔离 PostgreSQL 16、保留 project_id 索引、7 轮交错：P50 **10.602→0.076 ms（99.28%）**；全表扫描变为部分索引扫描；索引 **917,504 B**；主立绘完整 JSON 完全一致 |
+| [PERF-116](../../crates/platform/a4n-db/src/project/family/context/portraits.rs) | Manga pipeline 启动/预览/断点恢复 → 项目角色立绘索引 | 删除用于选择主图但被下游全扫描 HashMap 取代的项目级排序；单次扫描按 `created_at` 显式选每档最新主图 | PostgreSQL 16、完整立绘投影及已有项目索引；1k／20k／100k 行 P50 **1.439→0.270 ms（81.24%）／23.022→3.578 ms（84.46%）／166.665→15.989 ms（90.41%）**；完整行集合和每档选中主图 ID 相同 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -720,6 +721,15 @@ A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
 - 验证：migration SQL 单测 **1/1**、迁移顺序测试 **1/1**、`cargo check -p a4n-migration -p a4n-db-models --locked --offline`、隔离 PostgreSQL 全迁移初始化及 partial predicate/index 定义断言 **1/1**、`cargo fmt --all -- --check` 和 `git diff --check` 通过。首次 `cargo test` 的 60 秒限时耗在测试前 DB crate 冷链接；单独链接测试二进制后目标断言通过。
 - 边界：A/B 只测数据库执行时间，不含 Worker IPC/DTO/HTTP；写作台加载当前仅对主角读取一条主立绘，单用户项目的频率有限，但全库立绘累积后原查询仍会扫描无关项目的行。部分索引只在 `is_primary` 更新时写入/删除一条索引项。
 - 证据：`../../data/performance-audit-20261015/character-portrait-primary-index/`，含 7 轮交错样本、计划和前后完整行 JSON。
+
+### PERF-116：漫画上下文读取立绘时对整组记录排序
+
+- 请求链路：Manga pipeline 启动与提示词预览会并行读取章节来源和 `manga_character_portrait_refs`；漫画 worker 在恢复已有章节 checkpoint 时也会读取该上下文。此函数读取项目完整立绘列表并按 `is_primary DESC, created_at DESC` 排序，之后按 profile 构建 HashMap、只保留最新主立绘；profiles 列表本身另有 `id ASC` 顺序，最终摘要也按 profiles 顺序生成。
+- 修复：移除立绘查询上的两字段排序；HashMap 单次扫描中显式比较 `created_at`，保留每档最新主立绘。每个 profile 的条目仍会保留；只有次要立绘的 profile 仍映射为 `None`，上层继续返回原来的缺少主立绘错误。对于多个主立绘的异常状态，仍选最新创建项。
+- A/B：隔离 PostgreSQL 16.15、完整立绘列投影、总计 1,001,000 行和已有 `project_id` 索引。每项目 2–3 张、均有主立绘的有效数据形状中，目标项目 1,000／20,000／100,000 行的 7 轮交错 P50 分别 **1.439→0.270 ms（81.24%）／23.022→3.578 ms（84.46%）／166.665→15.989 ms（90.41%）**。完整数据库行集合按 ID 摘要 hash 相同，模拟旧排序首主图与新无序扫描取最新 `created_at` 的每档主图 ID 完全一致。
+- 验证：Rust `portrait_index` 定向单测 **1/1**，覆盖无序输入下重复主立绘仍选最新项，并保留只有次要立绘的 profile 空值标记；`cargo fmt --all -- --check` 和 `git diff --check` 通过。
+- 边界：A/B 测量 SQL 过滤、完整行读取和排序，不含 profiles 并行查询、Rust 转换、模板/工作流、IPC 或 HTTP；数据为合成规模。数据库结果本来没有 SQL 顺序合同；可观察的 summaries 仍按 profile ID 排序。
+- 证据：`../../data/performance-audit-20261015/manga-portrait-order/`，包括 1k／20k／100k 交错样本、计划、完整行摘要和主图 ID 映射对照。
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
 
