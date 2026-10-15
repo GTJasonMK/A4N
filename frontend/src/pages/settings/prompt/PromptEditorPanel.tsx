@@ -20,6 +20,7 @@ interface PromptEditorPanelProps {
   onDraftChange: (draft: string) => void;
   onSave: () => void;
   onReset: () => void;
+  onProjectOverrideBusyChange: (busy: boolean) => void;
 }
 
 export const PromptEditorPanel: React.FC<PromptEditorPanelProps> = ({
@@ -33,12 +34,15 @@ export const PromptEditorPanel: React.FC<PromptEditorPanelProps> = ({
   onDraftChange,
   onSave,
   onReset,
+  onProjectOverrideBusyChange,
 }) => {
   const { t } = useI18n();
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
+  const [advancedMounted, setAdvancedMounted] = React.useState(false);
 
   React.useEffect(() => {
     setAdvancedOpen(false);
+    setAdvancedMounted(false);
   }, [prompt?.name]);
 
   return (
@@ -75,9 +79,11 @@ export const PromptEditorPanel: React.FC<PromptEditorPanelProps> = ({
 
           <details
             open={advancedOpen}
-            onToggle={(event) =>
-              setAdvancedOpen((event.currentTarget as HTMLDetailsElement).open)
-            }
+            onToggle={(event) => {
+              const open = (event.currentTarget as HTMLDetailsElement).open;
+              setAdvancedOpen(open);
+              if (open) setAdvancedMounted(true);
+            }}
             className="group mt-3 shrink-0 border-t border-book-border/35 pt-2"
           >
             <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 py-1 text-xs text-book-text-muted transition-colors hover:text-book-text-sub [&::-webkit-details-marker]:hidden">
@@ -87,13 +93,14 @@ export const PromptEditorPanel: React.FC<PromptEditorPanelProps> = ({
               />
               {t("settingsPrompt.advancedTools")}
             </summary>
-            {advancedOpen ? (
+            {advancedMounted ? (
               <div className="mt-1 divide-y divide-book-border/35 border-t border-book-border/35">
                 <PromptHistoryPanel prompt={prompt} />
                 <ProjectOverridePanel
                   prompt={prompt}
                   content={prompt.content}
                   dirty={dirty}
+                  onBusyChange={onProjectOverrideBusyChange}
                 />
                 <PromptAdvancedPanels
                   prompt={prompt}

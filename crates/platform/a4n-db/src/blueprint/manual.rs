@@ -38,6 +38,16 @@ where
     let input = normalize_manual_input(input)?;
     let txn = db.begin().await?;
     let rows = locked_blueprint_sources(&txn, input.project_id, "保存正式蓝图").await?;
+    if rows
+        .blueprint
+        .as_ref()
+        .map(|blueprint| blueprint.current_version.as_str())
+        != input.expected_current_version.as_deref()
+    {
+        return Err(BlueprintDbError::InvalidArgument(
+            "正式蓝图已被其他操作修改，请刷新后重新编辑".to_string(),
+        ));
+    }
     validate_blueprint_chapter_plan(&rows, input.total_chapters)?;
 
     let now = Utc::now().naive_utc();
@@ -114,6 +124,11 @@ where
         .blueprint
         .clone()
         .ok_or_else(|| BlueprintDbError::NotFound("蓝图不存在".to_string()))?;
+    if existing.current_version != input.expected_current_version.trim() {
+        return Err(BlueprintDbError::InvalidArgument(
+            "世界观已被其他操作修改，请刷新后重新编辑".to_string(),
+        ));
+    }
     let now = Utc::now().naive_utc();
     let next_version = next_blueprint_version_record(
         &txn,
@@ -468,6 +483,7 @@ mod tests {
     fn manual_input_trims_optional_fields_and_accepts_single_chapter() {
         let input = normalize_manual_input(SaveManualBlueprintInput {
             project_id: 1,
+            expected_current_version: None,
             genre: "  悬疑  ".to_string(),
             style: Some("  冷峻  ".to_string()),
             tone: Some("   ".to_string()),

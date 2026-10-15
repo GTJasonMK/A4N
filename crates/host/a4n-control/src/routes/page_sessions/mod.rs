@@ -23,6 +23,7 @@ use std::collections::{HashMap, VecDeque};
 use std::convert::Infallible;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 const PAGE_LEASE_SECONDS: u64 = 30;
@@ -34,6 +35,7 @@ const MAX_STATE_BYTES: usize = 64 * 1024;
 #[derive(Clone)]
 pub(crate) struct PageSessionRegistry {
     records: Arc<RwLock<HashMap<String, PageRecord>>>,
+    page_cli_gate: Arc<tokio::sync::RwLock<()>>,
     events: tokio::sync::broadcast::Sender<PageEvent>,
 }
 
@@ -44,6 +46,7 @@ struct PageRecord {
     owner_user_id: i64,
     authorization: Option<PageAuthorizationRecord>,
     operations: VecDeque<PageOperationView>,
+    operation_cancellation: Option<CancellationToken>,
 }
 
 #[derive(Clone, Debug)]
@@ -93,6 +96,35 @@ mod tests {
             client: "a4n-test".into(),
             tab_id: "tab-1".into(),
         }
+    }
+
+    fn attach_agent(
+        registry: &PageSessionRegistry,
+        agents: &AgentRegistry,
+        created: &PageSessionCreateResponse,
+    ) -> (String, String) {
+        let authorization = registry
+            .authorize(
+                1,
+                &created.session.ui_session_id,
+                &created.ui_session_token,
+                true,
+            )
+            .unwrap();
+        let (agent_id, agent_token) = agents.register_for_test(1, "page-agent");
+        registry
+            .attach_by_code(
+                1,
+                AttachPageSessionInput {
+                    authorization_code: authorization.authorization_code,
+                    agent_id: agent_id.clone(),
+                },
+                agents,
+                &agent_token,
+                true,
+            )
+            .unwrap();
+        (agent_id, agent_token)
     }
 
     fn context(
@@ -226,6 +258,171 @@ mod tests {
     }
 
     #[test]
+    fn detached_or_expired_sessions_cannot_consume_old_authorization_codes() {
+        let registry = PageSessionRegistry::new();
+        let agents = AgentRegistry::new();
+        let detached = registry.create(1, create_input(), true).unwrap();
+        let detached_code = registry
+            .authorize(
+                1,
+                &detached.session.ui_session_id,
+                &detached.ui_session_token,
+                true,
+            )
+            .unwrap()
+            .authorization_code;
+        registry
+            .control(
+                1,
+                &detached.session.ui_session_id,
+                &detached.ui_session_token,
+                "detach",
+            )
+            .unwrap();
+        assert!(
+            registry
+                .attach_by_code(
+                    1,
+                    AttachPageSessionInput {
+                        authorization_code: detached_code,
+                        agent_id: "agent-1".into(),
+                    },
+                    &agents,
+                    "agent-token",
+                    true,
+                )
+                .is_err()
+        );
+
+        let mut second_input = create_input();
+        second_input.tab_id = "tab-2".into();
+        let expired = registry.create(1, second_input, true).unwrap();
+        let expired_code = registry
+            .authorize(
+                1,
+                &expired.session.ui_session_id,
+                &expired.ui_session_token,
+                true,
+            )
+            .unwrap()
+            .authorization_code;
+        registry
+            .records
+            .write()
+            .get_mut(&expired.session.ui_session_id)
+            .unwrap()
+            .view
+            .expires_at = (chrono::Utc::now() - chrono::Duration::seconds(1)).to_rfc3339();
+        registry.expire();
+        let expired_view = registry.get(1, &expired.session.ui_session_id).unwrap();
+        assert_eq!(expired_view.status, PageSessionStatus::Offline);
+        assert!(
+            registry
+                .attach_by_code(
+                    1,
+                    AttachPageSessionInput {
+                        authorization_code: expired_code,
+                        agent_id: "agent-1".into(),
+                    },
+                    &agents,
+                    "agent-token",
+                    true,
+                )
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn disabling_page_cli_revokes_all_owner_sessions() {
+        let registry = PageSessionRegistry::new();
+        let agents = AgentRegistry::new();
+        let active = registry.create(1, create_input(), true).unwrap();
+        registry
+            .update_context(
+                1,
+                &active.session.ui_session_id,
+                &active.ui_session_token,
+                context("novel-list", "/", 1, None),
+            )
+            .unwrap();
+        let (agent_id, agent_token) = attach_agent(&registry, &agents, &active);
+        registry
+            .start_operation(
+                1,
+                &active.session.ui_session_id,
+                &active.ui_session_token,
+                agent_id,
+                &agents,
+                &agent_token,
+                true,
+                false,
+                PageOperationInput {
+                    command: "list_projects".into(),
+                    allow_destructive: false,
+                    phase: None,
+                    target: json!({}),
+                    context_revision: Some(1),
+                },
+            )
+            .unwrap();
+        let mut pending_input = create_input();
+        pending_input.tab_id = "tab-2".into();
+        let pending = registry.create(1, pending_input, true).unwrap();
+        let pending_code = registry
+            .authorize(
+                1,
+                &pending.session.ui_session_id,
+                &pending.ui_session_token,
+                true,
+            )
+            .unwrap()
+            .authorization_code;
+        let other_user = registry.create(2, create_input(), true).unwrap();
+
+        registry.revoke_user_sessions(1);
+
+        let revoked = registry.get(1, &active.session.ui_session_id).unwrap();
+        assert_eq!(revoked.status, PageSessionStatus::Offline);
+        assert!(revoked.agent_id.is_none());
+        assert!(revoked.operation_id.is_none());
+        assert_eq!(
+            revoked.last_operation.as_ref().unwrap().status,
+            PageOperationStatus::Cancelled
+        );
+        assert!(
+            registry
+                .records
+                .read()
+                .get(&pending.session.ui_session_id)
+                .unwrap()
+                .authorization
+                .is_none()
+        );
+        assert!(
+            registry
+                .attach_by_code(
+                    1,
+                    AttachPageSessionInput {
+                        authorization_code: pending_code,
+                        agent_id: "agent-1".into(),
+                    },
+                    &agents,
+                    "agent-token",
+                    true,
+                )
+                .is_err()
+        );
+        assert!(registry.create(1, create_input(), false).is_err());
+        assert_eq!(
+            registry
+                .get(2, &other_user.session.ui_session_id)
+                .unwrap()
+                .status,
+            PageSessionStatus::AwaitingAttach
+        );
+    }
+
+    #[test]
     fn admin_manifest_respects_role_and_account_switch() {
         let registry = PageSessionRegistry::new();
         let created = registry.create(1, create_input(), true).unwrap();
@@ -278,12 +475,268 @@ mod tests {
                 &created.session.ui_session_id,
                 &created.ui_session_token,
                 true,
-                false,
+                true,
             )
             .unwrap();
         assert!(disabled.commands.iter().all(
             |item| !item.available && item.reason.as_deref() == Some("当前账户未启用 Page CLI")
         ));
+    }
+
+    #[test]
+    fn command_manifest_tracks_binding_pause_and_running_operation_state() {
+        let registry = PageSessionRegistry::new();
+        let agents = AgentRegistry::new();
+        let created = registry.create(1, create_input(), true).unwrap();
+        registry
+            .update_context(
+                1,
+                &created.session.ui_session_id,
+                &created.ui_session_token,
+                context("novel-detail", "/novel/1", 1, Some(1)),
+            )
+            .unwrap();
+
+        let unbound = registry
+            .commands(
+                1,
+                &created.session.ui_session_id,
+                &created.ui_session_token,
+                false,
+                true,
+            )
+            .unwrap();
+        assert!(unbound.commands.iter().all(|item| !item.available
+            && item.reason.as_deref() == Some("当前 Page Session 尚未绑定 Agent")));
+
+        let (agent_id, agent_token) = attach_agent(&registry, &agents, &created);
+        let attached = registry
+            .commands(
+                1,
+                &created.session.ui_session_id,
+                &created.ui_session_token,
+                false,
+                true,
+            )
+            .unwrap();
+        assert!(attached.commands.iter().any(|item| item.available));
+
+        let operation = registry
+            .start_operation(
+                1,
+                &created.session.ui_session_id,
+                &created.ui_session_token,
+                agent_id.clone(),
+                &agents,
+                &agent_token,
+                true,
+                false,
+                PageOperationInput {
+                    command: "list_projects".into(),
+                    allow_destructive: false,
+                    phase: None,
+                    target: json!({}),
+                    context_revision: Some(1),
+                },
+            )
+            .unwrap();
+        let busy = registry
+            .commands(
+                1,
+                &created.session.ui_session_id,
+                &created.ui_session_token,
+                false,
+                true,
+            )
+            .unwrap();
+        assert!(busy.commands.iter().all(|item| !item.available
+            && item.reason.as_deref() == Some("当前 Page Session 正在执行操作")));
+
+        registry
+            .control(
+                1,
+                &created.session.ui_session_id,
+                &created.ui_session_token,
+                "pause",
+            )
+            .unwrap();
+        let route = registry.navigate(
+            1,
+            &created.session.ui_session_id,
+            &created.ui_session_token,
+            &agent_id,
+            &agents,
+            &agent_token,
+            true,
+            PageNavigationInput {
+                route: "/settings".into(),
+                page_kind: Some("settings".into()),
+                reason: Some("navigate while paused".into()),
+            },
+        );
+        assert!(route.is_err());
+        assert_eq!(
+            registry
+                .get(1, &created.session.ui_session_id)
+                .unwrap()
+                .route
+                .as_deref(),
+            Some("/novel/1")
+        );
+        let paused = registry
+            .commands(
+                1,
+                &created.session.ui_session_id,
+                &created.ui_session_token,
+                false,
+                true,
+            )
+            .unwrap();
+        assert!(
+            paused.commands.iter().all(|item| !item.available
+                && item.reason.as_deref() == Some("当前 Page Session 已暂停"))
+        );
+
+        registry
+            .update_operation(
+                1,
+                &created.session.ui_session_id,
+                &operation.operation_id,
+                &created.ui_session_token,
+                &agent_id,
+                &agents,
+                &agent_token,
+                true,
+                PageOperationUpdate {
+                    status: Some(PageOperationStatus::Succeeded),
+                    phase: None,
+                    progress: Some(100.0),
+                    summary: Some("调用完成".into()),
+                    result: Some(json!({"items": []})),
+                    error: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            registry
+                .get(1, &created.session.ui_session_id)
+                .unwrap()
+                .status,
+            PageSessionStatus::Paused
+        );
+        let still_paused = registry
+            .commands(
+                1,
+                &created.session.ui_session_id,
+                &created.ui_session_token,
+                false,
+                true,
+            )
+            .unwrap();
+        assert!(
+            still_paused.commands.iter().all(|item| !item.available
+                && item.reason.as_deref() == Some("当前 Page Session 已暂停"))
+        );
+
+        registry
+            .control(
+                1,
+                &created.session.ui_session_id,
+                &created.ui_session_token,
+                "resume",
+            )
+            .unwrap();
+        assert!(
+            registry
+                .commands(
+                    1,
+                    &created.session.ui_session_id,
+                    &created.ui_session_token,
+                    false,
+                    true
+                )
+                .unwrap()
+                .commands
+                .iter()
+                .any(|item| item.available)
+        );
+        registry
+            .control(
+                1,
+                &created.session.ui_session_id,
+                &created.ui_session_token,
+                "detach",
+            )
+            .unwrap();
+        let detached = registry
+            .commands(
+                1,
+                &created.session.ui_session_id,
+                &created.ui_session_token,
+                false,
+                true,
+            )
+            .unwrap();
+        assert!(detached.commands.iter().all(|item| !item.available
+            && item.reason.as_deref() == Some("当前 Page Session 尚未绑定 Agent")));
+    }
+
+    #[test]
+    fn cancelling_page_operation_notifies_host_command() {
+        let registry = PageSessionRegistry::new();
+        let agents = AgentRegistry::new();
+        let created = registry.create(1, create_input(), true).unwrap();
+        registry
+            .update_context(
+                1,
+                &created.session.ui_session_id,
+                &created.ui_session_token,
+                context("novel-list", "/", 1, None),
+            )
+            .unwrap();
+        let (agent_id, agent_token) = attach_agent(&registry, &agents, &created);
+        let operation = registry
+            .start_operation(
+                1,
+                &created.session.ui_session_id,
+                &created.ui_session_token,
+                agent_id.clone(),
+                &agents,
+                &agent_token,
+                true,
+                false,
+                PageOperationInput {
+                    command: "list_projects".into(),
+                    allow_destructive: false,
+                    phase: None,
+                    target: json!({}),
+                    context_revision: Some(1),
+                },
+            )
+            .unwrap();
+        let cancellation = registry
+            .command_cancellation_token(
+                1,
+                &created.session.ui_session_id,
+                &operation.operation_id,
+                "list_projects",
+                &created.ui_session_token,
+                &agent_id,
+                &agent_token,
+                &agents,
+            )
+            .unwrap();
+
+        registry
+            .control(
+                1,
+                &created.session.ui_session_id,
+                &created.ui_session_token,
+                "cancel",
+            )
+            .unwrap();
+
+        assert!(cancellation.is_cancelled());
     }
 
     #[test]

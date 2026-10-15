@@ -116,6 +116,8 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   const activeScopeRef = useRef(scopeKey);
   const allImagesRef = useRef<GeneratedImage[]>([]);
   const objectProfilesRef = useRef<ObjectProfile[]>([]);
+  const loadErrorRef = useRef<string | null>(null);
+  const loadedScopeRef = useRef<string | null>(null);
   const loadSeqRef = useRef(0);
   const loadInFlightRef = useRef<{
     scope: string;
@@ -162,6 +164,11 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     [isCurrentScope],
   );
 
+  const setCurrentLoadError = (error: string | null) => {
+    loadErrorRef.current = error;
+    setLoadError(error);
+  };
+
   const ensureCurrentAction = useCallback(
     (requestScope: string, requestSeq: number) => {
       if (!isCurrentAction(requestScope, requestSeq)) {
@@ -189,7 +196,13 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     if (canEditImages) return true;
     addToast(t("novel.imageLibrary.noEditPermission"), "error");
     return false;
-  }, [addToast, canEditImages]);
+  }, [addToast, canEditImages, t]);
+
+  const ensureGalleryCurrent = () => {
+    if (!loadError) return true;
+    addToast(loadError, "error");
+    return false;
+  };
 
   const finishAction = useCallback((requestSeq: number) => {
     if (actionSeqRef.current === requestSeq) {
@@ -198,12 +211,19 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   }, []);
 
   const commitImages = (images: GeneratedImage[]) => {
+    const needsRefresh =
+      loadErrorRef.current != null ||
+      loadedScopeRef.current !== activeScopeRef.current ||
+      loadInFlightRef.current?.scope === activeScopeRef.current;
     loadSeqRef.current += 1;
     loadInFlightRef.current = null;
     allImagesRef.current = images;
     setAllImages(images);
-    setLoading(false);
-    setLoadError(null);
+    if (needsRefresh) {
+      void load({ force: true });
+    } else {
+      setLoading(false);
+    }
   };
 
   const commitImage = (image: GeneratedImage) => {
@@ -272,9 +292,10 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     previewBusyRef.current = false;
     allImagesRef.current = [];
     objectProfilesRef.current = [];
+    loadedScopeRef.current = null;
     setAllImages([]);
     setLoading(false);
-    setLoadError(null);
+    setCurrentLoadError(null);
     setBusyId(null);
     setImportBusy(false);
     setGenBusy(false);
@@ -334,7 +355,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
       }
       if (isCurrentLoad(requestScope, requestSeq)) {
         setLoading(true);
-        setLoadError(null);
+        setCurrentLoadError(null);
       }
       try {
         let data: GeneratedImage[];
@@ -345,11 +366,12 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         }
         if (!isCurrentLoad(requestScope, requestSeq)) return;
         allImagesRef.current = data;
+        loadedScopeRef.current = requestScope;
         setAllImages(data);
       } catch (err) {
         if (isCurrentLoad(requestScope, requestSeq)) {
           const message = extractErrorMessage(err, t("novel.imageLibrary.loadFailed"));
-          setLoadError(message);
+          setCurrentLoadError(message);
           addToast(message, "error");
         }
       } finally {
@@ -428,7 +450,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   }, [loadObjectProfiles]);
 
   const handleGenerate = async () => {
-    if (!ensureCanEditImages()) return;
+    if (!ensureCanEditImages() || !ensureGalleryCurrent()) return;
     const requestScope = scopeKey;
     const requestProjectId = projectId;
     const requestChapter = chapter;
@@ -538,6 +560,10 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
 
   const handlePreviewObjectImage = async () => {
     if (!ensureCanEditImages()) return;
+    if (objectProfilesError) {
+      addToast(objectProfilesError, "error");
+      return;
+    }
     const requestScope = scopeKey;
     const requestProfileId = selectedObjectProfileId;
     const requestChapterId = chapter?.id ?? null;
@@ -578,6 +604,10 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
 
   const handleCopyObjectImagePrompt = async () => {
     if (!ensureCanEditImages()) return;
+    if (objectProfilesError) {
+      addToast(objectProfilesError, "error");
+      return;
+    }
     const requestScope = scopeKey;
     const requestProfileId = selectedObjectProfileId;
     const requestChapterId = chapter?.id ?? null;
@@ -614,7 +644,11 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   };
 
   const handleGenerateObjectImage = async () => {
-    if (!ensureCanEditImages()) return;
+    if (!ensureCanEditImages() || !ensureGalleryCurrent()) return;
+    if (objectProfilesError) {
+      addToast(objectProfilesError, "error");
+      return;
+    }
     const requestScope = scopeKey;
     const requestProjectId = projectId;
     const requestProfileId = selectedObjectProfileId;
@@ -662,8 +696,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
           const images = await verifyImageGenerationResult(task, requestProjectId);
           ensureCurrentAction(requestScope, actionSeq);
           images.forEach(commitImage);
-          await loadObjectProfiles(false);
-          ensureCurrentAction(requestScope, actionSeq);
+          void loadObjectProfiles(false);
         },
       );
       if (!isCurrentAction(requestScope, actionSeq)) return;
@@ -683,7 +716,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   };
 
   const handleToggleFavorite = async (img: GeneratedImage) => {
-    if (!ensureCanEditImages()) return;
+    if (!ensureCanEditImages() || !ensureGalleryCurrent()) return;
     const requestScope = scopeKey;
     const requestImage = allImagesRef.current.find((image) => image.id === img.id) ?? null;
     if (!requestImage) {
@@ -801,6 +834,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
 
   const handleUpdateImage = async (img: GeneratedImage, input: UpdateImageInput) => {
     if (!ensureCanEditImages()) throw new Error(t("novel.imageLibrary.noEditPermission"));
+    if (!ensureGalleryCurrent()) throw new Error(loadError ?? t("novel.imageLibrary.loadFailed"));
     const requestScope = scopeKey;
     const requestImage = allImagesRef.current.find((image) => image.id === img.id) ?? null;
     if (!requestImage) {
@@ -827,7 +861,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   };
 
   const handleDelete = async (img: GeneratedImage) => {
-    if (!ensureCanEditImages()) return;
+    if (!ensureCanEditImages() || !ensureGalleryCurrent()) return;
     const requestScope = scopeKey;
     const requestImage = allImagesRef.current.find((image) => image.id === img.id) ?? null;
     if (!requestImage) {
@@ -873,7 +907,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   };
 
   const handleScore = async (img: GeneratedImage) => {
-    if (!ensureCanEditImages()) return;
+    if (!ensureCanEditImages() || !ensureGalleryCurrent()) return;
     const requestScope = scopeKey;
     const requestImage = allImagesRef.current.find((image) => image.id === img.id) ?? null;
     if (!requestImage) {
@@ -975,7 +1009,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         image={actionImage}
         busyId={busyId}
         scoringId={scoringId}
-        canEditImages={canEditImages}
+        canEditImages={canEditImages && loadError == null}
         scoreInput={scoreInput}
         onClose={handleCloseImageActions}
         onToggleFavorite={(image) => void handleToggleFavorite(image)}

@@ -22,11 +22,16 @@ where
         )
         .col_expr(
             protagonist_deletion_mark::Column::UpdatedAt,
-            Expr::value(Utc::now().naive_utc()),
+            Expr::cust_with_values(
+                "GREATEST($1, updated_at + INTERVAL '1 microsecond')",
+                [Utc::now().naive_utc()],
+            ),
         )
         .filter(protagonist_deletion_mark::Column::ProfileId.eq(input.profile_id))
         .filter(protagonist_deletion_mark::Column::Category.eq(input.category))
         .filter(protagonist_deletion_mark::Column::Key.eq(input.key))
+        .filter(protagonist_deletion_mark::Column::Id.eq(input.expected_mark_id))
+        .filter(protagonist_deletion_mark::Column::UpdatedAt.eq(input.expected_mark_updated_at))
         .filter(protagonist_deletion_mark::Column::IsExecuted.eq(false))
         .exec(db)
         .await
@@ -46,6 +51,29 @@ where
         .filter(protagonist_deletion_mark::Column::ProfileId.eq(profile_id))
         .filter(protagonist_deletion_mark::Column::Category.eq(category))
         .filter(protagonist_deletion_mark::Column::Key.eq(key))
+        .filter(protagonist_deletion_mark::Column::IsExecuted.eq(false))
+        .exec(db)
+        .await
+        .map(|result| result.rows_affected)
+}
+
+pub(in crate::character::attributes) async fn reset_pending_deletion_mark_if_current<C>(
+    db: &C,
+    profile_id: i64,
+    category: &str,
+    key: &str,
+    expected_mark_id: i64,
+    expected_mark_updated_at: chrono::NaiveDateTime,
+) -> Result<u64, DbErr>
+where
+    C: ConnectionTrait,
+{
+    protagonist_deletion_mark::Entity::delete_many()
+        .filter(protagonist_deletion_mark::Column::ProfileId.eq(profile_id))
+        .filter(protagonist_deletion_mark::Column::Category.eq(category))
+        .filter(protagonist_deletion_mark::Column::Key.eq(key))
+        .filter(protagonist_deletion_mark::Column::Id.eq(expected_mark_id))
+        .filter(protagonist_deletion_mark::Column::UpdatedAt.eq(expected_mark_updated_at))
         .filter(protagonist_deletion_mark::Column::IsExecuted.eq(false))
         .exec(db)
         .await

@@ -138,6 +138,6 @@ impl OrchestratorContext {
             decisions,
         )
         .map_err(AppError::InvalidArgument)?;
-        self.begin_workflow_run_validated(input).await
+        self.begin_or_resume_workflow_run_validated(input).await
     }
 }

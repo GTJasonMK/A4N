@@ -1,32 +1,39 @@
 import { useCallback, useMemo, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import { extractErrorMessage } from "../../api";
-import { getProject, resetProjectGeneratedData, type NovelProject } from "../../api/project";
+import { canEditProjectMaterials, getProject, resetProjectGeneratedData, type NovelProject } from "../../api/project";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import type { ChapterMetadata } from "../../api/chapter";
 import type { MessageTranslator } from "../../i18n";
+import { getProjectLifecycleBlockedReason } from "../../utils/projectStatus";
 
 interface UseWritingDeskResetGeneratedDataParams {
   projectId: number;
+  projectIdRef: MutableRefObject<number>;
+  confirmPendingEdits: () => Promise<boolean>;
   project: NovelProject | null;
   chapters: ChapterMetadata[];
   lifecycleBlockedReason: string | null;
   resetGeneratedDataBusy: boolean;
+  derivedSyncBusy: boolean;
   streamTaskId: string | null;
   streamBusy: boolean;
   resetGeneratedDataBusyRef: MutableRefObject<boolean>;
   setResetGeneratedDataBusy: (busy: boolean) => void;
   setProject: Dispatch<SetStateAction<NovelProject | null>>;
-  clearResetProjectState: () => Promise<void>;
+  clearResetProjectState: () => Promise<string | null>;
   addToast: (message: string, type: "success" | "error" | "info") => void;
   t: MessageTranslator;
 }
 
 export const useWritingDeskResetGeneratedData = ({
   projectId,
+  projectIdRef,
+  confirmPendingEdits,
   project,
   chapters,
   lifecycleBlockedReason,
   resetGeneratedDataBusy,
+  derivedSyncBusy,
   streamTaskId,
   streamBusy,
   resetGeneratedDataBusyRef,
@@ -40,13 +47,14 @@ export const useWritingDeskResetGeneratedData = ({
     if (!project) return t("writing.projectNotLoaded");
     if (lifecycleBlockedReason) return lifecycleBlockedReason;
     if (resetGeneratedDataBusy) return t("writing.resettingProjectData");
+    if (derivedSyncBusy) return t("common.operationInProgress");
     if (streamTaskId) return t("writing.streamGenerationResetBlocked");
     if (streamBusy) return t("writing.streamStateResetBlocked");
     if (chapters.some((chapter) => chapter.status === "generating")) {
       return t("writing.chapterGenerationResetBlocked");
     }
     return null;
-  }, [chapters, lifecycleBlockedReason, project, resetGeneratedDataBusy, streamBusy, streamTaskId, t]);
+  }, [chapters, derivedSyncBusy, lifecycleBlockedReason, project, resetGeneratedDataBusy, streamBusy, streamTaskId, t]);
 
   const handleResetGeneratedData = useCallback(async () => {
     if (resetGeneratedDataBusyRef.current) {
@@ -58,6 +66,10 @@ export const useWritingDeskResetGeneratedData = ({
       return;
     }
     resetGeneratedDataBusyRef.current = true;
+    if (!(await confirmPendingEdits())) {
+      resetGeneratedDataBusyRef.current = false;
+      return;
+    }
     const ok = await confirmDialog({
       title: t("writing.resetProjectData"),
       message: t("writing.resetProjectDataMessage"),
@@ -65,32 +77,45 @@ export const useWritingDeskResetGeneratedData = ({
       cancelText: t("common.cancel"),
       dialogType: "danger",
     });
-    if (!ok) {
+    if (!ok || projectIdRef.current !== projectId) {
       resetGeneratedDataBusyRef.current = false;
       return;
     }
 
     setResetGeneratedDataBusy(true);
     try {
+      const latestProject = await getProject(String(projectId));
+      if (projectIdRef.current !== projectId) return;
+      if (latestProject.lifecycle_gate !== "active" || !canEditProjectMaterials(latestProject)) {
+        addToast(getProjectLifecycleBlockedReason(latestProject, t) ?? t("novel.editPermissionDenied"), "error");
+        return;
+      }
       const response = await resetProjectGeneratedData(projectId);
       const warnings = [...response.warnings];
       const formalResetCommitted = response.database_committed;
       let nextProject = response.result?.project ?? null;
-      if (!nextProject) {
+      let stillShowingRequestProject = projectIdRef.current === projectId;
+      if (stillShowingRequestProject && !nextProject) {
         try {
           nextProject = await getProject(projectId);
         } catch (error) {
           warnings.push(extractErrorMessage(error, t("writing.refreshProjectStatusFailed")));
         }
       }
-      if (nextProject) {
+      stillShowingRequestProject = projectIdRef.current === projectId;
+      if (stillShowingRequestProject && nextProject) {
         setProject(nextProject);
-      } else if (response.status === "pending") {
+      } else if (stillShowingRequestProject && response.status === "pending") {
         setProject((current) =>
           current ? { ...current, lifecycle_gate: "resetting" } : current,
         );
       }
-      if (formalResetCommitted) await clearResetProjectState();
+      if (formalResetCommitted && stillShowingRequestProject) {
+        const draftCleanupError = await clearResetProjectState();
+        if (draftCleanupError) {
+          warnings.push(t("writing.resetDraftCleanupWarning", { error: draftCleanupError }));
+        }
+      }
 
       const warningText = warnings.length > 0
         ? `${t("common.summarySeparator")}${warnings.join(t("common.summarySeparator"))}`
@@ -130,6 +155,8 @@ export const useWritingDeskResetGeneratedData = ({
     clearResetProjectState,
     projectId,
     resetGeneratedDataBusyRef,
+    confirmPendingEdits,
+    projectIdRef,
     resetGeneratedDataDisabledReason,
     setProject,
     setResetGeneratedDataBusy,

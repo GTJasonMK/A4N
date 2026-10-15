@@ -14,7 +14,7 @@ interface BlueprintConfirmationPaneProps {
   blueprint: Blueprint;
   consistencyWarning?: string | null;
   refining: boolean;
-  onRefine: (focus: string) => void;
+  onRefine: (focus: string) => Promise<boolean>;
   onPreviewRefine: (focus: string) => void;
   onConfirm: () => void;
   onCancel: () => void;
@@ -32,7 +32,12 @@ export const BlueprintConfirmationPane: React.FC<BlueprintConfirmationPaneProps>
 }) => {
   const { t } = useI18n();
   const [refineFocus, setRefineFocus] = useState("");
-  useNovelDetailDirty("inspiration-blueprint-refine", refineFocus.trim().length > 0);
+  useNovelDetailDirty(
+    "inspiration-blueprint-refine",
+    refineFocus.trim().length > 0,
+    undefined,
+    () => !refining,
+  );
   const [refineModalOpen, setRefineModalOpen] = useState(false);
   const refineInputRef = useRef<HTMLTextAreaElement>(null);
   const refineReady = refineFocus.trim().length > 0;
@@ -44,6 +49,7 @@ export const BlueprintConfirmationPane: React.FC<BlueprintConfirmationPaneProps>
       confirmText: t("common.discardDraft"),
       dialogType: "warning",
     }))) return;
+    setRefineFocus("");
     setRefineModalOpen(false);
   };
 
@@ -148,12 +154,14 @@ export const BlueprintConfirmationPane: React.FC<BlueprintConfirmationPaneProps>
             <BookButton
               variant="primary"
               size="sm"
-              onClick={() => {
+              onClick={() => void (async () => {
                 const focus = refineFocus.trim();
                 if (!focus) return;
-                onRefine(focus);
-                setRefineModalOpen(false);
-              }}
+                if (await onRefine(focus)) {
+                  setRefineFocus("");
+                  setRefineModalOpen(false);
+                }
+              })()}
               disabled={refining || !refineReady}
               className="min-w-0 flex-1 !text-xs sm:flex-none"
             >

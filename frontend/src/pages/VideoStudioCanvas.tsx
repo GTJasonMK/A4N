@@ -42,7 +42,8 @@ import {
   type CanvasTextAssetSummary,
 } from "../api/canvas";
 import { listImageConfigs } from "../api/image";
-import { getProject, type NovelProject } from "../api/project";
+import { canEditProjectMaterials, getProject, type NovelProject } from "../api/project";
+import { useProjectLifecycleSync } from "../hooks/useProjectLifecycleSync";
 import type {
   WorkflowRunDetailSummary,
   WorkflowRunSummary,
@@ -58,7 +59,7 @@ import { BackButton } from "../components/ui/BackButton";
 import { Dropdown, type DropdownItem } from "../components/ui/Dropdown";
 import { Modal } from "../components/ui/Modal";
 import { PageHeader } from "../components/shell/PageHeader";
-import { useNovelDetailDirty } from "./novel-detail/novelDetailDirty";
+import { useNovelDetailDirty, useNovelDetailDirtyRegistry, useNovelDetailDirtyVersion } from "./novel-detail/novelDetailDirty";
 import { DomainAgentConsole } from "../components/agent/DomainAgentConsole";
 import { useContextMenu } from "../components/ui/ContextMenu";
 import { CanvasEmptyState } from "./video-studio/CanvasEmptyState";
@@ -109,6 +110,7 @@ import {
 import type { StudioEdge, StudioNode } from "./video-studio/types";
 import { formatNumber, useI18n } from "../i18n";
 import { getProjectStudioBackRoute } from "../utils/projectRouting";
+import { getProjectLifecycleBlockedReason } from "../utils/projectStatus";
 import {
   CANVAS_WORKFLOW_KIND,
   type CanvasWorkflowSubmissionLabel,
@@ -142,6 +144,8 @@ export const VideoStudioCanvas: React.FC = () => {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { locale, t } = useI18n();
+  const dirtyRegistry = useNovelDetailDirtyRegistry();
+  useNovelDetailDirtyVersion();
   const translatorRef = useRef(t);
   translatorRef.current = t;
   const contextMenu = useContextMenu();
@@ -202,6 +206,7 @@ export const VideoStudioCanvas: React.FC = () => {
   const workflowDiscoveryInFlightRef = useRef(false);
   const workflowRuntimeRefreshSignatureRef = useRef<string | null>(null);
   const configRefreshRef = useRef(0);
+  const textAssetsRequestRef = useRef(0);
   const previousFlowNodeCountRef = useRef(0);
   const {
     leftSidebarWidth,
@@ -305,13 +310,15 @@ export const VideoStudioCanvas: React.FC = () => {
   );
   const workflowLive =
     workflowSubmitting ||
+    resumingWorkflow ||
+    (latestWorkflowRunId !== null && workflowLoading && workflowDetail === null) ||
     workflowDetail?.run.status === "running" ||
     workflowDetail?.run.status === "pending" ||
     (latestWorkflowRunId !== null && workflowStatusError !== null && workflowDetail === null);
-  const canEdit =
-    project?.my_role === "owner" ||
-    project?.my_role === "manager" ||
-    project?.my_role === "editor";
+  const lifecycleBlockedReason = project
+    ? getProjectLifecycleBlockedReason(project, t)
+    : null;
+  const canEdit = project ? canEditProjectMaterials(project) : false;
   const canvasWriteBusy = saving || importing;
   const canvasReady = !loading && loadError == null && document != null && nodeContracts.length > 0;
   const hasRunnableNodes = useMemo(
@@ -401,16 +408,29 @@ export const VideoStudioCanvas: React.FC = () => {
   }, [addToast]);
 
   const refreshCanvasTextAssets = useCallback(async () => {
+    const requestId = textAssetsRequestRef.current + 1;
+    textAssetsRequestRef.current = requestId;
     const assets = await listCanvasTextAssets(projectId);
+    if (textAssetsRequestRef.current !== requestId) return [];
     setTextAssets(assets);
     return assets;
   }, [projectId]);
 
   useEffect(() => {
+    textAssetsRequestRef.current += 1;
+    setTextAssets([]);
+    return () => {
+      textAssetsRequestRef.current += 1;
+    };
+  }, [projectId]);
+
+  useEffect(() => {
     if (!Number.isSafeInteger(projectId) || projectId <= 0) return;
-    void refreshCanvasTextAssets().catch((error) =>
-      addToast(extractErrorMessage(error, translatorRef.current("novel.textMaterialsLoadFailed")), "error"),
-    );
+    const requestId = textAssetsRequestRef.current + 1;
+    void refreshCanvasTextAssets().catch((error) => {
+      if (textAssetsRequestRef.current !== requestId) return;
+      addToast(extractErrorMessage(error, translatorRef.current("novel.textMaterialsLoadFailed")), "error");
+    });
   }, [addToast, projectId, refreshCanvasTextAssets]);
 
   const load = useCallback(async () => {
@@ -502,6 +522,32 @@ export const VideoStudioCanvas: React.FC = () => {
     setNodes,
   ]);
 
+  const handleLifecycleGateChange = useCallback((
+    nextProject: NovelProject,
+    previousGate: NovelProject["lifecycle_gate"] | null | undefined,
+    previousContentRevision: number | undefined,
+  ) => {
+    setProject(nextProject);
+    if (
+      (previousGate !== "active" && nextProject.lifecycle_gate === "active")
+      || (previousContentRevision != null && previousContentRevision !== nextProject.content_revision)
+    ) {
+      void load();
+    }
+  }, [load]);
+
+  useProjectLifecycleSync(
+    projectId,
+    project?.lifecycle_gate,
+    handleLifecycleGateChange,
+    {
+      enabled: project != null && !loading,
+      contentRevision: project?.content_revision,
+      updatedAt: project?.updated_at,
+      onReadError: () => { void load(); },
+    },
+  );
+
   const handleRetry = async () => {
     if (loading || saving || importing) return;
     if (dirty && !(await confirmDialog({
@@ -529,11 +575,11 @@ export const VideoStudioCanvas: React.FC = () => {
         projectId,
         t("video.canvas.defaultRewriteInstruction"),
       );
-      await load();
       addToast(
         t(created ? "video.canvas.templateAdded" : "video.canvas.templateAlreadyExists"),
         created ? "success" : "info",
       );
+      await load();
     } catch (error) {
       addToast(extractErrorMessage(error, t("video.canvas.templateFailed")), "error");
     } finally {
@@ -905,7 +951,7 @@ export const VideoStudioCanvas: React.FC = () => {
                 variant="secondary"
                 size="sm"
                 onClick={() => setAgentConsoleOpen(true)}
-                disabled={!project || workflowLive}
+                disabled={!project || !canEdit || workflowLive}
                 title={t("agent.domain.openCanvas")}
               >
                 <Bot size={14} />
@@ -914,7 +960,7 @@ export const VideoStudioCanvas: React.FC = () => {
               <BookIconButton
                 label={t("novel.textMaterialsTitle")}
                 onClick={() => setTextMaterialsOpen(true)}
-                disabled={!project}
+                disabled={!project || !canEdit}
                 variant="secondary"
                 size="sm"
               >
@@ -963,22 +1009,20 @@ export const VideoStudioCanvas: React.FC = () => {
                   onClick={() => void runGraph()}
                   disabled={
                     !document ||
-                    !canvasReady ||
                     !hasRunnableNodes ||
-                    canvasWriteBusy ||
-                    !canEdit ||
-                    workflowSubmitting ||
-                    resumingWorkflow
+                    canvasMutationDisabled
                   }
                   title={t("video.runFullCanvas")}
                 >
-                  {workflowSubmitting ? (
+                  {workflowSubmitting || resumingWorkflow || workflowDetail?.run.status === "running" || workflowDetail?.run.status === "pending" ? (
                     <LoadingSpinner size="sm" />
                   ) : (
                     <Play size={14} />
                   )}
                   {workflowSubmitting
                     ? workflowSubmissionText ?? t("video.running")
+                    : resumingWorkflow || workflowDetail?.run.status === "running" || workflowDetail?.run.status === "pending"
+                      ? t("video.running")
                     : canResumeCurrentCanvasRun
                       ? t("video.canvas.workflow.resume")
                       : t("video.runCanvas")}
@@ -987,6 +1031,11 @@ export const VideoStudioCanvas: React.FC = () => {
             </>
           }
         />
+        {lifecycleBlockedReason ? (
+          <div role="status" className="shrink-0 border-b border-warning/30 bg-warning-bg px-4 py-2 text-small text-book-text-main">
+            {lifecycleBlockedReason}
+          </div>
+        ) : null}
         {loadError && document ? (
           <div role="alert" className="flex flex-wrap items-center gap-3 px-4 py-2 text-sm text-error">
             <p className="min-w-0 flex-1">{loadError}</p>
@@ -1169,6 +1218,10 @@ export const VideoStudioCanvas: React.FC = () => {
           isOpen={textMaterialsOpen}
           onClose={() => {
             void (async () => {
+              if (!dirtyRegistry.canDiscardDirty()) {
+                addToast(t("common.operationInProgress"), "info");
+                return;
+              }
               if (textMaterialsDirty && !await confirmDialog({
                 title: t("novel.textMaterialsDiscardTitle"),
                 message: t("novel.textMaterialsDiscardChanges"),
@@ -1184,8 +1237,8 @@ export const VideoStudioCanvas: React.FC = () => {
           subtitle={project?.title}
           maxWidthClassName="max-w-5xl"
           bodyClassName="flex min-h-0 flex-1 overflow-hidden p-3"
-          closeOnBackdrop={!textMaterialsDirty}
-          closeOnEscape={!textMaterialsDirty}
+          closeOnBackdrop={!textMaterialsDirty && dirtyRegistry.canDiscardDirty()}
+          closeOnEscape={!textMaterialsDirty && dirtyRegistry.canDiscardDirty()}
         >
           {project ? (
             <ProjectTextMaterialsPanel

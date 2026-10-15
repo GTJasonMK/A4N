@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import { ExternalLink, FlaskConical, Shield } from "lucide-react";
 import { useAuthStore } from "../../store/auth";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
@@ -24,7 +24,6 @@ export const AdminTab: React.FC = () => {
   useDirtyRegistryVersion();
   const canDiscardDirty = dirtyRegistry.canDiscardDirty();
   const [section, setSection] = useState<Section>("overview");
-  const navigationGuardRef = useRef(false);
   const sectionDefs: { id: Section; label: string }[] = [
     { id: "overview", label: t("settingsAdmin.overview") },
     { id: "users", label: t("settingsAdmin.users") },
@@ -42,25 +41,23 @@ export const AdminTab: React.FC = () => {
         addToast(t("common.operationInProgress"), "info");
         return;
       }
-      if (navigationGuardRef.current) return;
-      navigationGuardRef.current = true;
-      try {
-        const ok = await confirmDialog({
-          title: t("common.unsavedChangesTitle"),
-          message: t("common.unsavedChangesMessage", {
-            name: t("settings.title"),
-            action: t("settings.category"),
-          }),
-          confirmText: t("common.discardDraft"),
-          dialogType: "warning",
-        });
-        if (!ok) return;
-        if (!await dirtyRegistry.discardDirty()) {
-          addToast(t("common.operationInProgress"), "info");
-          return;
-        }
-      } finally {
-        navigationGuardRef.current = false;
+      const ok = await confirmDialog({
+        title: t("common.unsavedChangesTitle"),
+        message: t("common.unsavedChangesMessage", {
+          name: t("settings.title"),
+          action: t("settings.category"),
+        }),
+        confirmText: t("common.discardDraft"),
+        dialogType: "warning",
+      });
+      if (!ok) return;
+      if (!await dirtyRegistry.discardDirty()) {
+        addToast(t("common.operationInProgress"), "info");
+        return;
+      }
+      if (dirtyRegistry.hasDirty()) {
+        addToast(t("common.operationInProgress"), "info");
+        return;
       }
     }
     setSection(nextSection);

@@ -33,6 +33,9 @@ pub(super) async fn prepare_galgame_pipeline(
             )
             .await?;
     }
+    if options.start_from_stage == Some(GalgamePipelineStartStage::AssetGeneration) {
+        return Ok(context);
+    }
 
     service
         .report_pipeline_progress(

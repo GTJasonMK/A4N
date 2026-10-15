@@ -42,6 +42,7 @@ pub fn workflow_run_summary_to_api(
 
 pub async fn update_video_segment_plan_draft_recipe_checkpoint(
     db: &impl a4n_db::DbExecutor,
+    project_id: i64,
     workflow_run_id: i64,
     source_shot_id: &str,
     segment_index_in_shot: i32,
@@ -62,6 +63,7 @@ pub async fn update_video_segment_plan_draft_recipe_checkpoint(
     let step_key = format!("video_segment_plan.shot.{source_shot_id}");
     a4n_db::workflow::mutate_completed_workflow_checkpoint_artifacts_unless_step_exists(
         db,
+        project_id,
         workflow_run_id,
         &step_key,
         "video_segment_plan.final",

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { extractErrorMessage } from "../../../api";
 import { useToast } from "../../../components/feedback/Toast";
+import { useI18n } from "../../../i18n";
 import { applyPlanChanges, describePlanConflicts, inverseChanges, planChanges, receiptChanges, type PlanChange } from "./changes";
 import { subscribeVisualPlanEdits, VisualPlanInvalidatedError } from "../../../api/visualPlanEdits";
 import {
@@ -12,6 +13,7 @@ import {
 
 export function useDirectorPlan(projectId: number, chapterId: number | null, canEdit: boolean) {
   const addToast = useToast((state) => state.addToast);
+  const { t } = useI18n();
   const [set, setSet] = useState<ChapterVisualPlanSetView | null>(null);
   const [plan, setPlan] = useState<ChapterVisualPlanV3 | null>(null);
   const [record, setRecord] = useState<ChapterVisualPlanView | null>(null);
@@ -60,57 +62,59 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
   }, []);
 
   const report = useCallback((failure: unknown) => {
-    const message = extractErrorMessage(failure, "导演编排操作失败");
+    const message = extractErrorMessage(failure, t("visualPlan.workspace.operationFailed"));
     setError(message);
     addToast(message, "error");
-  }, [addToast]);
+  }, [addToast, t]);
 
   const serializeWrite = useCallback(<T,>(work: () => Promise<T>): Promise<T> => {
     const currentScope = scope.current;
     const run = async () => {
-      if (currentScope !== scope.current) throw new Error("章节已切换，已取消旧视图写入");
+      if (currentScope !== scope.current) throw new Error(t("visualPlan.workspace.chapterChangedCancelledWrite"));
       if (conflictRef.current) throw new Error(conflictRef.current);
       return work();
     };
     const request = writeQueue.current.then(run, run);
     writeQueue.current = request;
     return request;
-  }, []);
+  }, [t]);
 
   const rememberReceipt = useCallback((saved: ChapterVisualPlanView, remember: boolean) => {
     const receipt = saved.edit_receipt;
     if (!receipt || observedOperations.current.has(receipt.operation_id)) return;
     observedOperations.current.add(receipt.operation_id);
     if (!remember) return;
-    const batch = receiptChanges(saved);
+    const batch = receiptChanges(saved, t);
     if (batch.length > 0) {
       setUndo((items) => [...items.slice(-39), batch]);
       setRedo([]);
     }
-  }, []);
+  }, [t]);
 
   const applySaved = useCallback((saved: ChapterVisualPlanView, base: ChapterVisualPlanV3, remember = false) => {
     const changes = planChanges(base, saved.plan);
     // The database commit is real even when newer local input conflicts with it.
     acceptRecord(saved);
     try {
-      const next = applyPlanChanges(planRef.current ?? base, changes);
+      const next = applyPlanChanges(planRef.current ?? base, changes, undefined, t);
       replace(next);
       rememberReceipt(saved, remember);
     } catch (failure) {
       rememberReceipt(saved, false);
-      const message = `${extractErrorMessage(failure, "并发修改冲突")}。远端已保存，本地输入已保留，自动保存已暂停。`;
+      const message = t("visualPlan.workspace.remoteSavedLocalPreserved", {
+        error: extractErrorMessage(failure, t("visualPlan.workspace.concurrentEdit")),
+      });
       conflictRef.current = message;
       conflictingChanges.current = changes;
       setConflict(message);
       setError(message);
     }
-  }, [acceptRecord, rememberReceipt, replace]);
+  }, [acceptRecord, rememberReceipt, replace, t]);
 
   const resolveConflict = useCallback((resolution: "local" | "remote") => {
     if (!planRef.current || !conflictRef.current) return;
     try {
-      const next = applyPlanChanges(planRef.current, conflictingChanges.current, resolution);
+      const next = applyPlanChanges(planRef.current, conflictingChanges.current, resolution, t);
       const changes = planChanges(planRef.current, next);
       if (changes.length > 0) {
         setUndo((items) => [...items.slice(-39), changes]);
@@ -122,12 +126,12 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
       setConflict(null);
       setError(null);
     } catch (failure) { report(failure); }
-  }, [replace, report]);
+  }, [replace, report, t]);
 
   const reload = useCallback(async (force = false) => {
     if (chapterId == null) { setLoading(false); return; }
     if (!force && (mutationLock.current || pending.current || (planRef.current && JSON.stringify(planRef.current) !== baseline.current))) {
-      report(new Error("当前编辑或保存尚未完成，已保留本地内容。完成后可重新加载方案。"));
+      report(new Error(t("visualPlan.workspace.reloadLocalEditsPending")));
       return;
     }
     const currentScope = ++scope.current;
@@ -161,7 +165,7 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
     } finally {
       if (currentScope === scope.current) setLoading(false);
     }
-  }, [chapterId, projectId, replace, report, storageKey]);
+  }, [chapterId, projectId, replace, report, storageKey, t]);
 
   const reloadWithBackup = useCallback(async () => {
     try {
@@ -194,12 +198,12 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
 
   const save = useCallback((): Promise<ChapterVisualPlanView> => serializeWrite(async () => {
     const expectedScope = scope.current;
-    if (scopeKey.current !== `${projectId}:${chapterId}`) throw new Error("章节已切换，未写入其他章节");
-    if (scope.current !== expectedScope || scopeKey.current !== `${projectId}:${chapterId}`) throw new Error("章节已切换，请在原章节重新保存");
+    if (scopeKey.current !== `${projectId}:${chapterId}`) throw new Error(t("visualPlan.workspace.chapterChangedNoWrite"));
+    if (scope.current !== expectedScope || scopeKey.current !== `${projectId}:${chapterId}`) throw new Error(t("visualPlan.workspace.chapterChangedRetrySave"));
     const snapshot = planRef.current;
     const current = recordRef.current;
     if (!canEdit || chapterId == null || !snapshot || current?.record.status === "confirmed") {
-      throw new Error("请先进入草稿编辑模式");
+      throw new Error(t("visualPlan.workspace.editableDraftRequired"));
     }
     if (current && JSON.stringify(snapshot) === baseline.current) return current;
     const currentScope = scope.current;
@@ -221,11 +225,11 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
       if (pending.current === request) pending.current = null;
       if (currentScope === scope.current) setSaving(false);
     }
-  }), [applySaved, canEdit, chapterId, projectId, serializeWrite, storageKey]);
+  }), [applySaved, canEdit, chapterId, projectId, serializeWrite, storageKey, t]);
 
   const saveFromAgent = useCallback((persist: (plan: ChapterVisualPlanV3) => Promise<ChapterVisualPlanView>) => serializeWrite(async () => {
     const snapshot = planRef.current;
-    if (!snapshot || !canEdit) throw new Error("当前没有可保存的草稿");
+    if (!snapshot || !canEdit) throw new Error(t("visualPlan.workspace.currentDraftMissing"));
     const currentScope = scope.current;
     setSaving(true);
     const request = persist(snapshot);
@@ -238,7 +242,7 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
       if (pending.current === request) pending.current = null;
       if (currentScope === scope.current) setSaving(false);
     }
-  }), [applySaved, canEdit, serializeWrite]);
+  }), [applySaved, canEdit, serializeWrite, t]);
 
   useEffect(() => {
     if (loading || chapterId == null || !planRef.current || conflict || invalidated) return;
@@ -255,7 +259,7 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
             const current = recordRef.current;
             if (sourceHash.current !== saved.record.source_content_sha256
               || (current && current.record.id !== saved.record.id && saved.edit_receipt?.before?.record_id !== current.record.id)) {
-              throw new VisualPlanInvalidatedError("编排来源或版本链已变化，已保留本地草稿");
+              throw new VisualPlanInvalidatedError(t("visualPlan.workspace.sourceOrVersionChanged"));
             }
             if (!current || current.record.id !== saved.record.id || current.record.revision < saved.record.revision) {
               applySaved(saved, current?.plan ?? JSON.parse(baseline.current), true);
@@ -268,13 +272,13 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
               conflictRef.current = failure.message;
               setInvalidated(true);
             }
-            setSyncError(extractErrorMessage(failure, "编辑同步失败"));
+            setSyncError(extractErrorMessage(failure, t("visualPlan.workspace.editSyncFailed")));
           });
         }, controller.signal);
-        if (!controller.signal.aborted) throw new Error("编辑同步连接已断开，正在重连");
+        if (!controller.signal.aborted) throw new Error(t("visualPlan.workspace.connectionReconnecting"));
       } catch (failure) {
         if (!controller.signal.aborted) {
-          setSyncError(extractErrorMessage(failure, "编辑同步失败"));
+          setSyncError(extractErrorMessage(failure, t("visualPlan.workspace.editSyncFailed")));
           if (failure instanceof VisualPlanInvalidatedError) {
             conflictRef.current = failure.message;
             setInvalidated(true);
@@ -284,7 +288,7 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
     };
     void connect();
     return () => { controller.abort(); clearTimeout(retry); };
-  }, [applySaved, chapterId, conflict, invalidated, loading, projectId, rememberReceipt, serializeWrite]);
+  }, [applySaved, chapterId, conflict, invalidated, loading, projectId, rememberReceipt, serializeWrite, t]);
 
   useEffect(() => {
     if (!dirty || !editable || !plan || conflict || invalidated) return;
@@ -321,7 +325,7 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
 
   const mutate = useCallback(async (operation: VisualPlanEditOperation, operationBase?: ChapterVisualPlanView): Promise<boolean> => {
     if (mutationLock.current || !editable || chapterId == null) {
-      const failure = new Error("请等待当前操作完成，并在可编辑草稿中修改");
+      const failure = new Error(t("visualPlan.workspace.waitForCurrentEdit"));
       report(failure);
       return false;
     }
@@ -340,7 +344,7 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
       return false;
     }
     finally { if (currentScope === scope.current) { mutationLock.current = false; setBusy(false); } }
-  }, [applySaved, chapterId, editable, projectId, report, save, serializeWrite]);
+  }, [applySaved, chapterId, editable, projectId, report, save, serializeWrite, t]);
 
   const startEditing = useCallback(async () => {
     if (!canEdit || !planRef.current || chapterId == null) return;
@@ -349,14 +353,14 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
     try {
       await serializeWrite(async () => {
         const snapshot = planRef.current;
-        if (!snapshot) throw new Error("编排已关闭");
+        if (!snapshot) throw new Error(t("visualPlan.workspace.planClosed"));
         const current = recordRef.current?.record.status === "draft" ? recordRef.current : null;
         const saved = await saveChapterVisualPlanDraft(projectId, chapterId, current, snapshot);
         if (currentScope === scope.current) applySaved(saved, snapshot);
       });
     } catch (failure) { if (currentScope === scope.current) report(failure); }
     finally { if (currentScope === scope.current) setBusy(false); }
-  }, [applySaved, canEdit, chapterId, projectId, report, serializeWrite]);
+  }, [applySaved, canEdit, chapterId, projectId, report, serializeWrite, t]);
 
   const confirm = useCallback(async () => {
     if (chapterId == null || mutationLock.current) return;
@@ -404,7 +408,7 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
     const previous = undoStack.at(-1);
     if (!previous || !planRef.current || busy || !editable) return;
     try {
-      const next = applyPlanChanges(planRef.current, inverseChanges(previous));
+      const next = applyPlanChanges(planRef.current, inverseChanges(previous), undefined, t);
       setRedo((items) => [...items, previous]);
       setUndo((items) => items.slice(0, -1));
       replace(next);
@@ -414,7 +418,7 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
     const next = redoStack.at(-1);
     if (!next || !planRef.current || busy || !editable) return;
     try {
-      const plan = applyPlanChanges(planRef.current, next);
+      const plan = applyPlanChanges(planRef.current, next, undefined, t);
       setUndo((items) => [...items.slice(-39), next]);
       setRedo((items) => items.slice(0, -1));
       replace(plan);
@@ -422,7 +426,7 @@ export function useDirectorPlan(projectId: number, chapterId: number | null, can
   };
 
   return { plan, record, set, loading, saving, busy, error, dirty, recovery, editable, issues, conflict, syncError, invalidated,
-    conflictDetails: plan && conflict ? describePlanConflicts(plan, conflictingChanges.current) : [],
+    conflictDetails: plan && conflict ? describePlanConflicts(plan, conflictingChanges.current, t) : [],
     updateFields, mutate, save, saveFromAgent, resolveConflict, confirm, startEditing, restore, reload, reloadWithBackup, report, undo, redo,
     canUndo: editable && undoStack.length > 0, canRedo: editable && redoStack.length > 0,
     planRef, recordRef, editorRevision, viewInstanceId, acceptRecord, replace };

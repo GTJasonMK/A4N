@@ -5,7 +5,9 @@ use super::{
 use crate::project::validate_positive_i64;
 use a4n_db_models::models::chapter::{chapter, chapter_scene};
 use a4n_domain::chapter::{ChapterRecord, ChapterSceneRecord};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,
+};
 
 pub async fn chapter_by_project_number(
     db: &impl crate::DbExecutor,
@@ -57,7 +59,7 @@ pub async fn chapter_scene_by_id(
 }
 
 pub async fn update_chapter_scene_record(
-    db: &impl crate::DbExecutor,
+    db: &impl ConnectionTrait,
     input: ProjectChapterSceneUpdateInput,
 ) -> Result<ChapterSceneRecord, ProjectChapterSceneRecordError> {
     validate_positive_i64(input.scene.id, "scene_id")
@@ -106,7 +108,7 @@ pub async fn update_chapter_scene_record(
 }
 
 pub async fn delete_chapter_scene_record(
-    db: &impl crate::DbExecutor,
+    db: &impl ConnectionTrait,
     scene_id: i64,
 ) -> Result<u64, ProjectChapterSceneRecordError> {
     validate_positive_i64(scene_id, "scene_id")

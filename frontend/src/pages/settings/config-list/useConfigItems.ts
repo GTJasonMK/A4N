@@ -22,12 +22,10 @@ export function useConfigItems<C>(
   loadErrorMessageRef.current = loadErrorMessage;
   const mountedRef = useRef(true);
   const refreshSeqRef = useRef(0);
-  const hasLoadedRef = useRef(false);
 
   const setItems = useCallback((update: SetStateAction<ConfigItem<C>[]>) => {
     refreshSeqRef.current += 1;
     setLoading(false);
-    if (hasLoadedRef.current) setError(null);
     setLoadedItems(update);
   }, []);
 
@@ -48,7 +46,6 @@ export function useConfigItems<C>(
     try {
       const loaded = await loadItems();
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
-      hasLoadedRef.current = true;
       setLoadedItems(loaded.items);
       setCatalog(loaded.catalog);
       setWarning(loaded.warning?.length ? { reasons: loaded.warning } : null);

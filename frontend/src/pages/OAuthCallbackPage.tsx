@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { extractErrorMessage } from "../api";
 import { BookCard } from "../components/ui/BookCard";
@@ -12,8 +12,11 @@ export function OAuthCallbackPage() {
   const oauthLogin = useAuthStore((state) => state.oauthLogin);
   const navigate = useNavigate();
   const { t } = useI18n();
+  const startedRef = useRef(false);
 
   useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
     let mounted = true;
     window.history.replaceState(window.history.state, "", new URL(callbackUrl).pathname);
     void oauthLogin(callbackUrl).then(({ returnTo }) => {

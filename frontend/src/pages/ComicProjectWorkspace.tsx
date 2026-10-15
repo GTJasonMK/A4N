@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { GitCompare, PanelsTopLeft, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import {
+  canEditProjectMaterials,
   getProject,
   listSourceSnapshotChapters,
   type NovelProject,
@@ -20,6 +21,8 @@ import { useI18n } from "../i18n";
 import { useNovelDetailDirtyRegistry } from "./novel-detail/novelDetailDirty";
 import { confirmDiscardMediaChanges } from "../components/feedback/UnsavedChangesGuard";
 import { UnsavedNavigationGuard } from "../components/navigation/UnsavedNavigationGuard";
+import { getProjectLifecycleBlockedReason } from "../utils/projectStatus";
+import { useProjectLifecycleSync } from "../hooks/useProjectLifecycleSync";
 
 export const ComicProjectWorkspace: React.FC = () => {
   const { id } = useParams();
@@ -39,7 +42,7 @@ export const ComicProjectWorkspace: React.FC = () => {
   const [workspaceDirty, setWorkspaceDirty] = useState(false);
   const refreshRequestRef = useRef(0);
 
-  const refresh = useCallback(async (): Promise<boolean> => {
+  const refresh = useCallback(async (options: { silent?: boolean } = {}): Promise<boolean> => {
     const requestId = refreshRequestRef.current + 1;
     refreshRequestRef.current = requestId;
     setLoadError(null);
@@ -51,7 +54,7 @@ export const ComicProjectWorkspace: React.FC = () => {
       setLoading(false);
       return false;
     }
-    setLoading(true);
+    if (!options.silent) setLoading(true);
     try {
       const item = await getProject(projectId);
       if (refreshRequestRef.current !== requestId) return false;
@@ -64,7 +67,9 @@ export const ComicProjectWorkspace: React.FC = () => {
       setProject(item);
       if (item.source_mode === "derived") {
         try {
-          setChapters(await listSourceSnapshotChapters(projectId));
+          const nextChapters = await listSourceSnapshotChapters(projectId);
+          if (refreshRequestRef.current !== requestId) return false;
+          setChapters(nextChapters);
         } catch (error) {
           const message = extractErrorMessage(
             error,
@@ -93,6 +98,32 @@ export const ComicProjectWorkspace: React.FC = () => {
     }
   }, [addToast, navigate, projectId]);
 
+  const handleLifecycleGateChange = useCallback((
+    nextProject: NovelProject,
+    previousGate: NovelProject["lifecycle_gate"] | null | undefined,
+    previousContentRevision: number | undefined,
+  ) => {
+    setProject(nextProject);
+    if (
+      (previousGate !== "active" && nextProject.lifecycle_gate === "active")
+      || (previousContentRevision != null && previousContentRevision !== nextProject.content_revision)
+    ) {
+      void refresh({ silent: true });
+    }
+  }, [refresh]);
+
+  useProjectLifecycleSync(
+    projectId,
+    project?.lifecycle_gate,
+    handleLifecycleGateChange,
+    {
+      enabled: project != null && !loading,
+      contentRevision: project?.content_revision,
+      updatedAt: project?.updated_at,
+      onReadError: () => { void refresh({ silent: true }); },
+    },
+  );
+
   useLayoutEffect(() => {
     refreshRequestRef.current += 1;
     setProject(null);
@@ -108,8 +139,10 @@ export const ComicProjectWorkspace: React.FC = () => {
     if (!project) return [];
     return project.root_project_id ? [project.id, project.root_project_id] : [project.id];
   }, [project]);
-  const canEditProject =
-    project?.my_role === "owner" || project?.my_role === "manager" || project?.my_role === "editor";
+  const lifecycleBlockedReason = project
+    ? getProjectLifecycleBlockedReason(project, t)
+    : null;
+  const canEditProject = project ? canEditProjectMaterials(project) : false;
 
   return (
     <div className="h-full min-h-0 flex flex-col bg-book-bg">
@@ -135,6 +168,12 @@ export const ComicProjectWorkspace: React.FC = () => {
         }
       />
 
+      {lifecycleBlockedReason ? (
+        <div role="status" className="shrink-0 border-b border-warning/30 bg-warning-bg px-4 py-2 text-small text-book-text-main">
+          {lifecycleBlockedReason}
+        </div>
+      ) : null}
+
       {project ? (
         project.source_mode === "derived" ? <SourceSyncDialog
           open={sourceSyncOpen}
@@ -143,7 +182,7 @@ export const ComicProjectWorkspace: React.FC = () => {
           sourceSyncStatus={project.source_sync_status}
           canEditSourceSync={canEditProject}
           onClose={() => setSourceSyncOpen(false)}
-          onChanged={refresh}
+          onChanged={() => refresh({ silent: true })}
         /> : null
       ) : null}
 
@@ -162,7 +201,7 @@ export const ComicProjectWorkspace: React.FC = () => {
             {t("comic.loadingProject")}
           </div>
         ) : loadError ? null : project && !canEditProject ? (
-          <EmptyHint text={t("comic.noEditPermission")} />
+          <EmptyHint text={lifecycleBlockedReason ?? t("comic.noEditPermission")} />
         ) : project ? (
           <MangaTab
             key={project.id}

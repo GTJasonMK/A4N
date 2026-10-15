@@ -77,6 +77,7 @@ impl WorkerState {
         let profile = a4n_db::asset::update_object_profile_read_record(
             self.database.connection(),
             existing.id,
+            &request.payload.expected_updated_at,
             record,
         )
         .await

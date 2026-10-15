@@ -111,6 +111,19 @@ pub(super) fn collaboration_error(
     }
 }
 
+pub(super) fn generation_lifecycle_error(
+    error: a4n_db::generation::GenerationLifecycleGateError,
+) -> WorkerFailure {
+    use a4n_db::generation::GenerationLifecycleGateError as Error;
+    match error {
+        Error::InvalidArgument(message) => WorkerFailure::invalid_request(message),
+        Error::NotFound(message) => WorkerFailure::not_found(message),
+        Error::Blocked(message) => WorkerFailure::conflict(message),
+        Error::Corrupt(message) => WorkerFailure::unavailable(message),
+        Error::Database(error) => WorkerFailure::unavailable(error.to_string()),
+    }
+}
+
 pub(super) fn project_error(error: a4n_db::project::ProjectMutationError) -> WorkerFailure {
     match error {
         a4n_db::project::ProjectMutationError::InvalidArgument(message) => {

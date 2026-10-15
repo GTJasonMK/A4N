@@ -514,6 +514,8 @@ pub struct ApplicationPorts {
     /// Host-facing generated-image mutation boundary.
     pub image_record_mutation_application:
         Arc<dyn a4n_api_contract::image::ImageRecordMutationApplicationPort>,
+    pub image_record_cascade_mutation_application:
+        Arc<dyn a4n_api_contract::image::ImageRecordCascadeMutationApplicationPort>,
     /// Imported-image file and publication transaction owner.
     pub image_import_preparation_application:
         Arc<dyn a4n_image_host_contract::ImageImportPreparationApplicationPort>,

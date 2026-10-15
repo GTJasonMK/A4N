@@ -118,6 +118,8 @@ export const novelOverview = {
     loading: "Loading members…",
     memberCount: "{count} members",
     identityPlaceholder: "Username or email",
+    inviteRole: "Invitation role",
+    managerRoleOwnerOnly: "Manager (owner only)",
     invite: "Invite",
     membersAria: "Project members",
     adjustRole: "Adjust {username}'s role",

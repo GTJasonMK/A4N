@@ -1,7 +1,7 @@
 use super::*;
-use a4n_db_models::models::chapter::chapter;
+use a4n_db_models::models::{chapter::chapter, project::novel_project};
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, DatabaseConnection, Set, TransactionTrait};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set, TransactionTrait};
 
 #[tokio::test]
 async fn empty_patch_set_returns_none_without_database_access() {
@@ -175,5 +175,72 @@ async fn turn_completion_and_analysis_retry_preserve_session_state() {
         resume_optimization_analysis_session(&db, session.id)
             .await
             .is_err()
+    );
+}
+
+#[tokio::test]
+async fn optimization_session_creation_rejects_project_during_reset() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let project = crate::project::create_project_record(
+        &db,
+        crate::project::CreateProjectRecordInput {
+            user_id: 1,
+            title: "重置时优化会话创建".to_string(),
+            description: String::new(),
+            project_type: "novel_long".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let now = Utc::now().naive_utc();
+    let chapter = chapter::ActiveModel {
+        project_id: Set(project.id),
+        outline_id: Set(None),
+        chapter_number: Set(1),
+        title: Set(Some("第一章".to_string())),
+        content: Set("章节正文".to_string()),
+        word_count: Set(4),
+        status: Set(chapter::STATUS_IMPORTED.to_string()),
+        summary: Set(None),
+        style_tags: Set(None),
+        analysis_data: Set(None),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+    let mut active: novel_project::ActiveModel = novel_project::Entity::find_by_id(project.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap()
+        .into();
+    active.lifecycle_gate = Set("resetting".to_string());
+    active.update(&db).await.unwrap();
+
+    let error = create_optimization_session(
+        &db,
+        OptimizationSessionCreateInput {
+            project_id: project.id,
+            chapter_id: chapter.id,
+            name: Some("重置中的会话".to_string()),
+            status: "waiting_user".to_string(),
+            issues: None,
+            agent_permissions: None,
+            agent_instruction: None,
+            fixes_applied: 0,
+            summary: None,
+        },
+    )
+    .await
+    .expect_err("reset gate must reject a new optimization session");
+    assert!(matches!(error, OptimizeDbError::InvalidState { .. }));
+    assert!(
+        optimization_sessions(&db, project.id, None)
+            .await
+            .unwrap()
+            .is_empty()
     );
 }

@@ -4,7 +4,8 @@ use std::collections::{BTreeSet, HashMap};
 use a4n_api_contract::video::{
     ChapterVideoPromptSummary, LoadVideoSegmentPlanDraftInput, OptimizeChapterVideoPromptInput,
     UpdateChapterVideoPromptInput, UpdateChapterVideoSegmentPlanInput,
-    UpdateVideoSegmentPlanDraftRecipeInput, VideoSegmentPlanDraftSummary,
+    UpdateVideoSegmentPlanDraftRecipeInput, VideoPromptDeleteResult, VideoPromptDeletionEffects,
+    VideoPromptUpdateResult, VideoSegmentPlanDraftSummary,
 };
 use a4n_api_contract::video::{VideoPromptDownstreamCleanupPort, VideoPromptGenerationOptions};
 use a4n_domain::chapter::ChapterRecord;
@@ -95,6 +96,23 @@ struct PreparedGeneration {
 struct VideoPromptMutationPlan {
     allow_downstream: bool,
     delete_dependencies: Option<VideoPromptDownstreamDependencies>,
+}
+
+impl VideoPromptMutationPlan {
+    fn deletion_effects(&self) -> VideoPromptDeletionEffects {
+        match self.delete_dependencies.as_ref() {
+            Some(dependencies) => VideoPromptDeletionEffects {
+                deleted_prompt_ids: dependencies.prompt_ids.clone(),
+                deleted_image_ids: dependencies.image_ids.clone(),
+                deleted_video_ids: dependencies.video_ids.clone(),
+            },
+            None => VideoPromptDeletionEffects {
+                deleted_prompt_ids: Vec::new(),
+                deleted_image_ids: Vec::new(),
+                deleted_video_ids: Vec::new(),
+            },
+        }
+    }
 }
 
 struct VideoSegmentPlanDraftContext {
@@ -517,6 +535,14 @@ mod tests {
         )
         .unwrap();
         assert!(!plan.allow_downstream);
+        assert_eq!(
+            plan.deletion_effects(),
+            VideoPromptDeletionEffects {
+                deleted_prompt_ids: vec![1],
+                deleted_image_ids: vec![2],
+                deleted_video_ids: vec![3],
+            },
+        );
         assert_eq!(plan.delete_dependencies.unwrap().video_ids, vec![3]);
     }
 

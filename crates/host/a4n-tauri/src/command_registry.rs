@@ -36,6 +36,7 @@ pub(crate) fn handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
         commands::updates::get_update_recovery_state,
         commands::updates::clear_update_recovery_state,
         logging::commands::get_log_dir,
+        logging::commands::get_log_level,
         logging::commands::read_recent_logs,
         logging::commands::set_log_level,
         logging::commands::log_from_frontend,

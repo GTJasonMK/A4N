@@ -31,8 +31,13 @@ import { useToast } from "../components/feedback/Toast";
 import { extractErrorMessage } from "../api";
 import {
   AgentMessageList,
+  acceptPendingAgentMessage,
+  appendPendingAgentMessage,
+  clearPendingAgentMessages,
   createPendingAgentMessage,
-  type PendingAgentMessage,
+  reconcilePendingAgentMessages,
+  removePendingAgentMessage,
+  type PendingAgentMessagesByOwner,
 } from "../components/agent/AgentMessageList";
 import { AgentContextMeter } from "../components/agent/AgentContextMeter";
 import { AgentBudgetDialog } from "../components/agent/AgentBudgetDialog";
@@ -127,11 +132,12 @@ export const AgentMonitor: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ threadId: string; message: string } | null>(null);
   const [threadsError, setThreadsError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [pendingSubmission, setPendingSubmission] = useState<PendingAgentMessage | null>(null);
+  const [pendingSubmissionsByThread, setPendingSubmissionsByThread] =
+    useState<PendingAgentMessagesByOwner>({});
   const [deliveryMode, setDeliveryMode] = useState<AgentDeliveryMode>("followup");
   const [executionMode, setExecutionMode] = useState<AgentExecutionMode>("autonomous");
   const [sendingThreads, setSendingThreads] = useState<Record<string, boolean>>({});
@@ -141,6 +147,8 @@ export const AgentMonitor: React.FC = () => {
   const [createOpen, setCreateOpen] = useState(false);
   const [createTitle, setCreateTitle] = useState("");
   const [createCapability, setCreateCapability] = useState("general");
+  const [creatingSubagent, setCreatingSubagent] = useState(false);
+  const createSubagentBusyRef = useRef(false);
   const [activityOpen, setActivityOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
   const snapshotRequestRef = useRef(0);
@@ -155,12 +163,15 @@ export const AgentMonitor: React.FC = () => {
   const lastCompositionEndRef = useRef(0);
   const locateBaselineThreadRef = useRef<string | null>(null);
   const handledLocateMessageIdsRef = useRef<Set<string>>(new Set());
+  const snapshotErrorRef = useRef<string | null>(null);
+  const snapshotReadUnavailableRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
       threadListRequestRef.current += 1;
+      createSubagentBusyRef.current = false;
     };
   }, []);
 
@@ -185,6 +196,9 @@ export const AgentMonitor: React.FC = () => {
     resetKey: selectedThreadId,
   });
   const draft = selectedThreadId ? drafts[selectedThreadId] ?? "" : "";
+  const pendingSubmissions = selectedThreadId
+    ? pendingSubmissionsByThread[selectedThreadId] ?? []
+    : [];
   const sending = selectedThreadId ? sendingThreads[selectedThreadId] === true : false;
   const controlBusy = selectedThreadId ? controlBusyByThread[selectedThreadId] ?? null : null;
   const approvalBusy = selectedThreadId ? approvalBusyByThread[selectedThreadId] ?? null : null;
@@ -197,7 +211,8 @@ export const AgentMonitor: React.FC = () => {
       createCapability !== "general",
   );
   const workspaceBusy = clearing || Object.values(sendingThreads).some(Boolean) ||
-    Object.keys(controlBusyByThread).length > 0 || Object.keys(approvalBusyByThread).length > 0;
+    Object.keys(controlBusyByThread).length > 0 || Object.keys(approvalBusyByThread).length > 0 ||
+    creatingSubagent;
   useDirty("agent-monitor-workspace", hasWorkspaceDraft || workspaceBusy, undefined, () => !workspaceBusy);
   const clearWorkspaceDrafts = useCallback(() => {
     setDrafts({});
@@ -212,6 +227,7 @@ export const AgentMonitor: React.FC = () => {
     event.returnValue = "";
   });
   const closeCreateForm = async () => {
+    if (createSubagentBusyRef.current) return;
     if (createTitle.trim() || createCapability !== "general") {
       if (!(await confirmDialog({
         title: t("common.unsavedChangesTitle"),
@@ -226,20 +242,18 @@ export const AgentMonitor: React.FC = () => {
   };
 
   useEffect(() => {
-    const acceptedMessageId = pendingSubmission?.acceptedMessageId;
-    if (
-      acceptedMessageId
-      && snapshot?.messages.some((message) => message.id === acceptedMessageId)
-    ) {
-      setPendingSubmission(null);
-    }
-  }, [pendingSubmission?.acceptedMessageId, snapshot]);
+    if (!selectedThreadId || !snapshot || pendingSubmissions.length === 0) return;
+    setPendingSubmissionsByThread((current) => reconcilePendingAgentMessages(
+      current, selectedThreadId, snapshot.messages,
+    ));
+  }, [pendingSubmissions, selectedThreadId, snapshot]);
 
   const refreshThreads = useCallback(async (manual = false): Promise<boolean> => {
     const requestId = threadListRequestRef.current + 1;
     threadListRequestRef.current = requestId;
     const isCurrent = () => mountedRef.current && threadListRequestRef.current === requestId;
     if (manual) setRefreshing(true);
+    else setRefreshing(false);
     try {
       let next = await listAgentThreads({ include_archived: false, limit: 200 });
       // Domain consoles create their child threads before the user opens the
@@ -259,8 +273,8 @@ export const AgentMonitor: React.FC = () => {
     } finally {
       if (isCurrent()) {
         setLoading(false);
-        if (manual) setRefreshing(false);
       }
+      if (manual && mountedRef.current && threadListRequestRef.current === requestId) setRefreshing(false);
     }
   }, [t]);
 
@@ -280,7 +294,7 @@ export const AgentMonitor: React.FC = () => {
       setError(null);
       return next;
     } catch (err) {
-      if (isCurrent()) setError(extractErrorMessage(err, t("agent.loadFailed")));
+      if (isCurrent()) setError({ threadId, message: extractErrorMessage(err, t("agent.loadFailed")) });
       return null;
     } finally {
       if (isCurrent()) {
@@ -312,7 +326,6 @@ export const AgentMonitor: React.FC = () => {
       pendingEventsRef.current = [];
       setSnapshot(null);
       setStreamedMessageIds(new Set());
-      setPendingSubmission(null);
       setConnected(false);
       return undefined;
     }
@@ -353,7 +366,7 @@ export const AgentMonitor: React.FC = () => {
         } catch (err) {
           if (controller.signal.aborted) return;
           setConnected(false);
-          setError(extractErrorMessage(err, t("agent.connectionLost")));
+          setError({ threadId: selectedThreadId, message: extractErrorMessage(err, t("agent.connectionLost")) });
         }
         if (!stopped) {
           setConnected(false);
@@ -394,6 +407,17 @@ export const AgentMonitor: React.FC = () => {
       : null
   );
   const pendingApprovals = useMemo(() => snapshot?.approvals.filter((approval) => approval.status === "pending") ?? [], [snapshot]);
+  const snapshotReadUnavailable = Boolean(
+    selectedThreadId && (snapshot == null || error?.threadId === selectedThreadId),
+  );
+  snapshotErrorRef.current = error?.threadId === selectedThreadId ? error.message : null;
+  snapshotReadUnavailableRef.current = snapshotReadUnavailable;
+
+  const ensureSnapshotCurrent = useCallback(() => {
+    if (!snapshotReadUnavailableRef.current) return true;
+    addToast(snapshotErrorRef.current ?? t("agent.loadFailed"), "error");
+    return false;
+  }, [addToast, t]);
 
   useEffect(() => {
     if (pendingApprovals.length > 0) setActivityOpen(true);
@@ -407,7 +431,6 @@ export const AgentMonitor: React.FC = () => {
     reloadInFlightRef.current = false;
     setSnapshot(null);
     setStreamedMessageIds(new Set());
-    setPendingSubmission(null);
     setActivityOpen(false);
     composingRef.current = false;
     lastCompositionEndRef.current = 0;
@@ -416,24 +439,28 @@ export const AgentMonitor: React.FC = () => {
   const send = async () => {
     const content = draft.trim();
     const threadId = selectedThreadId;
-    if (!content || !threadId || sending) return;
+    if (!content || !threadId || sending || clearing) return;
+    if (!ensureSnapshotCurrent()) return;
     const clientMessageId = randomClientMessageId();
     const pendingMessage = createPendingAgentMessage(threadId, content, clientMessageId);
-    setPendingSubmission({ message: pendingMessage, acceptedMessageId: null });
+    setPendingSubmissionsByThread((current) => appendPendingAgentMessage(
+      current, threadId, { message: pendingMessage, acceptedMessageId: null },
+    ));
     setDraft("");
     setSendingThreads((current) => ({ ...current, [threadId]: true }));
     try {
       const accepted = await sendAgentMessage({ thread_id: threadId, client_message_id: clientMessageId, content, delivery_mode: deliveryMode, execution_mode: executionMode });
-      setPendingSubmission((current) => current?.message.id === pendingMessage.id
-        ? { ...current, acceptedMessageId: accepted.message_id }
-        : current);
-      const [next] = await Promise.all([loadSnapshot(threadId, true), refreshThreads()]);
-      if (next?.messages.some((message) => message.id === accepted.message_id)) {
-        setPendingSubmission((current) => current?.message.id === pendingMessage.id ? null : current);
-      }
-      if (next) rememberStreamedMessages(next.events, accepted.run_id);
+      setPendingSubmissionsByThread((current) => acceptPendingAgentMessage(
+        current, threadId, pendingMessage.id, accepted.message_id,
+      ));
+      void loadSnapshot(threadId, true).then((next) => {
+        if (next) rememberStreamedMessages(next.events, accepted.run_id);
+      });
+      void refreshThreads();
     } catch (err) {
-      setPendingSubmission((current) => current?.message.id === pendingMessage.id ? null : current);
+      setPendingSubmissionsByThread((current) => removePendingAgentMessage(
+        current, threadId, pendingMessage.id,
+      ));
       setDrafts((current) => ({ ...current, [threadId]: content }));
       if (selectedThreadIdRef.current === threadId) {
         addToast(extractErrorMessage(err, locale === "zh-CN" ? "发送 Agent 消息失败" : "Failed to send Agent message"), "error");
@@ -445,7 +472,7 @@ export const AgentMonitor: React.FC = () => {
 
   const control = async (action: AgentControlAction) => {
     const requestThreadId = selectedThreadId;
-    if (!requestThreadId || !currentRun || controlBusyByThread[requestThreadId]) return;
+    if (clearing || !requestThreadId || !ensureSnapshotCurrent() || !currentRun || controlBusyByThread[requestThreadId]) return;
     if (action === "resume" && (currentRun.waiting_reason === "budget" || currentRun.budget_limiting_run_id)) {
       setBudgetRun(currentRun);
       return;
@@ -464,7 +491,8 @@ export const AgentMonitor: React.FC = () => {
           setSnapshot(next);
         }
       }
-      await Promise.all([loadSnapshot(requestThreadId, true), refreshThreads()]);
+      void loadSnapshot(requestThreadId, true);
+      void refreshThreads();
     } catch (err) {
       if (selectedThreadIdRef.current === requestThreadId) {
         addToast(extractErrorMessage(err, locale === "zh-CN" ? "控制 Agent run 失败" : "Failed to control Agent run"), "error");
@@ -481,7 +509,7 @@ export const AgentMonitor: React.FC = () => {
 
   const resolveApproval = async (approval: AgentApprovalView, decision: "approve" | "reject") => {
     const requestThreadId = selectedThreadId;
-    if (!requestThreadId || approvalBusyByThread[requestThreadId]) return;
+    if (clearing || !requestThreadId || !ensureSnapshotCurrent() || approvalBusyByThread[requestThreadId]) return;
     setApprovalBusyByThread((current) => ({ ...current, [requestThreadId]: approval.id }));
     try {
       const updated = await resolveAgentApproval({ approval_id: approval.id, decision });
@@ -495,7 +523,7 @@ export const AgentMonitor: React.FC = () => {
           snapshotRef.current = next;
           setSnapshot(next);
         }
-        await loadSnapshot(requestThreadId, true);
+        void loadSnapshot(requestThreadId, true);
       }
     } catch (err) {
       if (selectedThreadIdRef.current === requestThreadId) {
@@ -512,24 +540,47 @@ export const AgentMonitor: React.FC = () => {
   };
 
   const createSubagent = async () => {
+    if (createSubagentBusyRef.current) {
+      addToast(t("common.operationInProgress"), "info");
+      return;
+    }
     const capability = createCapability.trim();
     if (!capability) return;
     const requestSelection = selectedThreadIdRef.current;
+    createSubagentBusyRef.current = true;
+    setCreatingSubagent(true);
     try {
       const created = await createAgentThread({ kind: "subagent", capability, title: createTitle.trim() || null });
       if (!mountedRef.current) return;
       setCreateOpen(false); setCreateTitle(""); setCreateCapability("general");
-      const refreshed = await refreshThreads();
-      if (!refreshed) return;
-      if (!mountedRef.current || (requestSelection !== null && selectedThreadIdRef.current !== requestSelection)) return;
-      setSelectedThreadId(created.id);
+      setThreads((current) => [created, ...current.filter((thread) => thread.id !== created.id)]);
+      if (requestSelection === null || selectedThreadIdRef.current === requestSelection) {
+        setSelectedThreadId(created.id);
+      }
+      void refreshThreads().then((refreshed) => {
+        if (!mountedRef.current) return;
+        if (!refreshed) {
+          addToast(t("agent.loadFailed"), "error");
+          return;
+        }
+        setThreads((current) => [created, ...current.filter((thread) => thread.id !== created.id)]);
+        if (requestSelection === null || selectedThreadIdRef.current === requestSelection) {
+          setSelectedThreadId(created.id);
+        }
+      });
     } catch (err) {
-      addToast(extractErrorMessage(err, locale === "zh-CN" ? "创建子 Agent 失败" : "Failed to create sub-agent"), "error");
+      if (mountedRef.current) {
+        addToast(extractErrorMessage(err, locale === "zh-CN" ? "创建子 Agent 失败" : "Failed to create sub-agent"), "error");
+      }
+    } finally {
+      createSubagentBusyRef.current = false;
+      if (mountedRef.current) setCreatingSubagent(false);
     }
   };
 
   const clearContext = async () => {
     const threadId = selectedThreadId;
+    if (!ensureSnapshotCurrent()) return;
     const thread = snapshot?.thread ?? threads.find((item) => item.id === threadId) ?? null;
     if (
       !threadId || !thread || clearing || sending ||
@@ -546,6 +597,7 @@ export const AgentMonitor: React.FC = () => {
     if (
       !confirmed ||
       selectedThreadIdRef.current !== threadId ||
+      !ensureSnapshotCurrent() ||
       controlBusyByThread[threadId] ||
       approvalBusyByThread[threadId]
     ) return;
@@ -567,15 +619,21 @@ export const AgentMonitor: React.FC = () => {
       pendingEventsRef.current = [];
       setSnapshot(null);
       setStreamedMessageIds(new Set());
-      setPendingSubmission(null);
-      const refreshed = await refreshThreads(true);
-      if (!refreshed) return;
+      setPendingSubmissionsByThread((current) => clearPendingAgentMessages(current, threadId));
       if (selectedThreadIdRef.current !== threadId) return;
+      const refreshedSnapshot = await loadSnapshot(threadId);
+      if (selectedThreadIdRef.current !== threadId) return;
+      if (!refreshedSnapshot && mountedRef.current) {
+        addToast(t("agent.loadFailed"), "error");
+      }
       addToast(t("agent.clearContextSuccess"), "success");
+      void refreshThreads(true).then((refreshed) => {
+        if (mountedRef.current && !refreshed) addToast(t("agent.loadFailed"), "error");
+      });
     } catch (err) {
       const message = extractErrorMessage(err, t("agent.clearContextFailed"));
       if (selectedThreadIdRef.current === threadId) {
-        setError(message);
+        setError({ threadId, message });
         addToast(message, "error");
       }
     } finally {
@@ -605,7 +663,10 @@ export const AgentMonitor: React.FC = () => {
           {t("common.unsavedChangesMessage", { name: t("agent.workbench"), action: t("common.back") })}
         </Modal>
       ) : null}
-      {budgetRun ? <AgentBudgetDialog run={budgetRun} onClose={() => setBudgetRun(null)} onResumed={() => Promise.all([loadSnapshot(budgetRun.thread_id, true), refreshThreads()])} /> : null}
+      {budgetRun ? <AgentBudgetDialog run={budgetRun} onClose={() => setBudgetRun(null)} onResumed={() => {
+        void loadSnapshot(budgetRun.thread_id, true);
+        void refreshThreads();
+      }} /> : null}
       <PageHeader
         className="agent-monitor-page-header"
         leading={<BackButton iconOnly title={t("nav.backToPrevious")} onClick={smartBack} />}
@@ -616,7 +677,7 @@ export const AgentMonitor: React.FC = () => {
         actions={<BookIconButton label={t("agent.refresh")} onClick={() => void refreshWorkbench()} variant="secondary" size="sm" disabled={refreshing || snapshotLoading}><RefreshCw size={14} className={refreshing || snapshotLoading ? "animate-spin" : undefined} /></BookIconButton>}
       />
       <main className="agent-monitor-body custom-scrollbar">
-        {error ? <Notice>{error}</Notice> : null}
+        {error?.threadId === selectedThreadId ? <Notice>{error.message}</Notice> : null}
         {threadsError ? <Notice>{threadsError}</Notice> : null}
         <section className="agent-monitor-layout">
           <aside className="agent-monitor-thread-rail a4n-flat-surface">
@@ -628,21 +689,21 @@ export const AgentMonitor: React.FC = () => {
                 </div>
                 <p className="truncate text-caption text-book-text-muted">{locale === "zh-CN" ? "主 Agent 与领域子 Agent" : "Main and domain sub-agents"}</p>
               </div>
-              <BookIconButton label={locale === "zh-CN" ? "新建子 Agent" : "New sub-agent"} onClick={() => void (createOpen ? closeCreateForm() : setCreateOpen(true))} size="sm"><Plus size={14} /></BookIconButton>
+              <BookIconButton label={locale === "zh-CN" ? "新建子 Agent" : "New sub-agent"} onClick={() => void (createOpen ? closeCreateForm() : setCreateOpen(true))} disabled={creatingSubagent} size="sm"><Plus size={14} /></BookIconButton>
             </div>
             {createOpen ? (
               <div className="agent-monitor-create-form">
                 <label className="flex min-w-0 flex-col gap-1 text-caption text-book-text-muted">
                   {locale === "zh-CN" ? "线程名称（可选）" : "Thread title (optional)"}
-                  <input aria-label={locale === "zh-CN" ? "线程名称（可选）" : "Thread title (optional)"} value={createTitle} onChange={(event) => setCreateTitle(event.target.value)} placeholder={locale === "zh-CN" ? "线程名称（可选）" : "Thread title (optional)"} className="pyqt-input text-xs" />
+                  <input aria-label={locale === "zh-CN" ? "线程名称（可选）" : "Thread title (optional)"} value={createTitle} onChange={(event) => setCreateTitle(event.target.value)} placeholder={locale === "zh-CN" ? "线程名称（可选）" : "Thread title (optional)"} disabled={creatingSubagent} className="pyqt-input text-xs" />
                 </label>
                 <label className="flex min-w-0 flex-col gap-1 text-caption text-book-text-muted">
                   {locale === "zh-CN" ? "能力域" : "Capability"}
-                  <input aria-label={locale === "zh-CN" ? "子 Agent 能力域" : "Sub-agent capability"} value={createCapability} onChange={(event) => setCreateCapability(event.target.value)} placeholder={locale === "zh-CN" ? "能力域，例如 content_optimization" : "Capability, e.g. content_optimization"} className="pyqt-input text-xs" />
+                  <input aria-label={locale === "zh-CN" ? "子 Agent 能力域" : "Sub-agent capability"} value={createCapability} onChange={(event) => setCreateCapability(event.target.value)} placeholder={locale === "zh-CN" ? "能力域，例如 content_optimization" : "Capability, e.g. content_optimization"} disabled={creatingSubagent} className="pyqt-input text-xs" />
                 </label>
                 <div className="flex gap-2">
-                  <BookButton size="sm" className="flex-1" onClick={() => void createSubagent()}><Plus size={13} />{locale === "zh-CN" ? "创建" : "Create"}</BookButton>
-                  <BookButton size="sm" variant="ghost" onClick={() => void closeCreateForm()}>{locale === "zh-CN" ? "关闭" : "Close"}</BookButton>
+                  <BookButton size="sm" className="flex-1" onClick={() => void createSubagent()} disabled={creatingSubagent || !createCapability.trim()}>{creatingSubagent ? <LoadingSpinner size="sm" /> : <Plus size={13} />}{creatingSubagent ? (locale === "zh-CN" ? "创建中…" : "Creating…") : (locale === "zh-CN" ? "创建" : "Create")}</BookButton>
+                  <BookButton size="sm" variant="ghost" onClick={() => void closeCreateForm()} disabled={creatingSubagent}>{locale === "zh-CN" ? "关闭" : "Close"}</BookButton>
                 </div>
               </div>
             ) : null}
@@ -679,7 +740,7 @@ export const AgentMonitor: React.FC = () => {
                 activityCount={pendingApprovals.length + (currentRun ? 1 : 0)}
                 onToggleActivity={() => setActivityOpen((open) => !open)}
                 onClearContext={() => void clearContext()}
-                clearDisabled={clearing || sending || approvalBusy != null || controlBusy != null}
+                clearDisabled={snapshotReadUnavailable || clearing || sending || approvalBusy != null || controlBusy != null}
               />
               <div className={`agent-monitor-workspace ${activityOpen ? "agent-monitor-workspace--activity-open" : ""}`}>
                 <div className="agent-monitor-conversation">
@@ -691,10 +752,10 @@ export const AgentMonitor: React.FC = () => {
                         messages={snapshot?.messages ?? []}
                         locale={locale}
                         streamedMessageIds={streamedMessageIds}
-                        pendingMessages={pendingSubmission ? [pendingSubmission.message] : []}
+                        pendingMessages={pendingSubmissions.map((item) => item.message)}
                         activeRun={contextRun}
                       />
-                      {snapshot?.messages.length === 0 && !snapshotLoading && !pendingSubmission && !currentRun ? <div className="a4n-empty-state a4n-empty-state--compact"><MessageSquare size={22} /><p className="text-xs">{locale === "zh-CN" ? "等待第一条消息" : "Waiting for the first message"}</p></div> : null}
+                      {snapshot?.messages.length === 0 && !snapshotLoading && pendingSubmissions.length === 0 && !currentRun ? <div className="a4n-empty-state a4n-empty-state--compact"><MessageSquare size={22} /><p className="text-xs">{locale === "zh-CN" ? "等待第一条消息" : "Waiting for the first message"}</p></div> : null}
                     </div>
                     <FollowLatestButton
                       isFollowingLatest={isFollowingLatest}
@@ -735,7 +796,7 @@ export const AgentMonitor: React.FC = () => {
                         maxLength={8000}
                         placeholder={locale === "zh-CN" ? "告诉当前 Agent 下一步做什么…" : "Tell this Agent what to do next…"}
                         className="agent-monitor-composer-input pyqt-input min-w-0 resize-y leading-relaxed"
-                        disabled={sending}
+                        disabled={sending || clearing}
                       />
                       <div className="agent-monitor-composer-toolbar">
                         <div className="agent-monitor-composer-controls">
@@ -746,7 +807,7 @@ export const AgentMonitor: React.FC = () => {
                           <ThemedSelect aria-label={locale === "zh-CN" ? "消息交付模式" : "Delivery mode"} value={deliveryMode} onChange={(selectedValue) => setDeliveryMode(selectedValue as AgentDeliveryMode)} className="agent-monitor-composer-select"><option value="followup">{locale === "zh-CN" ? "追加" : "Follow-up"}</option><option value="steer">{locale === "zh-CN" ? "转向" : "Steer"}</option><option value="inject">{locale === "zh-CN" ? "注入" : "Inject"}</option></ThemedSelect>
                         </div>
                         <AgentContextMeter run={contextRun} locale={locale} />
-                        {currentRun && (currentRun.waiting_reason === "budget" || currentRun.budget_limiting_run_id) ? (
+                          {currentRun && !snapshotReadUnavailable && !clearing && (currentRun.waiting_reason === "budget" || currentRun.budget_limiting_run_id) ? (
                           <BookButton size="sm" variant="warning" onClick={() => setBudgetRun(currentRun)}>{t("agent.budget.title")}</BookButton>
                         ) : null}
                         <div className="agent-monitor-composer-actions">
@@ -758,7 +819,7 @@ export const AgentMonitor: React.FC = () => {
                               size="md"
                               className="text-error hover:bg-error-bg hover:text-error"
                               onClick={() => void control("cancel")}
-                              disabled={controlBusy != null || currentRun.status === "cancelling"}
+                            disabled={snapshotReadUnavailable || clearing || controlBusy != null || currentRun.status === "cancelling"}
                             >
                               {controlBusy === "cancel" ? <LoadingSpinner size="sm" /> : <Square size={15} />}
                             </BookIconButton>
@@ -769,7 +830,7 @@ export const AgentMonitor: React.FC = () => {
                             variant="secondary"
                             size="md"
                             onClick={() => void send()}
-                            disabled={!draft.trim() || sending}
+                            disabled={!draft.trim() || sending || clearing}
                           >
                             {sending ? <LoadingSpinner size="sm" /> : <Send size={15} />}
                           </BookIconButton>
@@ -778,7 +839,7 @@ export const AgentMonitor: React.FC = () => {
                     </div>
                   </div>
                 </div>
-                {activityOpen ? <div className="agent-monitor-activity-pane"><ActivityPanel snapshot={snapshot} currentRun={currentRun} pendingApprovals={pendingApprovals} locale={locale} controlBusy={controlBusy} approvalBusy={approvalBusy} onControl={control} onResolve={resolveApproval} onSelectThread={selectThread} /></div> : null}
+                {activityOpen ? <div className="agent-monitor-activity-pane"><ActivityPanel snapshot={snapshot} currentRun={currentRun} pendingApprovals={pendingApprovals} locale={locale} controlBusy={controlBusy} approvalBusy={approvalBusy} readUnavailable={snapshotReadUnavailable} clearing={clearing} onControl={control} onResolve={resolveApproval} onSelectThread={selectThread} /></div> : null}
               </div>
             </>}
           </section>
@@ -874,11 +935,11 @@ function MessageSection({
   );
 }
 
-function ActivityPanel({ snapshot, currentRun, pendingApprovals, locale, controlBusy, approvalBusy, onControl, onResolve, onSelectThread }: { snapshot: AgentThreadSnapshot | null; currentRun: AgentRunView | null; pendingApprovals: AgentApprovalView[]; locale: Locale; controlBusy: AgentControlAction | null; approvalBusy: string | null; onControl: (action: AgentControlAction) => void; onResolve: (approval: AgentApprovalView, decision: "approve" | "reject") => void; onSelectThread: (threadId: string) => void }) {
+function ActivityPanel({ snapshot, currentRun, pendingApprovals, locale, controlBusy, approvalBusy, readUnavailable, clearing, onControl, onResolve, onSelectThread }: { snapshot: AgentThreadSnapshot | null; currentRun: AgentRunView | null; pendingApprovals: AgentApprovalView[]; locale: Locale; controlBusy: AgentControlAction | null; approvalBusy: string | null; readUnavailable: boolean; clearing: boolean; onControl: (action: AgentControlAction) => void; onResolve: (approval: AgentApprovalView, decision: "approve" | "reject") => void; onSelectThread: (threadId: string) => void }) {
   const events = snapshot?.events.slice(-24).reverse() ?? [];
   const executions = snapshot?.executions.slice(-12).reverse() ?? [];
   const delegations = snapshot?.delegations.slice(-8).reverse() ?? [];
-  return <aside className="custom-scrollbar min-h-0 min-w-0 overflow-y-auto overscroll-contain bg-book-bg-paper/35 p-3 sm:p-3.5"><section aria-label={locale === "zh-CN" ? "运行控制" : "Run controls"} className="space-y-2"><div className="flex items-center gap-2"><h3 className="text-xs font-semibold text-book-text-main">{locale === "zh-CN" ? "运行控制" : "Run control"}</h3>{currentRun ? <span className={`ml-auto rounded-full px-2 py-0.5 text-caption ${RUN_STATUS_TONES[currentRun.status] ?? "text-book-text-muted bg-book-bg-tertiary"}`}>{labelFor(currentRun.status, locale)}</span> : null}</div>{currentRun ? <div className="flex flex-wrap gap-2">{["queued", "running", "waiting"].includes(currentRun.status) ? <BookButton size="sm" variant="warning" onClick={() => onControl("pause")} disabled={controlBusy != null}><Pause size={13} />{locale === "zh-CN" ? "暂停" : "Pause"}</BookButton> : null}{["paused", "pausing"].includes(currentRun.status) ? <BookButton size="sm" onClick={() => onControl("resume")} disabled={controlBusy != null}><Play size={13} />{locale === "zh-CN" ? "继续" : "Resume"}</BookButton> : null}{controlBusy ? <LoadingSpinner size="sm" className="self-center text-book-text-muted" /> : null}</div> : <p className="text-caption text-book-text-muted">{locale === "zh-CN" ? "当前没有可控制的运行" : "No controllable run"}</p>}</section>{pendingApprovals.length > 0 ? <section aria-label={locale === "zh-CN" ? "待审批操作" : "Pending approvals"} className="mt-4 space-y-2"><h3 className="flex items-center gap-2 text-xs font-semibold text-book-text-main"><ShieldCheck size={14} className="text-warning" />{locale === "zh-CN" ? "待审批操作" : "Pending approvals"}</h3>{pendingApprovals.map((approval) => <ApprovalCard key={approval.id} approval={approval} locale={locale} busy={approvalBusy != null} onResolve={onResolve} />)}</section> : null}{delegations.length > 0 ? <section className="mt-4 space-y-2"><h3 className="flex items-center gap-2 text-xs font-semibold text-book-text-main"><Users size={14} className="text-book-primary" />{locale === "zh-CN" ? "委派" : "Delegations"}</h3>{delegations.map((delegation) => <div key={delegation.id} className="rounded-xl border border-book-border/45 bg-book-bg-paper px-2.5 py-2 text-caption"><div className="flex min-w-0 items-center gap-2"><span className={`h-1.5 w-1.5 shrink-0 rounded-full ${delegation.status === "accepted" ? "bg-success" : delegation.status === "failed" ? "bg-error" : "bg-book-primary"}`} /><span className="min-w-0 flex-1 truncate text-book-text-sub">{delegation.capability}</span><span className="shrink-0 text-book-text-muted">{labelFor(delegation.status, locale)}</span></div><p className="mt-1 break-words text-book-text-muted">{delegation.task}</p><button type="button" className="mt-1 max-w-full truncate text-left font-mono text-[10px] text-book-primary hover:underline" onClick={() => onSelectThread(delegation.child_thread_id)}>{locale === "zh-CN" ? "打开子线程" : "Open child thread"} · #{delegation.child_thread_id}</button></div>)}</section> : null}{executions.length > 0 ? <section className="mt-4 space-y-2"><h3 className="flex items-center gap-2 text-xs font-semibold text-book-text-main"><FolderTree size={14} className="text-book-text-muted" />{locale === "zh-CN" ? "执行" : "Executions"}</h3><div className="space-y-1.5">{executions.map((execution) => <ExecutionRow key={execution.id} execution={execution} locale={locale} />)}</div></section> : null}<section className="mt-4 space-y-2"><h3 className="flex items-center gap-2 text-xs font-semibold text-book-text-main"><Activity size={14} className="text-book-text-muted" />{locale === "zh-CN" ? "事件轨迹" : "Event trail"}</h3>{events.length === 0 ? <p className="text-caption text-book-text-muted">{locale === "zh-CN" ? "暂无持久事件" : "No durable events"}</p> : <div className="space-y-1.5">{events.map((event) => <EventRow key={`${event.thread_id}-${event.sequence}`} event={event} />)}</div>}</section>{snapshot?.inbox.some((item) => item.status === "pending") ? <section className="mt-4 rounded-xl border border-warning/35 bg-warning-bg/50 p-2.5 text-caption text-warning"><div className="flex items-center gap-2 font-semibold"><Inbox size={14} />{locale === "zh-CN" ? "Inbox 有待处理输入" : "Pending inbox input"}</div><p className="mt-1">{snapshot.inbox.filter((item) => item.status === "pending").length} {locale === "zh-CN" ? "条消息等待 Agent 处理" : "message(s) waiting"}</p></section> : null}{snapshot?.thread ? <ThreadDetails thread={snapshot.thread} locale={locale} /> : null}</aside>;
+  return <aside className="custom-scrollbar min-h-0 min-w-0 overflow-y-auto overscroll-contain bg-book-bg-paper/35 p-3 sm:p-3.5"><section aria-label={locale === "zh-CN" ? "运行控制" : "Run controls"} className="space-y-2"><div className="flex items-center gap-2"><h3 className="text-xs font-semibold text-book-text-main">{locale === "zh-CN" ? "运行控制" : "Run control"}</h3>{currentRun ? <span className={`ml-auto rounded-full px-2 py-0.5 text-caption ${RUN_STATUS_TONES[currentRun.status] ?? "text-book-text-muted bg-book-bg-tertiary"}`}>{labelFor(currentRun.status, locale)}</span> : null}</div>{currentRun ? <div className="flex flex-wrap gap-2">{["queued", "running", "waiting"].includes(currentRun.status) ? <BookButton size="sm" variant="warning" onClick={() => onControl("pause")} disabled={readUnavailable || clearing || controlBusy != null}><Pause size={13} />{locale === "zh-CN" ? "暂停" : "Pause"}</BookButton> : null}{["paused", "pausing"].includes(currentRun.status) ? <BookButton size="sm" onClick={() => onControl("resume")} disabled={readUnavailable || clearing || controlBusy != null}><Play size={13} />{locale === "zh-CN" ? "继续" : "Resume"}</BookButton> : null}{controlBusy ? <LoadingSpinner size="sm" className="self-center text-book-text-muted" /> : null}</div> : <p className="text-caption text-book-text-muted">{locale === "zh-CN" ? "当前没有可控制的运行" : "No controllable run"}</p>}</section>{pendingApprovals.length > 0 ? <section aria-label={locale === "zh-CN" ? "待审批操作" : "Pending approvals"} className="mt-4 space-y-2"><h3 className="flex items-center gap-2 text-xs font-semibold text-book-text-main"><ShieldCheck size={14} className="text-warning" />{locale === "zh-CN" ? "待审批操作" : "Pending approvals"}</h3>{pendingApprovals.map((approval) => <ApprovalCard key={approval.id} approval={approval} locale={locale} busy={readUnavailable || clearing || approvalBusy != null} onResolve={onResolve} />)}</section> : null}{delegations.length > 0 ? <section className="mt-4 space-y-2"><h3 className="flex items-center gap-2 text-xs font-semibold text-book-text-main"><Users size={14} className="text-book-primary" />{locale === "zh-CN" ? "委派" : "Delegations"}</h3>{delegations.map((delegation) => <div key={delegation.id} className="rounded-xl border border-book-border/45 bg-book-bg-paper px-2.5 py-2 text-caption"><div className="flex min-w-0 items-center gap-2"><span className={`h-1.5 w-1.5 shrink-0 rounded-full ${delegation.status === "accepted" ? "bg-success" : delegation.status === "failed" ? "bg-error" : "bg-book-primary"}`} /><span className="min-w-0 flex-1 truncate text-book-text-sub">{delegation.capability}</span><span className="shrink-0 text-book-text-muted">{labelFor(delegation.status, locale)}</span></div><p className="mt-1 break-words text-book-text-muted">{delegation.task}</p><button type="button" className="mt-1 max-w-full truncate text-left font-mono text-[10px] text-book-primary hover:underline" onClick={() => onSelectThread(delegation.child_thread_id)}>{locale === "zh-CN" ? "打开子线程" : "Open child thread"} · #{delegation.child_thread_id}</button></div>)}</section> : null}{executions.length > 0 ? <section className="mt-4 space-y-2"><h3 className="flex items-center gap-2 text-xs font-semibold text-book-text-main"><FolderTree size={14} className="text-book-text-muted" />{locale === "zh-CN" ? "执行" : "Executions"}</h3><div className="space-y-1.5">{executions.map((execution) => <ExecutionRow key={execution.id} execution={execution} locale={locale} />)}</div></section> : null}<section aria-label={locale === "zh-CN" ? "事件轨迹" : "Event trail"} className="space-y-1.5"><h3 className="flex items-center gap-2 text-xs font-semibold text-book-text-main"><Activity size={14} className="text-book-text-muted" />{locale === "zh-CN" ? "事件轨迹" : "Event trail"}</h3>{events.length === 0 ? <p className="text-caption text-book-text-muted">{locale === "zh-CN" ? "暂无持久事件" : "No durable events"}</p> : <div className="space-y-1.5">{events.map((event) => <EventRow key={`${event.thread_id}-${event.sequence}`} event={event} />)}</div>}</section>{snapshot?.inbox.some((item) => item.status === "pending") ? <section className="mt-4 rounded-xl border border-warning/35 bg-warning-bg/50 p-2.5 text-caption text-warning"><div className="flex items-center gap-2 font-semibold"><Inbox size={14} />{locale === "zh-CN" ? "Inbox 有待处理输入" : "Pending inbox input"}</div><p className="mt-1">{snapshot.inbox.filter((item) => item.status === "pending").length} {locale === "zh-CN" ? "条消息等待 Agent 处理" : "message(s) waiting"}</p></section> : null}{snapshot?.thread ? <ThreadDetails thread={snapshot.thread} locale={locale} /> : null}</aside>;
 }
 
 function ThreadDetails({ thread, locale }: { thread: AgentThreadView; locale: Locale }) {

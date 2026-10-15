@@ -235,6 +235,8 @@ export const useChapterStreamGeneration = ({
     t,
   ]);
   const canGenerateChapter = !generationBlockReason && !wordCountRangeError;
+  const generationBlockReasonRef = useRef(generationBlockReason);
+  generationBlockReasonRef.current = generationBlockReason;
 
   const streamedText = generationTask.text("main");
   const pacedStream = usePacedStreamText(
@@ -436,8 +438,8 @@ export const useChapterStreamGeneration = ({
       && activeNumberRef.current === requestChapterNumber;
 
     try {
-      if (generationBlockReason) {
-        addToast(generationBlockReason, "error");
+      if (generationBlockReasonRef.current) {
+        addToast(generationBlockReasonRef.current, "error");
         return;
       }
       if (requestChapterNumber == null) {
@@ -470,6 +472,10 @@ export const useChapterStreamGeneration = ({
         dialogType: activeChapter?.content?.trim() ? "warning" : "normal",
       });
       if (!ok || !isCurrentRequest()) return;
+      if (generationBlockReasonRef.current) {
+        addToast(generationBlockReasonRef.current, "error");
+        return;
+      }
 
       clearStreamState(null);
       const snapshot: EditorSnapshot = {

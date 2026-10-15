@@ -17,6 +17,10 @@ export type ReviewAction = "accept" | "reject" | "delete";
 interface ImportReviewQueuePanelProps {
   reviews: ImportReviewSummary[];
   loading: boolean;
+  queueLoadError: string | null;
+  queueIsCurrent: boolean;
+  progressLoadError: string | null;
+  progressLoaded: boolean;
   projectProgress: ProjectImportAnalysisProgress | null;
   selected: Set<number>;
   analyzeBusy: boolean;
@@ -37,6 +41,10 @@ interface ImportReviewQueuePanelProps {
 export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
   reviews,
   loading,
+  queueLoadError,
+  queueIsCurrent,
+  progressLoadError,
+  progressLoaded,
   projectProgress,
   selected,
   analyzeBusy,
@@ -61,7 +69,7 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
     : null;
   const reviewActionBusy = actBusy !== null;
   const reviewSelectionLocked =
-    batchBusy || reviewActionBusy || externalBusy || analysisStatus === "analyzing";
+    batchBusy || reviewActionBusy || externalBusy || !queueIsCurrent || analysisStatus === "analyzing";
   const visibleAnalysis = Object.entries(
     reviews.reduce<Partial<Record<ImportReviewStatus, number>>>((counts, review) => {
       counts[review.review_status] = (counts[review.review_status] ?? 0) + 1;
@@ -107,7 +115,7 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
               variant="primary"
               size="sm"
               onClick={() => void onBatchAccept()}
-              disabled={batchBusy || reviewActionBusy || externalBusy}
+              disabled={batchBusy || reviewActionBusy || externalBusy || !queueIsCurrent}
               className="!min-h-8 !text-xs"
             >
               {batchBusy ? (
@@ -136,7 +144,7 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
                 variant={selected.size > 0 ? "secondary" : "primary"}
                 size="sm"
                 onClick={() => void onStartAnalysis()}
-                disabled={analyzeBusy || cancelBusy || externalBusy}
+              disabled={analyzeBusy || cancelBusy || externalBusy}
                 className="!min-h-8 !text-xs"
               >
                 {analyzeBusy ? (
@@ -155,8 +163,25 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
         </div>
       </div>
 
-      {(visibleAnalysis.length > 0 || projectProgress) && (
+      {queueLoadError ? (
+        <p role="alert" className="text-small text-error">{queueLoadError}</p>
+      ) : null}
+      {!queueIsCurrent && queueLoadError == null && reviews.length > 0 ? (
+        <p role="status" className="text-small text-book-text-muted">
+          {t("novel.importReview.queue.refreshingAfterAction")}
+        </p>
+      ) : null}
+
+      {(visibleAnalysis.length > 0 || projectProgress || progressLoadError || (!progressLoaded && loading)) && (
         <div className="a4n-flat-surface divide-y divide-book-border/35 overflow-hidden px-3 text-small">
+          {progressLoadError ? (
+            <p role="alert" className="py-2 text-error">{progressLoadError}</p>
+          ) : null}
+          {!progressLoaded && loading ? (
+            <p role="status" className="flex items-center gap-2 py-2 text-book-text-muted">
+              <LoadingSpinner size="sm" /> {t("common.loading")}
+            </p>
+          ) : null}
           {visibleAnalysis.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 py-2">
               <div className="shrink-0 text-book-text-muted">{t("novel.importReview.queue.status")}</div>
@@ -200,7 +225,7 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
       )}
 
       {reviews.length === 0 ? (
-        <EmptyHint text={loading ? t("common.loading") : t("novel.importReview.queue.empty")} />
+        queueLoadError ? null : <EmptyHint text={loading ? t("common.loading") : t("novel.importReview.queue.empty")} />
       ) : (
         <ul className="grid gap-2">
           {reviews.map((review) => {

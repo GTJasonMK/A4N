@@ -38,6 +38,7 @@ export const auth = {
   useOauth: "Sign in with a third-party provider",
   loginService: "Sign-in service",
   oauthUnavailable: "Third-party sign-in is not configured here. Use username and password.",
+  oauthProvidersLoading: "Checking available third-party sign-in options…",
   oauthProviderLoadFailed: "Third-party sign-in options could not be loaded. You can still use username and password.",
   continueWithProvider: "Continue with {provider}",
   awaitingAuthorization: "Waiting for browser authorization…",

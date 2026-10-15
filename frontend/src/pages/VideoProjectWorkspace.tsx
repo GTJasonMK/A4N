@@ -12,6 +12,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Film, GitCompare, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import {
+  canEditProjectMaterials,
   getProject,
   listSourceSnapshotChapters,
   type NovelProject,
@@ -28,6 +29,8 @@ import { VideoTab } from "./novel-detail/VideoTab";
 import { formatNumber, useI18n } from "../i18n";
 import { useNovelDetailDirtyRegistry } from "./novel-detail/novelDetailDirty";
 import { UnsavedNavigationGuard } from "../components/navigation/UnsavedNavigationGuard";
+import { getProjectLifecycleBlockedReason } from "../utils/projectStatus";
+import { useProjectLifecycleSync } from "../hooks/useProjectLifecycleSync";
 
 const SourceSyncDialog = lazy(() =>
   import("./derived/SourceSyncDialog").then((module) => ({
@@ -60,7 +63,7 @@ export const VideoProjectWorkspace: React.FC = () => {
   const [sourceSyncOpen, setSourceSyncOpen] = useState(false);
   const refreshRequestRef = useRef(0);
 
-  const refresh = useCallback(async (): Promise<boolean> => {
+  const refresh = useCallback(async (options: { silent?: boolean } = {}): Promise<boolean> => {
     const requestId = refreshRequestRef.current + 1;
     refreshRequestRef.current = requestId;
     setLoadError(null);
@@ -73,7 +76,7 @@ export const VideoProjectWorkspace: React.FC = () => {
       setLoading(false);
       return false;
     }
-    setLoading(true);
+    if (!options.silent) setLoading(true);
     try {
       const [projectResult, chaptersResult] = await Promise.allSettled([
         getProject(projectId),
@@ -132,6 +135,32 @@ export const VideoProjectWorkspace: React.FC = () => {
     }
   }, [addToast, navigate, projectId]);
 
+  const handleLifecycleGateChange = useCallback((
+    nextProject: NovelProject,
+    previousGate: NovelProject["lifecycle_gate"] | null | undefined,
+    previousContentRevision: number | undefined,
+  ) => {
+    setProject(nextProject);
+    if (
+      (previousGate !== "active" && nextProject.lifecycle_gate === "active")
+      || (previousContentRevision != null && previousContentRevision !== nextProject.content_revision)
+    ) {
+      void refresh({ silent: true });
+    }
+  }, [refresh]);
+
+  useProjectLifecycleSync(
+    projectId,
+    project?.lifecycle_gate,
+    handleLifecycleGateChange,
+    {
+      enabled: project != null && !loading,
+      contentRevision: project?.content_revision,
+      updatedAt: project?.updated_at,
+      onReadError: () => { void refresh({ silent: true }); },
+    },
+  );
+
   useLayoutEffect(() => {
     refreshRequestRef.current += 1;
     setProject(null);
@@ -164,8 +193,10 @@ export const VideoProjectWorkspace: React.FC = () => {
     if (!project) return [];
     return project.root_project_id ? [project.id, project.root_project_id] : [project.id];
   }, [project]);
-  const canEditProject =
-    project?.my_role === "owner" || project?.my_role === "manager" || project?.my_role === "editor";
+  const lifecycleBlockedReason = project
+    ? getProjectLifecycleBlockedReason(project, t)
+    : null;
+  const canEditProject = project ? canEditProjectMaterials(project) : false;
   const showChapterNavigation = chapters.length > 1;
   const handleBack = () => {
     navigate("/");
@@ -195,6 +226,12 @@ export const VideoProjectWorkspace: React.FC = () => {
         }
       />
 
+      {lifecycleBlockedReason ? (
+        <div role="status" className="shrink-0 border-b border-warning/30 bg-warning-bg px-4 py-2 text-small text-book-text-main">
+          {lifecycleBlockedReason}
+        </div>
+      ) : null}
+
       {project && sourceSyncOpen ? (
         <Suspense fallback={<LoadingSpinner size="md" text={t("common.loading")} />}>
           <SourceSyncDialog
@@ -204,7 +241,7 @@ export const VideoProjectWorkspace: React.FC = () => {
             sourceSyncStatus={project.source_sync_status}
             canEditSourceSync={canEditProject}
             onClose={() => setSourceSyncOpen(false)}
-            onChanged={refresh}
+            onChanged={() => refresh({ silent: true })}
           />
         </Suspense>
       ) : null}
@@ -224,7 +261,7 @@ export const VideoProjectWorkspace: React.FC = () => {
             {t("video.loadingProject")}
           </div>
         ) : loadError ? null : project && !canEditProject ? (
-          <EmptyHint text={t("video.noEditPermission")} />
+          <EmptyHint text={lifecycleBlockedReason ?? t("video.noEditPermission")} />
         ) : project && chapters.length > 0 ? (
           <div
             className={

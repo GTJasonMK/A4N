@@ -602,6 +602,7 @@ impl TestConsole {
                                 title: Some(title),
                                 description: Some(description),
                                 fact_feedback_interval_chapters: None,
+                                expected_updated_at: None,
                             },
                         )
                         .await

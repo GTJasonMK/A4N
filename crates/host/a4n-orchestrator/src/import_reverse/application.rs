@@ -111,7 +111,9 @@ impl OrchestratorContext {
             active_task_id,
         )
         .map_err(AppError::InvalidArgument)?;
-        let workflow = self.begin_workflow_run_validated(workflow_input).await?;
+        let workflow = self
+            .begin_or_resume_workflow_run_validated(workflow_input)
+            .await?;
         let result = async {
             progress(1, total, target.calling_model_message())?;
             let request = build_reverse_engineer_request(ReverseEngineerRequestInput {

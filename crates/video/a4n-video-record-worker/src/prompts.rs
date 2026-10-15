@@ -145,6 +145,7 @@ impl WorkerState {
             .ok_or_else(|| WorkerFailure::conflict("片段规划 workflow 缺少 style"))?;
         a4n_workflow_core::update_video_segment_plan_draft_recipe_checkpoint(
             self.database.connection(),
+            input.project_id,
             input.workflow_run_id,
             &input.source_shot_id,
             input.segment_index_in_shot,

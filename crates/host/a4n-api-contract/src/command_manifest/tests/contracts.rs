@@ -739,6 +739,23 @@
             );
         }
 
+        assert_eq!(
+            command_descriptor("forward_project_status").unwrap().args_schema["required"],
+            serde_json::json!(["projectId", "target"])
+        );
+        for command in ["preview_rollback", "rollback_project_status"] {
+            assert_eq!(
+                command_descriptor(command).unwrap().args_schema["required"],
+                serde_json::json!(["projectId", "expectedFrom", "target"]),
+                "{command}"
+            );
+            assert_eq!(
+                command_descriptor(command).unwrap().result_schema["x-a4n-schema-quality"],
+                "typed",
+                "{command}"
+            );
+        }
+
         for command in [
             "get_project_asset_dependency_graph",
             "get_project_asset_dependency_graph_node_detail",
@@ -784,6 +801,18 @@
             );
             assert!(descriptor.args_schema["properties"].get("userId").is_none());
         }
+    }
+
+    #[test]
+    fn project_invitation_command_returns_the_created_invite() {
+        let descriptor = command_descriptor("invite_project_member").unwrap();
+        assert_eq!(descriptor.result_schema["type"], "object");
+        assert_eq!(descriptor.result_schema["properties"]["id"]["type"], "integer");
+        assert_eq!(
+            descriptor.result_schema["properties"]["invitee_username"]["type"],
+            "string"
+        );
+        assert!(descriptor.result_schema["properties"].get("role").is_some());
     }
 
     #[test]
@@ -858,6 +887,19 @@
             .unwrap()
             .iter()
             .any(|argument| argument == "input"));
+    }
+
+    #[test]
+    fn import_analysis_cancel_returns_progress_in_its_command_contract() {
+        let descriptor = command_descriptor("cancel_import_analysis").unwrap();
+
+        assert_eq!(descriptor.result_schema["type"], "object");
+        assert!(descriptor.result_schema["required"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|field| field == "status"));
+        assert!(descriptor.result_schema["properties"].get("cancelled_at").is_some());
     }
 
     #[test]

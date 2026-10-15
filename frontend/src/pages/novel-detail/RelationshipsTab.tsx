@@ -195,6 +195,10 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
     description: string | null,
     successMessage: string,
   ): Promise<boolean> => {
+    if (loadError) {
+      addToast(loadError, "error");
+      return false;
+    }
     if (mutationInFlightRef.current) return false;
     mutationInFlightRef.current = true;
     const requestProjectId = projectId;
@@ -221,7 +225,6 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
       setProfiles((current) =>
         current.map((item) => (item.id === result.profile.id ? result.profile : item)),
       );
-      if (!(await load({ silent: true, force: true }))) return false;
       addToast(
         result.warnings.length > 0
           ? `${successMessage}${t("common.summarySeparator")}${result.warnings.join(t("common.summarySeparator"))}`
@@ -249,6 +252,10 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
   };
 
   const openCreate = () => {
+    if (loadError) {
+      addToast(loadError, "error");
+      return;
+    }
     const profile = editableProfiles[0];
     if (!profile) {
       addToast(
@@ -273,6 +280,10 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
   };
 
   const openEdit = (relationship: CurrentRelationship) => {
+    if (loadError) {
+      addToast(loadError, "error");
+      return;
+    }
     const mode = relationshipEditMode(
       relationship.editable,
       relationship.timeline_started,
@@ -418,7 +429,7 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
           variant="primary"
           size="sm"
           onClick={openCreate}
-          disabled={saving || editableProfiles.length === 0}
+          disabled={saving || loadError != null || editableProfiles.length === 0}
           title={
             editableProfiles.length > 0
               ? t("novel.relationships.addInitial")

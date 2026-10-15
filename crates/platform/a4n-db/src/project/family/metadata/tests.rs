@@ -141,6 +141,7 @@ async fn validates_ids_and_empty_batch_before_database_access() {
 fn project() -> novel_project::Model {
     novel_project::Model {
         id: 7,
+        content_revision: 0,
         user_id: 1,
         title: "项目".to_string(),
         description: String::new(),

@@ -64,15 +64,15 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, s
     setError(null);
     let taskStarted = false;
     try {
-      if (!point && !segment) throw new Error("生成目标已不存在");
+      if (!point && !segment) throw new Error(t("visualPlan.generation.targetMissing"));
       let configId: number | null = null;
       if (point) {
         if (!selectedSize || !availableSizes.some((size) => size.width === selectedSize.width && size.height === selectedSize.height)) {
-          throw new Error("请先选择与方案画幅匹配的生成尺寸");
+          throw new Error(t("visualPlan.generation.matchingSizeRequired"));
         }
         const configs = await listImageConfigs();
         configId = configs.find((config) => config.is_default)?.id ?? configs[0]?.id ?? null;
-        if (configId == null) throw new Error("请先在模型设置中配置图片模型");
+        if (configId == null) throw new Error(t("visualPlan.generation.imageConfigRequired"));
       }
       const record = await save();
       if (scope.current !== key || cancelRequested.current) return;
@@ -108,11 +108,11 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, s
         } catch (failure) {
           cancelRequested.current = false;
           setCancelling(false);
-          report(failure, "取消失败");
+          report(failure, t("visualPlan.generation.cancelFailed"));
         }
       }
     } catch (failure) {
-      if (scope.current === key) report(failure, "启动生成失败");
+      if (scope.current === key) report(failure, t("visualPlan.generation.startFailed"));
     } finally {
       if (scope.current === key) {
         setBusy(false);
@@ -122,7 +122,7 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, s
         }
       }
     }
-  }, [availableSizes, chapterId, description, key, onCandidateDirty, point, projectId, report, save, segment, selectedSize, target.id]);
+  }, [availableSizes, chapterId, description, key, onCandidateDirty, point, projectId, report, save, segment, selectedSize, t, target.id]);
 
   startRef.current = startGeneration;
 
@@ -152,7 +152,7 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, s
       if (value && typeof value === "object" && "task_id" in value && "attempt" in value) storedHandle = value as GenerationTaskHandle;
     } catch (failure) {
       sessionStorage.removeItem(key);
-      report(failure, "生成任务恢复失败");
+      report(failure, t("visualPlan.generation.recoveryFailed"));
     }
     if (storedHandle) {
       started.current = key;
@@ -172,15 +172,15 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, s
       if (target.kind === "point") {
         const [generated] = await verifyImageGenerationResult(task, projectId);
         const metadata = generated.metadata_json as { director_candidate?: { point_id?: string } } | null;
-        if (metadata?.director_candidate?.point_id !== target.id) throw new Error("生成图片的目标与当前图片点不一致");
+        if (metadata?.director_candidate?.point_id !== target.id) throw new Error(t("visualPlan.generation.imageTargetMismatch"));
         if (mounted) {
           onImageGenerated?.(generated);
           sessionStorage.removeItem(key);
         }
       } else {
-        if (result.kind !== "visual_plan_prompt_candidate") throw new Error("生成结果类型不正确");
+        if (result.kind !== "visual_plan_prompt_candidate") throw new Error(t("visualPlan.generation.resultTypeInvalid"));
         const value = await readVisualPlanPromptCandidate(projectId, Number(result.id));
-        if (value.segment_id !== target.id || value.source_chapter_id !== chapterId || await sha256Json(value) !== result.revision) throw new Error("生成候选的目标或内容校验失败");
+        if (value.segment_id !== target.id || value.source_chapter_id !== chapterId || await sha256Json(value) !== result.revision) throw new Error(t("visualPlan.generation.candidateTargetMismatch"));
         if (mounted) {
           candidateBaseline.current = value.prompt;
           setCandidate(value);
@@ -188,9 +188,9 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, s
         }
       }
     };
-    void recover().catch((failure) => { if (mounted) report(failure, "读取生成候选失败"); });
+    void recover().catch((failure) => { if (mounted) report(failure, t("visualPlan.generation.readCandidateFailed")); });
     return () => { mounted = false; };
-  }, [chapterId, handle, onCandidateDirty, onImageGenerated, projectId, report, target.id, target.kind, task.resultRef, task.taskStatus]);
+  }, [chapterId, handle, onCandidateDirty, onImageGenerated, projectId, report, t, target.id, target.kind, task.resultRef, task.taskStatus]);
 
   const retryGeneration = () => {
     cancelRequested.current = false;
@@ -222,7 +222,7 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, s
     setBusy(true);
     setError(null);
     try {
-      if (!candidate) throw new Error("没有可采用的描述候选");
+      if (!candidate) throw new Error(t("visualPlan.generation.candidateMissing"));
       const accepted = await onAdoptPrompt(candidate);
       if (accepted === false) return;
       sessionStorage.removeItem(key);
@@ -231,7 +231,7 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, s
       setCandidate(null);
       candidateBaseline.current = null;
       onCandidateDirty?.(false);
-    } catch (failure) { report(failure, "采用候选失败"); }
+    } catch (failure) { report(failure, t("visualPlan.generation.adoptFailed")); }
     finally { setBusy(false); }
   };
 
@@ -245,7 +245,7 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, s
     catch (failure) {
       cancelRequested.current = false;
       setCancelling(false);
-      report(failure, "取消失败");
+      report(failure, t("visualPlan.generation.cancelFailed"));
     }
   };
   const preparing = busy && !handle;
@@ -261,24 +261,29 @@ export function DirectorGeneration({ projectId, chapterId, plan, target, save, s
     onClick={() => { if (stopping) void cancelGeneration(); else triggerGeneration(); }}
   >
     {stopping ? <Square size={13} /> : <Sparkles size={15} />}
-    {cancelling ? "正在停止…" : stopping ? "停止生成" : error || task.error ? "重试生成" : handle || candidate || hasCandidates ? "重新生成" : point ? "生成分镜图片" : "生成描述候选"}
+    {cancelling ? t("visualPlan.generation.action.stopping")
+      : stopping ? t("visualPlan.generation.action.stop")
+        : error || task.error ? t("visualPlan.generation.action.retry")
+          : handle || candidate || hasCandidates ? t("visualPlan.generation.action.regenerate")
+            : point ? t("visualPlan.generation.action.generateImage")
+              : t("visualPlan.generation.action.generateCandidate")}
   </BookButton>;
 
   if (point) return <div ref={generationRef} className="director-generation director-generation-compact" aria-live="polite">
-    {busy && !handle && <p role="status">正在准备生成…</p>}
-    {active && <p role="status">{task.progress?.message || "正在生成候选…"}</p>}
-    {handle && ["cancelled", "interrupted"].includes(task.taskStatus) && <p role="status">生成已停止。</p>}
-    {handle && !active && task.recoveryState === "failed" && <BookButton variant="secondary" onClick={() => void task.recover().catch((failure) => report(failure, "恢复任务状态失败"))}>恢复任务状态</BookButton>}
+    {busy && !handle && <p role="status">{t("visualPlan.generation.status.preparing")}</p>}
+    {active && <p role="status">{task.progress?.message || t("visualPlan.generation.status.generating")}</p>}
+    {handle && ["cancelled", "interrupted"].includes(task.taskStatus) && <p role="status">{t("visualPlan.generation.status.stopped")}</p>}
+    {handle && !active && task.recoveryState === "failed" && <BookButton variant="secondary" onClick={() => void task.recover().catch((failure) => report(failure, t("visualPlan.generation.recoveryFailed")))}>{t("visualPlan.generation.status.restoreTask")}</BookButton>}
     {!active && !busy && (error || task.error?.message) && <p role="alert" className="director-context-line">{error || task.error?.message}</p>}
     {action}
   </div>;
   return <div ref={generationRef} className="director-generation" aria-live="polite">
-    {busy && !handle && <p role="status">正在准备生成…</p>}
-    {active && <p role="status">{task.progress?.message || "正在生成候选…"}</p>}
-    {handle && ["cancelled", "interrupted"].includes(task.taskStatus) && <p role="status">生成已停止。</p>}
-    {handle && !active && task.recoveryState === "failed" && <BookButton variant="secondary" onClick={() => void task.recover().catch((failure) => report(failure, "恢复任务状态失败"))}>恢复任务状态</BookButton>}
-    {candidate && <div className="director-candidate"><label>候选描述<textarea rows={8} value={candidate.prompt} onChange={(event) => { const prompt = event.target.value; onCandidateDirty?.(prompt !== candidateBaseline.current); setCandidate({ ...candidate, prompt }); }} /></label><span>{candidate.model} · 生成依据为方案 revision {candidate.plan_revision}</span></div>}
-    {candidate && <BookButton disabled={busy || active || !candidate.prompt.trim()} onClick={() => void adopt()}><Check size={15} />采用候选</BookButton>}
+    {busy && !handle && <p role="status">{t("visualPlan.generation.status.preparing")}</p>}
+    {active && <p role="status">{task.progress?.message || t("visualPlan.generation.status.generating")}</p>}
+    {handle && ["cancelled", "interrupted"].includes(task.taskStatus) && <p role="status">{t("visualPlan.generation.status.stopped")}</p>}
+    {handle && !active && task.recoveryState === "failed" && <BookButton variant="secondary" onClick={() => void task.recover().catch((failure) => report(failure, t("visualPlan.generation.recoveryFailed")))}>{t("visualPlan.generation.status.restoreTask")}</BookButton>}
+    {candidate && <div className="director-candidate"><label>{t("visualPlan.generation.status.candidateDescription")}<textarea rows={8} value={candidate.prompt} onChange={(event) => { const prompt = event.target.value; onCandidateDirty?.(prompt !== candidateBaseline.current); setCandidate({ ...candidate, prompt }); }} /></label><span>{t("visualPlan.generation.status.generatedFromRevision", { model: candidate.model, revision: candidate.plan_revision })}</span></div>}
+    {candidate && <BookButton disabled={busy || active || !candidate.prompt.trim()} onClick={() => void adopt()}><Check size={15} />{t("visualPlan.generation.action.adopt")}</BookButton>}
     {action}
   </div>;
 }

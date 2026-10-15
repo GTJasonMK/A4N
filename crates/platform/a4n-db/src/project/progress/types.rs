@@ -125,6 +125,7 @@ mod tests {
         let now = Utc::now().naive_utc();
         ProjectSummaryRecord {
             id: 17,
+            content_revision: 0,
             user_id: 1,
             title: "测试项目".to_string(),
             description: String::new(),

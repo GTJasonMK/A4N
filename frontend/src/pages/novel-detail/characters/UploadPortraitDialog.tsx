@@ -4,7 +4,7 @@ import { Upload } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import type { CharacterProfile } from "../../../api/character";
-import { uploadPortrait, type PortraitType } from "../../../api/portrait";
+import { uploadPortrait, type Portrait, type PortraitType } from "../../../api/portrait";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { useToast } from "../../../components/feedback/Toast";
 import { BookButton } from "../../../components/ui/BookButton";
@@ -24,7 +24,7 @@ interface UploadPortraitDialogProps {
   projectId: number;
   profiles: CharacterProfile[];
   onClose: () => void;
-  onUploaded: () => boolean | void | Promise<boolean | void>;
+  onUploaded: (portrait: Portrait) => void | Promise<void>;
 }
 
 const PORTRAIT_TYPE_OPTIONS: ReadonlyArray<{ value: PortraitType }> = [
@@ -54,6 +54,7 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
   const activeProjectIdRef = useRef(projectId);
   const mountedRef = useRef(true);
   const submitBusyRef = useRef(false);
+  const promptEditedRef = useRef(false);
 
   activeProjectIdRef.current = projectId;
 
@@ -104,6 +105,11 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
     };
   }, [previewUrl]);
 
+  const updateSuggestedPrompt = (profileName: string, fileName: string) => {
+    if (promptEditedRef.current) return;
+    setPrompt(t("characterDetail.portrait.uploadPromptDefault", { name: profileName, fileName }));
+  };
+
   const handleFileChange = async (nextFile: File | null) => {
     if (!nextFile) return;
     if (!isSupportedImageMime(nextFile.type)) {
@@ -121,10 +127,7 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
       if (current) URL.revokeObjectURL(current);
       return URL.createObjectURL(nextFile);
     });
-    if (!prompt.trim()) {
-      const name = selectedProfile?.name ?? "角色";
-      setPrompt(`用户上传角色立绘：${name}，来源文件：${nextFile.name}`);
-    }
+    updateSuggestedPrompt(selectedProfile?.name ?? "角色", nextFile.name);
   };
 
   const handleSubmit = async () => {
@@ -149,7 +152,7 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
     try {
       const dataBase64 = await readFileAsBase64(requestFile);
       if (!isCurrentProject(requestProjectId)) return;
-      await uploadPortrait({
+      const portrait = await uploadPortrait({
         project_id: requestProjectId,
         profile_id: requestProfile.id,
         file_name: requestFile.name,
@@ -162,7 +165,7 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
         set_primary: setPrimary,
       });
       if (!isCurrentProject(requestProjectId)) return;
-      if (await onUploaded() === false) return;
+      await onUploaded(portrait);
       addToast(t("characterDetail.portrait.uploaded"), "success");
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
@@ -230,7 +233,12 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
           <ThemedSelect
             aria-label={t("characterDetail.portrait.profile")}
             value={profileId}
-            onChange={(selectedValue) => setProfileId(Number(selectedValue))}
+            onChange={(selectedValue) => {
+              const nextProfileId = Number(selectedValue);
+              setProfileId(nextProfileId);
+              const nextProfile = profiles.find((profile) => profile.id === nextProfileId);
+              if (file) updateSuggestedPrompt(nextProfile?.name ?? "角色", file.name);
+            }}
             className="pyqt-input w-full"
             disabled={busy || profiles.length === 0}
           >
@@ -303,7 +311,10 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
           value={prompt}
           rows={3}
           disabled={busy}
-          onChange={(event) => setPrompt(event.target.value)}
+          onChange={(event) => {
+            promptEditedRef.current = true;
+            setPrompt(event.target.value);
+          }}
           placeholder={t("characterDetail.portrait.promptPlaceholder")}
         />
 

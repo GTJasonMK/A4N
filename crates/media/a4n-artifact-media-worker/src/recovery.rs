@@ -6,8 +6,8 @@ use a4n_db::cleanup_outbox::FileArtifactCleanupPayload;
 use a4n_domain::EXTERNAL_IMPORT_MODEL;
 use a4n_domain::media::{
     IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED,
-    IMAGE_PUBLICATION_STATUS_RECLAIMING, ImagePublicationFileFacts, ImagePublicationRecord,
-    ImagePublicationRecoveryRecord,
+    IMAGE_PUBLICATION_STATUS_RECLAIMED, IMAGE_PUBLICATION_STATUS_RECLAIMING,
+    ImagePublicationFileFacts, ImagePublicationRecord, ImagePublicationRecoveryRecord,
 };
 use a4n_storage::{inspect_data_file_facts, promote_data_file};
 
@@ -208,7 +208,7 @@ impl WorkerState {
         publication: &ImagePublicationRecoveryRecord,
         facts: &(PathBuf, i64, String),
     ) -> Result<(), String> {
-        a4n_db::video::read_models::publish_image_publication(
+        let result = a4n_db::video::read_models::publish_image_publication(
             self.db.connection(),
             &publication.publication_id,
             ImagePublicationFileFacts {
@@ -217,8 +217,28 @@ impl WorkerState {
             },
         )
         .await
-        .map(|_| ())
-        .map_err(|error| error.to_string())
+        .map(|_| ());
+        if let Err(error) = result {
+            let current = a4n_db::video::image_publication_record_by_id(
+                self.db.connection(),
+                &publication.publication_id,
+            )
+            .await
+            .map_err(|read_error| {
+                format!("图片发布失败：{error}；读取恢复状态失败：{read_error}")
+            })?;
+            if let Some(current) = current
+                && matches!(
+                    current.status.as_str(),
+                    IMAGE_PUBLICATION_STATUS_RECLAIMING | IMAGE_PUBLICATION_STATUS_RECLAIMED
+                )
+            {
+                self.enqueue_reclaim_cleanup(&recovery_record(current))
+                    .await?;
+            }
+            return Err(error.to_string());
+        }
+        Ok(())
     }
 
     async fn reclaim(

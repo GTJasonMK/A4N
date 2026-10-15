@@ -106,7 +106,7 @@ pub trait PromptClient: ServiceClient {
     async fn reset(
         &self,
         request: ServiceRequest<PromptNamePayload>,
-    ) -> ServiceClientResult<ServiceResponse<()>>;
+    ) -> ServiceClientResult<ServiceResponse<PromptEntry>>;
     async fn version_history(
         &self,
         request: ServiceRequest<PromptNamePayload>,
@@ -207,7 +207,7 @@ impl PromptClient for HttpPromptClient {
     async fn reset(
         &self,
         request: ServiceRequest<PromptNamePayload>,
-    ) -> ServiceClientResult<ServiceResponse<()>> {
+    ) -> ServiceClientResult<ServiceResponse<PromptEntry>> {
         self.transport.post("/prompt/reset", request).await
     }
 

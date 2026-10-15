@@ -139,6 +139,7 @@ pub struct UpdateGeneratedVideoRecordInput {
     pub metadata_json: Option<Value>,
     pub clear_metadata_json: bool,
     pub is_favorite: Option<bool>,
+    pub expected_updated_at: Option<String>,
 }
 
 /// Input for recording a pending image publication. The database owns the

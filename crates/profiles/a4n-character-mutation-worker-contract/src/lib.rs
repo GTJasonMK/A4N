@@ -16,7 +16,7 @@ pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 use serde::{Deserialize, Serialize};
 
 pub const CHARACTER_MUTATION_WORKER_ID: &str = "character-mutation-worker";
-pub const CHARACTER_MUTATION_WORKER_CONTRACT_VERSION: &str = "character-mutation-v7";
+pub const CHARACTER_MUTATION_WORKER_CONTRACT_VERSION: &str = "character-mutation-v9";
 pub const CHARACTER_MUTATION_CREATE_OPERATION: &str = "character.mutation.create";
 pub const CHARACTER_MUTATION_UPDATE_OPERATION: &str = "character.mutation.update";
 pub const CHARACTER_MUTATION_DELETE_OPERATION: &str = "character.mutation.delete";
@@ -45,11 +45,11 @@ pub const CHARACTER_ATTRIBUTE_EXECUTE_DELETION_OPERATION: &str =
     "character.attribute.execute_deletion";
 pub const CHARACTER_ATTRIBUTE_RESET_DELETION_OPERATION: &str = "character.attribute.reset_deletion";
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AttributeEventMutationResult {
     pub project_id: i64,
-    pub event_id: i64,
+    pub event: a4n_api_contract::character::AttributeEventSummary,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

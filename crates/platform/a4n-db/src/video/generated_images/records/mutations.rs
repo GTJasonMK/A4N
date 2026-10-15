@@ -8,7 +8,10 @@ use super::{
 };
 use a4n_db_models::models::ai::generated_image;
 use a4n_domain::media::UpdateGeneratedImageRecordInput;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, FromQueryResult, QuerySelect, Set};
+use sea_orm::{
+    ActiveModelTrait, ConnectionTrait, DbBackend, EntityTrait, FromQueryResult, QuerySelect, Set,
+    TransactionTrait,
+};
 
 #[derive(Debug, FromQueryResult)]
 struct GeneratedImageUpdateContext {
@@ -25,20 +28,43 @@ pub async fn update_generated_image_record<C>(
     input: UpdateGeneratedImageRecordInput,
 ) -> Result<generated_image::Model, VideoDbError>
 where
-    C: ConnectionTrait,
+    C: ConnectionTrait + TransactionTrait,
 {
     validate_generated_image_update_clear_flags(&input)?;
-    let image = generated_image::Entity::find_by_id(image_id)
+    let query = generated_image::Entity::find_by_id(image_id)
         .select_only()
         .column(generated_image::Column::Id)
         .column(generated_image::Column::ProjectId)
         .column(generated_image::Column::ImageType)
         .column(generated_image::Column::ChapterId)
-        .column(generated_image::Column::PanelId)
+        .column(generated_image::Column::PanelId);
+    let initial = query
         .into_model::<GeneratedImageUpdateContext>()
         .one(db)
         .await?
         .ok_or_else(|| VideoDbError::NotFound("图片不存在".to_string()))?;
+    let tx = db.begin().await?;
+    crate::generation::require_project_owner_lifecycle_active(&tx, initial.project_id).await?;
+    let mut query = generated_image::Entity::find_by_id(image_id)
+        .select_only()
+        .column(generated_image::Column::Id)
+        .column(generated_image::Column::ProjectId)
+        .column(generated_image::Column::ImageType)
+        .column(generated_image::Column::ChapterId)
+        .column(generated_image::Column::PanelId);
+    if tx.get_database_backend() != DbBackend::Sqlite {
+        query = query.lock_exclusive();
+    }
+    let image = query
+        .into_model::<GeneratedImageUpdateContext>()
+        .one(&tx)
+        .await?
+        .ok_or_else(|| VideoDbError::NotFound("图片不存在".to_string()))?;
+    if image.project_id != initial.project_id {
+        return Err(VideoDbError::InvalidArgument(
+            "图片所属项目已变化".to_string(),
+        ));
+    }
 
     let mut active = generated_image::ActiveModel {
         id: Set(image.id),
@@ -69,7 +95,7 @@ where
             Some(chapter_id),
         )?;
         super::super::ensure_image_chapter_belongs_to_project_record(
-            db,
+            &tx,
             image.project_id,
             chapter_id,
         )
@@ -104,5 +130,7 @@ where
     if let Some(is_favorite) = input.is_favorite {
         active.is_favorite = Set(is_favorite);
     }
-    active.update(db).await.map_err(VideoDbError::Database)
+    let updated = active.update(&tx).await?;
+    tx.commit().await?;
+    Ok(updated)
 }

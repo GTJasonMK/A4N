@@ -86,7 +86,11 @@ export const CharacterProfilesPanel: React.FC<{
                 key={profile.id}
                 className="a4n-flat-surface relative flex min-h-20 items-start gap-3 p-3 transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/35"
               >
-                <BookCardAction label={`${profile.name} · ${t("characterDetail.viewDetails")}`} onClick={() => setDetailFor(profile)} />
+                <BookCardAction
+                  label={`${profile.name} · ${t("characterDetail.viewDetails")}`}
+                  onClick={() => setDetailFor(profile)}
+                  disabled={loadError != null}
+                />
                 <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-book-primary/10 text-xs font-semibold text-book-primary">
                   {profile.name.trim().charAt(0).toUpperCase() || "?"}
                 </span>

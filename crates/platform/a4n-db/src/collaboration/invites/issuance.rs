@@ -1,7 +1,7 @@
 use crate::collaboration::{
     CollaborationDbError, INVITE_STATUS_PENDING, INVITE_TTL_DAYS, ProjectAccessRole,
     ProjectInviteSummary, ProjectMemberRole, expire_project_invites, find_user_by_identity,
-    invite_summaries, resolve_root_project, verify_project_permission,
+    invite_summaries, projects_by_id, resolve_root_project, users_by_id, verify_project_permission,
 };
 use a4n_db_models::models::project::{project_invite, project_member};
 use chrono::{Duration, Utc};
@@ -15,7 +15,7 @@ pub async fn invite_project_member(
     project_id: i64,
     username_or_email: &str,
     role: ProjectMemberRole,
-) -> Result<(), CollaborationDbError> {
+) -> Result<ProjectInviteSummary, CollaborationDbError> {
     let inviter_role =
         verify_project_permission(db, project_id, inviter_user_id, ProjectAccessRole::Manager)
             .await?;
@@ -45,6 +45,15 @@ pub async fn invite_project_member(
             "项目所有者不需要邀请".to_string(),
         ));
     }
+
+    let mut inviter_by_id = users_by_id(db, &[inviter_user_id]).await?;
+    let inviter = inviter_by_id
+        .remove(&inviter_user_id)
+        .ok_or_else(|| CollaborationDbError::NotFound(format!("用户不存在: {inviter_user_id}")))?;
+    let mut project_titles = projects_by_id(db, &[root.id]).await?;
+    let project_title = project_titles
+        .remove(&root.id)
+        .ok_or_else(|| CollaborationDbError::NotFound(format!("项目不存在: {}", root.id)))?;
     if project_member::Entity::find()
         .select_only()
         .column(project_member::Column::Id)
@@ -80,7 +89,7 @@ pub async fn invite_project_member(
     }
 
     let now = Utc::now().naive_utc();
-    project_invite::ActiveModel {
+    let invite = project_invite::ActiveModel {
         project_id: Set(root.id),
         inviter_user_id: Set(inviter_user_id),
         invitee_user_id: Set(invitee.id),
@@ -95,7 +104,13 @@ pub async fn invite_project_member(
     .insert(db)
     .await
     .map_err(CollaborationDbError::Database)?;
-    Ok(())
+    Ok(ProjectInviteSummary {
+        id: invite.id,
+        project_title,
+        inviter_username: inviter.username,
+        invitee_username: invitee.username,
+        role,
+    })
 }
 
 pub async fn list_project_invites(

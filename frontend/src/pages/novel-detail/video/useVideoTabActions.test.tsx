@@ -5,6 +5,15 @@ import type { VideoSegmentExecutionRecipe } from "../../../api/video";
 import { translateMessage, type MessageTranslator } from "../../../i18n";
 import { useVideoTabActions } from "./useVideoTabActions";
 
+const mocks = vi.hoisted(() => ({
+  updateChapterVideoSegmentPlan: vi.fn(),
+}));
+
+vi.mock("../../../api/video", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../api/video")>()),
+  updateChapterVideoSegmentPlan: mocks.updateChapterVideoSegmentPlan,
+}));
+
 const t: MessageTranslator = (key, params) => translateMessage("zh-CN", key, params);
 
 function setup(guidance: VideoSegmentExecutionRecipe["guidance_mode"], segment = 1) {
@@ -31,7 +40,9 @@ function setup(guidance: VideoSegmentExecutionRecipe["guidance_mode"], segment =
   let actions!: ReturnType<typeof useVideoTabActions>;
   renderToStaticMarkup(createElement(() => {
     actions = useVideoTabActions({
+      ensureVideoActionAvailable: vi.fn(() => true),
       effectiveRecipeBySegmentRef: { current: new Map([[segment, recipe]]) },
+      selectedSegmentNumberRef: { current: segment },
       handleSelectSegment: select,
       confirmSegmentRecipeChange: confirm,
       updateSegmentRecipe: update,
@@ -67,4 +78,37 @@ it("declining the existing downstream-change confirmation leaves the recipe unch
   confirm.mockResolvedValue(false);
   await actions.handleSegmentWorkflowModeChange("first_frame_chain", 1);
   expect(update).not.toHaveBeenCalled();
+});
+
+it("finishes saving a segment plan before its full data refresh resolves", async () => {
+  const prompt = { id: 44, status: "completed", updated_at: "2026-10-13T00:00:00Z" };
+  const loadAll = vi.fn(() => new Promise<boolean>(() => {}));
+  const setPrompts = vi.fn();
+  const finishVideoAction = vi.fn();
+  mocks.updateChapterVideoSegmentPlan.mockResolvedValue(prompt);
+  let actions!: ReturnType<typeof useVideoTabActions>;
+
+  renderToStaticMarkup(createElement(() => {
+    actions = useVideoTabActions({
+      frameSegmentPlanPromptForCards: prompt,
+      acting: null,
+      beginVideoAction: vi.fn().mockReturnValue(true),
+      finishVideoAction,
+      isCurrentVideoActionScope: vi.fn().mockReturnValue(true),
+      videoActionScopeKey: "19:3",
+      updateChapterVideoSegmentPlan: mocks.updateChapterVideoSegmentPlan,
+      setPrompts,
+      loadAll,
+      addToast: vi.fn(),
+      t,
+    } as unknown as Parameters<typeof useVideoTabActions>[0]);
+    return null;
+  }));
+
+  await expect(actions.handleSaveSegmentPlan([])).resolves.toBe(true);
+
+  expect(mocks.updateChapterVideoSegmentPlan).toHaveBeenCalledOnce();
+  expect(loadAll).toHaveBeenCalledWith({ showLoading: false });
+  expect(finishVideoAction).toHaveBeenCalledWith("edit-segment-plan-44", "19:3");
+  expect(setPrompts).toHaveBeenCalledOnce();
 });

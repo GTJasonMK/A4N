@@ -156,6 +156,7 @@ impl WorkerState {
                 metadata_json: None,
                 clear_metadata_json: false,
                 is_favorite: input.input.is_favorite,
+                expected_updated_at: Some(input.input.expected_updated_at),
             },
         )
         .await

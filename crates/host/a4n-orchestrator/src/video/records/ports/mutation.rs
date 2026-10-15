@@ -53,7 +53,11 @@ impl VideoRecordMutationApplicationPort for crate::OrchestratorContext {
         ))
     }
 
-    async fn delete(&self, user_id: i64, video_id: i64) -> Result<(), AppError> {
+    async fn delete(
+        &self,
+        user_id: i64,
+        video_id: i64,
+    ) -> Result<VideoRecordDeleteResult, AppError> {
         let project_ids = self.missing_video_reference_project_ids(video_id).await?;
         if project_ids.is_empty() {
             return Err(AppError::NotFound("视频不存在".to_string()));

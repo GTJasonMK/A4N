@@ -19,7 +19,7 @@ import {
   VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA,
   type ChapterVideoPrompt,
   type GeneratedVideo,
-  type UpdateVideoInput,
+  type UpdateVideoFields,
   type VideoSegmentExecutionRecipe,
   type VideoSegmentWorkflowMode,
   type VideoTimelineSummary,
@@ -122,7 +122,7 @@ interface VideoGenerationWorkspaceProps {
   onToggleVideoFavorite: (video: GeneratedVideo) => void | Promise<void>;
   onUpdateVideo: (
     video: GeneratedVideo,
-    input: UpdateVideoInput,
+    input: UpdateVideoFields,
   ) => void | Promise<void>;
   onDeleteVideo: (video: GeneratedVideo) => void | Promise<void>;
   onTrimStartChange: (value: string) => void;

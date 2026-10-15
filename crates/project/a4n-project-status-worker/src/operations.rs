@@ -52,6 +52,13 @@ impl WorkerState {
         let (_, current_status) = self
             .project_with_status(project_id, "预览项目状态回退")
             .await?;
+        if current_status != input.expected_from {
+            return Err(WorkerFailure::conflict(format!(
+                "项目状态已变化，请刷新后重新预览: expected={}, actual={}",
+                input.expected_from.as_str(),
+                current_status.as_str()
+            )));
+        }
         if current_status <= input.target {
             return Err(WorkerFailure::conflict(format!(
                 "当前状态 {} 不允许回退到 {}",
@@ -79,7 +86,7 @@ impl WorkerState {
 
     pub(super) async fn forward(
         &self,
-        request: WorkerEnvelope<ProjectStatusRollbackInput>,
+        request: WorkerEnvelope<ProjectStatusForwardInput>,
     ) -> Result<ProjectStatusMutationResult, WorkerFailure> {
         validate_request(&request, PROJECT_STATUS_FORWARD_OPERATION)?;
         let project_id = scoped_project_id(&request, request.payload.project_id)?;
@@ -120,13 +127,13 @@ impl WorkerState {
         )
         .await
         .map_err(status_write_error)?;
-        let summary = self.summary_for_user(user_id, project.id).await?;
         Ok(ProjectStatusMutationResult {
-            project: summary,
+            project_id: project.id,
             from,
             to: target,
             changed_at,
             needs_rag_clear: false,
+            post_commit_errors: Vec::new(),
         })
     }
 
@@ -144,8 +151,9 @@ impl WorkerState {
             ProjectAccessRole::Owner,
         )
         .await?;
-        let (_, from) = self.project_with_status(project_id, "回退项目状态").await?;
-        let target = request.payload.target;
+        let input = request.payload;
+        let from = input.expected_from;
+        let target = input.target;
         if from <= target {
             return Err(WorkerFailure::conflict(format!(
                 "当前状态 {} 不允许回退到 {}",
@@ -163,33 +171,14 @@ impl WorkerState {
         )
         .await
         .map_err(project_reset_error)?;
-        let summary = self.summary_for_user(user_id, outcome.project.id).await?;
         Ok(ProjectStatusMutationResult {
-            project: summary,
+            project_id: outcome.project.id,
             from,
             to: target,
             changed_at,
             needs_rag_clear: outcome.needs_rag_clear,
+            post_commit_errors: Vec::new(),
         })
-    }
-
-    async fn summary_for_user(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<a4n_api_contract::project::ProjectSummary, WorkerFailure> {
-        let project =
-            a4n_db::project::project_summary_by_id_record(self.database.connection(), project_id)
-                .await
-                .map_err(project_mutation_error)?
-                .ok_or_else(|| WorkerFailure::not_found(format!("项目不存在: {project_id}")))?;
-        a4n_project_read_core::project_summary_for_user(
-            self.database.connection(),
-            user_id,
-            &project,
-        )
-        .await
-        .map_err(summary_error)
     }
 
     async fn project_with_status(

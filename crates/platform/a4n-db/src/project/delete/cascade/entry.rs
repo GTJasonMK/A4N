@@ -37,7 +37,12 @@ pub async fn delete_project_cascade_record(
         }
     }
 
-    let media_paths = crate::project::project_generated_media_paths(&txn, project_id).await?;
+    let mut media_paths = crate::project::project_generated_media_paths(&txn, project_id).await?;
+    media_paths.extend(
+        crate::video::reclaim_pending_image_publications_for_project(&txn, project_id).await?,
+    );
+    media_paths.sort_unstable();
+    media_paths.dedup();
     let dedupe_key = format!(
         "project_delete:{project_id}:{}",
         project.created_at.and_utc().timestamp_micros()

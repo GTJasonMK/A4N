@@ -619,6 +619,12 @@ fn import_analysis_and_review_commands_expose_one_typed_contract() {
         );
     }
 
+    let batch_accept = command_descriptor("batch_accept_reviews").unwrap();
+    assert_eq!(batch_accept.result_schema["type"], "object");
+    let result_properties = batch_accept.result_schema["properties"].as_object().unwrap();
+    assert!(result_properties.contains_key("accepted_reviews"));
+    assert!(result_properties.contains_key("failure"));
+
     let run = command_descriptor("run_import_project_analysis").unwrap();
     assert_eq!(run.execution, "immediate");
     assert!(run.result_references.is_empty());

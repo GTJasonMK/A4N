@@ -84,6 +84,8 @@ pub(super) struct CharacterAttributeDeletionRecordInput {
     pub(super) source_kind: String,
     pub(super) category: String,
     pub(super) key: String,
+    pub(super) expected_mark_id: i64,
+    pub(super) expected_mark_updated_at: chrono::NaiveDateTime,
     pub(super) mark_count: i32,
     pub(super) event_cause: String,
     pub(super) evidence: String,
@@ -95,6 +97,8 @@ pub(in crate::character::attributes) struct CharacterDeletionMarkExecutedUpdateI
     pub profile_id: i64,
     pub category: String,
     pub key: String,
+    pub expected_mark_id: i64,
+    pub expected_mark_updated_at: chrono::NaiveDateTime,
     pub consecutive_count: i32,
 }
 

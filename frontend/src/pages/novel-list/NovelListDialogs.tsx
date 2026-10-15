@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ChevronRight,
   Film,
@@ -240,14 +240,21 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({
   onImport,
 }) => {
   const { t } = useI18n();
+  const actionRef = React.useRef(false);
   const close = async () => {
-    if (importFileName.trim() && !(await confirmDialog({
-      title: t("common.unsavedChangesTitle"),
-      message: t("common.unsavedChangesMessage", { name: t("novel.importProject"), action: t("common.close") }),
-      confirmText: t("common.discardDraft"),
-      dialogType: "warning",
-    }))) return;
-    onClose();
+    if (actionRef.current || importing) return;
+    actionRef.current = true;
+    try {
+      if (importFileName.trim() && !(await confirmDialog({
+        title: t("common.unsavedChangesTitle"),
+        message: t("common.unsavedChangesMessage", { name: t("novel.importProject"), action: t("common.close") }),
+        confirmText: t("common.discardDraft"),
+        dialogType: "warning",
+      }))) return;
+      if (!importing) onClose();
+    } finally {
+      actionRef.current = false;
+    }
   };
 
   return (
@@ -306,16 +313,20 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({
 interface ProjectTextImportDialogProps {
   projectId: number | null;
   projectTitle?: string;
+  isProjectReadCurrent: () => boolean;
   onClose: () => void;
 }
 
 export const ProjectTextImportDialog: React.FC<ProjectTextImportDialogProps> = ({
   projectId,
   projectTitle,
+  isProjectReadCurrent,
   onClose,
 }) => {
   const { t } = useI18n();
   const [writeBusy, setWriteBusy] = useState(false);
+  const projectReadCurrentRef = useRef(isProjectReadCurrent);
+  projectReadCurrentRef.current = isProjectReadCurrent;
   const dirtyRegistry = useNovelDetailDirtyRegistry();
   const open = projectId != null;
   const close = async () => {
@@ -344,7 +355,11 @@ export const ProjectTextImportDialog: React.FC<ProjectTextImportDialogProps> = (
     >
       <div className="p-3">
         {projectId != null ? (
-          <ImportsTab projectId={projectId} onBusyChange={setWriteBusy} />
+          <ImportsTab
+            projectId={projectId}
+            onBusyChange={setWriteBusy}
+            canImport={isProjectReadCurrent}
+          />
         ) : null}
       </div>
     </Modal>

@@ -103,4 +103,12 @@ describe("runtimeInvoke", () => {
       input: { lines: 50, days_ago: 0 },
     });
   });
+
+  it("injects authenticated identity for the current log-level read", async () => {
+    await runtimeInvoke("get_log_level");
+
+    expect(mocks.invoke).toHaveBeenCalledWith("get_log_level", {
+      callerUserId: 7,
+    });
+  });
 });

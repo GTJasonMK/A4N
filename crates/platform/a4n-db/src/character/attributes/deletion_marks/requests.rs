@@ -1,6 +1,6 @@
 use super::super::state::attribute_value_in_state;
 use super::super::types::CharacterDeletionMarkUpsertInput;
-use super::updates::reset_pending_deletion_marks;
+use super::updates::reset_pending_deletion_mark_if_current;
 use super::upsert::upsert_deletion_mark;
 use crate::character::profile::require_profile_for_update;
 use crate::character::{
@@ -12,6 +12,7 @@ use a4n_db_models::models::character::{
 };
 use a4n_domain::character::CharacterAttributeDeletionRequestInput;
 use a4n_domain::character::CharacterDeletionMarkRecord;
+use chrono::NaiveDateTime;
 use sea_orm::{ConnectionTrait, TransactionTrait};
 
 pub(in crate::character::attributes) async fn request_attribute_deletion_in<C>(
@@ -136,9 +137,11 @@ pub async fn reset_deletion_marks_in<C>(
     profile_id: i64,
     category: &str,
     key: &str,
+    expected_mark_id: i64,
+    expected_mark_updated_at: NaiveDateTime,
 ) -> Result<u64, CharacterDbError>
 where
-    C: ConnectionTrait,
+    C: ConnectionTrait + TransactionTrait,
 {
     let category = category.trim();
     let key = key.trim();
@@ -149,7 +152,24 @@ where
         ));
     }
 
-    reset_pending_deletion_marks(db, profile_id, category, key)
-        .await
-        .map_err(CharacterDbError::Database)
+    let tx = db.begin().await?;
+    require_profile_for_update(&tx, profile_id).await?;
+    let deleted = reset_pending_deletion_mark_if_current(
+        &tx,
+        profile_id,
+        category,
+        key,
+        expected_mark_id,
+        expected_mark_updated_at,
+    )
+    .await
+    .map_err(CharacterDbError::Database)?;
+    if deleted == 0 {
+        return Err(CharacterDbError::InvalidState {
+            current: "删除标记已变化".to_string(),
+            operation: "重置角色属性删除标记".to_string(),
+        });
+    }
+    tx.commit().await?;
+    Ok(deleted)
 }

@@ -1,3 +1,4 @@
+use super::VideoReferenceCleanupIds;
 use crate::video::VideoDbError;
 use a4n_db_models::models::{ai::generated_video, chapter::chapter_video_prompt};
 use a4n_video_contract::{
@@ -10,7 +11,7 @@ use sea_orm::{
     sea_query::{Alias, CaseStatement, Expr},
 };
 use serde_json::Value;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 fn clear_source_video_metadata_references(metadata: &mut Value) {
     let Some(obj) = metadata.as_object_mut() else {
@@ -121,7 +122,7 @@ fn clear_inserted_prompt_video_reference(
 pub(crate) async fn clear_generated_video_references_by_ids<C>(
     db: &C,
     video_projects: &[(i64, i64)],
-) -> Result<(), VideoDbError>
+) -> Result<VideoReferenceCleanupIds, VideoDbError>
 where
     C: ConnectionTrait,
 {
@@ -135,12 +136,15 @@ where
 async fn clear_generated_video_references_for_projects<C>(
     db: &C,
     video_projects: HashMap<i64, i64>,
-) -> Result<(), VideoDbError>
+) -> Result<VideoReferenceCleanupIds, VideoDbError>
 where
     C: ConnectionTrait,
 {
     if video_projects.is_empty() {
-        return Ok(());
+        return Ok(VideoReferenceCleanupIds {
+            updated_prompt_ids: Vec::new(),
+            updated_video_ids: Vec::new(),
+        });
     }
     let video_ids = video_projects.keys().copied().collect::<Vec<_>>();
     let video_id_set = video_ids.iter().copied().collect::<HashSet<_>>();
@@ -155,6 +159,11 @@ where
         .into_tuple::<(i64, i64, i64)>()
         .all(db)
         .await?;
+    let mut updated_prompt_ids = prompts
+        .iter()
+        .map(|(prompt_id, _, _)| *prompt_id)
+        .collect::<BTreeSet<_>>();
+    let mut updated_video_ids = BTreeSet::new();
     let mut replacement_by_key = HashMap::<(i64, i64, i64), (i64, chrono::NaiveDateTime)>::new();
     if !prompts.is_empty() {
         let mut chapter_scope = Condition::any();
@@ -314,6 +323,7 @@ where
         prompt_updates.push((prompt_id, metadata, reference_image_ids_json));
     }
     if !prompt_updates.is_empty() {
+        updated_prompt_ids.extend(prompt_updates.iter().map(|(prompt_id, _, _)| *prompt_id));
         let mut metadata_case = CaseStatement::new();
         let mut reference_image_ids_case = CaseStatement::new();
         let mut has_reference_image_ids_updates = false;
@@ -364,6 +374,7 @@ where
     }
 
     let child_videos = child_videos_result?;
+    updated_video_ids.extend(child_videos.iter().map(|(video_id, _)| *video_id));
     let mut child_updates = Vec::with_capacity(child_videos.len());
     for (video_id, mut metadata) in child_videos {
         if let Some(mut metadata) = metadata.take() {
@@ -413,7 +424,10 @@ where
         &video_ids,
     )
     .await?;
-    Ok(())
+    Ok(VideoReferenceCleanupIds {
+        updated_prompt_ids: updated_prompt_ids.into_iter().collect(),
+        updated_video_ids: updated_video_ids.into_iter().collect(),
+    })
 }
 
 #[cfg(test)]

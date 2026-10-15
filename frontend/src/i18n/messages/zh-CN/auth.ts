@@ -38,6 +38,7 @@ export const auth = {
   useOauth: "使用第三方账号登录",
   loginService: "登录服务",
   oauthUnavailable: "此服务未配置第三方登录，请使用用户名和密码。",
+  oauthProvidersLoading: "正在读取第三方登录方式…",
   oauthProviderLoadFailed: "无法读取第三方登录方式，你仍可使用用户名和密码登录。",
   continueWithProvider: "使用 {provider} 继续",
   awaitingAuthorization: "等待浏览器授权…",

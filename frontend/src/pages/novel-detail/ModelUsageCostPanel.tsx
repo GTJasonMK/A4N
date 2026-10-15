@@ -14,6 +14,7 @@ import { useToast } from "../../components/feedback/Toast";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import { formatDateTime, formatNumber, useI18n, type MessageKey } from "../../i18n";
 import { getOperationStatusLabel } from "../../utils/workflowPresentation";
+import { formatMicros } from "./modelUsageCostFormatting";
 
 const CAPABILITY_LABELS: Record<string, MessageKey> = {
   chapter_generation: "workflow.taskChapterGeneration",
@@ -56,7 +57,7 @@ export const ModelUsageCostPanel: React.FC<{ projectId: number | null }> = ({ pr
   };
 
   const viewRequest = async (id: number) => {
-    if (requestLoading) return;
+    if (loading || requestLoading) return;
     const requestSeq = ++requestPreviewRef.current;
     setRequestModalOpen(true);
     setRequestLoading(true);
@@ -191,7 +192,7 @@ export const ModelUsageCostPanel: React.FC<{ projectId: number | null }> = ({ pr
                         <BookIconButton
                           label={t("novel.costViewRequest")}
                           size="sm"
-                          disabled={requestLoading}
+                          disabled={loading || requestLoading}
                           onClick={() => void viewRequest(entry.id)}
                         >
                           <Eye size={14} />
@@ -247,11 +248,4 @@ function requestPreviewData(request: ModelUsageRequest): ModelRequestPreview {
       char_counts: null,
     }],
   };
-}
-
-function formatMicros(value: string, locale: string): string {
-  const amount = Number(value) / 1_000_000;
-  return Number.isFinite(amount)
-    ? amount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 6 })
-    : value;
 }

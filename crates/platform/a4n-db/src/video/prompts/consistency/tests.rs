@@ -11,15 +11,26 @@ use a4n_domain::video_prompt::{
     ChapterVideoPromptSyncDraft, ChapterVideoPromptSyncPolicy, PreparedVideoPromptGenerationTrace,
 };
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait,
+    PaginatorTrait, QueryFilter, Set, Statement, TransactionTrait,
 };
 use serde_json::json;
 
 use crate::video::prompts::record_mapping::chapter_video_prompt_record_from_model;
 
 async fn setup_db() -> DatabaseConnection {
-    a4n_migration::test_support::connect_test_database().await
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let owner = crate::auth::create_user(
+        &db,
+        "video-prompt-test-owner",
+        "video-prompt-test-owner@example.test",
+        "test-password",
+        a4n_domain::auth::ROLE_USER,
+    )
+    .await
+    .expect("video prompt test owner must be created");
+    assert_eq!(owner.id, 1);
+    db
 }
 
 fn prompt_record(prompt: &chapter_video_prompt::Model) -> ChapterVideoPromptRecord {
@@ -97,6 +108,127 @@ async fn insert_prompt(
     .insert(db)
     .await
     .unwrap()
+}
+
+#[tokio::test]
+async fn stale_video_prompt_write_keeps_the_winning_window_value() {
+    let db = setup_db().await;
+    let project_id = insert_project(&db).await;
+    let chapter = insert_chapter(&db, project_id).await;
+    let prompt = insert_prompt(&db, project_id, chapter.id).await;
+    let stale_version = prompt.updated_at.to_string();
+
+    let updated = update_chapter_video_prompt_with_policy_expected(
+        &db,
+        prompt.id,
+        ChapterVideoPromptPatch {
+            visual_prompt: Some("窗口 B 的最新提示词".to_string()),
+            ..Default::default()
+        },
+        true,
+        &stale_version,
+    )
+    .await
+    .expect("current version update");
+    assert_eq!(updated.visual_prompt, "窗口 B 的最新提示词");
+
+    let stale = update_chapter_video_prompt_with_policy_expected(
+        &db,
+        prompt.id,
+        ChapterVideoPromptPatch {
+            visual_prompt: Some("窗口 A 的旧提示词".to_string()),
+            ..Default::default()
+        },
+        true,
+        &stale_version,
+    )
+    .await;
+    assert!(matches!(stale, Err(VideoDbError::InvalidArgument(_))));
+    let persisted = chapter_video_prompt::Entity::find_by_id(prompt.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .expect("video prompt");
+    assert_eq!(persisted.visual_prompt, "窗口 B 的最新提示词");
+}
+
+#[tokio::test]
+async fn concurrent_video_prompt_write_reads_the_version_after_project_lock() {
+    let db = setup_db().await;
+    let project_id = insert_project(&db).await;
+    let chapter = insert_chapter(&db, project_id).await;
+    let prompt = insert_prompt(&db, project_id, chapter.id).await;
+    let stale_version = prompt.updated_at.to_string();
+    let holder = db.begin().await.unwrap();
+    crate::project::project_write_identity_for_update(&holder, project_id)
+        .await
+        .unwrap()
+        .expect("project row lock");
+
+    let update_db = db.clone();
+    let prompt_id = prompt.id;
+    let stale_update = tokio::spawn(async move {
+        update_chapter_video_prompt_with_policy_expected(
+            &update_db,
+            prompt_id,
+            ChapterVideoPromptPatch {
+                visual_prompt: Some("窗口 A 的旧提示词".to_string()),
+                ..Default::default()
+            },
+            true,
+            &stale_version,
+        )
+        .await
+    });
+    wait_for_database_lock_wait(&db).await;
+
+    let mut winner: chapter_video_prompt::ActiveModel =
+        chapter_video_prompt::Entity::find_by_id(prompt.id)
+            .one(&holder)
+            .await
+            .unwrap()
+            .expect("video prompt")
+            .into();
+    winner.visual_prompt = Set("窗口 B 在锁内提交的最新提示词".to_string());
+    winner.updated_at = Set(chrono::Utc::now().naive_utc() + chrono::Duration::seconds(1));
+    winner.update(&holder).await.unwrap();
+    holder.commit().await.unwrap();
+
+    assert!(matches!(
+        stale_update.await.unwrap(),
+        Err(VideoDbError::InvalidArgument(_))
+    ));
+    let persisted = chapter_video_prompt::Entity::find_by_id(prompt.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .expect("video prompt");
+    assert_eq!(persisted.visual_prompt, "窗口 B 在锁内提交的最新提示词");
+}
+
+async fn wait_for_database_lock_wait(db: &DatabaseConnection) {
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            let waiting: i64 = db
+                .query_one(Statement::from_string(
+                    DbBackend::Postgres,
+                    "SELECT COUNT(*)::BIGINT AS waiting FROM pg_stat_activity \
+                     WHERE datname = current_database() AND pid <> pg_backend_pid() \
+                     AND wait_event_type = 'Lock'",
+                ))
+                .await
+                .expect("read database lock waits")
+                .expect("pg_stat_activity row")
+                .try_get("", "waiting")
+                .expect("lock wait count");
+            if waiting > 0 {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("stale update waits for the project write lock");
 }
 
 fn completed_run_input(

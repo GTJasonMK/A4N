@@ -47,6 +47,7 @@ interface ChapterWorkspaceProps {
   editorContent: string;
   dirty: boolean;
   savingContent: boolean;
+  resettingProjectData: boolean;
   autoScrollEditorContent: boolean;
   wordCount: number;
   generatingAnalysis: boolean;
@@ -58,6 +59,7 @@ interface ChapterWorkspaceProps {
   onResumeAnalysisSync: () => void | Promise<void>;
   onPreviewResumeAnalysisSync: () => void | Promise<void>;
   onResumeDerivedSync: () => void | Promise<void>;
+  resumingDerivedSync: boolean;
   onOpenEmbeddingSettings: () => void | Promise<void>;
   pendingContentDiff: PendingContentDiff | null;
   contentDiffAction: ContentDiffAction | null;
@@ -97,6 +99,7 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
   editorContent,
   dirty,
   savingContent,
+  resettingProjectData,
   autoScrollEditorContent,
   wordCount,
   generatingAnalysis,
@@ -108,6 +111,7 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
   onResumeAnalysisSync,
   onPreviewResumeAnalysisSync,
   onResumeDerivedSync,
+  resumingDerivedSync,
   onOpenEmbeddingSettings,
   pendingContentDiff,
   contentDiffAction,
@@ -303,8 +307,10 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
                     variant="secondary"
                     size="sm"
                     onClick={onResumeDerivedSync}
+                    disabled={resumingDerivedSync}
                   >
-                    {t("writing.retryMaterialSync")}
+                    {resumingDerivedSync ? <LoadingSpinner size="sm" /> : null}
+                    {resumingDerivedSync ? t("writing.syncingMaterials") : t("writing.retryMaterialSync")}
                   </BookButton>
                 ) : null}
               </div>
@@ -362,8 +368,12 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
                   value={editorContent}
                   onScroll={updateEditorScrollIntent}
                   onChange={(event) => onEditorContentChange(event.target.value)}
-                  readOnly={activeChapterBusy}
-                  title={activeChapterBusy ? activeChapterGeneratingMessage : undefined}
+                  readOnly={activeChapterBusy || resettingProjectData}
+                  title={resettingProjectData
+                    ? t("writing.resettingProjectData")
+                    : activeChapterBusy
+                      ? activeChapterGeneratingMessage
+                      : undefined}
                   placeholder={
                     activeChapter
                       ? t("writing.startWriting")

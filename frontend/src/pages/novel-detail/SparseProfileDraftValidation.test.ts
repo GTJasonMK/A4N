@@ -61,4 +61,21 @@ describe("sparse profile draft validation", () => {
       }),
     ).toBe("novel.profile.chapterRangeInvalid");
   });
+
+  it("rejects chapter values outside the API i32 range", () => {
+    expect(
+      validateObjectProfileDraft({
+        ...sparseObject(),
+        first_seen_chapter: 1,
+        last_seen_chapter: 2_147_483_648,
+      }),
+    ).toBe("novel.profile.objectLastChapterPositive");
+    expect(
+      validateSceneProfileDraft({
+        ...sparseScene(),
+        first_seen_chapter: 2_147_483_648,
+        last_seen_chapter: 2_147_483_648,
+      }),
+    ).toBe("novel.profile.firstChapterPositive");
+  });
 });

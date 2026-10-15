@@ -63,7 +63,7 @@ pub use runs::{
     latest_workflow_run_summary_by_business_key_with_status, latest_workflow_runs_by_business_keys,
     latest_workflow_runs_for_chapters, list_workflow_run_models, list_workflow_runs,
     mark_workflow_current_step, mark_workflow_current_step_summary, mark_workflow_status,
-    mark_workflow_status_summary,
+    mark_workflow_status_in_transaction, mark_workflow_status_summary,
     mutate_completed_workflow_checkpoint_artifacts_unless_step_exists,
     persist_workflow_progress_snapshot, persist_workflow_progress_snapshot_summary,
     record_workflow_progress_event, restart_interrupted_workflow_run,

@@ -2,10 +2,12 @@ import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Copy, RefreshCw } from "lucide-react";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { useToast } from "../../../components/feedback/Toast";
+import { useDirty } from "../../../components/navigation/dirtyRegistry";
 import { extractErrorMessage } from "../../../api";
-import { getLogDir, readRecentLogs, setLogLevel } from "../../../api/logs";
+import { getLogDir, getLogLevel, readRecentLogs, setLogLevel } from "../../../api/logs";
 import { copyTextToClipboard } from "../../../utils/clipboard";
 import { logger } from "../../../utils/logger";
 import { useAuthStore } from "../../../store/auth";
@@ -28,7 +30,10 @@ export const LogsTab: React.FC = () => {
   const [logDirErrorKey, setLogDirErrorKey] = useState<string | null>(null);
   const [lines, setLines] = useState(500);
   const [daysAgo, setDaysAgo] = useState(0);
-  const [filterInput, setFilterInput] = useState("info,a4n=debug");
+  const [filterInput, setFilterInput] = useState("");
+  const [appliedFilter, setAppliedFilter] = useState<string | null>(null);
+  const [filterLoading, setFilterLoading] = useState(true);
+  const [filterLoadError, setFilterLoadError] = useState<{ reason: unknown } | null>(null);
   const [loading, setLoading] = useState(true);
   const [applyingFilter, setApplyingFilter] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -39,18 +44,27 @@ export const LogsTab: React.FC = () => {
   const activeRequestKeyRef = useRef(requestKey);
   const refreshInFlightKeyRef = useRef<string | null>(null);
   const refreshSeqRef = useRef(0);
+  const filterSeqRef = useRef(0);
   const applyFilterSeqRef = useRef(0);
   const applyingFilterRef = useRef(false);
   const copySeqRef = useRef(0);
   const copiedTimerRef = useRef<number | null>(null);
 
   activeRequestKeyRef.current = requestKey;
+  const filterDraftDirty = appliedFilter == null
+    ? filterInput.trim().length > 0
+    : filterInput !== appliedFilter;
+  useDirty("settings-log-level-draft", filterDraftDirty, () => {
+    setFilterInput(appliedFilter ?? "");
+  }, () => !applyingFilter);
+  useDirty("settings-log-level-operation", applyingFilter, undefined, () => !applyingFilter);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
       refreshSeqRef.current += 1;
+      filterSeqRef.current += 1;
       refreshInFlightKeyRef.current = null;
       applyFilterSeqRef.current += 1;
       applyingFilterRef.current = false;
@@ -68,6 +82,35 @@ export const LogsTab: React.FC = () => {
       refreshSeqRef.current === seq
     );
   }, []);
+
+  const loadCurrentFilter = useCallback(async () => {
+    if (!canReadDiagnostics || callerUserId == null) {
+      setFilterInput("");
+      setAppliedFilter(null);
+      setFilterLoadError(null);
+      setFilterLoading(false);
+      return;
+    }
+    const requestSeq = filterSeqRef.current + 1;
+    filterSeqRef.current = requestSeq;
+    setFilterLoading(true);
+    setFilterLoadError(null);
+    try {
+      const currentFilter = await getLogLevel();
+      if (!mountedRef.current || filterSeqRef.current !== requestSeq) return;
+      setFilterInput(currentFilter);
+      setAppliedFilter(currentFilter);
+    } catch (error) {
+      if (!mountedRef.current || filterSeqRef.current !== requestSeq) return;
+      setFilterLoadError({ reason: error });
+    } finally {
+      if (mountedRef.current && filterSeqRef.current === requestSeq) setFilterLoading(false);
+    }
+  }, [callerUserId, canReadDiagnostics]);
+
+  useEffect(() => {
+    void loadCurrentFilter();
+  }, [loadCurrentFilter]);
 
   const refresh = useCallback(async () => {
     if (!canReadDiagnostics || callerUserId == null) {
@@ -162,6 +205,7 @@ export const LogsTab: React.FC = () => {
       addToast(t("settingsLogs.adminOnlyAction"), "error");
       return;
     }
+    if (filterLoading) return;
     if (applyingFilterRef.current) {
       addToast(t("settingsLogs.levelApplying"), "error");
       return;
@@ -179,6 +223,8 @@ export const LogsTab: React.FC = () => {
       await setLogLevel({ filter: requestFilter });
       if (!mountedRef.current || applyFilterSeqRef.current !== requestSeq)
         return;
+      setAppliedFilter(requestFilter);
+      setFilterLoadError(null);
       addToast(t("settingsLogs.levelUpdated", { filter: requestFilter }), "success");
     } catch (err) {
       if (!mountedRef.current || applyFilterSeqRef.current !== requestSeq)
@@ -305,20 +351,45 @@ export const LogsTab: React.FC = () => {
               {t("settingsLogs.level")}
             </summary>
             <div className="flex flex-wrap items-center gap-2 pb-2">
+              {filterLoading ? (
+                <span role="status" className="inline-flex items-center gap-1.5 text-small text-book-text-muted">
+                  <LoadingSpinner size="sm" /> {t("settingsLogs.loadingLevel")}
+                </span>
+              ) : null}
+              {filterLoadError ? (
+                <div role="alert" className="flex w-full flex-wrap items-center gap-2 text-small text-error">
+                  <span className="min-w-0 flex-1">
+                    {extractErrorMessage(filterLoadError.reason, t("settingsLogs.filterLoadFailed"))}
+                  </span>
+                  <BookButton
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void loadCurrentFilter()}
+                    disabled={filterLoading || filterDraftDirty}
+                  >
+                    {t("common.retry")}
+                  </BookButton>
+                </div>
+              ) : null}
               <input
                 aria-label={t("settingsLogs.filterLevel")}
                 value={filterInput}
                 onChange={(e) => setFilterInput(e.target.value)}
                 placeholder={t("settingsLogs.filterPlaceholder")}
                 className="pyqt-input w-full text-xs sm:w-72"
+                disabled={filterLoading || applyingFilter}
               />
               <BookButton
                 variant="secondary"
                 size="sm"
                 onClick={handleApplyFilter}
-                disabled={applyingFilter}
+                disabled={filterLoading || applyingFilter}
               >
-                {applyingFilter ? t("settingsLogs.applying") : t("settingsLogs.apply")}
+                {filterLoading
+                  ? t("settingsLogs.loadingLevel")
+                  : applyingFilter
+                    ? t("settingsLogs.applying")
+                    : t("settingsLogs.apply")}
               </BookButton>
             </div>
           </details>

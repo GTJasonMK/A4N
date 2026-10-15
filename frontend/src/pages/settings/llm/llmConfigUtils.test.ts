@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_LLM_FORM, selectLlmProvider, toUpdateLlmInput } from "./llmConfigUtils";
+import { DEFAULT_LLM_FORM, selectLlmProvider, toUpdateLlmInput, validateLlmForm } from "./llmConfigUtils";
 import type { MessageTranslator } from "../../../i18n";
 import { AGENT_PROTOCOL_JSON_COMPAT } from "../../../api/generated/config";
 
@@ -44,5 +44,25 @@ describe("LLM provider presets", () => {
   it("submits the explicitly selected Agent protocol", () => {
     const form = { ...DEFAULT_LLM_FORM, agent_protocol: AGENT_PROTOCOL_JSON_COMPAT };
     expect(toUpdateLlmInput(form, t).agent_protocol).toBe(AGENT_PROTOCOL_JSON_COMPAT);
+  });
+});
+
+describe("LLM endpoint validation", () => {
+  const validForm = {
+    ...DEFAULT_LLM_FORM,
+    name: "Local model",
+    model: "model",
+    api_key: "local-key",
+  };
+
+  it("accepts HTTP credentials for any IPv4 loopback address", () => {
+    expect(
+      validateLlmForm({ ...validForm, api_base_url: "http://127.0.0.2:8080/v1" }, t),
+    ).toBeNull();
+  });
+
+  it("continues to reject HTTP credentials for non-loopback addresses", () => {
+    expect(validateLlmForm({ ...validForm, api_base_url: "http://192.168.1.2:8080/v1" }, t))
+      .toBe("settingsForm.remoteHttpApiKey");
   });
 });

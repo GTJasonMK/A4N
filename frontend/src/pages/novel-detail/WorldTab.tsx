@@ -46,6 +46,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
   const { runProgressTask } = useProgressTask();
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reading, setReading] = useState(false);
   const [loadError, setLoadError] = useState<{ projectId: number; message: string } | null>(null);
   const [worldValue, setWorldValue] = useState<unknown | null>(null);
   const [editing, setEditing] = useState(false);
@@ -58,13 +59,26 @@ export const WorldTab: React.FC<WorldTabProps> = ({
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null);
   const activeProjectIdRef = useRef(projectId);
   const loadSeqRef = useRef(0);
+  const mutationVersionRef = useRef(0);
   const refineSeqRef = useRef(0);
   const refineBusyRef = useRef(false);
   const saveBusyRef = useRef(false);
+  const editorExpectedVersionRef = useRef<string | null>(null);
   const editBaselineRef = useRef({ mode: "structured" as WorldEditMode, json: "{}", text: "" });
   const mountedRef = useRef(false);
+  const readReadyRef = useRef(false);
+  const readingRef = useRef(false);
+  const loadErrorRef = useRef(loadError);
 
   activeProjectIdRef.current = projectId;
+  readingRef.current = reading;
+  loadErrorRef.current = loadError;
+
+  const ensureWorldReadCurrent = () => {
+    if (readReadyRef.current && !readingRef.current && loadErrorRef.current?.projectId !== projectId) return true;
+    addToast(loadErrorRef.current?.projectId === projectId ? loadErrorRef.current.message : t("common.operationInProgress"), "error");
+    return false;
+  };
 
   const isCurrentProject = useCallback((requestProjectId: number) => {
     return mountedRef.current && activeProjectIdRef.current === requestProjectId;
@@ -108,28 +122,37 @@ export const WorldTab: React.FC<WorldTabProps> = ({
     };
   }, []);
 
-  const load = useCallback(async (): Promise<boolean> => {
+  const load = useCallback(async (options: { silent?: boolean } = {}): Promise<boolean> => {
     const requestProjectId = projectId;
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
+    const mutationVersion = mutationVersionRef.current;
+    readReadyRef.current = false;
+    readingRef.current = true;
+    setReading(true);
     setLoadError(null);
-    setLoading(true);
+    if (!options.silent) setLoading(true);
     try {
       const bp = await getBlueprint(requestProjectId);
       if (!isCurrentLoad(requestProjectId, requestSeq)) return false;
+      if (mutationVersionRef.current !== mutationVersion) return true;
       setBlueprint(bp);
       setWorldValue(bp?.world_setting ?? null);
       setLoadedProjectId(requestProjectId);
       setLoadError(null);
+      readReadyRef.current = true;
       return true;
     } catch (err) {
       if (!isCurrentLoad(requestProjectId, requestSeq)) return false;
       const message = extractErrorMessage(err, t("novel.world.loadFailed"));
       setLoadError({ projectId: requestProjectId, message });
+      readReadyRef.current = false;
       return false;
     } finally {
       if (isCurrentLoad(requestProjectId, requestSeq)) {
         setLoading(false);
+        readingRef.current = false;
+        setReading(false);
       }
     }
   }, [addToast, isCurrentLoad, projectId, t]);
@@ -145,14 +168,18 @@ export const WorldTab: React.FC<WorldTabProps> = ({
     setRefining(false);
     saveBusyRef.current = false;
     refineBusyRef.current = false;
+    mutationVersionRef.current = 0;
+    readReadyRef.current = false;
     refineSeqRef.current += 1;
     setDetailOpen(false);
+    editorExpectedVersionRef.current = null;
   }, [projectId]);
 
   useEffect(() => {
     if (!canEditWorld) {
       setEditing(false);
       setSaving(false);
+      editorExpectedVersionRef.current = null;
       saveBusyRef.current = false;
     }
   }, [canEditWorld]);
@@ -162,6 +189,15 @@ export const WorldTab: React.FC<WorldTabProps> = ({
       addToast(t("novel.world.permissionDenied"), "error");
       return;
     }
+    if (!ensureWorldReadCurrent()) return;
+    if (loadedProjectId !== projectId || loadError?.projectId === projectId || !blueprint?.current_version) {
+      addToast(
+        loadError?.projectId === projectId ? loadError.message : t("novel.world.loadFailed"),
+        "error",
+      );
+      return;
+    }
+    editorExpectedVersionRef.current = blueprint.current_version;
     const draft = createWorldEditDraft(normalizedWorld);
     editBaselineRef.current = draft;
     setJsonDraft(draft.json);
@@ -179,6 +215,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
       dialogType: "warning",
     }))) return;
     setEditing(false);
+    editorExpectedVersionRef.current = null;
   };
 
   const handleRetry = async () => {
@@ -189,12 +226,23 @@ export const WorldTab: React.FC<WorldTabProps> = ({
       confirmText: t("common.discardDraft"),
       dialogType: "warning",
     }))) return;
+    setEditing(false);
+    editorExpectedVersionRef.current = null;
     await load();
   };
 
   const handleSave = async () => {
     if (!canEditWorld) {
       addToast(t("novel.world.permissionDenied"), "error");
+      return;
+    }
+    if (!ensureWorldReadCurrent()) return;
+    const expectedCurrentVersion = editorExpectedVersionRef.current;
+    if (loadError?.projectId === projectId || expectedCurrentVersion == null) {
+      addToast(
+        loadError?.projectId === projectId ? loadError.message : t("novel.world.loadFailed"),
+        "error",
+      );
       return;
     }
 
@@ -222,21 +270,30 @@ export const WorldTab: React.FC<WorldTabProps> = ({
     try {
       const result = await updateWorldSetting({
         project_id: requestProjectId,
+        expected_current_version: expectedCurrentVersion,
         world_setting: payload,
       });
       if (!isCurrentProject(requestProjectId)) return;
+      mutationVersionRef.current += 1;
+      const refreshPromise = load({ silent: true });
       const notice = worldSettingSaveNotice(result.warnings, t);
-      const loaded = await load();
-      if (!isCurrentProject(requestProjectId)) return;
-      addToast(notice.message, notice.type);
-      if (!loaded) {
-        addToast(t("novel.refreshFailed"), "error");
-        return;
-      }
+      setBlueprint((current) => current ? {
+        ...current,
+        world_setting: payload,
+        current_version: result.current_version,
+      } : current);
+      setWorldValue(payload);
+      editBaselineRef.current = createWorldEditDraft(payload);
       setEditing(false);
+      editorExpectedVersionRef.current = null;
+      addToast(notice.message, notice.type);
+      void refreshPromise.then((loaded) => {
+        if (isCurrentProject(requestProjectId) && !loaded) addToast(t("novel.refreshFailed"), "error");
+      });
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
       addToast(extractErrorMessage(err, t("novel.world.saveFailed")), "error");
+      void load({ silent: true });
     } finally {
       if (isCurrentProject(requestProjectId)) {
         setSaving(false);
@@ -251,6 +308,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
       return;
     }
     if (refineBusyRef.current) return;
+    if (!ensureWorldReadCurrent()) return;
 
     const requestProjectId = projectId;
     const requestSeq = refineSeqRef.current + 1;
@@ -265,7 +323,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
         multiline: true,
         confirmText: t("novel.world.startRefine"),
       });
-      if (direction === null || !isCurrentRefine(requestProjectId, requestSeq)) return;
+      if (direction === null || !isCurrentRefine(requestProjectId, requestSeq) || !ensureWorldReadCurrent()) return;
 
       const focus = [
         t("novel.world.refineInstruction"),
@@ -289,6 +347,9 @@ export const WorldTab: React.FC<WorldTabProps> = ({
         errorMessage: t("novel.world.refineFailed"),
         isCurrent: () => isCurrentRefine(requestProjectId, requestSeq),
         refresh: load,
+        onRefreshFailure: () => {
+          if (isCurrentRefine(requestProjectId, requestSeq)) addToast(t("novel.refreshFailed"), "error");
+        },
         t,
       });
       if (!isCurrentRefine(requestProjectId, requestSeq)) return;

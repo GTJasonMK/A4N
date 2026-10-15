@@ -2,21 +2,22 @@ use a4n_error::AppError;
 
 use crate::{AppState, actions::access};
 
-use super::{BlueprintMutationResult, SaveBlueprintInput};
+use super::{BlueprintMutationResult, SaveBlueprintInput, VersionedBlueprintMutationResult};
 
 pub async fn save_blueprint(
     state: &AppState,
     user_id: i64,
     input: SaveBlueprintInput,
-) -> Result<BlueprintMutationResult, AppError> {
+) -> Result<VersionedBlueprintMutationResult, AppError> {
     let project_id = input.project_id;
-    state
+    let mut result = state
         .blueprint_mutation_application()
         .save(user_id, input)
         .await?;
-    Ok(BlueprintMutationResult {
-        warnings: blueprint_material_sync_warnings(state, project_id).await,
-    })
+    result
+        .warnings
+        .extend(blueprint_material_sync_warnings(state, project_id).await);
+    Ok(result)
 }
 
 pub async fn sync_blueprint_materials(

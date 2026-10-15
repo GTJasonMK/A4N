@@ -4,8 +4,9 @@ mod mutations;
 mod queries;
 
 pub use a4n_api_contract::import_review::{
-    AcceptImportReviewInput, BatchAcceptImportReviewsInput, CheckImportDedupInput, DedupResult,
-    ImportProjectReviewsInput, ImportReviewIdInput, ImportReviewSummary,
+    AcceptImportReviewInput, BatchAcceptImportReviewsFailure, BatchAcceptImportReviewsInput,
+    BatchAcceptImportReviewsResult, CheckImportDedupInput, DedupResult, ImportProjectReviewsInput,
+    ImportReviewIdInput, ImportReviewSummary,
 };
 pub use acceptance::{accept_import_review, batch_accept_import_reviews};
 pub use dedup::check_import_dedup;

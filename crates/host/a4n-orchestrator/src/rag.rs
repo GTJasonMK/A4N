@@ -39,6 +39,6 @@ pub(crate) use search::{
 pub(crate) use sync::RagSyncContext;
 pub(crate) use write::RagEmbeddingInput;
 
-pub(crate) use write::{embed_and_store_rag_record_in_store, embed_and_store_rag_records_in_store};
+pub(crate) use write::embed_rag_records;
 
 pub(crate) use write::store_embedded_rag_records_in_store;

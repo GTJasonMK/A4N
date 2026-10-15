@@ -1,3 +1,4 @@
+use super::ImageReferenceCleanupIds;
 use crate::video::VideoDbError;
 use a4n_db_models::models::{
     ai::{generated_image, generated_video},
@@ -133,12 +134,15 @@ fn clear_inserted_prompt_image_references(
 pub(crate) async fn clear_generated_image_references_record<C>(
     db: &C,
     image_ids: &[i64],
-) -> Result<(), VideoDbError>
+) -> Result<ImageReferenceCleanupIds, VideoDbError>
 where
     C: ConnectionTrait,
 {
     if image_ids.is_empty() {
-        return Ok(());
+        return Ok(ImageReferenceCleanupIds {
+            updated_prompt_ids: Vec::new(),
+            updated_video_ids: Vec::new(),
+        });
     }
 
     let now = Utc::now().naive_utc();
@@ -153,6 +157,13 @@ where
         .exec(db)
         .await?;
 
+    let updated_video_ids = generated_video::Entity::find()
+        .select_only()
+        .column(generated_video::Column::Id)
+        .filter(generated_video::Column::SourceImageId.is_in(image_ids.iter().copied()))
+        .into_tuple::<i64>()
+        .all(db)
+        .await?;
     generated_video::Entity::update_many()
         .col_expr(
             generated_video::Column::SourceImageId,
@@ -203,6 +214,7 @@ where
     }
     let plans = plans.into_tuple::<(i64, Option<Value>)>().all(db).await?;
     let mut plan_updates = Vec::new();
+    let mut updated_prompt_ids = Vec::new();
     for (plan_id, metadata_json) in plans {
         let Some(mut metadata) = metadata_json else {
             continue;
@@ -211,6 +223,7 @@ where
             continue;
         }
         plan_updates.push((plan_id, metadata));
+        updated_prompt_ids.push(plan_id);
     }
     if !plan_updates.is_empty() {
         let mut metadata_case = CaseStatement::new();
@@ -276,6 +289,7 @@ where
             metadata,
             serde_json::json!(recipe.provider_reference_image_ids()),
         ));
+        updated_prompt_ids.push(prompt_id);
     }
     if !inserted_updates.is_empty() {
         let mut metadata_case = CaseStatement::new();
@@ -321,7 +335,12 @@ where
     }
 
     crate::canvas::mark_canvas_generated_image_refs_missing(db, image_ids).await?;
-    Ok(())
+    updated_prompt_ids.sort_unstable();
+    updated_prompt_ids.dedup();
+    Ok(ImageReferenceCleanupIds {
+        updated_prompt_ids,
+        updated_video_ids,
+    })
 }
 
 #[cfg(test)]

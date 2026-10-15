@@ -62,8 +62,13 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
     const requestProjectId = projectId;
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
+    diffSeqRef.current += 1;
+    diffingRef.current = false;
     loadingRef.current = true;
     setLoading(true);
+    setDiffing(false);
+    setDiff(null);
+    setLoadError(null);
     try {
       const data = await listBlueprintVersions(requestProjectId);
       if (
@@ -128,6 +133,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
   }, [versions]);
 
   const togglePick = (version: string) => {
+    if (loading || loadError != null || restoringRef.current != null) return;
     diffSeqRef.current += 1;
     diffingRef.current = false;
     setDiffing(false);
@@ -141,7 +147,11 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
   };
 
   const handleDiff = async () => {
-    if (diffingRef.current || restoringRef.current != null) return;
+    if (diffingRef.current || loading || restoringRef.current != null) return;
+    if (loadError != null) {
+      addToast(extractErrorMessage(loadError, tRef.current("novel.blueprintVersions.loadFailed")), "error");
+      return;
+    }
     if (picked.length !== 2) {
       addToast(tRef.current("novel.blueprintVersions.selectTwo"), "error");
       return;
@@ -188,8 +198,14 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
   };
 
   const handleRestore = async (version: BlueprintVersion) => {
-    if (restoringRef.current != null) return;
+    if (restoringRef.current != null || loading || loadError != null) {
+      if (loadError != null) {
+        addToast(extractErrorMessage(loadError, tRef.current("novel.blueprintVersions.loadFailed")), "error");
+      }
+      return;
+    }
     const requestProjectId = projectId;
+    const requestLoadSeq = loadSeqRef.current;
     const versionLabel = blueprintVersionLabel(version.version, tRef.current);
     restoringRef.current = version.version;
     const ok = await confirmDialog({
@@ -202,8 +218,14 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
       if (restoringRef.current === version.version) restoringRef.current = null;
       return;
     }
-    if (!mountedRef.current || activeProjectRef.current !== requestProjectId) {
+    if (
+      !mountedRef.current ||
+      activeProjectRef.current !== requestProjectId ||
+      loadSeqRef.current !== requestLoadSeq ||
+      !versions.some((item) => item.version === version.version)
+    ) {
       if (restoringRef.current === version.version) restoringRef.current = null;
+      addToast(tRef.current("common.listChangedRetry"), "info");
       return;
     }
     loadSeqRef.current += 1;
@@ -220,10 +242,6 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
         version: version.version,
       });
       if (!mountedRef.current || activeProjectRef.current !== requestProjectId) return;
-      const parentRefreshed = await onMutated();
-      if (!mountedRef.current || activeProjectRef.current !== requestProjectId) return;
-      const versionsRefreshed = await load({ allowWhileRestoring: true });
-      if (!mountedRef.current || activeProjectRef.current !== requestProjectId) return;
       const currentVersionLabel = blueprintVersionLabel(version.version, tRef.current);
       addToast(
         result.warnings.length > 0
@@ -234,7 +252,25 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
           : tRef.current("novel.blueprintVersions.restored", { version: currentVersionLabel }),
         result.warnings.length > 0 ? "info" : "success",
       );
-      if (!parentRefreshed || !versionsRefreshed) addToast(tRef.current("novel.refreshFailed"), "error");
+      let parentRefreshed = false;
+      let versionsRefreshed = false;
+      try {
+        parentRefreshed = await onMutated();
+      } catch {
+        parentRefreshed = false;
+      }
+      try {
+        versionsRefreshed = await load({ allowWhileRestoring: true });
+      } catch {
+        versionsRefreshed = false;
+      }
+      if (
+        mountedRef.current &&
+        activeProjectRef.current === requestProjectId &&
+        (!parentRefreshed || !versionsRefreshed)
+      ) {
+        addToast(tRef.current("novel.refreshFailed"), "error");
+      }
     } catch (err) {
       if (!mountedRef.current || activeProjectRef.current !== requestProjectId) return;
       addToast(extractErrorMessage(err, tRef.current("novel.blueprintVersions.restoreFailed")), "error");
@@ -268,7 +304,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
               variant="secondary"
               size="sm"
               onClick={handleDiff}
-              disabled={diffing}
+              disabled={diffing || loading || loadError != null}
               className="min-w-0 flex-1 !text-xs sm:flex-none"
             >
               {diffing ? (
@@ -314,6 +350,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
                     aria-pressed={isPicked}
                     aria-label={t("novel.blueprintVersions.select", { version: versionLabel })}
                     onClick={() => togglePick(version.version)}
+                    disabled={loading || loadError != null || restoring != null}
                     className={`mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors focus-visible:outline-2 focus-visible:outline-book-primary/35 ${
                       isPicked
                         ? "border-book-primary bg-book-primary text-white"
@@ -336,7 +373,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
                       {version.change_description}
                     </span>
                   </span>
-                  {restoring != null ? (
+                  {restoring != null || loading || loadError != null ? (
                     restoring === version.version ? (
                       <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-book-text-muted">
                         <LoadingSpinner size="sm" />

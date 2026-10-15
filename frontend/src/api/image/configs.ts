@@ -27,6 +27,7 @@ import {
 } from "../localRuntimeSettings";
 import { buildRuntimeConfigSnapshot } from "../runtimeConfigSnapshot";
 import { usesLocalRuntimeSettings } from "../../utils/runtimeMode";
+import { refreshPortableStorage } from "../../utils/portableStorage";
 import { listModelProviderCatalog } from "../providerCatalog";
 import {
   mergeLocalRuntimeConfigs,
@@ -39,8 +40,63 @@ import {
 } from "../config/shared";
 
 export const SYSTEM_IMAGE_CONFIG_ID = -1;
+export const IMAGE_GENERATION_CONFIG_CHANGED_EVENT = "a4n:image-generation-config-changed";
+const IMAGE_GENERATION_CONFIG_CHANNEL = "a4n-image-generation-config";
+let imageGenerationConfigChannel: BroadcastChannel | null = null;
+let imageGenerationStorageListenerInstalled = false;
+
+const publishImageGenerationConfigChanged = (error: Error | null = null) => {
+  window.dispatchEvent(new CustomEvent<Error | null>(IMAGE_GENERATION_CONFIG_CHANGED_EVENT, {
+    detail: error,
+  }));
+};
+
+const asError = (reason: unknown): Error =>
+  reason instanceof Error ? reason : new Error(String(reason));
+
+const reloadImageGenerationConfigState = () => {
+  void refreshPortableStorage().then(
+    () => publishImageGenerationConfigChanged(),
+    (reason) => publishImageGenerationConfigChanged(asError(reason)),
+  );
+};
+
+const ensureImageGenerationConfigChannel = () => {
+  if (typeof window === "undefined") return;
+  if (!imageGenerationConfigChannel && "BroadcastChannel" in window) {
+    imageGenerationConfigChannel = new BroadcastChannel(IMAGE_GENERATION_CONFIG_CHANNEL);
+    imageGenerationConfigChannel.onmessage = reloadImageGenerationConfigState;
+  }
+  if (!imageGenerationStorageListenerInstalled) {
+    window.addEventListener("storage", (event) => {
+      if (event.key !== `${IMAGE_GENERATION_CONFIG_CHANNEL}:changed` || !event.newValue) return;
+      reloadImageGenerationConfigState();
+    });
+    imageGenerationStorageListenerInstalled = true;
+  }
+};
+
+export function subscribeImageGenerationConfigChanges(listener: (event: CustomEvent<Error | null>) => void): () => void {
+  if (typeof window === "undefined") return () => undefined;
+  ensureImageGenerationConfigChannel();
+  const handleChange: EventListener = (event) => listener(event as CustomEvent<Error | null>);
+  window.addEventListener(IMAGE_GENERATION_CONFIG_CHANGED_EVENT, handleChange);
+  return () => {
+    window.removeEventListener(IMAGE_GENERATION_CONFIG_CHANGED_EVENT, handleChange);
+  };
+}
 function imageConfigId(configId: Id): number {
   return idNum(configId, "图片配置 ID");
+}
+
+function notifyImageGenerationConfigChanged(): void {
+  ensureImageGenerationConfigChannel();
+  publishImageGenerationConfigChanged();
+  if (imageGenerationConfigChannel) {
+    imageGenerationConfigChannel.postMessage({ changedAt: Date.now() });
+  } else {
+    window.localStorage.setItem(`${IMAGE_GENERATION_CONFIG_CHANNEL}:changed`, String(Date.now()));
+  }
 }
 
 function isSystemDefaultImageConfigId(configId: Id): boolean {
@@ -151,14 +207,20 @@ export async function listImageConfigs(): Promise<ImageGenConfig[]> {
 export async function addServerImageConfig(
   input: ImageConfigInput,
 ): Promise<ImageGenConfig> {
-  return apiInvoke<ImageGenConfig>("add_image_config", { input });
+  const created = await apiInvoke<ImageGenConfig>("add_image_config", { input });
+  notifyImageGenerationConfigChanged();
+  return created;
 }
 
 /** 后端 add_image_config(input: { name, backend, base_url, api_key_encrypted?, model, max_concurrent, supported_sizes }) */
 export async function addImageConfig(
   input: ImageConfigInput,
 ): Promise<ImageGenConfig> {
-  if (usesLocalRuntimeSettings()) return createLocalImageConfig(input);
+  if (usesLocalRuntimeSettings()) {
+    const created = await createLocalImageConfig(input);
+    notifyImageGenerationConfigChanged();
+    return created;
+  }
   return addServerImageConfig(input);
 }
 
@@ -166,10 +228,12 @@ export async function updateServerImageConfig(
   configId: Id,
   input: UpdateImageConfigInput,
 ): Promise<ImageGenConfig> {
-  return apiInvoke<ImageGenConfig>("update_image_config", {
+  const updated = await apiInvoke<ImageGenConfig>("update_image_config", {
     configId: imageConfigId(configId),
     input,
   });
+  notifyImageGenerationConfigChanged();
+  return updated;
 }
 
 /** 后端 update_image_config(config_id, input) —— config_id 平铺 + input 包装 */
@@ -180,8 +244,11 @@ export async function updateImageConfig(
   if (isSystemDefaultImageConfigId(configId)) {
     rejectSystemDefaultMutation();
   }
-  if (usesLocalRuntimeSettings())
-    return updateLocalImageConfig(imageConfigId(configId), input);
+  if (usesLocalRuntimeSettings()) {
+    const updated = await updateLocalImageConfig(imageConfigId(configId), input);
+    notifyImageGenerationConfigChanged();
+    return updated;
+  }
   return updateServerImageConfig(configId, input);
 }
 
@@ -193,34 +260,42 @@ export async function updateSystemDefaultImageKey(input: Pick<UpdateImageConfigI
 }
 
 export async function removeServerImageConfig(configId: Id): Promise<void> {
-  return apiInvoke<void>("remove_image_config", {
+  await apiInvoke<void>("remove_image_config", {
     configId: imageConfigId(configId),
   });
+  notifyImageGenerationConfigChanged();
 }
 
 export async function removeImageConfig(configId: Id): Promise<void> {
   if (isSystemDefaultImageConfigId(configId)) rejectSystemDefaultMutation();
   if (usesLocalRuntimeSettings()) {
-    return deleteLocalImageConfig(imageConfigId(configId));
+    await deleteLocalImageConfig(imageConfigId(configId));
+    notifyImageGenerationConfigChanged();
+    return;
   }
   return removeServerImageConfig(configId);
 }
 
 export async function setDefaultServerImageConfig(configId: Id): Promise<void> {
-  return apiInvoke<void>("set_default_image_config", {
+  await apiInvoke<void>("set_default_image_config", {
     configId: imageConfigId(configId),
   });
+  notifyImageGenerationConfigChanged();
 }
 
 export async function setDefaultImageConfig(configId: Id): Promise<void> {
   if (usesLocalRuntimeSettings() && isSystemDefaultImageConfigId(configId)) {
     requiredSystemDefaultImageConfig(await listServerImageConfigs());
-    return setSystemDefaultImageConfig();
+    await setSystemDefaultImageConfig();
+    notifyImageGenerationConfigChanged();
+    return;
   }
   if (usesLocalRuntimeSettings()) {
-    return setDefaultLocalImageConfig(imageConfigId(configId));
+    await setDefaultLocalImageConfig(imageConfigId(configId));
+    notifyImageGenerationConfigChanged();
+    return;
   }
-  return setDefaultServerImageConfig(configId);
+  await setDefaultServerImageConfig(configId);
 }
 
 async function resolveImageConnectivityTarget(

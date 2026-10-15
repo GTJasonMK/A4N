@@ -112,8 +112,10 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
   const { t } = useI18n();
   const tRef = useRef(t);
   tRef.current = t;
-  const sourceSyncAvailable = sourceSyncStatus !== "detached";
   const [plan, setPlan] = useState<SourceSyncPlanSummary | null>(null);
+  const planRef = useRef(plan);
+  planRef.current = plan;
+  const [detachedLocally, setDetachedLocally] = useState(false);
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
   const [applyingConflictId, setApplyingConflictId] = useState<number | null>(null);
@@ -121,25 +123,30 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
   const [detaching, setDetaching] = useState(false);
   const mountedRef = useRef(false);
 
-  const refreshParent = async (): Promise<boolean> => {
+  const refreshParent = async (isCurrent?: () => boolean): Promise<boolean> => {
     try {
       const refreshed = await onChanged();
-      if (refreshed === false) addToast(tRef.current("novel.refreshFailed"), "error");
+      if (refreshed === false && (!isCurrent || isCurrent())) {
+        addToast(tRef.current("novel.refreshFailed"), "error");
+      }
       return refreshed !== false;
     } catch (error) {
-      addToast(extractErrorMessage(error, tRef.current("novel.refreshFailed")), "error");
+      if (!isCurrent || isCurrent()) {
+        addToast(extractErrorMessage(error, tRef.current("novel.refreshFailed")), "error");
+      }
       return false;
     }
   };
-  const scopeRef = useRef({ open, projectId, token: 0 });
-  const activeProjectIdRef = useRef(projectId);
-  activeProjectIdRef.current = projectId;
+  const scopeRef = useRef({ open, projectId, sourceSyncStatus, canEditSourceSync, token: 0 });
   const previewSeqRef = useRef(0);
   const applySeqRef = useRef(0);
   const detachSeqRef = useRef(0);
   const previewBusyRef = useRef(false);
   const applyBusyRef = useRef(false);
   const detachBusyRef = useRef(false);
+
+  const displayedSourceSyncStatus = detachedLocally ? "detached" : sourceSyncStatus;
+  const sourceSyncAvailable = displayedSourceSyncStatus !== "detached";
 
   const invalidatePreview = () => {
     previewSeqRef.current += 1;
@@ -148,13 +155,11 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
 
   useLayoutEffect(() => {
     const token = scopeRef.current.token + 1;
-    scopeRef.current = { open, projectId, token };
+    scopeRef.current = { open, projectId, sourceSyncStatus, canEditSourceSync, token };
     invalidatePreview();
+    planRef.current = null;
     setPlan(null);
     setLoading(false);
-  }, [open, projectId]);
-
-  useLayoutEffect(() => {
     applySeqRef.current += 1;
     detachSeqRef.current += 1;
     applyBusyRef.current = false;
@@ -163,6 +168,10 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
     setApplyingConflictId(null);
     setDetachConfirming(false);
     setDetaching(false);
+  }, [open, projectId, sourceSyncStatus, canEditSourceSync]);
+
+  useLayoutEffect(() => {
+    setDetachedLocally(false);
   }, [projectId]);
 
   useLayoutEffect(() => {
@@ -195,14 +204,30 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
     sequence: number,
   ) => isCurrentScope(target) && ref.current === sequence;
 
-  const isCurrentMutation = (
-    projectIdToMatch: number,
-    ref: React.MutableRefObject<number>,
-    sequence: number,
-  ) =>
-    mountedRef.current &&
-    activeProjectIdRef.current === projectIdToMatch &&
-    ref.current === sequence;
+  const releaseApplyAction = (sequence: number) => {
+    if (applySeqRef.current !== sequence) return;
+    applyBusyRef.current = false;
+    if (!mountedRef.current) return;
+    setApplying(false);
+    setApplyingConflictId(null);
+  };
+
+  const releaseDetachAction = (sequence: number) => {
+    if (detachSeqRef.current !== sequence) return;
+    detachBusyRef.current = false;
+    if (!mountedRef.current) return;
+    setDetachConfirming(false);
+    setDetaching(false);
+  };
+
+  const isDialogOpenForCurrentProject = () =>
+    mountedRef.current && scopeRef.current.open && scopeRef.current.projectId === projectId;
+
+  const ensureSourceSyncAvailable = (): boolean => {
+    if (sourceSyncAvailable) return true;
+    addToast(t("novel.sourceSyncDialog.statusDetached"), "info");
+    return false;
+  };
 
   const conflictCounts = useMemo(() => {
     const counts = { info: 0, warning: 0, blocking: 0 };
@@ -221,15 +246,19 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
     (plan.run.status === "planned" || hasPendingInfoConflicts(plan));
 
   const handlePreview = async () => {
+    if (!isDialogOpenForCurrentProject()) return;
     if (!canEditSourceSync) {
       addToast(t("novel.sourceSyncDialog.permissionSync"), "error");
       return;
     }
+    if (!ensureSourceSyncAvailable()) return;
     if (previewBusyRef.current) {
       addToast(t("novel.sourceSyncDialog.checkingUpdates"), "error");
       return;
     }
     previewBusyRef.current = true;
+    planRef.current = null;
+    setPlan(null);
     const targetProjectId = projectId;
     const targetScope = { projectId: targetProjectId, token: scopeRef.current.token };
     const requestSeq = previewSeqRef.current + 1;
@@ -238,6 +267,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
     try {
       const data = await previewSourceSync(targetProjectId);
       if (!isCurrentAction(targetScope, previewSeqRef, requestSeq)) return;
+      planRef.current = data;
       setPlan(data);
       addToast(tRef.current("novel.sourceSyncDialog.planGenerated"), "success");
     } catch (err) {
@@ -253,16 +283,18 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
   };
 
   const handleApplyUnconflicted = async () => {
+    if (!isDialogOpenForCurrentProject()) return;
     if (!canEditSourceSync) {
       addToast(t("novel.sourceSyncDialog.permissionSync"), "error");
       return;
     }
+    if (!ensureSourceSyncAvailable()) return;
     if (applyBusyRef.current) {
       addToast(t("novel.sourceSyncDialog.applyingUnconflicted"), "error");
       return;
     }
     applyBusyRef.current = true;
-    const requestPlan = plan;
+    const requestPlan = planRef.current;
     if (!requestPlan) {
       applyBusyRef.current = false;
       return;
@@ -277,7 +309,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       );
       return;
     }
-    const targetProjectId = projectId;
+    const targetScope = { projectId, token: scopeRef.current.token };
     const requestSeq = applySeqRef.current + 1;
     applySeqRef.current = requestSeq;
     const targetSyncRunId = requestPlan.run.id;
@@ -287,17 +319,22 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
         sync_run_id: targetSyncRunId,
         decisions: [],
       });
-      if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
+      if (!isCurrentAction(targetScope, applySeqRef, requestSeq)) return;
+      planRef.current = updatedPlan;
       setPlan(updatedPlan);
-      await refreshParent();
-      if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
       addToast(tRef.current("novel.sourceSyncDialog.unconflictedApplied"), "success");
+      await refreshParent(() => isCurrentAction(targetScope, applySeqRef, requestSeq));
+      if (!isCurrentAction(targetScope, applySeqRef, requestSeq)) return;
     } catch (err) {
-      if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
+      if (isCurrentAction(targetScope, applySeqRef, requestSeq)) {
+        if (planRef.current?.run.id === targetSyncRunId) {
+          planRef.current = null;
+          setPlan(null);
+        }
         addToast(extractErrorMessage(err, tRef.current("novel.sourceSyncDialog.applyUnconflictedFailed")), "error");
       }
     } finally {
-      if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
+      if (isCurrentAction(targetScope, applySeqRef, requestSeq)) {
         applyBusyRef.current = false;
         setApplying(false);
         setApplyingConflictId(null);
@@ -306,17 +343,19 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
   };
 
   const handleKeepLocal = async (conflict: SourceSyncConflictSummary) => {
+    if (!isDialogOpenForCurrentProject()) return;
     if (!canEditSourceSync) {
       addToast(t("novel.sourceSyncDialog.permissionSync"), "error");
       return;
     }
+    if (!ensureSourceSyncAvailable()) return;
     if (conflict.status !== "pending") return;
     if (applyBusyRef.current) {
       addToast(t("novel.sourceSyncDialog.applyingDecision"), "error");
       return;
     }
     applyBusyRef.current = true;
-    const requestPlan = plan;
+    const requestPlan = planRef.current;
     if (!requestPlan) {
       applyBusyRef.current = false;
       return;
@@ -326,7 +365,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       addToast(t("novel.sourceSyncDialog.planCompleted"), "error");
       return;
     }
-    const targetProjectId = projectId;
+    const targetScope = { projectId, token: scopeRef.current.token };
     const requestSeq = applySeqRef.current + 1;
     applySeqRef.current = requestSeq;
     const decisionPayload = {
@@ -348,17 +387,22 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
           },
         ],
       });
-      if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
+      if (!isCurrentAction(targetScope, applySeqRef, requestSeq)) return;
+      planRef.current = updatedPlan;
       setPlan(updatedPlan);
-      await refreshParent();
-      if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
       addToast(tRef.current("novel.sourceSyncDialog.keptLocal"), "success");
+      await refreshParent(() => isCurrentAction(targetScope, applySeqRef, requestSeq));
+      if (!isCurrentAction(targetScope, applySeqRef, requestSeq)) return;
     } catch (err) {
-      if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
+      if (isCurrentAction(targetScope, applySeqRef, requestSeq)) {
+        if (planRef.current?.run.id === requestPlan.run.id) {
+          planRef.current = null;
+          setPlan(null);
+        }
         addToast(extractErrorMessage(err, tRef.current("novel.sourceSyncDialog.applyDecisionFailed")), "error");
       }
     } finally {
-      if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
+      if (isCurrentAction(targetScope, applySeqRef, requestSeq)) {
         applyBusyRef.current = false;
         setApplying(false);
         setApplyingConflictId(null);
@@ -367,47 +411,53 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
   };
 
   const handleRegenerateScene = async (conflict: SourceSyncConflictSummary) => {
+    if (!isDialogOpenForCurrentProject()) return;
     if (!canEditSourceSync) {
       addToast(t("novel.sourceSyncDialog.permissionSync"), "error");
       return;
     }
+    if (!ensureSourceSyncAvailable()) return;
     if (conflict.status !== "pending") return;
     const sceneId = conflict.regenerate_scene_id;
     if (!sceneId) {
       addToast(t("novel.sourceSyncDialog.cannotLocateScene"), "error");
       return;
     }
+    const requestPlan = planRef.current;
+    if (!requestPlan) return;
     if (applyBusyRef.current) {
       addToast(t("novel.sourceSyncDialog.applyingDecision"), "error");
       return;
     }
+    const targetScope = { projectId, token: scopeRef.current.token };
+    const requestSeq = applySeqRef.current + 1;
+    applySeqRef.current = requestSeq;
+    applyBusyRef.current = true;
+    setApplying(true);
+    setApplyingConflictId(conflict.id);
     const ok = await confirmDialog({
       title: t("novel.sourceSyncDialog.regenerateTitle"),
       message: t("novel.sourceSyncDialog.regenerateMessage"),
       confirmText: t("novel.sourceSyncDialog.regenerateConfirm"),
       dialogType: "warning",
     });
-    if (!ok) return;
-    applyBusyRef.current = true;
-    const requestPlan = plan;
-    if (!requestPlan) {
-      applyBusyRef.current = false;
+    if (!ok) {
+      releaseApplyAction(requestSeq);
+      return;
+    }
+    if (!isCurrentAction(targetScope, applySeqRef, requestSeq)) {
+      releaseApplyAction(requestSeq);
       return;
     }
     if (!canMutateSourceSyncRunStatus(requestPlan.run.status)) {
-      applyBusyRef.current = false;
+      releaseApplyAction(requestSeq);
       addToast(t("novel.sourceSyncDialog.planCompleted"), "error");
       return;
     }
-    const targetProjectId = projectId;
-    const requestSeq = applySeqRef.current + 1;
-    applySeqRef.current = requestSeq;
     const decisionPayload = {
       galgame_scene_id: sceneId,
       reason: "user_requested_source_sync_regenerate",
     };
-    setApplying(true);
-    setApplyingConflictId(conflict.id);
     try {
       const updatedPlan = await applySourceSyncDecisions({
         sync_run_id: requestPlan.run.id,
@@ -419,17 +469,22 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
           },
         ],
       });
-      if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
+      if (!isCurrentAction(targetScope, applySeqRef, requestSeq)) return;
+      planRef.current = updatedPlan;
       setPlan(updatedPlan);
-      await refreshParent();
-      if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
       addToast(tRef.current("novel.sourceSyncDialog.sceneRegenerated"), "success");
+      await refreshParent(() => isCurrentAction(targetScope, applySeqRef, requestSeq));
+      if (!isCurrentAction(targetScope, applySeqRef, requestSeq)) return;
     } catch (err) {
-      if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
+      if (isCurrentAction(targetScope, applySeqRef, requestSeq)) {
+        if (planRef.current?.run.id === requestPlan.run.id) {
+          planRef.current = null;
+          setPlan(null);
+        }
         addToast(extractErrorMessage(err, tRef.current("novel.sourceSyncDialog.regenerateFailed")), "error");
       }
     } finally {
-      if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
+      if (isCurrentAction(targetScope, applySeqRef, requestSeq)) {
         applyBusyRef.current = false;
         setApplying(false);
         setApplyingConflictId(null);
@@ -438,16 +493,19 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
   };
 
   const handleDetach = async () => {
+    if (!isDialogOpenForCurrentProject()) return;
     if (!canEditSourceSync) {
       addToast(t("novel.sourceSyncDialog.detachPermission"), "error");
       return;
     }
+    if (!ensureSourceSyncAvailable()) return;
     if (detachBusyRef.current) {
       addToast(t("novel.sourceSyncDialog.detaching"), "error");
       return;
     }
     detachBusyRef.current = true;
     const targetProjectId = projectId;
+    const targetScope = { projectId: targetProjectId, token: scopeRef.current.token };
     const requestSeq = detachSeqRef.current + 1;
     detachSeqRef.current = requestSeq;
     setDetachConfirming(true);
@@ -458,31 +516,30 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       dialogType: "warning",
     });
     if (!ok) {
-      detachBusyRef.current = false;
-      if (isCurrentMutation(targetProjectId, detachSeqRef, requestSeq)) {
-        setDetachConfirming(false);
-      }
+      releaseDetachAction(requestSeq);
       return;
     }
-    if (!isCurrentMutation(targetProjectId, detachSeqRef, requestSeq)) {
-      detachBusyRef.current = false;
+    if (!isCurrentAction(targetScope, detachSeqRef, requestSeq)) {
+      releaseDetachAction(requestSeq);
       return;
     }
     setDetachConfirming(false);
     setDetaching(true);
     try {
       await detachDerivedProject(targetProjectId);
-      if (!isCurrentMutation(targetProjectId, detachSeqRef, requestSeq)) return;
-      await refreshParent();
-      if (!isCurrentMutation(targetProjectId, detachSeqRef, requestSeq)) return;
+      if (!isCurrentAction(targetScope, detachSeqRef, requestSeq)) return;
+      setDetachedLocally(true);
+      planRef.current = null;
       setPlan(null);
       addToast(tRef.current("novel.sourceSyncDialog.detached"), "success");
+      await refreshParent(() => isCurrentAction(targetScope, detachSeqRef, requestSeq));
+      if (!isCurrentAction(targetScope, detachSeqRef, requestSeq)) return;
     } catch (err) {
-      if (isCurrentMutation(targetProjectId, detachSeqRef, requestSeq)) {
+      if (isCurrentAction(targetScope, detachSeqRef, requestSeq)) {
         addToast(extractErrorMessage(err, tRef.current("novel.sourceSyncDialog.detachFailed")), "error");
       }
     } finally {
-      if (isCurrentMutation(targetProjectId, detachSeqRef, requestSeq)) {
+      if (isCurrentAction(targetScope, detachSeqRef, requestSeq)) {
         detachBusyRef.current = false;
         setDetachConfirming(false);
         setDetaching(false);
@@ -490,9 +547,12 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
     }
   };
 
-  const busy = loading || applying || detachConfirming || detaching;
+  const mutationBusy =
+    applying || applyingConflictId != null || detachConfirming || detaching ||
+    applyBusyRef.current || detachBusyRef.current;
+  const busy = loading || mutationBusy;
   const handleClose = () => {
-    if (busy) return;
+    if (mutationBusy) return;
     onClose();
   };
 
@@ -504,9 +564,9 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       subtitle={projectTitle}
       icon={<GitCompare size={15} />}
       maxWidthClassName="max-w-5xl"
-      closeOnBackdrop={!busy}
-      closeOnEscape={!busy}
-      showCloseButton={!busy}
+      closeOnBackdrop={!mutationBusy}
+      closeOnEscape={!mutationBusy}
+      showCloseButton={!mutationBusy}
       footer={canEditSourceSync && sourceSyncAvailable ? (
         <div className="flex w-full items-center gap-2">
           {!busy ? (
@@ -556,7 +616,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
           <span>
             <span className="text-book-text-muted">{t("novel.sourceSyncDialog.sourceStatus")}</span>{" "}
             <span className="font-medium text-book-text-main">
-              {labelFrom(STATUS_KEYS, sourceSyncStatus, t)}
+              {labelFrom(STATUS_KEYS, displayedSourceSyncStatus, t)}
             </span>
           </span>
           <span>

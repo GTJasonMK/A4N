@@ -27,8 +27,12 @@ import {
 import { extractErrorMessage } from "../../api";
 import {
   AgentMessageList,
+  acceptPendingAgentMessage,
+  appendPendingAgentMessage,
+  clearPendingAgentMessages,
   createPendingAgentMessage,
-  type PendingAgentMessage,
+  reconcilePendingAgentMessages,
+  removePendingAgentMessage,
 } from "./AgentMessageList";
 import { AgentContextMeter } from "./AgentContextMeter";
 import { AgentBudgetDialog } from "./AgentBudgetDialog";
@@ -71,12 +75,14 @@ import {
   domainAgentComposerOwnerKey,
   finishDomainAgentOperation,
   getDomainAgentDrafts,
+  getDomainAgentPendingMessages,
   getDomainAgentOperations,
   getDomainAgentOwnerVersion,
   hasDomainAgentOperation,
   pendingDomainAgentClear,
   subscribeDomainAgentDrafts,
   updateDomainAgentDraftsForOwner as updateDomainAgentDrafts,
+  updateDomainAgentPendingMessages,
 } from "./domainAgentDrafts";
 import {
   reduceAgentEvent,
@@ -169,8 +175,6 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   const [streamedMessageIds, setStreamedMessageIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const [pendingSubmission, setPendingSubmission] =
-    useState<PendingAgentMessage | null>(null);
   const [loading, setLoading] = useState(true);
   const pendingEditorRequests = useRef(new Set<string>());
   const [deliveryMode, setDeliveryMode] =
@@ -192,6 +196,8 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   const eventCursorRef = useRef(0);
   const reloadInFlightRef = useRef(false);
   const pendingEventsRef = useRef<AgentEvent[]>([]);
+  const snapshotReadErrorRef = useRef<string | null>(null);
+  const snapshotReadUnavailableRef = useRef(false);
   const composingRef = useRef(false);
   const lastCompositionEndRef = useRef(0);
   const mutationBaselineRef = useRef<{
@@ -306,7 +312,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
       ? t("agent.domain.directorTitle")
       : t("agent.domain.canvasTitle");
   const subtitle = isOptimization
-    ? t("agent.domain.contentSubtitle", { resource: displayResourceLabel })
+    ? null
     : isDirector
       ? t("agent.domain.directorSubtitle", { resource: displayResourceLabel })
       : t("agent.domain.canvasSubtitle", { resource: displayResourceLabel });
@@ -453,7 +459,6 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     setThread(null);
     setSnapshot(null);
     setStreamedMessageIds(new Set());
-    setPendingSubmission(null);
     setBudgetRun(null);
     setActivityOpen(false);
     setLoading(binding != null);
@@ -467,6 +472,21 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   }, [bindingKey, ensureThread]);
 
   const threadId = thread?.id;
+  const snapshotReadUnavailable = Boolean(
+    threadId && (
+      snapshot == null ||
+      snapshot.thread.id !== threadId ||
+      error != null
+    ),
+  );
+  snapshotReadErrorRef.current = error;
+  snapshotReadUnavailableRef.current = snapshotReadUnavailable;
+  const ensureSnapshotCurrent = useCallback(() => {
+    if (!snapshotReadUnavailableRef.current) return true;
+    addToast(snapshotReadErrorRef.current ?? t("agent.domain.loadFailed"), "error");
+    return false;
+  }, [addToast, t]);
+  const pendingSubmissions = getDomainAgentPendingMessages(resolvedComposerDirtyKey, bindingKey);
   const {
     viewportRef: messageViewportRef,
     isFollowingLatest,
@@ -477,14 +497,10 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   });
 
   useEffect(() => {
-    const acceptedMessageId = pendingSubmission?.acceptedMessageId;
-    if (
-      acceptedMessageId &&
-      snapshot?.messages.some((message) => message.id === acceptedMessageId)
-    ) {
-      setPendingSubmission(null);
-    }
-  }, [pendingSubmission?.acceptedMessageId, snapshot]);
+    if (!snapshot || pendingSubmissions.length === 0) return;
+    updateDomainAgentPendingMessages(resolvedComposerDirtyKey, (current) =>
+      reconcilePendingAgentMessages(current, bindingKey, snapshot.messages));
+  }, [bindingKey, pendingSubmissions, snapshot]);
 
   useEffect(() => {
     if (!threadId) return undefined;
@@ -697,6 +713,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     !sending &&
     controlBusy == null &&
     approvalBusy == null &&
+    !snapshotReadUnavailable &&
     !clearing;
 
   useEffect(() => {
@@ -766,6 +783,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     const requestedThread = thread;
     if (
       !requestedThread ||
+      !ensureSnapshotCurrent() ||
       !isAgentThreadOperational(requestedThread) ||
       getDomainAgentOperations(resolvedComposerDirtyKey).some((operation) => operation.bindingKey === requestBindingKey)
     )
@@ -777,7 +795,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
       cancelText: t("common.cancel"),
       dialogType: "warning",
     });
-    if (!confirmed || !isCurrentBinding(requestBindingKey)) return;
+    if (!confirmed || !isCurrentBinding(requestBindingKey) || !ensureSnapshotCurrent()) return;
     if (getDomainAgentOperations(resolvedComposerDirtyKey).some((operation) => operation.bindingKey === requestBindingKey)) return;
 
     const threadId = requestedThread.id;
@@ -798,11 +816,14 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
       snapshotRef.current = null;
       eventCursorRef.current = 0;
       setStreamedMessageIds(new Set());
-      setPendingSubmission(null);
-      const threadLoaded = await ensureThread(true);
-      if (!isCurrentBinding(requestBindingKey)) return;
+      updateDomainAgentPendingMessages(resolvedComposerDirtyKey, (current) =>
+        clearPendingAgentMessages(current, requestBindingKey));
       addToast(t("agent.clearContextSuccess"), "success");
-      if (!threadLoaded) addToast(t("agent.domain.loadFailed"), "error");
+      void ensureThread(true).then((threadLoaded) => {
+        if (isCurrentBinding(requestBindingKey) && !threadLoaded) {
+          addToast(t("agent.domain.loadFailed"), "error");
+        }
+      });
     } catch (err) {
       if (!isCurrentBinding(requestBindingKey)) return;
       const message = extractErrorMessage(err, t("agent.clearContextFailed"));
@@ -821,6 +842,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
       !requestThread ||
       !content ||
       !canSend ||
+      !ensureSnapshotCurrent() ||
       hasDomainAgentOperation(resolvedComposerDirtyKey, requestBindingKey, "send") ||
       hasDomainAgentOperation(resolvedComposerDirtyKey, requestBindingKey, "clear")
     )
@@ -833,7 +855,8 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
       content,
       clientMessageId,
     );
-    setPendingSubmission({ message: pendingMessage, acceptedMessageId: null });
+    updateDomainAgentPendingMessages(resolvedComposerDirtyKey, (current) =>
+      appendPendingAgentMessage(current, requestBindingKey, { message: pendingMessage, acceptedMessageId: null }));
     updateDrafts((current) => ({ ...current, [requestBindingKey]: "" }));
     try {
       const accepted = await sendAgentMessage({
@@ -844,29 +867,20 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
         execution_mode: executionMode,
         editor_source: getEditorSource?.() ?? undefined,
       });
+      updateDomainAgentPendingMessages(resolvedComposerDirtyKey, (current) =>
+        acceptPendingAgentMessage(current, requestBindingKey, pendingMessage.id, accepted.message_id));
       if (!isCurrentBinding(requestBindingKey) || hasDomainAgentOperation(resolvedComposerDirtyKey, requestBindingKey, "clear")) return;
-      setPendingSubmission((current) =>
-        current?.message.id === pendingMessage.id
-          ? { ...current, acceptedMessageId: accepted.message_id }
-          : current,
-      );
-      const next = await loadSnapshot(requestThread.id, true);
-      if (!isCurrentBinding(requestBindingKey)) return;
-      if (
-        next?.messages.some((message) => message.id === accepted.message_id)
-      ) {
-        setPendingSubmission((current) =>
-          current?.message.id === pendingMessage.id ? null : current,
-        );
-      }
-      if (next && !hasDomainAgentOperation(resolvedComposerDirtyKey, requestBindingKey, "clear"))
-        rememberStreamedMessages(next.events, accepted.run_id);
+      void loadSnapshot(requestThread.id, true).then((next) => {
+        if (next && isCurrentBinding(requestBindingKey) &&
+          !hasDomainAgentOperation(resolvedComposerDirtyKey, requestBindingKey, "clear")) {
+          rememberStreamedMessages(next.events, accepted.run_id);
+        }
+      });
     } catch (err) {
+      updateDomainAgentPendingMessages(resolvedComposerDirtyKey, (current) =>
+        removePendingAgentMessage(current, requestBindingKey, pendingMessage.id));
       updateDrafts((current) => ({ ...current, [requestBindingKey]: current[requestBindingKey] || content }));
       if (isCurrentBinding(requestBindingKey)) {
-        setPendingSubmission((current) =>
-          current?.message.id === pendingMessage.id ? null : current,
-        );
         const message = extractErrorMessage(err, t("agent.domain.sendFailed"));
         setError(message);
         addToast(message, "error");
@@ -883,6 +897,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     if (
       !requestThread ||
       !requestRun ||
+      !ensureSnapshotCurrent() ||
       hasDomainAgentOperation(resolvedComposerDirtyKey, requestBindingKey, "control") ||
       hasDomainAgentOperation(resolvedComposerDirtyKey, requestBindingKey, "clear")
     ) return;
@@ -908,7 +923,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
         snapshotRef.current = next;
         setSnapshot(next);
       }
-      await loadSnapshot(requestThread.id, true);
+      void loadSnapshot(requestThread.id, true);
     } catch (err) {
       if (isCurrentBinding(requestBindingKey)) {
         const message = extractErrorMessage(err, t("agent.domain.controlFailed"));
@@ -928,6 +943,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     const requestThread = thread;
     if (
       !requestThread ||
+      !ensureSnapshotCurrent() ||
       hasDomainAgentOperation(resolvedComposerDirtyKey, requestBindingKey, "clear") ||
       hasDomainAgentOperation(resolvedComposerDirtyKey, requestBindingKey, "approval")
     ) return;
@@ -952,7 +968,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
         snapshotRef.current = next;
         setSnapshot(next);
       }
-      await loadSnapshot(requestThread.id, true);
+      void loadSnapshot(requestThread.id, true);
     } catch (err) {
       if (isCurrentBinding(requestBindingKey)) {
         const message = extractErrorMessage(
@@ -989,7 +1005,9 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
       aria-label={t("agent.domain.consoleLabel")}
       className={`a4n-flat-surface flex min-w-0 flex-col overflow-hidden ${shellClass} ${className}`}
     >
-      {budgetRun ? <AgentBudgetDialog run={budgetRun} onClose={() => setBudgetRun(null)} onResumed={() => loadSnapshot(budgetRun.thread_id, true)} /> : null}
+      {budgetRun ? <AgentBudgetDialog run={budgetRun} onClose={() => setBudgetRun(null)} onResumed={() => {
+        void loadSnapshot(budgetRun.thread_id, true);
+      }} /> : null}
       <header className="agent-console-header flex min-w-0 shrink-0 flex-wrap items-start gap-2.5 border-b border-book-border/50 bg-book-bg-paper/65 px-3 py-2.5">
         <span className="agent-console-icon inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-book-primary/10 text-book-primary">
           {icon}
@@ -1014,9 +1032,11 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
               </span>
             ) : null}
           </div>
-          <p className="agent-console-subtitle mt-0.5 min-w-0 truncate text-caption text-book-text-muted">
-            {subtitle}
-          </p>
+          {subtitle ? (
+            <p className="agent-console-subtitle mt-0.5 min-w-0 truncate text-caption text-book-text-muted">
+              {subtitle}
+            </p>
+          ) : null}
         </div>
         <div className="agent-console-actions ml-auto flex shrink-0 items-center gap-1">
           <span
@@ -1122,12 +1142,12 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
         </div>
       ) : null}
 
-      {loading && !snapshot ? (
+      {loading && !snapshot && pendingSubmissions.length === 0 ? (
         <div className="flex min-h-0 flex-1 items-center justify-center text-xs text-book-text-muted">
           <LoadingSpinner size="sm" className="mr-2" />
           {t("agent.domain.loading")}
         </div>
-      ) : snapshot ? (
+      ) : snapshot || pendingSubmissions.length > 0 ? (
         <>
           <div className="relative min-h-0 min-w-0 flex-1">
             <div
@@ -1136,8 +1156,8 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
               aria-live="polite"
               style={{ overflowAnchor: "none" }}
             >
-              {snapshot.messages.length === 0 &&
-              !pendingSubmission &&
+              {(snapshot?.messages.length ?? 0) === 0 &&
+              pendingSubmissions.length === 0 &&
               !currentRun ? (
                 error ? (
                   <div className="agent-console-error-state" role="status">
@@ -1151,15 +1171,15 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                   </div>
                 )
               ) : null}
-              {snapshot.messages.length > 0 ||
-              pendingSubmission ||
-              currentRun ? (
+              {((snapshot?.messages.length ?? 0) > 0 ||
+                pendingSubmissions.length > 0 ||
+                currentRun != null) ? (
                 <AgentMessageList
-                  messages={snapshot.messages}
+                  messages={snapshot?.messages ?? []}
                   locale={locale}
                   streamedMessageIds={streamedMessageIds}
                   pendingMessages={
-                    pendingSubmission ? [pendingSubmission.message] : []
+                    pendingSubmissions.map((item) => item.message)
                   }
                   activeRun={contextRun}
                   compactAssistantMessages

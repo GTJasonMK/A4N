@@ -9,7 +9,7 @@ pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 use serde::{Deserialize, Serialize};
 
 pub const FORESHADOWING_WORKER_ID: &str = "foreshadowing-worker";
-pub const FORESHADOWING_WORKER_CONTRACT_VERSION: &str = "foreshadowing-records-v2";
+pub const FORESHADOWING_WORKER_CONTRACT_VERSION: &str = "foreshadowing-records-v3";
 pub const FORESHADOWING_LIST_OPERATION: &str = "profile.foreshadowing.list";
 pub const FORESHADOWING_CREATE_OPERATION: &str = "profile.foreshadowing.create";
 pub const FORESHADOWING_UPDATE_OPERATION: &str = "profile.foreshadowing.update";
@@ -35,11 +35,12 @@ pub struct UpdateInput(pub UpdateForeshadowingInput);
 #[serde(deny_unknown_fields)]
 pub struct DeleteInput(pub DeleteForeshadowingInput);
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ForeshadowingMutationResult {
     pub project_id: i64,
     pub foreshadowing_id: i64,
+    pub record: Option<ForeshadowingSummary>,
 }
 
 #[cfg(test)]

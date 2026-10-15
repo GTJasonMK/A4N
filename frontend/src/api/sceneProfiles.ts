@@ -41,11 +41,13 @@ export async function createSceneProfile(
 
 export async function updateSceneProfile(
   sceneProfileId: Id,
+  expectedUpdatedAt: string,
   input: SceneProfileInput,
   downstreamStrategy: DownstreamConflictStrategy,
 ): Promise<SceneProfileMutationResult> {
   const request: UpdateSceneProfileInput = {
     scene_profile_id: idNum(sceneProfileId),
+    expected_updated_at: expectedUpdatedAt,
     profile: normalizeSceneProfileInput(input),
     downstream_strategy: downstreamStrategy,
   };

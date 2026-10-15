@@ -100,7 +100,7 @@ export const InspirationChat: React.FC = () => {
               blueprint={chat.blueprint}
               consistencyWarning={chat.blueprintConsistencyWarning}
               refining={chat.refining}
-              onRefine={(focus) => void chat.handleRefineBlueprint(focus)}
+              onRefine={chat.handleRefineBlueprint}
               onPreviewRefine={(focus) => void chat.handlePreviewRefineBlueprint(focus)}
               onConfirm={chat.handleConfirmBlueprint}
               onCancel={chat.handleBackToConversation}

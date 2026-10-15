@@ -14,6 +14,8 @@ import { ImageSizeSelect } from "../../../components/image/ImageSizeSelect";
 import { extractErrorMessage } from "../../../api";
 import type { CharacterProfile } from "../../../api/character";
 import type {
+  MangaPipelineArtifactDeletionItem,
+  MangaPipelineArtifactRecord,
   MangaPipelineArtifactStage,
   MangaPipelineStopAfter,
 } from "../../../api/generated/host";
@@ -88,6 +90,7 @@ interface MangaChapterDetailPanelProps {
   pagePromptsError: string | null;
   currentContentHash: string | null;
   characterAssetsLoading: boolean;
+  characterAssetsError: string | null;
   projectImagesLoading: boolean;
   profiles: CharacterProfile[];
   portraits: Portrait[];
@@ -119,6 +122,10 @@ interface MangaChapterDetailPanelProps {
   onCancelPipeline: () => void;
   onDeleteManga: () => void;
   onPagePromptsChanged: () => Promise<boolean>;
+  onPagePromptChanged: (prompt: MangaPagePromptSummary) => void;
+  onPagePromptDeleted: (pageNumber: number) => void;
+  onPageArtifactChanged: (artifact: MangaPipelineArtifactRecord) => void;
+  onPageArtifactsDeleted: (artifacts: MangaPipelineArtifactDeletionItem[]) => void;
   onProjectImageImported: (image: GeneratedImage) => void;
   onRetryPagePrompts: () => void;
 }
@@ -154,6 +161,7 @@ export function MangaChapterDetailPanel({
   pagePromptsError,
   currentContentHash,
   characterAssetsLoading,
+  characterAssetsError,
   projectImagesLoading,
   profiles,
   portraits,
@@ -175,6 +183,10 @@ export function MangaChapterDetailPanel({
   onCancelPipeline,
   onDeleteManga,
   onPagePromptsChanged,
+  onPagePromptChanged,
+  onPagePromptDeleted,
+  onPageArtifactChanged,
+  onPageArtifactsDeleted,
   onProjectImageImported,
   onRetryPagePrompts,
 }: MangaChapterDetailPanelProps) {
@@ -206,10 +218,25 @@ export function MangaChapterDetailPanel({
   const previewBusyRef = useRef(false);
   const selectedChapterReady = Boolean(selectedChapter?.content?.trim());
   const selectedChapterGenerating = isChapterGenerating(selectedChapter);
+  const pipelineRunning =
+    selectedStatus?.pipeline_status === "running" || selectedStatus?.can_cancel === true;
+  const pagePromptReadUnavailable = pagePromptsLoading || pagePromptsError != null;
   const detailBusy =
     promptActionBusy ||
     requestPreviewLoading ||
-    uploadingReferenceBindingKey != null;
+    uploadingReferenceBindingKey != null ||
+    pipelineRunning ||
+    pagePromptReadUnavailable;
+  const ensurePagePromptsCurrent = () => {
+    if (!pagePromptReadUnavailable) return true;
+    addToast(pagePromptsError ?? t("common.operationInProgress"), "error");
+    return false;
+  };
+  const refreshPagePromptsAfterConflict = (error: unknown) => {
+    if (extractErrorMessage(error, "").includes("已被其他操作修改")) {
+      void onPagePromptsChanged();
+    }
+  };
 
   activeScopeRef.current = scopeKey;
   pagePromptsRef.current = pagePrompts;
@@ -440,6 +467,7 @@ export function MangaChapterDetailPanel({
   })();
 
   const handleGeneratePageImage = async (pageNumber: number) => {
+    if (!ensurePagePromptsCurrent()) return;
     if (!canEditManga) {
       addToast(t("comic.noEditPermission"), "error");
       return;
@@ -451,7 +479,7 @@ export function MangaChapterDetailPanel({
       addToast(t("comic.chapter.emptyBodyGenerate"), "error");
       return;
     }
-    if (selectedChapterGenerating) {
+    if (selectedChapterGenerating || pipelineRunning) {
       addToast(t("comic.chapter.generatingGenerate"), "error");
       return;
     }
@@ -503,7 +531,7 @@ export function MangaChapterDetailPanel({
         },
       );
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      if (!await onPagePromptsChanged()) return;
+      void onPagePromptsChanged();
       if (!isCurrentAction(requestScope, actionSeq)) return;
       addToast(t("comic.image.generated", { page: pageNumber }), "success");
     } catch (err) {
@@ -518,6 +546,7 @@ export function MangaChapterDetailPanel({
   };
 
   const handlePreviewPageImage = async (pageNumber: number) => {
+    if (!ensurePagePromptsCurrent()) return;
     if (!canEditManga) {
       addToast(t("comic.noEditPermission"), "error");
       return;
@@ -529,7 +558,7 @@ export function MangaChapterDetailPanel({
       addToast(t("comic.chapter.emptyBodyPreview"), "error");
       return;
     }
-    if (selectedChapterGenerating) {
+    if (selectedChapterGenerating || pipelineRunning) {
       addToast(t("comic.chapter.generatingPreview"), "error");
       return;
     }
@@ -582,11 +611,12 @@ export function MangaChapterDetailPanel({
   const handleBindReferenceImage = async (
     input: BindMangaReferenceImageInput,
   ) => {
+    if (!ensurePagePromptsCurrent()) return;
     if (!canEditManga) {
       addToast(t("comic.noEditPermission"), "error");
       return;
     }
-    if (selectedChapterGenerating) {
+    if (selectedChapterGenerating || pipelineRunning) {
       addToast(t("comic.chapter.generatingBind"), "error");
       return;
     }
@@ -611,9 +641,10 @@ export function MangaChapterDetailPanel({
         addToast(t("comic.prompt.notFound"), "error");
         return;
       }
-      await bindMangaReferenceImage(input);
+      const updatedPrompt = await bindMangaReferenceImage(input);
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      if (!await onPagePromptsChanged()) return;
+      onPagePromptChanged(updatedPrompt);
+      void onPagePromptsChanged();
       if (!isCurrentAction(requestScope, actionSeq)) return;
       addToast(
         input.action === "remove_user_image"
@@ -637,9 +668,10 @@ export function MangaChapterDetailPanel({
     characterName: string,
     file: File,
   ): Promise<void> => {
+    if (!ensurePagePromptsCurrent()) return;
     if (!canEditManga || !selectedChapter) return;
     if (referenceUploadBusyRef.current) return;
-    if (selectedChapterGenerating) {
+    if (selectedChapterGenerating || pipelineRunning) {
       addToast(t("comic.chapter.generatingBind"), "error");
       return;
     }
@@ -672,6 +704,7 @@ export function MangaChapterDetailPanel({
     try {
       const dataBase64 = await readFileAsBase64(file);
       if (!isCurrentScope(requestScope)) return;
+      if (!ensurePagePromptsCurrent()) return;
       const image = await uploadImage(projectId, {
         file_name: file.name,
         mime_type: file.type,
@@ -715,12 +748,13 @@ export function MangaChapterDetailPanel({
   };
 
   const handleUpdatePrompt = async (promptId: number, imagePrompt: string) => {
+    if (!ensurePagePromptsCurrent()) throw new Error(pagePromptsError ?? t("common.operationInProgress"));
     if (!canEditManga) {
       const message = t("comic.noEditPermission");
       addToast(message, "error");
       throw new Error(message);
     }
-    if (selectedChapterGenerating) {
+    if (selectedChapterGenerating || pipelineRunning) {
       const message = t("comic.chapter.generatingUpdate");
       addToast(message, "error");
       throw new Error(message);
@@ -750,19 +784,20 @@ export function MangaChapterDetailPanel({
         addToast(message, "error");
         throw new Error(message);
       }
-      await updateMangaPrompt({
+      const updatedPrompt = await updateMangaPrompt({
         prompt_id: promptId,
         image_prompt: imagePrompt,
+        expected_updated_at: currentPrompt.updated_at,
       });
       if (!isCurrentAction(requestScope, actionSeq))
         throw new Error("任务已停止");
-      if (!await onPagePromptsChanged()) {
-        throw new Error(t("comic.loadPagePromptsFailed"));
-      }
+      onPagePromptChanged(updatedPrompt);
+      void onPagePromptsChanged();
       if (!isCurrentAction(requestScope, actionSeq)) throw new Error("任务已停止");
       addToast(t("comic.prompt.saved"), "success");
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
+        refreshPagePromptsAfterConflict(err);
         const message = extractErrorMessage(err, t("comic.prompt.saveFailed"));
         if (
           !isCancelledOperation(message) &&
@@ -780,11 +815,12 @@ export function MangaChapterDetailPanel({
   };
 
   const handleOptimizePrompt = async (prompt: MangaPagePromptSummary) => {
+    if (!ensurePagePromptsCurrent()) return;
     if (!canEditManga) {
       addToast(t("comic.noEditPermission"), "error");
       return;
     }
-    if (selectedChapterGenerating) {
+    if (selectedChapterGenerating || pipelineRunning) {
       addToast(t("comic.chapter.generatingOptimize"), "error");
       return;
     }
@@ -816,6 +852,7 @@ export function MangaChapterDetailPanel({
       const trimmed = instruction.trim();
       if (!trimmed) return;
       if (!isCurrentAction(requestScope, actionSeq)) return;
+      if (!ensurePagePromptsCurrent()) return;
       const currentPrompt =
         pagePromptsRef.current.find((current) => current.id === requestPrompt.id) ??
         null;
@@ -824,16 +861,19 @@ export function MangaChapterDetailPanel({
         return;
       }
       setOptimizingPromptId(requestPrompt.id);
-      await optimizeMangaPrompt({
+      const updatedPrompt = await optimizeMangaPrompt({
         prompt_id: requestPrompt.id,
         instruction: trimmed,
+        expected_updated_at: currentPrompt.updated_at,
       });
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      if (!await onPagePromptsChanged()) return;
+      onPagePromptChanged(updatedPrompt);
+      void onPagePromptsChanged();
       if (!isCurrentAction(requestScope, actionSeq)) return;
       addToast(t("comic.prompt.optimized"), "success");
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
+        refreshPagePromptsAfterConflict(err);
         addToast(extractErrorMessage(err, t("comic.prompt.optimizeFailed")), "error");
       }
     } finally {
@@ -847,7 +887,7 @@ export function MangaChapterDetailPanel({
       addToast(t("comic.noEditPermission"), "error");
       return;
     }
-    if (selectedChapterGenerating) {
+    if (selectedChapterGenerating || pipelineRunning) {
       addToast(t("comic.chapter.generatingDelete"), "error");
       return;
     }
@@ -865,29 +905,40 @@ export function MangaChapterDetailPanel({
     pageNumber: number,
     payload: unknown,
   ) => {
+    if (!ensurePagePromptsCurrent()) return;
     if (!canEditManga || !selectedChapter) {
       addToast(t("comic.noEditPermission"), "error");
       return;
     }
-    if (selectedChapterGenerating) {
+    if (selectedChapterGenerating || pipelineRunning) {
       addToast(t("comic.chapter.generatingUpdate"), "error");
+      return;
+    }
+    const pagePrompt = pagePromptsRef.current.find(
+      (prompt) => prompt.page_number === pageNumber,
+    );
+    if (!pagePrompt) {
+      addToast(t("comic.prompt.notFound"), "error");
       return;
     }
     const actionSeq = beginAction(scopeKey);
     if (actionSeq == null) return;
     try {
-      await saveMangaPipelineArtifact({
+      const savedArtifact = await saveMangaPipelineArtifact({
         project_id: projectId,
         chapter_id: selectedChapter.id,
         stage,
         page_number: pageNumber,
+        expected_prompt_updated_at: pagePrompt.updated_at,
         payload,
       });
       if (!isCurrentAction(scopeKey, actionSeq)) return;
-      if (!await onPagePromptsChanged()) return;
+      onPageArtifactChanged(savedArtifact);
+      void onPagePromptsChanged();
       addToast(t("comic.prompt.saved"), "success");
     } catch (err) {
       if (isCurrentAction(scopeKey, actionSeq)) {
+        refreshPagePromptsAfterConflict(err);
         addToast(extractErrorMessage(err, t("comic.prompt.saveFailed")), "error");
       }
       throw err;
@@ -900,11 +951,12 @@ export function MangaChapterDetailPanel({
     stage: MangaPipelineArtifactStage,
     pageNumber: number,
   ) => {
+    if (!ensurePagePromptsCurrent()) return;
     if (!canEditManga || !selectedChapter) {
       addToast(t("comic.noEditPermission"), "error");
       return;
     }
-    if (selectedChapterGenerating) {
+    if (selectedChapterGenerating || pipelineRunning) {
       addToast(t("comic.chapter.generatingDelete"), "error");
       return;
     }
@@ -936,6 +988,8 @@ export function MangaChapterDetailPanel({
         dialogType: "danger",
       });
       if (!confirmed || !isCurrentAction(scopeKey, actionSeq)) return;
+      if (!ensurePagePromptsCurrent()) return;
+      const deletedArtifacts = [preview.target, ...preview.downstream];
       await deleteMangaPipelineArtifact({
         project_id: projectId,
         chapter_id: selectedChapter.id,
@@ -947,7 +1001,9 @@ export function MangaChapterDetailPanel({
         ],
       });
       if (!isCurrentAction(scopeKey, actionSeq)) return;
-      if (!await onPagePromptsChanged()) return;
+      if (stage === "drawing_prompt") onPagePromptDeleted(pageNumber);
+      else onPageArtifactsDeleted(deletedArtifacts);
+      void onPagePromptsChanged();
       addToast(t("comic.prompt.deleted"), "success");
     } catch (err) {
       if (isCurrentAction(scopeKey, actionSeq)) {
@@ -972,6 +1028,7 @@ export function MangaChapterDetailPanel({
   };
 
   const handleDeleteOrphanedPage = async (pageNumber: number) => {
+    if (!ensurePagePromptsCurrent()) return;
     if (!canEditManga || !selectedChapter) return;
     const requestProjectId = projectId;
     const requestChapterId = selectedChapter.id;
@@ -986,13 +1043,15 @@ export function MangaChapterDetailPanel({
         dialogType: "danger",
       });
       if (!confirmed || !isCurrentAction(requestScope, actionSeq)) return;
+      if (!ensurePagePromptsCurrent()) return;
       await deleteMangaPage({
         project_id: requestProjectId,
         chapter_id: requestChapterId,
         page_number: pageNumber,
       });
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      if (!await onPagePromptsChanged() || !isCurrentAction(requestScope, actionSeq)) return;
+      onPagePromptDeleted(pageNumber);
+      void onPagePromptsChanged();
       addToast(t("comic.prompt.orphanedPageDeleted"), "success");
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
@@ -1003,8 +1062,6 @@ export function MangaChapterDetailPanel({
     }
   };
 
-  const pipelineRunning =
-    selectedStatus?.pipeline_status === "running" || selectedStatus?.can_cancel === true;
   const pipelineCanCancel = selectedStatus?.can_cancel === true;
   const pipelineCanResume = pipelineCanResumeForStage;
   const hasMangaResult = pagePrompts.length > 0;
@@ -1125,7 +1182,8 @@ export function MangaChapterDetailPanel({
         disabled:
           detailBusy ||
           acting === "generate-missing-portraits" ||
-          characterAssetsLoading,
+          characterAssetsLoading ||
+          characterAssetsError != null,
         onClick: () => onGenerateMissingPortraits?.(),
       });
     }
@@ -1304,7 +1362,7 @@ export function MangaChapterDetailPanel({
                 pagePromptsError={pagePromptsError}
                 currentContentHash={currentContentHash}
                 chapterLocked={
-                  selectedChapterGenerating || !selectedChapterReady
+                  selectedChapterGenerating || pipelineRunning || !selectedChapterReady
                 }
                 generatingPageNumber={generatingPageNumber}
                 profiles={profiles}

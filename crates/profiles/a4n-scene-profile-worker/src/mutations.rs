@@ -21,6 +21,7 @@ impl WorkerState {
         } = request.payload;
         a4n_db::scene_profile::replace_chapter_scene_sync_with_generation_run_records(
             self.database.connection(),
+            user_id,
             project_id,
             chapter_id,
             chapter_number,
@@ -102,6 +103,7 @@ impl WorkerState {
         let profile = a4n_db::scene_profile::update_scene_profile_record_checked(
             self.database.connection(),
             existing.id,
+            &request.payload.expected_updated_at,
             record,
         )
         .await

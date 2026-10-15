@@ -163,14 +163,38 @@ pub(in crate::character) async fn require_profile_for_update<C>(
 where
     C: ConnectionTrait,
 {
+    let project_id = protagonist_profile::Entity::find_by_id(profile_id)
+        .select_only()
+        .column(protagonist_profile::Column::ProjectId)
+        .into_tuple::<i64>()
+        .one(db)
+        .await?
+        .ok_or_else(|| CharacterDbError::NotFound(format!("角色档案不存在: {profile_id}")))?;
+    let project = crate::project::project_write_identity_for_update(db, project_id)
+        .await?
+        .ok_or_else(|| CharacterDbError::NotFound(format!("项目不存在: {project_id}")))?;
+    if project.lifecycle_gate != crate::generation::PROJECT_GATE_ACTIVE {
+        return Err(CharacterDbError::InvalidState {
+            current: project.lifecycle_gate,
+            operation: "修改角色档案".to_string(),
+        });
+    }
+
     let mut query = protagonist_profile::Entity::find_by_id(profile_id);
     if db.get_database_backend() != DbBackend::Sqlite {
         query = query.lock_exclusive();
     }
-    query
+    let profile = query
         .one(db)
         .await?
-        .ok_or_else(|| CharacterDbError::NotFound(format!("角色档案不存在: {profile_id}")))
+        .ok_or_else(|| CharacterDbError::NotFound(format!("角色档案不存在: {profile_id}")))?;
+    if profile.project_id != project_id {
+        return Err(CharacterDbError::InvalidState {
+            current: "character_profile_project_changed".to_string(),
+            operation: "修改角色档案".to_string(),
+        });
+    }
+    Ok(profile)
 }
 
 pub async fn profiles_by_project<C>(

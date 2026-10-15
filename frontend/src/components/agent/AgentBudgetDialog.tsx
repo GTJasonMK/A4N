@@ -33,7 +33,7 @@ function usageFor(run: AgentRunView, field: BudgetField): number {
 export function AgentBudgetDialog({ run, onClose, onResumed }: {
   run: AgentRunView;
   onClose: () => void;
-  onResumed: () => Promise<unknown>;
+  onResumed: () => void;
 }) {
   const { t } = useI18n();
   const [owner, setOwner] = useState<AgentRunView | null>(null);
@@ -89,7 +89,7 @@ export function AgentBudgetDialog({ run, onClose, onResumed }: {
         if (values[field] != null && Number(values[field]) !== owner.budget[field]) budget[field] = Number(values[field]);
       }
       await controlAgentRun({ thread_id: owner.thread_id, run_id: owner.id, action: "resume", ...(Object.keys(budget).length ? { budget } : {}) });
-      await onResumed();
+      onResumed();
       onClose();
     } catch (failure) {
       setError(extractErrorMessage(failure, t("agent.domain.controlFailed")));

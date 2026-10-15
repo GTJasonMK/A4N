@@ -18,7 +18,7 @@ impl WorkerState {
         .await
         .map_err(create_error)?;
         Ok(CharacterProfileCreateResult {
-            profile_id: profile.id,
+            profile: character_profile_summary(&profile)?,
             warnings: Vec::new(),
         })
     }

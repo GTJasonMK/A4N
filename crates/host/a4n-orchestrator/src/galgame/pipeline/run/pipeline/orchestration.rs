@@ -1,7 +1,9 @@
 use a4n_error::AppError;
 
 use crate::galgame::pipeline::prompt::galgame_source_markers;
-use crate::galgame::{GalgamePipelineRunOptions, GalgameScriptDetail, OrchestratorContext};
+use crate::galgame::{
+    GalgamePipelineRunOptions, GalgamePipelineStartStage, GalgameScriptDetail, OrchestratorContext,
+};
 use a4n_prompt::rendering::PromptRenderer;
 
 use super::contracts::GalgamePipelineExecution;
@@ -28,6 +30,11 @@ impl OrchestratorContext {
             prompt_context: &prompt_context,
             source_markers: &source_markers,
         };
+        if options.start_from_stage == Some(GalgamePipelineStartStage::AssetGeneration) {
+            let detail = self.get_script_detail(project_id).await?;
+            plan_galgame_pipeline_assets(&execution, &detail).await?;
+            return Ok(Some(detail));
+        }
         let Some(early) = run_galgame_pipeline_early_stages(&execution).await? else {
             return Ok(None);
         };

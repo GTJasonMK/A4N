@@ -32,6 +32,20 @@ export const DEFAULT_LLM_FORM: LlmForm = {
   pricing: DEFAULT_PRICING_PLAN,
 };
 
+function isLoopbackIpv4(hostname: string): boolean {
+  const octets = hostname.split(".");
+  return (
+    octets.length === 4 &&
+    octets.every((octet) =>
+      octet.length > 0 &&
+      octet.length <= 3 &&
+      [...octet].every((digit) => digit >= "0" && digit <= "9") &&
+      Number(octet) <= 255,
+    ) &&
+    Number(octets[0]) === 127
+  );
+}
+
 export function selectLlmProvider(
   form: LlmForm,
   provider: string,
@@ -76,7 +90,7 @@ export function validateLlmForm(form: LlmForm, t: MessageTranslator): string | n
   const loopback =
     hostname === "localhost" ||
     hostname.endsWith(".localhost") ||
-    hostname === "127.0.0.1" ||
+    isLoopbackIpv4(hostname) ||
     hostname === "[::1]" ||
     hostname === "::1";
   const hasApiKey = Boolean(form.api_key.trim() || (form.has_api_key && !form.clear_api_key));

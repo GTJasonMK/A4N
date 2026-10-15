@@ -64,3 +64,19 @@ impl From<WorkflowReadError> for WorkflowWriteError {
         }
     }
 }
+
+impl From<crate::generation::GenerationLifecycleGateError> for WorkflowWriteError {
+    fn from(error: crate::generation::GenerationLifecycleGateError) -> Self {
+        use crate::generation::GenerationLifecycleGateError as GateError;
+        match error {
+            GateError::InvalidArgument(message) => Self::InvalidArgument(message),
+            GateError::NotFound(message) => Self::NotFound(message),
+            GateError::Blocked(message) => Self::StatusConflict {
+                current: "project_lifecycle_gate".to_string(),
+                operation: message,
+            },
+            GateError::Corrupt(message) => Self::InvalidData(message),
+            GateError::Database(error) => Self::Database(error),
+        }
+    }
+}

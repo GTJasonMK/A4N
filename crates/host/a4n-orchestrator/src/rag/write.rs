@@ -14,6 +14,4 @@ pub(crate) struct RagEmbeddingInput {
 mod tests;
 
 pub(crate) use embedded::store_embedded_rag_records_in_store;
-pub(crate) use provider::{
-    embed_and_store_rag_record_in_store, embed_and_store_rag_records_in_store,
-};
+pub(crate) use provider::embed_rag_records;

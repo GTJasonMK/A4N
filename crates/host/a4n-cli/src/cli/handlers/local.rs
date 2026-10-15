@@ -274,6 +274,12 @@ pub(crate) struct CallFiles<'a> {
     pub(crate) force: bool,
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct PageCallContext {
+    pub(crate) session_id: String,
+    pub(crate) operation_id: String,
+}
+
 async fn run_call(
     client: &mut ApiClient,
     context: &SessionContext,
@@ -283,7 +289,7 @@ async fn run_call(
     output: &OutputOptions,
 ) -> Result<()> {
     let args = read_json_source(args_source)?;
-    let value = invoke_call(client, context, command, args, files).await?;
+    let value = invoke_call(client, context, command, args, files, None).await?;
     print_json(&value, output)
 }
 
@@ -293,6 +299,7 @@ pub(crate) async fn invoke_call(
     command: &str,
     mut args: Value,
     files: CallFiles<'_>,
+    page: Option<PageCallContext>,
 ) -> Result<Value> {
     let auth_command = match command {
         "login_user" => Some("auth login"),
@@ -314,10 +321,19 @@ pub(crate) async fn invoke_call(
     apply_file_inputs(&mut args, files.set_base64, files.set_text)?;
     let outputs = prepare_outputs(files.save_base64, files.save_text, files.force)?;
     let secrets = request_secret_values(&descriptor, &args);
-    let mut value = client
-        .send_json(routing::command_request(command, args)?)
-        .await
-        .map_err(|error| client::redact_error_values(error, &secrets))?;
+    let request = routing::command_request(command, args)?;
+    let mut value = match page {
+        Some(page) => client
+            .send_page_host_json(
+                &request.path,
+                request.body,
+                &page.session_id,
+                &page.operation_id,
+            )
+            .await,
+        None => client.send_json(request).await,
+    }
+    .map_err(|error| client::redact_error_values(error, &secrets))?;
     save_outputs(&mut value, &outputs, files.force)?;
     client::redact_json_values(&mut value, &secrets);
     Ok(value)
@@ -413,4 +429,3 @@ fn apply_runtime_config(
     );
     Ok(())
 }
-

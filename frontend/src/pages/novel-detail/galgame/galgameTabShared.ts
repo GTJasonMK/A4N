@@ -88,10 +88,10 @@ export const PIPELINE_START_STAGES: Array<{
 }> = [
   { value: "", labelKey: "galgame.startStage.all" },
   { value: "adaptation_plan", labelKey: "galgame.startStage.adaptationPlan" },
+  { value: "branch_design", labelKey: "galgame.startStage.branch" },
   { value: "script_adaptation", labelKey: "galgame.startStage.adaptation" },
   { value: "character_staging", labelKey: "galgame.startStage.staging" },
   { value: "visual_planning", labelKey: "galgame.startStage.planning" },
-  { value: "branch_design", labelKey: "galgame.startStage.branch" },
   { value: "persist_script", labelKey: "galgame.startStage.persist" },
   { value: "asset_generation", labelKey: "galgame.startStage.asset" },
 ];

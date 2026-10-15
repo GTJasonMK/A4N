@@ -29,6 +29,8 @@ pub enum CharacterProfileCreateError {
     AlreadyExists { name: String },
     #[error("{0}")]
     InvalidArgument(String),
+    #[error("状态无效：当前状态 {current}，不允许操作 {operation}")]
+    InvalidState { current: String, operation: String },
     #[error(transparent)]
     Database(#[from] DbErr),
     #[error(transparent)]
@@ -41,6 +43,8 @@ pub enum CharacterProfileDeleteError {
     Referenced(i64),
     #[error("{0}")]
     NotFound(String),
+    #[error("状态无效：当前状态 {current}，不允许操作 {operation}")]
+    InvalidState { current: String, operation: String },
     #[error(transparent)]
     Database(#[from] DbErr),
     #[error(transparent)]

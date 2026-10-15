@@ -19,6 +19,7 @@ interface RequestPreviewModalProps {
   data: ModelRequestPreview | null;
   recorded?: boolean;
   fallbackTitle?: string;
+  emptyMessage?: string;
   confirmBusy?: boolean;
   confirmDisabled?: boolean;
   confirmLabel?: string;
@@ -581,6 +582,7 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
   data,
   recorded = false,
   fallbackTitle,
+  emptyMessage,
   confirmBusy = false,
   confirmDisabled = false,
   confirmLabel,
@@ -715,7 +717,7 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
         </div>
       ) : (
         <div className="flex min-h-[14rem] items-center justify-center text-small text-book-text-muted">
-          {t("feedback.noPreviewData")}
+          {emptyMessage ?? t("feedback.noPreviewData")}
         </div>
       )}
     </Modal>

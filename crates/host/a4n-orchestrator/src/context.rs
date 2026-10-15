@@ -8,6 +8,7 @@ use a4n_rag_core::vector_store::VectorStore;
 use a4n_service_manager::ServiceManager;
 
 use crate::chapter_generation::ChapterGenerationService;
+use crate::import_analysis::{ImportAnalysisExecutionGuard, ImportAnalysisExecutionLocks};
 use a4n_task_runtime::persistent::PersistentTaskQueue;
 
 mod admin;
@@ -102,6 +103,7 @@ pub struct OrchestratorContext {
     collaboration: CollaborationApplication,
     galgame: GalgameApplication,
     generation: GenerationApplication,
+    import_analysis_execution: ImportAnalysisExecutionLocks,
     import_reverse: ImportReverseApplication,
     import_review: ImportReviewApplication,
     inspiration: InspirationApplication,
@@ -142,4 +144,13 @@ pub struct OrchestratorContext {
     engine: Arc<a4n_prompt::tera_engine::TeraPromptEngine>,
     embedding: Arc<dyn a4n_embedding_provider_contract::EmbeddingProvider>,
     document_export_renderer: Arc<dyn a4n_export_contract::ExportDocumentRenderer>,
+}
+
+impl OrchestratorContext {
+    pub(crate) fn try_import_analysis_execution(
+        &self,
+        project_id: i64,
+    ) -> Result<ImportAnalysisExecutionGuard, a4n_error::AppError> {
+        self.import_analysis_execution.try_acquire(project_id)
+    }
 }

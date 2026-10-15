@@ -243,6 +243,19 @@ pub(crate) fn args_forward_project_status() -> Value {
         "x-a4n-schema-quality": "typed",
     })
 }
+pub(crate) fn args_rollback_project_status() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "projectId": { "type": "integer", "minimum": 1 },
+            "expectedFrom": property_schema::<crate::project::ProjectStatus>("expectedFrom"),
+            "target": property_schema::<crate::project::ProjectStatus>("target"),
+        },
+        "required": ["projectId", "expectedFrom", "target"],
+        "additionalProperties": false,
+        "x-a4n-schema-quality": "typed",
+    })
+}
 pub(crate) fn args_project_asset_dependency_graph_node_detail() -> Value {
     json!({
         "type": "object",
@@ -513,6 +526,9 @@ pub(crate) fn result_source_sync_plan() -> Value {
 pub(crate) fn result_apply_implicit_update_decision() -> Value {
     typed_schema::<crate::character::ApplyImplicitUpdateDecisionResultSummary>()
 }
+pub(crate) fn result_attribute_event_write() -> Value {
+    typed_schema::<crate::character::AttributeEventWriteResult>()
+}
 pub(crate) fn result_apply_optimization_patches() -> Value {
     typed_schema::<crate::optimize::ApplyOptimizationPatchesResponse>()
 }
@@ -561,6 +577,9 @@ pub(crate) fn result_create_profile() -> Value {
 }
 pub(crate) fn result_create_project() -> Value {
     typed_schema::<crate::project::ProjectSummary>()
+}
+pub(crate) fn result_project_status_mutation() -> Value {
+    typed_schema::<crate::project::ProjectStatusMutationResult>()
 }
 pub(crate) fn result_object_profile_mutation() -> Value {
     typed_schema::<crate::profile::ObjectProfileMutationResult>()
@@ -622,8 +641,14 @@ pub(crate) fn result_import_review() -> Value {
 pub(crate) fn result_import_reviews() -> Value {
     typed_schema::<Vec<crate::import_review::ImportReviewSummary>>()
 }
+pub(crate) fn result_batch_accept_reviews() -> Value {
+    typed_schema::<crate::import_review::BatchAcceptImportReviewsResult>()
+}
 pub(crate) fn result_import_analysis_progress() -> Value {
     typed_schema::<Option<crate::import::ProjectImportAnalysisProgress>>()
+}
+pub(crate) fn result_import_analysis_progress_value() -> Value {
+    typed_schema::<crate::import::ProjectImportAnalysisProgress>()
 }
 pub(crate) fn result_import_analysis_summary() -> Value {
     typed_schema::<crate::import::ImportProjectAnalysisSummary>()
@@ -735,6 +760,9 @@ pub(crate) fn result_reset_deletion_marks() -> Value {
 }
 pub(crate) fn result_blueprint_mutation() -> Value {
     typed_schema::<crate::blueprint::BlueprintMutationResult>()
+}
+pub(crate) fn result_versioned_blueprint_mutation() -> Value {
+    typed_schema::<crate::blueprint::VersionedBlueprintMutationResult>()
 }
 pub(crate) fn result_rollback_to_chapter() -> Value {
     typed_schema::<crate::character::RollbackResultSummary>()

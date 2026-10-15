@@ -92,4 +92,14 @@ describe("PageSessionControlBar", () => {
     expect(html).toContain("CODE-123");
     expect(html).toContain("复制绑定码");
   });
+
+  it("allows authorization again after session creation but before a code is issued", () => {
+    const html = renderBar({
+      session: session("awaiting_attach", null),
+      error: "生成 Page 授权码失败",
+    });
+
+    expect(html).toContain("生成绑定码");
+    expect(html).toContain("生成 Page 授权码失败");
+  });
 });

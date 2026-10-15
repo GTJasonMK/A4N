@@ -18,6 +18,7 @@ use crate::text_anchor::EVIDENCE_ROLE_FIRST_SEEN;
 
 pub async fn replace_chapter_scene_sync_with_generation_run_records(
     db: &impl crate::DbExecutor,
+    user_id: i64,
     project_id: i64,
     chapter_id: i64,
     chapter_number: i32,
@@ -40,6 +41,7 @@ pub async fn replace_chapter_scene_sync_with_generation_run_records(
     }
 
     let txn = db.begin().await?;
+    crate::generation::require_project_lifecycle_active(&txn, user_id, project_id).await?;
     if !crate::chapter_content::chapter_source_snapshots_match_for_update(
         &txn,
         std::slice::from_ref(&source),

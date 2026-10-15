@@ -266,6 +266,8 @@ where
                 profile_id: mark.profile_id,
                 category: mark.category.clone(),
                 key: mark.key.clone(),
+                expected_mark_id: mark.id,
+                expected_mark_updated_at: mark.updated_at,
                 event_cause,
                 evidence,
                 chapter_number,

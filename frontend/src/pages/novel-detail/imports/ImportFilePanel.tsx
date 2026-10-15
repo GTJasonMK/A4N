@@ -8,6 +8,7 @@ interface ImportFilePanelProps {
   fileName: string;
   importBusy: boolean;
   externalBusy: boolean;
+  disabled?: boolean;
   onSelectFile: () => void;
   onImport: () => void;
 }
@@ -16,6 +17,7 @@ export const ImportFilePanel: React.FC<ImportFilePanelProps> = ({
   fileName,
   importBusy,
   externalBusy,
+  disabled = false,
   onSelectFile,
   onImport,
 }) => {
@@ -29,7 +31,7 @@ export const ImportFilePanel: React.FC<ImportFilePanelProps> = ({
       <button
         type="button"
         onClick={onSelectFile}
-        disabled={importBusy || externalBusy}
+        disabled={disabled || importBusy || externalBusy}
         className="pyqt-input flex h-10 min-w-0 items-center gap-2.5 px-3 text-left text-xs transition-colors disabled:cursor-not-allowed"
         title={fileName || t("novel.importReview.file.choose")}
       >
@@ -50,7 +52,7 @@ export const ImportFilePanel: React.FC<ImportFilePanelProps> = ({
         variant="primary"
         size="sm"
         onClick={onImport}
-        disabled={importBusy || externalBusy || !fileName.trim()}
+        disabled={disabled || importBusy || externalBusy || !fileName.trim()}
         className="h-10 !min-h-10 !px-4 !text-xs"
       >
         {importBusy ? (

@@ -14,7 +14,7 @@ import {
 import { generationClient } from "../../api/generationTasks";
 import type { GenerationTaskHandle } from "../../api/generated/generationContracts";
 import type { ModelRequestPreview } from "../../api/requestPreview";
-import type { NovelProject } from "../../api/project";
+import { canEditProjectMaterials, type NovelProject } from "../../api/project";
 import { useGenerationTask } from "../../hooks/useGenerationTask";
 import { useGenerationTasksStore, generationTaskKey } from "../../store/generationTasks";
 import type { ToastType } from "../../components/feedback/Toast";
@@ -54,6 +54,7 @@ interface UseBlueprintWorkflowOptions {
   latestConversationState: Record<string, unknown> | undefined;
   progressSummary: string | undefined;
   nextQuestion: string | undefined;
+  projectReadAvailable: boolean;
   addToast: AddToast;
 }
 
@@ -116,6 +117,7 @@ export const useBlueprintWorkflow = ({
   latestConversationState,
   progressSummary,
   nextQuestion,
+  projectReadAvailable,
   addToast,
 }: UseBlueprintWorkflowOptions) => {
   const { t } = useI18n();
@@ -405,7 +407,13 @@ export const useBlueprintWorkflow = ({
     t,
   ]);
 
-  const canGenerate = stage === "conversation" && !sending && !generating && !refining;
+  const canGenerate = stage === "conversation"
+    && project != null
+    && projectReadAvailable
+    && canEditProjectMaterials(project)
+    && !sending
+    && !generating
+    && !refining;
   const canCancelBlueprintOperation = Boolean(
     generationHandle
     && (operation === "generation" || operation === "refinement")
@@ -505,6 +513,10 @@ export const useBlueprintWorkflow = ({
       || (operation !== "generation" && operation !== "refinement")
       || blueprintCancelling
     ) return;
+    if (!projectReadAvailable) {
+      addToast(t("common.operationInProgress"), "error");
+      return;
+    }
     const requestProjectId = projectId;
     setBlueprintCancelling(true);
     setBlueprintProgress((previous) => ({ ...previous, message: t("inspiration.stopBlueprintRequest") }));
@@ -518,14 +530,22 @@ export const useBlueprintWorkflow = ({
       setBlueprintCancelling(false);
       addToast(extractErrorMessage(error, t("inspiration.stopBlueprintFailed")), "error");
     }
-  }, [addToast, blueprintCancelling, generationHandle, isCurrentProject, operation, projectId, t]);
+  }, [addToast, blueprintCancelling, generationHandle, isCurrentProject, operation, projectId, projectReadAvailable, t]);
 
   const handleRefineBlueprint = useCallback(async (focus: string) => {
-    if (!project || refining) return;
+    if (!project || refining) return false;
+    if (!projectReadAvailable) {
+      addToast(t("common.operationInProgress"), "error");
+      return false;
+    }
+    if (!canEditProjectMaterials(project)) {
+      addToast(t("errors.noEditPermission"), "error");
+      return false;
+    }
     const requestFocus = focus.trim();
     if (!requestFocus) {
       addToast(t("inspiration.missingRefineFocus"), "error");
-      return;
+      return false;
     }
     const requestProjectId = projectId;
     const requestSeq = ++refineSeqRef.current;
@@ -542,11 +562,12 @@ export const useBlueprintWorkflow = ({
     setBlueprintProgressOpen(true);
     try {
       const handle = await refineBlueprint({ project_id: requestProjectId, focus: requestFocus, variables: null });
-      if (refineSeqRef.current !== requestSeq || !isCurrentProject(requestProjectId)) return;
+      if (refineSeqRef.current !== requestSeq || !isCurrentProject(requestProjectId)) return false;
       handledTerminalRef.current = null;
       setGenerationHandle(handle);
+      return true;
     } catch (error) {
-      if (refineSeqRef.current !== requestSeq || !isCurrentProject(requestProjectId)) return;
+      if (refineSeqRef.current !== requestSeq || !isCurrentProject(requestProjectId)) return false;
       setRefining(false);
       const message = extractErrorMessage(error, t("inspiration.startRefineFailed"));
       setBlueprintProgress((previous) => ({
@@ -556,11 +577,20 @@ export const useBlueprintWorkflow = ({
         error: message,
       }));
       addToast(message, "error");
+      return false;
     }
-  }, [addToast, isCurrentProject, project, projectId, refining, t]);
+  }, [addToast, isCurrentProject, project, projectId, projectReadAvailable, refining, t]);
 
   const handlePreviewRefineBlueprint = useCallback(async (focus: string) => {
     if (!project) return;
+    if (!projectReadAvailable) {
+      addToast(t("common.operationInProgress"), "error");
+      return;
+    }
+    if (!canEditProjectMaterials(project)) {
+      addToast(t("errors.noEditPermission"), "error");
+      return;
+    }
     const requestProjectId = projectId;
     const requestFocus = focus.trim();
     if (!requestFocus) {
@@ -582,10 +612,14 @@ export const useBlueprintWorkflow = ({
     } finally {
       if (isCurrentProject(requestProjectId) && requestPreviewSeqRef.current === requestSeq) setRequestPreviewLoading(false);
     }
-  }, [addToast, isCurrentProject, project, projectId, t]);
+  }, [addToast, isCurrentProject, project, projectId, projectReadAvailable, t]);
 
   const handleConfirmBlueprint = useCallback(() => {
     if (!project) return;
+    if (!projectReadAvailable) {
+      addToast(t("common.operationInProgress"), "error");
+      return;
+    }
     const requestProjectId = projectId;
     const targetRoute = getProjectPrimaryRoute(project);
     setStage("display");
@@ -594,7 +628,7 @@ export const useBlueprintWorkflow = ({
       confirmTimeoutRef.current = null;
       if (isCurrentProject(requestProjectId)) navigate(targetRoute, { replace: true });
     }, 1200);
-  }, [isCurrentProject, navigate, project, projectId]);
+  }, [addToast, isCurrentProject, navigate, project, projectId, projectReadAvailable, t]);
 
   const closeBlueprintProgress = useCallback(() => {
     setBlueprintProgressOpen(false);

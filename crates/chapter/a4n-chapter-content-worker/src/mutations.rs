@@ -1,6 +1,9 @@
 use super::{
     WorkerState,
-    errors::{WorkerFailure, app_error, chapter_error, import_error, project_error},
+    errors::{
+        WorkerFailure, app_error, chapter_error, generation_lifecycle_error, import_error,
+        project_error,
+    },
     permissions::verify_project_editor,
     transactions::finish_transaction,
     validation::{positive, user_id, validate_request},
@@ -37,6 +40,9 @@ impl WorkerState {
             .await
             .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
         let result = async {
+            a4n_db::generation::require_project_lifecycle_active(&tx, user_id, existing.project_id)
+                .await
+                .map_err(generation_lifecycle_error)?;
             let chapter = a4n_db::chapter_content::save_chapter_content_edit_record(
                 &tx,
                 EditChapterContentInput {
@@ -84,6 +90,9 @@ impl WorkerState {
             .await
             .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
         let result = async {
+            a4n_db::generation::require_project_lifecycle_active(&tx, user_id, project_id)
+                .await
+                .map_err(generation_lifecycle_error)?;
             let chapter = a4n_db::chapter_content::import_chapter_content_record(
                 &tx,
                 ImportChapterContentInput {

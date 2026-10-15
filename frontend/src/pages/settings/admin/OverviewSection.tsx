@@ -43,6 +43,7 @@ export const OverviewSection: React.FC = () => {
     const requestSeq = healthSeqRef.current + 1;
     healthSeqRef.current = requestSeq;
     setHealthLoading(true);
+    setHealth(null);
     setHealthError(null);
     try {
       const nextHealth = await healthCheck();
@@ -58,6 +59,7 @@ export const OverviewSection: React.FC = () => {
     }
   }, []);
   const refresh = useCallback(async () => {
+    setOverview(null);
     await Promise.all([load(), refreshHealth()]);
   }, [load, refreshHealth]);
 

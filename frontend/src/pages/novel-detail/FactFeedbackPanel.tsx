@@ -51,6 +51,8 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
   const operationBusy = useRef(false);
   const intervalDirty = useRef(false);
   const loadSequence = useRef(0);
+  const dataMutationVersion = useRef(0);
+  const loadInFlight = useRef<number | null>(null);
   const previewSequence = useRef(0);
   currentProject.current = projectId;
 
@@ -59,32 +61,53 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
     return () => {
       mounted.current = false;
       loadSequence.current += 1;
+      loadInFlight.current = null;
       previewSequence.current += 1;
     };
   }, []);
 
-  const load = useCallback(async (): Promise<boolean> => {
+  const load = useCallback(async (options: { showLoading?: boolean; force?: boolean } = {}): Promise<void> => {
+    const showLoading = options.showLoading ?? true;
+    if (!options.force && !showLoading && loadInFlight.current) return;
     const sequence = ++loadSequence.current;
+    loadInFlight.current = sequence;
+    const mutationVersion = dataMutationVersion.current;
+    if (showLoading) {
+      setLoading(true);
+    }
     try {
       const result = await getProjectFactFeedback(projectId);
-      if (!mounted.current || currentProject.current !== projectId || loadSequence.current !== sequence) return false;
+      if (
+        !mounted.current
+        || currentProject.current !== projectId
+        || loadSequence.current !== sequence
+      ) return;
+      if (dataMutationVersion.current !== mutationVersion) return;
       setData(result);
       if (!intervalDirty.current) setIntervalDraft(String(result.interval_chapters));
       setError(null);
-      return true;
     } catch (cause) {
       if (mounted.current && currentProject.current === projectId && loadSequence.current === sequence) {
         setError(extractErrorMessage(cause, tRef.current("novel.factFeedback.loadFailed")));
       }
-      return false;
     } finally {
-      if (mounted.current && currentProject.current === projectId && loadSequence.current === sequence) setLoading(false);
+      if (
+        mounted.current &&
+        currentProject.current === projectId &&
+        loadSequence.current === sequence &&
+        loadInFlight.current === sequence
+      ) {
+        loadInFlight.current = null;
+        setLoading(false);
+      }
     }
   }, [projectId, t]);
 
   useLayoutEffect(() => {
     loadSequence.current += 1;
     previewSequence.current += 1;
+    loadInFlight.current = null;
+    dataMutationVersion.current = 0;
     operationBusy.current = false;
     setData(null);
     setLoading(true);
@@ -101,7 +124,7 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
 
   useEffect(() => {
     if (data?.workflow_status !== "running") return;
-    const timer = globalThis.setInterval(() => void load(), 1500);
+    const timer = globalThis.setInterval(() => void load({ showLoading: false }), 1500);
     return () => globalThis.clearInterval(timer);
   }, [data?.workflow_status, load]);
 
@@ -113,8 +136,14 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
     return false;
   };
 
+  const ensureReadModel = () => {
+    if (!error) return true;
+    addToast(error, "error");
+    return false;
+  };
+
   const run = async (mode: RunProjectFactFeedbackInput["mode"], resume = false) => {
-    if (!canEdit || operationBusy.current) return;
+    if (!canEdit || !ensureReadModel() || operationBusy.current) return;
     if (!requireSavedInterval()) return;
     operationBusy.current = true;
     setBusy(true);
@@ -131,21 +160,24 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
         return next;
       });
       if (!mounted.current || currentProject.current !== requestProject) return;
+      dataMutationVersion.current += 1;
       setData(result);
       setError(null);
-      let refreshFailed = false;
-      try {
-        refreshFailed = (await onChanged?.()) === false;
-      } catch {
-        refreshFailed = true;
-      }
-      if (refreshFailed && mounted.current && currentProject.current === requestProject) {
-        setError(tRef.current("novel.factFeedback.loadFailed"));
-      }
+      void Promise.resolve(onChanged?.())
+        .then((refreshed) => {
+          if (refreshed === false && mounted.current && currentProject.current === requestProject) {
+            setError(tRef.current("novel.factFeedback.loadFailed"));
+          }
+        })
+        .catch(() => {
+          if (mounted.current && currentProject.current === requestProject) {
+            setError(tRef.current("novel.factFeedback.loadFailed"));
+          }
+        });
     } catch (cause) {
       if (mounted.current && currentProject.current === requestProject) {
         setError(extractErrorMessage(cause, tRef.current("novel.factFeedback.runFailed")));
-        await load();
+        void load();
       }
     } finally {
       operationBusy.current = false;
@@ -165,24 +197,25 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
     try {
       await updateProject(requestProject, { title: null, description: null, fact_feedback_interval_chapters: value });
       if (!mounted.current || currentProject.current !== requestProject) return;
+      dataMutationVersion.current += 1;
       intervalDirty.current = false;
-      const loaded = await load();
-      if (!mounted.current || currentProject.current !== requestProject) return;
-      if (!loaded) {
-        addToast(tRef.current("novel.refreshFailed"), "error");
-        return;
-      }
-      let refreshFailed = false;
-      try {
-        refreshFailed = (await onChanged?.()) === false;
-      } catch {
-        refreshFailed = true;
-      }
-      if (!mounted.current || currentProject.current !== requestProject) return;
-      if (refreshFailed && mounted.current && currentProject.current === requestProject) {
-        setError(tRef.current("novel.factFeedback.loadFailed"));
-      }
+      setIntervalDraft(String(value));
+      setData((current) => current ? { ...current, interval_chapters: value } : current);
       addToast(tRef.current("novel.factFeedback.intervalSaved"), "success");
+      const refreshPromise = load({ showLoading: false, force: true });
+      void (async () => {
+        await refreshPromise;
+        if (!mounted.current || currentProject.current !== requestProject) return;
+        let refreshFailed = false;
+        try {
+          refreshFailed = (await onChanged?.()) === false;
+        } catch {
+          refreshFailed = true;
+        }
+        if (refreshFailed && mounted.current && currentProject.current === requestProject) {
+          setError(tRef.current("novel.factFeedback.loadFailed"));
+        }
+      })();
     } catch (cause) {
       if (mounted.current && currentProject.current === requestProject) setError(extractErrorMessage(cause, tRef.current("novel.factFeedback.saveFailed")));
     } finally {
@@ -199,7 +232,7 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
   };
 
   const showPreview = async () => {
-    if (operationBusy.current || !requireSavedInterval()) return;
+    if (!ensureReadModel() || operationBusy.current || !requireSavedInterval()) return;
     const previewRequest = ++previewSequence.current;
     setPreviewOpen(true);
     setPreviewLoading(true);
@@ -246,10 +279,10 @@ export const FactFeedbackPanel = ({ projectId, canEdit, refreshKey, onChanged }:
             <BookButton size="sm" variant="secondary" type="submit" disabled={busy || interval === String(data.interval_chapters)}>{t("novel.factFeedback.save")}</BookButton>
           </form>
           <div className="flex flex-wrap items-center gap-2">
-            <BookButton size="sm" onClick={() => void run("consolidate")} disabled={running}>{t("novel.factFeedback.consolidate")}</BookButton>
-            <BookButton size="sm" variant="secondary" onClick={() => void run("rebuild")} disabled={running}>{t("novel.factFeedback.rebuild")}</BookButton>
-            {data.can_resume ? <BookButton size="sm" variant="secondary" onClick={() => void run(data.workflow_kind === "project_fact_rebuild" ? "rebuild" : "consolidate", true)} disabled={running}>{t("novel.factFeedback.resume")}</BookButton> : null}
-            <BookButton size="sm" variant="ghost" onClick={() => void showPreview()} disabled={running}>{t("novel.factFeedback.preview")}</BookButton>
+            <BookButton size="sm" onClick={() => void run("consolidate")} disabled={running || error != null}>{t("novel.factFeedback.consolidate")}</BookButton>
+            <BookButton size="sm" variant="secondary" onClick={() => void run("rebuild")} disabled={running || error != null}>{t("novel.factFeedback.rebuild")}</BookButton>
+            {data.can_resume ? <BookButton size="sm" variant="secondary" onClick={() => void run(data.workflow_kind === "project_fact_rebuild" ? "rebuild" : "consolidate", true)} disabled={running || error != null}>{t("novel.factFeedback.resume")}</BookButton> : null}
+            <BookButton size="sm" variant="ghost" onClick={() => void showPreview()} disabled={running || error != null}>{t("novel.factFeedback.preview")}</BookButton>
           </div>
           <p className="text-caption text-book-text-muted">{t("novel.factFeedback.rebuildHint")}</p>
         </div> : null}

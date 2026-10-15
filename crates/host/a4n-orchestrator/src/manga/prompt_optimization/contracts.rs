@@ -5,6 +5,7 @@ use a4n_llm_provider_contract::provider::ChatRequest;
 pub struct MangaPromptOptimizationInput {
     pub page_prompt: MangaPagePromptRecord,
     pub instruction: String,
+    pub expected_updated_at: String,
 }
 
 #[derive(Debug)]

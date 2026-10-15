@@ -82,7 +82,7 @@ import { MediaAuthoringPanel } from "../derived/MediaAuthoringPanel";
 import { useMediaAuthoring, authoringStageLabel } from "../derived/useMediaAuthoring";
 import type { GalgamePipelineStopAfter } from "../../api/generated/host";
 import { usePersistedTab } from "../../hooks/usePersistedTab";
-import { useDirty } from "../../components/navigation/dirtyRegistry";
+import { useDirty, useDirtyRegistry, useDirtyRegistryVersion } from "../../components/navigation/dirtyRegistry";
 import { BaseMaterialsWorkspace } from "../derived/BaseMaterialsWorkspace";
 import { StoryGraphPanel } from "./galgame/StoryGraphPanel";
 
@@ -104,6 +104,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
 }) => {
   const { addToast } = useToast();
   const { t } = useI18n();
+  const dirtyRegistry = useDirtyRegistry();
+  useDirtyRegistryVersion();
   const [authoringDirty, setAuthoringDirty] = useState(false);
   const [discardVersion, setDiscardVersion] = useState(0);
   const authoring = useMediaAuthoring(projectId);
@@ -135,6 +137,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   const [assetBindingDrafts, setAssetBindingDrafts] = useState<Record<string, string>>({});
   const [pipelineStatus, setPipelineStatus] =
     useState<GalgamePipelineStatusSummary | null>(null);
+  const [pipelineStatusError, setPipelineStatusError] = useState<string | null>(null);
+  const [refreshingPipelineStatus, setRefreshingPipelineStatus] = useState(false);
   const [selectedSceneId, setSelectedSceneId] = useState<number | null>(null);
   const [mobileWorkspaceView, setMobileWorkspaceView] = useState<
     "scenes" | "editor"
@@ -179,12 +183,9 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       if (requestSeqRef.current !== seq) return false;
       if (statusResult.status === "fulfilled") {
         setPipelineStatus(statusResult.value);
+        setPipelineStatusError(null);
       } else {
-        setPipelineStatus(null);
-        addToast(
-          extractErrorMessage(statusResult.reason, t("galgame.pipelineFailed")),
-          "error",
-        );
+        setPipelineStatusError(extractErrorMessage(statusResult.reason, t("galgame.pipelineStatusLoadFailed")));
       }
       if (scriptResult.status === "fulfilled") {
         setLoadError(null);
@@ -206,20 +207,32 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     } finally {
       if (requestSeqRef.current === seq) setLoading(false);
     }
-  }, [addToast, projectId]);
+  }, [projectId, t]);
 
-  const reloadAfterMutation = async (requestProjectId: number): Promise<boolean> => {
-    const refreshed = await load();
-    if (!refreshed && isCurrentProject(requestProjectId)) {
-      addToast(t("galgame.loadFailed"), "error");
+  const refreshPipelineStatus = async () => {
+    if (refreshingPipelineStatus) return;
+    const requestProjectId = projectId;
+    setRefreshingPipelineStatus(true);
+    try {
+      const status = await getGalgamePipelineStatus(requestProjectId);
+      if (!isCurrentProject(requestProjectId)) return;
+      setPipelineStatus(status);
+      setPipelineStatusError(null);
+    } catch (error) {
+      if (!isCurrentProject(requestProjectId)) return;
+      const message = extractErrorMessage(error, t("galgame.pipelineStatusLoadFailed"));
+      setPipelineStatusError(message);
+    } finally {
+      if (isCurrentProject(requestProjectId)) setRefreshingPipelineStatus(false);
     }
-    return refreshed;
   };
 
   useEffect(() => {
     setDetail(null);
     setLoadError(null);
     setPipelineStatus(null);
+    setPipelineStatusError(null);
+    setRefreshingPipelineStatus(false);
     setAssetPlan(null);
     setAssetPlanError(null);
     setSelectedSceneId(null);
@@ -368,10 +381,17 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   useDirty(`galgame-editor:${projectId}`, hasUnsavedChanges, discardAllDrafts, () => busyTarget == null && !generating && !pipelineCancelling && !planningAssets && !generatingAssets && generatingAssetSpecId == null && !exportingWebgal);
   const confirmLeaveStage = async () => {
     if (busyTarget != null) return false;
-    if (!hasUnsavedChanges) return true;
-    const discard = await confirmDiscardMediaChanges(true, t);
-    if (discard) discardAllDrafts();
-    return discard;
+    const hasDirtyState = hasUnsavedChanges || dirtyRegistry.hasDirty();
+    if (!hasDirtyState) return true;
+    if (!dirtyRegistry.canDiscardDirty()) {
+      addToast(t("common.operationInProgress"), "info");
+      return false;
+    }
+    if (!await confirmDiscardMediaChanges(true, t)) return false;
+    const galgameOwnerDirty = dirtyRegistry.hasDirty(`galgame-editor:${projectId}`);
+    if (!await dirtyRegistry.discardDirty()) return false;
+    if (hasUnsavedChanges && !galgameOwnerDirty) discardAllDrafts();
+    return true;
   };
 
   const confirmDiscardScriptDrafts = async () => {
@@ -385,16 +405,32 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   };
 
   const handleRefreshScript = async () => {
-    if (busyTarget != null || !await confirmDiscardScriptDrafts()) return;
+    if (!await confirmLeaveStage()) return;
     await load();
   };
 
   const currentPipelineStartStage = (): GalgamePipelineStartStage | null =>
     pipelineStartStage || null;
 
+  const pipelineRequestScope = (requestedStopAfter: GalgamePipelineStopAfter | null) => {
+    const startFromStage =
+      requestedStopAfter === "branch_design"
+        ? "branch_design"
+        : currentPipelineStartStage();
+    const requestStopAfter =
+      requestedStopAfter === "script" && startFromStage === "asset_generation"
+        ? null
+        : requestedStopAfter;
+    return { startFromStage, stopAfter: requestStopAfter };
+  };
+
   const pipelineRunning =
     generating || pipelineStatus?.run?.status === "running";
   const pipelineCanResume = Boolean(pipelineStatus?.run?.can_resume);
+  const pipelineActionsBlocked =
+    loading || refreshingPipelineStatus || pipelineStatusError != null;
+  const scriptActionsBlocked = loading || loadError != null;
+  const assetActionsBlocked = loading || assetPlanError != null;
   const showPipelinePrimary = !detail || pipelineCanResume;
   const scriptStatusLabel = detail
     ? t("galgame.generated")
@@ -405,15 +441,15 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     : t("galgame.regenerateFullScript");
 
   useEffect(() => {
-    if (pipelineRunning || (!loading && !detail)) setPipelineControlsOpen(true);
-  }, [detail, loading, pipelineRunning]);
+    if (pipelineRunning || pipelineCanResume || (!loading && !detail)) setPipelineControlsOpen(true);
+  }, [detail, loading, pipelineCanResume, pipelineRunning]);
 
   const handleGenerate = async (resumeFromCheckpoint = false, stopAfter: GalgamePipelineStopAfter | null = "script", guard = true) => {
-    if (!canEditGalgame || generating || busyTarget != null || (!detail && (loading || loadError))) return;
+    if (!canEditGalgame || generating || pipelineActionsBlocked || busyTarget != null || (!detail && (loading || loadError))) return;
     if (guard && !await confirmLeaveStage()) return;
+    const requestScope = pipelineRequestScope(stopAfter);
     const requestProjectId = projectId;
     const taskId = createWorkflowTaskId("galgame-pipeline", requestProjectId);
-    setPipelineStatus(null);
     setGenerating(true);
     try {
       const completed = await runProgressTask(
@@ -428,8 +464,11 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
           cancelTaskId: taskId,
           pollTaskProgress: true,
           cancelTask: async () => {
-            const nextStatus = await cancelGalgamePipeline(requestProjectId);
-            if (isCurrentProject(requestProjectId)) setPipelineStatus(nextStatus);
+          const nextStatus = await cancelGalgamePipeline(requestProjectId);
+            if (isCurrentProject(requestProjectId)) {
+              setPipelineStatus(nextStatus);
+              setPipelineStatusError(null);
+            }
           },
         },
         async ({ setProgress }) => {
@@ -437,9 +476,9 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
           const result = await startGalgamePipeline({
             project_id: requestProjectId,
             task_id: taskId,
-            start_from_stage: stopAfter === "branch_design" ? "branch_design" : currentPipelineStartStage(),
+            start_from_stage: requestScope.startFromStage,
             resume_from_checkpoint: resumeFromCheckpoint,
-            stop_after: stopAfter,
+            stop_after: requestScope.stopAfter,
           });
           setProgress(t("galgame.refreshingPipeline"), 7, 7);
           let status: GalgamePipelineStatusSummary | null = null;
@@ -455,12 +494,49 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
           } catch (error) {
             authoringReadbackError = error;
           }
-          return { detail: result, status, pipelineStatusReadbackError, authoringReadbackError };
+          let assetPlanReadback: {
+            data: GalgameAssetPlan | null;
+            error: unknown | null;
+          } | null = null;
+          if (requestScope.stopAfter == null) {
+            try {
+              assetPlanReadback = {
+                data: await getGalgameAssetPlan(requestProjectId),
+                error: null,
+              };
+            } catch (error) {
+              assetPlanReadback = { data: null, error };
+            }
+          }
+          return {
+            detail: result,
+            status,
+            pipelineStatusReadbackError,
+            authoringReadbackError,
+            assetPlanReadback,
+          };
         },
       );
       if (!isCurrentProject(requestProjectId)) return;
       const next = completed.detail;
-      if (completed.status) setPipelineStatus(completed.status);
+      if (completed.status) {
+        setPipelineStatus(completed.status);
+        setPipelineStatusError(null);
+      }
+      if (completed.assetPlanReadback) {
+        if (completed.assetPlanReadback.error) {
+          const assetPlanError = extractErrorMessage(
+            completed.assetPlanReadback.error,
+            t("galgame.planLoadFailed"),
+          );
+          setAssetPlan(null);
+          setAssetPlanError(assetPlanError);
+          addToast(assetPlanError, "error");
+        } else {
+          setAssetPlan(completed.assetPlanReadback.data);
+          setAssetPlanError(null);
+        }
+      }
       if (next) {
         setDetail(next);
         setSelectedSceneId(next.scenes[0]?.scene.id ?? null);
@@ -473,13 +549,11 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         );
       }
       if (completed.pipelineStatusReadbackError) {
-        addToast(
-          extractErrorMessage(
-            completed.pipelineStatusReadbackError,
-            t("galgame.pipelineStatusLoadFailed"),
-          ),
-          "error",
+        const statusError = extractErrorMessage(
+          completed.pipelineStatusReadbackError,
+          t("galgame.pipelineStatusLoadFailed"),
         );
+        setPipelineStatusError(statusError);
       }
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
@@ -490,13 +564,13 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         cancelled ? "info" : "error",
       );
       try {
-        if (isCurrentProject(requestProjectId)) setPipelineStatus(await getGalgamePipelineStatus(requestProjectId));
+        if (isCurrentProject(requestProjectId)) {
+          setPipelineStatus(await getGalgamePipelineStatus(requestProjectId));
+          setPipelineStatusError(null);
+        }
       } catch (statusError) {
         if (isCurrentProject(requestProjectId)) {
-          addToast(
-            extractErrorMessage(statusError, t("galgame.pipelineStatusLoadFailed")),
-            "error",
-          );
+          setPipelineStatusError(extractErrorMessage(statusError, t("galgame.pipelineStatusLoadFailed")));
         }
       }
     } finally {
@@ -505,13 +579,14 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   };
 
   const handleCancelPipeline = async () => {
-    if (!canEditGalgame || pipelineCancelling || !pipelineRunning) return;
+    if (!canEditGalgame || pipelineCancelling || pipelineActionsBlocked || !pipelineRunning) return;
     const requestProjectId = projectId;
     setPipelineCancelling(true);
     try {
       const next = await cancelGalgamePipeline(requestProjectId);
       if (!isCurrentProject(requestProjectId)) return;
       setPipelineStatus(next);
+      setPipelineStatusError(null);
       addToast(t("galgame.cancelRequested"), "info");
     } catch (err) {
       if (isCurrentProject(requestProjectId)) addToast(extractErrorMessage(err, t("galgame.cancelFailed")), "error");
@@ -521,9 +596,16 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   };
 
   const handlePreviewPipeline = async () => {
-    if (!canEditGalgame || requestPreviewLoading || busyTarget != null) return;
+    if (!canEditGalgame || requestPreviewLoading || pipelineActionsBlocked || busyTarget != null) return;
     if (!await confirmDiscardScriptDrafts()) return;
     const requestProjectId = projectId;
+    const requestScope = pipelineRequestScope(
+      workspaceStage === "branches" ? "branch_design" : "script",
+    );
+    const resumeFromCheckpoint =
+      workspaceStage !== "branches" &&
+      requestScope.startFromStage == null &&
+      pipelineCanResume;
     const seq = previewSeqRef.current + 1;
     previewSeqRef.current = seq;
     setRequestPreviewOpen(true);
@@ -532,9 +614,9 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     try {
       const preview = await previewGalgamePipelineRequest({
         project_id: requestProjectId,
-        start_from_stage: currentPipelineStartStage(),
-        resume_from_checkpoint: false,
-        stop_after: workspaceStage === "branches" ? "branch_design" : "script",
+        start_from_stage: requestScope.startFromStage,
+        resume_from_checkpoint: resumeFromCheckpoint,
+        stop_after: requestScope.stopAfter,
       });
       if (previewSeqRef.current !== seq || !isCurrentProject(requestProjectId)) return;
       setRequestPreviewData(preview);
@@ -559,7 +641,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   };
 
   const handlePlanAssets = async () => {
-    if (!canEditGalgame || planningAssets || busyTarget != null || !detail) return;
+    if (!canEditGalgame || assetActionsBlocked || planningAssets || busyTarget != null || !detail) return;
     if (!await confirmDiscardScriptDrafts()) return;
     const requestProjectId = projectId;
     setPlanningAssets(true);
@@ -579,7 +661,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   };
 
   const handleGenerateAssets = async () => {
-    if (!canEditGalgame || generatingAssets || busyTarget != null || !detail) return;
+    if (!canEditGalgame || assetActionsBlocked || generatingAssets || busyTarget != null || !detail) return;
     const requestSize = imageSize;
     if (!requestSize) {
       addToast(t("settingsForm.imageSizeUnavailable"), "error");
@@ -595,7 +677,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         height: requestSize.height,
       });
       if (!isCurrentProject(requestProjectId)) return;
-      await reloadAfterMutation(requestProjectId);
+      void load();
       if (!isCurrentProject(requestProjectId)) return;
       addToast(
         t("galgame.assetGenerationSummary", {
@@ -614,6 +696,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   const handleGenerateAssetSpec = async (generationSpecId: number) => {
     if (
       !canEditGalgame ||
+      assetActionsBlocked ||
       generatingAssets ||
       busyTarget != null ||
       generatingAssetSpecId != null ||
@@ -636,7 +719,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         height: requestSize.height,
       });
       if (!isCurrentProject(requestProjectId)) return;
-      await reloadAfterMutation(requestProjectId);
+      void load();
       if (!isCurrentProject(requestProjectId)) return;
       addToast(
         result.generated_count > 0
@@ -655,7 +738,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     line: GalgameLine,
     patch: Partial<GalgameLine>,
   ) => {
-    if (!canEditGalgame || busyTarget != null) return;
+    if (!canEditGalgame || scriptActionsBlocked || busyTarget != null) return;
     const requestProjectId = projectId;
     setBusyTarget(lineBusyTarget(line.id));
     try {
@@ -686,7 +769,6 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       }));
       if ("text" in patch || "pose" in patch) clearFieldDraft(`line:${line.id}`);
       if (patch.line_type != null && patch.line_type !== "choice") clearChoiceDraft(line.id);
-      await reloadAfterMutation(requestProjectId);
       if (!isCurrentProject(requestProjectId)) return;
       addToast(t("galgame.lineSaved"), "success");
       return true;
@@ -702,7 +784,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     scene: GalgameScene,
     patch: Partial<GalgameScene>,
   ) => {
-    if (!canEditGalgame || busyTarget != null) return;
+    if (!canEditGalgame || scriptActionsBlocked || busyTarget != null) return;
     const requestProjectId = projectId;
     setBusyTarget(sceneBusyTarget(scene.id));
     try {
@@ -721,7 +803,6 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         scenes: current.scenes.map((item) => item.scene.id === saved.id ? { ...item, scene: saved } : item),
       }));
       clearFieldDraft(`scene:${scene.id}`);
-      await reloadAfterMutation(requestProjectId);
       if (!isCurrentProject(requestProjectId)) return;
       addToast(t("galgame.sceneSaved"), "success");
     } catch (err) {
@@ -735,7 +816,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     scene: GalgameSceneDetail,
     afterLine: GalgameLine | null,
   ) => {
-    if (!canEditGalgame || busyTarget != null) return;
+    if (!canEditGalgame || scriptActionsBlocked || busyTarget != null) return;
     const inputText = await promptDialog({
       title: t("galgame.addNarration"),
       message: t("galgame.newNarrationPrompt"),
@@ -750,7 +831,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     const requestProjectId = projectId;
     setBusyTarget(insertBusyTarget(scene.scene.id, afterLine?.id ?? null));
     try {
-      await insertGalgameLine(requestProjectId, {
+      const inserted = await insertGalgameLine(requestProjectId, {
         scene_id: scene.scene.id,
         after_line_id: afterLine?.id ?? null,
         line_type: "narration",
@@ -760,7 +841,12 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         text_anchor_id: null,
       });
       if (!isCurrentProject(requestProjectId)) return;
-      await reloadAfterMutation(requestProjectId);
+      if (!commitDetail(requestProjectId, (current) => ({
+        ...current,
+        scenes: current.scenes.map((item) => item.scene.id === inserted.scene_id
+          ? { ...item, lines: [...item.lines, inserted].sort((left, right) => left.line_index - right.line_index) }
+          : item),
+      }))) return;
       if (!isCurrentProject(requestProjectId)) return;
       addToast(t("galgame.lineInserted"), "success");
     } catch (err) {
@@ -771,7 +857,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   };
 
   const handleDeleteLine = async (line: GalgameLine) => {
-    if (!canEditGalgame || busyTarget != null) return;
+    if (!canEditGalgame || scriptActionsBlocked || busyTarget != null) return;
     const requestProjectId = projectId;
     setBusyTarget(lineBusyTarget(line.id));
     try {
@@ -783,7 +869,12 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       setAssetBindingDrafts((current) => Object.fromEntries(
         Object.entries(current).filter(([key]) => !key.startsWith(`line:${line.id}:`)),
       ));
-      await reloadAfterMutation(requestProjectId);
+      if (!commitDetail(requestProjectId, (current) => ({
+        ...current,
+        scenes: current.scenes.map((item) => item.scene.id === line.scene_id
+          ? { ...item, lines: item.lines.filter((candidate) => candidate.id !== line.id) }
+          : item),
+      }))) return;
       if (!isCurrentProject(requestProjectId)) return;
       addToast(t("galgame.lineDeleted"), "success");
     } catch (err) {
@@ -798,7 +889,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     line: GalgameLine,
     direction: -1 | 1,
   ) => {
-    if (!canEditGalgame || busyTarget != null) return;
+    if (!canEditGalgame || scriptActionsBlocked || busyTarget != null) return;
     const index = scene.lines.findIndex((item) => item.id === line.id);
     const nextIndex = index + direction;
     if (index < 0 || nextIndex < 0 || nextIndex >= scene.lines.length) return;
@@ -807,12 +898,17 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     [lineIds[index], lineIds[nextIndex]] = [lineIds[nextIndex], lineIds[index]];
     setBusyTarget(lineBusyTarget(line.id));
     try {
-      await reorderGalgameLines(requestProjectId, {
+      const reordered = await reorderGalgameLines(requestProjectId, {
         scene_id: scene.scene.id,
         line_ids: lineIds,
       });
       if (!isCurrentProject(requestProjectId)) return;
-      await reloadAfterMutation(requestProjectId);
+      if (!commitDetail(requestProjectId, (current) => ({
+        ...current,
+        scenes: current.scenes.map((item) => item.scene.id === scene.scene.id
+          ? { ...item, lines: reordered.sort((left, right) => left.line_index - right.line_index) }
+          : item),
+      }))) return;
       if (!isCurrentProject(requestProjectId)) return;
       addToast(t("galgame.lineReordered"), "success");
     } catch (err) {
@@ -826,17 +922,26 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     line: GalgameLine,
     choices: UpdateGalgameChoiceOptionInput[],
   ) => {
-    if (!canEditGalgame || busyTarget != null) return;
+    if (!canEditGalgame || scriptActionsBlocked || busyTarget != null) return;
     const requestProjectId = projectId;
     const submittedDraft = choiceDrafts[line.id];
     setBusyTarget(lineBusyTarget(line.id));
     try {
-      await updateGalgameChoices(requestProjectId, {
+      const savedChoices = await updateGalgameChoices(requestProjectId, {
         line_id: line.id,
         choices,
       });
       if (!isCurrentProject(requestProjectId)) return;
-      await reloadAfterMutation(requestProjectId);
+      if (!commitDetail(requestProjectId, (current) => ({
+        ...current,
+        scenes: current.scenes.map((scene) => ({
+          ...scene,
+          choices: [
+            ...scene.choices.filter((choice) => choice.line_id !== line.id),
+            ...savedChoices,
+          ].sort((left, right) => left.option_index - right.option_index),
+        })),
+      }))) return;
       if (!isCurrentProject(requestProjectId)) return;
       acceptChoiceDraft(line.id, submittedDraft);
       addToast(t("galgame.choicesSaved"), "success");
@@ -848,7 +953,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   };
 
   const handleImportAudio = async (line: GalgameLine, role: "bgm" | "sfx") => {
-    if (!canEditGalgame || busyTarget != null) return;
+    if (!canEditGalgame || scriptActionsBlocked || busyTarget != null) return;
     const file = await pickLocalFile(
       "audio/mpeg,audio/wav,audio/ogg,.mp3,.wav,.ogg",
     );
@@ -883,7 +988,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   };
 
   const handleUnbindMedia = async (binding: GalgameMediaBindingSummary) => {
-    if (!canEditGalgame || busyTarget != null) return;
+    if (!canEditGalgame || scriptActionsBlocked || busyTarget != null) return;
     const requestProjectId = projectId;
     setBusyTarget(`media:${binding.binding.id}`);
     try {
@@ -911,7 +1016,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     role: "background" | "cg" | "bgm" | "sfx",
     mediaAssetId: number,
   ): Promise<boolean> => {
-    if (!canEditGalgame || busyTarget != null) return false;
+    if (!canEditGalgame || scriptActionsBlocked || busyTarget != null) return false;
     const requestProjectId = projectId;
     setBusyTarget(bindMediaBusyTarget(targetKind, targetId, role));
     try {
@@ -934,7 +1039,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   };
 
   const handleExportWebgal = async () => {
-    if (!detail || exportingWebgal) return;
+    if (!detail || scriptActionsBlocked || exportingWebgal || !await confirmLeaveStage()) return;
     const requestProjectId = projectId;
     setExportingWebgal(true);
     try {
@@ -955,30 +1060,39 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   return (
     <div className="flex min-h-[60vh] flex-col gap-3 lg:h-full lg:min-h-0">
       {loadError ? <p role="alert" className="text-small text-error">{loadError}</p> : null}
+      {pipelineStatusError ? (
+        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-error/35 bg-error-bg/55 px-3 py-2.5 text-small text-error">
+          <span className="min-w-0 flex-1">{pipelineStatusError}</span>
+          <BookButton variant="secondary" size="sm" onClick={() => void refreshPipelineStatus()} disabled={refreshingPipelineStatus}>
+            {refreshingPipelineStatus ? <LoadingSpinner size="sm" /> : <RefreshCw size={13} />}
+            {t("common.retry")}
+          </BookButton>
+        </div>
+      ) : null}
       <MediaStageHeader id={stageId} label={t("common.mediaAuthoring.stages")} tabs={stageTabs} activeTab={workspaceStage}
-        onTabChange={async (stage) => { if (!await confirmLeaveStage()) return false; if (workspaceStage === "materials") void load(); setWorkspaceStage(stage); return true; }} />
+        onTabChange={async (stage) => { if (stage === workspaceStage) return true; if (workspaceStage === "materials" && !await load()) return false; if (!await confirmLeaveStage()) return false; setWorkspaceStage(stage); return true; }} />
       {outputState?.stale && workspaceStage !== "adaptation" && workspaceStage !== "branches" && <p role="status" className="text-xs text-warning">{t("common.mediaAuthoring.outputsStale")}</p>}
       {authoring.error && workspaceStage !== "adaptation" && workspaceStage !== "branches" && <p role="alert" className="text-xs text-error">{authoring.error}</p>}
-      <div id={`${stageId}-panel`} role="tabpanel" aria-labelledby={`${stageId}-tab-${workspaceStage}`} className="flex min-h-0 flex-1 flex-col gap-3">
+      <div id={`${stageId}-panel`} role="tabpanel" aria-labelledby={`${stageId}-tab-${workspaceStage}`} className={`flex min-h-0 flex-1 flex-col gap-3 ${workspaceStage === "script" ? "lg:overflow-y-auto" : ""}`}>
       {workspaceStage === "materials" ? <BaseMaterialsWorkspace projectId={materialProjectId} canEdit={canEditGalgame}
-        onChanged={load} onNext={async () => { if (await load()) setWorkspaceStage("adaptation"); }} />
+        onChanged={load} onBeforeKindChange={confirmLeaveStage} onNext={async () => { if (!await load()) return; if (await confirmLeaveStage()) setWorkspaceStage("adaptation"); }} />
       : workspaceStage === "adaptation" || workspaceStage === "branches" ? <MediaAuthoringPanel key={`${projectId}:${workspaceStage}:${discardVersion}`} projectId={projectId}
         kind={workspaceStage === "adaptation" ? "adaptation_plan" : "galgame_branch_plan"}
-        workspace={authoring.workspace} loading={authoring.loading} error={authoring.error} canEdit={canEditGalgame} stageRunning={pipelineRunning}
+        workspace={authoring.workspace} loading={authoring.loading} error={authoring.error} canEdit={canEditGalgame} stageRunning={pipelineRunning} stageBlocked={pipelineActionsBlocked}
         onReload={authoring.reload} onDirtyChange={setAuthoringDirty} onGenerateStage={() => handleGenerate(false, "branch_design", false)} />
       : workspaceStage === "asset_plan" || workspaceStage === "asset_generation" ? <AssetPlanPanel inline mode={workspaceStage === "asset_plan" ? "planning" : "generation"}
         plan={assetPlan} error={assetPlanError} speakerProfiles={detail?.speaker_profiles ?? []} loading={planningAssets || loading}
         generating={generatingAssets} generatingSpecId={generatingAssetSpecId} imageSize={imageSize} imageSizes={imageSizes}
         imageSizeLoading={imageSizeLoading} imageSizeError={imageSizeError} onImageSizeChange={setImageSize}
-        disabled={!canEditGalgame || planningAssets || generatingAssets || generatingAssetSpecId != null || busyTarget != null || !detail}
+        disabled={!canEditGalgame || assetActionsBlocked || planningAssets || generatingAssets || generatingAssetSpecId != null || busyTarget != null || !detail}
         onPlan={handlePlanAssets} onGenerate={handleGenerateAssets} onGenerateSpec={handleGenerateAssetSpec} />
       : workspaceStage === "export" ? <section className="space-y-4 overflow-y-auto p-1 custom-scrollbar">
         <h2 className="text-base font-semibold">{t("common.mediaAuthoring.export")}</h2>
         {detail && <p className="text-sm">{t("galgame.sceneCount", { scenes: detail.scenes.length, lines: totalLines })}</p>}
-        <BookButton size="sm" disabled={!canEditGalgame || !detail || exportingWebgal} onClick={handleExportWebgal}>{exportingWebgal ? <LoadingSpinner size="sm" /> : <Download size={14} />}{t("galgame.exportWebgal")}</BookButton>
+        <BookButton size="sm" disabled={!canEditGalgame || scriptActionsBlocked || !detail || exportingWebgal} onClick={handleExportWebgal}>{exportingWebgal ? <LoadingSpinner size="sm" /> : <Download size={14} />}{t("galgame.exportWebgal")}</BookButton>
       </section> : <>
       <StoryGraphPanel
-        canEdit={canEditGalgame}
+        canEdit={canEditGalgame && !scriptActionsBlocked}
         graph={detail?.story_graph ?? null}
         graphStatus={detail?.story_graph_status ?? null}
         projectId={projectId}
@@ -988,9 +1102,9 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
           story_graph_status: "edited",
         } : current)}
       />
-      <details className="a4n-flat-surface border border-book-border/40">
+      <details open className="a4n-flat-surface shrink-0 border border-book-border/40">
         <summary className="cursor-pointer px-4 py-3 text-xs font-medium text-book-text-muted hover:text-book-text-main">
-          {t("galgame.sceneProjection")}
+          {t("galgame.workspace")}
         </summary>
       <div className="lg:hidden">
         <SegmentedControl
@@ -1033,7 +1147,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                 <RefreshCw size={13} />
               )}
             </button>
-            {detail && canEditGalgame ? (
+            {detail && canEditGalgame && !scriptActionsBlocked ? (
               <Dropdown
                 items={[
                   {
@@ -1078,7 +1192,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                   size="sm"
                   className="w-full"
                   onClick={handleCancelPipeline}
-                  disabled={!canEditGalgame || pipelineCancelling}
+                  disabled={!canEditGalgame || pipelineActionsBlocked || pipelineCancelling}
                 >
                   {pipelineCancelling ? (
                     <LoadingSpinner size="sm" />
@@ -1093,7 +1207,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                   size="sm"
                   className="w-full"
                   onClick={() => handleGenerate(pipelineCanResume)}
-                  disabled={!canEditGalgame || generating || pipelineCancelling || busyTarget != null || (!detail && (loading || loadError != null))}
+                  disabled={!canEditGalgame || generating || pipelineActionsBlocked || pipelineCancelling || busyTarget != null || (!detail && (loading || loadError != null))}
                 >
                   {generating ? (
                     <LoadingSpinner size="sm" />
@@ -1113,9 +1227,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                       aria-label={t("galgame.generationOptions")}
                       className="pyqt-input mt-1.5 w-full text-xs"
                       value={pipelineStartStage}
-                      disabled={
-                        !canEditGalgame || generating || pipelineCancelling
-                      }
+                      disabled={!canEditGalgame || generating || pipelineActionsBlocked || pipelineCancelling}
                       onChange={(selectedValue) =>
                         setPipelineStartStage(
                           selectedValue as GalgamePipelineStartStage | "",
@@ -1144,6 +1256,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                         disabled:
                           !canEditGalgame ||
                           requestPreviewLoading ||
+                          pipelineActionsBlocked ||
                           generating ||
                           pipelineCancelling ||
                           busyTarget != null,
@@ -1157,6 +1270,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                               onClick: () => handleGenerate(false),
                               disabled:
                                 !canEditGalgame ||
+                                pipelineActionsBlocked ||
                                 generating ||
                                 pipelineCancelling ||
                                 busyTarget != null,
@@ -1171,7 +1285,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
           </details>
           <PipelineStatusPanel
             status={pipelineStatus}
-            loading={loading || generating}
+            loading={loading || generating || refreshingPipelineStatus}
           />
           {detail && detail.scenes.length > 0 ? (
             <div className="a4n-flat-surface divide-y divide-book-border/35 overflow-hidden">
@@ -1247,7 +1361,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
 
         <section
           aria-label={t("galgame.editor")}
-          className={`${mobileWorkspaceView === "editor" ? "block" : "hidden"} a4n-flat-surface min-h-0 overflow-hidden ${
+          className={`${mobileWorkspaceView === "editor" ? "flex flex-col" : "hidden"} a4n-flat-surface min-h-0 overflow-hidden ${
             selectedScene ? "lg:flex lg:flex-col" : "self-start lg:block"
           }`}
         >
@@ -1274,36 +1388,38 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
           </div>
 
           {selectedScene ? (
-            <SceneMetaEditor
-              key={`${selectedScene.scene.id}:${discardVersion}`}
-              scene={selectedScene.scene}
-              scenes={detail?.scenes ?? []}
-              mediaBindings={
-                mediaBindingsByScene.get(selectedScene.scene.id) ?? []
-              }
-              disabled
-              fieldDraftResetRevision={fieldDraftResetRevision}
-              fieldDraft={fieldDrafts[`scene:${selectedScene.scene.id}`] ?? null}
-              mediaAssetIdDraft={assetBindingDrafts[`scene:${selectedScene.scene.id}:background`] ?? ""}
-              onMediaAssetIdDraftChange={(value) =>
-                updateAssetBindingDraft(`scene:${selectedScene.scene.id}:background`, value)
-              }
-              onPatch={(patch) => handleScenePatch(selectedScene.scene, patch)}
-              onDraftChange={updateFieldDraft}
-              onBindMedia={(mediaAssetId) =>
-                handleBindMedia(
-                  "galgame_scene",
-                  selectedScene.scene.id,
-                  "background",
-                  mediaAssetId,
-                )
-              }
-              onUnbindMedia={handleUnbindMedia}
-            />
+            <div className="order-2 lg:order-none">
+              <SceneMetaEditor
+                key={`${selectedScene.scene.id}:${discardVersion}`}
+                scene={selectedScene.scene}
+                scenes={detail?.scenes ?? []}
+                mediaBindings={
+                  mediaBindingsByScene.get(selectedScene.scene.id) ?? []
+                }
+                disabled={!canEditGalgame || scriptActionsBlocked || busyTarget != null}
+                fieldDraftResetRevision={fieldDraftResetRevision}
+                fieldDraft={fieldDrafts[`scene:${selectedScene.scene.id}`] ?? null}
+                mediaAssetIdDraft={assetBindingDrafts[`scene:${selectedScene.scene.id}:background`] ?? ""}
+                onMediaAssetIdDraftChange={(value) =>
+                  updateAssetBindingDraft(`scene:${selectedScene.scene.id}:background`, value)
+                }
+                onPatch={(patch) => handleScenePatch(selectedScene.scene, patch)}
+                onDraftChange={updateFieldDraft}
+                onBindMedia={(mediaAssetId) =>
+                  handleBindMedia(
+                    "galgame_scene",
+                    selectedScene.scene.id,
+                    "background",
+                    mediaAssetId,
+                  )
+                }
+                onUnbindMedia={handleUnbindMedia}
+              />
+            </div>
           ) : null}
 
           <div
-            className={`p-3 lg:p-4 custom-scrollbar ${
+            className={`order-1 lg:order-none p-3 lg:p-4 custom-scrollbar ${
               selectedScene
                 ? "min-h-[60vh] lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
                 : ""
@@ -1340,7 +1456,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                           ) ?? null)
                         : null
                     }
-                    disabled
+                    disabled={!canEditGalgame || scriptActionsBlocked || busyTarget != null}
                     saving={busyTarget === lineBusyTarget(line.id)}
                     fieldDraftResetRevision={fieldDraftResetRevision}
                     fieldDraft={fieldDrafts[`line:${line.id}`] ?? null}
@@ -1390,6 +1506,15 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         loading={requestPreviewLoading}
         data={requestPreviewData}
         fallbackTitle={t("galgame.requestTitle")}
+        emptyMessage={
+          requestPreviewData?.steps.length === 0 &&
+          (pipelineStartStage === "persist_script" ||
+            pipelineStartStage === "asset_generation")
+            ? t("galgame.noModelRequestAtStage", {
+                stage: pipelineStartStageLabel(pipelineStartStage, t),
+              })
+            : undefined
+        }
         onClose={closeRequestPreview}
       />
     </div>

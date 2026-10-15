@@ -68,6 +68,9 @@ pub(crate) fn character_profile_delete_error(error: CharacterProfileDeleteError)
             operation: "删除角色档案".to_string(),
         },
         CharacterProfileDeleteError::NotFound(message) => AppError::NotFound(message),
+        CharacterProfileDeleteError::InvalidState { current, operation } => {
+            AppError::InvalidState { current, operation }
+        }
         CharacterProfileDeleteError::Database(error) => AppError::database(error),
         CharacterProfileDeleteError::Generation(error) => {
             crate::generation::generation_error(error)

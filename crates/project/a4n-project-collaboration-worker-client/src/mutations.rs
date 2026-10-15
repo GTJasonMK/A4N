@@ -5,7 +5,7 @@ pub(super) async fn invite_project_member(
     user_id: i64,
     project_id: i64,
     input: InviteProjectMemberInput,
-) -> Result<(), AppError> {
+) -> Result<ProjectInviteSummary, AppError> {
     let project_id = ProjectCollaborationWorkerClient::project_id(project_id)?;
     if input.username_or_email.trim().is_empty() {
         return Err(AppError::InvalidArgument(
@@ -13,7 +13,7 @@ pub(super) async fn invite_project_member(
         ));
     }
     client
-        .unit(
+        .command(
             user_id,
             Some(project_id),
             PROJECT_COLLABORATION_INVITE_MEMBER_OPERATION,

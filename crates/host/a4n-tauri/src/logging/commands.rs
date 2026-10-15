@@ -28,6 +28,17 @@ pub async fn read_recent_logs(
 }
 
 #[tauri::command]
+pub async fn get_log_level(
+    state: State<'_, a4n_runtime::AppState>,
+    caller_user_id: i64,
+) -> Result<String, String> {
+    logging_actions::ensure_log_diagnostics_admin(&state, caller_user_id)
+        .await
+        .map_err(|err| err.to_string())?;
+    FILTER_RELOADER.current_filter()
+}
+
+#[tauri::command]
 pub async fn set_log_level(
     state: State<'_, a4n_runtime::AppState>,
     caller_user_id: i64,

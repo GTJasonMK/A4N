@@ -26,6 +26,7 @@ import {
   SnapshotDetail,
 } from "./SnapshotViews";
 import { useI18n, type MessageTranslator } from "../../i18n";
+import { MAX_I32 } from "../../utils/numeric";
 import { characterDetailDraftKey, parsePositiveChapterNumber } from "./manageViewUtils";
 
 const snapshotReferenceCountText = (
@@ -71,7 +72,7 @@ const snapshotLoadKey = (
 export const SnapshotManager: React.FC<{
   profileId: number;
   refreshRevision?: number;
-  onChanged?: () => boolean | void | Promise<boolean | void>;
+  onChanged?: () => void | Promise<void>;
 }> = ({ profileId, refreshRevision = 0, onChanged }) => {
   const { addToast } = useToast();
   const { t } = useI18n();
@@ -123,6 +124,8 @@ export const SnapshotManager: React.FC<{
     snapshotStartChapter,
     snapshotEndChapter,
   );
+  const currentSnapshotScopeKeyRef = useRef(currentSnapshotScopeKey);
+  currentSnapshotScopeKeyRef.current = currentSnapshotScopeKey;
   const hasCurrentSnapshots = loadedScopeKey === currentSnapshotScopeKey;
 
   useDirty(
@@ -187,7 +190,7 @@ export const SnapshotManager: React.FC<{
     setResultError(null);
   };
 
-  const load = async (): Promise<boolean> => {
+  const load = async (): Promise<void> => {
     const requestProfileId = profileId;
     const requestSeq = loadSeqRef.current + 1;
     const requestStartChapter = snapshotStartChapter;
@@ -212,16 +215,21 @@ export const SnapshotManager: React.FC<{
         : t("characterDetail.snapshot.endChapter");
       setLoadError(t("characterDetail.invalidChapterInteger", { label }));
       setLoadedScopeKey(null);
-      return false;
+      return;
     }
     if (startChapter != null && endChapter != null && startChapter > endChapter) {
       setLoadError(t("characterDetail.invalidChapterRange"));
       setLoadedScopeKey(null);
-      return false;
+      return;
     }
     loadSeqRef.current = requestSeq;
+    snapshotViewSeqRef.current += 1;
+    chapterStateSeqRef.current += 1;
+    diffSeqRef.current += 1;
+    diffingRef.current = false;
     loadingRef.current = true;
     setLoading(true);
+    setDiffing(false);
     setLoadError(null);
     setLoadedScopeKey(null);
     setConflictLoaded(false);
@@ -245,7 +253,7 @@ export const SnapshotManager: React.FC<{
           requestSeq,
         )
       )
-        return false;
+        return;
       const failures: string[] = [];
       const nextSnapshots = snapshotsResult.status === "fulfilled" ? snapshotsResult.value : [];
       const nextConflict = conflictResult.status === "fulfilled" ? conflictResult.value : null;
@@ -296,7 +304,6 @@ export const SnapshotManager: React.FC<{
           return current;
         return latestRollbackChapter;
       });
-      return failures.length === 0;
     } catch (err) {
       if (
         !isCurrentLoad(
@@ -306,9 +313,8 @@ export const SnapshotManager: React.FC<{
           requestSeq,
         )
       )
-        return false;
+        return;
       setLoadError(extractErrorMessage(err, t("characterDetail.snapshot.loadFailed")));
-      return false;
     } finally {
       if (
         isCurrentLoad(
@@ -364,6 +370,7 @@ export const SnapshotManager: React.FC<{
     setSnapshotData(null);
     setChapterState(null);
     setDelta(null);
+    setResultError(null);
     try {
       const nextSnapshot = await getSnapshot(hash);
       if (!isCurrentRequest(requestProfileId, snapshotViewSeqRef, requestSeq))
@@ -386,6 +393,7 @@ export const SnapshotManager: React.FC<{
     setSnapshotData(null);
     setChapterState(null);
     setDelta(null);
+    setResultError(null);
     try {
       const nextState = await getProfileStateAtChapter(
         requestProfileId,
@@ -403,7 +411,7 @@ export const SnapshotManager: React.FC<{
   };
 
   const handleChapterDiff = async () => {
-    if (!hasCurrentSnapshots || diffToChapter == null) return;
+    if (!canDiffChapters) return;
     if (diffingRef.current) return;
     diffingRef.current = true;
     const requestProfileId = profileId;
@@ -416,6 +424,7 @@ export const SnapshotManager: React.FC<{
     setSnapshotData(null);
     setChapterState(null);
     setDelta(null);
+    setResultError(null);
     setDiffing(true);
     try {
       const nextDelta = await diffProfileChapters(
@@ -440,11 +449,15 @@ export const SnapshotManager: React.FC<{
   };
 
   const handleRollback = async () => {
-    if (!hasCurrentSnapshots || rollbackChapter == null) return;
+    if (!canRollback) return;
     if (rollingBackRef.current) return;
     rollingBackRef.current = true;
     const requestProfileId = profileId;
+    const requestSnapshotLoadSeq = loadSeqRef.current;
+    const requestScopeKey = currentSnapshotScopeKey;
     const requestRollbackChapter = rollbackChapter;
+    const requestSeq = rollbackSeqRef.current + 1;
+    rollbackSeqRef.current = requestSeq;
     const targetText = rollbackChapterLabel(requestRollbackChapter, t);
     const ok = await confirmDialog({
       title: t("characterDetail.snapshot.rollbackTitle"),
@@ -456,15 +469,20 @@ export const SnapshotManager: React.FC<{
       dialogType: "danger",
     });
     if (!ok) {
-      rollingBackRef.current = false;
+      if (rollbackSeqRef.current === requestSeq) rollingBackRef.current = false;
       return;
     }
-    if (!isCurrentProfile(requestProfileId)) {
-      rollingBackRef.current = false;
+    if (
+      !isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq) ||
+      loadSeqRef.current !== requestSnapshotLoadSeq ||
+      currentSnapshotScopeKeyRef.current !== requestScopeKey
+    ) {
+      if (rollbackSeqRef.current === requestSeq) {
+        rollingBackRef.current = false;
+        addToast(t("common.listChangedRetry"), "info");
+      }
       return;
     }
-    const requestSeq = rollbackSeqRef.current + 1;
-    rollbackSeqRef.current = requestSeq;
     setRollingBack(true);
     try {
       const r = await rollbackToChapter(
@@ -473,15 +491,6 @@ export const SnapshotManager: React.FC<{
       );
       if (!isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq))
         return;
-      const loaded = await load();
-      if (!loaded) addToast(t("characterDetail.refreshFailed"), "error");
-      try {
-        if (await onChanged?.() === false) {
-          addToast(t("characterDetail.refreshFailed"), "error");
-        }
-      } catch (refreshError) {
-        addToast(extractErrorMessage(refreshError, t("characterDetail.refreshFailed")), "error");
-      }
       addToast(
         t("characterDetail.snapshot.rollbackSummary", {
           events: r.deleted_events,
@@ -495,6 +504,18 @@ export const SnapshotManager: React.FC<{
         }),
         "success",
       );
+      void load().catch((error) => {
+        if (isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq)) {
+          const message = extractErrorMessage(error, t("characterDetail.refreshFailed"));
+          setLoadError(message);
+          addToast(message, "error");
+        }
+      });
+      void Promise.resolve(onChanged?.()).catch((error) => {
+        if (isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq)) {
+          addToast(extractErrorMessage(error, t("characterDetail.refreshFailed")), "error");
+        }
+      });
       if (!isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq))
         return;
     } catch (err) {
@@ -514,13 +535,12 @@ export const SnapshotManager: React.FC<{
   const rollbackChapters = hasCurrentSnapshots
     ? rollbackChapterOptions(conflict, snapshots, conflictLoaded)
     : [];
-  const canRollback =
-    hasCurrentSnapshots && rollbackChapter != null && rollbackChapters.includes(rollbackChapter);
+  const canRollback = rollbackChapter != null && rollbackChapters.includes(rollbackChapter);
   const snapshotChapters = hasCurrentSnapshots
     ? snapshots.map((snapshot) => snapshot.chapter_number)
     : [];
   const canDiffChapters =
-    hasCurrentSnapshots && diffToChapter != null && diffFromChapter <= diffToChapter;
+    snapshotChapters.length > 0 && diffToChapter != null && diffFromChapter <= diffToChapter;
   const diffToChapterValue = diffToChapter === null ? "" : diffToChapter;
   const rollbackChapterValue = rollbackChapter === null ? "" : rollbackChapter;
 
@@ -532,6 +552,7 @@ export const SnapshotManager: React.FC<{
           <input
             type="number"
             min={1}
+            max={MAX_I32}
             step={1}
             value={snapshotStartChapter}
             disabled={loading}
@@ -549,6 +570,7 @@ export const SnapshotManager: React.FC<{
           <input
             type="number"
             min={1}
+            max={MAX_I32}
             step={1}
             value={snapshotEndChapter}
             disabled={loading}
@@ -696,7 +718,7 @@ export const SnapshotManager: React.FC<{
         </div>
       ) : (
         <>
-          {conflict && (
+          {conflictLoaded && conflict && (
             <div
               className={`rounded-xl border-l-2 px-3 py-2.5 text-small ${
                 conflict.has_conflict
@@ -759,14 +781,14 @@ export const SnapshotManager: React.FC<{
                         onClick={() => void handleViewState(s.chapter_number)}
                         className="shrink-0 rounded-lg px-1.5 py-0.5 text-caption text-book-primary hover:bg-book-primary/10"
                       >
-                        {t("characterDetail.snapshot.state")}
+                        {t("characterDetail.snapshot.viewState")}
                       </button>
                       <button
                         type="button"
                         onClick={() => void handleView(s.snapshot_hash)}
                         className="shrink-0 rounded-lg px-1.5 py-0.5 text-caption text-book-primary hover:bg-book-primary/10"
                       >
-                        {t("characterDetail.snapshot.details")}
+                        {t("characterDetail.snapshot.viewDetails")}
                       </button>
                     </div>
                   </li>

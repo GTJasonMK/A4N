@@ -92,6 +92,7 @@ describe("blueprint formal result and material sync", () => {
     await restoreBlueprintVersion({ project_id: 7, version: "1.0" });
     await saveBlueprint({
       project_id: 7,
+      expected_current_version: "2.0",
       genre: "悬疑",
       style: null,
       tone: null,
@@ -100,7 +101,11 @@ describe("blueprint formal result and material sync", () => {
       full_synopsis: null,
       total_chapters: 30,
     });
-    await updateWorldSetting({ project_id: 7, world_setting: { premise: "迷雾倒流" } });
+    await updateWorldSetting({
+      project_id: 7,
+      expected_current_version: "2.0",
+      world_setting: { premise: "迷雾倒流" },
+    });
 
     expect(mocks.apiInvoke.mock.calls).toEqual([
       ["get_blueprint", { projectId: 7 }],
@@ -124,6 +129,7 @@ describe("blueprint formal result and material sync", () => {
       ["save_blueprint", {
         input: {
           project_id: 7,
+          expected_current_version: "2.0",
           genre: "悬疑",
           style: null,
           tone: null,
@@ -134,7 +140,11 @@ describe("blueprint formal result and material sync", () => {
         },
       }],
       ["update_world_setting", {
-        input: { project_id: 7, world_setting: { premise: "迷雾倒流" } },
+        input: {
+          project_id: 7,
+          expected_current_version: "2.0",
+          world_setting: { premise: "迷雾倒流" },
+        },
       }],
     ]);
   });

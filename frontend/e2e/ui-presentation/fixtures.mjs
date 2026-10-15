@@ -118,6 +118,7 @@ export async function installUiFixtures(browser, overrides = {}) {
     fixtureScript = await browser.addInitScript((encodedFixtures) => {
       const fixtures = JSON.parse(decodeURIComponent(encodedFixtures));
       const params = new URL(location.href).searchParams;
+      Object.assign(fixtures, JSON.parse(params.get("ui-fixtures") ?? "{}"));
       const authenticated = !params.has("ui-auth");
       const deferred = [...new Set([...(fixtures.deferred ?? []), ...params.getAll("ui-defer")])];
       if (authenticated) {
@@ -128,14 +129,24 @@ export async function installUiFixtures(browser, overrides = {}) {
         localStorage.removeItem("a4n:current_access_token");
       }
       localStorage.setItem("a4n:settings:locale", params.get("ui-locale") ?? "zh-CN");
-      window.__uiAudit = { fixtures, projectState: params.get("ui-state"), commands: [], requests: [], deferred, failNext: [], pending: [], unexpected: [], errors: [], modelRequests: [], agentMessages: [], draws: { attached: 0, detached: 0 } };
+      const guestAppearance = params.get("ui-appearance");
+      if (["system", "light", "dark"].includes(guestAppearance)) {
+        localStorage.setItem("a4n:theme-appearance:guest", guestAppearance);
+      }
+      const failNext = [...(fixtures.failNext ?? []), ...JSON.parse(params.get("ui-fail") ?? "[]")];
+      window.__uiAudit = { fixtures, projectState: params.get("ui-state"), commands: [], requests: [], deferred, failNext, pending: [], unexpected: [], errors: [], modelRequests: [], agentMessages: [], draws: { attached: 0, detached: 0 } };
       window.addEventListener("error", (event) => window.__uiAudit.errors.push(event.message));
       window.addEventListener("unhandledrejection", (event) => window.__uiAudit.errors.push(String(event.reason)));
       const fetch = window.fetch.bind(window);
       window.fetch = async (input, options) => {
         const url = new URL(typeof input === "string" ? input : input.url, location.href);
         if (!url.pathname.startsWith("/api/")) return fetch(input, options);
-        const command = fixtures.commandByPath?.[url.pathname] ?? url.pathname.split("/").at(-1);
+        const method = options?.method ?? "GET";
+        const command = fixtures.commandByPath?.[url.pathname] ?? (
+          url.pathname === "/api/agent-threads" && method === "POST"
+            ? "create_agent_thread"
+            : url.pathname.split("/").at(-1)
+        );
         window.__uiAudit.commands.push(command);
         const body = options?.body ? JSON.parse(options.body) : {};
         window.__uiAudit.requests.push({ command, body });
@@ -171,13 +182,22 @@ export async function installUiFixtures(browser, overrides = {}) {
           if (url.pathname === "/api/ui-sessions/events" && method === "GET") {
             return new Response(new ReadableStream({ start(controller) {
               if (options?.signal?.aborted) controller.close();
-              else options?.signal?.addEventListener("abort", () => controller.close(), { once: true });
+              else {
+                for (const event of fixtures.pageSessions.events ?? []) {
+                  Object.assign(state.session, event.session);
+                  controller.enqueue(new TextEncoder().encode(`event: page_session\ndata: ${JSON.stringify(event)}\n\n`));
+                }
+                options?.signal?.addEventListener("abort", () => controller.close(), { once: true });
+              }
             } }), { headers: { "Content-Type": "text/event-stream" } });
           }
           const prefix = `/api/ui-sessions/${state.session.ui_session_id}`;
           if (url.pathname === `${prefix}/authorize` && method === "POST") return Response.json(fixtures.pageSessions.authorizationResponse);
           if ((url.pathname === `${prefix}/context` && method === "PATCH")
             || (url.pathname === `${prefix}/heartbeat` && method === "POST")) {
+            if (state.session.status === "offline") {
+              return Response.json({ code: "conflict", message: "page_session_offline", retryable: false, trace_id: null, details: {} }, { status: 409 });
+            }
             Object.assign(state.session, command === "context" ? body : body.context ?? {});
             touch();
             return Response.json(state.session);
@@ -211,7 +231,24 @@ export async function installUiFixtures(browser, overrides = {}) {
           return Response.json({ items: items.slice((page - 1) * pageSize, page * pageSize), page, page_size: pageSize, total: items.length });
         }
         if (url.pathname === "/api/agent-threads") {
+          if (method === "POST") {
+            if (!("create_agent_thread" in fixtures)) {
+              throw new Error("Missing create_agent_thread fixture");
+            }
+            return Response.json(fixtures.create_agent_thread);
+          }
           return new Response(JSON.stringify(fixtures.agentSnapshots.map((item) => item.thread)), { headers: { "Content-Type": "application/json" } });
+        }
+        const agentRunControlPath = url.pathname.match(/^\/api\/agent-runs\/([^/]+)\/control$/);
+        if (agentRunControlPath && method === "POST") {
+          const run = fixtures.agentSnapshots.flatMap((snapshot) => snapshot.runs).find((item) => item.id === agentRunControlPath[1]);
+          if (!run) throw new Error(`Missing Agent run fixture: ${agentRunControlPath[1]}`);
+          if (body.budget) run.budget = { ...run.budget, ...body.budget };
+          Object.assign(run, {
+            status: body.action === "pause" ? "paused" : body.action === "resume" ? "running" : body.action === "cancel" ? "cancelled" : run.status,
+            waiting_reason: body.action === "resume" ? null : run.waiting_reason,
+          });
+          return Response.json(run);
         }
         const agentRunPath = url.pathname.match(/^\/api\/agent-runs\/([^/]+)$/);
         if (agentRunPath) {
@@ -346,8 +383,65 @@ export async function installUiFixtures(browser, overrides = {}) {
               && (!query || `${item.profile.name} ${item.profile.primary_text}`.includes(query)));
           }
         }
+        if (command === "cancel_import_analysis") {
+          fixtures.get_project_import_analysis_progress = value;
+        } else if (command === "run_import_project_analysis") {
+          fixtures.get_project_import_analysis_progress = value.progress;
+        }
         return Response.json(value);
       };
+      if (params.get("ui-native-draft-storage") === "1") {
+        const storageKey = "__a4n_ui_audit_native_frontend_state";
+        const state = JSON.parse(sessionStorage.getItem(storageKey) ?? "{}");
+        for (let index = 0; index < localStorage.length; index += 1) {
+          const key = localStorage.key(index);
+          const value = key?.startsWith("a4n:") ? localStorage.getItem(key) : null;
+          if (key && value !== null && !Object.hasOwn(state, key)) state[key] = value;
+        }
+        const nativeStorage = window.__uiAudit.nativeStorage = {
+          calls: [], removedDraftKeys: [], pendingDraftWrite: false, releaseDraftWrite: null, state,
+        };
+        const persistNativeState = () => sessionStorage.setItem(storageKey, JSON.stringify(state));
+        window.__A4N_API_BASE_URL__ = location.origin;
+        window.__TAURI_INTERNALS__ = {
+          metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
+          invoke: async (command, args = {}) => {
+            nativeStorage.calls.push({ command, args });
+            if (command === "get_all_frontend_state") return { ...state };
+            if (command === "set_frontend_state_many") {
+              const entries = args.entries ?? {};
+              if (Object.keys(entries).some((key) => key.startsWith("a4n:writing_draft:"))) {
+                if (nativeStorage.pendingDraftWrite) throw new Error("A draft storage write is already pending");
+                nativeStorage.pendingDraftWrite = true;
+                return new Promise((resolve) => {
+                  nativeStorage.releaseDraftWrite = () => {
+                    Object.assign(state, entries);
+                    persistNativeState();
+                    nativeStorage.pendingDraftWrite = false;
+                    nativeStorage.releaseDraftWrite = null;
+                    resolve(null);
+                  };
+                });
+              }
+              Object.assign(state, entries);
+              persistNativeState();
+              return null;
+            }
+            if (command === "remove_frontend_state_many") {
+              const keys = args.keys ?? [];
+              nativeStorage.removedDraftKeys.push(...keys.filter((key) => key.startsWith("a4n:writing_draft:")));
+              for (const key of keys) delete state[key];
+              persistNativeState();
+              return null;
+            }
+            if (command === "log_from_frontend") return null;
+            throw new Error(`Unexpected native fixture command: ${command}`);
+          },
+          convertFileSrc: (path) => path,
+          transformCallback: () => 1,
+          unregisterCallback: () => undefined,
+        };
+      }
       const clearRect = CanvasRenderingContext2D.prototype.clearRect;
       CanvasRenderingContext2D.prototype.clearRect = function (...args) {
         if (this.canvas.width === 520 && this.canvas.height === 240) {

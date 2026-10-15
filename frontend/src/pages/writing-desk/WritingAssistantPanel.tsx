@@ -10,6 +10,7 @@ import { OptimizeTab } from "../novel-detail/OptimizeTab";
 import { AssistantContextPanel } from "./AssistantContextPanel";
 import { StreamControlBar } from "./StreamControlBar";
 import { useI18n } from "../../i18n";
+import { MAX_I32 } from "../../utils/numeric";
 
 interface WritingAssistantPanelProps {
   embeddedInModal?: boolean;
@@ -100,9 +101,11 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
           embeddedInModal ? "pt-0" : ""
         }`}
       >
-        <span className="text-small text-book-text-muted">
-          {activeNumber != null ? t("writing.chapterLabel", { number: activeNumber }) : t("writing.assistantChapterNotSelected")}
-        </span>
+        {assistantMode === "generate" ? (
+          <span className="text-small text-book-text-muted">
+            {activeNumber != null ? t("writing.chapterLabel", { number: activeNumber }) : t("writing.assistantChapterNotSelected")}
+          </span>
+        ) : null}
         <SegmentedControl
           ariaLabel={t("writing.assistantMode")}
           value={assistantMode}
@@ -145,6 +148,7 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
                       type="number"
                       inputMode="numeric"
                       min={1}
+                      max={MAX_I32}
                       step={100}
                       value={minWordCount}
                       onChange={(event) => onMinWordCountChange(event.target.value)}
@@ -156,6 +160,7 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
                       type="number"
                       inputMode="numeric"
                       min={1}
+                      max={MAX_I32}
                       step={100}
                       value={maxWordCount}
                       onChange={(event) => onMaxWordCountChange(event.target.value)}

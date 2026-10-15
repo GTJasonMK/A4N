@@ -31,6 +31,7 @@ interface ProgressDialogProps {
   streaming?: boolean;
   events?: ProgressTimelineItem[];
   error?: string | null;
+  progressError?: string | null;
   errorHint?: React.ReactNode;
   onClose: () => void;
   closeLabel?: string;
@@ -53,6 +54,7 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
   streaming = false,
   events = [],
   error,
+  progressError,
   errorHint,
   onClose,
   closeLabel,
@@ -288,6 +290,11 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
             {error}
             {errorHint ? <p className="mt-2 border-t border-error/25 pt-2 text-book-text-sub">{errorHint}</p> : null}
           </div>
+        ) : null}
+        {progressError ? (
+          <p role="alert" className="border-l-2 border-warning px-3 py-1 text-small text-book-text-sub">
+            {progressError}
+          </p>
         ) : null}
 
         {timeline.length > (isMangaPipeline ? 0 : 1) ? (

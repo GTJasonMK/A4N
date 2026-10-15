@@ -40,6 +40,18 @@ pub struct BatchAcceptImportReviewsInput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct BatchAcceptImportReviewsFailure {
+    pub review_id: i64,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct BatchAcceptImportReviewsResult {
+    pub accepted_reviews: Vec<ImportReviewSummary>,
+    pub failure: Option<BatchAcceptImportReviewsFailure>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct DedupResult {
     pub content_hash: String,
     pub is_duplicate: bool,
@@ -89,7 +101,7 @@ pub trait ImportReviewAcceptanceApplicationPort: Send + Sync {
         user_id: i64,
         input: BatchAcceptImportReviewsInput,
         host_port: &dyn crate::chapter::ChapterDerivedCleanupHostPort,
-    ) -> Result<Vec<ImportReviewSummary>, a4n_error::AppError>;
+    ) -> Result<BatchAcceptImportReviewsResult, a4n_error::AppError>;
 }
 
 /// Host-facing import-review state mutation boundary.

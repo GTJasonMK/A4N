@@ -28,6 +28,7 @@ describe("ForeshadowingIndexCard", () => {
         loading={false}
         loadError={null}
         onReload={async () => undefined}
+        onSaved={() => undefined}
         onDeleted={() => undefined}
         />
       </I18nProvider>,
@@ -46,6 +47,7 @@ describe("ForeshadowingIndexCard", () => {
         loading={false}
         loadError={null}
         onReload={async () => undefined}
+        onSaved={() => undefined}
         onDeleted={() => undefined}
         />
       </I18nProvider>,
@@ -64,6 +66,7 @@ describe("ForeshadowingIndexCard", () => {
           loading={false}
           loadError="伏笔读取失败"
           onReload={async () => false}
+          onSaved={() => undefined}
           onDeleted={() => undefined}
         />
       </I18nProvider>,

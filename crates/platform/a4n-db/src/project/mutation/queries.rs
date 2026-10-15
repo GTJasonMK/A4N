@@ -7,6 +7,7 @@ use sea_orm::{ConnectionTrait, DbBackend, DbErr, EntityTrait, FromQueryResult, Q
 #[derive(Debug, FromQueryResult)]
 struct ProjectSummaryRow {
     id: i64,
+    content_revision: i64,
     user_id: i64,
     title: String,
     description: String,
@@ -29,6 +30,7 @@ impl ProjectSummaryRow {
     fn into_record(self) -> ProjectSummaryRecord {
         ProjectSummaryRecord {
             id: self.id,
+            content_revision: self.content_revision,
             user_id: self.user_id,
             title: self.title,
             description: self.description,
@@ -78,6 +80,7 @@ where
     novel_project::Entity::find_by_id(project_id)
         .select_only()
         .column(novel_project::Column::Id)
+        .column(novel_project::Column::ContentRevision)
         .column(novel_project::Column::UserId)
         .column(novel_project::Column::Title)
         .column(novel_project::Column::Description)
@@ -151,6 +154,7 @@ mod tests {
         let now = Utc::now().naive_utc();
         let record = ProjectSummaryRow {
             id: 7,
+            content_revision: 2,
             user_id: 3,
             title: "项目".to_string(),
             description: "描述".to_string(),
@@ -171,6 +175,7 @@ mod tests {
         .into_record();
 
         assert_eq!(record.id, 7);
+        assert_eq!(record.content_revision, 2);
         assert_eq!(record.title, "项目");
         assert_eq!(record.current_chapter, 2);
     }

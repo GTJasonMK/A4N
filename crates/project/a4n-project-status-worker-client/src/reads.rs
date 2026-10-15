@@ -20,13 +20,18 @@ impl ProjectStatusReadApplicationPort for ProjectStatusWorkerClient {
         &self,
         user_id: i64,
         project_id: i64,
+        expected_from: ProjectStatus,
         target: ProjectStatus,
     ) -> Result<ProjectRollbackPreview, AppError> {
         self.command(
             user_id,
             project_id,
             PROJECT_STATUS_PREVIEW_ROLLBACK_OPERATION,
-            ProjectStatusRollbackInput { project_id, target },
+            ProjectStatusRollbackInput {
+                project_id,
+                expected_from,
+                target,
+            },
         )
         .await
     }

@@ -36,11 +36,15 @@ export function OptimizeHeader({
         <p className="truncate text-xs font-semibold text-book-text-main">
           {chapterLabel}
         </p>
-        <p className="mt-0.5 truncate text-small text-book-text-muted">
-          {activeChapter
-            ? t("agent.domain.contentSubtitle", { resource: chapterLabel })
-            : t("writing.chooseGeneratedChapterForAssistant")}
-        </p>
+        {activeChapter && !isPinned ? (
+          <p className="mt-0.5 truncate text-small text-book-text-muted">
+            {t("agent.domain.contentSubtitle", { resource: chapterLabel })}
+          </p>
+        ) : !activeChapter ? (
+          <p className="mt-0.5 truncate text-small text-book-text-muted">
+            {t("writing.chooseGeneratedChapterForAssistant")}
+          </p>
+        ) : null}
       </div>
       {!isPinned ? (
         <label className="min-w-0 flex-1 basis-48">

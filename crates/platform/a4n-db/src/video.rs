@@ -58,9 +58,12 @@ pub use generated_images::{
     video_project_context_read_model, video_reference_candidate_image_records,
     video_tail_frame_images,
 };
+pub use generated_images::{
+    ImageReferenceCleanupIds, delete_generated_image_record_with_cleanup_effects,
+};
 pub(crate) use generated_images::{
     clear_generated_image_references_record, generated_images_for_chapter_by_id_desc,
-    reclaim_image_publications_for_deleted_images,
+    reclaim_image_publications_for_deleted_images, reclaim_pending_image_publications_for_project,
 };
 pub(crate) use generated_images::{
     delete_manga_chapter_image_records_in, delete_manga_page_image_records_in,
@@ -70,11 +73,13 @@ pub(crate) use generated_images::{
 mod generated_videos;
 pub(crate) use generated_videos::clear_generated_video_references_by_ids;
 pub use generated_videos::{
-    create_generated_video_record, create_generated_video_record_with_generation_run,
+    VideoReferenceCleanupIds, create_generated_video_record,
+    create_generated_video_record_with_generation_run,
     create_prompt_generated_video_record_with_generation_run,
     delete_generated_video_record_with_cleanup, delete_missing_generated_video_references_record,
-    generated_video_by_id, generated_videos_by_ids, generated_videos_by_provider_job_id,
-    generated_videos_for_chapter, mark_generated_video_completed_and_link_prompt_record,
+    delete_missing_generated_video_references_with_effects_record, generated_video_by_id,
+    generated_videos_by_ids, generated_videos_by_provider_job_id, generated_videos_for_chapter,
+    mark_generated_video_completed_and_link_prompt_record,
     mark_generated_video_error_status_and_prompt_record,
     mark_generated_video_job_and_prompt_record,
     mark_generated_videos_error_status_and_prompt_records, merge_video_provider_response_metadata,
@@ -110,6 +115,22 @@ pub enum VideoDbError {
     Forbidden(String),
     #[error(transparent)]
     Database(#[from] DbErr),
+}
+
+impl From<crate::generation::GenerationLifecycleGateError> for VideoDbError {
+    fn from(error: crate::generation::GenerationLifecycleGateError) -> Self {
+        use crate::generation::GenerationLifecycleGateError as Error;
+        match error {
+            Error::InvalidArgument(message) => Self::InvalidArgument(message),
+            Error::NotFound(message) => Self::NotFound(message),
+            Error::Blocked(message) => Self::InvalidState {
+                current: "project_lifecycle_gate".to_string(),
+                operation: message,
+            },
+            Error::Corrupt(message) => Self::Database(DbErr::Custom(message)),
+            Error::Database(error) => Self::Database(error),
+        }
+    }
 }
 
 impl From<crate::canvas::CanvasDbError> for VideoDbError {
@@ -164,15 +185,7 @@ where
     C: ConnectionTrait,
 {
     let project_id = validate_positive_video_i64(project_id, "project_id")?;
-    let project = crate::project::project_write_identity_for_update(db, project_id)
-        .await?
-        .ok_or_else(|| VideoDbError::NotFound(format!("项目不存在: {project_id}")))?;
-    if project.lifecycle_gate != crate::generation::PROJECT_GATE_ACTIVE {
-        return Err(VideoDbError::InvalidState {
-            current: project.lifecycle_gate,
-            operation: "写入生成媒体".to_string(),
-        });
-    }
+    crate::generation::require_project_owner_lifecycle_active(db, project_id).await?;
     Ok(())
 }
 

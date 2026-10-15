@@ -210,7 +210,7 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
             type="number"
             min={1024}
             max={1048576}
-            step={1024}
+            step={1}
             value={form.max_context_tokens}
             onChange={(event) =>
               setForm({
@@ -229,7 +229,7 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
             type="number"
             min={1}
             max={Math.max(1, Number(form.max_context_tokens) - 1)}
-            step={256}
+            step={1}
             value={form.max_output_tokens}
             onChange={(event) =>
               setForm({

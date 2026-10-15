@@ -199,10 +199,11 @@ pub(super) async fn save_failed_import_progress(
 pub(super) async fn cancel_import_progress(
     context: &OrchestratorContext,
     project_id: i64,
-) -> Result<(), AppError> {
+) -> Result<ProjectImportAnalysisProgress, AppError> {
     let mut progress = load_import_progress(context, project_id).await?;
     cancel_progress(&mut progress)?;
-    save_import_progress(context, project_id, &progress).await
+    save_import_progress(context, project_id, &progress).await?;
+    Ok(progress)
 }
 
 pub(super) async fn import_analysis_cancelled(

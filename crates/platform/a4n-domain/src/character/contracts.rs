@@ -63,6 +63,8 @@ pub struct CharacterAttributeDeletionExecutionInput {
     pub profile_id: i64,
     pub category: String,
     pub key: String,
+    pub expected_mark_id: i64,
+    pub expected_mark_updated_at: NaiveDateTime,
     pub event_cause: String,
     pub evidence: String,
     pub chapter_number: i32,

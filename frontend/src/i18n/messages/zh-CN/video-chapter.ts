@@ -438,6 +438,7 @@ export const videoChapter = {
     recipeSaveResponseMissing: "保存成功后未返回片段 {number} 的执行方案",
     invalidPlanMetadata: "当前片段规划 metadata_json 无效",
     recipeSaveFailed: "保存片段执行方案失败",
+    recipeSaveFailedForSegment: "片段 {number} 的执行方案未保存：{error}",
     editableRecipeMissing: "片段 {number} 缺少可编辑的执行方案",
     invalidGenerationReferenceSelection: "生成参考图中有 {count} 张已不可用，请清除后重选",
     invalidLibraryReferenceSelection: "视频素材库中有 {count} 张图片已不可用，请清除后重选",

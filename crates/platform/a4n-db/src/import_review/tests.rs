@@ -1,12 +1,31 @@
 use super::{
     ImportReviewMutationError, accept_import_review, chapter::required_import_chapter_number,
-    create_import_reviews, import_review_project_ids_by_ids, reject_import_review,
+    create_import_reviews, delete_import_review, import_review_project_ids_by_ids,
+    import_reviews_by_project, reject_import_review,
 };
 use crate::project::{CreateProjectRecordInput, create_project_record};
-use a4n_db_models::models::chapter::chapter;
+use a4n_db_models::models::{chapter::chapter, project::novel_project};
 use a4n_domain::import_review::{ImportReviewCreateInput, ImportReviewStatus};
-use sea_orm::EntityTrait;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    Set,
+};
 use serde_json::json;
+
+async fn setup_db() -> DatabaseConnection {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let owner = crate::auth::create_user(
+        &db,
+        "import-review-test-owner",
+        "import-review-test-owner@example.test",
+        "test-password",
+        a4n_domain::auth::ROLE_USER,
+    )
+    .await
+    .expect("import review test owner must be created");
+    assert_eq!(owner.id, 1);
+    db
+}
 
 #[test]
 fn required_import_chapter_number_rejects_non_positive_number() {
@@ -18,7 +37,7 @@ fn required_import_chapter_number_rejects_non_positive_number() {
 
 #[tokio::test]
 async fn review_transitions_are_atomic_and_single_use() {
-    let db = a4n_migration::test_support::connect_test_database().await;
+    let db = setup_db().await;
     let project_id = create_project_record(
         &db,
         CreateProjectRecordInput {
@@ -112,4 +131,84 @@ async fn review_transitions_are_atomic_and_single_use() {
         reject_import_review(&db, reviews[2].id).await,
         Err(ImportReviewMutationError::InvalidState { .. })
     ));
+}
+
+#[tokio::test]
+async fn project_reset_gate_blocks_import_review_write_paths() {
+    let db = setup_db().await;
+    let project = create_project_record(
+        &db,
+        CreateProjectRecordInput {
+            user_id: 1,
+            title: "重置期间导入审核 gate 测试".to_string(),
+            description: String::new(),
+            project_type: "novel_long".to_string(),
+        },
+    )
+    .await
+    .expect("test project must be created");
+    let review = create_import_reviews(
+        &db,
+        vec![ImportReviewCreateInput {
+            project_id: project.id,
+            filename: "chapter.md".to_string(),
+            analysis_result: json!({
+                "chapter_number": 1,
+                "chapter_title": "第一章",
+                "content": "正文",
+            }),
+        }],
+    )
+    .await
+    .expect("review must be created")
+    .remove(0);
+    let mut active: novel_project::ActiveModel = novel_project::Entity::find_by_id(project.id)
+        .one(&db)
+        .await
+        .expect("project lookup must succeed")
+        .expect("project must exist")
+        .into();
+    active.lifecycle_gate = Set("resetting".to_string());
+    active.update(&db).await.expect("test must set reset gate");
+
+    assert!(matches!(
+        create_import_reviews(
+            &db,
+            vec![ImportReviewCreateInput {
+                project_id: project.id,
+                filename: "later.md".to_string(),
+                analysis_result: json!({}),
+            }],
+        )
+        .await,
+        Err(ImportReviewMutationError::InvalidState { .. })
+    ));
+    assert!(matches!(
+        accept_import_review(&db, review.id, None).await,
+        Err(ImportReviewMutationError::InvalidState { .. })
+    ));
+    assert!(matches!(
+        reject_import_review(&db, review.id).await,
+        Err(ImportReviewMutationError::InvalidState { .. })
+    ));
+    assert!(matches!(
+        delete_import_review(&db, review.id).await,
+        Err(ImportReviewMutationError::InvalidState { .. })
+    ));
+
+    assert_eq!(
+        import_reviews_by_project(&db, project.id)
+            .await
+            .expect("review list must be readable")
+            .len(),
+        1
+    );
+    assert_eq!(
+        chapter::Entity::find()
+            .filter(chapter::Column::ProjectId.eq(project.id))
+            .count(&db)
+            .await
+            .expect("chapter count must be readable"),
+        0
+    );
 }

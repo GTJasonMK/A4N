@@ -10,6 +10,7 @@ import {
   previewGeneratePortraitRequest,
   startPortraitGeneration,
   verifyPortraitGenerationResult,
+  type Portrait,
 } from "../../../api/portrait";
 import type { ModelRequestPreview } from "../../../api/requestPreview";
 import { RequestPreviewModal } from "../../../components/feedback/RequestPreviewModal";
@@ -44,7 +45,7 @@ interface SinglePortraitDialogProps {
   projectId: number;
   profiles: CharacterProfile[];
   onClose: () => void;
-  onCreated: () => boolean | void | Promise<boolean | void>;
+  onCreated: (portrait: Portrait) => void | Promise<void>;
 }
 
 export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
@@ -269,13 +270,11 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
           cancelLabel: t("characterDetail.portrait.stopGeneration"),
         },
         async (task) => {
-          await verifyPortraitGenerationResult(task, requestProjectId);
+          const [portrait] = await verifyPortraitGenerationResult(task, requestProjectId);
           if (!isCurrentProject(requestProjectId)) {
             throw new Error(t("characterDetail.taskStopped"));
           }
-          if (await onCreated() === false) {
-            throw new Error(t("characterDetail.portrait.generationFailed"));
-          }
+          await onCreated(portrait);
         },
       );
       if (!isCurrentProject(requestProjectId)) return;

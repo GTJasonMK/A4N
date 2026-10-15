@@ -368,28 +368,10 @@ impl MediaAuthoringApplicationPort for OrchestratorContext {
         input: GenerateAdaptationPlanInput,
         renderer: &dyn a4n_api_contract::prompt::PromptRenderPort,
     ) -> Result<Value, AppError> {
-        let (target, source, inputs, existing) =
-            self.prepare_adaptation_request(user_id, &input).await?;
-        let (user, _) = self
-            .adaptation_user_prompt(
-                &source,
-                target,
-                &inputs,
-                &input.instruction,
-                existing.map(|record| record.id),
-            )
-            .await?;
-        let system = renderer
-            .render_prompt_for_call(
-                "OrchestratorContext.generate_adaptation_plan",
-                "chapter_media_adaptation_plan",
-                &Default::default(),
-                Some(input.project_id),
-            )
-            .await?;
+        let renderer = PromptRendererAdapter(renderer);
         Ok(serde_json::to_value(
-            crate::workflow::workflow_json_request(system, user)
-                .with_prompt_assembly_key("OrchestratorContext.generate_adaptation_plan"),
+            self.preview_adaptation_plan_request(user_id, input, &renderer)
+                .await?,
         )?)
     }
 }

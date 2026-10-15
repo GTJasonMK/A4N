@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use a4n_api_contract::image::ImageRecordDeleteResult;
 use a4n_api_contract::image::{
     DeleteImageInput, GeneratedImageIdentity, GeneratedImageSummary, ImageMediaReferencePort,
     ImagePublicationRecoveryReadPort, ImageRecordMutationApplicationPort,
@@ -325,7 +326,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         image_id: i64,
-    ) -> Result<(), AppError> {
+    ) -> Result<ImageRecordDeleteResult, AppError> {
         let image = self
             .generated_image_for_user_validated(user_id, image_id)
             .await?;
@@ -335,14 +336,33 @@ impl OrchestratorContext {
     pub async fn delete_generated_image_validated(
         &self,
         image: GeneratedImageRecord,
-    ) -> Result<(), AppError> {
+    ) -> Result<ImageRecordDeleteResult, AppError> {
         if image.id <= 0 {
             return Err(AppError::InvalidArgument(
                 "图片记录 ID 必须是正整数".to_string(),
             ));
         }
-        self.delete_generated_image_record_with_cleanup(image.id)
-            .await
+        let cleanup = self
+            .delete_generated_image_record_with_cleanup(image.id)
+            .await?;
+        let mut updated_prompts = Vec::with_capacity(cleanup.updated_prompt_ids.len());
+        for prompt_id in cleanup.updated_prompt_ids {
+            let prompt = self.chapter_video_prompt(prompt_id).await?;
+            updated_prompts.push(a4n_domain::video_prompt::ChapterVideoPromptSummary::from(
+                &prompt,
+            ));
+        }
+        let updated_videos = self
+            .generated_videos_by_ids(&cleanup.updated_video_ids)
+            .await?;
+        Ok(ImageRecordDeleteResult {
+            deleted_image_id: image.id,
+            updated_prompts,
+            updated_videos: updated_videos
+                .iter()
+                .map(crate::video::generated_video_summary)
+                .collect(),
+        })
     }
 
     async fn generated_image_for_user_validated(
@@ -535,6 +555,19 @@ impl ImageRecordMutationApplicationPort for OrchestratorContext {
     }
 
     async fn delete(&self, user_id: i64, input: DeleteImageInput) -> Result<(), AppError> {
+        self.delete_generated_image_for_user_validated(user_id, input.image_id)
+            .await
+            .map(|_| ())
+    }
+}
+
+#[async_trait]
+impl a4n_api_contract::image::ImageRecordCascadeMutationApplicationPort for OrchestratorContext {
+    async fn delete(
+        &self,
+        user_id: i64,
+        input: DeleteImageInput,
+    ) -> Result<ImageRecordDeleteResult, AppError> {
         self.delete_generated_image_for_user_validated(user_id, input.image_id)
             .await
     }

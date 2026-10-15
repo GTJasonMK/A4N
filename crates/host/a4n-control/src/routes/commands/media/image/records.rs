@@ -105,8 +105,8 @@ pub(in crate::routes::commands) async fn delete_image(
 ) -> Result<Value, ApiError> {
     let input: image_records_actions::DeleteImageInput =
         strict_command_input(args, "delete_image")?;
-    image_records_actions::delete_image(state.runtime(), user_id, input)
+    let result = image_records_actions::delete_image(state.runtime(), user_id, input)
         .await
         .map_err(ApiError::bad_request)?;
-    Ok(Value::Null)
+    to_value(result)
 }

@@ -143,6 +143,16 @@ where
                 ),
             });
         }
+        if input.finalize_running_workflow {
+            crate::workflow::mark_workflow_status_in_transaction(
+                &txn,
+                run,
+                WORKFLOW_STATUS_COMPLETED,
+                false,
+                None,
+            )
+            .await?;
+        }
         txn.commit().await?;
         return Ok(ReverseCandidateApplyResult {
             apply_result: applied,
@@ -201,6 +211,17 @@ where
     checkpoint_active.artifacts_json = Set(Some(artifacts));
     checkpoint_active.updated_at = Set(now);
     checkpoint_active.update(&txn).await?;
+    if input.finalize_running_workflow {
+        // Blueprint material and run completion commit together so cancellation cannot follow the write.
+        crate::workflow::mark_workflow_status_in_transaction(
+            &txn,
+            run,
+            WORKFLOW_STATUS_COMPLETED,
+            false,
+            None,
+        )
+        .await?;
+    }
     txn.commit().await?;
 
     Ok(ReverseCandidateApplyResult {
@@ -251,7 +272,7 @@ fn validate_apply_target(input: &ReverseCandidateApplyInput) -> Result<(), Impor
                 ReverseCandidateApplyData::PartOutline(_)
             )
     );
-    if target_matches {
+    if target_matches && (!input.finalize_running_workflow || input.target == "reverse_blueprint") {
         Ok(())
     } else {
         Err(ImportReverseDbError::InvalidArgument(

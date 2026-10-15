@@ -1,6 +1,8 @@
 use std::collections::BTreeSet;
 
-use a4n_api_contract::media_authoring::MediaAuthoringStreamReporter;
+use a4n_api_contract::media_authoring::{
+    GenerateAdaptationPlanInput, MediaAuthoringStreamReporter,
+};
 use a4n_db::media_authoring::{self as records, AuthoringDocumentError, SaveAuthoringDocument};
 use a4n_domain::{
     chapter::ResolvedChapterSource,
@@ -11,6 +13,7 @@ use a4n_domain::{
     source_spans::source_spans_for_content,
 };
 use a4n_error::AppError;
+use a4n_llm_provider_contract::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
@@ -45,6 +48,60 @@ pub(crate) struct GenerateAdaptation<'a> {
 }
 
 impl OrchestratorContext {
+    pub(crate) async fn preview_adaptation_plan_request(
+        &self,
+        user_id: i64,
+        input: GenerateAdaptationPlanInput,
+        renderer: &dyn PromptRenderer,
+    ) -> Result<ChatRequest, AppError> {
+        let (target, source, inputs, existing) =
+            self.prepare_adaptation_request(user_id, &input).await?;
+        let (user, _) = self
+            .adaptation_user_prompt(
+                &source,
+                target,
+                &inputs,
+                &input.instruction,
+                existing.map(|record| record.id),
+            )
+            .await?;
+        let system = renderer
+            .render_prompt_for_call(
+                "OrchestratorContext.generate_adaptation_plan",
+                "chapter_media_adaptation_plan",
+                &Default::default(),
+                Some(input.project_id),
+            )
+            .await?;
+        Ok(crate::workflow::workflow_json_request(system, user)
+            .with_prompt_assembly_key("OrchestratorContext.generate_adaptation_plan"))
+    }
+
+    pub(crate) async fn preview_missing_galgame_adaptation_plan_request(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+        renderer: &dyn PromptRenderer,
+    ) -> Result<ChatRequest, AppError> {
+        self.preview_adaptation_plan_request(
+            user_id,
+            GenerateAdaptationPlanInput {
+                project_id,
+                chapter_id,
+                task_id: "request-preview".into(),
+                instruction: DEFAULT_INSTRUCTION.into(),
+                video_reference: None,
+                clear_video_reference: false,
+                record_id: None,
+                expected_revision: None,
+                resume_from_checkpoint: false,
+            },
+            renderer,
+        )
+        .await
+    }
+
     pub(crate) async fn load_current_adaptation(
         &self,
         source: &ResolvedChapterSource,

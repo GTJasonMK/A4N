@@ -221,6 +221,7 @@ async fn restore_blueprint_version_record_restores_rows_and_project_status() {
         description: Set(String::new()),
         project_type: Set("novel_long".to_string()),
         project_kind: Set(PROJECT_KIND_TEXT.to_string()),
+        content_revision: Set(0),
         root_project_id: Set(None),
         source_snapshot_id: Set(None),
         source_sync_status: Set("current".to_string()),

@@ -23,6 +23,9 @@ pub(crate) fn feedback_error(error: a4n_db::fact_feedback::FactFeedbackDbError) 
     match error {
         a4n_db::fact_feedback::FactFeedbackDbError::Database(error) => AppError::database(error),
         a4n_db::fact_feedback::FactFeedbackDbError::Json(error) => AppError::Serialization(error),
+        a4n_db::fact_feedback::FactFeedbackDbError::InvalidState { current, operation } => {
+            AppError::InvalidState { current, operation }
+        }
         error => AppError::InvalidState {
             current: "body_fact_feedback".into(),
             operation: error.to_string(),

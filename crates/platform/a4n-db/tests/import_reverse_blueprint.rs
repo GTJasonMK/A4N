@@ -455,6 +455,7 @@ async fn manual_blueprint_save_preserves_owned_materials_and_creates_restorable_
         &db,
         SaveManualBlueprintInput {
             project_id,
+            expected_current_version: Some("1.0".to_string()),
             genre: "  都市悬疑  ".to_string(),
             style: Some("  冷峻  ".to_string()),
             tone: None,
@@ -518,6 +519,7 @@ async fn blueprint_source_review_tracks_changes_after_last_blueprint_save() {
         &db,
         SaveManualBlueprintInput {
             project_id,
+            expected_current_version: None,
             genre: "悬疑".to_string(),
             style: None,
             tone: None,
@@ -655,6 +657,7 @@ async fn manual_blueprint_save_rejects_total_before_existing_materials_without_p
         &db,
         SaveManualBlueprintInput {
             project_id,
+            expected_current_version: None,
             genre: "悬疑".to_string(),
             style: None,
             tone: None,
@@ -696,10 +699,11 @@ async fn world_setting_update_creates_version_without_replacing_other_blueprint_
     let db = a4n_migration::test_support::connect_test_database().await;
     let project_id = create_project(&db, "更新世界观").await;
 
-    save_manual_blueprint_records_transaction(
+    let saved = save_manual_blueprint_records_transaction(
         &db,
         SaveManualBlueprintInput {
             project_id,
+            expected_current_version: None,
             genre: "悬疑".to_string(),
             style: Some("冷峻".to_string()),
             tone: None,
@@ -717,6 +721,7 @@ async fn world_setting_update_creates_version_without_replacing_other_blueprint_
         &db,
         UpdateBlueprintWorldSettingInput {
             project_id,
+            expected_current_version: saved.blueprint.current_version.clone(),
             world_setting: json!({"premise": "午夜钟声会让时间倒退"}),
             created_by: "user:1".to_string(),
         },
@@ -740,6 +745,94 @@ async fn world_setting_update_creates_version_without_replacing_other_blueprint_
         version.version == "1.1"
             && version.blueprint_data["world_setting"]["premise"] == "午夜钟声会让时间倒退"
     }));
+
+    let stale = update_blueprint_world_setting_records_transaction(
+        &db,
+        UpdateBlueprintWorldSettingInput {
+            project_id,
+            expected_current_version: saved.blueprint.current_version,
+            world_setting: json!({"premise": "旧窗口里的设定"}),
+            created_by: "user:1".to_string(),
+        },
+    )
+    .await
+    .unwrap_err();
+    assert!(stale.to_string().contains("世界观已被其他操作修改"));
+    let current = a4n_db::project::novel_blueprint_for_project(&db, project_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(current.current_version, "1.1");
+    assert_eq!(
+        current.world_setting.unwrap()["premise"],
+        "午夜钟声会让时间倒退"
+    );
+}
+
+#[tokio::test]
+async fn manual_blueprint_save_rejects_a_stale_version() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let project_id = create_project(&db, "拒绝过期蓝图保存").await;
+    let initial = save_manual_blueprint_records_transaction(
+        &db,
+        SaveManualBlueprintInput {
+            project_id,
+            expected_current_version: None,
+            genre: "悬疑".to_string(),
+            style: None,
+            tone: None,
+            target_audience: None,
+            one_sentence_summary: Some("初始概要".to_string()),
+            full_synopsis: None,
+            total_chapters: 8,
+            created_by: "user:1".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let saved = save_manual_blueprint_records_transaction(
+        &db,
+        SaveManualBlueprintInput {
+            project_id,
+            expected_current_version: Some(initial.blueprint.current_version.clone()),
+            genre: "奇幻悬疑".to_string(),
+            style: None,
+            tone: None,
+            target_audience: None,
+            one_sentence_summary: Some("更新概要".to_string()),
+            full_synopsis: None,
+            total_chapters: 8,
+            created_by: "user:1".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let stale = save_manual_blueprint_records_transaction(
+        &db,
+        SaveManualBlueprintInput {
+            project_id,
+            expected_current_version: Some(initial.blueprint.current_version),
+            genre: "旧窗口类型".to_string(),
+            style: None,
+            tone: None,
+            target_audience: None,
+            one_sentence_summary: Some("旧窗口概要".to_string()),
+            full_synopsis: None,
+            total_chapters: 8,
+            created_by: "user:1".to_string(),
+        },
+    )
+    .await
+    .unwrap_err();
+    assert!(stale.to_string().contains("正式蓝图已被其他操作修改"));
+    let current = a4n_db::project::novel_blueprint_for_project(&db, project_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(current.current_version, saved.blueprint.current_version);
+    assert_eq!(current.genre, "奇幻悬疑");
+    assert_eq!(current.one_sentence_summary.as_deref(), Some("更新概要"));
 }
 
 #[tokio::test]
@@ -750,6 +843,7 @@ async fn blueprint_profile_seed_only_fills_missing_manual_profile_fields() {
         &db,
         SaveManualBlueprintInput {
             project_id,
+            expected_current_version: None,
             genre: "悬疑".to_string(),
             style: None,
             tone: None,

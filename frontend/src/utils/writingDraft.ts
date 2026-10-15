@@ -1,7 +1,9 @@
 import {
   listPortableKeys,
+  refreshPortableStorage,
   readPortableItem,
   removePortableItem,
+  removePortableItems,
   writePortableItem,
 } from "./portableStorage";
 import { getActiveLocale, translateMessage } from "../i18n";
@@ -78,4 +80,11 @@ export const writeWritingDraft = async (key: string, content: string): Promise<b
 /** 删除写作草稿 */
 export const removeWritingDraft = async (key: string): Promise<void> => {
   await removePortableItem(key);
+};
+
+export const removeProjectWritingDrafts = async (projectId: string): Promise<void> => {
+  await refreshPortableStorage();
+  const keys = listPortableKeys(getWritingDraftProjectPrefix(projectId));
+  if (keys.length === 0) return;
+  await removePortableItems(keys);
 };

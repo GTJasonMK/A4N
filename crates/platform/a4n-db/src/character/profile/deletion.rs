@@ -345,10 +345,26 @@ pub async fn delete_profile_cascade_transaction<C>(
 where
     C: ConnectionTrait + TransactionTrait,
 {
+    let project_id = protagonist_profile::Entity::find_by_id(profile_id)
+        .select_only()
+        .column(protagonist_profile::Column::ProjectId)
+        .into_tuple::<i64>()
+        .one(db)
+        .await?
+        .ok_or_else(|| CharacterProfileDeleteError::NotFound("主角档案不存在".into()))?;
     let tx = db
         .begin()
         .await
         .map_err(CharacterProfileDeleteError::Database)?;
+    let project = crate::project::project_write_identity_for_update(&tx, project_id)
+        .await?
+        .ok_or_else(|| CharacterProfileDeleteError::NotFound("项目不存在".into()))?;
+    if project.lifecycle_gate != crate::generation::PROJECT_GATE_ACTIVE {
+        return Err(CharacterProfileDeleteError::InvalidState {
+            current: project.lifecycle_gate,
+            operation: "删除角色档案".to_string(),
+        });
+    }
     let summary = delete_profile_cascade_in(&tx, profile_id).await?;
     if !summary.portrait_paths.is_empty() {
         crate::cleanup_outbox::insert_file_artifact_cleanup_intent(

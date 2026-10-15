@@ -40,7 +40,12 @@ where
         return Err(FreeformGeneratedResetDbError::UnsupportedProject);
     }
 
-    let targets = freeform_generated_reset_targets_in(&txn, project_id, true).await?;
+    let publication_paths =
+        crate::video::reclaim_pending_image_publications_for_project(&txn, project_id).await?;
+    let mut targets = freeform_generated_reset_targets_in(&txn, project_id, true).await?;
+    targets.media_paths.extend(publication_paths);
+    targets.media_paths.sort_unstable();
+    targets.media_paths.dedup();
     delete_project_generation_runs(&txn, project_id, &targets.image_ids, &targets.video_ids)
         .await?;
     let task_cleanup = delete_project_task_queue_records(&txn, project_id).await?;
@@ -70,11 +75,9 @@ where
         format!("project-generated-data-reset:{project_id}"),
     )
     .await?;
-    crate::generation::complete_project_reset_gate(&txn, project_id)
-        .await
-        .map_err(|error| FreeformGeneratedResetDbError::Database {
-            source: sea_orm::DbErr::Custom(error.to_string()),
-        })?;
+    // The Host completes the gate only after its RAG clear commits. Keeping the
+    // gate resetting through this transaction rejects writers queued on the
+    // project row instead of letting them resume against the reset result.
     txn.commit().await?;
 
     Ok(FreeformVideoGeneratedDataResetResult {

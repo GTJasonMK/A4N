@@ -110,4 +110,24 @@ describe("Host progress tasks", () => {
     resolveTask("done");
     await expect(result).resolves.toBe("done");
   });
+
+  it("reports progress-read failures without failing the task and clears them after recovery", async () => {
+    vi.useFakeTimers();
+    const readError = new Error("progress status unavailable");
+    mocks.getTaskProgressEvents
+      .mockRejectedValueOnce(readError)
+      .mockResolvedValueOnce({ events: [], stream_text: null });
+    let resolveTask!: (value: string) => void;
+    const task = new Promise<string>((resolve) => { resolveTask = resolve; });
+    const reportPollError = vi.fn();
+
+    const result = runTaskWithProgressEvents("task-4", task, vi.fn(), undefined, reportPollError);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(reportPollError).toHaveBeenNthCalledWith(1, readError);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(reportPollError).toHaveBeenNthCalledWith(2, null);
+
+    resolveTask("done");
+    await expect(result).resolves.toBe("done");
+  });
 });

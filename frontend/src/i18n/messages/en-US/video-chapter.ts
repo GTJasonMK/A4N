@@ -438,6 +438,7 @@ export const videoChapter = {
     recipeSaveResponseMissing: "The saved response did not return segment {number}'s execution recipe",
     invalidPlanMetadata: "The current segment plan has invalid metadata_json",
     recipeSaveFailed: "Failed to save the segment execution recipe",
+    recipeSaveFailedForSegment: "Segment {number}'s execution recipe was not saved: {error}",
     editableRecipeMissing: "Segment {number} is missing an editable execution recipe",
     invalidGenerationReferenceSelection: "{count} generation-reference images are unavailable. Clear them and choose again.",
     invalidLibraryReferenceSelection: "{count} video-library images are unavailable. Clear them and choose again.",

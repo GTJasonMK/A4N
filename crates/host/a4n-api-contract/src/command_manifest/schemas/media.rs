@@ -743,6 +743,15 @@ pub(crate) fn result_list_videos_by_chapter() -> Value {
 pub(crate) fn result_optimize_chapter_video_prompt() -> Value {
     typed_schema::<crate::video::ChapterVideoPromptSummary>()
 }
+
+pub(crate) fn result_video_prompt_update() -> Value {
+    typed_schema::<crate::video::VideoPromptUpdateResult>()
+}
+
+pub(crate) fn result_video_prompt_delete() -> Value {
+    typed_schema::<crate::video::VideoPromptDeleteResult>()
+}
+
 pub(crate) fn result_plan_galgame_assets() -> Value {
     typed_schema::<crate::galgame::GalgameAssetPlan>()
 }
@@ -784,6 +793,10 @@ pub(crate) fn result_canvas_text_asset_draft() -> Value {
 }
 pub(crate) fn result_generated_video() -> Value {
     typed_schema::<crate::video::GeneratedVideoSummary>()
+}
+
+pub(crate) fn result_video_record_delete() -> Value {
+    typed_schema::<crate::video::VideoRecordDeleteResult>()
 }
 pub(crate) fn result_video_playback_data() -> Value {
     typed_schema::<crate::video::VideoPlaybackData>()

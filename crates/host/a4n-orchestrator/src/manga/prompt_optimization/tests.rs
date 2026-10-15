@@ -126,8 +126,10 @@ fn page_prompt() -> MangaPagePromptRecord {
 
 #[test]
 fn input_contract_trims_instruction() {
+    let page_prompt = page_prompt();
     let required = required_manga_prompt_optimization_input(MangaPromptOptimizationInput {
-        page_prompt: page_prompt(),
+        expected_updated_at: page_prompt.updated_at.to_string(),
+        page_prompt,
         instruction: "  增强构图  ".to_string(),
     })
     .expect("valid input");

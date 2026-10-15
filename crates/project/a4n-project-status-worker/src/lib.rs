@@ -11,8 +11,8 @@ use a4n_project_status_worker_contract::{
     PROJECT_STATUS_FORWARD_OPERATION, PROJECT_STATUS_MACHINE_OPERATION,
     PROJECT_STATUS_PREVIEW_ROLLBACK_OPERATION, PROJECT_STATUS_READ_CAPABILITY,
     PROJECT_STATUS_ROLLBACK_OPERATION, PROJECT_STATUS_WORKER_CONTRACT_VERSION,
-    PROJECT_STATUS_WORKER_ID, PROJECT_STATUS_WRITE_CAPABILITY, ProjectStatusProjectInput,
-    ProjectStatusRollbackInput,
+    PROJECT_STATUS_WORKER_ID, PROJECT_STATUS_WRITE_CAPABILITY, ProjectStatusForwardInput,
+    ProjectStatusProjectInput, ProjectStatusRollbackInput,
 };
 use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
@@ -188,7 +188,7 @@ async fn preview_rollback(
 async fn forward(
     State(state): State<WorkerState>,
     headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<ProjectStatusRollbackInput>>,
+    Json(request): Json<WorkerEnvelope<ProjectStatusForwardInput>>,
 ) -> Response {
     command_response(&state, &headers, request, |request| state.forward(request)).await
 }
@@ -382,35 +382,6 @@ fn project_reset_error(error: a4n_db::project::reset::ProjectResetDbError) -> Wo
             WorkerFailure::unavailable(source.to_string())
         }
         other => WorkerFailure::conflict(other.to_string()),
-    }
-}
-
-fn summary_error(error: a4n_project_read_core::ProjectSummaryError) -> WorkerFailure {
-    match error {
-        a4n_project_read_core::ProjectSummaryError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-        a4n_project_read_core::ProjectSummaryError::Progress(error) => match error {
-            a4n_db::project::ProjectProgressReadError::InvalidArgument(message) => {
-                WorkerFailure::invalid_request(message)
-            }
-            a4n_db::project::ProjectProgressReadError::Database { source, .. } => {
-                WorkerFailure::unavailable(source.to_string())
-            }
-            error => WorkerFailure::conflict(error.to_string()),
-        },
-        a4n_project_read_core::ProjectSummaryError::Family(error) => match error {
-            a4n_db::project::ProjectFamilyMetadataReadError::InvalidArgument(message) => {
-                WorkerFailure::invalid_request(message)
-            }
-            a4n_db::project::ProjectFamilyMetadataReadError::Database { source, .. } => {
-                WorkerFailure::unavailable(source.to_string())
-            }
-            error => WorkerFailure::conflict(error.to_string()),
-        },
-        a4n_project_read_core::ProjectSummaryError::Collaboration(error) => {
-            collaboration_error(error)
-        }
     }
 }
 

@@ -8,7 +8,7 @@ pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 use serde::{Deserialize, Serialize};
 
 pub const PROJECT_STATUS_WORKER_ID: &str = "project-status-worker";
-pub const PROJECT_STATUS_WORKER_CONTRACT_VERSION: &str = "project-status-v2";
+pub const PROJECT_STATUS_WORKER_CONTRACT_VERSION: &str = "project-status-v3";
 pub const PROJECT_STATUS_MACHINE_OPERATION: &str = "project.status.machine";
 pub const PROJECT_STATUS_PREVIEW_ROLLBACK_OPERATION: &str = "project.status.preview_rollback";
 pub const PROJECT_STATUS_FORWARD_OPERATION: &str = "project.status.forward";
@@ -24,8 +24,16 @@ pub struct ProjectStatusProjectInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
+pub struct ProjectStatusForwardInput {
+    pub project_id: i64,
+    pub target: ProjectStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct ProjectStatusRollbackInput {
     pub project_id: i64,
+    pub expected_from: ProjectStatus,
     pub target: ProjectStatus,
 }
 

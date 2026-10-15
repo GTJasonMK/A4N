@@ -163,32 +163,68 @@ impl crate::OrchestratorContext {
                 metadata_json: None,
                 clear_metadata_json: false,
                 is_favorite: input.is_favorite,
+                expected_updated_at: Some(input.expected_updated_at),
             },
         )
         .await
     }
 
-    pub async fn delete_video_record_validated(&self, video_id: i64) -> Result<(), AppError> {
-        let Some(existing) = self.generated_video_by_id(video_id).await? else {
+    pub async fn delete_video_record_validated(
+        &self,
+        video_id: i64,
+    ) -> Result<VideoRecordDeleteResult, AppError> {
+        let cleanup = if let Some(existing) = self.generated_video_by_id(video_id).await? {
+            if self.video_record_is_pushed_source(&existing).await? {
+                return Err(AppError::InvalidArgument(
+                    "该视频片段已推送到成片后处理，不能删除".to_string(),
+                ));
+            }
+            if let Some(run) = self
+                .latest_workflow_run_by_business_key(&format!("video_provider_job:{video_id}"))
+                .await?
+            {
+                self.cancel_workflow_run_and_interrupt_videos(run.id, "关联视频已删除")
+                    .await?;
+            }
+            self.delete_video_tail_frame_assets(video_id).await?;
+            self.delete_generated_video_record_with_cleanup(video_id)
+                .await?
+        } else {
             self.delete_missing_generated_video_references(video_id)
-                .await?;
-            return Ok(());
+                .await?
         };
-        if self.video_record_is_pushed_source(&existing).await? {
-            return Err(AppError::InvalidArgument(
-                "该视频片段已推送到成片后处理，不能删除".to_string(),
-            ));
+        let mut updated_prompts = Vec::with_capacity(cleanup.updated_prompt_ids.len());
+        let mut deleted_prompt_ids = Vec::new();
+        for prompt_id in &cleanup.updated_prompt_ids {
+            match self.chapter_video_prompt(*prompt_id).await {
+                Ok(prompt) => updated_prompts.push(ChapterVideoPromptSummary::from(&prompt)),
+                Err(AppError::NotFound(_)) => deleted_prompt_ids.push(*prompt_id),
+                Err(error) => return Err(error),
+            }
         }
-        if let Some(run) = self
-            .latest_workflow_run_by_business_key(&format!("video_provider_job:{video_id}"))
-            .await?
-        {
-            self.cancel_workflow_run_and_interrupt_videos(run.id, "关联视频已删除")
-                .await?;
-        }
-        self.delete_video_tail_frame_assets(video_id).await?;
-        self.delete_generated_video_record_with_cleanup(video_id)
-            .await
+        let updated_videos = self
+            .generated_videos_by_ids(&cleanup.updated_video_ids)
+            .await?;
+        let found_video_ids = updated_videos
+            .iter()
+            .map(|video| video.id)
+            .collect::<HashSet<_>>();
+        let mut deleted_video_ids = vec![video_id];
+        deleted_video_ids.extend(
+            cleanup
+                .updated_video_ids
+                .into_iter()
+                .filter(|id| !found_video_ids.contains(id)),
+        );
+        Ok(VideoRecordDeleteResult {
+            deleted_video_ids,
+            deleted_prompt_ids,
+            updated_prompts,
+            updated_videos: updated_videos
+                .iter()
+                .map(super::generated_video_summary)
+                .collect(),
+        })
     }
 
     pub async fn update_assembly_push_status_validated(
@@ -236,6 +272,7 @@ impl crate::OrchestratorContext {
                 )),
                 clear_metadata_json: false,
                 is_favorite: None,
+                expected_updated_at: None,
             },
         )
         .await

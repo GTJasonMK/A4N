@@ -24,6 +24,22 @@ impl From<crate::generation::GenerationDbError> for SceneProfileDbError {
     }
 }
 
+impl From<crate::generation::GenerationLifecycleGateError> for SceneProfileDbError {
+    fn from(error: crate::generation::GenerationLifecycleGateError) -> Self {
+        use crate::generation::GenerationLifecycleGateError as Error;
+        match error {
+            Error::InvalidArgument(message) => Self::InvalidArgument(message),
+            Error::NotFound(message) => Self::NotFound(message),
+            Error::Blocked(message) => Self::InvalidState {
+                current: "project_lifecycle_gate".to_string(),
+                operation: message,
+            },
+            Error::Corrupt(message) => Self::Database(DbErr::Custom(message)),
+            Error::Database(error) => Self::Database(error),
+        }
+    }
+}
+
 impl From<crate::text_anchor::TextAnchorDbError> for SceneProfileDbError {
     fn from(error: crate::text_anchor::TextAnchorDbError) -> Self {
         match error {

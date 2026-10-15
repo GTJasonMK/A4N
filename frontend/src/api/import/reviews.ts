@@ -1,5 +1,5 @@
 import { apiInvoke } from "../index";
-import type { ImportReviewSummary } from "../generated/host";
+import type { BatchAcceptImportReviewsResult, ImportReviewSummary } from "../generated/host";
 import { type ApiId as Id, idNum } from "../shared";
 
 export async function listImportQueue(projectId: Id): Promise<ImportReviewSummary[]> {
@@ -32,8 +32,8 @@ export async function rejectImportReview(reviewId: Id): Promise<ImportReviewSumm
   });
 }
 
-export async function batchAcceptReviews(reviewIds: number[]): Promise<ImportReviewSummary[]> {
-  return apiInvoke<ImportReviewSummary[]>("batch_accept_reviews", {
+export async function batchAcceptReviews(reviewIds: number[]): Promise<BatchAcceptImportReviewsResult> {
+  return apiInvoke<BatchAcceptImportReviewsResult>("batch_accept_reviews", {
     input: { review_ids: reviewIds },
   });
 }

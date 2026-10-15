@@ -105,8 +105,8 @@ export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
         value={scope}
         onChange={onScopeChange}
         options={[
-          { id: "all", label: t("settingsTheme.all"), disabled: mutationBusy },
-          { id: "user", label: t("settingsTheme.mine"), disabled: !hasUser || mutationBusy },
+          { id: "all", label: t("settingsTheme.all"), disabled: mutationBusy || loadError != null },
+          { id: "user", label: t("settingsTheme.mine"), disabled: !hasUser || mutationBusy || loadError != null },
         ]}
       />
       <span className="min-w-0 flex-1 truncate text-small text-book-text-muted max-sm:flex-none max-sm:whitespace-nowrap">
@@ -122,7 +122,7 @@ export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
             variant="ghost"
             size="sm"
             onClick={toggleSelectAll}
-            disabled={mutationBusy}
+            disabled={mutationBusy || loadError != null || loading}
           >
             {allSelected ? <Square size={13} /> : <CheckCheck size={13} />}
             {allSelected ? t("settingsTheme.deselectAll") : t("settingsTheme.selectAll")}
@@ -132,7 +132,7 @@ export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
               variant="danger"
               size="sm"
               onClick={() => onDeleteMany(selectedThemes.map(({ id, name }) => ({ id, name })))}
-              disabled={mutationBusy}
+              disabled={mutationBusy || loadError != null || loading}
             >
               {bulkDeleting ? <LoadingSpinner size="sm" /> : <Trash2 size={13} />}
               {t("settingsTheme.deleteSelected", { count: selectedThemes.length })}
@@ -141,13 +141,13 @@ export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
         </div>
       ) : null}
       <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <BookButton variant="ghost" size="sm" onClick={onCreate} disabled={mutationBusy}>
+        <BookButton variant="ghost" size="sm" onClick={onCreate} disabled={mutationBusy || loadError != null || loading}>
           <Plus size={13} /> {t("settingsTheme.create")}
         </BookButton>
-        <BookButton variant="ghost" size="sm" onClick={onImport} disabled={mutationBusy}>
+        <BookButton variant="ghost" size="sm" onClick={onImport} disabled={mutationBusy || loadError != null || loading}>
           <Upload size={13} /> {t("settingsTheme.import")}
         </BookButton>
-        <BookButton variant="ghost" size="sm" onClick={onPackage} disabled={mutationBusy}>
+        <BookButton variant="ghost" size="sm" onClick={onPackage} disabled={mutationBusy || loadError != null || loading}>
           <Archive size={13} /> {t("settingsTheme.package")}
         </BookButton>
       </div>
@@ -185,7 +185,7 @@ export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
             renaming={renamingId === theme.id}
             renameValue={renameValue}
             renameSaving={renameSaving && renamingId === theme.id}
-            mutationBusy={mutationBusy}
+            mutationBusy={mutationBusy || loadError != null || loading}
             selectable={isDeletableTheme(theme)}
             selected={selectedIds.has(theme.id)}
             onRenameInput={onRenameInput}

@@ -55,6 +55,18 @@ pub(in crate::routes::commands) async fn get_log_dir(
     Ok(json!(path))
 }
 
+pub(in crate::routes::commands) async fn get_log_level(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    empty_command_args(args, "get_log_level")?;
+    logging_actions::ensure_log_diagnostics_admin(state.runtime(), user_id).await?;
+    let filter = crate::logging::current_log_level()
+        .map_err(|error| ApiError::internal("log_filter_read_failed", error, true))?;
+    to_value(filter)
+}
+
 pub(in crate::routes::commands) async fn read_recent_logs(
     state: &ServerState,
     user_id: i64,

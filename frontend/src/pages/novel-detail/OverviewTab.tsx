@@ -78,6 +78,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [loadError, setLoadError] = useState<unknown | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reading, setReading] = useState(false);
   const [refining, setRefining] = useState(false);
   const [synopsisOpen, setSynopsisOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
@@ -88,12 +89,26 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null);
   const activeProjectIdRef = useRef(project.id);
   const loadSeqRef = useRef(0);
+  const blueprintMutationVersionRef = useRef(0);
+  const blueprintVersionRef = useRef<string | null>(null);
+  const editorExpectedVersionRef = useRef<string | null>(null);
   const refineSeqRef = useRef(0);
   const refiningRef = useRef(false);
   const blueprintSaveBusyRef = useRef(false);
   const mountedRef = useRef(false);
+  const readReadyRef = useRef(false);
+  const readingRef = useRef(false);
+  const loadErrorRef = useRef<unknown | null>(loadError);
 
   activeProjectIdRef.current = project.id;
+  readingRef.current = reading;
+  loadErrorRef.current = loadError;
+
+  const ensureBlueprintReadCurrent = () => {
+    if (readReadyRef.current && !readingRef.current && loadErrorRef.current == null) return true;
+    addToast(loadErrorRef.current ? extractErrorMessage(loadErrorRef.current, t("novel.refreshFailed")) : t("common.operationInProgress"), "error");
+    return false;
+  };
 
   const isCurrentProject = useCallback((projectId: number) => {
     return mountedRef.current && activeProjectIdRef.current === projectId;
@@ -126,26 +141,36 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     };
   }, []);
 
-  const load = useCallback(async (): Promise<boolean> => {
+  const load = useCallback(async (options: { silent?: boolean } = {}): Promise<boolean> => {
     const requestProjectId = project.id;
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
+    const mutationVersion = blueprintMutationVersionRef.current;
+    readReadyRef.current = false;
+    readingRef.current = true;
+    setReading(true);
     setLoadError(null);
-    setLoading(true);
+    if (!options.silent) setLoading(true);
     try {
       const bp = await getBlueprint(requestProjectId);
       if (!isCurrentLoad(requestProjectId, requestSeq)) return false;
+      if (blueprintMutationVersionRef.current !== mutationVersion) return true;
       setBlueprint(bp);
+      blueprintVersionRef.current = bp?.current_version ?? null;
       setLoadError(null);
+      readReadyRef.current = true;
       return true;
     } catch (err) {
       if (!isCurrentLoad(requestProjectId, requestSeq)) return false;
       setLoadError(err);
+      readReadyRef.current = false;
       return false;
     } finally {
       if (isCurrentLoad(requestProjectId, requestSeq)) {
         setLoadedProjectId(requestProjectId);
         setLoading(false);
+        readingRef.current = false;
+        setReading(false);
       }
     }
   }, [isCurrentLoad, project.id]);
@@ -163,6 +188,10 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     setBlueprintEditorOpen(false);
     setBlueprintSaving(false);
     blueprintSaveBusyRef.current = false;
+    blueprintMutationVersionRef.current = 0;
+    readReadyRef.current = false;
+    blueprintVersionRef.current = null;
+    editorExpectedVersionRef.current = null;
     setRefining(false);
     setBlueprint(null);
     setLoadError(null);
@@ -175,6 +204,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       return;
     }
     if (refiningRef.current) return;
+    if (!ensureBlueprintReadCurrent()) return;
     const requestProjectId = project.id;
     const requestSeq = refineSeqRef.current + 1;
     refineSeqRef.current = requestSeq;
@@ -188,7 +218,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         multiline: true,
         confirmText: t("novel.startRefine"),
       });
-      if (focus === null || !isCurrentProject(requestProjectId)) return;
+      if (focus === null || !isCurrentProject(requestProjectId) || !ensureBlueprintReadCurrent()) return;
       const handle = await refineBlueprint({
         project_id: requestProjectId,
         focus: nonEmptyText(focus),
@@ -205,11 +235,15 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         errorMessage: tRef.current("novel.refineBlueprintFailed"),
         isCurrent: () => isCurrentRefine(requestProjectId, requestSeq),
         refresh: async () => {
-          if (!await load()) return false;
+          if (!await load({ silent: true })) return false;
           return onRefresh();
+        },
+        onRefreshFailure: () => {
+          if (isCurrentRefine(requestProjectId, requestSeq)) addToast(tRef.current("novel.refreshFailed"), "error");
         },
         t: (key, params) => tRef.current(key, params),
       });
+      if (!isCurrentRefine(requestProjectId, requestSeq)) return;
       addToast(
         syncWarnings.length > 0
           ? tRef.current("novel.blueprintRefinedWithWarnings", { warnings: syncWarnings.join(tRef.current("common.summarySeparator")) })
@@ -224,6 +258,13 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         cancelled ? tRef.current("feedback.progressCancelled") : message,
         cancelled ? "info" : "error",
       );
+      if (!cancelled) {
+        void onRefresh().then((refreshed) => {
+          if (!refreshed && isCurrentProject(requestProjectId)) {
+            addToast(tRef.current("novel.refreshFailed"), "error");
+          }
+        });
+      }
     } finally {
       if (refineSeqRef.current === requestSeq) refiningRef.current = false;
       if (isCurrentRefine(requestProjectId, requestSeq)) setRefining(false);
@@ -258,6 +299,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   );
   const discardBlueprintDraft = useCallback(() => {
     setBlueprintEditorOpen(false);
+    editorExpectedVersionRef.current = null;
     setBlueprintDraft({
       genre: displayBlueprint?.genre ?? "",
       style: displayBlueprint?.style ?? "",
@@ -278,6 +320,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       dialogType: "warning",
     }))) return;
     setBlueprintEditorOpen(false);
+    editorExpectedVersionRef.current = null;
   };
   const closeCollaboration = async () => {
     const key = `collaboration:${project.id}`;
@@ -297,6 +340,17 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       addToast(t("novel.noEditPermission"), "error");
       return;
     }
+    if (!ensureBlueprintReadCurrent()) return;
+    if (loadedProjectId !== project.id || loadError != null) {
+      addToast(
+        loadError
+          ? extractErrorMessage(loadError, t("novel.refreshFailed"))
+          : t("novel.refreshFailed"),
+        "error",
+      );
+      return;
+    }
+    editorExpectedVersionRef.current = blueprintVersionRef.current;
     setBlueprintDraft({
       genre: displayBlueprint?.genre ?? "",
       style: displayBlueprint?.style ?? "",
@@ -317,6 +371,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   };
 
   const handleSaveBlueprint = async () => {
+    if (!ensureBlueprintReadCurrent()) return;
     const genre = blueprintDraft.genre.trim();
     const totalChapters = Number(blueprintDraft.totalChapters);
     if (!genre) {
@@ -335,6 +390,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       const optional = (value: string): string | null => value.trim() || null;
       const result = await saveBlueprint({
         project_id: requestProjectId,
+        expected_current_version: editorExpectedVersionRef.current,
         genre,
         style: optional(blueprintDraft.style),
         tone: optional(blueprintDraft.tone),
@@ -344,10 +400,21 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         total_chapters: totalChapters,
       });
       if (!isCurrentProject(requestProjectId)) return;
-      const loaded = await load();
-      if (!isCurrentProject(requestProjectId)) return;
-      const refreshed = await onRefresh();
-      if (!isCurrentProject(requestProjectId)) return;
+      blueprintVersionRef.current = result.current_version;
+      editorExpectedVersionRef.current = result.current_version;
+      blueprintMutationVersionRef.current += 1;
+      const refreshPromise = load({ silent: true });
+      setBlueprint((current) => current ? {
+        ...current,
+        genre,
+        style: optional(blueprintDraft.style),
+        tone: optional(blueprintDraft.tone),
+        target_audience: optional(blueprintDraft.targetAudience),
+        one_sentence_summary: optional(blueprintDraft.oneSentenceSummary),
+        full_synopsis: optional(blueprintDraft.fullSynopsis),
+        total_chapters: totalChapters,
+        current_version: result.current_version,
+      } : current);
       setBlueprintEditorOpen(false);
       addToast(
         result.warnings.length > 0
@@ -355,10 +422,27 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           : tRef.current("novel.blueprintSaved"),
         result.warnings.length > 0 ? "info" : "success",
       );
-      if (!loaded || !refreshed) addToast(tRef.current("novel.refreshFailed"), "error");
+      void (async () => {
+        let loaded = false;
+        let refreshed = false;
+        try {
+          loaded = await refreshPromise;
+        } catch {
+          loaded = false;
+        }
+        try {
+          refreshed = await onRefresh();
+        } catch {
+          refreshed = false;
+        }
+        if (isCurrentProject(requestProjectId) && (!loaded || !refreshed)) {
+          addToast(tRef.current("novel.refreshFailed"), "error");
+        }
+      })();
     } catch (err) {
       if (isCurrentProject(requestProjectId)) {
         addToast(extractErrorMessage(err, tRef.current("novel.blueprintSaveFailed")), "error");
+        void load({ silent: true });
       }
     } finally {
       if (isCurrentProject(requestProjectId)) {

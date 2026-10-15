@@ -27,6 +27,8 @@ const planningContentRunningScenario =
 const segmentPlanGenerationScenario =
   cancelResumeScenario || planningContentRunningScenario;
 const parallelRecipeSavesScenario = scenario === "parallel-recipe-saves";
+const recipeSaveFailureScenario = scenario === "recipe-save-failure";
+const recipeSavePendingScenario = scenario === "recipe-save-pending";
 const crossModeContinuityScenario = scenario === "cross-mode-continuity";
 const stalePlanAdoptionScenario = scenario === "stale-plan-adoption";
 const mixedAssemblyGapScenario = scenario === "mixed-assembly-gap";
@@ -1097,7 +1099,19 @@ const invoke = async (command, args = {}) => {
       ) {
         throw new Error("参考媒体草稿保存失败测试");
       }
+      if (
+        recipeSaveFailureScenario &&
+        nextRecipe.segment_number === 1 &&
+        nextRecipe.workflow_mode === "chat_video"
+      ) {
+        throw new Error("分镜方案保存失败测试");
+      }
       if (parallelRecipeSavesScenario && nextRecipe.segment_number === 1) {
+        await new Promise((resolve) => {
+          releaseParallelFirstSave = resolve;
+        });
+      }
+      if (recipeSavePendingScenario && nextRecipe.segment_number === 1) {
         await new Promise((resolve) => {
           releaseParallelFirstSave = resolve;
         });
@@ -1194,6 +1208,11 @@ window.__TAURI_INTERNALS__ = {
 };
 window.__A4N_VIDEO_MODE_E2E__ = {
   calls,
+  releasePendingRecipeSave: () => {
+    if (!releaseParallelFirstSave) throw new Error("recipe save is not pending");
+    releaseParallelFirstSave();
+    releaseParallelFirstSave = null;
+  },
   publishReferenceMediaVideo: () => {
     referenceMediaVideoPublished = true;
   },

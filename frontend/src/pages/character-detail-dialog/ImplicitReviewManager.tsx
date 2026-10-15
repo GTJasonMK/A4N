@@ -34,10 +34,12 @@ const IMPLICIT_REVIEW_DEFAULT_WINDOW_CHAPTERS = 10;
 const IMPLICIT_REVIEW_DEFAULT_THRESHOLD = 5;
 const IMPLICIT_REVIEW_PARAMETER_MAX = 50;
 
-const parseReviewParameter = (value: string): number | null => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return Math.max(1, Math.min(IMPLICIT_REVIEW_PARAMETER_MAX, Math.floor(parsed)));
+export const parseReviewParameter = (value: string, max?: number): number | null => {
+  const text = value.trim();
+  if (!/^\d+$/.test(text)) return null;
+  const parsed = Number(text);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0 || (max != null && parsed > max)) return null;
+  return parsed;
 };
 
 const formatPercent = (value: number, locale: Locale, t: MessageTranslator): string => {
@@ -57,12 +59,13 @@ export const ImplicitReviewManager: React.FC<{
   profileId: number;
   defaultChapter: number;
   refreshRevision?: number;
-  onChanged?: () => boolean | void | Promise<boolean | void>;
+  onChanged?: () => void | Promise<void>;
 }> = ({ profileId, defaultChapter, refreshRevision = 0, onChanged }) => {
   const { addToast } = useToast();
   const { locale, t } = useI18n();
   const [review, setReview] = useState<ImplicitReview | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loadedScopeKey, setLoadedScopeKey] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [decidingKey, setDecidingKey] = useState<string | null>(null);
@@ -70,6 +73,9 @@ export const ImplicitReviewManager: React.FC<{
   const [decisions, setDecisions] = useState<Record<string, ImplicitUpdateDecision>>({});
   const [windowChapters, setWindowChapters] = useState(IMPLICIT_REVIEW_DEFAULT_WINDOW_CHAPTERS);
   const [threshold, setThreshold] = useState(IMPLICIT_REVIEW_DEFAULT_THRESHOLD);
+  const [windowInput, setWindowInput] = useState(String(IMPLICIT_REVIEW_DEFAULT_WINDOW_CHAPTERS));
+  const [thresholdInput, setThresholdInput] = useState(String(IMPLICIT_REVIEW_DEFAULT_THRESHOLD));
+  const [parameterError, setParameterError] = useState<string | null>(null);
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
   const [requestPreviewData, setRequestPreviewData] =
@@ -91,15 +97,17 @@ export const ImplicitReviewManager: React.FC<{
   windowChaptersRef.current = windowChapters;
   thresholdRef.current = threshold;
   const currentScopeKey = implicitReviewScopeKey(profileId, windowChapters, threshold);
-  const hasCurrentReview = loadedScopeKey === currentScopeKey;
-  const reviewDraftDirty = Object.keys(decisions).length > 0;
+  const hasParameterDraft = windowInput !== String(windowChapters) || thresholdInput !== String(threshold);
+  const hasCurrentReview = loadedScopeKey === currentScopeKey && !hasParameterDraft && !parameterError;
+  const reviewDraftDirty = Object.keys(decisions).length > 0 || hasParameterDraft || parameterError != null;
   const discardReviewDraft = useCallback(() => {
     if (loadingRef.current || checkingRef.current || applyingRef.current || previewingRef.current) {
       return false;
     }
     setDecisions({});
-    setWindowChapters(IMPLICIT_REVIEW_DEFAULT_WINDOW_CHAPTERS);
-    setThreshold(IMPLICIT_REVIEW_DEFAULT_THRESHOLD);
+    setWindowInput(String(windowChaptersRef.current));
+    setThresholdInput(String(thresholdRef.current));
+    setParameterError(null);
     return true;
   }, []);
 
@@ -152,6 +160,7 @@ export const ImplicitReviewManager: React.FC<{
     setLoading(false);
     setLoadedScopeKey(null);
     setReview(null);
+    setLoadError(null);
     setExpanded(null);
     setDecidingKey(null);
     setApplyingKey(null);
@@ -161,8 +170,8 @@ export const ImplicitReviewManager: React.FC<{
     setRequestPreviewData(null);
   }, []);
 
-  const load = useCallback(async (): Promise<boolean> => {
-    if (loadingRef.current) return false;
+  const load = useCallback(async (): Promise<void> => {
+    if (loadingRef.current) return;
     const requestProfileId = profileId;
     const requestWindow = windowChaptersRef.current;
     const requestThreshold = thresholdRef.current;
@@ -175,6 +184,7 @@ export const ImplicitReviewManager: React.FC<{
     loadSeqRef.current = requestSeq;
     loadingRef.current = true;
     setLoading(true);
+    setLoadError(null);
     try {
       const nextReview = await getImplicitReview({
         profile_id: requestProfileId,
@@ -186,20 +196,19 @@ export const ImplicitReviewManager: React.FC<{
         !isCurrentParams(requestProfileId, requestWindow, requestThreshold) ||
         loadSeqRef.current !== requestSeq
       ) {
-        return false;
+        return;
       }
       setReview(nextReview);
       setLoadedScopeKey(requestScopeKey);
-      return true;
+      setLoadError(null);
     } catch (err) {
       if (
         !isCurrentParams(requestProfileId, requestWindow, requestThreshold) ||
         loadSeqRef.current !== requestSeq
       ) {
-        return false;
+        return;
       }
-      addToast(extractErrorMessage(err, t("characterDetail.implicit.loadFailed")), "error");
-      return false;
+      setLoadError(extractErrorMessage(err, t("characterDetail.implicit.loadFailed")));
     } finally {
       if (
         isCurrentParams(requestProfileId, requestWindow, requestThreshold) &&
@@ -212,6 +221,23 @@ export const ImplicitReviewManager: React.FC<{
       }
     }
   }, [addToast, isCurrentParams, profileId, t]);
+
+  const handleRefresh = async () => {
+    if (Object.keys(decisions).length > 0) {
+      const ok = await confirmDialog({
+        title: t("common.unsavedChangesTitle"),
+        message: t("common.unsavedChangesMessage", {
+          name: t("characterDetail.sections.implicit"),
+          action: t("characterDetail.implicit.refresh"),
+        }),
+        confirmText: t("common.discardDraft"),
+        dialogType: "warning",
+      });
+      if (!ok || !isCurrentProfile(profileId)) return;
+    }
+    invalidateReviewScope();
+    await load();
+  };
 
   useLayoutEffect(() => {
     invalidateReviewScope();
@@ -233,9 +259,14 @@ export const ImplicitReviewManager: React.FC<{
     setExpanded((current) => (current && visibleKeys.has(current) ? current : null));
   }, [attrs]);
 
-  const handleScopeChange = async (kind: "window" | "threshold", nextValue: number) => {
+  const handleScopeChange = async (kind: "window" | "threshold", nextValue: number): Promise<boolean> => {
     const currentValue = kind === "window" ? windowChapters : threshold;
-    if (nextValue === currentValue) return;
+    if (nextValue === currentValue) {
+      if (kind === "window") setWindowInput(String(currentValue));
+      else setThresholdInput(String(currentValue));
+      setParameterError(null);
+      return true;
+    }
     if (Object.keys(decisions).length > 0) {
       const ok = await confirmDialog({
         title: t("common.unsavedChangesTitle"),
@@ -246,14 +277,43 @@ export const ImplicitReviewManager: React.FC<{
         confirmText: t("common.discardDraft"),
         dialogType: "warning",
       });
-      if (!ok) return;
+      if (!ok) return false;
     }
     invalidateReviewScope();
-    if (kind === "window") setWindowChapters(nextValue);
-    else setThreshold(nextValue);
+    setParameterError(null);
+    if (kind === "window") {
+      setWindowChapters(nextValue);
+      setWindowInput(String(nextValue));
+    } else {
+      setThreshold(nextValue);
+      setThresholdInput(String(nextValue));
+    }
+    return true;
+  };
+
+  const commitParameter = async (kind: "window" | "threshold", rawValue: string) => {
+    const max = kind === "window" ? IMPLICIT_REVIEW_PARAMETER_MAX : undefined;
+    const nextValue = parseReviewParameter(rawValue, max);
+    if (nextValue == null) {
+      setParameterError(t(
+        kind === "window"
+          ? "characterDetail.implicit.invalidWindow"
+          : "characterDetail.implicit.invalidThreshold",
+      ));
+      return;
+    }
+    const changed = await handleScopeChange(kind, nextValue);
+    if (!changed) {
+      if (kind === "window") setWindowInput(String(windowChaptersRef.current));
+      else setThresholdInput(String(thresholdRef.current));
+    }
   };
 
   const handleCheck = async (attributeKey: string) => {
+    if (loadError) {
+      addToast(loadError, "error");
+      return;
+    }
     if (decidingKey != null || applyingKey != null) return;
     if (checkingRef.current || applyingRef.current) return;
     checkingRef.current = true;
@@ -301,6 +361,10 @@ export const ImplicitReviewManager: React.FC<{
   };
 
   const handlePreviewCheck = async (attributeKey: string) => {
+    if (loadError) {
+      addToast(loadError, "error");
+      return;
+    }
     if (previewingRef.current) return;
     previewingRef.current = true;
     const requestProfileId = profileId;
@@ -349,6 +413,10 @@ export const ImplicitReviewManager: React.FC<{
   };
 
   const handleApply = async (decision: ImplicitUpdateDecision) => {
+    if (loadError) {
+      addToast(loadError, "error");
+      return;
+    }
     if (decidingKey != null || applyingKey != null) return;
     if (checkingRef.current || applyingRef.current) return;
     if (decision.decision === "keep") return;
@@ -373,15 +441,6 @@ export const ImplicitReviewManager: React.FC<{
       });
       if (!isCurrentProfile(requestProfileId) || applySeqRef.current !== requestSeq) return;
 
-      const refreshed = await load();
-      if (!refreshed) addToast(t("characterDetail.refreshFailed"), "error");
-      try {
-        if (await onChanged?.() === false) {
-          addToast(t("characterDetail.refreshFailed"), "error");
-        }
-      } catch (refreshError) {
-        addToast(extractErrorMessage(refreshError, t("characterDetail.refreshFailed")), "error");
-      }
       if (result.action === "modify") {
         addToast(t("characterDetail.implicit.applied"), "success");
       } else if (result.action === "mark_deletion" && result.deletion_mark) {
@@ -403,6 +462,18 @@ export const ImplicitReviewManager: React.FC<{
         delete next[decision.attribute_key];
         return next;
       });
+      void load().catch((error) => {
+        if (isCurrentProfile(requestProfileId) && applySeqRef.current === requestSeq) {
+          const message = extractErrorMessage(error, t("characterDetail.refreshFailed"));
+          setLoadError(message);
+          addToast(message, "error");
+        }
+      });
+      void Promise.resolve(onChanged?.()).catch((error) => {
+        if (isCurrentProfile(requestProfileId) && applySeqRef.current === requestSeq) {
+          addToast(extractErrorMessage(error, t("characterDetail.refreshFailed")), "error");
+        }
+      });
       if (!isCurrentProfile(requestProfileId) || applySeqRef.current !== requestSeq) return;
     } catch (err) {
       if (!isCurrentProfile(requestProfileId) || applySeqRef.current !== requestSeq) return;
@@ -422,6 +493,7 @@ export const ImplicitReviewManager: React.FC<{
     decidingKey != null ||
     applyingKey != null ||
     requestPreviewLoading;
+  const reviewActionsDisabled = reviewOperationBusy || loadError != null;
 
   return (
     <div className="flex flex-col gap-2">
@@ -435,10 +507,10 @@ export const ImplicitReviewManager: React.FC<{
         </span>
         <BookIconButton
           label={t("characterDetail.implicit.refresh")}
-          onClick={load}
+          onClick={handleRefresh}
           variant="secondary"
           size="sm"
-          disabled={reviewOperationBusy}
+          disabled={reviewOperationBusy || hasParameterDraft || parameterError != null}
         >
           <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
         </BookIconButton>
@@ -453,14 +525,15 @@ export const ImplicitReviewManager: React.FC<{
             <input
               type="number"
               min={1}
-                max={IMPLICIT_REVIEW_PARAMETER_MAX}
-              value={windowChapters}
+              max={IMPLICIT_REVIEW_PARAMETER_MAX}
+              step={1}
+              value={windowInput}
               disabled={reviewOperationBusy}
               onChange={(event) => {
-                const nextValue = parseReviewParameter(event.target.value);
-                if (nextValue == null) return;
-                void handleScopeChange("window", nextValue);
+                setWindowInput(event.target.value);
+                setParameterError(null);
               }}
+              onBlur={() => void commitParameter("window", windowInput)}
               className="pyqt-input h-8 w-24 !px-2 !py-1"
             />
           </label>
@@ -469,22 +542,22 @@ export const ImplicitReviewManager: React.FC<{
             <input
               type="number"
               min={1}
-                max={IMPLICIT_REVIEW_PARAMETER_MAX}
-              value={threshold}
+              step={1}
+              value={thresholdInput}
               disabled={reviewOperationBusy}
               onChange={(event) => {
-                const nextValue = parseReviewParameter(event.target.value);
-                if (nextValue == null) return;
-                void handleScopeChange("threshold", nextValue);
+                setThresholdInput(event.target.value);
+                setParameterError(null);
               }}
+              onBlur={() => void commitParameter("threshold", thresholdInput)}
               className="pyqt-input h-8 w-24 !px-2 !py-1"
             />
           </label>
           <BookButton
             variant="secondary"
             size="sm"
-            onClick={load}
-            disabled={reviewOperationBusy}
+            onClick={handleRefresh}
+            disabled={reviewOperationBusy || hasParameterDraft || parameterError != null}
           >
             {loading ? (
               <span className="inline-flex items-center gap-1.5">
@@ -496,6 +569,16 @@ export const ImplicitReviewManager: React.FC<{
           </BookButton>
         </div>
       </details>
+      {parameterError ? <p role="alert" className="text-small text-error">{parameterError}</p> : null}
+      {loadError ? (
+        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
+          <span className="min-w-0 flex-1">{loadError}</span>
+          <BookButton variant="secondary" size="sm" onClick={handleRefresh} disabled={reviewOperationBusy}>
+            <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
+            {t("common.retry")}
+          </BookButton>
+        </div>
+      ) : null}
       {loading ? (
         <div className="text-small text-book-text-muted">{t("characterDetail.implicit.loading")}</div>
       ) : !hasCurrentReview ? (
@@ -513,7 +596,7 @@ export const ImplicitReviewManager: React.FC<{
               decision={decisions[attr.attribute_key]}
               deciding={decidingKey === attr.attribute_key}
               applying={applyingKey === attr.attribute_key}
-              actionsDisabled={reviewOperationBusy}
+              actionsDisabled={reviewActionsDisabled}
               expanded={expanded === attr.attribute_key}
               onPreviewCheck={() => void handlePreviewCheck(attr.attribute_key)}
               onCheck={() => void handleCheck(attr.attribute_key)}
@@ -540,6 +623,8 @@ export const ImplicitReviewManager: React.FC<{
         onClose={() => {
           previewSeqRef.current += 1;
           previewingRef.current = false;
+          setRequestPreviewLoading(false);
+          setRequestPreviewData(null);
           setRequestPreviewOpen(false);
         }}
       />

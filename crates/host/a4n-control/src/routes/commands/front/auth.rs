@@ -85,7 +85,19 @@ pub(in crate::routes::commands) async fn update_user_profile(
 ) -> Result<Value, ApiError> {
     let input: auth_records_actions::UpdateProfileInput =
         command_input(args, "update_user_profile")?;
-    to_value(auth_records_actions::update_user_profile(state.runtime(), user_id, input).await?)
+    let page_cli_enabled = input.page_cli_enabled;
+    let user = if page_cli_enabled.is_some() {
+        let _page_cli_update = state.page_sessions().page_cli_gate().write().await;
+        let user =
+            auth_records_actions::update_user_profile(state.runtime(), user_id, input).await?;
+        if page_cli_enabled == Some(false) {
+            state.page_sessions().revoke_user_sessions(user_id);
+        }
+        user
+    } else {
+        auth_records_actions::update_user_profile(state.runtime(), user_id, input).await?
+    };
+    to_value(user)
 }
 
 pub(in crate::routes::commands) async fn change_user_password(

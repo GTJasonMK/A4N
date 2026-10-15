@@ -535,6 +535,12 @@ export const TestCenterPage: React.FC = () => {
       updateError("delete", null, run.id);
     } catch (cause) {
       updateError("delete", extractErrorMessage(cause, t("settingsAdmin.testCenter.deleteFailed")), run.id);
+      setRuns((current) => current.filter((item) => item.id !== run.id));
+      if (selectedRunIdRef.current === run.id) {
+        setDetail(null);
+        selectRun("");
+      }
+      void load();
     } finally {
       mutationInFlight.current = false;
       setBusy(false);

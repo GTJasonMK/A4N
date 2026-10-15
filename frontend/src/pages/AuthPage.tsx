@@ -36,6 +36,7 @@ export const AuthPage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
 
   const [oauthProviders, setOauthProviders] = useState<OAuthProvider[] | null>(null);
+  const [oauthProvidersLoading, setOauthProvidersLoading] = useState(true);
   const [oauthProviderLoadFailed, setOauthProviderLoadFailed] = useState(false);
   const [oauthProvider, setOauthProvider] = useState<OAuthProvider | "">("");
   const [oauthBusy, setOauthBusy] = useState(false);
@@ -69,6 +70,7 @@ export const AuthPage: React.FC = () => {
   const loadOauthProviders = useCallback(async () => {
     const requestSeq = oauthProviderLoadSeqRef.current + 1;
     oauthProviderLoadSeqRef.current = requestSeq;
+    setOauthProvidersLoading(true);
     setOauthProviderLoadFailed(false);
     try {
       const providers = await getOAuth2AvailableProviders();
@@ -86,6 +88,10 @@ export const AuthPage: React.FC = () => {
       logger.scoped("OAuth").error("Failed to load available OAuth providers", { error });
       setOauthProviderLoadFailed(true);
       setOauthProviders([]);
+    } finally {
+      if (mountedRef.current && oauthProviderLoadSeqRef.current === requestSeq) {
+        setOauthProvidersLoading(false);
+      }
     }
   }, []);
 
@@ -356,7 +362,11 @@ export const AuthPage: React.FC = () => {
                   : t("auth.registerPrivacy")}
               </p>
 
-              {mode === "login" && oauthProviders && oauthProviders.length > 0 ? (
+              {mode === "login" && oauthProvidersLoading ? (
+                <p role="status" className="a4n-auth-privacy">
+                  {t("auth.oauthProvidersLoading")}
+                </p>
+              ) : mode === "login" && oauthProviders && oauthProviders.length > 0 ? (
                 <>
                   <hr className="story-divider my-5" />
                   <button
@@ -371,7 +381,7 @@ export const AuthPage: React.FC = () => {
                   </button>
                 </>
               ) : null}
-              {mode === "login" && oauthProviders !== null && oauthProviders.length === 0 ? (
+              {mode === "login" && !oauthProvidersLoading && oauthProviders !== null && oauthProviders.length === 0 ? (
                 <div className="flex flex-wrap items-center gap-2">
                   <p role="status" className="a4n-auth-privacy">
                     {t(oauthProviderLoadFailed ? "auth.oauthProviderLoadFailed" : "auth.oauthUnavailable")}
@@ -382,6 +392,7 @@ export const AuthPage: React.FC = () => {
                       variant="ghost"
                       size="sm"
                       onClick={() => void loadOauthProviders()}
+                      disabled={oauthProvidersLoading}
                     >
                       <RefreshCw size={12} /> {t("common.retry")}
                     </BookButton>

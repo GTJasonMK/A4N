@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use a4n_api_contract::chapter::ChapterDerivedCleanupHostPort;
 use a4n_api_contract::import_review::{
-    AcceptImportReviewInput, BatchAcceptImportReviewsInput, ImportReviewIdInput,
-    ImportReviewSummary,
+    AcceptImportReviewInput, BatchAcceptImportReviewsFailure, BatchAcceptImportReviewsInput,
+    BatchAcceptImportReviewsResult, ImportReviewIdInput, ImportReviewSummary,
 };
 use a4n_db::{
     DbHandle,
@@ -54,7 +54,7 @@ impl ImportReviewApplication {
     ) -> Result<Vec<ImportReviewRecord>, AppError> {
         a4n_db::import_review::create_import_reviews(self.database.executor(), inputs)
             .await
-            .map_err(AppError::from)
+            .map_err(import_review_mutation_error)
     }
 
     async fn delete_import_review(&self, review_id: i64) -> Result<(), AppError> {
@@ -157,9 +157,12 @@ impl OrchestratorContext {
         user_id: i64,
         review_ids: &[i64],
         host_port: &dyn ChapterDerivedCleanupHostPort,
-    ) -> Result<Vec<AcceptedImportReview>, AppError> {
+    ) -> Result<BatchAcceptImportReviewsResult, AppError> {
         if review_ids.is_empty() {
-            return Ok(Vec::new());
+            return Ok(BatchAcceptImportReviewsResult {
+                accepted_reviews: Vec::new(),
+                failure: None,
+            });
         }
         let project_ids_by_review_id = self
             .import_review
@@ -167,7 +170,10 @@ impl OrchestratorContext {
             .await?
             .into_iter()
             .collect::<HashMap<_, _>>();
-        let mut accepted = Vec::with_capacity(review_ids.len());
+        let mut outcome = BatchAcceptImportReviewsResult {
+            accepted_reviews: Vec::with_capacity(review_ids.len()),
+            failure: None,
+        };
         for review_id in review_ids {
             let result = async {
                 let project_id = project_ids_by_review_id
@@ -193,28 +199,21 @@ impl OrchestratorContext {
                         "导入审核已接受，章节派生资料同步待恢复"
                     );
                 }
-                Ok::<_, AppError>(accepted)
+                import_review_summary(&accepted.review)
             }
             .await;
             match result {
-                Ok(result) => accepted.push(result),
+                Ok(result) => outcome.accepted_reviews.push(result),
                 Err(error) => {
-                    return Err(AppError::InvalidState {
-                        current: format!(
-                            "accepted_review_ids={:?}",
-                            accepted
-                                .iter()
-                                .map(|result| result.review.id)
-                                .collect::<Vec<_>>()
-                        ),
-                        operation: format!(
-                            "批量接受导入审核在 review_id={review_id} 失败：{error}"
-                        ),
+                    outcome.failure = Some(BatchAcceptImportReviewsFailure {
+                        review_id: *review_id,
+                        message: error.to_string(),
                     });
+                    break;
                 }
             }
         }
-        Ok(accepted)
+        Ok(outcome)
     }
 
     async fn import_review_for_editor(
@@ -296,14 +295,9 @@ impl a4n_api_contract::import_review::ImportReviewAcceptanceApplicationPort
         user_id: i64,
         input: BatchAcceptImportReviewsInput,
         host_port: &dyn ChapterDerivedCleanupHostPort,
-    ) -> Result<Vec<ImportReviewSummary>, AppError> {
-        let accepted = self
-            .batch_accept_import_reviews_for_user_validated(user_id, &input.review_ids, host_port)
-            .await?;
-        accepted
-            .iter()
-            .map(|accepted| import_review_summary(&accepted.review))
-            .collect()
+    ) -> Result<BatchAcceptImportReviewsResult, AppError> {
+        self.batch_accept_import_reviews_for_user_validated(user_id, &input.review_ids, host_port)
+            .await
     }
 }
 

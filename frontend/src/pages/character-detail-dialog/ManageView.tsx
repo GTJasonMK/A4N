@@ -30,7 +30,7 @@ export const ManageView: React.FC<{
   initialSection?: ManageSection;
   initialEventFilter?: { category?: string | null; key?: string | null } | null;
   refreshRevision?: number;
-  onChanged?: () => boolean | void | Promise<boolean | void>;
+  onChanged?: () => void | Promise<void>;
 }> = ({ character, initialSection, initialEventFilter, refreshRevision = 0, onChanged }) => {
   const { t } = useI18n();
   const { addToast } = useToast();

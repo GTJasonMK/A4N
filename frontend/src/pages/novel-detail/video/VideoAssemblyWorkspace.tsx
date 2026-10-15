@@ -29,6 +29,7 @@ import {
   VIDEO_WORKFLOW_MODE_MIXED,
   type AssembledChapterVideoPreview,
   type GeneratedVideo,
+  type VideoRecordDeleteResult,
   type VideoTimelineSummary,
 } from "../../../api/video";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
@@ -55,6 +56,9 @@ import { useI18n, type MessageTranslator } from "../../../i18n";
 interface VideoAssemblyWorkspaceProps {
   projectId: number;
   chapter: ChapterRow;
+  canEdit: boolean;
+  readUnavailable: boolean;
+  readUnavailableReason: string | null;
   videos: GeneratedVideo[];
   timeline: VideoTimelineSummary | null;
   adoptedVideoIds: ReadonlySet<number>;
@@ -62,6 +66,7 @@ interface VideoAssemblyWorkspaceProps {
   onToast: (message: string, type: ToastType) => void;
   onRefresh: () => Promise<boolean | void> | boolean | void;
   onVideoRecordUpdated: (video: GeneratedVideo) => void;
+  onVideoRecordDeleted: (result: VideoRecordDeleteResult) => void;
 }
 
 const ASSEMBLY_ORDER_STEP = 1000;
@@ -115,6 +120,9 @@ const assemblyClipLabel = (
 export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
   projectId,
   chapter,
+  canEdit,
+  readUnavailable,
+  readUnavailableReason,
   videos,
   timeline,
   adoptedVideoIds,
@@ -122,6 +130,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
   onToast,
   onRefresh,
   onVideoRecordUpdated,
+  onVideoRecordDeleted,
 }) => {
   const { locale, t } = useI18n();
   const [preview, setPreview] = useState<AssembledChapterVideoPreview | null>(
@@ -280,7 +289,15 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
   const isCurrentScope = (requestScope: string) =>
     mountedRef.current && activeScopeRef.current === requestScope;
 
-  const beginAction = (): boolean => {
+  const beginAction = (requiresEdit = true): boolean => {
+    if (requiresEdit && !canEdit) {
+      onToast(t("video.noEditPermission"), "error");
+      return false;
+    }
+    if (requiresEdit && readUnavailable) {
+      onToast(readUnavailableReason ?? t("common.operationInProgress"), "error");
+      return false;
+    }
     if (actionBusyRef.current) return false;
     actionBusyRef.current = true;
     return true;
@@ -365,7 +382,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
   const handleDownloadPreview = async () => {
     if (!preview) return;
     const requestScope = scopeKey;
-    if (!beginAction()) return;
+    if (!beginAction(false)) return;
     setExporting(true);
     setError(null);
     try {
@@ -402,13 +419,15 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
       if (!isCurrentScope(requestScope)) return;
       onVideoRecordUpdated(result.video);
       clearPreview();
-      const refreshed = await onRefresh();
-      if (!isCurrentScope(requestScope)) return;
       onToast(
         t("video.chapter.pushSuccess", { count: result.source_video_ids.length }),
         "success",
       );
-      if (refreshed === false) onToast(t("video.chapter.postprocessRefreshFailed"), "error");
+      void Promise.resolve().then(onRefresh).then((refreshed) => {
+        if (isCurrentScope(requestScope) && refreshed === false) onToast(t("video.chapter.postprocessRefreshFailed"), "error");
+      }).catch((error) => {
+        if (isCurrentScope(requestScope)) onToast(extractErrorMessage(error, t("video.chapter.postprocessRefreshFailed")), "error");
+      });
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
       const message = extractErrorMessage(err, t("video.chapter.pushFailed"));
@@ -466,10 +485,12 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
       if (!isCurrentScope(requestScope)) return;
       onVideoRecordUpdated(inserted);
       clearPreview();
-      const refreshed = await onRefresh();
-      if (!isCurrentScope(requestScope)) return;
       onToast(t("video.chapter.insertSuccess"), "success");
-      if (refreshed === false) onToast(t("video.chapter.postprocessRefreshFailed"), "error");
+      void Promise.resolve().then(onRefresh).then((refreshed) => {
+        if (isCurrentScope(requestScope) && refreshed === false) onToast(t("video.chapter.postprocessRefreshFailed"), "error");
+      }).catch((error) => {
+        if (isCurrentScope(requestScope)) onToast(extractErrorMessage(error, t("video.chapter.postprocessRefreshFailed")), "error");
+      });
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
       const message = extractErrorMessage(err, t("video.chapter.insertFailed"));
@@ -502,13 +523,16 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
     }
     setError(null);
     try {
-      await deleteVideo(video.id);
+      const result = await deleteVideo(video.id);
       if (!isCurrentScope(requestScope)) return;
+      onVideoRecordDeleted(result);
       clearPreview();
-      const refreshed = await onRefresh();
-      if (!isCurrentScope(requestScope)) return;
       onToast(t("video.chapter.deleteSuccess"), "success");
-      if (refreshed === false) onToast(t("video.chapter.postprocessRefreshFailed"), "error");
+      void Promise.resolve().then(onRefresh).then((refreshed) => {
+        if (isCurrentScope(requestScope) && refreshed === false) onToast(t("video.chapter.postprocessRefreshFailed"), "error");
+      }).catch((error) => {
+        if (isCurrentScope(requestScope)) onToast(extractErrorMessage(error, t("video.chapter.postprocessRefreshFailed")), "error");
+      });
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
       const message = extractErrorMessage(err, t("video.chapter.deleteFailed"));
@@ -527,12 +551,14 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
     setError(detail ? t("video.chapter.playbackFailed", { detail }) : t("video.chapter.playbackFailedEmpty"));
   };
 
+  const writeUnavailable = !canEdit || readUnavailable;
   const assemblyMenuItems: React.ComponentProps<typeof Dropdown>["items"] = [
     ...(pushedPrefixLength === 0
       ? [
           {
             label: t("video.chapter.insertIntro"),
             icon: <Plus size={12} />,
+            disabled: writeUnavailable,
             onClick: () => void handleImportInsert(null),
           },
         ]
@@ -567,7 +593,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
             variant="secondary"
             size="sm"
             onClick={() => void handleImportInsert(null)}
-            disabled={assemblyBusy}
+            disabled={assemblyBusy || writeUnavailable}
             className="!min-h-8 !px-3"
           >
             {acting === "insert-start" ? (
@@ -622,7 +648,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
             variant={preview ? "secondary" : "primary"}
             size="sm"
             onClick={() => void handleAssemble()}
-            disabled={assemblyBusy}
+            disabled={assemblyBusy || writeUnavailable}
             className="!min-h-8 !px-3"
           >
             <span className="inline-flex items-center gap-1">
@@ -692,6 +718,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
                 loading ||
                 cacheLoading ||
                 acting != null ||
+                writeUnavailable ||
                 !selectedPushEndVideo ||
                 hasPendingPush
               }
@@ -848,7 +875,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
                       >
                         <LoadingSpinner size="sm" />
                       </span>
-                    ) : !assemblyBusy && rowActionItems.length > 0 ? (
+                    ) : !assemblyBusy && !writeUnavailable && rowActionItems.length > 0 ? (
                       <Dropdown items={rowActionItems} />
                     ) : null}
                   </div>

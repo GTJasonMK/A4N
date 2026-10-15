@@ -121,6 +121,7 @@ impl ForeshadowingWorkerClient {
 }
 
 fn sync_warning(
+    record: Option<ForeshadowingSummary>,
     result: Result<(), AppError>,
     project_id: i64,
     foreshadowing_id: i64,
@@ -138,7 +139,7 @@ fn sync_warning(
             vec![message.to_string()]
         }
     };
-    ForeshadowingWriteResult { warnings }
+    ForeshadowingWriteResult { record, warnings }
 }
 
 fn worker_client_error(error: WorkerClientError) -> AppError {
@@ -201,6 +202,7 @@ mod tests {
     #[test]
     fn sync_warning_preserves_committed_result_when_host_sync_fails() {
         let result = sync_warning(
+            None,
             Err(AppError::InvalidArgument("索引服务不可用".into())),
             1,
             2,

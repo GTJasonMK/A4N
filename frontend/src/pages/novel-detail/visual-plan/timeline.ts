@@ -1,4 +1,5 @@
 import type { ChapterVisualPlanV3, SceneBindingV3, VisualPointV3, VisualSegmentV3 } from "../../../api/chapterVisualPlan";
+import { getActiveLocale, translateMessage } from "../../../i18n";
 
 export type DirectorSelection = { kind: "point" | "segment"; id: string };
 
@@ -27,7 +28,7 @@ export function pointAt(plan: ChapterVisualPlanV3, time: number): VisualPointV3 
 export function segmentTimes(plan: ChapterVisualPlanV3, segment: VisualSegmentV3): [number, number] {
   const start = plan.points.find((point) => point.id === segment.start_point_id);
   const end = plan.points.find((point) => point.id === segment.end_point_id);
-  if (!start || !end) throw new Error("镜头段引用的时间点不存在");
+  if (!start || !end) throw new Error(translateMessage(getActiveLocale(), "visualPlan.workspace.segmentTimeMissing"));
   return [start.at_ms, end.at_ms];
 }
 
@@ -52,13 +53,6 @@ export function segmentBackground(binding: SceneBindingV3 | null): string {
   if (!binding) return "var(--director-empty-segment)";
   if (binding.kind === "scene") return sceneColor(binding.scene_profile_id);
   return `linear-gradient(90deg, ${sceneColor(binding.from_scene_profile_id)}, ${sceneColor(binding.to_scene_profile_id)})`;
-}
-
-export function sceneLabel(binding: SceneBindingV3 | null, names: ReadonlyMap<number, string>): string {
-  if (!binding) return "未绑定场景";
-  const label = (id: number) => names.get(id) ?? `场景 #${id}`;
-  return binding.kind === "scene" ? label(binding.scene_profile_id)
-    : `${label(binding.from_scene_profile_id)} → ${label(binding.to_scene_profile_id)}`;
 }
 
 /** Display-only gesture projection. The domain applies and validates the committed edit. */

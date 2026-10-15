@@ -41,7 +41,7 @@ export const VIDEO_FRAME_PROMPT_IMAGE_GENERATION_SOURCES = [
 export type VideoFramePromptImageGenerationSource =
   (typeof VIDEO_FRAME_PROMPT_IMAGE_GENERATION_SOURCES)[number];
 
-export type { GeneratedImage } from "../generated/host";
+export type { GeneratedImage, ImageRecordDeleteResult } from "../generated/host";
 
 /** Host 摘要不携带密钥；本机运行时设置额外保留本地密钥。 */
 export type ImageGenConfig = ImageConfigSummary & {

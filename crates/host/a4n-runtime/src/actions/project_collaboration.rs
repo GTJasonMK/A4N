@@ -22,7 +22,7 @@ pub async fn invite_project_member(
     user_id: i64,
     project_id: i64,
     input: InviteProjectMemberInput,
-) -> Result<(), String> {
+) -> Result<ProjectInviteSummary, String> {
     state
         .project_collaboration_application()
         .invite_project_member(user_id, project_id, input)

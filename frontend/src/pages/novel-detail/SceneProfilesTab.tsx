@@ -34,6 +34,7 @@ import { runGenerationProgressTaskThen } from "../../hooks/runGenerationProgress
 import { cancelWorkflowTask } from "../../api/streaming";
 import { createWorkflowTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
+import { isPositiveI32, MAX_I32 } from "../../utils/numeric";
 import { chooseDownstreamConflictStrategy } from "./dependencyConflict";
 import {
   DetailRow,
@@ -115,7 +116,9 @@ export const SceneProfilesTab: React.FC<{
     load,
     isCurrentAction,
     beginAction,
+    ensureReadModel,
     finishAction,
+    reloadAfterMutationFailure,
     commitProfile,
     removeProfile,
   } = useProjectProfileCollection<SceneProfile>({
@@ -172,6 +175,10 @@ export const SceneProfilesTab: React.FC<{
       finishAction(requestSeq);
       return;
     }
+    if (!ensureReadModel(requestProjectId)) {
+      finishAction(requestSeq);
+      return;
+    }
     const taskId = createWorkflowTaskId("scene-profile-sync", requestProjectId);
     setSyncing(true);
     try {
@@ -197,8 +204,7 @@ export const SceneProfilesTab: React.FC<{
           if (!isCurrentAction(requestProjectId, requestSeq)) {
             throw new Error("任务已停止");
           }
-          const refreshed = await load({ silent: true, force: true, projectId: requestProjectId, notify: false });
-          if (!refreshed) throw new Error(t("characterDetail.refreshFailed"));
+          void load({ silent: true, force: true, projectId: requestProjectId, notify: false });
         },
       );
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
@@ -259,8 +265,7 @@ export const SceneProfilesTab: React.FC<{
             throw new Error("任务已停止");
           }
           await verifyImageGenerationResult(task, requestProjectId);
-          const refreshed = await load({ silent: true, force: true, projectId: requestProjectId, notify: false });
-          if (!refreshed) throw new Error(t("characterDetail.refreshFailed"));
+          void load({ silent: true, force: true, projectId: requestProjectId, notify: false });
         },
       );
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
@@ -321,13 +326,16 @@ export const SceneProfilesTab: React.FC<{
       finishAction(requestSeq);
       return;
     }
+    if (!ensureReadModel(requestProjectId)) {
+      finishAction(requestSeq);
+      return;
+    }
     setBusyId(requestProfile.id);
     try {
       const result = await deleteSceneProfile(requestProfile.id, downstreamStrategy);
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
+      void load({ silent: true, force: true, projectId: requestProjectId, notify: false });
       removeProfile(requestProfile.id);
-      const refreshed = await load({ silent: true, force: true, projectId: requestProjectId, notify: false });
-      if (!refreshed) throw new Error(t("characterDetail.refreshFailed"));
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor((current) => (current?.id === requestProfile.id ? null : current));
       addToast(
@@ -339,6 +347,7 @@ export const SceneProfilesTab: React.FC<{
     } catch (err) {
       if (isCurrentAction(requestProjectId, requestSeq)) {
         addToast(extractErrorMessage(err, t("novel.profile.deleteError", { name: t("novel.profile.scene") })), "error");
+        void reloadAfterMutationFailure(requestProjectId);
       }
     } finally {
       if (isCurrentAction(requestProjectId, requestSeq)) {
@@ -357,12 +366,15 @@ export const SceneProfilesTab: React.FC<{
     const editingProfileId =
       editingProfile && editingProfile !== "new" ? editingProfile.id : null;
     const existingProfile =
-      editingProfileId == null
-        ? null
-        : profilesRef.current.find((profile) => profile.id === editingProfileId) ?? null;
+      editingProfile && editingProfile !== "new" ? editingProfile : null;
+    const expectedUpdatedAt = existingProfile?.updated_at;
     if (editingProfileId != null && !existingProfile) {
       setEditingProfile(null);
       addToast(t("novel.profile.notFound", { name: t("novel.profile.scene") }), "error");
+      return;
+    }
+    if (existingProfile && !expectedUpdatedAt) {
+      addToast(t("novel.profile.versionMissing"), "error");
       return;
     }
     if (existingProfile && existingProfile.project_id !== requestProjectId) {
@@ -392,23 +404,26 @@ export const SceneProfilesTab: React.FC<{
       finishAction(requestSeq);
       return;
     }
+    if (!ensureReadModel(requestProjectId)) {
+      finishAction(requestSeq);
+      return;
+    }
     setBusyId(existingProfile ? existingProfile.id : -1);
     try {
       const result =
         existingProfile
-          ? await updateSceneProfile(existingProfile.id, input, downstreamStrategy)
+          ? await updateSceneProfile(existingProfile.id, expectedUpdatedAt!, input, downstreamStrategy)
           : await createSceneProfile(requestProjectId, input);
       const saved = result.profile;
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       if (saved.project_id !== requestProjectId) {
         throw new Error("保存场景档案返回了其他项目的数据");
       }
+      void load({ silent: true, force: true, projectId: requestProjectId, notify: false });
       commitProfile(saved);
-      const refreshed = await load({ silent: true, force: true, projectId: requestProjectId, notify: false });
-      if (!refreshed) throw new Error(t("characterDetail.refreshFailed"));
-      if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor(saved);
       setEditingProfile(null);
+      if (!isCurrentAction(requestProjectId, requestSeq)) return;
       const successMessage = editingProfile === "new"
         ? t("novel.profile.created", { name: t("novel.profile.scene") })
         : t("novel.profile.updated", { name: t("novel.profile.scene") });
@@ -421,6 +436,7 @@ export const SceneProfilesTab: React.FC<{
     } catch (err) {
       if (isCurrentAction(requestProjectId, requestSeq)) {
         addToast(extractErrorMessage(err, t("novel.profile.saveError", { name: t("novel.profile.scene") })), "error");
+        void reloadAfterMutationFailure(requestProjectId);
       }
       throw err;
     } finally {
@@ -475,7 +491,7 @@ export const SceneProfilesTab: React.FC<{
                 variant="primary"
                 size="sm"
                 onClick={() => setEditingProfile("new")}
-                disabled={busyId != null || syncing}
+                disabled={busyId != null || syncing || loadError != null}
                 className="min-w-0 flex-1 !text-xs sm:flex-none"
               >
                 <Plus size={12} /> {t("novel.profile.create")}
@@ -772,11 +788,13 @@ function SceneProfileEditModal({
           <NumberField
             label={t("novel.profile.firstChapter")}
             value={draft.first_seen_chapter}
+            max={MAX_I32}
             onChange={(value) => update("first_seen_chapter", value)}
           />
           <NumberField
             label={t("novel.profile.lastChapter")}
             value={draft.last_seen_chapter}
+            max={MAX_I32}
             onChange={(value) => update("last_seen_chapter", value)}
           />
         </div>
@@ -943,10 +961,10 @@ function sceneProfileToInput(profile: SceneProfile): SceneProfileInput {
 
 export function validateSceneProfileDraft(draft: SceneProfileInput): MessageKey | null {
   if (!draft.name.trim()) return "novel.profile.sceneNameRequired";
-  if (!Number.isInteger(draft.first_seen_chapter) || draft.first_seen_chapter <= 0) {
+  if (!isPositiveI32(draft.first_seen_chapter)) {
     return "novel.profile.firstChapterPositive";
   }
-  if (!Number.isInteger(draft.last_seen_chapter) || draft.last_seen_chapter <= 0) {
+  if (!isPositiveI32(draft.last_seen_chapter)) {
     return "novel.profile.lastChapterPositive";
   }
   if (draft.last_seen_chapter < draft.first_seen_chapter) {

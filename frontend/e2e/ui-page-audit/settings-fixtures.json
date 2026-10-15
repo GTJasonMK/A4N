@@ -588,6 +588,7 @@
       "steps": [{ "key": "embedding-connectivity", "kind": "embedding", "title": "将短文本转换为向量", "state": "ready", "note": null, "prompt_name": null, "total_chars": 11, "system_prompt": null, "user_prompt": "雾港来信的主角与航线。", "messages": [], "request": { "model": "ui-text-embedding-small", "input": ["雾港来信的主角与航线。"] }, "char_counts": { "input": 11 }, "context_plan": null, "context_pack_refs": [], "context_manifest": null }]
     },
     "get_log_dir": "/ui-fixtures/a4n/logs",
+    "get_log_level": "info,sqlx=warn,hyper=warn",
     "read_recent_logs": {
       "file_path": "/ui-fixtures/a4n/logs/a4n.2026-09-25.log", "total_lines": 12, "returned_lines": 12,
       "lines": [

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { controlAgentRun, createAgentThread, getAgentThread, subscribeAgentThreadEvents, type AgentEditorRequest, type AgentEditorSource } from "../../../api/agent";
 import { domainAgentBinding, scopeForBinding } from "../../../components/agent/DomainAgentBinding";
 import { snapshotCursor } from "../../../utils/agentEventReducer";
+import { useI18n } from "../../../i18n";
 
 /** The originating workspace owns editor requests, even when its Agent panel is closed. */
 export function useDirectorAgentBridge(
@@ -10,6 +11,7 @@ export function useDirectorAgentBridge(
   respond: (request: AgentEditorRequest, runId: string) => Promise<void>,
   report: (failure: unknown) => void,
 ) {
+  const { t } = useI18n();
   const latest = useRef({ source, respond, report });
   const [threadId, setThreadId] = useState<string | null>(null);
   latest.current = { source, respond, report };
@@ -68,7 +70,7 @@ export function useDirectorAgentBridge(
             if (isCurrent()) latest.current.report(failure);
           });
         }, controller.signal);
-        if (isCurrent()) throw new Error("编辑器 Agent 连接已断开，正在重连");
+        if (isCurrent()) throw new Error(t("visualPlan.workspace.connectionReconnecting"));
       } catch (failure) {
         if (isCurrent()) {
           latest.current.report(failure);
@@ -78,5 +80,5 @@ export function useDirectorAgentBridge(
     };
     void connect();
     return () => { controller.abort(); clearTimeout(retry); };
-  }, [chapterId, projectId, ready]);
+  }, [chapterId, projectId, ready, t]);
 }

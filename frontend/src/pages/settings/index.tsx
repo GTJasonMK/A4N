@@ -82,7 +82,22 @@ export const SettingsPage: React.FC = () => {
   const dirtyRegistryVersion = useDirtyRegistryVersion();
   const hasUnsavedSettings = () => dirtyRegistry.hasDirty();
   const canDiscardSettings = dirtyRegistry.canDiscardDirty();
+  const settingsNavigationGuardRef = React.useRef(false);
+  const authorizedSettingsNavigationRef = React.useRef(false);
+  const settingsNavigationScopeRef = React.useRef({
+    tab,
+    pathname: location.pathname,
+    search: location.search,
+    hash: location.hash,
+  });
+  settingsNavigationScopeRef.current = {
+    tab,
+    pathname: location.pathname,
+    search: location.search,
+    hash: location.hash,
+  };
   const blocker = useBlocker(({ currentLocation, nextLocation }) =>
+    !authorizedSettingsNavigationRef.current &&
     (currentLocation.pathname !== nextLocation.pathname ||
       currentLocation.search !== nextLocation.search ||
       currentLocation.hash !== nextLocation.hash) && hasUnsavedSettings(),
@@ -96,9 +111,51 @@ export const SettingsPage: React.FC = () => {
     if (blocker.state === "blocked" && !dirtyRegistry.hasDirty()) blocker.proceed();
   }, [blocker.proceed, blocker.state, dirtyRegistry, dirtyRegistryVersion]);
 
-  const selectTab = (nextTab: TabId) => {
+  const selectTab = async (nextTab: TabId) => {
     if (nextTab === tab) return;
-    navigate({ pathname: location.pathname, search: location.search, hash: `#${nextTab}` }, { replace: true });
+    if (dirtyRegistry.hasDirty()) {
+      if (!canDiscardSettings) {
+        addToast(t("common.operationInProgress"), "info");
+        return;
+      }
+      if (settingsNavigationGuardRef.current) return;
+      settingsNavigationGuardRef.current = true;
+      const requestScope = settingsNavigationScopeRef.current;
+      try {
+        const ok = await confirmDialog({
+          title: t("common.unsavedChangesTitle"),
+          message: t("common.unsavedChangesMessage", {
+            name: t("settings.title"),
+            action: t("common.switchTab"),
+          }),
+          confirmText: t("common.discardDraft"),
+          dialogType: "warning",
+        });
+        if (!ok) return;
+        const currentScope = settingsNavigationScopeRef.current;
+        if (
+          currentScope.tab !== requestScope.tab ||
+          currentScope.pathname !== requestScope.pathname ||
+          currentScope.search !== requestScope.search ||
+          currentScope.hash !== requestScope.hash
+        ) {
+          addToast(t("common.listChangedRetry"), "info");
+          return;
+        }
+        if (!await dirtyRegistry.discardDirty()) {
+          addToast(t("common.operationInProgress"), "info");
+          return;
+        }
+      } finally {
+        settingsNavigationGuardRef.current = false;
+      }
+    }
+    authorizedSettingsNavigationRef.current = true;
+    try {
+      navigate({ pathname: location.pathname, search: location.search, hash: `#${nextTab}` }, { replace: true });
+    } finally {
+      authorizedSettingsNavigationRef.current = false;
+    }
   };
 
   const handleLogout = async () => {

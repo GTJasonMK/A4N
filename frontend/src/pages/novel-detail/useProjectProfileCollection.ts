@@ -41,6 +41,7 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
   const activeProjectIdRef = useRef(projectId);
   const profilesRef = useRef<T[]>([]);
   const loadSeqRef = useRef(0);
+  const mutationVersionRef = useRef(0);
   const loadInFlightRef = useRef<{
     projectId: number;
     token: symbol;
@@ -48,8 +49,12 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
   } | null>(null);
   const actionSeqRef = useRef(0);
   const actionBusyRef = useRef(false);
+  const loadedProjectIdRef = useRef(loadedProjectId);
+  const loadErrorRef = useRef(loadError);
 
   activeProjectIdRef.current = projectId;
+  loadedProjectIdRef.current = loadedProjectId;
+  loadErrorRef.current = loadError;
 
   const isCurrentProject = useCallback(
     (requestProjectId: number) =>
@@ -63,8 +68,29 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
     [isCurrentProject],
   );
 
+  const ensureReadModel = useCallback((requestProjectId: number): boolean => {
+    if (!isCurrentProject(requestProjectId)) return false;
+    const currentError = loadErrorRef.current;
+    const loadingCurrentProject = loadInFlightRef.current?.projectId === requestProjectId;
+    if (
+      loadedProjectIdRef.current === requestProjectId &&
+      currentError?.projectId !== requestProjectId &&
+      !loadingCurrentProject
+    ) return true;
+    addToast(
+      currentError?.projectId === requestProjectId
+        ? currentError.message
+        : loadingCurrentProject
+          ? t("common.operationInProgress")
+          : t("novel.profile.loadFailed", { name: entityLabel }),
+      "error",
+    );
+    return false;
+  }, [addToast, entityLabel, isCurrentProject, t]);
+
   const commitProfile = useCallback((saved: T) => {
     if (!isCurrentProject(saved.project_id)) return;
+    mutationVersionRef.current += 1;
     const current = profilesRef.current;
     const next = current.some((profile) => profile.id === saved.id)
       ? current.map((profile) => profile.id === saved.id ? saved : profile)
@@ -76,6 +102,7 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
   const removeProfile = useCallback((profileId: number) => {
     const next = profilesRef.current.filter((profile) => profile.id !== profileId);
     if (next.length === profilesRef.current.length) return;
+    mutationVersionRef.current += 1;
     profilesRef.current = next;
     setProfiles(next);
   }, []);
@@ -87,12 +114,20 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
         addToast(t("novel.profile.readonlyCannotModify", { name: entityLabel }), "error");
         return null;
       }
+      if (!ensureReadModel(requestProjectId)) return null;
       if (actionBusyRef.current) return null;
       actionBusyRef.current = true;
       actionSeqRef.current += 1;
       return actionSeqRef.current;
     },
-    [addToast, canEditProfiles, entityLabel, isCurrentProject, t],
+    [
+      addToast,
+      canEditProfiles,
+      entityLabel,
+      ensureReadModel,
+      isCurrentProject,
+      t,
+    ],
   );
 
   const finishAction = useCallback((requestSeq: number) => {
@@ -112,11 +147,16 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
       const requestSeq = loadSeqRef.current + 1;
       loadSeqRef.current = requestSeq;
       const requestToken = Symbol(String(requestProjectId));
+      const mutationVersion = mutationVersionRef.current;
       const loadPromise = (async () => {
         if (!silent) setLoading(true);
         try {
           const nextProfiles = await listProfiles(requestProjectId);
-          if (!isCurrentProject(requestProjectId) || loadSeqRef.current !== requestSeq) return false;
+          if (
+            !isCurrentProject(requestProjectId)
+            || loadSeqRef.current !== requestSeq
+            || mutationVersionRef.current !== mutationVersion
+          ) return false;
           if (nextProfiles.some((profile) => profile.project_id !== requestProjectId)) {
             throw new Error(t("novel.profile.foreignProjectData", { name: entityLabel }));
           }
@@ -155,6 +195,19 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
     [addToast, entityLabel, isCurrentProject, listProfiles, projectId, t],
   );
 
+  const reloadAfterMutationFailure = useCallback(
+    (requestProjectId: number) => {
+      if (!isCurrentProject(requestProjectId)) return Promise.resolve(false);
+      return load({
+        silent: true,
+        force: true,
+        projectId: requestProjectId,
+        notify: false,
+      });
+    },
+    [isCurrentProject, load],
+  );
+
   useLayoutEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -172,6 +225,7 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
     loadInFlightRef.current = null;
     actionSeqRef.current += 1;
     actionBusyRef.current = false;
+    mutationVersionRef.current = 0;
     profilesRef.current = [];
     setProfiles([]);
     setLoadedProjectId(null);
@@ -187,10 +241,6 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
     profilesRef.current = profiles;
     setDetailFor((current) => {
       if (!current) return null;
-      return profiles.find((profile) => profile.id === current.id) ?? null;
-    });
-    setEditingProfile((current) => {
-      if (!current || current === "new") return current;
       return profiles.find((profile) => profile.id === current.id) ?? null;
     });
   }, [profiles]);
@@ -216,7 +266,9 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
     load,
     isCurrentAction,
     beginAction,
+    ensureReadModel,
     finishAction,
+    reloadAfterMutationFailure,
     commitProfile,
     removeProfile,
   };

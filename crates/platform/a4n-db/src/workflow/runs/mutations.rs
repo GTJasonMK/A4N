@@ -146,8 +146,12 @@ pub async fn resume_or_upsert_workflow_run(
         && existing.status == WORKFLOW_STATUS_RUNNING
     {
         return Err(WorkflowWriteError::StatusConflict {
-            current: existing.status.clone(),
-            operation: "重复启动同一工作流".to_string(),
+            current: if input.project_id.is_some() {
+                "该项目的同类工作流正在运行".to_string()
+            } else {
+                "同类工作流正在运行".to_string()
+            },
+            operation: "再次启动该工作流".to_string(),
         });
     }
     if let Some(existing) = existing.filter(|existing| {
@@ -460,12 +464,26 @@ pub async fn mark_workflow_status(
     validate_positive_i64(workflow_run_id, "workflow_run_id")?;
     validate_workflow_status(status)?;
     validate_workflow_status_fields(status, can_resume, error_message, error_message)?;
-    let error_message = error_message.and_then(non_empty_text);
     let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
     let run = locked_workflow_run_by_id(&tx, workflow_run_id).await?;
+    let updated =
+        mark_workflow_status_in_transaction(&tx, run, status, can_resume, error_message).await?;
+    tx.commit().await.map_err(WorkflowWriteError::Database)?;
+    Ok(updated)
+}
+
+pub async fn mark_workflow_status_in_transaction<C: ConnectionTrait>(
+    tx: &C,
+    run: workflow_run::Model,
+    status: &str,
+    can_resume: bool,
+    error_message: Option<&str>,
+) -> Result<workflow_run::Model, WorkflowWriteError> {
+    validate_workflow_status(status)?;
+    validate_workflow_status_fields(status, can_resume, error_message, error_message)?;
+    let error_message = error_message.and_then(non_empty_text);
     ensure_workflow_status_transition(&run.status, status, false)?;
     if is_terminal_workflow_status(&run.status) && run.status == status {
-        tx.commit().await.map_err(WorkflowWriteError::Database)?;
         return Ok(run);
     }
     let now = Utc::now().naive_utc();
@@ -496,12 +514,10 @@ pub async fn mark_workflow_status(
     active.progress_json = Set(progress_json);
     active.updated_at = Set(now);
     active.completed_at = Set(completed_at_for_status_value(status, now));
-    let updated = active
-        .update(&tx)
+    active
+        .update(tx)
         .await
-        .map_err(WorkflowWriteError::Database)?;
-    tx.commit().await.map_err(WorkflowWriteError::Database)?;
-    Ok(updated)
+        .map_err(WorkflowWriteError::Database)
 }
 
 pub async fn mark_workflow_status_summary(

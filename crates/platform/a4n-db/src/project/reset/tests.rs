@@ -19,7 +19,18 @@ use serde_json::json;
 use std::error::Error;
 
 async fn setup_db() -> DatabaseConnection {
-    a4n_migration::test_support::connect_test_database().await
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let owner = crate::auth::create_user(
+        &db,
+        "project-reset-test-owner",
+        "project-reset-test-owner@example.test",
+        "test-password",
+        a4n_domain::auth::ROLE_USER,
+    )
+    .await
+    .expect("project reset test owner must be created");
+    assert_eq!(owner.id, 1);
+    db
 }
 
 async fn text_project(db: &impl crate::DbExecutor, title: &str) -> novel_project::Model {
@@ -158,6 +169,63 @@ fn rollback_status_parse_error_is_invalid_argument() {
         .expect_err("unknown status should fail");
 
     assert!(matches!(error, ProjectResetDbError::InvalidArgument(_)));
+}
+
+#[tokio::test]
+async fn status_rollback_rejects_project_during_generated_data_reset() {
+    let db = setup_db().await;
+    let project = text_project(&db, "重置期间状态回退 gate 测试").await;
+    let mut active: novel_project::ActiveModel = project.clone().into();
+    active.lifecycle_gate = Set(crate::generation::PROJECT_GATE_RESETTING.to_string());
+    active.update(&db).await.unwrap();
+
+    let error = rollback_project_status_record(
+        &db,
+        project.id,
+        ProjectStatus::Writing,
+        ProjectStatus::Draft,
+        Utc::now().naive_utc(),
+    )
+    .await
+    .expect_err("status rollback must be rejected while reset owns the project");
+
+    assert!(matches!(
+        error,
+        ProjectResetDbError::InvalidState { current, .. } if current == "resetting"
+    ));
+    let stored = novel_project::Entity::find_by_id(project.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(stored.status, ProjectStatus::Draft.as_str());
+    assert_eq!(stored.lifecycle_gate, "resetting");
+}
+
+#[tokio::test]
+async fn completing_project_reset_advances_the_persisted_content_revision() {
+    let db = setup_db().await;
+    let project = text_project(&db, "重置内容版本").await;
+    let mut gated_project: novel_project::ActiveModel = project.clone().into();
+    gated_project.lifecycle_gate = Set(crate::generation::PROJECT_GATE_RESETTING.to_string());
+    gated_project.update(&db).await.unwrap();
+
+    crate::generation::complete_project_reset_gate(&db, project.id)
+        .await
+        .unwrap();
+
+    let completed = novel_project::Entity::find_by_id(project.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(completed.lifecycle_gate, "active");
+    assert_eq!(completed.content_revision, project.content_revision + 1);
+    assert!(
+        crate::generation::complete_project_reset_gate(&db, project.id)
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]
@@ -463,6 +531,44 @@ async fn rollback_schedules_only_paths_unreferenced_after_chapter_cleanup() {
     );
     assert!(
         generated_image::Entity::find_by_id(other_image.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_some()
+    );
+}
+
+#[tokio::test]
+async fn rollback_rejects_status_changed_since_preview_without_deleting_content() {
+    let db = setup_db().await;
+    let project = text_project(&db, "状态过期预览测试").await;
+    let mut active: novel_project::ActiveModel = project.into();
+    active.status = Set(ProjectStatus::Writing.as_str().to_string());
+    let project = active.update(&db).await.unwrap();
+    let chapter = chapter_record(&db, project.id).await;
+
+    let error = rollback_project_status_record(
+        &db,
+        project.id,
+        ProjectStatus::ChapterOutlinesReady,
+        ProjectStatus::Draft,
+        Utc::now().naive_utc(),
+    )
+    .await
+    .expect_err("a rollback preview from an older status must be rejected");
+
+    assert!(matches!(error, ProjectResetDbError::StatusChanged { .. }));
+    assert_eq!(
+        novel_project::Entity::find_by_id(project.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap()
+            .status,
+        ProjectStatus::Writing.as_str()
+    );
+    assert!(
+        chapter::Entity::find_by_id(chapter.id)
             .one(&db)
             .await
             .unwrap()

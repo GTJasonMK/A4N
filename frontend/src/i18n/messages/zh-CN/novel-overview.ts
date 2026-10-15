@@ -118,6 +118,8 @@ export const novelOverview = {
     loading: "正在加载成员…",
     memberCount: "共 {count} 位成员",
     identityPlaceholder: "用户名或邮箱",
+    inviteRole: "邀请角色",
+    managerRoleOwnerOnly: "管理员（仅所有者可授予）",
     invite: "邀请",
     membersAria: "项目成员",
     adjustRole: "调整 {username} 的角色",

@@ -241,7 +241,7 @@ export function usePageSession(): PageSessionState {
 
   useEffect(() => {
     if (!enabled) {
-      if (sessionIdRef.current && tokenRef.current) {
+      if (user?.page_cli_enabled !== false && sessionIdRef.current && tokenRef.current) {
         void controlPageSession(sessionIdRef.current, tokenRef.current, "detach").catch(() => undefined);
       }
       detachLocal();
@@ -265,11 +265,15 @@ export function usePageSession(): PageSessionState {
         contextRevisionRef.current = created.session.context_revision;
         applySession(created.session);
         if (created.session.status === "awaiting_attach" || created.session.status === "idle") {
-          await authorizePageSession(created.session.ui_session_id, created.ui_session_token)
-            .then((result) => {
-              if (cancelled || createSequenceRef.current !== sequence) return;
-              setAuthorizationCode(result.authorization_code);
-            });
+          try {
+            const result = await authorizePageSession(created.session.ui_session_id, created.ui_session_token);
+            if (cancelled || createSequenceRef.current !== sequence) return;
+            setAuthorizationCode(result.authorization_code);
+          } catch (authorizationError) {
+            if (!cancelled && createSequenceRef.current === sequence) {
+              setError(extractErrorMessage(authorizationError, translatorRef.current("pageSession.authorizationFailed")));
+            }
+          }
         }
       } catch (err) {
         if (!cancelled && createSequenceRef.current === sequence) {
@@ -301,7 +305,7 @@ export function usePageSession(): PageSessionState {
   useEffect(() => {
     const sessionId = sessionIdRef.current;
     const token = tokenRef.current;
-    if (!enabled || !sessionId || !token) return;
+    if (!enabled || !sessionId || !token || session?.status === "offline") return;
     const context = { ...contextRef.current };
     let cancelled = false;
     void updatePageContext(sessionId, token, context)
@@ -324,13 +328,14 @@ export function usePageSession(): PageSessionState {
     location.pathname,
     location.search,
     dirtyVersion,
+    session?.status,
     session?.ui_session_id,
   ]);
 
   useEffect(() => {
     const sessionId = sessionIdRef.current;
     const token = tokenRef.current;
-    if (!enabled || !sessionId || !token) return;
+    if (!enabled || !sessionId || !token || session?.status === "offline") return;
     let requestInFlight = false;
     const timer = window.setInterval(() => {
       if (requestInFlight) return;
@@ -349,7 +354,7 @@ export function usePageSession(): PageSessionState {
         .finally(() => { requestInFlight = false; });
     }, HEARTBEAT_MS);
     return () => window.clearInterval(timer);
-  }, [applySession, enabled, session?.ui_session_id]);
+  }, [applySession, enabled, session?.status, session?.ui_session_id]);
 
   useEffect(() => {
     const sessionId = sessionIdRef.current;

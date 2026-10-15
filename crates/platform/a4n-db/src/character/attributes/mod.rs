@@ -99,14 +99,17 @@ where
             profile_id: input.profile_id,
             category: category.clone(),
             key: key.clone(),
+            expected_mark_id: input.expected_mark_id,
+            expected_mark_updated_at: input.expected_mark_updated_at,
             consecutive_count: input.mark_count,
         },
     )
     .await?;
     if updated == 0 {
-        return Err(CharacterDbError::NotFound(format!(
-            "删除执行缺少未执行标记: {category}.{key}"
-        )));
+        return Err(CharacterDbError::InvalidState {
+            current: "删除标记已变化".to_string(),
+            operation: "执行角色属性删除".to_string(),
+        });
     }
 
     Ok(event)
@@ -147,6 +150,13 @@ where
                 CharacterDbError::NotFound(format!("删除执行缺少未执行标记: {category}.{key}"))
             })?;
 
+    if mark.id != input.expected_mark_id || mark.updated_at != input.expected_mark_updated_at {
+        return Err(CharacterDbError::InvalidState {
+            current: "删除标记已变化".to_string(),
+            operation: "执行角色属性删除".to_string(),
+        });
+    }
+
     if mark.consecutive_count < CHARACTER_DELETION_THRESHOLD {
         return Err(CharacterDbError::InvalidState {
             current: format!(
@@ -170,6 +180,8 @@ where
             source_kind,
             category,
             key,
+            expected_mark_id: mark.id,
+            expected_mark_updated_at: mark.updated_at,
             mark_count: count,
             event_cause,
             evidence,

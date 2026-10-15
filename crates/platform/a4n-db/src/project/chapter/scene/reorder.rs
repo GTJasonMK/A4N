@@ -29,11 +29,27 @@ pub async fn reorder_chapter_scene_records(
     order: &[(i64, i32)],
 ) -> Result<Vec<ChapterSceneRecord>, ProjectChapterSceneWriteError> {
     let txn = db.begin().await?;
-    let loaded = load_chapter_scene_reorder(&txn, order).await?;
+    match reorder_chapter_scene_records_in_transaction(&txn, order).await {
+        Ok(scenes) => {
+            txn.commit().await?;
+            Ok(scenes)
+        }
+        Err(error) => {
+            txn.rollback().await?;
+            Err(error)
+        }
+    }
+}
+
+pub async fn reorder_chapter_scene_records_in_transaction<C: ConnectionTrait>(
+    db: &C,
+    order: &[(i64, i32)],
+) -> Result<Vec<ChapterSceneRecord>, ProjectChapterSceneWriteError> {
+    let loaded = load_chapter_scene_reorder(db, order).await?;
 
     let all_scenes = chapter_scene::Entity::find()
         .filter(chapter_scene::Column::ChapterId.eq(loaded.chapter_id))
-        .all(&txn)
+        .all(db)
         .await?;
     if let Some(conflict) = all_scenes.iter().find(|scene| {
         loaded.target_numbers.contains(&scene.scene_number) && !loaded.scene_ids.contains(&scene.id)
@@ -87,7 +103,7 @@ pub async fn reorder_chapter_scene_records(
         )
         .col_expr(chapter_scene::Column::UpdatedAt, Expr::value(now))
         .filter(chapter_scene::Column::Id.is_in(scene_ids.iter().copied()))
-        .exec(&txn)
+        .exec(db)
         .await?;
 
     let mut final_numbers = CaseStatement::new();
@@ -103,12 +119,12 @@ pub async fn reorder_chapter_scene_records(
         )
         .col_expr(chapter_scene::Column::UpdatedAt, Expr::value(now))
         .filter(chapter_scene::Column::Id.is_in(scene_ids.iter().copied()))
-        .exec(&txn)
+        .exec(db)
         .await?;
 
     let updated_by_id = chapter_scene::Entity::find()
         .filter(chapter_scene::Column::Id.is_in(scene_ids))
-        .all(&txn)
+        .all(db)
         .await?
         .into_iter()
         .map(|scene| (scene.id, scene))
@@ -120,7 +136,6 @@ pub async fn reorder_chapter_scene_records(
         })?);
     }
 
-    txn.commit().await?;
     updated_scenes.sort_by_key(|scene| scene.scene_number);
     Ok(updated_scenes
         .into_iter()

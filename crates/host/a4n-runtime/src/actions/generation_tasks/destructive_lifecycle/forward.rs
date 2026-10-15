@@ -13,6 +13,10 @@ pub(super) async fn delete_project_forward(
     state: &AppState,
     project_id: i64,
 ) -> Result<(), DeleteProjectForwardError> {
+    let _publication_guard = state
+        .image_publication_recovery_application()
+        .lock_image_publications()
+        .await;
     match state
         .generation_lifecycle_application()
         .delete_project_cascade_validated(project_id)
@@ -46,11 +50,16 @@ pub(super) async fn reset_project_forward(
     state: &AppState,
     project_id: i64,
 ) -> Result<ProjectGeneratedDataResetApplicationResult, String> {
+    let publication_guard = state
+        .image_publication_recovery_application()
+        .lock_image_publications()
+        .await;
     let result = state
         .generation_lifecycle_application()
         .reset_project_generated_data_validated(project_id)
         .await
         .map_err(|error| error.to_string())?;
+    drop(publication_guard);
     state
         .rag_ingest()
         .clear_project_rag(project_id)

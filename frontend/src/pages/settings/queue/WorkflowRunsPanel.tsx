@@ -10,6 +10,7 @@ import type {
 import { getWorkflowRunDetail } from "../../../api/streaming";
 import { extractErrorMessage } from "../../../api";
 import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
+import { BookButton } from "../../../components/ui/BookButton";
 import { progressDisplayModel } from "../../../utils/progressPresentation";
 import {
   getWorkflowKindLabel,
@@ -87,6 +88,7 @@ const WorkflowRunRow: React.FC<{
   const [detail, setDetail] = useState<WorkflowRunDetailSummary>();
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<{ reason: unknown } | null>(null);
+  const [detailRequestSeq, setDetailRequestSeq] = useState(0);
 
   useLayoutEffect(() => {
     if (!expanded) return;
@@ -102,7 +104,7 @@ const WorkflowRunRow: React.FC<{
       if (current) setDetailLoading(false);
     });
     return () => { current = false; };
-  }, [expanded, run.id, run.current_step_key, run.status]);
+  }, [detailRequestSeq, expanded, run.id, run.current_step_key, run.status]);
   const display = run.progress
       ? progressDisplayModel({
         ...run.progress,
@@ -200,9 +202,12 @@ const WorkflowRunRow: React.FC<{
         )}
       </div>
       {expanded && (detailError
-        ? <p role="alert" className="mt-3 text-error">
-            {extractErrorMessage(detailError.reason, t("settingsQueue.loadWorkflowFailed"))}
-          </p>
+        ? <div role="alert" className="mt-3 flex flex-wrap items-center gap-2 text-error">
+            <span className="min-w-0 flex-1">{extractErrorMessage(detailError.reason, t("settingsQueue.loadWorkflowFailed"))}</span>
+            <BookButton size="sm" variant="secondary" onClick={() => setDetailRequestSeq((value) => value + 1)} disabled={detailLoading}>
+              <RefreshCw size={12} /> {t("common.retry")}
+            </BookButton>
+          </div>
         : <WorkflowRunDetailBlock detail={detail} loading={detailLoading} />)}
     </li>
   );

@@ -41,17 +41,18 @@ export const PromptTab: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [reloadingDefaults, setReloadingDefaults] = useState(false);
+  const [draftTransitioning, setDraftTransitioning] = useState(false);
+  const [projectOverrideBusy, setProjectOverrideBusy] = useState(false);
   const mountedRef = useRef(true);
   const dirtyRef = useRef(false);
   const draftRef = useRef(draft);
   const selectedNameRef = useRef(selectedName);
-  const resetBaselinePendingRef = useRef<{
-    name: string;
-    requestEditVersion: number;
-    discardVersion?: number;
-  } | null>(null);
+  const promptListErrorRef = useRef<unknown | null>(promptListError);
+  const loadingRef = useRef(loading);
   const tRef = useRef(t);
   selectedNameRef.current = selectedName;
+  promptListErrorRef.current = promptListError;
+  loadingRef.current = loading;
   tRef.current = t;
   const editVersionRef = useRef(0);
   const refreshSeqRef = useRef(0);
@@ -63,6 +64,7 @@ export const PromptTab: React.FC = () => {
   const saveBusyRef = useRef(false);
   const resetBusyRef = useRef(false);
   const defaultsBusyRef = useRef(false);
+  const draftTransitionRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -119,7 +121,7 @@ export const PromptTab: React.FC = () => {
         promptListCategories(),
       ]);
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return null;
-      const preserveDraft = options.preserveDraft || resetBaselinePendingRef.current != null;
+      const preserveDraft = options.preserveDraft ?? false;
       if (!preserveDraft && dirtyRef.current && editVersionRef.current !== requestEditVersion) {
         addToast(tRef.current("settingsPrompt.draftKept"), "info");
         return null;
@@ -149,21 +151,6 @@ export const PromptTab: React.FC = () => {
         addToast(extractErrorMessage(error, tRef.current("settingsPrompt.loadFailed")), "error"),
       );
 
-      const pendingReset = resetBaselinePendingRef.current;
-      const resetPrompt = refreshedPrompts?.find((prompt) => prompt.name === pendingReset?.name);
-      if (pendingReset && resetPrompt) {
-        resetBaselinePendingRef.current = null;
-        if (selectedNameRef.current === pendingReset.name) {
-          const discardVersion = pendingReset.discardVersion ?? pendingReset.requestEditVersion;
-          if (editVersionRef.current === discardVersion) {
-            writeDraft(resetPrompt.content);
-            markClean();
-          } else {
-            syncDirtyToContent(resetPrompt.content);
-          }
-        }
-      }
-
       return refreshedPrompts;
     } finally {
       if (refreshSeqRef.current === requestSeq) refreshBusyRef.current = false;
@@ -190,24 +177,44 @@ export const PromptTab: React.FC = () => {
     refreshBusyRef.current ||
     saveBusyRef.current ||
     resetBusyRef.current ||
-    defaultsBusyRef.current;
-  useDirty("settings-prompt-editor", dirty, undefined, () => !isPromptOperationBusy());
+    defaultsBusyRef.current ||
+    draftTransitionRef.current ||
+    projectOverrideBusy;
+  const ensurePromptListCurrent = () => {
+    if (!loadingRef.current && !promptListErrorRef.current) return true;
+    addToast(
+      promptListErrorRef.current
+        ? extractErrorMessage(promptListErrorRef.current, t("settingsPrompt.loadFailed"))
+        : t("common.operationInProgress"),
+      "error",
+    );
+    return false;
+  };
+  useDirty("settings-prompt-editor", dirty || projectOverrideBusy, undefined, () => !isPromptOperationBusy());
 
   const handleCategoryChange = async (nextCategory: string): Promise<boolean> => {
     if (isPromptOperationBusy()) return false;
     if (nextCategory === activeCategory) return true;
-    if (!(await confirmDiscardDraft(t("settingsPrompt.category")))) return false;
-    if (!mountedRef.current) return false;
-    if (dirtyRef.current) discardDraftToSavedState();
-    const nextFiltered = filterPrompts(items, {
-      activeCategory: nextCategory,
-      keyword,
-    });
-    if (selectedName && !nextFiltered.some((prompt) => prompt.name === selectedName)) {
-      setSelectedName(nextFiltered[0]?.name ?? null);
+    if (!ensurePromptListCurrent()) return false;
+    draftTransitionRef.current = true;
+    setDraftTransitioning(true);
+    try {
+      if (!(await confirmDiscardDraft(t("settingsPrompt.category")))) return false;
+      if (!mountedRef.current) return false;
+      if (dirtyRef.current) discardDraftToSavedState();
+      const nextFiltered = filterPrompts(items, {
+        activeCategory: nextCategory,
+        keyword,
+      });
+      if (selectedName && !nextFiltered.some((prompt) => prompt.name === selectedName)) {
+        setSelectedName(nextFiltered[0]?.name ?? null);
+      }
+      setActiveCategory(nextCategory);
+      return true;
+    } finally {
+      draftTransitionRef.current = false;
+      setDraftTransitioning(false);
     }
-    setActiveCategory(nextCategory);
-    return true;
   };
 
   const selected = useMemo(
@@ -261,33 +268,49 @@ export const PromptTab: React.FC = () => {
   const handleSelectPrompt = async (name: string) => {
     if (isPromptOperationBusy()) return;
     if (name === selectedName) return;
-    if (!(await confirmDiscardDraft(t("settingsPrompt.switchPrompt")))) return;
-    discardDraftToSavedState();
-    if (!mountedRef.current) return;
-    setSelectedName(name);
+    if (!ensurePromptListCurrent()) return;
+    draftTransitionRef.current = true;
+    setDraftTransitioning(true);
+    try {
+      if (!(await confirmDiscardDraft(t("settingsPrompt.switchPrompt")))) return;
+      if (
+        !mountedRef.current ||
+        !items.some((prompt) => prompt.name === name)
+      ) {
+        addToast(t("common.listChangedRetry"), "info");
+        return;
+      }
+      discardDraftToSavedState();
+      setSelectedName(name);
+    } finally {
+      draftTransitionRef.current = false;
+      setDraftTransitioning(false);
+    }
   };
 
   const handleRefresh = async () => {
     if (isPromptOperationBusy()) return;
     refreshEntryRef.current = true;
+    draftTransitionRef.current = true;
+    setDraftTransitioning(true);
     try {
       if (!(await confirmDiscardDraft(t("settingsPrompt.refreshList")))) return;
+      if (!mountedRef.current) return;
       if (dirtyRef.current) {
-        if (resetBaselinePendingRef.current?.name === selectedNameRef.current) {
-          resetBaselinePendingRef.current.discardVersion = editVersionRef.current;
-        } else {
-          discardDraftToSavedState();
-        }
+        discardDraftToSavedState();
       }
       if (!mountedRef.current) return;
-      await refresh({ preserveDraft: resetBaselinePendingRef.current != null });
+      await refresh();
     } finally {
       refreshEntryRef.current = false;
+      draftTransitionRef.current = false;
+      setDraftTransitioning(false);
     }
   };
 
   const handleSave = async () => {
     if (isPromptOperationBusy()) return;
+    if (!ensurePromptListCurrent()) return;
     if (!selected) return;
     if (!dirty) return;
     const requestSeq = saveSeqRef.current + 1;
@@ -332,6 +355,7 @@ export const PromptTab: React.FC = () => {
 
   const handleReset = async () => {
     if (isPromptOperationBusy()) return;
+    if (!ensurePromptListCurrent()) return;
     if (!selected) return;
     const requestName = selected.name;
     const requestLabel = selected.title || t("settingsPrompt.prompt");
@@ -350,19 +374,23 @@ export const PromptTab: React.FC = () => {
       resetBusyRef.current = false;
       return;
     }
+    if (!ensurePromptListCurrent()) {
+      resetBusyRef.current = false;
+      return;
+    }
     const requestSeq = resetSeqRef.current + 1;
     const requestEditVersion = editVersionRef.current;
     resetSeqRef.current = requestSeq;
     setResetting(true);
     try {
-      await promptReset(requestName);
+      const resetPrompt = await promptReset(requestName);
       if (!mountedRef.current || resetSeqRef.current !== requestSeq) return;
-      resetBaselinePendingRef.current = { name: requestName, requestEditVersion };
-      const refreshed = await refresh({ preserveDraft: true });
-      const resetPrompt = refreshed?.find((prompt) => prompt.name === requestName);
-      if (!resetPrompt) return;
+      setItems((current) => current.map((prompt) => prompt.name === resetPrompt.name ? resetPrompt : prompt));
       if (selectedNameRef.current === requestName && editVersionRef.current !== requestEditVersion) {
         syncDirtyToContent(resetPrompt.content);
+      } else if (selectedNameRef.current === requestName) {
+        writeDraft(resetPrompt.content);
+        markClean();
       }
       addToast(
         dirtyRef.current && selectedNameRef.current === requestName
@@ -417,14 +445,18 @@ export const PromptTab: React.FC = () => {
         loadedCount > 0
           ? t("settingsPrompt.defaultsLoaded", { count: loadedCount })
           : t("settingsPrompt.defaultsAlreadyLoaded");
-      const refreshed = await refresh({ preserveDraft: true });
-      if (!refreshed) return;
-      if (dirtyRef.current && editVersionRef.current !== requestEditVersion) {
-        addToast(t("settingsPrompt.keepDraft", { message: successMessage }), "info");
-        return;
-      }
-      markClean();
       addToast(successMessage, "success");
+      markClean();
+      void refresh({ preserveDraft: true }).then((refreshed) => {
+        if (!mountedRef.current || defaultsSeqRef.current !== requestSeq) return;
+        if (!refreshed) {
+          addToast(t("settingsPrompt.refreshFailed"), "error");
+          return;
+        }
+        if (dirtyRef.current && editVersionRef.current !== requestEditVersion) {
+          addToast(t("settingsPrompt.keepDraft", { message: successMessage }), "info");
+        }
+      });
     } catch (err) {
       if (!mountedRef.current || defaultsSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, t("settingsPrompt.loadDefaultsFailed")), "error");
@@ -436,7 +468,8 @@ export const PromptTab: React.FC = () => {
     }
   };
 
-  const mutationBusy = loading || saving || resetting || reloadingDefaults;
+  const mutationBusy = loading || saving || resetting || reloadingDefaults || projectOverrideBusy;
+  const selectionBusy = mutationBusy || draftTransitioning;
 
   return (
     <div
@@ -447,14 +480,14 @@ export const PromptTab: React.FC = () => {
         categories={categories}
         activeCategory={activeCategory}
         filteredCount={filtered.length}
-        disabled={mutationBusy}
+        disabled={selectionBusy}
         onCategoryChange={handleCategoryChange}
       />
 
       <PromptToolbar
         keyword={keyword}
         loading={loading}
-        mutationBusy={mutationBusy}
+        mutationBusy={mutationBusy || draftTransitioning}
         reloadingDefaults={reloadingDefaults}
         onKeywordChange={setKeyword}
         onLoadDefaults={() => void handleLoadDefaults()}
@@ -473,7 +506,7 @@ export const PromptTab: React.FC = () => {
         <PromptList
           prompts={filtered}
           loading={loading}
-          disabled={mutationBusy}
+          disabled={selectionBusy}
           unavailable={promptListError != null && items.length === 0}
           selectedName={selectedName}
           onSelect={(name) => void handleSelectPrompt(name)}
@@ -486,19 +519,15 @@ export const PromptTab: React.FC = () => {
           dirty={dirty}
           saving={saving}
           resetting={resetting}
-          mutationBusy={mutationBusy}
+          mutationBusy={mutationBusy || promptListError != null || draftTransitioning}
           onDraftChange={(nextDraft) => {
             markDirty();
             writeDraft(nextDraft);
-            if (
-              nextDraft === selected?.content &&
-              resetBaselinePendingRef.current?.name !== selected?.name
-            ) {
-              markClean();
-            }
+            if (nextDraft === selected?.content) markClean();
           }}
           onSave={() => void handleSave()}
           onReset={() => void handleReset()}
+          onProjectOverrideBusyChange={setProjectOverrideBusy}
         />
       </div>
     </div>

@@ -32,8 +32,9 @@ import { UploadPortraitDialog } from "./UploadPortraitDialog";
 
 type PortraitGenerationAction = "generate" | "preview";
 
-export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
+export const CharacterPortraitsPanel: React.FC<{ projectId: number; canEdit?: boolean }> = ({
   projectId,
+  canEdit = true,
 }) => {
   const addToast = useToast((state) => state.addToast);
   const { t } = useI18n();
@@ -95,7 +96,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     return isCurrentProject(requestProjectId) && loadSeqRef.current === seq;
   }, [isCurrentProject]);
 
-  const load = useCallback(async (): Promise<void> => {
+  const load = useCallback(async (): Promise<boolean> => {
     const requestProjectId = projectId;
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
@@ -106,11 +107,13 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
         listPortraitsByProject(requestProjectId),
         listProfiles(requestProjectId),
       ]);
-      if (!isCurrentLoad(requestProjectId, requestSeq)) return;
+      if (!isCurrentLoad(requestProjectId, requestSeq)) return false;
+      let succeeded = true;
       if (portraitsResult.status === "fulfilled") {
         setPortraits(portraitsResult.value);
         setPortraitLoadError(null);
       } else {
+        succeeded = false;
         const message = extractErrorMessage(
           portraitsResult.reason,
           t("characterDetail.portrait.missingFailed"),
@@ -126,12 +129,14 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
             : null,
         );
       } else {
+        succeeded = false;
         const message = extractErrorMessage(
           profilesResult.reason,
           t("characterDetail.portrait.missingFailed"),
         );
         setProfileLoadError(message);
       }
+      return succeeded;
     } finally {
       if (isCurrentLoad(requestProjectId, requestSeq)) {
         setLoadedProjectId(requestProjectId);
@@ -167,7 +172,23 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     setLoadedProjectId(null);
   }, [projectId]);
 
+  useEffect(() => {
+    if (canEdit) return;
+    setShowSingle(false);
+    setShowUpload(false);
+    setShowAge(null);
+    setShowPrompt(null);
+    setActionPortrait(null);
+    setGenerationSizeAction(null);
+  }, [canEdit]);
+
   const beginPortraitAction = (portraitId: number) => {
+    if (!canEdit || portraitLoadError != null || profileLoadError != null) {
+      if (portraitLoadError || profileLoadError) {
+        addToast(portraitLoadError ?? profileLoadError ?? t("characterDetail.portrait.missingFailed"), "error");
+      }
+      return false;
+    }
     if (generatingRef.current || portraitActionBusyRef.current != null) return false;
     portraitActionBusyRef.current = portraitId;
     setBusyId(portraitId);
@@ -179,6 +200,34 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
       portraitActionBusyRef.current = null;
     }
     setBusyId((current) => (current === portraitId ? null : current));
+  };
+
+  const applyPortraitResult = (saved: Portrait) => {
+    setPortraits((current) => {
+      const next = current.map((portrait) =>
+        saved.is_primary && portrait.profile_id === saved.profile_id
+          ? { ...portrait, is_primary: false }
+          : portrait,
+      );
+      const index = next.findIndex((portrait) => portrait.id === saved.id);
+      if (index < 0) return [saved, ...next];
+      next[index] = saved;
+      return next;
+    });
+  };
+
+  const refreshPortraitsInBackground = (requestProjectId: number) => {
+    void load()
+      .then((refreshed) => {
+        if (isCurrentProject(requestProjectId) && !refreshed) {
+          addToast(tRef.current("characterDetail.refreshFailed"), "error");
+        }
+      })
+      .catch((error) => {
+        if (isCurrentProject(requestProjectId)) {
+          addToast(extractErrorMessage(error, tRef.current("characterDetail.refreshFailed")), "error");
+        }
+      });
   };
 
   useEffect(() => {
@@ -194,6 +243,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
   }, [portraits]);
 
   const handleGenerateMissing = async (requestSize: ImageSize) => {
+    if (!canEdit || portraitLoadError != null || profileLoadError != null) return;
     if (generatingRef.current || portraitActionBusyRef.current != null) return;
     const requestProjectId = projectId;
     generatingRef.current = true;
@@ -220,8 +270,11 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
         async (task) => {
           const generated = await verifyPortraitGenerationResult(task, requestProjectId);
           if (!isCurrentProject(requestProjectId)) throw new Error(tRef.current("characterDetail.taskStopped"));
-          await load();
-          if (!isCurrentProject(requestProjectId)) throw new Error(tRef.current("characterDetail.taskStopped"));
+          setPortraits((current) => {
+            const ids = new Set(generated.map((portrait) => portrait.id));
+            return [...generated, ...current.filter((portrait) => !ids.has(portrait.id))];
+          });
+          refreshPortraitsInBackground(requestProjectId);
           return generated.length;
         },
       );
@@ -240,6 +293,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
   };
 
   const handlePreviewGenerateMissing = async (requestSize: ImageSize) => {
+    if (!canEdit || portraitLoadError != null || profileLoadError != null) return;
     if (requestPreviewBusyRef.current) return;
     const requestProjectId = projectId;
     const requestSeq = requestPreviewSeqRef.current + 1;
@@ -298,14 +352,15 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
           cancelLabel: tRef.current("characterDetail.portrait.stopGeneration"),
         },
         async (task) => {
-          await verifyPortraitGenerationResult(task, requestProjectId);
+          const [updated] = await verifyPortraitGenerationResult(task, requestProjectId);
+          if (!isCurrentProject(requestProjectId)) return;
+          setPortraits((current) => current.map((portrait) => portrait.id === updated.id ? updated : portrait));
         },
       );
       if (!isCurrentProject(requestProjectId)) return;
-      await load();
-      if (!isCurrentProject(requestProjectId)) return;
       addToast(tRef.current("characterDetail.portrait.redrawSuccess"), "success");
       setActionPortrait(null);
+      refreshPortraitsInBackground(requestProjectId);
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
       const message = extractErrorMessage(err, tRef.current("characterDetail.portrait.redrawFailed"));
@@ -358,10 +413,13 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     try {
       await setPrimaryPortrait(portrait.id);
       if (!isCurrentProject(requestProjectId)) return;
-      await load();
-      if (!isCurrentProject(requestProjectId)) return;
+      setPortraits((current) => current.map((item) => item.profile_id === portrait.profile_id
+        ? { ...item, is_primary: item.id === portrait.id }
+        : item,
+      ));
       addToast(tRef.current("characterDetail.portrait.primarySet"), "success");
       setActionPortrait(null);
+      refreshPortraitsInBackground(requestProjectId);
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
       addToast(extractErrorMessage(err, tRef.current("characterDetail.portrait.primarySetFailed")), "error");
@@ -375,6 +433,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
   };
 
   const openGenerationSizeDialog = (action: PortraitGenerationAction) => {
+    if (!canEdit) return;
     if (action === "generate" && (generatingRef.current || portraitActionBusyRef.current != null)) return;
     if (action === "preview" && requestPreviewBusyRef.current) return;
     setGenerationSizeAction(action);
@@ -393,6 +452,8 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
   const displayPortraits = loadedProjectId === projectId ? portraits : [];
   const displayProfiles = loadedProjectId === projectId ? profiles : [];
   const displayLoading = loadedProjectId !== projectId;
+  const readUnavailable = portraitLoadError != null || profileLoadError != null;
+  const portraitWritesEnabled = canEdit && !readUnavailable;
   const visiblePortraits =
     selectedProfileId == null
       ? displayPortraits
@@ -421,6 +482,8 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
         profilesUnavailable={profileLoadError != null}
         selectedProfileId={selectedProfileId}
         generating={generating}
+        canEdit={canEdit}
+        readUnavailable={readUnavailable}
         onProfileChange={setSelectedProfileId}
         onOpenSingle={() => setShowSingle(true)}
         onOpenUpload={() => setShowUpload(true)}
@@ -450,12 +513,11 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
           projectId={projectId}
           profiles={displayProfiles}
           onClose={() => setShowSingle(false)}
-          onCreated={async () => {
-            if (!isCurrentProject(projectId)) return false;
-            await load();
-            if (!isCurrentProject(projectId)) return false;
+          onCreated={(portrait) => {
+            if (!isCurrentProject(projectId)) return;
+            applyPortraitResult(portrait);
             setShowSingle(false);
-            return true;
+            refreshPortraitsInBackground(projectId);
           }}
         />
       ) : null}
@@ -465,12 +527,11 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
           projectId={projectId}
           profiles={displayProfiles}
           onClose={() => setShowUpload(false)}
-          onUploaded={async () => {
-            if (!isCurrentProject(projectId)) return false;
-            await load();
-            if (!isCurrentProject(projectId)) return false;
+          onUploaded={(portrait) => {
+            if (!isCurrentProject(projectId)) return;
+            applyPortraitResult(portrait);
             setShowUpload(false);
-            return true;
+            refreshPortraitsInBackground(projectId);
           }}
         />
       ) : null}
@@ -480,12 +541,11 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
           portrait={showAge}
           profileName={displayProfiles.find((profile) => profile.id === showAge.profile_id)?.name}
           onClose={() => setShowAge(null)}
-          onCreated={async () => {
-            if (!isCurrentProject(projectId)) return false;
-            await load();
-            if (!isCurrentProject(projectId)) return false;
+          onCreated={(portrait) => {
+            if (!isCurrentProject(projectId)) return;
+            applyPortraitResult(portrait);
             setShowAge(null);
-            return true;
+            refreshPortraitsInBackground(projectId);
           }}
         />
       ) : null}
@@ -503,12 +563,15 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
           imageSizes={imageSizes}
           imageSizeLoading={imageSizeLoading}
           imageSizeError={imageSizeError}
+          canEdit={canEdit}
+          readUnavailable={readUnavailable}
           onImageSizeChange={setImageSize}
           onClose={handleCloseActions}
           onPreviewRegenerate={handlePreviewRegenerate}
           onRegenerate={handleRegenerate}
           onSetPrimary={handleSetPrimary}
           onAgeVariant={(portrait) => {
+            if (!portraitWritesEnabled) return;
             setActionPortrait(null);
             setShowAge(portrait);
           }}

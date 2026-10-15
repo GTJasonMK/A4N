@@ -106,6 +106,7 @@ pub mod postgres_baseline;
 pub mod profile_record_ownership;
 pub mod profile_record_ownership_default_cleanup;
 pub mod project_collaboration;
+pub mod project_content_revision;
 pub mod project_derivation_identity_cleanup;
 pub mod project_source_mode_identity_cleanup;
 pub mod provider_default_config_integrity_contract;

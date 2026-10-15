@@ -59,9 +59,14 @@ pub async fn reset_project_generated_data_record(
     })?;
 
     if project.project_kind == ProjectKind::Galgame.as_str() {
-        let candidate_media_paths = project_db::project_generated_media_paths(&tx, project_id)
+        let mut candidate_media_paths = project_db::project_generated_media_paths(&tx, project_id)
             .await
             .map_err(ProjectResetDbError::from)?;
+        candidate_media_paths.extend(
+            crate::video::reclaim_pending_image_publications_for_project(&tx, project_id).await?,
+        );
+        candidate_media_paths.sort_unstable();
+        candidate_media_paths.dedup();
         return reset_galgame_generated_data_in_tx(tx, project, candidate_media_paths).await;
     }
     if project.project_kind != PROJECT_KIND_TEXT {
@@ -69,9 +74,14 @@ pub async fn reset_project_generated_data_record(
             project_kind: project.project_kind,
         });
     }
-    let candidate_media_paths = project_db::project_generated_media_paths(&tx, project_id)
+    let mut candidate_media_paths = project_db::project_generated_media_paths(&tx, project_id)
         .await
         .map_err(ProjectResetDbError::from)?;
+    candidate_media_paths.extend(
+        crate::video::reclaim_pending_image_publications_for_project(&tx, project_id).await?,
+    );
+    candidate_media_paths.sort_unstable();
+    candidate_media_paths.dedup();
 
     let previous_status = ProjectStatus::parse_storage(&project.status).map_err(|_| {
         ProjectResetDbError::InvalidState {

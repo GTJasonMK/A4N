@@ -51,6 +51,7 @@ impl GalgamePipelinePreviewApplicationPort for OrchestratorContext {
                 input.project_id,
                 input.start_from_stage,
                 input.resume_from_checkpoint,
+                input.stop_after,
                 &prompt_renderer,
             )
             .await?;

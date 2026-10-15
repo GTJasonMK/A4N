@@ -65,6 +65,23 @@ impl OrchestratorContext {
             .await
     }
 
+    pub(crate) async fn update_chapter_video_prompt_with_policy_expected(
+        &self,
+        prompt_id: i64,
+        input: ChapterVideoPromptPatch,
+        allow_downstream: bool,
+        expected_updated_at: &str,
+    ) -> Result<ChapterVideoPromptRecord, AppError> {
+        self.video
+            .update_chapter_video_prompt_with_policy_expected(
+                prompt_id,
+                input,
+                allow_downstream,
+                expected_updated_at,
+            )
+            .await
+    }
+
     pub(crate) async fn update_chapter_video_segment_plan_metadata(
         &self,
         prompt_id: i64,
@@ -90,20 +107,22 @@ impl OrchestratorContext {
             .await
     }
 
-    pub(crate) async fn update_chapter_video_prompt_with_generation_run_checkpoint(
+    pub(crate) async fn update_chapter_video_prompt_with_generation_run_checkpoint_expected(
         &self,
         prompt_id: i64,
         input: ChapterVideoPromptPatch,
         metadata_json: Option<Value>,
         allow_downstream: bool,
+        expected_updated_at: Option<&str>,
         generation_run: RecordCompletedGenerationRunWithCheckpointInput,
     ) -> Result<ChapterVideoPromptRecord, AppError> {
         self.video
-            .update_chapter_video_prompt_with_generation_run_checkpoint(
+            .update_chapter_video_prompt_with_generation_run_checkpoint_expected(
                 prompt_id,
                 input,
                 metadata_json,
                 allow_downstream,
+                expected_updated_at,
                 generation_run,
             )
             .await

@@ -26,7 +26,7 @@ impl WorkerState {
         .map_err(character_db_error)?;
         Ok(AttributeEventMutationResult {
             project_id: profile.project_id,
-            event_id: result.event.id,
+            event: attribute_event_summary(&result.event)?,
         })
     }
 
@@ -55,7 +55,7 @@ impl WorkerState {
         .map_err(character_db_error)?;
         Ok(AttributeEventMutationResult {
             project_id: profile.project_id,
-            event_id: result.event.id,
+            event: attribute_event_summary(&result.event)?,
         })
     }
 
@@ -97,6 +97,8 @@ impl WorkerState {
                 profile_id: input.profile_id,
                 category: input.category.as_str().to_string(),
                 key: input.key,
+                expected_mark_id: input.expected_mark_id,
+                expected_mark_updated_at: input.expected_mark_updated_at,
                 event_cause: input.cause,
                 evidence: input.evidence,
                 chapter_number: input.chapter_number,
@@ -106,7 +108,7 @@ impl WorkerState {
         .map_err(character_db_error)?;
         Ok(AttributeEventMutationResult {
             project_id: profile.project_id,
-            event_id: result.event.id,
+            event: attribute_event_summary(&result.event)?,
         })
     }
 
@@ -123,6 +125,8 @@ impl WorkerState {
             input.profile_id,
             input.category.as_str(),
             &input.key,
+            input.expected_mark_id,
+            input.expected_mark_updated_at,
         )
         .await
         .map_err(character_db_error)

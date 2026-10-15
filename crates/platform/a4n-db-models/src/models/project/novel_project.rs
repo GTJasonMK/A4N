@@ -61,6 +61,8 @@ pub struct Model {
 
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: chrono::NaiveDateTime,
+    #[sea_orm(default_value = 0)]
+    pub content_revision: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

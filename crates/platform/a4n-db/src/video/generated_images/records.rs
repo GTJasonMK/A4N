@@ -7,7 +7,9 @@ mod validation;
 #[cfg(test)]
 mod tests;
 
+pub use deletion::ImageReferenceCleanupIds;
 pub(crate) use deletion::clear_generated_image_references_record;
+pub use deletion::delete_generated_image_record_with_cleanup_effects;
 pub use deletion::{delete_generated_image_record_with_cleanup, delete_manga_page_image_records};
 pub(crate) use deletion::{
     delete_manga_chapter_image_records_in, delete_manga_page_image_records_in,

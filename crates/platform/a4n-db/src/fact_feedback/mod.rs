@@ -35,6 +35,23 @@ pub enum FactFeedbackDbError {
     Workflow(#[from] crate::workflow::WorkflowWriteError),
     #[error("{0}")]
     Invalid(String),
+    #[error("状态无效：当前状态 {current}，不允许操作 {operation}")]
+    InvalidState { current: String, operation: String },
+}
+
+impl From<crate::generation::GenerationLifecycleGateError> for FactFeedbackDbError {
+    fn from(error: crate::generation::GenerationLifecycleGateError) -> Self {
+        use crate::generation::GenerationLifecycleGateError as Error;
+        match error {
+            Error::InvalidArgument(message) | Error::NotFound(message) => Self::Invalid(message),
+            Error::Blocked(message) => Self::InvalidState {
+                current: "project_lifecycle_gate".to_string(),
+                operation: message,
+            },
+            Error::Corrupt(message) => Self::Database(sea_orm::DbErr::Custom(message)),
+            Error::Database(error) => Self::Database(error),
+        }
+    }
 }
 
 #[cfg(test)]

@@ -77,6 +77,7 @@ pub fn project_summary_from_parts(
 ) -> ProjectSummary {
     ProjectSummary {
         id: project.id,
+        content_revision: project.content_revision,
         fact_feedback_interval_chapters,
         title: project.title.clone(),
         description: project.description.clone(),
@@ -112,6 +113,7 @@ mod tests {
     fn summary_projection_keeps_access_family_and_progress_fields() {
         let project = ProjectSummaryRecord {
             id: 9,
+            content_revision: 0,
             user_id: 3,
             title: "项目".into(),
             description: "说明".into(),
@@ -151,6 +153,7 @@ mod tests {
             },
             5,
         );
+        assert_eq!(summary.content_revision, project.content_revision);
         assert_eq!(summary.root_project_title.as_deref(), Some("根项目"));
         assert_eq!(summary.my_role, ProjectAccessRole::Editor);
         assert_eq!(summary.progress.label, "4/20");

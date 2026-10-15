@@ -184,6 +184,8 @@ pub struct UpdateGeneratedVideoInput {
     )]
     #[schemars(with = "bool")]
     pub is_favorite: Option<bool>,
+    #[schemars(length(min = 1))]
+    pub expected_updated_at: String,
 }
 
 impl UpdateGeneratedVideoInput {

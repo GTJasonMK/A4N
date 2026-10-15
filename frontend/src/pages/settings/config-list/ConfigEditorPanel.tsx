@@ -103,7 +103,13 @@ export function ConfigEditorPanel<C>({
           </div>
         )
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col">
+        <form
+          className="flex min-h-0 flex-1 flex-col"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void onSave();
+          }}
+        >
           <div className="mb-4 flex min-w-0 flex-wrap items-start gap-3 border-b border-book-border/60 pb-3">
             <div className="min-w-0 flex-1 basis-40">
               <h3 className="text-sm font-semibold text-book-text-main">
@@ -182,7 +188,7 @@ export function ConfigEditorPanel<C>({
                 <span className="flex-1" />
               )}
               <BookButton
-                onClick={() => void onSave()}
+                type="submit"
                 disabled={!dirty || validationError != null || saving || itemActionBusy}
                 className="w-full sm:w-auto"
               >
@@ -198,7 +204,7 @@ export function ConfigEditorPanel<C>({
               </BookButton>
             </div>
           ) : null}
-        </div>
+        </form>
       )}
     </section>
   );

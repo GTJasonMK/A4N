@@ -23,6 +23,7 @@ use super::{
 };
 use crate::chapter_generation::ChapterGenerationService;
 use crate::context::dynamic_provider::ProviderRuntimeAdapter;
+use crate::import_analysis::ImportAnalysisExecutionLocks;
 use a4n_agent_application::agent::AgentApplication;
 use a4n_task_runtime::persistent::PersistentTaskQueue;
 
@@ -123,6 +124,7 @@ impl OrchestratorContext {
             collaboration,
             galgame,
             generation,
+            import_analysis_execution: ImportAnalysisExecutionLocks::default(),
             import_reverse,
             import_review,
             inspiration,

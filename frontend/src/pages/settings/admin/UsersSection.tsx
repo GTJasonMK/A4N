@@ -53,10 +53,8 @@ const userRoleLabel = (value: string, t: ReturnType<typeof useI18n>["t"]): strin
 
 const inviteAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-function generateInviteCode(): string {
-  if (!globalThis.crypto?.getRandomValues) {
-    return `A4N-${Date.now().toString(36).toUpperCase()}`;
-  }
+function generateInviteCode(): string | null {
+  if (!globalThis.crypto?.getRandomValues) return null;
   const bytes = new Uint8Array(16);
   globalThis.crypto.getRandomValues(bytes);
   const raw = Array.from(
@@ -122,6 +120,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
   }, []);
 
   const loadUsers = useCallback(async () => {
+    setLoadErrors([]);
     const [usersResult, invitesResult] = await Promise.allSettled([
       listAllUsers(),
       listInviteCodes(),
@@ -145,8 +144,8 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       inviteCodes: InviteCodeSummary[] | null;
       errors: UserLoadError[];
     }) => {
-      if (loaded.users) setUsers(loaded.users);
-      if (loaded.inviteCodes) setInviteCodes(loaded.inviteCodes);
+      setUsers(loaded.users ?? []);
+      setInviteCodes(loaded.inviteCodes ?? []);
       setLoadErrors(loaded.errors);
     },
     [],
@@ -158,6 +157,16 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       applyUsers,
       "settingsAdmin.loadUsersFailed",
     );
+  const usersReadError = loadErrors.find(({ scope }) => scope === "users");
+  const inviteCodesReadError = loadErrors.find(({ scope }) => scope === "invites");
+  const usersReadErrorRef = useRef<UserLoadError | undefined>(usersReadError);
+  usersReadErrorRef.current = usersReadError;
+  const ensureUsersRead = () => {
+    const currentError = usersReadErrorRef.current;
+    if (!currentError) return true;
+    addToast(extractErrorMessage(currentError.reason, t("settingsAdmin.loadUsersFailed")), "error");
+    return false;
+  };
   const mutationInFlight = [...actingKeys].some((key) => key.startsWith("write:"));
   useDirty(
     "settings-admin-mutations",
@@ -262,8 +271,6 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     try {
       const createdUser = await createAdminUser(input);
       if (!isCurrentUser(requestCurrentUserId)) return;
-      await reload();
-      if (!isCurrentUser(requestCurrentUserId)) return;
       setUsers((current) => upsertById(current, createdUser));
       if (createFormVersionRef.current === requestFormVersion && createOpen) {
         addToast(t("settingsAdmin.userCreated"), "success");
@@ -271,6 +278,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       } else {
         addToast(t("settingsAdmin.userCreatedWithDraft"), "info");
       }
+      void reload();
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
       addToast(extractErrorMessage(err, t("settingsAdmin.createUserFailed")), "error");
@@ -280,6 +288,17 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
   };
 
   const handleCreateInviteCode = async () => {
+    let generatedCode: string | null;
+    try {
+      generatedCode = generateInviteCode();
+    } catch (err) {
+      addToast(extractErrorMessage(err, t("settingsAdmin.inviteEntropyUnavailable")), "error");
+      return;
+    }
+    if (!generatedCode) {
+      addToast(t("settingsAdmin.inviteEntropyUnavailable"), "error");
+      return;
+    }
     const requestCurrentUserId = currentUserId;
     const actionKey = "create-invite-code";
     const mutationKey = `write:${actionKey}`;
@@ -289,7 +308,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       const code = await promptDialog({
         title: t("settingsAdmin.createInviteCode"),
         message: t("settingsAdmin.inviteCodeLabel"),
-        defaultValue: generateInviteCode(),
+        defaultValue: generatedCode,
         placeholder: "A4N-XXXX-XXXX-XXXX-XXXX",
         required: true,
         confirmText: t("settingsAdmin.createInviteCode"),
@@ -305,10 +324,9 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       mutationStarted = true;
       const createdCode = await createInviteCode({ code: trimmedCode });
       if (!isCurrentUser(requestCurrentUserId)) return;
-      await reload();
-      if (!isCurrentUser(requestCurrentUserId)) return;
       setInviteCodes((current) => upsertById(current, createdCode));
       addToast(t("settingsAdmin.inviteCreated"), "success");
+      void reload();
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
       addToast(extractErrorMessage(err, t("settingsAdmin.createInviteFailed")), "error");
@@ -319,6 +337,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
   };
 
   const handleRole = async (u: UserSummary) => {
+    if (!ensureUsersRead()) return;
     const requestCurrentUserId = currentUserId;
     const actionKey = `role-${u.id}`;
     const mutationKey = `write:${actionKey}`;
@@ -349,17 +368,18 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       mutationStarted = true;
       const updated = await updateUserRole(u.id, role);
       if (!isCurrentUser(requestCurrentUserId)) return;
-      setUsers((current) => current.map((user) => user.id === updated.id ? updated : user));
       if (updated.id === requestCurrentUserId) {
         useAuthStore.setState({ user: updated });
         if (updated.role !== "admin") {
+          setUsers((current) => upsertById(current, updated));
           addToast(t("settingsAdmin.roleUpdated"), "success");
+          void reload();
           return;
         }
       }
-      await reload();
-      if (!isCurrentUser(requestCurrentUserId)) return;
+      setUsers((current) => upsertById(current, updated));
       addToast(t("settingsAdmin.roleUpdated"), "success");
+      void reload();
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
       addToast(extractErrorMessage(err, t("settingsAdmin.updateFailed")), "error");
@@ -370,6 +390,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
   };
 
   const handleDel = async (u: UserSummary) => {
+    if (!ensureUsersRead()) return;
     if (u.id === currentUserId) {
       addToast(t("settingsAdmin.cannotDisableSelf"), "error");
       return;
@@ -392,12 +413,9 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       mutationStarted = true;
       await disableUser(u.id);
       if (!isCurrentUser(requestCurrentUserId)) return;
-      setUsers((current) => current.map((user) =>
-        user.id === u.id ? { ...user, is_active: false } : user,
-      ));
-      await reload();
-      if (!isCurrentUser(requestCurrentUserId)) return;
+      setUsers((current) => upsertById(current, { ...u, is_active: false }));
       addToast(t("settingsAdmin.disabled"), "success");
+      void reload();
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
       addToast(extractErrorMessage(err, t("settingsAdmin.disableFailed")), "error");
@@ -408,6 +426,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
   };
 
   const handleToken = async (u: UserSummary) => {
+    if (!ensureUsersRead()) return;
     if (tokenInFlightForRef.current === u.id) return;
     const requestCurrentUserId = currentUserId;
     const requestSeq = tokenSeqRef.current + 1;
@@ -444,6 +463,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
   };
 
   const handleUsage = async (u: UserSummary) => {
+    if (!ensureUsersRead()) return;
     if (usageInFlightForRef.current === u.id) return;
     const requestCurrentUserId = currentUserId;
     const requestSeq = usageSeqRef.current + 1;
@@ -542,7 +562,13 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       data-settings-dirty={createDirty ? "true" : undefined}
     >
       <div className="flex min-h-9 flex-wrap items-center gap-2">
-        <span className="text-xs text-book-text-muted">{t("settingsAdmin.userCount", { count: users.length })}</span>
+        <span className="text-xs text-book-text-muted">
+          {loading && users.length === 0
+            ? t("settingsAdmin.loadingUsers")
+            : usersReadError
+              ? t("settingsAdmin.userCountUnavailable")
+              : t("settingsAdmin.userCount", { count: users.length })}
+        </span>
         <span className="flex-1" />
         <BookButton size="sm" onClick={openCreate}>
           <Plus size={13} />
@@ -567,13 +593,14 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
         />
       </div>
       {error ? <p role="alert" className="text-xs text-error">{error}</p> : null}
-      {loadErrors.length > 0 ? (
-        <div role="alert" className="space-y-1 text-xs text-error">
-          {loadErrors.map(({ scope, reason }) => (
-            <p key={scope}>
-              {extractErrorMessage(reason, t("settingsAdmin.loadUsersFailed"))}
-            </p>
-          ))}
+      {usersReadError && !loading ? (
+        <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-error">
+          <span className="min-w-0 flex-1">
+            {extractErrorMessage(usersReadError.reason, t("settingsAdmin.loadUsersFailed"))}
+          </span>
+          <BookButton size="sm" variant="secondary" onClick={() => void reload()} disabled={loading}>
+            <RefreshCw size={12} aria-hidden="true" /> {t("common.retry")}
+          </BookButton>
         </div>
       ) : null}
       <ul className="space-y-2.5">
@@ -582,7 +609,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
             <LoadingSpinner size="sm" />
             {t("settingsAdmin.loadingUsers")}
           </li>
-        ) : (error || loadErrors.some((item) => item.scope === "users")) && users.length === 0 ? null : users.length === 0 ? (
+        ) : (error || usersReadError) && users.length === 0 ? null : users.length === 0 ? (
           <li className="a4n-empty-state a4n-empty-state--framed p-3 text-xs text-book-text-muted">
             {t("settingsAdmin.noUsers")}
           </li>
@@ -615,16 +642,30 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 px-3 py-2.5 text-xs marker:content-none">
           <span className="font-medium text-book-text-main">{t("settingsAdmin.inviteCodes")}</span>
           <span className="min-w-0 flex-1 truncate text-right text-book-text-muted">
-            {t("settingsAdmin.inviteCodeSummary", { available: availableInviteCount, total: inviteCodes.length })}
+            {loading && inviteCodes.length === 0
+              ? t("settingsAdmin.loadingInviteCodes")
+              : inviteCodesReadError
+                ? t("settingsAdmin.inviteCodesUnavailable")
+                : t("settingsAdmin.inviteCodeSummary", { available: availableInviteCount, total: inviteCodes.length })}
           </span>
         </summary>
+        {inviteCodesReadError && !loading ? (
+          <div role="alert" className="flex flex-wrap items-center gap-2 border-t border-book-border/30 px-3 py-2.5 text-xs text-error">
+            <span className="min-w-0 flex-1">
+              {extractErrorMessage(inviteCodesReadError.reason, t("settingsAdmin.loadInviteCodesFailed"))}
+            </span>
+            <BookButton size="sm" variant="secondary" onClick={() => void reload()} disabled={loading}>
+              <RefreshCw size={12} aria-hidden="true" /> {t("common.retry")}
+            </BookButton>
+          </div>
+        ) : null}
         <ul className="divide-y divide-book-border/30 border-t border-book-border/30">
           {loading && inviteCodes.length === 0 ? (
             <li className="inline-flex w-full items-center gap-1.5 p-3 text-xs text-book-text-muted">
               <LoadingSpinner size="sm" />
               {t("settingsAdmin.loadingInviteCodes")}
             </li>
-          ) : error && inviteCodes.length === 0 ? null : inviteCodes.length === 0 ? (
+          ) : (error || inviteCodesReadError) && inviteCodes.length === 0 ? null : inviteCodes.length === 0 ? (
             <li className="p-3 text-xs text-book-text-muted">{t("settingsAdmin.noInviteCodes")}</li>
           ) : (
             inviteCodes.map((code) => (
@@ -644,7 +685,15 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
         title={`${tokenUserLabel} · ${t("settingsAdmin.tokenSummary")}`}
         maxWidthClassName="max-w-xl"
       >
-        <TokenSummaryPanel data={tokenInfo} loading={tokenLoadingFor === tokenFor} error={tokenError} />
+        <TokenSummaryPanel
+          data={tokenInfo}
+          loading={tokenLoadingFor === tokenFor}
+          error={tokenError}
+          onRetry={() => {
+            const user = users.find((item) => item.id === tokenFor);
+            if (user) void handleToken(user);
+          }}
+        />
       </Modal>
       <Modal
         isOpen={usageFor != null}
@@ -652,7 +701,15 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
         title={`${usageUserLabel} · ${t("settingsAdmin.recentUsage")}`}
         maxWidthClassName="max-w-2xl"
       >
-        <UsageRecordsPanel data={usageInfo} loading={usageLoadingFor === usageFor} error={usageError} />
+        <UsageRecordsPanel
+          data={usageInfo}
+          loading={usageLoadingFor === usageFor}
+          error={usageError}
+          onRetry={() => {
+            const user = users.find((item) => item.id === usageFor);
+            if (user) void handleUsage(user);
+          }}
+        />
       </Modal>
       <Modal
         isOpen={createOpen}
@@ -693,6 +750,8 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
             <span className="text-book-text-muted">{t("settingsAdmin.email")}</span>
             <input
               className="pyqt-input"
+              type="email"
+              required
               value={createForm.email}
               onChange={(e) => updateCreateForm({ email: e.target.value })}
               autoComplete="off"
@@ -735,7 +794,8 @@ const TokenSummaryPanel: React.FC<{
   data: unknown;
   loading: boolean;
   error: { reason: unknown } | null;
-}> = ({ data, loading, error }) => {
+  onRetry: () => void;
+}> = ({ data, loading, error, onRetry }) => {
   const { t, locale } = useI18n();
   const record = data && typeof data === "object" && !Array.isArray(data)
     ? data as Record<string, unknown>
@@ -756,9 +816,14 @@ const TokenSummaryPanel: React.FC<{
   return (
     <div className="overflow-hidden">
       {error ? (
-        <p role="alert" className="px-3 py-3 text-small text-error">
-          {extractErrorMessage(error.reason, t("settingsAdmin.loadTokenFailed"))}
-        </p>
+        <div role="alert" className="flex flex-wrap items-center gap-2 px-3 py-3 text-small text-error">
+          <span className="min-w-0 flex-1">
+            {extractErrorMessage(error.reason, t("settingsAdmin.loadTokenFailed"))}
+          </span>
+          <BookButton variant="secondary" size="sm" onClick={onRetry}>
+            <RefreshCw size={12} aria-hidden="true" /> {t("common.retry")}
+          </BookButton>
+        </div>
       ) : loading && !record ? (
         <div className="inline-flex items-center gap-1.5 px-3 py-3 text-small text-book-text-muted">
           <LoadingSpinner size="sm" /> {t("settingsAdmin.loadingData")}
@@ -793,14 +858,20 @@ const UsageRecordsPanel: React.FC<{
   data: UsageLogSummary[] | null;
   loading: boolean;
   error: { reason: unknown } | null;
-}> = ({ data, loading, error }) => {
+  onRetry: () => void;
+}> = ({ data, loading, error, onRetry }) => {
   const { t, locale } = useI18n();
   return (
   <div className="overflow-hidden">
     {error ? (
-      <p role="alert" className="px-3 py-3 text-small text-error">
-        {extractErrorMessage(error.reason, t("settingsAdmin.loadUsageFailed"))}
-      </p>
+      <div role="alert" className="flex flex-wrap items-center gap-2 px-3 py-3 text-small text-error">
+        <span className="min-w-0 flex-1">
+          {extractErrorMessage(error.reason, t("settingsAdmin.loadUsageFailed"))}
+        </span>
+        <BookButton variant="secondary" size="sm" onClick={onRetry}>
+          <RefreshCw size={12} aria-hidden="true" /> {t("common.retry")}
+        </BookButton>
+      </div>
     ) : loading && data == null ? (
       <div className="inline-flex items-center gap-1.5 px-3 py-3 text-small text-book-text-muted">
         <LoadingSpinner size="sm" /> {t("settingsAdmin.loadingData")}

@@ -30,8 +30,8 @@ import { usePackagePreferences } from "./store/packagePreferences";
 import { ProgressTaskProvider } from "./hooks/useProgressTask";
 import {
   loadAndApplyActiveTheme,
+  persistGuestThemeAppearance,
   persistThemeAppearance,
-  setThemeAppearance,
   setThemeRouteFamily,
   THEME_APPLIED_EVENT,
   themeRouteFamilyForPath,
@@ -267,20 +267,20 @@ function Layout({ children }: { children: React.ReactNode }) {
 
   const handleThemeToggle = async () => {
     const nextAppearance = themeMode === "dark" ? "light" : "dark";
-    if (!user) {
-      setThemeAppearance(nextAppearance);
-      return;
-    }
     if (themeSaving) return;
-    const requestUserId = user.id;
+    const requestUserId = user?.id ?? null;
     setThemeSaving(true);
     try {
-      await persistThemeAppearance(
-        nextAppearance,
-        () => useAuthStore.getState().user?.id === requestUserId,
-      );
+      if (requestUserId == null) {
+        await persistGuestThemeAppearance(nextAppearance);
+      } else {
+        await persistThemeAppearance(
+          nextAppearance,
+          () => useAuthStore.getState().user?.id === requestUserId,
+        );
+      }
     } catch (err) {
-      if (useAuthStore.getState().user?.id === requestUserId) {
+      if ((useAuthStore.getState().user?.id ?? null) === requestUserId) {
         addToast(extractErrorMessage(err, t("settingsTheme.preferenceSaveFailed")), "error");
       }
     } finally {

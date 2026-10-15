@@ -4,6 +4,7 @@ import type {
   CharacterAttributeCategory,
   CharacterAttributeOperation,
   AttributeHistoryInput,
+  AttributeEventWriteResult,
   ModifyProfileAttributeInput,
 } from "../generated/host";
 import type { AttributeEvent } from "./types";
@@ -36,16 +37,16 @@ export async function attributeHistory(
 
 export async function addProfileAttribute(
   input: AddProfileAttributeInput,
-): Promise<void> {
-  return apiInvoke<void>("add_profile_attribute", {
+): Promise<AttributeEventWriteResult> {
+  return apiInvoke<AttributeEventWriteResult>("add_profile_attribute", {
     input,
   });
 }
 
 export async function modifyProfileAttribute(
   input: ModifyProfileAttributeInput,
-): Promise<void> {
-  return apiInvoke<void>("modify_profile_attribute", {
+): Promise<AttributeEventWriteResult> {
+  return apiInvoke<AttributeEventWriteResult>("modify_profile_attribute", {
     input,
   });
 }

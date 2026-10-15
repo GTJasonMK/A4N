@@ -42,6 +42,7 @@ export async function buildPageFixtures(baseUrl) {
     [runtime.generation.blueprint.start_command]: runtime.generation.blueprint.handle,
     generationTasks: { [runtime.generation.blueprint.handle.task_id]: runtime.generation.blueprint },
     agentSnapshots: [...uiFixtures.agentSnapshots, runtime.agent.snapshot, directorSnapshot],
+    create_agent_thread: directorSnapshot.thread,
     pageSessions: settings.rest.pageSessions,
     get_current_user: settings.invoke.get_current_user,
     projectRecords: byId(visualFixtures.projectRecords, novel.projectRecords),
@@ -55,6 +56,8 @@ export async function buildPageFixtures(baseUrl) {
     byAssetNode: novel.byAssetNode,
     assemblyPreviews: media.resources.assembly_preview_metadata_by_chapter,
   });
+  data.get_project.content_revision ??= 0;
+  for (const project of data.projectRecords) project.content_revision ??= 0;
   data.list_projects = { items: data.projectRecords, page: 1, page_size: 20, total: data.projectRecords.length };
   const images = byId(media.commands.list_images_by_projects, novel.commands.list_images_by_projects);
   data.list_images_by_projects = images;
@@ -78,6 +81,11 @@ export async function buildPageFixtures(baseUrl) {
       values.list_profiles = novel.commands.list_profiles;
       values.list_portraits_by_project = byId(media.commands.list_portraits_by_project, novel.commands.list_portraits_by_project);
     }
+  }
+  const sceneChoices = novel.commands.list_scene_profiles.map(({ id, project_id, name }) => ({ id, project_id, name }));
+  for (const chapter of Object.values(data.byChapter)) {
+    chapter.list_manga_pipeline_artifacts ??= [];
+    chapter.get_chapter_visual_plan.scene_choices = sceneChoices;
   }
   for (const [id, values] of Object.entries(data.byChapter)) {
     values.list_images_by_chapter = images.filter((image) => image.chapter_id === Number(id));
@@ -116,11 +124,11 @@ export async function buildPageFixtures(baseUrl) {
     const data = JSON.parse(decodeURIComponent(encoded));
     const { chapterIndexEntry } = await import("/src/pages/writing-desk/chapterIndex.ts");
     data.list_chapter_index = data.list_chapters.map(chapterIndexEntry);
+    const { GENERATION_START_PATHS } = await import("/src/api/generated/host.ts");
+    data.commandByPath = Object.fromEntries(Array.from(GENERATION_START_PATHS, ([command, path]) => [`/api${path}`, command]));
     const { videoSegmentRecipeFrameFingerprintJson: frame, videoSegmentRecipeGenerationFingerprintJson: generation } =
       await import("/src/pages/novel-detail/video/videoSegmentPlan.ts");
     const { sha256Hex } = await import("/src/utils/contentHash.ts");
-    const { GENERATION_START_PATHS } = await import("/src/api/generated/host.ts");
-    data.commandByPath = Object.fromEntries(Array.from(GENERATION_START_PATHS, ([command, path]) => [`/api${path}`, command]));
     for (const chapter of Object.values(data.byChapter)) {
       const plan = chapter.list_chapter_video_prompts.find((prompt) => prompt.prompt_type === "frame_segment_plan");
       const fingerprints = new Map();

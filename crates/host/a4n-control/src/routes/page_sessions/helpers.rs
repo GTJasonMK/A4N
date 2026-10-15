@@ -214,6 +214,9 @@ fn cancel_operation(
             | PageOperationStatus::Failed
             | PageOperationStatus::Cancelled
     ) {
+        if let Some(cancellation) = record.operation_cancellation.as_ref() {
+            cancellation.cancel();
+        }
         operation.status = PageOperationStatus::Cancelled;
         operation.error = Some(reason.to_string());
         operation.updated_at = now.to_rfc3339();

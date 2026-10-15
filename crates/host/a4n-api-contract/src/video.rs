@@ -430,6 +430,8 @@ pub struct UpdateChapterVideoPromptInput {
     #[schemars(with = "i32")]
     pub duration_secs: Option<i32>,
     pub downstream_strategy: DownstreamConflictStrategy,
+    #[schemars(length(min = 1))]
+    pub expected_updated_at: String,
 }
 
 impl UpdateChapterVideoPromptInput {
@@ -447,6 +449,8 @@ pub struct OptimizeChapterVideoPromptInput {
     #[schemars(length(min = 1))]
     pub instruction: String,
     pub downstream_strategy: DownstreamConflictStrategy,
+    #[schemars(length(min = 1))]
+    pub expected_updated_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -455,6 +459,24 @@ pub struct DeleteChapterVideoPromptInput {
     #[schemars(range(min = 1))]
     pub prompt_id: i64,
     pub downstream_strategy: DownstreamConflictStrategy,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct VideoPromptDeletionEffects {
+    pub deleted_prompt_ids: Vec<i64>,
+    pub deleted_image_ids: Vec<i64>,
+    pub deleted_video_ids: Vec<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct VideoPromptUpdateResult {
+    pub prompt: ChapterVideoPromptSummary,
+    pub deletion: VideoPromptDeletionEffects,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct VideoPromptDeleteResult {
+    pub deletion: VideoPromptDeletionEffects,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -486,6 +508,14 @@ pub struct GeneratedVideoSummary {
     pub updated_at: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct VideoRecordDeleteResult {
+    pub deleted_video_ids: Vec<i64>,
+    pub deleted_prompt_ids: Vec<i64>,
+    pub updated_prompts: Vec<ChapterVideoPromptSummary>,
+    pub updated_videos: Vec<GeneratedVideoSummary>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -498,10 +528,11 @@ mod tests {
 
     #[test]
     fn generated_video_update_has_one_strict_patch_contract() {
+        let updated_at = "2026-10-15 00:00:00";
         for payload in [
-            json!({"is_favorite": true}),
-            json!({"prompt": "new prompt", "negative_prompt": null}),
-            json!({"negative_prompt": "blur"}),
+            json!({"is_favorite": true, "expected_updated_at": updated_at}),
+            json!({"prompt": "new prompt", "negative_prompt": null, "expected_updated_at": updated_at}),
+            json!({"negative_prompt": "blur", "expected_updated_at": updated_at}),
         ] {
             let input: UpdateGeneratedVideoInput = serde_json::from_value(payload.clone()).unwrap();
             let forwarded = serde_json::to_value(&input).unwrap();
@@ -514,7 +545,8 @@ mod tests {
         let input: UpdateGeneratedVideoInput = serde_json::from_value(json!({
             "prompt": "new prompt",
             "negative_prompt": null,
-            "is_favorite": true
+            "is_favorite": true,
+            "expected_updated_at": updated_at
         }))
         .expect("valid patch");
         assert_eq!(input.prompt.as_deref(), Some("new prompt"));
@@ -523,19 +555,23 @@ mod tests {
         assert!(!input.is_empty());
 
         for value in [
-            json!({"prompt": null}),
-            json!({"is_favorite": null}),
-            json!({"clear_negative_prompt": true}),
-            json!({"metadata_json": {}}),
-            json!({"clear_metadata_json": true}),
-            json!({"insert_after_video_id": 1}),
-            json!({"move_assembly_insert_to_start": true}),
+            json!({"prompt": null, "expected_updated_at": updated_at}),
+            json!({"is_favorite": null, "expected_updated_at": updated_at}),
+            json!({"clear_negative_prompt": true, "expected_updated_at": updated_at}),
+            json!({"metadata_json": {}, "expected_updated_at": updated_at}),
+            json!({"clear_metadata_json": true, "expected_updated_at": updated_at}),
+            json!({"insert_after_video_id": 1, "expected_updated_at": updated_at}),
+            json!({"move_assembly_insert_to_start": true, "expected_updated_at": updated_at}),
         ] {
             assert!(serde_json::from_value::<UpdateGeneratedVideoInput>(value).is_err());
         }
 
-        let empty: UpdateGeneratedVideoInput = serde_json::from_value(json!({})).unwrap();
+        let empty: UpdateGeneratedVideoInput = serde_json::from_value(json!({
+            "expected_updated_at": updated_at
+        }))
+        .unwrap();
         assert!(empty.is_empty());
+        assert!(serde_json::from_value::<UpdateGeneratedVideoInput>(json!({})).is_err());
     }
 
     #[test]
@@ -561,7 +597,8 @@ mod tests {
             "motion_prompt": null,
             "negative_prompt": null,
             "duration_secs": 6,
-            "downstream_strategy": "keep_downstream"
+            "downstream_strategy": "keep_downstream",
+            "expected_updated_at": "2026-10-15 00:00:00"
         }))
         .expect("valid prompt update");
         assert_eq!(update.visual_prompt.as_deref(), Some("new visual"));
@@ -585,14 +622,31 @@ mod tests {
         }
 
         let empty: UpdateChapterVideoPromptInput = serde_json::from_value(json!({
-            "downstream_strategy": "reject"
+            "downstream_strategy": "reject",
+            "expected_updated_at": "2026-10-15 00:00:00"
         }))
         .expect("wire contract leaves business empty-check to application boundary");
         assert!(empty.is_empty());
 
         assert!(
+            serde_json::from_value::<UpdateChapterVideoPromptInput>(json!({
+                "visual_prompt": "x",
+                "downstream_strategy": "reject"
+            }))
+            .is_err()
+        );
+        assert!(
             serde_json::from_value::<OptimizeChapterVideoPromptInput>(json!({
-                "instruction": "tighten composition"
+                "instruction": "tighten composition",
+                "downstream_strategy": "reject",
+                "expected_updated_at": "2026-10-15 00:00:00"
+            }))
+            .is_ok()
+        );
+        assert!(
+            serde_json::from_value::<OptimizeChapterVideoPromptInput>(json!({
+                "instruction": "tighten composition",
+                "downstream_strategy": "reject"
             }))
             .is_err()
         );

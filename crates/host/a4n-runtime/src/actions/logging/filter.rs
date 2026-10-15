@@ -30,6 +30,16 @@ impl LogFilterReloader {
             .reload(build_log_filter(filter)?)
             .map_err(|error| format!("应用新级别失败: {error}"))
     }
+
+    pub fn current_filter(&self) -> Result<String, String> {
+        let handle = self
+            .handle
+            .get()
+            .ok_or_else(|| "日志系统尚未初始化".to_string())?;
+        handle
+            .with_current(|filter| filter.to_string())
+            .map_err(|error| format!("读取当前日志过滤器失败: {error}"))
+    }
 }
 
 impl Default for LogFilterReloader {
@@ -50,4 +60,31 @@ pub(crate) fn build_log_filter(filter: &str) -> Result<EnvFilter, String> {
         return Err("日志过滤表达式不能为空".to_string());
     }
     EnvFilter::try_new(filter).map_err(|err| format!("非法过滤表达式: {err}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LogFilterReloader;
+    use tracing_subscriber::prelude::*;
+
+    #[test]
+    fn current_filter_reads_the_active_filter_after_reload() {
+        let (layer, handle) = tracing_subscriber::reload::Layer::new(
+            super::build_log_filter("warn").expect("initial filter is valid"),
+        );
+        let subscriber = tracing_subscriber::registry().with(layer);
+        let _default_subscriber = tracing::subscriber::set_default(subscriber);
+        let reloader = LogFilterReloader::new();
+        reloader.install(handle).expect("install reload handle");
+
+        assert_eq!(
+            reloader.current_filter().expect("read active filter"),
+            "warn"
+        );
+        reloader.reload("error").expect("reload filter");
+        assert_eq!(
+            reloader.current_filter().expect("read reloaded filter"),
+            "error"
+        );
+    }
 }

@@ -12,6 +12,7 @@ interface UseOutlineTabGuardsOptions {
   mountedRef: Ref<boolean>;
   activeProjectIdRef: Ref<number>;
   loadSeqRef: Ref<number>;
+  readModelFreshRef: Ref<boolean>;
   actionSeqRef: Ref<number>;
   previewSeqRef: Ref<number>;
   actionBusyRef: Ref<boolean>;
@@ -38,6 +39,7 @@ export function useOutlineTabGuards({
   mountedRef,
   activeProjectIdRef,
   loadSeqRef,
+  readModelFreshRef,
   actionSeqRef,
   previewSeqRef,
   actionBusyRef,
@@ -72,6 +74,10 @@ export function useOutlineTabGuards({
         addToast(t("outline.readOnlyEdit"), "error");
         return null;
       }
+      if (!readModelFreshRef.current) {
+        addToast(t("outline.loadFailed"), "error");
+        return null;
+      }
       if (actionBusyRef.current) {
         addToast(t("outline.operationInProgress"), "error");
         return null;
@@ -80,7 +86,7 @@ export function useOutlineTabGuards({
       actionSeqRef.current += 1;
       return actionSeqRef.current;
     },
-    [actionBusyRef, actionSeqRef, addToast, canEditOutlines, isProjectCurrent, t],
+    [actionBusyRef, actionSeqRef, addToast, canEditOutlines, isProjectCurrent, readModelFreshRef, t],
   );
   const finishAction = useCallback((requestSeq: number) => {
     if (actionSeqRef.current === requestSeq) actionBusyRef.current = false;
@@ -113,6 +119,10 @@ export function useOutlineTabGuards({
         addToast(t("outline.readOnlyEdit"), "error");
         return false;
       }
+      if (!readModelFreshRef.current) {
+        addToast(t("outline.loadFailed"), "error");
+        return false;
+      }
       if (actionBusyRef.current || confirmBusyRef.current) {
         addToast(t("outline.operationInProgress"), "error");
         return false;
@@ -120,7 +130,7 @@ export function useOutlineTabGuards({
       confirmBusyRef.current = true;
       return true;
     },
-    [actionBusyRef, addToast, canEditOutlines, confirmBusyRef, isProjectCurrent, t],
+    [actionBusyRef, addToast, canEditOutlines, confirmBusyRef, isProjectCurrent, readModelFreshRef, t],
   );
   const finishConfirmAction = useCallback(() => {
     confirmBusyRef.current = false;

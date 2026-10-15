@@ -3,8 +3,13 @@ impl PageSessionRegistry {
         let (events, _) = tokio::sync::broadcast::channel(256);
         Self {
             records: Arc::new(RwLock::new(HashMap::new())),
+            page_cli_gate: Arc::new(tokio::sync::RwLock::new(())),
             events,
         }
+    }
+
+    pub(crate) fn page_cli_gate(&self) -> &tokio::sync::RwLock<()> {
+        self.page_cli_gate.as_ref()
     }
 
     fn subscribe(&self) -> tokio::sync::broadcast::Receiver<PageEvent> {
@@ -81,6 +86,7 @@ impl PageSessionRegistry {
                         owner_user_id,
                         authorization: None,
                         operations: VecDeque::new(),
+                        operation_cancellation: None,
                     },
                 );
                 (response, "created")
@@ -95,6 +101,52 @@ impl PageSessionRegistry {
             None,
         );
         Ok(response)
+    }
+
+    pub(crate) fn revoke_user_sessions(&self, owner_user_id: i64) {
+        let now = chrono::Utc::now();
+        let sessions = {
+            let mut records = self.records.write();
+            records
+                .values_mut()
+                .filter(|record| record.owner_user_id == owner_user_id)
+                .filter_map(|record| {
+                    let operation_id = record.view.operation_id.clone();
+                    let operation = cancel_operation(
+                        record,
+                        operation_id.as_deref(),
+                        "Page CLI 已停用",
+                        now,
+                    );
+                    let changed = record.view.status != PageSessionStatus::Offline
+                        || record.view.agent_id.is_some()
+                        || operation_id.is_some()
+                        || record.authorization.is_some();
+                    if !changed {
+                        return None;
+                    }
+                    record.authorization = None;
+                    record.view.status = PageSessionStatus::Offline;
+                    record.view.agent_id = None;
+                    record.view.operation_id = None;
+                    if let Some(operation) = operation.as_ref() {
+                        record.view.last_operation = Some(operation.clone());
+                    }
+                    touch(&mut record.view, now);
+                    Some((record.view.clone(), operation))
+                })
+                .collect::<Vec<_>>()
+        };
+        for (session, operation) in sessions {
+            self.publish(
+                owner_user_id,
+                "offline",
+                session,
+                operation,
+                None,
+                Some("page_cli_disabled".into()),
+            );
+        }
     }
 
     fn list(&self, owner_user_id: i64) -> Vec<PageSessionView> {
@@ -149,6 +201,14 @@ impl PageSessionRegistry {
             .map(|descriptor| {
                 let reason = if !page_cli_enabled {
                     Some("当前账户未启用 Page CLI".into())
+                } else if view.status == PageSessionStatus::Offline {
+                    Some("当前 Page Session 已离线".into())
+                } else if view.status == PageSessionStatus::Paused {
+                    Some("当前 Page Session 已暂停".into())
+                } else if view.agent_id.is_none() {
+                    Some("当前 Page Session 尚未绑定 Agent".into())
+                } else if view.operation_id.is_some() {
+                    Some("当前 Page Session 正在执行操作".into())
                 } else if descriptor.auth == "admin" && !is_admin {
                     Some("需要管理员权限".into())
                 } else {
@@ -168,6 +228,47 @@ impl PageSessionRegistry {
             route: view.route.clone(),
             commands,
         })
+    }
+
+    pub(crate) fn command_cancellation_token(
+        &self,
+        owner_user_id: i64,
+        session_id: &str,
+        operation_id: &str,
+        command: &str,
+        session_token: &str,
+        agent_id: &str,
+        agent_token: &str,
+        agents: &AgentRegistry,
+    ) -> Result<tokio_util::sync::CancellationToken, ApiError> {
+        self.expire();
+        agents.authorize(owner_user_id, agent_id, agent_token)?;
+        let records = self.records.read();
+        let record = records
+            .get(session_id)
+            .ok_or_else(|| ApiError::not_found("Page Session 不存在"))?;
+        authorize_token(record, owner_user_id, session_token)?;
+        if !matches!(
+            record.view.status,
+            PageSessionStatus::Running | PageSessionStatus::Paused
+        )
+            || record.view.operation_id.as_deref() != Some(operation_id)
+        {
+            return Err(ApiError::page_operation_cancelled());
+        }
+        let operation = record
+            .operations
+            .iter()
+            .find(|operation| operation.operation_id == operation_id)
+            .ok_or_else(|| ApiError::not_found("Page Operation 不存在"))?;
+        if operation.agent_id.as_deref() != Some(agent_id) || operation.command != command {
+            return Err(ApiError::forbidden("Page Operation 与 Host 命令身份不匹配"));
+        }
+        record
+            .operation_cancellation
+            .clone()
+            .filter(|token| !token.is_cancelled())
+            .ok_or_else(ApiError::page_operation_cancelled)
     }
 
     fn attach_by_code(
@@ -270,6 +371,9 @@ impl PageSessionRegistry {
             if record.owner_user_id != owner_user_id {
                 return Err(ApiError::forbidden("无权绑定该 Page Session"));
             }
+            if record.view.status != PageSessionStatus::AwaitingAttach {
+                return Err(ApiError::conflict("Page Session 当前不在等待绑定状态"));
+            }
             let authorization = record
                 .authorization
                 .as_ref()
@@ -343,6 +447,9 @@ impl PageSessionRegistry {
                 .get_mut(session_id)
                 .ok_or_else(|| ApiError::not_found("Page Session 不存在"))?;
             authorize_token(record, owner_user_id, token)?;
+            if record.view.status == PageSessionStatus::Offline {
+                return Err(ApiError::conflict("Page Session 已失效"));
+            }
             apply_context(&mut record.view, context)?;
             touch(&mut record.view, now);
             record.view.clone()
@@ -427,6 +534,7 @@ impl PageSessionRegistry {
             push_operation(record, operation.clone());
             record.view.operation_id = Some(operation.operation_id.clone());
             record.view.status = PageSessionStatus::Running;
+            record.operation_cancellation = Some(tokio_util::sync::CancellationToken::new());
             touch(&mut record.view, now);
             operation
         };
@@ -474,6 +582,9 @@ impl PageSessionRegistry {
             if operation.agent_id.as_deref() != Some(agent_id) {
                 return Err(ApiError::forbidden("当前 Agent 未创建该 Page Operation"));
             }
+            if operation.status == PageOperationStatus::Cancelled {
+                return Err(ApiError::page_operation_cancelled());
+            }
             apply_operation_update(operation, update)?;
             operation.updated_at = now.to_rfc3339();
             let operation = operation.clone();
@@ -484,11 +595,14 @@ impl PageSessionRegistry {
                     | PageOperationStatus::Cancelled
             ) {
                 record.view.operation_id = None;
-                record.view.status = if record.view.agent_id.is_some() {
-                    PageSessionStatus::Attached
-                } else {
-                    PageSessionStatus::Idle
-                };
+                record.operation_cancellation = None;
+                if record.view.status != PageSessionStatus::Paused {
+                    record.view.status = if record.view.agent_id.is_some() {
+                        PageSessionStatus::Attached
+                    } else {
+                        PageSessionStatus::Idle
+                    };
+                }
             }
             record.view.last_operation = Some(operation.clone());
             touch(&mut record.view, now);
@@ -531,6 +645,9 @@ impl PageSessionRegistry {
             authorize_token(record, owner_user_id, token)?;
             if record.view.agent_id.as_deref() != Some(agent_id) {
                 return Err(ApiError::conflict("Page Session 尚未绑定 Agent"));
+            }
+            if record.view.status == PageSessionStatus::Paused {
+                return Err(ApiError::conflict("Page Session 已暂停，不能导航"));
             }
             if record.view.dirty_state {
                 return Err(ApiError::conflict(
@@ -593,6 +710,9 @@ impl PageSessionRegistry {
                     (record.view.clone(), None)
                 }
                 "cancel" => {
+                    if record.view.status == PageSessionStatus::Offline {
+                        return Err(ApiError::conflict("Page Session 已失效"));
+                    }
                     let operation_id = record.view.operation_id.clone();
                     let operation = cancel_operation(
                         record,
@@ -601,6 +721,7 @@ impl PageSessionRegistry {
                         now,
                     );
                     record.view.operation_id = None;
+                    record.operation_cancellation = None;
                     record.view.status = if record.view.agent_id.is_some() {
                         PageSessionStatus::Attached
                     } else {
@@ -611,19 +732,25 @@ impl PageSessionRegistry {
                     (record.view.clone(), operation)
                 }
                 "takeover" | "detach" => {
-                    let operation_id = record.view.operation_id.clone();
-                    let operation = cancel_operation(
-                        record,
-                        operation_id.as_deref(),
-                        &format!("Page Session 已由用户 {action}"),
-                        now,
-                    );
-                    record.view.status = PageSessionStatus::Idle;
-                    record.view.agent_id = None;
-                    record.view.operation_id = None;
-                    record.view.last_operation = operation.clone();
-                    touch(&mut record.view, now);
-                    (record.view.clone(), operation)
+                    if record.view.status == PageSessionStatus::Offline {
+                        (record.view.clone(), None)
+                    } else {
+                        let operation_id = record.view.operation_id.clone();
+                        let operation = cancel_operation(
+                            record,
+                            operation_id.as_deref(),
+                            &format!("Page Session 已由用户 {action}"),
+                            now,
+                        );
+                        record.view.status = PageSessionStatus::Idle;
+                        record.view.agent_id = None;
+                        record.view.operation_id = None;
+                        record.operation_cancellation = None;
+                        record.authorization = None;
+                        record.view.last_operation = operation.clone();
+                        touch(&mut record.view, now);
+                        (record.view.clone(), operation)
+                    }
                 }
                 _ => return Err(ApiError::bad_request("未知 Page Session 控制操作")),
             }
@@ -645,6 +772,8 @@ impl PageSessionRegistry {
                     record.view.status = PageSessionStatus::Offline;
                     record.view.agent_id = None;
                     record.view.operation_id = None;
+                    record.operation_cancellation = None;
+                    record.authorization = None;
                     let operation = cancel_operation(
                         record,
                         operation_id.as_deref(),

@@ -927,12 +927,61 @@ fn page_call_tracks_operation_before_host_call_and_redacts_sensitive_targets() {
     assert!(requests[3].contains("POST /api/commands/list_projects "));
     assert_eq!(request_json_body(&requests[3])["api_key"], "top-secret");
     let lower = requests[3].to_ascii_lowercase();
-    assert!(!lower.contains("x-ui-session-token:"));
-    assert!(!lower.contains("x-agent-token:"));
+    assert!(lower.contains("x-page-session-id: ui-session-1"));
+    assert!(lower.contains("x-page-operation-id: operation-1"));
+    assert!(lower.contains("x-ui-session-token: ui-session-secret"));
+    assert!(lower.contains("x-agent-token: agent-secret"));
     assert!(requests[4].contains("PATCH /api/ui-sessions/ui-session-1/operations/operation-1 "));
     assert_eq!(
         request_json_body(&requests[4])["result"]["echo"],
         "[REDACTED]"
+    );
+}
+
+#[test]
+fn page_call_does_not_write_success_after_page_operation_cancellation() {
+    let temp = TempDir::new().unwrap();
+    let config = temp.path().join("cli.json");
+    let (server, server_thread) = spawn_scripted_replies(vec![
+        json_response(page_session_value("attached", Some("agent-1"), None, 5)),
+        json_response(page_manifest_value("list_projects", true, None)),
+        json_response(page_operation_value("running", json!({}), Value::Null)),
+        MockResponse {
+            status: "409 Conflict",
+            content_type: "application/json",
+            body: api_error("Page Operation 已取消", "page_operation_cancelled"),
+            declared_length: None,
+        },
+    ]);
+    write_json(
+        &config,
+        &json!({
+            "server": server,
+            "access_token": "access-token",
+            "agent_id": "agent-1",
+            "agent_token": "agent-secret",
+            "ui_session_id": "ui-session-1",
+            "ui_session_token": "ui-session-secret"
+        }),
+    );
+
+    let output = cli(&temp, &config)
+        .args(["--agent", "page", "call", "list_projects", "--args", "{}"])
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(6));
+    assert_eq!(
+        agent_error(&output)["error"]["code"],
+        "page_operation_cancelled"
+    );
+    let requests = server_thread.join().unwrap();
+    assert_eq!(requests.len(), 4);
+    assert!(requests[3].contains("POST /api/commands/list_projects "));
+    assert!(
+        !requests
+            .iter()
+            .any(|request| request.contains("PATCH /api/ui-sessions"))
     );
 }
 
@@ -3601,4 +3650,23 @@ fn local_start_accepts_external_sidecars_and_qdrant_flags_together() {
     assert_eq!(data["owned"], false);
     assert_eq!(data["already_running"], true);
     assert!(server_thread.join().unwrap().starts_with("GET /api/meta "));
+}
+
+#[test]
+fn get_log_level_reads_the_runtime_filter_through_the_command_manifest() {
+    let temp = TempDir::new().unwrap();
+    let config = temp.path().join("cli.json");
+    let (server, server_thread) = spawn_json_replies(vec![json!("info,sqlx=warn,hyper=warn")]);
+    write_config(&config, &server);
+
+    let output = cli(&temp, &config)
+        .args(["call", "get_log_level", "--args", "{}"])
+        .output()
+        .unwrap();
+
+    assert_eq!(success_data(&output), json!("info,sqlx=warn,hyper=warn"));
+    let requests = server_thread.join().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert!(requests[0].starts_with("POST /api/commands/get_log_level "));
+    assert_eq!(request_json_body(&requests[0]), json!({}));
 }

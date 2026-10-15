@@ -1,6 +1,9 @@
 use a4n_db_models::models::chapter::chapter_manga_prompt;
 use a4n_db_models::models::chapter::manga_pipeline_artifact::{self, Column as ArtifactColumn};
-use a4n_domain::manga::{MangaPipelineArtifactDraft, MangaPipelineArtifactRecord};
+use a4n_db_models::models::generation::workflow_run;
+use a4n_domain::manga::{
+    MangaPagePromptRecord, MangaPipelineArtifactDraft, MangaPipelineArtifactRecord,
+};
 use a4n_domain::{manga::MangaPipelineArtifactStage, source_text_hash};
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::sea_query::{Expr, OnConflict};
@@ -11,7 +14,8 @@ use sea_orm::{
 use std::hash::{Hash, Hasher};
 
 use super::{
-    MangaPromptRecordError, manga_record_database, manga_video_error, require_positive_manga_id,
+    MangaPromptRecordError, manga_record_database, manga_video_error,
+    records::update_manga_page_prompt_layout_expected, require_positive_manga_id,
 };
 
 #[derive(Debug, Clone)]
@@ -23,6 +27,13 @@ pub struct MangaPipelineArtifactProjectionReset {
     pub layout: serde_json::Value,
     pub image_prompt: String,
     pub clear_generated_image: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct MangaPipelineArtifactProjectionUpdate {
+    pub page_prompt: MangaPagePromptRecord,
+    pub layout: serde_json::Value,
+    pub expected_updated_at: String,
 }
 
 pub async fn manga_pipeline_artifacts_by_chapter(
@@ -71,6 +82,108 @@ pub async fn upsert_manga_pipeline_artifact(
     draft: MangaPipelineArtifactDraft,
     now: NaiveDateTime,
 ) -> Result<MangaPipelineArtifactRecord, MangaPromptRecordError> {
+    let (page_number, output_fingerprint) = prepare_manga_pipeline_artifact_draft(&draft)?;
+    let txn = db
+        .begin()
+        .await
+        .map_err(manga_record_database("开启漫画阶段产物保存事务失败"))?;
+    let updated = upsert_manga_pipeline_artifact_in_transaction(
+        &txn,
+        draft,
+        page_number,
+        output_fingerprint,
+        now,
+    )
+    .await?;
+    txn.commit()
+        .await
+        .map_err(manga_record_database("提交漫画阶段产物事务失败"))?;
+    Ok(updated)
+}
+
+pub async fn save_manga_pipeline_artifact_with_projection(
+    db: &impl crate::DbExecutor,
+    draft: MangaPipelineArtifactDraft,
+    projection: Option<MangaPipelineArtifactProjectionUpdate>,
+    now: NaiveDateTime,
+) -> Result<MangaPipelineArtifactRecord, MangaPromptRecordError> {
+    let (page_number, output_fingerprint) = prepare_manga_pipeline_artifact_draft(&draft)?;
+    if let Some(projection) = projection.as_ref() {
+        let projected_page_number = u32::try_from(projection.page_prompt.page_number)
+            .map_err(|_| MangaPromptRecordError::InvalidArgument("漫画页码无效".into()))?;
+        if !draft.stage.page_scoped()
+            || projection.page_prompt.project_id != draft.project_id
+            || projection.page_prompt.chapter_id != draft.chapter_id
+            || draft.page_number != Some(projected_page_number)
+        {
+            return Err(MangaPromptRecordError::InvalidArgument(
+                "漫画阶段产物与页面投影范围不一致".into(),
+            ));
+        }
+        if projection.expected_updated_at.trim().is_empty() {
+            return Err(MangaPromptRecordError::InvalidArgument(
+                "漫画页面投影缺少预期版本，请刷新后重试".into(),
+            ));
+        }
+    } else if draft.stage.page_scoped() {
+        return Err(MangaPromptRecordError::InvalidArgument(
+            "保存页面阶段产物必须提供页面提示词版本".into(),
+        ));
+    }
+
+    let txn = db
+        .begin()
+        .await
+        .map_err(manga_record_database("开启漫画阶段产物保存事务失败"))?;
+    crate::generation::require_project_owner_lifecycle_active_for_update(&txn, draft.project_id)
+        .await
+        .map_err(|error| MangaPromptRecordError::InvalidArgument(error.to_string()))?;
+    let mut running_query = workflow_run::Entity::find()
+        .filter(workflow_run::Column::WorkflowKind.eq("manga_pipeline"))
+        .filter(workflow_run::Column::ProjectId.eq(draft.project_id))
+        .filter(workflow_run::Column::ChapterId.eq(draft.chapter_id))
+        .order_by_desc(workflow_run::Column::UpdatedAt)
+        .order_by_desc(workflow_run::Column::Id);
+    if txn.get_database_backend() != DbBackend::Sqlite {
+        running_query = running_query.lock_exclusive();
+    }
+    let running = running_query
+        .one(&txn)
+        .await
+        .map_err(manga_record_database("读取漫画流水线运行状态失败"))?
+        .is_some_and(|run| run.status == a4n_domain::workflow::WORKFLOW_STATUS_RUNNING);
+    if running {
+        return Err(MangaPromptRecordError::InvalidArgument(
+            "漫画流水线正在运行，不能保存阶段产物".into(),
+        ));
+    }
+
+    let updated = upsert_manga_pipeline_artifact_in_transaction(
+        &txn,
+        draft,
+        page_number,
+        output_fingerprint,
+        now,
+    )
+    .await?;
+    if let Some(projection) = projection {
+        update_manga_page_prompt_layout_expected(
+            &txn,
+            projection.page_prompt,
+            projection.layout,
+            Some(&projection.expected_updated_at),
+        )
+        .await?;
+    }
+    txn.commit()
+        .await
+        .map_err(manga_record_database("提交漫画阶段产物事务失败"))?;
+    Ok(updated)
+}
+
+fn prepare_manga_pipeline_artifact_draft(
+    draft: &MangaPipelineArtifactDraft,
+) -> Result<(i32, String), MangaPromptRecordError> {
     require_positive_manga_id(draft.project_id, "project_id")?;
     require_positive_manga_id(draft.chapter_id, "chapter_id")?;
     let page_number = artifact_scope(draft.stage, draft.page_number)?;
@@ -83,13 +196,19 @@ pub async fn upsert_manga_pipeline_artifact(
         source_text_hash(&serde_json::to_string(&draft.payload).map_err(|error| {
             MangaPromptRecordError::InvalidArgument(format!("阶段产物无法编码：{error}"))
         })?);
-    let txn = db
-        .begin()
-        .await
-        .map_err(manga_record_database("开启漫画阶段产物保存事务失败"))?;
-    lock_manga_pipeline_artifact_chapter(&txn, draft.project_id, draft.chapter_id).await?;
+    Ok((page_number, output_fingerprint))
+}
+
+async fn upsert_manga_pipeline_artifact_in_transaction<C: ConnectionTrait>(
+    db: &C,
+    draft: MangaPipelineArtifactDraft,
+    page_number: i32,
+    output_fingerprint: String,
+    now: NaiveDateTime,
+) -> Result<MangaPipelineArtifactRecord, MangaPromptRecordError> {
+    lock_manga_pipeline_artifact_chapter(db, draft.project_id, draft.chapter_id).await?;
     let existing = artifact_by_scope(
-        &txn,
+        db,
         draft.project_id,
         draft.chapter_id,
         draft.stage,
@@ -129,12 +248,12 @@ pub async fn upsert_manga_pipeline_artifact(
         ])
         .to_owned(),
     )
-    .exec(&txn)
+    .exec(db)
     .await
     .map_err(manga_record_database("保存漫画阶段产物失败"))?;
     if changed {
         mark_downstream_stale(
-            &txn,
+            db,
             draft.project_id,
             draft.chapter_id,
             draft.stage,
@@ -143,7 +262,7 @@ pub async fn upsert_manga_pipeline_artifact(
         .await?;
     }
     let updated = artifact_by_scope(
-        &txn,
+        db,
         draft.project_id,
         draft.chapter_id,
         draft.stage,
@@ -151,9 +270,6 @@ pub async fn upsert_manga_pipeline_artifact(
     )
     .await?
     .ok_or_else(|| MangaPromptRecordError::NotFound("漫画阶段产物保存后未找到".into()))?;
-    txn.commit()
-        .await
-        .map_err(manga_record_database("提交漫画阶段产物事务失败"))?;
     manga_pipeline_artifact_record(updated)
 }
 

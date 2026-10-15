@@ -16,6 +16,7 @@ pub use a4n_domain::project::{
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ProjectSummary {
     pub id: i64,
+    pub content_revision: i64,
     pub fact_feedback_interval_chapters: i32,
     pub title: String,
     pub description: String,
@@ -82,6 +83,7 @@ pub trait ProjectStatusReadApplicationPort: Send + Sync {
         &self,
         user_id: i64,
         project_id: i64,
+        expected_from: ProjectStatus,
         target: ProjectStatus,
     ) -> Result<ProjectRollbackPreview, a4n_error::AppError>;
 }
@@ -100,18 +102,20 @@ pub trait ProjectStatusMutationApplicationPort: Send + Sync {
         &self,
         user_id: i64,
         project_id: i64,
+        expected_from: ProjectStatus,
         target: ProjectStatus,
     ) -> Result<ProjectStatusMutationResult, a4n_error::AppError>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ProjectStatusMutationResult {
-    pub project: ProjectSummary,
+    pub project_id: i64,
     pub from: ProjectStatus,
     pub to: ProjectStatus,
     #[schemars(with = "String")]
     pub changed_at: NaiveDateTime,
     pub needs_rag_clear: bool,
+    pub post_commit_errors: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -267,6 +271,8 @@ pub struct UpdateProjectInput {
     pub description: Option<String>,
     #[schemars(range(min = 1))]
     pub fact_feedback_interval_chapters: Option<i32>,
+    #[schemars(with = "Option<String>")]
+    pub expected_updated_at: Option<NaiveDateTime>,
 }
 
 #[derive(Serialize, JsonSchema)]

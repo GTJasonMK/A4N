@@ -185,6 +185,16 @@ impl ApiError {
         }
     }
 
+    pub fn page_operation_cancelled() -> Self {
+        Self {
+            status: StatusCode::CONFLICT,
+            code: "page_operation_cancelled",
+            message: "Page Operation 已取消".into(),
+            retryable: false,
+            details: Map::new(),
+        }
+    }
+
     pub fn internal(code: &'static str, message: impl Into<String>, retryable: bool) -> Self {
         Self {
             status: StatusCode::INTERNAL_SERVER_ERROR,

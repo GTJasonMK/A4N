@@ -598,6 +598,9 @@ fn create_error(error: a4n_db::character::CharacterProfileCreateError) -> Worker
         a4n_db::character::CharacterProfileCreateError::InvalidArgument(message) => {
             WorkerFailure::invalid_request(message)
         }
+        a4n_db::character::CharacterProfileCreateError::InvalidState { current, operation } => {
+            WorkerFailure::conflict(format!("{current}: {operation}"))
+        }
         a4n_db::character::CharacterProfileCreateError::Database(error) => {
             WorkerFailure::unavailable(error.to_string())
         }
@@ -618,6 +621,9 @@ fn character_profile_delete_error(
         }
         a4n_db::character::CharacterProfileDeleteError::NotFound(message) => {
             WorkerFailure::not_found(message)
+        }
+        a4n_db::character::CharacterProfileDeleteError::InvalidState { current, operation } => {
+            WorkerFailure::conflict(format!("{current}: {operation}"))
         }
         other => WorkerFailure::unavailable(other.to_string()),
     }

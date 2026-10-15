@@ -36,6 +36,29 @@ where
             "部分视频提示词不存在，不能批量删除".to_string()
         }));
     }
+    let project_ids = rows
+        .iter()
+        .map(|row| row.project_id)
+        .collect::<BTreeSet<_>>();
+    for project_id in &project_ids {
+        video::lock_generated_media_project(&txn, *project_id).await?;
+    }
+    let rows = chapter_video_prompt::Entity::find()
+        .filter(chapter_video_prompt::Column::Id.is_in(prompt_ids_set.iter().copied()))
+        .all(&txn)
+        .await
+        .map_err(VideoDbError::Database)?;
+    if rows.len() != prompt_ids_set.len()
+        || rows
+            .iter()
+            .any(|row| !project_ids.contains(&row.project_id))
+    {
+        return Err(VideoDbError::NotFound(if prompt_ids_set.len() == 1 {
+            "视频提示词不存在".to_string()
+        } else {
+            "部分视频提示词不存在，不能批量删除".to_string()
+        }));
+    }
     let row_records = rows
         .iter()
         .cloned()

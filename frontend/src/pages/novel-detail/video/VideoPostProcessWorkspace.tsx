@@ -42,6 +42,9 @@ import { VideoPostProcessTimeline } from "./VideoPostProcessTimeline";
 interface VideoPostProcessWorkspaceProps {
   projectId: number;
   chapter: ChapterRow;
+  canEdit: boolean;
+  readUnavailable: boolean;
+  readUnavailableReason: string | null;
   videos: GeneratedVideo[];
   onToast: (message: string, type: ToastType) => void;
   onRefresh: () => Promise<boolean | void> | boolean | void;
@@ -78,7 +81,17 @@ const PUSH_STATUS_LABELS: Record<string, MessageKey> = {
 
 export const VideoPostProcessWorkspace: React.FC<
   VideoPostProcessWorkspaceProps
-> = ({ projectId, chapter, videos, onToast, onRefresh, onVideoRecordUpdated }) => {
+> = ({
+  projectId,
+  chapter,
+  canEdit,
+  readUnavailable,
+  readUnavailableReason,
+  videos,
+  onToast,
+  onRefresh,
+  onVideoRecordUpdated,
+}) => {
   const { locale, t } = useI18n();
   const tRef = useRef(t);
   tRef.current = t;
@@ -321,6 +334,14 @@ export const VideoPostProcessWorkspace: React.FC<
     mountedRef.current && activeScopeRef.current === requestScope;
 
   const beginAction = (): boolean => {
+    if (!canEdit) {
+      onToast(t("video.noEditPermission"), "error");
+      return false;
+    }
+    if (readUnavailable) {
+      onToast(readUnavailableReason ?? t("common.operationInProgress"), "error");
+      return false;
+    }
     if (actionBusyRef.current) return false;
     actionBusyRef.current = true;
     return true;
@@ -381,7 +402,11 @@ export const VideoPostProcessWorkspace: React.FC<
   const selectedPushSourceIds = selectedPush
     ? assemblyPushSourceIds(selectedPush)
     : null;
-  const editDisabledReason = !selectedPush
+  const editDisabledReason = !canEdit
+    ? t("video.noEditPermission")
+    : readUnavailable
+      ? readUnavailableReason ?? t("common.operationInProgress")
+      : !selectedPush
     ? t("video.postprocess.noEditablePush")
     : selectedPushIndex == null ||
         selectedPushStatus == null ||
@@ -564,8 +589,6 @@ export const VideoPostProcessWorkspace: React.FC<
       const updated = await updateAssemblyPushStatus(selectedPush.id, action);
       if (!isCurrentScope(requestScope)) return;
       onVideoRecordUpdated(updated);
-      const refreshed = await refreshAfterMutation(requestScope);
-      if (!isCurrentScope(requestScope)) return;
       onToast(
         action === "accept"
           ? tRef.current("video.postprocess.acceptedLatest")
@@ -574,7 +597,9 @@ export const VideoPostProcessWorkspace: React.FC<
             : tRef.current("video.postprocess.undoAcceptedLatest"),
         "success",
       );
-      if (!refreshed) onToast(tRef.current("video.chapter.postprocessRefreshFailed"), "error");
+      void refreshAfterMutation(requestScope).then((refreshed) => {
+        if (isCurrentScope(requestScope) && !refreshed) onToast(tRef.current("video.chapter.postprocessRefreshFailed"), "error");
+      });
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
       onToast(extractErrorMessage(err, tRef.current("video.postprocess.updateStatusFailed")), "error");
@@ -631,10 +656,10 @@ export const VideoPostProcessWorkspace: React.FC<
       if (!isCurrentScope(requestScope)) return;
       onVideoRecordUpdated(updated);
       clearMarkers();
-      const refreshed = await refreshAfterMutation(requestScope);
-      if (!isCurrentScope(requestScope)) return;
       onToast(tRef.current("video.postprocess.editUploaded", { operation: tRef.current(editOperationLabel[operation]) }), "success");
-      if (!refreshed) onToast(tRef.current("video.chapter.postprocessRefreshFailed"), "error");
+      void refreshAfterMutation(requestScope).then((refreshed) => {
+        if (isCurrentScope(requestScope) && !refreshed) onToast(tRef.current("video.chapter.postprocessRefreshFailed"), "error");
+      });
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
       onToast(extractErrorMessage(err, tRef.current("video.postprocess.applyEditFailed")), "error");
@@ -661,10 +686,10 @@ export const VideoPostProcessWorkspace: React.FC<
       if (!isCurrentScope(requestScope)) return;
       onVideoRecordUpdated(updated);
       clearMarkers();
-      const refreshed = await refreshAfterMutation(requestScope);
-      if (!isCurrentScope(requestScope)) return;
       onToast(tRef.current("video.postprocess.deletedSelection"), "success");
-      if (!refreshed) onToast(tRef.current("video.chapter.postprocessRefreshFailed"), "error");
+      void refreshAfterMutation(requestScope).then((refreshed) => {
+        if (isCurrentScope(requestScope) && !refreshed) onToast(tRef.current("video.chapter.postprocessRefreshFailed"), "error");
+      });
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
       onToast(extractErrorMessage(err, tRef.current("video.postprocess.deleteFailed")), "error");
@@ -675,7 +700,7 @@ export const VideoPostProcessWorkspace: React.FC<
   };
 
   const statusActionItems: React.ComponentProps<typeof Dropdown>["items"] =
-    editableLatest && selectedPushStatus === "pending"
+    !editDisabledReason && editableLatest && selectedPushStatus === "pending"
       ? [
           {
             label: t("video.postprocess.rejectPush"),
@@ -684,7 +709,7 @@ export const VideoPostProcessWorkspace: React.FC<
             onClick: () => void handlePushStatus("reject"),
           },
         ]
-      : editableLatest && selectedPushStatus === "accepted"
+      : !editDisabledReason && editableLatest && selectedPushStatus === "accepted"
         ? [
             {
               label: t("video.postprocess.undoAccept"),
@@ -843,7 +868,7 @@ export const VideoPostProcessWorkspace: React.FC<
                 {acting == null && statusActionItems.length > 0 ? (
                   <Dropdown items={statusActionItems} />
                 ) : null}
-                {editableLatest && selectedPushStatus === "pending" ? (
+                {!editDisabledReason && editableLatest && selectedPushStatus === "pending" ? (
                   <BookButton
                     variant="primary"
                     size="sm"

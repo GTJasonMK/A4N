@@ -171,33 +171,33 @@ use self::import_project::{
     generate_portrait_prompt, get_blueprint, get_chapter, get_chapter_outlines_pacing,
     get_chapter_shooting_script, get_chapter_shooting_script_unit_progress,
     get_chapter_visual_plan, get_generation_call_analytics, get_generation_progress, get_log_dir,
-    get_model_usage_report, get_primary_portrait, get_project, get_project_asset_dependency_graph,
-    get_project_asset_dependency_graph_node_detail, get_project_import_analysis_progress,
-    get_project_status_machine, get_storage_paths, import_canvas_project_upload, import_chapter,
-    import_project_bundle_upload, import_project_family_upload, import_project_text_asset_upload,
-    import_project_text_upload, inspect_project_bundle_upload, invite_project_member,
-    is_reverse_engineer_web_command, leave_project, list_blueprint_versions, list_chapter_analyses,
-    list_chapter_index, list_chapter_outlines, list_chapter_scenes, list_chapters,
-    list_import_queue, list_my_project_invites, list_orphan_project_data_dirs, list_parts,
-    list_portraits_by_project, list_project_invites, list_project_members, list_projects,
-    list_source_snapshot_chapters, prepare_chapter_generation_rag_embedding,
-    preview_apply_beat_mapping_request, preview_batch_generate_part_outlines_request,
-    preview_chapter_analysis_request, preview_chapter_prompt, preview_chapter_scene_request,
-    preview_continue_part_outlines_request, preview_generate_age_variant_request,
-    preview_generate_blueprint_request, preview_generate_chapter_outlines_by_count_request,
-    preview_generate_missing_portraits_request, preview_generate_part_chapter_outlines_request,
-    preview_generate_parts_request, preview_generate_portrait_prompt_request,
-    preview_generate_portrait_request, preview_import_project_analysis_request,
-    preview_refine_blueprint_request, preview_regenerate_chapter_outline_request,
-    preview_regenerate_last_part_request, preview_regenerate_part_outline_request,
-    preview_regenerate_parts_request, preview_regenerate_portrait_request,
-    preview_resume_chapter_analysis_sync_request, preview_rollback, read_recent_logs,
-    reject_import_review, remove_project_member, reorder_chapter_scenes,
-    reset_project_generated_data, restore_blueprint_version, resume_chapter_analysis_sync,
-    revoke_project_invite, rollback_project_status, run_import_project_analysis,
-    run_reverse_engineer_web_command, save_blueprint, save_chapter_outline,
-    save_chapter_visual_plan_draft, save_part_outline, set_log_level, set_primary_portrait,
-    sync_blueprint_materials, sync_outline_materials, update_chapter_content,
+    get_log_level, get_model_usage_report, get_primary_portrait, get_project,
+    get_project_asset_dependency_graph, get_project_asset_dependency_graph_node_detail,
+    get_project_import_analysis_progress, get_project_status_machine, get_storage_paths,
+    import_canvas_project_upload, import_chapter, import_project_bundle_upload,
+    import_project_family_upload, import_project_text_asset_upload, import_project_text_upload,
+    inspect_project_bundle_upload, invite_project_member, is_reverse_engineer_web_command,
+    leave_project, list_blueprint_versions, list_chapter_analyses, list_chapter_index,
+    list_chapter_outlines, list_chapter_scenes, list_chapters, list_import_queue,
+    list_my_project_invites, list_orphan_project_data_dirs, list_parts, list_portraits_by_project,
+    list_project_invites, list_project_members, list_projects, list_source_snapshot_chapters,
+    prepare_chapter_generation_rag_embedding, preview_apply_beat_mapping_request,
+    preview_batch_generate_part_outlines_request, preview_chapter_analysis_request,
+    preview_chapter_prompt, preview_chapter_scene_request, preview_continue_part_outlines_request,
+    preview_generate_age_variant_request, preview_generate_blueprint_request,
+    preview_generate_chapter_outlines_by_count_request, preview_generate_missing_portraits_request,
+    preview_generate_part_chapter_outlines_request, preview_generate_parts_request,
+    preview_generate_portrait_prompt_request, preview_generate_portrait_request,
+    preview_import_project_analysis_request, preview_refine_blueprint_request,
+    preview_regenerate_chapter_outline_request, preview_regenerate_last_part_request,
+    preview_regenerate_part_outline_request, preview_regenerate_parts_request,
+    preview_regenerate_portrait_request, preview_resume_chapter_analysis_sync_request,
+    preview_rollback, read_recent_logs, reject_import_review, remove_project_member,
+    reorder_chapter_scenes, reset_project_generated_data, restore_blueprint_version,
+    resume_chapter_analysis_sync, revoke_project_invite, rollback_project_status,
+    run_import_project_analysis, run_reverse_engineer_web_command, save_blueprint,
+    save_chapter_outline, save_chapter_visual_plan_draft, save_part_outline, set_log_level,
+    set_primary_portrait, sync_blueprint_materials, sync_outline_materials, update_chapter_content,
     update_chapter_outline, update_chapter_scene, update_project, update_project_member_role,
     update_world_setting, upload_portrait,
 };
@@ -240,7 +240,7 @@ use self::media::{
     update_video_segment_plan_draft_recipe, upload_assembly_insert_video, upload_chapter_video,
     upload_image, upload_profile_material_image, upload_reference_media_video,
 };
-use self::request::run_with_runtime_context;
+use self::request::{run_with_runtime_context, run_with_runtime_context_cancellable};
 use self::source_sync::{apply_source_sync_decisions, detach_derived_project, preview_source_sync};
 use self::task::{
     finish_web_task, register_web_task, sanitize_optional_task_id, sanitize_task_id,
@@ -326,7 +326,10 @@ pub async fn invoke(
     }
 
     let user = authenticated_user(&state, &headers).await?;
-    let result = dispatch_runtime_command_inner(state.runtime(), user.id, args, cmd, None).await?;
+    let cancellation = page_operation_cancellation(&state, user.id, &headers, &cmd)?;
+    let result =
+        dispatch_runtime_command_inner(state.runtime(), user.id, args, cmd, None, cancellation)
+            .await?;
 
     Ok(Json(result).into_response())
 }
@@ -337,7 +340,7 @@ pub async fn dispatch_runtime_command_value(
     args: Value,
     cmd: String,
 ) -> Result<Value, Value> {
-    dispatch_runtime_command_inner(runtime, user_id, args, cmd, None)
+    dispatch_runtime_command_inner(runtime, user_id, args, cmd, None, None)
         .await
         .map_err(ApiError::into_value)
 }
@@ -414,7 +417,7 @@ async fn dispatch_agent_host_command_inner(
                 lease_token: request.lease.fence_token.clone(),
             }
         });
-    dispatch_runtime_command_inner(runtime, user_id, arguments, command, agent_context).await
+    dispatch_runtime_command_inner(runtime, user_id, arguments, command, agent_context, None).await
 }
 
 struct AgentHostDispatchContext {
@@ -431,6 +434,7 @@ async fn dispatch_runtime_command_inner(
     args: Value,
     cmd: String,
     agent_context: Option<AgentHostDispatchContext>,
+    cancellation: Option<tokio_util::sync::CancellationToken>,
 ) -> Result<Value, ApiError> {
     let runtime_config_snapshot = a4n_runtime::host_api::runtime_config::snapshot_from_args(&args)
         .map_err(ApiError::bad_request)?;
@@ -448,7 +452,7 @@ async fn dispatch_runtime_command_inner(
         }
     }
 
-    run_with_runtime_context(user_id, runtime_config_snapshot, async move {
+    let command_future = async move {
         if let Some(context) = agent_context {
             return a4n_runtime::host_api::agent_runtime::dispatch_agent_host_command(
                 state.runtime(),
@@ -471,8 +475,86 @@ async fn dispatch_runtime_command_inner(
             return run_canvas_web_command(&state, user_id, &command_args, &cmd).await;
         }
         dispatch::dispatch(&state, user_id, &command_args, &cmd).await
-    })
-    .await
+    };
+    match cancellation {
+        Some(cancellation) => {
+            run_with_runtime_context_cancellable(
+                user_id,
+                runtime_config_snapshot,
+                cancellation,
+                command_future,
+            )
+            .await
+        }
+        None => run_with_runtime_context(user_id, runtime_config_snapshot, command_future).await,
+    }
+}
+
+fn page_operation_cancellation(
+    state: &ServerState,
+    user_id: i64,
+    headers: &HeaderMap,
+    command: &str,
+) -> Result<Option<tokio_util::sync::CancellationToken>, ApiError> {
+    let fields = [
+        (
+            "x-page-session-id",
+            header_value(headers, "x-page-session-id")?,
+        ),
+        (
+            "x-page-operation-id",
+            header_value(headers, "x-page-operation-id")?,
+        ),
+        (
+            "x-ui-session-token",
+            header_value(headers, "x-ui-session-token")?,
+        ),
+        ("x-agent-id", header_value(headers, "x-agent-id")?),
+        ("x-agent-token", header_value(headers, "x-agent-token")?),
+    ];
+    if fields.iter().all(|(_, value)| value.is_none()) {
+        return Ok(None);
+    }
+    if fields.iter().any(|(_, value)| value.is_none()) {
+        return Err(ApiError::bad_request(
+            "Page Host command 缺少完整 operation 身份",
+        ));
+    }
+    let session_id = fields[0].1.expect("checked above");
+    let operation_id = fields[1].1.expect("checked above");
+    let session_token = fields[2].1.expect("checked above");
+    let agent_id = fields[3].1.expect("checked above");
+    let agent_token = fields[4].1.expect("checked above");
+    state
+        .page_sessions()
+        .command_cancellation_token(
+            user_id,
+            session_id,
+            operation_id,
+            command,
+            session_token,
+            agent_id,
+            agent_token,
+            state.agents(),
+        )
+        .map(Some)
+}
+
+fn header_value<'a>(headers: &'a HeaderMap, name: &str) -> Result<Option<&'a str>, ApiError> {
+    headers
+        .get(name)
+        .map(|value| {
+            value
+                .to_str()
+                .map(str::trim)
+                .map_err(|_| ApiError::bad_request(format!("{name} 无效")))
+                .and_then(|value| {
+                    (!value.is_empty())
+                        .then_some(value)
+                        .ok_or_else(|| ApiError::bad_request(format!("{name} 无效")))
+                })
+        })
+        .transpose()
 }
 
 #[cfg(test)]

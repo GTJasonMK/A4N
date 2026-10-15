@@ -2235,6 +2235,7 @@ version = "0.1.0"
 dependencies = [
  "a4n-api-contract",
  "a4n-worker-contract",
+ "chrono",
  "serde",
 ]
 
@@ -2299,7 +2300,6 @@ dependencies = [
  "a4n-config",
  "a4n-db",
  "a4n-domain",
- "a4n-project-read-core",
  "a4n-project-status-worker-contract",
  "a4n-worker-contract",
  "anyhow",

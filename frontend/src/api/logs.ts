@@ -17,6 +17,10 @@ export async function getLogDir(): Promise<string> {
   return apiInvoke<string>("get_log_dir");
 }
 
+export async function getLogLevel(): Promise<string> {
+  return apiInvoke<string>("get_log_level");
+}
+
 export async function setLogLevel(
   input: SetLogLevelInput,
 ): Promise<void> {

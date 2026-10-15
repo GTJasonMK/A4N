@@ -44,7 +44,11 @@ pub trait VideoRecordMutationApplicationPort: Send + Sync {
         input: SelectSegmentVideoInput,
     ) -> Result<GeneratedVideoSummary, a4n_error::AppError>;
 
-    async fn delete(&self, user_id: i64, video_id: i64) -> Result<(), a4n_error::AppError>;
+    async fn delete(
+        &self,
+        user_id: i64,
+        video_id: i64,
+    ) -> Result<VideoRecordDeleteResult, a4n_error::AppError>;
 }
 
 /// Host-facing chapter-video import boundary.

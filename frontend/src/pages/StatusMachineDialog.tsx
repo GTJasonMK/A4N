@@ -10,6 +10,7 @@ import {
   type ProjectRollbackPreview,
   type ProjectStatus,
   type ProjectStatusMachineSummary,
+  type ProjectStatusMutationResult,
 } from "../api/project";
 import { useToast } from "../components/feedback/Toast";
 import { BookButton } from "../components/ui/BookButton";
@@ -29,6 +30,7 @@ interface StatusMachineDialogProps {
   canForwardStatus: boolean;
   canRollbackStatus: boolean;
   onMutated: () => Promise<boolean | void> | boolean | void;
+  onRollbackCommitted: () => void;
 }
 
 export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
@@ -38,6 +40,7 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
   canForwardStatus,
   canRollbackStatus,
   onMutated,
+  onRollbackCommitted,
 }) => {
   const addToast = useToast((state) => state.addToast);
   const { t } = useI18n();
@@ -46,6 +49,7 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
   const [loadingMachine, setLoadingMachine] = useState(false);
   const [acting, setActing] = useState<string | null>(null);
   const [rollbackTarget, setRollbackTarget] = useState<ProjectStatus | null>(null);
+  const [rollbackExpectedFrom, setRollbackExpectedFrom] = useState<ProjectStatus | null>(null);
   const [rollbackPreview, setRollbackPreview] = useState<ProjectRollbackPreview | null>(null);
   const mountedRef = useRef(false);
   const scopeRef = useRef("closed");
@@ -55,7 +59,15 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
   const actionSeqRef = useRef(0);
   const actingRef = useRef<string | null>(null);
   const rollbackPreviewInFlightKeyRef = useRef<string | null>(null);
-  const scopeKey = open ? String(project.id) : "closed";
+  const scopeKey = open
+    ? [
+        project.id,
+        project.status,
+        project.lifecycle_gate,
+        project.updated_at,
+        project.my_role,
+      ].join(":")
+    : "closed";
   const actionBusy = acting !== null;
 
   const isCurrentScope = useCallback(
@@ -83,6 +95,12 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
     machineSeqRef.current = requestSeq;
     setLoadingMachine(true);
     setMachineError(null);
+    setMachine(null);
+    rollbackPreviewSeqRef.current += 1;
+    rollbackPreviewInFlightKeyRef.current = null;
+    setRollbackTarget(null);
+    setRollbackExpectedFrom(null);
+    setRollbackPreview(null);
     try {
       const data = await getProjectStatusMachine(project.id);
       if (!isCurrentRequest(requestScope, machineSeqRef, requestSeq)) return false;
@@ -100,6 +118,14 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
       }
     }
   }, [addToast, isCurrentRequest, project.id, scopeKey, t]);
+
+  const clearRollbackPreview = useCallback(() => {
+    rollbackPreviewSeqRef.current += 1;
+    rollbackPreviewInFlightKeyRef.current = null;
+    setRollbackTarget(null);
+    setRollbackExpectedFrom(null);
+    setRollbackPreview(null);
+  }, []);
 
   useLayoutEffect(() => {
     mountedRef.current = true;
@@ -123,6 +149,7 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
     rollbackPreviewInFlightKeyRef.current = null;
     setActing(null);
     setRollbackTarget(null);
+    setRollbackExpectedFrom(null);
     setRollbackPreview(null);
     setMachine(null);
     setMachineError(null);
@@ -134,7 +161,11 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
   }, [loadMachine, open, scopeKey]);
 
   const executeStatusAction = useCallback(
-    async (key: string, action: () => Promise<unknown>, successMessage: string) => {
+    async (
+      key: string,
+      action: () => Promise<ProjectStatusMutationResult>,
+      successMessage: string,
+    ) => {
       if (actingRef.current != null) return false;
       const requestProjectId = project.id;
       const requestSeq = actionSeqRef.current + 1;
@@ -142,23 +173,52 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
       actingRef.current = key;
       setActing(key);
       try {
-        await action();
+        const result = await action();
         if (!isCurrentMutation(requestProjectId, requestSeq)) return false;
-        let refreshFailed = false;
-        try {
-          refreshFailed = (await onMutated()) === false;
-        } catch {
-          refreshFailed = true;
+        clearRollbackPreview();
+        addToast(successMessage, "success");
+        if (result.post_commit_errors.length > 0) {
+          addToast(
+            t("statusMachine.postCommitFailed", {
+              details: result.post_commit_errors.join("; "),
+            }),
+            "error",
+          );
+        }
+        void Promise.resolve(onMutated())
+          .then((refreshed) => {
+            if (refreshed === false && isCurrentMutation(requestProjectId, requestSeq)) {
+              addToast(t("statusMachine.refreshFailed"), "error");
+            }
+          })
+          .catch(() => {
+            if (isCurrentMutation(requestProjectId, requestSeq)) {
+              addToast(t("statusMachine.refreshFailed"), "error");
+            }
+          });
+        if (open && !await loadMachine()) {
+          if (isCurrentMutation(requestProjectId, requestSeq)) {
+            addToast(t("statusMachine.stateRefreshFailed"), "error");
+          }
         }
         if (!isCurrentMutation(requestProjectId, requestSeq)) return false;
-        if (open && !await loadMachine()) refreshFailed = true;
-        if (!isCurrentMutation(requestProjectId, requestSeq)) return false;
-        addToast(successMessage, "success");
-        if (refreshFailed) addToast(t("statusMachine.refreshFailed"), "error");
         return true;
       } catch (err) {
         if (isCurrentMutation(requestProjectId, requestSeq)) {
           addToast(extractErrorMessage(err, t("statusMachine.actionFailed")), "error");
+          clearRollbackPreview();
+          void (async () => {
+            let refreshFailed = false;
+            try {
+              refreshFailed = (await onMutated()) === false;
+            } catch {
+              refreshFailed = true;
+            }
+            if (!isCurrentMutation(requestProjectId, requestSeq)) return;
+            if (open && !await loadMachine()) refreshFailed = true;
+            if (!isCurrentMutation(requestProjectId, requestSeq)) return;
+            if (refreshFailed) addToast(t("statusMachine.stateRefreshFailed"), "error");
+          })();
         }
         return false;
       } finally {
@@ -166,7 +226,16 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
         if (isCurrentMutation(requestProjectId, requestSeq)) setActing(null);
       }
     },
-    [addToast, isCurrentMutation, loadMachine, onMutated, open, project.id, t],
+    [
+      addToast,
+      clearRollbackPreview,
+      isCurrentMutation,
+      loadMachine,
+      onMutated,
+      open,
+      project.id,
+      t,
+    ],
   );
 
   const handleForward = useCallback(
@@ -191,21 +260,36 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
         return;
       }
       const requestScope = scopeKey;
-      const requestKey = `${requestScope}:${machine.current_status}:${target}`;
+      const expectedFrom = machine.current_status;
+      const requestKey = `${requestScope}:${expectedFrom}:${target}`;
       if (rollbackPreviewInFlightKeyRef.current === requestKey) return;
       const requestSeq = rollbackPreviewSeqRef.current + 1;
       rollbackPreviewSeqRef.current = requestSeq;
       rollbackPreviewInFlightKeyRef.current = requestKey;
       setRollbackTarget(target);
+      setRollbackExpectedFrom(expectedFrom);
       setRollbackPreview(null);
       try {
-        const data = await previewRollback(project.id, target);
+        const data = await previewRollback(project.id, expectedFrom, target);
         if (!isCurrentRequest(requestScope, rollbackPreviewSeqRef, requestSeq)) return;
         setRollbackPreview(data);
       } catch (err) {
         if (isCurrentRequest(requestScope, rollbackPreviewSeqRef, requestSeq)) {
-          setRollbackTarget(null);
           addToast(extractErrorMessage(err, t("statusMachine.previewFailed")), "error");
+          clearRollbackPreview();
+          void (async () => {
+            let refreshFailed = false;
+            try {
+              refreshFailed = (await onMutated()) === false;
+            } catch {
+              refreshFailed = true;
+            }
+            if (!isCurrentScope(requestScope)) return;
+            if (!await loadMachine()) refreshFailed = true;
+            if (refreshFailed && isCurrentScope(requestScope)) {
+              addToast(t("statusMachine.stateRefreshFailed"), "error");
+            }
+          })();
         }
       } finally {
         if (
@@ -216,29 +300,39 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
         }
       }
     },
-    [addToast, canRollbackStatus, isCurrentRequest, machine, project.id, scopeKey, t],
+    [
+      addToast,
+      canRollbackStatus,
+      clearRollbackPreview,
+      isCurrentRequest,
+      isCurrentScope,
+      loadMachine,
+      machine,
+      onMutated,
+      project.id,
+      scopeKey,
+      t,
+    ],
   );
-
-  const clearRollbackPreview = useCallback(() => {
-    rollbackPreviewSeqRef.current += 1;
-    rollbackPreviewInFlightKeyRef.current = null;
-    setRollbackTarget(null);
-    setRollbackPreview(null);
-  }, []);
 
   const handleConfirmRollback = useCallback(async () => {
     if (!canRollbackStatus) {
       addToast(t("statusMachine.noRollbackPermission"), "error");
       return;
     }
-    if (!rollbackTarget) return;
+    const target = rollbackTarget;
+    const expectedFrom = rollbackExpectedFrom;
+    if (!target || !rollbackPreview || expectedFrom === null) return;
     const requestProjectId = project.id;
     const completed = await executeStatusAction(
-      `rollback-${rollbackTarget}`,
-      () => rollbackProjectStatus(project.id, rollbackTarget),
-      t("statusMachine.rollbackSuccess", { status: projectStatusLabel(rollbackTarget, t) }),
+      `rollback-${target}`,
+      () => rollbackProjectStatus(project.id, expectedFrom, target),
+      t("statusMachine.rollbackSuccess", { status: projectStatusLabel(target, t) }),
     );
     if (completed && mountedRef.current && activeProjectIdRef.current === requestProjectId) {
+      clearRollbackPreview();
+      onRollbackCommitted();
+    } else if (mountedRef.current && activeProjectIdRef.current === requestProjectId) {
       clearRollbackPreview();
     }
   }, [
@@ -246,7 +340,10 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
     canRollbackStatus,
     clearRollbackPreview,
     executeStatusAction,
+    onRollbackCommitted,
     project.id,
+    rollbackExpectedFrom,
+    rollbackPreview,
     rollbackTarget,
     t,
   ]);

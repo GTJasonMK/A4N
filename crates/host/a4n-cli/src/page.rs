@@ -9,7 +9,7 @@ use std::io::Read;
 use crate::client::ApiClient;
 use crate::context::SessionContext;
 use crate::output::{self, OutputOptions};
-use crate::{CallFiles, CliRuntime, invoke_call, read_json_source};
+use crate::{CallFiles, CliRuntime, PageCallContext, invoke_call, read_json_source};
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum PageCommand {
@@ -298,6 +298,10 @@ async fn call(
             save_text: &[],
             force: false,
         },
+        Some(PageCallContext {
+            session_id: session_id.clone(),
+            operation_id: operation.operation_id.clone(),
+        }),
     )
     .await;
     match result {
@@ -319,13 +323,19 @@ async fn call(
                     true,
                     true,
                 )
-                .await?;
+                .await;
+            let completed = match completed {
+                Ok(value) => value,
+                Err(error) if page_operation_cancelled(&error) => return Err(error),
+                Err(error) => return Err(error),
+            };
             let result_value = completed["result"].clone();
             output::print_value(
                 &json!({ "operation": completed, "result": result_value }),
                 output,
             )
         }
+        Err(error) if page_operation_cancelled(&error) => Err(error),
         Err(error) => {
             let status_update = runtime
                 .client
@@ -352,6 +362,12 @@ async fn call(
             }
         }
     }
+}
+
+fn page_operation_cancelled(error: &anyhow::Error) -> bool {
+    error
+        .downcast_ref::<crate::client::ApiRequestError>()
+        .is_some_and(|error| error.code == "page_operation_cancelled")
 }
 
 async fn control(runtime: &mut CliRuntime, action: &str, output: &OutputOptions) -> Result<()> {

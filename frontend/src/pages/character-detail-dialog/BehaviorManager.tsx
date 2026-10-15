@@ -5,6 +5,7 @@ import { BookButton } from "../../components/ui/BookButton";
 import { extractErrorMessage } from "../../api";
 import { listBehaviors, type BehaviorRecord } from "../../api/character";
 import { useI18n } from "../../i18n";
+import { MAX_I32 } from "../../utils/numeric";
 import {
   behaviorTypeLabel,
   jsonPreview,
@@ -143,6 +144,7 @@ export const BehaviorManager: React.FC<{
           <input
             type="number"
             min={1}
+            max={MAX_I32}
             step={1}
             aria-invalid={chapterFilterError != null}
             aria-describedby={chapterFilterError ? "behavior-chapter-filter-error" : undefined}

@@ -1,5 +1,6 @@
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import { useToast } from "../../components/feedback/Toast";
@@ -24,6 +25,7 @@ import {
 import { nonEmptyText } from "../../utils/text";
 import type { CharacterAttributeCategory } from "../../api/generated/host";
 import { formatDateTime, useI18n } from "../../i18n";
+import { MAX_I32 } from "../../utils/numeric";
 import { useDirty } from "../../components/navigation/dirtyRegistry";
 
 const parseAttributeValue = (raw: string): unknown => {
@@ -77,6 +79,7 @@ export const EventManager: React.FC<{
   const [loading, setLoading] = useState(false);
   const [loadedScopeKey, setLoadedScopeKey] = useState<string | null>(null);
   const [filterError, setFilterError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [filterChapterFrom, setFilterChapterFrom] = useState("");
   const [filterChapterTo, setFilterChapterTo] = useState("");
   const [filterCategory, setFilterCategory] = useState(initialCategory);
@@ -174,6 +177,7 @@ export const EventManager: React.FC<{
     setLoading(false);
     setLoadedScopeKey(null);
     setEvents([]);
+    setLoadError(null);
   }, []);
 
   const isCurrentLoad = useCallback((requestProfileId: number, requestKey: string, seq: number) => {
@@ -191,7 +195,7 @@ export const EventManager: React.FC<{
       nextCategory = filterCategoryRef.current,
       nextKey = filterKeyRef.current,
       nextOperation = filterOperationRef.current,
-    ): Promise<boolean> => {
+    ): Promise<void> => {
       const requestProfileId = profileId;
       const requestKey = eventLoadKey(
         requestProfileId,
@@ -207,14 +211,14 @@ export const EventManager: React.FC<{
         setFilterError(t("characterDetail.invalidChapterInteger", {
           label: t("characterDetail.event.chapter"),
         }));
-        return false;
+        return;
       }
       if (chapterFrom != null && chapterTo != null && chapterFrom > chapterTo) {
         setFilterError(t("characterDetail.invalidChapterRange"));
-        return false;
+        return;
       }
       setFilterError(null);
-      if (loadInFlightKeyRef.current === requestKey) return false;
+      if (loadInFlightKeyRef.current === requestKey) return;
       const requestSeq = loadSeqRef.current + 1;
       loadSeqRef.current = requestSeq;
       loadInFlightKeyRef.current = requestKey;
@@ -227,14 +231,13 @@ export const EventManager: React.FC<{
           key: nonEmptyText(nextKey),
           operation: nullableFilterValue(nextOperation),
         });
-        if (!isCurrentLoad(requestProfileId, requestKey, requestSeq)) return false;
+        if (!isCurrentLoad(requestProfileId, requestKey, requestSeq)) return;
         setEvents(rows);
         setLoadedScopeKey(requestKey);
-        return true;
+        setLoadError(null);
       } catch (err) {
-        if (!isCurrentLoad(requestProfileId, requestKey, requestSeq)) return false;
-        addToast(extractErrorMessage(err, t("characterDetail.event.loadFailed")), "error");
-        return false;
+        if (!isCurrentLoad(requestProfileId, requestKey, requestSeq)) return;
+        setLoadError(extractErrorMessage(err, t("characterDetail.event.loadFailed")));
       } finally {
         if (loadInFlightKeyRef.current === requestKey && loadSeqRef.current === requestSeq) {
           loadInFlightKeyRef.current = null;
@@ -242,7 +245,7 @@ export const EventManager: React.FC<{
         if (isCurrentLoad(requestProfileId, requestKey, requestSeq)) setLoading(false);
       }
     },
-    [addToast, isCurrentLoad, profileId, t],
+    [isCurrentLoad, profileId, t],
   );
 
   const reload = useCallback(() => {
@@ -341,7 +344,7 @@ export const EventManager: React.FC<{
     saveInFlightRef.current = true;
     setSaving(true);
     try {
-      await (
+      const result = await (
         requestMode === "add"
           ? addProfileAttribute({
               profile_id: requestProfileId,
@@ -366,20 +369,24 @@ export const EventManager: React.FC<{
       const successMessage = requestMode === "add"
         ? t("characterDetail.event.added")
         : t("characterDetail.event.modified");
-      const refreshed = await reload();
-      if (!refreshed) addToast(t("characterDetail.refreshFailed"), "error");
-      try {
-        if (await onChanged?.() === false) {
-          addToast(t("characterDetail.refreshFailed"), "error");
-        }
-      } catch (refreshError) {
-        addToast(extractErrorMessage(refreshError, t("characterDetail.refreshFailed")), "error");
-      }
       addToast(successMessage, "success");
+      if (result.warnings.length > 0) addToast(result.warnings.join(" · "), "info");
       setKey("");
       setValueText("");
       setCause("");
       setEvidence("");
+      void reload().catch((error) => {
+          if (isCurrentProfile(requestProfileId) && saveSeqRef.current === requestSeq) {
+            const message = extractErrorMessage(error, t("characterDetail.refreshFailed"));
+            setLoadError(message);
+            addToast(message, "error");
+          }
+        });
+      void Promise.resolve(onChanged?.()).catch((error) => {
+        if (isCurrentProfile(requestProfileId) && saveSeqRef.current === requestSeq) {
+          addToast(extractErrorMessage(error, t("characterDetail.refreshFailed")), "error");
+        }
+      });
       if (!isCurrentProfile(requestProfileId) || saveSeqRef.current !== requestSeq) return;
     } catch (err) {
       if (!isCurrentProfile(requestProfileId) || saveSeqRef.current !== requestSeq) return;
@@ -392,6 +399,13 @@ export const EventManager: React.FC<{
         ),
         "error",
       );
+      void reload().catch((error) => {
+          if (isCurrentProfile(requestProfileId) && saveSeqRef.current === requestSeq) {
+            const message = extractErrorMessage(error, t("characterDetail.refreshFailed"));
+            setLoadError(message);
+            addToast(message, "error");
+          }
+        });
     } finally {
       if (isCurrentProfile(requestProfileId) && saveSeqRef.current === requestSeq) {
         saveInFlightRef.current = false;
@@ -432,6 +446,15 @@ export const EventManager: React.FC<{
       {filterError ? (
         <p id="event-filter-error" role="alert" className="text-small text-error">{filterError}</p>
       ) : null}
+      {loadError ? (
+        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
+          <span className="min-w-0 flex-1">{loadError}</span>
+          <BookButton variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
+            <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
+            {t("common.retry")}
+          </BookButton>
+        </div>
+      ) : null}
       <details className="border-y border-book-border/35 py-1">
         <summary className="flex cursor-pointer list-none items-center gap-2 py-1 text-small [&::-webkit-details-marker]:hidden">
           <span className="font-medium text-book-text-main">{t("characterDetail.event.filter")}</span>
@@ -446,6 +469,7 @@ export const EventManager: React.FC<{
             <input
               type="number"
               min={1}
+              max={MAX_I32}
               step={1}
               aria-invalid={filterError != null}
               aria-describedby={filterError ? "event-filter-error" : undefined}
@@ -464,6 +488,7 @@ export const EventManager: React.FC<{
             <input
               type="number"
               min={1}
+              max={MAX_I32}
               step={1}
               aria-invalid={filterError != null}
               aria-describedby={filterError ? "event-filter-error" : undefined}
@@ -567,6 +592,7 @@ export const EventManager: React.FC<{
             <input
               type="number"
               min={1}
+              max={MAX_I32}
               step={1}
               aria-invalid={chapterError != null}
               aria-describedby={chapterError ? "event-chapter-error" : undefined}

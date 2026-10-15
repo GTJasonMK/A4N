@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { extractErrorMessage } from "../../../api";
 import { Bot,
   Brain,
@@ -58,7 +58,6 @@ export const ApiConfigSection: React.FC = () => {
   useDirtyRegistryVersion();
   const canDiscardDirty = dirtyRegistry.canDiscardDirty();
   const [panel, setPanel] = useState<ApiConfigPanel>("overview");
-  const navigationGuardRef = useRef(false);
 
   const selectPanel = async (nextPanel: ApiConfigPanel) => {
     if (nextPanel === panel) return;
@@ -67,25 +66,23 @@ export const ApiConfigSection: React.FC = () => {
         useToast.getState().addToast(t("common.operationInProgress"), "info");
         return;
       }
-      if (navigationGuardRef.current) return;
-      navigationGuardRef.current = true;
-      try {
-        const ok = await confirmDialog({
-          title: t("common.unsavedChangesTitle"),
-          message: t("common.unsavedChangesMessage", {
-            name: t("settingsAdmin.configuration"),
-            action: t("settings.category"),
-          }),
-          confirmText: t("common.discardDraft"),
-          dialogType: "warning",
-        });
-        if (!ok) return;
-        if (!await dirtyRegistry.discardDirty()) {
-          useToast.getState().addToast(t("common.operationInProgress"), "info");
-          return;
-        }
-      } finally {
-        navigationGuardRef.current = false;
+      const ok = await confirmDialog({
+        title: t("common.unsavedChangesTitle"),
+        message: t("common.unsavedChangesMessage", {
+          name: t("settingsAdmin.configuration"),
+          action: t("settings.category"),
+        }),
+        confirmText: t("common.discardDraft"),
+        dialogType: "warning",
+      });
+      if (!ok) return;
+      if (!await dirtyRegistry.discardDirty()) {
+        useToast.getState().addToast(t("common.operationInProgress"), "info");
+        return;
+      }
+      if (dirtyRegistry.hasDirty()) {
+        useToast.getState().addToast(t("common.operationInProgress"), "info");
+        return;
       }
     }
     setPanel(nextPanel);

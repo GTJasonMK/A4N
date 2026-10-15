@@ -200,7 +200,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
     setPlanDraft(null);
   }, [prompt?.id]);
   const enterPlanEdit = () => {
-    if (!canEditPlan || busy || loading) return;
+    if (!canEditPlan || busy || loading || loadError) return;
     setPlanDraft(structuredClone(editableSegments));
     setEditingPlan(true);
   };
@@ -219,7 +219,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
     setEditingPlan(false);
   };
   const savePlanEdit = async () => {
-    if (!editingPlan || !planDraft || !planDirty || !onSavePlan || savingPlan) return;
+    if (!editingPlan || !planDraft || !planDirty || !onSavePlan || savingPlan || loadError) return;
     setSavingPlan(true);
     try {
       if (await onSavePlan(planDraft)) {
@@ -262,7 +262,9 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
     selectedScene.shots.every((shot) => plannedShotIds.has(shot.shot_id));
   const selectedSceneStale = (selectedScene?.shots.some((shot) => staleShotIds.includes(shot.shot_id)) ?? false)
     || staleShotIds.some((id) => !shootingScenes.some((scene) => scene.shots.some((shot) => shot.shot_id === id)));
-  const needsLoadRetry = Boolean(loadError && !prompt);
+  // A failed read is independently retryable even when an older prompt remains
+  // visible. Keeping retry behind `!prompt` strands the user on stale data.
+  const needsLoadRetry = Boolean(loadError);
   const shotProgress =
     draft && draft.completedShotCount > 0
       ? t("video.chapter.shotProgress", {
@@ -307,7 +309,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
                 variant={editingPlan ? "ghost" : "primary"}
                 size="md"
                 onClick={() => void (editingPlan ? cancelPlanEdit() : enterPlanEdit())}
-                disabled={busy || loading || savingPlan}
+                disabled={busy || loading || savingPlan || loadError != null}
               >
                 {editingPlan ? <X size={14} /> : <Pencil size={14} />}
                 {editingPlan ? t("video.chapter.cancelPlanEdit") : t("video.chapter.editPlan")}
@@ -317,7 +319,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
                   variant="primary"
                   size="md"
                   onClick={() => void savePlanEdit()}
-                  disabled={busy || loading || savingPlan || !planDirty}
+                  disabled={busy || loading || savingPlan || !planDirty || loadError != null}
                 >
                   {savingPlan ? <LoadingSpinner size="sm" /> : <Save size={14} />}
                   {savingPlan ? t("video.chapter.savingPlan") : t("video.chapter.savePlan")}
@@ -329,7 +331,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
             aria-label={t("video.chapter.chooseSceneAria")}
             value={selectedUnitIndex ?? ""}
             onChange={(selectedValue) => setSelectedUnitIndex(Number(selectedValue))}
-            disabled={busy || loading || editingPlan || draft != null || shootingScenes.length === 0}
+            disabled={busy || loading || editingPlan || draft != null || shootingScenes.length === 0 || loadError != null}
             className="pyqt-input max-w-64 !px-2 !py-2 text-xs"
           >
             {shootingScenes.length === 0 ? (
@@ -364,21 +366,25 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
               busy ||
               loading ||
               editingPlan ||
-              selectedUnitIndex == null ||
-              (!dataReady && !needsLoadRetry)
+              savingPlan ||
+              (needsLoadRetry
+                ? false
+                : selectedUnitIndex == null || !dataReady)
             }
           >
             {busy || loading ? <LoadingSpinner size="sm" /> : selectedScenePlanned || needsLoadRetry ? <RotateCcw size={14} /> : <Wand2 size={14} />}
-            {canContinueDraft
+            {needsLoadRetry
+              ? t("video.chapter.retryLoad")
+              : canContinueDraft
               ? selectedScenePlanned ? t("video.chapter.continueReplan") : t("video.chapter.continueGenerate")
-              : selectedSceneStale ? t("shootingScript.updateVideoPlan") : selectedScenePlanned ? t("video.chapter.replanScene") : needsLoadRetry ? t("video.chapter.retryLoad") : t("video.chapter.planScene")}
+              : selectedSceneStale ? t("shootingScript.updateVideoPlan") : selectedScenePlanned ? t("video.chapter.replanScene") : t("video.chapter.planScene")}
           </BookButton>
           {prompt ? (
             <BookButton
               variant="ghost"
               size="md"
               onClick={() => void onDelete(prompt)}
-              disabled={busy || editingPlan || savingPlan}
+              disabled={busy || editingPlan || savingPlan || loadError != null}
               title={t("video.chapter.deletePlanTitle")}
             >
               <Trash2 size={14} />

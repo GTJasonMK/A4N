@@ -3,7 +3,7 @@ use super::contracts::CharacterProfileRollbackResult;
 use crate::character::CharacterDbError;
 use crate::character::attributes::rewind_deletion_marks_after;
 use crate::character::profile::{
-    CharacterProfileCurrentStateUpdate, profile_current_state_fields, require_profile,
+    CharacterProfileCurrentStateUpdate, profile_current_state_fields, require_profile_for_update,
     update_profile_current_state,
 };
 use crate::character::snapshot::{snapshot_attributes_from_data, snapshot_reference_by_chapter};
@@ -24,7 +24,7 @@ where
     }
 
     let tx = db.begin().await?;
-    let profile = require_profile(&tx, profile_id).await?;
+    let profile = require_profile_for_update(&tx, profile_id).await?;
     let project_id = profile.project_id;
     let (restored_state, cleanup_start_chapter) = if chapter_number == 0 {
         (profile.base_attributes.clone(), 1)

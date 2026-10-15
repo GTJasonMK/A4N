@@ -55,7 +55,11 @@ impl ImportAnalysisGenerationApplicationPort for OrchestratorContext {
 
 #[async_trait::async_trait]
 impl a4n_api_contract::import::ImportAnalysisCancellationApplicationPort for OrchestratorContext {
-    async fn cancel(&self, user_id: i64, project_id: i64) -> Result<(), AppError> {
+    async fn cancel(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<ProjectImportAnalysisProgress, AppError> {
         self.verify_project_permission(
             project_id,
             user_id,

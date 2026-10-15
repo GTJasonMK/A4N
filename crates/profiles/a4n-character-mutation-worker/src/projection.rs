@@ -119,6 +119,7 @@ pub(super) fn deletion_mark_summary(
         last_marked_chapter: mark.last_marked_chapter,
         is_executed: mark.is_executed,
         created_at: mark.created_at.and_utc().to_rfc3339(),
+        updated_at: mark.updated_at,
     })
 }
 

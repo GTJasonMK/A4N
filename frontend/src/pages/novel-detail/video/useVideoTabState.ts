@@ -753,20 +753,6 @@ export function useVideoTabState({
             ) {
               throw error;
             }
-            setRecipeOverrides((previous) => {
-              if (previous.get(recipe.segment_number) !== recipe)
-                return previous;
-              const next = new Map(previous);
-              next.delete(recipe.segment_number);
-              const persisted = persistedRecipeBySegmentRef.current.get(
-                recipe.segment_number,
-              );
-              const effective = new Map(effectiveRecipeBySegmentRef.current);
-              if (persisted) effective.set(recipe.segment_number, persisted);
-              else effective.delete(recipe.segment_number);
-              effectiveRecipeBySegmentRef.current = effective;
-              return next;
-            });
             recipeSaveErrorRef.current.set(recipe.segment_number, message);
             setRecipeSaveErrors((previous) =>
               new Map(previous).set(recipe.segment_number, message),
@@ -826,6 +812,25 @@ export function useVideoTabState({
     const error = recipeSaveErrorRef.current.get(segmentNumber);
     if (error) throw new Error(error);
   }, []);
+  const discardUnsavedRecipeOverrides = useCallback(() => {
+    if (savingRecipeSegments.size > 0) return false;
+    const effective = new Map(effectiveRecipeBySegmentRef.current);
+    for (const segmentNumber of recipeOverrides.keys()) {
+      const persisted = persistedRecipeBySegmentRef.current.get(segmentNumber);
+      if (persisted) effective.set(segmentNumber, persisted);
+      else effective.delete(segmentNumber);
+      recipeSaveErrorRef.current.delete(segmentNumber);
+    }
+    effectiveRecipeBySegmentRef.current = effective;
+    setRecipeOverrides(new Map());
+    setRecipeSaveErrors((previous) => {
+      if (previous.size === 0) return previous;
+      const next = new Map(previous);
+      for (const segmentNumber of recipeOverrides.keys()) next.delete(segmentNumber);
+      return next;
+    });
+    return true;
+  }, [recipeOverrides, savingRecipeSegments.size]);
   const [draft, setDraft] = useState<PromptDraft>(DEFAULT_DRAFT);
   const referenceMediaDraftScopeForSegment = useCallback(
     (segmentNumber: number) => {
@@ -964,6 +969,8 @@ export function useVideoTabState({
     setSegmentConfigOpen,
     savingRecipeSegments,
     recipeSaveErrors,
+    recipeOverridesDirty: recipeOverrides.size > 0,
+    discardUnsavedRecipeOverrides,
     effectiveRecipeBySegment,
     effectiveRecipeBySegmentRef,
     recipeFingerprintBySegment,

@@ -8,6 +8,7 @@ import {
   getWritingDraftKey,
   getWritingDraftProjectPrefix,
   readWritingDraft,
+  removeProjectWritingDrafts,
   removeWritingDraft,
   writeWritingDraft,
 } from "../../utils/writingDraft";
@@ -299,12 +300,11 @@ export function useWritingDeskDrafts({
 
   const clearProjectDrafts = useCallback(async () => {
     if (!projectIdKey) return;
-    for (const chapterNumber of Array.from(
-      getProjectWritingDraftSet(projectIdKey),
-    )) {
-      await removeWritingDraft(getWritingDraftKey(projectIdKey, chapterNumber));
+    try {
+      await removeProjectWritingDrafts(projectIdKey);
+    } finally {
+      setDraftRevision((value) => value + 1);
     }
-    setDraftRevision((value) => value + 1);
   }, [projectIdKey]);
 
   const resetDraftTracking = useCallback(() => {
