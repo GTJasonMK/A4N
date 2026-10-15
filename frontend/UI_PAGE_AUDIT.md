@@ -837,3 +837,11 @@
 - Chrome 153 通过 `/settings#prompt-assembly` 实测 1440/390px：桌面列表与编辑区对齐，编辑区宽度可用；390px 实际视口高 823px，列表剩余滚动 461px，提示可见且不遮挡，`inspiration` 的“模型调用”字段底边在 662.22px；页面 overflow=0，浏览器错误和意外请求均为0。独立审图复核最终桌面与手机截图，无 P1/P2/P3。
 - 证据：[浏览器报告](../.dev-runtime/ui-pages/settings-details/prompt-assembly-closeout-20261015-2026-10-15T11-10-59-340Z/settings-details-report.json)、[1440px 桌面](../.dev-runtime/ui-pages/settings-details/prompt-assembly-closeout-20261015-2026-10-15T11-10-59-340Z/SD29-prompt-assembly-assembly-desktop-1440.png)、[390px 手机](../.dev-runtime/ui-pages/settings-details/prompt-assembly-closeout-20261015-2026-10-15T11-10-59-340Z/SD29-prompt-assembly-assembly-mobile-390.png)。
 - 验证：SD29 Chrome 回归 1/1、E2E `node --check`、`npm run build`、设计预算、`git diff --check` 通过。CSS 源码 4,767 行 / 135,470 字节，构建 CSS 266,038 字节（较批准基线约 +1.47% / −1.76% / +3.33%）；调色板匹配、界面 emoji=0、无新增依赖。构建保留既有 >500 kB JS chunk 提示。
+
+## 首页筛选无结果的恢复入口（2026-10-15）
+
+- 根因：首页把“全部项目为空”和“筛选后没有匹配项目”合并成同一空态；用户选中没有结果的筛选后，近期项目和全部项目区域都没有解释或恢复入口。
+- 全局空态现在只在项目列表确实为空且两个筛选均为“全部”时显示。筛选结果为空时，近期项目和全部项目都显示本地化说明与“清除筛选”按钮；按钮复用现有筛选回调同时重置项目类型和访问范围。没有改 API、查询行为或项目操作。
+- Chrome 153 H09 路径 1/1，在 1440/900/390px 覆盖“视频画布 + 我协作的”零结果及清除后列表恢复；三宽页面 overflow、浏览器错误和意外请求均为 0。清除后六个 fixture 项目恢复，两个筛选回到“全部”。独立审图复核桌面、手机的无匹配态和恢复态，无可确认 P1/P2/P3。
+- 证据：[本轮报告](../.dev-runtime/ui-pages/home-agent/h09-verification-20261015-report.json)、[1440px 无匹配](../.dev-runtime/ui-pages/home-agent/h09-verification-20261015-H09-filtered-empty-1440-initial.png)、[390px 无匹配](../.dev-runtime/ui-pages/home-agent/h09-verification-20261015-H09-filtered-empty-390-initial.png)、[390px 清除后](../.dev-runtime/ui-pages/home-agent/h09-verification-20261015-H09-filtered-empty-390-filters-cleared.png)。
+- 验证：`npm run build`、H09 Chrome 回归、E2E `node --check`、设计预算及 `git diff --check` 通过。CSS 未修改；当前 CSS 源码 4,767 行 / 135,470 字节，构建 CSS 266,038 字节，低于 +20% 上限；调色板匹配、界面 emoji=0、无新增依赖。首次 WDIO 启动因本机代理环境未创建 Chrome 会话；移除代理变量后同一回归通过。构建保留既有 >500 kB JS chunk 提示。

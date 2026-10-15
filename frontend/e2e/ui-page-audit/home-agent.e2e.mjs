@@ -327,6 +327,30 @@ describe("Home and global Agent page audit", function () {
       await press(await row.$('button[aria-label="更多操作"]')); await menu("导入文本到此项目");
       return dialog("导入项目文本");
     }, text: "12 条记录", last: async (scope) => scope.$('button[aria-label="查看 12-旧书店与车站调查补充材料.md 的审核详情"]') },
+    { id: "H09-filtered-empty", task: "筛选无匹配项目时识别原因并恢复列表", open: async () => {
+      const scope = await home();
+      await choose("项目类型", "视频画布", scope);
+      await choose("访问权限", "我协作的", scope);
+      return scope;
+    }, text: "没有符合当前筛选条件的项目", check: async (scope) => {
+      const empty = await scope.$(".a4n-empty-state");
+      assert.ok(await empty.isDisplayed());
+      assert.ok((await empty.getText()).includes("清除筛选"));
+      assert.deepEqual(await projectTitles(scope), []);
+      const request = await browser.execute(() => window.__uiAudit.requests.findLast((item) => item.command === "list_projects").body);
+      assert.equal(request.projectKind, "canvas");
+      assert.equal(request.accessScope, "collaborating");
+      return { noMatches: true, projectKind: request.projectKind, accessScope: request.accessScope, clearActionVisible: true };
+    }, after: async (scope) => {
+      await click("清除筛选", scope);
+      const restored = await expectProjects(scope, fixtures.projectRecords);
+      const request = await browser.execute(() => window.__uiAudit.requests.findLast((item) => item.command === "list_projects").body);
+      assert.ok(!request.projectKind || request.projectKind === "all");
+      assert.ok(!request.accessScope || request.accessScope === "all");
+      await choose("项目类型", "全部", scope);
+      await choose("访问权限", "全部可访问", scope);
+      await shot(scope, current.width, "filters-cleared", { ...restored, filtersReset: true });
+    } },
   ];
   for (const spec of homePages) it(spec.id + " follows the existing home entry", async () => matrix(spec));
 

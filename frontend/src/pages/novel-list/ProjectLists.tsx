@@ -1,6 +1,7 @@
 import React from "react";
 import { BookOpen, ChevronRight, Gamepad2, Image, Layers3, Video } from "lucide-react";
 import { Dropdown } from "../../components/ui/Dropdown";
+import { BookButton } from "../../components/ui/BookButton";
 import { BookCardAction } from "../../components/ui/BookCard";
 import { useContextMenu, type ContextMenuEntry } from "../../components/ui/ContextMenu";
 import { canEditProjectMaterials, type NovelProject } from "../../api/project";
@@ -24,14 +25,15 @@ interface ProjectListProps {
   families: ProjectFamily[];
   groups: [string, ProjectFamily[]][];
   empty: boolean;
+  onClearFilters: () => void;
   onOpen: (project: NovelProject) => void;
   onWrite: (project: NovelProject) => void;
   getActions: (project: NovelProject) => ProjectActionItems;
 }
 
 export const RecentProjectList: React.FC<
-  Pick<ProjectListProps, "families" | "empty" | "onOpen" | "onWrite" | "getActions">
-> = ({ families, empty, onOpen, onWrite, getActions }) => {
+  Pick<ProjectListProps, "families" | "empty" | "onClearFilters" | "onOpen" | "onWrite" | "getActions">
+> = ({ families, empty, onClearFilters, onOpen, onWrite, getActions }) => {
   const { t } = useI18n();
   if (empty) {
     return (
@@ -39,7 +41,7 @@ export const RecentProjectList: React.FC<
     );
   }
   if (families.length === 0) {
-    return null;
+    return <FilteredProjectEmptyHint onClearFilters={onClearFilters} />;
   }
   return (
     <ul className="a4n-motion-stagger space-y-3">
@@ -57,11 +59,14 @@ export const RecentProjectList: React.FC<
 };
 
 export const AllProjectList: React.FC<
-  Pick<ProjectListProps, "groups" | "empty" | "onOpen" | "onWrite" | "getActions">
-> = ({ groups, empty, onOpen, onWrite, getActions }) => {
+  Pick<ProjectListProps, "groups" | "empty" | "onClearFilters" | "onOpen" | "onWrite" | "getActions">
+> = ({ groups, empty, onClearFilters, onOpen, onWrite, getActions }) => {
   const { t } = useI18n();
   if (empty) {
     return <EmptyHint text={t("novel.noProjects")} />;
+  }
+  if (groups.length === 0) {
+    return <FilteredProjectEmptyHint onClearFilters={onClearFilters} />;
   }
   return (
     <div className="a4n-motion-stagger space-y-5">
@@ -299,3 +304,15 @@ const ProjectRow: React.FC<{
 const EmptyHint: React.FC<{ text: string }> = ({ text }) => (
   <div className="a4n-empty-state a4n-empty-state--framed text-sm">{text}</div>
 );
+
+const FilteredProjectEmptyHint: React.FC<{ onClearFilters: () => void }> = ({ onClearFilters }) => {
+  const { t } = useI18n();
+  return (
+    <div className="a4n-empty-state a4n-empty-state--framed text-sm">
+      <p>{t("novel.noProjectsMatchFilters")}</p>
+      <BookButton variant="secondary" size="sm" onClick={onClearFilters}>
+        {t("novel.clearProjectFilters")}
+      </BookButton>
+    </div>
+  );
+};

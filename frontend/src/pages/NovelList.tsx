@@ -856,7 +856,13 @@ export const NovelList: React.FC<NovelListProps> = () => {
           tab={tab}
           loading={loading}
           loadError={loadError == null ? null : extractErrorMessage(loadError, t("novel.projectLoadFailed"))}
-          empty={!loading && !loadError && projects.length === 0}
+          empty={
+            !loading &&
+            !loadError &&
+            projects.length === 0 &&
+            accessScope === "all" &&
+            projectKindFilter === "all"
+          }
           recentProjectFamilies={recentProjectFamilies}
           groupedProjectFamilies={groupedProjectFamilies}
           accessScope={accessScope}

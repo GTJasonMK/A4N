@@ -89,6 +89,10 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
     owned: t("novel.owned"),
     collaborating: t("novel.collaborating"),
   };
+  const clearProjectFilters = () => {
+    onAccessScopeChange("all");
+    onProjectKindFilterChange("all");
+  };
   return (
   <section aria-label={t("novel.projectList")} className="a4n-home-content flex min-w-0 flex-1 flex-col md:overflow-hidden">
     <header className="a4n-home-heading content-wide">
@@ -226,6 +230,7 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
         <RecentProjectList
           families={recentProjectFamilies}
           empty={empty}
+          onClearFilters={clearProjectFilters}
           onOpen={onOpenProject}
           onWrite={onOpenWorkspace}
           getActions={getActions}
@@ -234,6 +239,7 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
         <AllProjectList
           groups={groupedProjectFamilies}
           empty={empty}
+          onClearFilters={clearProjectFilters}
           onOpen={onOpenProject}
           onWrite={onOpenWorkspace}
           getActions={getActions}
