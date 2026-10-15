@@ -64,6 +64,7 @@
 | [PERF-108](../../crates/platform/a4n-migration/src/migrations/project_status_history_project_changed_index.rs) | 项目状态历史按项目读取；100,000 行、目标项目 20,000 条 | 为现有 `WHERE project_id = ? ORDER BY changed_at DESC, id DESC` 增加项目/时间排序索引；保持完整状态历史投影和顺序 | 隔离 PostgreSQL 16、5 轮交错：P50 **8.627→5.121 ms（40.64%）**；计划从 Sort + Seq Scan 变为 Sort + Bitmap Heap Scan；索引 **4,079,616 B**；20,000 个 ID 顺序完全一致 |
 | [PERF-109](../../crates/platform/a4n-migration/src/migrations/workflow_run_business_updated_index.rs) | 工作流恢复按 business key 取最新运行；100,000 行、每 key 1,000 条历史 | 为现有 `WHERE business_key = ? ORDER BY updated_at DESC, id DESC LIMIT 1` 增加 business key/时间排序索引；保持最新记录身份和完整 DTO | 隔离 PostgreSQL 16、保留 business key 单列索引、5 轮交错：P50 **3.701→0.098 ms（97.35%）**；计划从 Bitmap Heap + Sort 变为 Limit + Index Scan；索引 **4,079,616 B**；最新运行 ID 完全一致 |
 | [PERF-110](../../crates/platform/a4n-migration/src/migrations/llm_call_trace_created_index.rs) | 管理员生成分析读取时间窗口内所有 LLM trace；100,000 行、最近 7 天 7,000 行 | 为 `created_at >= since ORDER BY created_at DESC` 增加全局时间索引；保留完整分析投影及 JSON 表达式 | 隔离 PostgreSQL 16、完整分析投影、5 轮交错：P50 **81.636→39.269 ms（51.90%）**；计划从 Seq Scan + Sort 变为 Index Scan；索引 **2,260,992 B**；行数和 ID 顺序完全一致 |
+| [PERF-111](../../crates/platform/a4n-migration/src/migrations/generation_run_created_index.rs) | 管理员生成分析媒体运行查询；100,000 行、最近窗口 4,667 条 image/video | 为 `created_at >= since` 增加全局时间索引；保持 image/video 过滤、完整分析投影和倒序 | 隔离 PostgreSQL 16、已有 project/time 索引、5 轮交错：P50 **15.504→1.230 ms（92.07%）**；计划从 Seq Scan + Sort 变为 Index Scan；索引 **2,260,992 B**；4,667 个 ID 顺序完全一致 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -108,7 +109,8 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 导入审核项目列表索引候选 | PERF-107 在 100,000 行、20,000 条命中、每行约 8 KiB JSON 的完整返回上尝试 `import_review_queue(project_id, created_at DESC)`；P50 **19.251→17.848 ms（7.29%）**，低于门槛，未修改索引。 |
 | 项目状态历史数据库排序 | PERF-108 为 `project_status_history(project_id, changed_at DESC, id DESC)` 增加索引；100,000 行、20,000 条命中时数据库执行 P50 下降 **40.64%**，结果顺序不变；详见 PERF-108。 |
 | 工作流 business key 最新运行 | PERF-109 为 `workflow_run(business_key, updated_at DESC, id DESC)` 增加索引；100,000 行、每 key 1,000 条历史时数据库执行 P50 下降 **97.35%**，最新运行身份不变；详见 PERF-109。 |
-| LLM 生成分析时间窗口 | PERF-110 为 `llm_call_trace.created_at` 增加全局降序索引；100,000 行、最近 7 天 7,000 行完整分析投影时数据库执行 P50 下降 **54.20%**，行数和顺序不变；详见 PERF-110。 |
+| LLM 生成分析时间窗口 | PERF-110 为 `llm_call_trace.created_at` 增加全局降序索引；100,000 行、最近 7 天 7,000 行完整分析投影时数据库执行 P50 下降 **51.90%**，行数和顺序不变；详见 PERF-110。 |
+| 媒体生成分析时间窗口 | PERF-111 为 `generation_run.created_at` 增加全局降序索引；100,000 行、最近 7 天内 4,667 条 image/video 运行时数据库执行 P50 下降 **92.07%**，结果顺序不变；详见 PERF-111。 |
 
 ## 可复现入口
 
@@ -661,6 +663,22 @@ A4N_PERF_ARTIFACTS=data/performance-audit-20261015/llm-analytics-index \
   python3 scripts/tests/run_with_test_database.py \
   --report-dir data/test-runs/llm-analytics-index-20261015 \
   --timeout 60 -- node scripts/performance/llm-analytics-index.mjs
+~~~
+
+### PERF-111：媒体生成分析时间窗口缺少全局索引
+
+- 请求链路：同一管理员生成分析接口读取 `generation_run`，过滤 `created_at >= since` 和 `model_kind IN ('image','video')`，投影调用摘要并按创建时间倒序，之后在进程中聚合每日/工作流状态。既有 `(project_id, created_at)` 索引不适用于不限定项目的管理分析。
+- 修复：新增 `generation_run_created_index` schema migration，创建 `idx_generation_run_created (created_at DESC)`；保留最近窗口、image/video 过滤、完整分析 DTO 和行顺序，并更新运行时 schema gate。
+- A/B：隔离 PostgreSQL 16，100,000 条完整形状 generation run；最近 7 天 7,000 条，其中 4,667 条 image/video、其余为 text，已有项目/创建时间索引，5 轮交错。无全局索引 P50 **15.504 ms**（`Sort` + `Seq Scan`），有索引 **1.230 ms**（`Index Scan`），下降 **92.07%**；索引大小 **2,260,992 B**，每轮 4,667 个 ID 顺序完全一致。
+- 验证：migration SQL 单测、迁移顺序测试、`a4n-migration`/`a4n-db-models` check、隔离 PostgreSQL 全迁移初始化集成测试、基准脚本 `node --check` 和 `git diff --check` 通过。
+- 边界：A/B 测量数据库筛选、投影和排序，不包含 Rust 聚合与 HTTP 响应；如果时间窗覆盖表中很大比例，顺序扫描更合适，PostgreSQL planner 会依据统计信息选择计划。事务型 `CREATE INDEX` 对大表可能短暂阻塞写入。
+- 证据：`../../data/performance-audit-20261015/generation-run-analytics-index/report.json`。从工作树根目录执行：
+
+~~~bash
+A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
+  python3 scripts/tests/run_with_test_database.py \
+  --report-dir data/test-runs/generation-run-analytics-index-20261015 \
+  --timeout 60 -- node scripts/performance/generation-run-analytics-index.mjs
 ~~~
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
