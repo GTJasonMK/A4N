@@ -37,6 +37,7 @@ import {
   useProgressTask,
 } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
+import { resolveScrollBehavior } from "../../utils/scrollRail";
 import { ImportFilePanel } from "./imports/ImportFilePanel";
 import { ImportReviewDetailPanel } from "./imports/ImportReviewDetailPanel";
 import {
@@ -730,7 +731,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     if (window.matchMedia("(max-width: 1023px)").matches) {
       requestAnimationFrame(() => {
         detailPanelRef.current?.scrollIntoView({
-          behavior: "smooth",
+          behavior: resolveScrollBehavior("smooth"),
           block: "start",
         });
       });

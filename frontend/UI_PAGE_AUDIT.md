@@ -820,3 +820,12 @@
 - 验证：`npm run build`；`node e2e/ui-presentation/check-design-budget.mjs`；`git diff --check`；E2E `node --check`。CSS 源码 4,767 行 / 135,470 字节，构建 CSS 265,993 字节；相对设计基线分别 +1.47%、−1.76%、+3.31%，均低于 +20%。调色盘一致、界面 emoji=0、无新增依赖。浏览器 API 响应由 UI fixture 模拟，未声称真实 Host/数据库写入。
 - 浏览器报告：[`settings-fixes-verified`](../.dev-runtime/ui-pages/settings-details/settings-fixes-verified-2026-10-15T10-11-13-278Z/settings-details-report.json)；独立审图详情见 [`settings-independent-review.md`](./e2e/ui-page-audit/reviews/settings-independent-review.md)。
 - reduced-motion 代表性覆盖补充：Chrome 模拟 `prefers-reduced-motion: reduce`，检查首页交互标识、加载骨架与路由进入动画；骨架和路由动画时长为 0，骨架只播放 1 次。加载态在 390/1024/1440px 的横向溢出均为 0。定向视觉检查 1/1 通过，报告见[浏览器记录](../.dev-runtime/ui-design-motion-recheck-20261015/visual/report.json)。这不代表全站每个页面或所有 JavaScript 动画均已覆盖，完整减少动态偏好审查仍待完成。
+
+## 减少动态偏好下的脚本滚动与提示词列表（2026-10-15）
+
+- 根因：全局 CSS 已将 reduced-motion 状态下的动画/过渡和默认滚动行为归零，但传给 `scrollIntoView`、`scrollTo` 的显式 `behavior: "smooth"` 不会被 CSS 的 `scroll-behavior: auto` 覆盖。
+- 共用滚动工具现将平滑请求按系统偏好解析：普通偏好保留平滑滚动；请求减少动态时使用 `auto`。应用到提示词选择、导入审核详情、资产图谱聚焦/方向键，以及所有调用共用横向 tab 轨道的页面。
+- 手机提示词列表原先只露出两条半，内部继续滚动没有线索。列表存在剩余内容时，在列表和编辑面板之间显示本地化 Lucide 下箭头提示；滚到底后提示收起并保留间距，避免编辑面板随滚动跳动。无剩余内容时不显示。列表高度、顺序、点击/键盘选择和编辑行为不变。
+- Chrome 153 设置页 SD28 路径在桌面和 390px 手机验证布局；手机模拟 `prefers-reduced-motion: reduce`，以真实提示词列表选择验证传给 `scrollIntoView` 的行为为 `auto`。滚动提示在有剩余项时出现、到底消失、回顶恢复；390px 页面 overflow、浏览器错误和意外请求均为 0。独立审图复核桌面与手机截图，无可确认 P1/P2/P3。[浏览器报告](../.dev-runtime/ui-pages/settings-details/motion-scroll-20261015-final-2026-10-15T10-51-17-549Z/settings-details-report.json)、[1440px 桌面](../.dev-runtime/ui-pages/settings-details/motion-scroll-20261015-final-2026-10-15T10-51-17-549Z/SD28-prompt-list-desktop-default-1440.png)、[390px 手机](../.dev-runtime/ui-pages/settings-details/motion-scroll-20261015-final-2026-10-15T10-51-17-549Z/SD28-prompt-list-selected-reduced-motion-390.png)。
+- 验证：`scrollRail.test.ts` 8/8、SD28 Chrome 回归 1/1、`npm run build`、E2E `node --check`、设计预算与 `git diff --check` 通过。CSS 源码 4,767 行 / 135,470 字节，构建 CSS 266,038 字节；较批准基线约 +1.47% / −1.76% / +3.33%，低于 +20%。palette 匹配、界面 emoji=0、无新增依赖。构建保留既有 >500 kB JS chunk 提示。
+- 边界：此修复覆盖显式程序化滚动和全局 CSS 动效策略，不等于已逐页验证全部第三方/自定义 JavaScript 动画；全站减弱动态偏好复核仍继续。

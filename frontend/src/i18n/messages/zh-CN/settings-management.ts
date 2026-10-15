@@ -405,6 +405,7 @@ export const settingsPrompt = {
   noDescription: "暂无说明",
   customized: "已自定义",
   itemCount: "{count} 项",
+  scrollHint: "向下滚动查看更多提示词",
   loadingProjects: "正在加载项目…",
   noProjectContext: "不使用项目上下文",
   selectProject: "选择项目",

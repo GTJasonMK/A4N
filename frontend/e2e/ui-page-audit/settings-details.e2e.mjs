@@ -16,6 +16,7 @@ const widths = [1440, 1024, 900, 390];
 const minPromptEditorHeight = 240;
 const report = { phase, runId, setupComplete: false, visualReview: "pending", planned: [], screenshots: [], tests: [] };
 const prompt = seed.invoke.prompt_list.find((item) => item.name === "blueprint");
+const secondaryPrompt = seed.invoke.prompt_list.find((item) => item.name !== prompt.name);
 const editableTheme = seed.invoke.list_themes.find((item) => item.id === 13);
 const fakePassword = "UI-audit-only-Password-2026";
 let trace = [];
@@ -495,6 +496,82 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await respond("prompt_render_ab", seed.invoke.prompt_render_ab);
     await browser.waitUntil(async () => (await renderBlock.getText()).includes("原始模板："));
     await capture("render-comparison", { anchor: '//summary[contains(normalize-space(),"渲染对照")]' });
+  });
+
+  workflow("SD28-prompt-list uses immediate selection scrolling for reduced motion", async () => {
+    await openPrompt();
+    try {
+      await capture("desktop-default", { viewports: [1440] });
+      await browser.setWindowSize(390, 1000);
+      await browser.sendCommandAndGetResult("Emulation.setEmulatedMedia", {
+        features: [{ name: "prefers-reduced-motion", value: "reduce" }],
+      });
+      await browser.waitUntil(async () => browser.execute(() => Boolean(document.querySelector("[data-prompt-scroll-hint]"))));
+      const listAtStart = await browser.execute(() => {
+        const list = document.querySelector("[data-prompt-list]");
+        if (!(list instanceof HTMLElement)) throw new Error("提示词列表不可用");
+        return { height: list.clientHeight, scrollHeight: list.scrollHeight };
+      });
+      assert.ok(listAtStart.scrollHeight > listAtStart.height, "The prompt list must expose its overflowing state");
+      await browser.execute(() => {
+        const list = document.querySelector("[data-prompt-list]");
+        if (!(list instanceof HTMLElement)) throw new Error("提示词列表不可用");
+        list.scrollTo({ top: list.scrollHeight, behavior: "auto" });
+      });
+      await browser.waitUntil(async () => browser.execute(() => !document.querySelector("[data-prompt-scroll-hint]")));
+      const hintAtEnd = await browser.execute(() => Boolean(document.querySelector("[data-prompt-scroll-hint]")));
+      assert.equal(hintAtEnd, false, "The scroll hint must disappear at the end of the prompt list");
+      await browser.execute(() => {
+        const list = document.querySelector("[data-prompt-list]");
+        if (!(list instanceof HTMLElement)) throw new Error("提示词列表不可用");
+        list.scrollTo({ top: 0, behavior: "auto" });
+      });
+      await browser.waitUntil(async () => browser.execute(() => Boolean(document.querySelector("[data-prompt-scroll-hint]"))));
+      step("列表仍有内容时显示提示，滚到底收起，再回顶恢复", {
+        scrollHeight: listAtStart.scrollHeight,
+        clientHeight: listAtStart.height,
+      });
+      await browser.execute(() => {
+        const audit = window.__uiAudit;
+        audit.selectedScrollBehaviors = [];
+        audit.originalScrollIntoView = Element.prototype.scrollIntoView;
+        Element.prototype.scrollIntoView = function (options) {
+          if (this.matches('.a4n-settings-content button[aria-current="true"]')) {
+            audit.selectedScrollBehaviors.push(options?.behavior ?? "auto");
+          }
+          return audit.originalScrollIntoView.call(this, options);
+        };
+      });
+
+      await click(
+        await $('.a4n-settings-content').$(`button*=${secondaryPrompt.title}`),
+        `选择提示词 ${secondaryPrompt.name}`,
+      );
+      await browser.waitUntil(async () => browser.execute((title) => {
+        const selected = document.querySelector('.a4n-settings-content button[aria-current="true"]');
+        return Boolean(selected?.textContent?.includes(title) && window.__uiAudit.selectedScrollBehaviors.length > 0);
+      }, secondaryPrompt.title), { timeoutMsg: "The selected prompt did not scroll into view" });
+      const state = await browser.execute(() => ({
+        reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+        behavior: window.__uiAudit.selectedScrollBehaviors.at(-1),
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      }));
+      assert.equal(state.reducedMotion, true);
+      assert.equal(state.behavior, "auto");
+      assert.equal(state.overflow, 0);
+      step("选择提示词后按系统偏好即时滚动", { name: secondaryPrompt.name, behavior: state.behavior });
+      await capture("selected-reduced-motion", { viewports: [390] });
+    } finally {
+      await browser.execute(() => {
+        const audit = window.__uiAudit;
+        if (audit?.originalScrollIntoView) {
+          Element.prototype.scrollIntoView = audit.originalScrollIntoView;
+          delete audit.originalScrollIntoView;
+        }
+        delete audit?.selectedScrollBehaviors;
+      });
+      await browser.sendCommandAndGetResult("Emulation.setEmulatedMedia", { features: [] });
+    }
   });
 
   workflow("SD05-theme-editor exposes every editor section and saves a real draft", async () => {

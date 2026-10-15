@@ -405,6 +405,7 @@ export const settingsPrompt = {
   noDescription: "No description",
   customized: "Customized",
   itemCount: "{count} items",
+  scrollHint: "Scroll down to see more prompts",
   loadingProjects: "Loading projects…",
   noProjectContext: "Do not use project context",
   selectProject: "Select a project",

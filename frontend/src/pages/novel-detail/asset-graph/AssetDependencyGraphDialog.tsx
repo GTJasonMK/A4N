@@ -18,6 +18,7 @@ import { extractErrorMessage } from "../../../api";
 import { Modal } from "../../../components/ui/Modal";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { THEME_APPLIED_EVENT } from "../../../theme/activeTheme";
+import { resolveScrollBehavior } from "../../../utils/scrollRail";
 import { useI18n } from "../../../i18n";
 import {
   buildLayout,
@@ -250,7 +251,7 @@ export const AssetDependencyGraphDialog: React.FC<
       0,
       Math.max(0, container.scrollHeight - container.clientHeight),
     );
-    container.scrollTo({ left, top, behavior: "smooth" });
+    container.scrollTo({ left, top, behavior: resolveScrollBehavior("smooth") });
   }, [open, selectedNode, zoom]);
 
   const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -363,7 +364,7 @@ export const AssetDependencyGraphDialog: React.FC<
                 event.currentTarget.scrollBy({
                   left: direction.left * step,
                   top: direction.top * step,
-                  behavior: "smooth",
+                  behavior: resolveScrollBehavior("smooth"),
                 });
               }}
               className={`${mobilePane === "graph" ? "block" : "hidden"} relative min-w-0 overflow-auto bg-book-bg focus:outline-none focus-visible:ring-2 focus-visible:ring-book-primary/60 md:block md:border-r md:border-book-border/45 custom-scrollbar`}
