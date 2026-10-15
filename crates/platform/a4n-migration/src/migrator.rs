@@ -180,6 +180,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::character_portrait_primary_profile_index::Migration),
             Box::new(crate::migrations::generated_video_project_chapter_index::Migration),
             Box::new(crate::migrations::task_queue_created_index::Migration),
+            Box::new(crate::migrations::task_queue_pending_created_index::Migration),
         ]
     }
 }
@@ -462,6 +463,7 @@ mod tests {
             "character_portrait_primary_profile_index",
             "generated_video_project_chapter_index",
             "task_queue_created_index",
+            "task_queue_pending_created_index",
         ];
         let history_start = names
             .iter()

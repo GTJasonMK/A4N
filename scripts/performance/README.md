@@ -72,6 +72,7 @@
 | [PERF-116](../../crates/platform/a4n-db/src/project/family/context/portraits.rs) | Manga pipeline 启动/预览/断点恢复 → 项目角色立绘索引 | 删除用于选择主图但被下游全扫描 HashMap 取代的项目级排序；单次扫描按 `created_at` 显式选每档最新主图 | PostgreSQL 16、完整立绘投影及已有项目索引；1k／20k／100k 行 P50 **1.439→0.270 ms（81.24%）／23.022→3.578 ms（84.46%）／166.665→15.989 ms（90.41%）**；完整行集合和每档选中主图 ID 相同 |
 | [PERF-117](../../crates/platform/a4n-migration/src/migrations/generated_video_project_chapter_index.rs) | 视频时间线摘要/组装 → 按项目和章节读取全部生成视频并按时间排序；100,000 行、目标章节 100 条 | 为 `project_id = ? AND chapter_id = ?` 增加两列索引；完整视频投影和 `created_at DESC` 顺序不变 | 隔离 PostgreSQL 16、7 轮交错：SQL P50 **21.442→0.657 ms（96.94%）**；100 行完整响应 JSON 完全一致；索引 **761,856 B**。额外 created_at 索引列未改变排序计划，候选索引达到 **4,087,808 B**，故使用最小两列索引 |
 | [PERF-119](../../crates/platform/a4n-migration/src/migrations/task_queue_created_index.rs) | 管理员队列页全局任务历史，5 秒刷新一次、每页 30 条；300,000 行 | 为无 project_id 的 `ORDER BY created_at DESC` 增加全局降序索引；保留现有项目/时间索引和完整任务 DTO | 隔离 PostgreSQL 16.15、7 轮交错：完整 30 行查询 P50 **46.174→0.068 ms（99.85%）**；Seq Scan + top-N Sort 变为 Index Scan + Limit；索引 **6,758,400 B**；前后完整 DTO 顺序/hash 完全一致 |
+| [PERF-120](../../crates/platform/a4n-migration/src/migrations/task_queue_pending_created_index.rs) | 管理员任务页每 5 秒读取全部 pending 任务；300,000 行/15,000 条 pending | 为 `status='pending'` 增加仅含 pending 的 `created_at DESC` 部分索引；Rust 优先级/时间/ID 排序及全量任务合同不变 | 隔离 PostgreSQL 16.15、完整 TaskQueue 投影、7 轮交错：SQL P50 **75.721→13.636 ms（81.99%）**；Seq Scan 变为 Index Scan；索引 **352,256 B**；Rust 排序后的 15,000 条完整 DTO JSON 完全一致 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -759,6 +760,15 @@ A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
 - 验证：migration SQL 单测 **1/1**、迁移顺序测试 **1/1**、`cargo check -p a4n-migration -p a4n-db-models --locked --offline`、隔离 PostgreSQL 全迁移/schema index 断言 **1/1**、`cargo fmt --all -- --check` 和 `git diff --check` 通过。
 - 边界：A/B 测数据库执行时间，未把收益外推到 SeaORM 转换、权限验证、5 秒轮询全链路或传输；索引按每条新任务增加一次索引维护，生产表建索引需安排迁移维护窗口。
 - 证据：`../../data/performance-audit-20261015/task-global-history-index/`，含交错样本、执行计划和前后完整列表 JSON。
+
+### PERF-120：管理员 pending 任务列表缺少状态部分索引
+
+- 请求链路：设置页 `TasksSection` 每 5 秒调用 `list_pending_tasks`。DB 查询 `WHERE status='pending'` 返回完整任务行（含 payload/progress JSON），随后 Rust 按 high/medium/low 自定义优先级、创建时间升序、任务 ID 升序排序；原表没有 status 索引。
+- 修复：新增 `task_queue_pending_created_index` migration，为 `task_queue(created_at DESC) WHERE status='pending'` 建部分索引，并更新 schema gate。查询仍返回全部 pending 任务，不改状态、权限、DTO 或 Rust 排序规则；项目范围任务历史继续使用 PERF-106 索引。
+- A/B：隔离 PostgreSQL 16.15，300,000 条完整 task_queue 行、15,000 条 pending（5%），payload/progress 都含 JSON，保留 PERF-106 project/created 和 PERF-119 全局 created 索引；完整 TaskQueue 投影，7 轮交错。P50 **75.721→13.636 ms（81.99%）**，计划从 Seq Scan 改为 partial Index Scan。索引大小 **352,256 B**。前后读取行经应用原优先级/时间/ID comparator 排序后，15,000 条完整 JSON 的 SHA-256 相同。
+- 验证：migration SQL 单测 **1/1**、迁移顺序测试 **1/1**、`cargo check -p a4n-migration -p a4n-db-models --locked --offline`；隔离 PostgreSQL 执行完整 schema migrations 并检查全局及 pending 索引 **2/2**；`cargo fmt --all -- --check` 和 `git diff --check` 通过。
+- 边界：A/B 量化数据库过滤和完整行读取，不含 Rust DTO mapping/sort、permission check、HTTP 或同轮 stats/workflow 请求；每个 pending 状态转换会维护部分索引，索引只覆盖 pending 子集。
+- 证据：`../../data/performance-audit-20261015/admin-pending-tasks-index/`，含 7 轮样本、执行计划和 Rust 实际排序后的完整 DTO 响应。
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
 
