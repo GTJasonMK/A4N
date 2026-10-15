@@ -37,8 +37,10 @@ export async function previewImportProjectAnalysisRequest(
   );
 }
 
-export async function cancelImportAnalysis(projectId: Id): Promise<void> {
-  return apiInvoke<void>("cancel_import_analysis", {
+export async function cancelImportAnalysis(
+  projectId: Id,
+): Promise<ProjectImportAnalysisProgress> {
+  return apiInvoke<ProjectImportAnalysisProgress>("cancel_import_analysis", {
     projectId: idNum(projectId),
   });
 }

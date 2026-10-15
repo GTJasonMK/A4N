@@ -26,6 +26,7 @@ import {
   type NovelProject,
 } from "../../api/project";
 import { useGenerationTask } from "../../hooks/useGenerationTask";
+import { useProjectLifecycleSync } from "../../hooks/useProjectLifecycleSync";
 import { useNovelDetailDirty } from "../novel-detail/novelDetailDirty";
 import { useFollowLatest } from "../../hooks/useFollowLatest";
 import {
@@ -66,12 +67,19 @@ export const useInspirationChatController = () => {
   const { t } = useI18n();
 
   const [project, setProject] = useState<NovelProject | null>(null);
+  const [lifecycleReadError, setLifecycleReadError] = useState<string | null>(null);
   const [initializationError, setInitializationError] = useState<string | null>(null);
   const [initializationAttempt, setInitializationAttempt] = useState(0);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  useNovelDetailDirty(`inspiration-input:${projectId}`, input.trim().length > 0);
   const [sending, setSending] = useState(false);
+  const [startingMessage, setStartingMessage] = useState(false);
+  useNovelDetailDirty(
+    `inspiration-input:${projectId}`,
+    input.trim().length > 0 || startingMessage,
+    undefined,
+    () => !startingMessage,
+  );
   const [generationHandle, setGenerationHandle] = useState<GenerationTaskHandle | null>(null);
   const [inputPlaceholder, setInputPlaceholder] = useState(() => t("inspiration.inputPlaceholder"));
   const [inputActive, setInputActive] = useState(false);
@@ -116,6 +124,37 @@ export const useInspirationChatController = () => {
     return isCurrentProject(requestProjectId) && sendSeqRef.current === seq;
   }, [isCurrentProject]);
 
+  const handleProjectLifecycleChange = useCallback((
+    nextProject: NovelProject,
+    _previousGate: NovelProject["lifecycle_gate"] | null | undefined,
+    previousContentRevision: number | undefined,
+  ) => {
+    setProject(nextProject);
+    if (previousContentRevision != null && previousContentRevision !== nextProject.content_revision) {
+      setInitializationAttempt((attempt) => attempt + 1);
+    }
+    if (nextProject.lifecycle_gate !== "active") {
+      addToast(t("errors.noEditPermission"), "error");
+    }
+  }, [addToast, t]);
+
+  useProjectLifecycleSync(
+    projectId,
+    project?.lifecycle_gate,
+    handleProjectLifecycleChange,
+    {
+      enabled: project != null,
+      contentRevision: project?.content_revision,
+      updatedAt: project?.updated_at,
+      onReadError: (error) => {
+        const message = extractErrorMessage(error, t("errors.loadProject"));
+        setLifecycleReadError(message);
+        addToast(message, "error");
+      },
+      onReadSuccess: () => setLifecycleReadError(null),
+    },
+  );
+
   const latestAssistant = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       if (messages[i].role === "assistant") return messages[i];
@@ -137,6 +176,7 @@ export const useInspirationChatController = () => {
     latestConversationState,
     progressSummary,
     nextQuestion,
+    projectReadAvailable: lifecycleReadError == null,
     addToast,
   });
   const { stage } = blueprintWorkflow;
@@ -186,6 +226,7 @@ export const useInspirationChatController = () => {
     setInitializationError(null);
     setInput("");
     setSending(false);
+    setStartingMessage(false);
     sendingRef.current = false;
     generationHandleRef.current = null;
     generationAssistantIdRef.current = null;
@@ -468,8 +509,17 @@ export const useInspirationChatController = () => {
   ]);
 
   const handleSend = async (text?: string) => {
+    const usesComposer = text == null;
     const value = (text ?? input).trim();
     if (!value || sendingRef.current) return;
+    if (lifecycleReadError) {
+      addToast(lifecycleReadError, "error");
+      return;
+    }
+    if (!project || !canEditProjectMaterials(project)) {
+      addToast(t("errors.noEditPermission"), "error");
+      return;
+    }
     const requestProjectId = projectId;
     const requestSeq = sendSeqRef.current + 1;
     sendSeqRef.current = requestSeq;
@@ -493,8 +543,9 @@ export const useInspirationChatController = () => {
     generationAssistantIdRef.current = assistantId;
     handledTerminalRef.current = null;
     setMessages((prev) => [...prev, userMessage, assistantMessage]);
-    setInput("");
+    if (usesComposer) setInput("");
     setSending(true);
+    setStartingMessage(true);
 
     try {
       const handle = await generationClient.start((meta) =>
@@ -513,11 +564,15 @@ export const useInspirationChatController = () => {
       const message = extractErrorMessage(err, t("inspiration.conversationError"));
       addToast(message, "error");
       setMessages((prev) => prev.filter((item) => item.id !== userMessage.id && item.id !== assistantId));
-      setInput(value);
+      if (usesComposer) {
+        setInput((current) => current.trim() ? current : value);
+      }
       generationAssistantIdRef.current = null;
       sendingRef.current = false;
       setSending(false);
       inputRef.current?.focus();
+    } finally {
+      if (isCurrentSend(requestProjectId, requestSeq)) setStartingMessage(false);
     }
   };
 
@@ -530,7 +585,16 @@ export const useInspirationChatController = () => {
 
   const handlePreviewInspirationRequest = useCallback(async () => {
     const value = input.trim();
-    if (!value || sending) return;
+    if (lifecycleReadError) {
+      addToast(lifecycleReadError, "error");
+      return;
+    }
+    if (!value || sending || !project || !canEditProjectMaterials(project)) {
+      if (value && project && !canEditProjectMaterials(project)) {
+        addToast(t("errors.noEditPermission"), "error");
+      }
+      return;
+    }
     const requestProjectId = projectId;
     const requestSeq = requestPreviewSeqRef.current + 1;
     requestPreviewSeqRef.current = requestSeq;
@@ -566,7 +630,7 @@ export const useInspirationChatController = () => {
         setRequestPreviewLoading(false);
       }
     }
-  }, [addToast, input, isCurrentProject, projectId, sending, t]);
+  }, [addToast, input, isCurrentProject, lifecycleReadError, project, projectId, sending, t]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (

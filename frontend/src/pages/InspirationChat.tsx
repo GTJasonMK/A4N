@@ -100,7 +100,7 @@ export const InspirationChat: React.FC = () => {
               blueprint={chat.blueprint}
               consistencyWarning={chat.blueprintConsistencyWarning}
               refining={chat.refining}
-              onRefine={(focus) => void chat.handleRefineBlueprint(focus)}
+              onRefine={chat.handleRefineBlueprint}
               onPreviewRefine={(focus) => void chat.handlePreviewRefineBlueprint(focus)}
               onConfirm={chat.handleConfirmBlueprint}
               onCancel={chat.handleBackToConversation}
@@ -125,6 +125,9 @@ export const InspirationChat: React.FC = () => {
         total={chat.blueprintProgress.total}
         message={chat.blueprintProgress.message}
         error={chat.blueprintProgress.error}
+        errorHint={chat.blueprintOperation === "refinement" && chat.blueprintProgress.status === "error"
+          ? t("inspiration.refineFailureRecovery")
+          : undefined}
         streamText={chat.blueprintStreamText}
         streaming={
           chat.blueprintProgressOpen

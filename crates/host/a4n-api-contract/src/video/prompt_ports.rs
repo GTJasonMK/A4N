@@ -109,7 +109,7 @@ pub trait VideoPromptMutationApplicationPort: Send + Sync {
         prompt_id: i64,
         input: UpdateChapterVideoPromptInput,
         cleanup: &dyn VideoPromptDownstreamCleanupPort,
-    ) -> Result<ChapterVideoPromptSummary, a4n_error::AppError>;
+    ) -> Result<VideoPromptUpdateResult, a4n_error::AppError>;
 
     async fn delete_chapter_video_prompt(
         &self,
@@ -117,7 +117,7 @@ pub trait VideoPromptMutationApplicationPort: Send + Sync {
         prompt_id: i64,
         downstream_strategy: DownstreamConflictStrategy,
         cleanup: &dyn VideoPromptDownstreamCleanupPort,
-    ) -> Result<(), a4n_error::AppError>;
+    ) -> Result<VideoPromptDeleteResult, a4n_error::AppError>;
 
     async fn optimize_chapter_video_prompt(
         &self,
@@ -126,5 +126,5 @@ pub trait VideoPromptMutationApplicationPort: Send + Sync {
         input: OptimizeChapterVideoPromptInput,
         prompt_renderer: &dyn crate::prompt::PromptRenderPort,
         cleanup: &dyn VideoPromptDownstreamCleanupPort,
-    ) -> Result<ChapterVideoPromptSummary, a4n_error::AppError>;
+    ) -> Result<VideoPromptUpdateResult, a4n_error::AppError>;
 }

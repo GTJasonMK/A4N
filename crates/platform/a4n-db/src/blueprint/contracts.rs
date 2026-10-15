@@ -53,6 +53,7 @@ pub struct ManualBlueprintUpsertInput {
 #[derive(Debug, Clone)]
 pub struct SaveManualBlueprintInput {
     pub project_id: i64,
+    pub expected_current_version: Option<String>,
     pub genre: String,
     pub style: Option<String>,
     pub tone: Option<String>,
@@ -66,6 +67,7 @@ pub struct SaveManualBlueprintInput {
 #[derive(Debug, Clone)]
 pub struct UpdateBlueprintWorldSettingInput {
     pub project_id: i64,
+    pub expected_current_version: String,
     pub world_setting: Value,
     pub created_by: String,
 }

@@ -208,7 +208,7 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
         : null;
     const boundaryFrameMissingMessage =
       workflowMode === VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES
-        ? [
+        ? Array.from(new Set([
             startFramePrompt
               ? generatedStartFrameImage
                 ? null
@@ -227,7 +227,7 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
               : t("video.chapter.framePromptMissing", {
                   label: t("video.chapter.frameBoundary"),
                 }),
-          ]
+          ]))
             .filter((value): value is string => Boolean(value))
             .join("、")
         : "";
@@ -361,24 +361,21 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
                   </p>
                 ) : null}
               </div>
-              <span
-                className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-caption font-medium ${
-                  ready ? "bg-success/10 text-success" : "bg-warning-bg text-warning"
-                }`}
-              >
-                {ready ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
-                {ready ? t("video.chapter.statusReady") : t("video.chapter.statusRequired")}
-              </span>
             </div>
             <div
               role="status"
-              className={`mt-3 rounded-xl border px-3 py-2.5 text-small leading-relaxed ${
+              className={`mt-3 flex min-w-0 items-start gap-2 rounded-xl border px-3 py-2.5 text-small leading-relaxed ${
                 ready
                   ? "border-success/25 bg-success/5 text-book-text-sub"
                   : "border-warning/35 bg-warning-bg text-warning"
               }`}
             >
-              {finalPromptBlockedReason ?? t("video.chapter.requiredInputsReady")}
+              <span className="mt-0.5 shrink-0" aria-hidden="true">
+                {ready ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
+              </span>
+              <span className="min-w-0 flex-1">
+                {finalPromptBlockedReason ?? t("video.chapter.requiredInputsReady")}
+              </span>
             </div>
           </section>
 
@@ -474,6 +471,15 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
     usesContinuity,
   } = frameInputStateForPrompt(selectedPrompt, segmentRecipe);
   const selectedPromptHasVideo = selectedPrompt.generated_video_id != null;
+  const durationTextInvalid = durationLimits.durationMode === "range"
+    && (!durationText.trim()
+      || !Number.isSafeInteger(Number(durationText))
+      || !isDurationAllowed(Number(durationText), durationLimits));
+  const durationInvalid = !isDurationAllowed(draft.duration_secs, durationLimits)
+    || durationTextInvalid;
+  const durationInvalidMessage = durationInvalid && !durationLimits.configError
+    ? t("video.chapter.invalidDuration")
+    : null;
   const selectedPromptLockedReason = selectedPromptRunning
     ? t("video.chapter.promptRunningCannot", {
         operation: `${t("common.edit")} / ${t("common.save")}`,
@@ -483,7 +489,8 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
     ? t("video.chapter.promptHasDownstream")
     : null;
   const durationConfigError = durationLimits.configError;
-  const saveBlockedReason = selectedPromptLockedReason ?? undefined;
+  const saveBlockedReason = selectedPromptLockedReason
+    ?? (durationInvalid ? t("video.chapter.invalidDuration") : undefined);
   const optimizeBlockedReason =
     (selectedPromptDirty ? t("video.chapter.promptDirty") : undefined) ??
     selectedPromptLockedReason ??
@@ -492,6 +499,7 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
     acting === `generate-video-${selectedPrompt.id}`;
   const selectedGenerateBlockedReason =
     durationConfigError ??
+    (durationInvalid ? t("video.chapter.invalidDuration") : undefined) ??
     (selectedPrompt.prompt_type !== VIDEO_FINAL_PROMPT_TYPE
       ? t("video.chapter.promptTypeRequired")
       : undefined) ??
@@ -555,7 +563,7 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
               variant="primary"
               size="sm"
               onClick={() => void onSavePrompt()}
-              disabled={acting != null || savingPrompt || selectedPromptRunning}
+              disabled={acting != null || savingPrompt || selectedPromptRunning || durationInvalid}
               title={saveBlockedReason}
               className="!min-h-9 !px-3 sm:!min-h-7"
             >
@@ -914,7 +922,9 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
                 min={durationLimits.minDurationSecs}
                 max={durationLimits.maxDurationSecs}
                 step={1}
+                required
                 value={durationText}
+                aria-invalid={durationInvalid}
                 onFocus={() => { durationFocused.current = true; }}
                 onChange={(event) => {
                   const nextText = event.currentTarget.value;
@@ -938,6 +948,7 @@ export const VideoGenerationEditor: React.FC<VideoGenerationEditorProps> = ({
                 className="book-control h-9 px-2 text-xs"
               />
             )}
+            {durationInvalidMessage ? <span role="alert" className="text-caption text-error">{durationInvalidMessage}</span> : null}
             <span className="text-caption text-book-text-muted">
               {t("video.chapter.modelSupports", {
                 value: durationLimitsLabel(durationLimits, t),

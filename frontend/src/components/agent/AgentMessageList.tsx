@@ -24,6 +24,79 @@ export interface PendingAgentMessage {
 
 const EMPTY_PENDING_MESSAGES: AgentMessageView[] = [];
 
+export type PendingAgentMessagesByOwner = Record<string, PendingAgentMessage[]>;
+
+export function updatePendingAgentMessages(
+  current: PendingAgentMessagesByOwner,
+  ownerId: string,
+  update: (messages: PendingAgentMessage[]) => PendingAgentMessage[],
+): PendingAgentMessagesByOwner {
+  const messages = current[ownerId] ?? [];
+  const nextMessages = update(messages);
+  if (nextMessages === messages) return current;
+  const next = { ...current };
+  if (nextMessages.length === 0) delete next[ownerId];
+  else next[ownerId] = nextMessages;
+  return next;
+}
+
+export function appendPendingAgentMessage(
+  current: PendingAgentMessagesByOwner,
+  ownerId: string,
+  message: PendingAgentMessage,
+): PendingAgentMessagesByOwner {
+  return updatePendingAgentMessages(current, ownerId, (messages) => [...messages, message]);
+}
+
+export function acceptPendingAgentMessage(
+  current: PendingAgentMessagesByOwner,
+  ownerId: string,
+  localMessageId: string,
+  acceptedMessageId: string,
+): PendingAgentMessagesByOwner {
+  return updatePendingAgentMessages(current, ownerId, (messages) => {
+    let found = false;
+    const next = messages.map((item) => {
+      if (item.message.id !== localMessageId) return item;
+      found = true;
+      return { ...item, acceptedMessageId };
+    });
+    return found ? next : messages;
+  });
+}
+
+export function removePendingAgentMessage(
+  current: PendingAgentMessagesByOwner,
+  ownerId: string,
+  localMessageId: string,
+): PendingAgentMessagesByOwner {
+  return updatePendingAgentMessages(current, ownerId, (messages) => {
+    const next = messages.filter((item) => item.message.id !== localMessageId);
+    return next.length === messages.length ? messages : next;
+  });
+}
+
+export function clearPendingAgentMessages(
+  current: PendingAgentMessagesByOwner,
+  ownerId: string,
+): PendingAgentMessagesByOwner {
+  return updatePendingAgentMessages(current, ownerId, () => []);
+}
+
+export function reconcilePendingAgentMessages(
+  current: PendingAgentMessagesByOwner,
+  ownerId: string,
+  messages: ReadonlyArray<Pick<AgentMessageView, "id">>,
+): PendingAgentMessagesByOwner {
+  const visibleMessageIds = new Set(messages.map((message) => message.id));
+  return updatePendingAgentMessages(current, ownerId, (pending) => {
+    const next = pending.filter((item) =>
+      !item.acceptedMessageId || !visibleMessageIds.has(item.acceptedMessageId),
+    );
+    return next.length === pending.length ? pending : next;
+  });
+}
+
 export function createPendingAgentMessage(
   threadId: string,
   content: string,

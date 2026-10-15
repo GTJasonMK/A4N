@@ -17,9 +17,11 @@ impl WorkerState {
         )
         .await
         .map_err(foreshadowing_error)?;
+        let summary = foreshadowing_summary(record)?;
         Ok(ForeshadowingMutationResult {
             project_id,
-            foreshadowing_id: record.id,
+            foreshadowing_id: summary.id,
+            record: Some(summary),
         })
     }
 
@@ -41,9 +43,11 @@ impl WorkerState {
         )
         .await
         .map_err(foreshadowing_error)?;
+        let summary = foreshadowing_summary(record)?;
         Ok(ForeshadowingMutationResult {
             project_id,
-            foreshadowing_id: record.id,
+            foreshadowing_id: summary.id,
+            record: Some(summary),
         })
     }
 
@@ -67,6 +71,7 @@ impl WorkerState {
         Ok(ForeshadowingMutationResult {
             project_id,
             foreshadowing_id: record.id,
+            record: None,
         })
     }
 

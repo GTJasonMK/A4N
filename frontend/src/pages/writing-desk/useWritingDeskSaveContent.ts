@@ -12,7 +12,6 @@ import {
 import type { ChapterOutlineListEntry } from "../../api/outline";
 import type { Locale, MessageTranslator } from "../../i18n";
 import { formatNumber } from "../../i18n";
-import type { ReloadChapters } from "./chapterIndex";
 
 interface UseWritingDeskSaveContentParams {
   projectId: number;
@@ -22,16 +21,18 @@ interface UseWritingDeskSaveContentParams {
   activeChapter: ChapterSummary | null;
   activeOutline: ChapterOutlineListEntry | null;
   activeChapterBusy: boolean;
+  derivedSyncBusy: boolean;
   activeChapterGeneratingMessage: string;
   editorContent: string;
   editorRevisionRef: MutableRefObject<string | null>;
   saveContentBusyRef: MutableRefObject<boolean>;
+  contentDiffActionRef: MutableRefObject<boolean>;
+  resetGeneratedDataBusyRef: MutableRefObject<boolean>;
   activeNumberRef: MutableRefObject<number | null>;
   addToast: (message: string, type: "success" | "error" | "info") => void;
   t: MessageTranslator;
   setSavingContent: (saving: boolean) => void;
   applyChapter: (chapter: ChapterSummary) => void;
-  reloadChapters: ReloadChapters;
   getCurrentEditorContent: () => string;
   removeDraftForChapter: (chapterNumber: number) => Promise<void>;
   setEditorState: (content: string, dirty: boolean) => void;
@@ -46,16 +47,18 @@ export const useWritingDeskSaveContent = ({
   activeChapter,
   activeOutline,
   activeChapterBusy,
+  derivedSyncBusy,
   activeChapterGeneratingMessage,
   editorContent,
   editorRevisionRef,
   saveContentBusyRef,
+  contentDiffActionRef,
+  resetGeneratedDataBusyRef,
   activeNumberRef,
   addToast,
   t,
   setSavingContent,
   applyChapter,
-  reloadChapters,
   getCurrentEditorContent,
   removeDraftForChapter,
   setEditorState,
@@ -67,6 +70,18 @@ export const useWritingDeskSaveContent = ({
   }
   if (saveContentBusyRef.current) {
     addToast(t("writing.savingChapterBody"), "error");
+    return;
+  }
+  if (derivedSyncBusy) {
+    addToast(t("common.operationInProgress"), "info");
+    return;
+  }
+  if (resetGeneratedDataBusyRef.current) {
+    addToast(t("common.operationInProgress"), "info");
+    return;
+  }
+  if (contentDiffActionRef.current) {
+    addToast(t("common.operationInProgress"), "info");
     return;
   }
   saveContentBusyRef.current = true;
@@ -111,11 +126,9 @@ export const useWritingDeskSaveContent = ({
         content: contentToSave,
         title,
       });
-      const nextChapters = await reloadChapters({ force: true, chapterId: imported.id });
-      if (!nextChapters) throw new Error(t("writing.refreshChaptersFailed"));
-      savedChapter = nextChapters.chapter;
-      if (!savedChapter) throw new Error(t("writing.refreshChaptersFailed"));
-      savedContent = savedChapter.content;
+      savedChapter = imported;
+      savedContent = imported.content;
+      applyChapter(imported);
     }
     if (isCurrentChapter()) {
       editorRevisionRef.current = savedChapter.edit_revision;
@@ -125,7 +138,12 @@ export const useWritingDeskSaveContent = ({
       isCurrentChapter() &&
       getCurrentEditorContent() === contentToSave;
     if (saveStillMatchesEditor) {
-      await removeDraftForChapter(chapterNumber);
+      let draftCleanupError: string | null = null;
+      try {
+        await removeDraftForChapter(chapterNumber);
+      } catch (error) {
+        draftCleanupError = extractErrorMessage(error, t("writing.localDraftCleanupFailed"));
+      }
       if (activeNumberRef.current === chapterNumber && getCurrentEditorContent() === contentToSave) {
         setEditorState(savedContent, false);
       } else {
@@ -133,16 +151,21 @@ export const useWritingDeskSaveContent = ({
         addToast(t("writing.savedBodyWithUnsavedEdits"), "info");
         return;
       }
+      let savedMessage: string;
+      let savedType: "success" | "error" | "info" = "success";
       if (savedChapter?.derived_sync_status === "failed") {
-        addToast(
-          t("writing.savedBodySyncFailed"),
-          chapterContentCommitToastType(savedChapter.derived_sync_status),
-        );
+        savedMessage = t("writing.savedBodySyncFailed");
+        savedType = chapterContentCommitToastType(savedChapter.derived_sync_status);
       } else if (savedChapter?.derived_sync_status === "running") {
-        addToast(t("writing.savedBodySyncRunning"), "info");
+        savedMessage = t("writing.savedBodySyncRunning");
       } else {
-        addToast(t("writing.savedBodyAndMaterials"), "success");
+        savedMessage = t("writing.savedBodyAndMaterials");
       }
+      if (draftCleanupError) {
+        savedMessage = `${savedMessage}${t("common.summarySeparator")}${t("writing.savedBodyDraftCleanupFailed", { error: draftCleanupError })}`;
+        if (savedType === "success") savedType = "info";
+      }
+      addToast(savedMessage, savedType);
       return;
     }
 
@@ -159,6 +182,7 @@ export const useWritingDeskSaveContent = ({
 }, [
   activeChapter,
   activeChapterBusy,
+  derivedSyncBusy,
   activeChapterGeneratingMessage,
   activeNumber,
   activeNumberRef,
@@ -170,9 +194,10 @@ export const useWritingDeskSaveContent = ({
   lifecycleBlockedReason,
   locale,
   projectId,
-  reloadChapters,
   removeDraftForChapter,
   saveContentBusyRef,
+  contentDiffActionRef,
+  resetGeneratedDataBusyRef,
   saveLocalDraftForCurrent,
   applyChapter,
   setEditorState,

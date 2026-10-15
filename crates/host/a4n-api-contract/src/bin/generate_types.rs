@@ -7,7 +7,6 @@ use a4n_api_contract::fact_feedback::{
     RunProjectFactFeedbackInput,
 };
 use a4n_api_contract::generation_tasks::GENERATION_START_ROUTES;
-use a4n_api_contract::temp_media::{TEMP_MEDIA_FORMATS, TempMediaFormatKind};
 use a4n_api_contract::{
     admin::{
         AdminOverviewSummary, AdminProjectSummary, CallKindOverview, CreateInviteCodeInput,
@@ -58,7 +57,7 @@ use a4n_api_contract::{
         BlueprintDiffSummary, BlueprintMutationResult, BlueprintSummary, BlueprintVersionSummary,
         DiffBlueprintVersionsInput, ListBlueprintVersionsInput, PreviewBlueprintGenerationInput,
         PreviewBlueprintRefinementInput, RestoreBlueprintVersionInput, SaveBlueprintInput,
-        UpdateWorldSettingInput,
+        UpdateWorldSettingInput, VersionedBlueprintMutationResult,
     },
     canvas::{
         CanvasEdgeInput, CanvasEdgeSummary, CanvasGraphDocument, CanvasGraphEditOperation,
@@ -99,9 +98,9 @@ use a4n_api_contract::{
     character::{
         AddProfileAttributeInput, ApplyImplicitUpdateDecisionInput,
         ApplyImplicitUpdateDecisionResultSummary, AttributeCountsSummary, AttributeEventSummary,
-        AttributeHistoryInput, BehaviorRecordSummary, CharacterConflictCheckInput,
-        CharacterConflictSeverity, CharacterConflictSummary, CharacterProfileCreateResult,
-        CharacterProfileDeleteResult, CharacterProfileMutationResult,
+        AttributeEventWriteResult, AttributeHistoryInput, BehaviorRecordSummary,
+        CharacterConflictCheckInput, CharacterConflictSeverity, CharacterConflictSummary,
+        CharacterProfileCreateResult, CharacterProfileDeleteResult, CharacterProfileMutationResult,
         CharacterProfileProtectedAttribute, CharacterProfileSkippedResult, CharacterProfileSummary,
         CharacterProfileSyncBatchStatus, CharacterProfileSyncFailure, CharacterProfileSyncRange,
         CharacterProfileSyncSkipReason, CharacterProfileSyncedResult, CheckImplicitUpdateInput,
@@ -158,7 +157,7 @@ use a4n_api_contract::{
         UpdateGalgameLineInput, UpdateGalgameSceneInput,
     },
     image::{
-        DeleteImageInput, GeneratedImageSummary, ListImagesByChapterInput,
+        DeleteImageInput, GeneratedImageSummary, ImageRecordDeleteResult, ListImagesByChapterInput,
         ListImagesByProjectInput, ListImagesByProjectsInput, ListVideoReferenceImagesInput,
         UpdateGeneratedImageInput, UploadImageInput,
     },
@@ -179,7 +178,8 @@ use a4n_api_contract::{
         ReverseEngineeringCandidateState, ReverseEngineeringTarget,
     },
     import_review::{
-        AcceptImportReviewInput, BatchAcceptImportReviewsInput, CheckImportDedupInput, DedupResult,
+        AcceptImportReviewInput, BatchAcceptImportReviewsFailure, BatchAcceptImportReviewsInput,
+        BatchAcceptImportReviewsResult, CheckImportDedupInput, DedupResult,
         ImportProjectReviewsInput, ImportReviewIdInput, ImportReviewSummary,
     },
     inspiration::{
@@ -204,10 +204,6 @@ use a4n_api_contract::{
         MangaTextLayerKindV2, MangaTextLayerV2, MangaTextPlacementV2, OptimizeMangaPromptInput,
         PrepareStandaloneComicSourceInput, PreviewMangaPipelineArtifactDeletionInput,
         SaveMangaPipelineArtifactInput, UpdateMangaPromptInput,
-    },
-    notifications::{
-        BroadcastNotificationInput, BroadcastNotificationReceipt, CreatorNotificationInbox,
-        CreatorNotificationItem,
     },
     optimize::{
         AnalyzeChapterInput, ApplyOptimizationPatchesInput, ApplyOptimizationPatchesResponse,
@@ -264,12 +260,13 @@ use a4n_api_contract::{
         AssetDependencyGraph, AssetGraphEdge, AssetGraphLayer, AssetGraphNode,
         AssetGraphNodeDetail, AssetLineageRecord, AssetLineageRef, CreateCanvasProjectInput,
         CreateDerivedProjectInput, CreateProjectInput, CreateStandaloneComicProjectInput,
-        DuplicateProjectInput, GenerationInputSource, GetSourceSnapshotChapterInput,
-        PaginatedProjects, ProjectGeneratedDataResetResponse, ProjectGeneratedDataResetStatus,
+        DuplicateProjectInput, GenerationInputSource, PaginatedProjects,
+        ProjectGeneratedDataResetResponse, ProjectGeneratedDataResetStatus,
         ProjectGeneratedDataResetSummary, ProjectKind, ProjectProgressSummary,
         ProjectRollbackImpactSummary, ProjectRollbackPreview, ProjectSourceMode, ProjectStatus,
-        ProjectStatusHistorySummary, ProjectStatusMachineSummary, ProjectSummary, PromptSource,
-        SourceSnapshotChapterIndex, SourceSnapshotChapterSummary, UpdateProjectInput,
+        ProjectStatusHistorySummary, ProjectStatusMachineSummary, ProjectStatusMutationResult,
+        ProjectSummary, PromptSource, SourceSnapshotChapterIndex, SourceSnapshotChapterSummary,
+        UpdateProjectInput,
     },
     project_transfer::{
         CANVAS_PROJECT_PACKAGE_SUFFIX, ExportCanvasProjectDataInput, ExportDerivedProjectDataInput,
@@ -347,8 +344,10 @@ use a4n_api_contract::{
         UpdateAssemblyPushStatusInput, UpdateChapterVideoPromptInput,
         UpdateChapterVideoSegmentPlanInput, UpdateGeneratedVideoInput,
         UploadAssemblyInsertVideoInput, UploadChapterVideoInput, UploadReferenceMediaVideoInput,
-        VideoPlaybackData, VideoScrubFramesData, VideoSegmentTarget, VideoTimelineItemKind,
-        VideoTimelineItemStatus, VideoTimelineItemSummary, VideoTimelineSummary,
+        VideoPlaybackData, VideoPromptDeleteResult, VideoPromptDeletionEffects,
+        VideoPromptUpdateResult, VideoRecordDeleteResult, VideoScrubFramesData, VideoSegmentTarget,
+        VideoTimelineItemKind, VideoTimelineItemStatus, VideoTimelineItemSummary,
+        VideoTimelineSummary,
     },
     web_fetch::{WebFetchInput, WebFetchResult},
     web_search::{WebSearchInput, WebSearchResult, WebSearchSource},
@@ -377,7 +376,6 @@ use a4n_domain::galgame::{
     StoryValue,
 };
 use a4n_domain::import_review::ImportReviewStatus;
-use a4n_domain::media::{IMAGE_UPLOAD_MEDIA_TYPES, VIDEO_MEDIA_TYPES};
 use a4n_domain::profile_material::{
     ProfileMaterialFilter, ProfileMaterialImageStaleness, ProfileMaterialKind,
     ProfileMaterialKindFilter, ProfileMaterialSort, ProfileMaterialState,
@@ -467,59 +465,7 @@ fn typescript_image_constants() -> String {
         .iter()
         .map(|size| format!("  {{ width: {}, height: {} }},\n", size.width, size.height))
         .collect::<String>();
-    let mime_types = IMAGE_UPLOAD_MEDIA_TYPES
-        .iter()
-        .flat_map(|format| format.browser_mime_types.iter().copied())
-        .map(|mime_type| format!("  {mime_type:?},\n"))
-        .collect::<String>();
-    let max_upload_image_bytes = a4n_api_contract::image::MAX_UPLOAD_IMAGE_BYTES;
-    let max_profile_material_image_upload_bytes =
-        a4n_api_contract::profile::MAX_PROFILE_MATERIAL_IMAGE_UPLOAD_BYTES;
-    let max_theme_resource_bytes = a4n_api_contract::theme::MAX_THEME_RESOURCE_BYTES;
-    format!(
-        "export const DEFAULT_IMAGE_SIZES: readonly ImageSize[] = [\n{sizes}];\n\nexport const IMAGE_UPLOAD_MIME_TYPES: readonly string[] = [\n{mime_types}];\n\nexport const MAX_UPLOAD_IMAGE_BYTES = {max_upload_image_bytes};\nexport const MAX_PROFILE_MATERIAL_IMAGE_UPLOAD_BYTES = {max_profile_material_image_upload_bytes};\nexport const MAX_THEME_RESOURCE_BYTES = {max_theme_resource_bytes};\n\n"
-    )
-}
-
-fn typescript_video_upload_mime_types() -> String {
-    let media_types = VIDEO_MEDIA_TYPES
-        .iter()
-        .map(|media_type| {
-            format!(
-                "  {:?}: {:?},\n",
-                media_type.extension, media_type.accepted_upload_mime_types
-            )
-        })
-        .collect::<String>();
-    format!(
-        "export const VIDEO_UPLOAD_MIME_TYPES: Readonly<Record<string, readonly [string, ...string[]]>> = {{\n{media_types}}};\n\n"
-    )
-}
-
-fn typescript_temp_media_browser_mime_types() -> String {
-    let mut output = String::from(
-        "export const TEMP_MEDIA_BROWSER_MIME_TYPES: Readonly<Record<\"image\" | \"video\" | \"audio\", readonly string[]>> = {\n",
-    );
-    for (name, kind) in [
-        ("image", TempMediaFormatKind::Image),
-        ("video", TempMediaFormatKind::Video),
-        ("audio", TempMediaFormatKind::Audio),
-    ] {
-        if kind == TempMediaFormatKind::Image {
-            output.push_str("  image: IMAGE_UPLOAD_MIME_TYPES,\n");
-            continue;
-        }
-        let mime_types = TEMP_MEDIA_FORMATS
-            .iter()
-            .filter(|format| format.kind == kind)
-            .flat_map(|format| format.browser_mime_types.iter().copied())
-            .map(|mime_type| format!("{mime_type:?}"))
-            .collect::<Vec<_>>()
-            .join(", ");
-        output.push_str(&format!("  {name}: [{mime_types}],\n"));
-    }
-    output.push_str("};\n\n");
-    output
+    format!("export const DEFAULT_IMAGE_SIZES: readonly ImageSize[] = [\n{sizes}];\n\n")
 }
 
 fn typescript_type<T: JsonSchema>(name: &str) -> String {

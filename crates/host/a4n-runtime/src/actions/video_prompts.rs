@@ -13,7 +13,8 @@ pub use a4n_api_contract::video::{
     DeleteInsertedSegmentInput, GetVideoTimelineInput, LoadVideoSegmentPlanDraftInput,
     MoveInsertedSegmentInput, OptimizeChapterVideoPromptInput, UpdateChapterVideoPromptInput,
     UpdateChapterVideoSegmentPlanInput, UpdateVideoSegmentPlanDraftRecipeInput,
-    VideoSegmentPlanDraftSummary, VideoTimelineSummary,
+    VideoPromptDeleteResult, VideoPromptUpdateResult, VideoSegmentPlanDraftSummary,
+    VideoTimelineSummary,
 };
 pub use a4n_video_contract::VideoSegmentExecutionRecipeV1;
 
@@ -166,7 +167,7 @@ pub async fn update_chapter_video_prompt(
     user_id: i64,
     prompt_id: i64,
     input: UpdateChapterVideoPromptInput,
-) -> Result<ChapterVideoPromptSummary, String> {
+) -> Result<VideoPromptUpdateResult, String> {
     state
         .video_prompt_mutation_application()
         .update_chapter_video_prompt(
@@ -184,7 +185,7 @@ pub async fn delete_chapter_video_prompt(
     user_id: i64,
     prompt_id: i64,
     downstream_strategy: DownstreamConflictStrategy,
-) -> Result<(), String> {
+) -> Result<VideoPromptDeleteResult, String> {
     state
         .video_prompt_mutation_application()
         .delete_chapter_video_prompt(
@@ -202,7 +203,7 @@ pub async fn optimize_chapter_video_prompt(
     user_id: i64,
     prompt_id: i64,
     input: OptimizeChapterVideoPromptInput,
-) -> Result<ChapterVideoPromptSummary, String> {
+) -> Result<VideoPromptUpdateResult, String> {
     let prompt_renderer = state;
     state
         .video_prompt_mutation_application()

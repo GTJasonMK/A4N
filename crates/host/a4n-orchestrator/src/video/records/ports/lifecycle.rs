@@ -25,5 +25,6 @@ impl VideoRecordLifecycleApplicationPort for crate::OrchestratorContext {
     async fn delete_record_with_cleanup(&self, video_id: i64) -> Result<(), AppError> {
         self.delete_generated_video_record_with_cleanup(video_id)
             .await
+            .map(|_| ())
     }
 }

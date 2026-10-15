@@ -4,7 +4,7 @@ import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 
 import { extractErrorMessage } from "../../api";
 import type { ChapterSummary } from "../../api/chapter";
-import type { ChapterVisualPlanView } from "../../api/chapterVisualPlan";
+import { getChapterVisualPlan, type ChapterVisualPlanView } from "../../api/chapterVisualPlan";
 import {
   deleteChapterShootingScript,
   editChapterShootingScript,
@@ -64,6 +64,9 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirmedVisualPlan, setConfirmedVisualPlan] = useState<ChapterVisualPlanView | null>(null);
+  const [visualPlanLoadError, setVisualPlanLoadError] = useState<string | null>(null);
+  const [visualPlanRetrying, setVisualPlanRetrying] = useState(false);
+  const visualPlanRetryBusyRef = useRef(false);
   const confirmedVisualPlanId = confirmedVisualPlan?.record.id ?? null;
   const [rebindShotIds, setRebindShotIds] = useState<string[]>([]);
   const [focusShotId, setFocusShotId] = useState<string | null>(null);
@@ -175,6 +178,9 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
     setEditing(false);
     setInvalidatedProjectIds([]);
     setConfirmedVisualPlan(null);
+    setVisualPlanLoadError(null);
+    setVisualPlanRetrying(false);
+    visualPlanRetryBusyRef.current = false;
     if (chapterId == null) {
       setScriptLoading(false);
       return;
@@ -186,13 +192,15 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
         if (!active) return;
         if (scriptError !== undefined) {
           addToast(extractErrorMessage(scriptError, t("shootingScript.loadFailed")), "error");
-        } else if (dataVersion.current === initialVersion) {
+        }
+        if (dataVersion.current === initialVersion) {
           applyScriptData(value, progress);
         }
         if (visualPlan) {
           setConfirmedVisualPlan(visualPlan.confirmed);
+          setVisualPlanLoadError(null);
         } else if (visualPlanError !== undefined) {
-          addToast(extractErrorMessage(visualPlanError, t("shootingScript.loadFailed")), "error");
+          setVisualPlanLoadError(extractErrorMessage(visualPlanError, t("shootingScript.loadFailed")));
         }
       })
       .catch((error) => {
@@ -219,6 +227,26 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       sourceRef.current += 1;
     };
   }, [addToast, chapterId, projectId]);
+
+  const retryVisualPlanLoad = async () => {
+    if (chapterId == null || visualPlanRetryBusyRef.current) return;
+    visualPlanRetryBusyRef.current = true;
+    const scope = sourceRef.current;
+    setVisualPlanRetrying(true);
+    try {
+      const visualPlan = await getChapterVisualPlan(projectId, chapterId);
+      if (sourceRef.current !== scope) return;
+      setConfirmedVisualPlan(visualPlan.confirmed);
+      setVisualPlanLoadError(null);
+    } catch (error) {
+      if (sourceRef.current === scope) {
+        setVisualPlanLoadError(extractErrorMessage(error, t("shootingScript.loadFailed")));
+      }
+    } finally {
+      if (sourceRef.current === scope) setVisualPlanRetrying(false);
+      if (sourceRef.current === scope) visualPlanRetryBusyRef.current = false;
+    }
+  };
 
   const savePartialDraft = async () => {
     if (view || !unitProgress || !draft || chapterId == null || !isDirty) return;
@@ -421,11 +449,6 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
     try {
       await deleteChapterShootingScript(projectId, chapterId, view);
       if (sourceRef.current !== scope) return;
-      const refreshed = await loadShootingScriptOrProgress(projectId, chapterId);
-      if (sourceRef.current !== scope) return;
-      if (refreshed.scriptError || refreshed.view || refreshed.unitProgress) {
-        throw new Error(t("shootingScript.deleteFailed"));
-      }
       setView(null);
       setDraft(null);
       setUnitProgress(null);
@@ -613,6 +636,15 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
           </div>
         ) : null}
       </div>
+      {visualPlanLoadError ? (
+        <div role="alert" className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-small text-error">
+          <span className="min-w-0 break-words">{visualPlanLoadError}</span>
+          <BookButton size="sm" variant="secondary" onClick={() => void retryVisualPlanLoad()} disabled={visualPlanRetrying}>
+            {visualPlanRetrying ? <LoadingSpinner size="sm" /> : null}
+            {visualPlanRetrying ? t("common.loading") : t("common.retry")}
+          </BookButton>
+        </div>
+      ) : null}
       {scriptLoading ? (
         <div className="a4n-flat-surface py-12 text-center">
           <LoadingSpinner

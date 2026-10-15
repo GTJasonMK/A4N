@@ -8,6 +8,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, FromQueryResult,
     QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
+use std::collections::BTreeSet;
 
 #[derive(Debug, FromQueryResult)]
 struct ImportReviewListRow {
@@ -104,7 +105,7 @@ where
 pub async fn create_import_reviews<C>(
     db: &C,
     inputs: Vec<ImportReviewCreateInput>,
-) -> Result<Vec<ImportReviewRecord>, DbErr>
+) -> Result<Vec<ImportReviewRecord>, ImportReviewMutationError>
 where
     C: ConnectionTrait + TransactionTrait,
 {
@@ -112,6 +113,13 @@ where
         return Ok(Vec::new());
     }
     let tx = db.begin().await?;
+    for project_id in inputs
+        .iter()
+        .map(|input| input.project_id)
+        .collect::<BTreeSet<_>>()
+    {
+        crate::generation::require_project_owner_lifecycle_active(&tx, project_id).await?;
+    }
     let now = Utc::now().naive_utc();
     let rows = inputs
         .into_iter()
@@ -132,6 +140,19 @@ where
     Ok(reviews.into_iter().map(import_review_record).collect())
 }
 
+pub(super) async fn review_project_id<C: ConnectionTrait>(
+    db: &C,
+    review_id: i64,
+) -> Result<i64, ImportReviewMutationError> {
+    import_review_queue::Entity::find_by_id(review_id)
+        .select_only()
+        .column(import_review_queue::Column::ProjectId)
+        .into_tuple::<i64>()
+        .one(db)
+        .await?
+        .ok_or_else(|| ImportReviewMutationError::NotFound("导入审核不存在".to_string()))
+}
+
 pub async fn reject_import_review<C>(
     db: &C,
     review_id: i64,
@@ -139,12 +160,19 @@ pub async fn reject_import_review<C>(
 where
     C: ConnectionTrait + TransactionTrait,
 {
+    let project_id = review_project_id(db, review_id).await?;
     let tx = db.begin().await?;
+    crate::generation::require_project_owner_lifecycle_active(&tx, project_id).await?;
     let review = import_review_queue::Entity::find_by_id(review_id)
         .lock_exclusive()
         .one(&tx)
         .await?
         .ok_or_else(|| ImportReviewMutationError::NotFound("导入审核不存在".to_string()))?;
+    if review.project_id != project_id {
+        return Err(ImportReviewMutationError::InvalidArgument(
+            "导入审核所属项目已变化".to_string(),
+        ));
+    }
     ensure_pending_import_review(&review, "拒绝导入审核")?;
     let mut active: import_review_queue::ActiveModel = review.into();
     active.review_status = Set(ImportReviewStatus::Rejected.as_str().to_string());
@@ -159,11 +187,25 @@ pub async fn delete_import_review<C>(
     review_id: i64,
 ) -> Result<(), ImportReviewMutationError>
 where
-    C: ConnectionTrait,
+    C: ConnectionTrait + TransactionTrait,
 {
-    import_review_queue::Entity::delete_by_id(review_id)
-        .exec(db)
+    let project_id = review_project_id(db, review_id).await?;
+    let tx = db.begin().await?;
+    crate::generation::require_project_owner_lifecycle_active(&tx, project_id).await?;
+    let review = import_review_queue::Entity::find_by_id(review_id)
+        .lock_exclusive()
+        .one(&tx)
+        .await?
+        .ok_or_else(|| ImportReviewMutationError::NotFound("导入审核不存在".to_string()))?;
+    if review.project_id != project_id {
+        return Err(ImportReviewMutationError::InvalidArgument(
+            "导入审核所属项目已变化".to_string(),
+        ));
+    }
+    import_review_queue::Entity::delete_by_id(review.id)
+        .exec(&tx)
         .await?;
+    tx.commit().await?;
     Ok(())
 }
 

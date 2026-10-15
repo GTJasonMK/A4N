@@ -21,7 +21,11 @@ import { useToast } from "../../components/feedback/Toast";
 import {
   VIDEO_WORKFLOW_MODE_CHAT_VIDEO,
   VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA,
+  VIDEO_SEGMENT_WORKFLOW_MODES,
+  type GeneratedVideo,
+  type VideoRecordDeleteResult,
 } from "../../api/video";
+import type { GeneratedImage, ImageRecordDeleteResult } from "../../api/image";
 import { EmptyHint, type ChapterRow } from "./shared";
 import { useProgressTask } from "../../hooks/useProgressTask";
 import { VideoGenerationWorkspace } from "./video/VideoGenerationWorkspace";
@@ -154,6 +158,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     t,
     addToast,
   });
+  const { recipeOverridesDirty, discardUnsavedRecipeOverrides } = videoTabState;
   const [segmentPlanDirty, setSegmentPlanDirty] = React.useState(false);
   const {
     planningOptionsState,
@@ -177,6 +182,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     videos,
     setVideos,
     images,
+    setImages,
     shootingScenes,
     frameSegmentPlanPromptForCards,
     segmentPlanDraftVisible,
@@ -194,7 +200,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     setSelectedPromptId,
     selectedVideoId,
     setSelectedVideoId,
-    pendingVideoId,
     setPendingVideoId,
     options,
     videoLibraryImageIds,
@@ -215,6 +220,25 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     imageRequestPreviewLoading,
     imageRequestPreviewData,
   } = videoTabState;
+  const videoDataReadUnavailable = loading || videoDataError != null;
+  const actionAvailabilityRef = useRef({ canEdit, videoDataReadUnavailable, videoDataError });
+  actionAvailabilityRef.current = { canEdit, videoDataReadUnavailable, videoDataError };
+  const ensureVideoActionAvailable = () => {
+    const current = actionAvailabilityRef.current;
+    if (!current.canEdit) {
+      addToast(t("video.noEditPermission"), "error");
+      return false;
+    }
+    if (current.videoDataReadUnavailable) {
+      addToast(current.videoDataError ?? t("common.operationInProgress"), "error");
+      return false;
+    }
+    return true;
+  };
+  const beginVideoActionGuarded = (key: string): boolean => {
+    if (!ensureVideoActionAvailable()) return false;
+    return beginVideoAction(key);
+  };
   const derivedVideoTabState = useVideoTabDerivedState({
     prompts,
     videos,
@@ -274,6 +298,41 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     selectedPrompt,
     selectedVideo,
   });
+  const refreshVideoDataInBackground = () => loadAll({ showLoading: false });
+  const applyVideoRecordDeletion = (result: VideoRecordDeleteResult) => {
+    const deletedPromptIds = new Set(result.deleted_prompt_ids);
+    const deletedVideoIds = new Set(result.deleted_video_ids);
+    const updatedPrompts = new Map(result.updated_prompts.map((prompt) => [prompt.id, prompt]));
+    const updatedVideos = new Map(result.updated_videos.map((video) => [video.id, {
+      ...video,
+      workflow_mode: VIDEO_SEGMENT_WORKFLOW_MODES.includes(
+        video.workflow_mode as (typeof VIDEO_SEGMENT_WORKFLOW_MODES)[number],
+      )
+        ? video.workflow_mode as GeneratedVideo["workflow_mode"]
+        : null,
+    }]));
+    setPrompts((current) => current
+      .filter((prompt) => !deletedPromptIds.has(prompt.id))
+      .map((prompt) => updatedPrompts.get(prompt.id) ?? prompt));
+    setVideos((current) => current
+      .filter((video) => !deletedVideoIds.has(video.id))
+      .map((video) => updatedVideos.get(video.id) ?? video));
+    setSelectedPromptId((current) => current != null && deletedPromptIds.has(current) ? null : current);
+    setSelectedVideoId((current) => current != null && deletedVideoIds.has(current) ? null : current);
+    setPendingVideoId((current) => current != null && deletedVideoIds.has(current) ? null : current);
+  };
+  const applyImageRecordDeletion = (result: ImageRecordDeleteResult) => {
+    const updatedPrompts = new Map(result.updated_prompts.map((prompt) => [prompt.id, prompt]));
+    const updatedVideos = new Map(result.updated_videos.map((video) => [video.id, {
+      ...video,
+      workflow_mode: VIDEO_SEGMENT_WORKFLOW_MODES.includes(
+        video.workflow_mode as (typeof VIDEO_SEGMENT_WORKFLOW_MODES)[number],
+      ) ? video.workflow_mode as GeneratedVideo["workflow_mode"] : null,
+    }]));
+    setImages((current) => current.filter((image) => image.id !== result.deleted_image_id));
+    setPrompts((current) => current.map((prompt) => updatedPrompts.get(prompt.id) ?? prompt));
+    setVideos((current) => current.map((video) => updatedVideos.get(video.id) ?? video));
+  };
   const {
     imageBusyId,
     handleDeleteImage,
@@ -282,7 +341,13 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     addToast,
     actionScopeKey: videoActionScopeKey,
     loadAll,
+    ensureActionAvailable: ensureVideoActionAvailable,
+    onImageDeleted: applyImageRecordDeletion,
   });
+  const handleDeleteImageGuarded = (image: GeneratedImage) => {
+    if (!ensureVideoActionAvailable()) return;
+    return handleDeleteImage(image);
+  };
 
 
 
@@ -294,6 +359,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     currentContentHash,
     chapterContentHashError,
     addToast,
+    ensureActionAvailable: ensureVideoActionAvailable,
     t,
     loadAll,
   });
@@ -322,9 +388,12 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     handleActivateSegment,
     handleCloseSegmentConfig,
   } = viewState;
+  const selectedSegmentNumberRef = useRef(selectedSegmentNumber);
+  selectedSegmentNumberRef.current = selectedSegmentNumber;
 
-  const dirty = authoringDirty || selectedPromptDirty || referenceMediaDraftDirty || segmentPlanDirty;
+  const dirty = authoringDirty || selectedPromptDirty || referenceMediaDraftDirty || segmentPlanDirty || recipeOverridesDirty;
   const discardStageDrafts = () => {
+    if (!discardUnsavedRecipeOverrides()) return false;
     setAuthoringDirty(false);
     setSegmentPlanDirty(false);
     viewState.discardSelectedPromptDraft();
@@ -336,20 +405,31 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     `video:${projectId}:${chapterId ?? "none"}`,
     dirty,
     discardStageDrafts,
-    () => !authoringBusy && acting == null
-      && (selectedSegmentNumber == null || !savingRecipeSegments.has(selectedSegmentNumber)),
+    () => !authoringBusy && acting == null && savingRecipeSegments.size === 0,
   );
   const handleWorkspaceTabChange = async (nextTab: typeof workspaceTab) => {
     if (nextTab === workspaceTab) return true;
-    if (authoringBusy || acting != null
-      || (selectedSegmentNumber != null && savingRecipeSegments.has(selectedSegmentNumber))) {
+    if (authoringBusy || acting != null || savingRecipeSegments.size > 0) {
       addToast(t("common.operationInProgress"), "info");
       return false;
     }
-    if (!await confirmDiscardMediaChanges(dirty || dirtyRegistry.hasDirty(), t)) return false;
-    discardStageDrafts();
-    if (workspaceTab === "materials") void loadAll();
+    if (!await confirmWorkspaceDraftDiscard()) return false;
+    if (workspaceTab === "materials") void refreshVideoDataInBackground();
     setWorkspaceTab(nextTab);
+    return true;
+  };
+
+  const confirmWorkspaceDraftDiscard = async () => {
+    const hasDirtyState = dirty || dirtyRegistry.hasDirty();
+    if (!hasDirtyState) return true;
+    if (!dirtyRegistry.canDiscardDirty()) {
+      addToast(t("common.operationInProgress"), "info");
+      return false;
+    }
+    if (!await confirmDiscardMediaChanges(true, t)) return false;
+    const videoOwnerDirty = dirtyRegistry.hasDirty(`video:${projectId}:${chapterId ?? "none"}`);
+    if (!await dirtyRegistry.discardDirty()) return false;
+    if (dirty && !videoOwnerDirty) discardStageDrafts();
     return true;
   };
 
@@ -405,7 +485,6 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     selectedPromptStale,
     currentContentHash,
     selectedVideo,
-    pendingVideoId,
     previewScopeKey: segmentStorageKey,
     actionScopeKey: videoActionScopeKey,
     prompts,
@@ -418,13 +497,16 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     addToast,
     runProgressTask,
     loadAll,
+    ensureActionAvailable: ensureVideoActionAvailable,
     setPrompts,
+    setImages,
     setVideos,
     setDraft,
     setSelectedPromptId,
     setSelectedVideoId,
     setPendingVideoId,
-    beginAction: beginVideoAction,
+    onVideoRecordDeleted: applyVideoRecordDeletion,
+    beginAction: beginVideoActionGuarded,
     isCurrentActionScope: isCurrentVideoActionScope,
     finishAction: (key) => finishVideoAction(key, videoActionScopeKey),
   });
@@ -450,6 +532,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     framePrompts: currentLanguageFramePrompts,
     allFramePrompts: allCurrentFramePrompts,
     allFinalVideoPrompts: allSegmentPrompts,
+    setImages,
     currentContentHash,
     actionScopeKey: videoActionScopeKey,
     locale,
@@ -462,7 +545,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     refreshPrompts,
     refreshSegmentPlanDraft,
     setSegmentPlanPreview,
-    beginAction: beginVideoAction,
+    beginAction: beginVideoActionGuarded,
     isCurrentActionScope: isCurrentVideoActionScope,
     finishAction: (key) => finishVideoAction(key, videoActionScopeKey),
   });
@@ -493,6 +576,9 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     ...videoTabState,
     ...derivedVideoTabState,
     ...viewState,
+    ensureVideoActionAvailable,
+    beginVideoAction: beginVideoActionGuarded,
+    selectedSegmentNumberRef,
     projectId,
     chapter,
     runProgressTask,
@@ -641,7 +727,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           </div>
         ) : workspaceTab === "materials" ? (
           <BaseMaterialsWorkspace projectId={profileMaterialProjectId} canEdit={canEdit}
-            onChanged={loadAll} onNext={async () => { if (await loadAll()) await handleWorkspaceTabChange("director"); }} />
+            onChanged={refreshVideoDataInBackground} onBeforeKindChange={confirmWorkspaceDraftDiscard} onNext={async () => { if (await loadAll()) await handleWorkspaceTabChange("director"); }} />
         ) : workspaceTab === "frames" ? (
           planningOptionsState.options ? (
             <Suspense fallback={<VideoWorkspaceFallback text={t("video.chapter.loadingPlanningWorkspace")} />}>
@@ -694,12 +780,15 @@ export const VideoTab: React.FC<VideoTabProps> = ({
             <VideoAssemblyWorkspace
               projectId={projectId}
               chapter={chapter}
+              canEdit={canEdit}
+              readUnavailable={videoDataReadUnavailable}
+              readUnavailableReason={videoDataError}
               videos={videos}
               timeline={timeline}
               adoptedVideoIds={mixedAdoptedVideoIds}
               unavailableSegmentNumbers={unavailableMixedSegmentNumbers}
               onToast={addToast}
-              onRefresh={loadAll}
+              onRefresh={refreshVideoDataInBackground}
               onVideoRecordUpdated={(video) =>
                 setVideos((current) => {
                   const index = current.findIndex((item) => item.id === video.id);
@@ -709,6 +798,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
                   return next;
                 })
               }
+              onVideoRecordDeleted={applyVideoRecordDeletion}
             />
           </Suspense>
         ) : workspaceTab === "postprocess" ? (
@@ -716,9 +806,12 @@ export const VideoTab: React.FC<VideoTabProps> = ({
             <VideoPostProcessWorkspace
               projectId={projectId}
               chapter={chapter}
+              canEdit={canEdit}
+              readUnavailable={videoDataReadUnavailable}
+              readUnavailableReason={videoDataError}
               videos={videos}
               onToast={addToast}
-              onRefresh={loadAll}
+              onRefresh={refreshVideoDataInBackground}
               onVideoRecordUpdated={(video) =>
                 setVideos((current) => {
                   const index = current.findIndex((item) => item.id === video.id);
@@ -785,7 +878,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
                 handleGenerateFrameImages(prompt)
               }
               onImportFrameImage={(prompt) => handleImportFrameImage(prompt)}
-              onDeleteFrameImage={(image) => handleDeleteImage(image)}
+              onDeleteFrameImage={(image) => handleDeleteImageGuarded(image)}
               onDraftChange={setDraft}
               onSavePrompt={() => void handleSavePrompt()}
               onSaveFramePrompt={(prompt, visualPrompt) =>

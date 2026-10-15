@@ -6,25 +6,28 @@ use sea_orm::{ConnectionTrait, EntityTrait, TransactionTrait};
 async fn delete_locked_generated_video_record_in<C>(
     db: &C,
     video: &GeneratedVideoDeleteContext,
-) -> Result<(), VideoDbError>
+) -> Result<super::VideoReferenceCleanupIds, VideoDbError>
 where
     C: ConnectionTrait,
 {
-    super::references::clear_generated_video_references_by_ids(db, &[(video.id, video.project_id)])
-        .await?;
+    let cleanup = super::references::clear_generated_video_references_by_ids(
+        db,
+        &[(video.id, video.project_id)],
+    )
+    .await?;
     crate::media::delete_generated_video_target_media_bindings(db, &[video.id]).await?;
     crate::generation::delete_generation_run_targets_for(db, "generated_video", &[video.id])
         .await?;
     generated_video::Entity::delete_by_id(video.id)
         .exec(db)
         .await?;
-    Ok(())
+    Ok(cleanup)
 }
 
 pub async fn delete_generated_video_record_with_cleanup<C>(
     db: &C,
     video_id: i64,
-) -> Result<(), VideoDbError>
+) -> Result<super::VideoReferenceCleanupIds, VideoDbError>
 where
     C: ConnectionTrait + TransactionTrait,
 {
@@ -47,7 +50,7 @@ where
         )
         .await?;
     }
-    delete_locked_generated_video_record_in(&txn, &video).await?;
+    let cleanup = delete_locked_generated_video_record_in(&txn, &video).await?;
     txn.commit().await.map_err(VideoDbError::Database)?;
-    Ok(())
+    Ok(cleanup)
 }

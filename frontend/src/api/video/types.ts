@@ -43,6 +43,10 @@ export type {
   ChapterVideoPrompt,
   DownstreamConflictStrategy,
   PreviewChapterVideoPromptOverrideInput,
+  VideoPromptDeleteResult,
+  VideoPromptDeletionEffects,
+  VideoPromptUpdateResult,
+  VideoRecordDeleteResult,
   ShootingEditingModeV1,
   ShootingTransitionTypeV1,
   UpdateChapterVideoSegmentPlanInput,
@@ -137,3 +141,4 @@ import type {
 
 export type ReferenceMediaVideoInput = ApiReferenceMediaVideoInput;
 export type UpdateVideoInput = ApiUpdateGeneratedVideoInput;
+export type UpdateVideoFields = Omit<UpdateVideoInput, "expected_updated_at">;

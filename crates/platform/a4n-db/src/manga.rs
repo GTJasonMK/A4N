@@ -17,9 +17,10 @@ pub async fn connect_manga_record_worker_database(
 
 pub use a4n_db_models::models::chapter::chapter_manga_prompt::MANGA_PAGE_PROMPT_TYPE;
 pub use artifacts::{
-    MangaPipelineArtifactProjectionReset, delete_manga_pipeline_artifact, manga_pipeline_artifact,
-    manga_pipeline_artifact_deletion_plan, manga_pipeline_artifact_metadata_by_chapter,
-    manga_pipeline_artifacts_by_chapter, manga_pipeline_artifacts_by_chapters,
+    MangaPipelineArtifactProjectionReset, MangaPipelineArtifactProjectionUpdate,
+    delete_manga_pipeline_artifact, manga_pipeline_artifact, manga_pipeline_artifact_deletion_plan,
+    manga_pipeline_artifact_metadata_by_chapter, manga_pipeline_artifacts_by_chapter,
+    manga_pipeline_artifacts_by_chapters, save_manga_pipeline_artifact_with_projection,
     upsert_manga_pipeline_artifact,
 };
 pub use records::{
@@ -27,7 +28,8 @@ pub use records::{
     manga_page_prompt_for_image_generation, manga_page_prompt_statuses_by_chapter,
     manga_page_prompt_statuses_by_chapters, manga_page_prompts_by_chapter,
     manga_reference_bound_asset, mark_manga_page_prompt_image_completed_with_image,
-    update_manga_page_prompt_image_prompt, update_manga_page_prompt_layout,
+    update_manga_page_prompt_image_prompt, update_manga_page_prompt_image_prompt_expected,
+    update_manga_page_prompt_layout, update_manga_page_prompt_layout_expected,
 };
 pub use sync::{sync_manga_page_prompts_by_chapter, upsert_manga_page_prompt};
 pub use types::{MangaPipelineDbError, MangaPromptRecordError, MangaPromptUpdatedAt};

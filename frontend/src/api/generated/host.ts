@@ -151,6 +151,7 @@ export const HOST_API_COMMANDS = [
   "get_import_review",
   "get_inspiration_history",
   "get_log_dir",
+  "get_log_level",
   "get_manga_pipeline_status",
   "get_media_authoring_workspace",
   "get_model_usage_report",
@@ -2422,6 +2423,12 @@ export interface GeneratedImage {
   width: number;
 }
 
+export interface ImageRecordDeleteResult {
+  deleted_image_id: number;
+  updated_prompts: ChapterVideoPromptSummary[];
+  updated_videos: GeneratedVideoSummary[];
+}
+
 export interface UpdateGeneratedImageInput {
   ai_score?: number | null;
   chapter_id?: number | null;
@@ -2639,6 +2646,7 @@ export interface PreviewMangaPipelineArtifactDeletionInput {
 
 export interface SaveMangaPipelineArtifactInput {
   chapter_id: number;
+  expected_prompt_updated_at?: string | null;
   page_number?: number | null;
   payload: unknown;
   project_id: number;
@@ -2958,11 +2966,13 @@ export interface BindMangaReferenceImageInput {
 }
 
 export interface UpdateMangaPromptInput {
+  expected_updated_at: string;
   image_prompt: string;
   prompt_id: number;
 }
 
 export interface OptimizeMangaPromptInput {
+  expected_updated_at: string;
   instruction: string;
   prompt_id: number;
 }
@@ -3274,11 +3284,11 @@ export type StoryNodeKind = "narrative" | "choice" | "fork" | "join" | "loop_ent
 
 export type StoryEdgeKind = "sequence" | "choice" | "loop_back" | "chapter_transition" | "interrupt";
 
-export type StoryValue = { bool: boolean } | { int: number } | { string: string } | { enum: string };
+export type StoryValue = { bool: boolean } | { int: string } | { string: string } | { enum: string };
 
 export type StoryExpression = "true" | "false" | { variable: string } | { constant: StoryValue } | { not: unknown } | { all: unknown[] } | { any: unknown[] } | { equals: [unknown, unknown] } | { not_equals: [unknown, unknown] } | { greater_than: [unknown, unknown] } | { less_than: [unknown, unknown] } | { has_knowledge: string };
 
-export type StoryStateOperation = { set: { key: string; value: StoryValue } } | { increment: { amount: number; key: string } } | { add_knowledge: { key: string } } | { remove_knowledge: { key: string } };
+export type StoryStateOperation = { set: { key: string; value: StoryValue } } | { increment: { amount: string; key: string } } | { add_knowledge: { key: string } } | { remove_knowledge: { key: string } };
 
 export interface StoryStateVariable {
   default_value: StoryValue;
@@ -3815,6 +3825,16 @@ export interface BatchAcceptImportReviewsInput {
   review_ids: number[];
 }
 
+export interface BatchAcceptImportReviewsFailure {
+  message: string;
+  review_id: number;
+}
+
+export interface BatchAcceptImportReviewsResult {
+  accepted_reviews: ImportReviewSummary[];
+  failure: BatchAcceptImportReviewsFailure | null;
+}
+
 export interface DedupResult {
   closest_distance: number | null;
   content_hash: string;
@@ -4261,6 +4281,15 @@ export interface ProjectStatusMachineSummary {
   rollback_targets: ProjectStatus[];
 }
 
+export interface ProjectStatusMutationResult {
+  changed_at: string;
+  from: ProjectStatus;
+  needs_rag_clear: boolean;
+  post_commit_errors: string[];
+  project_id: number;
+  to: ProjectStatus;
+}
+
 export interface ProjectRollbackImpactSummary {
   chapter_end: number | null;
   chapter_start: number | null;
@@ -4371,6 +4400,7 @@ export interface AssetGraphNodeDetail {
 export interface ProjectSummary {
   chapters_per_part: number | null;
   collaboration_root_project_id: number;
+  content_revision: number;
   current_chapter: number;
   derived_chapter_scope: unknown;
   description: string;
@@ -4474,6 +4504,7 @@ export interface DuplicateProjectInput {
 
 export interface UpdateProjectInput {
   description?: string | null;
+  expected_updated_at?: string | null;
   fact_feedback_interval_chapters?: number | null;
   title?: string | null;
 }
@@ -4565,6 +4596,7 @@ export interface RestoreBlueprintVersionInput {
 }
 
 export interface SaveBlueprintInput {
+  expected_current_version?: string | null;
   full_synopsis?: string | null;
   genre: string;
   one_sentence_summary?: string | null;
@@ -4576,6 +4608,7 @@ export interface SaveBlueprintInput {
 }
 
 export interface UpdateWorldSettingInput {
+  expected_current_version: string;
   project_id: number;
   world_setting: unknown;
 }
@@ -4610,6 +4643,11 @@ export interface BlueprintDiffSummary {
 }
 
 export interface BlueprintMutationResult {
+  warnings: string[];
+}
+
+export interface VersionedBlueprintMutationResult {
+  current_version: string;
   warnings: string[];
 }
 
@@ -5123,7 +5161,7 @@ export interface CharacterProfileSummary {
 }
 
 export interface CharacterProfileCreateResult {
-  profile_id: number;
+  profile: CharacterProfileSummary;
   warnings: string[];
 }
 
@@ -5323,6 +5361,11 @@ export interface AttributeEventSummary {
   timestamp: string | null;
 }
 
+export interface AttributeEventWriteResult {
+  event: AttributeEventSummary;
+  warnings: string[];
+}
+
 export interface ListBehaviorsInput {
   chapter_from?: number | null;
   chapter_to?: number | null;
@@ -5499,6 +5542,7 @@ export interface DeletionMarkSummary {
   last_marked_chapter: number;
   reason: string;
   source_kind: CharacterTimelineSourceKind;
+  updated_at: string;
 }
 
 export interface RequestAttributeDeletionInput {
@@ -5515,12 +5559,16 @@ export interface ExecuteAttributeDeletionInput {
   cause: string;
   chapter_number: number;
   evidence: string;
+  expected_mark_id: number;
+  expected_mark_updated_at: string;
   key: string;
   profile_id: number;
 }
 
 export interface ResetDeletionMarksInput {
   category: CharacterAttributeCategory;
+  expected_mark_id: number;
+  expected_mark_updated_at: string;
   key: string;
   profile_id: number;
 }
@@ -5553,6 +5601,7 @@ export interface CreateObjectProfileInput {
 
 export interface UpdateObjectProfileInput {
   downstream_strategy: DownstreamConflictStrategy;
+  expected_updated_at: string;
   object_profile_id: number;
   profile: ObjectProfileInput;
 }
@@ -5647,6 +5696,7 @@ export interface CreateSceneProfileInput {
 
 export interface UpdateSceneProfileInput {
   downstream_strategy: DownstreamConflictStrategy;
+  expected_updated_at: string;
   profile: SceneProfileInput;
   scene_profile_id: number;
 }
@@ -5852,6 +5902,7 @@ export interface ForeshadowingSummary {
 }
 
 export interface ForeshadowingWriteResult {
+  record: ForeshadowingSummary | null;
   warnings: string[];
 }
 
@@ -6511,7 +6562,15 @@ export interface GeneratedVideoSummary {
   workflow_mode: string | null;
 }
 
+export interface VideoRecordDeleteResult {
+  deleted_prompt_ids: number[];
+  deleted_video_ids: number[];
+  updated_prompts: ChapterVideoPromptSummary[];
+  updated_videos: GeneratedVideoSummary[];
+}
+
 export interface UpdateGeneratedVideoInput {
+  expected_updated_at: string;
   is_favorite?: boolean;
   negative_prompt?: string | null;
   prompt?: string;
@@ -6540,6 +6599,44 @@ export interface ChapterVideoPrompt {
   updated_at: string;
   visual_prompt: string;
   workflow_mode: string;
+}
+
+export interface ChapterVideoPromptSummary {
+  aspect_ratio: string | null;
+  chapter_id: number;
+  created_at: string;
+  duration_secs: number;
+  generated_video_id: number | null;
+  id: number;
+  metadata_json: unknown;
+  motion_prompt: string | null;
+  negative_prompt: string | null;
+  project_id: number;
+  prompt_type: string;
+  reference_image_ids_json: unknown;
+  scene_summary: string | null;
+  shot_number: number;
+  status: string;
+  style: string | null;
+  title: string | null;
+  updated_at: string;
+  visual_prompt: string;
+  workflow_mode: string;
+}
+
+export interface VideoPromptDeletionEffects {
+  deleted_image_ids: number[];
+  deleted_prompt_ids: number[];
+  deleted_video_ids: number[];
+}
+
+export interface VideoPromptUpdateResult {
+  deletion: VideoPromptDeletionEffects;
+  prompt: ChapterVideoPromptSummary;
+}
+
+export interface VideoPromptDeleteResult {
+  deletion: VideoPromptDeletionEffects;
 }
 
 export interface VideoSpatialAnchorV1 {
@@ -6640,6 +6737,7 @@ export interface UpdateChapterVideoSegmentPlanInput {
 export interface UpdateChapterVideoPromptInput {
   downstream_strategy: DownstreamConflictStrategy;
   duration_secs?: number;
+  expected_updated_at: string;
   motion_prompt?: string | null;
   negative_prompt?: string | null;
   visual_prompt?: string;
@@ -6647,6 +6745,7 @@ export interface UpdateChapterVideoPromptInput {
 
 export interface OptimizeChapterVideoPromptInput {
   downstream_strategy: DownstreamConflictStrategy;
+  expected_updated_at: string;
   instruction: string;
 }
 

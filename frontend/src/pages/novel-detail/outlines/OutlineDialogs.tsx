@@ -4,6 +4,7 @@ import { BookButton } from "../../../components/ui/BookButton";
 import { Modal } from "../../../components/ui/Modal";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { nonEmptyText } from "../../../utils/text";
+import { MAX_I32 } from "../../../utils/numeric";
 import {
   chapterOutlineHeading,
   deleteChapterOutlinesFromAction,
@@ -109,6 +110,7 @@ export function ManualChapterOutlineDialog({
           <input
             type="number"
             min={1}
+            max={MAX_I32}
             step={1}
             required
             value={form.chapterNumber}
@@ -226,6 +228,7 @@ export function ManualPartOutlineDialog({
             <input
               type="number"
               min={1}
+              max={MAX_I32}
               step={1}
               required
               value={form.partNumber}
@@ -241,6 +244,7 @@ export function ManualPartOutlineDialog({
             <input
               type="number"
               min={1}
+              max={MAX_I32}
               step={1}
               required
               value={form.startChapter}
@@ -256,6 +260,7 @@ export function ManualPartOutlineDialog({
             <input
               type="number"
               min={1}
+              max={MAX_I32}
               step={1}
               required
               value={form.endChapter}

@@ -1,15 +1,15 @@
 use crate::AppState;
 use crate::actions::app_error_message;
 use a4n_api_contract::character::{
-    AddProfileAttributeInput, AttributeEventSummary, AttributeHistoryInput,
-    ModifyProfileAttributeInput,
+    AddProfileAttributeInput, AttributeEventSummary, AttributeEventWriteResult,
+    AttributeHistoryInput, ModifyProfileAttributeInput,
 };
 
 pub async fn add_profile_attribute(
     state: &AppState,
     user_id: i64,
     input: AddProfileAttributeInput,
-) -> Result<(), String> {
+) -> Result<AttributeEventWriteResult, String> {
     let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(state);
     state
         .character_profile_attribute_mutation_application()
@@ -22,7 +22,7 @@ pub async fn modify_profile_attribute(
     state: &AppState,
     user_id: i64,
     input: ModifyProfileAttributeInput,
-) -> Result<(), String> {
+) -> Result<AttributeEventWriteResult, String> {
     let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(state);
     state
         .character_profile_attribute_mutation_application()

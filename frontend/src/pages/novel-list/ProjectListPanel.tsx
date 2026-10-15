@@ -203,6 +203,7 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
       {pendingInvites.length > 0 && (
         <ProjectInviteBanner
           invites={pendingInvites}
+          loading={pendingInvitesLoading}
           inviteActionIds={inviteActionIds}
           onAccept={onAcceptInvite}
           onDecline={onDeclineInvite}
@@ -229,6 +230,7 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
           onOpen={onOpenProject}
           onWrite={onOpenWorkspace}
           getActions={getActions}
+          canUseProjectRows={!loading && loadError == null}
         />
       ) : (
         <AllProjectList
@@ -237,6 +239,7 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
           onOpen={onOpenProject}
           onWrite={onOpenWorkspace}
           getActions={getActions}
+          canUseProjectRows={!loading && loadError == null}
         />
       )}
       </div>
@@ -287,10 +290,11 @@ const ACCESS_SCOPE_OPTIONS: Array<{ value: ProjectAccessScope }> = [
 
 const ProjectInviteBanner: React.FC<{
   invites: ProjectInvite[];
+  loading: boolean;
   inviteActionIds: ReadonlySet<number>;
   onAccept: (invite: ProjectInvite) => void;
   onDecline: (invite: ProjectInvite) => void;
-}> = ({ invites, inviteActionIds, onAccept, onDecline }) => {
+}> = ({ invites, loading, inviteActionIds, onAccept, onDecline }) => {
   const { t } = useI18n();
   return (
   <div className="mb-4">
@@ -303,7 +307,7 @@ const ProjectInviteBanner: React.FC<{
         <ProjectInviteRow
           key={invite.id}
           invite={invite}
-          busy={inviteActionIds.has(invite.id)}
+          busy={loading || inviteActionIds.has(invite.id)}
           onAccept={onAccept}
           onDecline={onDecline}
         />

@@ -184,6 +184,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::task_queue_created_index::Migration),
             Box::new(crate::migrations::task_queue_pending_created_index::Migration),
             Box::new(crate::migrations::generation_run_workflow_created_index::Migration),
+            Box::new(crate::migrations::project_content_revision::Migration),
         ]
     }
 }
@@ -469,6 +470,7 @@ mod tests {
             "task_queue_created_index",
             "task_queue_pending_created_index",
             "generation_run_workflow_created_index",
+            "project_content_revision",
         ];
         let history_start = names
             .iter()

@@ -58,7 +58,8 @@ pub use chapter::scene::{
     ProjectChapterSceneRecordError, ProjectChapterSceneUpdateInput, ProjectChapterSceneWriteError,
     chapter_by_project_number, chapter_scene_by_id, chapter_scene_reorder_project_id,
     chapter_scenes_by_chapter, delete_chapter_scene_record, reorder_chapter_scene_records,
-    save_generated_chapter_scene_record, update_chapter_scene_record,
+    reorder_chapter_scene_records_in_transaction, save_generated_chapter_scene_record,
+    update_chapter_scene_record,
 };
 pub use chapter::source::{
     ResolveChapterSourceError, resolve_chapter_source, resolve_snapshot_sources,

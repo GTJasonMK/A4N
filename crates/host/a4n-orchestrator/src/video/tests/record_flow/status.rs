@@ -41,6 +41,10 @@ async fn video_update_uses_the_public_nullable_patch_contract() {
     )
     .await
     .unwrap();
+    let current = a4n_db::video::generated_video_by_id(db.as_ref(), video.id)
+        .await
+        .unwrap()
+        .expect("completed video record");
 
     let updated = service
         .update_video_record_validated(
@@ -49,6 +53,7 @@ async fn video_update_uses_the_public_nullable_patch_contract() {
                 prompt: None,
                 negative_prompt: Some(None),
                 is_favorite: Some(true),
+                expected_updated_at: current.updated_at.to_string(),
             },
         )
         .await
@@ -63,6 +68,7 @@ async fn video_update_uses_the_public_nullable_patch_contract() {
                 prompt: None,
                 negative_prompt: None,
                 is_favorite: None,
+                expected_updated_at: updated.updated_at.to_string(),
             },
         )
         .await

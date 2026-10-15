@@ -1,8 +1,8 @@
 use crate::actions::app_error_message;
 use crate::state::AppState;
 use a4n_api_contract::character::{
-    DeletionMarkSummary, ExecuteAttributeDeletionInput, ListDeletionMarksInput,
-    RequestAttributeDeletionInput, ResetDeletionMarksInput,
+    AttributeEventWriteResult, DeletionMarkSummary, ExecuteAttributeDeletionInput,
+    ListDeletionMarksInput, RequestAttributeDeletionInput, ResetDeletionMarksInput,
 };
 
 pub async fn list_deletion_marks(
@@ -33,7 +33,7 @@ pub async fn execute_attribute_deletion(
     state: &AppState,
     user_id: i64,
     input: ExecuteAttributeDeletionInput,
-) -> Result<(), String> {
+) -> Result<AttributeEventWriteResult, String> {
     let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(state);
     state
         .character_profile_attribute_deletion_application()

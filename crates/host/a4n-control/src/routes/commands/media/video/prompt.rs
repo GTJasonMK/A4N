@@ -187,7 +187,7 @@ pub(in crate::routes::commands) async fn delete_chapter_video_prompt(
 ) -> Result<Value, ApiError> {
     let input: video_prompt_actions::DeleteChapterVideoPromptInput =
         command_input(args, "delete_chapter_video_prompt")?;
-    video_prompt_actions::delete_chapter_video_prompt(
+    let result = video_prompt_actions::delete_chapter_video_prompt(
         state.runtime(),
         user_id,
         input.prompt_id,
@@ -195,5 +195,5 @@ pub(in crate::routes::commands) async fn delete_chapter_video_prompt(
     )
     .await
     .map_err(ApiError::bad_request)?;
-    Ok(Value::Null)
+    to_value(result)
 }

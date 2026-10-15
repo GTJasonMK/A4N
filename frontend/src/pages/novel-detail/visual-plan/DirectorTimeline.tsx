@@ -4,7 +4,8 @@ import { Clock3, Plus, Scissors, ZoomIn, ZoomOut } from "lucide-react";
 import type { ChapterVisualPlanV3, ChapterVisualPlanView, VisualPlanEditOperation } from "../../../api/chapterVisualPlan";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Modal } from "../../../components/ui/Modal";
-import { durationMs, formatTime, segmentBackground, sceneLabel, segmentTimes, timelineTrackWidth, type DirectorSelection } from "./timeline";
+import { useI18n } from "../../../i18n";
+import { durationMs, formatTime, segmentBackground, segmentTimes, timelineTrackWidth, type DirectorSelection } from "./timeline";
 import type { DirectorPlayback } from "./playback";
 import { isPositiveSafeInteger } from "../../../utils/numberRange";
 
@@ -31,6 +32,7 @@ export interface DirectorTimelineView {
 type Drag = { kind: "point" | "boundary"; id: string; startX: number; startTime: number; width: number; value: number; plan: ChapterVisualPlanV3; base: ChapterVisualPlanView | null };
 
 export function DirectorTimeline({ plan, record, selection, clock, editable, sceneNames, onSelect, onEdit, onSplit, onError, viewRef }: Props) {
+  const { t } = useI18n();
   const [zoom, setZoom] = useState(1);
   const [fit, setFit] = useState(true);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -45,7 +47,7 @@ export function DirectorTimeline({ plan, record, selection, clock, editable, sce
     locate: (atMs) => {
       const track = rail.current;
       const viewport = track?.parentElement;
-      if (!track || !viewport) throw new Error("时间线视图尚未就绪");
+      if (!track || !viewport) throw new Error(t("visualPlan.timelineUi.viewNotReady"));
       viewport.scrollTo({ left: Math.max(0, atMs / total * track.clientWidth - viewport.clientWidth / 2) });
     },
     visibleRange: () => {
@@ -54,7 +56,7 @@ export function DirectorTimeline({ plan, record, selection, clock, editable, sce
       if (!track || !viewport || !track.clientWidth) return [0, total];
       return [Math.round(viewport.scrollLeft / track.clientWidth * total), Math.min(total, Math.round((viewport.scrollLeft + viewport.clientWidth) / track.clientWidth * total))];
     },
-  }), [total]);
+  }), [t, total]);
   const percent = (time: number) => `${Math.max(0, Math.min(100, time / total * 100))}%`;
   useEffect(() => { setDuration(String(total / 1000)); setScale(100); }, [total]);
   useEffect(() => {
@@ -62,9 +64,9 @@ export function DirectorTimeline({ plan, record, selection, clock, editable, sce
     const items = drag.kind === "point" ? plan.points : plan.segments;
     if (!items.some((item) => item.id === drag.id)) {
       setDrag(null);
-      onError(new Error("正在拖动的对象已被其他编辑删除，本次拖动未提交。"));
+      onError(new Error(t("visualPlan.timelineUi.dragTargetDeleted")));
     }
-  }, [drag, onError, plan]);
+  }, [drag, onError, plan, t]);
 
   const seek = (event: React.PointerEvent<HTMLElement>) => {
     const box = event.currentTarget.getBoundingClientRect();
@@ -104,7 +106,7 @@ export function DirectorTimeline({ plan, record, selection, clock, editable, sce
     setDrag(null);
   };
   const insertPoint = () => void onEdit({ kind: "insert_point", point: {
-    id: crypto.randomUUID(), at_ms: Math.round(clock.getState().time), label: "分镜", image_id: null, description: "", reference_image_ids: [],
+    id: crypto.randomUUID(), at_ms: Math.round(clock.getState().time), label: t("visualPlan.timelineUi.defaultPointLabel"), image_id: null, description: "", reference_image_ids: [],
   } });
   const scaleTimeline = (target: number) => {
     if (isPositiveSafeInteger(target) && target !== total) void onEdit({ kind: "scale_timeline", duration_ms: target });
@@ -121,16 +123,24 @@ export function DirectorTimeline({ plan, record, selection, clock, editable, sce
     setScale(100);
   };
 
-  return <section className="director-timeline" aria-label="导演时间线">
+  const sceneName = (id: number) => sceneNames.get(id) ?? t("visualPlan.timelineUi.sceneNumber", { id });
+  const sceneLabelFor = (binding: ChapterVisualPlanV3["segments"][number]["scene_binding"]) => {
+    if (!binding) return t("visualPlan.timelineUi.sceneUnbound");
+    return binding.kind === "scene"
+      ? sceneName(binding.scene_profile_id)
+      : `${sceneName(binding.from_scene_profile_id)} → ${sceneName(binding.to_scene_profile_id)}`;
+  };
+
+  return <section className="director-timeline" aria-label={t("visualPlan.chapterTimeline")}>
     <div className="director-timeline-heading">
-      <div className="director-timeline-summary"><h3>时间线</h3><span>{plan.segments.length} 个镜头 · {plan.points.length} 个图片点</span>
-        <BookButton variant="ghost" size="sm" aria-label="调整整体时长" aria-haspopup="dialog" aria-expanded={timingOpen} title="调整整体时长" onClick={() => setTimingOpen(true)}><Clock3 size={14} />时长 {formatTime(total)}</BookButton>
+      <div className="director-timeline-summary"><h3>{t("visualPlan.timeline")}</h3><span>{t("visualPlan.timelineUi.summary", { shots: plan.segments.length, points: plan.points.length })}</span>
+        <BookButton variant="ghost" size="sm" aria-label={t("visualPlan.timelineUi.adjustDuration")} aria-haspopup="dialog" aria-expanded={timingOpen} title={t("visualPlan.timelineUi.adjustDuration")} onClick={() => setTimingOpen(true)}><Clock3 size={14} />{t("visualPlan.timelineUi.durationButton", { duration: formatTime(total) })}</BookButton>
       </div>
       <div className="director-inline-actions">
         <AddPointButton clock={clock} plan={plan} editable={editable} onClick={insertPoint} />
-        <button type="button" onClick={onSplit} disabled={!editable}><Scissors size={15} />拆分镜头</button>
-        <button type="button" aria-label="缩小视图" onClick={() => { if (zoom <= 1) setFit(true); else setZoom((value) => Math.max(1, value / 1.5)); }} disabled={fit}><ZoomOut size={16} /></button>
-        <button type="button" aria-label="放大视图" onClick={() => { setFit(false); setZoom((value) => fit ? 1 : Math.min(12, value * 1.5)); }} disabled={!fit && zoom === 12}><ZoomIn size={16} />放大编辑</button>
+        <button type="button" onClick={onSplit} disabled={!editable}><Scissors size={15} />{t("visualPlan.timelineUi.splitShot")}</button>
+        <button type="button" aria-label={t("visualPlan.timelineUi.zoomOut")} onClick={() => { if (zoom <= 1) setFit(true); else setZoom((value) => Math.max(1, value / 1.5)); }} disabled={fit}><ZoomOut size={16} /></button>
+        <button type="button" aria-label={t("visualPlan.timelineUi.zoomIn")} onClick={() => { setFit(false); setZoom((value) => fit ? 1 : Math.min(12, value * 1.5)); }} disabled={!fit && zoom === 12}><ZoomIn size={16} />{t("visualPlan.timelineUi.zoomInForEditing")}</button>
       </div>
     </div>
     <div className="director-timeline-scroll">
@@ -147,9 +157,10 @@ export function DirectorTimeline({ plan, record, selection, clock, editable, sce
             const fixed = index === 0 || index === plan.points.length - 1;
             const at = drag?.kind === "point" && drag.id === point.id ? drag.value : point.at_ms;
             const selected = selection?.kind === "point" && selection.id === point.id;
+            const pointLabel = point.label || t("visualPlan.timelineUi.unnamed");
             return <button key={point.id} type="button" className={`director-point ${selected ? "is-selected" : ""} ${point.image_id ? "has-image" : ""} ${fixed ? "is-fixed" : ""}`}
-              style={{ left: percent(at) }} aria-label={`${fixed ? "固定端点" : "图片点"} ${formatTime(at)} · ${point.label || "未命名"}${point.image_id ? " · 已绑定图片" : " · 未绑定图片"}`}
-              aria-pressed={selected} title={`${formatTime(at)} · ${point.label || "图片点"}`}
+              style={{ left: percent(at) }} aria-label={`${t(fixed ? "visualPlan.timelineUi.fixedEndpoint" : "visualPlan.timelineUi.imagePoint")} ${formatTime(at)} · ${pointLabel}${point.image_id ? ` · ${t("visualPlan.timelineUi.imageBound")}` : ` · ${t("visualPlan.timelineUi.imageUnbound")}`}`}
+              aria-pressed={selected} title={`${formatTime(at)} · ${point.label || t("visualPlan.timelineUi.imagePoint")}`}
               onClick={() => onSelect({ kind: "point", id: point.id }, at)}
               onPointerDown={(event) => { if (!fixed) startDrag(event, "point", point.id, point.at_ms); }}
               onPointerMove={move} onPointerUp={finish} onPointerCancel={() => setDrag(null)}
@@ -165,15 +176,16 @@ export function DirectorTimeline({ plan, record, selection, clock, editable, sce
           {plan.segments.map((segment, index) => {
             const [start, end] = segmentTimes(plan, segment);
             const selected = selection?.kind === "segment" && selection.id === segment.id;
+            const shotTitle = segment.title || t("visualPlan.timelineUi.shotNumber", { number: index + 1 });
             return <React.Fragment key={segment.id}>
               <button type="button" className={`director-segment ${selected ? "is-selected" : ""}`} style={{ left: percent(start), width: percent(end - start), background: segmentBackground(segment.scene_binding) }}
-                aria-label={`${segment.title} · ${sceneLabel(segment.scene_binding, sceneNames)} · ${formatTime(end - start)}`} aria-pressed={selected}
-                title={`${segment.title || `镜头 ${index + 1}`} · ${sceneLabel(segment.scene_binding, sceneNames)} · ${formatTime(end - start)}`}
+                aria-label={`${shotTitle} · ${sceneLabelFor(segment.scene_binding)} · ${formatTime(end - start)}`} aria-pressed={selected}
+                title={`${shotTitle} · ${sceneLabelFor(segment.scene_binding)} · ${formatTime(end - start)}`}
                 onClick={() => onSelect({ kind: "segment", id: segment.id }, start)}>
-                <strong>{segment.title || `镜头 ${index + 1}`}</strong>
+                <strong>{shotTitle}</strong>
               </button>
               {index < plan.segments.length - 1 && <button type="button" className="director-segment-boundary" style={{ left: percent(drag?.kind === "boundary" && drag.id === segment.id ? drag.value : end) }}
-                aria-label={`调整 ${segment.title} 的结束边界`} disabled={!editable}
+                aria-label={t("visualPlan.timelineUi.adjustShotBoundary", { title: shotTitle })} disabled={!editable}
                 role="slider" aria-valuemin={start + 1} aria-valuemax={segmentTimes(plan, plan.segments[index + 1])[1] - 1} aria-valuenow={end} aria-valuetext={formatTime(end)}
                 onPointerDown={(event) => startDrag(event, "boundary", segment.id, end)} onPointerMove={move} onPointerUp={finish} onPointerCancel={() => setDrag(null)}
                 onKeyDown={(event) => {
@@ -192,15 +204,15 @@ export function DirectorTimeline({ plan, record, selection, clock, editable, sce
         <Playhead clock={clock} total={total} />
       </div>
     </div>
-    <Modal isOpen={timingOpen} title="调整时长" onClose={closeTiming} footer={<BookButton onClick={closeTiming}>完成</BookButton>}>
+    <Modal isOpen={timingOpen} title={t("visualPlan.timelineUi.timingTitle")} onClose={closeTiming} footer={<BookButton onClick={closeTiming}>{t("visualPlan.timelineUi.complete")}</BookButton>}>
       <div className="director-timing-fields">
-        <label>整体时长 <input className="book-control w-24 px-2 py-1" aria-label="整体时长（秒）" type="number" min="0.001" step="0.001" value={duration} disabled={!editable}
-          onChange={(event) => setDuration(event.target.value)} onBlur={() => scaleTimeline(Math.round(Number(duration) * 1000))} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} /> 秒</label>
-        <label className="director-scale-label">等比伸缩 <input type="range" aria-label="等比伸缩全部时间点" min={25} max={200} step={1} value={scale} disabled={!editable}
+        <label>{t("visualPlan.timelineUi.overallDuration")} <input className="book-control w-24 px-2 py-1" aria-label={`${t("visualPlan.timelineUi.overallDuration")} (${t("visualPlan.timelineUi.seconds")})`} type="number" min="0.001" step="0.001" value={duration} disabled={!editable}
+          onChange={(event) => setDuration(event.target.value)} onBlur={() => scaleTimeline(Math.round(Number(duration) * 1000))} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} /> {t("visualPlan.timelineUi.seconds")}</label>
+        <label className="director-scale-label">{t("visualPlan.timelineUi.scalePoints")} <input type="range" aria-label={t("visualPlan.timelineUi.scalePoints")} min={25} max={200} step={1} value={scale} disabled={!editable}
           onPointerDown={() => { scaleStart.current = total; }} onChange={(event) => { if (scale === 100) scaleStart.current = total; setScale(Number(event.target.value)); }}
           onPointerUp={scaleCommit} onKeyUp={(event) => { if (event.key.startsWith("Arrow") || event.key === "Home" || event.key === "End") scaleCommit(); }}
           onPointerCancel={() => setScale(100)} /><output>{formatTime(Math.round(total * scale / 100))}</output></label>
-        <p className="director-context-line">调整时长会等比移动全部图片点，镜头顺序保持不变。</p>
+        <p className="director-context-line">{t("visualPlan.timelineUi.scaleHint")}</p>
       </div>
     </Modal>
   </section>;
@@ -212,11 +224,13 @@ function Playhead({ clock, total }: { clock: DirectorPlayback; total: number }) 
 }
 
 export function DirectorScrubber({ clock, total }: { clock: DirectorPlayback; total: number }) {
+  const { t } = useI18n();
   const time = useStore(clock, (state) => state.time);
-  return <input className="director-scrubber" type="range" aria-label="播放位置" min={0} max={total} step={1} value={Math.min(time, total)} onChange={(event) => clock.getState().seek(Number(event.target.value))} />;
+  return <input className="director-scrubber" type="range" aria-label={t("visualPlan.timelineUi.playbackPosition")} min={0} max={total} step={1} value={Math.min(time, total)} onChange={(event) => clock.getState().seek(Number(event.target.value))} />;
 }
 
 function AddPointButton({ clock, plan, editable, onClick }: { clock: DirectorPlayback; plan: ChapterVisualPlanV3; editable: boolean; onClick: () => void }) {
+  const { t } = useI18n();
   const unavailable = useStore(clock, (state) => plan.points.some((point) => point.at_ms === Math.round(state.time)));
-  return <button type="button" onClick={onClick} disabled={!editable || unavailable}><Plus size={15} />添加图片点</button>;
+  return <button type="button" onClick={onClick} disabled={!editable || unavailable}><Plus size={15} />{t("visualPlan.timelineUi.addImagePoint")}</button>;
 }

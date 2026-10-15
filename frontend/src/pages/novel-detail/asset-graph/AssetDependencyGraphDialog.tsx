@@ -81,8 +81,14 @@ export const AssetDependencyGraphDialog: React.FC<
     graphRequestSeqRef.current = requestSeq;
     setLoading(true);
     setError(null);
+    setGraph(null);
+    setSelectedId(null);
     detailRequestSeqRef.current += 1;
     setDetailLoading(false);
+    setNodeDetail(null);
+    setSelectedRecordId(null);
+    setDetailError(null);
+    setPromptViewer(null);
     try {
       const next = await getProjectAssetDependencyGraph(projectId);
       if (graphRequestSeqRef.current !== requestSeq) return;
@@ -101,7 +107,7 @@ export const AssetDependencyGraphDialog: React.FC<
         graphLoadingRef.current = false;
       }
     }
-  }, [projectId]);
+  }, [projectId, t]);
 
   useLayoutEffect(() => {
     graphRequestSeqRef.current += 1;

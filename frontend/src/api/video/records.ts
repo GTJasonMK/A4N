@@ -15,6 +15,7 @@ import type {
   PushAssembledChapterVideoInput,
   ReferenceMediaVideoInput,
   UpdateVideoInput,
+  VideoRecordDeleteResult,
   UploadAssemblyInsertVideoInput,
   UploadChapterVideoInput,
   UploadReferenceMediaVideoInput,
@@ -139,8 +140,8 @@ export async function applyAssemblyPostprocessEdit(
   });
 }
 
-export async function deleteVideo(videoId: Id): Promise<void> {
-  return apiInvoke<void>("delete_video", {
+export async function deleteVideo(videoId: Id): Promise<VideoRecordDeleteResult> {
+  return apiInvoke<VideoRecordDeleteResult>("delete_video", {
     videoId: idNum(videoId),
   });
 }

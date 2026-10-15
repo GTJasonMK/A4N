@@ -1,10 +1,70 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::fmt;
 
 use schemars::JsonSchema;
+use serde::de::Visitor;
 use serde::{Deserialize, Serialize};
 
 pub const GALGAME_STORY_GRAPH_SCHEMA_VERSION: &str = "galgame_story_graph_v1";
 pub const GALGAME_RUNTIME_MAX_STEPS: u32 = 10_000;
+
+mod i64_as_decimal_string {
+    use super::*;
+
+    pub fn serialize<S>(value: &i64, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&value.to_string())
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<i64, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct I64Visitor;
+
+        impl Visitor<'_> for I64Visitor {
+            type Value = i64;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("an i64 decimal string or legacy JSON integer")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                value
+                    .parse::<i64>()
+                    .map_err(|_| E::custom("必须是有效的 i64 十进制整数"))
+            }
+
+            fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                self.visit_str(&value)
+            }
+
+            fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(value)
+            }
+
+            fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                i64::try_from(value).map_err(|_| E::custom("整数超出 i64 范围"))
+            }
+        }
+
+        deserializer.deserialize_any(I64Visitor)
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -33,7 +93,11 @@ pub enum StoryEdgeKind {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum StoryValue {
     Bool(bool),
-    Int(i64),
+    Int(
+        #[serde(with = "i64_as_decimal_string")]
+        #[schemars(with = "String")]
+        i64,
+    ),
     String(String),
     Enum(String),
 }
@@ -69,10 +133,22 @@ pub enum StoryExpression {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum StoryStateOperation {
-    Set { key: String, value: StoryValue },
-    Increment { key: String, amount: i64 },
-    AddKnowledge { key: String },
-    RemoveKnowledge { key: String },
+    Set {
+        key: String,
+        value: StoryValue,
+    },
+    Increment {
+        key: String,
+        #[serde(with = "i64_as_decimal_string")]
+        #[schemars(with = "String")]
+        amount: i64,
+    },
+    AddKnowledge {
+        key: String,
+    },
+    RemoveKnowledge {
+        key: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -473,10 +549,13 @@ impl StoryGraph {
                     group.id
                 ));
             }
-            if group.max_iterations.is_none_or(|limit| limit == 0) {
+            if group
+                .max_iterations
+                .is_none_or(|limit| !(1..=GALGAME_RUNTIME_MAX_STEPS).contains(&limit))
+            {
                 return Err(format!(
-                    "循环组必须设置大于 0 的 max_iterations: {}",
-                    group.id
+                    "循环组 max_iterations 必须在 1..={GALGAME_RUNTIME_MAX_STEPS} 范围内: {}",
+                    group.id,
                 ));
             }
             validate_boolean_expression(Some(&group.guard), &variable_kinds)?;
@@ -1218,6 +1297,60 @@ mod tests {
         }
     }
 
+    #[test]
+    fn story_integer_uses_exact_decimal_wire_values_and_reads_legacy_numbers() {
+        let value = StoryValue::Int(i64::MAX);
+        let serialized = serde_json::to_string(&value).unwrap();
+
+        assert_eq!(serialized, r#"{"int":"9223372036854775807"}"#);
+        assert_eq!(
+            serde_json::from_str::<StoryValue>(&serialized).unwrap(),
+            value
+        );
+        assert_eq!(
+            serde_json::from_str::<StoryValue>(r#"{"int":9223372036854775807}"#).unwrap(),
+            value,
+        );
+    }
+
+    #[test]
+    fn story_integer_rejects_empty_and_out_of_range_decimal_strings() {
+        for serialized in [
+            r#"{"int":""}"#,
+            r#"{"int":"9223372036854775808"}"#,
+            r#"{"int":"-9223372036854775809"}"#,
+        ] {
+            assert!(serde_json::from_str::<StoryValue>(serialized).is_err());
+        }
+    }
+
+    #[test]
+    fn increment_amount_uses_an_exact_decimal_wire_value() {
+        let operation = StoryStateOperation::Increment {
+            key: "score".into(),
+            amount: i64::MAX,
+        };
+
+        assert_eq!(
+            serde_json::to_string(&operation).unwrap(),
+            r#"{"increment":{"key":"score","amount":"9223372036854775807"}}"#,
+        );
+        assert_eq!(
+            serde_json::from_str::<StoryStateOperation>(
+                r#"{"increment":{"key":"score","amount":"9223372036854775807"}}"#,
+            )
+            .unwrap(),
+            operation,
+        );
+        assert_eq!(
+            serde_json::from_str::<StoryStateOperation>(
+                r#"{"increment":{"key":"score","amount":9223372036854775807}}"#,
+            )
+            .unwrap(),
+            operation,
+        );
+    }
+
     fn node(id: &str, kind: StoryNodeKind) -> StoryNode {
         StoryNode {
             id: id.into(),
@@ -1262,6 +1395,18 @@ mod tests {
         runtime.advance(&graph, "exit").unwrap();
         runtime.advance(&graph, "finish").unwrap();
         assert_eq!(runtime.current_node_id, "end");
+    }
+
+    #[test]
+    fn loop_iteration_limit_cannot_exceed_runtime_step_limit() {
+        let mut graph = graph_with_loop();
+        graph.loop_groups[0].max_iterations = Some(GALGAME_RUNTIME_MAX_STEPS + 1);
+
+        let error = graph
+            .validate()
+            .expect_err("a loop limit above the runtime cap cannot be saved");
+
+        assert!(error.contains("max_iterations 必须在 1..=10000 范围内"));
     }
 
     #[test]

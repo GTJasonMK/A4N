@@ -97,6 +97,26 @@ use a4n_domain::workflow::WorkflowRunSummary;
 use a4n_error::AppError;
 
 impl OrchestratorContext {
+    pub(crate) async fn ensure_manga_pipeline_not_running(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        operation: &str,
+    ) -> Result<(), AppError> {
+        let business_key = manga_pipeline_business_key(project_id, chapter_id);
+        if self
+            .latest_workflow_run_by_business_key(&business_key)
+            .await?
+            .is_some_and(|run| run.status == a4n_domain::workflow::WORKFLOW_STATUS_RUNNING)
+        {
+            return Err(AppError::InvalidState {
+                current: "manga_pipeline_running".to_string(),
+                operation: format!("{operation}：漫画流水线正在运行"),
+            });
+        }
+        Ok(())
+    }
+
     async fn completed_manga_pipeline_stage_workflow(
         &self,
         project_id: i64,

@@ -93,7 +93,7 @@ pub async fn prompt_update(
         .map_err(prompt_error)
 }
 
-pub async fn prompt_reset(state: &AppState, name: &str) -> Result<(), String> {
+pub async fn prompt_reset(state: &AppState, name: &str) -> Result<PromptEntrySummary, String> {
     let context = prompt_context(state);
     state
         .prompt_mutation_application()

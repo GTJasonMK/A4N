@@ -16,6 +16,7 @@ import { sha256Hex } from "../../../utils/contentHash";
 import type { MessageTranslator } from "../../../i18n";
 import type { VideoTabState } from "./useVideoTabState";
 import type { useVideoTabDerivedState } from "./useVideoTabDerivedState";
+import type { LoadVideoTabData } from "./useVideoTabLoading";
 import type {
   ReferenceMediaBindingRow,
   ReferenceMediaDraft,
@@ -50,8 +51,9 @@ export interface VideoTabViewStateOptions
   currentContentHash: string | null;
   chapterContentHashError: string | null;
   addToast: (message: string, type: "success" | "error" | "info") => void;
+  ensureActionAvailable: () => boolean;
   t: MessageTranslator;
-  loadAll: () => Promise<boolean>;
+  loadAll: LoadVideoTabData;
 }
 
 export function useVideoTabViewState({
@@ -59,6 +61,7 @@ export function useVideoTabViewState({
   currentContentHash,
   chapterContentHashError,
   addToast,
+  ensureActionAvailable,
   t,
   loadAll,
   ...state
@@ -361,13 +364,14 @@ export function useVideoTabViewState({
         })
       : null);
   const videoOptionsStateError = videoOptionsValidationError(options, t);
+  const recipeSaveError = [...recipeSaveErrors.entries()]
+    .map(([number, error]) => t("video.chapter.recipeSaveFailedForSegment", { number, error }))
+    .join(" ") || null;
   const videoPersistedStateError =
     chapterContentHashError ??
     segmentCardState.error ??
     segmentRecipeState.error ??
-    (selectedSegmentNumber == null
-      ? null
-      : recipeSaveErrors.get(selectedSegmentNumber)) ??
+    recipeSaveError ??
     workspaceTabState.storageError ??
     selectedSegmentState.storageError ??
     selectedPromptState.storageError ??
@@ -465,6 +469,7 @@ export function useVideoTabViewState({
   );
   const setGenerationReferenceIds = useCallback(
     async (ids: number[]): Promise<boolean> => {
+      if (!ensureActionAvailable()) return false;
       const segmentNumber = selectedSegmentNumber;
       if (segmentNumber == null) return false;
       const current = effectiveRecipeBySegmentRef.current.get(segmentNumber);
@@ -480,6 +485,7 @@ export function useVideoTabViewState({
         ))
       )
         return false;
+      if (!ensureActionAvailable()) return false;
       try {
         await updateSegmentRecipe(segmentNumber, (recipe) => ({
           ...recipe,
@@ -490,10 +496,11 @@ export function useVideoTabViewState({
         return false;
       }
     },
-    [confirmSegmentRecipeChange, selectedSegmentNumber, t, updateSegmentRecipe],
+    [confirmSegmentRecipeChange, ensureActionAvailable, selectedSegmentNumber, t, updateSegmentRecipe],
   );
   const setVideoLibraryImageIds = useCallback(
     async (ids: number[]): Promise<boolean> => {
+      if (!ensureActionAvailable()) return false;
       const segmentNumber = selectedSegmentNumber;
       if (segmentNumber == null) return false;
       const current = effectiveRecipeBySegmentRef.current.get(segmentNumber);
@@ -509,6 +516,7 @@ export function useVideoTabViewState({
         ))
       )
         return false;
+      if (!ensureActionAvailable()) return false;
       try {
         await updateSegmentRecipe(segmentNumber, (recipe) => ({
           ...recipe,
@@ -519,7 +527,7 @@ export function useVideoTabViewState({
         return false;
       }
     },
-    [confirmSegmentRecipeChange, selectedSegmentNumber, t, updateSegmentRecipe],
+    [confirmSegmentRecipeChange, ensureActionAvailable, selectedSegmentNumber, t, updateSegmentRecipe],
   );
   const finalPromptBlockedReasonForSegment = useCallback(
     (segmentNumber: number): string | null => {
@@ -684,6 +692,7 @@ export function useVideoTabViewState({
   );
   const saveReferenceMediaDraft = useCallback(
     async (segmentNumber: number) => {
+      if (!ensureActionAvailable()) return false;
       const expectedScope = referenceMediaDraftScopeForSegment(segmentNumber);
       if (
         expectedScope == null ||
@@ -706,6 +715,7 @@ export function useVideoTabViewState({
           ))
         )
           return false;
+        if (!ensureActionAvailable()) return false;
         await updateSegmentRecipe(segmentNumber, (recipe) => ({
           ...recipe,
           reference_media: referenceMediaRecipeFromDraft(draftToSave),
@@ -722,6 +732,7 @@ export function useVideoTabViewState({
       addToast,
       awaitSegmentRecipeSaved,
       confirmSegmentRecipeChange,
+      ensureActionAvailable,
       referenceMediaDraftDirty,
       referenceMediaDraftScopeForSegment,
       updateSegmentRecipe,
@@ -802,12 +813,12 @@ export function useVideoTabViewState({
   const handleActivateSegment = useCallback(
     async (segmentNumber: number) => {
       if (segmentNumber === selectedSegmentNumber) {
-        void loadAll();
+        void loadAll({ showLoading: false });
         setSegmentConfigOpen(true);
         return;
       }
 
-      if (await handleSelectSegment(segmentNumber)) void loadAll();
+      if (await handleSelectSegment(segmentNumber)) void loadAll({ showLoading: false });
     },
     [handleSelectSegment, loadAll, selectedSegmentNumber],
   );

@@ -417,6 +417,29 @@ impl ApiClient {
             .into_value()
     }
 
+    pub(crate) async fn send_page_host_json(
+        &mut self,
+        path: &str,
+        body: Option<Value>,
+        session_id: &str,
+        operation_id: &str,
+    ) -> Result<Value> {
+        let mut response = self
+            .send_page_host_once(path, body.clone(), session_id, operation_id)
+            .await?;
+        if response.status() == StatusCode::UNAUTHORIZED && self.can_refresh() {
+            self.refresh_after_unauthorized().await?;
+            response = self
+                .send_page_host_once(path, body, session_id, operation_id)
+                .await?;
+        }
+        let secrets = self.auth_secrets();
+        read_response(response)
+            .await
+            .map_err(|error| redact_error_values(error, &secrets))?
+            .into_value()
+    }
+
     pub(crate) async fn send(&mut self, request: JsonRequest) -> Result<ApiBody> {
         let response = self
             .send_with_refresh(
@@ -594,6 +617,40 @@ impl ApiClient {
                     })?,
                 );
         }
+        if let Some(body) = body {
+            request = request.json(&body);
+        }
+        request.send().await.map_err(transport_error)
+    }
+
+    async fn send_page_host_once(
+        &self,
+        path: &str,
+        body: Option<Value>,
+        session_id: &str,
+        operation_id: &str,
+    ) -> Result<Response> {
+        let access_token = self
+            .access_token()
+            .ok_or_else(|| anyhow!("未登录；请先执行 `a4n auth login --password-stdin`"))?;
+        let ui_session_token = self
+            .ui_session_token()
+            .ok_or_else(|| anyhow!("没有 Page Session；请先执行 `a4n page attach --code CODE`"))?;
+        let agent_id = self
+            .agent_id()
+            .ok_or_else(|| anyhow!("没有 Agent；请先执行 `a4n agent register`"))?;
+        let agent_token = self
+            .agent_token()
+            .ok_or_else(|| anyhow!("没有 Agent token；请先执行 `a4n agent register`"))?;
+        let mut request = self
+            .http
+            .post(self.url(path)?)
+            .bearer_auth(access_token)
+            .header("x-ui-session-token", ui_session_token)
+            .header("x-agent-id", agent_id)
+            .header("x-agent-token", agent_token)
+            .header("x-page-session-id", session_id)
+            .header("x-page-operation-id", operation_id);
         if let Some(body) = body {
             request = request.json(&body);
         }

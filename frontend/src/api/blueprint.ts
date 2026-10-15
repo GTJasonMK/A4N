@@ -21,6 +21,7 @@ import type {
   RestoreBlueprintVersionInput,
   SaveBlueprintInput,
   UpdateWorldSettingInput,
+  VersionedBlueprintMutationResult,
 } from "./generated/host";
 import { getActiveLocale, translateMessage } from "../i18n";
 
@@ -158,16 +159,16 @@ export async function restoreBlueprintVersion(
 
 export async function saveBlueprint(
   input: SaveBlueprintInput,
-): Promise<BlueprintMutationResult> {
-  return apiInvoke<BlueprintMutationResult>("save_blueprint", {
+): Promise<VersionedBlueprintMutationResult> {
+  return apiInvoke<VersionedBlueprintMutationResult>("save_blueprint", {
     input: { ...input, project_id: idNum(input.project_id) },
   });
 }
 
 export async function updateWorldSetting(
   input: UpdateWorldSettingInput,
-): Promise<BlueprintMutationResult> {
-  return apiInvoke<BlueprintMutationResult>("update_world_setting", {
+): Promise<VersionedBlueprintMutationResult> {
+  return apiInvoke<VersionedBlueprintMutationResult>("update_world_setting", {
     input,
   });
 }

@@ -29,6 +29,7 @@ interface ProjectActionHandlers {
   onExport: (project: NovelProject) => void;
   onImportText: (project: NovelProject) => void;
   onDelete: (project: NovelProject) => void;
+  actionsDisabled?: boolean;
 }
 
 export const createProjectActions = (
@@ -38,6 +39,7 @@ export const createProjectActions = (
   isPackageVisible: (id: PackageId) => boolean,
 ): ProjectActionItems => {
   const isOwner = project.my_role === "owner";
+  const actionsDisabled = handlers.actionsDisabled === true;
   const canEdit = canEditProjectMaterials(project);
   const textProjectActions: ProjectActionItems =
     project.project_kind === "text"
@@ -46,6 +48,7 @@ export const createProjectActions = (
             label: t("novel.viewProfile"),
             icon: <BookOpenText size={14} />,
             onClick: () => handlers.onOpenDetails(project),
+            disabled: actionsDisabled,
           }] : []),
           ...(canEdit
             ? [
@@ -53,32 +56,38 @@ export const createProjectActions = (
                   label: t("novel.inspiration"),
                   icon: <Sparkles size={14} />,
                   onClick: () => handlers.onOpenInspiration(project),
+                  disabled: actionsDisabled,
                 }] : []),
                 ...(isPackageVisible("manga") ? [{
                   label: t("novel.createComic"),
                   icon: <PanelsTopLeft size={14} />,
                   onClick: () => handlers.onCreateDerivedProject(project, "comic"),
+                  disabled: actionsDisabled,
                 }] : []),
                 ...(isPackageVisible("video") ? [{
                   label: t("novel.createVideo"),
                   icon: <Film size={14} />,
                   onClick: () => handlers.onCreateDerivedProject(project, "video"),
+                  disabled: actionsDisabled,
                 }] : []),
                 ...(isPackageVisible("galgame") ? [{
                   label: t("novel.createGalgame"),
                   icon: <Gamepad2 size={14} />,
                   onClick: () => handlers.onCreateDerivedProject(project, "galgame"),
+                  disabled: actionsDisabled,
                 }] : []),
                 ...((["ai-workflow", "manga", "video", "galgame"] as const).some(isPackageVisible) ? [{ type: "divider" as const }] : []),
                 {
                   label: t("novel.duplicate"),
                   icon: <Copy size={14} />,
                   onClick: () => handlers.onDuplicate(project),
+                  disabled: actionsDisabled,
                 },
                 ...(isPackageVisible("external-import") ? [{
                   label: t("novel.importTextToProject"),
                   icon: <Upload size={14} />,
                   onClick: () => handlers.onImportText(project),
+                  disabled: actionsDisabled,
                 }] : []),
               ]
             : []),
@@ -98,12 +107,13 @@ export const createProjectActions = (
                 : t("novel.exportDerived"),
             icon: <Download size={14} />,
             onClick: () => handlers.onExport(project),
+            disabled: actionsDisabled,
           }, { type: "divider" as const }] : []),
           {
             label: t("novel.deleteProject"),
             icon: <Trash2 size={14} />,
             onClick: () => handlers.onDelete(project),
-            disabled: project.lifecycle_gate !== "active",
+            disabled: project.lifecycle_gate !== "active" || actionsDisabled,
             danger: true,
           },
         ]

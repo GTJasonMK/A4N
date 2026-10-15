@@ -1,5 +1,6 @@
 use a4n_db_models::models::{
     chapter::{chapter_outline, chapter_outline_provenance, part_outline},
+    generation::workflow_run,
     project::{
         blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,
         novel_project,
@@ -8,7 +9,7 @@ use a4n_db_models::models::{
 use a4n_domain::project::CHAPTERS_PER_PART;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    Set,
+    QuerySelect, Set, TransactionTrait,
 };
 use serde_json::json;
 
@@ -199,6 +200,123 @@ async fn reverse_blueprint_transaction_persists_derived_part_outline_threshold()
     assert_eq!(short.current_version, "1.0");
     assert_eq!(short_versions.len(), 1);
     assert_eq!(short_versions[0].version, "1.0");
+}
+
+#[tokio::test]
+async fn completed_blueprint_apply_rejects_a_late_workflow_cancellation() {
+    let db = setup_db().await;
+    let project = insert_project(&db, "停止边界项目").await;
+    let now = fixed_time();
+    let run = workflow_run::ActiveModel {
+        business_key: Set(a4n_domain::import_reverse::business_key(
+            project.id,
+            "reverse_blueprint",
+        )
+        .unwrap()),
+        workflow_kind: Set(a4n_domain::import_reverse::WORKFLOW_KIND.to_string()),
+        project_id: Set(Some(project.id)),
+        root_project_id: Set(Some(project.id)),
+        source_snapshot_id: Set(None),
+        scope_table: Set(None),
+        scope_id: Set(None),
+        chapter_id: Set(None),
+        mode: Set(Some(a4n_domain::import_reverse::WORKFLOW_MODE.to_string())),
+        input_fingerprint_json: Set(Some(json!({"schema_version": 1}))),
+        status: Set(crate::workflow::WORKFLOW_STATUS_RUNNING.to_string()),
+        current_step_key: Set(Some("reverse_blueprint".to_string())),
+        progress_json: Set(None),
+        active_task_id: Set(None),
+        can_resume: Set(false),
+        resume_block_reason: Set(None),
+        error_message: Set(None),
+        created_at: Set(now),
+        updated_at: Set(now),
+        completed_at: Set(None),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+    let tx = db.begin().await.unwrap();
+    let locked_run = workflow_run::Entity::find_by_id(run.id)
+        .lock_exclusive()
+        .one(&tx)
+        .await
+        .unwrap()
+        .unwrap();
+
+    crate::workflow::mark_workflow_status_in_transaction(
+        &tx,
+        locked_run,
+        crate::workflow::WORKFLOW_STATUS_COMPLETED,
+        false,
+        None,
+    )
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    let cancellation =
+        crate::workflow::cancel_workflow_run_persistence(&db, run.id, "用户取消工作流")
+            .await
+            .unwrap();
+
+    assert!(cancellation.already_terminal);
+    assert!(!cancellation.cancelled);
+    let completed = workflow_run::Entity::find_by_id(run.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(completed.status, crate::workflow::WORKFLOW_STATUS_COMPLETED);
+}
+
+#[tokio::test]
+async fn second_reverse_workflow_start_is_rejected_while_the_first_is_running() {
+    let db = setup_db().await;
+    let project = insert_project(&db, "并发归纳项目").await;
+    let input = |task_id: &str| crate::workflow::UpsertWorkflowRunInput {
+        business_key: a4n_domain::import_reverse::business_key(project.id, "reverse_outline")
+            .unwrap(),
+        workflow_kind: a4n_domain::import_reverse::WORKFLOW_KIND.to_string(),
+        project_id: Some(project.id),
+        root_project_id: Some(project.id),
+        source_snapshot_id: None,
+        scope_table: Some("project".to_string()),
+        scope_id: Some(project.id),
+        chapter_id: None,
+        mode: Some(a4n_domain::import_reverse::WORKFLOW_MODE.to_string()),
+        input_fingerprint_json: Some(
+            json!({"target": "reverse_outline", "project_id": project.id}),
+        ),
+        status: crate::workflow::WORKFLOW_STATUS_RUNNING.to_string(),
+        current_step_key: Some("reverse_outline".to_string()),
+        active_task_id: Some(task_id.to_string()),
+        can_resume: true,
+        resume_block_reason: None,
+        error_message: None,
+    };
+    let first = crate::workflow::upsert_workflow_run_summary(&db, input("reverse-task-a"))
+        .await
+        .unwrap();
+
+    let error =
+        crate::workflow::resume_or_upsert_workflow_run_summary(&db, input("reverse-task-b"))
+            .await
+            .unwrap_err();
+
+    assert!(matches!(
+        error,
+        crate::workflow::WorkflowWriteError::StatusConflict { current, .. }
+            if current == "该项目的同类工作流正在运行"
+    ));
+    let current = workflow_run::Entity::find_by_id(first.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(current.status, crate::workflow::WORKFLOW_STATUS_RUNNING);
+    assert_eq!(current.active_task_id.as_deref(), Some("reverse-task-a"));
 }
 
 #[tokio::test]

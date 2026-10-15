@@ -194,6 +194,9 @@ pub struct SaveMangaPipelineArtifactInput {
     #[serde(default)]
     #[schemars(range(min = 1))]
     pub page_number: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(length(min = 1))]
+    pub expected_prompt_updated_at: Option<String>,
     pub payload: Value,
 }
 
@@ -390,6 +393,8 @@ pub struct UpdateMangaPromptInput {
     pub prompt_id: i64,
     #[schemars(length(min = 1))]
     pub image_prompt: String,
+    #[schemars(length(min = 1))]
+    pub expected_updated_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -399,6 +404,8 @@ pub struct OptimizeMangaPromptInput {
     pub prompt_id: i64,
     #[schemars(length(min = 1))]
     pub instruction: String,
+    #[schemars(length(min = 1))]
+    pub expected_updated_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -454,4 +461,45 @@ pub struct MangaPagePromptSummary {
     pub pipeline_error: Option<MangaPagePipelineErrorV1>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{OptimizeMangaPromptInput, UpdateMangaPromptInput};
+    use serde_json::json;
+
+    #[test]
+    fn manga_prompt_mutations_require_the_displayed_version() {
+        let expected_updated_at = "2026-10-15 00:00:00";
+        assert!(
+            serde_json::from_value::<UpdateMangaPromptInput>(json!({
+                "prompt_id": 1,
+                "image_prompt": "新提示词",
+                "expected_updated_at": expected_updated_at
+            }))
+            .is_ok()
+        );
+        assert!(
+            serde_json::from_value::<UpdateMangaPromptInput>(json!({
+                "prompt_id": 1,
+                "image_prompt": "新提示词"
+            }))
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<OptimizeMangaPromptInput>(json!({
+                "prompt_id": 1,
+                "instruction": "增加景深",
+                "expected_updated_at": expected_updated_at
+            }))
+            .is_ok()
+        );
+        assert!(
+            serde_json::from_value::<OptimizeMangaPromptInput>(json!({
+                "prompt_id": 1,
+                "instruction": "增加景深"
+            }))
+            .is_err()
+        );
+    }
 }

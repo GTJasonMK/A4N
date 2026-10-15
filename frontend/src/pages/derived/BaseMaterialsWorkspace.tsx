@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { BookButton } from "../../components/ui/BookButton";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
@@ -11,12 +11,13 @@ const CharacterPortraitsPanel = lazy(() => import("../novel-detail/characters/Ch
 const VideoMaterialWorkspace = lazy(() => import("../novel-detail/video/VideoMaterialWorkspace").then((module) => ({ default: module.VideoMaterialWorkspace })));
 const ImagesTab = lazy(() => import("../novel-detail/ImagesTab").then((module) => ({ default: module.ImagesTab })));
 
-export function BaseMaterialsWorkspace({ projectId, textProjectId, canEdit, onChanged, onNext, showNext = true, standaloneComic = false, onTextDirtyChange, onSelectTextSource, selectedTextSource }: {
+export function BaseMaterialsWorkspace({ projectId, textProjectId, canEdit, onChanged, onNext, onBeforeKindChange, showNext = true, standaloneComic = false, onTextDirtyChange, onSelectTextSource, selectedTextSource }: {
   projectId: number;
   textProjectId?: number;
   canEdit: boolean;
   onChanged: () => Promise<boolean | void> | boolean | void;
   onNext: () => void;
+  onBeforeKindChange?: () => boolean | Promise<boolean>;
   showNext?: boolean;
   standaloneComic?: boolean;
   onTextDirtyChange?: (dirty: boolean) => void;
@@ -29,6 +30,7 @@ export function BaseMaterialsWorkspace({ projectId, textProjectId, canEdit, onCh
   const [kind, setKind] = useState<"characters" | "scenes_objects" | "images" | "text">(
     standaloneComic ? "images" : "characters",
   );
+  const kindChangeBusyRef = useRef(false);
   const materialOptions = standaloneComic
     ? [
         { id: "images" as const, label: t("common.mediaAuthoring.images") },
@@ -49,6 +51,19 @@ export function BaseMaterialsWorkspace({ projectId, textProjectId, canEdit, onCh
       setNexting(false);
     }
   };
+  const handleKindChange = (nextKind: typeof kind) => {
+    if (nextKind === kind || kindChangeBusyRef.current) return;
+    kindChangeBusyRef.current = true;
+    void (async () => {
+      try {
+        if (onBeforeKindChange && !await onBeforeKindChange()) return;
+        if (kind === "text") onTextDirtyChange?.(false);
+        setKind(nextKind);
+      } finally {
+        kindChangeBusyRef.current = false;
+      }
+    })();
+  };
   return <div className="flex min-h-0 flex-1 flex-col gap-3">
     <header className="flex flex-wrap items-start gap-3">
       <div className="min-w-0 flex-1">
@@ -59,14 +74,14 @@ export function BaseMaterialsWorkspace({ projectId, textProjectId, canEdit, onCh
         {t("common.mediaAuthoring.nextStage")}
       </BookButton> : null}
     </header>
-    <SegmentedControl ariaLabel={t("common.mediaAuthoring.materials")} value={kind} onChange={setKind} options={materialOptions} />
+    <SegmentedControl ariaLabel={t("common.mediaAuthoring.materials")} value={kind} onChange={handleKindChange} options={materialOptions} />
     <fieldset disabled={!canEdit} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto custom-scrollbar">
       <legend className="sr-only">{t("common.mediaAuthoring.materials")}</legend>
       <Suspense fallback={<LoadingSpinner size="sm" />}>
         {kind === "images" ? <ImagesTab projectId={projectId} canEditImages={canEdit} />
-          : kind === "characters" ? <CharacterPortraitsPanel projectId={projectId} />
+          : kind === "characters" ? <CharacterPortraitsPanel projectId={projectId} canEdit={canEdit} />
           : kind === "scenes_objects"
-            ? <VideoMaterialWorkspace projectId={projectId} onToast={addToast} runProgressTask={runProgressTask} onRefreshVideoData={onChanged} />
+            ? <VideoMaterialWorkspace projectId={projectId} canEdit={canEdit} onToast={addToast} runProgressTask={runProgressTask} onRefreshVideoData={onChanged} />
             : <ProjectTextMaterialsPanel
                 projectId={textProjectId ?? projectId}
                 canEdit={canEdit}

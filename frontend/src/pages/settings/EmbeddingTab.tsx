@@ -87,6 +87,7 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
   >({});
   const mountedRef = useRef(true);
   const refreshSeqRef = useRef(0);
+  const modelMutationSeqRef = useRef(0);
   const modelActionRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -133,22 +134,25 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
     () => t("settingsEmbedding.configLoadFailed", { host: modelHostLabel }),
   );
 
-  const refreshModels = useCallback(async (): Promise<boolean> => {
+  const refreshModels = useCallback(async (options: { showLoading?: boolean } = {}): Promise<boolean> => {
     const requestSeq = refreshSeqRef.current + 1;
     refreshSeqRef.current = requestSeq;
+    const mutationSeq = modelMutationSeqRef.current;
     setModelLoadError(null);
-    setModelsLoading(true);
+    if (options.showLoading !== false) setModelsLoading(true);
     try {
       const models = await listLocalEmbeddingModels(scope);
       if (!isCurrentRefresh(requestSeq)) return false;
+      if (modelMutationSeqRef.current !== mutationSeq) return true;
       setLocalModels(models);
       return true;
     } catch (error) {
       if (!isCurrentRefresh(requestSeq)) return false;
+      if (modelMutationSeqRef.current !== mutationSeq) return true;
       setModelLoadError({ reason: error });
       return false;
     } finally {
-      if (isCurrentRefresh(requestSeq)) setModelsLoading(false);
+      if (options.showLoading !== false && isCurrentRefresh(requestSeq)) setModelsLoading(false);
     }
   }, [isCurrentRefresh, scope]);
 
@@ -233,7 +237,9 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
     setBusyModel(model);
     const cachedInfo = resolveDownloadInfo(model);
     const taskId = createWorkflowTaskId("embedding-download", 0);
+    let downloadedModel: LocalEmbeddingModel | null = null;
     try {
+      modelMutationSeqRef.current += 1;
       await runProgressTask(
         {
           cancelTaskId: taskId,
@@ -258,7 +264,7 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
               cachedInfo.total_size_bytes,
             );
           }
-          await runTaskWithPolling(
+          downloadedModel = await runTaskWithPolling(
             downloadEmbeddingModel(model, taskId, scope),
             () => getEmbeddingModelDownloadInfo(model, scope),
             (info) => {
@@ -273,7 +279,15 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
           );
         },
       );
-      await refreshModels();
+      if (downloadedModel && mountedRef.current && modelActionRef.current === actionKey) {
+        setLocalModels((current) => [
+          downloadedModel!,
+          ...current.filter((item) =>
+            item.name.toLowerCase() !== downloadedModel!.name.toLowerCase() &&
+            item.model_code.toLowerCase() !== downloadedModel!.model_code.toLowerCase(),
+          ),
+        ]);
+      }
       addToast(tRef.current("settingsEmbedding.downloadedTo", { host: modelHostLabel }), "success");
     } catch (err) {
       const message = extractErrorMessage(err, tRef.current("settingsEmbedding.downloadFailed"));
@@ -285,10 +299,16 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
     } finally {
       if (modelActionRef.current === actionKey && mountedRef.current) {
         setDownloadInfoByModel({});
-        await refreshModels();
-        if (mountedRef.current) setBusyModel(null);
+        setBusyModel(null);
+        finishModelAction(actionKey);
+        void refreshModels({ showLoading: false }).then((refreshed) => {
+          if (mountedRef.current && !refreshed) {
+            addToast(tRef.current("settingsEmbedding.directoryReadFailed", { host: modelHostLabel }), "error");
+          }
+        });
+      } else {
+        finishModelAction(actionKey);
       }
-      finishModelAction(actionKey);
     }
   };
 
@@ -297,6 +317,7 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
     if (!model) return;
     const actionKey = modelActionKey(model);
     if (!beginModelAction(actionKey)) return;
+    let deleteAttempted = false;
 
     try {
       const ok = await confirmDialog({
@@ -311,17 +332,34 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
       if (!ok) return;
 
       setBusyModel(model);
+      modelMutationSeqRef.current += 1;
+      deleteAttempted = true;
       await deleteLocalEmbeddingModel(model, scope);
+      if (mountedRef.current && modelActionRef.current === actionKey) {
+        const normalizedModel = model.toLowerCase();
+        setLocalModels((current) => current.filter((item) =>
+          item.name.toLowerCase() !== normalizedModel &&
+          item.model_code.toLowerCase() !== normalizedModel,
+        ));
+      }
       setDownloadInfoByModel({});
-      await refreshModels();
       addToast(tRef.current("settingsEmbedding.cacheDeleted", { host: modelHostLabel }), "success");
     } catch (err) {
       addToast(extractErrorMessage(err, tRef.current("settingsEmbedding.deleteFailed")), "error");
     } finally {
       if (modelActionRef.current === actionKey && mountedRef.current) {
         setBusyModel(null);
+        finishModelAction(actionKey);
+        if (deleteAttempted) {
+          void refreshModels({ showLoading: false }).then((refreshed) => {
+            if (mountedRef.current && !refreshed) {
+              addToast(tRef.current("settingsEmbedding.directoryReadFailed", { host: modelHostLabel }), "error");
+            }
+          });
+        }
+      } else {
+        finishModelAction(actionKey);
       }
-      finishModelAction(actionKey);
     }
   };
 

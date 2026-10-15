@@ -22,6 +22,7 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProjectSummaryRecord {
     pub id: i64,
+    pub content_revision: i64,
     pub user_id: i64,
     pub title: String,
     pub description: String,

@@ -42,6 +42,9 @@ describe("VideoAssemblyWorkspace", () => {
         <VideoAssemblyWorkspace
         projectId={1}
         chapter={{ id: 2, chapter_number: 1, title: "第一章" }}
+        canEdit
+        readUnavailable={false}
+        readUnavailableReason={null}
         videos={[adoptedVideo]}
         timeline={{
           id: 1,
@@ -65,6 +68,7 @@ describe("VideoAssemblyWorkspace", () => {
         onToast={() => undefined}
         onRefresh={() => undefined}
         onVideoRecordUpdated={() => undefined}
+        onVideoRecordDeleted={() => undefined}
         />
       </I18nProvider>,
     );
@@ -95,6 +99,9 @@ describe("VideoAssemblyWorkspace", () => {
         <VideoAssemblyWorkspace
         projectId={1}
         chapter={{ id: 2, chapter_number: 1, title: "第一章" }}
+        canEdit
+        readUnavailable={false}
+        readUnavailableReason={null}
         videos={[late, early]}
         timeline={{
           id: 1,
@@ -128,6 +135,7 @@ describe("VideoAssemblyWorkspace", () => {
         onToast={() => undefined}
         onRefresh={() => undefined}
         onVideoRecordUpdated={() => undefined}
+        onVideoRecordDeleted={() => undefined}
         />
       </I18nProvider>,
     );

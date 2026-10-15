@@ -33,6 +33,8 @@ pub struct CreateObjectProfileInput {
 pub struct UpdateObjectProfileInput {
     #[schemars(range(min = 1))]
     pub object_profile_id: i64,
+    #[schemars(length(min = 1, max = 64))]
+    pub expected_updated_at: String,
     pub profile: ObjectProfileInput,
     pub downstream_strategy: DownstreamConflictStrategy,
 }
@@ -130,6 +132,8 @@ pub struct CreateSceneProfileInput {
 pub struct UpdateSceneProfileInput {
     #[schemars(range(min = 1))]
     pub scene_profile_id: i64,
+    #[schemars(length(min = 1, max = 64))]
+    pub expected_updated_at: String,
     pub profile: SceneProfileInput,
     pub downstream_strategy: DownstreamConflictStrategy,
 }
@@ -454,6 +458,7 @@ pub struct ForeshadowingSummary {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ForeshadowingWriteResult {
+    pub record: Option<ForeshadowingSummary>,
     #[serde(default)]
     pub warnings: Vec<String>,
 }

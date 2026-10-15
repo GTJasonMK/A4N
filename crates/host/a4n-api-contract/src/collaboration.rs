@@ -76,7 +76,7 @@ pub trait ProjectCollaborationApplicationPort: Send + Sync {
         user_id: i64,
         project_id: i64,
         input: InviteProjectMemberInput,
-    ) -> Result<(), a4n_error::AppError>;
+    ) -> Result<ProjectInviteSummary, a4n_error::AppError>;
 
     async fn list_project_invites(
         &self,

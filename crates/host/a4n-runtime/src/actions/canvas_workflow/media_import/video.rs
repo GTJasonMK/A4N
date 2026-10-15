@@ -62,6 +62,7 @@ impl CanvasVideoImportHostPort for RuntimeCanvasVideoImportHostPort<'_> {
     async fn delete_canvas_video(&self, video_id: i64) -> Result<(), AppError> {
         delete_video(self.state, self.user_id, video_id)
             .await
+            .map(|_| ())
             .map_err(|operation| AppError::InvalidState {
                 current: "canvas_video_import_host".to_string(),
                 operation,

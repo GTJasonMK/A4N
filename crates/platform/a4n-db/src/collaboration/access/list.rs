@@ -25,6 +25,7 @@ pub async fn list_accessible_projects(
     let paginator = novel_project::Entity::find()
         .select_only()
         .column(novel_project::Column::Id)
+        .column(novel_project::Column::ContentRevision)
         .column(novel_project::Column::UserId)
         .column(novel_project::Column::Title)
         .column(novel_project::Column::Description)

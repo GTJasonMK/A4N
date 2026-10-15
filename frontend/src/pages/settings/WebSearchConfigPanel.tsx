@@ -137,6 +137,10 @@ export const WebSearchConfigPanel: React.FC = () => {
   };
 
   const save = async () => {
+    if (loadError) {
+      addToast(extractErrorMessage(loadError.reason, t("settings.webSearchLoadFailed")), "error");
+      return;
+    }
     if (!form || !fetchForm || saving) return;
     const requestSeq = saveSeqRef.current + 1;
     saveSeqRef.current = requestSeq;
@@ -254,7 +258,7 @@ export const WebSearchConfigPanel: React.FC = () => {
               <ThemedSelect
                 value={form.protocol}
                 onChange={(selectedValue) => updateField("protocol", selectedValue)}
-                disabled={saving}
+                disabled={loading || saving || loadError != null}
                 className="pyqt-input h-9 min-h-9 w-full text-xs"
               >
                 <option value="anthropic">Anthropic / DeepSeek Web Search</option>
@@ -269,7 +273,7 @@ export const WebSearchConfigPanel: React.FC = () => {
               label={t("settingsForm.provider")}
               value={form.provider}
               onChange={(event) => updateField("provider", event.currentTarget.value)}
-              disabled={saving}
+              disabled={loading || saving || loadError != null}
               autoComplete="off"
             />
             <div className="sm:col-span-2">
@@ -277,7 +281,7 @@ export const WebSearchConfigPanel: React.FC = () => {
                 label={t("settingsForm.model")}
                 value={form.model}
                 onChange={(event) => updateField("model", event.currentTarget.value)}
-                disabled={saving}
+                disabled={loading || saving || loadError != null}
                 autoComplete="off"
               />
             </div>
@@ -287,7 +291,7 @@ export const WebSearchConfigPanel: React.FC = () => {
                 type="url"
                 value={form.base_url}
                 onChange={(event) => updateField("base_url", event.currentTarget.value)}
-                disabled={saving}
+                disabled={loading || saving || loadError != null}
                 autoComplete="url"
               />
             </div>
@@ -297,7 +301,7 @@ export const WebSearchConfigPanel: React.FC = () => {
                 type="password"
                 value={form.apiKey}
                 onChange={(event) => updateField("apiKey", event.currentTarget.value)}
-                disabled={form.clearApiKey || saving}
+                disabled={form.clearApiKey || loading || saving || loadError != null}
                 placeholder={config?.has_api_key ? t("settings.webSearchKeySaved") : undefined}
                 autoComplete="new-password"
               />
@@ -310,7 +314,7 @@ export const WebSearchConfigPanel: React.FC = () => {
                     updateField("clearApiKey", checked);
                     if (checked) updateField("apiKey", "");
                   }}
-                  disabled={saving}
+                  disabled={loading || saving || loadError != null}
                   className="mt-0.5 shrink-0 accent-[rgb(var(--color-primary))]"
                 />
                 <span className="min-w-0 break-words">{t("settings.webSearchClearKey")}</span>
@@ -325,7 +329,7 @@ export const WebSearchConfigPanel: React.FC = () => {
               step={1}
               value={form.max_results}
               onChange={(event) => updateField("max_results", event.currentTarget.value)}
-              disabled={saving}
+              disabled={loading || saving || loadError != null}
             />
             <BookInput
               label={t("settings.webSearchMaxUses")}
@@ -335,7 +339,7 @@ export const WebSearchConfigPanel: React.FC = () => {
               step={1}
               value={form.max_uses}
               onChange={(event) => updateField("max_uses", event.currentTarget.value)}
-              disabled={saving}
+              disabled={loading || saving || loadError != null}
             />
             <BookInput
               label={t("settings.webSearchMaxTokens")}
@@ -345,7 +349,7 @@ export const WebSearchConfigPanel: React.FC = () => {
               step={1}
               value={form.max_tokens}
               onChange={(event) => updateField("max_tokens", event.currentTarget.value)}
-              disabled={saving}
+              disabled={loading || saving || loadError != null}
             />
             <BookInput
               label={t("settings.webSearchTimeout")}
@@ -355,7 +359,7 @@ export const WebSearchConfigPanel: React.FC = () => {
               step={1}
               value={form.timeout_secs}
               onChange={(event) => updateField("timeout_secs", event.currentTarget.value)}
-              disabled={saving}
+              disabled={loading || saving || loadError != null}
             />
 
 
@@ -378,7 +382,7 @@ export const WebSearchConfigPanel: React.FC = () => {
                 checked={fetchForm.enabled}
                 form="web-tools-settings-form"
                 onChange={(event) => updateFetchField("enabled", event.currentTarget.checked)}
-                disabled={saving}
+                disabled={loading || saving || loadError != null}
                 className="mt-0.5 shrink-0 accent-[rgb(var(--color-primary))]"
               />
               <span className="min-w-0 break-words">{t("settings.webFetchEnabled")}</span>
@@ -393,7 +397,7 @@ export const WebSearchConfigPanel: React.FC = () => {
               step={1}
               value={fetchForm.timeout_secs}
               onChange={(event) => updateFetchField("timeout_secs", event.currentTarget.value)}
-              disabled={saving}
+              disabled={loading || saving || loadError != null}
             />
             <BookInput
               label={t("settings.webFetchMaxRedirects")}
@@ -405,7 +409,7 @@ export const WebSearchConfigPanel: React.FC = () => {
               step={1}
               value={fetchForm.max_redirects}
               onChange={(event) => updateFetchField("max_redirects", event.currentTarget.value)}
-              disabled={saving}
+              disabled={loading || saving || loadError != null}
             />
             <BookInput
               label={t("settings.webFetchMaxResponseBytes")}
@@ -417,7 +421,7 @@ export const WebSearchConfigPanel: React.FC = () => {
               step={1}
               value={fetchForm.max_response_bytes}
               onChange={(event) => updateFetchField("max_response_bytes", event.currentTarget.value)}
-              disabled={saving}
+              disabled={loading || saving || loadError != null}
             />
             <BookInput
               label={t("settings.webFetchMaxBodyChars")}
@@ -429,7 +433,7 @@ export const WebSearchConfigPanel: React.FC = () => {
               step={1}
               value={fetchForm.max_body_chars}
               onChange={(event) => updateFetchField("max_body_chars", event.currentTarget.value)}
-              disabled={saving}
+              disabled={loading || saving || loadError != null}
             />
             <BookInput
               label={t("settings.webFetchMaxOutputChars")}
@@ -441,7 +445,7 @@ export const WebSearchConfigPanel: React.FC = () => {
               step={1}
               value={fetchForm.max_output_chars}
               onChange={(event) => updateFetchField("max_output_chars", event.currentTarget.value)}
-              disabled={saving}
+              disabled={loading || saving || loadError != null}
             />
           </div>
         </section>
@@ -450,7 +454,7 @@ export const WebSearchConfigPanel: React.FC = () => {
       {form && fetchForm ? (
         <footer className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-book-border/50 py-3">
           <p className="text-small text-book-text-muted">{t("settings.webToolsSaveHint")}</p>
-          <BookButton type="submit" variant="primary" disabled={saving}>
+          <BookButton type="submit" variant="primary" disabled={loading || saving || loadError != null}>
             {saving ? <LoadingSpinner size="sm" /> : <Save size={14} />}
             {saving ? t("common.loading") : t("common.save")}
           </BookButton>

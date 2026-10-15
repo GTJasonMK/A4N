@@ -1,6 +1,7 @@
 import { apiInvoke } from "../index";
 import type {
   CharacterAttributeCategory,
+  AttributeEventWriteResult,
   DeletionMarkStatus,
   ExecuteAttributeDeletionInput,
   RequestAttributeDeletionInput,
@@ -28,9 +29,16 @@ export async function resetDeletionMarks(
   profileId: Id,
   category: string,
   key: string,
+  expectedMark: Pick<DeletionMark, "id" | "updated_at">,
 ): Promise<number> {
   return apiInvoke<number>("reset_deletion_marks", {
-    input: { profile_id: idNum(profileId), category, key },
+    input: {
+      profile_id: idNum(profileId),
+      category,
+      key,
+      expected_mark_id: expectedMark.id,
+      expected_mark_updated_at: expectedMark.updated_at,
+    },
   });
 }
 
@@ -44,8 +52,8 @@ export async function requestAttributeDeletion(
 
 export async function executeAttributeDeletion(
   input: ExecuteAttributeDeletionInput,
-): Promise<void> {
-  return apiInvoke<void>("execute_attribute_deletion", {
+): Promise<AttributeEventWriteResult> {
+  return apiInvoke<AttributeEventWriteResult>("execute_attribute_deletion", {
     input,
   });
 }

@@ -7,6 +7,7 @@ use crate::OrchestratorContext;
 mod application;
 mod asset_generation_application;
 mod asset_plan;
+mod branch_plan;
 mod context;
 mod contracts;
 mod errors;
@@ -33,6 +34,7 @@ use contracts::SCRIPT_STATUS_READY;
 
 use pipeline::workflow::{GALGAME_PIPELINE_WORKFLOW_KIND, galgame_pipeline_workflow_run_input};
 
+pub(crate) use branch_plan::{GalgameBranchPlanCandidate, galgame_pipeline_branch_plan_candidate};
 pub(crate) use contracts::{
     BindGalgameMediaInput, GALGAME_ENTITY_CHARACTER_PROFILE, GALGAME_ENTITY_LINE,
     GALGAME_ENTITY_SCENE, GALGAME_EXPRESSIONS, GALGAME_PIPELINE_TOTAL_STEPS,

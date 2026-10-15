@@ -89,5 +89,9 @@ pub trait ImportAnalysisProgressApplicationPort: Send + Sync {
 /// Analysis execution remains with the import-analysis owner.
 #[async_trait::async_trait]
 pub trait ImportAnalysisCancellationApplicationPort: Send + Sync {
-    async fn cancel(&self, user_id: i64, project_id: i64) -> Result<(), a4n_error::AppError>;
+    async fn cancel(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<ProjectImportAnalysisProgress, a4n_error::AppError>;
 }

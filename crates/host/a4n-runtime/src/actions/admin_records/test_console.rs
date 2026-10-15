@@ -468,23 +468,12 @@ impl TestConsole {
         let result = async {
             let detail = self.get(&input.run_id, None).await?;
             if input.delete_test_project {
-                if !matches!(&detail.summary.target, TestTarget::TestProject { .. }) {
-                    return Err("当前项目测试不能由测试历史删除项目".to_string());
-                }
-                let mut project_ids = detail
-                    .summary
-                    .impact
-                    .iter()
-                    .filter(|impact| impact.action == "create" && impact.resource == "project")
-                    .filter_map(|impact| impact.project_id)
-                    .collect::<Vec<_>>();
-                project_ids.sort_unstable();
-                project_ids.dedup();
+                let project_ids = created_project_ids(&detail);
                 if project_ids.is_empty() {
                     return Err("该运行没有由测试中心创建的项目".to_string());
                 }
                 for project_id in project_ids.into_iter().rev() {
-                    // Test projects belong to the run creator; the deleting admin may differ.
+                    // Created projects belong to the run creator; the deleting admin may differ.
                     project_records::delete_project(state, detail.summary.created_by, project_id)
                         .await?;
                 }
@@ -687,6 +676,7 @@ impl TestConsole {
                                 title: Some(title),
                                 description: Some(description),
                                 fact_feedback_interval_chapters: None,
+                                expected_updated_at: None,
                             },
                         )
                         .await
@@ -1497,6 +1487,19 @@ fn initial_target_project_id(target: &TestTarget) -> Option<i64> {
     }
 }
 
+fn created_project_ids(detail: &TestRunDetail) -> Vec<i64> {
+    let mut project_ids = detail
+        .summary
+        .impact
+        .iter()
+        .filter(|impact| impact.action == "create" && impact.resource == "project")
+        .filter_map(|impact| impact.project_id)
+        .collect::<Vec<_>>();
+    project_ids.sort_unstable();
+    project_ids.dedup();
+    project_ids
+}
+
 async fn ensure_project(
     state: &AppState,
     user_id: i64,
@@ -1881,6 +1884,38 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn cleanup_uses_projects_created_by_the_run_not_its_input_target() {
+        let mut detail = sample_detail(
+            "123e4567-e89b-42d3-a456-426614174000",
+            TestRunStatus::Passed,
+        );
+        detail.summary.target = TestTarget::CurrentProject { project_id: 1 };
+        detail.summary.target_project_id = Some(2);
+        detail.summary.impact = vec![
+            TestImpact {
+                action: "create".to_string(),
+                resource: "project".to_string(),
+                project_id: Some(2),
+                detail: "测试副本".to_string(),
+            },
+            TestImpact {
+                action: "update".to_string(),
+                resource: "project".to_string(),
+                project_id: Some(1),
+                detail: "源项目".to_string(),
+            },
+            TestImpact {
+                action: "create".to_string(),
+                resource: "project".to_string(),
+                project_id: Some(2),
+                detail: "重复记录".to_string(),
+            },
+        ];
+
+        assert_eq!(created_project_ids(&detail), vec![2]);
     }
 
     #[test]

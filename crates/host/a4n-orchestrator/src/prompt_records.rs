@@ -727,9 +727,10 @@ impl OrchestratorContext {
         &self,
         context: &PromptExecutionContext,
         name: &str,
-    ) -> Result<(), AppError> {
+    ) -> Result<PromptEntrySummary, AppError> {
         let Some(client) = self.prompt_client_for_execution(context)? else {
-            return self.prompt_reset_entry(name).await;
+            let entry = self.prompt_reset_entry(name).await?;
+            return Ok(prompt_entry_summary(&entry));
         };
         let response = client
             .reset(prompt_service_request(
@@ -742,7 +743,8 @@ impl OrchestratorContext {
             )?)
             .await
             .map_err(prompt_sidecar_error)?;
-        prompt_response_payload(response)
+        let entry = prompt_response_payload(response)?;
+        Ok(prompt_entry_summary(&entry))
     }
 
     pub(crate) async fn prompt_version_history_validated(
@@ -1409,7 +1411,7 @@ impl PromptMutationApplicationPort for OrchestratorContext {
         &self,
         context: &PromptExecutionContext,
         name: &str,
-    ) -> Result<(), AppError> {
+    ) -> Result<PromptEntrySummary, AppError> {
         self.reset_prompt_record_validated(context, name).await
     }
 

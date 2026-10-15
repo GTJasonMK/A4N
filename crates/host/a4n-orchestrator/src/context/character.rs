@@ -273,6 +273,7 @@ fn character_deletion_mark_summary(
         last_marked_chapter: mark.last_marked_chapter,
         is_executed: mark.is_executed,
         created_at: mark.created_at.to_string(),
+        updated_at: mark.updated_at,
     })
 }
 

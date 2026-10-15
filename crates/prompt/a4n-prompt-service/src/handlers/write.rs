@@ -123,10 +123,10 @@ pub(crate) async fn update_many_prompts(
 pub(crate) async fn reset_prompt(
     State(state): State<PromptServiceState>,
     Json(request): Json<ServiceRequest<PromptNamePayload>>,
-) -> Json<ServiceResponse<()>> {
+) -> Json<ServiceResponse<PromptEntry>> {
     if let Err(error) = validate_service_request(&request) {
         return Json(request.error_response(error));
     }
-    let result = state.engine.reset(&request.payload.name).await.map(|_| ());
+    let result = state.engine.reset(&request.payload.name).await;
     Json(result_response(&request, result))
 }

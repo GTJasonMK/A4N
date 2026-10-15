@@ -367,7 +367,7 @@ pub trait PromptMutationApplicationPort: Send + Sync {
         &self,
         context: &PromptExecutionContext,
         name: &str,
-    ) -> Result<(), a4n_error::AppError>;
+    ) -> Result<PromptEntrySummary, a4n_error::AppError>;
 
     async fn set_project_override(
         &self,

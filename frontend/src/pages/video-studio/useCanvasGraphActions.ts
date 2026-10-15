@@ -2,6 +2,7 @@ import React, { useCallback } from "react";
 import { addEdge, type Connection, type EdgeChange, type IsValidConnection, type NodeChange, type ReactFlowInstance, type Viewport } from "@xyflow/react";
 import { extractErrorMessage } from "../../api";
 import type { ToastType } from "../../components/feedback/Toast";
+import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import {
   getCanvasGraph,
   importCanvasMedia,
@@ -114,6 +115,14 @@ export function useCanvasGraphActions({
   const currentT = () => translatorRef.current;
   const actionScopeRef = React.useRef("");
   actionScopeRef.current = `${projectId}:${document?.graph.id ?? ""}:${document?.graph.version ?? ""}`;
+  const latestDocumentRef = React.useRef(document);
+  const latestNodesRef = React.useRef(nodes);
+  const latestEdgesRef = React.useRef(edges);
+  const latestSelectedNodeRef = React.useRef(selectedNode);
+  latestDocumentRef.current = document;
+  latestNodesRef.current = nodes;
+  latestEdgesRef.current = edges;
+  latestSelectedNodeRef.current = selectedNode;
   React.useEffect(() => () => {
     actionScopeRef.current = "";
   }, []);
@@ -384,10 +393,48 @@ export function useCanvasGraphActions({
     [addToast, canvasMutationDisabled, edges, setEdges, setNodes, t],
   );
 
-  const updateSelectedConfig = (patch: Record<string, unknown>) => {
+  const updateSelectedConfig = async (patch: Record<string, unknown>) => {
     if (!selectedNode || canvasMutationDisabled) return;
-    const invalidatesRuntimeResults = Object.keys(patch).some((key) => key !== "title");
     const selectedNodeId = selectedNode.id;
+    let activeInputIds: Set<string> | null = null;
+    if (
+      selectedNode.data.nodeKind === "GenerateVideoNode" &&
+      Object.prototype.hasOwnProperty.call(patch, "input_mode")
+    ) {
+      const contract = studioNodeContract(
+        nodeContractsByKind,
+        selectedNode.data.nodeKind,
+      );
+      const nextData = {
+        ...selectedNode.data,
+        config: { ...selectedNode.data.config, ...patch },
+      };
+      activeInputIds = new Set(
+        contract
+          ? studioNodeInputPortsForData(nextData, contract).map((port) => port.id)
+          : [],
+      );
+      const incompatibleEdges = edges.filter(
+        (edge) => edge.target === selectedNodeId && !activeInputIds?.has(edge.targetHandle ?? ""),
+      );
+      if (incompatibleEdges.length > 0) {
+        const requestScope = actionScopeRef.current;
+        const confirmed = await confirmDialog({
+          title: t("video.canvas.inputModeChangeTitle"),
+          message: t("video.canvas.inputModeChangeMessage", {
+            count: incompatibleEdges.length,
+          }),
+          confirmText: t("video.canvas.inputModeChangeConfirm"),
+          dialogType: "warning",
+        });
+        if (
+          !confirmed ||
+          actionScopeRef.current !== requestScope ||
+          latestSelectedNodeRef.current?.id !== selectedNodeId
+        ) return;
+      }
+    }
+    const invalidatesRuntimeResults = Object.keys(patch).some((key) => key !== "title");
     setNodes((items) => {
       const next = invalidatesRuntimeResults
         ? invalidateCanvasRuntimeResults(items, edges, [selectedNodeId])
@@ -411,25 +458,7 @@ export function useCanvasGraphActions({
         };
       });
     });
-    if (
-      selectedNode.data.nodeKind === "GenerateVideoNode" &&
-      Object.prototype.hasOwnProperty.call(patch, "input_mode")
-    ) {
-      const contract = studioNodeContract(
-        nodeContractsByKind,
-        selectedNode.data.nodeKind,
-      );
-      const nextData = {
-        ...selectedNode.data,
-        config: { ...selectedNode.data.config, ...patch },
-      };
-      const activeInputIds = new Set(
-        contract
-          ? studioNodeInputPortsForData(nextData, contract).map(
-              (port) => port.id,
-            )
-          : [],
-      );
+    if (activeInputIds) {
       setEdges((items) =>
         items.filter(
           (edge) =>
@@ -541,14 +570,44 @@ export function useCanvasGraphActions({
     const file = await pickLocalFile(accept);
     if (!file) return;
     if (actionScopeRef.current !== requestScope) return;
+    const currentDocument = latestDocumentRef.current;
+    const currentNodes = latestNodesRef.current;
+    const currentEdges = latestEdgesRef.current;
+    if (!currentDocument) return;
+    const currentValidationError = canvasGraphSaveValidationError(
+      currentNodes,
+      currentEdges,
+      nodeContractsByKind,
+      currentT(),
+    );
+    if (currentValidationError) {
+      addToast(currentValidationError, "error");
+      return;
+    }
     setImporting(true);
     try {
+      const dataBase64 = await readFileAsBase64(file);
+      if (actionScopeRef.current !== requestScope) return;
+      const latestDocument = latestDocumentRef.current;
+      const latestNodes = latestNodesRef.current;
+      const latestEdges = latestEdgesRef.current;
+      if (!latestDocument) return;
+      const latestValidationError = canvasGraphSaveValidationError(
+        latestNodes,
+        latestEdges,
+        nodeContractsByKind,
+        currentT(),
+      );
+      if (latestValidationError) {
+        addToast(latestValidationError, "error");
+        return;
+      }
       const imported = await importCanvasMedia({
         project_id: projectId,
         media_kind: mediaKind,
         file_name: file.name,
         mime_type: file.type,
-        data_base64: await readFileAsBase64(file),
+        data_base64: dataBase64,
       });
       let importedNode: StudioNode;
       let successMessageKey: Parameters<MessageTranslator>[0];
@@ -557,7 +616,7 @@ export function useCanvasGraphActions({
           importedNode = importedImageInputNode(
             imported.image,
             imported.asset,
-            nodes.length,
+            latestNodes.length,
             currentT(),
           );
           successMessageKey = "video.importedImage";
@@ -566,20 +625,20 @@ export function useCanvasGraphActions({
           importedNode = importedVideoInputNode(
             imported.video,
             imported.asset,
-            nodes.length,
+            latestNodes.length,
             currentT(),
           );
           successMessageKey = "video.importedVideo";
           break;
         case "audio":
-          importedNode = importedAudioInputNode(imported.asset, nodes.length, currentT());
+          importedNode = importedAudioInputNode(imported.asset, latestNodes.length, currentT());
           successMessageKey = "video.importedAudio";
           break;
         default:
           throw new Error(currentT()("video.unsupportedImportedMedia"));
       }
       const nextNodes = [
-        ...nodes.map((node) => ({ ...node, selected: false })),
+        ...latestNodes.map((node) => ({ ...node, selected: false })),
         importedNode,
       ];
       const viewportAtSave = flowInstance?.getViewport();
@@ -587,12 +646,12 @@ export function useCanvasGraphActions({
         projectId,
         toCanvasGraphInput(
           viewportAtSave
-            ? { ...document, graph: { ...document.graph, viewport_json: viewportAtSave } }
-            : document,
+            ? { ...latestDocument, graph: { ...latestDocument.graph, viewport_json: viewportAtSave } }
+            : latestDocument,
           nextNodes,
-          edges,
+          latestEdges,
         ),
-        document.graph.version,
+        latestDocument.graph.version,
       );
       if (actionScopeRef.current !== requestScope) return;
       const currentViewport = flowInstance?.getViewport();
@@ -626,8 +685,12 @@ export function useCanvasGraphActions({
   const refreshCanvasRuntimeResults = useCallback(
     async (graphId: number) => {
       const requestScope = actionScopeRef.current;
+      const requestGraphVersion = latestDocumentRef.current?.graph.version ?? null;
       const freshDocument = await getCanvasGraph(projectId, graphId);
-      if (actionScopeRef.current !== requestScope) return;
+      if (
+        actionScopeRef.current !== requestScope ||
+        (requestGraphVersion != null && latestDocumentRef.current?.graph.version !== requestGraphVersion)
+      ) return;
       setDocument((current) =>
         current && current.graph.id === freshDocument.graph.id
           ? mergeCanvasDocumentRuntimeResults(current, freshDocument)

@@ -9,6 +9,6 @@ export async function promptUpdate(input: UpdatePromptInput): Promise<PromptEntr
   return apiInvoke<PromptEntrySummary>("prompt_update", { input });
 }
 
-export async function promptReset(name: string): Promise<void> {
-  return apiInvoke<void>("prompt_reset", { name });
+export async function promptReset(name: string): Promise<PromptEntrySummary> {
+  return apiInvoke<PromptEntrySummary>("prompt_reset", { name });
 }

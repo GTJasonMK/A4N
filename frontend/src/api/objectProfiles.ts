@@ -50,11 +50,13 @@ export async function createObjectProfile(
 
 export async function updateObjectProfile(
   objectProfileId: Id,
+  expectedUpdatedAt: string,
   input: ObjectProfileInput,
   downstreamStrategy: DownstreamConflictStrategy,
 ): Promise<ObjectProfileMutationResult> {
   const request: UpdateObjectProfileInput = {
     object_profile_id: idNum(objectProfileId),
+    expected_updated_at: expectedUpdatedAt,
     profile: normalizeObjectProfileInput(input),
     downstream_strategy: downstreamStrategy,
   };

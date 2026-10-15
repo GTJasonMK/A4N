@@ -27,7 +27,7 @@ use super::{
         reverse_blueprint_apply_draft, reverse_outline_rows, reverse_part_outline_rows,
         validate_reverse_engineer_output,
     },
-    context::ReverseContentRequest,
+    context::{ReverseContentRequest, ReverseContextKind},
     execution::restored_import_reverse_checkpoint,
     import_reverse_db_error,
     target::ReverseEngineeringTargetDomain,
@@ -180,13 +180,39 @@ async fn latest_reverse_engineering_candidate(
         &checkpoint.response_content,
         target,
     )?;
-    reverse_candidate_checkpoint_response(
+    let candidate = reverse_candidate_checkpoint_response(
         run.id,
         target,
         result,
         checkpoint.artifacts_json.as_ref(),
-    )
-    .map(Some)
+    )?;
+    if candidate.state == ReverseEngineeringCandidateState::Proposal {
+        let fingerprint =
+            run.input_fingerprint_json
+                .as_ref()
+                .ok_or_else(|| AppError::InvalidState {
+                    current: "missing_reverse_candidate_input_fingerprint".to_string(),
+                    operation: "读取项目资料归纳候选".to_string(),
+                })?;
+        if fingerprint.get("auto_context").and_then(Value::as_bool) == Some(true) {
+            let rows = context
+                .reverse_context_rows(
+                    project_id,
+                    matches!(target.context_kind(), ReverseContextKind::Blueprint),
+                )
+                .await?;
+            let source_is_current =
+                reverse_candidate_source_is_current(&rows, project_id, target, fingerprint)
+                    .map_err(|current| AppError::InvalidState {
+                        current,
+                        operation: "读取项目资料归纳候选".to_string(),
+                    })?;
+            if !source_is_current {
+                return Ok(None);
+            }
+        }
+    }
+    Ok(Some(candidate))
 }
 
 pub(crate) async fn confirm_reverse_engineering_candidate(
@@ -311,6 +337,7 @@ async fn apply_reverse_engineering_checkpoint(
             run,
             checkpoint,
             target: prompt_name,
+            finalize_running_workflow: expected_run_status == WORKFLOW_STATUS_RUNNING,
             output: parsed_output.clone(),
             apply_data,
         },
@@ -928,6 +955,82 @@ mod tests {
     fn changed_auto_context_source_requires_regeneration() {
         let error = validate_auto_context_source_hash("a", "b").unwrap_err();
         assert_eq!(invalid_state(error), "reverse_candidate_source_changed");
+    }
+
+    #[test]
+    fn proposal_is_current_only_while_its_project_context_matches() {
+        use a4n_domain::{chapter::ChapterRecord, project::ProjectRecord};
+
+        let timestamp = chrono::NaiveDate::from_ymd_opt(2026, 8, 8)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap();
+        let mut rows = ReverseContextRows {
+            project: ProjectRecord {
+                id: 7,
+                user_id: 1,
+                title: "第一部小说".to_string(),
+                description: String::new(),
+                project_type: "novel_long".to_string(),
+                project_kind: "text".to_string(),
+                root_project_id: None,
+                source_snapshot_id: None,
+                source_sync_status: "current".to_string(),
+                status: "draft".to_string(),
+                lifecycle_gate: "active".to_string(),
+                target_chapters: 8,
+                current_chapter: 0,
+                total_chapters: None,
+                chapters_per_part: None,
+                avatar_svg: None,
+                avatar_animal: None,
+                raw_blueprint: None,
+                import_analysis_progress: None,
+                export_config: None,
+                created_at: timestamp,
+                updated_at: timestamp,
+            },
+            chapters: vec![ChapterRecord {
+                id: 1,
+                project_id: 7,
+                outline_id: None,
+                chapter_number: 1,
+                title: Some("第一章".to_string()),
+                content: "钟楼响起第一声钟鸣。".to_string(),
+                word_count: 10,
+                status: "completed".to_string(),
+                summary: None,
+                style_tags: None,
+                analysis_data: None,
+                created_at: timestamp,
+                updated_at: timestamp,
+            }],
+            chapter_outlines: Vec::new(),
+            part_outlines: Vec::new(),
+            blueprint_context: None,
+        };
+        let target = ReverseEngineeringTarget::Outline;
+        let (_, source_hash) =
+            super::super::context::resolve_reverse_content_sample_with_provenance(
+                ReverseContentRequest {
+                    project_id: 7,
+                    manual_sample: "",
+                    auto_context: true,
+                    context_limit: Some(8),
+                },
+                target.context_kind(),
+                Some(&rows),
+            )
+            .unwrap();
+        let fingerprint = json!({
+            "auto_context": true,
+            "context_limit": 8,
+            "auto_context_source_sha256": source_hash,
+        });
+
+        assert!(reverse_candidate_source_is_current(&rows, 7, target, &fingerprint).unwrap());
+        rows.project.title = "第二部小说".to_string();
+        assert!(!reverse_candidate_source_is_current(&rows, 7, target, &fingerprint).unwrap());
     }
 
     #[test]

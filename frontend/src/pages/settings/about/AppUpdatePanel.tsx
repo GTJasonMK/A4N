@@ -1,8 +1,10 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Download, RefreshCw, RotateCw } from "lucide-react";
 import { BookButton } from "../../../components/ui/BookButton";
+import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
-import { dirtyRegistry } from "../../../components/navigation/dirtyRegistry";
+import { useToast } from "../../../components/feedback/Toast";
+import { dirtyRegistry, useDirty } from "../../../components/navigation/dirtyRegistry";
 import { useI18n } from "../../../i18n";
 import {
   checkForAppUpdate,
@@ -19,59 +21,84 @@ import { isDesktopTauriRuntime, shouldUseHttpBackend } from "../../../utils/runt
 
 export const AppUpdatePanel: React.FC = () => {
   const { t } = useI18n();
+  const addToast = useToast((state) => state.addToast);
   const [update, setUpdate] = useState<AppUpdateInfo | null>(null);
   const [progress, setProgress] = useState<AppUpdateProgress | null>(null);
   const [recovery, setRecovery] = useState<AppUpdateRecoveryState | null>(null);
   const [checking, setChecking] = useState(false);
   const [installing, setInstalling] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [clearingRecovery, setClearingRecovery] = useState(false);
+  const [checkError, setCheckError] = useState<string | null>(null);
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const [recoveryClearError, setRecoveryClearError] = useState<string | null>(null);
+  const [installError, setInstallError] = useState<{ version: string; message: string } | null>(null);
+  const clearingRecoveryRef = useRef(false);
+  const mountedRef = useRef(false);
+
+  useDirty(
+    "settings-app-update-recovery-clear",
+    clearingRecovery,
+    undefined,
+    () => !clearingRecoveryRef.current,
+  );
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const checkUpdate = useCallback(async (force = false) => {
     setChecking(true);
-    setError(null);
+    setCheckError(null);
+    setUpdate(null);
+    setInstallError(null);
     try {
-      setUpdate(await checkForAppUpdate(force));
+      const nextUpdate = await checkForAppUpdate(force);
+      setUpdate(nextUpdate);
+      setInstallError((current) => current?.version === nextUpdate?.version ? current : null);
     } catch (checkError) {
-      setError(checkError instanceof Error ? checkError.message : String(checkError));
+      setCheckError(checkError instanceof Error ? checkError.message : String(checkError));
     } finally {
       setChecking(false);
+    }
+  }, []);
+
+  const loadRecoveryState = useCallback(async () => {
+    setRecoveryLoading(true);
+    setRecoveryError(null);
+    setRecovery(null);
+    setRecoveryClearError(null);
+    try {
+      const nextRecovery = await getAppUpdateRecoveryState();
+      if (mountedRef.current) setRecovery(nextRecovery);
+    } catch (recoveryReadError) {
+      if (mountedRef.current) {
+        setRecoveryError(recoveryReadError instanceof Error ? recoveryReadError.message : String(recoveryReadError));
+      }
+    } finally {
+      if (mountedRef.current) setRecoveryLoading(false);
     }
   }, []);
 
   useEffect(() => {
     if (!isDesktopTauriRuntime() || shouldUseHttpBackend()) return;
     void checkUpdate();
-    void getAppUpdateRecoveryState().then(setRecovery).catch((recoveryError) => {
-      setError(recoveryError instanceof Error ? recoveryError.message : String(recoveryError));
-    });
-  }, [checkUpdate]);
+    void loadRecoveryState();
+  }, [checkUpdate, loadRecoveryState]);
 
   const install = async () => {
-    setError(null);
+    const targetVersion = update?.version;
+    if (!targetVersion) return;
+    setInstallError(null);
     try {
-      if (!update) return;
-      if (dirtyRegistry.hasDirty()) {
-        if (!dirtyRegistry.canDiscardDirty()) {
-          throw new Error(t("common.operationInProgress"));
-        }
-        const confirmed = await confirmDialog({
-          title: t("common.unsavedChangesTitle"),
-          message: t("common.unsavedChangesMessage", {
-            name: t("settingsAbout.updateTitle"),
-            action: t("settingsAbout.installUpdate"),
-          }),
-          confirmText: t("common.discardDraft"),
-          dialogType: "warning",
-        });
-        if (!confirmed) return;
-        if (!await dirtyRegistry.discardDirty()) {
-          throw new Error(t("common.operationInProgress"));
-        }
+      if (dirtyRegistry.hasDirty() && !dirtyRegistry.canDiscardDirty()) {
+        throw new Error(t("common.operationInProgress"));
       }
 
       setInstalling(true);
       setProgress({ stage: "preparing", downloadedBytes: 0, totalBytes: null });
-      const preflight = await prepareAppUpdateInstall(update.version);
+      const preflight = await prepareAppUpdateInstall(targetVersion);
       if (preflight.migrations.length > 0) {
         const migrations = preflight.migrations.map((migration) => {
           return t("settingsAbout.updateMigrationSummary", {
@@ -95,7 +122,7 @@ export const AppUpdatePanel: React.FC = () => {
           return;
         }
       }
-      await downloadPreparedAppUpdate(update.version, setProgress);
+      await downloadPreparedAppUpdate(targetVersion, setProgress);
       if (dirtyRegistry.hasDirty()) {
         if (!dirtyRegistry.canDiscardDirty()) {
           throw new Error(t("common.operationInProgress"));
@@ -119,11 +146,34 @@ export const AppUpdatePanel: React.FC = () => {
         }
       }
       setProgress((current) => current && { ...current, stage: "installing" });
-      await installDownloadedAppUpdate(update.version);
+      await installDownloadedAppUpdate(targetVersion);
     } catch (installError) {
-      setError(installError instanceof Error ? installError.message : String(installError));
-      setInstalling(false);
-      setProgress(null);
+      const message = installError instanceof Error ? installError.message : String(installError);
+      if (mountedRef.current) {
+        setInstallError({ version: targetVersion, message });
+        setInstalling(false);
+        setProgress(null);
+      } else {
+        addToast(message, "error");
+      }
+    }
+  };
+
+  const dismissRecoveryFailure = async () => {
+    if (clearingRecoveryRef.current) return;
+    clearingRecoveryRef.current = true;
+    setClearingRecovery(true);
+    setRecoveryClearError(null);
+    try {
+      await clearAppUpdateRecoveryState();
+      setRecovery(null);
+      setRecoveryError(null);
+      setRecoveryClearError(null);
+    } catch (clearError) {
+      setRecoveryClearError(clearError instanceof Error ? clearError.message : String(clearError));
+    } finally {
+      clearingRecoveryRef.current = false;
+      setClearingRecovery(false);
     }
   };
 
@@ -163,6 +213,11 @@ export const AppUpdatePanel: React.FC = () => {
                 error: recovery.failureReason ?? t("settingsAbout.installingUpdate"),
               })}
             </p>
+            {recoveryClearError ? (
+              <p className="text-book-danger">
+                {t("settingsAbout.updateRecoveryClearFailed", { error: recoveryClearError })}
+              </p>
+            ) : null}
             {recovery.backupPath ? (
               <p className="break-all text-book-text-muted">
                 {t("settingsAbout.updateBackupRetained", { backupPath: recovery.backupPath })}
@@ -171,13 +226,16 @@ export const AppUpdatePanel: React.FC = () => {
             <BookButton
               variant="secondary"
               size="sm"
-              onClick={() => {
-                void clearAppUpdateRecoveryState().then(() => setRecovery(null)).catch((clearError) => {
-                  setError(clearError instanceof Error ? clearError.message : String(clearError));
-                });
-              }}
+              disabled={clearingRecovery || recoveryLoading || recoveryError != null}
+              aria-busy={clearingRecovery}
+              onClick={() => void dismissRecoveryFailure()}
             >
-              {t("settingsAbout.dismissUpdateFailure")}
+              {clearingRecovery ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <RotateCw size={13} className="animate-spin" />
+                  {t("settingsAbout.dismissingUpdateFailure")}
+                </span>
+              ) : t("settingsAbout.dismissUpdateFailure")}
             </BookButton>
           </div>
         ) : update ? (
@@ -204,10 +262,27 @@ export const AppUpdatePanel: React.FC = () => {
           </div>
         ) : checking ? (
           <p>{t("settingsAbout.checkingForUpdates")}</p>
-        ) : (
+        ) : !checkError ? (
           <p>{t("settingsAbout.upToDate")}</p>
-        )}
-        {error ? <p className="mt-2 text-book-danger" role="alert">{t("settingsAbout.appUpdateFailed", { error })}</p> : null}
+        ) : null}
+        {checkError ? <p role="alert">{t("settingsAbout.appUpdateFailed", { error: checkError })}</p> : null}
+        {recoveryError ? (
+          <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 text-book-danger">
+            <span className="min-w-0 flex-1">{t("settingsAbout.updateRecoveryReadFailed", { error: recoveryError })}</span>
+            <BookButton variant="secondary" size="sm" onClick={() => void loadRecoveryState()} disabled={recoveryLoading}>
+              <RefreshCw size={13} aria-hidden="true" /> {t("common.retry")}
+            </BookButton>
+          </div>
+        ) : recoveryLoading ? (
+          <p role="status" className="mt-2">
+            <LoadingSpinner size="sm" text={t("common.loading")} />
+          </p>
+        ) : null}
+        {installError && update?.version === installError.version ? (
+          <p className="mt-2 text-book-danger" role="alert">
+            {t("settingsAbout.appUpdateFailed", { error: installError.message })}
+          </p>
+        ) : null}
       </div>
     </section>
   );

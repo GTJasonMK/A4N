@@ -16,6 +16,7 @@ mod references;
 
 pub use create::create_generated_image_record;
 pub(crate) use publication::reclaim_image_publications_for_deleted_images;
+pub(crate) use publication::reclaim_pending_image_publications_for_project;
 pub use publication::{
     ImagePublicationRequest, create_image_publication_intent,
     create_image_publication_intent_record, image_publication_by_id, image_publication_by_image_id,
@@ -28,7 +29,9 @@ pub use publication::{
     update_image_publication_metadata, update_image_publication_metadata_record,
     validate_image_publication_record_request, validate_image_publication_request,
 };
+pub use records::ImageReferenceCleanupIds;
 pub(crate) use records::clear_generated_image_references_record;
+pub use records::delete_generated_image_record_with_cleanup_effects;
 pub(crate) use records::generated_images_for_chapter_by_id_desc;
 pub use records::{
     delete_generated_image_record_with_cleanup, delete_manga_page_image_records,

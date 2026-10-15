@@ -81,10 +81,10 @@ pub(in crate::routes::commands) async fn delete_video(
     args: &Value,
 ) -> Result<Value, ApiError> {
     let video_id = i64_arg(args, "videoId")?;
-    video_records_actions::delete_video(state.runtime(), user_id, video_id)
+    let result = video_records_actions::delete_video(state.runtime(), user_id, video_id)
         .await
         .map_err(ApiError::bad_request)?;
-    Ok(Value::Null)
+    to_value(result)
 }
 
 pub(in crate::routes::commands) async fn load_video_playback_data(

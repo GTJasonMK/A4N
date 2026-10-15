@@ -29,7 +29,7 @@ import { Modal } from "../../components/ui/Modal";
 import { runGenerationProgressTaskThen } from "../../hooks/runGenerationProgressTask";
 import { useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
-import { isPositiveSafeInteger } from "../../utils/numberRange";
+import { isPositiveI32, MAX_I32 } from "../../utils/numeric";
 import {
   getObjectProfileImportanceLabel,
   getObjectProfileTypeLabel,
@@ -91,7 +91,9 @@ export const ObjectProfilesTab: React.FC<{
     load,
     isCurrentAction,
     beginAction,
+    ensureReadModel,
     finishAction,
+    reloadAfterMutationFailure,
     commitProfile,
     removeProfile,
   } = useProjectProfileCollection<ObjectProfile>({
@@ -161,8 +163,7 @@ export const ObjectProfilesTab: React.FC<{
             throw new Error("任务已停止");
           }
           await verifyImageGenerationResult(task, requestProjectId);
-          const refreshed = await load({ silent: true, force: true, projectId: requestProjectId, notify: false });
-          if (!refreshed) throw new Error(t("characterDetail.refreshFailed"));
+          void load({ silent: true, force: true, projectId: requestProjectId, notify: false });
         },
       );
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
@@ -223,13 +224,16 @@ export const ObjectProfilesTab: React.FC<{
       finishAction(requestSeq);
       return;
     }
+    if (!ensureReadModel(requestProjectId)) {
+      finishAction(requestSeq);
+      return;
+    }
     setBusyId(requestProfile.id);
     try {
       const result = await deleteObjectProfile(requestProfile.id, downstreamStrategy);
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
+      void load({ silent: true, force: true, projectId: requestProjectId, notify: false });
       removeProfile(requestProfile.id);
-      const refreshed = await load({ silent: true, force: true, projectId: requestProjectId, notify: false });
-      if (!refreshed) throw new Error(t("characterDetail.refreshFailed"));
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor((current) => (current?.id === requestProfile.id ? null : current));
       addToast(
@@ -241,6 +245,7 @@ export const ObjectProfilesTab: React.FC<{
     } catch (err) {
       if (isCurrentAction(requestProjectId, requestSeq)) {
         addToast(extractErrorMessage(err, t("novel.profile.deleteError", { name: t("novel.profile.object") })), "error");
+        void reloadAfterMutationFailure(requestProjectId);
       }
     } finally {
       if (isCurrentAction(requestProjectId, requestSeq)) {
@@ -259,12 +264,15 @@ export const ObjectProfilesTab: React.FC<{
     const editingProfileId =
       editingProfile && editingProfile !== "new" ? editingProfile.id : null;
     const existingProfile =
-      editingProfileId == null
-        ? null
-        : profilesRef.current.find((profile) => profile.id === editingProfileId) ?? null;
+      editingProfile && editingProfile !== "new" ? editingProfile : null;
+    const expectedUpdatedAt = existingProfile?.updated_at;
     if (editingProfileId != null && !existingProfile) {
       setEditingProfile(null);
       addToast(t("novel.profile.notFound", { name: t("novel.profile.object") }), "error");
+      return;
+    }
+    if (existingProfile && !expectedUpdatedAt) {
+      addToast(t("novel.profile.versionMissing"), "error");
       return;
     }
     if (existingProfile && existingProfile.project_id !== requestProjectId) {
@@ -294,23 +302,26 @@ export const ObjectProfilesTab: React.FC<{
       finishAction(requestSeq);
       return;
     }
+    if (!ensureReadModel(requestProjectId)) {
+      finishAction(requestSeq);
+      return;
+    }
     setBusyId(existingProfile ? existingProfile.id : -1);
     try {
       const result =
         existingProfile
-          ? await updateObjectProfile(existingProfile.id, input, downstreamStrategy)
+          ? await updateObjectProfile(existingProfile.id, expectedUpdatedAt!, input, downstreamStrategy)
           : await createObjectProfile(requestProjectId, input);
       const saved = result.profile;
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       if (saved.project_id !== requestProjectId) {
         throw new Error("保存物体档案返回了其他项目的数据");
       }
+      void load({ silent: true, force: true, projectId: requestProjectId, notify: false });
       commitProfile(saved);
-      const refreshed = await load({ silent: true, force: true, projectId: requestProjectId, notify: false });
-      if (!refreshed) throw new Error(t("characterDetail.refreshFailed"));
-      if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor(saved);
       setEditingProfile(null);
+      if (!isCurrentAction(requestProjectId, requestSeq)) return;
       const successMessage = editingProfile === "new"
         ? t("novel.profile.created", { name: t("novel.profile.object") })
         : t("novel.profile.updated", { name: t("novel.profile.object") });
@@ -323,6 +334,7 @@ export const ObjectProfilesTab: React.FC<{
     } catch (err) {
       if (isCurrentAction(requestProjectId, requestSeq)) {
         addToast(extractErrorMessage(err, t("novel.profile.saveError", { name: t("novel.profile.object") })), "error");
+        void reloadAfterMutationFailure(requestProjectId);
       }
       throw err;
     } finally {
@@ -373,7 +385,7 @@ export const ObjectProfilesTab: React.FC<{
                 variant="primary"
                 size="sm"
                 onClick={() => setEditingProfile("new")}
-                disabled={busyId != null}
+                disabled={busyId != null || loadError != null}
                 className="min-w-0 flex-1 !text-xs sm:flex-none"
               >
                 <Plus size={12} /> {t("novel.profile.create")}
@@ -645,11 +657,13 @@ function ObjectProfileEditModal({
           <NumberField
             label={t("novel.profile.firstChapter")}
             value={draft.first_seen_chapter}
+            max={MAX_I32}
             onChange={(value) => update("first_seen_chapter", value)}
           />
           <NumberField
             label={t("novel.profile.lastChapter")}
             value={draft.last_seen_chapter}
+            max={MAX_I32}
             onChange={(value) => update("last_seen_chapter", value)}
           />
         </div>
@@ -738,10 +752,10 @@ function objectProfileToInput(profile: ObjectProfile): ObjectProfileInput {
 
 export function validateObjectProfileDraft(draft: ObjectProfileInput): MessageKey | null {
   if (!draft.name.trim()) return "novel.profile.objectNameRequired";
-  if (!isPositiveSafeInteger(draft.first_seen_chapter)) {
+  if (!isPositiveI32(draft.first_seen_chapter)) {
     return "novel.profile.objectFirstChapterPositive";
   }
-  if (!isPositiveSafeInteger(draft.last_seen_chapter)) {
+  if (!isPositiveI32(draft.last_seen_chapter)) {
     return "novel.profile.objectLastChapterPositive";
   }
   if (draft.last_seen_chapter < draft.first_seen_chapter) {

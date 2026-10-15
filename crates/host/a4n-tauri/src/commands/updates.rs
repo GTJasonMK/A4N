@@ -128,6 +128,8 @@ pub async fn prepare_app_update_install(
 ) -> Result<AppUpdatePreflight, String> {
     ensure_updater_installation()?;
     let _operation = install_state.begin()?;
+    let config = state.host_app_config();
+    ensure_no_pending_update_recovery(&config)?;
     *install_state
         .prepared
         .lock()
@@ -148,7 +150,6 @@ pub async fn prepare_app_update_install(
         ));
     }
 
-    let config = state.host_app_config();
     let all_data_migrations = data_migrations(&update.raw_json)?;
     let migration_preflight = a4n_migration::migrator::preflight_update_migrations(
         &config.database_url,
@@ -281,6 +282,9 @@ pub async fn install_app_update(
         ));
     }
 
+    let config = state.host_app_config();
+    ensure_no_pending_update_recovery(&config)?;
+
     let downloaded = install_state
         .downloaded
         .lock()
@@ -293,7 +297,6 @@ pub async fn install_app_update(
         return Err("已下载更新包与预检版本不一致，请重新下载".to_string());
     }
 
-    let config = state.host_app_config();
     let recovery = UpdateRecoveryState {
         state: "installing".to_string(),
         backup_path: prepared
@@ -520,6 +523,16 @@ fn read_update_recovery_state(config: &AppConfig) -> Result<Option<UpdateRecover
         return Err("应用更新恢复状态包含无效的迁移或状态".to_string());
     }
     Ok(Some(recovery))
+}
+
+fn ensure_no_pending_update_recovery(config: &AppConfig) -> Result<(), String> {
+    if let Some(recovery) = read_update_recovery_state(config)? {
+        return Err(format!(
+            "存在尚未处理的应用更新恢复记录（状态：{}），请先处理后再更新",
+            recovery.state
+        ));
+    }
+    Ok(())
 }
 
 fn write_update_recovery_state(
@@ -778,4 +791,59 @@ fn remove_stale_partial_backups(directory: &Path) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        UpdateRecoveryState, ensure_no_pending_update_recovery, read_update_recovery_state,
+        update_recovery_path, write_update_recovery_state,
+    };
+    use a4n_config::app_config::AppConfig;
+
+    #[test]
+    fn pending_recovery_blocks_update_without_replacing_the_record() {
+        let directory = tempfile::tempdir().unwrap();
+        let config = AppConfig {
+            data_dir: directory.path().join("data"),
+            ..AppConfig::default()
+        };
+        let recovery = UpdateRecoveryState {
+            state: "failed".to_string(),
+            backup_path: Some("/work/backup.dump".to_string()),
+            target_version: "2.0.0".to_string(),
+            previous_version: "1.9.0".to_string(),
+            pending_migrations: Vec::new(),
+            failure_reason: Some("installer failed".to_string()),
+        };
+        write_update_recovery_state(&config, &recovery).unwrap();
+
+        let error = ensure_no_pending_update_recovery(&config).unwrap_err();
+
+        assert!(error.contains("状态：failed"));
+        assert_eq!(
+            read_update_recovery_state(&config)
+                .unwrap()
+                .unwrap()
+                .target_version,
+            "2.0.0"
+        );
+    }
+
+    #[test]
+    fn unreadable_recovery_record_blocks_update_and_remains_intact() {
+        let directory = tempfile::tempdir().unwrap();
+        let config = AppConfig {
+            data_dir: directory.path().join("data"),
+            ..AppConfig::default()
+        };
+        let path = update_recovery_path(&config);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, b"invalid recovery JSON").unwrap();
+
+        let error = ensure_no_pending_update_recovery(&config).unwrap_err();
+
+        assert!(error.contains("更新恢复状态无效"));
+        assert_eq!(std::fs::read(path).unwrap(), b"invalid recovery JSON");
+    }
 }

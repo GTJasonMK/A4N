@@ -1,7 +1,7 @@
 use super::super::types::CharacterDeletionMarkUpsertInput;
 use super::rules::next_deletion_mark_count;
 use a4n_db_models::models::character::protagonist_deletion_mark;
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, Set,
 };
@@ -28,6 +28,7 @@ where
                 .await?;
         } else {
             let mut active: protagonist_deletion_mark::ActiveModel = mark.clone().into();
+            let updated_at = now.max(mark.updated_at + Duration::microseconds(1));
             let next_count = next_deletion_mark_count(
                 mark.consecutive_count,
                 mark.last_marked_chapter,
@@ -41,7 +42,7 @@ where
             active.source_kind = Set(input.source_kind);
             active.reason = Set(input.reason);
             active.evidence = Set(input.evidence);
-            active.updated_at = Set(now);
+            active.updated_at = Set(updated_at);
             return active.update(db).await;
         }
     }

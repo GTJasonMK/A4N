@@ -17,6 +17,30 @@ pub async fn update_chapter_video_prompt_with_generation_run_checkpoint<C>(
     input: ChapterVideoPromptPatch,
     metadata_json: Option<Value>,
     allow_downstream: bool,
+    generation_run: crate::generation::RecordCompletedGenerationRunWithCheckpointInput,
+) -> Result<chapter_video_prompt::Model, VideoDbError>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    update_chapter_video_prompt_with_generation_run_checkpoint_expected(
+        db,
+        prompt_id,
+        input,
+        metadata_json,
+        allow_downstream,
+        None,
+        generation_run,
+    )
+    .await
+}
+
+pub async fn update_chapter_video_prompt_with_generation_run_checkpoint_expected<C>(
+    db: &C,
+    prompt_id: i64,
+    input: ChapterVideoPromptPatch,
+    metadata_json: Option<Value>,
+    allow_downstream: bool,
+    expected_updated_at: Option<&str>,
     mut generation_run: crate::generation::RecordCompletedGenerationRunWithCheckpointInput,
 ) -> Result<chapter_video_prompt::Model, VideoDbError>
 where
@@ -29,9 +53,14 @@ where
     }
 
     let txn = db.begin().await.map_err(VideoDbError::Database)?;
-    let mut row =
-        update_chapter_video_prompt_with_policy_in(&txn, prompt_id, input, allow_downstream)
-            .await?;
+    let mut row = update_chapter_video_prompt_with_policy_in(
+        &txn,
+        prompt_id,
+        input,
+        allow_downstream,
+        expected_updated_at,
+    )
+    .await?;
     if let Some(metadata_json) = metadata_json {
         let metadata_json = sync_chapter_video_prompt_metadata_after_update(
             &row.prompt_type,

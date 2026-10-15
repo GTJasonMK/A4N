@@ -5,7 +5,7 @@ use a4n_prompt::rendering::PromptRenderer;
 
 use crate::{
     OrchestratorContext,
-    workflow::{ListWorkflowRunsInput, WORKFLOW_STATUS_RUNNING},
+    workflow::{ListWorkflowRunsInput, WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING},
 };
 use a4n_domain::collaboration::ProjectAccessRole;
 
@@ -21,6 +21,37 @@ pub struct GalgamePipelineApplicationInput {
     pub resume_from_checkpoint: bool,
     pub stop_after: Option<a4n_api_contract::galgame::GalgamePipelineStopAfter>,
     pub progress_reporter: Option<GalgameProgressReporter>,
+}
+
+fn validate_galgame_pipeline_stage_range(
+    start_from_stage: Option<GalgamePipelineStartStage>,
+    stop_after: Option<a4n_api_contract::galgame::GalgamePipelineStopAfter>,
+) -> Result<(), AppError> {
+    use a4n_api_contract::galgame::GalgamePipelineStopAfter;
+
+    let last_stage = match stop_after {
+        Some(GalgamePipelineStopAfter::BranchDesign) => GalgamePipelineStartStage::BranchDesign,
+        Some(GalgamePipelineStopAfter::Script) => GalgamePipelineStartStage::PersistScript,
+        None => GalgamePipelineStartStage::AssetGeneration,
+    };
+    if start_from_stage.is_some_and(|stage| stage.order() > last_stage.order()) {
+        return Err(AppError::InvalidArgument("开始阶段不能晚于结束阶段".into()));
+    }
+    Ok(())
+}
+
+fn should_continue_completed_galgame_run(
+    start_from_stage: Option<GalgamePipelineStartStage>,
+) -> bool {
+    matches!(
+        start_from_stage,
+        Some(
+            GalgamePipelineStartStage::ScriptAdaptation
+                | GalgamePipelineStartStage::CharacterStaging
+                | GalgamePipelineStartStage::VisualPlanning
+                | GalgamePipelineStartStage::PersistScript
+        )
+    )
 }
 
 impl OrchestratorContext {
@@ -87,14 +118,17 @@ impl OrchestratorContext {
         project_id: i64,
         start_from_stage: Option<GalgamePipelineStartStage>,
         resume_from_checkpoint: bool,
+        stop_after: Option<a4n_api_contract::galgame::GalgamePipelineStopAfter>,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<Vec<super::GalgamePipelinePreviewRequest>, AppError> {
         self.verify_galgame_project_access(user_id, project_id, ProjectAccessRole::Editor)
             .await?;
         self.prepare_galgame_pipeline_preview_validated(
+            user_id,
             project_id,
             start_from_stage,
             resume_from_checkpoint,
+            stop_after,
             prompt_renderer,
         )
         .await
@@ -275,14 +309,7 @@ impl OrchestratorContext {
         input: GalgamePipelineApplicationInput,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<Option<GalgameScriptDetail>, AppError> {
-        if input.stop_after
-            == Some(a4n_api_contract::galgame::GalgamePipelineStopAfter::BranchDesign)
-            && input.start_from_stage.is_some_and(|stage| {
-                stage.order() > GalgamePipelineStartStage::BranchDesign.order()
-            })
-        {
-            return Err(AppError::InvalidArgument("开始阶段不能晚于结束阶段".into()));
-        }
+        validate_galgame_pipeline_stage_range(input.start_from_stage, input.stop_after)?;
         let project = self
             .project_by_id(input.project_id)
             .await?
@@ -320,8 +347,31 @@ impl OrchestratorContext {
         let workflow_run = if input.resume_from_checkpoint {
             self.begin_or_resume_workflow_run_validated(workflow_input)
                 .await?
+        } else if should_continue_completed_galgame_run(input.start_from_stage) {
+            let previous = self
+                .workflow_run_models(ListWorkflowRunsInput {
+                    project_id: Some(project.id),
+                    chapter_id: None,
+                    chapter_ids: None,
+                    workflow_kind: Some(GALGAME_PIPELINE_WORKFLOW_KIND.to_string()),
+                    status: None,
+                    resumable_only: None,
+                    limit: Some(1),
+                })
+                .await?
+                .into_iter()
+                .next()
+                .filter(|run| run.status == WORKFLOW_STATUS_COMPLETED);
+            if let Some(previous) = previous {
+                self.continue_completed_workflow_run_validated(previous.id, workflow_input)
+                    .await?
+            } else {
+                self.begin_or_resume_workflow_run_validated(workflow_input)
+                    .await?
+            }
         } else {
-            self.begin_workflow_run_validated(workflow_input).await?
+            self.begin_or_resume_workflow_run_validated(workflow_input)
+                .await?
         };
         let result = self
             .run_pipeline(
@@ -374,5 +424,66 @@ impl OrchestratorContext {
             })?;
         self.cancel_workflow_run_status_validated(run.id, "用户请求取消 Galgame 管线")
             .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        GalgamePipelineStartStage as Stage, should_continue_completed_galgame_run,
+        validate_galgame_pipeline_stage_range,
+    };
+    use a4n_api_contract::galgame::GalgamePipelineStopAfter as StopAfter;
+
+    #[test]
+    fn rejects_a_start_stage_after_the_requested_stop_stage() {
+        assert!(
+            validate_galgame_pipeline_stage_range(
+                Some(Stage::AssetGeneration),
+                Some(StopAfter::Script),
+            )
+            .is_err()
+        );
+        assert!(
+            validate_galgame_pipeline_stage_range(
+                Some(Stage::ScriptAdaptation),
+                Some(StopAfter::BranchDesign),
+            )
+            .is_err()
+        );
+        assert!(
+            validate_galgame_pipeline_stage_range(
+                Some(Stage::PersistScript),
+                Some(StopAfter::Script),
+            )
+            .is_ok()
+        );
+        assert!(validate_galgame_pipeline_stage_range(Some(Stage::AssetGeneration), None,).is_ok());
+    }
+
+    #[test]
+    fn only_stages_with_upstream_llm_checkpoints_continue_completed_runs() {
+        assert!(!should_continue_completed_galgame_run(None));
+        assert!(!should_continue_completed_galgame_run(Some(
+            Stage::AdaptationPlan
+        )));
+        assert!(!should_continue_completed_galgame_run(Some(
+            Stage::BranchDesign
+        )));
+        assert!(should_continue_completed_galgame_run(Some(
+            Stage::ScriptAdaptation
+        )));
+        assert!(should_continue_completed_galgame_run(Some(
+            Stage::CharacterStaging
+        )));
+        assert!(should_continue_completed_galgame_run(Some(
+            Stage::VisualPlanning
+        )));
+        assert!(should_continue_completed_galgame_run(Some(
+            Stage::PersistScript
+        )));
+        assert!(!should_continue_completed_galgame_run(Some(
+            Stage::AssetGeneration
+        )));
     }
 }

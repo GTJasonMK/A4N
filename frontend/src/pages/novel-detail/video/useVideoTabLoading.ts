@@ -40,6 +40,12 @@ export interface VideoTabLoadingOptions extends VideoTabState {
   selectedVideo: GeneratedVideo | null;
 }
 
+export interface LoadVideoTabDataOptions {
+  showLoading?: boolean;
+}
+
+export type LoadVideoTabData = (options?: LoadVideoTabDataOptions) => Promise<boolean>;
+
 export function useVideoTabLoading({
   projectId,
   chapter,
@@ -144,7 +150,7 @@ export function useVideoTabLoading({
     }
   }, [chapterId, projectId, videoDataKey]);
 
-  async function loadAll(): Promise<boolean> {
+  async function loadAll({ showLoading = true }: LoadVideoTabDataOptions = {}): Promise<boolean> {
     if (!chapter || !videoDataKey) return false;
     void refreshSegmentPlanDraft().catch(() => undefined);
     const requestSeq = loadAllSeqRef.current + 1;
@@ -153,7 +159,7 @@ export function useVideoTabLoading({
     const promptRequestSeq = promptLoadSeqRef.current + 1;
     loadAllSeqRef.current = requestSeq;
     promptLoadSeqRef.current = promptRequestSeq;
-    setLoading(true);
+    setLoading(showLoading);
     setVideoDataError(null);
     try {
       const [videoDataResult, shootingScriptResult] = await Promise.allSettled([
@@ -267,7 +273,7 @@ export function useVideoTabLoading({
   useEffect(() => {
     if (!videoDataKey || loadedDataKey !== videoDataKey) return;
     const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") void loadAll();
+      if (document.visibilityState === "visible") void loadAll({ showLoading: false });
     };
     window.addEventListener("focus", refreshWhenVisible);
     document.addEventListener("visibilitychange", refreshWhenVisible);
@@ -308,7 +314,6 @@ export function useVideoTabLoading({
               errorMessage: tRef.current("video.actions.segmentPlanFailed"),
             },
             refreshPrompts,
-            tRef.current,
             (streamText, checkpointKey) => {
               if (
                 disposed ||
@@ -324,6 +329,11 @@ export function useVideoTabLoading({
               setSegmentPlanPreview(preview);
               void refreshSegmentPlanDraft().catch(() => undefined);
             },
+            (error) => {
+              if (!disposed && activeVideoDataKeyRef.current === requestDataKey) {
+                addToast(extractErrorMessage(error, tRef.current("video.chapter.refreshVideoDataFailed")), "error");
+              }
+            },
           );
         } catch (error) {
           if (
@@ -338,7 +348,7 @@ export function useVideoTabLoading({
             attachedSegmentPlanTaskRef.current = null;
           }
           if (!disposed && activeVideoDataKeyRef.current === requestDataKey) {
-            await refreshSegmentPlanDraft().catch(() => undefined);
+            void refreshSegmentPlanDraft().catch(() => undefined);
           }
           finishVideoAction(actionKey, requestDataKey);
         }

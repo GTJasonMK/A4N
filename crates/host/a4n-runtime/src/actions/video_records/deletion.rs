@@ -1,6 +1,6 @@
 use crate::AppState;
 use crate::actions::app_error_message;
-use a4n_api_contract::video::VideoRecordLifecycleApplicationPort;
+use a4n_api_contract::video::{VideoRecordDeleteResult, VideoRecordLifecycleApplicationPort};
 use a4n_error::append_secondary_message;
 
 pub(in crate::actions::video_records) async fn delete_video_record_cleanup_error(
@@ -28,7 +28,11 @@ pub(in crate::actions::video_records) async fn append_video_record_cleanup_error
     }
 }
 
-pub async fn delete_video(state: &AppState, user_id: i64, video_id: i64) -> Result<(), String> {
+pub async fn delete_video(
+    state: &AppState,
+    user_id: i64,
+    video_id: i64,
+) -> Result<VideoRecordDeleteResult, String> {
     state
         .video_record_mutation_application()
         .delete(user_id, video_id)

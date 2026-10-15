@@ -277,10 +277,17 @@ impl OrchestratorContext {
             let word_count = i32::try_from(next_content.chars().count()).map_err(|_| {
                 AppError::InvalidArgument("应用补丁后的章节正文字符数超出 i32 范围".to_string())
             })?;
+            let project_id = chapter.project_id;
+            let user_id = input.user_id;
             let (written, sync_run) =
                 run_in_transaction(self.database.executor(), "应用局部补丁", |tx| {
                     Box::pin(async move {
                         let result = async {
+                            a4n_db::generation::require_project_lifecycle_active(
+                                &tx, user_id, project_id,
+                            )
+                            .await
+                            .map_err(crate::errors::generation_lifecycle_gate_error_to_app_error)?;
                             let written =
                                 a4n_db::optimize::write_optimization_chapter_patch_content(
                                     &tx,

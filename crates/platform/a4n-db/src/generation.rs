@@ -116,8 +116,9 @@ pub use lifecycle_gate::{
     GenerationLifecycleGateError, PROJECT_GATE_ACTIVE, active_generation_tasks,
     active_generation_tasks_for_project, active_generation_tasks_for_user,
     begin_project_lifecycle_gate, begin_user_disable_gate, complete_project_reset_gate,
-    complete_user_disable_gate, pending_lifecycle_operations, restore_project_lifecycle_gate,
-    restore_user_lifecycle_gate,
+    complete_user_disable_gate, pending_lifecycle_operations, require_project_lifecycle_active,
+    require_project_owner_lifecycle_active, require_project_owner_lifecycle_active_for_update,
+    restore_project_lifecycle_gate, restore_user_lifecycle_gate,
 };
 pub(crate) use lifecycle_gate::{
     PROJECT_GATE_DELETING, PROJECT_GATE_RESETTING, require_project_lifecycle_gate,

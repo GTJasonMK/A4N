@@ -1,8 +1,9 @@
 //! Typed Host adapter for initial character profile mutations.
 
 use a4n_api_contract::character::{
-    AddProfileAttributeInput, AttributeEventSummary, AttributeHistoryInput, BehaviorRecordSummary,
-    CharacterAttributeRagSyncHostPort, CharacterProfileAttributeDeletionApplicationPort,
+    AddProfileAttributeInput, AttributeEventSummary, AttributeEventWriteResult,
+    AttributeHistoryInput, BehaviorRecordSummary, CharacterAttributeRagSyncHostPort,
+    CharacterProfileAttributeDeletionApplicationPort,
     CharacterProfileAttributeMutationApplicationPort, CharacterProfileCreateResult,
     CharacterProfileDeleteResult, CharacterProfileDeletionApplicationPort,
     CharacterProfileDeletionHostPort, CharacterProfileMutationApplicationPort,
@@ -245,7 +246,7 @@ impl CharacterProfileAttributeMutationApplicationPort for CharacterMutationWorke
         user_id: i64,
         host_port: &dyn CharacterAttributeRagSyncHostPort,
         input: AddProfileAttributeInput,
-    ) -> Result<(), AppError> {
+    ) -> Result<AttributeEventWriteResult, AppError> {
         let profile_id = input.profile_id;
         let project: AttributeEventMutationResult = self
             .command(
@@ -255,9 +256,11 @@ impl CharacterProfileAttributeMutationApplicationPort for CharacterMutationWorke
                 input,
             )
             .await?;
-        host_port
-            .sync_attribute_event(project.project_id, project.event_id)
-            .await
+        let event_id = project.event.id;
+        let sync_result = host_port
+            .sync_attribute_event(project.project_id, event_id)
+            .await;
+        Ok(attribute_write_result(project.event, sync_result))
     }
 
     async fn modify(
@@ -265,7 +268,7 @@ impl CharacterProfileAttributeMutationApplicationPort for CharacterMutationWorke
         user_id: i64,
         host_port: &dyn CharacterAttributeRagSyncHostPort,
         input: ModifyProfileAttributeInput,
-    ) -> Result<(), AppError> {
+    ) -> Result<AttributeEventWriteResult, AppError> {
         let profile_id = input.profile_id;
         let project: AttributeEventMutationResult = self
             .command(
@@ -275,10 +278,23 @@ impl CharacterProfileAttributeMutationApplicationPort for CharacterMutationWorke
                 input,
             )
             .await?;
-        host_port
-            .sync_attribute_event(project.project_id, project.event_id)
-            .await
+        let event_id = project.event.id;
+        let sync_result = host_port
+            .sync_attribute_event(project.project_id, event_id)
+            .await;
+        Ok(attribute_write_result(project.event, sync_result))
     }
+}
+
+fn attribute_write_result(
+    event: AttributeEventSummary,
+    sync_result: Result<(), AppError>,
+) -> AttributeEventWriteResult {
+    let warnings = match sync_result {
+        Ok(()) => Vec::new(),
+        Err(error) => vec![format!("属性已保存，但检索索引更新失败：{error}")],
+    };
+    AttributeEventWriteResult { event, warnings }
 }
 
 #[async_trait::async_trait]
@@ -302,7 +318,7 @@ impl CharacterProfileAttributeDeletionApplicationPort for CharacterMutationWorke
         user_id: i64,
         host_port: &dyn CharacterAttributeRagSyncHostPort,
         input: ExecuteAttributeDeletionInput,
-    ) -> Result<(), AppError> {
+    ) -> Result<AttributeEventWriteResult, AppError> {
         let profile_id = input.profile_id;
         let project: AttributeEventMutationResult = self
             .command(
@@ -312,9 +328,11 @@ impl CharacterProfileAttributeDeletionApplicationPort for CharacterMutationWorke
                 input,
             )
             .await?;
-        host_port
-            .sync_attribute_event(project.project_id, project.event_id)
-            .await
+        let event_id = project.event.id;
+        let sync_result = host_port
+            .sync_attribute_event(project.project_id, event_id)
+            .await;
+        Ok(attribute_write_result(project.event, sync_result))
     }
 
     async fn reset(&self, user_id: i64, input: ResetDeletionMarksInput) -> Result<u64, AppError> {
@@ -345,5 +363,32 @@ mod tests {
         let debug = format!("{client:?}");
         assert!(!debug.contains("character-mutation-worker.example.test"));
         assert!(!debug.contains("character-mutation-token"));
+    }
+
+    #[test]
+    fn attribute_write_result_keeps_event_when_rag_sync_fails() {
+        let event: AttributeEventSummary = serde_json::from_value(serde_json::json!({
+            "id": 42,
+            "chapter_number": 3,
+            "source_kind": "user",
+            "timestamp": null,
+            "category": "explicit",
+            "key": "motivation",
+            "operation": "modify",
+            "change_description": "动机更新",
+            "old_value": "逃跑",
+            "new_value": "留下",
+            "cause": "用户修改",
+            "evidence": "章节 3"
+        }))
+        .unwrap();
+
+        let result = attribute_write_result(event, Err(AppError::ConfigError("RAG 不可用".into())));
+
+        assert_eq!(result.event.id, 42);
+        assert_eq!(result.event.key, "motivation");
+        assert_eq!(result.warnings.len(), 1);
+        assert!(result.warnings[0].contains("属性已保存"));
+        assert!(result.warnings[0].contains("RAG 不可用"));
     }
 }

@@ -32,6 +32,7 @@ impl OrchestratorContext {
         chapter_analysis_host_port: &dyn ChapterAnalysisHostPort,
         character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
     ) -> Result<ImportProjectAnalysisSummary, AppError> {
+        let _execution_guard = self.try_import_analysis_execution(project_id)?;
         let mut prepared = prepare_import_project_analysis(self, project_id).await?;
 
         let result = self

@@ -71,6 +71,7 @@ WHERE id = $1
 const COMPLETE_PROJECT_RESET_SQL: &str = r#"
 UPDATE novel_project
 SET lifecycle_gate = 'active',
+    content_revision = content_revision + 1,
     updated_at = NOW()
 WHERE id = $1
   AND lifecycle_gate = 'resetting'
@@ -147,6 +148,141 @@ impl GenerationLifecycleGateError {
             Self::Database(_) => "generation_persist_failed",
         }
     }
+}
+
+/// Hold shared user/project gate locks for a user-facing write transaction.
+/// Project collaborators are valid writers, so this checks gate state without
+/// requiring the acting user to own the root project.
+pub async fn require_project_lifecycle_active<C>(
+    db: &C,
+    user_id: i64,
+    project_id: i64,
+) -> Result<(), GenerationLifecycleGateError>
+where
+    C: ConnectionTrait,
+{
+    validate_safe_id(user_id, "user_id").map_err(GenerationLifecycleGateError::from)?;
+    validate_safe_id(project_id, "project_id").map_err(GenerationLifecycleGateError::from)?;
+    let metadata = project_metadata(db, project_id).await?;
+    require_project_lifecycle_active_for_writer(db, user_id, project_id, metadata).await
+}
+
+/// Hold shared project gate locks for a system-owned write that has no user identity.
+pub async fn require_project_owner_lifecycle_active<C>(
+    db: &C,
+    project_id: i64,
+) -> Result<(), GenerationLifecycleGateError>
+where
+    C: ConnectionTrait,
+{
+    validate_safe_id(project_id, "project_id").map_err(GenerationLifecycleGateError::from)?;
+    let metadata = project_metadata(db, project_id).await?;
+    require_project_lifecycle_active_for_writer(db, metadata.user_id, project_id, metadata).await
+}
+
+/// Check owner lifecycle gates and hold the target project row exclusively for
+/// a write transaction. Lock order matches reset/delete: user, root project,
+/// then derived project.
+pub async fn require_project_owner_lifecycle_active_for_update<C>(
+    db: &C,
+    project_id: i64,
+) -> Result<(), GenerationLifecycleGateError>
+where
+    C: ConnectionTrait,
+{
+    validate_safe_id(project_id, "project_id").map_err(GenerationLifecycleGateError::from)?;
+    let metadata = project_metadata(db, project_id).await?;
+    require_gate(
+        share_user_gate_lifecycle(db, metadata.user_id).await?,
+        USER_GATE_ACTIVE,
+        format!("user {}", metadata.user_id),
+    )?;
+
+    let root_project_id = metadata.root_project_id.unwrap_or(project_id);
+    if project_id == root_project_id {
+        let project = lock_project_gate(db, project_id).await?;
+        if project.user_id != metadata.user_id
+            || project.root_project_id != metadata.root_project_id
+        {
+            return Err(GenerationLifecycleGateError::Blocked(format!(
+                "project {project_id} owner/root 在写入锁前发生变化"
+            )));
+        }
+        return require_gate(
+            project.lifecycle_gate,
+            PROJECT_GATE_ACTIVE,
+            format!("project {project_id}"),
+        );
+    }
+
+    let root = share_project_gate_lifecycle(db, root_project_id).await?;
+    if root.user_id != metadata.user_id
+        || root.root_project_id.unwrap_or(root_project_id) != root_project_id
+    {
+        return Err(GenerationLifecycleGateError::Corrupt(format!(
+            "project {project_id} 与 root project {root_project_id} owner/root 不一致"
+        )));
+    }
+    require_gate(
+        root.lifecycle_gate,
+        PROJECT_GATE_ACTIVE,
+        format!("root project {root_project_id}"),
+    )?;
+
+    let project = lock_project_gate(db, project_id).await?;
+    if project.user_id != metadata.user_id || project.root_project_id != Some(root_project_id) {
+        return Err(GenerationLifecycleGateError::Blocked(format!(
+            "project {project_id} owner/root 在写入锁前发生变化"
+        )));
+    }
+    require_gate(
+        project.lifecycle_gate,
+        PROJECT_GATE_ACTIVE,
+        format!("project {project_id}"),
+    )
+}
+
+async fn require_project_lifecycle_active_for_writer<C>(
+    db: &C,
+    user_id: i64,
+    project_id: i64,
+    metadata: ProjectMetadata,
+) -> Result<(), GenerationLifecycleGateError>
+where
+    C: ConnectionTrait,
+{
+    let user_gate = share_user_gate_lifecycle(db, user_id).await?;
+    require_gate(user_gate, USER_GATE_ACTIVE, format!("user {user_id}"))?;
+
+    let root_project_id = metadata.root_project_id.unwrap_or(project_id);
+    let root = share_project_gate_lifecycle(db, root_project_id).await?;
+    if root.user_id != metadata.user_id
+        || root.root_project_id.unwrap_or(root_project_id) != root_project_id
+    {
+        return Err(GenerationLifecycleGateError::Corrupt(format!(
+            "project {project_id} 与 root project {root_project_id} owner/root 不一致"
+        )));
+    }
+    require_gate(
+        root.lifecycle_gate.clone(),
+        PROJECT_GATE_ACTIVE,
+        format!("root project {root_project_id}"),
+    )?;
+
+    if project_id != root_project_id {
+        let project = share_project_gate_lifecycle(db, project_id).await?;
+        if project.user_id != root.user_id || project.root_project_id != Some(root_project_id) {
+            return Err(GenerationLifecycleGateError::Corrupt(format!(
+                "project {project_id} 不属于 root project {root_project_id}"
+            )));
+        }
+        require_gate(
+            project.lifecycle_gate,
+            PROJECT_GATE_ACTIVE,
+            format!("project {project_id}"),
+        )?;
+    }
+    Ok(())
 }
 
 pub async fn begin_project_lifecycle_gate(
@@ -578,6 +714,24 @@ where
     .map_err(Into::into)
 }
 
+async fn share_user_gate_lifecycle<C>(
+    db: &C,
+    user_id: i64,
+) -> Result<String, GenerationLifecycleGateError>
+where
+    C: ConnectionTrait,
+{
+    db.query_one(Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        SHARE_USER_GATE_SQL,
+        [user_id.into()],
+    ))
+    .await?
+    .ok_or_else(|| GenerationLifecycleGateError::NotFound(format!("user 不存在: {user_id}")))?
+    .try_get("", "lifecycle_gate")
+    .map_err(Into::into)
+}
+
 async fn lock_project_gate<C>(
     db: &C,
     project_id: i64,
@@ -618,6 +772,30 @@ where
         .await?
         .ok_or_else(|| {
             GenerationTaskPersistenceError::NotFound(format!("项目不存在: {project_id}"))
+        })?;
+    Ok(LockedProjectGate {
+        user_id: row.try_get("", "user_id")?,
+        root_project_id: row.try_get("", "root_project_id")?,
+        lifecycle_gate: row.try_get("", "lifecycle_gate")?,
+    })
+}
+
+async fn share_project_gate_lifecycle<C>(
+    db: &C,
+    project_id: i64,
+) -> Result<LockedProjectGate, GenerationLifecycleGateError>
+where
+    C: ConnectionTrait,
+{
+    let row = db
+        .query_one(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            SHARE_PROJECT_GATE_SQL,
+            [project_id.into()],
+        ))
+        .await?
+        .ok_or_else(|| {
+            GenerationLifecycleGateError::NotFound(format!("项目不存在: {project_id}"))
         })?;
     Ok(LockedProjectGate {
         user_id: row.try_get("", "user_id")?,
@@ -807,6 +985,7 @@ mod tests {
         assert!(SHARE_USER_GATE_SQL.contains("FOR SHARE"));
         assert!(SHARE_PROJECT_GATE_SQL.contains("FOR SHARE"));
         assert!(UPDATE_PROJECT_GATE_SQL.contains("lifecycle_gate = 'active'"));
+        assert!(COMPLETE_PROJECT_RESET_SQL.contains("content_revision = content_revision + 1"));
         assert!(UPDATE_USER_GATE_SQL.contains("lifecycle_gate = 'active'"));
         assert!(COMPLETE_USER_DISABLE_SQL.contains("is_active = FALSE"));
         assert!(PENDING_PROJECT_GATES_SQL.contains("COALESCE(root_project_id, id), id"));

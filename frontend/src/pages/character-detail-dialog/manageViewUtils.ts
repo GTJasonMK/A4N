@@ -1,5 +1,5 @@
 import type { MessageKey, MessageTranslator, Messages } from "../../i18n";
-import { isPositiveSafeInteger } from "../../utils/numberRange";
+import { isPositiveI32 } from "../../utils/numeric";
 
 export const CHARACTER_DETAIL_DRAFT_SECTIONS = ["event", "deletion", "implicit", "snapshot"] as const;
 export type CharacterDetailDraftSection = typeof CHARACTER_DETAIL_DRAFT_SECTIONS[number];
@@ -13,7 +13,7 @@ export const parsePositiveChapterNumber = (raw: string): number | null => {
   const text = raw.trim();
   if (!text) return null;
   const value = Number(text);
-  return isPositiveSafeInteger(value) ? value : null;
+  return isPositiveI32(value) ? value : null;
 };
 
 type CharacterLabelKey = keyof Messages["characterDetail"]["labels"];

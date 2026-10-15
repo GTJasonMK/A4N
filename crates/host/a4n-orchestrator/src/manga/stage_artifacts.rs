@@ -3,7 +3,7 @@ use a4n_api_contract::manga::{
     MangaPipelineArtifactDeletionItem, MangaPipelineArtifactDeletionPreview,
     PreviewMangaPipelineArtifactDeletionInput, SaveMangaPipelineArtifactInput,
 };
-use a4n_db::manga::MangaPipelineArtifactProjectionReset;
+use a4n_db::manga::{MangaPipelineArtifactProjectionReset, MangaPipelineArtifactProjectionUpdate};
 use a4n_domain::{
     collaboration::ProjectAccessRole,
     manga::{
@@ -229,16 +229,46 @@ impl OrchestratorContext {
         let stale = input.stage != MangaPipelineArtifactStage::Preprocessing
             && input.stage != MangaPipelineArtifactStage::PageSlots
             && existing.as_ref().is_some_and(|artifact| artifact.stale);
-        let record = self
-            .upsert_manga_pipeline_artifact(MangaPipelineArtifactDraft {
-                project_id: input.project_id,
-                chapter_id: input.chapter_id,
-                stage: input.stage,
-                page_number,
-                input_fingerprint: input_fingerprint.clone(),
-                payload: input.payload.clone(),
-                stale,
+        let projection = if let Some(page_prompt) = page_prompt {
+            let expected_updated_at = input
+                .expected_prompt_updated_at
+                .as_deref()
+                .map(str::trim)
+                .filter(|expected| !expected.is_empty())
+                .ok_or_else(|| {
+                    AppError::InvalidArgument(
+                        "保存页面阶段产物必须提供页面提示词版本，请刷新后重试".into(),
+                    )
+                })?;
+            let mut layout =
+                manga_page_pipeline_layout(&page_prompt).map_err(AppError::InvalidArgument)?;
+            update_page_projection_layout(
+                &mut layout,
+                input.stage,
+                Some(input.payload.clone()),
+                Some(&input_fingerprint),
+            )?;
+            Some(MangaPipelineArtifactProjectionUpdate {
+                page_prompt,
+                layout: serde_json::to_value(layout)?,
+                expected_updated_at: expected_updated_at.to_string(),
             })
+        } else {
+            None
+        };
+        let record = self
+            .save_manga_pipeline_artifact_with_projection(
+                MangaPipelineArtifactDraft {
+                    project_id: input.project_id,
+                    chapter_id: input.chapter_id,
+                    stage: input.stage,
+                    page_number,
+                    input_fingerprint: input_fingerprint.clone(),
+                    payload: input.payload.clone(),
+                    stale,
+                },
+                projection,
+            )
             .await?;
         if let Some((adaptation, _)) = page_slots_context.as_ref() {
             self.sync_page_slots_page_projections(
@@ -248,15 +278,6 @@ impl OrchestratorContext {
                 &input.payload,
                 &record,
                 page_slots_changed,
-            )
-            .await?;
-        }
-        if let Some(page_prompt) = page_prompt {
-            self.update_page_projection(
-                page_prompt,
-                input.stage,
-                Some(input.payload),
-                Some(&input_fingerprint),
             )
             .await?;
         }
@@ -599,20 +620,6 @@ impl OrchestratorContext {
             .into_iter()
             .find(|prompt| prompt.page_number == page_number)
             .ok_or_else(|| AppError::NotFound("漫画页面不存在".into()))
-    }
-
-    async fn update_page_projection(
-        &self,
-        prompt: MangaPagePromptRecord,
-        stage: MangaPipelineArtifactStage,
-        payload: Option<Value>,
-        input_fingerprint: Option<&str>,
-    ) -> Result<(), AppError> {
-        let mut layout = manga_page_pipeline_layout(&prompt).map_err(AppError::InvalidArgument)?;
-        update_page_projection_layout(&mut layout, stage, payload, input_fingerprint)?;
-        self.update_manga_page_prompt_layout(prompt, serde_json::to_value(layout)?)
-            .await
-            .map(|_| ())
     }
 
     async fn validate_reference_discovery_payload(

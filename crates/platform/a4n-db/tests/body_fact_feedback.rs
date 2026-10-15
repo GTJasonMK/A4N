@@ -87,10 +87,11 @@ async fn blueprint(
     project_id: i64,
     world: Value,
 ) -> a4n_domain::project::BlueprintRecord {
-    save_manual_blueprint_records_transaction(
+    let saved = save_manual_blueprint_records_transaction(
         db,
         SaveManualBlueprintInput {
             project_id,
+            expected_current_version: None,
             genre: "奇幻".into(),
             style: None,
             tone: None,
@@ -107,6 +108,7 @@ async fn blueprint(
         db,
         UpdateBlueprintWorldSettingInput {
             project_id,
+            expected_current_version: saved.blueprint.current_version,
             world_setting: world,
             created_by: "user:1".into(),
         },
@@ -606,6 +608,7 @@ async fn field_removals_and_character_enrichment_retract_without_overwriting_man
         &db,
         UpdateBlueprintWorldSettingInput {
             project_id: id,
+            expected_current_version: updated.current_version,
             world_setting: manual_world,
             created_by: "user:1".into(),
         },

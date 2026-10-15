@@ -129,6 +129,10 @@ export const AgentTab: React.FC = () => {
   };
 
   const save = async () => {
+    if (loadError) {
+      addToast(extractErrorMessage(loadError.reason, tRef.current("settingsAgent.loadFailed")), "error");
+      return;
+    }
     if (!settings || !dirty || saving) return;
     const profile = settings.profiles.find((item) => item.capability === activeCapability);
     if (!profile) return;
@@ -192,7 +196,7 @@ export const AgentTab: React.FC = () => {
             label={t("settingsAgent.refresh")}
             title={t("settingsAgent.refresh")}
             onClick={() => void refresh()}
-            disabled={loading || saving || dirty}
+            disabled={loading || saving}
           >
             <RefreshCw size={14} className={loading ? "animate-spin" : undefined} />
           </BookIconButton>
@@ -277,6 +281,7 @@ export const AgentTab: React.FC = () => {
                         type="checkbox"
                         checked={enabled}
                         onChange={() => toggleSkill(skill)}
+                        disabled={loading || loadError != null || saving}
                         className="mt-0.5 h-4 w-4 shrink-0 accent-book-primary"
                       />
                       <span className="min-w-0 flex-1">
@@ -295,8 +300,8 @@ export const AgentTab: React.FC = () => {
                 })}
               </div>
               <div className="mt-3 flex justify-end gap-2 border-t border-book-border/40 pt-3">
-                <BookButton variant="ghost" onClick={() => settings && setDraft(cloneProfiles(settings))} disabled={!dirty || saving || loading}>{t("common.cancel")}</BookButton>
-                <BookButton onClick={() => void save()} disabled={!dirty || saving || loading}>
+                <BookButton variant="ghost" onClick={() => settings && setDraft(cloneProfiles(settings))} disabled={!dirty || saving || loading || loadError != null}>{t("common.cancel")}</BookButton>
+                <BookButton onClick={() => void save()} disabled={!dirty || saving || loading || loadError != null}>
                   <Save size={14} />
                   {saving ? t("settingsAgent.saving") : t("common.save")}
                 </BookButton>

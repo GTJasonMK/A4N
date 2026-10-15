@@ -119,6 +119,15 @@ pub trait ImageRecordMutationApplicationPort: Send + Sync {
     ) -> Result<(), a4n_error::AppError>;
 }
 
+#[async_trait::async_trait]
+pub trait ImageRecordCascadeMutationApplicationPort: Send + Sync {
+    async fn delete(
+        &self,
+        user_id: i64,
+        input: DeleteImageInput,
+    ) -> Result<ImageRecordDeleteResult, a4n_error::AppError>;
+}
+
 /// Host-facing media-reference queries used by cleanup and orphan scans.
 #[async_trait::async_trait]
 pub trait ImageMediaReferencePort: Send + Sync {
@@ -302,6 +311,13 @@ impl UpdateGeneratedImageInput {
 pub struct DeleteImageInput {
     #[schemars(range(min = 1))]
     pub image_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ImageRecordDeleteResult {
+    pub deleted_image_id: i64,
+    pub updated_prompts: Vec<crate::video::ChapterVideoPromptSummary>,
+    pub updated_videos: Vec<crate::video::GeneratedVideoSummary>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

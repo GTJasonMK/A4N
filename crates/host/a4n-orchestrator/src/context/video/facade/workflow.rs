@@ -56,7 +56,7 @@ impl OrchestratorContext {
             input_fingerprint_json,
         )
         .map_err(AppError::InvalidArgument)?;
-        self.begin_workflow_run_validated(input).await
+        self.begin_or_resume_workflow_run_validated(input).await
     }
 
     /// 视频 provider 进度：校验后创建/恢复 RUNNING workflow_run。

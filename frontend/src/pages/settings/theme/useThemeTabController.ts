@@ -17,6 +17,7 @@ import {
 } from "../../../api/theme";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { useToast } from "../../../components/feedback/Toast";
+import { useDirty } from "../../../components/navigation/dirtyRegistry";
 import { useAuthStore } from "../../../store/auth";
 import {
   applyActiveTheme,
@@ -93,8 +94,33 @@ export const useThemeTabController = () => {
   const refreshInFlightUserRef = useRef<string | null>(null);
   const mutationInFlightRef = useRef(false);
   const exportInFlightRef = useRef(false);
+  const loadingRef = useRef(loading);
+  const loadErrorRef = useRef(loadError);
 
   activeUserKeyRef.current = userKey;
+  loadingRef.current = loading;
+  loadErrorRef.current = loadError;
+
+  const renameTarget = themes.find((theme) => theme.id === renamingId);
+  const renameDirty = renameTarget != null && renameValue !== renameTarget.name;
+  useDirty("settings-theme-rename", renameDirty, () => {
+    setRenamingId(null);
+    setRenameValue("");
+  }, () => !renameSaving);
+
+  const themeOperationBusy =
+    activating != null ||
+    deleting != null ||
+    bulkDeleting ||
+    creating ||
+    renameSaving ||
+    exportingId != null ||
+    importing ||
+    appearanceSaving ||
+    editorSaving ||
+    packageExportingId != null ||
+    packageImporting;
+  useDirty("settings-theme-operation", themeOperationBusy, undefined, () => !themeOperationBusy);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -210,7 +236,12 @@ export const useThemeTabController = () => {
     [addToast],
   );
 
-  const beginMutation = () => {
+  const beginMutation = (requiresLoadedThemes = true) => {
+    if (requiresLoadedThemes && (loadingRef.current || loadErrorRef.current)) {
+      if (loadErrorRef.current) addToast(extractErrorMessage(loadErrorRef.current.reason, tRef.current("settingsTheme.loadFailed")), "error");
+      else addToast(tRef.current("common.operationInProgress"), "info");
+      return false;
+    }
     if (mutationInFlightRef.current) return false;
     mutationInFlightRef.current = true;
     return true;
@@ -263,7 +294,11 @@ export const useThemeTabController = () => {
       confirmText: t("settingsTheme.delete"),
       dialogType: "danger",
     });
-    if (!confirmed || !isCurrentUser(requestUserKey)) {
+    if (
+      !confirmed ||
+      !isCurrentUser(requestUserKey) ||
+      !themes.some((theme) => theme.id === id)
+    ) {
       finishMutation(requestUserKey);
       return;
     }
@@ -299,7 +334,11 @@ export const useThemeTabController = () => {
       confirmText: t("settingsTheme.deleteSelected", { count: deletableTargets.length }),
       dialogType: "danger",
     });
-    if (!confirmed || !isCurrentUser(requestUserKey)) {
+    if (
+      !confirmed ||
+      !isCurrentUser(requestUserKey) ||
+      !deletableTargets.every((target) => themes.some((theme) => theme.id === target.id && isDeletableTheme(theme)))
+    ) {
       finishMutation(requestUserKey);
       return;
     }
@@ -372,6 +411,10 @@ export const useThemeTabController = () => {
   };
 
   const handleStartRename = (theme: Theme) => {
+    if (loadError) {
+      addToast(extractErrorMessage(loadError.reason, tRef.current("settingsTheme.loadFailed")), "error");
+      return;
+    }
     if (mutationInFlightRef.current) return;
     setRenamingId(theme.id);
     setRenameValue(theme.name);
@@ -408,7 +451,12 @@ export const useThemeTabController = () => {
   };
 
   const handleExport = async (id: number) => {
+    if (loadError) {
+      addToast(extractErrorMessage(loadError.reason, tRef.current("settingsTheme.loadFailed")), "error");
+      return;
+    }
     if (exportInFlightRef.current) return;
+    if (!themes.some((theme) => theme.id === id)) return;
     exportInFlightRef.current = true;
     const requestUserKey = userKey;
     setExportingId(id);
@@ -460,7 +508,7 @@ export const useThemeTabController = () => {
   };
 
   const handleAppearanceChange = async (nextAppearance: ThemeAppearance) => {
-    if (!user || appearanceSaving || !beginMutation()) return;
+    if (!user || appearanceSaving || !beginMutation(false)) return;
     const requestUserKey = userKey;
     setAppearanceSaving(true);
     try {
@@ -480,6 +528,10 @@ export const useThemeTabController = () => {
   };
 
   const handleEdit = (theme: Theme) => {
+    if (loadError) {
+      addToast(extractErrorMessage(loadError.reason, tRef.current("settingsTheme.loadFailed")), "error");
+      return;
+    }
     if (!user || theme.user_id !== user.id || mutationInFlightRef.current) return;
     setEditingId(theme.id);
   };
@@ -507,6 +559,9 @@ export const useThemeTabController = () => {
           data_base64: await readFileAsBase64(file),
         })));
       if (!isCurrentUser(requestUserKey)) return null;
+      if (!themes.some((theme) => theme.id === themeId)) {
+        throw new Error(tRef.current("common.operationInProgress"));
+      }
       const saved = await updateTheme(themeId, { ...input, resource_uploads: uploads, delete_resource_ids: deleteResourceIds });
       if (!isCurrentUser(requestUserKey)) return null;
       commitTheme(saved);
@@ -526,7 +581,12 @@ export const useThemeTabController = () => {
   };
 
   const handleExportPackage = async (themeId: number) => {
+    if (loadError) {
+      addToast(extractErrorMessage(loadError.reason, tRef.current("settingsTheme.loadFailed")), "error");
+      return;
+    }
     if (packageExportingId != null) return;
+    if (!themes.some((theme) => theme.id === themeId)) return;
     const requestUserKey = userKey;
     setPackageExportingId(themeId);
     try {

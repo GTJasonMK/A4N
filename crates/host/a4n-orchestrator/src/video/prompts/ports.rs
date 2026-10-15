@@ -3,9 +3,9 @@ use a4n_api_contract::video::{
     DownstreamConflictStrategy, GetVideoTimelineInput, LoadVideoSegmentPlanDraftInput,
     MoveInsertedSegmentInput, OptimizeChapterVideoPromptInput, UpdateChapterVideoPromptInput,
     UpdateChapterVideoSegmentPlanInput, UpdateVideoSegmentPlanDraftRecipeInput,
-    VideoPromptDownstreamCleanupPort, VideoPromptDraftApplicationPort,
+    VideoPromptDeleteResult, VideoPromptDownstreamCleanupPort, VideoPromptDraftApplicationPort,
     VideoPromptMutationApplicationPort, VideoPromptTimelineApplicationPort,
-    VideoSegmentPlanDraftSummary, VideoTimelineSummary,
+    VideoPromptUpdateResult, VideoSegmentPlanDraftSummary, VideoTimelineSummary,
 };
 use a4n_error::AppError;
 use a4n_video_contract::VideoSegmentExecutionRecipeV1;
@@ -41,7 +41,7 @@ impl VideoPromptMutationApplicationPort for OrchestratorContext {
         prompt_id: i64,
         input: UpdateChapterVideoPromptInput,
         cleanup: &dyn VideoPromptDownstreamCleanupPort,
-    ) -> Result<ChapterVideoPromptSummary, AppError> {
+    ) -> Result<VideoPromptUpdateResult, AppError> {
         self.update_chapter_video_prompt_validated(user_id, prompt_id, input, cleanup)
             .await
     }
@@ -52,7 +52,7 @@ impl VideoPromptMutationApplicationPort for OrchestratorContext {
         prompt_id: i64,
         downstream_strategy: DownstreamConflictStrategy,
         cleanup: &dyn VideoPromptDownstreamCleanupPort,
-    ) -> Result<(), AppError> {
+    ) -> Result<VideoPromptDeleteResult, AppError> {
         self.delete_chapter_video_prompt_validated(user_id, prompt_id, downstream_strategy, cleanup)
             .await
     }
@@ -64,7 +64,7 @@ impl VideoPromptMutationApplicationPort for OrchestratorContext {
         input: OptimizeChapterVideoPromptInput,
         prompt_renderer: &dyn a4n_api_contract::prompt::PromptRenderPort,
         cleanup: &dyn VideoPromptDownstreamCleanupPort,
-    ) -> Result<ChapterVideoPromptSummary, AppError> {
+    ) -> Result<VideoPromptUpdateResult, AppError> {
         let prompt_renderer = PromptRendererAdapter(prompt_renderer);
         self.optimize_chapter_video_prompt_validated(
             user_id,

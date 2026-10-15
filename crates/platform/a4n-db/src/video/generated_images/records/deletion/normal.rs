@@ -7,12 +7,12 @@ use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Transactio
 async fn delete_locked_generated_image_record_in<C>(
     db: &C,
     image: &GeneratedImageDeleteContext,
-) -> Result<(), VideoDbError>
+) -> Result<super::ImageReferenceCleanupIds, VideoDbError>
 where
     C: ConnectionTrait,
 {
     crate::chapter_visual_plan::ensure_visual_plan_images_unreferenced(db, &[image.id]).await?;
-    clear_generated_image_references_record(db, &[image.id]).await?;
+    let cleanup = clear_generated_image_references_record(db, &[image.id]).await?;
     profile_primary_material::Entity::delete_many()
         .filter(profile_primary_material::Column::PrimaryImageId.eq(image.id))
         .exec(db)
@@ -23,7 +23,7 @@ where
     generated_image::Entity::delete_by_id(image.id)
         .exec(db)
         .await?;
-    Ok(())
+    Ok(cleanup)
 }
 
 pub async fn delete_generated_image_record_with_cleanup<C>(
@@ -53,4 +53,33 @@ where
     delete_locked_generated_image_record_in(&txn, &image).await?;
     txn.commit().await.map_err(VideoDbError::Database)?;
     Ok(())
+}
+
+pub async fn delete_generated_image_record_with_cleanup_effects<C>(
+    db: &C,
+    image_id: i64,
+) -> Result<super::ImageReferenceCleanupIds, VideoDbError>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    let txn = db.begin().await.map_err(VideoDbError::Database)?;
+    let image = generated_image_for_delete(&txn, image_id).await?;
+    let paths = [image.file_path.trim()]
+        .into_iter()
+        .filter(|path| !path.is_empty())
+        .map(ToString::to_string)
+        .collect();
+    let payload =
+        crate::cleanup_outbox::validated_file_artifact_cleanup_payload(image.project_id, paths)?;
+    if !payload.paths.is_empty() {
+        crate::cleanup_outbox::insert_file_artifact_cleanup_intent(
+            &txn,
+            format!("generated-image-delete:{}", image.id),
+            payload,
+        )
+        .await?;
+    }
+    let cleanup = delete_locked_generated_image_record_in(&txn, &image).await?;
+    txn.commit().await.map_err(VideoDbError::Database)?;
+    Ok(cleanup)
 }

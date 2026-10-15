@@ -27,11 +27,12 @@ interface ProjectListProps {
   onOpen: (project: NovelProject) => void;
   onWrite: (project: NovelProject) => void;
   getActions: (project: NovelProject) => ProjectActionItems;
+  canUseProjectRows?: boolean;
 }
 
 export const RecentProjectList: React.FC<
-  Pick<ProjectListProps, "families" | "empty" | "onOpen" | "onWrite" | "getActions">
-> = ({ families, empty, onOpen, onWrite, getActions }) => {
+  Pick<ProjectListProps, "families" | "empty" | "onOpen" | "onWrite" | "getActions" | "canUseProjectRows">
+> = ({ families, empty, onOpen, onWrite, getActions, canUseProjectRows = true }) => {
   const { t } = useI18n();
   if (empty) {
     return (
@@ -50,6 +51,7 @@ export const RecentProjectList: React.FC<
           onOpen={onOpen}
           onWrite={onWrite}
           getActions={getActions}
+          canUseProjectRows={canUseProjectRows}
         />
       ))}
     </ul>
@@ -57,8 +59,8 @@ export const RecentProjectList: React.FC<
 };
 
 export const AllProjectList: React.FC<
-  Pick<ProjectListProps, "groups" | "empty" | "onOpen" | "onWrite" | "getActions">
-> = ({ groups, empty, onOpen, onWrite, getActions }) => {
+  Pick<ProjectListProps, "groups" | "empty" | "onOpen" | "onWrite" | "getActions" | "canUseProjectRows">
+> = ({ groups, empty, onOpen, onWrite, getActions, canUseProjectRows = true }) => {
   const { t } = useI18n();
   if (empty) {
     return <EmptyHint text={t("novel.noProjects")} />;
@@ -78,6 +80,7 @@ export const AllProjectList: React.FC<
                 onOpen={onOpen}
                 onWrite={onWrite}
                 getActions={getActions}
+                canUseProjectRows={canUseProjectRows}
               />
             ))}
           </ul>
@@ -92,7 +95,8 @@ const ProjectFamilyCard: React.FC<{
   onOpen: (project: NovelProject) => void;
   onWrite: (project: NovelProject) => void;
   getActions: (project: NovelProject) => ProjectActionItems;
-}> = ({ family, onOpen, onWrite, getActions }) => {
+  canUseProjectRows?: boolean;
+}> = ({ family, onOpen, onWrite, getActions, canUseProjectRows = true }) => {
   const { t } = useI18n();
   const derivedProjects = family.projects.filter(
     (project) => project.id !== family.root?.id,
@@ -112,6 +116,7 @@ const ProjectFamilyCard: React.FC<{
             onOpen={onOpen}
             onWrite={onWrite}
             actions={getActions(family.root)}
+            canUseProjectRows={canUseProjectRows}
           />
         </ul>
       ) : (
@@ -137,6 +142,7 @@ const ProjectFamilyCard: React.FC<{
                 onOpen={onOpen}
                 onWrite={onWrite}
                 actions={getActions(project)}
+                canUseProjectRows={canUseProjectRows}
               />
             ))}
           </ul>
@@ -152,7 +158,8 @@ const ProjectRow: React.FC<{
   onOpen: (project: NovelProject) => void;
   onWrite: (project: NovelProject) => void;
   actions: ProjectActionItems;
-}> = ({ project, relation = "standalone", onOpen, onWrite, actions }) => {
+  canUseProjectRows?: boolean;
+}> = ({ project, relation = "standalone", onOpen, onWrite, actions, canUseProjectRows = true }) => {
   const { locale, t } = useI18n();
   const menu = useContextMenu();
   const ctxItems: ContextMenuEntry[] = actions.map((a) => {
@@ -213,8 +220,8 @@ const ProjectRow: React.FC<{
     project.my_role !== "owner" ? roleLabel : "",
   ].filter(Boolean).join(" · ");
   const fullItems: ContextMenuEntry[] = [
-    { label: entryLabel, onClick: () => onOpen(project), shortcut: "Enter" },
-    ...(showWorkspaceEntry ? [{ label: workspaceLabel, onClick: () => onWrite(project) }] : []),
+    { label: entryLabel, onClick: () => onOpen(project), disabled: !canUseProjectRows, shortcut: "Enter" },
+    ...(showWorkspaceEntry ? [{ label: workspaceLabel, onClick: () => onWrite(project), disabled: !canUseProjectRows }] : []),
     ...(hasActionItems ? [{ divider: true as const }, ...ctxItems] : []),
   ];
 
@@ -222,12 +229,16 @@ const ProjectRow: React.FC<{
     <li className="group a4n-project-list-entry">
       <div
         data-project-relation={relation}
-        onContextMenu={menu.handle(fullItems)}
+        onContextMenu={canUseProjectRows ? menu.handle(fullItems) : undefined}
         onMouseEnter={() => prefetchProjectRouteByStatus(project, { immediate: true })}
         onFocus={() => prefetchProjectRouteByStatus(project, { immediate: true })}
         className="a4n-project-row relative w-full px-3 py-4 text-left sm:px-4"
       >
-        <BookCardAction label={`${project.title} · ${entryLabel}`} onClick={() => onOpen(project)} />
+        <BookCardAction
+          label={`${project.title} · ${entryLabel}`}
+          onClick={() => onOpen(project)}
+          disabled={!canUseProjectRows}
+        />
         <div className="flex items-start gap-3">
           <span
             className="a4n-project-kind mt-0.5"
@@ -262,6 +273,7 @@ const ProjectRow: React.FC<{
                   e.stopPropagation();
                   onWrite(project);
                 }}
+                disabled={!canUseProjectRows}
                 aria-label={workspaceLabel}
                 title={workspaceLabel}
                 className="pointer-events-auto relative z-20 inline-flex min-h-11 cursor-pointer items-center bg-transparent px-1 text-body-sm font-semibold text-book-primary hover:underline sm:min-h-8"

@@ -8,6 +8,7 @@ pub use a4n_api_contract::blueprint::{
     BlueprintDiffSummary, BlueprintMutationResult, DiffBlueprintVersionsInput,
     ListBlueprintVersionsInput, PreviewBlueprintGenerationInput, PreviewBlueprintRefinementInput,
     RestoreBlueprintVersionInput, SaveBlueprintInput, UpdateWorldSettingInput,
+    VersionedBlueprintMutationResult,
 };
 pub use generation::{
     get_blueprint, preview_generate_blueprint_request, resume_blueprint_generation_workflow,

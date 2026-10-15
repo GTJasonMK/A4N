@@ -39,8 +39,14 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   tRef.current = t;
   const navigate = useNavigate();
   const dirtyRegistry = useNovelDetailDirtyRegistry();
-  const memberRoleOptions: Array<{ value: ProjectMemberRole; label: string }> = [
-    { value: "manager", label: t("novel.managerRole") },
+  const memberRoleOptions: Array<{ value: ProjectMemberRole; label: string; disabled?: boolean }> = [
+    {
+      value: "manager",
+      label: project.my_role === "owner"
+        ? t("novel.managerRole")
+        : t("novel.collaborationActions.managerRoleOwnerOnly"),
+      disabled: project.my_role !== "owner",
+    },
     { value: "editor", label: t("novel.editorRole") },
     { value: "viewer", label: t("novel.viewerRole") },
   ];
@@ -48,6 +54,8 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   const [invites, setInvites] = useState<ProjectInvite[]>([]);
   const [membersLoadError, setMembersLoadError] = useState<unknown | null>(null);
   const [invitesLoadError, setInvitesLoadError] = useState<unknown | null>(null);
+  const [membersReady, setMembersReady] = useState(false);
+  const [invitesReady, setInvitesReady] = useState(false);
   const [identity, setIdentity] = useState("");
   const [role, setRole] = useState<ProjectMemberRole>("editor");
   const [loading, setLoading] = useState(true);
@@ -60,6 +68,9 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   const scopeRef = useRef("");
 
   const canManage = project.my_role === "owner" || project.my_role === "manager";
+  const canManageMember = (member: ProjectMember): boolean =>
+    canManage && member.role !== "owner" &&
+    (project.my_role === "owner" || member.role !== "manager");
   const canLeave = project.my_role !== "owner";
   const rootProjectId = project.collaboration_root_project_id;
   const scopeKey = `${project.id}:${rootProjectId}`;
@@ -74,6 +85,12 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     },
     () => !submittingRef.current,
   );
+  useNovelDetailDirty(
+    `collaboration-operations:${scopeKey}`,
+    submitting || busyActionKeys.size > 0,
+    undefined,
+    () => !submittingRef.current && busyActionKeysRef.current.size === 0,
+  );
 
   const isCurrentScope = (requestScope: string): boolean =>
     mountedRef.current && scopeRef.current === requestScope;
@@ -83,25 +100,38 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
     setLoading(true);
+    setMembersLoadError(null);
+    setInvitesLoadError(null);
+    setMembersReady(false);
+    setInvitesReady(false);
+    setMembers([]);
+    setInvites([]);
     try {
       const [membersResult, invitesResult] = await Promise.allSettled([
         listProjectMembers(rootProjectId),
         canManage ? listProjectInvites(rootProjectId) : Promise.resolve([]),
       ]);
-      if (!isCurrentScope(requestScope) || loadSeqRef.current !== requestSeq) return false;
+      if (!isCurrentScope(requestScope)) return false;
+      if (loadSeqRef.current !== requestSeq) return true;
       const errors: string[] = [];
       if (membersResult.status === "fulfilled") {
         setMembers(membersResult.value);
         setMembersLoadError(null);
+        setMembersReady(true);
       } else {
+        setMembers([]);
         setMembersLoadError(membersResult.reason);
+        setMembersReady(false);
         errors.push("members");
       }
       if (invitesResult.status === "fulfilled") {
         setInvites(invitesResult.value);
         setInvitesLoadError(null);
+        setInvitesReady(true);
       } else {
+        setInvites([]);
         setInvitesLoadError(invitesResult.reason);
+        setInvitesReady(false);
         errors.push("invites");
       }
       return errors.length === 0;
@@ -113,7 +143,6 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   }, [canManage, rootProjectId]);
 
   const refreshAfterMutation = async (requestScope: string): Promise<boolean> => {
-    const loaded = await load();
     if (!isCurrentScope(requestScope)) return true;
     let refreshed = true;
     try {
@@ -122,7 +151,17 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
       refreshed = false;
     }
     if (!isCurrentScope(requestScope)) return true;
-    return loaded && refreshed;
+    return refreshed;
+  };
+
+  const refreshAfterRejectedMutation = (requestScope: string) => {
+    if (!isCurrentScope(requestScope)) return;
+    void load();
+    void refreshAfterMutation(requestScope).then((refreshed) => {
+      if (isCurrentScope(requestScope) && !refreshed) {
+        addToast(tRef.current("novel.refreshFailed"), "error");
+      }
+    });
   };
 
   useEffect(() => {
@@ -139,6 +178,8 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   useLayoutEffect(() => {
     setIdentity("");
     setRole("editor");
+    setMembersReady(false);
+    setInvitesReady(false);
     submittingRef.current = false;
     setSubmitting(false);
     busyActionKeysRef.current.clear();
@@ -179,19 +220,29 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     submittingRef.current = true;
     setSubmitting(true);
     try {
-      await inviteProjectMember(rootProjectId, {
+      const createdInvite = await inviteProjectMember(rootProjectId, {
         username_or_email: value,
         role,
       });
       if (!isCurrentScope(requestScope)) return;
       setIdentity("");
-      const refreshed = await refreshAfterMutation(requestScope);
-      if (!isCurrentScope(requestScope)) return;
+      if (invitesReady) {
+        setInvites((current) => [
+          createdInvite,
+          ...current.filter((invite) => invite.id !== createdInvite.id),
+        ]);
+      }
+      void load();
       addToast(tRef.current("novel.collaborationActions.inviteSent"), "success");
-      if (!refreshed) addToast(tRef.current("novel.refreshFailed"), "error");
+      void refreshAfterMutation(requestScope).then((refreshed) => {
+        if (isCurrentScope(requestScope) && !refreshed) {
+          addToast(tRef.current("novel.refreshFailed"), "error");
+        }
+      });
     } catch (err) {
       if (isCurrentScope(requestScope)) {
         addToast(extractErrorMessage(err, tRef.current("novel.collaborationActions.inviteFailed")), "error");
+        refreshAfterRejectedMutation(requestScope);
       }
     } finally {
       if (isCurrentScope(requestScope)) {
@@ -202,20 +253,41 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   };
 
   const handleRoleChange = async (member: ProjectMember, nextRole: ProjectMemberRole) => {
+    if (!membersReady || loading || membersLoadError != null) {
+      addToast(
+        membersLoadError
+          ? extractErrorMessage(membersLoadError, t("novel.collaborationActions.membersLoadFailed"))
+          : t("common.operationInProgress"),
+        "error",
+      );
+      return;
+    }
     const actionKey = `role:${member.user_id}`;
     if (memberActionBusy(member.user_id)) return;
     if (!beginAction(actionKey)) return;
     const requestScope = scopeRef.current;
+    const requestLoadSeq = loadSeqRef.current;
     try {
       await updateProjectMemberRole(rootProjectId, member.user_id, nextRole);
       if (!isCurrentScope(requestScope)) return;
-      const refreshed = await refreshAfterMutation(requestScope);
-      if (!isCurrentScope(requestScope)) return;
+      if (loadSeqRef.current !== requestLoadSeq) {
+        void load();
+        return;
+      }
+      setMembers((current) => current.map((item) =>
+        item.user_id === member.user_id ? { ...item, role: nextRole } : item,
+      ));
+      setMembersLoadError(null);
       addToast(tRef.current("novel.collaborationActions.roleUpdated"), "success");
-      if (!refreshed) addToast(tRef.current("novel.refreshFailed"), "error");
+      void refreshAfterMutation(requestScope).then((refreshed) => {
+        if (isCurrentScope(requestScope) && !refreshed) {
+          addToast(tRef.current("novel.refreshFailed"), "error");
+        }
+      });
     } catch (err) {
       if (isCurrentScope(requestScope)) {
         addToast(extractErrorMessage(err, tRef.current("novel.collaborationActions.roleUpdateFailed")), "error");
+        refreshAfterRejectedMutation(requestScope);
       }
     } finally {
       if (isCurrentScope(requestScope)) finishAction(actionKey);
@@ -223,30 +295,51 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   };
 
   const handleRemove = async (member: ProjectMember) => {
+    if (!membersReady || loading || membersLoadError != null) {
+      addToast(
+        membersLoadError
+          ? extractErrorMessage(membersLoadError, t("novel.collaborationActions.membersLoadFailed"))
+          : t("common.operationInProgress"),
+        "error",
+      );
+      return;
+    }
     const actionKey = `remove:${member.user_id}`;
     if (memberActionBusy(member.user_id)) return;
     if (!beginAction(actionKey)) return;
     const requestScope = scopeRef.current;
+    const requestLoadSeq = loadSeqRef.current;
     const ok = await confirmDialog({
       title: t("novel.collaborationActions.removeTitle"),
       message: t("novel.collaborationActions.removeMessage", { username: member.username }),
       confirmText: t("common.remove"),
       dialogType: "danger",
     });
+    if (!isCurrentScope(requestScope)) return;
     if (!ok) {
       finishAction(actionKey);
+      return;
+    }
+    if (loadSeqRef.current !== requestLoadSeq) {
+      finishAction(actionKey);
+      addToast(tRef.current("common.listChangedRetry"), "info");
       return;
     }
     try {
       await removeProjectMember(rootProjectId, member.user_id);
       if (!isCurrentScope(requestScope)) return;
-      const refreshed = await refreshAfterMutation(requestScope);
-      if (!isCurrentScope(requestScope)) return;
+      setMembers((current) => current.filter((item) => item.user_id !== member.user_id));
+      setMembersLoadError(null);
       addToast(tRef.current("novel.collaborationActions.removed"), "success");
-      if (!refreshed) addToast(tRef.current("novel.refreshFailed"), "error");
+      void refreshAfterMutation(requestScope).then((refreshed) => {
+        if (isCurrentScope(requestScope) && !refreshed) {
+          addToast(tRef.current("novel.refreshFailed"), "error");
+        }
+      });
     } catch (err) {
       if (isCurrentScope(requestScope)) {
         addToast(extractErrorMessage(err, tRef.current("novel.collaborationActions.removeFailed")), "error");
+        refreshAfterRejectedMutation(requestScope);
       }
     } finally {
       if (isCurrentScope(requestScope)) finishAction(actionKey);
@@ -254,19 +347,38 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   };
 
   const handleRevoke = async (invite: ProjectInvite) => {
+    if (!invitesReady || loading || invitesLoadError != null) {
+      addToast(
+        invitesLoadError
+          ? extractErrorMessage(invitesLoadError, t("novel.collaborationActions.invitesLoadFailed"))
+          : t("common.operationInProgress"),
+        "error",
+      );
+      return;
+    }
     const actionKey = `revoke:${invite.id}`;
     if (!beginAction(actionKey)) return;
     const requestScope = scopeRef.current;
+    const requestLoadSeq = loadSeqRef.current;
     try {
       await revokeProjectInvite(rootProjectId, invite.id);
       if (!isCurrentScope(requestScope)) return;
-      const refreshed = await refreshAfterMutation(requestScope);
-      if (!isCurrentScope(requestScope)) return;
+      if (loadSeqRef.current !== requestLoadSeq) {
+        void load();
+        return;
+      }
+      setInvites((current) => current.filter((item) => item.id !== invite.id));
+      setInvitesLoadError(null);
       addToast(tRef.current("novel.collaborationActions.inviteRevoked"), "success");
-      if (!refreshed) addToast(tRef.current("novel.refreshFailed"), "error");
+      void refreshAfterMutation(requestScope).then((refreshed) => {
+        if (isCurrentScope(requestScope) && !refreshed) {
+          addToast(tRef.current("novel.refreshFailed"), "error");
+        }
+      });
     } catch (err) {
       if (isCurrentScope(requestScope)) {
         addToast(extractErrorMessage(err, tRef.current("novel.collaborationActions.revokeFailed")), "error");
+        refreshAfterRejectedMutation(requestScope);
       }
     } finally {
       if (isCurrentScope(requestScope)) finishAction(actionKey);
@@ -294,6 +406,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
       confirmText: t("novel.collaborationActions.leave"),
       dialogType: "danger",
     });
+    if (!isCurrentScope(requestScope)) return;
     if (!ok) {
       finishAction(actionKey);
       return;
@@ -305,10 +418,13 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
       setIdentity("");
       setRole("editor");
       addToast(tRef.current("novel.collaborationActions.left"), "success");
+      dirtyRegistry.set(`collaboration-operations:${requestScope}`, false);
+      finishAction(actionKey);
       navigate("/", { replace: true });
     } catch (err) {
       if (isCurrentScope(requestScope)) {
         addToast(extractErrorMessage(err, tRef.current("novel.collaborationActions.leaveFailed")), "error");
+        refreshAfterRejectedMutation(requestScope);
       }
     } finally {
       if (isCurrentScope(requestScope)) finishAction(actionKey);
@@ -354,22 +470,30 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
       ) : null}
 
       {canManage && (
-        <div className="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[minmax(220px,1fr)_7rem_auto]">
+        <form
+          className="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[minmax(220px,1fr)_7rem_auto]"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleInvite();
+          }}
+        >
           <input
             value={identity}
             onChange={(event) => setIdentity(event.target.value)}
             disabled={submitting || busyActionKeys.has("leave")}
+            aria-label={t("novel.collaborationActions.identityPlaceholder")}
             placeholder={t("novel.collaborationActions.identityPlaceholder")}
             className="pyqt-input col-span-2 h-9 min-w-0 sm:col-span-1"
           />
           <ThemedSelect
             value={role}
+            aria-label={t("novel.collaborationActions.inviteRole")}
             onChange={(selectedValue) => setRole(selectedValue as ProjectMemberRole)}
             disabled={submitting || busyActionKeys.has("leave")}
             className="pyqt-input h-9 w-full"
           >
             {memberRoleOptions.map((item) => (
-              <option key={item.value} value={item.value}>
+              <option key={item.value} value={item.value} disabled={item.disabled}>
                 {item.label}
               </option>
             ))}
@@ -377,20 +501,20 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
           <BookButton
             variant="primary"
             size="sm"
+            type="submit"
             disabled={submitting || busyActionKeys.has("leave") || !identity.trim()}
-            onClick={() => void handleInvite()}
           >
             <span className="inline-flex items-center gap-1.5">
               <UserPlus size={13} /> {t("novel.collaborationActions.invite")}
             </span>
           </BookButton>
-        </div>
+        </form>
       )}
 
       <ul aria-label={t("novel.collaborationActions.membersAria")} className="space-y-2">
         {members.map((member) => (
           <li
-            key={`${member.user_id}:${member.role}`}
+            key={member.user_id}
             className="a4n-flat-surface grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5"
           >
             <div className="min-w-0 flex-1">
@@ -400,7 +524,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
               <div className="truncate text-small text-book-text-muted">{member.email}</div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              {canManage && member.role !== "owner" ? (
+              {canManageMember(member) ? (
                 <ThemedSelect
                   value={member.role}
                   aria-label={t("novel.collaborationActions.adjustRole", { username: member.username })}
@@ -411,7 +535,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
                   className="pyqt-input h-8 w-32 text-small"
                 >
                   {memberRoleOptions.map((item) => (
-                    <option key={item.value} value={item.value}>
+                    <option key={item.value} value={item.value} disabled={item.disabled}>
                       {item.label}
                     </option>
                   ))}
@@ -421,7 +545,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
                   {getProjectAccessRoleLabel(member.role, t)}
                 </span>
               )}
-              {canManage && member.role !== "owner" ? (
+              {canManageMember(member) ? (
                 <Dropdown
                   items={[
                     {

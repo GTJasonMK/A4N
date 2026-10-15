@@ -108,6 +108,14 @@ export function useChapterAnalysisActions({
     [],
   );
 
+  const isCurrentChapter = useCallback(
+    (requestProjectId: number, requestChapterId: number) =>
+      mountedRef.current &&
+      projectIdRef.current === requestProjectId &&
+      activeChapterIdRef.current === requestChapterId,
+    [],
+  );
+
   const closeRequestPreview = useCallback((open: boolean) => {
     if (open) {
       setRequestPreviewOpen(true);
@@ -201,18 +209,27 @@ export function useChapterAnalysisActions({
     [runProgressTask, t],
   );
 
+  const refreshAnalysisReadModels = useCallback(
+    (chapterId: number) => {
+      void reloadChapters({ force: true, chapterId });
+      void reloadOutlines();
+    },
+    [reloadChapters, reloadOutlines],
+  );
+
   const handleGenerateAnalysis = useCallback(async () => {
     if (analysisActionRef.current) {
       addToast(t("writing.analysisRunning"), "error");
       return;
     }
     analysisActionRef.current = "generate";
-    let readModelRefreshAttempted = false;
     try {
       const chapter = requireSavedAnalyzableChapter("generate");
       if (!chapter) return;
 
       const taskId = createWorkflowTaskId("chapter-analysis", projectId);
+      const requestProjectId = projectId;
+      const requestChapterId = chapter.id;
       setAnalysisBusy(true);
       const mutation = await runProgressTask(
         {
@@ -229,22 +246,22 @@ export function useChapterAnalysisActions({
           runningHint: t("writing.analysisRunningHint"),
         },
         async () => {
-          const result = await generateChapterAnalysis(
+          if (!isCurrentChapter(requestProjectId, requestChapterId)) {
+            throw new Error(t("writing.analysisStopped"));
+          }
+          return generateChapterAnalysis(
             {
               chapter_id: chapter.id,
             },
             taskId,
           );
-          readModelRefreshAttempted = true;
-          if (!(await reloadChapters({ force: true })) || !(await reloadOutlines())) {
-            throw new Error(t("writing.analysisFailed"));
-          }
-          return result;
         },
       );
+      if (!isCurrentChapter(requestProjectId, requestChapterId)) return;
       const updated = mutation.chapter;
       applyChapter(updated);
       refreshProfiles();
+      refreshAnalysisReadModels(updated.id);
       if (mutation.warnings.length > 0) {
         addToast(
           t("writing.analysisWarningsRetry", {
@@ -253,17 +270,14 @@ export function useChapterAnalysisActions({
           "info",
         );
       } else {
-        addToast(t("writing.analysisSavedSynced"), "success");
+        addToast(t("writing.analysisSaved"), "success");
       }
     } catch (err) {
+      if (!isCurrentChapter(projectId, activeChapterIdRef.current ?? -1)) return;
       const errorMessage = extractErrorMessage(err, t("writing.analysisFailed"));
-      const refreshed = readModelRefreshAttempted
-        ? null
-        : await reloadChapters({ force: true });
-      if (!readModelRefreshAttempted) {
-        await reloadOutlines();
-        refreshProfiles();
-      }
+      const refreshed = await reloadChapters({ force: true });
+      await reloadOutlines();
+      refreshProfiles();
       const refreshedChapter =
         refreshed?.index.find((item) => item.id === activeChapterIdRef.current) ?? null;
       if (isCancelledOperation(errorMessage)) {
@@ -294,8 +308,10 @@ export function useChapterAnalysisActions({
     refreshProfiles,
     reloadChapters,
     reloadOutlines,
+    refreshAnalysisReadModels,
     requireSavedAnalyzableChapter,
     runProgressTask,
+    isCurrentChapter,
     applyChapter,
     t,
   ]);
@@ -310,6 +326,8 @@ export function useChapterAnalysisActions({
     try {
       const chapter = requireSavedAnalyzableChapter("resume");
       if (!chapter) return;
+      const requestProjectId = projectId;
+      const requestChapterId = chapter.id;
 
       setAnalysisBusy(true);
       const runningRun = (
@@ -332,11 +350,13 @@ export function useChapterAnalysisActions({
           secondaryText: t("writing.analysisRunningTakeoverCancel"),
           dialogType: "warning",
         });
-        if (takeoverChoice !== "confirm") return;
+        if (takeoverChoice !== "confirm" || !isCurrentChapter(requestProjectId, requestChapterId)) return;
 
         const taskId = runningRun.active_task_id;
         const terminalRun = await runAnalysisProgressTask(taskId, () =>
-          waitForWorkflowRun(runningRun.id),
+          isCurrentChapter(requestProjectId, requestChapterId)
+            ? waitForWorkflowRun(runningRun.id)
+            : Promise.reject(new Error(t("writing.analysisStopped"))),
         );
         if (terminalRun.status !== "completed") {
           throw new Error(
@@ -350,24 +370,20 @@ export function useChapterAnalysisActions({
         updated = await runAnalysisProgressTask(
           taskId,
           () =>
-            resumeChapterAnalysisSync(
-              {
-                chapter_id: chapter.id,
-              },
-              taskId,
-            ),
+            isCurrentChapter(requestProjectId, requestChapterId)
+              ? resumeChapterAnalysisSync({ chapter_id: chapter.id }, taskId)
+              : Promise.reject(new Error(t("writing.analysisStopped"))),
         );
       }
+      if (!isCurrentChapter(requestProjectId, requestChapterId)) return;
       if (updated) {
         applyChapter(updated);
       }
-      readModelRefreshAttempted = true;
-      if (!(await reloadChapters({ force: true, chapterId: chapter.id })) || !(await reloadOutlines())) {
-        throw new Error(t("writing.resumeAnalysisFailed"));
-      }
+      refreshAnalysisReadModels(chapter.id);
       refreshProfiles();
       addToast(t("writing.resumeAnalysisComplete"), "success");
     } catch (err) {
+      if (!isCurrentChapter(projectId, activeChapterIdRef.current ?? -1)) return;
       const errorMessage = extractErrorMessage(err, t("writing.resumeAnalysisFailed"));
       if (!readModelRefreshAttempted) {
         void reloadChapters({ force: true });
@@ -388,8 +404,10 @@ export function useChapterAnalysisActions({
     refreshProfiles,
     reloadChapters,
     reloadOutlines,
+    refreshAnalysisReadModels,
     requireSavedAnalyzableChapter,
     runAnalysisProgressTask,
+    isCurrentChapter,
     applyChapter,
     t,
   ]);

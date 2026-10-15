@@ -89,7 +89,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
   const canStartMutation = () =>
     sceneListReady && !loading && !isMutationBusy() && !previewingRef.current;
   const canUseSceneList = () => canStartMutation() && loadError == null;
-  const canStartAction = () => canStartMutation();
+  const canStartAction = () => canStartMutation() && loadError == null;
 
   const isCurrentScope = (requestScope: string | null) =>
     mountedRef.current && activeScopeRef.current === requestScope;
@@ -269,12 +269,17 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     savingRef.current = true;
     const requestScope = scopeKey;
     const requestChapterId = chapterId;
+    const requestLoadSeq = loadSeqRef.current;
     const requestSeq = saveSeqRef.current + 1;
     saveSeqRef.current = requestSeq;
     setSaving(true);
     try {
       const saved = await updateChapterScene(sceneEditInput(editingId, editForm, editingScene));
       if (!isCurrentMutation(requestChapterId, saveSeqRef, requestSeq)) return;
+      if (loadSeqRef.current !== requestLoadSeq) {
+        void load({ force: true });
+        return;
+      }
       if (isCurrentScope(requestScope)) {
         setScenes((current) => sortScenes(current.map((scene) => scene.id === saved.id ? saved : scene)));
         setEditingId(null);
@@ -306,6 +311,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     generatingRef.current = true;
     const requestScope = scopeKey;
     const requestChapterId = chapterId;
+    const requestLoadSeq = loadSeqRef.current;
     const requestSeq = generateSeqRef.current + 1;
     generateSeqRef.current = requestSeq;
     const nextNumber = getNextSceneNumber(scenes);
@@ -336,6 +342,10 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
           ),
       );
       if (!isCurrentMutation(requestChapterId, generateSeqRef, requestSeq)) return;
+      if (loadSeqRef.current !== requestLoadSeq) {
+        void load({ force: true });
+        return;
+      }
       if (isCurrentScope(requestScope)) {
         setScenes((current) => sortScenes([...current.filter((scene) => scene.id !== s.id), s]));
       }
@@ -344,7 +354,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
       if (!isCurrentMutation(requestChapterId, generateSeqRef, requestSeq)) return;
       const message = extractErrorMessage(err, t("scenes.generateFailed"));
       addToast(message, isCancelledOperation(message) ? "info" : "error");
-      if (isCurrentScope(requestScope)) await load({ force: true });
+      if (isCurrentScope(requestScope)) void load({ force: true });
     } finally {
       if (isCurrentMutation(requestChapterId, generateSeqRef, requestSeq)) setGenerating(false);
       if (generateSeqRef.current === requestSeq) {
@@ -367,6 +377,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     previewingRef.current = true;
     const requestScope = scopeKey;
     const requestSeq = previewSeqRef.current + 1;
+    const requestLoadSeq = loadSeqRef.current;
     previewSeqRef.current = requestSeq;
     const nextNumber = getNextSceneNumber(scenes);
     setRequestPreviewOpen(true);
@@ -379,6 +390,11 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
         scene_prompt: genPrompt,
       });
       if (previewSeqRef.current !== requestSeq || !isCurrentScope(requestScope)) return;
+      if (loadSeqRef.current !== requestLoadSeq) {
+        setRequestPreviewOpen(false);
+        void load({ force: true });
+        return;
+      }
       setRequestPreviewData(preview);
     } catch (err) {
       if (previewSeqRef.current !== requestSeq || !isCurrentScope(requestScope)) return;
@@ -398,6 +414,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     if (chapterId == null) return;
     const requestScope = scopeKey;
     const requestChapterId = chapterId;
+    const requestLoadSeq = loadSeqRef.current;
     const actionKey = `del-${s.id}`;
     if (!startAction(actionKey)) return;
     const title = nonEmptyText(s.title);
@@ -413,7 +430,8 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
       finishAction(actionKey);
       return;
     }
-    if (!isCurrentChapter(requestChapterId)) {
+    if (!isCurrentChapter(requestChapterId) || loadSeqRef.current !== requestLoadSeq) {
+      if (loadSeqRef.current !== requestLoadSeq) addToast(t("common.operationInProgress"), "info");
       finishAction(actionKey);
       return;
     }
@@ -444,6 +462,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     if (chapterId == null) return;
     const requestScope = scopeKey;
     const requestChapterId = chapterId;
+    const requestLoadSeq = loadSeqRef.current;
     const sorted = sortScenes(scenes);
     const idx = sorted.findIndex((x) => x.id === s.id);
     if (idx < 0) return;
@@ -462,6 +481,10 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
         ],
       });
       if (!isCurrentChapter(requestChapterId)) return;
+      if (loadSeqRef.current !== requestLoadSeq) {
+        void load({ force: true });
+        return;
+      }
       if (isCurrentScope(requestScope)) {
         setScenes(sortScenes(reordered));
         setLoadedScope(requestScope);
@@ -552,7 +575,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
             editingId={editingId}
             editForm={editForm}
             saving={saving}
-            mutationBusy={operationBusy}
+            mutationBusy={operationBusy || loadError != null}
             reorderDisabled={loadError != null}
             actingKeys={actingKeys}
             onToggleExpand={toggleExpand}

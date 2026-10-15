@@ -214,6 +214,9 @@ fn cancel_operation(
             | PageOperationStatus::Failed
             | PageOperationStatus::Cancelled
     ) {
+        if let Some(cancellation) = record.operation_cancellation.as_ref() {
+            cancellation.cancel();
+        }
         operation.status = PageOperationStatus::Cancelled;
         operation.error = Some(reason.to_string());
         operation.updated_at = now.to_rfc3339();
@@ -240,6 +243,8 @@ fn expire_record(
         "Page Session 心跳已过期",
         now.clone(),
     );
+    record.operation_cancellation = None;
+    record.authorization = None;
     record.view.last_operation = operation.clone();
     touch(&mut record.view, now);
     Some((record.owner_user_id, record.view.clone(), operation))

@@ -8,6 +8,24 @@ pub(crate) fn app_error_with_secondary(
     }
 }
 
+pub(crate) fn generation_lifecycle_gate_error_to_app_error(
+    error: a4n_db::generation::GenerationLifecycleGateError,
+) -> a4n_error::AppError {
+    use a4n_db::generation::GenerationLifecycleGateError as Error;
+    use a4n_error::AppError;
+
+    match error {
+        Error::InvalidArgument(message) => AppError::InvalidArgument(message),
+        Error::NotFound(message) => AppError::NotFound(message),
+        Error::Blocked(message) => AppError::InvalidState {
+            current: "project_lifecycle_gate".to_string(),
+            operation: message,
+        },
+        Error::Corrupt(message) => AppError::Internal(anyhow::anyhow!(message)),
+        Error::Database(error) => AppError::database(error),
+    }
+}
+
 pub(crate) fn project_delete_error_to_app_error(
     error: a4n_db::project::delete::ProjectDeleteDbError,
 ) -> a4n_error::AppError {

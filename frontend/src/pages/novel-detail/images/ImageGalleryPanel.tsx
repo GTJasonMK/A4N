@@ -234,7 +234,7 @@ export function ImageGalleryPanel({
           <button
             type="button"
             onClick={() => onToggleFavorite(img)}
-            disabled={busyId === img.id}
+            disabled={busyId === img.id || loadError != null}
             className={`absolute right-1.5 top-1.5 z-10 inline-flex h-8 w-8 items-center justify-center rounded-[10px] border backdrop-blur-md transition-colors ${
               img.is_favorite
                 ? "border-warning/60 bg-warning/90 text-white"

@@ -16,15 +16,20 @@ use a4n_db::workflow::{
     mark_workflow_status,
 };
 use a4n_db_models::models::{
+    asset::object_profile,
     chapter::chapter,
     generation::generation_start_request,
-    project::project_member,
+    project::{novel_project, project_member},
+    scene::scene_profile,
     task::{task_dependency, task_queue},
 };
 use a4n_domain::generation::{
     GenerationTaskListCursor, LifecycleGateClaimState, ProjectLifecycleOperation,
 };
 use a4n_domain::workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED};
+use a4n_domain::{
+    object_profile::ObjectProfileRecordInput, scene_profile::SceneProfileRecordInput,
+};
 use a4n_migration::test_support::connect_test_database;
 use a4n_queue::priority::{TaskKind, TaskPriority};
 use a4n_service_protocol::{
@@ -45,6 +50,512 @@ async fn connect_generation_test_database() -> DatabaseConnection {
         .await
         .unwrap();
     db
+}
+
+fn scene_profile_input(name: &str) -> SceneProfileRecordInput {
+    SceneProfileRecordInput {
+        name: name.to_string(),
+        normalized_name: name.to_string(),
+        aliases_json: json!([]),
+        scene_type: "location".to_string(),
+        importance: "major".to_string(),
+        parent_scene_id: None,
+        base_description: "场景描述".to_string(),
+        visual_description: "场景外观".to_string(),
+        spatial_layout: "空间布局".to_string(),
+        atmosphere: "气氛".to_string(),
+        entry_points_json: json!([]),
+        rules_json: json!([]),
+        first_seen_chapter: 1,
+        last_seen_chapter: 1,
+        evidence_json: json!([]),
+        image_prompt_seed: String::new(),
+    }
+}
+
+fn object_profile_input(name: &str) -> ObjectProfileRecordInput {
+    ObjectProfileRecordInput {
+        name: name.to_string(),
+        normalized_name: name.to_string(),
+        aliases_json: json!([]),
+        object_type: "prop".to_string(),
+        importance: "primary".to_string(),
+        visual_description: "物体外观".to_string(),
+        material_and_state: "材质与状态".to_string(),
+        story_usage: "剧情用途".to_string(),
+        visual_usage: "画面用途".to_string(),
+        generation_usage: "生成用途".to_string(),
+        location_context: None,
+        first_seen_chapter: 1,
+        last_seen_chapter: 1,
+        evidence_json: json!([]),
+        image_prompt_seed: String::new(),
+    }
+}
+
+#[tokio::test]
+async fn project_mutations_reject_a_project_after_its_reset_gate_starts() {
+    let db = connect_generation_test_database().await;
+    let suffix = Uuid::new_v4().simple().to_string();
+    let user = a4n_db::auth::create_user_summary(
+        &db,
+        &format!("generation_reset_write_{suffix}"),
+        &format!("generation_reset_write_{suffix}@example.invalid"),
+        "generation-test-password",
+        "user",
+    )
+    .await
+    .unwrap();
+    let project = a4n_db::project::create_project_record(
+        &db,
+        a4n_db::project::CreateProjectRecordInput {
+            user_id: user.id,
+            title: format!("generation reset write {suffix}"),
+            description: String::new(),
+            project_type: "novel_long".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let collaborator = a4n_db::auth::create_user_summary(
+        &db,
+        &format!("generation_reset_collaborator_{suffix}"),
+        &format!("generation_reset_collaborator_{suffix}@example.invalid"),
+        "generation-test-password",
+        "user",
+    )
+    .await
+    .unwrap();
+    let now = Utc::now().naive_utc();
+    project_member::ActiveModel {
+        project_id: Set(project.id),
+        user_id: Set(collaborator.id),
+        role: Set("editor".to_string()),
+        invited_by_user_id: Set(user.id),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+
+    a4n_db::generation::require_project_lifecycle_active(&db, collaborator.id, project.id)
+        .await
+        .unwrap();
+    a4n_db::generation::require_project_owner_lifecycle_active(&db, project.id)
+        .await
+        .unwrap();
+    let claim =
+        begin_project_lifecycle_gate(&db, project.id, user.id, ProjectLifecycleOperation::Reset)
+            .await
+            .unwrap();
+    assert_eq!(claim.state, LifecycleGateClaimState::Started);
+
+    assert!(matches!(
+        a4n_db::generation::require_project_lifecycle_active(&db, collaborator.id, project.id)
+            .await,
+        Err(a4n_db::generation::GenerationLifecycleGateError::Blocked(_))
+    ));
+    assert!(matches!(
+        a4n_db::generation::require_project_owner_lifecycle_active(&db, project.id).await,
+        Err(a4n_db::generation::GenerationLifecycleGateError::Blocked(_))
+    ));
+    restore_project_lifecycle_gate(&db, project.id, ProjectLifecycleOperation::Reset)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn reset_gate_rejects_user_scene_and_object_profile_mutations() {
+    let db = connect_generation_test_database().await;
+    let suffix = Uuid::new_v4().simple().to_string();
+    let user = a4n_db::auth::create_user_summary(
+        &db,
+        &format!("generation_profile_reset_{suffix}"),
+        &format!("generation_profile_reset_{suffix}@example.invalid"),
+        "generation-test-password",
+        "user",
+    )
+    .await
+    .unwrap();
+    let project = a4n_db::project::create_project_record(
+        &db,
+        a4n_db::project::CreateProjectRecordInput {
+            user_id: user.id,
+            title: format!("generation profile reset {suffix}"),
+            description: String::new(),
+            project_type: "novel_long".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let scene = a4n_db::scene_profile::create_scene_profile_record_checked(
+        &db,
+        project.id,
+        scene_profile_input("原场景"),
+    )
+    .await
+    .unwrap();
+    let object = a4n_db::asset::create_object_profile_read_record(
+        &db,
+        project.id,
+        object_profile_input("原物体"),
+    )
+    .await
+    .unwrap();
+    let mut active: novel_project::ActiveModel = novel_project::Entity::find_by_id(project.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap()
+        .into();
+    active.lifecycle_gate = Set("resetting".to_string());
+    active.update(&db).await.unwrap();
+
+    assert!(matches!(
+        a4n_db::fact_feedback::apply_consolidation(
+            &db,
+            a4n_db::fact_feedback::ConsolidationApplyInput {
+                project_id: project.id,
+                workflow_run_id: 1,
+                expected_blueprint_version: None,
+                sources: Vec::new(),
+                changes: Vec::new(),
+            },
+        )
+        .await,
+        Err(a4n_db::fact_feedback::FactFeedbackDbError::InvalidState { .. })
+    ));
+
+    for result in [
+        a4n_db::scene_profile::create_scene_profile_record_checked(
+            &db,
+            project.id,
+            scene_profile_input("新场景"),
+        )
+        .await
+        .map(|_| ()),
+        a4n_db::scene_profile::update_scene_profile_record_checked(
+            &db,
+            scene.id,
+            &scene.updated_at.to_string(),
+            scene_profile_input("更新场景"),
+        )
+        .await
+        .map(|_| ()),
+        a4n_db::scene_profile::delete_scene_profile_records(&db, scene.id).await,
+    ] {
+        assert!(matches!(
+            result,
+            Err(a4n_db::scene_profile::SceneProfileDbError::InvalidState { .. })
+        ));
+    }
+    for result in [
+        a4n_db::asset::create_object_profile_read_record(
+            &db,
+            project.id,
+            object_profile_input("新物体"),
+        )
+        .await
+        .map(|_| ()),
+        a4n_db::asset::update_object_profile_read_record(
+            &db,
+            object.id,
+            &object.updated_at.to_string(),
+            object_profile_input("更新物体"),
+        )
+        .await
+        .map(|_| ()),
+        a4n_db::asset::delete_object_profile_record(&db, object.id).await,
+    ] {
+        assert!(matches!(
+            result,
+            Err(a4n_db::asset::AssetDbError::InvalidState { .. })
+        ));
+    }
+
+    assert!(
+        scene_profile::Entity::find_by_id(scene.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    assert!(
+        object_profile::Entity::find_by_id(object.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_some()
+    );
+}
+
+#[tokio::test]
+async fn profile_updates_reject_stale_edit_versions() {
+    let db = connect_generation_test_database().await;
+    let suffix = Uuid::new_v4().simple().to_string();
+    let user = a4n_db::auth::create_user_summary(
+        &db,
+        &format!("generation_profile_version_{suffix}"),
+        &format!("generation_profile_version_{suffix}@example.invalid"),
+        "generation-test-password",
+        "user",
+    )
+    .await
+    .unwrap();
+    let project = a4n_db::project::create_project_record(
+        &db,
+        a4n_db::project::CreateProjectRecordInput {
+            user_id: user.id,
+            title: format!("profile version {suffix}"),
+            description: String::new(),
+            project_type: "novel_long".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let scene = a4n_db::scene_profile::create_scene_profile_record_checked(
+        &db,
+        project.id,
+        scene_profile_input("旧场景"),
+    )
+    .await
+    .unwrap();
+    let object = a4n_db::asset::create_object_profile_read_record(
+        &db,
+        project.id,
+        object_profile_input("旧物体"),
+    )
+    .await
+    .unwrap();
+    let stale_scene_version = scene.updated_at.to_string();
+    let stale_object_version = object.updated_at.to_string();
+
+    a4n_db::scene_profile::update_scene_profile_record_checked(
+        &db,
+        scene.id,
+        &stale_scene_version,
+        scene_profile_input("新场景"),
+    )
+    .await
+    .unwrap();
+    a4n_db::asset::update_object_profile_read_record(
+        &db,
+        object.id,
+        &stale_object_version,
+        object_profile_input("新物体"),
+    )
+    .await
+    .unwrap();
+
+    let stale_scene = a4n_db::scene_profile::update_scene_profile_record_checked(
+        &db,
+        scene.id,
+        &stale_scene_version,
+        scene_profile_input("旧窗口覆盖"),
+    )
+    .await
+    .unwrap_err();
+    assert!(stale_scene.to_string().contains("场景档案已被其他操作修改"));
+    let stale_object = a4n_db::asset::update_object_profile_read_record(
+        &db,
+        object.id,
+        &stale_object_version,
+        object_profile_input("旧窗口覆盖"),
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        stale_object
+            .to_string()
+            .contains("物体档案已被其他操作修改")
+    );
+
+    assert_eq!(
+        a4n_db::scene_profile::scene_profile_by_id(&db, scene.id)
+            .await
+            .unwrap()
+            .name,
+        "新场景"
+    );
+    assert_eq!(
+        a4n_db::asset::object_profile_by_id(&db, object.id)
+            .await
+            .unwrap()
+            .name,
+        "新物体"
+    );
+}
+
+#[tokio::test]
+async fn reset_gate_rejects_character_profile_and_timeline_mutations() {
+    let db = connect_generation_test_database().await;
+    let suffix = Uuid::new_v4().simple().to_string();
+    let user = a4n_db::auth::create_user_summary(
+        &db,
+        &format!("generation_character_reset_{suffix}"),
+        &format!("generation_character_reset_{suffix}@example.invalid"),
+        "generation-test-password",
+        "user",
+    )
+    .await
+    .unwrap();
+    let project = a4n_db::project::create_project_record(
+        &db,
+        a4n_db::project::CreateProjectRecordInput {
+            user_id: user.id,
+            title: format!("generation character reset {suffix}"),
+            description: String::new(),
+            project_type: "novel_long".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let base_attributes = json!({
+        "explicit_attributes": {},
+        "implicit_attributes": {},
+        "social_attributes": {},
+    });
+    let profile = a4n_db::character::create_profile_domain_record(
+        &db,
+        project.id,
+        "原角色",
+        base_attributes.clone(),
+    )
+    .await
+    .unwrap();
+    let mut active: novel_project::ActiveModel = novel_project::Entity::find_by_id(project.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap()
+        .into();
+    active.lifecycle_gate = Set("resetting".to_string());
+    active.update(&db).await.unwrap();
+
+    assert!(matches!(
+        a4n_db::character::create_profile_domain_record(
+            &db,
+            project.id,
+            "新角色",
+            base_attributes,
+        )
+        .await,
+        Err(a4n_db::character::CharacterProfileCreateError::InvalidState { .. })
+    ));
+    assert!(matches!(
+        a4n_db::character::delete_profile_cascade_transaction(&db, profile.id).await,
+        Err(a4n_db::character::CharacterProfileDeleteError::InvalidState { .. })
+    ));
+    assert!(matches!(
+        a4n_db::character::add_profile_attribute(
+            &db,
+            a4n_domain::character::CharacterAttributeValueChangeInput {
+                profile_id: profile.id,
+                chapter_number: 1,
+                category: "explicit".to_string(),
+                key: "勇气".to_string(),
+                value: json!("坚定"),
+                change_description: None,
+                cause: "作者手工修改".to_string(),
+                evidence: "复现输入".to_string(),
+            },
+        )
+        .await,
+        Err(a4n_db::character::CharacterDbError::InvalidState { .. })
+    ));
+    assert!(matches!(
+        a4n_db::character::request_attribute_deletion_record(
+            &db,
+            a4n_domain::character::CharacterAttributeDeletionRequestInput {
+                profile_id: profile.id,
+                category: "explicit".to_string(),
+                key: "勇气".to_string(),
+                chapter_number: 1,
+                reason: "作者请求删除".to_string(),
+                evidence: "复现输入".to_string(),
+            },
+        )
+        .await,
+        Err(a4n_db::character::CharacterDbError::InvalidState { .. })
+    ));
+    assert!(matches!(
+        a4n_db::character::reset_deletion_marks_in(
+            &db,
+            profile.id,
+            "explicit",
+            "勇气",
+            1,
+            chrono::NaiveDateTime::default(),
+        )
+        .await,
+        Err(a4n_db::character::CharacterDbError::InvalidState { .. })
+    ));
+    assert!(matches!(
+        a4n_db::character::rollback_profile_to_chapter(&db, profile.id, 0).await,
+        Err(a4n_db::character::CharacterDbError::InvalidState { .. })
+    ));
+    assert!(
+        a4n_db::character::profile_record_by_id(&db, profile.id)
+            .await
+            .unwrap()
+            .is_some()
+    );
+}
+
+#[tokio::test]
+async fn project_lifecycle_shared_writer_lock_serializes_reset_gate() {
+    let db = connect_generation_test_database().await;
+    let suffix = Uuid::new_v4().simple().to_string();
+    let user = a4n_db::auth::create_user_summary(
+        &db,
+        &format!("generation_gate_lock_{suffix}"),
+        &format!("generation_gate_lock_{suffix}@example.invalid"),
+        "generation-test-password",
+        "user",
+    )
+    .await
+    .unwrap();
+    let project = a4n_db::project::create_project_record(
+        &db,
+        a4n_db::project::CreateProjectRecordInput {
+            user_id: user.id,
+            title: format!("generation gate lock {suffix}"),
+            description: String::new(),
+            project_type: "novel_long".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let tx = db.begin().await.unwrap();
+    a4n_db::generation::require_project_owner_lifecycle_active(&tx, project.id)
+        .await
+        .unwrap();
+
+    let gate_db = db.clone();
+    let mut gate_task = tokio::spawn(async move {
+        begin_project_lifecycle_gate(
+            &gate_db,
+            project.id,
+            user.id,
+            ProjectLifecycleOperation::Reset,
+        )
+        .await
+    });
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(200), &mut gate_task)
+            .await
+            .is_err()
+    );
+
+    tx.commit().await.unwrap();
+    let claim = tokio::time::timeout(std::time::Duration::from_secs(5), gate_task)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert_eq!(claim.state, LifecycleGateClaimState::Started);
 }
 
 fn reservation_input(

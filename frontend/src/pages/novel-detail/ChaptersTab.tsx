@@ -21,7 +21,8 @@ import { formatNumber, useI18n, type Locale } from "../../i18n";
 import { useNovelDetailDirty } from "./novelDetailDirty";
 import { useChapterDetail } from "../../hooks/useChapterDetail";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
-import { isPositiveSafeInteger } from "../../utils/numberRange";
+import { chapterIndexEntry } from "../writing-desk/chapterIndex";
+import { isPositiveI32, MAX_I32 } from "../../utils/numeric";
 
 const chapterWordCount = (chapter: ChapterMetadata): number => {
   return chapter.word_count == null ? 0 : chapter.word_count;
@@ -75,6 +76,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
   const loadedProjectIdRef = useRef<number | null>(null);
   const mountedRef = useRef(false);
   const activeProjectIdRef = useRef(projectId);
+  const chapterReadFreshRef = useRef(false);
   const importSeqRef = useRef(0);
   const importingRef = useRef(false);
   const importDraftDirty = importOpen && Boolean(
@@ -95,14 +97,17 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
   useNovelDetailDirty(`chapters:${projectId}`, importDraftDirty, discardImportDraft, () => !importing);
 
   const loadChapters = useCallback(async (isCurrent: () => boolean) => {
+    chapterReadFreshRef.current = false;
     try {
       const data = await listChapterIndex(projectId);
       if (!isCurrent()) return;
       setChapters(data);
+      chapterReadFreshRef.current = true;
       loadedProjectIdRef.current = projectId;
       setLoadedProjectId(projectId);
     } catch (err) {
       if (isCurrent()) {
+        chapterReadFreshRef.current = false;
         if (loadedProjectIdRef.current !== projectId) setChapters([]);
         loadedProjectIdRef.current = projectId;
         setLoadedProjectId(projectId);
@@ -110,7 +115,13 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
       throw err;
     }
   }, [projectId]);
-  const { load, loadError } = useNovelDetailLoader(loadChapters, t("novel.loadChaptersFailed"));
+  const { load, reading, loadError } = useNovelDetailLoader(loadChapters, t("novel.loadChaptersFailed"));
+
+  const ensureChapterReadCurrent = () => {
+    if (chapterReadFreshRef.current && !reading && loadError == null) return true;
+    addToast(loadError ?? t("common.operationInProgress"), "error");
+    return false;
+  };
 
   useLayoutEffect(() => {
     mountedRef.current = true;
@@ -149,6 +160,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
       addToast(t("novel.importChapterPermissionDenied"), "error");
       return;
     }
+    if (!ensureChapterReadCurrent()) return;
     setImportForm({
       chapter_number: String(nextImportChapterNumber(displayChapters)),
       title: "",
@@ -176,6 +188,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
       addToast(t("novel.writingDeskPermissionDenied"), "error");
       return;
     }
+    if (!ensureChapterReadCurrent()) return;
     navigate(chapterNumber ? `/write/${projectId}?chapter=${chapterNumber}` : `/write/${projectId}`);
   };
 
@@ -184,6 +197,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
       addToast(t("novel.importChapterPermissionDenied"), "error");
       return;
     }
+    if (!ensureChapterReadCurrent()) return;
     const requestProjectId = projectId;
     const requestForm = {
       chapter_number: Number(importForm.chapter_number),
@@ -194,7 +208,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
       addToast(t("novel.chapterContentRequired"), "error");
       return;
     }
-    if (!isPositiveSafeInteger(requestForm.chapter_number)) {
+    if (!isPositiveI32(requestForm.chapter_number)) {
       addToast(t("writing.chapterNumberPositive"), "error");
       return;
     }
@@ -216,12 +230,16 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
         : imported.derived_sync_status === "running"
           ? tRef.current("novel.chapterImportedSyncRunning", { chapter: requestForm.chapter_number })
           : tRef.current("novel.chapterImported", { chapter: requestForm.chapter_number });
-      const loaded = await load({ force: true });
-      if (!isCurrentImport(requestProjectId, requestSeq)) return;
-      if (!loaded) return;
+      setChapters((current) => [
+        chapterIndexEntry(imported),
+        ...current.filter((chapter) => chapter.id !== imported.id),
+      ].sort((left, right) => left.chapter_number - right.chapter_number));
       addToast(message, chapterContentCommitToastType(imported.derived_sync_status));
       setImportOpen(false);
       setImportForm({ chapter_number: String(requestForm.chapter_number + 1), title: "", content: "" });
+      void load({ force: true }).then((loaded) => {
+        if (isCurrentImport(requestProjectId, requestSeq) && !loaded) addToast(tRef.current("novel.refreshFailed"), "error");
+      });
     } catch (err) {
       if (isCurrentImport(requestProjectId, requestSeq)) {
         addToast(extractErrorMessage(err, tRef.current("novel.importChapterFailed")), "error");
@@ -364,6 +382,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
                   type="number"
                   required
                   min={1}
+                  max={MAX_I32}
                   value={importForm.chapter_number}
                   onChange={(e) =>
                     setImportForm({

@@ -1,16 +1,14 @@
 use crate::media_authoring::authoring_error;
 use a4n_api_contract::galgame::GalgamePipelineStopAfter;
 use a4n_db::media_authoring as records;
-use a4n_domain::media_authoring::{
-    AuthoringDocumentInputs, AuthoringDocumentKind, AuthoringDocumentStatus,
-};
+use a4n_domain::media_authoring::{AuthoringDocumentKind, AuthoringDocumentStatus};
 use a4n_error::AppError;
 use serde_json::Value;
 
 use crate::galgame::{
     GalgameAdaptationProjection, GalgameBranchDesign, GalgamePipelineStartStage,
     branch_design_from_value, galgame_branch_design_session_user_message,
-    galgame_branch_design_user_message,
+    galgame_branch_design_user_message, galgame_pipeline_branch_plan_candidate,
 };
 
 use super::super::super::contracts::CHECKPOINT_BRANCH_PLAN;
@@ -34,56 +32,18 @@ pub(super) async fn run_branch_design_stage(
     ensure_galgame_pipeline_not_cancelled(execution.service, execution.options.workflow_run_id)
         .await?;
     let db = execution.service.database.executor();
-    let mut inputs = AuthoringDocumentInputs {
-        sources: Vec::new(),
-        dependencies: Vec::new(),
-        video_reference: None,
-        preprocessing_fingerprint: None,
-    };
-    for adaptations in execution
-        .prompt_context
-        .adaptations
-        .chunks(records::AUTHORING_READ_BATCH_SIZE)
-    {
-        let record_ids = adaptations
-            .iter()
-            .map(|adaptation| adaptation.adaptation_plan_id)
-            .collect::<Vec<_>>();
-        let rows = records::authoring_document_rows_by_ids(db, execution.project_id, &record_ids)
-            .await
-            .map_err(authoring_error)?;
-        for (adaptation, row) in adaptations.iter().zip(rows) {
-            let row = row.map_err(authoring_error)?.ok_or_else(|| {
-                authoring_error(records::AuthoringDocumentError::NotFound(
-                    adaptation.adaptation_plan_id,
-                ))
-            })?;
-            let record = row.parse().map_err(authoring_error)?;
-            if record.status != AuthoringDocumentStatus::Adopted
-                || record.revision != adaptation.adaptation_plan_revision
-            {
-                return Err(AppError::InvalidArgument(
-                    "改编计划版本已变化，请重新准备分支阶段".into(),
-                ));
-            }
-            inputs.sources.extend(record.inputs.sources.iter().cloned());
-            inputs.dependencies.push(record.reference());
-        }
-    }
-    let previous = records::editable_authoring_document(
-        db,
+    let candidate = galgame_pipeline_branch_plan_candidate(
+        execution.service,
         execution.project_id,
-        execution.prompt_context.source_snapshot_id,
-        None,
-        AuthoringDocumentKind::GalgameBranchPlan,
+        execution.prompt_context,
+        false,
     )
-    .await
-    .map_err(authoring_error)?;
+    .await?;
     let review_branch =
         execution.options.stop_after == Some(GalgamePipelineStopAfter::BranchDesign);
     if !review_branch
         && execution.options.start_from_stage != Some(stage)
-        && let Some(record) = previous.as_ref().filter(|record| record.inputs == inputs)
+        && let Some(record) = candidate.matching()
     {
         let branch = branch_design_from_value(record.document.clone(), "采用已保存分支计划")?;
         crate::galgame::validate_galgame_branch_design(&branch, scenes)?;
@@ -132,7 +92,9 @@ pub(super) async fn run_branch_design_stage(
             },
         )
         .await?;
-    let draft = previous.filter(|record| record.status == AuthoringDocumentStatus::Draft);
+    let draft = candidate
+        .editable
+        .filter(|record| record.status == AuthoringDocumentStatus::Draft);
     let record = records::save_authoring_document(
         db,
         records::SaveAuthoringDocument {
@@ -142,7 +104,7 @@ pub(super) async fn run_branch_design_stage(
             kind: AuthoringDocumentKind::GalgameBranchPlan,
             record_id: draft.as_ref().map(|record| record.id),
             expected_revision: draft.map(|record| record.revision),
-            inputs,
+            inputs: candidate.inputs,
             document: serde_json::to_value(&output.1)?,
         },
     )

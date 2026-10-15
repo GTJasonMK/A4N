@@ -480,6 +480,9 @@ pub(crate) fn result_test_runs() -> Value {
 pub(crate) fn result_list_project_members() -> Value {
     typed_schema::<Vec<crate::collaboration::ProjectMemberSummary>>()
 }
+pub(crate) fn result_project_invite() -> Value {
+    typed_schema::<crate::collaboration::ProjectInviteSummary>()
+}
 pub(crate) fn result_list_sessions() -> Value {
     typed_schema::<Vec<crate::auth::SessionSummary>>()
 }

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   isValidDeletionCount,
   isValidChapterOutlineCount,
+  isPositiveInteger,
   MAX_CHAPTER_OUTLINE_GENERATION_COUNT,
+  partGenerationInputError,
 } from "./outlineTabUtils";
 
 describe("chapter outline generation count", () => {
@@ -26,5 +28,25 @@ describe("outline deletion count", () => {
     expect(isValidDeletionCount("", 4)).toBe(false);
     expect(isValidDeletionCount(1.5, 4)).toBe(false);
     expect(isValidDeletionCount(5, 4)).toBe(false);
+  });
+});
+
+describe("part generation input", () => {
+  it("allows inferred chapters per part and rejects values outside the API integer contract", () => {
+    expect(partGenerationInputError(1, null)).toBeNull();
+    expect(partGenerationInputError(1, 6)).toBeNull();
+    expect(partGenerationInputError(0, 6)).toBe("partCount");
+    expect(partGenerationInputError(1, 1.5)).toBe("chaptersPerPart");
+    expect(partGenerationInputError(1, 2_147_483_648)).toBe("chaptersPerPart");
+    expect(partGenerationInputError(2_147_483_648, 6)).toBe("partCount");
+  });
+});
+
+describe("manual outline chapter numbers", () => {
+  it("matches the positive i32 API boundary", () => {
+    expect(isPositiveInteger(1)).toBe(true);
+    expect(isPositiveInteger(2_147_483_647)).toBe(true);
+    expect(isPositiveInteger(2_147_483_648)).toBe(false);
+    expect(isPositiveInteger(Number.MAX_SAFE_INTEGER + 1)).toBe(false);
   });
 });

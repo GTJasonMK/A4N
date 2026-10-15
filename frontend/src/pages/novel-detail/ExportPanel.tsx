@@ -103,6 +103,10 @@ export const ExportPanel: React.FC<{
   });
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat>("txt");
   const [lastResult, setLastResult] = useState<string[] | null>(null);
+  const metaRef = useRef(meta);
+  metaRef.current = meta;
+  const previousProjectIdRef = useRef(project.id);
+  const previousProjectTitleRef = useRef(project.title);
   const exportBusy = acting !== null;
   const selectedFormatOption = EXPORT_FORMATS.find(
     (format) => format.value === selectedFormat,
@@ -140,16 +144,24 @@ export const ExportPanel: React.FC<{
   useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
 
   useEffect(() => {
+    const projectChanged = previousProjectIdRef.current !== project.id;
+    const titleChanged = previousProjectTitleRef.current !== project.title;
+    const previousTitle = previousProjectTitleRef.current;
+    previousProjectIdRef.current = project.id;
+    previousProjectTitleRef.current = project.title;
     activeProjectIdRef.current = project.id;
     exportSeqRef.current += 1;
     exportBusyRef.current = false;
     setActing(null);
     setLastResult(null);
-    setMeta({
-      title: project.title,
-      author: "",
-    });
-    setSelectedFormat("txt");
+    if (projectChanged) {
+      setMeta({ title: project.title, author: "" });
+      setSelectedFormat("txt");
+      return;
+    }
+    if (titleChanged && metaRef.current.title.trim() === previousTitle.trim()) {
+      setMeta((current) => ({ ...current, title: project.title }));
+    }
   }, [project.id, project.title]);
 
   const isCurrentExport = (requestProjectId: number, requestSeq: number) =>

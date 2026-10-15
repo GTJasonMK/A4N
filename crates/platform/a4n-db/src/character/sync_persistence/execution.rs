@@ -21,6 +21,15 @@ where
     validate_character_sync_persistence_input(&input)?;
 
     let tx = db.begin().await?;
+    let project = crate::project::project_write_identity_for_update(&tx, input.project_id)
+        .await?
+        .ok_or_else(|| CharacterDbError::NotFound(format!("项目不存在: {}", input.project_id)))?;
+    if project.lifecycle_gate != crate::generation::PROJECT_GATE_ACTIVE {
+        return Err(CharacterDbError::InvalidState {
+            current: project.lifecycle_gate,
+            operation: "保存角色同步结果".to_string(),
+        });
+    }
     if !crate::chapter_content::chapter_source_snapshots_match_for_update(
         &tx,
         &input.source_chapters,

@@ -3,6 +3,7 @@ use super::contracts::{
     AcceptedImportReview, ImportReviewMutationError, ensure_pending_import_review,
     import_review_record,
 };
+use super::records::review_project_id;
 use a4n_db_models::models::project::import_review_queue;
 use a4n_domain::import_review::ImportReviewStatus;
 use chrono::Utc;
@@ -17,12 +18,19 @@ pub async fn accept_import_review<C>(
 where
     C: ConnectionTrait + TransactionTrait,
 {
+    let project_id = review_project_id(db, review_id).await?;
     let tx = db.begin().await?;
+    crate::generation::require_project_owner_lifecycle_active(&tx, project_id).await?;
     let mut review = import_review_queue::Entity::find_by_id(review_id)
         .lock_exclusive()
         .one(&tx)
         .await?
         .ok_or_else(|| ImportReviewMutationError::NotFound("导入审核不存在".to_string()))?;
+    if review.project_id != project_id {
+        return Err(ImportReviewMutationError::InvalidArgument(
+            "导入审核所属项目已变化".to_string(),
+        ));
+    }
     ensure_pending_import_review(&review, "接受导入审核")?;
     let status = if let Some(result) = analysis_result {
         review.analysis_result = result;

@@ -355,6 +355,7 @@ async fn initialize_runtime_with_ports(
         image_reference_read_application,
         image_library_read_application,
         image_record_mutation_application,
+        image_record_cascade_mutation_application: orchestrator.clone(),
         image_import_preparation_application: orchestrator.clone(),
         image_import_publication_application: orchestrator.clone(),
         artifact_media_publication_application,
@@ -482,7 +483,11 @@ impl a4n_api_contract::video::VideoRecordMutationApplicationPort for VideoRecord
             .await
     }
 
-    async fn delete(&self, user_id: i64, video_id: i64) -> Result<(), a4n_error::AppError> {
+    async fn delete(
+        &self,
+        user_id: i64,
+        video_id: i64,
+    ) -> Result<a4n_api_contract::video::VideoRecordDeleteResult, a4n_error::AppError> {
         self.orchestrator.delete(user_id, video_id).await
     }
 }

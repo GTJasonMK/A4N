@@ -5,7 +5,10 @@
 
 use a4n_db::{
     DbHandle,
-    manga::{MangaPipelineArtifactProjectionReset, MangaPromptUpdatedAt},
+    manga::{
+        MangaPipelineArtifactProjectionReset, MangaPipelineArtifactProjectionUpdate,
+        MangaPromptUpdatedAt,
+    },
 };
 use a4n_domain::manga::{
     MangaBoundReferenceAsset, MangaPagePromptRecord, MangaPipelineArtifactDraft,
@@ -193,6 +196,21 @@ impl MangaApplication {
         .map_err(manga_prompt_record_error)
     }
 
+    async fn save_manga_pipeline_artifact_with_projection(
+        &self,
+        draft: MangaPipelineArtifactDraft,
+        projection: Option<MangaPipelineArtifactProjectionUpdate>,
+    ) -> Result<MangaPipelineArtifactRecord, AppError> {
+        a4n_db::manga::save_manga_pipeline_artifact_with_projection(
+            self.database.executor(),
+            draft,
+            projection,
+            chrono::Utc::now().naive_utc(),
+        )
+        .await
+        .map_err(manga_prompt_record_error)
+    }
+
     async fn delete_manga_pipeline_artifact(
         &self,
         project_id: i64,
@@ -224,20 +242,6 @@ impl MangaApplication {
             self.database.executor(),
             page_prompt,
             layout,
-        )
-        .await
-        .map_err(manga_prompt_record_error)
-    }
-
-    async fn update_manga_page_prompt_image_prompt(
-        &self,
-        page_prompt: MangaPagePromptRecord,
-        image_prompt: String,
-    ) -> Result<MangaPagePromptRecord, AppError> {
-        a4n_db::manga::update_manga_page_prompt_image_prompt(
-            self.database.executor(),
-            page_prompt,
-            image_prompt,
         )
         .await
         .map_err(manga_prompt_record_error)
@@ -373,6 +377,16 @@ impl OrchestratorContext {
         self.manga.upsert_manga_pipeline_artifact(draft).await
     }
 
+    pub(crate) async fn save_manga_pipeline_artifact_with_projection(
+        &self,
+        draft: MangaPipelineArtifactDraft,
+        projection: Option<MangaPipelineArtifactProjectionUpdate>,
+    ) -> Result<MangaPipelineArtifactRecord, AppError> {
+        self.manga
+            .save_manga_pipeline_artifact_with_projection(draft, projection)
+            .await
+    }
+
     pub(crate) async fn delete_manga_pipeline_artifact(
         &self,
         project_id: i64,
@@ -401,16 +415,6 @@ impl OrchestratorContext {
     ) -> Result<MangaPagePromptRecord, AppError> {
         self.manga
             .update_manga_page_prompt_layout(page_prompt, layout)
-            .await
-    }
-
-    pub(crate) async fn update_manga_page_prompt_image_prompt(
-        &self,
-        page_prompt: MangaPagePromptRecord,
-        image_prompt: String,
-    ) -> Result<MangaPagePromptRecord, AppError> {
-        self.manga
-            .update_manga_page_prompt_image_prompt(page_prompt, image_prompt)
             .await
     }
 

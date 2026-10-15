@@ -45,6 +45,7 @@ import { nonEmptyText } from "../utils/text";
 import { getScrollRailCue, scrollRailItemIntoView } from "../utils/scrollRail";
 import { formatNumber, useI18n, type Locale, type MessageKey, type MessageTranslator } from "../i18n";
 import { usePackagePreferences } from "../store/packagePreferences";
+import { useProjectLifecycleSync } from "../hooks/useProjectLifecycleSync";
 import { runBlueprintRefinementWithProgress } from "./novel-detail/blueprintRefinement";
 import {
   NovelDetailDirtyProvider,
@@ -192,6 +193,7 @@ export const NovelDetail: React.FC = () => {
   const [project, setProject] = useState<NovelProject | null>(null);
   const [projectLoadError, setProjectLoadError] = useState<unknown | null>(null);
   const [loading, setLoading] = useState(true);
+  const [detailRemountRevision, setDetailRemountRevision] = useState(0);
   const [tab, setTab] = usePersistedTab<Tab>(
     isPositiveSafeInteger(projectId) ? `a4n:novel-detail:${projectId}:tab` : null,
     "overview",
@@ -231,15 +233,18 @@ export const NovelDetail: React.FC = () => {
   const ragActionBusyRef = useRef(false);
   const refineActionBusyRef = useRef(false);
   const titleActionBusyRef = useRef(false);
+  const statusMachineOpeningRef = useRef(false);
   const activeTabRef = useRef<HTMLButtonElement | null>(null);
   const tabListRef = useRef<HTMLElement | null>(null);
   const [tabRailHasBefore, setTabRailHasBefore] = useState(false);
   const [tabRailHasMore, setTabRailHasMore] = useState(false);
-  const lifecycleBlockedReason = project
-    ? getProjectLifecycleBlockedReason(project, t)
-    : null;
+  const lifecycleBlockedReason = projectLoadError != null
+    ? t("novel.projectStatusRefreshUnavailable")
+    : project
+      ? getProjectLifecycleBlockedReason(project, t)
+      : null;
   const canEditCurrentProject = project
-    ? canEditProjectMaterials(project)
+    ? !loading && projectLoadError == null && canEditProjectMaterials(project)
     : false;
 
   const isCurrentProject = (requestProjectId: number) =>
@@ -273,7 +278,8 @@ export const NovelDetail: React.FC = () => {
     setLoading(true);
     try {
       const p = await getProject(String(requestProjectId));
-      if (!isCurrentAction(requestProjectId, refreshSeqRef, requestSeq)) return false;
+      if (!isCurrentProject(requestProjectId)) return false;
+      if (refreshSeqRef.current !== requestSeq) return true;
       if (p.project_kind !== "text") {
         navigate(getProjectHomeEntryRoute(p), { replace: true });
         return false;
@@ -282,9 +288,9 @@ export const NovelDetail: React.FC = () => {
       setProjectLoadError(null);
       return true;
     } catch (err) {
-      if (isCurrentAction(requestProjectId, refreshSeqRef, requestSeq)) {
-        setProjectLoadError(err);
-      }
+      if (!isCurrentProject(requestProjectId)) return false;
+      if (refreshSeqRef.current !== requestSeq) return true;
+      setProjectLoadError(err);
       return false;
     } finally {
       if (isCurrentAction(requestProjectId, refreshSeqRef, requestSeq)) {
@@ -292,6 +298,23 @@ export const NovelDetail: React.FC = () => {
       }
     }
   };
+
+  const handleLifecycleGateChange = (nextProject: NovelProject) => {
+    setProject(nextProject);
+  };
+
+  useProjectLifecycleSync(
+    projectId,
+    project?.lifecycle_gate,
+    handleLifecycleGateChange,
+    {
+      enabled: project != null && !loading,
+      contentRevision: project?.content_revision,
+      updatedAt: project?.updated_at,
+      onReadError: () => { void refresh(projectId); },
+      onReadSuccess: () => setProjectLoadError(null),
+    },
+  );
 
   useEffect(() => {
     mountedRef.current = true;
@@ -307,6 +330,7 @@ export const NovelDetail: React.FC = () => {
     setProject(null);
     setProjectLoadError(null);
     setLoading(true);
+    setDetailRemountRevision(0);
     setSaving(false);
     setRagSyncing(false);
     setRefining(false);
@@ -428,8 +452,9 @@ export const NovelDetail: React.FC = () => {
   const homeEntryRoute = getProjectHomeEntryRoute(project);
   const primaryRoute = getProjectPrimaryRoute(project);
   const homeEntryLabel = getProjectHomeEntryLabel(project, t);
-  const canEditProject = canEditProjectMaterials(project);
-  const canOwnProject = project.my_role === "owner" && !lifecycleBlockedReason;
+  const canEditProject =
+    projectLoadError == null && lifecycleBlockedReason == null && canEditProjectMaterials(project);
+  const canOwnProject = projectLoadError == null && project.my_role === "owner" && !lifecycleBlockedReason;
   const visibleTabs = canEditProject
     ? tabs
     : tabs.filter(
@@ -534,6 +559,7 @@ export const NovelDetail: React.FC = () => {
         addToast(tRef.current("novel.syncStopped"), "info");
       } else {
         addToast(message, "error");
+        void refresh(requestProjectId);
       }
     } finally {
       if (requestSeq == null) {
@@ -588,6 +614,11 @@ export const NovelDetail: React.FC = () => {
         errorMessage: tRef.current("novel.refineBlueprintFailed"),
         isCurrent: () => isCurrentAction(requestProjectId, refineSeqRef, activeRequestSeq),
         refresh: () => refresh(requestProjectId),
+        onRefreshFailure: () => {
+          if (isCurrentAction(requestProjectId, refineSeqRef, activeRequestSeq)) {
+            addToast(tRef.current("novel.refreshFailed"), "error");
+          }
+        },
         t: (key, params) => tRef.current(key, params),
       });
       if (!isCurrentAction(requestProjectId, refineSeqRef, activeRequestSeq)) return;
@@ -612,6 +643,7 @@ export const NovelDetail: React.FC = () => {
           cancelled ? tRef.current("feedback.progressCancelled") : message,
           cancelled ? "info" : "error",
         );
+        if (!cancelled) void refresh(requestProjectId);
       }
     } finally {
       if (requestSeq == null) {
@@ -651,16 +683,17 @@ export const NovelDetail: React.FC = () => {
         titleSeqRef.current = requestSeq;
         setSaving(true);
         try {
-          const updatedProject = await updateProject(requestProjectId, { title: next.trim() });
+          const updatedProject = await updateProject(requestProjectId, {
+            title: next.trim(),
+            expected_updated_at: requestProject.updated_at,
+          });
           if (!isCurrentAction(requestProjectId, titleSeqRef, requestSeq)) return;
           setProject(updatedProject);
-          const refreshed = await refresh(requestProjectId);
-          if (!isCurrentAction(requestProjectId, titleSeqRef, requestSeq)) return;
           addToast(tRef.current("novel.projectTitleUpdated"), "success");
-          if (!refreshed) addToast(tRef.current("novel.refreshFailed"), "error");
         } catch (err) {
           if (isCurrentAction(requestProjectId, titleSeqRef, requestSeq)) {
             addToast(extractErrorMessage(err, tRef.current("novel.updateTitleFailed")), "error");
+            void refresh(requestProjectId);
           }
         } finally {
           if (isCurrentAction(requestProjectId, titleSeqRef, requestSeq)) {
@@ -684,7 +717,29 @@ export const NovelDetail: React.FC = () => {
     setExportBusy(false);
     setExportOpen(true);
   };
+  const handleOpenStatusMachine = async () => {
+    if (statusMachineOpeningRef.current) return;
+    statusMachineOpeningRef.current = true;
+    setActionsOpen(false);
+    try {
+      const refreshed = await refresh();
+      if (!refreshed) {
+        if (isCurrentProject(projectId)) {
+          addToast(tRef.current("statusMachine.stateRefreshFailed"), "error");
+        }
+        return;
+      }
+      if (isCurrentProject(projectId)) setStateMachineOpen(true);
+    } finally {
+      statusMachineOpeningRef.current = false;
+    }
+  };
   const closeCollaboration = async () => {
+    const operationKey = `collaboration-operations:${project.id}:${project.collaboration_root_project_id}`;
+    if (dirtyRegistry.hasDirty(operationKey) && !dirtyRegistry.canDiscardDirty(operationKey)) {
+      addToast(t("common.operationInProgress"), "info");
+      return;
+    }
     if (dirtyRegistry.hasDirty(`collaboration:${project.id}`) && !(await confirmDialog({
       title: t("common.unsavedChangesTitle"),
       message: t("common.unsavedChangesMessage", { name: t("novel.collaborationTitle"), action: t("common.close") }),
@@ -692,6 +747,7 @@ export const NovelDetail: React.FC = () => {
       dialogType: "warning",
     }))) return;
     if (!await dirtyRegistry.discardDirty(`collaboration:${project.id}`)) return;
+    if (!await dirtyRegistry.discardDirty(operationKey)) return;
     setCollaborationOpen(false);
   };
   const closeExport = async () => {
@@ -785,6 +841,16 @@ export const NovelDetail: React.FC = () => {
         </div>
       ) : null}
 
+      {projectLoadError ? (
+        <div role="alert" className="flex shrink-0 flex-wrap items-center gap-2 border-b border-error/35 bg-error-bg px-[var(--a4n-content-gutter)] py-2 text-small text-error">
+          <span className="min-w-0 flex-1">{extractErrorMessage(projectLoadError, t("novel.loadProject"))}</span>
+          <BookButton variant="secondary" size="sm" onClick={() => void refresh(projectId)} disabled={loading}>
+            <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
+            {t("novel.retryProjectLoad")}
+          </BookButton>
+        </div>
+      ) : null}
+
       <div
         className="a4n-tab-rail-wrap shrink-0"
         data-has-before={tabRailHasBefore ? "true" : undefined}
@@ -827,7 +893,7 @@ export const NovelDetail: React.FC = () => {
       </div>
 
       <div
-        key={project.lifecycle_gate}
+        key={`${project.lifecycle_gate}:${project.content_revision}:${detailRemountRevision}`}
         className="flex-1 min-h-0 overflow-y-auto custom-scrollbar a4n-page-container"
       >
         <Suspense
@@ -886,6 +952,7 @@ export const NovelDetail: React.FC = () => {
             canForwardStatus={canEditProject}
             canRollbackStatus={canOwnProject}
             onMutated={refresh}
+            onRollbackCommitted={() => setDetailRemountRevision((revision) => revision + 1)}
           />
         </Suspense>
       ) : null}
@@ -925,10 +992,7 @@ export const NovelDetail: React.FC = () => {
               icon={<GitBranch size={14} />}
               title={t("novel.projectStage")}
               description={statusMachineDescription}
-              onClick={() => {
-                setActionsOpen(false);
-                setStateMachineOpen(true);
-              }}
+                onClick={() => void handleOpenStatusMachine()}
             />
           </ProjectActionGroup>
 
@@ -961,7 +1025,10 @@ export const NovelDetail: React.FC = () => {
                 title={t("novel.refineBlueprint")}
                 description={t("novel.refineBlueprintDescription")}
                 disabled={refining}
-                onClick={handleRefineBlueprint}
+                onClick={() => {
+                  setActionsOpen(false);
+                  void handleRefineBlueprint();
+                }}
               />
             </ProjectActionGroup>
           ) : null}

@@ -17,6 +17,7 @@ interface RunBlueprintRefinementWithProgressInput {
   errorMessage: string;
   isCurrent: () => boolean;
   refresh: () => Promise<boolean | void>;
+  onRefreshFailure?: () => void;
   t: MessageTranslator;
 }
 
@@ -34,6 +35,7 @@ export async function runBlueprintRefinementWithProgress({
   errorMessage,
   isCurrent,
   refresh,
+  onRefreshFailure,
   t,
 }: RunBlueprintRefinementWithProgressInput): Promise<string[]> {
   return runGenerationProgressTaskThen(
@@ -53,9 +55,11 @@ export async function runBlueprintRefinementWithProgress({
       if (!isCurrent()) throw new Error(t("workflow.cancelled"));
       const warnings = await syncBlueprintMaterials(projectId);
       if (!isCurrent()) throw new Error(t("workflow.cancelled"));
-      const refreshed = await refresh();
-      if (refreshed === false) warnings.push(t("novel.refreshFailed"));
-      if (!isCurrent()) throw new Error(t("workflow.cancelled"));
+      void refresh()
+        .then((refreshed) => {
+          if (refreshed === false) onRefreshFailure?.();
+        })
+        .catch(() => onRefreshFailure?.());
       return warnings;
     },
   );

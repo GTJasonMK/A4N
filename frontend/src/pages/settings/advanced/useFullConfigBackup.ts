@@ -12,7 +12,10 @@ import { getActiveLocale, translateMessage, type MessageKey } from "../../../i18
 const translateCurrent = (key: MessageKey, params?: Record<string, string | number>) =>
   translateMessage(getActiveLocale(), key, params);
 
-type BackupOperation = "exporting" | "preparingImport" | "importing";
+type BackupOperation =
+  | { status: "exporting" }
+  | { status: "preparingImport"; overwrite: boolean }
+  | { status: "importing"; overwrite: boolean };
 
 const activeBackupOperations = new Map<string, BackupOperation>();
 const backupOperationListeners = new Set<() => void>();
@@ -52,9 +55,12 @@ export const useFullConfigBackup = (scope: ConfigBackupScope) => {
     () => activeBackupOperations.get(requestKey) ?? null,
     () => null,
   );
-  const exporting = activeOperation === "exporting";
-  const preparingImport = activeOperation === "preparingImport";
-  const importing = activeOperation === "importing";
+  const exporting = activeOperation?.status === "exporting";
+  const preparingImport = activeOperation?.status === "preparingImport";
+  const importing = activeOperation?.status === "importing";
+  const visibleOverwrite = activeOperation && activeOperation.status !== "exporting"
+    ? activeOperation.overwrite
+    : overwrite;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -64,7 +70,6 @@ export const useFullConfigBackup = (scope: ConfigBackupScope) => {
   }, []);
 
   const isSameUser = (userId: number | null) => useAuthStore.getState().user?.id === userId;
-  const isCurrentView = (userId: number | null) => mountedRef.current && isSameUser(userId);
 
   const handleExport = async () => {
     const requestUserId = user?.id ?? null;
@@ -72,7 +77,7 @@ export const useFullConfigBackup = (scope: ConfigBackupScope) => {
       addToast(translateCurrent("settingsAdvanced.operationInProgress"), "info");
       return;
     }
-    updateBackupOperation(requestKey, "exporting");
+    updateBackupOperation(requestKey, { status: "exporting" });
     try {
       const fileName = createDefaultConfigFileName(scope);
       const settingsJson = scope === "local"
@@ -101,14 +106,14 @@ export const useFullConfigBackup = (scope: ConfigBackupScope) => {
       addToast(translateCurrent("settingsAdvanced.operationInProgress"), "info");
       return;
     }
-    updateBackupOperation(requestKey, "preparingImport");
     const requestOverwrite = overwrite;
+    updateBackupOperation(requestKey, { status: "preparingImport", overwrite: requestOverwrite });
     let errorFallbackKey:
       | "settingsAdvanced.readFileFailed"
       | "settingsAdvanced.importFailed" = "settingsAdvanced.readFileFailed";
     try {
       const settingsJson = await file.text();
-      if (!isCurrentView(requestUserId)) return;
+      if (!isSameUser(requestUserId)) return;
 
       const trimmedSettingsJson = settingsJson.trim();
       if (!trimmedSettingsJson) {
@@ -131,9 +136,9 @@ export const useFullConfigBackup = (scope: ConfigBackupScope) => {
         dialogType: "warning",
       });
       if (!ok) return;
-      if (!isCurrentView(requestUserId)) return;
+      if (!isSameUser(requestUserId)) return;
 
-      updateBackupOperation(requestKey, "importing");
+      updateBackupOperation(requestKey, { status: "importing", overwrite: requestOverwrite });
       errorFallbackKey = "settingsAdvanced.importFailed";
       let details: string[];
       if (scope === "local") {
@@ -169,7 +174,7 @@ export const useFullConfigBackup = (scope: ConfigBackupScope) => {
   };
 
   return {
-    overwrite,
+    overwrite: visibleOverwrite,
     exporting,
     preparingImport,
     importing,

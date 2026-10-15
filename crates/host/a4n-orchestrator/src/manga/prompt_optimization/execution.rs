@@ -108,11 +108,9 @@ impl OrchestratorContext {
                 prepared.request,
             )
             .await?;
-        if prepared.page_prompt.image_prompt.trim() == image_prompt {
-            return Ok(prepared.page_prompt);
-        }
-        self.update_manga_page_prompt_image_prompt(prepared.page_prompt, image_prompt)
-            .await
+        let mut page_prompt = prepared.page_prompt;
+        page_prompt.image_prompt = image_prompt;
+        Ok(page_prompt)
     }
 
     pub(super) async fn run_manga_prompt_optimization_call(
@@ -209,6 +207,11 @@ pub(super) fn required_manga_prompt_optimization_input(
     let instruction = required_text(&input.instruction, "优化要求")
         .map_err(AppError::InvalidArgument)?
         .to_string();
+    if input.expected_updated_at.trim() != input.page_prompt.updated_at.to_string() {
+        return Err(AppError::InvalidArgument(
+            "漫画提示词已被其他操作修改，请刷新后重试".to_string(),
+        ));
+    }
     Ok(RequiredMangaPromptOptimizationInput {
         page_prompt: input.page_prompt,
         instruction,

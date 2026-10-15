@@ -26,13 +26,18 @@ export const TasksSection: React.FC = () => {
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(new Set());
   const tasksRef = useRef(tasks);
   const cancellingIdsRef = useRef(cancellingIds);
+  const taskReadVersionRef = useRef(0);
 
   tasksRef.current = tasks;
   cancellingIdsRef.current = cancellingIds;
 
   const loadTasks = useCallback(() => listPendingTaskIndex(), []);
+  const applyTasks = useCallback((next: PendingTaskIndexSummary[]) => {
+    taskReadVersionRef.current += 1;
+    setTasks(next);
+  }, []);
   const { loading, error, load, reload, isCurrentScope } =
-    useAdminSectionLoader("admin-tasks", loadTasks, setTasks, "settingsAdmin.loadFailed", {
+    useAdminSectionLoader("admin-tasks", loadTasks, applyTasks, "settingsAdmin.loadFailed", {
       intervalMs: 5000,
     });
   useDirty(
@@ -51,23 +56,36 @@ export const TasksSection: React.FC = () => {
   };
 
   const handleCancel = async (id: string) => {
+    if (loading) {
+      addToast(t("common.operationInProgress"), "info");
+      return;
+    }
+    if (error) {
+      addToast(error, "error");
+      return;
+    }
     if (cancellingIdsRef.current.has(id)) return;
     if (!tasksRef.current.some((task) => task.id === id)) {
       addToast(t("settingsAdmin.taskMissing"), "info");
       return;
     }
+    const requestReadVersion = taskReadVersionRef.current;
     setTaskCancelling(id, true);
     try {
       const cancelled = await cancelAdminTask(id);
       if (!isCurrentScope("admin-tasks")) return;
-      await reload();
-      if (!isCurrentScope("admin-tasks")) return;
+      if (taskReadVersionRef.current !== requestReadVersion) {
+        void reload();
+        return;
+      }
+      setTasks((current) => current.filter((task) => task.id !== id));
       addToast(
         cancelled
           ? t("settingsAdmin.taskCancelled")
           : t("settingsAdmin.taskAlreadyFinished"),
         cancelled ? "success" : "info",
       );
+      void reload();
     } catch (err) {
       if (!isCurrentScope("admin-tasks")) return;
       addToast(extractErrorMessage(err, t("settingsAdmin.cancelFailed")), "error");

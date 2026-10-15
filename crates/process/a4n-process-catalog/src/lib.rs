@@ -246,7 +246,7 @@ mod tests {
             .expect("foreshadowing worker entry");
         assert_eq!(foreshadowing.kind, ProcessKind::StatefulWorker);
         assert_eq!(foreshadowing.binary, "a4n-foreshadowing-worker");
-        assert_eq!(foreshadowing.contract_version, "foreshadowing-records-v2");
+        assert_eq!(foreshadowing.contract_version, "foreshadowing-records-v3");
         assert_eq!(foreshadowing.addr_env, "A4N_FORESHADOWING_WORKER_ADDR");
         assert_eq!(foreshadowing.default_addr, "127.0.0.1:47656");
         assert_eq!(
@@ -318,7 +318,7 @@ mod tests {
             .expect("project status worker entry");
         assert_eq!(project_status.kind, ProcessKind::StatefulWorker);
         assert_eq!(project_status.binary, "a4n-project-status-worker");
-        assert_eq!(project_status.contract_version, "project-status-v2");
+        assert_eq!(project_status.contract_version, "project-status-v3");
         assert_eq!(project_status.addr_env, "A4N_PROJECT_STATUS_WORKER_ADDR");
         assert_eq!(project_status.default_addr, "127.0.0.1:47662");
         assert_eq!(
@@ -413,7 +413,7 @@ mod tests {
         );
         assert_eq!(
             project_collaboration.contract_version,
-            "project-collaboration-v1"
+            "project-collaboration-v2"
         );
         assert_eq!(
             project_collaboration.addr_env,
@@ -542,7 +542,7 @@ mod tests {
             .expect("character mutation worker entry");
         assert_eq!(character_mutation.kind, ProcessKind::StatefulWorker);
         assert_eq!(character_mutation.binary, "a4n-character-mutation-worker");
-        assert_eq!(character_mutation.contract_version, "character-mutation-v7");
+        assert_eq!(character_mutation.contract_version, "character-mutation-v9");
         assert_eq!(
             character_mutation.addr_env,
             "A4N_CHARACTER_MUTATION_WORKER_ADDR"
@@ -602,7 +602,7 @@ mod tests {
         assert_eq!(sidecar.kind, ProcessKind::CapabilitySidecar);
         assert_eq!(
             sidecar.capability_version.as_deref(),
-            Some("prompt-render-v6")
+            Some("prompt-render-v7")
         );
         assert_eq!(
             sidecar.contract_version.as_deref(),
@@ -683,7 +683,7 @@ mod tests {
               "name":"prompt",
               "binary":"a4n-prompt-service",
               "launcher":"a4n-prompt-service",
-              "capability_version":"prompt-render-v6",
+              "capability_version":"prompt-render-v7",
               "addr_env":"A4N_PROMPT_SERVICE_ADDR",
               "url_env":"A4N_PROMPT_SERVICE_URL",
               "default_addr":"127.0.0.1:47641",

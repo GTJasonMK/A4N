@@ -1005,6 +1005,7 @@ async fn stale_chapter_source_rejects_scene_sync_write() {
 
     let error = replace_chapter_scene_sync_with_generation_run_records(
         &db,
+        1,
         project_id,
         chapter.id,
         chapter.chapter_number,
@@ -1208,6 +1209,7 @@ async fn scene_sync_evidence_failure_rolls_back_profile_and_generation() {
 
     let error = replace_chapter_scene_sync_with_generation_run_records(
         &db,
+        1,
         project_id,
         chapter.id,
         chapter.chapter_number,

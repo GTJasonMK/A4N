@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, FilePlus2, Save, Sparkles, Upload } from "lucide-react";
 import {
   generateCanvasTextAssetDraft,
@@ -18,6 +18,7 @@ import { useToast } from "../../components/feedback/Toast";
 import { extractErrorMessage } from "../../api";
 import { useI18n } from "../../i18n";
 import { pickLocalFile, readFileAsBase64 } from "../../utils/fileUpload";
+import { useNovelDetailDirty } from "../novel-detail/novelDetailDirty";
 import { EmptyHint } from "../novel-detail/shared";
 
 export interface ProjectTextSourceSelection {
@@ -78,26 +79,48 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
   const [sourceDialogOpen, setSourceDialogOpen] = useState(false);
   const [generatingDraft, setGeneratingDraft] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [assetsLoaded, setAssetsLoaded] = useState(false);
   const requestRef = useRef(0);
   const selectedIdRef = useRef<number | null>(null);
+  const activeProjectIdRef = useRef(projectId);
+  activeProjectIdRef.current = projectId;
   const selected = assets.find((asset) => asset.id === selectedId) ?? null;
   const sections = useMemo(() => textAssetSections(content), [content]);
-  const dirty = selected
+  const editorDirty = selected
     ? title !== baselineTitle || content !== baselineContent
     : title.trim().length > 0 || content.trim().length > 0;
+  const assistantDraftDirty = aiInstruction.length > 0 || aiDraftContent.length > 0;
+  const dirty = editorDirty || assistantDraftDirty;
+  const actionBusy = saving || importing || generatingDraft;
+  const discardDraft = () => {
+    if (actionBusy) return false;
+    setTitle(baselineTitle);
+    setContent(baselineContent);
+    setAiInstruction("");
+    setAiDraftContent("");
+    setAiAssistantOpen(false);
+  };
+  useNovelDetailDirty(
+    `project-text-material:${projectId}`,
+    dirty || actionBusy,
+    discardDraft,
+    () => !actionBusy,
+  );
 
-  const load = useCallback(async (preferId?: number, preferVersion?: number) => {
+  const load = useCallback(async (preferId?: number, preferVersion?: number): Promise<boolean> => {
+    if (activeProjectIdRef.current !== projectId) return false;
     const request = requestRef.current + 1;
     requestRef.current = request;
     setLoading(true);
     setError(null);
     try {
       const result = await listCanvasTextAssets(projectId);
-      if (requestRef.current !== request) return;
+      if (activeProjectIdRef.current !== projectId || requestRef.current !== request) return false;
       setAssets(result);
+      setAssetsLoaded(true);
       const next = result.find((asset) => asset.id === (preferId ?? selectedSource?.assetId ?? selectedIdRef.current)) ?? result[0] ?? null;
       const nextVersions = next ? await listCanvasTextAssetVersions(projectId, next.id) : [];
-      if (requestRef.current !== request) return;
+      if (activeProjectIdRef.current !== projectId || requestRef.current !== request) return false;
       const selectedVersion = next
         ? preferVersion ?? (selectedSource?.assetId === next.id ? selectedSource.version : next.current_version)
         : null;
@@ -128,15 +151,42 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
           : nextSections.length - 1,
       );
       setVersions(nextVersions);
+      return true;
     } catch (cause) {
-      if (requestRef.current === request) {
+      if (activeProjectIdRef.current === projectId && requestRef.current === request) {
         const message = extractErrorMessage(cause, t("novel.textMaterialsLoadFailed"));
         setError(message);
       }
+      return false;
     } finally {
-      if (requestRef.current === request) setLoading(false);
+      if (activeProjectIdRef.current === projectId && requestRef.current === request) setLoading(false);
     }
   }, [projectId, selectedSource, t]);
+
+  useLayoutEffect(() => {
+    requestRef.current += 1;
+    selectedIdRef.current = null;
+    setAssets([]);
+    setAssetsLoaded(false);
+    setSelectedId(null);
+    setTitle("");
+    setContent("");
+    setBaselineTitle("");
+    setBaselineContent("");
+    setSourceVersion(null);
+    setVersions([]);
+    setStartSection(0);
+    setEndSection(0);
+    setAiInstruction("");
+    setAiDraftContent("");
+    setAiAssistantOpen(false);
+    setSourceDialogOpen(false);
+    setError(null);
+    setLoading(true);
+    setSaving(false);
+    setImporting(false);
+    setGeneratingDraft(false);
+  }, [projectId]);
 
   useEffect(() => {
     void load();
@@ -148,11 +198,45 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
     setEndSection((current) => Math.min(current, sections.length - 1));
   }, [sections.length]);
 
+  const confirmDraftDiscard = () => confirmDialog({
+    title: t("novel.textMaterialsDiscardTitle"),
+    message: t("novel.textMaterialsDiscardChanges"),
+  });
+
+  const applyAssetResult = (asset: CanvasTextAssetSummary) => {
+    selectedIdRef.current = asset.id;
+    setAssets((current) => {
+      const index = current.findIndex((item) => item.id === asset.id);
+      if (index < 0) return [asset, ...current];
+      return current.map((item, itemIndex) => itemIndex === index ? asset : item);
+    });
+    setSelectedId(asset.id);
+    setTitle(asset.title);
+    setBaselineTitle(asset.title);
+    setContent(asset.content);
+    setBaselineContent(asset.content);
+    setSourceVersion(asset.current_version);
+    setStartSection(0);
+    setEndSection(textAssetSections(asset.content).length - 1);
+    setVersions([]);
+  };
+
+  const retryLoad = async () => {
+    if (saving || importing) return;
+    if (dirty && !await confirmDraftDiscard()) return;
+    if (await load()) {
+      setAiInstruction("");
+      setAiDraftContent("");
+    }
+  };
+
   const chooseAsset = async (asset: CanvasTextAssetSummary) => {
-    if (dirty && !await confirmDialog({
-      title: t("novel.textMaterialsDiscardTitle"),
-      message: t("novel.textMaterialsDiscardChanges"),
-    })) return;
+    const requestProjectId = projectId;
+    if (saving || importing || loading || activeProjectIdRef.current !== requestProjectId) return;
+    if (dirty && !await confirmDraftDiscard()) return;
+    if (activeProjectIdRef.current !== requestProjectId) return;
+    setAiInstruction("");
+    setAiDraftContent("");
     const request = requestRef.current + 1;
     requestRef.current = request;
     selectedIdRef.current = asset.id;
@@ -166,10 +250,10 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
     setEndSection(textAssetSections(asset.content).length - 1);
     try {
       const nextVersions = await listCanvasTextAssetVersions(projectId, asset.id);
-      if (requestRef.current !== request || selectedIdRef.current !== asset.id) return;
+      if (activeProjectIdRef.current !== requestProjectId || requestRef.current !== request || selectedIdRef.current !== asset.id) return;
       setVersions(nextVersions);
     } catch (cause) {
-      if (requestRef.current !== request || selectedIdRef.current !== asset.id) return;
+      if (activeProjectIdRef.current !== requestProjectId || requestRef.current !== request || selectedIdRef.current !== asset.id) return;
       addToast(extractErrorMessage(cause, t("novel.textMaterialsHistoryFailed")), "error");
       setVersions([]);
     }
@@ -177,12 +261,12 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
 
   const createNew = () => {
     void (async () => {
-      if (dirty && !await confirmDialog({
-        title: t("novel.textMaterialsDiscardTitle"),
-        message: t("novel.textMaterialsDiscardChanges"),
-      })) return;
+      if (dirty && !await confirmDraftDiscard()) return;
+      if (activeProjectIdRef.current !== projectId || loading || saving || importing) return;
       requestRef.current += 1;
       selectedIdRef.current = null;
+      setAiInstruction("");
+      setAiDraftContent("");
       setSelectedId(null);
       setTitle("");
       setContent("");
@@ -196,81 +280,93 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
   };
 
   const save = async () => {
-    if (!canEdit || saving || !title.trim() || !content.trim()) return;
+    if (!canEdit || !assetsLoaded || loading || saving || importing || !title.trim() || !content.trim()) return;
+    const requestProjectId = projectId;
+    const requestTitle = title.trim();
+    const requestContent = content;
     setSaving(true);
     try {
-      const asset = await saveCanvasTextAsset(projectId, {
+      const asset = await saveCanvasTextAsset(requestProjectId, {
         id: selected?.id ?? null,
         expected_version: selected?.current_version ?? null,
-        title: title.trim(),
+        title: requestTitle,
         text_kind: "script",
-        content,
+        content: requestContent,
       });
+      if (activeProjectIdRef.current !== requestProjectId) return;
+      applyAssetResult(asset);
       addToast(t("novel.textMaterialsSaved", { version: asset.current_version }), "success");
-      await load(asset.id, asset.current_version);
+      void load(asset.id, asset.current_version);
     } catch (cause) {
+      if (activeProjectIdRef.current !== requestProjectId) return;
       addToast(extractErrorMessage(cause, t("novel.textMaterialsSaveFailed")), "error");
     } finally {
-      setSaving(false);
+      if (activeProjectIdRef.current === requestProjectId) setSaving(false);
     }
   };
 
   const importFile = async () => {
-    if (!canEdit || importing) return;
-    if (dirty && !await confirmDialog({
-      title: t("novel.textMaterialsDiscardTitle"),
-      message: t("novel.textMaterialsDiscardChanges"),
-    })) return;
+    if (!canEdit || !assetsLoaded || loading || importing || saving) return;
+    const requestProjectId = projectId;
+    if (dirty && !await confirmDraftDiscard()) return;
+    if (activeProjectIdRef.current !== requestProjectId) return;
     const file = await pickLocalFile(".txt,.md,.markdown,.epub,.docx");
-    if (!file) return;
+    if (!file || activeProjectIdRef.current !== requestProjectId) return;
     setImporting(true);
     try {
+      const dataBase64 = await readFileAsBase64(file);
+      if (activeProjectIdRef.current !== requestProjectId) return;
       const asset = await importProjectTextAssetUpload({
-        project_id: projectId,
+        project_id: requestProjectId,
         file_name: file.name,
-        data_base64: await readFileAsBase64(file),
+        data_base64: dataBase64,
       });
+      if (activeProjectIdRef.current !== requestProjectId) return;
+      setAiInstruction("");
+      setAiDraftContent("");
+      applyAssetResult(asset);
       addToast(t("novel.textMaterialsImported", { title: asset.title }), "success");
-      await load(asset.id);
+      void load(asset.id);
     } catch (cause) {
+      if (activeProjectIdRef.current !== requestProjectId) return;
       addToast(extractErrorMessage(cause, t("novel.textMaterialsImportFailed")), "error");
     } finally {
-      setImporting(false);
+      if (activeProjectIdRef.current === requestProjectId) setImporting(false);
     }
   };
 
   const openAiAssistant = () => {
-    if (!canEdit || generatingDraft) return;
-    if (dirty) {
+    if (!canEdit || saving || importing || generatingDraft) return;
+    if (editorDirty) {
       addToast(t("novel.textMaterialsSaveBeforeAi"), "info");
       return;
     }
-    setAiInstruction("");
-    setAiDraftContent("");
     setAiAssistantOpen(true);
   };
 
   const generateDraft = async () => {
-    if (!canEdit || generatingDraft || !aiInstruction.trim()) return;
-    if (dirty) {
+    if (!canEdit || saving || importing || generatingDraft || !aiInstruction.trim()) return;
+    if (editorDirty) {
       addToast(t("novel.textMaterialsSaveBeforeAi"), "info");
       return;
     }
+    const requestProjectId = projectId;
     setGeneratingDraft(true);
-    setAiDraftContent("");
     try {
       const draft = await generateCanvasTextAssetDraft({
-        project_id: projectId,
+        project_id: requestProjectId,
         llm_config_id: null,
         instruction: aiInstruction.trim(),
         source_asset_id: selected?.id ?? null,
         source_version: selected ? sourceVersion ?? selected.current_version : null,
       });
+      if (activeProjectIdRef.current !== requestProjectId) return;
       setAiDraftContent(draft.content);
     } catch (cause) {
+      if (activeProjectIdRef.current !== requestProjectId) return;
       addToast(extractErrorMessage(cause, t("novel.textMaterialsDraftFailed")), "error");
     } finally {
-      setGeneratingDraft(false);
+      if (activeProjectIdRef.current === requestProjectId) setGeneratingDraft(false);
     }
   };
 
@@ -278,24 +374,35 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
     if (!aiDraftContent) return;
     setContent(aiDraftContent);
     setAiAssistantOpen(false);
+    setAiInstruction("");
     setAiDraftContent("");
     addToast(t("novel.textMaterialsDraftApplied"), "success");
   };
 
+  const cancelAiAssistant = () => {
+    setAiAssistantOpen(false);
+    setAiInstruction("");
+    setAiDraftContent("");
+  };
+
   const loadVersion = (version: CanvasTextAssetVersionSummary) => {
     void (async () => {
-      if (dirty && !await confirmDialog({
-        title: t("novel.textMaterialsDiscardTitle"),
-        message: t("novel.textMaterialsDiscardChanges"),
-      })) return;
+      const requestProjectId = projectId;
+      if (saving || importing || loading) return;
+      if (dirty && !await confirmDraftDiscard()) return;
+      if (activeProjectIdRef.current !== requestProjectId) return;
+      setAiInstruction("");
+      setAiDraftContent("");
       setContent(version.content);
-      setBaselineContent(version.content);
+      setTitle(selected?.title ?? baselineTitle);
+      setBaselineTitle(selected?.title ?? baselineTitle);
+      setBaselineContent(selected?.content ?? baselineContent);
       setSourceVersion(version.version);
     })();
   };
 
   const selectSource = () => {
-    if (!selected || !onSelectSource || dirty) return;
+    if (!selected || !onSelectSource || dirty || saving || importing || loading) return;
     onSelectSource({
       assetId: selected.id,
       version: sourceVersion ?? selected.current_version,
@@ -314,14 +421,14 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
             {selected ? t("novel.textMaterialsVersion", { version: sourceVersion ?? selected.current_version }) : t("novel.textMaterialsCount", { count: assets.length })}
           </p>
         </div>
-        <BookIconButton label={t("novel.textMaterialsNew")} onClick={createNew} disabled={!canEdit || saving || importing} variant="secondary" size="sm">
+        <BookIconButton label={t("novel.textMaterialsNew")} onClick={createNew} disabled={!canEdit || !assetsLoaded || loading || saving || importing} variant="secondary" size="sm">
           <FilePlus2 size={14} />
         </BookIconButton>
-        <BookButton variant="secondary" size="sm" onClick={() => void importFile()} disabled={!canEdit || importing || saving}>
+        <BookButton variant="secondary" size="sm" onClick={() => void importFile()} disabled={!canEdit || !assetsLoaded || loading || importing || saving}>
           {importing ? <LoadingSpinner size="sm" /> : <Upload size={14} />}
           {t("novel.textMaterialsImport")}
         </BookButton>
-        <BookButton variant="primary" size="sm" onClick={() => void save()} disabled={!canEdit || !dirty || saving || !title.trim() || !content.trim()}>
+        <BookButton variant="primary" size="sm" onClick={() => void save()} disabled={!canEdit || !assetsLoaded || loading || !editorDirty || saving || importing || !title.trim() || !content.trim()}>
           {saving ? <LoadingSpinner size="sm" /> : <Save size={14} />}
           {t("common.save")}
         </BookButton>
@@ -329,13 +436,13 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
           variant="secondary"
           size="sm"
           onClick={openAiAssistant}
-          disabled={!canEdit || generatingDraft}
+          disabled={!canEdit || saving || importing || generatingDraft}
         >
           <Sparkles size={14} />
           {t("novel.textMaterialsAiAssist")}
         </BookButton>
         {onSelectSource && selected ? (
-          <BookButton variant="secondary" size="sm" onClick={() => setSourceDialogOpen(true)} disabled={!canEdit || dirty}>
+          <BookButton variant="secondary" size="sm" onClick={() => setSourceDialogOpen(true)} disabled={!canEdit || dirty || saving || importing || loading}>
             <ArrowRight size={14} />
             {selectedSource?.assetId === selected.id && selectedSource.version === (sourceVersion ?? selected.current_version) && selectedSource.startSection === startSection && selectedSource.endSection === endSection
               ? t("novel.textMaterialsSourceSelected")
@@ -346,7 +453,7 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
       {error ? (
         <div role="alert" className="flex items-center gap-2 border-b border-book-border/70 py-2 text-sm text-error">
           <span className="min-w-0 flex-1">{error}</span>
-          <BookButton size="sm" variant="secondary" onClick={() => void load()} disabled={loading}>{t("common.retry")}</BookButton>
+          <BookButton size="sm" variant="secondary" onClick={() => void retryLoad()} disabled={loading || saving || importing}>{t("common.retry")}</BookButton>
         </div>
       ) : null}
       <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[220px_minmax(0,1fr)]">
@@ -357,6 +464,7 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
               type="button"
               aria-pressed={selectedId === asset.id}
               onClick={() => void chooseAsset(asset)}
+              disabled={saving || importing}
               data-active={selectedId === asset.id ? "1" : undefined}
               className="a4n-sidebar-item block w-full truncate text-left text-sm"
             >
@@ -364,16 +472,16 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
               <span className="text-small text-book-text-muted">{t("novel.textMaterialsVersion", { version: asset.current_version })}</span>
             </button>
           ))}
-          {!loading && assets.length === 0 ? <EmptyHint text={t("novel.textMaterialsEmpty")} /> : null}
+          {!loading && assetsLoaded && assets.length === 0 ? <EmptyHint text={t("novel.textMaterialsEmpty")} /> : null}
         </nav>
         <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto p-3">
           <label className="block text-small text-book-text-muted">
-            {t("novel.textMaterialsName")}
-            <input value={title} onChange={(event) => setTitle(event.target.value)} disabled={!canEdit || loading} className="pyqt-input mt-1 w-full text-sm" />
+            <span>{t("novel.textMaterialsName")} <span className="text-warning">{t("novel.textMaterialsRequired")}</span></span>
+            <input required value={title} onChange={(event) => setTitle(event.target.value)} disabled={!canEdit || loading || saving || importing || !assetsLoaded} className="pyqt-input mt-1 w-full text-sm" />
           </label>
           <label className="flex min-h-48 flex-1 flex-col text-small text-book-text-muted">
-            {t("novel.textMaterialsContent")}
-            <textarea value={content} onChange={(event) => setContent(event.target.value)} disabled={!canEdit || loading} rows={12} className="pyqt-input mt-1 min-h-48 flex-1 resize-y text-sm leading-relaxed" />
+            <span>{t("novel.textMaterialsContent")} <span className="text-warning">{t("novel.textMaterialsRequired")}</span></span>
+            <textarea required value={content} onChange={(event) => setContent(event.target.value)} disabled={!canEdit || loading || saving || importing || !assetsLoaded} rows={12} className="pyqt-input mt-1 min-h-48 flex-1 resize-y text-sm leading-relaxed" />
           </label>
           {selected && versions.length > 1 ? (
             <details className="border-t border-book-border/70 pt-2 text-small">
@@ -383,7 +491,7 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
                   <li key={version.version} className="flex items-center justify-between gap-2 py-1.5">
                     <span className="text-book-text-main">{t("novel.textMaterialsVersion", { version: version.version })}</span>
                     {version.version !== (sourceVersion ?? selected.current_version) ? (
-                      <BookButton size="sm" variant="secondary" onClick={() => loadVersion(version)} disabled={!canEdit || saving}>
+                      <BookButton size="sm" variant="secondary" onClick={() => loadVersion(version)} disabled={!canEdit || saving || importing || loading}>
                         {t("novel.textMaterialsRestore")}
                       </BookButton>
                     ) : null}
@@ -404,7 +512,7 @@ export const ProjectTextMaterialsPanel: React.FC<ProjectTextMaterialsPanelProps>
         closeOnEscape={!generatingDraft}
         footer={(
           <div className="flex w-full flex-wrap items-center justify-end gap-2">
-            <BookButton variant="secondary" size="sm" onClick={() => setAiAssistantOpen(false)} disabled={generatingDraft}>
+            <BookButton variant="secondary" size="sm" onClick={cancelAiAssistant} disabled={generatingDraft}>
               {t("common.cancel")}
             </BookButton>
             {aiDraftContent ? (

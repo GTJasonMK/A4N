@@ -208,6 +208,12 @@ impl AppState {
         self.image_record_mutation_application.as_ref()
     }
 
+    pub(crate) fn image_record_cascade_mutation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::image::ImageRecordCascadeMutationApplicationPort {
+        self.image_record_cascade_mutation_application.as_ref()
+    }
+
     pub(crate) fn image_import_preparation_application(
         &self,
     ) -> &dyn a4n_image_host_contract::ImageImportPreparationApplicationPort {

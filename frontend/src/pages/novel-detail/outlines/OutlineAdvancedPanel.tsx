@@ -505,7 +505,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       showGenerationSuccess(t("outline.advancedPanel.beatApplied"), warningsWithRefresh(warnings, refreshSucceeded));
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        if (!refreshAttempted) await onChanged();
+        if (!refreshAttempted) void onChanged();
         showGenerationError(err, t("outline.advancedPanel.applyBeatFailed"));
       }
     } finally {
@@ -594,7 +594,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       );
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        if (!refreshAttempted) await onChanged();
+        if (!refreshAttempted) void onChanged();
         showGenerationError(err, t("outline.advancedPanel.generateFailed"));
       }
     } finally {
@@ -673,7 +673,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       );
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        if (!refreshAttempted) await onChanged();
+        if (!refreshAttempted) void onChanged();
         showGenerationError(err, t("outline.advancedPanel.batchFailed"));
       }
     } finally {
@@ -864,7 +864,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       );
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        if (!refreshAttempted) await onChanged();
+        if (!refreshAttempted) void onChanged();
         showGenerationError(err, t("outline.regenerateFailed"));
       }
     } finally {
@@ -975,7 +975,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       );
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        if (!refreshAttempted) await onChanged();
+        if (!refreshAttempted) void onChanged();
         showGenerationError(err, t("outline.advancedPanel.continueFailed"));
       }
     } finally {

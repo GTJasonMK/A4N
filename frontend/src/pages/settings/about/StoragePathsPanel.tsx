@@ -11,6 +11,7 @@ import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { useToast } from "../../../components/feedback/Toast";
+import { useDirty } from "../../../components/navigation/dirtyRegistry";
 import { extractErrorMessage } from "../../../api";
 import {
   cleanupOrphanProjectDataDirs,
@@ -60,6 +61,13 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
   const orphanCleaningRef = useRef(false);
   const copySeqRef = useRef(0);
   const copiedTimerRef = useRef<number | null>(null);
+
+  useDirty(
+    "settings-storage-orphan-cleanup",
+    orphanCleaning,
+    undefined,
+    () => !orphanCleaning,
+  );
 
   useEffect(() => {
     mountedRef.current = true;
@@ -111,7 +119,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
   }, [refresh]);
 
   const copyPath = async (key: MessageKey, value?: string | null) => {
-    if (!value) return;
+    if (!value || loading || loadError) return;
     const requestSeq = copySeqRef.current + 1;
     copySeqRef.current = requestSeq;
     try {
@@ -330,6 +338,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
                         variant="ghost"
                         size="sm"
                         onClick={() => copyPath(labelKey, value)}
+                        disabled={loading || loadError != null}
                       >
                         <Copy size={11} />
                       </BookIconButton>

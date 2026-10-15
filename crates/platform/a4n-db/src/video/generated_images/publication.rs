@@ -399,6 +399,54 @@ where
         .map(|result| result.rows_affected)
 }
 
+pub(crate) async fn reclaim_pending_image_publications_for_project<C>(
+    db: &C,
+    project_id: i64,
+) -> Result<Vec<String>, sea_orm::DbErr>
+where
+    C: ConnectionTrait,
+{
+    let publications = image_publication::Entity::find()
+        .filter(image_publication::Column::ProjectId.eq(project_id))
+        .filter(image_publication::Column::Status.is_in([
+            IMAGE_PUBLICATION_STATUS_PENDING,
+            IMAGE_PUBLICATION_STATUS_RECLAIMING,
+        ]))
+        .all(db)
+        .await?;
+    if publications.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    image_publication::Entity::update_many()
+        .col_expr(
+            image_publication::Column::Status,
+            Expr::value(IMAGE_PUBLICATION_STATUS_RECLAIMING.to_string()),
+        )
+        .col_expr(
+            image_publication::Column::Version,
+            Expr::col(image_publication::Column::Version).add(1),
+        )
+        .col_expr(
+            image_publication::Column::LastError,
+            Expr::value(Some("项目生成数据重置或删除，取消待发布图片".to_string())),
+        )
+        .col_expr(
+            image_publication::Column::UpdatedAt,
+            Expr::value(Utc::now().naive_utc()),
+        )
+        .filter(image_publication::Column::ProjectId.eq(project_id))
+        .filter(image_publication::Column::Status.eq(IMAGE_PUBLICATION_STATUS_PENDING))
+        .exec(db)
+        .await?;
+
+    let paths = publications
+        .into_iter()
+        .flat_map(|publication| [publication.staging_path, publication.final_path])
+        .collect::<std::collections::BTreeSet<_>>();
+    Ok(paths.into_iter().collect())
+}
+
 pub async fn publish_image_publication<C>(
     db: &C,
     publication_id: &str,

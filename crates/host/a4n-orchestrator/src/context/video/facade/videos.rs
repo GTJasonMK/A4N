@@ -172,7 +172,7 @@ impl OrchestratorContext {
     pub(crate) async fn delete_generated_image_record_with_cleanup(
         &self,
         image_id: i64,
-    ) -> Result<(), AppError> {
+    ) -> Result<a4n_db::video::ImageReferenceCleanupIds, AppError> {
         self.video
             .delete_generated_image_record_with_cleanup(image_id)
             .await
@@ -181,7 +181,7 @@ impl OrchestratorContext {
     pub(crate) async fn delete_generated_video_record_with_cleanup(
         &self,
         video_id: i64,
-    ) -> Result<(), AppError> {
+    ) -> Result<a4n_db::video::VideoReferenceCleanupIds, AppError> {
         self.video
             .delete_generated_video_record_with_cleanup(video_id)
             .await
@@ -190,7 +190,7 @@ impl OrchestratorContext {
     pub(crate) async fn delete_missing_generated_video_references(
         &self,
         video_id: i64,
-    ) -> Result<u64, AppError> {
+    ) -> Result<a4n_db::video::VideoReferenceCleanupIds, AppError> {
         self.video
             .delete_missing_generated_video_references_record(video_id)
             .await

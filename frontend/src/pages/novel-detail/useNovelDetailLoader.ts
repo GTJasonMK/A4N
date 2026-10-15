@@ -20,6 +20,7 @@ export function useNovelDetailLoader(
   errorMessage: string,
 ) {
   const [loading, setLoading] = useState(true);
+  const [reading, setReading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const mountedRef = useRef(false);
   const requestSeqRef = useRef(0);
@@ -42,6 +43,7 @@ export function useNovelDetailLoader(
     const requestToken = Symbol(String(requestSeq));
     const isCurrent = () => mountedRef.current && requestSeqRef.current === requestSeq;
     const promise = (async () => {
+      if (mountedRef.current) setReading(true);
       if (!silent) setLoading(true);
       try {
         await loadData(isCurrent);
@@ -59,6 +61,7 @@ export function useNovelDetailLoader(
         }
         if (loadInFlightRef.current?.token === requestToken) {
           loadInFlightRef.current = null;
+          if (mountedRef.current) setReading(false);
         }
       }
     })();
@@ -85,7 +88,7 @@ export function useNovelDetailLoader(
     };
   }, [load]);
 
-  return { loading, load, loadError };
+  return { loading, reading, load, loadError };
 }
 
 export function useChapterAnalysisLoader(

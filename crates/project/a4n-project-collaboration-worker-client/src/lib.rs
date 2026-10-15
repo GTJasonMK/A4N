@@ -128,7 +128,7 @@ impl ProjectCollaborationApplicationPort for ProjectCollaborationWorkerClient {
         user_id: i64,
         project_id: i64,
         input: InviteProjectMemberInput,
-    ) -> Result<(), AppError> {
+    ) -> Result<ProjectInviteSummary, AppError> {
         mutations::invite_project_member(self, user_id, project_id, input).await
     }
 

@@ -116,6 +116,7 @@ pub(in crate::video) async fn load_video_segment_plan_draft_checkpoints(
 
 pub(in crate::video) async fn update_video_segment_plan_draft_recipe_checkpoint(
     service: &OrchestratorContext,
+    project_id: i64,
     workflow_run_id: i64,
     source_shot_id: &str,
     segment_index_in_shot: i32,
@@ -124,6 +125,7 @@ pub(in crate::video) async fn update_video_segment_plan_draft_recipe_checkpoint(
 ) -> Result<(), AppError> {
     a4n_workflow_core::update_video_segment_plan_draft_recipe_checkpoint(
         service.database.executor(),
+        project_id,
         workflow_run_id,
         source_shot_id,
         segment_index_in_shot,

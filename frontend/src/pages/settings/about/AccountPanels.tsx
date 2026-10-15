@@ -81,6 +81,7 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
   const saveSeqRef = useRef(0);
   const editVersionRef = useRef(0);
   const busyRef = useRef(false);
+  const discardingDraftRef = useRef(false);
   const savedProfileRef = useRef({ email: "", avatar: "" });
   const profileDirty =
     email !== savedProfileRef.current.email ||
@@ -124,6 +125,7 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
     try {
       const user = await getCurrentUser();
       if (!isCurrentUser(requestUserId) || loadSeqRef.current !== requestSeq) return;
+      setLoadError(null);
       savedProfileRef.current = {
         email: textInputValue(user.email),
         avatar: textInputValue(user.avatar_url),
@@ -184,16 +186,29 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
     <details
       data-settings-dirty={profileDirty ? "true" : undefined}
       onToggle={(event) => {
+        if (discardingDraftRef.current) {
+          discardingDraftRef.current = false;
+          return;
+        }
         if (event.currentTarget.open || !profileDirty) return;
         const details = event.currentTarget;
         details.open = true;
+        if (busyRef.current) {
+          addToast(t("common.operationInProgress"), "info");
+          return;
+        }
         void confirmDialog({
           title: t("common.unsavedChangesTitle"),
           message: t("common.unsavedChangesMessage", { name: t("settingsAbout.profile"), action: t("common.close") }),
           confirmText: t("common.discardDraft"),
           dialogType: "warning",
         }).then((discard) => {
-          if (discard) details.open = false;
+          if (!discard || !mountedRef.current) return;
+          editVersionRef.current += 1;
+          setEmail(savedProfileRef.current.email);
+          setAvatar(savedProfileRef.current.avatar);
+          discardingDraftRef.current = true;
+          details.open = false;
         });
       }}
       className={`${embedded ? "border-t border-book-border/35" : "a4n-flat-surface"} group overflow-hidden text-xs`}
@@ -224,6 +239,7 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
             <BookInput
               label={t("settingsAbout.email")}
               type="email"
+              required
               autoComplete="email"
               value={email}
               onChange={(e) => updateEmail(e.target.value)}
@@ -272,6 +288,7 @@ export const PasswordChanger: React.FC<{ embedded?: boolean }> = ({ embedded = f
   const changeSeqRef = useRef(0);
   const editVersionRef = useRef(0);
   const busyRef = useRef(false);
+  const discardingDraftRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -284,11 +301,13 @@ export const PasswordChanger: React.FC<{ embedded?: boolean }> = ({ embedded = f
 
   const updateOldPwd = (value: string) => {
     editVersionRef.current += 1;
+    setSaveError(null);
     setOldPwd(value);
   };
 
   const updateNewPwd = (value: string) => {
     editVersionRef.current += 1;
+    setSaveError(null);
     setNewPwd(value);
   };
   const passwordDirty = oldPwd.length > 0 || newPwd.length > 0;
@@ -321,7 +340,11 @@ export const PasswordChanger: React.FC<{ embedded?: boolean }> = ({ embedded = f
       }
     } catch (err) {
       if (!mountedRef.current || changeSeqRef.current !== requestSeq) return;
-      setSaveError({ reason: err });
+      if (editVersionRef.current === requestEditVersion) {
+        setSaveError({ reason: err });
+      } else {
+        addToast(extractErrorMessage(err, t("settingsAbout.updatePasswordFailed")), "error");
+      }
     } finally {
       if (changeSeqRef.current === requestSeq) busyRef.current = false;
       if (mountedRef.current && changeSeqRef.current === requestSeq) setBusy(false);
@@ -332,16 +355,30 @@ export const PasswordChanger: React.FC<{ embedded?: boolean }> = ({ embedded = f
     <details
       data-settings-dirty={passwordDirty ? "true" : undefined}
       onToggle={(event) => {
+        if (discardingDraftRef.current) {
+          discardingDraftRef.current = false;
+          return;
+        }
         if (event.currentTarget.open || !passwordDirty) return;
         const details = event.currentTarget;
         details.open = true;
+        if (busyRef.current) {
+          addToast(t("common.operationInProgress"), "info");
+          return;
+        }
         void confirmDialog({
           title: t("common.unsavedChangesTitle"),
           message: t("common.unsavedChangesMessage", { name: t("settingsAbout.changePassword"), action: t("common.close") }),
           confirmText: t("common.discardDraft"),
           dialogType: "warning",
         }).then((discard) => {
-          if (discard) details.open = false;
+          if (!discard || !mountedRef.current) return;
+          editVersionRef.current += 1;
+          setOldPwd("");
+          setNewPwd("");
+          setSaveError(null);
+          discardingDraftRef.current = true;
+          details.open = false;
         });
       }}
       className={`${embedded ? "border-t border-book-border/35" : "a4n-flat-surface"} group overflow-hidden text-xs`}
@@ -411,19 +448,21 @@ export const SessionManager: React.FC = () => {
     };
   }, []);
 
-  const load = async (): Promise<boolean> => {
+  const load = async (allowDuringRefresh = false): Promise<void> => {
+    if (refreshBusyRef.current && !allowDuringRefresh) {
+      addToast(t("common.operationInProgress"), "info");
+      return;
+    }
     const requestSeq = ++loadSeqRef.current;
     setLoading(true);
     setLoadError(null);
     try {
       const nextSessions = await listSessions();
-      if (!mountedRef.current || loadSeqRef.current !== requestSeq) return false;
+      if (!mountedRef.current || loadSeqRef.current !== requestSeq) return;
       setSessions(nextSessions);
-      return true;
     } catch (err) {
-      if (!mountedRef.current || loadSeqRef.current !== requestSeq) return false;
+      if (!mountedRef.current || loadSeqRef.current !== requestSeq) return;
       setLoadError({ reason: err });
-      return false;
     } finally {
       if (mountedRef.current && loadSeqRef.current === requestSeq) setLoading(false);
     }
@@ -440,12 +479,10 @@ export const SessionManager: React.FC = () => {
     setRefreshBusy(true);
     try {
       await refreshToken();
-      if (!mountedRef.current) return;
       addToast(t("settingsAbout.credentialUpdated"), "success");
-      const loaded = await load();
-      if (!loaded) addToast(t("settingsAbout.refreshFailed"), "error");
-    } catch (err) {
       if (!mountedRef.current) return;
+      await load(true);
+    } catch (err) {
       addToast(extractErrorMessage(err, t("settingsAbout.refreshFailed")), "error");
     } finally {
       refreshBusyRef.current = false;

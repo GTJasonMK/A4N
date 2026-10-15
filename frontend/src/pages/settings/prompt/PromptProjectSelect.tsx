@@ -12,6 +12,7 @@ interface PromptProjectSelectProps {
   onChange: (projectId: number | null) => void;
   allowEmpty?: boolean;
   requireEditor?: boolean;
+  disabled?: boolean;
   ariaLabel: string;
   className?: string;
 }
@@ -21,6 +22,7 @@ export const PromptProjectSelect: React.FC<PromptProjectSelectProps> = ({
   onChange,
   allowEmpty = false,
   requireEditor = false,
+  disabled = false,
   ariaLabel,
   className = "",
 }) => {
@@ -63,7 +65,7 @@ export const PromptProjectSelect: React.FC<PromptProjectSelectProps> = ({
       }}
       className={`pyqt-input min-w-0 ${className}`}
       aria-label={ariaLabel}
-      disabled={loading || (loadError != null && !allowEmpty)}
+      disabled={disabled || loading || (loadError != null && !allowEmpty)}
     >
       <option value="">
         {loadError ? t("settingsPrompt.loadProjectsFailed") : loading ? t("settingsPrompt.loadingProjects") : allowEmpty ? t("settingsPrompt.noProjectContext") : t("settingsPrompt.selectProject")}

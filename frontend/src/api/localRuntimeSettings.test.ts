@@ -189,6 +189,15 @@ const llmInput = {
   extra_body_json: null,
 };
 
+it("rejects local prices outside the Rust cost contract before saving", async () => {
+  const pricing = {
+    ...listLocalEmbeddingConfigs()[0].pricing,
+    llm_input_per_million: "9223372036854.775808",
+  };
+  await expect(createLocalLlmConfig({ ...llmInput, pricing })).rejects.toThrow("数值过大");
+  expect(listLocalLlmConfigs()).toEqual([]);
+});
+
 it("roundtrips local models, keys, defaults, web tools, and pricing in a device backup", async () => {
   const pricing = { ...listLocalEmbeddingConfigs()[0].pricing, llm_input_per_million: "2.50" };
   const llm = await createLocalLlmConfig({ ...llmInput, pricing });

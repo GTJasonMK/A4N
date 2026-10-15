@@ -39,6 +39,7 @@ pub struct UpdateProjectRecordInput {
     pub title: Option<String>,
     pub description: Option<String>,
     pub fact_feedback_interval_chapters: Option<i32>,
+    pub expected_updated_at: Option<chrono::NaiveDateTime>,
 }
 
 #[derive(Debug, thiserror::Error)]

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use a4n_error::AppError;
 use a4n_llm_provider_contract::provider::{ChatMessage, ChatRequest};
@@ -11,15 +11,15 @@ use crate::{
 };
 
 use super::{
-    GALGAME_PIPELINE_WORKFLOW_KIND, GalgamePipelinePromptContext, GalgamePipelineStartStage,
-    adaptation_projection_from_value, branch_design_from_value, character_staging_from_value,
-    galgame_adaptation_projection, galgame_branch_design_user_message,
-    galgame_character_staging_user_message, galgame_script_adaptation_user_message,
+    GALGAME_PIPELINE_WORKFLOW_KIND, GalgameBranchPlanCandidate, GalgamePipelinePromptContext,
+    GalgamePipelineStartStage, adaptation_projection_from_value, branch_design_from_value,
+    character_staging_from_value, galgame_adaptation_projection,
+    galgame_branch_design_user_message, galgame_character_staging_user_message,
+    galgame_pipeline_branch_plan_candidate, galgame_script_adaptation_user_message,
     galgame_source_markers, galgame_visual_planning_user_message, script_adaptation_from_value,
     visual_plan_from_value,
 };
 
-const CHECKPOINT_SCENES: &str = "scenes";
 const CHECKPOINT_LINES_DRAFT: &str = "lines_draft";
 const CHECKPOINT_LINES_STAGED: &str = "lines_staged";
 const CHECKPOINT_VISUAL_PLAN: &str = "visual_plan";
@@ -35,7 +35,6 @@ pub struct GalgamePipelinePreviewRequest {
 
 #[derive(Default)]
 struct PreviewCheckpointInputs {
-    scenes: Option<Value>,
     lines_draft: Option<Value>,
     lines_staged: Option<Value>,
     visual_plan: Option<Value>,
@@ -46,32 +45,83 @@ struct PreviewCheckpointInputs {
 impl OrchestratorContext {
     pub async fn prepare_galgame_pipeline_preview_validated(
         &self,
+        user_id: i64,
         project_id: i64,
         start_from_stage: Option<GalgamePipelineStartStage>,
         resume_from_checkpoint: bool,
+        stop_after: Option<a4n_api_contract::galgame::GalgamePipelineStopAfter>,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<Vec<GalgamePipelinePreviewRequest>, AppError> {
-        let (context_result, checkpoints_result) = futures::join!(
-            self.galgame_pipeline_prompt_context(project_id),
-            self.load_galgame_preview_checkpoint_inputs(
+        if start_from_stage == Some(GalgamePipelineStartStage::AssetGeneration) {
+            self.get_script_detail(project_id).await?;
+            return Ok(Vec::new());
+        }
+        let context = self.galgame_pipeline_prompt_context(project_id).await?;
+        let planned_chapters = context
+            .adaptations
+            .iter()
+            .map(|adaptation| adaptation.source_chapter_id)
+            .collect::<HashSet<_>>();
+        let missing_adaptations = context
+            .chapters
+            .iter()
+            .filter(|chapter| !planned_chapters.contains(&chapter.source_chapter_id))
+            .collect::<Vec<_>>();
+        if !missing_adaptations.is_empty() {
+            let requests = futures::future::try_join_all(missing_adaptations.into_iter().map(
+                |chapter| async move {
+                    Ok::<_, AppError>(GalgamePipelinePreviewRequest {
+                        key: format!("adaptation_plan:{}", chapter.source_chapter_id),
+                        title: format!("第 {} 章改编计划", chapter.chapter_number),
+                        prompt_name: "chapter_media_adaptation_plan".into(),
+                        request: self
+                            .preview_missing_galgame_adaptation_plan_request(
+                                user_id,
+                                project_id,
+                                chapter.source_chapter_id,
+                                prompt_renderer,
+                            )
+                            .await?,
+                    })
+                },
+            ))
+            .await?;
+            return Ok(requests);
+        }
+
+        let branch_candidate: GalgameBranchPlanCandidate =
+            galgame_pipeline_branch_plan_candidate(self, project_id, &context, true).await?;
+        let reuse_saved_branch = stop_after
+            != Some(a4n_api_contract::galgame::GalgamePipelineStopAfter::BranchDesign)
+            && start_from_stage != Some(GalgamePipelineStartStage::BranchDesign);
+        let saved_branch_plan = reuse_saved_branch
+            .then(|| {
+                branch_candidate
+                    .matching()
+                    .map(|record| record.document.clone())
+            })
+            .flatten();
+        let checkpoints = self
+            .load_galgame_preview_checkpoint_inputs(
                 project_id,
                 start_from_stage,
                 resume_from_checkpoint,
-            ),
+                saved_branch_plan.is_some(),
+            )
+            .await?;
+        let branch_checkpoint_is_restored = crate::galgame::should_restore_galgame_stage_checkpoint(
+            resume_from_checkpoint,
+            start_from_stage,
+            GalgamePipelineStartStage::BranchDesign.order(),
         );
-        let context = context_result?;
-        let checkpoints = checkpoints_result?;
-        let adaptation_projection = match checkpoints.prior_stage_input(
-            GalgamePipelineStartStage::AdaptationPlan,
-            checkpoints.scenes.clone(),
-        )? {
-            Some(value) => value,
-            None => serde_json::to_value(galgame_adaptation_projection(&context)?)?,
-        };
-        let branch_design = checkpoints.prior_stage_input(
-            GalgamePipelineStartStage::BranchDesign,
-            checkpoints.branch_plan.clone(),
-        )?;
+        let branch_design_input = saved_branch_plan.or_else(|| {
+            branch_checkpoint_is_restored
+                .then(|| checkpoints.branch_plan.clone())
+                .flatten()
+        });
+        let adaptation_projection = serde_json::to_value(galgame_adaptation_projection(&context)?)?;
+        let branch_design = checkpoints
+            .prior_stage_input(GalgamePipelineStartStage::BranchDesign, branch_design_input)?;
         let script_adaptation = checkpoints.prior_stage_input(
             GalgamePipelineStartStage::ScriptAdaptation,
             checkpoints.lines_draft.clone(),
@@ -98,6 +148,7 @@ impl OrchestratorContext {
         project_id: i64,
         start_from_stage: Option<GalgamePipelineStartStage>,
         resume_from_checkpoint: bool,
+        branch_plan_reused: bool,
     ) -> Result<PreviewCheckpointInputs, AppError> {
         if start_from_stage.is_none() && !resume_from_checkpoint {
             return Ok(PreviewCheckpointInputs::default());
@@ -131,7 +182,8 @@ impl OrchestratorContext {
                 checkpoint.checkpoint_json.as_ref(),
             )?;
             match checkpoint.step_key.as_str() {
-                CHECKPOINT_SCENES => inputs.scenes = Some(output),
+                // The adaptation projection is deterministic and rebuilt from the current adopted plans.
+                "scenes" => {}
                 CHECKPOINT_LINES_DRAFT => inputs.lines_draft = Some(output),
                 CHECKPOINT_LINES_STAGED => inputs.lines_staged = Some(output),
                 CHECKPOINT_VISUAL_PLAN => inputs.visual_plan = Some(output),
@@ -144,7 +196,7 @@ impl OrchestratorContext {
                 }
             }
         }
-        inputs.validate_required_prior_checkpoints()?;
+        inputs.validate_required_prior_checkpoints(branch_plan_reused)?;
         Ok(inputs)
     }
 
@@ -167,7 +219,7 @@ impl OrchestratorContext {
                 .unwrap_or(true)
         };
         let mut pending = Vec::new();
-        if stage_filter(GalgamePipelineStartStage::BranchDesign) {
+        if stage_filter(GalgamePipelineStartStage::BranchDesign) && branch_design.is_none() {
             pending.push((
                 "branch_design",
                 "分支设计",
@@ -258,12 +310,14 @@ impl PreviewCheckpointInputs {
         Ok(value)
     }
 
-    fn validate_required_prior_checkpoints(&self) -> Result<(), AppError> {
+    fn validate_required_prior_checkpoints(
+        &self,
+        branch_plan_reused: bool,
+    ) -> Result<(), AppError> {
         let Some(start) = self.required_prior_stage else {
             return Ok(());
         };
         for (stage, value) in [
-            (GalgamePipelineStartStage::AdaptationPlan, &self.scenes),
             (GalgamePipelineStartStage::BranchDesign, &self.branch_plan),
             (
                 GalgamePipelineStartStage::ScriptAdaptation,
@@ -275,6 +329,9 @@ impl PreviewCheckpointInputs {
             ),
             (GalgamePipelineStartStage::VisualPlanning, &self.visual_plan),
         ] {
+            if stage == GalgamePipelineStartStage::BranchDesign && branch_plan_reused {
+                continue;
+            }
             if stage.order() < start.order() && value.is_none() {
                 return Err(AppError::InvalidState {
                     current: "galgame_preview_checkpoint".to_string(),
@@ -350,7 +407,7 @@ fn galgame_preview_checkpoint_output(
         )));
     }
     match checkpoint_key {
-        CHECKPOINT_SCENES => {
+        "scenes" => {
             adaptation_projection_from_value(output.clone(), checkpoint_key)?;
         }
         CHECKPOINT_LINES_DRAFT => {
@@ -374,6 +431,53 @@ fn galgame_preview_checkpoint_output(
     Ok(output)
 }
 
+#[cfg(test)]
+mod checkpoint_tests {
+    use super::galgame_preview_checkpoint_output;
+    use serde_json::json;
+
+    #[test]
+    fn preview_checkpoint_dispatch_rejects_unknown_keys() {
+        let checkpoint = json!({
+            "output": {
+                "scenes": [{
+                    "index": 1,
+                    "origin": "source",
+                    "title": "雨夜重逢",
+                    "location": "车站",
+                    "time_of_day": "夜晚",
+                    "participants": ["林晓雨"],
+                    "summary": "两人重逢",
+                    "source_span_ids": ["ch1:p1"],
+                    "adaptation_plan_id": 10,
+                    "adaptation_plan_revision": 1,
+                    "source_chapter_id": 11,
+                    "source_snapshot_chapter_id": 20,
+                    "chapter_number": 1,
+                    "unit_id": "unit-1",
+                    "beats": [{
+                        "id": "beat-1",
+                        "kind": "action",
+                        "is_climax": false,
+                        "origin": "source",
+                        "importance": "required",
+                        "action": "角色做出可见行动",
+                        "reaction": "对方产生可见反应",
+                        "dialogue_intent": null,
+                        "entry_state": "动作开始",
+                        "exit_state": "动作完成",
+                        "source_span_ids": ["ch1:p1"]
+                    }]
+                }]
+            }
+        });
+
+        let error = galgame_preview_checkpoint_output("unknown", Some(&checkpoint)).unwrap_err();
+
+        assert!(error.to_string().contains("unknown"));
+    }
+}
+
 fn invalid_checkpoint(operation: String) -> AppError {
     AppError::InvalidState {
         current: "galgame_preview_checkpoint".to_string(),
@@ -385,4 +489,26 @@ fn start_stage_key(stage: Option<GalgamePipelineStartStage>) -> &'static str {
     stage
         .map(GalgamePipelineStartStage::key)
         .unwrap_or("adaptation_projection")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{GalgamePipelineStartStage as Stage, PreviewCheckpointInputs};
+    use serde_json::json;
+
+    #[test]
+    fn a_matching_saved_branch_plan_satisfies_the_prior_stage_without_a_checkpoint() {
+        let inputs = PreviewCheckpointInputs {
+            required_prior_stage: Some(Stage::ScriptAdaptation),
+            ..Default::default()
+        };
+
+        assert!(inputs.validate_required_prior_checkpoints(true).is_ok());
+        assert!(inputs.validate_required_prior_checkpoints(false).is_err());
+        assert!(
+            inputs
+                .prior_stage_input(Stage::BranchDesign, Some(json!({"choices": []})))
+                .is_ok()
+        );
+    }
 }

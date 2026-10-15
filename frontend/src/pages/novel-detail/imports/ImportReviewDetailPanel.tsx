@@ -9,28 +9,36 @@ import { useI18n } from "../../../i18n";
 
 interface ImportReviewDetailPanelProps {
   activeReview: ImportReviewSummary | null;
+  activeReviewUnavailableReason: "deleted" | "queue_unavailable" | "status_changed" | null;
   activeReviewJson: string;
   activeReviewJsonError: string | null;
   activeReviewJsonDirty: boolean;
   actBusy: string | null;
   externalBusy: boolean;
   onAnalysisJsonChange: (value: string) => void;
+  onDiscardDraft: () => void;
   onModify: () => void | Promise<void>;
 }
 
 export const ImportReviewDetailPanel: React.FC<ImportReviewDetailPanelProps> = ({
   activeReview,
+  activeReviewUnavailableReason,
   activeReviewJson,
   activeReviewJsonError,
   activeReviewJsonDirty,
   actBusy,
   externalBusy,
   onAnalysisJsonChange,
+  onDiscardDraft,
   onModify,
 }) => {
   const { locale, t } = useI18n();
   const actionBusy =
-    actBusy !== null || externalBusy || activeReview?.review_status !== "pending";
+    actBusy !== null ||
+    externalBusy ||
+    activeReview?.review_status !== "pending" ||
+    activeReviewUnavailableReason === "queue_unavailable";
+  const discardBusy = actBusy !== null || externalBusy;
   const modifyReady = activeReviewJsonDirty && activeReviewJsonError == null;
 
   if (activeReview == null) return null;
@@ -46,6 +54,15 @@ export const ImportReviewDetailPanel: React.FC<ImportReviewDetailPanelProps> = (
           {getOperationStatusLabel(activeReview.review_status, locale)}
         </p>
       </div>
+      {activeReviewUnavailableReason ? (
+        <p role="alert" className="mb-3 text-small text-error">
+          {activeReviewUnavailableReason === "deleted"
+            ? t("novel.importReview.detail.sourceDeletedDraftPreserved")
+            : activeReviewUnavailableReason === "status_changed"
+              ? t("novel.importReview.detail.statusChangedDraftPreserved")
+              : t("novel.importReview.detail.queueUnavailableDraftPreserved")}
+        </p>
+      ) : null}
       <div className="space-y-2 text-xs">
         {analysisSummary ? (
           <section className="pb-2.5">
@@ -87,11 +104,20 @@ export const ImportReviewDetailPanel: React.FC<ImportReviewDetailPanelProps> = (
             {activeReviewJsonError && (
               <div role="alert" className="mt-1 text-small text-error">{activeReviewJsonError}</div>
             )}
-            <div className="mt-2 flex justify-end">
+            <div className="mt-2 flex flex-wrap justify-end gap-2">
+              {activeReviewJsonDirty ? (
+                <BookButton
+                  variant="secondary"
+                  onClick={onDiscardDraft}
+                  disabled={discardBusy}
+                >
+                  {t("common.discardDraft")}
+                </BookButton>
+              ) : null}
               <BookButton
                 variant="secondary"
                 onClick={() => void onModify()}
-                disabled={actionBusy || !modifyReady}
+                disabled={actionBusy || activeReviewUnavailableReason !== null || !modifyReady}
               >
                 {actBusy?.startsWith("modify-") ? (
                   <span className="inline-flex items-center gap-1.5">
@@ -102,6 +128,14 @@ export const ImportReviewDetailPanel: React.FC<ImportReviewDetailPanelProps> = (
                 )}
               </BookButton>
             </div>
+            {activeReview.review_status === "pending"
+              && !actionBusy
+              && !activeReviewJsonDirty
+              && activeReviewJsonError == null ? (
+                <p role="status" className="mt-2 text-caption text-book-text-muted">
+                  {t("novel.importReview.detail.editBeforeSaveAndAccept")}
+                </p>
+              ) : null}
           </div>
         </details>
       </div>

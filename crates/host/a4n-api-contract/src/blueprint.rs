@@ -97,6 +97,8 @@ pub struct RestoreBlueprintVersionInput {
 pub struct SaveBlueprintInput {
     #[schemars(range(min = 1))]
     pub project_id: i64,
+    #[schemars(length(min = 1, max = 64))]
+    pub expected_current_version: Option<String>,
     #[schemars(length(min = 1, max = 256))]
     pub genre: String,
     #[schemars(length(max = 1024))]
@@ -121,6 +123,8 @@ pub struct SaveBlueprintInput {
 pub struct UpdateWorldSettingInput {
     #[schemars(range(min = 1))]
     pub project_id: i64,
+    #[schemars(length(min = 1, max = 64))]
+    pub expected_current_version: String,
     pub world_setting: Value,
 }
 
@@ -161,6 +165,12 @@ pub struct BlueprintMutationResult {
     pub warnings: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, JsonSchema, PartialEq, Eq)]
+pub struct VersionedBlueprintMutationResult {
+    pub current_version: String,
+    pub warnings: Vec<String>,
+}
+
 /// Host-facing blueprint read boundary.
 ///
 /// Permission checks, persistence reads and API projections stay with the
@@ -197,13 +207,13 @@ pub trait BlueprintMutationApplicationPort: Send + Sync {
         &self,
         user_id: i64,
         input: SaveBlueprintInput,
-    ) -> Result<(), a4n_error::AppError>;
+    ) -> Result<VersionedBlueprintMutationResult, a4n_error::AppError>;
 
     async fn update_world_setting(
         &self,
         user_id: i64,
         input: UpdateWorldSettingInput,
-    ) -> Result<(), a4n_error::AppError>;
+    ) -> Result<VersionedBlueprintMutationResult, a4n_error::AppError>;
 
     async fn restore(
         &self,

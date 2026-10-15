@@ -170,7 +170,6 @@ export function useCanvasWorkflowActions({
           ),
         ]);
         if (workflowStatusRequestRef.current !== requestId) return false;
-        let refreshOk = detailResult.status === "fulfilled" && eventsResult.status === "fulfilled";
         const detail = detailResult.status === "fulfilled" ? detailResult.value : null;
         if (detailResult.status === "fulfilled") {
           setWorkflowDetail(detailResult.value);
@@ -210,7 +209,6 @@ export function useCanvasWorkflowActions({
             if (workflowStatusRequestRef.current !== requestId) return false;
             workflowRuntimeRefreshSignatureRef.current = refreshSignature;
           } catch (err) {
-            refreshOk = false;
             if (workflowStatusRequestRef.current === requestId) {
               const message = extractErrorMessage(err, currentT()("video.syncCanvasRuntimeFailed"));
               setWorkflowStatusError(message);
@@ -218,7 +216,7 @@ export function useCanvasWorkflowActions({
             }
           }
         }
-        return refreshOk;
+        return detailResult.status === "fulfilled";
       } finally {
         if (workflowStatusRequestRef.current === requestId) {
           workflowStatusInFlightRef.current = false;
@@ -443,6 +441,7 @@ export function useCanvasWorkflowActions({
       addToast(t("video.saveNodeBeforeRun"), "info");
       return;
     }
+    const requestScope = canvasScopeRef.current;
     const confirmation = [
       t("video.runNodeMessage"),
       "",
@@ -457,7 +456,7 @@ export function useCanvasWorkflowActions({
       cancelText: t("common.cancel"),
       dialogType: "warning",
     });
-    if (!confirmed) {
+    if (!confirmed || canvasScopeRef.current !== requestScope) {
       return;
     }
     setWorkflowSubmissionLabel({
@@ -469,12 +468,14 @@ export function useCanvasWorkflowActions({
     startWorkflowDiscovery(graphId, document.graph.version, Date.now());
     try {
       const result = await runCanvasNode(projectId, graphId, nodeId);
-      const refreshed = await loadWorkflowStatus(result.workflow_run_id);
-      if (!refreshed) addToast(currentT()("video.loadCanvasRunsFailed"), "error");
+      if (canvasScopeRef.current !== requestScope) return;
       addToast(
         result.error_message ?? currentT()("video.runOnlyNodeSubmitted"),
         result.status === "failed" ? "info" : "success",
       );
+      void loadWorkflowStatus(result.workflow_run_id, { silent: true }).then((refreshed) => {
+        if (!refreshed) addToast(currentT()("video.loadCanvasRunsFailed"), "error");
+      });
     } catch (err) {
       addToast(extractErrorMessage(err, currentT()("video.runOnlyNodeError")), "error");
     } finally {
@@ -504,6 +505,7 @@ export function useCanvasWorkflowActions({
       addToast(t("video.saveNodeBeforeRun"), "info");
       return;
     }
+    const requestScope = canvasScopeRef.current;
     const scope = computeRunToNodeScope(
       node,
       nodes,
@@ -518,7 +520,7 @@ export function useCanvasWorkflowActions({
       cancelText: t("common.cancel"),
       dialogType: "warning",
     });
-    if (!confirmed) {
+    if (!confirmed || canvasScopeRef.current !== requestScope) {
       return;
     }
     setWorkflowSubmissionLabel({
@@ -530,12 +532,14 @@ export function useCanvasWorkflowActions({
     startWorkflowDiscovery(graphId, document.graph.version, Date.now());
     try {
       const result = await runCanvasGraphToNode(projectId, graphId, nodeId);
-      const refreshed = await loadWorkflowStatus(result.workflow_run_id);
-      if (!refreshed) addToast(currentT()("video.loadCanvasRunsFailed"), "error");
+      if (canvasScopeRef.current !== requestScope) return;
       addToast(
         result.error_message ?? currentT()("video.runToNodeSubmitted"),
         result.status === "failed" ? "info" : "success",
       );
+      void loadWorkflowStatus(result.workflow_run_id, { silent: true }).then((refreshed) => {
+        if (!refreshed) addToast(currentT()("video.loadCanvasRunsFailed"), "error");
+      });
     } catch (err) {
       addToast(extractErrorMessage(err, currentT()("video.runToNodeError")), "error");
     } finally {
@@ -565,17 +569,20 @@ export function useCanvasWorkflowActions({
       return;
     }
     setWorkflowSubmissionLabel({ key: "video.runCanvasSubmitting" });
+    const requestScope = canvasScopeRef.current;
     clearWorkflowStatus();
     const graphId = document.graph.id;
     startWorkflowDiscovery(graphId, document.graph.version, Date.now());
     try {
       const result = await runCanvasGraph(projectId, graphId);
-      const refreshed = await loadWorkflowStatus(result.workflow_run_id);
-      if (!refreshed) addToast(currentT()("video.loadCanvasRunsFailed"), "error");
+      if (canvasScopeRef.current !== requestScope) return;
       addToast(
         result.error_message ?? currentT()("video.submittedRunCanvas"),
         result.status === "failed" ? "info" : "success",
       );
+      void loadWorkflowStatus(result.workflow_run_id, { silent: true }).then((refreshed) => {
+        if (!refreshed) addToast(currentT()("video.loadCanvasRunsFailed"), "error");
+      });
     } catch (err) {
       addToast(extractErrorMessage(err, currentT()("video.runCanvasError")), "error");
     } finally {
@@ -752,20 +759,23 @@ export function useCanvasWorkflowActions({
     const taskId = workflowDetail?.run.active_task_id;
     const workflowRunId = workflowDetail?.run.id ?? latestWorkflowRunId;
     if ((!taskId && !workflowRunId) || cancellingWorkflow) return;
+    const requestScope = canvasScopeRef.current;
     setCancellingWorkflow(true);
     try {
       const cancelled = await cancelWorkflow({
         task_id: taskId,
         workflow_run_id: workflowRunId,
       });
-      if (workflowRunId) {
-        const refreshed = await loadWorkflowStatus(workflowRunId);
-        if (!refreshed) addToast(currentT()("video.loadCanvasRunsFailed"), "error");
-      }
+      if (canvasScopeRef.current !== requestScope) return;
       addToast(
         currentT()(cancelled ? "video.cancelRunRequested" : "video.cancelRunAlreadyFinished"),
         "info",
       );
+      if (workflowRunId) {
+        void loadWorkflowStatus(workflowRunId, { silent: true }).then((refreshed) => {
+          if (!refreshed) addToast(currentT()("video.loadCanvasRunsFailed"), "error");
+        });
+      }
     } catch (err) {
       addToast(extractErrorMessage(err, currentT()("video.cancelRunFailed")), "error");
     } finally {
@@ -776,13 +786,21 @@ export function useCanvasWorkflowActions({
   const resumeActiveWorkflow = async () => {
     const workflowRunId = workflowDetail?.run.id ?? latestWorkflowRunId;
     if (!workflowRunId || resumingWorkflow) return;
+    const requestScope = canvasScopeRef.current;
     setResumingWorkflow(true);
     try {
       const run = await resumeWorkflowRun(workflowRunId);
+      if (canvasScopeRef.current !== requestScope) return;
       workflowRuntimeRefreshSignatureRef.current = null;
-      const refreshed = await loadWorkflowStatus(run.id);
-      if (!refreshed) addToast(currentT()("video.loadCanvasRunsFailed"), "error");
+      setLatestWorkflowRunId(run.id);
+      setWorkflowStatusError(null);
+      setWorkflowDetail((current) =>
+        current?.run.id === run.id ? { ...current, run } : current,
+      );
       addToast(currentT()("video.resumeRunSuccess"), "success");
+      void loadWorkflowStatus(run.id, { silent: true }).then((refreshed) => {
+        if (!refreshed) addToast(currentT()("video.loadCanvasRunsFailed"), "error");
+      });
     } catch (err) {
       addToast(extractErrorMessage(err, currentT()("video.resumeRunFailed")), "error");
     } finally {

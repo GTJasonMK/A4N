@@ -56,12 +56,14 @@ const NATIVE_TAURI_COMMANDS = new Set([
   "list_active_generation_tasks",
   "list_generation_task_history",
   "get_log_dir",
+  "get_log_level",
   "read_recent_logs",
   "set_log_level",
 ]);
 const NATIVE_USER_CONTEXT_COMMANDS = new Set([
   "invoke_agent_command",
   "get_log_dir",
+  "get_log_level",
   "read_recent_logs",
   "set_log_level",
 ]);

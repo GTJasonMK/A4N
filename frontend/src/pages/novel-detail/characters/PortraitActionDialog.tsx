@@ -26,6 +26,8 @@ interface PortraitActionDialogProps {
   imageSizes: readonly ImageSize[];
   imageSizeLoading: boolean;
   imageSizeError: Error | null;
+  canEdit?: boolean;
+  readUnavailable?: boolean;
   onImageSizeChange: (size: ImageSize) => void;
   onClose: () => void;
   onPreviewRegenerate: (portrait: Portrait, size: ImageSize) => void | Promise<void>;
@@ -43,6 +45,8 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
   imageSizes,
   imageSizeLoading,
   imageSizeError,
+  canEdit = true,
+  readUnavailable = false,
   onImageSizeChange,
   onClose,
   onPreviewRegenerate,
@@ -53,6 +57,7 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
 }) => {
   const { t } = useI18n();
   const busy = busyId === portrait.id;
+  const writesEnabled = canEdit && !readUnavailable;
   const sizeUnavailable = imageSize == null || imageSizeLoading || imageSizeError != null;
   const imageSrc = toMediaSrc(portrait.image_path);
   const metadata = [profileName, portraitTypeLabel(portrait.portrait_type, t), portrait.expression, portrait.pose]
@@ -84,7 +89,7 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
                 onClick: () => {
                   if (imageSize) void onPreviewRegenerate(portrait, imageSize);
                 },
-                disabled: busy || sizeUnavailable,
+                disabled: !writesEnabled || busy || sizeUnavailable,
               },
             ]}
           />
@@ -95,7 +100,7 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
             onClick={() => {
               if (imageSize) void onRegenerate(portrait, imageSize);
             }}
-            disabled={busy || sizeUnavailable}
+            disabled={!writesEnabled || busy || sizeUnavailable}
             className="!text-xs"
           >
             {busy ? (
@@ -135,7 +140,7 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
             sizes={imageSizes}
             loading={imageSizeLoading}
             error={imageSizeError}
-            disabled={busy}
+            disabled={!writesEnabled || busy}
             onChange={onImageSizeChange}
           />
           <div className="mt-3 space-y-2">
@@ -144,7 +149,7 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
                 icon={<Star size={14} />}
                 title={t("characterDetail.portrait.setPrimary")}
                 description={t("characterDetail.portrait.setPrimaryDescription")}
-                disabled={busy}
+                disabled={!writesEnabled || busy}
                 onClick={() => void onSetPrimary(portrait)}
               />
             ) : null}
@@ -152,7 +157,7 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
               icon={<Clock3 size={14} />}
               title={t("characterDetail.portrait.ageVariant")}
               description={t("characterDetail.portrait.ageVariantDescription")}
-              disabled={busy}
+              disabled={!writesEnabled || busy}
               onClick={() => onAgeVariant(portrait)}
             />
             <PortraitActionButton

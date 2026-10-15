@@ -10,7 +10,7 @@ use a4n_domain::manga::MangaPagePromptRecord;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set,
+    QuerySelect, Set, sea_query::Expr,
 };
 use serde_json::Value;
 
@@ -154,6 +154,15 @@ pub async fn update_manga_page_prompt_layout(
     page_prompt: MangaPagePromptRecord,
     layout: Value,
 ) -> Result<MangaPagePromptRecord, MangaPromptRecordError> {
+    update_manga_page_prompt_layout_expected(db, page_prompt, layout, None).await
+}
+
+pub async fn update_manga_page_prompt_layout_expected<C: ConnectionTrait>(
+    db: &C,
+    page_prompt: MangaPagePromptRecord,
+    layout: Value,
+    expected_updated_at: Option<&str>,
+) -> Result<MangaPagePromptRecord, MangaPromptRecordError> {
     require_positive_manga_id(page_prompt.id, "prompt_id")?;
     if page_prompt.prompt_type != MANGA_PAGE_PROMPT_TYPE {
         return Err(MangaPromptRecordError::InvalidArgument(
@@ -175,16 +184,60 @@ pub async fn update_manga_page_prompt_layout(
     } else {
         page_prompt.image_prompt.clone()
     };
-    let updated = chapter_manga_prompt::ActiveModel {
-        id: Set(page_prompt.id),
-        image_prompt: Set(image_prompt),
-        layout: Set(Some(layout)),
-        updated_at: Set(Utc::now().naive_utc()),
-        ..Default::default()
-    }
-    .update(db)
-    .await
-    .map_err(manga_record_database("更新漫画提示词布局失败"))?;
+    let updated_at = Utc::now().naive_utc();
+    let updated = if let Some(expected_updated_at) = expected_updated_at {
+        let expected_updated_at = chrono::NaiveDateTime::parse_from_str(
+            expected_updated_at.trim(),
+            "%Y-%m-%d %H:%M:%S%.f",
+        )
+        .or_else(|_| {
+            chrono::NaiveDateTime::parse_from_str(expected_updated_at.trim(), "%Y-%m-%d %H:%M:%S")
+        })
+        .map_err(|_| {
+            MangaPromptRecordError::InvalidArgument(
+                "漫画提示词版本格式无效，请刷新后重试".to_string(),
+            )
+        })?;
+        let result = chapter_manga_prompt::Entity::update_many()
+            .col_expr(
+                chapter_manga_prompt::Column::ImagePrompt,
+                Expr::value(image_prompt),
+            )
+            .col_expr(
+                chapter_manga_prompt::Column::Layout,
+                Expr::value(Some(layout)),
+            )
+            .col_expr(
+                chapter_manga_prompt::Column::UpdatedAt,
+                Expr::value(updated_at),
+            )
+            .filter(chapter_manga_prompt::Column::Id.eq(page_prompt.id))
+            .filter(chapter_manga_prompt::Column::UpdatedAt.eq(expected_updated_at))
+            .exec(db)
+            .await
+            .map_err(manga_record_database("更新漫画提示词布局失败"))?;
+        if result.rows_affected != 1 {
+            return Err(MangaPromptRecordError::InvalidArgument(
+                "漫画提示词已被其他操作修改，请刷新后重试".to_string(),
+            ));
+        }
+        chapter_manga_prompt::Entity::find_by_id(page_prompt.id)
+            .one(db)
+            .await
+            .map_err(manga_record_database("读取漫画提示词布局失败"))?
+            .ok_or_else(|| MangaPromptRecordError::NotFound("漫画提示词不存在".into()))?
+    } else {
+        chapter_manga_prompt::ActiveModel {
+            id: Set(page_prompt.id),
+            image_prompt: Set(image_prompt),
+            layout: Set(Some(layout)),
+            updated_at: Set(updated_at),
+            ..Default::default()
+        }
+        .update(db)
+        .await
+        .map_err(manga_record_database("更新漫画提示词布局失败"))?
+    };
     Ok(manga_page_prompt_record_from_model(updated))
 }
 
@@ -197,6 +250,15 @@ pub async fn update_manga_page_prompt_image_prompt(
     page_prompt: MangaPagePromptRecord,
     image_prompt: String,
 ) -> Result<MangaPagePromptRecord, MangaPromptRecordError> {
+    update_manga_page_prompt_image_prompt_expected(db, page_prompt, image_prompt, None).await
+}
+
+pub async fn update_manga_page_prompt_image_prompt_expected(
+    db: &impl crate::DbExecutor,
+    page_prompt: MangaPagePromptRecord,
+    image_prompt: String,
+    expected_updated_at: Option<&str>,
+) -> Result<MangaPagePromptRecord, MangaPromptRecordError> {
     require_positive_manga_id(page_prompt.id, "prompt_id")?;
     if page_prompt.prompt_type != MANGA_PAGE_PROMPT_TYPE {
         return Err(MangaPromptRecordError::InvalidArgument(
@@ -204,15 +266,55 @@ pub async fn update_manga_page_prompt_image_prompt(
         ));
     }
     require_manga_text(&image_prompt, "image_prompt")?;
-    let updated = chapter_manga_prompt::ActiveModel {
-        id: Set(page_prompt.id),
-        image_prompt: Set(image_prompt),
-        updated_at: Set(Utc::now().naive_utc()),
-        ..Default::default()
-    }
-    .update(db)
-    .await
-    .map_err(manga_record_database("更新漫画图片提示词失败"))?;
+    let updated_at = Utc::now().naive_utc();
+    let updated = if let Some(expected_updated_at) = expected_updated_at {
+        let expected_updated_at = chrono::NaiveDateTime::parse_from_str(
+            expected_updated_at.trim(),
+            "%Y-%m-%d %H:%M:%S%.f",
+        )
+        .or_else(|_| {
+            chrono::NaiveDateTime::parse_from_str(expected_updated_at.trim(), "%Y-%m-%d %H:%M:%S")
+        })
+        .map_err(|_| {
+            MangaPromptRecordError::InvalidArgument(
+                "漫画提示词版本格式无效，请刷新后重试".to_string(),
+            )
+        })?;
+        let result = chapter_manga_prompt::Entity::update_many()
+            .col_expr(
+                chapter_manga_prompt::Column::ImagePrompt,
+                Expr::value(image_prompt),
+            )
+            .col_expr(
+                chapter_manga_prompt::Column::UpdatedAt,
+                Expr::value(updated_at),
+            )
+            .filter(chapter_manga_prompt::Column::Id.eq(page_prompt.id))
+            .filter(chapter_manga_prompt::Column::UpdatedAt.eq(expected_updated_at))
+            .exec(db)
+            .await
+            .map_err(manga_record_database("更新漫画图片提示词失败"))?;
+        if result.rows_affected != 1 {
+            return Err(MangaPromptRecordError::InvalidArgument(
+                "漫画提示词已被其他操作修改，请刷新后重试".to_string(),
+            ));
+        }
+        chapter_manga_prompt::Entity::find_by_id(page_prompt.id)
+            .one(db)
+            .await
+            .map_err(manga_record_database("读取漫画图片提示词失败"))?
+            .ok_or_else(|| MangaPromptRecordError::NotFound("漫画提示词不存在".into()))?
+    } else {
+        chapter_manga_prompt::ActiveModel {
+            id: Set(page_prompt.id),
+            image_prompt: Set(image_prompt),
+            updated_at: Set(updated_at),
+            ..Default::default()
+        }
+        .update(db)
+        .await
+        .map_err(manga_record_database("更新漫画图片提示词失败"))?
+    };
     Ok(manga_page_prompt_record_from_model(updated))
 }
 

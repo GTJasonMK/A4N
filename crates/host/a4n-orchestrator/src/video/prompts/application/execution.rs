@@ -397,6 +397,7 @@ impl OrchestratorContext {
             .await?;
         update_video_segment_plan_draft_recipe_checkpoint(
             self,
+            input.project_id,
             context.run.id,
             &input.source_shot_id,
             input.segment_index_in_shot,
@@ -479,7 +480,7 @@ impl OrchestratorContext {
         prompt_id: i64,
         input: UpdateChapterVideoPromptInput,
         cleanup: &dyn VideoPromptDownstreamCleanupPort,
-    ) -> Result<ChapterVideoPromptSummary, AppError> {
+    ) -> Result<VideoPromptUpdateResult, AppError> {
         let prompt = self.chapter_video_prompt(prompt_id).await?;
         self.verify_project_permission(prompt.project_id, user_id, ProjectAccessRole::Editor)
             .await?;
@@ -500,6 +501,11 @@ impl OrchestratorContext {
         {
             return Err(AppError::InvalidArgument(
                 "视频提示词 visual_prompt 不能为空".to_string(),
+            ));
+        }
+        if input.expected_updated_at.trim() != prompt.updated_at.to_string() {
+            return Err(AppError::InvalidArgument(
+                "视频提示词已被其他操作修改，请刷新后重试".to_string(),
             ));
         }
         let negative_prompt = input
@@ -535,21 +541,31 @@ impl OrchestratorContext {
         );
         source_result?;
         let plan = plan_result?;
-        self.apply_downstream_cleanup(cleanup, &plan).await?;
-        let row = self
-            .update_chapter_video_prompt_with_policy(
-                prompt_id,
-                ChapterVideoPromptPatch {
-                    visual_prompt: input.visual_prompt,
-                    motion_prompt: input.motion_prompt,
-                    negative_prompt: input.negative_prompt,
-                    duration_secs: input.duration_secs,
-                    ..Default::default()
-                },
-                plan.allow_downstream,
-            )
-            .await?;
-        Ok(ChapterVideoPromptSummary::from(&row))
+        let deletion = plan.deletion_effects();
+        self.update_chapter_video_prompt_with_policy_expected(
+            prompt_id,
+            ChapterVideoPromptPatch {
+                visual_prompt: input.visual_prompt,
+                motion_prompt: input.motion_prompt,
+                negative_prompt: input.negative_prompt,
+                duration_secs: input.duration_secs,
+                ..Default::default()
+            },
+            plan.allow_downstream || plan.delete_dependencies.is_some(),
+            &input.expected_updated_at,
+        )
+        .await?;
+        self.apply_downstream_cleanup(cleanup, &plan)
+            .await
+            .map_err(|error| AppError::InvalidState {
+                current: "video_prompt_saved".to_string(),
+                operation: format!("视频提示词已保存，但下游资源清理失败：{error}"),
+            })?;
+        let row = self.chapter_video_prompt(prompt_id).await?;
+        Ok(VideoPromptUpdateResult {
+            prompt: ChapterVideoPromptSummary::from(&row),
+            deletion,
+        })
     }
 
     pub async fn update_chapter_video_segment_plan_validated(
@@ -940,7 +956,7 @@ impl OrchestratorContext {
         prompt_id: i64,
         downstream_strategy: DownstreamConflictStrategy,
         cleanup: &dyn VideoPromptDownstreamCleanupPort,
-    ) -> Result<(), AppError> {
+    ) -> Result<VideoPromptDeleteResult, AppError> {
         let prompt = self.chapter_video_prompt(prompt_id).await?;
         self.verify_project_permission(prompt.project_id, user_id, ProjectAccessRole::Editor)
             .await?;
@@ -960,13 +976,15 @@ impl OrchestratorContext {
         );
         source_result?;
         let plan = plan_result?;
+        let mut deletion = plan.deletion_effects();
+        deletion.deleted_prompt_ids.insert(0, prompt_id);
         self.apply_downstream_cleanup(cleanup, &plan).await?;
         self.delete_chapter_video_prompts_checked(
             std::slice::from_ref(&prompt_id),
             plan.allow_downstream,
         )
         .await
-        .map(|_| ())
+        .map(|_| VideoPromptDeleteResult { deletion })
     }
 
     pub async fn optimize_chapter_video_prompt_validated(
@@ -976,7 +994,7 @@ impl OrchestratorContext {
         input: OptimizeChapterVideoPromptInput,
         prompt_renderer: &dyn PromptRenderer,
         cleanup: &dyn VideoPromptDownstreamCleanupPort,
-    ) -> Result<ChapterVideoPromptSummary, AppError> {
+    ) -> Result<VideoPromptUpdateResult, AppError> {
         let prompt = self.chapter_video_prompt(prompt_id).await?;
         self.verify_project_permission(prompt.project_id, user_id, ProjectAccessRole::Editor)
             .await?;
@@ -988,18 +1006,24 @@ impl OrchestratorContext {
                 "该视频提示词",
             )
             .await?;
-        self.optimize_video_prompt_validated(
-            VideoPromptOptimizationInput {
-                prompt,
-                instruction: input.instruction,
-                allow_downstream: plan.allow_downstream,
-                delete_dependencies: plan.delete_dependencies,
-            },
-            prompt_renderer,
-            cleanup,
-        )
-        .await
-        .map(|row| ChapterVideoPromptSummary::from(&row))
+        let deletion = plan.deletion_effects();
+        let row = self
+            .optimize_video_prompt_validated(
+                VideoPromptOptimizationInput {
+                    prompt,
+                    instruction: input.instruction,
+                    allow_downstream: plan.allow_downstream || plan.delete_dependencies.is_some(),
+                    delete_dependencies: plan.delete_dependencies,
+                    expected_updated_at: input.expected_updated_at,
+                },
+                prompt_renderer,
+                cleanup,
+            )
+            .await?;
+        Ok(VideoPromptUpdateResult {
+            prompt: ChapterVideoPromptSummary::from(&row),
+            deletion,
+        })
     }
 
     async fn prepare_mutation_plan(

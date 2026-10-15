@@ -14,6 +14,9 @@ export const videoCanvas = {
       imageOutput: "Image output", videoOutput: "Video output", audioOutput: "Audio output",
     },
     inputMode: { textOnly: "Prompt only", firstFrame: "First frame", firstEndFrame: "First and last frames", referenceImages: "Reference images" },
+    inputModeChangeTitle: "Change video input mode",
+    inputModeChangeMessage: "{count} image connection(s) are not available in the new mode. Continuing will remove them.",
+    inputModeChangeConfirm: "Remove incompatible connections",
     dataType: {
       text: "Text", image: "Image", video: "Video", audio: "Audio", media: "Media", json: "Structured data", any: "Any content",
       imagePrompt: "Image prompt", videoPrompt: "Video prompt", shotScript: "Shot script", storyboard: "Storyboard", frame: "Frame", unknown: "Unknown content",

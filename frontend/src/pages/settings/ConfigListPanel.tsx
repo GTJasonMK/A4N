@@ -53,12 +53,8 @@ export function ConfigListPanel<C>({
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<C>(defaultForm);
   const [dirty, setDirty] = useState(false);
-  useDirty(`settings-config:${title}`, dirty, undefined, () =>
-    !savingRef.current && !refreshingRef.current && !draftTransitionRef.current
-      && activatingRef.current == null && deletingRef.current == null
-      && testingRef.current == null && !previewLoadingRef.current,
-  );
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [activating, setActivating] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [testing, setTesting] = useState<number | null>(null);
@@ -92,11 +88,23 @@ export function ConfigListPanel<C>({
   const deletingRef = useRef<number | null>(null);
   const testingRef = useRef<number | null>(null);
   const previewLoadingRef = useRef(false);
+  const loadingRef = useRef(loading);
+  const loadErrorRef = useRef(loadError);
+
+  const configActionBusy = saving || refreshing || activating != null || deleting != null
+    || testing != null || requestPreviewLoading;
+  useDirty(`settings-config:${title}`, dirty || configActionBusy, undefined, () =>
+    !savingRef.current && !refreshingRef.current && !draftTransitionRef.current
+      && activatingRef.current == null && deletingRef.current == null
+      && testingRef.current == null && !previewLoadingRef.current,
+  );
 
   itemsRef.current = items;
   selectedIdRef.current = selectedId;
   creatingRef.current = creating;
   dirtyRef.current = dirty;
+  loadingRef.current = loading;
+  loadErrorRef.current = loadError;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -124,6 +132,11 @@ export function ConfigListPanel<C>({
   const markClean = () => {
     dirtyRef.current = false;
     setDirty(false);
+  };
+  const ensureReadModel = () => {
+    if (!loadingRef.current && !loadErrorRef.current) return true;
+    addToast(loadErrorRef.current ?? t("common.operationInProgress"), "error");
+    return false;
   };
 
   useLayoutEffect(() => {
@@ -183,7 +196,7 @@ export function ConfigListPanel<C>({
   };
 
   const handleStartCreate = async () => {
-    if (loading || savingRef.current || refreshingRef.current || draftTransitionRef.current) return;
+    if (savingRef.current || refreshingRef.current || draftTransitionRef.current) return;
     draftTransitionRef.current = true;
     try {
       if (!(await confirmDiscardDraft(t("settings.createConfig", { name: title })))) return;
@@ -223,6 +236,7 @@ export function ConfigListPanel<C>({
     refreshSeqRef.current = requestSeq;
     refreshingRef.current = true;
     draftTransitionRef.current = true;
+    setRefreshing(true);
     try {
       if (!(await confirmDiscardDraft(t("settings.refreshList")))) return;
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
@@ -234,11 +248,13 @@ export function ConfigListPanel<C>({
       if (refreshSeqRef.current === requestSeq) {
         refreshingRef.current = false;
         draftTransitionRef.current = false;
+        if (mountedRef.current) setRefreshing(false);
       }
     }
   };
 
   const handleSave = async () => {
+    if (!creating && !ensureReadModel()) return;
     if (
       loading ||
       savingRef.current ||
@@ -351,6 +367,7 @@ export function ConfigListPanel<C>({
   };
 
   const handleActivate = async (id: number) => {
+    if (!ensureReadModel()) return;
     if (
       savingRef.current ||
       refreshingRef.current ||
@@ -364,7 +381,11 @@ export function ConfigListPanel<C>({
     setActivating(id);
     try {
       await onActivate(id);
-      if (!mountedRef.current || activateSeqRef.current !== requestSeq || !hasItem(id)) return;
+      if (
+        !mountedRef.current ||
+        activateSeqRef.current !== requestSeq ||
+        !hasItem(id)
+      ) return;
       onItemsChange((current) => current.map((item) => ({ ...item, isActive: item.id === id })));
       addToast(resolvedActivateSuccessMessage, "success");
     } catch (err) {
@@ -377,6 +398,7 @@ export function ConfigListPanel<C>({
   };
 
   const handleDelete = async (id: number) => {
+    if (!ensureReadModel()) return;
     if (
       savingRef.current ||
       refreshingRef.current ||
@@ -407,7 +429,11 @@ export function ConfigListPanel<C>({
       if (deletingRef.current === id) deletingRef.current = null;
       return;
     }
-    if (!mountedRef.current || !hasItem(id)) {
+    if (
+      !mountedRef.current ||
+      !ensureReadModel() ||
+      !hasItem(id)
+    ) {
       if (deletingRef.current === id) deletingRef.current = null;
       return;
     }
@@ -441,6 +467,7 @@ export function ConfigListPanel<C>({
   };
 
   const handleTest = async (id: number) => {
+    if (!ensureReadModel()) return;
     if (!onTest) return;
     if (
       savingRef.current ||
@@ -492,6 +519,7 @@ export function ConfigListPanel<C>({
   };
 
   const handlePreviewTest = async (id: number) => {
+    if (!ensureReadModel()) return;
     if (!onPreviewTest) return;
     if (
       savingRef.current ||
@@ -557,7 +585,7 @@ export function ConfigListPanel<C>({
       form={form}
       dirty={dirty}
       validationError={validationError}
-      busy={loading}
+      busy={loading || (loadError != null && !creating)}
       saving={saving}
       activating={activating}
       deleting={deleting}

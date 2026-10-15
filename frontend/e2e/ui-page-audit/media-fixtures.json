@@ -9567,7 +9567,7 @@
       "get_canvas_graph": {
         "graph": {
           "id": 6,
-          "graph_kind": "freeform",
+          "graph_kind": "video_studio",
           "name": "雨夜来信 · 媒体工作流",
           "version": 3,
           "viewport_json": {

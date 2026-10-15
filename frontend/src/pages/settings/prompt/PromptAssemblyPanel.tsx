@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ArrowDown, ArrowUp, Plus, RefreshCw, RotateCcw, Save, Trash2 } from "lucide-react";
 import { extractErrorMessage } from "../../../api";
 import {
   promptAssemblyGet,
@@ -26,9 +26,12 @@ export const PROMPT_ASSEMBLY_DIRTY_KEY = "settings-prompt-assembly";
 
 interface PromptAssemblyPanelProps {
   promptName: string;
+  promptListReady: boolean;
+  promptListRevision: number;
 }
 
 const emptyConfig = { blocks: [] as PromptAssemblyBlock[] };
+const MAX_PROMPT_ASSEMBLY_BLOCKS = 64;
 
 const projectContextField = (key: string): string =>
   key.startsWith("project_info.") ? key.slice("project_info.".length) : key;
@@ -60,7 +63,11 @@ const callOptionLabel = (
     .replace(/_/g, " ");
 };
 
-export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ promptName }) => {
+export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({
+  promptName,
+  promptListReady,
+  promptListRevision,
+}) => {
   const { addToast } = useToast();
   const { t } = useI18n();
   const projectContextLabels: Record<string, string> = {
@@ -95,8 +102,15 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<"list" | "config" | null>(null);
+  const [errorOwnerKey, setErrorOwnerKey] = useState<string | null>(null);
+  const [loadedScopeKey, setLoadedScopeKey] = useState<string | null>(null);
   const scopeSeqRef = useRef(0);
   const previewSeqRef = useRef(0);
+  const summarySeqRef = useRef(0);
+  const loadedScopeKeyRef = useRef<string | null>(null);
+  const activeScopeKeyRef = useRef<string | null>(null);
+  const activePromptListRevisionRef = useRef(promptListRevision);
 
   const calls = useMemo(
     () => summaries.filter((summary) => summary.prompt_name === promptName),
@@ -104,39 +118,72 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
   );
   const selected = calls.find((summary) => summary.call_key === callKey) ?? calls[0];
   const contextVariables = selected?.project_context_variables ?? [];
-  const dirty = JSON.stringify(draft) !== JSON.stringify(savedConfig);
-  const busy = loadingList || loadingConfig || saving || resetting;
+  const configScopeKey = selected
+    ? JSON.stringify([selected.prompt_name, selected.call_key, projectId])
+    : null;
+  useLayoutEffect(() => {
+    activeScopeKeyRef.current = configScopeKey;
+  }, [configScopeKey]);
+  useLayoutEffect(() => {
+    activePromptListRevisionRef.current = promptListRevision;
+  }, [promptListRevision]);
+  const configReady = configScopeKey != null && loadedScopeKey === configScopeKey;
+  const hasUnsavedChanges = configReady && JSON.stringify(draft) !== JSON.stringify(savedConfig);
+  const hasValidDraft = draft.blocks.length > 0
+    && draft.blocks.some((block) => block.enabled)
+    && draft.blocks.every((block) => block.value.trim().length > 0);
+  const working = loadingList || loadingConfig || saving || resetting;
+  const actionsDisabled = working || !promptListReady;
+  const dirty = hasUnsavedChanges || saving || resetting;
+  const visibleError = errorKind === "list"
+    ? errorOwnerKey === promptName ? error : null
+    : errorKind === "config" && errorOwnerKey === configScopeKey ? error : null;
 
   const discardDraft = useCallback(() => {
+    if (saving || resetting) return false;
     previewSeqRef.current += 1;
     setDraft(savedConfig);
     setPreview(savedPreview);
     setPreviewError(null);
     setPreviewing(false);
-  }, [savedConfig, savedPreview]);
+    return true;
+  }, [resetting, savedConfig, savedPreview, saving]);
 
-  useDirty(PROMPT_ASSEMBLY_DIRTY_KEY, dirty, discardDraft, () => !busy);
+  useDirty(PROMPT_ASSEMBLY_DIRTY_KEY, dirty, discardDraft, () => !saving && !resetting);
 
-  useEffect(() => {
-    let active = true;
+  const loadSummaries = useCallback(async (): Promise<boolean> => {
+    const requestSeq = summarySeqRef.current + 1;
+    summarySeqRef.current = requestSeq;
     setLoadingList(true);
     setError(null);
-    promptAssemblyList()
-      .then((items) => {
-        if (!active) return;
-        setSummaries(items);
-      })
-      .catch((loadError: unknown) => {
-        if (active) setError(extractErrorMessage(loadError, t("settingsPrompt.assemblyLoadFailed")));
-      })
-      .finally(() => {
-        if (active) setLoadingList(false);
-      });
+    setErrorKind(null);
+    setErrorOwnerKey(null);
+    setSummaries([]);
+    setCallKey("");
+    try {
+      const items = await promptAssemblyList();
+      if (summarySeqRef.current !== requestSeq) return false;
+      setSummaries(items);
+      return true;
+    } catch (loadError) {
+      if (summarySeqRef.current === requestSeq) {
+        setError(extractErrorMessage(loadError, t("settingsPrompt.assemblyLoadFailed")));
+        setErrorKind("list");
+        setErrorOwnerKey(promptName);
+      }
+      return false;
+    } finally {
+      if (summarySeqRef.current === requestSeq) setLoadingList(false);
+    }
+  }, [promptName, t]);
+
+  useEffect(() => {
+    void loadSummaries();
     return () => {
-      active = false;
+      summarySeqRef.current += 1;
       scopeSeqRef.current += 1;
     };
-  }, [promptName, t]);
+  }, [loadSummaries, promptName]);
 
   useEffect(() => {
     if (!calls.some((item) => item.call_key === callKey)) {
@@ -144,9 +191,11 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
     }
   }, [callKey, calls]);
 
-  const loadConfig = useCallback(async () => {
+  const loadConfig = useCallback(async (): Promise<boolean> => {
     if (!selected) {
       scopeSeqRef.current += 1;
+      loadedScopeKeyRef.current = null;
+      setLoadedScopeKey(null);
       setLoadingConfig(false);
       setSavedConfig(emptyConfig);
       setDraft(emptyConfig);
@@ -156,23 +205,36 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
       setPreview("");
       setPreviewError(null);
       setPreviewing(false);
-      return;
+      return false;
     }
+    const requestScopeKey = JSON.stringify([selected.prompt_name, selected.call_key, projectId]);
+    if (activeScopeKeyRef.current !== requestScopeKey) return false;
+    const keepCurrentScope = loadedScopeKeyRef.current === requestScopeKey;
     const requestSeq = scopeSeqRef.current + 1;
     scopeSeqRef.current = requestSeq;
     setLoadingConfig(true);
     setError(null);
+    setErrorKind(null);
+    setErrorOwnerKey(null);
     setPreviewError(null);
     setPreviewing(false);
     setSavedPreview("");
     setPreview("");
+    if (!keepCurrentScope) {
+      loadedScopeKeyRef.current = null;
+      setLoadedScopeKey(null);
+      setSavedConfig(emptyConfig);
+      setDraft(emptyConfig);
+      setSource("system_default");
+      setProjectContext({});
+    }
     try {
       const output = await promptAssemblyGet({
         call_key: selected.call_key,
         prompt_name: selected.prompt_name,
         project_id: projectId,
       });
-      if (scopeSeqRef.current !== requestSeq) return;
+      if (scopeSeqRef.current !== requestSeq || activeScopeKeyRef.current !== requestScopeKey) return false;
       const config = cloneConfig(output);
       setSavedConfig(config);
       setDraft(config);
@@ -180,10 +242,16 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
       setProjectContext(objectValue(output.project_context));
       setSavedPreview(output.rendered_preview);
       setPreview(output.rendered_preview);
+      loadedScopeKeyRef.current = requestScopeKey;
+      setLoadedScopeKey(requestScopeKey);
+      return true;
     } catch (loadError) {
       if (scopeSeqRef.current === requestSeq) {
         setError(extractErrorMessage(loadError, t("settingsPrompt.assemblyLoadFailed")));
+        setErrorKind("config");
+        setErrorOwnerKey(requestScopeKey);
       }
+      return false;
     } finally {
       if (scopeSeqRef.current === requestSeq) setLoadingConfig(false);
     }
@@ -194,11 +262,19 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
   }, [loadConfig]);
 
   useEffect(() => {
-    if (!selected || loadingConfig) return;
+    if (!selected || loadingConfig || !configReady || saving || resetting) {
+      setPreviewing(false);
+      return;
+    }
     const requestSeq = ++previewSeqRef.current;
     setPreviewError(null);
-    if (!dirty) {
+    if (!hasUnsavedChanges) {
       setPreview(savedPreview);
+      setPreviewing(false);
+      return;
+    }
+    if (!hasValidDraft) {
+      setPreview("");
       setPreviewing(false);
       return;
     }
@@ -232,9 +308,10 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
       window.clearTimeout(timer);
       previewSeqRef.current += 1;
     };
-  }, [dirty, draft, loadingConfig, projectId, savedPreview, selected, t]);
+  }, [configReady, hasUnsavedChanges, hasValidDraft, draft, loadingConfig, projectId, resetting, savedPreview, saving, selected, t]);
 
   const updateBlock = (blockId: string, update: Partial<PromptAssemblyBlock>) => {
+    if (!promptListReady || !configReady || working) return;
     setDraft((current) => ({
       blocks: current.blocks.map((block) =>
         block.id === blockId ? { ...block, ...update } : block,
@@ -243,14 +320,14 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
   };
 
   const addBlock = (kind: PromptAssemblyBlockKind) => {
-    if (!selected) return;
+    if (!selected || !promptListReady || !configReady || working) return;
     const option =
       kind === "template"
         ? selected.available_templates[0]?.name
         : kind === "variable"
           ? selected.variables[0] ?? (projectId ? selected.project_context_variables[0] : undefined)
-          : "Custom instruction";
-    if (!option) {
+          : "";
+    if (!option && kind !== "custom") {
       addToast(t(kind === "template" ? "settingsPrompt.assemblyNoTemplates" : "settingsPrompt.assemblyVariableSelect"), "error");
       return;
     }
@@ -263,7 +340,14 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
   };
 
   const toggleProjectContext = (key: string) => {
-    if (!projectId || !selected || busy) return;
+    if (!projectId || !selected || !promptListReady || !configReady || working) return;
+    const alreadyIncluded = draft.blocks.some(
+      (block) => block.kind === "variable" && block.value === key,
+    );
+    if (!alreadyIncluded && draft.blocks.length >= MAX_PROMPT_ASSEMBLY_BLOCKS) {
+      addToast(t("settingsPrompt.assemblyBlockLimitReached", { count: MAX_PROMPT_ASSEMBLY_BLOCKS }), "info");
+      return;
+    }
     setDraft((current) => {
       const hasBlock = current.blocks.some(
         (block) => block.kind === "variable" && block.value === key,
@@ -275,7 +359,7 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
           ),
         };
       }
-      if (current.blocks.length >= 64) return current;
+      if (current.blocks.length >= MAX_PROMPT_ASSEMBLY_BLOCKS) return current;
       return {
         blocks: [
           ...current.blocks,
@@ -286,6 +370,7 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
   };
 
   const moveBlock = (index: number, offset: -1 | 1) => {
+    if (!promptListReady || !configReady || working) return;
     setDraft((current) => {
       const target = index + offset;
       if (target < 0 || target >= current.blocks.length) return current;
@@ -295,18 +380,40 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
     });
   };
 
+  const deleteBlock = (blockId: string) => {
+    if (!promptListReady || !configReady || working) return;
+    setDraft((current) => ({
+      blocks: current.blocks.filter((block) => block.id !== blockId),
+    }));
+  };
+
   const save = async () => {
-    if (!selected || !dirty || busy) return;
+    if (!selected || !promptListReady || !configReady || !hasUnsavedChanges || !hasValidDraft || working) return;
+    const requestScopeKey = configScopeKey;
+    const requestPromptName = promptName;
+    const requestPromptListRevision = promptListRevision;
+    const config = { blocks: draft.blocks.map((block) => ({ ...block })) };
     setSaving(true);
     try {
       await promptAssemblySave({
         call_key: selected.call_key,
         prompt_name: selected.prompt_name,
         project_id: projectId,
-        config: draft,
+        config,
       });
-      await loadConfig();
+      if (
+        activeScopeKeyRef.current !== requestScopeKey ||
+        activePromptListRevisionRef.current !== requestPromptListRevision ||
+        promptName !== requestPromptName ||
+        !promptListReady
+      ) return;
+      setSavedConfig(config);
+      setDraft(config);
+      setSource(projectId == null ? "global" : "project");
+      setSavedPreview("");
+      setPreview("");
       addToast(t("settingsPrompt.assemblySaved"), "success");
+      await loadConfig();
     } catch (saveError) {
       addToast(extractErrorMessage(saveError, t("settingsPrompt.assemblySaveFailed")), "error");
     } finally {
@@ -315,8 +422,11 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
   };
 
   const reset = async () => {
-    if (!selected || busy) return;
-    if (dirty) {
+    if (!selected || !promptListReady || !configReady || working) return;
+    const requestScopeKey = configScopeKey;
+    const requestPromptName = promptName;
+    const requestPromptListRevision = promptListRevision;
+    if (hasUnsavedChanges) {
       const discard = await confirmDialog({
         title: t("common.unsavedChangesTitle"),
         message: t("common.unsavedChangesMessage", {
@@ -327,6 +437,14 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
         dialogType: "warning",
       });
       if (!discard) return;
+      if (
+        activeScopeKeyRef.current !== requestScopeKey ||
+        activePromptListRevisionRef.current !== requestPromptListRevision ||
+        !promptListReady
+      ) {
+        addToast(t("common.listChangedRetry"), "info");
+        return;
+      }
     }
     setResetting(true);
     try {
@@ -335,8 +453,22 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
         prompt_name: selected.prompt_name,
         project_id: projectId,
       });
-      await loadConfig();
+      if (
+        activeScopeKeyRef.current !== requestScopeKey ||
+        activePromptListRevisionRef.current !== requestPromptListRevision ||
+        promptName !== requestPromptName ||
+        !promptListReady
+      ) return;
+      loadedScopeKeyRef.current = null;
+      setLoadedScopeKey(null);
+      setSavedConfig(emptyConfig);
+      setDraft(emptyConfig);
+      setSource("system_default");
+      setProjectContext({});
+      setSavedPreview("");
+      setPreview("");
       addToast(t("settingsPrompt.assemblyReset"), "success");
+      await loadConfig();
     } catch (resetError) {
       addToast(extractErrorMessage(resetError, t("settingsPrompt.assemblyResetFailed")), "error");
     } finally {
@@ -353,7 +485,9 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
   );
 
   const confirmScopeChange = async (action: () => void) => {
-    if (dirty) {
+    const requestScopeKey = configScopeKey;
+    const requestPromptListRevision = promptListRevision;
+    if (hasUnsavedChanges) {
       const discard = await confirmDialog({
         title: t("common.unsavedChangesTitle"),
         message: t("common.unsavedChangesMessage", {
@@ -364,8 +498,24 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
         dialogType: "warning",
       });
       if (!discard) return;
+      if (
+        activeScopeKeyRef.current !== requestScopeKey ||
+        activePromptListRevisionRef.current !== requestPromptListRevision ||
+        !promptListReady
+      ) {
+        addToast(t("common.listChangedRetry"), "info");
+        return;
+      }
     }
     action();
+  };
+
+  const retryConfig = () => {
+    if (!promptListReady) {
+      addToast(t("common.listChangedRetry"), "info");
+      return;
+    }
+    void confirmScopeChange(() => { void loadConfig(); });
   };
 
   return (
@@ -374,7 +524,7 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
         <h4 className="min-w-0 flex-1 text-xs font-semibold text-book-text-main">
           {t("settingsPrompt.assembly")}
         </h4>
-        {selected ? (
+        {selected && configReady ? (
           <span className="max-w-full truncate text-small text-book-text-muted" title={sourceLabel}>
             {sourceLabel}
           </span>
@@ -386,8 +536,13 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
           <LoadingSpinner size="sm" />
           {t("settingsPrompt.loading")}
         </div>
-      ) : error && calls.length === 0 ? (
-        <div role="alert" className="py-2 text-small text-error">{error}</div>
+      ) : visibleError && errorKind === "list" && calls.length === 0 ? (
+        <div role="alert" className="flex flex-wrap items-center gap-2 py-2 text-small text-error">
+          <span className="min-w-0 flex-1">{visibleError}</span>
+          <BookButton variant="secondary" size="sm" onClick={() => void loadSummaries()} disabled={working}>
+            <RefreshCw size={12} />{t("common.retry")}
+          </BookButton>
+        </div>
       ) : !selected ? (
         <div className="py-2 text-small text-book-text-muted">{t("settingsPrompt.assemblyEmpty")}</div>
       ) : (
@@ -400,7 +555,7 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
                 value={selected.call_key}
                 title={selected.call_key}
                 aria-label={t("settingsPrompt.assemblyCall")}
-                disabled={busy}
+                disabled={actionsDisabled}
                 onChange={(value) => void confirmScopeChange(() => setCallKey(value))}
               >
                 {calls.map((call) => (
@@ -415,6 +570,7 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
               <PromptProjectSelect
                 value={projectId}
                 onChange={(nextProjectId) => void confirmScopeChange(() => setProjectId(nextProjectId))}
+                disabled={actionsDisabled}
                 allowEmpty
                 requireEditor
                 ariaLabel={t("settingsPrompt.apply")}
@@ -422,8 +578,17 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
             </label>
           </div>
 
-          {error ? <div role="alert" className="text-small text-error">{error}</div> : null}
+          {visibleError && errorKind === "config" ? (
+            <div role="alert" className="flex flex-wrap items-center gap-2 text-small text-error">
+              <span className="min-w-0 flex-1">{visibleError}</span>
+              <BookButton variant="secondary" size="sm" onClick={retryConfig} disabled={working}>
+                <RefreshCw size={12} />{t("common.retry")}
+              </BookButton>
+            </div>
+          ) : null}
 
+          {configReady ? (
+            <>
           <section className="min-w-0 overflow-hidden rounded-md border border-book-border/45 bg-book-bg-secondary/20">
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-book-border/40 px-3 py-2">
               <div className="min-w-0">
@@ -461,7 +626,7 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
                           type="checkbox"
                           className="mt-0.5 shrink-0"
                           checked={checked}
-                          disabled={busy}
+                          disabled={actionsDisabled}
                           onChange={() => toggleProjectContext(key)}
                           aria-label={projectContextLabels[field] ?? field}
                         />
@@ -501,12 +666,10 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
                 count={draft.blocks.length}
                 summary={selected}
                 projectContextEnabled={projectId != null}
-                disabled={busy}
+                disabled={!configReady || working}
                 onChange={(update) => updateBlock(block.id, update)}
                 onMove={(offset) => moveBlock(index, offset)}
-                onDelete={() => setDraft((current) => ({
-                  blocks: current.blocks.filter((item) => item.id !== block.id),
-                }))}
+                onDelete={() => deleteBlock(block.id)}
               />
             ))}
             {loadingConfig ? (
@@ -547,32 +710,53 @@ export const PromptAssemblyPanel: React.FC<PromptAssemblyPanelProps> = ({ prompt
 
           <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             <div className="flex flex-wrap gap-1.5">
-              <BookButton variant="secondary" size="sm" onClick={() => addBlock("template")} disabled={busy || draft.blocks.length >= 64 || selected.available_templates.length === 0}>
+              <BookButton variant="secondary" size="sm" onClick={() => addBlock("template")} disabled={!configReady || working || draft.blocks.length >= MAX_PROMPT_ASSEMBLY_BLOCKS || selected.available_templates.length === 0}>
                 <Plus size={13} />{t("settingsPrompt.assemblyAddTemplate")}
               </BookButton>
-              <BookButton variant="secondary" size="sm" onClick={() => addBlock("variable")} disabled={busy || draft.blocks.length >= 64 || (selected.variables.length === 0 && (!projectId || selected.project_context_variables.length === 0))}>
+              <BookButton variant="secondary" size="sm" onClick={() => addBlock("variable")} disabled={!configReady || working || draft.blocks.length >= MAX_PROMPT_ASSEMBLY_BLOCKS || (selected.variables.length === 0 && (!projectId || selected.project_context_variables.length === 0))}>
                 <Plus size={13} />{t("settingsPrompt.assemblyAddVariable")}
               </BookButton>
-              <BookButton variant="secondary" size="sm" onClick={() => addBlock("custom")} disabled={busy || draft.blocks.length >= 64}>
+              <BookButton variant="secondary" size="sm" onClick={() => addBlock("custom")} disabled={!configReady || working || draft.blocks.length >= MAX_PROMPT_ASSEMBLY_BLOCKS}>
                 <Plus size={13} />{t("settingsPrompt.assemblyAddCustom")}
               </BookButton>
             </div>
-            {dirty ? (
+            {draft.blocks.length >= MAX_PROMPT_ASSEMBLY_BLOCKS ? (
+              <span role="status" className="min-w-0 text-small text-book-text-muted sm:flex-1">
+                {t("settingsPrompt.assemblyBlockLimitReached", { count: MAX_PROMPT_ASSEMBLY_BLOCKS })}
+              </span>
+            ) : null}
+            {hasUnsavedChanges ? (
               <span className="min-w-0 text-small text-warning sm:flex-1">
                 {t("settingsPrompt.assemblyUnsaved")}
               </span>
             ) : null}
+            {draft.blocks.length > 0 && !draft.blocks.some((block) => block.enabled) ? (
+              <span className="min-w-0 text-small text-error sm:flex-1">
+                {t("settingsPrompt.assemblyRequiresEnabledBlock")}
+              </span>
+            ) : null}
+            {draft.blocks.some((block) => !block.value.trim()) ? (
+              <span className="min-w-0 text-small text-error sm:flex-1">
+                {t("settingsPrompt.assemblyRequiresBlockContent")}
+              </span>
+            ) : null}
             <div className="flex min-w-0 flex-wrap gap-2 sm:ml-auto">
-              <BookButton variant="secondary" size="sm" onClick={() => void reset()} disabled={busy}>
+              <BookButton variant="secondary" size="sm" onClick={() => void reset()} disabled={!configReady || working}>
                 {resetting ? <LoadingSpinner size="sm" /> : <RotateCcw size={13} />}
                 {t("settingsPrompt.assemblyResetAction")}
               </BookButton>
-              <BookButton variant="primary" size="sm" onClick={() => void save()} disabled={busy || !dirty || draft.blocks.length === 0 || !draft.blocks.some((block) => block.enabled)}>
+              <BookButton variant="primary" size="sm" onClick={() => void save()} disabled={!configReady || working || !hasUnsavedChanges || !hasValidDraft}>
                 {saving ? <LoadingSpinner size="sm" /> : <Save size={13} />}
                 {t("common.save")}
               </BookButton>
             </div>
           </div>
+            </>
+          ) : visibleError && errorKind === "config" ? null : (
+            <div className="flex min-h-12 items-center gap-2 text-small text-book-text-muted">
+              <LoadingSpinner size="sm" />{t("settingsPrompt.loading")}
+            </div>
+          )}
         </div>
       )}
     </section>
@@ -621,7 +805,7 @@ const AssemblyBlockRow: React.FC<{
               ? summary.available_templates[0]?.name ?? ""
               : kind === "variable"
                 ? defaultVariable
-                : `{{ ${summary.variables[0] ?? ""} }}`;
+                : "";
             onChange({ kind, value: blockValue });
           }}
         >

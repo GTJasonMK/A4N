@@ -1,15 +1,19 @@
 import assert from "node:assert/strict";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { installUiFixtures } from "../ui-presentation/fixtures.mjs";
 import { buildPageFixtures, seedLocalModels } from "./fixtures.mjs";
-import { directorSnapshot } from "./home-agent-fixtures.mjs";
+import { directorSnapshot, homeAgentFixtures } from "./home-agent-fixtures.mjs";
 
 const seed = JSON.parse(await readFile(new URL("./novel-fixtures.json", import.meta.url)));
 const runtimeSeed = JSON.parse(await readFile(new URL("./novel-runtime.json", import.meta.url)));
 const mediaSeed = JSON.parse(await readFile(new URL("./media-fixtures.json", import.meta.url)));
+seed.commands.get_project.content_revision ??= 0;
+for (const project of seed.projectRecords) project.content_revision ??= 0;
 const directorPlan = mediaSeed.byChapter[1].get_chapter_visual_plan.draft.plan;
 const output = fileURLToPath(new URL("../../../.dev-runtime/ui-pages/novel/", import.meta.url));
+const downloadOutput = fileURLToPath(new URL("../../../.dev-runtime/ui-pages/novel-downloads/", import.meta.url));
 const phase = process.env.A4N_UI_PAGE_PHASE ?? "current";
 assert.match(phase, /^[a-z0-9_-]+$/i);
 const widths = [1440, 900, 390];
@@ -21,6 +25,7 @@ const rootTitle = seed.commands.get_project.title;
 let current = null;
 let auditWindow = null;
 let navigation = 0;
+let nativeDraftStorageScenario = false;
 
 const literal = (value) => {
   if (!value.includes("'")) return "'" + value + "'";
@@ -83,6 +88,37 @@ async function waitText(scope, text) {
   await browser.waitUntil(async () => (await scope.getText()).includes(text), {
     timeout, timeoutMsg: "Expected populated content: " + text,
   });
+}
+async function waitForAgentMessage(text, waitTimeout = timeout) {
+  try {
+    await browser.waitUntil(async () => browser.execute((expected) =>
+      [...document.querySelectorAll(".agent-message-list")]
+        .some((list) => list.innerText.includes(expected)),
+    text), { timeout: waitTimeout, timeoutMsg: "Expected a visible Agent message: " + text });
+  } catch (error) {
+    current.evidence = {
+      ...current.evidence,
+      finalConsole: await browser.execute(() => {
+        const root = document.querySelector('[aria-label="领域 Agent 控制台"]');
+        return root ? {
+          text: root.innerText,
+          threadStatus: root.querySelector(".agent-console-thread-status")?.textContent ?? null,
+          lists: [...root.querySelectorAll(".agent-message-list")].map((list) => list.innerText),
+        } : null;
+      }),
+    };
+    throw error;
+  }
+}
+async function respondToPending(command, body, status = 200) {
+  await browser.execute(({ command, body, status }) => {
+    const audit = window.__uiAudit;
+    const index = audit.pending.findIndex((item) => item.command === command);
+    if (index < 0) throw new Error("No pending fixture request: " + command);
+    const [request] = audit.pending.splice(index, 1);
+    audit.deferred = audit.deferred.filter((item) => item !== command);
+    request.resolve(Response.json(body, { status }));
+  }, { command, body, status });
 }
 async function openProjectAction(label) {
   await project();
@@ -195,8 +231,13 @@ async function writingPanel(label) {
   await panel.waitForDisplayed({ timeout });
   return panel;
 }
+async function waitForOptimizerChapter(title) {
+  await browser.waitUntil(async () => browser.execute((expected) =>
+    document.querySelector('aside[aria-label="写作助手"] section > header')?.textContent.includes(expected) ?? false,
+  title), { timeout, timeoutMsg: `The optimizer header must identify ${title}` });
+}
 async function directorInspector(kind = "point") {
-  await writing("导演编排");
+  await directorWorkspace();
   await press(await $(`.director-${kind}`));
   return selectedDirectorInspector(kind);
 }
@@ -220,28 +261,60 @@ async function home() {
   auditWindow ??= await browser.getWindowHandle();
   await browser.switchToWindow(auditWindow);
   // A distinct document prevents a prior modal/draft/BiDi context leaking into the next case.
-  await browser.url("/?ui-page-reset=" + (++navigation));
+  await browser.url("/?ui-page-reset=" + (++navigation) + (nativeDraftStorageScenario ? "&ui-native-draft-storage=1" : ""));
   await $(".a4n-home-content").waitForDisplayed({ timeout });
   return $(".a4n-home-content");
+}
+async function switchInterfaceLanguage(option, expectedLocale, triggerLabel) {
+  const statusPanel = $("#a4n-status-bar-panel");
+  if (!await statusPanel.isDisplayed().catch(() => false)) {
+    await browser.execute(() => document.querySelector(".a4n-status-bar-orb")?.click());
+    await statusPanel.waitForDisplayed({ timeout });
+  }
+  await browser.execute((label) => [...document.querySelectorAll("#a4n-status-bar-panel button")]
+    .find((button) => button.getAttribute("aria-label") === label)?.click(), triggerLabel);
+  await $("[role=menu]").waitForDisplayed({ timeout });
+  await menuItem(option);
+  await browser.waitUntil(async () => browser.execute((locale) => document.documentElement.lang === locale, expectedLocale), { timeout });
+  await browser.execute(() => document.querySelector("#a4n-status-bar-panel")?.focus());
+  await browser.keys("Escape");
+  await statusPanel.waitForExist({ reverse: true, timeout });
 }
 async function rootRow() {
   return $('//div[contains(@class,"a4n-project-row") and .//h3[normalize-space(.)=' + literal(rootTitle) + ']]');
 }
-async function project(tab = "概览") {
+async function project(tab = "概览", beforeTab, beforeProject) {
   await home();
   const row = await rootRow();
   await press(await row.$('button[aria-label="更多操作"]'));
+  if (beforeProject) await beforeProject();
   await menuItem("查看档案");
   await browser.waitUntil(async () => new URL(await browser.getUrl()).pathname === "/novel/1", { timeout });
   await $(pageSelector).waitForDisplayed({ timeout });
+  if (beforeTab) await beforeTab();
   const rail = await $("nav[role=tablist]");
   await clickText(tab, rail);
   return $(pageSelector);
 }
+async function collaborationPanel(beforeProject) {
+  const overview = await project("概览", undefined, beforeProject);
+  await press(await containing("协作成员", overview));
+  const panel = await dialog("协作成员");
+  await waitText(panel, "共 3 位成员");
+  return panel;
+}
+async function openImportReviewEditor(aside) {
+  const details = await aside.$("details");
+  if (!(await details.getProperty("open"))) await press(await details.$("summary"));
+  const editor = await details.$("textarea");
+  await editor.waitForDisplayed({ timeout });
+  await editor.scrollIntoView({ block: "center" });
+  return editor;
+}
 async function writing(tab = "正文") {
   await home();
   const row = await rootRow();
-  await press(await row.$('button[aria-label$=" · 进入写作台"]'));
+  await press(await row.$('button[aria-label$=" · 进入写作桌"]'));
   await $(".a4n-writing-panel-toggle").waitForDisplayed({ timeout });
   const activePanel = await $('.a4n-writing-panel-toggle button[aria-pressed="true"]');
   if (await activePanel.isExisting()) {
@@ -264,6 +337,16 @@ async function writing(tab = "正文") {
   assert.equal(await editor.getValue(), seed.commands.list_chapters[0].content);
   if (tab !== "正文") await clickText(tab, await $(".a4n-writing-tabs"));
   return $(".a4n-writing-workspace");
+}
+async function directorWorkspace() {
+  await home();
+  await browser.url("/video-project/3");
+  await browser.waitUntil(async () => new URL(await browser.getUrl()).pathname === "/video-project/3", { timeout });
+  await $(".a4n-app-page-header h1").waitForDisplayed({ timeout });
+  const directorTab = await $('button[id="video-stages-3-tab-director"]');
+  if (await directorTab.getAttribute("aria-selected") !== "true") await press(directorTab);
+  await $(".director-workspace").waitForDisplayed({ timeout });
+  return $(".director-workspace");
 }
 async function closeDialog() {
   const closing = await dialog();
@@ -453,7 +536,7 @@ afterEach(async function () {
       id: current?.id, file, outcome: "failed", ...state,
       error: current?.error ?? this.currentTest.err?.message,
       evidence: current?.evidence,
-      notCapturedWidths: (current?.plannedWidths ?? widths).filter((width) => !current?.visited.includes(width)),
+      notCapturedWidths: (current?.plannedWidths ?? widths).filter((width) => !current?.visited?.includes(width)),
     };
     report.push(failure);
     await writeFile(output + file.replace(/\.png$/, ".json"), JSON.stringify(failure, null, 2));
@@ -463,6 +546,854 @@ afterEach(async function () {
 
 describe("Novel page audit - ordinary populated pages", function () {
   this.timeout(60000);
+
+  it("UX-1861 keeps collaboration writes visible when directory reads fail", async function () {
+    current = { id: "UX-1861-collaboration-writes", task: "协作者成功写入后，即使列表刷新失败也立即显示已提交状态", visited: [], plannedWidths: [1440] };
+    await browser.setWindowSize(1440, height);
+    const panel = await collaborationPanel();
+    const requestCount = (command) => browser.execute((name) =>
+      window.__uiAudit.requests.filter((item) => item.command === name).length, command);
+    const identity = await panel.$('input[aria-label="用户名或邮箱"]');
+    const inviteRole = await panel.$('button[aria-label="邀请角色"]');
+    assert.equal(await identity.getAttribute("aria-label"), "用户名或邮箱");
+    assert.equal(await inviteRole.getAttribute("aria-label"), "邀请角色");
+
+    const createdInvite = {
+      id: 103,
+      project_title: rootTitle,
+      inviter_username: "User1",
+      invitee_username: "新邀请用户",
+      role: "editor",
+    };
+    const inviteCount = await requestCount("invite_project_member");
+    await browser.execute((invite) => {
+      const audit = window.__uiAudit;
+      audit.fixtures.invite_project_member = invite;
+      audit.fixtures.list_project_invites.unshift(invite);
+      audit.failNext.push({ command: "list_project_invites", status: 503, message: "邀请目录读取失败" });
+    }, createdInvite);
+    await identity.setValue("new.user@example.test");
+    await browser.keys("Enter");
+    await browser.waitUntil(async () => requestCount("invite_project_member") === inviteCount + 1, { timeout });
+    await waitText(panel, "新邀请用户");
+    await waitText($("body"), "邀请已发送");
+    await waitText(panel, "邀请目录读取失败");
+
+    const updatedMembers = await browser.execute(() => {
+      const audit = window.__uiAudit;
+      return structuredClone(audit.fixtures.list_project_members.map((member) =>
+        member.user_id === 2 ? { ...member, role: "viewer" } : member,
+      ));
+    });
+    const roleCount = await requestCount("update_project_member_role");
+    await browser.execute((members) => {
+      const audit = window.__uiAudit;
+      audit.fixtures.update_project_member_role = null;
+      audit.fixtures.list_project_members = members;
+      audit.failNext.push({ command: "list_project_members", status: 503, message: "成员目录读取失败" });
+    }, updatedMembers);
+    const editorRole = await panel.$('button[aria-label="调整 协作编辑 · 长文本核对 的角色"]');
+    await press(editorRole);
+    await browser.keys("Enter");
+    await browser.waitUntil(async () => requestCount("update_project_member_role") === roleCount + 1, { timeout });
+    await waitText($("body"), "成员角色已更新");
+    await browser.waitUntil(() => editorRole.isFocused(), { timeout, timeoutMsg: "Role update must retain keyboard focus on the member control" });
+    assert.ok((await editorRole.getText()).includes("只读审阅者"));
+    await waitText(panel, "成员目录读取失败");
+
+    const memberRow = await panel.$('.//li[.//div[contains(normalize-space(.),"协作编辑 · 长文本核对")]]');
+    const removeCount = await requestCount("remove_project_member");
+    await browser.execute(() => {
+      const audit = window.__uiAudit;
+      audit.fixtures.remove_project_member = null;
+      audit.fixtures.list_project_members = audit.fixtures.list_project_members.filter((member) => member.user_id !== 2);
+      audit.failNext.push({ command: "list_project_members", status: 503, message: "移除后的成员目录读取失败" });
+    });
+    await press(await memberRow.$('button[aria-label="更多操作"]'));
+    await menuItem("移除成员");
+    const removeConfirm = await dialog("移除协作者");
+    await clickText("移除", removeConfirm);
+    await browser.waitUntil(async () => requestCount("remove_project_member") === removeCount + 1, { timeout });
+    await browser.waitUntil(async () => !(await memberRow.isExisting()), { timeout });
+    await waitText($("body"), "协作者已移除");
+
+    const inviteRow = await panel.$('.//li[.//span[normalize-space(.)="新邀请用户"]]');
+    const revokeCount = await requestCount("revoke_project_invite");
+    await browser.execute(() => {
+      const audit = window.__uiAudit;
+      audit.fixtures.revoke_project_invite = null;
+      audit.fixtures.list_project_invites = audit.fixtures.list_project_invites.filter((invite) => invite.id !== 103);
+      audit.failNext.push({ command: "list_project_invites", status: 503, message: "撤销后的邀请目录读取失败" });
+    });
+    await press(await inviteRow.$('button[aria-label="更多操作"]'));
+    await menuItem("撤销邀请");
+    await browser.waitUntil(async () => requestCount("revoke_project_invite") === revokeCount + 1, { timeout });
+    await browser.waitUntil(async () => !(await inviteRow.isExisting()), { timeout });
+    await waitText($("body"), "邀请已撤销");
+    assert.deepEqual(await snapshot(current.id, 1440, "projected-writes", panel, {
+      inviteCreated: true, roleUpdated: true, memberRemoved: true, inviteRevoked: true,
+      readFailures: ["invite list", "member list", "invite list"],
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-1865 ignores superseded reads while concurrent member writes settle", async function () {
+    current = { id: "UX-1865-collaboration-concurrent-refresh", task: "并发修改不同成员后只把最新读取失败报告为同步错误", visited: [], plannedWidths: [1440] };
+    await browser.setWindowSize(1440, height);
+    const panel = await collaborationPanel();
+    const requestCount = (command) => browser.execute((name) =>
+      window.__uiAudit.requests.filter((item) => item.command === name).length, command);
+    const updatedMembers = await browser.execute(() => window.__uiAudit.fixtures.list_project_members.map((member) => ({
+      ...member,
+      role: member.user_id === 2 ? "viewer" : member.user_id === 3 ? "manager" : member.role,
+    })));
+    const readCount = await requestCount("list_project_members");
+    const projectReadCount = await requestCount("get_project");
+    await browser.execute((members) => {
+      const audit = window.__uiAudit;
+      audit.fixtures.update_project_member_role = null;
+      audit.fixtures.list_project_members = members;
+      audit.deferred.push("list_project_members", "get_project");
+    }, updatedMembers);
+
+    const firstRole = await panel.$('button[aria-label="调整 协作编辑 · 长文本核对 的角色"]');
+    await press(firstRole);
+    await browser.keys("Enter");
+    await browser.waitUntil(async () => requestCount("list_project_members") === readCount + 1, { timeout });
+    const secondRole = await panel.$('button[aria-label="调整 只读审阅者 的角色"]');
+    await press(secondRole);
+    await browser.keys("Enter");
+    await browser.waitUntil(async () => requestCount("list_project_members") === readCount + 2, { timeout });
+
+    const respondNewest = (command) => browser.execute((name) => {
+      const audit = window.__uiAudit;
+      const index = audit.pending.findLastIndex((item) => item.command === name);
+      if (index < 0) throw new Error("No deferred fixture request: " + name);
+      const [request] = audit.pending.splice(index, 1);
+      audit.deferred = audit.deferred.filter((item) => item !== name);
+      const body = name === "list_project_members" ? audit.fixtures.list_project_members : audit.fixtures.get_project;
+      request.resolve(Response.json(body));
+    }, command);
+    await respondNewest("list_project_members");
+    await browser.waitUntil(async () => requestCount("get_project") === projectReadCount + 1, { timeout });
+    await respondNewest("list_project_members");
+    await browser.waitUntil(async () => requestCount("get_project") === projectReadCount + 2, { timeout });
+    await respondNewest("get_project");
+    await browser.waitUntil(async () => requestCount("get_project") === projectReadCount + 2, { timeout });
+    await respondNewest("get_project");
+    await waitText($("body"), "成员角色已更新");
+    await browser.waitUntil(async () => (await panel.getText()).includes("共 3 位成员"), { timeout });
+    assert.equal(await browser.execute(() => document.body.innerText.includes("刷新失败")), false);
+    assert.deepEqual(await browser.execute(() => window.__uiAudit.pending.map((item) => item.command)), []);
+    assert.deepEqual(await snapshot(current.id, 1440, "latest-refresh", panel, {
+      memberRoles: { "2": "viewer", "3": "manager" }, supersededReadsReported: false,
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-1867 does not apply a pending member confirmation after leaving its project", async function () {
+    current = { id: "UX-1867-collaboration-confirm-scope", task: "切换项目后确认框不再提交旧项目的移除命令", visited: [], plannedWidths: [1440] };
+    await browser.setWindowSize(1440, height);
+    const panel = await collaborationPanel();
+    const requestCount = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "remove_project_member").length,
+    );
+    const editorRow = await panel.$('.//li[.//div[contains(normalize-space(.),"协作编辑 · 长文本核对")]]');
+    await press(await editorRow.$('button[aria-label="更多操作"]'));
+    await menuItem("移除成员");
+    const confirmation = await dialog("移除协作者");
+    await browser.back();
+    await browser.waitUntil(async () => new URL(await browser.getUrl()).pathname === "/", { timeout });
+    await clickText("移除", confirmation);
+    assert.equal(await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "remove_project_member").length,
+    ), requestCount);
+    const homePage = await $(".a4n-home-content");
+    assert.deepEqual(await snapshot(current.id, 1440, "confirmation-cancelled-by-scope", homePage, {
+      route: "/", removeCommandCount: requestCount,
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-1871 exposes only member actions allowed by the current project role", async function () {
+    current = { id: "UX-1871-collaboration-manager-access", task: "管理者不能提交服务端明确拒绝的 Manager 授权或成员移除", visited: [], plannedWidths: [1440] };
+    await browser.setWindowSize(1440, height);
+    const panel = await collaborationPanel(() => browser.execute(() => {
+      const fixtures = window.__uiAudit.fixtures;
+      fixtures.get_project.my_role = "manager";
+      fixtures.projectRecords.find((project) => project.id === 1).my_role = "manager";
+      fixtures.list_projects.items.find((project) => project.id === 1).my_role = "manager";
+      fixtures.list_project_members = fixtures.list_project_members.map((member) =>
+        member.user_id === 2 ? { ...member, role: "manager" } : member,
+      );
+    }));
+    const inviteRole = await panel.$('button[aria-label="邀请角色"]');
+    await press(inviteRole);
+    const managerOption = await $('[role="option"][aria-disabled="true"]');
+    assert.equal((await managerOption.getText()).trim(), "管理员（仅所有者可授予）");
+    await browser.keys("Escape");
+    const managerRow = await panel.$('.//li[.//div[normalize-space(.)="协作编辑 · 长文本核对"]]');
+    assert.equal(await managerRow.$('button[aria-label^="调整"]').isExisting(), false);
+    assert.equal(await managerRow.$('button[aria-label="更多操作"]').isExisting(), false);
+    assert.deepEqual(await snapshot(current.id, 1440, "manager-access", panel, {
+      restrictedRoleOptionDisabled: true, managerTargetActionsHidden: true,
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-2259 refreshes collaboration state when a member mutation is rejected", async function () {
+    current = { id: "UX-2259-collaboration-stale-member", task: "另一位所有者先移除成员，本地删除命令失败后自动同步目录", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const panel = await collaborationPanel();
+    const memberRow = await panel.$('.//li[.//div[contains(normalize-space(.),"协作编辑 · 长文本核对")]]');
+    await browser.execute(() => {
+      const audit = window.__uiAudit;
+      audit.fixtures.remove_project_member = null;
+      audit.fixtures.list_project_members = audit.fixtures.list_project_members.filter((member) => member.user_id !== 2);
+      audit.failNext.push({
+        command: "remove_project_member", status: 404, message: "协作者已被其他用户移除",
+      });
+    });
+    await press(await memberRow.$('button[aria-label="更多操作"]'));
+    await menuItem("移除成员");
+    const confirmation = await dialog("移除协作者");
+    await clickText("移除", confirmation);
+    await waitText($("body"), "协作者已被其他用户移除");
+    await browser.waitUntil(async () =>
+      (await panel.getText()).includes("共 2 位成员") && !(await memberRow.isExisting()),
+    { timeout, timeoutMsg: "A rejected member action must reload the current collaboration directory" });
+    assert.deepEqual(await snapshot(current.id, 1440, "external-removal-synchronized", panel, {
+      memberNoLongerListed: true,
+      failedLocalRemovalKeptItsError: true,
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-1744 keeps parent profile refresh failures at the dialog owner and retries that list", async function () {
+    const requestCount = (command) => browser.execute((name) =>
+      window.__uiAudit.requests.filter((item) => item.command === name).length, command);
+    current = { id: "UX-1744", task: "Recover the parent character list after an attribute write", visited: [], plannedWidths: [1440] };
+    await browser.setWindowSize(1440, height);
+    const detail = await characterTab("管理", "属性");
+    const maintain = await detail.$('.//details[.//summary[normalize-space(.)="手动维护属性"]]');
+    await press(await maintain.$("summary"));
+    await maintain.$('.//label[.//span[normalize-space(.)="属性名称"]]/input').setValue("UX-1744 parent refresh");
+    await maintain.$('.//label[.//span[normalize-space(.)="原因"]]/textarea').setValue("验证父级列表刷新失败的状态归属");
+    await maintain.$('.//label[.//span[normalize-space(.)="证据"]]/textarea').setValue("隔离 UI 夹具");
+
+    const addCount = await requestCount("add_profile_attribute");
+    const profileCount = await requestCount("list_profiles");
+    await browser.execute(() => {
+      window.__uiAudit.fixtures.add_profile_attribute = null;
+      window.__uiAudit.failNext.push({
+        command: "list_profiles", status: 503, message: "父级角色列表刷新失败",
+      });
+    });
+    await press(await textButton("新增属性", maintain));
+    await browser.waitUntil(async () => requestCount("add_profile_attribute") === addCount + 1, { timeout });
+    await waitText($("body"), "已新增属性");
+    const parentError = await detail.$('.//*[@role="alert" and contains(normalize-space(.),"刷新失败")]');
+    await parentError.waitForDisplayed({ timeout });
+    assert.equal(await requestCount("list_profiles"), profileCount + 1);
+    assert.deepEqual(await snapshot("UX-1744", 1440, "parent-refresh-error", detail, {
+      writeSucceeded: true, parentRefresh: "failed", retryOwner: "character list",
+    }), []);
+
+    const historyCountBeforeRetry = await requestCount("attribute_history");
+    await press(await textButton("重试", parentError));
+    await browser.waitUntil(async () => !(await parentError.isDisplayed().catch(() => false)), { timeout });
+    assert.equal(await requestCount("list_profiles"), profileCount + 2, "Retry must rerun the parent profile read");
+    assert.equal(await requestCount("attribute_history"), historyCountBeforeRetry, "Parent retry must not reread the child event list");
+    assert.deepEqual(await snapshot("UX-1744", 1440, "parent-refresh-recovered", detail, {
+      parentRefresh: "retried successfully", childHistoryReads: historyCountBeforeRetry,
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-1775 owns manual fact-feedback refresh loading separately from polling", async function () {
+    current = { id: "UX-1775-fact-feedback-refresh", task: "正文事实反馈手动刷新期间显示忙状态并阻止重复读取", visited: [], plannedWidths: [1440] };
+    const page = await project();
+    const panel = await page.$('.//section[./header/h3[normalize-space()="正文事实反馈"]]');
+    await waitText(panel, "已归纳 2 章 · 待归纳 1/3 章");
+    const refresh = await panel.$("button=刷新");
+    const initialReads = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "get_project_fact_feedback").length,
+    );
+    await browser.execute(() => window.__uiAudit.deferred.push("get_project_fact_feedback"));
+    await press(refresh);
+    await browser.waitUntil(() => browser.execute(() =>
+      window.__uiAudit.pending.some((item) => item.command === "get_project_fact_feedback"),
+    ));
+    assert.equal(await refresh.isEnabled(), false, "A manual read in flight must own the refresh control");
+    assert.equal(await panel.$(".animate-spin").isExisting(), true, "A manual read in flight must be visible");
+    const readCount = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "get_project_fact_feedback").length,
+    );
+    assert.equal(readCount - initialReads, 1, "A manual refresh must start one read regardless of dev StrictMode mounts");
+    await browser.execute(() => {
+      const fixtures = window.__uiAudit.fixtures;
+      const index = window.__uiAudit.pending.findIndex((item) => item.command === "get_project_fact_feedback");
+      const [pending] = window.__uiAudit.pending.splice(index, 1);
+      pending.resolve(Response.json(fixtures.get_project_fact_feedback));
+    });
+    await browser.waitUntil(async () => refresh.isEnabled());
+    current.visited.push(1440);
+    current.evidence = { initialAndManualReads: readCount, pendingControlDisabled: true, completedReadRestoredControl: true };
+  });
+
+  it("UX-1776 keeps a slow fact-feedback poll from invalidating its own response", async function () {
+    current = { id: "UX-1776-fact-feedback-poll", task: "正文事实反馈后台轮询不应重叠并丢弃慢回包", visited: [], plannedWidths: [1440] };
+    const page = await project();
+    const panel = await page.$('.//section[./header/h3[normalize-space()="正文事实反馈"]]');
+    await waitText(panel, "已归纳 2 章 · 待归纳 1/3 章");
+    const refresh = await panel.$("button=刷新");
+    const initialReads = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "get_project_fact_feedback").length,
+    );
+    await browser.execute(() => window.__uiAudit.deferred.push("get_project_fact_feedback"));
+    await press(refresh);
+    await browser.waitUntil(() => browser.execute(() =>
+      window.__uiAudit.pending.some((item) => item.command === "get_project_fact_feedback"),
+    ));
+    await browser.execute(() => {
+      const audit = window.__uiAudit;
+      const index = audit.pending.findIndex((item) => item.command === "get_project_fact_feedback");
+      const [pending] = audit.pending.splice(index, 1);
+      audit.fixtures.get_project_fact_feedback.workflow_status = "running";
+      pending.resolve(Response.json(audit.fixtures.get_project_fact_feedback));
+    });
+    await browser.waitUntil(async () => refresh.isEnabled());
+    await browser.waitUntil(() => browser.execute(() =>
+      window.__uiAudit.pending.some((item) => item.command === "get_project_fact_feedback"),
+    ), { timeout: 5000, timeoutMsg: "The running workflow must start its first background status read" });
+    const pendingPolls = await browser.execute(() =>
+      window.__uiAudit.pending.filter((item) => item.command === "get_project_fact_feedback").length,
+    );
+    await browser.pause(1800);
+    const readsWhilePending = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "get_project_fact_feedback").length,
+    );
+    const pendingPollsAfterInterval = await browser.execute(() =>
+      window.__uiAudit.pending.filter((item) => item.command === "get_project_fact_feedback").length,
+    );
+    assert.equal(pendingPolls, 1);
+    assert.equal(readsWhilePending - initialReads, 2, "Manual refresh and one background poll must be the only new reads");
+    assert.equal(pendingPollsAfterInterval, 1, "A slow background read must not be overlapped by the next interval");
+    await browser.execute(() => {
+      const audit = window.__uiAudit;
+      audit.deferred = audit.deferred.filter((command) => command !== "get_project_fact_feedback");
+      audit.fixtures.get_project_fact_feedback.workflow_status = null;
+      const index = audit.pending.findIndex((item) => item.command === "get_project_fact_feedback");
+      const [pending] = audit.pending.splice(index, 1);
+      pending.resolve(Response.json(audit.fixtures.get_project_fact_feedback));
+    });
+    current.visited.push(1440);
+    current.evidence = { pendingPollsAfterInterval, readsWhilePending, slowPollKeptCurrent: true };
+  });
+
+  it("UX-2320 saves a fact-feedback interval while summary refresh is unavailable", async function () {
+    current = { id: "UX-2320-fact-feedback-interval", task: "摘要刷新失败时仍可独立修改项目的事实反馈间隔", visited: [], plannedWidths: [1440] };
+    const page = await project();
+    const panel = await page.$('.//section[./header/h3[normalize-space()="正文事实反馈"]]');
+    await waitText(panel, "已归纳 2 章 · 待归纳 1/3 章");
+    await browser.execute(() => window.__uiAudit.failNext.push({
+      command: "get_project_fact_feedback",
+      status: 503,
+      message: "事实反馈摘要读取失败",
+    }));
+    await press(await panel.$("button=刷新"));
+    await waitText(panel, "事实反馈摘要读取失败");
+
+    const interval = await panel.$('input[type="number"]');
+    assert.equal(await interval.isEnabled(), true, "The project interval is independent of the feedback summary read");
+    await interval.setValue("4");
+    await browser.execute(() => {
+      window.__uiAudit.fixtures.get_project_fact_feedback.interval_chapters = 4;
+      window.__uiAudit.fixtures.update_project = window.__uiAudit.fixtures.get_project;
+    });
+    await press(await panel.$("button=保存周期"));
+    await browser.waitUntil(() => browser.execute(() => window.__uiAudit.requests.some((item) =>
+      item.command === "update_project" && item.body.input?.fact_feedback_interval_chapters === 4,
+    )));
+    await browser.waitUntil(async () => !(await panel.getText()).includes("事实反馈摘要读取失败"));
+    await waitText(panel, "已归纳 2 章 · 待归纳 1/4 章");
+    assert.equal(await panel.$('input[type="number"]').getValue(), "4");
+    assert.deepEqual(await snapshot(current.id, 1440, "interval-saved-after-read-error", panel, {
+      interval: 4,
+      readRecovered: true,
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-1774 applies a default image config changed in another open workspace", async function () {
+    current = { id: "UX-1774-image-config-sync", task: "跨窗口更换默认图片模型后，仍打开的场景工作区按新尺寸生成", visited: [], plannedWidths: [1440] };
+    await browser.setWindowSize(1440, height);
+    await browser.execute(async () => {
+      const local = await import("/src/api/localRuntimeSettings.ts");
+      const initial = local.listLocalImageConfigs().find((item) => item.name.startsWith("本机横幅"));
+      if (!initial) throw new Error("Missing initial horizontal image fixture");
+      await local.setDefaultLocalImageConfig(initial.id);
+    });
+    const workspace = await project("场景");
+    await press(await workspace.$('button[aria-label="旧书店 · 查看场景详情"]'));
+    const detail = await dialog();
+    const sizeSelect = await detail.$('button[role="combobox"]');
+    await browser.waitUntil(async () => (await sizeSelect.getText()).includes("1920 x 1080"), { timeout });
+    const workspaceWindow = await browser.getWindowHandle();
+    let settingsWindow;
+    try {
+      settingsWindow = (await browser.newWindow(new URL("/settings#image", browser.options.baseUrl).href)).handle;
+      const initial = await $('//button[contains(normalize-space(.),"本机主用 · 角色立绘与场景参考")]');
+      await press(initial);
+      await clickText("设为默认");
+      await waitText($("body"), "已设为默认");
+
+      await browser.switchToWindow(workspaceWindow);
+      await browser.waitUntil(async () => (await sizeSelect.getText()).includes("1024 x 1024"), {
+        timeout,
+        timeoutMsg: "The open scene workspace must adopt the new default size",
+      });
+      await browser.execute(() => window.__uiAudit.failNext.push({
+        command: "start_image_generation", status: 503, message: "图片配置同步用例结束请求",
+      }));
+      await clickText("生成素材图", detail);
+      await browser.waitUntil(() => browser.execute(() =>
+        window.__uiAudit.requests.some((item) => item.command === "start_image_generation"),
+      ));
+      const operation = await browser.execute(() =>
+        window.__uiAudit.requests.findLast((item) => item.command === "start_image_generation")?.body.input.operation,
+      );
+      assert.deepEqual({ width: operation.width, height: operation.height }, { width: 1024, height: 1024 });
+      await waitText($("body"), "图片配置同步用例结束请求");
+      current.visited.push(1440);
+      current.evidence = { defaultChangedIn: "second window", selectedSize: "1024x1024", generatedOperation: operation };
+    } finally {
+      const handles = await browser.getWindowHandles();
+      if (settingsWindow && handles.includes(settingsWindow)) {
+        await browser.switchToWindow(settingsWindow);
+        await browser.closeWindow();
+      }
+      if ((await browser.getWindowHandles()).includes(workspaceWindow)) {
+        await browser.switchToWindow(workspaceWindow);
+      }
+    }
+  });
+
+  it("UX-1777 reports progress-read errors without failing the running scene sync", async function () {
+    current = { id: "UX-1777-progress-read-error", task: "场景同步继续运行时显示进度读取错误", visited: [], plannedWidths: [1440] };
+    const page = await project("场景");
+    await press(await page.$('button[aria-haspopup="menu"]'));
+    await menuItem("同步场景档案");
+    const confirmation = await dialog("同步场景档案");
+    await browser.execute(() => {
+      const audit = window.__uiAudit;
+      audit.fixtures.sync_scene_profiles = null;
+      audit.fixtures.get_workflow_progress_events = { events: [], stream_text: null };
+      audit.deferred.push("sync_scene_profiles", "get_workflow_progress_events");
+      audit.failNext.push({
+        command: "get_workflow_progress_events", status: 503, message: "工作流进度读取失败",
+      });
+    });
+    await clickText("开始", confirmation);
+    const progress = await dialog("同步场景档案");
+    const progressAlert = await progress.$('[role="alert"]');
+    await browser.waitUntil(async () => await progressAlert.isExisting()
+      && (await progressAlert.getText()).includes("工作流进度读取失败"), {
+      timeout,
+      timeoutMsg: "A failed status read must be visible while scene sync continues",
+    });
+    await browser.waitUntil(() => browser.execute(() =>
+      window.__uiAudit.pending.some((item) => item.command === "sync_scene_profiles") &&
+      window.__uiAudit.pending.some((item) => item.command === "get_workflow_progress_events"),
+    ));
+    assert.equal(await progress.$('[role="progressbar"]').getAttribute("aria-valuenow"), "0");
+    await browser.execute(() => {
+      const audit = window.__uiAudit;
+      const index = audit.pending.findIndex((item) => item.command === "sync_scene_profiles");
+      const [pending] = audit.pending.splice(index, 1);
+      audit.deferred = audit.deferred.filter((command) => command !== "sync_scene_profiles");
+      pending.resolve(Response.json(null));
+    });
+    await waitText(progress, "任务已完成");
+    await browser.execute(() => {
+      const audit = window.__uiAudit;
+      audit.deferred = audit.deferred.filter((command) => command !== "get_workflow_progress_events");
+      const pendingReads = audit.pending.filter((item) => item.command === "get_workflow_progress_events");
+      audit.pending = audit.pending.filter((item) => item.command !== "get_workflow_progress_events");
+      for (const request of pendingReads) request.resolve(Response.json({ events: [], stream_text: null }));
+    });
+    await browser.waitUntil(async () => !(await progress.$('[role="alert"]').isExisting()));
+    current.visited.push(1440);
+    current.evidence = { progressReadErrorVisible: true, businessTaskRemainedPending: true, businessTaskCompleted: true };
+  });
+
+  it("UX-1778 explains when the same project action is already running", async function () {
+    current = { id: "UX-1778-project-action-busy", task: "项目复制进行中再次点击时说明操作仍在执行", visited: [], plannedWidths: [1440] };
+    await browser.setWindowSize(1440, height);
+    await home();
+    const row = await rootRow();
+    const openActions = () => row.$('button[aria-label="更多操作"]');
+    await press(await openActions());
+    await menuItem("复制为新项目");
+    const prompt = await dialog("复制项目");
+    await prompt.$("input").setValue("并发复制反馈测试");
+    await browser.execute(() => {
+      window.__uiAudit.fixtures.duplicate_project = null;
+      window.__uiAudit.deferred.push("duplicate_project");
+    });
+    await clickText("复制", prompt);
+    await browser.waitUntil(() => browser.execute(() =>
+      window.__uiAudit.pending.some((item) => item.command === "duplicate_project"),
+    ));
+    await press(await openActions());
+    await menuItem("复制为新项目");
+    await waitText($("body"), "此项目操作正在进行，请等待完成。");
+    const duplicateCount = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "duplicate_project").length,
+    );
+    assert.equal(duplicateCount, 1, "The second click must not start a duplicate request");
+    assert.equal(await $('[role="dialog"]').isExisting(), false, "A blocked repeat action must not open another title prompt");
+    await browser.execute(() => {
+      const audit = window.__uiAudit;
+      const index = audit.pending.findIndex((item) => item.command === "duplicate_project");
+      const [pending] = audit.pending.splice(index, 1);
+      audit.deferred = audit.deferred.filter((command) => command !== "duplicate_project");
+      pending.resolve(Response.json({
+        code: "unavailable", message: "模拟结束复制操作", retryable: true, trace_id: null, details: {},
+      }, { status: 503 }));
+    });
+    await waitText($("body"), "模拟结束复制操作");
+    current.visited.push(1440);
+    current.evidence = { duplicateRequests: duplicateCount, repeatedActionFeedback: true };
+  });
+
+  it("UX-1782 keeps a committed project reset successful when local draft cleanup fails", async function () {
+    current = { id: "UX-1782-reset-draft-cleanup", task: "项目数据重置成功后本地草稿清理失败应显示独立警告", visited: [], plannedWidths: [1440] };
+    await browser.setWindowSize(1440, height);
+    const panel = await writingPanel("写作助手");
+    await press(await panel.$('button[aria-label="更多操作"]'));
+    await menuItem("重置生成数据");
+    const confirmation = await dialog("重置项目生成数据");
+    const draftKey = "a4n:writing_draft:1:1";
+    const draft = JSON.stringify({ content: "保留用于验证清理失败的本地草稿", updatedAt: new Date().toISOString() });
+    await browser.execute(({ draftKey, draft, project }) => {
+      window.__uiAudit.fixtures.reset_project_generated_data = {
+        status: "completed",
+        database_committed: true,
+        result: {
+          project,
+          deleted_chapters: 3,
+          deleted_chapter_outlines: 3,
+          deleted_character_profiles: 0,
+          preserved_blueprint_versions: 2,
+        },
+        warnings: [],
+      };
+      localStorage.setItem(draftKey, draft);
+      window.__uiAudit.originalStorageRemoveItem = Storage.prototype.removeItem;
+      Storage.prototype.removeItem = function (key) {
+        if (key === draftKey) throw new Error("本地写作草稿删除失败");
+        return window.__uiAudit.originalStorageRemoveItem.call(this, key);
+      };
+    }, { draftKey, draft, project: seed.commands.get_project });
+
+    try {
+      await clickText("重置", confirmation);
+      await waitText($("body"), "本地写作草稿未能全部清理");
+      const resetNotice = await $('[role="status"].a4n-toast');
+      const resetMessage = await resetNotice.getText();
+      assert.ok(resetMessage.includes("项目正式数据已重置"), "The committed reset must remain a completed operation");
+      assert.ok(resetMessage.includes("本地写作草稿删除失败"), "The failed client-side cleanup must remain visible");
+      assert.equal(await resetNotice.getAttribute("role"), "status", "A local cleanup warning must not be rendered as a failed reset");
+      const resetRequests = await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "reset_project_generated_data").length);
+      assert.equal(resetRequests, 1, "The user action must issue one reset request");
+      assert.equal(await browser.execute((key) => localStorage.getItem(key), draftKey), draft, "The injected storage failure must leave the draft available for diagnosis");
+      current.visited.push(1440);
+      current.evidence = { resetRequests, formalResetCommitted: true, cleanupErrorVisible: true, draftRemainedAfterCleanupFailure: true };
+    } finally {
+      await browser.execute((key) => {
+        const original = window.__uiAudit.originalStorageRemoveItem;
+        if (!original) return;
+        Storage.prototype.removeItem = original;
+        delete window.__uiAudit.originalStorageRemoveItem;
+        original.call(localStorage, key);
+      }, draftKey);
+    }
+  });
+
+  it("UX-1783 waits for a pending native draft save before clearing project drafts", async function () {
+    current = { id: "UX-1783-reset-pending-draft-save", task: "重置项目时等候已提交中的桌面草稿写入后再清理", visited: [], plannedWidths: [1440] };
+    await browser.setWindowSize(1440, height);
+    const draftKey = "a4n:writing_draft:1:1";
+    await browser.execute(() => {
+      for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+        const key = localStorage.key(index);
+        if (key?.startsWith("a4n:writing_draft:1:")) localStorage.removeItem(key);
+      }
+      for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
+        const key = sessionStorage.key(index);
+        if (key?.startsWith("a4n:writing_draft:1:")) sessionStorage.removeItem(key);
+      }
+      const state = {};
+      for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index);
+        const value = key?.startsWith("a4n:") ? localStorage.getItem(key) : null;
+        if (key && value !== null) state[key] = value;
+      }
+      sessionStorage.setItem("__a4n_ui_audit_native_frontend_state", JSON.stringify(state));
+    });
+    nativeDraftStorageScenario = true;
+    try {
+      await writing();
+      const editor = await $('textarea[aria-label="章节正文"]');
+      await editor.setValue(seed.commands.list_chapters[0].content + " 桌面草稿写入尚未提交");
+      await browser.waitUntil(() => browser.execute(() => window.__uiAudit.nativeStorage.pendingDraftWrite), {
+        timeout,
+        timeoutMsg: "The simulated native draft write must remain pending before reset",
+      });
+      await browser.execute((project) => {
+        window.__uiAudit.fixtures.reset_project_generated_data = {
+          status: "completed",
+          database_committed: true,
+          result: {
+            project,
+            deleted_chapters: 3,
+            deleted_chapter_outlines: 3,
+            deleted_character_profiles: 0,
+            preserved_blueprint_versions: 2,
+          },
+          warnings: [],
+        };
+      }, seed.commands.get_project);
+
+      await press(await $('.a4n-writing-panel-toggle button[title^="写作助手"]'));
+      const panel = await $('aside[aria-label="写作助手"]');
+      await panel.waitForDisplayed({ timeout });
+      await press(await panel.$('button[aria-label="更多操作"]'));
+      await menuItem("重置生成数据");
+      const confirmation = await dialog("重置项目生成数据");
+      await clickText("重置", confirmation);
+      await browser.waitUntil(() => browser.execute(() =>
+        window.__uiAudit.requests.some((item) => item.command === "reset_project_generated_data"),
+      ), { timeout });
+      await browser.pause(100);
+
+      const waitingState = await browser.execute(() => ({
+        pendingDraftWrite: window.__uiAudit.nativeStorage.pendingDraftWrite,
+        removedDraftKeys: [...window.__uiAudit.nativeStorage.removedDraftKeys],
+        reads: window.__uiAudit.nativeStorage.calls.filter((item) => item.command === "get_all_frontend_state").length,
+      }));
+      assert.equal(waitingState.pendingDraftWrite, true);
+      assert.deepEqual(waitingState.removedDraftKeys, [], "Reset must wait for the native save before enumerating keys");
+      assert.equal(waitingState.reads, 1, "No stale cache snapshot may be used as the post-reset draft list");
+      assert.equal(await $(".a4n-toast").isExisting(), false, "The reset result must wait for local draft deletion to finish");
+
+      await browser.execute(() => {
+        const release = window.__uiAudit.nativeStorage.releaseDraftWrite;
+        if (!release) throw new Error("No pending native draft save to release");
+        release();
+      });
+      await waitText($("body"), "已重置：删除 3 章");
+      const finalState = await browser.execute((key) => ({
+        exists: Object.hasOwn(window.__uiAudit.nativeStorage.state, key),
+        removedDraftKeys: [...window.__uiAudit.nativeStorage.removedDraftKeys],
+        reads: window.__uiAudit.nativeStorage.calls.filter((item) => item.command === "get_all_frontend_state").length,
+      }), draftKey);
+      assert.equal(finalState.exists, false, "A draft committed while reset was pending must be removed");
+      assert.deepEqual(finalState.removedDraftKeys, [draftKey]);
+      assert.equal(finalState.reads, 2, "The project draft list must come from the post-write native state");
+      current.visited.push(1440);
+      current.evidence = { waitingState, finalState, resetRequests: 1, pendingNativeWriteReleased: true };
+    } finally {
+      nativeDraftStorageScenario = false;
+      await browser.execute(() => {
+        const nativeStorage = window.__uiAudit?.nativeStorage;
+        nativeStorage?.releaseDraftWrite?.();
+        sessionStorage.removeItem("__a4n_ui_audit_native_frontend_state");
+      });
+    }
+  });
+
+  it("UX-1785 saves a new chapter from the import response without requiring a second index read", async function () {
+    current = { id: "UX-1785-new-chapter-save-result", task: "新建章节保存后使用写命令回包，不把索引读取失败当成保存失败", visited: [], plannedWidths: [1440] };
+    await browser.setWindowSize(1440, height);
+    await writing();
+    const headerMenu = await $('.a4n-app-page-header button[aria-haspopup="menu"]');
+    await press(headerMenu);
+    await menuItem("新建章节");
+    const prompt = await dialog("新建章节");
+    const chapterNumber = await prompt.$("input");
+    await chapterNumber.setValue("10");
+    await clickText("进入章节", prompt);
+    const editor = await $('textarea[aria-label="章节正文"]');
+    await browser.waitUntil(async () => (await editor.getValue()) === "");
+    const savedContent = "新建章节保存响应的权威正文。";
+    await editor.setValue(savedContent);
+    const imported = {
+      ...seed.commands.list_chapters[0],
+      id: 110,
+      chapter_number: 10,
+      title: "第10章 · 新线索",
+      content: savedContent,
+      edit_revision: "ux-1785-revision",
+      derived_sync_status: "current",
+    };
+    await browser.execute((chapter) => {
+      window.__uiAudit.fixtures.import_chapter = chapter;
+      window.__uiAudit.failNext.push({
+        command: "list_chapter_index", status: 503, message: "不应发生的章节索引回读",
+      });
+    }, imported);
+    const indexReadsBefore = await browser.execute(() => window.__uiAudit.requests.filter(
+      (item) => item.command === "list_chapter_index",
+    ).length);
+
+    await clickText("保存修改");
+    await waitText($("body"), "章节正文与派生资料已保存");
+    assert.equal(await editor.getValue(), savedContent);
+    const indexReadsAfter = await browser.execute(() => window.__uiAudit.requests.filter(
+      (item) => item.command === "list_chapter_index",
+    ).length);
+    assert.equal(indexReadsAfter, indexReadsBefore, "The mutation response already contains the saved chapter");
+    assert.equal(await browser.execute(() => window.__uiAudit.failNext.some((item) => item.command === "list_chapter_index")), true);
+    await browser.execute(() => {
+      window.__uiAudit.failNext = window.__uiAudit.failNext.filter((item) => item.command !== "list_chapter_index");
+    });
+    current.evidence = { importResponseId: imported.id, chapterNumber: 10, contentApplied: true, redundantIndexReads: 0 };
+    current.visited.push(1440);
+  });
+
+  it("UX-1786 keeps a committed chapter save successful when local draft deletion fails", async function () {
+    current = { id: "UX-1786-chapter-save-draft-cleanup", task: "正文保存提交后本地草稿删除失败时保留正确提交结果", visited: [], plannedWidths: [1440] };
+    await browser.setWindowSize(1440, height);
+    await writing();
+    const editor = await $('textarea[aria-label="章节正文"]');
+    const savedContent = seed.commands.list_chapters[0].content + " 正文保存与本地草稿分离。";
+    const draftKey = "a4n:writing_draft:1:1";
+    const updatedChapter = {
+      ...seed.commands.list_chapters[0],
+      content: savedContent,
+      edit_revision: "ux-1786-revision",
+    };
+    await browser.execute(({ draftKey, chapter }) => {
+      localStorage.setItem(draftKey, JSON.stringify({ content: chapter.content, updatedAt: new Date().toISOString() }));
+      window.__uiAudit.fixtures.update_chapter_content = chapter;
+      window.__uiAudit.originalStorageRemoveItem = Storage.prototype.removeItem;
+      Storage.prototype.removeItem = function (key) {
+        if (key === draftKey) throw new Error("本地草稿清理失败");
+        return window.__uiAudit.originalStorageRemoveItem.call(this, key);
+      };
+    }, { draftKey, chapter: updatedChapter });
+
+    try {
+      await editor.setValue(savedContent);
+      await clickText("保存修改");
+      await waitText($("body"), "本地草稿清理失败");
+      const notice = await $('[role="status"].a4n-toast');
+      const message = await notice.getText();
+      assert.ok(message.includes("正文已保存"));
+      assert.ok(message.includes("本地草稿清理失败"));
+      assert.equal(await editor.getValue(), savedContent);
+      assert.equal(await $('.a4n-writing-save-state').getAttribute("data-state"), "saved");
+      assert.equal(await browser.execute((key) => localStorage.getItem(key) != null, draftKey), true);
+      current.evidence = { saveCommandCommitted: true, cleanupWarningVisible: true, editorBaseline: "saved", draftRemained: true };
+      current.visited.push(1440);
+    } finally {
+      await browser.execute((key) => {
+        const original = window.__uiAudit.originalStorageRemoveItem;
+        if (!original) return;
+        Storage.prototype.removeItem = original;
+        delete window.__uiAudit.originalStorageRemoveItem;
+        original.call(localStorage, key);
+      }, draftKey);
+    }
+  });
+
+  it("UX-1745 reports a scene-list retry while keeping the last successful rows", async function () {
+    const requestCount = (command) => browser.execute((name) =>
+      window.__uiAudit.requests.filter((item) => item.command === name).length, command);
+    current = { id: "UX-1745", task: "Show scene-list refresh progress while retaining known scenes", visited: [], plannedWidths: [1440] };
+    await browser.setWindowSize(1440, height);
+    const panel = await writingPanel("写作助手");
+    await press(await panel.$('button[aria-label="更多操作"]'));
+    await menuItem("场景管理");
+    const scenes = await dialog("章节场景");
+    await browser.waitUntil(async () => (await scenes.$$("li")).length > 0, { timeout });
+    const listCount = await requestCount("list_chapter_scenes");
+    await browser.execute(() => window.__uiAudit.failNext.push(
+      { command: "generate_chapter_scene", status: 503, message: "场景生成失败" },
+      { command: "list_chapter_scenes", status: 503, message: "场景列表读回失败" },
+    ));
+    await press(await textButton("生成", scenes));
+    await browser.waitUntil(async () => requestCount("list_chapter_scenes") === listCount + 1, { timeout });
+    const loadError = await scenes.$('.//*[@role="alert" and contains(normalize-space(.),"场景列表读回失败")]');
+    await loadError.waitForDisplayed({ timeout });
+    const knownRows = await scenes.$$("li");
+    const knownTitles = await Promise.all(knownRows.map(async (row) => row.$(".text-sm").getText()));
+
+    await browser.execute(() => window.__uiAudit.deferred.push("list_chapter_scenes"));
+    await press(await textButton("重试", loadError));
+    await browser.waitUntil(async () => browser.execute(() =>
+      window.__uiAudit.pending.some((item) => item.command === "list_chapter_scenes"),
+    ), { timeout });
+    await waitText(scenes, "加载场景…");
+    assert.equal(await scenes.$('[role="alert"]').isExisting(), false);
+    assert.deepEqual(await Promise.all((await scenes.$$("li")).map(async (row) => row.$(".text-sm").getText())), knownTitles);
+    assert.deepEqual(await snapshot("UX-1745", 1440, "retry-in-flight", scenes, {
+      knownRows: knownTitles.length, refreshRequest: "pending", loadingFeedback: true,
+    }), []);
+
+    await browser.execute(() => {
+      const pending = window.__uiAudit.pending.findLast((item) => item.command === "list_chapter_scenes");
+      if (!pending) throw new Error("Expected the deferred scene-list refresh");
+      window.__uiAudit.pending = window.__uiAudit.pending.filter((item) => item !== pending);
+      window.__uiAudit.deferred = window.__uiAudit.deferred.filter((command) => command !== "list_chapter_scenes");
+      pending.resolve(Response.json(window.__uiAudit.fixtures.byChapter[1].list_chapter_scenes));
+    });
+    await browser.waitUntil(async () => !(await scenes.$('[role="status"]').isExisting()), { timeout });
+    assert.equal(await scenes.$$("li").length, knownTitles.length);
+    assert.deepEqual(await snapshot("UX-1745", 1440, "retry-complete", scenes, {
+      knownRows: knownTitles.length, refreshRequest: "succeeded",
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("AUDIT-export-download writes the TXT file returned by the export command", async function () {
+    current = { id: "AUDIT-export-download", task: "Download and inspect the actual TXT export artifact", visited: [], plannedWidths: [1440] };
+    await mkdir(downloadOutput, { recursive: true });
+    await browser.sendCommand("Browser.setDownloadBehavior", {
+      behavior: "allow",
+      downloadPath: downloadOutput,
+    });
+    await browser.setWindowSize(1440, height);
+    const exportDialog = await openProjectAction("导出小说");
+    const fileName = `a4n-export-audit-${Date.now()}.txt`;
+    const content = "A4N export path fixture";
+    await browser.execute(({ nextFileName, nextContent }) => {
+      window.__uiAudit.fixtures.export_txt_data = {
+        file_name: nextFileName,
+        mime_type: "text/plain;charset=utf-8",
+        data_base64: btoa(nextContent),
+      };
+    }, { nextFileName: fileName, nextContent: content });
+
+    await press(await textButton("下载 TXT 纯文本", exportDialog));
+    const request = await browser.execute(() => window.__uiAudit.requests.findLast(
+      (item) => item.command === "export_txt_data",
+    ));
+    assert.equal(request?.body.input.project_id, 1, "The export must target the project opened by the user");
+    await browser.waitUntil(async () => (await readdir(downloadOutput)).includes(fileName), {
+      timeout,
+      timeoutMsg: "The TXT export command completed without creating its download file",
+    });
+    await waitText(exportDialog, "下载完成");
+    assert.equal(await readFile(join(downloadOutput, fileName), "utf8"), content);
+    assert.deepEqual(await snapshot(current.id, 1440, "downloaded-content", exportDialog, {
+      fileName, bytes: Buffer.byteLength(content), responseAndFileMatch: true,
+    }), []);
+    current.visited.push(1440);
+  });
 
   const pages = [
     { id: "N00-home", task: "找到原项目、派生项目和继续创作入口", open: home, text: [rootTitle], last: async () => (await $$(".a4n-project-row")).at(-1) },
@@ -524,6 +1455,139 @@ describe("Novel page audit - ordinary populated pages", function () {
   for (const page of pages) it(page.id + " follows its real entry and checks all widths", async () => matrix({
     ...page, open: page.open ?? (() => project(page.tab)),
   }));
+
+  it("N03 keeps portrait and profile read failures distinct from empty results", async () => {
+    current = { id: "N03-portrait-read-errors", task: "区分立绘列表和角色档案读取失败与真实空列表", visited: [], plannedWidths: [390] };
+    await browser.setWindowSize(390, height);
+    for (const failure of [
+      { command: "list_portraits_by_project", message: "立绘列表服务暂不可用" },
+      { command: "list_profiles", message: "角色档案服务暂不可用" },
+    ]) {
+      const page = await project("角色");
+      await clickText("档案", page);
+      await waitText(page, "林岚");
+      await browser.execute((nextFailure) => {
+        window.__uiAudit.failNext.push(...Array.from({ length: 4 }, () => ({
+          ...nextFailure,
+          status: 503,
+        })));
+      }, failure);
+      await clickText("立绘", page);
+      await waitText(page, failure.message);
+      if (failure.command === "list_portraits_by_project") {
+        assert.equal(await page.$$('button[title="管理人物三视图拆解"]').length, 0);
+        assert.equal((await page.getText()).includes("尚未生成人物素材"), false);
+      } else {
+        assert.equal((await page.getText()).includes("角色档案读取失败"), true);
+        const cards = await page.$$('button[title="管理人物三视图拆解"]');
+        assert.equal(cards.length, 4);
+        assert.equal((await cards[0].getText()).includes("角色档案读取失败"), true);
+      }
+    }
+    current.visited.push(390);
+  });
+
+  it("N03 reports reference-image read failures instead of an empty library", async () => {
+    current = { id: "N03-reference-read-error", task: "角色立绘生成时区分参考图库读取失败与真实空图库", visited: [], plannedWidths: [390] };
+    await browser.setWindowSize(390, height);
+    const page = await project("角色");
+    await clickText("立绘", page);
+    await waitText(page, "立绘素材");
+    await press(await page.$('button[aria-label="更多操作"]'));
+    await browser.execute(() => window.__uiAudit.failNext.push(...Array.from({ length: 4 }, () => ({
+      command: "list_images_by_project",
+      status: 503,
+      message: "参考图服务暂不可用",
+    }))));
+    await menuItem("生成单个角色立绘");
+    const form = await dialog("生成人物三视图拆解");
+    await waitText(form, "参考图服务暂不可用");
+    assert.equal((await form.getText()).includes("当前项目尚无图片"), false);
+    await closeDialog();
+    current.visited.push(390);
+  });
+
+  it("N03 keeps a successful portrait upload successful when its list refresh fails", async () => {
+    current = { id: "N03-portrait-upload-readback", task: "上传立绘成功后列表读回失败，仍明确反馈写入结果", visited: [], plannedWidths: [390] };
+    await browser.setWindowSize(390, height);
+    const page = await portraits();
+    await browser.execute(() => {
+      const portrait = window.__uiAudit.fixtures.byProject[1].list_portraits_by_project[0];
+      window.__uiAudit.fixtures.upload_portrait = {
+        ...portrait,
+        id: 1199,
+        image_path: "https://ui.invalid/image-1199.png",
+        prompt: "fixture upload result",
+      };
+      window.__uiAudit.failNext.push({
+        command: "list_portraits_by_project",
+        status: 503,
+        message: "立绘列表刷新失败",
+      });
+    });
+    await press(await page.$('button[aria-label="更多操作"]'));
+    await menuItem("上传立绘素材");
+    const form = await dialog("上传角色立绘");
+    const profile = await form.$('button[aria-label="角色档案"]');
+    await press(profile);
+    await press(await $('//*[@role="option" and normalize-space(.)="林岚"]'));
+    const file = await form.$('input[type="file"]');
+    await file.setValue(fileURLToPath(new URL("../../resources/thelittleprince.png", import.meta.url)));
+    const prompt = await form.$("textarea");
+    assert.match(await prompt.getValue(), /林岚.*thelittleprince\.png/);
+    await press(profile);
+    await press(await $('//*[@role="option" and normalize-space(.)="周衡"]'));
+    assert.match(await prompt.getValue(), /周衡.*thelittleprince\.png/);
+    await file.execute((node) => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([new Uint8Array([1])], "replacement.png", { type: "image/png" }));
+      node.files = transfer.files;
+      node.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await browser.waitUntil(async () => (await prompt.getValue()).includes("replacement.png"), { timeout });
+    assert.match(await prompt.getValue(), /周衡.*replacement\.png/);
+    await prompt.setValue("周衡在雨夜书店中的手工描述。");
+    await press(profile);
+    await press(await $('//*[@role="option" and normalize-space(.)="林岚"]'));
+    await file.execute((node) => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([new Uint8Array([2])], "final.png", { type: "image/png" }));
+      node.files = transfer.files;
+      node.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    assert.equal(await prompt.getValue(), "周衡在雨夜书店中的手工描述。");
+    await press(await textButton("上传立绘", form));
+    await browser.waitUntil(async () => !await browser.execute(() => [...document.querySelectorAll('[role="dialog"]')]
+      .some((item) => item.textContent?.includes("上传角色立绘"))), { timeout });
+    await waitText(page, "立绘列表刷新失败");
+    await waitText($("body"), "已上传角色立绘");
+    const uploadRequest = await browser.execute(() => window.__uiAudit.requests.findLast((item) => item.command === "upload_portrait"));
+    assert.equal(uploadRequest?.body.input.profile_id, 1011);
+    assert.equal(uploadRequest?.body.input.file_name, "final.png");
+    assert.equal(uploadRequest?.body.input.prompt, "周衡在雨夜书店中的手工描述。");
+    current.visited.push(390);
+  });
+
+  it("UX-2203 uses the active interface language for the portrait upload suggestion", async () => {
+    current = { id: "UX-2203", task: "英语界面上传立绘时默认描述保持英文", visited: [], plannedWidths: [390] };
+    await browser.setWindowSize(390, height);
+    const page = await project("角色");
+    await switchInterfaceLanguage("English", "en-US", "界面语言");
+    await clickText("Portraits", page);
+    await press(await page.$('button[aria-label="More actions"]'));
+    await menuItem("Upload portrait material");
+    const form = await dialog("Upload character portrait");
+    await form.$('input[type="file"]').setValue(fileURLToPath(new URL("../../resources/thelittleprince.png", import.meta.url)));
+    assert.equal(
+      await form.$("textarea").getValue(),
+      "User-uploaded character portrait: 林岚; source file: thelittleprince.png",
+    );
+    await browser.keys("Escape");
+    const discard = await dialog("Unsaved changes");
+    await press(await containing("Discard draft", discard));
+    await switchInterfaceLanguage("简体中文", "zh-CN", "Interface language");
+    current.visited.push(390);
+  });
 
   it("UX-B73 keeps empty number drafts editable and validates chapter import", async function () {
     const widthsToCheck = [1440, 390];
@@ -608,6 +1672,1324 @@ describe("Novel page audit - ordinary populated pages", function () {
       assert.equal(await deletionChapter.getValue(), "12");
       await deletionChapter.setValue(initialDeletionChapter);
     }
+  });
+
+  it("UX-1670 rejects invalid part sizes before request preview", async function () {
+    current = { id: "UX-1670-part-preview-validation", task: "预览分部大纲请求前校验每部章数", visited: [], plannedWidths: [1440, 390] };
+    for (const width of current.plannedWidths) {
+      current.width = width;
+      await browser.setWindowSize(width, height);
+      const page = await project("大纲");
+      await clickText("分部大纲", page);
+      const settings = await page.$("section details.a4n-flat-surface.group");
+      if (!(await settings.getProperty("open"))) await settings.$("summary").click();
+      const fields = await settings.$$('input[type="number"]');
+      assert.equal(fields.length, 2);
+      for (const value of ["1.5", "2147483648"]) {
+        await fields[1].setValue(value);
+        const before = await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "preview_generate_parts_request").length);
+        await press(await textButton("查看追加请求", settings));
+        await waitText($("body"), "每部章数必须为正整数");
+        assert.equal(await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "preview_generate_parts_request").length), before,
+          "Invalid chapters_per_part must not reach the preview API");
+        assert.deepEqual(await snapshot(current.id, width, `invalid-${value}`, page, { value }), []);
+      }
+      await fields[1].setValue("6");
+      current.visited.push(width);
+    }
+  });
+
+  it("UX-1671 keeps the successful write response visible when outline readback fails", async function () {
+    current = { id: "UX-1671-outline-partial-read", task: "写入成功后章纲读回失败仍显示命令回包中的新增记录", visited: [], plannedWidths: [1440, 390] };
+    for (const width of current.plannedWidths) {
+      current.width = width;
+      await browser.setWindowSize(width, height);
+      const page = await project("大纲");
+      await clickText("章节大纲", page);
+      await waitText(page, seed.commands.list_chapter_outlines[0].title);
+      const created = {
+        ...seed.commands.list_chapter_outlines[0],
+        id: 990,
+        chapter_number: 10,
+        title: "保留的新增章纲",
+        summary: "写入已成功，列表读失败时仍显示最近一次成功读取。",
+      };
+      await browser.execute((outline, existing) => {
+        window.__uiAudit.fixtures.save_chapter_outline = { outline, warnings: [] };
+        window.__uiAudit.fixtures.list_chapter_outlines = [...existing, outline];
+        window.__uiAudit.failNext.push({
+          command: "list_chapter_outlines",
+          status: 503,
+          message: "章纲目录读取失败",
+        });
+      }, created, seed.commands.list_chapter_outlines);
+      await clickText("直接录入", page);
+      const form = await dialog();
+      await form.$('input[type="text"]').setValue(created.title);
+      await form.$("textarea").setValue(created.summary);
+      await press(await form.$('button[type="submit"]'));
+      await waitText(page, "章纲目录读取失败");
+      await waitText(page, seed.commands.list_chapter_outlines[0].title);
+      await waitText(page, created.title);
+      assert.equal(await page.$$(".chapter-outline-open-indicator").length, seed.commands.list_chapter_outlines.length + 1);
+      assert.deepEqual(await snapshot(current.id, width, "read-error-keeps-write-result", page, { previousRows: seed.commands.list_chapter_outlines.length, writtenOutline: created.title }), []);
+      const alert = await page.$('[role="alert"]');
+      await press(await textButton("重试", alert));
+      await waitText(page, created.title);
+      assert.deepEqual(await snapshot(current.id, width, "retry-loads-new-list", page, { newOutline: created.title }), []);
+      current.visited.push(width);
+    }
+  });
+
+  it("UX-1672 verifies the generated image remains successful when object profiles fail to refresh", async function () {
+    current = { id: "UX-1672-object-image-profile-error", task: "物体立绘生成成功后物体档案读取失败仍显示写入结果", visited: [], plannedWidths: [1440, 390] };
+    for (const [index, width] of current.plannedWidths.entries()) {
+      current.width = width;
+      await browser.setWindowSize(width, height);
+      const page = await project("图像");
+      await clickText("生成图片", page);
+      const form = await dialog("生成项目图像");
+      await press(await form.$("summary"));
+      await press(await form.$("#object-image-profile"));
+      await press(await $('//*[@role="option" and normalize-space(.)="旧怀表"]'));
+
+      const sourceImage = seed.commands.list_images_by_projects.find((image) => image.metadata_json?.object_profile_id === 2011);
+      assert(sourceImage, "The result verification needs an existing object-profile image shape");
+      const image = {
+        ...sourceImage,
+        id: 50101 + index,
+        image_type: "object",
+        chapter_id: null,
+        file_path: `${browser.options.baseUrl}/resources/thelittleprince.png`,
+        prompt: `UI audit generated object image ${index}`,
+        created_at: "2026-10-10T00:00:00Z",
+      };
+      const taskId = index === 0
+        ? "550e8400-e29b-41d4-a716-446655440101"
+        : "550e8400-e29b-41d4-a716-446655440102";
+      const revision = await browser.execute(async (record) => {
+        const { sha256Json } = await import("/src/utils/contentHash.ts");
+        return sha256Json([
+          record.id, record.project_id, record.image_type, record.file_path, record.prompt,
+          record.model, record.width, record.height, record.file_size, record.chapter_id,
+          record.panel_id, record.created_at,
+        ]);
+      }, image);
+      assert.equal(typeof revision, "string");
+      await browser.execute(({ id, record, recordRevision }) => {
+        const handle = { event_schema_version: 1, task_id: id, attempt: 1, status: "reserved" };
+        const started = {
+          delivery_mode: "stream", root_task_id: id, task_kind: "image_generation",
+          project_id: record.project_id, root_project_id: record.project_id,
+          target: { kind: "generated_image", id: String(record.id) },
+        };
+        const artifact = {
+          artifact_id: `generated-image:${record.id}`, artifact_kind: "generated_image",
+          byte_size: record.file_size, content_type: "image/png", revision: recordRevision,
+          sha256: recordRevision, temporary: false,
+        };
+        const resultRef = { kind: "generated_image", id: String(record.id), revision: recordRevision };
+        const now = Date.now();
+        const event = (sequence, value) => ({
+          schema_version: 1, task_id: id, attempt: 1, sequence, emitted_at_ms: now + sequence, event: value,
+        });
+        const startedEvent = event(1, { kind: "started", data: started });
+        const artifactEvent = event(2, { kind: "artifact", data: { artifact, operation: "available" } });
+        const completedEvent = event(3, { kind: "completed", data: { final_text_hashes: [], result_ref: resultRef } });
+        const completedHandle = { ...handle, status: "completed" };
+        const summary = {
+          handle: completedHandle, started, updated_at_ms: now + 3, result_ref: resultRef,
+          snapshot_state: "available", terminal_event: completedEvent,
+        };
+        const snapshot = {
+          schema_version: 1, task_id: id, attempt: 1, covers_through_sequence: 3, status: "completed",
+          started, cancel_reason: null, progress: null, streams: [], artifacts: [artifact], usage: null,
+          latest_checkpoint: null, terminal_event: completedEvent, updated_at_ms: now + 3,
+        };
+        const fixtures = window.__uiAudit.fixtures;
+        fixtures.start_image_generation = handle;
+        fixtures.generationTasks = {
+          ...(fixtures.generationTasks ?? {}),
+          [id]: { handle, events: [startedEvent, artifactEvent, completedEvent], summary, snapshot },
+        };
+        fixtures.byProject[1].list_images_by_project = [...fixtures.byProject[1].list_images_by_project, record];
+        window.__uiAudit.failNext.push({ command: "list_object_profiles", status: 503, message: "物体档案列表读取失败" });
+      }, { id: taskId, record: image, recordRevision: revision });
+
+      const objectTools = await form.$("details[open] section");
+      await press(await textButton("生成素材图", objectTools));
+      const progress = await dialog("生成物体素材图");
+      await progress.waitForDisplayed({ timeout });
+      const closeProgress = await progress.$("button=关闭");
+      await closeProgress.waitForDisplayed({ timeout });
+      await press(closeProgress);
+      await browser.waitUntil(
+        () => browser.execute(() => ![...document.querySelectorAll('[role="dialog"]')].some((node) => {
+          const labelledBy = node.getAttribute("aria-labelledby");
+          return labelledBy && document.getElementById(labelledBy)?.textContent?.trim() === "生成物体素材图";
+        })),
+        { timeout, timeoutMsg: "The object-image progress dialog must close without closing the generation form" },
+      );
+      await waitText(form, "物体档案列表读取失败");
+      const generated = await page.$(`img[alt=${JSON.stringify(image.prompt)}]`);
+      await generated.waitForExist({ timeout });
+      assert.equal((await form.getText()).includes("图片生成失败"), false);
+      await browser.waitUntil(async () => (await $(".a4n-toast").getText()).includes("生成物体素材图"), { timeout });
+      await snapshot(current.id, width, "profile-read-error", page, { resultImageId: image.id, profileRead: "failed" });
+      await press(await form.$('button[aria-label="关闭"]'));
+      await form.waitForExist({ reverse: true });
+      await generated.waitForDisplayed({ timeout });
+      await browser.waitUntil(() => generated.execute((node) => node.complete && node.naturalWidth > 0), { timeout });
+      assert.equal(await generated.isDisplayed(), true, "The saved result must be visible after closing the generation form");
+      assert.deepEqual(await snapshot(current.id, width, "generated-result-visible", page, { resultImageId: image.id }), []);
+      current.visited.push(width);
+    }
+  });
+
+  it("UX-1677 keeps a created object profile when the following list read fails", async function () {
+    current = { id: "UX-1677-object-profile-create-read-failure", task: "物体档案创建回包成功后列表读取失败仍保留新档案和成功反馈", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("物体");
+    await waitText(page, "旧怀表");
+    const created = {
+      ...structuredClone(seed.commands.list_object_profiles[0]),
+      id: 2099,
+      name: "界面审查新物件",
+      normalized_name: "界面审查新物件",
+      ownership_kind: "user",
+      aliases_json: [],
+      evidence_json: [],
+      generated_image_count: 0,
+    };
+    await browser.execute(({ profile }) => {
+      window.__uiAudit.fixtures.create_object_profile = { profile, warnings: [] };
+      window.__uiAudit.failNext.push({ command: "list_object_profiles", status: 503, message: "物体档案目录读取失败" });
+    }, { profile: created });
+    await clickText("新建档案", page);
+    const form = await dialog("新建物体档案");
+    await form.$('.//label[normalize-space(.)="名称"]/input').setValue(created.name);
+    await clickText("保存", form);
+    const detail = await dialog(created.name);
+    await waitText(detail, created.name);
+    await browser.waitUntil(async () => (await $(".a4n-toast").getText()).includes("物体档案已创建"), { timeout });
+    await press(await detail.$('button[aria-label="关闭"]'));
+    await waitText(page, "物体档案目录读取失败");
+    await waitText(page, created.name);
+    assert.equal(await browser.execute(() => window.__uiAudit.unexpected.length), 0);
+    assert.deepEqual(await snapshot(current.id, 1440, "write-result-kept", page, { createdId: created.id, refresh: "failed" }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-1681 keeps a created scene profile when the following list read fails", async function () {
+    current = { id: "UX-1681-scene-profile-create-read-failure", task: "场景档案创建回包成功后列表读取失败仍保留新档案和成功反馈", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("场景");
+    await waitText(page, "旧书店");
+    const created = {
+      ...structuredClone(seed.commands.list_scene_profiles[0]),
+      id: 99,
+      name: "界面审查新场景",
+      normalized_name: "界面审查新场景",
+      ownership_kind: "user",
+      aliases_json: [],
+      evidence_json: [],
+      generated_image_count: 0,
+    };
+    await browser.execute(({ profile }) => {
+      window.__uiAudit.fixtures.create_scene_profile = { profile, warnings: [] };
+      window.__uiAudit.failNext.push({ command: "list_scene_profiles", status: 503, message: "场景档案目录读取失败" });
+    }, { profile: created });
+    await clickText("新建档案", page);
+    const form = await dialog("新建场景档案");
+    await form.$('.//label[normalize-space(.)="名称"]/input').setValue(created.name);
+    await clickText("保存", form);
+    const detail = await dialog(created.name);
+    await waitText(detail, created.name);
+    await browser.waitUntil(async () => (await $(".a4n-toast").getText()).includes("场景档案已创建"), { timeout });
+    await press(await detail.$('button[aria-label="关闭"]'));
+    await waitText(page, "场景档案目录读取失败");
+    await waitText(page, created.name);
+    assert.equal(await browser.execute(() => window.__uiAudit.unexpected.length), 0);
+    assert.deepEqual(await snapshot(current.id, 1440, "write-result-kept", page, { createdId: created.id, refresh: "failed" }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-1682 closes world editing after a committed save even when readback fails", async function () {
+    current = { id: "UX-1682-world-save-read-failure", task: "世界观保存命令成功后读回失败仍应用回包内容并结束编辑", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("世界观");
+    await waitText(page, "世界观设定");
+    await browser.execute(() => {
+      window.__uiAudit.fixtures.update_world_setting = { warnings: [] };
+      window.__uiAudit.failNext.push({ command: "get_blueprint", status: 503, message: "世界观读回失败" });
+    });
+    await clickText("编辑世界观", page);
+    const coreRules = await page.$("textarea");
+    const savedText = "世界规则由保存命令回包确认，读回失败不应恢复编辑草稿。";
+    await coreRules.setValue(savedText);
+    await clickText("保存世界观", page);
+    await browser.waitUntil(async () => (await $(".a4n-toast").getText()).includes("世界观已保存"), { timeout });
+    await waitText(page, "世界观读回失败");
+    await waitText(page, savedText);
+    assert.equal(await textButton("保存世界观", page).isExisting(), false);
+    assert.equal(await textButton("编辑世界观", page).isExisting(), true);
+    assert.deepEqual(await snapshot(current.id, 1440, "save-committed-read-error-visible", page, { savedText }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-1683 and UX-1684 keep import queue and analysis progress read failures distinct", async function () {
+    current = { id: "UX-1683-1684-import-read-errors", task: "导入队列和分析进度读取失败显示各自错误且不伪装空队列", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const queuePage = await project("导入/归纳", undefined, async () => {
+      await browser.execute(() => window.__uiAudit.failNext.push(...Array.from({ length: 8 }, () => ({
+        command: "list_import_queue", status: 503, message: "审核队列读取失败",
+      }))));
+    });
+    await waitText(queuePage, "审核队列读取失败");
+    assert.equal((await queuePage.getText()).includes("暂无待审核内容"), false);
+    assert.deepEqual(await snapshot("UX-1683-import-queue-read-error", 1440, "queue-error-not-empty", queuePage), []);
+
+    const progressPage = await project("导入/归纳", undefined, async () => {
+      await browser.execute(() => window.__uiAudit.failNext.push(...Array.from({ length: 8 }, () => ({
+        command: "get_project_import_analysis_progress", status: 503, message: "分析进度读取失败",
+      }))));
+    });
+    await waitText(progressPage, "分析进度读取失败");
+    assert.equal(await (await textButton("分析项目", progressPage)).isEnabled(), true);
+    assert.equal((await progressPage.getText()).includes("暂无待审核内容"), false);
+    assert.deepEqual(await snapshot("UX-1684-import-progress-read-error", 1440, "progress-error-not-idle", progressPage), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-2257 preserves queue rows but pauses their actions when queue refresh fails", async function () {
+    current = { id: "UX-2257-import-queue-stale-read", task: "审核列表已显示时后台刷新失败，确认旧记录不再接受操作", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("导入/归纳");
+    const filename = "01-旧书店与车站调查补充材料.md";
+    const row = await page.$('.//li[.//button[@aria-label=' + literal(`查看 ${filename} 的审核详情`) + ']]');
+    await row.waitForDisplayed({ timeout });
+    await browser.execute(() => window.__uiAudit.failNext.push({
+      command: "list_import_queue", status: 503, message: "审核队列刷新失败",
+    }));
+    await browser.waitUntil(async () => (await page.getText()).includes("审核队列刷新失败"), {
+      timeout: 12000,
+      timeoutMsg: "The five-second review queue poll must report its read failure",
+    });
+    assert.equal((await page.getText()).includes(filename), true);
+    assert.equal(await (await row.$('button[aria-label=' + JSON.stringify(`选择 ${filename}`) + ']')).isEnabled(), false);
+    assert.equal(await row.$('button[aria-haspopup="menu"]').isExisting(), false);
+    assert.deepEqual(await snapshot(current.id, 1440, "old-row-visible-actions-paused", page, {
+      rowPreservedForContext: true, actionDisabled: true,
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-2262 refreshes task state after a stale cancellation is rejected", async function () {
+    current = { id: "UX-2262-import-cancel-conflict", task: "其他协作者先完成分析，本地停止命令失败后应更新进度与操作入口", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const progress = structuredClone(seed.commands.get_project_import_analysis_progress);
+    progress.status = "analyzing";
+    progress.message = "正在分析导入章节";
+    progress.overall_progress = 45;
+    progress.completed_at = null;
+    progress.stages.generating_analysis_data.status = "in_progress";
+    progress.stages.generating_analysis_data.completed = 5;
+    const page = await project("导入/归纳", () => browser.execute((value) => {
+      window.__uiAudit.fixtures.get_project_import_analysis_progress = value;
+    }, progress));
+    await textButton("停止分析", page).waitForDisplayed({ timeout });
+    const progressReads = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "get_project_import_analysis_progress").length,
+    );
+    const cancelRequests = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "cancel_import_analysis").length,
+    );
+    await browser.execute((completed) => {
+      const audit = window.__uiAudit;
+      audit.fixtures.get_project_import_analysis_progress = completed;
+      audit.failNext.push({ command: "cancel_import_analysis", status: 409, message: "分析任务已完成" });
+    }, structuredClone(seed.commands.get_project_import_analysis_progress));
+    await press(await textButton("停止分析", page));
+    await waitText($("body"), "分析任务已完成");
+    await browser.waitUntil(async () => browser.execute((count) =>
+      window.__uiAudit.requests.filter((item) => item.command === "get_project_import_analysis_progress").length > count,
+    progressReads), { timeout });
+    await browser.waitUntil(async () =>
+      !(await textButton("停止分析", page).isDisplayed().catch(() => false)) &&
+      await textButton("分析项目", page).isEnabled(),
+    { timeout, timeoutMsg: "The refreshed completion state must remove the stale stop action" });
+    assert.equal(await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "cancel_import_analysis").length,
+    ), cancelRequests + 1);
+    assert.deepEqual(await snapshot(current.id, 1440, "completed-state-restored", page, {
+      rejectedCancellation: true,
+      staleStopActionRemoved: true,
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-2263 rejects a second project analysis start and restores the running action", async function () {
+    current = { id: "UX-2263-import-analysis-concurrent-start", task: "两个窗口同时启动同一项目分析，第二个请求收到运行中状态并收敛界面", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("导入/归纳");
+    const running = structuredClone(seed.commands.get_project_import_analysis_progress);
+    running.status = "analyzing";
+    running.message = "正在其他窗口分析导入章节";
+    running.overall_progress = 55;
+    running.completed_at = null;
+    running.stages.generating_analysis_data.status = "in_progress";
+    running.stages.generating_analysis_data.completed = 6;
+    const beforeRuns = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "run_import_project_analysis").length,
+    );
+    const beforeQueueReads = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "list_import_queue").length,
+    );
+    await browser.execute((progress) => {
+      const audit = window.__uiAudit;
+      audit.fixtures.get_project_import_analysis_progress = progress;
+      audit.failNext.push({
+        command: "run_import_project_analysis", status: 409,
+        message: "该项目已有导入分析正在运行",
+      });
+    }, running);
+    await clickText("分析项目", page);
+    await waitText($("body"), "该项目已有导入分析正在运行");
+    await browser.waitUntil(async () => browser.execute((count) =>
+      window.__uiAudit.requests.filter((item) => item.command === "list_import_queue").length > count,
+    beforeQueueReads), { timeout });
+    await textButton("停止分析", page).waitForDisplayed({ timeout });
+    assert.equal(await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "run_import_project_analysis").length,
+    ), beforeRuns + 1);
+    assert.deepEqual(await snapshot(current.id, 1440, "running-task-action-restored", page, {
+      duplicateStartRejected: true,
+      activeTaskAction: "stop",
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-2264 lets the server validate analysis start when progress cannot be read", async function () {
+    current = { id: "UX-2264-import-analysis-progress-gate", task: "进度查询失败但项目可编辑时仍允许提交，由后端决定能否启动", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("导入/归纳", undefined, async () => {
+      await browser.execute(() => window.__uiAudit.failNext.push(...Array.from({ length: 8 }, () => ({
+        command: "get_project_import_analysis_progress", status: 503, message: "分析进度读取失败",
+      }))));
+    });
+    await waitText(page, "分析进度读取失败");
+    const start = await textButton("分析项目", page);
+    assert.equal(await start.isEnabled(), true);
+    const result = {
+      analyzed_chapters: 12,
+      progress: structuredClone(seed.commands.get_project_import_analysis_progress),
+    };
+    const beforeRuns = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "run_import_project_analysis").length,
+    );
+    await browser.execute((summary) => {
+      window.__uiAudit.fixtures.run_import_project_analysis = summary;
+    }, result);
+    await press(start);
+    await waitText($("body"), "已完成 12 章的分析与资料同步");
+    assert.equal(await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "run_import_project_analysis").length,
+    ), beforeRuns + 1);
+    assert.deepEqual(await snapshot(current.id, 1440, "server-accepted-start", page, {
+      initialProgressRead: "failed",
+      startRequestSent: true,
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-2265 confirms permanent review deletion before calling the command", async function () {
+    current = { id: "UX-2265-import-review-delete-confirm", task: "删除已解析审核记录前核对影响，取消不发删除命令", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("导入/归纳");
+    const filename = "01-旧书店与车站调查补充材料.md";
+    const row = await page.$('.//li[.//button[@aria-label=' + literal(`查看 ${filename} 的审核详情`) + ']]');
+    const deleteCount = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "delete_import_review").length,
+    );
+    const openDelete = async () => {
+      await press(await row.$('button[aria-haspopup="menu"]'));
+      await menuItem("删除审核记录");
+      return dialog("删除审核记录？");
+    };
+    let confirmation = await openDelete();
+    await waitText(confirmation, "已接受的章节正文不会删除");
+    await clickText("取消", confirmation);
+    await confirmation.waitForExist({ reverse: true });
+    assert.equal(await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "delete_import_review").length,
+    ), deleteCount);
+    assert.equal(await row.isExisting(), true);
+
+    await browser.execute(() => { window.__uiAudit.fixtures.delete_import_review = null; });
+    confirmation = await openDelete();
+    await clickText("删除", confirmation);
+    await browser.waitUntil(async () => browser.execute((count) =>
+      window.__uiAudit.requests.filter((item) => item.command === "delete_import_review").length === count + 1,
+    deleteCount), { timeout });
+    await browser.waitUntil(async () => !(await row.isExisting()), { timeout });
+    await waitText($("body"), "已删除");
+    assert.deepEqual(await snapshot(current.id, 1440, "permanent-delete-confirmed", page, {
+      cancelSentNoDelete: true,
+      confirmedDeleteRequestCount: 1,
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-2266 confirms terminal review rejection before changing its status", async function () {
+    current = { id: "UX-2266-import-review-reject-confirm", task: "拒绝待审记录前确认不可逆状态，取消不发送命令", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("导入/归纳");
+    const filename = "01-旧书店与车站调查补充材料.md";
+    const row = await page.$('.//li[.//button[@aria-label=' + literal(`查看 ${filename} 的审核详情`) + ']]');
+    const rejectCount = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "reject_import_review").length,
+    );
+    const openReject = async () => {
+      await press(await row.$('button[aria-haspopup="menu"]'));
+      await menuItem("拒绝审核");
+      return dialog("拒绝审核项？");
+    };
+    let confirmation = await openReject();
+    await waitText(confirmation, filename);
+    await waitText(confirmation, "不能再从此队列接受");
+    await clickText("取消", confirmation);
+    await confirmation.waitForExist({ reverse: true });
+    assert.equal(await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "reject_import_review").length,
+    ), rejectCount);
+    assert.equal(await row.isExisting(), true);
+
+    const review = await browser.execute((name) => structuredClone(
+      window.__uiAudit.fixtures.list_import_queue.find((item) => item.filename === name),
+    ), filename);
+    await browser.execute((item) => {
+      const audit = window.__uiAudit;
+      audit.fixtures.reject_import_review = { ...item, review_status: "rejected" };
+      audit.fixtures.list_import_queue = audit.fixtures.list_import_queue.map((review) =>
+        review.id === item.id ? { ...review, review_status: "rejected" } : review,
+      );
+    }, review);
+    confirmation = await openReject();
+    await clickText("拒绝审核", confirmation);
+    await browser.waitUntil(async () => browser.execute((count) =>
+      window.__uiAudit.requests.filter((item) => item.command === "reject_import_review").length === count + 1,
+    rejectCount), { timeout });
+    await waitText(row, "已拒绝");
+    await waitText($("body"), "已拒绝");
+    assert.deepEqual(await snapshot(current.id, 1440, "rejected-after-confirmation", page, {
+      cancelSentNoReject: true,
+      confirmedRejectRequestCount: 1,
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-2267 refreshes the project list when deletion loses a race", async function () {
+    current = { id: "UX-2267-project-delete-conflict", task: "其他协作者已删除项目，本地确认删除失败后同步项目列表", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    await home();
+    const row = await rootRow();
+    await row.waitForDisplayed({ timeout });
+    const listReads = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "list_projects").length,
+    );
+    await press(await row.$('button[aria-label="更多操作"]'));
+    await menuItem("删除项目");
+    const confirmation = await dialog("删除项目");
+    await browser.execute(() => {
+      const audit = window.__uiAudit;
+      audit.fixtures.list_projects = {
+        ...audit.fixtures.list_projects,
+        items: audit.fixtures.list_projects.items.filter((project) => project.id !== 1),
+        total: Math.max(0, audit.fixtures.list_projects.total - 1),
+      };
+      audit.fixtures.projectRecords = audit.fixtures.projectRecords.filter((project) => project.id !== 1);
+      audit.failNext.push({ command: "delete_project", status: 404, message: "项目已被其他用户删除" });
+    });
+    await clickText("永久删除", confirmation);
+    await waitText($("body"), "项目已被其他用户删除");
+    await browser.waitUntil(async () => !(await row.isExisting()), { timeout });
+    await browser.waitUntil(async () => browser.execute((count) =>
+      window.__uiAudit.requests.filter((item) => item.command === "list_projects").length > count,
+    listReads), { timeout });
+    assert.deepEqual(await snapshot(current.id, 1440, "externally-deleted-project-removed", $(".a4n-home-content"), {
+      failedDeleteKeptError: true,
+      refreshedListRemovedStaleProject: true,
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-2269 rejects a concurrent reverse generation for the same project target", async function () {
+    current = { id: "UX-2269-import-reverse-concurrent-run", task: "另一窗口正在生成同一项目章纲候选时拒绝重复模型调用", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("导入/归纳");
+    const summary = await containing("项目资料归纳", page, "summary");
+    await press(summary);
+    const tools = await summary.$("..");
+    await press(await tools.$('button[role="combobox"]'));
+    await press(await $('//*[@role="option" and normalize-space(.)=' + literal("章节大纲") + ']'));
+    const beforeRequests = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "reverse_engineer").length,
+    );
+    await browser.execute(() => window.__uiAudit.failNext.push({
+      command: "reverse_engineer", status: 409,
+      message: "状态无效：当前状态 该项目的同类工作流正在运行，不允许操作 再次启动该工作流",
+    }));
+    await clickText("生成章节大纲候选", tools);
+    await waitText($("body"), "该项目的同类工作流正在运行");
+    assert.equal(await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "reverse_engineer").length,
+    ), beforeRequests + 1);
+    assert.equal((await tools.getText()).includes("确认更新"), false);
+    assert.deepEqual(await snapshot(current.id, 1440, "concurrent-target-not-overwritten", page, {
+      rejectedConcurrentRun: true,
+      candidateNotPresentedForRejectedRequest: true,
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-2270 removes a reverse candidate after its source context changes", async function () {
+    current = { id: "UX-2270-import-reverse-stale-candidate", task: "项目上下文改变后确认旧章纲候选失败，应同步掉过期候选", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("导入/归纳");
+    const summary = await containing("项目资料归纳", page, "summary");
+    await press(summary);
+    const tools = await summary.$("..");
+    const proposal = {
+      workflow_run_id: 991,
+      target: "outline",
+      state: "proposal",
+      warnings: [],
+      result: { outlines: [{ chapter_number: 1, title: "钟楼来信", summary: "第一声钟响后收到来信。" }] },
+      applied: null,
+    };
+    await browser.execute((value) => {
+      window.__uiAudit.fixtures.get_reverse_engineering_candidate = value;
+    }, proposal);
+    await press(await tools.$('button[role="combobox"]'));
+    await press(await $('//*[@role="option" and normalize-space(.)=' + literal("章节大纲") + ']'));
+    await waitText(tools, "确认更新章节大纲");
+
+    const readsBeforeConfirmation = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "get_reverse_engineering_candidate").length,
+    );
+    const confirmationsBefore = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "confirm_reverse_engineering_candidate").length,
+    );
+    await clickText("确认更新章节大纲", tools);
+    const confirmation = await dialog("确认更新章节大纲");
+    await browser.execute(() => {
+      window.__uiAudit.fixtures.get_reverse_engineering_candidate = null;
+      window.__uiAudit.failNext.push({
+        command: "confirm_reverse_engineering_candidate",
+        status: 409,
+        message: "项目上下文已变化，请重新归纳",
+      });
+    });
+    await clickText("更新章节大纲", confirmation);
+    await waitText($("body"), "项目上下文已变化，请重新归纳");
+    await browser.waitUntil(async () => browser.execute((count) =>
+      window.__uiAudit.requests.filter((item) => item.command === "get_reverse_engineering_candidate").length > count,
+    readsBeforeConfirmation), { timeout, timeoutMsg: "The rejected candidate must be reconciled with the current source state" });
+    await browser.waitUntil(async () => !(await tools.getText()).includes("确认更新"), {
+      timeout,
+      timeoutMsg: "The source-invalid candidate must no longer be confirmable",
+    });
+    const confirmationRequests = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "confirm_reverse_engineering_candidate").length,
+    );
+    assert.equal(confirmationRequests, confirmationsBefore + 1);
+    assert.deepEqual(await snapshot(current.id, 1440, "stale-candidate-removed", page, {
+      freshnessConflictShown: true,
+      candidateReadBackAfterConflict: true,
+      staleConfirmationButtonRemoved: true,
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-2274 keeps the current reverse candidate when a new run is rejected", async function () {
+    current = { id: "UX-2274-import-reverse-preserve-candidate", task: "反推失败或被并发门禁拒绝后仍保留原可确认候选", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("导入/归纳");
+    const summary = await containing("项目资料归纳", page, "summary");
+    await press(summary);
+    const tools = await summary.$("..");
+    const proposal = {
+      workflow_run_id: 992,
+      target: "outline",
+      state: "proposal",
+      warnings: [],
+      result: { outlines: [{ chapter_number: 13, title: "候选应保留", summary: "这是已经生成的候选。" }] },
+      applied: null,
+    };
+    await browser.execute((value) => {
+      window.__uiAudit.fixtures.get_reverse_engineering_candidate = value;
+      window.__uiAudit.failNext.push({
+        command: "reverse_engineer",
+        status: 409,
+        message: "状态无效：当前状态 该项目的同类工作流正在运行，不允许操作 再次启动该工作流",
+      });
+    }, proposal);
+    await press(await tools.$('button[role="combobox"]'));
+    await press(await $('//*[@role="option" and normalize-space(.)=' + literal("章节大纲") + ']'));
+    await waitText(tools, "确认更新章节大纲");
+    const beforeRuns = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "reverse_engineer").length,
+    );
+
+    await clickText("生成章节大纲候选", tools);
+    await waitText($("body"), "该项目的同类工作流正在运行");
+    await waitText(tools, "查看候选内容");
+    const confirm = await textButton("确认更新章节大纲", tools);
+    assert.equal(await confirm.isEnabled(), true);
+    const runsAfterFailure = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "reverse_engineer").length,
+    );
+    assert.equal(runsAfterFailure, beforeRuns + 1);
+    assert.deepEqual(await snapshot(current.id, 1440, "candidate-survives-rejected-regeneration", page, {
+      startRejectedByRunningWorkflow: true,
+      previousCandidateVisible: true,
+      previousCandidateStillConfirmable: true,
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-2273 rejects a second outline run for the same project workflow", async function () {
+    current = { id: "UX-2273-outline-concurrent-run", task: "另一窗口正在生成同项目章纲时拒绝第二个 workflow run", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("大纲");
+    await clickText("章节大纲", page);
+    const summary = await containing("追加章纲", page, "summary");
+    await press(summary);
+    const section = await summary.$("..");
+    await section.$('input[type="number"]').setValue("2");
+    const beforeRuns = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "start_outline_generation").length,
+    );
+    await browser.execute(() => window.__uiAudit.failNext.push({
+      command: "start_outline_generation",
+      status: 409,
+      message: "状态无效：当前状态 该项目的同类工作流正在运行，不允许操作 再次启动该工作流",
+    }));
+
+    await clickText("追加章纲", section);
+    await waitText($("body"), "该项目的同类工作流正在运行");
+    const runsAfterConflict = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "start_outline_generation").length,
+    );
+    assert.equal(runsAfterConflict, beforeRuns + 1);
+    assert.deepEqual(await snapshot(current.id, 1440, "duplicate-outline-run-rejected", page, {
+      duplicateRunRejected: true,
+      runningWorkflowFeedback: true,
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-1685 keeps imported review rows and success feedback when queue readback fails", async function () {
+    current = { id: "UX-1685-import-upload-read-failure", task: "导入命令返回新审核项后列表读取失败仍呈现回包实体和成功结果", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("导入/归纳");
+    const created = {
+      ...structuredClone(seed.commands.list_import_queue[0]),
+      id: 599,
+      filename: "界面审查导入的新审核项.md",
+      project_id: 1,
+      review_status: "pending",
+      created_at: "2026-10-10T00:00:00Z",
+      updated_at: "2026-10-10T00:00:00Z",
+    };
+    await browser.execute(({ review }) => {
+      window.__uiAudit.fixtures.import_project_text_upload = [review];
+      window.__uiAudit.failNext.push({ command: "list_import_queue", status: 503, message: "导入后的审核队列读取失败" });
+      const input = document.querySelector('input[type="file"]');
+      const transfer = new DataTransfer();
+      transfer.items.add(new File(["界面审查导入内容"], "界面审查导入.md", { type: "text/markdown" }));
+      Object.defineProperty(input, "files", { configurable: true, value: transfer.files });
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }, { review: created });
+    await waitText(page, "界面审查导入.md");
+    await clickText("开始导入", page);
+    await waitText(page, "导入后的审核队列读取失败");
+    await waitText(page, created.filename);
+    await browser.waitUntil(async () => (await $(".a4n-toast").getText()).includes("已创建 1 个审核项"), { timeout });
+    await waitText(page, "尚未选择文件");
+    assert.deepEqual(await snapshot(current.id, 1440, "import-result-kept", page, { createdReviewId: created.id, refresh: "failed" }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-1686 keeps an analysis completion result when queue readback fails", async function () {
+    current = { id: "UX-1686-import-analysis-read-failure", task: "导入分析命令返回完成后队列读取失败不改写为任务失败", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("导入/归纳");
+    const result = {
+      analyzed_chapters: 12,
+      progress: structuredClone(seed.commands.get_project_import_analysis_progress),
+    };
+    await browser.execute((summary) => {
+      window.__uiAudit.fixtures.run_import_project_analysis = summary;
+      window.__uiAudit.failNext.push({ command: "list_import_queue", status: 503, message: "分析后的审核队列读取失败" });
+    }, result);
+    await clickText("分析项目", page);
+    await waitText(page, "分析后的审核队列读取失败");
+    await browser.waitUntil(async () => (await $(".a4n-toast").getText()).includes("已完成 12 章的分析与资料同步"), { timeout });
+    await waitText(page, "已完成");
+    assert.equal((await page.getText()).includes("导入项目分析失败"), false);
+    assert.deepEqual(await snapshot(current.id, 1440, "analysis-result-kept", page, { analyzedChapters: result.analyzed_chapters, queueRead: "failed" }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-2258 reloads review state after a stale action is rejected", async function () {
+    current = { id: "UX-2258-import-action-conflict", task: "其他协作者先处理审核项后，本地接受命令失败并同步最新状态", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("导入/归纳");
+    const filename = "01-旧书店与车站调查补充材料.md";
+    const reviewButton = await page.$('button[aria-label=' + JSON.stringify(`查看 ${filename} 的审核详情`) + ']');
+    const previousReads = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "list_import_queue").length,
+    );
+    await browser.execute((name) => {
+      const audit = window.__uiAudit;
+      audit.fixtures.accept_import_review = null;
+      audit.fixtures.list_import_queue = audit.fixtures.list_import_queue.map((review) =>
+        review.filename === name ? { ...review, review_status: "accepted" } : review,
+      );
+      audit.failNext.push({
+        command: "accept_import_review", status: 409, message: "该审核项已被其他协作者处理",
+      });
+    }, filename);
+    await press((await page.$$('ul button[aria-haspopup="menu"]'))[0]);
+    await menuItem("接受审核");
+    await waitText($("body"), "该审核项已被其他协作者处理");
+    await waitText(reviewButton, "已接受");
+    await browser.waitUntil(async () => browser.execute((count) =>
+      window.__uiAudit.requests.filter((item) => item.command === "list_import_queue").length > count,
+    previousReads), { timeout });
+    assert.equal(await reviewButton.isEnabled(), true);
+    assert.deepEqual(await snapshot(current.id, 1440, "server-review-state-restored", page, {
+      rejectedStaleCommand: true, currentStatus: "accepted",
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-2261 reconciles a partial batch when another reviewer already accepted one item", async function () {
+    current = { id: "UX-2261-import-batch-conflict", task: "批量接受中一项已被其他协作者处理，确认部分成功和冲突项均同步", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("导入/归纳");
+    const firstName = "01-旧书店与车站调查补充材料.md";
+    const secondName = "02-旧书店与车站调查补充材料.md";
+    const [first, second] = await browser.execute(({ firstName, secondName }) => {
+      const rows = window.__uiAudit.fixtures.list_import_queue;
+      return structuredClone([
+        rows.find((review) => review.filename === firstName),
+        rows.find((review) => review.filename === secondName),
+      ]);
+    }, { firstName, secondName });
+    assert.ok(first && second, "The queue fixture must contain both selected reviews");
+    const acceptedByBatch = { ...second, review_status: "accepted" };
+    const previousQueueReads = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "list_import_queue").length,
+    );
+    await browser.execute(({ first, second, acceptedByBatch }) => {
+      const audit = window.__uiAudit;
+      audit.fixtures.batch_accept_reviews = {
+        accepted_reviews: [acceptedByBatch],
+        failure: { review_id: first.id, message: "该审核项已被其他协作者接受" },
+      };
+      audit.fixtures.list_import_queue = audit.fixtures.list_import_queue.map((review) =>
+        review.id === first.id || review.id === second.id
+          ? { ...review, review_status: "accepted" }
+          : review,
+      );
+    }, { first, second, acceptedByBatch });
+    await press(await ariaButton(`选择 ${firstName}`, page));
+    await press(await ariaButton(`选择 ${secondName}`, page));
+    await clickText("接受所选（2）", page);
+    await waitText($("body"), "该审核项已被其他协作者接受");
+    await browser.waitUntil(async () => browser.execute((count) =>
+      window.__uiAudit.requests.filter((item) => item.command === "list_import_queue").length > count,
+    previousQueueReads), { timeout });
+    await waitText(await ariaButton(`查看 ${firstName} 的审核详情`, page), "已接受");
+    await waitText(await ariaButton(`查看 ${secondName} 的审核详情`, page), "已接受");
+    assert.deepEqual(await snapshot(current.id, 1440, "batch-conflict-reconciled", page, {
+      batchAcceptedId: second.id,
+      concurrentlyAcceptedId: first.id,
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-1688 applies batch review command results before queue readback", async function () {
+    current = { id: "UX-1688-batch-accept-read-failure", task: "批量接受实体回包更新各行并清除所选，即使后续队列读取失败", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("导入/归纳");
+    const accepted = seed.commands.list_import_queue.slice(0, 2).map((review) => ({ ...review, review_status: "accepted" }));
+    await browser.execute((result) => {
+      window.__uiAudit.fixtures.batch_accept_reviews = { accepted_reviews: result, failure: null };
+      window.__uiAudit.failNext.push({ command: "list_import_queue", status: 503, message: "批量接受后的审核队列读取失败" });
+    }, accepted);
+    await press(await ariaButton("选择 01-旧书店与车站调查补充材料.md", page));
+    await press(await ariaButton("选择 02-旧书店与车站调查补充材料.md", page));
+    await clickText("接受所选（2）", page);
+    await waitText(page, "批量接受后的审核队列读取失败");
+    await browser.waitUntil(async () => (await $(".a4n-toast").getText()).includes("已批量接受 2 个"), { timeout });
+    for (const filename of accepted.map((review) => review.filename)) {
+      const detailButton = await page.$('button[aria-label=' + JSON.stringify(`查看 ${filename} 的审核详情`) + ']');
+      await waitText(detailButton, "已接受");
+      assert.equal(await (await page.$('button[aria-label=' + JSON.stringify(`选择 ${filename}`) + ']')).getAttribute("aria-pressed"), "false");
+    }
+    assert.deepEqual(await snapshot(current.id, 1440, "batch-result-kept", page, { acceptedIds: accepted.map((review) => review.id) }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-1784 keeps a partial batch-accept result aligned with the server queue", async function () {
+    current = { id: "UX-1784-batch-accept-partial", task: "批量接受中途失败时同步已完成项目并保留未完成项状态", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("导入/归纳");
+    const [first, second, ...remaining] = seed.commands.list_import_queue;
+    const acceptedFirst = { ...first, review_status: "accepted" };
+    const queueAfterOtherWindowChange = [acceptedFirst, ...remaining];
+    await browser.execute(({ accepted, failed, nextQueue }) => {
+      const fixtures = window.__uiAudit.fixtures;
+      fixtures.batch_accept_reviews = {
+        accepted_reviews: [accepted],
+        failure: { review_id: failed.id, message: "该审核项已在另一个窗口中删除" },
+      };
+      fixtures.list_import_queue = nextQueue;
+    }, { accepted: acceptedFirst, failed: second, nextQueue: queueAfterOtherWindowChange });
+    await press(await ariaButton(`选择 ${first.filename}`, page));
+    await press(await ariaButton(`选择 ${second.filename}`, page));
+    const readsBefore = await browser.execute(() => window.__uiAudit.requests.filter(
+      (item) => item.command === "list_import_queue",
+    ).length);
+
+    await clickText("接受所选（2）", page);
+    await waitText(page, `已接受 1 个审核项；${second.filename} 未完成`);
+    const acceptedDetail = await page.$(`button[aria-label=${JSON.stringify(`查看 ${first.filename} 的审核详情`)}]`);
+    await waitText(acceptedDetail, "已接受");
+    assert.equal(await (await page.$(`button[aria-label=${JSON.stringify(`选择 ${first.filename}`)}]`)).getAttribute("aria-pressed"), "false");
+    assert.equal(await page.$(`button[aria-label=${JSON.stringify(`选择 ${second.filename}`)}]`).isExisting(), false);
+    const readsAfter = await browser.execute(() => window.__uiAudit.requests.filter(
+      (item) => item.command === "list_import_queue",
+    ).length);
+    assert.equal(readsAfter, readsBefore + 1, "Partial results must refresh the authoritative queue once");
+    current.evidence = { acceptedReviewId: first.id, failedReviewId: second.id, queueReadback: true, remainingPendingItems: remaining.length };
+    current.visited.push(1440);
+  });
+
+  it("UX-1785 uses the import response as the new chapter save result", async function () {
+    current = { id: "UX-1785-new-chapter-save-result", task: "新建章节保存直接消费写回包，不因重复索引读取失败误报", visited: [], plannedWidths: [1440] };
+    await browser.setWindowSize(1440, height);
+    await writing();
+    await press(await $('.a4n-app-page-header button[aria-haspopup="menu"]'));
+    await menuItem("新建章节");
+    const prompt = await dialog("新建章节");
+    await prompt.$("input").setValue("10");
+    await clickText("进入章节", prompt);
+    const editor = await $('textarea[aria-label="章节正文"]');
+    await browser.waitUntil(async () => (await editor.getValue()) === "", { timeout });
+    const savedContent = "新建章节保存响应中的正文。";
+    await editor.setValue(savedContent);
+    const imported = {
+      ...seed.commands.list_chapters[0],
+      id: 110,
+      chapter_number: 10,
+      title: "第10章 · 新线索",
+      content: savedContent,
+      edit_revision: "ux-1785-revision",
+      derived_sync_status: "current",
+    };
+    await browser.execute((chapter) => {
+      window.__uiAudit.fixtures.import_chapter = chapter;
+      window.__uiAudit.failNext.push({
+        command: "list_chapter_index", status: 503, message: "章节索引回读失败注入",
+      });
+    }, imported);
+    const indexReadsBefore = await browser.execute(() => window.__uiAudit.requests.filter(
+      (item) => item.command === "list_chapter_index",
+    ).length);
+
+    await clickText("保存修改");
+    await waitText($("body"), "章节正文与派生资料已保存");
+    assert.equal(await editor.getValue(), savedContent);
+    const indexReadsAfter = await browser.execute(() => window.__uiAudit.requests.filter(
+      (item) => item.command === "list_chapter_index",
+    ).length);
+    assert.equal(indexReadsAfter, indexReadsBefore, "The import response is sufficient to project the saved chapter");
+    assert.equal(await browser.execute(() => window.__uiAudit.failNext.some((item) => item.command === "list_chapter_index")), true);
+    await browser.execute(() => {
+      window.__uiAudit.failNext = window.__uiAudit.failNext.filter((item) => item.command !== "list_chapter_index");
+    });
+    current.evidence = { importChapterResponse: imported.id, chapterNumber: 10, appliedToEditor: true, redundantRead: false };
+    current.visited.push(1440);
+  });
+
+  it("UX-1786 keeps chapter save success separate from local draft cleanup failure", async function () {
+    current = { id: "UX-1786-chapter-save-draft-cleanup", task: "正文保存成功而本地草稿删除失败时明确显示两种结果", visited: [], plannedWidths: [1440] };
+    await browser.setWindowSize(1440, height);
+    await writing();
+    const editor = await $('textarea[aria-label="章节正文"]');
+    const savedContent = seed.commands.list_chapters[0].content + " 本地草稿清理失败用例。";
+    const draftKey = "a4n:writing_draft:1:1";
+    const updatedChapter = {
+      ...seed.commands.list_chapters[0],
+      content: savedContent,
+      edit_revision: "ux-1786-revision",
+    };
+    await browser.execute(({ key, chapter }) => {
+      localStorage.setItem(key, JSON.stringify({ content: chapter.content, updatedAt: new Date().toISOString() }));
+      window.__uiAudit.fixtures.update_chapter_content = chapter;
+      window.__uiAudit.originalStorageRemoveItem = Storage.prototype.removeItem;
+      Storage.prototype.removeItem = function (candidate) {
+        if (candidate === key) throw new Error("本地草稿删除失败");
+        return window.__uiAudit.originalStorageRemoveItem.call(this, candidate);
+      };
+    }, { key: draftKey, chapter: updatedChapter });
+
+    try {
+      await editor.setValue(savedContent);
+      await clickText("保存修改");
+      await waitText($("body"), "本地草稿清理失败");
+      const notice = await $('[role="status"].a4n-toast');
+      const message = await notice.getText();
+      assert.ok(message.includes("正文已保存"));
+      assert.ok(message.includes("本地草稿清理失败"));
+      assert.equal(await editor.getValue(), savedContent);
+      assert.equal(await $('.a4n-writing-save-state').getAttribute("data-state"), "saved");
+      assert.equal(await browser.execute((key) => localStorage.getItem(key) != null, draftKey), true);
+      current.evidence = { updateChapterResponse: true, localCleanupWarning: true, editorState: "saved", draftRemained: true };
+      current.visited.push(1440);
+    } finally {
+      await browser.execute((key) => {
+        const original = window.__uiAudit.originalStorageRemoveItem;
+        if (!original) return;
+        Storage.prototype.removeItem = original;
+        delete window.__uiAudit.originalStorageRemoveItem;
+        original.call(localStorage, key);
+      }, draftKey);
+    }
+  });
+
+  it("UX-1787 keeps shooting-script deletion successful when the delete command commits", async function () {
+    current = { id: "UX-1787-shooting-script-delete-readback", task: "拍摄剧本删除命令成功后不因额外读取失败误报", visited: [], plannedWidths: [1440] };
+    await browser.setWindowSize(1440, height);
+    const page = await writing("拍摄剧本");
+    const scriptReadsBefore = await browser.execute(() => window.__uiAudit.requests.filter(
+      (item) => item.command === "get_chapter_shooting_script",
+    ).length);
+    await browser.execute(() => {
+      window.__uiAudit.fixtures.delete_chapter_shooting_script = null;
+      window.__uiAudit.failNext.push({
+        command: "get_chapter_shooting_script", status: 503, message: "删除后的拍摄剧本读取失败",
+      });
+    });
+    await clickText("删除拍摄剧本", page);
+    const confirmation = await dialog("删除拍摄剧本");
+    await clickText("删除拍摄剧本", confirmation);
+    await browser.waitUntil(async () => (await $(".a4n-toast").getText()).includes("拍摄剧本已删除"), { timeout });
+    await waitText(page, "当前章节尚未生成拍摄剧本");
+    assert.equal(await browser.execute(() => window.__uiAudit.requests.filter(
+      (item) => item.command === "get_chapter_shooting_script",
+    ).length), scriptReadsBefore, "A committed delete must not depend on another script read");
+    await browser.execute(() => {
+      window.__uiAudit.failNext = window.__uiAudit.failNext.filter(
+        (item) => item.command !== "get_chapter_shooting_script",
+      );
+    });
+    current.evidence = { deleteCommandCommitted: true, scriptRemovedFromView: true, redundantRead: false };
+    current.visited.push(1440);
+  });
+
+  it("UX-1788 shows partial shooting-script progress when the complete script read fails", async function () {
+    current = { id: "UX-1788-shooting-script-partial-read", task: "正式剧本读取失败但部分场景进度成功时仍显示可恢复场景", visited: [], plannedWidths: [1440] };
+    await browser.setWindowSize(1440, height);
+    const page = await writing();
+    const script = structuredClone(mediaSeed.byChapter[1].get_chapter_shooting_script.script);
+    await browser.execute((progress) => {
+      window.__uiAudit.fixtures.byChapter[1].get_chapter_shooting_script_unit_progress = progress;
+      window.__uiAudit.failNext.push({
+        command: "get_chapter_shooting_script", status: 503, message: "正式剧本读取失败，部分进度可用",
+      });
+    }, { completed_unit_count: 1, total_unit_count: 6, workflow_run_id: 9901, script });
+    await clickText("拍摄剧本", await $(".a4n-writing-tabs"));
+    await waitText(page, "已完成 1/6 个拍摄场景");
+    await waitText($("body"), "正式剧本读取失败，部分进度可用");
+    current.evidence = { completeScriptRead: "failed", partialProgressRead: "successful", partialProgressVisible: true };
+    current.visited.push(1440);
+  });
+
+  it("UX-1789 keeps visual-plan read failures actionable and retries the same scope", async function () {
+    current = { id: "UX-1789-shooting-script-plan-retry", task: "拍摄剧本视觉编排读取失败后提供同章节错误和重读入口", visited: [], plannedWidths: [1440] };
+    await browser.setWindowSize(1440, height);
+    const page = await writing();
+    await browser.execute(() => window.__uiAudit.failNext.push({
+      command: "get_chapter_visual_plan", status: 503, message: "视觉编排读取失败",
+    }));
+    await clickText("拍摄剧本", await $(".a4n-writing-tabs"));
+    const error = await page.$('[role="alert"]');
+    await waitText(error, "视觉编排读取失败");
+    const retry = await textButton("重试", error);
+    await press(retry);
+    await browser.waitUntil(async () => !(await error.isDisplayed()), { timeout });
+    const regenerate = await textButton("重新生成拍摄剧本", page);
+    assert.equal(await regenerate.isEnabled(), true);
+    current.evidence = { initialVisualPlanRead: "failed", sameChapterRetry: "successful", generationEnabled: true };
+    current.visited.push(1440);
+  });
+
+  it("UX-1790 keeps chapter analysis success when chapter readback fails", async function () {
+    current = { id: "UX-1790-chapter-analysis-readback", task: "章节分析命令回包成功后不因章节索引或大纲读取失败误报", visited: [], plannedWidths: [1440] };
+    await browser.setWindowSize(1440, height);
+    const page = await writing("分析");
+    const source = structuredClone(seed.commands.list_chapters[0]);
+    const analyzed = {
+      ...source,
+      analysis_data: {
+        ...source.analysis_data,
+        summaries: {
+          ...source.analysis_data.summaries,
+          compressed: "分析命令回包已保存的新摘要。",
+        },
+      },
+      analysis_sync_status: "completed",
+    };
+    await browser.execute((chapter) => {
+      window.__uiAudit.fixtures.generate_chapter_analysis = { chapter, warnings: [] };
+      window.__uiAudit.failNext.push(
+        { command: "list_chapter_index", status: 503, message: "分析后的章节索引读取失败" },
+        { command: "list_chapter_outlines", status: 503, message: "分析后的大纲读取失败" },
+      );
+    }, analyzed);
+    await clickText("生成结构化分析", page);
+    await waitText(page, "分析命令回包已保存的新摘要。");
+    await waitText(page, "分析后的章节索引读取失败");
+    await waitText(page, "分析后的大纲读取失败");
+    assert.equal((await $(".a4n-toast").getText()).includes("结构化分析失败"), false);
+    assert.equal((await $(".a4n-toast").getText()).includes("结构化分析已保存"), true);
+    current.evidence = { mutationCommitted: true, chapterReadback: "failed", outlineReadback: "failed", savedResultVisible: true };
+    current.visited.push(1440);
+  });
+
+  it("UX-1691 applies a modified review result and success feedback before queue readback", async function () {
+    current = { id: "UX-1691-modify-review-read-failure", task: "审核修改接受命令回包更新详情并提示成功，不因队列读取失败回滚", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("导入/归纳");
+    const source = structuredClone(seed.commands.list_import_queue[0]);
+    const modified = { ...source, review_status: "modified", analysis_result: { ...source.analysis_result, summary: "修改后的审核结果由命令回包确认。" } };
+    await browser.execute((result) => {
+      window.__uiAudit.fixtures.accept_import_review = result;
+      window.__uiAudit.failNext.push({ command: "list_import_queue", status: 503, message: "修改后的审核队列读取失败" });
+    }, modified);
+    await press(await page.$('button[aria-label="查看 01-旧书店与车站调查补充材料.md 的审核详情"]'));
+    const aside = await page.$("aside");
+    await press(await aside.$("summary"));
+    const editor = await aside.$("textarea");
+    const edited = { ...JSON.parse(await editor.getValue()), summary: "作者确认的修改结果。" };
+    await editor.setValue(JSON.stringify(edited, null, 2));
+    await clickText("保存并接受", aside);
+    await waitText(page, "修改后的审核队列读取失败");
+    await browser.waitUntil(async () => (await $(".a4n-toast").getText()).includes("修改已保存并接受"), { timeout });
+    await waitText(aside, "已修改");
+    assert.equal((await aside.$("textarea").getValue()).includes("修改后的审核结果由命令回包确认。"), true);
+    assert.deepEqual(await snapshot(current.id, 1440, "modified-result-kept", page, { reviewId: modified.id, refresh: "failed" }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-1687 projects cancellation state from the command and permits analysis to run again", async function () {
+    current = { id: "UX-1687-import-analysis-cancel-contract", task: "取消分析以命令返回的已持久化状态更新页面并释放下次运行", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const running = structuredClone(seed.commands.get_project_import_analysis_progress);
+    Object.assign(running, {
+      cancelled_at: null,
+      completed_at: null,
+      failed_at: null,
+      message: "正在分析第8份材料，已完成7/12。",
+      overall_progress: 58,
+      status: "analyzing",
+    });
+    Object.assign(running.stages.generating_analysis_data, { completed: 7, status: "in_progress" });
+    const cancelled = {
+      ...running,
+      cancelled_at: "2026-10-10T00:00:01Z",
+      message: "导入分析已取消",
+      status: "cancelled",
+    };
+    const completed = {
+      ...running,
+      completed_at: "2026-10-10T00:00:02Z",
+      cancelled_at: null,
+      message: "导入分析完成",
+      overall_progress: 100,
+      status: "completed",
+      stages: { generating_analysis_data: { ...running.stages.generating_analysis_data, completed: 12, status: "completed" } },
+    };
+    const page = await project("导入/归纳", async () => {
+      await browser.execute(({ runningProgress, cancelledProgress, completedProgress }) => {
+        const fixtures = window.__uiAudit.fixtures;
+        fixtures.get_project_import_analysis_progress = runningProgress;
+        fixtures.cancel_import_analysis = cancelledProgress;
+        fixtures.run_import_project_analysis = { analyzed_chapters: 12, progress: completedProgress };
+      }, { runningProgress: running, cancelledProgress: cancelled, completedProgress: completed });
+    });
+    await clickText("停止分析", page);
+    const cancelledDialog = await dialog("导入项目分析");
+    await waitText(cancelledDialog, "任务已停止");
+    await browser.waitUntil(async () => (await $(".a4n-toast").getText()).includes("导入项目分析已取消"), { timeout });
+    const cancelRequest = await browser.execute(() => window.__uiAudit.requests.findLast((item) => item.command === "cancel_import_analysis"));
+    assert.equal(cancelRequest.body.projectId, 1);
+    await clickText("关闭", cancelledDialog);
+    await clickText("继续分析", page);
+    await browser.waitUntil(async () => browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "run_import_project_analysis").length === 1), { timeout });
+    const completedDialog = await dialog("导入项目分析");
+    await waitText(completedDialog, "任务已完成");
+    await browser.waitUntil(async () => (await $(".a4n-toast").getText()).includes("已完成 12 章的分析与资料同步"), { timeout });
+    assert.deepEqual(await browser.execute(() => ({
+      cancelCount: window.__uiAudit.requests.filter((item) => item.command === "cancel_import_analysis").length,
+      runCount: window.__uiAudit.requests.filter((item) => item.command === "run_import_project_analysis").length,
+      unexpected: window.__uiAudit.unexpected,
+    })), { cancelCount: 1, runCount: 1, unexpected: [] });
+    await clickText("关闭", completedDialog);
+    assert.deepEqual(await snapshot(current.id, 1440, "cancelled-then-rerun", page, { cancelResult: cancelled.status, rerunResult: completed.status }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-1689 preserves a successful review deletion when its queue refresh fails", async function () {
+    current = { id: "UX-1689-review-delete-read-failure", task: "删除审核项成功后队列读取失败仍立即移除对应列表行并反馈成功", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("导入/归纳");
+    await waitText(page, "01-旧书店与车站调查补充材料.md");
+    const reviewButton = (await page.$$('button[aria-label*="的审核详情"]'))[0];
+    const reviewLabel = await reviewButton.getAttribute("aria-label");
+    await press((await page.$$('ul button[aria-haspopup="menu"]'))[0]);
+    await browser.execute(() => {
+      window.__uiAudit.fixtures.delete_import_review = null;
+      window.__uiAudit.failNext.push(...Array.from({ length: 8 }, () => ({
+        command: "list_import_queue", status: 503, message: "删除后的审核队列读取失败",
+      })));
+    });
+    await menuItem("删除审核记录");
+    const deleteConfirmation = await dialog("删除审核记录？");
+    await clickText("删除", deleteConfirmation);
+    await waitText($("body"), "已删除");
+    await waitText(page, "删除后的审核队列读取失败");
+    assert.equal((await page.getText()).includes("01-旧书店与车站调查补充材料.md"), false);
+    assert.deepEqual(await snapshot(current.id, 1440, "delete-result-kept", page, { deletedReviewLabel: reviewLabel }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-1690 and UX-1694 require draft disposition on review switches and preserve it when its source is deleted", async function () {
+    current = { id: "UX-1690-1694-import-review-draft-ownership", task: "切换审核先确认草稿处置；外部删除来源后保留 JSON 草稿", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("导入/归纳");
+    const firstReview = await page.$('button[aria-label="查看 01-旧书店与车站调查补充材料.md 的审核详情"]');
+    const secondReview = await page.$('button[aria-label="查看 02-旧书店与车站调查补充材料.md 的审核详情"]');
+    await press(firstReview);
+    const aside = await page.$("aside");
+    const jsonEditor = await openImportReviewEditor(aside);
+    const original = JSON.parse(await jsonEditor.getValue());
+    const draft = { ...original, summary: original.summary + " 本地草稿保留。" };
+    const draftText = JSON.stringify(draft, null, 2);
+    assert.equal(await jsonEditor.isEnabled(), true);
+    assert.equal((await wheelTo(jsonEditor)).reached, true);
+    await jsonEditor.setValue(draftText);
+
+    await press(await ariaButton("选择 01-旧书店与车站调查补充材料.md", page));
+    await clickText("接受所选（1）", page);
+    await browser.waitUntil(async () => (await $(".a4n-toast").getText()).includes("请先保存或放弃当前审核项的 JSON 修改"), { timeout });
+    await press((await page.$$('ul button[aria-haspopup="menu"]'))[0]);
+    await menuItem("接受审核");
+    await browser.waitUntil(async () => (await $(".a4n-toast").getText()).includes("请先保存或放弃当前审核项的 JSON 修改"), { timeout });
+    assert.equal(await browser.execute(() => window.__uiAudit.requests.some((item) => ["batch_accept_reviews", "accept_import_review"].includes(item.command))), false);
+
+    await press(secondReview);
+    const switchGuard = await dialog("未保存修改");
+    await clickText("取消", switchGuard);
+    await switchGuard.waitForExist({ reverse: true });
+    assert.equal(await jsonEditor.getValue(), draftText);
+    await press(secondReview);
+    const discardGuard = await dialog("未保存修改");
+    await clickText("放弃草稿", discardGuard);
+    await discardGuard.waitForExist({ reverse: true });
+    await waitText(aside, "02-旧书店与车站调查补充材料.md");
+    await press(firstReview);
+    await waitText(aside, "01-旧书店与车站调查补充材料.md");
+    const firstEditor = await openImportReviewEditor(aside);
+    const firstSource = JSON.parse(await firstEditor.getValue());
+    const preservedDraft = { ...firstSource, summary: firstSource.summary + " 来源被其他窗口删除后仍保留。" };
+    const preservedText = JSON.stringify(preservedDraft, null, 2);
+    assert.equal(await firstEditor.isEnabled(), true);
+    await firstEditor.setValue(preservedText);
+    await browser.execute((reviewId) => {
+      window.__uiAudit.fixtures.list_import_queue = window.__uiAudit.fixtures.list_import_queue.filter((review) => review.id !== reviewId);
+    }, 501);
+    await browser.waitUntil(async () => (await aside.getText()).includes("此审核记录已从队列删除"), { timeout: 12000 });
+    assert.equal(await firstEditor.getValue(), preservedText);
+    assert.equal(await firstEditor.isEnabled(), true);
+    assert.equal(await (await textButton("保存并接受", aside)).isEnabled(), false);
+    await clickText("放弃草稿", aside);
+    await browser.waitUntil(async () => (await aside.getText()).trim() === "", { timeout });
+    assert.deepEqual(await snapshot(current.id, 1440, "deleted-source-draft-preserved", page, { draftVisibleUntilExplicitDiscard: true }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-2260 keeps discard available when another reviewer changes a dirty review", async function () {
+    current = { id: "UX-2260-import-review-status-draft", task: "他人接受审核项后，本地 JSON 草稿保持可见并能显式放弃", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("导入/归纳");
+    const filename = "01-旧书店与车站调查补充材料.md";
+    const reviewButton = await page.$('button[aria-label=' + JSON.stringify(`查看 ${filename} 的审核详情`) + ']');
+    await press(reviewButton);
+    const aside = await page.$("aside");
+    const editor = await openImportReviewEditor(aside);
+    const initial = JSON.parse(await editor.getValue());
+    const draft = JSON.stringify({ ...initial, summary: initial.summary + " 本地待放弃草稿。" }, null, 2);
+    await editor.setValue(draft);
+    await browser.execute((name) => {
+      window.__uiAudit.fixtures.list_import_queue = window.__uiAudit.fixtures.list_import_queue.map((review) =>
+        review.filename === name ? { ...review, review_status: "accepted" } : review,
+      );
+    }, filename);
+    await waitText(aside, "审核项状态已变化");
+    assert.equal(await editor.getValue(), draft);
+    assert.equal(await editor.isEnabled(), false);
+    assert.equal(await (await textButton("保存并接受", aside)).isEnabled(), false);
+    const discard = await textButton("放弃草稿", aside);
+    assert.equal(await discard.isEnabled(), true);
+    await press(discard);
+    await browser.waitUntil(async () => (await aside.getText()).trim() === "", { timeout });
+    assert.deepEqual(await snapshot(current.id, 1440, "changed-review-draft-discardable", page, {
+      draftPreservedUntilExplicitDiscard: true,
+      discardEnabledAfterStatusChange: true,
+    }), []);
+    current.visited.push(1440);
   });
 
   it("UX-B74 preserves chapter/count drafts and rejects invalid ranges", async function () {
@@ -795,8 +3177,8 @@ describe("Novel page audit - ordinary populated pages", function () {
     ["W03-images", "图像", "旧书店"], ["W04-director", "导演编排", "导演编排"],
     ["W05-script", "拍摄剧本", "林岚"],
   ]) it(id + " opens the independent chapter workspace", async () => matrix({
-    id, task: "在真实写作台切换到" + tab, open: async () => {
-      const scope = await writing(tab);
+    id, task: "在真实工作区进入" + tab, open: async () => {
+      const scope = id === "W04-director" ? await directorWorkspace() : await writing(tab);
       if (tab === "拍摄剧本") await openScriptScene(scope, 0);
       return scope;
     }, text: expected ? [expected] : [],
@@ -927,6 +3309,53 @@ describe("Novel page audit - ordinary populated pages", function () {
       await press(await containing("状态变更历史", scope, "summary"));
       return scope;
     }, text: ["三部分结构", "开始前三章"] },
+    { id: "N01-stage-current", task: "打开阶段窗口后同步外部推进的状态，移除草稿专属入口", open: async () => {
+      await project("概览", undefined, async () => browser.execute(() => {
+        const audit = window.__uiAudit;
+        const draftProject = {
+          ...audit.fixtures.get_project,
+          status: "draft",
+          progress: { label: "草稿", detail: null },
+        };
+        audit.fixtures.get_project = draftProject;
+        audit.fixtures.get_project_status_machine = {
+          ...audit.fixtures.get_project_status_machine,
+          current_status: "draft",
+          forward_targets: ["blueprint_ready"],
+          rollback_targets: [],
+        };
+      }));
+      await press(await $("button[title=\"更多项目操作\"]"));
+      const actions = await dialog();
+      await waitText(actions, "灵感");
+      await browser.execute(() => {
+        const audit = window.__uiAudit;
+        audit.fixtures.get_project = {
+          ...audit.fixtures.get_project,
+          status: "completed",
+          progress: { label: "已完成", detail: null },
+        };
+        audit.fixtures.get_project_status_machine = {
+          ...audit.fixtures.get_project_status_machine,
+          current_status: "completed",
+          forward_targets: [],
+          rollback_targets: ["writing", "chapter_outlines_ready", "part_outlines_ready", "blueprint_ready", "draft"],
+        };
+      });
+      await press(await containing("项目阶段", actions));
+      const scope = await dialog("项目阶段");
+      await waitText(scope, "已完成");
+      return scope;
+    }, check: async (scope) => {
+      await browser.keys(["ESC"]);
+      await browser.waitUntil(async () => !await scope.isDisplayed(), { timeout });
+      await press(await $("button[title=\"更多项目操作\"]"));
+      const actions = await dialog();
+      await browser.waitUntil(async () => !await containing("灵感", actions).isExisting(), { timeout });
+      await browser.keys(["ESC"]);
+      await browser.waitUntil(async () => !await actions.isDisplayed(), { timeout });
+      return { dialogShowsLatestStage: true, draftOnlyActionRemoved: true };
+    }, last: async () => $("button[title=\"更多项目操作\"]") },
     { id: "N01-stage-flow", task: "展开完整项目流程并阅读当前阶段至末端阶段", open: async () => {
       const scope = await openProjectAction("项目阶段");
       await press(await containing("查看完整流程", scope, "summary"));
@@ -949,7 +3378,7 @@ describe("Novel page audit - ordinary populated pages", function () {
       return scope;
     }, check: async (scope, width) => {
       const request = await browser.execute(() => window.__uiAudit.requests.findLast((item) => item.command === "preview_rollback")?.body);
-      assert.deepEqual(request, { projectId: 1, target: "blueprint_ready" });
+      assert.deepEqual(request, { projectId: 1, expectedFrom: "writing", target: "blueprint_ready" });
       for (const impact of seed.commands.preview_rollback.impacts) {
         await waitText(scope, impact.title);
         await waitText(scope, impact.note);
@@ -963,6 +3392,41 @@ describe("Novel page audit - ordinary populated pages", function () {
       assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("rollback_project_status")), false);
       return { affectedGroups: seed.commands.preview_rollback.impacts.length, cancelledWithoutMutation: true };
     } },
+    { id: "N01-rollback-stale", task: "阶段已变化后确认旧回滚预览，刷新状态机并清除过期确认", open: async () => {
+      const scope = await openProjectAction("项目阶段");
+      await press(await containing("回滚到先前阶段", scope, "summary"));
+      await press(await scope.$('button[role="combobox"]'));
+      const targets = seed.commands.get_project_status_machine.rollback_targets;
+      const options = await $$('[role="option"]');
+      await press(options[targets.indexOf("blueprint_ready") + 1]);
+      await waitText(scope, seed.commands.preview_rollback.impacts[0].title);
+      return scope;
+    }, check: async (scope) => {
+      await browser.execute(() => {
+        const audit = window.__uiAudit;
+        audit.fixtures.get_project = {
+          ...audit.fixtures.get_project,
+          status: "completed",
+          progress: { label: "已完成", detail: null },
+        };
+        audit.fixtures.get_project_status_machine = {
+          ...audit.fixtures.get_project_status_machine,
+          current_status: "completed",
+          forward_targets: [],
+          rollback_targets: ["writing", "chapter_outlines_ready", "part_outlines_ready", "blueprint_ready", "draft"],
+        };
+        audit.failNext.push({ command: "rollback_project_status", status: 409, message: "项目状态已变化" });
+      });
+      await clickText("确认回滚", scope);
+      await waitText($("body"), "项目状态已变化");
+      await browser.waitUntil(async () => (await scope.$('button[role="combobox"]').getText()) === "选择要恢复的阶段", { timeout });
+      const requests = await browser.execute(() => window.__uiAudit.requests.filter((item) => ["preview_rollback", "rollback_project_status"].includes(item.command)));
+      assert.deepEqual(requests.at(-2).body, { projectId: 1, expectedFrom: "writing", target: "blueprint_ready" });
+      assert.deepEqual(requests.at(-1).body, { projectId: 1, expectedFrom: "writing", target: "blueprint_ready" });
+      assert.equal(await (await textButton("确认回滚", scope)).isExisting(), false);
+      assert.equal(await scope.$(".a4n-context-bar strong").getText(), "已完成");
+      return { staleMutationRejected: true, previewCleared: true, statusMachineReloaded: true };
+    }, last: async (scope) => scope.$(".a4n-context-bar strong") },
     { id: "N01-export", task: "找到格式、元数据和结构化导出选项", open: () => openProjectAction("导出小说"), text: ["导出"], check: async (scope, width) => {
       const format = await scope.$('button[role="combobox"]');
       for (const [value, label, metadata] of [["txt", "TXT 纯文本", false], ["markdown", "Markdown", true], ["epub", "EPUB 电子书", true], ["pdf", "PDF", false], ["batch", "TXT + Markdown", true]]) {
@@ -1061,6 +3525,7 @@ describe("Novel page audit - ordinary populated pages", function () {
     } },
     { id: "N03-consistency", task: "检查角色一致性并对照具体章节的预期与实际证据", open: async () => {
       const scope = await characterTab("一致性");
+      await waitText(scope, "本次检查范围：全项目");
       await browser.execute(() => { window.__uiAudit.fixtures.get_workflow_progress_events = { events: [], stream_text: null }; });
       await clickText("开始检测", scope);
       const progress = await dialog("角色一致性检查");
@@ -1077,10 +3542,32 @@ describe("Novel page audit - ordinary populated pages", function () {
     { id: "N03-portraits", task: "查找已有立绘并浏览全部角色筛选", open: portraits, text: ["林岚", "周衡"], check: async (scope, width) => {
       const cards = await scope.$$('button[title="管理人物三视图拆解"]');
       assert.equal(cards.length, 4, "Need the four populated portraits");
+      let expressionCard;
+      for (const card of cards) {
+        if ((await card.getText()).includes("疲惫而坦诚")) expressionCard = card;
+      }
+      assert.ok(expressionCard, "The distinct expression variant must be identifiable");
+      const metadata = await expressionCard.$(".portrait-card-metadata").execute((root) =>
+        [...root.children].map((item) => ({
+          text: item.textContent?.trim(),
+          clientWidth: item.clientWidth,
+          scrollWidth: item.scrollWidth,
+        })),
+      );
+      assert.ok(metadata.length >= 2 && metadata.every((item) => item.scrollWidth <= item.clientWidth + 1), "Portrait type and expression must wrap instead of being clipped");
       const filters = await scope.$$(".a4n-filter-chips button");
       assert.equal(filters.length, seed.commands.list_profiles.length + 1);
       const lastFilter = filters.at(-1);
-      assert.equal((await wheelTo(lastFilter)).reached, true, "Every character filter must be reachable");
+      const filterLayout = await scope.$(".a4n-filter-chips").execute((container) => {
+        const bounds = container.getBoundingClientRect();
+        const visible = [...container.querySelectorAll("button")].every((button) => {
+          const rect = button.getBoundingClientRect();
+          return rect.left >= bounds.left && rect.right <= bounds.right;
+        });
+        return { clientWidth: container.clientWidth, scrollWidth: container.scrollWidth, visible };
+      });
+      assert.ok(filterLayout.scrollWidth <= filterLayout.clientWidth + 2, "Character filters must not require horizontal scrolling");
+      assert.equal(filterLayout.visible, true, "Every character filter must be visible without scrolling");
       await press(lastFilter);
       assert.equal(await lastFilter.getAttribute("aria-pressed"), "true");
       assert.deepEqual(await snapshot("N03-portraits", width, "last-filter", scope, { selectedProfile: await lastFilter.getText() }), []);
@@ -1173,7 +3660,11 @@ describe("Novel page audit - ordinary populated pages", function () {
       const scope = await portraits();
       const card = await scope.$('button[title="管理人物三视图拆解"]').$("..");
       return previewRoundTrip(await ariaButton("图片预览", card));
-    }, check: async (scope) => ({ separatePreview: true, escapeFocusRestored: true, previewSource: await scope.$("img").getAttribute("src") }) },
+    }, check: async (scope) => {
+      const stage = await scope.$(".a4n-image-lightbox-stage");
+      assert.equal(await stage.getAttribute("title"), "使用缩放按钮调整图片，放大后可拖动查看");
+      return { separatePreview: true, escapeFocusRestored: true, previewHint: await stage.getAttribute("title") };
+    } },
     { id: "N03-reference-selection", task: "图片中央选择参考图，独立预览保留选择并恢复焦点", open: async () => {
       const scope = await portraits();
       await press(await scope.$('button[aria-label="更多操作"]'));
@@ -1201,10 +3692,31 @@ describe("Novel page audit - ordinary populated pages", function () {
       assert.equal(await select.getAttribute("aria-pressed"), "true");
       return { referenceImages: (await scope.$$('button[aria-pressed]')).length, imageCenterToggles: true, previewPreservesSelection: true, escapeFocusRestored: true };
     }, last: async (scope) => {
-      const lastImage = (await scope.$$('button[aria-pressed]')).at(-1);
+      const selectedReferenceCount = () => scope.execute((root) =>
+        [...root.querySelectorAll('button[title="取消选择参考图"]')]
+          .filter((button) => button.getAttribute("aria-pressed") === "true").length,
+      );
+      while (await selectedReferenceCount() < 4) {
+        await press(await scope.$('button[title="选择参考图"]'));
+      }
+      const selectedImages = await scope.$$('button[title="取消选择参考图"]');
+      assert.equal(selectedImages.length, 4);
+      const lastImage = selectedImages.at(-1);
       assert.equal((await reach(lastImage)).reached, true);
       const count = await scope.$('[role="status"]');
-      assert.equal(await count.getText(), "已选 1 张，最多 4 张");
+      assert.equal(await count.getText(), "已选 4 张，最多 4 张");
+      const referenceSection = await scope.$('.//section[.//h3[normalize-space(.)="参考图"]]');
+      const upload = await referenceSection.$('input[type="file"]');
+      const uploadCount = await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "upload_image").length);
+      await upload.execute((node) => {
+        node.classList.remove("hidden");
+        node.style.display = "block";
+        node.style.opacity = "1";
+      });
+      await upload.setValue(fileURLToPath(new URL("../../resources/thelittleprince.png", import.meta.url)));
+      await waitText($("body"), "最多选择 4 张参考图，请先取消一张再选择或上传");
+      assert.equal(await selectedReferenceCount(), 4, "Uploading at the reference limit must preserve every selected image");
+      assert.equal(await browser.execute((before) => window.__uiAudit.requests.filter((item) => item.command === "upload_image").length, uploadCount), uploadCount, "An upload at the reference limit must not reach the API");
       const visible = await wheelTo(count);
       assert.ok(visible.reached && visible.wheelSteps === 0, "Selected-reference count must remain visible at the end of the gallery");
       return lastImage;
@@ -1229,6 +3741,17 @@ describe("Novel page audit - ordinary populated pages", function () {
       open: () => characterTab("管理", label),
       check: async (scope) => {
         await browser.waitUntil(async () => (await scope.$$("li")).length >= minimum, { timeout, timeoutMsg: "Populated " + label + " records missing" });
+        if (id === "behavior") {
+          const visibleRecord = await scope.$("li").getText();
+          await browser.execute(() => window.__uiAudit.failNext.push({
+            command: "list_behaviors",
+            status: 503,
+            message: "行为读取服务暂时不可用",
+          }));
+          await press(await textButton("刷新", scope));
+          await browser.waitUntil(async () => (await scope.$('[role="alert"]').getText()).includes("行为读取服务暂时不可用"), { timeout });
+          assert.equal(await scope.$("li").getText(), visibleRecord, "A failed refresh must identify the error while retaining the last successful behavior list");
+        }
         return { records: (await scope.$$("li")).length, minimum };
       }, last: async (scope) => (await scope.$$("li")).at(-1),
     })),
@@ -1273,16 +3796,29 @@ describe("Novel page audit - ordinary populated pages", function () {
       const scope = await characterTab("管理", "快照");
       const row = await scope.$("li");
       await row.waitForDisplayed({ timeout });
+      const snapshotHash = seed.byProfile["1011"].list_snapshots[0].snapshot_hash;
+      await browser.execute((hash) => {
+        const snapshot = window.__uiAudit.fixtures.bySnapshot[hash];
+        const existing = snapshot.data.changes;
+        snapshot.data.changes = [...existing, ...Array.from({ length: 4 }, (_, index) => ({
+          ...existing[0],
+          id: 101200 + index,
+          key: `additional_${index + 1}`,
+          change_description: `补充变化记录 ${index + 1}`,
+        }))];
+      }, snapshotHash);
       await clickText("详情", row);
       const summary = seed.byProfileChapter["1011"]["1"].state_summary;
       const detail = await scope.$(".//section[.//p[normalize-space(.)=" + literal(summary) + "]]");
       await detail.waitForDisplayed({ timeout });
       assert.equal(await scope.$('[role="region"][tabindex="-1"]').isFocused(), true, "Snapshot details must reveal and focus their result");
       return detail;
-    }, text: ["根据已写正文更新当前位置。", "观察并记录物件与空间细节。"], check: async () => {
+    }, text: ["根据已写正文更新当前位置。", "观察并记录物件与空间细节。"], check: async (scope) => {
       const request = await browser.execute(() => window.__uiAudit.requests.findLast((item) => item.command === "get_snapshot")?.body.input);
       assert.equal(request?.content_hash, seed.byProfile["1011"].list_snapshots[0].snapshot_hash);
-      return { snapshotHash: request.content_hash, changes: 2, behaviors: 2 };
+      await press(await containing("展开其余 2 条", scope, "summary"));
+      await waitText(scope, "补充变化记录 4");
+      return { snapshotHash: request.content_hash, changes: 6, expandedRemainingChanges: 2, behaviors: 2 };
     }, last: async (scope) => (await scope.$$("section")).at(-1) },
     { id: "N04-object-detail", task: "核对旧怀表的用途、证据与图像动作", open: async () => {
       const scope = await project("物体"); await press(await scope.$('button[aria-label^="旧怀表 ·"]')); return dialog();
@@ -1403,7 +3939,10 @@ describe("Novel page audit - ordinary populated pages", function () {
     }, last: async (scope) => (await scope.$$("button")).at(-1) },
     { id: "N08-chapter-outlines", task: "查看九章大纲及末章入口", open: async () => {
       const scope = await project("大纲"); await clickText("章节大纲", scope); return scope;
-    }, text: ["雨夜来信", "有人记得出发的地方"], last: async (scope) => scope.$('button[aria-label*="有人记得出发的地方"]') },
+    }, text: ["雨夜来信", "有人记得出发的地方"], check: async (scope) => {
+      assert.equal((await scope.$$(".chapter-outline-open-indicator")).length, seed.commands.list_chapter_outlines.length);
+      return { visibleEntryIndicators: seed.commands.list_chapter_outlines.length };
+    }, last: async (scope) => scope.$('button[aria-label*="有人记得出发的地方"]') },
     { id: "N08-part-detail", task: "阅读全文分部并发现编辑动作", open: async () => {
       const scope = await project("大纲"); await clickText("分部大纲", scope);
       await press(await scope.$('button[aria-label*="夜雨中的旧书店"]')); return dialog();
@@ -1424,6 +3963,7 @@ describe("Novel page audit - ordinary populated pages", function () {
         const fields = await scope.$$('input[type="number"]');
         assert.equal(fields.length, count);
         for (const field of fields) assert.ok((await field.getValue()).length > 0);
+        assert.ok(await (await textButton("查看追加请求", scope)).isDisplayed());
         assert.ok(await (await textButton(action, scope)).isEnabled());
         return { numericFields: count, generated: false };
       }, last: async (scope) => textButton(action, scope),
@@ -1455,7 +3995,9 @@ describe("Novel page audit - ordinary populated pages", function () {
     }, last: async (scope) => (await scope.$$("textarea")).at(-1) },
     { id: "N08-advanced", task: "发现进度、节奏和维护工具", open: async () => {
       const scope = await project("大纲"); await clickText("分部大纲", scope);
-      await press(await scope.$('button[aria-label="打开大纲高级工具"]')); return dialog();
+      const entry = await scope.$('button[aria-label="打开大纲高级工具"]');
+      assert.ok((await entry.getText()).includes("打开大纲高级工具"), "Advanced outline tools need a visible label");
+      await press(entry); return dialog();
     }, text: ["生成进度"], check: async (scope, width) => {
       const actions = [];
       for (const expected of [
@@ -1577,6 +4119,8 @@ describe("Novel page audit - ordinary populated pages", function () {
     }, check: async (scope) => {
       const value = await scope.$("textarea").getValue();
       assert.ok(value.includes('"chapter_title"') && value.includes('"content"'));
+      assert.equal(await (await textButton("保存并接受", scope)).isEnabled(), false);
+      await waitText(scope, "修改上方审核内容后，才能保存并接受。");
       return { reviewJsonLength: value.length };
     }, last: async (scope) => (await scope.$$("button")).at(-1) },
     { id: "N10-dedup", task: "对照已有章节检查重复，阅读结论与完整诊断且保留输入", open: async (width) => {
@@ -1671,16 +4215,16 @@ describe("Novel page audit - ordinary populated pages", function () {
         return { segment: directorPlan.segments[0].id, fullPrompt: true };
       }, last: async (scope) => textButton("与后一段合并", scope) },
     { id: "W04-source", task: "从导演工具打开本章完整原文并到达末句", open: async () => {
-      await writing("导演编排"); await press(await ariaButton("原文")); return dialog("章节原文");
+      await directorWorkspace(); await press(await ariaButton("原文")); return dialog("章节原文");
     }, check: async (scope) => {
       assert.equal(await scope.$(".director-source").getText(), seed.commands.list_chapters[0].content);
       return { chapterId: 1, characters: seed.commands.list_chapters[0].content.length };
     }, last: async (scope) => scope.$(".director-source") },
     { id: "W04-scenes", task: "从导演工具查阅全部场景和最后一个地点", open: async () => {
-      await writing("导演编排"); await press(await ariaButton("场景库")); return dialog("场景库");
+      await directorWorkspace(); await press(await ariaButton("场景库")); return dialog("场景库");
     }, text: ["旧书店", "沿海邮路档案室"], last: async (scope) => scope.$('button[aria-label^="沿海邮路档案室 ·"]') },
     { id: "W04-media", task: "查看图片点的素材库，保留选作分镜与参考两个动作", open: async () => {
-      await writing("导演编排"); await press(await ariaButton("素材库")); return dialog(`${directorPlan.points[0].label} · 选择分镜与参考图`);
+      await directorWorkspace(); await press(await ariaButton("素材库")); return dialog(`${directorPlan.points[0].label} · 选择分镜与参考图`);
     }, check: async (scope) => {
       await browser.waitUntil(async () => (await scope.$$(".director-media-grid article")).length >= 12, { timeout });
       const captions = await scope.$$(".director-media-grid article > p");
@@ -1702,7 +4246,7 @@ describe("Novel page audit - ordinary populated pages", function () {
       return { candidates: candidates.length, boundImageId: directorPlan.points[0].image_id };
     }, last: async (scope) => (await scope.$$(".director-point-candidate")).at(-1) },
     { id: "W04-frame", task: "查看四种画幅选择并保留现有比例", open: async () => {
-      await writing("导演编排"); await press(await ariaButton("画幅")); return dialog("画幅");
+      await directorWorkspace(); await press(await ariaButton("画幅")); return dialog("画幅");
     }, text: ["16:9 横屏", "9:16 竖屏", "1:1 方形", "4:3"], check: async (scope) => {
       const selected = await scope.$$('button[aria-pressed="true"]');
       assert.equal(selected.length, 1, "The current aspect ratio must have one selected choice");
@@ -1710,7 +4254,7 @@ describe("Novel page audit - ordinary populated pages", function () {
       return { currentAspectRatio: "16:9" };
     }, last: async (scope) => textButton("4:3", scope) },
     { id: "W04-duration", task: "打开完整时间调整，核对总时长和等比伸缩", open: async () => {
-      await writing("导演编排"); await press(await ariaButton("调整整体时长")); return dialog("调整时长");
+      await directorWorkspace(); await press(await ariaButton("调整整体时长")); return dialog("调整时长");
     }, check: async (scope) => {
       assert.equal(await scope.$('input[aria-label="整体时长（秒）"]').getValue(), "36");
       assert.equal(await scope.$('input[aria-label="等比伸缩全部时间点"]').getValue(), "100");
@@ -1725,7 +4269,7 @@ describe("Novel page audit - ordinary populated pages", function () {
     }, text: [directorPlan.segments[0].prompt, directorPlan.segments[1].prompt],
     last: async (scope) => textButton("合并镜头", scope) },
     { id: "W04-split", task: "在有段内图片点的编排中检查拆分前后描述和场景", open: async () => {
-      await writing();
+      await directorWorkspace();
       await browser.execute(async () => {
         const view = window.__uiAudit.fixtures.byChapter[1].get_chapter_visual_plan.draft;
         // A declared read fixture with one interior keyframe makes the existing split dialog reachable.
@@ -1734,7 +4278,6 @@ describe("Novel page audit - ordinary populated pages", function () {
         const { sha256Json } = await import("/src/utils/contentHash.ts");
         view.record.plan_sha256 = await sha256Json(view.plan);
       });
-      await clickText("导演编排", await $(".a4n-writing-tabs"));
       await press(await $('.director-point[aria-label*="段内稳定构图"]'));
       await clickText("从此处分镜", await selectedDirectorInspector("point"));
       const scope = await dialog("拆分镜头");
@@ -1745,7 +4288,7 @@ describe("Novel page audit - ordinary populated pages", function () {
       return scope;
     }, text: ["前段描述", "后段描述", "分镜位置"], last: async (scope) => (await scope.$$('button[role="combobox"]')).at(-1) },
     { id: "W04-agent", task: "打开第一章导演讨论，核对独立线程并到达输入区", open: async () => {
-      await writing("导演编排");
+      await directorWorkspace();
       await press(await ariaButton("导演 Agent"));
       const scope = await $('[aria-label="领域 Agent 控制台"]');
       await waitText(scope, "本轮停在编排讨论");
@@ -1964,6 +4507,71 @@ describe("Novel page audit - ordinary populated pages", function () {
     }, check: (scope) => checkRequestPreview(scope, "preview_generate_blueprint_request"), last: lastRequestPreview },
   ];
   for (const spec of inspirationPages) it(spec.id + " uses the real inspiration entry", async () => matrix(spec));
+
+  it("UX-1752 blocks leaving while a conversation message is being accepted", async () => {
+    current = { id: "UX-1752", task: "Keep the submitted message protected until the start request settles" };
+    const scope = await inspiration();
+    const composer = await scope.$('textarea[aria-label="输入灵感对话内容"]');
+    const message = "请比较两种人物动机。";
+    await composer.setValue(message);
+    await browser.execute(() => window.__uiAudit.deferred.push("start_inspiration_generation"));
+    await press(await textButton("发送", scope));
+    await browser.waitUntil(async () => browser.execute(() =>
+      window.__uiAudit.pending.some((item) => item.command === "start_inspiration_generation"),
+    ), { timeout });
+
+    await press(await ariaButton("返回上一页"));
+    const guard = await dialog("未保存修改");
+    assert.ok((await guard.getText()).includes("操作仍在进行"));
+    const discard = await textButton("放弃草稿", guard);
+    assert.equal(await discard.isEnabled(), false);
+    assert.equal(new URL(await browser.getUrl()).pathname, "/inspiration/1");
+
+    await respondToPending("start_inspiration_generation", {
+      code: "unavailable", message: "Injected inspiration start failure", retryable: true, trace_id: null, details: {},
+    }, 503);
+    await browser.waitUntil(async () => (await composer.getValue()) === message, { timeout });
+    await browser.waitUntil(async () => discard.isEnabled(), { timeout });
+    await press(await textButton("取消", guard));
+    assert.equal(new URL(await browser.getUrl()).pathname, "/inspiration/1");
+  });
+
+  it("UX-1753 preserves composer text when sending a suggested reply", async () => {
+    current = { id: "UX-1753", task: "Keep an unrelated composer draft when a suggested reply is selected" };
+    const scope = await inspiration();
+    const composer = await scope.$('textarea[aria-label="输入灵感对话内容"]');
+    const draft = "补充：保留当前叙事视角。";
+    await composer.setValue(draft);
+    await browser.execute(() => window.__uiAudit.deferred.push("start_inspiration_generation"));
+    await press((await scope.$$(".inspiration-option-card"))[0]);
+    await browser.waitUntil(async () => browser.execute(() =>
+      window.__uiAudit.pending.some((item) => item.command === "start_inspiration_generation"),
+    ), { timeout });
+    assert.equal(await composer.getValue(), draft);
+    await respondToPending("start_inspiration_generation", {
+      code: "unavailable", message: "Injected inspiration start failure", retryable: true, trace_id: null, details: {},
+    }, 503);
+    await browser.waitUntil(async () => (await composer.getValue()) === draft, { timeout });
+  });
+
+  it("UX-1754 preserves newer typing when an earlier send request fails", async () => {
+    current = { id: "UX-1754", task: "Keep text entered while a conversation start request is pending" };
+    const scope = await inspiration();
+    const composer = await scope.$('textarea[aria-label="输入灵感对话内容"]');
+    await composer.setValue("先发送这一条。");
+    await browser.execute(() => window.__uiAudit.deferred.push("start_inspiration_generation"));
+    await press(await textButton("发送", scope));
+    await browser.waitUntil(async () => browser.execute(() =>
+      window.__uiAudit.pending.some((item) => item.command === "start_inspiration_generation"),
+    ), { timeout });
+
+    const newerDraft = "请求期间新写的补充内容。";
+    await composer.setValue(newerDraft);
+    await respondToPending("start_inspiration_generation", {
+      code: "unavailable", message: "Injected inspiration start failure", retryable: true, trace_id: null, details: {},
+    }, 503);
+    await browser.waitUntil(async () => (await composer.getValue()) === newerDraft, { timeout });
+  });
 });
 
 describe("Novel page audit - Runtime blueprints and bound optimizer", function () {
@@ -2006,7 +4614,7 @@ describe("Novel page audit - Runtime blueprints and bound optimizer", function (
       assert.equal((await heading.getText()).trim(), rootTitle);
       return heading;
     } },
-    { id: "I09-refine-failure", task: "调整提交返回 503 后重新打开表单，保留原输入", open: async (width) => {
+    { id: "I09-refine-failure", task: "调整提交返回 503 后继续编辑保留的输入", open: async (width) => {
       const form = await blueprintRefinement();
       const focus = await form.$("textarea").getValue();
       await browser.execute(() => window.__uiAudit.deferred.push("start_blueprint_refinement"));
@@ -2029,19 +4637,67 @@ describe("Novel page audit - Runtime blueprints and bound optimizer", function (
       assert.deepEqual(await snapshot("I09-refine-failure", width, "error-response", progress, { command: "start_blueprint_refinement", httpStatus: 503, focus }), []);
       await clickText("关闭", progress);
       await browser.waitUntil(async () => !await progress.isDisplayed(), { timeout });
-      await clickText("调整蓝图", await $("main"));
-      const reopened = await dialog("调整蓝图");
-      assert.equal(await reopened.$("textarea").getValue(), focus, "The failed submission must not erase the refinement input");
-      return reopened;
+      const editableForm = await dialog("调整蓝图");
+      assert.equal(await editableForm.$("textarea").getValue(), focus, "The failed submission must keep the refinement input editable");
+      return editableForm;
     }, check: async (scope) => ({ inputAfterFailure: await scope.$("textarea").getValue(), failedCommand: "start_blueprint_refinement", httpStatus: 503 }),
     last: async (scope) => textButton("提交优化", scope) },
+    { id: "UX-1755", task: "成功提交蓝图调整后不再提示丢弃已提交的指令", open: async () => {
+      const form = await blueprintRefinement();
+      const focus = await form.$("textarea").getValue();
+      await browser.execute(() => window.__uiAudit.deferred.push("start_blueprint_refinement"));
+      await clickText("提交优化", form);
+      await browser.waitUntil(async () => browser.execute(() =>
+        window.__uiAudit.pending.some((item) => item.command === "start_blueprint_refinement"),
+      ), { timeout });
+      const request = await browser.execute(() => window.__uiAudit.pending.find((item) =>
+        item.command === "start_blueprint_refinement",
+      ).body);
+      assert.equal(request.focus, focus);
+      await respondToPending("start_blueprint_refinement", runtimeSeed.generation.blueprint.handle);
+
+      const progress = await dialog("调整蓝图");
+      await waitText(progress, "蓝图已优化");
+      await clickText("查看蓝图", progress);
+      await browser.waitUntil(async () => !await progress.isDisplayed(), { timeout });
+      await press(await ariaButton("返回上一页"));
+      await browser.waitUntil(async () => new URL(await browser.getUrl()).pathname === "/", { timeout });
+      return await $("h1");
+    }, text: ["项目工作台"],
+    check: async () => ({ acceptedFocus: runtimeSeed.generation.blueprint.handle.task_id, discardedDraftPrompt: false }),
+    last: async () => $("h1") },
+    { id: "UX-1756", task: "明确放弃蓝图调整草稿后直接返回项目列表", open: async () => {
+      const scope = await blueprintConfirmation();
+      await clickText("调整蓝图", scope);
+      const form = await dialog("调整蓝图");
+      await form.$("textarea").setValue("尝试另一种结尾，但暂不提交。");
+      await browser.keys(["ESC"]);
+      const confirmation = await dialog("未保存修改");
+      await clickText("放弃草稿", confirmation);
+      await browser.waitUntil(async () => !await form.isDisplayed(), { timeout });
+      await press(await ariaButton("返回上一页"));
+      await browser.waitUntil(async () => new URL(await browser.getUrl()).pathname === "/", { timeout });
+      return await $("h1");
+    }, text: ["项目工作台"],
+    check: async () => ({ confirmedDiscard: true, promptedAgainOnNavigation: false }),
+    last: async () => $("h1") },
     { id: "W08-optimizer", task: "在第一章打开有历史消息的正文优化 Agent", open: async () => {
       const panel = await writingPanel("写作助手");
       await clickText("优化", panel);
+      const chapterContext = await browser.execute(() => {
+        const panel = document.querySelector('aside[aria-label="写作助手"]');
+        const outerHeader = panel?.firstElementChild?.textContent ?? "";
+        const optimizeHeader = panel?.querySelector("section > header")?.textContent ?? "";
+        return { outerHeader, optimizeHeader };
+      });
+      assert.equal(chapterContext.outerHeader.includes("第 1 章"), false, "The optimizer panel must not repeat the chapter number in its shared mode header");
+      assert.equal(chapterContext.optimizeHeader.split("第 1 章").length - 1, 1, "The optimizer header carries the single full chapter label");
+      assert.ok(chapterContext.optimizeHeader.includes("雨夜来信"), "The full chapter label remains in the optimizer header");
+      assert.equal(chapterContext.optimizeHeader.includes("已绑定"), false, "The bound chapter is already stated by its full label");
       const scope = await panel.$('[aria-label="领域 Agent 控制台"]');
       await waitText(scope, "当前停在讨论阶段");
       return scope;
-    }, text: ["正文优化 Agent", "雨夜来信"], check: async (scope, width) => {
+    }, text: ["正文优化 Agent"], check: async (scope, width) => {
       const rows = await scope.$$(".agent-message-list > *");
       assert.equal(rows.length, runtimeSeed.agent.snapshot.messages.length);
       const commands = await browser.execute(() => [...window.__uiAudit.commands]);
@@ -2082,9 +4738,9 @@ describe("Novel page audit - Runtime blueprints and bound optimizer", function (
         await panelToggle();
         const panel = await $('aside[aria-label="写作助手"]');
         await clickText("优化", panel);
-        activeScope = await panel.$('[aria-label="领域 Agent 控制台"]');
       }
-      await waitText(activeScope, "纸上的地图");
+      activeScope = await (await $('aside[aria-label="写作助手"]')).$('[aria-label="领域 Agent 控制台"]');
+      await waitForOptimizerChapter("纸上的地图");
       await browser.waitUntil(async () => (await activeScope.$("textarea").getValue()) === "", { timeout });
       if (width < 768) await closeDomainAgentDialog();
       await press(await ariaButton("上一章"));
@@ -2093,9 +4749,9 @@ describe("Novel page audit - Runtime blueprints and bound optimizer", function (
         await panelToggle();
         const panel = await $('aside[aria-label="写作助手"]');
         await clickText("优化", panel);
-        activeScope = await panel.$('[aria-label="领域 Agent 控制台"]');
       }
-      await waitText(activeScope, "雨夜来信");
+      activeScope = await (await $('aside[aria-label="写作助手"]')).$('[aria-label="领域 Agent 控制台"]');
+      await waitForOptimizerChapter("雨夜来信");
       await browser.waitUntil(async () => (await activeScope.$("textarea").getValue()) === draft, { timeout });
       assert.equal(await activeScope.$("textarea").getValue(), draft, "Switching the bound chapter must preserve its composer draft");
       if (width < 768) await closeDomainAgentDialog();
@@ -2117,4 +4773,317 @@ describe("Novel page audit - Runtime blueprints and bound optimizer", function (
     }, last: async (scope) => (await scope.$$(".agent-message-list > *")).at(-1) },
   ];
   for (const spec of pages) it(spec.id + " follows the runtime-backed UI path", async () => matrix(spec));
+
+  it("UX-2139 and UX-2144 release a bound Agent send and retain it across chapter switches", async () => {
+    current = { id: "UX-2139", task: "Release the accepted bound Agent send and keep its pending bubble with the original thread", visited: [], plannedWidths: [1440] };
+    await mkdir(output, { recursive: true });
+    const fixtures = await buildPageFixtures(browser.options.baseUrl);
+    await installUiFixtures(browser, fixtures);
+    const models = await seedLocalModels(browser);
+    await browser.execute(async (imageId) => {
+      const local = await import("/src/api/localRuntimeSettings.ts");
+      await local.setDefaultLocalImageConfig(imageId);
+    }, models.image);
+    await browser.setWindowSize(1440, height);
+    const panel = await writingPanel("写作助手");
+    await clickText("优化", panel);
+    const threadId = runtimeSeed.agent.snapshot.thread.id;
+    const scope = await panel.$('[aria-label="领域 Agent 控制台"]');
+    await waitText(scope, "雨夜来信");
+    await waitText($(".agent-message-list"), runtimeSeed.agent.snapshot.messages[0].content);
+    const composer = await scope.$("textarea");
+    const message = "先记录一条待确认的局部修改。";
+    await composer.setValue(message);
+    await browser.execute((id) => window.__uiAudit.deferred.push(id), threadId);
+    await press(await ariaButton("发送给领域 Agent", scope));
+    await browser.waitUntil(async () => browser.execute(() => window.__uiAudit.agentMessages.length > 0), { timeout });
+    const accepted = await browser.execute(() => {
+      const request = window.__uiAudit.agentMessages.shift();
+      const response = {
+        thread_id: request.input.thread_id,
+        message_id: `accepted-${request.input.client_message_id}`,
+        turn_id: `turn-${request.input.client_message_id}`,
+        run_id: `run-${request.input.client_message_id}`,
+        status: "queued",
+        created_run: true,
+      };
+      request.resolve(Response.json(response));
+      return response;
+    });
+    await browser.waitUntil(async () => browser.execute((id) =>
+      window.__uiAudit.pending.some((item) => item.command === id), threadId), { timeout });
+    current.evidence = await scope.execute((root) => ({
+      pendingMessageLists: root.querySelectorAll(".agent-message-list").length,
+      loading: root.innerText.includes("正在加载领域 Agent"),
+      threadStatus: root.querySelector(".agent-console-thread-status")?.textContent ?? null,
+      messageListText: [...root.querySelectorAll(".agent-message-list")].map((list) => list.innerText),
+    }));
+    await browser.waitUntil(async () => browser.execute((expected) =>
+      [...document.querySelectorAll(".agent-message-list")]
+        .some((list) => list.innerText.includes(expected)), message), { timeout });
+    await composer.setValue("下一条草稿不发送。 ");
+    await browser.waitUntil(async () =>
+      ariaButton("发送给领域 Agent", scope).then((send) => send.isEnabled()),
+    { timeout, timeoutMsg: "The accepted Agent message must release the bound composer before its snapshot read" });
+    await composer.clearValue();
+
+    await browser.execute((sourceThreadId) => {
+      const source = window.__uiAudit.fixtures.agentSnapshots.find((item) => item.thread.id === sourceThreadId);
+      const next = structuredClone(source);
+      next.thread.id = "optimizer-chapter-2-fixture";
+      next.thread.bound_resource = { ...next.thread.bound_resource, id: "2", label: "纸上的地图" };
+      next.thread.title = "纸上的地图 · 正文优化";
+      next.thread.scope = { ...next.thread.scope, resource_id: "2", chapter_id: 2, chapter_number: 2 };
+      next.messages = [];
+      next.events = [];
+      next.executions = [];
+      next.approvals = [];
+      next.inbox = [];
+      next.memories = [];
+      next.runs = [];
+      next.turns = [];
+      window.__uiAudit.fixtures.agentSnapshots.push(next);
+    }, threadId);
+    const editor = await $('textarea[aria-label="章节正文"]');
+    await press(await ariaButton("下一章"));
+    await browser.waitUntil(async () => (await editor.getValue()) === seed.commands.list_chapters[1].content, { timeout });
+    await waitText(scope, "纸上的地图");
+    await press(await ariaButton("上一章"));
+    await browser.waitUntil(async () => (await editor.getValue()) === seed.commands.list_chapters[0].content, { timeout });
+    await waitText(scope, "雨夜来信");
+    await browser.waitUntil(async () => browser.execute((id) =>
+      window.__uiAudit.pending.filter((item) => item.command === id).length >= 2, threadId), { timeout });
+    await waitForAgentMessage(message, 15000);
+
+    await browser.execute((id) => {
+      const audit = window.__uiAudit;
+      const snapshot = audit.fixtures.agentSnapshots.find((item) => item.thread.id === id);
+      for (const pending of [...audit.pending]) {
+        if (pending.command !== id) continue;
+        pending.resolve(Response.json(snapshot));
+        audit.pending = audit.pending.filter((item) => item !== pending);
+      }
+      audit.deferred = audit.deferred.filter((command) => command !== id);
+    }, threadId);
+    assert.equal(accepted.thread_id, threadId);
+    assert.equal(accepted.message_id.startsWith("accepted-"), true);
+  });
+
+  it("UX-2140 and UX-2141 release bound run and approval controls after their write results", async () => {
+    current = { id: "UX-2140", task: "Release bound Agent run and approval controls while snapshot refreshes are pending", visited: [], plannedWidths: [1440] };
+    await browser.setWindowSize(1440, height);
+    const panel = await writingPanel("写作助手");
+    const threadId = runtimeSeed.agent.snapshot.thread.id;
+    await browser.execute((id, source) => {
+      const snapshots = window.__uiAudit.fixtures.agentSnapshots;
+      const target = snapshots.find((item) => item.thread.id === id);
+      const run = structuredClone(source.runs[0]);
+      run.id = "domain-agent-run";
+      run.thread_id = id;
+      target.runs = [run];
+      target.approvals = [
+        {
+          ...structuredClone(source.approvals[0]),
+          id: "domain-approval-first",
+          execution_id: "domain-execution-first",
+        },
+        {
+          ...structuredClone(source.approvals[0]),
+          id: "domain-approval-second",
+          execution_id: "domain-execution-second",
+          reason: "验证前一项审批完成后下一项可操作。",
+        },
+      ];
+      target.events = [];
+      target.executions = [];
+    }, threadId, homeAgentFixtures.agentSnapshots[0]);
+    await clickText("优化", panel);
+    const scope = await panel.$('[aria-label="领域 Agent 控制台"]');
+    await waitText(scope, "雨夜来信");
+    await waitText($(".agent-message-list"), runtimeSeed.agent.snapshot.messages[0].content);
+    await waitText(scope, "验证前一项审批完成后下一项可操作。");
+
+    await browser.execute((id) => window.__uiAudit.deferred.push(id), threadId);
+    await press(await ariaButton("暂停", scope));
+    await browser.waitUntil(async () => browser.execute((id) =>
+      window.__uiAudit.pending.some((item) => item.command === id), threadId), { timeout });
+    const resume = await ariaButton("继续", scope);
+    await browser.waitUntil(async () => resume.isEnabled(), { timeout,
+      timeoutMsg: "The bound pause result must release control before its snapshot read" });
+    await browser.execute((id) => {
+      const audit = window.__uiAudit;
+      const pending = audit.pending.find((item) => item.command === id);
+      const snapshot = audit.fixtures.agentSnapshots.find((item) => item.thread.id === id);
+      pending.resolve(Response.json(snapshot));
+      audit.pending = audit.pending.filter((item) => item !== pending);
+      audit.deferred = audit.deferred.filter((command) => command !== id);
+    }, threadId);
+
+    await browser.execute((id) => window.__uiAudit.deferred.push(id), threadId);
+    const firstApproval = await scope.$('[data-approval-id="domain-approval-first"]');
+    await press(await textButton("批准", firstApproval));
+    await browser.waitUntil(async () => browser.execute((id) =>
+      window.__uiAudit.pending.some((item) => item.command === id), threadId), { timeout });
+    const nextApproval = await scope.$('[data-approval-id="domain-approval-second"]');
+    const nextApprove = await textButton("批准", nextApproval);
+    await browser.waitUntil(async () => nextApprove.isEnabled(), { timeout,
+      timeoutMsg: "The bound approval result must release the next approval before its snapshot read" });
+    await browser.execute((id) => {
+      const audit = window.__uiAudit;
+      const pending = audit.pending.find((item) => item.command === id);
+      const snapshot = audit.fixtures.agentSnapshots.find((item) => item.thread.id === id);
+      pending.resolve(Response.json(snapshot));
+      audit.pending = audit.pending.filter((item) => item !== pending);
+      audit.deferred = audit.deferred.filter((command) => command !== id);
+    }, threadId);
+  });
+
+  it("UX-2549 remounts the active detail tab when a fast reset advances its content revision", async function () {
+    current = { id: "UX-2549-reset-content-revision", task: "项目重置在轮询间隔内完成时，详情 Tab 仍重读内容", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const page = await project("概览");
+    await waitText(page, seed.commands.get_blueprint.one_sentence_summary);
+    const blueprintReads = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "get_blueprint").length,
+    );
+    const projectReads = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "get_project").length,
+    );
+    const resetCompleted = structuredClone(seed.commands.get_project);
+    resetCompleted.lifecycle_gate = "active";
+    resetCompleted.content_revision = 1;
+    resetCompleted.status = "draft";
+    resetCompleted.current_chapter = 0;
+    resetCompleted.total_chapters = null;
+    resetCompleted.updated_at = "2026-10-15T01:00:00Z";
+    await browser.execute((project) => {
+      const record = window.__uiAudit.fixtures.projectRecords.find((item) => item.id === project.id);
+      Object.assign(record, project);
+      window.dispatchEvent(new Event("focus"));
+    }, resetCompleted);
+    await browser.waitUntil(async () => browser.execute((count) =>
+      window.__uiAudit.requests.filter((item) => item.command === "get_project").length > count,
+    projectReads), { timeout });
+    await browser.waitUntil(async () => browser.execute((count) =>
+      window.__uiAudit.requests.filter((item) => item.command === "get_blueprint").length > count,
+    blueprintReads), { timeout,
+      timeoutMsg: "A content revision change must reload the current detail tab even when the gate remained active" });
+    assert.equal(await browser.execute(() => window.__uiAudit.unexpected.length), 0);
+    assert.deepEqual(await snapshot(current.id, 1440, "content-revision-reloaded", page, {
+      lifecycleGate: "active",
+      contentRevision: resetCompleted.content_revision,
+      projectRead: "updated",
+      blueprintRead: "reloaded",
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-2550 refreshes the project gate after a rejected material sync", async function () {
+    current = { id: "UX-2550-rag-conflict-project-refresh", task: "同步资料遇到 reset 冲突后重读项目 gate", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const projectReadCount = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "get_project").length,
+    );
+    const confirmation = await openProjectAction("同步资料索引");
+    await browser.execute(() => window.__uiAudit.deferred.push("rag_ingest_all"));
+    await clickText("开始同步", confirmation);
+    await browser.waitUntil(async () => browser.execute(() =>
+      window.__uiAudit.pending.some((item) => item.command === "rag_ingest_all"),
+    ), { timeout });
+    const resettingProject = structuredClone(seed.commands.get_project);
+    resettingProject.lifecycle_gate = "resetting";
+    resettingProject.content_revision = 0;
+    await browser.execute((project) => {
+      const audit = window.__uiAudit;
+      const record = audit.fixtures.projectRecords.find((item) => item.id === project.id);
+      Object.assign(record, project);
+      audit.deferred.push("get_project");
+      const pending = audit.pending.find((item) => item.command === "rag_ingest_all");
+      audit.pending = audit.pending.filter((item) => item !== pending);
+      audit.deferred = audit.deferred.filter((command) => command !== "rag_ingest_all");
+      pending.resolve(Response.json({
+        code: "project_lifecycle_blocked",
+        message: "项目正在重置生成数据，不能同步资料",
+        retryable: false,
+        trace_id: null,
+        details: {},
+      }, { status: 409 }));
+    }, resettingProject);
+    await browser.waitUntil(async () => browser.execute(() =>
+      window.__uiAudit.pending.some((item) => item.command === "get_project"),
+    ), { timeout, timeoutMsg: "A rejected RAG write must refresh the project status" });
+    await respondToPending("get_project", resettingProject);
+    await browser.waitUntil(async () => browser.execute((count) =>
+      window.__uiAudit.requests.filter((item) => item.command === "get_project").length > count,
+    projectReadCount), { timeout });
+    const progress = await dialog("同步资料索引");
+    await waitText(progress, "项目正在重置生成数据");
+    await clickText("关闭", progress);
+    await press(await $("button[title=\"更多项目操作\"]"));
+    const actions = await dialog();
+    assert.equal(await containing("同步资料索引", actions).isExisting(), false);
+    assert.equal(await browser.execute(() => window.__uiAudit.unexpected.length), 0);
+    assert.deepEqual(await snapshot(current.id, 1440, "project-gate-refreshed", actions, {
+      rejectedCommand: "rag_ingest_all",
+      refreshedGate: "resetting",
+    }), []);
+    current.visited.push(1440);
+  });
+
+  it("UX-2551 refreshes the project gate after blueprint refinement is rejected", async function () {
+    current = { id: "UX-2551-refine-conflict-project-refresh", task: "蓝图优化遇到 reset 冲突后重读项目 gate", visited: [], plannedWidths: [1440] };
+    current.width = 1440;
+    await browser.setWindowSize(1440, height);
+    const projectReadCount = await browser.execute(() =>
+      window.__uiAudit.requests.filter((item) => item.command === "get_project").length,
+    );
+    const form = await openProjectAction("优化蓝图");
+    await form.$("textarea").setValue("跨窗口重置期间不得继续提交旧蓝图。");
+    await browser.execute(() => window.__uiAudit.deferred.push("start_blueprint_refinement"));
+    await clickText("开始优化", form);
+    await browser.waitUntil(async () => browser.execute(() =>
+      window.__uiAudit.pending.some((item) => item.command === "start_blueprint_refinement"),
+    ), { timeout });
+    const resettingProject = structuredClone(seed.commands.get_project);
+    resettingProject.lifecycle_gate = "resetting";
+    resettingProject.content_revision = 0;
+    await browser.execute((project) => {
+      const audit = window.__uiAudit;
+      const record = audit.fixtures.projectRecords.find((item) => item.id === project.id);
+      Object.assign(record, project);
+      audit.deferred.push("get_project");
+      const pending = audit.pending.find((item) => item.command === "start_blueprint_refinement");
+      audit.pending = audit.pending.filter((item) => item !== pending);
+      audit.deferred = audit.deferred.filter((command) => command !== "start_blueprint_refinement");
+      pending.resolve(Response.json({
+        code: "project_lifecycle_blocked",
+        message: "项目正在重置生成数据，不能优化蓝图",
+        retryable: false,
+        trace_id: null,
+        details: {},
+      }, { status: 409 }));
+    }, resettingProject);
+    await browser.waitUntil(async () => browser.execute(() =>
+      window.__uiAudit.pending.some((item) => item.command === "get_project"),
+    ), { timeout, timeoutMsg: "A rejected blueprint refinement must refresh the project status" });
+    await respondToPending("get_project", resettingProject);
+    await browser.waitUntil(async () => browser.execute((count) =>
+      window.__uiAudit.requests.filter((item) => item.command === "get_project").length > count,
+    projectReadCount), { timeout });
+    await browser.waitUntil(async () => {
+      const toast = $(".a4n-toast");
+      return await toast.isExisting() && (await toast.getText()).includes("项目正在重置生成数据");
+    }, { timeout });
+    await press(await $("button[title=\"更多项目操作\"]"));
+    const actions = await dialog();
+    assert.equal(await containing("优化蓝图", actions).isExisting(), false);
+    assert.equal(await browser.execute(() => window.__uiAudit.unexpected.length), 0);
+    assert.deepEqual(await snapshot(current.id, 1440, "project-gate-refreshed", actions, {
+      rejectedCommand: "start_blueprint_refinement",
+      refreshedGate: "resetting",
+    }), []);
+    current.visited.push(1440);
+  });
 });

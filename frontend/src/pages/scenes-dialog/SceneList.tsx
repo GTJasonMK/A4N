@@ -87,6 +87,11 @@ export const SceneList: React.FC<SceneListProps> = ({
 
   return (
     <>
+      {loading ? (
+        <div role="status" className="mb-2 inline-flex items-center gap-2 text-xs text-book-text-muted">
+          <LoadingSpinner size="sm" /> {t("scenes.loading")}
+        </div>
+      ) : null}
       {loadError ? (
         <div role="alert" className="mb-2 flex flex-wrap items-center gap-3 border-l-2 border-error/55 py-2 pl-3 text-xs leading-relaxed text-error">
           {loadError}

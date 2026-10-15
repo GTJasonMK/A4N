@@ -10,8 +10,11 @@ interface PortraitToolbarProps {
   visiblePortraitCount: number;
   totalPortraitCount: number;
   profiles: CharacterProfile[];
+  profilesUnavailable: boolean;
   selectedProfileId: number | null;
   generating: boolean;
+  canEdit?: boolean;
+  readUnavailable?: boolean;
   onProfileChange: (profileId: number | null) => void;
   onOpenSingle: () => void;
   onOpenUpload: () => void;
@@ -23,8 +26,11 @@ export const PortraitToolbar: React.FC<PortraitToolbarProps> = ({
   visiblePortraitCount,
   totalPortraitCount,
   profiles,
+  profilesUnavailable,
   selectedProfileId,
   generating,
+  canEdit = true,
+  readUnavailable = false,
   onProfileChange,
   onOpenSingle,
   onOpenUpload,
@@ -49,6 +55,10 @@ export const PortraitToolbar: React.FC<PortraitToolbarProps> = ({
                   visible: formatNumber(visiblePortraitCount, locale),
                   total: formatNumber(totalPortraitCount, locale),
                 })
+            : profilesUnavailable
+              ? t("characterDetail.portrait.profileCountUnavailable", {
+                  total: formatNumber(totalPortraitCount, locale),
+                })
               : t("characterDetail.portrait.summaryAll", {
                   total: formatNumber(totalPortraitCount, locale),
                   profiles: formatNumber(profiles.length, locale),
@@ -56,24 +66,27 @@ export const PortraitToolbar: React.FC<PortraitToolbarProps> = ({
           </p>
         </div>
         <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
-          {!generating ? (
+          {canEdit && !generating ? (
             <Dropdown
               items={[
                 {
                   label: t("characterDetail.portrait.generateSingle"),
                   icon: <Camera size={12} />,
                   onClick: onOpenSingle,
+                  disabled: !canEdit || readUnavailable,
                 },
                 {
                   label: t("characterDetail.portrait.upload"),
                   icon: <Upload size={12} />,
                   onClick: onOpenUpload,
+                  disabled: !canEdit || readUnavailable,
                 },
                 { type: "divider" },
                 {
                   label: t("characterDetail.portrait.previewMissing"),
                   icon: <Eye size={12} />,
                   onClick: () => void onPreviewGenerateMissing(),
+                  disabled: !canEdit || readUnavailable,
                 },
               ]}
             />
@@ -82,7 +95,7 @@ export const PortraitToolbar: React.FC<PortraitToolbarProps> = ({
             variant="primary"
             size="sm"
             onClick={() => void onGenerateMissing()}
-            disabled={generating}
+            disabled={!canEdit || readUnavailable || generating}
             className="min-w-0 flex-1 !text-xs sm:flex-none"
           >
             {generating ? (
@@ -97,7 +110,7 @@ export const PortraitToolbar: React.FC<PortraitToolbarProps> = ({
       </header>
       {profiles.length > 0 ? (
         <div className="border-t border-book-border/40 px-3 py-2.5 sm:px-4">
-        <div className="a4n-filter-chips !max-w-full" aria-label={t("characterDetail.portrait.filterAria")}>
+        <div className="a4n-filter-chips !max-w-full !flex-wrap !overflow-visible" aria-label={t("characterDetail.portrait.filterAria")}>
           <button
             type="button"
             className="a4n-filter-chip"

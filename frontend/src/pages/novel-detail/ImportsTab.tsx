@@ -60,11 +60,15 @@ import { useNovelDetailDirty } from "./novelDetailDirty";
 interface ImportsTabProps {
   projectId: number;
   onBusyChange?: (busy: boolean) => void;
+  canImport?: () => boolean;
 }
+
+type ActiveReviewUnavailableReason = "deleted" | "queue_unavailable" | "status_changed";
 
 export const ImportsTab: React.FC<ImportsTabProps> = ({
   projectId,
   onBusyChange,
+  canImport = () => true,
 }) => {
   const { addToast } = useToast();
   const { locale, t } = useI18n();
@@ -73,6 +77,10 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   const { runProgressTask: runReverseProgressTask } = useProgressTask();
   const [reviews, setReviews] = useState<ImportReviewListItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [queueLoadError, setQueueLoadError] = useState<string | null>(null);
+  const [queueIsCurrent, setQueueIsCurrent] = useState(false);
+  const [progressLoadError, setProgressLoadError] = useState<string | null>(null);
+  const [progressLoaded, setProgressLoaded] = useState(false);
   const [projectProgress, setProjectProgress] =
     useState<ProjectImportAnalysisProgress | null>(null);
   const [importBusy, setImportBusy] = useState(false);
@@ -81,17 +89,23 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [batchBusy, setBatchBusy] = useState(false);
   const [activeReview, setActiveReview] = useState<ImportReviewSummary | null>(null);
+  const [activeReviewUnavailableReason, setActiveReviewUnavailableReason] =
+    useState<ActiveReviewUnavailableReason | null>(null);
   const [activeReviewJson, setActiveReviewJson] = useState("");
   const [activeReviewJsonError, setActiveReviewJsonError] = useState<
     string | null
   >(null);
   const [activeReviewJsonDirty, setActiveReviewJsonDirty] = useState(false);
   const activeReviewRef = useRef<ImportReviewSummary | null>(null);
+  const activeReviewRequestedIdRef = useRef<number | null>(null);
   const activeReviewJsonDirtyRef = useRef(false);
   const reviewsRef = useRef<ImportReviewListItem[]>([]);
+  const queueIsCurrentRef = useRef(false);
   const mountedRef = useRef(false);
   const activeProjectIdRef = useRef(projectId);
   const loadRequestRef = useRef(0);
+  const activeReviewDetailRequestRef = useRef(0);
+  const reviewMutationVersionRef = useRef(0);
   const importSeqRef = useRef(0);
   const analysisSeqRef = useRef(0);
   const cancelAnalysisSeqRef = useRef(0);
@@ -100,6 +114,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   const dedupSeqRef = useRef(0);
   const dedupInputVersionRef = useRef(0);
   const reverseSeqRef = useRef(0);
+  const reverseCandidateRestoreSeqRef = useRef(0);
   const requestPreviewSeqRef = useRef(0);
   const detailPanelRef = useRef<HTMLDivElement | null>(null);
   const importAnalysisDialogDismissedRef = useRef(false);
@@ -167,6 +182,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
 
   const setActiveReviewState = (review: ImportReviewSummary | null) => {
     activeReviewRef.current = review;
+    activeReviewRequestedIdRef.current = review?.id ?? null;
     setActiveReview(review);
   };
 
@@ -174,6 +190,65 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     activeReviewJsonDirtyRef.current = dirty;
     setActiveReviewJson(value);
     setActiveReviewJsonDirty(dirty);
+  };
+
+  const setQueueCurrentState = (current: boolean) => {
+    queueIsCurrentRef.current = current;
+    setQueueIsCurrent(current);
+  };
+
+  const applyReviewUpdates = (updates: ImportReviewSummary[]) => {
+    if (updates.length === 0) return;
+    reviewMutationVersionRef.current += 1;
+    const updatesById = new Map(updates.map((review) => [review.id, review]));
+    const existingIds = new Set(reviewsRef.current.map((review) => review.id));
+    const next = [
+      ...updates.filter((review) => !existingIds.has(review.id)),
+      ...reviewsRef.current.map((review) => updatesById.get(review.id) ?? review),
+    ];
+    reviewsRef.current = next;
+    setReviews(next);
+    const pendingIds = new Set(
+      next.filter((review) => review.review_status === "pending").map((review) => review.id),
+    );
+    setSelected((current) => new Set([...current].filter((id) => pendingIds.has(id))));
+
+    const activeReview = activeReviewRef.current;
+    const updatedActiveReview = activeReview ? updatesById.get(activeReview.id) : undefined;
+    if (updatedActiveReview) {
+      setActiveReviewState(updatedActiveReview);
+      setActiveReviewUnavailableReason(
+        activeReviewJsonDirtyRef.current && updatedActiveReview.review_status !== "pending"
+          ? "status_changed"
+          : null,
+      );
+      if (!activeReviewJsonDirtyRef.current) {
+        setActiveReviewJsonState(
+          JSON.stringify(updatedActiveReview.analysis_result, null, 2),
+          false,
+        );
+        setActiveReviewJsonError(null);
+      }
+    }
+  };
+
+  const removeReview = (reviewId: number) => {
+    reviewMutationVersionRef.current += 1;
+    const next = reviewsRef.current.filter((review) => review.id !== reviewId);
+    reviewsRef.current = next;
+    setReviews(next);
+    setSelected((current) => {
+      if (!current.has(reviewId)) return current;
+      const nextSelected = new Set(current);
+      nextSelected.delete(reviewId);
+      return nextSelected;
+    });
+    if (activeReviewRef.current?.id === reviewId) {
+      setActiveReviewState(null);
+      setActiveReviewUnavailableReason(null);
+      setActiveReviewJsonState("", false);
+      setActiveReviewJsonError(null);
+    }
   };
 
   const setProgressDialogFromProgress = (
@@ -227,6 +302,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
 
   const invalidateProjectScopedRequests = () => {
     loadRequestRef.current += 1;
+    activeReviewDetailRequestRef.current += 1;
     importSeqRef.current += 1;
     analysisSeqRef.current += 1;
     cancelAnalysisSeqRef.current += 1;
@@ -234,6 +310,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     actSeqRef.current += 1;
     dedupSeqRef.current += 1;
     reverseSeqRef.current += 1;
+    reverseCandidateRestoreSeqRef.current += 1;
     requestPreviewSeqRef.current += 1;
     importBusyRef.current = false;
     analyzeBusyRef.current = false;
@@ -246,28 +323,36 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     requestPreviewBusyRef.current = false;
   };
 
-  const load = async (requestProjectId = projectId): Promise<boolean> => {
+  const load = async (
+    requestProjectId = projectId,
+    options: { silent?: boolean } = {},
+  ): Promise<boolean> => {
     const requestId = loadRequestRef.current + 1;
     loadRequestRef.current = requestId;
-    setLoading(true);
-    try {
-      const activeReview = activeReviewRef.current;
-      const [listResult, progressResult, detailResult] = await Promise.allSettled([
-        listImportQueueIndex(requestProjectId),
-        getProjectImportAnalysisProgress(requestProjectId),
-        activeReview && !activeReviewJsonDirtyRef.current
-          ? getImportReview(activeReview.id)
-          : Promise.resolve(null),
-      ]);
+    const mutationVersion = reviewMutationVersionRef.current;
+    const activeReviewAtStart = activeReviewRef.current;
+    const detailRequestVersion = activeReviewDetailRequestRef.current;
+    if (!options.silent) setLoading(true);
+    const [listResult, progressResult, detailResult] = await Promise.allSettled([
+      listImportQueueIndex(requestProjectId),
+      getProjectImportAnalysisProgress(requestProjectId),
+      activeReviewAtStart
+        ? getImportReview(activeReviewAtStart.id)
+        : Promise.resolve(null),
+    ]);
+    if (
+      isCurrentProject(requestProjectId) &&
+      loadRequestRef.current === requestId
+    ) {
       if (
-        !isCurrentProject(requestProjectId) ||
-        loadRequestRef.current !== requestId
-      )
-        return false;
-      if (listResult.status === "fulfilled") {
+        listResult.status === "fulfilled" &&
+        reviewMutationVersionRef.current === mutationVersion
+      ) {
+        setQueueCurrentState(true);
         const list = listResult.value;
         reviewsRef.current = list;
         setReviews(list);
+        setQueueLoadError(null);
         const reviewIds = new Set(
           list
             .filter((review) => review.review_status === "pending")
@@ -278,70 +363,118 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
           return next.size === current.size ? current : next;
         });
         const currentActiveReview = activeReviewRef.current;
-        if (currentActiveReview) {
+        if (
+          currentActiveReview &&
+          activeReviewAtStart?.id === currentActiveReview.id &&
+          activeReviewRequestedIdRef.current === currentActiveReview.id &&
+          activeReviewDetailRequestRef.current === detailRequestVersion
+        ) {
           const updatedActiveReview = list.find(
             (review) => review.id === currentActiveReview.id,
           );
           if (updatedActiveReview) {
-            const detail = detailResult.status === "fulfilled" ? detailResult.value : null;
-            const merged = detail
-              ? detail
-              : { ...currentActiveReview, ...updatedActiveReview };
-            setActiveReviewState(merged);
-            if (!activeReviewJsonDirtyRef.current && detail) {
-              setActiveReviewJsonState(JSON.stringify(detail.analysis_result, null, 2), false);
-              setActiveReviewJsonError(null);
+            if (detailResult.status === "fulfilled" && detailResult.value) {
+              const detail = { ...detailResult.value, ...updatedActiveReview };
+              setActiveReviewState(detail);
+              setActiveReviewUnavailableReason(
+                activeReviewJsonDirtyRef.current && detail.review_status !== "pending"
+                  ? "status_changed"
+                  : null,
+              );
+              if (!activeReviewJsonDirtyRef.current) {
+                setActiveReviewJsonState(JSON.stringify(detail.analysis_result, null, 2), false);
+                setActiveReviewJsonError(null);
+              }
+            } else {
+              setActiveReviewState({ ...currentActiveReview, ...updatedActiveReview });
+              setActiveReviewUnavailableReason("queue_unavailable");
+              if (!activeReviewJsonDirtyRef.current) setActiveReviewJsonError(null);
+              addToast(
+                extractErrorMessage(
+                  detailResult.status === "rejected" ? detailResult.reason : null,
+                  t("novel.importReview.loadQueueFailed"),
+                ),
+                "error",
+              );
             }
+          } else if (activeReviewJsonDirtyRef.current) {
+            setActiveReviewUnavailableReason("deleted");
           } else {
             setActiveReviewState(null);
+            setActiveReviewUnavailableReason(null);
             setActiveReviewJsonState("", false);
             setActiveReviewJsonError(null);
           }
         }
-      } else {
-        addToast(extractErrorMessage(listResult.reason, t("novel.importReview.loadQueueFailed")), "error");
+      } else if (listResult.status === "rejected") {
+        setQueueCurrentState(false);
+        if (activeReviewRef.current) {
+          if (activeReviewJsonDirtyRef.current) {
+            setActiveReviewUnavailableReason("queue_unavailable");
+          } else {
+            setActiveReviewState(null);
+            setActiveReviewUnavailableReason(null);
+            setActiveReviewJsonState("", false);
+            setActiveReviewJsonError(null);
+          }
+        }
+        setQueueLoadError(
+          extractErrorMessage(listResult.reason, t("novel.importReview.loadQueueFailed")),
+        );
       }
       if (progressResult.status === "fulfilled") {
         setProjectProgress(progressResult.value);
+        setProgressLoadError(null);
+        setProgressLoaded(true);
       } else {
-        addToast(
-          extractErrorMessage(progressResult.reason, t("novel.importReview.analysisProgressLoadFailed")),
-          "error",
+        setProgressLoadError(
+          extractErrorMessage(
+            progressResult.reason,
+            t("novel.importReview.analysisProgressLoadFailed"),
+          ),
         );
       }
-      return listResult.status === "fulfilled" && progressResult.status === "fulfilled";
-    } catch (err) {
-      if (
-        isCurrentProject(requestProjectId) &&
-        loadRequestRef.current === requestId
-      ) {
-        addToast(extractErrorMessage(err, t("novel.importReview.loadQueueFailed")), "error");
-      }
-      return false;
-    } finally {
-      if (
-        isCurrentProject(requestProjectId) &&
-        loadRequestRef.current === requestId
-      ) {
-        setLoading(false);
+    }
+    if (isCurrentProject(requestProjectId) && loadRequestRef.current === requestId) {
+      setLoading(false);
+    }
+    return isCurrentProject(requestProjectId)
+      && loadRequestRef.current === requestId
+      && listResult.status === "fulfilled";
+  };
+
+  const refreshReviewQueueAfterActionFailure = (requestProjectId: number) => {
+    if (!isCurrentProject(requestProjectId)) return;
+    reviewMutationVersionRef.current += 1;
+    setQueueCurrentState(false);
+    setSelected(new Set());
+    if (activeReviewRef.current) {
+      if (activeReviewJsonDirtyRef.current) {
+        setActiveReviewUnavailableReason("queue_unavailable");
+      } else {
+        setActiveReviewState(null);
+        setActiveReviewUnavailableReason(null);
+        setActiveReviewJsonState("", false);
+        setActiveReviewJsonError(null);
       }
     }
+    void load(requestProjectId, { silent: true });
   };
 
   const restoreLatestReverseCandidate = async (
     requestProjectId: number,
     requestReverseType: ReverseEngineeringTarget,
+    requestSeq = nextSequence(reverseCandidateRestoreSeqRef),
   ) => {
-    const requestSeq = nextSequence(reverseSeqRef);
     try {
       const restored = await getReverseEngineeringCandidate({
         project_id: requestProjectId,
         target: requestReverseType,
       });
-      if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) return;
+      if (!isCurrentAction(requestProjectId, reverseCandidateRestoreSeqRef, requestSeq)) return;
       setReverseResult(restored);
     } catch (err) {
-      if (isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) {
+      if (isCurrentAction(requestProjectId, reverseCandidateRestoreSeqRef, requestSeq)) {
         addToast(extractErrorMessage(err, t("novel.importReview.restoreCandidateFailed")), "error");
       }
     }
@@ -360,7 +493,12 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     invalidateProjectScopedRequests();
     activeProjectIdRef.current = projectId;
     reviewsRef.current = [];
+    setQueueCurrentState(false);
     setReviews([]);
+    setQueueLoadError(null);
+    setProgressLoadError(null);
+    setProgressLoaded(false);
+    reviewMutationVersionRef.current = 0;
     setProjectProgress(null);
     setLoading(false);
     setImportBusy(false);
@@ -385,6 +523,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     setImportAnalysisDialog(null);
     setSelected(new Set());
     setActiveReviewState(null);
+    setActiveReviewUnavailableReason(null);
     setActiveReviewJsonState("", false);
     setActiveReviewJsonError(null);
     setActiveReviewJsonDirty(false);
@@ -401,6 +540,10 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   }, [projectId]);
 
   const handleImport = async () => {
+    if (!canImport()) {
+      addToast(tRef.current("common.listChangedRetry"), "info");
+      return;
+    }
     const requestFile = importUploadFile;
     const requestFileName = importFileName.trim();
     const requestProjectId = projectId;
@@ -424,15 +567,24 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     try {
       const dataBase64 = await readFileAsBase64(requestFile);
       if (!isCurrentAction(requestProjectId, importSeqRef, requestSeq)) return;
+      if (!canImport()) {
+        addToast(tRef.current("common.listChangedRetry"), "info");
+        return;
+      }
+      if (!canImport()) {
+        addToast(tRef.current("common.listChangedRetry"), "info");
+        return;
+      }
       const reviews = await importProjectTextUpload({
         project_id: requestProjectId,
         file_name: requestFileName,
         data_base64: dataBase64,
       });
       if (!isCurrentAction(requestProjectId, importSeqRef, requestSeq)) return;
-      const loaded = await load(requestProjectId);
-      if (!isCurrentAction(requestProjectId, importSeqRef, requestSeq)) return;
-      if (!loaded) return;
+      if (reviews.some((review) => review.project_id !== requestProjectId)) {
+        throw new Error("导入返回了其他项目的审核项");
+      }
+      applyReviewUpdates(reviews);
       addToast(tRef.current("novel.importReview.reviewsCreated", { count: reviews.length }), "success");
       setImportFileName("");
       setImportUploadFile(null);
@@ -510,9 +662,6 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         return;
       setProjectProgress(result.progress);
       setProgressDialogFromProgress(result.progress);
-      const loaded = await load(requestProjectId);
-      if (!isCurrentAction(requestProjectId, analysisSeqRef, requestSeq)) return;
-      if (!loaded) return;
       if (result.progress.status === "cancelled") {
         addToast(tRef.current("novel.importReview.analysisStopped"), "success");
       } else {
@@ -521,6 +670,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
           "success",
         );
       }
+      void load(requestProjectId, { silent: true });
     } catch (err) {
       if (!isCurrentAction(requestProjectId, analysisSeqRef, requestSeq))
         return;
@@ -537,6 +687,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
           : null,
       );
       addToast(message, "error");
+      void load(requestProjectId, { silent: true });
     } finally {
       polling = false;
       if (isCurrentAction(requestProjectId, analysisSeqRef, requestSeq)) {
@@ -589,26 +740,21 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     const requestSeq = nextSequence(cancelAnalysisSeqRef);
     setCancelBusy(true);
     try {
-      await cancelImportAnalysis(requestProjectId);
+      const progress = await cancelImportAnalysis(requestProjectId);
       if (!isCurrentAction(requestProjectId, cancelAnalysisSeqRef, requestSeq))
         return;
+      setProjectProgress(progress);
+      setProgressDialogFromProgress(progress);
       analysisSeqRef.current += 1;
       setAnalyzeBusy(false);
+      analyzeBusyRef.current = false;
       importAnalysisDialogDismissedRef.current = false;
-      const progress = await getProjectImportAnalysisProgress(requestProjectId);
-      if (!isCurrentAction(requestProjectId, cancelAnalysisSeqRef, requestSeq))
-        return;
-      if (progress) {
-        setProjectProgress(progress);
-        setProgressDialogFromProgress(progress);
-      }
-      const loaded = await load(requestProjectId);
-      if (!loaded) return;
-      if (!isCurrentAction(requestProjectId, cancelAnalysisSeqRef, requestSeq)) return;
       addToast(tRef.current("novel.importReview.analysisCancelled"), "success");
+      void load(requestProjectId, { silent: true });
     } catch (err) {
       if (isCurrentAction(requestProjectId, cancelAnalysisSeqRef, requestSeq)) {
         addToast(extractErrorMessage(err, tRef.current("novel.importReview.cancelFailed")), "error");
+        void load(requestProjectId, { silent: true });
       }
     } finally {
       if (isCurrentAction(requestProjectId, cancelAnalysisSeqRef, requestSeq)) {
@@ -621,11 +767,20 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   };
 
   const handleBatchAccept = async () => {
-    if (batchBusyRef.current || actBusyRef.current != null) return;
+    if (batchBusyRef.current || actBusyRef.current != null || !queueIsCurrentRef.current) return;
     const requestProjectId = projectId;
     const arr = Array.from(selected);
     if (arr.length === 0) {
       addToast(t("novel.importReview.selectReviews"), "error");
+      return;
+    }
+    const activeReviewId = activeReviewRef.current?.id;
+    if (
+      activeReviewJsonDirtyRef.current &&
+      activeReviewId != null &&
+      arr.includes(activeReviewId)
+    ) {
+      addToast(t("novel.importReview.saveOrDiscardDraftBeforeAction"), "error");
       return;
     }
     batchBusyRef.current = true;
@@ -634,23 +789,42 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     try {
       const result = await batchAcceptReviews(arr);
       if (!isCurrentAction(requestProjectId, batchSeqRef, requestSeq)) return;
-      if (result.some((review) => review.project_id !== requestProjectId)) {
-        throw new Error("批量接受返回了其他项目的审核项");
+      const requestedIds = new Set(arr);
+      const acceptedIds = new Set<number>();
+      for (const review of result.accepted_reviews) {
+        if (review.project_id !== requestProjectId || !requestedIds.has(review.id) || acceptedIds.has(review.id)) {
+          throw new Error("批量接受返回了无效的审核项结果");
+        }
+        acceptedIds.add(review.id);
       }
-      const currentActiveId = activeReviewRef.current?.id;
-      const updatedActiveReview = currentActiveId
-        ? result.find((review) => review.id === currentActiveId)
-        : null;
-      if (updatedActiveReview) {
-        setActiveReviewState(updatedActiveReview);
+      if (
+        (result.failure && (!requestedIds.has(result.failure.review_id) || acceptedIds.has(result.failure.review_id))) ||
+        (!result.failure && acceptedIds.size !== requestedIds.size)
+      ) {
+        throw new Error("批量接受结果未覆盖请求的审核项");
       }
-      const loaded = await load(requestProjectId);
-      if (!isCurrentAction(requestProjectId, batchSeqRef, requestSeq)) return;
-      if (!loaded) return;
-      addToast(tRef.current("novel.importReview.batchAccepted", { count: result.length }), "success");
-      setSelected(new Set());
+      applyReviewUpdates(result.accepted_reviews);
+      if (result.failure) {
+        const failedReview = reviewsRef.current.find((review) => review.id === result.failure?.review_id);
+        const message = result.accepted_reviews.length > 0
+          ? tRef.current("novel.importReview.batchAcceptedPartial", {
+              count: result.accepted_reviews.length,
+              filename: failedReview?.filename ?? String(result.failure.review_id),
+              error: result.failure.message,
+            })
+          : tRef.current("novel.importReview.batchAcceptFailedItem", {
+              filename: failedReview?.filename ?? String(result.failure.review_id),
+              error: result.failure.message,
+            });
+        addToast(message, result.accepted_reviews.length > 0 ? "info" : "error");
+        refreshReviewQueueAfterActionFailure(requestProjectId);
+      } else {
+        addToast(tRef.current("novel.importReview.batchAccepted", { count: result.accepted_reviews.length }), "success");
+        setSelected(new Set());
+      }
     } catch (err) {
       if (isCurrentAction(requestProjectId, batchSeqRef, requestSeq)) {
+        refreshReviewQueueAfterActionFailure(requestProjectId);
         addToast(extractErrorMessage(err, tRef.current("novel.importReview.operationFailed")), "error");
       }
     } finally {
@@ -664,6 +838,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   };
 
   const toggleSelect = (id: number) => {
+    if (!queueIsCurrentRef.current) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -673,25 +848,59 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   };
 
   const handleAct = async (id: number, action: ReviewAction) => {
-    if (batchBusyRef.current || actBusyRef.current != null) return;
+    if (batchBusyRef.current || actBusyRef.current != null || !queueIsCurrentRef.current) return;
     const requestProjectId = projectId;
-    const review = reviewsRef.current.find((item) => item.id === id);
+    let review = reviewsRef.current.find((item) => item.id === id);
     if (!review || review.project_id !== requestProjectId) {
       addToast(t("novel.importReview.reviewNotInProject"), "error");
       return;
+    }
+    if (activeReviewRef.current?.id === id && activeReviewJsonDirtyRef.current) {
+      addToast(t("novel.importReview.saveOrDiscardDraftBeforeAction"), "error");
+      return;
+    }
+    if (action === "delete" || action === "reject") {
+      const deleting = action === "delete";
+      const confirmed = await confirmDialog({
+        title: t(
+          deleting
+            ? "novel.importReview.queue.deleteConfirmTitle"
+            : "novel.importReview.queue.rejectConfirmTitle",
+        ),
+        message: t(
+          deleting
+            ? "novel.importReview.queue.deleteConfirmMessage"
+            : "novel.importReview.queue.rejectConfirmMessage",
+          { name: review.filename },
+        ),
+        confirmText: t(deleting ? "common.delete" : "novel.importReview.queue.reject"),
+        dialogType: "danger",
+      });
+      if (!confirmed || !isCurrentProject(requestProjectId) || !queueIsCurrentRef.current) return;
+      review = reviewsRef.current.find((item) => item.id === id);
+      if (
+        !review ||
+        review.project_id !== requestProjectId ||
+        (action === "reject" && review.review_status !== "pending")
+      ) return;
     }
     const actionKey = `${action}-${id}`;
     actBusyRef.current = actionKey;
     const requestSeq = nextSequence(actSeqRef);
     setActBusy(actionKey);
     try {
-      if (action === "accept") await acceptImportReview(id);
-      else if (action === "reject") await rejectImportReview(id);
-      else await deleteImportReview(id);
+      const updated = action === "accept"
+        ? await acceptImportReview(id)
+        : action === "reject"
+          ? await rejectImportReview(id)
+          : null;
+      if (action === "delete") await deleteImportReview(id);
       if (!isCurrentAction(requestProjectId, actSeqRef, requestSeq)) return;
-      const loaded = await load(requestProjectId);
-      if (!loaded) return;
-      if (!isCurrentAction(requestProjectId, actSeqRef, requestSeq)) return;
+      if (updated && updated.project_id !== requestProjectId) {
+        throw new Error("审核操作返回了其他项目的数据");
+      }
+      if (updated) applyReviewUpdates([updated]);
+      else removeReview(id);
       addToast(
         action === "accept"
           ? tRef.current("novel.importReview.accepted")
@@ -700,19 +909,9 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
             : tRef.current("novel.importReview.deleted"),
         "success",
       );
-      setSelected((prev) => {
-        if (!prev.has(id)) return prev;
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-      if (activeReviewRef.current?.id === id) {
-        setActiveReviewState(null);
-        setActiveReviewJsonState("", false);
-        setActiveReviewJsonError(null);
-      }
     } catch (err) {
       if (isCurrentAction(requestProjectId, actSeqRef, requestSeq)) {
+        refreshReviewQueueAfterActionFailure(requestProjectId);
         addToast(extractErrorMessage(err, tRef.current("novel.importReview.operationFailed")), "error");
       }
     } finally {
@@ -726,18 +925,59 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   };
 
   const handleViewDetail = async (id: number) => {
+    if (!queueIsCurrentRef.current) return;
+    const requestProjectId = projectId;
+    if (activeReviewRef.current?.id === id && activeReviewJsonDirtyRef.current) {
+      if (window.matchMedia("(max-width: 1023px)").matches) {
+        requestAnimationFrame(() => {
+          detailPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
+      return;
+    }
+    if (activeReviewRef.current?.id !== id && activeReviewJsonDirtyRef.current) {
+      const discard = await confirmDialog({
+        title: t("common.unsavedChangesTitle"),
+        message: t("novel.importReview.discardDraftOnSelect"),
+        confirmText: t("common.discardDraft"),
+        dialogType: "warning",
+      });
+      if (!discard || !isCurrentProject(requestProjectId)) return;
+    }
     const item = reviewsRef.current.find((review) => review.id === id);
-    if (!item || item.project_id !== projectId) {
+    if (!item || item.project_id !== requestProjectId) {
       addToast(t("novel.importReview.reviewNotInProject"), "error");
       return;
     }
+    const requestSeq = ++activeReviewDetailRequestRef.current;
+    activeReviewRequestedIdRef.current = id;
     try {
       const detail = await getImportReview(id);
-      if (!isCurrentProject(projectId)) return;
+      if (
+        !isCurrentProject(requestProjectId) ||
+        activeReviewDetailRequestRef.current !== requestSeq
+      ) return;
+      if (detail.project_id !== requestProjectId) {
+        setActiveReviewState(null);
+        setActiveReviewUnavailableReason(null);
+        setActiveReviewJsonState("", false);
+        setActiveReviewJsonError(null);
+        addToast(t("novel.importReview.reviewNotInProject"), "error");
+        return;
+      }
       setActiveReviewState(detail);
+      setActiveReviewUnavailableReason(null);
       setActiveReviewJsonState(JSON.stringify(detail.analysis_result, null, 2), false);
       setActiveReviewJsonError(null);
     } catch (error) {
+      if (
+        !isCurrentProject(requestProjectId) ||
+        activeReviewDetailRequestRef.current !== requestSeq
+      ) return;
+      setActiveReviewState(null);
+      setActiveReviewUnavailableReason(null);
+      setActiveReviewJsonState("", false);
+      setActiveReviewJsonError(null);
       addToast(extractErrorMessage(error, t("novel.importReview.loadQueueFailed")), "error");
       return;
     }
@@ -752,13 +992,11 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   };
 
   const handleAnalysisJsonChange = (value: string) => {
-    setActiveReviewJsonState(value, true);
+    const current = activeReviewRef.current;
+    const dirty = !current || value !== JSON.stringify(current.analysis_result, null, 2);
+    setActiveReviewJsonState(value, dirty);
     try {
-      const parsed = JSON.parse(value);
-      const current = activeReviewRef.current;
-      if (current) {
-        setActiveReviewState({ ...current, analysis_result: parsed });
-      }
+      JSON.parse(value);
       setActiveReviewJsonError(null);
     } catch {
       setActiveReviewJsonError(t("novel.importReview.invalidJson"));
@@ -766,10 +1004,15 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   };
 
   const handleModify = async () => {
-    if (batchBusyRef.current || actBusyRef.current != null) return;
+    if (
+      batchBusyRef.current ||
+      actBusyRef.current != null ||
+      !queueIsCurrentRef.current ||
+      activeReviewUnavailableReason !== null
+    ) return;
     if (!activeReviewJsonDirtyRef.current) return;
     const requestReview = activeReviewRef.current;
-    if (!requestReview) return;
+    if (!requestReview || requestReview.review_status !== "pending") return;
     const requestProjectId = projectId;
     if (requestReview.project_id !== requestProjectId) {
       addToast(t("novel.importReview.reviewNotInProject"), "error");
@@ -792,17 +1035,16 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       if (updated.project_id !== requestProjectId) {
         throw new Error("修改返回了其他项目的审核项");
       }
-      setActiveReviewState(updated);
       setActiveReviewJsonState(
         JSON.stringify(updated.analysis_result, null, 2),
         false,
       );
-      const loaded = await load(requestProjectId);
-      if (!isCurrentAction(requestProjectId, actSeqRef, requestSeq)) return;
-      if (!loaded) return;
+      applyReviewUpdates([updated]);
+      setActiveReviewUnavailableReason(null);
       addToast(tRef.current("novel.importReview.modified"), "success");
     } catch (err) {
       if (isCurrentAction(requestProjectId, actSeqRef, requestSeq)) {
+        refreshReviewQueueAfterActionFailure(requestProjectId);
         addToast(extractErrorMessage(err, tRef.current("novel.importReview.saveAndAcceptFailed")), "error");
       }
     } finally {
@@ -969,6 +1211,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       return;
     }
     reverseBusyRef.current = true;
+    reverseCandidateRestoreSeqRef.current += 1;
     const requestSeq = nextSequence(reverseSeqRef);
     const taskId = createWorkflowTaskId(
       `import-reverse-${requestReverseType}`,
@@ -987,7 +1230,6 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       requestAutoContext,
     );
     setReverseGenerating(true);
-    setReverseResult(null);
     const writesFormalBlueprint = requestReverseType === "blueprint";
     try {
       const result = await runReverseProgressTask(
@@ -1025,7 +1267,6 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         result.warnings,
         t("common.summarySeparator"),
       );
-      if (writesFormalBlueprint && !await load(requestProjectId)) return;
       addToast(notice.message, notice.tone);
     } catch (err) {
       if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) return;
@@ -1055,6 +1296,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     reverseConfirmBusyRef.current = true;
     const requestProjectId = projectId;
     let requestSeq: number | null = null;
+    let refreshCandidateAfterFailure = false;
     try {
       const reverseLabel =
         reverseType === "outline"
@@ -1070,6 +1312,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         dialogType: "warning",
       });
       if (!confirmedByUser || !isCurrentProject(requestProjectId)) return;
+      reverseCandidateRestoreSeqRef.current += 1;
       requestSeq = nextSequence(reverseSeqRef);
       setReverseConfirmBusy(true);
       const confirmed = await confirmReverseEngineeringCandidate({
@@ -1077,9 +1320,6 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       });
       if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) return;
       setReverseResult(confirmed);
-      const loaded = await load(requestProjectId);
-      if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) return;
-      if (!loaded) return;
       addToast(
         confirmed.warnings.length > 0
           ? tRef.current("novel.importReview.candidateConfirmedWithWarnings", {
@@ -1094,19 +1334,24 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)
       ) {
         addToast(extractErrorMessage(err, tRef.current("novel.importReview.confirmFailed")), "error");
+        setReverseResult(null);
+        refreshCandidateAfterFailure = true;
       }
     } finally {
-      if (
-        requestSeq !== null &&
-        isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)
-      ) {
-        setReverseConfirmBusy(false);
+      if (requestSeq !== null && isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) {
+        if (refreshCandidateAfterFailure && candidate) {
+          await restoreLatestReverseCandidate(requestProjectId, candidate.target);
+        }
+        if (isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) {
+          setReverseConfirmBusy(false);
+        }
       }
       reverseConfirmBusyRef.current = false;
     }
   };
 
   const handleReverseTypeChange = (value: ReverseEngineeringTarget) => {
+    reverseSeqRef.current += 1;
     setReverseType(value);
     setReverseResult(null);
     void restoreLatestReverseCandidate(projectId, value);
@@ -1115,13 +1360,11 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   const handleReverseSampleChange = (value: string) => {
     reverseSeqRef.current += 1;
     setReverseSample(value);
-    setReverseResult(null);
   };
 
   const handleReverseAutoContextChange = (value: boolean) => {
     reverseSeqRef.current += 1;
     setReverseAutoContext(value);
-    setReverseResult(null);
   };
 
   const handleRequestPreviewClose = () => {
@@ -1172,6 +1415,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
           fileName={importFileName}
           importBusy={importBusy}
           externalBusy={fileExternalBusy}
+          disabled={!canImport()}
           onSelectFile={handleSelectImportFile}
           onImport={handleImport}
         />
@@ -1187,6 +1431,10 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
             <ImportReviewQueuePanel
               reviews={reviews}
               loading={loading}
+              queueLoadError={queueLoadError}
+              queueIsCurrent={queueIsCurrent}
+              progressLoadError={progressLoadError}
+              progressLoaded={progressLoaded}
               projectProgress={projectProgress}
               selected={selected}
               analyzeBusy={analyzeBusy}
@@ -1208,12 +1456,28 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
             <div ref={detailPanelRef} className="scroll-mt-28">
               <ImportReviewDetailPanel
                 activeReview={activeReview}
+                activeReviewUnavailableReason={activeReviewUnavailableReason}
                 activeReviewJson={activeReviewJson}
                 activeReviewJsonError={activeReviewJsonError}
                 activeReviewJsonDirty={activeReviewJsonDirty}
                 actBusy={actBusy}
                 externalBusy={detailExternalBusy}
                 onAnalysisJsonChange={handleAnalysisJsonChange}
+                onDiscardDraft={() => {
+                  if (!activeReviewRef.current) return;
+                  if (activeReviewUnavailableReason !== null) {
+                    setActiveReviewState(null);
+                    setActiveReviewUnavailableReason(null);
+                    setActiveReviewJsonState("", false);
+                    setActiveReviewJsonError(null);
+                    return;
+                  }
+                  setActiveReviewJsonState(
+                    JSON.stringify(activeReviewRef.current.analysis_result, null, 2),
+                    false,
+                  );
+                  setActiveReviewJsonError(null);
+                }}
                 onModify={handleModify}
               />
             </div>

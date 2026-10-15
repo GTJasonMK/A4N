@@ -119,6 +119,7 @@ pub mod postgres_baseline;
 pub mod profile_record_ownership;
 pub mod profile_record_ownership_default_cleanup;
 pub mod project_collaboration;
+pub mod project_content_revision;
 pub mod project_derivation_identity_cleanup;
 pub mod project_source_mode_identity_cleanup;
 pub mod project_status_history_project_changed_index;

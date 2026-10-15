@@ -114,7 +114,7 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
     },
     [getForeshadowingRequest, projectId, t],
   );
-  const { loading, load } = useChapterAnalysisLoader(
+  const { loading, reading, load } = useChapterAnalysisLoader(
     projectId,
     loadChapters,
     t("novel.storyEvents.loadFailed"),
@@ -218,7 +218,7 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
         totalChapters={displayChapters.length}
         eventCount={allEvents.length}
         foreshadowingCount={displayForeshadowing.length}
-        loading={loading}
+        loading={loading || reading}
         onRefresh={() => void handleRefresh()}
       />
 
@@ -237,8 +237,15 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
         records={displayForeshadowing}
         canEdit={canOpenWritingDesk}
         loading={loading || foreshadowingLoading}
+        readInFlight={reading}
         loadError={foreshadowingLoadError}
         onReload={() => load({ silent: true, force: true })}
+        onSaved={(record) => setForeshadowing((current) => {
+          const next = [...current.filter((item) => item.id !== record.id), record];
+          return next.sort((left, right) =>
+            left.setup_chapter - right.setup_chapter || left.id - right.id,
+          );
+        })}
         onDeleted={(id) => setForeshadowing((current) => current.filter((record) => record.id !== id))}
       />
       </details>

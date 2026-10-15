@@ -39,7 +39,7 @@ pub async fn cancel_import_analysis(
     state: &AppState,
     user_id: i64,
     project_id: i64,
-) -> Result<(), AppError> {
+) -> Result<ProjectImportAnalysisProgress, AppError> {
     state
         .import_analysis_cancellation_application()
         .cancel(user_id, project_id)

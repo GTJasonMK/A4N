@@ -4,6 +4,7 @@ import { BookButton } from "../ui/BookButton";
 import { logger } from "../../utils/logger";
 import { reloadAppShell } from "../../utils/appReload";
 import { useI18n, type MessageTranslator } from "../../i18n";
+import { useLocation, useNavigate } from "react-router-dom";
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -11,6 +12,7 @@ interface ErrorBoundaryProps {
 
 interface LocalizedErrorBoundaryProps extends ErrorBoundaryProps {
   t: MessageTranslator;
+  onBack: () => void;
 }
 
 interface ErrorBoundaryState {
@@ -74,9 +76,10 @@ class LocalizedErrorBoundary extends React.Component<
           <div className="flex flex-wrap items-center justify-end gap-2 border-t border-book-border/40 px-5 py-4">
             <BookButton
               variant="ghost"
-              onClick={() =>
-                this.setState({ hasError: false, error: undefined })
-              }
+              onClick={() => {
+                this.setState({ hasError: false, error: undefined });
+                this.props.onBack();
+              }}
             >
               {this.props.t("feedback.back")}
             </BookButton>
@@ -93,5 +96,21 @@ class LocalizedErrorBoundary extends React.Component<
 
 export function ErrorBoundary({ children }: ErrorBoundaryProps) {
   const { t } = useI18n();
-  return <LocalizedErrorBoundary t={t}>{children}</LocalizedErrorBoundary>;
+  const navigate = useNavigate();
+  const location = useLocation();
+  const onBack = () => {
+    const historyIndex = window.history.state?.idx;
+    if (typeof historyIndex === "number" && historyIndex > 0) {
+      navigate(-1);
+      return;
+    }
+    if (location.pathname !== "/") {
+      navigate("/", { replace: true });
+      return;
+    }
+    // There is no previous route to return to from the home page; resetting
+    // the boundary alone would immediately render the same failing tree.
+    reloadAppShell();
+  };
+  return <LocalizedErrorBoundary t={t} onBack={onBack}>{children}</LocalizedErrorBoundary>;
 }

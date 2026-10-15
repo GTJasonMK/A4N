@@ -41,7 +41,9 @@ pub async fn apply_consolidation<T: TransactionTrait>(
     db: &T,
     input: ConsolidationApplyInput,
 ) -> Result<ConsolidationApplyResult, FactFeedbackDbError> {
+    let project_id = input.project_id;
     let tx = db.begin().await?;
+    crate::generation::require_project_owner_lifecycle_active(&tx, project_id).await?;
     let result = apply_in(&tx, input).await?;
     tx.commit().await?;
     Ok(result)

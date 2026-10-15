@@ -12,6 +12,7 @@ it("parses only safe positive whole chapter numbers", () => {
   expect(parsePositiveChapterNumber("")).toBeNull();
   expect(parsePositiveChapterNumber("0")).toBeNull();
   expect(parsePositiveChapterNumber("2.5")).toBeNull();
+  expect(parsePositiveChapterNumber("2147483648")).toBeNull();
   expect(parsePositiveChapterNumber("9007199254740992")).toBeNull();
 });
 

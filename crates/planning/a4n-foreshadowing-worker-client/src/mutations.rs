@@ -16,7 +16,11 @@ impl ForeshadowingMutationApplicationPort for ForeshadowingWorkerClient {
                 CreateInput(input),
             )
             .await?;
+        let record = result
+            .record
+            .ok_or_else(|| AppError::ConfigError("伏笔 worker 创建响应缺少已提交记录".into()))?;
         Ok(sync_warning(
+            Some(record),
             host_port
                 .sync_record(result.project_id, result.foreshadowing_id)
                 .await,
@@ -40,7 +44,11 @@ impl ForeshadowingMutationApplicationPort for ForeshadowingWorkerClient {
                 UpdateInput(input),
             )
             .await?;
+        let record = result
+            .record
+            .ok_or_else(|| AppError::ConfigError("伏笔 worker 更新响应缺少已提交记录".into()))?;
         Ok(sync_warning(
+            Some(record),
             host_port
                 .sync_record(result.project_id, result.foreshadowing_id)
                 .await,
@@ -65,6 +73,7 @@ impl ForeshadowingMutationApplicationPort for ForeshadowingWorkerClient {
             )
             .await?;
         Ok(sync_warning(
+            None,
             host_port
                 .delete_record(result.project_id, result.foreshadowing_id)
                 .await,

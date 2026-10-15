@@ -30,6 +30,15 @@ where
     }
 
     let txn = db.begin().await?;
+    let project = crate::project::project_write_identity_for_update(&txn, project_id)
+        .await?
+        .ok_or_else(|| CharacterDbError::NotFound(format!("项目不存在: {project_id}")))?;
+    if project.lifecycle_gate != crate::generation::PROJECT_GATE_ACTIVE {
+        return Err(CharacterDbError::InvalidState {
+            current: project.lifecycle_gate,
+            operation: "保存角色发现结果".to_string(),
+        });
+    }
     if !crate::chapter_content::chapter_source_snapshots_match_for_update(&txn, source_chapters)
         .await?
     {
@@ -105,6 +114,9 @@ where
                 }
                 Err(super::CharacterProfileCreateError::InvalidArgument(message)) => {
                     return Err(CharacterDbError::InvalidArgument(message));
+                }
+                Err(super::CharacterProfileCreateError::InvalidState { current, operation }) => {
+                    return Err(CharacterDbError::InvalidState { current, operation });
                 }
                 Err(super::CharacterProfileCreateError::Database(error)) => {
                     return Err(CharacterDbError::Database(error));

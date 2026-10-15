@@ -1,4 +1,7 @@
-use super::{AcceptImportReviewInput, BatchAcceptImportReviewsInput, ImportReviewSummary};
+use super::{
+    AcceptImportReviewInput, BatchAcceptImportReviewsInput, BatchAcceptImportReviewsResult,
+    ImportReviewSummary,
+};
 use crate::AppState;
 use a4n_error::AppError;
 
@@ -18,7 +21,7 @@ pub async fn batch_accept_import_reviews(
     state: &AppState,
     user_id: i64,
     input: BatchAcceptImportReviewsInput,
-) -> Result<Vec<ImportReviewSummary>, AppError> {
+) -> Result<BatchAcceptImportReviewsResult, AppError> {
     let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(state);
     state
         .import_review_acceptance_application()

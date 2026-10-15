@@ -5,9 +5,16 @@ use sea_orm::DatabaseConnection;
 #[tokio::test]
 async fn reset_rejects_invalid_input_before_database_access() {
     let disconnected = DatabaseConnection::default();
-    let invalid_argument = reset_deletion_marks_in(&disconnected, 7, "explicit", "   ")
-        .await
-        .expect_err("blank key must fail before database access");
+    let invalid_argument = reset_deletion_marks_in(
+        &disconnected,
+        7,
+        "explicit",
+        "   ",
+        1,
+        chrono::NaiveDateTime::default(),
+    )
+    .await
+    .expect_err("blank key must fail before database access");
     assert!(matches!(
         invalid_argument,
         CharacterDbError::InvalidArgument(message) if message == "属性 key 不能为空"

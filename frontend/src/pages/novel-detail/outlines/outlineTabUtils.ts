@@ -1,6 +1,7 @@
 import type { ChapterOutlineListEntry, PartOutline } from "../../../api/outline";
 import type { MessageTranslator } from "../../../i18n";
 import { isPositiveSafeInteger } from "../../../utils/numberRange";
+import { isPositiveI32 } from "../../../utils/numeric";
 import { nonEmptyText } from "../../../utils/text";
 
 export type NumberInputValue = number | "";
@@ -27,7 +28,18 @@ export const parseNumberInput = (value: string): NumberInputValue => {
 };
 
 export const isPositiveInteger = (value: number | null): value is number =>
-  isPositiveSafeInteger(value);
+  value !== null && isPositiveI32(value);
+
+export const partGenerationInputError = (
+  partCount: number | null,
+  chaptersPerPart: number | null,
+): "partCount" | "chaptersPerPart" | null => {
+  if (!isPositiveInteger(partCount)) return "partCount";
+  if (chaptersPerPart !== null && !isPositiveInteger(chaptersPerPart)) {
+    return "chaptersPerPart";
+  }
+  return null;
+};
 
 export const outlineOptimizationVariables = (
   direction: string,

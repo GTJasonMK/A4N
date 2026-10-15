@@ -52,5 +52,6 @@ pub(crate) fn project_record_into_model(record: ProjectRecord) -> novel_project:
         export_config: record.export_config,
         created_at: record.created_at,
         updated_at: record.updated_at,
+        content_revision: 0,
     }
 }

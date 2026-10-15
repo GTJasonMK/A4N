@@ -25,7 +25,7 @@ interface CharacterDetailContentProps {
   initialManageSection?: "event";
   initialEventFilter?: CharacterDetailInitialEventFilter | null;
   manageRefreshRevision: number;
-  onChanged?: () => boolean | void | Promise<boolean | void>;
+  onChanged?: () => void | Promise<void>;
   onRefresh: () => void | Promise<void>;
 }
 

@@ -15,6 +15,7 @@ import type {
 } from "../../../api/generated/page";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
+import { useDirty } from "../../../components/navigation/dirtyRegistry";
 import { useI18n } from "../../../i18n";
 import { usePackagePreferences, savePackagePreferences } from "../../../store/packagePreferences";
 
@@ -69,6 +70,8 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
   const [error, setError] = useState<PackageSectionFailure | null>(null);
   const mountedRef = useRef(true);
   const pollingOperationsRef = useRef(new Set<string>());
+  const overviewRequestSeqRef = useRef(0);
+  useDirty("settings-package-preference", preferenceBusy, undefined, () => !preferenceBusy);
 
   const setPackageBusy = useCallback((packageId: PackageId, busy: boolean) => {
     setBusyPackages((current) => {
@@ -83,11 +86,15 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      overviewRequestSeqRef.current += 1;
       pollingOperationsRef.current.clear();
     };
   }, []);
 
   const load = useCallback(async (initial = false, includePreferences = true): Promise<PackageOverview[] | null> => {
+    const requestSeq = overviewRequestSeqRef.current + 1;
+    overviewRequestSeqRef.current = requestSeq;
+    setSnapshotStale(true);
     if (initial) setLoading(true);
     else if (includePreferences) setRefreshing(true);
     try {
@@ -95,7 +102,7 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
         getPackageOverview(),
         includePreferences ? refreshPreferences() : Promise.resolve(),
       ]);
-      if (!mountedRef.current) {
+      if (!mountedRef.current || overviewRequestSeqRef.current !== requestSeq) {
         return overviewResult.status === "fulfilled" ? overviewResult.value : null;
       }
       if (overviewResult.status === "rejected") {
@@ -122,7 +129,7 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
       }
       return overviewResult.value;
     } finally {
-      if (mountedRef.current) {
+      if (mountedRef.current && overviewRequestSeqRef.current === requestSeq) {
         setLoading(false);
         if (includePreferences) setRefreshing(false);
       }
@@ -144,7 +151,7 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
         try {
           operation = await getPackageOperation({ operation_id: operation.operation_id });
           setError((current) => current?.source === "poll" && current.operationId === operation.operation_id ? null : current);
-          await load(false, false);
+          void load(false, false);
         } catch (nextError) {
           pollingFailed = true;
           if (mountedRef.current) {
@@ -221,7 +228,7 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
         ensureOperationPolling(item, operation);
         operationTracked = true;
       }
-      await load(false, false);
+      void load(false, false);
       if (operation.state === "failed") {
         setError(
           {
@@ -243,7 +250,7 @@ export const PackageSection: React.FC<{ canManageLifecycle?: boolean }> = ({
   };
 
   const toggleHidden = async (packageId: PackageOverview["package_id"], hidden: boolean) => {
-    if (!preferences || preferenceError) return;
+    if (!preferences || preferenceError || loading || refreshing || snapshotStale) return;
     const nextHidden = new Set(preferences.hidden_package_ids);
     if (hidden) nextHidden.add(packageId);
     else nextHidden.delete(packageId);

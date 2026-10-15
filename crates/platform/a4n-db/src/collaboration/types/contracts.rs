@@ -23,6 +23,7 @@ pub struct AccessibleProjectsPage {
 #[derive(Debug, Clone, FromQueryResult)]
 pub struct AccessibleProjectRecord {
     pub id: i64,
+    pub content_revision: i64,
     pub user_id: i64,
     pub title: String,
     pub description: String,
@@ -66,6 +67,7 @@ impl AccessibleProjectRecord {
     pub fn into_summary_record(self) -> ProjectSummaryRecord {
         ProjectSummaryRecord {
             id: self.id,
+            content_revision: self.content_revision,
             user_id: self.user_id,
             title: self.title,
             description: self.description,

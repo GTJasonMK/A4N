@@ -55,15 +55,11 @@ where
     .map_err(CharacterProfileCreateError::Database)
 }
 
-pub async fn create_profile<C>(
-    db: &C,
+fn profile_create_input(
     project_id: i64,
     name: &str,
     base_attributes: Value,
-) -> Result<protagonist_profile::Model, CharacterProfileCreateError>
-where
-    C: ConnectionTrait,
-{
+) -> Result<CharacterProfileCreateInput, CharacterProfileCreateError> {
     let name = name.trim();
     if name.is_empty() {
         return Err(CharacterProfileCreateError::InvalidArgument(
@@ -74,32 +70,60 @@ where
         .map_err(|err| CharacterProfileCreateError::InvalidArgument(err.to_string()))?;
     let fields = profile_current_state_fields(normalized_base.clone());
 
-    create_profile_record(
-        db,
-        CharacterProfileCreateInput {
-            project_id,
-            name: name.to_string(),
-            base_attributes: normalized_base,
-            current_state: fields.current_state,
-            gender: fields.gender,
-            age: fields.age,
-            appearance: fields.appearance,
-            background: fields.background,
-            personality: fields.personality,
-        },
-    )
-    .await
+    Ok(CharacterProfileCreateInput {
+        project_id,
+        name: name.to_string(),
+        base_attributes: normalized_base,
+        current_state: fields.current_state,
+        gender: fields.gender,
+        age: fields.age,
+        appearance: fields.appearance,
+        background: fields.background,
+        personality: fields.personality,
+    })
 }
 
-pub async fn create_profile_domain_record<C>(
+async fn require_profile_project_active<C>(
     db: &C,
     project_id: i64,
-    name: &str,
-    base_attributes: Value,
-) -> Result<CharacterProfileRecord, CharacterProfileCreateError>
+) -> Result<(), CharacterProfileCreateError>
 where
     C: ConnectionTrait,
 {
+    let project = crate::project::project_write_identity_for_update(db, project_id)
+        .await?
+        .ok_or_else(|| {
+            CharacterProfileCreateError::InvalidArgument(format!("项目不存在: {project_id}"))
+        })?;
+    if project.lifecycle_gate != crate::generation::PROJECT_GATE_ACTIVE {
+        return Err(CharacterProfileCreateError::InvalidState {
+            current: project.lifecycle_gate,
+            operation: "创建角色档案".to_string(),
+        });
+    }
+    Ok(())
+}
+
+pub async fn create_profile(
+    db: &impl crate::DbExecutor,
+    project_id: i64,
+    name: &str,
+    base_attributes: Value,
+) -> Result<protagonist_profile::Model, CharacterProfileCreateError> {
+    let input = profile_create_input(project_id, name, base_attributes)?;
+    let tx = db.begin().await?;
+    require_profile_project_active(&tx, project_id).await?;
+    let profile = create_profile_record(&tx, input).await?;
+    tx.commit().await?;
+    Ok(profile)
+}
+
+pub async fn create_profile_domain_record(
+    db: &impl crate::DbExecutor,
+    project_id: i64,
+    name: &str,
+    base_attributes: Value,
+) -> Result<CharacterProfileRecord, CharacterProfileCreateError> {
     create_profile(db, project_id, name, base_attributes)
         .await
         .map(crate::character::character_profile_record)
@@ -154,7 +178,9 @@ where
         ));
     }
 
-    let profile = create_profile(db, project_id, name, base_attributes).await?;
+    require_profile_project_active(db, project_id).await?;
+    let profile =
+        create_profile_record(db, profile_create_input(project_id, name, base_attributes)?).await?;
     generation_run.targets = vec![GenerationRunTraceTarget {
         target_kind: "character_profile_record".to_string(),
         target_table: "protagonist_profile".to_string(),

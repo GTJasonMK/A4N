@@ -15,16 +15,29 @@ use sea_orm::{
 use serde_json::json;
 
 use crate::manga::{
-    MangaPipelineArtifactProjectionReset, MangaPipelineDbError, delete_manga_page_by_number,
+    MangaPipelineArtifactProjectionReset, MangaPipelineArtifactProjectionUpdate,
+    MangaPipelineDbError, MangaPromptRecordError, delete_manga_page_by_number,
     delete_manga_pipeline_artifact, delete_manga_prompts_by_chapter,
     manga_page_prompt_statuses_by_chapter, manga_page_prompt_statuses_by_chapters,
-    manga_pipeline_artifact_deletion_plan, manga_pipeline_artifacts_by_chapter,
+    manga_pipeline_artifact, manga_pipeline_artifact_deletion_plan,
+    manga_pipeline_artifacts_by_chapter, save_manga_pipeline_artifact_with_projection,
     sync_manga_page_prompts_by_chapter, update_manga_page_prompt_layout,
     upsert_manga_pipeline_artifact,
 };
 
 async fn setup_db() -> DatabaseConnection {
-    a4n_migration::test_support::connect_test_database().await
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let owner = crate::auth::create_user(
+        &db,
+        "manga-test-owner",
+        "manga-test-owner@example.test",
+        "test-password",
+        a4n_domain::auth::ROLE_USER,
+    )
+    .await
+    .expect("manga test owner must be created");
+    assert_eq!(owner.id, 1);
+    db
 }
 
 async fn project_and_chapter(db: &impl crate::DbExecutor, title: &str) -> (i64, i64) {
@@ -428,25 +441,24 @@ async fn sync_page_prompts_preserves_images_and_unmentioned_pages() {
         .await
         .unwrap();
     statuses.sort_unstable();
-    assert_eq!(
-        statuses,
-        vec![
-            (stored[0].id, "completed".to_string()),
-            (stored[1].id, "pending".to_string()),
-            (stale.id, "pending".to_string()),
-        ]
-    );
-    let batch_statuses = manga_page_prompt_statuses_by_chapters(&db, project_id, &[chapter_id])
+    let mut expected_statuses = vec![
+        (stored[0].id, "completed".to_string()),
+        (stored[1].id, "pending".to_string()),
+        (stale.id, "pending".to_string()),
+    ];
+    expected_statuses.sort_unstable();
+    assert_eq!(statuses, expected_statuses);
+    let mut batch_statuses = manga_page_prompt_statuses_by_chapters(&db, project_id, &[chapter_id])
         .await
         .unwrap();
-    assert_eq!(
-        batch_statuses,
-        vec![
-            (chapter_id, stored[0].id, "completed".to_string()),
-            (chapter_id, stored[1].id, "pending".to_string()),
-            (chapter_id, stale.id, "pending".to_string()),
-        ]
-    );
+    batch_statuses.sort_unstable();
+    let mut expected_batch_statuses = vec![
+        (chapter_id, stored[0].id, "completed".to_string()),
+        (chapter_id, stored[1].id, "pending".to_string()),
+        (chapter_id, stale.id, "pending".to_string()),
+    ];
+    expected_batch_statuses.sort_unstable();
+    assert_eq!(batch_statuses, expected_batch_statuses);
     let newer = crate::media_authoring::save_authoring_document(
         &db,
         crate::media_authoring::SaveAuthoringDocument {
@@ -521,6 +533,127 @@ async fn layout_update_preserves_concurrent_image_status() {
         .unwrap();
     assert_eq!(updated.generated_image_id, Some(9901));
     assert_eq!(updated.status, "completed");
+}
+
+#[tokio::test]
+async fn stale_page_projection_rolls_back_the_stage_artifact_save() {
+    let db = setup_db().await;
+    let (project_id, chapter_id) = project_and_chapter(&db, "漫画阶段产物版本冲突").await;
+    let (drafts, _) = planned_drafts(&db, project_id, chapter_id).await;
+    let prompts =
+        sync_manga_page_prompts_by_chapter(&db, project_id, chapter_id, drafts, fixed_time(1))
+            .await
+            .unwrap();
+    let prompt = prompts
+        .into_iter()
+        .find(|prompt| prompt.page_number == 1)
+        .expect("page 1 prompt");
+    let layout = prompt.layout.clone().expect("page pipeline layout");
+    chapter_manga_prompt::ActiveModel {
+        id: Set(prompt.id),
+        updated_at: Set(fixed_time(2)),
+        ..Default::default()
+    }
+    .update(&db)
+    .await
+    .unwrap();
+
+    let result = save_manga_pipeline_artifact_with_projection(
+        &db,
+        MangaPipelineArtifactDraft {
+            project_id,
+            chapter_id,
+            stage: MangaPipelineArtifactStage::PageContent,
+            page_number: Some(1),
+            input_fingerprint: "manual-page-content-v1".to_string(),
+            payload: json!({"summary": "手工修改"}),
+            stale: false,
+        },
+        Some(MangaPipelineArtifactProjectionUpdate {
+            page_prompt: prompt.clone(),
+            layout,
+            expected_updated_at: prompt.updated_at.to_string(),
+        }),
+        fixed_time(3),
+    )
+    .await;
+
+    assert!(
+        matches!(result, Err(MangaPromptRecordError::InvalidArgument(message)) if message.contains("已被其他操作修改"))
+    );
+    assert!(
+        manga_pipeline_artifact(
+            &db,
+            project_id,
+            chapter_id,
+            MangaPipelineArtifactStage::PageContent,
+            Some(1),
+        )
+        .await
+        .unwrap()
+        .is_none()
+    );
+}
+
+#[tokio::test]
+async fn manga_pipeline_run_blocks_manual_artifact_writes_in_the_db_owner() {
+    let db = setup_db().await;
+    let (project_id, chapter_id) = project_and_chapter(&db, "漫画流水线写入门禁").await;
+    crate::workflow::upsert_workflow_run(
+        &db,
+        crate::workflow::UpsertWorkflowRunInput {
+            business_key: format!("manga_pipeline:{project_id}:{chapter_id}"),
+            workflow_kind: "manga_pipeline".to_string(),
+            project_id: Some(project_id),
+            root_project_id: None,
+            source_snapshot_id: None,
+            scope_table: Some("chapter".to_string()),
+            scope_id: Some(chapter_id),
+            chapter_id: Some(chapter_id),
+            mode: None,
+            input_fingerprint_json: Some(json!({"test": true})),
+            status: crate::workflow::WORKFLOW_STATUS_RUNNING.to_string(),
+            current_step_key: None,
+            active_task_id: None,
+            can_resume: true,
+            resume_block_reason: None,
+            error_message: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let result = save_manga_pipeline_artifact_with_projection(
+        &db,
+        MangaPipelineArtifactDraft {
+            project_id,
+            chapter_id,
+            stage: MangaPipelineArtifactStage::Preprocessing,
+            page_number: None,
+            input_fingerprint: "manual-preprocessing-v1".to_string(),
+            payload: json!({"summary": "手工修改"}),
+            stale: false,
+        },
+        None,
+        fixed_time(3),
+    )
+    .await;
+
+    assert!(
+        matches!(result, Err(MangaPromptRecordError::InvalidArgument(message)) if message.contains("漫画流水线正在运行"))
+    );
+    assert!(
+        manga_pipeline_artifact(
+            &db,
+            project_id,
+            chapter_id,
+            MangaPipelineArtifactStage::Preprocessing,
+            None,
+        )
+        .await
+        .unwrap()
+        .is_none()
+    );
 }
 
 #[tokio::test]
@@ -615,7 +748,7 @@ async fn deleting_manga_pages_removes_their_images_and_queues_file_cleanup() {
     let now = fixed_time(1);
     let mut image_ids = Vec::new();
     for page_number in [1, 2] {
-        let file_path = format!("data/manga-delete-page-{page_number}.png");
+        let file_path = format!("projects/{project_id}/images/manga-delete-page-{page_number}.png");
         let image = generated_image::ActiveModel {
             project_id: Set(project_id),
             image_type: Set("manga_page".into()),
@@ -713,7 +846,9 @@ async fn deleting_manga_pages_removes_their_images_and_queues_file_cleanup() {
     assert_eq!(cleanup_after_page.len(), 1);
     assert_eq!(
         cleanup_after_page[0].payload_json["paths"],
-        json!(["data/manga-delete-page-1.png"])
+        json!([format!(
+            "projects/{project_id}/images/manga-delete-page-1.png"
+        )])
     );
 
     assert_eq!(
@@ -744,7 +879,9 @@ async fn deleting_drawing_prompt_cascade_removes_image_record_and_queues_file_cl
     let image = generated_image::ActiveModel {
         project_id: Set(project_id),
         image_type: Set("manga_page".into()),
-        file_path: Set("data/manga-drawing-prompt-cascade.png".into()),
+        file_path: Set(format!(
+            "projects/{project_id}/images/manga-drawing-prompt-cascade.png"
+        )),
         prompt: Set("整页画面".into()),
         model: Set("test".into()),
         width: Set(768),
@@ -854,7 +991,9 @@ async fn deleting_drawing_prompt_cascade_removes_image_record_and_queues_file_cl
     assert_eq!(cleanup.len(), 1);
     assert_eq!(
         cleanup[0].payload_json["paths"],
-        json!(["data/manga-drawing-prompt-cascade.png"])
+        json!([format!(
+            "projects/{project_id}/images/manga-drawing-prompt-cascade.png"
+        )])
     );
 }
 

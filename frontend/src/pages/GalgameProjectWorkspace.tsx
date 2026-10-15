@@ -25,6 +25,7 @@ import { useI18n } from "../i18n";
 import { confirmDiscardMediaChanges } from "../components/feedback/UnsavedChangesGuard";
 import { UnsavedNavigationGuard } from "../components/navigation/UnsavedNavigationGuard";
 import { useNovelDetailDirtyRegistry } from "./novel-detail/novelDetailDirty";
+import { useProjectLifecycleSync } from "../hooks/useProjectLifecycleSync";
 
 export const GalgameProjectWorkspace: React.FC = () => {
   const { id } = useParams();
@@ -60,7 +61,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
     };
   }, []);
 
-  const refresh = useCallback(async (): Promise<boolean> => {
+  const refresh = useCallback(async (options: { silent?: boolean } = {}): Promise<boolean> => {
     const requestId = refreshRequestRef.current + 1;
     refreshRequestRef.current = requestId;
     setLoadError(null);
@@ -72,7 +73,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
       setLoading(false);
       return false;
     }
-    setLoading(true);
+    if (!options.silent) setLoading(true);
     try {
       const [projectResult, chaptersResult] = await Promise.allSettled([
         getProject(projectId),
@@ -111,6 +112,29 @@ export const GalgameProjectWorkspace: React.FC = () => {
       if (refreshRequestRef.current === requestId) setLoading(false);
     }
   }, [addToast, navigate, projectId]);
+
+  const handleLifecycleGateChange = useCallback((
+    nextProject: NovelProject,
+    _previousGate: NovelProject["lifecycle_gate"] | null | undefined,
+    previousContentRevision: number | undefined,
+  ) => {
+    setProject(nextProject);
+    if (previousContentRevision != null && previousContentRevision !== nextProject.content_revision) {
+      void refresh({ silent: true });
+    }
+  }, [refresh]);
+
+  useProjectLifecycleSync(
+    projectId,
+    project?.lifecycle_gate,
+    handleLifecycleGateChange,
+    {
+      enabled: project != null && !loading,
+      contentRevision: project?.content_revision,
+      updatedAt: project?.updated_at,
+      onReadError: () => { void refresh({ silent: true }); },
+    },
+  );
 
   useLayoutEffect(() => {
     refreshRequestRef.current += 1;
@@ -151,6 +175,8 @@ export const GalgameProjectWorkspace: React.FC = () => {
           if (!mountedRef.current || activeProjectIdRef.current !== projectId) return;
           if (!refreshed) {
             setResetPollError(t("galgame.refreshStatusFailed"));
+            setWorkspaceVersion((value) => value + 1);
+            addToast(t("galgame.resetCompleted"), "info");
             return;
           }
           setWorkspaceVersion((value) => value + 1);
@@ -344,7 +370,7 @@ export const GalgameProjectWorkspace: React.FC = () => {
           sourceSyncStatus={project.source_sync_status}
           canEditSourceSync={canEditProject}
           onClose={() => setSourceSyncOpen(false)}
-          onChanged={refresh}
+          onChanged={() => refresh({ silent: true })}
         />
       ) : null}
 

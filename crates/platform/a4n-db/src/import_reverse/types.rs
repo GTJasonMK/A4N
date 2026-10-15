@@ -47,6 +47,22 @@ impl From<crate::blueprint::BlueprintDbError> for ImportReverseDbError {
     }
 }
 
+impl From<crate::workflow::WorkflowWriteError> for ImportReverseDbError {
+    fn from(error: crate::workflow::WorkflowWriteError) -> Self {
+        match error {
+            crate::workflow::WorkflowWriteError::InvalidArgument(message) => {
+                Self::InvalidArgument(message)
+            }
+            crate::workflow::WorkflowWriteError::NotFound(message) => Self::NotFound(message),
+            crate::workflow::WorkflowWriteError::InvalidData(message) => Self::Internal(message),
+            crate::workflow::WorkflowWriteError::StatusConflict { current, operation } => {
+                Self::InvalidState { current, operation }
+            }
+            crate::workflow::WorkflowWriteError::Database(error) => Self::Database(error),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ReverseContextRows {
     pub project: ProjectRecord,
@@ -101,6 +117,7 @@ pub struct ReverseCandidateApplyInput {
     pub run: WorkflowRunSummary,
     pub checkpoint: WorkflowCheckpointSummary,
     pub target: String,
+    pub finalize_running_workflow: bool,
     pub output: Value,
     pub apply_data: ReverseCandidateApplyData,
 }

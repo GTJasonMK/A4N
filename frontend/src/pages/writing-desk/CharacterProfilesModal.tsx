@@ -75,16 +75,22 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
   const activeProjectRef = useRef(projectId);
   const openRef = useRef(open);
   const loadSeqRef = useRef(0);
+  const mutationVersionRef = useRef(0);
   const saveSeqRef = useRef(0);
   const discoverSeqRef = useRef(0);
   const syncSeqRef = useRef(0);
   const requestPreviewSeqRef = useRef(0);
   const actionKeysRef = useRef<Set<string>>(new Set());
   const loadInFlightKeyRef = useRef<string | null>(null);
+  const profileReadVersionRef = useRef(0);
+  const profileLoadingRef = useRef(loading);
+  const profileLoadErrorRef = useRef<string | null>(loadError);
   const { runProgressTask } = useProgressTask();
 
   activeProjectRef.current = projectId;
   openRef.current = open;
+  profileLoadingRef.current = loading;
+  profileLoadErrorRef.current = loadError;
 
   const selectedProfile = useMemo(() => {
     const selected = profiles.find((profile) => profile.id === selectedId);
@@ -112,6 +118,10 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
     mountedRef.current && openRef.current && activeProjectRef.current === requestProjectId;
 
   const beginAction = (key: string): boolean => {
+    if (profileLoadingRef.current || profileLoadErrorRef.current) {
+      addToast(profileLoadErrorRef.current ?? t("common.operationInProgress"), "error");
+      return false;
+    }
     if (actionKeysRef.current.has(key)) return false;
     actionKeysRef.current.add(key);
     return true;
@@ -119,6 +129,12 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
 
   const finishAction = (key: string) => {
     actionKeysRef.current.delete(key);
+  };
+
+  const ensureProfileReadCurrent = () => {
+    if (!profileLoadingRef.current && !profileLoadErrorRef.current) return true;
+    addToast(profileLoadErrorRef.current ?? t("common.operationInProgress"), "error");
+    return false;
   };
 
   const invalidateActionKeys = () => {
@@ -139,10 +155,13 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
     loadInFlightKeyRef.current = requestKey;
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
+    const mutationVersion = mutationVersionRef.current;
+    profileReadVersionRef.current += 1;
     setLoading(true);
     try {
       const rows = await listProfiles(requestProjectId);
       if (!isCurrentWorkspace(requestProjectId) || loadSeqRef.current !== requestSeq) return false;
+      if (mutationVersionRef.current !== mutationVersion) return true;
       setLoadError(null);
       setProfiles(rows);
       setDetailFor((current) => {
@@ -181,6 +200,8 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
     syncSeqRef.current += 1;
     requestPreviewSeqRef.current += 1;
     loadInFlightKeyRef.current = null;
+    mutationVersionRef.current = 0;
+    profileReadVersionRef.current += 1;
     invalidateActionKeys();
     setProfiles([]);
     setLoadError(null);
@@ -220,6 +241,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
   }, [activeChapterNumber]);
 
   const openCreate = () => {
+    if (!ensureProfileReadCurrent()) return;
     setForm(EMPTY_PROFILE_FORM);
     setEditorOpen(true);
   };
@@ -241,6 +263,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
   };
 
   const handleSave = async () => {
+    if (!ensureProfileReadCurrent()) return;
     if (!form.name.trim()) {
       addToast(t("characterDetail.nameRequiredError"), "error");
       return;
@@ -248,6 +271,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
     const actionKey = "save";
     if (!beginAction(actionKey)) return;
     const requestProjectId = projectId;
+    const requestReadVersion = profileReadVersionRef.current;
     const requestSeq = saveSeqRef.current + 1;
     saveSeqRef.current = requestSeq;
     setSaving(true);
@@ -259,8 +283,17 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
         base_attributes: profileFormBaseAttributes(form),
       });
       if (!isCurrentWorkspace(requestProjectId) || saveSeqRef.current !== requestSeq) return;
-      if (!await load(result.profile_id)) return;
+      if (profileReadVersionRef.current !== requestReadVersion) {
+        void load(result.profile.id);
+        return;
+      }
       if (!isCurrentWorkspace(requestProjectId) || saveSeqRef.current !== requestSeq) return;
+      setProfiles((current) => [
+        result.profile,
+        ...current.filter((profile) => profile.id !== result.profile.id),
+      ]);
+      mutationVersionRef.current += 1;
+      setSelectedId(result.profile.id);
       addToast(
         result.warnings.length > 0
           ? t("characterDetail.profileCreatedWithWarnings", {
@@ -283,7 +316,9 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
   };
 
   const handleDelete = async (profile: CharacterProfile) => {
+    if (!ensureProfileReadCurrent()) return;
     const requestProjectId = projectId;
+    const requestReadVersion = profileReadVersionRef.current;
     const actionKey = `delete:${profile.id}`;
     if (!beginAction(actionKey)) return;
     try {
@@ -293,11 +328,12 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
         confirmText: t("common.delete"),
         dialogType: "danger",
       });
-      if (!ok || !isCurrentWorkspace(requestProjectId)) return;
+      if (!ok || !isCurrentWorkspace(requestProjectId) || profileReadVersionRef.current !== requestReadVersion || !ensureProfileReadCurrent()) return;
       const result = await deleteProfile(profile.id);
       if (!isCurrentWorkspace(requestProjectId)) return;
-      if (!await load(selectedId === profile.id ? null : selectedId)) return;
-      if (!isCurrentWorkspace(requestProjectId)) return;
+      mutationVersionRef.current += 1;
+      setProfiles((current) => current.filter((item) => item.id !== profile.id));
+      setDetailFor((current) => (current?.id === profile.id ? null : current));
       addToast(
         result.warnings.length > 0
           ? t("characterDetail.profileDeletedWithWarnings", {
@@ -317,14 +353,15 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
 
   const handleDiscover = async () => {
     if (!requireCurrentAiSource()) return;
+    if (!ensureProfileReadCurrent()) return;
     const actionKey = "discover";
     if (!beginAction(actionKey)) return;
     const requestProjectId = projectId;
+    const requestReadVersion = profileReadVersionRef.current;
     const requestSeq = discoverSeqRef.current + 1;
     discoverSeqRef.current = requestSeq;
     const taskId = createWorkflowTaskId("character-discover", requestProjectId);
     let profileRefreshAttempted = false;
-    let profileRefreshSucceeded = true;
     setDiscovering(true);
     try {
       const result = await runProgressTask(
@@ -343,12 +380,14 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
         async () => {
           const next = await discoverCharacterProfiles(requestProjectId, activeChapterNumber, taskId);
           profileRefreshAttempted = true;
-          profileRefreshSucceeded = await load(next.created[0]?.id ?? selectedId);
           return next;
         },
       );
       if (!isCurrentWorkspace(requestProjectId) || discoverSeqRef.current !== requestSeq) return;
-      if (!profileRefreshSucceeded) return;
+      if (profileReadVersionRef.current !== requestReadVersion) {
+        void load(selectedId);
+        return;
+      }
       const createdCount = result.created.length;
       const existingCount = result.existing.length;
       const discoveredCount = result.discovered_count;
@@ -358,11 +397,16 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
         existing: existingCount,
       });
       addToast(discoverMessage, createdCount > 0 ? "success" : "info");
+      void load(result.created[0]?.id ?? selectedId).then((refreshed) => {
+        if (isCurrentWorkspace(requestProjectId) && discoverSeqRef.current === requestSeq && !refreshed) {
+          addToast(t("characterDetail.refreshFailed"), "error");
+        }
+      });
     } catch (err) {
       if (!isCurrentWorkspace(requestProjectId) || discoverSeqRef.current !== requestSeq) return;
       const message = extractErrorMessage(err, t("characterDetail.discoveryFailed"));
       addToast(message, isCancelledOperation(message) ? "info" : "error");
-      if (!profileRefreshAttempted) await load(selectedId);
+      if (!profileRefreshAttempted) void load(selectedId);
     } finally {
       if (isCurrentWorkspace(requestProjectId) && discoverSeqRef.current === requestSeq) {
         setDiscovering(false);
@@ -402,6 +446,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
 
   const handlePreviewDiscover = async () => {
     if (!requireCurrentAiSource()) return;
+    if (!ensureProfileReadCurrent()) return;
     await openRequestPreview(() =>
       previewDiscoverCharacterProfilesRequest(projectId, activeChapterNumber),
     );
@@ -409,6 +454,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
 
   const handlePreviewSyncAll = async () => {
     if (!requireCurrentAiSource()) return;
+    if (!ensureProfileReadCurrent()) return;
     if (profiles.length === 0) {
       addToast(t("characterDetail.noProfilesToSync"), "info");
       return;
@@ -424,6 +470,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
 
   const handleSyncAll = async () => {
     if (!requireCurrentAiSource()) return;
+    if (!ensureProfileReadCurrent()) return;
     if (profiles.length === 0) {
       addToast(t("characterDetail.noProfilesToSync"), "info");
       return;
@@ -435,11 +482,10 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
     const actionKey = "sync-all";
     if (!beginAction(actionKey)) return;
     const requestProjectId = projectId;
+    const requestReadVersion = profileReadVersionRef.current;
     let requestSeq: number | null = null;
     let profileRefreshAttempted = false;
-    let profileRefreshSucceeded = true;
     let materialSyncAttempted = false;
-    let materialSyncSucceeded = true;
     try {
       const ok = await confirmDialog({
         title: t("characterDetail.syncAllTitle"),
@@ -450,7 +496,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
         confirmText: t("characterDetail.startSync"),
         dialogType: "warning",
       });
-      if (!ok || !isCurrentWorkspace(requestProjectId)) return;
+      if (!ok || !isCurrentWorkspace(requestProjectId) || profileReadVersionRef.current !== requestReadVersion || !ensureProfileReadCurrent()) return;
       requestSeq = syncSeqRef.current + 1;
       syncSeqRef.current = requestSeq;
       const taskId = createWorkflowTaskId("character-sync-all", requestProjectId);
@@ -470,15 +516,14 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
         async () => {
           const next = await syncAllCharacterProfiles(requestProjectId, activeChapterNumber, taskId);
           profileRefreshAttempted = true;
-          profileRefreshSucceeded = await load(selectedId);
-          materialSyncAttempted = true;
-          materialSyncSucceeded = (await onMaterialSync(requestProjectId)) !== false;
           return next;
         },
       );
       if (!isCurrentWorkspace(requestProjectId) || syncSeqRef.current !== requestSeq) return;
-      if (!profileRefreshSucceeded) return;
-      if (!materialSyncSucceeded) addToast(t("characterDetail.refreshFailed"), "error");
+      if (profileReadVersionRef.current !== requestReadVersion) {
+        void load(selectedId);
+        return;
+      }
       const syncedItems = result.synced;
       const skippedItems = result.skipped;
       const failedItems = result.failed;
@@ -538,6 +583,11 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
             ? "info"
             : "success",
       );
+      void load(selectedId).then((refreshed) => {
+        if (isCurrentWorkspace(requestProjectId) && syncSeqRef.current === requestSeq && !refreshed) {
+          addToast(t("characterDetail.refreshFailed"), "error");
+        }
+      });
     } catch (err) {
       if (requestSeq == null) {
         if (isCurrentWorkspace(requestProjectId)) {
@@ -559,13 +609,16 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       }
       finishAction(actionKey);
       if (requestSeq != null && !materialSyncAttempted) {
-        try {
-          if (await onMaterialSync(requestProjectId) === false) {
+        materialSyncAttempted = true;
+        void Promise.resolve().then(() => onMaterialSync(requestProjectId)).then((refreshed) => {
+          if (isCurrentWorkspace(requestProjectId) && refreshed === false) {
             addToast(t("characterDetail.refreshFailed"), "error");
           }
-        } catch (error) {
-          addToast(extractErrorMessage(error, t("characterDetail.refreshFailed")), "error");
-        }
+        }).catch((error) => {
+          if (isCurrentWorkspace(requestProjectId)) {
+            addToast(extractErrorMessage(error, t("characterDetail.refreshFailed")), "error");
+          }
+        });
       }
     }
   };

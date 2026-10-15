@@ -129,6 +129,7 @@ async fn project_family_import_activates_deserialized_project_lifecycle_gate() {
     let now = Utc::now().naive_utc();
     let project = novel_project::Model {
         id: 1,
+        content_revision: 0,
         user_id: 99,
         title: "生命周期门禁导入".to_string(),
         description: String::new(),
@@ -182,6 +183,7 @@ async fn project_family_import_rebuilds_raw_blueprint_from_formal_rows() {
     let now = Utc::now().naive_utc();
     let project = novel_project::Model {
         id: 1,
+        content_revision: 0,
         user_id: 99,
         title: "雾城".to_string(),
         description: String::new(),
@@ -347,6 +349,7 @@ async fn project_family_media_write_failure_rolls_back_database_rows() {
     let now = Utc::now().naive_utc();
     let project = novel_project::Model {
         id: 1,
+        content_revision: 0,
         user_id: user.id,
         title: "媒体失败回滚".to_string(),
         description: String::new(),
@@ -443,6 +446,7 @@ async fn project_family_import_batches_video_reference_fixups() {
     let now = Utc::now().naive_utc();
     let project = novel_project::Model {
         id: 1,
+        content_revision: 0,
         user_id: 99,
         title: "视频引用回填".to_string(),
         description: String::new(),

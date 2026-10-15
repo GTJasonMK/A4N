@@ -14,6 +14,12 @@ pub async fn rollback_project_status_record(
     let project = project_db::project_by_id_for_update(&tx, project_id)
         .await?
         .ok_or(ProjectResetDbError::ProjectNotFound { project_id })?;
+    if project.lifecycle_gate != crate::generation::PROJECT_GATE_ACTIVE {
+        return Err(ProjectResetDbError::InvalidState {
+            current: project.lifecycle_gate,
+            operation: "回退项目状态".to_string(),
+        });
+    }
     if project.project_kind != PROJECT_KIND_TEXT {
         return Err(ProjectResetDbError::UnsupportedProjectKind {
             project_kind: project.project_kind,

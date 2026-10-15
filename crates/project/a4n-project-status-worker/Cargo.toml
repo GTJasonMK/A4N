@@ -10,7 +10,6 @@ a4n-config = { workspace = true }
 a4n-db = { workspace = true }
 a4n-domain = { workspace = true }
 a4n-project-status-worker-contract = { workspace = true }
-a4n-project-read-core = { workspace = true }
 a4n-worker-contract = { workspace = true }
 a4n-worker-db-adapter = { workspace = true }
 a4n-worker-runtime = { workspace = true }

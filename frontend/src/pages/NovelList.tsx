@@ -8,7 +8,7 @@ import {
   getProjectWorkspaceRoute,
 } from "../utils/projectRouting";
 import { isCancelledOperation } from "../utils/cancellation";
-import { isPositiveSafeInteger } from "../utils/numberRange";
+import { isPositiveI32 } from "../utils/numeric";
 import { useToast } from "../components/feedback/Toast";
 import { choiceDialog, confirmDialog } from "../components/feedback/ConfirmDialog";
 import { promptDialog } from "../components/feedback/PromptDialog";
@@ -101,6 +101,7 @@ interface NovelListProps {
 }
 
 type DerivedProjectKind = Exclude<ProjectKind, "text" | "canvas">;
+const PROJECT_ACCESS_SCOPES: readonly ProjectAccessScope[] = ["all", "owned", "collaborating"];
 
 export const NovelList: React.FC<NovelListProps> = () => {
   const { isVisible: isPackageVisible } = usePackagePreferences();
@@ -114,7 +115,11 @@ export const NovelList: React.FC<NovelListProps> = () => {
   localeRef.current = locale;
 
   const [projects, setProjects] = useState<NovelProject[]>([]);
-  const [accessScope, setAccessScope] = useState<ProjectAccessScope>("all");
+  const [accessScope, setAccessScope] = usePersistedTab<ProjectAccessScope>(
+    "a4n:home:access-scope",
+    "all",
+    PROJECT_ACCESS_SCOPES,
+  );
   const [inviteActionIds, setInviteActionIds] = useState<ReadonlySet<number>>(new Set());
   const [projectKindFilter, setProjectKindFilter] = usePersistedTab<ProjectKindFilter>(
     "a4n:home:project-kind-filter",
@@ -144,6 +149,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
   const importBusyRef = useRef(false);
   const inviteActionIdsRef = useRef<Set<number>>(new Set());
   const projectActionKeysRef = useRef<Set<string>>(new Set());
+  const [projectActionKeys, setProjectActionKeys] = useState<ReadonlySet<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -154,10 +160,41 @@ export const NovelList: React.FC<NovelListProps> = () => {
   const [videoProjectSourceError, setVideoProjectSourceError] = useState<string | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importTextProjectId, setImportTextProjectId] = useState<number | null>(null);
+  const importTextProjectReadSeqRef = useRef<number | null>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [loadError, setLoadError] = useState<unknown | null>(null);
-  useNovelDetailDirty("novel-list-import-file", importDialogOpen && importFile != null);
+  const projectsRef = useRef(projects);
+  const pendingInvitesRef = useRef(pendingInvites);
+  const pendingInvitesLoadingRef = useRef(pendingInvitesLoading);
+  const pendingInvitesErrorRef = useRef(pendingInvitesError);
+  const loadingRef = useRef(loading);
+  const loadErrorRef = useRef(loadError);
+  const videoProjectSourceProjectsRef = useRef(videoProjectSourceProjects);
+  const videoProjectSourceLoadingRef = useRef(videoProjectSourceLoading);
+  const videoProjectSourceErrorRef = useRef(videoProjectSourceError);
+  projectsRef.current = projects;
+  pendingInvitesRef.current = pendingInvites;
+  pendingInvitesLoadingRef.current = pendingInvitesLoading;
+  pendingInvitesErrorRef.current = pendingInvitesError;
+  loadingRef.current = loading;
+  loadErrorRef.current = loadError;
+  videoProjectSourceProjectsRef.current = videoProjectSourceProjects;
+  videoProjectSourceLoadingRef.current = videoProjectSourceLoading;
+  videoProjectSourceErrorRef.current = videoProjectSourceError;
+  useNovelDetailDirty(
+    "novel-list-import-file",
+    importDialogOpen && importFile != null,
+    undefined,
+    () => !importBusyRef.current,
+  );
+  useNovelDetailDirty(
+    "novel-list-operations",
+    creating || importing || inviteActionIds.size > 0 || projectActionKeys.size > 0,
+    undefined,
+    () => !createBusyRef.current && !importBusyRef.current &&
+      inviteActionIdsRef.current.size === 0 && projectActionKeysRef.current.size === 0,
+  );
 
   const quote = useMemo<Quote>(() => pickRandomQuote(), []);
 
@@ -177,6 +214,13 @@ export const NovelList: React.FC<NovelListProps> = () => {
   ): Promise<boolean> => {
     const requestSeq = refreshSeqRef.current + 1;
     refreshSeqRef.current = requestSeq;
+    const isCurrentRequest = () =>
+      refreshSeqRef.current === requestSeq &&
+      activeTabRef.current === requestTab &&
+      activeAccessScopeRef.current === requestScope &&
+      activeProjectKindFilterRef.current === requestKind;
+    loadingRef.current = true;
+    loadErrorRef.current = null;
     setLoading(true);
     setLoadError(null);
     try {
@@ -187,37 +231,22 @@ export const NovelList: React.FC<NovelListProps> = () => {
       const items = requestTab === "all"
         ? await listAllProjects(filters)
         : (await listProjects(1, 20, filters)).items;
-      if (
-        !mountedRef.current ||
-        refreshSeqRef.current !== requestSeq ||
-        activeTabRef.current !== requestTab ||
-        activeAccessScopeRef.current !== requestScope ||
-        activeProjectKindFilterRef.current !== requestKind
-      ) {
-        return false;
-      }
+      if (!mountedRef.current) return false;
+      if (!isCurrentRequest()) return true;
+      projectsRef.current = items;
       setProjects(items);
+      loadErrorRef.current = null;
       setLoadError(null);
       return true;
     } catch (err) {
-      if (
-        mountedRef.current &&
-        refreshSeqRef.current === requestSeq &&
-        activeTabRef.current === requestTab &&
-        activeAccessScopeRef.current === requestScope &&
-        activeProjectKindFilterRef.current === requestKind
-      ) {
-        setLoadError(err);
-      }
+      if (!mountedRef.current) return false;
+      if (!isCurrentRequest()) return true;
+      loadErrorRef.current = err;
+      setLoadError(err);
       return false;
     } finally {
-      if (
-        mountedRef.current &&
-        refreshSeqRef.current === requestSeq &&
-        activeTabRef.current === requestTab &&
-        activeAccessScopeRef.current === requestScope &&
-        activeProjectKindFilterRef.current === requestKind
-      ) {
+      if (mountedRef.current && isCurrentRequest()) {
+        loadingRef.current = false;
         setLoading(false);
       }
     }
@@ -226,20 +255,31 @@ export const NovelList: React.FC<NovelListProps> = () => {
   const loadPendingInvites = async (): Promise<boolean> => {
     const requestSeq = inviteSeqRef.current + 1;
     inviteSeqRef.current = requestSeq;
+    pendingInvitesLoadingRef.current = true;
+    pendingInvitesErrorRef.current = null;
     setPendingInvitesLoading(true);
+    setPendingInvitesError(null);
     try {
       const invites = await listMyProjectInvites();
       if (!mountedRef.current || inviteSeqRef.current !== requestSeq) return false;
+      pendingInvitesRef.current = invites;
+      pendingInvitesErrorRef.current = null;
       setPendingInvites(invites);
       setPendingInvitesError(null);
       return true;
     } catch (err) {
       if (mountedRef.current && inviteSeqRef.current === requestSeq) {
+        pendingInvitesRef.current = [];
+        pendingInvitesErrorRef.current = err;
         setPendingInvitesError(err);
+        setPendingInvites([]);
       }
       return false;
     } finally {
-      if (mountedRef.current && inviteSeqRef.current === requestSeq) setPendingInvitesLoading(false);
+      if (mountedRef.current && inviteSeqRef.current === requestSeq) {
+        pendingInvitesLoadingRef.current = false;
+        setPendingInvitesLoading(false);
+      }
     }
   };
 
@@ -266,7 +306,9 @@ export const NovelList: React.FC<NovelListProps> = () => {
     activeAccessScopeRef.current = accessScope;
     activeProjectKindFilterRef.current = projectKindFilter;
     refreshSeqRef.current += 1;
-    setProjects([]);
+    loadingRef.current = false;
+    loadErrorRef.current = null;
+    setProjectListSnapshot([]);
     setLoadError(null);
     setLoading(false);
     void refresh(tab, accessScope, projectKindFilter);
@@ -287,17 +329,65 @@ export const NovelList: React.FC<NovelListProps> = () => {
     [projects, tab],
   );
 
-  const beginProjectAction = (key: string): boolean => {
-    if (!mountedRef.current || projectActionKeysRef.current.has(key)) return false;
-    projectActionKeysRef.current.add(key);
+  const beginProjectAction = (key: string, ensureCurrent: () => boolean): boolean => {
+    if (!mountedRef.current) return false;
+    if (projectActionKeysRef.current.has(key)) {
+      addToast(tRef.current("novel.projectListActions.actionInProgress"), "info");
+      return false;
+    }
+    if (!ensureCurrent()) return false;
+    const next = new Set(projectActionKeysRef.current);
+    next.add(key);
+    projectActionKeysRef.current = next;
+    setProjectActionKeys(next);
+    return true;
+  };
+
+  const isProjectReadCurrent = (projectId: number, requestSeq: number): boolean =>
+    mountedRef.current &&
+    refreshSeqRef.current === requestSeq &&
+    !loadingRef.current &&
+    loadErrorRef.current == null &&
+    projectsRef.current.some((item) => item.id === projectId);
+
+  const ensureProjectReadCurrent = (projectId: number, requestSeq: number): boolean => {
+    if (!isProjectReadCurrent(projectId, requestSeq)) {
+      if (mountedRef.current) addToast(tRef.current("common.listChangedRetry"), "info");
+      return false;
+    }
+    return true;
+  };
+
+  const ensureInviteReadCurrent = (inviteId: number, requestSeq: number): boolean => {
+    if (
+      !mountedRef.current ||
+      inviteSeqRef.current !== requestSeq ||
+      pendingInvitesLoadingRef.current ||
+      pendingInvitesErrorRef.current != null ||
+      !pendingInvitesRef.current.some((item) => item.id === inviteId)
+    ) {
+      if (mountedRef.current) addToast(tRef.current("common.listChangedRetry"), "info");
+      return false;
+    }
     return true;
   };
 
   const finishProjectAction = (key: string) => {
-    projectActionKeysRef.current.delete(key);
+    if (!projectActionKeysRef.current.has(key)) return;
+    const next = new Set(projectActionKeysRef.current);
+    next.delete(key);
+    projectActionKeysRef.current = next;
+    if (mountedRef.current) setProjectActionKeys(next);
   };
 
-  const syncCreatedProjectMaterials = async (project: NovelProject) => {
+  const setProjectListSnapshot = (nextProjects: NovelProject[]) => {
+    projectsRef.current = nextProjects;
+    setProjects(nextProjects);
+  };
+
+  const syncCreatedProjectMaterials = async (
+    project: Pick<NovelProject, "id" | "project_kind" | "title">,
+  ) => {
     const warning = await trySyncTextProjectMaterials(project, async (projectId) => {
       const taskId = createWorkflowTaskId("new-project-rag-ingest", projectId);
       await runProgressTask(
@@ -330,6 +420,9 @@ export const NovelList: React.FC<NovelListProps> = () => {
     const requestTab = activeTabRef.current;
     const requestScope = activeAccessScopeRef.current;
     const requestKind = activeProjectKindFilterRef.current;
+    loadingRef.current = true;
+    loadErrorRef.current = null;
+    setLoading(true);
     const refreshed = await refresh(requestTab, requestScope, requestKind);
     if (
       !mountedRef.current ||
@@ -343,7 +436,18 @@ export const NovelList: React.FC<NovelListProps> = () => {
   };
 
   const beginInviteAction = (inviteId: number): boolean => {
-    if (!mountedRef.current || inviteActionIdsRef.current.has(inviteId)) return false;
+    if (
+      !mountedRef.current ||
+      inviteActionIdsRef.current.has(inviteId) ||
+      pendingInvitesLoadingRef.current ||
+      pendingInvitesErrorRef.current != null ||
+      !pendingInvitesRef.current.some((invite) => invite.id === inviteId)
+    ) {
+      if (mountedRef.current) {
+        addToast(tRef.current("common.listChangedRetry"), "info");
+      }
+      return false;
+    }
     const next = new Set(inviteActionIdsRef.current);
     next.add(inviteId);
     inviteActionIdsRef.current = next;
@@ -359,9 +463,20 @@ export const NovelList: React.FC<NovelListProps> = () => {
     if (mountedRef.current) setInviteActionIds(next);
   };
 
+  const retryPendingInvites = () => {
+    if (pendingInvitesLoadingRef.current) {
+      addToast(tRef.current("common.operationInProgress"), "info");
+      return;
+    }
+    void loadPendingInvites();
+  };
+
   const loadVideoProjectSources = async () => {
     const requestSeq = videoProjectSourceSeqRef.current + 1;
     videoProjectSourceSeqRef.current = requestSeq;
+    videoProjectSourceProjectsRef.current = [];
+    videoProjectSourceLoadingRef.current = true;
+    videoProjectSourceErrorRef.current = null;
     setVideoProjectSourceProjects([]);
     setSelectedVideoProjectSourceId(null);
     setVideoProjectSourceLoading(true);
@@ -375,16 +490,18 @@ export const NovelList: React.FC<NovelListProps> = () => {
       const editableProjects = projects.filter(
         (project) => project.project_kind === "text" && canEditProjectMaterials(project),
       );
+      videoProjectSourceProjectsRef.current = editableProjects;
       setVideoProjectSourceProjects(editableProjects);
       setSelectedVideoProjectSourceId(editableProjects[0]?.id ?? null);
     } catch (error) {
       if (mountedRef.current && videoProjectSourceSeqRef.current === requestSeq) {
-        setVideoProjectSourceError(
-          extractErrorMessage(error, tRef.current("novel.videoProjectSourceLoadFailed")),
-        );
+        const message = extractErrorMessage(error, tRef.current("novel.videoProjectSourceLoadFailed"));
+        videoProjectSourceErrorRef.current = message;
+        setVideoProjectSourceError(message);
       }
     } finally {
       if (mountedRef.current && videoProjectSourceSeqRef.current === requestSeq) {
+        videoProjectSourceLoadingRef.current = false;
         setVideoProjectSourceLoading(false);
       }
     }
@@ -392,6 +509,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
 
   const closeVideoProjectSourceDialog = () => {
     videoProjectSourceSeqRef.current += 1;
+    videoProjectSourceLoadingRef.current = false;
     setVideoProjectSourceLoading(false);
     setVideoProjectSourceDialogOpen(false);
   };
@@ -425,10 +543,12 @@ export const NovelList: React.FC<NovelListProps> = () => {
               project_type: "novel_long",
             });
       if (!mountedRef.current || createSeqRef.current !== requestSeq) return;
-      const refreshed = await refreshAfterMutation();
-      if (!mountedRef.current || createSeqRef.current !== requestSeq) return;
       addToast(tRef.current("novel.projectListActions.created", { title: project.title }), "success");
-      if (!refreshed) addToast(tRef.current("novel.projectListActions.refreshFailed"), "error");
+      void refreshAfterMutation().then((refreshed) => {
+        if (mountedRef.current && !refreshed) {
+          addToast(tRef.current("novel.projectListActions.refreshFailed"), "error");
+        }
+      });
       setCreateDialogOpen(false);
       if (requestMode === "ai") {
         navigate(`/inspiration/${project.id}`);
@@ -462,7 +582,8 @@ export const NovelList: React.FC<NovelListProps> = () => {
 
   const handleDuplicate = async (project: NovelProject) => {
     const actionKey = `duplicate-${project.id}`;
-    if (!beginProjectAction(actionKey)) return;
+    const requestReadSeq = refreshSeqRef.current;
+    if (!beginProjectAction(actionKey, () => ensureProjectReadCurrent(project.id, requestReadSeq))) return;
     const title = await promptDialog({
       title: t("novel.projectListActions.duplicateTitle"),
       message: t("novel.projectListActions.duplicateMessage", { title: project.title }),
@@ -479,17 +600,28 @@ export const NovelList: React.FC<NovelListProps> = () => {
       finishProjectAction(actionKey);
       return;
     }
+    if (!ensureProjectReadCurrent(project.id, requestReadSeq)) {
+      finishProjectAction(actionKey);
+      return;
+    }
     try {
       const np = await duplicateProject(project.id, title.trim());
       if (!mountedRef.current) return;
-      const refreshed = await refreshAfterMutation();
-      if (!mountedRef.current) return;
       addToast(tRef.current("novel.projectListActions.duplicated", { title: np.title }), "success");
-      if (!refreshed) addToast(tRef.current("novel.projectListActions.refreshFailed"), "error");
+      void refreshAfterMutation().then((refreshed) => {
+        if (mountedRef.current && !refreshed) {
+          addToast(tRef.current("novel.projectListActions.refreshFailed"), "error");
+        }
+      });
       await syncCreatedProjectMaterials(np);
     } catch (err) {
       if (mountedRef.current) {
         addToast(extractErrorMessage(err, tRef.current("novel.projectListActions.duplicateFailed")), "error");
+        void refreshAfterMutation().then((refreshed) => {
+          if (mountedRef.current && !refreshed) {
+            addToast(tRef.current("novel.projectListActions.refreshFailed"), "error");
+          }
+        });
       }
     } finally {
       finishProjectAction(actionKey);
@@ -499,6 +631,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
   const handleCreateDerivedProject = async (
     project: NovelProject,
     kind: DerivedProjectKind,
+    readGuard?: () => boolean,
   ) => {
     const label = kind === "comic"
       ? t("novel.comicProject")
@@ -510,7 +643,9 @@ export const NovelList: React.FC<NovelListProps> = () => {
       return;
     }
     const actionKey = `derived-${kind}-${project.id}`;
-    if (!beginProjectAction(actionKey)) return;
+    const requestReadSeq = refreshSeqRef.current;
+    const ensureCurrent = readGuard ?? (() => ensureProjectReadCurrent(project.id, requestReadSeq));
+    if (!beginProjectAction(actionKey, ensureCurrent)) return;
     const title = await promptDialog({
       title: t("novel.projectListActions.derivedTitle", { label }),
       message: t("novel.projectListActions.derivedMessage", { title: project.title, label }),
@@ -524,6 +659,10 @@ export const NovelList: React.FC<NovelListProps> = () => {
       return;
     }
     if (!mountedRef.current) {
+      finishProjectAction(actionKey);
+      return;
+    }
+    if (!ensureCurrent()) {
       finishProjectAction(actionKey);
       return;
     }
@@ -544,6 +683,10 @@ export const NovelList: React.FC<NovelListProps> = () => {
       finishProjectAction(actionKey);
       return;
     }
+    if (!ensureCurrent()) {
+      finishProjectAction(actionKey);
+      return;
+    }
     const match = chapterRange.trim().match(/^(\d+)\s*-\s*(\d+)$/);
     if (!match) {
       addToast(tRef.current("novel.projectListActions.chapterRangeFormat"), "error");
@@ -552,13 +695,17 @@ export const NovelList: React.FC<NovelListProps> = () => {
     }
     const start = Number(match[1]);
     const end = Number(match[2]);
-    if (!isPositiveSafeInteger(start) || !isPositiveSafeInteger(end) || end < start) {
+    if (!isPositiveI32(start) || !isPositiveI32(end) || end < start) {
       addToast(tRef.current("novel.projectListActions.chapterRangeInvalid"), "error");
       finishProjectAction(actionKey);
       return;
     }
 
     try {
+      if (!ensureCurrent()) {
+        finishProjectAction(actionKey);
+        return;
+      }
       const derived = await createDerivedProject({
         root_project_id: project.id,
         derived_kind: kind,
@@ -568,11 +715,14 @@ export const NovelList: React.FC<NovelListProps> = () => {
         end_chapter: end,
       });
       if (!mountedRef.current) return;
-      const refreshed = await refreshAfterMutation();
-      if (!mountedRef.current) return;
+      const canNavigateToCreatedProject = ensureCurrent();
       addToast(tRef.current("novel.projectListActions.derivedCreated", { label, title: derived.title }), "success");
-      if (!refreshed) addToast(tRef.current("novel.projectListActions.refreshFailed"), "error");
-      navigate(getProjectHomeEntryRoute(derived));
+      void refreshAfterMutation().then((refreshed) => {
+        if (mountedRef.current && !refreshed) {
+          addToast(tRef.current("novel.projectListActions.refreshFailed"), "error");
+        }
+      });
+      if (canNavigateToCreatedProject) navigate(getProjectHomeEntryRoute(derived));
     } catch (err) {
       if (mountedRef.current) {
         addToast(extractErrorMessage(err, tRef.current("novel.projectListActions.derivedCreateFailed", { label })), "error");
@@ -582,18 +732,39 @@ export const NovelList: React.FC<NovelListProps> = () => {
     }
   };
 
-  const handleCreateVideoProjectFromSelectedSource = () => {
+  const handleCreateVideoProjectFromSelectedSource = async () => {
+    if (videoProjectSourceLoadingRef.current || videoProjectSourceErrorRef.current != null) {
+      addToast(tRef.current("common.listChangedRetry"), "info");
+      return;
+    }
     const source = videoProjectSourceProjects.find(
       (project) => project.id === selectedVideoProjectSourceId,
     );
     if (!source || !canEditProjectMaterials(source)) return;
+    if (!videoProjectSourceProjectsRef.current.some((item) => item.id === source.id)) {
+      addToast(tRef.current("common.listChangedRetry"), "info");
+      return;
+    }
+    const sourceId = source.id;
     closeVideoProjectSourceDialog();
-    void handleCreateDerivedProject(source, "video");
+    const sourceReadSeq = videoProjectSourceSeqRef.current;
+    const ensureSourceCurrent = () => {
+      const isCurrent =
+      mountedRef.current &&
+      videoProjectSourceSeqRef.current === sourceReadSeq &&
+      !videoProjectSourceLoadingRef.current &&
+      videoProjectSourceErrorRef.current == null &&
+      videoProjectSourceProjectsRef.current.some((item) => item.id === sourceId);
+      if (!isCurrent && mountedRef.current) addToast(tRef.current("common.listChangedRetry"), "info");
+      return isCurrent;
+    };
+    void handleCreateDerivedProject(source, "video", ensureSourceCurrent);
   };
 
   const handleExport = async (project: NovelProject) => {
     const actionKey = `export-${project.id}`;
-    if (!beginProjectAction(actionKey)) return;
+    const requestReadSeq = refreshSeqRef.current;
+    if (!beginProjectAction(actionKey, () => ensureProjectReadCurrent(project.id, requestReadSeq))) return;
     try {
       let includeDerivedProjects = false;
       if (project.project_kind === "text") {
@@ -607,6 +778,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
         if (scope === "cancel") return;
         includeDerivedProjects = scope === "secondary";
       }
+      if (!ensureProjectReadCurrent(project.id, requestReadSeq)) return;
       const result = project.project_kind === "canvas"
         ? await exportCanvasProjectData({ project_id: project.id })
         : await exportProjectBundleData({
@@ -630,7 +802,8 @@ export const NovelList: React.FC<NovelListProps> = () => {
 
   const handleDelete = async (project: NovelProject) => {
     const actionKey = `delete-${project.id}`;
-    if (!beginProjectAction(actionKey)) return;
+    const requestReadSeq = refreshSeqRef.current;
+    if (!beginProjectAction(actionKey, () => ensureProjectReadCurrent(project.id, requestReadSeq))) return;
     const ok = await confirmDialog({
       title: t("novel.projectListActions.deleteTitle"),
       message: t("novel.projectListActions.deleteMessage", { title: project.title }),
@@ -645,16 +818,32 @@ export const NovelList: React.FC<NovelListProps> = () => {
       finishProjectAction(actionKey);
       return;
     }
+    if (!ensureProjectReadCurrent(project.id, requestReadSeq)) {
+      finishProjectAction(actionKey);
+      return;
+    }
     try {
       await deleteProject(project.id);
       if (!mountedRef.current) return;
-      const refreshed = await refreshAfterMutation();
-      if (!mountedRef.current) return;
       addToast(tRef.current("novel.projectListActions.deleted", { title: project.title }), "success");
-      if (!refreshed) addToast(tRef.current("novel.projectListActions.refreshFailed"), "error");
+      if (!isProjectReadCurrent(project.id, requestReadSeq)) {
+        void refreshAfterMutation();
+        return;
+      }
+      setProjectListSnapshot(projectsRef.current.filter((item) => item.id !== project.id));
+      void refreshAfterMutation().then((refreshed) => {
+        if (mountedRef.current && !refreshed) {
+          addToast(tRef.current("novel.projectListActions.refreshFailed"), "error");
+        }
+      });
     } catch (err) {
       if (mountedRef.current) {
         addToast(extractErrorMessage(err, tRef.current("novel.projectListActions.deleteFailed")), "error");
+        void refreshAfterMutation().then((refreshed) => {
+          if (mountedRef.current && !refreshed) {
+            addToast(tRef.current("novel.projectListActions.refreshFailed"), "error");
+          }
+        });
       }
     } finally {
       finishProjectAction(actionKey);
@@ -674,7 +863,8 @@ export const NovelList: React.FC<NovelListProps> = () => {
     importSeqRef.current = requestSeq;
     setImporting(true);
     try {
-      let importedTextProject: NovelProject | null = null;
+      const importedTextProjects: Array<Pick<NovelProject, "id" | "project_kind" | "title">> = [];
+      let importWarnings: string[] = [];
       let importSuccessMessage: string | null = null;
       const fileName = selectedFile.name.trim();
       const dataBase64 = await readFileAsBase64(selectedFile);
@@ -684,14 +874,15 @@ export const NovelList: React.FC<NovelListProps> = () => {
       if (normalizedFileName.endsWith(PROJECT_BUNDLE_PACKAGE_SUFFIX)) {
         const report = await importProjectBundleUpload(input);
         if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
-        const imported = report.project_summaries;
+        importedTextProjects.push(...report.project_summaries.filter((project) => project.project_kind === "text"));
+        importWarnings = report.warnings;
         importSuccessMessage = tRef.current("novel.projectListActions.importedBundle", {
-          titles: imported.map((item) => item.title).join(" / "),
+          titles: report.project_summaries.map((item) => item.title).join(" / "),
         });
       } else if (normalizedFileName.endsWith(PROJECT_FAMILY_PACKAGE_SUFFIX)) {
         const imported = await importProjectFamilyUpload(input);
         if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
-        importedTextProject = imported.find((item) => item.project_kind === "text") ?? null;
+        importedTextProjects.push(...imported.filter((project) => project.project_kind === "text"));
         importSuccessMessage = tRef.current("novel.projectListActions.importedFamily", { titles: imported.map((item) => item.title).join(" / ") });
       } else if (normalizedFileName.endsWith(CANVAS_PROJECT_PACKAGE_SUFFIX)) {
         const imported = await importCanvasProjectUpload(input);
@@ -707,11 +898,17 @@ export const NovelList: React.FC<NovelListProps> = () => {
         );
       }
       setImportDialogOpenState(false);
-      const refreshed = await refreshAfterMutation();
       if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
-      if (importedTextProject) await syncCreatedProjectMaterials(importedTextProject);
       if (importSuccessMessage) addToast(importSuccessMessage, "success");
-      if (!refreshed) addToast(tRef.current("novel.projectListActions.refreshFailed"), "error");
+      for (const warning of importWarnings) addToast(warning, "info");
+      void refreshAfterMutation().then((refreshed) => {
+        if (mountedRef.current && !refreshed) {
+          addToast(tRef.current("novel.projectListActions.refreshFailed"), "error");
+        }
+      });
+      for (const project of importedTextProjects) {
+        await syncCreatedProjectMaterials(project);
+      }
     } catch (err) {
       if (mountedRef.current && importSeqRef.current === requestSeq) {
         addToast(extractErrorMessage(err, tRef.current("novel.projectListActions.importFailed")), "error");
@@ -754,7 +951,10 @@ export const NovelList: React.FC<NovelListProps> = () => {
     if (activeTabRef.current === nextTab) return;
     activeTabRef.current = nextTab;
     refreshSeqRef.current += 1;
-    setProjects([]);
+    loadingRef.current = true;
+    loadErrorRef.current = null;
+    projectsRef.current = [];
+    setProjectListSnapshot([]);
     setLoadError(null);
     setLoading(true);
     setTab(nextTab);
@@ -764,7 +964,10 @@ export const NovelList: React.FC<NovelListProps> = () => {
     if (activeAccessScopeRef.current === nextScope) return;
     activeAccessScopeRef.current = nextScope;
     refreshSeqRef.current += 1;
-    setProjects([]);
+    loadingRef.current = true;
+    loadErrorRef.current = null;
+    projectsRef.current = [];
+    setProjectListSnapshot([]);
     setLoadError(null);
     setLoading(true);
     setAccessScope(nextScope);
@@ -774,26 +977,58 @@ export const NovelList: React.FC<NovelListProps> = () => {
     if (activeProjectKindFilterRef.current === nextKind) return;
     activeProjectKindFilterRef.current = nextKind;
     refreshSeqRef.current += 1;
-    setProjects([]);
+    loadingRef.current = true;
+    loadErrorRef.current = null;
+    projectsRef.current = [];
+    setProjectListSnapshot([]);
     setLoadError(null);
     setLoading(true);
     setProjectKindFilter(nextKind);
   };
 
   const handleAcceptInvite = async (invite: ProjectInvite) => {
+    if (pendingInvitesLoading) {
+      addToast(tRef.current("common.operationInProgress"), "info");
+      return;
+    }
     if (!beginInviteAction(invite.id)) return;
+    const requestInviteSeq = inviteSeqRef.current;
+    if (!ensureInviteReadCurrent(invite.id, requestInviteSeq)) {
+      finishInviteAction(invite.id);
+      return;
+    }
     try {
       await acceptProjectInvite(invite.id);
       if (!mountedRef.current) return;
+      if (inviteSeqRef.current !== requestInviteSeq) {
+        pendingInvitesRef.current = pendingInvitesRef.current.filter((item) => item.id !== invite.id);
+        setPendingInvites(pendingInvitesRef.current);
+        addToast(tRef.current("novel.projectListActions.inviteAccepted"), "success");
+        void loadPendingInvites();
+        return;
+      }
       setPendingInvites((current) => current.filter((item) => item.id !== invite.id));
-      await loadPendingInvites();
-      const refreshed = await refreshAfterMutation();
       if (!mountedRef.current) return;
       addToast(tRef.current("novel.projectListActions.inviteAccepted"), "success");
-      if (!refreshed) addToast(tRef.current("novel.projectListActions.refreshFailed"), "error");
+      void loadPendingInvites();
+      void refreshAfterMutation().then((refreshed) => {
+        if (mountedRef.current && !refreshed) {
+          addToast(tRef.current("novel.projectListActions.refreshFailed"), "error");
+        }
+      });
     } catch (err) {
       if (mountedRef.current) {
+        if (inviteSeqRef.current !== requestInviteSeq) {
+          addToast(extractErrorMessage(err, tRef.current("novel.projectListActions.acceptInviteFailed")), "error");
+          void loadPendingInvites();
+          return;
+        }
         addToast(extractErrorMessage(err, tRef.current("novel.projectListActions.acceptInviteFailed")), "error");
+        await loadPendingInvites();
+        const refreshed = await refreshAfterMutation();
+        if (mountedRef.current && !refreshed) {
+          addToast(tRef.current("novel.projectListActions.refreshFailed"), "error");
+        }
       }
     } finally {
       finishInviteAction(invite.id);
@@ -801,17 +1036,43 @@ export const NovelList: React.FC<NovelListProps> = () => {
   };
 
   const handleDeclineInvite = async (invite: ProjectInvite) => {
+    if (pendingInvitesLoading) {
+      addToast(tRef.current("common.operationInProgress"), "info");
+      return;
+    }
     if (!beginInviteAction(invite.id)) return;
+    const requestInviteSeq = inviteSeqRef.current;
+    if (!ensureInviteReadCurrent(invite.id, requestInviteSeq)) {
+      finishInviteAction(invite.id);
+      return;
+    }
     try {
       await declineProjectInvite(invite.id);
       if (!mountedRef.current) return;
+      if (inviteSeqRef.current !== requestInviteSeq) {
+        pendingInvitesRef.current = pendingInvitesRef.current.filter((item) => item.id !== invite.id);
+        setPendingInvites(pendingInvitesRef.current);
+        addToast(tRef.current("novel.projectListActions.inviteDeclined"), "success");
+        void loadPendingInvites();
+        return;
+      }
       setPendingInvites((current) => current.filter((item) => item.id !== invite.id));
-      await loadPendingInvites();
       if (!mountedRef.current) return;
       addToast(tRef.current("novel.projectListActions.inviteDeclined"), "success");
+      void loadPendingInvites();
     } catch (err) {
       if (mountedRef.current) {
+        if (inviteSeqRef.current !== requestInviteSeq) {
+          addToast(extractErrorMessage(err, tRef.current("novel.projectListActions.declineInviteFailed")), "error");
+          void loadPendingInvites();
+          return;
+        }
         addToast(extractErrorMessage(err, tRef.current("novel.projectListActions.declineInviteFailed")), "error");
+        await loadPendingInvites();
+        const refreshed = await refreshAfterMutation();
+        if (mountedRef.current && !refreshed) {
+          addToast(tRef.current("novel.projectListActions.refreshFailed"), "error");
+        }
       }
     } finally {
       finishInviteAction(invite.id);
@@ -819,6 +1080,10 @@ export const NovelList: React.FC<NovelListProps> = () => {
   };
 
   const handleOpenProject = (project: NovelProject) => {
+    if (!isProjectReadCurrent(project.id, refreshSeqRef.current)) {
+      addToast(tRef.current("common.listChangedRetry"), "info");
+      return;
+    }
     if (project.lifecycle_gate !== "active" && project.project_kind === "text") {
       navigate(getProjectPrimaryRoute(project));
       return;
@@ -827,8 +1092,23 @@ export const NovelList: React.FC<NovelListProps> = () => {
   };
 
   const handleOpenWorkspace = (project: NovelProject) => {
+    if (!isProjectReadCurrent(project.id, refreshSeqRef.current)) {
+      addToast(tRef.current("common.listChangedRetry"), "info");
+      return;
+    }
     navigate(getProjectWorkspaceRoute(project));
   };
+
+  const handleImportText = (project: NovelProject) => {
+    if (!ensureProjectReadCurrent(project.id, refreshSeqRef.current)) return;
+    importTextProjectReadSeqRef.current = refreshSeqRef.current;
+    setImportTextProjectId(project.id);
+  };
+
+  const isImportTextProjectCurrent = () =>
+    importTextProjectId != null &&
+    importTextProjectReadSeqRef.current != null &&
+    isProjectReadCurrent(importTextProjectId, importTextProjectReadSeqRef.current);
 
   const projectActions = (project: NovelProject) =>
     createProjectActions(project, {
@@ -837,7 +1117,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
       onDuplicate: (item) => void handleDuplicate(item),
       onCreateDerivedProject: (item, kind) => void handleCreateDerivedProject(item, kind),
       onExport: (item) => void handleExport(item),
-      onImportText: (item) => setImportTextProjectId(item.id),
+      onImportText: handleImportText,
       onDelete: (item) => void handleDelete(item),
     }, t, isPackageVisible);
 
@@ -866,11 +1146,15 @@ export const NovelList: React.FC<NovelListProps> = () => {
           pendingInvitesError={pendingInvitesError == null ? null : extractErrorMessage(pendingInvitesError, t("novel.projectLoadFailed"))}
           inviteActionIds={inviteActionIds}
           onTabChange={handleTabChange}
-          onCreateProject={() => setCreateDialogOpen(true)}
-          onImportProject={() => setImportDialogOpenState(true)}
+          onCreateProject={() => {
+            setCreateDialogOpen(true);
+          }}
+          onImportProject={() => {
+            setImportDialogOpenState(true);
+          }}
           onOpenSettings={() => navigate("/settings")}
           onRetry={() => void refresh()}
-          onRetryInvites={() => void loadPendingInvites()}
+          onRetryInvites={retryPendingInvites}
           onAccessScopeChange={handleAccessScopeChange}
           onProjectKindFilterChange={handleProjectKindFilterChange}
           onAcceptInvite={(invite) => void handleAcceptInvite(invite)}
@@ -918,7 +1202,11 @@ export const NovelList: React.FC<NovelListProps> = () => {
           <ProjectTextImportDialog
             projectTitle={projects.find((project) => project.id === importTextProjectId)?.title}
             projectId={importTextProjectId}
-            onClose={() => setImportTextProjectId(null)}
+            isProjectReadCurrent={isImportTextProjectCurrent}
+            onClose={() => {
+              importTextProjectReadSeqRef.current = null;
+              setImportTextProjectId(null);
+            }}
           />
         ) : null}
       </Suspense>

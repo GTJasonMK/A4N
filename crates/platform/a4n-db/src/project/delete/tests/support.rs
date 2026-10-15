@@ -1,3 +1,4 @@
+use a4n_db_models::models::user::user;
 use a4n_db_models::models::{chapter::chapter, project::novel_project};
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
 use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
@@ -6,6 +7,18 @@ use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 
 pub(super) async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
+}
+
+pub(super) async fn insert_test_user(db: &impl crate::DbExecutor) -> user::Model {
+    crate::auth::create_user(
+        db,
+        "generation-cleanup-test",
+        "generation-cleanup-test@example.test",
+        "test-password",
+        "user",
+    )
+    .await
+    .expect("test owner must exist for lifecycle gate operations")
 }
 
 pub(super) async fn set_project_gate(

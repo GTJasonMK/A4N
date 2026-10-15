@@ -313,6 +313,7 @@ mod tests {
                 title: None,
                 description: None,
                 fact_feedback_interval_chapters: None,
+                expected_updated_at: None,
             },
         };
         assert!(project_scope(&request, PROJECT_MUTATION_UPDATE_OPERATION, 8).is_err());

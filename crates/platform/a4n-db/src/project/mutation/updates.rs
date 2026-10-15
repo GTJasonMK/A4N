@@ -29,6 +29,13 @@ pub async fn update_project_record(
             "项目当前不可修改".into(),
         ));
     }
+    if let Some(expected_updated_at) = input.expected_updated_at
+        && project.updated_at != expected_updated_at
+    {
+        return Err(ProjectMutationError::InvalidArgument(
+            "项目已变化，请刷新后重试".into(),
+        ));
+    }
     if let Some(interval) = input.fact_feedback_interval_chapters {
         if project.project_kind != "text" {
             return Err(ProjectMutationError::InvalidArgument(

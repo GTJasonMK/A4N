@@ -35,6 +35,19 @@ fn resume_clears_terminal_state_without_resetting_completed_chapters() {
 }
 
 #[test]
+fn cancellation_returns_a_persistable_terminal_progress_state() {
+    let mut progress = initial_import_progress(4).unwrap();
+    update_import_progress(&mut progress, 2, "已完成第2章分析").unwrap();
+
+    cancel_progress(&mut progress).unwrap();
+
+    assert_eq!(progress.status, ImportAnalysisStatus::Cancelled);
+    assert_eq!(progress.overall_progress, 50);
+    assert!(progress.cancelled_at.is_some());
+    assert_eq!(progress.error, None);
+}
+
+#[test]
 fn strict_progress_contract_rejects_retired_extra_stages() {
     let mut value = serde_json::to_value(initial_import_progress(4).unwrap()).unwrap();
     value["stages"]["extracting_blueprint"] = json!({

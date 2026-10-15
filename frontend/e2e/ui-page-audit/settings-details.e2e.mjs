@@ -108,7 +108,7 @@ async function closeDialog(title) {
   await dialog(title).waitForExist({ reverse: true });
 }
 
-async function begin(tab) {
+async function begin(tab, query = "") {
   await browser.switchToWindow(primaryWindow);
   await browser.switchFrame(null);
   await browser.setWindowSize(1440, 1000);
@@ -120,7 +120,7 @@ async function begin(tab) {
   await $(".a4n-home-content").waitForDisplayed();
   await $('[role="dialog"]').waitForExist({ reverse: true });
   step("回到首页，确认前一流程文档与弹窗已销毁");
-  await browser.url(`/settings#${tab}`);
+  await browser.url(`/settings${query}#${tab}`);
   await $(".a4n-settings-content").waitForDisplayed();
   step("通过设置公开深链进入", { tab });
 }
@@ -152,6 +152,13 @@ async function defer(command) {
     if (!window.__uiAudit.deferred.includes(name)) window.__uiAudit.deferred.push(name);
   }, command);
   step("安装显式请求钩子", { command });
+}
+
+async function undefer(command) {
+  await browser.execute((name) => {
+    const index = window.__uiAudit.deferred.indexOf(name);
+    if (index >= 0) window.__uiAudit.deferred.splice(index, 1);
+  }, command);
 }
 
 async function pending(command, match = {}) {
@@ -396,7 +403,7 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await capture("version-diff", { anchor: '//summary[contains(normalize-space(),"版本历史")]' });
   });
 
-  workflow("SD03-prompt-override updates and removes only the selected project override", async () => {
+  workflow("SD03-prompt-override keeps scope and command feedback stable (UX-2532/2533)", async () => {
     await openPrompt();
     await openDetails("高级工具");
     await openDetails("项目独立版本");
@@ -413,9 +420,28 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await click(await dialog("更新项目独立版本").$('button=更新'), "确认更新独立版本");
     const request = await pending("prompt_set_project_override");
     assert.deepEqual(request.input, { project_id: 1, name: prompt.name, content: prompt.content });
+    await button("正在保存…").waitForDisplayed();
+    await click(await $('nav').$("button=高级配置"), "项目覆盖写入 pending 时切换设置分区");
+    await browser.waitUntil(async () => (await $("body").getText()).includes("操作仍在进行"));
+    assert.equal(new URL(await browser.getUrl()).hash, "#prompt");
+    const projectSelector = await $('button[aria-label="选择使用独立提示词的项目"]');
+    assert.equal(await projectSelector.isEnabled(), false, "The target project must not change during its override write");
+    await click(await summary("高级工具"), "收起正在执行项目覆盖的高级工具");
+    await openDetails("高级工具");
+    await button("正在保存…").waitForDisplayed();
+    assert.equal(await projectSelector.isEnabled(), false, "Reopening advanced tools must preserve the operation owner");
     const overrides = seed.invoke.prompt_list_project_overrides.map((item) =>
       item.prompt_name === prompt.name ? { ...item, updated_at: "2026-09-25T09:00:00Z" } : item);
+    await browser.execute(() => window.__uiAudit.failNext.push({
+      command: "prompt_list_project_overrides",
+      status: 503,
+      message: "项目覆盖回读失败",
+    }));
     await respond("prompt_set_project_override", null, { fixtures: { prompt_list_project_overrides: overrides } });
+    await browser.waitUntil(async () => (await $("body").getText()).includes("项目独立版本已更新"));
+    const overrideDetails = await summary("项目独立版本").parentElement();
+    await browser.waitUntil(async () => (await overrideDetails.getText()).includes("项目覆盖回读失败"));
+    await click(await overrideDetails.$("button*=重试"), "重试项目覆盖列表回读");
     await button("更新为当前内容").waitForEnabled();
     const block = await summary("项目独立版本").parentElement();
     await openMenu(block);
@@ -433,13 +459,27 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await capture("global-restored", { anchor: '//summary[contains(normalize-space(),"项目独立版本")]' });
   });
 
-  workflow("SD04-prompt-validation exposes missing variables and renders the saved template", async () => {
+  workflow("SD04-prompt-validation retains results when advanced tools are collapsed (UX-2534)", async () => {
     await openPrompt();
     await openDetails("高级工具");
     await openDetails("变量校验");
     const variables = await $('textarea[placeholder="如：title, chapter_number, character_name"]');
     await variables.setValue("project_title,chapter_summary");
+    await defer("prompt_validate_variables");
     await click(await button("校验"), "检查不完整的变量列表");
+    const validation = await pending("prompt_validate_variables");
+    assert.deepEqual(validation.input, {
+      template_name: prompt.name,
+      variables: ["project_title", "chapter_summary"],
+    });
+    await click(await summary("高级工具"), "校验请求 pending 时收起高级工具");
+    await openDetails("高级工具");
+    await openDetails("变量校验");
+    const validateButton = await (await summary("变量校验").parentElement()).$("button");
+    await validateButton.waitForDisplayed();
+    assert.equal(await validateButton.isEnabled(), false, "The validation request must remain active after collapsing advanced tools");
+    await respond("prompt_validate_variables", seed.invoke.prompt_validate_variables);
+    await undefer("prompt_validate_variables");
     await browser.waitUntil(async () => (await $('.a4n-settings-content').getText()).includes("缺失:") || (await $('.a4n-settings-content').getText()).includes("缺失："));
     await capture("missing-variables", {
       anchor: '//summary[contains(normalize-space(),"变量校验")]',
@@ -554,7 +594,7 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await closeDialog("主题包");
   });
 
-  workflow("SD07-theme-more-rename-bulk preserves built-in and active themes", async () => {
+  workflow("SD07-theme-rename protects drafts and pending writes (UX-2535/2536)", async () => {
     await begin("theme");
     let row = await rowWith(editableTheme.name);
     await openMenu(row);
@@ -565,11 +605,20 @@ describe("Settings detail pages and complete dialog workflows", function () {
     const newName = "雾港背景 · 重命名样本";
     await $('input[aria-label="重命名"]').setValue(newName);
     await capture("rename-draft");
+    await click(await $('nav').$("button=账户与应用"), "主题重命名草稿期间离开主题设置");
+    const discardRename = await dialog("未保存修改");
+    await discardRename.waitForDisplayed();
+    assert.equal(new URL(await browser.getUrl()).hash, "#theme");
+    assert.equal(await $('input[aria-label="重命名"]').getValue(), newName);
+    await click(await discardRename.$("button=取消"), "保留主题重命名草稿");
+    assert.equal(await $('input[aria-label="重命名"]').getValue(), newName);
     await defer("update_theme");
-    await browser.keys("Enter");
-    step("Enter 提交重命名");
+    await click(await row.$("button=保存"), "提交主题重命名");
     const request = await pending("update_theme", { themeId: editableTheme.id });
     assert.deepEqual(request.input, { name: newName });
+    await click(await $('nav').$("button=账户与应用"), "主题重命名写入 pending 时尝试切换设置分区");
+    await browser.waitUntil(async () => (await $("body").getText()).includes("操作仍在进行"));
+    assert.equal(new URL(await browser.getUrl()).hash, "#theme");
     const renamed = { ...editableTheme, name: newName };
     await respond("update_theme", renamed, {
       match: { themeId: editableTheme.id },
@@ -602,6 +651,23 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await capture("bulk-result");
   });
 
+  workflow("UX-2535 keeps a pending theme activation attached to its settings owner", async () => {
+    await begin("theme");
+    const row = await rowWith(editableTheme.name);
+    await defer("activate_theme");
+    await click(await row.$("button=应用主题"), "应用未激活主题");
+    const request = await pending("activate_theme");
+    assert.equal(request.themeId, editableTheme.id);
+    await click(await $('nav').$("button=账户与应用"), "主题激活 pending 时尝试离开主题设置");
+    await browser.waitUntil(async () => (await $("body").getText()).includes("操作仍在进行"));
+    assert.equal(new URL(await browser.getUrl()).hash, "#theme");
+    const themes = seed.invoke.list_themes.map((item) => ({ ...item, is_active: item.id === editableTheme.id }));
+    const activated = themes.find((item) => item.id === editableTheme.id);
+    await respond("activate_theme", activated, { fixtures: { list_themes: themes } });
+    await browser.waitUntil(async () => (await $("body").getText()).includes("主题已应用"));
+    assert((await (await rowWith(editableTheme.name)).getText()).includes("当前主题"));
+  });
+
   workflow("SD08-admin-users opens users, invitations, token summary and usage records", async () => {
     await openAdmin("用户");
     await (await rowWith(seed.invoke.list_all_users[0].username)).waitForDisplayed();
@@ -624,6 +690,51 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await closeDialog(usageTitle);
   });
 
+  workflow("UX-1941 refuses to create an invite code without secure randomness", async () => {
+    await openAdmin("用户");
+    await browser.execute(() => {
+      const crypto = globalThis.crypto;
+      window.__uiAudit.originalGetRandomValues = crypto.getRandomValues;
+      Object.defineProperty(crypto, "getRandomValues", { configurable: true, value: undefined });
+    });
+    await click(await button("更多"), "打开用户管理附加操作");
+    await click(await menuItem("新增邀请码"), "在缺少安全随机源时创建邀请码");
+    await browser.waitUntil(async () => (await $("body").getText()).includes("当前环境不支持安全随机数"));
+    assert.equal(await $('[role="dialog"]').isExisting(), false);
+    assert.equal(await browser.execute(() => window.__uiAudit.requests.some((item) => item.command === "create_invite_code")), false);
+    await browser.execute(() => {
+      Object.defineProperty(globalThis.crypto, "getRandomValues", {
+        configurable: true,
+        value: window.__uiAudit.originalGetRandomValues,
+      });
+      delete window.__uiAudit.originalGetRandomValues;
+    });
+  });
+
+  workflow("UX-1942 reports a thrown secure-randomness error", async () => {
+    await openAdmin("用户");
+    await browser.execute(() => {
+      const crypto = globalThis.crypto;
+      window.__uiAudit.originalGetRandomValues = crypto.getRandomValues;
+      Object.defineProperty(crypto, "getRandomValues", {
+        configurable: true,
+        value: () => { throw new Error("mock secure random source failure"); },
+      });
+    });
+    await click(await button("更多"), "打开用户管理附加操作");
+    await click(await menuItem("新增邀请码"), "用抛错的安全随机源创建邀请码");
+    await browser.waitUntil(async () => (await $("body").getText()).includes("mock secure random source failure"));
+    assert.equal(await $('[role="dialog"]').isExisting(), false);
+    assert.equal(await browser.execute(() => window.__uiAudit.requests.some((item) => item.command === "create_invite_code")), false);
+    await browser.execute(() => {
+      Object.defineProperty(globalThis.crypto, "getRandomValues", {
+        configurable: true,
+        value: window.__uiAudit.originalGetRandomValues,
+      });
+      delete window.__uiAudit.originalGetRandomValues;
+    });
+  });
+
   workflow("SD09-admin-create-user submits a complete administrator-created account", async () => {
     await openAdmin("用户");
     await click(await button("新增用户"), "打开新增用户表单");
@@ -634,6 +745,7 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await choose(await (await inputFor("角色")), "创作者");
     await capture("create-user-filled");
     await defer("create_user");
+    await defer("list_all_users");
     await click(await dialog("新增用户").$('button=新增用户'), "提交新增用户");
     const request = await pending("create_user");
     assert.equal(request.input.username, "界面审查作者");
@@ -646,9 +758,96 @@ describe("Settings detail pages and complete dialog workflows", function () {
       created_at: seed.fixtureDate, updated_at: seed.fixtureDate,
     };
     await respond("create_user", created, { fixtures: { list_all_users: [...seed.invoke.list_all_users, created] } });
+    await pending("list_all_users");
+    await respond("list_all_users", seed.variants.readFailure.body, { status: seed.variants.readFailure.status });
+    await undefer("list_all_users");
     await dialog("新增用户").waitForExist({ reverse: true });
-    await capture("created-user");
+    await capture("created-user-list-read-failed");
     assert((await (await rowWith(created.username)).getText()).includes("创作者"));
+    assert((await $('.a4n-settings-content [role="alert"]').getText()).includes(seed.variants.readFailure.body.message));
+  });
+
+  workflow("UX-1944 rejects a malformed email before creating an administrator account", async () => {
+    await openAdmin("用户");
+    await click(await button("新增用户"), "打开新增用户表单");
+    const createDialog = await dialog("新增用户");
+    await createDialog.waitForDisplayed();
+    await (await inputFor("用户名")).setValue("邮箱格式测试");
+    const email = await inputFor("邮箱");
+    await email.setValue("not-an-email");
+    await (await inputFor("初始密码")).setValue(fakePassword);
+    assert.equal(await email.getAttribute("type"), "email");
+    assert.equal(await email.execute((element) => element.checkValidity()), false);
+    const before = await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "create_user").length);
+    await click(await createDialog.$("button=新增用户"), "提交格式错误的邮箱");
+    assert.equal(await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "create_user").length), before);
+    await click(await createDialog.$('button[title*="(Esc)"]'), "关闭空的新增用户表单");
+    const discardDialog = await dialog("未保存修改");
+    await discardDialog.waitForDisplayed();
+    await click(await discardDialog.$("button=放弃草稿"), "放弃无效邮箱表单");
+    await createDialog.waitForExist({ reverse: true });
+  });
+
+  workflow("UX-1947 clears an outdated invitation list after its scoped refresh fails", async () => {
+    await openAdmin("用户");
+    await rowWith(seed.invoke.list_all_users[0].username);
+    await openDetails("邀请码");
+    const invitations = await $('//details[.//summary[contains(normalize-space(),"邀请码")]]');
+    assert((await invitations.getText()).includes("UI-DEMO-INVITE-UNUSED"));
+
+    await defer("list_all_users");
+    await defer("list_invite_codes");
+    await click(await button("更多"), "打开用户列表操作");
+    await click(await menuItem("刷新列表"), "刷新用户与邀请码目录");
+    await pending("list_all_users");
+    await pending("list_invite_codes");
+    await respond("list_all_users", seed.invoke.list_all_users);
+    await respond("list_invite_codes", seed.variants.readFailure.body, { status: seed.variants.readFailure.status });
+    await undefer("list_all_users");
+    await undefer("list_invite_codes");
+
+    await browser.waitUntil(async () => (await invitations.getText()).includes("邀请码数量不可用"));
+    assert.equal((await invitations.getText()).includes("UI-DEMO-INVITE-UNUSED"), false);
+    assert.equal((await (await rowWith(seed.invoke.list_all_users[0].username)).getText()).includes(seed.invoke.list_all_users[0].email), true);
+    await click(await invitations.$("button*=重试"), "重试邀请码目录读取");
+    await browser.waitUntil(async () => (await invitations.getText()).includes("UI-DEMO-INVITE-UNUSED"));
+    assert.equal((await invitations.getText()).includes("邀请码数量不可用"), false);
+  });
+
+  workflow("UX-1945 retries a failed token summary in the open dialog", async () => {
+    await openAdmin("用户");
+    const user = seed.invoke.list_all_users[0];
+    await browser.execute((message) => {
+      window.__uiAudit.failNext.push({ command: "get_token_summary", status: 503, message });
+    }, "token summary temporarily unavailable");
+    const row = await rowWith(user.username);
+    await openMenu(row);
+    await click(await menuItem("令牌摘要"), "打开令牌摘要");
+    const tokenDialog = await dialog(`${user.username} · 令牌摘要`);
+    await tokenDialog.waitForDisplayed();
+    await browser.waitUntil(async () => (await tokenDialog.getText()).includes("token summary temporarily unavailable"));
+    await click(await tokenDialog.$("button*=重试"), "在摘要对话框重试读取");
+    await browser.waitUntil(async () => (await tokenDialog.getText()).includes("68,000"));
+    assert.equal((await tokenDialog.getText()).includes("token summary temporarily unavailable"), false);
+    assert.equal(await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "get_token_summary").length), 2);
+  });
+
+  workflow("UX-1946 retries failed user usage in the open dialog", async () => {
+    await openAdmin("用户");
+    const user = seed.invoke.list_all_users[0];
+    await browser.execute((message) => {
+      window.__uiAudit.failNext.push({ command: "get_user_usage", status: 503, message });
+    }, "recent usage temporarily unavailable");
+    const row = await rowWith(user.username);
+    await openMenu(row);
+    await click(await menuItem("查看用量"), "打开用户近期用量");
+    const usageDialog = await dialog(`${user.username} · 最近用量`);
+    await usageDialog.waitForDisplayed();
+    await browser.waitUntil(async () => (await usageDialog.getText()).includes("recent usage temporarily unavailable"));
+    await click(await usageDialog.$("button*=重试"), "在用量对话框重试读取");
+    await browser.waitUntil(async () => (await usageDialog.getText()).includes("ui-deepseek-chat"));
+    assert.equal((await usageDialog.getText()).includes("recent usage temporarily unavailable"), false);
+    assert.equal(await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "get_user_usage").length), 2);
   });
 
   workflow("SD10-admin-role-disable-invite preserves explicit role and disable boundaries", async () => {
@@ -661,38 +860,54 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await capture("role-dialog");
     await $('input[aria-label="修改用户角色"]').setValue("管理员");
     await defer("update_user_role");
+    await defer("list_all_users");
     await click(await dialog("修改用户角色").$('button=更新角色'), "提升为管理员");
     const role = await pending("update_user_role");
     assert.equal(role.userId, user.id);
     assert.equal(role.input.role, "admin");
     let users = seed.invoke.list_all_users.map((item) => item.id === user.id ? { ...item, role: "admin" } : item);
     await respond("update_user_role", users.find((item) => item.id === user.id), { fixtures: { list_all_users: users } });
-    await browser.waitUntil(async () => (await (await rowWith(user.username)).getText()).includes("管理员"));
+    await pending("list_all_users");
+    await respond("list_all_users", seed.variants.readFailure.body, { status: seed.variants.readFailure.status });
+    await undefer("list_all_users");
+    await browser.waitUntil(async () => (await (await rowWith(user.username)).getText()).includes("创作者"));
+    assert((await $('.a4n-settings-content [role="alert"]').getText()).includes(seed.variants.readFailure.body.message));
     row = await rowWith(user.username);
     await openMenu(row);
     await click(await menuItem("禁用用户"), "打开禁用用户确认");
     await dialog("禁用用户").waitForDisplayed();
     await capture("disable-confirmation");
     await defer("disable_user");
+    await defer("list_all_users");
     await click(await dialog("禁用用户").$('button=禁用'), "确认禁用所选用户");
     const disabling = await pending("disable_user");
     assert.equal(disabling.userId, user.id);
     users = users.map((item) => item.id === user.id ? { ...item, is_active: false } : item);
     await respond("disable_user", null, { fixtures: { list_all_users: users } });
+    await pending("list_all_users");
+    await respond("list_all_users", seed.variants.readFailure.body, { status: seed.variants.readFailure.status });
+    await undefer("list_all_users");
     await browser.waitUntil(async () => /禁用|停用/.test(await (await rowWith(user.username)).getText()));
+    assert((await $('.a4n-settings-content [role="alert"]').getText()).includes(seed.variants.readFailure.body.message));
     await click(await button("更多"), "打开用户管理工具");
     await click(await menuItem("新增邀请码"), "打开邀请码表单");
     await dialog("新增邀请码").waitForDisplayed();
     await $('input[aria-label="新增邀请码"]').setValue("UI-DETAILS-INVITE");
     await capture("invite-dialog");
     await defer("create_invite_code");
+    await defer("list_invite_codes");
     await click(await dialog("新增邀请码").$('button=新增邀请码'), "提交测试邀请码");
     const invitation = await pending("create_invite_code");
     assert.deepEqual(invitation.input, { code: "UI-DETAILS-INVITE" });
     const created = { id: 13, code: invitation.input.code, created_at: seed.fixtureDate, created_by_user_id: 1, used_at: null, used_by_user_id: null };
     await respond("create_invite_code", created, { fixtures: { list_invite_codes: [...seed.invoke.list_invite_codes, created] } });
+    await pending("list_invite_codes");
+    await respond("list_invite_codes", seed.variants.readFailure.body, { status: seed.variants.readFailure.status });
+    await undefer("list_invite_codes");
     await openDetails("邀请码");
     await capture("invite-created", { anchor: '//summary[contains(normalize-space(),"邀请码")]' });
+    assert((await $('.a4n-settings-content').getText()).includes("UI-DETAILS-INVITE"));
+    assert((await $('.a4n-settings-content [role="alert"]').getText()).includes(seed.variants.readFailure.body.message));
   });
 
   workflow("SD11-admin-projects opens populated project ownership diagnostics", async () => {
@@ -712,16 +927,81 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await openMenu(row);
     await capture("task-actions");
     await defer("cancel_admin_task");
+    await defer("list_pending_task_index");
     await click(await menuItem("取消任务"), "取消当前选中的管理员任务");
     const request = await pending("cancel_admin_task");
     assert.equal(request.taskId, seed.invoke.list_pending_tasks[0].id);
-    await respond("cancel_admin_task", null, {
-      fixtures: {
-        list_pending_task_index: pendingTaskIndex.filter((item) => item.id !== request.taskId),
-      },
+    await respond("cancel_admin_task", true, {
+      fixtures: { list_pending_task_index: pendingTaskIndex.filter((item) => item.id !== request.taskId) },
     });
-    await browser.waitUntil(async () => (await $$(".a4n-settings-content li")).length === seed.invoke.list_pending_tasks.length - 1);
-    await capture("task-cancelled");
+    await pending("list_pending_task_index");
+    await respond("list_pending_task_index", seed.variants.readFailure.body, { status: seed.variants.readFailure.status });
+    await undefer("list_pending_task_index");
+    await browser.waitUntil(async () => (await $$(".a4n-settings-content li")).length === pendingTaskIndex.length - 1);
+    assert((await $('.a4n-settings-content [role="alert"]').getText()).includes(seed.variants.readFailure.body.message));
+    await capture("task-cancelled-list-read-failed");
+  });
+
+  workflow("UX-1663 shows a failed API configuration read as unknown, not unconfigured", async () => {
+    await begin("admin");
+    await defer("list_llm_config");
+    await click(await $('.a4n-settings-content').$('button=配置'), "打开 API 默认配置概览");
+    await pending("list_llm_config");
+    await respond("list_llm_config", seed.variants.readFailure.body, { status: seed.variants.readFailure.status });
+    await undefer("list_llm_config");
+    const card = (await $$(".a4n-settings-content article"))[0];
+    const text = await card.getText();
+    assert(text.includes("加载 API 调用配置失败"));
+    assert.equal(text.includes("未设置默认配置"), false);
+    await capture("api-default-llm-read-failed");
+  });
+
+  workflow("UX-1669 lets the admin overview refresh independently of a pending health check", async () => {
+    await begin("admin", "?ui-defer=health_check");
+    await pending("health_check");
+    await browser.waitUntil(async () => (await $('.a4n-settings-content').getText()).includes("252"));
+    const healthPanel = await $('//section[.//h3[normalize-space()="系统健康"]]');
+    const healthText = await healthPanel.getText();
+    assert(healthText.includes("正在加载数据"));
+    assert.equal(healthText.includes("无数据"), false);
+    const refresh = await $('.a4n-settings-content button[aria-label="刷新"]');
+    await refresh.waitForEnabled();
+    const before = await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "get_admin_overview").length);
+    await click(refresh, "健康检查仍在运行时刷新已加载的概览指标");
+    await browser.waitUntil(async () => browser.execute((count) =>
+      window.__uiAudit.requests.filter((item) => item.command === "get_admin_overview").length > count,
+    before));
+    await capture("overview-refresh-while-health-pending");
+    const healthPending = await browser.execute(() =>
+      window.__uiAudit.pending.filter((item) => item.command === "health_check").length,
+    );
+    for (let index = 0; index < healthPending; index += 1) {
+      await respond("health_check", seed.invoke.health_check);
+    }
+    await undefer("health_check");
+  });
+
+  workflow("UX-1674 does not present an empty health result after the read fails", async () => {
+    await begin("admin", "?ui-defer=health_check");
+    await pending("health_check");
+    const healthPending = await browser.execute(() =>
+      window.__uiAudit.pending.filter((item) => item.command === "health_check").length,
+    );
+    for (let index = 0; index < healthPending; index += 1) {
+      await respond("health_check", seed.variants.readFailure.body, {
+        status: seed.variants.readFailure.status,
+      });
+    }
+    await browser.waitUntil(async () =>
+      (await $('.a4n-settings-content').getText()).includes(seed.variants.readFailure.body.message),
+    );
+    const healthPanel = await $('//section[.//h3[normalize-space()="系统健康"]]');
+    const healthText = await healthPanel.getText();
+    assert.equal(healthText.includes("无数据"), false);
+    assert.equal(healthText.includes("无服务状态"), false);
+    assert.equal(healthText.includes("正在加载数据"), false);
+    await capture("health-check-read-failed");
+    await undefer("health_check");
   });
 
   workflow("UX-695 keeps the admin section while its server config save is pending", async () => {
@@ -809,7 +1089,7 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await capture("seven-day-trends");
   });
 
-  workflow("SD15-admin-packages distinguishes personal hiding from lifecycle rejection", async () => {
+  workflow("SD15-admin-packages protects a pending personal navigation preference (UX-2538)", async () => {
     await openAdmin("功能包");
     await $('[data-package-id="manga"]').waitForDisplayed();
     await capture("package-states");
@@ -819,6 +1099,9 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await click(hidden, "取消个人导航隐藏");
     const preference = await pending("update_package_preferences");
     assert.deepEqual(preference.input.hidden_package_ids, []);
+    await click(await $('nav').$("button=账户与应用"), "包导航偏好写入 pending 时切换设置分区");
+    await browser.waitUntil(async () => (await $("body").getText()).includes("操作仍在进行"));
+    assert.equal(new URL(await browser.getUrl()).hash, "#admin");
     const savedPreference = { ...seed.invoke.get_package_preferences, hidden_package_ids: [] };
     await respond("update_package_preferences", savedPreference, {
       fixtures: { get_package_preferences: savedPreference },
@@ -840,22 +1123,44 @@ describe("Settings detail pages and complete dialog workflows", function () {
     assert.equal(await hidden.isSelected(), false, "A Host lifecycle rejection must not revert personal navigation preference");
   });
 
-  workflow("SD16-runtime-logs expands paths and changes log level with an explicit response", async () => {
+  workflow("SD16-runtime-logs keeps the actual filter and pending draft in sync (UX-2537/2539/2540)", async () => {
     await begin("logs");
     await click(await button("运行日志"), "进入运行日志子页");
     await $("#diagnostics-panel-logs pre").waitForDisplayed();
     await capture("log-content", { anchor: "#diagnostics-panel-logs" });
     await openDetails("日志级别");
     await openDetails("日志位置");
-    await $('input[aria-label="日志过滤级别"]').setValue("info,a4n=trace");
+    const filterField = await $('input[aria-label="日志过滤级别"]');
+    await browser.waitUntil(async () => (await filterField.getValue()) === "info,sqlx=warn,hyper=warn");
+    await filterField.setValue("info,a4n=trace");
     await capture("log-level-and-location", { anchor: '//summary[contains(normalize-space(),"日志级别")]' });
     await defer("set_log_level");
     await click(await button("应用级别"), "提交新的运行日志过滤级别");
     const request = await pending("set_log_level");
     assert.deepEqual(request.input, { filter: "info,a4n=trace" });
-    await respond("set_log_level", null);
+    await click(await $('nav').$("button=账户与应用"), "日志级别写入 pending 时切换设置分区");
+    await browser.waitUntil(async () => (await $("body").getText()).includes("操作仍在进行"));
+    assert.equal(new URL(await browser.getUrl()).hash, "#logs");
+    await respond("set_log_level", null, { fixtures: { get_log_level: "info,a4n=trace" } });
+    await browser.waitUntil(async () => (await $("body").getText()).includes("日志级别已更新"));
     await button("应用级别").waitForEnabled();
     await capture("log-level-applied", { anchor: '//summary[contains(normalize-space(),"日志级别")]' });
+    await click(await $('nav').$("button=账户与应用"), "应用级别完成后切换设置分区");
+    await browser.waitUntil(async () => new URL(await browser.getUrl()).hash === "#about");
+    await click(await $('nav').$("button=日志"), "返回日志设置并重新读取当前级别");
+    await browser.waitUntil(async () => new URL(await browser.getUrl()).hash === "#logs");
+    await click(await button("运行日志"), "重新进入运行日志子页");
+    await openDetails("日志级别");
+    const remountedFilterField = await $('input[aria-label="日志过滤级别"]');
+    await browser.waitUntil(async () => (await remountedFilterField.getValue()) === "info,a4n=trace");
+    await remountedFilterField.setValue("warn,a4n=error");
+    await click(await $('nav').$("button=账户与应用"), "丢弃前尝试离开未应用的过滤表达式");
+    const discardDraft = await dialog("未保存修改");
+    await discardDraft.waitForDisplayed();
+    assert.equal(new URL(await browser.getUrl()).hash, "#logs");
+    assert.equal(await remountedFilterField.getValue(), "warn,a4n=error");
+    await click(await discardDraft.$("button=放弃草稿"), "确认放弃未应用的日志过滤草稿");
+    await browser.waitUntil(async () => new URL(await browser.getUrl()).hash === "#about");
   });
 
   workflow("SD17-call-details opens every call domain and the full cost table", async () => {
@@ -994,7 +1299,57 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await capture("cancelled-active-job", { anchor: '//h3[normalize-space()="活跃工作流"]/ancestor::section[1]' });
   });
 
-  workflow("SD21-account-profile expands and saves the current account profile", async () => {
+  workflow("UX-1934 keeps an already-finished task in history when refresh fails", async () => {
+    await begin("queue");
+    const taskRow = await rowWith("视频生成");
+    await openMenu(taskRow);
+    await defer("cancel_task");
+    await browser.execute(() => {
+      window.__uiAudit.failNext.push(...Array.from({ length: 4 }, () => ({
+        command: "get_task_history", status: 503, message: "任务历史读取失败",
+      })));
+    });
+    await click(await menuItem("取消任务"), "取消已结束的视频任务");
+    await pending("cancel_task");
+    await respond("cancel_task", false);
+    await browser.waitUntil(async () => (await $("body").getText()).includes("任务或工作流已结束"), { timeout: 5000 });
+    await browser.waitUntil(async () => (await $("body").getText()).includes("任务历史读取失败"), { timeout: 5000 });
+    assert.ok(await taskRow.isExisting(), "A false cancellation result must not remove the recent history row");
+    await capture("already-finished-task-retained", { anchor: '//h3[normalize-space()="最近任务"]/ancestor::section[1]' });
+    await browser.execute(() => {
+      window.__uiAudit.failNext = window.__uiAudit.failNext.filter((failure) => failure.command !== "get_task_history");
+    });
+  });
+
+  workflow("UX-1935 keeps an already-finished workflow in its last known state when reads fail", async () => {
+    await begin("queue");
+    const active = await $('//h3[normalize-space()="活跃工作流"]/ancestor::section[1]');
+    const workflowRow = await active.$('.//ul/li[.//span[normalize-space()="ui-task-video"]]');
+    await openMenu(workflowRow);
+    await defer("cancel_workflow");
+    await browser.execute(() => {
+      window.__uiAudit.failNext.push(
+        ...Array.from({ length: 4 }, () => ({ command: "list_active_workflows", status: 503, message: "活跃工作流读取失败" })),
+        ...Array.from({ length: 4 }, () => ({ command: "list_workflow_runs", status: 503, message: "工作流记录读取失败" })),
+      );
+    });
+    await click(await menuItem("取消工作流"), "取消已结束的视频工作流");
+    await pending("cancel_workflow");
+    await respond("cancel_workflow", false);
+    await browser.waitUntil(async () => (await $("body").getText()).includes("任务或工作流已结束"), { timeout: 5000 });
+    await browser.waitUntil(async () => (await $("body").getText()).includes("工作流记录读取失败"), { timeout: 5000 });
+    assert.ok(await workflowRow.isExisting(), "A false cancellation result must not remove the last known active row");
+    const runs = await $('//h3[normalize-space()="持久化工作流"]/ancestor::section[1]');
+    const videoRun = await runs.$('.//li[.//div[normalize-space()="视频任务"]]');
+    assert.ok((await videoRun.getText()).includes("运行中"), "The UI must not manufacture a cancelled terminal state");
+    await capture("already-finished-workflow-state-retained", { anchor: '//h3[normalize-space()="持久化工作流"]/ancestor::section[1]' });
+    await browser.execute(() => {
+      window.__uiAudit.failNext = window.__uiAudit.failNext.filter((failure) =>
+        !["list_active_workflows", "list_workflow_runs"].includes(failure.command));
+    });
+  });
+
+  workflow("SD21-account-profile saves and handles pending/discarded drafts (UX-1763/1765)", async () => {
     await begin("about");
     await openDetails("个人资料");
     const email = await inputFor("邮箱");
@@ -1009,16 +1364,65 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await click(await button("保存资料"), "保存当前账户资料");
     const request = await pending("update_user_profile");
     assert.equal(request.input.email, "updated-ui-editor@example.invalid");
+    await click(await summary("个人资料"), "保存请求 pending 时尝试收起资料面板");
+    const profileDetails = await $('//details[.//summary[contains(normalize-space(),"个人资料")]]');
+    assert.equal(await profileDetails.execute((element) => element.open), true);
+    assert.equal(await $('[role="dialog"]').isExisting(), false, "A non-cancelable save must not offer to discard while in flight");
+    await browser.waitUntil(async () => (await $("body").getText()).includes("操作仍在进行"));
     const updated = { ...seed.invoke.get_current_user, ...request.input };
     await respond("update_user_profile", updated, { fixtures: { get_current_user: updated } });
     await browser.waitUntil(async () => !(await button("保存资料").isEnabled()));
     assert.equal(await email.getValue(), request.input.email);
+    await email.setValue("discarded-ui-profile@example.invalid");
+    await click(await summary("个人资料"), "收起资料草稿");
+    const discardProfile = await dialog("未保存修改");
+    await discardProfile.waitForDisplayed({ timeout: 5000 });
+    await click(await discardProfile.$("button=放弃草稿"), "放弃资料草稿");
+    await browser.waitUntil(async () => !(await profileDetails.execute((element) => element.open)));
+    assert.equal(await email.getValue(), request.input.email, "Discarding must restore the saved profile values");
+    const advancedTab = await $('.a4n-settings-layout nav').$('button*=高级');
+    await click(advancedTab, "放弃资料草稿后离开账户页面");
+    await browser.waitUntil(async () => new URL(await browser.getUrl()).hash === "#advanced", { timeout: 5000 });
+    assert.equal(await $('[role="dialog"]').isExisting(), false, "A discarded profile must not trigger a second navigation warning");
+    await browser.execute((sessionId) => localStorage.setItem("a4n:current_session_id", sessionId), seed.invoke.list_sessions[0].id);
+    const retryQuery = new URLSearchParams({
+      "ui-run": "profile-read-retry-" + Date.now(),
+      "ui-fail": JSON.stringify([{
+        command: "get_current_user",
+        status: 503,
+        message: "账户资料读取失败",
+      }]),
+    });
+    await begin("about", `?${retryQuery.toString()}`);
+    const profilePanel = () => $('//details[.//summary[contains(normalize-space(),"个人资料")]]');
+    await openDetails("个人资料");
+    await browser.waitUntil(async () => (await (await profilePanel()).getText()).includes("账户资料读取失败"));
+    await click(await (await profilePanel()).$("button*=重试"), "重试账户资料读取");
+    await browser.waitUntil(async () => await (await profilePanel()).$("input[type=email]").isEnabled());
+    assert.equal((await (await profilePanel()).getText()).includes("账户资料读取失败"), false, "A successful retry clears the prior profile load error");
+    await begin("about");
     await openDetails("登录修复");
     await capture("session-repair-explanation", { anchor: '//summary[contains(normalize-space(),"登录修复")]' });
     step("凭证刷新未执行；无真实刷新凭证，不伪造TokenPair成功响应");
   });
 
-  workflow("SD22-account-password submits with Enter and preserves fake input after failure", async () => {
+  workflow("UX-1943 blocks saving an empty required account email", async () => {
+    await begin("about");
+    await openDetails("个人资料");
+    const email = await inputFor("邮箱");
+    const saved = await email.getValue();
+    await email.clearValue();
+    assert.deepEqual(await email.execute((element) => ({ required: element.required, valid: element.checkValidity() })), {
+      required: true,
+      valid: false,
+    });
+    const before = await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "update_user_profile").length);
+    await click(await button("保存资料"), "提交空邮箱资料");
+    assert.equal(await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "update_user_profile").length), before);
+    await email.setValue(saved);
+  });
+
+  workflow("SD22-account-password scopes failure feedback to the submitted credential draft (UX-1764/1765/1937/1938)", async () => {
     await begin("about");
     await openDetails("修改密码");
     const oldPassword = await inputFor("当前密码");
@@ -1035,15 +1439,44 @@ describe("Settings detail pages and complete dialog workflows", function () {
     const request = await pending("change_user_password");
     assert.equal(request.input.old_password, fakePassword + "-old");
     assert.equal(request.input.new_password, fakePassword + "-new");
+    await click(await summary("修改密码"), "密码修改请求 pending 时尝试收起面板");
+    const passwordDetails = await $('//details[.//summary[contains(normalize-space(),"修改密码")]]');
+    assert.equal(await passwordDetails.execute((element) => element.open), true);
+    assert.equal(await $('[role="dialog"]').isExisting(), false, "A non-cancelable password change must not offer to discard while in flight");
+    await browser.waitUntil(async () => (await $("body").getText()).includes("操作仍在进行"));
+    await newPassword.setValue(fakePassword + "-new-revised");
     await respond("change_user_password", {
       ...seed.variants.readFailure.body, message: "密码更新失败：模拟服务暂时不可用。",
     }, { status: 503 });
     await button("更新密码").waitForEnabled();
     assert.equal(await oldPassword.getValue(), fakePassword + "-old");
-    assert.equal(await newPassword.getValue(), fakePassword + "-new");
+    assert.equal(await newPassword.getValue(), fakePassword + "-new-revised");
+    const passwordError = () => passwordDetails.$('[role="alert"]');
+    await browser.waitUntil(async () => (await $("body").getText()).includes("密码更新失败：模拟服务暂时不可用。"));
+    assert.equal(await passwordError().isExisting(), false, "A failed old submission must not become an error on the edited draft");
+    await newPassword.setValue(fakePassword + "-new");
+    await defer("change_user_password");
+    await click(await button("更新密码"), "重新提交当前密码组合");
+    await pending("change_user_password");
+    await respond("change_user_password", {
+      ...seed.variants.readFailure.body, message: "当前密码组合仍被拒绝。",
+    }, { status: 503 });
+    await browser.waitUntil(async () => (await passwordError().getText()).includes("当前密码组合仍被拒绝"));
+    await newPassword.setValue(fakePassword + "-new-revised");
+    await browser.waitUntil(async () => !await (await passwordError()).isExisting());
+    await newPassword.setValue(fakePassword + "-new");
     await capture("password-failure-retains-fields", { anchor: '//summary[contains(normalize-space(),"修改密码")]' });
-    await oldPassword.setValue("");
-    await newPassword.setValue("");
+    await click(await summary("修改密码"), "收起待放弃的密码输入");
+    const discardPassword = await dialog("未保存修改");
+    await discardPassword.waitForDisplayed({ timeout: 5000 });
+    await click(await discardPassword.$("button=放弃草稿"), "放弃密码修改草稿");
+    await browser.waitUntil(async () => !(await passwordDetails.execute((element) => element.open)));
+    assert.equal(await oldPassword.getValue(), "");
+    assert.equal(await newPassword.getValue(), "", "Discarding must clear the unsaved password from form state");
+    const advancedTab = await $('.a4n-settings-layout nav').$('button*=高级');
+    await click(advancedTab, "放弃密码草稿后离开账户页面");
+    await browser.waitUntil(async () => new URL(await browser.getUrl()).hash === "#advanced", { timeout: 5000 });
+    assert.equal(await $('[role="dialog"]').isExisting(), false, "A discarded password must not trigger a second navigation warning");
   });
 
   workflow("SD23-account-logout asks before losing an unsaved profile", async () => {
@@ -1138,17 +1571,103 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await click(await dialog("清理孤儿项目目录").$('button=删除'), "确认清理模拟目录");
     const cleanupRequest = await pending("cleanup_orphan_project_data_dirs");
     assert.deepEqual(cleanupRequest.input.project_ids, [1]);
+
+    const advancedTab = await $('.a4n-settings-layout nav').$('button*=高级');
+    await click(advancedTab, "删除请求 pending 时尝试切换设置类别");
+    const operationGuard = await dialog("未保存修改");
+    await operationGuard.waitForDisplayed({ timeout: 5000 });
+    assert.ok((await operationGuard.getText()).includes("操作仍在进行"));
+    assert.equal(await operationGuard.$("button=放弃草稿").isEnabled(), false);
+    assert.equal(new URL(await browser.getUrl()).hash, "#about");
+
     await respond("cleanup_orphan_project_data_dirs", seed.variants.orphanScan, {
       fixtures: { list_orphan_project_data_dirs: { items: [], total_count: 0, total_size_bytes: 0 } },
     });
-    await browser.waitUntil(async () => (await cleanup.getText()).includes("未发现可清理目录"));
+    await browser.waitUntil(async () => new URL(await browser.getUrl()).hash === "#advanced", { timeout: 5000 });
+    await browser.waitUntil(async () => (await $("body").getText()).includes("已清理 1 个孤儿项目目录"), { timeout: 5000 });
+    await browser.url("/settings#about");
+    const reopenedCleanup = await section("存储清理");
+    await browser.waitUntil(async () => (await reopenedCleanup.getText()).includes("未发现可清理目录"), { timeout: 5000 });
     await capture("orphan-cleanup-result", { anchor: 'section[aria-label="存储清理"]' });
   });
 
-  workflow("SD27-advanced-backup separates file preparation from the confirmed import", async () => {
+  workflow("SD28-account-refresh reports a failed credential refresh after leaving About (UX-1768)", async () => {
+    await begin("about");
+    await openDetails("登录修复");
+    await browser.execute(() => localStorage.setItem("a4n:current_refresh_token", "ui-audit-refresh-token"));
+    await defer("refresh_token");
+    await click(await button("重新获取凭证"), "重新获取凭证");
+    const request = await pending("refresh_token");
+    assert.equal(request.input.refresh_token, "ui-audit-refresh-token");
+
+    const advancedTab = await $('.a4n-settings-layout nav').$('button*=高级');
+    await click(advancedTab, "凭证刷新 pending 时离开 About");
+    await browser.waitUntil(async () => new URL(await browser.getUrl()).hash === "#advanced", { timeout: 5000 });
+    const message = "模拟凭证刷新失败，登录状态未变化。";
+    await respond("refresh_token", {
+      code: "unavailable", message, retryable: true, trace_id: "ui-refresh-failure", details: {},
+    }, { status: 503 });
+    await browser.waitUntil(async () => (await $("body").getText()).includes(message), { timeout: 5000 });
+    assert.ok(await $('[role="alert"]').isDisplayed(), "The detached request failure must remain visible globally");
+  });
+
+  workflow("SD29-account-refresh keeps session-list errors separate from credential refresh (UX-1769)", async () => {
+    await browser.waitUntil(async () => !(await $(".a4n-toast").isExisting()), { timeout: 10000 });
+    await begin("about");
+    await openDetails("登录修复");
+    const devices = () => $('//h3[normalize-space()="登录设备"]/ancestor::section[1]');
+    await (await devices()).$("li").waitForDisplayed();
+    await browser.execute(() => localStorage.setItem("a4n:current_refresh_token", "ui-audit-refresh-token"));
+    await setFixtures({ refresh_token: {
+      access_token: "ui-audit-refreshed-access",
+      refresh_token: "ui-audit-refreshed-token",
+      session_id: seed.invoke.list_sessions[0].id,
+      expires_in: 3600,
+      token_type: "Bearer",
+    } });
+    await browser.execute(() => window.__uiAudit.failNext.push({
+      command: "list_sessions",
+      status: 503,
+      message: "会话列表读取失败",
+    }));
+    await click(await button("重新获取凭证"), "凭证刷新成功后触发会话列表读取失败");
+    await browser.waitUntil(() => browser.execute(() =>
+      [...document.querySelectorAll(".a4n-toast")].some((toast) => toast.textContent?.includes("登录凭证已更新")),
+    ));
+    await browser.waitUntil(async () => (await (await devices()).getText()).includes("会话列表读取失败"));
+    const toastText = await browser.execute(() =>
+      [...document.querySelectorAll(".a4n-toast")].map((toast) => toast.textContent ?? "").join("\n"),
+    );
+    assert.equal(toastText.includes("刷新失败"), false);
+
+    await begin("about");
+    await openDetails("登录修复");
+    const nextDevices = () => $('//h3[normalize-space()="登录设备"]/ancestor::section[1]');
+    await (await nextDevices()).$("li").waitForDisplayed();
+    await browser.execute(() => {
+      localStorage.setItem("a4n:current_refresh_token", "ui-audit-refresh-token");
+      window.__uiAudit.failNext.push({
+        command: "refresh_token",
+        status: 503,
+        message: "模拟凭证服务错误",
+      });
+    });
+    await click(await button("重新获取凭证"), "刷新凭证请求失败后检查列表状态归属");
+    await browser.waitUntil(async () => (await $('[role="alert"]').getText()).includes("模拟凭证服务错误"));
+    const failedRefreshToasts = await browser.execute(() =>
+      [...document.querySelectorAll(".a4n-toast")].filter((toast) => toast.textContent?.includes("刷新失败")).length,
+    );
+    assert.equal(failedRefreshToasts, 1, "The failed credential request must produce one feedback channel");
+  });
+
+  workflow("UX-2530-advanced-backup continues file preparation after leaving advanced settings", async () => {
     await begin("advanced");
     const panel = await section("服务器配置备份");
     await capture("advanced-backup-default", { anchor: 'section[aria-label="服务器配置备份"]' });
+    await click(await panel.$("summary=导入选项"), "打开覆盖选项");
+    const overwrite = await panel.$('[role="switch"]');
+    await click(overwrite, "启用覆盖现有配置");
+    assert.equal(await overwrite.getAttribute("aria-checked"), "true");
     await browser.execute(() => {
       const panel = document.querySelector('section[aria-label="服务器配置备份"]');
       const input = panel?.querySelector('input[type="file"]');
@@ -1164,32 +1683,35 @@ describe("Settings detail pages and complete dialog workflows", function () {
     });
     await browser.waitUntil(async () => (await panel.getText()).includes("正在准备导入…"));
     await capture("advanced-backup-preparing", { anchor: 'section[aria-label="服务器配置备份"]' });
+    await click(await $('nav').$("button=账户与应用"), "文件读取 pending 时离开高级设置");
+    await browser.waitUntil(async () => new URL(await browser.getUrl()).hash === "#about");
+    await section("当前账户").waitForDisplayed();
+    assert.equal(await section("服务器配置备份").isExisting(), false, "Leaving Advanced must unmount the backup panel");
     await browser.execute(() => window.__uiAudit.resolveBackupRead("{}"));
     const confirmation = await dialog("导入配置");
     await confirmation.waitForDisplayed();
     assert((await confirmation.getText()).includes("服务器密钥"));
+    assert((await confirmation.getText()).includes("覆盖"), "Confirmation must reflect the selected overwrite mode");
     await capture("advanced-backup-confirmation", { anchor: '//div[@role="dialog"][.//h3[normalize-space()="导入配置"]]' });
     await defer("import_all_configs");
     assert.equal(await browser.execute(() => window.__uiAudit.requests.some((item) => item.command === "import_all_configs")), false);
     await click(await confirmation.$("button=导入完整配置"), "确认导入备份");
     const request = await pending("import_all_configs");
     assert.equal(request.input.settings_json, "{}");
-    assert.equal(request.input.overwrite, false);
-    assert((await panel.getText()).includes("导入中…"));
-    await capture("advanced-backup-importing", { anchor: 'section[aria-label="服务器配置备份"]' });
-    await click(await $('nav').$("button=账户与应用"), "离开仍在执行导入的高级设置页");
-    await click(await $('nav').$("button=高级配置"), "返回高级设置页");
+    assert.equal(request.input.overwrite, true);
+    await click(await $('nav').$("button=高级配置"), "返回查看仍在执行的导入");
     const remountedPanel = await section("服务器配置备份");
     await browser.waitUntil(async () => (await remountedPanel.getText()).includes("导入中…"));
     assert.equal(await remountedPanel.$("button*=导入配置文件").isEnabled(), false);
     await click(await remountedPanel.$("summary=导入选项"), "查看导入进行中的选项状态");
-    assert.equal(await remountedPanel.$('[role="switch"]').isEnabled(), false);
+    const remountedOverwrite = await remountedPanel.$('[role="switch"]');
+    assert.equal(await remountedOverwrite.isEnabled(), false);
+    assert.equal(await remountedOverwrite.getAttribute("aria-checked"), "true");
     assert.equal(await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "import_all_configs").length), 1);
     await capture("advanced-backup-remount-importing", { anchor: 'section[aria-label="服务器配置备份"]' });
+    await click(await $('nav').$("button=账户与应用"), "导入请求 pending 时离开高级设置");
     await respond("import_all_configs", ["模拟设置已导入"]);
-    await browser.waitUntil(async () => (await remountedPanel.getText()).includes("从 JSON 备份恢复配置"));
     await browser.waitUntil(async () => (await browser.execute(() => document.body.innerText)).includes("导入完成：模拟设置已导入"));
-    await capture("advanced-backup-completed", { anchor: 'section[aria-label="服务器配置备份"]' });
   });
 
   workflow("SD25-auth-login-register keeps failed submissions recoverable", async () => {
@@ -1258,8 +1780,29 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await click(await button("返回用户名登录"), "从回调错误返回");
   });
 
-  for (const user of seed.invoke.list_all_users.filter((item) => item.role === "user").slice(0, 1)) {
-    workflow("SD27-account-role-user preserves the non-admin account boundary", async () => {
+  workflow("UX-1948 shows OAuth provider retry as loading while its request is pending", async () => {
+    const query = new URLSearchParams({
+      "ui-auth": "1",
+      "ui-fail": JSON.stringify([{
+        command: "oauth2_available_providers",
+        status: 503,
+        message: "OAuth provider list unavailable",
+      }]),
+    });
+    await browser.url(`/?${query.toString()}`);
+    await $(".a4n-auth-page").waitForDisplayed();
+    await browser.waitUntil(async () => (await $("body").getText()).includes("无法读取第三方登录方式"));
+    await defer("oauth2_available_providers");
+    await click(await button("重试"), "重试第三方登录方式读取");
+    await pending("oauth2_available_providers");
+    await browser.waitUntil(async () => (await $("body").getText()).includes("正在读取第三方登录方式"));
+    assert.equal((await $("body").getText()).includes("此服务未配置第三方登录"), false);
+    await respond("oauth2_available_providers", ["google"]);
+    await button("使用第三方账号登录").waitForDisplayed();
+  });
+
+  for (const user of seed.invoke.list_all_users.filter((item) => item.id !== 1)) {
+    workflow(`SD27-account-role-${user.role} preserves the non-admin account boundary`, async () => {
       await install({
         get_current_user: user,
         get_theme_preference: { ...seed.invoke.get_theme_preference, user_id: user.id },

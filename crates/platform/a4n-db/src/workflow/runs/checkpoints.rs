@@ -87,6 +87,7 @@ struct WorkflowCheckpointArtifactState {
 
 pub async fn mutate_completed_workflow_checkpoint_artifacts_unless_step_exists<F>(
     db: &impl crate::DbExecutor,
+    project_id: i64,
     workflow_run_id: i64,
     step_key: &str,
     blocking_step_key: &str,
@@ -95,6 +96,7 @@ pub async fn mutate_completed_workflow_checkpoint_artifacts_unless_step_exists<F
 where
     F: FnOnce(Option<&Value>, Option<&Value>) -> Result<Value, WorkflowWriteError> + Send,
 {
+    validate_positive_i64(project_id, "project_id")?;
     validate_positive_i64(workflow_run_id, "workflow_run_id")?;
     let step_key = required_text(step_key.to_string(), "step_key")?;
     let blocking_step_key = required_text(blocking_step_key.to_string(), "blocking_step_key")?;
@@ -106,7 +108,25 @@ where
     let tx = sea_orm::TransactionTrait::begin(db)
         .await
         .map_err(WorkflowWriteError::Database)?;
+    let run_hint = workflow_run::Entity::find_by_id(workflow_run_id)
+        .one(&tx)
+        .await
+        .map_err(WorkflowWriteError::Database)?
+        .ok_or_else(|| WorkflowWriteError::NotFound(format!("工作流不存在: {workflow_run_id}")))?;
+    if run_hint.project_id != Some(project_id) {
+        return Err(WorkflowWriteError::StatusConflict {
+            current: format!("workflow_project_scope_changed:{:?}", run_hint.project_id),
+            operation: "更新工作流 checkpoint 产物".to_string(),
+        });
+    }
+    crate::generation::require_project_owner_lifecycle_active(&tx, project_id).await?;
     let run = locked_workflow_run_by_id(&tx, workflow_run_id).await?;
+    if run.project_id != Some(project_id) {
+        return Err(WorkflowWriteError::StatusConflict {
+            current: format!("workflow_project_scope_changed:{:?}", run.project_id),
+            operation: "更新工作流 checkpoint 产物".to_string(),
+        });
+    }
     if !workflow_run_is_running_or_resumable(&run.status, run.can_resume) {
         return Err(WorkflowWriteError::StatusConflict {
             current: run.status,

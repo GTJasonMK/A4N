@@ -84,7 +84,9 @@ impl OrchestratorContext {
             progress.and_then(|progress| progress.active_task_id),
         )
         .map_err(AppError::InvalidArgument)?;
-        let workflow_run = self.begin_workflow_run_validated(workflow_input).await?;
+        let workflow_run = self
+            .begin_or_resume_workflow_run_validated(workflow_input)
+            .await?;
         let result = async {
             let call_result = self
                 .run_character_discovery_call(

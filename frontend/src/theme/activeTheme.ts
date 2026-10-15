@@ -9,6 +9,7 @@ import {
   type ThemeStreamDisplaySettings,
 } from "../api/theme";
 import { toMediaSrc } from "../utils/mediaSrc";
+import { readPortableItem, writePortableItem } from "../utils/portableStorage";
 import { normalizeStreamDisplaySettings } from "../utils/streamDisplaySettings";
 import {
   THEME_DOCUMENT_VERSION,
@@ -19,6 +20,7 @@ import {
 
 export const THEME_APPLIED_EVENT = "a4n:theme-applied";
 const THEME_CACHE_PREFIX = "a4n:theme-runtime:v2:";
+const GUEST_APPEARANCE_KEY = "a4n:theme-appearance:guest";
 const appliedThemeVariables = new Set<string>();
 const themeTokenSet = new Set<string>(THEME_TOKEN_NAMES);
 
@@ -90,8 +92,16 @@ function writeThemeCache(userId: number, themes: Theme[], appearance: ThemeAppea
   }
 }
 
-function broadcastThemeSync(): void {
-  const message = JSON.stringify({ userId: runtimeUserId, at: Date.now() });
+function isThemeAppearance(value: unknown): value is ThemeAppearance {
+  return value === "system" || value === "light" || value === "dark";
+}
+
+function broadcastThemeSync(appearance?: ThemeAppearance): void {
+  const message = JSON.stringify({
+    userId: runtimeUserId,
+    at: Date.now(),
+    ...(appearance === undefined ? {} : { appearance }),
+  });
   try {
     if (syncChannel) syncChannel.postMessage(message);
     else localStorage.setItem("a4n:theme-sync", message);
@@ -106,8 +116,13 @@ function ensureSyncListeners(): void {
     syncChannel = new BroadcastChannel("a4n-theme-sync");
     syncChannel.onmessage = (event) => {
       try {
-        const message = JSON.parse(String(event.data)) as { userId?: number | null };
-        if (message.userId === runtimeUserId) void reloadRuntimeTheme();
+        const message = JSON.parse(String(event.data)) as { userId?: number | null; appearance?: ThemeAppearance };
+        if (message.userId !== runtimeUserId) return;
+        if (runtimeUserId == null && isThemeAppearance(message.appearance)) {
+          setThemeAppearance(message.appearance);
+          return;
+        }
+        void reloadRuntimeTheme();
       } catch {
         // Ignore unrelated channel messages.
       }
@@ -124,8 +139,13 @@ function ensureSyncListeners(): void {
     window.addEventListener("storage", (event) => {
       if (event.key !== "a4n:theme-sync" || !event.newValue) return;
       try {
-        const message = JSON.parse(event.newValue) as { userId?: number | null };
-        if (message.userId === runtimeUserId) void reloadRuntimeTheme();
+        const message = JSON.parse(event.newValue) as { userId?: number | null; appearance?: ThemeAppearance };
+        if (message.userId !== runtimeUserId) return;
+        if (runtimeUserId == null && isThemeAppearance(message.appearance)) {
+          setThemeAppearance(message.appearance);
+          return;
+        }
+        void reloadRuntimeTheme();
       } catch {
         // Ignore malformed cross-tab notifications.
       }
@@ -217,7 +237,14 @@ async function readRuntimeTheme(userId: number): Promise<boolean> {
 }
 
 async function reloadRuntimeTheme(): Promise<void> {
-  if (runtimeUserId == null) return;
+  if (runtimeUserId == null) {
+    try {
+      await loadAndApplyActiveTheme(null);
+    } catch (error) {
+      console.error("Failed to reload the guest theme after a cross-tab update", error);
+    }
+    return;
+  }
   try {
     await readRuntimeTheme(runtimeUserId);
   } catch (error) {
@@ -292,6 +319,14 @@ export function setThemeAppearance(appearance: ThemeAppearance): void {
   applyRuntimeTheme();
 }
 
+export async function persistGuestThemeAppearance(appearance: ThemeAppearance): Promise<void> {
+  await writePortableItem(GUEST_APPEARANCE_KEY, appearance);
+  if (runtimeUserId == null) {
+    setThemeAppearance(appearance);
+    broadcastThemeSync(appearance);
+  }
+}
+
 export async function persistThemeAppearance(
   appearance: ThemeAppearance,
   canApply: () => boolean = () => true,
@@ -315,8 +350,11 @@ export async function loadAndApplyActiveTheme(userId: number | null): Promise<bo
   runtimeThemes = [];
   runtimeActiveTheme = null;
   if (userId == null) {
-    runtimeAppearance = "system";
-    applyThemeState(null, "light");
+    const savedAppearance = readPortableItem(GUEST_APPEARANCE_KEY);
+    runtimeAppearance = savedAppearance === "light" || savedAppearance === "dark" || savedAppearance === "system"
+      ? savedAppearance
+      : "system";
+    applyThemeState(null, preferredThemeMode(runtimeAppearance));
     return true;
   }
 

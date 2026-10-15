@@ -30,6 +30,7 @@ import type { RunProgressTask } from "../../../hooks/useProgressTask";
 import { runGenerationProgressTaskThen } from "../../../hooks/runGenerationProgressTask";
 import { readFileAsBase64 } from "../../../utils/fileUpload";
 import { isSupportedImageMime } from "../../../utils/imageUpload";
+import { asJsonRecord } from "../../../utils/jsonRecord";
 import { ImageActionDialog } from "../images/ImageActionDialog";
 import { useI18n } from "../../../i18n";
 import { useNovelDetailDirty } from "../novelDetailDirty";
@@ -56,6 +57,7 @@ const STYLE_TEMPLATE_VERSION = "1";
 
 interface VideoMaterialWorkspaceProps {
   projectId: number;
+  canEdit: boolean;
   onToast: (message: string, type: "success" | "error" | "info") => void;
   runProgressTask: RunProgressTask;
   onRefreshVideoData: () => Promise<boolean | void> | boolean | void;
@@ -63,6 +65,7 @@ interface VideoMaterialWorkspaceProps {
 
 export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
   projectId,
+  canEdit,
   onToast,
   runProgressTask,
   onRefreshVideoData,
@@ -154,6 +157,11 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     activeProjectRef.current === requestProjectId;
 
   const beginAction = () => {
+    if (!canEdit || loading) return false;
+    if (loadError) {
+      onToast(loadError, "error");
+      return false;
+    }
     if (actionBusyRef.current) return false;
     actionBusyRef.current = true;
     return true;
@@ -163,6 +171,72 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     if (isCurrentProject(requestProjectId)) {
       actionBusyRef.current = false;
     }
+  };
+
+  const applyMaterialGroupResult = (updated: ProfileMaterialGroup) => {
+    setGroups((current) => {
+      const key = groupKey(updated);
+      const index = current.findIndex((group) => groupKey(group) === key);
+      if (index < 0) return [...current, updated];
+      const next = [...current];
+      next[index] = updated;
+      return next;
+    });
+  };
+
+  const applyImageResult = (updated: GeneratedImage) => {
+    setGroups((current) => current.map((group) => ({
+      ...group,
+      primary_image: group.primary_image?.image.id === updated.id
+        ? { ...group.primary_image, image: updated }
+        : group.primary_image,
+      images: group.images.map((item) =>
+        item.image.id === updated.id ? { ...item, image: updated } : item,
+      ),
+    })));
+    setImageDetails((current) => (current?.id === updated.id ? updated : current));
+  };
+
+  const removeImageFromGroups = (imageId: number) => {
+    setGroups((current) => current.map((group) => {
+      const included = group.images.some((item) => item.image.id === imageId)
+        || group.primary_image?.image.id === imageId;
+      if (!included) return group;
+      return {
+        ...group,
+        images: group.images.filter((item) => item.image.id !== imageId),
+        image_count: Math.max(0, group.image_count - 1),
+        primary_image: group.primary_image?.image.id === imageId ? null : group.primary_image,
+        primary_image_id: group.primary_image?.image.id === imageId ? null : group.primary_image_id,
+      };
+    }));
+  };
+
+  const applyGeneratedImagesToGroup = (group: ProfileMaterialGroup, images: GeneratedImage[]) => {
+    if (images.length === 0) return;
+    setGroups((current) => current.map((item) => {
+      if (groupKey(item) !== groupKey(group)) return item;
+      const existing = new Set(item.images.map((row) => row.image.id));
+      const additions = images
+        .filter((image) => !existing.has(image.id))
+        .map((image) => {
+          const metadata = asJsonRecord(image.metadata_json);
+          return {
+            image,
+            is_primary: false,
+            staleness: "fresh" as const,
+            style_template_id: typeof metadata?.style_template_id === "string" ? metadata.style_template_id : null,
+            style_template_name: typeof metadata?.style_template_name === "string" ? metadata.style_template_name : null,
+          };
+        });
+      if (additions.length === 0) return item;
+      return {
+        ...item,
+        images: [...additions, ...item.images],
+        image_count: item.image_count + additions.length,
+        material_state: "ready",
+      };
+    }));
   };
 
   const loadMaterials = useCallback(async (options: LoadMaterialsOptions = {}): Promise<boolean> => {
@@ -292,6 +366,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
   ): Promise<boolean> => {
     const key = groupKey(group);
     setBusyKey(key);
+    let generatedImages: GeneratedImage[] = [];
     try {
       const stylePayload = generationStylePayload();
       const handle = await startImageGeneration({
@@ -328,13 +403,14 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
         },
         async (task) => {
           if (!isCurrentProject(requestProjectId)) throw new Error(t("video.material.taskStopped"));
-          await verifyImageGenerationResult(task, requestProjectId);
+          generatedImages = await verifyImageGenerationResult(task, requestProjectId);
         },
       );
       if (!isCurrentProject(requestProjectId)) return false;
+      applyGeneratedImagesToGroup(group, generatedImages);
       if (options.refresh !== false) {
-        if (!await refreshAfterMaterialChange()) return false;
         onToast(t("video.material.generatedProjectMaterial", { name: group.profile.name }), "success");
+        void refreshAfterMaterialChange();
       }
       return true;
     } catch (err) {
@@ -433,7 +509,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
         readFileAsBase64(file),
       ]);
       if (!isCurrentProject(requestProjectId)) return;
-      await uploadProfileMaterialImage({
+      const updatedGroup = await uploadProfileMaterialImage({
         project_id: projectId,
         profile_kind: group.kind,
         profile_id: group.profile.id,
@@ -448,10 +524,10 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
         custom_style: stylePayload.custom_style,
       });
       if (!isCurrentProject(requestProjectId)) return;
-      if (!await refreshAfterMaterialChange()) return;
-      if (!isCurrentProject(requestProjectId)) return;
+      applyMaterialGroupResult(updatedGroup);
       setUploadTarget(null);
       onToast(uploadSetPrimary ? t("video.material.uploadedPrimary") : t("video.material.uploaded"), "success");
+      void refreshAfterMaterialChange();
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
       onToast(extractErrorMessage(err, t("video.material.uploadFailed")), "error");
@@ -476,14 +552,19 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     if (!beginAction()) return;
     setBatchBusy(true);
     try {
+      let completedCount = 0;
+      let failed = false;
       for (const group of targets) {
         if (!isCurrentProject(requestProjectId)) return;
-        if (!await generateMaterialCore(group, requestProjectId, requestSize, { refresh: false })) return;
+        if (!await generateMaterialCore(group, requestProjectId, requestSize, { refresh: false })) {
+          failed = true;
+          break;
+        }
+        completedCount += 1;
       }
       if (!isCurrentProject(requestProjectId)) return;
-      if (!await refreshAfterMaterialChange()) return;
-      if (!isCurrentProject(requestProjectId)) return;
-      onToast(t("video.material.batchCompleted", { count: targets.length }), "success");
+      if (completedCount > 0) void refreshAfterMaterialChange();
+      if (!failed) onToast(t("video.material.batchCompleted", { count: targets.length }), "success");
     } finally {
       if (isCurrentProject(requestProjectId)) setBatchBusy(false);
       finishAction(requestProjectId);
@@ -506,10 +587,9 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     try {
       const updated = await updateImage(image.id, { is_favorite: !image.is_favorite });
       if (!isCurrentProject(requestProjectId)) return;
-      setImageDetails((current) => (current?.id === updated.id ? updated : current));
-      if (!await loadMaterials({ force: true })) return;
-      if (!isCurrentProject(requestProjectId)) return;
+      applyImageResult(updated);
       onToast(updated.is_favorite ? t("video.material.favorited") : t("video.material.unfavorited"), "success");
+      void loadMaterials({ force: true });
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
       onToast(extractErrorMessage(err, t("video.material.favoriteFailed")), "error");
@@ -531,10 +611,9 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     try {
       const updated = await updateImage(image.id, { ai_score: score });
       if (!isCurrentProject(requestProjectId)) return;
-      setImageDetails((current) => (current?.id === updated.id ? updated : current));
-      if (!await loadMaterials({ force: true })) return;
-      if (!isCurrentProject(requestProjectId)) return;
+      applyImageResult(updated);
       onToast(t("video.material.scored", { score }), "success");
+      void loadMaterials({ force: true });
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
       onToast(extractErrorMessage(err, t("video.material.scoreFailed")), "error");
@@ -551,10 +630,9 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     try {
       const updated = await updateImage(image.id, input);
       if (!isCurrentProject(requestProjectId)) return;
-      setImageDetails((current) => (current?.id === updated.id ? updated : current));
-      if (!await loadMaterials({ force: true })) return;
-      if (!isCurrentProject(requestProjectId)) return;
+      applyImageResult(updated);
       onToast(t("video.material.imageUpdated"), "success");
+      void loadMaterials({ force: true });
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
       onToast(extractErrorMessage(err, t("video.material.updateImageFailed")), "error");
@@ -580,10 +658,10 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       setImageBusyId(image.id);
       await deleteImage(image.id);
       if (!isCurrentProject(requestProjectId)) return;
+      removeImageFromGroups(image.id);
       setImageDetails(null);
-      if (!await refreshAfterMaterialChange()) return;
-      if (!isCurrentProject(requestProjectId)) return;
       onToast(t("video.material.deleted"), "success");
+      void refreshAfterMaterialChange();
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
       onToast(extractErrorMessage(err, t("video.material.deleteFailed")), "error");
@@ -598,16 +676,16 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     if (!beginAction()) return;
     setBusyKey(groupKey(group));
     try {
-      await setProfilePrimaryMaterial({
+      const updatedGroup = await setProfilePrimaryMaterial({
         project_id: projectId,
         profile_kind: group.kind,
         profile_id: group.profile.id,
         image_id: imageId,
       });
       if (!isCurrentProject(requestProjectId)) return;
-      if (!await refreshAfterMaterialChange()) return;
-      if (!isCurrentProject(requestProjectId)) return;
+      applyMaterialGroupResult(updatedGroup);
       onToast(imageId == null ? t("video.material.primaryCleared") : t("video.material.primarySet"), "success");
+      void refreshAfterMaterialChange();
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
       onToast(extractErrorMessage(err, t("video.material.setPrimaryFailed")), "error");
@@ -754,7 +832,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
                 key={groupKey(group)}
                 group={group}
                 busy={busyKey === groupKey(group)}
-                disabled={busyKey != null || batchBusy}
+                disabled={!canEdit || loading || loadError != null || busyKey != null || batchBusy}
                 onCopyPrompt={() => void copyMaterialPrompt(group)}
                 onUpload={() => openUploadDialog(group)}
                 onGenerate={() => void generateMaterial(group)}
@@ -770,6 +848,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
         image={imageDetails}
         busyId={busyKey != null || batchBusy ? imageDetails?.id ?? -1 : imageBusyId}
         scoringId={busyKey != null || batchBusy ? imageDetails?.id ?? -1 : imageScoringId}
+        canEditImages={canEdit && !loading && loadError == null}
         scoreInput={imageScoreInput}
         onClose={closeImageDetails}
         onToggleFavorite={(image) => void toggleFavorite(image)}
@@ -781,6 +860,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       <ProfileMaterialUploadDialog
         group={uploadTarget}
         busy={uploadTarget != null && busyKey === groupKey(uploadTarget)}
+        writeDisabled={!canEdit || loading || loadError != null}
         setPrimary={uploadSetPrimary}
         onSetPrimaryChange={setUploadSetPrimary}
         onClose={() => {

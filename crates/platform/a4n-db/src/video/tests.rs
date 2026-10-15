@@ -9,7 +9,7 @@ use a4n_db_models::models::{
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
 use a4n_domain::media::{
     CreateGeneratedImageRecordDraftInput, CreateGeneratedVideoRecordDraftInput,
-    GeneratedVideoErrorStatusBatchInput,
+    GeneratedVideoErrorStatusBatchInput, UpdateGeneratedVideoRecordInput,
 };
 use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use chrono::Utc;
@@ -22,7 +22,18 @@ use serde_json::{Value, json};
 mod generated_images;
 
 async fn setup_db() -> DatabaseConnection {
-    a4n_migration::test_support::connect_test_database().await
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let owner = crate::auth::create_user(
+        &db,
+        "video-test-owner",
+        "video-test-owner@example.test",
+        "test-password",
+        a4n_domain::auth::ROLE_USER,
+    )
+    .await
+    .expect("video test owner must be created");
+    assert_eq!(owner.id, 1);
+    db
 }
 
 #[tokio::test]
@@ -544,6 +555,79 @@ async fn delete_generated_video_with_cleanup_records_video_and_thumbnail_paths()
 }
 
 #[tokio::test]
+async fn stale_generated_video_edit_keeps_the_latest_prompt_and_favorite() {
+    let db = setup_db().await;
+    let project = canvas_project(&db, "视频记录版本冲突").await;
+    let video = create_generated_video_record(
+        &db,
+        CreateGeneratedVideoRecordDraftInput {
+            project_id: project.id,
+            chapter_id: None,
+            video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string(),
+            workflow_mode: Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
+            prompt: "初始提示词".to_string(),
+            negative_prompt: None,
+            model: "test".to_string(),
+            width: 1280,
+            height: 720,
+            duration_secs: 1.0,
+            fps: 24,
+            source_video_id: None,
+            source_image_id: None,
+            provider_job_id: None,
+            metadata_json: None,
+        },
+    )
+    .await
+    .unwrap();
+    let video = generated_video::ActiveModel {
+        id: Set(video.id),
+        status: Set("completed".to_string()),
+        updated_at: Set(Utc::now().naive_utc() - chrono::Duration::seconds(5)),
+        ..Default::default()
+    }
+    .update(&db)
+    .await
+    .unwrap();
+    let expected_updated_at = video.updated_at.to_string();
+
+    update_generated_video_record(
+        &db,
+        video.id,
+        UpdateGeneratedVideoRecordInput {
+            prompt: Some("窗口 A 的最新提示词".to_string()),
+            is_favorite: Some(false),
+            expected_updated_at: Some(expected_updated_at.clone()),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    let stale = update_generated_video_record(
+        &db,
+        video.id,
+        UpdateGeneratedVideoRecordInput {
+            prompt: Some("窗口 B 的旧提示词".to_string()),
+            is_favorite: Some(true),
+            expected_updated_at: Some(expected_updated_at),
+            ..Default::default()
+        },
+    )
+    .await;
+    assert!(matches!(
+        stale,
+        Err(VideoDbError::InvalidArgument(message)) if message.contains("已被其他操作修改")
+    ));
+
+    let stored = crate::video::generated_video_by_id(&db, video.id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(stored.prompt, "窗口 A 的最新提示词");
+    assert!(!stored.is_favorite);
+}
+
+#[tokio::test]
 async fn delete_generated_video_rebinds_prompt_to_completed_candidate() {
     let db = setup_db().await;
     let project = crate::project::create_project_record(
@@ -792,13 +876,24 @@ async fn missing_video_repair_uses_binding_project_and_removes_dangling_binding(
 #[tokio::test]
 async fn segment_plan_draft_query_projects_only_restoration_fields() {
     let db = setup_db().await;
+    let project = crate::project::create_project_record(
+        &db,
+        crate::project::CreateProjectRecordInput {
+            user_id: 1,
+            title: "片段方案草稿恢复测试".to_string(),
+            description: String::new(),
+            project_type: "novel_long".to_string(),
+        },
+    )
+    .await
+    .unwrap();
     let run = crate::workflow::upsert_workflow_run(
         &db,
         crate::workflow::UpsertWorkflowRunInput {
             business_key: format!("video-segment-plan-test:{}", uuid::Uuid::new_v4()),
             workflow_kind: "video_segment_plan".to_string(),
-            project_id: None,
-            root_project_id: None,
+            project_id: Some(project.id),
+            root_project_id: Some(project.id),
             source_snapshot_id: None,
             scope_table: None,
             scope_id: None,
@@ -870,6 +965,7 @@ async fn segment_plan_draft_query_projects_only_restoration_fields() {
 
     crate::workflow::mutate_completed_workflow_checkpoint_artifacts_unless_step_exists(
         &db,
+        project.id,
         run.id,
         "video_segment_plan.shot.unit_1_shot_1",
         "video_segment_plan.final",
@@ -906,6 +1002,7 @@ async fn segment_plan_draft_query_projects_only_restoration_fields() {
     let second_db = db.clone();
     let first = crate::workflow::mutate_completed_workflow_checkpoint_artifacts_unless_step_exists(
         &first_db,
+        project.id,
         run.id,
         "video_segment_plan.shot.unit_1_shot_1",
         "video_segment_plan.final",
@@ -913,6 +1010,7 @@ async fn segment_plan_draft_query_projects_only_restoration_fields() {
     );
     let second = crate::workflow::mutate_completed_workflow_checkpoint_artifacts_unless_step_exists(
         &second_db,
+        project.id,
         run.id,
         "video_segment_plan.shot.unit_1_shot_1",
         "video_segment_plan.final",
@@ -950,6 +1048,7 @@ async fn segment_plan_draft_query_projects_only_restoration_fields() {
     });
     crate::workflow::mutate_completed_workflow_checkpoint_artifacts_unless_step_exists(
         &db,
+        project.id,
         run.id,
         "video_segment_plan.shot.unit_1_shot_1",
         "video_segment_plan.final",
@@ -1004,6 +1103,7 @@ async fn segment_plan_draft_query_projects_only_restoration_fields() {
     let conflict =
         crate::workflow::mutate_completed_workflow_checkpoint_artifacts_unless_step_exists(
             &db,
+            project.id,
             run.id,
             "video_segment_plan.shot.unit_1_shot_1",
             "video_segment_plan.final",
@@ -1023,4 +1123,94 @@ async fn segment_plan_draft_query_projects_only_restoration_fields() {
         .next()
         .unwrap();
     assert_eq!(unchanged.artifacts_json, Some(resumable_artifacts));
+}
+
+#[tokio::test]
+async fn segment_plan_draft_recipe_update_is_blocked_during_project_reset() {
+    let db = setup_db().await;
+    let owner = crate::auth::create_user(
+        &db,
+        "segment-plan-reset-test",
+        "segment-plan-reset-test@example.test",
+        "test-password",
+        "user",
+    )
+    .await
+    .unwrap();
+    let project = crate::project::create_project_record(
+        &db,
+        crate::project::CreateProjectRecordInput {
+            user_id: owner.id,
+            title: "重置期间片段方案草稿更新测试".to_string(),
+            description: String::new(),
+            project_type: "novel_long".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let run = crate::workflow::upsert_workflow_run(
+        &db,
+        crate::workflow::UpsertWorkflowRunInput {
+            business_key: format!("video-segment-plan-reset-test:{}", uuid::Uuid::new_v4()),
+            workflow_kind: "video_segment_plan".to_string(),
+            project_id: Some(project.id),
+            root_project_id: Some(project.id),
+            source_snapshot_id: None,
+            scope_table: None,
+            scope_id: None,
+            chapter_id: None,
+            mode: Some("shared_segment_plan".to_string()),
+            input_fingerprint_json: None,
+            status: crate::workflow::WORKFLOW_STATUS_RUNNING.to_string(),
+            current_step_key: None,
+            active_task_id: None,
+            can_resume: false,
+            resume_block_reason: None,
+            error_message: None,
+        },
+    )
+    .await
+    .unwrap();
+    crate::workflow::upsert_workflow_checkpoint(
+        &crate::DbHandle::new(std::sync::Arc::new(db.clone())),
+        crate::workflow::UpsertWorkflowCheckpointInput {
+            workflow_run_id: run.id,
+            step_key: "video_segment_plan.shot.unit_1_shot_1".to_string(),
+            step_order: 200,
+            status: crate::workflow::WORKFLOW_STATUS_COMPLETED.to_string(),
+            input_fingerprint_sha256: None,
+            input_fingerprint_json: None,
+            checkpoint_json: Some(json!({"parsed_output": []})),
+            artifacts_json: Some(json!({"segment_recipes": []})),
+            generation_run_ids_json: None,
+            error_message: None,
+            completed: true,
+        },
+    )
+    .await
+    .unwrap();
+    crate::generation::begin_project_lifecycle_gate(
+        &db,
+        project.id,
+        project.user_id,
+        a4n_domain::generation::ProjectLifecycleOperation::Reset,
+    )
+    .await
+    .unwrap();
+
+    let error = crate::workflow::mutate_completed_workflow_checkpoint_artifacts_unless_step_exists(
+        &db,
+        project.id,
+        run.id,
+        "video_segment_plan.shot.unit_1_shot_1",
+        "video_segment_plan.final",
+        |_, _| panic!("resetting project must block draft checkpoint writes"),
+    )
+    .await
+    .unwrap_err();
+    assert!(matches!(
+        error,
+        crate::workflow::WorkflowWriteError::StatusConflict { current, .. }
+            if current == "project_lifecycle_gate"
+    ));
 }

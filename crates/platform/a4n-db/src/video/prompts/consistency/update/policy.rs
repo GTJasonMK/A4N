@@ -12,7 +12,9 @@ use sea_orm::{
 };
 use serde_json::Value;
 
-use crate::video::prompts::record_mapping::chapter_video_prompt_model_from_record;
+use crate::video::prompts::record_mapping::{
+    chapter_video_prompt_model_from_record, chapter_video_prompt_record_from_model,
+};
 use crate::video::{self, VideoDbError};
 
 use super::{
@@ -30,8 +32,32 @@ where
     C: ConnectionTrait + TransactionTrait,
 {
     let txn = db.begin().await.map_err(VideoDbError::Database)?;
-    let row = update_chapter_video_prompt_with_policy_in(&txn, prompt_id, input, allow_downstream)
-        .await?;
+    let row =
+        update_chapter_video_prompt_with_policy_in(&txn, prompt_id, input, allow_downstream, None)
+            .await?;
+    txn.commit().await.map_err(VideoDbError::Database)?;
+    Ok(row)
+}
+
+pub async fn update_chapter_video_prompt_with_policy_expected<C>(
+    db: &C,
+    prompt_id: i64,
+    input: ChapterVideoPromptPatch,
+    allow_downstream: bool,
+    expected_updated_at: &str,
+) -> Result<chapter_video_prompt::Model, VideoDbError>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    let txn = db.begin().await.map_err(VideoDbError::Database)?;
+    let row = update_chapter_video_prompt_with_policy_in(
+        &txn,
+        prompt_id,
+        input,
+        allow_downstream,
+        Some(expected_updated_at),
+    )
+    .await?;
     txn.commit().await.map_err(VideoDbError::Database)?;
     Ok(row)
 }
@@ -43,8 +69,13 @@ pub async fn update_chapter_video_segment_plan_metadata<C>(
     metadata_json: Value,
 ) -> Result<chapter_video_prompt::Model, VideoDbError>
 where
-    C: ConnectionTrait,
+    C: ConnectionTrait + TransactionTrait,
 {
+    let (project_id, _) = video::chapter_video_prompt_scope_by_id(db, prompt_id)
+        .await?
+        .ok_or_else(|| VideoDbError::NotFound("视频提示词不存在".to_string()))?;
+    let txn = db.begin().await.map_err(VideoDbError::Database)?;
+    video::lock_generated_media_project(&txn, project_id).await?;
     let result = chapter_video_prompt::Entity::update_many()
         .col_expr(
             chapter_video_prompt::Column::MetadataJson,
@@ -56,17 +87,24 @@ where
         )
         .filter(chapter_video_prompt::Column::Id.eq(prompt_id))
         .filter(chapter_video_prompt::Column::UpdatedAt.eq(expected_updated_at))
-        .exec(db)
+        .exec(&txn)
         .await?;
     if result.rows_affected != 1 {
         return Err(VideoDbError::InvalidArgument(
             "片段规划已被其他操作修改，请刷新后重试".to_string(),
         ));
     }
-    chapter_video_prompt::Entity::find_by_id(prompt_id)
-        .one(db)
+    let prompt = chapter_video_prompt::Entity::find_by_id(prompt_id)
+        .one(&txn)
         .await?
-        .ok_or_else(|| VideoDbError::NotFound("视频提示词不存在".to_string()))
+        .ok_or_else(|| VideoDbError::NotFound("视频提示词不存在".to_string()))?;
+    if prompt.project_id != project_id {
+        return Err(VideoDbError::InvalidArgument(
+            "视频提示词所属项目已变化".to_string(),
+        ));
+    }
+    txn.commit().await.map_err(VideoDbError::Database)?;
+    Ok(prompt)
 }
 
 pub(super) async fn update_chapter_video_prompt_with_policy_in<C>(
@@ -74,6 +112,7 @@ pub(super) async fn update_chapter_video_prompt_with_policy_in<C>(
     prompt_id: i64,
     input: ChapterVideoPromptPatch,
     allow_downstream: bool,
+    expected_updated_at: Option<&str>,
 ) -> Result<chapter_video_prompt::Model, VideoDbError>
 where
     C: ConnectionTrait,
@@ -86,7 +125,30 @@ where
         reference_image_ids_json,
     } = input;
     validate_prompt_duration_update(duration_secs)?;
-    let prompt = video::chapter_video_prompt_record(db, prompt_id).await?;
+    let (project_id, chapter_id) = video::chapter_video_prompt_scope_by_id(db, prompt_id)
+        .await?
+        .ok_or_else(|| VideoDbError::NotFound("视频提示词不存在".to_string()))?;
+    video::lock_generated_media_project(db, project_id).await?;
+    let mut query = chapter_video_prompt::Entity::find_by_id(prompt_id);
+    if db.get_database_backend() != DbBackend::Sqlite {
+        query = query.lock_exclusive();
+    }
+    let prompt = query
+        .one(db)
+        .await?
+        .ok_or_else(|| VideoDbError::NotFound("视频提示词不存在".to_string()))?;
+    if prompt.project_id != project_id || prompt.chapter_id != chapter_id {
+        return Err(VideoDbError::InvalidArgument(
+            "视频提示词归属在更新期间发生变化".to_string(),
+        ));
+    }
+    let prompt = chapter_video_prompt_record_from_model(prompt);
+    if expected_updated_at.is_some_and(|expected| expected.trim() != prompt.updated_at.to_string())
+    {
+        return Err(VideoDbError::InvalidArgument(
+            "视频提示词已被其他操作修改，请刷新后重试".to_string(),
+        ));
+    }
     if prompt.status == chapter_video_prompt::STATUS_RUNNING {
         return Err(VideoDbError::InvalidState {
             current: prompt.status,
@@ -213,6 +275,7 @@ where
         video::chapter_video_prompt_scope_by_id(db, prompt_id)
             .await?
             .ok_or_else(|| VideoDbError::NotFound("视频提示词不存在".to_string()))?;
+    video::lock_generated_media_project(db, candidate_project_id).await?;
     let chapter_content = lock_chapter_video_prompt_scope(db, candidate_chapter_id).await?;
     let query = chapter_video_prompt::Entity::find_by_id(prompt_id)
         .select_only()

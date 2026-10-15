@@ -2,6 +2,7 @@ use a4n_domain::character::{
     AppliedImplicitUpdateAction, CharacterAttributeCategory, CharacterAttributeOperation,
     CharacterTimelineSourceKind, DeletionMarkStatus, ImplicitUpdateDecision,
 };
+use chrono::NaiveDateTime;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -294,14 +295,14 @@ pub trait CharacterProfileAttributeMutationApplicationPort: Send + Sync {
         user_id: i64,
         host_port: &dyn CharacterAttributeRagSyncHostPort,
         input: AddProfileAttributeInput,
-    ) -> Result<(), a4n_error::AppError>;
+    ) -> Result<AttributeEventWriteResult, a4n_error::AppError>;
 
     async fn modify(
         &self,
         user_id: i64,
         host_port: &dyn CharacterAttributeRagSyncHostPort,
         input: ModifyProfileAttributeInput,
-    ) -> Result<(), a4n_error::AppError>;
+    ) -> Result<AttributeEventWriteResult, a4n_error::AppError>;
 }
 
 /// Host-facing mutation boundary for character attribute deletion marks.
@@ -321,7 +322,7 @@ pub trait CharacterProfileAttributeDeletionApplicationPort: Send + Sync {
         user_id: i64,
         host_port: &dyn CharacterAttributeRagSyncHostPort,
         input: ExecuteAttributeDeletionInput,
-    ) -> Result<(), a4n_error::AppError>;
+    ) -> Result<AttributeEventWriteResult, a4n_error::AppError>;
 
     async fn reset(
         &self,
@@ -332,7 +333,7 @@ pub trait CharacterProfileAttributeDeletionApplicationPort: Send + Sync {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CharacterProfileCreateResult {
-    pub profile_id: i64,
+    pub profile: CharacterProfileSummary,
     pub warnings: Vec<String>,
 }
 
@@ -563,6 +564,12 @@ pub struct AttributeEventSummary {
     pub new_value: Value,
     pub cause: String,
     pub evidence: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AttributeEventWriteResult {
+    pub event: AttributeEventSummary,
+    pub warnings: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -817,6 +824,8 @@ pub struct DeletionMarkSummary {
     pub last_marked_chapter: i32,
     pub is_executed: bool,
     pub created_at: String,
+    #[schemars(with = "String")]
+    pub updated_at: NaiveDateTime,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -845,6 +854,10 @@ pub struct ExecuteAttributeDeletionInput {
     pub category: CharacterAttributeCategory,
     #[schemars(length(min = 1))]
     pub key: String,
+    #[schemars(range(min = 1))]
+    pub expected_mark_id: i64,
+    #[schemars(with = "String")]
+    pub expected_mark_updated_at: NaiveDateTime,
     #[schemars(length(min = 1))]
     pub cause: String,
     #[schemars(length(min = 1))]
@@ -859,4 +872,8 @@ pub struct ResetDeletionMarksInput {
     pub category: CharacterAttributeCategory,
     #[schemars(length(min = 1))]
     pub key: String,
+    #[schemars(range(min = 1))]
+    pub expected_mark_id: i64,
+    #[schemars(with = "String")]
+    pub expected_mark_updated_at: NaiveDateTime,
 }

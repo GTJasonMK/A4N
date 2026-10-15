@@ -6,7 +6,7 @@ use super::super::TeraPromptEngine;
 use super::super::version::bump_version;
 
 impl TeraPromptEngine {
-    pub async fn reset(&self, name: &str) -> Result<(), AppError> {
+    pub async fn reset(&self, name: &str) -> Result<crate::engine::PromptEntry, AppError> {
         let _update_guard = self.update_lock.lock().await;
 
         let current = {
@@ -27,7 +27,7 @@ impl TeraPromptEngine {
             .add_raw_template(name, &orig_content)
             .map_err(|e| AppError::Internal(anyhow::anyhow!("模板编译失败: {e}")))?;
         if current.content == orig_content && !current.is_modified {
-            return Ok(());
+            return Ok(current);
         }
 
         let new_version = bump_version(&current.version);
@@ -66,6 +66,10 @@ impl TeraPromptEngine {
             entry.modified_at = chrono::Utc::now().naive_utc();
         }
         *self.tera.write() = staged_tera;
-        Ok(())
+        self.entries
+            .read()
+            .get(name)
+            .cloned()
+            .ok_or_else(|| Self::prompt_not_found(name))
     }
 }

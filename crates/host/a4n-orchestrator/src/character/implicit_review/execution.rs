@@ -94,7 +94,9 @@ impl OrchestratorContext {
             prepared.input_fingerprint_json.clone(),
         )
         .map_err(AppError::InvalidArgument)?;
-        let workflow_run = self.begin_workflow_run_validated(workflow_input).await?;
+        let workflow_run = self
+            .begin_or_resume_workflow_run_validated(workflow_input)
+            .await?;
         let result = self
             .run_implicit_review_call(
                 prepared.request,

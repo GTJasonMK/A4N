@@ -1,8 +1,9 @@
 import { ThemedSelect } from "../ui/ThemedSelect";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   listImageConfigs,
   normalizeImageSizes,
+  subscribeImageGenerationConfigChanges,
   type ImageSize,
 } from "../../api/image";
 import { useI18n } from "../../i18n";
@@ -15,46 +16,69 @@ export interface ImageGenerationSizeState {
   setSize: (size: ImageSize) => void;
 }
 
+export async function loadDefaultImageGenerationSize(current: ImageSize | null) {
+  const configs = await listImageConfigs();
+  const config = configs.find((item) => item.is_default);
+  if (!config) throw new Error("未找到当前图片配置");
+  const sizes = normalizeImageSizes(config.supported_sizes, `图片配置 ${config.name}`);
+  const size = current && sizes.some((candidate) =>
+    candidate.width === current.width && candidate.height === current.height,
+  ) ? current : sizes[0];
+  return { sizes, size };
+}
+
 export function useImageGenerationSize(): ImageGenerationSizeState {
   const [sizes, setSizes] = useState<ImageSize[]>([]);
-  const [size, setSize] = useState<ImageSize | null>(null);
+  const [size, setSelectedSize] = useState<ImageSize | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [loading, setLoading] = useState(true);
+  const sizeRef = useRef<ImageSize | null>(null);
+  const setSize = (next: ImageSize) => {
+    sizeRef.current = next;
+    setSelectedSize(next);
+  };
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    listImageConfigs()
-      .then((configs) => {
-        const config = configs.find((item) => item.is_default);
-        if (!config) throw new Error("未找到当前图片配置");
-        const supportedSizes = normalizeImageSizes(
-          config.supported_sizes,
-          `图片配置 ${config.name}`,
-        );
-        if (!active) return;
-        setSizes(supportedSizes);
-        setSize((current) =>
-          current && supportedSizes.some(
-            (candidate) =>
-              candidate.width === current.width && candidate.height === current.height,
-          )
-            ? current
-            : supportedSizes[0],
-        );
+    let requestSeq = 0;
+    const load = async () => {
+      const request = ++requestSeq;
+      setLoading(true);
+      try {
+        const result = await loadDefaultImageGenerationSize(sizeRef.current);
+        if (!active || request !== requestSeq) return;
+        setSizes(result.sizes);
+        sizeRef.current = result.size;
+        setSelectedSize(result.size);
         setError(null);
-      })
-      .catch((reason: unknown) => {
-        if (!active) return;
+      } catch (reason: unknown) {
+        if (!active || request !== requestSeq) return;
         setSizes([]);
-        setSize(null);
+        sizeRef.current = null;
+        setSelectedSize(null);
         setError(reason instanceof Error ? reason : new Error(String(reason)));
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+      } finally {
+        if (active && request === requestSeq) setLoading(false);
+      }
+    };
+    const refresh = (event: CustomEvent<Error | null>) => {
+      if (event.detail) {
+        requestSeq += 1;
+        setLoading(false);
+        setSizes([]);
+        sizeRef.current = null;
+        setSelectedSize(null);
+        setError(event.detail);
+        return;
+      }
+      void load();
+    };
+    void load();
+    const unsubscribe = subscribeImageGenerationConfigChanges(refresh);
     return () => {
       active = false;
+      requestSeq += 1;
+      unsubscribe();
     };
   }, []);
 

@@ -84,6 +84,24 @@ impl VideoApplication {
         .map_err(video_db_error)
     }
 
+    pub(in crate::context) async fn update_chapter_video_prompt_with_policy_expected(
+        &self,
+        prompt_id: i64,
+        input: ChapterVideoPromptPatch,
+        allow_downstream: bool,
+        expected_updated_at: &str,
+    ) -> Result<ChapterVideoPromptRecord, AppError> {
+        a4n_db::video::read_models::update_chapter_video_prompt_with_policy_expected(
+            self.connection(),
+            prompt_id,
+            input,
+            allow_downstream,
+            expected_updated_at,
+        )
+        .await
+        .map_err(video_db_error)
+    }
+
     pub(in crate::context) async fn update_chapter_video_segment_plan_metadata(
         &self,
         prompt_id: i64,
@@ -114,20 +132,22 @@ impl VideoApplication {
         .map_err(video_db_error)
     }
 
-    pub(in crate::context) async fn update_chapter_video_prompt_with_generation_run_checkpoint(
+    pub(in crate::context) async fn update_chapter_video_prompt_with_generation_run_checkpoint_expected(
         &self,
         prompt_id: i64,
         input: ChapterVideoPromptPatch,
         metadata_json: Option<Value>,
         allow_downstream: bool,
+        expected_updated_at: Option<&str>,
         generation_run: RecordCompletedGenerationRunWithCheckpointInput,
     ) -> Result<ChapterVideoPromptRecord, AppError> {
-        a4n_db::video::read_models::update_chapter_video_prompt_with_generation_run_checkpoint(
+        a4n_db::video::read_models::update_chapter_video_prompt_with_generation_run_checkpoint_expected(
             self.connection(),
             prompt_id,
             input,
             metadata_json,
             allow_downstream,
+            expected_updated_at,
             generation_run,
         )
         .await

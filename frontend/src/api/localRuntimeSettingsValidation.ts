@@ -137,6 +137,7 @@ const DEFAULT_PRICING: PricingPlan = {
   image_per_generation: null,
   video_per_second: null,
 };
+const MAX_PRICE_MICROS = 9_223_372_036_854_775_807n;
 const PRICING_KEYS = [
   "currency",
   "llm_input_per_million",
@@ -203,6 +204,18 @@ function normalizePrice(value: unknown, field: string): string | null {
   if (!/^[0-9]+(?:\.[0-9]{0,6})?$/.test(price)) {
     throw new Error(`${field} 必须是最多 6 位小数的非负十进制数`);
   }
+  const [wholeValue, fractional = ""] = price.split(".");
+  let firstSignificantDigit = 0;
+  while (
+    firstSignificantDigit < wholeValue.length - 1 &&
+    wholeValue[firstSignificantDigit] === "0"
+  ) {
+    firstSignificantDigit += 1;
+  }
+  const whole = wholeValue.slice(firstSignificantDigit);
+  if (whole.length > 13) throw new Error(`${field} 数值过大`);
+  const micros = BigInt(whole) * 1_000_000n + BigInt(fractional.padEnd(6, "0") || "0");
+  if (micros > MAX_PRICE_MICROS) throw new Error(`${field} 数值过大`);
   return price;
 }
 

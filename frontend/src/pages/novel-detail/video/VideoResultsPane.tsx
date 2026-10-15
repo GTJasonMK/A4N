@@ -21,7 +21,7 @@ import {
   VIDEO_TYPE_REFERENCE_MEDIA,
   VIDEO_TYPE_TRIMMED_CLIP,
   type GeneratedVideo,
-  type UpdateVideoInput,
+  type UpdateVideoFields,
 } from "../../../api/video";
 import { useToast } from "../../../components/feedback/Toast";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
@@ -51,7 +51,7 @@ interface VideoResultsPaneProps {
   onPollVideo: (video: GeneratedVideo) => void | Promise<void>;
   onPreviewVideoRequest: (video: GeneratedVideo) => void | Promise<void>;
   onToggleVideoFavorite: (video: GeneratedVideo) => void | Promise<void>;
-  onUpdateVideo: (video: GeneratedVideo, input: UpdateVideoInput) => void | Promise<void>;
+  onUpdateVideo: (video: GeneratedVideo, input: UpdateVideoFields) => void | Promise<void>;
   onDeleteVideo: (video: GeneratedVideo) => void | Promise<void>;
   onTrimStartChange: (value: string) => void;
   onTrimEndChange: (value: string) => void;

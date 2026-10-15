@@ -9,7 +9,8 @@ use a4n_error::AppError;
 use a4n_project_status_worker_contract::{
     PROJECT_STATUS_FORWARD_OPERATION, PROJECT_STATUS_MACHINE_OPERATION,
     PROJECT_STATUS_PREVIEW_ROLLBACK_OPERATION, PROJECT_STATUS_ROLLBACK_OPERATION,
-    PROJECT_STATUS_WORKER_ID, ProjectStatusProjectInput, ProjectStatusRollbackInput,
+    PROJECT_STATUS_WORKER_ID, ProjectStatusForwardInput, ProjectStatusProjectInput,
+    ProjectStatusRollbackInput,
 };
 use a4n_worker_client::{
     HttpWorkerClient, WorkerClientErrorPolicy, map_worker_client_error, map_worker_response_error,

@@ -39,7 +39,7 @@ pub(super) use import::{
     run_import_project_analysis,
 };
 pub(super) use operations::{
-    cleanup_orphan_project_data_dirs, get_generation_call_analytics, get_log_dir,
+    cleanup_orphan_project_data_dirs, get_generation_call_analytics, get_log_dir, get_log_level,
     get_model_usage_report, get_storage_paths, list_orphan_project_data_dirs, read_recent_logs,
     set_log_level,
 };

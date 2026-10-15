@@ -125,6 +125,22 @@ export const readPortableItem = (key: string): string | null => {
   return readBrowserItem(key);
 };
 
+export const refreshPortableStorage = async (): Promise<void> => {
+  if (!isDesktopRuntime()) return;
+  if (!backendAvailable) {
+    throw new Error("frontend_state 后端尚未初始化，无法刷新桌面持久化状态");
+  }
+  await persistDesktop(async () => {
+    const backendEntries = await invoke<Record<string, string>>("get_all_frontend_state");
+    const nextEntries = new Map<string, string>();
+    for (const [key, value] of Object.entries(backendEntries)) {
+      if (isA4nKey(key) && typeof value === "string") nextEntries.set(key, value);
+    }
+    entries.clear();
+    for (const [key, value] of nextEntries) entries.set(key, value);
+  });
+};
+
 export const writePortableItem = async (key: string, value: string): Promise<boolean> => {
   if (!isA4nKey(key)) return false;
   await writePortableItems({ [key]: value });

@@ -6,7 +6,7 @@ mod summaries;
 
 pub(in crate::collaboration) use indexes::{
     accessible_member_condition, member_root_ids, pending_invite_counts_by_root,
-    project_access_rows_by_id, unique_member_user_ids, users_by_id,
+    project_access_rows_by_id, projects_by_id, unique_member_user_ids, users_by_id,
 };
 pub(in crate::collaboration) use invite_lifecycle::{
     expire_project_invites, update_pending_invite_status,

@@ -83,7 +83,9 @@ impl OrchestratorContext {
             &prepared.request,
             active_task_id,
         )?;
-        let workflow_run = self.begin_workflow_run_validated(workflow_input).await?;
+        let workflow_run = self
+            .begin_or_resume_workflow_run_validated(workflow_input)
+            .await?;
         let result = self
             .run_character_conflict_llm_call(
                 workflow_run.id,

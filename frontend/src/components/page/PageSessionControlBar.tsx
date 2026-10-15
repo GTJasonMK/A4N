@@ -161,7 +161,7 @@ export const PageSessionControlBar: React.FC<PageSessionControlBarProps> = ({ st
               <UserRound size={12} /> {t("pageSession.takeover")}
             </BookButton>
           ) : null}
-          {status === "idle" ? (
+          {status === "idle" || (status === "awaiting_attach" && !authorizationCode) ? (
             <BookButton variant="secondary" size="sm" onClick={() => void state.authorize().catch(() => undefined)} disabled={busy}>
               <Link2 size={12} /> {t("pageSession.authorize")}
             </BookButton>

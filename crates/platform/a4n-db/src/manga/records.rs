@@ -6,7 +6,8 @@ mod references;
 pub use mutations::{
     delete_manga_page_by_number, delete_manga_prompts_by_chapter,
     mark_manga_page_prompt_image_completed_with_image, update_manga_page_prompt_image_prompt,
-    update_manga_page_prompt_layout,
+    update_manga_page_prompt_image_prompt_expected, update_manga_page_prompt_layout,
+    update_manga_page_prompt_layout_expected,
 };
 pub use queries::{
     manga_page_prompt_by_id, manga_page_prompt_for_image_generation,

@@ -26,8 +26,8 @@ import {
   sourceKindLabel,
 } from "./manageViewUtils";
 import { formatDateTime, useI18n } from "../../i18n";
+import { isPositiveI32, MAX_I32 } from "../../utils/numeric";
 import { useDirty } from "../../components/navigation/dirtyRegistry";
-import { isPositiveSafeInteger } from "../../utils/numberRange";
 
 type DeletionMarkStatusFilter = "all" | "pending" | "ready" | "executed";
 
@@ -155,10 +155,10 @@ export const DeletionManager: React.FC<{
     async (
       nextCategory = filterCategoryRef.current,
       nextStatus: DeletionMarkStatusFilter = filterStatusRef.current,
-    ): Promise<boolean> => {
+      ): Promise<void> => {
       const requestProfileId = profileId;
       const requestKey = deletionMarkLoadKey(requestProfileId, nextCategory, nextStatus);
-      if (loadInFlightKeyRef.current === requestKey) return false;
+        if (loadInFlightKeyRef.current === requestKey) return;
       const requestSeq = loadSeqRef.current + 1;
       loadSeqRef.current = requestSeq;
       loadInFlightKeyRef.current = requestKey;
@@ -170,15 +170,13 @@ export const DeletionManager: React.FC<{
           category: categoryFilter ? categoryFilter : null,
           status: nextStatus,
         });
-        if (!isCurrentLoad(requestProfileId, requestKey, requestSeq)) return false;
+          if (!isCurrentLoad(requestProfileId, requestKey, requestSeq)) return;
         setMarks(rows);
         setLoadedScopeKey(requestKey);
         setLoadError(null);
-        return true;
       } catch (err) {
-        if (!isCurrentLoad(requestProfileId, requestKey, requestSeq)) return false;
+          if (!isCurrentLoad(requestProfileId, requestKey, requestSeq)) return;
         setLoadError(extractErrorMessage(err, t("characterDetail.deletion.loadFailed")));
-        return false;
       } finally {
         if (loadInFlightKeyRef.current === requestKey && loadSeqRef.current === requestSeq) {
           loadInFlightKeyRef.current = null;
@@ -186,14 +184,17 @@ export const DeletionManager: React.FC<{
         if (isCurrentLoad(requestProfileId, requestKey, requestSeq)) setLoading(false);
       }
     },
-    [addToast, isCurrentLoad, profileId, t],
+    [isCurrentLoad, profileId, t],
   );
   const reload = useCallback(() => {
     loadInFlightKeyRef.current = null;
+    invalidateLoadedMarks();
     return load();
-  }, [load]);
-  const reportRefreshFailure = (refreshed: boolean) => {
-    if (!refreshed) addToast(t("characterDetail.refreshFailed"), "error");
+  }, [invalidateLoadedMarks, load]);
+  const reportRefreshFailure = (error: unknown) => {
+    const message = extractErrorMessage(error, t("characterDetail.refreshFailed"));
+    setLoadError(message);
+    addToast(message, "error");
   };
 
   useLayoutEffect(() => {
@@ -216,9 +217,19 @@ export const DeletionManager: React.FC<{
     setEvidence("");
   }, [defaultChapter, profileId]);
 
-  const handleReset = async (category: string, key: string) => {
+  const handleReset = async (mark: DeletionMark) => {
+    if (loadError) {
+      addToast(loadError, "error");
+      return;
+    }
+    if (resettingRef.current != null || executingRef.current) return;
+    const { category, key } = mark;
     const resetKey = `${category}:${key}`;
-    if (resettingRef.current != null) return;
+    const requestProfileId = profileId;
+    const requestLoadSeq = loadSeqRef.current;
+    const requestScopeKey = currentLoadScopeKeyRef.current;
+    const requestSeq = resetSeqRef.current + 1;
+    resetSeqRef.current = requestSeq;
     resettingRef.current = resetKey;
     setResettingKey(resetKey);
     const ok = await confirmDialog({
@@ -231,23 +242,31 @@ export const DeletionManager: React.FC<{
       dialogType: "warning",
     });
     if (!ok) {
-      resettingRef.current = null;
-      setResettingKey(null);
+      if (resetSeqRef.current === requestSeq) {
+        resettingRef.current = null;
+        setResettingKey(null);
+      }
       return;
     }
-    const requestProfileId = profileId;
-    const requestSeq = resetSeqRef.current + 1;
-    resetSeqRef.current = requestSeq;
-    if (!isCurrentProfile(requestProfileId)) {
-      resettingRef.current = null;
-      setResettingKey(null);
+    const currentMark = marksRef.current.find((item) => item.id === mark.id);
+    if (
+      !isCurrentProfile(requestProfileId) ||
+      resetSeqRef.current !== requestSeq ||
+      loadSeqRef.current !== requestLoadSeq ||
+      currentLoadScopeKeyRef.current !== requestScopeKey ||
+      currentMark?.updated_at !== mark.updated_at ||
+      currentMark?.is_executed !== false
+    ) {
+      if (resetSeqRef.current === requestSeq) {
+        resettingRef.current = null;
+        setResettingKey(null);
+        addToast(t("common.listChangedRetry"), "info");
+      }
       return;
     }
     try {
-      const deletedMarks = await resetDeletionMarks(requestProfileId, category, key);
+      const deletedMarks = await resetDeletionMarks(requestProfileId, category, key, mark);
       if (!isCurrentProfile(requestProfileId) || resetSeqRef.current !== requestSeq) return;
-      const refreshed = await reload();
-      reportRefreshFailure(refreshed);
       addToast(
         t("characterDetail.deletion.resetSuccess", {
           attribute: attributeKeyLabel(key, t),
@@ -255,9 +274,19 @@ export const DeletionManager: React.FC<{
         }),
         "success",
       );
+      void reload().catch((error) => {
+          if (isCurrentProfile(requestProfileId) && resetSeqRef.current === requestSeq) {
+            reportRefreshFailure(error);
+          }
+        });
     } catch (err) {
       if (!isCurrentProfile(requestProfileId) || resetSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, t("characterDetail.deletion.resetFailed")), "error");
+      void reload().catch((error) => {
+          if (isCurrentProfile(requestProfileId) && resetSeqRef.current === requestSeq) {
+            reportRefreshFailure(error);
+          }
+        });
     } finally {
       if (resetSeqRef.current === requestSeq) {
         resettingRef.current = null;
@@ -272,7 +301,11 @@ export const DeletionManager: React.FC<{
     const attrKey = key.trim();
     const deletionReason = reason.trim();
     const deletionEvidence = evidence.trim();
-    if (!isPositiveSafeInteger(chapter) || !attrKey || !deletionReason || !deletionEvidence) {
+    if (!isPositiveI32(chapter)) {
+      addToast(t("characterDetail.deletion.chapterNumberInvalid"), "error");
+      return;
+    }
+    if (!attrKey || !deletionReason || !deletionEvidence) {
       addToast(t("characterDetail.deletion.required"), "error");
       return;
     }
@@ -298,8 +331,9 @@ export const DeletionManager: React.FC<{
         evidence: requestPayload.evidence,
       });
       if (!isCurrentProfile(requestProfileId) || requestSeqRef.current !== requestSeq) return;
-      const refreshed = await reload();
-      reportRefreshFailure(refreshed);
+      setMarks((current) => [...current.filter((item) => item.id !== mark.id), mark].sort(
+        (left, right) => left.last_marked_chapter - right.last_marked_chapter || left.id - right.id,
+      ));
       addToast(
         mark.consecutive_count >= CHARACTER_DELETION_THRESHOLD
           ? t("characterDetail.deletion.thresholdReached", {
@@ -315,9 +349,19 @@ export const DeletionManager: React.FC<{
       setKey("");
       setReason("");
       setEvidence("");
+      void reload().catch((error) => {
+          if (isCurrentProfile(requestProfileId) && requestSeqRef.current === requestSeq) {
+            reportRefreshFailure(error);
+          }
+        });
     } catch (err) {
       if (!isCurrentProfile(requestProfileId) || requestSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, t("characterDetail.deletion.requestFailed")), "error");
+      void reload().catch((error) => {
+          if (isCurrentProfile(requestProfileId) && requestSeqRef.current === requestSeq) {
+            reportRefreshFailure(error);
+          }
+        });
     } finally {
       if (isCurrentProfile(requestProfileId) && requestSeqRef.current === requestSeq) {
         setRequesting(false);
@@ -329,7 +373,16 @@ export const DeletionManager: React.FC<{
   };
 
   const handleExecute = async (mark: DeletionMark) => {
-    if (executingRef.current) return;
+    if (loadError) {
+      addToast(loadError, "error");
+      return;
+    }
+    if (executingRef.current || resettingRef.current != null) return;
+    const requestProfileId = profileId;
+    const requestLoadSeq = loadSeqRef.current;
+    const requestScopeKey = currentLoadScopeKeyRef.current;
+    const requestSeq = executeSeqRef.current + 1;
+    executeSeqRef.current = requestSeq;
     executingRef.current = true;
     setExecutingId(mark.id);
     const ok = await confirmDialog({
@@ -342,52 +395,70 @@ export const DeletionManager: React.FC<{
       dialogType: "danger",
     });
     if (!ok) {
-      executingRef.current = false;
-      setExecutingId(null);
+      if (executeSeqRef.current === requestSeq) {
+        executingRef.current = false;
+        setExecutingId(null);
+      }
       return;
     }
-    const requestProfileId = profileId;
-    const requestSeq = executeSeqRef.current + 1;
-    executeSeqRef.current = requestSeq;
+    const currentMark = marksRef.current.find((item) => item.id === mark.id);
     if (
       !isCurrentProfile(requestProfileId) ||
-      !marksRef.current.some((item) => item.id === mark.id)
+      executeSeqRef.current !== requestSeq ||
+      loadSeqRef.current !== requestLoadSeq ||
+      currentLoadScopeKeyRef.current !== requestScopeKey ||
+      currentMark?.updated_at !== mark.updated_at ||
+      currentMark == null ||
+      currentMark.is_executed ||
+      currentMark.consecutive_count < CHARACTER_DELETION_THRESHOLD
     ) {
-      executingRef.current = false;
-      setExecutingId(null);
+      if (executeSeqRef.current === requestSeq) {
+        executingRef.current = false;
+        setExecutingId(null);
+        addToast(t("common.listChangedRetry"), "info");
+      }
       return;
     }
     try {
-      await executeAttributeDeletion({
+      const result = await executeAttributeDeletion({
         profile_id: requestProfileId,
         chapter_number: mark.last_marked_chapter,
         category: mark.category,
         key: mark.key,
+        expected_mark_id: mark.id,
+        expected_mark_updated_at: mark.updated_at,
         cause: t("characterDetail.deletion.executeCause", {
           count: mark.consecutive_count,
         }),
         evidence: mark.evidence,
       });
       if (!isCurrentProfile(requestProfileId) || executeSeqRef.current !== requestSeq) return;
-      const refreshed = await reload();
-      reportRefreshFailure(refreshed);
-      try {
-        if (await onChanged?.() === false) {
-          addToast(t("characterDetail.refreshFailed"), "error");
-        }
-      } catch (refreshError) {
-        addToast(extractErrorMessage(refreshError, t("characterDetail.refreshFailed")), "error");
-      }
       addToast(
         t("characterDetail.deletion.executeSuccess", {
           attribute: attributeKeyLabel(mark.key, t),
         }),
         "success",
       );
+      if (result.warnings.length > 0) addToast(result.warnings.join(" · "), "info");
+      void reload().catch((error) => {
+          if (isCurrentProfile(requestProfileId) && executeSeqRef.current === requestSeq) {
+            reportRefreshFailure(error);
+          }
+        });
+      void Promise.resolve(onChanged?.()).catch((error) => {
+        if (isCurrentProfile(requestProfileId) && executeSeqRef.current === requestSeq) {
+          addToast(extractErrorMessage(error, t("characterDetail.refreshFailed")), "error");
+        }
+      });
       if (!isCurrentProfile(requestProfileId) || executeSeqRef.current !== requestSeq) return;
     } catch (err) {
       if (!isCurrentProfile(requestProfileId) || executeSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, t("characterDetail.deletion.executeFailed")), "error");
+      void reload().catch((error) => {
+          if (isCurrentProfile(requestProfileId) && executeSeqRef.current === requestSeq) {
+            reportRefreshFailure(error);
+          }
+        });
     } finally {
       if (isCurrentProfile(requestProfileId) && executeSeqRef.current === requestSeq) {
         setExecutingId(null);
@@ -399,7 +470,7 @@ export const DeletionManager: React.FC<{
   };
 
   const deletionRequestReady =
-    isPositiveSafeInteger(Number(chapterNumber)) &&
+    isPositiveI32(Number(chapterNumber)) &&
     key.trim().length > 0 &&
     reason.trim().length > 0 &&
     evidence.trim().length > 0;
@@ -476,6 +547,7 @@ export const DeletionManager: React.FC<{
             <input
               type="number"
               min={1}
+              max={MAX_I32}
               required
               value={chapterNumber}
               disabled={requesting}
@@ -564,6 +636,7 @@ export const DeletionManager: React.FC<{
                       label: t("characterDetail.deletion.execute"),
                       icon: <Trash2 size={12} />,
                       danger: true,
+                      disabled: loadError != null,
                       onClick: () => void handleExecute(m),
                     },
                     { type: "divider" as const },
@@ -572,7 +645,8 @@ export const DeletionManager: React.FC<{
               {
                 label: t("characterDetail.deletion.resetTitle"),
                 icon: <RotateCcw size={12} />,
-                onClick: () => void handleReset(m.category, m.key),
+                disabled: loadError != null,
+                    onClick: () => void handleReset(m),
               },
             ];
             return (

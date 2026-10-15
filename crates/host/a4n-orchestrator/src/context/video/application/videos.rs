@@ -105,7 +105,7 @@ impl VideoApplication {
     pub(in crate::context) async fn delete_generated_video_record_with_cleanup(
         &self,
         video_id: i64,
-    ) -> Result<(), AppError> {
+    ) -> Result<a4n_db::video::VideoReferenceCleanupIds, AppError> {
         a4n_db::video::delete_generated_video_record_with_cleanup(self.connection(), video_id)
             .await
             .map_err(video_db_error)
@@ -114,10 +114,13 @@ impl VideoApplication {
     pub(in crate::context) async fn delete_missing_generated_video_references_record(
         &self,
         video_id: i64,
-    ) -> Result<u64, AppError> {
-        a4n_db::video::delete_missing_generated_video_references_record(self.connection(), video_id)
-            .await
-            .map_err(video_db_error)
+    ) -> Result<a4n_db::video::VideoReferenceCleanupIds, AppError> {
+        a4n_db::video::delete_missing_generated_video_references_with_effects_record(
+            self.connection(),
+            video_id,
+        )
+        .await
+        .map_err(video_db_error)
     }
 
     pub(in crate::context) async fn missing_video_reference_project_ids(

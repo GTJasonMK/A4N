@@ -39,3 +39,7 @@ pub fn set_log_level(input: SetLogLevelInput) -> Result<(), String> {
     tracing::info!(target: "a4n::logging", filter = %input.filter, "日志级别已更新");
     Ok(())
 }
+
+pub fn current_log_level() -> Result<String, String> {
+    FILTER_RELOADER.current_filter()
+}

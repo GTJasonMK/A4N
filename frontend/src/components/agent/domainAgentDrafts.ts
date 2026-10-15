@@ -2,6 +2,10 @@ import type { SetStateAction } from "react";
 import { readCurrentSessionId } from "../../api/authStorage";
 import { useAuthStore } from "../../store/auth";
 import { dirtyRegistry } from "../navigation/dirtyRegistry";
+import {
+  type PendingAgentMessage,
+  type PendingAgentMessagesByOwner,
+} from "./AgentMessageList";
 
 export type DomainAgentOperationKind = "refresh" | "clear" | "send" | "control" | "approval";
 
@@ -14,6 +18,7 @@ export interface DomainAgentOperation {
 }
 
 const draftsByOwner = new Map<string, Record<string, string>>();
+const pendingMessagesByOwner = new Map<string, PendingAgentMessagesByOwner>();
 const listenersByOwner = new Map<string, Set<() => void>>();
 const versionsByOwner = new Map<string, number>();
 const operationsByOwner = new Map<string, Map<symbol, DomainAgentOperation>>();
@@ -109,6 +114,28 @@ export function getDomainAgentDrafts(owner: string): Record<string, string> {
   return isCurrentOwner(owner) ? draftsByOwner.get(owner) ?? {} : {};
 }
 
+export function getDomainAgentPendingMessages(
+  owner: string,
+  bindingKey: string,
+): PendingAgentMessage[] {
+  return isCurrentOwner(owner)
+    ? pendingMessagesByOwner.get(owner)?.[bindingKey] ?? []
+    : [];
+}
+
+export function updateDomainAgentPendingMessages(
+  owner: string,
+  update: (pending: PendingAgentMessagesByOwner) => PendingAgentMessagesByOwner,
+): void {
+  if (!isCurrentOwner(owner)) return;
+  const current = pendingMessagesByOwner.get(owner) ?? {};
+  const next = update(current);
+  if (next === current) return;
+  if (Object.keys(next).length === 0) pendingMessagesByOwner.delete(owner);
+  else pendingMessagesByOwner.set(owner, next);
+  notifyOwner(owner);
+}
+
 export function getDomainAgentOperations(owner: string): DomainAgentOperation[] {
   return isCurrentOwner(owner) ? [...(operationsByOwner.get(owner)?.values() ?? [])] : [];
 }
@@ -186,6 +213,7 @@ useAuthStore.subscribe((state) => {
   for (const [owner, scope] of ownerScopes) {
     if (scope.userId === (state.user?.id ?? null) && scope.sessionId === readCurrentSessionId()) continue;
     draftsByOwner.delete(owner);
+    pendingMessagesByOwner.delete(owner);
     for (const operation of operationsByOwner.get(owner)?.values() ?? []) operation.complete();
     operationsByOwner.delete(owner);
     versionsByOwner.set(owner, (versionsByOwner.get(owner) ?? 0) + 1);

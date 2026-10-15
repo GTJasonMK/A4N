@@ -1,5 +1,6 @@
 use a4n_api_contract::blueprint::{
     RestoreBlueprintVersionInput, SaveBlueprintInput, UpdateWorldSettingInput,
+    VersionedBlueprintMutationResult,
 };
 use a4n_db::DbHandle;
 use a4n_domain::project::{BlueprintCharacterRecord, BlueprintRecord, BlueprintRelationshipRecord};
@@ -107,6 +108,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         project_id: i64,
+        expected_current_version: String,
         world_setting: Value,
     ) -> Result<a4n_db::blueprint::VersionedBlueprintMutationResult, AppError> {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
@@ -115,6 +117,7 @@ impl OrchestratorContext {
             self.project_blueprint.connection(),
             a4n_db::blueprint::UpdateBlueprintWorldSettingInput {
                 project_id,
+                expected_current_version,
                 world_setting,
                 created_by: format!("user:{user_id}"),
             },
@@ -136,6 +139,7 @@ impl OrchestratorContext {
             self.project_blueprint.connection(),
             a4n_db::blueprint::SaveManualBlueprintInput {
                 project_id: input.project_id,
+                expected_current_version: input.expected_current_version,
                 genre: input.genre,
                 style: input.style,
                 tone: input.tone,
@@ -199,24 +203,37 @@ impl OrchestratorContext {
 
 #[async_trait::async_trait]
 impl a4n_api_contract::blueprint::BlueprintMutationApplicationPort for OrchestratorContext {
-    async fn save(&self, user_id: i64, input: SaveBlueprintInput) -> Result<(), AppError> {
-        self.save_blueprint_for_user_validated(user_id, input)
+    async fn save(
+        &self,
+        user_id: i64,
+        input: SaveBlueprintInput,
+    ) -> Result<VersionedBlueprintMutationResult, AppError> {
+        let result = self
+            .save_blueprint_for_user_validated(user_id, input)
             .await?;
-        Ok(())
+        Ok(VersionedBlueprintMutationResult {
+            current_version: result.blueprint.current_version,
+            warnings: Vec::new(),
+        })
     }
 
     async fn update_world_setting(
         &self,
         user_id: i64,
         input: UpdateWorldSettingInput,
-    ) -> Result<(), AppError> {
-        self.update_blueprint_world_setting_for_user_validated(
-            user_id,
-            input.project_id,
-            input.world_setting,
-        )
-        .await?;
-        Ok(())
+    ) -> Result<VersionedBlueprintMutationResult, AppError> {
+        let result = self
+            .update_blueprint_world_setting_for_user_validated(
+                user_id,
+                input.project_id,
+                input.expected_current_version,
+                input.world_setting,
+            )
+            .await?;
+        Ok(VersionedBlueprintMutationResult {
+            current_version: result.blueprint.current_version,
+            warnings: Vec::new(),
+        })
     }
 
     async fn restore(

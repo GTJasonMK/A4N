@@ -1,9 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Blocks, Search } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Blocks, RefreshCw, Search } from "lucide-react";
 import { extractErrorMessage } from "../../api";
 import { promptList, type PromptEntry } from "../../api/prompt";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
+import { useToast } from "../../components/feedback/Toast";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { BookButton } from "../../components/ui/BookButton";
 import { useDirtyRegistry } from "../../components/navigation/dirtyRegistry";
 import { useI18n } from "../../i18n";
 import { PromptAssemblyPanel, PROMPT_ASSEMBLY_DIRTY_KEY } from "./prompt/PromptAssemblyPanel";
@@ -12,35 +14,67 @@ import { filterPrompts } from "./prompt/promptTabUtils";
 
 export const PromptAssemblyTab: React.FC = () => {
   const { t } = useI18n();
+  const { addToast } = useToast();
   const dirtyRegistry = useDirtyRegistry();
   const [prompts, setPrompts] = useState<PromptEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<unknown | null>(null);
   const [keyword, setKeyword] = useState("");
   const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [loadRevision, setLoadRevision] = useState(0);
+  const loadSeqRef = useRef(0);
+  const transitionRef = useRef(false);
+  const promptsRef = useRef(prompts);
+  const selectedNameRef = useRef(selectedName);
+  const loadingRef = useRef(loading);
+  const loadErrorRef = useRef(loadError);
+  promptsRef.current = prompts;
+  selectedNameRef.current = selectedName;
+  loadingRef.current = loading;
+  loadErrorRef.current = loadError;
+
+  const loadPrompts = useCallback(async (): Promise<boolean> => {
+    if (transitionRef.current) return false;
+    const requestSeq = loadSeqRef.current + 1;
+    loadSeqRef.current = requestSeq;
+    setLoadRevision(requestSeq);
+    loadingRef.current = true;
+    loadErrorRef.current = null;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const items = await promptList();
+      if (loadSeqRef.current !== requestSeq) return false;
+      promptsRef.current = items;
+      loadErrorRef.current = null;
+      setPrompts(items);
+      const current = selectedNameRef.current;
+      const nextName = current && items.some((prompt) => prompt.name === current)
+        ? current
+        : items[0]?.name ?? null;
+      selectedNameRef.current = nextName;
+      setSelectedName(nextName);
+      return true;
+    } catch (error: unknown) {
+      if (loadSeqRef.current === requestSeq) {
+        loadErrorRef.current = error;
+        setLoadError(error);
+      }
+      return false;
+    } finally {
+      if (loadSeqRef.current === requestSeq) {
+        loadingRef.current = false;
+        setLoading(false);
+      }
+    }
+  }, []);
 
   useEffect(() => {
-    let active = true;
-    void promptList()
-      .then((items) => {
-        if (!active) return;
-        setPrompts(items);
-        setSelectedName((current) =>
-          current && items.some((prompt) => prompt.name === current)
-            ? current
-            : items[0]?.name ?? null,
-        );
-      })
-      .catch((error: unknown) => {
-        if (active) setLoadError(error);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+    void loadPrompts();
     return () => {
-      active = false;
+      loadSeqRef.current += 1;
     };
-  }, []);
+  }, [loadPrompts]);
 
   const filtered = useMemo(
     () => filterPrompts(prompts, { activeCategory: "all", keyword }),
@@ -48,24 +82,64 @@ export const PromptAssemblyTab: React.FC = () => {
   );
   const selected = prompts.find((prompt) => prompt.name === selectedName) ?? null;
 
+  const ensurePromptListCurrent = (): boolean => {
+    if (!loadingRef.current && loadErrorRef.current == null) return true;
+    addToast(
+      loadErrorRef.current
+        ? extractErrorMessage(loadErrorRef.current, t("settingsPrompt.loadFailed"))
+        : t("common.operationInProgress"),
+      "error",
+    );
+    return false;
+  };
+
   const selectPrompt = async (name: string) => {
+    if (!ensurePromptListCurrent()) return;
     if (name === selectedName) return;
-    if (dirtyRegistry.hasDirty(PROMPT_ASSEMBLY_DIRTY_KEY)) {
-      if (!dirtyRegistry.canDiscardDirty(PROMPT_ASSEMBLY_DIRTY_KEY)) return;
-      const discard = await confirmDialog({
-        title: t("common.unsavedChangesTitle"),
-        message: t("common.unsavedChangesMessage", {
-          name: t("settingsPrompt.assembly"),
-          action: t("settingsPrompt.switchPrompt"),
-        }),
-        confirmText: t("common.discardDraft"),
-        dialogType: "warning",
-      });
-      if (!discard) return;
-      const discarded = await dirtyRegistry.discardDirty(PROMPT_ASSEMBLY_DIRTY_KEY);
-      if (!discarded) return;
+    if (transitionRef.current) return;
+    transitionRef.current = true;
+    try {
+      if (dirtyRegistry.hasDirty(PROMPT_ASSEMBLY_DIRTY_KEY)) {
+        if (!dirtyRegistry.canDiscardDirty(PROMPT_ASSEMBLY_DIRTY_KEY)) {
+          addToast(t("common.operationInProgress"), "info");
+          return;
+        }
+        const discard = await confirmDialog({
+          title: t("common.unsavedChangesTitle"),
+          message: t("common.unsavedChangesMessage", {
+            name: t("settingsPrompt.assembly"),
+            action: t("settingsPrompt.switchPrompt"),
+          }),
+          confirmText: t("common.discardDraft"),
+          dialogType: "warning",
+        });
+        if (!discard) return;
+        if (
+          loadingRef.current ||
+          loadErrorRef.current != null ||
+          !promptsRef.current.some((prompt) => prompt.name === name)
+        ) {
+          addToast(t("common.listChangedRetry"), "info");
+          return;
+        }
+        if (!await dirtyRegistry.discardDirty(PROMPT_ASSEMBLY_DIRTY_KEY)) {
+          addToast(t("common.operationInProgress"), "info");
+          return;
+        }
+      }
+      if (
+        loadingRef.current ||
+        loadErrorRef.current != null ||
+        !promptsRef.current.some((prompt) => prompt.name === name)
+      ) {
+        addToast(t("common.listChangedRetry"), "info");
+        return;
+      }
+      selectedNameRef.current = name;
+      setSelectedName(name);
+    } finally {
+      transitionRef.current = false;
     }
-    setSelectedName(name);
   };
 
   const errorMessage = loadError
@@ -88,19 +162,27 @@ export const PromptAssemblyTab: React.FC = () => {
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
             placeholder={t("settingsPrompt.searchPlaceholder")}
-            disabled={loading}
+            disabled={loading || loadError != null}
           />
         </label>
       </header>
 
-      {errorMessage ? <div role="alert" className="text-small text-error">{errorMessage}</div> : null}
+      {errorMessage ? (
+        <div role="alert" className="flex flex-wrap items-center gap-2 text-small text-error">
+          <span className="min-w-0 flex-1">{errorMessage}</span>
+          <BookButton variant="secondary" size="sm" onClick={() => void loadPrompts()} disabled={loading}>
+            <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
+            {t("common.retry")}
+          </BookButton>
+        </div>
+      ) : null}
 
       <div className="grid min-h-0 gap-3 md:flex-1 md:grid-cols-[clamp(180px,24%,260px)_minmax(0,1fr)] md:grid-rows-1">
         <aside className="min-w-0 md:min-h-0 md:overflow-y-auto">
           <PromptList
             prompts={filtered}
             loading={loading}
-            disabled={loading}
+            disabled={loading || loadError != null}
             unavailable={Boolean(errorMessage) || (!loading && prompts.length === 0)}
             maxHeightClassName="max-h-[min(72dvh,42rem)] md:h-full md:max-h-none"
             selectedName={selectedName}
@@ -120,7 +202,12 @@ export const PromptAssemblyTab: React.FC = () => {
                 </h3>
                 <code className="min-w-0 break-all text-caption text-book-text-muted">{selected.name}</code>
               </header>
-              <PromptAssemblyPanel promptName={selected.name} />
+              <PromptAssemblyPanel
+                key={`${selected.name}:${loadRevision}`}
+                promptName={selected.name}
+                promptListReady={!loading && loadError == null}
+                promptListRevision={loadRevision}
+              />
             </>
           ) : loading ? (
             <div className="flex min-h-20 items-center gap-2 text-small text-book-text-muted">

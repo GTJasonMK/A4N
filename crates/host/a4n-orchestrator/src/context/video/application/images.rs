@@ -168,10 +168,13 @@ impl VideoApplication {
     pub(in crate::context) async fn delete_generated_image_record_with_cleanup(
         &self,
         image_id: i64,
-    ) -> Result<(), AppError> {
-        a4n_db::video::delete_generated_image_record_with_cleanup(self.connection(), image_id)
-            .await
-            .map_err(video_db_error)
+    ) -> Result<a4n_db::video::ImageReferenceCleanupIds, AppError> {
+        a4n_db::video::delete_generated_image_record_with_cleanup_effects(
+            self.connection(),
+            image_id,
+        )
+        .await
+        .map_err(video_db_error)
     }
 
     pub(in crate::context) async fn delete_manga_page_image_records(

@@ -31,9 +31,10 @@ import {
   DELETE_LATEST_PARTS_ACTION,
   deleteChapterOutlinesFromAction,
   isValidDeletionCount,
-  isPositiveInteger,
   isValidChapterOutlineCount,
+  isPositiveInteger,
   outlineOptimizationVariables,
+  partGenerationInputError,
   type NumberInputValue,
 } from "./outlines/outlineTabUtils";
 import { isCancelledOperation } from "../../utils/cancellation";
@@ -64,8 +65,18 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       warnings.length > 0 ? "info" : "success",
     );
   };
-  const reportRefreshFailure = (refreshed: boolean) => {
-    if (!refreshed) addToast(t("novel.refreshFailed"), "error");
+  const commitOutlines = (next: ChapterOutline[]) => {
+    mutationVersionRef.current += 1;
+    outlinesRef.current = next;
+    setOutlines(next);
+  };
+  const commitParts = (next: PartOutline[]) => {
+    mutationVersionRef.current += 1;
+    partsRef.current = next;
+    setParts(next);
+  };
+  const refreshOutlinesInBackground = (options: { showLoading?: boolean } = {}) => {
+    void load(options);
   };
   const { run: runOutlineGeneration } = useOutlineGeneration();
   const [parts, setParts] = useState<PartOutline[]>([]);
@@ -91,6 +102,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
 
   // 章纲编辑 / 操作
   const [editingId, setEditingId] = useState<number | null>(null);
+  const editExpectedUpdatedAtRef = useRef<string | null>(null);
   const [editForm, setEditForm] = useState<ChapterOutlineEditForm>({
     title: "",
     summary: "",
@@ -122,8 +134,10 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const partsRef = useRef<PartOutline[]>([]);
   const outlinesRef = useRef<ChapterOutlineListEntry[]>([]);
   const loadSeqRef = useRef(0);
+  const mutationVersionRef = useRef(0);
   const actionSeqRef = useRef(0);
   const previewSeqRef = useRef(0);
+  const readModelFreshRef = useRef(false);
   const actionBusyRef = useRef(false);
   const previewBusyRef = useRef(false);
   const confirmBusyRef = useRef(false);
@@ -149,6 +163,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     mountedRef,
     activeProjectIdRef,
     loadSeqRef,
+    readModelFreshRef,
     actionSeqRef,
     previewSeqRef,
     actionBusyRef,
@@ -161,6 +176,16 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const mutationBusy = generatingParts || generatingOutlines || savingId != null
     || manualSaving != null || regenId != null || delActing != null
     || regenLastPart || partRegenId != null;
+  const markOutlinesStale = (requestProjectId: number, message: string) => {
+    if (!isProjectCurrent(requestProjectId)) return;
+    readModelFreshRef.current = false;
+    setLoadError({ projectId: requestProjectId, message });
+  };
+  const ensureFreshForEdit = () => {
+    if (readModelFreshRef.current) return true;
+    addToast(t("outline.loadFailed"), "error");
+    return false;
+  };
   useNovelDetailDirty(
     `outlines:${projectId}`,
     editingOutline != null && (
@@ -178,10 +203,12 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     setRequestPreviewData(null);
   }, [invalidatePreview]);
 
-  const load = useCallback(async (options: { showLoading?: boolean } = {}) => {
+  const load = useCallback(async (options: { showLoading?: boolean } = {}): Promise<void> => {
     const requestProjectId = projectId;
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
+    const mutationVersion = mutationVersionRef.current;
+    readModelFreshRef.current = false;
     const showLoading = options.showLoading ?? true;
     if (showLoading && isLoadCurrent(requestProjectId, requestSeq)) setLoading(true);
     try {
@@ -189,7 +216,12 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         listParts(requestProjectId),
         listChapterOutlineIndex(requestProjectId),
       ]);
-      if (!isLoadCurrent(requestProjectId, requestSeq)) return false;
+      if (!isLoadCurrent(requestProjectId, requestSeq)) return;
+      if (mutationVersionRef.current !== mutationVersion) {
+        readModelFreshRef.current = true;
+        setLoadError(null);
+        return;
+      }
       const errors: string[] = [];
       if (partsResult.status === "rejected") {
         const message = extractErrorMessage(partsResult.reason, t("outline.loadFailed"));
@@ -204,8 +236,8 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
           ? { projectId: requestProjectId, message: errors.join(t("common.summarySeparator")) }
           : null,
       );
-      const pp = partsResult.status === "fulfilled" ? partsResult.value : [];
-      const oo = outlinesResult.status === "fulfilled" ? outlinesResult.value : [];
+      const pp = partsResult.status === "fulfilled" ? partsResult.value : partsRef.current;
+      const oo = outlinesResult.status === "fulfilled" ? outlinesResult.value : outlinesRef.current;
       const foreignPart = pp.find((part) => part.project_id !== requestProjectId);
       if (foreignPart) {
         throw new Error(`分部大纲接口返回了其他项目的数据：part_id=${foreignPart.id}`);
@@ -221,7 +253,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       setLoadedProjectId(requestProjectId);
       setPartsLoaded(partsResult.status === "fulfilled");
       setOutlinesLoaded(outlinesResult.status === "fulfilled");
-      return partsResult.status === "fulfilled" && outlinesResult.status === "fulfilled";
+      readModelFreshRef.current = errors.length === 0;
     } catch (err) {
       if (isLoadCurrent(requestProjectId, requestSeq)) {
         const message = extractErrorMessage(err, t("outline.loadFailed"));
@@ -233,8 +265,8 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         setOutlinesLoaded(false);
         setLoadedProjectId(requestProjectId);
         setLoadError({ projectId: requestProjectId, message });
+        readModelFreshRef.current = false;
       }
-      return false;
     } finally {
       if (showLoading && isLoadCurrent(requestProjectId, requestSeq)) setLoading(false);
     }
@@ -255,7 +287,9 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
 
   useLayoutEffect(() => {
     activeProjectIdRef.current = projectId;
+    readModelFreshRef.current = false;
     loadSeqRef.current += 1;
+    mutationVersionRef.current = 0;
     actionSeqRef.current += 1;
     previewSeqRef.current += 1;
     actionBusyRef.current = false;
@@ -277,6 +311,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     setGeneratingOutlines(false);
     setActiveOutlineView("parts");
     setEditingId(null);
+    editExpectedUpdatedAtRef.current = null;
     setEditForm({ title: "", summary: "" });
     setSavingId(null);
     setRegenId(null);
@@ -342,17 +377,18 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     const requestedChaptersPerPart =
       typeof chaptersPerPart === "number" ? chaptersPerPart : null;
 
-    if (!isPositiveInteger(requestedPartCount)) {
-      addToast(t("outline.partCountPositive"), "error");
+    const inputError = partGenerationInputError(
+      requestedPartCount,
+      requestedChaptersPerPart,
+    );
+    if (inputError) {
+      addToast(
+        t(inputError === "partCount" ? "outline.partCountPositive" : "outline.chaptersPerPartPositive"),
+        "error",
+      );
       return;
     }
-    if (
-      requestedChaptersPerPart !== null &&
-      !isPositiveInteger(requestedChaptersPerPart)
-    ) {
-      addToast(t("outline.chaptersPerPartPositive"), "error");
-      return;
-    }
+    if (requestedPartCount === null) return;
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) return;
     const extendingParts = partsRef.current.length > 0;
@@ -363,7 +399,6 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       ? t("outline.partsAppended", { count: requestedPartCount })
       : t("outline.partsGenerated", { count: requestedPartCount });
     setGeneratingParts(true);
-    let refreshOk = true;
     try {
       const warnings = await runOutlineGeneration(
         {
@@ -386,16 +421,15 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         async (control) => {
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
           control.setProgress(t("outline.refreshing"), 2);
-          refreshOk = await load({ showLoading: false });
+          await load({ showLoading: false });
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      if (!refreshOk) return;
       addOutlineMutationToast(successMessage, warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        await load({ showLoading: false });
+        void load({ showLoading: false });
         const message = extractErrorMessage(
           err,
           extendingParts
@@ -419,8 +453,15 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     const requestedPartCount = typeof partCount === "number" ? partCount : null;
     const requestedChaptersPerPart =
       typeof chaptersPerPart === "number" ? chaptersPerPart : null;
-    if (!isPositiveInteger(requestedPartCount)) {
-      addToast(t("outline.partCountPositive"), "error");
+    const inputError = partGenerationInputError(
+      requestedPartCount,
+      requestedChaptersPerPart,
+    );
+    if (inputError) {
+      addToast(
+        t(inputError === "partCount" ? "outline.partCountPositive" : "outline.chaptersPerPartPositive"),
+        "error",
+      );
       return;
     }
     const previewSeq = beginPreview(requestProjectId);
@@ -462,7 +503,6 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) return;
     setGeneratingOutlines(true);
-    let refreshOk = true;
     try {
       const startChapter =
         outlinesRef.current.reduce((max, outline) => Math.max(max, outline.chapter_number), 0) + 1;
@@ -491,16 +531,15 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         async (control) => {
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
           control.setProgress(t("outline.refreshing"), 2);
-          refreshOk = await load({ showLoading: false });
+          await load({ showLoading: false });
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      if (!refreshOk) return;
       addOutlineMutationToast(t("outline.chaptersGenerated", { count: requestedChapterCount }), warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        await load({ showLoading: false });
+        void load({ showLoading: false });
         const message = extractErrorMessage(err, t("outline.chaptersGenerationFailed"));
         if (!isCancelledOperation(message)) addToast(message, "error");
       }
@@ -552,6 +591,8 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       addToast(t("outline.readOnlyEdit"), "error");
       return;
     }
+    if (!ensureFreshForEdit()) return;
+    editExpectedUpdatedAtRef.current = o.updated_at;
     setEditingId(o.id);
     setEditForm({
       title: o.title == null ? "" : o.title,
@@ -561,6 +602,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
 
   const cancelEdit = () => {
     setEditingId(null);
+    editExpectedUpdatedAtRef.current = null;
     setEditForm({ title: "", summary: "" });
   };
 
@@ -593,7 +635,8 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       addToast(t("outline.titleSummaryRequired"), "error");
       return;
     }
-    if (!o.updated_at) {
+    const expectedUpdatedAt = editExpectedUpdatedAtRef.current;
+    if (!expectedUpdatedAt) {
       addToast(t("outline.versionMissing"), "error");
       return;
     }
@@ -605,19 +648,22 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       const result = await saveChapterOutline({
         project_id: requestProjectId,
         outline_id: o.id,
-        expected_updated_at: o.updated_at,
+        expected_updated_at: expectedUpdatedAt,
         chapter_number: o.chapter_number,
         title: formSnapshot.title,
         summary: formSnapshot.summary,
       });
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      const refreshed = await load();
-      reportRefreshFailure(refreshed);
+      commitOutlines([
+        result.outline,
+        ...outlinesRef.current.filter((item) => item.id !== result.outline.id),
+      ]);
       addOutlineMutationToast(t("outline.chapterSaved", { chapter: o.chapter_number }), result.warnings);
       cancelEdit();
+      refreshOutlinesInBackground();
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        addToast(extractErrorMessage(err, t("outline.saveFailed")), "error");
+        markOutlinesStale(requestProjectId, extractErrorMessage(err, t("outline.saveFailed")));
       }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setSavingId(null);
@@ -626,6 +672,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   };
 
   const openManualChapter = () => {
+    if (!ensureFreshForEdit()) return;
     const nextChapter =
       outlinesRef.current.reduce(
         (max, outline) => Math.max(max, outline.chapter_number),
@@ -636,7 +683,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
 
   const handleSaveManualChapter = async (form: ManualChapterOutlineForm) => {
     const requestProjectId = projectId;
-    if (!isPositiveSafeInteger(form.chapterNumber)) {
+    if (!isPositiveInteger(form.chapterNumber)) {
       addToast(t("outline.chapterNumberPositive"), "error");
       return;
     }
@@ -657,13 +704,16 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         summary: form.summary,
       });
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      const refreshed = await load({ showLoading: false });
-      reportRefreshFailure(refreshed);
+      commitOutlines([
+        result.outline,
+        ...outlinesRef.current.filter((item) => item.id !== result.outline.id),
+      ]);
       addOutlineMutationToast(t("outline.chapterCreated", { chapter: form.chapterNumber }), result.warnings);
       setManualChapterInitial(null);
+      refreshOutlinesInBackground({ showLoading: false });
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        addToast(extractErrorMessage(err, t("outline.saveChapterFailed")), "error");
+        markOutlinesStale(requestProjectId, extractErrorMessage(err, t("outline.saveChapterFailed")));
       }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setManualSaving(null);
@@ -672,6 +722,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   };
 
   const openManualPart = (part: PartOutline | null) => {
+    if (!ensureFreshForEdit()) return;
     if (part) {
       setManualPartEditor({
         part,
@@ -708,9 +759,9 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const handleSaveManualPart = async (form: ManualPartOutlineForm) => {
     const requestProjectId = projectId;
     if (
-      !isPositiveSafeInteger(form.partNumber) ||
-      !isPositiveSafeInteger(form.startChapter) ||
-      !isPositiveSafeInteger(form.endChapter) ||
+      !isPositiveInteger(form.partNumber) ||
+      !isPositiveInteger(form.startChapter) ||
+      !isPositiveInteger(form.endChapter) ||
       form.endChapter < form.startChapter
     ) {
       addToast(t("outline.validPartRange"), "error");
@@ -742,13 +793,16 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         theme: form.theme,
       });
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      const refreshed = await load({ showLoading: false });
-      reportRefreshFailure(refreshed);
+      commitParts([
+        result.part,
+        ...partsRef.current.filter((item) => item.id !== result.part.id),
+      ]);
       addOutlineMutationToast(t("outline.partSaved", { part: form.partNumber }), result.warnings);
       setManualPartEditor(null);
+      refreshOutlinesInBackground({ showLoading: false });
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        addToast(extractErrorMessage(err, t("outline.savePartFailed")), "error");
+        markOutlinesStale(requestProjectId, extractErrorMessage(err, t("outline.savePartFailed")));
       }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setManualSaving(null);
@@ -769,7 +823,6 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) return;
     setRegenId(o.id);
-    let refreshOk = true;
     try {
       const direction = await requestOptimizationDirection(
         t("outline.dialogs.refineChapter", { chapter: o.chapter_number }),
@@ -795,17 +848,16 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         async (control) => {
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
           control.setProgress(t("outline.refreshing"), 2);
-          refreshOk = await load({ showLoading: false });
+          await load({ showLoading: false });
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      if (!refreshOk) return;
       addOutlineMutationToast(t("outline.regeneratedChapter", { chapter: o.chapter_number }), warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         const message = extractErrorMessage(err, t("outline.regenerateFailed"));
-        if (!isCancelledOperation(message)) addToast(message, "error");
+        if (!isCancelledOperation(message)) markOutlinesStale(requestProjectId, message);
       }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setRegenId(null);
@@ -826,7 +878,6 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) return;
     setPartRegenId(part.id);
-    let refreshOk = true;
     try {
       const direction = await requestOptimizationDirection(
         t("outline.dialogs.refinePart", { part: part.part_number }),
@@ -851,17 +902,16 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         async (control) => {
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
           control.setProgress(t("outline.refreshing"), 2);
-          refreshOk = await load({ showLoading: false });
+          await load({ showLoading: false });
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      if (!refreshOk) return;
       addOutlineMutationToast(t("outline.refinedPart", { part: part.part_number }), warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         const message = extractErrorMessage(err, t("outline.regenerateFailed"));
-        if (!isCancelledOperation(message)) addToast(message, "error");
+        if (!isCancelledOperation(message)) markOutlinesStale(requestProjectId, message);
       }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setPartRegenId(null);
@@ -957,12 +1007,13 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     try {
       const result = await deleteLatestChapterOutlines(requestProjectId, targets);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      const refreshed = await load();
-      reportRefreshFailure(refreshed);
+      const deletedIds = new Set(targets.map((item) => item.id));
+      commitOutlines(outlinesRef.current.filter((item) => !deletedIds.has(item.id)));
       addOutlineMutationToast(t("outline.deletedChapters", { count }), result.warnings);
+      refreshOutlinesInBackground();
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        addToast(extractErrorMessage(err, t("outline.saveFailed")), "error");
+        markOutlinesStale(requestProjectId, extractErrorMessage(err, t("outline.saveFailed")));
       }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setDelActing(null);
@@ -1010,12 +1061,13 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     try {
       const result = await deleteLatestParts(requestProjectId, targets);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      const refreshed = await load();
-      reportRefreshFailure(refreshed);
+      const deletedIds = new Set(targets.map((item) => item.id));
+      commitParts(partsRef.current.filter((item) => !deletedIds.has(item.id)));
       addOutlineMutationToast(t("outline.deletedParts", { count: requestPartCount }), result.warnings);
+      refreshOutlinesInBackground();
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        addToast(extractErrorMessage(err, t("outline.saveFailed")), "error");
+        markOutlinesStale(requestProjectId, extractErrorMessage(err, t("outline.saveFailed")));
       }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setDelActing(null);
@@ -1063,15 +1115,16 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     try {
       const result = await deleteLatestChapterOutlines(requestProjectId, targets);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      const refreshed = await load();
-      reportRefreshFailure(refreshed);
+      const deletedIds = new Set(targets.map((item) => item.id));
+      commitOutlines(outlinesRef.current.filter((item) => !deletedIds.has(item.id)));
       addOutlineMutationToast(
         t("outline.deletedOutlines", { count: requestChapterCount }),
         result.warnings,
       );
+      refreshOutlinesInBackground();
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        addToast(extractErrorMessage(err, t("outline.saveFailed")), "error");
+        markOutlinesStale(requestProjectId, extractErrorMessage(err, t("outline.saveFailed")));
       }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setDelActing(null);
@@ -1088,7 +1141,6 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) return;
     setRegenLastPart(true);
-    let refreshOk = true;
     try {
       const warnings = await runOutlineGeneration(
         {
@@ -1107,17 +1159,16 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         async (control) => {
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
           control.setProgress(t("outline.refreshing"), 2);
-          refreshOk = await load({ showLoading: false });
+          await load({ showLoading: false });
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      if (!refreshOk) return;
       addOutlineMutationToast(t("outline.regeneratedLastPart"), warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         const message = extractErrorMessage(err, t("outline.regenerateFailed"));
-        if (!isCancelledOperation(message)) addToast(message, "error");
+        if (!isCancelledOperation(message)) markOutlinesStale(requestProjectId, message);
       }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setRegenLastPart(false);
@@ -1217,6 +1268,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
           addToast(t("outline.readOnlyTools"), "error");
           return;
         }
+        if (!ensureFreshForEdit()) return;
         setDelPartCountError(null);
         setDelChapterCountError(null);
         setAdvancedOpen(true);
@@ -1235,6 +1287,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
           addToast(t("outline.readOnlyEdit"), "error");
           return;
         }
+        if (!ensureFreshForEdit()) return;
         setOutlineAction(outline);
       }}
       onClosePartDetail={() => setPartDetail(null)}

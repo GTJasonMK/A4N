@@ -8,7 +8,7 @@ pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 use serde::{Deserialize, Serialize};
 
 pub const PROJECT_COLLABORATION_WORKER_ID: &str = "project-collaboration-worker";
-pub const PROJECT_COLLABORATION_WORKER_CONTRACT_VERSION: &str = "project-collaboration-v1";
+pub const PROJECT_COLLABORATION_WORKER_CONTRACT_VERSION: &str = "project-collaboration-v2";
 pub const PROJECT_COLLABORATION_LIST_MEMBERS_OPERATION: &str = "project.collaboration.members.list";
 pub const PROJECT_COLLABORATION_INVITE_MEMBER_OPERATION: &str =
     "project.collaboration.members.invite";

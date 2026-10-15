@@ -172,7 +172,7 @@ pub async fn video_reference_candidate_image_records<C: ConnectionTrait>(
         .map(image_records)
 }
 
-pub async fn update_generated_image_record<C: ConnectionTrait>(
+pub async fn update_generated_image_record<C: ConnectionTrait + TransactionTrait>(
     db: &C,
     image_id: i64,
     input: UpdateGeneratedImageRecordInput,
@@ -320,7 +320,7 @@ where
     .map(generated_video_record_from_model)
 }
 
-pub async fn update_generated_video_record<C: ConnectionTrait>(
+pub async fn update_generated_video_record<C: ConnectionTrait + TransactionTrait>(
     db: &C,
     video_id: i64,
     input: UpdateGeneratedVideoRecordInput,
@@ -583,6 +583,27 @@ where
     .map(chapter_video_prompt_record_from_model)
 }
 
+pub async fn update_chapter_video_prompt_with_policy_expected<C>(
+    db: &C,
+    prompt_id: i64,
+    input: ChapterVideoPromptPatch,
+    allow_downstream: bool,
+    expected_updated_at: &str,
+) -> Result<ChapterVideoPromptRecord, VideoDbError>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    super::prompts::consistency::update_chapter_video_prompt_with_policy_expected(
+        db,
+        prompt_id,
+        input,
+        allow_downstream,
+        expected_updated_at,
+    )
+    .await
+    .map(chapter_video_prompt_record_from_model)
+}
+
 pub async fn update_chapter_video_segment_plan_metadata<C>(
     db: &C,
     prompt_id: i64,
@@ -590,7 +611,7 @@ pub async fn update_chapter_video_segment_plan_metadata<C>(
     metadata_json: Value,
 ) -> Result<ChapterVideoPromptRecord, VideoDbError>
 where
-    C: ConnectionTrait,
+    C: ConnectionTrait + TransactionTrait,
 {
     let prompt = super::prompts::consistency::update_chapter_video_segment_plan_metadata(
         db,
@@ -621,6 +642,31 @@ where
         input,
         metadata_json,
         allow_downstream,
+        generation_run,
+    )
+    .await
+    .map(chapter_video_prompt_record_from_model)
+}
+
+pub async fn update_chapter_video_prompt_with_generation_run_checkpoint_expected<C>(
+    db: &C,
+    prompt_id: i64,
+    input: ChapterVideoPromptPatch,
+    metadata_json: Option<Value>,
+    allow_downstream: bool,
+    expected_updated_at: Option<&str>,
+    generation_run: RecordCompletedGenerationRunWithCheckpointInput,
+) -> Result<ChapterVideoPromptRecord, VideoDbError>
+where
+    C: ConnectionTrait + TransactionTrait,
+{
+    super::prompts::consistency::update_chapter_video_prompt_with_generation_run_checkpoint_expected(
+        db,
+        prompt_id,
+        input,
+        metadata_json,
+        allow_downstream,
+        expected_updated_at,
         generation_run,
     )
     .await

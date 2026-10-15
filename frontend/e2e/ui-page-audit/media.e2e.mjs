@@ -19,6 +19,7 @@ const timeline = '[aria-label="视频剪辑时间轴"]';
 const resultPane = 'section[aria-label="视频结果"]';
 
 const buttonText = text => $(`//button[normalize-space()=${JSON.stringify(text)}]`);
+const inputModeConfirmation = () => $('//div[@role="dialog"][.//h3[normalize-space()="切换视频输入模式"]]');
 const comicFixture = page => fixtures.byChapter[1].list_manga_page_prompts.find(row => row.page_number === page);
 
 async function ready() {
@@ -39,6 +40,33 @@ async function openRoute(path) {
   await browser.switchToWindow(await browser.getWindowHandle());
   await $(".a4n-page-header h1").waitForDisplayed();
   await ready();
+}
+
+async function switchInterfaceLanguage(option, expectedLocale, triggerLabel) {
+  const statusPanel = $("#a4n-status-bar-panel");
+  if (!await statusPanel.isDisplayed().catch(() => false)) {
+    await browser.execute(() => document.querySelector(".a4n-status-bar-orb")?.click());
+    await statusPanel.waitForDisplayed({ timeout: 5000 });
+  }
+  await browser.execute((label) => [...document.querySelectorAll("#a4n-status-bar-panel button")]
+    .find((button) => button.getAttribute("aria-label") === label)?.click(), triggerLabel);
+  await $("[role=menu]").waitForDisplayed({ timeout: 5000 });
+  const optionNode = await $(`//*[@role="menuitem" and normalize-space()=${JSON.stringify(option)}]`);
+  await optionNode.waitForClickable();
+  await optionNode.click();
+  await browser.waitUntil(async () => browser.execute((locale) => document.documentElement.lang === locale, expectedLocale), { timeout: 5000 });
+  await browser.execute(() => document.querySelector("#a4n-status-bar-panel")?.focus());
+  await browser.keys("Escape");
+  await statusPanel.waitForExist({ reverse: true, timeout: 5000 });
+}
+
+async function openDirectingPlan() {
+  await openRoute("/video-project/3");
+  const tab = await $('button[id="video-stages-3-tab-director"]');
+  if (await tab.getAttribute("aria-selected") !== "true") await tab.click();
+  await $(".director-workspace").waitForDisplayed({ timeout: 5000 });
+  await browser.waitUntil(async () => (await $(".director-timeline").getAttribute("aria-label")) != null, { timeout: 5000 });
+  return $(".director-workspace");
 }
 
 async function openMenu(scope, label, index = 0) {
@@ -134,6 +162,69 @@ async function openVideoMaterials() {
   await ready();
 }
 
+const textAsset = {
+  id: 5201,
+  project_id: 2,
+  title: "审查文本素材",
+  text_kind: "script",
+  content: "第1章\n原始正文",
+  content_hash: "text-asset-v1",
+  current_version: 1,
+  updated_at: "2026-10-10T00:00:00Z",
+};
+
+async function configureTextAssetFixtures(assets = [textAsset], projectId = 2, versions) {
+  const sample = { ...textAsset, project_id: projectId };
+  await browser.execute(({ assets, sample, versions }) => {
+    const project = window.__uiAudit.fixtures.byProject[sample.project_id];
+    project.list_canvas_text_assets = assets;
+    project.list_canvas_text_asset_versions = versions ?? [{
+      version: 1,
+      content: sample.content,
+      content_hash: sample.content_hash,
+      created_at: sample.updated_at,
+    }, {
+      version: 2,
+      content: "第1章\n保存后的正文",
+      content_hash: "text-asset-v2",
+      created_at: "2026-10-10T00:01:00Z",
+    }];
+    project.save_canvas_text_asset = {
+      ...sample,
+      title: "审查文本素材",
+      content: "第1章\n保存后的正文",
+      content_hash: "text-asset-v2",
+      current_version: 2,
+      updated_at: "2026-10-10T00:01:00Z",
+    };
+    project.import_project_text_asset_upload = {
+      ...sample,
+      id: 5202,
+      title: "导入回包素材",
+      content: "第2章\n导入后的正文",
+      content_hash: "text-asset-import",
+    };
+    project.generate_canvas_text_asset_draft = { content: "第3章\nAI 生成结果" };
+  }, { assets, sample, versions });
+}
+
+async function openComicTextMaterials(assets = [textAsset], beforeOpen = async () => {}, versions) {
+  await browser.execute(() => localStorage.setItem("a4n:comic:2:stage", "materials"));
+  await browser.url("/comic-project/2");
+  await $(".a4n-page-header h1").waitForDisplayed();
+  await ready();
+  await configureTextAssetFixtures(assets, 2, versions);
+  await beforeOpen();
+  await buttonText("文本素材").click();
+  await browser.waitUntil(async () => {
+    const input = await $("fieldset input[required]");
+    return await input.isExisting() && (
+      await input.isEnabled() || await $("fieldset [role=alert]").isExisting()
+    );
+  }, { timeout: 5000, timeoutMsg: "Text materials did not finish its initial load" });
+  await ready();
+}
+
 async function selectSegment(number) {
   const target = await $(`//button[@data-video-segment="${number}" and not(ancestor::*[@role="dialog"])]`);
   await target.waitForClickable();
@@ -210,6 +301,231 @@ async function openGalgame(view = "editor") {
     await $('[aria-label="GALGame 移动工作区"]').$(`.//button[normalize-space()="${view === "editor" ? "编辑" : "场次"}"]`).click();
   }
   await ready();
+  await browser.waitUntil(isFirstGalgameLineVisible, {
+    timeoutMsg: "The first Galgame line editor must be visibly available after opening the script workspace",
+  });
+}
+
+function createGalgameStoryGraphFixtures() {
+  const line = (id, text) => ({
+    id, display_order: 0, line_type: "narration", presentation: {}, speaker_profile_id: null, text,
+  });
+  const node = (id, kind, title, x, texts = []) => ({
+    id, kind, title, layout_x: x, layout_y: 80,
+    lines: (Array.isArray(texts) ? texts : texts ? [texts] : []).map((text, index) => line(`line:${id}:${index + 1}`, text)),
+    media_intents: [], primary_source: null, source_refs: [], state_after: {}, state_before: {},
+    state_operations: [], summary: "",
+  });
+  const graph = {
+    id: "story-graph-fixture-5", project_id: 5, revision: 1, schema_version: "galgame_story_graph_v1",
+    source_snapshot_id: 50, entry_node_id: "node:start", terminal_node_ids: ["node:end"],
+    state_variables: [], branch_groups: [], loop_groups: [],
+    nodes: [
+      node("node:start", "narrative", "起点", 0, ["运行时台词-起点", "第二行台词"]),
+      node("node:middle", "narrative", "中段", 280, "运行时台词-中段"),
+      node("node:end", "terminal", "终点", 560, "运行时台词-终点"),
+    ],
+    edges: [
+      { id: "edge:start-middle", from_node_id: "node:start", to_node_id: "node:middle", from_port: "out", to_port: "in", kind: "sequence", branch_group_id: null, guard: null, state_operations: [], display_order: 0 },
+      { id: "edge:middle-end", from_node_id: "node:middle", to_node_id: "node:end", from_port: "out", to_port: "in", kind: "sequence", branch_group_id: null, guard: null, state_operations: [], display_order: 0 },
+    ],
+  };
+  const view = (nodeId, stepIndex) => ({
+    current_node: graph.nodes.find((item) => item.id === nodeId),
+    available_edges: graph.edges.filter((edge) => edge.from_node_id === nodeId),
+    state: {
+      current_node_id: nodeId, graph_id: graph.id, graph_revision: graph.revision,
+      loop_iterations: {}, loop_stack: [], player_knowledge: [], step_index: stepIndex,
+      variables: {}, visited_counts: { [nodeId]: stepIndex + 1 },
+    },
+  });
+  return { graph, view, startView: view("node:start", 0), nextView: view("node:middle", 1) };
+}
+
+function createGalgameBranchGraphFixture() {
+  const { graph: base } = createGalgameStoryGraphFixtures();
+  const node = (id, kind, title, x, y) => ({
+    id, kind, title, layout_x: x, layout_y: y, lines: [], media_intents: [],
+    primary_source: null, source_refs: [], state_after: {}, state_before: {}, state_operations: [], summary: "",
+  });
+  const branchId = "branch:main";
+  const leftEdge = { id: "edge:choice-left", from_node_id: "node:fork", to_node_id: "node:left", from_port: "out", to_port: "in", kind: "choice", branch_group_id: branchId, guard: null, state_operations: [], display_order: 0 };
+  const rightEdge = { id: "edge:choice-right", from_node_id: "node:fork", to_node_id: "node:right", from_port: "out", to_port: "in", kind: "choice", branch_group_id: branchId, guard: null, state_operations: [], display_order: 1 };
+  return {
+    ...base,
+    entry_node_id: "node:start",
+    terminal_node_ids: ["node:left", "node:right"],
+    nodes: [
+      node("node:start", "narrative", "起点", 0, 80),
+      node("node:fork", "fork", "分叉", 280, 80),
+      node("node:left", "terminal", "左路", 560, 0),
+      node("node:right", "terminal", "右路", 560, 160),
+    ],
+    edges: [
+      { id: "edge:start-fork", from_node_id: "node:start", to_node_id: "node:fork", from_port: "out", to_port: "in", kind: "sequence", branch_group_id: null, guard: null, state_operations: [], display_order: 0 },
+      leftEdge,
+      rightEdge,
+    ],
+    branch_groups: [{
+      id: branchId, fork_node_id: "node:fork", join_node_id: null,
+      options: [
+        { id: "option:left", label: "左边", edge_id: leftEdge.id, condition: null, state_operations: [] },
+        { id: "option:right", label: "右边", edge_id: rightEdge.id, condition: null, state_operations: [] },
+      ],
+    }],
+  };
+}
+
+function createGalgameCycleAttemptGraphFixture() {
+  const { graph: base } = createGalgameStoryGraphFixtures();
+  const node = (id, kind, title, x, y) => ({
+    id, kind, title, layout_x: x, layout_y: y, lines: [], media_intents: [],
+    primary_source: null, source_refs: [], state_after: {}, state_before: {}, state_operations: [], summary: "",
+  });
+  const edge = (id, from, to, kind, branchGroupId = null, order = 0) => ({
+    id, from_node_id: from, to_node_id: to, from_port: "out", to_port: "in",
+    kind, branch_group_id: branchGroupId, guard: null, state_operations: [], display_order: order,
+  });
+  const outerBranchId = "branch:outer";
+  const innerBranchId = "branch:inner";
+  const edges = [
+    edge("edge:start-outer", "node:start", "node:outer", "sequence"),
+    edge("edge:outer-a", "node:outer", "node:route-a", "choice", outerBranchId, 0),
+    edge("edge:outer-b", "node:outer", "node:route-b", "choice", outerBranchId, 1),
+    edge("edge:a-join", "node:route-a", "node:join", "sequence"),
+    edge("edge:b-join", "node:route-b", "node:join", "sequence"),
+    edge("edge:join-inner", "node:join", "node:inner", "sequence"),
+    edge("edge:inner-left", "node:inner", "node:inner-left", "choice", innerBranchId, 0),
+    edge("edge:inner-right", "node:inner", "node:inner-right", "choice", innerBranchId, 1),
+  ];
+  return {
+    ...base,
+    terminal_node_ids: ["node:inner-left", "node:inner-right"],
+    nodes: [
+      node("node:start", "narrative", "起点", 0, 80),
+      node("node:outer", "fork", "前置分支", 260, 80),
+      node("node:route-a", "narrative", "路线 A", 520, 0),
+      node("node:route-b", "narrative", "路线 B", 520, 160),
+      node("node:join", "join", "汇合点", 780, 80),
+      node("node:inner", "fork", "后置分支", 1040, 80),
+      node("node:inner-left", "terminal", "左结局", 1300, 0),
+      node("node:inner-right", "terminal", "右结局", 1300, 160),
+    ],
+    edges,
+    branch_groups: [
+      {
+        id: outerBranchId, fork_node_id: "node:outer", join_node_id: "node:join",
+        options: [
+          { id: "option:outer-a", label: "路线 A", edge_id: "edge:outer-a", condition: null, state_operations: [] },
+          { id: "option:outer-b", label: "路线 B", edge_id: "edge:outer-b", condition: null, state_operations: [] },
+        ],
+      },
+      {
+        id: innerBranchId, fork_node_id: "node:inner", join_node_id: null,
+        options: [
+          { id: "option:inner-left", label: "左结局", edge_id: "edge:inner-left", condition: null, state_operations: [] },
+          { id: "option:inner-right", label: "右结局", edge_id: "edge:inner-right", condition: null, state_operations: [] },
+        ],
+      },
+    ],
+  };
+}
+
+function createGalgameLoopGraphFixture() {
+  const { graph: base } = createGalgameStoryGraphFixtures();
+  const node = (id, kind, title, x) => ({
+    id, kind, title, layout_x: x, layout_y: 80, lines: [], media_intents: [],
+    primary_source: null, source_refs: [], state_after: {}, state_before: {}, state_operations: [], summary: "",
+  });
+  return {
+    ...base,
+    entry_node_id: "node:start",
+    terminal_node_ids: ["node:end"],
+    nodes: [
+      node("node:body", "narrative", "循环正文", 280),
+      node("node:start", "narrative", "起点", 0),
+      node("node:loop-entry", "loop_entry", "循环入口", 30),
+      node("node:loop-exit", "loop_exit", "循环出口", 530),
+      node("node:end", "terminal", "终点", 810),
+    ],
+    edges: [
+      { id: "edge:start-loop", from_node_id: "node:start", to_node_id: "node:loop-entry", from_port: "out", to_port: "in", kind: "sequence", branch_group_id: null, guard: null, state_operations: [], display_order: 0 },
+      { id: "edge:loop-body", from_node_id: "node:loop-entry", to_node_id: "node:body", from_port: "out", to_port: "in", kind: "sequence", branch_group_id: null, guard: null, state_operations: [], display_order: 0 },
+      { id: "edge:loop-back", from_node_id: "node:body", to_node_id: "node:loop-entry", from_port: "repeat", to_port: "loop", kind: "loop_back", branch_group_id: null, guard: null, state_operations: [], display_order: 0 },
+      { id: "edge:loop-exit", from_node_id: "node:body", to_node_id: "node:loop-exit", from_port: "exit", to_port: "in", kind: "sequence", branch_group_id: null, guard: null, state_operations: [], display_order: 1 },
+      { id: "edge:exit-end", from_node_id: "node:loop-exit", to_node_id: "node:end", from_port: "out", to_port: "in", kind: "sequence", branch_group_id: null, guard: null, state_operations: [], display_order: 0 },
+    ],
+    loop_groups: [{
+      id: "loop:main", entry_node_id: "node:loop-entry", body_exit_node_id: "node:body",
+      back_edge_id: "edge:loop-back", back_to_node_id: "node:loop-entry", exit_node_id: "node:loop-exit",
+      guard: "true", state_operations: [], max_iterations: 3,
+    }],
+  };
+}
+
+async function openGalgameGraph({
+  width = 1440,
+  role = "owner",
+  existingRuntime,
+  deferred = [],
+  graph: graphOverride,
+  savedGraph,
+  nextRuntime,
+} = {}) {
+  await browser.setWindowSize(width, 1000);
+  await browser.url("/");
+  await browser.switchToWindow(await browser.getWindowHandle());
+  await $(".a4n-home-content").waitForDisplayed();
+  const story = createGalgameStoryGraphFixtures();
+  const graph = graphOverride ?? story.graph;
+  const runtimeView = existingRuntime === undefined ? story.startView : existingRuntime;
+  const startResult = story.view(graph.entry_node_id, 0);
+  const saveResult = savedGraph ?? graph;
+  const advanceResult = nextRuntime ?? story.nextView;
+  const initialized = await browser.execute(({ graph, runtimeView, startResult, saveResult, advanceResult, role, deferred }) => {
+    const audit = window.__uiAudit;
+    localStorage.setItem("a4n:galgame:5:stage", "script");
+    const project = audit.fixtures.projectRecords.find((item) => Number(item.id) === 5);
+    if (project) project.my_role = role;
+    const projectFixtures = audit.fixtures.byProject[5];
+    projectFixtures.get_galgame_script.story_graph = graph;
+    projectFixtures.get_galgame_script.story_graph_status = "generated";
+    projectFixtures.get_galgame_story_runtime_state = runtimeView;
+    projectFixtures.start_galgame_story_runtime = startResult;
+    projectFixtures.advance_galgame_story_runtime = advanceResult;
+    projectFixtures.save_galgame_story_graph = saveResult;
+    audit.deferred = [...new Set([...audit.deferred, ...deferred])];
+    return project != null;
+  }, { graph, runtimeView, startResult, saveResult, advanceResult, role, deferred });
+  assert.equal(initialized, true, "The Galgame project fixture must exist before opening its route");
+  await browser.execute((path) => {
+    window.history.pushState({}, "", path);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }, "/galgame-project/5");
+  await $(".a4n-page-header h1").waitForDisplayed();
+  await browser.waitUntil(async () => (await $$(".react-flow__node")).length === graph.nodes.length, { timeout: 5000 });
+  const runtimeButton = await buttonText("开始或继续");
+  const runtimeReach = await reachByWheel(runtimeButton);
+  assert.equal(runtimeReach.reached, true, `The save-slot controls must be reachable in the Galgame graph workspace: ${JSON.stringify(runtimeReach)}`);
+  await ready();
+  return story;
+}
+
+async function openGalgameAtStage(stage, failures = []) {
+  await browser.url("/");
+  await browser.switchToWindow(await browser.getWindowHandle());
+  await $(".a4n-home-content").waitForDisplayed();
+  await browser.execute((stageId) => localStorage.setItem("a4n:galgame:5:stage", stageId), stage);
+  const query = failures.length > 0 ? `?ui-fail=${encodeURIComponent(JSON.stringify(failures))}` : "";
+  await browser.url(`/galgame-project/5${query}`);
+  await browser.switchToWindow(await browser.getWindowHandle());
+  await $(".a4n-page-header h1").waitForDisplayed();
+  await ready();
+}
+
+async function isFirstGalgameLineVisible() {
+  const lines = await $$(galgameLines);
+  return lines.length > 0 && await lines[0].isDisplayed();
 }
 
 async function openGalgameAssets() {
@@ -242,7 +558,7 @@ async function openGalgamePerformance(line) {
   await openDetails(`${galgameLines}:nth-of-type(${line}) > details[class*="group/performance"]`);
 }
 
-async function openSourceSync(projectId) {
+async function openSourceSyncDialog(projectId) {
   const route = projectId === 2 ? "/comic-project/2" : projectId === 3 ? "/video-project/3" : "/galgame-project/5";
   await openRoute(route);
   const syncSelector = projectId === 3
@@ -251,6 +567,11 @@ async function openSourceSync(projectId) {
   assert.equal((await $$(syncSelector)).length, 1, "The current project must expose one exact source synchronization entry");
   await $(syncSelector).click();
   await $(dialog).waitForDisplayed();
+  await ready();
+}
+
+async function openSourceSync(projectId) {
+  await openSourceSyncDialog(projectId);
   await $(dialog).$('.//button[normalize-space()="检查更新"]').click();
   await browser.waitUntil(async () => (await $$(`${dialog} article`)).length === 3, {
     timeoutMsg: "Source synchronization must render all three typed conflicts",
@@ -303,7 +624,7 @@ async function inspectVideoEditorEnd(record) {
 }
 
 async function openCanvas(nodeId = null) {
-  await openRoute("/video-project/6/studio");
+  await openRoute("/canvas-project/6");
   await browser.waitUntil(async () => (await $$(".react-flow__node")).length === 17, {
     timeoutMsg: "The media graph must contain seventeen populated nodes",
   });
@@ -491,9 +812,9 @@ async function provePlayback(selector) {
   return $(selector).execute(element => { element.pause(); return { time: element.currentTime, duration: element.duration }; });
 }
 
-async function reachByWheel(selector, axis = "y") {
+async function reachByWheel(selector, axis = "y", pointerAnchor = "center") {
   const target = typeof selector === "string" ? await $(selector) : selector;
-  const state = () => target.execute((element, direction) => {
+  const state = () => target.execute((element, direction, anchor) => {
     const box = element.getBoundingClientRect();
     const x = box.x + box.width / 2, y = box.y + box.height / 2;
     const hit = x >= 0 && x < innerWidth && y >= 0 && y < innerHeight ? document.elementFromPoint(x, y) : null;
@@ -512,15 +833,18 @@ async function reachByWheel(selector, axis = "y") {
       top: Math.max(0, surface.top), bottom: Math.min(innerHeight, surface.bottom),
     } : { left: 0, right: innerWidth, top: 0, bottom: innerHeight };
     const center = { x: (bounds.left + bounds.right) / 2, y: (bounds.top + bounds.bottom) / 2 };
+    const wheelX = direction === "y" && anchor === "target"
+      ? Math.max(bounds.left + 2, Math.min(bounds.right - 2, x))
+      : center.x;
     const span = direction === "x" ? bounds.right - bounds.left : bounds.bottom - bounds.top;
     const distance = direction === "x" ? x - center.x : y - center.y;
     return {
       reached, scrollable: Boolean(scroll), target: { x, y }, bounds,
-      x: Math.round(Math.max(2, Math.min(innerWidth - 2, center.x))),
+      x: Math.round(Math.max(2, Math.min(innerWidth - 2, wheelX))),
       y: Math.round(Math.max(2, Math.min(innerHeight - 2, center.y))),
       delta: Math.round(Math.max(-span / 2, Math.min(span / 2, distance))),
     };
-  }, axis);
+  }, axis, pointerAnchor);
   let value = await state();
   for (let attempt = 0; attempt < 20 && !value.reached && value.scrollable && value.delta !== 0; attempt++) {
     await browser.performActions([{ type: "wheel", id: "media-wheel", actions: [{
@@ -1111,6 +1435,61 @@ const cases = [
     return { before, savedViewport: saved };
   }, note: "检查用户视口进入真实画布写请求；不只检查保存 Toast。" },
   ...[["MS01", 2, "漫画"], ["MS02", 3, "视频"], ["MS03", 5, "Galgame"]].map(([id, project, label]) => ({ id, title: `${label}来源同步冲突`, task: "比较三条来源变化与当前改编，关闭前不应用决定", frequency: "低", open: () => openSourceSync(project), scope: dialog, count: [`${dialog} article`, 3], expected: ["冲突清单", "来源变化", "当前项目", "未寄出的信"], after: inspectSourceSyncEnd, note: "typed dry_run预览；真实滚到末条冲突并补充conflicts-end截图，不为应用/解绑提供假成功mutation。" })),
+  {
+    id: "UX-2250", title: "来源同步预览进行中关闭", task: "预览请求未返回时关闭只读同步对话框，并确认迟到结果不会重新载入",
+    widths: [1440], scope: dialog, expected: ["来源同步", "尚未检查"], open: async () => {
+      await openSourceSyncDialog(2);
+      await browser.execute(() => window.__uiAudit.deferred.push("preview_source_sync"));
+      await buttonText("检查更新").click();
+      await browser.waitUntil(async () => browser.execute(() => window.__uiAudit.pending.some((item) => item.command === "preview_source_sync")));
+    }, after: async () => {
+      await browser.keys("Escape");
+      await $(dialog).waitForExist({ reverse: true });
+      const released = await browser.execute((preview) => {
+        const pending = window.__uiAudit.pending.find((item) => item.command === "preview_source_sync");
+        if (!pending) return false;
+        pending.resolve(Response.json(preview));
+        return true;
+      }, fixtures.byProject[2].preview_source_sync);
+      assert.equal(released, true, "The deferred source preview must resolve after closing");
+      await ready();
+      await openSourceSyncDialog(2);
+      assert((await $(dialog).getText()).includes("尚未检查"), "A late read must not restore a preview after reopening");
+      assert.equal((await $$(`${dialog} article`)).length, 0);
+      await browser.keys("Escape");
+      await $(dialog).waitForExist({ reverse: true });
+      const commands = await browser.execute(() => window.__uiAudit.commands);
+      assert.equal(commands.filter((command) => command === "apply_source_sync_decisions").length, 0);
+      assert.equal(commands.filter((command) => command === "detach_derived_project").length, 0);
+      return { closedWhileReadPending: true, latePlanNotRestored: true, mutations: 0 };
+    }, note: "只读预览允许离开；重开时按新的对话框 scope 读取状态。" },
+  {
+    id: "UX-2251", title: "来源同步重查失败清除旧计划", task: "已有计划时重新检查失败，确认旧冲突不再显示为当前计划",
+    widths: [1440], scope: dialog, expected: ["冲突清单", "未寄出的信"], open: () => openSourceSync(2), after: async () => {
+      await browser.execute(() => window.__uiAudit.failNext.push({ command: "preview_source_sync", status: 503, message: "重新检查期间来源读取失败" }));
+      await buttonText("重新检查").click();
+      await buttonText("检查更新").waitForClickable();
+      const text = await $(dialog).getText();
+      assert(text.includes("尚未检查"));
+      assert.equal((await $$(`${dialog} article`)).length, 0, "An older run must not remain actionable after recheck failed");
+      const commands = await browser.execute(() => window.__uiAudit.commands);
+      assert.equal(commands.filter((command) => command === "preview_source_sync").length, 2);
+      assert.equal(commands.includes("apply_source_sync_decisions"), false);
+      return { oldPlanRemoved: true, recheckAvailable: true, previewRequests: 2 };
+    }, note: "后端返回的旧快照计划只有在新的只读预览成功后才作为当前计划呈现。" },
+  {
+    id: "UX-2252", title: "来源同步决策失败后撤销旧计划", task: "服务端拒绝过期冲突决策后停止重复提交同一同步 run",
+    widths: [1440], scope: dialog, expected: ["冲突清单", "未寄出的信"], open: () => openSourceSync(2), after: async () => {
+      await browser.execute(() => window.__uiAudit.failNext.push({ command: "apply_source_sync_decisions", status: 409, message: "来源快照已变化" }));
+      await buttonText("保留当前").click();
+      await buttonText("检查更新").waitForClickable();
+      const text = await $(dialog).getText();
+      assert(text.includes("尚未检查"));
+      assert.equal((await $$(`${dialog} article`)).length, 0, "Rejected decisions must invalidate their old run in the view");
+      const commands = await browser.execute(() => window.__uiAudit.commands);
+      assert.equal(commands.filter((command) => command === "apply_source_sync_decisions").length, 1);
+      return { rejectedRunRemoved: true, decisionRequests: 1, recheckAvailable: true };
+    }, note: "业务错误仍播报；失效计划从当前读模型移除，用户可显式重新检查。" },
 ];
 
 describe("Populated media pages and task dialogs", () => {
@@ -1194,6 +1573,408 @@ describe("Populated media pages and task dialogs", () => {
       }
     });
   }
+
+  it("UX-1696/1697 keeps failed text reads distinct from empty state and draft replacement", async function () {
+    this.mediaRecord = { id: "UX-1696-1697", title: "文本素材读取错误与重试", width: 1440 };
+    await browser.setWindowSize(1440, 1000);
+    await openComicTextMaterials([textAsset], async () => browser.execute(() => {
+      window.__uiAudit.failNext.push(
+        { command: "list_canvas_text_assets", status: 503, message: "Injected initial text asset read failure" },
+        { command: "list_canvas_text_assets", status: 503, message: "Injected initial text asset read failure" },
+      );
+    }));
+
+    const panel = await $("fieldset");
+    assert.equal((await panel.getText()).includes("Injected initial text asset read failure"), true);
+    assert.equal((await panel.getText()).includes("还没有文本素材"), false, "A failed read must not appear as a real empty collection");
+    assert.equal(await panel.$('button[aria-label="新建文本素材"]').isEnabled(), false, "An unknown collection cannot accept new items");
+    assert.equal(await panel.$("input[required]").isEnabled(), false);
+
+    await buttonText("重试").click();
+    await browser.waitUntil(async () => (await panel.$("input[required]").isEnabled()) === true);
+    const body = await panel.$("textarea[required]");
+    await body.setValue("第1章\n保存后的正文");
+    await ready();
+    await browser.execute(() => window.__uiAudit.failNext.push({
+      command: "list_canvas_text_assets", status: 503, message: "Injected post-save list read failure",
+    }));
+    await panel.$('.//button[normalize-space(.)="保存"]').click();
+    await browser.waitUntil(async () => (await panel.getText()).includes("Injected post-save list read failure"));
+
+    await body.setValue("第1章\n保留的未保存正文");
+    await ready();
+    await browser.execute(() => window.__uiAudit.failNext.push({
+      command: "list_canvas_text_assets", status: 503, message: "Injected retry read failure",
+    }));
+    const readsBeforeCancel = await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "list_canvas_text_assets").length);
+    await buttonText("重试").click();
+    let discard = await $(dialog);
+    await discard.waitForDisplayed();
+    assert.equal(await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "list_canvas_text_assets").length), readsBeforeCancel,
+      "The refresh must wait for an explicit draft decision");
+    await discard.$('.//button[normalize-space(.)="取消"]').click();
+    assert.equal(await body.getValue(), "第1章\n保留的未保存正文");
+
+    await buttonText("重试").click();
+    discard = await $(dialog);
+    await discard.waitForDisplayed();
+    await discard.$('.//button[normalize-space(.)="确认"]').click();
+    await browser.waitUntil(async () => (await panel.getText()).includes("Injected retry read failure"));
+    assert.equal(await body.getValue(), "第1章\n保留的未保存正文", "A failed refresh must not overwrite the draft after confirmation");
+    await body.setValue("第1章\n保存后的正文");
+    await ready();
+    this.mediaRecord.interaction = { failedReadNotEmpty: true, retryRequiresDecision: true, failedRetryPreservesDraft: true };
+  });
+
+  it("UX-1698 applies the saved text asset response before a failed list refresh", async function () {
+    this.mediaRecord = { id: "UX-1698", title: "文本素材保存回包投影", width: 1440 };
+    await browser.setWindowSize(1440, 1000);
+    await openComicTextMaterials();
+    const panel = await $("fieldset");
+    const body = await panel.$("textarea[required]");
+    await body.setValue("第1章\n保存后的正文");
+    await ready();
+    await browser.execute(() => window.__uiAudit.failNext.push({
+      command: "list_canvas_text_assets", status: 503, message: "Injected post-save list read failure",
+    }));
+    const save = await panel.$('.//button[normalize-space(.)="保存"]');
+    await save.click();
+    await browser.waitUntil(async () => (await panel.getText()).includes("Injected post-save list read failure"));
+    assert.equal(await body.getValue(), "第1章\n保存后的正文");
+    assert.equal(await save.isEnabled(), false, "The command response is the saved baseline even when the list read fails");
+    assert.equal((await panel.getText()).includes("第 2 版"), true);
+    this.mediaRecord.interaction = { returnedAssetApplied: true, staleDraftCannotBeResubmitted: true };
+  });
+
+  it("UX-1699 applies the imported text asset response when its list read fails", async function () {
+    this.mediaRecord = { id: "UX-1699", title: "文本素材导入回包投影", width: 1440 };
+    await browser.setWindowSize(1440, 1000);
+    await openComicTextMaterials();
+    await browser.execute(() => {
+      const prototype = HTMLInputElement.prototype;
+      window.__textFilePickerRestore = { click: prototype.click, showPicker: prototype.showPicker };
+      prototype.click = () => {};
+      if (prototype.showPicker) prototype.showPicker = () => {};
+      window.__uiAudit.failNext.push({
+        command: "list_canvas_text_assets", status: 503, message: "Injected post-import list read failure",
+      });
+    });
+    await buttonText("导入文件").click();
+    await browser.execute(() => {
+      const input = document.querySelector('input[type="file"]');
+      if (!input) throw new Error("Text import did not create its file input");
+      const transfer = new DataTransfer();
+      transfer.items.add(new File(["# Imported material\n\nA text import fixture."], "text-materials-sample.md", { type: "text/markdown" }));
+      input.files = transfer.files;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      const restore = window.__textFilePickerRestore;
+      HTMLInputElement.prototype.click = restore.click;
+      if (restore.showPicker) HTMLInputElement.prototype.showPicker = restore.showPicker;
+      delete window.__textFilePickerRestore;
+    });
+
+    const panel = await $("fieldset");
+    await browser.waitUntil(async () => (await panel.getText()).includes("Injected post-import list read failure"));
+    assert.equal(await panel.$("input[required]").getValue(), "导入回包素材");
+    assert.equal(await panel.$("textarea[required]").getValue(), "第2章\n导入后的正文");
+    assert.equal((await panel.getText()).includes("导入回包素材"), true);
+    this.mediaRecord.interaction = { importedAssetApplied: true, followupReadErrorSeparate: true };
+  });
+
+  it("UX-1700/1701/1702 preserves AI text drafts across close, failed regenerate, and navigation", async function () {
+    this.mediaRecord = { id: "UX-1700-1702", title: "AI文本草稿生命周期", width: 1440 };
+    await browser.setWindowSize(1440, 1000);
+    await openComicTextMaterials();
+    await buttonText("AI 辅助生成").click();
+    let assistant = await $(dialog);
+    await assistant.waitForDisplayed();
+    await assistant.$("textarea").setValue("补全第一章结尾");
+    await ready();
+    await assistant.$('.//button[normalize-space(.)="生成草稿"]').click();
+    let output = await assistant.$("textarea[readonly]");
+    await browser.waitUntil(async () => (await output.getValue()) === "第3章\nAI 生成结果");
+    await browser.keys("Escape");
+    await browser.waitUntil(() => browser.execute(() =>
+      ![...document.querySelectorAll('[role="dialog"]')].some((node) => node.textContent?.includes("AI 辅助生成文本")),
+    ));
+
+    await buttonText("AI 辅助生成").click();
+    assistant = await $(dialog);
+    await assistant.waitForDisplayed();
+    output = await assistant.$("textarea[readonly]");
+    assert.equal(await output.getValue(), "第3章\nAI 生成结果", "Opening the assistant again must retain its unapplied result");
+    await browser.execute(() => window.__uiAudit.failNext.push({
+      command: "generate_canvas_text_asset_draft", status: 503, message: "Injected AI draft regeneration failure",
+    }));
+    await assistant.$('.//button[normalize-space(.)="重新生成"]').click();
+    await browser.waitUntil(async () => (await $("body").getText()).includes("Injected AI draft regeneration failure"));
+    assert.equal(await output.getValue(), "第3章\nAI 生成结果", "A failed regeneration must leave the prior result available");
+
+    await browser.keys("Escape");
+    await browser.waitUntil(() => browser.execute(() =>
+      ![...document.querySelectorAll('[role="dialog"]')].some((node) => node.textContent?.includes("AI 辅助生成文本")),
+    ));
+    await $('button[aria-label*="返回"]').click();
+    const navigationGuard = await $(dialog);
+    await navigationGuard.waitForDisplayed();
+    assert.equal((await browser.getUrl()).includes("/comic-project/2"), true);
+    await navigationGuard.$('.//button[normalize-space(.)="取消"]').click();
+    assert.equal((await browser.getUrl()).includes("/comic-project/2"), true, "The unapplied AI draft keeps the route active");
+    await buttonText("AI 辅助生成").click();
+    assistant = await $(dialog);
+    await assistant.waitForDisplayed();
+    await assistant.$('.//button[normalize-space(.)="取消"]').click();
+    await ready();
+    this.mediaRecord.interaction = { reopenRetainsDraft: true, failedRegenerationRetainsDraft: true, navigationGuarded: true };
+  });
+
+  it("UX-1703/1704/1705 guards material and stage changes that unmount text drafts", async function () {
+    this.mediaRecord = { id: "UX-1703-1705", title: "漫画素材草稿离开守卫", width: 1440 };
+    await browser.setWindowSize(1440, 1000);
+    await openComicTextMaterials();
+    const panel = await $("fieldset");
+    const body = await panel.$("textarea[required]");
+    await body.setValue("第1章\n离开前应确认");
+    await ready();
+
+    await buttonText("场景与道具").click();
+    let discard = await $(dialog);
+    await discard.waitForDisplayed();
+    await discard.$('.//button[normalize-space(.)="取消"]').click();
+    assert.equal(await body.getValue(), "第1章\n离开前应确认");
+
+    await $('button[id="comic-stages-2-tab-adaptation"]').click();
+    discard = await $(dialog);
+    await discard.waitForDisplayed();
+    await discard.$('.//button[normalize-space(.)="取消"]').click();
+    assert.equal(await $('button[id="comic-stages-2-tab-materials"]').getAttribute("aria-selected"), "true");
+    assert.equal(await body.getValue(), "第1章\n离开前应确认");
+
+    await buttonText("下一阶段").click();
+    discard = await $(dialog);
+    await discard.waitForDisplayed();
+    await discard.$('.//button[normalize-space(.)="取消"]').click();
+    assert.equal(await $('button[id="comic-stages-2-tab-materials"]').getAttribute("aria-selected"), "true");
+    assert.equal(await body.getValue(), "第1章\n离开前应确认");
+    await body.setValue(textAsset.content);
+    await ready();
+    this.mediaRecord.interaction = { kindSwitchGuarded: true, stageTabGuarded: true, nextButtonGuarded: true };
+  });
+
+  it("UX-1706 keeps Manga on the material stage when profile refresh fails", async function () {
+    this.mediaRecord = { id: "UX-1706", title: "漫画素材读取失败阶段门禁", width: 1440 };
+    await browser.setWindowSize(1440, 1000);
+    await openRoute("/comic-project/2");
+    await configureTextAssetFixtures([]);
+    await browser.waitUntil(async () => (await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "list_profiles").length)) > 0);
+    await browser.execute(() => window.__uiAudit.failNext.push({
+      command: "list_profiles", status: 503, message: "Injected Manga profile refresh failure",
+    }));
+    await $('button[id="comic-stages-2-tab-adaptation"]').click();
+    await browser.waitUntil(async () => (await $("body").getText()).includes("Injected Manga profile refresh failure"));
+    assert.equal(await $('button[id="comic-stages-2-tab-materials"]').getAttribute("aria-selected"), "true");
+
+    await browser.execute(() => window.__uiAudit.failNext.push({
+      command: "list_profiles", status: 503, message: "Injected Manga next-stage refresh failure",
+    }));
+    await buttonText("下一阶段").click();
+    await browser.waitUntil(async () => (await $("body").getText()).includes("Injected Manga next-stage refresh failure"));
+    assert.equal(await $('button[id="comic-stages-2-tab-materials"]').getAttribute("aria-selected"), "true");
+    this.mediaRecord.interaction = { stageTabRefreshFailureStaysPut: true, nextButtonRefreshFailureStaysPut: true };
+  });
+
+  it("UX-1707/1709 names required fields and blocks navigation during save", async function () {
+    this.mediaRecord = { id: "UX-1707-1709", title: "文本素材必填与保存中导航", width: 1440 };
+    await browser.setWindowSize(1440, 1000);
+    await openComicTextMaterials([]);
+    const panel = await $("fieldset");
+    assert.equal((await panel.getText()).includes("必填"), true);
+    const save = await panel.$('.//button[normalize-space(.)="保存"]');
+    assert.equal(await save.isEnabled(), false);
+    const saved = {
+      ...textAsset,
+      title: "进行中的保存",
+      content: "第1章\n待完成的保存",
+      content_hash: "text-asset-pending-save",
+      current_version: 1,
+      updated_at: "2026-10-10T00:02:00Z",
+    };
+    await browser.execute(({ asset }) => {
+      const project = window.__uiAudit.fixtures.byProject[2];
+      project.save_canvas_text_asset = asset;
+      project.list_canvas_text_assets = [asset];
+      project.list_canvas_text_asset_versions = [{
+        version: 1, content: asset.content, content_hash: asset.content_hash, created_at: asset.updated_at,
+      }];
+      window.__uiAudit.deferred.push("save_canvas_text_asset");
+    }, { asset: saved });
+    await panel.$("input[required]").setValue(saved.title);
+    await panel.$("textarea[required]").setValue(saved.content);
+    await ready();
+    await save.click();
+    await browser.waitUntil(async () => browser.execute(() =>
+      window.__uiAudit.pending.some((item) => item.command === "save_canvas_text_asset"),
+    ));
+
+    await $('button[aria-label*="返回"]').click();
+    const navigationGuard = await $(dialog);
+    await navigationGuard.waitForDisplayed();
+    assert.equal(await navigationGuard.getText().then((value) => value.includes("操作仍在进行")), true);
+    const discard = await navigationGuard.$('.//button[normalize-space(.)="放弃草稿"]');
+    assert.equal(await discard.isEnabled(), false, "An in-flight write cannot be discarded as if it had not started");
+    await navigationGuard.$('.//button[normalize-space(.)="取消"]').click();
+
+    await browser.execute(() => {
+      const fixtures = window.__uiAudit.fixtures;
+      const index = window.__uiAudit.pending.findIndex((item) => item.command === "save_canvas_text_asset");
+      const [pending] = window.__uiAudit.pending.splice(index, 1);
+      pending.resolve(Response.json(fixtures.byProject[2].save_canvas_text_asset));
+      window.__uiAudit.deferred = window.__uiAudit.deferred.filter((command) => command !== "save_canvas_text_asset");
+    });
+    await browser.waitUntil(async () => (await panel.getText()).includes(saved.title));
+    assert.equal((await browser.getUrl()).includes("/comic-project/2"), true);
+    this.mediaRecord.interaction = { requiredFieldsVisible: true, saveBlockedWithoutContent: true, pendingWriteBlocksNavigation: true, returnedWriteApplied: true };
+  });
+
+  it("UX-1772 discards a renamed text-material draft when loading an older version", async function () {
+    this.mediaRecord = { id: "UX-1772", title: "加载文本素材旧版本时放弃标题草稿", width: 1440 };
+    await browser.setWindowSize(1440, 1000);
+    const latestAsset = {
+      ...textAsset,
+      title: "已保存的素材名称",
+      content: "第1章\n当前版本正文",
+      current_version: 2,
+    };
+    await openComicTextMaterials([latestAsset], async () => {}, [
+      { version: 1, content: textAsset.content, content_hash: textAsset.content_hash, created_at: textAsset.updated_at },
+      { version: 2, content: latestAsset.content, content_hash: "text-asset-v2", created_at: "2026-10-10T00:01:00Z" },
+    ]);
+    const panel = await $("fieldset");
+    const title = await panel.$("input[required]");
+    const body = await panel.$("textarea[required]");
+    await browser.waitUntil(async () => await title.getValue() === latestAsset.title);
+    await title.setValue("放弃后不应残留的标题草稿");
+    await panel.$("summary*=版本历史").click();
+    const loadOlder = await panel.$("button*=载入此版");
+    await loadOlder.click();
+    const discard = await $(dialog);
+    await discard.waitForDisplayed();
+    assert.match(await discard.getText(), /放弃|未保存/);
+    await discard.$('.//button[normalize-space(.)="确认"]').click();
+    await browser.waitUntil(async () => await body.getValue() === "第1章\n原始正文");
+    assert.equal(await title.getValue(), latestAsset.title, "Discard must restore the saved title as well as selecting the older body");
+    await $('button[aria-label*="返回"]').click();
+    const routeGuard = await $(dialog);
+    await routeGuard.waitForDisplayed();
+    assert.match(await routeGuard.getText(), /未保存/);
+    await routeGuard.$('.//button[normalize-space(.)="取消"]').click();
+    await body.setValue(latestAsset.content);
+    await ready();
+    this.mediaRecord.interaction = { restoredSavedTitle: true, selectedRequestedHistoricalBody: true, residualDraftStillGuarded: true };
+  });
+
+  it("UX-1708 refreshes completed images when a later batch item fails", async function () {
+    this.mediaRecord = { id: "UX-1708", title: "批量素材部分成功刷新", width: 1440 };
+    await browser.setWindowSize(1440, 1000);
+    await openVideoMaterials();
+    const project = fixtures.byProject[1];
+    const target = project.list_profile_materials.find((group) => group.kind === "scene" && group.profile.id === 22);
+    assert(target, "The batch fixture needs a missing scene material");
+    const sourceImage = project.list_images_by_project.find((image) => image.image_type === "scene_material");
+    assert(sourceImage, "The generated material must match a stored image record");
+    const record = {
+      ...structuredClone(sourceImage),
+      id: 30999,
+      project_id: 1,
+      image_type: "scene_material",
+      file_path: `${browser.options.baseUrl}/resources/thelittleprince.png`,
+      prompt: "UI audit generated attic scene material",
+      created_at: "2026-10-10T00:00:00Z",
+      metadata_json: { ...sourceImage.metadata_json, scene_profile_id: 22 },
+    };
+    const taskId = "550e8400-e29b-41d4-a716-446655440199";
+    const revision = await browser.execute(async (image) => {
+      const { sha256Json } = await import("/src/utils/contentHash.ts");
+      return sha256Json([
+        image.id, image.project_id, image.image_type, image.file_path, image.prompt,
+        image.model, image.width, image.height, image.file_size, image.chapter_id,
+        image.panel_id, image.created_at,
+      ]);
+    }, record);
+    await browser.execute(({ id, image, imageRevision, profileId }) => {
+      const fixtureRoot = window.__uiAudit.fixtures;
+      const project = fixtureRoot.byProject[1];
+      const handle = { event_schema_version: 1, task_id: id, attempt: 1, status: "reserved" };
+      const started = {
+        delivery_mode: "stream", root_task_id: id, task_kind: "image_generation",
+        project_id: image.project_id, root_project_id: image.project_id,
+        target: { kind: "generated_image", id: String(image.id) },
+      };
+      const artifact = {
+        artifact_id: `generated-image:${image.id}`, artifact_kind: "generated_image",
+        byte_size: image.file_size, content_type: "image/png", revision: imageRevision,
+        sha256: imageRevision, temporary: false,
+      };
+      const resultRef = { kind: "generated_image", id: String(image.id), revision: imageRevision };
+      const now = Date.now();
+      const event = (sequence, value) => ({
+        schema_version: 1, task_id: id, attempt: 1, sequence, emitted_at_ms: now + sequence, event: value,
+      });
+      const startedEvent = event(1, { kind: "started", data: started });
+      const artifactEvent = event(2, { kind: "artifact", data: { artifact, operation: "available" } });
+      const completedEvent = event(3, { kind: "completed", data: { final_text_hashes: [], result_ref: resultRef } });
+      const completedHandle = { ...handle, status: "completed" };
+      const summary = {
+        handle: completedHandle, started, updated_at_ms: now + 3, result_ref: resultRef,
+        snapshot_state: "available", terminal_event: completedEvent,
+      };
+      const snapshot = {
+        schema_version: 1, task_id: id, attempt: 1, covers_through_sequence: 3, status: "completed",
+        started, cancel_reason: null, progress: null, streams: [], artifacts: [artifact], usage: null,
+        latest_checkpoint: null, terminal_event: completedEvent, updated_at_ms: now + 3,
+      };
+      fixtureRoot.start_image_generation = handle;
+      fixtureRoot.generationTasks = {
+        ...(fixtureRoot.generationTasks ?? {}),
+        [id]: { handle, events: [startedEvent, artifactEvent, completedEvent], summary, snapshot },
+      };
+      project.list_images_by_project = [...project.list_images_by_project, image];
+      const group = project.list_profile_materials.find((item) => item.profile.id === profileId);
+      const generated = { image, is_primary: true, staleness: "fresh" };
+      Object.assign(group, {
+        material_state: "ready", image_count: 1, images: [generated],
+        primary_image: generated, primary_image_id: image.id,
+      });
+      window.__uiAudit.deferred.push("start_image_generation");
+    }, { id: taskId, image: record, imageRevision: revision, profileId: target.profile.id });
+
+    const fillMissing = await $('//button[contains(normalize-space(.), "补齐")]');
+    await fillMissing.click();
+    await browser.waitUntil(async () => browser.execute(() =>
+      window.__uiAudit.pending.some((item) => item.command === "start_image_generation"),
+    ));
+    await browser.execute(() => {
+      const fixtures = window.__uiAudit.fixtures;
+      window.__uiAudit.failNext.push({
+        command: "start_image_generation", status: 503, message: "Injected second batch generation failure",
+      });
+      window.__uiAudit.deferred = window.__uiAudit.deferred.filter((command) => command !== "start_image_generation");
+      const index = window.__uiAudit.pending.findIndex((item) => item.command === "start_image_generation");
+      const [pending] = window.__uiAudit.pending.splice(index, 1);
+      pending.resolve(Response.json(fixtures.start_image_generation));
+    });
+    const progress = await $(dialog);
+    await progress.waitForDisplayed();
+    await browser.waitUntil(async () => (await progress.getText()).includes("关闭"));
+    await progress.$('.//button[normalize-space(.)="关闭"]').click();
+
+    const completedCard = await $('//article[@data-state="ready"][.//h3[normalize-space()="阁楼"]]');
+    await completedCard.waitForDisplayed({ timeout: 7000 });
+    const starts = await browser.execute(() => window.__uiAudit.requests.filter((item) => item.command === "start_image_generation").length);
+    assert.equal(starts, 2, "The first image completed and the following item failed");
+    assert.equal((await completedCard.getText()).includes("1 张"), true);
+    this.mediaRecord.interaction = { completedBeforeFailureVisible: true, attemptedItems: starts };
+  });
 
   it("UX-B60 ignores an active Manga stage click while keeping its page draft", async function () {
     this.mediaRecord = { id: "UX-B60-Manga", title: "漫画当前阶段点击", width: 1440, task: "当前阶段不应触发放弃提示" };
@@ -1368,4 +2149,1035 @@ describe("Populated media pages and task dialogs", () => {
     }
     this.mediaRecord.interaction = results;
   });
+
+  it("UX-1673 confirms incompatible image-edge removal before changing video input mode", async function () {
+    const results = [];
+    for (const width of canvasWidths) {
+      this.mediaRecord = { id: `UX-1673-${width}`, title: "视频输入模式连线保护", width, task: "改变首帧模式前确认将被删除的图片连线" };
+      await browser.setWindowSize(width, 1000);
+      await openCanvas(6005);
+      const inspector = await canvasInspector();
+      const modeControl = async () => (await $(inspector).$$('button[role="combobox"]'))[1];
+      const mode = await modeControl();
+      assert.equal(await mode.getText(), "首帧");
+      assert.equal(await $('.react-flow__edge[data-id="6805"]').isExisting(), true);
+      Object.assign(this.mediaRecord, await capture({ id: this.mediaRecord.id }, width));
+
+      await selectOption(mode, "仅提示词");
+      const firstConfirmation = await inputModeConfirmation();
+      await firstConfirmation.waitForDisplayed();
+      assert((await firstConfirmation.getText()).includes("1 条图片连线"));
+      await firstConfirmation.$('.//button[normalize-space()="取消"]').click();
+      await firstConfirmation.waitForExist({ reverse: true });
+      assert.equal(await (await modeControl()).getText(), "首帧", "Cancel must keep the previous input mode");
+      assert.equal(await $('.react-flow__edge[data-id="6805"]').isExisting(), true, "Cancel must keep the frame connection");
+
+      await selectOption(await modeControl(), "仅提示词");
+      const secondConfirmation = await inputModeConfirmation();
+      await secondConfirmation.waitForDisplayed();
+      await secondConfirmation.$('.//button[normalize-space()="删除不适用的连线"]').click();
+      await secondConfirmation.waitForExist({ reverse: true });
+      await browser.waitUntil(async () => (await (await modeControl()).getText()) === "仅提示词");
+      await browser.waitUntil(async () => !await $('.react-flow__edge[data-id="6805"]').isExisting());
+      assert.equal(await browser.execute(() => window.__uiAudit.commands.some((command) => ["save_canvas_graph", "run_canvas_graph"].includes(command))), false,
+        "The confirmed local mode change must not claim a saved or executed graph");
+      this.mediaRecord.interaction = { cancelledChangePreservedEdge: true, confirmedChangeRemovedEdge: true };
+      this.mediaRecord.afterInteraction = await capture({ id: this.mediaRecord.id }, width, "-confirmed");
+      results.push({ width, cancelledChangePreservedEdge: true, confirmedChangeRemovedEdge: true });
+    }
+    this.mediaRecord.interaction = results;
+  });
+
+  it("UX-1791 keeps Galgame line editors enabled for an editor", async function () {
+    this.mediaRecord = { id: "UX-1791-galgame-editor-enabled", title: "Galgame台词编辑权限", width: 1440, task: "有编辑权限时台词字段和动作应真正可操作" };
+    await browser.setWindowSize(1440, 1000);
+    await openGalgame();
+    const line = await $(galgameLines).at(0);
+    const textarea = await line.$("textarea");
+    assert.equal(await textarea.isEnabled(), true, "An editor must be able to edit a script line");
+    const savedLine = { ...fixtures.byProject[5].get_galgame_script.scenes[0].lines[0], text: "编辑权限已生效。" };
+    fixtures.update_galgame_line = savedLine;
+    await textarea.setValue(savedLine.text);
+    await textarea.click();
+    await browser.keys("TAB");
+    await browser.waitUntil(() => browser.execute(() => window.__uiAudit.requests.some((item) => item.command === "update_galgame_line")), { timeout });
+    this.mediaRecord.interaction = { lineEditorEnabled: true, updateCommandSent: true };
+  });
+
+  it("UX-1792 keeps Galgame line deletion committed when script readback fails", async function () {
+    this.mediaRecord = { id: "UX-1792-galgame-delete-readback", title: "Galgame台词删除回包", width: 1440, task: "删除命令成功后不因剧本读回失败误报" };
+    await browser.setWindowSize(1440, 1000);
+    await openGalgame();
+    fixtures.delete_galgame_line = null;
+    await browser.execute(() => window.__uiAudit.failNext.push({ command: "get_galgame_script", status: 503, message: "删除后的 Galgame 剧本读取失败" }));
+    const line = await $(galgameLines).at(0);
+    await line.$('button[aria-haspopup="menu"]').click();
+    await $(`//*[@role="menuitem" and normalize-space(.)=${JSON.stringify("删除此行")}]`).click();
+    await browser.waitUntil(async () => (await $("body").getText()).includes("剧本行已删除"), { timeout });
+    await browser.waitUntil(async () => (await $$(galgameLines)).length === 7, { timeout });
+    this.mediaRecord.interaction = { deleteCommandCommitted: true, localLineRemoved: true, scriptReadback: "failed" };
+  });
+
+  it("UX-1793 keeps Galgame line insertion committed when script readback fails", async function () {
+    this.mediaRecord = { id: "UX-1793-galgame-insert-readback", title: "Galgame台词插入回包", width: 1440, task: "插入命令回包成功后不因剧本读回失败丢失新行" };
+    await browser.setWindowSize(1440, 1000);
+    await openGalgame();
+    const firstLine = fixtures.byProject[5].get_galgame_script.scenes[0].lines[0];
+    fixtures.insert_galgame_line = { ...firstLine, id: 59999, line_index: firstLine.line_index + 1, text: "新增旁白回包。" };
+    await browser.execute(() => window.__uiAudit.failNext.push({ command: "get_galgame_script", status: 503, message: "插入后的 Galgame 剧本读取失败" }));
+    const line = await $(galgameLines).at(0);
+    await line.$('button[aria-haspopup="menu"]').click();
+    await $(`//*[@role="menuitem" and normalize-space(.)=${JSON.stringify("在下方插入旁白")}]`).click();
+    const prompt = await $(dialog);
+    await prompt.$("input").setValue("新增旁白回包。");
+    await prompt.$('.//button[normalize-space()="新增旁白"]').click();
+    await browser.waitUntil(async () => (await $("body").getText()).includes("剧本行已新增"), { timeout });
+    await browser.waitUntil(async () => (await $$(galgameLines)).length === 9, { timeout });
+    this.mediaRecord.interaction = { insertCommandCommitted: true, localLineInserted: true, scriptReadback: "failed" };
+  });
+
+  it("UX-1794 keeps Galgame line reorder committed when script readback fails", async function () {
+    this.mediaRecord = { id: "UX-1794-galgame-reorder-readback", title: "Galgame台词重排回包", width: 1440, task: "重排命令回包成功后不因剧本读回失败恢复旧顺序" };
+    await browser.setWindowSize(1440, 1000);
+    await openGalgame();
+    const scene = fixtures.byProject[5].get_galgame_script.scenes[0];
+    const reordered = [scene.lines[1], scene.lines[0], ...scene.lines.slice(2)].map((line, index) => ({ ...line, line_index: index + 1 }));
+    fixtures.reorder_galgame_lines = reordered;
+    await browser.execute(() => window.__uiAudit.failNext.push({ command: "get_galgame_script", status: 503, message: "重排后的 Galgame 剧本读取失败" }));
+    const firstLine = await $(galgameLines).at(0);
+    await firstLine.$('button[aria-haspopup="menu"]').click();
+    await $(`//*[@role="menuitem" and normalize-space(.)=${JSON.stringify("下移一行")}]`).click();
+    await browser.waitUntil(async () => (await $("body").getText()).includes("剧本行顺序已更新"), { timeout });
+    const firstText = await (await $(galgameLines).at(0)).$("textarea").getValue();
+    assert.equal(firstText, scene.lines[1].text);
+    this.mediaRecord.interaction = { reorderCommandCommitted: true, localOrderApplied: true, scriptReadback: "failed" };
+  });
+
+  it("UX-2206 does not treat a failed Galgame pipeline status read as an idle pipeline", async function () {
+    this.mediaRecord = { id: "UX-2206-galgame-pipeline-status-unknown", title: "Galgame运行状态读取失败时阻止重新启动", width: 1440, task: "状态读取失败不应使仍有脚本的项目出现可运行的新管线动作" };
+    await browser.setWindowSize(1440, 1000);
+    const failStatusRead = encodeURIComponent(JSON.stringify(Array.from({ length: 3 }, () => ({
+      command: "get_galgame_pipeline_status", status: 503, message: "管线运行状态暂时不可用",
+    }))));
+    await openRoute(`/galgame-project/5?ui-fail=${failStatusRead}`);
+    const scriptTab = await $('button[id="galgame-stages-5-tab-script"]');
+    if (await scriptTab.getAttribute("aria-selected") !== "true") await scriptTab.click();
+    await browser.waitUntil(async () => (await $$(galgameLines)).length === 8, { timeout: 5000 });
+    const editor = await $('section[aria-label="编辑"]');
+    await editor.waitForDisplayed({ timeout: 5000 });
+    await browser.waitUntil(isFirstGalgameLineVisible, { timeout: 5000 });
+    const generationDetails = 'details[aria-label="剧本生成"]';
+    assert.equal((await reachByWheel(`${generationDetails} > summary`)).reached, true, "The generation menu must be reached through normal page scrolling");
+    await openDetails(generationDetails);
+
+    await browser.waitUntil(async () => (await $("body").getText()).includes("管线运行状态暂时不可用"), { timeout: 5000 });
+    const generation = await $('details[aria-label="剧本生成"]');
+    const menu = (await generation.$$('button[aria-haspopup="menu"]'))[0];
+    await menu.click();
+    const regenerate = await $('//*[@role="menuitem" and normalize-space()="重新生成完整剧本"]');
+    assert.equal(await regenerate.getAttribute("aria-disabled"), "true", "Unknown run status must expose the regeneration item as disabled");
+    await regenerate.click();
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("start_galgame_pipeline")), false);
+    await browser.keys("Escape");
+
+    const statusReadsBeforeRetry = await browser.execute(() => window.__uiAudit.commands.filter((command) => command === "get_galgame_pipeline_status").length);
+    const statusError = await $('//div[@role="alert"][contains(normalize-space(.), "管线运行状态暂时不可用")]');
+    await statusError.$('.//button[normalize-space()="重试"]').click();
+    await browser.waitUntil(async () => !(await $("body").getText()).includes("管线运行状态暂时不可用"), { timeout: 5000 });
+    await (await generation.$$('button[aria-haspopup="menu"]'))[0].click();
+    assert.equal(await regenerate.getAttribute("aria-disabled"), null, "A successful status refresh restores actions from the returned run state");
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.filter((command) => command === "get_galgame_pipeline_status").length), statusReadsBeforeRetry + 1);
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("start_galgame_pipeline")), false);
+    this.mediaRecord.interaction = { unknownStatusBlocksStart: true, statusRefreshRestoresResumableAction: true, startRequests: 0 };
+  });
+
+  it("UX-2275 refreshes a stale Galgame window after another run wins the start race", async function () {
+    this.mediaRecord = { id: "UX-2275-galgame-concurrent-start", title: "Galgame管线并发启动", width: 1440, task: "两个窗口都显示可运行时只允许一个生成同一管线" };
+    await browser.setWindowSize(1440, 1000);
+    await openGalgameAtStage("script");
+    const generation = await $('details[aria-label="剧本生成"]');
+    await openDetails('details[aria-label="剧本生成"]');
+    const menu = (await generation.$$('button[aria-haspopup="menu"]'))[0];
+    await menu.click();
+    const regenerate = await $('//*[@role="menuitem" and normalize-space()="重新生成完整剧本"]');
+    await regenerate.waitForClickable({ timeout: 5000 });
+    const startsBefore = await browser.execute(() =>
+      window.__uiAudit.commands.filter((command) => command === "start_galgame_pipeline").length,
+    );
+    const statusReadsBefore = await browser.execute(() =>
+      window.__uiAudit.commands.filter((command) => command === "get_galgame_pipeline_status").length,
+    );
+    await browser.execute(() => {
+      window.__uiAudit.failNext.push({
+        command: "start_galgame_pipeline",
+        status: 409,
+        message: "状态无效：当前状态 该项目的同类工作流正在运行，不允许操作 再次启动该工作流",
+      });
+      const status = window.__uiAudit.fixtures.byProject[5].get_galgame_pipeline_status;
+      status.run = {
+        ...status.run,
+        active_task_id: "galgame-pipeline-other-window",
+        can_resume: false,
+        error_message: null,
+        status: "running",
+      };
+    });
+    await regenerate.click();
+    await browser.waitUntil(async () => (await $("body").getText()).includes("该项目的同类工作流正在运行"), { timeout: 5000 });
+    await browser.waitUntil(async () => browser.execute((count) =>
+      window.__uiAudit.commands.filter((command) => command === "get_galgame_pipeline_status").length > count,
+    statusReadsBefore), { timeout: 5000 });
+    await browser.waitUntil(async () => !(await generation.$('button[aria-haspopup="menu"]').isExisting()), { timeout: 5000 });
+    const startsAfter = await browser.execute(() =>
+      window.__uiAudit.commands.filter((command) => command === "start_galgame_pipeline").length,
+    );
+    assert.equal(startsAfter, startsBefore + 1);
+    this.mediaRecord.interaction = { duplicateStartRejected: true, existingRunReadBack: true, staleRegenerateMenuRemoved: true };
+  });
+
+  it("UX-2210 keeps a single retryable owner for Galgame status read errors", async function () {
+    this.mediaRecord = { id: "UX-2210-galgame-status-error-owner", title: "Galgame状态读取错误反馈", width: 1440, task: "管线状态读取失败时只显示一个持久错误和恢复入口" };
+    await browser.setWindowSize(1440, 1000);
+    const failureMessage = "管线运行状态暂时不可用";
+    await openGalgameAtStage("script", Array.from({ length: 3 }, () => ({
+      command: "get_galgame_pipeline_status", status: 503, message: failureMessage,
+    })));
+    await browser.waitUntil(async () => (await $("body").getText()).includes(failureMessage), { timeout: 5000 });
+    const feedback = await browser.execute((message) => ({
+      alerts: [...document.querySelectorAll('[role="alert"]')].filter((item) => item.innerText.includes(message)).length,
+      toasts: [...document.querySelectorAll(".a4n-toast")].filter((item) => item.innerText.includes(message)).length,
+    }), failureMessage);
+    assert.deepEqual(feedback, { alerts: 1, toasts: 0 });
+    this.mediaRecord.interaction = { persistentAlerts: feedback.alerts, matchingToasts: feedback.toasts };
+  });
+
+  it("UX-2211 exposes and disables branch generation while Galgame status is unknown", async function () {
+    this.mediaRecord = { id: "UX-2211-galgame-branch-status-gate", title: "Galgame分支生成状态门禁", width: 1440, task: "在分支阶段遇到未加载或读取失败的管线状态时看见原因且不能误点生成" };
+    await browser.setWindowSize(1440, 1000);
+    const failureMessage = "管线运行状态暂时不可用";
+    await openGalgameAtStage("branches", Array.from({ length: 3 }, () => ({
+      command: "get_galgame_pipeline_status", status: 503, message: failureMessage,
+    })));
+    await browser.waitUntil(async () => (await $("body").getText()).includes(failureMessage), { timeout: 5000 });
+    const generate = await buttonText("生成计划草稿");
+    await generate.waitForDisplayed({ timeout: 5000 });
+    assert.equal(await generate.isEnabled(), false, "A branch plan must not look runnable while pipeline status is unknown");
+    assert.equal(await buttonText("手工编写").isEnabled(), false, "Branch editing must remain unavailable while a pipeline may still be running");
+    const retry = await $('//div[@role="alert"][contains(normalize-space(.), "管线运行状态暂时不可用")]//button[normalize-space()="重试"]');
+    assert.equal(await retry.isDisplayed(), true, "The same stage must expose the status recovery action");
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("start_galgame_pipeline")), false);
+    this.mediaRecord.interaction = { errorVisibleInBranches: true, generationDisabled: true, retryVisible: true, startRequests: 0 };
+  });
+
+  it("UX-2212 keeps media authoring failures in the visible panel error state", async function () {
+    this.mediaRecord = { id: "UX-2212-media-authoring-error-owner", title: "Galgame分支保存错误反馈", width: 1440, task: "保存分支草稿失败后，错误由当前编辑面板单独呈现" };
+    await browser.setWindowSize(1440, 1000);
+    const failureMessage = "Injected authoring save failure";
+    await openGalgameAtStage("branches", [{
+      command: "save_media_authoring_document", status: 503, message: failureMessage,
+    }]);
+    await buttonText("手工编写").click();
+    const save = await buttonText("保存");
+    await save.waitForClickable({ timeout: 5000 });
+    await save.click();
+    await browser.waitUntil(async () => (await $("body").getText()).includes(failureMessage), { timeout: 5000 });
+    const feedback = await browser.execute((message) => ({
+      requests: window.__uiAudit.commands.filter((command) => command === "save_media_authoring_document").length,
+      alerts: [...document.querySelectorAll('[role="alert"]')].filter((item) => item.innerText.includes(message)).length,
+      toasts: [...document.querySelectorAll(".a4n-toast")].filter((item) => item.innerText.includes(message)).length,
+    }), failureMessage);
+    assert.equal(feedback.requests, 1, "The user-triggered save must reach the Host request fixture");
+    assert.equal(feedback.alerts, 1);
+    assert.equal(feedback.toasts, 0);
+    this.mediaRecord.interaction = { saveRequests: feedback.requests, persistentAlerts: feedback.alerts, matchingToasts: feedback.toasts };
+  });
+
+  it("UX-2213 keeps Galgame readback failures in the persistent page error owner", async function () {
+    this.mediaRecord = { id: "UX-2213-galgame-asset-readback-error", title: "Galgame素材生成后的剧本读回错误", width: 1440, task: "素材生成成功而剧本读回失败时，只由页面错误状态说明读取失败" };
+    await browser.setWindowSize(1440, 1000);
+    await openGalgameAtStage("asset_generation");
+    await browser.execute(() => {
+      window.__uiAudit.fixtures.byProject[5].run_galgame_asset_generation = { generated_count: 1, skipped_completed_count: 0 };
+    });
+    const generate = await buttonText("生成视觉资产");
+    await generate.waitForClickable({ timeout: 5000 });
+    const failureMessage = "Injected Galgame script readback failure";
+    await browser.execute((message) => window.__uiAudit.failNext.push({
+      command: "get_galgame_script", status: 503, message,
+    }), failureMessage);
+    await generate.click();
+    await browser.waitUntil(async () => (await $("body").getText()).includes(failureMessage), { timeout: 5000 });
+    const feedback = await browser.execute(() => ({
+      persistedReadError: [...document.querySelectorAll('[role="alert"]')].some((item) => item.innerText.includes("Injected Galgame script readback failure")),
+      genericErrorToasts: [...document.querySelectorAll(".a4n-toast--error")].filter((item) => item.innerText.includes("加载 GALGame 项目失败")).length,
+      generatedSummaryVisible: document.body.innerText.includes("已生成视觉资产 1 项，跳过 0 项"),
+    }));
+    assert.equal(feedback.persistedReadError, true);
+    assert.equal(feedback.genericErrorToasts, 0);
+    assert.equal(feedback.generatedSummaryVisible, true, "The successful asset command result remains visible beside the failed readback");
+    this.mediaRecord.interaction = feedback;
+  });
+
+  it("UX-2214 binds a displayed Galgame playtest to its selected save slot", async function () {
+    this.mediaRecord = { id: "UX-2214-galgame-runtime-slot-scope", title: "Galgame运行预览存档槽范围", width: 1440, task: "切换存档槽后不再把旧存档的选项用于新存档" };
+    const { startView } = await openGalgameGraph();
+    await buttonText("开始或继续").click();
+    await $('section[aria-live="polite"]').waitForDisplayed({ timeout: 5000 });
+    const saveSlot = await $('input[aria-label="存档槽"]');
+    await saveSlot.setValue("alternate");
+    await $('section[aria-live="polite"]').waitForExist({ reverse: true, timeout: 5000 });
+    const counts = await browser.execute(() => ({
+      openedMain: window.__uiAudit.requests.filter((item) => item.command === "get_galgame_story_runtime_state" && item.body.input.save_slot === "main").length,
+      advancedAlternate: window.__uiAudit.requests.filter((item) => item.command === "advance_galgame_story_runtime" && item.body.input.save_slot === "alternate").length,
+    }));
+    assert.equal(counts.openedMain, 1);
+    assert.equal(counts.advancedAlternate, 0);
+    assert.equal(await buttonText("开始或继续").isEnabled(), true);
+    this.mediaRecord.interaction = { selectedSlotChanged: true, oldViewCleared: true, advancedAlternate: counts.advancedAlternate };
+  });
+
+  it("UX-2215 keeps the save slot fixed while a playtest request is pending", async function () {
+    this.mediaRecord = { id: "UX-2215-galgame-runtime-pending-slot", title: "Galgame运行预览等待期间的存档槽", width: 1440, task: "打开或推进存档未完成时不能改变后续请求的存档范围" };
+    const { startView } = await openGalgameGraph({ deferred: ["get_galgame_story_runtime_state"] });
+    await buttonText("开始或继续").click();
+    await browser.waitUntil(() => browser.execute(() => window.__uiAudit.pending.some((item) => item.command === "get_galgame_story_runtime_state")), { timeout: 5000 });
+    const saveSlot = await $('input[aria-label="存档槽"]');
+    assert.equal(await saveSlot.isEnabled(), false);
+    assert.equal(await buttonText("正在打开存档").isDisplayed(), true);
+    await browser.execute((view) => {
+      const audit = window.__uiAudit;
+      const index = audit.pending.findIndex((item) => item.command === "get_galgame_story_runtime_state");
+      const [pending] = audit.pending.splice(index, 1);
+      audit.deferred = audit.deferred.filter((command) => command !== "get_galgame_story_runtime_state");
+      pending.resolve(Response.json(view));
+    }, startView);
+    await $('section[aria-live="polite"]').waitForDisplayed({ timeout: 5000 });
+    this.mediaRecord.interaction = { slotDisabledWhileLoading: true, runtimeLoaded: true };
+  });
+
+  it("UX-2216 explains and blocks invalid save slot names before calling the Host", async function () {
+    this.mediaRecord = { id: "UX-2216-galgame-runtime-slot-validation", title: "Galgame运行预览存档槽校验", width: 1440, task: "空存档槽或超过80 UTF-8字节时先给出约束反馈" };
+    await openGalgameGraph();
+    const saveSlot = await $('input[aria-label="存档槽"]');
+    const start = await buttonText("开始或继续");
+    await saveSlot.setValue("   ");
+    await browser.waitUntil(async () => (await $("body").getText()).includes("请输入存档槽名称"), { timeout: 5000 });
+    assert.equal(await start.isEnabled(), false);
+    await saveSlot.setValue("界".repeat(27));
+    await browser.waitUntil(async () => (await $("body").getText()).includes("不能超过 80 个 UTF-8 字节"), { timeout: 5000 });
+    assert.equal(await start.isEnabled(), false);
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.some((command) => command.includes("galgame_story_runtime"))), false);
+    this.mediaRecord.interaction = { emptyRejectedInForm: true, utf8ByteLimitExplained: true, runtimeRequests: 0 };
+  });
+
+  it("UX-2217 lets a read-only Galgame collaborator run the viewer-authorized preview", async function () {
+    this.mediaRecord = { id: "UX-2217-galgame-viewer-playtest", title: "Galgame只读协作者运行预览", width: 1440, task: "只读协作者可以查看并推进个人运行存档" };
+    const { startView } = await openGalgameGraph({ role: "viewer" });
+    assert.equal(await $('input[aria-label="新节点标题"]').isExisting(), false, "Graph editing remains hidden for a viewer");
+    assert.equal(await $('input[aria-label="存档槽"]').isDisplayed(), true);
+    await buttonText("开始或继续").click();
+    await $('section[aria-live="polite"]').waitForDisplayed({ timeout: 5000 });
+    const requests = await browser.execute(() => ({
+      reads: window.__uiAudit.commands.filter((command) => command === "get_galgame_story_runtime_state").length,
+      starts: window.__uiAudit.commands.filter((command) => command === "start_galgame_story_runtime").length,
+    }));
+    assert.equal(requests.reads, 1);
+    assert.equal(requests.starts, 0);
+    this.mediaRecord.interaction = { viewerCanRunPreview: true, runtimeReadRequests: requests.reads };
+  });
+
+  it("UX-2218 requires the visible graph draft to be saved before previewing", async function () {
+    this.mediaRecord = { id: "UX-2218-galgame-playtest-saved-graph", title: "Galgame预览与未保存图稿一致", width: 1440, task: "修改节点但未保存时不启动服务器上的旧图版本" };
+    await openGalgameGraph();
+    const title = await $('//label[.//span[normalize-space()="标题"]]/input');
+    assert.equal((await reachByWheel(title)).reached, true);
+    await title.setValue("未保存的起点标题");
+    const start = await buttonText("开始或继续");
+    assert.equal(await start.isEnabled(), false);
+    assert.equal((await $("body").getText()).includes("先保存节点图，再运行预览。"), true);
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.some((command) => command.includes("galgame_story_runtime"))), false);
+    this.mediaRecord.interaction = { unsavedGraphBlocksPreview: true, saveRequiredVisible: true, runtimeRequests: 0 };
+  });
+
+  it("UX-2219 removes a playtest view as soon as its graph draft changes", async function () {
+    this.mediaRecord = { id: "UX-2219-galgame-playtest-draft-change", title: "Galgame运行预览随图稿修改失效", width: 1440, task: "运行预览打开后再改图时不保留旧节点的推进按钮" };
+    await openGalgameGraph();
+    await buttonText("开始或继续").click();
+    await $('section[aria-live="polite"]').waitForDisplayed({ timeout: 5000 });
+    const title = await $('//label[.//span[normalize-space()="标题"]]/input');
+    assert.equal((await reachByWheel(title)).reached, true);
+    await title.setValue("正在编辑的新起点");
+    await $('section[aria-live="polite"]').waitForExist({ reverse: true, timeout: 5000 });
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.some((command) => command === "advance_galgame_story_runtime")), false);
+    this.mediaRecord.interaction = { oldRuntimeHiddenWhenDraftDirty: true, advanceRequests: 0 };
+  });
+
+  it("UX-2220 removes runtime actions when a script refresh marks the graph stale", async function () {
+    this.mediaRecord = { id: "UX-2220-galgame-stale-runtime-gate", title: "Galgame过期节点图运行门禁", width: 1440, task: "刷新后来源已变化时不再展示旧运行存档的推进选项" };
+    await openGalgameGraph();
+    await buttonText("开始或继续").click();
+    await $('section[aria-live="polite"]').waitForDisplayed({ timeout: 5000 });
+    await browser.execute(() => { window.__uiAudit.fixtures.byProject[5].get_galgame_script.story_graph_status = "stale"; });
+    const refresh = await $('button[aria-label="刷新 GALGame 剧本"]');
+    await refresh.scrollIntoView({ block: "center" });
+    await refresh.click();
+    await browser.waitUntil(async () => (await $("body").getText()).includes("来源文本已变化"), { timeout: 5000 });
+    await $('section[aria-live="polite"]').waitForExist({ reverse: true, timeout: 5000 });
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.some((command) => command === "advance_galgame_story_runtime")), false);
+    this.mediaRecord.interaction = { staleStateVisible: true, oldRuntimeHidden: true, advanceRequests: 0 };
+  });
+
+  it("UX-2221 identifies an in-progress runtime advance and locks its save slot", async function () {
+    this.mediaRecord = { id: "UX-2221-galgame-runtime-advance-feedback", title: "Galgame运行预览推进反馈", width: 1440, task: "推进故事时明确显示当前操作并保持存档范围固定" };
+    const { nextView } = await openGalgameGraph();
+    await buttonText("开始或继续").click();
+    await $('section[aria-live="polite"]').waitForDisplayed({ timeout: 5000 });
+    await browser.execute(() => window.__uiAudit.deferred.push("advance_galgame_story_runtime"));
+    const runtime = await $('section[aria-live="polite"]');
+    const option = await runtime.$("button");
+    await option.scrollIntoView({ block: "center" });
+    await option.click();
+    await browser.waitUntil(() => browser.execute(() => window.__uiAudit.pending.some((item) => item.command === "advance_galgame_story_runtime")), { timeout: 5000 });
+    assert.equal(await buttonText("正在推进故事").isDisplayed(), true);
+    assert.equal(await $('input[aria-label="存档槽"]').isEnabled(), false);
+    await browser.execute((view) => {
+      const audit = window.__uiAudit;
+      const index = audit.pending.findIndex((item) => item.command === "advance_galgame_story_runtime");
+      const [pending] = audit.pending.splice(index, 1);
+      audit.deferred = audit.deferred.filter((command) => command !== "advance_galgame_story_runtime");
+      pending.resolve(Response.json(view));
+    }, nextView);
+    await browser.waitUntil(() => browser.execute(() => document.querySelector('section[aria-live="polite"]')?.innerText.includes("中段") === true), { timeout: 5000 });
+    this.mediaRecord.interaction = { advancingStateVisible: true, slotLocked: true, nextNodeVisible: true };
+  });
+
+  it("UX-2222 explains a graph connection rejected by the connection contract", async function () {
+    this.mediaRecord = { id: "UX-2222-galgame-invalid-connection-feedback", title: "Galgame图的无效连线反馈", width: 1440, task: "把终止节点连回入口时看见连线被拒绝的原因" };
+    const { graph } = await openGalgameGraph();
+    const canvas = await $('[aria-label="Galgame 节点图画布"]');
+    assert.equal((await reachByWheel(canvas)).reached, true);
+    const points = await browser.execute(({ sourceId, targetId }) => {
+      const source = [...document.querySelectorAll(".react-flow__node")].find((item) => item.getAttribute("data-id") === sourceId)?.querySelector(".react-flow__handle-right");
+      const target = [...document.querySelectorAll(".react-flow__node")].find((item) => item.getAttribute("data-id") === targetId)?.querySelector(".react-flow__handle-left");
+      const center = (element) => { const rect = element.getBoundingClientRect(); return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }; };
+      return source && target ? { source: center(source), target: center(target) } : null;
+    }, { sourceId: "node:end", targetId: graph.entry_node_id });
+    assert(points, "Both the terminal source handle and entry target handle must be present");
+    await browser.performActions([{
+      type: "pointer", id: "mouse", parameters: { pointerType: "mouse" },
+      actions: [
+        { type: "pointerMove", duration: 0, x: points.source.x, y: points.source.y },
+        { type: "pointerDown", button: 0 },
+        { type: "pointerMove", duration: 350, x: points.target.x, y: points.target.y },
+        { type: "pointerUp", button: 0 },
+      ],
+    }]);
+    await browser.releaseActions();
+    await browser.waitUntil(async () => (await $("body").getText()).includes("普通节点只能单进单出"), { timeout: 5000 });
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("save_galgame_story_graph")), false);
+    this.mediaRecord.interaction = { invalidDropExplained: true, graphSaveRequests: 0 };
+  });
+
+  it("UX-2223 protects an edited story graph when leaving the stage", async function () {
+    this.mediaRecord = { id: "UX-2223-galgame-graph-dirty-guard", title: "Galgame图稿阶段离开保护", width: 1440, task: "修改节点标题后离开阶段时先确认，不允许静默丢弃" };
+    await openGalgameGraph();
+    const title = await $('//label[.//span[normalize-space()="标题"]]/input');
+    assert.equal((await reachByWheel(title)).reached, true);
+    await title.setValue("需要保存的起点");
+    await $('button[id="galgame-stages-5-tab-materials"]').click();
+    await $(dialog).waitForDisplayed({ timeout: 5000 });
+    assert.equal((await $(dialog).getText()).includes("未保存修改"), true);
+    await $(dialog).$('.//button[normalize-space()="取消"]').click();
+    assert.equal(await $('button[id="galgame-stages-5-tab-script"]').getAttribute("aria-selected"), "true");
+    assert.equal(await title.getValue(), "需要保存的起点");
+    this.mediaRecord.interaction = { leavePrompted: true, cancelPreservedGraphDraft: true };
+  });
+
+  it("UX-2224 protects unapplied graph JSON when leaving the stage", async function () {
+    this.mediaRecord = { id: "UX-2224-galgame-graph-json-draft-guard", title: "Galgame图高级JSON草稿离开保护", width: 1440, task: "修改节点高级JSON但未应用时离开阶段先确认" };
+    await openGalgameGraph();
+    const advanced = await $('//details[summary[normalize-space()="高级节点数据"]]');
+    assert.equal((await reachByWheel(advanced)).reached, true);
+    await advanced.$("summary").click();
+    const json = await advanced.$("textarea");
+    await json.setValue("{ 未应用的 JSON");
+    await $('button[id="galgame-stages-5-tab-materials"]').click();
+    await $(dialog).waitForDisplayed({ timeout: 5000 });
+    await $(dialog).$('.//button[normalize-space()="取消"]').click();
+    assert.equal(await json.getValue(), "{ 未应用的 JSON");
+    assert.equal(await $('button[id="galgame-stages-5-tab-script"]').getAttribute("aria-selected"), "true");
+    this.mediaRecord.interaction = { rawJsonDraftGuarded: true, cancelPreservedText: true };
+  });
+
+  it("UX-2225 discards a late playtest response after the graph revision changes", async function () {
+    this.mediaRecord = { id: "UX-2225-galgame-late-runtime-graph-revision", title: "Galgame图版本变化后的迟到预览响应", width: 1440, task: "运行存档读取未完成时保存新图，迟到的旧版本响应不能进入新图工作区" };
+    const initial = createGalgameStoryGraphFixtures();
+    const savedGraph = { ...initial.graph, revision: initial.graph.revision + 1, nodes: initial.graph.nodes.map((node) => node.id === "node:start" ? { ...node, title: "已保存的新起点" } : node) };
+    const { startView } = await openGalgameGraph({
+      deferred: ["get_galgame_story_runtime_state"],
+      savedGraph,
+    });
+    await buttonText("开始或继续").click();
+    await browser.waitUntil(() => browser.execute(() => window.__uiAudit.pending.some((item) => item.command === "get_galgame_story_runtime_state")), { timeout: 5000 });
+    const title = await $('//label[.//span[normalize-space()="标题"]]/input');
+    assert.equal((await reachByWheel(title)).reached, true);
+    await title.setValue("已保存的新起点");
+    const save = await buttonText("保存节点图");
+    assert.equal((await reachByWheel(save)).reached, true);
+    await save.click();
+    await browser.waitUntil(async () => (await $("body").getText()).includes("revision 2"), { timeout: 5000 });
+    await browser.execute((view) => {
+      const audit = window.__uiAudit;
+      const index = audit.pending.findIndex((item) => item.command === "get_galgame_story_runtime_state");
+      const [pending] = audit.pending.splice(index, 1);
+      audit.deferred = audit.deferred.filter((command) => command !== "get_galgame_story_runtime_state");
+      pending.resolve(Response.json(view));
+    }, startView);
+    await browser.pause(100);
+    assert.equal(await $('section[aria-live="polite"]').isExisting(), false);
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("advance_galgame_story_runtime")), false);
+    this.mediaRecord.interaction = { graphRevisionSaved: 2, oldRuntimeResponseDiscarded: true, advanceRequests: 0 };
+  });
+
+  it("UX-2226 keeps the graph runtime controls reachable above the script workspace", async function () {
+    const widths = [1440, 1024];
+    const results = [];
+    for (const width of widths) {
+      this.mediaRecord = { id: `UX-2226-galgame-runtime-reachability-${width}`, title: "Galgame节点图运行入口可达", width, task: "在桌面宽屏和中宽度滚动到运行入口并启动预览" };
+      await openGalgameGraph({ width });
+      const start = await buttonText("开始或继续");
+      const reachable = await reachByWheel(start);
+      assert.equal(reachable.reached, true, `Runtime action must be reachable at ${width}px`);
+      await start.click();
+      await $('section[aria-live="polite"]').waitForDisplayed({ timeout: 5000 });
+      results.push({ width, reachable: reachable.reached, runtimeOpened: true });
+    }
+    this.mediaRecord.interaction = { widths: results };
+  });
+
+  it("UX-2227 prevents an empty graph node title from entering the draft", async function () {
+    this.mediaRecord = { id: "UX-2227-galgame-empty-node-title", title: "Galgame节点标题边界", width: 1440, task: "添加节点时先说明必填标题，不把空节点写进图稿" };
+    await openGalgameGraph();
+    const title = await $('input[aria-label="节点标题"]');
+    await title.setValue("   ");
+    await buttonText("添加节点").click();
+    await browser.waitUntil(async () => (await $("body").getText()).includes("节点标题不能为空"), { timeout: 5000 });
+    assert.equal((await $$(".react-flow__node")).length, 3);
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("save_galgame_story_graph")), false);
+    this.mediaRecord.interaction = { blankRejected: true, nodeCount: 3, saveRequests: 0 };
+  });
+
+  it("UX-2228 bypasses a simple node deletion without leaving a broken graph", async function () {
+    this.mediaRecord = { id: "UX-2228-galgame-linear-node-delete", title: "Galgame线性节点删除", width: 1440, task: "删除单进单出的中间节点后保留前后路径" };
+    await openGalgameGraph();
+    await $(".react-flow__node[data-id=\"node:middle\"]").click();
+    const remove = await $('button[aria-label="删除节点"]');
+    await remove.click();
+    await $(dialog).waitForDisplayed({ timeout: 5000 });
+    await $(dialog).$('.//button[normalize-space()="删除"]').click();
+    await browser.waitUntil(async () => (await $$(".react-flow__node")).length === 2, { timeout: 5000 });
+    await buttonText("保存节点图").click();
+    await browser.waitUntil(() => browser.execute(() => window.__uiAudit.commands.includes("save_galgame_story_graph")), { timeout: 5000 });
+    const request = await browser.execute(() => window.__uiAudit.requests.find((item) => item.command === "save_galgame_story_graph"));
+    assert.deepEqual(request.body.input.graph.edges.map((edge) => [edge.from_node_id, edge.to_node_id]), [["node:start", "node:end"]]);
+    assert.equal(request.body.input.graph.nodes.some((node) => node.id === "node:middle"), false);
+    this.mediaRecord.interaction = { confirmationShown: true, bypassedPath: true, nodesSaved: 2 };
+  });
+
+  it("UX-2229 collapses a two-option branch when its terminal is removed", async function () {
+    this.mediaRecord = { id: "UX-2229-galgame-branch-collapse", title: "Galgame分支删除收敛", width: 1440, task: "删除一条分支终点后把剩余路径收敛为顺序连接" };
+    await openGalgameGraph({ graph: createGalgameBranchGraphFixture() });
+    await $(".react-flow__node[data-id=\"node:left\"]").click();
+    await $('button[aria-label="删除节点"]').click();
+    await $(dialog).waitForDisplayed({ timeout: 5000 });
+    await $(dialog).$('.//button[normalize-space()="删除"]').click();
+    await browser.waitUntil(async () => (await $$(".react-flow__node")).length === 3, { timeout: 5000 });
+    await buttonText("保存节点图").click();
+    await browser.waitUntil(() => browser.execute(() => window.__uiAudit.commands.includes("save_galgame_story_graph")), { timeout: 5000 });
+    const request = await browser.execute(() => window.__uiAudit.requests.find((item) => item.command === "save_galgame_story_graph"));
+    const saved = request.body.input.graph;
+    assert.equal(saved.branch_groups.length, 0);
+    assert.equal(saved.nodes.find((node) => node.id === "node:fork").kind, "narrative");
+    assert.deepEqual(saved.edges.map((edge) => [edge.from_node_id, edge.to_node_id, edge.kind]), [["node:start", "node:fork", "sequence"], ["node:fork", "node:right", "sequence"]]);
+    this.mediaRecord.interaction = { branchGroupCollapsed: true, remainingPathPreserved: true };
+  });
+
+  it("UX-2230 confirms loop removal and keeps loop boundaries unavailable as ordinary nodes", async function () {
+    this.mediaRecord = { id: "UX-2230-galgame-loop-boundary-safety", title: "Galgame循环结构删除保护", width: 1440, task: "循环入口出口不能被当作普通节点删除，移除循环前先确认" };
+    await openGalgameGraph({ graph: createGalgameLoopGraphFixture() });
+    const newKind = await $('select[aria-label="新增节点类型"]');
+    assert.equal((await newKind.getText()).includes("循环入口"), false);
+    await $(".react-flow__node[data-id=\"node:body\"]").click();
+    const removeNode = await $('button[aria-label="删除节点"]');
+    assert.equal(await removeNode.isEnabled(), false);
+    const removeLoop = await buttonText("移除循环");
+    await removeLoop.click();
+    await $(dialog).waitForDisplayed({ timeout: 5000 });
+    assert.equal((await $(dialog).getText()).includes("移除整个循环"), true);
+    await $(dialog).$('.//button[normalize-space()="取消"]').click();
+    assert.equal(await $(dialog).isExisting(), false);
+    await removeLoop.click();
+    await $(dialog).$('.//button[normalize-space()="删除"]').click();
+    await browser.waitUntil(async () => (await $$(".react-flow__node")).length === 3, { timeout: 5000 });
+    this.mediaRecord.interaction = { ordinaryBoundaryCreationHidden: true, bodyDeleteDisabled: true, loopRemovalConfirmed: true, cancelPreserved: true };
+  });
+
+  it("UX-2231 locks graph fields while the save response is pending", async function () {
+    this.mediaRecord = { id: "UX-2231-galgame-save-edit-lock", title: "Galgame保存期间草稿锁定", width: 1440, task: "保存回包未到达时不允许继续编辑以免覆盖新草稿" };
+    await openGalgameGraph({ deferred: ["save_galgame_story_graph"] });
+    const title = await $('//label[.//span[normalize-space()="标题"]]/input');
+    await title.setValue("等待保存的标题");
+    await buttonText("保存节点图").click();
+    await browser.waitUntil(() => browser.execute(() => window.__uiAudit.pending.some((item) => item.command === "save_galgame_story_graph")), { timeout: 5000 });
+    assert.equal(await title.isEnabled(), false);
+    assert.equal(await $('button[aria-label="添加台词行"]').isEnabled(), false);
+    await browser.execute((graph) => {
+      const audit = window.__uiAudit;
+      const index = audit.pending.findIndex((item) => item.command === "save_galgame_story_graph");
+      const [pending] = audit.pending.splice(index, 1);
+      audit.deferred = audit.deferred.filter((command) => command !== "save_galgame_story_graph");
+      pending.resolve(Response.json(graph));
+    }, createGalgameStoryGraphFixtures().graph);
+    await browser.waitUntil(async () => (await buttonText("保存节点图").isExisting()) && !(await buttonText("保存节点图").isEnabled()), { timeout: 5000 });
+    this.mediaRecord.interaction = { titleLocked: true, lineEditorLocked: true, lateDraftNotEditable: true };
+  });
+
+  it("UX-2232 validates an integer state variable before graph save", async function () {
+    this.mediaRecord = { id: "UX-2232-galgame-state-variable-int", title: "Galgame状态变量整数边界", width: 1440, task: "输入非法整数默认值时直接说明范围并阻止保存" };
+    await openGalgameGraph();
+    const variables = await $('//details[summary[normalize-space()="状态变量"]]');
+    await variables.$("summary").click();
+    await variables.$('input[aria-label="变量名"]').setValue("score");
+    await variables.$('select[aria-label="变量类型"]').selectByAttribute("value", "int");
+    await variables.$('button[aria-label="添加变量"]').click();
+    const value = await variables.$('input[aria-label="score 的默认值"]');
+    await value.setValue("+1");
+    await browser.waitUntil(async () => await buttonText("保存节点图").isEnabled(), { timeout: 5000 });
+    await value.setValue("not-an-int");
+    await browser.waitUntil(async () => (await variables.getText()).includes("i64 范围内"), { timeout: 5000 });
+    assert.equal(await buttonText("保存节点图").isEnabled(), false);
+    this.mediaRecord.interaction = { validSignedDecimalAccepted: true, invalidIntegerExplained: true, saveBlocked: true };
+  });
+
+  it("UX-2233 keeps an unconnected new node out of the save path", async function () {
+    this.mediaRecord = { id: "UX-2233-galgame-unconnected-node", title: "Galgame孤立节点保存门禁", width: 1440, task: "添加节点后未完成连线时明确提示结构不完整并阻止保存" };
+    await openGalgameGraph();
+    await $('input[aria-label="节点标题"]').setValue("未连线节点");
+    await buttonText("添加节点").click();
+    await browser.waitUntil(async () => (await $("body").getText()).includes("未从入口到达"), { timeout: 5000 });
+    assert.equal(await buttonText("保存节点图").isEnabled(), false);
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("save_galgame_story_graph")), false);
+    this.mediaRecord.interaction = { disconnectedExplained: true, saveRequests: 0 };
+  });
+
+  it("UX-2234 rejects a node type change that would violate its connections", async function () {
+    this.mediaRecord = { id: "UX-2234-galgame-node-kind-contract", title: "Galgame节点类型结构门禁", width: 1440, task: "把有出口的中间节点改成终点时说明连接契约并保持原类型" };
+    await openGalgameGraph();
+    await $(".react-flow__node[data-id=\"node:middle\"]").click();
+    const kind = await $('select[aria-label="节点 中段 的类型"]');
+    await kind.click();
+    await browser.keys("End");
+    await browser.keys("Enter");
+    await browser.waitUntil(async () => (await kind.getValue()) === "narrative", { timeout: 5000 });
+    const text = await $("body").getText();
+    assert.equal(text.includes("当前连接数量或类型不支持切换为此节点类型"), true, `Expected graph invariant feedback, got: ${text.slice(-500)}`);
+    assert.equal(await kind.getValue(), "narrative");
+    this.mediaRecord.interaction = { invalidKindExplained: true, originalKindPreserved: true };
+  });
+
+  it("UX-2235 requires a label for every branch option", async function () {
+    this.mediaRecord = { id: "UX-2235-galgame-branch-label", title: "Galgame分支选项文本边界", width: 1440, task: "清空分支选项文本时当场说明必填并阻止图保存" };
+    await openGalgameGraph({ graph: createGalgameBranchGraphFixture() });
+    await $(".react-flow__node[data-id=\"node:fork\"]").click();
+    const label = await $('input[aria-label="第 1 个分支选项文本"]');
+    await label.setValue("   ");
+    await browser.waitUntil(async () => (await $("body").getText()).includes("分支选项文本不能为空"), { timeout: 5000 });
+    assert.equal(await label.getAttribute("aria-invalid"), "true");
+    assert.equal(await buttonText("保存节点图").isEnabled(), false);
+    this.mediaRecord.interaction = { emptyLabelExplained: true, saveBlocked: true };
+  });
+
+  it("UX-2236 rejects an out-of-range integer in a branch condition JSON draft", async function () {
+    this.mediaRecord = { id: "UX-2236-galgame-branch-condition-i64", title: "Galgame分支条件整数边界", width: 1440, task: "分支条件 JSON 中超过 i64 的整数不能等到服务器拒绝" };
+    await openGalgameGraph({ graph: createGalgameBranchGraphFixture() });
+    await $(".react-flow__node[data-id=\"node:fork\"]").click();
+    const field = await $('//div[label[normalize-space()="选项条件 JSON"]]');
+    const textarea = await field.$("textarea");
+    await textarea.setValue('{"constant":{"int":"9223372036854775808"}}');
+    await field.$('button*=应用 JSON').click();
+    await browser.waitUntil(async () => (await $("body").getText()).includes("i64 范围内"), { timeout: 5000 });
+    assert.equal(await buttonText("保存节点图").isEnabled(), false);
+    this.mediaRecord.interaction = { invalidIntegerDraftExplained: true, saveBlocked: true };
+  });
+
+  it("UX-2237 validates a state operation amount against the Host i64 contract", async function () {
+    this.mediaRecord = { id: "UX-2237-galgame-state-operation-i64", title: "Galgame状态操作整数边界", width: 1440, task: "状态操作增量超过 i64 时在编辑器内拒绝保存" };
+    const graph = createGalgameBranchGraphFixture();
+    graph.state_variables = [{ key: "score", value_kind: "int", default_value: { int: "0" } }];
+    await openGalgameGraph({ graph });
+    await $(".react-flow__node[data-id=\"node:fork\"]").click();
+    const field = await $('//div[label[normalize-space()="状态操作 JSON"]]');
+    const textarea = await field.$("textarea");
+    await textarea.setValue('[{"increment":{"key":"score","amount":"9223372036854775808"}}]');
+    await field.$('button*=应用 JSON').click();
+    await browser.waitUntil(async () => (await $("body").getText()).includes("i64 范围内"), { timeout: 5000 });
+    assert.equal(await buttonText("保存节点图").isEnabled(), false);
+    this.mediaRecord.interaction = { invalidAmountExplained: true, saveBlocked: true };
+  });
+
+  it("UX-2239/2240/2241 previews the next real Galgame model request", async function () {
+    this.mediaRecord = { id: "UX-2239-2240-2241-galgame-request-preview", title: "Galgame改编与分支请求预览", width: 1440, task: "从新项目、已采用计划和草稿计划查看当前可确定的模型请求" };
+    const project = fixtures.byProject[5];
+    const sourceWorkspace = structuredClone(project.get_media_authoring_workspace);
+    const template = structuredClone(fixtures.preview_galgame_pipeline_request);
+    const previewWith = (key, title, promptName) => ({
+      ...template,
+      steps: [{ ...template.steps[0], key, title, prompt_name: promptName }],
+    });
+    const openPreview = async (workspace, preview, expectedTitle, expectedPrompt) => {
+      project.get_media_authoring_workspace = workspace;
+      fixtures.preview_galgame_pipeline_request = preview;
+      await installUiFixtures(browser, fixtures);
+      await openGalgameAtStage("script");
+      await openDetails('details[aria-label="剧本生成"]');
+      await openMenu('details[aria-label="剧本生成"]', "查看模型请求");
+      await $(dialog).waitForDisplayed({ timeout: 5000 });
+      const text = await $(dialog).getText();
+      assert(text.includes(expectedTitle), `Expected preview step ${expectedTitle}, got: ${text.slice(0, 500)}`);
+      assert(text.includes(expectedPrompt), `Expected prompt ${expectedPrompt}`);
+      await browser.keys("Escape");
+      await $(dialog).waitForExist({ reverse: true });
+    };
+
+    const missingWorkspace = structuredClone(project.get_media_authoring_workspace);
+    missingWorkspace.documents = [];
+    await openPreview(
+      missingWorkspace,
+      previewWith("adaptation_plan:1", "第 1 章改编计划", "chapter_media_adaptation_plan"),
+      "第 1 章改编计划",
+      "chapter_media_adaptation_plan",
+    );
+
+    const adoptedWorkspace = structuredClone(sourceWorkspace);
+    adoptedWorkspace.documents = adoptedWorkspace.documents.map(({ record, ...view }) => ({
+      ...view,
+      record: { ...record, status: "adopted" },
+    }));
+    const adaptedRecords = adoptedWorkspace.documents.map(({ record }) => record);
+    adoptedWorkspace.documents.push({
+      stale: false,
+      video_reference_status: null,
+      record: {
+        id: 5999,
+        project_id: 5,
+        source_snapshot_id: adoptedWorkspace.source_snapshot_id,
+        source_chapter_id: null,
+        kind: "galgame_branch_plan",
+        version: 1,
+        revision: 1,
+        status: "adopted",
+        sha256: "branch-plan-hash",
+        inputs: {
+          sources: adaptedRecords.flatMap((record) => record.inputs.sources),
+          dependencies: adaptedRecords.map((record) => ({ id: record.id, revision: record.revision, sha256: record.sha256 })),
+          video_reference: null,
+          preprocessing_fingerprint: null,
+        },
+        document: { choices: [] },
+      },
+    });
+    await openPreview(
+      adoptedWorkspace,
+      previewWith("script_adaptation", "剧本行改编", "galgame_script_adaptation"),
+      "剧本行改编",
+      "galgame_script_adaptation",
+    );
+
+    const draftWorkspace = structuredClone(sourceWorkspace);
+    const draftRecords = draftWorkspace.documents.map(({ record }) => record);
+    draftWorkspace.documents.push({
+      stale: false,
+      video_reference_status: null,
+      record: {
+        id: 5998,
+        project_id: 5,
+        source_snapshot_id: draftWorkspace.source_snapshot_id,
+        source_chapter_id: null,
+        kind: "galgame_branch_plan",
+        version: 1,
+        revision: 1,
+        status: "adopted",
+        sha256: "branch-plan-hash-draft-inputs",
+        inputs: {
+          sources: draftRecords.flatMap((record) => record.inputs.sources),
+          dependencies: draftRecords.map((record) => ({ id: record.id, revision: record.revision, sha256: record.sha256 })),
+          video_reference: null,
+          preprocessing_fingerprint: null,
+        },
+        document: { choices: [] },
+      },
+    });
+    await openPreview(
+      draftWorkspace,
+      previewWith("branch_design", "分支设计", "galgame_branch_design"),
+      "分支设计",
+      "galgame_branch_design",
+    );
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.filter((command) => command === "start_galgame_pipeline").length), 0);
+    this.mediaRecord.interaction = {
+      missingPlansShowAdaptationRequest: true,
+      adoptedPlanShowsNextRequest: true,
+      draftPlanPreviewOpens: true,
+      pipelineRuns: 0,
+    };
+  });
+
+  it("UX-2242 shows a missing boundary-frame blocker once", async function () {
+    this.mediaRecord = { id: "UX-2242-video-boundary-frame-message", title: "视频首尾帧缺失反馈", width: 1440, task: "已有最终提示词但缺首尾帧提示词时阅读下一步说明" };
+    await browser.url("/");
+    await $(".a4n-home-content").waitForDisplayed();
+    fixtures.byChapter[1].list_chapter_video_prompts = fixtures.byChapter[1].list_chapter_video_prompts.filter(
+      (prompt) => !(prompt.prompt_type === "frame_prompt" && [1, 2].includes(prompt.shot_number)),
+    );
+    await installUiFixtures(browser, fixtures);
+    await openSegment(1);
+    const reason = "请先准备当前片段的首尾帧提示词";
+    const blocker = await $(`${dialog} div.text-small.text-warning`);
+    const blockerText = await blocker.getText();
+    assert.equal(blockerText.split(reason).length - 1, 1);
+    assert.equal(await $(dialog).$('.//button[normalize-space(.)="生成视频"]').isEnabled(), false);
+    this.mediaRecord.interaction = { frameBlocker: blockerText, repeatedSubreasonCount: 1, generationDisabled: true };
+  });
+
+  it("UX-2254 gives one actionable status for missing boundary frames", async function () {
+    this.mediaRecord = { id: "UX-2254-video-boundary-frame-status", title: "缺少首尾帧时只呈现一条状态", width: 1440, task: "查看未准备帧输入的片段并区分错误原因与准备入口" };
+    await browser.setWindowSize(1440, 1000);
+    await openSegment(6);
+    const reason = "请先准备当前片段的首尾帧提示词";
+    const editorText = await $(dialog).getText();
+    assert.equal(editorText.split(reason).length - 1, 1);
+    assert.equal(editorText.includes("仍有必填项"), false, "The generic required badge repeats the detailed blocker without adding an action");
+    assert.equal(await $(dialog).$('.//button[normalize-space(.)="生成最终提示词"]').isEnabled(), false);
+    assert((await $(dialog).getText()).includes("点击对应槽位生成、导入或选择素材。"));
+    this.mediaRecord.interaction = { blockerShownOnce: true, genericDuplicateRemoved: true, preparationPathRetained: true, generationDisabled: true };
+  });
+
+  it("UX-2243 confirms before refreshing over an unsaved story graph", async function () {
+    this.mediaRecord = { id: "UX-2243-galgame-refresh-graph-draft", title: "Galgame刷新剧本保护节点图草稿", width: 1440, task: "修改节点标题后点刷新剧本，取消确认时保留草稿" };
+    await openGalgameGraph();
+    const title = await $('//label[.//span[normalize-space()="标题"]]/input');
+    await title.setValue("刷新前未保存的起点");
+    const readsBefore = await browser.execute(() => window.__uiAudit.commands.filter((command) => command === "get_galgame_script").length);
+    await $('button[aria-label="刷新 GALGame 剧本"]').click();
+    await $(dialog).waitForDisplayed({ timeout: 5000 });
+    await $(dialog).$('.//button[normalize-space()="取消"]').click();
+    assert.equal(await title.getValue(), "刷新前未保存的起点");
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.filter((command) => command === "get_galgame_script").length), readsBefore);
+    this.mediaRecord.interaction = { discardPromptShown: true, cancelPreservedGraph: true, refreshRequests: 0 };
+  });
+
+  it("UX-2244 rejects a new connection that would create an unmarked cycle", async function () {
+    this.mediaRecord = { id: "UX-2244-galgame-unmarked-cycle", title: "Galgame节点图未声明循环门禁", width: 1440, task: "把后置分支连回上游 Join 时显示循环约束并拒绝保存" };
+    const graph = createGalgameCycleAttemptGraphFixture();
+    await openGalgameGraph({ graph });
+    await $('select[aria-label="连接类型"]').selectByAttribute("value", "choice");
+    const canvas = await $('[aria-label="Galgame 节点图画布"]');
+    const points = await browser.execute(({ sourceId, targetId }) => {
+      const source = [...document.querySelectorAll(".react-flow__node")].find((item) => item.getAttribute("data-id") === sourceId)?.querySelector(".react-flow__handle-right");
+      const target = [...document.querySelectorAll(".react-flow__node")].find((item) => item.getAttribute("data-id") === targetId)?.querySelector(".react-flow__handle-left");
+      const center = (element) => { const rect = element.getBoundingClientRect(); return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }; };
+      return source && target ? { source: center(source), target: center(target) } : null;
+    }, { sourceId: "node:inner", targetId: "node:join" });
+    assert(points, "The later fork and prior Join handles must be present");
+    await browser.performActions([{
+      type: "pointer", id: "mouse", parameters: { pointerType: "mouse" },
+      actions: [
+        { type: "pointerMove", duration: 0, x: points.source.x, y: points.source.y },
+        { type: "pointerDown", button: 0 },
+        { type: "pointerMove", duration: 350, x: points.target.x, y: points.target.y },
+        { type: "pointerUp", button: 0 },
+      ],
+    }]);
+    await browser.releaseActions();
+    await browser.waitUntil(async () => (await $("body").getText()).includes("未声明的循环"), { timeout: 5000 });
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("save_galgame_story_graph")), false);
+    this.mediaRecord.interaction = { cycleExplained: true, graphSaveRequests: 0, canvasReachable: await canvas.isDisplayed() };
+  });
+
+  it("UX-2245 explains the adaptation prerequisite before branch-plan writes", async function () {
+    this.mediaRecord = { id: "UX-2245-galgame-branch-plan-prerequisite", title: "Galgame分支计划前置改编计划", width: 1440, task: "未采用所有来源章节改编计划时查看分支编辑入口" };
+    await openGalgameAtStage("branches");
+    await browser.waitUntil(async () => (await $("body").getText()).includes("请先为每个来源章节采用改编计划"), { timeout: 5000 });
+    assert.equal(await buttonText("保存").isEnabled(), false);
+    assert.equal(await buttonText("应用当前方案").isEnabled(), false);
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("save_media_authoring_document")), false);
+    this.mediaRecord.interaction = { prerequisiteVisible: true, saveAndAdoptBlocked: true, saveRequests: 0 };
+  });
+
+  it("UX-2246 blocks unsupported video duration drafts before save or generation", async function () {
+    this.mediaRecord = { id: "UX-2246-video-duration-editor-contract", title: "视频生成时长范围反馈", width: 1440, task: "把提示词时长改为模型范围外和小数，读取即时错误与动作门禁" };
+    await openSegment(1);
+    const duration = await $(`${dialog}`).$('.//label[.//span[normalize-space()="视频时长"]]//input[@type="number"]');
+    await duration.setValue("61");
+    await browser.waitUntil(async () => (await $(dialog).getText()).includes("视频时长不在当前视频模型支持范围内"), { timeout: 5000 });
+    assert.equal(await buttonText("保存更改").isEnabled(), false);
+    await duration.setValue("5.5");
+    assert.equal(await buttonText("保存更改").isEnabled(), false);
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("update_chapter_video_prompt")), false);
+    this.mediaRecord.interaction = { outOfRangeExplained: true, fractionalDraftRejected: true, saveAndGenerateBlocked: true };
+  });
+
+  it("UX-2247 lets users extend a story graph from its terminal", async function () {
+    this.mediaRecord = { id: "UX-2247-galgame-terminal-extension", title: "Galgame终点后续扩展", width: 1440, task: "把结束节点改为叙事节点并添加新的终点" };
+    await openGalgameGraph();
+    const oldEnd = await $(".react-flow__node[data-id=\"node:end\"]");
+    await oldEnd.click();
+    const kind = await $('select[aria-label="节点 终点 的类型"]');
+    await kind.selectByAttribute("value", "narrative");
+    assert.equal(await kind.getValue(), "narrative");
+    await $('select[aria-label="新增节点类型"]').selectByAttribute("value", "terminal");
+    await $('input[aria-label="节点标题"]').setValue("新结局");
+    await buttonText("添加节点").click();
+    const newTerminal = await $('//div[contains(@class,"react-flow__node") and contains(normalize-space(.),"新结局")]');
+    const points = await browser.execute(({ source, target }) => {
+      const sourceNode = [...document.querySelectorAll(".react-flow__node")].find((item) => item.textContent.includes(source));
+      const targetNode = [...document.querySelectorAll(".react-flow__node")].find((item) => item.textContent.includes(target));
+      const sourceHandle = sourceNode?.querySelector(".react-flow__handle-right");
+      const targetHandle = targetNode?.querySelector(".react-flow__handle-left");
+      const center = (element) => { const rect = element.getBoundingClientRect(); return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }; };
+      return sourceHandle && targetHandle ? { source: center(sourceHandle), target: center(targetHandle) } : null;
+    }, { source: "终点", target: "新结局" });
+    assert(points);
+    await browser.performActions([{
+      type: "pointer", id: "mouse", parameters: { pointerType: "mouse" },
+      actions: [
+        { type: "pointerMove", duration: 0, x: points.source.x, y: points.source.y },
+        { type: "pointerDown", button: 0 },
+        { type: "pointerMove", duration: 350, x: points.target.x, y: points.target.y },
+        { type: "pointerUp", button: 0 },
+      ],
+    }]);
+    await browser.releaseActions();
+    await browser.waitUntil(async () => await buttonText("保存节点图").isEnabled(), { timeout: 5000 });
+    await buttonText("保存节点图").click();
+    await browser.waitUntil(() => browser.execute(() => window.__uiAudit.commands.includes("save_galgame_story_graph")), { timeout: 5000 });
+    this.mediaRecord.interaction = { terminalBecameNarrative: true, newEndConnected: true, saveReached: true, nodeVisible: await newTerminal.isDisplayed() };
+  });
+
+  it("UX-2248 confirms before exporting a graph with unsaved edits", async function () {
+    this.mediaRecord = { id: "UX-2248-galgame-export-dirty-graph", title: "Galgame WebGAL 导出保护未保存图稿", width: 1440, task: "修改节点图后从页头直接导出，取消确认时不生成旧版文件" };
+    await openGalgameGraph();
+    const title = await $('//label[.//span[normalize-space()="标题"]]/input');
+    await title.setValue("尚未保存的导出起点");
+    const refresh = await $('button[aria-label="刷新 GALGame 剧本"]');
+    await refresh.parentElement().$('button[aria-haspopup="menu"]').click();
+    await $('//*[@role="menuitem" and normalize-space()="导出 WebGAL 工程"]').click();
+    await ready();
+    await $(dialog).waitForDisplayed({ timeout: 5000 });
+    await $(dialog).$('.//button[normalize-space()="取消"]').click();
+    assert.equal(await title.getValue(), "尚未保存的导出起点");
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("export_galgame_webgal")), false);
+    this.mediaRecord.interaction = { exportPrompted: true, cancelPreservedDraft: true, exportRequests: 0 };
+  });
+
+  it("UX-2249 holds graph JSON drafts until applied or discarded", async function () {
+    this.mediaRecord = { id: "UX-2249-galgame-json-selection-runtime-gate", title: "Galgame高级 JSON 编辑范围", width: 1440, task: "编辑 JSON 后尝试切节点和试运行，确认草稿不会换绑或被旧图执行" };
+    await openGalgameGraph();
+    const advanced = await $('//details[summary[normalize-space()="高级节点数据"]]');
+    await advanced.$("summary").click();
+    const json = await advanced.$("textarea");
+    await json.setValue('[{"set":{"key":"pending","value":{"bool":true}}}]');
+    await browser.waitUntil(async () => (await $("body").getText()).includes("请先应用或放弃 JSON 编辑"), { timeout: 5000 });
+    const nodeCount = await $$(".react-flow__node").length;
+    await $(".react-flow__node[data-id=\"node:middle\"]").click();
+    assert.equal((await $('//label[.//span[normalize-space()="标题"]]/input').getValue()), "起点");
+    assert.equal(await buttonText("开始或继续").isEnabled(), false);
+    assert.equal(await browser.execute(() => window.__uiAudit.commands.includes("get_galgame_story_runtime_state")), false);
+    await advanced.$('.//button[contains(normalize-space(.),"放弃 JSON 编辑")]').click();
+    await $(".react-flow__node[data-id=\"node:middle\"]").click();
+    assert.equal((await $('//label[.//span[normalize-space()="标题"]]/input').getValue()), "中段");
+    this.mediaRecord.interaction = { jsonDraftBlocksSelection: true, nodeCount, runtimeBlocked: true, explicitDiscardRestoresSelection: true };
+  });
+
+  it("UX-2207/2208/2209 exposes the Galgame workspace, continuation action, and first mobile line", async function () {
+    this.mediaRecord = { id: "UX-2207-2208-2209-galgame-workspace", title: "Galgame剧本阶段初始工作区", width: 1440, task: "进入剧本演出阶段后找到续跑操作和首条台词" };
+    const viewports = [];
+    for (const width of [1440, 1024, 390]) {
+      await browser.setWindowSize(width, 1000);
+      await openRoute("/galgame-project/5");
+      if (width < 640) {
+        const stageSelect = await $('[role="combobox"][id="galgame-stages-5-select"]');
+        await stageSelect.click();
+        const option = await $('//*[@role="option" and contains(normalize-space(.), "剧本")]');
+        await option.waitForClickable();
+        await option.click();
+      } else {
+        const script = await $('button[id="galgame-stages-5-tab-script"]');
+        if (await script.getAttribute("aria-selected") !== "true") await script.click();
+      }
+      await ready();
+
+      const workspace = await $("#galgame-stages-5-panel > details");
+      await browser.waitUntil(async () => (await workspace.getProperty("open")) === true, { timeout: 5000 });
+      const generation = await $('details[aria-label="剧本生成"]');
+      await generation.waitForDisplayed({ timeout: 5000 });
+      await browser.waitUntil(async () => (await generation.getProperty("open")) === true, { timeout: 5000 });
+      const continueAction = await generation.$('button*=继续生成');
+      await continueAction.waitForDisplayed({ timeout: 5000 });
+      assert.equal(await continueAction.isEnabled(), true, "A resumable pipeline must expose its continuation action");
+      await browser.waitUntil(async () => (await $$(galgameLines)).length === 8, { timeout: 5000 });
+      const overflowBeforeEditor = await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      assert.equal(overflowBeforeEditor, 0, `Galgame script stage horizontal overflow at ${width}px`);
+
+      const editor = await $('section[aria-label="编辑"]');
+      let editorVisible = await editor.isDisplayed();
+      let firstLineInViewport = null;
+      if (width < 640) {
+        assert.equal(editorVisible, false, "The narrow layout begins with its scene list selected");
+        await browser.saveScreenshot(`${output}/${phase}-UX-2207-galgame-workspace-${width}-scenes.png`);
+        const mobileWorkspace = await $('[aria-label="GALGame 移动工作区"]');
+        await mobileWorkspace.$('.//button[normalize-space()="编辑"]').click();
+        await editor.waitForDisplayed({ timeout: 5000 });
+        editorVisible = true;
+      }
+      await browser.waitUntil(isFirstGalgameLineVisible, { timeout: 5000 });
+      if (width < 640) {
+        firstLineInViewport = await browser.execute(() => {
+          const line = document.querySelector('section[aria-label="编辑"] article textarea');
+          if (!line) return false;
+          const bounds = line.getBoundingClientRect();
+          return bounds.top < innerHeight && bounds.bottom > 0;
+        });
+        assert.equal(firstLineInViewport, true, "The first mobile script line must be reachable without scrolling past scene metadata");
+      }
+      const overflowAfterEditor = await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      assert.equal(overflowAfterEditor, 0, `Galgame editor horizontal overflow at ${width}px`);
+      viewports.push({ width, workspaceOpen: true, generationVisible: await generation.isDisplayed(), resumeVisible: await continueAction.isDisplayed(), editorVisible, firstLineInViewport, overflowBeforeEditor, overflowAfterEditor });
+      await browser.saveScreenshot(`${output}/${phase}-UX-2207-galgame-workspace-${width}-editor.png`);
+    }
+    await browser.setWindowSize(1440, 1000);
+    this.mediaRecord.interaction = { viewports };
+  });
+
+  it("UX-2204 localizes the directing-plan editing surface", async function () {
+    this.mediaRecord = { id: "UX-2204-director-localization", title: "英文界面导演编排控件", width: 1440, task: "通过视频项目的真实导演编排入口核对时间线、属性和生图动作" };
+    await browser.setWindowSize(1440, 1000);
+    const workspace = await openDirectingPlan();
+    await switchInterfaceLanguage("English", "en-US", "界面语言");
+
+    const timeline = await workspace.$(".director-timeline");
+    assert.equal(await timeline.getAttribute("aria-label"), "Chapter timeline");
+    assert.ok((await timeline.getText()).includes("Timeline"));
+    const toolbar = await workspace.$(".director-tool-rail");
+    assert.equal(await toolbar.getAttribute("aria-label"), "Directing tools");
+    await browser.waitUntil(async () => (await workspace.$(".director-inspector").getText()).includes("Image point"), { timeout: 5000 });
+    assert.ok((await workspace.$(".director-inspector").getText()).includes("Frame description"));
+    const generate = await buttonText("Generate storyboard image");
+    assert.equal(await generate.isDisplayed(), true);
+
+    await switchInterfaceLanguage("简体中文", "zh-CN", "Interface language");
+    assert.equal(await timeline.getAttribute("aria-label"), "章节时间条");
+    this.mediaRecord.interaction = { timelineLocalized: true, inspectorLocalized: true, generationActionLocalized: true, localeRestored: true };
+  });
+
 });

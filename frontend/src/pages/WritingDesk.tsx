@@ -96,18 +96,22 @@ export const WritingDesk: React.FC = () => {
   const agentRequested = searchParams.get("agent") === "1";
   const projectIdKey = isPositiveSafeInteger(projectId) ? String(projectId) : "";
 
+  const [resetGeneratedDataBusy, setResetGeneratedDataBusy] = useState(false);
   const [project, setProject] = useState<NovelProject | null>(null);
-  const lifecycleBlockedReason = project
-    ? getProjectLifecycleBlockedReason(project, t)
-    : null;
+  const lifecycleBlockedReason = resetGeneratedDataBusy
+    ? t("writing.resettingProjectData")
+    : project
+      ? getProjectLifecycleBlockedReason(project, t)
+      : null;
   const canEditWritingProject = project
-    ? canEditProjectMaterials(project)
+    ? canEditProjectMaterials(project) && !resetGeneratedDataBusy
     : false;
   const [chapters, setChapters] = useState<ChapterIndexEntry[]>([]);
   const [outlines, setOutlines] = useState<ChapterOutlineListEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [chapterLoadError, setChapterLoadError] = useState<string | null>(null);
   const [outlineLoadError, setOutlineLoadError] = useState<string | null>(null);
+  const [outlinesLoading, setOutlinesLoading] = useState(true);
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
   const requestedChapterNumber = () => {
@@ -153,7 +157,13 @@ export const WritingDesk: React.FC = () => {
   const [savingContent, setSavingContent] = useState(false);
   const [pendingContentDiff, setPendingContentDiff] = useState<PendingContentDiff | null>(null);
   const [contentDiffAction, setContentDiffAction] = useState<ContentDiffAction | null>(null);
-  const [resetGeneratedDataBusy, setResetGeneratedDataBusy] = useState(false);
+  const [derivedSyncBusy, setDerivedSyncBusy] = useState(false);
+  useDirty(
+    "writing-desk-operation",
+    resetGeneratedDataBusy || derivedSyncBusy,
+    undefined,
+    () => !resetGeneratedDataBusy && !derivedSyncBusy,
+  );
   const [leftSidebarVisible, setLeftSidebarVisible] = useState(true);
   const [isMobileLayout, setIsMobileLayout] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth < 768 : false,
@@ -190,6 +200,9 @@ export const WritingDesk: React.FC = () => {
   const mountedRef = useRef(false);
   const projectIdRef = useRef(projectId);
   const loadSeqRef = useRef(0);
+  const outlinesLoadSeqRef = useRef(0);
+  const chapterLoadErrorRef = useRef<string | null>(chapterLoadError);
+  const outlineReadStateRef = useRef<{ loading: boolean; error: string | null }>({ loading: true, error: null });
   const reloadChaptersInFlightRef = useRef<{
     projectId: number;
     chapterId: number | undefined;
@@ -209,6 +222,8 @@ export const WritingDesk: React.FC = () => {
   );
   const smartBack = useSmartBack("/");
   projectIdRef.current = projectId;
+  chapterLoadErrorRef.current = chapterLoadError;
+  outlineReadStateRef.current = { loading: outlinesLoading, error: outlineLoadError };
 
   useEffect(() => {
     if (!agentRequested) return;
@@ -219,13 +234,17 @@ export const WritingDesk: React.FC = () => {
 
   const handleRightPanelChange = useCallback(
     (panel: RightPanel) => {
+      if (panel !== "none" && resetGeneratedDataBusyRef.current) {
+        addToast(t("common.operationInProgress"), "info");
+        return;
+      }
       if (panel !== "none" && !rightPanelAvailable) {
         addToast(rightPanelUnavailableTip, "info");
         return;
       }
       setRightPanel(panel);
     },
-    [addToast, rightPanelAvailable, rightPanelUnavailableTip, setRightPanel],
+    [addToast, resetGeneratedDataBusyRef, rightPanelAvailable, rightPanelUnavailableTip, setRightPanel, t],
   );
 
   const handleBottomTabChange = useCallback((tab: BottomTab) => {
@@ -252,6 +271,8 @@ export const WritingDesk: React.FC = () => {
     && (!activeEntry || activeChapter != null);
   const chapterReadBlockedReason = chapterLoadError
     ?? (chapterReady ? null : chapterReadError ?? t("novel.loadingChapters"));
+  const outlineReadBlockedReason = outlineLoadError
+    ?? (outlinesLoading ? t("common.operationInProgress") : null);
   const applyChapter = useCallback((chapter: ChapterSummary) => {
     if (!mountedRef.current || projectIdRef.current !== chapter.project_id) return;
     const entry = chapterIndexEntry(chapter);
@@ -456,9 +477,9 @@ export const WritingDesk: React.FC = () => {
   useEffect(() => {
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
+    const outlineRequestSeq = outlinesLoadSeqRef.current + 1;
+    outlinesLoadSeqRef.current = outlineRequestSeq;
     saveContentBusyRef.current = false;
-    resetGeneratedDataBusyRef.current = false;
-    derivedSyncBusyRef.current = false;
     setWritingNotesByChapter({});
     setGenerationWordCountByChapter({});
     setSavingContent(false);
@@ -474,6 +495,7 @@ export const WritingDesk: React.FC = () => {
     (async () => {
       setLoading(true);
       setOutlineLoadError(null);
+      setOutlinesLoading(true);
       try {
         const p = await getProject(String(projectId));
         if (!isCurrentLoad()) return;
@@ -499,11 +521,11 @@ export const WritingDesk: React.FC = () => {
         } else {
           setChapterLoadError(null);
         }
-        if (outlinesResult.status === "rejected") {
+        if (outlinesLoadSeqRef.current === outlineRequestSeq && outlinesResult.status === "rejected") {
           const message = extractErrorMessage(outlinesResult.reason, t("outline.loadFailed"));
           setOutlineLoadError(message);
           addToast(message, "error");
-        } else {
+        } else if (outlinesLoadSeqRef.current === outlineRequestSeq) {
           setOutlineLoadError(null);
         }
         const ch = chaptersResult.status === "fulfilled" ? chaptersResult.value : [];
@@ -511,7 +533,7 @@ export const WritingDesk: React.FC = () => {
         const outlineNumbers = ol.map((outline) => outline.chapter_number);
         setProject(p);
         setChapters(ch);
-        setOutlines(ol);
+        if (outlinesLoadSeqRef.current === outlineRequestSeq) setOutlines(ol);
 
         const fromUrlNumber = requestedChapterNumber();
         if (
@@ -537,6 +559,7 @@ export const WritingDesk: React.FC = () => {
         if (isCurrentLoad()) {
           setLoading(false);
         }
+        if (outlinesLoadSeqRef.current === outlineRequestSeq) setOutlinesLoading(false);
       }
     })();
     return () => {
@@ -642,19 +665,26 @@ export const WritingDesk: React.FC = () => {
 
   const reloadOutlines = useCallback(async (): Promise<boolean> => {
     const requestProjectId = projectId;
+    const requestSeq = outlinesLoadSeqRef.current + 1;
+    outlinesLoadSeqRef.current = requestSeq;
+    setOutlinesLoading(true);
     try {
       const next = await listChapterOutlineIndex(requestProjectId);
-      if (!mountedRef.current || projectIdRef.current !== requestProjectId) return false;
+      if (!mountedRef.current || projectIdRef.current !== requestProjectId || outlinesLoadSeqRef.current !== requestSeq) return false;
       setOutlines(next);
       setOutlineLoadError(null);
       return true;
     } catch (err) {
-      if (mountedRef.current && projectIdRef.current === requestProjectId) {
+      if (mountedRef.current && projectIdRef.current === requestProjectId && outlinesLoadSeqRef.current === requestSeq) {
         const message = extractErrorMessage(err, t("writing.refreshOutlinesFailed"));
         setOutlineLoadError(message);
         addToast(message, "error");
       }
       return false;
+    } finally {
+      if (mountedRef.current && projectIdRef.current === requestProjectId && outlinesLoadSeqRef.current === requestSeq) {
+        setOutlinesLoading(false);
+      }
     }
   }, [addToast, projectId]);
 
@@ -671,30 +701,67 @@ export const WritingDesk: React.FC = () => {
       addToast(lifecycleBlockedReason, "info");
       return;
     }
+    if (resetGeneratedDataBusyRef.current) {
+      addToast(t("common.operationInProgress"), "info");
+      return;
+    }
+    if (saveContentBusyRef.current || contentDiffActionRef.current) {
+      addToast(t("common.operationInProgress"), "info");
+      return;
+    }
+    if (derivedSyncBusyRef.current) {
+      addToast(t("common.operationInProgress"), "info");
+      return;
+    }
     const workflowRunId = activeChapter?.derived_sync_workflow_run_id;
     if (
       !workflowRunId ||
-      !activeChapter?.derived_sync_can_resume ||
-      derivedSyncBusyRef.current
+      !activeChapter?.derived_sync_can_resume
     ) {
       addToast(t("writing.noSyncTask"), "error");
       return;
     }
+    const chapter = activeChapter;
+    const requestProjectId = projectId;
     derivedSyncBusyRef.current = true;
+    setDerivedSyncBusy(true);
     try {
-      await resumeWorkflowRun(workflowRunId);
-      await reloadChapters({ force: true });
-      addToast(t("writing.derivedMaterialsSynced"), "success");
+      const run = await resumeWorkflowRun(workflowRunId);
+      if (projectIdRef.current !== requestProjectId || activeNumberRef.current !== chapter.chapter_number) {
+        return;
+      }
+      applyChapter({
+        ...chapter,
+        derived_sync_status: run.status,
+        derived_sync_workflow_run_id: run.id,
+        derived_sync_can_resume: run.can_resume,
+        derived_sync_error: run.error_message,
+      });
+      const statusTone = run.status === "completed"
+        ? "success"
+        : run.status === "running" || run.status === "pending"
+          ? "info"
+          : "error";
+      addToast(
+        run.status === "completed"
+          ? t("writing.derivedMaterialsSynced")
+          : run.status === "running" || run.status === "pending"
+            ? t("writing.syncingMaterials")
+            : run.error_message || t("writing.derivedSyncFailed"),
+        statusTone,
+      );
+      void reloadChapters({ force: true, chapterId: chapter.id });
     } catch (error) {
-      await reloadChapters({ force: true });
       addToast(
         extractErrorMessage(error, t("writing.derivedSyncFailed")),
         "error",
       );
+      void reloadChapters({ force: true, chapterId: chapter.id });
     } finally {
       derivedSyncBusyRef.current = false;
+      setDerivedSyncBusy(false);
     }
-  }, [activeChapter, addToast, lifecycleBlockedReason, reloadChapters]);
+  }, [activeChapter, addToast, applyChapter, lifecycleBlockedReason, reloadChapters, resetGeneratedDataBusyRef, t]);
 
   useEffect(() => {
     if (!chapters.some((chapter) => chapter.derived_sync_status === "running")) {
@@ -731,7 +798,7 @@ export const WritingDesk: React.FC = () => {
     activeChapter,
     activeOutline,
     activeOutlineText,
-    projectBlockedReason: lifecycleBlockedReason ?? chapterReadBlockedReason,
+    projectBlockedReason: lifecycleBlockedReason ?? chapterReadBlockedReason ?? outlineReadBlockedReason,
     writingNotes,
     wordCountRange: parsedWordCountRange.range,
     wordCountRangeError: generationWordCountError,
@@ -814,15 +881,34 @@ export const WritingDesk: React.FC = () => {
   );
 
   const handleCreateChapter = useCallback(async () => {
+    if (resetGeneratedDataBusyRef.current) {
+      addToast(t("common.operationInProgress"), "info");
+      return;
+    }
     if (chapterLoadError) {
       addToast(chapterLoadError, "error");
       return;
     }
+    const requestChapterLoadSeq = loadSeqRef.current;
+    const ensureOutlinesCurrent = () => {
+      const state = outlineReadStateRef.current;
+      if (!state.loading && state.error == null) return true;
+      addToast(state.error ?? t("common.operationInProgress"), "error");
+      return false;
+    };
+    if (!ensureOutlinesCurrent()) return;
     if (lifecycleBlockedReason) {
       addToast(lifecycleBlockedReason, "info");
       return;
     }
     if (!await confirmWritingDeskAction(t("writing.createChapter"))) return;
+    if (
+      loadSeqRef.current !== requestChapterLoadSeq ||
+      chapterLoadErrorRef.current != null
+    ) {
+      addToast(chapterLoadErrorRef.current ?? t("common.operationInProgress"), "error");
+      return;
+    }
 
     // chapterNumbers 还包含“当前正在编辑但尚未保存”的占位章节；默认值只看已持久化资料。
     const defaultChapterNumber = Math.max(
@@ -838,6 +924,14 @@ export const WritingDesk: React.FC = () => {
       confirmText: t("writing.enterChapter"),
     });
     if (input == null) return;
+    if (
+      loadSeqRef.current !== requestChapterLoadSeq ||
+      chapterLoadErrorRef.current != null
+    ) {
+      addToast(chapterLoadErrorRef.current ?? t("common.operationInProgress"), "error");
+      return;
+    }
+    if (!ensureOutlinesCurrent()) return;
 
     const normalized = input.trim();
     if (!/^[1-9]\d*$/.test(normalized)) {
@@ -861,7 +955,15 @@ export const WritingDesk: React.FC = () => {
     confirmedChapterNavigationRef.current = { from: activeNumberRef.current, to: chapterNumber };
     setChapterQuery("");
     setActiveNumber(chapterNumber);
-  }, [addToast, chapters, chapterLoadError, confirmWritingDeskAction, lifecycleBlockedReason, locale, outlines, prepareWritingDeskNavigation, setActiveNumber, t]);
+  }, [addToast, chapters, chapterLoadError, confirmWritingDeskAction, lifecycleBlockedReason, locale, outlines, prepareWritingDeskNavigation, resetGeneratedDataBusyRef, setActiveNumber, t]);
+
+  const handleOpenProfiles = useCallback(() => {
+    if (resetGeneratedDataBusyRef.current) {
+      addToast(t("common.operationInProgress"), "info");
+      return;
+    }
+    setProfilesOpen(true);
+  }, [addToast, resetGeneratedDataBusyRef, t]);
 
   const safeNavigateTo = useCallback(
     async (to: string) => {
@@ -928,7 +1030,7 @@ export const WritingDesk: React.FC = () => {
     addToast,
   });
 
-  const clearResetProjectState = useCallback(async () => {
+  const clearResetProjectState = useCallback(async (): Promise<string | null> => {
     clearStreamState(null);
     setChapters([]);
     setOutlines([]);
@@ -942,8 +1044,14 @@ export const WritingDesk: React.FC = () => {
     setBottomTab("content");
     setEditorState("", false);
     resetDraftTracking();
-    await clearProjectDrafts();
+    let draftCleanupError: string | null = null;
+    try {
+      await clearProjectDrafts();
+    } catch (error) {
+      draftCleanupError = extractErrorMessage(error, t("writing.localDraftCleanupFailed"));
+    }
     setProfilesRefreshKey((value) => value + 1);
+    return draftCleanupError;
   }, [
     clearProjectDrafts,
     clearStreamState,
@@ -951,6 +1059,7 @@ export const WritingDesk: React.FC = () => {
     resetPromptPreview,
     setActiveNumber,
     setEditorState,
+    t,
   ]);
 
   useEffect(() => {
@@ -966,8 +1075,13 @@ export const WritingDesk: React.FC = () => {
           if (nextProject.lifecycle_gate !== "active") return;
           window.clearInterval(timer);
           setProject(nextProject);
-          await clearResetProjectState();
-          addToast(t("novel.resetFinishingComplete"), "success");
+          const draftCleanupError = await clearResetProjectState();
+          addToast(
+            draftCleanupError
+              ? `${t("novel.resetFinishingComplete")}${t("common.summarySeparator")}${t("writing.resetDraftCleanupWarning", { error: draftCleanupError })}`
+              : t("novel.resetFinishingComplete"),
+            draftCleanupError ? "info" : "success",
+          );
         })
         .catch((error) => {
           if (errorReported || !mountedRef.current) return;
@@ -988,8 +1102,11 @@ export const WritingDesk: React.FC = () => {
     projectId,
     project,
     chapters,
+    projectIdRef,
+    confirmPendingEdits: () => confirmWritingDeskAction(t("writing.resetGeneratedData")),
     lifecycleBlockedReason: lifecycleBlockedReason ?? chapterReadBlockedReason,
     resetGeneratedDataBusy,
+    derivedSyncBusy,
     streamTaskId,
     streamBusy,
     resetGeneratedDataBusyRef,
@@ -999,6 +1116,13 @@ export const WritingDesk: React.FC = () => {
     addToast,
     t,
   });
+  const requestResetGeneratedData = useCallback(async () => {
+    if (saveContentBusyRef.current || contentDiffActionRef.current) {
+      addToast(t("common.operationInProgress"), "info");
+      return;
+    }
+    await handleResetGeneratedData();
+  }, [addToast, handleResetGeneratedData, t]);
 
   const handleOptimizedChapterContentChanged = useCallback(
     async (chapterId: number): Promise<boolean | void> => {
@@ -1030,6 +1154,18 @@ export const WritingDesk: React.FC = () => {
 
   const handleApplyContentDiff = useCallback(async () => {
     const diff = pendingContentDiff;
+    if (
+      resetGeneratedDataBusyRef.current ||
+      derivedSyncBusyRef.current ||
+      saveContentBusyRef.current
+    ) {
+      addToast(t("common.operationInProgress"), "info");
+      return;
+    }
+    if (dirtyRef.current) {
+      addToast(t("writing.unsavedAiBlocked"), "info");
+      return;
+    }
     if (
       !diff ||
       diff.sessionId == null ||
@@ -1076,7 +1212,7 @@ export const WritingDesk: React.FC = () => {
       contentDiffActionRef.current = false;
       setContentDiffAction(null);
     }
-  }, [addToast, handleOptimizedChapterContentChanged, pendingContentDiff, t]);
+  }, [addToast, dirtyRef, handleOptimizedChapterContentChanged, pendingContentDiff, t]);
 
   const handleRejectContentDiff = useCallback(async () => {
     const diff = pendingContentDiff;
@@ -1123,16 +1259,18 @@ export const WritingDesk: React.FC = () => {
     activeChapter,
     activeOutline,
     activeChapterBusy,
+    derivedSyncBusy,
+    resetGeneratedDataBusyRef,
     activeChapterGeneratingMessage,
     editorContent,
     editorRevisionRef,
     saveContentBusyRef,
+    contentDiffActionRef,
     activeNumberRef,
     addToast,
     t,
     setSavingContent,
     applyChapter,
-    reloadChapters,
     getCurrentEditorContent,
     removeDraftForChapter,
     setEditorState,
@@ -1153,6 +1291,10 @@ export const WritingDesk: React.FC = () => {
   });
 
   const handleOpenScenes = () => {
+    if (resetGeneratedDataBusyRef.current) {
+      addToast(t("common.operationInProgress"), "info");
+      return;
+    }
     if (lifecycleBlockedReason) {
       addToast(lifecycleBlockedReason, "info");
       return;
@@ -1221,7 +1363,7 @@ export const WritingDesk: React.FC = () => {
     onMaxWordCountChange: handleMaxWordCountChange,
     onStreamStart: handleStreamStart,
     onStreamCancel: handleStreamCancel,
-    onResetGeneratedData: handleResetGeneratedData,
+    onResetGeneratedData: requestResetGeneratedData,
     onPreviewPrompt: handlePreviewPrompt,
     onOpenScenes: handleOpenScenes,
     onChapterContentChanged: handleOptimizedChapterContentChanged,
@@ -1272,7 +1414,7 @@ export const WritingDesk: React.FC = () => {
         onNext: handleNext,
         onSelectChapter: safeSelectChapter,
         onToggleLeftSidebar: handleToggleLeftSidebar,
-        onOpenProfiles: () => setProfilesOpen(true),
+        onOpenProfiles: handleOpenProfiles,
         onRightPanelChange: handleRightPanelChange,
         onSaveContent: handleSaveContent,
       }}
@@ -1290,7 +1432,7 @@ export const WritingDesk: React.FC = () => {
         profilesRefreshKey,
         onChapterQueryChange: setChapterQuery,
         onClearChapterQuery: () => setChapterQuery(""),
-        onOpenProfiles: () => setProfilesOpen(true),
+        onOpenProfiles: handleOpenProfiles,
         onRefreshChapters: handleRefreshChapters,
         onCreateChapter: handleCreateChapter,
         onSelectChapter: safeSelectChapter,
@@ -1307,12 +1449,16 @@ export const WritingDesk: React.FC = () => {
         editorContent,
         dirty,
         savingContent,
+        resettingProjectData: resetGeneratedDataBusy,
         autoScrollEditorContent: streamingActiveChapter,
         wordCount,
         generatingAnalysis: analysisBusy,
         bottomTab,
         onBottomTabChange: handleBottomTabChange,
-        onEditorContentChange: (content) => setEditorState(content, true),
+        onEditorContentChange: (content) => {
+          if (resetGeneratedDataBusyRef.current) return;
+          setEditorState(content, true);
+        },
         pendingContentDiff:
           pendingContentDiff?.chapterId === activeChapter?.id
             ? pendingContentDiff
@@ -1325,6 +1471,7 @@ export const WritingDesk: React.FC = () => {
         onResumeAnalysisSync: handleResumeAnalysisSync,
         onPreviewResumeAnalysisSync: handlePreviewResumeAnalysisSyncRequest,
         onResumeDerivedSync: handleResumeDerivedSync,
+        resumingDerivedSync: derivedSyncBusy,
         onOpenEmbeddingSettings: () => safeNavigateTo("/settings#embedding"),
         canEdit: canEditWritingProject,
       }}

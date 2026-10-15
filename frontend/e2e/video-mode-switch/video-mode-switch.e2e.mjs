@@ -66,6 +66,12 @@ const frameMenuItem = (menu, label) =>
   menu.$(`.//*[@role="menuitem" and normalize-space()=${JSON.stringify(label)}]`);
 
 const openSegmentConfig = async (segmentNumber) => {
+  const framesTab = () => $('button[role="tab"][id$="-tab-frames"]');
+  await browser.waitUntil(async () => (await framesTab()).isClickable());
+  if ((await (await framesTab()).getAttribute("aria-selected")) !== "true") {
+    await (await framesTab()).click();
+    await browser.waitUntil(async () => (await (await framesTab()).getAttribute("aria-selected")) === "true");
+  }
   const button = await pageSegmentButton(segmentNumber);
   await revealByWheel(button);
   await button.waitForClickable();
@@ -235,6 +241,76 @@ describe("video segment mode switching in Chromium", () => {
     ]);
     assert.match(await segmentHeaderText(1), /Chat 生视频/);
     assert.match(await segmentHeaderText(2), /首尾帧生成/);
+  });
+
+  it("UX-1758 keeps a failed segment recipe as an unsaved draft until the user discards it", async () => {
+    await browser.url("/e2e/video-mode-switch/?scenario=recipe-save-failure");
+    const { group } = await openSegmentConfig(1);
+    await group.$('.//button[normalize-space()="Chat"]').click();
+    await browser.waitUntil(async () => (await $("body").getText()).includes("分镜方案保存失败测试"));
+
+    assert.match(await segmentHeaderText(1), /Chat 生视频/, "The failed save must retain the attempted recipe locally");
+    assert.match(await $("body").getText(), /分镜方案保存失败测试/);
+    await closeSegmentConfig(1);
+    const workspaceTabs = await $('[role="tablist"][aria-label="视频工作区"]');
+    const director = await workspaceTabs.$('.//button[@role="tab" and .//span[normalize-space()="导演编排"]]');
+    await director.click();
+    const discardDialog = await $('//div[@role="dialog" and .//h3[normalize-space()="未保存修改"]]');
+    await discardDialog.waitForDisplayed();
+    await discardDialog.$('.//button[normalize-space()="取消"]').click();
+    await browser.waitUntil(async () => (await director.getAttribute("aria-selected")) === "false");
+    assert.match(await segmentHeaderText(1), /Chat 生视频/);
+
+    await director.click();
+    await discardDialog.waitForDisplayed();
+    await discardDialog.$('.//button[normalize-space()="放弃草稿"]').click();
+    await browser.waitUntil(async () => (await director.getAttribute("aria-selected")) === "true");
+    const frames = await workspaceTabs.$('.//button[@role="tab" and .//span[normalize-space()="片段规划"]]');
+    await frames.click();
+    await browser.waitUntil(async () => (await frames.getAttribute("aria-selected")) === "true");
+    assert.match(await segmentHeaderText(1), /首尾帧生成/, "Discarding the failed draft must restore the persisted recipe");
+    assert.equal((await recipeUpdates()).length, 1, "Changing workspace tabs must not retry the failed save");
+  });
+
+  it("UX-1761 keeps a recipe save error visible after selecting another segment", async () => {
+    await browser.url("/e2e/video-mode-switch/?scenario=recipe-save-failure");
+    const { group } = await openSegmentConfig(1);
+    await group.$('.//button[normalize-space()="Chat"]').click();
+    await browser.waitUntil(async () => (await $("body").getText()).includes("分镜方案保存失败测试"));
+    await closeSegmentConfig(1);
+
+    const secondSegment = await pageSegmentButton(2);
+    await secondSegment.click();
+    await browser.waitUntil(async () => (await secondSegment.getAttribute("aria-current")) === "true");
+    assert.ok((await $("body").getText()).includes("片段 1 的执行方案未保存：分镜方案保存失败测试"));
+    assert.match(await segmentHeaderText(1), /Chat 生视频/);
+  });
+
+  it("UX-1759/UX-1760 scopes a pending recipe save to its segment and keeps the selected workspace", async () => {
+    await browser.url("/e2e/video-mode-switch/?scenario=recipe-save-pending");
+    const { group } = await openSegmentConfig(1);
+    await group.$('.//button[normalize-space()="Chat"]').click();
+    await browser.waitUntil(async () => browser.execute(() =>
+      window.__A4N_VIDEO_MODE_E2E__.calls.some((call) => call.command === "update_chapter_video_segment_recipe"),
+    ));
+    await closeSegmentConfig(1);
+
+    const secondSegment = await pageSegmentButton(2);
+    await secondSegment.click();
+    await browser.waitUntil(async () => (await secondSegment.getAttribute("aria-current")) === "true");
+    const workspaceTabs = await $('[role="tablist"][aria-label="视频工作区"]');
+    const director = await workspaceTabs.$('.//button[@role="tab" and .//span[normalize-space()="导演编排"]]');
+    await director.click();
+    await browser.waitUntil(async () => (await $("body").getText()).includes("操作仍在进行"));
+    const frames = await workspaceTabs.$('.//button[@role="tab" and .//span[normalize-space()="片段规划"]]');
+    await browser.waitUntil(async () => (await frames.getAttribute("aria-selected")) === "true");
+    assert.equal(await $('[role="dialog"]').isExisting(), false, "An in-flight save must block before the discard prompt");
+
+    await browser.execute(() => window.__A4N_VIDEO_MODE_E2E__.releasePendingRecipeSave());
+    await browser.waitUntil(async () => (await recipeUpdates()).length === 1);
+    await browser.waitUntil(async () => (await frames.getAttribute("aria-selected")) === "true");
+    await director.click();
+    await browser.waitUntil(async () => (await director.getAttribute("aria-selected")) === "true");
   });
 
   it("closes only the top modal and restores focus through the modal stack", async () => {

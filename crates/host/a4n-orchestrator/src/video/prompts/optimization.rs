@@ -55,13 +55,14 @@ pub(in crate::video) struct VideoPromptOptimizationInput {
     pub(in crate::video) instruction: String,
     pub(in crate::video) allow_downstream: bool,
     pub(in crate::video) delete_dependencies: Option<VideoPromptDownstreamDependencies>,
+    pub(in crate::video) expected_updated_at: String,
 }
 
 struct PreparedVideoPromptOptimization {
     prompt: ChapterVideoPromptRecord,
     prompt_kind: VideoPromptOptimizationKind,
     allow_downstream: bool,
-    delete_dependencies: Option<VideoPromptDownstreamDependencies>,
+    expected_updated_at: String,
     prompt_output_language: PromptOutputLanguage,
     optimized_metadata: Value,
     request: ChatRequest,
@@ -96,6 +97,7 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
         cleanup_port: &dyn VideoPromptDownstreamCleanupPort,
     ) -> Result<ChapterVideoPromptRecord, AppError> {
+        let delete_dependencies = input.delete_dependencies.clone();
         let prepared = self
             .prepare_video_prompt_optimization(input, prompt_renderer)
             .await?;
@@ -110,10 +112,30 @@ impl OrchestratorContext {
             )
             .await?;
         let result = self
-            .execute_video_prompt_optimization(workflow_run.id, prepared, cleanup_port)
+            .execute_video_prompt_optimization(workflow_run.id, prepared)
             .await;
-        self.finalize_workflow_result(workflow_run.id, result, "视频提示词优化")
-            .await
+        let row = self
+            .finalize_workflow_result(workflow_run.id, result, "视频提示词优化")
+            .await?;
+        if let Some(dependencies) = delete_dependencies {
+            cleanup_port
+                .delete_downstream_media(&dependencies.image_ids, &dependencies.video_ids)
+                .await
+                .map_err(|error| AppError::InvalidState {
+                    current: "video_prompt_saved".to_string(),
+                    operation: format!("视频提示词已保存，但下游素材清理失败：{error}"),
+                })?;
+            if !dependencies.prompt_ids.is_empty() {
+                self.delete_chapter_video_prompts_checked(&dependencies.prompt_ids, true)
+                    .await
+                    .map_err(|error| AppError::InvalidState {
+                        current: "video_prompt_saved".to_string(),
+                        operation: format!("视频提示词已保存，但下游提示词清理失败：{error}"),
+                    })?;
+            }
+            return self.chapter_video_prompt(row.id).await;
+        }
+        Ok(row)
     }
 
     async fn prepare_video_prompt_optimization(
@@ -210,7 +232,7 @@ impl OrchestratorContext {
             prompt: input.prompt,
             prompt_kind,
             allow_downstream: input.allow_downstream,
-            delete_dependencies: input.delete_dependencies,
+            expected_updated_at: input.expected_updated_at,
             prompt_output_language,
             optimized_metadata,
             request,
@@ -226,7 +248,6 @@ impl OrchestratorContext {
         &self,
         workflow_run_id: i64,
         mut prepared: PreparedVideoPromptOptimization,
-        cleanup_port: &dyn VideoPromptDownstreamCleanupPort,
     ) -> Result<ChapterVideoPromptRecord, AppError> {
         let generation_input_fingerprint_sha256 =
             generation_checkpoint_fingerprint_sha256(&prepared.input_fingerprint_json)?;
@@ -252,14 +273,11 @@ impl OrchestratorContext {
             )
             .await?;
 
-        if let Some(dependencies) = prepared.delete_dependencies.as_ref() {
-            cleanup_port
-                .delete_downstream_media(&dependencies.image_ids, &dependencies.video_ids)
-                .await?;
-            if !dependencies.prompt_ids.is_empty() {
-                self.delete_chapter_video_prompts_checked(&dependencies.prompt_ids, true)
-                    .await?;
-            }
+        let current = self.chapter_video_prompt(prepared.prompt.id).await?;
+        if current.updated_at.to_string() != prepared.expected_updated_at.trim() {
+            return Err(AppError::InvalidArgument(
+                "视频提示词已被其他操作修改，请刷新后重试".to_string(),
+            ));
         }
 
         let VideoPromptOptimizationCallResult {
@@ -270,7 +288,7 @@ impl OrchestratorContext {
             motion_prompt,
             negative_prompt,
         } = call_result;
-        self.update_chapter_video_prompt_with_generation_run_checkpoint(
+        self.update_chapter_video_prompt_with_generation_run_checkpoint_expected(
             prepared.prompt.id,
             ChapterVideoPromptPatch {
                 visual_prompt: Some(visual_prompt.clone()),
@@ -281,6 +299,7 @@ impl OrchestratorContext {
             },
             Some(prepared.optimized_metadata),
             prepared.allow_downstream,
+            Some(&prepared.expected_updated_at),
             RecordCompletedGenerationRunWithCheckpointInput {
                 run: RecordCompletedGenerationRunInput {
                     project_id: prepared.prompt.project_id,

@@ -386,6 +386,7 @@ export function ToolbarSelect({
 export function ProfileMaterialUploadDialog({
   group,
   busy,
+  writeDisabled = false,
   setPrimary,
   onSetPrimaryChange,
   onClose,
@@ -394,6 +395,7 @@ export function ProfileMaterialUploadDialog({
 }: {
   group: ProfileMaterialGroup | null;
   busy: boolean;
+  writeDisabled?: boolean;
   setPrimary: boolean;
   onSetPrimaryChange: (value: boolean) => void;
   onClose: () => void;
@@ -433,7 +435,7 @@ export function ProfileMaterialUploadDialog({
           type="button"
           role="switch"
           aria-checked={setPrimary}
-          disabled={busy}
+          disabled={busy || writeDisabled}
           onClick={() => onSetPrimaryChange(!setPrimary)}
           className="flex w-full items-center justify-between gap-3 border-b border-book-border/35 pb-3 text-left disabled:cursor-not-allowed disabled:opacity-60"
         >
@@ -462,7 +464,7 @@ export function ProfileMaterialUploadDialog({
         <div className="rounded-2xl border border-dashed border-book-border/70 bg-book-bg-tertiary/35 p-4">
           <label
             className={`inline-flex min-h-10 items-center gap-2 rounded-xl bg-book-primary px-3.5 text-xs font-medium text-white transition-colors hover:bg-book-primary/90 ${
-              busy ? "pointer-events-none opacity-60" : "cursor-pointer"
+              busy || writeDisabled ? "pointer-events-none opacity-60" : "cursor-pointer"
             }`}
           >
             <Upload size={14} />
@@ -470,7 +472,7 @@ export function ProfileMaterialUploadDialog({
             <input
               type="file"
               accept={supportedImageAccept()}
-              disabled={busy}
+              disabled={busy || writeDisabled}
               className="sr-only"
               onChange={(event) => {
                 const file = event.target.files?.[0] ?? null;

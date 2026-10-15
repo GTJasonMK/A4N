@@ -3,6 +3,7 @@ pub(super) async fn create(
     headers: HeaderMap,
     Json(input): Json<CreatePageSessionInput>,
 ) -> Result<(StatusCode, Json<PageSessionCreateResponse>), ApiError> {
+    let _page_cli_access = state.page_sessions().page_cli_gate().read().await;
     let user = authenticated_user(&state, &headers).await?;
     Ok((
         StatusCode::CREATED,
@@ -36,6 +37,7 @@ pub(super) async fn authorize(
     headers: HeaderMap,
     Path(session_id): Path<String>,
 ) -> Result<Json<PageAuthorization>, ApiError> {
+    let _page_cli_access = state.page_sessions().page_cli_gate().read().await;
     let user = authenticated_user(&state, &headers).await?;
     Ok(Json(state.page_sessions().authorize(
         user.id,
@@ -51,6 +53,7 @@ pub(super) async fn attach(
     Path(session_id): Path<String>,
     Json(input): Json<AttachPageSessionInput>,
 ) -> Result<Json<PageAttachResponse>, ApiError> {
+    let _page_cli_access = state.page_sessions().page_cli_gate().read().await;
     let user = authenticated_user(&state, &headers).await?;
     Ok(Json(state.page_sessions().attach(
         user.id,
@@ -67,6 +70,7 @@ pub(super) async fn attach_by_code(
     headers: HeaderMap,
     Json(input): Json<AttachPageSessionInput>,
 ) -> Result<Json<PageAttachResponse>, ApiError> {
+    let _page_cli_access = state.page_sessions().page_cli_gate().read().await;
     let user = authenticated_user(&state, &headers).await?;
     Ok(Json(state.page_sessions().attach_by_code(
         user.id,
@@ -82,6 +86,7 @@ pub(super) async fn commands(
     headers: HeaderMap,
     Path(session_id): Path<String>,
 ) -> Result<Json<PageCommandManifest>, ApiError> {
+    let _page_cli_access = state.page_sessions().page_cli_gate().read().await;
     let user = authenticated_user(&state, &headers).await?;
     Ok(Json(state.page_sessions().commands(
         user.id,
@@ -98,6 +103,7 @@ pub(super) async fn context(
     Path(session_id): Path<String>,
     Json(input): Json<PageContext>,
 ) -> Result<Json<PageSessionView>, ApiError> {
+    let _page_cli_access = state.page_sessions().page_cli_gate().read().await;
     let user = authenticated_user(&state, &headers).await?;
     Ok(Json(state.page_sessions().update_context(
         user.id,
@@ -113,6 +119,7 @@ pub(super) async fn heartbeat(
     Path(session_id): Path<String>,
     Json(input): Json<PageHeartbeatInput>,
 ) -> Result<Json<PageSessionView>, ApiError> {
+    let _page_cli_access = state.page_sessions().page_cli_gate().read().await;
     let user = authenticated_user(&state, &headers).await?;
     Ok(Json(state.page_sessions().heartbeat(
         user.id,
@@ -128,6 +135,7 @@ pub(super) async fn start_operation(
     Path(session_id): Path<String>,
     Json(input): Json<PageOperationInput>,
 ) -> Result<(StatusCode, Json<PageOperationView>), ApiError> {
+    let _page_cli_access = state.page_sessions().page_cli_gate().read().await;
     let user = authenticated_user(&state, &headers).await?;
     Ok((
         StatusCode::CREATED,
@@ -151,6 +159,7 @@ pub(super) async fn update_operation(
     path: Path<(String, String)>,
     Json(input): Json<PageOperationUpdate>,
 ) -> Result<Json<PageOperationView>, ApiError> {
+    let _page_cli_access = state.page_sessions().page_cli_gate().read().await;
     let user = authenticated_user(&state, &headers).await?;
     let (session_id, operation_id) = path.0;
     Ok(Json(state.page_sessions().update_operation(
@@ -172,6 +181,7 @@ pub(super) async fn navigate(
     Path(session_id): Path<String>,
     Json(input): Json<PageNavigationInput>,
 ) -> Result<Json<PageSessionView>, ApiError> {
+    let _page_cli_access = state.page_sessions().page_cli_gate().read().await;
     let user = authenticated_user(&state, &headers).await?;
     Ok(Json(state.page_sessions().navigate(
         user.id,
@@ -190,6 +200,7 @@ pub(super) async fn control(
     headers: HeaderMap,
     path: Path<(String, String)>,
 ) -> Result<Json<PageSessionView>, ApiError> {
+    let _page_cli_access = state.page_sessions().page_cli_gate().read().await;
     let user = authenticated_user(&state, &headers).await?;
     let (session_id, action) = path.0;
     Ok(Json(state.page_sessions().control(

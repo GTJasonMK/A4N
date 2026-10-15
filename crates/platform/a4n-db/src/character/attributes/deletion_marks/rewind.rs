@@ -96,7 +96,10 @@ where
             )
             .col_expr(
                 protagonist_deletion_mark::Column::UpdatedAt,
-                Expr::value(now),
+                Expr::cust_with_values(
+                    "GREATEST($1, updated_at + INTERVAL '1 microsecond')",
+                    [now],
+                ),
             )
             .filter(protagonist_deletion_mark::Column::ProfileId.eq(profile_id))
             .filter(protagonist_deletion_mark::Column::Id.is_in(rewound_ids.iter().copied()))

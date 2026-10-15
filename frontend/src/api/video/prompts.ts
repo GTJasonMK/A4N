@@ -10,6 +10,8 @@ import type {
   GetVideoTimelineInput,
   MoveInsertedSegmentInput,
   OptimizeChapterVideoPromptInput,
+  VideoPromptDeleteResult,
+  VideoPromptUpdateResult,
   UpdateChapterVideoSegmentPlanInput,
   UpdateChapterVideoPromptInput,
   VideoTimelineItemSummary,
@@ -302,8 +304,8 @@ export async function updateChapterVideoSegmentPlan(
 export async function updateChapterVideoPrompt(
   promptId: Id,
   input: UpdateChapterVideoPromptInput,
-): Promise<ChapterVideoPrompt> {
-  return apiInvoke<ChapterVideoPrompt>("update_chapter_video_prompt", {
+): Promise<VideoPromptUpdateResult> {
+  return apiInvoke<VideoPromptUpdateResult>("update_chapter_video_prompt", {
     userId: currentUserId(),
     promptId: idNum(promptId, "视频提示词 ID"),
     input,
@@ -313,8 +315,8 @@ export async function updateChapterVideoPrompt(
 export async function optimizeChapterVideoPrompt(
   promptId: Id,
   input: OptimizeChapterVideoPromptInput,
-): Promise<ChapterVideoPrompt> {
-  return apiInvoke<ChapterVideoPrompt>("optimize_chapter_video_prompt", {
+): Promise<VideoPromptUpdateResult> {
+  return apiInvoke<VideoPromptUpdateResult>("optimize_chapter_video_prompt", {
     userId: currentUserId(),
     promptId: idNum(promptId, "视频提示词 ID"),
     input,
@@ -324,8 +326,8 @@ export async function optimizeChapterVideoPrompt(
 export async function deleteChapterVideoPrompt(
   promptId: Id,
   downstreamStrategy: DownstreamConflictStrategy,
-): Promise<void> {
-  return apiInvoke<void>("delete_chapter_video_prompt", {
+): Promise<VideoPromptDeleteResult> {
+  return apiInvoke<VideoPromptDeleteResult>("delete_chapter_video_prompt", {
     userId: currentUserId(),
     input: {
       prompt_id: idNum(promptId, "视频提示词 ID"),

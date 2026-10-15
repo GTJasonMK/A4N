@@ -90,6 +90,10 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
   };
 
   const handleSave = async () => {
+    if (loadError) {
+      addToast(loadError, "error");
+      return;
+    }
     const name = form.name.trim();
     if (!name) {
       addToast(t("characterDetail.nameRequiredError"), "error");
@@ -123,12 +127,16 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
       ) {
         return;
       }
-      const loaded = await load({ silent: true, force: true });
-      if (
-        activeProjectIdRef.current !== requestProjectId ||
-        saveSeqRef.current !== requestSeq
-      ) return;
-      if (!loaded) return;
+      if (!editingProfile) {
+        setProfiles((current) => [
+          result.profile,
+          ...current.filter((profile) => profile.id !== result.profile.id),
+        ]);
+      } else {
+        setProfiles((current) => current.map((profile) =>
+          profile.id === result.profile.id ? result.profile : profile,
+        ));
+      }
       setEditorOpen(false);
       setEditingProfile(null);
       addToast(
@@ -147,6 +155,15 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
             : tRef.current("characterDetail.profileCreated", { name }),
         result.warnings.length > 0 ? "info" : "success",
       );
+      void load({ silent: true, force: true }).then((loaded) => {
+        if (
+          activeProjectIdRef.current === requestProjectId &&
+          saveSeqRef.current === requestSeq &&
+          !loaded
+        ) {
+          addToast(tRef.current("characterDetail.refreshFailed"), "error");
+        }
+      });
     } catch (err) {
       if (
         activeProjectIdRef.current === requestProjectId &&
@@ -161,6 +178,7 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
           ),
           "error",
         );
+        void load({ silent: true, force: true });
       }
     } finally {
       if (
@@ -206,7 +224,7 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
           ]}
         />
         {subTab === "profile" ? (
-          <BookButton variant="primary" size="sm" onClick={openCreate} disabled={saving}>
+          <BookButton variant="primary" size="sm" onClick={openCreate} disabled={saving || loadError != null}>
             <UserPlus size={12} /> {t("characterDetail.createProfile")}
           </BookButton>
         ) : null}

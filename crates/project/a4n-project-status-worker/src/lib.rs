@@ -1,6 +1,6 @@
 //! PostgreSQL-backed project-status read worker.
 
-use std::{net::SocketAddr, sync::Arc};
+use std::{env, net::SocketAddr, sync::Arc};
 
 use a4n_api_contract::project::{
     ProjectRollbackPreview, ProjectStatus, ProjectStatusMachineSummary, ProjectStatusMutationResult,
@@ -11,13 +11,14 @@ use a4n_project_status_worker_contract::{
     PROJECT_STATUS_FORWARD_OPERATION, PROJECT_STATUS_MACHINE_OPERATION,
     PROJECT_STATUS_PREVIEW_ROLLBACK_OPERATION, PROJECT_STATUS_READ_CAPABILITY,
     PROJECT_STATUS_ROLLBACK_OPERATION, PROJECT_STATUS_WORKER_CONTRACT_VERSION,
-    PROJECT_STATUS_WORKER_ID, PROJECT_STATUS_WRITE_CAPABILITY, ProjectStatusProjectInput,
-    ProjectStatusRollbackInput,
+    PROJECT_STATUS_WORKER_ID, PROJECT_STATUS_WRITE_CAPABILITY, ProjectStatusForwardInput,
+    ProjectStatusProjectInput, ProjectStatusRollbackInput,
 };
 use a4n_worker_contract::WORKER_AUTH_HEADER;
 use a4n_worker_contract::{
     WORKER_CAPABILITIES_PATH, WORKER_HEALTH_PATH, WORKER_SCHEMA_VERSION, WorkerCapabilities,
-    WorkerCapability, WorkerEnvelope, WorkerFailure, WorkerHealth, WorkerHealthStatus,
+    WorkerCapability, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerHealth,
+    WorkerHealthStatus, WorkerOperationRef, WorkerOperationStatus, WorkerResponse,
 };
 use axum::{
     Json, Router,
@@ -26,6 +27,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
+use subtle::ConstantTimeEq;
 
 const WORKER_ADDR_ENV: &str = "A4N_PROJECT_STATUS_WORKER_ADDR";
 const DATABASE_URL_ENV: &str = "A4N_DATABASE_URL";
@@ -42,6 +44,13 @@ struct WorkerState {
     database: DbHandle,
     worker_id: Arc<str>,
     auth_token: Arc<str>,
+}
+
+#[derive(Debug)]
+struct WorkerFailure {
+    code: WorkerErrorCode,
+    message: String,
+    retryable: bool,
 }
 
 mod operations;
@@ -78,7 +87,7 @@ impl ProjectStatusWorker {
     pub async fn serve(self, address: SocketAddr) -> anyhow::Result<()> {
         let listener = tokio::net::TcpListener::bind(address).await?;
         axum::serve(listener, self.router())
-            .with_graceful_shutdown(a4n_worker_runtime::wait_for_shutdown_signal())
+            .with_graceful_shutdown(shutdown_signal())
             .await
             .map_err(anyhow::Error::from)
     }
@@ -92,15 +101,26 @@ pub fn run() -> anyhow::Result<()> {
 }
 
 async fn async_main() -> anyhow::Result<()> {
-    a4n_worker_runtime::init_worker_tracing();
+    init_tracing();
     let database_url = a4n_config::required_non_empty_env_string(DATABASE_URL_ENV)?;
     a4n_config::validate_postgres_database_url(DATABASE_URL_ENV, &database_url)?;
     let auth_token = a4n_config::required_non_empty_env_string(WORKER_TOKEN_ENV)?;
-    let address = a4n_config::worker_listen_addr(WORKER_ADDR_ENV, DEFAULT_ADDR)?;
+    let address = worker_addr()?;
     let database = DbHandle::connect(database_url).await?;
     ProjectStatusWorker::new(database, PROJECT_STATUS_WORKER_ID, auth_token)
         .serve(address)
         .await
+}
+
+fn worker_addr() -> anyhow::Result<SocketAddr> {
+    let value = env::var(WORKER_ADDR_ENV).unwrap_or_else(|_| DEFAULT_ADDR.into());
+    let address: SocketAddr = value
+        .parse()
+        .map_err(|error| anyhow::anyhow!("{WORKER_ADDR_ENV} 无效: {error}"))?;
+    if !address.ip().is_loopback() || address.port() == 0 {
+        anyhow::bail!("{WORKER_ADDR_ENV} 必须是 loopback 且端口大于 0")
+    }
+    Ok(address)
 }
 
 async fn health(State(state): State<WorkerState>, headers: HeaderMap) -> Response {
@@ -168,7 +188,7 @@ async fn preview_rollback(
 async fn forward(
     State(state): State<WorkerState>,
     headers: HeaderMap,
-    Json(request): Json<WorkerEnvelope<ProjectStatusRollbackInput>>,
+    Json(request): Json<WorkerEnvelope<ProjectStatusForwardInput>>,
 ) -> Response {
     command_response(&state, &headers, request, |request| state.forward(request)).await
 }
@@ -193,13 +213,14 @@ where
     F: FnOnce(WorkerEnvelope<T>) -> Fut,
     Fut: std::future::Future<Output = Result<O, WorkerFailure>>,
 {
-    a4n_worker_runtime::worker_command_response(
-        state.authorized(headers),
-        request,
-        command,
-        unauthorized,
-    )
-    .await
+    if !state.authorized(headers) {
+        return unauthorized();
+    }
+    let response = match command(request.clone()).await {
+        Ok(payload) => completed(&request, payload),
+        Err(error) => failed(&request, error),
+    };
+    Json(response).into_response()
 }
 
 async fn verify_viewer(
@@ -215,7 +236,7 @@ async fn verify_viewer(
     )
     .await
     .map(|_| ())
-    .map_err(a4n_worker_db_adapter::map_collaboration_db_error)
+    .map_err(collaboration_error)
 }
 
 async fn verify_permission(
@@ -232,14 +253,94 @@ async fn verify_permission(
     )
     .await
     .map(|_| ())
-    .map_err(a4n_worker_db_adapter::map_collaboration_db_error)
+    .map_err(collaboration_error)
 }
 
 fn validate_request<T: serde::Serialize>(
     request: &WorkerEnvelope<T>,
     operation: &str,
 ) -> Result<(), WorkerFailure> {
-    request.validate_worker_command(operation, PROJECT_STATUS_WORKER_ID, "project status worker")
+    request
+        .validate()
+        .map_err(|error| WorkerFailure::invalid_request(error.to_string()))?;
+    if request.operation_id != operation {
+        return Err(WorkerFailure::invalid_request(format!(
+            "operation_id 不匹配: expected={operation}, actual={}",
+            request.operation_id
+        )));
+    }
+    if request.lease.worker_id != PROJECT_STATUS_WORKER_ID {
+        return Err(WorkerFailure::invalid_request(
+            "lease.worker_id 不属于 project status worker",
+        ));
+    }
+    Ok(())
+}
+
+fn scoped_project_id<T>(
+    request: &WorkerEnvelope<T>,
+    project_id: i64,
+) -> Result<i64, WorkerFailure> {
+    if project_id <= 0 || request.project_id != Some(project_id) {
+        return Err(WorkerFailure::invalid_request(
+            "worker scope project_id 与 payload 不一致或无效",
+        ));
+    }
+    Ok(project_id)
+}
+
+fn user_id<T>(request: &WorkerEnvelope<T>) -> Result<i64, WorkerFailure> {
+    if request.principal.kind != a4n_worker_contract::WorkerPrincipalKind::User {
+        return Err(WorkerFailure::unauthorized("仅允许用户 principal"));
+    }
+    request
+        .principal
+        .subject
+        .parse::<i64>()
+        .ok()
+        .filter(|id| *id > 0)
+        .ok_or_else(|| WorkerFailure::unauthorized("用户 principal subject 无效"))
+}
+
+fn collaboration_error(error: a4n_db::collaboration::CollaborationDbError) -> WorkerFailure {
+    match error {
+        a4n_db::collaboration::CollaborationDbError::InvalidArgument(message) => {
+            WorkerFailure::invalid_request(message)
+        }
+        a4n_db::collaboration::CollaborationDbError::NotFound(message) => {
+            WorkerFailure::not_found(message)
+        }
+        a4n_db::collaboration::CollaborationDbError::Forbidden(message) => {
+            WorkerFailure::unauthorized(message)
+        }
+        a4n_db::collaboration::CollaborationDbError::InvalidState(message)
+        | a4n_db::collaboration::CollaborationDbError::Internal(message) => {
+            WorkerFailure::conflict(message)
+        }
+        a4n_db::collaboration::CollaborationDbError::Database(error) => {
+            WorkerFailure::unavailable(error.to_string())
+        }
+    }
+}
+
+fn project_mutation_error(error: a4n_db::project::ProjectMutationError) -> WorkerFailure {
+    match error {
+        a4n_db::project::ProjectMutationError::InvalidArgument(message) => {
+            WorkerFailure::invalid_request(message)
+        }
+        a4n_db::project::ProjectMutationError::NotFound(message) => {
+            WorkerFailure::not_found(message)
+        }
+        a4n_db::project::ProjectMutationError::Forbidden(message) => {
+            WorkerFailure::unauthorized(message)
+        }
+        a4n_db::project::ProjectMutationError::Internal(message) => {
+            WorkerFailure::conflict(message)
+        }
+        a4n_db::project::ProjectMutationError::Database(error) => {
+            WorkerFailure::unavailable(error.to_string())
+        }
+    }
 }
 
 fn status_write_error(error: a4n_db::project::ProjectStatusWriteError) -> WorkerFailure {
@@ -256,7 +357,7 @@ fn status_write_error(error: a4n_db::project::ProjectStatusWriteError) -> Worker
             ))
         }
         a4n_db::project::ProjectStatusWriteError::Database { source } => {
-            a4n_worker_db_adapter::map_database_error(source)
+            WorkerFailure::unavailable(source.to_string())
         }
     }
 }
@@ -278,26 +379,9 @@ fn project_reset_error(error: a4n_db::project::reset::ProjectResetDbError) -> Wo
             ))
         }
         a4n_db::project::reset::ProjectResetDbError::Database { source } => {
-            a4n_worker_db_adapter::map_database_error(source)
+            WorkerFailure::unavailable(source.to_string())
         }
         other => WorkerFailure::conflict(other.to_string()),
-    }
-}
-
-fn summary_error(error: a4n_project_read_core::ProjectSummaryError) -> WorkerFailure {
-    match error {
-        a4n_project_read_core::ProjectSummaryError::Database(error) => {
-            a4n_worker_db_adapter::map_database_error(error)
-        }
-        a4n_project_read_core::ProjectSummaryError::Progress(error) => {
-            a4n_worker_db_adapter::map_project_progress_read_error(error)
-        }
-        a4n_project_read_core::ProjectSummaryError::Family(error) => {
-            a4n_worker_db_adapter::map_project_family_metadata_read_error(error)
-        }
-        a4n_project_read_core::ProjectSummaryError::Collaboration(error) => {
-            a4n_worker_db_adapter::map_collaboration_db_error(error)
-        }
     }
 }
 
@@ -307,7 +391,7 @@ fn status_read_error(error: a4n_db::project::ProjectStatusReadError) -> WorkerFa
             WorkerFailure::invalid_request(message)
         }
         a4n_db::project::ProjectStatusReadError::Database { source, .. } => {
-            a4n_worker_db_adapter::map_database_error(source)
+            WorkerFailure::unavailable(source.to_string())
         }
     }
 }
@@ -318,11 +402,108 @@ fn rollback_impact_error(error: a4n_db::project::ProjectRollbackImpactReadError)
             WorkerFailure::invalid_request(message)
         }
         a4n_db::project::ProjectRollbackImpactReadError::Database { source, .. } => {
-            a4n_worker_db_adapter::map_database_error(source)
+            WorkerFailure::unavailable(source.to_string())
         }
+    }
+}
+
+impl WorkerFailure {
+    fn invalid_request(message: impl Into<String>) -> Self {
+        Self {
+            code: WorkerErrorCode::InvalidRequest,
+            message: message.into(),
+            retryable: false,
+        }
+    }
+    fn unauthorized(message: impl Into<String>) -> Self {
+        Self {
+            code: WorkerErrorCode::Unauthorized,
+            message: message.into(),
+            retryable: false,
+        }
+    }
+    fn not_found(message: impl Into<String>) -> Self {
+        Self {
+            code: WorkerErrorCode::NotFound,
+            message: message.into(),
+            retryable: false,
+        }
+    }
+    fn conflict(message: impl Into<String>) -> Self {
+        Self {
+            code: WorkerErrorCode::Conflict,
+            message: message.into(),
+            retryable: false,
+        }
+    }
+    fn unavailable(message: impl Into<String>) -> Self {
+        Self {
+            code: WorkerErrorCode::Unavailable,
+            message: message.into(),
+            retryable: true,
+        }
+    }
+}
+
+fn completed<T>(request: &WorkerEnvelope<impl serde::Serialize>, payload: T) -> WorkerResponse<T> {
+    WorkerResponse {
+        schema_version: WORKER_SCHEMA_VERSION,
+        request_id: request.request_id.clone(),
+        trace_id: request.trace_id.clone(),
+        operation: WorkerOperationRef {
+            operation_id: request.operation_id.clone(),
+            task_id: None,
+        },
+        status: WorkerOperationStatus::Completed,
+        payload: Some(payload),
+        resource_refs: Vec::new(),
+        committed_revision: None,
+        provider_job_id: None,
+        result_summary: None,
+        pagination: None,
+        error: None,
+    }
+}
+
+fn failed<T>(
+    request: &WorkerEnvelope<impl serde::Serialize>,
+    failure: WorkerFailure,
+) -> WorkerResponse<T> {
+    WorkerResponse {
+        schema_version: WORKER_SCHEMA_VERSION,
+        request_id: request.request_id.clone(),
+        trace_id: request.trace_id.clone(),
+        operation: WorkerOperationRef {
+            operation_id: request.operation_id.clone(),
+            task_id: None,
+        },
+        status: WorkerOperationStatus::Failed,
+        payload: None,
+        resource_refs: Vec::new(),
+        committed_revision: None,
+        provider_job_id: None,
+        result_summary: None,
+        pagination: None,
+        error: Some(WorkerError {
+            code: failure.code,
+            message: failure.message,
+            retryable: failure.retryable,
+        }),
     }
 }
 
 fn unauthorized() -> Response {
     StatusCode::UNAUTHORIZED.into_response()
+}
+
+async fn shutdown_signal() {
+    let _ = tokio::signal::ctrl_c().await;
+}
+
+fn init_tracing() {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
+        )
+        .try_init();
 }

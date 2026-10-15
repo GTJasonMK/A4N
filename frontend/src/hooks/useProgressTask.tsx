@@ -28,6 +28,7 @@ interface ProgressTaskState {
   streamText: string | null;
   streaming: boolean;
   error: string | null;
+  progressReadError: string | null;
   events: ProgressTimelineItem[];
   cancelLabel?: string;
   runningHint?: React.ReactNode;
@@ -88,6 +89,7 @@ export async function runTaskWithPolling<T, TUpdate>(
   task: Promise<T>,
   poll: () => Promise<TUpdate>,
   applyUpdate: (update: TUpdate) => void,
+  reportPollError?: (error: unknown | null) => void,
 ): Promise<T> {
   let finished = false;
   let polling = false;
@@ -97,9 +99,12 @@ export async function runTaskWithPolling<T, TUpdate>(
     polling = true;
     try {
       const update = await poll();
-      if (!finished) applyUpdate(update);
-    } catch {
-      // apiInvoke 已记录错误；辅助进度查询不能覆盖真实业务结果。
+      if (!finished) {
+        applyUpdate(update);
+        reportPollError?.(null);
+      }
+    } catch (error) {
+      if (!finished) reportPollError?.(error);
     } finally {
       polling = false;
     }
@@ -119,6 +124,7 @@ export async function runTaskWithProgressEvents<T>(
   task: Promise<T>,
   setProgress: ProgressTaskControl["setProgress"],
   setStreamText?: ProgressTaskControl["setStreamText"],
+  reportPollError?: (error: unknown | null) => void,
 ): Promise<T> {
   const seenEventIds = new Set<string>();
   let afterEventId: string | undefined;
@@ -140,6 +146,7 @@ export async function runTaskWithProgressEvents<T>(
       // 活体信号是快照而非事件：不去重，每次轮询取最新尾巴覆盖。
       if (response.stream_text) setStreamText?.(response.stream_text);
     },
+    reportPollError,
   );
 }
 
@@ -154,6 +161,7 @@ const createProgressTaskState = (): ProgressTaskState => ({
   streamText: null,
   streaming: false,
   error: null,
+  progressReadError: null,
   events: [],
   cancelLabel: undefined,
   runningHint: undefined,
@@ -186,6 +194,8 @@ export function useProgressTask(): ProgressTaskApi {
 
 function useProgressTaskController(): ProgressTaskController {
   const { t } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
   const [progressTask, setProgressTask] = useState<ProgressTaskState>(createProgressTaskState);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
@@ -296,6 +306,17 @@ function useProgressTaskController(): ProgressTaskController {
             taskPromise,
             control.setProgress,
             control.setStreamText,
+            (error) => {
+              if (!isCurrentRun()) return;
+              setProgressTask((prev) => ({
+                ...prev,
+                progressReadError: error == null
+                  ? null
+                  : tRef.current("feedback.progressStatusReadFailed", {
+                      error: extractErrorMessage(error, tRef.current("feedback.progressFailed")),
+                    }),
+              }));
+            },
           )
         : await taskPromise;
       if (!isCurrentRun()) return result;
@@ -312,6 +333,7 @@ function useProgressTaskController(): ProgressTaskController {
             message: options.successMessage,
             meta: timelineEvent.meta ?? null,
             error: null,
+            progressReadError: null,
           },
           timelineEvent,
         ),
@@ -432,6 +454,7 @@ export const ProgressTaskProvider: React.FC<{
         streamText={controller.progressTask.streamText}
         streaming={controller.progressTask.streaming}
         error={controller.progressTask.error}
+        progressError={controller.progressTask.progressReadError}
         events={controller.progressTask.events}
         cancelLabel={controller.progressTask.cancelLabel}
         runningHint={controller.progressTask.runningHint}

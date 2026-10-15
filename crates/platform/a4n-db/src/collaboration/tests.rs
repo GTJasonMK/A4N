@@ -55,7 +55,7 @@ async fn collaboration_flow_keeps_reads_pure_and_mutations_explicit() {
     assert!(collaborating_page.items.is_empty());
     assert_eq!(collaborating_page.total, 0);
 
-    invite_project_member(
+    let created_invite = invite_project_member(
         &db,
         owner.id,
         project.id,
@@ -64,6 +64,10 @@ async fn collaboration_flow_keeps_reads_pure_and_mutations_explicit() {
     )
     .await
     .expect("有效邀请应可创建");
+    assert_eq!(created_invite.project_title, project.title);
+    assert_eq!(created_invite.inviter_username, owner.username);
+    assert_eq!(created_invite.invitee_username, invitee.username);
+    assert_eq!(created_invite.role, ProjectMemberRole::Editor);
     let active_invite = project_invite::Entity::find()
         .filter(project_invite::Column::ProjectId.eq(project.id))
         .filter(project_invite::Column::InviteeUserId.eq(invitee.id))
@@ -97,6 +101,7 @@ async fn collaboration_flow_keeps_reads_pure_and_mutations_explicit() {
         .await
         .expect("项目邀请列表应可读取");
     assert_eq!(project_invites.len(), 1);
+    assert_eq!(created_invite.id, project_invites[0].id);
     assert_eq!(project_invites[0].id, active_invite.id);
     assert_eq!(project_invites[0].role, ProjectMemberRole::Editor);
     assert!(

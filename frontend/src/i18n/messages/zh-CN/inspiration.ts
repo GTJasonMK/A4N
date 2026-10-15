@@ -48,6 +48,7 @@ export const inspiration = {
   previewBlueprintFailed: "预览蓝图提示词失败",
   missingRefineFocus: "请先说明要调整的方向",
   startRefineFailed: "蓝图优化启动失败",
+  refineFailureRecovery: "调整要求仍保留在表单中；关闭此窗口后可继续修改。",
   previewRefineFailed: "预览蓝图优化提示词失败",
   conversationCancelled: "灵感对话已取消",
   conversationInterrupted: "灵感对话已中断",

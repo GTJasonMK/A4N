@@ -24,6 +24,7 @@ import type {
   ProjectRollbackPreview,
   ProjectStatus,
   ProjectStatusMachineSummary,
+  ProjectStatusMutationResult,
   ProjectSummary,
   SourceSnapshotChapterIndex,
   SourceSnapshotChapterSummary,
@@ -56,6 +57,7 @@ export type {
   ProjectStatusHistorySummary,
   ProjectStatusMachineSummary,
   GetSourceSnapshotChapterInput,
+  ProjectStatusMutationResult,
   ProjectKind,
   ProjectSourceMode,
   SourceSnapshotChapterIndex,
@@ -284,8 +286,8 @@ export async function listProjectMembers(projectId: Id): Promise<ProjectMember[]
 export async function inviteProjectMember(
   projectId: Id,
   input: InviteProjectMemberInput,
-): Promise<void> {
-  return apiInvoke<void>("invite_project_member", {
+): Promise<ProjectInvite> {
+  return apiInvoke<ProjectInvite>("invite_project_member", {
     projectId: idNum(projectId),
     input,
   });
@@ -353,20 +355,24 @@ export async function getProjectStatusMachine(id: Id): Promise<ProjectStatusMach
 
 export async function previewRollback(
   id: Id,
+  expectedFrom: ProjectStatus,
   target: ProjectStatus,
 ): Promise<ProjectRollbackPreview> {
   return apiInvoke<ProjectRollbackPreview>("preview_rollback", {
     projectId: idNum(id),
+    expectedFrom,
     target,
   });
 }
 
 export async function rollbackProjectStatus(
   id: Id,
+  expectedFrom: ProjectStatus,
   target: ProjectStatus,
-): Promise<NovelProject> {
-  return apiInvoke<NovelProject>("rollback_project_status", {
+): Promise<ProjectStatusMutationResult> {
+  return apiInvoke<ProjectStatusMutationResult>("rollback_project_status", {
     projectId: idNum(id),
+    expectedFrom,
     target,
   });
 }
@@ -374,8 +380,8 @@ export async function rollbackProjectStatus(
 export async function forwardProjectStatus(
   id: Id,
   target: ProjectStatus,
-): Promise<NovelProject> {
-  return apiInvoke<NovelProject>("forward_project_status", {
+): Promise<ProjectStatusMutationResult> {
+  return apiInvoke<ProjectStatusMutationResult>("forward_project_status", {
     projectId: idNum(id),
     target,
   });

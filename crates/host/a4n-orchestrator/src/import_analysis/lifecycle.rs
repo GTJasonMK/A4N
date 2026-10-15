@@ -15,7 +15,7 @@ pub async fn project_import_analysis_progress(
 pub async fn cancel_import_analysis(
     context: &OrchestratorContext,
     project_id: i64,
-) -> Result<(), AppError> {
+) -> Result<ProjectImportAnalysisProgress, AppError> {
     cancel_import_progress(context, project_id).await
 }
 

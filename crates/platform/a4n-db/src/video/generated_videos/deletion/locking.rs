@@ -1,5 +1,5 @@
 use crate::video::VideoDbError;
-use a4n_db_models::models::{ai::generated_video, project::novel_project};
+use a4n_db_models::models::ai::generated_video;
 use sea_orm::{ConnectionTrait, DbBackend, EntityTrait, FromQueryResult, QuerySelect};
 
 #[derive(Debug, FromQueryResult)]
@@ -39,13 +39,7 @@ where
         .one(db)
         .await?
         .ok_or_else(|| VideoDbError::NotFound("视频不存在".to_string()))?;
-    novel_project::Entity::find_by_id(candidate_project_id)
-        .select_only()
-        .column(novel_project::Column::Id)
-        .lock_exclusive()
-        .into_tuple::<i64>()
-        .one(db)
-        .await?;
+    crate::video::lock_generated_media_project(db, candidate_project_id).await?;
     let locked = video_columns(generated_video::Entity::find_by_id(video_id).lock_exclusive())
         .one(db)
         .await?

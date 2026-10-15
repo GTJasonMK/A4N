@@ -1,9 +1,12 @@
 use super::{
     WorkerState,
-    errors::{WorkerFailure, chapter_error, import_error},
+    errors::{
+        WorkerFailure, app_error, chapter_error, generation_lifecycle_error, import_error,
+        project_error,
+    },
     permissions::verify_project_editor,
     transactions::finish_transaction,
-    validation::validate_request,
+    validation::{positive, user_id, validate_request},
 };
 use a4n_chapter_content_core::begin_chapter_content_sync_in_transaction;
 use a4n_chapter_content_worker_contract::{
@@ -19,9 +22,8 @@ impl WorkerState {
         request: WorkerEnvelope<UpdateChapterContentInput>,
     ) -> Result<ChapterContentMutationResult, WorkerFailure> {
         validate_request(&request, CHAPTER_CONTENT_UPDATE_OPERATION)?;
-        let user_id = request.principal.require_user_id()?;
-        let chapter_id =
-            WorkerFailure::require_positive_id(request.payload.chapter_id, "chapter_id")?;
+        let user_id = user_id(&request)?;
+        let chapter_id = positive("chapter_id", request.payload.chapter_id)?;
         let existing = a4n_db::chapter_content::chapter_by_id_for_analysis(
             self.database.connection(),
             chapter_id,
@@ -36,8 +38,11 @@ impl WorkerState {
             .database
             .begin()
             .await
-            .map_err(a4n_worker_db_adapter::map_database_error)?;
+            .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
         let result = async {
+            a4n_db::generation::require_project_lifecycle_active(&tx, user_id, existing.project_id)
+                .await
+                .map_err(generation_lifecycle_error)?;
             let chapter = a4n_db::chapter_content::save_chapter_content_edit_record(
                 &tx,
                 EditChapterContentInput {
@@ -55,7 +60,7 @@ impl WorkerState {
                     .map_err(chapter_error)?;
             let run = begin_chapter_content_sync_in_transaction(&tx, &chapter_record)
                 .await
-                .map_err(a4n_worker_db_adapter::map_app_error)?;
+                .map_err(app_error)?;
             Ok(ChapterContentMutationResult {
                 chapter_id: chapter.id,
                 workflow_run_id: run.id,
@@ -70,9 +75,9 @@ impl WorkerState {
         request: WorkerEnvelope<ImportChapterInput>,
     ) -> Result<ChapterContentMutationResult, WorkerFailure> {
         validate_request(&request, CHAPTER_CONTENT_IMPORT_OPERATION)?;
-        let user_id = request.principal.require_user_id()?;
+        let user_id = user_id(&request)?;
         let input = request.payload;
-        let project_id = WorkerFailure::require_positive_id(input.project_id, "project_id")?;
+        let project_id = positive("project_id", input.project_id)?;
         if input.chapter_number <= 0 {
             return Err(WorkerFailure::invalid_request("章节序号必须大于 0"));
         }
@@ -83,8 +88,11 @@ impl WorkerState {
             .database
             .begin()
             .await
-            .map_err(a4n_worker_db_adapter::map_database_error)?;
+            .map_err(|error| WorkerFailure::unavailable(error.to_string()))?;
         let result = async {
+            a4n_db::generation::require_project_lifecycle_active(&tx, user_id, project_id)
+                .await
+                .map_err(generation_lifecycle_error)?;
             let chapter = a4n_db::chapter_content::import_chapter_content_record(
                 &tx,
                 ImportChapterContentInput {
@@ -103,7 +111,7 @@ impl WorkerState {
                     .map_err(chapter_error)?;
             let run = begin_chapter_content_sync_in_transaction(&tx, &chapter_record)
                 .await
-                .map_err(a4n_worker_db_adapter::map_app_error)?;
+                .map_err(app_error)?;
             Ok(ChapterContentMutationResult {
                 chapter_id: chapter.id,
                 workflow_run_id: run.id,
@@ -122,7 +130,7 @@ impl WorkerState {
         verify_project_editor(&self.database, project_id, user_id).await?;
         let project = a4n_db::project::project_by_id_record(self.database.connection(), project_id)
             .await
-            .map_err(a4n_worker_db_adapter::map_project_mutation_error)?
+            .map_err(project_error)?
             .ok_or_else(|| WorkerFailure::not_found(format!("项目不存在: {project_id}")))?;
         if project.project_kind != a4n_db::project::PROJECT_KIND_TEXT {
             return Err(WorkerFailure::invalid_request(format!(

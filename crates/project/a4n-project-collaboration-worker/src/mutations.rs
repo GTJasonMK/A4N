@@ -4,7 +4,7 @@ impl WorkerState {
     pub(super) async fn invite_member(
         &self,
         request: WorkerEnvelope<InviteMemberInput>,
-    ) -> Result<ProjectCollaborationAck, WorkerFailure> {
+    ) -> Result<ProjectInviteSummary, WorkerFailure> {
         let project_id = project_request(
             &request,
             PROJECT_COLLABORATION_INVITE_MEMBER_OPERATION,
@@ -23,8 +23,7 @@ impl WorkerState {
             request.payload.role,
         )
         .await
-        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)?;
-        Ok(ProjectCollaborationAck {})
+        .map_err(a4n_worker_db_adapter::map_collaboration_db_error)
     }
 
     pub(super) async fn accept_invite(

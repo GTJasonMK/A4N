@@ -19,6 +19,22 @@ pub enum ImportReviewMutationError {
     InvalidState { current: String, operation: String },
 }
 
+impl From<crate::generation::GenerationLifecycleGateError> for ImportReviewMutationError {
+    fn from(error: crate::generation::GenerationLifecycleGateError) -> Self {
+        use crate::generation::GenerationLifecycleGateError as Error;
+        match error {
+            Error::InvalidArgument(message) => Self::InvalidArgument(message),
+            Error::NotFound(message) => Self::NotFound(message),
+            Error::Blocked(message) => Self::InvalidState {
+                current: "project_lifecycle_gate".to_string(),
+                operation: message,
+            },
+            Error::Corrupt(message) => Self::Database(sea_orm::DbErr::Custom(message)),
+            Error::Database(error) => Self::Database(error),
+        }
+    }
+}
+
 pub fn ensure_pending_import_review(
     review: &import_review_queue::Model,
     operation: &str,

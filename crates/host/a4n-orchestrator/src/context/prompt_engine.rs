@@ -124,7 +124,7 @@ impl OrchestratorContext {
         self.engine.update_many(updates, author, overwrite).await
     }
 
-    pub(crate) async fn prompt_reset_entry(&self, name: &str) -> Result<(), AppError> {
+    pub(crate) async fn prompt_reset_entry(&self, name: &str) -> Result<PromptEntry, AppError> {
         self.engine.reset(name).await
     }
 

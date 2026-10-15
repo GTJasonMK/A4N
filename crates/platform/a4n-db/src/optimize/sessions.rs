@@ -164,15 +164,14 @@ where
         .map_err(OptimizeDbError::Database)
 }
 
-pub async fn create_optimization_session<C>(
-    db: &C,
+pub async fn create_optimization_session(
+    db: &impl crate::DbExecutor,
     input: OptimizationSessionCreateInput,
-) -> Result<optimization_session::Model, OptimizeDbError>
-where
-    C: ConnectionTrait,
-{
+) -> Result<optimization_session::Model, OptimizeDbError> {
+    let tx = db.begin().await?;
+    crate::generation::require_project_owner_lifecycle_active(&tx, input.project_id).await?;
     let now = chrono::Utc::now().naive_utc();
-    optimization_session::ActiveModel {
+    let session = optimization_session::ActiveModel {
         project_id: Set(input.project_id),
         chapter_id: Set(input.chapter_id),
         name: Set(input.name),
@@ -187,18 +186,16 @@ where
         updated_at: Set(now),
         ..Default::default()
     }
-    .insert(db)
-    .await
-    .map_err(OptimizeDbError::Database)
+    .insert(&tx)
+    .await?;
+    tx.commit().await?;
+    Ok(session)
 }
 
-pub async fn create_optimization_session_record<C>(
-    db: &C,
+pub async fn create_optimization_session_record(
+    db: &impl crate::DbExecutor,
     input: OptimizationSessionCreateInput,
-) -> Result<a4n_domain::project::OptimizationSessionRecord, OptimizeDbError>
-where
-    C: ConnectionTrait,
-{
+) -> Result<a4n_domain::project::OptimizationSessionRecord, OptimizeDbError> {
     create_optimization_session(db, input)
         .await
         .map(optimization_session_record)

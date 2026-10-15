@@ -3,6 +3,7 @@ import { runtimeInvoke } from "../runtime";
 import type {
   DeleteImageInput,
   GeneratedImage,
+  ImageRecordDeleteResult,
   UpdateGeneratedImageInput,
   UploadImageInput,
 } from "../generated/host";
@@ -43,9 +44,9 @@ export async function uploadImage(
   });
 }
 
-export async function deleteImage(imageId: Id): Promise<void> {
+export async function deleteImage(imageId: Id): Promise<ImageRecordDeleteResult> {
   const input: DeleteImageInput = { image_id: idNum(imageId) };
-  return apiInvoke<void>("delete_image", {
+  return apiInvoke<ImageRecordDeleteResult>("delete_image", {
     input,
   });
 }

@@ -387,6 +387,12 @@ impl OrchestratorContext {
         let page_prompt = self.required_manga_page_prompt(input.prompt_id).await?;
         self.verify_manga_permission(user_id, page_prompt.project_id, ProjectAccessRole::Editor)
             .await?;
+        self.ensure_manga_pipeline_not_running(
+            page_prompt.project_id,
+            page_prompt.chapter_id,
+            "绑定漫画参考图",
+        )
+        .await?;
         let source = self
             .chapter_manga_source_by_id(page_prompt.chapter_id, page_prompt.project_id, false)
             .await?;
@@ -495,6 +501,17 @@ impl OrchestratorContext {
         let page_prompt = self.required_manga_page_prompt(input.prompt_id).await?;
         self.verify_manga_permission(user_id, page_prompt.project_id, ProjectAccessRole::Editor)
             .await?;
+        self.ensure_manga_pipeline_not_running(
+            page_prompt.project_id,
+            page_prompt.chapter_id,
+            "修改整页漫画提示词",
+        )
+        .await?;
+        if input.expected_updated_at.trim() != page_prompt.updated_at.to_string() {
+            return Err(AppError::InvalidArgument(
+                "漫画提示词已被其他操作修改，请刷新后重试".to_string(),
+            ));
+        }
         let source = self
             .chapter_manga_source_by_id(page_prompt.chapter_id, page_prompt.project_id, false)
             .await?;
@@ -505,7 +522,11 @@ impl OrchestratorContext {
         let prompt_id = page_prompt.id;
         self.save_manga_pipeline_artifact_validated(
             user_id,
-            drawing_prompt_artifact_input(&page_prompt, image_prompt.to_string())?,
+            drawing_prompt_artifact_input(
+                &page_prompt,
+                image_prompt.to_string(),
+                input.expected_updated_at.clone(),
+            )?,
         )
         .await?;
         self.required_manga_page_prompt(prompt_id).await
@@ -518,6 +539,8 @@ impl OrchestratorContext {
         chapter_id: i64,
     ) -> Result<(), AppError> {
         self.verify_manga_permission(user_id, project_id, ProjectAccessRole::Editor)
+            .await?;
+        self.ensure_manga_pipeline_not_running(project_id, chapter_id, "删除漫画产物")
             .await?;
         let source = self
             .chapter_manga_source_by_id(chapter_id, project_id, false)
@@ -536,6 +559,12 @@ impl OrchestratorContext {
         let page_prompt = self.required_manga_page_prompt(prompt_id).await?;
         self.verify_manga_permission(user_id, page_prompt.project_id, ProjectAccessRole::Editor)
             .await?;
+        self.ensure_manga_pipeline_not_running(
+            page_prompt.project_id,
+            page_prompt.chapter_id,
+            "删除漫画绘图提示词",
+        )
+        .await?;
         let source = self
             .chapter_manga_source_by_id(page_prompt.chapter_id, page_prompt.project_id, false)
             .await?;
@@ -572,6 +601,8 @@ impl OrchestratorContext {
         input: DeleteMangaPageInput,
     ) -> Result<(), AppError> {
         self.verify_manga_permission(user_id, input.project_id, ProjectAccessRole::Editor)
+            .await?;
+        self.ensure_manga_pipeline_not_running(input.project_id, input.chapter_id, "删除漫画页面")
             .await?;
         let source = self
             .chapter_manga_source_by_id(input.chapter_id, input.project_id, false)
@@ -623,19 +654,36 @@ impl OrchestratorContext {
         let page_prompt = self.required_manga_page_prompt(input.prompt_id).await?;
         self.verify_manga_permission(user_id, page_prompt.project_id, ProjectAccessRole::Editor)
             .await?;
+        self.ensure_manga_pipeline_not_running(
+            page_prompt.project_id,
+            page_prompt.chapter_id,
+            "优化整页漫画提示词",
+        )
+        .await?;
+        if input.expected_updated_at.trim() != page_prompt.updated_at.to_string() {
+            return Err(AppError::InvalidArgument(
+                "漫画提示词已被其他操作修改，请刷新后重试".to_string(),
+            ));
+        }
         let prompt_id = page_prompt.id;
+        let expected_updated_at = input.expected_updated_at.clone();
         let optimized = self
             .optimize_manga_prompt_validated(
                 MangaPromptOptimizationInput {
                     page_prompt,
-                    instruction: input.instruction,
+                    instruction: input.instruction.clone(),
+                    expected_updated_at: expected_updated_at.clone(),
                 },
                 prompt_renderer,
             )
             .await?;
         self.save_manga_pipeline_artifact_validated(
             user_id,
-            drawing_prompt_artifact_input(&optimized, optimized.image_prompt.clone())?,
+            drawing_prompt_artifact_input(
+                &optimized,
+                optimized.image_prompt.clone(),
+                expected_updated_at,
+            )?,
         )
         .await?;
         self.required_manga_page_prompt(prompt_id).await
@@ -1003,6 +1051,7 @@ impl a4n_api_contract::manga::MangaRecordMutationApplicationPort for Orchestrato
 fn drawing_prompt_artifact_input(
     page_prompt: &MangaPagePromptRecord,
     image_prompt: String,
+    expected_prompt_updated_at: String,
 ) -> Result<SaveMangaPipelineArtifactInput, AppError> {
     let page_number = u32::try_from(page_prompt.page_number)
         .map_err(|_| AppError::InvalidArgument("漫画页码无效".into()))?;
@@ -1011,6 +1060,7 @@ fn drawing_prompt_artifact_input(
         chapter_id: page_prompt.chapter_id,
         stage: MangaPipelineArtifactStage::DrawingPrompt,
         page_number: Some(page_number),
+        expected_prompt_updated_at: Some(expected_prompt_updated_at),
         payload: serde_json::to_value(MangaPageDrawingPromptV2 {
             schema_version: MangaPageDrawingPromptSchemaVersion::V2,
             page_number,

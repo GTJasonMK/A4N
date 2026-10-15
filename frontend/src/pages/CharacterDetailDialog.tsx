@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Eye, LocateFixed, Pencil, RotateCcw, Sparkles } from "lucide-react";
+import { Eye, LocateFixed, Pencil, RefreshCw, RotateCcw, Sparkles } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { Modal } from "../components/ui/Modal";
 import { BookButton } from "../components/ui/BookButton";
@@ -23,7 +23,7 @@ import type { ModelRequestPreview } from "../api/requestPreview";
 import { cancelWorkflowTask } from "../api/streaming";
 import { createWorkflowTaskId, useProgressTask } from "../hooks/useProgressTask";
 import { isCancelledOperation } from "../utils/cancellation";
-import { isSafeInteger } from "../utils/numberRange";
+import { isPositiveI32, MAX_I32 } from "../utils/numeric";
 import { CharacterDetailContent } from "./character-detail-dialog/CharacterDetailContent";
 import { CharacterDetailTabs } from "./character-detail-dialog/CharacterDetailTabs";
 import { CharacterSummaryCard } from "./character-detail-dialog/CharacterSummaryCard";
@@ -101,7 +101,7 @@ const optionalChapterInput = (
   const trimmed = value.trim();
   if (!trimmed) return null;
   const numeric = Number(trimmed);
-  if (!isSafeInteger(numeric)) {
+  if (!isPositiveI32(numeric)) {
     throw new Error(t("characterDetail.invalidChapterInteger", { label }));
   }
   return numeric;
@@ -123,6 +123,15 @@ const ConflictScopeControls: React.FC<{
   onClear,
 }) => {
   const { t } = useI18n();
+  const start = draft.startChapter.trim();
+  const end = draft.endChapter.trim();
+  const scope = !start && !end
+    ? t("characterDetail.scopeWholeProject")
+    : start && end
+      ? t("characterDetail.scopeChapterRange", { start, end })
+      : start
+        ? t("characterDetail.scopeFromChapter", { chapter: start })
+        : t("characterDetail.scopeToChapter", { chapter: end });
   return (
   <div className="flex flex-col gap-2 border-b border-book-border/45 pb-3">
     <div className="flex flex-wrap items-end gap-2">
@@ -132,6 +141,7 @@ const ConflictScopeControls: React.FC<{
         <input
           type="number"
           min={1}
+          max={MAX_I32}
           step={1}
           inputMode="numeric"
           value={draft.startChapter}
@@ -147,6 +157,7 @@ const ConflictScopeControls: React.FC<{
         <input
           type="number"
           min={1}
+          max={MAX_I32}
           step={1}
           inputMode="numeric"
           value={draft.endChapter}
@@ -173,6 +184,14 @@ const ConflictScopeControls: React.FC<{
         </span>
       </BookButton>
     </div>
+    <p className="text-caption text-book-text-muted">
+      {t("characterDetail.checkScopeResult", { scope })}
+    </p>
+    {activeChapterNumber == null ? (
+      <p className="text-caption text-book-text-muted">
+        {t("characterDetail.currentChapterUnavailable")}
+      </p>
+    ) : null}
   </div>
   );
 };
@@ -205,6 +224,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
   const [loadingTab, setLoadingTab] = useState<CharacterDetailTab | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [manageRefreshRevision, setManageRefreshRevision] = useState(0);
+  const [parentRefreshError, setParentRefreshError] = useState<string | null>(null);
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
   const [requestPreviewData, setRequestPreviewData] =
@@ -238,6 +258,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
   const activeDialogScopeRef = useRef<string | null>(activeDialogScope);
   const activeTabRef = useRef<CharacterDetailTab>(tab);
   const activeChapterNumberRef = useRef<number | null>(activeChapterNumber);
+  const activeCharacterVersionRef = useRef<string | null>(character?.updated_at ?? null);
   const refreshSeqRef = useRef(0);
   const syncSeqRef = useRef(0);
   const requestPreviewSeqRef = useRef(0);
@@ -245,12 +266,19 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
   const syncingRef = useRef(false);
 
   const refreshParentAfterMutation = useCallback(async (): Promise<string | null> => {
+    const requestScope = activeDialogScopeRef.current;
+    let errorMessage: string | null = null;
     try {
-      return await onChanged?.() === false ? t("characterDetail.refreshFailed") : null;
+      if (await onChanged?.() === false) errorMessage = t("characterDetail.refreshFailed");
     } catch (error) {
-      return extractErrorMessage(error, t("characterDetail.refreshFailed"));
+      errorMessage = extractErrorMessage(error, t("characterDetail.refreshFailed"));
     }
+    if (activeDialogScopeRef.current === requestScope) setParentRefreshError(errorMessage);
+    return errorMessage;
   }, [onChanged, t]);
+  const refreshParentFromManageView = useCallback(async () => {
+    await refreshParentAfterMutation();
+  }, [refreshParentAfterMutation]);
 
   const dirtyManageKeys = useCallback(() => {
     if (!character) return [];
@@ -283,21 +311,28 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
   }, [addToast, dirtyManageKeys, registry, t]);
 
   const handleDialogClose = async () => {
+    if (syncingRef.current) {
+      addToast(t("common.operationInProgress"), "info");
+      return;
+    }
     if (await confirmManageDraftAction(t("common.close"))) onClose();
   };
 
   const handleTabChange = async (nextTab: CharacterDetailTab) => {
     if (nextTab === tab) return;
+    if (syncingRef.current) {
+      addToast(t("common.operationInProgress"), "info");
+      return;
+    }
     if (!(await confirmManageDraftAction(t("common.switchTab")))) return;
     setTab(nextTab);
   };
 
-  if (activeCharacterScope) {
-    activeCharacterScopeRef.current = activeCharacterScope;
-  }
+  activeCharacterScopeRef.current = activeCharacterScope;
   activeDialogScopeRef.current = activeDialogScope;
   activeTabRef.current = tab;
   activeChapterNumberRef.current = activeChapterNumber;
+  activeCharacterVersionRef.current = character?.updated_at ?? null;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -322,6 +357,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
   useEffect(() => {
     refreshSeqRef.current += 1;
     requestPreviewSeqRef.current += 1;
+    setParentRefreshError(null);
     setArc(null);
     setVoice(null);
     setArcLoadError(null);
@@ -341,7 +377,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
   }, [open, characterCacheKey, initialTab]);
 
   useEffect(() => {
-    if (!characterCacheKey || syncIdentityRef.current === characterCacheKey) return;
+    if (syncIdentityRef.current === characterCacheKey) return;
     syncIdentityRef.current = characterCacheKey;
     syncSeqRef.current += 1;
     setSyncing(false);
@@ -356,6 +392,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
 
   useEffect(() => {
     if (!open || !name || !characterCacheKey) return;
+    if (refreshingRef.current || syncingRef.current) return;
     if (tab === "arc" && currentArcCache != null) return;
     if (tab === "voice" && currentVoiceCache != null) return;
     if (tab !== "arc" && tab !== "voice") return;
@@ -402,6 +439,10 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
 
   const handleRefresh = async () => {
     if (!name || !characterCacheKey || tab === "manage") return;
+    if (syncingRef.current) {
+      addToast(t("common.operationInProgress"), "info");
+      return;
+    }
     if (refreshingRef.current) return;
     refreshingRef.current = true;
     const requestScope = characterCacheKey;
@@ -425,6 +466,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
       }
       const cacheKey = conflictCacheKey;
       const taskId = createWorkflowTaskId("character-conflict", requestProjectId);
+      setConflicts(null);
       setLoadingTab("conflict");
       try {
         const rows = await runProgressTask(
@@ -473,6 +515,13 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
         }
       }
       return;
+    }
+    if (tab === "arc") {
+      setArc(null);
+      setArcLoadError(null);
+    } else if (tab === "voice") {
+      setVoice(null);
+      setVoiceLoadError(null);
     }
     setLoadingTab(tab);
     try {
@@ -527,12 +576,17 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
 
   const handleSync = async () => {
     if (!name || !characterCacheKey) return;
+    if (parentRefreshError) {
+      addToast(parentRefreshError, "error");
+      return;
+    }
     if (syncingRef.current) return;
     if (tab === "manage" && !(await confirmManageDraftAction(t("characterDetail.syncFromCurrentChapter")))) return;
     syncingRef.current = true;
     const requestScope = characterCacheKey;
     const requestName = name;
     const requestProjectId = projectId;
+    const requestCharacterVersion = activeCharacterVersionRef.current;
     const requestChapterNumber = activeChapterNumber;
     const cacheKey = characterCacheKey;
     if (!requestChapterNumber) {
@@ -555,7 +609,8 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
     }
     if (
       !isCurrentCharacterScope(requestScope) ||
-      activeChapterNumberRef.current !== requestChapterNumber
+      activeChapterNumberRef.current !== requestChapterNumber ||
+      activeCharacterVersionRef.current !== requestCharacterVersion
     ) {
       syncingRef.current = false;
       return;
@@ -578,7 +633,10 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
           runningHint: t("characterDetail.taskDataKept"),
         },
         () => {
-          if (!isCurrentCharacterScope(requestScope)) {
+          if (
+            !isCurrentCharacterScope(requestScope) ||
+            activeCharacterVersionRef.current !== requestCharacterVersion
+          ) {
             return Promise.reject(new Error(t("characterDetail.taskStopped")));
           }
           return syncCharacterFromChapters(
@@ -589,11 +647,19 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
           );
         },
       );
-      if (!isCurrentCharacterScope(requestScope) || syncSeqRef.current !== requestSeq) return;
+      if (
+        !isCurrentCharacterScope(requestScope) ||
+        syncSeqRef.current !== requestSeq ||
+        activeCharacterVersionRef.current !== requestCharacterVersion
+      ) return;
       if (result.status !== "skipped") {
         setManageRefreshRevision((revision) => revision + 1);
       }
-      const parentRefreshError = await refreshParentAfterMutation();
+      void refreshParentAfterMutation().then((parentRefreshError) => {
+        if (parentRefreshError && isCurrentCharacterScope(requestScope)) {
+          addToast(parentRefreshError, "error");
+        }
+      });
       if (result.status === "skipped") {
         addToast(t("characterDetail.noSyncNeeded"), "info");
       } else {
@@ -637,15 +703,10 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
           addToast(t("characterDetail.syncSuccess"), "success");
         }
       }
-      if (parentRefreshError) addToast(parentRefreshError, "error");
-      if (tab !== "arc") {
-        setArc(null);
-        setArcLoadError(null);
-      }
-      if (tab !== "voice") {
-        setVoice(null);
-        setVoiceLoadError(null);
-      }
+      setArc(null);
+      setArcLoadError(null);
+      setVoice(null);
+      setVoiceLoadError(null);
       setConflicts(null);
       if (!isCurrentCharacterScope(requestScope) || syncSeqRef.current !== requestSeq) return;
       if (!isCurrentDialogScope(requestScope)) return;
@@ -684,8 +745,11 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
       if (!isCurrentCharacterScope(requestScope) || syncSeqRef.current !== requestSeq) return;
       const message = extractErrorMessage(err, t("characterDetail.syncFailed"));
       addToast(message, isCancelledOperation(message) ? "info" : "error");
-      const parentRefreshError = await refreshParentAfterMutation();
-      if (parentRefreshError) addToast(parentRefreshError, "error");
+      void refreshParentAfterMutation().then((parentRefreshError) => {
+        if (parentRefreshError && isCurrentCharacterScope(requestScope)) {
+          addToast(parentRefreshError, "error");
+        }
+      });
     } finally {
       if (isCurrentCharacterScope(requestScope) && syncSeqRef.current === requestSeq) {
         setSyncing(false);
@@ -845,6 +909,15 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
       >
         <div className="flex flex-col gap-2.5">
           <CharacterSummaryCard character={character} />
+          {parentRefreshError ? (
+            <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-error/40 bg-error-bg px-3 py-2 text-small text-error">
+              <span className="min-w-0 flex-1">{parentRefreshError}</span>
+              <BookButton variant="secondary" size="sm" onClick={() => void refreshParentAfterMutation()}>
+                <RefreshCw size={13} />
+                {t("common.retry")}
+              </BookButton>
+            </div>
+          ) : null}
 
           <CharacterDetailTabs
             activeTab={tab}
@@ -894,7 +967,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
               initialManageSection={initialTab === "manage" ? "event" : undefined}
               initialEventFilter={initialEventFilter}
               manageRefreshRevision={manageRefreshRevision}
-              onChanged={onChanged}
+              onChanged={refreshParentFromManageView}
               onRefresh={handleRefresh}
             />
           </div>
@@ -908,6 +981,8 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
         fallbackTitle={t("characterDetail.modelRequest")}
         onClose={() => {
           requestPreviewSeqRef.current += 1;
+          setRequestPreviewLoading(false);
+          setRequestPreviewData(null);
           setRequestPreviewOpen(false);
         }}
       />

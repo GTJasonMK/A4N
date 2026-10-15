@@ -1,6 +1,8 @@
 use a4n_db_models::models::ai::generated_video;
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
+use sea_orm::{
+    ActiveModelTrait, ConnectionTrait, DbBackend, EntityTrait, QuerySelect, Set, TransactionTrait,
+};
 
 use super::metadata::validate_video_metadata_update_preserves_system_fields;
 use crate::video::{
@@ -14,12 +16,36 @@ pub async fn update_generated_video_record<C>(
     input: UpdateGeneratedVideoRecordInput,
 ) -> Result<generated_video::Model, VideoDbError>
 where
-    C: ConnectionTrait,
+    C: ConnectionTrait + TransactionTrait,
 {
-    let video = generated_video::Entity::find_by_id(video_id)
+    let initial = generated_video::Entity::find_by_id(video_id)
         .one(db)
         .await?
         .ok_or_else(|| VideoDbError::NotFound("视频不存在".to_string()))?;
+    let tx = db.begin().await?;
+    crate::generation::require_project_owner_lifecycle_active(&tx, initial.project_id).await?;
+    let mut query = generated_video::Entity::find_by_id(video_id);
+    if tx.get_database_backend() != DbBackend::Sqlite {
+        query = query.lock_exclusive();
+    }
+    let video = query
+        .one(&tx)
+        .await?
+        .ok_or_else(|| VideoDbError::NotFound("视频不存在".to_string()))?;
+    if video.project_id != initial.project_id {
+        return Err(VideoDbError::InvalidArgument(
+            "视频所属项目已变化".to_string(),
+        ));
+    }
+    if input
+        .expected_updated_at
+        .as_deref()
+        .is_some_and(|expected| expected.trim() != video.updated_at.to_string())
+    {
+        return Err(VideoDbError::InvalidArgument(
+            "视频记录已被其他操作修改，请刷新后重试".to_string(),
+        ));
+    }
     if video.status == a4n_domain::video_workflow::VIDEO_STATUS_RUNNING {
         return Err(VideoDbError::InvalidArgument(
             "视频生成中，不能编辑视频记录".to_string(),
@@ -50,5 +76,7 @@ where
         active.metadata_json = Set(input.metadata_json);
     }
     active.updated_at = Set(Utc::now().naive_utc());
-    active.update(db).await.map_err(VideoDbError::Database)
+    let updated = active.update(&tx).await?;
+    tx.commit().await?;
+    Ok(updated)
 }

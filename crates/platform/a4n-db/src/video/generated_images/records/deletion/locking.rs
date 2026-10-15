@@ -1,5 +1,5 @@
 use crate::video::VideoDbError;
-use a4n_db_models::models::{ai::generated_image, project::novel_project};
+use a4n_db_models::models::ai::generated_image;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
     QuerySelect,
@@ -40,13 +40,7 @@ where
         .one(db)
         .await?
         .ok_or_else(|| VideoDbError::NotFound("图片不存在".to_string()))?;
-    novel_project::Entity::find_by_id(candidate_project_id)
-        .select_only()
-        .column(novel_project::Column::Id)
-        .lock_exclusive()
-        .into_tuple::<i64>()
-        .one(db)
-        .await?;
+    crate::video::lock_generated_media_project(db, candidate_project_id).await?;
     let locked = image_columns(generated_image::Entity::find_by_id(image_id).lock_exclusive())
         .one(db)
         .await?
@@ -71,13 +65,7 @@ where
         return Ok(Vec::new());
     }
     if db.get_database_backend() != DbBackend::Sqlite {
-        novel_project::Entity::find_by_id(project_id)
-            .select_only()
-            .column(novel_project::Column::Id)
-            .lock_exclusive()
-            .into_tuple::<i64>()
-            .one(db)
-            .await?;
+        crate::video::lock_generated_media_project(db, project_id).await?;
     }
     let mut query = generated_image::Entity::find()
         .filter(generated_image::Column::ProjectId.eq(project_id))

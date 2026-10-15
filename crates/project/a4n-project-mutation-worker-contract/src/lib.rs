@@ -3,6 +3,7 @@
 pub use a4n_api_contract::project::ProjectSummary;
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
 pub const PROJECT_MUTATION_WORKER_ID: &str = "project-mutation-worker";
@@ -55,6 +56,7 @@ pub struct UpdateProjectInput {
     pub title: Option<String>,
     pub description: Option<String>,
     pub fact_feedback_interval_chapters: Option<i32>,
+    pub expected_updated_at: Option<NaiveDateTime>,
 }
 
 #[cfg(test)]
@@ -91,6 +93,7 @@ mod tests {
                 title: Some("新标题".into()),
                 description: None,
                 fact_feedback_interval_chapters: None,
+                expected_updated_at: None,
             },
         };
         request.validate().expect("project mutation validates");

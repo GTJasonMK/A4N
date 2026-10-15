@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { extractErrorMessage } from "../../../api";
 import { Bot,
   Brain,
@@ -29,6 +29,7 @@ import { useAdminSectionLoader } from "./useAdminSectionLoader";
 import { useDirtyRegistry, useDirtyRegistryVersion } from "../../../components/navigation/dirtyRegistry";
 
 type ApiConfigPanel = "overview" | "llm" | "image" | "video" | "embedding";
+type ApiConfigReadKey = "llm" | "image" | "video" | "embedding" | "providers";
 
 interface ApiConfigSnapshot {
   llm: LlmConfigSummary[] | null;
@@ -36,7 +37,7 @@ interface ApiConfigSnapshot {
   video: VideoGenConfig[] | null;
   embedding: EmbeddingConfig[] | null;
   providers: ModelProviderCatalog | null;
-  errors: unknown[];
+  errors: Partial<Record<ApiConfigReadKey, unknown>>;
 }
 
 const PANEL_DEFS: Array<{
@@ -57,7 +58,6 @@ export const ApiConfigSection: React.FC = () => {
   useDirtyRegistryVersion();
   const canDiscardDirty = dirtyRegistry.canDiscardDirty();
   const [panel, setPanel] = useState<ApiConfigPanel>("overview");
-  const navigationGuardRef = useRef(false);
 
   const selectPanel = async (nextPanel: ApiConfigPanel) => {
     if (nextPanel === panel) return;
@@ -66,25 +66,23 @@ export const ApiConfigSection: React.FC = () => {
         useToast.getState().addToast(t("common.operationInProgress"), "info");
         return;
       }
-      if (navigationGuardRef.current) return;
-      navigationGuardRef.current = true;
-      try {
-        const ok = await confirmDialog({
-          title: t("common.unsavedChangesTitle"),
-          message: t("common.unsavedChangesMessage", {
-            name: t("settingsAdmin.configuration"),
-            action: t("settings.category"),
-          }),
-          confirmText: t("common.discardDraft"),
-          dialogType: "warning",
-        });
-        if (!ok) return;
-        if (!await dirtyRegistry.discardDirty()) {
-          useToast.getState().addToast(t("common.operationInProgress"), "info");
-          return;
-        }
-      } finally {
-        navigationGuardRef.current = false;
+      const ok = await confirmDialog({
+        title: t("common.unsavedChangesTitle"),
+        message: t("common.unsavedChangesMessage", {
+          name: t("settingsAdmin.configuration"),
+          action: t("settings.category"),
+        }),
+        confirmText: t("common.discardDraft"),
+        dialogType: "warning",
+      });
+      if (!ok) return;
+      if (!await dirtyRegistry.discardDirty()) {
+        useToast.getState().addToast(t("common.operationInProgress"), "info");
+        return;
+      }
+      if (dirtyRegistry.hasDirty()) {
+        useToast.getState().addToast(t("common.operationInProgress"), "info");
+        return;
       }
     }
     setPanel(nextPanel);
@@ -132,29 +130,22 @@ const ApiConfigOverview: React.FC = () => {
       listServerLlmConfig(), listServerImageConfigs(), listServerVideoConfigs(),
       listEmbeddingConfig("server"), listModelProviderCatalog(),
     ]);
+    const errors: ApiConfigSnapshot["errors"] = {};
+    if (llm.status === "rejected") errors.llm = llm.reason;
+    if (image.status === "rejected") errors.image = image.reason;
+    if (video.status === "rejected") errors.video = video.reason;
+    if (embedding.status === "rejected") errors.embedding = embedding.reason;
+    if (providers.status === "rejected") errors.providers = providers.reason;
     return {
       llm: llm.status === "fulfilled" ? llm.value : null,
       image: image.status === "fulfilled" ? image.value : null,
       video: video.status === "fulfilled" ? video.value : null,
       embedding: embedding.status === "fulfilled" ? embedding.value : null,
       providers: providers.status === "fulfilled" ? providers.value : null,
-      errors: [llm, image, video, embedding, providers].flatMap((result) =>
-        result.status === "rejected"
-          ? [result.reason]
-          : [],
-      ),
+      errors,
     };
   }, []);
-  const applySnapshot = useCallback((loaded: ApiConfigSnapshot) => {
-    setSnapshot((current) => ({
-      llm: loaded.llm ?? current?.llm ?? [],
-      image: loaded.image ?? current?.image ?? [],
-      video: loaded.video ?? current?.video ?? [],
-      embedding: loaded.embedding ?? current?.embedding ?? [],
-      providers: loaded.providers ?? current?.providers ?? null,
-      errors: loaded.errors,
-    }));
-  }, []);
+  const applySnapshot = useCallback((loaded: ApiConfigSnapshot) => setSnapshot(loaded), []);
   const { loading, error, load } = useAdminSectionLoader(
     "admin-api-defaults", loadSnapshot, applySnapshot, "settingsAdmin.loadApiConfigFailed",
   );
@@ -187,10 +178,10 @@ const ApiConfigOverview: React.FC = () => {
       </div>
 
       {error ? <p role="alert" className="text-xs text-error">{error}</p> : null}
-      {snapshot?.errors.length ? (
+      {snapshot && Object.keys(snapshot.errors).length > 0 ? (
         <div role="alert" className="space-y-1 text-xs text-error">
-          {snapshot.errors.map((reason, index) => (
-            <p key={index}>
+          {Object.entries(snapshot.errors).map(([scope, reason]) => (
+            <p key={scope}>
               {extractErrorMessage(reason, t("settingsAdmin.loadApiConfigFailed"))}
             </p>
           ))}
@@ -206,7 +197,8 @@ const ApiConfigOverview: React.FC = () => {
           <ApiSummaryCard
             icon={<Bot size={16} />}
             title={t("settingsAdmin.llmDefault")}
-            empty={!defaults.llm}
+            empty={snapshot.llm !== null && !defaults.llm}
+            unavailable={snapshot.llm === null}
             primaryRows={
               defaults.llm
                 ? [
@@ -238,7 +230,8 @@ const ApiConfigOverview: React.FC = () => {
           <ApiSummaryCard
             icon={<ImageIcon size={16} />}
             title={t("settingsAdmin.imageDefault")}
-            empty={!defaults.image}
+            empty={snapshot.image !== null && !defaults.image}
+            unavailable={snapshot.image === null}
             primaryRows={
               defaults.image
                 ? [
@@ -268,7 +261,8 @@ const ApiConfigOverview: React.FC = () => {
           <ApiSummaryCard
             icon={<Film size={16} />}
             title={t("settingsAdmin.videoDefault")}
-            empty={!defaults.video}
+            empty={snapshot.video !== null && !defaults.video}
+            unavailable={snapshot.video === null}
             primaryRows={
               defaults.video
                 ? [
@@ -300,7 +294,8 @@ const ApiConfigOverview: React.FC = () => {
           <ApiSummaryCard
             icon={<Brain size={16} />}
             title={t("settingsAdmin.embeddingDefault")}
-            empty={!defaults.embedding}
+            empty={snapshot.embedding !== null && !defaults.embedding}
+            unavailable={snapshot.embedding === null}
             primaryRows={
               defaults.embedding
                 ? [
@@ -338,10 +333,11 @@ const ApiSummaryCard: React.FC<{
   icon: React.ReactNode;
   title: string;
   empty: boolean;
+  unavailable: boolean;
   primaryRows: Array<[string, string]>;
   diagnosticRows?: Array<[string, string]>;
   diagnosticFooter?: string;
-}> = ({ icon, title, empty, primaryRows, diagnosticRows = [], diagnosticFooter }) => {
+}> = ({ icon, title, empty, unavailable, primaryRows, diagnosticRows = [], diagnosticFooter }) => {
   const { t } = useI18n();
   return (
   <article className="a4n-flat-surface min-w-0 overflow-hidden">
@@ -353,7 +349,11 @@ const ApiSummaryCard: React.FC<{
         {title}
       </h4>
     </div>
-    {empty ? (
+    {unavailable ? (
+      <div role="status" className="border-t border-book-border/25 px-3 py-3 text-xs text-book-text-muted">
+        {t("settingsAdmin.loadApiConfigFailed")}
+      </div>
+    ) : empty ? (
       <div className="border-t border-book-border/25 px-3 py-3 text-xs text-book-text-muted">
         {t("settingsAdmin.noDefault")}
       </div>
