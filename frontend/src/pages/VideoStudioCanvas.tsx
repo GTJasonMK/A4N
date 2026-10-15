@@ -93,6 +93,7 @@ import {
 } from "./video-studio/canvasLayout";
 import { nodeHasProviderRequest } from "./video-studio/canvasNodeKinds";
 import {
+  canvasWorkflowNodeRunStateFacts,
   canvasWorkflowNodeRunStates,
   computeRunToNodeScope,
   computeWorkflowActiveScope,
@@ -263,13 +264,28 @@ export const VideoStudioCanvas: React.FC = () => {
       ),
     [edges, nodeContractsByKind, nodes, selectedNode, selectedNodeRunToTarget],
   );
+  const workflowNodeRunStateCacheRef = useRef({
+    detail: workflowDetail,
+    facts: new Map() as ReturnType<typeof canvasWorkflowNodeRunStateFacts>,
+  });
+  const workflowNodeRunStateFacts = useMemo(
+    () => canvasWorkflowNodeRunStateFacts(
+      workflowDetail,
+      workflowNodeRunStateCacheRef.current.detail,
+      workflowNodeRunStateCacheRef.current.facts,
+    ),
+    [workflowDetail],
+  );
+  useEffect(() => {
+    workflowNodeRunStateCacheRef.current = { detail: workflowDetail, facts: workflowNodeRunStateFacts };
+  }, [workflowDetail, workflowNodeRunStateFacts]);
   const workflowNodeRunStates = useMemo(
-    () => canvasWorkflowNodeRunStates(workflowDetail, workflowNowMs),
-    [workflowDetail, workflowNowMs],
+    () => canvasWorkflowNodeRunStates(workflowNodeRunStateFacts, workflowNowMs),
+    [workflowNodeRunStateFacts, workflowNowMs],
   );
   const workflowActiveScope = useMemo(
-    () => computeWorkflowActiveScope(nodes, edges, workflowNodeRunStates),
-    [edges, nodes, workflowNodeRunStates],
+    () => computeWorkflowActiveScope(nodes, edges, workflowNodeRunStateFacts),
+    [edges, nodes, workflowNodeRunStateFacts],
   );
   const flowNodes = useMemo(
     () =>

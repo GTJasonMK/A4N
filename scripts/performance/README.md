@@ -73,6 +73,7 @@
 | [PERF-117](../../crates/platform/a4n-migration/src/migrations/generated_video_project_chapter_index.rs) | 视频时间线摘要/组装 → 按项目和章节读取全部生成视频并按时间排序；100,000 行、目标章节 100 条 | 为 `project_id = ? AND chapter_id = ?` 增加两列索引；完整视频投影和 `created_at DESC` 顺序不变 | 隔离 PostgreSQL 16、7 轮交错：SQL P50 **21.442→0.657 ms（96.94%）**；100 行完整响应 JSON 完全一致；索引 **761,856 B**。额外 created_at 索引列未改变排序计划，候选索引达到 **4,087,808 B**，故使用最小两列索引 |
 | [PERF-119](../../crates/platform/a4n-migration/src/migrations/task_queue_created_index.rs) | 管理员队列页全局任务历史，5 秒刷新一次、每页 30 条；300,000 行 | 为无 project_id 的 `ORDER BY created_at DESC` 增加全局降序索引；保留现有项目/时间索引和完整任务 DTO | 隔离 PostgreSQL 16.15、7 轮交错：完整 30 行查询 P50 **46.174→0.068 ms（99.85%）**；Seq Scan + top-N Sort 变为 Index Scan + Limit；索引 **6,758,400 B**；前后完整 DTO 顺序/hash 完全一致 |
 | [PERF-120](../../crates/platform/a4n-migration/src/migrations/task_queue_pending_created_index.rs) | 管理员任务页每 5 秒读取全部 pending 任务；300,000 行/15,000 条 pending | 为 `status='pending'` 增加仅含 pending 的 `created_at DESC` 部分索引；Rust 优先级/时间/ID 排序及全量任务合同不变 | 隔离 PostgreSQL 16.15、完整 TaskQueue 投影、7 轮交错：SQL P50 **75.721→13.636 ms（81.99%）**；Seq Scan 变为 Index Scan；索引 **352,256 B**；Rust 排序后的 15,000 条完整 DTO JSON 完全一致 |
+| [PERF-121](../../frontend/src/pages/VideoStudioCanvas.tsx) | Video Studio 工作流运行期间每秒计时及详情轮询；1000／5000／10000 节点、边和检查点 | 复用未变的 run/checkpoint 时间事实，活动范围与边标签只在图或运行状态语义变化时重算 | Chromium 153、固定 CPU 18/19、每秒模拟新详情响应对象、7×8 轮：同步图投影 P50 **2.263→0.675 ms（70.17%）／10.912→3.188 ms（70.78%）／22.925→6.150 ms（73.17%）**；节点/边投影摘要相同；每 tick 新建边对象 **999／4,999／9,999→0** |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -769,6 +770,15 @@ A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
 - 验证：migration SQL 单测 **1/1**、迁移顺序测试 **1/1**、`cargo check -p a4n-migration -p a4n-db-models --locked --offline`；隔离 PostgreSQL 执行完整 schema migrations 并检查全局及 pending 索引 **2/2**；`cargo fmt --all -- --check` 和 `git diff --check` 通过。
 - 边界：A/B 量化数据库过滤和完整行读取，不含 Rust DTO mapping/sort、permission check、HTTP 或同轮 stats/workflow 请求；每个 pending 状态转换会维护部分索引，索引只覆盖 pending 子集。
 - 证据：`../../data/performance-audit-20261015/admin-pending-tasks-index/`，含 7 轮样本、执行计划和 Rust 实际排序后的完整 DTO 响应。
+
+### PERF-121：Video Studio 工作流每秒重建图运行投影
+
+- 请求链路：运行中的 `VideoStudioCanvas` 每秒更新计时；`useCanvasWorkflowActions` 同样每秒轮询完整工作流详情。每个详情响应都会创建新对象。旧路径重新解析所有 checkpoint 时间，再扫描全部节点/边计算活动上游范围，并为全部边新建带运行态 class/label 的对象。
+- 修复：运行状态事实只比较其实际依赖字段（run 状态/current step/时间戳及 checkpoint step/status/时间戳）；输入语义未变时复用原只读 Map。每秒仍按缓存时间事实更新 elapsed 标签；图或运行事实变化时正常重算活动范围和边投影，进度详情及轮询频率不变。
+- A/B：生产 Vite 构建加载实际状态/投影函数，Chromium **153.0.8010.52**、固定 CPU 18/19；构造 1000／5000／10000 节点、链式边与等量 checkpoints，每个 tick 输入新的详情对象但保持字段不变，7 轮、每轮 8 ticks。同步投影 P50 **2.263→0.675 ms（70.17%）／10.912→3.188 ms（70.78%）／22.925→6.150 ms（73.17%）**；前后 projection signature 完全相同。每 tick 边对象创建 **999／4,999／9,999→0**，静态边数组仅在状态变化时重建。
+- 验证：`canvasWorkflowState.test.ts` **4/4**、`npx tsc --noEmit`、`node --check e2e/performance/check.mjs`、Chromium 基线与候选生产构建通过。
+- 边界：量化每秒状态投影的同步 JavaScript 时间，不含 HTTP/JSON 解析、React Flow DOM layout/render 或完整页面交互延迟；测得收益不外推为整个页面响应时间。
+- 证据：`../../data/performance-audit-20261015/canvas-workflow/{before,after}/report.json`；在 `frontend/` 下运行 `A4N_PERF_CASE=canvas-workflow node e2e/performance/check.mjs`，基线另加 `A4N_PERF_BASELINE_REF=86be78156`。
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
 

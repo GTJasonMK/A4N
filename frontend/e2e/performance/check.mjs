@@ -14,8 +14,8 @@ const port = Number(process.env.A4N_PERF_PORT ?? 48966);
 const outDir = path.join(artifacts, "dist");
 const baselineRef = process.env.A4N_PERF_BASELINE_REF;
 const scenario = process.env.A4N_PERF_CASE ?? "core";
-assert.ok(["core", "sidebar", "story-events", "video-planning", "shooting-script", "galgame-authoring", "director-plan"].includes(scenario));
-const entry = scenario === "sidebar" ? "sidebar.html" : scenario === "story-events" ? "story-events.html" : scenario === "video-planning" ? "video-planning.html" : scenario === "shooting-script" ? "shooting-script.html" : scenario === "galgame-authoring" ? "galgame-authoring.html" : scenario === "director-plan" ? "director-plan.html" : "index.html";
+assert.ok(["core", "sidebar", "story-events", "video-planning", "shooting-script", "galgame-authoring", "director-plan", "canvas-workflow"].includes(scenario));
+const entry = scenario === "sidebar" ? "sidebar.html" : scenario === "story-events" ? "story-events.html" : scenario === "video-planning" ? "video-planning.html" : scenario === "shooting-script" ? "shooting-script.html" : scenario === "galgame-authoring" ? "galgame-authoring.html" : scenario === "director-plan" ? "director-plan.html" : scenario === "canvas-workflow" ? "canvas-workflow.html" : "index.html";
 const sourceFiles = scenario === "story-events"
   ? ["src/pages/novel-detail/story-events/storyEventUtils.ts", "src/pages/novel-detail/story-events/ChapterEventSection.tsx"]
   : scenario === "sidebar"
@@ -28,6 +28,8 @@ const sourceFiles = scenario === "story-events"
   ? ["src/pages/derived/MediaPlanEditors.tsx"]
   : scenario === "director-plan"
   ? ["src/pages/novel-detail/visual-plan/useDirectorPlan.ts"]
+  : scenario === "canvas-workflow"
+  ? ["src/pages/video-studio/canvasWorkflowState.ts"]
   : ["src/hooks/usePacedStreamText.ts", "src/i18n/format.ts", "src/components/ui/MarkdownText.tsx"];
 const baselineSources = new Map(baselineRef ? sourceFiles.map((file) => [
   path.join(frontend, file),
@@ -175,6 +177,13 @@ try {
     }
     report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
       viewports: [1440, 390], trace: traces[0], directorPlan };
+  } else if (scenario === "canvas-workflow") {
+    const canvasWorkflow = [];
+    for (const count of [1000, 5000, 10000]) {
+      canvasWorkflow.push(await browser.execute((count) => window.measureCanvasWorkflow(count), count));
+    }
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
+      canvasWorkflow };
   } else {
     const traces = [];
     for (const width of [1440, 390]) {
