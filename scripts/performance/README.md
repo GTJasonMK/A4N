@@ -67,6 +67,7 @@
 | [PERF-111](../../crates/platform/a4n-migration/src/migrations/generation_run_created_index.rs) | 管理员生成分析媒体运行查询；100,000 行、最近窗口 4,667 条 image/video | 为 `created_at >= since` 增加全局时间索引；保持 image/video 过滤、完整分析投影和倒序 | 隔离 PostgreSQL 16、已有 project/time 索引、5 轮交错：P50 **15.504→1.230 ms（92.07%）**；计划从 Seq Scan + Sort 变为 Index Scan；索引 **2,260,992 B**；4,667 个 ID 顺序完全一致 |
 | [PERF-112](../../crates/platform/a4n-migration/src/migrations/model_usage_root_started_index.rs) | 项目成本面板打开/刷新；1,000,000 行、30 天内命中 3,333 行 | 为 `root_project_id = ?` 增加部分 `(root_project_id, started_at DESC)` 索引；保留项目 OR 根项目过滤和完整投影 | 隔离 PostgreSQL 16、7 轮交错：两条报表 SQL 合计 P50 **126.836→13.055 ms（89.71%）**；计划从 Seq Scan 变为 BitmapOr + Bitmap Heap Scan；索引 **647,168 B**；聚合与 100 条最近记录 JSON 完全一致 |
 | [PERF-113](../../frontend/src/api/image/generation.ts) | 每次图片生成完成后的结果校验；目标项目 1,000 张图、任务产出 2 张 | 从 `result_ref` 和非临时产物 ID 读取目标记录；旧 `list_images_by_project` 命令增加可选 ID 过滤，未传 ID 仍返回全项目列表 | 隔离 PostgreSQL 16、7 轮交错：项目查询 P50 **4.924→0.076 ms（98.46%）**；结果行 **1,000→2**；合成摘要 JSON **958,890→1,922 B（99.80%）**；ID、完整字段和顺序与全量结果子集相同 |
+| [PERF-114](../../crates/platform/a4n-migration/src/migrations/character_portrait_project_index.rs) | 立绘 worker 项目列表与生成结果校验；100,000 行、目标项目 1,000 张 | 为现有 `WHERE project_id = ?` 增加单列索引；完整立绘投影和返回集合保持一致 | 隔离 PostgreSQL 16、7 轮交错：完整立绘查询 P50 **8.183→2.387 ms（70.83%）**；Seq Scan 变为 Bitmap Heap Scan；索引 **745,472 B**；1,000 条完整摘要 JSON 与实际查询返回顺序完全一致 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -700,6 +701,15 @@ A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
 - 验证：前端校验 ID 测试 **2/2**、API parity、`cargo check -p a4n-db -p a4n-orchestrator -p a4n-api-contract -p a4n-control --locked --offline`、PostgreSQL 查询测试 **1/1**、前端生产构建和格式/diff 检查通过。Mock Provider `image_publication` CLI E2E **5/5**，包含可选 ID 查询；完整 `media` 阶段整体未通过：现有 checkpoints 流程因 manga 预处理缺失失败，独立浏览器流程在大纲阶段失败，这两项均未计作本优化的通过验证。
 - 边界：A/B 量化数据库执行时间和合成 DTO 体积，不包含完整 HTTP/网络时延；项目图库页面及其他未传 `image_ids` 的客户端仍按旧行为读取全部记录。CLI E2E 的首次尝试发现旧 fixture 使用已移除的 `create_freeform_video_project` 命令，已改用当前的 `project create` 命令后 `image_publication` 套件通过。
 - 证据：`../../data/performance-audit-20261015/image-result-verification/`，包含成对样本、完整 EXPLAIN、前后摘要与 CLI suite 报告。
+
+### PERF-114：立绘项目列表缺少项目过滤索引
+
+- 请求链路：portrait worker 的 `portrait.records.list` 按项目加载全部角色立绘，用于角色立绘页和 MangaTab；每次立绘生成结束后的 `verifyPortraitGenerationResult` 也调用同一项目列表，再从结果引用中只验证一张或一批产物。现有 SQL 仅以 `project_id = ?` 过滤，基表无项目索引。
+- 修复：新增 `character_portrait_project_index` migration，为 `character_portrait(project_id)` 建普通索引，并更新运行时 schema gate。未改 worker/API 合同、完整 DTO、列表顺序或权限逻辑。
+- A/B：隔离 PostgreSQL 16.15，100,000 条完整立绘行、100 个项目、目标项目 1,000 条，使用生产完整投影 SQL，7 轮交错。P50 **8.183→2.387 ms（70.83%）**；执行计划从 Seq Scan 改为 Bitmap Index Scan + Bitmap Heap Scan。索引 **745,472 B**；前后完整投影按实际无排序 SQL 顺序返回的 1,000 行逐项相同。
+- 验证：migration SQL 单测 **1/1**、迁移顺序测试 **1/1**、`cargo check -p a4n-migration -p a4n-db-models --locked --offline`、隔离 PostgreSQL 全迁移初始化及 `pg_indexes` 索引断言 **1/1**、`cargo fmt --all -- --check` 和 `git diff --check` 通过。首次 DB 测试冷链接耗尽 60 秒限时，测试未启动；单独预编译后同一测试通过。
+- 边界：A/B 测的是数据库执行时间，不包含 Portrait worker 启动/IPC/DTO 转换/HTTP；合成数据每项目 1,000 条，不代表所有项目分布。该 worker 列表有意返回项目下全部立绘，因此此项不改变记录集合或分页语义。迁移沿用事务型 `CREATE INDEX`，大表升级期间需安排维护窗口。
+- 证据：`../../data/performance-audit-20261015/character-portrait-project-index/`，含 7 轮交错数据、完整 EXPLAIN 和索引前后响应 JSON。
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
 

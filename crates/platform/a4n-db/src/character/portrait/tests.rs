@@ -5,12 +5,30 @@ use a4n_db_models::models::{
 use a4n_domain::character::CharacterPortraitCreateInput;
 use chrono::Utc;
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, Statement,
 };
 use serde_json::json;
 
 async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
+}
+
+#[tokio::test]
+async fn portrait_project_index_is_installed_by_schema_migrations() {
+    let db = setup_db().await;
+    let row = db
+        .query_one(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT indexdef FROM pg_indexes WHERE schemaname = current_schema() AND indexname = 'idx_character_portrait_project_id'".to_string(),
+        ))
+        .await
+        .unwrap()
+        .expect("portrait project index must exist");
+    let indexdef: String = row.try_get("", "indexdef").unwrap();
+
+    assert!(indexdef.contains("character_portrait"));
+    assert!(indexdef.contains("project_id"));
 }
 
 fn empty_profile_attributes() -> Value {
