@@ -81,6 +81,7 @@
 | [PERF-126](../../crates/platform/a4n-db/src/workflow/runs/queries.rs) Video Studio checkpoint 详情投影 | 每秒工作流详情轮询；100,000 行/目标 1,000／5,000／10,000 checkpoints | 保持状态、时间、错误和 `artifacts_json`，省去画布不用的 fingerprint/checkpoint/generation ID JSON 字段；其他请求默认仍返回全量 | PostgreSQL 16.15、7 轮：10k 行 SQL **28.678→22.077 ms（23.02%）**，V8 JSON.parse P50 **14.744→8.587 ms（41.75%）**，响应 JSON **12,703,133→5,455,130 B（57.06%）**；画布展示字段 SHA-256 相同 |
 | [PERF-127](../../frontend/src/pages/video-studio/useCanvasWorkflowActions.tsx) Video Studio progress event 轮询上限 | 每秒查询最新 20 条事件，但面板只展示最后 5 条；100,000 行/目标运行最多 200 条 | 查询和展示共用 5 条上限，其他进度查询保持原参数 | PostgreSQL 16.15、两组各 7 轮：事件 JSON **17,758→4,438 B（75.01%）**，前五条摘要 SHA-256 一致；SQL P50 两组分别 **0.270→0.174 ms** 和 **0.260→0.197 ms** |
 | [PERF-128](../../frontend/src/hooks/useProgressTask.tsx) 通用任务进度重复回传 | 每 500 ms 拉取最近最多 200 条事件，前端用 Set 去重 | 增加可选 `after_event_id` 游标；首轮取完整历史，后续仅返回游标后的事件，活体文本仍逐轮返回 | PostgreSQL 16.15、100,000 行/目标 200 条、游标后新增 5 条：JSON **170,919→4,308 B（97.48%）**，V8 JSON.parse **0.282→0.0088 ms（96.89%）**；增量与旧响应去重后的新增事件完全相同 |
+| [PERF-129](../../frontend/src/i18n/translate.ts) locale 字典启动分包候选（未采用） | 首屏 main JS 静态包含 zh-CN 与 en-US 全量字典 | 以空 en-US 字典测量仅移除未选语言的理想上限 | 生产 Vite main JS **1,090.16→755.21 kB**，预压缩 **336.09→240.84 kB（28.34%）**；仅是 main JS 上限，未达时延门槛，英语初始语言仍需加载英语 chunk |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -90,7 +91,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 
 | 范围 | 已核对事实与决定 |
 | --- | --- |
-| 首屏和路由 | `App.tsx` 已按路由和依赖图弹窗懒加载。PERF-009 已通过真实 Edge 和生产登录页验证压缩交付；同一份入口文件从 1,010,285 原始字节变为 310,789 传输字节。两种语言字典仍静态加载，未宣称这一部分代码拆分已经完成。 |
+| 首屏和路由 | `App.tsx` 已按路由和依赖图弹窗懒加载。PERF-009 已通过真实 Edge 和生产登录页验证压缩交付；同一份入口文件从 1,010,285 原始字节变为 310,789 传输字节。PERF-129 测得移除未选英语字典的理想上限可减少 **28.34%** gzip 入口 JS，低于 30% 时延门槛，未引入异步字典加载。 |
 | 项目列表 | `ProjectReadWorker::summary_for_projects` 已批量查询项目族、权限、进度和反馈间隔；不重新引入逐项目请求或重复批处理层。 |
 | 章节列表 | PERF-011 消除未使用历史读取及检查点深复制，PERF-017 将写作桌/只读目录/导入预览改为按需读取；PERF-095 将根项目 MangaTab 也改为索引加按需详情。原 `ChapterSummary` 完整合同保留；故事事件 PERF-019 和派生来源快照 PERF-078 已分别优化。 |
 | 数据库权限和协作 | 读取使用连接池、绑定参数和批量根项目查询。PERF-079 将高基数成员统计收敛为 DB 聚合；未过期邀请统计单独 A/B 仅改善 8.23%，低于门槛，未改写实现或增添索引。 |
@@ -842,6 +843,13 @@ A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
 - A/B：隔离 PostgreSQL **16.15**、100,000 行、目标运行保留 200 条事件，完整事件含 512 B `meta.detail` 和 128 B message；对比 limit 200 与 `after_event_id=200`（其后 5 条新事件），7 轮交错。旧响应新增事件序列与增量响应 SHA-256 完全相同。
 - 结果：事件响应 JSON **170,919→4,308 B（减少 97.48%）**，Node zlib 默认 gzip **3,963→295 B（减少 92.56%）**；Node **24.21** JSON.parse P50 **0.282→0.0088 ms（减少 96.89%）**。无新事件时游标响应为 35 B。数据库查询 P50 **1.612→1.188 ms（减少 26.30%，低于时延门槛）**，因此不宣称 SQL 达标，也未增加索引。
 - 验证与边界：Rust 单测覆盖内存游标、旧请求缺省和异常游标长度；PostgreSQL 集成测试覆盖顺序、limit=1 连续分页及到最新游标后返回空数组；前端测试确认每次发送最后已见事件 ID，并保留既有去重与 stream-text 行为。受影响 Rust all-targets check、API parity、TypeScript、前端定向测试、fmt/diff 通过。A/B 比较完整事件 DTO 与增量 DTO，不外推为整条任务请求时延。报告：`../../data/performance-audit-20261015/workflow-progress-event-cursor/report.json`；脚本：`workflow-progress-event-cursor.mjs`。
+
+### PERF-129：locale 字典静态加载候选（未采用）
+
+- 请求链路：`translate.ts` 同步导入 `zh-CN` 和 `en-US` 两份字典；源文件分别约 **355,136 B** 和 **377,924 B**。生产 Vite 构建将两种语言都放入 main JS。
+- 上限 A/B：当前 main chunk **1,090.16 kB / gzip 336.09 kB**。探针把未选 en-US 字典替换为空对象，main chunk 降为 **755.21 kB / gzip 240.84 kB**；这是移除英语运行内容且不加载英语 chunk 的节省上限，gzip 降幅 **28.34%**。
+- 决策与边界：上限收益低于 30% 响应时延门槛；测试只比较 main chunk 字节，不含页面 TTI、所有首屏资源或真正按用户语言加载的时序。实现动态字典还需要在同步初始化前确定语言并等待对应 chunk，增加启动顺序复杂度；未修改 i18n 实现。
+- 证据：基线构建 `../../data/performance-audit-20261015/i18n-static-dist/`；上限探针配置和构建 `../../data/performance-audit-20261015/i18n-locale-probe/`。
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
 
