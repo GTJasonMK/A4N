@@ -95,6 +95,16 @@ import_web_input_command!(
     import_review_actions::ImportProjectReviewsInput,
     import_review_actions::list_import_queue,
 );
+import_web_input_command!(
+    list_import_queue_index,
+    import_review_actions::ImportProjectReviewsInput,
+    import_review_actions::list_import_queue_index,
+);
+import_web_input_command!(
+    get_import_review,
+    import_review_actions::ImportReviewIdInput,
+    import_review_actions::get_import_review,
+);
 import_web_input_unit_command!(
     delete_import_review,
     import_review_actions::ImportReviewIdInput,

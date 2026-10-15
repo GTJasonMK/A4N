@@ -200,3 +200,33 @@ it("clears completed runtime results downstream of a changed canvas node", () =>
   expect(next[2]?.data).toMatchObject({ state: "ready", refType: null, refId: null });
   expect(next[3]).toBe(unrelated);
 });
+
+it("invalidates each reachable node once through cycles and shared descendants", () => {
+  const nodes = ["1", "2", "3", "4"].map((id) => ({
+    ...textNode(id, ""),
+    data: {
+      ...textNode(id, "").data,
+      nodeKind: "LlmTextNode",
+      state: "completed",
+      config: { canvas_runtime_result: true, text: `result-${id}` },
+    },
+  }));
+  const edges = [
+    { id: "a", source: "1", target: "2" },
+    { id: "b", source: "1", target: "3" },
+    { id: "c", source: "2", target: "3" },
+    { id: "d", source: "3", target: "1" },
+  ] as StudioEdge[];
+
+  const next = invalidateCanvasRuntimeResults(nodes, edges, ["1"]);
+  const unchanged = invalidateCanvasRuntimeResults(nodes, edges, []);
+
+  expect(unchanged).toBe(nodes);
+  expect(next.map((node) => node.data.config.canvas_runtime_result)).toEqual([
+    undefined,
+    undefined,
+    undefined,
+    true,
+  ]);
+  expect(next[3]).toBe(nodes[3]);
+});

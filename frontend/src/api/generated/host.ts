@@ -148,6 +148,7 @@ export const HOST_API_COMMANDS = [
   "get_generation_call_analytics",
   "get_generation_progress",
   "get_implicit_review",
+  "get_import_review",
   "get_inspiration_history",
   "get_log_dir",
   "get_manga_pipeline_status",
@@ -205,6 +206,7 @@ export const HOST_API_COMMANDS = [
   "list_canvas_text_assets",
   "list_chapter_analyses",
   "list_chapter_index",
+  "list_chapter_outline_index",
   "list_chapter_outlines",
   "list_chapter_scenes",
   "list_chapter_video_prompts",
@@ -218,6 +220,7 @@ export const HOST_API_COMMANDS = [
   "list_images_by_project",
   "list_images_by_projects",
   "list_import_queue",
+  "list_import_queue_index",
   "list_invite_codes",
   "list_llm_config",
   "list_local_embedding_models",
@@ -226,6 +229,7 @@ export const HOST_API_COMMANDS = [
   "list_manga_pipeline_statuses",
   "list_model_provider_catalog",
   "list_my_project_invites",
+  "list_object_profile_index",
   "list_object_profiles",
   "list_optimize_patch_sets",
   "list_optimize_sessions",
@@ -233,6 +237,7 @@ export const HOST_API_COMMANDS = [
   "list_orphan_project_data_dirs",
   "list_package_command_availability",
   "list_parts",
+  "list_pending_task_index",
   "list_pending_tasks",
   "list_portraits_by_project",
   "list_profile_materials",
@@ -245,6 +250,7 @@ export const HOST_API_COMMANDS = [
   "list_snapshots",
   "list_source_snapshot_chapter_index",
   "list_source_snapshot_chapters",
+  "list_story_event_chapters",
   "list_test_runs",
   "list_test_scenarios",
   "list_themes",
@@ -1666,6 +1672,21 @@ export interface ChapterAnalysisEntry {
   title: string | null;
 }
 
+export interface ChapterStoryEventEntry {
+  analysis_data: unknown;
+  chapter_number: number;
+  foreshadowing_counts: ChapterStoryEventForeshadowingCounts;
+  id: number;
+  summary: string | null;
+  title: string | null;
+}
+
+export interface ChapterStoryEventForeshadowingCounts {
+  planted: number;
+  resolved: number;
+  tensions: number;
+}
+
 export interface GetChapterInput {
   chapter_id: number;
   project_id: number;
@@ -2031,6 +2052,19 @@ export interface TaskQueueSummary {
   task_type: string;
 }
 
+export interface PendingTaskIndexSummary {
+  created_at: string;
+  dag_id: string | null;
+  id: string;
+  priority: string;
+  project_id: number | null;
+  root_project_id: number | null;
+  source_snapshot_id: number | null;
+  status: string;
+  task_scope: string | null;
+  task_type: string;
+}
+
 export interface AdminProjectSummary {
   current_chapter: number;
   id: number;
@@ -2136,6 +2170,7 @@ export interface TestStepSummary {
 }
 
 export interface TestRunDetail {
+  log_start_index: number;
   logs: string[];
   parameters: unknown;
   steps: TestStepSummary[];
@@ -2147,6 +2182,11 @@ export interface ListTestRunsInput {
 }
 
 export interface TestRunIdInput {
+  run_id: string;
+}
+
+export interface GetTestRunInput {
+  after_log_index?: number | null;
   run_id: string;
 }
 
@@ -3749,6 +3789,15 @@ export interface ImportReviewSummary {
   updated_at: string;
 }
 
+export interface ImportReviewListItem {
+  created_at: string;
+  filename: string;
+  id: number;
+  project_id: number;
+  review_status: ImportReviewStatus;
+  updated_at: string;
+}
+
 export interface ImportProjectReviewsInput {
   project_id: number;
 }
@@ -4378,6 +4427,19 @@ export interface CreateDerivedProjectInput {
   title: string;
 }
 
+export interface SourceSnapshotChapterIndexEntry {
+  chapter_number: number;
+  id: number;
+  snapshot_id: number;
+  source_chapter_id: number;
+  title: string | null;
+}
+
+export interface SourceSnapshotChapterReadInput {
+  snapshot_id: number;
+  source_chapter_id: number;
+}
+
 export interface SourceSnapshotChapterSummary {
   analysis_data_json: unknown;
   analysis_hash: string | null;
@@ -4565,6 +4627,17 @@ export interface ChapterOutlineSummary {
   project_id: number;
   source_kind: string | null;
   status: string;
+  summary: string | null;
+  title: string | null;
+  updated_at: string | null;
+  word_count_target: number | null;
+}
+
+export interface ChapterOutlineListEntry {
+  chapter_number: number;
+  id: number;
+  project_id: number;
+  source_kind: string | null;
   summary: string | null;
   title: string | null;
   updated_at: string | null;
@@ -4850,6 +4923,20 @@ export interface WorkflowProgressEventsResponse {
   stream_text: string | null;
 }
 
+export interface GetWorkflowProgressEventsInput {
+  after_event_id?: string | null;
+  limit: number;
+  task_id?: string | null;
+  workflow_run_id?: number | null;
+}
+
+export interface WorkflowProgressEventsInput {
+  after_event_id?: number | null;
+  limit: number;
+  task_id?: string | null;
+  workflow_run_id?: number | null;
+}
+
 export interface WorkflowStateSummary {
   progress: TaskProgressSummary | null;
   progress_events: WorkflowProgressEvent[];
@@ -4916,6 +5003,9 @@ export interface GenerationRunSummary {
   completed_at: string | null;
   created_at: string;
   error_message: string | null;
+  has_parsed_output: boolean;
+  has_raw_response: boolean;
+  has_validation: boolean;
   id: number;
   input_fingerprint_json: unknown;
   input_fingerprint_sha256: string | null;
@@ -4947,7 +5037,7 @@ export interface CancelWorkflowInput {
 }
 
 export interface WorkflowProgressEventsInput {
-  after_event_id?: string | null;
+  after_event_id?: number | null;
   limit: number;
   task_id?: string | null;
   workflow_run_id?: number | null;
@@ -4965,6 +5055,7 @@ export interface ListWorkflowRunsInput {
 export interface GetWorkflowRunInput {
   include_checkpoint_details?: boolean;
   include_generation_run_count?: boolean;
+  include_generation_run_payloads?: boolean | null;
   include_generation_runs: boolean;
   workflow_run_id: number;
 }
@@ -5493,6 +5584,24 @@ export interface ObjectProfileSummary {
   updated_at: string | null;
   visual_description: string;
   visual_usage: string;
+}
+
+export interface ObjectProfileListItem {
+  created_at: string | null;
+  evidence_present: boolean;
+  first_seen_chapter: number;
+  generated_image_count: number;
+  id: number;
+  importance: string;
+  last_seen_chapter: number;
+  location_context: string | null;
+  name: string;
+  object_type: string;
+  ownership_kind: string;
+  project_id: number;
+  story_usage: string;
+  updated_at: string | null;
+  visual_description: string;
 }
 
 export interface ObjectProfileMutationResult {

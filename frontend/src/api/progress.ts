@@ -1,7 +1,7 @@
 import { apiInvoke } from "./index";
 import type {
   ProgressMeta as HostProgressMeta,
-  WorkflowProgressEventsInput,
+  GetWorkflowProgressEventsInput,
   WorkflowProgressEvent as HostWorkflowProgressEvent,
   WorkflowProgressEventsResponse as HostWorkflowProgressEventsResponse,
 } from "./generated/host";
@@ -45,7 +45,7 @@ export type ProgressEventRecord = HostWorkflowProgressEvent;
 export type WorkflowProgressEventsResponse = HostWorkflowProgressEventsResponse;
 
 export async function getWorkflowProgressEvents(
-  input: WorkflowProgressEventsInput,
+  input: GetWorkflowProgressEventsInput,
 ): Promise<WorkflowProgressEventsResponse> {
   return apiInvoke<WorkflowProgressEventsResponse>("get_workflow_progress_events", { input });
 }

@@ -1,10 +1,9 @@
 use crate::{AppState, actions::app_error_message};
 use a4n_api_contract::workflow::{
-    WorkflowProgressEvent, WorkflowProgressEventsInput, WorkflowProgressEventsResponse,
+    GetWorkflowProgressEventsInput, WorkflowProgressEvent, WorkflowProgressEventsResponse,
 };
 use a4n_domain::workflow::require_positive_workflow_run_id;
-use a4n_task_runtime::channel::{TaskProgressEvent, normalize_task_id};
-use std::collections::VecDeque;
+use a4n_task_runtime::channel::normalize_task_id;
 
 use super::super::super::{
     access::{
@@ -17,18 +16,17 @@ use super::super::super::{
 pub async fn get_workflow_progress_events(
     state: &AppState,
     user_id: i64,
-    input: WorkflowProgressEventsInput,
+    input: GetWorkflowProgressEventsInput,
 ) -> Result<WorkflowProgressEventsResponse, String> {
-    let after_event_id = input.after_event_id.as_deref();
     let task_id = match progress_events_target(&input)? {
         ProgressEventsTarget::Workflow(workflow_run_id) => {
-            let cursor = parse_workflow_event_cursor(after_event_id)?;
+            let after_event_id = parse_persisted_event_id(input.after_event_id.as_deref())?;
             return workflow_progress_events_for_user(
                 state,
                 user_id,
                 workflow_run_id,
                 input.limit,
-                cursor,
+                after_event_id,
             )
             .await
             .map(events_only);
@@ -37,8 +35,11 @@ pub async fn get_workflow_progress_events(
     };
     if let Some(handle) = state.task_manager().get(&task_id) {
         verify_task_handle_access(state, user_id, &handle).await?;
-        let events =
-            task_progress_events_since(&handle.progress_events.read(), input.limit, after_event_id);
+        let events = handle
+            .progress_events_after(input.after_event_id.as_deref(), input.limit)
+            .into_iter()
+            .map(task_progress_event)
+            .collect();
         // 活体信号只在内存快照里，随每次轮询取最新值；历史事件不承载它。
         let stream_text = handle.progress.read().stream_text.clone();
         return Ok(WorkflowProgressEventsResponse {
@@ -55,13 +56,13 @@ pub async fn get_workflow_progress_events(
         verify_task_access(state, user_id, &task_id).await?;
         return match task.workflow_run_id {
             Some(workflow_run_id) => {
-                let cursor = after_event_id.and_then(parse_positive_workflow_event_cursor);
+                let after_event_id = task_fallback_event_cursor(input.after_event_id.as_deref())?;
                 workflow_progress_events_for_user(
                     state,
                     user_id,
                     workflow_run_id,
                     input.limit,
-                    cursor,
+                    after_event_id,
                 )
                 .await
                 .map(events_only)
@@ -76,10 +77,13 @@ pub async fn get_workflow_progress_events(
         .map_err(app_error_message)?
     {
         verify_task_project_access(state, user_id, run.project_id, run.root_project_id).await?;
-        let cursor = after_event_id.and_then(parse_positive_workflow_event_cursor);
         return state
             .workflow_task_lookup_application()
-            .workflow_progress_events(run.workflow_run_id, input.limit, cursor)
+            .workflow_progress_events(
+                run.workflow_run_id,
+                input.limit,
+                task_fallback_event_cursor(input.after_event_id.as_deref())?,
+            )
             .await
             .map_err(app_error_message)
             .map(events_only);
@@ -92,43 +96,8 @@ enum ProgressEventsTarget {
     Workflow(i64),
 }
 
-fn task_progress_events_since(
-    events: &VecDeque<TaskProgressEvent>,
-    limit: usize,
-    after_event_id: Option<&str>,
-) -> Vec<WorkflowProgressEvent> {
-    let start = after_event_id
-        .and_then(|cursor| {
-            events
-                .iter()
-                .rposition(|event| event.id == cursor)
-                .map(|index| index + 1)
-        })
-        .unwrap_or_else(|| events.len().saturating_sub(limit));
-    events
-        .iter()
-        .skip(start)
-        .take(limit)
-        .cloned()
-        .map(task_progress_event)
-        .collect()
-}
-
-fn parse_workflow_event_cursor(value: Option<&str>) -> Result<Option<i64>, String> {
-    value
-        .map(|value| {
-            parse_positive_workflow_event_cursor(value)
-                .ok_or_else(|| "workflow after_event_id 必须是正整数".to_string())
-        })
-        .transpose()
-}
-
-fn parse_positive_workflow_event_cursor(value: &str) -> Option<i64> {
-    value.parse::<i64>().ok().filter(|event_id| *event_id > 0)
-}
-
 fn progress_events_target(
-    input: &WorkflowProgressEventsInput,
+    input: &GetWorkflowProgressEventsInput,
 ) -> Result<ProgressEventsTarget, String> {
     if !(1..=200).contains(&input.limit) {
         return Err("limit 必须在 1 到 200 之间".to_string());
@@ -153,6 +122,33 @@ fn progress_events_target(
             Ok(ProgressEventsTarget::Workflow(workflow_run_id))
         }
         _ => Err("必须且只能提供 task_id 或 workflow_run_id 之一".to_string()),
+    }
+}
+
+fn parse_persisted_event_id(event_id: Option<&str>) -> Result<Option<i64>, String> {
+    event_id
+        .map(|value| {
+            value
+                .parse::<i64>()
+                .map_err(|_| "工作流进度事件 ID 必须是正整数".to_string())
+                .and_then(|id| {
+                    (id > 0)
+                        .then_some(id)
+                        .ok_or_else(|| "工作流进度事件 ID 必须是正整数".to_string())
+                })
+        })
+        .transpose()
+}
+
+fn task_fallback_event_cursor(event_id: Option<&str>) -> Result<Option<i64>, String> {
+    let Some(event_id) = event_id else {
+        return Ok(None);
+    };
+    // Once a task handle is gone, its opaque event IDs cannot address persisted run events.
+    match event_id.parse::<i64>() {
+        Ok(id) if id > 0 => Ok(Some(id)),
+        Ok(_) => Err("工作流进度事件 ID 必须是正整数".to_string()),
+        Err(_) => Ok(None),
     }
 }
 
@@ -188,19 +184,17 @@ async fn workflow_progress_events_for_user(
 #[cfg(test)]
 mod tests {
     use super::{
-        ProgressEventsTarget, parse_workflow_event_cursor, progress_events_target,
-        task_progress_events_since,
+        ProgressEventsTarget, parse_persisted_event_id, progress_events_target,
+        task_fallback_event_cursor,
     };
-    use a4n_api_contract::workflow::WorkflowProgressEventsInput;
-    use a4n_task_runtime::channel::TaskProgressEvent;
-    use std::collections::VecDeque;
+    use a4n_api_contract::workflow::GetWorkflowProgressEventsInput;
 
     #[test]
     fn task_workflow_progress_events_target_requires_one_valid_target_and_bounded_limit() {
-        let task = WorkflowProgressEventsInput {
+        let task = GetWorkflowProgressEventsInput {
             task_id: Some(" task-1 ".to_string()),
             workflow_run_id: None,
-            after_event_id: None,
+            after_event_id: Some("task-1-2026-10-11T00:00:00Z".to_string()),
             limit: 1,
         };
         assert!(matches!(
@@ -208,10 +202,10 @@ mod tests {
             ProgressEventsTarget::Task(task_id) if task_id == "task-1"
         ));
 
-        let workflow = WorkflowProgressEventsInput {
+        let workflow = GetWorkflowProgressEventsInput {
             task_id: None,
             workflow_run_id: Some(7),
-            after_event_id: None,
+            after_event_id: Some("11".to_string()),
             limit: 200,
         };
         assert!(matches!(
@@ -219,7 +213,7 @@ mod tests {
             ProgressEventsTarget::Workflow(7)
         ));
 
-        let both = WorkflowProgressEventsInput {
+        let both = GetWorkflowProgressEventsInput {
             task_id: Some("task-1".to_string()),
             workflow_run_id: Some(7),
             after_event_id: None,
@@ -227,62 +221,23 @@ mod tests {
         };
         assert!(progress_events_target(&both).is_err());
 
-        let invalid_limit = WorkflowProgressEventsInput {
+        let invalid_limit = GetWorkflowProgressEventsInput {
             task_id: Some("task-1".to_string()),
             workflow_run_id: None,
             after_event_id: None,
             limit: 0,
         };
         assert!(progress_events_target(&invalid_limit).is_err());
-
-        let invalid_cursor = WorkflowProgressEventsInput {
-            task_id: Some("task-1".to_string()),
-            workflow_run_id: None,
-            after_event_id: Some("x".repeat(257)),
-            limit: 20,
-        };
-        assert!(progress_events_target(&invalid_cursor).is_err());
     }
 
     #[test]
-    fn task_progress_event_cursor_returns_only_unseen_events_in_order() {
-        let events = VecDeque::from([event("event-1"), event("event-2"), event("event-3")]);
+    fn persisted_event_cursors_require_positive_numeric_ids() {
+        assert_eq!(parse_persisted_event_id(None).unwrap(), None);
+        assert_eq!(parse_persisted_event_id(Some("17")).unwrap(), Some(17));
+        assert!(parse_persisted_event_id(Some("task-1-17")).is_err());
+        assert!(parse_persisted_event_id(Some("0")).is_err());
 
-        let incremental = task_progress_events_since(&events, 200, Some("event-2"));
-        assert_eq!(
-            incremental
-                .iter()
-                .map(|event| event.id.as_str())
-                .collect::<Vec<_>>(),
-            ["event-3"]
-        );
-
-        let stale_cursor = task_progress_events_since(&events, 2, Some("stale"));
-        assert_eq!(
-            stale_cursor
-                .iter()
-                .map(|event| event.id.as_str())
-                .collect::<Vec<_>>(),
-            ["event-2", "event-3"]
-        );
-    }
-
-    #[test]
-    fn workflow_event_cursor_requires_a_positive_database_event_id() {
-        assert_eq!(parse_workflow_event_cursor(None).unwrap(), None);
-        assert_eq!(parse_workflow_event_cursor(Some("42")).unwrap(), Some(42));
-        assert!(parse_workflow_event_cursor(Some("task-1-20")).is_err());
-        assert!(parse_workflow_event_cursor(Some("0")).is_err());
-    }
-
-    fn event(id: &str) -> TaskProgressEvent {
-        TaskProgressEvent {
-            id: id.to_string(),
-            current: 1,
-            total: 3,
-            message: id.to_string(),
-            meta: None,
-            timestamp: "2026-10-15T00:00:00Z".to_string(),
-        }
+        assert_eq!(task_fallback_event_cursor(Some("task-1-17")).unwrap(), None);
+        assert_eq!(task_fallback_event_cursor(Some("17")).unwrap(), Some(17));
     }
 }

@@ -103,6 +103,7 @@ export async function readSseStream(
   onEvent: (event: ParsedSseEvent) => void,
   signal?: AbortSignal,
   maxEventBytes?: number,
+  onActivity?: () => void,
 ): Promise<void> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -112,6 +113,7 @@ export async function readSseStream(
       if (signal?.aborted) return;
       const { done, value } = await reader.read();
       if (done) break;
+      onActivity?.();
       parser.push(decoder.decode(value, { stream: true }));
     }
     parser.push(decoder.decode());

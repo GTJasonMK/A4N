@@ -22,6 +22,8 @@ pub struct SourceSnapshotProjectInput {
 #[serde(deny_unknown_fields)]
 pub struct SourceSnapshotChapterInput {
     pub project_id: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub snapshot_id: Option<i64>,
     pub source_chapter_id: i64,
 }
 
@@ -69,14 +71,14 @@ mod tests {
         }))
         .expect("snapshot chapter input must deserialize");
         assert_eq!(input.project_id, 7);
+        assert_eq!(input.snapshot_id, None);
         assert_eq!(input.source_chapter_id, 19);
-        assert!(
-            serde_json::from_value::<SourceSnapshotChapterInput>(serde_json::json!({
-                "project_id": 7,
-                "source_chapter_id": 19,
-                "snapshot_id": 2
-            }))
-            .is_err()
-        );
+        let scoped: SourceSnapshotChapterInput = serde_json::from_value(serde_json::json!({
+            "project_id": 7,
+            "snapshot_id": 2,
+            "source_chapter_id": 19
+        }))
+        .expect("snapshot scope is optional");
+        assert_eq!(scoped.snapshot_id, Some(2));
     }
 }

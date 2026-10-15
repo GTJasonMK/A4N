@@ -581,8 +581,499 @@ async fn generation_ownership_fences_attempts_and_keeps_cancelled_call_cost() {
 }
 
 #[tokio::test]
+#[ignore = "manual PostgreSQL benchmark; needs isolated A4N_TEST_DATABASE_URL"]
+async fn performance_generation_cancel_scan_32_candidates() {
+    use a4n_db::agent::{
+        AgentOwnedTask, active_owned_generation_tasks, generation_owner, generation_owner_statuses,
+        generation_owner_stopped, run_budget_snapshots,
+    };
+    use a4n_db::generation::{ReserveGenerationTaskInput, reserve_generation_task};
+    use a4n_queue::priority::{TaskKind, TaskPriority};
+    use a4n_service_protocol::GenerationDeliveryMode;
+
+    const CANDIDATE_COUNT: usize = 32;
+    const SAMPLES: usize = 15;
+    let db = setup_db().await;
+    a4n_db::package::ensure_host_package_states(&db, &["ai-workflow".into()])
+        .await
+        .unwrap();
+    let user = a4n_db::auth::create_user_summary(
+        &db,
+        "agent_generation_perf",
+        "agent_generation_perf@example.invalid",
+        "test-password",
+        "user",
+    )
+    .await
+    .unwrap();
+
+    for index in 0..CANDIDATE_COUNT {
+        let thread = create_test_thread(&db, "content_optimization").await;
+        let (_, owner) = create_test_run(&db, thread.id, "user").await;
+        let claimed = claim_runnable_run(&db, &format!("generation-perf-{index}"))
+            .await
+            .unwrap()
+            .unwrap();
+        let task = reserve_generation_task(
+            &db,
+            ReserveGenerationTaskInput {
+                requested_by_user_id: user.id,
+                start_request_id: Uuid::new_v4().to_string(),
+                business_key_json: json!({"version": 1, "benchmark": index}),
+                input_fingerprint_json: json!({"benchmark": index}),
+                task_kind: TaskKind::TextGeneration,
+                priority: TaskPriority::High,
+                delivery_mode: GenerationDeliveryMode::Stream,
+                batch_policy: None,
+                project_id: None,
+                root_project_id: None,
+                source_snapshot_id: None,
+                task_scope: None,
+                workflow_run_id: None,
+                generation_run_id: None,
+                target: None,
+                root_task_id: None,
+                parent_task_id: None,
+                item_key: None,
+                retry_of_task_id: None,
+            },
+        )
+        .await
+        .unwrap()
+        .task;
+        let owned_task = AgentOwnedTask::Generation {
+            task_id: task.checkpoint.task_id,
+            attempt: task.checkpoint.attempt as u32,
+        };
+        let mut start = budget_execution(owner.id, "generation-start", false);
+        start.tool_name = Some("send_content_optimization_message".into());
+        start.resource_preconditions_json = Some(owned_task.preconditions());
+        create_execution_for_run_lease(&db, start, claimed.lease_token.as_deref().unwrap())
+            .await
+            .unwrap();
+    }
+
+    type CandidateRow = (String, i32, i64, String, i64, bool);
+    async fn scan(db: &DatabaseConnection, batched: bool) -> (Vec<CandidateRow>, u128) {
+        let started = std::time::Instant::now();
+        let tasks = active_owned_generation_tasks(db, "").await.unwrap();
+        let mut candidates = Vec::with_capacity(tasks.len());
+        let mut owners = Vec::with_capacity(tasks.len());
+        let mut budget_indexes = Vec::new();
+        for task in &tasks {
+            let attempt = u32::try_from(task.attempt).unwrap();
+            let owner = generation_owner(db, &task.task_id, attempt)
+                .await
+                .unwrap()
+                .unwrap();
+            candidates.push((
+                task.task_id.clone(),
+                task.attempt,
+                task.requested_by_user_id,
+                task.status.clone(),
+                owner.id,
+                false,
+            ));
+            owners.push(owner);
+        }
+        if batched {
+            let statuses = generation_owner_statuses(db, &owners).await.unwrap();
+            for (index, owner) in owners.iter().enumerate() {
+                let stopped_by_status = *statuses.get(&owner.id).unwrap();
+                candidates[index].5 = stopped_by_status;
+                if !stopped_by_status {
+                    budget_indexes.push((index, owner.id));
+                }
+            }
+        } else {
+            for (index, owner) in owners.iter().enumerate() {
+                candidates[index].5 = generation_owner_stopped(db, owner).await.unwrap();
+            }
+        }
+        if !budget_indexes.is_empty() {
+            let budgets = run_budget_snapshots(
+                db,
+                &budget_indexes
+                    .iter()
+                    .map(|(_, owner_id)| *owner_id)
+                    .collect::<Vec<_>>(),
+            )
+            .await
+            .unwrap();
+            for (index, owner_id) in budget_indexes {
+                candidates[index].5 = budgets
+                    .get(&owner_id)
+                    .unwrap()
+                    .remaining
+                    .max_duration_seconds
+                    == Some(0);
+            }
+        }
+        (candidates, started.elapsed().as_micros())
+    }
+
+    for _ in 0..2 {
+        assert_eq!(scan(&db, false).await.0.len(), CANDIDATE_COUNT);
+        assert_eq!(scan(&db, true).await.0.len(), CANDIDATE_COUNT);
+    }
+    let mut before_timings = Vec::with_capacity(SAMPLES);
+    let mut after_timings = Vec::with_capacity(SAMPLES);
+    for sample in 0..SAMPLES {
+        let (before, before_elapsed, after, after_elapsed) = if sample % 2 == 0 {
+            let (before, before_elapsed) = scan(&db, false).await;
+            let (after, after_elapsed) = scan(&db, true).await;
+            (before, before_elapsed, after, after_elapsed)
+        } else {
+            let (after, after_elapsed) = scan(&db, true).await;
+            let (before, before_elapsed) = scan(&db, false).await;
+            (before, before_elapsed, after, after_elapsed)
+        };
+        assert_eq!(before, after);
+        assert_eq!(before.len(), CANDIDATE_COUNT);
+        assert!(before.iter().all(|candidate| !candidate.5));
+        before_timings.push(before_elapsed);
+        after_timings.push(after_elapsed);
+    }
+    before_timings.sort_unstable();
+    after_timings.sort_unstable();
+    let p95_index = (SAMPLES * 95).div_ceil(100) - 1;
+    println!(
+        "generation_cancel_scan={}",
+        json!({
+            "candidate_count": CANDIDATE_COUNT,
+            "warmups": 2,
+            "samples": SAMPLES,
+            "db_queries_before": 1 + CANDIDATE_COUNT * 6,
+            "db_queries_after": 1 + CANDIDATE_COUNT * 2 + 1 + 3,
+            "p50_before_us": before_timings[SAMPLES / 2],
+            "p95_before_us": before_timings[p95_index],
+            "p50_after_us": after_timings[SAMPLES / 2],
+            "p95_after_us": after_timings[p95_index],
+        })
+    );
+}
+
+#[tokio::test]
+#[ignore = "manual PostgreSQL benchmark; needs isolated A4N_TEST_DATABASE_URL"]
+async fn performance_workflow_cancel_scan_32_candidates() {
+    use a4n_db::agent::{
+        active_owned_workflows, generation_owner_statuses, generation_owner_stopped,
+        run_budget_snapshots, workflow_owner,
+    };
+    use a4n_db_models::models::generation::workflow_run;
+
+    const CANDIDATE_COUNT: usize = 32;
+    const SAMPLES: usize = 15;
+    let db = setup_db().await;
+    let now = Utc::now().naive_utc();
+    for index in 0..CANDIDATE_COUNT {
+        let thread = create_test_thread(&db, "canvas").await;
+        let (_, owner) = create_test_run(&db, thread.id, "user").await;
+        let claimed = claim_runnable_run(&db, &format!("workflow-perf-{index}"))
+            .await
+            .unwrap()
+            .unwrap();
+        let workflow = workflow_run::ActiveModel {
+            business_key: Set(format!("agent-workflow-cancel-perf:{index}")),
+            workflow_kind: Set("video_canvas_graph".into()),
+            status: Set("running".into()),
+            can_resume: Set(true),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        }
+        .insert(&db)
+        .await
+        .unwrap();
+        let mut start = budget_execution(owner.id, "workflow-start", false);
+        start.tool_name = Some("run_canvas_graph".into());
+        start.resource_preconditions_json =
+            Some(json!({"workflow_run_id": workflow.id.to_string()}));
+        create_execution_for_run_lease(&db, start, claimed.lease_token.as_deref().unwrap())
+            .await
+            .unwrap();
+    }
+
+    type CandidateRow = (i64, i64, bool);
+    async fn scan(db: &DatabaseConnection, batched: bool) -> (Vec<CandidateRow>, u128) {
+        let started = std::time::Instant::now();
+        let workflows = active_owned_workflows(db, 0).await.unwrap();
+        let mut candidates = Vec::with_capacity(workflows.len());
+        let mut owners = Vec::with_capacity(workflows.len());
+        let mut budget_indexes = Vec::new();
+        for workflow_id in &workflows {
+            let owner = workflow_owner(db, *workflow_id).await.unwrap().unwrap();
+            candidates.push((*workflow_id, owner.id, false));
+            owners.push(owner);
+        }
+        if batched {
+            let statuses = generation_owner_statuses(db, &owners).await.unwrap();
+            for (index, owner) in owners.iter().enumerate() {
+                let stopped_by_status = *statuses.get(&owner.id).unwrap();
+                candidates[index].2 = stopped_by_status;
+                if !stopped_by_status {
+                    budget_indexes.push((index, owner.id));
+                }
+            }
+        } else {
+            for (index, owner) in owners.iter().enumerate() {
+                candidates[index].2 = generation_owner_stopped(db, owner).await.unwrap();
+            }
+        }
+        if !budget_indexes.is_empty() {
+            let budgets = run_budget_snapshots(
+                db,
+                &budget_indexes
+                    .iter()
+                    .map(|(_, owner_id)| *owner_id)
+                    .collect::<Vec<_>>(),
+            )
+            .await
+            .unwrap();
+            for (index, owner_id) in budget_indexes {
+                candidates[index].2 = budgets
+                    .get(&owner_id)
+                    .unwrap()
+                    .remaining
+                    .max_duration_seconds
+                    == Some(0);
+            }
+        }
+        (candidates, started.elapsed().as_micros())
+    }
+
+    for _ in 0..2 {
+        assert_eq!(scan(&db, false).await.0.len(), CANDIDATE_COUNT);
+        assert_eq!(scan(&db, true).await.0.len(), CANDIDATE_COUNT);
+    }
+    let mut before_timings = Vec::with_capacity(SAMPLES);
+    let mut after_timings = Vec::with_capacity(SAMPLES);
+    for sample in 0..SAMPLES {
+        let (before, before_elapsed, after, after_elapsed) = if sample % 2 == 0 {
+            let (before, before_elapsed) = scan(&db, false).await;
+            let (after, after_elapsed) = scan(&db, true).await;
+            (before, before_elapsed, after, after_elapsed)
+        } else {
+            let (after, after_elapsed) = scan(&db, true).await;
+            let (before, before_elapsed) = scan(&db, false).await;
+            (before, before_elapsed, after, after_elapsed)
+        };
+        assert_eq!(before, after);
+        assert_eq!(before.len(), CANDIDATE_COUNT);
+        assert!(before.iter().all(|candidate| !candidate.2));
+        before_timings.push(before_elapsed);
+        after_timings.push(after_elapsed);
+    }
+    before_timings.sort_unstable();
+    after_timings.sort_unstable();
+    let p95_index = (SAMPLES * 95).div_ceil(100) - 1;
+    println!(
+        "workflow_cancel_scan={}",
+        json!({
+            "candidate_count": CANDIDATE_COUNT,
+            "warmups": 2,
+            "samples": SAMPLES,
+            "db_queries_before": 1 + CANDIDATE_COUNT * 5,
+            "db_queries_after": 1 + CANDIDATE_COUNT + 1 + 3,
+            "p50_before_us": before_timings[SAMPLES / 2],
+            "p95_before_us": before_timings[p95_index],
+            "p50_after_us": after_timings[SAMPLES / 2],
+            "p95_after_us": after_timings[p95_index],
+        })
+    );
+}
+
+#[tokio::test]
+#[ignore = "manual PostgreSQL benchmark; needs isolated A4N_TEST_DATABASE_URL"]
+async fn performance_agent_owner_json_lookup_50000_noise_executions() {
+    use a4n_db::agent::{AgentOwnedTask, active_owned_generation_tasks, generation_owner};
+    use a4n_db::generation::{ReserveGenerationTaskInput, reserve_generation_task};
+    use a4n_queue::priority::{TaskKind, TaskPriority};
+    use a4n_service_protocol::GenerationDeliveryMode;
+    use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
+
+    const NOISE_COUNT: i64 = 50_000;
+    const WARMUPS: usize = 2;
+    const SAMPLES: usize = 15;
+    let db = setup_db().await;
+    db.execute(Statement::from_string(
+        DatabaseBackend::Postgres,
+        "DROP INDEX IF EXISTS idx_agent_execution_generation_owner_lookup",
+    ))
+    .await
+    .unwrap();
+    a4n_db::package::ensure_host_package_states(&db, &["ai-workflow".into()])
+        .await
+        .unwrap();
+    let user = a4n_db::auth::create_user_summary(
+        &db,
+        "agent_owner_index_perf",
+        "agent_owner_index_perf@example.invalid",
+        "test-password",
+        "user",
+    )
+    .await
+    .unwrap();
+    let thread = create_test_thread(&db, "content_optimization").await;
+    let (_, owner) = create_test_run(&db, thread.id, "user").await;
+    let claimed = claim_runnable_run(&db, "owner-index-perf")
+        .await
+        .unwrap()
+        .unwrap();
+    let generation = reserve_generation_task(
+        &db,
+        ReserveGenerationTaskInput {
+            requested_by_user_id: user.id,
+            start_request_id: Uuid::new_v4().to_string(),
+            business_key_json: json!({"version": 1, "owner_index_perf": "generation"}),
+            input_fingerprint_json: json!({"owner_index_perf": "generation"}),
+            task_kind: TaskKind::TextGeneration,
+            priority: TaskPriority::High,
+            delivery_mode: GenerationDeliveryMode::Stream,
+            batch_policy: None,
+            project_id: None,
+            root_project_id: None,
+            source_snapshot_id: None,
+            task_scope: None,
+            workflow_run_id: None,
+            generation_run_id: None,
+            target: None,
+            root_task_id: None,
+            parent_task_id: None,
+            item_key: None,
+            retry_of_task_id: None,
+        },
+    )
+    .await
+    .unwrap()
+    .task;
+    let generation_task = AgentOwnedTask::Generation {
+        task_id: generation.checkpoint.task_id.clone(),
+        attempt: generation.checkpoint.attempt as u32,
+    };
+    let mut generation_start = budget_execution(owner.id, "owner-index-generation-start", false);
+    generation_start.tool_name = Some("send_content_optimization_message".into());
+    generation_start.resource_preconditions_json = Some(generation_task.preconditions());
+    create_execution_for_run_lease(
+        &db,
+        generation_start,
+        claimed.lease_token.as_deref().unwrap(),
+    )
+    .await
+    .unwrap();
+    let noise_thread = create_test_thread(&db, "noise").await;
+    let (_, noise_run) = create_test_run(&db, noise_thread.id, "user").await;
+    db.execute(Statement::from_sql_and_values(
+        DatabaseBackend::Postgres,
+        r#"
+        INSERT INTO agent_execution (
+            run_id, sequence, execution_key, execution_kind, status, tool_name,
+            effect, replay_policy, arguments_json, arguments_sha256,
+            resource_preconditions_json, result_json, result_summary,
+            result_refs_json, error_message, created_at, updated_at,
+            started_at, completed_at
+        )
+        SELECT $1, n, 'owner-noise:' || n, 'tool_call', 'succeeded', 'noise',
+               'read', 'safe', NULL, NULL,
+               jsonb_build_object(
+                   'generation_task_id', 'noise:' || n,
+                   'generation_attempt', '1',
+                   'workflow_run_id', 'noise:' || n
+               ),
+               NULL, NULL, NULL, NULL, NOW(), NOW(), NOW(), NOW()
+        FROM generate_series(1, $2::bigint) AS n
+        "#,
+        [noise_run.id.into(), NOISE_COUNT.into()],
+    ))
+    .await
+    .unwrap();
+    db.execute(Statement::from_string(
+        DatabaseBackend::Postgres,
+        "ANALYZE agent_execution",
+    ))
+    .await
+    .unwrap();
+
+    async fn sample(db: &DatabaseConnection) -> (Vec<String>, u128) {
+        let started = std::time::Instant::now();
+        let generations = active_owned_generation_tasks(db, "").await.unwrap();
+        let mut generation_owners = Vec::with_capacity(generations.len());
+        for task in &generations {
+            let owner = generation_owner(db, &task.task_id, task.attempt as u32)
+                .await
+                .unwrap()
+                .unwrap();
+            generation_owners.push((task.task_id.clone(), owner.id));
+        }
+        (
+            generation_owners
+                .into_iter()
+                .map(|(task_id, _)| task_id)
+                .collect(),
+            started.elapsed().as_micros(),
+        )
+    }
+
+    async fn measure(db: &DatabaseConnection, generation_task_id: &str) -> Vec<u128> {
+        for _ in 0..WARMUPS {
+            let (generations, _) = sample(db).await;
+            assert_eq!(generations, vec![generation_task_id.to_string()]);
+        }
+        let mut timings = Vec::with_capacity(SAMPLES);
+        for _ in 0..SAMPLES {
+            let (generations, elapsed) = sample(db).await;
+            assert_eq!(generations, vec![generation_task_id.to_string()]);
+            timings.push(elapsed);
+        }
+        timings.sort_unstable();
+        timings
+    }
+
+    let before = measure(&db, &generation.checkpoint.task_id).await;
+    db.execute(Statement::from_string(
+        DatabaseBackend::Postgres,
+        "CREATE INDEX idx_agent_execution_generation_owner_lookup ON agent_execution ((resource_preconditions_json->>'generation_task_id'), (resource_preconditions_json->>'generation_attempt'), run_id)",
+    ))
+    .await
+    .unwrap();
+    db.execute(Statement::from_string(
+        DatabaseBackend::Postgres,
+        "ANALYZE agent_execution",
+    ))
+    .await
+    .unwrap();
+    let after = measure(&db, &generation.checkpoint.task_id).await;
+    let index_bytes = db
+        .query_one(Statement::from_string(
+            DatabaseBackend::Postgres,
+            r#"
+            SELECT pg_relation_size('idx_agent_execution_generation_owner_lookup') AS bytes
+            "#,
+        ))
+        .await
+        .unwrap()
+        .unwrap()
+        .try_get::<i64>("", "bytes")
+        .unwrap();
+    let p95_index = (SAMPLES * 95).div_ceil(100) - 1;
+    println!(
+        "agent_owner_json_lookup={}",
+        json!({
+            "noise_executions": NOISE_COUNT,
+            "warmups": WARMUPS,
+            "samples": SAMPLES,
+            "index_bytes": index_bytes,
+            "p50_before_us": before[SAMPLES / 2],
+            "p95_before_us": before[p95_index],
+            "p50_after_us": after[SAMPLES / 2],
+            "p95_after_us": after[p95_index],
+        })
+    );
+}
+
+#[tokio::test]
 async fn shared_budget_serializes_siblings_and_counts_replay_once() {
-    use a4n_db::agent::run_budget_snapshot;
+    use a4n_db::agent::{generation_owner_statuses, run_budget_snapshot, run_budget_snapshots};
     let db = setup_db().await;
     let root_thread = create_test_thread(&db, "main").await;
     let (_, root) = create_test_run(&db, root_thread.id, "user").await;
@@ -600,6 +1091,18 @@ async fn shared_budget_serializes_siblings_and_counts_replay_once() {
         child.update(&db).await.unwrap();
         claims.push(claim_runnable_run(&db, "child").await.unwrap().unwrap());
     }
+    let owner_records = vec![
+        AgentRunRecord::from(persisted_run(&db, root.id).await),
+        AgentRunRecord::from(persisted_run(&db, claims[0].id).await),
+        AgentRunRecord::from(persisted_run(&db, claims[1].id).await),
+    ];
+    assert!(
+        generation_owner_statuses(&db, &owner_records)
+            .await
+            .unwrap()
+            .values()
+            .all(|stopped| !stopped)
+    );
     let inputs = [
         budget_execution(claims[0].id, "model-call:1", true),
         budget_execution(claims[1].id, "model-call:1", true),
@@ -645,6 +1148,14 @@ async fn shared_budget_serializes_siblings_and_counts_replay_once() {
     assert_eq!(total.usage["tokens_used"], 123);
     assert_eq!(total.remaining.max_tokens, Some(4877));
     assert_eq!(total.remaining.max_model_calls, Some(0));
+    let run_ids = [root.id, claims[0].id, claims[1].id];
+    let snapshots = run_budget_snapshots(&db, &run_ids).await.unwrap();
+    for run_id in run_ids {
+        let batch = snapshots.get(&run_id).unwrap();
+        let single = run_budget_snapshot(&db, run_id).await.unwrap();
+        assert_eq!(batch.usage, single.usage);
+        assert_eq!(batch.remaining, single.remaining);
+    }
     assert!(
         create_execution_for_run_lease(
             &db,
@@ -666,6 +1177,22 @@ async fn shared_budget_serializes_siblings_and_counts_replay_once() {
     );
     assert!(persisted.get("model_calls_used").is_none());
     assert!(persisted.get("tokens_used").is_none());
+
+    cancel_run_tree(&db, root.id, Some("test cancellation"))
+        .await
+        .unwrap();
+    let stopped_records = vec![
+        AgentRunRecord::from(persisted_run(&db, root.id).await),
+        AgentRunRecord::from(persisted_run(&db, claims[0].id).await),
+        AgentRunRecord::from(persisted_run(&db, claims[1].id).await),
+    ];
+    assert!(
+        generation_owner_statuses(&db, &stopped_records)
+            .await
+            .unwrap()
+            .values()
+            .all(|stopped| *stopped)
+    );
 }
 
 #[tokio::test]
@@ -1187,6 +1714,106 @@ async fn external_task_wait_wakes_only_its_live_execution() {
 }
 
 #[tokio::test]
+#[ignore = "manual PostgreSQL benchmark; needs isolated A4N_TEST_DATABASE_URL"]
+async fn performance_external_task_wait_scan_32_runs() {
+    use a4n_db::agent::{
+        external_task_wait, list_external_task_waits, run_budget_snapshot, run_budget_snapshots,
+        wait_run_for_lease_with_request,
+    };
+
+    const WAIT_COUNT: usize = 32;
+    const SAMPLES: usize = 15;
+    let db = setup_db().await;
+    for index in 0..WAIT_COUNT {
+        let thread = create_test_thread(&db, &format!("wait-perf-{index}")).await;
+        let (_, run) = create_test_run(&db, thread.id, "user").await;
+        let worker_id = format!("wait-perf-{index}");
+        let claimed = claim_runnable_run(&db, &worker_id).await.unwrap().unwrap();
+        assert_eq!(claimed.id, run.id);
+        let lease_token = claimed.lease_token.as_deref().unwrap();
+        let mut input = budget_execution(run.id, "tool-call:wait-perf", false);
+        input.execution_kind = "wait".into();
+        input.tool_name = Some("wait_workflow_run".into());
+        let execution = create_execution_for_run_lease(&db, input, lease_token)
+            .await
+            .unwrap();
+        update_execution_for_run_lease(
+            &db,
+            run.id,
+            lease_token,
+            execution.id,
+            "running",
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        wait_run_for_lease_with_request(&db, run.id, lease_token, "external", None)
+            .await
+            .unwrap();
+    }
+
+    async fn scan(db: &DatabaseConnection) -> (usize, usize, u128) {
+        let started = std::time::Instant::now();
+        let waits = list_external_task_waits(db, 0).await.unwrap();
+        let run_ids = waits.iter().map(|wait| wait.run.id).collect::<Vec<_>>();
+        let budgets = run_budget_snapshots(db, &run_ids).await.unwrap();
+        assert_eq!(budgets.len(), waits.len());
+        let mut exhausted = 0;
+        for wait in &waits {
+            let budget = budgets.get(&wait.run.id).unwrap();
+            exhausted += usize::from(budget.remaining.max_duration_seconds == Some(0));
+        }
+        (waits.len(), exhausted, started.elapsed().as_micros())
+    }
+
+    let waits = list_external_task_waits(&db, 0).await.unwrap();
+    for wait in &waits {
+        let single = external_task_wait(&db, wait.run.id, wait.execution.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(wait, &single);
+    }
+    let run_ids = waits.iter().map(|wait| wait.run.id).collect::<Vec<_>>();
+    let batched = run_budget_snapshots(&db, &run_ids).await.unwrap();
+    assert_eq!(batched.len(), waits.len());
+    for wait in &waits {
+        let individual = run_budget_snapshot(&db, wait.run.id).await.unwrap();
+        let batch = batched.get(&wait.run.id).unwrap();
+        assert_eq!(batch.usage, individual.usage);
+        assert_eq!(batch.remaining, individual.remaining);
+    }
+
+    for _ in 0..2 {
+        let (count, _, _) = scan(&db).await;
+        assert_eq!(count, WAIT_COUNT);
+    }
+    let mut timings = Vec::with_capacity(SAMPLES);
+    for _ in 0..SAMPLES {
+        let (count, exhausted, elapsed) = scan(&db).await;
+        assert_eq!(count, WAIT_COUNT);
+        assert_eq!(exhausted, 0);
+        timings.push(elapsed);
+    }
+    timings.sort_unstable();
+    let p95_index = (SAMPLES * 95).div_ceil(100) - 1;
+    println!(
+        "external_task_wait_scan={}",
+        json!({
+            "wait_count": WAIT_COUNT,
+            "warmups": 2,
+            "samples": SAMPLES,
+            "db_queries_per_scan": 6,
+            "p50_us": timings[SAMPLES / 2],
+            "p95_us": timings[p95_index],
+        })
+    );
+}
+
+#[tokio::test]
 async fn editor_wait_is_fenced_and_expires_without_dispatching() {
     use a4n_db::agent::{
         claim_editor_execution, expire_editor_requests, wait_run_for_lease_with_request,
@@ -1311,6 +1938,148 @@ async fn editor_wait_is_fenced_and_expires_without_dispatching() {
         .unwrap()
         .unwrap();
     assert_eq!(failed_turn.status, "failed");
+}
+
+#[tokio::test]
+#[ignore = "manual PostgreSQL benchmark; needs isolated A4N_TEST_DATABASE_URL"]
+async fn performance_expire_editor_waits_32_candidates() {
+    use a4n_db::agent::{expire_editor_requests, wait_run_for_lease_with_request};
+
+    const WAIT_COUNT: usize = 32;
+    const SAMPLES: usize = 15;
+    let db = setup_db().await;
+    let mut run_ids = Vec::with_capacity(WAIT_COUNT);
+    let mut thread_ids = Vec::with_capacity(WAIT_COUNT);
+    let mut execution_ids = Vec::with_capacity(WAIT_COUNT);
+
+    for index in 0..WAIT_COUNT {
+        let thread = create_test_thread(&db, &format!("editor-expiry-perf-{index}")).await;
+        let (_, run) = create_test_run(&db, thread.id, "user").await;
+        let claimed = claim_runnable_run(&db, &format!("editor-expiry-perf-{index}"))
+            .await
+            .unwrap()
+            .unwrap();
+        let execution = create_execution_for_run_lease(
+            &db,
+            AgentExecutionInput {
+                run_id: run.id,
+                execution_key: format!("editor-wait-{index}"),
+                execution_kind: "tool_call".into(),
+                status: "prepared".into(),
+                tool_name: Some("inspect_editor_target".into()),
+                effect: Some("read".into()),
+                replay_policy: Some("safe".into()),
+                arguments_json: Some(json!({})),
+                resource_preconditions_json: None,
+            },
+            claimed.lease_token.as_deref().unwrap(),
+        )
+        .await
+        .unwrap();
+        let editor_request = json!({
+            "execution_id": execution.id.to_string(),
+            "source": {"view_instance_id": format!("expiry-{index}")},
+        });
+        wait_run_for_lease_with_request(
+            &db,
+            run.id,
+            claimed.lease_token.as_deref().unwrap(),
+            "external",
+            Some(editor_request),
+        )
+        .await
+        .unwrap();
+        run_ids.push(run.id);
+        thread_ids.push(thread.id);
+        execution_ids.push(execution.id);
+    }
+
+    async fn reset_candidates(
+        db: &DatabaseConnection,
+        run_ids: &[i64],
+        thread_ids: &[i64],
+        execution_ids: &[i64],
+    ) {
+        use sea_orm::sea_query::Expr;
+        let past = Utc::now().naive_utc() - Duration::seconds(31);
+        event::Entity::update_many()
+            .col_expr(event::Column::CreatedAt, Expr::value(past))
+            .filter(event::Column::RunId.is_in(run_ids.iter().copied()))
+            .filter(event::Column::Kind.eq("run_waiting"))
+            .exec(db)
+            .await
+            .unwrap();
+        run::Entity::update_many()
+            .col_expr(run::Column::Status, Expr::value("waiting"))
+            .col_expr(run::Column::WaitingReason, Expr::value(Some("external")))
+            .col_expr(run::Column::IsActive, Expr::value(true))
+            .col_expr(run::Column::UpdatedAt, Expr::value(past))
+            .col_expr(run::Column::LastError, Expr::value(Option::<String>::None))
+            .col_expr(run::Column::WorkerId, Expr::value(Option::<String>::None))
+            .col_expr(run::Column::LeaseToken, Expr::value(Option::<String>::None))
+            .col_expr(
+                run::Column::LeaseExpiresAt,
+                Expr::value(Option::<chrono::NaiveDateTime>::None),
+            )
+            .col_expr(
+                run::Column::CompletedAt,
+                Expr::value(Option::<chrono::NaiveDateTime>::None),
+            )
+            .filter(run::Column::Id.is_in(run_ids.iter().copied()))
+            .exec(db)
+            .await
+            .unwrap();
+        execution::Entity::update_many()
+            .col_expr(execution::Column::Status, Expr::value("prepared"))
+            .col_expr(
+                execution::Column::ErrorMessage,
+                Expr::value(Option::<String>::None),
+            )
+            .col_expr(
+                execution::Column::CompletedAt,
+                Expr::value(Option::<chrono::NaiveDateTime>::None),
+            )
+            .filter(execution::Column::Id.is_in(execution_ids.iter().copied()))
+            .exec(db)
+            .await
+            .unwrap();
+        thread::Entity::update_many()
+            .col_expr(thread::Column::Status, Expr::value("waiting"))
+            .filter(thread::Column::Id.is_in(thread_ids.iter().copied()))
+            .exec(db)
+            .await
+            .unwrap();
+    }
+
+    async fn scan(db: &DatabaseConnection) -> (usize, u128) {
+        let started = std::time::Instant::now();
+        let expired = expire_editor_requests(db, WAIT_COUNT as u64).await.unwrap();
+        (expired, started.elapsed().as_micros())
+    }
+
+    for _ in 0..2 {
+        reset_candidates(&db, &run_ids, &thread_ids, &execution_ids).await;
+        assert_eq!(scan(&db).await.0, WAIT_COUNT);
+    }
+    let mut timings = Vec::with_capacity(SAMPLES);
+    for _ in 0..SAMPLES {
+        reset_candidates(&db, &run_ids, &thread_ids, &execution_ids).await;
+        let (expired, elapsed) = scan(&db).await;
+        assert_eq!(expired, WAIT_COUNT);
+        timings.push(elapsed);
+    }
+    timings.sort_unstable();
+    let p95_index = (SAMPLES * 95).div_ceil(100) - 1;
+    println!(
+        "editor_expiry_scan={}",
+        json!({
+            "candidate_count": WAIT_COUNT,
+            "warmups": 2,
+            "samples": SAMPLES,
+            "p50_us": timings[SAMPLES / 2],
+            "p95_us": timings[p95_index],
+        })
+    );
 }
 
 #[tokio::test]
@@ -1663,6 +2432,154 @@ async fn expired_run_recovery_rejects_live_lease_and_is_idempotent() {
         .await
         .expect("recovery replay must be idempotent");
     assert_eq!(replayed.status, "recovery_required");
+}
+
+#[tokio::test]
+#[ignore = "manual PostgreSQL benchmark; needs isolated A4N_TEST_DATABASE_URL"]
+async fn performance_recover_expired_run_batch_16() {
+    const RUN_COUNT: usize = 16;
+    const WARMUPS: usize = 2;
+    const SAMPLES: usize = 15;
+    let db = setup_db().await;
+
+    async fn prepare_batch(db: &DatabaseConnection, batch: usize) {
+        for index in 0..RUN_COUNT {
+            let thread = create_test_thread(db, &format!("recovery-perf-{batch}-{index}")).await;
+            let (_, run) = create_test_run(db, thread.id, "user").await;
+            let worker_id = format!("recovery-perf-{batch}-{index}");
+            let claimed = claim_runnable_run(db, &worker_id).await.unwrap().unwrap();
+            let mut expired: run::ActiveModel = persisted_run(db, claimed.id).await.into();
+            expired.lease_expires_at = Set(Some(Utc::now().naive_utc() - Duration::seconds(1)));
+            expired.update(db).await.unwrap();
+            assert_eq!(run.id, claimed.id);
+        }
+    }
+
+    async fn recover_batch(db: &DatabaseConnection) -> (usize, usize, u128) {
+        let started = std::time::Instant::now();
+        let expired = expired_running_runs(db, RUN_COUNT as u64).await.unwrap();
+        let mut recovered = 0;
+        for run in expired {
+            let row = recover_expired_run(db, run.id, Some("Agent worker lease expired"))
+                .await
+                .unwrap();
+            assert_eq!(row.status, "recovery_required");
+            recovered += 1;
+        }
+        (recovered, 0, started.elapsed().as_micros())
+    }
+
+    for batch in 0..WARMUPS {
+        prepare_batch(&db, batch).await;
+        assert_eq!(recover_batch(&db).await.0, RUN_COUNT);
+    }
+    let mut timings = Vec::with_capacity(SAMPLES);
+    for sample in 0..SAMPLES {
+        prepare_batch(&db, sample + WARMUPS).await;
+        let (recovered, _, elapsed) = recover_batch(&db).await;
+        assert_eq!(recovered, RUN_COUNT);
+        timings.push(elapsed);
+    }
+    timings.sort_unstable();
+    let p95_index = (SAMPLES * 95).div_ceil(100) - 1;
+    println!(
+        "expired_run_recovery_batch={}",
+        json!({
+            "run_count": RUN_COUNT,
+            "warmups": WARMUPS,
+            "samples": SAMPLES,
+            "p50_us": timings[SAMPLES / 2],
+            "p95_us": timings[p95_index],
+        })
+    );
+}
+
+#[tokio::test]
+#[ignore = "manual PostgreSQL benchmark; needs isolated A4N_TEST_DATABASE_URL"]
+async fn performance_recover_expired_child_run_batch_16() {
+    const RUN_COUNT: usize = 16;
+    const WARMUPS: usize = 2;
+    const SAMPLES: usize = 15;
+    let db = setup_db().await;
+
+    async fn prepare_batch(db: &DatabaseConnection, batch: usize) {
+        for index in 0..RUN_COUNT {
+            let parent_thread =
+                create_test_thread(db, &format!("recovery-child-parent-{batch}-{index}")).await;
+            let child_thread =
+                create_test_thread(db, &format!("recovery-child-child-{batch}-{index}")).await;
+            let (_, parent_run) = create_test_run(db, parent_thread.id, "user").await;
+            let (_, child_run) = create_test_run(db, child_thread.id, "delegation").await;
+            let delegation = create_delegation(
+                db,
+                AgentDelegationInput {
+                    parent_thread_id: parent_thread.id,
+                    parent_run_id: parent_run.id,
+                    parent_execution_id: None,
+                    child_thread_id: child_thread.id,
+                    child_turn_id: None,
+                    child_run_id: None,
+                    delegation_key: format!("recovery-child-{batch}-{index}"),
+                    capability: "general".into(),
+                    objective: "recovery benchmark".into(),
+                    success_criteria_json: json!([]),
+                    scope_json: json!({}),
+                    budget_json: json!({}),
+                    status: "pending".into(),
+                },
+            )
+            .await
+            .unwrap();
+            bind_delegation_child(db, delegation.id, parent_run.id, child_run.id, child_run.id)
+                .await
+                .unwrap();
+            let claimed = claim_runnable_run(db, &format!("recovery-child-{batch}-{index}"))
+                .await
+                .unwrap()
+                .unwrap();
+            let mut expired: run::ActiveModel = persisted_run(db, claimed.id).await.into();
+            expired.lease_expires_at = Set(Some(Utc::now().naive_utc() - Duration::seconds(1)));
+            expired.update(db).await.unwrap();
+        }
+    }
+
+    async fn recover_batch(db: &DatabaseConnection) -> (usize, u128) {
+        let started = std::time::Instant::now();
+        let expired = expired_running_runs(db, RUN_COUNT as u64).await.unwrap();
+        let mut recovered = 0;
+        for run in expired {
+            let row = recover_expired_run(db, run.id, Some("Agent child worker lease expired"))
+                .await
+                .unwrap();
+            assert_eq!(row.status, "recovery_required");
+            recovered += 1;
+        }
+        (recovered, started.elapsed().as_micros())
+    }
+
+    for batch in 0..WARMUPS {
+        prepare_batch(&db, batch).await;
+        assert_eq!(recover_batch(&db).await.0, RUN_COUNT);
+    }
+    let mut timings = Vec::with_capacity(SAMPLES);
+    for sample in 0..SAMPLES {
+        prepare_batch(&db, sample + WARMUPS).await;
+        let (recovered, elapsed) = recover_batch(&db).await;
+        assert_eq!(recovered, RUN_COUNT);
+        timings.push(elapsed);
+    }
+    timings.sort_unstable();
+    let p95_index = (SAMPLES * 95).div_ceil(100) - 1;
+    println!(
+        "expired_child_run_recovery_batch={}",
+        json!({
+            "run_count": RUN_COUNT,
+            "warmups": WARMUPS,
+            "samples": SAMPLES,
+            "p50_us": timings[SAMPLES / 2],
+            "p95_us": timings[p95_index],
+        })
+    );
 }
 
 #[tokio::test]
@@ -2050,6 +2967,163 @@ async fn expired_approval_rejects_execution_and_requeues_run() {
     assert_eq!(run.status, "queued");
     assert!(run.is_active);
     assert!(run.lease_token.is_none());
+}
+
+#[tokio::test]
+#[ignore = "manual PostgreSQL benchmark; needs isolated A4N_TEST_DATABASE_URL"]
+async fn performance_expire_approvals_32_candidates() {
+    const APPROVAL_COUNT: usize = 32;
+    const SAMPLES: usize = 15;
+    let db = setup_db().await;
+    let mut approval_ids = Vec::with_capacity(APPROVAL_COUNT);
+    let mut execution_ids = Vec::with_capacity(APPROVAL_COUNT);
+    let mut run_ids = Vec::with_capacity(APPROVAL_COUNT);
+    let expires_at = Utc::now().naive_utc() - Duration::seconds(60);
+
+    for index in 0..APPROVAL_COUNT {
+        let thread = create_test_thread(&db, &format!("approval-perf-{index}")).await;
+        let (_, run) = create_test_run(&db, thread.id, "user").await;
+        let claimed = claim_runnable_run(&db, &format!("approval-perf-{index}"))
+            .await
+            .unwrap()
+            .unwrap();
+        let execution = create_execution_for_run_lease(
+            &db,
+            AgentExecutionInput {
+                run_id: run.id,
+                execution_key: format!("expired-write-{index}"),
+                execution_kind: "tool_call".into(),
+                status: "prepared".into(),
+                tool_name: Some("save_canvas_graph".into()),
+                effect: Some("write".into()),
+                replay_policy: Some("reconcile_required".into()),
+                arguments_json: Some(json!({"graph_id": index})),
+                resource_preconditions_json: None,
+            },
+            claimed.lease_token.as_deref().unwrap(),
+        )
+        .await
+        .unwrap();
+        let (approval, _, _) = request_approval_for_run_lease(
+            &db,
+            claimed.lease_token.as_deref().unwrap(),
+            AgentApprovalInput {
+                thread_id: thread.id,
+                run_id: run.id,
+                execution_id: execution.id,
+                operation_digest: format!("approval-perf-{index}"),
+                operation_json: json!({"tool": "save_canvas_graph", "index": index}),
+                resource_preconditions_json: None,
+                expires_at: Some(expires_at),
+            },
+        )
+        .await
+        .unwrap();
+        approval_ids.push(approval.id);
+        execution_ids.push(execution.id);
+        run_ids.push(run.id);
+    }
+
+    async fn reset_candidates(
+        db: &DatabaseConnection,
+        approval_ids: &[i64],
+        execution_ids: &[i64],
+        run_ids: &[i64],
+        expires_at: chrono::NaiveDateTime,
+    ) {
+        use sea_orm::sea_query::Expr;
+
+        approval::Entity::update_many()
+            .col_expr(approval::Column::Status, Expr::value("pending"))
+            .col_expr(approval::Column::ExpiresAt, Expr::value(Some(expires_at)))
+            .col_expr(
+                approval::Column::DecisionNote,
+                Expr::value(Option::<String>::None),
+            )
+            .col_expr(
+                approval::Column::DecidedAt,
+                Expr::value(Option::<chrono::NaiveDateTime>::None),
+            )
+            .col_expr(
+                approval::Column::ConsumedAt,
+                Expr::value(Option::<chrono::NaiveDateTime>::None),
+            )
+            .filter(approval::Column::Id.is_in(approval_ids.iter().copied()))
+            .exec(db)
+            .await
+            .unwrap();
+        execution::Entity::update_many()
+            .col_expr(execution::Column::Status, Expr::value("awaiting_user"))
+            .col_expr(
+                execution::Column::ErrorMessage,
+                Expr::value(Option::<String>::None),
+            )
+            .col_expr(
+                execution::Column::CompletedAt,
+                Expr::value(Option::<chrono::NaiveDateTime>::None),
+            )
+            .filter(execution::Column::Id.is_in(execution_ids.iter().copied()))
+            .exec(db)
+            .await
+            .unwrap();
+        run::Entity::update_many()
+            .col_expr(run::Column::Status, Expr::value("waiting"))
+            .col_expr(run::Column::WaitingReason, Expr::value(Some("approval")))
+            .col_expr(run::Column::IsActive, Expr::value(true))
+            .col_expr(run::Column::WorkerId, Expr::value(Option::<String>::None))
+            .col_expr(run::Column::LeaseToken, Expr::value(Option::<String>::None))
+            .col_expr(
+                run::Column::LeaseExpiresAt,
+                Expr::value(Option::<chrono::NaiveDateTime>::None),
+            )
+            .col_expr(
+                run::Column::CompletedAt,
+                Expr::value(Option::<chrono::NaiveDateTime>::None),
+            )
+            .filter(run::Column::Id.is_in(run_ids.iter().copied()))
+            .exec(db)
+            .await
+            .unwrap();
+    }
+
+    async fn scan(db: &DatabaseConnection) -> (Vec<a4n_db::agent::AgentApprovalRecord>, u128) {
+        let started = std::time::Instant::now();
+        let expired = expire_pending_approvals(db, APPROVAL_COUNT as u64)
+            .await
+            .unwrap();
+        (expired, started.elapsed().as_micros())
+    }
+
+    for _ in 0..2 {
+        reset_candidates(&db, &approval_ids, &execution_ids, &run_ids, expires_at).await;
+        let expired = scan(&db).await.0;
+        assert_eq!(expired.len(), APPROVAL_COUNT);
+        assert!(expired.iter().all(|row| row.status == "expired"));
+    }
+    approval_ids.sort_unstable();
+    let mut timings = Vec::with_capacity(SAMPLES);
+    for _ in 0..SAMPLES {
+        reset_candidates(&db, &approval_ids, &execution_ids, &run_ids, expires_at).await;
+        let (expired, elapsed) = scan(&db).await;
+        assert_eq!(expired.len(), APPROVAL_COUNT);
+        assert!(expired.iter().all(|row| row.status == "expired"));
+        let mut expired_ids = expired.iter().map(|row| row.id).collect::<Vec<_>>();
+        expired_ids.sort_unstable();
+        assert_eq!(expired_ids, approval_ids);
+        timings.push(elapsed);
+    }
+    timings.sort_unstable();
+    let p95_index = (SAMPLES * 95).div_ceil(100) - 1;
+    println!(
+        "approval_expiry_scan={}",
+        json!({
+            "candidate_count": APPROVAL_COUNT,
+            "warmups": 2,
+            "samples": SAMPLES,
+            "p50_us": timings[SAMPLES / 2],
+            "p95_us": timings[p95_index],
+        })
+    );
 }
 
 #[tokio::test]

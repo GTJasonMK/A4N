@@ -137,6 +137,7 @@ export function useCanvasWorkflowActions({
   const currentT = useCallback(() => translatorRef.current, []);
   const workflowStatusRequestRef = React.useRef(0);
   const workflowStatusInFlightRef = React.useRef(false);
+  const workflowProgressCursorRef = React.useRef<{ runId: number; eventId: string } | null>(null);
   const latestWorkflowRunIdRef = React.useRef(latestWorkflowRunId);
   latestWorkflowRunIdRef.current = latestWorkflowRunId;
   const canvasScopeRef = React.useRef("");
@@ -155,10 +156,18 @@ export function useCanvasWorkflowActions({
       latestWorkflowRunIdRef.current = workflowRunId;
       setLatestWorkflowRunId(workflowRunId);
       setWorkflowLoading(true);
+      const previousEventCursor = workflowProgressCursorRef.current;
+      const afterEventId = previousEventCursor?.runId === workflowRunId
+        ? previousEventCursor.eventId
+        : undefined;
       try {
         const [detailResult, eventsResult] = await Promise.allSettled([
           getWorkflowRunDetail(workflowRunId, false, true, false),
-          getWorkflowRunProgressEvents(workflowRunId, CANVAS_WORKFLOW_VISIBLE_PROGRESS_EVENT_COUNT),
+          getWorkflowRunProgressEvents(
+            workflowRunId,
+            CANVAS_WORKFLOW_VISIBLE_PROGRESS_EVENT_COUNT,
+            afterEventId,
+          ),
         ]);
         if (workflowStatusRequestRef.current !== requestId) return false;
         let refreshOk = detailResult.status === "fulfilled" && eventsResult.status === "fulfilled";
@@ -171,9 +180,17 @@ export function useCanvasWorkflowActions({
           setWorkflowStatusError(extractErrorMessage(detailResult.reason, currentT()("video.loadCanvasRunsFailed")));
         }
         if (eventsResult.status === "fulfilled") {
-          setWorkflowEvents(eventsResult.value);
+          const nextEvents = eventsResult.value;
+          const latestEvent = nextEvents.at(-1);
+          if (latestEvent) {
+            workflowProgressCursorRef.current = { runId: workflowRunId, eventId: latestEvent.id };
+          }
+          setWorkflowEvents((current) => afterEventId == null
+            ? nextEvents
+            : [...current, ...nextEvents].slice(-CANVAS_WORKFLOW_VISIBLE_PROGRESS_EVENT_COUNT));
           setWorkflowEventsError(null);
         } else {
+          workflowProgressCursorRef.current = null;
           setWorkflowEvents([]);
           setWorkflowEventsError(extractErrorMessage(eventsResult.reason, currentT()("video.loadCanvasEventsFailed")));
         }
@@ -229,6 +246,7 @@ export function useCanvasWorkflowActions({
     setLatestWorkflowRunId(null);
     setWorkflowDetail(null);
     setWorkflowEvents([]);
+    workflowProgressCursorRef.current = null;
     setWorkflowStatusError(null);
     setWorkflowEventsError(null);
     setWorkflowLoading(false);

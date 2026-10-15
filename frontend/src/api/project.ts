@@ -235,10 +235,12 @@ export async function listSourceSnapshotChapterIndex(projectId: Id): Promise<Sou
 export async function getSourceSnapshotChapter(
   projectId: Id,
   sourceChapterId: Id,
+  snapshotId?: Id,
 ): Promise<SourceSnapshotChapterSummary> {
   const input: GetSourceSnapshotChapterInput = {
     project_id: idNum(projectId),
     source_chapter_id: idNum(sourceChapterId),
+    ...(snapshotId === undefined ? {} : { snapshot_id: idNum(snapshotId) }),
   };
   return apiInvoke<SourceSnapshotChapterSummary>("get_source_snapshot_chapter", { input });
 }

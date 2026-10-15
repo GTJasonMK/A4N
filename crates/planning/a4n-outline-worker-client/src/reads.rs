@@ -16,6 +16,20 @@ impl OutlineReadApplicationPort for OutlineWorkerClient {
         .await
     }
 
+    async fn list_chapter_index(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ChapterOutlineListEntry>, AppError> {
+        self.command(
+            user_id,
+            project_id,
+            LIST_CHAPTER_INDEX_OPERATION,
+            ProjectOutlineInput { project_id },
+        )
+        .await
+    }
+
     async fn list_parts(
         &self,
         user_id: i64,

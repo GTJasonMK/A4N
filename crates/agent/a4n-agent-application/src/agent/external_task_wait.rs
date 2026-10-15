@@ -42,11 +42,20 @@ impl AgentApplication {
         let rows = agent::list_external_task_waits(self.executor(), after_run_id)
             .await
             .map_err(agent_db_error_to_app)?;
+        let run_ids = rows.iter().map(|wait| wait.run.id).collect::<Vec<_>>();
+        let budgets = agent::run_budget_snapshots(self.executor(), &run_ids)
+            .await
+            .map_err(agent_db_error_to_app)?;
         let mut waits = Vec::with_capacity(rows.len());
         for wait in rows {
-            let duration_exhausted = agent::run_budget_snapshot(self.executor(), wait.run.id)
-                .await
-                .map_err(agent_db_error_to_app)?
+            let duration_exhausted = budgets
+                .get(&wait.run.id)
+                .ok_or_else(|| {
+                    AppError::Internal(anyhow::anyhow!(
+                        "Agent wait budget batch omitted run {}",
+                        wait.run.id
+                    ))
+                })?
                 .remaining
                 .max_duration_seconds
                 == Some(0);

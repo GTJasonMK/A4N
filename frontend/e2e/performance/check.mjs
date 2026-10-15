@@ -14,30 +14,61 @@ const port = Number(process.env.A4N_PERF_PORT ?? 48966);
 const outDir = path.join(artifacts, "dist");
 const baselineRef = process.env.A4N_PERF_BASELINE_REF;
 const scenario = process.env.A4N_PERF_CASE ?? "core";
-assert.ok(["core", "sidebar", "story-events", "video-planning", "shooting-script", "galgame-authoring", "director-plan", "canvas-workflow"].includes(scenario));
-const entry = scenario === "sidebar" ? "sidebar.html" : scenario === "story-events" ? "story-events.html" : scenario === "video-planning" ? "video-planning.html" : scenario === "shooting-script" ? "shooting-script.html" : scenario === "galgame-authoring" ? "galgame-authoring.html" : scenario === "director-plan" ? "director-plan.html" : scenario === "canvas-workflow" ? "canvas-workflow.html" : "index.html";
-const sourceFiles = scenario === "story-events"
-  ? ["src/pages/novel-detail/story-events/storyEventUtils.ts", "src/pages/novel-detail/story-events/ChapterEventSection.tsx"]
-  : scenario === "sidebar"
-  ? ["src/pages/writing-desk/ChapterSidebar.tsx", "src/pages/writing-desk/ChapterCard.tsx"]
-  : scenario === "video-planning"
-  ? ["src/pages/novel-detail/video/VideoPlanningWorkspace.tsx", "src/pages/novel-detail/video/VideoSegmentPlanEditor.tsx"]
-  : scenario === "shooting-script"
-  ? ["src/pages/novel-detail/shooting-script/StructuredScriptEditor.tsx"]
-  : scenario === "galgame-authoring"
-  ? ["src/pages/derived/MediaPlanEditors.tsx"]
-  : scenario === "director-plan"
-  ? ["src/pages/novel-detail/visual-plan/useDirectorPlan.ts"]
-  : scenario === "canvas-workflow"
-  ? ["src/pages/video-studio/canvasWorkflowState.ts"]
-  : ["src/hooks/usePacedStreamText.ts", "src/i18n/format.ts", "src/components/ui/MarkdownText.tsx"];
+const entries = {
+  sidebar: "sidebar.html",
+  "story-events": "story-events.html",
+  "story-events-loader": "story-events-loader.html",
+  "story-events-analysis-projection": "story-events.html",
+  "video-planning": "video-planning.html",
+  "shooting-script": "shooting-script.html",
+  "galgame-authoring": "galgame-authoring.html",
+  "director-plan": "director-plan.html",
+  "canvas-workflow": "canvas-workflow.html",
+  "outline-list": "outline-list.html",
+  "agent-messages": "agent-messages.html",
+  "authoring-label": "authoring-label.html",
+  "manga-source": "manga-source.html",
+  "manga-chapter-list": "manga-chapter-list.html",
+  "admin-pending-task-list": "admin-pending-task-list.html",
+  "galgame-source": "galgame-source.html",
+  "canvas-invalidation": "canvas-invalidation.html",
+  "canvas-workflow-timer": "canvas-workflow-timer.html",
+};
+assert.ok(["core", ...Object.keys(entries)].includes(scenario));
+const entry = entries[scenario] ?? "index.html";
+const sourceFilesByScenario = {
+  "story-events": ["src/pages/novel-detail/story-events/storyEventUtils.ts", "src/pages/novel-detail/story-events/ChapterEventSection.tsx"],
+  "story-events-loader": ["src/pages/novel-detail/StoryEventsTab.tsx"],
+  "story-events-analysis-projection": ["src/pages/novel-detail/story-events/storyEventUtils.ts", "src/pages/novel-detail/story-events/StoryEventsListCard.tsx", "src/pages/novel-detail/story-events/ChapterEventSection.tsx"],
+  "video-planning": ["src/pages/novel-detail/video/VideoPlanningWorkspace.tsx", "src/pages/novel-detail/video/VideoSegmentPlanEditor.tsx"],
+  "shooting-script": ["src/pages/novel-detail/shooting-script/StructuredScriptEditor.tsx"],
+  "galgame-authoring": ["src/pages/derived/MediaPlanEditors.tsx"],
+  "director-plan": ["src/pages/novel-detail/visual-plan/useDirectorPlan.ts"],
+  "canvas-workflow": ["src/pages/video-studio/canvasWorkflowState.ts"],
+  "outline-list": ["src/pages/novel-detail/outlines/ChapterOutlineSection.tsx", "src/pages/novel-detail/outlines/outlineTabUtils.ts"],
+  "agent-messages": ["src/components/agent/AgentMessageList.tsx", "src/components/agent/AgentMessageRow.tsx"],
+  "authoring-label": ["src/pages/derived/useMediaAuthoring.ts"],
+  sidebar: ["src/pages/writing-desk/ChapterSidebar.tsx", "src/pages/writing-desk/ChapterCard.tsx"],
+  "manga-source": ["src/pages/novel-detail/MangaTab.tsx"],
+  "manga-chapter-list": ["src/pages/novel-detail/manga/MangaChapterList.tsx"],
+  "admin-pending-task-list": ["src/pages/settings/admin/TasksSection.tsx"],
+  "galgame-source": ["src/pages/novel-detail/GalgameTab.tsx"],
+  "canvas-invalidation": ["src/pages/video-studio/canvasGraphMapping.ts", "src/pages/video-studio/canvasAssemblyEdges.ts"],
+  "canvas-workflow-timer": [],
+};
+const sourceFiles = sourceFilesByScenario[scenario]
+  ?? ["src/hooks/usePacedStreamText.ts", "src/i18n/format.ts", "src/components/ui/MarkdownText.tsx"];
 const baselineSources = new Map(baselineRef ? sourceFiles.map((file) => [
   path.join(frontend, file),
   execFileSync("git", ["show", `${baselineRef}:frontend/${file}`], { cwd: frontend, encoding: "utf8" }),
 ]) : []);
 await mkdir(artifacts, { recursive: true });
 await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ success: false, state: "running" }));
-const tempRoot = path.resolve(process.env.A4N_PERF_TEMP_ROOT ?? path.join(frontend, "../.dev-runtime"));
+const tempRoot = path.resolve(
+  process.env.A4N_PERF_TEMP_ROOT
+    ?? process.env.A4N_PERF_TMPDIR
+    ?? path.join(frontend, "../.dev-runtime"),
+);
 await mkdir(tempRoot, { recursive: true });
 const temp = await mkdtemp(path.join(tempRoot, "perf-"));
 const chromeTemp = path.resolve(process.env.A4N_PERF_CHROME_TMPDIR ?? temp);
@@ -47,7 +78,41 @@ let server;
 let browser;
 let driverLog = "";
 try {
-  if (process.env.A4N_PERF_REUSE_BUILD !== "1") await build({ root: frontend, logLevel: "warn", plugins: [{
+  const loaderMocks = scenario === "story-events-loader" ? [{
+    name: "story-events-loader-mocks",
+    resolveId(source, importer) {
+      if (!source.includes("api/chapter") && !source.includes("api/foreshadowing")) return null;
+      if (source.includes("api/chapter")) return "\0perf-story-events-chapter";
+      if (source.includes("api/foreshadowing")) return "\0perf-story-events-foreshadowing";
+      return null;
+    },
+    load(id) {
+      if (id === "\0perf-story-events-chapter" || id.endsWith("/src/api/chapter.ts")) return `
+        const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        const event = (chapter, index) => ({ description: "调查线索 \${index}: \${chapter} 章的记录".repeat(8), type: "discovery", importance: "high", involved_characters: ["林舟"] });
+        export async function listChapterAnalyses() {
+          await delay(25);
+          const rows = Array.from({ length: 1000 }, (_, index) => ({ id: index + 1, chapter_number: index + 1, title: "调查线索 " + (index + 1), summary: "章节摘要", analysis_data: { metadata: { characters: ["林舟"], locations: ["河岸"], tone: "紧张", timeline_marker: "第" + (index + 1) + "天" }, summaries: { compressed: "调查线索摘要", keywords: ["账本"] }, key_events: Array.from({ length: 5 }, (_, eventIndex) => event(index + 1, eventIndex)), foreshadowing: { planted: ["账本"], resolved: [], tensions: [] } } }));
+          return rows;
+        }
+      `;
+      if (id === "\0perf-story-events-foreshadowing" || id.endsWith("/src/api/foreshadowing.ts")) return `
+        const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        const calls = (window.storyEventsLoaderCalls ??= []);
+        export async function listForeshadowing() {
+          await delay(150);
+          const rows = Array.from({ length: 1000 }, (_, index) => ({ id: index + 1, project_id: 1, description: "伏笔记录 " + index + "：" + "灯火照亮河岸，等待后续回收。".repeat(20), importance: 1, payoff_chapter: null, related_characters: ["林舟"], setup_chapter: index + 1, status: "pending", created_at: "2026-01-01T00:00:00", updated_at: "2026-01-01T00:00:00" }));
+          calls.push({ command: "list_foreshadowing", bytes: JSON.stringify(rows).length });
+          return rows;
+        }
+        export async function createForeshadowing() { throw new Error("not used in performance fixture"); }
+        export async function updateForeshadowing() { throw new Error("not used in performance fixture"); }
+        export async function deleteForeshadowing() { throw new Error("not used in performance fixture"); }
+      `;
+      return null;
+    },
+  }] : [];
+  if (process.env.A4N_PERF_REUSE_BUILD !== "1") await build({ root: frontend, logLevel: "warn", plugins: [...loaderMocks, {
     name: "performance-baseline", enforce: "pre", load: (id) => baselineSources.get(id),
   }], build: {
     outDir, emptyOutDir: true,
@@ -74,12 +139,15 @@ try {
   browser = await remote({ hostname: "127.0.0.1", port: port + 1, logLevel: "error", capabilities: {
     browserName: "chrome", "goog:chromeOptions": {
       binary: process.env.A4N_WDIO_CHROMIUM_BINARY ?? "/usr/bin/chromium",
-      args: ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage", `--user-data-dir=${path.join(temp, "chrome")}`],
+      args: ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage",
+        ...(scenario === "manga-source" || scenario === "galgame-source" || scenario === "story-events" || scenario === "story-events-analysis-projection" ? ["--js-flags=--expose-gc"] : []),
+        `--user-data-dir=${path.join(temp, "chrome")}`],
     },
   } });
   await browser.setTimeout({ script: 60_000 });
-  await browser.url(`http://127.0.0.1:${port}/e2e/performance/${entry}`);
-  await browser.waitUntil(() => browser.execute(() => window.performanceReady === true));
+  const variant = baselineRef ? "before" : "after";
+  await browser.url(`http://127.0.0.1:${port}/e2e/performance/${entry}?variant=${variant}`);
+  await browser.waitUntil(() => browser.execute(() => window.performanceReady === true), { timeout: 30_000 });
   let report;
   if (scenario === "sidebar") {
     const traces = [];
@@ -184,6 +252,177 @@ try {
     }
     report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
       canvasWorkflow };
+  } else if (scenario === "story-events-analysis-projection") {
+    const variant = process.env.A4N_PERF_PROJECTION_VARIANT;
+    const width = Number(process.env.A4N_PERF_VIEWPORT ?? 1440);
+    assert.ok(["full", "projected"].includes(variant));
+    assert.equal(Boolean(baselineRef), variant === "full", "full data must use the baseline component and projection");
+    assert.ok([1440, 390].includes(width));
+    await browser.setViewport({ width, height: 900 });
+    await browser.url(`http://127.0.0.1:${port}/e2e/performance/${entry}?projection=${variant}`);
+    await browser.waitUntil(() => browser.execute(() => window.performanceReady === true), { timeout: 30_000 });
+    const result = await browser.execute((variant) => window.measureStoryEventAnalysisProjection("zh-CN", variant), variant);
+    assert.equal(result.chapters, 900);
+    assert.equal(result.analyzedChapters, 900);
+    assert.equal(result.eventRows, 4500);
+    assert.ok(result.heapBytes > result.baselineHeapBytes, "retained page heap must exceed the empty-page baseline");
+    const filtered = await browser.execute(() => window.filterStoryEventProjection("999"));
+    assert.equal(filtered.visibleChapters, 1);
+    assert.equal(filtered.eventRows, 5);
+    assert.ok(filtered.text.includes("999"));
+    await browser.execute(() => document.querySelector("section section button")?.focus());
+    await browser.keys("Enter");
+    const opened = await browser.execute(() => window.storyEventsOpened());
+    assert.deepEqual(opened, [999]);
+    const horizontalOverflow = await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    assert.equal(horizontalOverflow, 0);
+    await browser.saveScreenshot(path.join(artifacts, `story-events-analysis-projection-${variant}-${width}.png`));
+    report = { success: true, scenario, variant, width, baselineRef: baselineRef ?? null,
+      browser: browser.capabilities.browserVersion, result, filtered, opened, horizontalOverflow };
+  } else if (scenario === "story-events-loader") {
+    const loader = await browser.execute(() => window.measureStoryEventsLoader());
+    assert.equal(loader.detailsOpen, true);
+    assert.equal(loader.foreshadowingRows, 1000);
+    await browser.execute(() => document.querySelector("details summary")?.focus());
+    await browser.keys("Enter");
+    assert.equal(await browser.execute(() => document.querySelector("details")?.open), false);
+    await browser.keys("Enter");
+    await browser.waitUntil(() => browser.execute(() => document.querySelector("details")?.open === true));
+    assert.equal(await browser.execute(() => document.querySelectorAll("details article").length), 1000);
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion, loader };
+  } else if (scenario === "outline-list") {
+    const outlineList = [];
+    for (const width of [1440, 390]) {
+      await browser.setViewport({ width, height: 900 });
+      const trace = [];
+      for (const locale of ["zh-CN", "en-US"]) {
+        const result = await browser.execute((locale) => window.verifyOutlineList(locale), locale);
+        assert.equal(result.outlines, 1000);
+        assert.equal(result.htmlEqual, true);
+        assert.equal(result.textEqual, true);
+        trace.push(result);
+        await browser.execute(() => document.querySelector("li button")?.focus());
+        await browser.keys("Enter");
+        assert.deepEqual(await browser.execute(() => window.outlineListOpened()), [1]);
+      }
+      assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+      await browser.saveScreenshot(path.join(artifacts, `outline-list-${width}.png`));
+      outlineList.push({ width, trace });
+    }
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
+      viewports: outlineList };
+  } else if (scenario === "agent-messages") {
+    const agentMessages = await browser.execute(() => window.measureAgentMessages());
+    assert.equal(agentMessages.messageCount, 1000);
+    assert.equal(agentMessages.renderedRows, 1000);
+    assert.equal(agentMessages.toolResultUpdateVerified, true);
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion, agentMessages };
+  } else if (scenario === "canvas-invalidation") {
+    const canvasInvalidation = await browser.execute(() => window.measureCanvasInvalidation());
+    assert.deepEqual(canvasInvalidation.cases.map((item) => item.clearedNodes), canvasInvalidation.cases.map((item) => item.nodeCount));
+    assert.ok(canvasInvalidation.cases.every((item) => /^[a-f0-9]{64}$/.test(item.resultSha256)));
+    assert.ok(canvasInvalidation.assemblyCases.every((item) => item.changedClipOrders === item.targetCount));
+    assert.ok(canvasInvalidation.assemblyCases.every((item) => /^[a-f0-9]{64}$/.test(item.resultSha256)));
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion, canvasInvalidation };
+  } else if (scenario === "canvas-workflow-timer") {
+    const canvasWorkflowTimer = await browser.execute(() => window.measureCanvasWorkflowTimer());
+    assert.equal(canvasWorkflowTimer.outputEqual, true);
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion, canvasWorkflowTimer };
+  } else if (scenario === "manga-chapter-list") {
+    const mangaChapterList = await browser.execute(() => window.measureMangaChapterList());
+    assert.equal(mangaChapterList.chapterCount, 1000);
+    assert.ok(mangaChapterList.activeChapterText.includes("500"));
+    assert.ok(mangaChapterList.activeChapterText.includes("运行中 51"));
+    const selected = await browser.execute(() => {
+      document.querySelectorAll("#root li button")[999]?.click();
+      return window.getMangaChapterSelection();
+    });
+    assert.deepEqual(selected, [{ chapterId: 1000, revision: 51 }]);
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
+      mangaChapterList, selected };
+  } else if (scenario === "admin-pending-task-list") {
+    await browser.waitUntil(() => browser.execute(() =>
+      document.querySelectorAll("#root ul > li").length === 1000
+      && typeof window.measureAdminPendingTaskList === "function",
+    ), { timeout: 30_000 }).catch(async (error) => {
+      const state = await browser.execute(() => ({
+        ready: window.performanceReady,
+        rowCount: document.querySelectorAll("#root ul > li").length,
+        text: document.querySelector("#root")?.textContent?.slice(0, 300),
+        refreshAvailable: typeof window.measureAdminPendingTaskList === "function",
+      }));
+      throw new Error(`${error.message}; admin task fixture state=${JSON.stringify(state)}`);
+    });
+    const adminPendingTaskList = await browser.execute(() => window.measureAdminPendingTaskList());
+    assert.equal(adminPendingTaskList.initialTaskCount, 1000);
+    assert.equal(adminPendingTaskList.finalTaskCount, 1000);
+    assert.ok(adminPendingTaskList.finalTaskText.includes("低优先级"));
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
+      adminPendingTaskList };
+  } else if (scenario === "authoring-label") {
+    const authoringLabel = await browser.execute(() => window.measureAuthoringLabel());
+    assert.equal(authoringLabel.chapterCount, 1000);
+    assert.equal(authoringLabel.documentCount, 1000);
+    assert.equal(authoringLabel.label, "已应用");
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion, authoringLabel };
+  } else if (scenario === "galgame-source") {
+    const galgameSource = await browser.execute(() => window.measureGalgameSource());
+    assert.equal(galgameSource.chapterCount, 1000);
+    const workspaceRequests = galgameSource.requests.filter((request) =>
+      request.command === "get_media_authoring_workspace",
+    );
+    assert.equal(workspaceRequests.filter((request) => request.scope_chapter_id == null).length, baselineRef ? 1 : 0);
+    assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+    if (!baselineRef) {
+      await browser.execute(() => document.querySelector("[role=tab][id$='-tab-adaptation']")?.click());
+      await browser.waitUntil(() => browser.execute(() => window.galgameWorkspaceCompleteCount() === 1));
+      await browser.execute(() => document.querySelector("[role=tab][id$='-tab-script']")?.click());
+      await browser.waitUntil(() => browser.execute(() => window.galgameCompletedCount("get_galgame_script") === 1));
+      await browser.execute(() => document.querySelector("[role=tab][id$='-tab-asset_plan']")?.click());
+      await browser.waitUntil(() => browser.execute(() =>
+        window.galgameCompletedCount("get_galgame_asset_plan") === 1
+        && window.galgameCompletedCount("get_galgame_script") === 2));
+    }
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
+      galgameSource };
+  } else if (scenario === "manga-source") {
+    const mangaSource = await browser.execute(() => window.measureMangaSource());
+    assert.equal(mangaSource.selectedChapterReady, true);
+    assert.equal(mangaSource.chapterCount, 1000);
+    assert.ok(mangaSource.documentScrollWidth <= mangaSource.documentWidth);
+    const workspaceRequests = mangaSource.requests.filter((request) =>
+      request.command === "get_media_authoring_workspace",
+    );
+    assert.equal(workspaceRequests.filter((request) => request.scope_chapter_id == null).length, baselineRef ? 1 : 0);
+    assert.ok(workspaceRequests.length >= 1);
+    const viewports = [];
+    const keyboardSwitch = [];
+    for (const [index, width] of [1440, 1024, 768, 390, 375, 320].entries()) {
+      const chapterNumber = index + 2;
+      await browser.setViewport({ width, height: 900 });
+      const scrollWidth = await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      assert.equal(scrollWidth, 0);
+      const started = await browser.execute(() => performance.now());
+      await browser.execute((chapterNumber) => document.querySelectorAll(".a4n-media-sidebar-surface button")[chapterNumber - 1].focus(), chapterNumber);
+      await browser.keys("Enter");
+      await browser.waitUntil(() => browser.execute((number) => window.mangaSelectedChapterLabel()?.includes(`性能章节 ${number}`) === true, chapterNumber));
+      await browser.waitUntil(() => browser.execute((number) => window.mangaSelectedChapterReady(number), chapterNumber));
+      if (!baselineRef) {
+        await browser.waitUntil(() => browser.execute((number) => window.mangaDetailLoaded(number), chapterNumber));
+      } else {
+        assert.equal(await browser.execute((number) => window.mangaDetailLoaded(number), chapterNumber), false);
+      }
+      keyboardSwitch.push({
+        width,
+        chapterNumber,
+        elapsedMs: await browser.execute((started) => performance.now() - started, started),
+      });
+      await browser.saveScreenshot(path.join(artifacts, `manga-source-${width}.png`));
+      viewports.push({ width, scrollWidth });
+    }
+    assert.deepEqual(await browser.execute(() => window.mangaUnexpectedRequests()), []);
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
+      viewports, keyboardSwitch, mangaSource };
   } else {
     const traces = [];
     for (const width of [1440, 390]) {

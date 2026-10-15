@@ -68,6 +68,18 @@ pub(in crate::routes::commands) async fn list_chapter_outlines(
     )
 }
 
+pub(in crate::routes::commands) async fn list_chapter_outline_index(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let project_id = i64_arg(args, "projectId")?;
+    to_value(
+        outline_records_actions::list_chapter_outline_index(state.runtime(), user_id, project_id)
+            .await?,
+    )
+}
+
 pub(in crate::routes::commands) async fn save_chapter_outline(
     state: &ServerState,
     user_id: i64,

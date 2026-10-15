@@ -1,9 +1,11 @@
 use a4n_api_contract::chapter::{
-    ChapterAnalysisEntry, ChapterContentReadApplicationPort, ChapterIndexEntry, ChapterSummary,
+    ChapterAnalysisEntry, ChapterContentReadApplicationPort, ChapterIndexEntry,
+    ChapterStoryEventEntry, ChapterSummary,
 };
 use a4n_chapter_content_worker_contract::{
     CHAPTER_CONTENT_ANALYSES_OPERATION, CHAPTER_CONTENT_INDEX_OPERATION,
-    CHAPTER_CONTENT_LIST_OPERATION, CHAPTER_CONTENT_SUMMARY_OPERATION, ChapterInput, ProjectInput,
+    CHAPTER_CONTENT_LIST_OPERATION, CHAPTER_CONTENT_STORY_EVENTS_OPERATION,
+    CHAPTER_CONTENT_SUMMARY_OPERATION, ChapterInput, ProjectInput,
 };
 use a4n_error::AppError;
 
@@ -21,6 +23,21 @@ impl ChapterContentReadApplicationPort for ChapterContentWorkerClient {
             user_id,
             project_id,
             CHAPTER_CONTENT_ANALYSES_OPERATION,
+            ProjectInput { project_id },
+        )
+        .await
+    }
+
+    async fn story_events(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ChapterStoryEventEntry>, AppError> {
+        let project_id = Self::positive("project_id", project_id)?;
+        self.command(
+            user_id,
+            project_id,
+            CHAPTER_CONTENT_STORY_EVENTS_OPERATION,
             ProjectInput { project_id },
         )
         .await

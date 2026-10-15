@@ -448,9 +448,10 @@ export async function subscribeAgentThreadEvents(
   input: AgentEventsInput,
   onEvent: (event: AgentEvent) => void,
   signal: AbortSignal,
+  onActivity?: () => void,
 ): Promise<void> {
   if (!shouldUseHttpBackend()) {
-    await pollAgentThreadEvents(input, onEvent, signal);
+    await pollAgentThreadEvents(input, onEvent, signal, onActivity);
     return;
   }
   let lastSequence = input.after_sequence ?? 0;
@@ -485,6 +486,8 @@ export async function subscribeAgentThreadEvents(
       onEvent(event);
     },
     signal,
+    undefined,
+    onActivity,
   );
 }
 
@@ -496,6 +499,7 @@ async function pollAgentThreadEvents(
   input: AgentEventsInput,
   onEvent: (event: AgentEvent) => void,
   signal: AbortSignal,
+  onActivity?: () => void,
 ): Promise<void> {
   let lastSequence = input.after_sequence ?? 0;
   while (!signal.aborted) {
@@ -503,6 +507,7 @@ async function pollAgentThreadEvents(
       ...input,
       after_sequence: lastSequence,
     });
+    onActivity?.();
     for (const event of events) {
       validateAgentEvent(event, input.thread_id, lastSequence);
       lastSequence = event.sequence;

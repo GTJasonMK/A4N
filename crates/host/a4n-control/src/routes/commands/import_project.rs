@@ -20,8 +20,8 @@ pub(super) use chapter::{
     generate_chapter_analysis, generate_chapter_scene, get_chapter, get_chapter_shooting_script,
     get_chapter_shooting_script_unit_progress, get_chapter_visual_plan, import_chapter,
     list_chapter_analyses, list_chapter_index, list_chapter_scenes, list_chapters,
-    prepare_chapter_generation_rag_embedding, preview_chapter_analysis_request,
-    preview_chapter_prompt, preview_chapter_scene_request,
+    list_story_event_chapters, prepare_chapter_generation_rag_embedding,
+    preview_chapter_analysis_request, preview_chapter_prompt, preview_chapter_scene_request,
     preview_resume_chapter_analysis_sync_request, preview_visual_plan_point_generation,
     read_chapter_visual_plan, read_visual_plan_prompt_candidate, reorder_chapter_scenes,
     resume_chapter_analysis_sync, save_chapter_visual_plan_draft, update_chapter_content,
@@ -33,9 +33,10 @@ pub(super) use export::{
 };
 pub(super) use import::{
     accept_import_review, batch_accept_reviews, cancel_import_analysis, check_import_dedup,
-    delete_import_review, get_project_import_analysis_progress, import_project_text_asset_upload,
-    import_project_text_upload, list_import_queue, preview_import_project_analysis_request,
-    reject_import_review, run_import_project_analysis,
+    delete_import_review, get_import_review, get_project_import_analysis_progress,
+    import_project_text_asset_upload, import_project_text_upload, list_import_queue,
+    list_import_queue_index, preview_import_project_analysis_request, reject_import_review,
+    run_import_project_analysis,
 };
 pub(super) use operations::{
     cleanup_orphan_project_data_dirs, get_generation_call_analytics, get_log_dir,
@@ -44,9 +45,9 @@ pub(super) use operations::{
 };
 pub(super) use outline::{
     delete_latest_chapter_outlines, delete_latest_parts, get_chapter_outlines_pacing,
-    get_generation_progress, list_chapter_outlines, list_parts, preview_apply_beat_mapping_request,
-    preview_batch_generate_part_outlines_request, preview_continue_part_outlines_request,
-    preview_generate_chapter_outlines_by_count_request,
+    get_generation_progress, list_chapter_outline_index, list_chapter_outlines, list_parts,
+    preview_apply_beat_mapping_request, preview_batch_generate_part_outlines_request,
+    preview_continue_part_outlines_request, preview_generate_chapter_outlines_by_count_request,
     preview_generate_part_chapter_outlines_request, preview_generate_parts_request,
     preview_regenerate_chapter_outline_request, preview_regenerate_last_part_request,
     preview_regenerate_part_outline_request, preview_regenerate_parts_request,

@@ -42,6 +42,7 @@ export async function getWorkflowRunDetail(
   includeGenerationRuns: boolean,
   includeGenerationRunCount = false,
   includeCheckpointDetails = true,
+  includeGenerationRunPayloads?: boolean,
 ): Promise<WorkflowRunDetailSummary> {
   return apiInvoke<WorkflowRunDetailSummary>("get_workflow_run_detail", {
     input: {
@@ -49,6 +50,9 @@ export async function getWorkflowRunDetail(
       include_generation_runs: includeGenerationRuns,
       include_generation_run_count: includeGenerationRunCount,
       include_checkpoint_details: includeCheckpointDetails,
+      ...(includeGenerationRunPayloads === undefined
+        ? {}
+        : { include_generation_run_payloads: includeGenerationRunPayloads }),
     } satisfies GetWorkflowRunInput,
   });
 }
@@ -62,11 +66,13 @@ export async function resumeWorkflowRun(workflowRunId: number): Promise<Workflow
 export async function getWorkflowRunProgressEvents(
   workflowRunId: number,
   limit: number,
+  afterEventId?: string,
 ): Promise<ProgressEventRecord[]> {
   const response = await getWorkflowProgressEvents({
     task_id: null,
     workflow_run_id: workflowRunId,
     limit,
+    ...(afterEventId === undefined ? {} : { after_event_id: afterEventId }),
   });
   return response.events;
 }

@@ -8,7 +8,8 @@ mod tests;
 use a4n_db_models::models::project::{novel_project, source_snapshot_chapter};
 use a4n_domain::{chapter::ResolvedChapterSource, project::ProjectSourceMode};
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, EntityTrait, FromQueryResult, QueryFilter, QuerySelect,
+    ColumnTrait, ConnectionTrait, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
+    QuerySelect,
 };
 use std::collections::HashMap;
 
@@ -91,6 +92,76 @@ where
                 chapter.clone(),
             ))
         })
+        .collect()
+}
+
+/// 在已验证的根项目和快照范围内一次解析全部章节来源。
+///
+/// 全量媒体编排需要正文、摘要和分析数据；直接读取所需字段并保留数据库顺序，
+/// 避免先物化完整快照摘要再重复查询正文。
+pub async fn resolve_snapshot_sources_for_scope<C>(
+    db: &C,
+    requested_project_id: i64,
+    root_project_id: i64,
+    snapshot_id: i64,
+) -> Result<Vec<ResolvedChapterSource>, ResolveChapterSourceError>
+where
+    C: ConnectionTrait,
+{
+    validate_positive_i64(requested_project_id, "project_id")
+        .map_err(ResolveChapterSourceError::InvalidArgument)?;
+    validate_positive_i64(root_project_id, "root_project_id")
+        .map_err(ResolveChapterSourceError::InvalidArgument)?;
+    validate_positive_i64(snapshot_id, "source_snapshot_id")
+        .map_err(ResolveChapterSourceError::InvalidArgument)?;
+    let rows = source_snapshot_chapter::Entity::find()
+        .select_only()
+        .column(source_snapshot_chapter::Column::Id)
+        .column(source_snapshot_chapter::Column::SourceChapterId)
+        .column(source_snapshot_chapter::Column::ChapterNumber)
+        .column(source_snapshot_chapter::Column::Title)
+        .column(source_snapshot_chapter::Column::Content)
+        .column(source_snapshot_chapter::Column::ContentHash)
+        .filter(source_snapshot_chapter::Column::RootProjectId.eq(root_project_id))
+        .filter(source_snapshot_chapter::Column::SnapshotId.eq(snapshot_id))
+        .order_by_asc(source_snapshot_chapter::Column::ChapterNumber)
+        .into_tuple::<(i64, i64, i32, Option<String>, String, String)>()
+        .all(db)
+        .await?;
+    rows.into_iter()
+        .map(
+            |(id, source_chapter_id, chapter_number, title, content, content_hash)| {
+                if content.trim().is_empty() {
+                    return Err(ResolveChapterSourceError::InvalidState(format!(
+                        "源快照章节 {} 正文为空",
+                        id
+                    )));
+                }
+                let actual_hash = a4n_domain::source_text_hash(&content);
+                if actual_hash != content_hash {
+                    return Err(ResolveChapterSourceError::InvalidState(format!(
+                        "源快照章节 {} 内容哈希不一致",
+                        id
+                    )));
+                }
+                Ok(ResolvedChapterSource {
+                    requested_project_id,
+                    root_project_id,
+                    source_chapter_id,
+                    source_snapshot_id: Some(snapshot_id),
+                    source_snapshot_chapter_id: Some(id),
+                    chapter_number,
+                    title,
+                    summary: None,
+                    analysis_data_json: None,
+                    content,
+                    content_sha256: content_hash.clone(),
+                    source_revision_key: format!(
+                        "snapshot:{snapshot_id}:chapter:{id}:{content_hash}"
+                    ),
+                })
+            },
+        )
         .collect()
 }
 

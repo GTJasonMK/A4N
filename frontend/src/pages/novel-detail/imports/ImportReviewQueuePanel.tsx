@@ -3,7 +3,7 @@ import { Check, CheckCheck, Eye, Sparkles, Square, Trash2, X } from "lucide-reac
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type {
   ImportReviewStatus,
-  ImportReviewSummary,
+  ImportReviewListItem,
   ProjectImportAnalysisProgress,
 } from "../../../api/import";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
@@ -15,7 +15,7 @@ import { useI18n } from "../../../i18n";
 export type ReviewAction = "accept" | "reject" | "delete";
 
 interface ImportReviewQueuePanelProps {
-  reviews: ImportReviewSummary[];
+  reviews: ImportReviewListItem[];
   loading: boolean;
   projectProgress: ProjectImportAnalysisProgress | null;
   selected: Set<number>;

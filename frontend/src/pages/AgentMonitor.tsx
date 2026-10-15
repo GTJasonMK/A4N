@@ -75,6 +75,7 @@ import {
   loadAgentSnapshotWithEvents,
   streamedAgentMessageIds,
 } from "../utils/agentEventReducer";
+import { startAgentSnapshotRefreshPolling } from "../utils/agentSnapshotPolling";
 import { isImeCompositionActive } from "../utils/ime";
 import { useFollowLatest } from "../hooks/useFollowLatest";
 import { agentStatusLabel } from "../utils/agentStatusPresentation";
@@ -150,6 +151,7 @@ export const AgentMonitor: React.FC = () => {
   const threadListRequestRef = useRef(0);
   const mountedRef = useRef(false);
   const pendingEventsRef = useRef<AgentEvent[]>([]);
+  const streamActivityAtRef = useRef(Date.now());
   const selectedThreadIdRef = useRef(selectedThreadId);
   const composingRef = useRef(false);
   const lastCompositionEndRef = useRef(0);
@@ -304,6 +306,16 @@ export const AgentMonitor: React.FC = () => {
     return () => window.clearInterval(timer);
   }, [refreshThreads]);
 
+  useEffect(
+    () => startAgentSnapshotRefreshPolling(
+      selectedThreadId,
+      () => connected,
+      () => streamActivityAtRef.current,
+      (threadId) => { void loadSnapshot(threadId, true); },
+    ),
+    [connected, loadSnapshot, selectedThreadId],
+  );
+
   useEffect(() => {
     if (!selectedThreadId) {
       snapshotRef.current = null;
@@ -316,7 +328,6 @@ export const AgentMonitor: React.FC = () => {
       setConnected(false);
       return undefined;
     }
-    const refreshTimer = window.setInterval(() => void loadSnapshot(selectedThreadId, true), 7000);
     const controller = new AbortController();
     let stopped = false;
     snapshotRef.current = null;
@@ -328,7 +339,6 @@ export const AgentMonitor: React.FC = () => {
       if (!initial || stopped) return;
       while (!stopped) {
         try {
-          setConnected(true);
           await subscribeAgentThreadEvents(
             { thread_id: selectedThreadId, after_sequence: eventCursorRef.current, limit: 200 },
             (event) => {
@@ -349,6 +359,12 @@ export const AgentMonitor: React.FC = () => {
               setSnapshot(reduction.snapshot);
             },
             controller.signal,
+            () => {
+              if (!stopped && selectedThreadIdRef.current === selectedThreadId) {
+                streamActivityAtRef.current = Date.now();
+                setConnected(true);
+              }
+            },
           );
         } catch (err) {
           if (controller.signal.aborted) return;
@@ -362,7 +378,7 @@ export const AgentMonitor: React.FC = () => {
       }
     };
     void connect();
-    return () => { stopped = true; controller.abort(); window.clearInterval(refreshTimer); setConnected(false); };
+    return () => { stopped = true; controller.abort(); setConnected(false); };
   }, [loadSnapshot, rememberStreamedMessages, selectedThreadId, t]);
 
   useEffect(() => {

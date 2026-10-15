@@ -15,6 +15,16 @@ pub struct ImportReviewSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct ImportReviewListItem {
+    pub id: i64,
+    pub project_id: i64,
+    pub filename: String,
+    pub review_status: ImportReviewStatus,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ImportProjectReviewsInput {
     pub project_id: i64,
@@ -64,6 +74,18 @@ pub trait ImportReviewReadApplicationPort: Send + Sync {
         user_id: i64,
         input: ImportProjectReviewsInput,
     ) -> Result<Vec<ImportReviewSummary>, a4n_error::AppError>;
+
+    async fn list_index(
+        &self,
+        user_id: i64,
+        input: ImportProjectReviewsInput,
+    ) -> Result<Vec<ImportReviewListItem>, a4n_error::AppError>;
+
+    async fn detail(
+        &self,
+        user_id: i64,
+        input: ImportReviewIdInput,
+    ) -> Result<ImportReviewSummary, a4n_error::AppError>;
 
     async fn dedup(
         &self,

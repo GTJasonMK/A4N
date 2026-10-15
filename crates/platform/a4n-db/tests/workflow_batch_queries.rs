@@ -13,7 +13,7 @@ use a4n_db::workflow::{
     workflow_run_models_by_ids, workflow_run_statuses_by_ids, workflow_run_summary_by_id,
 };
 use a4n_db_models::models::{
-    generation::{generation_run, workflow_run},
+    generation::{generation_run, workflow_progress_event, workflow_run},
     task::task_queue,
 };
 use a4n_domain::workflow::{
@@ -533,6 +533,16 @@ async fn workflow_snapshot_survives_progress_reads_updates_and_cancellation() {
             )
             .await
             .unwrap();
+            let events = workflow_progress_events(&db, run.id, 200, None)
+                .await
+                .unwrap();
+            assert_eq!(events.len(), 2);
+            let after_event_id = events[0].id.parse::<i64>().unwrap();
+            let incremental = workflow_progress_events(&db, run.id, 200, Some(after_event_id))
+                .await
+                .unwrap();
+            assert_eq!(incremental.len(), 1);
+            assert_eq!(incremental[0].id, events[1].id);
             let stored = workflow_run_model_by_id(&db, run.id).await.unwrap();
             assert_eq!(stored.progress_json.unwrap()["snapshot"], snapshot);
         }
@@ -556,6 +566,7 @@ async fn workflow_snapshot_survives_progress_reads_updates_and_cancellation() {
                 include_generation_runs: false,
                 include_generation_run_count: false,
                 include_checkpoint_details: true,
+                include_generation_run_payloads: None,
             },
         )
         .await
@@ -633,6 +644,130 @@ async fn workflow_snapshot_survives_progress_reads_updates_and_cancellation() {
             Some(active_task_id.as_str())
         );
     }
+}
+
+#[tokio::test]
+#[ignore = "manual PostgreSQL performance benchmark; requires isolated A4N_TEST_DATABASE_URL"]
+async fn benchmark_workflow_progress_event_cursor_projection() {
+    const EVENT_COUNT: usize = 200;
+    const MESSAGE_LENGTH: usize = 256;
+    const SAMPLES: usize = 15;
+
+    fn percentile(samples: &[f64], percentile: f64) -> f64 {
+        let mut sorted = samples.to_vec();
+        sorted.sort_by(f64::total_cmp);
+        sorted[((sorted.len() - 1) as f64 * percentile).round() as usize]
+    }
+
+    fn response_bytes(events: &[a4n_db::workflow::TaskProgressEventSummary]) -> usize {
+        serde_json::to_vec(&json!({
+            "events": events.iter().map(|event| json!({
+                "id": event.id,
+                "current": event.current,
+                "total": event.total,
+                "message": event.message,
+                "meta": event.meta,
+                "timestamp": event.timestamp,
+            })).collect::<Vec<_>>(),
+            "stream_text": null,
+        }))
+        .expect("progress response must serialize")
+        .len()
+    }
+
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let run = upsert_workflow_run(
+        &db,
+        workflow_input(
+            &format!("progress-cursor:{}", uuid::Uuid::new_v4()),
+            "progress-cursor",
+            WORKFLOW_STATUS_RUNNING,
+        ),
+    )
+    .await
+    .expect("workflow fixture must be created");
+    let now = Utc::now().naive_utc();
+    let rows = (0..EVENT_COUNT)
+        .map(|index| workflow_progress_event::ActiveModel {
+            workflow_run_id: Set(run.id),
+            task_id: Set(Some("progress-cursor-task".into())),
+            event_index: Set(index as i64 + 1),
+            current: Set(index as i32),
+            total: Set(EVENT_COUNT as i32),
+            message: Set("x".repeat(MESSAGE_LENGTH)),
+            percent: Set(index as f32 / EVENT_COUNT as f32 * 100.0),
+            meta_json: Set(None),
+            created_at: Set(now + chrono::Duration::microseconds(index as i64)),
+            ..Default::default()
+        })
+        .collect::<Vec<_>>();
+    workflow_progress_event::Entity::insert_many(rows)
+        .exec(&db)
+        .await
+        .expect("progress fixtures must be inserted");
+    let rows = workflow_progress_events(&db, run.id, 200, None)
+        .await
+        .expect("progress event fixture query must succeed");
+    let cursor = rows[EVENT_COUNT - 2]
+        .id
+        .parse::<i64>()
+        .expect("persisted event ID must be numeric");
+    let full = workflow_progress_events(&db, run.id, 200, None)
+        .await
+        .expect("full event query must succeed");
+    let incremental = workflow_progress_events(&db, run.id, 200, Some(cursor))
+        .await
+        .expect("incremental event query must succeed");
+    assert_eq!(full.len(), EVENT_COUNT);
+    assert_eq!(incremental.len(), 1);
+    assert_eq!(incremental[0].id, full[EVENT_COUNT - 1].id);
+
+    let mut full_samples = Vec::with_capacity(SAMPLES);
+    let mut incremental_samples = Vec::with_capacity(SAMPLES);
+    for sample in 0..SAMPLES {
+        if sample % 2 == 0 {
+            let started = std::time::Instant::now();
+            let events = workflow_progress_events(&db, run.id, 200, None)
+                .await
+                .unwrap();
+            full_samples.push(started.elapsed().as_secs_f64() * 1000.0);
+            assert_eq!(events.len(), EVENT_COUNT);
+
+            let started = std::time::Instant::now();
+            let events = workflow_progress_events(&db, run.id, 200, Some(cursor))
+                .await
+                .unwrap();
+            incremental_samples.push(started.elapsed().as_secs_f64() * 1000.0);
+            assert_eq!(events.len(), 1);
+        } else {
+            let started = std::time::Instant::now();
+            let events = workflow_progress_events(&db, run.id, 200, Some(cursor))
+                .await
+                .unwrap();
+            incremental_samples.push(started.elapsed().as_secs_f64() * 1000.0);
+            assert_eq!(events.len(), 1);
+
+            let started = std::time::Instant::now();
+            let events = workflow_progress_events(&db, run.id, 200, None)
+                .await
+                .unwrap();
+            full_samples.push(started.elapsed().as_secs_f64() * 1000.0);
+            assert_eq!(events.len(), EVENT_COUNT);
+        }
+    }
+
+    let full_p50 = percentile(&full_samples, 0.50);
+    let full_p95 = percentile(&full_samples, 0.95);
+    let incremental_p50 = percentile(&incremental_samples, 0.50);
+    let incremental_p95 = percentile(&incremental_samples, 0.95);
+    let full_bytes = response_bytes(&full);
+    let incremental_bytes = response_bytes(&incremental);
+    let improvement = (1.0 - incremental_p50 / full_p50) * 100.0;
+    println!(
+        "workflow_progress_event_cursor events={EVENT_COUNT} message_length={MESSAGE_LENGTH} full_bytes={full_bytes} incremental_bytes={incremental_bytes} full_p50_p95_ms={full_p50:.3}/{full_p95:.3} incremental_p50_p95_ms={incremental_p50:.3}/{incremental_p95:.3} p50_improvement={improvement:.1}%"
+    );
+    assert!(incremental_bytes < full_bytes / 2);
+    assert!(incremental_p50 < full_p50 * 0.7);
 }
 
 #[tokio::test]
@@ -1060,6 +1195,7 @@ async fn workflow_detail_returns_generation_run_summary_fields() {
             include_generation_runs: true,
             include_generation_run_count: false,
             include_checkpoint_details: true,
+            include_generation_run_payloads: None,
         },
     )
     .await
@@ -1071,8 +1207,37 @@ async fn workflow_detail_returns_generation_run_summary_fields() {
     assert_eq!(summary.workflow_run_id, Some(workflow.id));
     assert_eq!(summary.workflow, "detail-workflow");
     assert_eq!(summary.parsed_output_json, Some(json!({"value": 1})));
+    assert!(summary.has_raw_response);
+    assert!(summary.has_parsed_output);
+    assert!(summary.has_validation);
     assert_eq!(summary.response_summary_json, Some(json!({"output": "ok"})));
     assert_eq!(summary.attempt, 2);
+
+    let light_detail = workflow_run_detail(
+        &db,
+        GetWorkflowRunInput {
+            workflow_run_id: workflow.id,
+            include_generation_runs: true,
+            include_generation_run_count: false,
+            include_checkpoint_details: true,
+            include_generation_run_payloads: Some(false),
+        },
+    )
+    .await
+    .expect("workflow detail must omit large generation payloads when requested");
+    let light_summary = &light_detail.generation_runs[0];
+    assert_eq!(light_summary.id, generation.id);
+    assert_eq!(light_summary.raw_response_json, None);
+    assert_eq!(light_summary.parsed_output_json, None);
+    assert_eq!(light_summary.validation_json, None);
+    assert_eq!(light_summary.artifact_refs_json, None);
+    assert!(light_summary.has_raw_response);
+    assert!(light_summary.has_parsed_output);
+    assert!(light_summary.has_validation);
+    assert_eq!(
+        light_summary.response_summary_json,
+        summary.response_summary_json
+    );
 
     let additional_runs: Vec<_> = (0..300)
         .map(|index| generation_run::ActiveModel {
@@ -1102,6 +1267,7 @@ async fn workflow_detail_returns_generation_run_summary_fields() {
             include_generation_runs: false,
             include_generation_run_count: true,
             include_checkpoint_details: true,
+            include_generation_run_payloads: None,
         },
     )
     .await
@@ -1116,6 +1282,7 @@ async fn workflow_detail_returns_generation_run_summary_fields() {
             include_generation_runs: true,
             include_generation_run_count: false,
             include_checkpoint_details: true,
+            include_generation_run_payloads: None,
         },
     )
     .await
@@ -1130,6 +1297,7 @@ async fn workflow_detail_returns_generation_run_summary_fields() {
             include_generation_runs: false,
             include_generation_run_count: false,
             include_checkpoint_details: true,
+            include_generation_run_payloads: None,
         },
     )
     .await
@@ -1201,6 +1369,7 @@ async fn workflow_detail_can_omit_checkpoint_payloads_for_progress_polling() {
             include_generation_runs: false,
             include_generation_run_count: false,
             include_checkpoint_details: false,
+            include_generation_run_payloads: None,
         },
     )
     .await
@@ -1229,6 +1398,7 @@ async fn workflow_detail_can_omit_checkpoint_payloads_for_progress_polling() {
             include_generation_runs: false,
             include_generation_run_count: false,
             include_checkpoint_details: true,
+            include_generation_run_payloads: None,
         },
     )
     .await

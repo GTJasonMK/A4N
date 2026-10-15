@@ -174,6 +174,7 @@ pub trait ProjectSourceSnapshotReadApplicationPort: Send + Sync {
         &self,
         user_id: i64,
         project_id: i64,
+        snapshot_id: Option<i64>,
         source_chapter_id: i64,
     ) -> Result<SourceSnapshotChapterSummary, a4n_error::AppError>;
 }
@@ -183,6 +184,8 @@ pub trait ProjectSourceSnapshotReadApplicationPort: Send + Sync {
 pub struct GetSourceSnapshotChapterInput {
     #[schemars(range(min = 1))]
     pub project_id: i64,
+    #[serde(default)]
+    pub snapshot_id: Option<i64>,
     #[schemars(range(min = 1))]
     pub source_chapter_id: i64,
 }

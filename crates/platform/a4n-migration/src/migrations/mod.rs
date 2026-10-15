@@ -1,6 +1,7 @@
 //! PostgreSQL baseline schema.
 
 pub mod agent_history_contract_canonicalization;
+pub mod agent_owner_lookup_indexes;
 pub mod agent_project_binding;
 pub mod agent_replay_policy_canonicalization;
 pub mod agent_runtime;
@@ -47,6 +48,7 @@ pub mod creator_notifications;
 pub mod directing_workflow_v2;
 pub mod drop_chapter_video_prompt_identity_unique;
 pub mod external_import_model_identity_cleanup;
+pub mod fact_feedback_read_indexes;
 pub mod fact_feedback_summary_history_index;
 pub mod foreshadowing_index_integrity_contract;
 pub mod freeform_canonical_media;

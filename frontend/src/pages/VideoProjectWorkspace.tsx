@@ -3,6 +3,7 @@ import React, {
   lazy,
   Suspense,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -12,12 +13,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Film, GitCompare, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import {
-  getSourceSnapshotChapter,
   getProject,
+  getSourceSnapshotChapter,
   listSourceSnapshotChapterIndex,
   type NovelProject,
   type SourceSnapshotChapterIndex,
-  type SourceSnapshotChapterSummary,
 } from "../api/project";
 import { extractErrorMessage } from "../api";
 import { isPositiveSafeInteger } from "../utils/numberRange";
@@ -51,72 +51,31 @@ export const VideoProjectWorkspace: React.FC = () => {
   const [project, setProject] = useState<NovelProject | null>(null);
   const [chapters, setChapters] = useState<SourceSnapshotChapterIndex[]>([]);
   const [selectedSourceChapterId, setSelectedSourceChapterId] = useState<number | null>(null);
-  const [selectedSourceChapter, setSelectedSourceChapter] = useState<SourceSnapshotChapterSummary | null>(null);
-  const [selectedSourceChapterLoading, setSelectedSourceChapterLoading] = useState(false);
+  const [selectedChapterDetail, setSelectedChapterDetail] = useState<ChapterRow | null>(null);
+  const [selectedChapterLoading, setSelectedChapterLoading] = useState(false);
+  const [selectedChapterError, setSelectedChapterError] = useState<string | null>(null);
   const [workspaceDirty, setWorkspaceDirty] = useState(false);
   const selectSourceChapter = async (chapterId: number) => {
     if (chapterId === selectedSourceChapterId) return;
     if (!await confirmDiscardMediaChanges(workspaceDirty || dirtyRegistry.hasDirty(), t)) return;
     setWorkspaceDirty(false);
-    selectedSourceChapterIdRef.current = chapterId;
     setSelectedSourceChapterId(chapterId);
-    setSelectedSourceChapter(null);
-    setLoadError(null);
-    await loadSelectedSourceChapter(projectId, chapterId);
   };
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sourceSyncOpen, setSourceSyncOpen] = useState(false);
   const refreshRequestRef = useRef(0);
-  const selectedSourceChapterIdRef = useRef<number | null>(null);
-  const selectedSourceChapterRequestRef = useRef(0);
-
-  const loadSelectedSourceChapter = async (
-    requestProjectId: number,
-    sourceChapterId: number,
-    refreshRequestId?: number,
-  ) => {
-    const requestId = selectedSourceChapterRequestRef.current + 1;
-    selectedSourceChapterRequestRef.current = requestId;
-    setSelectedSourceChapterLoading(true);
-    try {
-      const chapter = await getSourceSnapshotChapter(requestProjectId, sourceChapterId);
-      if (
-        selectedSourceChapterRequestRef.current !== requestId ||
-        selectedSourceChapterIdRef.current !== sourceChapterId ||
-        (refreshRequestId != null && refreshRequestRef.current !== refreshRequestId)
-      ) return;
-      setSelectedSourceChapter(chapter);
-    } catch (error) {
-      if (
-        selectedSourceChapterRequestRef.current === requestId &&
-        selectedSourceChapterIdRef.current === sourceChapterId &&
-        (refreshRequestId == null || refreshRequestRef.current === refreshRequestId)
-      ) {
-        setSelectedSourceChapter(null);
-        setLoadError(extractErrorMessage(error, translatorRef.current("video.loadProjectFailed")));
-      }
-    } finally {
-      if (selectedSourceChapterRequestRef.current === requestId) {
-        setSelectedSourceChapterLoading(false);
-      }
-    }
-  };
 
   const refresh = useCallback(async (): Promise<boolean> => {
     const requestId = refreshRequestRef.current + 1;
     refreshRequestRef.current = requestId;
-    selectedSourceChapterRequestRef.current += 1;
-    setSelectedSourceChapterLoading(false);
     setLoadError(null);
     if (!isPositiveSafeInteger(projectId)) {
       const message = translatorRef.current("video.projectInvalid");
       setLoadError(message);
       setProject(null);
       setChapters([]);
-      selectedSourceChapterIdRef.current = null;
       setSelectedSourceChapterId(null);
-      setSelectedSourceChapter(null);
       setLoading(false);
       return false;
     }
@@ -144,17 +103,15 @@ export const VideoProjectWorkspace: React.FC = () => {
       if (chaptersResult.status === "fulfilled") {
         const snapshotChapters = chaptersResult.value;
         setChapters(snapshotChapters);
-        const current = selectedSourceChapterIdRef.current;
-        const selectedChapterId = current != null &&
-          snapshotChapters.some((chapter) => chapter.source_chapter_id === current)
-          ? current
-          : snapshotChapters[0]?.source_chapter_id ?? null;
-        selectedSourceChapterIdRef.current = selectedChapterId;
-        setSelectedSourceChapterId(selectedChapterId);
-        setSelectedSourceChapter(null);
-        if (selectedChapterId != null) {
-          void loadSelectedSourceChapter(projectId, selectedChapterId, requestId);
-        }
+        setSelectedSourceChapterId((current) => {
+          if (
+            current != null &&
+            snapshotChapters.some((chapter) => chapter.source_chapter_id === current)
+          ) {
+            return current;
+          }
+          return snapshotChapters[0]?.source_chapter_id ?? null;
+        });
       } else {
         const message = extractErrorMessage(
           chaptersResult.reason,
@@ -162,9 +119,7 @@ export const VideoProjectWorkspace: React.FC = () => {
         );
         setLoadError(message);
         setChapters([]);
-        selectedSourceChapterIdRef.current = null;
         setSelectedSourceChapterId(null);
-        setSelectedSourceChapter(null);
       }
       return chaptersResult.status === "fulfilled";
     } catch (err) {
@@ -173,9 +128,7 @@ export const VideoProjectWorkspace: React.FC = () => {
         setLoadError(message);
         setProject(null);
         setChapters([]);
-        selectedSourceChapterIdRef.current = null;
         setSelectedSourceChapterId(null);
-        setSelectedSourceChapter(null);
       }
       return false;
     } finally {
@@ -187,34 +140,79 @@ export const VideoProjectWorkspace: React.FC = () => {
 
   useLayoutEffect(() => {
     refreshRequestRef.current += 1;
-    selectedSourceChapterRequestRef.current += 1;
-    selectedSourceChapterIdRef.current = null;
     setProject(null);
     setChapters([]);
-    setSelectedSourceChapter(null);
-    setSelectedSourceChapterLoading(false);
     setSelectedSourceChapterId(null);
     setSourceSyncOpen(false);
     void refresh();
     return () => {
       refreshRequestRef.current += 1;
-      selectedSourceChapterRequestRef.current += 1;
     };
   }, [refresh]);
 
+  const selectedChapterIndex = useMemo(
+    () => chapters.find((chapter) => chapter.source_chapter_id === selectedSourceChapterId) ?? null,
+    [chapters, selectedSourceChapterId],
+  );
   const selectedChapter = useMemo<ChapterRow | null>(() => {
-    const snapshotChapter = selectedSourceChapter;
-    if (!snapshotChapter) return null;
+    if (!selectedChapterIndex) return null;
+    if (
+      selectedChapterDetail != null &&
+      selectedChapterDetail.id === selectedChapterIndex.source_chapter_id &&
+      selectedChapterDetail.snapshot_id === selectedChapterIndex.snapshot_id
+    ) return selectedChapterDetail;
     return {
-      id: snapshotChapter.source_chapter_id,
-      chapter_number: snapshotChapter.chapter_number,
-      title: snapshotChapter.title,
-      content: snapshotChapter.content,
-      summary: snapshotChapter.summary,
+      id: selectedChapterIndex.source_chapter_id,
+      snapshot_id: selectedChapterIndex.snapshot_id,
+      chapter_number: selectedChapterIndex.chapter_number,
+      title: selectedChapterIndex.title,
       status: "completed",
-      analysis_data: snapshotChapter.analysis_data_json,
     };
-  }, [selectedSourceChapter]);
+  }, [selectedChapterDetail, selectedChapterIndex]);
+
+  useEffect(() => {
+    if (!project || !selectedChapterIndex) {
+      setSelectedChapterDetail(null);
+      setSelectedChapterLoading(false);
+      setSelectedChapterError(null);
+      return;
+    }
+    let active = true;
+    setSelectedChapterDetail(null);
+    setSelectedChapterLoading(true);
+    setSelectedChapterError(null);
+    void getSourceSnapshotChapter(
+      project.id,
+      selectedChapterIndex.source_chapter_id,
+      selectedChapterIndex.snapshot_id,
+    )
+      .then((chapter) => {
+        if (!active) return;
+        setSelectedChapterDetail({
+          id: chapter.source_chapter_id,
+          snapshot_id: chapter.snapshot_id,
+          chapter_number: chapter.chapter_number,
+          title: chapter.title,
+          content: chapter.content,
+          content_hash: chapter.content_hash,
+          summary: chapter.summary,
+          analysis_data: chapter.analysis_data_json,
+          status: "completed",
+        });
+      })
+      .catch((error) => {
+        if (!active) return;
+        const message = extractErrorMessage(error, translatorRef.current("video.loadProjectFailed"));
+        setSelectedChapterError(message);
+        addToast(message, "error");
+      })
+      .finally(() => {
+        if (active) setSelectedChapterLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [addToast, project, selectedChapterIndex]);
 
   const imageProjectIds = useMemo(() => {
     if (!project) return [];
@@ -349,11 +347,30 @@ export const VideoProjectWorkspace: React.FC = () => {
               </div>
             ) : null}
             <section className="min-h-0 flex-1 overflow-hidden">
-              {selectedSourceChapterLoading ? (
-                <div role="status" className="flex h-full items-center justify-center gap-2 text-xs text-book-text-muted">
-                  <LoadingSpinner size="sm" /> {t("video.loadingProject")}
+              {selectedChapterError ? (
+                <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-error">
+                  <p className="min-w-0 flex-1">{selectedChapterError}</p>
+                  <BookButton
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      void (async () => {
+                        if (await confirmDiscardMediaChanges(workspaceDirty || dirtyRegistry.hasDirty(), t)) {
+                          await refresh();
+                        }
+                      })();
+                    }}
+                  >
+                    <RefreshCw size={13} /> {t("common.retry")}
+                  </BookButton>
                 </div>
-              ) : selectedChapter ? (
+              ) : !selectedChapterIndex ? (
+                <EmptyHint text={t("video.noSourceChapter")} />
+              ) : selectedChapterLoading || selectedChapter?.content == null ? (
+                <div role="status" className="inline-flex items-center gap-2 text-xs text-book-text-muted">
+                  <LoadingSpinner size="sm" /> {t("common.loading")}
+                </div>
+              ) : (
                 <VideoTab
                   key={`${project.id}:${chapters[0].snapshot_id}:${selectedSourceChapterId}`}
                   projectId={project.id}
@@ -363,8 +380,6 @@ export const VideoProjectWorkspace: React.FC = () => {
                   imageProjectIds={imageProjectIds}
                   materialProjectId={project.root_project_id ?? project.id}
                 />
-              ) : (
-                <EmptyHint text={t("video.noSourceChapter")} />
               )}
             </section>
           </div>

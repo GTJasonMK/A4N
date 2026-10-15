@@ -169,6 +169,13 @@ export const ComicProjectWorkspace: React.FC = () => {
             key={project.id}
             projectId={project.id}
             canEditManga={canEditProject}
+            onSnapshotRefresh={() => {
+              void (async () => {
+                if (await confirmDiscardMediaChanges(workspaceDirty || dirtyRegistry.hasDirty(), t)) {
+                  await refresh();
+                }
+              })();
+            }}
             standalone={project.source_mode === "standalone"}
             onDirtyChange={setWorkspaceDirty}
             snapshotChapters={chapters}

@@ -50,8 +50,10 @@ import { isCancelledOperation } from "../../../utils/cancellation";
 import { EmptyHint, isChapterGenerating, type ChapterRow } from "../shared";
 import { MangaPagePromptList } from "./MangaPagePromptList";
 import { readFileAsBase64 } from "../../../utils/fileUpload";
-import { MAX_UPLOAD_IMAGE_BYTES } from "../../../api/generated/config";
-import { isSupportedImageMime } from "../../../utils/imageUpload";
+import {
+  isSupportedImageMime,
+  MAX_UPLOAD_IMAGE_BYTES,
+} from "../../../utils/imageUpload";
 import {
   chapterHeading,
   countStaleMangaPagePrompts,
@@ -76,7 +78,9 @@ interface MangaChapterDetailPanelProps {
   projectId: number;
   isSingleMode: boolean;
   selectedChapter: ChapterRow | null;
-  selectedSnapshotLoading: boolean;
+  selectedChapterLoading: boolean;
+  selectedChapterLoadError: string | null;
+  onRetryChapter: () => void;
   selectedStatus: MangaPipelineStatusSummary | null | undefined;
   pagePrompts: MangaPagePromptSummary[];
   pageSlotsNeedsGeneration?: boolean;
@@ -123,7 +127,7 @@ interface MangaChapterDetailPanelProps {
 }
 
 type NoticeTone = "ok" | "warning" | "danger" | "muted";
-type InlineNoticeTone = "warning" | "muted";
+type InlineNoticeTone = "warning" | "muted" | "danger";
 
 const noticeClass: Record<NoticeTone, string> = {
   ok: "border-success/40 text-success",
@@ -133,7 +137,7 @@ const noticeClass: Record<NoticeTone, string> = {
 };
 
 const noticeIcon = (tone: InlineNoticeTone) => {
-  if (tone === "warning") return <AlertTriangle size={13} />;
+  if (tone !== "muted") return <AlertTriangle size={13} />;
   return <CircleDashed size={13} />;
 };
 
@@ -143,7 +147,9 @@ export function MangaChapterDetailPanel({
   projectId,
   isSingleMode,
   selectedChapter,
-  selectedSnapshotLoading,
+  selectedChapterLoading,
+  selectedChapterLoadError,
+  onRetryChapter,
   selectedStatus,
   pagePrompts,
   pageSlotsNeedsGeneration = false,
@@ -204,7 +210,10 @@ export function MangaChapterDetailPanel({
   const referenceUploadBusyRef = useRef(false);
   const previewSeqRef = useRef(0);
   const previewBusyRef = useRef(false);
-  const selectedChapterReady = Boolean(selectedChapter?.content?.trim());
+  const selectedChapterReady =
+    !selectedChapterLoading &&
+    selectedChapterLoadError == null &&
+    Boolean(selectedChapter?.content?.trim());
   const selectedChapterGenerating = isChapterGenerating(selectedChapter);
   const detailBusy =
     promptActionBusy ||
@@ -395,6 +404,18 @@ export function MangaChapterDetailPanel({
   ].filter((item): item is string => item != null);
 
   const notice = (() => {
+    if (selectedChapterLoading) {
+      return {
+        tone: "muted" as InlineNoticeTone,
+        text: t("comic.loadingChapters"),
+      };
+    }
+    if (selectedChapterLoadError) {
+      return {
+        tone: "danger" as InlineNoticeTone,
+        text: selectedChapterLoadError,
+      };
+    }
     if (!selectedChapterReady) {
       return {
         tone: "warning" as InlineNoticeTone,
@@ -1146,11 +1167,7 @@ export function MangaChapterDetailPanel({
   return (
     <>
       <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-        {selectedSnapshotLoading ? (
-          <div role="status" className="a4n-flat-surface flex min-h-[180px] flex-1 items-center justify-center gap-2 text-xs text-book-text-muted">
-            <LoadingSpinner size="sm" /> {t("comic.loadingChapters")}
-          </div>
-        ) : !selectedChapter ? (
+        {!selectedChapter ? (
           <div className="a4n-flat-surface flex min-h-[180px] flex-1 items-center justify-center">
             <EmptyHint
               text={isSingleMode
@@ -1284,6 +1301,7 @@ export function MangaChapterDetailPanel({
 
               {notice ? (
                 <div
+                  role={selectedChapterLoading ? "status" : selectedChapterLoadError ? "alert" : undefined}
                   className={`mt-3 flex items-start gap-2 rounded-xl border bg-book-bg-paper/50 px-2.5 py-2 text-xs ${noticeClass[notice.tone]}`}
                 >
                   <span className="mt-0.5 shrink-0">
@@ -1292,6 +1310,11 @@ export function MangaChapterDetailPanel({
                   <span className="min-w-0 flex-1 whitespace-pre-wrap break-words leading-relaxed">
                     {notice.text}
                   </span>
+                  {selectedChapterLoadError ? (
+                    <BookButton variant="secondary" size="sm" onClick={onRetryChapter}>
+                      <RefreshCw size={12} /> {t("common.retry")}
+                    </BookButton>
+                  ) : null}
                 </div>
               ) : null}
             </header>

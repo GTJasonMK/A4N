@@ -3,6 +3,7 @@ import {
   canvasNodeIdFromStepKey,
   canvasWorkflowNodeRunStateFacts,
   canvasWorkflowNodeRunStates,
+  canvasWorkflowNodeRunStatusSignature,
   computeRunToNodeScope,
   computeWorkflowActiveScope,
   findSubmittedCanvasWorkflowRun,
@@ -98,6 +99,21 @@ describe("canvas workflow node run state facts", () => {
     expect(statesAtEleven.get("2")?.elapsedSeconds).toBe(3);
     expect(statesAtTwelve.get("2")?.elapsedSeconds).toBe(4);
     expect(statesAtTwelve.get("1")?.elapsedSeconds).toBe(4);
+  });
+});
+
+describe("canvas workflow status signature", () => {
+  it("ignores elapsed-time changes but detects status changes", () => {
+    const first = new Map([["1", { status: "running", elapsedSeconds: 1 }]]);
+    const nextTick = new Map([["1", { status: "running", elapsedSeconds: 2 }]]);
+    const completed = new Map([["1", { status: "completed", elapsedSeconds: 2 }]]);
+
+    expect(canvasWorkflowNodeRunStatusSignature(first)).toBe(
+      canvasWorkflowNodeRunStatusSignature(nextTick),
+    );
+    expect(canvasWorkflowNodeRunStatusSignature(first)).not.toBe(
+      canvasWorkflowNodeRunStatusSignature(completed),
+    );
   });
 });
 

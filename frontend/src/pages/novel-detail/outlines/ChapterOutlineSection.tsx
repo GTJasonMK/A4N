@@ -9,7 +9,7 @@ import { deleteChapterOutlinesFromAction } from "./outlineTabUtils";
 import {
   isDerivedChapterOutline,
   isRetrospectiveChapterOutline,
-  type ChapterOutline,
+  type ChapterOutlineListEntry,
 } from "../../../api/outline";
 import { useI18n } from "../../../i18n";
 import {
@@ -24,7 +24,7 @@ export interface ChapterOutlineEditForm {
 }
 
 interface ChapterOutlineSectionProps {
-  outlines: ChapterOutline[];
+  outlines: ChapterOutlineListEntry[];
   loaded: boolean;
   canEdit: boolean;
   chapterCount: NumberInputValue;
@@ -39,11 +39,11 @@ interface ChapterOutlineSectionProps {
   onGenerate: () => void;
   onPreviewGenerate: () => void;
   onCreate: () => void;
-  onOpenDetail: (outline: ChapterOutline) => void;
+  onOpenDetail: (outline: ChapterOutlineListEntry) => void;
   onCancelEdit: () => void;
   onEditFormChange: (form: ChapterOutlineEditForm) => void;
-  onSave: (outline: ChapterOutline) => void;
-  onOpenAction: (outline: ChapterOutline) => void;
+  onSave: (outline: ChapterOutlineListEntry) => void;
+  onOpenAction: (outline: ChapterOutlineListEntry) => void;
 }
 
 export function ChapterOutlineSection({
@@ -75,7 +75,7 @@ export function ChapterOutlineSection({
   const generationActionLabel = hasOutlines
     ? t("outline.chapterSection.appendAction")
     : t("outline.chapterSection.generateAction");
-  const sourceLabel = (outline: ChapterOutline) =>
+  const sourceLabel = (outline: ChapterOutlineListEntry) =>
     isRetrospectiveChapterOutline(outline)
       ? t("outline.chapterSection.sourceRetrospective")
       : isDerivedChapterOutline(outline)

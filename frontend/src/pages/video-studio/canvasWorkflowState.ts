@@ -234,6 +234,12 @@ export function canvasWorkflowNodeRunStates(
   return states;
 }
 
+export function canvasWorkflowNodeRunStatusSignature(
+  states: ReadonlyMap<string, { status: string }>,
+): string {
+  return JSON.stringify(Array.from(states, ([nodeId, state]) => [nodeId, state.status]));
+}
+
 export function canvasWorkflowRuntimeRefreshSignature(detail: WorkflowRunDetailSummary): string | null {
   if (detail.run.workflow_kind !== CANVAS_WORKFLOW_KIND || detail.run.scope_table !== "canvas_graph") {
     return null;

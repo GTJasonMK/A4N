@@ -20,7 +20,9 @@ use a4n_domain::media_authoring::{
     AuthoringGalgameScriptDeletion, AuthoringMangaPageDeletion, AuthoringSourceRef,
 };
 use a4n_domain::project::ProjectRecord;
-use a4n_domain::shooting_script::ChapterShootingScriptReferenceRecord;
+use a4n_domain::shooting_script::{
+    ChapterShootingScriptReferenceRecord, ChapterShootingScriptReferenceSummary,
+};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, DbErr, EntityTrait, QueryFilter, QueryOrder,
@@ -1602,6 +1604,96 @@ pub async fn video_reference_scripts<C: ConnectionTrait>(
     Ok(rows)
 }
 
+pub async fn video_reference_script_summaries<C: ConnectionTrait>(
+    db: &C,
+    root_project_id: i64,
+    chapter_id: Option<i64>,
+) -> Result<Vec<(i64, String, ChapterShootingScriptReferenceSummary)>, DbErr> {
+    use a4n_db_models::models::chapter::chapter_shooting_script as script;
+    let projects = novel_project::Entity::find()
+        .select_only()
+        .column(novel_project::Column::Id)
+        .column(novel_project::Column::Title)
+        .filter(novel_project::Column::RootProjectId.eq(root_project_id))
+        .filter(novel_project::Column::ProjectKind.eq("video"))
+        .into_tuple::<(i64, String)>()
+        .all(db)
+        .await?
+        .into_iter()
+        .collect::<std::collections::BTreeMap<_, _>>();
+    if projects.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut query = script::Entity::find()
+        .select_only()
+        .column(script::Column::Id)
+        .column(script::Column::ProjectId)
+        .column(script::Column::RootProjectId)
+        .column(script::Column::SourceChapterId)
+        .column(script::Column::SourceSnapshotId)
+        .column(script::Column::SourceSnapshotChapterId)
+        .column(script::Column::SourceRevisionKey)
+        .column(script::Column::SourceContentSha256)
+        .column(script::Column::Revision)
+        .column(script::Column::ScriptSha256)
+        .filter(script::Column::ProjectId.is_in(projects.keys().copied()));
+    if let Some(id) = chapter_id {
+        query = query.filter(script::Column::SourceChapterId.eq(id));
+    }
+    let rows = query
+        .order_by_desc(script::Column::UpdatedAt)
+        .into_tuple::<(
+            i64,
+            i64,
+            i64,
+            i64,
+            Option<i64>,
+            Option<i64>,
+            String,
+            String,
+            i32,
+            String,
+        )>()
+        .all(db)
+        .await?;
+    rows.into_iter()
+        .map(
+            |(
+                id,
+                project_id,
+                root_project_id,
+                source_chapter_id,
+                source_snapshot_id,
+                source_snapshot_chapter_id,
+                source_revision_key,
+                source_content_sha256,
+                revision,
+                script_sha256,
+            )| {
+                let project_title = projects
+                    .get(&project_id)
+                    .ok_or_else(|| DbErr::Custom("视频剧本归属不一致".into()))?;
+                Ok((
+                    project_id,
+                    project_title.clone(),
+                    ChapterShootingScriptReferenceSummary {
+                        id,
+                        project_id,
+                        root_project_id,
+                        source_chapter_id,
+                        source_snapshot_id,
+                        source_snapshot_chapter_id,
+                        source_revision_key,
+                        source_content_sha256,
+                        revision,
+                        script_sha256,
+                    },
+                ))
+            },
+        )
+        .collect()
+}
+
 pub async fn video_reference_script<C: ConnectionTrait>(
     db: &C,
     project_id: i64,
@@ -1613,6 +1705,37 @@ pub async fn video_reference_script<C: ConnectionTrait>(
         .one(db)
         .await
         .map(|row| row.map(chapter_shooting_script_reference_record))
+}
+
+pub async fn video_reference_scripts_by_ids<C: ConnectionTrait>(
+    db: &C,
+    references: &[(i64, i64)],
+) -> Result<HashMap<(i64, i64), ChapterShootingScriptReferenceRecord>, DbErr> {
+    use a4n_db_models::models::chapter::chapter_shooting_script as script;
+
+    if references.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let project_ids = references
+        .iter()
+        .map(|(project_id, _)| *project_id)
+        .collect::<Vec<_>>();
+    let script_ids = references
+        .iter()
+        .map(|(_, script_id)| *script_id)
+        .collect::<Vec<_>>();
+    let rows = script::Entity::find()
+        .filter(script::Column::ProjectId.is_in(project_ids))
+        .filter(script::Column::Id.is_in(script_ids))
+        .all(db)
+        .await?;
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            let key = (row.project_id, row.id);
+            (key, chapter_shooting_script_reference_record(row))
+        })
+        .collect())
 }
 
 fn chapter_shooting_script_reference_record(

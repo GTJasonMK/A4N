@@ -12,6 +12,7 @@ import { useI18n, type MessageTranslator } from "../../i18n";
 
 export interface ChapterRow {
   id: number;
+  snapshot_id?: number;
   chapter_number: number;
   title?: string | null;
   content?: string | null;

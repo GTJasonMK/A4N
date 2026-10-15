@@ -43,6 +43,7 @@ impl ProjectSourceSnapshotReadApplicationPort for SourceSnapshotWorkerClient {
         &self,
         user_id: i64,
         project_id: i64,
+        snapshot_id: Option<i64>,
         source_chapter_id: i64,
     ) -> Result<SourceSnapshotChapterSummary, AppError> {
         self.command(
@@ -51,6 +52,7 @@ impl ProjectSourceSnapshotReadApplicationPort for SourceSnapshotWorkerClient {
             project_id,
             SourceSnapshotChapterInput {
                 project_id,
+                snapshot_id,
                 source_chapter_id,
             },
         )

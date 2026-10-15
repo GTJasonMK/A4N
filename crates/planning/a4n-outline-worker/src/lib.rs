@@ -71,6 +71,10 @@ impl OutlineWorker {
                 "/v1/commands/outline.records.list_chapters",
                 post(list_chapters),
             )
+            .route(
+                "/v1/commands/outline.records.list_chapter_index",
+                post(list_chapter_index),
+            )
             .route("/v1/commands/outline.records.list_parts", post(list_parts))
             .route(
                 "/v1/commands/outline.records.generation_progress",
@@ -175,6 +179,17 @@ async fn list_chapters(
 ) -> Response {
     command_response(&state, &headers, request, |request| {
         state.list_chapters(request)
+    })
+    .await
+}
+
+async fn list_chapter_index(
+    State(state): State<WorkerState>,
+    headers: HeaderMap,
+    Json(request): Json<WorkerEnvelope<ProjectOutlineInput>>,
+) -> Response {
+    command_response(&state, &headers, request, |request| {
+        state.list_chapter_index(request)
     })
     .await
 }
@@ -475,9 +490,42 @@ mod tests {
         assert_eq!(progress.completed_parts, 1);
         assert_eq!(progress.completed_chapter_outlines, 2);
 
+        let mut unsorted_parts = rows.clone();
+        unsorted_parts.parts.reverse();
+        assert_eq!(
+            generation_progress_summary(&unsorted_parts).expect("unsorted parts are valid"),
+            progress
+        );
+
+        let mut duplicate_outlines = rows.clone();
+        duplicate_outlines.chapter_outlines[1].chapter_number = 1;
+        assert!(generation_progress_summary(&duplicate_outlines).is_err());
+
         let mut duplicate = rows;
         duplicate.parts[1].start_chapter = 2;
         assert!(generation_progress_summary(&duplicate).is_err());
+    }
+
+    #[test]
+    fn progress_handles_large_part_range_without_chapter_outlines() {
+        let rows = OutlineGenerationProgressRows {
+            parts: vec![a4n_db::project::OutlineGenerationProgressPart {
+                id: 1,
+                start_chapter: 1,
+                end_chapter: 1_000_000,
+            }],
+            chapter_outlines: Vec::new(),
+        };
+
+        assert_eq!(
+            generation_progress_summary(&rows).expect("sparse range is valid"),
+            a4n_api_contract::outline::OutlineGenerationProgressSummary {
+                total_parts: 1,
+                completed_parts: 0,
+                total_chapter_outlines: 0,
+                completed_chapter_outlines: 0,
+            }
+        );
     }
 
     #[test]

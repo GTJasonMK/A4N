@@ -29,6 +29,8 @@ use sea_orm::{
 };
 use serde_json::{Value, json};
 
+const PROJECT_BUNDLE_DATABASE_BATCH_SIZE: usize = 1_000;
+
 #[derive(Debug, thiserror::Error)]
 pub enum ProjectBundleHistoryError {
     #[error("{0}")]
@@ -94,6 +96,97 @@ pub enum StandaloneComicProjectBundleError {
     Database(#[from] sea_orm::DbErr),
 }
 
+async fn standalone_comic_text_source_bundle_rows(
+    db: &impl crate::DbExecutor,
+    project_id: i64,
+) -> Result<Vec<StandaloneComicTextSourceBundleRow>, StandaloneComicProjectBundleError> {
+    let source_rows = standalone_comic_text_source::Entity::find()
+        .filter(standalone_comic_text_source::Column::ProjectId.eq(project_id))
+        .order_by_asc(standalone_comic_text_source::Column::Id)
+        .all(db)
+        .await?;
+    if source_rows.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let chapter_ids = source_rows
+        .iter()
+        .map(|source| source.chapter_id)
+        .collect::<Vec<_>>();
+    let mut snapshot_ids = source_rows
+        .iter()
+        .map(|source| source.source_snapshot_id)
+        .collect::<Vec<_>>();
+    snapshot_ids.sort_unstable();
+    snapshot_ids.dedup();
+    let snapshot_chapter_ids = source_rows
+        .iter()
+        .map(|source| source.source_snapshot_chapter_id)
+        .collect::<Vec<_>>();
+    let mut chapters = Vec::with_capacity(source_rows.len());
+    let mut snapshot_chapters = Vec::with_capacity(source_rows.len());
+    for start in (0..source_rows.len()).step_by(PROJECT_BUNDLE_DATABASE_BATCH_SIZE) {
+        let end = (start + PROJECT_BUNDLE_DATABASE_BATCH_SIZE).min(source_rows.len());
+        let (chapter_batch, snapshot_chapter_batch) = futures::try_join!(
+            chapter::Entity::find()
+                .filter(chapter::Column::Id.is_in(chapter_ids[start..end].iter().copied()))
+                .all(db),
+            source_snapshot_chapter::Entity::find()
+                .filter(
+                    source_snapshot_chapter::Column::Id
+                        .is_in(snapshot_chapter_ids[start..end].iter().copied()),
+                )
+                .all(db),
+        )?;
+        chapters.extend(chapter_batch);
+        snapshot_chapters.extend(snapshot_chapter_batch);
+    }
+    let mut snapshots = Vec::with_capacity(snapshot_ids.len());
+    for ids in snapshot_ids.chunks(PROJECT_BUNDLE_DATABASE_BATCH_SIZE) {
+        snapshots.extend(
+            project_source_snapshot::Entity::find()
+                .filter(project_source_snapshot::Column::Id.is_in(ids.iter().copied()))
+                .all(db)
+                .await?,
+        );
+    }
+    let chapters_by_id: HashMap<_, _> = chapters.into_iter().map(|row| (row.id, row)).collect();
+    let snapshots_by_id: HashMap<_, _> = snapshots.into_iter().map(|row| (row.id, row)).collect();
+    let snapshot_chapters_by_id: HashMap<_, _> = snapshot_chapters
+        .into_iter()
+        .map(|row| (row.id, row))
+        .collect();
+
+    source_rows
+        .into_iter()
+        .map(|source| {
+            Ok(StandaloneComicTextSourceBundleRow {
+                chapter: chapters_by_id
+                    .get(&source.chapter_id)
+                    .cloned()
+                    .ok_or_else(|| {
+                        StandaloneComicProjectBundleError::NotFound("漫画文本来源章节不存在".into())
+                    })?,
+                snapshot: snapshots_by_id
+                    .get(&source.source_snapshot_id)
+                    .cloned()
+                    .ok_or_else(|| {
+                        StandaloneComicProjectBundleError::NotFound("漫画文本来源快照不存在".into())
+                    })?,
+                snapshot_chapter: snapshot_chapters_by_id
+                    .get(&source.source_snapshot_chapter_id)
+                    .cloned()
+                    .ok_or_else(|| {
+                        StandaloneComicProjectBundleError::NotFound(
+                            "漫画文本来源快照章节不存在".into(),
+                        )
+                    })?,
+                source,
+            })
+        })
+        .collect()
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct StandaloneComicProjectImportMaps {
     pub project_id: i64,
@@ -123,37 +216,16 @@ pub async fn export_standalone_comic_project_bundle(
     let mut text_assets = crate::canvas::canvas_text_assets_by_project_record(db, project_id)
         .await
         .map_err(|error| StandaloneComicProjectBundleError::Invalid(error.to_string()))?;
-    for asset in &mut text_assets {
-        asset.versions = crate::canvas::canvas_text_asset_versions_record(db, project_id, asset.id)
+    let asset_ids = text_assets.iter().map(|asset| asset.id).collect::<Vec<_>>();
+    let mut versions_by_asset =
+        crate::canvas::canvas_text_asset_versions_by_project_record(db, project_id, &asset_ids)
             .await
             .map_err(|error| StandaloneComicProjectBundleError::Invalid(error.to_string()))?;
+    for asset in &mut text_assets {
+        asset.versions = versions_by_asset.remove(&asset.id).unwrap_or_default();
     }
 
-    let source_rows = standalone_comic_text_source::Entity::find()
-        .filter(standalone_comic_text_source::Column::ProjectId.eq(project_id))
-        .order_by_asc(standalone_comic_text_source::Column::Id)
-        .all(db)
-        .await?;
-    let mut sources = Vec::with_capacity(source_rows.len());
-    for source in source_rows {
-        let (chapter, snapshot, snapshot_chapter) = futures::try_join!(
-            chapter::Entity::find_by_id(source.chapter_id).one(db),
-            project_source_snapshot::Entity::find_by_id(source.source_snapshot_id).one(db),
-            source_snapshot_chapter::Entity::find_by_id(source.source_snapshot_chapter_id).one(db),
-        )?;
-        sources.push(StandaloneComicTextSourceBundleRow {
-            source,
-            chapter: chapter.ok_or_else(|| {
-                StandaloneComicProjectBundleError::NotFound("漫画文本来源章节不存在".into())
-            })?,
-            snapshot: snapshot.ok_or_else(|| {
-                StandaloneComicProjectBundleError::NotFound("漫画文本来源快照不存在".into())
-            })?,
-            snapshot_chapter: snapshot_chapter.ok_or_else(|| {
-                StandaloneComicProjectBundleError::NotFound("漫画文本来源快照章节不存在".into())
-            })?,
-        });
-    }
+    let sources = standalone_comic_text_source_bundle_rows(db, project_id).await?;
     let package = StandaloneComicProjectBundle {
         project,
         text_assets,
@@ -652,17 +724,21 @@ pub async fn import_project_bundle_history(
         conversation_ids.insert(source.id, inserted.id);
         summary.conversations_imported += 1;
     }
-    for source in &rows.messages {
-        let conversation_id = map_required(
-            &conversation_ids,
-            source.conversation_id,
-            "message.conversation_id",
-        )?;
-        let mut active: message::ActiveModel = source.clone().into();
-        active.id = sea_orm::NotSet;
-        active.conversation_id = Set(conversation_id);
-        active.insert(&txn).await?;
-        summary.messages_imported += 1;
+    for source_batch in rows.messages.chunks(PROJECT_BUNDLE_DATABASE_BATCH_SIZE) {
+        let mut messages = Vec::with_capacity(source_batch.len());
+        for source in source_batch {
+            let conversation_id = map_required(
+                &conversation_ids,
+                source.conversation_id,
+                "message.conversation_id",
+            )?;
+            let mut active: message::ActiveModel = source.clone().into();
+            active.id = sea_orm::NotSet;
+            active.conversation_id = Set(conversation_id);
+            messages.push(active);
+        }
+        message::Entity::insert_many(messages).exec(&txn).await?;
+        summary.messages_imported += source_batch.len();
     }
 
     let mut workflow_ids = HashMap::new();
@@ -769,26 +845,35 @@ pub async fn import_project_bundle_history(
         summary.generation_runs_imported += 1;
     }
 
-    for source in &rows.generation_run_targets {
-        let generation_run_id = map_required(
-            &generation_ids,
-            source.generation_run_id,
-            "generation_run_target.generation_run_id",
-        )?;
-        let mut active: generation_run_target::ActiveModel = source.clone().into();
-        active.id = sea_orm::NotSet;
-        active.generation_run_id = Set(generation_run_id);
-        if let Some(mapped) = history_entity_map(&source.target_table, maps)
-            .and_then(|ids| ids.get(&source.target_id))
-        {
-            active.target_id = Set(*mapped);
-        } else if !source.target_table.starts_with("source_archive:") {
-            // The package can retain calls for entities it does not export.
-            // Keep those source IDs in an explicit archive namespace; they must
-            // never resolve to unrelated rows in the receiving database.
-            active.target_table = Set(format!("source_archive:{}", source.target_table));
+    for source_batch in rows
+        .generation_run_targets
+        .chunks(PROJECT_BUNDLE_DATABASE_BATCH_SIZE)
+    {
+        let mut targets = Vec::with_capacity(source_batch.len());
+        for source in source_batch {
+            let generation_run_id = map_required(
+                &generation_ids,
+                source.generation_run_id,
+                "generation_run_target.generation_run_id",
+            )?;
+            let mut active: generation_run_target::ActiveModel = source.clone().into();
+            active.id = sea_orm::NotSet;
+            active.generation_run_id = Set(generation_run_id);
+            if let Some(mapped) = history_entity_map(&source.target_table, maps)
+                .and_then(|ids| ids.get(&source.target_id))
+            {
+                active.target_id = Set(*mapped);
+            } else if !source.target_table.starts_with("source_archive:") {
+                // The package can retain calls for entities it does not export.
+                // Keep those source IDs in an explicit archive namespace; they must
+                // never resolve to unrelated rows in the receiving database.
+                active.target_table = Set(format!("source_archive:{}", source.target_table));
+            }
+            targets.push(active);
         }
-        active.insert(&txn).await?;
+        generation_run_target::Entity::insert_many(targets)
+            .exec(&txn)
+            .await?;
     }
 
     for source in &rows.workflow_checkpoints {
@@ -839,11 +924,9 @@ pub async fn import_project_bundle_history(
             );
             receipt["upgraded_parsed_output_sha256"] = json!(
                 crate::generation::generation_checkpoint_fingerprint_sha256(
-                    &checkpoint
-                        .as_ref()
-                        .ok_or_else(|| ProjectBundleHistoryError::Invalid(
-                            "升级断点缺少结构化输出".into()
-                        ))?["parsed_output"]
+                    &checkpoint.as_ref().ok_or_else(|| {
+                        ProjectBundleHistoryError::Invalid("升级断点缺少结构化输出".into())
+                    })?["parsed_output"]
                 )
                 .map_err(|e| ProjectBundleHistoryError::Invalid(e.to_string()))?
             );
@@ -866,76 +949,105 @@ pub async fn import_project_bundle_history(
         });
         active.insert(&txn).await?;
     }
-    for source in &rows.workflow_progress_events {
-        let workflow_run_id = map_required(
-            &workflow_ids,
-            source.workflow_run_id,
-            "workflow_progress_event.workflow_run_id",
-        )?;
-        let mut active: workflow_progress_event::ActiveModel = source.clone().into();
-        active.id = sea_orm::NotSet;
-        active.workflow_run_id = Set(workflow_run_id);
-        active.task_id = Set(None);
-        active.meta_json = Set(remap_history_json(source.meta_json.clone(), maps)?);
-        active.insert(&txn).await?;
+    for source_batch in rows
+        .workflow_progress_events
+        .chunks(PROJECT_BUNDLE_DATABASE_BATCH_SIZE)
+    {
+        let mut events = Vec::with_capacity(source_batch.len());
+        for source in source_batch {
+            let workflow_run_id = map_required(
+                &workflow_ids,
+                source.workflow_run_id,
+                "workflow_progress_event.workflow_run_id",
+            )?;
+            let mut active: workflow_progress_event::ActiveModel = source.clone().into();
+            active.id = sea_orm::NotSet;
+            active.workflow_run_id = Set(workflow_run_id);
+            active.task_id = Set(None);
+            active.meta_json = Set(remap_history_json(source.meta_json.clone(), maps)?);
+            events.push(active);
+        }
+        workflow_progress_event::Entity::insert_many(events)
+            .exec(&txn)
+            .await?;
     }
-    for source in &rows.llm_call_traces {
-        let mut active: llm_call_trace::ActiveModel = source.clone().into();
-        active.id = sea_orm::NotSet;
-        active.project_id = Set(source
-            .project_id
-            .map(|id| map_required(&maps.project_ids, id, "llm_call_trace.project_id"))
-            .transpose()?);
-        active.root_project_id = Set(source
-            .root_project_id
-            .map(|id| map_required(&maps.root_project_ids, id, "llm_call_trace.root_project_id"))
-            .transpose()?);
-        active.workflow_run_id = Set(source
-            .workflow_run_id
-            .map(|id| map_required(&workflow_ids, id, "llm_call_trace.workflow_run_id"))
-            .transpose()?);
-        active.generation_run_id = Set(source
-            .generation_run_id
-            .map(|id| map_required(&generation_ids, id, "llm_call_trace.generation_run_id"))
-            .transpose()?);
-        active.context_plan_json = Set(sanitize_runtime_json(source.context_plan_json.clone()));
-        active.context_pack_refs_json =
-            Set(sanitize_runtime_json(source.context_pack_refs_json.clone()));
-        active.insert(&txn).await?;
+    for source_batch in rows
+        .llm_call_traces
+        .chunks(PROJECT_BUNDLE_DATABASE_BATCH_SIZE)
+    {
+        let mut traces = Vec::with_capacity(source_batch.len());
+        for source in source_batch {
+            let mut active: llm_call_trace::ActiveModel = source.clone().into();
+            active.id = sea_orm::NotSet;
+            active.project_id = Set(source
+                .project_id
+                .map(|id| map_required(&maps.project_ids, id, "llm_call_trace.project_id"))
+                .transpose()?);
+            active.root_project_id = Set(source
+                .root_project_id
+                .map(|id| {
+                    map_required(&maps.root_project_ids, id, "llm_call_trace.root_project_id")
+                })
+                .transpose()?);
+            active.workflow_run_id = Set(source
+                .workflow_run_id
+                .map(|id| map_required(&workflow_ids, id, "llm_call_trace.workflow_run_id"))
+                .transpose()?);
+            active.generation_run_id = Set(source
+                .generation_run_id
+                .map(|id| map_required(&generation_ids, id, "llm_call_trace.generation_run_id"))
+                .transpose()?);
+            active.context_plan_json = Set(sanitize_runtime_json(source.context_plan_json.clone()));
+            active.context_pack_refs_json =
+                Set(sanitize_runtime_json(source.context_pack_refs_json.clone()));
+            traces.push(active);
+        }
+        llm_call_trace::Entity::insert_many(traces)
+            .exec(&txn)
+            .await?;
     }
-    for source in &rows.model_usage_records {
-        let mut active: model_usage_record::ActiveModel = source.clone().into();
-        active.id = sea_orm::NotSet;
-        active.request_id = Set(uuid::Uuid::new_v4().to_string());
-        active.user_id = Set(Some(user_id));
-        active.project_id = Set(source
-            .project_id
-            .map(|id| map_required(&maps.project_ids, id, "model_usage_record.project_id"))
-            .transpose()?);
-        active.root_project_id = Set(source
-            .root_project_id
-            .map(|id| {
-                map_required(
-                    &maps.root_project_ids,
-                    id,
-                    "model_usage_record.root_project_id",
-                )
-            })
-            .transpose()?);
-        active.workflow_run_id = Set(source
-            .workflow_run_id
-            .map(|id| map_required(&workflow_ids, id, "model_usage_record.workflow_run_id"))
-            .transpose()?);
-        active.generation_run_id = Set(source
-            .generation_run_id
-            .map(|id| map_required(&generation_ids, id, "model_usage_record.generation_run_id"))
-            .transpose()?);
-        active.provider_config_id = Set(None);
-        active.pricing_snapshot_json = Set(sanitize_runtime_json(Some(
-            source.pricing_snapshot_json.clone(),
-        ))
-        .unwrap_or_else(|| json!({"imported": true})));
-        active.insert(&txn).await?;
+    for source_batch in rows
+        .model_usage_records
+        .chunks(PROJECT_BUNDLE_DATABASE_BATCH_SIZE)
+    {
+        let mut usage_records = Vec::with_capacity(source_batch.len());
+        for source in source_batch {
+            let mut active: model_usage_record::ActiveModel = source.clone().into();
+            active.id = sea_orm::NotSet;
+            active.request_id = Set(uuid::Uuid::new_v4().to_string());
+            active.user_id = Set(Some(user_id));
+            active.project_id = Set(source
+                .project_id
+                .map(|id| map_required(&maps.project_ids, id, "model_usage_record.project_id"))
+                .transpose()?);
+            active.root_project_id = Set(source
+                .root_project_id
+                .map(|id| {
+                    map_required(
+                        &maps.root_project_ids,
+                        id,
+                        "model_usage_record.root_project_id",
+                    )
+                })
+                .transpose()?);
+            active.workflow_run_id = Set(source
+                .workflow_run_id
+                .map(|id| map_required(&workflow_ids, id, "model_usage_record.workflow_run_id"))
+                .transpose()?);
+            active.generation_run_id = Set(source
+                .generation_run_id
+                .map(|id| map_required(&generation_ids, id, "model_usage_record.generation_run_id"))
+                .transpose()?);
+            active.provider_config_id = Set(None);
+            active.pricing_snapshot_json = Set(sanitize_runtime_json(Some(
+                source.pricing_snapshot_json.clone(),
+            ))
+            .unwrap_or_else(|| json!({"imported": true})));
+            usage_records.push(active);
+        }
+        model_usage_record::Entity::insert_many(usage_records)
+            .exec(&txn)
+            .await?;
     }
     txn.commit().await?;
     Ok(summary)

@@ -2,7 +2,7 @@
 
 pub use a4n_api_contract::profile::{
     CreateObjectProfileInput, DeleteObjectProfileInput, ObjectProfileDeleteResult,
-    ObjectProfileInput, ObjectProfileMutationResult, ObjectProfileSummary,
+    ObjectProfileInput, ObjectProfileListItem, ObjectProfileMutationResult, ObjectProfileSummary,
     UpdateObjectProfileInput,
 };
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
@@ -10,8 +10,9 @@ pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 use serde::{Deserialize, Serialize};
 
 pub const OBJECT_PROFILE_WORKER_ID: &str = "object-profile-worker";
-pub const OBJECT_PROFILE_WORKER_CONTRACT_VERSION: &str = "object-profile-mutation-v1";
+pub const OBJECT_PROFILE_WORKER_CONTRACT_VERSION: &str = "object-profile-mutation-v2";
 pub const OBJECT_PROFILE_LIST_OPERATION: &str = "profile.object.list";
+pub const OBJECT_PROFILE_LIST_INDEX_OPERATION: &str = "profile.object.list_index";
 pub const OBJECT_PROFILE_CREATE_OPERATION: &str = "profile.object.create";
 pub const OBJECT_PROFILE_UPDATE_OPERATION: &str = "profile.object.update";
 pub const OBJECT_PROFILE_DELETE_OPERATION: &str = "profile.object.delete";
@@ -72,5 +73,12 @@ mod tests {
         request
             .validate()
             .expect("object profile request should validate");
+
+        let mut list_index = request;
+        list_index.operation_id = OBJECT_PROFILE_LIST_INDEX_OPERATION.into();
+        list_index.idempotency_key = "list-index-key".into();
+        list_index
+            .validate()
+            .expect("object profile index request should validate");
     }
 }

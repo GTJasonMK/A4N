@@ -1,6 +1,7 @@
 import { apiInvoke } from "../index";
 import type {
   DeleteTestRunInput,
+  GetTestRunInput,
   ListTestRunsInput,
   StartTestRunInput,
   TestRunDetail,
@@ -17,8 +18,14 @@ export async function startTestRun(input: StartTestRunInput): Promise<TestRunSum
   return apiInvoke<TestRunSummary>("start_test_run", { input });
 }
 
-export async function getTestRun(runId: string): Promise<TestRunDetail> {
-  const input: TestRunIdInput = { run_id: runId };
+export async function getTestRun(
+  runId: string,
+  afterLogIndex?: number,
+): Promise<TestRunDetail> {
+  const input: GetTestRunInput = {
+    run_id: runId,
+    ...(afterLogIndex === undefined ? {} : { after_log_index: afterLogIndex }),
+  };
   return apiInvoke<TestRunDetail>("get_test_run", { input });
 }
 

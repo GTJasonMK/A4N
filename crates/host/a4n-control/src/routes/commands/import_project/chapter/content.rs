@@ -14,6 +14,18 @@ pub(in crate::routes::commands) async fn list_chapter_analyses(
     ))
 }
 
+pub(in crate::routes::commands) async fn list_story_event_chapters(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let project_id = i64_arg(args, "projectId")?;
+    Ok(json!(
+        chapter_content_actions::list_story_event_chapters(state.runtime(), user_id, project_id)
+            .await?
+    ))
+}
+
 pub(in crate::routes::commands) async fn list_chapter_index(
     state: &ServerState,
     user_id: i64,

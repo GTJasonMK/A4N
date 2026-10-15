@@ -4,8 +4,8 @@ import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import {
   cancelAdminTask,
-  listPendingTasks,
-  type TaskQueueSummary,
+  listPendingTaskIndex,
+  type PendingTaskIndexSummary,
 } from "../../../api/admin";
 import { useToast } from "../../../components/feedback/Toast";
 import { BookIconButton } from "../../../components/ui/BookButton";
@@ -21,8 +21,8 @@ import { useDirty } from "../../../components/navigation/dirtyRegistry";
 
 export const TasksSection: React.FC = () => {
   const { addToast } = useToast();
-  const { t, locale } = useI18n();
-  const [tasks, setTasks] = useState<TaskQueueSummary[]>([]);
+  const { t } = useI18n();
+  const [tasks, setTasks] = useState<PendingTaskIndexSummary[]>([]);
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(new Set());
   const tasksRef = useRef(tasks);
   const cancellingIdsRef = useRef(cancellingIds);
@@ -30,7 +30,7 @@ export const TasksSection: React.FC = () => {
   tasksRef.current = tasks;
   cancellingIdsRef.current = cancellingIds;
 
-  const loadTasks = useCallback(() => listPendingTasks(), []);
+  const loadTasks = useCallback(() => listPendingTaskIndex(), []);
   const { loading, error, load, reload, isCurrentScope } =
     useAdminSectionLoader("admin-tasks", loadTasks, setTasks, "settingsAdmin.loadFailed", {
       intervalMs: 5000,
@@ -76,6 +76,12 @@ export const TasksSection: React.FC = () => {
     }
   };
 
+  const handleCancelRef = useRef(handleCancel);
+  handleCancelRef.current = handleCancel;
+  const cancelTaskRow = useCallback((id: string) => {
+    void handleCancelRef.current(id);
+  }, []);
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex min-h-8 items-center gap-2 text-xs text-book-text-muted">
@@ -98,54 +104,89 @@ export const TasksSection: React.FC = () => {
       ) : (
         <ul className="space-y-2.5">
           {tasks.map((task) => (
-            <li key={task.id} className="a4n-flat-surface p-3 text-xs">
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-                <div className="min-w-0">
-                  <div className="truncate font-medium text-book-text-main">
-                    {getTaskTypeLabel(task.task_type, locale)}
-                  </div>
-                  <div className="mt-1 truncate text-small text-book-text-muted">
-                    {[getOperationStatusLabel(task.status, locale), getTaskPriorityLabel(task.priority, locale), formatDateTime(task.created_at, locale, t("settingsAdmin.unknownDate"))]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </div>
-                </div>
-                <span className="ml-auto">
-                  {cancellingIds.has(task.id) ? (
-                    <span className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted">
-                      <LoadingSpinner size="sm" />
-                    </span>
-                  ) : (
-                    <Dropdown
-                      items={[
-                        {
-                          label: t("settingsQueue.cancelTask"),
-                          icon: <X size={12} />,
-                          danger: true,
-                          onClick: () => void handleCancel(task.id),
-                        },
-                      ]}
-                    />
-                  )}
-                </span>
-              </div>
-              <details className="mt-1 text-small text-book-text-muted">
-                <summary className="w-fit cursor-pointer select-none rounded px-1 py-0.5 hover:bg-book-bg-tertiary hover:text-book-text-main">
-                  {t("settingsAdmin.diagnostics")}
-                </summary>
-                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 rounded-md bg-book-bg-tertiary/45 p-2 font-mono">
-                  <span title={task.id}>ID {task.id}</span>
-                  {task.project_id != null ? <span>{t("settingsAdmin.project", { id: task.project_id })}</span> : null}
-                  {task.task_scope ? <span>{t("settingsAdmin.scope", { scope: task.task_scope })}</span> : null}
-                  {task.root_project_id != null ? <span>{t("settingsAdmin.taskRootProject", { id: task.root_project_id })}</span> : null}
-                  {task.source_snapshot_id != null ? <span>{t("settingsAdmin.taskSourceSnapshot", { id: task.source_snapshot_id })}</span> : null}
-                  {task.dag_id ? <span>DAG {task.dag_id}</span> : null}
-                </div>
-              </details>
-            </li>
+            <PendingTaskRow
+              key={task.id}
+              task={task}
+              cancelling={cancellingIds.has(task.id)}
+              onCancel={cancelTaskRow}
+            />
           ))}
         </ul>
       )}
     </div>
   );
 };
+
+const PendingTaskRow = React.memo(({
+  task,
+  cancelling,
+  onCancel,
+}: {
+  task: PendingTaskIndexSummary;
+  cancelling: boolean;
+  onCancel: (id: string) => void;
+}) => {
+  const { t, locale } = useI18n();
+  return (
+    <li className="a4n-flat-surface p-3 text-xs">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+        <div className="min-w-0">
+          <div className="truncate font-medium text-book-text-main">
+            {getTaskTypeLabel(task.task_type, locale)}
+          </div>
+          <div className="mt-1 truncate text-small text-book-text-muted">
+            {[getOperationStatusLabel(task.status, locale), getTaskPriorityLabel(task.priority, locale), formatDateTime(task.created_at, locale, t("settingsAdmin.unknownDate"))]
+              .filter(Boolean)
+              .join(" · ")}
+          </div>
+        </div>
+        <span className="ml-auto">
+          {cancelling ? (
+            <span className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted">
+              <LoadingSpinner size="sm" />
+            </span>
+          ) : (
+            <Dropdown
+              items={[
+                {
+                  label: t("settingsQueue.cancelTask"),
+                  icon: <X size={12} />,
+                  danger: true,
+                  onClick: () => onCancel(task.id),
+                },
+              ]}
+            />
+          )}
+        </span>
+      </div>
+      <details className="mt-1 text-small text-book-text-muted">
+        <summary className="w-fit cursor-pointer select-none rounded px-1 py-0.5 hover:bg-book-bg-tertiary hover:text-book-text-main">
+          {t("settingsAdmin.diagnostics")}
+        </summary>
+        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 rounded-md bg-book-bg-tertiary/45 p-2 font-mono">
+          <span title={task.id}>ID {task.id}</span>
+          {task.project_id != null ? <span>{t("settingsAdmin.project", { id: task.project_id })}</span> : null}
+          {task.task_scope ? <span>{t("settingsAdmin.scope", { scope: task.task_scope })}</span> : null}
+          {task.root_project_id != null ? <span>{t("settingsAdmin.taskRootProject", { id: task.root_project_id })}</span> : null}
+          {task.source_snapshot_id != null ? <span>{t("settingsAdmin.taskSourceSnapshot", { id: task.source_snapshot_id })}</span> : null}
+          {task.dag_id ? <span>DAG {task.dag_id}</span> : null}
+        </div>
+      </details>
+    </li>
+  );
+}, (previous, next) => {
+  const previousTask = previous.task;
+  const nextTask = next.task;
+  return previous.cancelling === next.cancelling
+    && previous.onCancel === next.onCancel
+    && previousTask.id === nextTask.id
+    && previousTask.task_type === nextTask.task_type
+    && previousTask.priority === nextTask.priority
+    && previousTask.status === nextTask.status
+    && previousTask.created_at === nextTask.created_at
+    && previousTask.project_id === nextTask.project_id
+    && previousTask.task_scope === nextTask.task_scope
+    && previousTask.root_project_id === nextTask.root_project_id
+    && previousTask.source_snapshot_id === nextTask.source_snapshot_id
+    && previousTask.dag_id === nextTask.dag_id;
+});

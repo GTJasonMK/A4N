@@ -12,6 +12,7 @@ pub use current::{
     rebuild_chapter_content_anchor_records,
 };
 pub(crate) use evidence::delete_chapter_content_profile_evidence_records_batch;
+pub(crate) use evidence::earliest_current_profile_evidence_chapters;
 pub use evidence::{
     delete_chapter_content_profile_evidence_records, earliest_current_profile_evidence_chapter,
     merge_profile_evidence_records_batch,

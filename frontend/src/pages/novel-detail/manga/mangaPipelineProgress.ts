@@ -9,6 +9,7 @@ export interface MangaTabProps {
   onDirtyChange?: (dirty: boolean) => void;
   projectId: number;
   canEditManga?: boolean;
+  onSnapshotRefresh?: () => void;
   standalone?: boolean;
   snapshotChapters?: import("../../../api/project").SourceSnapshotChapterIndex[];
   assetProjectId?: number;

@@ -3,17 +3,17 @@ import { useI18n } from "../../i18n";
 import { type ChapterMetadata } from "../../api/chapter";
 import { useChapterDetail } from "../../hooks/useChapterDetail";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
-import { isDerivedChapterOutline, type ChapterOutline } from "../../api/outline";
+import { isDerivedChapterOutline, type ChapterOutlineListEntry } from "../../api/outline";
 
 interface AssistantContextPanelProps {
   projectId: number;
   chapters: ChapterMetadata[];
-  outlines: ChapterOutline[];
+  outlines: ChapterOutlineListEntry[];
   activeNumber: number | null;
 }
 
 const nextOutlineText = (
-  outlines: ChapterOutline[],
+  outlines: ChapterOutlineListEntry[],
   activeNumber: number | null,
 ): { title: string | null; summary: string | null } | null => {
   if (activeNumber == null) return null;

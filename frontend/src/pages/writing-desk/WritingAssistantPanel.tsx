@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Eye, Film, RotateCcw, Wand2 } from "lucide-react";
 import { type ChapterMetadata, type ChapterSummary } from "../../api/chapter";
-import { type ChapterOutline } from "../../api/outline";
+import { type ChapterOutlineListEntry } from "../../api/outline";
 import { BookInput, BookTextarea } from "../../components/ui/BookInput";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
@@ -32,7 +32,7 @@ interface WritingAssistantPanelProps {
   canResetGeneratedData: boolean;
   previewing: boolean;
   chapters: ChapterMetadata[];
-  outlines: ChapterOutline[];
+  outlines: ChapterOutlineListEntry[];
   onWritingNotesChange: (value: string) => void;
   onMinWordCountChange: (value: string) => void;
   onMaxWordCountChange: (value: string) => void;

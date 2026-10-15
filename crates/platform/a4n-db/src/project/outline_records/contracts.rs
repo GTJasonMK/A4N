@@ -68,6 +68,18 @@ pub struct OutlineGenerationProgressChapter {
     pub status: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChapterOutlineListRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub chapter_number: i32,
+    pub title: Option<String>,
+    pub summary: Option<String>,
+    pub word_count_target: Option<i32>,
+    pub source_kind: Option<String>,
+    pub updated_at: NaiveDateTime,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct OutlineGenerationProgressRows {
     pub parts: Vec<OutlineGenerationProgressPart>,

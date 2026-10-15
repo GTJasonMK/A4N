@@ -85,7 +85,7 @@ impl WorkflowTaskLookupApplicationPort for WorkflowReadWorkerClient {
             WorkflowProgressEventsInput {
                 task_id: None,
                 workflow_run_id: Some(workflow_run_id),
-                after_event_id: after_event_id.map(|id| id.to_string()),
+                after_event_id,
                 limit,
             },
         )

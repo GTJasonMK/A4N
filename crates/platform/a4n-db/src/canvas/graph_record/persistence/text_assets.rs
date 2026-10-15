@@ -4,11 +4,14 @@ use a4n_domain::canvas::{
 };
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 
 use super::super::records::canvas_text_asset_record;
 use super::super::validation::required_canvas_record_text;
 use super::context::require_canvas_text_asset_project_record;
 use crate::canvas::CanvasDbError;
+
+const TEXT_ASSET_VERSION_BATCH_SIZE: usize = 1_000;
 
 pub async fn upsert_canvas_text_asset_record(
     db: &impl crate::DbExecutor,
@@ -170,30 +173,70 @@ pub async fn canvas_text_asset_versions_record(
     project_id: i64,
     asset_id: i64,
 ) -> Result<Vec<CanvasTextAssetVersionRecord>, CanvasDbError> {
-    require_canvas_text_asset_project_record(db, project_id).await?;
-    let asset = canvas_text_asset::Entity::find_by_id(asset_id)
-        .one(db)
-        .await?
-        .ok_or_else(|| CanvasDbError::NotFound(format!("画布文本资产不存在: {asset_id}")))?;
-    if asset.project_id != project_id {
-        return Err(CanvasDbError::Forbidden(
-            "文本素材不属于当前项目".to_string(),
-        ));
+    Ok(
+        canvas_text_asset_versions_by_project_record(db, project_id, &[asset_id])
+            .await?
+            .remove(&asset_id)
+            .unwrap_or_default(),
+    )
+}
+
+pub async fn canvas_text_asset_versions_by_project_record(
+    db: &impl crate::DbExecutor,
+    project_id: i64,
+    asset_ids: &[i64],
+) -> Result<HashMap<i64, Vec<CanvasTextAssetVersionRecord>>, CanvasDbError> {
+    if asset_ids.is_empty() {
+        return Ok(HashMap::new());
     }
-    Ok(canvas_text_asset_version::Entity::find()
-        .filter(canvas_text_asset_version::Column::CanvasTextAssetId.eq(asset_id))
-        .order_by_desc(canvas_text_asset_version::Column::Version)
-        .all(db)
-        .await?
-        .into_iter()
-        .map(|row| CanvasTextAssetVersionRecord {
-            canvas_text_asset_id: row.canvas_text_asset_id,
-            version: row.version,
-            content: row.content,
-            content_hash: row.content_hash,
-            created_at: row.created_at,
-        })
-        .collect())
+    require_canvas_text_asset_project_record(db, project_id).await?;
+    let mut unique_asset_ids = asset_ids.to_vec();
+    unique_asset_ids.sort_unstable();
+    unique_asset_ids.dedup();
+    let mut assets_by_id = HashMap::with_capacity(unique_asset_ids.len());
+    for ids in unique_asset_ids.chunks(TEXT_ASSET_VERSION_BATCH_SIZE) {
+        assets_by_id.extend(
+            canvas_text_asset::Entity::find()
+                .filter(canvas_text_asset::Column::Id.is_in(ids.iter().copied()))
+                .all(db)
+                .await?
+                .into_iter()
+                .map(|asset| (asset.id, asset)),
+        );
+    }
+    for asset_id in asset_ids {
+        let asset = assets_by_id
+            .get(asset_id)
+            .ok_or_else(|| CanvasDbError::NotFound(format!("画布文本资产不存在: {asset_id}")))?;
+        if asset.project_id != project_id {
+            return Err(CanvasDbError::Forbidden(
+                "文本素材不属于当前项目".to_string(),
+            ));
+        }
+    }
+
+    let mut versions_by_asset = HashMap::<i64, Vec<CanvasTextAssetVersionRecord>>::new();
+    for ids in unique_asset_ids.chunks(TEXT_ASSET_VERSION_BATCH_SIZE) {
+        for row in canvas_text_asset_version::Entity::find()
+            .filter(canvas_text_asset_version::Column::CanvasTextAssetId.is_in(ids.iter().copied()))
+            .order_by_asc(canvas_text_asset_version::Column::CanvasTextAssetId)
+            .order_by_desc(canvas_text_asset_version::Column::Version)
+            .all(db)
+            .await?
+        {
+            versions_by_asset
+                .entry(row.canvas_text_asset_id)
+                .or_default()
+                .push(CanvasTextAssetVersionRecord {
+                    canvas_text_asset_id: row.canvas_text_asset_id,
+                    version: row.version,
+                    content: row.content,
+                    content_hash: row.content_hash,
+                    created_at: row.created_at,
+                });
+        }
+    }
+    Ok(versions_by_asset)
 }
 
 fn normalize_canvas_record_text_kind(value: &str) -> Result<&'static str, CanvasDbError> {

@@ -1,5 +1,6 @@
 use a4n_db_models::models::chapter::{chapter_outline, chapter_outline_provenance};
 use a4n_domain::chapter::ChapterOutlineRecord;
+use chrono::NaiveDateTime;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbBackend, DbErr, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect,
@@ -116,6 +117,59 @@ where
     Ok(models
         .into_iter()
         .map(chapter_outline_record_from_model)
+        .collect())
+}
+
+pub async fn chapter_outline_index_for_project<C>(
+    db: &C,
+    project_id: i64,
+) -> Result<Vec<super::contracts::ChapterOutlineListRecord>, ProjectOutlineRecordError>
+where
+    C: ConnectionTrait,
+{
+    let rows = chapter_outline::Entity::find()
+        .select_only()
+        .columns([
+            chapter_outline::Column::Id,
+            chapter_outline::Column::ProjectId,
+            chapter_outline::Column::ChapterNumber,
+            chapter_outline::Column::Title,
+            chapter_outline::Column::Summary,
+            chapter_outline::Column::WordCountTarget,
+            chapter_outline::Column::UpdatedAt,
+        ])
+        .filter(chapter_outline::Column::ProjectId.eq(project_id))
+        .order_by_asc(chapter_outline::Column::ChapterNumber)
+        .into_tuple::<(
+            i64,
+            i64,
+            i32,
+            Option<String>,
+            Option<String>,
+            Option<i32>,
+            NaiveDateTime,
+        )>()
+        .all(db)
+        .await
+        .map_err(ProjectOutlineRecordError::Database)?;
+    let ids = rows.iter().map(|row| row.0).collect::<Vec<_>>();
+    let source_kinds = super::provenance::chapter_outline_source_kinds_for_ids(db, &ids).await?;
+    Ok(rows
+        .into_iter()
+        .map(
+            |(id, project_id, chapter_number, title, summary, word_count_target, updated_at)| {
+                super::contracts::ChapterOutlineListRecord {
+                    id,
+                    project_id,
+                    chapter_number,
+                    title,
+                    summary,
+                    word_count_target,
+                    source_kind: source_kinds.get(&id).cloned(),
+                    updated_at,
+                }
+            },
+        )
         .collect())
 }
 

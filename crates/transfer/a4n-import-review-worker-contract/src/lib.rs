@@ -2,13 +2,15 @@
 
 pub use a4n_api_contract::import_review::{
     CheckImportDedupInput, DedupResult, ImportProjectReviewsInput, ImportReviewIdInput,
-    ImportReviewSummary,
+    ImportReviewListItem, ImportReviewSummary,
 };
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
 pub const IMPORT_REVIEW_READ_WORKER_ID: &str = "import-review-read-worker";
-pub const IMPORT_REVIEW_READ_WORKER_CONTRACT_VERSION: &str = "import-review-read-v1";
+pub const IMPORT_REVIEW_READ_WORKER_CONTRACT_VERSION: &str = "import-review-read-v2";
 pub const IMPORT_REVIEW_LIST_OPERATION: &str = "import_review.read.list";
+pub const IMPORT_REVIEW_LIST_INDEX_OPERATION: &str = "import_review.read.list_index";
+pub const IMPORT_REVIEW_DETAIL_OPERATION: &str = "import_review.read.detail";
 pub const IMPORT_REVIEW_DEDUP_OPERATION: &str = "import_review.read.dedup";
 pub const IMPORT_REVIEW_READ_CAPABILITY: &str = "import_review.read";
 pub const IMPORT_REVIEW_MUTATION_CAPABILITY: &str = "import_review.mutation";

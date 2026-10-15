@@ -1,7 +1,10 @@
 use super::OrchestratorContext;
 use crate::chapter_content_edit_error_to_app_error;
 use a4n_api_contract::{
-    chapter::{ChapterAnalysisEntry, ChapterIndexEntry, ChapterMetadata, ChapterSummary},
+    chapter::{
+        ChapterAnalysisEntry, ChapterIndexEntry, ChapterMetadata, ChapterStoryEventEntry,
+        ChapterSummary,
+    },
     collaboration::ProjectAccessRole,
 };
 use a4n_db::{DbHandle, transaction::run_in_transaction, workflow::WorkflowRunSummary};
@@ -213,6 +216,21 @@ impl a4n_api_contract::chapter::ChapterContentReadApplicationPort for Orchestrat
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
             .await?;
         a4n_db::chapter_content::chapter_analyses_for_project(
+            self.chapter_content.database.executor(),
+            project_id,
+        )
+        .await
+        .map_err(AppError::from)
+    }
+
+    async fn story_events(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ChapterStoryEventEntry>, AppError> {
+        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
+            .await?;
+        a4n_db::chapter_content::chapter_story_events_for_project(
             self.chapter_content.database.executor(),
             project_id,
         )

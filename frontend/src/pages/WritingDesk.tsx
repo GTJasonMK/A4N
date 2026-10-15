@@ -33,8 +33,8 @@ import {
 } from "../api/optimization";
 import {
   isDerivedChapterOutline,
-  listChapterOutlines,
-  type ChapterOutline,
+  listChapterOutlineIndex,
+  type ChapterOutlineListEntry,
 } from "../api/outline";
 import type { BottomTab } from "./writing-desk/ChapterWorkspace";
 import type { RightPanel } from "./writing-desk/WritingDeskHeader";
@@ -104,7 +104,7 @@ export const WritingDesk: React.FC = () => {
     ? canEditProjectMaterials(project)
     : false;
   const [chapters, setChapters] = useState<ChapterIndexEntry[]>([]);
-  const [outlines, setOutlines] = useState<ChapterOutline[]>([]);
+  const [outlines, setOutlines] = useState<ChapterOutlineListEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [chapterLoadError, setChapterLoadError] = useState<string | null>(null);
   const [outlineLoadError, setOutlineLoadError] = useState<string | null>(null);
@@ -488,7 +488,7 @@ export const WritingDesk: React.FC = () => {
         }
         const [chaptersResult, outlinesResult] = await Promise.allSettled([
           listChapterIndex(projectId),
-          listChapterOutlines(projectId),
+          listChapterOutlineIndex(projectId),
         ]);
         if (!isCurrentLoad()) return;
         if (chaptersResult.status === "rejected") {
@@ -643,7 +643,7 @@ export const WritingDesk: React.FC = () => {
   const reloadOutlines = useCallback(async (): Promise<boolean> => {
     const requestProjectId = projectId;
     try {
-      const next = await listChapterOutlines(requestProjectId);
+      const next = await listChapterOutlineIndex(requestProjectId);
       if (!mountedRef.current || projectIdRef.current !== requestProjectId) return false;
       setOutlines(next);
       setOutlineLoadError(null);

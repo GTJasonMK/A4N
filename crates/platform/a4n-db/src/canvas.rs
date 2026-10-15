@@ -17,7 +17,8 @@ pub(crate) use graph_record::records::{
 };
 pub use graph_record::{
     CanvasEdgeRecordInput, CanvasGraphRecordDocument, CanvasGraphRecordInput,
-    CanvasGraphRecordSaveResult, CanvasNodeRecordInput, canvas_text_asset_versions_record,
+    CanvasGraphRecordSaveResult, CanvasNodeRecordInput,
+    canvas_text_asset_versions_by_project_record, canvas_text_asset_versions_record,
     canvas_text_assets_by_project_record, get_or_create_canvas_graph_record,
     save_canvas_graph_record, upsert_canvas_text_asset_record,
     validate_canvas_record_document_edge_contract, validate_canvas_record_document_is_dag,

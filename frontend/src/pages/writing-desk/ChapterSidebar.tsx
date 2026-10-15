@@ -4,7 +4,7 @@ import { type ChapterIndexEntry } from "../../api/chapter";
 import {
   isDerivedChapterOutline,
   isRetrospectiveChapterOutline,
-  type ChapterOutline,
+  type ChapterOutlineListEntry,
 } from "../../api/outline";
 import { BookIconButton } from "../../components/ui/BookButton";
 import { Modal } from "../../components/ui/Modal";
@@ -16,12 +16,12 @@ import { useI18n } from "../../i18n";
 interface ChapterSidebarProps {
   projectId: number;
   chapters: ChapterIndexEntry[];
-  outlines: ChapterOutline[];
+  outlines: ChapterOutlineListEntry[];
   chapterNumbers: number[];
   filteredChapterNumbers: number[];
   activeNumber: number | null;
   activeEditorContent: string;
-  activeOutline: ChapterOutline | null;
+  activeOutline: ChapterOutlineListEntry | null;
   chapterQuery: string;
   draftSet: ReadonlySet<number>;
   profilesRefreshKey: number;
@@ -35,7 +35,7 @@ interface ChapterSidebarProps {
 
 const chapterTitle = (
   chapter: ChapterIndexEntry | undefined,
-  outline: ChapterOutline | undefined,
+  outline: ChapterOutlineListEntry | undefined,
 ): string | null => {
   const chapterTitle = chapter?.title?.trim();
   if (chapterTitle) return chapterTitle;
@@ -43,12 +43,12 @@ const chapterTitle = (
   return outlineTitle ? outlineTitle : null;
 };
 
-const outlineTitle = (outline: ChapterOutline): string | null => {
+const outlineTitle = (outline: ChapterOutlineListEntry): string | null => {
   const title = outline.title?.trim();
   return title ? title : null;
 };
 
-const outlineSummary = (outline: ChapterOutline): string | null => {
+const outlineSummary = (outline: ChapterOutlineListEntry): string | null => {
   const summary = outline.summary?.trim();
   return summary ? summary : null;
 };

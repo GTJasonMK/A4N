@@ -367,15 +367,18 @@ impl AgentApplication {
             AGENT_THREADS_MAX_LIMIT,
             "limit",
         )? as usize;
-        agent::list_threads_by_owner(self.executor(), user_id)
-            .await
-            .map_err(agent_db_error_to_app)?
-            .into_iter()
-            .filter(|row| input.include_archived || row.archived_at.is_none())
-            .filter(|row| capability.is_none_or(|capability| row.profile_id == capability))
-            .take(limit)
-            .map(thread_view)
-            .collect()
+        agent::list_threads_by_owner(
+            self.executor(),
+            user_id,
+            input.include_archived,
+            capability,
+            limit as u64,
+        )
+        .await
+        .map_err(agent_db_error_to_app)?
+        .into_iter()
+        .map(thread_view)
+        .collect()
     }
 
     pub(crate) async fn show_thread(

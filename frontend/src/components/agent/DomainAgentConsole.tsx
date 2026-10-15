@@ -84,6 +84,7 @@ import {
   loadAgentSnapshotWithEvents,
   streamedAgentMessageIds,
 } from "../../utils/agentEventReducer";
+import { startAgentSnapshotRefreshPolling } from "../../utils/agentSnapshotPolling";
 import {
   ApprovalRow,
   ExecutionRow,
@@ -192,6 +193,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   const eventCursorRef = useRef(0);
   const reloadInFlightRef = useRef(false);
   const pendingEventsRef = useRef<AgentEvent[]>([]);
+  const streamActivityAtRef = useRef(Date.now());
   const composingRef = useRef(false);
   const lastCompositionEndRef = useRef(0);
   const mutationBaselineRef = useRef<{
@@ -477,6 +479,19 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   });
 
   useEffect(() => {
+    if (!threadId) return undefined;
+    const requestBindingKey = bindingKey;
+    return startAgentSnapshotRefreshPolling(threadId, () => connected, () => streamActivityAtRef.current, (pollThreadId) => {
+      if (
+        isCurrentBinding(requestBindingKey) &&
+        !hasDomainAgentOperation(resolvedComposerDirtyKey, requestBindingKey, "clear")
+      ) {
+        void loadSnapshot(pollThreadId, true);
+      }
+    });
+  }, [bindingKey, connected, isCurrentBinding, loadSnapshot, resolvedComposerDirtyKey, threadId]);
+
+  useEffect(() => {
     const acceptedMessageId = pendingSubmission?.acceptedMessageId;
     if (
       acceptedMessageId &&
@@ -493,14 +508,6 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     pendingEventsRef.current = [];
     let stopped = false;
     const initial = snapshotRef.current;
-    const refreshTimer = window.setInterval(() => {
-      if (
-        isCurrentBinding(requestBindingKey) &&
-        !hasDomainAgentOperation(resolvedComposerDirtyKey, requestBindingKey, "clear")
-      ) {
-        void loadSnapshot(threadId, true);
-      }
-    }, 7000);
 
     const connect = async () => {
       if (!isCurrentBinding(requestBindingKey)) return;
@@ -511,7 +518,6 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
       while (!stopped) {
         try {
           if (!isCurrentBinding(requestBindingKey)) return;
-          setConnected(true);
           setConnectionError(null);
           await subscribeAgentThreadEvents(
             {
@@ -545,6 +551,12 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
               setSnapshot(reduction.snapshot);
             },
             controller.signal,
+            () => {
+              if (!stopped && isCurrentBinding(requestBindingKey)) {
+                streamActivityAtRef.current = Date.now();
+                setConnected(true);
+              }
+            },
           );
         } catch (err) {
           if (controller.signal.aborted) return;
@@ -564,7 +576,6 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     return () => {
       stopped = true;
       controller.abort();
-      window.clearInterval(refreshTimer);
       setConnected(false);
     };
   }, [bindingKey, isCurrentBinding, loadSnapshot, rememberStreamedMessages, resolvedComposerDirtyKey, t, threadId]);

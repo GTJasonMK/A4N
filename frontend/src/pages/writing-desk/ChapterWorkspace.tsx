@@ -1,7 +1,7 @@
 import React, { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, CircleDot, Settings } from "lucide-react";
 import type { ChapterSummary } from "../../api/chapter";
-import type { ChapterOutline } from "../../api/outline";
+import type { ChapterOutlineListEntry } from "../../api/outline";
 import type { ChapterRow } from "../novel-detail/shared";
 import {
   ContentDiffPreview,
@@ -39,7 +39,7 @@ interface ChapterWorkspaceProps {
   projectId: number;
   activeNumber: number | null;
   activeChapter: ChapterSummary | null;
-  activeOutline: ChapterOutline | null;
+  activeOutline: ChapterOutlineListEntry | null;
   activeChapterContext: ChapterRow | null;
   activeChapterBusy: boolean;
   activeChapterGeneratingMessage: string;
@@ -74,7 +74,7 @@ const TABS: ReadonlyArray<readonly [BottomTab, MessageKey]> = [
 
 const selectedChapterTitle = (
   chapter: ChapterSummary | null,
-  outline: ChapterOutline | null,
+  outline: ChapterOutlineListEntry | null,
 ): string => {
   if (chapter != null) {
     return chapter.title == null ? "" : chapter.title;

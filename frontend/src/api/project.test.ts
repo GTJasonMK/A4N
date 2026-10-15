@@ -6,6 +6,8 @@ vi.mock("./index", () => ({ apiInvoke: mocks.apiInvoke }));
 
 import {
   canEditProjectMaterials,
+  getSourceSnapshotChapter,
+  listSourceSnapshotChapterIndex,
   listAllProjects,
   projectLifecycleBlockedReason,
 } from "./project";
@@ -43,6 +45,34 @@ it("loads every project page", async () => {
       projectKind: undefined,
       rootProjectId: undefined,
       accessScope: "all",
+    }],
+  ]);
+});
+
+it("loads a narrow snapshot index and reads chapter details within that snapshot", async () => {
+  const index = [{ id: 101, snapshot_id: 23, source_chapter_id: 11, chapter_number: 1, title: "第一章" }];
+  const chapter = {
+    id: 101,
+    snapshot_id: 23,
+    root_project_id: 2,
+    source_chapter_id: 11,
+    chapter_number: 1,
+    title: "第一章",
+    summary: "摘要",
+    content: "正文",
+    analysis_data_json: null,
+    content_hash: "hash",
+    analysis_hash: null,
+  };
+  mocks.apiInvoke.mockResolvedValueOnce(index).mockResolvedValueOnce(chapter);
+
+  expect(await listSourceSnapshotChapterIndex(7)).toEqual(index);
+  expect(await getSourceSnapshotChapter(7, 23, 11)).toEqual(chapter);
+  expect(mocks.apiInvoke.mock.calls).toEqual([
+    ["list_source_snapshot_chapter_index", { projectId: 7 }],
+    ["get_source_snapshot_chapter", {
+      projectId: 7,
+      input: { snapshot_id: 23, source_chapter_id: 11 },
     }],
   ]);
 });

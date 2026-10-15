@@ -20,3 +20,9 @@ axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
+
+[dev-dependencies]
+a4n-db-models = { workspace = true }
+a4n-migration = { workspace = true }
+chrono = { workspace = true }
+sea-orm = { workspace = true }

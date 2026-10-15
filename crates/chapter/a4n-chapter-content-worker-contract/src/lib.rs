@@ -1,16 +1,17 @@
 //! Typed chapter-content commands owned by the chapter-content worker.
 
 pub use a4n_api_contract::chapter::{
-    ChapterAnalysisEntry, ChapterIndexEntry, ChapterMetadata, ChapterSummary, ImportChapterInput,
-    UpdateChapterContentInput,
+    ChapterAnalysisEntry, ChapterIndexEntry, ChapterMetadata, ChapterStoryEventEntry,
+    ChapterSummary, ImportChapterInput, UpdateChapterContentInput,
 };
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
 use serde::{Deserialize, Serialize};
 
 pub const CHAPTER_CONTENT_WORKER_ID: &str = "chapter-content-worker";
-pub const CHAPTER_CONTENT_WORKER_CONTRACT_VERSION: &str = "chapter-content-v5";
+pub const CHAPTER_CONTENT_WORKER_CONTRACT_VERSION: &str = "chapter-content-v6";
 pub const CHAPTER_CONTENT_ANALYSES_OPERATION: &str = "chapter.content.analyses";
+pub const CHAPTER_CONTENT_STORY_EVENTS_OPERATION: &str = "chapter.content.story_events";
 pub const CHAPTER_CONTENT_INDEX_OPERATION: &str = "chapter.content.index";
 pub const CHAPTER_CONTENT_LIST_OPERATION: &str = "chapter.content.list";
 pub const CHAPTER_CONTENT_SUMMARY_OPERATION: &str = "chapter.content.summary";

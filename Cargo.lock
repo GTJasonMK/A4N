@@ -1602,14 +1602,18 @@ dependencies = [
  "a4n-api-contract",
  "a4n-config",
  "a4n-db",
+ "a4n-db-models",
  "a4n-domain",
  "a4n-manga-core",
  "a4n-manga-record-worker-contract",
+ "a4n-migration",
  "a4n-worker-contract",
  "a4n-worker-db-adapter",
  "a4n-worker-runtime",
  "anyhow",
  "axum",
+ "chrono",
+ "sea-orm",
  "serde",
  "serde_json",
  "tokio",
@@ -3354,6 +3358,7 @@ dependencies = [
  "a4n-worker-contract",
  "schemars 1.2.1",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

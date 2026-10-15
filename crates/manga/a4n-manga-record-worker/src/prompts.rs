@@ -27,7 +27,7 @@ impl WorkerState {
         )
         .await
         .map_err(manga_error)?;
-        let artifacts = a4n_db::manga::manga_pipeline_artifacts_by_chapter(
+        let artifacts = a4n_db::manga::manga_pipeline_artifact_metadata_by_chapter(
             self.database.connection(),
             input.project_id,
             input.chapter_id,
@@ -38,8 +38,11 @@ impl WorkerState {
             artifact.stage == MangaPipelineArtifactStage::PageSlots && !artifact.stale
         }) {
             Some(artifact) => {
-                let slots = serde_json::from_value::<MangaPageSlotsV1>(artifact.payload.clone())
-                    .map_err(|error| {
+                let payload = artifact.page_slots_payload.clone().ok_or_else(|| {
+                    WorkerFailure::invalid_request("当前漫画分页产物缺少 payload")
+                })?;
+                let slots =
+                    serde_json::from_value::<MangaPageSlotsV1>(payload).map_err(|error| {
                         WorkerFailure::invalid_request(format!("当前漫画分页产物无效: {error}"))
                     })?;
                 slots.validate().map_err(WorkerFailure::invalid_request)?;
@@ -58,12 +61,13 @@ impl WorkerState {
             .map(|prompt| {
                 let mut summary = a4n_manga_core::manga_page_prompt_summary(prompt)
                     .map_err(WorkerFailure::invalid_request)?;
-                summary.stale_stages = a4n_manga_core::manga_page_prompt_stale_stages(
-                    prompt.id,
-                    prompt.page_number,
-                    &artifacts,
-                )
-                .map_err(WorkerFailure::invalid_request)?;
+                summary.stale_stages =
+                    a4n_manga_core::manga_page_prompt_stale_stages_from_list_metadata(
+                        prompt.id,
+                        prompt.page_number,
+                        &artifacts,
+                    )
+                    .map_err(WorkerFailure::invalid_request)?;
                 summary.orphaned = current_page_numbers
                     .as_ref()
                     .is_some_and(|pages| !pages.contains(&(prompt.page_number as u32)));
@@ -72,3 +76,6 @@ impl WorkerState {
             .collect()
     }
 }
+
+#[cfg(test)]
+mod performance;

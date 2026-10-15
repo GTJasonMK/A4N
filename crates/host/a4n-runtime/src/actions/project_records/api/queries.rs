@@ -107,7 +107,12 @@ pub async fn get_source_snapshot_chapter(
 ) -> Result<SourceSnapshotChapterSummary, String> {
     state
         .project_source_snapshot_read_application()
-        .chapter(user_id, input.project_id, input.source_chapter_id)
+        .chapter(
+            user_id,
+            input.project_id,
+            input.snapshot_id,
+            input.source_chapter_id,
+        )
         .await
         .map_err(app_error_message)
 }

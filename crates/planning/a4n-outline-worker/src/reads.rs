@@ -1,11 +1,12 @@
 use super::*;
 use a4n_api_contract::outline::{
-    ChapterOutlineSummary, OutlineGenerationProgressSummary, PartOutlineSummary,
+    ChapterOutlineListEntry, ChapterOutlineSummary, OutlineGenerationProgressSummary,
+    PartOutlineSummary,
 };
 use a4n_outline_worker_contract::{
     ChapterOutlineAccessInput, ENSURE_CHAPTER_ACCESS_OPERATION, ENSURE_PART_ACCESS_OPERATION,
-    GENERATION_PROGRESS_OPERATION, LIST_CHAPTERS_OPERATION, LIST_PARTS_OPERATION,
-    PartOutlineAccessInput, ProjectOutlineInput,
+    GENERATION_PROGRESS_OPERATION, LIST_CHAPTER_INDEX_OPERATION, LIST_CHAPTERS_OPERATION,
+    LIST_PARTS_OPERATION, PartOutlineAccessInput, ProjectOutlineInput,
 };
 use a4n_worker_contract::WorkerEnvelope;
 
@@ -66,6 +67,40 @@ impl WorkerState {
         .map_err(outline_record_error)?
         .iter()
         .map(part_outline_summary)
+        .collect())
+    }
+
+    pub(super) async fn list_chapter_index(
+        &self,
+        request: WorkerEnvelope<ProjectOutlineInput>,
+    ) -> Result<Vec<ChapterOutlineListEntry>, WorkerFailure> {
+        validate_request(&request, LIST_CHAPTER_INDEX_OPERATION)?;
+        validate_project_scope(&request, request.payload.project_id)?;
+        let user_id = user_id(&request)?;
+        verify_project_permission(
+            self,
+            request.payload.project_id,
+            user_id,
+            ProjectAccessRole::Viewer,
+        )
+        .await?;
+        Ok(a4n_db::project::chapter_outline_index_for_project(
+            self.database.connection(),
+            request.payload.project_id,
+        )
+        .await
+        .map_err(outline_record_error)?
+        .into_iter()
+        .map(|outline| ChapterOutlineListEntry {
+            id: outline.id,
+            project_id: outline.project_id,
+            chapter_number: outline.chapter_number,
+            title: outline.title,
+            summary: outline.summary,
+            word_count_target: outline.word_count_target,
+            source_kind: outline.source_kind,
+            updated_at: Some(outline.updated_at.to_string()),
+        })
         .collect())
     }
 

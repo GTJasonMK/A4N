@@ -13,6 +13,7 @@ use sea_orm::{
     QueryFilter, QueryOrder, Set, Statement, sea_query::OnConflict,
 };
 use serde_json::{Value, json};
+use std::collections::HashSet;
 
 use super::FactFeedbackDbError;
 
@@ -178,6 +179,7 @@ async fn current_feedback_source_read<C: ConnectionTrait>(
         .filter(material_fact_change::Column::Status.eq("applied"))
         .all(db)
         .await?;
+    let filter_unmatched_chapters = completed.len() < chapters.len();
     let completed: std::collections::BTreeSet<_> = completed
         .into_iter()
         .filter_map(|record| {
@@ -186,6 +188,23 @@ async fn current_feedback_source_read<C: ConnectionTrait>(
                 .map(|id| (id, record.after_json.to_string()))
         })
         .collect();
+    let completed_chapter_ids = if filter_unmatched_chapters {
+        completed
+            .iter()
+            .map(|(chapter_id, _)| *chapter_id)
+            .collect::<HashSet<_>>()
+    } else {
+        HashSet::new()
+    };
+    let chapters =
+        if filter_unmatched_chapters && matches!(projection, FeedbackSourceProjection::Full) {
+            chapters
+                .into_iter()
+                .filter(|chapter| completed_chapter_ids.contains(&chapter.id))
+                .collect()
+        } else {
+            chapters
+        };
     let mut full_sources = Vec::new();
     let mut revisions = Vec::new();
     let mut available_chapters = Vec::new();
@@ -197,6 +216,12 @@ async fn current_feedback_source_read<C: ConnectionTrait>(
                 chapter_id: chapter.id,
                 chapter_number: chapter.chapter_number,
             });
+        }
+        if filter_unmatched_chapters
+            && matches!(projection, FeedbackSourceProjection::Summary)
+            && !completed_chapter_ids.contains(&chapter.id)
+        {
+            continue;
         }
         let Some(revision) = source_revision(&chapter) else {
             continue;

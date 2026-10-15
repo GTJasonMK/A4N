@@ -1,4 +1,6 @@
-use a4n_api_contract::workflow::{CancelWorkflowInput, WorkflowProgressEventsInput};
+use a4n_api_contract::workflow::{
+    CancelWorkflowInput, GetWorkflowProgressEventsInput, WorkflowProgressEventsInput,
+};
 use serde_json::json;
 
 #[test]
@@ -24,7 +26,7 @@ fn cancel_workflow_input_rejects_camel_case_task_id_alias() {
 
 #[test]
 fn workflow_progress_events_input_accepts_task_or_workflow_run_id() {
-    let task_input = serde_json::from_value::<WorkflowProgressEventsInput>(json!({
+    let task_input = serde_json::from_value::<GetWorkflowProgressEventsInput>(json!({
         "task_id": "task-1",
         "limit": 20,
     }))
@@ -32,7 +34,7 @@ fn workflow_progress_events_input_accepts_task_or_workflow_run_id() {
     assert_eq!(task_input.task_id.as_deref(), Some("task-1"));
     assert_eq!(task_input.limit, 20);
     assert_eq!(task_input.after_event_id, None);
-    let cursor_input = serde_json::from_value::<WorkflowProgressEventsInput>(json!({
+    let cursor_input = serde_json::from_value::<GetWorkflowProgressEventsInput>(json!({
         "task_id": "task-1",
         "after_event_id": "task-1-2026-10-15T10:00:00Z",
         "limit": 20,
@@ -42,14 +44,21 @@ fn workflow_progress_events_input_accepts_task_or_workflow_run_id() {
         cursor_input.after_event_id.as_deref(),
         Some("task-1-2026-10-15T10:00:00Z")
     );
-    let workflow_input = serde_json::from_value::<WorkflowProgressEventsInput>(json!({
+    let workflow_input = serde_json::from_value::<GetWorkflowProgressEventsInput>(json!({
         "workflow_run_id": 9,
         "limit": 20,
     }))
     .unwrap();
     assert_eq!(workflow_input.workflow_run_id, Some(9));
+    let persisted_input = WorkflowProgressEventsInput {
+        task_id: None,
+        workflow_run_id: Some(9),
+        after_event_id: Some(17),
+        limit: 20,
+    };
+    assert_eq!(persisted_input.after_event_id, Some(17));
     assert!(
-        serde_json::from_value::<WorkflowProgressEventsInput>(json!({"workflowRunId": 9}))
+        serde_json::from_value::<GetWorkflowProgressEventsInput>(json!({"workflowRunId": 9}))
             .unwrap_err()
             .to_string()
             .contains("unknown field")

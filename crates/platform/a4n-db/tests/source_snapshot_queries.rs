@@ -6,10 +6,7 @@ use a4n_db::{
         source_snapshot_chapter_index, source_snapshot_chapters,
     },
 };
-use a4n_db_models::models::{
-    chapter::chapter,
-    project::{project_source_snapshot, source_snapshot_chapter},
-};
+use a4n_db_models::models::chapter::chapter;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
 use serde_json::json;
@@ -44,39 +41,28 @@ async fn source_snapshot_chapter_content_projection_preserves_content() {
     .insert(&db)
     .await
     .expect("source chapter must be created");
-    let snapshot = project_source_snapshot::ActiveModel {
-        root_project_id: Set(project.id),
-        source_version_hash: Set(format!("snapshot-{}", uuid::Uuid::new_v4())),
-        chapter_scope_json: Set(json!({"kind": "all"})),
-        chapter_hashes_json: Set(json!([])),
-        profile_hashes_json: Set(json!({})),
-        created_at: Set(now),
-        ..Default::default()
-    }
-    .insert(&db)
+    let derived = create_derived_project_record(
+        &db,
+        1,
+        CreateDerivedProjectParams {
+            root_project_id: project.id,
+            derived_kind: "comic".to_string(),
+            title: "派生漫画项目".to_string(),
+            description: String::new(),
+            chapter_scope: DerivedChapterScope {
+                start_chapter: 1,
+                end_chapter: 1,
+            },
+        },
+    )
     .await
-    .expect("source snapshot must be created");
-    source_snapshot_chapter::ActiveModel {
-        snapshot_id: Set(snapshot.id),
-        root_project_id: Set(project.id),
-        source_chapter_id: Set(source_chapter.id),
-        chapter_number: Set(1),
-        title: Set(Some("第一章".to_string())),
-        content: Set("源章节正文".to_string()),
-        summary: Set(Some("摘要".to_string())),
-        analysis_data_json: Set(Some(json!({"large": "omitted"}))),
-        content_hash: Set("content-hash".to_string()),
-        analysis_hash: Set(Some("analysis-hash".to_string())),
-        ..Default::default()
-    }
-    .insert(&db)
-    .await
-    .expect("source snapshot chapter must be created");
+    .expect("derived project and source snapshot must be created");
+    let snapshot_id = derived.source_snapshot_id.expect("snapshot ID must exist");
 
     let content = source_snapshot_chapter_content_by_snapshot_and_source(
         &db,
         project.id,
-        snapshot.id,
+        snapshot_id,
         source_chapter.id,
     )
     .await
@@ -86,11 +72,36 @@ async fn source_snapshot_chapter_content_projection_preserves_content() {
         source_snapshot_chapter_content_by_snapshot_and_source(
             &db,
             project.id + 1,
-            snapshot.id,
+            snapshot_id,
             source_chapter.id
         )
         .await
         .expect("scope query must execute")
+        .is_none()
+    );
+
+    let selected = source_snapshot_chapter_for_project(&db, derived.id, source_chapter.id)
+        .await
+        .expect("current source snapshot detail must load");
+    assert_eq!(selected.snapshot_id, snapshot_id);
+    let scoped = a4n_db::project::source_snapshot_chapter_for_snapshot(
+        &db,
+        derived.id,
+        snapshot_id,
+        source_chapter.id,
+    )
+    .await
+    .expect("scoped source snapshot detail must load");
+    assert_eq!(scoped, Some(selected));
+    assert!(
+        a4n_db::project::source_snapshot_chapter_for_snapshot(
+            &db,
+            derived.id,
+            snapshot_id + 1,
+            source_chapter.id,
+        )
+        .await
+        .expect("stale snapshot scope must be rejected")
         .is_none()
     );
 }

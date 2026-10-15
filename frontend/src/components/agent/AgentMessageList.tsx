@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import type { AgentMessageView, AgentRunView } from "../../api/agent";
 import {
   AgentMessageRow,
@@ -21,6 +21,8 @@ export interface PendingAgentMessage {
   message: AgentMessageView;
   acceptedMessageId: string | null;
 }
+
+const EMPTY_PENDING_MESSAGES: AgentMessageView[] = [];
 
 export function createPendingAgentMessage(
   threadId: string,
@@ -49,7 +51,7 @@ interface AgentMessageGroup {
   toolResults: AgentMessageView[];
 }
 
-export function AgentMessageList({
+export const AgentMessageList = memo(function AgentMessageList({
   messages,
   locale,
   streamedMessageIds,
@@ -88,6 +90,23 @@ export function AgentMessageList({
       {run ? <AgentRunStatus run={run} locale={locale} /> : null}
     </div>
   );
+}, areAgentMessageListPropsEqual);
+
+function areAgentMessageListPropsEqual(
+  previous: AgentMessageListProps,
+  next: AgentMessageListProps,
+): boolean {
+  const previousPendingMessages = previous.pendingMessages ?? EMPTY_PENDING_MESSAGES;
+  const nextPendingMessages = next.pendingMessages ?? EMPTY_PENDING_MESSAGES;
+  if (
+    previous.messages !== next.messages ||
+    previous.locale !== next.locale ||
+    previous.streamedMessageIds !== next.streamedMessageIds ||
+    previous.activeRun !== next.activeRun ||
+    previous.compactAssistantMessages !== next.compactAssistantMessages ||
+    previousPendingMessages.length !== nextPendingMessages.length
+  ) return false;
+  return previousPendingMessages.every((message, index) => message === nextPendingMessages[index]);
 }
 
 function AgentRunStatus({

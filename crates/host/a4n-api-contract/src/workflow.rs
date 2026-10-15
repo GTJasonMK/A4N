@@ -102,6 +102,9 @@ pub struct GenerationRunSummary {
     pub parsed_output_json: Option<Value>,
     pub validation_json: Option<Value>,
     pub artifact_refs_json: Option<Value>,
+    pub has_raw_response: bool,
+    pub has_parsed_output: bool,
+    pub has_validation: bool,
     pub attempt: i32,
     pub response_summary_json: Option<Value>,
     pub error_message: Option<String>,
@@ -132,6 +135,18 @@ pub struct CancelWorkflowInput {
 pub struct WorkflowProgressEventsInput {
     pub task_id: Option<String>,
     pub workflow_run_id: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after_event_id: Option<i64>,
+    #[schemars(range(min = 1, max = 200))]
+    pub limit: usize,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct GetWorkflowProgressEventsInput {
+    pub task_id: Option<String>,
+    pub workflow_run_id: Option<i64>,
+    /// Last event ID; task handles use opaque IDs and persisted workflows use numeric IDs.
     #[serde(default)]
     #[schemars(length(max = 256))]
     pub after_event_id: Option<String>,
@@ -160,6 +175,9 @@ pub struct GetWorkflowRunInput {
     pub include_generation_run_count: bool,
     #[serde(default = "workflow_checkpoint_details_included_by_default")]
     pub include_checkpoint_details: bool,
+    /// Defaults to full payloads for existing clients that omit this field.
+    #[serde(default)]
+    pub include_generation_run_payloads: Option<bool>,
 }
 
 fn workflow_checkpoint_details_included_by_default() -> bool {
@@ -329,7 +347,19 @@ pub trait WorkflowReadApplicationPort: Send + Sync {
 
 #[cfg(test)]
 mod tests {
-    use super::GetWorkflowRunInput;
+    use super::{GetWorkflowProgressEventsInput, GetWorkflowRunInput};
+
+    #[test]
+    fn legacy_progress_events_request_defaults_to_full_page() {
+        let input: GetWorkflowProgressEventsInput = serde_json::from_value(serde_json::json!({
+            "task_id": "task-1",
+            "workflow_run_id": null,
+            "limit": 200
+        }))
+        .expect("legacy progress request must deserialize");
+
+        assert_eq!(input.after_event_id, None);
+    }
 
     #[test]
     fn legacy_detail_request_keeps_full_checkpoints_and_disables_generation_run_count() {
@@ -339,5 +369,17 @@ mod tests {
 
         assert!(!input.include_generation_run_count);
         assert!(input.include_checkpoint_details);
+        assert_eq!(input.include_generation_run_payloads, None);
+    }
+
+    #[test]
+    fn legacy_workflow_detail_request_defaults_to_full_generation_payloads() {
+        let input: GetWorkflowRunInput = serde_json::from_value(serde_json::json!({
+            "workflow_run_id": 7,
+            "include_generation_runs": true
+        }))
+        .expect("legacy workflow detail input must deserialize");
+
+        assert_eq!(input.include_generation_run_payloads, None);
     }
 }

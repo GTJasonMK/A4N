@@ -488,6 +488,7 @@
             "preview_batch_generate_part_outlines_request",
             "get_generation_progress",
             "preview_apply_beat_mapping_request",
+            "list_chapter_outline_index",
             "list_chapter_outlines",
             "save_chapter_outline",
             "preview_generate_chapter_outlines_by_count_request",
@@ -713,7 +714,9 @@
             "get_project_asset_dependency_graph",
             "get_project_asset_dependency_graph_node_detail",
             "get_project_status_machine",
+            "get_source_snapshot_chapter",
             "list_chapters",
+            "list_source_snapshot_chapter_index",
             "list_source_snapshot_chapters",
             "list_source_snapshot_chapter_index",
             "get_source_snapshot_chapter",
@@ -824,6 +827,7 @@
             "list_all_users",
             "list_invite_codes",
             "list_orphan_project_data_dirs",
+            "list_pending_task_index",
             "list_pending_tasks",
         ] {
             let descriptor = command_descriptor(command).unwrap();

@@ -62,7 +62,7 @@ pub use chapter::scene::{
 };
 pub use chapter::source::{
     ResolveChapterSourceError, resolve_chapter_source, resolve_snapshot_sources,
-    resolve_video_chapter_source,
+    resolve_snapshot_sources_for_scope, resolve_video_chapter_source,
 };
 pub use cleanup::ProjectCleanupDbError;
 pub(crate) use cleanup::{
@@ -127,19 +127,19 @@ pub(crate) use mutation::{
     project_write_identity_for_update,
 };
 pub use outline_records::{
-    DeleteLatestOutlineRecordsInput, ManualChapterOutlineSaveInput, ManualPartOutlineSaveInput,
-    OutlineDeleteTarget, OutlineGenerationProgressChapter, OutlineGenerationProgressPart,
-    OutlineGenerationProgressRows, ProjectChapterOutlineUpdateError,
+    ChapterOutlineListRecord, DeleteLatestOutlineRecordsInput, ManualChapterOutlineSaveInput,
+    ManualPartOutlineSaveInput, OutlineDeleteTarget, OutlineGenerationProgressChapter,
+    OutlineGenerationProgressPart, OutlineGenerationProgressRows, ProjectChapterOutlineUpdateError,
     ProjectChapterOutlineUpdateInput, ProjectOutlineRecordError, RetrospectiveChapterOutlineAction,
     RetrospectiveChapterOutlineUpsertInput, RetrospectiveChapterOutlineUpsertOutcome,
-    chapter_outline_by_id, chapter_outline_by_project_number, chapter_outline_source_kinds_for_ids,
-    chapter_outlines_for_project, chapter_outlines_for_project_chapter_number,
-    chapter_source_snapshot_from_model, delete_automatic_chapter_outlines_for_source_change,
-    delete_latest_chapter_outline_records, delete_latest_part_outline_records,
-    formal_chapter_outline_by_project_number, outline_generation_progress_rows, part_outline_by_id,
-    part_outlines_by_ids, part_outlines_for_project, save_manual_chapter_outline,
-    save_manual_part_outline, update_chapter_outline_record,
-    upsert_retrospective_chapter_outline_checked,
+    chapter_outline_by_id, chapter_outline_by_project_number, chapter_outline_index_for_project,
+    chapter_outline_source_kinds_for_ids, chapter_outlines_for_project,
+    chapter_outlines_for_project_chapter_number, chapter_source_snapshot_from_model,
+    delete_automatic_chapter_outlines_for_source_change, delete_latest_chapter_outline_records,
+    delete_latest_part_outline_records, formal_chapter_outline_by_project_number,
+    outline_generation_progress_rows, part_outline_by_id, part_outlines_by_ids,
+    part_outlines_for_project, save_manual_chapter_outline, save_manual_part_outline,
+    update_chapter_outline_record, upsert_retrospective_chapter_outline_checked,
 };
 pub(crate) use outline_records::{
     chapter_source_snapshot_matches, chapter_source_snapshot_matches_fields,
@@ -156,7 +156,8 @@ pub use rollback_impact::{ProjectRollbackImpactReadError, project_rollback_impac
 pub use source_snapshot::{
     CreateDerivedProjectParams, DerivedChapterScope, create_derived_project_record,
     source_snapshot_chapter_content_by_snapshot_and_source, source_snapshot_chapter_for_project,
-    source_snapshot_chapter_index, source_snapshot_chapters,
+    source_snapshot_chapter_for_snapshot, source_snapshot_chapter_index,
+    source_snapshot_chapter_index_for_scope, source_snapshot_chapters,
 };
 pub use source_snapshot::{authoring_scene_profiles, scene_profiles_for_source};
 pub(crate) use source_snapshot::{create_source_snapshot_in_record, source_snapshot_version_hash};

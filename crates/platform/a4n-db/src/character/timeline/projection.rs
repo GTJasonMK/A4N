@@ -17,6 +17,8 @@ use serde_json::Value;
 use crate::character::attributes::{apply_attribute_to_state, attribute_value_in_state};
 use crate::character::{CharacterDbError, validate_timeline_source_kind};
 
+const PROFILE_TIMELINE_BATCH_SIZE: usize = 128;
+
 #[derive(Debug, Clone, Default)]
 pub(in crate::character) struct CharacterAttributeOwnership {
     protected_from_chapter: HashMap<String, HashMap<String, i32>>,
@@ -97,6 +99,139 @@ where
 {
     let profile = crate::character::profile::require_profile(db, profile_id).await?;
     replay_profile_state_through_chapter(db, &profile, chapter_number).await
+}
+
+pub async fn replay_profile_states_through_chapter_batch<C>(
+    db: &C,
+    project_id: i64,
+    profiles: &[protagonist_profile::Model],
+    chapter_number: i32,
+) -> Result<HashMap<i64, Value>, CharacterDbError>
+where
+    C: ConnectionTrait,
+{
+    if chapter_number < 0 {
+        return Err(CharacterDbError::InvalidArgument(
+            "角色状态重放截止章节不能小于 0".to_string(),
+        ));
+    }
+    if profiles.is_empty() {
+        return Ok(HashMap::new());
+    }
+    if profiles
+        .iter()
+        .any(|profile| profile.project_id != project_id)
+    {
+        return Err(CharacterDbError::InvalidArgument(
+            "角色档案不属于当前项目".into(),
+        ));
+    }
+
+    let blueprint_owned_names = blueprint_character::Entity::find()
+        .select_only()
+        .column(blueprint_character::Column::Name)
+        .filter(blueprint_character::Column::ProjectId.eq(project_id))
+        .into_tuple::<String>()
+        .all(db)
+        .await?
+        .into_iter()
+        .map(|name| crate::project::normalized_blueprint_identity(&name))
+        .collect::<HashSet<_>>();
+
+    let mut states = HashMap::with_capacity(profiles.len());
+    for profile_batch in profiles.chunks(PROFILE_TIMELINE_BATCH_SIZE) {
+        let profile_ids = profile_batch
+            .iter()
+            .map(|profile| profile.id)
+            .collect::<Vec<_>>();
+        let (events, deletion_marks, generation_targets) = futures::join!(
+            attribute_event::Entity::find()
+                .filter(attribute_event::Column::ProfileId.is_in(profile_ids.iter().copied()))
+                .order_by_asc(attribute_event::Column::ProfileId)
+                .order_by_asc(attribute_event::Column::ChapterNumber)
+                .order_by_asc(attribute_event::Column::Id)
+                .all(db),
+            protagonist_deletion_mark::Entity::find()
+                .filter(
+                    protagonist_deletion_mark::Column::ProfileId.is_in(profile_ids.iter().copied())
+                )
+                .all(db),
+            generation_run_target::Entity::find()
+                .select_only()
+                .column(generation_run_target::Column::TargetId)
+                .column(generation_run_target::Column::GenerationRunId)
+                .filter(generation_run_target::Column::TargetTable.eq("protagonist_profile"))
+                .filter(generation_run_target::Column::TargetId.is_in(profile_ids.iter().copied()))
+                .into_tuple::<(i64, i64)>()
+                .all(db),
+        );
+        let events = events?;
+        let deletion_marks = deletion_marks?;
+        let generation_targets = generation_targets?;
+        let mut events_by_profile = HashMap::<i64, Vec<_>>::new();
+        for event in events {
+            events_by_profile
+                .entry(event.profile_id)
+                .or_default()
+                .push(event);
+        }
+        let mut marks_by_profile = HashMap::<i64, Vec<_>>::new();
+        for mark in deletion_marks {
+            marks_by_profile
+                .entry(mark.profile_id)
+                .or_default()
+                .push(mark);
+        }
+        let mut runs_by_profile = HashMap::<i64, Vec<i64>>::new();
+        let mut run_ids = Vec::with_capacity(generation_targets.len());
+        for (profile_id, run_id) in generation_targets {
+            runs_by_profile.entry(profile_id).or_default().push(run_id);
+            run_ids.push(run_id);
+        }
+        run_ids.sort_unstable();
+        run_ids.dedup();
+        let completed_discovery_runs = if run_ids.is_empty() {
+            HashSet::new()
+        } else {
+            generation_run::Entity::find()
+                .select_only()
+                .column(generation_run::Column::Id)
+                .filter(generation_run::Column::Id.is_in(run_ids))
+                .filter(generation_run::Column::Workflow.eq("character_discovery"))
+                .filter(generation_run::Column::Status.eq("completed"))
+                .into_tuple::<i64>()
+                .all(db)
+                .await?
+                .into_iter()
+                .collect()
+        };
+
+        for profile in profile_batch {
+            let profile_events = events_by_profile.remove(&profile.id).unwrap_or_default();
+            let profile_marks = marks_by_profile.remove(&profile.id).unwrap_or_default();
+            let generated = !blueprint_owned_names.contains(
+                &crate::project::normalized_blueprint_identity(&profile.name),
+            ) && runs_by_profile.get(&profile.id).is_some_and(|run_ids| {
+                run_ids
+                    .iter()
+                    .any(|run_id| completed_discovery_runs.contains(run_id))
+            });
+            let ownership = character_attribute_ownership_from_records(
+                profile,
+                &profile_events,
+                &profile_marks,
+                generated,
+            );
+            let state = replay_profile_state_from_records(
+                profile,
+                &profile_events,
+                chapter_number,
+                &ownership,
+            )?;
+            states.insert(profile.id, state);
+        }
+    }
+    Ok(states)
 }
 
 async fn profile_timeline_records<C: ConnectionTrait>(

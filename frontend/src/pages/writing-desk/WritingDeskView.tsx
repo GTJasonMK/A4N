@@ -4,7 +4,7 @@ import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import { Modal } from "../../components/ui/Modal";
 import type { ChapterMetadata } from "../../api/chapter";
-import type { ChapterOutline } from "../../api/outline";
+import type { ChapterOutlineListEntry } from "../../api/outline";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import { ChapterSidebar } from "./ChapterSidebar";
 import { ChapterWorkspace } from "./ChapterWorkspace";
@@ -40,7 +40,7 @@ export interface WritingDeskViewProps {
   projectId: number;
   activeNumber: number | null;
   chapters: ChapterMetadata[];
-  outlines: ChapterOutline[];
+  outlines: ChapterOutlineListEntry[];
   lifecycleBlockedReason: string | null;
   chapterReadBlockedReason: string | null;
   chapterReadRetryable: boolean;

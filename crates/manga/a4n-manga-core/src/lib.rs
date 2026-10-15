@@ -4,8 +4,8 @@ use a4n_api_contract::manga::MangaPagePromptSummary;
 use a4n_domain::manga::{
     MANGA_PAGE_PIPELINE_STATE_V1, MangaPageGenerationLayoutV3, MangaPageGenerationLayoutV4,
     MangaPageGenerationSchemaVersion, MangaPagePipelineStage, MangaPagePipelineStateV1,
-    MangaPagePipelineStatus, MangaPagePromptRecord, MangaPipelineArtifactRecord,
-    MangaPipelineArtifactStage, MangaPortraitReference,
+    MangaPagePipelineStatus, MangaPagePromptArtifactMetadata, MangaPagePromptRecord,
+    MangaPipelineArtifactRecord, MangaPipelineArtifactStage, MangaPortraitReference,
 };
 use a4n_domain::source_spans::{ChapterSourceContext, source_metadata};
 use serde_json::{Value, json};
@@ -202,15 +202,39 @@ pub fn manga_page_prompt_stale_stages(
     page_number: i32,
     artifacts: &[MangaPipelineArtifactRecord],
 ) -> Result<Vec<MangaPipelineArtifactStage>, String> {
+    manga_page_prompt_stale_stages_from_metadata(
+        prompt_id,
+        page_number,
+        artifacts
+            .iter()
+            .map(|artifact| (artifact.stage, artifact.page_number, artifact.stale)),
+    )
+}
+
+pub fn manga_page_prompt_stale_stages_from_list_metadata(
+    prompt_id: i64,
+    page_number: i32,
+    artifacts: &[MangaPagePromptArtifactMetadata],
+) -> Result<Vec<MangaPipelineArtifactStage>, String> {
+    manga_page_prompt_stale_stages_from_metadata(
+        prompt_id,
+        page_number,
+        artifacts
+            .iter()
+            .map(|artifact| (artifact.stage, artifact.page_number, artifact.stale)),
+    )
+}
+
+fn manga_page_prompt_stale_stages_from_metadata(
+    prompt_id: i64,
+    page_number: i32,
+    artifacts: impl Iterator<Item = (MangaPipelineArtifactStage, Option<u32>, bool)>,
+) -> Result<Vec<MangaPipelineArtifactStage>, String> {
     let page_number = manga_page_number(prompt_id, page_number)?;
     Ok(artifacts
-        .iter()
-        .filter(|artifact| {
-            artifact.stale
-                && artifact.page_number == Some(page_number)
-                && artifact.stage.page_scoped()
+        .filter_map(|(stage, artifact_page, stale)| {
+            (stale && artifact_page == Some(page_number) && stage.page_scoped()).then_some(stage)
         })
-        .map(|artifact| artifact.stage)
         .collect())
 }
 

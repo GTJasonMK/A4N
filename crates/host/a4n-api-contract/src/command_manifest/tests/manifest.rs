@@ -328,6 +328,7 @@ fn profile_material_commands_expose_one_typed_contract() {
         "update_foreshadowing",
         "delete_foreshadowing",
         "list_object_profiles",
+        "list_object_profile_index",
         "create_object_profile",
         "update_object_profile",
         "delete_object_profile",
@@ -537,11 +538,34 @@ fn chapter_content_commands_expose_the_immediate_strict_contract() {
     assert_eq!(analyses.effect, "read");
     assert_eq!(analyses.result_schema["x-a4n-schema-quality"], "typed");
     assert_eq!(analyses.args_schema["additionalProperties"], false);
+    let story_events = command_descriptor("list_story_event_chapters").unwrap();
+    assert_eq!(story_events.effect, "read");
+    assert_eq!(story_events.result_schema["x-a4n-schema-quality"], "typed");
+    assert_eq!(story_events.args_schema["additionalProperties"], false);
     let get = command_descriptor("get_chapter").unwrap();
     assert_eq!(get.effect, "read");
     assert_eq!(get.args_schema["properties"]["input"]["additionalProperties"], false);
     for id in ["project_id", "chapter_id"] {
         assert_eq!(get.args_schema["properties"]["input"]["properties"][id]["minimum"], 1);
+    }
+
+    let snapshot_index = command_descriptor("list_source_snapshot_chapter_index").unwrap();
+    assert_eq!(snapshot_index.effect, "read");
+    assert_eq!(
+        snapshot_index.result_schema["x-a4n-schema-quality"],
+        "typed"
+    );
+    let snapshot_chapter = command_descriptor("get_source_snapshot_chapter").unwrap();
+    assert_eq!(snapshot_chapter.effect, "read");
+    assert_eq!(
+        snapshot_chapter.args_schema["properties"]["input"]["additionalProperties"],
+        false
+    );
+    for id in ["snapshot_id", "source_chapter_id"] {
+        assert_eq!(
+            snapshot_chapter.args_schema["properties"]["input"]["properties"][id]["minimum"],
+            1
+        );
     }
 }
 
@@ -602,7 +626,9 @@ fn import_analysis_and_review_commands_expose_one_typed_contract() {
         "check_import_dedup",
         "delete_import_review",
         "get_project_import_analysis_progress",
+        "get_import_review",
         "list_import_queue",
+        "list_import_queue_index",
         "preview_import_project_analysis_request",
         "reject_import_review",
         "run_import_project_analysis",

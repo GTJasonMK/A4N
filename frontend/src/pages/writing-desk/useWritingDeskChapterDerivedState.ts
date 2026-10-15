@@ -1,13 +1,13 @@
 import { useDeferredValue, useMemo } from "react";
 import type { ChapterMetadata, ChapterSummary } from "../../api/chapter";
-import type { ChapterOutline } from "../../api/outline";
+import type { ChapterOutlineListEntry } from "../../api/outline";
 import type { ChapterRow } from "../novel-detail/shared";
 import { useI18n } from "../../i18n";
 
 interface UseWritingDeskChapterDerivedStateParams {
   chapters: ChapterMetadata[];
   activeChapter: ChapterSummary | null;
-  outlines: ChapterOutline[];
+  outlines: ChapterOutlineListEntry[];
   activeNumber: number | null;
   chapterQuery: string;
 }

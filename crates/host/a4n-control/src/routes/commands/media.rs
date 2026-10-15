@@ -20,9 +20,9 @@ pub(super) use manga::{
 pub(super) use profile::{
     create_foreshadowing, create_object_profile, create_scene_profile, delete_foreshadowing,
     delete_object_profile, delete_scene_profile, generate_object_profile_image_prompt,
-    generate_scene_profile_image_prompt, list_foreshadowing, list_object_profiles,
-    list_scene_profiles, preview_object_profile_image_request, sync_scene_profiles,
-    update_foreshadowing, update_object_profile, update_scene_profile,
+    generate_scene_profile_image_prompt, list_foreshadowing, list_object_profile_index,
+    list_object_profiles, list_scene_profiles, preview_object_profile_image_request,
+    sync_scene_profiles, update_foreshadowing, update_object_profile, update_scene_profile,
 };
 pub(super) use video::generation::{
     poll_video_job, preview_chapter_video_request, preview_reference_media_video_request,

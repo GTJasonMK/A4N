@@ -204,7 +204,7 @@ mod tests {
             .expect("outline worker entry");
         assert_eq!(outline.kind, ProcessKind::StatefulWorker);
         assert_eq!(outline.binary, "a4n-outline-worker");
-        assert_eq!(outline.contract_version, "outline-records-v1");
+        assert_eq!(outline.contract_version, "outline-records-v2");
         assert_eq!(outline.addr_env, "A4N_OUTLINE_WORKER_ADDR");
         assert_eq!(outline.default_addr, "127.0.0.1:47653");
         assert_eq!(
@@ -262,7 +262,7 @@ mod tests {
             .expect("object profile worker entry");
         assert_eq!(object.kind, ProcessKind::StatefulWorker);
         assert_eq!(object.binary, "a4n-object-profile-worker");
-        assert_eq!(object.contract_version, "object-profile-mutation-v1");
+        assert_eq!(object.contract_version, "object-profile-mutation-v2");
         assert_eq!(object.addr_env, "A4N_OBJECT_PROFILE_WORKER_ADDR");
         assert_eq!(object.default_addr, "127.0.0.1:47657");
         assert_eq!(
@@ -357,7 +357,7 @@ mod tests {
             .expect("import review read worker entry");
         assert_eq!(import_review_read.kind, ProcessKind::StatefulWorker);
         assert_eq!(import_review_read.binary, "a4n-import-review-worker");
-        assert_eq!(import_review_read.contract_version, "import-review-read-v1");
+        assert_eq!(import_review_read.contract_version, "import-review-read-v2");
         assert_eq!(
             import_review_read.addr_env,
             "A4N_IMPORT_REVIEW_READ_WORKER_ADDR"
@@ -459,7 +459,7 @@ mod tests {
             .expect("chapter content worker entry");
         assert_eq!(chapter_content.kind, ProcessKind::StatefulWorker);
         assert_eq!(chapter_content.binary, "a4n-chapter-content-worker");
-        assert_eq!(chapter_content.contract_version, "chapter-content-v5");
+        assert_eq!(chapter_content.contract_version, "chapter-content-v6");
         assert_eq!(chapter_content.addr_env, "A4N_CHAPTER_CONTENT_WORKER_ADDR");
         assert_eq!(chapter_content.default_addr, "127.0.0.1:47671");
         assert_eq!(
@@ -472,8 +472,8 @@ mod tests {
             .expect("workflow read worker entry");
         assert_eq!(workflow_read.kind, ProcessKind::StatefulWorker);
         assert_eq!(workflow_read.binary, "a4n-workflow-read-worker");
-        assert_eq!(workflow_read.contract_version, "workflow-read-v2");
-        assert_eq!(workflow_read.capability_version, "workflow-read-v2");
+        assert_eq!(workflow_read.contract_version, "workflow-read-v4");
+        assert_eq!(workflow_read.capability_version, "workflow-read-v4");
         assert_eq!(workflow_read.addr_env, "A4N_WORKFLOW_READ_WORKER_ADDR");
         assert_eq!(workflow_read.default_addr, "127.0.0.1:47672");
         assert_eq!(

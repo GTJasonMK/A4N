@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChapterMaterialUpdate } from "../../api/chapter";
-import type { ObjectProfile } from "../../api/objectProfiles";
+import type { ObjectProfile, ObjectProfileIndex } from "../../api/objectProfiles";
 import { translateMessage, type MessageTranslator } from "../../i18n";
 import {
   materialUpdateDetails,
@@ -69,6 +69,32 @@ describe("materialUpdateSummary", () => {
           profile(1, "user", []),
           profile(2, "user", ["正文证据"]),
           profile(3, "ai_sync", ["正文证据"]),
+        ],
+        1,
+      ).map((item) => item.id),
+    ).toEqual([2, 3]);
+  });
+
+  it("keeps indexed object evidence filtering consistent with full profiles", () => {
+    const profile = (
+      id: number,
+      ownershipKind: string,
+      evidencePresent: boolean,
+    ): ObjectProfileIndex =>
+      ({
+        id,
+        ownership_kind: ownershipKind,
+        evidence_present: evidencePresent,
+        first_seen_chapter: 1,
+        last_seen_chapter: 1,
+      }) as ObjectProfileIndex;
+
+    expect(
+      objectProfilesForChapter(
+        [
+          profile(1, "user", false),
+          profile(2, "user", true),
+          profile(3, "ai_sync", false),
         ],
         1,
       ).map((item) => item.id),

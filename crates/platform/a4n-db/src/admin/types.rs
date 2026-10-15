@@ -2,8 +2,8 @@ use sea_orm::DbErr;
 
 pub use a4n_domain::admin::{
     AdminOverviewSummary, AdminProjectSummary, DailyUsagePoint, GenerationCallAnalytics,
-    GenerationCallAnalyticsInput, InviteCodeSummary, TaskQueueSummary, ThemeInfo, UsageLogSummary,
-    UsageTrendsInput,
+    GenerationCallAnalyticsInput, InviteCodeSummary, PendingTaskIndexSummary, TaskQueueSummary,
+    ThemeInfo, UsageLogSummary, UsageTrendsInput,
 };
 
 #[derive(Debug, thiserror::Error)]

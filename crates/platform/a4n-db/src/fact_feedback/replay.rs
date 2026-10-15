@@ -10,6 +10,7 @@ use sea_orm::{
     QuerySelect, Select, Set,
 };
 use serde_json::Value;
+use std::collections::HashMap;
 
 use super::{
     FactFeedbackDbError,
@@ -139,6 +140,61 @@ pub async fn profile_enrichment_before_chapter<C: ConnectionTrait>(
         let mut value = character_enrichment(profile, &change.material_kind)?;
         if undo_value(&mut value, &change)? {
             set_character_enrichment(profile, &change.material_kind, value)?;
+        }
+    }
+    Ok(())
+}
+
+pub(crate) async fn profile_enrichment_before_chapter_batch<C: ConnectionTrait>(
+    db: &C,
+    project_id: i64,
+    profiles: &mut [protagonist_profile::Model],
+    chapter_number: i32,
+) -> Result<(), FactFeedbackDbError> {
+    if profiles.is_empty() {
+        return Ok(());
+    }
+    let profile_ids = profiles
+        .iter()
+        .map(|profile| profile.id)
+        .collect::<Vec<_>>();
+    if profiles
+        .iter()
+        .any(|profile| profile.project_id != project_id)
+    {
+        return Err(FactFeedbackDbError::Invalid(
+            "角色档案不属于当前项目".into(),
+        ));
+    }
+    let changes = change_history(project_id)
+        .filter(material_fact_change::Column::Status.eq("applied"))
+        .filter(
+            material_fact_change::Column::MaterialKind
+                .is_in(["character_voice", "character_arc_progress"]),
+        )
+        .filter(material_fact_change::Column::TargetId.is_in(profile_ids))
+        .all(db)
+        .await?;
+    let mut changes_by_profile = HashMap::<i64, Vec<_>>::new();
+    for change in changes {
+        if let Some(profile_id) = change.target_id {
+            changes_by_profile
+                .entry(profile_id)
+                .or_default()
+                .push(change);
+        }
+    }
+    for profile in profiles {
+        if let Some(changes) = changes_by_profile.remove(&profile.id) {
+            for change in changes {
+                if !sources_reach_chapter(&change, chapter_number)? {
+                    continue;
+                }
+                let mut value = character_enrichment(profile, &change.material_kind)?;
+                if undo_value(&mut value, &change)? {
+                    set_character_enrichment(profile, &change.material_kind, value)?;
+                }
+            }
         }
     }
     Ok(())

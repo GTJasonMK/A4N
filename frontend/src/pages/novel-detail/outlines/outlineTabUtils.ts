@@ -1,4 +1,4 @@
-import type { ChapterOutline, PartOutline } from "../../../api/outline";
+import type { ChapterOutlineListEntry, PartOutline } from "../../../api/outline";
 import type { MessageTranslator } from "../../../i18n";
 import { isPositiveSafeInteger } from "../../../utils/numberRange";
 import { nonEmptyText } from "../../../utils/text";
@@ -50,7 +50,7 @@ export const partHeading = (part: PartOutline, t: MessageTranslator): string => 
 };
 
 export const chapterOutlineHeading = (
-  outline: ChapterOutline,
+  outline: ChapterOutlineListEntry,
   t: MessageTranslator,
 ): string => {
   const title = nonEmptyText(outline.title);

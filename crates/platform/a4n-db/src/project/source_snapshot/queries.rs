@@ -10,7 +10,7 @@ pub async fn source_snapshot_chapters(
     db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<Vec<SourceSnapshotChapterSummary>, ProjectMutationError> {
-    let (_, snapshot_id) = source_snapshot_identity(db, project_id).await?;
+    let (_, snapshot_id) = source_snapshot_scope(db, project_id).await?;
     let chapters = source_snapshot_chapter::Entity::find()
         .filter(source_snapshot_chapter::Column::SnapshotId.eq(snapshot_id))
         .order_by_asc(source_snapshot_chapter::Column::ChapterNumber)
@@ -26,30 +26,41 @@ pub async fn source_snapshot_chapter_index(
     db: &impl crate::DbExecutor,
     project_id: i64,
 ) -> Result<Vec<SourceSnapshotChapterIndex>, ProjectMutationError> {
-    let (_, snapshot_id) = source_snapshot_identity(db, project_id).await?;
-    let chapters = source_snapshot_chapter::Entity::find()
+    let (root_project_id, snapshot_id) = source_snapshot_scope(db, project_id).await?;
+    source_snapshot_chapter_index_for_scope(db, root_project_id, snapshot_id).await
+}
+
+/// Reads an index after the caller has validated the owning project and snapshot scope.
+pub async fn source_snapshot_chapter_index_for_scope(
+    db: &impl crate::DbExecutor,
+    root_project_id: i64,
+    snapshot_id: i64,
+) -> Result<Vec<SourceSnapshotChapterIndex>, ProjectMutationError> {
+    validate_positive_i64(root_project_id, "root_project_id")
+        .map_err(ProjectMutationError::InvalidArgument)?;
+    validate_positive_i64(snapshot_id, "snapshot_id")
+        .map_err(ProjectMutationError::InvalidArgument)?;
+    let rows = source_snapshot_chapter::Entity::find()
         .select_only()
         .column(source_snapshot_chapter::Column::Id)
-        .column(source_snapshot_chapter::Column::SnapshotId)
         .column(source_snapshot_chapter::Column::SourceChapterId)
         .column(source_snapshot_chapter::Column::ChapterNumber)
         .column(source_snapshot_chapter::Column::Title)
+        .filter(source_snapshot_chapter::Column::RootProjectId.eq(root_project_id))
         .filter(source_snapshot_chapter::Column::SnapshotId.eq(snapshot_id))
         .order_by_asc(source_snapshot_chapter::Column::ChapterNumber)
-        .into_tuple::<(i64, i64, i64, i32, Option<String>)>()
+        .into_tuple::<(i64, i64, i32, Option<String>)>()
         .all(db)
         .await?;
-    Ok(chapters
+    Ok(rows
         .into_iter()
         .map(
-            |(id, snapshot_id, source_chapter_id, chapter_number, title)| {
-                SourceSnapshotChapterIndex {
-                    id,
-                    snapshot_id,
-                    source_chapter_id,
-                    chapter_number,
-                    title,
-                }
+            |(id, source_chapter_id, chapter_number, title)| SourceSnapshotChapterIndex {
+                id,
+                snapshot_id,
+                source_chapter_id,
+                chapter_number,
+                title,
             },
         )
         .collect())
@@ -62,7 +73,7 @@ pub async fn source_snapshot_chapter_for_project(
 ) -> Result<SourceSnapshotChapterSummary, ProjectMutationError> {
     validate_positive_i64(source_chapter_id, "source_chapter_id")
         .map_err(ProjectMutationError::InvalidArgument)?;
-    let (root_project_id, snapshot_id) = source_snapshot_identity(db, project_id).await?;
+    let (root_project_id, snapshot_id) = source_snapshot_scope(db, project_id).await?;
     let chapter = source_snapshot_chapter::Entity::find()
         .filter(source_snapshot_chapter::Column::RootProjectId.eq(root_project_id))
         .filter(source_snapshot_chapter::Column::SnapshotId.eq(snapshot_id))
@@ -77,27 +88,28 @@ pub async fn source_snapshot_chapter_for_project(
     Ok(source_snapshot_chapter_summary(&chapter))
 }
 
-async fn source_snapshot_identity(
+pub async fn source_snapshot_chapter_for_snapshot(
     db: &impl crate::DbExecutor,
     project_id: i64,
-) -> Result<(i64, i64), ProjectMutationError> {
-    validate_positive_i64(project_id, "project_id")
+    snapshot_id: i64,
+    source_chapter_id: i64,
+) -> Result<Option<SourceSnapshotChapterSummary>, ProjectMutationError> {
+    validate_positive_i64(snapshot_id, "snapshot_id")
         .map_err(ProjectMutationError::InvalidArgument)?;
-    let project = novel_project::Entity::find_by_id(project_id)
-        .select_only()
-        .column(novel_project::Column::Id)
-        .column(novel_project::Column::ProjectKind)
-        .column(novel_project::Column::RootProjectId)
-        .column(novel_project::Column::SourceSnapshotId)
-        .into_tuple::<(i64, String, Option<i64>, Option<i64>)>()
+    validate_positive_i64(source_chapter_id, "source_chapter_id")
+        .map_err(ProjectMutationError::InvalidArgument)?;
+    let (root_project_id, current_snapshot_id) = source_snapshot_scope(db, project_id).await?;
+    if current_snapshot_id != snapshot_id {
+        return Ok(None);
+    }
+    source_snapshot_chapter::Entity::find()
+        .filter(source_snapshot_chapter::Column::RootProjectId.eq(root_project_id))
+        .filter(source_snapshot_chapter::Column::SnapshotId.eq(snapshot_id))
+        .filter(source_snapshot_chapter::Column::SourceChapterId.eq(source_chapter_id))
         .one(db)
-        .await?
-        .ok_or_else(|| ProjectMutationError::NotFound(format!("项目不存在: {project_id}")))?;
-    let snapshot_id = source_snapshot_id_for_identity(project.0, &project.1, project.2, project.3)?;
-    let root_project_id = project.2.ok_or_else(|| {
-        ProjectMutationError::InvalidArgument("派生项目缺少根文本项目".to_string())
-    })?;
-    Ok((root_project_id, snapshot_id))
+        .await
+        .map(|chapter| chapter.as_ref().map(source_snapshot_chapter_summary))
+        .map_err(ProjectMutationError::Database)
 }
 
 pub async fn source_snapshot_chapter_content_by_snapshot_and_source(
@@ -136,14 +148,10 @@ fn source_snapshot_id_for_identity(
     root_project_id: Option<i64>,
     source_snapshot_id: Option<i64>,
 ) -> Result<i64, ProjectMutationError> {
-    match a4n_domain::project::ProjectSourceMode::from_identity(
-        project_kind,
-        root_project_id,
-        source_snapshot_id,
-    )
-    .map_err(|error| {
-        ProjectMutationError::InvalidArgument(format!("项目 {}: {error}", project_id))
-    })? {
+    match ProjectSourceMode::from_identity(project_kind, root_project_id, source_snapshot_id)
+        .map_err(|error| {
+            ProjectMutationError::InvalidArgument(format!("项目 {project_id}: {error}"))
+        })? {
         ProjectSourceMode::Self_ => Err(ProjectMutationError::InvalidArgument(
             "文本项目没有源文本快照章节".to_string(),
         )),
@@ -154,9 +162,32 @@ fn source_snapshot_id_for_identity(
             "独立漫画项目没有源文本快照章节".to_string(),
         )),
         ProjectSourceMode::Derived => source_snapshot_id.ok_or_else(|| {
-            ProjectMutationError::NotFound(format!("派生项目缺少源文本快照: {}", project_id))
+            ProjectMutationError::NotFound(format!("派生项目缺少源文本快照: {project_id}"))
         }),
     }
+}
+
+async fn source_snapshot_scope(
+    db: &impl crate::DbExecutor,
+    project_id: i64,
+) -> Result<(i64, i64), ProjectMutationError> {
+    validate_positive_i64(project_id, "project_id")
+        .map_err(ProjectMutationError::InvalidArgument)?;
+    let project = novel_project::Entity::find_by_id(project_id)
+        .select_only()
+        .column(novel_project::Column::Id)
+        .column(novel_project::Column::ProjectKind)
+        .column(novel_project::Column::RootProjectId)
+        .column(novel_project::Column::SourceSnapshotId)
+        .into_tuple::<(i64, String, Option<i64>, Option<i64>)>()
+        .one(db)
+        .await?
+        .ok_or_else(|| ProjectMutationError::NotFound(format!("项目不存在: {project_id}")))?;
+    let snapshot_id = source_snapshot_id_for_identity(project.0, &project.1, project.2, project.3)?;
+    let root_project_id = project.2.ok_or_else(|| {
+        ProjectMutationError::InvalidArgument("派生项目缺少根文本项目".to_string())
+    })?;
+    Ok((root_project_id, snapshot_id))
 }
 
 pub(super) fn source_snapshot_chapter_summary(

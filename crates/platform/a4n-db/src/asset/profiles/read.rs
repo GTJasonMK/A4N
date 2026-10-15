@@ -1,6 +1,10 @@
 use a4n_db_models::models::{asset::object_profile, project::novel_project};
 use a4n_domain::object_profile::ObjectProfileRecord;
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::sea_query::Expr;
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
+    QuerySelect,
+};
 
 use crate::asset::AssetDbError;
 
@@ -39,6 +43,83 @@ where
     object_profiles_by_project(db, project_id)
         .await
         .map(|profiles| profiles.into_iter().map(object_profile_record).collect())
+}
+
+#[derive(Debug, FromQueryResult)]
+struct ObjectProfileListRow {
+    id: i64,
+    project_id: i64,
+    ownership_kind: String,
+    name: String,
+    object_type: String,
+    importance: String,
+    visual_description: String,
+    story_usage: String,
+    location_context: Option<String>,
+    first_seen_chapter: i32,
+    last_seen_chapter: i32,
+    evidence_present: bool,
+    created_at: chrono::NaiveDateTime,
+    updated_at: chrono::NaiveDateTime,
+}
+
+pub async fn object_profile_list_records_by_project<C>(
+    db: &C,
+    project_id: i64,
+) -> Result<Vec<a4n_domain::object_profile::ObjectProfileListRecord>, AssetDbError>
+where
+    C: ConnectionTrait,
+{
+    let (project_result, profiles_result) = futures::join!(
+        ensure_object_profile_project_exists(db, project_id),
+        object_profile::Entity::find()
+            .select_only()
+            .column(object_profile::Column::Id)
+            .column(object_profile::Column::ProjectId)
+            .column(object_profile::Column::OwnershipKind)
+            .column(object_profile::Column::Name)
+            .column(object_profile::Column::ObjectType)
+            .column(object_profile::Column::Importance)
+            .column(object_profile::Column::VisualDescription)
+            .column(object_profile::Column::StoryUsage)
+            .column(object_profile::Column::LocationContext)
+            .column(object_profile::Column::FirstSeenChapter)
+            .column(object_profile::Column::LastSeenChapter)
+            .column_as(
+                Expr::cust("CASE WHEN jsonb_typeof(evidence_json::jsonb) = 'array' THEN jsonb_array_length(evidence_json::jsonb) > 0 ELSE FALSE END"),
+                "evidence_present",
+            )
+            .column(object_profile::Column::CreatedAt)
+            .column(object_profile::Column::UpdatedAt)
+            .filter(object_profile::Column::ProjectId.eq(project_id))
+            .order_by_asc(object_profile::Column::FirstSeenChapter)
+            .order_by_asc(object_profile::Column::Id)
+            .into_model::<ObjectProfileListRow>()
+            .all(db),
+    );
+    project_result?;
+    profiles_result
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| a4n_domain::object_profile::ObjectProfileListRecord {
+                    id: row.id,
+                    project_id: row.project_id,
+                    ownership_kind: row.ownership_kind,
+                    name: row.name,
+                    object_type: row.object_type,
+                    importance: row.importance,
+                    visual_description: row.visual_description,
+                    story_usage: row.story_usage,
+                    location_context: row.location_context,
+                    first_seen_chapter: row.first_seen_chapter,
+                    last_seen_chapter: row.last_seen_chapter,
+                    evidence_present: row.evidence_present,
+                    created_at: row.created_at,
+                    updated_at: row.updated_at,
+                })
+                .collect()
+        })
+        .map_err(AssetDbError::Database)
 }
 
 pub async fn object_profile_record_by_id<C>(

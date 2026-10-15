@@ -47,6 +47,24 @@ pub struct ObjectProfileRecord {
     pub updated_at: NaiveDateTime,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ObjectProfileListRecord {
+    pub id: i64,
+    pub project_id: i64,
+    pub ownership_kind: String,
+    pub name: String,
+    pub object_type: String,
+    pub importance: String,
+    pub visual_description: String,
+    pub story_usage: String,
+    pub location_context: Option<String>,
+    pub first_seen_chapter: i32,
+    pub last_seen_chapter: i32,
+    pub evidence_present: bool,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ObjectProfileInput {

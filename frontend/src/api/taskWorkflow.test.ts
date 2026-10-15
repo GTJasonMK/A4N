@@ -48,8 +48,10 @@ describe("task and workflow host contracts", () => {
     await getWorkflowRunDetail(9, true);
     await getWorkflowRunDetail(10, false, true);
     await getWorkflowRunDetail(11, false, true, false);
+    await getWorkflowRunDetail(12, true, false, true, false);
     await resumeWorkflowRun(9);
     await getWorkflowRunProgressEvents(9, 20);
+    await getWorkflowRunProgressEvents(9, 20, "81");
     await expect(cancelWorkflowTask("task-1")).resolves.toBe(false);
     await expect(cancelWorkflow({ task_id: null, workflow_run_id: 9 })).resolves.toBe(false);
 
@@ -64,7 +66,14 @@ describe("task and workflow host contracts", () => {
       ],
       [
         "get_workflow_progress_events",
-        { input: { task_id: "task-2", workflow_run_id: null, limit: 20, after_event_id: "task-2-event-14" } },
+        {
+          input: {
+            task_id: "task-2",
+            workflow_run_id: null,
+            limit: 20,
+            after_event_id: "task-2-event-14",
+          },
+        },
       ],
       ["list_active_workflows"],
       ["list_workflow_runs", { input: { resumable_only: false, limit: 40 } }],
@@ -80,10 +89,26 @@ describe("task and workflow host contracts", () => {
         "get_workflow_run_detail",
         { input: { workflow_run_id: 11, include_generation_runs: false, include_generation_run_count: true, include_checkpoint_details: false } },
       ],
+      [
+        "get_workflow_run_detail",
+        {
+          input: {
+            workflow_run_id: 12,
+            include_generation_runs: true,
+            include_generation_run_count: false,
+            include_checkpoint_details: true,
+            include_generation_run_payloads: false,
+          },
+        },
+      ],
       ["resume_workflow_run", { input: { workflow_run_id: 9 } }],
       [
         "get_workflow_progress_events",
         { input: { task_id: null, workflow_run_id: 9, limit: 20 } },
+      ],
+      [
+        "get_workflow_progress_events",
+        { input: { task_id: null, workflow_run_id: 9, limit: 20, after_event_id: "81" } },
       ],
       [
         "cancel_workflow",

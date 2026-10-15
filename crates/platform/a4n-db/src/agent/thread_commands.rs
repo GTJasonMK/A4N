@@ -162,8 +162,14 @@ pub async fn thread_history(
     )
     .await?;
     let events = latest_events_by_thread(&tx, thread_id, limit).await?;
+    let budget_snapshots =
+        run_budget_snapshots(&tx, &runs.iter().map(|run| run.id).collect::<Vec<_>>()).await?;
     for run in &mut runs {
-        run.usage_json = run_budget_snapshot(&tx, run.id).await?.usage;
+        run.usage_json = budget_snapshots
+            .get(&run.id)
+            .ok_or_else(|| AgentDbError::NotFound(format!("Agent run 不存在: {}", run.id)))?
+            .usage
+            .clone();
     }
     tx.commit().await?;
     Ok(AgentThreadHistoryRecord {

@@ -1,9 +1,9 @@
 use super::{
     AdminOverviewSummary, AdminPermission, AdminProjectSummary, CreateInviteCodeInput,
-    CreateUserInput, DailyUsagePoint, DeleteTestRunInput, InviteCodeSummary, ListTestRunsInput,
-    StartTestRunInput, TaskQueueSummary, TestRunDetail, TestRunIdInput, TestRunSummary,
-    TestScenarioDescriptor, UpdateUserRoleInput, UsageLogSummary, UsageTrendsInput, UserSummary,
-    permissions, projects, tasks, usage, users,
+    CreateUserInput, DailyUsagePoint, DeleteTestRunInput, GetTestRunInput, InviteCodeSummary,
+    ListTestRunsInput, StartTestRunInput, TaskQueueSummary, TestRunDetail, TestRunIdInput,
+    TestRunSummary, TestScenarioDescriptor, UpdateUserRoleInput, UsageLogSummary, UsageTrendsInput,
+    UserSummary, permissions, projects, tasks, usage, users,
 };
 use crate::AppState;
 use a4n_error::AppError;
@@ -42,6 +42,12 @@ admin_record_command!(
     list_pending_tasks_for_admin() -> Vec<TaskQueueSummary>,
     AdminPermission::ManageSettings,
     |state, caller_user_id| tasks::list_pending_tasks(state, caller_user_id),
+);
+
+admin_record_command!(
+    list_pending_task_index_for_admin() -> Vec<a4n_api_contract::admin::PendingTaskIndexSummary>,
+    AdminPermission::ManageSettings,
+    |state, caller_user_id| tasks::list_pending_task_index(state, caller_user_id),
 );
 
 admin_record_command!(
@@ -129,9 +135,11 @@ admin_record_command!(
 );
 
 admin_record_command!(
-    get_test_run_for_admin(input: TestRunIdInput) -> TestRunDetail,
+    get_test_run_for_admin(input: GetTestRunInput) -> TestRunDetail,
     AdminPermission::ManageSettings,
-    |state, _caller_user_id| state.test_console().get(&input.run_id),
+    |state, _caller_user_id| state
+        .test_console()
+        .get(&input.run_id, input.after_log_index),
 );
 
 admin_record_command!(

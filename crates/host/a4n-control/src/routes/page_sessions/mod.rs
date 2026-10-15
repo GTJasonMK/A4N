@@ -16,16 +16,17 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use futures::{Stream, stream};
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
 use std::convert::Infallible;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 const PAGE_LEASE_SECONDS: u64 = 30;
+const PAGE_EXPIRY_SWEEP_INTERVAL: Duration = Duration::from_secs(5);
 const AUTHORIZATION_SECONDS: u64 = 120;
 const MAX_OPERATIONS: usize = 50;
 const MAX_ROUTE_LENGTH: usize = 2048;
@@ -35,6 +36,7 @@ const MAX_STATE_BYTES: usize = 64 * 1024;
 pub(crate) struct PageSessionRegistry {
     records: Arc<RwLock<HashMap<String, PageRecord>>>,
     events: tokio::sync::broadcast::Sender<PageEvent>,
+    last_expiry_sweep: Arc<Mutex<Option<Instant>>>,
 }
 
 #[derive(Clone, Debug)]
@@ -498,7 +500,7 @@ mod tests {
             )
             .unwrap();
         assert_eq!(navigated.route.as_deref(), Some("/settings"));
-        assert_eq!(navigated.context_revision, 2);
+        assert_eq!(navigated.context_revision, 3);
         assert!(
             registry
                 .heartbeat(
@@ -590,6 +592,142 @@ mod tests {
                     input(true),
                 )
                 .is_ok()
+        );
+    }
+
+    #[test]
+    fn periodic_expiry_sweep_is_shared_but_heartbeat_expires_its_session_immediately() {
+        let registry = PageSessionRegistry::new();
+        let first = registry.create(1, create_input(), true).unwrap();
+        let second = registry
+            .create(
+                1,
+                CreatePageSessionInput {
+                    client: "a4n-test".into(),
+                    tab_id: "tab-2".into(),
+                },
+                true,
+            )
+            .unwrap();
+        let expired_at = (chrono::Utc::now() - chrono::Duration::seconds(1)).to_rfc3339();
+        {
+            let mut records = registry.records.write();
+            records
+                .get_mut(&first.session.ui_session_id)
+                .unwrap()
+                .view
+                .expires_at = expired_at.clone();
+            let record = records.get_mut(&second.session.ui_session_id).unwrap();
+            let operation = PageOperationView {
+                operation_id: "operation-1".into(),
+                ui_session_id: second.session.ui_session_id.clone(),
+                agent_id: Some("agent-1".into()),
+                command: "read_chapter".into(),
+                page_kind: Some("novel-detail".into()),
+                phase: "running".into(),
+                target: json!({}),
+                status: PageOperationStatus::Running,
+                progress: Some(12.0),
+                summary: None,
+                result: None,
+                error: None,
+                started_at: expired_at.clone(),
+                updated_at: expired_at.clone(),
+            };
+            record.view.status = PageSessionStatus::Running;
+            record.view.agent_id = Some("agent-1".into());
+            record.view.operation_id = Some(operation.operation_id.clone());
+            record.view.expires_at = expired_at;
+            record.operations.push_back(operation.clone());
+            record.view.last_operation = Some(operation);
+        }
+        let mut events = registry.subscribe();
+        *registry.last_expiry_sweep.lock() = Some(Instant::now());
+
+        registry.expire_periodically();
+        assert_eq!(
+            registry.records.read()[&second.session.ui_session_id]
+                .view
+                .status,
+            PageSessionStatus::Running
+        );
+        assert!(
+            registry
+                .heartbeat(
+                    1,
+                    &second.session.ui_session_id,
+                    &second.ui_session_token,
+                    None,
+                )
+                .is_err()
+        );
+        assert_eq!(
+            registry.records.read()[&second.session.ui_session_id]
+                .view
+                .status,
+            PageSessionStatus::Offline
+        );
+        let expired_event = events.try_recv().unwrap();
+        assert_eq!(expired_event.event.kind, "offline");
+        assert_eq!(
+            expired_event.event.operation.unwrap().status,
+            PageOperationStatus::Cancelled
+        );
+
+        *registry.last_expiry_sweep.lock() = None;
+        registry.expire_periodically();
+        assert_eq!(
+            registry.records.read()[&first.session.ui_session_id]
+                .view
+                .status,
+            PageSessionStatus::Offline
+        );
+    }
+
+    #[test]
+    #[ignore = "release benchmark for Page Session expiry scans"]
+    fn benchmark_page_session_heartbeat_expiry_scan() {
+        const SESSION_COUNT: usize = 1_000;
+        const SAMPLE_COUNT: usize = 15;
+
+        let registry = PageSessionRegistry::new();
+        let sessions: Vec<_> = (0..SESSION_COUNT)
+            .map(|index| {
+                let created = registry
+                    .create(
+                        1,
+                        CreatePageSessionInput {
+                            client: "performance-benchmark".into(),
+                            tab_id: format!("tab-{index}"),
+                        },
+                        true,
+                    )
+                    .unwrap();
+                (created.session.ui_session_id, created.ui_session_token)
+            })
+            .collect();
+
+        let run_batch = || {
+            *registry.last_expiry_sweep.lock() = None;
+            for (session_id, token) in &sessions {
+                registry.heartbeat(1, session_id, token, None).unwrap();
+            }
+        };
+        for _ in 0..2 {
+            run_batch();
+        }
+
+        let mut samples_ms = Vec::with_capacity(SAMPLE_COUNT);
+        for _ in 0..SAMPLE_COUNT {
+            let started_at = std::time::Instant::now();
+            run_batch();
+            samples_ms.push(started_at.elapsed().as_secs_f64() * 1_000.0);
+        }
+        samples_ms.sort_by(f64::total_cmp);
+        let p50 = samples_ms[SAMPLE_COUNT / 2];
+        let p95 = samples_ms[(SAMPLE_COUNT * 95).div_ceil(100) - 1];
+        println!(
+            "sessions={SESSION_COUNT} heartbeats_per_sample={SESSION_COUNT} samples_ms={samples_ms:?} p50_ms={p50:.3} p95_ms={p95:.3}"
         );
     }
 }

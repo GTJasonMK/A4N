@@ -1,4 +1,4 @@
-use super::validation::ensure_profile_belongs_to_root;
+use super::validation::ensure_profiles_belong_to_root;
 use super::{TextAnchorDbResult, validate_anchor_ref_records};
 use a4n_db_models::models::{
     chapter::chapter,
@@ -288,38 +288,76 @@ pub async fn earliest_current_profile_evidence_chapter<C>(
 where
     C: ConnectionTrait,
 {
-    ensure_profile_belongs_to_root(db, root_project_id, profile_kind, profile_id).await?;
+    Ok(
+        earliest_current_profile_evidence_chapters(
+            db,
+            root_project_id,
+            profile_kind,
+            &[profile_id],
+        )
+        .await?
+        .get(&profile_id)
+        .copied()
+        .flatten(),
+    )
+}
+
+pub(crate) async fn earliest_current_profile_evidence_chapters<C>(
+    db: &C,
+    root_project_id: i64,
+    profile_kind: TextAnchorProfileKind,
+    profile_ids: &[i64],
+) -> TextAnchorDbResult<HashMap<i64, Option<i32>>>
+where
+    C: ConnectionTrait,
+{
+    ensure_profiles_belong_to_root(db, root_project_id, profile_kind, profile_ids).await?;
+    let mut earliest_by_profile = profile_ids
+        .iter()
+        .copied()
+        .map(|profile_id| (profile_id, None))
+        .collect::<HashMap<_, Option<i32>>>();
+    if profile_ids.is_empty() {
+        return Ok(earliest_by_profile);
+    }
+
     let evidence_anchor_ids = profile_evidence::Entity::find()
         .select_only()
+        .column(profile_evidence::Column::ProfileId)
         .column(profile_evidence::Column::TextAnchorId)
         .filter(profile_evidence::Column::ProfileKind.eq(profile_kind.as_str()))
-        .filter(profile_evidence::Column::ProfileId.eq(profile_id))
+        .filter(profile_evidence::Column::ProfileId.is_in(profile_ids.iter().copied()))
         .filter(profile_evidence::Column::EvidenceRole.eq(super::EVIDENCE_ROLE_FIRST_SEEN))
-        .into_tuple::<i64>()
+        .into_tuple::<(i64, i64)>()
         .all(db)
         .await?;
     if evidence_anchor_ids.is_empty() {
-        return Ok(None);
+        return Ok(earliest_by_profile);
     }
 
+    let anchor_ids = evidence_anchor_ids
+        .iter()
+        .map(|(_, anchor_id)| *anchor_id)
+        .collect::<HashSet<_>>();
     let anchors = text_anchor::Entity::find()
         .select_only()
+        .column(text_anchor::Column::Id)
         .column(text_anchor::Column::SourceChapterId)
         .column(text_anchor::Column::SourceVersionHash)
-        .filter(text_anchor::Column::Id.is_in(evidence_anchor_ids))
+        .filter(text_anchor::Column::Id.is_in(anchor_ids))
         .filter(text_anchor::Column::ProjectId.eq(root_project_id))
         .filter(text_anchor::Column::SourceKind.eq(super::SOURCE_KIND_CHAPTER_CONTENT))
         .filter(text_anchor::Column::SourceSnapshotId.is_null())
         .filter(text_anchor::Column::SourceChapterId.is_not_null())
-        .into_tuple::<(Option<i64>, String)>()
+        .into_tuple::<(i64, Option<i64>, String)>()
         .all(db)
         .await?;
     let chapter_ids = anchors
         .iter()
-        .filter_map(|(source_chapter_id, _)| *source_chapter_id)
+        .filter_map(|(_, source_chapter_id, _)| *source_chapter_id)
         .collect::<HashSet<_>>();
     if chapter_ids.is_empty() {
-        return Ok(None);
+        return Ok(earliest_by_profile);
     }
 
     let chapters = chapter::Entity::find()
@@ -334,18 +372,36 @@ where
         .all(db)
         .await?
         .into_iter()
-        .map(|(id, chapter_number, content, status)| (id, (chapter_number, content, status)))
-        .collect::<HashMap<_, _>>();
-    Ok(anchors
-        .iter()
-        .filter_map(|(source_chapter_id, source_version_hash)| {
-            let chapter = chapters.get(&(*source_chapter_id)?)?;
-            let (chapter_number, content, status) = chapter;
-            (status != chapter::STATUS_DELETED
-                && !content.trim().is_empty()
+        .map(|(id, chapter_number, content, status)| {
+            let source_version_hash = (status != chapter::STATUS_DELETED
                 && status != chapter::STATUS_GENERATING
-                && source_version_hash == &source_text_hash(content))
-                .then_some(*chapter_number)
+                && !content.trim().is_empty())
+            .then(|| source_text_hash(&content));
+            (id, (chapter_number, source_version_hash))
         })
-        .min())
+        .collect::<HashMap<_, _>>();
+    let anchors_by_id = anchors
+        .into_iter()
+        .map(|(id, source_chapter_id, source_version_hash)| {
+            (id, (source_chapter_id, source_version_hash))
+        })
+        .collect::<HashMap<_, _>>();
+    for (profile_id, anchor_id) in evidence_anchor_ids {
+        let Some((Some(chapter_id), source_version_hash)) = anchors_by_id.get(&anchor_id) else {
+            continue;
+        };
+        let Some((chapter_number, Some(current_hash))) = chapters.get(chapter_id) else {
+            continue;
+        };
+        if source_version_hash == current_hash {
+            earliest_by_profile
+                .entry(profile_id)
+                .and_modify(|earliest| {
+                    *earliest = Some(
+                        earliest.map_or(*chapter_number, |current| current.min(*chapter_number)),
+                    )
+                });
+        }
+    }
+    Ok(earliest_by_profile)
 }

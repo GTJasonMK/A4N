@@ -11,6 +11,6 @@ pub(in crate::routes::commands) use preview::{
 };
 pub(in crate::routes::commands) use records::{
     delete_latest_chapter_outlines, delete_latest_parts, get_chapter_outlines_pacing,
-    get_generation_progress, list_chapter_outlines, list_parts, save_chapter_outline,
-    save_part_outline, sync_outline_materials, update_chapter_outline,
+    get_generation_progress, list_chapter_outline_index, list_chapter_outlines, list_parts,
+    save_chapter_outline, save_part_outline, sync_outline_materials, update_chapter_outline,
 };

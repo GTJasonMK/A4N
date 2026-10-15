@@ -9,9 +9,10 @@ pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 use serde::{Deserialize, Serialize};
 
 pub const OUTLINE_WORKER_ID: &str = "outline-worker";
-pub const OUTLINE_WORKER_CONTRACT_VERSION: &str = "outline-records-v1";
+pub const OUTLINE_WORKER_CONTRACT_VERSION: &str = "outline-records-v2";
 
 pub const LIST_CHAPTERS_OPERATION: &str = "outline.records.list_chapters";
+pub const LIST_CHAPTER_INDEX_OPERATION: &str = "outline.records.list_chapter_index";
 pub const LIST_PARTS_OPERATION: &str = "outline.records.list_parts";
 pub const GENERATION_PROGRESS_OPERATION: &str = "outline.records.generation_progress";
 pub const ENSURE_CHAPTER_ACCESS_OPERATION: &str = "outline.records.ensure_chapter_access";

@@ -1,4 +1,4 @@
-import type { ChapterAnalysisEntry } from "../../../api/chapter";
+import type { ChapterStoryEventEntry } from "../../../api/chapter";
 import {
   analysisTextList,
   analysisTextValue,
@@ -38,10 +38,10 @@ const eventDescription = (raw: unknown): string => {
   return firstAnalysisText(record, ["description", "summary", "event", "title"]);
 };
 
-const chapterTitle = (chapter: ChapterAnalysisEntry, t: MessageTranslator): string =>
+const chapterTitle = (chapter: ChapterStoryEventEntry, t: MessageTranslator): string =>
   chapter.title?.trim() || t("writing.chapterLabel", { number: chapter.chapter_number });
 
-const analysisSummary = (analysis: JsonRecord | null, chapter: ChapterAnalysisEntry): string => {
+const analysisSummary = (analysis: JsonRecord | null, chapter: ChapterStoryEventEntry): string => {
   const summaries = asRecord(analysis?.summaries);
   return (
     firstAnalysisText(summaries, ["compressed", "summary", "short"]) ||
@@ -73,13 +73,12 @@ const sectionSearchText = (section: ChapterStorySection): string =>
   ].join(" ");
 
 export const extractChapterStorySection = (
-  chapter: ChapterAnalysisEntry,
+  chapter: ChapterStoryEventEntry,
   t: MessageTranslator,
 ): ChapterStorySection => {
   const analysis = asRecord(chapter.analysis_data);
   const metadata = asRecord(analysis?.metadata);
   const summaries = asRecord(analysis?.summaries);
-  const foreshadowing = asRecord(analysis?.foreshadowing);
   const title = chapterTitle(chapter, t);
   const eventRows = asArray(analysis?.key_events)
     .map((raw, index): StoryEvent | null => {
@@ -114,9 +113,9 @@ export const extractChapterStorySection = (
     locations: textList(metadata?.locations, 12),
     keywords: textList(summaries?.keywords, 12),
     events: eventRows,
-    plantedCount: asArray(foreshadowing?.planted).length,
-    resolvedCount: asArray(foreshadowing?.resolved).length,
-    tensionCount: asArray(foreshadowing?.tensions).length,
+    plantedCount: chapter.foreshadowing_counts.planted,
+    resolvedCount: chapter.foreshadowing_counts.resolved,
+    tensionCount: chapter.foreshadowing_counts.tensions,
     hasAnalysis: Boolean(analysis),
   };
 };

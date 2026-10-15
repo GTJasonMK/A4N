@@ -173,7 +173,7 @@ pub(crate) fn args_get_usage_trends() -> Value {
     strict_typed_input_schema::<crate::admin::UsageTrendsInput>()
 }
 pub(crate) fn args_get_workflow_progress_events() -> Value {
-    strict_typed_input_schema::<crate::workflow::WorkflowProgressEventsInput>()
+    strict_typed_input_schema::<crate::workflow::GetWorkflowProgressEventsInput>()
 }
 
 pub(crate) fn args_start_test_run() -> Value {
@@ -186,6 +186,10 @@ pub(crate) fn args_list_test_runs() -> Value {
 
 pub(crate) fn args_test_run_id() -> Value {
     strict_typed_input_schema::<crate::admin::TestRunIdInput>()
+}
+
+pub(crate) fn args_get_test_run() -> Value {
+    strict_typed_input_schema::<crate::admin::GetTestRunInput>()
 }
 
 pub(crate) fn args_delete_test_run() -> Value {
@@ -457,6 +461,9 @@ pub(crate) fn result_list_my_project_invites() -> Value {
 }
 pub(crate) fn result_list_pending_tasks() -> Value {
     typed_schema::<Vec<crate::admin::TaskQueueSummary>>()
+}
+pub(crate) fn result_list_pending_task_index() -> Value {
+    typed_schema::<Vec<crate::admin::PendingTaskIndexSummary>>()
 }
 pub(crate) fn result_test_scenarios() -> Value {
     typed_schema::<Vec<crate::admin::TestScenarioDescriptor>>()

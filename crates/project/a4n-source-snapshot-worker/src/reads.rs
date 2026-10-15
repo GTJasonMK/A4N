@@ -64,12 +64,29 @@ impl WorkerState {
                 request.payload.project_id,
             )
             .await?;
-        a4n_db::project::source_snapshot_chapter_for_project(
-            self.database.connection(),
-            project_id,
-            request.payload.source_chapter_id,
-        )
-        .await
-        .map_err(a4n_worker_db_adapter::map_project_mutation_error)
+        if let Some(snapshot_id) = request.payload.snapshot_id {
+            a4n_db::project::source_snapshot_chapter_for_snapshot(
+                self.database.connection(),
+                project_id,
+                snapshot_id,
+                request.payload.source_chapter_id,
+            )
+            .await
+            .map_err(a4n_worker_db_adapter::map_project_mutation_error)?
+            .ok_or_else(|| {
+                WorkerFailure::not_found(format!(
+                    "源快照章节不存在或快照已变更: project_id={project_id}, source_chapter_id={}",
+                    request.payload.source_chapter_id
+                ))
+            })
+        } else {
+            a4n_db::project::source_snapshot_chapter_for_project(
+                self.database.connection(),
+                project_id,
+                request.payload.source_chapter_id,
+            )
+            .await
+            .map_err(a4n_worker_db_adapter::map_project_mutation_error)
+        }
     }
 }

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { ChevronRight, CircleAlert, Wrench } from "lucide-react";
 import type { AgentMessageView } from "../../api/agent";
 import { usePacedStreamText } from "../../hooks/usePacedStreamText";
@@ -11,6 +12,24 @@ export interface AgentMessageRowProps {
   toolResults?: AgentMessageView[];
   wasStreamed?: boolean;
   compactAssistantMessages?: boolean;
+}
+
+const EMPTY_TOOL_RESULTS: AgentMessageView[] = [];
+
+function areAgentMessageRowPropsEqual(
+  previous: AgentMessageRowProps,
+  next: AgentMessageRowProps,
+): boolean {
+  const previousToolResults = previous.toolResults ?? EMPTY_TOOL_RESULTS;
+  const nextToolResults = next.toolResults ?? EMPTY_TOOL_RESULTS;
+  return (
+    previous.message === next.message &&
+    previous.locale === next.locale &&
+    previous.wasStreamed === next.wasStreamed &&
+    previous.compactAssistantMessages === next.compactAssistantMessages &&
+    previousToolResults.length === nextToolResults.length &&
+    previousToolResults.every((result, index) => result === nextToolResults[index])
+  );
 }
 
 export function compactAgentValue(value: unknown, maxLength = 220): string {
@@ -194,7 +213,7 @@ function isPendingMessage(metadata: Record<string, unknown> | null): boolean {
   return metadata?.pending === true;
 }
 
-export function AgentMessageRow({
+export const AgentMessageRow = memo(function AgentMessageRow({
   message,
   locale,
   toolResults = [],
@@ -353,7 +372,7 @@ export function AgentMessageRow({
       </div>
     </article>
   );
-}
+}, areAgentMessageRowPropsEqual);
 
 function AssistantMessageContent({
   message,

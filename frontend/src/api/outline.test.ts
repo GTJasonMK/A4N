@@ -11,6 +11,7 @@ vi.mock("./generationTasks", () => ({ generationClient: { start: vi.fn() } }));
 
 import {
   deleteLatestParts,
+  listChapterOutlineIndex,
   outlineRecordTargets,
   previewRegeneratePartsRequest,
   syncOutlineMaterials,
@@ -62,6 +63,17 @@ describe("outline deletion", () => {
       "缺少大纲资料版本",
     );
     expect(mocks.apiInvoke).not.toHaveBeenCalled();
+  });
+});
+
+describe("outline list projection", () => {
+  it("uses the narrow chapter outline index command", async () => {
+    mocks.apiInvoke.mockResolvedValueOnce([]);
+
+    await expect(listChapterOutlineIndex("7")).resolves.toEqual([]);
+    expect(mocks.apiInvoke).toHaveBeenCalledWith("list_chapter_outline_index", {
+      projectId: 7,
+    });
   });
 });
 

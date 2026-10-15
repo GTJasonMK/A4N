@@ -15,7 +15,6 @@ import type {
 } from "../components/feedback/ProgressDialog";
 import type { ProgressMeta } from "../api/progress";
 import { isCancelledOperation } from "../utils/cancellation";
-import { isPositiveSafeInteger } from "../utils/numberRange";
 import { useI18n } from "../i18n";
 
 interface ProgressTaskState {
@@ -82,6 +81,7 @@ interface ProgressTaskController extends ProgressTaskApi {
 }
 
 const MAX_PROGRESS_EVENTS = 160;
+const PROGRESS_EVENT_POLL_LIMIT = 200;
 const WORKFLOW_PROGRESS_POLL_MS = 500;
 
 export async function runTaskWithPolling<T, TUpdate>(
@@ -124,16 +124,19 @@ export async function runTaskWithProgressEvents<T>(
   let afterEventId: string | undefined;
   return runTaskWithPolling(
     task,
-    () => getTaskProgressEvents(taskId, 200, afterEventId),
+    () => getTaskProgressEvents(taskId, PROGRESS_EVENT_POLL_LIMIT, afterEventId),
     (response) => {
       for (const event of response.events) {
         if (seenEventIds.has(event.id)) continue;
         seenEventIds.add(event.id);
+        if (seenEventIds.size > PROGRESS_EVENT_POLL_LIMIT) {
+          const oldestEventId = seenEventIds.values().next().value;
+          if (oldestEventId !== undefined) seenEventIds.delete(oldestEventId);
+        }
         setProgress(event.message, event.current, event.total, event.meta ?? null);
       }
-      if (response.events.length > 0) {
-        afterEventId = response.events[response.events.length - 1].id;
-      }
+      const latestEvent = response.events.at(-1);
+      if (latestEvent) afterEventId = latestEvent.id;
       // 活体信号是快照而非事件：不去重，每次轮询取最新尾巴覆盖。
       if (response.stream_text) setStreamText?.(response.stream_text);
     },
@@ -158,7 +161,7 @@ const createProgressTaskState = (): ProgressTaskState => ({
 });
 
 const validTotal = (value?: number): number =>
-  isPositiveSafeInteger(value) ? value : 1;
+  Number.isInteger(value) && value != null && value > 0 ? value : 1;
 
 export const createWorkflowTaskId = (scope: string, projectId: number): string =>
   `${scope}-${projectId}-${globalThis.crypto.randomUUID()}`;

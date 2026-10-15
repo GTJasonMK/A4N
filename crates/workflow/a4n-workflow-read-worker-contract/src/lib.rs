@@ -9,7 +9,7 @@ pub use a4n_api_contract::workflow::{
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
 pub const WORKFLOW_READ_WORKER_ID: &str = "workflow-read-worker";
-pub const WORKFLOW_READ_WORKER_CONTRACT_VERSION: &str = "workflow-read-v2";
+pub const WORKFLOW_READ_WORKER_CONTRACT_VERSION: &str = "workflow-read-v4";
 pub const WORKFLOW_READ_LIST_OPERATION: &str = "workflow.read.list";
 pub const WORKFLOW_READ_DETAIL_OPERATION: &str = "workflow.read.detail";
 pub const WORKFLOW_READ_SUMMARY_OPERATION: &str = "workflow.read.summary";
@@ -47,6 +47,18 @@ mod tests {
     };
 
     #[test]
+    fn legacy_progress_events_worker_payload_defaults_to_full_page() {
+        let input: WorkflowProgressEventsInput = serde_json::from_value(serde_json::json!({
+            "task_id": null,
+            "workflow_run_id": 7,
+            "limit": 20
+        }))
+        .expect("legacy progress worker payload should deserialize");
+
+        assert_eq!(input.after_event_id, None);
+    }
+
+    #[test]
     fn workflow_read_scope_is_stable() {
         let request = WorkerEnvelope {
             schema_version: WORKER_SCHEMA_VERSION,
@@ -73,6 +85,7 @@ mod tests {
                 include_generation_runs: true,
                 include_generation_run_count: false,
                 include_checkpoint_details: true,
+                include_generation_run_payloads: None,
             },
         };
         request.validate().expect("workflow read request validates");
