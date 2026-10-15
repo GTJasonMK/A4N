@@ -14,8 +14,8 @@ use a4n_domain::media::{
 use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait,
+    PaginatorTrait, QueryFilter, Set, Statement,
 };
 use serde_json::{Value, json};
 
@@ -23,6 +23,23 @@ mod generated_images;
 
 async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await
+}
+
+#[tokio::test]
+async fn generated_video_project_chapter_index_is_installed_by_schema_migrations() {
+    let db = setup_db().await;
+    let row = db
+        .query_one(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT indexdef FROM pg_indexes WHERE schemaname = current_schema() AND indexname = 'idx_generated_video_project_chapter'".to_string(),
+        ))
+        .await
+        .unwrap()
+        .expect("generated video project chapter index must exist");
+    let indexdef: String = row.try_get("", "indexdef").unwrap();
+
+    assert!(indexdef.contains("generated_video"));
+    assert!(indexdef.contains("project_id, chapter_id"));
 }
 
 fn checkpoint_artifacts_with_flag(

@@ -70,6 +70,7 @@
 | [PERF-114](../../crates/platform/a4n-migration/src/migrations/character_portrait_project_index.rs) | 立绘 worker 项目列表与生成结果校验；100,000 行、目标项目 1,000 张 | 为现有 `WHERE project_id = ?` 增加单列索引；完整立绘投影和返回集合保持一致 | 隔离 PostgreSQL 16、7 轮交错：完整立绘查询 P50 **8.183→2.387 ms（70.83%）**；Seq Scan 变为 Bitmap Heap Scan；索引 **745,472 B**；1,000 条完整摘要 JSON 与实际查询返回顺序完全一致 |
 | [PERF-115](../../crates/platform/a4n-migration/src/migrations/character_portrait_primary_profile_index.rs) | 写作台项目上下文卡读取主立绘；100,000 行、40,000 档案、每档 2–3 张立绘 | 为 `profile_id = ? AND is_primary = TRUE` 增加仅包含主立绘行的 `(profile_id)` 部分索引；完整主立绘记录保持一致 | 隔离 PostgreSQL 16、保留 project_id 索引、7 轮交错：P50 **10.602→0.076 ms（99.28%）**；全表扫描变为部分索引扫描；索引 **917,504 B**；主立绘完整 JSON 完全一致 |
 | [PERF-116](../../crates/platform/a4n-db/src/project/family/context/portraits.rs) | Manga pipeline 启动/预览/断点恢复 → 项目角色立绘索引 | 删除用于选择主图但被下游全扫描 HashMap 取代的项目级排序；单次扫描按 `created_at` 显式选每档最新主图 | PostgreSQL 16、完整立绘投影及已有项目索引；1k／20k／100k 行 P50 **1.439→0.270 ms（81.24%）／23.022→3.578 ms（84.46%）／166.665→15.989 ms（90.41%）**；完整行集合和每档选中主图 ID 相同 |
+| [PERF-117](../../crates/platform/a4n-migration/src/migrations/generated_video_project_chapter_index.rs) | 视频时间线摘要/组装 → 按项目和章节读取全部生成视频并按时间排序；100,000 行、目标章节 100 条 | 为 `project_id = ? AND chapter_id = ?` 增加两列索引；完整视频投影和 `created_at DESC` 顺序不变 | 隔离 PostgreSQL 16、7 轮交错：SQL P50 **21.442→0.657 ms（96.94%）**；100 行完整响应 JSON 完全一致；索引 **761,856 B**。额外 created_at 索引列未改变排序计划，候选索引达到 **4,087,808 B**，故使用最小两列索引 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -730,6 +731,16 @@ A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
 - 验证：Rust `portrait_index` 定向单测 **1/1**，覆盖无序输入下重复主立绘仍选最新项，并保留只有次要立绘的 profile 空值标记；`cargo fmt --all -- --check` 和 `git diff --check` 通过。
 - 边界：A/B 测量 SQL 过滤、完整行读取和排序，不含 profiles 并行查询、Rust 转换、模板/工作流、IPC 或 HTTP；数据为合成规模。数据库结果本来没有 SQL 顺序合同；可观察的 summaries 仍按 profile ID 排序。
 - 证据：`../../data/performance-audit-20261015/manga-portrait-order/`，包括 1k／20k／100k 交错样本、计划、完整行摘要和主图 ID 映射对照。
+
+### PERF-117：视频时间线按项目和章节读取缺少索引
+
+- 请求链路：`timeline_summary` 在读取章节 prompt 与 segment plan 时并行读取该章节全部 `generated_video`，并将视频加入完整时间线响应；时间线插入项校验、组装和视频生命周期也复用同一读口。SQL 投影完整模型字段、过滤项目与章节，并按 `created_at DESC` 排序；表当前仅有 `timeline_item_id` 索引。
+- 修复：新增 `generated_video_project_chapter_index` migration，增加 `(project_id, chapter_id)` 索引。完整记录、完成/失败状态、时间线绑定和排序都留在原查询中。
+- A/B：隔离 PostgreSQL 16.15、100,000 条完整 generated_video 行、100 项目、每项目 10 章、目标项目/章节 100 行，已有 `timeline_item_id` 索引，7 轮交错。完整 SQL P50 **21.442→0.657 ms（96.94%）**；前后 100 行完整 JSON ID、字段和时间顺序完全相同。索引大小 **761,856 B**，执行计划从 Seq Scan + Sort 改为 Bitmap Index Scan + Bitmap Heap Scan + Sort。
+- 候选取舍：额外添加 `created_at DESC` 的三列索引后计划仍需对 100 条完整行排序；7 轮 P50 **0.687 ms**，比两列索引的 **0.657 ms** 没有收益，索引体积增至 **4,087,808 B**。未采用该冗余排序键。
+- 验证：migration SQL 单测、迁移顺序测试、`a4n-migration`/`a4n-db-models` check、隔离 PostgreSQL 全迁移和 `pg_indexes` 定义断言及格式/diff 检查待完成。
+- 边界：A/B 量化数据库过滤、行读取和排序，不含 SeaORM 映射、时间线合并、HTTP 传输或视频文件 I/O。完整响应仅 100 行；极大章节仍由现有 API 完整返回，没有改为分页。
+- 证据：`../../data/performance-audit-20261015/generated-video-chapter-index/`，含 7 轮完整投影 SQL 样本、最小/三列索引对照计划和前后完整响应。
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
 

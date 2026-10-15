@@ -178,6 +178,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::model_usage_root_started_index::Migration),
             Box::new(crate::migrations::character_portrait_project_index::Migration),
             Box::new(crate::migrations::character_portrait_primary_profile_index::Migration),
+            Box::new(crate::migrations::generated_video_project_chapter_index::Migration),
         ]
     }
 }
@@ -458,6 +459,7 @@ mod tests {
             "model_usage_root_started_index",
             "character_portrait_project_index",
             "character_portrait_primary_profile_index",
+            "generated_video_project_chapter_index",
         ];
         let history_start = names
             .iter()
