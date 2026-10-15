@@ -555,6 +555,7 @@ async fn workflow_snapshot_survives_progress_reads_updates_and_cancellation() {
                 workflow_run_id: run.id,
                 include_generation_runs: false,
                 include_generation_run_count: false,
+                include_checkpoint_details: true,
             },
         )
         .await
@@ -1058,6 +1059,7 @@ async fn workflow_detail_returns_generation_run_summary_fields() {
             workflow_run_id: workflow.id,
             include_generation_runs: true,
             include_generation_run_count: false,
+            include_checkpoint_details: true,
         },
     )
     .await
@@ -1099,6 +1101,7 @@ async fn workflow_detail_returns_generation_run_summary_fields() {
             workflow_run_id: workflow.id,
             include_generation_runs: false,
             include_generation_run_count: true,
+            include_checkpoint_details: true,
         },
     )
     .await
@@ -1112,6 +1115,7 @@ async fn workflow_detail_returns_generation_run_summary_fields() {
             workflow_run_id: workflow.id,
             include_generation_runs: true,
             include_generation_run_count: false,
+            include_checkpoint_details: true,
         },
     )
     .await
@@ -1125,9 +1129,129 @@ async fn workflow_detail_returns_generation_run_summary_fields() {
             workflow_run_id: workflow.id,
             include_generation_runs: false,
             include_generation_run_count: false,
+            include_checkpoint_details: true,
         },
     )
     .await
     .expect("workflow detail without generation data must succeed");
     assert_eq!(without_generation_data.generation_run_count, 0);
+}
+
+#[tokio::test]
+async fn workflow_detail_can_omit_checkpoint_payloads_for_progress_polling() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let workflow = upsert_workflow_run(
+        &db,
+        workflow_input(
+            &format!(
+                "workflow-detail-checkpoint-projection:{}",
+                uuid::Uuid::new_v4()
+            ),
+            "checkpoint-projection",
+            WORKFLOW_STATUS_RUNNING,
+        ),
+    )
+    .await
+    .expect("workflow run must be inserted");
+    let artifacts = json!({ "provider_job_id": "job-123", "generated_video_id": 456 });
+    let checkpoint_json = json!({ "payload": "large checkpoint data" });
+    let input_fingerprint = json!({ "graph_version": 7 });
+    let generation_run_ids = json!([81, 82]);
+    upsert_workflow_checkpoint(
+        &shared_db_handle(&db),
+        UpsertWorkflowCheckpointInput {
+            workflow_run_id: workflow.id,
+            step_key: "canvas_node:7".to_string(),
+            step_order: 7,
+            status: WORKFLOW_STATUS_FAILED.to_string(),
+            input_fingerprint_sha256: Some("checkpoint-fingerprint".to_string()),
+            input_fingerprint_json: Some(input_fingerprint.clone()),
+            checkpoint_json: Some(checkpoint_json.clone()),
+            artifacts_json: Some(artifacts.clone()),
+            generation_run_ids_json: Some(generation_run_ids.clone()),
+            error_message: Some("provider failed".to_string()),
+            completed: true,
+        },
+    )
+    .await
+    .expect("workflow checkpoint must be inserted");
+    upsert_workflow_checkpoint(
+        &shared_db_handle(&db),
+        UpsertWorkflowCheckpointInput {
+            workflow_run_id: workflow.id,
+            step_key: "canvas_node:3".to_string(),
+            step_order: 3,
+            status: WORKFLOW_STATUS_COMPLETED.to_string(),
+            input_fingerprint_sha256: None,
+            input_fingerprint_json: None,
+            checkpoint_json: None,
+            artifacts_json: None,
+            generation_run_ids_json: None,
+            error_message: None,
+            completed: true,
+        },
+    )
+    .await
+    .expect("second workflow checkpoint must be inserted");
+
+    let progress_detail = workflow_run_detail(
+        &db,
+        GetWorkflowRunInput {
+            workflow_run_id: workflow.id,
+            include_generation_runs: false,
+            include_generation_run_count: false,
+            include_checkpoint_details: false,
+        },
+    )
+    .await
+    .expect("progress detail query must succeed");
+    assert!(!progress_detail.checkpoint_details_included);
+    assert_eq!(progress_detail.checkpoints.len(), 2);
+    assert_eq!(progress_detail.checkpoints[0].step_key, "canvas_node:3");
+    assert_eq!(progress_detail.checkpoints[1].step_key, "canvas_node:7");
+    let progress_checkpoint = &progress_detail.checkpoints[1];
+    assert_eq!(progress_checkpoint.step_key, "canvas_node:7");
+    assert_eq!(progress_checkpoint.status, WORKFLOW_STATUS_FAILED);
+    assert_eq!(progress_checkpoint.artifacts_json, Some(artifacts.clone()));
+    assert_eq!(
+        progress_checkpoint.error_message.as_deref(),
+        Some("provider failed")
+    );
+    assert!(progress_checkpoint.input_fingerprint_sha256.is_none());
+    assert!(progress_checkpoint.input_fingerprint_json.is_none());
+    assert!(progress_checkpoint.checkpoint_json.is_none());
+    assert!(progress_checkpoint.generation_run_ids_json.is_none());
+
+    let full_detail = workflow_run_detail(
+        &db,
+        GetWorkflowRunInput {
+            workflow_run_id: workflow.id,
+            include_generation_runs: false,
+            include_generation_run_count: false,
+            include_checkpoint_details: true,
+        },
+    )
+    .await
+    .expect("full detail query must remain available");
+    assert!(full_detail.checkpoint_details_included);
+    assert_eq!(
+        full_detail
+            .checkpoints
+            .iter()
+            .map(|checkpoint| checkpoint.step_key.as_str())
+            .collect::<Vec<_>>(),
+        ["canvas_node:3", "canvas_node:7"]
+    );
+    assert_eq!(
+        full_detail.checkpoints[1].input_fingerprint_json,
+        Some(input_fingerprint)
+    );
+    assert_eq!(
+        full_detail.checkpoints[1].checkpoint_json,
+        Some(checkpoint_json)
+    );
+    assert_eq!(
+        full_detail.checkpoints[1].generation_run_ids_json,
+        Some(generation_run_ids)
+    );
 }

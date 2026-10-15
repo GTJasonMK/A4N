@@ -141,6 +141,7 @@ impl WorkerState {
                 workflow_run_id: request.payload.workflow_run_id,
                 include_generation_runs: request.payload.include_generation_runs,
                 include_generation_run_count: request.payload.include_generation_run_count,
+                include_checkpoint_details: request.payload.include_checkpoint_details,
             },
         )
         .await

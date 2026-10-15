@@ -156,7 +156,7 @@ export function useCanvasWorkflowActions({
       setWorkflowLoading(true);
       try {
         const [detailResult, eventsResult] = await Promise.allSettled([
-          getWorkflowRunDetail(workflowRunId, false, true),
+          getWorkflowRunDetail(workflowRunId, false, true, false),
           getWorkflowRunProgressEvents(workflowRunId, 20),
         ]);
         if (workflowStatusRequestRef.current !== requestId) return false;

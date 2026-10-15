@@ -141,4 +141,5 @@ pub struct WorkflowRunDetailSummary {
     pub checkpoints: Vec<WorkflowCheckpointSummary>,
     pub generation_runs: Vec<GenerationRunSummary>,
     pub generation_run_count: u64,
+    pub checkpoint_details_included: bool,
 }

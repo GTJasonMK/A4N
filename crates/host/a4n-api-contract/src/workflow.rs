@@ -116,6 +116,8 @@ pub struct WorkflowRunDetailSummary {
     pub generation_runs: Vec<GenerationRunSummary>,
     #[serde(default)]
     pub generation_run_count: u64,
+    #[serde(default = "workflow_checkpoint_details_included_by_default")]
+    pub checkpoint_details_included: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -153,6 +155,12 @@ pub struct GetWorkflowRunInput {
     pub include_generation_runs: bool,
     #[serde(default)]
     pub include_generation_run_count: bool,
+    #[serde(default = "workflow_checkpoint_details_included_by_default")]
+    pub include_checkpoint_details: bool,
+}
+
+fn workflow_checkpoint_details_included_by_default() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -320,11 +328,12 @@ mod tests {
     use super::GetWorkflowRunInput;
 
     #[test]
-    fn legacy_detail_request_defaults_generation_run_count_to_disabled() {
+    fn legacy_detail_request_keeps_full_checkpoints_and_disables_generation_run_count() {
         let input: GetWorkflowRunInput =
             serde_json::from_str(r#"{"workflow_run_id": 7, "include_generation_runs": false}"#)
                 .unwrap();
 
         assert!(!input.include_generation_run_count);
+        assert!(input.include_checkpoint_details);
     }
 }

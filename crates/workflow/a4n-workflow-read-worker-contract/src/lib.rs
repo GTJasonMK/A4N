@@ -72,6 +72,7 @@ mod tests {
                 workflow_run_id: 9,
                 include_generation_runs: true,
                 include_generation_run_count: false,
+                include_checkpoint_details: true,
             },
         };
         request.validate().expect("workflow read request validates");

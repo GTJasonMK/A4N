@@ -41,12 +41,14 @@ export async function getWorkflowRunDetail(
   workflowRunId: number,
   includeGenerationRuns: boolean,
   includeGenerationRunCount = false,
+  includeCheckpointDetails = true,
 ): Promise<WorkflowRunDetailSummary> {
   return apiInvoke<WorkflowRunDetailSummary>("get_workflow_run_detail", {
     input: {
       workflow_run_id: workflowRunId,
       include_generation_runs: includeGenerationRuns,
       include_generation_run_count: includeGenerationRunCount,
+      include_checkpoint_details: includeCheckpointDetails,
     } satisfies GetWorkflowRunInput,
   });
 }

@@ -21,6 +21,12 @@ pub struct GetWorkflowRunInput {
     pub include_generation_runs: bool,
     #[serde(default)]
     pub include_generation_run_count: bool,
+    #[serde(default = "include_checkpoint_details_by_default")]
+    pub include_checkpoint_details: bool,
+}
+
+fn include_checkpoint_details_by_default() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
