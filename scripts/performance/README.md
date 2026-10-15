@@ -68,6 +68,7 @@
 | [PERF-112](../../crates/platform/a4n-migration/src/migrations/model_usage_root_started_index.rs) | 项目成本面板打开/刷新；1,000,000 行、30 天内命中 3,333 行 | 为 `root_project_id = ?` 增加部分 `(root_project_id, started_at DESC)` 索引；保留项目 OR 根项目过滤和完整投影 | 隔离 PostgreSQL 16、7 轮交错：两条报表 SQL 合计 P50 **126.836→13.055 ms（89.71%）**；计划从 Seq Scan 变为 BitmapOr + Bitmap Heap Scan；索引 **647,168 B**；聚合与 100 条最近记录 JSON 完全一致 |
 | [PERF-113](../../frontend/src/api/image/generation.ts) | 每次图片生成完成后的结果校验；目标项目 1,000 张图、任务产出 2 张 | 从 `result_ref` 和非临时产物 ID 读取目标记录；旧 `list_images_by_project` 命令增加可选 ID 过滤，未传 ID 仍返回全项目列表 | 隔离 PostgreSQL 16、7 轮交错：项目查询 P50 **4.924→0.076 ms（98.46%）**；结果行 **1,000→2**；合成摘要 JSON **958,890→1,922 B（99.80%）**；ID、完整字段和顺序与全量结果子集相同 |
 | [PERF-114](../../crates/platform/a4n-migration/src/migrations/character_portrait_project_index.rs) | 立绘 worker 项目列表与生成结果校验；100,000 行、目标项目 1,000 张 | 为现有 `WHERE project_id = ?` 增加单列索引；完整立绘投影和返回集合保持一致 | 隔离 PostgreSQL 16、7 轮交错：完整立绘查询 P50 **8.183→2.387 ms（70.83%）**；Seq Scan 变为 Bitmap Heap Scan；索引 **745,472 B**；1,000 条完整摘要 JSON 与实际查询返回顺序完全一致 |
+| [PERF-115](../../crates/platform/a4n-migration/src/migrations/character_portrait_primary_profile_index.rs) | 写作台项目上下文卡读取主立绘；100,000 行、40,000 档案、每档 2–3 张立绘 | 为 `profile_id = ? AND is_primary = TRUE` 增加仅包含主立绘行的 `(profile_id)` 部分索引；完整主立绘记录保持一致 | 隔离 PostgreSQL 16、保留 project_id 索引、7 轮交错：P50 **10.602→0.076 ms（99.28%）**；全表扫描变为部分索引扫描；索引 **917,504 B**；主立绘完整 JSON 完全一致 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -710,6 +711,15 @@ A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
 - 验证：migration SQL 单测 **1/1**、迁移顺序测试 **1/1**、`cargo check -p a4n-migration -p a4n-db-models --locked --offline`、隔离 PostgreSQL 全迁移初始化及 `pg_indexes` 索引断言 **1/1**、`cargo fmt --all -- --check` 和 `git diff --check` 通过。首次 DB 测试冷链接耗尽 60 秒限时，测试未启动；单独预编译后同一测试通过。
 - 边界：A/B 测的是数据库执行时间，不包含 Portrait worker 启动/IPC/DTO 转换/HTTP；合成数据每项目 1,000 条，不代表所有项目分布。该 worker 列表有意返回项目下全部立绘，因此此项不改变记录集合或分页语义。迁移沿用事务型 `CREATE INDEX`，大表升级期间需安排维护窗口。
 - 证据：`../../data/performance-audit-20261015/character-portrait-project-index/`，含 7 轮交错数据、完整 EXPLAIN 和索引前后响应 JSON。
+
+### PERF-115：档案主立绘查询缺少部分索引
+
+- 请求链路：`WritingContextCards` 在项目上下文加载或重试时读取主角色的 `get_primary_portrait(profile_id)`。portrait worker 执行 `character_portrait WHERE profile_id = ? AND is_primary = TRUE` 并返回完整立绘；主立绘仅约占角色立绘的一部分，表增长后原查询会扫描所有项目的立绘记录。
+- 修复：新增 `character_portrait_primary_profile_index` migration，为 `character_portrait(profile_id) WHERE is_primary = TRUE` 建部分索引，并更新运行时 schema gate。它只保存当前主立绘对应的档案 ID；设主图操作更新 `is_primary` 时同步维护索引。
+- A/B：隔离 PostgreSQL 16.15，100,000 条立绘、40,000 个角色档案、每档 2–3 张、保留 PERF-114 项目索引；目标档案有 3 张立绘，其中 1 张主图。7 轮交错测量完整主立绘查询：P50 **10.602→0.076 ms（99.28%）**；计划从 Seq Scan 变为部分索引查询。索引大小 **917,504 B**；完整查询 JSON 1 行前后完全一致。
+- 验证：migration SQL 单测 **1/1**、迁移顺序测试 **1/1**、`cargo check -p a4n-migration -p a4n-db-models --locked --offline`、隔离 PostgreSQL 全迁移初始化及 partial predicate/index 定义断言 **1/1**、`cargo fmt --all -- --check` 和 `git diff --check` 通过。首次 `cargo test` 的 60 秒限时耗在测试前 DB crate 冷链接；单独链接测试二进制后目标断言通过。
+- 边界：A/B 只测数据库执行时间，不含 Worker IPC/DTO/HTTP；写作台加载当前仅对主角读取一条主立绘，单用户项目的频率有限，但全库立绘累积后原查询仍会扫描无关项目的行。部分索引只在 `is_primary` 更新时写入/删除一条索引项。
+- 证据：`../../data/performance-audit-20261015/character-portrait-primary-index/`，含 7 轮交错样本、计划和前后完整行 JSON。
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
 

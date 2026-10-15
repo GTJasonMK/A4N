@@ -31,6 +31,24 @@ async fn portrait_project_index_is_installed_by_schema_migrations() {
     assert!(indexdef.contains("project_id"));
 }
 
+#[tokio::test]
+async fn portrait_primary_profile_index_is_installed_by_schema_migrations() {
+    let db = setup_db().await;
+    let row = db
+        .query_one(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT indexdef FROM pg_indexes WHERE schemaname = current_schema() AND indexname = 'idx_character_portrait_primary_profile'".to_string(),
+        ))
+        .await
+        .unwrap()
+        .expect("portrait primary profile index must exist");
+    let indexdef: String = row.try_get("", "indexdef").unwrap();
+
+    assert!(indexdef.contains("character_portrait"));
+    assert!(indexdef.contains("profile_id"));
+    assert!(indexdef.contains("WHERE (is_primary = true)"));
+}
+
 fn empty_profile_attributes() -> Value {
     json!({
         "explicit_attributes": {},
