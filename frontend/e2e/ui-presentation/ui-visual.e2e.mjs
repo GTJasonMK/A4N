@@ -4,7 +4,9 @@ import { fileURLToPath } from "node:url";
 import { installUiFixtures } from "./fixtures.mjs";
 import { buildPageFixtures } from "../ui-page-audit/fixtures.mjs";
 
-const directory = fileURLToPath(new URL("../../../.dev-runtime/ui-design-20261010/visual/", import.meta.url));
+const runId = process.env.A4N_UI_VISUAL_RUN_ID ?? "20261010";
+assert.match(runId, /^[a-z0-9_-]+$/i, "Visual audit run id must be safe for a local artifact directory");
+const directory = fileURLToPath(new URL(`../../../.dev-runtime/ui-design-${runId}/visual/`, import.meta.url));
 const cases = [
   ["home", "/", ".a4n-project-row"],
   ["notifications", "/notifications?ui-creator=1", "h1"],
@@ -302,8 +304,46 @@ describe("A4N visual coverage across themes and viewports", () => {
       assert.equal(result.draws.attached, before);
       assert.equal(result.draws.detached, 0);
       assert.ok(result.transition.split(",").every((duration) => parseFloat(duration) === 0));
-      report.push({ name: "reduced-motion", ...result });
-      await browser.saveScreenshot(`${directory}/a4n-20261010-reduced-motion.png`);
+      report.push({ name: "reduced-motion-logo", ...result });
+      await browser.saveScreenshot(`${directory}/a4n-${runId}-reduced-motion.png`);
+
+      await browser.url("/?ui-state=loading");
+      await $(".a4n-project-skeleton-row").waitForDisplayed();
+      for (const width of [1440, 1024, 390]) {
+        await browser.setWindowSize(width, 1000);
+        await browser.pause(100);
+        const loading = await browser.execute(() => {
+          const skeleton = document.querySelector(".a4n-project-skeleton-line--title");
+          const route = document.querySelector(".a4n-route-stage");
+          const skeletonStyle = skeleton ? getComputedStyle(skeleton) : null;
+          const routeStyle = route ? getComputedStyle(route) : null;
+          return {
+            width: innerWidth,
+            prefersReducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+            overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            skeleton: skeletonStyle ? {
+              animationName: skeletonStyle.animationName,
+              animationDuration: skeletonStyle.animationDuration,
+              animationIterationCount: skeletonStyle.animationIterationCount,
+            } : null,
+            route: routeStyle ? {
+              animationName: routeStyle.animationName,
+              animationDuration: routeStyle.animationDuration,
+            } : null,
+          };
+        });
+        assert.equal(loading.width, width);
+        assert.equal(loading.prefersReducedMotion, true);
+        assert.equal(loading.overflow, 0);
+        assert.equal(loading.skeleton?.animationName, "a4n-skeleton-shimmer");
+        assert.ok(loading.skeleton.animationDuration.split(",").every((duration) => parseFloat(duration) === 0));
+        assert.ok(loading.skeleton.animationIterationCount.split(",").every((count) => parseInt(count, 10) === 1));
+        if (loading.route?.animationName !== "none") {
+          assert.ok(loading.route.animationDuration.split(",").every((duration) => parseFloat(duration) === 0));
+        }
+        report.push({ name: "reduced-motion-home-loading", ...loading });
+        await browser.saveScreenshot(`${directory}/a4n-${runId}-reduced-motion-home-loading-${width}.png`);
+      }
     } finally {
       await browser.sendCommandAndGetResult("Emulation.setEmulatedMedia", { features: [] });
     }
