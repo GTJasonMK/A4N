@@ -173,6 +173,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::task_queue_project_created_index::Migration),
             Box::new(crate::migrations::project_status_history_project_changed_index::Migration),
             Box::new(crate::migrations::workflow_run_business_updated_index::Migration),
+            Box::new(crate::migrations::llm_call_trace_created_index::Migration),
         ]
     }
 }
@@ -448,6 +449,7 @@ mod tests {
             "task_queue_project_created_index",
             "project_status_history_project_changed_index",
             "workflow_run_business_updated_index",
+            "llm_call_trace_created_index",
         ];
         let history_start = names
             .iter()

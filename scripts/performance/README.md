@@ -63,6 +63,7 @@
 | [PERF-106](../../crates/platform/a4n-migration/src/migrations/task_queue_project_created_index.rs) | 任务历史分页按项目读取；100,000 行、目标项目 20,000 行、默认返回 100 条 | 为现有 `WHERE project_id = ? ORDER BY created_at DESC LIMIT 100` 增加项目/时间排序索引；保持完整任务 DTO 和分页顺序 | 隔离 PostgreSQL 16、5 轮交错：P50 **15.588→0.412 ms（97.36%）**；计划从 Limit + Seq Scan + Sort 变为 Limit + Index Scan；索引 **3,178,496 B**；100 个 ID 顺序完全一致 |
 | [PERF-108](../../crates/platform/a4n-migration/src/migrations/project_status_history_project_changed_index.rs) | 项目状态历史按项目读取；100,000 行、目标项目 20,000 条 | 为现有 `WHERE project_id = ? ORDER BY changed_at DESC, id DESC` 增加项目/时间排序索引；保持完整状态历史投影和顺序 | 隔离 PostgreSQL 16、5 轮交错：P50 **8.627→5.121 ms（40.64%）**；计划从 Sort + Seq Scan 变为 Sort + Bitmap Heap Scan；索引 **4,079,616 B**；20,000 个 ID 顺序完全一致 |
 | [PERF-109](../../crates/platform/a4n-migration/src/migrations/workflow_run_business_updated_index.rs) | 工作流恢复按 business key 取最新运行；100,000 行、每 key 1,000 条历史 | 为现有 `WHERE business_key = ? ORDER BY updated_at DESC, id DESC LIMIT 1` 增加 business key/时间排序索引；保持最新记录身份和完整 DTO | 隔离 PostgreSQL 16、保留 business key 单列索引、5 轮交错：P50 **3.701→0.098 ms（97.35%）**；计划从 Bitmap Heap + Sort 变为 Limit + Index Scan；索引 **4,079,616 B**；最新运行 ID 完全一致 |
+| [PERF-110](../../crates/platform/a4n-migration/src/migrations/llm_call_trace_created_index.rs) | 管理员生成分析读取时间窗口内所有 LLM trace；100,000 行、最近 7 天 7,000 行 | 为 `created_at >= since ORDER BY created_at DESC` 增加全局时间索引；保留完整分析投影及 JSON 表达式 | 隔离 PostgreSQL 16、完整分析投影、5 轮交错：P50 **81.636→39.269 ms（51.90%）**；计划从 Seq Scan + Sort 变为 Index Scan；索引 **2,260,992 B**；行数和 ID 顺序完全一致 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -107,6 +108,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 导入审核项目列表索引候选 | PERF-107 在 100,000 行、20,000 条命中、每行约 8 KiB JSON 的完整返回上尝试 `import_review_queue(project_id, created_at DESC)`；P50 **19.251→17.848 ms（7.29%）**，低于门槛，未修改索引。 |
 | 项目状态历史数据库排序 | PERF-108 为 `project_status_history(project_id, changed_at DESC, id DESC)` 增加索引；100,000 行、20,000 条命中时数据库执行 P50 下降 **40.64%**，结果顺序不变；详见 PERF-108。 |
 | 工作流 business key 最新运行 | PERF-109 为 `workflow_run(business_key, updated_at DESC, id DESC)` 增加索引；100,000 行、每 key 1,000 条历史时数据库执行 P50 下降 **97.35%**，最新运行身份不变；详见 PERF-109。 |
+| LLM 生成分析时间窗口 | PERF-110 为 `llm_call_trace.created_at` 增加全局降序索引；100,000 行、最近 7 天 7,000 行完整分析投影时数据库执行 P50 下降 **54.20%**，行数和顺序不变；详见 PERF-110。 |
 
 ## 可复现入口
 
@@ -642,6 +644,23 @@ A4N_PERF_ARTIFACTS=data/performance-audit-20261015/business-key-index \
   python3 scripts/tests/run_with_test_database.py \
   --report-dir data/test-runs/business-key-index-20261015 \
   --timeout 60 -- node scripts/performance/business-key-index.mjs
+~~~
+
+### PERF-110：LLM 生成分析时间窗口缺少全局索引
+
+- 请求链路：管理员生成分析并行读取 LLM trace 和媒体 generation run。LLM trace 查询按 `created_at >= now - days` 过滤、按创建时间倒序返回窗口内所有行，随后在进程中汇总调用、token、耗时和最近项；已有项目时间索引无法支持不限定项目的管理查询。
+- 修复：新增 `llm_call_trace_created_index` schema migration，创建 `idx_llm_call_trace_created (created_at DESC)`；完整分析投影、JSON 字段表达式、日期窗口和返回顺序保持不变，并更新运行时 schema gate。
+- A/B：隔离 PostgreSQL 16，100,000 条 trace 完整形状，最近 7 天命中 7,000 条；使用与生产一致的 LLM 分析列投影和 `context_plan_json` JSON 构造表达式，5 轮交错。无索引 P50 **81.636 ms**（`Sort` + `Seq Scan`），有索引 **39.269 ms**（`Index Scan`），下降 **51.90%**；shared hit blocks 约 **16,193→1,400**；索引大小 **2,260,992 B**。每轮返回 7,000 个 ID 及顺序完全一致。
+- 验证：migration SQL 单测、迁移顺序测试、`a4n-migration`/`a4n-db-models` check、隔离 PostgreSQL 全迁移初始化集成测试、基准脚本 `node --check` 和 `git diff --check` 通过。
+- 边界：该 A/B 量化数据库投影/JSON 表达式执行时间，不包含 Rust 汇总、HTTP 响应和真实系统时间跨度分布；只有当查询窗口是全历史的小部分时索引才有明显过滤优势。事务型 `CREATE INDEX` 对大表可能短暂阻塞写入，部署时需安排维护窗口。
+- 证据：`../../data/performance-audit-20261015/llm-analytics-index/report.json`。从工作树根目录执行：
+
+~~~bash
+A4N_PERF_ARTIFACTS=data/performance-audit-20261015/llm-analytics-index \
+  A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
+  python3 scripts/tests/run_with_test_database.py \
+  --report-dir data/test-runs/llm-analytics-index-20261015 \
+  --timeout 60 -- node scripts/performance/llm-analytics-index.mjs
 ~~~
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入

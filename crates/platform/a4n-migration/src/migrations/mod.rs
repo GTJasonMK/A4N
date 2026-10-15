@@ -76,6 +76,7 @@ pub mod invite_codes;
 pub mod legacy_asset_lineage_shadow_cleanup;
 pub mod llm_agent_protocol;
 pub mod llm_cache_usage;
+pub mod llm_call_trace_created_index;
 pub mod llm_call_trace_join_fields;
 pub mod llm_call_trace_status_fields;
 pub mod llm_context_tracking;
