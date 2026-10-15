@@ -1,7 +1,5 @@
 use super::*;
-use sea_orm::ConnectionTrait;
-
-use sea_orm::FromQueryResult;
+use sea_orm::{ConnectionTrait, DbBackend, FromQueryResult, Statement};
 use std::collections::HashSet;
 
 use super::super::summaries::GenerationRunSummaryRecord;
@@ -41,20 +39,39 @@ pub async fn workflow_run_detail(
     input: GetWorkflowRunInput,
 ) -> Result<WorkflowRunDetailSummary, WorkflowReadError> {
     let workflow_run_id = input.workflow_run_id;
+    let include_generation_runs = input.include_generation_runs;
+    let include_generation_run_count = input.include_generation_run_count;
+    const GENERATION_RUN_LIMIT: u64 = 300;
     let run_result = workflow_run_by_id(db, workflow_run_id);
     let checkpoints_result = workflow_checkpoints(db, workflow_run_id);
     let generation_runs_result = async {
-        if input.include_generation_runs {
-            generation_runs_for_workflow(db, workflow_run_id, 300).await
+        if include_generation_runs {
+            generation_runs_for_workflow(db, workflow_run_id, GENERATION_RUN_LIMIT).await
         } else {
             Ok(Vec::new())
         }
     };
-    let (run_result, checkpoints_result, generation_runs_result) =
-        futures::join!(run_result, checkpoints_result, generation_runs_result,);
+    let generation_run_count_result = async {
+        if include_generation_run_count && !include_generation_runs {
+            generation_run_count_for_workflow(db, workflow_run_id, GENERATION_RUN_LIMIT).await
+        } else {
+            Ok(0)
+        }
+    };
+    let (run_result, checkpoints_result, generation_runs_result, generation_run_count_result) = futures::join!(
+        run_result,
+        checkpoints_result,
+        generation_runs_result,
+        generation_run_count_result,
+    );
     let run = run_result?;
     let checkpoints = checkpoints_result?;
     let generation_runs = generation_runs_result?;
+    let generation_run_count = if include_generation_runs {
+        generation_runs.len() as u64
+    } else {
+        generation_run_count_result?
+    };
     Ok(WorkflowRunDetailSummary {
         run: workflow_run_summary(run)?,
         checkpoints: checkpoints
@@ -62,6 +79,7 @@ pub async fn workflow_run_detail(
             .map(workflow_checkpoint_summary)
             .collect(),
         generation_runs,
+        generation_run_count,
     })
 }
 
@@ -506,6 +524,32 @@ async fn generation_runs_for_workflow(
         .await
         .map(|runs| runs.into_iter().map(Into::into).collect())
         .map_err(WorkflowReadError::Database)
+}
+
+async fn generation_run_count_for_workflow(
+    db: &impl ConnectionTrait,
+    workflow_run_id: i64,
+    limit: u64,
+) -> Result<u64, WorkflowReadError> {
+    validate_positive_i64(workflow_run_id, "workflow_run_id")?;
+    let statement = Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        "SELECT COUNT(*)::bigint AS count FROM (SELECT 1 FROM generation_run WHERE workflow_run_id = $1 LIMIT $2) AS limited_runs",
+        [workflow_run_id.into(), (limit.clamp(1, 500) as i64).into()],
+    );
+    let row = db
+        .query_one(statement)
+        .await
+        .map_err(WorkflowReadError::Database)?
+        .ok_or_else(|| {
+            WorkflowReadError::InvalidData("generation run count query returned no row".into())
+        })?;
+    let count: i64 = row
+        .try_get("", "count")
+        .map_err(WorkflowReadError::Database)?;
+    u64::try_from(count).map_err(|error| {
+        WorkflowReadError::InvalidData(format!("generation run count is negative: {error}"))
+    })
 }
 
 pub(super) async fn latest_workflow_run_by_business_key_model<C>(

@@ -40,11 +40,13 @@ export async function listWorkflowRuns(
 export async function getWorkflowRunDetail(
   workflowRunId: number,
   includeGenerationRuns: boolean,
+  includeGenerationRunCount = false,
 ): Promise<WorkflowRunDetailSummary> {
   return apiInvoke<WorkflowRunDetailSummary>("get_workflow_run_detail", {
     input: {
       workflow_run_id: workflowRunId,
       include_generation_runs: includeGenerationRuns,
+      include_generation_run_count: includeGenerationRunCount,
     } satisfies GetWorkflowRunInput,
   });
 }

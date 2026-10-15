@@ -4935,6 +4935,7 @@ export interface GenerationRunSummary {
 
 export interface WorkflowRunDetailSummary {
   checkpoints: WorkflowCheckpointSummary[];
+  generation_run_count: number;
   generation_runs: GenerationRunSummary[];
   run: WorkflowRunSummary;
 }
@@ -4960,6 +4961,7 @@ export interface ListWorkflowRunsInput {
 }
 
 export interface GetWorkflowRunInput {
+  include_generation_run_count?: boolean;
   include_generation_runs: boolean;
   workflow_run_id: number;
 }

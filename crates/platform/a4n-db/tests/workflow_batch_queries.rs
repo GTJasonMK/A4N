@@ -554,6 +554,7 @@ async fn workflow_snapshot_survives_progress_reads_updates_and_cancellation() {
             GetWorkflowRunInput {
                 workflow_run_id: run.id,
                 include_generation_runs: false,
+                include_generation_run_count: false,
             },
         )
         .await
@@ -1056,11 +1057,13 @@ async fn workflow_detail_returns_generation_run_summary_fields() {
         GetWorkflowRunInput {
             workflow_run_id: workflow.id,
             include_generation_runs: true,
+            include_generation_run_count: false,
         },
     )
     .await
     .expect("workflow detail query must succeed");
     assert_eq!(detail.generation_runs.len(), 1);
+    assert_eq!(detail.generation_run_count, 1);
     let summary = &detail.generation_runs[0];
     assert_eq!(summary.id, generation.id);
     assert_eq!(summary.workflow_run_id, Some(workflow.id));
@@ -1068,4 +1071,63 @@ async fn workflow_detail_returns_generation_run_summary_fields() {
     assert_eq!(summary.parsed_output_json, Some(json!({"value": 1})));
     assert_eq!(summary.response_summary_json, Some(json!({"output": "ok"})));
     assert_eq!(summary.attempt, 2);
+
+    let additional_runs: Vec<_> = (0..300)
+        .map(|index| generation_run::ActiveModel {
+            project_id: Set(1),
+            root_project_id: Set(1),
+            workflow: Set("detail-workflow".to_string()),
+            step_key: Set(format!("detail-step-{index}")),
+            title: Set(format!("Generation run {index}")),
+            model_kind: Set("test".to_string()),
+            status: Set(WORKFLOW_STATUS_COMPLETED.to_string()),
+            workflow_run_id: Set(Some(workflow.id)),
+            attempt: Set(1),
+            created_at: Set(now + chrono::Duration::seconds(index)),
+            completed_at: Set(Some(now + chrono::Duration::seconds(index))),
+            ..Default::default()
+        })
+        .collect();
+    generation_run::Entity::insert_many(additional_runs)
+        .exec(&db)
+        .await
+        .expect("additional generation runs must be inserted");
+
+    let count_only = workflow_run_detail(
+        &db,
+        GetWorkflowRunInput {
+            workflow_run_id: workflow.id,
+            include_generation_runs: false,
+            include_generation_run_count: true,
+        },
+    )
+    .await
+    .expect("count-only workflow detail query must succeed");
+    assert!(count_only.generation_runs.is_empty());
+    assert_eq!(count_only.generation_run_count, 300);
+
+    let full_detail_at_limit = workflow_run_detail(
+        &db,
+        GetWorkflowRunInput {
+            workflow_run_id: workflow.id,
+            include_generation_runs: true,
+            include_generation_run_count: false,
+        },
+    )
+    .await
+    .expect("full workflow detail query must remain available");
+    assert_eq!(full_detail_at_limit.generation_runs.len(), 300);
+    assert_eq!(full_detail_at_limit.generation_run_count, 300);
+
+    let without_generation_data = workflow_run_detail(
+        &db,
+        GetWorkflowRunInput {
+            workflow_run_id: workflow.id,
+            include_generation_runs: false,
+            include_generation_run_count: false,
+        },
+    )
+    .await
+    .expect("workflow detail without generation data must succeed");
+    assert_eq!(without_generation_data.generation_run_count, 0);
 }

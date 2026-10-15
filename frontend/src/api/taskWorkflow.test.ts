@@ -45,6 +45,7 @@ describe("task and workflow host contracts", () => {
     await listActiveWorkflows();
     await listWorkflowRuns({ resumable_only: false, limit: 40 });
     await getWorkflowRunDetail(9, true);
+    await getWorkflowRunDetail(10, false, true);
     await resumeWorkflowRun(9);
     await getWorkflowRunProgressEvents(9, 20);
     await expect(cancelWorkflowTask("task-1")).resolves.toBe(false);
@@ -63,7 +64,11 @@ describe("task and workflow host contracts", () => {
       ["list_workflow_runs", { input: { resumable_only: false, limit: 40 } }],
       [
         "get_workflow_run_detail",
-        { input: { workflow_run_id: 9, include_generation_runs: true } },
+        { input: { workflow_run_id: 9, include_generation_runs: true, include_generation_run_count: false } },
+      ],
+      [
+        "get_workflow_run_detail",
+        { input: { workflow_run_id: 10, include_generation_runs: false, include_generation_run_count: true } },
       ],
       ["resume_workflow_run", { input: { workflow_run_id: 9 } }],
       [

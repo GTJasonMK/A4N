@@ -192,9 +192,9 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
                 total: formatNumber(detail!.checkpoints.length, locale),
               })}
             </span>
-            {detail!.generation_runs.length > 0 ? (
+            {detail!.generation_run_count > 0 ? (
               <span>
-                {t("video.canvas.workflow.modelCalls", { count: formatNumber(detail!.generation_runs.length, locale) })}
+                {t("video.canvas.workflow.modelCalls", { count: formatNumber(detail!.generation_run_count, locale) })}
               </span>
             ) : null}
           </div>

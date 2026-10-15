@@ -74,7 +74,8 @@
 | [PERF-119](../../crates/platform/a4n-migration/src/migrations/task_queue_created_index.rs) | 管理员队列页全局任务历史，5 秒刷新一次、每页 30 条；300,000 行 | 为无 project_id 的 `ORDER BY created_at DESC` 增加全局降序索引；保留现有项目/时间索引和完整任务 DTO | 隔离 PostgreSQL 16.15、7 轮交错：完整 30 行查询 P50 **46.174→0.068 ms（99.85%）**；Seq Scan + top-N Sort 变为 Index Scan + Limit；索引 **6,758,400 B**；前后完整 DTO 顺序/hash 完全一致 |
 | [PERF-120](../../crates/platform/a4n-migration/src/migrations/task_queue_pending_created_index.rs) | 管理员任务页每 5 秒读取全部 pending 任务；300,000 行/15,000 条 pending | 为 `status='pending'` 增加仅含 pending 的 `created_at DESC` 部分索引；Rust 优先级/时间/ID 排序及全量任务合同不变 | 隔离 PostgreSQL 16.15、完整 TaskQueue 投影、7 轮交错：SQL P50 **75.721→13.636 ms（81.99%）**；Seq Scan 变为 Index Scan；索引 **352,256 B**；Rust 排序后的 15,000 条完整 DTO JSON 完全一致 |
 | [PERF-121](../../frontend/src/pages/VideoStudioCanvas.tsx) | Video Studio 工作流运行期间每秒计时及详情轮询；1000／5000／10000 节点、边和检查点 | 复用未变的 run/checkpoint 时间事实，活动范围与边标签只在图或运行状态语义变化时重算 | Chromium 153、固定 CPU 18/19、每秒模拟新详情响应对象、7×8 轮：同步图投影 P50 **2.263→0.675 ms（70.17%）／10.912→3.188 ms（70.78%）／22.925→6.150 ms（73.17%）**；节点/边投影摘要相同；每 tick 新建边对象 **999／4,999／9,999→0** |
-| [PERF-122](../../crates/platform/a4n-migration/src/migrations/generation_run_workflow_created_index.rs) | Video Studio 每秒读取工作流详情及最近最多 300 条完整生成记录；100,000 行/目标工作流 300 行 | 为非空 `workflow_run_id` 增加 `(workflow_run_id, created_at ASC)` 部分索引，保留查询字段和排序 | 隔离 PostgreSQL 16、完整 JSON 投影、既有 created_at 索引、7 轮交错：P50 **37.022→2.119 ms（94.28%）**；Seq Scan + Sort 改为 Bitmap Heap/Index Scan + Sort；索引 **1,597,440 B**；300 行完整 JSON **550,035 B**、顺序及 SHA-256 相同 |
+| [PERF-122](../../crates/platform/a4n-migration/src/migrations/generation_run_workflow_created_index.rs) | Video Studio 每秒读取工作流详情及最近最多 300 条完整生成记录；100,000 行/目标工作流 300 行 | 为非空 `workflow_run_id` 增加 `(workflow_run_id, created_at ASC)` 部分索引，保留查询字段和排序 | 隔离 PostgreSQL 16、完整 JSON 投影、既有 created_at 索引、7 轮交错：P50 **41.075→2.504 ms（93.90%）**；Seq Scan + Sort 改为 Bitmap Heap/Index Scan + Sort；索引 **1,597,440 B**；300 行完整 JSON **550,035 B**、顺序及 SHA-256 相同 |
+| [PERF-123](../../frontend/src/pages/video-studio/useCanvasWorkflowActions.tsx) | Video Studio 每秒详情轮询只显示模型调用数；最多 300 条生成记录 | 请求受原 300 条上限约束的 `generation_run_count`，不取完整 generation run DTO；明细页仍读取完整数组 | 隔离 PostgreSQL 16、100,000 行/目标工作流 300 行、7 轮：索引后完整投影 **2.504→1.885 ms（24.72%）**；generation-run 子响应数据 **550,035→3 B（99.9995%）**，显示计数仍为 300 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -785,10 +786,19 @@ A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
 
 - 请求链路：Video Studio 运行中每秒调用 `get_workflow_run_detail(..., include_generation_runs=true)`。`generation_runs_for_workflow` 读取完整 `GenerationRunSummaryRecord` 投影，按 `workflow_run_id` 过滤、`created_at ASC` 排序并最多返回 300 行；原表只有全局 `created_at DESC` 索引，无法直接定位目标工作流的行。
 - 修复：新增 `generation_run(workflow_run_id, created_at ASC) WHERE workflow_run_id IS NOT NULL` 部分索引，并更新 schema gate。调用仍返回相同完整 DTO 和最多 300 行，保留原 `created_at ASC` 排序及空 workflow_run_id 的记录。
-- A/B：隔离 PostgreSQL 16，100,000 条完整形状 generation_run 行，约一半 `workflow_run_id` 为空、目标工作流 300 行；保留现有全局 created_at 索引，完整投影含输入指纹、raw/parsed response、validation 和 artifact JSON，7 轮交错。P50 **37.022→2.119 ms（94.28%）**；计划从 Seq Scan + Sort 改为 Bitmap Heap Scan + Sort。索引大小 **1,597,440 B**；300 行完整 JSON **550,035 B**，ID 顺序和 SHA-256 完全相同。
+- A/B：隔离 PostgreSQL 16，100,000 条完整形状 generation_run 行，约一半 `workflow_run_id` 为空、目标工作流 300 行；保留现有全局 created_at 索引，完整投影含输入指纹、raw/parsed response、validation 和 artifact JSON，7 轮交错。P50 **41.075→2.504 ms（93.90%）**；计划从 Seq Scan + Sort 改为 Bitmap Heap Scan + Sort。索引大小 **1,597,440 B**；300 行完整 JSON **550,035 B**，ID 顺序和 SHA-256 完全相同。
 - 验证：migration SQL 单测 **1/1**、迁移顺序测试 **1/1**、隔离 PostgreSQL 全 schema migration/partial index 断言 **1/1**、`cargo check -p a4n-migration -p a4n-db-models --locked --offline`、`cargo fmt --all -- --check`、`git diff --check` 和 `node --check scripts/performance/workflow-generation-run-index.mjs` 通过。
 - 边界：A/B 测 generation run 子查询的数据库过滤、完整投影和排序，不含 run/checkpoint 查询、SeaORM 映射、HTTP 或完整每秒轮询延迟；每条有 workflow_run_id 的新生成记录多维护一条索引项。
 - 证据：`../../data/performance-audit-20261015/workflow-generation-run-index/report.json`；复现脚本 `../../scripts/performance/workflow-generation-run-index.mjs`，需连接名称以 `a4n-perf-workflow-generation-index-` 开头的隔离 PostgreSQL 容器。
+
+### PERF-123：Video Studio 工作流详情轮询下载不需要的生成记录
+
+- 请求链路：Video Studio 每秒调用 `get_workflow_run_detail` 并请求完整 generation runs；`CanvasWorkflowPanel` 实际只用 `generation_runs.length` 显示模型调用数。Settings Queue 的展开明细会逐条显示生成记录，因此继续使用完整数组合同。
+- 修复：为详情输入增加默认关闭的 `include_generation_run_count`，响应增加 `generation_run_count`。Video Studio 请求 count-only；数据库返回 `min(total, 300)` 以保留原显示上限。其他页面只在显式请求时读取完整 generation run 数组，旧请求缺少新输入字段时默认关闭。
+- A/B：复用 PERF-122 的隔离 PostgreSQL 16、100,000 行/目标工作流 300 行、workflow composite index。7 轮：完整索引投影 P50 **2.504 ms**，count-only **1.885 ms（快 24.72%，未达到时延门槛）**；generation-run 子响应数据 **550,035 B→3 B（减少 99.9995%）**，count 仍为 300。此项以传输数据量降幅验收。
+- 验证：`workflow_detail_returns_generation_run_summary_fields` PostgreSQL 集成测试验证 301 条记录时 count-only 返回 300 且数组为空；完整数组仍返回最多 300 条并填充相同 count。旧输入反序列化默认测试、前端 wrapper 定向测试、API parity、受影响 crates check、`npx tsc --noEmit`、fmt/diff 通过。
+- 边界：A/B 量化 generation-run 子查询，不含 run/checkpoint 查询、HTTP/JSON 解析或完整 detail 响应体；`generation_run_count` 维持原数组 300 行上限。
+- 证据：`../../data/performance-audit-20261015/workflow-generation-run-index/report.json`；完整投影与 count-only 由 `../../scripts/performance/workflow-generation-run-index.mjs` 交错测量。
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
 

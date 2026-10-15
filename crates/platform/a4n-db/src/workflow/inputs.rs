@@ -19,6 +19,8 @@ pub struct ListWorkflowRunsInput {
 pub struct GetWorkflowRunInput {
     pub workflow_run_id: i64,
     pub include_generation_runs: bool,
+    #[serde(default)]
+    pub include_generation_run_count: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

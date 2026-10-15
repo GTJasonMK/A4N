@@ -114,6 +114,8 @@ pub struct WorkflowRunDetailSummary {
     pub run: WorkflowRunSummary,
     pub checkpoints: Vec<WorkflowCheckpointSummary>,
     pub generation_runs: Vec<GenerationRunSummary>,
+    #[serde(default)]
+    pub generation_run_count: u64,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -149,6 +151,8 @@ pub struct ListWorkflowRunsInput {
 pub struct GetWorkflowRunInput {
     pub workflow_run_id: i64,
     pub include_generation_runs: bool,
+    #[serde(default)]
+    pub include_generation_run_count: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -309,4 +313,18 @@ pub trait WorkflowReadApplicationPort: Send + Sync {
         user_id: i64,
         input: GetWorkflowRunInput,
     ) -> Result<WorkflowRunDetailSummary, a4n_error::AppError>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::GetWorkflowRunInput;
+
+    #[test]
+    fn legacy_detail_request_defaults_generation_run_count_to_disabled() {
+        let input: GetWorkflowRunInput =
+            serde_json::from_str(r#"{"workflow_run_id": 7, "include_generation_runs": false}"#)
+                .unwrap();
+
+        assert!(!input.include_generation_run_count);
+    }
 }

@@ -16,6 +16,7 @@ const projection = `id, workflow_run_id, workflow, step_key, call_key, title, mo
   status, input_fingerprint_sha256, input_fingerprint_json, raw_response_json, parsed_output_json,
   validation_json, artifact_refs_json, attempt, response_summary_json, error_message, created_at, completed_at`;
 const statement = `SELECT ${projection} FROM ${table} WHERE workflow_run_id = 42 ORDER BY created_at ASC LIMIT 300`;
+const countStatement = `SELECT COUNT(*) FROM (SELECT 1 FROM ${table} WHERE workflow_run_id = 42 LIMIT 300) AS limited_runs`;
 const containers = execFileSync("docker", ["ps", "--format", "{{.Names}}\t{{.ID}}\t{{.Ports}}"], { encoding: "utf8" })
   .trim().split("\n").filter((line) => {
     const [name, , ports] = line.split("\t");
@@ -67,10 +68,14 @@ function sample() {
   const plan = JSON.parse(sql(`SET max_parallel_workers_per_gather = 0; EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON, TIMING OFF) ${statement};`))[0];
   const json = sql(`SELECT jsonb_agg(to_jsonb(result) ORDER BY result.created_at)::text FROM (${statement}) AS result;`);
   const ids = sql(`SELECT id FROM (${statement}) AS result;`).split("\n").map(Number);
+  return { execution_ms: plan["Execution Time"], nodes: planNodeTypes(plan.Plan), result_count: ids.length, ids, json_bytes: Buffer.byteLength(json), sha256: createHash("sha256").update(json).digest("hex") };
+}
+
+function planNodeTypes(plan) {
   const nodes = [];
   const visit = (node) => { nodes.push(node["Node Type"]); for (const child of node.Plans ?? []) visit(child); };
-  visit(plan.Plan);
-  return { execution_ms: plan["Execution Time"], nodes, result_count: ids.length, ids, json_bytes: Buffer.byteLength(json), sha256: createHash("sha256").update(json).digest("hex") };
+  visit(plan);
+  return nodes;
 }
 
 const samples = { baseline: [], indexed: [] };
@@ -98,10 +103,17 @@ for (const result of [...samples.baseline, ...samples.indexed]) {
   assert.equal(result.json_bytes, samples.baseline[0].json_bytes);
 }
 setCandidate(true);
+const countSamples = [];
+for (let round = 0; round < rounds; round += 1) {
+  const plan = JSON.parse(sql(`SET max_parallel_workers_per_gather = 0; EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON, TIMING OFF) ${countStatement};`))[0];
+  const count = Number(sql(`${countStatement};`));
+  countSamples.push({ execution_ms: plan["Execution Time"], nodes: planNodeTypes(plan.Plan), count, result_bytes: Buffer.byteLength(String(count)) });
+}
 
 const median = (values) => [...values].sort((left, right) => left - right)[Math.floor(values.length / 2)];
 const baseline = median(samples.baseline.map((sample) => sample.execution_ms));
 const indexed = median(samples.indexed.map((sample) => sample.execution_ms));
+const countOnly = median(countSamples.map((sample) => sample.execution_ms));
 const report = {
   table_rows: rows,
   target_workflow_rows: 300,
@@ -110,6 +122,13 @@ const report = {
   baseline_p50_ms: baseline,
   indexed_p50_ms: indexed,
   reduction_percent: Number(((1 - indexed / baseline) * 100).toFixed(2)),
+  count_only: {
+    p50_ms: countOnly,
+    reduction_from_indexed_full_projection_percent: Number(((1 - countOnly / indexed) * 100).toFixed(2)),
+    returned_count: countSamples[0].count,
+    result_bytes: countSamples[0].result_bytes,
+    samples: countSamples,
+  },
   candidate_index_bytes: Number(sql(`SELECT pg_relation_size('${candidateIndex}');`)),
   full_json_bytes: samples.baseline[0].json_bytes,
   result_sha256: samples.baseline[0].sha256,
