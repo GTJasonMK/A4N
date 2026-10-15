@@ -11,7 +11,7 @@ use a4n_domain::media::{
     CreateGeneratedImageRecordDraftInput, CreateGeneratedVideoRecordDraftInput,
     UpdateGeneratedImageRecordInput,
 };
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, PaginatorTrait, Set};
 use serde_json::json;
 
@@ -96,6 +96,50 @@ async fn generated_image_ids_by_ids_returns_existing_only() {
     assert_eq!(ids, vec![image.id]);
     assert!(
         generated_image_ids_by_ids(&db, &[])
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn generated_images_for_project_filters_requested_ids_and_project() {
+    let db = setup_db().await;
+    let project = text_project(&db, "按图片 ID 读取").await;
+    let other_project = text_project(&db, "其他项目图片").await;
+    let now = Utc::now().naive_utc();
+
+    let mut older_input = image_input(project.id);
+    older_input.file_path = "images/older.png".to_string();
+    older_input.created_at = Some(now - Duration::minutes(1));
+    let older = create_generated_image_record(&db, older_input)
+        .await
+        .unwrap();
+
+    let mut newer_input = image_input(project.id);
+    newer_input.file_path = "images/newer.png".to_string();
+    newer_input.created_at = Some(now);
+    let newer = create_generated_image_record(&db, newer_input)
+        .await
+        .unwrap();
+    let other = create_generated_image_record(&db, image_input(other_project.id))
+        .await
+        .unwrap();
+
+    let selected = crate::video::read_models::generated_images_for_project(
+        &db,
+        project.id,
+        Some(vec![older.id, other.id, newer.id, older.id + 1_000_000]),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        selected.iter().map(|image| image.id).collect::<Vec<_>>(),
+        vec![newer.id, older.id]
+    );
+    assert!(
+        crate::video::read_models::generated_images_for_project(&db, project.id, Some(Vec::new()))
             .await
             .unwrap()
             .is_empty()

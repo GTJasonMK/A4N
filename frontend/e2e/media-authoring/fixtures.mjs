@@ -64,6 +64,7 @@ export function authoringWorkspace(projectId, target, sourceChapters = null) {
         document: {
           schema_version: "adaptation_plan_v1",
           target,
+          page_count: target === "manga" ? 1 : null,
           intention: "保留推门前的犹豫",
           decisions: [],
           units: [{

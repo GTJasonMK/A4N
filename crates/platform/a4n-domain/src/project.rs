@@ -271,6 +271,15 @@ pub struct SourceSnapshotChapterSummary {
     pub analysis_hash: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct SourceSnapshotChapterIndex {
+    pub id: i64,
+    pub snapshot_id: i64,
+    pub source_chapter_id: i64,
+    pub chapter_number: i32,
+    pub title: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::{

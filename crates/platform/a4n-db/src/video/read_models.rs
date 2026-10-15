@@ -90,8 +90,9 @@ pub async fn generated_images_by_ids(
 pub async fn generated_images_for_project<C: ConnectionTrait>(
     db: &C,
     project_id: i64,
+    image_ids: Option<Vec<i64>>,
 ) -> Result<Vec<GeneratedImageRecord>, DbErr> {
-    super::generated_images_for_project(db, project_id)
+    super::generated_images_for_project(db, project_id, image_ids)
         .await
         .map(image_records)
 }

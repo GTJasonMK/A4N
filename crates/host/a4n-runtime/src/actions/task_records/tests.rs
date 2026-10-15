@@ -31,6 +31,17 @@ fn workflow_progress_events_input_accepts_task_or_workflow_run_id() {
     .unwrap();
     assert_eq!(task_input.task_id.as_deref(), Some("task-1"));
     assert_eq!(task_input.limit, 20);
+    assert_eq!(task_input.after_event_id, None);
+    let cursor_input = serde_json::from_value::<WorkflowProgressEventsInput>(json!({
+        "task_id": "task-1",
+        "after_event_id": "task-1-2026-10-15T10:00:00Z",
+        "limit": 20,
+    }))
+    .unwrap();
+    assert_eq!(
+        cursor_input.after_event_id.as_deref(),
+        Some("task-1-2026-10-15T10:00:00Z")
+    );
     let workflow_input = serde_json::from_value::<WorkflowProgressEventsInput>(json!({
         "workflow_run_id": 9,
         "limit": 20,

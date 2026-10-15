@@ -53,8 +53,17 @@ describe("Host progress tasks", () => {
       100,
       null,
     );
+    expect(mocks.getTaskProgressEvents.mock.calls).toEqual([
+      ["task-1", 200, undefined],
+      ["task-1", 200, "task-1-20"],
+    ]);
 
     await vi.advanceTimersByTimeAsync(500);
+    expect(mocks.getTaskProgressEvents).toHaveBeenLastCalledWith(
+      "task-1",
+      200,
+      "task-1-20",
+    );
     resolveTask("done");
     await expect(result).resolves.toBe("done");
     resolveLateEvents({ events: [{ ...event, id: "task-1-45", current: 45 }] });

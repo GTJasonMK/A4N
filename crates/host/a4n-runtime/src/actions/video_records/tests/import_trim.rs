@@ -276,3 +276,33 @@ fn persist_trimmed_video_output_returns_size_and_keeps_successful_file() {
     assert!(output.exists());
     let _ = std::fs::remove_dir_all(&root);
 }
+
+#[test]
+fn uploaded_video_stream_decode_removes_temp_file_after_invalid_base64() {
+    let temp_dir = unique_temp_dir("a4n_uploaded_video_invalid_base64");
+    let data_base64 = format!("{}%%%", "AAAA".repeat(16_384));
+    let error = match super::imports::uploaded_video_source(
+        &temp_dir,
+        "source.mp4",
+        "video/mp4",
+        &data_base64,
+        "上传视频",
+    ) {
+        Ok(source) => {
+            drop(source);
+            panic!("invalid upload Base64 must fail before probing");
+        }
+        Err(error) => error,
+    };
+
+    assert!(error.starts_with("上传视频 base64 解码失败："));
+    let upload_dir = temp_dir.join("video_uploads");
+    assert_eq!(
+        std::fs::read_dir(&upload_dir)
+            .expect("read upload temp dir")
+            .count(),
+        0,
+        "decode errors must remove the created temp file"
+    );
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}

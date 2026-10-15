@@ -919,6 +919,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   return (
     <div className="content-wide flex flex-col gap-4">
       <ImageGalleryPanel
+        key={chapter ? `chapter-${chapter.id}` : "project"}
         loadError={loadError}
         allImages={allImages}
         chapter={chapter}

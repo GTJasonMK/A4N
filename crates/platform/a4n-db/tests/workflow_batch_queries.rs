@@ -8,9 +8,9 @@ use a4n_db::workflow::{
     record_workflow_progress_event, restart_interrupted_workflow_run,
     resume_or_upsert_workflow_run, resume_workflow_run_with_active_task,
     save_completed_llm_call_checkpoint, upsert_workflow_checkpoint, upsert_workflow_run,
-    workflow_checkpoint_statuses_for_runs, workflow_checkpoint_step_statuses, workflow_run_detail,
-    workflow_run_model_by_id, workflow_run_models_by_ids, workflow_run_statuses_by_ids,
-    workflow_run_summary_by_id,
+    workflow_checkpoint_statuses_for_runs, workflow_checkpoint_step_statuses,
+    workflow_progress_events, workflow_run_detail, workflow_run_model_by_id,
+    workflow_run_models_by_ids, workflow_run_statuses_by_ids, workflow_run_summary_by_id,
 };
 use a4n_db_models::models::{
     generation::{generation_run, workflow_run},
@@ -554,6 +554,8 @@ async fn workflow_snapshot_survives_progress_reads_updates_and_cancellation() {
             GetWorkflowRunInput {
                 workflow_run_id: run.id,
                 include_generation_runs: false,
+                include_generation_run_count: false,
+                include_checkpoint_details: true,
             },
         )
         .await
@@ -1056,11 +1058,14 @@ async fn workflow_detail_returns_generation_run_summary_fields() {
         GetWorkflowRunInput {
             workflow_run_id: workflow.id,
             include_generation_runs: true,
+            include_generation_run_count: false,
+            include_checkpoint_details: true,
         },
     )
     .await
     .expect("workflow detail query must succeed");
     assert_eq!(detail.generation_runs.len(), 1);
+    assert_eq!(detail.generation_run_count, 1);
     let summary = &detail.generation_runs[0];
     assert_eq!(summary.id, generation.id);
     assert_eq!(summary.workflow_run_id, Some(workflow.id));
@@ -1068,4 +1073,253 @@ async fn workflow_detail_returns_generation_run_summary_fields() {
     assert_eq!(summary.parsed_output_json, Some(json!({"value": 1})));
     assert_eq!(summary.response_summary_json, Some(json!({"output": "ok"})));
     assert_eq!(summary.attempt, 2);
+
+    let additional_runs: Vec<_> = (0..300)
+        .map(|index| generation_run::ActiveModel {
+            project_id: Set(1),
+            root_project_id: Set(1),
+            workflow: Set("detail-workflow".to_string()),
+            step_key: Set(format!("detail-step-{index}")),
+            title: Set(format!("Generation run {index}")),
+            model_kind: Set("test".to_string()),
+            status: Set(WORKFLOW_STATUS_COMPLETED.to_string()),
+            workflow_run_id: Set(Some(workflow.id)),
+            attempt: Set(1),
+            created_at: Set(now + chrono::Duration::seconds(index)),
+            completed_at: Set(Some(now + chrono::Duration::seconds(index))),
+            ..Default::default()
+        })
+        .collect();
+    generation_run::Entity::insert_many(additional_runs)
+        .exec(&db)
+        .await
+        .expect("additional generation runs must be inserted");
+
+    let count_only = workflow_run_detail(
+        &db,
+        GetWorkflowRunInput {
+            workflow_run_id: workflow.id,
+            include_generation_runs: false,
+            include_generation_run_count: true,
+            include_checkpoint_details: true,
+        },
+    )
+    .await
+    .expect("count-only workflow detail query must succeed");
+    assert!(count_only.generation_runs.is_empty());
+    assert_eq!(count_only.generation_run_count, 300);
+
+    let full_detail_at_limit = workflow_run_detail(
+        &db,
+        GetWorkflowRunInput {
+            workflow_run_id: workflow.id,
+            include_generation_runs: true,
+            include_generation_run_count: false,
+            include_checkpoint_details: true,
+        },
+    )
+    .await
+    .expect("full workflow detail query must remain available");
+    assert_eq!(full_detail_at_limit.generation_runs.len(), 300);
+    assert_eq!(full_detail_at_limit.generation_run_count, 300);
+
+    let without_generation_data = workflow_run_detail(
+        &db,
+        GetWorkflowRunInput {
+            workflow_run_id: workflow.id,
+            include_generation_runs: false,
+            include_generation_run_count: false,
+            include_checkpoint_details: true,
+        },
+    )
+    .await
+    .expect("workflow detail without generation data must succeed");
+    assert_eq!(without_generation_data.generation_run_count, 0);
+}
+
+#[tokio::test]
+async fn workflow_detail_can_omit_checkpoint_payloads_for_progress_polling() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let workflow = upsert_workflow_run(
+        &db,
+        workflow_input(
+            &format!(
+                "workflow-detail-checkpoint-projection:{}",
+                uuid::Uuid::new_v4()
+            ),
+            "checkpoint-projection",
+            WORKFLOW_STATUS_RUNNING,
+        ),
+    )
+    .await
+    .expect("workflow run must be inserted");
+    let artifacts = json!({ "provider_job_id": "job-123", "generated_video_id": 456 });
+    let checkpoint_json = json!({ "payload": "large checkpoint data" });
+    let input_fingerprint = json!({ "graph_version": 7 });
+    let generation_run_ids = json!([81, 82]);
+    upsert_workflow_checkpoint(
+        &shared_db_handle(&db),
+        UpsertWorkflowCheckpointInput {
+            workflow_run_id: workflow.id,
+            step_key: "canvas_node:7".to_string(),
+            step_order: 7,
+            status: WORKFLOW_STATUS_FAILED.to_string(),
+            input_fingerprint_sha256: Some("checkpoint-fingerprint".to_string()),
+            input_fingerprint_json: Some(input_fingerprint.clone()),
+            checkpoint_json: Some(checkpoint_json.clone()),
+            artifacts_json: Some(artifacts.clone()),
+            generation_run_ids_json: Some(generation_run_ids.clone()),
+            error_message: Some("provider failed".to_string()),
+            completed: true,
+        },
+    )
+    .await
+    .expect("workflow checkpoint must be inserted");
+    upsert_workflow_checkpoint(
+        &shared_db_handle(&db),
+        UpsertWorkflowCheckpointInput {
+            workflow_run_id: workflow.id,
+            step_key: "canvas_node:3".to_string(),
+            step_order: 3,
+            status: WORKFLOW_STATUS_COMPLETED.to_string(),
+            input_fingerprint_sha256: None,
+            input_fingerprint_json: None,
+            checkpoint_json: None,
+            artifacts_json: None,
+            generation_run_ids_json: None,
+            error_message: None,
+            completed: true,
+        },
+    )
+    .await
+    .expect("second workflow checkpoint must be inserted");
+
+    let progress_detail = workflow_run_detail(
+        &db,
+        GetWorkflowRunInput {
+            workflow_run_id: workflow.id,
+            include_generation_runs: false,
+            include_generation_run_count: false,
+            include_checkpoint_details: false,
+        },
+    )
+    .await
+    .expect("progress detail query must succeed");
+    assert!(!progress_detail.checkpoint_details_included);
+    assert_eq!(progress_detail.checkpoints.len(), 2);
+    assert_eq!(progress_detail.checkpoints[0].step_key, "canvas_node:3");
+    assert_eq!(progress_detail.checkpoints[1].step_key, "canvas_node:7");
+    let progress_checkpoint = &progress_detail.checkpoints[1];
+    assert_eq!(progress_checkpoint.step_key, "canvas_node:7");
+    assert_eq!(progress_checkpoint.status, WORKFLOW_STATUS_FAILED);
+    assert_eq!(progress_checkpoint.artifacts_json, Some(artifacts.clone()));
+    assert_eq!(
+        progress_checkpoint.error_message.as_deref(),
+        Some("provider failed")
+    );
+    assert!(progress_checkpoint.input_fingerprint_sha256.is_none());
+    assert!(progress_checkpoint.input_fingerprint_json.is_none());
+    assert!(progress_checkpoint.checkpoint_json.is_none());
+    assert!(progress_checkpoint.generation_run_ids_json.is_none());
+
+    let full_detail = workflow_run_detail(
+        &db,
+        GetWorkflowRunInput {
+            workflow_run_id: workflow.id,
+            include_generation_runs: false,
+            include_generation_run_count: false,
+            include_checkpoint_details: true,
+        },
+    )
+    .await
+    .expect("full detail query must remain available");
+    assert!(full_detail.checkpoint_details_included);
+    assert_eq!(
+        full_detail
+            .checkpoints
+            .iter()
+            .map(|checkpoint| checkpoint.step_key.as_str())
+            .collect::<Vec<_>>(),
+        ["canvas_node:3", "canvas_node:7"]
+    );
+    assert_eq!(
+        full_detail.checkpoints[1].input_fingerprint_json,
+        Some(input_fingerprint)
+    );
+    assert_eq!(
+        full_detail.checkpoints[1].checkpoint_json,
+        Some(checkpoint_json)
+    );
+    assert_eq!(
+        full_detail.checkpoints[1].generation_run_ids_json,
+        Some(generation_run_ids)
+    );
+}
+
+#[tokio::test]
+async fn workflow_progress_events_after_event_id_returns_only_new_events() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let workflow = upsert_workflow_run(
+        &db,
+        workflow_input(
+            &format!("workflow-progress-cursor:{}", uuid::Uuid::new_v4()),
+            "progress-cursor",
+            WORKFLOW_STATUS_RUNNING,
+        ),
+    )
+    .await
+    .expect("workflow run must be inserted");
+    for current in 1..=3 {
+        let message = format!("progress-{current}");
+        record_workflow_progress_event(
+            &db,
+            WorkflowProgressEventInput {
+                workflow_run_id: workflow.id,
+                task_id: Some("task-progress-cursor"),
+                current,
+                total: 3,
+                message: &message,
+                meta: None,
+            },
+        )
+        .await
+        .expect("workflow progress event must be recorded");
+    }
+
+    let full_history = workflow_progress_events(&db, workflow.id, 200, None)
+        .await
+        .expect("full workflow event history must load");
+    let cursor = full_history[0]
+        .id
+        .parse::<i64>()
+        .expect("workflow event id must be numeric");
+    let incremental = workflow_progress_events(&db, workflow.id, 1, Some(cursor))
+        .await
+        .expect("incremental workflow events must load");
+    assert_eq!(
+        incremental
+            .iter()
+            .map(|event| event.id.as_str())
+            .collect::<Vec<_>>(),
+        [full_history[1].id.as_str()]
+    );
+    assert_eq!(incremental[0].message, "progress-2");
+    let all_new_events = workflow_progress_events(&db, workflow.id, 200, Some(cursor))
+        .await
+        .expect("all new workflow events must preserve sequence");
+    assert_eq!(
+        all_new_events
+            .iter()
+            .map(|event| event.id.as_str())
+            .collect::<Vec<_>>(),
+        [full_history[1].id.as_str(), full_history[2].id.as_str()]
+    );
+    let latest_cursor = full_history[2]
+        .id
+        .parse::<i64>()
+        .expect("workflow event id must be numeric");
+    let unchanged = workflow_progress_events(&db, workflow.id, 200, Some(latest_cursor))
+        .await
+        .expect("empty incremental response must load");
+    assert!(unchanged.is_empty());
 }

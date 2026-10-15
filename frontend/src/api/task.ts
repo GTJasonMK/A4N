@@ -4,6 +4,7 @@ import type {
   GetTaskHistoryInput,
   QueueStatsSummary,
   TaskInfoSummary,
+  WorkflowProgressEventsInput,
 } from "./generated/host";
 import { idNum, type ApiId as Id } from "./shared";
 import {
@@ -51,10 +52,13 @@ export async function getTaskHistory(
 export async function getTaskProgressEvents(
   taskId: string,
   limit: number,
+  afterEventId?: string,
 ): Promise<WorkflowProgressEventsResponse> {
-  return getWorkflowProgressEvents({
+  const input: WorkflowProgressEventsInput = {
     task_id: taskId,
     workflow_run_id: null,
     limit,
-  });
+  };
+  if (afterEventId !== undefined) input.after_event_id = afterEventId;
+  return getWorkflowProgressEvents(input);
 }

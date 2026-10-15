@@ -36,6 +36,11 @@ interface ReadyNode {
   sequence: number;
 }
 
+interface NodeCluster {
+  key: string;
+  order: number;
+}
+
 interface Point {
   x: number;
   y: number;
@@ -74,6 +79,7 @@ export function buildLayout(graph: AssetDependencyGraph | null, t: MessageTransl
   const visibleEdges = graph.edges.filter((edge) => visibleNodeIds.has(edge.from) && visibleNodeIds.has(edge.to));
   const layoutEdges = visibleEdges.filter(isPrimaryLayoutEdge);
   const nodesById = new Map(visibleNodes.map((node) => [node.id, node]));
+  const clusterById = new Map(visibleNodes.map((node) => [node.id, nodeCluster(node)]));
   if (!visibleNodes.length) {
     return { nodes: [], layers: [], width: NETWORK_MIN_WIDTH, height: NETWORK_MIN_HEIGHT };
   }
@@ -88,8 +94,8 @@ export function buildLayout(graph: AssetDependencyGraph | null, t: MessageTransl
     outgoing.set(edge.from, outList);
   });
 
-  const layers = topologyDepthLayers(visibleNodes, layoutEdges, nodesById, degreeById, t);
-  const orderedLayerIds = orderLayerNodes(layers, nodesById, degreeById, incoming, outgoing);
+  const layers = topologyDepthLayers(visibleNodes, layoutEdges, nodesById, degreeById, clusterById, t);
+  const orderedLayerIds = orderLayerNodes(layers, nodesById, degreeById, incoming, outgoing, clusterById);
   const nodeCount = Math.max(1, visibleNodes.length);
   const maxLayerCount = Math.max(1, ...orderedLayerIds.map((ids) => ids.length));
   const columns = Math.max(
@@ -152,6 +158,7 @@ function topologyDepthLayers(
   edges: AssetGraphEdge[],
   nodesById: Map<string, AssetGraphNode>,
   degreeById: Map<string, number>,
+  clusterById: Map<string, NodeCluster>,
   t: MessageTranslator,
 ): AssetDependencyGraph["layers"] {
   const nodeIds = new Set(nodes.map((node) => node.id));
@@ -171,12 +178,12 @@ function topologyDepthLayers(
   let readySequence = 0;
   for (const node of nodes) {
     if ((incomingCount.get(node.id) ?? 0) !== 0) continue;
-    pushReadyNode(ready, { id: node.id, sequence: readySequence++ }, nodesById, degreeById);
+    pushReadyNode(ready, { id: node.id, sequence: readySequence++ }, nodesById, degreeById, clusterById);
   }
   const visited = new Set<string>();
 
   while (ready.length) {
-    const nodeId = popReadyNode(ready, nodesById, degreeById);
+    const nodeId = popReadyNode(ready, nodesById, degreeById, clusterById);
     if (!nodeId || visited.has(nodeId)) continue;
     visited.add(nodeId);
     (outgoing.get(nodeId) ?? []).forEach((childId) => {
@@ -189,6 +196,7 @@ function topologyDepthLayers(
           { id: childId, sequence: readySequence++ },
           nodesById,
           degreeById,
+          clusterById,
         );
       }
     });
@@ -223,12 +231,13 @@ function pushReadyNode(
   node: ReadyNode,
   nodesById: Map<string, AssetGraphNode>,
   degreeById: Map<string, number>,
+  clusterById: Map<string, NodeCluster>,
 ): void {
   ready.push(node);
   let index = ready.length - 1;
   while (index > 0) {
     const parent = Math.floor((index - 1) / 2);
-    if (!readyNodeComesFirst(ready[index], ready[parent], nodesById, degreeById)) break;
+    if (!readyNodeComesFirst(ready[index], ready[parent], nodesById, degreeById, clusterById)) break;
     [ready[index], ready[parent]] = [ready[parent], ready[index]];
     index = parent;
   }
@@ -238,6 +247,7 @@ function popReadyNode(
   ready: ReadyNode[],
   nodesById: Map<string, AssetGraphNode>,
   degreeById: Map<string, number>,
+  clusterById: Map<string, NodeCluster>,
 ): string | undefined {
   const first = ready[0];
   const last = ready.pop();
@@ -250,10 +260,10 @@ function popReadyNode(
       const right = left + 1;
       const child =
         right < ready.length &&
-        readyNodeComesFirst(ready[right], ready[left], nodesById, degreeById)
+        readyNodeComesFirst(ready[right], ready[left], nodesById, degreeById, clusterById)
           ? right
           : left;
-      if (!readyNodeComesFirst(ready[child], ready[index], nodesById, degreeById)) break;
+      if (!readyNodeComesFirst(ready[child], ready[index], nodesById, degreeById, clusterById)) break;
       [ready[index], ready[child]] = [ready[child], ready[index]];
       index = child;
     }
@@ -266,8 +276,9 @@ function readyNodeComesFirst(
   right: ReadyNode,
   nodesById: Map<string, AssetGraphNode>,
   degreeById: Map<string, number>,
+  clusterById: Map<string, NodeCluster>,
 ): boolean {
-  const priority = compareLayerNodeIds(left.id, right.id, nodesById, degreeById);
+  const priority = compareLayerNodeIds(left.id, right.id, nodesById, degreeById, clusterById);
   return priority < 0 || (priority === 0 && left.sequence < right.sequence);
 }
 
@@ -281,23 +292,24 @@ function orderLayerNodes(
   degreeById: Map<string, number>,
   incoming: Map<string, string[]>,
   outgoing: Map<string, string[]>,
+  clusterById: Map<string, NodeCluster>,
 ): string[][] {
   const ordered = layers.map((layer) =>
-    [...layer.node_ids].sort((a, b) => compareLayerNodeIds(a, b, nodesById, degreeById)),
+    [...layer.node_ids].sort((a, b) => compareLayerNodeIds(a, b, nodesById, degreeById, clusterById)),
   );
 
   for (let pass = 0; pass < 5; pass += 1) {
     const forwardOrder = orderIndexMap(ordered);
     for (let layerIndex = 1; layerIndex < ordered.length; layerIndex += 1) {
       ordered[layerIndex].sort((a, b) =>
-        compareByBarycenter(a, b, incoming, forwardOrder, nodesById, degreeById),
+        compareByBarycenter(a, b, incoming, forwardOrder, nodesById, degreeById, clusterById),
       );
     }
 
     const backwardOrder = orderIndexMap(ordered);
     for (let layerIndex = ordered.length - 2; layerIndex >= 0; layerIndex -= 1) {
       ordered[layerIndex].sort((a, b) =>
-        compareByBarycenter(a, b, outgoing, backwardOrder, nodesById, degreeById),
+        compareByBarycenter(a, b, outgoing, backwardOrder, nodesById, degreeById, clusterById),
       );
     }
   }
@@ -320,6 +332,7 @@ function compareByBarycenter(
   orderMap: Map<string, number>,
   nodesById: Map<string, AssetGraphNode>,
   degreeById: Map<string, number>,
+  clusterById: Map<string, NodeCluster>,
 ): number {
   const aCenter = neighborBarycenter(a, neighbors, orderMap);
   const bCenter = neighborBarycenter(b, neighbors, orderMap);
@@ -328,9 +341,9 @@ function compareByBarycenter(
   }
   if (aCenter != null) return -1;
   if (bCenter != null) return 1;
-  const clusterCompare = compareNodeClusters(a, b, nodesById);
+  const clusterCompare = compareNodeClusters(a, b, clusterById);
   if (clusterCompare !== 0) return clusterCompare;
-  return compareLayerNodeIds(a, b, nodesById, degreeById);
+  return compareLayerNodeIds(a, b, nodesById, degreeById, clusterById);
 }
 
 function neighborBarycenter(
@@ -350,8 +363,9 @@ function compareLayerNodeIds(
   b: string,
   nodesById: Map<string, AssetGraphNode>,
   degreeById: Map<string, number>,
+  clusterById: Map<string, NodeCluster>,
 ): number {
-  const clusterCompare = compareNodeClusters(a, b, nodesById);
+  const clusterCompare = compareNodeClusters(a, b, clusterById);
   if (clusterCompare !== 0) return clusterCompare;
   const aDegree = degreeById.get(a) ?? 0;
   const bDegree = degreeById.get(b) ?? 0;
@@ -362,17 +376,15 @@ function compareLayerNodeIds(
 function compareNodeClusters(
   a: string,
   b: string,
-  nodesById: Map<string, AssetGraphNode>,
+  clusterById: Map<string, NodeCluster>,
 ): number {
-  const aNode = nodesById.get(a);
-  const bNode = nodesById.get(b);
-  const aCluster = nodeCluster(aNode);
-  const bCluster = nodeCluster(bNode);
+  const aCluster = clusterById.get(a) ?? { key: "unknown", order: 99 };
+  const bCluster = clusterById.get(b) ?? { key: "unknown", order: 99 };
   if (aCluster.order !== bCluster.order) return aCluster.order - bCluster.order;
   return aCluster.key.localeCompare(bCluster.key, "zh-Hans-CN");
 }
 
-function nodeCluster(node?: AssetGraphNode): { key: string; order: number } {
+function nodeCluster(node?: AssetGraphNode): NodeCluster {
   if (!node) return { key: "unknown", order: 99 };
   const value = `${node.id} ${node.asset_type} ${node.label} ${node.summary ?? ""}`.toLowerCase();
   if (value.includes("project")) return { key: "project", order: 0 };

@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   canvasNodeIdFromStepKey,
+  canvasWorkflowNodeRunStateFacts,
+  canvasWorkflowNodeRunStates,
   computeRunToNodeScope,
   computeWorkflowActiveScope,
   findSubmittedCanvasWorkflowRun,
 } from "./canvasWorkflowState";
-import type { WorkflowRunSummary } from "../../api/streaming";
+import type { WorkflowRunDetailSummary, WorkflowRunSummary } from "../../api/streaming";
 import type { StudioEdge, StudioNode } from "./types";
 
 const nodes: StudioNode[] = [1, 2, 3].map((id) => ({
@@ -36,10 +38,66 @@ describe("canvas workflow scope traversal", () => {
     const activeScope = computeWorkflowActiveScope(
       nodes,
       edges,
-      new Map([["3", { status: "running", elapsedSeconds: 0 }]]),
+      new Map([["3", { status: "running", startedAtMs: 0, finishedAtMs: null }]]),
     );
     expect([...activeScope.nodeIds]).toEqual(["3", "2", "1"]);
     expect([...activeScope.edgeIds]).toEqual(["2-3", "1-2"]);
+  });
+});
+
+describe("canvas workflow node run state facts", () => {
+  it("keeps graph status stable while elapsed time advances", () => {
+    const detail = {
+      run: {
+        current_step_key: "canvas_node:2",
+        status: "running",
+        created_at: "2026-10-15T11:59:58.000Z",
+        updated_at: "2026-10-15T12:00:10.000Z",
+      },
+      checkpoints: [
+        {
+          step_key: "canvas_node:1",
+          status: "completed",
+          created_at: "2026-10-15T12:00:01.000Z",
+          updated_at: "2026-10-15T12:00:05.000Z",
+          completed_at: "2026-10-15T12:00:05.000Z",
+        },
+        {
+          step_key: "canvas_node:2",
+          status: "running",
+          created_at: "2026-10-15T12:00:08.000Z",
+          updated_at: "2026-10-15T12:00:10.000Z",
+          completed_at: null,
+        },
+      ],
+    } as unknown as WorkflowRunDetailSummary;
+    const facts = canvasWorkflowNodeRunStateFacts(detail);
+    const sameFacts = canvasWorkflowNodeRunStateFacts({
+      ...detail,
+      run: { ...detail.run },
+      checkpoints: detail.checkpoints.map((checkpoint) => ({ ...checkpoint })),
+    }, detail, facts);
+    const changedFacts = canvasWorkflowNodeRunStateFacts({
+      ...detail,
+      checkpoints: detail.checkpoints.map((checkpoint) => ({
+        ...checkpoint,
+        status: checkpoint.step_key === "canvas_node:1" ? "failed" : checkpoint.status,
+      })),
+    }, detail, facts);
+    const statesAtEleven = canvasWorkflowNodeRunStates(facts, Date.parse("2026-10-15T12:00:11.000Z"));
+    const statesAtTwelve = canvasWorkflowNodeRunStates(facts, Date.parse("2026-10-15T12:00:12.000Z"));
+
+    expect(sameFacts).toBe(facts);
+    expect(changedFacts).not.toBe(facts);
+    expect(changedFacts.get("1")?.status).toBe("failed");
+    expect([...facts].map(([nodeId, fact]) => [nodeId, fact.status])).toEqual([
+      ["2", "running"],
+      ["1", "completed"],
+    ]);
+    expect(statesAtEleven.get("1")?.elapsedSeconds).toBe(4);
+    expect(statesAtEleven.get("2")?.elapsedSeconds).toBe(3);
+    expect(statesAtTwelve.get("2")?.elapsedSeconds).toBe(4);
+    expect(statesAtTwelve.get("1")?.elapsedSeconds).toBe(4);
   });
 });
 

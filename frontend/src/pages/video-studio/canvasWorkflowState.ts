@@ -6,12 +6,19 @@ import { studioNodeContract, type StudioNodeContractMap } from "./nodeContracts"
 import type { StudioEdge, StudioNode } from "./types";
 
 const CANVAS_WORKFLOW_KIND = "video_canvas_graph";
+export const CANVAS_WORKFLOW_VISIBLE_PROGRESS_EVENT_COUNT = 5;
 
 type CanvasWorkflowNodeRunStatus = "running" | "completed" | "failed";
 
 type CanvasWorkflowNodeRunState = {
   status: CanvasWorkflowNodeRunStatus;
   elapsedSeconds: number | null;
+};
+
+export type CanvasWorkflowNodeRunStateFact = {
+  status: CanvasWorkflowNodeRunStatus;
+  startedAtMs: number | null;
+  finishedAtMs: number | null;
 };
 
 type WorkflowActiveScope = {
@@ -47,7 +54,7 @@ const EMPTY_RUN_SCOPE: RunToNodeScope = {
 export function computeWorkflowActiveScope(
   nodes: StudioNode[],
   edges: StudioEdge[],
-  states: Map<string, CanvasWorkflowNodeRunState>,
+  states: ReadonlyMap<string, CanvasWorkflowNodeRunStateFact>,
 ): WorkflowActiveScope {
   const runningNodeIds = new Set(
     Array.from(states.entries())
@@ -181,17 +188,22 @@ const WORKFLOW_NODE_RUN_CLASS_TOKENS = [
   "a4n-studio-workflow-node-failed",
 ];
 
-export function canvasWorkflowNodeRunStates(
+export function canvasWorkflowNodeRunStateFacts(
   detail: WorkflowRunDetailSummary | null,
-  nowMs: number,
-): Map<string, CanvasWorkflowNodeRunState> {
-  const states = new Map<string, CanvasWorkflowNodeRunState>();
+  previousDetail?: WorkflowRunDetailSummary | null,
+  previousFacts?: ReadonlyMap<string, CanvasWorkflowNodeRunStateFact>,
+): ReadonlyMap<string, CanvasWorkflowNodeRunStateFact> {
+  if (previousFacts && sameWorkflowNodeRunStateInputs(detail, previousDetail)) return previousFacts;
+  const states = new Map<string, CanvasWorkflowNodeRunStateFact>();
   if (!detail) return states;
   const currentNodeId = canvasNodeIdFromStepKey(detail.run.current_step_key);
   if ((detail.run.status === "running" || detail.run.status === "pending") && currentNodeId) {
+    const updatedAtMs = parseApiTimestampMs(detail.run.updated_at);
+    const createdAtMs = parseApiTimestampMs(detail.run.created_at);
     states.set(currentNodeId, {
       status: "running",
-      elapsedSeconds: workflowRunCurrentStepElapsedSeconds(detail, nowMs),
+      startedAtMs: updatedAtMs ?? createdAtMs,
+      finishedAtMs: null,
     });
   }
   for (const checkpoint of detail.checkpoints) {
@@ -200,10 +212,24 @@ export function canvasWorkflowNodeRunStates(
     const status = canvasWorkflowCheckpointNodeStatus(checkpoint.status);
     if (!status) continue;
     const current = states.get(nodeId);
-    const next = canvasWorkflowCheckpointRunState(checkpoint, status, nowMs);
+    const next = canvasWorkflowCheckpointRunStateFact(checkpoint, status);
     if (!current || canvasWorkflowNodeRunStatusPriority(status) >= canvasWorkflowNodeRunStatusPriority(current.status)) {
       states.set(nodeId, next);
     }
+  }
+  return states;
+}
+
+export function canvasWorkflowNodeRunStates(
+  facts: ReadonlyMap<string, CanvasWorkflowNodeRunStateFact>,
+  nowMs: number,
+): Map<string, CanvasWorkflowNodeRunState> {
+  const states = new Map<string, CanvasWorkflowNodeRunState>();
+  for (const [nodeId, fact] of facts) {
+    const elapsedSeconds = fact.startedAtMs === null
+      ? null
+      : Math.max(0, Math.floor(((fact.finishedAtMs ?? nowMs) - fact.startedAtMs) / 1000));
+    states.set(nodeId, { status: fact.status, elapsedSeconds });
   }
   return states;
 }
@@ -219,32 +245,47 @@ export function canvasWorkflowRuntimeRefreshSignature(detail: WorkflowRunDetailS
   return `${detail.run.id}:${detail.run.status}:${detail.run.updated_at}:${checkpointSignature}`;
 }
 
-function workflowRunCurrentStepElapsedSeconds(
-  detail: WorkflowRunDetailSummary,
-  nowMs: number,
-): number | null {
-  const updatedAtMs = parseApiTimestampMs(detail.run.updated_at);
-  const createdAtMs = parseApiTimestampMs(detail.run.created_at);
-  const startedAtMs = updatedAtMs ?? createdAtMs;
-  return startedAtMs === null ? null : Math.max(0, Math.floor((nowMs - startedAtMs) / 1000));
-}
-
-function canvasWorkflowCheckpointRunState(
+function canvasWorkflowCheckpointRunStateFact(
   checkpoint: WorkflowRunDetailSummary["checkpoints"][number],
   status: CanvasWorkflowNodeRunStatus,
-  nowMs: number,
-): CanvasWorkflowNodeRunState {
+): CanvasWorkflowNodeRunStateFact {
   const startedAtMs = parseApiTimestampMs(checkpoint.created_at);
   const finishedAtMs =
     status === "running"
       ? null
       : parseApiTimestampMs(checkpoint.completed_at) ?? parseApiTimestampMs(checkpoint.updated_at);
-  const elapsedSeconds =
-    startedAtMs === null ? null : Math.max(0, Math.floor(((finishedAtMs ?? nowMs) - startedAtMs) / 1000));
   return {
     status,
-    elapsedSeconds,
+    startedAtMs,
+    finishedAtMs,
   };
+}
+
+function sameWorkflowNodeRunStateInputs(
+  current: WorkflowRunDetailSummary | null,
+  previous: WorkflowRunDetailSummary | null | undefined,
+): boolean {
+  if (current === previous) return true;
+  if (!current || !previous) return false;
+  if (
+    current.run.current_step_key !== previous.run.current_step_key ||
+    current.run.status !== previous.run.status ||
+    current.run.created_at !== previous.run.created_at ||
+    current.run.updated_at !== previous.run.updated_at ||
+    current.checkpoints.length !== previous.checkpoints.length
+  ) return false;
+  for (let index = 0; index < current.checkpoints.length; index += 1) {
+    const checkpoint = current.checkpoints[index];
+    const previousCheckpoint = previous.checkpoints[index];
+    if (
+      checkpoint.step_key !== previousCheckpoint.step_key ||
+      checkpoint.status !== previousCheckpoint.status ||
+      checkpoint.created_at !== previousCheckpoint.created_at ||
+      checkpoint.updated_at !== previousCheckpoint.updated_at ||
+      checkpoint.completed_at !== previousCheckpoint.completed_at
+    ) return false;
+  }
+  return true;
 }
 
 function canvasWorkflowCheckpointNodeStatus(status: string): CanvasWorkflowNodeRunStatus | null {

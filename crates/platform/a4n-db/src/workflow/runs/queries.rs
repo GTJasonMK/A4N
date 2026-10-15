@@ -1,10 +1,8 @@
 use super::*;
-use sea_orm::ConnectionTrait;
-
-use sea_orm::FromQueryResult;
+use sea_orm::{ConnectionTrait, DbBackend, FromQueryResult, Statement};
 use std::collections::HashSet;
 
-use super::super::summaries::GenerationRunSummaryRecord;
+use super::super::summaries::{GenerationRunSummaryRecord, WorkflowCheckpointSummary};
 
 use super::projections::{
     workflow_checkpoint_summary, workflow_run_resume_record, workflow_run_summary,
@@ -18,6 +16,20 @@ struct WorkflowRunRecoveryQueryRecord {
     status: String,
     error_message: Option<String>,
     updated_at: chrono::NaiveDateTime,
+}
+
+#[derive(Debug, FromQueryResult)]
+struct WorkflowCheckpointDisplayRecord {
+    id: i64,
+    workflow_run_id: i64,
+    step_key: String,
+    step_order: i32,
+    status: String,
+    artifacts_json: Option<serde_json::Value>,
+    error_message: Option<String>,
+    created_at: chrono::NaiveDateTime,
+    updated_at: chrono::NaiveDateTime,
+    completed_at: Option<chrono::NaiveDateTime>,
 }
 
 pub async fn list_workflow_runs(
@@ -41,27 +53,47 @@ pub async fn workflow_run_detail(
     input: GetWorkflowRunInput,
 ) -> Result<WorkflowRunDetailSummary, WorkflowReadError> {
     let workflow_run_id = input.workflow_run_id;
+    let include_generation_runs = input.include_generation_runs;
+    let include_generation_run_count = input.include_generation_run_count;
+    let include_checkpoint_details = input.include_checkpoint_details;
+    const GENERATION_RUN_LIMIT: u64 = 300;
     let run_result = workflow_run_by_id(db, workflow_run_id);
-    let checkpoints_result = workflow_checkpoints(db, workflow_run_id);
+    let checkpoints_result =
+        workflow_checkpoint_detail_summaries(db, workflow_run_id, include_checkpoint_details);
     let generation_runs_result = async {
-        if input.include_generation_runs {
-            generation_runs_for_workflow(db, workflow_run_id, 300).await
+        if include_generation_runs {
+            generation_runs_for_workflow(db, workflow_run_id, GENERATION_RUN_LIMIT).await
         } else {
             Ok(Vec::new())
         }
     };
-    let (run_result, checkpoints_result, generation_runs_result) =
-        futures::join!(run_result, checkpoints_result, generation_runs_result,);
+    let generation_run_count_result = async {
+        if include_generation_run_count && !include_generation_runs {
+            generation_run_count_for_workflow(db, workflow_run_id, GENERATION_RUN_LIMIT).await
+        } else {
+            Ok(0)
+        }
+    };
+    let (run_result, checkpoints_result, generation_runs_result, generation_run_count_result) = futures::join!(
+        run_result,
+        checkpoints_result,
+        generation_runs_result,
+        generation_run_count_result,
+    );
     let run = run_result?;
     let checkpoints = checkpoints_result?;
     let generation_runs = generation_runs_result?;
+    let generation_run_count = if include_generation_runs {
+        generation_runs.len() as u64
+    } else {
+        generation_run_count_result?
+    };
     Ok(WorkflowRunDetailSummary {
         run: workflow_run_summary(run)?,
-        checkpoints: checkpoints
-            .into_iter()
-            .map(workflow_checkpoint_summary)
-            .collect(),
+        checkpoints,
         generation_runs,
+        generation_run_count,
+        checkpoint_details_included: include_checkpoint_details,
     })
 }
 
@@ -452,6 +484,69 @@ pub(crate) async fn locked_workflow_run_by_id<C: ConnectionTrait>(
         .ok_or_else(|| WorkflowReadError::NotFound(format!("工作流不存在: {workflow_run_id}")))
 }
 
+async fn workflow_checkpoint_detail_summaries<C>(
+    db: &C,
+    workflow_run_id: i64,
+    include_details: bool,
+) -> Result<Vec<WorkflowCheckpointSummary>, WorkflowReadError>
+where
+    C: ConnectionTrait,
+{
+    if include_details {
+        return workflow_checkpoints(db, workflow_run_id)
+            .await
+            .map(|checkpoints| {
+                checkpoints
+                    .into_iter()
+                    .map(workflow_checkpoint_summary)
+                    .collect()
+            });
+    }
+    validate_positive_i64(workflow_run_id, "workflow_run_id")?;
+    workflow_checkpoint::Entity::find()
+        .filter(workflow_checkpoint::Column::WorkflowRunId.eq(workflow_run_id))
+        .order_by_asc(workflow_checkpoint::Column::StepOrder)
+        .order_by_asc(workflow_checkpoint::Column::Id)
+        .select_only()
+        .column(workflow_checkpoint::Column::Id)
+        .column(workflow_checkpoint::Column::WorkflowRunId)
+        .column(workflow_checkpoint::Column::StepKey)
+        .column(workflow_checkpoint::Column::StepOrder)
+        .column(workflow_checkpoint::Column::Status)
+        .column(workflow_checkpoint::Column::ArtifactsJson)
+        .column(workflow_checkpoint::Column::ErrorMessage)
+        .column(workflow_checkpoint::Column::CreatedAt)
+        .column(workflow_checkpoint::Column::UpdatedAt)
+        .column(workflow_checkpoint::Column::CompletedAt)
+        .into_model::<WorkflowCheckpointDisplayRecord>()
+        .all(db)
+        .await
+        .map_err(WorkflowReadError::Database)
+        .map(|checkpoints| {
+            checkpoints
+                .into_iter()
+                .map(|checkpoint| WorkflowCheckpointSummary {
+                    id: checkpoint.id,
+                    workflow_run_id: checkpoint.workflow_run_id,
+                    step_key: checkpoint.step_key,
+                    step_order: checkpoint.step_order,
+                    status: checkpoint.status,
+                    input_fingerprint_sha256: None,
+                    input_fingerprint_json: None,
+                    checkpoint_json: None,
+                    artifacts_json: checkpoint.artifacts_json,
+                    generation_run_ids_json: None,
+                    error_message: checkpoint.error_message,
+                    created_at: checkpoint.created_at.and_utc().to_rfc3339(),
+                    updated_at: checkpoint.updated_at.and_utc().to_rfc3339(),
+                    completed_at: checkpoint
+                        .completed_at
+                        .map(|value| value.and_utc().to_rfc3339()),
+                })
+                .collect()
+        })
+}
+
 pub(in crate::workflow) async fn workflow_checkpoints<C>(
     db: &C,
     workflow_run_id: i64,
@@ -506,6 +601,32 @@ async fn generation_runs_for_workflow(
         .await
         .map(|runs| runs.into_iter().map(Into::into).collect())
         .map_err(WorkflowReadError::Database)
+}
+
+async fn generation_run_count_for_workflow(
+    db: &impl ConnectionTrait,
+    workflow_run_id: i64,
+    limit: u64,
+) -> Result<u64, WorkflowReadError> {
+    validate_positive_i64(workflow_run_id, "workflow_run_id")?;
+    let statement = Statement::from_sql_and_values(
+        DbBackend::Postgres,
+        "SELECT COUNT(*)::bigint AS count FROM (SELECT 1 FROM generation_run WHERE workflow_run_id = $1 LIMIT $2) AS limited_runs",
+        [workflow_run_id.into(), (limit.clamp(1, 500) as i64).into()],
+    );
+    let row = db
+        .query_one(statement)
+        .await
+        .map_err(WorkflowReadError::Database)?
+        .ok_or_else(|| {
+            WorkflowReadError::InvalidData("generation run count query returned no row".into())
+        })?;
+    let count: i64 = row
+        .try_get("", "count")
+        .map_err(WorkflowReadError::Database)?;
+    u64::try_from(count).map_err(|error| {
+        WorkflowReadError::InvalidData(format!("generation run count is negative: {error}"))
+    })
 }
 
 pub(super) async fn latest_workflow_run_by_business_key_model<C>(

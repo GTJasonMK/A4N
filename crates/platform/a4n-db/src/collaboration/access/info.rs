@@ -1,13 +1,21 @@
 use std::collections::HashMap;
 
 use a4n_db_models::models::project::project_member;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
+use sea_orm::sea_query::Expr;
+use sea_orm::{ColumnTrait, EntityTrait, FromQueryResult, QueryFilter, QuerySelect};
 
 use super::super::{
     CollaborationDbError, ProjectAccessInfo, ProjectAccessInfoQuery, ProjectAccessRole, find_user,
     parse_stored_member_role, pending_invite_counts_by_root, project_access_rows_by_id,
     users_by_id, validate_collaboration_root_identity, validate_positive_i64,
 };
+
+#[derive(Debug, FromQueryResult)]
+struct ProjectMemberAccessSummaryRow {
+    project_id: i64,
+    member_count: i64,
+    caller_role: Option<String>,
+}
 
 pub async fn project_access_info(
     db: &impl crate::DbExecutor,
@@ -59,29 +67,36 @@ pub async fn project_access_info_batch(
         .values()
         .map(|root| root.user_id)
         .collect::<Vec<_>>();
-    let (members, owners_by_id) = futures::join!(
+    let (member_summaries, owners_by_id) = futures::join!(
         async {
             project_member::Entity::find()
                 .select_only()
                 .column(project_member::Column::ProjectId)
-                .column(project_member::Column::UserId)
-                .column(project_member::Column::Role)
+                .column_as(Expr::cust("COUNT(*)"), "member_count")
+                .column_as(
+                    Expr::cust_with_values("MAX(role) FILTER (WHERE user_id = $1)", [user_id]),
+                    "caller_role",
+                )
                 .filter(project_member::Column::ProjectId.is_in(root_ids.iter().copied()))
-                .into_tuple::<(i64, i64, String)>()
+                .group_by(project_member::Column::ProjectId)
+                .into_model::<ProjectMemberAccessSummaryRow>()
                 .all(db)
                 .await
                 .map_err(CollaborationDbError::Database)
         },
         users_by_id(db, &owner_ids),
     );
-    let members = members?;
+    let member_summaries = member_summaries?;
     let owners_by_id = owners_by_id?;
-    let mut member_counts: HashMap<i64, u64> = HashMap::new();
-    let mut member_roles = HashMap::new();
-    for (project_id, member_user_id, role) in members {
-        *member_counts.entry(project_id).or_insert(0) += 1;
-        if member_user_id == user_id {
-            member_roles.insert(project_id, parse_stored_member_role(&role)?.into());
+    let mut member_counts = HashMap::with_capacity(member_summaries.len());
+    let mut member_roles = HashMap::with_capacity(member_summaries.len());
+    for summary in member_summaries {
+        let count = u64::try_from(summary.member_count).map_err(|_| {
+            CollaborationDbError::Internal(format!("项目协作者数量无效: {}", summary.project_id))
+        })?;
+        member_counts.insert(summary.project_id, count);
+        if let Some(role) = summary.caller_role {
+            member_roles.insert(summary.project_id, parse_stored_member_role(&role)?.into());
         }
     }
 

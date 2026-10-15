@@ -7,5 +7,6 @@ pub use mutations::{
 };
 pub use queries::{
     get_project_asset_dependency_graph, get_project_asset_dependency_graph_node_detail,
-    get_project_summary, list_projects, list_source_snapshot_chapters,
+    get_project_summary, get_source_snapshot_chapter, list_projects,
+    list_source_snapshot_chapter_index, list_source_snapshot_chapters,
 };

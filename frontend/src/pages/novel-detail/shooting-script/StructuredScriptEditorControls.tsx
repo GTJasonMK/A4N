@@ -4,9 +4,9 @@ import type { ShootingPerformanceBeatV2 } from "../../../api/shootingScript";
 import { useI18n } from "../../../i18n";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
+import type { UpdateValue, ValuePath } from "../../../utils/updateAtPath";
 
-export type ValuePath = Array<string | number>;
-export type UpdateValue = (path: ValuePath, value: unknown) => void;
+export type { UpdateValue, ValuePath } from "../../../utils/updateAtPath";
 
 export const BeatEditor: React.FC<{
   beat: ShootingPerformanceBeatV2;

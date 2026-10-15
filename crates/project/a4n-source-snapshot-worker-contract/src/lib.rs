@@ -1,19 +1,28 @@
 //! Typed commands owned by the source snapshot read worker.
 
-pub use a4n_api_contract::project::SourceSnapshotChapterSummary;
+pub use a4n_api_contract::project::{SourceSnapshotChapterIndex, SourceSnapshotChapterSummary};
 pub use a4n_worker_contract::{WorkerEnvelope, WorkerResponse};
 
 use serde::{Deserialize, Serialize};
 
 pub const SOURCE_SNAPSHOT_WORKER_ID: &str = "source-snapshot-worker";
-pub const SOURCE_SNAPSHOT_WORKER_CONTRACT_VERSION: &str = "source-snapshot-read-v1";
+pub const SOURCE_SNAPSHOT_WORKER_CONTRACT_VERSION: &str = "source-snapshot-read-v2";
 pub const SOURCE_SNAPSHOT_CHAPTERS_OPERATION: &str = "project.source_snapshot.chapters";
+pub const SOURCE_SNAPSHOT_CHAPTER_INDEX_OPERATION: &str = "project.source_snapshot.chapter_index";
+pub const SOURCE_SNAPSHOT_CHAPTER_OPERATION: &str = "project.source_snapshot.chapter";
 pub const SOURCE_SNAPSHOT_READ_CAPABILITY: &str = "project.source_snapshot.read";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct SourceSnapshotProjectInput {
     pub project_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SourceSnapshotChapterInput {
+    pub project_id: i64,
+    pub source_chapter_id: i64,
 }
 
 #[cfg(test)]
@@ -50,5 +59,24 @@ mod tests {
         request
             .validate()
             .expect("source snapshot request should validate");
+    }
+
+    #[test]
+    fn chapter_detail_input_requires_project_and_source_scope() {
+        let input: SourceSnapshotChapterInput = serde_json::from_value(serde_json::json!({
+            "project_id": 7,
+            "source_chapter_id": 19
+        }))
+        .expect("snapshot chapter input must deserialize");
+        assert_eq!(input.project_id, 7);
+        assert_eq!(input.source_chapter_id, 19);
+        assert!(
+            serde_json::from_value::<SourceSnapshotChapterInput>(serde_json::json!({
+                "project_id": 7,
+                "source_chapter_id": 19,
+                "snapshot_id": 2
+            }))
+            .is_err()
+        );
     }
 }

@@ -715,6 +715,8 @@
             "get_project_status_machine",
             "list_chapters",
             "list_source_snapshot_chapters",
+            "list_source_snapshot_chapter_index",
+            "get_source_snapshot_chapter",
             "delete_project",
             "reset_project_generated_data",
             "sync_blueprint_materials",

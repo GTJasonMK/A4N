@@ -35,6 +35,54 @@
 | [PERF-017](../../frontend/src/pages/WritingDesk.tsx) | 写作桌/只读目录/导入预览 → Chapter Content Worker；1000章、4Mbps/50ms | 目录原先携带整本正文/分析；目录窄投影与带项目归属的单章读取共用权限/状态规则，正文按选择读取 | 页面可编辑中位数 **5264.6 → 741.1 ms（85.92%）**；真实千章目录 **11,601,686 → 742,686 字节（93.60%）**；业务/权限/草稿回归通过 |
 | [PERF-018](../../frontend/src/pages/novel-detail/story-events/ChapterEventSection.tsx) | 故事事件筛选 → 章节卡片渲染；100／1000 章，每章 5 事件，连续 8 次含收窄和放宽的筛选 | 原过滤为所有匹配章节创建新对象，未变化卡片也反复渲染；完整保留的章节维持原对象，卡片使用 React 原生 memo | CPU18/19 三轮交错中位数 **135.2 → 50.4 ms（62.72%）／1328.1 → 503.9 ms（62.06%）**；完整 DOM 和筛选行为一致 |
 | [PERF-019](../../crates/platform/a4n-db/src/chapter_content/queries.rs) | 故事事件初载/刷新 → Control → Chapter Content Worker → PostgreSQL；1000章、900章有分析、4500事件 | 旧接口读取正文并生成未使用的同步状态；新分析读口仅选取 id/章号/标题/摘要/分析五列，复用项目权限和删除过滤 | 三轮真实 API P50 **126.56 → 43.34 ms（65.76%）**，P95 **160.61 → 66.36 ms（58.68%）**；JSON **13,650,788 → 2,172,288 字节（84.09%）** |
+| [PERF-077](../../crates/host/a4n-orchestrator/src/fact_feedback/mod.rs) | 事实反馈面板仅在工作流运行时每 1.5 秒轮询；1000 章、每章 9 KiB 正文与 8 KiB 分析、每项目 10,161 条变更历史 | 章节修订与可用章节共用一次投影；历史通过部分索引取最近 ID，再读取至多 100 个完整行并保留原 Rust 等值判断 | Orchestrator 摘要 P50 **80.8/86.3/93.5 → 43.9/45.5/53.5 ms（45.7%/47.3%/42.8%）**；三种覆盖率下 DTO 和响应字节相同 |
+| [PERF-078](../../crates/platform/a4n-db/src/project/source_snapshot/queries.rs) | 漫画／视频／Galgame 派生工作台初载与刷新；1000 章、每章 9 KiB 正文和 8 KiB 分析，漫画/视频默认选中一章 | 列表改为 id/snapshot_id/源章 ID/章号/标题投影；漫画与视频只按项目及当前源章 ID读取一条完整快照，Galgame仅用索引 | 旧全量列表 **17,913,472 B / P50 41.06 ms / P95 47.39 ms**；索引+当前章 **109,482 B / P50 3.09 ms / P95 6.02 ms**；延迟分别下降 **92.48% / 87.30%**，字节下降 **99.39%** |
+| [PERF-079](../../crates/platform/a4n-db/src/collaboration/access/info.rs) | 项目列表／摘要 → 协作摘要；100 个项目、每项目 1000 成员 | 成员数和当前用户角色在 PostgreSQL 分组聚合；不再将所有成员行解码到 Worker | 100,000 行时查询 P50 **29.540 → 19.399 ms（34.33%）**，结果字节 **1,381,300 → 1,492（99.89%）**；这是成员聚合查询，不是完整 API 响应 |
+| [PERF-080](../../frontend/src/utils/videoPlayback.ts) | 每次选中／重载视频 → Host 内联 Base64 → `<video>`；单个文件最高 256 MiB | 删除仅用于校验的前端整串 `atob`；Host 已用 `base64::STANDARD` 编码，播放元素是唯一必要解码者 | Chromium 153、64 MiB：helper P50 **124.7 → 0.1 ms**，临时 JS heap **67,108,955 → 4,836 B**；分别下降 **99.92% / 99.99%** |
+| [PERF-081](../../crates/media/a4n-media/src/upload.rs) | 视频源上传 → Runtime → 临时文件；64 MiB 基准、接口上限 512 MiB | 复用原有空值/长度/Base64 校验，以 `DecoderReader` 分块写入临时文件，避免完整解码 `Vec<u8>` | 固定 CPU 的 release A/B P50 **100.975 → 98.010 ms（2.94%）**；进程峰值 RSS **151.562 → 87.770 MiB（42.09%）**；字节相同 |
+| [PERF-082](../../frontend/src/pages/novel-detail/video/VideoSegmentPlanEditor.tsx) | 长视频分镜编辑；每次文本输入更新整份 segment plan，50／100／200 段 | 路径级不可变更新保留未修改段引用，memoize 未变分段，dirty 检查复用固定基线序列化 | 固定 CPU 18/19、Chromium 153，每 8 次输入总耗时 P50：50 段 **211.5 → 11.6 ms（94.52%）**、100 段 **459.7 → 17.0 ms（96.30%）**、200 段 **976.9 → 24.2 ms（97.52%）**；保存摘要完全相同 |
+| [PERF-083](../../frontend/src/pages/novel-detail/shooting-script/StructuredScriptEditor.tsx) | 影片剧本编辑；每次镜头字段输入更新完整剧本，25／50／100 镜头 | 共用 `updateAtPath` 只复制修改路径，稳定更新回调并 memoize 未变化的 ShotEditor | 固定 CPU 18/19、Chromium 153，每 8 次输入总耗时 P50：25 镜头 **183.6 → 34.8 ms（81.05%）**、50 镜头 **385.8 → 60.7 ms（84.27%）**、100 镜头 **775.8 → 103.5 ms（86.66%）**；保存摘要完全相同 |
+| [PERF-084](../../frontend/src/pages/derived/MediaPlanEditors.tsx) | Galgame 分支计划编辑；每个输入重算所有章节改编单元/节拍，500／1000 章 | 以章节 ID Map 替代逐章扫描全部文档的嵌套 `find`，保留文档首个匹配顺序 | 固定 CPU 18/19、Chromium 153，每 8 次输入总耗时 P50：500 章 **30.9 → 11.5 ms（62.78%）**、1000 章 **77.2 → 18.1 ms（76.55%）**；计划摘要相同。100 章为 **11.8 → 12.3 ms**，不计为收益 |
+| [PERF-085](../../crates/platform/a4n-db/src/media_authoring.rs) | Galgame 分支计划保存／漫画计划校验 → 1000 个章节依赖；每份文档约 8 KiB | 按 project 和依赖 ID 分批读取，最多 64 份完整记录；逐条 canonical hash/revision/status/kind 校验 | 隔离 PostgreSQL 16、CPU 18/19、5 组交错（2 组预热、3 组计量）P50 **237.318 → 79.038 ms（66.7%）**；JSON **8,291,000 B**，校验结果相同 |
+| [PERF-086](../../crates/platform/a4n-db/src/media_authoring.rs) | 多章节 Galgame 分支计划保存 → 验证 1000 个来源快照章节；正文共 **8,192,000 B** | 按来源快照章节 ID 每批读取最多 64 行；按输入顺序保留来源身份、正文哈希、重复／缺失错误与独立漫画映射检查 | 隔离 PostgreSQL 16、CPU 18/19、5 组交错（2 组预热、3 组计量）P50 **189.626 → 28.061 ms（85.2%）**；内容校验结果相同 |
+| [PERF-087](../../crates/host/a4n-orchestrator/src/galgame/read_models/pipeline.rs) | Galgame 千章 context 初装与分支阶段 → 1000 个已采用计划；每份文档约 8 KiB | draft/adopted 当前文档按章批读；分支阶段按计划 ID 批读；仍逐条解析并验证 draft 优先级、记录身份和 revision | 隔离 PostgreSQL 16、CPU 18/19、5 组交错（2 组预热、3 组计量）P50：context **1,037.152 → 95.208 ms（90.8%）**；分支阶段刷新 **252.101 → 80.963 ms（67.9%）**；摘要顺序与状态相同 |
+| [PERF-088](../../frontend/src/pages/novel-detail/visual-plan/useDirectorPlan.ts) | ChapterVisualPlan 每次镜头输入 → dirty 检查、编辑 revision 与本地草稿备份；100／500／1000 段、每份计划 82,583／416,583／834,088 B | 每次更改只序列化一次；dirty、revision、同步备份共用同一表示；效果阶段跳过同一对象的重复 sessionStorage 写入 | Chromium 153、CPU 18/19、8 次输入 P50：100 段 **16.8 → 9.7 ms（42.3%）**、500 段 **114.0 → 56.4 ms（50.5%）**、1000 段 **234.2 → 112.3 ms（52.1%）** |
+| [PERF-091](../../crates/host/a4n-orchestrator/src/media_authoring/application.rs) | 手动首次保存 Galgame 分支计划 → 收集 1000 章 adopted 改编依赖；每份文档约 8 KiB | 按 project/snapshot/source chapter 每批 64 条仅读 adopted 计划；调用方继续按章节顺序 parse 并生成 reference | 隔离 PostgreSQL 16、CPU 18/19、5 组交错（2 组预热、3 组计量）P50 **475.357 → 100.909 ms（78.8%）**；依赖 ID、revision、hash、status 顺序相同 |
+| [PERF-092](../../crates/host/a4n-orchestrator/src/galgame/webgal_export_application.rs) | WebGAL 导出选择合同 → 1000／5000／10000 场景、每场 2 个选项 | 用现有导出 scene ID Map 校验目标；删除 Map 命中后对详情场景的第二次线性扫描 | Rust release、CPU 18/19，完整合同验证 P50 **2.394→0.288 ms（88.0%）／51.907→1.604 ms（96.9%）／202.676→4.577 ms（97.7%）**；结果与错误语义相同 |
+| [PERF-093](../../crates/platform/a4n-db/src/project/dependency_graph/builder/topology.rs) | 资产依赖图请求 → `GraphBuilder::finish`；8 层 DAG、1000／5000／10000 节点，平均 2.625 边/节点 | 节点 ID 映射到整数索引；使用 Vec 邻接、可复用队列和访问代次，保留精确唯一后代数 | Rust release、CPU 18/19，P50 **94.467→5.335 ms（94.35%）／1155.143→37.748 ms（96.73%）／2735.239→84.155 ms（96.92%）**；后代数与图摘要一致 |
+| [PERF-094](../../frontend/src/pages/novel-detail/asset-graph/graphCanvas.ts) | 打开／刷新资产依赖图 → `buildLayout`；8 层 DAG、1000／5000／10000 节点、2625／13125／26250 边 | 每个可见节点只计算一次聚类排序键，供拓扑堆和五轮分层排序重复比较使用 | Chromium 153.0.8010.52、CPU 18/19、生产 Vite P50 **53.400→25.700 ms（51.87%）／345.600→172.600 ms（50.06%）／781.700→403.100 ms（48.43%）**；坐标与层级摘要完全相同 |
+| [PERF-095](../../frontend/src/pages/novel-detail/MangaTab.tsx) | NovelDetail 根项目漫画页初载 → 章节目录；1000 章 | 目录改用已存在的 `listChapterIndex`；只有当前章节选中时才读完整 `getChapter` | 复用 PERF-017 同一真实 1000 章列表 API 对照：完整章节响应 **11,601,686→742,686 B（减少 93.60%）**；多章节初载不请求正文/分析 |
+| [PERF-096](../../frontend/src/pages/novel-detail/MangaTab.tsx) | 根项目 MangaTab 多章空态 → 角色档案、立绘、全项目图片读取；1000 章、5000／10000 图片 | 没有选中章节时不读取详情面板未使用的三组项目资产；首次选择或单章自动选择时仍读取 | Chromium 153、生产 Vite、4× CPU、4 Mbps/50 ms、三轮：JS heap P50 **14.76→9.01 MB（38.96%）／19.03→9.01 MB（52.65%）**；解压 API JSON **5,722,957→969,812 B（83.05%）／10,274,345→969,812 B（90.56%）**；目录就绪仅快 **7.21%／8.01%**，不计为时延收益 |
+| [PERF-097](../../frontend/src/pages/novel-detail/manga/ReferenceBindingsPanel.tsx) | 漫画参考图绑定器每次打开／搜索；3 个角色、50 档案、200 立绘、5000／10000 项目图片 | 超过 100 个候选时改为关键词过滤并最多渲染 100 项；候选保留稳定 ID/面板身份，选择后预览缩略图；小列表沿用原下拉 | Chromium 153、生产 Vite、三轮交错：候选初载 P50 **59.6→9.5 ms（84.06%）／98.8→8.3 ms（91.60%）**；宽泛 `page` 搜索并打开 **329.1→99.6 ms（69.74%）／576.0→114.7 ms（80.09%）**；GC 后 JS heap **8614→5005 KiB（41.90%）／13738→6625 KiB（51.78%）**；指针/键盘可添加，1440/1024/390px 无溢出 |
+| [PERF-098](../../frontend/src/pages/novel-detail/visual-plan/timeline.ts) | ChapterVisualPlan 拆分镜头弹窗每次重渲染 → 计算段内时间点；1000／5000 点和段 | 将循环内反复查找目标段与起止点收敛为各查找一次，再执行相同的段内过滤 | Chromium 153、生产 Vite、2 轮预热＋7 轮交错：1000 项 **10.5→≤0.1 ms**；5000 项 **78.6→0.1 ms（99.87%）**；输出点数、ID 与顺序逐项一致 |
+| [PERF-099](../../frontend/src/pages/novel-detail/visual-plan/timeline.ts) | ChapterVisualPlan 时间点选中／编辑源投影 → 查找所属分镜；1000／5000 点和段 | 一次建立保留首个 ID 的时间点 Map，再按原段顺序扫描并返回首个包含时间的分镜；保留缺失端点错误与总时长边界 | Chromium 153、生产 Vite、2 轮预热＋7 轮交错：靠后段查找 P50 **4.8→≤0.1 ms／32.6→0.2 ms（99.39%）**；选中分镜 ID 完全一致 |
+| [PERF-101](../../frontend/src/pages/novel-detail/images/ImageGalleryPanel.tsx) | 项目图片图库初载；1000／2000 张图片 | 首次仅挂载 500 张卡片，底部按钮按批显示其余图片；过滤和范围切换重置批次 | Chromium 153.0.8010.52、生产 Vite、CPU 18/19、3 轮交错：挂载 P50 **192.1→111.0 ms（42.22%）／339.8→113.9 ms（66.48%）**；首屏后 JS heap 降 **27.08%／51.81%**；图片请求与传输减少 **50%／75%**；完整图片列表仍可逐批到达 |
+| [PERF-102](../../crates/platform/a4n-migration/src/migrations/generated_image_project_index.rs) | 项目图库 API → `generated_image` 按项目查询；100,000 行、每项目 1,000 张 | 为现有 `WHERE project_id = ?` 增加单列数据库索引；保持原 `created_at DESC` 排序和完整 DTO 投影 | 隔离 PostgreSQL 16、5 轮交错、服务器 `EXPLAIN ANALYZE`：P50 **14.223→4.265 ms（70.01%）**；计划从全表扫描变为项目索引 Bitmap Heap Scan；索引 **745,472 B**；结果 1,000 个 ID 顺序完全一致 |
+| [PERF-103](../../crates/platform/a4n-migration/src/migrations/generated_image_project_chapter_index.rs) | 章节图库 API → `generated_image` 按项目和章节查询；100,000 行、目标项目/章节 100 张 | 为现有 `WHERE project_id = ? AND chapter_id = ?` 增加复合数据库索引；保持原 `created_at DESC` 排序和完整 DTO 投影 | 隔离 PostgreSQL 16、5 轮交错、服务器 `EXPLAIN ANALYZE`：P50 **17.994→0.812 ms（95.49%）**；计划从全表扫描变为复合索引 Bitmap Heap Scan；索引 **761,856 B**；结果 100 个 ID 顺序完全一致 |
+| [PERF-105](../../crates/platform/a4n-migration/src/migrations/workflow_run_project_updated_index.rs) | 工作流列表按项目读取最新运行；100,000 行、目标项目 20,000 行、默认返回 100 条 | 为现有 `WHERE project_id = ? ORDER BY updated_at DESC, id DESC LIMIT 100` 增加排序复合索引；保持完整运行 DTO 和排序语义 | 隔离 PostgreSQL 16、已有项目/状态索引、5 轮交错：P50 **7.702→0.292 ms（96.21%）**；计划从 Bitmap Heap + Sort 变为 Limit + Index Scan；索引 **4,079,616 B**；100 个 ID 顺序完全一致 |
+| [PERF-106](../../crates/platform/a4n-migration/src/migrations/task_queue_project_created_index.rs) | 任务历史分页按项目读取；100,000 行、目标项目 20,000 行、默认返回 100 条 | 为现有 `WHERE project_id = ? ORDER BY created_at DESC LIMIT 100` 增加项目/时间排序索引；保持完整任务 DTO 和分页顺序 | 隔离 PostgreSQL 16、5 轮交错：P50 **15.588→0.412 ms（97.36%）**；计划从 Limit + Seq Scan + Sort 变为 Limit + Index Scan；索引 **3,178,496 B**；100 个 ID 顺序完全一致 |
+| [PERF-108](../../crates/platform/a4n-migration/src/migrations/project_status_history_project_changed_index.rs) | 项目状态历史按项目读取；100,000 行、目标项目 20,000 条 | 为现有 `WHERE project_id = ? ORDER BY changed_at DESC, id DESC` 增加项目/时间排序索引；保持完整状态历史投影和顺序 | 隔离 PostgreSQL 16、5 轮交错：P50 **8.627→5.121 ms（40.64%）**；计划从 Sort + Seq Scan 变为 Sort + Bitmap Heap Scan；索引 **4,079,616 B**；20,000 个 ID 顺序完全一致 |
+| [PERF-109](../../crates/platform/a4n-migration/src/migrations/workflow_run_business_updated_index.rs) | 工作流恢复按 business key 取最新运行；100,000 行、每 key 1,000 条历史 | 为现有 `WHERE business_key = ? ORDER BY updated_at DESC, id DESC LIMIT 1` 增加 business key/时间排序索引；保持最新记录身份和完整 DTO | 隔离 PostgreSQL 16、保留 business key 单列索引、5 轮交错：P50 **3.701→0.098 ms（97.35%）**；计划从 Bitmap Heap + Sort 变为 Limit + Index Scan；索引 **4,079,616 B**；最新运行 ID 完全一致 |
+| [PERF-110](../../crates/platform/a4n-migration/src/migrations/llm_call_trace_created_index.rs) | 管理员生成分析读取时间窗口内所有 LLM trace；100,000 行、最近 7 天 7,000 行 | 为 `created_at >= since ORDER BY created_at DESC` 增加全局时间索引；保留完整分析投影及 JSON 表达式 | 隔离 PostgreSQL 16、完整分析投影、5 轮交错：P50 **81.636→39.269 ms（51.90%）**；计划从 Seq Scan + Sort 变为 Index Scan；索引 **2,260,992 B**；行数和 ID 顺序完全一致 |
+| [PERF-111](../../crates/platform/a4n-migration/src/migrations/generation_run_created_index.rs) | 管理员生成分析媒体运行查询；100,000 行、最近窗口 4,667 条 image/video | 为 `created_at >= since` 增加全局时间索引；保持 image/video 过滤、完整分析投影和倒序 | 隔离 PostgreSQL 16、已有 project/time 索引、5 轮交错：P50 **15.504→1.230 ms（92.07%）**；计划从 Seq Scan + Sort 变为 Index Scan；索引 **2,260,992 B**；4,667 个 ID 顺序完全一致 |
+| [PERF-112](../../crates/platform/a4n-migration/src/migrations/model_usage_root_started_index.rs) | 项目成本面板打开/刷新；1,000,000 行、30 天内命中 3,333 行 | 为 `root_project_id = ?` 增加部分 `(root_project_id, started_at DESC)` 索引；保留项目 OR 根项目过滤和完整投影 | 隔离 PostgreSQL 16、7 轮交错：两条报表 SQL 合计 P50 **126.836→13.055 ms（89.71%）**；计划从 Seq Scan 变为 BitmapOr + Bitmap Heap Scan；索引 **647,168 B**；聚合与 100 条最近记录 JSON 完全一致 |
+| [PERF-113](../../frontend/src/api/image/generation.ts) | 每次图片生成完成后的结果校验；目标项目 1,000 张图、任务产出 2 张 | 从 `result_ref` 和非临时产物 ID 读取目标记录；旧 `list_images_by_project` 命令增加可选 ID 过滤，未传 ID 仍返回全项目列表 | 隔离 PostgreSQL 16、7 轮交错：项目查询 P50 **4.924→0.076 ms（98.46%）**；结果行 **1,000→2**；合成摘要 JSON **958,890→1,922 B（99.80%）**；ID、完整字段和顺序与全量结果子集相同 |
+| [PERF-114](../../crates/platform/a4n-migration/src/migrations/character_portrait_project_index.rs) | 立绘 worker 项目列表与生成结果校验；100,000 行、目标项目 1,000 张 | 为现有 `WHERE project_id = ?` 增加单列索引；完整立绘投影和返回集合保持一致 | 隔离 PostgreSQL 16、7 轮交错：完整立绘查询 P50 **8.183→2.387 ms（70.83%）**；Seq Scan 变为 Bitmap Heap Scan；索引 **745,472 B**；1,000 条完整摘要 JSON 与实际查询返回顺序完全一致 |
+| [PERF-115](../../crates/platform/a4n-migration/src/migrations/character_portrait_primary_profile_index.rs) | 写作台项目上下文卡读取主立绘；100,000 行、40,000 档案、每档 2–3 张立绘 | 为 `profile_id = ? AND is_primary = TRUE` 增加仅包含主立绘行的 `(profile_id)` 部分索引；完整主立绘记录保持一致 | 隔离 PostgreSQL 16、保留 project_id 索引、7 轮交错：P50 **10.602→0.076 ms（99.28%）**；全表扫描变为部分索引扫描；索引 **917,504 B**；主立绘完整 JSON 完全一致 |
+| [PERF-116](../../crates/platform/a4n-db/src/project/family/context/portraits.rs) | Manga pipeline 启动/预览/断点恢复 → 项目角色立绘索引 | 删除用于选择主图但被下游全扫描 HashMap 取代的项目级排序；单次扫描按 `created_at` 显式选每档最新主图 | PostgreSQL 16、完整立绘投影及已有项目索引；1k／20k／100k 行 P50 **1.439→0.270 ms（81.24%）／23.022→3.578 ms（84.46%）／166.665→15.989 ms（90.41%）**；完整行集合和每档选中主图 ID 相同 |
+| [PERF-117](../../crates/platform/a4n-migration/src/migrations/generated_video_project_chapter_index.rs) | 视频时间线摘要/组装 → 按项目和章节读取全部生成视频并按时间排序；100,000 行、目标章节 100 条 | 为 `project_id = ? AND chapter_id = ?` 增加两列索引；完整视频投影和 `created_at DESC` 顺序不变 | 隔离 PostgreSQL 16、7 轮交错：SQL P50 **21.442→0.657 ms（96.94%）**；100 行完整响应 JSON 完全一致；索引 **761,856 B**。额外 created_at 索引列未改变排序计划，候选索引达到 **4,087,808 B**，故使用最小两列索引 |
+| [PERF-119](../../crates/platform/a4n-migration/src/migrations/task_queue_created_index.rs) | 管理员队列页全局任务历史，5 秒刷新一次、每页 30 条；300,000 行 | 为无 project_id 的 `ORDER BY created_at DESC` 增加全局降序索引；保留现有项目/时间索引和完整任务 DTO | 隔离 PostgreSQL 16.15、7 轮交错：完整 30 行查询 P50 **46.174→0.068 ms（99.85%）**；Seq Scan + top-N Sort 变为 Index Scan + Limit；索引 **6,758,400 B**；前后完整 DTO 顺序/hash 完全一致 |
+| [PERF-120](../../crates/platform/a4n-migration/src/migrations/task_queue_pending_created_index.rs) | 管理员任务页每 5 秒读取全部 pending 任务；300,000 行/15,000 条 pending | 为 `status='pending'` 增加仅含 pending 的 `created_at DESC` 部分索引；Rust 优先级/时间/ID 排序及全量任务合同不变 | 隔离 PostgreSQL 16.15、完整 TaskQueue 投影、7 轮交错：SQL P50 **75.721→13.636 ms（81.99%）**；Seq Scan 变为 Index Scan；索引 **352,256 B**；Rust 排序后的 15,000 条完整 DTO JSON 完全一致 |
+| [PERF-121](../../frontend/src/pages/VideoStudioCanvas.tsx) | Video Studio 工作流运行期间每秒计时及详情轮询；1000／5000／10000 节点、边和检查点 | 复用未变的 run/checkpoint 时间事实，活动范围与边标签只在图或运行状态语义变化时重算 | Chromium 153、固定 CPU 18/19、每秒模拟新详情响应对象、7×8 轮：同步图投影 P50 **2.263→0.675 ms（70.17%）／10.912→3.188 ms（70.78%）／22.925→6.150 ms（73.17%）**；节点/边投影摘要相同；每 tick 新建边对象 **999／4,999／9,999→0** |
+| [PERF-122](../../crates/platform/a4n-migration/src/migrations/generation_run_workflow_created_index.rs) | Video Studio 每秒读取工作流详情及最近最多 300 条完整生成记录；100,000 行/目标工作流 300 行 | 为非空 `workflow_run_id` 增加 `(workflow_run_id, created_at ASC)` 部分索引，保留查询字段和排序 | 隔离 PostgreSQL 16、完整 JSON 投影、既有 created_at 索引、7 轮交错：P50 **41.075→2.504 ms（93.90%）**；Seq Scan + Sort 改为 Bitmap Heap/Index Scan + Sort；索引 **1,597,440 B**；300 行完整 JSON **550,035 B**、顺序及 SHA-256 相同 |
+| [PERF-123](../../frontend/src/pages/video-studio/useCanvasWorkflowActions.tsx) | Video Studio 每秒详情轮询只显示模型调用数；最多 300 条生成记录 | 请求受原 300 条上限约束的 `generation_run_count`，不取完整 generation run DTO；明细页仍读取完整数组 | 隔离 PostgreSQL 16、100,000 行/目标工作流 300 行、7 轮：索引后完整投影 **2.504→1.885 ms（24.72%）**；generation-run 子响应数据 **550,035→3 B（99.9995%）**，显示计数仍为 300 |
+| Canvas checkpoint projection 候选（PERF-124，未采用） | Video Studio 每次详情刷新；1000／5000／10000 checkpoints | 三次 filter/sort 合并为一遍汇总 | Chromium 153、固定 CPU 18/19，两个状态分布下签名均相同；10k checkpoints 每次最多节省 **0.387 ms**，绝对成本不足以影响用户体验，未保留改动 |
+| [PERF-125](workflow-checkpoint-order-index.mjs) 检查点排序索引候选（未采用） | Video Studio 每次工作流详情读取全部 checkpoints；100,000 行/目标 1,000／5,000／10,000 行 | 评估 `(workflow_run_id, step_order, id)` 是否能消除查询排序 | PostgreSQL 16.15、完整行投影、两组各 7 轮交错：计划均未变化；最终一组 P50 **3.922→4.711 ms（退化 20.12%）／17.062→16.943 ms（0.70%）／30.340→27.636 ms（8.91%）**；候选索引占 **4,079,616 B**，未采用 |
+| [PERF-126](../../crates/platform/a4n-db/src/workflow/runs/queries.rs) Video Studio checkpoint 详情投影 | 每秒工作流详情轮询；100,000 行/目标 1,000／5,000／10,000 checkpoints | 保持状态、时间、错误和 `artifacts_json`，省去画布不用的 fingerprint/checkpoint/generation ID JSON 字段；其他请求默认仍返回全量 | PostgreSQL 16.15、7 轮：10k 行 SQL **28.678→22.077 ms（23.02%）**，V8 JSON.parse P50 **14.744→8.587 ms（41.75%）**，响应 JSON **12,703,133→5,455,130 B（57.06%）**；画布展示字段 SHA-256 相同 |
+| [PERF-127](../../frontend/src/pages/video-studio/useCanvasWorkflowActions.tsx) Video Studio progress event 轮询上限 | 每秒查询最新 20 条事件，但面板只展示最后 5 条；100,000 行/目标运行最多 200 条 | 查询和展示共用 5 条上限，其他进度查询保持原参数 | PostgreSQL 16.15、两组各 7 轮：事件 JSON **17,758→4,438 B（75.01%）**，前五条摘要 SHA-256 一致；SQL P50 两组分别 **0.270→0.174 ms** 和 **0.260→0.197 ms** |
+| [PERF-128](../../frontend/src/hooks/useProgressTask.tsx) 通用任务进度重复回传 | 每 500 ms 拉取最近最多 200 条事件，前端用 Set 去重 | 增加可选 `after_event_id` 游标；首轮取完整历史，后续仅返回游标后的事件，活体文本仍逐轮返回 | PostgreSQL 16.15、100,000 行/目标 200 条、游标后新增 5 条：JSON **170,919→4,308 B（97.48%）**，V8 JSON.parse **0.282→0.0088 ms（96.89%）**；增量与旧响应去重后的新增事件完全相同 |
+| [PERF-129](../../frontend/src/i18n/translate.ts) locale 字典启动分包候选（未采用） | 首屏 main JS 静态包含 zh-CN 与 en-US 全量字典 | 以空 en-US 字典测量仅移除未选语言的理想上限 | 生产 Vite main JS **1,090.16→755.21 kB**，预压缩 **336.09→240.84 kB（28.34%）**；仅是 main JS 上限，未达时延门槛，英语初始语言仍需加载英语 chunk |
+| PERF-130 workflow run detail 恢复快照投影候选（未采用） | `get_workflow_run_detail` 读取一条 run；`progress_json.snapshot` 只供恢复流程，公开摘要不返回它 | 尝试在数据库投影中移除 snapshot，同时保持公开摘要 SHA-256 不变 | PostgreSQL 16.15、100,000 行：JSON **863,551→678 B**，解析 P50 **1.621→0.0025 ms**；SQL P50 **0.065→2.845 ms**，Docker/psql 查询往返仅改善 **9.38%**，未达到门槛 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -44,17 +92,43 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 
 | 范围 | 已核对事实与决定 |
 | --- | --- |
-| 首屏和路由 | `App.tsx` 已按路由和依赖图弹窗懒加载。PERF-009 已通过真实 Edge 和生产登录页验证压缩交付；同一份入口文件从 1,010,285 原始字节变为 310,789 传输字节。两种语言字典仍静态加载，未宣称这一部分代码拆分已经完成。 |
+| 首屏和路由 | `App.tsx` 已按路由和依赖图弹窗懒加载。PERF-009 已通过真实 Edge 和生产登录页验证压缩交付；同一份入口文件从 1,010,285 原始字节变为 310,789 传输字节。PERF-129 测得移除未选英语字典的理想上限可减少 **28.34%** gzip 入口 JS，低于 30% 时延门槛，未引入异步字典加载。 |
 | 项目列表 | `ProjectReadWorker::summary_for_projects` 已批量查询项目族、权限、进度和反馈间隔；不重新引入逐项目请求或重复批处理层。 |
-| 章节列表 | PERF-011 消除未使用历史读取及检查点深复制，PERF-017 将写作桌/只读目录/导入预览改为按需读取。原 `ChapterSummary` 完整合同保留，目录与正文类型分开；故事事件/来源快照读取仍另行审查。 |
-| 数据库权限和协作 | 读取使用连接池、绑定参数和批量根项目查询。邀请／成员统计仍可能随大型协作人数增长；暂无代表性数据证明其为当前瓶颈，未为凑指标添加索引或改写权限查询。 |
-| 工作流轮询和恢复 | 旧任务进度轮询间隔 500 ms，已有单次进行中保护和结束清理；新生成任务走事件订阅。未通过减少进度频率来换取表面收益。恢复快照的读取需求与公开进度投影分开评估。 |
-| HTTP 与媒体 | Worker／service client 已持有并复用 HTTP client；Web 媒体使用 `ServeFile`，Edge 使用流式 body。桌面自定义协议要求字节响应，不能直接套用 Web 的传输方案。 |
+| 章节列表 | PERF-011 消除未使用历史读取及检查点深复制，PERF-017 将写作桌/只读目录/导入预览改为按需读取；PERF-095 将根项目 MangaTab 也改为索引加按需详情。原 `ChapterSummary` 完整合同保留；故事事件 PERF-019 和派生来源快照 PERF-078 已分别优化。 |
+| 数据库权限和协作 | 读取使用连接池、绑定参数和批量根项目查询。PERF-079 将高基数成员统计收敛为 DB 聚合；未过期邀请统计单独 A/B 仅改善 8.23%，低于门槛，未改写实现或增添索引。 |
+| 工作流轮询和恢复 | 旧任务进度轮询间隔 500 ms，已有单次进行中保护和结束清理；新生成任务走事件订阅。未通过减少进度频率来换取表面收益。恢复快照的读取需求与公开进度投影分开评估；PERF-130 的数据库 JSONB 投影使 SQL 明显变慢，端到端替代测量也未达 30%，未采用。 |
+| HTTP 与媒体 | Worker／service client 已持有并复用 HTTP client；Web 媒体使用 `ServeFile`，Edge 使用流式 body。桌面自定义协议要求字节响应，不能直接套用 Web 的传输方案。PERF-080 去掉播放器 data URL 前多余的完整 Base64 解码；PERF-081 限制上传解码的峰值内存，不改 API 载荷。 |
 | LLM 上游连接 | PERF-012 保留每次构造 provider 的配置与凭证隔离，仅延长 HTTP Client 的生命周期。原连接／逐次读取超时、错误、取消与背压检查通过；不缓存模型响应。 |
 | 嵌入模型生命周期 | PERF-014／015 已处理本地模型和 API 连接的重复初始化。模型文件删除／下载会使额外持有的资源失效；仍存活的 provider 保留原有拥有权，避免破坏已在使用的模型。没有缓存业务向量结果。 |
 | 语义分块 | 已复用向量范数并利用相似矩阵对称性；本次只消除额外矩阵。将全矩阵换成局部带状算法可能改变浮点抵消和相同分数时的切分，未作为无风险替换。 |
-| 故事事件 | PERF-018 减少筛选时未变化卡片的重复渲染；PERF-019 从数据库到前端仅读取所需的五个分析字段。千章/4500事件首屏仍需渲染大量卡片，页面总体加载提升仅约12.5%，未将 API 提升外推为首屏提升。 |
-| 漫画来源读取 | 当前 MangaTab 唯一产品入口 ComicProjectWorkspace 总是传入 snapshotChapters，旧 listChapters 分支不是活跃瓶颈；真实入口使用 listSourceSnapshotChapters，仍需测量大范围来源快照的载荷。 |
+| 故事事件 | PERF-018 减少筛选时未变化卡片的重复渲染；PERF-019 从数据库到前端仅读取所需的五个分析字段。千章/4500事件仍需渲染全部可变高卡片；原生 `content-visibility:auto` 已跳过屏外布局，但页面整体只改善约12.5%。进一步虚拟化会改变屏外 DOM/打印行为，当前没有可复用实现和整页 A/B 证据证明达到30%门槛，因此本轮不改变列表行为。 |
+| 漫画与派生媒体来源读取 | 漫画、视频、Galgame 工作台初载/刷新都使用源快照列表；列表只显示章号/标题，漫画与视频仅当前选中章需要正文。PERF-078 将产品列表改为窄索引，保留项目/快照归属的单章读口；Galgame 全程只取索引，旧完整列表 API 保留兼容。 |
+| 视频分镜编辑 | PERF-082 在每次文本输入时按编辑路径复制并保留未变化段引用，避免全量深拷贝和全段重渲染；完整 dirty/revert 语义与保存内容保持一致。 |
+| 影片剧本编辑 | PERF-083 在每次输入时复制整份场景/镜头数据，改为路径级复制；未变化的镜头子树复用，源剧本和保存数据保持一致。 |
+| Galgame 分支计划编辑 | PERF-084 在每次输入时按章逐个扫描全部创作文档，改为线性构建章节计划索引并映射可选单元/节拍，保留首个有效采用版本的顺序。 |
+| 媒体创作依赖校验 | PERF-085 复用项目/依赖 ID 批量读口，单批最多 64 条完整记录；返回后仍逐项核对引用顺序、哈希、revision、状态、类型和缺失项。 |
+| 媒体创作来源校验 | PERF-086 将多章来源快照主键串行读取改为每批 64 行；保留逐来源完整身份与正文哈希校验，单章漫画校验路径不变。 |
+| Galgame 流程文档读取 | PERF-087 将千章 context 的 draft/adopted 两阶段逐章查找和分支阶段按 ID 重读，改为有界批次读取；调用方仍按原顺序执行文档解析和版本校验。 |
+| ChapterVisualPlan 编辑 | PERF-088 复用当前 plan 的精确 JSON 表示，避免每次编辑分别做 dirty 比较、revision 比较和两次相同本地备份序列化/写入；同步备份仍保留，其他替换仍由 effect 备份。 |
+| ChapterVisualPlan diff 候选 | PERF-089（PERF-088 基线）对共享对象引用相同的点/镜头跳过 JSON 深比较；100／500／1000 段 P50 **9.1→7.1 ms（22.0%）／56.1→44.3 ms（21.0%）／109.3→88.9 ms（18.7%）**，均低于门槛，未采用。完整输入 JSON 为 **82,583／416,583／834,088 B**；证据见 `../../data/performance-audit-20261014/plan-changes/`。 |
+| Galgame 手动分支计划保存 | PERF-091 首次创建全局分支计划时逐章查询 adopted adaptation plan，改为来源章节 ID 的有界批读取；按章节顺序保持完整 parse/hash 和“未采用计划”错误语义。 |
+| WebGAL 导出 | PERF-092 复用由同一 `detail.scenes` 构建的 export scene ID Map；删除其后的逐 choice 全场景重复查找，保留 Map 上的缺失目标报错。 |
+| 资产依赖图布局候选 | PERF-090（原提交 `4337935c5`）对每轮布局排序预计算邻居 barycenter；1k／5k／10k 节点仅改善 **24.5%／22.2%／24.8%**，均低于门槛，坐标/层级输出相同，未采用。 |
+| 资产依赖图后代计数 | PERF-093 将每个节点一次字符串 BTreeSet/队列遍历改为整数索引邻接表和复用的访问代次；输出的精确唯一 `downstream_count` 不变。 |
+| 资产依赖图布局排序 | PERF-094 将 `nodeCluster` 对 ID、类型、标题和摘要的拼接、小写及类别判断从每次 comparator 调用收敛为每个可见节点一次；分层与同级排序规则不变。 |
+| 根项目漫画目录与无选章空态 | PERF-095 根项目 MangaTab 不再对所有章节读取正文和分析；PERF-096 在未选章时不取档案、立绘和全项目图片，首次选择时正常加载。单章自动选择、固定章节、派生快照及独立漫画路径保留各自需要的读取。 |
+| 项目图库图片加载候选 | 在 Chromium 153、生产 Vite、1000 张图片卡片和滚动容器中试过原生 `loading="lazy"`（含图片固有宽高、先设置 loading 再设置 src）；两版页面 load 时都发出 **1000** 个图片请求、响应 **414,000 B**。两轮交错 P50 挂载 **75.3→73.3 ms**（未达 30%），JS heap **8,786,947→8,821,295 B**（候选增加 0.39%），故撤回，不计为优化；证据 `../../data/performance-audit-20261015/image-gallery-lazy-final/report.json`。 |
+| 项目图库批量渲染 | PERF-101 将首屏 DOM 限为 500 张并通过按钮追加；1000／2000 张挂载时间下降 **42.22%／66.48%**、GC 后 JS heap 下降 **27.08%／51.81%**。API JSON 和数据库读未变，详见 PERF-101。 |
+| 项目图库数据库过滤 | PERF-102 为 `generated_image.project_id` 增加索引；100,000 行、1,000 行命中时数据库执行 P50 下降 **70.01%**，结果顺序不变；完整 JSON 投影和媒体传输未计入，详见 PERF-102。 |
+| 章节图库数据库过滤 | PERF-103 为 `generated_image(project_id, chapter_id)` 增加复合索引；100,000 行、100 行命中时数据库执行 P50 下降 **95.49%**，结果顺序不变；详见 PERF-103。 |
+| 工作流按章最新运行索引候选 | PERF-104 在 100,000 条运行、1,000 个章节、每章 10 条历史上尝试 `workflow_run(project_id, workflow_kind, chapter_id, updated_at DESC, id DESC)`；按实际完整模型投影 P50 **17.005→12.317 ms（27.57%）**，低于门槛，未修改索引；窄投影的 44.33% 不作为收益。 |
+| 工作流项目列表数据库排序 | PERF-105 为 `workflow_run(project_id, updated_at DESC, id DESC)` 增加索引；100,000 行、100 条返回时数据库执行 P50 下降 **96.21%**，结果顺序不变；详见 PERF-105。 |
+| 任务历史数据库分页 | PERF-106 为 `task_queue(project_id, created_at DESC)` 增加索引；100,000 行、100 条返回时数据库执行 P50 下降 **97.36%**，结果顺序不变；详见 PERF-106。 |
+| 导入审核项目列表索引候选 | PERF-107 在 100,000 行、20,000 条命中、每行约 8 KiB JSON 的完整返回上尝试 `import_review_queue(project_id, created_at DESC)`；P50 **19.251→17.848 ms（7.29%）**，低于门槛，未修改索引。 |
+| 项目状态历史数据库排序 | PERF-108 为 `project_status_history(project_id, changed_at DESC, id DESC)` 增加索引；100,000 行、20,000 条命中时数据库执行 P50 下降 **40.64%**，结果顺序不变；详见 PERF-108。 |
+| 工作流 business key 最新运行 | PERF-109 为 `workflow_run(business_key, updated_at DESC, id DESC)` 增加索引；100,000 行、每 key 1,000 条历史时数据库执行 P50 下降 **97.35%**，最新运行身份不变；详见 PERF-109。 |
+| LLM 生成分析时间窗口 | PERF-110 为 `llm_call_trace.created_at` 增加全局降序索引；100,000 行、最近 7 天 7,000 行完整分析投影时数据库执行 P50 下降 **51.90%**，行数和顺序不变；详见 PERF-110。 |
+| 媒体生成分析时间窗口 | PERF-111 为 `generation_run.created_at` 增加全局降序索引；100,000 行、最近 7 天内 4,667 条 image/video 运行时数据库执行 P50 下降 **92.07%**，结果顺序不变；详见 PERF-111。 |
 
 ## 可复现入口
 
@@ -134,7 +208,7 @@ Edge 基线二进制由改码前的当前源码构建并保留；不能用同一
 
 ## 完整目标仍在进行
 
-以上不是整站所有性能目标已经完成的声明。首屏交付、核心计算、真实 Host 进程树、1/4/8 并发读请求、LLM TLS/SSE、CLI 写作与恢复链路、千章侧栏、本地及 API 嵌入和大型 JSON 交付已经验证。完整正文列表的载荷仍随章节数量增长，下一步需区分目录所需字段与按需读取的单章内容，不能用压缩后的相对提升宣称所有大项目已即时加载。
+以上不是整站所有性能目标已经完成的声明。首屏交付、核心计算、真实 Host 进程树、1/4/8 并发读请求、LLM TLS/SSE、CLI 写作与恢复链路、千章侧栏、本地及 API 嵌入和大型 JSON 交付已经验证。前端章节目录现使用索引与按需单章详情；完整 `list_chapters` API 合同保留兼容，仍需继续审查其他随项目规模增长的请求数据。
 
 第三批已建立真实运行栈：Server、Control、Edge、CLI、迁移程序、30 个状态型 Worker 和 9 个能力服务，共 44 个冻结程序。使用独立 `a4n_perf_runtime_20260927` 数据库、数据目录和端口；实际进程树为 42 个进程、872 个线程。所有构建、配置与原始样本在 `data/performance-audit-20260927/b03/`。
 
@@ -219,7 +293,7 @@ A4N_PERF_ARTIFACTS=/path/inside/worktree/data/api-transfer \
 ### PERF-017：目录与章节正文分开读取
 
 - 请求位置：写作桌初载/刷新、小说只读目录和导入匹配预览。旧目录接口传输所有章节正文、修订及分析；千章真实响应为 11,601,686 字节。目录使用新的 `list_chapter_index`，正文使用带项目归属的 `get_chapter`。保留原完整 API；分析/资料状态共用原投影，Unicode 正文字数与存储字数分别保留。
-- 前端只持有当前章完整内容；切章迟到响应不能覆盖后来选择或写后结果；加载完成前不开启正文编辑/草稿恢复。保存、生成结果核验及优化完成后的刷新可显式指定目标 chapter ID。上一章结尾在展开上下文时读取。漫画和故事事件页面仍需要正文/分析，尚未迁移，不能算作已优化。
+- 前端只持有当前章完整内容；切章迟到响应不能覆盖后来选择或写后结果；加载完成前不开启正文编辑/草稿恢复。保存、生成结果核验及优化完成后的刷新可显式指定目标 chapter ID。上一章结尾在展开上下文时读取。Story Events 使用 PERF-019 分析投影；根项目 MangaTab 使用 PERF-095 章节索引及选中详情。
 - 真实 PG/Server/Control/Worker：`b08/runtime-02/report.json` 验证千章全部目录字段与原完整响应逐值相同，目录 742,686 字节（减少 93.60%）；抽查首/中/末章完整响应相同，错误项目 404、非法项目 ID 400、无认证 401。这个阶段未减少数据库正文读取，不宣称相同幅度的 DB 内存收益。
 - 同 1000 章自然语料、4 Mbps/50 ms、三轮浏览器候选值：旧版本可编辑时间中位 5264.6 ms，候选 741.1 ms（下降 85.92%）。证据 `b08/browser-before-final` / `b08/browser-final-02`。全部 API 压缩传输字节 2,090,160 → 15,347。浏览器交付测量使用生产组件和 HTTP/gzip 夹具；真实后端合同验证独立执行，不把夹具时间当真实数据库端到端时间。
 - 已验证：API 合同 106 项、Core 2 项、最终前端 445 项、当前前端类型检查与生产构建、组合 CLI Mock Provider 28 项；`browser-final-02` 通过切章取消、草稿归属、草稿写入失败阻止离开、上一章按需上下文、迟到读取、失败读取、保存失败/重试、保存期间继续编辑、延迟读取后的恢复草稿、只读预览和 Escape，1440/390px 无横向溢出。
@@ -247,3 +321,559 @@ A4N_PERF_ARTIFACTS=/path/inside/worktree/data/api-transfer \
 - 所有失败均保留：首次发布构建遇到并行健康检查接口尚未补齐；首次CLI的旧Import sidecar缺少新的解析路由；随后一轮错误复用了已被CLI写入的测试库。已重编译对应程序、替换Import/Export/Media sidecar，并按CLI运行分配新数据库。浏览器恢复测试曾过早把“错误暂时隐藏于加载状态”当完成，现同时等待全部事件恢复。
 
 证据目录：`data/performance-audit-20260927/b10/`，最终程序与哈希在 `frozen-candidate` / `binaries-final.json`。真实基准在 `runtime-baseline.py` 增加 `--chapter-analysis-checks`；它准备专用合成数据并与旧接口逐值对比。浏览器使用 `A4N_PERF_VIEW=story`、`A4N_PERF_CHAPTER_FIXTURE=<该运行的chapter-fixture.json>` 调用 `chapter-load.mjs`；旧版加 `A4N_PERF_BASELINE_REF=ecd9fb5b7`。
+
+### PERF-077：事实反馈摘要的重复章节与全量历史读取
+
+- 请求链路：`FactFeedbackPanel` 仅在反馈工作流运行时每 1.5 秒加载摘要。原 Orchestrator 同时读取完整反馈来源章节、完整项目章节和全部非章节事实变更，随后才过滤无变化行并截断到 100 条。
+- 修复：数据库一次读取生成当前来源修订与可用章节投影；事实历史在 PostgreSQL 中按 `project_id, id DESC` 部分索引选取候选 ID，再通过主键读取有限完整行。数据库文本比较只做无漏项的候选筛选，Rust 保留原 `serde_json::Value` 相等判断并以 ID 游标补页，保持最新 100 条、顺序和数字边界行为。
+- A/B 使用隔离 PostgreSQL 与相同 `release -O3, LTO=false` 构建，测完整 Orchestrator 摘要方法、权限检查、数据库读取及 DTO 序列化；不包含 HTTP socket 传输。夹具为 1000 章、每章 9 KiB 正文和 8 KiB 分析数据、每项目 10,161 条事实历史，分别测 0／100／1000 条已应用章节来源。15 次交错调用、2 次预热，报告剩余样本中位数；三类 DTO 和响应字节在每次调用间逐值相同。
+- P50：**80.77 → 43.89 ms（45.67%）／86.26 → 45.49 ms（47.26%）／93.48 → 53.48 ms（42.80%）**。P95：**91.38 → 50.96 ms（44.23%）／98.91 → 53.59 ms（45.82%）／96.78 → 56.06 ms（42.08%）**。响应 JSON 保持 **108,626–108,627 字节**；基准期间 PostgreSQL 记录到目标索引 31 次扫描，测试断言索引被使用。
+- PostgreSQL 与 DTO 等值对照覆盖 `1`／`1.0`、`-0.0`／`0.0`、无变化行、分页补足、来源覆盖及历史顺序。没有减少轮询间隔、增加业务缓存或改变 API。前端本轮无需改动；已核实其轮询只在工作流运行时启用。
+- 验证：隔离 PG 手动性能测试通过；`cargo fmt --all -- --check`、`git diff --check` 通过。原始样本与完整测试输出位于 `data/performance-audit-20261013/fact-feedback-summary/`。
+- 部署边界：索引迁移沿用当前 PostgreSQL 迁移事务，建索引期间会短暂阻塞该表写入；本基准未测生产表上已有大量历史时的迁移耗时。
+
+### PERF-078：派生媒体工作台的源快照列表
+
+- 请求链路：漫画、视频和 Galgame 派生工作台初载及刷新先取源快照章节。导航/选择器只显示 snapshot ID、源章 ID、章号和标题；漫画/视频详情才需要完整正文，Galgame 的来源引用只显示章号。旧列表接口仍把每章正文和分析 JSON 全部编码后返回。
+- 修复：新增 `SourceSnapshotChapterIndex` 和 source-snapshot worker v2 的窄索引、单章详情操作。索引按项目当前 source snapshot 筛选并按章号排序，返回 `id/snapshot_id/source_chapter_id/chapter_number/title`；详情查询同时限定派生项目的 root、当前 snapshot 和 source chapter ID。Worker 对新操作沿用 Viewer 权限校验。Comic/Video 首次选中一章时读取窄索引和当前章，切章时按源章 ID读取正文；项目/读取序号保护迟到响应。Galgame只读取索引。原完整读口保留。
+- 隔离 PostgreSQL A/B 使用相同 `release -O3, LTO=false` 构建，1000 章、每章 9 KiB 正文和 8 KiB 分析数据。测数据库投影、完整 DTO 构造与 JSON 序列化，候选包含索引及默认选中章的详情。旧列表 P50/P95 **41.06/47.39 ms**，候选 **3.09/6.02 ms**，分别下降 **92.48%/87.30%**；JSON **17,913,472 → 109,482 字节，减少 99.39%**。每章的 ID、snapshot/source identity、章号、标题相同；候选选中章 DTO 与旧列表相应行逐值相同。
+- 计时未包含 Worker HTTP socket 往返；响应载荷数据来自实际 DB 查询与 API DTO 序列化。变化没有使用缓存、预取或降低刷新频率。
+- 验证：源快照 DB 回归 **1/1** 通过，手动 A/B **1/1** 通过；Host/Worker/API/DB/runtime/control/process catalog/server/assembly `cargo check --all-targets`、rustfmt、diff 检查通过；API type parity 和 generation schema parity 通过，`a4n-api-contract` 单测 **108/108** 通过。Vitest **138 文件/509 项**、生产构建通过；真实 Chromium media-authoring **7/7** 通过，包含默认章、按需选章、保存/采用计划、Video 项目切换及 Galgame workspace，覆盖 390/1024/1440px。
+- 证据：`data/performance-audit-20261013/source-snapshot/`；worker contract capability 更新为 `source-snapshot-read-v2`。
+
+### PERF-079：项目协作摘要成员行聚合
+
+- 请求链路：项目列表最多读取 100 个项目，`ProjectReadWorker` 批量请求 `project_access_info_batch`，该查询原本把项目成员的 `(project_id, user_id, role)` 全部传回 Worker，只为了统计成员数和保留当前用户角色。
+- 修复：PostgreSQL 以项目分组执行 `COUNT(*)`，用参数化 `MAX(role) FILTER (WHERE user_id = $1)` 取当前用户角色；权限判定、角色解析、所有者计数和邀请可见范围保持不变。
+- 隔离 PostgreSQL 16 使用 100 个项目、每项目 1000 名成员。容器固定 CPU 18/19，通过 loopback TCP 运行 1 组预热及 8 组交错采样。成员查询 P50 **29.540 → 19.399 ms（34.33%）**；CSV 结果 **1,381,300 → 1,492 字节（减少 99.89%）**，行数 **100,000 → 100**。计时只覆盖成员 SQL 与 psql 结果传输/格式化，不外推为完整项目列表 API 改善。
+- 同一测量方式下，10,000 行 P50 改善 **28.81%**，低于延迟门槛；500 行增加 **0.022 ms**。因此本项收益只计入高基数场景。单独测试 100,000 条未过期邀请的分组查询只改善 **8.23%**，没有修改邀请统计实现。
+- 验证：独立 PostgreSQL 上 `collaboration::tests::collaboration_flow_keeps_reads_pure_and_mutations_explicit` **1/1** 通过，覆盖所有者成员数、有效/过期邀请和成员角色；Rust 格式检查与 diff 检查通过。
+- 证据：`data/performance-audit-20261014/collaboration-summary/`，包括合成基准 SQL 和各负载结果。
+
+### PERF-080：视频内联播放重复解码 Base64
+
+- 请求链路：`useVideoPlaybackSource`、Video Assembly 和 Postprocess 在每次选择/重载视频时调用 `videoPlaybackDataToDataUrl`。Host 从文件读取至多 256 MiB，再用 Rust `base64::STANDARD` 编成 API 字符串；前端原先用 `atob` 解码整份内容后丢弃结果，随后 `<video>` 又从同一 data URL 解码一次。
+- 修复：保留 MIME 和空载荷校验，移除多余的前端整串 Base64 解码。Host 自己生成该字符串；播放器继续解析原 data URL。下载路径仍通过 `videoPlaybackDataToBlob` 解码实际需要写入的字节。
+- Chromium 153 的实际 Vite 页面测试用 64 MiB Base64 输入，交错测量五个样本。helper P50 **124.7 → 0.1 ms**，`performance.memory.usedJSHeapSize` 增量 **67,108,955 → 4,836 字节**。相同浏览器 smoke 确认 `fetch(data URL)` 的媒体类型和字节尾部与原值相同；非法 Base64 交给 `<video>` 后会触发 `error` 事件，播放器现有错误/回退处理仍负责反馈。
+- 支持性 Node.js 24.21.0/V8 测量：64 MiB helper P50 **145.710 → 0.340 ms**；128 MiB P50 **291.069 → 0.318 ms**，进程 `VmHWM` **530.2 → 231.8 MiB（下降 56.28%）**。这些数字只覆盖 Base64 helper 阶段，不包含 HTTP 传输或媒体解码。
+- 验证：Vitest **138 文件/511 项**、TypeScript/Vite 生产构建通过；Chromium 153 实际打开生产 helper 的 Vite smoke 页通过。`test:browser-video-scrub` 未完成：plain-Web harness 调用了不可用的 Tauri `plugin:event|listen`，首个 `waitUntil` 超时；不记为通过或产品失败。
+- 证据：`data/performance-audit-20261014/video-playback-validation/`。
+
+- 邻近下载 Blob 候选也做了 A/B：移除 `.buffer.slice` 仅改善峰值 RSS **13.37%/14.20%**、P50 **9.47%/5.98%**（64/128 MiB），未达门槛；Node 上改用 `fetch(dataURL).blob()` 在 64 MiB 时慢 **4.81×** 且峰值 RSS 高 **92%**，未采用。
+
+### PERF-081：视频上传 Base64 流式落盘
+
+- 请求链路：视频素材、后期插入/替换、参考媒体和画布导入在前端经 `FileReader` 生成 Base64 JSON；Runtime `uploaded_video_source` 原先用 `decode_uploaded_bytes` 生成完整 `Vec<u8>`，再写入应用临时文件。单文件允许至多 **512 MiB**。
+- 修复：`a4n-media` 新增共享 `decode_uploaded_bytes_to_writer`，复用相同的空值、Base64 长度、解码错误与解码后大小校验；Runtime 用 64 KiB `DecoderReader`/`BufWriter` 直接写既有临时文件。错误时仍由同一 cleanup guard 删除部分文件；API 和 Base64 上传合同不变。
+- 隔离 Rust release A/B 用 64 MiB `base64::STANDARD` 输入，CPU 固定 18/19，交错 12 组并丢弃前三组预热。原路径 P50 **100.975 ms**、`VmHWM` **151.562 MiB**；流式路径 P50 **98.010 ms**、`VmHWM` **87.770 MiB**。时延只改善 **2.94%**，不作为收益；峰值 RSS 下降 **42.09%** 达到门槛。`cmp` 确认两种输出与原始字节完全相同。
+- 计时只覆盖 Base64 解码和临时文件写入，不含 HTTP JSON 解析、上传传输及后续 ffprobe/导入；请求仍携带 Base64 字符串，网络与解析成本未在本项中降低。
+- 验证：`a4n-media` 流式/缓冲字节和大小边界回归 **1/1** 通过；Runtime 后段 Base64 错误清理部分临时文件 **1/1** 通过；`cargo fmt --all -- --check`、`git diff --check` 通过。
+- 证据：`data/performance-audit-20261014/video-upload-streaming/`，含独立 Release A/B harness、输入与等值输出。
+
+### PERF-082：长视频分镜输入的深拷贝和全量重渲染
+
+- 请求链路：用户编辑 `VideoPlanningWorkspace` 中已保存的视频分镜时，每次 textarea 输入都会进入 `VideoSegmentPlanEditor.update`。旧实现深拷贝整份 `segments`，所有分段对象和更新回调都变成新引用，导致全部 `SegmentEditor` 子树重渲染；父级 dirty 检查也重复序列化基线和草稿。
+- 修复：编辑从现有只读分段引用开始；每次更改用共享 `updateAtPath` 和函数式 setter 只复制分段数组、目标段和编辑路径上的容器，未改动分段保留原引用。稳定更新回调配合 `React.memo` 只重渲染目标段。编辑期间只序列化一次基线，仍逐次比较草稿内容，因此把字段改回原值会恢复 clean 状态，保存/取消行为不变。
+- A/B 在 Chromium **153.0.8010.52** 打开生产 Vite 夹具，Node、ChromeDriver 和 Chromium 固定在 CPU 18/19。每个工作负载含 **8** 次文本输入；每版先跑 2 组预热，再以 5 组样本的 P50 汇总八次 `input` dispatch 与同步 React commit 的累计时间。50／100／200 段计划 JSON 分别为 **55,843／111,805／224,905 字节**：P50 **211.5 → 11.6 ms（94.52%）／459.7 → 17.0 ms（96.30%）／976.9 → 24.2 ms（97.52%）**。
+- 完整保存 JSON 的 SHA-256 在前后版本逐负载一致；夹具还断言源计划未被修改、恢复原值会关闭 Save，1440／390 宽度无横向溢出。该计时包含同步事件处理和 React DOM commit，不包含下一帧绘制或真实 API 保存。
+- 验证：`npm run test:run -- src/pages/novel-detail/video/VideoPlanningWorkspace.test.tsx` **8/8**；`npm run build` 通过。生产浏览器 A/B 与上述等值、恢复及布局断言通过；Vite 保留已有超过 500 kB 的 chunk 提示。
+- 证据：`data/performance-audit-20261014/video-plan-editor/{before-final,after-refactor}/report.json`；运行入口为 `frontend/e2e/performance/check.mjs` 的 `A4N_PERF_CASE=video-planning`。深工作树若触及 Chromium Unix socket 路径长度，可用 `A4N_PERF_CHROME_TMPDIR` 指向 `/home/fufu/Code/A4N/work/` 下的短路径别名；目标临时目录仍须位于该工作树内。
+
+### PERF-083：影片剧本逐字段编辑的全量深拷贝和镜头重渲染
+
+- 请求链路：视频工作区进入 screenplay 后，`ShootingScriptTab` 将当前剧本传给 `StructuredScriptEditor`。每次镜头 textarea 输入都会走 `update(path, value)`；旧实现深拷贝全部 scenes/shots/beats，再更新一个字段。新对象和新回调令所有镜头子树重新渲染。父级 dirty 比较仍保留原有完整值语义，本项基准也包含该比较。
+- 修复：视频分镜编辑 PERF-082 共用的 `updateAtPath` 按路径复制剧本、场景、镜头及目标字段容器；更新使用稳定函数式 setter。镜头组件接收稳定的场景/镜头索引并通过 `React.memo` 复用未修改的镜头子树。场景镜头索引数组在剧本编辑器中每次渲染只构造一次。
+- A/B 在 Chromium **153.0.8010.52** 打开生产 Vite 页面，Node、ChromeDriver 和 Chromium 固定在 CPU 18/19。每个工作负载含 **8** 次镜头标题输入；每版先跑 2 组预热，再以 5 组样本的 P50 汇总八次 `input` dispatch 与同步 React commit。25／50／100 镜头剧本 JSON 为 **31,364／62,754／125,626 字节**：P50 **183.6 → 34.8 ms（81.05%）／385.8 → 60.7 ms（84.27%）／775.8 → 103.5 ms（86.66%）**。
+- 完整剧本保存摘要逐负载相同；夹具检查源数据不变、更新镜头标题及嵌套构图字段、1440／390 宽度无横向溢出。计时覆盖同步输入事件和 React DOM commit，不包含下一帧绘制或后端保存。
+- 验证：`npm run build` 通过；`npm run test:run -- src/utils/updateAtPath.test.ts src/pages/novel-detail/video/VideoPlanningWorkspace.test.tsx` **10/10**。生产 Chromium A/B 的等值、源对象不变与布局断言通过；Vite 保留已有大 chunk 提示。
+- 证据：`data/performance-audit-20261014/shooting-script/{baseline,after}/report.json`；运行入口为 `frontend/e2e/performance/check.mjs` 的 `A4N_PERF_CASE=shooting-script`。
+
+### PERF-084：Galgame 分支计划编辑的逐章嵌套文档搜索
+
+- 请求链路：用户编辑 Galgame 分支计划时，`MediaAuthoringPanel` 每次输入都会更新 editor document 并重渲染 `GalgameBranchPlanEditor`。该编辑器原先对每个来源章节都在线性扫描整个 `workspace.documents`，寻找首个未过期且已采用的改编计划，复杂度为章节数 × 文档数；随后还要根据适用单元和节拍生成选择项。
+- 修复：每次渲染先按来源章节 ID 建 Map，只收录首个有效的已采用改编计划，再线性遍历章节构造原顺序的单元和节拍选项。算法由 O(C×D) 降到 O(C+D)，不保留跨编辑更新的派生缓存，也不改变 API 或计划字段。
+- A/B 在 Chromium **153.0.8010.52** 打开生产 Vite 夹具，Node、ChromeDriver 和 Chromium 固定在 CPU 18/19。每版每个负载先跑 2 组预热，再以 5 组样本的 P50 汇总 8 次分支问题输入与同步 React commit。工作区有 100／500／1000 章、每章 4 条改编文档（stale、adopted、draft、重复 adopted），分别为 **97,152／495,152／992,674 字节**。总耗时 P50：**11.8 → 12.3 ms（100 章未达门槛）／30.9 → 11.5 ms（62.78%）／77.2 → 18.1 ms（76.55%）**。
+- 保存 JSON SHA-256 前后一致；夹具检查首个有效 adopted 版本仍提供选项，stale/draft/重复版本不改变选择，保存字段正确，1440／390 宽度无横向溢出。计时包含本地 dirty 计算和同步 DOM commit，不包含下一帧绘制或真实保存 API。
+- 验证：`npm run build` 通过；生产 Chromium A/B 的首个有效 adopted 选项身份、保存等值与布局断言通过。100 章负载是 **1.5 ms/输入**，比基线慢约 **0.06 ms/输入**；不计为收益。门槛仅由 500／1000 章工作区的 **62.78%／76.55%** 改善满足。
+- 证据：`data/performance-audit-20261014/galgame-authoring/{baseline-final,after-final}/report.json`；运行入口为 `frontend/e2e/performance/check.mjs` 的 `A4N_PERF_CASE=galgame-authoring`。
+
+### PERF-085：多章节媒体创作依赖的串行 DB 往返
+
+- 请求链路：Galgame 分支计划覆盖多个来源章节；保存、采用及剧本持久化都会经过 `validate_adopted_authoring_dependencies`。漫画页面同步在存在分页计划依赖时也复用该 helper。旧实现对每个依赖依次执行 project-scoped 主键读取，解析完整 JSON 并验证 canonical SHA-256，再逐条检查 revision/hash/adopted/kind。
+- 修复：先拒绝空列表快返及无效 project ID；每批最多取 **64** 个 `(project_id, id)` 记录，建立临时 ID Map。仍按输入引用顺序校验重复、正 ID、缺失、JSON hash、revision/hash、status 和 document kind；每处理一行就从 Map 删除，故完整 JSON 的暂存上限受批大小约束。对外权限、错误分类和首个错误顺序不变。
+- A/B 在同一隔离 PostgreSQL 16 schema 使用 **1000** 个真实 chapter/source snapshot chapter 和 adopted 文档，每份文档 JSON 约 **8 KiB**，合计 **8,291,000 B**。旧路径和有界批量路径都逐个完成相同引用字段及 canonical JSON hash 校验；固定 CPU 18/19，5 组交错采样，前 2 组预热，剩余 3 组 P50。与 PERF-086 的 **8,192,000 B** 正文来源负载及 PERF-087 的一条 draft 记录同置后，串行 **237.318 ms**，每批 64 条 **79.038 ms**，下降 **66.7%**；最大批次载荷约 64×8 KiB，即约 **512 KiB** JSON 文档，未将 8.3 MiB 文档集合同时保存在候选校验 Map 中。历史探针的绝对耗时受同 schema 其他文档负载影响，验收采用最新同探针 P50。
+- 验证：非 DB 依赖语义回归 **1/1**，覆盖合法多依赖、重复、缺失/项目范围不匹配、非正 project/record ID、revision、draft 状态和错误 kind；实际 Galgame 分支计划到脚本保存集成路径 **1/1** 通过；`cargo check -p a4n-db --all-targets --locked --offline`、`cargo fmt --all -- --check`、`git diff --check` 通过。
+- 旁路失败如实保留：`cargo test -p a4n-db --test media_authoring_documents -- --test-threads=1` 4 项中 2 项通过，另 2 项分别在删除 fixture 的 media cleanup 路径和跨项目 source-sync snapshot 设置处失败；失败点早于共享依赖校验。Manga sync 定向测试也因既有 fixture 对自增记录顺序的断言次序不一致失败，该用例依赖列表为空，未进入新 helper。
+- 边界：这项 A/B 覆盖本地 PostgreSQL 查询、完整 JSON 取回/解析和 canonical SHA-256 校验，不包括下游模型生成、Runtime HTTP 或 worker 推理。
+- 证据：隔离工作树日志 `data/performance-audit-20261014/media-authoring-dependency/recheck-source-final.log`；复现命令：`A4N_TEST_DATABASE_URL=<隔离测试库> cargo test -p a4n-db --lib perf_probe::media_authoring_reference_probe --release -- --ignored --nocapture`。
+
+### PERF-086：Galgame 多章节来源快照的串行读取
+
+- 请求链路：Galgame 分支计划保存时，`run_branch_design_stage` 将每个章节计划中的来源引用合并进分支计划；`save_authoring_document` 在同一事务中逐条读取对应来源快照章节，并检查 root project、snapshot、source chapter、存储哈希和正文 SHA-256。1000 章时旧实现执行 1000 次完整主键读取。
+- 修复：来源 ID 每批最多读取 **64** 行；仍按输入顺序逐条执行原身份、重复、缺失和正文哈希校验。独立漫画素材映射检查保留在原位置；该业务路径在输入校验处限定为单来源。
+- A/B 使用隔离 PostgreSQL 16、固定 CPU 18/19，在同一 schema 建立 **1000** 个来源快照章节，每条正文 **8 KiB**，合计 **8,192,000 B**。串行与批量路径调用相同的行身份检查和 `source_text_hash`；5 组交错、前 2 组预热、后 3 组计量，最新 P50 **189.626 → 28.061 ms（下降 85.2%）**。候选同时将完整来源行保留上限限制为 64 条。
+- 验证：来源身份、哈希、重复和缺失语义单测与 PERF-085 依赖语义单测共 **3/3**；release A/B 探针通过并满足 30% 门槛；`cargo fmt --all -- --check`、`git diff --check` 通过。定向保存集成 `documents_are_project_owned_revision_fenced_and_independent_per_source_snapshot` 在 fixture 的“创作文档基准快照不匹配”断言失败，发生在新来源 helper 前；本次不计为通过。
+- 边界：A/B 覆盖来源行读取、身份检查与正文哈希，不包含完整 Galgame 工作流或模型生成时长。
+- 证据：`data/performance-audit-20261014/media-authoring-dependency/recheck-source-final.log`；手动探针：`A4N_TEST_DATABASE_URL=<独立测试库> cargo test -p a4n-db --lib perf_probe::media_authoring_reference_probe --release -- --ignored --nocapture`。
+
+### PERF-087：Galgame 千章流程的逐章当前计划与 ID 重读
+
+- 请求链路：Galgame pipeline context 初装时，旧 `load_current_adaptation` 对每章先查 draft，再在没有 draft 时查 adopted；1000 章、其中 1 个 draft 时累计 **1,999** 次查询。分支阶段准备 LLM 输入时又按 1000 个计划 ID 各取一次完整记录。
+- 修复：DB 层对来源章节按 draft 优先分两批查询，只为没有 draft 的章节读取 adopted；对分支阶段计划 ID 按 64 条批读。返回未解析行，Orchestrator 仍按原输入顺序逐条解析、选 draft、验证 adopted 状态与 revision，并保留原错误文本；每批完整文档受 64 条上限约束，不保留跨批缓存。
+- A/B 在隔离 PostgreSQL 16、CPU 18/19 上测 1000 章、每份 adopted 计划约 **8 KiB** JSON，另为首章加入一个 draft。每版 5 组交错、2 组预热，后 3 组取 P50。context 读取从 **1,037.152 → 95.208 ms（下降 90.8%）**，查询由 1,999 次减为 32 次；分支阶段按 ID 重读 **252.101 → 80.963 ms（下降 67.9%）**，查询由 1000 次减为 16 次。两个路径输出的记录 ID、reference/hash 和 status 序列前后一致。
+- 验证：a4n-db authoring 语义单测 **3/3**；同一个隔离 PG release probe **1/1**，同时复测 PERF-085/086；`cargo check -p a4n-orchestrator --all-targets --locked --offline`、`cargo fmt --all -- --check`、`git diff --check` 通过。
+- 边界：A/B 计 DB 读取与原始文档解析/哈希，不含 `parse_adaptation` 后续计划投影、LLM 或完整 workflow 耗时。
+- 证据：`data/performance-audit-20261014/galgame-document-batches/recheck.log`；手动探针：`A4N_TEST_DATABASE_URL=<隔离测试库> cargo test -p a4n-db --lib perf_probe::media_authoring_reference_probe --release -- --ignored --nocapture`。
+
+### PERF-091：手动分支计划保存的 adopted 依赖串行读取
+
+- 请求链路：`MediaAuthoringPanel` 首次保存无章节范围的 Galgame 分支计划，会让 `authoring_sources(chapter_id=None)` 返回项目所有来源章节；随后 `authoring_inputs_for_sources` 对每章依次查询当前 adopted adaptation plan，并将 reference 按章节顺序写入依赖列表。1000 章时旧实现执行 1000 个串行 project/snapshot/chapter/status 查询，并解析每份约 8 KiB 文档和 canonical hash。
+- 修复：多章依赖按来源快照与 chapter ID 每批最多 64 行读取，仅选择 adopted adaptation plan；调用方仍逐章调用 `authoring_source`、解析 canonical 文档并按原次序构建 dependency reference。缺少 adopted plan 时保留原章节号错误。单章读路径不改变。
+- A/B 在同一隔离 PostgreSQL 16 schema 使用 PERF-085/086/087 的 1000 个章节和采用计划；每份 document JSON 约 **8 KiB**。逐章 `current_authoring_document(..., Adopted)` 与 64 行批量查询都执行完整 canonical hash 解析并构造有序 ID/revision/hash/status 摘要；固定 CPU 18/19，5 组交错、前 2 组预热、后 3 组 P50 **475.357 → 100.909 ms（下降 78.8%）**，串行查询数 1000→16。输出 reference 摘要完全相同。
+- 验证：隔离 release PostgreSQL probe 中 5 条批量 A/B 全通过；authoring 语义单测 3/3；`cargo check -p a4n-orchestrator --all-targets --locked --offline`、`cargo fmt --all -- --check`、`git diff --check` 通过。
+- 边界：A/B 计数据库读取、完整文档哈希/解析和 reference 构造；不包括保存 Galgame branch document 的后续事务及 HTTP 往返。
+- 证据：`../../data/performance-audit-20261014/manual-branch-save-batch/recheck.log`。
+
+### PERF-092：WebGAL choice 目标的重复场景扫描
+
+- 请求链路：每次 WebGAL 导出先以全部 `detail.scenes` 构建 `scene_file_by_id`，随后 `validate_webgal_choice_contract` 对每个 choice 查该 Map；旧实现命中 Map 后仍从头 `.iter().any(...)` 扫描相同的场景向量。S 个场景、C 个选项时这项重复验证为 O(S×C)，且导出前每次执行。
+- 修复：保留 Map 查询和原有“选项指向不存在场”错误，删除 Map 命中后不可达的第二次场景扫描。Map 在同一个 `build_webgal_package` 请求中从 `detail.scenes` 构建，因此两个校验集合始终同源。
+- A/B 运行完整生产 `validate_webgal_choice_contract`，构造 1k／5k／10k 个场景、每场 2 个有效 choice，目标集中在后续场景以覆盖线性扫描的高成本位置；每版 5 个样本，warmup 至少 250 ms，CPU 固定 18/19。最新候选 P50 从 **2.394 → 0.288 ms（88.0%）／51.907 → 1.604 ms（96.9%）／202.676 → 4.577 ms（97.7%）**。A/B 两版均对完整有效选择合同返回成功；候选定向测试还确保目标不在导出 scene Map 时仍返回原有错误。
+- 验证：baseline/candidate release `webgal_choice_validation_probe` 各 1/1；候选 WebGAL export 定向单测 **5/5**，包含无效目标错误回归；`cargo fmt --all -- --check`、`git diff --check` 通过。
+- 边界：测量选择合同校验 CPU，不含读取剧本、媒体文件打包、Base64 或 zip 输出。
+- 证据：`../../data/performance-audit-20261014/webgal-choice-validation/report.json`；基线提交为 `83759a956`。
+
+### PERF-093：资产依赖图的字符串后代遍历
+
+- 请求链路：`asset_dependency_graph` 读取项目族记录后构建 `GraphBuilder`，每次依赖图请求调用一次 `GraphBuilder::finish`。旧 `downstream_counts` 对每个节点重新遍历全部可达节点，并用 `BTreeSet<String>` 和 `VecDeque<String>` 复制、排序与去重节点 ID；后代数会进入 API 输出，因此需要保留精确的唯一可达节点数。
+- 修复：为图节点建立一次 ID→整数索引，构建整数邻接表；每个源节点遍历时复用一个队列，并用访问代次数组去重。重复关系边先映射为唯一相邻节点；菱形图回归确保共享叶节点只计一次。辅助内存为 O(V+E)，没有全图可达矩阵。
+- A/B 固定 CPU 18/19，Rust release；8 层 DAG、边数 2.625×节点数，生成图输入在计时外；每种规模至少 250 ms 预热后取 5 次 P50。1000／5000／10000 节点（2625／13125／26250 边）P50 **94.467→5.335 ms（94.35%）／1155.143→37.748 ms（96.73%）／2735.239→84.155 ms（96.92%）**。各规模排序节点 ID、精确 `downstream_count`、可变标记、变更策略及边摘要均与基线一致。
+- 验证：release 基准探针 **1/1**；资产依赖图 builder 语义测试 **2/2**，覆盖重复关系和菱形图唯一后代；`cargo fmt --all -- --check`、`git diff --check` 通过。
+- 边界：计时覆盖 `GraphBuilder::finish`，含边投影、后代数、变更策略、环检测和层输出；不含 PostgreSQL 读取与 JSON 序列化，因此这些数据是请求 CPU 阶段耗时，不代表完整 HTTP 延迟。
+- 证据：`../../data/performance-audit-20261015/asset-graph-builder/report.json`；基线提交为 `93cfe476f`。
+
+### PERF-094：资产依赖图排序中的重复节点分类
+
+- 请求链路：打开或刷新资产依赖图时，`AssetDependencyGraphDialog` 对新图调用一次 `buildLayout`。`topologyDepthLayers` 的堆排序和 `orderLayerNodes` 的前后扫描排序会多次比较同一批节点；旧比较器每次对两个节点重新拼接 ID、类型、标题、摘要并转小写，再做多次字符串分类检查。
+- 修复：每次 `buildLayout` 对可见节点计算一次 `nodeCluster`，后续比较器复用该布局内的聚类排序键。堆优先级、邻居 barycenter、排序轮次与同级比较次序保持原规则；没有跨请求状态。
+- A/B 使用 production Vite 构建和 Chromium **153.0.8010.52**，固定 CPU 18/19；8 层 DAG、每个非末层节点连向下一层 3 个节点，平均 2.625 条边/节点。输入为 1000／5000／10000 节点，JSON **808,670／4,079,920／8,183,797 B**；每种规模至少 250 ms 预热后取 5 次 P50：**53.400→25.700 ms（51.87%）／345.600→172.600 ms（50.06%）／781.700→403.100 ms（48.43%）**。三种规模节点位置、层次、画布尺寸和层摘要 SHA-256 均相同。
+- 验证：生产 `npm run build` 通过；`npm run test:run -- src/pages/novel-detail/asset-graph/graphCanvas.test.ts` **4/4**；baseline/candidate Chromium 探针各 3 种负载通过；基准脚本 `node --check`、`git diff --check` 通过。
+- 边界：基准测 `buildLayout` CPU，不含项目族 DB 读取、React 对话框提交或 Canvas 绘制；不把这项阶段收益外推为完整页面响应时间。
+- 证据：`../../data/performance-audit-20261015/asset-graph-layout/{baseline,candidate}/report.json`；基线提交为 `8d480480c`。
+
+### PERF-095：根项目漫画页的全章正文初载
+
+- 请求链路：NovelDetail 根项目漫画页在多章项目初载时只显示章节侧栏且不默认选中章节，但旧逻辑仍通过 `listChapters` 将每章正文和分析都读取、传输并映射到 `ChapterRow`。派生漫画项目已用快照索引，因此此项只处理根项目路径。
+- 修复：根项目目录改用已存在的 `listChapterIndex`；用户选中章节后通过现有 `getChapter` 读取正文和分析。单章自动选中、已选章节刷新、迟到响应保护、章节状态和 `list_chapters` API 合同均保留。目录读口只承载 UI 显示和流水线状态所需字段。
+- 量化：复用 PERF-017 同一个 1000 章真实列表 A/B：`list_chapters` **11,601,686 B** → `list_chapter_index` **742,686 B**，响应体减少 **93.60%**。此处量化的是 MangaTab 首次目录请求的列表阶段；多章初载不会请求单章详情。
+- 验证：索引行和单章详情投影测试包含在漫画工具与 Chapter API 定向测试中，**13/13** 通过；生产 `npm run build` 通过（保留既有大 chunk 提示）。
+- 边界：未单独重测整个 MangaTab 页面的端到端耗时，复用 PERF-017 的列表 API 数据对照。单章根项目仍保留自动选择，会在目录后读一次该章详情。
+- 证据：`PERF-017` 的千章 `list_chapters`／`list_chapter_index` A/B 记录及 `b08/browser-final-02`；页面来源为 `MangaTab.loadChapters`。
+
+### PERF-096：根项目漫画页未选章时延迟读取资产
+
+- 请求链路：根项目 MangaTab 有多章且没有选中章节时只显示章节侧栏和空态；详情面板不渲染档案、立绘或图库引用，但旧挂载 effect 仍并行调用 list_profiles、list_portraits_by_project、list_images_by_project，并将完整结果保留在组件状态。
+- 修复：只在根项目 MangaTab 确认有当前章节后启动这三项读取。多章初载的首次选择从 openChapterDetail 开始读取；单章自动选择在 loadChapters 确认唯一章节后、并行读取详情时开始。固定章节、派生快照、独立漫画及已有刷新/重试行为保留；没有加预取或业务缓存。
+- A/B：真实 Chromium 153、生产 Vite 组件、4× CPU 与 4 Mbps/50 ms 网络；1000 章目录、50 个角色档案、200 张立绘，三轮交错。图片记录使用 GeneratedImage 合同形状的 DTO，提示词取自项目 prompt 文本。无选章目录就绪 P50：5000 张 2236.1→2074.8 ms（7.21%），10000 张 2253.9→2073.4 ms（8.01%），均未达到 30% 时延门槛。
+- 同一 A/B 的 GC 后 Chromium JS heap P50：5000 张图片 14,758,372→9,008,896 B（38.96%）；10000 张 19,027,196→9,008,704 B（52.65%）。解压 API 响应体（含章节目录与状态）分别为 5,722,957→969,812 B（83.05%）和 10,274,345→969,812 B（90.56%）。
+- 行为检查：多章无选章时三项资产 API 均为 0 次；首次选章后各调用 1 次，前后两版选章后的页面文本 SHA-256 相同。单章自动选择专项确认两版均选中第 1 章并各读取资产一次。1000 图片单次样本的 JS heap 下降 19.42%，低于门槛；保留的目标场景是至少 5000 张图片的高规模项目。
+- 边界：浏览器加载、JSON 解析、React 状态和 JS heap 使用确定性的合同形状夹具；未运行真实 PostgreSQL/Control，因此不把这些数据解释成数据库查询延迟。目录就绪时间改善低于门槛，没有宣称页面响应提升超过 30%。
+- 验证：基线提交 7bb6866c2 与候选生产包的三轮浏览器对照通过；单章自动选择专项对照通过。候选 TypeScript/Vite build、基准脚本 node --check 与 git diff --check 结果见本轮任务记录。
+- 证据：../../data/performance-audit-20261015/manga-assets/report.json 与 ../../data/performance-audit-20261015/manga-assets-single/report.json。复现时从 frontend/ 执行：
+
+~~~bash
+flock -x /home/fufu/Code/A4N/work/.agent-build.lock env \
+  -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy -u NODE_USE_ENV_PROXY \
+  NO_PROXY=localhost,127.0.0.1 A4N_PERF_ARTIFACTS=../data/performance-audit-20261015/manga-assets \
+  node e2e/performance/manga-assets.mjs
+~~~
+
+### PERF-097：漫画参考图高规模候选搜索
+
+- 请求链路：MangaPagePromptList 渲染参考绑定器时，每个角色都把全部角色立绘和项目图片变成 ThemedSelect 选项；打开 ThemedSelect 时再把所有选项投影并渲染到 portal。候选总数为 `立绘 + 项目图片 + 空选项`，每个绑定重复一次。
+- 修复：候选不超过 100 项时保留旧下拉。超过 100 项后，空查询不创建候选对象；输入至少两个字符后按既有角色/提示词/页码/图片 ID/路径/metadata 字段搜索，只保留前 100 个可见候选。候选仍按原来的相关度、收藏优先级和标签顺序排序。下拉项显示图片 ID、面板 ID 和短提示词，选中后显示缩略图与身份，避免大图库中无法辨认候选。搜索状态按面板生命周期管理，切换提示页会重置；没有增加服务端 API、缓存或预取。
+- A/B：基线 `faab71131` 对候选生产 Vite 构建，Chromium **153.0.8010.52**，3 轮交错；使用 50 个角色、200 张立绘、3 个绑定，项目图片分别为 5000 和 10000 项。宽泛查询 `page` 匹配所有合成项目图片的面板 ID。P50：初次挂载 **59.6→9.5 ms（84.06%）／98.8→8.3 ms（91.60%）**；宽泛搜索 **26.8／45.7 ms**，旧版直接打开完整选择器与新版搜索后打开之和 **329.1→99.6 ms（69.74%）／576.0→114.7 ms（80.09%）**。JS heap（挂载后 GC）**8,614,025→5,004,870 B（41.90%）／13,737,522→6,624,898 B（51.78%）**。
+- 行为检查：指针和键盘都能选中搜索结果并启用“添加”，且选择前出现缩略图；候选上限为 100 个可见结果，结果总数与“显示前 100 项”提示一致。1440／1024／390px 页面横向溢出均为 0，已保存默认、搜索和选中态截图。
+- 验证：漫画提示模型 Vitest **2/2**；包含漫画与时间线两个目标文件的 Vitest **8/8**；`npm run build`、基准脚本 `node --check`、`git diff --check` 通过。构建保留既有 >500 kB chunk 警告。
+- 边界：基准使用符合 API 形状的合成 DTO 与本地 SVG data URL，不包含真实 Control/数据库读取或媒体服务；它量化的是候选构造、React 渲染和浏览器选择器开销，不推断图库 API 或真实图片传输耗时。100 项以下保留旧交互，因此不计为性能收益场景。
+- 证据：`../../data/performance-audit-20261015/manga-references-final/report.json` 和该目录下 `screenshots/`。从 `frontend/` 复现：
+
+~~~bash
+A4N_PERF_QUERY=page A4N_PERF_ARTIFACTS=../data/performance-audit-20261015/manga-references-final \
+  node e2e/performance/manga-references.mjs
+~~~
+
+### PERF-098：拆分镜头弹窗的重复时间点扫描
+
+- 请求链路：拆分镜头弹窗中的位置选择器在每次打开或输入变化时重新渲染。旧过滤器对每个时间点都重新查找当前镜头段，并调用 `segmentTimes` 两次线性查找起止点；点数与段数增长时产生嵌套扫描。
+- 修复：新增 `pointsInsideSegment`，先查找目标段一次、计算起止时间一次，再用原来的严格区间条件过滤时间点。拆分可选项的 ID、显示顺序、边界排除和缺失引用错误保持原行为；不增加 memo/cache。
+- A/B：Chromium **153.0.8010.52** 生产 Vite 包；1000／5000 个时间点及段，每个目标段包含中间一半时间点；2 轮预热、7 轮交错，直接测量完整选项投影并逐项校验结果。P50：1000 项 **10.5→≤0.1 ms**；5000 项 **78.6→0.1 ms（99.87%）**。候选计时受 `performance.now()` 精度限制，报告 0.0 ms 的样本按 **≤0.1 ms** 表述。
+- 验证：timeline 定向 Vitest **6/6**（包含 PERF-099 边界检查）；基准脚本 `node --check`、`git diff --check` 和完整前端生产构建通过。
+- 边界：A/B 量化的是弹窗位置选项投影函数，不计 Modal/React 全组件或浏览器绘制时间；5000 项是合成压力场景，不代表常规计划规模。减少投影的 JS 主线程 CPU 时间达到门槛，因此保留局部根因修复。
+- 证据：`../../data/performance-audit-20261015/timeline-split/report.json`。从 `frontend/` 复现：
+
+~~~bash
+A4N_PERF_POINT_COUNTS=1000,5000 A4N_PERF_ARTIFACTS=../data/performance-audit-20261015/timeline-split \
+  node e2e/performance/timeline-split.mjs
+~~~
+
+### PERF-099：时间点到所属分镜的嵌套查找
+
+- 请求链路：拆分弹窗无当前段选择时，编辑器源投影按播放时间确定所属段；原 `segmentAt` 对每个候选段调用 `segmentTimes`，后者再从全部点中线性查找两端点。命中越靠后，段数和点数的乘积会进入同步主线程路径。
+- 修复：一次建立时间点 ID→时间 Map（重复 ID 保留原 `.find` 的第一个结果），仍按原分段顺序扫描；命中首个时间区间即返回。缺失时间点继续抛出相同错误，时长末端仍回落到最后一段。
+- A/B：同 PERF-098 的 Chromium 生产浏览器基准；查询时间落在第 90% 处的分段，2 轮预热＋7 轮交错。1000 点/段 P50 **4.8→≤0.1 ms**；5000 点/段 **32.6→0.2 ms（99.39%）**；命中的 segment ID 前后相同。
+- 验证：timeline 定向 Vitest **6/6**，含重叠区间首匹配与缺失端点错误；共用 `timeline-split.mjs` 报告含投影及查找 A/B。完整前端构建通过。
+- 边界：仅测所属段定位函数，不计编辑器其余工作；合成查询落在靠后区间用于覆盖最坏扫描路径。
+- 证据及复现入口：`../../data/performance-audit-20261015/timeline-split/report.json`，见 PERF-098 命令。
+
+### PERF-100：项目图库原生 lazy-loading 候选（未采用）
+
+- 请求链路：项目图库把所有图片卡片放在滚动容器中；尝试让浏览器延迟请求屏外图片，以减少初载媒体流量。
+- A/B：Chromium 153、生产 Vite、1000 张卡片、两轮交错。原生 `loading="lazy"`（含先设置 loading、补图片固有宽高）仍请求全部 **1000** 张，传输仍为 **414,000 B**；挂载 P50 **75.3→73.3 ms**，低于 30% 门槛；GC 后 JS heap **8,786,947→8,821,295 B**，增加 **0.39%**。
+- 决策：没有保留候选改动；根因在当前滚动容器里的图片卡片都仍被挂载，浏览器原生懒加载没有把请求限制到首屏。
+- 证据：`../../data/performance-audit-20261015/image-gallery-lazy-final/report.json`。
+
+### PERF-101：项目图库首屏卡片和图片请求过多
+
+- 请求链路：打开 NovelDetail 项目图片图库时，`ImageGalleryPanel` 会按输入数量为每张图片创建卡片和 `<img>`；DOM、React 协调、布局和媒体请求随图库规模增长。PERF-100 已确认此滚动容器中的 `loading="lazy"` 不能阻止全部图片请求。
+- 修复：项目图和章节分组图首次都最多渲染 500 张，按钮每次再追加最多 500 张。项目原顺序和分组顺序不变；切换章节范围或收藏过滤重置到首批，切章也会重置。所有图片仍在原始列表中，按钮可继续展开直到全量可见。
+- A/B：基线 `56cb77fe2`，Chromium **153.0.8010.52 Arch Linux**，生产 Vite，固定 CPU **18/19**，1000／2000 张合成图片、每档 3 轮交错。首屏挂载 P50 分别 **192.1→111.0 ms（42.22%）／339.8→113.9 ms（66.48%）**；首次渲染后 GC heap 分别 **7,980,665→5,819,781 B（27.08%）／12,470,909→6,009,801 B（51.81%）**。首屏图片请求 **1000→500／2000→500**，传输 **414,000→207,000 B／828,000→207,000 B**。完整展开以及键盘 Enter 显示第 1000 张图片均通过。
+- 界面检查：1440／1024／390px 的横向溢出均为 **0**；三种宽度首屏都显示“已显示 500/1,000 张图片”，Enter 将卡片数从 500 增至 1000，末张文本为 `Image 1000`。独立截图评审未发现可见问题。
+- 验证：图库 Vitest **2/2**、`npm run build`、性能脚本 `node --check`、A/B 生产 Chromium 脚本及 `git diff --check` 通过。生产构建保留既有 >500 kB chunk 警告。
+- 边界：本项减少客户端卡片挂载、浏览器媒体请求、传输及首屏 JS heap；API 仍传入完整 `allImages`，过滤、分组和排序也仍处理完整列表，因此没有测量或宣称 API JSON／数据库延迟收益。图片传输使用每张 114 B 的本地 SVG 夹具，真实媒体字节降幅取决于图片大小；挂载和 heap 结果是生产组件在该浏览器与 CPU 下的合成规模对照。
+- 证据：`../../data/performance-audit-20261015/image-gallery-batches/report.json`。从 `frontend/` 复现：
+
+~~~bash
+taskset -c 18,19 env A4N_PERF_ARTIFACTS=../data/performance-audit-20261015/image-gallery-batches \
+  node e2e/performance/image-gallery.mjs
+~~~
+
+### PERF-102：项目图库查询缺少项目过滤索引
+
+- 请求链路：`ImagesTab` 的项目图库调用 `list_images_by_project`；Orchestrator 最终执行 `generated_image` 的 `WHERE project_id = ? ORDER BY created_at DESC`，旧表没有 `project_id` 索引，因此 PostgreSQL 需要扫描整张图片表再排序。该查询返回完整图片 DTO，数据库过滤是请求链路的固定前置成本。
+- 修复：新增 `generated_image_project_index` schema migration，创建 `idx_generated_image_project_id` 单列索引；不改变查询、返回字段、排序、权限或错误行为。迁移注册在现有最后一项 `creator_notifications` 之后，并更新运行时 schema gate。
+- A/B：隔离 PostgreSQL 16，100,000 行合成 `generated_image` 形状数据，100 个项目、目标项目 1,000 行，5 轮交错；同一查询用 `EXPLAIN (ANALYZE, BUFFERS)` 测量。无索引 P50 **14.223 ms**（`Seq Scan` + `Sort`），有索引 **4.265 ms**（`Bitmap Index Scan` + `Bitmap Heap Scan` + `Sort`），下降 **70.01%**；shared hit blocks 由 **7,146** 降至约 **1,006–1,009**，索引大小 **745,472 B**。每轮返回的 1,000 个 ID SHA-256 顺序相同。
+- 验证：`a4n-migration` 与 `a4n-db-models` `cargo check --locked --offline` 通过；迁移 SQL 单测 **1/1**；隔离 PostgreSQL 的 `a4n-db` 源快照集成测试 **1/1** 通过（覆盖全量迁移初始化）；基准脚本 `node --check` 和 `git diff --check` 通过。
+- 边界：A/B 测的是数据库执行时间，不是完整 HTTP/JSON/媒体传输延迟；合成数据每项目命中率为 1%，真实命中率越高索引收益越低，需在生产 `EXPLAIN` 复核。索引迁移使用常规事务型 `CREATE INDEX`，大表部署期间可能短暂阻塞图片表写入；若生产表规模显著更大，应安排维护窗口后再执行。
+- 证据：`../../data/performance-audit-20261015/generated-image-index/report.json`。从仓库根目录的工作树执行：
+
+~~~bash
+A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
+  python3 scripts/tests/run_with_test_database.py \
+  --report-dir data/test-runs/perf-image-index-20261015 \
+  --timeout 60 -- node scripts/performance/generated-image-index.mjs
+~~~
+
+### PERF-103：章节图库查询缺少项目和章节复合索引
+
+- 请求链路：切换 NovelDetail 章节图库时，`ImagesTab` 调用 `list_images_by_chapter`；Orchestrator 执行 `generated_image` 的 `WHERE project_id = ? AND chapter_id = ? ORDER BY created_at DESC`。PERF-102 的单列项目索引仍需在目标项目的全部图片中筛选章节，章节规模越小浪费越明显。
+- 修复：新增 `generated_image_project_chapter_index` schema migration，创建 `idx_generated_image_project_chapter` 复合索引；不改变查询、返回字段、排序、权限或错误行为。迁移注册在 PERF-102 索引之后，并更新运行时 schema gate。
+- A/B：隔离 PostgreSQL 16，100,000 行合成 `generated_image` 形状数据，100 个项目、每项目 10 个章节、目标项目/章节 100 行，5 轮交错；同一查询用 `EXPLAIN (ANALYZE, BUFFERS)` 测量。无索引 P50 **17.994 ms**（`Seq Scan` + `Sort`），有索引 **0.812 ms**（`Bitmap Index Scan` + `Bitmap Heap Scan` + `Sort`），下降 **95.49%**；索引大小 **761,856 B**。每轮返回的 100 个 ID SHA-256 顺序相同。
+- 验证：`a4n-migration` 与 `a4n-db-models` `cargo check --locked --offline`、迁移顺序测试和迁移 SQL 单测通过；隔离 PostgreSQL 的 `a4n-db` 源快照集成测试仍通过；基准脚本 `node --check` 和 `git diff --check` 通过。
+- 边界：A/B 测的是数据库执行时间，不是完整 HTTP/JSON/媒体传输延迟；真实章节命中率越高索引收益越低，需在生产 `EXPLAIN` 复核。索引迁移使用常规事务型 `CREATE INDEX`，大表部署期间可能短暂阻塞图片表写入，应安排维护窗口。
+- 证据：`../../data/performance-audit-20261015/generated-image-chapter-index/report.json`。从工作树根目录执行：
+
+~~~bash
+A4N_PERF_IMAGE_QUERY=chapter \
+  A4N_PERF_ARTIFACTS=data/performance-audit-20261015/generated-image-chapter-index \
+  A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
+  python3 scripts/tests/run_with_test_database.py \
+  --report-dir data/test-runs/perf-image-chapter-index-20261015 \
+  --timeout 60 -- node scripts/performance/generated-image-index.mjs
+~~~
+
+### PERF-104：工作流按章最新运行复合索引候选（未采用）
+
+- 请求链路：`latest_workflow_runs_for_chapters` 按项目、工作流类型和章节 ID 集合读取历史运行，再用 `DISTINCT ON (chapter_id)` 选每章最新记录；这是恢复和章节摘要路径的批量读模型。
+- 候选：增加 `(project_id, workflow_kind, chapter_id, updated_at DESC, id DESC)` 复合索引，目标是减少全表扫描和排序。
+- A/B：隔离 PostgreSQL 16，100,000 条运行记录、目标项目 20,000 条、`video` 类型 10,000 条、1,000 个章节，每章 10 条历史；5 轮交错，查询选择完整运行行并执行 `DISTINCT ON`。无索引 P50 **17.005 ms**（`Seq Scan` + `Sort` + `Unique`），有索引 **12.317 ms**（`Bitmap Index/Heap Scan` + `Sort` + `Unique`），仅下降 **27.57%**；结果 1,000 个章节 ID 顺序完全一致。窄选列的早期测量为 44.33%，与实际完整模型投影不符，不作为验收依据。
+- 决策：撤回候选索引和夹具，不改变产品 schema；完整行投影受 heap 读取和排序主导，当前索引复杂度与写入成本不值得引入。
+- 证据：`data/test-runs/workflow-run-index-20261015-v3/command.log`；本候选没有产品提交。
+
+### PERF-105：工作流项目列表缺少排序索引
+
+- 请求链路：`list_workflow_run_models` 在项目列表没有额外状态/类型筛选时执行 `WHERE project_id = ? ORDER BY updated_at DESC, id DESC LIMIT 100`。已有 `workflow_run(project_id, status)` 索引只能筛选项目，数据库仍需读取项目历史并排序后取前 100 条。
+- 修复：新增 `workflow_run_project_updated_index` schema migration，创建 `idx_workflow_run_project_updated`（`project_id, updated_at DESC, id DESC`）；不改变列表限制、完整运行 DTO、排序、权限或错误行为，并更新运行时 schema gate。
+- A/B：隔离 PostgreSQL 16，100,000 条完整形状运行记录，目标项目 20,000 条，保留已有 `(project_id, status)` 索引，5 轮交错；无候选索引 P50 **7.702 ms**（`Limit` + `Bitmap Heap Scan` + `Sort`），有候选索引 **0.292 ms**（`Limit` + `Index Scan`），下降 **96.21%**。索引大小 **4,079,616 B**，每轮返回 100 个 ID 顺序完全一致。
+- 验证：migration SQL 单测、迁移顺序测试、`a4n-migration`/`a4n-db-models` check、隔离 PostgreSQL 全迁移初始化集成测试、基准脚本 `node --check` 和 `git diff --check` 通过。
+- 边界：A/B 测量数据库执行时间，不包含 JSON/HTTP；仅覆盖项目列表默认 100 条路径，状态/类型筛选仍由现有索引和查询计划决定。索引迁移使用事务型 `CREATE INDEX`，大表部署需安排维护窗口。
+- 证据：`../../data/performance-audit-20261015/workflow-run-list-index/report.json`。从工作树根目录执行：
+
+~~~bash
+A4N_PERF_ARTIFACTS=data/performance-audit-20261015/workflow-run-list-index \
+  A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
+  python3 scripts/tests/run_with_test_database.py \
+  --report-dir data/test-runs/workflow-list-index-20261015 \
+  --timeout 60 -- node scripts/performance/workflow-run-list-index.mjs
+~~~
+
+### PERF-106：任务历史分页缺少项目时间索引
+
+- 请求链路：`persisted_task_history` 在项目任务历史页执行 `WHERE project_id = ? ORDER BY created_at DESC OFFSET/LIMIT`，旧表没有项目/时间复合索引，数据库需扫描项目任务后排序。
+- 修复：新增 `task_queue_project_created_index` schema migration，创建 `idx_task_queue_project_created`（`project_id, created_at DESC`）；不改变分页参数、完整任务 DTO、排序、权限或错误行为，并更新运行时 schema gate。
+- A/B：隔离 PostgreSQL 16，100,000 条完整形状任务记录，目标项目 20,000 条，默认返回 100 条，5 轮交错。无索引 P50 **15.588 ms**（`Limit` + `Seq Scan` + `Sort`），有索引 **0.412 ms**（`Limit` + `Index Scan`），下降 **97.36%**；索引大小 **3,178,496 B**，每轮返回 100 个 ID 顺序完全一致。
+- 验证：migration SQL 单测、迁移顺序测试、`a4n-migration`/`a4n-db-models` check、隔离 PostgreSQL 全迁移初始化集成测试、基准脚本 `node --check` 和 `git diff --check` 通过。
+- 边界：A/B 测量数据库执行时间，不包含 JSON/HTTP；只覆盖带项目过滤的历史页，未传项目 ID 的全局历史仍由排序计划决定。索引迁移使用事务型 `CREATE INDEX`，大表部署需安排维护窗口。
+- 证据：`../../data/performance-audit-20261015/task-history-index/report.json`。从工作树根目录执行：
+
+~~~bash
+A4N_PERF_ARTIFACTS=data/performance-audit-20261015/task-history-index \
+  A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
+  python3 scripts/tests/run_with_test_database.py \
+  --report-dir data/test-runs/task-history-index-20261015 \
+  --timeout 60 -- node scripts/performance/task-history-index.mjs
+~~~
+
+### PERF-107：导入审核项目列表索引候选（未采用）
+
+- 请求链路：`import_reviews_by_project` 按项目读取全部审核行并按 `created_at DESC` 排序；每行包含完整 `analysis_result` JSON。
+- 候选：增加 `import_review_queue(project_id, created_at DESC)` 索引，尝试避免全表扫描和排序。
+- A/B：隔离 PostgreSQL 16，100,000 行、目标项目 20,000 行、每行约 8 KiB JSON，完整行返回，5 轮交错。无索引 P50 **19.251 ms**（`Sort` + `Seq Scan`），有索引 **17.848 ms**（`Sort` + `Bitmap Heap Scan`），仅下降 **7.29%**；20,000 行 ID 顺序完全一致。
+- 决策：撤回索引候选；完整 JSON 返回和序列化是主要成本，单纯索引不能达到门槛，避免增加写入成本。
+- 证据：`data/test-runs/import-review-index-20261015-v2/command.log`；本候选没有产品提交。
+
+### PERF-108：项目状态历史缺少项目时间索引
+
+- 请求链路：`project_status_history` 读取按项目过滤，并按 `changed_at DESC, id DESC` 返回完整历史；项目状态恢复、详情和审计展示都会触发该查询。
+- 修复：新增 `project_status_history_project_changed_index` schema migration，创建 `idx_project_status_history_project_changed`（`project_id, changed_at DESC, id DESC`）；不改变状态校验、完整投影、排序、权限或错误行为，并更新运行时 schema gate。
+- A/B：隔离 PostgreSQL 16，100,000 条完整状态历史记录，目标项目 20,000 条，5 轮交错。无索引 P50 **8.627 ms**（`Sort` + `Seq Scan`），有索引 **5.121 ms**（`Sort` + `Bitmap Heap Scan`），下降 **40.64%**；索引大小 **4,079,616 B**，每轮返回 20,000 个 ID 顺序完全一致。
+- 验证：migration SQL 单测、迁移顺序测试、`a4n-migration`/`a4n-db-models` check、隔离 PostgreSQL 全迁移初始化集成测试、基准脚本 `node --check` 和 `git diff --check` 通过。
+- 边界：A/B 测量数据库执行时间，不包含 HTTP/JSON；项目历史返回量很大时 JSON 序列化仍是后续成本。索引迁移使用事务型 `CREATE INDEX`，大表部署需安排维护窗口。
+- 证据：`../../data/performance-audit-20261015/status-history-index/report.json`。从工作树根目录执行：
+
+~~~bash
+A4N_PERF_ARTIFACTS=data/performance-audit-20261015/status-history-index \
+  A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
+  python3 scripts/tests/run_with_test_database.py \
+  --report-dir data/test-runs/status-history-index-20261015 \
+  --timeout 60 -- node scripts/performance/status-history-index.mjs
+~~~
+
+### PERF-109：工作流 business key 最新运行缺少排序索引
+
+- 请求链路：`latest_workflow_run_by_business_key` 及带状态/加锁变体被章节同步、视频生命周期、蓝图和事实反馈流程调用；旧表只有 `business_key` 单列索引，取最新运行仍需排序该 key 的历史记录。
+- 修复：新增 `workflow_run_business_updated_index` schema migration，创建 `idx_workflow_run_business_updated`（`business_key, updated_at DESC, id DESC`）；不改变最新记录选择、锁、完整运行 DTO、权限或错误行为，并更新运行时 schema gate。
+- A/B：隔离 PostgreSQL 16，100,000 条完整形状工作流运行记录、100 个 business key、目标 key 1,000 条历史，保留已有 business key 单列索引，5 轮交错。无复合索引 P50 **3.701 ms**（`Limit` + `Bitmap Heap Scan` + `Sort`），有复合索引 **0.098 ms**（`Limit` + `Index Scan`），下降 **97.35%**；索引大小 **4,079,616 B**，最新运行 ID 完全一致。
+- 验证：migration SQL 单测、迁移顺序测试、`a4n-migration`/`a4n-db-models` check、隔离 PostgreSQL 全迁移初始化集成测试、基准脚本 `node --check` 和 `git diff --check` 通过。
+- 边界：A/B 测量数据库执行时间，不包含 JSON/HTTP；按多个 business key 批量 `DISTINCT ON` 路径仍需单独评估。索引迁移使用事务型 `CREATE INDEX`，大表部署需安排维护窗口。
+- 证据：`../../data/performance-audit-20261015/business-key-index/report.json`。从工作树根目录执行：
+
+~~~bash
+A4N_PERF_ARTIFACTS=data/performance-audit-20261015/business-key-index \
+  A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
+  python3 scripts/tests/run_with_test_database.py \
+  --report-dir data/test-runs/business-key-index-20261015 \
+  --timeout 60 -- node scripts/performance/business-key-index.mjs
+~~~
+
+### PERF-110：LLM 生成分析时间窗口缺少全局索引
+
+- 请求链路：管理员生成分析并行读取 LLM trace 和媒体 generation run。LLM trace 查询按 `created_at >= now - days` 过滤、按创建时间倒序返回窗口内所有行，随后在进程中汇总调用、token、耗时和最近项；已有项目时间索引无法支持不限定项目的管理查询。
+- 修复：新增 `llm_call_trace_created_index` schema migration，创建 `idx_llm_call_trace_created (created_at DESC)`；完整分析投影、JSON 字段表达式、日期窗口和返回顺序保持不变，并更新运行时 schema gate。
+- A/B：隔离 PostgreSQL 16，100,000 条 trace 完整形状，最近 7 天命中 7,000 条；使用与生产一致的 LLM 分析列投影和 `context_plan_json` JSON 构造表达式，5 轮交错。无索引 P50 **81.636 ms**（`Sort` + `Seq Scan`），有索引 **39.269 ms**（`Index Scan`），下降 **51.90%**；shared hit blocks 约 **16,193→1,400**；索引大小 **2,260,992 B**。每轮返回 7,000 个 ID 及顺序完全一致。
+- 验证：migration SQL 单测、迁移顺序测试、`a4n-migration`/`a4n-db-models` check、隔离 PostgreSQL 全迁移初始化集成测试、基准脚本 `node --check` 和 `git diff --check` 通过。
+- 边界：该 A/B 量化数据库投影/JSON 表达式执行时间，不包含 Rust 汇总、HTTP 响应和真实系统时间跨度分布；只有当查询窗口是全历史的小部分时索引才有明显过滤优势。事务型 `CREATE INDEX` 对大表可能短暂阻塞写入，部署时需安排维护窗口。
+- 证据：`../../data/performance-audit-20261015/llm-analytics-index/report.json`。从工作树根目录执行：
+
+~~~bash
+A4N_PERF_ARTIFACTS=data/performance-audit-20261015/llm-analytics-index \
+  A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
+  python3 scripts/tests/run_with_test_database.py \
+  --report-dir data/test-runs/llm-analytics-index-20261015 \
+  --timeout 60 -- node scripts/performance/llm-analytics-index.mjs
+~~~
+
+### PERF-111：媒体生成分析时间窗口缺少全局索引
+
+- 请求链路：同一管理员生成分析接口读取 `generation_run`，过滤 `created_at >= since` 和 `model_kind IN ('image','video')`，投影调用摘要并按创建时间倒序，之后在进程中聚合每日/工作流状态。既有 `(project_id, created_at)` 索引不适用于不限定项目的管理分析。
+- 修复：新增 `generation_run_created_index` schema migration，创建 `idx_generation_run_created (created_at DESC)`；保留最近窗口、image/video 过滤、完整分析 DTO 和行顺序，并更新运行时 schema gate。
+- A/B：隔离 PostgreSQL 16，100,000 条完整形状 generation run；最近 7 天 7,000 条，其中 4,667 条 image/video、其余为 text，已有项目/创建时间索引，5 轮交错。无全局索引 P50 **15.504 ms**（`Sort` + `Seq Scan`），有索引 **1.230 ms**（`Index Scan`），下降 **92.07%**；索引大小 **2,260,992 B**，每轮 4,667 个 ID 顺序完全一致。
+- 验证：migration SQL 单测、迁移顺序测试、`a4n-migration`/`a4n-db-models` check、隔离 PostgreSQL 全迁移初始化集成测试、基准脚本 `node --check` 和 `git diff --check` 通过。
+- 边界：A/B 测量数据库筛选、投影和排序，不包含 Rust 聚合与 HTTP 响应；如果时间窗覆盖表中很大比例，顺序扫描更合适，PostgreSQL planner 会依据统计信息选择计划。事务型 `CREATE INDEX` 对大表可能短暂阻塞写入。
+- 证据：`../../data/performance-audit-20261015/generation-run-analytics-index/report.json`。从工作树根目录执行：
+
+~~~bash
+A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
+  python3 scripts/tests/run_with_test_database.py \
+  --report-dir data/test-runs/generation-run-analytics-index-20261015 \
+  --timeout 60 -- node scripts/performance/generation-run-analytics-index.mjs
+~~~
+
+### PERF-112：项目模型用量报表缺少根项目时间索引
+
+- 请求链路：NovelDetail 成本面板在打开或手动刷新时请求 30 天、最多 100 条记录。Orchestrator 先执行按币种/能力聚合，再执行最近记录列表；项目范围的两条查询都使用 `project_id = ? OR root_project_id = ?` 和 `started_at >= since`。原有项目/时间索引只能覆盖 OR 的一侧。
+- 修复：新增 `model_usage_root_started_index` migration，创建部分索引 `idx_model_usage_record_root_started (root_project_id, started_at DESC) WHERE root_project_id IS NOT NULL`，并更新运行时 schema gate。全局管理员报表不带项目过滤，不受此索引影响。
+- A/B：隔离 PostgreSQL 16.15，完整报表列形状与现有项目/用户/能力/状态索引，1,000,000 行；根项目匹配 19,900 行，30 天查询命中 3,333 行。7 轮交错、每轮在同一连接中执行生产形状的聚合和最近记录 SQL：合计 P50 **126.836→13.055 ms（89.71%）**；聚合 P50 **64.130→7.979 ms（87.56%）**，最近记录 P50 **62.428→5.263 ms（91.57%）**。执行计划从 Seq Scan 变为项目索引与根项目部分索引 BitmapOr，再做 Bitmap Heap Scan。索引大小 **647,168 B**。前后聚合 JSON（2 组）和最近记录 JSON（100 条，按时间倒序）摘要完全相同。
+- 验证：migration SQL 单测 **1/1**、迁移顺序测试 **1/1**、`cargo check -p a4n-migration -p a4n-db-models --locked --offline`、隔离 PostgreSQL 全迁移初始化集成测试 **1/1**、`cargo fmt --all -- --check` 和 `git diff --check` 通过；并从测试 schema 确认索引定义与部分谓词已实际创建。首次冷编译在 60 秒限时内未完成、测试未启动；预编译后上述测试通过。
+- 边界：A/B 只测两个 SQL 的数据库执行时间，不含 SeaORM、Orchestrator DTO 转换和 HTTP；数据为隔离合成夹具，生产根项目分布仍会影响收益。部分索引只为非空根项目记录维护；索引创建期间会按现有事务型迁移行为锁定写入，大表部署需安排维护窗口。
+- 证据：`../../data/performance-audit-20261015/model-usage-root-index/`，含交错样本、完整 EXPLAIN 计划和索引前后结果摘要。
+
+### PERF-113：图片生成完成后为校验结果读取整个项目图库
+
+- 请求链路：图片生成完成后，场景/物体档案、图库、导演计划、视频素材、镜头提示词和漫画页面等 9 个调用点使用 `verifyImageGenerationResult`。任务状态已有 `result_ref` 和图片 artifact IDs；旧实现仍查询项目全部图片，在浏览器构建整张 ID Map 后只返回本次生成的一张或几张，随后丢弃其余记录。
+- 修复：从任务引用与非临时 canonical artifact 得到所需 ID，再用现有 `list_images_by_project` 命令的可选 `image_ids` 字段读取这些行。后端仍先验证项目 Viewer 权限，并在 SQL 同时限制项目 ID 和图片 ID；不传筛选时旧列表合同不变。无效/重复 artifact 仍走原一致性失败路径。`media` CLI E2E 阶段现在包含图片发布回归，并在全矩阵中去重。
+- A/B：隔离 PostgreSQL 16.15、完整图片摘要列形状和项目/项目章节索引，100,000 行、100 个项目、目标项目 1,000 张图、结果 2 张；metadata 每行 512 B。7 轮交错测量完整投影 SQL：P50 **4.924→0.076 ms（98.46%）**；结果从 **1,000 行降至 2 行**。相同摘要字段的紧凑合成 JSON 从 **958,890 B 降至 1,922 B（99.80%）**；返回行与全量列表中对应的 ID、字段和顺序逐项一致。计划由项目 Bitmap Heap Scan + Sort 改为主键 Index Scan + Sort。
+- 验证：前端校验 ID 测试 **2/2**、API parity、`cargo check -p a4n-db -p a4n-orchestrator -p a4n-api-contract -p a4n-control --locked --offline`、PostgreSQL 查询测试 **1/1**、前端生产构建和格式/diff 检查通过。Mock Provider `image_publication` CLI E2E **5/5**，包含可选 ID 查询；完整 `media` 阶段整体未通过：现有 checkpoints 流程因 manga 预处理缺失失败，独立浏览器流程在大纲阶段失败，这两项均未计作本优化的通过验证。
+- 边界：A/B 量化数据库执行时间和合成 DTO 体积，不包含完整 HTTP/网络时延；项目图库页面及其他未传 `image_ids` 的客户端仍按旧行为读取全部记录。CLI E2E 的首次尝试发现旧 fixture 使用已移除的 `create_freeform_video_project` 命令，已改用当前的 `project create` 命令后 `image_publication` 套件通过。
+- 证据：`../../data/performance-audit-20261015/image-result-verification/`，包含成对样本、完整 EXPLAIN、前后摘要与 CLI suite 报告。
+
+### PERF-114：立绘项目列表缺少项目过滤索引
+
+- 请求链路：portrait worker 的 `portrait.records.list` 按项目加载全部角色立绘，用于角色立绘页和 MangaTab；每次立绘生成结束后的 `verifyPortraitGenerationResult` 也调用同一项目列表，再从结果引用中只验证一张或一批产物。现有 SQL 仅以 `project_id = ?` 过滤，基表无项目索引。
+- 修复：新增 `character_portrait_project_index` migration，为 `character_portrait(project_id)` 建普通索引，并更新运行时 schema gate。未改 worker/API 合同、完整 DTO、列表顺序或权限逻辑。
+- A/B：隔离 PostgreSQL 16.15，100,000 条完整立绘行、100 个项目、目标项目 1,000 条，使用生产完整投影 SQL，7 轮交错。P50 **8.183→2.387 ms（70.83%）**；执行计划从 Seq Scan 改为 Bitmap Index Scan + Bitmap Heap Scan。索引 **745,472 B**；前后完整投影按实际无排序 SQL 顺序返回的 1,000 行逐项相同。
+- 验证：migration SQL 单测 **1/1**、迁移顺序测试 **1/1**、`cargo check -p a4n-migration -p a4n-db-models --locked --offline`、隔离 PostgreSQL 全迁移初始化及 `pg_indexes` 索引断言 **1/1**、`cargo fmt --all -- --check` 和 `git diff --check` 通过。首次 DB 测试冷链接耗尽 60 秒限时，测试未启动；单独预编译后同一测试通过。
+- 边界：A/B 测的是数据库执行时间，不包含 Portrait worker 启动/IPC/DTO 转换/HTTP；合成数据每项目 1,000 条，不代表所有项目分布。该 worker 列表有意返回项目下全部立绘，因此此项不改变记录集合或分页语义。迁移沿用事务型 `CREATE INDEX`，大表升级期间需安排维护窗口。
+- 证据：`../../data/performance-audit-20261015/character-portrait-project-index/`，含 7 轮交错数据、完整 EXPLAIN 和索引前后响应 JSON。
+
+### PERF-115：档案主立绘查询缺少部分索引
+
+- 请求链路：`WritingContextCards` 在项目上下文加载或重试时读取主角色的 `get_primary_portrait(profile_id)`。portrait worker 执行 `character_portrait WHERE profile_id = ? AND is_primary = TRUE` 并返回完整立绘；主立绘仅约占角色立绘的一部分，表增长后原查询会扫描所有项目的立绘记录。
+- 修复：新增 `character_portrait_primary_profile_index` migration，为 `character_portrait(profile_id) WHERE is_primary = TRUE` 建部分索引，并更新运行时 schema gate。它只保存当前主立绘对应的档案 ID；设主图操作更新 `is_primary` 时同步维护索引。
+- A/B：隔离 PostgreSQL 16.15，100,000 条立绘、40,000 个角色档案、每档 2–3 张、保留 PERF-114 项目索引；目标档案有 3 张立绘，其中 1 张主图。7 轮交错测量完整主立绘查询：P50 **10.602→0.076 ms（99.28%）**；计划从 Seq Scan 变为部分索引查询。索引大小 **917,504 B**；完整查询 JSON 1 行前后完全一致。
+- 验证：migration SQL 单测 **1/1**、迁移顺序测试 **1/1**、`cargo check -p a4n-migration -p a4n-db-models --locked --offline`、隔离 PostgreSQL 全迁移初始化及 partial predicate/index 定义断言 **1/1**、`cargo fmt --all -- --check` 和 `git diff --check` 通过。首次 `cargo test` 的 60 秒限时耗在测试前 DB crate 冷链接；单独链接测试二进制后目标断言通过。
+- 边界：A/B 只测数据库执行时间，不含 Worker IPC/DTO/HTTP；写作台加载当前仅对主角读取一条主立绘，单用户项目的频率有限，但全库立绘累积后原查询仍会扫描无关项目的行。部分索引只在 `is_primary` 更新时写入/删除一条索引项。
+- 证据：`../../data/performance-audit-20261015/character-portrait-primary-index/`，含 7 轮交错样本、计划和前后完整行 JSON。
+
+### PERF-116：漫画上下文读取立绘时对整组记录排序
+
+- 请求链路：Manga pipeline 启动与提示词预览会并行读取章节来源和 `manga_character_portrait_refs`；漫画 worker 在恢复已有章节 checkpoint 时也会读取该上下文。此函数读取项目完整立绘列表并按 `is_primary DESC, created_at DESC` 排序，之后按 profile 构建 HashMap、只保留最新主立绘；profiles 列表本身另有 `id ASC` 顺序，最终摘要也按 profiles 顺序生成。
+- 修复：移除立绘查询上的两字段排序；HashMap 单次扫描中显式比较 `created_at`，保留每档最新主立绘。每个 profile 的条目仍会保留；只有次要立绘的 profile 仍映射为 `None`，上层继续返回原来的缺少主立绘错误。对于多个主立绘的异常状态，仍选最新创建项。
+- A/B：隔离 PostgreSQL 16.15、完整立绘列投影、总计 1,001,000 行和已有 `project_id` 索引。每项目 2–3 张、均有主立绘的有效数据形状中，目标项目 1,000／20,000／100,000 行的 7 轮交错 P50 分别 **1.439→0.270 ms（81.24%）／23.022→3.578 ms（84.46%）／166.665→15.989 ms（90.41%）**。完整数据库行集合按 ID 摘要 hash 相同，模拟旧排序首主图与新无序扫描取最新 `created_at` 的每档主图 ID 完全一致。
+- 验证：Rust `portrait_index` 定向单测 **1/1**，覆盖无序输入下重复主立绘仍选最新项，并保留只有次要立绘的 profile 空值标记；`cargo fmt --all -- --check` 和 `git diff --check` 通过。
+- 边界：A/B 测量 SQL 过滤、完整行读取和排序，不含 profiles 并行查询、Rust 转换、模板/工作流、IPC 或 HTTP；数据为合成规模。数据库结果本来没有 SQL 顺序合同；可观察的 summaries 仍按 profile ID 排序。
+- 证据：`../../data/performance-audit-20261015/manga-portrait-order/`，包括 1k／20k／100k 交错样本、计划、完整行摘要和主图 ID 映射对照。
+
+### PERF-117：视频时间线按项目和章节读取缺少索引
+
+- 请求链路：`timeline_summary` 在读取章节 prompt 与 segment plan 时并行读取该章节全部 `generated_video`，并将视频加入完整时间线响应；时间线插入项校验、组装和视频生命周期也复用同一读口。SQL 投影完整模型字段、过滤项目与章节，并按 `created_at DESC` 排序；表当前仅有 `timeline_item_id` 索引。
+- 修复：新增 `generated_video_project_chapter_index` migration，增加 `(project_id, chapter_id)` 索引。完整记录、完成/失败状态、时间线绑定和排序都留在原查询中。
+- A/B：隔离 PostgreSQL 16.15、100,000 条完整 generated_video 行、100 项目、每项目 10 章、目标项目/章节 100 行，已有 `timeline_item_id` 索引，7 轮交错。完整 SQL P50 **21.442→0.657 ms（96.94%）**；前后 100 行完整 JSON ID、字段和时间顺序完全相同。索引大小 **761,856 B**，执行计划从 Seq Scan + Sort 改为 Bitmap Index Scan + Bitmap Heap Scan + Sort。
+- 候选取舍：额外添加 `created_at DESC` 的三列索引后计划仍需对 100 条完整行排序；7 轮 P50 **0.687 ms**，比两列索引的 **0.657 ms** 没有收益，索引体积增至 **4,087,808 B**。未采用该冗余排序键。
+- 验证：migration SQL 单测、迁移顺序测试、`a4n-migration`/`a4n-db-models` check、隔离 PostgreSQL 全迁移和 `pg_indexes` 定义断言及格式/diff 检查待完成。
+- 边界：A/B 量化数据库过滤、行读取和排序，不含 SeaORM 映射、时间线合并、HTTP 传输或视频文件 I/O。完整响应仅 100 行；极大章节仍由现有 API 完整返回，没有改为分页。
+- 证据：`../../data/performance-audit-20261015/generated-video-chapter-index/`，含 7 轮完整投影 SQL 样本、最小/三列索引对照计划和前后完整响应。
+
+### PERF-118：Manga 立绘 DISTINCT ON 窄结果候选（未采用）
+
+- 请求链路：`manga_character_portrait_refs` 仍需要保留每档“最新主图”或“此档案有立绘但无主图”的状态。PERF-116 已移除全量排序；本轮尝试让 PostgreSQL `DISTINCT ON(profile_id)` 每档只传一行，并用 `(project_id, profile_id, is_primary DESC, created_at DESC)` 索引对齐选择顺序。
+- A/B：隔离 PostgreSQL 16.15，1,000,000 行、项目 1 有 100,000 行/40,000 档案/每档 2–3 张；数据库返回行从 **100,000 降至 40,000（60%）**，行 JSON 载荷从 **42,805,592 降至 17,137,788 B**，用户侧摘要集合字节和内容不变。7 轮交错的完整行 SQL P50 却从 **22.242 ms 增至 51.358 ms（慢 130.91%）**，计划是索引扫描全部档案行后做 Unique；索引大小 **49,627,136 B**。无主图的异常项目仍能识别相同的 10 个档案，选中主图 ID 也相同。
+- 决策：候选显著减少数据库返回行字节，但数据库执行时间超过 2 倍、增加约 49.6 MB 索引，拒绝该实现；PERF-116 的无序完整读取＋HashMap 单次选择保留。
+- 边界：A/B 测量完整行 SQL；不能把 60% 行数下降直接宣称为进程内存下降。候选 SQL/索引已仅留在隔离测试库，没有产品代码或 schema 变更。
+- 证据：`../../data/performance-audit-20261015/manga-portrait-distinct-candidate/`，包括交错样本、执行计划、所选主图 ID 映射和缺主图档案对照。
+
+### PERF-119：管理员全局任务历史缺少时间索引
+
+- 请求链路：设置页 QueueTab 每 5 秒并行刷新统计、活跃工作流和全局 `get_task_history(null, 0, 30)`；无项目筛选时 `persisted_task_history` 仅按 `created_at DESC` 分页。现有 PERF-106 索引以 `project_id` 为首列，不能支持这个管理员全局查询，故每次轮询扫描全表并取 top 30 排序。
+- 修复：新增 `task_queue_created_index` migration，为 `task_queue(created_at DESC)` 建全局索引并更新 schema gate。不改任务行 DTO、管理员权限、offset/limit 参数、排序、poll 频率或错误行为；项目过滤查询继续使用既有 project/created index。
+- A/B：隔离 PostgreSQL 16.15，300,000 条完整任务行，保留 `(project_id, created_at DESC)` 索引；payload/progress 都是 JSON，按管理员 UI 的完整模型投影执行 `ORDER BY created_at DESC LIMIT 30`，7 轮交错。P50 **46.174→0.068 ms（99.85%）**；计划从 Seq Scan + top-N Sort 改为 Index Scan + Limit。索引大小 **6,758,400 B**。前后 30 行 JSON（含顺序、payload 和 progress）SHA-256 完全一致。
+- 验证：migration SQL 单测 **1/1**、迁移顺序测试 **1/1**、`cargo check -p a4n-migration -p a4n-db-models --locked --offline`、隔离 PostgreSQL 全迁移/schema index 断言 **1/1**、`cargo fmt --all -- --check` 和 `git diff --check` 通过。
+- 边界：A/B 测数据库执行时间，未把收益外推到 SeaORM 转换、权限验证、5 秒轮询全链路或传输；索引按每条新任务增加一次索引维护，生产表建索引需安排迁移维护窗口。
+- 证据：`../../data/performance-audit-20261015/task-global-history-index/`，含交错样本、执行计划和前后完整列表 JSON。
+
+### PERF-120：管理员 pending 任务列表缺少状态部分索引
+
+- 请求链路：设置页 `TasksSection` 每 5 秒调用 `list_pending_tasks`。DB 查询 `WHERE status='pending'` 返回完整任务行（含 payload/progress JSON），随后 Rust 按 high/medium/low 自定义优先级、创建时间升序、任务 ID 升序排序；原表没有 status 索引。
+- 修复：新增 `task_queue_pending_created_index` migration，为 `task_queue(created_at DESC) WHERE status='pending'` 建部分索引，并更新 schema gate。查询仍返回全部 pending 任务，不改状态、权限、DTO 或 Rust 排序规则；项目范围任务历史继续使用 PERF-106 索引。
+- A/B：隔离 PostgreSQL 16.15，300,000 条完整 task_queue 行、15,000 条 pending（5%），payload/progress 都含 JSON，保留 PERF-106 project/created 和 PERF-119 全局 created 索引；完整 TaskQueue 投影，7 轮交错。P50 **75.721→13.636 ms（81.99%）**，计划从 Seq Scan 改为 partial Index Scan。索引大小 **352,256 B**。前后读取行经应用原优先级/时间/ID comparator 排序后，15,000 条完整 JSON 的 SHA-256 相同。
+- 验证：migration SQL 单测 **1/1**、迁移顺序测试 **1/1**、`cargo check -p a4n-migration -p a4n-db-models --locked --offline`；隔离 PostgreSQL 执行完整 schema migrations 并检查全局及 pending 索引 **2/2**；`cargo fmt --all -- --check` 和 `git diff --check` 通过。
+- 边界：A/B 量化数据库过滤和完整行读取，不含 Rust DTO mapping/sort、permission check、HTTP 或同轮 stats/workflow 请求；每个 pending 状态转换会维护部分索引，索引只覆盖 pending 子集。
+- 证据：`../../data/performance-audit-20261015/admin-pending-tasks-index/`，含 7 轮样本、执行计划和 Rust 实际排序后的完整 DTO 响应。
+
+### PERF-121：Video Studio 工作流每秒重建图运行投影
+
+- 请求链路：运行中的 `VideoStudioCanvas` 每秒更新计时；`useCanvasWorkflowActions` 同样每秒轮询完整工作流详情。每个详情响应都会创建新对象。旧路径重新解析所有 checkpoint 时间，再扫描全部节点/边计算活动上游范围，并为全部边新建带运行态 class/label 的对象。
+- 修复：运行状态事实只比较其实际依赖字段（run 状态/current step/时间戳及 checkpoint step/status/时间戳）；输入语义未变时复用原只读 Map。每秒仍按缓存时间事实更新 elapsed 标签；图或运行事实变化时正常重算活动范围和边投影，进度详情及轮询频率不变。
+- A/B：生产 Vite 构建加载实际状态/投影函数，Chromium **153.0.8010.52**、固定 CPU 18/19；构造 1000／5000／10000 节点、链式边与等量 checkpoints，每个 tick 输入新的详情对象但保持字段不变，7 轮、每轮 8 ticks。同步投影 P50 **2.263→0.675 ms（70.17%）／10.912→3.188 ms（70.78%）／22.925→6.150 ms（73.17%）**；前后 projection signature 完全相同。每 tick 边对象创建 **999／4,999／9,999→0**，静态边数组仅在状态变化时重建。
+- 验证：`canvasWorkflowState.test.ts` **4/4**、`npx tsc --noEmit`、`node --check e2e/performance/check.mjs`、Chromium 基线与候选生产构建通过。
+- 边界：量化每秒状态投影的同步 JavaScript 时间，不含 HTTP/JSON 解析、React Flow DOM layout/render 或完整页面交互延迟；测得收益不外推为整个页面响应时间。
+- 证据：`../../data/performance-audit-20261015/canvas-workflow/{before,after}/report.json`；在 `frontend/` 下运行 `A4N_PERF_CASE=canvas-workflow node e2e/performance/check.mjs`，基线另加 `A4N_PERF_BASELINE_REF=86be78156`。
+
+### PERF-122：工作流详情按工作流读取 generation run 缺少索引
+
+- 请求链路：Video Studio 运行中每秒调用 `get_workflow_run_detail(..., include_generation_runs=true)`。`generation_runs_for_workflow` 读取完整 `GenerationRunSummaryRecord` 投影，按 `workflow_run_id` 过滤、`created_at ASC` 排序并最多返回 300 行；原表只有全局 `created_at DESC` 索引，无法直接定位目标工作流的行。
+- 修复：新增 `generation_run(workflow_run_id, created_at ASC) WHERE workflow_run_id IS NOT NULL` 部分索引，并更新 schema gate。调用仍返回相同完整 DTO 和最多 300 行，保留原 `created_at ASC` 排序及空 workflow_run_id 的记录。
+- A/B：隔离 PostgreSQL 16，100,000 条完整形状 generation_run 行，约一半 `workflow_run_id` 为空、目标工作流 300 行；保留现有全局 created_at 索引，完整投影含输入指纹、raw/parsed response、validation 和 artifact JSON，7 轮交错。P50 **41.075→2.504 ms（93.90%）**；计划从 Seq Scan + Sort 改为 Bitmap Heap Scan + Sort。索引大小 **1,597,440 B**；300 行完整 JSON **550,035 B**，ID 顺序和 SHA-256 完全相同。
+- 验证：migration SQL 单测 **1/1**、迁移顺序测试 **1/1**、隔离 PostgreSQL 全 schema migration/partial index 断言 **1/1**、`cargo check -p a4n-migration -p a4n-db-models --locked --offline`、`cargo fmt --all -- --check`、`git diff --check` 和 `node --check scripts/performance/workflow-generation-run-index.mjs` 通过。
+- 边界：A/B 测 generation run 子查询的数据库过滤、完整投影和排序，不含 run/checkpoint 查询、SeaORM 映射、HTTP 或完整每秒轮询延迟；每条有 workflow_run_id 的新生成记录多维护一条索引项。
+- 证据：`../../data/performance-audit-20261015/workflow-generation-run-index/report.json`；复现脚本 `../../scripts/performance/workflow-generation-run-index.mjs`，需连接名称以 `a4n-perf-workflow-generation-index-` 开头的隔离 PostgreSQL 容器。
+
+### PERF-123：Video Studio 工作流详情轮询下载不需要的生成记录
+
+- 请求链路：Video Studio 每秒调用 `get_workflow_run_detail` 并请求完整 generation runs；`CanvasWorkflowPanel` 实际只用 `generation_runs.length` 显示模型调用数。Settings Queue 的展开明细会逐条显示生成记录，因此继续使用完整数组合同。
+- 修复：为详情输入增加默认关闭的 `include_generation_run_count`，响应增加 `generation_run_count`。Video Studio 请求 count-only；数据库返回 `min(total, 300)` 以保留原显示上限。其他页面只在显式请求时读取完整 generation run 数组，旧请求缺少新输入字段时默认关闭。
+- A/B：复用 PERF-122 的隔离 PostgreSQL 16、100,000 行/目标工作流 300 行、workflow composite index。7 轮：完整索引投影 P50 **2.504 ms**，count-only **1.885 ms（快 24.72%，未达到时延门槛）**；generation-run 子响应数据 **550,035 B→3 B（减少 99.9995%）**，count 仍为 300。此项以传输数据量降幅验收。
+- 验证：`workflow_detail_returns_generation_run_summary_fields` PostgreSQL 集成测试验证 301 条记录时 count-only 返回 300 且数组为空；完整数组仍返回最多 300 条并填充相同 count。旧输入反序列化默认测试、前端 wrapper 定向测试、API parity、受影响 crates check、`npx tsc --noEmit`、fmt/diff 通过。
+- 边界：A/B 量化 generation-run 子查询，不含 run/checkpoint 查询、HTTP/JSON 解析或完整 detail 响应体；`generation_run_count` 维持原数组 300 行上限。
+- 证据：`../../data/performance-audit-20261015/workflow-generation-run-index/report.json`；完整投影与 count-only 由 `../../scripts/performance/workflow-generation-run-index.mjs` 交错测量。
+
+### PERF-124：Canvas checkpoint 单次汇总候选（未采用）
+
+- 请求链路：`CanvasWorkflowPanel` 随工作流详情每 1 秒更新。旧实现分别扫描检查点计数、筛选/排序 running、筛选/排序 failed；试验用一遍扫描同时得到 completed 数和最新 running/failed checkpoint，并保留时间相同情况下原数组先后次序。
+- A/B：生产 Vite + Chromium **153.0.8010.52**、固定 CPU 18/19，7 轮、每轮 8 次，1000／5000／10000 checkpoints。每组都测“仅一个 running，其余 completed”及“20% failed”两种分布。投影 signature 全部一致。无 failed 时 P50 **0.038→0.025 ms／0.200→0.013 ms／0.412→0.037 ms**；20% failed 时 **0.050→0.025 ms／0.250→0.038 ms／0.475→0.088 ms**。
+- 决策：虽然相对降幅为 34%–94%，在 10,000 条检查点下每次也只节省不到 **0.4 ms**，每次刷新间隔为 **2.5 秒**。按任务的绝对收益门槛视为微优化，未保留产品改动。
+- 边界与证据：测量纯摘要投影，不含 React 子树 render、HTTP 或 DOM；基线 `1ddb42a31`。浏览器 report 在 `../../data/performance-audit-20261015/canvas-checkpoint-summary/{before,after}/report.json`。
+
+### PERF-125：工作流检查点排序索引候选（未采用）
+
+- 请求链路：工作流详情读取每个 `workflow_run_id` 下的所有 checkpoint，并按 `step_order, id` 排序；运行中页面每秒轮询详情。候选索引 `(workflow_run_id, step_order, id)` 试图省去排序。
+- A/B：隔离 PostgreSQL **16.15**、100,000 行，目标工作流分别有 1,000／5,000／10,000 行；保留现有 `(workflow_run_id, step_key)` 和 `(workflow_run_id, step_key, input_fingerprint_sha256)` 索引，使用与实体相同的完整列投影和 512 B checkpoint JSON。两组各 7 轮交错，按 `EXPLAIN ANALYZE` 执行时间取中位数。完整结果行数、`step_order/id` 序列、JSON 字节数和 SHA-256 全部相同。
+- 结果：首组 P50 **5.010→4.252 ms（15.13%）／16.272→20.826 ms（退化 27.99%）／30.866→30.619 ms（0.80%）**；复测 P50 **3.922→4.711 ms（退化 20.12%）／17.062→16.943 ms（0.70%）／30.340→27.636 ms（8.91%）**。三档查询计划始终为 `Bitmap Index Scan → Bitmap Heap Scan → Sort`，候选索引没有被 planner 采用。候选索引占 **4,079,616 B**。
+- 决策与边界：两组结果均无规模达到 30% 时延门槛，且 P50 波动方向不一致；没有证据支持增加 4 MB 索引。查询耗时不含 SeaORM 解码、HTTP 和客户端 JSON 解析。未增加 migration 或产品代码。复现脚本为 `workflow-checkpoint-order-index.mjs`，最终一组报告在 `../../data/performance-audit-20261015/workflow-checkpoint-order-index/report.json`。
+
+### PERF-126：Video Studio 每秒轮询返回未使用的 checkpoint JSON
+
+- 请求链路：Video Studio 运行中每秒读取工作流详情。画布投影和面板使用 checkpoint 的 ID、步骤、排序、状态、错误、时间与 `artifacts_json`；它不读 `input_fingerprint_sha256`、`input_fingerprint_json`、`checkpoint_json` 或 `generation_run_ids_json`。其他详情页仍使用原完整响应。
+- 修复：详情输入新增 `include_checkpoint_details`，缺省为 `true`；Video Studio 显式传 `false`。窄查询仅选择画布字段，未投影的可选 JSON 字段返回 `null`，响应带 `checkpoint_details_included` 标明投影。完整详情调用继续读取原 ORM 行和所有字段。
+- A/B：隔离 PostgreSQL **16.15**，100,000 行，目标工作流 1,000／5,000／10,000 条；完整与窄投影各 7 轮交错，保留 `workflow_run_id/step_key` 及 fingerprint 索引。使用 128 B fingerprint JSON、512 B checkpoint JSON、128 B artifacts JSON。测试逐行比较了画布所用字段摘要，SHA-256 完全一致。
+- 结果：1k／5k／10k 行 SQL P50 **4.896→4.085 ms（16.56%）／17.136→12.707 ms（25.85%）／28.678→22.077 ms（23.02%）**；Node **24.21** 的 JSON.parse P50 **1.798→1.226 ms（31.80%）／7.708→4.405 ms（42.85%）／14.744→8.587 ms（41.75%）**。原始响应 JSON 减少 **57.06%–57.16%**；10k 行为 **12,703,133→5,455,130 B**。
+- 验证与边界：数据库集成测试验证显式窄投影保留状态、时间、错误、`artifacts_json` 并清空未选 payload；同一测试的完整查询验证原始 JSON 字段仍返回。API 旧请求默认全量、前端 wrapper、API parity、TypeScript、受影响 crates check、fmt/diff 均通过。A/B 测量数据库投影、Node JSON.parse 和原始 DTO 字节，不外推为真实 HTTP/Tauri 全链路时延或 RSS。证据：`../../data/performance-audit-20261015/workflow-checkpoint-projection/report.json`，复现脚本：`workflow-checkpoint-projection.mjs`。
+
+### PERF-127：Video Studio 每秒拉取未显示的进度事件
+
+- 请求链路：Video Studio 每秒读取工作流进度事件，数据库按 `(workflow_run_id, event_index)` 索引返回最近事件；`CanvasWorkflowPanel` 仅渲染 `events.slice(-5)`，但轮询原先读取 20 条，包含重复的 `ProgressMeta` JSON 和消息。
+- 修复：在 `canvasWorkflowState.ts` 定义单一 `CANVAS_WORKFLOW_VISIBLE_PROGRESS_EVENT_COUNT = 5`，轮询使用该值作为 limit，面板也以它截取展示。其他 API 调用参数没有改变。
+- A/B：隔离 PostgreSQL **16.15**、100,000 行、目标运行 200 条事件、现有 `(workflow_run_id, event_index)` 索引；每条夹具含 512 B meta detail 和 128 B message。两组各 7 轮交错比较 limit 20/5，完整 JSON 的前五条摘要 SHA-256 相同。
+- 结果：事件 JSON **17,758→4,438 B（减少 75.01%）**；Node zlib 默认 gzip **653→309 B**。SQL P50 两组分别 **0.270→0.174 ms（35.56%）** 与 **0.260→0.197 ms（24.23%）**；Node JSON.parse P50 分别 **0.0261→0.0092 ms（64.60%）** 与 **0.0366→0.0069 ms（81.03%）**。SQL 时间有采样波动，不作为稳定收益声明。
+- 验证与边界：`taskWorkflow.test.ts` 与 `canvasWorkflowState.test.ts` 共 **5/5**、`npx tsc --noEmit`、性能脚本 `node --check`、`git diff --check` 通过。测量限于 progress event 子响应与 JSON.parse，不外推为整个工作流详情轮询时延；单次节省约 **13.3 KB**，在 1 秒轮询中避免累计传输重复事件。报告：`../../data/performance-audit-20261015/workflow-progress-event-limit/report.json`；脚本：`workflow-progress-event-limit.mjs`。
+
+### PERF-128：通用任务进度轮询重复读取已处理事件
+
+- 请求链路：Host workflow 进度每 **500 ms** 轮询。前端原先每轮最多接收最近 **200** 条事件，再通过 `seenEventIds` 丢弃已处理项；活体 `stream_text` 是当前快照，必须继续每轮读取。
+- 修复：`get_workflow_progress_events` 输入增加可选 `after_event_id`，省略时保持旧的最近事件行为。浏览器首轮读取最多 200 条保留事件并保存最后事件 ID；后续 Handle 的内存环形队列按游标定位，持久化路径按 ID 过滤，并按事件顺序返回游标后的新事件。游标已从环形队列淘汰时返回原上限内最近事件，由原去重逻辑兼容；活体文本照常刷新。
+- A/B：隔离 PostgreSQL **16.15**、100,000 行、目标运行保留 200 条事件，完整事件含 512 B `meta.detail` 和 128 B message；对比 limit 200 与 `after_event_id=200`（其后 5 条新事件），7 轮交错。旧响应新增事件序列与增量响应 SHA-256 完全相同。
+- 结果：事件响应 JSON **170,919→4,308 B（减少 97.48%）**，Node zlib 默认 gzip **3,963→295 B（减少 92.56%）**；Node **24.21** JSON.parse P50 **0.282→0.0088 ms（减少 96.89%）**。无新事件时游标响应为 35 B。数据库查询 P50 **1.612→1.188 ms（减少 26.30%，低于时延门槛）**，因此不宣称 SQL 达标，也未增加索引。
+- 验证与边界：Rust 单测覆盖内存游标、旧请求缺省和异常游标长度；PostgreSQL 集成测试覆盖顺序、limit=1 连续分页及到最新游标后返回空数组；前端测试确认每次发送最后已见事件 ID，并保留既有去重与 stream-text 行为。受影响 Rust all-targets check、API parity、TypeScript、前端定向测试、fmt/diff 通过。A/B 比较完整事件 DTO 与增量 DTO，不外推为整条任务请求时延。报告：`../../data/performance-audit-20261015/workflow-progress-event-cursor/report.json`；脚本：`workflow-progress-event-cursor.mjs`。
+
+### PERF-129：locale 字典静态加载候选（未采用）
+
+- 请求链路：`translate.ts` 同步导入 `zh-CN` 和 `en-US` 两份字典；源文件分别约 **355,136 B** 和 **377,924 B**。生产 Vite 构建将两种语言都放入 main JS。
+- 上限 A/B：当前 main chunk **1,090.16 kB / gzip 336.09 kB**。探针把未选 en-US 字典替换为空对象，main chunk 降为 **755.21 kB / gzip 240.84 kB**；这是移除英语运行内容且不加载英语 chunk 的节省上限，gzip 降幅 **28.34%**。
+- 决策与边界：上限收益低于 30% 响应时延门槛；测试只比较 main chunk 字节，不含页面 TTI、所有首屏资源或真正按用户语言加载的时序。实现动态字典还需要在同步初始化前确定语言并等待对应 chunk，增加启动顺序复杂度；未修改 i18n 实现。
+- 证据：基线构建 `../../data/performance-audit-20261015/i18n-static-dist/`；上限探针配置和构建 `../../data/performance-audit-20261015/i18n-locale-probe/`。
+
+### PERF-130：workflow run detail 移除恢复 snapshot 投影候选（未采用）
+
+- 请求链路：`get_workflow_run_detail` → `workflow_run_detail` 并行读取 run、checkpoints 和可选 generation runs；run 读取仍获取完整 ORM 行，再由公开摘要投影隐藏 `progress_json.snapshot`。快照供恢复流程使用，不属于公开摘要。
+- A/B：隔离 PostgreSQL **16.15**、100,000 行、7 轮交错，目标行的 `progress_json.snapshot` 为 **862,873 B**。完整实体和窄投影的公开摘要 SHA-256 相同。
+- 结果：JSON **863,551→678 B（减少 99.92%）**，V8 JSON.parse P50 **1.621→0.0025 ms（减少 99.84%）**，但 SQL P50 **0.065→2.845 ms**；包括 Docker/psql 启动和传输的查询往返 P50 **107.418→97.347 ms（改善 9.38%）**。JSONB 移除与重建公开字段的数据库计算成本超过本轮可证明的整体收益。
+- 决策与边界：未修改产品查询。字节和解析收益不足以抵消 SQL 回退；Docker/psql 测量不是 Host HTTP 全链路，当前没有证据表明生产请求时延或 RSS 能达到 30%／20% 门槛。
+- 证据：`../../data/performance-audit-20261015/workflow-run-snapshot-projection/report.json`；复现脚本：`workflow-run-snapshot-projection.mjs`。
+
+### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
+
+- 请求链路：`useDirectorPlan.updateFields` 在每次输入时更新当前 plan；原实现为 dirty 比较序列化当前 plan，`replace` 再分别序列化旧/新 plan 判断 revision，立即本地备份再序列化并写入一次，随后 effect 又序列化并写入相同的 plan。章节计划越大，每次按键做的完整 JSON 遍历和同步存储越多。
+- 修复：保存当前 plan 对应的 JSON 字符串，并让 dirty、editor revision、save、beforeunload 和本地备份复用它。`updateFields` 仍同步写 sessionStorage，effect 仅在该 plan 对象还没有同步备份时写入；存储失败时不标记完成，因此 effect 仍会重试。其他替换路径仍由 effect 备份。
+- A/B 在真实 Chromium **153.0.8010.52** 的 production Vite fixture 中运行 `useDirectorPlan`、React commit 和同步 sessionStorage；CPU 固定 18/19，每个负载先 2 组预热，再测 5 组，每组 8 次镜头字段编辑。100／500／1000 段计划为 **82,583／416,583／834,088 B**。P50：**16.8 → 9.7 ms（42.3%）／114.0 → 56.4 ms（50.5%）／234.2 → 112.3 ms（52.1%）**。
+- 迭代记录：仅复用序列化字符串、仍让 effect 重复写同一备份时，1000 段 P50 为 **168.4 ms（28.1%）**，未达门槛；添加同对象备份去重后降至 **112.3 ms（52.1%）**。未采用低于门槛的中间实现。
+- 未采用的相邻候选 PERF-089：在 `planChanges` 中对 before/after 引用相同的点和镜头跳过 JSON 深比较；100／500／1000 段分别下降 **22.0%／21.0%／18.7%**，均低于验收门槛，因此没有改动该实现。
+- 验证：`npm run build` 通过（保留既有大 chunk 提示）；`npm run test:run -- --maxWorkers=2` 为 **139 文件/513 项通过**；真实浏览器 `node e2e/director-timeline/check.mjs` **18 项通过**，覆盖保存期间继续编辑、SSE 回执、冲突合并/撤销、章节切换、桌面与窄屏布局；director-plan A/B 的 dirty/revert、sessionStorage 内容、editor revision 与布局断言通过。
+- 边界：该 A/B 测量 hook 与同步编辑提交，不包括后端保存请求耗时或完整章节视觉计划页面的所有组件。
+- 证据：`../../data/performance-audit-20261014/director-plan/{baseline/report.json,after-final/report.json,serialization-only-intermediate-report.json,ui-regression-report.json}`。复现入口为 `frontend/e2e/performance/check.mjs` 的 `A4N_PERF_CASE=director-plan`；基线提交为 `b25e60445`。profile 使用 `A4N_PERF_TEMP_ROOT=../.tmp/director-plan-profile` 和 `A4N_PERF_CHROME_TMPDIR=../.tmp/director-plan-chrome`，将 Chromium 临时 socket 放在短路径下；先设 `A4N_PERF_BASELINE_REF=b25e60445` 生成 baseline，再去掉该变量生成候选。
+
+### PERF-090：资产依赖图布局 barycenter 候选（未采用）
+
+- 请求链路：打开项目族资产依赖图时，`buildLayout` 需要对分层节点反复排序；5 轮前后扫描的 comparator 都重新遍历相邻边、分配位置数组并计算邻居 barycenter。每轮排序使用的邻居顺序快照固定，因此尝试每轮先批量计算 barycenter，排序时只读 Map。
+- A/B 在生产 Vite + Chromium **153.0.8010.52**、固定 CPU 18/19，以 8 层 DAG、每节点约 2–3 条跨层边测量完整 `buildLayout`。输入为 1000／5000／10000 节点、581,189／2,945,188／5,912,434 B，分别有 2,625／13,125／26,250 条边；5 组样本 P50 **40.4→30.5 ms（24.5%）／283.5→220.6 ms（22.2%）／616.2→463.4 ms（24.8%）**。三种规模的全部节点坐标、层级、画布尺寸与层摘要逐项完全相同。
+- 决策：全规模均低于 30% 目标，候选代码和夹具未保留。
+- 证据：`../../data/performance-audit-20261014/asset-graph/{baseline/report.json,after/report.json}`；baseline 源码来自 `4337935c5`。

@@ -30,8 +30,11 @@ impl OrchestratorContext {
     pub(crate) async fn generated_images_for_project(
         &self,
         project_id: i64,
+        image_ids: Option<Vec<i64>>,
     ) -> Result<Vec<GeneratedImageRecord>, AppError> {
-        self.video.generated_images_for_project(project_id).await
+        self.video
+            .generated_images_for_project(project_id, image_ids)
+            .await
     }
 
     pub(crate) async fn generated_images_for_projects(

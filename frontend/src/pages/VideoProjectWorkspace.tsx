@@ -12,9 +12,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Film, GitCompare, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import {
+  getSourceSnapshotChapter,
   getProject,
-  listSourceSnapshotChapters,
+  listSourceSnapshotChapterIndex,
   type NovelProject,
+  type SourceSnapshotChapterIndex,
   type SourceSnapshotChapterSummary,
 } from "../api/project";
 import { extractErrorMessage } from "../api";
@@ -47,30 +49,74 @@ export const VideoProjectWorkspace: React.FC = () => {
   const projectId = Number(id);
 
   const [project, setProject] = useState<NovelProject | null>(null);
-  const [chapters, setChapters] = useState<SourceSnapshotChapterSummary[]>([]);
+  const [chapters, setChapters] = useState<SourceSnapshotChapterIndex[]>([]);
   const [selectedSourceChapterId, setSelectedSourceChapterId] = useState<number | null>(null);
+  const [selectedSourceChapter, setSelectedSourceChapter] = useState<SourceSnapshotChapterSummary | null>(null);
+  const [selectedSourceChapterLoading, setSelectedSourceChapterLoading] = useState(false);
   const [workspaceDirty, setWorkspaceDirty] = useState(false);
   const selectSourceChapter = async (chapterId: number) => {
     if (chapterId === selectedSourceChapterId) return;
     if (!await confirmDiscardMediaChanges(workspaceDirty || dirtyRegistry.hasDirty(), t)) return;
     setWorkspaceDirty(false);
+    selectedSourceChapterIdRef.current = chapterId;
     setSelectedSourceChapterId(chapterId);
+    setSelectedSourceChapter(null);
+    setLoadError(null);
+    await loadSelectedSourceChapter(projectId, chapterId);
   };
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sourceSyncOpen, setSourceSyncOpen] = useState(false);
   const refreshRequestRef = useRef(0);
+  const selectedSourceChapterIdRef = useRef<number | null>(null);
+  const selectedSourceChapterRequestRef = useRef(0);
+
+  const loadSelectedSourceChapter = async (
+    requestProjectId: number,
+    sourceChapterId: number,
+    refreshRequestId?: number,
+  ) => {
+    const requestId = selectedSourceChapterRequestRef.current + 1;
+    selectedSourceChapterRequestRef.current = requestId;
+    setSelectedSourceChapterLoading(true);
+    try {
+      const chapter = await getSourceSnapshotChapter(requestProjectId, sourceChapterId);
+      if (
+        selectedSourceChapterRequestRef.current !== requestId ||
+        selectedSourceChapterIdRef.current !== sourceChapterId ||
+        (refreshRequestId != null && refreshRequestRef.current !== refreshRequestId)
+      ) return;
+      setSelectedSourceChapter(chapter);
+    } catch (error) {
+      if (
+        selectedSourceChapterRequestRef.current === requestId &&
+        selectedSourceChapterIdRef.current === sourceChapterId &&
+        (refreshRequestId == null || refreshRequestRef.current === refreshRequestId)
+      ) {
+        setSelectedSourceChapter(null);
+        setLoadError(extractErrorMessage(error, translatorRef.current("video.loadProjectFailed")));
+      }
+    } finally {
+      if (selectedSourceChapterRequestRef.current === requestId) {
+        setSelectedSourceChapterLoading(false);
+      }
+    }
+  };
 
   const refresh = useCallback(async (): Promise<boolean> => {
     const requestId = refreshRequestRef.current + 1;
     refreshRequestRef.current = requestId;
+    selectedSourceChapterRequestRef.current += 1;
+    setSelectedSourceChapterLoading(false);
     setLoadError(null);
     if (!isPositiveSafeInteger(projectId)) {
       const message = translatorRef.current("video.projectInvalid");
       setLoadError(message);
       setProject(null);
       setChapters([]);
+      selectedSourceChapterIdRef.current = null;
       setSelectedSourceChapterId(null);
+      setSelectedSourceChapter(null);
       setLoading(false);
       return false;
     }
@@ -78,7 +124,7 @@ export const VideoProjectWorkspace: React.FC = () => {
     try {
       const [projectResult, chaptersResult] = await Promise.allSettled([
         getProject(projectId),
-        listSourceSnapshotChapters(projectId),
+        listSourceSnapshotChapterIndex(projectId),
       ]);
       if (projectResult.status === "rejected") throw projectResult.reason;
       const item = projectResult.value;
@@ -98,15 +144,17 @@ export const VideoProjectWorkspace: React.FC = () => {
       if (chaptersResult.status === "fulfilled") {
         const snapshotChapters = chaptersResult.value;
         setChapters(snapshotChapters);
-        setSelectedSourceChapterId((current) => {
-          if (
-            current != null &&
-            snapshotChapters.some((chapter) => chapter.source_chapter_id === current)
-          ) {
-            return current;
-          }
-          return snapshotChapters[0]?.source_chapter_id ?? null;
-        });
+        const current = selectedSourceChapterIdRef.current;
+        const selectedChapterId = current != null &&
+          snapshotChapters.some((chapter) => chapter.source_chapter_id === current)
+          ? current
+          : snapshotChapters[0]?.source_chapter_id ?? null;
+        selectedSourceChapterIdRef.current = selectedChapterId;
+        setSelectedSourceChapterId(selectedChapterId);
+        setSelectedSourceChapter(null);
+        if (selectedChapterId != null) {
+          void loadSelectedSourceChapter(projectId, selectedChapterId, requestId);
+        }
       } else {
         const message = extractErrorMessage(
           chaptersResult.reason,
@@ -114,7 +162,9 @@ export const VideoProjectWorkspace: React.FC = () => {
         );
         setLoadError(message);
         setChapters([]);
+        selectedSourceChapterIdRef.current = null;
         setSelectedSourceChapterId(null);
+        setSelectedSourceChapter(null);
       }
       return chaptersResult.status === "fulfilled";
     } catch (err) {
@@ -123,7 +173,9 @@ export const VideoProjectWorkspace: React.FC = () => {
         setLoadError(message);
         setProject(null);
         setChapters([]);
+        selectedSourceChapterIdRef.current = null;
         setSelectedSourceChapterId(null);
+        setSelectedSourceChapter(null);
       }
       return false;
     } finally {
@@ -135,20 +187,23 @@ export const VideoProjectWorkspace: React.FC = () => {
 
   useLayoutEffect(() => {
     refreshRequestRef.current += 1;
+    selectedSourceChapterRequestRef.current += 1;
+    selectedSourceChapterIdRef.current = null;
     setProject(null);
     setChapters([]);
+    setSelectedSourceChapter(null);
+    setSelectedSourceChapterLoading(false);
     setSelectedSourceChapterId(null);
     setSourceSyncOpen(false);
     void refresh();
     return () => {
       refreshRequestRef.current += 1;
+      selectedSourceChapterRequestRef.current += 1;
     };
   }, [refresh]);
 
   const selectedChapter = useMemo<ChapterRow | null>(() => {
-    const snapshotChapter = chapters.find(
-      (chapter) => chapter.source_chapter_id === selectedSourceChapterId,
-    );
+    const snapshotChapter = selectedSourceChapter;
     if (!snapshotChapter) return null;
     return {
       id: snapshotChapter.source_chapter_id,
@@ -159,7 +214,7 @@ export const VideoProjectWorkspace: React.FC = () => {
       status: "completed",
       analysis_data: snapshotChapter.analysis_data_json,
     };
-  }, [chapters, selectedSourceChapterId]);
+  }, [selectedSourceChapter]);
 
   const imageProjectIds = useMemo(() => {
     if (!project) return [];
@@ -294,15 +349,23 @@ export const VideoProjectWorkspace: React.FC = () => {
               </div>
             ) : null}
             <section className="min-h-0 flex-1 overflow-hidden">
-              <VideoTab
-                key={`${project.id}:${chapters[0].snapshot_id}:${selectedSourceChapterId}`}
-                projectId={project.id}
-                canEdit={canEditProject}
-                onDirtyChange={setWorkspaceDirty}
-                fixedChapter={selectedChapter}
-                imageProjectIds={imageProjectIds}
-                materialProjectId={project.root_project_id ?? project.id}
-              />
+              {selectedSourceChapterLoading ? (
+                <div role="status" className="flex h-full items-center justify-center gap-2 text-xs text-book-text-muted">
+                  <LoadingSpinner size="sm" /> {t("video.loadingProject")}
+                </div>
+              ) : selectedChapter ? (
+                <VideoTab
+                  key={`${project.id}:${chapters[0].snapshot_id}:${selectedSourceChapterId}`}
+                  projectId={project.id}
+                  canEdit={canEditProject}
+                  onDirtyChange={setWorkspaceDirty}
+                  fixedChapter={selectedChapter}
+                  imageProjectIds={imageProjectIds}
+                  materialProjectId={project.root_project_id ?? project.id}
+                />
+              ) : (
+                <EmptyHint text={t("video.noSourceChapter")} />
+              )}
             </section>
           </div>
         ) : project ? (
@@ -313,7 +376,7 @@ export const VideoProjectWorkspace: React.FC = () => {
   );
 };
 
-function sourceChapterTitle(chapter: SourceSnapshotChapterSummary): string | null {
+function sourceChapterTitle(chapter: SourceSnapshotChapterIndex): string | null {
   const title = chapter.title?.trim();
   if (!title) return null;
   const normalizedTitle = title.replace(/\s+/g, "");

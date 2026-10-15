@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import type {
   ShootingEditingModeV1,
@@ -12,9 +12,7 @@ import type {
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import { useI18n } from "../../../i18n";
-
-type ValuePath = Array<string | number>;
-type UpdateValue = (path: ValuePath, value: unknown) => void;
+import { updateAtPath, type UpdateValue, type ValuePath } from "../../../utils/updateAtPath";
 
 const TRANSITION_TYPES: readonly ShootingTransitionTypeV1[] = [
   "continuous",
@@ -40,7 +38,7 @@ const EDITING_MODES: readonly ShootingEditingModeV1[] = [
 
 interface VideoSegmentPlanEditorProps {
   segments: VideoSegmentPlanV2[];
-  onChange: (segments: VideoSegmentPlanV2[]) => void;
+  onChange: React.Dispatch<React.SetStateAction<VideoSegmentPlanV2[] | null>>;
   disabled?: boolean;
 }
 
@@ -58,22 +56,12 @@ export const VideoSegmentPlanEditor: React.FC<VideoSegmentPlanEditorProps> = ({
   disabled = false,
 }) => {
   const { t } = useI18n();
-  const update: UpdateValue = (path, value) => {
-    const next = structuredClone(segments);
-    let cursor: object = next;
-    for (const key of path.slice(0, -1)) {
-      const child = Reflect.get(cursor, key);
-      if (child == null || typeof child !== "object") {
-        throw new Error(`Invalid video segment plan edit path: ${path.join(".")}`);
-      }
-      cursor = child;
-    }
-    const leaf = path[path.length - 1];
-    if (leaf == null || !Reflect.set(cursor, leaf, value)) {
-      throw new Error(`Invalid video segment plan edit path: ${path.join(".")}`);
-    }
-    onChange(next);
-  };
+  const update = useCallback<UpdateValue>((path, value) => {
+    onChange((current) => {
+      if (current == null) throw new Error("Cannot edit a missing video segment plan draft");
+      return updateAtPath(current, path, value, "video segment plan");
+    });
+  }, [onChange]);
 
   return (
     <fieldset
@@ -96,11 +84,15 @@ export const VideoSegmentPlanEditor: React.FC<VideoSegmentPlanEditorProps> = ({
   );
 };
 
-const SegmentEditor: React.FC<{
+const SegmentEditor = React.memo(function SegmentEditor({
+  segment,
+  segmentIndex,
+  update,
+}: {
   segment: VideoSegmentPlanV2;
   segmentIndex: number;
   update: UpdateValue;
-}> = ({ segment, segmentIndex, update }) => {
+}) {
   const { t } = useI18n();
   const base: ValuePath = [segmentIndex];
   const transitionPath = [...base, "transition_to_next"];
@@ -260,7 +252,7 @@ const SegmentEditor: React.FC<{
       </div>
     </details>
   );
-};
+});
 
 const EmotionGoalsField: React.FC<{
   value: VideoEmotionActionGoalV1[];

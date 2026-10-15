@@ -1,9 +1,7 @@
 //! Typed Host adapter for the source snapshot read worker.
 
 use a4n_error::AppError;
-use a4n_source_snapshot_worker_contract::{
-    SOURCE_SNAPSHOT_CHAPTERS_OPERATION, SOURCE_SNAPSHOT_WORKER_ID,
-};
+use a4n_source_snapshot_worker_contract::SOURCE_SNAPSHOT_WORKER_ID;
 use a4n_worker_client::{HttpWorkerClient, WorkerClientErrorPolicy, map_worker_client_error};
 use a4n_worker_contract::{
     WORKER_SCHEMA_VERSION, WorkerEnvelope, WorkerError, WorkerErrorCode, WorkerLease,
@@ -38,7 +36,13 @@ impl SourceSnapshotWorkerClient {
         Self::new(url, token)
     }
 
-    async fn command<I, O>(&self, user_id: i64, project_id: i64, payload: I) -> Result<O, AppError>
+    async fn command<I, O>(
+        &self,
+        operation_id: &'static str,
+        user_id: i64,
+        project_id: i64,
+        payload: I,
+    ) -> Result<O, AppError>
     where
         I: serde::Serialize,
         O: serde::de::DeserializeOwned,
@@ -54,7 +58,7 @@ impl SourceSnapshotWorkerClient {
             request_id: request_id.clone(),
             trace_id: request_id,
             principal,
-            operation_id: SOURCE_SNAPSHOT_CHAPTERS_OPERATION.into(),
+            operation_id: operation_id.into(),
             idempotency_key: uuid::Uuid::new_v4().to_string(),
             project_id: Some(project_id),
             root_project_id: None,
@@ -65,7 +69,7 @@ impl SourceSnapshotWorkerClient {
         };
         let response: WorkerResponse<O> = self
             .transport
-            .command(SOURCE_SNAPSHOT_CHAPTERS_OPERATION, request)
+            .command(operation_id, request)
             .await
             .map_err(|error| {
                 map_worker_client_error(
@@ -78,19 +82,19 @@ impl SourceSnapshotWorkerClient {
             response,
             "source snapshot worker",
             None,
-            worker_response_error,
+            |error| worker_response_error(error, operation_id),
         )
     }
 }
 
-fn worker_response_error(error: &WorkerError) -> AppError {
+fn worker_response_error(error: &WorkerError, operation_id: &str) -> AppError {
     match error.code {
         WorkerErrorCode::InvalidRequest => AppError::InvalidArgument(error.message.clone()),
         WorkerErrorCode::Unauthorized => AppError::Forbidden(error.message.clone()),
         WorkerErrorCode::NotFound => AppError::NotFound(error.message.clone()),
         WorkerErrorCode::Conflict => AppError::InvalidState {
             current: error.message.clone(),
-            operation: SOURCE_SNAPSHOT_CHAPTERS_OPERATION.into(),
+            operation: operation_id.into(),
         },
         _ => AppError::ConfigError(format!("source snapshot worker 失败: {}", error.message)),
     }

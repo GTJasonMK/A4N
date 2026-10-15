@@ -4,9 +4,9 @@ import { GitCompare, PanelsTopLeft, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import {
   getProject,
-  listSourceSnapshotChapters,
+  listSourceSnapshotChapterIndex,
   type NovelProject,
-  type SourceSnapshotChapterSummary,
+  type SourceSnapshotChapterIndex,
 } from "../api/project";
 import { extractErrorMessage } from "../api";
 import { isPositiveSafeInteger } from "../utils/numberRange";
@@ -33,7 +33,7 @@ export const ComicProjectWorkspace: React.FC = () => {
   const projectId = Number(id);
 
   const [project, setProject] = useState<NovelProject | null>(null);
-  const [chapters, setChapters] = useState<SourceSnapshotChapterSummary[]>([]);
+  const [chapters, setChapters] = useState<SourceSnapshotChapterIndex[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sourceSyncOpen, setSourceSyncOpen] = useState(false);
@@ -65,7 +65,7 @@ export const ComicProjectWorkspace: React.FC = () => {
       setProject(item);
       if (item.source_mode === "derived") {
         try {
-          setChapters(await listSourceSnapshotChapters(projectId));
+          setChapters(await listSourceSnapshotChapterIndex(projectId));
         } catch (error) {
           const message = extractErrorMessage(
             error,

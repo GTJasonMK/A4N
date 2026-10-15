@@ -1,4 +1,8 @@
 import type {
+  ChapterIndexEntry,
+  ChapterSummary,
+} from "../../../api/chapter";
+import type {
   MangaPagePipelineStage,
   MangaPagePromptSummary,
 } from "../../../api/manga";
@@ -207,6 +211,27 @@ export const chapterHeading = (
   const heading = t("comic.chapter.heading", { number: chapter.chapter_number });
   return title ? `${heading} · ${title}` : heading;
 };
+
+export const mangaChapterRowFromIndex = (chapter: ChapterIndexEntry): ChapterRow => ({
+  id: chapter.id,
+  chapter_number: chapter.chapter_number,
+  title: chapter.title,
+  content: "",
+  content_hash: null,
+  summary: chapter.summary,
+  status: chapter.status,
+  analysis_data: null,
+});
+
+export const mangaChapterRowFromSummary = (chapter: ChapterSummary): ChapterRow => ({
+  id: chapter.id,
+  chapter_number: chapter.chapter_number,
+  title: chapter.title,
+  content: chapter.content,
+  summary: chapter.summary,
+  status: chapter.status,
+  analysis_data: chapter.analysis_data,
+});
 
 export const extractMangaPagePromptSource = (
   prompt: MangaPagePromptSummary,

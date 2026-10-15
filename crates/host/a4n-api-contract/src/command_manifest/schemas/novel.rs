@@ -507,6 +507,15 @@ pub(crate) fn result_prepare_chapter_generation_rag_embedding() -> Value {
 pub(crate) fn result_source_snapshot_chapters() -> Value {
     typed_schema::<Vec<crate::project::SourceSnapshotChapterSummary>>()
 }
+pub(crate) fn result_source_snapshot_chapter_index() -> Value {
+    typed_schema::<Vec<crate::project::SourceSnapshotChapterIndex>>()
+}
+pub(crate) fn args_get_source_snapshot_chapter() -> Value {
+    strict_typed_input_schema::<crate::project::GetSourceSnapshotChapterInput>()
+}
+pub(crate) fn result_source_snapshot_chapter() -> Value {
+    typed_schema::<crate::project::SourceSnapshotChapterSummary>()
+}
 pub(crate) fn result_source_sync_plan() -> Value {
     typed_schema::<crate::source_sync::SourceSyncPlanSummary>()
 }

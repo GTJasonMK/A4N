@@ -25,7 +25,9 @@ export async function verifyGeneratedMediaResult<T extends GeneratedMediaRecord>
   spec: GeneratedMediaResultSpec<T>,
 ): Promise<[T, ...T[]]> {
   const resultRef = task.resultRef;
-  const resultId = resultRef == null ? null : positiveInteger(resultRef.id);
+  const ids = generatedMediaResultIds(task, spec);
+  if (ids == null) return consistencyFailure(task, spec);
+
   const recordsById = new Map(
     records.filter(spec.recordInScope).map((record) => [record.id, record]),
   );
@@ -33,14 +35,10 @@ export async function verifyGeneratedMediaResult<T extends GeneratedMediaRecord>
     (artifact) => artifact.artifact_kind === spec.artifactKind && !artifact.temporary,
   );
 
-  if (resultRef?.kind === spec.singleKind && resultId != null && artifacts.length === 1) {
-    const record = recordsById.get(resultId);
+  if (resultRef?.kind === spec.singleKind && artifacts.length === 1) {
+    const record = recordsById.get(ids[0]);
     const artifact = artifacts[0];
-    if (
-      record
-      && artifact.artifact_id === `${spec.artifactIdPrefix}${resultId}`
-      && canonicalArtifact(artifact)
-    ) {
+    if (record) {
       const revision = spec.recordRevision
         ? await spec.recordRevision(record)
         : artifact.revision;
@@ -48,34 +46,60 @@ export async function verifyGeneratedMediaResult<T extends GeneratedMediaRecord>
     }
   } else if (
     resultRef?.kind === spec.batchKind
+    && artifacts.length > 0
+  ) {
+    const revision = await sha256Json(ids);
+    const generated = ids
+      .map((id) => recordsById.get(id))
+      .filter((record): record is T => record != null);
+    const [first, ...rest] = generated;
+    if (
+      first != null
+      && revision != null
+      && revision === resultRef.revision
+      && generated.length === ids.length
+    ) {
+      return [first, ...rest];
+    }
+  }
+
+  return consistencyFailure(task, spec);
+}
+
+export function generatedMediaResultIds<T extends GeneratedMediaRecord>(
+  task: GenerationTaskViewState,
+  spec: GeneratedMediaResultSpec<T>,
+): number[] | null {
+  const resultRef = task.resultRef;
+  const resultId = resultRef == null ? null : positiveInteger(resultRef.id);
+  const artifacts = task.artifacts.filter(
+    (artifact) => artifact.artifact_kind === spec.artifactKind && !artifact.temporary,
+  );
+
+  if (resultRef?.kind === spec.singleKind && resultId != null && artifacts.length === 1) {
+    const artifact = artifacts[0];
+    return artifact.artifact_id === `${spec.artifactIdPrefix}${resultId}`
+      && canonicalArtifact(artifact)
+      ? [resultId]
+      : null;
+  }
+
+  if (
+    resultRef?.kind === spec.batchKind
     && resultId === spec.projectId
     && artifacts.length > 0
   ) {
     const ids: number[] = [];
     for (const artifact of artifacts) {
       const id = artifactId(artifact, spec.artifactIdPrefix);
-      if (id == null || !canonicalArtifact(artifact)) return consistencyFailure(task, spec);
+      if (id == null || !canonicalArtifact(artifact)) return null;
       ids.push(id);
     }
-    if (new Set(ids).size === ids.length) {
-      ids.sort((left, right) => left - right);
-      const revision = await sha256Json(ids);
-      const generated = ids
-        .map((id) => recordsById.get(id))
-        .filter((record): record is T => record != null);
-      const [first, ...rest] = generated;
-      if (
-        first != null
-        && revision != null
-        && revision === resultRef.revision
-        && generated.length === ids.length
-      ) {
-        return [first, ...rest];
-      }
-    }
+    if (new Set(ids).size !== ids.length) return null;
+    return ids.sort((left, right) => left - right);
   }
 
-  return consistencyFailure(task, spec);
+  return null;
 }
 
 function consistencyFailure<T extends GeneratedMediaRecord>(

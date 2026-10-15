@@ -146,25 +146,39 @@ impl OrchestratorContext {
         kind: AuthoringDocumentKind,
     ) -> Result<AuthoringDocumentInputs, AppError> {
         let mut dependencies = Vec::new();
-        for source in sources {
-            if kind == AuthoringDocumentKind::AdaptationPlan {
-                continue;
+        if kind != AuthoringDocumentKind::AdaptationPlan {
+            for source_batch in sources.chunks(records::AUTHORING_READ_BATCH_SIZE) {
+                let Some(first_source) = source_batch.first() else {
+                    continue;
+                };
+                let first_reference = authoring_source(first_source)?;
+                let source_chapter_ids = source_batch
+                    .iter()
+                    .map(|source| source.source_chapter_id)
+                    .collect::<Vec<_>>();
+                let rows = records::adopted_authoring_document_rows_by_source_chapters(
+                    self.database.executor(),
+                    first_source.requested_project_id,
+                    first_reference.source_snapshot_id,
+                    AuthoringDocumentKind::AdaptationPlan,
+                    &source_chapter_ids,
+                )
+                .await
+                .map_err(authoring_error)?;
+                for (source, row) in source_batch.iter().zip(rows) {
+                    authoring_source(source)?;
+                    let record = row
+                        .map_err(authoring_error)?
+                        .map(records::UnparsedAuthoringDocument::parse)
+                        .transpose()
+                        .map_err(authoring_error)?
+                        .ok_or_else(|| AppError::InvalidState {
+                            current: "adaptation_not_adopted".into(),
+                            operation: format!("请先采用第 {} 章的改编计划", source.chapter_number),
+                        })?;
+                    dependencies.push(record.reference());
+                }
             }
-            let record = records::current_authoring_document(
-                self.database.executor(),
-                source.requested_project_id,
-                authoring_source(source)?.source_snapshot_id,
-                Some(source.source_chapter_id),
-                AuthoringDocumentKind::AdaptationPlan,
-                AuthoringDocumentStatus::Adopted,
-            )
-            .await
-            .map_err(authoring_error)?
-            .ok_or_else(|| AppError::InvalidState {
-                current: "adaptation_not_adopted".into(),
-                operation: format!("请先采用第 {} 章的改编计划", source.chapter_number),
-            })?;
-            dependencies.push(record.reference());
         }
         Ok(AuthoringDocumentInputs {
             sources: sources

@@ -578,7 +578,7 @@ mod tests {
             .expect("source snapshot worker entry");
         assert_eq!(source_snapshot.kind, ProcessKind::StatefulWorker);
         assert_eq!(source_snapshot.binary, "a4n-source-snapshot-worker");
-        assert_eq!(source_snapshot.contract_version, "source-snapshot-read-v1");
+        assert_eq!(source_snapshot.contract_version, "source-snapshot-read-v2");
         assert_eq!(source_snapshot.addr_env, "A4N_SOURCE_SNAPSHOT_WORKER_ADDR");
         assert_eq!(source_snapshot.default_addr, "127.0.0.1:47660");
         assert_eq!(

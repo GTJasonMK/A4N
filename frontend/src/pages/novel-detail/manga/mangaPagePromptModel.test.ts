@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { MangaPagePromptSummary } from "../../../api/manga";
-import { buildPagePrompts, type MangaPagePromptLabels } from "./mangaPagePromptModel";
+import {
+  buildPagePrompts,
+  buildReferenceCandidates,
+  searchReferenceCandidates,
+  type MangaPagePromptLabels,
+} from "./mangaPagePromptModel";
 
 const labels: MangaPagePromptLabels = {
   role: {
@@ -142,5 +147,86 @@ describe("buildPagePrompts", () => {
     expect(imageStagePage.pipelineStatus).toBe("failed");
     expect(storyboardPage.pipelineStage).toBeNull();
     expect(storyboardPage.pipelineStatus).toBeNull();
+  });
+});
+
+describe("searchReferenceCandidates", () => {
+  it("filters by prompt and file identity, caps visible results, and preserves candidate order", () => {
+    const binding = {
+      characterName: "Mira",
+      systemAsset: null,
+      userAddedAssets: [],
+    } as Parameters<typeof searchReferenceCandidates>[0];
+    const profiles = [{
+      id: 1,
+      name: "Mira",
+    }] as unknown as Parameters<typeof searchReferenceCandidates>[1];
+    const portraits = [{
+      created_at: "2026-01-01T00:00:00.000Z",
+      expression: "neutral",
+      id: 1,
+      image_path: "projects/1/portraits/mira.png",
+      is_primary: true,
+      portrait_type: "half_body",
+      pose: "standing",
+      profile_id: 1,
+      project_id: 1,
+      prompt: "Mira portrait",
+    }] as unknown as Parameters<typeof searchReferenceCandidates>[2];
+    const projectImages = [1, 2, 3].map((id) => ({
+      ai_score: null,
+      chapter_id: 1,
+      created_at: "2026-01-01T00:00:00.000Z",
+      file_path: "projects/1/images/asset-" + id + ".png",
+      file_size: 100,
+      height: 512,
+      id,
+      image_type: "manga_page",
+      is_favorite: id === 2,
+      is_system_managed: false,
+      metadata_json: { scene: id === 2 ? "Mira alley" : "alley" },
+      model: "fixture",
+      panel_id: "page-" + id,
+      project_id: 1,
+      prompt: id === 3 ? "Mira at the station" : "A quiet street",
+      width: 512,
+    })) as unknown as Parameters<typeof searchReferenceCandidates>[3];
+    const t = ((key: string, values?: Record<string, string | number>) =>
+      [key, ...Object.values(values ?? {})].join(" ")) as Parameters<typeof searchReferenceCandidates>[5];
+
+    const allCandidates = buildReferenceCandidates(binding, profiles, portraits, projectImages, t);
+    const matches = allCandidates.filter((candidate) => {
+      if (candidate.assetKind === "character_portrait") {
+        return [candidate.label, candidate.subLabel, candidate.searchPreview]
+          .join(" ").toLowerCase().includes("mira");
+      }
+      const image = projectImages.find((item) => item.id === candidate.assetId);
+      return image != null && [
+        image.image_type,
+        image.prompt,
+        image.panel_id,
+        JSON.stringify(image.metadata_json ?? {}),
+        image.file_path,
+        String(image.id),
+        t("comic.prompt.projectImage"),
+        image.is_favorite ? t("comic.prompt.favorite") : "",
+      ].join(" ").toLowerCase().includes("mira");
+    });
+    const result = searchReferenceCandidates(binding, profiles, portraits, projectImages, "mira", t, 2);
+    const byPath = searchReferenceCandidates(binding, profiles, portraits, projectImages, "asset-1", t);
+
+    expect(result.totalCount).toBe(matches.length);
+    expect(result.totalCount).toBe(3);
+    expect(result.candidates.map((candidate) => candidate.key)).toEqual(
+      matches.slice(0, 2).map((candidate) => candidate.key),
+    );
+    expect(byPath.candidates.map((candidate) => candidate.key)).toContain("generated_image:1");
+    const identifiedImage = byPath.candidates.find(
+      (candidate) => candidate.key === "generated_image:1",
+    );
+    expect(identifiedImage?.assetId).toBe(1);
+    expect(identifiedImage?.panelId).toBe("page-1");
+    expect(searchReferenceCandidates(binding, profiles, portraits, projectImages, "scene", t).totalCount).toBe(3);
+    expect(searchReferenceCandidates(binding, profiles, portraits, projectImages, "m", t).totalCount).toBe(0);
   });
 });

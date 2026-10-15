@@ -1,7 +1,7 @@
 use a4n_api_contract::galgame::{
     GalgamePipelineStatusSummary, GalgameWorkflowCheckpointSummary, GalgameWorkflowRunSummary,
 };
-use a4n_db::galgame::GalgamePipelinePromptContextRecord;
+use a4n_db::{galgame::GalgamePipelinePromptContextRecord, media_authoring as authoring_records};
 use a4n_domain::workflow::{WorkflowCheckpointSummary, WorkflowRunSummary};
 use a4n_error::AppError;
 
@@ -10,6 +10,7 @@ use crate::galgame::{
     galgame_pipeline_source_spans_from_prompt_chapters, galgame_prompt_chapter_from_snapshot,
     galgame_speaker_profiles_from_prompt_records, validate_positive_id,
 };
+use crate::media_authoring::{authoring_error, authoring_source, parse_adaptation};
 use crate::shooting_script::errors::resolve_source_error;
 
 pub(in crate::galgame) fn galgame_pipeline_status_summary(
@@ -85,24 +86,43 @@ impl OrchestratorContext {
         )
         .await
         .map_err(resolve_source_error)?;
-        for (chapter, source) in context.chapters.iter().zip(&sources) {
-            let Some(adaptation) = self
-                .load_current_adaptation(
+        for (chapter_batch, source_batch) in context
+            .chapters
+            .chunks(authoring_records::AUTHORING_READ_BATCH_SIZE)
+            .zip(sources.chunks(authoring_records::AUTHORING_READ_BATCH_SIZE))
+        {
+            let source_chapter_ids = source_batch
+                .iter()
+                .map(|source| source.source_chapter_id)
+                .collect::<Vec<_>>();
+            let rows = authoring_records::current_authoring_document_rows_by_source_chapters(
+                self.database.executor(),
+                project_id,
+                source_snapshot_id,
+                a4n_domain::media_authoring::AuthoringDocumentKind::AdaptationPlan,
+                &source_chapter_ids,
+            )
+            .await
+            .map_err(authoring_error)?;
+            for ((chapter, source), row) in chapter_batch.iter().zip(source_batch).zip(rows) {
+                authoring_source(source)?;
+                let Some(row) = row.map_err(authoring_error)? else {
+                    continue;
+                };
+                let adaptation = parse_adaptation(
+                    row.parse().map_err(authoring_error)?,
                     source,
                     a4n_domain::media_authoring::AdaptationTarget::Galgame,
-                )
-                .await?
-            else {
-                continue;
-            };
-            context.adaptations.push(GalgameChapterAdaptation {
-                source_chapter_id: chapter.source_chapter_id,
-                source_snapshot_chapter_id: chapter.source_snapshot_chapter_id,
-                chapter_number: chapter.chapter_number,
-                adaptation_plan_id: adaptation.record.id,
-                adaptation_plan_revision: adaptation.record.revision,
-                plan: adaptation.plan,
-            });
+                )?;
+                context.adaptations.push(GalgameChapterAdaptation {
+                    source_chapter_id: chapter.source_chapter_id,
+                    source_snapshot_chapter_id: chapter.source_snapshot_chapter_id,
+                    chapter_number: chapter.chapter_number,
+                    adaptation_plan_id: adaptation.record.id,
+                    adaptation_plan_revision: adaptation.record.revision,
+                    plan: adaptation.plan,
+                });
+            }
         }
         Ok(context)
     }

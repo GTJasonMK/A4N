@@ -15,8 +15,9 @@ pub(crate) use profiles::{
     restore_profile_fact,
 };
 pub use records::{
-    FactChangeRecordInput, FeedbackSource, current_feedback_sources, feedback_changes,
-    feedback_config, feedback_interval, feedback_intervals, record_fact_change,
+    AvailableFeedbackChapter, CurrentFeedbackSummarySources, FactChangeRecordInput, FeedbackSource,
+    current_feedback_sources, current_feedback_summary_sources, feedback_changes, feedback_config,
+    feedback_interval, feedback_intervals, recent_feedback_changes, record_fact_change,
     record_feedback_completion, source_revision, update_feedback_interval,
 };
 pub use replay::{

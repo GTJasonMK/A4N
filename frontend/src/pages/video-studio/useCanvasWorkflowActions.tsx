@@ -24,6 +24,7 @@ import type { ModelRequestPreview } from "../../api/requestPreview";
 import type { ProgressEventRecord } from "../../api/progress";
 import type { MessageTranslator } from "../../i18n";
 import {
+  CANVAS_WORKFLOW_VISIBLE_PROGRESS_EVENT_COUNT,
   canvasWorkflowRuntimeRefreshSignature,
   computeRunToNodeScope,
   findSubmittedCanvasWorkflowRun,
@@ -156,8 +157,8 @@ export function useCanvasWorkflowActions({
       setWorkflowLoading(true);
       try {
         const [detailResult, eventsResult] = await Promise.allSettled([
-          getWorkflowRunDetail(workflowRunId, true),
-          getWorkflowRunProgressEvents(workflowRunId, 20),
+          getWorkflowRunDetail(workflowRunId, false, true, false),
+          getWorkflowRunProgressEvents(workflowRunId, CANVAS_WORKFLOW_VISIBLE_PROGRESS_EVENT_COUNT),
         ]);
         if (workflowStatusRequestRef.current !== requestId) return false;
         let refreshOk = detailResult.status === "fulfilled" && eventsResult.status === "fulfilled";

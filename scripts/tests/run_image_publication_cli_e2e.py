@@ -19,7 +19,7 @@ def main():
         with tempfile.TemporaryDirectory(prefix="image-publication-", dir=args.report.parent) as directory:
             work = Path(directory)
             cli = logged_in_cli(args, work)
-            for name in ("create_freeform_video_project", "start_image_generation", "list_images_by_project", "delete_image"):
+            for name in ("start_image_generation", "list_images_by_project", "delete_image"):
                 checked(cli, ["capabilities", "describe", name], name + " contract")
             secure_json(work / "runtime.json", runtime_snapshot(args.provider_url, embedding_dimension=384))
             checked(cli, ["config", "runtime", "set", "--input", "@" + str(work / "runtime.json")], "runtime")
@@ -30,7 +30,10 @@ def main():
                     command.append("--allow-destructive")
                 return checked(cli, command, name)[0]["data"]
 
-            project = call("create_freeform_video_project", {"title": "image publication regression", "description": "isolated fixture"})
+            project = checked(cli, [
+                "project", "create", "--title", "image publication regression",
+                "--project-type", "novel_long",
+            ], "project")[0]["data"]
             report["project_id"] = project["id"]
             item = {"prompt": "雨夜中的仓库入口，电影感构图", "image_type": "scene", "config_id": 900002, "aspect_ratio": "1:1"}
 
@@ -59,6 +62,12 @@ def main():
             report["checks"].append("invalid metadata fails before any image Provider request")
             first = generate()
             assert len(first) == 2 and len({image["file_path"] for image in first}) == 2, first
+            selected = call("list_images_by_project", {
+                "project_id": project["id"],
+                "image_ids": [first[0]["id"]],
+            })
+            assert selected == [first[0]], selected
+            report["checks"].append("project image list filters requested IDs and preserves summary order")
             report["checks"].append("identical batch items publish distinct images")
             second = generate()
             assert len(second) == 4 and len({image["file_path"] for image in second}) == 4, second

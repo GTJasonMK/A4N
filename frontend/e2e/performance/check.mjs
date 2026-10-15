@@ -14,12 +14,22 @@ const port = Number(process.env.A4N_PERF_PORT ?? 48966);
 const outDir = path.join(artifacts, "dist");
 const baselineRef = process.env.A4N_PERF_BASELINE_REF;
 const scenario = process.env.A4N_PERF_CASE ?? "core";
-assert.ok(["core", "sidebar", "story-events"].includes(scenario));
-const entry = scenario === "sidebar" ? "sidebar.html" : scenario === "story-events" ? "story-events.html" : "index.html";
+assert.ok(["core", "sidebar", "story-events", "video-planning", "shooting-script", "galgame-authoring", "director-plan", "canvas-workflow"].includes(scenario));
+const entry = scenario === "sidebar" ? "sidebar.html" : scenario === "story-events" ? "story-events.html" : scenario === "video-planning" ? "video-planning.html" : scenario === "shooting-script" ? "shooting-script.html" : scenario === "galgame-authoring" ? "galgame-authoring.html" : scenario === "director-plan" ? "director-plan.html" : scenario === "canvas-workflow" ? "canvas-workflow.html" : "index.html";
 const sourceFiles = scenario === "story-events"
   ? ["src/pages/novel-detail/story-events/storyEventUtils.ts", "src/pages/novel-detail/story-events/ChapterEventSection.tsx"]
   : scenario === "sidebar"
   ? ["src/pages/writing-desk/ChapterSidebar.tsx", "src/pages/writing-desk/ChapterCard.tsx"]
+  : scenario === "video-planning"
+  ? ["src/pages/novel-detail/video/VideoPlanningWorkspace.tsx", "src/pages/novel-detail/video/VideoSegmentPlanEditor.tsx"]
+  : scenario === "shooting-script"
+  ? ["src/pages/novel-detail/shooting-script/StructuredScriptEditor.tsx"]
+  : scenario === "galgame-authoring"
+  ? ["src/pages/derived/MediaPlanEditors.tsx"]
+  : scenario === "director-plan"
+  ? ["src/pages/novel-detail/visual-plan/useDirectorPlan.ts"]
+  : scenario === "canvas-workflow"
+  ? ["src/pages/video-studio/canvasWorkflowState.ts"]
   : ["src/hooks/usePacedStreamText.ts", "src/i18n/format.ts", "src/components/ui/MarkdownText.tsx"];
 const baselineSources = new Map(baselineRef ? sourceFiles.map((file) => [
   path.join(frontend, file),
@@ -27,9 +37,11 @@ const baselineSources = new Map(baselineRef ? sourceFiles.map((file) => [
 ]) : []);
 await mkdir(artifacts, { recursive: true });
 await writeFile(path.join(artifacts, "report.json"), JSON.stringify({ success: false, state: "running" }));
-const tempRoot = path.join(frontend, "../.dev-runtime");
+const tempRoot = path.resolve(process.env.A4N_PERF_TEMP_ROOT ?? path.join(frontend, "../.dev-runtime"));
 await mkdir(tempRoot, { recursive: true });
 const temp = await mkdtemp(path.join(tempRoot, "perf-"));
+const chromeTemp = path.resolve(process.env.A4N_PERF_CHROME_TMPDIR ?? temp);
+await mkdir(chromeTemp, { recursive: true });
 let driver;
 let server;
 let browser;
@@ -43,7 +55,7 @@ try {
   } });
   server = await preview({ root: frontend, build: { outDir }, preview: { host: "127.0.0.1", port, strictPort: true } });
   driver = spawn(process.env.A4N_WDIO_CHROMEDRIVER_BINARY ?? "/usr/bin/chromedriver", [`--port=${port + 1}`, `--log-path=${path.join(artifacts, "chromedriver.log")}`], {
-    cwd: frontend, env: { ...process.env, TMPDIR: temp }, stdio: ["ignore", "pipe", "pipe"],
+    cwd: frontend, env: { ...process.env, TMPDIR: chromeTemp }, stdio: ["ignore", "pipe", "pipe"],
   });
   driver.stdout.on("data", (data) => { driverLog += data; });
   driver.stderr.on("data", (data) => { driverLog += data; });
@@ -109,6 +121,69 @@ try {
     for (const count of [100, 1000]) storyEvents.push(await browser.execute((count) => window.measureStoryEvents(count), count));
     report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
       viewports: [1440, 390], trace: traces[0], storyEvents };
+  } else if (scenario === "video-planning") {
+    const traces = [];
+    for (const width of [1440, 390]) {
+      await browser.setViewport({ width, height: 900 });
+      traces.push(await browser.execute(() => window.verifyVideoPlanning()));
+      assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+    }
+    assert.deepEqual(traces[0], traces[1]);
+    const videoPlanning = [];
+    for (const count of [50, 100, 200]) {
+      videoPlanning.push(await browser.execute((count) => window.measureVideoPlanning(count, 8), count));
+    }
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
+      viewports: [1440, 390], trace: traces[0], videoPlanning };
+  } else if (scenario === "shooting-script") {
+    const traces = [];
+    for (const width of [1440, 390]) {
+      await browser.setViewport({ width, height: 900 });
+      traces.push(await browser.execute(() => window.verifyShootingScriptEditor()));
+      assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+    }
+    assert.deepEqual(traces[0], traces[1]);
+    const shootingScript = [];
+    for (const count of [25, 50, 100]) {
+      shootingScript.push(await browser.execute((count) => window.measureShootingScriptEditor(count, 8), count));
+    }
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
+      viewports: [1440, 390], trace: traces[0], shootingScript };
+  } else if (scenario === "galgame-authoring") {
+    const traces = [];
+    for (const width of [1440, 390]) {
+      await browser.setViewport({ width, height: 900 });
+      traces.push(await browser.execute(() => window.verifyGalgameAuthoring()));
+      assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+    }
+    assert.deepEqual(traces[0], traces[1]);
+    const galgameAuthoring = [];
+    for (const count of [100, 500, 1000]) {
+      galgameAuthoring.push(await browser.execute((count) => window.measureGalgameAuthoring(count, 8), count));
+    }
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
+      viewports: [1440, 390], trace: traces[0], galgameAuthoring };
+  } else if (scenario === "director-plan") {
+    const traces = [];
+    for (const width of [1440, 390]) {
+      await browser.setViewport({ width, height: 900 });
+      traces.push(await browser.execute(() => window.verifyDirectorPlan()));
+      assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+    }
+    assert.deepEqual(traces[0], traces[1]);
+    const directorPlan = [];
+    for (const count of [100, 500, 1000]) {
+      directorPlan.push(await browser.execute((count) => window.measureDirectorPlan(count, 8), count));
+    }
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
+      viewports: [1440, 390], trace: traces[0], directorPlan };
+  } else if (scenario === "canvas-workflow") {
+    const canvasWorkflow = [];
+    for (const count of [1000, 5000, 10000]) {
+      canvasWorkflow.push(await browser.execute((count) => window.measureCanvasWorkflow(count), count));
+    }
+    report = { success: true, scenario, baselineRef: baselineRef ?? null, browser: browser.capabilities.browserVersion,
+      canvasWorkflow };
   } else {
     const traces = [];
     for (const width of [1440, 390]) {

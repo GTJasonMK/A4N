@@ -169,6 +169,7 @@ export const HOST_API_COMMANDS = [
   "get_queue_stats",
   "get_reverse_engineering_candidate",
   "get_snapshot",
+  "get_source_snapshot_chapter",
   "get_storage_paths",
   "get_task_history",
   "get_test_run",
@@ -242,6 +243,7 @@ export const HOST_API_COMMANDS = [
   "list_scene_profiles",
   "list_sessions",
   "list_snapshots",
+  "list_source_snapshot_chapter_index",
   "list_source_snapshot_chapters",
   "list_test_runs",
   "list_test_scenarios",
@@ -256,8 +258,8 @@ export const HOST_API_COMMANDS = [
   "load_video_scrub_playback_data",
   "load_video_segment_plan_draft",
   "login_user",
-  "modify_profile_attribute",
   "mark_creator_notification_read",
+  "modify_profile_attribute",
   "move_inserted_segment",
   "oauth2_authorize_url",
   "oauth2_available_providers",
@@ -2342,6 +2344,7 @@ export interface ModelUsageRequest {
 }
 
 export interface ListImagesByProjectInput {
+  image_ids?: number[] | null;
   project_id: number;
 }
 
@@ -4389,6 +4392,19 @@ export interface SourceSnapshotChapterSummary {
   title: string | null;
 }
 
+export interface SourceSnapshotChapterIndex {
+  chapter_number: number;
+  id: number;
+  snapshot_id: number;
+  source_chapter_id: number;
+  title: string | null;
+}
+
+export interface GetSourceSnapshotChapterInput {
+  project_id: number;
+  source_chapter_id: number;
+}
+
 export interface DuplicateProjectInput {
   new_title: string;
   project_id: number;
@@ -4918,7 +4934,9 @@ export interface GenerationRunSummary {
 }
 
 export interface WorkflowRunDetailSummary {
+  checkpoint_details_included: boolean;
   checkpoints: WorkflowCheckpointSummary[];
+  generation_run_count: number;
   generation_runs: GenerationRunSummary[];
   run: WorkflowRunSummary;
 }
@@ -4929,6 +4947,7 @@ export interface CancelWorkflowInput {
 }
 
 export interface WorkflowProgressEventsInput {
+  after_event_id?: string | null;
   limit: number;
   task_id?: string | null;
   workflow_run_id?: number | null;
@@ -4944,6 +4963,8 @@ export interface ListWorkflowRunsInput {
 }
 
 export interface GetWorkflowRunInput {
+  include_checkpoint_details?: boolean;
+  include_generation_run_count?: boolean;
   include_generation_runs: boolean;
   workflow_run_id: number;
 }

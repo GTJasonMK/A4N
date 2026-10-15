@@ -600,6 +600,8 @@ export const novelAssets = {
     group: "{type} · {count} images",
     shownFavorites: "Showing {count} favorite images",
     totalImages: "{count} images total",
+    showingImages: "Showing {shown} of {total} images",
+    showMoreImages: "Show {count} more",
     staleSummary: "{summary}, {count} need updating",
     manage: "Manage image",
     view: "View image",

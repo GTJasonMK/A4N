@@ -35,6 +35,7 @@ SUITES = {
     "facts": ("run_fact_feedback_cli_e2e.py", {"chapter", "analysis"}),
     "director": ("run_director_timeline_cli_e2e.py", set(STAGES[5:])),
     "shooting": ("run_shooting_async_cli_e2e.py", {"shooting", "segments"}),
+    "image_publication": ("run_image_publication_cli_e2e.py", {"media"}),
 }
 FULL_GENERATION_SUITES = {
     "media_authoring": "run_media_authoring_cli_e2e.py",
@@ -200,7 +201,7 @@ def selected_suites(stages: set[str]) -> list[str]:
     selected = [name for name, (_, covered) in SUITES.items() if stages & covered]
     if stages == set(STAGES):
         selected.extend(FULL_GENERATION_SUITES)
-    return selected
+    return list(dict.fromkeys(selected))
 
 
 def selected_browser_specs(include_feature_flows: bool) -> list[str]:

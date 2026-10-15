@@ -40,20 +40,35 @@ pub(super) async fn run_branch_design_stage(
         video_reference: None,
         preprocessing_fingerprint: None,
     };
-    for adaptation in &execution.prompt_context.adaptations {
-        let record =
-            records::authoring_document(db, execution.project_id, adaptation.adaptation_plan_id)
-                .await
-                .map_err(authoring_error)?;
-        if record.status != AuthoringDocumentStatus::Adopted
-            || record.revision != adaptation.adaptation_plan_revision
-        {
-            return Err(AppError::InvalidArgument(
-                "改编计划版本已变化，请重新准备分支阶段".into(),
-            ));
+    for adaptations in execution
+        .prompt_context
+        .adaptations
+        .chunks(records::AUTHORING_READ_BATCH_SIZE)
+    {
+        let record_ids = adaptations
+            .iter()
+            .map(|adaptation| adaptation.adaptation_plan_id)
+            .collect::<Vec<_>>();
+        let rows = records::authoring_document_rows_by_ids(db, execution.project_id, &record_ids)
+            .await
+            .map_err(authoring_error)?;
+        for (adaptation, row) in adaptations.iter().zip(rows) {
+            let row = row.map_err(authoring_error)?.ok_or_else(|| {
+                authoring_error(records::AuthoringDocumentError::NotFound(
+                    adaptation.adaptation_plan_id,
+                ))
+            })?;
+            let record = row.parse().map_err(authoring_error)?;
+            if record.status != AuthoringDocumentStatus::Adopted
+                || record.revision != adaptation.adaptation_plan_revision
+            {
+                return Err(AppError::InvalidArgument(
+                    "改编计划版本已变化，请重新准备分支阶段".into(),
+                ));
+            }
+            inputs.sources.extend(record.inputs.sources.iter().cloned());
+            inputs.dependencies.push(record.reference());
         }
-        inputs.sources.extend(record.inputs.sources.iter().cloned());
-        inputs.dependencies.push(record.reference());
     }
     let previous = records::editable_authoring_document(
         db,

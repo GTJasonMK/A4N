@@ -21,8 +21,6 @@ pub async fn manga_character_portrait_refs(
             .all(db),
         character_portrait::Entity::find()
             .filter(character_portrait::Column::ProjectId.eq(profile_project_id))
-            .order_by_desc(character_portrait::Column::IsPrimary)
-            .order_by_desc(character_portrait::Column::CreatedAt)
             .all(db),
     );
     let profiles = profiles_result?;
@@ -90,17 +88,17 @@ pub async fn manga_character_portrait_refs(
 fn portrait_index(
     portraits: &[character_portrait::Model],
 ) -> HashMap<i64, Option<&character_portrait::Model>> {
-    let mut index = HashMap::with_capacity(portraits.len());
+    let mut index: HashMap<i64, Option<&character_portrait::Model>> =
+        HashMap::with_capacity(portraits.len());
     for portrait in portraits {
-        let primary = portrait.is_primary.then_some(portrait);
-        index
-            .entry(portrait.profile_id)
-            .and_modify(|current: &mut Option<&character_portrait::Model>| {
-                if current.is_none() && primary.is_some() {
-                    *current = primary;
-                }
-            })
-            .or_insert(primary);
+        let current = index.entry(portrait.profile_id).or_insert(None);
+        if portrait.is_primary
+            && current
+                .as_ref()
+                .is_none_or(|current| portrait.created_at > current.created_at)
+        {
+            *current = Some(portrait);
+        }
     }
     index
 }
@@ -156,7 +154,7 @@ fn manga_profile_project_id_for_identity(
 mod tests {
     use super::{manga_profile_project_id_for_identity, portrait_index};
     use a4n_db_models::models::character::character_portrait;
-    use chrono::Utc;
+    use chrono::{Duration, Utc};
 
     fn portrait(id: i64, profile_id: i64, is_primary: bool) -> character_portrait::Model {
         character_portrait::Model {
@@ -174,11 +172,16 @@ mod tests {
     }
 
     #[test]
-    fn portrait_index_keeps_presence_and_first_primary() {
+    fn portrait_index_keeps_presence_and_newest_primary_without_input_order() {
+        let now = Utc::now().naive_utc();
+        let mut older_primary = portrait(2, 10, true);
+        older_primary.created_at = now;
+        let mut newer_primary = portrait(3, 10, true);
+        newer_primary.created_at = now + Duration::seconds(1);
         let portraits = vec![
             portrait(1, 10, false),
-            portrait(2, 10, true),
-            portrait(3, 10, true),
+            newer_primary,
+            older_primary,
             portrait(4, 11, false),
         ];
         let index = portrait_index(&portraits);
@@ -188,7 +191,7 @@ mod tests {
                 .get(&10)
                 .and_then(Option::as_ref)
                 .map(|portrait| portrait.id),
-            Some(2)
+            Some(3)
         );
         assert!(matches!(index.get(&11), Some(None)));
         assert!(!index.contains_key(&12));

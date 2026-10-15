@@ -164,5 +164,7 @@ pub fn workflow_run_detail_to_api(
                 completed_at: run.completed_at,
             })
             .collect(),
+        generation_run_count: detail.generation_run_count,
+        checkpoint_details_included: detail.checkpoint_details_included,
     }
 }

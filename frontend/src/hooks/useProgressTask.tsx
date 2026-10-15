@@ -121,14 +121,18 @@ export async function runTaskWithProgressEvents<T>(
   setStreamText?: ProgressTaskControl["setStreamText"],
 ): Promise<T> {
   const seenEventIds = new Set<string>();
+  let afterEventId: string | undefined;
   return runTaskWithPolling(
     task,
-    () => getTaskProgressEvents(taskId, 200),
+    () => getTaskProgressEvents(taskId, 200, afterEventId),
     (response) => {
       for (const event of response.events) {
         if (seenEventIds.has(event.id)) continue;
         seenEventIds.add(event.id);
         setProgress(event.message, event.current, event.total, event.meta ?? null);
+      }
+      if (response.events.length > 0) {
+        afterEventId = response.events[response.events.length - 1].id;
       }
       // 活体信号是快照而非事件：不去重，每次轮询取最新尾巴覆盖。
       if (response.stream_text) setStreamText?.(response.stream_text);

@@ -97,6 +97,110 @@ fn graph_builder_projects_edges_downstream_and_mutation_policy() {
 }
 
 #[test]
+fn graph_builder_counts_unique_descendants_across_diamond_edges() {
+    let mut graph = GraphBuilder::default();
+    for (id, layer) in [("root", 0), ("left", 1), ("right", 1), ("leaf", 2)] {
+        graph.add_node(seed(id, 1, layer, true));
+    }
+    graph.add_edge("root", "left", "derives", 1);
+    graph.add_edge("root", "right", "derives", 1);
+    graph.add_edge("left", "leaf", "derives", 1);
+    graph.add_edge("right", "leaf", "derives", 1);
+
+    let graph = graph.finish(42).unwrap();
+    let downstream_count = |id| {
+        graph
+            .nodes
+            .iter()
+            .find(|node| node.id == id)
+            .unwrap()
+            .downstream_count
+    };
+    assert_eq!(downstream_count("root"), 3);
+    assert_eq!(downstream_count("left"), 1);
+    assert_eq!(downstream_count("right"), 1);
+    assert_eq!(downstream_count("leaf"), 0);
+}
+
+#[test]
+#[ignore = "manual performance probe"]
+fn graph_builder_finish_probe() {
+    use std::hash::{Hash, Hasher};
+    use std::time::{Duration, Instant};
+
+    fn layered_graph(node_count: usize) -> GraphBuilder {
+        let layer_count = 8;
+        assert_eq!(node_count % layer_count, 0);
+        let nodes_per_layer = node_count / layer_count;
+        let mut graph = GraphBuilder::default();
+        for layer in 0..layer_count {
+            for index in 0..nodes_per_layer {
+                let id = format!("node_{layer:02}_{index:05}");
+                graph.add_node(seed(&id, 1, layer as i32, true));
+            }
+        }
+        for layer in 0..layer_count - 1 {
+            for index in 0..nodes_per_layer {
+                let from = format!("node_{layer:02}_{index:05}");
+                for offset in 0..3 {
+                    let target_index = (index * 31 + offset) % nodes_per_layer;
+                    let to = format!("node_{:02}_{target_index:05}", layer + 1);
+                    graph.add_edge(&from, &to, "derives", 1);
+                }
+            }
+        }
+        graph
+    }
+
+    fn digest(graph: &crate::project::dependency_graph::AssetDependencyGraph) -> u64 {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        for node in &graph.nodes {
+            node.id.hash(&mut hasher);
+            node.downstream_count.hash(&mut hasher);
+            node.mutable.hash(&mut hasher);
+            node.mutation_policy.hash(&mut hasher);
+        }
+        for edge in &graph.edges {
+            edge.from.hash(&mut hasher);
+            edge.to.hash(&mut hasher);
+            edge.relation.hash(&mut hasher);
+            edge.count.hash(&mut hasher);
+        }
+        hasher.finish()
+    }
+
+    for node_count in [1_000, 5_000, 10_000] {
+        let warmup_until = Instant::now() + Duration::from_millis(250);
+        while Instant::now() < warmup_until {
+            let _ = layered_graph(node_count).finish(42).unwrap();
+        }
+
+        let mut samples_ms = Vec::with_capacity(5);
+        let mut expected_digest = None;
+        for _ in 0..5 {
+            let graph = layered_graph(node_count);
+            let started = Instant::now();
+            let result = graph.finish(42).unwrap();
+            samples_ms.push(started.elapsed().as_secs_f64() * 1_000.0);
+            let current_digest = digest(&result);
+            assert_eq!(result.edges.len(), node_count * 21 / 8);
+            if let Some(expected) = expected_digest {
+                assert_eq!(expected, current_digest);
+            } else {
+                expected_digest = Some(current_digest);
+            }
+        }
+        samples_ms.sort_by(f64::total_cmp);
+        println!(
+            "asset_graph_finish nodes={node_count} edges={} p50_ms={:.3} digest={:?} samples_ms={samples_ms:?}",
+            node_count * 21 / 8,
+            samples_ms[samples_ms.len() / 2],
+            expected_digest,
+        );
+    }
+}
+
+#[test]
 fn cycle_hint_reports_only_nodes_left_with_positive_indegree() {
     let nodes = BTreeSet::from(["a".to_string(), "b".to_string(), "root".to_string()]);
     let edges = vec![

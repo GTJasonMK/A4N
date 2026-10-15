@@ -205,6 +205,9 @@ pub struct GeneratedImageSummary {
 pub struct ListImagesByProjectInput {
     #[schemars(range(min = 1))]
     pub project_id: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(length(min = 1))]
+    pub image_ids: Option<Vec<i64>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
