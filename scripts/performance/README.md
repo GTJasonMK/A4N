@@ -82,6 +82,7 @@
 | [PERF-127](../../frontend/src/pages/video-studio/useCanvasWorkflowActions.tsx) Video Studio progress event 轮询上限 | 每秒查询最新 20 条事件，但面板只展示最后 5 条；100,000 行/目标运行最多 200 条 | 查询和展示共用 5 条上限，其他进度查询保持原参数 | PostgreSQL 16.15、两组各 7 轮：事件 JSON **17,758→4,438 B（75.01%）**，前五条摘要 SHA-256 一致；SQL P50 两组分别 **0.270→0.174 ms** 和 **0.260→0.197 ms** |
 | [PERF-128](../../frontend/src/hooks/useProgressTask.tsx) 通用任务进度重复回传 | 每 500 ms 拉取最近最多 200 条事件，前端用 Set 去重 | 增加可选 `after_event_id` 游标；首轮取完整历史，后续仅返回游标后的事件，活体文本仍逐轮返回 | PostgreSQL 16.15、100,000 行/目标 200 条、游标后新增 5 条：JSON **170,919→4,308 B（97.48%）**，V8 JSON.parse **0.282→0.0088 ms（96.89%）**；增量与旧响应去重后的新增事件完全相同 |
 | [PERF-129](../../frontend/src/i18n/translate.ts) locale 字典启动分包候选（未采用） | 首屏 main JS 静态包含 zh-CN 与 en-US 全量字典 | 以空 en-US 字典测量仅移除未选语言的理想上限 | 生产 Vite main JS **1,090.16→755.21 kB**，预压缩 **336.09→240.84 kB（28.34%）**；仅是 main JS 上限，未达时延门槛，英语初始语言仍需加载英语 chunk |
+| PERF-130 workflow run detail 恢复快照投影候选（未采用） | `get_workflow_run_detail` 读取一条 run；`progress_json.snapshot` 只供恢复流程，公开摘要不返回它 | 尝试在数据库投影中移除 snapshot，同时保持公开摘要 SHA-256 不变 | PostgreSQL 16.15、100,000 行：JSON **863,551→678 B**，解析 P50 **1.621→0.0025 ms**；SQL P50 **0.065→2.845 ms**，Docker/psql 查询往返仅改善 **9.38%**，未达到门槛 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -95,7 +96,7 @@ Intl 的四组对照（每组 2000 次）：中文数字 75.7 → 2.3 ms、中�
 | 项目列表 | `ProjectReadWorker::summary_for_projects` 已批量查询项目族、权限、进度和反馈间隔；不重新引入逐项目请求或重复批处理层。 |
 | 章节列表 | PERF-011 消除未使用历史读取及检查点深复制，PERF-017 将写作桌/只读目录/导入预览改为按需读取；PERF-095 将根项目 MangaTab 也改为索引加按需详情。原 `ChapterSummary` 完整合同保留；故事事件 PERF-019 和派生来源快照 PERF-078 已分别优化。 |
 | 数据库权限和协作 | 读取使用连接池、绑定参数和批量根项目查询。PERF-079 将高基数成员统计收敛为 DB 聚合；未过期邀请统计单独 A/B 仅改善 8.23%，低于门槛，未改写实现或增添索引。 |
-| 工作流轮询和恢复 | 旧任务进度轮询间隔 500 ms，已有单次进行中保护和结束清理；新生成任务走事件订阅。未通过减少进度频率来换取表面收益。恢复快照的读取需求与公开进度投影分开评估。 |
+| 工作流轮询和恢复 | 旧任务进度轮询间隔 500 ms，已有单次进行中保护和结束清理；新生成任务走事件订阅。未通过减少进度频率来换取表面收益。恢复快照的读取需求与公开进度投影分开评估；PERF-130 的数据库 JSONB 投影使 SQL 明显变慢，端到端替代测量也未达 30%，未采用。 |
 | HTTP 与媒体 | Worker／service client 已持有并复用 HTTP client；Web 媒体使用 `ServeFile`，Edge 使用流式 body。桌面自定义协议要求字节响应，不能直接套用 Web 的传输方案。PERF-080 去掉播放器 data URL 前多余的完整 Base64 解码；PERF-081 限制上传解码的峰值内存，不改 API 载荷。 |
 | LLM 上游连接 | PERF-012 保留每次构造 provider 的配置与凭证隔离，仅延长 HTTP Client 的生命周期。原连接／逐次读取超时、错误、取消与背压检查通过；不缓存模型响应。 |
 | 嵌入模型生命周期 | PERF-014／015 已处理本地模型和 API 连接的重复初始化。模型文件删除／下载会使额外持有的资源失效；仍存活的 provider 保留原有拥有权，避免破坏已在使用的模型。没有缓存业务向量结果。 |
@@ -850,6 +851,14 @@ A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
 - 上限 A/B：当前 main chunk **1,090.16 kB / gzip 336.09 kB**。探针把未选 en-US 字典替换为空对象，main chunk 降为 **755.21 kB / gzip 240.84 kB**；这是移除英语运行内容且不加载英语 chunk 的节省上限，gzip 降幅 **28.34%**。
 - 决策与边界：上限收益低于 30% 响应时延门槛；测试只比较 main chunk 字节，不含页面 TTI、所有首屏资源或真正按用户语言加载的时序。实现动态字典还需要在同步初始化前确定语言并等待对应 chunk，增加启动顺序复杂度；未修改 i18n 实现。
 - 证据：基线构建 `../../data/performance-audit-20261015/i18n-static-dist/`；上限探针配置和构建 `../../data/performance-audit-20261015/i18n-locale-probe/`。
+
+### PERF-130：workflow run detail 移除恢复 snapshot 投影候选（未采用）
+
+- 请求链路：`get_workflow_run_detail` → `workflow_run_detail` 并行读取 run、checkpoints 和可选 generation runs；run 读取仍获取完整 ORM 行，再由公开摘要投影隐藏 `progress_json.snapshot`。快照供恢复流程使用，不属于公开摘要。
+- A/B：隔离 PostgreSQL **16.15**、100,000 行、7 轮交错，目标行的 `progress_json.snapshot` 为 **862,873 B**。完整实体和窄投影的公开摘要 SHA-256 相同。
+- 结果：JSON **863,551→678 B（减少 99.92%）**，V8 JSON.parse P50 **1.621→0.0025 ms（减少 99.84%）**，但 SQL P50 **0.065→2.845 ms**；包括 Docker/psql 启动和传输的查询往返 P50 **107.418→97.347 ms（改善 9.38%）**。JSONB 移除与重建公开字段的数据库计算成本超过本轮可证明的整体收益。
+- 决策与边界：未修改产品查询。字节和解析收益不足以抵消 SQL 回退；Docker/psql 测量不是 Host HTTP 全链路，当前没有证据表明生产请求时延或 RSS 能达到 30%／20% 门槛。
+- 证据：`../../data/performance-audit-20261015/workflow-run-snapshot-projection/report.json`；复现脚本：`workflow-run-snapshot-projection.mjs`。
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
 
