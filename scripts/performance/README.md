@@ -742,6 +742,14 @@ A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
 - 边界：A/B 量化数据库过滤、行读取和排序，不含 SeaORM 映射、时间线合并、HTTP 传输或视频文件 I/O。完整响应仅 100 行；极大章节仍由现有 API 完整返回，没有改为分页。
 - 证据：`../../data/performance-audit-20261015/generated-video-chapter-index/`，含 7 轮完整投影 SQL 样本、最小/三列索引对照计划和前后完整响应。
 
+### PERF-118：Manga 立绘 DISTINCT ON 窄结果候选（未采用）
+
+- 请求链路：`manga_character_portrait_refs` 仍需要保留每档“最新主图”或“此档案有立绘但无主图”的状态。PERF-116 已移除全量排序；本轮尝试让 PostgreSQL `DISTINCT ON(profile_id)` 每档只传一行，并用 `(project_id, profile_id, is_primary DESC, created_at DESC)` 索引对齐选择顺序。
+- A/B：隔离 PostgreSQL 16.15，1,000,000 行、项目 1 有 100,000 行/40,000 档案/每档 2–3 张；数据库返回行从 **100,000 降至 40,000（60%）**，行 JSON 载荷从 **42,805,592 降至 17,137,788 B**，用户侧摘要集合字节和内容不变。7 轮交错的完整行 SQL P50 却从 **22.242 ms 增至 51.358 ms（慢 130.91%）**，计划是索引扫描全部档案行后做 Unique；索引大小 **49,627,136 B**。无主图的异常项目仍能识别相同的 10 个档案，选中主图 ID 也相同。
+- 决策：候选显著减少数据库返回行字节，但数据库执行时间超过 2 倍、增加约 49.6 MB 索引，拒绝该实现；PERF-116 的无序完整读取＋HashMap 单次选择保留。
+- 边界：A/B 测量完整行 SQL；不能把 60% 行数下降直接宣称为进程内存下降。候选 SQL/索引已仅留在隔离测试库，没有产品代码或 schema 变更。
+- 证据：`../../data/performance-audit-20261015/manga-portrait-distinct-candidate/`，包括交错样本、执行计划、所选主图 ID 映射和缺主图档案对照。
+
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
 
 - 请求链路：`useDirectorPlan.updateFields` 在每次输入时更新当前 plan；原实现为 dirty 比较序列化当前 plan，`replace` 再分别序列化旧/新 plan 判断 revision，立即本地备份再序列化并写入一次，随后 effect 又序列化并写入相同的 plan。章节计划越大，每次按键做的完整 JSON 遍历和同步存储越多。
