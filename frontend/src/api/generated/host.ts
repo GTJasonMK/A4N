@@ -4947,6 +4947,7 @@ export interface CancelWorkflowInput {
 }
 
 export interface WorkflowProgressEventsInput {
+  after_event_id?: string | null;
   limit: number;
   task_id?: string | null;
   workflow_run_id?: number | null;

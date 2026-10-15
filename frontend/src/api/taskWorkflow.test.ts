@@ -42,6 +42,7 @@ describe("task and workflow host contracts", () => {
     await getQueueStats();
     await getTaskHistory(7, 0, 30);
     await getTaskProgressEvents("task-1", 20);
+    await getTaskProgressEvents("task-2", 20, "task-2-event-14");
     await listActiveWorkflows();
     await listWorkflowRuns({ resumable_only: false, limit: 40 });
     await getWorkflowRunDetail(9, true);
@@ -60,6 +61,10 @@ describe("task and workflow host contracts", () => {
       [
         "get_workflow_progress_events",
         { input: { task_id: "task-1", workflow_run_id: null, limit: 20 } },
+      ],
+      [
+        "get_workflow_progress_events",
+        { input: { task_id: "task-2", workflow_run_id: null, limit: 20, after_event_id: "task-2-event-14" } },
       ],
       ["list_active_workflows"],
       ["list_workflow_runs", { input: { resumable_only: false, limit: 40 } }],

@@ -8,9 +8,9 @@ use a4n_db::workflow::{
     record_workflow_progress_event, restart_interrupted_workflow_run,
     resume_or_upsert_workflow_run, resume_workflow_run_with_active_task,
     save_completed_llm_call_checkpoint, upsert_workflow_checkpoint, upsert_workflow_run,
-    workflow_checkpoint_statuses_for_runs, workflow_checkpoint_step_statuses, workflow_run_detail,
-    workflow_run_model_by_id, workflow_run_models_by_ids, workflow_run_statuses_by_ids,
-    workflow_run_summary_by_id,
+    workflow_checkpoint_statuses_for_runs, workflow_checkpoint_step_statuses,
+    workflow_progress_events, workflow_run_detail, workflow_run_model_by_id,
+    workflow_run_models_by_ids, workflow_run_statuses_by_ids, workflow_run_summary_by_id,
 };
 use a4n_db_models::models::{
     generation::{generation_run, workflow_run},
@@ -1254,4 +1254,72 @@ async fn workflow_detail_can_omit_checkpoint_payloads_for_progress_polling() {
         full_detail.checkpoints[1].generation_run_ids_json,
         Some(generation_run_ids)
     );
+}
+
+#[tokio::test]
+async fn workflow_progress_events_after_event_id_returns_only_new_events() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let workflow = upsert_workflow_run(
+        &db,
+        workflow_input(
+            &format!("workflow-progress-cursor:{}", uuid::Uuid::new_v4()),
+            "progress-cursor",
+            WORKFLOW_STATUS_RUNNING,
+        ),
+    )
+    .await
+    .expect("workflow run must be inserted");
+    for current in 1..=3 {
+        let message = format!("progress-{current}");
+        record_workflow_progress_event(
+            &db,
+            WorkflowProgressEventInput {
+                workflow_run_id: workflow.id,
+                task_id: Some("task-progress-cursor"),
+                current,
+                total: 3,
+                message: &message,
+                meta: None,
+            },
+        )
+        .await
+        .expect("workflow progress event must be recorded");
+    }
+
+    let full_history = workflow_progress_events(&db, workflow.id, 200, None)
+        .await
+        .expect("full workflow event history must load");
+    let cursor = full_history[0]
+        .id
+        .parse::<i64>()
+        .expect("workflow event id must be numeric");
+    let incremental = workflow_progress_events(&db, workflow.id, 1, Some(cursor))
+        .await
+        .expect("incremental workflow events must load");
+    assert_eq!(
+        incremental
+            .iter()
+            .map(|event| event.id.as_str())
+            .collect::<Vec<_>>(),
+        [full_history[1].id.as_str()]
+    );
+    assert_eq!(incremental[0].message, "progress-2");
+    let all_new_events = workflow_progress_events(&db, workflow.id, 200, Some(cursor))
+        .await
+        .expect("all new workflow events must preserve sequence");
+    assert_eq!(
+        all_new_events
+            .iter()
+            .map(|event| event.id.as_str())
+            .collect::<Vec<_>>(),
+        [full_history[1].id.as_str(), full_history[2].id.as_str()]
+    );
+    let latest_cursor = full_history[2]
+        .id
+        .parse::<i64>()
+        .expect("workflow event id must be numeric");
+    let unchanged = workflow_progress_events(&db, workflow.id, 200, Some(latest_cursor))
+        .await
+        .expect("empty incremental response must load");
+    assert!(unchanged.is_empty());
 }

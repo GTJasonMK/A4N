@@ -80,6 +80,7 @@
 | [PERF-125](workflow-checkpoint-order-index.mjs) 检查点排序索引候选（未采用） | Video Studio 每次工作流详情读取全部 checkpoints；100,000 行/目标 1,000／5,000／10,000 行 | 评估 `(workflow_run_id, step_order, id)` 是否能消除查询排序 | PostgreSQL 16.15、完整行投影、两组各 7 轮交错：计划均未变化；最终一组 P50 **3.922→4.711 ms（退化 20.12%）／17.062→16.943 ms（0.70%）／30.340→27.636 ms（8.91%）**；候选索引占 **4,079,616 B**，未采用 |
 | [PERF-126](../../crates/platform/a4n-db/src/workflow/runs/queries.rs) Video Studio checkpoint 详情投影 | 每秒工作流详情轮询；100,000 行/目标 1,000／5,000／10,000 checkpoints | 保持状态、时间、错误和 `artifacts_json`，省去画布不用的 fingerprint/checkpoint/generation ID JSON 字段；其他请求默认仍返回全量 | PostgreSQL 16.15、7 轮：10k 行 SQL **28.678→22.077 ms（23.02%）**，V8 JSON.parse P50 **14.744→8.587 ms（41.75%）**，响应 JSON **12,703,133→5,455,130 B（57.06%）**；画布展示字段 SHA-256 相同 |
 | [PERF-127](../../frontend/src/pages/video-studio/useCanvasWorkflowActions.tsx) Video Studio progress event 轮询上限 | 每秒查询最新 20 条事件，但面板只展示最后 5 条；100,000 行/目标运行最多 200 条 | 查询和展示共用 5 条上限，其他进度查询保持原参数 | PostgreSQL 16.15、两组各 7 轮：事件 JSON **17,758→4,438 B（75.01%）**，前五条摘要 SHA-256 一致；SQL P50 两组分别 **0.270→0.174 ms** 和 **0.260→0.197 ms** |
+| [PERF-128](../../frontend/src/hooks/useProgressTask.tsx) 通用任务进度重复回传 | 每 500 ms 拉取最近最多 200 条事件，前端用 Set 去重 | 增加可选 `after_event_id` 游标；首轮取完整历史，后续仅返回游标后的事件，活体文本仍逐轮返回 | PostgreSQL 16.15、100,000 行/目标 200 条、游标后新增 5 条：JSON **170,919→4,308 B（97.48%）**，V8 JSON.parse **0.282→0.0088 ms（96.89%）**；增量与旧响应去重后的新增事件完全相同 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -833,6 +834,14 @@ A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
 - A/B：隔离 PostgreSQL **16.15**、100,000 行、目标运行 200 条事件、现有 `(workflow_run_id, event_index)` 索引；每条夹具含 512 B meta detail 和 128 B message。两组各 7 轮交错比较 limit 20/5，完整 JSON 的前五条摘要 SHA-256 相同。
 - 结果：事件 JSON **17,758→4,438 B（减少 75.01%）**；Node zlib 默认 gzip **653→309 B**。SQL P50 两组分别 **0.270→0.174 ms（35.56%）** 与 **0.260→0.197 ms（24.23%）**；Node JSON.parse P50 分别 **0.0261→0.0092 ms（64.60%）** 与 **0.0366→0.0069 ms（81.03%）**。SQL 时间有采样波动，不作为稳定收益声明。
 - 验证与边界：`taskWorkflow.test.ts` 与 `canvasWorkflowState.test.ts` 共 **5/5**、`npx tsc --noEmit`、性能脚本 `node --check`、`git diff --check` 通过。测量限于 progress event 子响应与 JSON.parse，不外推为整个工作流详情轮询时延；单次节省约 **13.3 KB**，在 1 秒轮询中避免累计传输重复事件。报告：`../../data/performance-audit-20261015/workflow-progress-event-limit/report.json`；脚本：`workflow-progress-event-limit.mjs`。
+
+### PERF-128：通用任务进度轮询重复读取已处理事件
+
+- 请求链路：Host workflow 进度每 **500 ms** 轮询。前端原先每轮最多接收最近 **200** 条事件，再通过 `seenEventIds` 丢弃已处理项；活体 `stream_text` 是当前快照，必须继续每轮读取。
+- 修复：`get_workflow_progress_events` 输入增加可选 `after_event_id`，省略时保持旧的最近事件行为。浏览器首轮读取最多 200 条保留事件并保存最后事件 ID；后续 Handle 的内存环形队列按游标定位，持久化路径按 ID 过滤，并按事件顺序返回游标后的新事件。游标已从环形队列淘汰时返回原上限内最近事件，由原去重逻辑兼容；活体文本照常刷新。
+- A/B：隔离 PostgreSQL **16.15**、100,000 行、目标运行保留 200 条事件，完整事件含 512 B `meta.detail` 和 128 B message；对比 limit 200 与 `after_event_id=200`（其后 5 条新事件），7 轮交错。旧响应新增事件序列与增量响应 SHA-256 完全相同。
+- 结果：事件响应 JSON **170,919→4,308 B（减少 97.48%）**，Node zlib 默认 gzip **3,963→295 B（减少 92.56%）**；Node **24.21** JSON.parse P50 **0.282→0.0088 ms（减少 96.89%）**。无新事件时游标响应为 35 B。数据库查询 P50 **1.612→1.188 ms（减少 26.30%，低于时延门槛）**，因此不宣称 SQL 达标，也未增加索引。
+- 验证与边界：Rust 单测覆盖内存游标、旧请求缺省和异常游标长度；PostgreSQL 集成测试覆盖顺序、limit=1 连续分页及到最新游标后返回空数组；前端测试确认每次发送最后已见事件 ID，并保留既有去重与 stream-text 行为。受影响 Rust all-targets check、API parity、TypeScript、前端定向测试、fmt/diff 通过。A/B 比较完整事件 DTO 与增量 DTO，不外推为整条任务请求时延。报告：`../../data/performance-audit-20261015/workflow-progress-event-cursor/report.json`；脚本：`workflow-progress-event-cursor.mjs`。
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
 

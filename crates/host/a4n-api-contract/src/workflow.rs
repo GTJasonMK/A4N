@@ -132,6 +132,9 @@ pub struct CancelWorkflowInput {
 pub struct WorkflowProgressEventsInput {
     pub task_id: Option<String>,
     pub workflow_run_id: Option<i64>,
+    #[serde(default)]
+    #[schemars(length(max = 256))]
+    pub after_event_id: Option<String>,
     #[schemars(range(min = 1, max = 200))]
     pub limit: usize,
 }
@@ -250,6 +253,7 @@ pub trait WorkflowTaskLookupApplicationPort: Send + Sync {
         &self,
         workflow_run_id: i64,
         limit: usize,
+        after_event_id: Option<i64>,
     ) -> Result<Vec<WorkflowProgressEvent>, a4n_error::AppError>;
 }
 

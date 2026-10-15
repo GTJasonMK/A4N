@@ -297,10 +297,25 @@ impl WorkerState {
                 "progress events 不接受 task_id",
             ));
         }
+        let after_event_id = match request.payload.after_event_id.as_deref() {
+            Some(value) => {
+                let event_id = value
+                    .parse::<i64>()
+                    .map_err(|_| WorkerFailure::invalid_request("after_event_id 必须是正整数"))?;
+                if event_id <= 0 {
+                    return Err(WorkerFailure::invalid_request(
+                        "after_event_id 必须是正整数",
+                    ));
+                }
+                Some(event_id)
+            }
+            None => None,
+        };
         a4n_db::workflow::workflow_progress_events(
             self.database.executor(),
             workflow_run_id,
             request.payload.limit,
+            after_event_id,
         )
         .await
         .map(|events| {
