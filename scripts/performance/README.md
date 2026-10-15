@@ -77,6 +77,7 @@
 | [PERF-122](../../crates/platform/a4n-migration/src/migrations/generation_run_workflow_created_index.rs) | Video Studio 每秒读取工作流详情及最近最多 300 条完整生成记录；100,000 行/目标工作流 300 行 | 为非空 `workflow_run_id` 增加 `(workflow_run_id, created_at ASC)` 部分索引，保留查询字段和排序 | 隔离 PostgreSQL 16、完整 JSON 投影、既有 created_at 索引、7 轮交错：P50 **41.075→2.504 ms（93.90%）**；Seq Scan + Sort 改为 Bitmap Heap/Index Scan + Sort；索引 **1,597,440 B**；300 行完整 JSON **550,035 B**、顺序及 SHA-256 相同 |
 | [PERF-123](../../frontend/src/pages/video-studio/useCanvasWorkflowActions.tsx) | Video Studio 每秒详情轮询只显示模型调用数；最多 300 条生成记录 | 请求受原 300 条上限约束的 `generation_run_count`，不取完整 generation run DTO；明细页仍读取完整数组 | 隔离 PostgreSQL 16、100,000 行/目标工作流 300 行、7 轮：索引后完整投影 **2.504→1.885 ms（24.72%）**；generation-run 子响应数据 **550,035→3 B（99.9995%）**，显示计数仍为 300 |
 | Canvas checkpoint projection 候选（PERF-124，未采用） | Video Studio 每次详情刷新；1000／5000／10000 checkpoints | 三次 filter/sort 合并为一遍汇总 | Chromium 153、固定 CPU 18/19，两个状态分布下签名均相同；10k checkpoints 每次最多节省 **0.387 ms**，绝对成本不足以影响用户体验，未保留改动 |
+| [PERF-125](workflow-checkpoint-order-index.mjs) 检查点排序索引候选（未采用） | Video Studio 每次工作流详情读取全部 checkpoints；100,000 行/目标 1,000／5,000／10,000 行 | 评估 `(workflow_run_id, step_order, id)` 是否能消除查询排序 | PostgreSQL 16.15、完整行投影、两组各 7 轮交错：计划均未变化；最终一组 P50 **3.922→4.711 ms（退化 20.12%）／17.062→16.943 ms（0.70%）／30.340→27.636 ms（8.91%）**；候选索引占 **4,079,616 B**，未采用 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -807,6 +808,13 @@ A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
 - A/B：生产 Vite + Chromium **153.0.8010.52**、固定 CPU 18/19，7 轮、每轮 8 次，1000／5000／10000 checkpoints。每组都测“仅一个 running，其余 completed”及“20% failed”两种分布。投影 signature 全部一致。无 failed 时 P50 **0.038→0.025 ms／0.200→0.013 ms／0.412→0.037 ms**；20% failed 时 **0.050→0.025 ms／0.250→0.038 ms／0.475→0.088 ms**。
 - 决策：虽然相对降幅为 34%–94%，在 10,000 条检查点下每次也只节省不到 **0.4 ms**，每次刷新间隔为 **2.5 秒**。按任务的绝对收益门槛视为微优化，未保留产品改动。
 - 边界与证据：测量纯摘要投影，不含 React 子树 render、HTTP 或 DOM；基线 `1ddb42a31`。浏览器 report 在 `../../data/performance-audit-20261015/canvas-checkpoint-summary/{before,after}/report.json`。
+
+### PERF-125：工作流检查点排序索引候选（未采用）
+
+- 请求链路：工作流详情读取每个 `workflow_run_id` 下的所有 checkpoint，并按 `step_order, id` 排序；运行中页面每秒轮询详情。候选索引 `(workflow_run_id, step_order, id)` 试图省去排序。
+- A/B：隔离 PostgreSQL **16.15**、100,000 行，目标工作流分别有 1,000／5,000／10,000 行；保留现有 `(workflow_run_id, step_key)` 和 `(workflow_run_id, step_key, input_fingerprint_sha256)` 索引，使用与实体相同的完整列投影和 512 B checkpoint JSON。两组各 7 轮交错，按 `EXPLAIN ANALYZE` 执行时间取中位数。完整结果行数、`step_order/id` 序列、JSON 字节数和 SHA-256 全部相同。
+- 结果：首组 P50 **5.010→4.252 ms（15.13%）／16.272→20.826 ms（退化 27.99%）／30.866→30.619 ms（0.80%）**；复测 P50 **3.922→4.711 ms（退化 20.12%）／17.062→16.943 ms（0.70%）／30.340→27.636 ms（8.91%）**。三档查询计划始终为 `Bitmap Index Scan → Bitmap Heap Scan → Sort`，候选索引没有被 planner 采用。候选索引占 **4,079,616 B**。
+- 决策与边界：两组结果均无规模达到 30% 时延门槛，且 P50 波动方向不一致；没有证据支持增加 4 MB 索引。查询耗时不含 SeaORM 解码、HTTP 和客户端 JSON 解析。未增加 migration 或产品代码。复现脚本为 `workflow-checkpoint-order-index.mjs`，最终一组报告在 `../../data/performance-audit-20261015/workflow-checkpoint-order-index/report.json`。
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
 
