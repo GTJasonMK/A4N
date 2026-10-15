@@ -76,6 +76,7 @@
 | [PERF-121](../../frontend/src/pages/VideoStudioCanvas.tsx) | Video Studio 工作流运行期间每秒计时及详情轮询；1000／5000／10000 节点、边和检查点 | 复用未变的 run/checkpoint 时间事实，活动范围与边标签只在图或运行状态语义变化时重算 | Chromium 153、固定 CPU 18/19、每秒模拟新详情响应对象、7×8 轮：同步图投影 P50 **2.263→0.675 ms（70.17%）／10.912→3.188 ms（70.78%）／22.925→6.150 ms（73.17%）**；节点/边投影摘要相同；每 tick 新建边对象 **999／4,999／9,999→0** |
 | [PERF-122](../../crates/platform/a4n-migration/src/migrations/generation_run_workflow_created_index.rs) | Video Studio 每秒读取工作流详情及最近最多 300 条完整生成记录；100,000 行/目标工作流 300 行 | 为非空 `workflow_run_id` 增加 `(workflow_run_id, created_at ASC)` 部分索引，保留查询字段和排序 | 隔离 PostgreSQL 16、完整 JSON 投影、既有 created_at 索引、7 轮交错：P50 **41.075→2.504 ms（93.90%）**；Seq Scan + Sort 改为 Bitmap Heap/Index Scan + Sort；索引 **1,597,440 B**；300 行完整 JSON **550,035 B**、顺序及 SHA-256 相同 |
 | [PERF-123](../../frontend/src/pages/video-studio/useCanvasWorkflowActions.tsx) | Video Studio 每秒详情轮询只显示模型调用数；最多 300 条生成记录 | 请求受原 300 条上限约束的 `generation_run_count`，不取完整 generation run DTO；明细页仍读取完整数组 | 隔离 PostgreSQL 16、100,000 行/目标工作流 300 行、7 轮：索引后完整投影 **2.504→1.885 ms（24.72%）**；generation-run 子响应数据 **550,035→3 B（99.9995%）**，显示计数仍为 300 |
+| Canvas checkpoint projection 候选（PERF-124，未采用） | Video Studio 每次详情刷新；1000／5000／10000 checkpoints | 三次 filter/sort 合并为一遍汇总 | Chromium 153、固定 CPU 18/19，两个状态分布下签名均相同；10k checkpoints 每次最多节省 **0.387 ms**，绝对成本不足以影响用户体验，未保留改动 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -799,6 +800,13 @@ A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
 - 验证：`workflow_detail_returns_generation_run_summary_fields` PostgreSQL 集成测试验证 301 条记录时 count-only 返回 300 且数组为空；完整数组仍返回最多 300 条并填充相同 count。旧输入反序列化默认测试、前端 wrapper 定向测试、API parity、受影响 crates check、`npx tsc --noEmit`、fmt/diff 通过。
 - 边界：A/B 量化 generation-run 子查询，不含 run/checkpoint 查询、HTTP/JSON 解析或完整 detail 响应体；`generation_run_count` 维持原数组 300 行上限。
 - 证据：`../../data/performance-audit-20261015/workflow-generation-run-index/report.json`；完整投影与 count-only 由 `../../scripts/performance/workflow-generation-run-index.mjs` 交错测量。
+
+### PERF-124：Canvas checkpoint 单次汇总候选（未采用）
+
+- 请求链路：`CanvasWorkflowPanel` 随工作流详情每 1 秒更新。旧实现分别扫描检查点计数、筛选/排序 running、筛选/排序 failed；试验用一遍扫描同时得到 completed 数和最新 running/failed checkpoint，并保留时间相同情况下原数组先后次序。
+- A/B：生产 Vite + Chromium **153.0.8010.52**、固定 CPU 18/19，7 轮、每轮 8 次，1000／5000／10000 checkpoints。每组都测“仅一个 running，其余 completed”及“20% failed”两种分布。投影 signature 全部一致。无 failed 时 P50 **0.038→0.025 ms／0.200→0.013 ms／0.412→0.037 ms**；20% failed 时 **0.050→0.025 ms／0.250→0.038 ms／0.475→0.088 ms**。
+- 决策：虽然相对降幅为 34%–94%，在 10,000 条检查点下每次也只节省不到 **0.4 ms**，每次刷新间隔为 **2.5 秒**。按任务的绝对收益门槛视为微优化，未保留产品改动。
+- 边界与证据：测量纯摘要投影，不含 React 子树 render、HTTP 或 DOM；基线 `1ddb42a31`。浏览器 report 在 `../../data/performance-audit-20261015/canvas-checkpoint-summary/{before,after}/report.json`。
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
 
