@@ -175,6 +175,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::workflow_run_business_updated_index::Migration),
             Box::new(crate::migrations::llm_call_trace_created_index::Migration),
             Box::new(crate::migrations::generation_run_created_index::Migration),
+            Box::new(crate::migrations::model_usage_root_started_index::Migration),
         ]
     }
 }
@@ -452,6 +453,7 @@ mod tests {
             "workflow_run_business_updated_index",
             "llm_call_trace_created_index",
             "generation_run_created_index",
+            "model_usage_root_started_index",
         ];
         let history_start = names
             .iter()

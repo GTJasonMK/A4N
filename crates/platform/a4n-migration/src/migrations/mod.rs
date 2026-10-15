@@ -102,6 +102,7 @@ pub mod media_workflow_reset_retirement;
 pub mod model_cost_pricing;
 pub mod model_usage_ledger;
 pub mod model_usage_request_snapshot;
+pub mod model_usage_root_started_index;
 pub mod neutral_video_segment_plan;
 pub mod object_profile_usage_fields;
 pub mod optimization_session_agent_unification;

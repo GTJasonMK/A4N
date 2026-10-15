@@ -65,6 +65,7 @@
 | [PERF-109](../../crates/platform/a4n-migration/src/migrations/workflow_run_business_updated_index.rs) | 工作流恢复按 business key 取最新运行；100,000 行、每 key 1,000 条历史 | 为现有 `WHERE business_key = ? ORDER BY updated_at DESC, id DESC LIMIT 1` 增加 business key/时间排序索引；保持最新记录身份和完整 DTO | 隔离 PostgreSQL 16、保留 business key 单列索引、5 轮交错：P50 **3.701→0.098 ms（97.35%）**；计划从 Bitmap Heap + Sort 变为 Limit + Index Scan；索引 **4,079,616 B**；最新运行 ID 完全一致 |
 | [PERF-110](../../crates/platform/a4n-migration/src/migrations/llm_call_trace_created_index.rs) | 管理员生成分析读取时间窗口内所有 LLM trace；100,000 行、最近 7 天 7,000 行 | 为 `created_at >= since ORDER BY created_at DESC` 增加全局时间索引；保留完整分析投影及 JSON 表达式 | 隔离 PostgreSQL 16、完整分析投影、5 轮交错：P50 **81.636→39.269 ms（51.90%）**；计划从 Seq Scan + Sort 变为 Index Scan；索引 **2,260,992 B**；行数和 ID 顺序完全一致 |
 | [PERF-111](../../crates/platform/a4n-migration/src/migrations/generation_run_created_index.rs) | 管理员生成分析媒体运行查询；100,000 行、最近窗口 4,667 条 image/video | 为 `created_at >= since` 增加全局时间索引；保持 image/video 过滤、完整分析投影和倒序 | 隔离 PostgreSQL 16、已有 project/time 索引、5 轮交错：P50 **15.504→1.230 ms（92.07%）**；计划从 Seq Scan + Sort 变为 Index Scan；索引 **2,260,992 B**；4,667 个 ID 顺序完全一致 |
+| [PERF-112](../../crates/platform/a4n-migration/src/migrations/model_usage_root_started_index.rs) | 项目成本面板打开/刷新；1,000,000 行、30 天内命中 3,333 行 | 为 `root_project_id = ?` 增加部分 `(root_project_id, started_at DESC)` 索引；保留项目 OR 根项目过滤和完整投影 | 隔离 PostgreSQL 16、7 轮交错：两条报表 SQL 合计 P50 **126.836→13.055 ms（89.71%）**；计划从 Seq Scan 变为 BitmapOr + Bitmap Heap Scan；索引 **647,168 B**；聚合与 100 条最近记录 JSON 完全一致 |
 
 较小输入同样保留记录：OpenAI 1/32/256 事件分别下降 6.66%/6.74%/26.08%，Anthropic 分别下降 7.45%/10.30%/35.55%。1000 字符、995 次显示更新为 27.4 → 20.1 ms（26.64%）。这些没有达到 30% 的小输入结果不作为主要验收收益，不把压力批次的提升外推到单事件请求。
 
@@ -680,6 +681,15 @@ A4N_TEST_POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:16 \
   --report-dir data/test-runs/generation-run-analytics-index-20261015 \
   --timeout 60 -- node scripts/performance/generation-run-analytics-index.mjs
 ~~~
+
+### PERF-112：项目模型用量报表缺少根项目时间索引
+
+- 请求链路：NovelDetail 成本面板在打开或手动刷新时请求 30 天、最多 100 条记录。Orchestrator 先执行按币种/能力聚合，再执行最近记录列表；项目范围的两条查询都使用 `project_id = ? OR root_project_id = ?` 和 `started_at >= since`。原有项目/时间索引只能覆盖 OR 的一侧。
+- 修复：新增 `model_usage_root_started_index` migration，创建部分索引 `idx_model_usage_record_root_started (root_project_id, started_at DESC) WHERE root_project_id IS NOT NULL`，并更新运行时 schema gate。全局管理员报表不带项目过滤，不受此索引影响。
+- A/B：隔离 PostgreSQL 16.15，完整报表列形状与现有项目/用户/能力/状态索引，1,000,000 行；根项目匹配 19,900 行，30 天查询命中 3,333 行。7 轮交错、每轮在同一连接中执行生产形状的聚合和最近记录 SQL：合计 P50 **126.836→13.055 ms（89.71%）**；聚合 P50 **64.130→7.979 ms（87.56%）**，最近记录 P50 **62.428→5.263 ms（91.57%）**。执行计划从 Seq Scan 变为项目索引与根项目部分索引 BitmapOr，再做 Bitmap Heap Scan。索引大小 **647,168 B**。前后聚合 JSON（2 组）和最近记录 JSON（100 条，按时间倒序）摘要完全相同。
+- 验证：migration SQL 单测 **1/1**、迁移顺序测试 **1/1**、`cargo check -p a4n-migration -p a4n-db-models --locked --offline`、隔离 PostgreSQL 全迁移初始化集成测试 **1/1**、`cargo fmt --all -- --check` 和 `git diff --check` 通过；并从测试 schema 确认索引定义与部分谓词已实际创建。首次冷编译在 60 秒限时内未完成、测试未启动；预编译后上述测试通过。
+- 边界：A/B 只测两个 SQL 的数据库执行时间，不含 SeaORM、Orchestrator DTO 转换和 HTTP；数据为隔离合成夹具，生产根项目分布仍会影响收益。部分索引只为非空根项目记录维护；索引创建期间会按现有事务型迁移行为锁定写入，大表部署需安排维护窗口。
+- 证据：`../../data/performance-audit-20261015/model-usage-root-index/`，含交错样本、完整 EXPLAIN 计划和索引前后结果摘要。
 
 ### PERF-088：ChapterVisualPlan 编辑重复序列化与本地草稿写入
 
