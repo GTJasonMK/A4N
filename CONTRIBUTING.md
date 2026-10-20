@@ -2,6 +2,8 @@
 
 本页统一维护 A4N 的开发、目录与协作规范。安装运行见[源码运行指南](docs/public/getting-started.zh.md)，运行配置见[配置与本地数据](docs/public/configuration.zh.md)；模块边界以各 crate 的 manifest、源码和 Host 合同为准。
 
+首次贡献可先读[简明贡献指南](docs/public/repository-guidelines.md)（英文），快速查阅目录、常用命令和提交要求；详细规范仍以本页为准。
+
 ## 核心原则
 
 - **以创作流程和用户内容为中心。** 正文、档案、媒体及其关联是业务数据；缓存和临时产物另行管理，清理与迁移必须保护用户内容。
