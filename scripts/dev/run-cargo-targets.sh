@@ -14,15 +14,15 @@ include_cli="${A4N_DEV_BUILD_INCLUDE_CLI:-0}"
 case "$entry_binary" in
   a4n-tauri)
     entry_package=a4n-tauri
-    entry_manifest="$PROJECT_ROOT/crates/host/a4n-tauri/Cargo.toml"
     ;;
   a4n-server)
     entry_package=a4n-server
-    entry_manifest="$PROJECT_ROOT/crates/host/a4n-server/Cargo.toml"
     ;;
   a4n)
     entry_package=a4n-cli
-    entry_manifest="$PROJECT_ROOT/crates/host/a4n-cli/Cargo.toml"
+    ;;
+  a4n-migration)
+    entry_package=a4n-migration
     ;;
   *) die "不支持的本地运行入口: $entry_binary" ;;
 esac
@@ -97,7 +97,7 @@ add_package() {
 }
 
 add_package "$entry_package"
-if [[ "$entry_binary" == a4n-server || "$entry_binary" == a4n ]]; then
+if [[ "$entry_binary" == a4n-server || "$entry_binary" == a4n || "$entry_binary" == a4n-migration ]]; then
   build_mode=local-server
 fi
 case "$build_mode" in
@@ -139,17 +139,18 @@ case "$build_mode" in
   *) die "无效的本地构建模式: $build_mode" ;;
 esac
 [[ "$include_cli" == 1 ]] && add_package a4n-cli
+mapfile -t packages < <(printf '%s\n' "${packages[@]}" | LC_ALL=C sort)
 
 # Build the host and runtime binaries in one feature graph; alternating Cargo package selections
 # rebuilds shared dependency fingerprints (including thiserror's proc-macro dependency graph).
-build_command=("$PROJECT_ROOT/scripts/cargo.sh" build --manifest-path "$entry_manifest")
+build_command=("$PROJECT_ROOT/scripts/cargo.sh" build --manifest-path "$PROJECT_ROOT/Cargo.toml")
 build_command+=("${cargo_args[@]}")
 for package in "${packages[@]}"; do
   build_command+=(-p "$package")
 done
 if $no_default_features; then
   default_feature_package_lines="$(
-    cargo metadata --locked --no-deps --format-version 1 --manifest-path "$entry_manifest" |
+    cargo metadata --locked --no-deps --format-version 1 --manifest-path "$PROJECT_ROOT/Cargo.toml" |
       node -e '
         const selected = new Set(process.argv.slice(1));
         const metadata = JSON.parse(require("fs").readFileSync(0, "utf8"));

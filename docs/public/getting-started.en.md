@@ -44,6 +44,7 @@ Parallel worktrees need separate databases, Web/Vite ports, Qdrant collections a
 - `tools/onnxruntime/VERSION` pins ONNX Runtime. Its default location is `~/.local/share/a4n/onnxruntime/<version>`, separate from Cargo caches. Build scripts stop if the required version is missing.
 - Qdrant uses the project's pinned version. The launcher reuses a healthy service at the configured address or starts the installed local binary. Configure a separate address and storage for parallel environments.
 - The first build can take time. The entry point checks the database, JWT, frontend and required runtime dependencies. Resolve its explicit errors before retrying.
+- With the same configuration, later starts reuse unchanged frontend inputs and output while Cargo checks whether Rust compilation is needed. Documentation edits do not force a rebuild; source, build configuration, dependency or toolchain changes can require one.
 - Open the Web address printed by the launcher. The default API/static application address is `http://127.0.0.1:8080`; use the actual log output if you configured another address.
 - On an empty database, the three `A4N_BOOTSTRAP_ADMIN_*` values create the initial administrator. Log in with that account. Existing users prevent bootstrap from running again; it does not reset passwords.
 

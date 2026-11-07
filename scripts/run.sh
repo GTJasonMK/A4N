@@ -488,14 +488,15 @@ else
 fi
 
 if $SERVER; then
-  if ! $REMOTE_API; then
-    A4N_DEV_ENTRY_BINARY=a4n "$SCRIPT_DIR/dev/run-cargo-targets.sh" -- local migrate
-  fi
-  npm --prefix frontend run build
-  start_runtime_worker_watcher
-  trap stop_runtime_worker_watcher EXIT
   server_args=()
   $RELEASE && server_args+=(--release)
+  if ! $REMOTE_API; then
+    A4N_DEV_ENTRY_BINARY=a4n-migration "$SCRIPT_DIR/dev/run-cargo-targets.sh" "${server_args[@]}"
+    log_ok "数据库迁移完成"
+  fi
+  node "$SCRIPT_DIR/dev/build-frontend.mjs"
+  start_runtime_worker_watcher
+  trap stop_runtime_worker_watcher EXIT
   "$SCRIPT_DIR/dev/run-cargo-targets.sh" "${server_args[@]}"
   exit $?
 fi
@@ -507,7 +508,7 @@ fi
 $RELEASE && command+=(--release)
 $FULL_HOST && command+=(-f embedded-capabilities)
 if ! $HOT_RELOAD; then
-  npm --prefix frontend run build
+  node "$SCRIPT_DIR/dev/build-frontend.mjs"
   command+=(--no-watch --config crates/host/a4n-tauri/tauri.no-hot.conf.json)
 fi
 "${command[@]}"

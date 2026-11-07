@@ -149,6 +149,12 @@ git diff --check
 
 日常使用 `scripts/build.sh`、`scripts/run.sh`、`scripts/test.sh` 和 `scripts/cargo.sh`，复用现有缓存维护。保持常规编译选项与主 target 稳定；长期额外 target 登记到 `rust-artifacts.json`，临时测量 target 在相关进程退出后回收，成功或失败都保留必要报告。
 
+`scripts/run.sh --server`、桌面 `--no-hot` 和 `scripts/build.sh` 共用 `scripts/dev/build-frontend.mjs`：按前端源码、资源、配置、依赖锁文件、Node 版本及 `VITE_*` / `TAURI_*` 等构建环境的内容指纹复用 `frontend/dist`，同时校验产物完整性。仅修改 README 等文档或触碰源码时间戳不会重新打包；源码、配置、环境或产物变化会重新构建，失败不保留成功凭据。需要强制打包时运行 `npm --prefix frontend run build`。
+
+Server 的 Runtime watcher 共用启动时的 Cargo 包与 feature 集合，由 Cargo 判断哪些产物过期；不要在 watcher 中改成独立的 `cargo build -p <单包>`，这会切换公共依赖指纹。启动仍执行 Cargo 新鲜度检查，缓存命中时只出现很短的 `Finished`，不应出现 `Compiling`。首次运行、切换模式/features/profile、工具链或依赖变化后仍可能正常编译；验收测试的构建配置也不等同于日常开发配置。
+
+Web 启动由同一入口构建并直接执行 `a4n-migration`，再启动 Server；不要在已统一构建之后调用 `a4n local migrate`，其源码模式还会单独构建迁移器，改变公共依赖缓存。迁移、Server 和热更新使用相同的 workspace manifest、包顺序和构建 profile，迁移失败仍会停止启动。
+
 预算与保护期以 [rust-artifacts.json](rust-artifacts.json) 为准，使用 `cargo artifacts inspect` 和 `df` 判断实际占用。总量预算是软预算，构建中、近期写入及受保护产物可能暂不回收；Btrfs 快照还可能保留旧 extent，文件统计减少不等于物理空间释放。
 
 ## 协作、提交与 Pull Request

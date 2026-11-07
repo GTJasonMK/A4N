@@ -44,6 +44,7 @@ A4N_BOOTSTRAP_ADMIN_PASSWORD=replace-with-a-strong-initial-password
 - ONNX Runtime 的版本由 `tools/onnxruntime/VERSION` 固定，默认安装在 `~/.local/share/a4n/onnxruntime/<version>`，不在 Cargo 缓存里。构建脚本检查版本，缺失时会明确停止。
 - Qdrant 使用项目固定版本。启动脚本会复用配置地址上健康的服务，或在本机启动已安装的版本；并行环境需事先配置独立地址与存储。
 - 首次编译可能较久。启动入口会检查数据库、JWT、前端和所需运行依赖；按明确错误修正后再运行，不绕过检查。
+- 同一配置再次启动时，前端输入和产物均未变化就复用静态文件，Rust 由 Cargo 检查是否需要编译。文档改动不会强制重建；源码、构建配置、依赖或工具链变化后可能重新构建。
 - 打开启动日志中给出的 Web 地址，默认 API/静态页面服务地址为 `http://127.0.0.1:8080`。如果你设置了其他地址，以实际日志为准。
 - 空数据库会使用 `.env` 中的三个 `A4N_BOOTSTRAP_ADMIN_*` 值建立首个管理员。使用该账号登录；用户已存在时不会重新创建，也不会重置密码。
 

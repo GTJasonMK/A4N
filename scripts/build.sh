@@ -178,14 +178,12 @@ check_prerequisites() {
 # —— 构建前端 ——
 build_frontend() {
     echo -e "${CYAN}━━━ 构建前端 ━━━${NC}"
-    cd "$FRONTEND_DIR"
-
-    if npm run build 2>&1; then
+    if node "$SCRIPT_DIR/dev/build-frontend.mjs" 2>&1; then
         local css_size js_size
         css_size=$(du -h "$FRONTEND_DIR/dist/assets/"*.css 2>/dev/null | cut -f1 || echo "N/A")
         js_size=$(du -h "$FRONTEND_DIR/dist/assets/"*.js 2>/dev/null | cut -f1 || echo "N/A")
         echo ""
-        echo -e "  ${GREEN}✓${NC} 前端构建成功"
+        echo -e "  ${GREEN}✓${NC} 前端产物已就绪"
         echo -e "  CSS: ${css_size}  JS: ${js_size}"
         echo -e "  产物: ${FRONTEND_DIR}/dist/"
     else
