@@ -8,9 +8,11 @@ README 的中英文功能图以应用基线 `23ee94632c15b318f8462b23371b51d61c7
 
 ## 图表与实现入口 / Diagram sources
 
-中英文 README 各有 18 张 Mermaid 图，顺序和节点关系一致；图表直接随文档维护。功能总览使用无连线的功能块区分独立能力；流程图从上往下读，实线表示流程或数据流，虚线表示可选路径。架构图表达职责与资源关系，不代表进程部署或 Rust 依赖。
+中英文 README 各有 18 张 Mermaid 图，顺序和节点关系一致；图表直接随文档维护。功能总览分为两行，用无连线的功能块区分独立能力；流程沿箭头阅读，短链路横排，长链路按阶段归组，框内箭头保留步骤先后。实线表示流程或数据流，虚线表示可选路径。架构图表达职责与资源关系，不代表进程部署或 Rust 依赖。
 
 图表按阅读任务拆分：写作与补丁采纳、资料沉淀与后续检索、画布生成与媒体处理、协作与交付、多端入口与运行资源各自成图，避免把不同操作误画成一条必经链路。节点名称保留必要边界，详细条件放在图旁说明和表格中。
+
+阶段框合并相邻的线性步骤，以减少重复连线和纵向留白；条件分支、作者决策及版本校验仍明确标出。合框不改变各步骤的产物与恢复边界。布局使用原生 Mermaid 配置控制间距和换行，不缩小基础字号，也不引入额外图片生成流程。
 
 | 图表 / Diagram | 实现入口 | 关键边界 |
 | --- | --- | --- |
@@ -32,9 +34,13 @@ README 的中英文功能图以应用基线 `23ee94632c15b318f8462b23371b51d61c7
 
 2026-11-07 的文档审查使用 Mermaid 11.12.2 与 Chromium，实际渲染两种语言、明暗主题及 1280 / 1024 / 390px 共 12 组视图。36 张图的语法、可访问标题与描述、两语言关系、本地链接、裁切、中文孤字断行和页面横向溢出均经过检查；390px 下图中文字至少为 12px，并另行逐图目视审查。
 
+2026-11-08 的排版优化再次检查同样的 12 组视图，并独立审阅调整后的截图。1280px 视口、约 832px 正文宽度下，中文 18 张图的总高度从约 11,044px 降至 5,764px，减少约 48%；英文减少约 46%。390px 下文字仍至少为 12px，裁切、中文孤字断行和页面横向溢出均为 0；原有页面截图与链接保持不变。
+
 这是本地文档渲染验证，正文宽度参考 GitHub；未在 GitHub 托管页面复验，也未重新执行业务生成或演示验收。业务和演示范围仍以上述源码入口与原验证记录为准。
 
 The 2026-11-07 review rendered all 36 diagrams with Mermaid 11.12.2 in Chromium across both languages, light/dark themes and 1280 / 1024 / 390px widths. Checks covered syntax, accessible names, matching relationships, local links, clipping, orphaned Chinese characters and page overflow; diagram text remained at least 12px at 390px. A separate visual review inspected the rendered diagrams. This was a local documentation check with a GitHub-like content width, not hosted GitHub or business-workflow validation.
+
+The 2026-11-08 layout review repeated those 12 views and independently inspected the revised screenshots. At a 1280px viewport with an approximately 832px content area, total diagram height fell by about 48% in Chinese and 46% in English. Text remained at least 12px at 390px, with no clipping, orphaned Chinese characters or page overflow. Existing screenshots and links were preserved.
 
 ## 关键机制 / Mechanisms
 
@@ -55,7 +61,7 @@ The 2026-11-07 review rendered all 36 diagrams with Mermaid 11.12.2 in Chromium 
 
 ## English
 
-The index maps all 18 diagrams in each README to the implementation baseline above. Matching diagrams use the same node relationships in both languages. Independent capabilities have no connecting arrows in the overview. Workflow diagrams read from top to bottom: solid arrows show process or data flow, dashed arrows optional paths. Separate diagrams distinguish writing from patch approval, analysis from retrieval, canvas generation from processing, collaboration from delivery, and entry adapters from runtime resources. The public demo remains tied to its original baseline; [validation.json](validation.json) records that demo's narrower scope, not a new full-feature acceptance run.
+The index maps all 18 diagrams in each README to the implementation baseline above. Matching diagrams use the same node relationships in both languages. The overview groups capabilities into two rows; independent capabilities have no connecting arrows. Follow workflow arrows: short chains run horizontally, while long chains group consecutive steps into stages. In-box arrows preserve step order; solid arrows show process or data flow, dashed arrows optional paths. Grouping does not change stage artifacts or recovery boundaries. Native Mermaid spacing and wrapping keep diagrams compact without reducing the base font size. Separate diagrams distinguish writing from patch approval, analysis from retrieval, canvas generation from processing, collaboration from delivery, and entry adapters from runtime resources. The public demo remains tied to its original baseline; [validation.json](validation.json) records that demo's narrower scope, not a new full-feature acceptance run.
 
 - **Traceable memory:** key extraction references resolve to chapter source spans. Analysis preserves author-owned outlines. Fact feedback updates current facts per chapter and periodically consolidates knowledge; changes to the premise or future plotting remain proposals for the author.
 - **Task-specific, time-bounded retrieval:** candidates come from the current outline, intent, characters, unresolved threads and scene cues. Generation retrieval is limited to earlier chapters and the matching embedding identity. Context is organized into continuity, summaries and source passages with separate budgets.
