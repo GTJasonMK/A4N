@@ -10,7 +10,8 @@ import {
   type MangaPagePromptLabels,
 } from "./mangaPagePromptModel";
 
-const t: MessageTranslator = (key, params) => translateMessage("zh-CN", key, params);
+const t: MessageTranslator = (key, params) =>
+  translateMessage("zh-CN", key, params);
 
 const labels: MangaPagePromptLabels = {
   role: {
@@ -22,8 +23,18 @@ const labels: MangaPagePromptLabels = {
     resolution: "resolution",
     transition: "transition",
   },
-  pacing: { slow: "slow", medium: "medium", fast: "fast", explosive: "explosive" },
-  importance: { critical: "critical", high: "high", normal: "normal", low: "low" },
+  pacing: {
+    slow: "slow",
+    medium: "medium",
+    fast: "fast",
+    explosive: "explosive",
+  },
+  importance: {
+    critical: "critical",
+    high: "high",
+    normal: "normal",
+    low: "low",
+  },
   readingFlow: {
     top_to_bottom_left_to_right: "top-to-bottom",
     z_path: "z",
@@ -47,58 +58,58 @@ const labels: MangaPagePromptLabels = {
 };
 
 describe("buildPagePrompts", () => {
-  it("shows a linked completed image ahead of a stale failed pipeline checkpoint", () => {
-    const prompt: MangaPagePromptSummary = {
-      id: 1,
-      chapter_id: 2,
-      project_id: 3,
-      page_number: 1,
-      page_id: "page-0001",
-      image_prompt: "",
-      dialogue_text: null,
-      page_content: {
-        summary: "A character finds the letter.",
-        source_span_ids: [],
-        beat_refs: [{ unit_id: "unit-1", beat_id: "beat-1" }],
-        action: "Finds the letter.",
-        reaction: null,
-        dialogue_intent: null,
-        entry_state: "The desk is closed.",
-        exit_state: "The letter is open.",
-      },
-      page_adaptation: null,
-      page_plan: null,
-      reference_discovery: null,
-      drawing_prompt: null,
-      stale_stages: [],
-      orphaned: false,
-      system_reference_images: [],
-      reference_bindings: [],
-      source: {
-        adaptation_plan_id: 4,
-        adaptation_plan_revision: 1,
-        adaptation_plan_sha256: "adaptation-hash",
-        content_sha256: "source-hash",
-        root_project_id: 3,
-        source_chapter_id: 2,
-        source_revision_key: "revision-1",
-        source_snapshot_chapter_id: null,
-        source_snapshot_id: null,
-      },
-      generated_image_id: null,
-      status: "pending",
-      pipeline_stage: "adaptation",
-      pipeline_status: "running",
-      pipeline_error: {
-        stage: "adaptation",
-        code: "provider_error",
-        message: "temporarily unavailable",
-        retryable: true,
-      },
-      created_at: "2026-09-29T00:00:00Z",
-      updated_at: "2026-09-29T00:00:00Z",
-    };
+  const prompt: MangaPagePromptSummary = {
+    id: 1,
+    chapter_id: 2,
+    project_id: 3,
+    page_number: 1,
+    page_id: "page-0001",
+    image_prompt: "",
+    dialogue_text: null,
+    page_content: {
+      summary: "A character finds the letter.",
+      source_span_ids: [],
+      beat_refs: [{ unit_id: "unit-1", beat_id: "beat-1" }],
+      action: "Finds the letter.",
+      reaction: null,
+      dialogue_intent: null,
+      entry_state: "The desk is closed.",
+      exit_state: "The letter is open.",
+    },
+    page_adaptation: null,
+    page_plan: null,
+    reference_discovery: null,
+    drawing_prompt: null,
+    stale_stages: [],
+    orphaned: false,
+    system_reference_images: [],
+    reference_bindings: [],
+    source: {
+      adaptation_plan_id: 4,
+      adaptation_plan_revision: 1,
+      adaptation_plan_sha256: "adaptation-hash",
+      content_sha256: "source-hash",
+      root_project_id: 3,
+      source_chapter_id: 2,
+      source_revision_key: "revision-1",
+      source_snapshot_chapter_id: null,
+      source_snapshot_id: null,
+    },
+    generated_image_id: null,
+    status: "pending",
+    pipeline_stage: "adaptation",
+    pipeline_status: "running",
+    pipeline_error: {
+      stage: "adaptation",
+      code: "provider_error",
+      message: "temporarily unavailable",
+      retryable: true,
+    },
+    created_at: "2026-09-29T00:00:00Z",
+    updated_at: "2026-09-29T00:00:00Z",
+  };
 
+  it("shows a linked completed image ahead of a stale failed pipeline checkpoint", () => {
     const [page] = buildPagePrompts([prompt], null, labels);
 
     expect(page.pipelineStage).toBe("adaptation");
@@ -110,13 +121,15 @@ describe("buildPagePrompts", () => {
     expect(page.layoutItems).toEqual([]);
 
     const [completedPage] = buildPagePrompts(
-      [{
-        ...prompt,
-        generated_image_id: 44,
-        status: "completed",
-        pipeline_stage: "image",
-        pipeline_status: "failed",
-      }],
+      [
+        {
+          ...prompt,
+          generated_image_id: 44,
+          status: "completed",
+          pipeline_stage: "image",
+          pipeline_status: "failed",
+        },
+      ],
       null,
       labels,
     );
@@ -152,6 +165,37 @@ describe("buildPagePrompts", () => {
     expect(imageStagePage.pipelineStatus).toBe("failed");
     expect(storyboardPage.pipelineStage).toBeNull();
     expect(storyboardPage.pipelineStatus).toBeNull();
+  });
+
+  it("keeps stored system portraits separate when the current portrait list changes or is absent", () => {
+    const system = {
+      asset_kind: "character_portrait" as const,
+      asset_id: 8,
+      image_path: "saved-primary.png",
+    };
+    const user = {
+      asset_kind: "generated_image" as const,
+      asset_id: 9,
+      image_path: "user-reference.png",
+    };
+    const [page] = buildPagePrompts(
+      [
+        {
+          ...prompt,
+          reference_bindings: [
+            {
+              character_name: "Mira",
+              bound_asset: system,
+              user_added_assets: [user],
+            },
+          ],
+        },
+      ],
+      null,
+      labels,
+    );
+    expect(page.referenceBindings[0].systemAsset).toEqual(system);
+    expect(page.referenceBindings[0].userAddedAssets).toEqual([user]);
   });
 });
 

@@ -125,22 +125,9 @@ const pageCharacterNames = (prompt: MangaPagePromptSummary): string[] => {
 
 const referenceBinding = (
   binding: MangaReferenceBindingSummary,
-  profiles: CharacterProfile[],
-  portraits: Portrait[],
 ): ReferenceBinding => {
-  const characterProfileIds = new Set(
-    profiles
-      .filter((profile) => profile.name.trim() === binding.character_name.trim())
-      .map((profile) => profile.id),
-  );
-  const autoPortrait = portraits.find(
-    (portrait) =>
-      portrait.is_primary && characterProfileIds.has(portrait.profile_id),
-  );
   const boundAsset = binding.bound_asset;
-  const isSystemAsset =
-    boundAsset?.asset_kind === "character_portrait" &&
-    autoPortrait?.id === boundAsset.asset_id;
+  const isSystemAsset = boundAsset?.asset_kind === "character_portrait";
   const legacyUserAsset = boundAsset && !isSystemAsset ? boundAsset : null;
   const userAddedAssets = legacyUserAsset
     ? [legacyUserAsset, ...binding.user_added_assets.filter(
@@ -209,8 +196,6 @@ export const buildPagePrompts = (
   currentContentHash: string | null,
   labels: MangaPagePromptLabels,
   stageMode?: MangaPageWorkspaceStage,
-  profiles: CharacterProfile[] = [],
-  portraits: Portrait[] = [],
 ): MangaPagePrompt[] => {
   return [...prompts]
     .sort((a, b) => a.page_number - b.page_number)
@@ -243,9 +228,7 @@ export const buildPagePrompts = (
         dialogueText: prompt.dialogue_text,
         layoutItems: buildLayoutItems(prompt, labels),
         systemReferenceImages: prompt.system_reference_images,
-        referenceBindings: prompt.reference_bindings.map((binding) =>
-          referenceBinding(binding, profiles, portraits),
-        ),
+        referenceBindings: prompt.reference_bindings.map(referenceBinding),
       };
     });
 };

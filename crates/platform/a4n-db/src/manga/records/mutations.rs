@@ -190,9 +190,6 @@ pub async fn update_manga_page_prompt_layout_expected<C: ConnectionTrait>(
             expected_updated_at.trim(),
             "%Y-%m-%d %H:%M:%S%.f",
         )
-        .or_else(|_| {
-            chrono::NaiveDateTime::parse_from_str(expected_updated_at.trim(), "%Y-%m-%d %H:%M:%S")
-        })
         .map_err(|_| {
             MangaPromptRecordError::InvalidArgument(
                 "漫画提示词版本格式无效，请刷新后重试".to_string(),
@@ -272,9 +269,6 @@ pub async fn update_manga_page_prompt_image_prompt_expected(
             expected_updated_at.trim(),
             "%Y-%m-%d %H:%M:%S%.f",
         )
-        .or_else(|_| {
-            chrono::NaiveDateTime::parse_from_str(expected_updated_at.trim(), "%Y-%m-%d %H:%M:%S")
-        })
         .map_err(|_| {
             MangaPromptRecordError::InvalidArgument(
                 "漫画提示词版本格式无效，请刷新后重试".to_string(),

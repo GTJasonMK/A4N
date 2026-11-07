@@ -138,13 +138,6 @@ export interface DomainAgentConsoleProps {
   ) => Promise<void>;
 }
 
-export {
-  clearDomainAgentComposerDraft,
-  domainAgentComposerOwnerKey,
-  domainAgentOperationInFlight,
-  hasDomainAgentComposerDraft,
-} from "./domainAgentDrafts";
-
 const randomClientMessageId = (): string =>
   typeof globalThis.crypto?.randomUUID === "function"
     ? globalThis.crypto.randomUUID()

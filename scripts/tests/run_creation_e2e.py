@@ -523,6 +523,12 @@ def main() -> int:
         checked(cli, ["health"], "health")
         checked(cli, ["capabilities", "check"], "CLI/Server contract")
         checked(cli, ["auth", "login", "--username", username, "--password-stdin"], "login", password + "\n")
+        pending_index = checked(
+            cli, ["call", "list_pending_task_index", "--args", "{}"], "admin pending task index",
+        )[0]["data"]
+        if not isinstance(pending_index, list):
+            raise RunnerError("管理员待处理任务索引必须返回列表")
+        report["admin_pending_task_index"] = {"success": True, "count": len(pending_index)}
         for package in ("ai-workflow", "vector-rag", "video", "manga", "agent", "canvas", "export", "external-import", "galgame"):
             checked(cli, ["call", "start_package_lifecycle", "--args", "-", "--allow-destructive"], "enable " + package,
                     json.dumps({"input": {"package_id": package, "action": "enable", "operation_id": str(uuid.uuid4())}}))

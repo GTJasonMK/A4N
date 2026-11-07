@@ -12,6 +12,7 @@ dependencies = [
  "a4n-db",
  "a4n-domain",
  "a4n-error",
+ "a4n-migration",
  "a4n-worker-contract",
  "a4n-worker-db-adapter",
  "a4n-worker-runtime",
@@ -21,6 +22,7 @@ dependencies = [
  "serde_json",
  "subtle",
  "tokio",
+ "tower",
 ]
 
 [[package]]
@@ -2307,7 +2309,6 @@ dependencies = [
  "a4n-domain",
  "a4n-project-status-worker-contract",
  "a4n-worker-contract",
- "a4n-worker-db-adapter",
  "a4n-worker-runtime",
  "anyhow",
  "axum",
@@ -2836,7 +2837,6 @@ dependencies = [
 name = "a4n-source-snapshot-worker"
 version = "0.1.0"
 dependencies = [
- "a4n-api-contract",
  "a4n-config",
  "a4n-db",
  "a4n-domain",

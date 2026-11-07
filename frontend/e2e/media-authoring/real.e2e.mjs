@@ -61,6 +61,11 @@ describe("Media authoring against the real Host", () => {
           const panel = await $(`#${panelId}`);
           assert.equal(await panel.getAttribute("role"), "tabpanel");
           await browser.waitUntil(async () => await panel.execute((element) => !element.querySelector(".animate-spin")), { timeoutMsg: `${kind} stage ${index + 1} did not finish loading` });
+          if (kind === "comic" && index === 4) {
+            const headings = await panel.execute((element) => [...element.querySelectorAll("h3")]
+              .filter((heading) => heading.textContent.trim() === "单页分镜").length);
+            assert.equal(headings, 1, "分镜内容只应显示一个阶段标题");
+          }
           const errors = await browser.execute(() => [...document.querySelectorAll('[role="alert"]')]
             .map((element) => element.textContent).filter((text) => /失败|错误/.test(text ?? "")));
           assert.deepEqual(errors, []);

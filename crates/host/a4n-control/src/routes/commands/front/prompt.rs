@@ -75,22 +75,6 @@ macro_rules! prompt_web_name_sync_command {
     };
 }
 
-macro_rules! prompt_web_name_unit_command {
-    ($name:ident, $action:path $(,)?) => {
-        pub(in crate::routes::commands) async fn $name(
-            state: &ServerState,
-            _user_id: i64,
-            args: &Value,
-        ) -> Result<Value, ApiError> {
-            let name = string_arg(args, "name")?;
-            $action(state.runtime(), &name)
-                .await
-                .map_err(ApiError::bad_request)?;
-            Ok(Value::Null)
-        }
-    };
-}
-
 macro_rules! prompt_web_user_input_unit_command {
     ($name:ident, $input:ty, $action:path $(,)?) => {
         pub(in crate::routes::commands) async fn $name(

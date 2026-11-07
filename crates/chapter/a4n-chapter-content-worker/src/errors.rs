@@ -39,29 +39,6 @@ pub(super) fn import_error(
     }
 }
 
-pub(super) fn collaboration_error(
-    error: a4n_db::collaboration::CollaborationDbError,
-) -> WorkerFailure {
-    match error {
-        a4n_db::collaboration::CollaborationDbError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::NotFound(message) => {
-            WorkerFailure::not_found(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::Forbidden(message) => {
-            WorkerFailure::unauthorized(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::InvalidState(message)
-        | a4n_db::collaboration::CollaborationDbError::Internal(message) => {
-            WorkerFailure::conflict(message)
-        }
-        a4n_db::collaboration::CollaborationDbError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
-}
-
 pub(super) fn generation_lifecycle_error(
     error: a4n_db::generation::GenerationLifecycleGateError,
 ) -> WorkerFailure {
@@ -90,21 +67,6 @@ pub(super) fn project_error(error: a4n_db::project::ProjectMutationError) -> Wor
             WorkerFailure::conflict(message)
         }
         a4n_db::project::ProjectMutationError::Database(error) => {
-            WorkerFailure::unavailable(error.to_string())
-        }
-    }
-}
-
-pub(super) fn workflow_error(error: a4n_db::workflow::WorkflowReadError) -> WorkerFailure {
-    match error {
-        a4n_db::workflow::WorkflowReadError::InvalidArgument(message) => {
-            WorkerFailure::invalid_request(message)
-        }
-        a4n_db::workflow::WorkflowReadError::NotFound(message) => WorkerFailure::not_found(message),
-        a4n_db::workflow::WorkflowReadError::InvalidData(message) => {
-            WorkerFailure::conflict(message)
-        }
-        a4n_db::workflow::WorkflowReadError::Database(error) => {
             WorkerFailure::unavailable(error.to_string())
         }
     }

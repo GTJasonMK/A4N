@@ -121,7 +121,6 @@ impl PageSessionRegistry {
                         owner_user_id,
                         authorization: None,
                         operations: VecDeque::new(),
-                        operation_cancellation: None,
                     },
                 );
                 (response, "created")
@@ -263,47 +262,6 @@ impl PageSessionRegistry {
             route: view.route.clone(),
             commands,
         })
-    }
-
-    pub(crate) fn command_cancellation_token(
-        &self,
-        owner_user_id: i64,
-        session_id: &str,
-        operation_id: &str,
-        command: &str,
-        session_token: &str,
-        agent_id: &str,
-        agent_token: &str,
-        agents: &AgentRegistry,
-    ) -> Result<tokio_util::sync::CancellationToken, ApiError> {
-        self.expire();
-        agents.authorize(owner_user_id, agent_id, agent_token)?;
-        let records = self.records.read();
-        let record = records
-            .get(session_id)
-            .ok_or_else(|| ApiError::not_found("Page Session 不存在"))?;
-        authorize_token(record, owner_user_id, session_token)?;
-        if !matches!(
-            record.view.status,
-            PageSessionStatus::Running | PageSessionStatus::Paused
-        )
-            || record.view.operation_id.as_deref() != Some(operation_id)
-        {
-            return Err(ApiError::page_operation_cancelled());
-        }
-        let operation = record
-            .operations
-            .iter()
-            .find(|operation| operation.operation_id == operation_id)
-            .ok_or_else(|| ApiError::not_found("Page Operation 不存在"))?;
-        if operation.agent_id.as_deref() != Some(agent_id) || operation.command != command {
-            return Err(ApiError::forbidden("Page Operation 与 Host 命令身份不匹配"));
-        }
-        record
-            .operation_cancellation
-            .clone()
-            .filter(|token| !token.is_cancelled())
-            .ok_or_else(ApiError::page_operation_cancelled)
     }
 
     fn attach_by_code(
@@ -569,7 +527,6 @@ impl PageSessionRegistry {
             push_operation(record, operation.clone());
             record.view.operation_id = Some(operation.operation_id.clone());
             record.view.status = PageSessionStatus::Running;
-            record.operation_cancellation = Some(tokio_util::sync::CancellationToken::new());
             touch(&mut record.view, now);
             operation
         };
@@ -630,7 +587,6 @@ impl PageSessionRegistry {
                     | PageOperationStatus::Cancelled
             ) {
                 record.view.operation_id = None;
-                record.operation_cancellation = None;
                 if record.view.status != PageSessionStatus::Paused {
                     record.view.status = if record.view.agent_id.is_some() {
                         PageSessionStatus::Attached
@@ -756,7 +712,6 @@ impl PageSessionRegistry {
                         now,
                     );
                     record.view.operation_id = None;
-                    record.operation_cancellation = None;
                     record.view.status = if record.view.agent_id.is_some() {
                         PageSessionStatus::Attached
                     } else {
@@ -780,7 +735,6 @@ impl PageSessionRegistry {
                         record.view.status = PageSessionStatus::Idle;
                         record.view.agent_id = None;
                         record.view.operation_id = None;
-                        record.operation_cancellation = None;
                         record.authorization = None;
                         record.view.last_operation = operation.clone();
                         touch(&mut record.view, now);

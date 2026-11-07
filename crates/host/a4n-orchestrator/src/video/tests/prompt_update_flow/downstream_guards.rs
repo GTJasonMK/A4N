@@ -33,13 +33,14 @@ async fn update_prompt_rejects_frame_prompt_when_video_prompts_exist() {
     let service = crate::video::test_video_orchestrator(db.clone()).await;
 
     let err = service
-        .update_chapter_video_prompt_with_policy(
+        .update_chapter_video_prompt_with_policy_expected(
             frame.id,
             ChapterVideoPromptPatch {
                 visual_prompt: Some("新的边界帧提示词".to_string()),
                 ..Default::default()
             },
             false,
+            &frame.updated_at.to_string(),
         )
         .await
         .expect_err("video prompt must lock earlier frame prompt");
@@ -91,13 +92,14 @@ async fn update_prompt_rejects_frame_prompt_when_generated_frame_image_exists() 
     let service = crate::video::test_video_orchestrator(db.clone()).await;
 
     let err = service
-        .update_chapter_video_prompt_with_policy(
+        .update_chapter_video_prompt_with_policy_expected(
             frame.id,
             ChapterVideoPromptPatch {
                 visual_prompt: Some("新的边界帧提示词".to_string()),
                 ..Default::default()
             },
             false,
+            &frame.updated_at.to_string(),
         )
         .await
         .expect_err("generated frame image must lock its frame prompt");

@@ -21,3 +21,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 subtle = { workspace = true }
 tokio = { workspace = true }
+
+[dev-dependencies]
+a4n-migration = { workspace = true }
+tower = { workspace = true, features = ["util"] }

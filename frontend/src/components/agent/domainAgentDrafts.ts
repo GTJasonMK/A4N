@@ -40,14 +40,6 @@ function isCurrentOwner(owner: string): boolean {
     scope.sessionId === readCurrentSessionId();
 }
 
-export function hasDomainAgentComposerDraft(ownerKey: string): boolean {
-  return hasDomainAgentComposerDraftForOwner(domainAgentComposerOwnerKey(ownerKey));
-}
-
-export function domainAgentOperationInFlight(ownerKey: string): boolean {
-  return domainAgentOperationInFlightForOwner(domainAgentComposerOwnerKey(ownerKey));
-}
-
 function syncDirty(owner: string): void {
   const key = `domain-agent:${owner}`;
   if (!isCurrentOwner(owner)) {
@@ -85,10 +77,6 @@ function updateDomainAgentDrafts(owner: string, update: SetStateAction<Record<st
   notifyOwner(owner);
 }
 
-export function clearDomainAgentComposerDraft(ownerKey: string): void {
-  updateDomainAgentDrafts(domainAgentComposerOwnerKey(ownerKey), {});
-}
-
 export function clearDomainAgentComposerDraftForOwner(owner: string): void {
   updateDomainAgentDrafts(owner, {});
 }
@@ -96,10 +84,6 @@ export function clearDomainAgentComposerDraftForOwner(owner: string): void {
 export function hasDomainAgentComposerDraftForOwner(owner: string): boolean {
   return isCurrentOwner(owner) &&
     Object.values(draftsByOwner.get(owner) ?? {}).some((value) => value.trim().length > 0);
-}
-
-export function isDomainAgentOwnerCurrent(owner: string): boolean {
-  return isCurrentOwner(owner);
 }
 
 export function domainAgentOperationInFlightForOwner(owner: string): boolean {

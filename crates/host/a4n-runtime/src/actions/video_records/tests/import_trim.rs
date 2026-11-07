@@ -58,11 +58,11 @@ fn staged_imported_video_source_is_owned_by_temp_directory_until_drop() {
 fn uploaded_video_source_keeps_temp_file_until_drop_and_writes_all_bytes() {
     let temp_dir = unique_temp_dir("a4n_uploaded_video_source");
 
-    let source = super::imports::persist_uploaded_video_source(
+    let source = super::imports::uploaded_video_source(
         &temp_dir,
-        "source.mp4".to_string(),
-        "mp4",
-        b"video-bytes",
+        "source.mp4",
+        "video/mp4",
+        "dmlkZW8tYnl0ZXM=",
         "上传视频",
     )
     .expect("persist uploaded video source");
@@ -122,11 +122,11 @@ fn uploaded_video_source_removes_owned_temp_file_when_source_loading_fails() {
     invalid_component.push(0xff);
     let temp_dir = std::env::temp_dir().join(std::ffi::OsString::from_vec(invalid_component));
 
-    let error = match super::imports::persist_uploaded_video_source(
+    let error = match super::imports::uploaded_video_source(
         &temp_dir,
-        "source.mp4".to_string(),
-        "mp4",
-        b"video-bytes",
+        "source.mp4",
+        "video/mp4",
+        "dmlkZW8tYnl0ZXM=",
         "上传视频",
     ) {
         Ok(source) => {

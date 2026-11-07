@@ -60,10 +60,6 @@ export const chapterEventImportanceLabel = (
   return item ? t(item.key) : null;
 };
 
-export const chapterEventImportanceRank = (
-  value: string | null | undefined,
-): number => IMPORTANCE_PRESENTATION[normalizedKey(value)]?.rank ?? 0;
-
 export const chapterEventImportanceFilterKey = (value: string | null | undefined): MessageKey =>
   IMPORTANCE_PRESENTATION[normalizedKey(value)]?.key ?? "novel.unlabeled";
 

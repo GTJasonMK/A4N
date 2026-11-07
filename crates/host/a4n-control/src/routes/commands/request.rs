@@ -1,7 +1,6 @@
 use std::future::Future;
 
 use serde_json::Value;
-use tokio_util::sync::CancellationToken;
 
 use super::ApiError;
 
@@ -27,26 +26,6 @@ where
     })?
 }
 
-pub(in crate::routes::commands) async fn run_with_runtime_context_cancellable<F>(
-    user_id: i64,
-    snapshot: Option<a4n_runtime::host_api::runtime_config::RuntimeConfigSnapshot>,
-    cancellation: CancellationToken,
-    future: F,
-) -> Result<Value, ApiError>
-where
-    F: Future<Output = Result<Value, ApiError>> + Send + 'static,
-{
-    let snapshot = snapshot.or_else(a4n_runtime::host_api::runtime_config::current_snapshot);
-    let command = a4n_runtime::host_api::runtime_config::request_scope(user_id, snapshot, future);
-    tokio::select! {
-        biased;
-        _ = cancellation.cancelled() => {
-            Err(ApiError::page_operation_cancelled())
-        }
-        result = command => result,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -54,8 +33,7 @@ mod tests {
     use serde_json::json;
     use tokio::sync::oneshot;
 
-    use super::{run_with_runtime_context, run_with_runtime_context_cancellable};
-    use tokio_util::sync::CancellationToken;
+    use super::run_with_runtime_context;
 
     #[tokio::test]
     async fn detached_command_survives_dropped_http_waiter() {
@@ -112,29 +90,5 @@ mod tests {
         .await
         .expect("detached command should complete");
         assert_eq!(result["inherited"], json!(true));
-    }
-
-    #[tokio::test]
-    async fn cancellable_command_returns_cancelled_and_drops_future() {
-        let (started_tx, started_rx) = oneshot::channel();
-        let cancellation = CancellationToken::new();
-        let task = tokio::spawn(run_with_runtime_context_cancellable(
-            1,
-            None,
-            cancellation.clone(),
-            async move {
-                let _ = started_tx.send(());
-                std::future::pending::<()>().await;
-                Ok(json!({"completed": true}))
-            },
-        ));
-
-        started_rx.await.expect("cancellable command should start");
-        cancellation.cancel();
-        let error = task
-            .await
-            .expect("cancellable waiter should finish")
-            .unwrap_err();
-        assert_eq!(error.into_value()["code"], "page_operation_cancelled");
     }
 }

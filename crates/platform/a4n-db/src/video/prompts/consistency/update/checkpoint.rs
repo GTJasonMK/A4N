@@ -11,29 +11,6 @@ use super::{
     policy::update_chapter_video_prompt_with_policy_in,
 };
 
-pub async fn update_chapter_video_prompt_with_generation_run_checkpoint<C>(
-    db: &C,
-    prompt_id: i64,
-    input: ChapterVideoPromptPatch,
-    metadata_json: Option<Value>,
-    allow_downstream: bool,
-    generation_run: crate::generation::RecordCompletedGenerationRunWithCheckpointInput,
-) -> Result<chapter_video_prompt::Model, VideoDbError>
-where
-    C: ConnectionTrait + TransactionTrait,
-{
-    update_chapter_video_prompt_with_generation_run_checkpoint_expected(
-        db,
-        prompt_id,
-        input,
-        metadata_json,
-        allow_downstream,
-        None,
-        generation_run,
-    )
-    .await
-}
-
 pub async fn update_chapter_video_prompt_with_generation_run_checkpoint_expected<C>(
     db: &C,
     prompt_id: i64,

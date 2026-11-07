@@ -7,13 +7,14 @@ async fn update_prompt_rejects_blank_visual_prompt_without_update() {
     let service = crate::video::test_video_orchestrator(db.clone()).await;
 
     let err = service
-        .update_chapter_video_prompt_with_policy(
+        .update_chapter_video_prompt_with_policy_expected(
             prompt.id,
             ChapterVideoPromptPatch {
                 visual_prompt: Some(" \n\t ".to_string()),
                 ..Default::default()
             },
             false,
+            &prompt.updated_at.to_string(),
         )
         .await
         .expect_err("blank visual_prompt must not be saved");
@@ -41,13 +42,14 @@ async fn update_prompt_trims_visual_prompt_and_marks_unlinked_video_prompt_pendi
     let service = crate::video::test_video_orchestrator(db.clone()).await;
 
     let updated = service
-        .update_chapter_video_prompt_with_policy(
+        .update_chapter_video_prompt_with_policy_expected(
             prompt.id,
             ChapterVideoPromptPatch {
                 visual_prompt: Some("  新镜头提示词  ".to_string()),
                 ..Default::default()
             },
             false,
+            &prompt.updated_at.to_string(),
         )
         .await
         .expect("valid visual_prompt should be saved after trimming");
@@ -67,7 +69,7 @@ async fn update_prompt_normalizes_blank_optional_prompts_to_none() {
     let service = crate::video::test_video_orchestrator(db.clone()).await;
 
     let updated = service
-        .update_chapter_video_prompt_with_policy(
+        .update_chapter_video_prompt_with_policy_expected(
             prompt.id,
             ChapterVideoPromptPatch {
                 motion_prompt: Some(Some(" \n\t ".to_string())),
@@ -75,6 +77,7 @@ async fn update_prompt_normalizes_blank_optional_prompts_to_none() {
                 ..Default::default()
             },
             false,
+            &prompt.updated_at.to_string(),
         )
         .await
         .expect("blank optional prompt fields should clear to null");
@@ -94,13 +97,14 @@ async fn update_prompt_rejects_generated_video_linked_prompt() {
     let service = crate::video::test_video_orchestrator(db.clone()).await;
 
     let err = service
-        .update_chapter_video_prompt_with_policy(
+        .update_chapter_video_prompt_with_policy_expected(
             prompt.id,
             ChapterVideoPromptPatch {
                 visual_prompt: Some("新镜头提示词".to_string()),
                 ..Default::default()
             },
             false,
+            &prompt.updated_at.to_string(),
         )
         .await
         .expect_err("generated video must lock its video prompt");
@@ -130,13 +134,14 @@ async fn update_prompt_rejects_invalid_reference_image_ids_json_without_update()
     let service = crate::video::test_video_orchestrator(db.clone()).await;
 
     let err = service
-        .update_chapter_video_prompt_with_policy(
+        .update_chapter_video_prompt_with_policy_expected(
             prompt.id,
             ChapterVideoPromptPatch {
                 reference_image_ids_json: Some(Some(json!("not-an-array"))),
                 ..Default::default()
             },
             false,
+            &prompt.updated_at.to_string(),
         )
         .await
         .expect_err("reference_image_ids_json must be an integer array");
@@ -165,13 +170,14 @@ async fn update_prompt_rejects_reference_image_from_another_project_without_upda
     let service = crate::video::test_video_orchestrator(db.clone()).await;
 
     let err = service
-        .update_chapter_video_prompt_with_policy(
+        .update_chapter_video_prompt_with_policy_expected(
             prompt.id,
             ChapterVideoPromptPatch {
                 reference_image_ids_json: Some(Some(json!([image.id]))),
                 ..Default::default()
             },
             false,
+            &prompt.updated_at.to_string(),
         )
         .await
         .expect_err("cross-project reference image must be rejected");
@@ -205,13 +211,14 @@ async fn update_prompt_rejects_reference_image_from_another_chapter_without_upda
     let service = crate::video::test_video_orchestrator(db.clone()).await;
 
     let err = service
-        .update_chapter_video_prompt_with_policy(
+        .update_chapter_video_prompt_with_policy_expected(
             prompt.id,
             ChapterVideoPromptPatch {
                 reference_image_ids_json: Some(Some(json!([image.id]))),
                 ..Default::default()
             },
             false,
+            &prompt.updated_at.to_string(),
         )
         .await
         .expect_err("cross-chapter reference image must be rejected");
@@ -255,13 +262,14 @@ async fn update_prompt_accepts_same_chapter_reference_image_with_stale_source_ha
     let service = crate::video::test_video_orchestrator(db.clone()).await;
 
     let updated = service
-        .update_chapter_video_prompt_with_policy(
+        .update_chapter_video_prompt_with_policy_expected(
             prompt.id,
             ChapterVideoPromptPatch {
                 reference_image_ids_json: Some(Some(json!([image.id]))),
                 ..Default::default()
             },
             false,
+            &prompt.updated_at.to_string(),
         )
         .await
         .expect(
@@ -303,13 +311,14 @@ async fn update_prompt_accepts_same_chapter_video_frame_reference_with_stale_sou
     let service = crate::video::test_video_orchestrator(db.clone()).await;
 
     let updated = service
-        .update_chapter_video_prompt_with_policy(
+        .update_chapter_video_prompt_with_policy_expected(
             prompt.id,
             ChapterVideoPromptPatch {
                 reference_image_ids_json: Some(Some(json!([image.id]))),
                 ..Default::default()
             },
             false,
+            &prompt.updated_at.to_string(),
         )
         .await
         .expect("same-chapter video frame image should be reusable as a frame reference");
@@ -327,13 +336,14 @@ async fn update_prompt_accepts_project_reference_image_and_marks_unlinked_video_
     let service = crate::video::test_video_orchestrator(db.clone()).await;
 
     let updated = service
-        .update_chapter_video_prompt_with_policy(
+        .update_chapter_video_prompt_with_policy_expected(
             prompt.id,
             ChapterVideoPromptPatch {
                 reference_image_ids_json: Some(Some(json!([image.id]))),
                 ..Default::default()
             },
             false,
+            &prompt.updated_at.to_string(),
         )
         .await
         .expect("project-scoped reference image should be valid");

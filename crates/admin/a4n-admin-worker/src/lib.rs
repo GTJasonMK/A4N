@@ -90,6 +90,10 @@ impl AdminWorker {
             .route("/v1/commands/admin.projects.list", post(projects))
             .route("/v1/commands/admin.tasks.pending", post(pending_tasks))
             .route(
+                "/v1/commands/admin.tasks.pending.index",
+                post(pending_task_index),
+            )
+            .route(
                 "/v1/commands/admin.generation.analytics",
                 post(generation_analytics),
             )
@@ -137,7 +141,7 @@ async fn async_main() -> anyhow::Result<()> {
 }
 
 macro_rules! handler {
-    ($name:ident, $input:ty, $operation:expr, $method:ident) => {
+    ($name:ident, $input:ty, $method:ident) => {
         async fn $name(
             State(state): State<WorkerState>,
             headers: HeaderMap,
@@ -148,102 +152,39 @@ macro_rules! handler {
     };
 }
 
-handler!(
-    require_permission,
-    AdminPermissionInput,
-    ADMIN_PERMISSION_OPERATION,
-    require_permission
-);
-handler!(
-    is_active_admin_user,
-    AdminUserInput,
-    ADMIN_ACTIVE_OPERATION,
-    is_active_admin_user
-);
-handler!(
-    user_usage,
-    AdminUserUsageInput,
-    ADMIN_USER_USAGE_OPERATION,
-    user_usage
-);
-handler!(
-    token_summary,
-    AdminUserInput,
-    ADMIN_TOKEN_SUMMARY_OPERATION,
-    token_summary
-);
-handler!(
-    usage_trends,
-    AdminUsageTrendsInput,
-    ADMIN_USAGE_TRENDS_OPERATION,
-    usage_trends
-);
-handler!(
-    overview,
-    AdminCallerInput,
-    ADMIN_OVERVIEW_OPERATION,
-    overview
-);
-handler!(
-    projects,
-    AdminCallerInput,
-    ADMIN_PROJECTS_OPERATION,
-    projects
-);
-handler!(
-    pending_tasks,
-    AdminCallerInput,
-    ADMIN_PENDING_TASKS_OPERATION,
-    pending_tasks
-);
+handler!(require_permission, AdminPermissionInput, require_permission);
+handler!(is_active_admin_user, AdminUserInput, is_active_admin_user);
+handler!(user_usage, AdminUserUsageInput, user_usage);
+handler!(token_summary, AdminUserInput, token_summary);
+handler!(usage_trends, AdminUsageTrendsInput, usage_trends);
+handler!(overview, AdminCallerInput, overview);
+handler!(projects, AdminCallerInput, projects);
+handler!(pending_tasks, AdminCallerInput, pending_tasks);
+handler!(pending_task_index, AdminCallerInput, pending_task_index);
 handler!(
     generation_analytics,
     AdminGenerationAnalyticsInput,
-    ADMIN_GENERATION_ANALYTICS_OPERATION,
     generation_analytics
 );
-handler!(
-    database_health,
-    AdminCallerInput,
-    ADMIN_DATABASE_HEALTH_OPERATION,
-    database_health
-);
-handler!(users, AdminCallerInput, ADMIN_USERS_OPERATION, users);
-handler!(invites, AdminCallerInput, ADMIN_INVITES_OPERATION, invites);
-handler!(
-    create_user,
-    AdminCreateUserInput,
-    ADMIN_CREATE_USER_OPERATION,
-    create_user
-);
-handler!(
-    create_invite,
-    AdminCreateInviteInput,
-    ADMIN_CREATE_INVITE_OPERATION,
-    create_invite
-);
-handler!(
-    update_role,
-    AdminUpdateRoleInput,
-    ADMIN_UPDATE_ROLE_OPERATION,
-    update_role
-);
+handler!(database_health, AdminCallerInput, database_health);
+handler!(users, AdminCallerInput, users);
+handler!(invites, AdminCallerInput, invites);
+handler!(create_user, AdminCreateUserInput, create_user);
+handler!(create_invite, AdminCreateInviteInput, create_invite);
+handler!(update_role, AdminUpdateRoleInput, update_role);
 handler!(
     broadcast_notification,
     AdminBroadcastNotificationInput,
-    ADMIN_BROADCAST_NOTIFICATION_OPERATION,
     broadcast_notification
 );
 handler!(
     notification_inbox,
     NotificationCallerInput,
-    NOTIFICATION_INBOX_OPERATION,
     notification_inbox
 );
 handler!(
     notification_read,
     NotificationReadInput,
-    NOTIFICATION_READ_OPERATION,
     mark_notification_read
 );
 
@@ -305,6 +246,11 @@ fn unauthorized() -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::{
+        body::{Body, to_bytes},
+        http::Request,
+    };
+    use tower::ServiceExt;
 
     #[test]
     fn caller_must_be_a_matching_user_principal() {
@@ -321,5 +267,79 @@ mod tests {
         };
         assert_eq!(state.state.caller(&principal, 7).unwrap(), 7);
         assert!(state.state.caller(&principal, 8).is_err());
+    }
+
+    #[tokio::test]
+    async fn pending_task_index_route_checks_auth_and_reads_the_index() {
+        let db = a4n_migration::test_support::connect_test_database().await;
+        let mut users = Vec::new();
+        for (name, role) in [("index_admin", "admin"), ("index_creator", "user")] {
+            users.push(
+                a4n_db::auth::create_user_summary(
+                    &db,
+                    name,
+                    &format!("{name}@example.test"),
+                    "Index-test-password-42",
+                    role,
+                )
+                .await
+                .unwrap()
+                .id,
+            );
+        }
+        let router =
+            AdminWorker::new(DbHandle::new(Arc::new(db)), ADMIN_WORKER_ID, "token").router();
+        for (caller, token, permitted) in [
+            (users[0], "wrong-token", false),
+            (users[1], "token", false),
+            (users[0], "token", true),
+        ] {
+            let envelope = WorkerEnvelope {
+                schema_version: WORKER_SCHEMA_VERSION,
+                request_id: "pending-index-test".into(),
+                trace_id: "pending-index-test".into(),
+                principal: WorkerPrincipal {
+                    kind: WorkerPrincipalKind::User,
+                    subject: caller.to_string(),
+                },
+                operation_id: ADMIN_PENDING_TASK_INDEX_OPERATION.into(),
+                idempotency_key: "pending-index-test".into(),
+                project_id: None,
+                root_project_id: None,
+                target_revision: None,
+                runtime_config_snapshot_ref: None,
+                lease: a4n_worker_contract::WorkerLease::control_request(ADMIN_WORKER_ID),
+                payload: AdminCallerInput {
+                    caller_user_id: caller,
+                },
+            };
+            let response = router
+                .clone()
+                .oneshot(
+                    Request::post(format!("/v1/commands/{ADMIN_PENDING_TASK_INDEX_OPERATION}"))
+                        .header(WORKER_AUTH_HEADER, token)
+                        .header("content-type", "application/json")
+                        .body(Body::from(serde_json::to_vec(&envelope).unwrap()))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            if token == "wrong-token" {
+                assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+                continue;
+            }
+            assert_eq!(response.status(), StatusCode::OK);
+            let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+            let result: a4n_worker_contract::WorkerResponse<
+                Vec<a4n_admin_worker_contract::PendingTaskIndexSummary>,
+            > = serde_json::from_slice(&body).unwrap();
+            if permitted {
+                assert!(result.error.is_none(), "{:?}", result.error);
+                assert!(result.payload.unwrap().is_empty());
+            } else {
+                assert!(result.payload.is_none());
+                assert!(result.error.unwrap().message.contains("当前用户不是管理员"));
+            }
+        }
     }
 }

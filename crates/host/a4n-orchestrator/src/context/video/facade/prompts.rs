@@ -54,17 +54,6 @@ impl OrchestratorContext {
             .await
     }
 
-    pub(crate) async fn update_chapter_video_prompt_with_policy(
-        &self,
-        prompt_id: i64,
-        input: ChapterVideoPromptPatch,
-        allow_downstream: bool,
-    ) -> Result<ChapterVideoPromptRecord, AppError> {
-        self.video
-            .update_chapter_video_prompt_with_policy(prompt_id, input, allow_downstream)
-            .await
-    }
-
     pub(crate) async fn update_chapter_video_prompt_with_policy_expected(
         &self,
         prompt_id: i64,

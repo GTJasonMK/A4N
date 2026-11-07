@@ -1223,12 +1223,13 @@ async fn prompt_update_checkpoint_commits_all_records_together() {
     let chapter = insert_chapter(&db, project_id).await;
     let prompt = insert_prompt(&db, project_id, chapter.id).await;
 
-    let updated = update_chapter_video_prompt_with_generation_run_checkpoint(
+    let updated = update_chapter_video_prompt_with_generation_run_checkpoint_expected(
         &db,
         prompt.id,
         update_input("  更新后的提示词  "),
         None,
         false,
+        Some(&prompt.updated_at.to_string()),
         completed_run_input(project_id),
     )
     .await
@@ -1327,12 +1328,13 @@ async fn prompt_update_checkpoint_project_mismatch_rolls_back_prompt() {
     let chapter = insert_chapter(&db, project_id).await;
     let prompt = insert_prompt(&db, project_id, chapter.id).await;
 
-    let err = update_chapter_video_prompt_with_generation_run_checkpoint(
+    let err = update_chapter_video_prompt_with_generation_run_checkpoint_expected(
         &db,
         prompt.id,
         update_input("不应提交的提示词"),
         None,
         false,
+        Some(&prompt.updated_at.to_string()),
         completed_run_input(project_id + 999),
     )
     .await
@@ -1361,12 +1363,13 @@ async fn prompt_update_checkpoint_invalid_parsed_output_rolls_back_prompt() {
     let mut generation_run = completed_run_input(project_id);
     generation_run.checkpoint.parsed_output_json = Some(json!("invalid"));
 
-    let err = update_chapter_video_prompt_with_generation_run_checkpoint(
+    let err = update_chapter_video_prompt_with_generation_run_checkpoint_expected(
         &db,
         prompt.id,
         update_input("不应提交的提示词"),
         None,
         false,
+        Some(&prompt.updated_at.to_string()),
         generation_run,
     )
     .await

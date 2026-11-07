@@ -84,20 +84,6 @@ pub(in crate::actions::video_records) fn uploaded_video_source(
     })
 }
 
-pub(in crate::actions::video_records) fn persist_uploaded_video_source(
-    temp_dir: &Path,
-    file_name: String,
-    extension: &'static str,
-    bytes: &[u8],
-    label: &str,
-) -> Result<ImportedVideoSource, String> {
-    persist_uploaded_video_source_with_writer(temp_dir, file_name, extension, label, |writer| {
-        writer
-            .write_all(bytes)
-            .map_err(|error| format!("写入{label}临时文件失败：{error}"))
-    })
-}
-
 fn persist_uploaded_video_source_with_writer(
     temp_dir: &Path,
     file_name: String,

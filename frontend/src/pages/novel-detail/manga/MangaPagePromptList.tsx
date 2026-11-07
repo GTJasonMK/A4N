@@ -170,9 +170,6 @@ const MangaPageStoryboardDetails: React.FC<{ page: MangaPagePrompt }> = ({ page 
   const storyboard = page.prompt.page_plan;
   return (
     <section className="space-y-3">
-      <h3 className="text-xs font-semibold text-book-text-main">
-        {t("comic.pipelineStages.storyboard")}
-      </h3>
       {storyboard ? (
         <>
           <LayoutSummaryGrid items={page.layoutItems} />
@@ -299,10 +296,8 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
         currentContentHash,
         pagePromptLabels,
         stageMode,
-        profiles,
-        portraits,
       ),
-    [currentContentHash, pagePromptLabels, portraits, profiles, prompts, stageMode],
+    [currentContentHash, pagePromptLabels, prompts, stageMode],
   );
   const imageStatusVisible = mangaImageStatusMatchesWorkspaceStage(stageMode);
   const pageRailRef = useRef<HTMLElement | null>(null);

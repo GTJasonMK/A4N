@@ -68,22 +68,6 @@ impl VideoApplication {
         .map_err(video_db_error)
     }
 
-    pub(in crate::context) async fn update_chapter_video_prompt_with_policy(
-        &self,
-        prompt_id: i64,
-        input: ChapterVideoPromptPatch,
-        allow_downstream: bool,
-    ) -> Result<ChapterVideoPromptRecord, AppError> {
-        a4n_db::video::read_models::update_chapter_video_prompt_with_policy(
-            self.connection(),
-            prompt_id,
-            input,
-            allow_downstream,
-        )
-        .await
-        .map_err(video_db_error)
-    }
-
     pub(in crate::context) async fn update_chapter_video_prompt_with_policy_expected(
         &self,
         prompt_id: i64,

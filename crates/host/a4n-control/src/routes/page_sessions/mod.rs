@@ -23,7 +23,6 @@ use std::collections::{HashMap, VecDeque};
 use std::convert::Infallible;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 const PAGE_LEASE_SECONDS: u64 = 30;
@@ -48,7 +47,6 @@ struct PageRecord {
     owner_user_id: i64,
     authorization: Option<PageAuthorizationRecord>,
     operations: VecDeque<PageOperationView>,
-    operation_cancellation: Option<CancellationToken>,
 }
 
 #[derive(Clone, Debug)]
@@ -686,7 +684,7 @@ mod tests {
     }
 
     #[test]
-    fn cancelling_page_operation_notifies_host_command() {
+    fn cancelling_page_operation_rejects_late_host_receipts() {
         let registry = PageSessionRegistry::new();
         let agents = AgentRegistry::new();
         let created = registry.create(1, create_input(), true).unwrap();
@@ -718,19 +716,6 @@ mod tests {
                 },
             )
             .unwrap();
-        let cancellation = registry
-            .command_cancellation_token(
-                1,
-                &created.session.ui_session_id,
-                &operation.operation_id,
-                "list_projects",
-                &created.ui_session_token,
-                &agent_id,
-                &agent_token,
-                &agents,
-            )
-            .unwrap();
-
         registry
             .control(
                 1,
@@ -740,7 +725,34 @@ mod tests {
             )
             .unwrap();
 
-        assert!(cancellation.is_cancelled());
+        let error = registry
+            .update_operation(
+                1,
+                &created.session.ui_session_id,
+                &operation.operation_id,
+                &created.ui_session_token,
+                &agent_id,
+                &agents,
+                &agent_token,
+                true,
+                PageOperationUpdate {
+                    status: Some(PageOperationStatus::Succeeded),
+                    phase: None,
+                    progress: Some(100.0),
+                    summary: None,
+                    result: Some(json!({"items": []})),
+                    error: None,
+                },
+            )
+            .unwrap_err();
+        assert_eq!(error.into_value()["code"], "page_operation_cancelled");
+        let last = registry
+            .get(1, &created.session.ui_session_id)
+            .unwrap()
+            .last_operation
+            .unwrap();
+        assert_eq!(last.operation_id, operation.operation_id);
+        assert_eq!(last.status, PageOperationStatus::Cancelled);
     }
 
     #[test]

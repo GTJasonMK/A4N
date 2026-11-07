@@ -22,23 +22,6 @@ use super::{
     metadata::sync_chapter_video_prompt_metadata_after_update,
 };
 
-pub async fn update_chapter_video_prompt_with_policy<C>(
-    db: &C,
-    prompt_id: i64,
-    input: ChapterVideoPromptPatch,
-    allow_downstream: bool,
-) -> Result<chapter_video_prompt::Model, VideoDbError>
-where
-    C: ConnectionTrait + TransactionTrait,
-{
-    let txn = db.begin().await.map_err(VideoDbError::Database)?;
-    let row =
-        update_chapter_video_prompt_with_policy_in(&txn, prompt_id, input, allow_downstream, None)
-            .await?;
-    txn.commit().await.map_err(VideoDbError::Database)?;
-    Ok(row)
-}
-
 pub async fn update_chapter_video_prompt_with_policy_expected<C>(
     db: &C,
     prompt_id: i64,
