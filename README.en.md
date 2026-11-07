@@ -11,6 +11,7 @@
 <p align="center">
   <a href="docs/public/getting-started.en.md">Get started</a> ·
   <a href="docs/public/assets/demo.mp4">Watch / download demo</a> ·
+  <a href="#the-workflow-in-screenshots">Screenshots</a> ·
   <a href="#a4n-at-a-glance">Features</a> ·
   <a href="#creative-workflows">Workflows</a> ·
   <a href="#core-design">Core design</a> ·
@@ -46,8 +47,18 @@ This is a capability map: novels and their adaptations share source references; 
 | Manage source changes, collaborators and delivery | [Source synchronization](#source-synchronization) · [Collaboration and import / export](#collaboration-and-import--export) |
 | Understand the system and task recovery | [Core design](#core-design) · [Get started](#get-started) |
 
+## The workflow in screenshots
+
+Follow one fictional project, **The Reversing Clock (逆行时钟)**: write a novel, organize its story knowledge, then choose comics, chapter video or interactive storytelling as separate adaptations. The freeform canvas has its own entry point. Key pages appear beside their workflows below; the [complete 14-screenshot tour](docs/public/workflow-tour.md) follows the process in order. Click any screenshot to view its original size. The captured interface is in Chinese, with English explanations in the tour.
+
+[![Project list: The Reversing Clock novel, comic, chapter video, interactive story and independent freeform canvas](docs/public/assets/workflow/00-projects.webp)](docs/public/assets/workflow/00-projects.webp)
+
+*Project management: the novel and its adaptations each open their own workspace; the independent canvas supports custom workflows.*
+
+Screenshots use the real application with isolated fictional data, deterministic local test-provider responses and prepared illustrative media. See the [media and validation notes](docs/public/demo.md#新增页面截图--workflow-screenshots) for the scope.
+
 <details>
-<summary>View the writing desk and a 50-second walkthrough</summary>
+<summary>View the earlier 50-second Between Mountains and Sea walkthrough</summary>
 
 [![The A4N writing desk, with an example chapter and content review side by side](docs/public/assets/writing-desk.webp)](docs/public/assets/demo.mp4)
 
@@ -71,6 +82,10 @@ flowchart TB
   imported["Import / Enter<br/>chapter text"] --> chapter
   chapter --> saved["Save chapters<br/>Analyze, revise or keep writing"]
 ```
+
+[![Novel writing desk: story blueprint, character context, chapter list and saved Rainy Night Letter chapter](docs/public/assets/workflow/04-writing.webp)](docs/public/assets/workflow/04-writing.webp)
+
+*The writing desk keeps the blueprint, character context, outline and chapter text together. The [complete tour](docs/public/workflow-tour.md) also shows idea development, the blueprint and formal chapter outlines.*
 
 Blueprints, outlines, chapters and profiles can be inspected and edited. Local revisions have a separate review flow:
 
@@ -110,6 +125,10 @@ flowchart TB
 
 Less frequent updates consolidate after 5 distinct chapters by default; the interval is configurable, and important world-rule changes can trigger earlier consolidation. Formal outlines are preserved; missing outlines receive retrospective ones. Editing old chapters retracts invalid sources while preserving later manual changes. Saving alone makes no model call. See [Fact feedback](docs/public/fact-feedback.zh.md) (Chinese) and the [feedback example](docs/public/assets/self-feedback.en.svg). This manages writing context; it does not retrain the model.
 
+[![Chapter analysis: completed synchronization for the text index, outlines and threads, objects, characters and scenes](docs/public/assets/workflow/05-analysis.webp)](docs/public/assets/workflow/05-analysis.webp)
+
+*Review analysis and synchronization status beside the chapter, including summaries, events, story threads and character changes.*
+
 ### Images and portraits
 
 ```mermaid
@@ -142,6 +161,10 @@ flowchart TB
 
 Stages retain structured artifacts and their sources. System references and user-added images are managed separately; reference discovery only identifies needs and matches existing assets. Delete an existing stage artifact before regenerating, with downstream effects previewed before deletion.
 
+[![Comic storyboard planning: two-page stage progress, a saved page storyboard and reference-image controls](docs/public/assets/workflow/07-manga.webp)](docs/public/assets/workflow/07-manga.webp)
+
+*This shows saved storyboards and the reference-needs check. Final page images remain at 0/2; no finished comic images were generated for this tour.*
+
 ### Chapter video
 
 ```mermaid
@@ -161,6 +184,10 @@ flowchart TB
 
 Edit director plans manually or with an Agent; formal confirmation remains an author action. Frames and clips share a segment plan, and first-frame chaining requires the preceding clip's tail frame. Upstream edits trigger dependency checks for affected segments. See [Director editing design](docs/public/director-native-editing.md) (Chinese).
 
+[![Chapter video director workspace: a confirmed six-second shot, three image points, timeline and bound prepared illustration](docs/public/assets/workflow/08-director.webp)](docs/public/assets/workflow/08-director.webp)
+
+*The director timeline combines shots, timing and image points. The bound image is a prepared illustration. The [complete tour](docs/public/workflow-tour.md) continues to the shooting script; this session did not generate a finished video.*
+
 ### Interactive stories
 
 ```mermaid
@@ -176,6 +203,10 @@ flowchart TB
 ```
 
 Edit scenes, lines, order and choices; plan or generate image assets and import audio. Playback and export use the saved story and its asset bindings.
+
+[![Interactive story editor: five nodes, five connections, one choice branch and dialogue editing](docs/public/assets/workflow/10-interactive.webp)](docs/public/assets/workflow/10-interactive.webp)
+
+*The same chapter becomes a story with choices. Inspect its branches on the left and edit node dialogue and options on the right.*
 
 ### Freeform canvas
 
@@ -202,14 +233,9 @@ flowchart TB
 
 These are two possible workflows. Text, image, audio and video outputs have separate node types. Video generation requires a text prompt; prompt-only, first-frame, first-and-last-frame and reference-image modes have different input requirements. An image alone cannot replace the prompt. The canvas is an independent project. Its generation nodes currently serve freeform video projects; chapter-derived video uses the chapter workflow above.
 
-<details>
-<summary>View a freeform canvas example</summary>
+[![Freeform canvas: prepared video feeds trimming, video output and frame extraction, with all four execution nodes completed](docs/public/assets/workflow/12-canvas.webp)](docs/public/assets/workflow/12-canvas.webp)
 
-[![Freeform canvas: imported video, trimming, frame extraction and outputs](docs/public/assets/multimodal-workspace.webp)](docs/public/assets/multimodal-workspace.webp)
-
-The example uses prepared video to show media processing; it does not demonstrate a call to a video-generation model.
-
-</details>
+*This independent canvas actually trimmed the prepared video, extracted a frame and saved its outputs. The status shows 4/4 execution nodes completed; the input node remains ready. This demonstrates media processing without calling a video-generation model.*
 
 ## Agents and automation
 
@@ -249,6 +275,10 @@ flowchart TB
 
 Snapshots identify the story version used for production. The asset dependency graph helps inspect sources and artifacts. Source changes do not silently overwrite local edits. Synchronization does not regenerate all media; supported regeneration strategies require an explicit choice, and detaching from the source has its own strategy. The freeform canvas does not thereby gain novel source snapshots.
 
+[![Source-update preview: a comic detects a changed source and offers Keep current and Apply safe updates](docs/public/assets/workflow/14-source-sync.webp)](docs/public/assets/workflow/14-source-sync.webp)
+
+*Adding a sentence to the novel produces one source change in the derived comic. This screenshot stops at comparison and strategy selection; synchronization has not been applied.*
+
 ## Collaboration and import / export
 
 ```mermaid
@@ -273,6 +303,10 @@ flowchart TB
 ```
 
 Member permissions apply to projects and related works. Reading files and editable project packages serve different purposes. Package exports include only the supported contents; complete backups still require both PostgreSQL data and media files.
+
+[![Novel export: TXT selected, with a completed download and its file name](docs/public/assets/workflow/13-export.webp)](docs/public/assets/workflow/13-export.webp)
+
+*Delivery produces a local file: the TXT was actually downloaded and checked against the latest saved chapter in full.*
 
 ## Core design
 

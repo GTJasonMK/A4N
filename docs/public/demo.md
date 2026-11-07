@@ -2,6 +2,24 @@
 
 [中文首页](../../README.md) · [English README](../../README.en.md) · [演示视频 / Demo](assets/demo.mp4)
 
+## 新增页面截图 / Workflow screenshots
+
+2026-11-07 新增 [14 张实际页面的完整流程导览](workflow-tour.md)，使用虚构故事《逆行时钟》，与下方早期《山海之间》50 秒录像分别记录。截图时的文档基线为 `dcd51fbb5646155f676bb5292a7365f9e0ee77ce`；业务源码与已验证的 `23ee94632c15b318f8462b23371b51d61c78ae4e` 一致，复用校验过的程序，未重新编译。
+
+截图来自真实 Web 应用与单独启动的 PostgreSQL、Qdrant、本地 Provider 和虚构账号。文本、Embedding 和图像响应均为本地确定性测试响应；导演图片及画布输入视频使用预置示意素材。未使用真实用户项目，未调用付费模型，也不把这些素材视为生成质量样张。
+
+| 新增文件 | 来源与用途 |
+| --- | --- |
+| `assets/workflow/*.webp` | 14 张实际页面截图，覆盖项目、灵感、蓝图、章纲、正文、分析、人物关系、漫画规划、导演、拍摄剧本、互动分支、独立画布、导出和来源比较；大纲和拍摄剧本仅裁去底部空白 |
+| `assets/workflow/story-reference.svg` | 复用原有原创车站示意图，仅把故事标题改为《逆行时钟》；提供截图中预置图片与输入视频的素材来源 |
+| `screenshots-validation.json` | 本组截图的独立验证记录，包括尺寸、SHA-256、页面与运行检查；不替换旧录像的 `validation.json` |
+
+实际完成并检查了第一章保存、分析及五类资料同步、两页漫画分镜与参考需求检查、导演方案确认与拍摄剧本、互动故事编辑和运行预览。独立画布的裁剪、抽帧与两个输出共四个执行节点全部完成；TXT 已下载并与最新正文全文核对。给原稿补充一句后，实际预览了一条来源变化，未应用同步。蓝图图中的“需复核”、漫画图中的成图 0/2 均保留真实状态；本组未生成漫画成图或视频成片，也未逐项验证其他导出格式、来源更新应用、原生桌面窗口或正式发布包。
+
+The new [14-page workflow tour](workflow-tour.md) uses **The Reversing Clock (逆行时钟)** and the documentation baseline above, with unchanged business sources from the stated application commit. It is separate from the earlier 50-second recording. Screenshots show the real Web application, isolated services and fictional data. Deterministic local providers supply responses; director and canvas media use prepared illustrations. No paid model was called, and model quality is outside scope. Two images only crop empty bottom space.
+
+The session checked saved text, analysis and all five knowledge-sync groups, two pages of comic planning, a confirmed director plan and shooting script, interactive editing and runtime preview, four completed canvas-processing nodes, a downloaded TXT matching the latest chapter in full, and one source-change preview. It did not apply source synchronization, generate finished comic images or a finished chapter video, or individually validate other export formats, native windows or release packages. The blueprint review banner and comic image count of 0/2 are real intermediate states. [screenshots-validation.json](screenshots-validation.json) records this session; the earlier recording and its validation remain below.
+
 ## 这段演示展示什么
 
 演示使用真实 A4N Web 界面与隔离的 PostgreSQL、Qdrant 和本地服务，应用基线为 `e2f3aa0dcdd7a0ab613e986050eae568a9850c56`。故事《山海之间》、人物林岚与周衡，以及《未寄出的信》《旧书店》两章均为虚构示例。

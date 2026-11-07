@@ -11,6 +11,7 @@
 <p align="center">
   <a href="docs/public/getting-started.zh.md">快速开始</a> ·
   <a href="docs/public/assets/demo.mp4">观看 / 下载演示</a> ·
+  <a href="#实际页面流程">页面截图</a> ·
   <a href="#一眼了解-a4n">功能总览</a> ·
   <a href="#核心创作链路">创作链路</a> ·
   <a href="#核心设计">核心设计</a> ·
@@ -46,8 +47,18 @@ flowchart TB
 | 管理来源变化、团队和作品交付 | [来源同步](#来源同步) · [协作与导入导出](#协作与导入导出) |
 | 了解系统如何运行和恢复任务 | [核心设计](#核心设计) · [快速开始](#快速开始) |
 
+## 实际页面流程
+
+用同一个虚构项目《逆行时钟》查看主要创作页面：先写小说、整理资料，再按需派生漫画、章节视频或互动故事；自由画布是独立入口。下面各功能配有关键页面，也可以按顺序阅读 [14 张截图的完整流程导览](docs/public/workflow-tour.md)。所有截图均可点击查看原图。
+
+[![项目列表：逆行时钟的小说、漫画、章节视频、互动故事与独立自由画布](docs/public/assets/workflow/00-projects.webp)](docs/public/assets/workflow/00-projects.webp)
+
+*项目管理：同一故事的小说与派生作品分别进入各自工作台，独立画布用于自由编排。*
+
+截图来自真实应用与隔离演示数据，模型响应来自本地确定性测试 Provider，媒体使用预置示意素材，展示范围见[素材与验证说明](docs/public/demo.md#新增页面截图--workflow-screenshots)。
+
 <details>
-<summary>查看写作台截图与 50 秒操作演示</summary>
+<summary>查看早期《山海之间》50 秒操作演示</summary>
 
 [![A4N 写作台：示例章节与内容审阅并排呈现](docs/public/assets/writing-desk.webp)](docs/public/assets/demo.mp4)
 
@@ -71,6 +82,10 @@ flowchart TB
   imported["录入 / 导入正文"] --> chapter
   chapter --> saved["保存章节<br/>按需分析、优化或继续写作"]
 ```
+
+[![小说写作台：故事蓝图、角色资料、章节列表与已保存的雨夜来信正文](docs/public/assets/workflow/04-writing.webp)](docs/public/assets/workflow/04-writing.webp)
+
+*写作台把蓝图、人物资料、章纲和正文放在一起；[完整导览](docs/public/workflow-tour.md)还展示灵感对话、蓝图和正式章纲。*
 
 蓝图、大纲、章节和档案都可以查看与修改。局部优化单独走审阅流程：
 
@@ -110,6 +125,10 @@ flowchart TB
 
 低频资料默认累计 5 个不同章节后归纳，可调整周期；重要世界规则变化等情况会提前触发。已有正式章纲保留，缺少时补充回顾章纲。修改旧章会撤回失效来源，保留后续手工修改；普通保存不会触发模型调用。详见[正文事实反馈](docs/public/fact-feedback.zh.md)与[反馈示例图](docs/public/assets/self-feedback.zh.svg)。这里的反馈用于管理上下文，不会重新训练模型。
 
+[![章节分析：正文索引、章纲与伏笔、物品、角色和场景五类资料同步完成](docs/public/assets/workflow/05-analysis.webp)](docs/public/assets/workflow/05-analysis.webp)
+
+*分析结果与资料同步状态直接显示在章节旁，方便核对摘要、事件、伏笔及人物变化。*
+
 ### 图片与立绘
 
 ```mermaid
@@ -142,6 +161,10 @@ flowchart TB
 
 每一步保留结构化产物和来源。系统参考图与用户添加图片分别管理，参考发现阶段只识别需求和匹配已有素材。已有阶段产物需先删除才能重新生成，删除前预览下游影响。
 
+[![漫画分镜规划：两页的阶段进度、单页分镜及系统与用户参考图入口](docs/public/assets/workflow/07-manga.webp)](docs/public/assets/workflow/07-manga.webp)
+
+*这里展示已保存的分镜与参考需求检查；当前成图为 0/2，尚未生成漫画图片。*
+
 ### 章节视频
 
 ```mermaid
@@ -161,6 +184,10 @@ flowchart TB
 
 导演方案支持手工及 Agent 编辑，正式确认由作者完成。帧图与视频共用片段计划；首帧串联模式要求前一段尾帧。上游修改后检查对应片段的依赖关系，避免把旧素材直接用于新计划。详见[导演编辑设计](docs/public/director-native-editing.md)。
 
+[![章节视频导演工作台：已确认的六秒镜头、三个图片点、时间线和已绑定预置示意图](docs/public/assets/workflow/08-director.webp)](docs/public/assets/workflow/08-director.webp)
+
+*导演时间线将镜头、时长与图片点放在同一视图；图中绑定的是预置示意图。[完整导览](docs/public/workflow-tour.md)接着展示确认后的拍摄剧本，本轮未生成视频成片。*
+
 ### 互动故事
 
 ```mermaid
@@ -176,6 +203,10 @@ flowchart TB
 ```
 
 可以修改场景、台词、顺序和选项，规划或生成图像素材，并导入音频。运行器与导出使用已保存的故事及素材绑定。
+
+[![互动故事编辑器：五个节点、五条连线、一个选择分支及台词编辑](docs/public/assets/workflow/10-interactive.webp)](docs/public/assets/workflow/10-interactive.webp)
+
+*同一章故事改编为可选择的叙事路径；左侧查看分支，右侧编辑节点对白和选项。*
 
 ### 自由画布
 
@@ -202,14 +233,9 @@ flowchart TB
 
 图中是两条可编排的示例，输出节点按文字、图片、音频和视频分别处理。视频生成必须连接文本提示词；仅提示词、首帧、首尾帧或参考图模式各有对应输入要求，图片不能单独代替提示词。自由画布是独立项目；当前画布生成节点用于自由视频项目，章节派生视频走上面的章节工作流。
 
-<details>
-<summary>查看自由画布示例</summary>
+[![自由画布：预置视频经裁剪后连接视频输出与抽帧，四个执行节点均已完成](docs/public/assets/workflow/12-canvas.webp)](docs/public/assets/workflow/12-canvas.webp)
 
-[![自由画布：导入视频、裁剪、抽帧与输出](docs/public/assets/multimodal-workspace.webp)](docs/public/assets/multimodal-workspace.webp)
-
-示例使用预置视频，展示素材处理，不代表实际调用了视频生成模型。
-
-</details>
+*独立画布实际完成预置视频的裁剪、抽帧与输出，右侧显示 4/4 已完成；输入节点保持“就绪”。这里展示媒体处理，未调用视频生成模型。*
 
 ## Agent 与自动化
 
@@ -249,6 +275,10 @@ flowchart TB
 
 来源快照让“制作时用的是哪一版故事”可追溯。素材依赖图帮助查看来源和产物关系；原稿变化不会静默覆盖派生作品的本地编辑。同步不等于重生成全部媒体，支持的重生成策略由作者显式选择；解除来源关联也有独立策略。自由画布不因此获得小说来源快照。
 
+[![来源更新预览：漫画项目检测到原稿变化，显示待处理差异与保留当前、应用安全更新操作](docs/public/assets/workflow/14-source-sync.webp)](docs/public/assets/workflow/14-source-sync.webp)
+
+*在小说正文补充一句后，派生漫画检测到一条来源变化；此图停留在比较与选择阶段，尚未应用同步。*
+
 ## 协作与导入导出
 
 ```mermaid
@@ -273,6 +303,10 @@ flowchart TB
 ```
 
 成员权限围绕项目及其关联作品管理。导出阅读文件与导出可继续编辑的项目包用途不同；项目包只包含相应功能支持的内容，完整备份仍需同时保存 PostgreSQL 数据和媒体文件。
+
+[![小说导出：选择 TXT 纯文本并显示下载完成与文件名](docs/public/assets/workflow/13-export.webp)](docs/public/assets/workflow/13-export.webp)
+
+*从作品交付到本地文件：此处实际下载了 TXT，并核对文件包含最新保存的完整章节正文。*
 
 ## 核心设计
 

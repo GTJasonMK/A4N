@@ -1,0 +1,351 @@
+{
+  "status": "passed",
+  "scope": "Real Web UI captures with isolated fictional data and deterministic local providers; workflow demonstration, not model-quality evaluation",
+  "validated_at_utc": "2026-11-07T15:16:35.864248+00:00",
+  "documentation_base_commit": "dcd51fbb5646155f676bb5292a7365f9e0ee77ce",
+  "application_source_commit": "23ee94632c15b318f8462b23371b51d61c78ae4e",
+  "application_source_matches_current_worktree": true,
+  "business_recompiled_for_screenshots": false,
+  "story": "The Reversing Clock / 逆行时钟 (fictional)",
+  "providers": "Deterministic local text, embedding and image test responses; no paid model calls",
+  "prepared_media_source": {
+    "file": "assets/workflow/story-reference.svg",
+    "sha256": "cf8ba0e666798ebbca06d1fb199985d8cb97d831794e279d9e55e4b24bc4cf57",
+    "provenance": "Existing original station illustration with the story title updated; not model-generated output"
+  },
+  "image_count": 14,
+  "image_bytes": 854330,
+  "images": [
+    {
+      "file": "assets/workflow/00-projects.webp",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 38336,
+      "sha256": "5d80b5cea5645b970dfffa37dd677460cc78e1bd88c0d906fa33defb04e0eb37",
+      "route": "/",
+      "capture_viewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "empty_bottom_space_cropped": false,
+      "page_overflow_px": 0,
+      "visible_broken_images": [],
+      "page_or_http_errors": [],
+      "visible_dialog_count": 0
+    },
+    {
+      "file": "assets/workflow/01-inspiration.webp",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 50954,
+      "sha256": "735d3220481565bcd9f43eb994f9cfaa1c89a403e3ceb70314b2d30f9000ec1e",
+      "route": "/inspiration/1",
+      "capture_viewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "empty_bottom_space_cropped": false,
+      "page_overflow_px": 0,
+      "visible_broken_images": [],
+      "page_or_http_errors": [],
+      "visible_dialog_count": 0
+    },
+    {
+      "file": "assets/workflow/02-blueprint.webp",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 66086,
+      "sha256": "087022e2de0a900d495662a824de0bb55992c05becf932fdfe16a4a83c968ce2",
+      "route": "/novel/1",
+      "capture_viewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "empty_bottom_space_cropped": false,
+      "page_overflow_px": 0,
+      "visible_broken_images": [],
+      "page_or_http_errors": [],
+      "visible_dialog_count": 0
+    },
+    {
+      "file": "assets/workflow/03-outlines.webp",
+      "width": 1600,
+      "height": 560,
+      "bytes": 74164,
+      "sha256": "73bd112d0df0b7add0e969e747cb17ff3c80476b7d40c0ce7c0a0054e2df3b14",
+      "route": "/novel/1",
+      "capture_viewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "empty_bottom_space_cropped": true,
+      "page_overflow_px": 0,
+      "visible_broken_images": [],
+      "page_or_http_errors": [],
+      "visible_dialog_count": 0
+    },
+    {
+      "file": "assets/workflow/04-writing.webp",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 122366,
+      "sha256": "5700f23fd2a540a4cfb09c67627f95482c0e8945858cd0d73e839a47c3a3e665",
+      "route": "/write/1?chapter=1",
+      "capture_viewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "empty_bottom_space_cropped": false,
+      "page_overflow_px": 0,
+      "visible_broken_images": [],
+      "page_or_http_errors": [],
+      "visible_dialog_count": 0
+    },
+    {
+      "file": "assets/workflow/05-analysis.webp",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 80376,
+      "sha256": "2e291f77aa36cb104bc6d37cc666ed2313566b48a926e1ad0cd05b1447c49697",
+      "route": "/write/1?chapter=1",
+      "capture_viewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "empty_bottom_space_cropped": false,
+      "page_overflow_px": 0,
+      "visible_broken_images": [],
+      "page_or_http_errors": [],
+      "visible_dialog_count": 0
+    },
+    {
+      "file": "assets/workflow/06-characters.webp",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 31082,
+      "sha256": "bdbabacb1267d8851291f8c22311fcca7a2ef15dd62508c4e44af79cba560222",
+      "route": "/novel/1",
+      "capture_viewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "empty_bottom_space_cropped": false,
+      "page_overflow_px": 0,
+      "visible_broken_images": [],
+      "page_or_http_errors": [],
+      "visible_dialog_count": 0
+    },
+    {
+      "file": "assets/workflow/07-manga.webp",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 53204,
+      "sha256": "0f61292b40daef2aa4d6722336e33eea47c2bb7d5611637a1fd349a529912a70",
+      "route": "/comic-project/3",
+      "capture_viewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "empty_bottom_space_cropped": false,
+      "page_overflow_px": 0,
+      "visible_broken_images": [],
+      "page_or_http_errors": [],
+      "visible_dialog_count": 0
+    },
+    {
+      "file": "assets/workflow/08-director.webp",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 53512,
+      "sha256": "9b713a00ba73518107ae8b89e9bf9104d3c790dc417585f79fc8a2a5510a7dbe",
+      "route": "/video-project/2",
+      "capture_viewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "empty_bottom_space_cropped": false,
+      "page_overflow_px": 0,
+      "visible_broken_images": [],
+      "page_or_http_errors": [],
+      "visible_dialog_count": 0
+    },
+    {
+      "file": "assets/workflow/09-screenplay.webp",
+      "width": 1600,
+      "height": 640,
+      "bytes": 96190,
+      "sha256": "117a5c224c9ac44c5d6a0e219e5a310eb7cc34266cd7a8edcf492167be4abec9",
+      "route": "/video-project/2",
+      "capture_viewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "empty_bottom_space_cropped": true,
+      "page_overflow_px": 0,
+      "visible_broken_images": [],
+      "page_or_http_errors": [],
+      "visible_dialog_count": 0
+    },
+    {
+      "file": "assets/workflow/10-interactive.webp",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 42186,
+      "sha256": "bc11c94df5cecc5bc1515020a2490275356cb9ec805a3f454f33a63b31d50472",
+      "route": "/galgame-project/4",
+      "capture_viewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "empty_bottom_space_cropped": false,
+      "page_overflow_px": 0,
+      "visible_broken_images": [],
+      "page_or_http_errors": [],
+      "visible_dialog_count": 0
+    },
+    {
+      "file": "assets/workflow/12-canvas.webp",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 61182,
+      "sha256": "42bb27a913d61c952915d3945f6f2af4c6ab751f68931877bf8eec53a75b2009",
+      "route": "/canvas-project/5",
+      "capture_viewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "empty_bottom_space_cropped": false,
+      "page_overflow_px": 0,
+      "visible_broken_images": [],
+      "page_or_http_errors": [],
+      "visible_dialog_count": 0
+    },
+    {
+      "file": "assets/workflow/13-export.webp",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 50724,
+      "sha256": "25cb8ee8f918cd0fd49f0ef4a42e7e77bfb4784979534a624c373da7a9be1501",
+      "route": "/novel/1",
+      "capture_viewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "empty_bottom_space_cropped": false,
+      "page_overflow_px": 0,
+      "visible_broken_images": [],
+      "page_or_http_errors": [],
+      "visible_dialog_count": 1
+    },
+    {
+      "file": "assets/workflow/14-source-sync.webp",
+      "width": 1600,
+      "height": 1000,
+      "bytes": 33968,
+      "sha256": "0288a0b27137ae7e0b35d409c4bd08986bd0d31208c35400e4170590d47adc80",
+      "route": "/comic-project/3",
+      "capture_viewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "empty_bottom_space_cropped": false,
+      "page_overflow_px": 0,
+      "visible_broken_images": [],
+      "page_or_http_errors": [],
+      "visible_dialog_count": 1
+    }
+  ],
+  "executed_workflows": {
+    "chapter_analysis": {
+      "completed_sync_groups": 5
+    },
+    "comic_planning": {
+      "storyboard_pages": 2,
+      "finished_images": 0
+    },
+    "director": {
+      "confirmed": true,
+      "shots": 1,
+      "image_points": 3,
+      "duration_seconds": 6,
+      "shooting_script_saved": true,
+      "finished_video_generated": false
+    },
+    "interactive_story": {
+      "nodes": 5,
+      "connections": 5,
+      "choice_branches": 1,
+      "runtime_preview_opened": true
+    },
+    "independent_canvas": {
+      "workflow_id": 20,
+      "status": "completed",
+      "completed_execution_nodes": 4,
+      "input_node_state": "ready",
+      "source": "prepared six-second clip",
+      "trim_seconds": [
+        1,
+        5
+      ],
+      "extract_frame_seconds": 1,
+      "video_model_called": false
+    },
+    "txt_export": {
+      "status": "passed",
+      "file": "1_export.txt",
+      "characters": 1052,
+      "chapter_id": 3,
+      "saved_chapter_present": true,
+      "full_current_chapter_content_matches": true,
+      "includes_latest_source_edit": true,
+      "sha256": "35771408823697071d66a3733ace37d9061c1af2d0c95bc318b67268484c8bba"
+    },
+    "source_sync": {
+      "mode": "dry_run",
+      "status": "planned",
+      "pending_changes": 1,
+      "applied": false
+    }
+  },
+  "visual_review": {
+    "original_images_reviewed_independently": 14,
+    "cropped_images_rechecked_independently": 2,
+    "final_document_previews_reviewed_independently": 6,
+    "preview_scope": "Selected Chinese and English README and bilingual-tour pages at 1280px and 390px, light and dark themes",
+    "result": "No blocking loading overlays, incorrect pages or sensitive content found",
+    "documented_intermediate_states": [
+      "Blueprint review required after chapter material changed",
+      "Comic final-image count 0/2",
+      "Source comparison pending, not applied"
+    ],
+    "relationship_graph_limit": "Some reciprocal edge labels overlap; the tour describes the graph structure without claiming every label is readable"
+  },
+  "source_documents_sha256": {
+    "README.md": "d9fd25dbcef1672945f4bf9f21c171345c4ba27b1199384b97009fbcff2d7236",
+    "README.en.md": "6670acfa718675bb726f0f3dbea7df04aa644b18ed1904787c4ee36ed99c156d",
+    "docs/public/workflow-tour.md": "6ecafe096ac2de3fff064744903148fe3ea2b3f057664eabdf8c43dc32d139ef",
+    "docs/public/demo.md": "683838106364aa0b8cb42ea7bd2730844db947231862f7ef6e8bb642ad38c928"
+  },
+  "not_validated": [
+    "Hosted GitHub page",
+    "Paid providers or model quality",
+    "Finished comic images or chapter video",
+    "Applying the source-sync plan",
+    "Every export format",
+    "Native Tauri windows",
+    "Release installers"
+  ],
+  "earlier_recording_validation": "validation.json (unchanged and separate)",
+  "document_rendering": {
+    "status": "passed",
+    "views": 18,
+    "links_checked": 165,
+    "diagrams_per_language": 18,
+    "language_topology_matches": true,
+    "mermaid_version": "11.12.2",
+    "browser": "Chrome/153.0.8010.52",
+    "page_overflow_px": 0,
+    "broken_local_images": 0,
+    "workflow_image_original_links": "all verified"
+  }
+}
