@@ -8,23 +8,33 @@ README 的中英文功能图以应用基线 `23ee94632c15b318f8462b23371b51d61c7
 
 ## 图表与实现入口 / Diagram sources
 
-中英文 README 各有 13 张 Mermaid 图，顺序和节点关系一致；图表直接随文档维护。
+中英文 README 各有 18 张 Mermaid 图，顺序和节点关系一致；图表直接随文档维护。功能总览使用无连线的功能块区分独立能力；流程图从上往下读，实线表示流程或数据流，虚线表示可选路径。架构图表达职责与资源关系，不代表进程部署或 Rust 依赖。
+
+图表按阅读任务拆分：写作与补丁采纳、资料沉淀与后续检索、画布生成与媒体处理、协作与交付、多端入口与运行资源各自成图，避免把不同操作误画成一条必经链路。节点名称保留必要边界，详细条件放在图旁说明和表格中。
 
 | 图表 / Diagram | 实现入口 | 关键边界 |
 | --- | --- | --- |
 | 功能总览 / Overview | [项目类型](../../crates/platform/a4n-domain/src/project.rs)、[应用入口](../../frontend/src/App.tsx)、[能力包合同](../../crates/host/a4n-api-contract/src/package.rs) | 小说、漫画、章节视频、画布和互动故事有各自工作台；功能包及 Provider 按需配置。 |
-| 小说写作 / Novel writing | [灵感](../../crates/host/a4n-orchestrator/src/inspiration)、[蓝图](../../crates/host/a4n-orchestrator/src/blueprint)、[大纲](../../crates/host/a4n-orchestrator/src/outline)、[章节生成](../../crates/host/a4n-orchestrator/src/chapter_generation)、[局部优化](../../crates/host/a4n-orchestrator/src/optimize) | 手工输入和模型生成并存；正文补丁需要作者采纳与版本检查。 |
-| 分析与事实反馈 / Analysis and feedback | [章节分析](../../crates/host/a4n-orchestrator/src/chapter_analysis)、[事实反馈](../../crates/host/a4n-orchestrator/src/fact_feedback)、[生成检索](../../crates/host/a4n-orchestrator/src/chapter_generation/rag_context) | 当前事实每章同步，低频归纳按周期；未来剧情调整是建议；检索范围与 Embedding 身份受约束。 |
-| 图片与立绘 / Images and portraits | [立绘任务](../../crates/host/a4n-runtime/src/actions/portrait_generation.rs)、[图片与素材](../../frontend/src/api/image.ts)、[立绘接口](../../frontend/src/api/portrait.ts)、[素材依赖图](../../frontend/src/pages/novel-detail/asset-graph/AssetDependencyGraphDialog.tsx) | 生成、上传和使用素材各有入口；素材归属及已保存绑定不会由当前主立绘列表重新推断。 |
-| 漫画 / Comics | [漫画编排](../../crates/host/a4n-orchestrator/src/manga)、[阶段与依赖](../../frontend/src/pages/novel-detail/manga/mangaTabUtils.ts)、[参考图投影](../../frontend/src/pages/novel-detail/manga/mangaPagePromptModel.ts) | 分页、单页改编、分镜、参考图和成图有依赖；删除前检查下游影响，系统与用户参考图分别管理。 |
-| 章节视频 / Chapter video | [视频编排](../../crates/host/a4n-orchestrator/src/video)、[工作台阶段](../../frontend/src/pages/novel-detail/VideoTab.tsx)、[导演编辑](director-native-editing.md) | 正式导演确认由作者执行；帧图与视频共用片段计划，具体输入取决于工作流和 Provider。 |
+| 小说写作与补丁采纳（2 图） / Writing and patch approval | [灵感](../../crates/host/a4n-orchestrator/src/inspiration)、[蓝图](../../crates/host/a4n-orchestrator/src/blueprint)、[大纲](../../crates/host/a4n-orchestrator/src/outline)、[章节生成](../../crates/host/a4n-orchestrator/src/chapter_generation)、[局部优化](../../crates/host/a4n-orchestrator/src/optimize) | 已有正文可直接录入，不必先生成蓝图；正文补丁需要作者采纳与版本检查。 |
+| 资料沉淀与后续检索（2 图） / Analysis and retrieval | [章节分析](../../crates/host/a4n-orchestrator/src/chapter_analysis)、[事实反馈](../../crates/host/a4n-orchestrator/src/fact_feedback)、[生成检索](../../crates/host/a4n-orchestrator/src/chapter_generation/rag_context) | 当前事实每章同步，低频归纳按周期；未来剧情调整是建议；检索范围与 Embedding 身份受约束。 |
+| 图片与立绘 / Images and portraits | [立绘任务](../../crates/host/a4n-runtime/src/actions/portrait_generation.rs)、[图片与素材](../../frontend/src/api/image.ts)、[立绘接口](../../frontend/src/api/portrait.ts)、[素材依赖图](../../frontend/src/pages/novel-detail/asset-graph/AssetDependencyGraphDialog.tsx) | 通用图片不依赖立绘提示词；上传不经过模型生成。素材归属及已保存绑定不会由当前主立绘列表重新推断。 |
+| 漫画 / Comics | [漫画编排](../../crates/host/a4n-orchestrator/src/manga)、[阶段与依赖](../../frontend/src/pages/novel-detail/manga/mangaTabUtils.ts)、[参考图投影](../../frontend/src/pages/novel-detail/manga/mangaPagePromptModel.ts) | 预处理后需采纳章节改编计划；已有阶段产物先删除再生成，删除前检查下游影响。参考发现不自动生图，系统与用户参考图分别管理。 |
+| 章节视频 / Chapter video | [视频编排](../../crates/host/a4n-orchestrator/src/video)、[输入配方规则](../../crates/host/a4n-orchestrator/src/video/provider/request_rules.rs)、[导演编辑](director-native-editing.md) | 正式导演确认由作者执行；帧图与视频共用片段计划，纯文本配方不要求帧图，具体输入取决于执行配方和 Provider。 |
 | 互动故事 / Interactive stories | [Galgame 编排](../../crates/host/a4n-orchestrator/src/galgame)、[编辑与运行接口](../../frontend/src/api/galgame.ts)、[WebGAL 导出](../../crates/host/a4n-api-contract/src/export.rs) | 分支、台词、演出与素材绑定分别保存；图像生成和音频导入是不同能力。 |
-| 自由画布 / Freeform canvas | [画布编排](../../crates/host/a4n-orchestrator/src/canvas)、[节点行为](../../frontend/src/pages/video-studio/canvasNodeKinds.ts) | 图中是可连接的示例；生成节点用于自由视频项目，不替代章节派生视频的工作流。 |
-| Agent / Agents | [执行与委派](../../crates/agent/a4n-agent-application/src/agent)、[前端接口](../../frontend/src/api/agent.ts)、[领域控制台](../../frontend/src/components/agent/DomainAgentConsole.tsx) | 领域、资源、权限、模式和审批共同约束执行；未将规划中的 Agent RAG 列为已实现能力。 |
-| 来源同步 / Source synchronization | [来源差异与决策](../../crates/platform/a4n-db/src/source_sync)、[同步界面](../../frontend/src/pages/derived/SourceSyncDialog.tsx) | 已编辑的派生内容有决策保护；独立画布不因此拥有小说来源快照。 |
-| 协作与交付 / Collaboration and delivery | [成员与邀请合同](../../crates/host/a4n-api-contract/src/collaboration.rs)、[角色](../../crates/platform/a4n-domain/src/collaboration.rs)、[导出格式](../../crates/host/a4n-api-contract/src/export.rs)、[项目包](../../crates/host/a4n-orchestrator/src/project) | 按成员角色访问；阅读格式、可编辑项目包和完整环境备份用途不同，不承诺多人实时光标协同。 |
-| 多端架构 / Architecture | [Host 合同](../../crates/host/a4n-api-contract)、[业务编排](../../crates/host/a4n-orchestrator)、[运行适配](../../crates/host/a4n-runtime)、[数据访问](../../crates/platform/a4n-db) | 箭头表示调用或数据流，不是 Rust 直接依赖；模型请求可能使用本地服务或外部 API。 |
-| 任务恢复 / Task recovery | [LLM 检查点](../../crates/platform/a4n-db/src/workflow/llm_checkpoint.rs)、[分析恢复](../../crates/host/a4n-orchestrator/src/chapter_analysis/workflow/checkpoint.rs)、[来源指纹](../../crates/host/a4n-orchestrator/src/chapter_generation/service/generation/checkpoint/fingerprint.rs) | 仅支持恢复的流程可复用匹配输入的完成步骤；来源变化不能通过检查点绕过。 |
+| 画布生成与媒体处理（2 图） / Canvas generation and processing | [画布编排](../../crates/host/a4n-orchestrator/src/canvas)、[连线端口校验](../../frontend/src/pages/video-studio/canvasEdgeContract.ts)、[视频输入要求](../../crates/host/a4n-orchestrator/src/canvas/video_generation.rs) | 抽帧输入是视频，输出是图片；输出节点有类型。视频生成始终需要文本提示词，所选模式再决定图像输入；生成节点用于独立画布项目。 |
+| Agent / Agents | [执行与委派](../../crates/agent/a4n-agent-application/src/agent)、[工具审批策略](../../crates/agent/a4n-agent-runtime/src/engine/tools.rs)、[领域控制台](../../frontend/src/components/agent/DomainAgentConsole.tsx) | 建议模式禁止写工具，自主模式仍可能要求审批，待审正文补丁不等于正文写回。未将规划中的 Agent RAG 列为已实现能力。 |
+| 来源同步 / Source synchronization | [来源差异与决策](../../crates/platform/a4n-db/src/source_sync)、[快照关联与同步状态](../../crates/platform/a4n-db/src/source_sync/run/finalization.rs)、[同步界面](../../frontend/src/pages/derived/SourceSyncDialog.tsx) | 已编辑的派生内容有决策保护，未解决冲突继续显示；同步不自动重生成所有媒体，重生成或解除关联需显式策略。独立画布没有小说来源快照。 |
+| 协作与交付（2 图） / Collaboration and delivery | [成员与邀请合同](../../crates/host/a4n-api-contract/src/collaboration.rs)、[角色](../../crates/platform/a4n-domain/src/collaboration.rs)、[导出格式](../../crates/host/a4n-api-contract/src/export.rs)、[项目包](../../crates/host/a4n-orchestrator/src/project) | 所有者与受邀成员角色分开；阅读文件、结构化资料、可编辑项目包和完整环境备份用途不同，不承诺多人实时光标协同。 |
+| 多端入口与运行资源（2 图） / Entries and resources | [Host 合同](../../crates/host/a4n-api-contract)、[业务编排](../../crates/host/a4n-orchestrator)、[运行适配](../../crates/host/a4n-runtime)、[数据访问](../../crates/platform/a4n-db) | 合同是接口定义，不是中间运行服务。Server 包括 Edge、Control 和 Runtime / Worker；图表示逻辑职责，非部署或 Rust 依赖图。 |
+| 任务恢复 / Task recovery | [LLM 检查点](../../crates/platform/a4n-db/src/workflow/llm_checkpoint.rs)、[分析恢复](../../crates/host/a4n-orchestrator/src/chapter_analysis/workflow/checkpoint.rs)、[来源指纹](../../crates/host/a4n-orchestrator/src/chapter_generation/service/generation/checkpoint/fingerprint.rs) | 按阶段保存和恢复，不是最后统一提交所有产物；完成阶段可跳过执行，所有阶段有效即可收尾，来源保护仍有效。 |
+
+## 图表验证 / Diagram validation
+
+2026-11-07 的文档审查使用 Mermaid 11.12.2 与 Chromium，实际渲染两种语言、明暗主题及 1280 / 1024 / 390px 共 12 组视图。36 张图的语法、可访问标题与描述、两语言关系、本地链接、裁切、中文孤字断行和页面横向溢出均经过检查；390px 下图中文字至少为 12px，并另行逐图目视审查。
+
+这是本地文档渲染验证，正文宽度参考 GitHub；未在 GitHub 托管页面复验，也未重新执行业务生成或演示验收。业务和演示范围仍以上述源码入口与原验证记录为准。
+
+The 2026-11-07 review rendered all 36 diagrams with Mermaid 11.12.2 in Chromium across both languages, light/dark themes and 1280 / 1024 / 390px widths. Checks covered syntax, accessible names, matching relationships, local links, clipping, orphaned Chinese characters and page overflow; diagram text remained at least 12px at 390px. A separate visual review inspected the rendered diagrams. This was a local documentation check with a GitHub-like content width, not hosted GitHub or business-workflow validation.
 
 ## 关键机制 / Mechanisms
 
@@ -45,11 +55,13 @@ README 的中英文功能图以应用基线 `23ee94632c15b318f8462b23371b51d61c7
 
 ## English
 
-The diagram index maps all 13 diagrams in each README to the current implementation baseline above. Matching diagrams use the same node relationships in both languages. The public demo remains tied to its original baseline; [validation.json](validation.json) records that demo's narrower scope, not a new full-feature acceptance run.
+The index maps all 18 diagrams in each README to the implementation baseline above. Matching diagrams use the same node relationships in both languages. Independent capabilities have no connecting arrows in the overview. Workflow diagrams read from top to bottom: solid arrows show process or data flow, dashed arrows optional paths. Separate diagrams distinguish writing from patch approval, analysis from retrieval, canvas generation from processing, collaboration from delivery, and entry adapters from runtime resources. The public demo remains tied to its original baseline; [validation.json](validation.json) records that demo's narrower scope, not a new full-feature acceptance run.
 
 - **Traceable memory:** key extraction references resolve to chapter source spans. Analysis preserves author-owned outlines. Fact feedback updates current facts per chapter and periodically consolidates knowledge; changes to the premise or future plotting remain proposals for the author.
 - **Task-specific, time-bounded retrieval:** candidates come from the current outline, intent, characters, unresolved threads and scene cues. Generation retrieval is limited to earlier chapters and the matching embedding identity. Context is organized into continuity, summaries and source passages with separate budgets.
 - **Reviewable changes:** bounded source reads and content fingerprints support stored patch proposals, visible approval and stale-source checks. The demo verifies the chapter remains unchanged before approval and receives exactly the reviewed edit afterward.
 - **Traceable creative branches:** derived projects retain snapshots; chapter and profile differences inform update decisions. Locally edited work has decision guards. A freeform video canvas is a separate workflow, with no implied novel snapshot association.
-- **Shared video planning:** frame generation and video clips refer to the same segment plan and execution identity. First-frame chains require the preceding clip's tail frame. These are input and workflow constraints; visual output still requires review.
-- **Recoverable work:** completed calls are stored with input fingerprints and reused where the workflow permits. Changed formal sources prevent older generation results from being saved. Shared Host contracts keep entry-point responsibilities explicit.
+- **Typed media inputs:** general images and portraits have separate prompt paths; uploads bypass generation. Canvas trim nodes consume video, frame extraction outputs images, and output nodes retain their types. Video generation requires a text prompt plus the image inputs required by its mode.
+- **Shared video planning:** frame generation and video clips refer to the same segment plan and execution identity. Text-only recipes do not require frames; first-frame chains require the preceding clip's tail frame. These are input and workflow constraints; visual output still requires review.
+- **Explicit authority:** advice mode forbids write tools, autonomous mode can still require approval, and storing a text patch does not apply it. Sync decisions preserve local-edit protection and unresolved conflicts; synchronization does not regenerate every media artifact.
+- **Recoverable work:** completed calls are stored with input fingerprints and reused where the workflow permits. Artifacts are persisted per stage, and fully reusable stages need no extra execution. Changed formal sources prevent older results from being saved. Shared Host contracts define interfaces rather than a separate running service; the architecture diagrams show logical responsibilities.

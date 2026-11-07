@@ -26,18 +26,16 @@ A4N brings novel writing, story knowledge and multimedia adaptation into one cre
 ## A4N at a glance
 
 ```mermaid
-flowchart LR
+flowchart TB
   accTitle: A4N feature overview
-  accDescr: Four capability groups cover novel writing, multimedia adaptation, a freeform canvas and shared creative tools.
-  A4N["A4N"] --> writing["Novel writing"]
-  writing --> knowledge["Ideas · Blueprint · Outlines<br/>Chapters · Analysis · Profiles<br/>Fact feedback · Retrieval"]
-  A4N --> adapted["Multimedia adaptation"]
-  adapted --> works["Comics · Video · Interactive stories<br/>Snapshots · Asset references · Sync"]
-  A4N --> canvas["Freeform canvas"]
-  canvas --> nodes["Text · Images · Audio / Video<br/>Nodes · Generation · Processing"]
-  A4N --> platform["Creative tools"]
-  platform --> tools["Agents · Collaboration · Import / Export<br/>Recoverable tasks · Multiple entry points"]
+  accDescr: Novels can become comics, chapter videos and interactive stories through source snapshots. The freeform canvas is an independent entry point. Agents, collaboration, import and export, and recoverable tasks provide support; unconnected blocks do not imply execution order.
+  writing["Novel writing<br/>Ideas · Blueprint · Outlines · Chapters<br/>Analysis · Profiles · Feedback · Retrieval"]
+  writing -->|Source snapshot| adapted["Multimedia adaptation<br/>Comics · Chapter video<br/>Interactive stories"]
+  adapted ~~~ canvas["Independent freeform canvas<br/>Text · Images · Audio / Video<br/>Node generation and processing"]
+  canvas ~~~ tools["Creative tools<br/>Agents · Collaboration · Import / Export<br/>Recoverable tasks · Multiple entry points"]
 ```
+
+This is a capability map: novels and their adaptations share source references; the canvas also works independently. The sections below explain each workflow.
 
 | What you want to understand | Start here |
 | --- | --- |
@@ -59,46 +57,55 @@ flowchart LR
 
 ## Creative workflows
 
-The diagrams follow the creative stages. Edit manually, generate individual steps or inspect saved results without running an entire chain at once.
+Read workflow diagrams from top to bottom. Solid arrows show process or data flow; dashed arrows show optional paths. Edit manually, generate individual steps or inspect saved results without running an entire chain at once.
 
 ### Novel writing
 
 ```mermaid
 flowchart TB
   accTitle: Novel writing from ideas to chapters
-  accDescr: Ideas lead to a blueprint and outlines, or existing chapters can be imported. Chapters feed analysis and further writing; local patches require author approval and matching source versions.
-  idea["Idea conversation / Story concept"] --> blueprint["Story blueprint<br/>Premise · World · Characters · Relationships"]
-  blueprint --> outline["Part outlines → Formal chapter outlines"]
-  outline --> chapter["Writing desk<br/>Write manually / Generate a chapter"]
-  imported["Enter / Import existing chapters"] --> chapter
-  chapter --> analysis["Chapter analysis and fact feedback"]
-  analysis --> next["Continue with earlier story knowledge"]
-  next --> chapter
-  chapter --> proposal["Local revision proposal → Diff preview"]
-  proposal --> approval{"Author approves and source version matches?"}
-  approval -->|Yes| chapter
-  approval -->|No| retained["Keep the original / Request a fresh proposal"]
+  accDescr: Ideas lead to a blueprint and outlines, then the writing desk. Existing chapters can enter the writing desk directly without blueprint generation.
+  idea["Idea / Story concept"] --> blueprint["Story blueprint<br/>Premise · World · Characters"]
+  blueprint --> outline["Part / Chapter<br/>outlines"]
+  outline --> chapter["Writing desk<br/>Write / Generate"]
+  imported["Import / Enter<br/>chapter text"] --> chapter
+  chapter --> saved["Save chapters<br/>Analyze, revise or keep writing"]
 ```
 
-Blueprints, outlines, chapters and profiles can be inspected and edited. Local revisions show the original and proposed text before approval; outdated proposals cannot overwrite changed source text.
+Blueprints, outlines, chapters and profiles can be inspected and edited. Local revisions have a separate review flow:
+
+```mermaid
+flowchart TB
+  accTitle: Local text revisions and author approval
+  accDescr: A patch proposal records the selected text and its source version. The author previews the diff. Only an approved patch with a matching source version is applied; rejection or an outdated source keeps the original text.
+  source["Select chapter text<br/>Record source version"] --> proposal["Propose a local patch<br/>Preview the before / after diff"]
+  proposal --> approval{"Approved and<br/>version matches?"}
+  approval -->|Pass| applied["Apply reviewed<br/>patch"]
+  approval -->|Reject or outdated| retained["Keep original text"]
+```
 
 ### Analysis and fact feedback
 
 ```mermaid
 flowchart TB
-  accTitle: Chapter analysis, accumulated knowledge and writing feedback
-  accDescr: Analysis cites source passages, synchronizes current facts each chapter and periodically consolidates knowledge. Retrieval prepares context from earlier chapters; changes to future plotting remain proposals for the author.
-  chapter["Saved chapter + Author starts analysis"] --> extract["Extract summaries, facts, events and threads<br/>Key results cite source evidence"]
-  extract --> profiles["Per-chapter updates<br/>Characters · Objects · Scenes · Thread progress"]
-  extract --> index["Analysis records and retrieval index"]
-  profiles --> consolidate["Periodic / Manually triggered consolidation<br/>World facts · Speech traits · Observed growth"]
-  consolidate --> suggestions["Premise and future-plot proposals<br/>Author decides whether to adopt"]
-  profiles --> context["Current outline + Writing instructions + Prior knowledge"]
-  index --> retrieval["Task-specific retrieval<br/>Chapters 1 to n−1 + Matching embedding identity"]
-  retrieval --> context
-  consolidate --> context
-  context --> generation["Generate chapter n<br/>Continuity first, then summaries and passages"]
-  generation -.->|Analyze again after saving| chapter
+  accTitle: Chapter analysis and accumulated story knowledge
+  accDescr: The author starts analysis of saved text. Extracted summaries, facts, events and threads retain source evidence and update profiles, facts and retrieval indexes. Less frequent knowledge is consolidated periodically or manually and may produce author-reviewed future-plot proposals.
+  chapter["Saved chapter<br/>Author starts analysis"] --> extract["Summaries · Facts · Events · Threads<br/>Key results cite source evidence"]
+  extract --> material["Update profiles, facts and indexes<br/>Characters · Objects · Scenes · Threads"]
+  material -.-> consolidate["Periodic / Manual consolidation<br/>World facts · Speech traits · Growth"]
+  consolidate -.-> suggestions["Premise / Future-plot proposals<br/>Wait for the author's decision"]
+```
+
+Later writing uses this material for the current task:
+
+```mermaid
+flowchart TB
+  accTitle: How earlier story material informs the next chapter
+  accDescr: The current outline and writing instructions drive retrieval from chapters one to n−1 with a matching embedding identity. Profiles, facts and retrieved material form the context for chapter n. After saving, the author may start another analysis.
+  intent["Chapter n outline + Instructions"] --> retrieval["Task-specific retrieval<br/>Chapters 1 to n−1<br/>Matching embedding identity"]
+  retrieval --> context["Combine profiles, facts and retrieval<br/>Continuity → Summaries → Passages"]
+  context --> generation["Generate chapter n"]
+  generation --> saved["Save chapter text<br/>Author may start another analysis"]
 ```
 
 Less frequent updates consolidate after 5 distinct chapters by default; the interval is configurable, and important world-rule changes can trigger earlier consolidation. Formal outlines are preserved; missing outlines receive retrospective ones. Editing old chapters retracts invalid sources while preserving later manual changes. Saving alone makes no model call. See [Fact feedback](docs/public/fact-feedback.zh.md) (Chinese) and the [feedback example](docs/public/assets/self-feedback.en.svg). This manages writing context; it does not retrain the model.
@@ -108,13 +115,12 @@ Less frequent updates consolidate after 5 distinct chapters by default; the inte
 ```mermaid
 flowchart TB
   accTitle: Images, character portraits and asset references
-  accDescr: Character profiles and creative instructions feed editable prompts. Generated and uploaded images enter project libraries, then workspaces select and bind them with inspectable dependencies.
-  profiles["Character profiles + Creative instructions"] --> prompt["Generate / Edit a portrait prompt"]
-  prompt --> generation["Image model generation<br/>Character portraits / Creative images"]
-  generation --> library["Project image and portrait libraries"]
-  uploaded["Upload existing images"] --> library
-  library --> reuse["Select or bind assets in each workspace<br/>Comic references · Director image points · Story assets"]
-  reuse --> dependencies["Inspect asset dependencies<br/>Trace references and affected artifacts"]
+  accDescr: General images use custom prompts; portraits use character profiles and portrait prompts. Each has its own generation entry. Existing images or portraits can be uploaded without model generation, then selected and bound under each workspace's rules.
+  prompt["Images: custom prompts<br/>Portraits: profiles + Prompts"] --> generation["Generate images<br/>or portraits<br/>Portrait age variants"]
+  generation --> library["Save image / Portrait records<br/>Retain project ownership"]
+  uploaded["Upload image<br/>or portrait"] --> library
+  library --> reuse["Select and bind by workspace rules<br/>Comic / Director / Story assets"]
+  reuse -.-> dependencies["Inspect dependencies as needed"]
 ```
 
 Generate or upload images and portraits with project ownership and references retained. Character portraits support regeneration and age variants. Each workspace applies its asset-selection rules; saved bindings distinguish system references from user-added images.
@@ -124,32 +130,33 @@ Generate or upload images and portraits with project ownership and references re
 ```mermaid
 flowchart TB
   accTitle: Comic production from story sources to page images
-  accDescr: Sources and assets pass through preprocessing, adaptation, page planning, storyboarding, reference binding, drawing prompts and page generation. Intermediate artifacts remain inspectable and editable.
-  source["Story sources + Character / Scene / Image assets"] --> prepare["Comic preprocessing and chapter adaptation"]
-  prepare --> pages["Pagination and page content → Per-page adaptation"]
+  accDescr: Sources and assets pass through preprocessing and an adopted chapter adaptation plan, then pagination, page content and per-page adaptation, followed by storyboarding, reference discovery, prompts and full-page generation.
+  source["Story sources + Base assets"] --> prepare["Comic preprocessing"]
+  prepare --> adaptation["Prepare and adopt<br/>a chapter adaptation plan"]
+  adaptation --> pages["Pagination → Page content<br/>Per-page adaptation plan"]
   pages --> storyboard["Page storyboard<br/>Panels · Action · Dialogue · Narration"]
-  storyboard --> references["Discover and bind references<br/>System portraits + User-added images"]
+  storyboard --> references["Discover needs and bind references<br/>System references / User additions"]
   references --> prompt["Full-page drawing prompt"]
-  prompt --> image["Page image → Inspect / Regenerate"]
+  prompt --> image["Generate a full-page image"]
 ```
 
-Stages retain structured artifacts and their sources. Inspect, edit or delete a selected stage, with downstream effects previewed before deletion. System references and user-added images are managed separately.
+Stages retain structured artifacts and their sources. System references and user-added images are managed separately; reference discovery only identifies needs and matches existing assets. Delete an existing stage artifact before regenerating, with downstream effects previewed before deletion.
 
 ### Chapter video
 
 ```mermaid
 flowchart TB
   accTitle: Chapter video from directing to finished output
-  accDescr: The author confirms the director plan. A shooting script feeds a shared segment plan used by both frame images and video clips, followed by timeline assembly and post-processing.
+  accDescr: The author confirms the director plan and prepares a shooting script. A shared segment plan defines prompts and execution recipes. Image-guided recipes prepare the required frames or references; text-only recipes do not require frames. Both validate inputs before generating clips, editing and export.
   source["Chapter sources + Base assets"] --> director["Director plan<br/>Shots · Timing · Image points · Staging"]
-  director --> confirm["Author confirms plan → Shooting script"]
-  confirm --> segments["Shared segment plan<br/>Source identity · Execution recipe · References"]
-  segments --> frames["Generate / Bind frame images"]
-  segments --> prompts["Video prompts and segment settings"]
-  frames --> clips["Generate video clips by segment"]
-  prompts --> clips
-  clips --> assembly["Timeline editing and assembly"]
-  assembly --> post["Post-processing / Finished output"]
+  director --> confirm["Author confirms plan<br/>Prepare shooting script"]
+  confirm --> segments["Shared segment plan and prompts<br/>Source identity · Execution recipe"]
+  segments --> inputs{"Image guidance?"}
+  inputs -->|Required| frames["Prepare frames<br/>or reference assets"]
+  inputs -->|Text only| validate["Validate clip inputs"]
+  frames --> validate
+  validate --> clips["Generate video clips by segment"]
+  clips --> assembly["Timeline editing and assembly<br/>Post-processing / Finished output"]
 ```
 
 Edit director plans manually or with an Agent; formal confirmation remains an author action. Frames and clips share a segment plan, and first-frame chaining requires the preceding clip's tail frame. Upstream edits trigger dependency checks for affected segments. See [Director editing design](docs/public/director-native-editing.md) (Chinese).
@@ -160,12 +167,12 @@ Edit director plans manually or with an Agent; formal confirmation remains an au
 flowchart TB
   accTitle: Interactive stories from branches to playback and export
   accDescr: Adapt a source story, design branches, create dialogue and staging, bind assets, then play the story in the built-in runtime or export a WebGAL project.
-  source["Story sources and adaptation plan"] --> branches["Branch design<br/>Choices · Conditions · Jumps"]
+  source["Story sources and adaptation plan"] --> branches["Branch design<br/>Choices · Jumps"]
   branches --> script["Scene scripts and dialogue"]
   script --> staging["Character staging and visual design"]
   staging --> assets["Asset planning and binding<br/>Backgrounds · Portraits · Images · Audio"]
-  assets --> play["Built-in story runtime<br/>Advance dialogue / Choose a branch"]
-  assets --> export["Export a WebGAL project"]
+  assets --> play["Built-in runtime<br/>Dialogue / Choices"]
+  assets --> export["WebGAL export"]
 ```
 
 Edit scenes, lines, order and choices; plan or generate image assets and import audio. Playback and export use the saved story and its asset bindings.
@@ -173,20 +180,27 @@ Edit scenes, lines, order and choices; plan or generate image assets and import 
 ### Freeform canvas
 
 ```mermaid
-flowchart LR
-  accTitle: Freeform canvas node workflow
-  accDescr: Text and media enter connected generation or processing nodes and end in previews or outputs. The actual workflow follows the nodes connected by the author.
+flowchart TB
+  accTitle: Freeform canvas text and image generation example
+  accDescr: Text input passes through an LLM to form a prompt, then image generation and a typed image output. This is one valid example. Video generation separately requires a text prompt and any image inputs required by its selected mode.
   text["Text input"] --> llm["LLM text node"]
-  llm --> image["Image generation"]
-  image --> video["Video generation"]
-  imported["Import images / Audio / Video"] --> process["Trim · Extract frames · Process media"]
-  video --> process
-  process --> output["Preview / Output nodes"]
-  llm --> output
-  image --> output
+  llm -->|Text prompt| image["Image generation node"]
+  image -->|Image| output["Image output node"]
 ```
 
-This is an example of connected steps, not a requirement to run every node. The canvas is an independent project. Canvas generation nodes currently serve freeform video projects; chapter-derived video uses the chapter workflow above.
+Media processing connects matching input types. This example trims video and extracts a frame:
+
+```mermaid
+flowchart TB
+  accTitle: Freeform canvas video processing example
+  accDescr: An imported video passes through a trim node, then can feed either video output or frame extraction. Extracted frames are images and connect to image output. Images and audio cannot directly enter a video trim node.
+  imported["Import video"] --> trim["Trim video node"]
+  trim --> video["Video output node"]
+  trim --> frame["Extract frame node"]
+  frame --> image["Image output node"]
+```
+
+These are two possible workflows. Text, image, audio and video outputs have separate node types. Video generation requires a text prompt; prompt-only, first-frame, first-and-last-frame and reference-image modes have different input requirements. An image alone cannot replace the prompt. The canvas is an independent project. Its generation nodes currently serve freeform video projects; chapter-derived video uses the chapter workflow above.
 
 <details>
 <summary>View a freeform canvas example</summary>
@@ -202,57 +216,60 @@ The example uses prepared video to show media processing; it does not demonstrat
 ```mermaid
 flowchart TB
   accTitle: Agent execution from a creative goal to reviewable results
-  accDescr: Domain sessions for novel optimization, directing and canvas work read bound context, discover tools and skills, then act within permissions and execution modes. Tasks and approvals remain observable; formal text patches and director confirmation remain author actions.
-  goal["Author goal<br/>Novel optimization / Directing / Canvas"] --> session["Domain session bound to project and resources"]
-  session --> tools["Read context · Discover tools · Load Skills"]
-  tools --> mode{"Permissions and execution mode"}
-  mode -->|Suggest| proposal["Read-only analysis / Revision proposals"]
-  mode -->|Approval required| review["Author approves a tool operation"]
-  mode -->|Autonomous| execute["Execute authorized valid operations"]
-  review --> execute
-  execute --> result["Draft edits / Generation tasks / Receipts"]
-  execute -.-> delegation["Delegate subtasks when needed"]
-  delegation -.-> result
-  proposal --> monitor["Inspect sessions, tasks and results<br/>Resolve approvals or cancel running tasks"]
-  result --> monitor
+  accDescr: A domain session binds projects and resources, reads context, and discovers tools and skills. Each call is checked against permissions, execution mode and approval policy. Disallowed or rejected calls do not execute. Authorized calls can edit drafts, start tasks or delegate and review subtasks.
+  goal["Author goal<br/>Novel revision / Directing / Canvas"] --> session["Domain session<br/>Bind project and resources"]
+  session --> tools["Read context · Discover tools / Skills"]
+  tools --> policy["Check permissions, mode and policy<br/>Ask the author when approval is needed"]
+  policy --> allowed{"Call authorized?"}
+  allowed -->|No| blocked["Reject call<br/>Record reason"]
+  allowed -->|Yes| execute["Execute tool<br/>Edit draft / Start task"]
+  execute --> result["Review receipts / Results<br/>Delegate and review<br/>subtasks as needed"]
 ```
 
-Agents can use project tools and handle long-running tasks. The CLI also discovers commands, submits tasks and observes JSON/JSONL events. Adopting chapter patches and formally confirming director plans remain author actions. Available tools and modes depend on the workspace.
+| Execution mode | Constraints on writes |
+| --- | --- |
+| Advice `advice_only` | Write tools are forbidden; read, analyze and suggest only |
+| Review writes `review_writes` | Usually requires approval; `edit_article` only stores a reviewable patch and does not write chapter text |
+| Autonomous `autonomous` | Permissions and tool policies still apply; some actions still need author approval |
+
+Agent sessions expose tasks, pending approvals and cancellation of running tasks. The CLI also discovers commands, submits tasks and observes JSON/JSONL events. Adopting chapter patches and formally confirming director plans remain author actions. Available tools and modes depend on the workspace.
 
 ## Source synchronization
 
 ```mermaid
 flowchart TB
   accTitle: Synchronizing story changes into derived projects
-  accDescr: Derived projects retain text, analysis and profile snapshots. Later source changes are compared first; local edits require an author decision, followed by dependency validation and updates to affected content.
-  novel["Novel text · Analysis · Profiles"] --> snapshot["Save a source snapshot when deriving a project"]
-  snapshot --> derived["Comics / Chapter video / Interactive stories"]
-  novel --> changes["Later changes to the original"]
-  changes --> diff["Compare source versions<br/>Chapter order · Text · Analysis · Profiles"]
-  snapshot --> diff
-  diff --> decision{"Local edits in the derived work?"}
-  decision -->|Yes| choose["Author chooses how to handle them"]
-  decision -->|No| apply["Confirm synchronization"]
-  choose --> apply
-  apply --> dependencies["Validate asset and downstream dependencies<br/>Update sources / Mark affected artifacts"]
-  dependencies --> derived
+  accDescr: A derived work retains source snapshots. Later changes produce a diff and dependency preview. The author chooses supported strategies per item, such as keeping, merging or replacing. Applying validates targets and updates snapshot links and sync status; unresolved conflicts stay visible and media is not automatically regenerated in bulk.
+  snapshot["Derived work saves source snapshots<br/>Text · Analysis · Profiles"] --> changes["Later changes to the original"]
+  changes --> diff["Compare snapshot and current source<br/>Preview changes, dependencies and edits"]
+  diff --> choose["Choose a strategy for each item<br/>Keep / Merge / Replace, etc."]
+  choose --> apply["Validate targets and apply sync plan"]
+  apply --> status["Update snapshot links and sync status<br/>Keep unresolved conflicts visible"]
 ```
 
-Snapshots identify the story version used for production. The asset dependency graph helps inspect relationships between sources and artifacts. Source changes do not silently overwrite local edits. The freeform canvas does not thereby gain novel source snapshots. See the [multimedia source example](docs/public/assets/multimodal.en.svg).
+Snapshots identify the story version used for production. The asset dependency graph helps inspect sources and artifacts. Source changes do not silently overwrite local edits. Synchronization does not regenerate all media; supported regeneration strategies require an explicit choice, and detaching from the source has its own strategy. The freeform canvas does not thereby gain novel source snapshots.
 
 ## Collaboration and import / export
 
 ```mermaid
 flowchart TB
-  accTitle: Project collaboration and delivery
-  accDescr: Existing text and project packages enter creative projects. Invited collaborators access them according to roles. Exports provide reading formats or supported editable project and media packages.
-  imported["Enter / Import text · Import project packages"] --> project["Creative projects and project families"]
-  project --> invite["Invite collaborators → Accept invitation"]
-  invite --> roles["Manager / Editor / Viewer<br/>Role-based project access"]
-  project --> text["Novel delivery<br/>TXT · Markdown · EPUB · PDF"]
-  project --> records["Structured material<br/>Outline / Character JSON"]
-  project --> package["Supported project / Family packages<br/>Included material, sources and media"]
-  package --> transfer["Import elsewhere / Continue creating"]
+  accTitle: Project collaboration and role permissions
+  accDescr: Owners and authorized managers invite members as managers, editors or viewers. Accepted members access projects under project and family rules, with permissions checked on each operation. Member invitations do not grant ownership.
+  owner["Project owner / Authorized manager"] --> invite["Invite members<br/>Manager / Editor / Viewer"]
+  invite --> accepted["Member accepts invitation"]
+  accepted --> access["Project and family access rules<br/>Check permission on each operation"]
+```
+
+Delivering reading files and moving an editable project serve different purposes:
+
+```mermaid
+flowchart TB
+  accTitle: Reading files and editable project transfers
+  accDescr: A project can export reading files or structured material, or a supported editable project package. Only the package path means importing elsewhere to continue editing. Reading formats are not complete project backups.
+  project["Current creative project"] --> purpose{"Delivery purpose?"}
+  purpose -->|Read / Reference| documents["TXT / MD / EPUB / PDF<br/>Outline / Character<br/>JSON"]
+  purpose -->|Keep editing| package["Project / Family<br/>package"]
+  package --> transfer["Import elsewhere<br/>Continue creating"]
 ```
 
 Member permissions apply to projects and related works. Reading files and editable project packages serve different purposes. Package exports include only the supported contents; complete backups still require both PostgreSQL data and media files.
@@ -263,45 +280,46 @@ Member permissions apply to projects and related works. Reading files and editab
 
 ```mermaid
 flowchart TB
-  accTitle: Entry points, shared business logic, storage and model capabilities
-  accDescr: The desktop defaults to a local Server; Web and CLI also enter the shared core through Server adapters. Tauri Native is another entry adapter. Separate boundaries own data, retrieval, files and model services; this is not a Rust dependency graph.
-  desktop["Desktop · Tauri 2"] -->|Default| server["Local / Deployed Server"]
-  web["Web browser"] --> server
-  cli["a4n CLI / Automation"] --> server
-  desktop -.->|Optional| native["Tauri Native adapter"]
-  server --> host["Shared Host API contracts and entry adapters"]
-  native --> host
-  host --> business["Business rules and orchestration<br/>Writing · Adaptation · Agents · Workflows"]
-  business --> db["PostgreSQL<br/>Chapters · Profiles · Versions · Tasks"]
-  business --> rag["Embedding + Qdrant<br/>Earlier-chapter retrieval index"]
-  business --> files["Data directory<br/>Images · Audio / Video · Exported files"]
-  business --> runtime["Runtime adapters and capability services"]
-  runtime --> models["Text / Image / Video Providers<br/>Local services or external APIs"]
-  runtime --> media["Media processing<br/>ffmpeg and corresponding sidecars"]
+  accTitle: How entry points reach the shared business core
+  accDescr: Desktop default mode, Web and CLI enter the business core through the Server service group. Optional desktop Native mode uses Tauri command adapters. Shared Host API contracts constrain both entries; the contracts are not an independent running service.
+  clients["Desktop default / Web / CLI"] --> server["Server services<br/>HTTP / Events"]
+  server --> business["Shared business core<br/>Writing · Adaptation<br/>Agents · Workflows"]
+  native["Desktop Native<br/>Optional entry"] -.->|Tauri| business
 ```
 
-Arrows show calls or data flow, not direct Rust dependencies. API contracts, business rules, persistence and runtime adapters have separate owners. Enable optional capability packages as needed, and configure text, Embedding, image and video services separately. See the more detailed [architecture example](docs/public/assets/architecture.en.svg).
+Shared Host API contracts constrain both entries. They define interfaces, rather than a separate running service. The Server uses Edge, Control and Runtime / Worker components. The next diagram shows only responsibilities and resources:
+
+```mermaid
+flowchart TB
+  accTitle: Data and capability boundaries of the shared business core
+  accDescr: Business orchestration uses data access for PostgreSQL, Qdrant retrieval indexes and media files, and runtime adapters for model Providers and media processing. This shows responsibilities and resources, not process deployment or Rust dependencies.
+  business["Business orchestration"] --> data["Data / Indexes<br/>PostgreSQL<br/>Qdrant<br/>Media files"]
+  business --> runtime["Runtime adapters<br/>Text / Image / Video<br/>ffmpeg · Sidecars"]
+```
+
+Arrows show calls or data flow, not direct Rust dependencies. API contracts, business rules, persistence and runtime adapters have separate owners. Enable optional capability packages as needed, and configure text, Embedding, image and video services separately. Models may use local services or external APIs.
 
 ### Recoverable tasks and version protection
 
 ```mermaid
 flowchart TB
   accTitle: Checkpoint recovery and source-version protection
-  accDescr: Workflows that support recovery reuse completed steps only with matching input identities. Failures remain visible. A final source-version check rejects results produced from outdated formal material.
-  request["Submit task<br/>Record inputs, source versions and runtime config"] --> task["Task ID + Progress / Events"]
-  task --> checkpoint{"Reusable completed steps<br/>with matching input identity?"}
-  checkpoint -->|Yes| reuse["Reuse completed results"]
-  checkpoint -->|No| run["Execute remaining steps"]
-  reuse --> run
-  run --> saved["Persist stage results and checkpoints"]
-  saved --> version{"Formal source version still matches?"}
-  version -->|Yes| commit["Commit formal results"]
-  version -->|No| conflict["Reject outdated results<br/>Refresh / Regenerate"]
-  run -->|Failure or interruption| stopped["Record explicit status and error"]
-  stopped -.->|When workflow supports recovery| checkpoint
+  accDescr: Recovery-capable workflows check input identities per stage. Matching completed results may be reused; otherwise the current stage executes. Successful work passes that stage's write checks, persists results and moves on or finishes. Failures and cancellations retain explicit status; results are not all deferred until the end.
+  request["Submit / Resume a supported task<br/>Record inputs, versions and config"] --> checkpoint{"Stage reusable?"}
+  checkpoint -->|Matches| reuse["Reuse results"]
+  checkpoint -->|No match| run["Execute this stage"]
+  run --> write["Validate sources<br/>Then save artifacts<br/>and checkpoints"]
+  reuse --> next["Next stage / Finish task"]
+  write --> next
 ```
 
-Recovery depends on the workflow and its current state. Checkpoints cannot bypass version checks after chapters, outlines or sources change. Failures, cancellations and conflicts have explicit outcomes.
+Recovery depends on the workflow and its state. If all stages already have valid results, the task can finish without executing more stages. Artifacts are saved under each stage's write rules; a checkpoint is not a formal artifact and cannot bypass version protection after chapters, outlines or sources change.
+
+| Situation | Result |
+| --- | --- |
+| Execution failure or task cancellation | Keep explicit status and errors or cancellation reasons; retain completed stages as the workflow permits |
+| Formal source version changes | Reject outdated writes and request a refresh or regeneration |
+| Task recovery requested | Recheck checkpoints against current sources and inputs; not every state supports recovery |
 
 See [Design evidence](docs/public/design-evidence.md) for code entry points and limits, and the [validation notes](docs/public/demo.md) for the public demo's narrower scope. The stack is Rust, Tauri 2, React/TypeScript, PostgreSQL/SeaORM and Qdrant.
 
