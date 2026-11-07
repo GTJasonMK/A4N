@@ -123,12 +123,18 @@ pub(super) async fn complete_pipeline(
         .zip(rows)
         .zip(projection_deltas.iter())
     {
+        let content_stage = artifacts.iter().find(|artifact| {
+            artifact.stage == MangaPipelineArtifactStage::PageContent
+                && artifact.page_number == Some(works[index].slot.page_number)
+        });
         persist_page_pipeline_artifact_delta(
             context,
             works[index].slot.page_number,
             old_layout.as_ref(),
             new_layout.as_ref(),
-            Some(MangaPipelineArtifactStage::PageContent),
+            content_stage
+                .is_none()
+                .then_some(MangaPipelineArtifactStage::PageContent),
         )
         .await?;
         works[index].row = row;

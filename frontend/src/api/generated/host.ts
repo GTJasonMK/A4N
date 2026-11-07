@@ -3045,8 +3045,16 @@ export interface MangaPageReferenceImageV1 {
   usage: string;
 }
 
+export interface MangaPageReferenceNeedV1 {
+  description: string;
+  target_kind: MangaPageReferenceTargetKind;
+  target_name: string;
+  usage: string;
+}
+
 export interface MangaPageReferenceDiscoveryV1 {
   references: MangaPageReferenceImageV1[];
+  requirements: MangaPageReferenceNeedV1[];
   schema_version: string;
 }
 

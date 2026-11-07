@@ -182,6 +182,9 @@ export const videoDirectorBridgeSnapshot = {
 };
 
 export const homeAgentFixtures = {
+  get_project_import_analysis_progress: novel.commands.get_project_import_analysis_progress,
+  get_reverse_engineering_candidate: novel.commands.get_reverse_engineering_candidate,
+  list_import_queue: novel.commands.list_import_queue,
   list_my_project_invites: [
     { id: 8101, project_title: "旧车站档案补记：关于迟到信件与沿海邮路的协作长篇", inviter_username: "正文协作者", invitee_username: user.username, role: "editor" },
     { id: 8102, project_title: "第三站台 · 场景资料核对", inviter_username: "场景审阅者", invitee_username: user.username, role: "viewer" },

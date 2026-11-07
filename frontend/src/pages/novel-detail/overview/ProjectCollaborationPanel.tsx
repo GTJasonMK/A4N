@@ -100,12 +100,6 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     const requestSeq = loadSeqRef.current + 1;
     loadSeqRef.current = requestSeq;
     setLoading(true);
-    setMembersLoadError(null);
-    setInvitesLoadError(null);
-    setMembersReady(false);
-    setInvitesReady(false);
-    setMembers([]);
-    setInvites([]);
     try {
       const [membersResult, invitesResult] = await Promise.allSettled([
         listProjectMembers(rootProjectId),
@@ -119,9 +113,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
         setMembersLoadError(null);
         setMembersReady(true);
       } else {
-        setMembers([]);
         setMembersLoadError(membersResult.reason);
-        setMembersReady(false);
         errors.push("members");
       }
       if (invitesResult.status === "fulfilled") {
@@ -129,9 +121,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
         setInvitesLoadError(null);
         setInvitesReady(true);
       } else {
-        setInvites([]);
         setInvitesLoadError(invitesResult.reason);
-        setInvitesReady(false);
         errors.push("invites");
       }
       return errors.length === 0;
@@ -178,6 +168,11 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   useLayoutEffect(() => {
     setIdentity("");
     setRole("editor");
+    setMembers([]);
+    setInvites([]);
+    setMembersLoadError(null);
+    setInvitesLoadError(null);
+    setLoading(true);
     setMembersReady(false);
     setInvitesReady(false);
     submittingRef.current = false;
@@ -306,7 +301,6 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     }
     const actionKey = `remove:${member.user_id}`;
     if (memberActionBusy(member.user_id)) return;
-    if (!beginAction(actionKey)) return;
     const requestScope = scopeRef.current;
     const requestLoadSeq = loadSeqRef.current;
     const ok = await confirmDialog({
@@ -316,15 +310,12 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
       dialogType: "danger",
     });
     if (!isCurrentScope(requestScope)) return;
-    if (!ok) {
-      finishAction(actionKey);
-      return;
-    }
+    if (!ok) return;
     if (loadSeqRef.current !== requestLoadSeq) {
-      finishAction(actionKey);
       addToast(tRef.current("common.listChangedRetry"), "info");
       return;
     }
+    if (!beginAction(actionKey)) return;
     try {
       await removeProjectMember(rootProjectId, member.user_id);
       if (!isCurrentScope(requestScope)) return;
@@ -347,7 +338,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
   };
 
   const handleRevoke = async (invite: ProjectInvite) => {
-    if (!invitesReady || loading || invitesLoadError != null) {
+    if (!invitesReady || loading) {
       addToast(
         invitesLoadError
           ? extractErrorMessage(invitesLoadError, t("novel.collaborationActions.invitesLoadFailed"))

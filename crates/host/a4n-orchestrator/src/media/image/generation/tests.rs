@@ -19,6 +19,7 @@ use a4n_db_models::models::{
     generation::{generation_run, workflow_checkpoint, workflow_run},
     media::image_publication,
     project::novel_project,
+    task::cleanup_outbox,
 };
 use a4n_domain::{
     media::{GeneratedImageRecord, GeneratedMediaArtifactFile},
@@ -1500,10 +1501,13 @@ async fn snapshot_image_preflight_reads_retired_source_and_rejects_live_binding(
 }
 
 #[tokio::test]
-async fn manga_page_post_commit_binds_new_image_and_removes_old_image() {
+async fn manga_page_post_commit_binds_empty_page_and_removes_orphan_image() {
     let (database, context, user_id) = setup_context().await;
     let (project_id, chapter, page_prompt, old_image) =
         insert_manga_page_fixture(database.as_ref()).await;
+    let mut empty_page: chapter_manga_prompt::ActiveModel = page_prompt.clone().into();
+    empty_page.generated_image_id = Set(None);
+    empty_page.update(database.as_ref()).await.unwrap();
     let host = TestImageGenerationHost::default();
 
     let outcome = context
@@ -1542,6 +1546,62 @@ async fn manga_page_post_commit_binds_new_image_and_removes_old_image() {
             .map(String::as_str),
         Some("generated/old-page1.png")
     );
+}
+
+#[tokio::test]
+async fn manga_page_existing_image_is_rejected_and_late_conflict_only_cleans_loser() {
+    let (database, context, user_id) = setup_context().await;
+    let (project_id, chapter, page_prompt, old_image) =
+        insert_manga_page_fixture(database.as_ref()).await;
+    let host = TestImageGenerationHost::default();
+    let start_input = serde_json::from_value(json!({
+        "meta": {"start_request_id": Uuid::new_v4().to_string()},
+        "project_id": project_id,
+        "operation": {"kind": "page", "chapter_number": 1, "page_number": 1, "width": 1024, "height": 1536}
+    })).unwrap();
+    let error = context
+        .validate_image_generation_start(user_id, &start_input)
+        .await
+        .expect_err("已有成图必须在请求 Provider 前拒绝");
+    assert!(error.to_string().contains("请先删除"));
+
+    let error = context
+        .run_image_generation_validated(
+            &host,
+            manga_page_execution_input(project_id, user_id, chapter.id, page_prompt.id),
+            &ImageGenerationProgress::none(),
+        )
+        .await
+        .expect_err("模拟生成期间另一请求已绑定图片，post-commit 不得覆盖赢家");
+    assert!(error.to_string().contains("请先删除"));
+    assert_eq!(host.generate_calls.load(Ordering::SeqCst), 1);
+    let current = chapter_manga_prompt::Entity::find_by_id(page_prompt.id)
+        .one(database.as_ref())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(current.generated_image_id, Some(old_image.id));
+    let images = generated_image::Entity::find()
+        .filter(generated_image::Column::ProjectId.eq(project_id))
+        .all(database.as_ref())
+        .await
+        .unwrap();
+    assert_eq!(images.len(), 1);
+    assert_eq!(images[0].id, old_image.id);
+    let cleanup = cleanup_outbox::Entity::find()
+        .all(database.as_ref())
+        .await
+        .unwrap();
+    let paths = cleanup
+        .into_iter()
+        .filter_map(|intent| intent.payload_json.get("paths").cloned())
+        .flat_map(|paths| serde_json::from_value::<Vec<String>>(paths).unwrap())
+        .collect::<Vec<_>>();
+    assert!(paths.iter().any(
+        |path| path.starts_with(&format!("projects/{project_id}/images/"))
+            && path.ends_with(".png")
+    ));
+    assert!(!paths.contains(&old_image.file_path));
 }
 
 #[test]

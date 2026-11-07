@@ -82,8 +82,14 @@ fn manga_page_storyboard_message_requires_null_speaker_for_non_dialogue_layers()
         None,
         None,
         json!({"units": [{"participants": ["林晓雨"]}]}),
-        &json!({"characters": {"林晓雨": {"name": "林晓雨"}}}),
+        &json!({
+            "characters": {"林晓雨": {"name": "林晓雨"}},
+            "source_events": {"events": []},
+            "speech": {"dialogues": [], "narrations": []}
+        }),
         &json!({"character_portraits": []}),
+        &[],
+        "",
         &source_markers,
     )
     .expect("storyboard message");
@@ -107,6 +113,92 @@ fn manga_page_storyboard_message_requires_null_speaker_for_non_dialogue_layers()
 }
 
 struct TestPromptRenderer;
+
+#[test]
+fn manga_storyboard_includes_only_current_page_original_speech() {
+    let raw_source = "把灯熄了。\n房间暗了下来。\n其他页面的对白";
+    let spans = a4n_domain::source_spans::source_spans_for_content(7, 1, raw_source);
+    assert_eq!(spans.len(), 3);
+    let content: MangaPageContentV1 = serde_json::from_value(json!({
+        "summary": "林晓雨要求熄灯", "source_span_ids": [spans[0].id, spans[1].id],
+        "beat_refs": [{"unit_id": "unit-1", "beat_id": "beat-1"}],
+        "action": "林晓雨指向灯", "reaction": null, "dialogue_intent": "要求熄灯",
+        "entry_state": "灯亮着", "exit_state": "灯熄灭"
+    }))
+    .unwrap();
+    let adaptation: MangaPageAdaptationV1 = serde_json::from_value(json!({
+        "visual_intent": "熄灯后的停顿", "continuity_requirements": [],
+        "retained_details": [], "omitted_details": [], "beat_refs": content.beat_refs
+    }))
+    .unwrap();
+    let extraction = json!({
+        "characters": {"林晓雨": {"name": "林晓雨"}},
+        "source_events": {"events": [
+            {"event_id": "event-1", "source_span_ids": [spans[0].id, spans[1].id]},
+            {"event_id": "event-2", "source_span_ids": [spans[2].id]}
+        ]},
+        "speech": {
+            "dialogues": [
+                {"source_event_id": "event-1", "content": "把灯熄了。"},
+                {"source_event_id": "event-2", "content": "其他页面的对白"}
+            ],
+            "narrations": [{"source_event_id": "event-1", "content": "房间暗了下来。"}]
+        }
+    });
+    let markers = SourceMarkerMap::from_source_spans(&spans).unwrap();
+    let manifest = manga_page_storyboard_user_message(
+        1,
+        2,
+        &content,
+        &adaptation,
+        None,
+        None,
+        json!({"units": [{"participants": ["林晓雨"], "beats": [
+            {"id": "beat-1", "source_span_ids": [spans[0].id]}
+        ]}]}),
+        &extraction,
+        &json!({"character_portraits": []}),
+        &spans,
+        raw_source,
+        &markers,
+    )
+    .unwrap();
+    let source = manifest
+        .packs
+        .iter()
+        .find_map(|pack| {
+            pack.variants[0]
+                .canonical_content_json
+                .pointer("/input/source_context")
+        })
+        .expect("page source must be a model context pack");
+    assert_eq!(source["speech"]["dialogues"][0]["content"], "把灯熄了。");
+    assert!(
+        source["source"]
+            .as_str()
+            .unwrap()
+            .contains("#0 把灯熄了。\n#1 房间暗了下来。")
+    );
+    let sent = render_manifest(manifest);
+    assert!(sent.contains("把灯熄了。"));
+    assert!(sent.contains("房间暗了下来。"));
+    assert!(!sent.contains("其他页面的对白"));
+    assert!(!sent.contains("event-2"));
+
+    let mut invalid_content = content.clone();
+    invalid_content
+        .source_span_ids
+        .push("outside-source".into());
+    let error = crate::manga::pipeline::prompt::manga_page_storyboard_source_input(
+        &invalid_content,
+        &extraction,
+        &spans,
+        raw_source,
+        &markers,
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("来源不在当前章节"));
+}
 
 #[async_trait]
 impl PromptRenderer for TestPromptRenderer {

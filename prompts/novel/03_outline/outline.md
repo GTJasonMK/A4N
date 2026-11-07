@@ -52,12 +52,14 @@ name: outline
 - `beat_sheet` 只在节拍映射任务中出现；出现时必须把节拍自然映射到当前章节范围，不要照抄为未支持字段。
 - `wait_to_generate` 是本次任务的硬约束；输出章节数量和数组顺序必须完全匹配它，章节号由后端按顺序补齐。
 
+{% if optimization_direction is defined %}
 {% if optimization_direction %}
 ## 本次优化方向
 
 {{ optimization_direction }}
 
 请优先满足该方向，但不得违反正式资料、已有大纲、输出字段和章节范围约束。
+{% endif %}
 {% endif %}
 
 ## 生成规则

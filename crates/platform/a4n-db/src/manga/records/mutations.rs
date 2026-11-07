@@ -326,16 +326,41 @@ pub async fn mark_manga_page_prompt_image_completed_with_image(
 ) -> Result<(), MangaPromptRecordError> {
     require_positive_manga_id(page_prompt_id, "page_prompt_id")?;
     require_positive_manga_id(image_id, "image_id")?;
-    let mut active_prompt = chapter_manga_prompt::ActiveModel {
-        id: Set(page_prompt_id),
-        ..Default::default()
-    };
-    active_prompt.generated_image_id = Set(Some(image_id));
-    active_prompt.status = Set("completed".to_string());
-    active_prompt.updated_at = Set(updated_at);
-    active_prompt
-        .update(db)
+    let updated = chapter_manga_prompt::Entity::update_many()
+        .col_expr(
+            chapter_manga_prompt::Column::GeneratedImageId,
+            Expr::value(image_id),
+        )
+        .col_expr(
+            chapter_manga_prompt::Column::Status,
+            Expr::value("completed"),
+        )
+        .col_expr(
+            chapter_manga_prompt::Column::UpdatedAt,
+            Expr::value(updated_at),
+        )
+        .filter(chapter_manga_prompt::Column::Id.eq(page_prompt_id))
+        .filter(chapter_manga_prompt::Column::GeneratedImageId.is_null())
+        .exec(db)
         .await
         .map_err(manga_record_database("回写漫画提示词生成图片失败"))?;
+    if updated.rows_affected == 0 {
+        let existing = chapter_manga_prompt::Entity::find_by_id(page_prompt_id)
+            .one(db)
+            .await
+            .map_err(manga_record_database("读取漫画提示词图片状态失败"))?
+            .ok_or_else(|| MangaPromptRecordError::NotFound("漫画提示词不存在".into()))?;
+        if existing.generated_image_id == Some(image_id) {
+            return Ok(());
+        }
+        if existing.generated_image_id.is_some() {
+            return Err(MangaPromptRecordError::Conflict(
+                "漫画页面已有成图，请先删除后再生成".into(),
+            ));
+        }
+        return Err(MangaPromptRecordError::Conflict(
+            "漫画页面图片状态更新冲突，请刷新后重试".into(),
+        ));
+    }
     Ok(())
 }

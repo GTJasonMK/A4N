@@ -17,7 +17,14 @@ use a4n_domain::{
     },
     source_spans::source_spans_for_content,
 };
+use sea_orm::DatabaseConnection;
 use serde_json::json;
+
+async fn setup_db() -> DatabaseConnection {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    a4n_test_support::database::ensure_test_user(&db, 1).await;
+    db
+}
 
 fn input(source: &ResolvedChapterSource) -> SaveAuthoringDocument {
     let spans = source_spans_for_content(
@@ -64,7 +71,7 @@ fn input(source: &ResolvedChapterSource) -> SaveAuthoringDocument {
 
 #[tokio::test]
 async fn documents_are_project_owned_revision_fenced_and_independent_per_source_snapshot() {
-    let db = a4n_migration::test_support::connect_test_database().await;
+    let db = setup_db().await;
     a4n_migration::migrations::media_authoring::create_document_schema(&db)
         .await
         .unwrap();
@@ -154,12 +161,10 @@ async fn documents_are_project_owned_revision_fenced_and_independent_per_source_
         "adoption does not change the document content revision"
     );
 
-    // A source-sync proposal can adopt a new lineage while existing scenes keep
-    // their old lineage. It cannot supersede another project's plan.
-    let mut target = second.clone();
-    target.requested_project_id = first.requested_project_id;
-    let next = save_authoring_document(&db, input(&target)).await.unwrap();
-    adopt_authoring_document(&db, target.requested_project_id, next.id, next.revision)
+    // Each derived project owns its snapshot lineage; adopting a plan in the
+    // second project must leave the first project's plan current.
+    let next = save_authoring_document(&db, input(&second)).await.unwrap();
+    adopt_authoring_document(&db, second.requested_project_id, next.id, next.revision)
         .await
         .unwrap();
     let old_current = current_authoring_document(
@@ -174,19 +179,18 @@ async fn documents_are_project_owned_revision_fenced_and_independent_per_source_
     .unwrap()
     .unwrap();
     assert_eq!(old_current.id, adopted.id);
-    assert!(
-        current_authoring_document(
-            &db,
-            projects[1].id,
-            second.source_snapshot_id.unwrap(),
-            Some(chapter.id),
-            AuthoringDocumentKind::AdaptationPlan,
-            AuthoringDocumentStatus::Adopted
-        )
-        .await
-        .unwrap()
-        .is_none()
-    );
+    let second_current = current_authoring_document(
+        &db,
+        projects[1].id,
+        second.source_snapshot_id.unwrap(),
+        Some(chapter.id),
+        AuthoringDocumentKind::AdaptationPlan,
+        AuthoringDocumentStatus::Adopted,
+    )
+    .await
+    .unwrap()
+    .expect("the second project retains its independent adopted plan");
+    assert_eq!(second_current.id, next.id);
 
     let mut corrupt = input(&second);
     corrupt.inputs.sources[0].content_sha256 = "0".repeat(64);
@@ -205,7 +209,7 @@ async fn deleting_adaptation_plan_previews_and_cascades_its_manga_page_and_image
     };
     use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 
-    let db = a4n_migration::test_support::connect_test_database().await;
+    let db = setup_db().await;
     let root = create_project_record(
         &db,
         CreateProjectRecordInput {
@@ -328,7 +332,10 @@ async fn deleting_adaptation_plan_previews_and_cascades_its_manga_page_and_image
     let image = generated_image::ActiveModel {
         project_id: Set(comic.id),
         image_type: Set("manga_page".into()),
-        file_path: Set("data/media-authoring-cascade-page.png".into()),
+        file_path: Set(format!(
+            "projects/{}/images/media-authoring-cascade-page.png",
+            comic.id
+        )),
         prompt: Set("整页画面".into()),
         model: Set("test".into()),
         width: Set(768),
@@ -450,7 +457,7 @@ async fn legacy_shared_director_plan_is_split_by_video_owner_without_changing_co
         ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter, Set, Statement,
         TransactionTrait,
     };
-    let db = a4n_migration::test_support::connect_test_database().await;
+    let db = setup_db().await;
     let root = create_project_record(
         &db,
         CreateProjectRecordInput {
@@ -556,7 +563,7 @@ async fn legacy_manga_preserves_edited_pages_and_all_images_without_its_original
         project::{media_authoring_document, media_authoring_migration_receipt, novel_project},
     };
     use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
-    let db = a4n_migration::test_support::connect_test_database().await;
+    let db = setup_db().await;
     let root = create_project_record(
         &db,
         CreateProjectRecordInput {

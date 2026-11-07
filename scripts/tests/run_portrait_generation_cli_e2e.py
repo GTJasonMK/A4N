@@ -64,7 +64,7 @@ def main():
                         },
                     },
                 )
-                profile_id = value.get("profile_id", value.get("id"))
+                profile_id = value.get("profile", {}).get("id")
                 assert isinstance(profile_id, int) and profile_id > 0, value
                 return profile_id
 

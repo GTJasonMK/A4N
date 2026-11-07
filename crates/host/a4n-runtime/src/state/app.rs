@@ -87,6 +87,24 @@ pub struct AppState {
     agent_host_dispatcher: Arc<tokio::sync::RwLock<Option<AgentHostCommandDispatcher>>>,
 }
 
+impl AppState {
+    pub async fn preflight_update_migrations(
+        &self,
+        names: &[String],
+    ) -> anyhow::Result<a4n_api_contract::updates::UpdateMigrationPreflight> {
+        super::database::preflight_update_migrations(
+            &self.config.database_url,
+            &self.config.data_dir,
+            names,
+        )
+        .await
+    }
+
+    pub fn update_migration_requires_data_backup(name: &str) -> bool {
+        super::database::update_migration_requires_data_backup(name)
+    }
+}
+
 impl Deref for AppState {
     type Target = ApplicationPorts;
 

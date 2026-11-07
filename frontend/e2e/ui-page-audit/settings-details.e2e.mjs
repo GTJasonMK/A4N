@@ -191,6 +191,21 @@ async function respond(command, body, { fixtures = {}, status = 200, match = {} 
   step("显式响应已经发出的请求", { command, status, match });
 }
 
+async function respondAll(command, body, { fixtures = {}, status = 200, match = {} } = {}) {
+  const count = await browser.execute((name, response, values, httpStatus, fields) => {
+    const audit = window.__uiAudit;
+    const matches = audit.pending.filter((entry) => entry.command === name &&
+      Object.entries(fields).every(([key, value]) =>
+        (entry.body[key] ?? entry.body.input?.[key]) === value));
+    if (matches.length === 0) throw new Error(`No pending requests to settle: ${name}`);
+    audit.pending = audit.pending.filter((entry) => !matches.includes(entry));
+    Object.assign(audit.fixtures, values);
+    matches.forEach((request) => request.resolve(Response.json(response, { status: httpStatus })));
+    return matches.length;
+  }, command, body, fixtures, status, match);
+  step("显式响应所有当前匹配请求", { command, count, status, match });
+}
+
 async function pageState() {
   return browser.execute(() => {
     const audit = window.__uiAudit;
@@ -424,8 +439,12 @@ describe("Settings detail pages and complete dialog workflows", function () {
         ? { ...item, content: savedDuringLeave, is_modified: true, version: "ui-details-leave-save" }
         : item) },
     });
+    await browser.waitUntil(async () => browser.execute(() =>
+      document.querySelector('[data-settings-dirty="true"]') === null,
+    ));
+    await click(await button("高级配置"), "保存完成后再次请求切换设置页");
     await browser.waitUntil(async () => await browser.execute(() => location.hash === "#advanced"));
-    step("保存成功后完成先前请求的设置页切换", { name: saveRequest.input.name });
+    step("保存完成后再次切换设置页", { name: saveRequest.input.name });
     await capture("saved-departure");
     const toastCoversTitle = await browser.execute(() => {
       const toast = document.querySelector(".a4n-toast")?.getBoundingClientRect();
@@ -480,6 +499,7 @@ describe("Settings detail pages and complete dialog workflows", function () {
     assert.equal(await projectSelector.isEnabled(), false, "The target project must not change during its override write");
     await click(await summary("高级工具"), "收起正在执行项目覆盖的高级工具");
     await openDetails("高级工具");
+    await openDetails("项目独立版本");
     await button("正在保存…").waitForDisplayed();
     assert.equal(await projectSelector.isEnabled(), false, "Reopening advanced tools must preserve the operation owner");
     const overrides = seed.invoke.prompt_list_project_overrides.map((item) =>
@@ -1195,6 +1215,13 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await click(await row.$("summary"), "展开任务诊断");
     await openMenu(row);
     await capture("task-actions");
+    await browser.waitUntil(async () => {
+      try {
+        return await (await $('button[aria-label="立即刷新任务"]')).isEnabled();
+      } catch {
+        return false;
+      }
+    }, { timeout: 5000, timeoutMsg: "任务列表读取必须结束后才能单独验证取消动作" });
     await defer("cancel_admin_task");
     await defer("list_pending_task_index");
     await click(await menuItem("取消任务"), "取消当前选中的管理员任务");
@@ -1204,7 +1231,9 @@ describe("Settings detail pages and complete dialog workflows", function () {
       fixtures: { list_pending_task_index: pendingTaskIndex.filter((item) => item.id !== request.taskId) },
     });
     await pending("list_pending_task_index");
-    await respond("list_pending_task_index", seed.variants.readFailure.body, { status: seed.variants.readFailure.status });
+    await respondAll("list_pending_task_index", seed.variants.readFailure.body, {
+      status: seed.variants.readFailure.status,
+    });
     await undefer("list_pending_task_index");
     await browser.waitUntil(async () => (await $$(".a4n-settings-content li")).length === pendingTaskIndex.length - 1);
     const taskListError = await $('.a4n-settings-content [role="alert"]');
@@ -1364,10 +1393,10 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await openAdmin("功能包");
     await $('[data-package-id="manga"]').waitForDisplayed();
     await capture("package-states");
-    const hidden = await $('[data-package-id="manga"] input[data-package-preference]');
-    assert.equal(await hidden.isSelected(), true);
+    const hiddenPreference = () => $('[data-package-id="manga"] input[data-package-preference]');
+    assert.equal(await hiddenPreference().isSelected(), true);
     await defer("update_package_preferences");
-    await click(hidden, "取消个人导航隐藏");
+    await click(hiddenPreference(), "取消个人导航隐藏");
     const preference = await pending("update_package_preferences");
     assert.deepEqual(preference.input.hidden_package_ids, []);
     await click(await $('nav').$("button=账户与应用"), "包导航偏好写入 pending 时切换设置分区");
@@ -1377,7 +1406,7 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await respond("update_package_preferences", savedPreference, {
       fixtures: { get_package_preferences: savedPreference },
     });
-    await browser.waitUntil(async () => !(await hidden.isSelected()));
+    await browser.waitUntil(async () => !(await hiddenPreference().isSelected()));
     await defer("start_package_lifecycle");
     await click(await $('[data-package-id="manga"] button[data-package-lifecycle]'), "请求启用漫画功能包");
     const lifecycle = await pending("start_package_lifecycle");
@@ -1391,7 +1420,7 @@ describe("Settings detail pages and complete dialog workflows", function () {
     }, { status: 409 });
     await $('[data-package-section] [role="alert"]').waitForDisplayed();
     await capture("lifecycle-error", { anchor: '[data-package-section] [role="alert"]' });
-    assert.equal(await hidden.isSelected(), false, "A Host lifecycle rejection must not revert personal navigation preference");
+    assert.equal(await hiddenPreference().isSelected(), false, "A Host lifecycle rejection must not revert personal navigation preference");
   });
 
   workflow("SD16-runtime-logs keeps the actual filter and pending draft in sync (UX-2537/2539/2540)", async () => {
@@ -1806,8 +1835,8 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await click(await $('nav').$("button=账户与应用"), "进入账户设置并失败个人资料读取");
     await browser.waitUntil(async () => new URL(await browser.getUrl()).hash === "#about");
     await browser.waitUntil(async () => browser.execute(() =>
-      window.__uiAudit.pending.filter((request) => request.command === "get_current_user").length >= 2,
-    ), { timeout: 5000, timeoutMsg: "Expected both StrictMode profile reads to be deferred" });
+      window.__uiAudit.pending.some((request) => request.command === "get_current_user"),
+    ), { timeout: 5000, timeoutMsg: "Expected the profile read to be deferred" });
     await browser.execute(({ body, status }) => {
       const audit = window.__uiAudit;
       const pending = audit.pending.filter((request) => request.command === "get_current_user");
@@ -2007,8 +2036,9 @@ describe("Settings detail pages and complete dialog workflows", function () {
     await respond("cleanup_orphan_project_data_dirs", seed.variants.orphanScan, {
       fixtures: { list_orphan_project_data_dirs: { items: [], total_count: 0, total_size_bytes: 0 } },
     });
-    await browser.waitUntil(async () => new URL(await browser.getUrl()).hash === "#advanced", { timeout: 5000 });
     await browser.waitUntil(async () => (await $("body").getText()).includes("已清理 1 个孤儿项目目录"), { timeout: 5000 });
+    await click(advancedTab, "清理完成后再次请求进入高级配置");
+    await browser.waitUntil(async () => new URL(await browser.getUrl()).hash === "#advanced", { timeout: 5000 });
     await browser.url("/settings#about");
     const reopenedCleanup = await section("存储清理");
     await click(await reopenedCleanup.$("button=扫描"), "重新扫描清理后的孤儿目录");

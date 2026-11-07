@@ -271,6 +271,7 @@ mod tests {
     #[tokio::test]
     async fn timeline_writes_reject_resetting_projects() {
         let db = a4n_migration::test_support::connect_test_database().await;
+        a4n_test_support::database::ensure_test_user(&db, 1).await;
         let project = crate::project::create_project_record(
             &db,
             crate::project::CreateProjectRecordInput {
@@ -320,9 +321,10 @@ mod tests {
                 .expect_err("重置期间不能同步时间线"),
         ] {
             assert!(matches!(
-                error,
-                VideoDbError::InvalidState { current, .. }
-                    if current == crate::generation::PROJECT_GATE_RESETTING
+                &error,
+                VideoDbError::InvalidState { current, operation }
+                    if current == "project_lifecycle_gate"
+                        && operation.contains(crate::generation::PROJECT_GATE_RESETTING)
             ));
         }
     }
@@ -334,6 +336,7 @@ mod tests {
         const SEGMENT_SHA256: &str =
             "1111111111111111111111111111111111111111111111111111111111111111";
         let db = a4n_migration::test_support::connect_test_database().await;
+        a4n_test_support::database::ensure_test_user(&db, 1).await;
         let project = crate::project::create_project_record(
             &db,
             crate::project::CreateProjectRecordInput {

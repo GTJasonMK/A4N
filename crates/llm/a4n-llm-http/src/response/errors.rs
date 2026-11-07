@@ -94,3 +94,19 @@ pub(crate) fn llm_api_status_error(status: StatusCode, body: &str) -> AppError {
         _ => AppError::LlmError(format!("LLM API 返回错误 {status}：{detail}")),
     }
 }
+
+pub(crate) fn llm_api_status_error_with_context(
+    status: StatusCode,
+    body: &str,
+    context: &str,
+) -> AppError {
+    let error = llm_api_status_error(status, body);
+    if context.is_empty() {
+        return error;
+    }
+    match error {
+        AppError::LlmError(message) => AppError::LlmError(format!("{message}；{context}")),
+        AppError::ConfigError(message) => AppError::ConfigError(format!("{message}；{context}")),
+        other => other,
+    }
+}

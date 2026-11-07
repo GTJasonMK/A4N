@@ -2,15 +2,27 @@
 async fn create_video_record_rejects_missing_project_without_insert() {
     let db = Arc::new(setup_db().await);
     let service = crate::video::test_video_orchestrator(db.clone()).await;
+    let missing_project_id = novel_project::Entity::find()
+        .select_only()
+        .column(novel_project::Column::Id)
+        .order_by_desc(novel_project::Column::Id)
+        .into_tuple::<i64>()
+        .one(db.as_ref())
+        .await
+        .unwrap()
+        .unwrap_or_default()
+        .checked_add(1)
+        .expect("the test database project ID sequence must have capacity");
 
     let err = service
-        .create_video_record(video_record_input(404))
+        .create_video_record(video_record_input(missing_project_id))
         .await
         .expect_err("missing project must not create orphan video");
 
     assert!(matches!(
         err,
-        AppError::NotFound(message) if message == "项目不存在: 404"
+        AppError::NotFound(message)
+            if message == format!("项目不存在: {missing_project_id}")
     ));
     assert_eq!(generated_video_count(db.as_ref()).await, 0);
 }

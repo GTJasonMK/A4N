@@ -555,6 +555,7 @@ pub(super) fn run() {
         &typescript_interface::<MangaPagePipelineErrorV1>("MangaPagePipelineErrorV1"),
         &typescript_enum::<MangaPageReferenceTargetKind>("MangaPageReferenceTargetKind"),
         &typescript_interface::<MangaPageReferenceImageV1>("MangaPageReferenceImageV1"),
+        &typescript_interface::<MangaPageReferenceNeedV1>("MangaPageReferenceNeedV1"),
         &typescript_interface::<MangaPageReferenceDiscoveryV1>("MangaPageReferenceDiscoveryV1"),
         &typescript_enum::<MangaPagePlanSchemaVersion>("MangaPagePlanSchemaVersion"),
         &typescript_enum::<MangaPageDrawingPromptSchemaVersion>(

@@ -21,6 +21,25 @@ impl AdaptationBeatRef {
 }
 
 impl AdaptationPlanV1 {
+    /// Unit-level citations aggregate the evidence cited by their beats.
+    pub fn complete_unit_source_span_ids_from_beats(&mut self) {
+        for unit in &mut self.units {
+            let mut seen = unit
+                .source_span_ids
+                .iter()
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            let beat_source_span_ids = unit
+                .beats
+                .iter()
+                .flat_map(|beat| &beat.source_span_ids)
+                .filter(|id| seen.insert((*id).clone()))
+                .cloned()
+                .collect::<Vec<_>>();
+            unit.source_span_ids.extend(beat_source_span_ids);
+        }
+    }
+
     pub fn validate(&self, source_span_ids: &BTreeSet<String>) -> Result<(), String> {
         if let Some(page_count) = self.page_count {
             if self.target != crate::media_authoring::AdaptationTarget::Manga {

@@ -36,6 +36,7 @@ import { getProjectLifecycleBlockedReason } from "../utils/projectStatus";
 import { usePersistedTab } from "../hooks/usePersistedTab";
 import { BackButton, useSmartBack } from "../components/ui/BackButton";
 import { Modal } from "../components/ui/Modal";
+import { useBlockerProceed } from "../components/navigation/useBlockerProceed";
 import { BookButton } from "../components/ui/BookButton";
 import { PageHeader } from "../components/shell/PageHeader";
 import { cancelWorkflowTask } from "../api/streaming";
@@ -209,6 +210,7 @@ export const NovelDetail: React.FC = () => {
   const [exportOpen, setExportOpen] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
   const dirtyNavigationBlocker = useBlocker(() => dirtyRegistry.hasDirty() || exportBusy);
+  const proceedNavigation = useBlockerProceed(dirtyNavigationBlocker);
   useBeforeUnload((event) => {
     if (!dirtyRegistry.hasDirty() && !exportBusy) return;
     event.preventDefault();
@@ -220,9 +222,9 @@ export const NovelDetail: React.FC = () => {
       !exportBusy &&
       !dirtyRegistry.hasDirty()
     ) {
-      dirtyNavigationBlocker.proceed();
+      proceedNavigation();
     }
-  }, [dirtyNavigationBlocker.proceed, dirtyNavigationBlocker.state, dirtyRegistry, dirtyRegistryVersion, exportBusy]);
+  }, [proceedNavigation, dirtyNavigationBlocker.state, dirtyRegistry, dirtyRegistryVersion, exportBusy]);
   const mountedRef = useRef(false);
   const activeProjectIdRef = useRef(projectId);
   activeProjectIdRef.current = projectId;
@@ -779,7 +781,7 @@ export const NovelDetail: React.FC = () => {
           footer={(
             <>
               <BookButton variant="secondary" onClick={dirtyNavigationBlocker.reset}>{t("common.cancel")}</BookButton>
-              {!exportBusy ? <BookButton variant="warning" disabled={!canDiscardDirty} onClick={() => { void dirtyRegistry.discardDirty().then((discarded) => { if (discarded) dirtyNavigationBlocker.proceed(); }); }}>{t("common.discardDraft")}</BookButton> : null}
+              {!exportBusy ? <BookButton variant="warning" disabled={!canDiscardDirty} onClick={() => { void dirtyRegistry.discardDirty().then((discarded) => { if (discarded) proceedNavigation(); }); }}>{t("common.discardDraft")}</BookButton> : null}
             </>
           )}
         >

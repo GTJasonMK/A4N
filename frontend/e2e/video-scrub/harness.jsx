@@ -6,6 +6,7 @@ import { VideoPostProcessWorkspace } from "../../src/pages/novel-detail/video/Vi
 import { VideoAssemblyWorkspace } from "../../src/pages/novel-detail/video/VideoAssemblyWorkspace";
 import { writeFixtureAuth } from "../fixtureAuth";
 import { initializePortableStorage } from "../../src/utils/portableStorage";
+import { installTauriEventMock } from "../tauriEventMock.js";
 import "../../src/index.css";
 
 window.__A4N_VIDEO_SCRUB_E2E_ERROR__ = null;
@@ -178,6 +179,7 @@ const mountHarness = async () => {
       transformCallback: () => nextCallbackId++,
       unregisterCallback: () => undefined,
     };
+    installTauriEventMock(window.__TAURI_INTERNALS__);
   }
 
   await initializePortableStorage();
@@ -196,11 +198,15 @@ const mountHarness = async () => {
               title: "剪辑预览测试",
               status: "completed",
             }}
+            canEdit={true}
+            readUnavailable={false}
+            readUnavailableReason={null}
             videos={videos}
             timeline={null}
             adoptedVideoIds={new Set()}
             onToast={() => undefined}
             onRefresh={() => undefined}
+            onVideoRecordUpdated={() => undefined}
           />
         </ImageLightboxProvider>
       </I18nProvider>

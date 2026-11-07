@@ -3,7 +3,8 @@ use std::collections::{HashMap, HashSet};
 use a4n_domain::{
     manga::{
         MANGA_PAGE_REFERENCE_DISCOVERY_V1, MANGA_PAGE_REFERENCE_IMAGE_LIMIT,
-        MangaPageReferenceDiscoveryV1, MangaPageReferenceImageV1, MangaPageReferenceTargetKind,
+        MANGA_PAGE_REFERENCE_REQUIREMENT_LIMIT, MangaPageReferenceDiscoveryV1,
+        MangaPageReferenceImageV1, MangaPageReferenceNeedV1, MangaPageReferenceTargetKind,
         MangaReferenceAssetKind, MangaReferenceBindingSummary,
     },
     media::GeneratedImageRecord,
@@ -21,6 +22,9 @@ const MAX_REFERENCE_USAGE_CHARS: usize = 400;
 struct ReferenceDiscoveryResponse {
     schema_version: String,
     page_number: u32,
+    #[serde(default)]
+    requirements: Vec<MangaPageReferenceNeedV1>,
+    #[serde(default)]
     references: Vec<ReferenceSelection>,
 }
 
@@ -147,6 +151,31 @@ pub(in crate::manga) fn parse_manga_page_reference_discovery(
             "manga_page_reference_discovery.page_number 必须等于 {page_number}"
         )));
     }
+    if response.requirements.len() > MANGA_PAGE_REFERENCE_REQUIREMENT_LIMIT {
+        return Err(AppError::InvalidArgument(format!(
+            "manga_page_reference_discovery.requirements 不能超过 {MANGA_PAGE_REFERENCE_REQUIREMENT_LIMIT} 项"
+        )));
+    }
+    for (index, requirement) in response.requirements.iter().enumerate() {
+        let target_name = requirement.target_name.trim();
+        let description = requirement.description.trim();
+        let usage = requirement.usage.trim();
+        if target_name.is_empty() || target_name.chars().count() > 100 {
+            return Err(AppError::InvalidArgument(format!(
+                "manga_page_reference_discovery.requirements[{index}].target_name 无效"
+            )));
+        }
+        if description.is_empty() || description.chars().count() > MAX_REFERENCE_DESCRIPTION_CHARS {
+            return Err(AppError::InvalidArgument(format!(
+                "manga_page_reference_discovery.requirements[{index}].description 无效"
+            )));
+        }
+        if usage.is_empty() || usage.chars().count() > MAX_REFERENCE_USAGE_CHARS {
+            return Err(AppError::InvalidArgument(format!(
+                "manga_page_reference_discovery.requirements[{index}].usage 无效"
+            )));
+        }
+    }
     if response.references.len() > MANGA_PAGE_REFERENCE_IMAGE_LIMIT {
         return Err(AppError::InvalidArgument(format!(
             "manga_page_reference_discovery.references 不能超过 {MANGA_PAGE_REFERENCE_IMAGE_LIMIT} 项"
@@ -195,6 +224,7 @@ pub(in crate::manga) fn parse_manga_page_reference_discovery(
     }
     let discovery = MangaPageReferenceDiscoveryV1 {
         schema_version: MANGA_PAGE_REFERENCE_DISCOVERY_V1.to_string(),
+        requirements: response.requirements,
         references,
     };
     discovery.validate().map_err(AppError::InvalidArgument)?;
@@ -234,6 +264,7 @@ mod tests {
     fn discovery(asset_id: i64, image_path: &str) -> MangaPageReferenceDiscoveryV1 {
         MangaPageReferenceDiscoveryV1 {
             schema_version: MANGA_PAGE_REFERENCE_DISCOVERY_V1.into(),
+            requirements: Vec::new(),
             references: vec![MangaPageReferenceImageV1 {
                 asset: MangaBoundReferenceAsset {
                     asset_kind: MangaReferenceAssetKind::GeneratedImage,

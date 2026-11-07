@@ -1523,3 +1523,11 @@ B232 路径复核更正：Admin 与 API 子区段在确认框打开时由 Modal 
 - Chrome 153 H09 路径 1/1，在 1440/900/390px 覆盖“视频画布 + 我协作的”零结果及清除后列表恢复；三宽页面 overflow、浏览器错误和意外请求均为 0。清除后六个 fixture 项目恢复，两个筛选回到“全部”。独立审图复核桌面、手机的无匹配态和恢复态，无可确认 P1/P2/P3。
 - 证据：[本轮报告](../.dev-runtime/ui-pages/home-agent/h09-verification-20261015-report.json)、[1440px 无匹配](../.dev-runtime/ui-pages/home-agent/h09-verification-20261015-H09-filtered-empty-1440-initial.png)、[390px 无匹配](../.dev-runtime/ui-pages/home-agent/h09-verification-20261015-H09-filtered-empty-390-initial.png)、[390px 清除后](../.dev-runtime/ui-pages/home-agent/h09-verification-20261015-H09-filtered-empty-390-filters-cleared.png)。
 - 验证：`npm run build`、H09 Chrome 回归、E2E `node --check`、设计预算及 `git diff --check` 通过。CSS 未修改；当前 CSS 源码 4,767 行 / 135,470 字节，构建 CSS 266,038 字节，低于 +20% 上限；调色板匹配、界面 emoji=0、无新增依赖。首次 WDIO 启动因本机代理环境未创建 Chrome 会话；移除代理变量后同一回归通过。构建保留既有 >500 kB JS chunk 提示。
+
+## debug 收尾复验（2026-11-07）
+
+- Node.js 22.21.1 下，前端单测 153 文件 / 579 项、API parity、生产构建和浏览器 helper 9 项通过。生产包功能验收最终 9/9 组、167 项通过；记录在 `data/closeout-20261107/ui-functional-strict-final.log`。
+- 首轮失败保留在 `data/closeout-20261107/full/` 与各复验目录。夹具在应用模块启动前同步设置登录态、语言和外观；延迟响应回归先失败后通过。桌面草稿测试使用运行中应用的保存队列，生产预览显式提供 PNG 夹具并保留图片解码断言。严格诊断改用 Mocha root `afterEach`，实际回归证明正文通过但出现 SEVERE 时退出失败。
+- 暗色错误文字恢复既有暗色前景色，不降低 4.5 阈值。标准 runner 分别运行生产预览 presentation（31 项）与源码 controls（18 项）/visual（26 项）；214 条视觉记录中 200 条有对比度数据，错误色最小 4.79，205 条有页面 overflow 测量且全部为 0，无意外错误。证据：`.dev-runtime/ui-design-closeout-verified-20261107/visual/report.json`；不能将全部 214 条称为生产包验收。
+- 独立审阅实际打开最终 8 张明暗、宽窄及真实 Host 截图，没有可确认 P1/P2；保留 P3：390px 漫画阶段 5 重复“单页分镜”标题。参考图截图系统区标题已滚出画面，390px settings-editor 截图实际为列表态，不能据此证明窄屏编辑表单。静态审图不替代交互、媒体解码或持久化断言。
+- 真实 Host 的三宽度、双窗口、参考图选择/上传/刷新/移除与通知接口已在严格诊断门禁下通过；最终完整创作验收 17 组 CLI、6 个浏览器流程、9 个创作阶段全部通过。导航重复推进、视频草稿读取竞态及导演 Agent 旧关闭脚本均已修正并复验，汇总见 [debug 收尾记录](../docs/debug-closeout-20261107.zh.md)。Provider 使用本地虚拟实现；本轮不评估付费模型创作质量及操作系统原生对话框。

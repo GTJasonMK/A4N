@@ -1,13 +1,19 @@
 use a4n_db::chapter_visual_plan::{
     SaveChapterVisualPlanDraftInput, chapter_visual_plan_by_id, save_chapter_visual_plan_draft,
 };
-use a4n_db_models::models::chapter::chapter;
+use a4n_db_models::models::project::source_snapshot_chapter;
 use a4n_domain::chapter::ImportChapterContentInput;
 use a4n_domain::chapter_visual_plan::{
     ChapterVisualPlanAuthoringMode, ChapterVisualPlanV3, ExpectedVisualPlanDraft,
 };
-use sea_orm::{ActiveModelTrait, Set, TransactionTrait};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set, TransactionTrait};
 use std::time::Duration;
+
+async fn setup_db() -> DatabaseConnection {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    a4n_test_support::database::ensure_test_user(&db, 1).await;
+    db
+}
 
 #[tokio::test]
 async fn director_resources_are_family_scoped_and_survive_supersession() {
@@ -19,7 +25,7 @@ async fn director_resources_are_family_scoped_and_survive_supersession() {
     };
     use sea_orm::EntityTrait;
 
-    let db = a4n_migration::test_support::connect_test_database().await;
+    let db = setup_db().await;
     let root = a4n_db::project::create_project_record(
         &db,
         a4n_db::project::CreateProjectRecordInput {
@@ -146,6 +152,10 @@ async fn director_resources_are_family_scoped_and_survive_supersession() {
     )
     .await
     .unwrap();
+    input.source = a4n_db::project::resolve_chapter_source(&db, media_project.id, chapter.id)
+        .await
+        .unwrap();
+    input.expected_source_hash = Some(input.source.content_sha256.clone());
     let mut image_row: generated_image::ActiveModel = image.clone().into();
     image_row.project_id = Set(media_project.id);
     image_row.file_path = Set(format!("projects/{}/images/director.png", media_project.id));
@@ -170,23 +180,6 @@ async fn director_resources_are_family_scoped_and_survive_supersession() {
             .to_string()
             .contains("导演编排引用")
     );
-    let mut deleting: a4n_db_models::models::project::novel_project::ActiveModel =
-        media_project.clone().into();
-    deleting.lifecycle_gate = Set(a4n_domain::generation::ProjectLifecycleOperation::Delete
-        .gate()
-        .to_string());
-    deleting.update(&db).await.unwrap();
-    assert!(
-        a4n_db::project::delete::delete_project_cascade_record(&db, media_project.id)
-            .await
-            .unwrap_err()
-            .to_string()
-            .contains("导演编排引用")
-    );
-    let mut restored: a4n_db_models::models::project::novel_project::ActiveModel =
-        media_project.clone().into();
-    restored.lifecycle_gate = Set(media_project.lifecycle_gate.clone());
-    restored.update(&db).await.unwrap();
     assert!(
         a4n_db::scene_profile::delete_scene_profile_records(&db, scene.id)
             .await
@@ -241,11 +234,28 @@ async fn director_resources_are_family_scoped_and_survive_supersession() {
             .to_string()
             .contains("导演编排引用")
     );
+
+    let mut deleting: a4n_db_models::models::project::novel_project::ActiveModel =
+        media_project.clone().into();
+    deleting.lifecycle_gate = Set(a4n_domain::generation::ProjectLifecycleOperation::Delete
+        .gate()
+        .to_string());
+    deleting.update(&db).await.unwrap();
+    a4n_db::project::delete::delete_project_cascade_record(&db, media_project.id)
+        .await
+        .expect("deleting the project must cascade its own plan and referenced media");
+    assert!(
+        generated_image::Entity::find_by_id(image.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[tokio::test]
 async fn source_precondition_is_checked_inside_the_save_transaction() {
-    let db = a4n_migration::test_support::connect_test_database().await;
+    let db = setup_db().await;
     let project = a4n_db::project::create_project_record(
         &db,
         a4n_db::project::CreateProjectRecordInput {
@@ -269,9 +279,28 @@ async fn source_precondition_is_checked_inside_the_save_transaction() {
     )
     .await
     .unwrap();
-    let source = a4n_db::project::resolve_chapter_source(&db, project.id, chapter.id)
+    let video_project = a4n_db::project::create_derived_project_record(
+        &db,
+        1,
+        a4n_db::project::CreateDerivedProjectParams {
+            root_project_id: project.id,
+            derived_kind: "video".into(),
+            title: "Agent source CAS video".into(),
+            description: String::new(),
+            chapter_scope: a4n_db::project::DerivedChapterScope {
+                start_chapter: 1,
+                end_chapter: 1,
+            },
+        },
+    )
+    .await
+    .unwrap();
+    let source = a4n_db::project::resolve_chapter_source(&db, video_project.id, chapter.id)
         .await
         .unwrap();
+    let source_snapshot_chapter_id = source
+        .source_snapshot_chapter_id
+        .expect("derived video source must bind a snapshot chapter");
     let mut input = SaveChapterVisualPlanDraftInput {
         expected_source_hash: Some(source.content_sha256.clone()),
         source,
@@ -300,8 +329,16 @@ async fn source_precondition_is_checked_inside_the_save_transaction() {
     // Hold a real concurrent source update open. The plan save must wait for
     // it, then reject the old hash rather than publish the stale rewrite.
     let tx = db.begin().await.unwrap();
-    let mut changed: chapter::ActiveModel = chapter.into();
-    changed.content = Set("原文版本二".into());
+    let source_snapshot_chapter =
+        source_snapshot_chapter::Entity::find_by_id(source_snapshot_chapter_id)
+            .one(&db)
+            .await
+            .unwrap()
+            .expect("the source snapshot chapter must exist");
+    let changed_content = "原文版本二".to_string();
+    let mut changed: source_snapshot_chapter::ActiveModel = source_snapshot_chapter.into();
+    changed.content = Set(changed_content.clone());
+    changed.content_hash = Set(a4n_domain::source_text_hash(&changed_content));
     changed.update(&tx).await.unwrap();
     let save_db = db.clone();
     let mut pending =

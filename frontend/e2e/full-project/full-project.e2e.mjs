@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readdir } from "node:fs/promises";
 import { visibleElements, firstVisibleContaining, buttonMatching, clickButton, currentDialog, fieldByLabel, setField, waitForBodyText, waitForBodyMatch, waitForRoute, waitForNoDialog, closeDialog, waitAndCloseProgress, tab, sectionContaining, createProject, prepareSession } from "./user-flow.mjs";
+import { callBrowserApiCommand } from "./webApi.mjs";
 
 async function enterBlueprint(projectId) {
   await browser.url(`/novel/${projectId}`);
@@ -18,6 +19,20 @@ async function enterBlueprint(projectId) {
   await waitForBodyText("一封来自未来的信迫使林岚进入钟楼", 60_000);
 }
 
+async function waitForProfileDetails(name) {
+  await browser.waitUntil(async () => {
+    for (const dialog of await visibleElements('[role="dialog"]')) {
+      const text = await dialog.getText();
+      if (text.includes(name) && text.includes("用户资料")) return true;
+    }
+    return false;
+  }, {
+    timeout: 60_000,
+    interval: 250,
+    timeoutMsg: `保存后未显示档案详情：${name}`,
+  });
+}
+
 async function createProfiles() {
   await tab("角色档案");
   await clickButton("新建角色");
@@ -33,7 +48,7 @@ async function createProfiles() {
   dialog = await currentDialog();
   await setField("名称", "旧怀表", "input", dialog);
   await clickButton("保存", dialog);
-  await waitForBodyText("旧怀表", 60_000);
+  await waitForProfileDetails("旧怀表");
   await closeDialog();
 
   await tab("场景档案");
@@ -41,7 +56,7 @@ async function createProfiles() {
   dialog = await currentDialog();
   await setField("名称", "旧车站", "input", dialog);
   await clickButton("保存", dialog);
-  await waitForBodyText("旧车站", 60_000);
+  await waitForProfileDetails("旧车站");
   await closeDialog();
 }
 
@@ -139,8 +154,8 @@ async function analyzeAndSync(projectId) {
 }
 
 async function exerciseDirectorPlan(projectId) {
-  await browser.url(`/write/${projectId}?chapter=1`);
-  await waitForBodyText("正文");
+  await browser.url(`/video-project/${projectId}`);
+  await waitForBodyText("导演编排");
   await tab("导演编排");
   const plan = await $("section.director-workspace");
   await plan.waitForDisplayed({ timeout: 60_000 });
@@ -168,7 +183,7 @@ async function exerciseDirectorPlan(projectId) {
   await browser.waitUntil(async () => (await $$(".director-segment")).length === 2);
 
   await clickButton("调整整体时长");
-  await $('[aria-label="整体时长（秒）"]').setValue("20");
+  await $('[aria-label^="整体时长"]').setValue("20");
   await browser.keys("Tab");
   await browser.waitUntil(async () => (await $(".director-ruler").getText()).includes("20s"));
   await closeDialog();
@@ -196,8 +211,10 @@ async function exerciseDirectorPlan(projectId) {
   await browser.setWindowSize(1440, 1000);
 }
 
-async function searchRag() {
+async function searchRag(projectId) {
   // 资料检索属于正文编辑上下文；分析页上的入口按产品规则保持禁用。
+  await browser.url(`/write/${projectId}?chapter=1`);
+  await waitForBodyText("正文");
   await tab("正文");
   const ragButton = await buttonMatching("资料检索");
   await ragButton.click();
@@ -294,11 +311,12 @@ async function generateImage(projectId) {
   assert.ok((await $$('img')).length > 0, "图库没有生成图片");
 }
 
-async function createDerivedProjects() {
+async function createDerivedProjects(rootProjectTitle) {
   await browser.url("/");
   await waitForBodyText("创建项目");
-  let projectRow = await firstVisibleContaining('.a4n-project-row', "未命名小说项目");
-  assert.ok(projectRow, "首页找不到文本项目行");
+  await waitForBodyText(rootProjectTitle, 30_000);
+  let projectRow = await firstVisibleContaining('.a4n-project-row', rootProjectTitle);
+  assert.ok(projectRow, `首页没有展示刚创建的文本项目：${rootProjectTitle}`);
   const more = await projectRow.$("button[aria-label='更多操作']");
   await more.click();
   const kinds = [
@@ -320,8 +338,9 @@ async function createDerivedProjects() {
     ids[label] = Number(match[1]);
     await browser.url("/");
     await waitForBodyText("创建项目");
-    projectRow = await firstVisibleContaining('.a4n-project-row', "未命名小说项目");
-    assert.ok(projectRow, `${label} 创建后找不到根项目`);
+    await waitForBodyText(rootProjectTitle, 30_000);
+    projectRow = await firstVisibleContaining('.a4n-project-row', rootProjectTitle);
+    assert.ok(projectRow, `${label} 创建后首页没有展示根项目：${rootProjectTitle}`);
     await (await projectRow.$("button[aria-label='更多操作']")).click();
   }
   assert.equal(Object.keys(ids).length, 3);
@@ -329,11 +348,20 @@ async function createDerivedProjects() {
   return ids;
 }
 
-async function exerciseCanvas(videoId) {
-  await browser.url(`/video-project/${videoId}`);
-  await waitForBodyText("画布模式");
-  await clickButton("画布模式");
-  await waitForRoute(new RegExp(`/video-project/${videoId}/studio`));
+async function createStandaloneCanvasProject() {
+  await browser.url("/");
+  await clickButton("创建项目");
+  await waitForBodyText("新建项目", 30_000);
+  await clickButton("独立画布项目", await currentDialog());
+  await waitForRoute(/\/canvas-project\/\d+/);
+  const match = (await browser.getUrl()).match(/\/canvas-project\/(\d+)/);
+  assert.ok(match, "独立画布项目创建后缺少项目 ID");
+  return Number(match[1]);
+}
+
+async function exerciseCanvas(canvasProjectId) {
+  await browser.url(`/canvas-project/${canvasProjectId}`);
+  await waitForRoute(new RegExp(`/canvas-project/${canvasProjectId}`));
   await waitForBodyText("节点");
   await browser.setWindowSize(390, 900);
   const openNodeLibrary = async () => {
@@ -414,6 +442,10 @@ async function exerciseMainAgent(projectId) {
   await waitForRoute(new RegExp(`/write/${projectId}\\?chapter=1\\&agent=1`), 120_000);
   await browser.url("/agents");
   await waitForBodyText("主 Agent", 60_000);
+  const traceToggle = await $("button.agent-monitor-activity-toggle");
+  await traceToggle.waitForClickable({ timeout: 30_000 });
+  await traceToggle.click();
+  await $("section[aria-label='事件轨迹']").waitForDisplayed({ timeout: 30_000 });
   await browser.waitUntil(async () => {
     const text = await $("body").getText();
     return text.includes("委派")
@@ -466,15 +498,45 @@ async function exerciseMainAgent(projectId) {
     return text.includes("交付说明") && text.includes("Agent 已完成");
   }, { timeout: 480_000, interval: 1_000, timeoutMsg: "正文页领域 Agent follow-up 未完成" });
   await browser.url("/agents");
-  await waitForBodyText("打开子线程");
-  assert.match(await $("body").getText(), /主 Agent|子 Agent/);
+  await waitForBodyText("主 Agent", 60_000);
+  process.stdout.write("[user-flow] click thread 正文优化 Agent\n");
+  await browser.waitUntil(async () => {
+    const child = await firstVisibleContaining(
+      "button.agent-monitor-thread-item",
+      "正文优化 Agent",
+    );
+    if (!child) return false;
+    try {
+      await child.click();
+      return true;
+    } catch (error) {
+      return ignoreStaleElement(error);
+    }
+  }, {
+    timeout: 30_000,
+    interval: 250,
+    timeoutMsg: "线程列表未能打开已委派的正文优化 Agent",
+  });
+  await browser.waitUntil(async () => {
+    const selected = await firstVisibleContaining(
+      "button.agent-monitor-thread-item[aria-current='true']",
+      "正文优化 Agent",
+    );
+    return selected !== null;
+  }, {
+    timeout: 30_000,
+    interval: 250,
+    timeoutMsg: "点击正文优化子 Agent 后未切换到该线程",
+  });
+  assert.match(await $(".agent-monitor-session-header").getText(), /正文优化 Agent/);
 }
 
-async function exportFamily() {
+async function exportFamily(rootProjectTitle) {
   await browser.url("/");
   await waitForBodyText("创建项目");
-  const row = await firstVisibleContaining('.a4n-project-row', "未命名小说项目");
-  assert.ok(row);
+  await waitForBodyText(rootProjectTitle, 30_000);
+  const row = await firstVisibleContaining('.a4n-project-row', rootProjectTitle);
+  assert.ok(row, `首页没有展示待导出的根项目：${rootProjectTitle}`);
   await (await row.$("button[aria-label='更多操作']")).click();
   await clickButton("导出项目族");
   await clickButton("包含派生项目", await currentDialog());
@@ -493,18 +555,23 @@ describe("A4N Chromium 全项目最终验收", () => {
   it("从真实登录到项目族导出完成完整用户流程", async () => {
     await prepareSession();
     const projectId = await createProject();
+    const rootProject = await callBrowserApiCommand("get_project", { projectId });
+    assert.equal(rootProject.id, projectId, "新建项目需要从 Host 读回正式项目记录");
+    const rootProjectTitle = String(rootProject.title ?? "").trim();
+    assert.ok(rootProjectTitle, "新建项目记录没有标题");
     await enterBlueprint(projectId);
     await createProfiles();
     await createOutlines();
     await importChapter();
     await analyzeAndSync(projectId);
-    await exerciseDirectorPlan(projectId);
-    await searchRag();
+    const derived = await createDerivedProjects(rootProjectTitle);
+    await exerciseDirectorPlan(derived["创建视频项目"]);
+    await searchRag(projectId);
     await optimizeWithDomainAgent(projectId);
     await generateImage(projectId);
-    const derived = await createDerivedProjects();
-    await exerciseCanvas(derived["创建视频项目"]);
+    const canvasProjectId = await createStandaloneCanvasProject();
+    await exerciseCanvas(canvasProjectId);
     await exerciseMainAgent(projectId);
-    await exportFamily();
+    await exportFamily(rootProjectTitle);
   }).timeout(1_800_000);
 });

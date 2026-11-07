@@ -427,6 +427,7 @@ mod tests {
     #[test]
     fn admin_manifest_respects_role_and_account_switch() {
         let registry = PageSessionRegistry::new();
+        let agents = AgentRegistry::new();
         let created = registry.create(1, create_input(), true).unwrap();
         registry
             .update_context(
@@ -436,6 +437,7 @@ mod tests {
                 context("settings", "/settings", 1, None),
             )
             .unwrap();
+        attach_agent(&registry, &agents, &created);
 
         let ordinary = registry
             .commands(
@@ -477,7 +479,7 @@ mod tests {
                 &created.session.ui_session_id,
                 &created.ui_session_token,
                 true,
-                true,
+                false,
             )
             .unwrap();
         assert!(disabled.commands.iter().all(

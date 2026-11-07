@@ -35,7 +35,7 @@ def main():
                 checked(cli, ["config", "runtime", "set", "--input", "@" + str(work / "runtime.json")], "runtime")
 
             def canvas(client, label):
-                project = call(client, "create_freeform_video_project", {"title": label, "description": "isolated LLM lifecycle fixture"})
+                project = call(client, "create_canvas_project", {"title": label, "description": "isolated LLM lifecycle fixture"})
                 nodes = []
                 for client_id, kind, config in [
                     ("source", "TextInputNode", {"content": "雨夜里，角色推开仓库门。"}),
@@ -51,7 +51,7 @@ def main():
                         "node_id": next(node["id"] for node in graph["nodes"] if node["node_kind"] == "LlmTextNode")}
 
             def canvas_generation_chain(label):
-                project = call(cli, "create_freeform_video_project", {"title": label, "description": "full Canvas generation fixture"})
+                project = call(cli, "create_canvas_project", {"title": label, "description": "full Canvas generation fixture"})
                 nodes = [
                     ("source", "TextInputNode", {"content": "雨夜里，角色推开仓库门。"}),
                     ("llm", "LlmTextNode", {"instruction": "改写为可执行的画面提示词", "output_kind": "canvas_prompt", "max_tokens": 4096}),

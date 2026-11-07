@@ -30,6 +30,7 @@ impl MigrationTrait for Migration {
 
         for sql in [
             "CREATE UNIQUE INDEX IF NOT EXISTS uidx_manga_pipeline_artifact_scope ON manga_pipeline_artifact (project_id, chapter_id, stage, page_number)",
+            "ALTER TABLE manga_pipeline_artifact DROP CONSTRAINT IF EXISTS \"fk-manga_pipeline_artifact-project_id\"",
             "ALTER TABLE manga_pipeline_artifact DROP CONSTRAINT IF EXISTS fk_manga_pipeline_artifact_project",
             "ALTER TABLE manga_pipeline_artifact ADD CONSTRAINT fk_manga_pipeline_artifact_project FOREIGN KEY (project_id) REFERENCES novel_project(id) ON DELETE CASCADE",
             "ALTER TABLE manga_pipeline_artifact DROP CONSTRAINT IF EXISTS ck_manga_pipeline_artifact_stage_scope",

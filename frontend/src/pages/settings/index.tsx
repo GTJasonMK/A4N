@@ -17,6 +17,7 @@ import { useI18n } from "../../i18n";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
 import { useDirtyRegistry, useDirtyRegistryVersion } from "../../components/navigation/dirtyRegistry";
+import { useBlockerProceed } from "../../components/navigation/useBlockerProceed";
 
 const EmbeddingTab = lazy(() =>
   import("./EmbeddingTab").then((module) => ({ default: module.EmbeddingTab })),
@@ -77,8 +78,12 @@ export const SettingsPage: React.FC = () => {
   const [lastTab, setLastTab] = usePersistedTab<TabId>("a4n:settings:tab", "llm", TAB_IDS);
   const location = useLocation();
   const navigate = useNavigate();
-  const requestedTab = visibleTabIds.find((id) => id === location.hash.slice(1));
-  const tab = resolveVisibleSettingsTab(location.hash.slice(1), lastTab, visibleTabIds);
+  const requestedHash = location.hash.slice(1);
+  const requestedTab = visibleTabIds.find((id) => id === requestedHash)
+    ?? (requestedHash === "admin" ? "admin" : undefined);
+  const tab = requestedHash === "admin" && user?.role !== "admin"
+    ? "admin"
+    : resolveVisibleSettingsTab(requestedHash, lastTab, visibleTabIds);
   const { t } = useI18n();
   const addToast = useToast((state) => state.addToast);
   const activeTab = TABS.find((item) => item.id === tab);
@@ -86,10 +91,9 @@ export const SettingsPage: React.FC = () => {
   const dirtyRegistry = useDirtyRegistry();
   const dirtyRegistryVersion = useDirtyRegistryVersion();
   const hasUnsavedSettings = () => dirtyRegistry.hasDirty();
-  const canDiscardSettings = dirtyRegistry.canDiscardDirty();
+  const canDiscardSettings = () => dirtyRegistry.canDiscardDirty();
   const settingsNavigationGuardRef = React.useRef(false);
   const authorizedSettingsNavigationRef = React.useRef(false);
-  const pendingSettingsTabRef = React.useRef<TabId | null>(null);
   const settingsNavigationScopeRef = React.useRef({
     tab,
     pathname: location.pathname,
@@ -108,27 +112,23 @@ export const SettingsPage: React.FC = () => {
       currentLocation.search !== nextLocation.search ||
       currentLocation.hash !== nextLocation.hash) && hasUnsavedSettings(),
   );
+  const proceed = useBlockerProceed(blocker);
   useBeforeUnload((event) => {
     if (!hasUnsavedSettings()) return;
     event.preventDefault();
     event.returnValue = "";
   });
   useEffect(() => {
-    if (blocker.state === "blocked" && !dirtyRegistry.hasDirty()) blocker.proceed();
-  }, [blocker.proceed, blocker.state, dirtyRegistry, dirtyRegistryVersion]);
+    if (blocker.state === "blocked" && !dirtyRegistry.hasDirty()) proceed();
+  }, [proceed, blocker.state, dirtyRegistry, dirtyRegistryVersion]);
 
   const selectTab = async (nextTab: TabId) => {
-    if (nextTab === tab) {
-      pendingSettingsTabRef.current = null;
-      return;
-    }
+    if (nextTab === tab) return;
     if (dirtyRegistry.hasDirty()) {
-      if (!canDiscardSettings) {
-        pendingSettingsTabRef.current = nextTab;
+      if (!canDiscardSettings()) {
         addToast(t("common.operationInProgress"), "info");
         return;
       }
-      pendingSettingsTabRef.current = null;
       if (settingsNavigationGuardRef.current) return;
       settingsNavigationGuardRef.current = true;
       const requestScope = settingsNavigationScopeRef.current;
@@ -161,7 +161,6 @@ export const SettingsPage: React.FC = () => {
         settingsNavigationGuardRef.current = false;
       }
     }
-    pendingSettingsTabRef.current = null;
     authorizedSettingsNavigationRef.current = true;
     try {
       navigate({ pathname: location.pathname, search: location.search, hash: `#${nextTab}` }, { replace: true });
@@ -170,21 +169,9 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
-  React.useEffect(() => {
-    const nextTab = pendingSettingsTabRef.current;
-    if (!nextTab || dirtyRegistry.hasDirty()) return;
-    pendingSettingsTabRef.current = null;
-    authorizedSettingsNavigationRef.current = true;
-    try {
-      navigate({ pathname: location.pathname, search: location.search, hash: `#${nextTab}` }, { replace: true });
-    } finally {
-      authorizedSettingsNavigationRef.current = false;
-    }
-  }, [dirtyRegistry, dirtyRegistryVersion, location.pathname, location.search, navigate]);
-
   const handleLogout = async () => {
     if (hasUnsavedSettings()) {
-      if (!canDiscardSettings) {
+      if (!canDiscardSettings()) {
         addToast(t("common.operationInProgress"), "info");
         return;
       }
@@ -323,11 +310,11 @@ export const SettingsPage: React.FC = () => {
           footer={
             <>
               <BookButton variant="secondary" onClick={blocker.reset}>{t("common.cancel")}</BookButton>
-              <BookButton variant="warning" disabled={!canDiscardSettings} onClick={() => { void dirtyRegistry.discardDirty().then((discarded) => { if (discarded) blocker.proceed(); }); }}>{t("common.discardDraft")}</BookButton>
+              <BookButton variant="warning" disabled={!canDiscardSettings()} onClick={() => { void dirtyRegistry.discardDirty().then((discarded) => { if (discarded) proceed(); }); }}>{t("common.discardDraft")}</BookButton>
             </>
           }
         >
-          {canDiscardSettings
+          {canDiscardSettings()
             ? t("common.unsavedChangesMessage", {
                 name: t("settings.title"),
                 action: t("nav.backToPrevious"),

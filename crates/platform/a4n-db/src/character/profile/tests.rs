@@ -9,6 +9,12 @@ use a4n_domain::character::CharacterPortraitCreateInput;
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use serde_json::json;
 
+async fn setup_db() -> sea_orm::DatabaseConnection {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    a4n_test_support::database::ensure_test_user(&db, 1).await;
+    db
+}
+
 #[test]
 fn initial_profile_editability_has_one_complete_rule() {
     assert!(initial_profile_editable(0, true, false));
@@ -115,7 +121,7 @@ fn normalize_base_attributes_rejects_unknown_top_level_field() {
 
 #[tokio::test]
 async fn profile_cascade_preserves_other_portrait_with_shared_path() {
-    let db = a4n_migration::test_support::connect_test_database().await;
+    let db = setup_db().await;
     let project = crate::project::create_canvas_project_record(
         &db,
         1,
@@ -304,7 +310,7 @@ async fn profile_cascade_preserves_other_portrait_with_shared_path() {
 
 #[tokio::test]
 async fn profile_batch_cascade_deletes_profiles_in_one_scope() {
-    let db = a4n_migration::test_support::connect_test_database().await;
+    let db = setup_db().await;
     let project = crate::project::create_canvas_project_record(
         &db,
         1,

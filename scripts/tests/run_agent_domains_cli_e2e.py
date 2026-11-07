@@ -167,7 +167,7 @@ def main():
             assert len(turns) == 14 and all(turn["status"] == "completed" for turn in turns), turns
             report["checks"].append("fourteen optimization turns retain complete instructions and replies beyond 6000 characters with one model call per plain answer")
 
-            video = call("create_freeform_video_project", {"title": "Canvas 局部验证", "description": "isolated fixture"})
+            video = call("create_canvas_project", {"title": "Canvas 局部验证", "description": "isolated fixture"})
             checked(cli, ["context", "set", "--project-id", str(video["id"])], "canvas context")
             nodes = [{"client_id": str(i), "node_kind": "LlmTextNode", "ref_type": None, "ref_id": None,
                       "config_json": {"instruction": "原指令", "output_kind": "shot_script"}, "position_json": {"x": i * 200, "y": 0}, "state": "idle"} for i in range(3)]

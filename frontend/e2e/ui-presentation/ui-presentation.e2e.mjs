@@ -20,6 +20,7 @@ const replaceInput = async (input, value) => {
 const openNewLlmConfig = async () => {
   await browser.setWindowSize(1440, 900);
   await browser.url("/settings#llm");
+  await waitForSettings();
   await $('//button[contains(.,"新增 LLM 配置")]').click();
   await replaceInput(await fieldInput("配置名称"), "配置 A");
   await replaceInput(await $('input[role="combobox"]'), "");
@@ -56,10 +57,47 @@ const imagePrompt = () => ({
   content: "保持画面构图稳定。", dependencies: [], is_modified: false,
   path: "prompts/media/image.md", tags: [], used_by: [], version: "1",
 });
+const waitForSettings = async () => {
+  try {
+    await $(".a4n-settings-layout").waitForDisplayed();
+  } catch (cause) {
+    const state = await browser.execute(() => ({
+      url: location.href,
+      readyState: document.readyState,
+      fixtureInstalled: Boolean(window.__uiAudit),
+      bodyText: document.body.innerText.slice(0, 1000),
+      html: document.documentElement.outerHTML.slice(0, 1000),
+      errors: window.__uiAudit?.errors ?? [],
+      requests: window.__uiAudit?.requests.slice(-10).map(({ command, body }) => ({ command, body })) ?? [],
+    }));
+    const browserLogs = await browser.getLogs("browser").catch((error) => [{ message: String(error) }]);
+    throw new Error(`设置页未加载：${JSON.stringify({ ...state, browserLogs })}`, { cause });
+  }
+};
+const waitForHome = async () => {
+  try {
+    await $(".a4n-home-content").waitForDisplayed();
+  } catch (cause) {
+    const state = await browser.execute(() => ({
+      url: location.href,
+      readyState: document.readyState,
+      fixtureInstalled: Boolean(window.__uiAudit),
+      bodyText: document.body.innerText.slice(0, 1000),
+      html: document.documentElement.outerHTML.slice(0, 1400),
+      errors: window.__uiAudit?.errors ?? [],
+      requests: window.__uiAudit?.requests.slice(-10).map(({ command }) => command) ?? [],
+      modules: performance.getEntriesByType("resource")
+        .filter((entry) => /\/src\/(main|App)\.tsx/.test(entry.name))
+        .map((entry) => ({ name: entry.name, responseStatus: entry.responseStatus, duration: entry.duration })),
+    }));
+    const browserLogs = await browser.getLogs("browser").catch((error) => [{ message: String(error) }]);
+    throw new Error(`首页未加载：${JSON.stringify({ ...state, browserLogs })}`, { cause });
+  }
+};
 const openSettingsWithFixtures = async (tab, overrides = {}) => {
   await installUiFixtures(browser, overrides);
   await browser.url(`/settings#${tab}`);
-  await $(".a4n-settings-layout").waitForDisplayed();
+  await waitForSettings();
 };
 const openStatusPanel = async () => {
   const panel = $("#a4n-status-bar-panel");
@@ -130,12 +168,15 @@ const settingsDraftIsDirty = () => browser.execute(() => (
 ));
 
 describe("UI presentation and workspace continuity", () => {
-  before(async () => installUiFixtures(browser));
-
   beforeEach(async () => {
-    // A same-fragment navigation keeps the previous document and its draft.
-    await browser.url("/");
+    // The production preview keeps a long-lived renderer. Reset it per
+    // scenario so aborted module/SSE requests from the previous route cannot
+    // exhaust Chromium's renderer resource budget and mask the next path.
+    await browser.reloadSession();
+    await installUiFixtures(browser);
     await browser.setWindowSize(1440, 900);
+    await browser.url("/");
+    await waitForHome();
   });
 
   afterEach(async function () {
@@ -149,7 +190,6 @@ describe("UI presentation and workspace continuity", () => {
   });
 
   it("opens menus by keyboard without opening the project, and keeps disabled actions inert", async () => {
-    await browser.url("/");
     const trigger = await button("更多操作");
     await trigger.waitForDisplayed();
     await trigger.execute((element) => element.focus());
@@ -180,9 +220,22 @@ describe("UI presentation and workspace continuity", () => {
   });
 
   it("opens the creator notification inbox and marks a single notice read", async () => {
-    await browser.url("/");
+    await waitForHome();
     const notificationButton = await $('button[aria-label^="查看通知"]');
-    await notificationButton.waitForDisplayed();
+    try {
+      await notificationButton.waitForDisplayed();
+    } catch (cause) {
+      const state = await browser.execute(() => ({
+        url: location.href,
+        bodyText: document.body.innerText.slice(0, 1200),
+        headings: [...document.querySelectorAll("h1")].map((node) => node.textContent?.trim()),
+        userRole: window.__uiAudit?.fixtures?.get_current_user?.role,
+        notificationFixture: window.__uiAudit?.fixtures?.list_creator_notifications,
+        commands: window.__uiAudit?.commands ?? [],
+        errors: window.__uiAudit?.errors ?? [],
+      }));
+      throw new Error(`通知入口未显示：${JSON.stringify(state)}`, { cause });
+    }
     assert.match(await notificationButton.getAttribute("aria-label"), /1 条未读/);
     await notificationButton.click();
     await browser.waitUntil(async () => new URL(await browser.getUrl()).pathname === "/notifications");
@@ -267,13 +320,14 @@ describe("UI presentation and workspace continuity", () => {
   it("rejects invalid chapter query values without inventing a chapter", async () => {
     for (const value of ["0", "1.5", "2147483648"]) {
       await browser.url(`/write/1?chapter=${value}`);
-      await browser.waitUntil(async () => (await $("h1").getText()).includes("第 2 章"));
+      const heading = $("h1");
+      await heading.waitForDisplayed();
+      await browser.waitUntil(async () => (await heading.getText()).includes("第 2 章"));
       assert.equal(new URL(await browser.getUrl()).searchParams.get("chapter"), "2");
     }
   });
 
   it("bounds logo rendering during interaction and stops when the pointer rests", async () => {
-    await browser.url("/");
     const canvas = await $("canvas[role=img]");
     await canvas.waitForDisplayed();
     let previous = -1;
@@ -371,6 +425,7 @@ describe("UI presentation and workspace continuity", () => {
 
   it("does not save a theme name when Enter confirms IME composition", async () => {
     await browser.url("/settings#theme");
+    await waitForSettings();
     await $('button[title="重命名"]').click();
     const name = await $('input[aria-label="重命名"]');
     await replaceInput(name, "书房主题修改");
@@ -904,7 +959,25 @@ describe("UI presentation and workspace continuity", () => {
       await browser.setWindowSize(width, 900);
       for (const route of ["/", "/settings#llm", "/agents"]) {
         await browser.url(route);
-        await $("h1").waitForExist();
+        try {
+          await $("h1").waitForExist();
+        } catch (cause) {
+          const state = await browser.execute(() => ({
+            url: location.href,
+            readyState: document.readyState,
+            fixtureInstalled: Boolean(window.__uiAudit),
+            bodyText: document.body.innerText.slice(0, 1200),
+            html: document.documentElement.outerHTML.slice(0, 1200),
+            headings: [...document.querySelectorAll("h1")].map((node) => node.textContent?.trim()),
+            errors: window.__uiAudit?.errors ?? [],
+            requests: window.__uiAudit?.requests.slice(-12).map(({ command, body }) => ({ command, body })) ?? [],
+            modules: performance.getEntriesByType("resource")
+              .filter((entry) => /\/src\/(main|App)\.tsx/.test(entry.name))
+              .map((entry) => ({ name: entry.name, responseStatus: entry.responseStatus, duration: entry.duration })),
+          }));
+          const browserLogs = await browser.getLogs("browser").catch((error) => [{ message: String(error) }]);
+          throw new Error(`页面 ${route} 没有主标题：${JSON.stringify({ ...state, browserLogs })}`, { cause });
+        }
         const expectedCommand = route === "/" ? "list_projects" : route === "/agents" ? "agent-threads" : "list_llm_config";
         await browser.waitUntil(async () => (await commands()).includes(expectedCommand));
         assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);

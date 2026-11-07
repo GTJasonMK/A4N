@@ -826,39 +826,42 @@ class MockOpenAIProviderTest(unittest.TestCase):
         )
 
     def test_manga_reference_discovery_only_selects_available_candidates(self) -> None:
+        def request(page_number: int | None, assets: list[dict[str, object]] | None) -> str:
+            stable_input: dict[str, object] = {}
+            if assets is not None:
+                stable_input["available_assets"] = assets
+            current_task: dict[str, object] = {
+                "task": {"prompt_name": "manga_page_reference_discovery"},
+                "input": {"current_page": {"page_number": page_number}},
+            }
+            if page_number is not None:
+                current_task["output_contract"] = {"page_number": page_number}
+            return (
+                "参考素材发现请求\n\n稳定上下文：\n"
+                + json.dumps({"input": stable_input}, ensure_ascii=False)
+                + "\n\n输入：\n"
+                + json.dumps(current_task, ensure_ascii=False)
+            )
+
         body = {"messages": [{
             "role": "user",
-            "content": "参考素材发现请求\n\n输入：\n" + json.dumps({
-                "task": {"prompt_name": "manga_page_reference_discovery"},
-                "input": {
-                    "page_number": 3,
-                    "available_assets": [
-                        {
-                            "asset_kind": "generated_image",
-                            "asset_id": 9,
-                            "description": "旧怀表的黄铜外壳和磨损刻度。",
-                        },
-                    ],
-                },
-            }, ensure_ascii=False),
+            "content": request(3, [{
+                "asset_kind": "generated_image",
+                "asset_id": 9,
+                "description": "旧怀表的黄铜外壳和磨损刻度。",
+            }]),
         }]}
         response = json.loads(response_for(body))
         self.assertEqual(response["page_number"], 3)
         self.assertEqual(response["references"][0]["asset_id"], 9)
 
-        body["messages"][0]["content"] = "参考素材发现请求\n\n输入：\n" + json.dumps({
-            "task": {"prompt_name": "manga_page_reference_discovery"},
-            "input": {"page_number": 3, "available_assets": []},
-        }, ensure_ascii=False)
+        body["messages"][0]["content"] = request(3, [])
         empty_response = json.loads(response_for(body))
         self.assertEqual(empty_response["references"], [])
 
-        for invalid_input in ({"available_assets": []}, {"page_number": 3}):
-            body["messages"][0]["content"] = "参考素材发现请求\n\n输入：\n" + json.dumps({
-                "task": {"prompt_name": "manga_page_reference_discovery"},
-                "input": invalid_input,
-            }, ensure_ascii=False)
-            with self.subTest(input=invalid_input), self.assertRaises(UnhandledPromptError):
+        for page_number, assets in ((None, []), (3, None)):
+            body["messages"][0]["content"] = request(page_number, assets)
+            with self.subTest(page_number=page_number, assets=assets), self.assertRaises(UnhandledPromptError):
                 response_for(body)
 
     def test_manga_page_pipeline_responses_follow_each_page_contract(self) -> None:
@@ -872,10 +875,12 @@ class MockOpenAIProviderTest(unittest.TestCase):
                         "source": "#0 林岚在通道检查怀表。",
                         "adaptation_plan": {
                             "page_count": 2,
-                            "units": [{"beats": [beat_ref]}],
+                            "units": [{"id": beat_ref["unit_id"], "beats": [{"id": beat_ref["beat_id"]}]}],
                         },
                     },
-                }, ensure_ascii=False),
+                }, ensure_ascii=False) + "\n示例引用：\n" + json.dumps({
+                    "unit_id": "unit-1", "beat_id": "beat-1",
+                }),
             }],
         }
         slots = json.loads(response_for(slots_request))
@@ -883,6 +888,7 @@ class MockOpenAIProviderTest(unittest.TestCase):
         self.assertEqual(len(slots["pages"]), 2)
         self.assertEqual(slots["pages"][0]["content"]["source_span_ids"], ["#0"])
         self.assertEqual(slots["pages"][1]["content"]["source_span_ids"], ["#0"])
+        self.assertEqual(slots["pages"][0]["content"]["beat_refs"], [beat_ref])
         self.assertEqual(
             slots["pages"][1]["content"]["entry_state"],
             slots["pages"][0]["content"]["exit_state"],
@@ -902,7 +908,8 @@ class MockOpenAIProviderTest(unittest.TestCase):
             "role": "user",
             "content": json.dumps({
                 "task": {"prompt_name": "manga_page_storyboard"},
-                "input": {"page_number": 2, "page_content": content, "page_adaptation": adaptation},
+                "input": {"page_number": 2, "page_content": content, "page_adaptation": adaptation,
+                          "source_context": {"source": "#0 林岚停下脚步。", "speech": {"dialogues": [], "narrations": []}}},
             }, ensure_ascii=False),
         }]}))
         self.assertEqual(storyboard["page_number"], 2)

@@ -97,12 +97,12 @@ if $RESTART_SERVER && [[ "$MODE" == "native" || "$MODE" == "remote" ]]; then
   die "--restart-server 不能与 native/remote 模式同时使用"
 fi
 
-if $HOT_RELOAD && [[ "$MODE" == "local-server" ]]; then
-  # Hot reload needs Cargo's warm incremental cache.  The artifact manager is
-  # intentionally used for one-shot builds, but it reclaims that cache after
-  # each invocation and turns the next worker rebuild into a cold build.
-  export CARGO_ARTIFACTS_DISABLED=1
+export CARGO_ARTIFACTS_DISABLED=1
+if ! $RELEASE; then
   export CARGO_INCREMENTAL="${CARGO_INCREMENTAL:-1}"
+fi
+
+if $HOT_RELOAD && [[ "$MODE" == "local-server" ]]; then
   export A4N_RUNTIME_WORKER_RELOAD_MARKER="${A4N_RUNTIME_WORKER_RELOAD_MARKER:-${CARGO_TARGET_DIR:-$PROJECT_ROOT/target}/.runtime-workers.ready}"
 fi
 
@@ -444,46 +444,6 @@ preflight_runtime_dependencies() {
 
 preflight_runtime_dependencies
 
-build_local_server_targets() {
-  local -a build_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
-  local sidecar_package_lines worker_package_lines package
-  local -a sidecar_packages=()
-  local -a worker_packages=()
-  $RELEASE && build_command+=(--release)
-  build_command+=(-p a4n-migration -p a4n-control -p a4n-edge -p a4n-server)
-  worker_package_lines="$(stateful_worker_packages)" \
-    || die "读取 stateful worker catalog 失败"
-  mapfile -t worker_packages <<<"$worker_package_lines"
-  ((${#worker_packages[@]} > 0)) || die "stateful worker catalog 为空"
-  for package in "${worker_packages[@]}"; do
-    build_command+=(-p "$package")
-  done
-  $SERVER && build_command+=(-p a4n-cli)
-  if $MANAGED_SIDECARS && ! $FULL_HOST; then
-    sidecar_package_lines="$(sidecar_catalog_binaries)"
-    mapfile -t sidecar_packages <<<"$sidecar_package_lines"
-    for package in "${sidecar_packages[@]}"; do
-      [[ -n "$package" ]] || continue
-      [[ " ${worker_packages[*]} " == *" $package "* ]] || build_command+=(-p "$package")
-    done
-  fi
-  $FULL_HOST && build_command+=(--features a4n-server/embedded-capabilities)
-  "${build_command[@]}"
-}
-
-build_native_worker_targets() {
-  local -a build_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
-  local package
-  $RELEASE && build_command+=(--release)
-  while IFS= read -r package; do
-    [[ -n "$package" ]] && build_command+=(-p "$package")
-  done < <(stateful_worker_packages)
-  while IFS= read -r package; do
-    [[ -n "$package" ]] && build_command+=(-p "$package")
-  done < <(sidecar_catalog_binaries)
-  "${build_command[@]}"
-}
-
 runtime_worker_watcher_pid=""
 start_runtime_worker_watcher() {
   $HOT_RELOAD || return 0
@@ -503,16 +463,6 @@ stop_runtime_worker_watcher() {
   runtime_worker_watcher_pid=""
 }
 
-if [[ "$MODE" == "local-server" && "$REMOTE_API" == false ]]; then
-  build_local_server_targets
-elif [[ "$MODE" == "native" && "$REMOTE_API" == false ]]; then
-  build_native_worker_targets
-fi
-
-if $SERVER && ! $REMOTE_API; then
-  "$PROJECT_ROOT/scripts/cargo.sh" run -p a4n-cli -- local migrate
-fi
-
 if $FULL_HOST; then
   export A4N_RUNTIME_PROFILE=full
   export A4N_MANAGED_SIDECARS=0
@@ -524,25 +474,40 @@ else
   export A4N_MANAGED_SIDECARS=0
 fi
 
+export A4N_DEV_BUILD_MODE="$MODE"
+export A4N_DEV_BUILD_FULL_HOST=0
+$FULL_HOST && export A4N_DEV_BUILD_FULL_HOST=1
+export A4N_DEV_BUILD_MANAGED_SIDECARS=0
+$MANAGED_SIDECARS && export A4N_DEV_BUILD_MANAGED_SIDECARS=1
+export A4N_DEV_BUILD_INCLUDE_CLI=0
+$SERVER && export A4N_DEV_BUILD_INCLUDE_CLI=1
 if $SERVER; then
+  export A4N_DEV_ENTRY_BINARY=a4n-server
+else
+  export A4N_DEV_ENTRY_BINARY=a4n-tauri
+fi
+
+if $SERVER; then
+  if ! $REMOTE_API; then
+    A4N_DEV_ENTRY_BINARY=a4n "$SCRIPT_DIR/dev/run-cargo-targets.sh" -- local migrate
+  fi
   npm --prefix frontend run build
-  command=("$PROJECT_ROOT/scripts/cargo.sh" run)
-  $RELEASE && command+=(--release)
-  command+=(-p a4n-server)
-  $FULL_HOST && command+=(--features embedded-capabilities)
   start_runtime_worker_watcher
   trap stop_runtime_worker_watcher EXIT
-  "${command[@]}"
+  server_args=()
+  $RELEASE && server_args+=(--release)
+  "$SCRIPT_DIR/dev/run-cargo-targets.sh" "${server_args[@]}"
   exit $?
 fi
 
-command=("$PROJECT_ROOT/scripts/cargo.sh" tauri dev)
+command=("$PROJECT_ROOT/scripts/cargo.sh" tauri dev --runner "$SCRIPT_DIR/dev/run-cargo-targets.sh")
+if $HOT_RELOAD; then
+  command+=(--config "{\"build\":{\"devUrl\":\"http://127.0.0.1:${VITE_PORT:-5173}\"}}")
+fi
 $RELEASE && command+=(--release)
 $FULL_HOST && command+=(-f embedded-capabilities)
 if ! $HOT_RELOAD; then
   npm --prefix frontend run build
   command+=(--no-watch --config crates/host/a4n-tauri/tauri.no-hot.conf.json)
 fi
-start_runtime_worker_watcher
-trap stop_runtime_worker_watcher EXIT
 "${command[@]}"

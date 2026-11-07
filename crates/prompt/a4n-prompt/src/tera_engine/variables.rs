@@ -40,6 +40,7 @@ pub fn template_variable_access_paths(content: &str) -> Result<Vec<Vec<String>>,
 struct VariableCollector {
     required: Vec<String>,
     access_paths: Vec<Vec<String>>,
+    optional_scopes: Vec<HashSet<String>>,
 }
 
 impl VariableCollector {
@@ -71,10 +72,12 @@ impl VariableCollector {
                 }
                 Node::If(if_node, _) => {
                     for (_, condition, body) in &if_node.conditions {
+                        self.optional_scopes.push(defined_variables(condition));
                         self.collect_expr(condition, scopes);
                         scopes.push(HashSet::new());
                         self.collect_nodes(body, scopes);
                         scopes.pop();
+                        self.optional_scopes.pop();
                     }
                     if let Some((_, body)) = &if_node.otherwise {
                         scopes.push(HashSet::new());
@@ -179,13 +182,31 @@ impl VariableCollector {
         if scopes.iter().rev().any(|scope| scope.contains(root)) {
             return;
         }
-        if !self.required.iter().any(|existing| existing == root) {
+        let optional = self
+            .optional_scopes
+            .iter()
+            .rev()
+            .any(|scope| scope.contains(root));
+        if !optional && !self.required.iter().any(|existing| existing == root) {
             self.required.push(root.to_string());
         }
         if let Some(path) = variable_access_path(ident) {
             self.access_paths.push(path);
         }
     }
+}
+
+fn defined_variables(condition: &Expr) -> HashSet<String> {
+    let ExprVal::Test(test) = &condition.val else {
+        return HashSet::new();
+    };
+    if test.name != "defined" {
+        return HashSet::new();
+    }
+    root_ident(&test.ident)
+        .map(str::to_string)
+        .into_iter()
+        .collect()
 }
 
 fn define_local(scopes: &mut [HashSet<String>], ident: &str, global: bool) {

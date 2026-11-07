@@ -160,14 +160,10 @@
     },
     "rust-workspace": {
       "command": [
-        "python3",
-        "scripts/tests/run_with_test_database.py",
-        "--timeout",
-        "7200",
-        "--",
         "bash",
-        "-c",
-        "set -euo pipefail; cargo run --locked -p a4n-migration; exec cargo test --locked --workspace --all-targets --no-fail-fast -- --test-threads=1"
+        "scripts/tests/run_rust_workspace_tests.sh",
+        "--report-dir",
+        "{report_dir}/rust-workspace"
       ],
       "timeout_seconds": 7800
     },

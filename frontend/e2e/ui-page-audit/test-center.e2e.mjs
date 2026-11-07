@@ -506,7 +506,11 @@ describe("Admin test center feature flow", () => {
     assert.equal(labels.some((label) => ["system", "project", "核心功能"].includes(label)), false);
 
     await $("button*=Core unit and integration tests").waitForDisplayed();
+    const selectedTitle = await $("main > div > section h2").getText();
     await category.selectByAttribute("value", "核心功能");
+    assert.equal(await $("main > div > section h2").getText(), selectedTitle,
+      "Filtering categories must preserve the active scenario");
+    await $("button*=Core unit and integration tests").click();
     await $("h2=Core unit and integration tests").waitForDisplayed();
     const scenarioCard = await $('main > div > aside:first-child button[aria-pressed="true"]');
     assert.ok((await scenarioCard.getText()).includes("Core features"));

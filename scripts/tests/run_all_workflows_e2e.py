@@ -1339,6 +1339,7 @@ FIXTURE_PATHS: dict[str, tuple[str, ...]] = {
         "create_project",
         "import_project_text_upload",
         "accept_import_review",
+        "get_blueprint",
         "start_inspiration_generation",
         "start_blueprint_generation",
         "start_outline_generation",
@@ -1380,7 +1381,7 @@ FIXTURE_PATHS: dict[str, tuple[str, ...]] = {
         "upload_image",
     ),
     "canvas": (
-        "create_freeform_video_project",
+        "create_canvas_project",
         "save_canvas_graph",
         "save_canvas_text_asset",
         "import_canvas_media",
@@ -1399,6 +1400,8 @@ FIXTURE_PATHS: dict[str, tuple[str, ...]] = {
         "run_galgame_asset_generation",
     ),
     "manga": (
+        "generate_media_adaptation_plan",
+        "adopt_media_authoring_document",
         "start_manga_pipeline",
         "get_manga_pipeline_status",
         "list_manga_page_prompts",
@@ -1655,6 +1658,21 @@ def seed_fixtures(
             time.sleep(0.25)
         raise RunnerError("fixture manga pipeline 轮询超时")
 
+    def run_manga_fixture(run_stage: str | None = None) -> None:
+        input_value: dict[str, Any] = {
+            "meta": {"start_request_id": str(uuid.uuid4())},
+            "project_id": state["manga_project_id"],
+            "chapter_number": 1,
+            "image_size": {"width": 1024, "height": 1024},
+        }
+        if run_stage is not None:
+            input_value["run_stage"] = run_stage
+        result = call("start_manga_pipeline", {"input": input_value})
+        state["manga_task_id"] = _first_value(result.get("data"), ("task_id",))
+        attempt = _first_value(result.get("data"), ("attempt",))
+        state["manga_task_attempt"] = attempt if isinstance(attempt, int) and attempt > 0 else 1
+        wait_for_manga()
+
     def poll_video(video_id: int) -> dict[str, Any]:
         for _ in range(8):
             result = call("poll_video_job", {"videoId": video_id})
@@ -1685,7 +1703,7 @@ def seed_fixtures(
     state["project_id"] = project_id
 
     canvas_project = call(
-        "create_freeform_video_project",
+        "create_canvas_project",
         {
             "input": {
                 "title": f"A4N canvas fixture {run_id}",
@@ -1695,7 +1713,7 @@ def seed_fixtures(
     )
     canvas_project_id = _first_value(canvas_project.get("data"), ("id",))
     if not isinstance(canvas_project_id, int) or canvas_project_id <= 0:
-        raise RunnerError("fixture create_freeform_video_project 未返回有效 project id")
+        raise RunnerError("fixture create_canvas_project 未返回有效 project id")
     state["canvas_project_id"] = canvas_project_id
 
     uploaded_reviews = call(
@@ -2190,11 +2208,19 @@ def seed_fixtures(
     if isinstance(material_id, int) and material_id > 0:
         state["material_id"] = material_id
 
+    current_blueprint_result = call("get_blueprint", {"projectId": project_id})
+    current_blueprint = current_blueprint_result.get("data")
+    if not isinstance(current_blueprint, dict) or not isinstance(
+        current_blueprint.get("current_version"), str
+    ):
+        raise RunnerError("fixture get_blueprint 未返回正式蓝图版本")
+    expected_blueprint_version = current_blueprint["current_version"]
     blueprint = call(
         "save_blueprint",
         {
             "input": {
                 "project_id": project_id,
+                "expected_current_version": expected_blueprint_version,
                 "genre": "都市时间悬疑",
                 "total_chapters": 1,
                 "one_sentence_summary": "一座车站的钟每天少走七分钟。",
@@ -2393,19 +2419,33 @@ def seed_fixtures(
         raise RunnerError("fixture create_derived_project 未返回有效 manga project id")
     state["manga_project_id"] = manga_project_id
 
-    manga_task = call(
-        "start_manga_pipeline",
+    run_manga_fixture("preprocessing")
+    adaptation = call(
+        "generate_media_adaptation_plan",
         {"input": {
-            "meta": {"start_request_id": str(uuid.uuid4())},
             "project_id": manga_project_id,
-            "chapter_number": 1,
-            "image_size": {"width": 1024, "height": 1024},
+            "chapter_id": chapter_id,
+            "task_id": str(uuid.uuid4()),
+            "instruction": "保留原作因果，以漫画页节奏呈现改编内容",
+            "video_reference": None,
+            "clear_video_reference": False,
+            "record_id": None,
+            "expected_revision": None,
+            "resume_from_checkpoint": True,
         }},
     )
-    state["manga_task_id"] = _first_value(manga_task.get("data"), ("task_id",))
-    manga_attempt = _first_value(manga_task.get("data"), ("attempt",))
-    state["manga_task_attempt"] = manga_attempt if isinstance(manga_attempt, int) and manga_attempt > 0 else 1
-    wait_for_manga()
+    adaptation_record = adaptation.get("data")
+    if not isinstance(adaptation_record, dict):
+        raise RunnerError("fixture generate_media_adaptation_plan 未返回记录")
+    call(
+        "adopt_media_authoring_document",
+        {"input": {
+            "project_id": manga_project_id,
+            "record_id": adaptation_record.get("id"),
+            "expected_revision": adaptation_record.get("revision"),
+        }},
+    )
+    run_manga_fixture()
     manga_prompts = call(
         "list_manga_page_prompts",
         {"input": {"project_id": manga_project_id, "chapter_id": chapter_id}},

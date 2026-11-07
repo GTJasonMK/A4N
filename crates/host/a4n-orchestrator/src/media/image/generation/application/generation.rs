@@ -214,6 +214,15 @@ impl OrchestratorContext {
         let page_number = input.page_number;
         let project_id = input.project_id;
         let prepared = self.prepare_page_image(host, user_id, input).await?;
+        if prepared.page_prompt.generated_image_id.is_some() {
+            return Err(AppError::InvalidState {
+                current: "manga_page_image_exists".into(),
+                operation: format!(
+                    "第 {} 章第 {} 页已有成图，请先删除后再生成",
+                    chapter_number, page_number
+                ),
+            });
+        }
         progress.progress(1, 4, "正在调用图片模型");
         let outcome = self
             .run_image_generation_validated(

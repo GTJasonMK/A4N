@@ -23,7 +23,7 @@ name: chapter_media_adaptation_plan
 - origin：source（直接来自原文）、adapted（重组原作）、added（新增改编）、historical（仅用于既有历史迁移，生成时不要使用）。
 - title：标题。
 - location：地点字符串或 null。
-- participants：角色名称数组，沿用原作名称。
+- participants：实际参与该叙事节拍的角色名称数组，沿用原作/预处理中的稳定称呼；旁白、叙述者声音和文字层说话人不算剧情参与者。无专名但确实在场的第一人称主角使用 `未具名主角`，其他人物沿用原文支持的稳定身份描述，不得用“叙述者”代替角色。
 - dramatic_question、objective、obstacle：戏剧问题、目标、阻力。
 - entry_state、exit_state：可观察的入场与离场状态。
 - source_span_ids：当前正文中实际出现的短来源标签；source、adapted 类型至少一项，added 类型必须为空。单元的引用必须覆盖其所有节拍引用。

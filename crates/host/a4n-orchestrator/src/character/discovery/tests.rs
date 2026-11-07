@@ -145,15 +145,19 @@ fn character_discovery_user_prompt_uses_json_payload() {
     let prompt =
         build_character_discovery_manifest_user_prompt().expect("discovery prompt should build");
 
-    assert!(prompt.contains(r#""task": {"#));
-    assert!(prompt.contains(r#""name": "character_discovery""#));
-    assert!(prompt.contains(r#""context_refs""#));
-    assert!(prompt.contains("profile_sync_source_context"));
     let payload_text = prompt
         .split_once("输入：\n")
         .map(|(_, payload)| payload)
         .expect("prompt should include json payload");
     let payload: Value = serde_json::from_str(payload_text).expect("prompt payload should be json");
+    assert_eq!(payload["task"]["name"], "character_discovery");
+    assert!(payload["input"]["context_refs"].is_object());
+    assert!(
+        payload["input"]["context_refs"]["source"]
+            .as_str()
+            .expect("source context reference should be text")
+            .contains("profile_sync_source_context")
+    );
     assert!(payload["output_contract"].get("size_limits").is_none());
     assert!(
         !payload["output_contract"]["character_required_fields"]

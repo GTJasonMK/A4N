@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import { callBrowserApiCommand } from "../full-project/webApi.mjs";
 
 // Run with the Chromium config and --spec, or wdio.native.conf.mjs, after the CLI fixture.
 const fixture = JSON.parse(readFileSync(process.env.A4N_SPECIALIZED_FIXTURE, "utf8"));
@@ -27,20 +28,22 @@ function cli(parts, input) {
   return envelope.data;
 }
 
-async function nativeApi(module, name, args) {
-  const result = await browser.executeAsync((module, name, args, done) => {
-    import(module).then((api) => api[name](...args))
-      .then((value) => done({ value }), (error) => done({ error: String(error) }));
-  }, module, name, args);
-  assert.equal(result.error, undefined);
-  return result.value;
-}
+const getAgentThread = (threadId) => callBrowserApiCommand("get_agent_thread", {
+  input: { thread_id: threadId },
+});
+
+const getChapterVisualPlan = (projectId, sourceChapterId) =>
+  callBrowserApiCommand("get_chapter_visual_plan", {
+    input: { project_id: projectId, source_chapter_id: sourceChapterId },
+  });
+
+const controlAgentRun = (input) => callBrowserApiCommand("control_agent_run", { input });
 
 const snapshot = async () => native
-  ? nativeApi("/src/api/agent.ts", "getAgentThread", [fixture.thread_id])
+  ? getAgentThread(fixture.thread_id)
   : cli(["agent", "thread", "show", fixture.thread_id]);
 const savedPlan = async () => (native
-  ? await nativeApi("/src/api/chapterVisualPlan.ts", "getChapterVisualPlan", [fixture.project_id, fixture.chapter_id])
+  ? await getChapterVisualPlan(fixture.project_id, fixture.chapter_id)
   : cli(["call", "get_chapter_visual_plan", "--args", JSON.stringify({
     input: { project_id: fixture.project_id, source_chapter_id: fixture.chapter_id },
   })])).draft;
@@ -93,8 +96,7 @@ async function openAgent() {
 
 async function closeAgent() {
   const panel = await $("section[aria-label='领域 Agent 控制台']");
-  if (await $(".director-agent-inspector").isDisplayed()) await panel.$('[aria-label="关闭"]').click();
-  else await browser.keys("Escape");
+  await click("关闭", panel);
   await browser.waitUntil(async () => !(await $("section[aria-label='领域 Agent 控制台']").isDisplayed()), {
     timeout: 5_000, interval: 50, timeoutMsg: "Agent 弹窗未关闭",
   });
@@ -105,7 +107,9 @@ async function send(task) {
   const previous = new Set((await snapshot()).runs.map((run) => run.id));
   const console = await openAgent();
   await console.$('[aria-label="执行模式"]').click();
+  await $('[role="listbox"]').waitForDisplayed();
   const reviewOption = await $('[role="option"][data-option-index="1"]');
+  await reviewOption.waitForDisplayed();
   assert.equal(await reviewOption.getText(), "写入前审阅");
   await reviewOption.click();
   await (await console.$("textarea")).setValue(`A4N_SPECIALIZED ${JSON.stringify(task)}`);
@@ -160,7 +164,7 @@ describe("工具驱动导演 Agent 的真实编辑器联动", () => {
     if (!createdRuns.length) return;
     for (const run of (await snapshot()).runs) {
       if (createdRuns.includes(run.id) && ["queued", "running", "waiting", "paused", "pausing"].includes(run.status)) {
-        if (native) await nativeApi("/src/api/agent.ts", "controlAgentRun", [{ run_id: run.id, thread_id: fixture.thread_id, action: "cancel" }]);
+        if (native) await controlAgentRun({ run_id: run.id, thread_id: fixture.thread_id, action: "cancel" });
         else cli(["agent", "run", run.id, "cancel", "--thread-id", fixture.thread_id]);
       }
     }
@@ -194,11 +198,20 @@ describe("工具驱动导演 Agent 的真实编辑器联动", () => {
     const key = await field("访问密钥");
     await key.setValue("a4n-e2e-provider-key");
     await click(/创建|保存/);
-    await click(llmConfigName);
-    const configured = (await nativeApi("/src/api/config/llm.ts", "listLlmConfig", [])).find((config) => config.name === llmConfigName);
-    assert.ok(configured, "刚保存的测试模型配置必须可读");
-    await nativeApi("/src/api/config/llm.ts", "setDefaultLlmConfig", [configured.id]);
-    assert.equal((await nativeApi("/src/api/config/llm.ts", "listLlmConfig", [])).find((config) => config.id === configured.id).is_default, true);
+    const configured = await button(llmConfigName);
+    assert.equal(await configured.isDisplayed(), true, "刚保存的测试模型配置必须在设置列表可见");
+    await configured.click();
+    // 首个本地配置创建后自动成为默认，此时不再显示切换默认按钮。
+    await browser.waitUntil(async () => browser.execute((name) => {
+      const item = [...document.querySelectorAll("button")].find((candidate) =>
+        candidate.textContent?.includes(name),
+      );
+      return Boolean(item?.textContent?.includes("当前默认"));
+    }, llmConfigName), {
+      timeout: 15_000,
+      timeoutMsg: "设置页没有显示刚创建的 LLM 配置为当前默认",
+    });
+    checks.push("首个本地 LLM 配置创建后自动成为当前默认");
     await openDirector();
     const firstTab = await browser.getWindowHandle();
     const before = await savedPlan();
@@ -230,8 +243,11 @@ describe("工具驱动导演 Agent 的真实编辑器联动", () => {
     assert.deepEqual(await savedPlan(), after);
     checks.push("面板关闭时仍可按明确指令定位播放头、选择镜头和适配视图，不修改数据库方案");
     if (native) {
-      assert.equal(await nativeApi("/src/utils/runtimeMode.ts", "isTauriRuntime", []), true);
-      assert.equal(await nativeApi("/src/utils/runtimeMode.ts", "shouldUseHttpBackend", []), true);
+      assert.equal(
+        await browser.execute(() => Boolean(window.__TAURI_INTERNALS__?.metadata)),
+        true,
+      );
+      assert.equal(await (await button(llmConfigName)).isDisplayed(), true);
       await browser.saveScreenshot(`${artifacts}/director-native.png`);
       checks.push("真实 Tauri 窗口通过已配置的 HTTP/SSE 和共享 Host 完成原生编辑器联动");
       writeFileSync(`${artifacts}/specialized-agent-native-report.json`, JSON.stringify({ success: true, checks, runId }, null, 2), { mode: 0o600 });
@@ -265,7 +281,7 @@ describe("工具驱动导演 Agent 的真实编辑器联动", () => {
     assert.equal(await (await field("合并后的变化描述", "textarea")).getValue(), "仍在输入、尚未提交的描述");
     checks.push("另一标签页批准不会覆盖原视图的未提交弹窗；失败保持原文案和保存版本");
     await browser.keys("Escape");
-    await click("放弃编辑");
+    await click("放弃草稿");
     await $("h3=合并镜头").waitForDisplayed({ reverse: true });
     const backgroundPrompt = `原窗口关闭后继续 ${Date.now()}`;
     const backgroundRun = await send({ mode: "edit", project_id: fixture.project_id, chapter_id: fixture.chapter_id, shot_id: "shot-1", prompt: backgroundPrompt });

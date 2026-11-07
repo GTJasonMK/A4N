@@ -17,12 +17,13 @@ pub use panel::{
 };
 pub use pipeline::{
     MANGA_PAGE_PIPELINE_STATE_V1, MANGA_PAGE_REFERENCE_DISCOVERY_V1,
-    MANGA_PAGE_REFERENCE_IMAGE_LIMIT, MANGA_PAGE_SLOT_LIMIT, MANGA_PREPROCESSING_V3,
-    MangaChapterComicSynthesisV1, MangaPageAdaptationV1, MangaPageContentV1,
-    MangaPageImageArtifactV1, MangaPagePipelineErrorV1, MangaPagePipelineStage,
-    MangaPagePipelineStateV1, MangaPagePipelineStatus, MangaPageReferenceDiscoveryV1,
-    MangaPageReferenceImageV1, MangaPageReferenceTargetKind, MangaPageSlotV1, MangaPageSlotsV1,
-    MangaPipelineArtifactStage, MangaPreprocessingV3, manga_preprocessing_input_fingerprint,
+    MANGA_PAGE_REFERENCE_IMAGE_LIMIT, MANGA_PAGE_REFERENCE_REQUIREMENT_LIMIT,
+    MANGA_PAGE_SLOT_LIMIT, MANGA_PREPROCESSING_V3, MangaChapterComicSynthesisV1,
+    MangaPageAdaptationV1, MangaPageContentV1, MangaPageImageArtifactV1, MangaPagePipelineErrorV1,
+    MangaPagePipelineStage, MangaPagePipelineStateV1, MangaPagePipelineStatus,
+    MangaPageReferenceDiscoveryV1, MangaPageReferenceImageV1, MangaPageReferenceNeedV1,
+    MangaPageReferenceTargetKind, MangaPageSlotV1, MangaPageSlotsV1, MangaPipelineArtifactStage,
+    MangaPreprocessingV3, manga_preprocessing_input_fingerprint,
 };
 pub use text::{MangaTextLayerKindV2, MangaTextLayerV2, MangaTextPlacementV2};
 pub use versions::{

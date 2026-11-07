@@ -59,7 +59,6 @@ export function useAdminSectionLoader<T>(
     loadSeqRef.current = requestSeq;
     inFlightLoadRef.current = { scopeKey, loadData };
     setLoading(true);
-    setFailure(null);
     try {
       const data = await loadData();
       if (!isCurrentLoad(scopeKey, requestSeq)) return false;

@@ -1,3 +1,7 @@
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
 // Shared, explicit API fixtures for the real application. Unknown requests fail with 501.
 const project = {
   id: 1, title: "山海之间", description: "关于记忆与归途的故事", project_kind: "text",
@@ -126,12 +130,66 @@ export const uiFixtures = {
 };
 
 let fixtureScript;
+let fixtureSessionId;
+const fixturePath = process.env.A4N_UI_FIXTURE_PATH
+  ?? fileURLToPath(new URL("../../../.dev-runtime/ui-pages/ui-audit-fixtures.json", import.meta.url));
+
 export async function installUiFixtures(browser, overrides = {}) {
-    await fixtureScript?.remove();
-    const installFixtures = (encodedFixtures) => {
-      const fixtures = JSON.parse(decodeURIComponent(encodedFixtures));
-      const params = new URL(location.href).searchParams;
+  if (fixtureScript && fixtureSessionId === browser.sessionId) await fixtureScript.remove();
+  fixtureScript = undefined;
+  fixtureSessionId = undefined;
+  await mkdir(dirname(fixturePath), { recursive: true });
+  await writeFile(fixturePath, JSON.stringify({ ...uiFixtures, ...overrides }));
+
+  const installFixtures = () => {
+    const nativeFetch = window.fetch.bind(window);
+    const params = new URL(location.href).searchParams;
+    const authenticated = !params.has("ui-auth");
+    // Production modules can initialize auth before the fixture request resolves.
+    if (authenticated) {
+      localStorage.setItem("a4n:current_user_id", "1");
+      localStorage.setItem("a4n:current_access_token", "ui-test-fixture");
+    } else {
+      localStorage.removeItem("a4n:current_user_id");
+      localStorage.removeItem("a4n:current_access_token");
+    }
+    localStorage.setItem("a4n:settings:locale", params.get("ui-locale") ?? "zh-CN");
+    const guestAppearance = params.get("ui-appearance");
+    if (["system", "light", "dark"].includes(guestAppearance)) {
+      localStorage.setItem("a4n:theme-appearance:guest", guestAppearance);
+    }
+    let fixtureReady;
+    const nativeDraftStorage = params.get("ui-native-draft-storage") === "1";
+    if (nativeDraftStorage) {
+      // Runtime mode is selected while the first application modules load. Mark
+      // the page as Tauri before that load; the real fixture invoke bridge is
+      // installed below once the shared fixture document is ready.
+      window.__A4N_API_BASE_URL__ = `${location.origin}/api`;
+      window.__TAURI_INTERNALS__ = {
+        metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
+        invoke: async (...args) => {
+          await fixtureReady;
+          const invoke = window.__uiAuditNativeInvoke;
+          if (!invoke) throw new Error("Native fixture bridge is not ready");
+          return invoke(...args);
+        },
+      };
+    }
+    window.fetch = async (input, options) => {
+      const url = new URL(typeof input === "string" ? input : input.url, location.href);
+      if (!url.pathname.startsWith("/api/")) return nativeFetch(input, options);
+      const handleApiRequest = await fixtureReady;
+      return handleApiRequest(input, options);
+    };
+    fixtureReady = (async () => {
+      const response = await nativeFetch("/__ui-audit-fixtures.json", { cache: "no-store" });
+      if (!response.ok) throw new Error(`UI audit fixture request failed: HTTP ${response.status}`);
+      const fixtures = await response.json();
       Object.assign(fixtures, JSON.parse(params.get("ui-fixtures") ?? "{}"));
+      if (window.name === "a4n-test-center") {
+        const encoded = sessionStorage.getItem("a4n:test-center-fixtures");
+        if (encoded) Object.assign(fixtures, JSON.parse(decodeURIComponent(encoded)));
+      }
       if (params.has("ui-creator")) {
         fixtures.get_current_user = { ...fixtures.get_current_user, role: "user" };
       }
@@ -144,20 +202,7 @@ export async function installUiFixtures(browser, overrides = {}) {
       ]) {
         if (record) record.my_role = profileReviewRole;
       }
-      const authenticated = !params.has("ui-auth");
       const deferred = [...new Set([...(fixtures.deferred ?? []), ...params.getAll("ui-defer")])];
-      if (authenticated) {
-        localStorage.setItem("a4n:current_user_id", "1");
-        localStorage.setItem("a4n:current_access_token", "ui-test-fixture");
-      } else {
-        localStorage.removeItem("a4n:current_user_id");
-        localStorage.removeItem("a4n:current_access_token");
-      }
-      localStorage.setItem("a4n:settings:locale", params.get("ui-locale") ?? "zh-CN");
-      const guestAppearance = params.get("ui-appearance");
-      if (["system", "light", "dark"].includes(guestAppearance)) {
-        localStorage.setItem("a4n:theme-appearance:guest", guestAppearance);
-      }
       const failNext = [...(fixtures.failNext ?? []), ...JSON.parse(params.get("ui-fail") ?? "[]")];
       window.__uiAudit = {
         fixtures,
@@ -176,16 +221,26 @@ export async function installUiFixtures(browser, overrides = {}) {
       };
       window.addEventListener("error", (event) => window.__uiAudit.errors.push(`${event.message}\n${event.error?.stack ?? ""}`));
       window.addEventListener("unhandledrejection", (event) => window.__uiAudit.errors.push(String(event.reason)));
-      const fetch = window.fetch.bind(window);
-      window.fetch = async (input, options) => {
+      const handleApiRequest = async (input, options) => {
         const url = new URL(typeof input === "string" ? input : input.url, location.href);
-        if (!url.pathname.startsWith("/api/")) return fetch(input, options);
+        if (!url.pathname.startsWith("/api/")) return nativeFetch(input, options);
         const method = options?.method ?? "GET";
-        const command = fixtures.commandByPath?.[url.pathname] ?? (
-          url.pathname === "/api/agent-threads" && method === "POST"
-            ? "create_agent_thread"
-            : url.pathname.split("/").at(-1)
-        );
+        const agentPath = url.pathname.match(/^\/api\/agent-threads\/([^/]+)(?:\/(messages|events))?$/);
+      const command = fixtures.commandByPath?.[url.pathname] ?? (
+        url.pathname === "/api/commands/get_current_user"
+          ? "get_current_user"
+          : url.pathname === "/api/commands/get_package_preferences"
+            ? "get_package_preferences"
+            : agentPath
+              ? agentPath[2] === "events"
+                ? "agent-events"
+                : agentPath[2] === "messages"
+                  ? "agent-messages"
+                  : decodeURIComponent(agentPath[1])
+              : url.pathname === "/api/agent-threads" && method === "POST"
+                ? "create_agent_thread"
+                : url.pathname.split("/").at(-1)
+      );
         window.__uiAudit.commands.push(command);
         const body = options?.body ? JSON.parse(options.body) : {};
         window.__uiAudit.requests.push({ command, body });
@@ -267,6 +322,21 @@ export async function installUiFixtures(browser, overrides = {}) {
         if (command === "get_current_user" && !authenticated) {
           return new Response(JSON.stringify({ code: "unauthorized", message: "Not signed in" }), { status: 401 });
         }
+        if (command === "get_current_user" || command === "get_package_preferences") {
+          if (!(command in fixtures)) throw new Error(`Missing UI fixture: ${command}`);
+          return Response.json(fixtures[command]);
+        }
+        if (command === "agent-events") {
+          return new Response(new ReadableStream({
+            start(controller) {
+              if (options?.signal?.aborted) controller.close();
+              else options?.signal?.addEventListener("abort", () => controller.close(), { once: true });
+            },
+          }), { headers: { "Content-Type": "text/event-stream" } });
+        }
+        if (command === "agent-messages") {
+          return new Promise((resolve) => window.__uiAudit.agentMessages.push({ input: body, resolve }));
+        }
         if (command === "list_projects") {
           const state = window.__uiAudit.projectState;
           if (state === "empty") return Response.json({ items: [], page: 1, page_size: 20, total: 0 });
@@ -283,6 +353,33 @@ export async function installUiFixtures(browser, overrides = {}) {
             && (access === "all" || (access === "owned" ? project.my_role === "owner" : project.my_role !== "owner")),
           );
           return Response.json({ items: items.slice((page - 1) * pageSize, page * pageSize), page, page_size: pageSize, total: items.length });
+        }
+        if (command === "list_all_projects") {
+          if (!Array.isArray(fixtures.list_all_projects)) throw new Error("Missing UI fixture: list_all_projects");
+          return Response.json(fixtures.list_all_projects);
+        }
+        if (command === "list_object_profile_index") {
+          const projectId = body.input?.project_id;
+          const profiles = fixtures.byProject?.[projectId]?.list_object_profiles
+            ?? fixtures.list_object_profiles;
+          if (!Array.isArray(profiles)) throw new Error(`Missing object profile index fixture: ${projectId}`);
+          return Response.json(profiles.map((profile) => ({
+            created_at: profile.created_at,
+            evidence_present: Array.isArray(profile.evidence_json) && profile.evidence_json.length > 0,
+            first_seen_chapter: profile.first_seen_chapter,
+            generated_image_count: profile.generated_image_count,
+            id: profile.id,
+            importance: profile.importance,
+            last_seen_chapter: profile.last_seen_chapter,
+            location_context: profile.location_context,
+            name: profile.name,
+            object_type: profile.object_type,
+            ownership_kind: profile.ownership_kind,
+            project_id: profile.project_id,
+            story_usage: profile.story_usage,
+            updated_at: profile.updated_at,
+            visual_description: profile.visual_description,
+          })));
         }
         if (url.pathname === "/api/agent-threads") {
           if (method === "POST") {
@@ -350,7 +447,6 @@ export async function installUiFixtures(browser, overrides = {}) {
           }
           return Response.json(generationPath[2] === "snapshot" ? task.snapshot : task.summary);
         }
-        const agentPath = url.pathname.match(/^\/api\/agent-threads\/([^/]+)(?:\/(messages|events))?$/);
         if (agentPath) {
           const snapshot = [...fixtures.agentSnapshots, ...(fixtures.agentThreadCreateResponses ?? [])]
             .find((item) => item.thread.id === agentPath[1]);
@@ -386,6 +482,67 @@ export async function installUiFixtures(browser, overrides = {}) {
           const record = fixtures.projectRecords.find((item) => item.id === projectId);
           if (!record) throw new Error(`Missing project fixture: ${projectId}`);
           return new Response(JSON.stringify(record), { headers: { "Content-Type": "application/json" } });
+        }
+        if (command === "update_project") {
+          const { projectId, input } = JSON.parse(options.body);
+          const record = fixtures.projectRecords.find((item) => item.id === projectId);
+          if (!record) throw new Error(`Missing project fixture: ${projectId}`);
+          Object.assign(record, input);
+          return Response.json(record);
+        }
+        if (command === "add_profile_attribute") {
+          const { profile_id: profileId, chapter_number: chapterNumber, category, key, value: nextValue, cause, evidence } = body.input;
+          const profile = fixtures.list_profiles?.find((item) => item.id === profileId);
+          if (!profile) throw new Error(`Missing profile fixture: ${profileId}`);
+          const field = category === "explicit" ? "explicit_attributes" : category === "implicit" ? "implicit_attributes" : "social_attributes";
+          profile.base_attributes[field][key] = nextValue;
+          profile.attribute_counts[category] = (profile.attribute_counts[category] ?? 0) + 1;
+          return Response.json({
+            event: {
+              id: profileId * 1000 + profile.attribute_counts[category],
+              chapter_number: chapterNumber,
+              category,
+              key,
+              old_value: null,
+              new_value: nextValue,
+              operation: "add",
+              cause,
+              evidence,
+              source_kind: "manual",
+              change_description: "界面测试新增属性",
+              timestamp: new Date().toISOString(),
+            },
+            warnings: [],
+          });
+        }
+        if (command === "update_project_member_role") {
+          const { projectId, memberUserId, input } = JSON.parse(options.body);
+          if (projectId !== 1) throw new Error(`Missing project member fixture: ${projectId}/${memberUserId}`);
+          const member = fixtures.list_project_members.find((item) => item.user_id === memberUserId);
+          if (!member) throw new Error(`Missing project member fixture: ${projectId}/${memberUserId}`);
+          member.role = input.role;
+          return new Response(null, { status: 204 });
+        }
+        if (command === "remove_project_member") {
+          const { projectId, memberUserId } = JSON.parse(options.body);
+          if (projectId !== 1) throw new Error(`Missing project member fixture: ${projectId}/${memberUserId}`);
+          fixtures.list_project_members = fixtures.list_project_members.filter((item) => item.user_id !== memberUserId);
+          return new Response(null, { status: 204 });
+        }
+        if (command === "revoke_project_invite") {
+          const { projectId, inviteId } = JSON.parse(options.body);
+          if (projectId !== 1) throw new Error(`Missing project invite fixture: ${projectId}/${inviteId}`);
+          fixtures.list_project_invites = fixtures.list_project_invites.filter((item) => item.id !== inviteId);
+          return new Response(null, { status: 204 });
+        }
+        if (command === "cancel_admin_task") {
+          const { taskId } = JSON.parse(options.body);
+          if (!Array.isArray(fixtures.list_pending_task_index)
+            || !fixtures.list_pending_task_index.some((task) => task.id === taskId)) {
+            throw new Error(`Missing pending task fixture: ${taskId}`);
+          }
+          fixtures.list_pending_task_index = fixtures.list_pending_task_index.filter((task) => task.id !== taskId);
+          return Response.json(true);
         }
         if (command === "update_theme") {
           const { themeId, input } = JSON.parse(options.body);
@@ -518,12 +675,41 @@ export async function installUiFixtures(browser, overrides = {}) {
           calls: [], removedDraftKeys: [], pendingDraftWrite: false, releaseDraftWrite: null, state,
         };
         const persistNativeState = () => sessionStorage.setItem(storageKey, JSON.stringify(state));
-        window.__A4N_API_BASE_URL__ = location.origin;
+        const eventCallbacks = new Map();
+        const eventListeners = new Map();
+        let nextCallbackId = 1;
+        let nextEventId = 1;
+        const emitNativeEvent = (event, payload) => {
+          for (const [eventId, listener] of eventListeners) {
+            if (listener.event !== event) continue;
+            const callback = eventCallbacks.get(listener.handler);
+            if (!callback) throw new Error(`Unknown native event callback: ${listener.handler}`);
+            callback({ event, id: eventId, payload });
+          }
+        };
+        window.__A4N_API_BASE_URL__ = `${location.origin}/api`;
         window.__TAURI_INTERNALS__ = {
           metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
           invoke: async (command, args = {}) => {
             nativeStorage.calls.push({ command, args });
             if (command === "get_all_frontend_state") return { ...state };
+            if (command === "plugin:event|listen") {
+              if (!eventCallbacks.has(args.handler)) {
+                throw new Error(`Unknown native event callback: ${args.handler}`);
+              }
+              const eventId = nextEventId++;
+              eventListeners.set(eventId, { event: args.event, handler: args.handler, target: args.target });
+              return eventId;
+            }
+            if (command === "plugin:event|unlisten") {
+              const listener = eventListeners.get(args.eventId);
+              if (!listener || listener.event !== args.event) {
+                throw new Error(`Unknown native event listener: ${args.eventId}`);
+              }
+              eventListeners.delete(args.eventId);
+              eventCallbacks.delete(listener.handler);
+              return null;
+            }
             if (command === "set_frontend_state_many") {
               const entries = args.entries ?? {};
               if (Object.keys(entries).some((key) => key.startsWith("a4n:writing_draft:"))) {
@@ -533,6 +719,7 @@ export async function installUiFixtures(browser, overrides = {}) {
                   nativeStorage.releaseDraftWrite = () => {
                     Object.assign(state, entries);
                     persistNativeState();
+                    emitNativeEvent("a4n:frontend-state-changed", { keys: Object.keys(entries) });
                     nativeStorage.pendingDraftWrite = false;
                     nativeStorage.releaseDraftWrite = null;
                     resolve(null);
@@ -541,6 +728,7 @@ export async function installUiFixtures(browser, overrides = {}) {
               }
               Object.assign(state, entries);
               persistNativeState();
+              emitNativeEvent("a4n:frontend-state-changed", { keys: Object.keys(entries) });
               return null;
             }
             if (command === "remove_frontend_state_many") {
@@ -548,15 +736,30 @@ export async function installUiFixtures(browser, overrides = {}) {
               nativeStorage.removedDraftKeys.push(...keys.filter((key) => key.startsWith("a4n:writing_draft:")));
               for (const key of keys) delete state[key];
               persistNativeState();
+              emitNativeEvent("a4n:frontend-state-changed", { keys });
               return null;
             }
             if (command === "log_from_frontend") return null;
             throw new Error(`Unexpected native fixture command: ${command}`);
           },
           convertFileSrc: (path) => path,
-          transformCallback: () => 1,
-          unregisterCallback: () => undefined,
+          transformCallback: (callback) => {
+            const callbackId = nextCallbackId++;
+            eventCallbacks.set(callbackId, callback);
+            return callbackId;
+          },
+          unregisterCallback: (callbackId) => eventCallbacks.delete(callbackId),
         };
+        window.__TAURI_EVENT_PLUGIN_INTERNALS__ = {
+          unregisterListener: (event, eventId) => {
+            const listener = eventListeners.get(eventId);
+            if (!listener || listener.event !== event) {
+              throw new Error(`Unknown native event listener: ${eventId}`);
+            }
+            eventCallbacks.delete(listener.handler);
+          },
+        };
+        window.__uiAuditNativeInvoke = window.__TAURI_INTERNALS__.invoke;
       }
       const clearRect = CanvasRenderingContext2D.prototype.clearRect;
       CanvasRenderingContext2D.prototype.clearRect = function (...args) {
@@ -565,11 +768,21 @@ export async function installUiFixtures(browser, overrides = {}) {
         }
         return clearRect.apply(this, args);
       };
-    };
-    const result = await browser.scriptAddPreloadScript({
-      functionDeclaration: `() => (${installFixtures.toString()})(${JSON.stringify(encodeURIComponent(JSON.stringify({ ...uiFixtures, ...overrides })))})`,
-    });
-    fixtureScript = {
-      remove: () => browser.scriptRemovePreloadScript({ script: result.script }),
-    };
+      return handleApiRequest;
+    })();
+  };
+  const result = await browser.scriptAddPreloadScript({
+    functionDeclaration: `() => (${installFixtures.toString()})()`,
+  });
+  fixtureScript = {
+    remove: () => browser.scriptRemovePreloadScript({ script: result.script }),
+  };
+  fixtureSessionId = browser.sessionId;
+}
+
+export async function cleanUiFixtures() {
+  if (fixtureScript && fixtureSessionId === browser.sessionId) await fixtureScript.remove();
+  fixtureScript = undefined;
+  fixtureSessionId = undefined;
+  await rm(fixturePath, { force: true });
 }

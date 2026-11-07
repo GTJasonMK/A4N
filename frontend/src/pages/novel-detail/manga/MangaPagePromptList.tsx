@@ -20,6 +20,8 @@ import type { GeneratedImage } from "../../../api/image";
 import type { Portrait } from "../../../api/portrait";
 import type {
   BindMangaReferenceImageInput,
+  MangaReferenceAssetKind,
+  MangaPageReferenceTargetKind,
   MangaPipelineStatusSummary,
   MangaPagePromptSummary,
 } from "../../../api/manga";
@@ -80,6 +82,15 @@ interface MangaPagePromptListProps {
   onGeneratePageImage?: (pageNumber: number) => void | Promise<void>;
   onBindReferenceImage?: (
     input: BindMangaReferenceImageInput,
+    sourceImage?: GeneratedImage,
+  ) => void | Promise<void>;
+  onBindDiscoveredReference?: (
+    sourceImage: GeneratedImage,
+    target: { targetKind: MangaPageReferenceTargetKind; targetName: string },
+  ) => void | Promise<void>;
+  onUnbindDiscoveredReference?: (
+    assetKind: MangaReferenceAssetKind,
+    assetId: number,
   ) => void | Promise<void>;
   onUploadReferenceImage?: (
     promptId: number,
@@ -224,6 +235,8 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   onPreviewPageImage,
   onGeneratePageImage,
   onBindReferenceImage,
+  onBindDiscoveredReference,
+  onUnbindDiscoveredReference,
   onUploadReferenceImage,
   uploadingReferenceBindingKey,
   onUpdatePrompt,
@@ -480,14 +493,18 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   }
 
   const renderGenerateButton = (page: MangaPagePrompt) => {
-    if (!canEditManga || !onGeneratePageImage || !page.prompt.drawing_prompt) return null;
+    if (
+      !canEditManga ||
+      !onGeneratePageImage ||
+      !page.prompt.drawing_prompt ||
+      page.prompt.generated_image_id != null
+    ) return null;
     const generating = generatingPageNumber === page.pageNumber;
-    const generated = page.prompt.generated_image_id != null;
     const imageBlockReason = mangaPageImageBlockReason(page.prompt, t);
     return (
       <BookButton
         size="sm"
-        variant={generated ? "secondary" : "primary"}
+        variant="primary"
         onClick={() => void onGeneratePageImage(page.pageNumber)}
         disabled={
           actionsDisabled ||
@@ -499,12 +516,10 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
       >
         {generating ? (
           <LoadingSpinner size="sm" />
-        ) : generated ? (
-          <RefreshCw size={13} />
         ) : (
           <ImagePlus size={13} />
         )}
-        {generated ? t("comic.prompt.regenerateImage") : t("comic.prompt.generateImage")}
+        {t("comic.prompt.generateImage")}
       </BookButton>
     );
   };
@@ -662,14 +677,14 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                   <Pencil size={12} /> {t("comic.prompt.editArtifact")}
                 </BookButton>
               ) : null}
-              {generatableStage && activePage && onGenerateStageArtifact ? (
+              {generatableStage && activePage && onGenerateStageArtifact && payload == null ? (
                 <BookButton
                   size="sm"
-                  variant={payload == null ? "primary" : "secondary"}
+                  variant="primary"
                   onClick={() => void onGenerateStageArtifact(stage, activePage.pageNumber)}
                   disabled={actionsDisabled || chapterLocked}
                 >
-                  <RefreshCw size={12} /> {payload == null ? generateLabel : t("comic.regenerateToStage", { stage: label })}
+                  <RefreshCw size={12} /> {generateLabel}
                 </BookButton>
               ) : null}
             </div>
@@ -762,7 +777,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
       });
     }
     if (
-      stageMode === "image_creation" &&
+      (stageMode == null || stageMode === "image_creation") &&
       activePage.prompt.generated_image_id != null &&
       onDeleteStageArtifact &&
       !actionsDisabled &&
@@ -784,7 +799,17 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
     (stageMode == null || stageMode === "image_creation") &&
     editingPromptId !== activePage.prompt.id
   ) {
+    if (onDeleteStageArtifact) {
+      activePromptMenuItems.push({
+        label: `${t("common.delete")} · ${mangaPageStageLabel("drawing_prompt", t)}`,
+        icon: <Trash2 size={12} />,
+        danger: true,
+        disabled: actionsDisabled || chapterLocked || optimizingActivePrompt,
+        onClick: () => void deleteStageOutput("drawing_prompt", activePage.pageNumber),
+      });
+    }
     if (onOptimizePrompt) {
+      if (activePromptMenuItems.length > 0) activePromptMenuItems.push({ type: "divider" });
       activePromptMenuItems.push({
         label: t("comic.prompt.optimize"),
         icon: <Wand2 size={12} />,
@@ -986,6 +1011,8 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                             }))
                           }
                           onBindReferenceImage={onBindReferenceImage}
+                          onBindDiscoveredReference={onBindDiscoveredReference}
+                          onUnbindDiscoveredReference={onUnbindDiscoveredReference}
                           onUploadReferenceImage={onUploadReferenceImage}
                           uploadingReferenceBindingKey={uploadingReferenceBindingKey}
                         />
@@ -1098,6 +1125,8 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                             }))
                           }
                           onBindReferenceImage={onBindReferenceImage}
+                          onBindDiscoveredReference={onBindDiscoveredReference}
+                          onUnbindDiscoveredReference={onUnbindDiscoveredReference}
                           onUploadReferenceImage={onUploadReferenceImage}
                           uploadingReferenceBindingKey={uploadingReferenceBindingKey}
                         />

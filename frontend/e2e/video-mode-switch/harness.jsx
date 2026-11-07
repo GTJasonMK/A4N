@@ -14,6 +14,7 @@ import { VideoTab } from "../../src/pages/novel-detail/VideoTab";
 import { videoSegmentRecipeFrameFingerprintJson, videoSegmentRecipeGenerationFingerprintJson } from "../../src/pages/novel-detail/video/videoSegmentPlan";
 import { sha256Hex } from "../../src/utils/contentHash";
 import { initializePortableStorage } from "../../src/utils/portableStorage";
+import { installTauriEventMock } from "../tauriEventMock.js";
 import "../../src/index.css";
 
 const projectId = 1;
@@ -770,12 +771,18 @@ const invoke = async (command, args = {}) => {
       return storyboardImage
         ? [referenceImage, storyboardImage]
         : [referenceImage];
-    case "delete_image":
+    case "delete_image": {
       if (!storyboardImage || args.input?.image_id !== storyboardImage.id) {
         throw new Error("unexpected delete_image input");
       }
+      const deletedStoryboardImageId = storyboardImage.id;
       storyboardImage = null;
-      return null;
+      return {
+        deleted_image_id: deletedStoryboardImageId,
+        updated_prompts: [],
+        updated_videos: [],
+      };
+    }
     case "list_video_configs":
     case "list_image_configs":
     case "list_active_generation_tasks":
@@ -800,14 +807,18 @@ const invoke = async (command, args = {}) => {
         next_cursor: null,
       };
     case "get_chapter_shooting_script":
-      return { record: {}, script: shootingScript };
+      return {
+        record: {},
+        script: shootingScript,
+        plan_sync: { stale_shot_ids: [], missing_shot_ids: [] },
+      };
     case "get_chapter_shooting_script_unit_progress":
       return null;
     case "get_chapter_video_timeline":
       return {
         id: 1,
         revision: 1,
-        items: mixedAssemblyScenario
+        items: plan
           ? plan.metadata_json.segments.map((segment) => ({
               id: 1000 + segment.segment_number,
               kind: "native",
@@ -1180,7 +1191,14 @@ const invoke = async (command, args = {}) => {
         ...storyboardPrompt,
         visual_prompt: `${storyboardPrompt.visual_prompt}\n优化要求：${args.input?.instruction}`,
       };
-      return structuredClone(storyboardPrompt);
+      return {
+        prompt: structuredClone(storyboardPrompt),
+        deletion: {
+          deleted_prompt_ids: [],
+          deleted_image_ids: [],
+          deleted_video_ids: [],
+        },
+      };
     }
     case "delete_chapter_video_prompt": {
       if (
@@ -1206,6 +1224,7 @@ window.__TAURI_INTERNALS__ = {
   transformCallback: () => nextCallbackId++,
   unregisterCallback: () => undefined,
 };
+installTauriEventMock(window.__TAURI_INTERNALS__);
 window.__A4N_VIDEO_MODE_E2E__ = {
   calls,
   releasePendingRecipeSave: () => {
@@ -1240,6 +1259,9 @@ createRoot(document.getElementById("root")).render(
               content,
               status: "completed",
             }}
+            canEdit={true}
+            readUnavailable={false}
+            readUnavailableReason={null}
           />
         </ImageLightboxProvider>
       </div>

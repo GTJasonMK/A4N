@@ -12,22 +12,34 @@ const screenshotPath = (name) => `${screenshotDir}/${name}`;
 
 const openHarness = async (query = "") => {
   await browser.url(`/e2e/video-scrub/${query}`);
-  await browser.waitUntil(
-    () =>
-      browser
-        .execute(() => {
-          const video = document.querySelector("video");
-          return {
-            ready:
-              video instanceof HTMLVideoElement &&
-              video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
-              Boolean(document.querySelector('[aria-label="视频剪辑时间轴"]')),
-            error: window.__A4N_VIDEO_SCRUB_E2E_ERROR__ ?? document.querySelector('[role="alert"]')?.textContent ?? null,
-          };
-        })
-        .then((state) => state.ready || state.error),
-    { timeout: 30_000, timeoutMsg: "video scrub harness did not initialize" },
-  );
+  let lastState = null;
+  try {
+    await browser.waitUntil(async () => {
+      lastState = await browser.execute(() => {
+        const video = document.querySelector("video");
+        return {
+          ready:
+            video instanceof HTMLVideoElement &&
+            video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+            Boolean(document.querySelector('[aria-label="视频剪辑时间轴"]')),
+          error: window.__A4N_VIDEO_SCRUB_E2E_ERROR__ ?? document.querySelector('[role="alert"]')?.textContent ?? null,
+          videoExists: video instanceof HTMLVideoElement,
+          readyState: video?.readyState ?? null,
+          networkState: video?.networkState ?? null,
+          mediaError: video?.error?.message || video?.error?.code || null,
+          sourceKind: video?.currentSrc.startsWith("data:") ? "data-url" : video?.currentSrc ? "external" : null,
+          timelineExists: Boolean(document.querySelector('[aria-label="视频剪辑时间轴"]')),
+          text: document.body.innerText.slice(0, 500),
+        };
+      });
+      return lastState.ready || lastState.error;
+    }, { timeout: 30_000 });
+  } catch (cause) {
+    throw new Error(
+      `video scrub harness did not initialize: ${JSON.stringify(lastState)}`,
+      { cause },
+    );
+  }
   const error = await browser.execute(
     () => window.__A4N_VIDEO_SCRUB_E2E_ERROR__ ?? document.querySelector('[role="alert"]')?.textContent ?? null,
   );
@@ -57,11 +69,27 @@ describe("video timeline scrubbing", () => {
       await browser.execute(() => { document.querySelector("video").currentTime = 2; });
       await browser.waitUntil(() => browser.execute(() => !document.querySelector("video").seeking));
       await $("button=更新预览").click();
-      await browser.waitUntil(() => browser.execute((expected) => {
-        const video = document.querySelector("video");
-        return window.__assemblyReloads === expected && video.readyState >= 2 && video.currentTime < 0.1 &&
-          !document.body.textContent.includes("正在加载预览");
-      }, count), { timeout: 3000, timeoutMsg: "identical cached media did not reload or left its loading overlay active" });
+      let lastState = null;
+      try {
+        await browser.waitUntil(async () => {
+          lastState = await browser.execute((expected) => {
+            const video = document.querySelector("video");
+            return {
+              reloads: window.__assemblyReloads,
+              expected,
+              readyState: video?.readyState ?? null,
+              currentTime: video?.currentTime ?? null,
+              loadingOverlay: document.body.textContent.includes("正在加载预览"),
+            };
+          }, count);
+          return lastState.reloads === count && lastState.readyState >= 2 && lastState.currentTime < 0.1 && !lastState.loadingOverlay;
+        }, { timeout: 3000 });
+      } catch (cause) {
+        throw new Error(
+          `identical cached media did not reload or left its loading overlay active: ${JSON.stringify(lastState)}`,
+          { cause },
+        );
+      }
     }
   });
 

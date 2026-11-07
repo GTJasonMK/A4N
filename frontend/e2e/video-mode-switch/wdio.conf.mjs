@@ -11,6 +11,7 @@ export const config = {
   runner: "local",
   specs: ["./video-mode-switch.e2e.mjs"],
   maxInstances: 1,
+  maxInstancesPerCapability: 1,
   capabilities: [{
     browserName: "chrome",
     "wdio:chromedriverOptions": { binary: chromedriverBinary },

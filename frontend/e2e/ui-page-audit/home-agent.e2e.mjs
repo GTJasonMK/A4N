@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { installUiFixtures } from "../ui-presentation/fixtures.mjs";
-import { buildPageFixtures, seedLocalModels } from "./fixtures.mjs";
+import { installUiFixtures, uiFixtures } from "../ui-presentation/fixtures.mjs";
+import { seedLocalModels } from "./fixtures.mjs";
 import { homeAgentFixtures } from "./home-agent-fixtures.mjs";
 
 const output = fileURLToPath(new URL("../../../.dev-runtime/ui-pages/home-agent/", import.meta.url));
@@ -14,6 +14,7 @@ const timeout = 6000;
 const report = [];
 let fixtures, current, auditWindow, agentWindow;
 let navigation = 0;
+let agentSessionStarted = false;
 const mainSeed = homeAgentFixtures.agentSnapshots[0];
 const budgetSeed = homeAgentFixtures.agentSnapshots[1];
 const activityDraft = "保留这条草稿，查看审批后继续讨论。";
@@ -133,6 +134,30 @@ async function home() {
   await expectProjects(scope, fixtures.projectRecords);
   return scope;
 }
+async function agentPage() {
+  const scope = $(".agent-monitor-page");
+  try {
+    await scope.waitForDisplayed({ timeout });
+    return scope;
+  } catch (cause) {
+    const state = await browser.execute(() => ({
+      url: location.href,
+      readyState: document.readyState,
+      windowName: window.name,
+      fixtureInstalled: Boolean(window.__uiAudit),
+      bodyText: document.body.innerText.slice(0, 1000),
+      root: document.querySelector("#root")?.innerHTML.slice(0, 1600),
+      errors: window.__uiAudit?.errors ?? [],
+      requests: window.__uiAudit?.requests.slice(-12).map(({ command }) => command) ?? [],
+      nativeStorageCalls: window.__uiAudit?.nativeStorage?.calls.map(({ command }) => command) ?? [],
+      modules: performance.getEntriesByType("resource")
+        .filter((entry) => /\/src\/(main|App|pages\/AgentMonitor)\.tsx/.test(entry.name))
+        .map((entry) => ({ name: entry.name, responseStatus: entry.responseStatus, duration: entry.duration })),
+    }));
+    const browserLogs = await browser.getLogs("browser").catch((error) => [{ message: String(error) }]);
+    throw new Error(`独立 Agent 页面未渲染：${JSON.stringify({ ...state, browserLogs })}`, { cause });
+  }
+}
 async function agent(threadId = mainSeed.thread.id, activity = false) {
   await home();
   const handlesBefore = await browser.getWindowHandles();
@@ -149,7 +174,7 @@ async function agent(threadId = mainSeed.thread.id, activity = false) {
   await installUiFixtures(browser, fixtures);
   await browser.refresh();
   await browser.waitUntil(async () => new URL(await browser.getUrl()).pathname === "/agents", { timeout });
-  const scope = await $(".agent-monitor-page");
+  const scope = await agentPage();
   await scope.$(".agent-monitor-thread-list").waitForDisplayed({ timeout });
   const expected = fixtures.agentSnapshots.find((snapshot) => snapshot.thread.id === threadId);
   const thread = await scope.$('.//button[contains(@class,"agent-monitor-thread-item") and .//span[normalize-space(.)=' + literal(expected.thread.title) + ']]');
@@ -258,7 +283,7 @@ describe("Home and global Agent page audit", function () {
   this.timeout(90000);
   before(async () => {
     await mkdir(output, { recursive: true });
-    const base = await buildPageFixtures(browser.options.baseUrl);
+    const base = structuredClone(uiFixtures);
     fixtures = { ...base, ...homeAgentFixtures,
       agentSnapshots: [...new Map([...base.agentSnapshots, ...homeAgentFixtures.agentSnapshots].map((snapshot) => [snapshot.thread.id, snapshot])).values()],
     };
@@ -300,7 +325,7 @@ describe("Home and global Agent page audit", function () {
     current = { id: "UX-1779-subagent-create-busy", task: "子 Agent 创建期间明确互斥并保留创建表单", visited: [], plannedWidths: [1440] };
     await browser.switchToWindow(auditWindow);
     await browser.url("/agents?subagent-create-" + Date.now());
-    const scope = await $(".agent-monitor-page");
+    const scope = await agentPage();
     await scope.$(".agent-monitor-thread-list").waitForDisplayed({ timeout });
     const mainThread = await scope.$('.//button[contains(@class,"agent-monitor-thread-item") and .//span[normalize-space(.)=' + literal(mainSeed.thread.title) + ']]');
     await press(mainThread);
@@ -959,6 +984,18 @@ describe("Home and global Agent page audit", function () {
     }, text: "当前预算已用完" },
   ];
   for (const spec of agentPages) it(spec.id + " follows the existing Agent entry", async () => matrix(spec));
+
+  beforeEach(async function () {
+    if (agentSessionStarted || !/^A\d/.test(this.currentTest?.title ?? "")) return;
+    await browser.reloadSession();
+    agentSessionStarted = true;
+    agentWindow = undefined;
+    auditWindow = await browser.getWindowHandle();
+    await installUiFixtures(browser, fixtures);
+    await browser.setWindowSize(1440, height);
+    await home();
+    await seedLocalModels(browser);
+  });
 
   it("UX-1746 keeps a failed snapshot notice scoped to its thread", async () => {
     current = { id: "UX-1746", task: "Keep a prior thread's read failure out of the newly selected thread" };

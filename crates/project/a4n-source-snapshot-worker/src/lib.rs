@@ -256,7 +256,7 @@ mod tests {
             },
             payload: SourceSnapshotProjectInput { project_id: 1 },
         };
-        assert!(validate_request(&request, "unknown").is_err());
+        assert!(validate_request(&request, SOURCE_SNAPSHOT_CHAPTERS_OPERATION).is_err());
         assert_eq!(
             SOURCE_SNAPSHOT_CHAPTERS_OPERATION,
             "project.source_snapshot.chapters"

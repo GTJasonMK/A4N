@@ -39,6 +39,7 @@ pub(super) fn build_character_conflict_request(
         },
         "input": {
             "context_refs": {
+                "character_name": format!("稳定上下文包 {PACK_KIND_CHARACTER_CONFLICT_SOURCE_CONTEXT}.character_name"),
                 "chapter_scope": format!("稳定上下文包 {PACK_KIND_CHARACTER_CONFLICT_SOURCE_CONTEXT}.chapter_scope"),
                 "character_profile": format!("稳定上下文包 {PACK_KIND_CHARACTER_CONFLICT_SOURCE_CONTEXT}.character_profile"),
                 "chapter_context": format!("稳定上下文包 {PACK_KIND_CHARACTER_CONFLICT_SOURCE_CONTEXT}.chapter_context"),
@@ -88,6 +89,7 @@ pub(super) fn build_character_conflict_request(
                 "prompt_name": CHARACTER_CONFLICT_KIND,
             }),
             stable_context_json: json!({
+                "character_name": input.profile_name,
                 "chapter_scope": input.chapter_scope.to_context_value(),
                 "character_profile": input.role_attr,
                 "chapter_context": input.chapter_context,

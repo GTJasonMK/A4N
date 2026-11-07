@@ -81,6 +81,10 @@ async fn part_outline_request_moves_blueprint_and_previous_parts_into_manifest()
         .iter()
         .find(|message| matches!(message.role, MessageRole::User))
         .expect("user message should exist");
+    assert!(
+        request.messages[0].content.contains("核心任务"),
+        "an omitted optional optimization direction must still render the primary prompt"
+    );
     assert!(user_message.content.contains("context_refs"));
     assert!(user_message.content.contains("outline_blueprint_context"));
     assert!(

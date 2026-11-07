@@ -185,6 +185,77 @@ pub async fn upsert_manga_pipeline_artifact(
     Ok(updated)
 }
 
+pub async fn create_manga_pipeline_artifact(
+    db: &impl crate::DbExecutor,
+    draft: MangaPipelineArtifactDraft,
+    now: NaiveDateTime,
+) -> Result<MangaPipelineArtifactRecord, MangaPromptRecordError> {
+    let (page_number, output_fingerprint) = prepare_manga_pipeline_artifact_draft(&draft)?;
+    let txn = db
+        .begin()
+        .await
+        .map_err(manga_record_database("开启漫画阶段产物创建事务失败"))?;
+    lock_manga_pipeline_artifact_chapter(&txn, draft.project_id, draft.chapter_id).await?;
+    if artifact_by_scope(
+        &txn,
+        draft.project_id,
+        draft.chapter_id,
+        draft.stage,
+        page_number,
+    )
+    .await?
+    .is_some()
+    {
+        let scope = draft
+            .page_number
+            .map(|page| format!("第 {page} 页"))
+            .unwrap_or_else(|| "本章节".to_string());
+        return Err(MangaPromptRecordError::Conflict(format!(
+            "{scope}的{}产物已存在，请先删除后再生成",
+            draft.stage.key()
+        )));
+    }
+
+    manga_pipeline_artifact::Entity::insert(manga_pipeline_artifact::ActiveModel {
+        project_id: Set(draft.project_id),
+        chapter_id: Set(draft.chapter_id),
+        stage: Set(draft.stage.key().to_string()),
+        page_number: Set(page_number),
+        input_fingerprint: Set(draft.input_fingerprint),
+        output_fingerprint: Set(output_fingerprint),
+        payload: Set(draft.payload),
+        stale: Set(draft.stale),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    })
+    .exec(&txn)
+    .await
+    .map_err(manga_record_database("创建漫画阶段产物失败"))?;
+    mark_downstream_stale(
+        &txn,
+        draft.project_id,
+        draft.chapter_id,
+        draft.stage,
+        page_number,
+    )
+    .await?;
+    let created = artifact_by_scope(
+        &txn,
+        draft.project_id,
+        draft.chapter_id,
+        draft.stage,
+        page_number,
+    )
+    .await?
+    .ok_or_else(|| MangaPromptRecordError::NotFound("漫画阶段产物创建后未找到".into()))?;
+    let created = manga_pipeline_artifact_record(created)?;
+    txn.commit()
+        .await
+        .map_err(manga_record_database("提交漫画阶段产物创建事务失败"))?;
+    Ok(created)
+}
+
 pub async fn save_manga_pipeline_artifact_with_projection(
     db: &impl crate::DbExecutor,
     draft: MangaPipelineArtifactDraft,

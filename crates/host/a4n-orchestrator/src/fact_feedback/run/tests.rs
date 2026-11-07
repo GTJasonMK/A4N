@@ -75,6 +75,7 @@ impl ChapterAnalysisHostPort for UnusedMaterialIndex {
 #[tokio::test]
 async fn preparation_failure_remains_visible_and_resumes_after_repair() {
     let db = Arc::new(a4n_migration::test_support::connect_test_database().await);
+    a4n_test_support::database::ensure_test_user(db.as_ref(), 1).await;
     let context = crate::test_support::TestOrchestratorBuilder::new(db.clone())
         .with_llm(Arc::new(CountingLlmProvider::new(ChatResponse {
             message: ChatMessage::assistant(r#"{"changes":[]}"#),

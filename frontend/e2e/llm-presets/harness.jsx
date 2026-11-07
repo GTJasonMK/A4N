@@ -5,6 +5,7 @@ import { DEFAULT_LLM_FORM } from "../../src/pages/settings/llm/llmConfigUtils";
 import { I18nProvider } from "../../src/i18n";
 import { initializePortableStorage } from "../../src/utils/portableStorage";
 import { ToastContainer } from "../../src/components/feedback/Toast";
+import { installTauriEventMock } from "../tauriEventMock.js";
 import "../../src/index.css";
 
 const providers = [
@@ -32,6 +33,7 @@ window.__TAURI_INTERNALS__ = {
     throw new Error(`Unexpected test command: ${command}`);
   },
 };
+installTauriEventMock(window.__TAURI_INTERNALS__);
 await initializePortableStorage();
 
 function Harness() {

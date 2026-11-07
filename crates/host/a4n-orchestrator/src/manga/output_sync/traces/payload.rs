@@ -15,7 +15,7 @@ pub(super) fn build_manga_page_generation_trace_record(
     row: &MangaPagePromptRecord,
     trace: MangaPromptGenerationTrace,
 ) -> Result<MangaPageGenerationTraceRecord, AppError> {
-    let (source, reference_bindings, system_reference_images) = if row
+    let (source, reference_bindings, reference_requirements, system_reference_images) = if row
         .layout
         .as_ref()
         .and_then(|layout| layout.get("schema_version"))
@@ -29,14 +29,25 @@ pub(super) fn build_manga_page_generation_trace_record(
             layout
                 .pipeline
                 .reference_discovery
+                .as_ref()
+                .map_or_else(Vec::new, |discovery| discovery.requirements.clone()),
+            layout
+                .pipeline
+                .reference_discovery
                 .map_or_else(Vec::new, |discovery| discovery.references),
         )
     } else {
         let layout = manga_page_generation_layout(row).map_err(AppError::InvalidArgument)?;
-        (layout.source, layout.reference_bindings, Vec::new())
+        (
+            layout.source,
+            layout.reference_bindings,
+            Vec::new(),
+            Vec::new(),
+        )
     };
     let source_refs_json = Some(json!({ "source": source }));
     let media_refs_json = Some(json!({
+        "reference_requirements": reference_requirements,
         "system_reference_images": system_reference_images,
         "reference_bindings": reference_bindings,
     }));

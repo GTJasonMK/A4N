@@ -13,7 +13,7 @@ use super::super::super::super::reference_assets::{
 };
 use super::super::super::json::{
     page_drawing_prompt_from_response, parse_manga_page_adaptation, parse_manga_page_slots,
-    parse_manga_page_storyboard,
+    parse_manga_page_storyboard, parse_manga_page_storyboard_model_output,
 };
 use super::super::super::prompt::{
     manga_page_adaptation_user_message, manga_page_drawing_prompt_pipeline_user_message,
@@ -519,6 +519,8 @@ async fn preview_page_storyboard(
             adaptation_beats,
             extraction_summary,
             &context.reference_assets,
+            &context.source_spans,
+            &context.chapter_content,
             &context.source_markers,
         )?,
         temperature: 0.3,
@@ -531,8 +533,14 @@ async fn preview_page_storyboard(
                 &title,
                 "manga_page_storyboard",
             ));
-            parse_manga_page_storyboard(&parsed_output, page_number, content, adaptation, &title)
-                .map(Some)
+            parse_manga_page_storyboard_model_output(
+                &parsed_output,
+                page_number,
+                content,
+                adaptation,
+                &title,
+            )
+            .map(Some)
         }
         MangaPreviewCall::Ready(request) => {
             steps.push(MangaPipelineRequestPreviewStep::ready(
@@ -582,6 +590,7 @@ async fn preview_page_drawing_prompt(
             extraction_summary,
             &context.reference_assets,
             reference_bindings,
+            &discovery.requirements,
             &discovery.references,
             &context.available_reference_images,
             &context.source_markers,

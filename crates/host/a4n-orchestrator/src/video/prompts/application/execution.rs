@@ -362,7 +362,6 @@ impl OrchestratorContext {
                 input.project_id,
                 input.chapter_id,
                 input.workflow_run_id,
-                "加载片段规划草稿执行方案",
             )
             .await?;
         let checkpoints = load_video_segment_plan_draft_checkpoints(self, run.id).await?;
@@ -392,9 +391,14 @@ impl OrchestratorContext {
                 input.project_id,
                 input.chapter_id,
                 input.workflow_run_id,
-                "更新片段规划草稿执行方案",
             )
             .await?;
+        if !workflow_run_is_running_or_resumable(&context.run.status, context.run.can_resume) {
+            return Err(AppError::InvalidState {
+                current: context.run.status.clone(),
+                operation: "更新片段规划草稿执行方案".into(),
+            });
+        }
         update_video_segment_plan_draft_recipe_checkpoint(
             self,
             input.project_id,
@@ -413,7 +417,6 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         workflow_run_id: i64,
-        operation: &str,
     ) -> Result<VideoSegmentPlanDraftContext, AppError> {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
             .await?;
@@ -426,12 +429,6 @@ impl OrchestratorContext {
             return Err(AppError::InvalidArgument(format!(
                 "片段规划 workflow {workflow_run_id} 与当前项目或章节不一致"
             )));
-        }
-        if !workflow_run_is_running_or_resumable(&run.status, run.can_resume) {
-            return Err(AppError::InvalidState {
-                current: run.status.clone(),
-                operation: operation.to_string(),
-            });
         }
         let fingerprint = run
             .input_fingerprint_json

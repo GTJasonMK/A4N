@@ -305,10 +305,11 @@ impl OrchestratorContext {
                 input.stream_reporter,
                 |value| {
                     let value = source_markers.decode_output(&value)?;
-                    let plan: AdaptationPlanV1 = serde_json::from_value(value)?;
+                    let mut plan: AdaptationPlanV1 = serde_json::from_value(value)?;
                     if plan.target != input.target {
                         return Err(AppError::InvalidArgument("改编计划的目标媒介不一致".into()));
                     }
+                    plan.complete_unit_source_span_ids_from_beats();
                     plan.validate(&span_ids)
                         .map_err(AppError::InvalidArgument)?;
                     if input.target == AdaptationTarget::Manga {

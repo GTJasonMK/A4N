@@ -27,12 +27,14 @@ def main():
         with tempfile.TemporaryDirectory(prefix="media-authoring-", dir=args.report.parent) as directory:
             work = Path(directory)
             cli = logged_in_cli(args, work)
+            mock_runtime = runtime_snapshot(
+                args.provider_url,
+                embedding_dimension=args.embedding_dimension,
+            )
+            report["runtime_config_snapshot"] = mock_runtime
             secure_json(
                 work / "runtime.json",
-                runtime_snapshot(
-                    args.provider_url,
-                    embedding_dimension=args.embedding_dimension,
-                ),
+                mock_runtime,
             )
             checked(cli, ["config", "runtime", "set", "--input", "@" + str(work / "runtime.json")], "configure mock provider")
             described = set()
@@ -72,8 +74,9 @@ def main():
                 return call("save_media_authoring_document", {"project_id": record["project_id"], "chapter_id": record["source_chapter_id"], "kind": record["kind"], "record_id": record["id"], "expected_revision": record["revision"], "document": document})
 
             def generate(project_id, base=None, reference=None):
+                source_chapter_id = workspace(project_id)["chapters"][0]["source"]["source_chapter_id"]
                 return call("generate_media_adaptation_plan", {
-                    "project_id": project_id, "chapter_id": chapter_id, "task_id": str(uuid.uuid4()),
+                    "project_id": project_id, "chapter_id": source_chapter_id, "task_id": str(uuid.uuid4()),
                     "instruction": "保留原作因果，以本媒介独立改编", "video_reference": reference,
                     "clear_video_reference": False, "record_id": base["id"] if base else None,
                     "expected_revision": base["revision"] if base else None, "resume_from_checkpoint": True,
@@ -85,7 +88,7 @@ def main():
             report.update(root_id=root_id, chapter_id=chapter_id)
             for name in ("林岚", "周衡"):
                 profile = call("create_profile", {"project_id": root_id, "name": name, "base_attributes": {"explicit_attributes": {}, "implicit_attributes": {}, "social_attributes": {}}})
-                profile_id = profile.get("profile_id", profile.get("id"))
+                profile_id = profile.get("profile", {}).get("id")
                 assert isinstance(profile_id, int) and profile_id > 0, profile
                 call("upload_portrait", {
                     "project_id": root_id,
@@ -107,13 +110,8 @@ def main():
 
             comic, game = derive("comic"), derive("galgame")
             assert call("list_video_adaptation_references", {"project_id": comic, "chapter_id": chapter_id}) == []
-            comic_adaptation = adopt(generate(comic))
-            game_adaptation = adopt(generate(game))
-            assert comic_adaptation["document"]["target"] == "manga" and game_adaptation["document"]["target"] == "galgame"
-            assert comic_adaptation["inputs"]["video_reference"] is None
-            passed("漫画和 Galgame 在没有视频项目或拍摄剧本时独立生成并采用改编计划")
 
-            def manga_run(project_id=comic, stop_after=None, page_number=None, run_stage=None):
+            def manga_run(project_id=comic, stop_after=None, page_number=None, run_stage=None, expected_error=None):
                 pipeline_input = {
                     "meta": {"start_request_id": str(uuid.uuid4())},
                     "project_id": project_id,
@@ -127,24 +125,40 @@ def main():
                 if run_stage is not None:
                     pipeline_input["run_stage"] = run_stage
                 handle = call("start_manga_pipeline", pipeline_input)
-                checked(
-                    cli,
-                    ["task", "watch", handle["task_id"], "--attempt", str(handle["attempt"])],
-                    "manga task watch",
-                )
-                task = checked(
-                    cli,
-                    ["task", "get", handle["task_id"], "--attempt", str(handle["attempt"])],
-                    "manga task",
-                )[0]["data"]
-                assert task["handle"]["status"] == "completed", task
+                if expected_error is None:
+                    checked(
+                        cli,
+                        ["task", "watch", handle["task_id"], "--attempt", str(handle["attempt"])],
+                        "manga task watch",
+                    )
+                deadline = time.monotonic() + 60
+                while True:
+                    task = checked(
+                        cli,
+                        ["task", "get", handle["task_id"], "--attempt", str(handle["attempt"])],
+                        "manga task",
+                    )[0]["data"]
+                    if task["handle"]["status"] in {"completed", "failed", "cancelled", "interrupted"}:
+                        break
+                    assert time.monotonic() < deadline, task
+                    time.sleep(0.1)
+                assert task["handle"]["status"] == ("failed" if expected_error else "completed"), task
+                if expected_error:
+                    assert expected_error in json.dumps(task, ensure_ascii=False), task
                 return task
+
+            manga_run(comic, run_stage="preprocessing")
+            comic_adaptation = adopt(generate(comic))
+            game_adaptation = adopt(generate(game))
+            assert comic_adaptation["document"]["target"] == "manga" and game_adaptation["document"]["target"] == "galgame"
+            assert comic_adaptation["inputs"]["video_reference"] is None
+            passed("漫画和 Galgame 在没有视频项目或拍摄剧本时独立生成并采用改编计划")
 
             before = len(llm_calls())
             provider_request_offset = len(provider_log_entries(args.provider_log))
             manga_run()
             pages = call("list_manga_page_prompts", {"project_id": comic, "chapter_id": chapter_id})
-            assert len(pages) == 2 and len(llm_calls()) - before >= len(pages) * 4 + 2
+            assert len(pages) == 2 and len(llm_calls()) - before == len(pages) * 4 + 1
             assert all(page["page_content"] and page["page_adaptation"] and page["page_plan"] and page["reference_discovery"] and page["drawing_prompt"] for page in pages)
             assert pages[0]["source"]["adaptation_plan_id"] == comic_adaptation["id"]
             assert all(page["generated_image_id"] for page in pages)
@@ -166,11 +180,31 @@ def main():
             passed("单阶段请求预览只返回所选分镜步骤")
 
             before_image_rerun = len(llm_calls())
+            before_image_requests = len(provider_log_entries(args.provider_log))
+            manga_run(comic, stop_after="image", page_number=1, run_stage="image", expected_error="请先删除")
+            assert len(provider_log_entries(args.provider_log)) == before_image_requests
+            preserved_pages = call("list_manga_page_prompts", {"project_id": comic, "chapter_id": chapter_id})
+            assert next(page for page in preserved_pages if page["page_number"] == 1)["generated_image_id"] == next(page for page in pages if page["page_number"] == 1)["generated_image_id"]
+            delete_input = {"project_id": comic, "chapter_id": chapter_id, "stage": "image", "page_number": 1}
+            deletion = call("preview_delete_manga_pipeline_artifact", delete_input)
+            assert deletion["downstream"] == [], deletion
+            call("delete_manga_pipeline_artifact", {
+                **delete_input, "expected_artifact_ids": [deletion["target"]["artifact_id"]],
+            }, destructive=True)
+            previous_image_id = next(page for page in pages if page["page_number"] == 1)["generated_image_id"]
             manga_run(comic, stop_after="image", page_number=1, run_stage="image")
             assert len(llm_calls()) == before_image_rerun
-            passed("单独重生成图片复用预处理、分镜和参考图发现产物")
+            regenerated_pages = call("list_manga_page_prompts", {"project_id": comic, "chapter_id": chapter_id})
+            new_image_id = next(page for page in regenerated_pages if page["page_number"] == 1)["generated_image_id"]
+            assert new_image_id and new_image_id != previous_image_id
+            assert len(provider_log_entries(args.provider_log)) > before_image_requests
+            pages = regenerated_pages
+            passed("已有成图在请求模型前拒绝覆盖；显式删除后重新生图并复用文本阶段")
 
             scoped_comic = derive("comic", "单页范围验收漫画")
+            manga_run(scoped_comic, run_stage="preprocessing")
+            scoped_adaptation = adopt(generate(scoped_comic))
+            assert scoped_adaptation["document"]["target"] == "manga", scoped_adaptation
             manga_run(scoped_comic, stop_after="page_slots")
             scoped_pages = call("list_manga_page_prompts", {"project_id": scoped_comic, "chapter_id": chapter_id})
             assert len(scoped_pages) == 2
@@ -192,6 +226,28 @@ def main():
             assert first_page.get("page_adaptation") and first_page.get("page_plan")
             assert selected_page.get("page_adaptation") and selected_page.get("page_plan")
             passed("单页分镜按选中页执行，连续处理另一页时复用已完成的整章阶段")
+
+            delete_input = {"project_id": scoped_comic, "chapter_id": chapter_id, "stage": "storyboard", "page_number": 2}
+            deletion = call("preview_delete_manga_pipeline_artifact", delete_input)
+            call("delete_manga_pipeline_artifact", {
+                **delete_input,
+                "expected_artifact_ids": [entry["artifact_id"] for entry in [deletion["target"], *deletion["downstream"]]],
+            }, destructive=True)
+            before_visual_regeneration = len(llm_calls())
+            manga_run(scoped_comic, stop_after="reference_discovery", page_number=2, run_stage="storyboard")
+            assert len(llm_calls()) - before_visual_regeneration == 2
+            passed("删除本页分镜后组合阶段重新调用分镜与参考发现，不回放已完成工作流的旧答案")
+
+            for _ in range(2):
+                deletion = call("preview_delete_manga_pipeline_artifact", delete_input)
+                call("delete_manga_pipeline_artifact", {
+                    **delete_input,
+                    "expected_artifact_ids": [entry["artifact_id"] for entry in [deletion["target"], *deletion["downstream"]]],
+                }, destructive=True)
+                before_single_regeneration = len(llm_calls())
+                manga_run(scoped_comic, stop_after="storyboard", page_number=2, run_stage="storyboard")
+                assert len(llm_calls()) - before_single_regeneration == 1
+            passed("相同页相同单阶段两次删除后生成均产生新模型调用，不隐式续接已完成检查点")
 
             game_input = {"project_id": game, "task_id": str(uuid.uuid4()), "resume_from_checkpoint": True, "start_from_stage": None, "stop_after": "branch_design"}
             before_galgame = len(provider_log_entries(args.provider_log))
@@ -341,6 +397,22 @@ def main():
             call("reset_project_generated_data", {"projectId": root_id}, raw=True, destructive=True)
             assert workspace(comic)["documents"] and call("get_galgame_script", {"project_id": game})["id"] == script["id"]
             passed("删除制作者或其他副本、分离项目及重置原作均保留派生创作和固定原文")
+            imported_root = next(project for project in imported if project["project_kind"] == "text")
+            report["ui_mutation_project_ids"] = {}
+            for purpose in ("draft", "image"):
+                current = call("create_derived_project", {
+                    "root_project_id": imported_root["id"], "derived_kind": "comic",
+                    "title": f"浏览器{purpose}操作验收", "description": "current browser mutation fixture",
+                    "start_chapter": 1, "end_chapter": 1,
+                })
+                current_id = current["id"]
+                report["projects"].append(current_id)
+                manga_run(current_id, run_stage="preprocessing")
+                adopt(generate(current_id))
+                if purpose == "image":
+                    manga_run(current_id)
+                report["ui_mutation_project_ids"][purpose] = current_id
+            passed("浏览器写入验收使用当前有效预处理与改编计划，不复用刻意过期的导入样本")
             report["success"] = True
     except Exception as error:
         report["error"] = str(error)

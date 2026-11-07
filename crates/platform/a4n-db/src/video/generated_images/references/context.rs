@@ -1,6 +1,6 @@
 use crate::video::{VideoDbError, validate_positive_video_i64};
 use a4n_db_models::models::{chapter::chapter, project::novel_project};
-use a4n_domain::project::ProjectSourceMode;
+use a4n_domain::project::{ProjectKind, ProjectSourceMode};
 use sea_orm::{ConnectionTrait, EntityTrait, FromQueryResult, QuerySelect};
 
 #[derive(Debug, Clone, FromQueryResult)]
@@ -113,6 +113,7 @@ where
     let project = video_project_record(db, project_id).await?;
     match project.project_kind.as_str() {
         "text" => Ok(vec![project.id]),
+        kind if kind == ProjectKind::Canvas.as_str() => Ok(vec![project.id]),
         "video"
             if ProjectSourceMode::from_identity(
                 &project.project_kind,

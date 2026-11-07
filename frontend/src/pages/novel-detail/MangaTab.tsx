@@ -394,9 +394,9 @@ const MangaChapterArtifactPanel: React.FC<{
         </div>
         {canEdit ? (
           <div className="flex flex-wrap items-center gap-1.5">
-            {stage === "preprocessing" && onGenerate ? (
+            {stage === "preprocessing" && onGenerate && !artifact ? (
               <BookButton size="sm" variant="primary" onClick={onGenerate} disabled={busy}>
-                <RefreshCw size={12} /> {artifact ? t("comic.prompt.regeneratePreprocessing") : t("comic.prompt.generatePreprocessing")}
+                <RefreshCw size={12} /> {t("comic.prompt.generatePreprocessing")}
               </BookButton>
             ) : null}
             {editing ? (
@@ -968,8 +968,9 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     try {
       const images =
         requestImageSourceProjectIds.length === 1
-          ? await listImagesByProject(requestImageSourceProjectIds[0])
-          : await listImagesByProjects(requestImageSourceProjectIds);
+          ? listImagesByProject(requestImageSourceProjectIds[0])
+          : listImagesByProjects(requestImageSourceProjectIds);
+      const loadedImages = await images;
       if (
         !isProjectImagesCurrent(
           requestProjectId,
@@ -979,7 +980,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       )
         return false;
       const byId = new Map<number, GeneratedImage>();
-      for (const image of images) byId.set(image.id, image);
+      for (const image of loadedImages) byId.set(image.id, image);
       setProjectImages([...byId.values()]);
       setProjectImagesError(null);
       return true;
@@ -2057,6 +2058,8 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         selectedStatus={selectedStatus}
         pagePrompts={pagePrompts}
         pageSlotsNeedsGeneration={pageSlotsNeedsGeneration}
+        pageSlotsArtifactStale={pageSlotsArtifact?.stale === true}
+        preprocessingArtifactStale={preprocessingStale}
         paginationActions={workspaceStage === "page_planning" && selectedChapter && pageSlotsArtifact ? (
           <MangaChapterArtifactPanel
             projectId={projectId}

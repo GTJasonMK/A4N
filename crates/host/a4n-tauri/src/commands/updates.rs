@@ -30,7 +30,7 @@ pub struct AppUpdateInfo {
 #[serde(rename_all = "camelCase")]
 pub struct AppUpdatePreflight {
     pub backup_path: Option<String>,
-    pub migrations: Vec<a4n_migration::migrations::canvas_project_split::DataMigrationPreflight>,
+    pub migrations: Vec<a4n_api_contract::updates::UpdateDataMigrationPreflight>,
 }
 
 #[derive(Debug, Serialize)]
@@ -151,13 +151,10 @@ pub async fn prepare_app_update_install(
     }
 
     let all_data_migrations = data_migrations(&update.raw_json)?;
-    let migration_preflight = a4n_migration::migrator::preflight_update_migrations(
-        &config.database_url,
-        &config.data_dir,
-        &all_data_migrations,
-    )
-    .await
-    .map_err(|error| format!("数据库更新预检失败：{error}"))?;
+    let migration_preflight = state
+        .preflight_update_migrations(&all_data_migrations)
+        .await
+        .map_err(|error| format!("数据库更新预检失败：{error}"))?;
     if !migration_preflight.pending_schema_migrations.is_empty() {
         return Err("当前数据库仍有未完成的应用迁移，请重启 A4N 后再更新".to_string());
     }
@@ -437,7 +434,7 @@ fn data_migrations(raw_json: &serde_json::Value) -> Result<Vec<String>, String> 
         if names.iter().any(|existing| existing == name) {
             return Err(format!("更新清单重复声明数据迁移：{name}"));
         }
-        if !a4n_migration::migrator::migration_requires_data_backup(name) {
+        if !AppState::update_migration_requires_data_backup(name) {
             return Err(format!("更新清单包含未注册的数据迁移：{name}"));
         }
         names.push(name.to_string());
@@ -518,7 +515,7 @@ fn read_update_recovery_state(config: &AppConfig) -> Result<Option<UpdateRecover
         || recovery
             .pending_migrations
             .iter()
-            .any(|name| !a4n_migration::migrator::migration_requires_data_backup(name))
+            .any(|name| !AppState::update_migration_requires_data_backup(name))
     {
         return Err("应用更新恢复状态包含无效的迁移或状态".to_string());
     }

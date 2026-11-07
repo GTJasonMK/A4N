@@ -98,6 +98,44 @@ impl OrchestratorContext {
                 }
                 require_positive_dimension(*width, "width")?;
                 require_positive_dimension(*height, "height")?;
+                let chapter = self
+                    .chapter_manga_source_by_number(input.project_id, *chapter_number, true)
+                    .await?;
+                if self
+                    .manga_page_prompt_for_image_generation(
+                        input.project_id,
+                        chapter.chapter_id,
+                        *page_number,
+                    )
+                    .await?
+                    .is_some_and(|prompt| prompt.generated_image_id.is_some())
+                {
+                    return Err(AppError::InvalidState {
+                        current: "manga_page_image_exists".into(),
+                        operation: format!(
+                            "第 {} 章第 {} 页已有成图，请先删除后再生成",
+                            chapter_number, page_number
+                        ),
+                    });
+                }
+                if self
+                    .manga_pipeline_artifact(
+                        input.project_id,
+                        chapter.chapter_id,
+                        a4n_domain::manga::MangaPipelineArtifactStage::Image,
+                        Some(*page_number as u32),
+                    )
+                    .await?
+                    .is_some()
+                {
+                    return Err(AppError::InvalidState {
+                        current: "manga_page_image_exists".into(),
+                        operation: format!(
+                            "第 {} 章第 {} 页已有成图产物，请先删除后再生成",
+                            chapter_number, page_number
+                        ),
+                    });
+                }
             }
             ImageGenerationOperation::Batch { requests } => {
                 if requests.is_empty() {

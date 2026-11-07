@@ -1,4 +1,6 @@
 import { mergeConfig } from "vite";
+import { readFileSync } from "node:fs";
+import { request as httpRequest } from "node:http";
 import base from "../../vite.config.ts";
 
 // Other debug services use the default optimizer cache; audit imports must stay consistent.
@@ -24,18 +26,91 @@ const imageSvg = (id) => {
   </svg>`;
 };
 
+function serveImageFixture(request, response, next) {
+  if (new URL(request.url ?? "/", "http://127.0.0.1").pathname === "/resources/thelittleprince.png") {
+    response.setHeader("Content-Type", "image/png");
+    response.setHeader("Cache-Control", "no-store");
+    response.end(readFileSync(new URL("../../resources/thelittleprince.png", import.meta.url)));
+    return;
+  }
+  const match = request.url?.match(/^\/e2e\/ui-page-audit\/media\/image-(\d+)\.svg(?:\?.*)?$/);
+  if (!match) return next();
+
+  const id = Number(match[1]);
+  response.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+  response.setHeader("Cache-Control", "no-store");
+  response.end(imageSvg(id));
+}
+
+function serveFixtureDocument(request, response, next) {
+  if (new URL(request.url ?? "/", "http://127.0.0.1").pathname !== "/__ui-audit-fixtures.json") return next();
+  const path = process.env.A4N_UI_FIXTURE_PATH;
+  if (!path) {
+    response.statusCode = 503;
+    response.end("UI audit fixture path is not configured");
+    return;
+  }
+  try {
+    response.setHeader("Content-Type", "application/json; charset=utf-8");
+    response.setHeader("Cache-Control", "no-store");
+    response.end(readFileSync(path));
+  } catch (error) {
+    response.statusCode = 500;
+    response.setHeader("Content-Type", "text/plain; charset=utf-8");
+    response.end(`UI audit fixture file cannot be read: ${error.message}`);
+  }
+}
+
+function proxySourceModule(request, response, next) {
+  const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
+  const sourceModuleRequest = [
+    "/src/", "/@vite", "/@id/", "/@fs/", "/@react-refresh", "/node_modules/.vite/",
+    "/node_modules/.vite-ui-page-audit/",
+    "/e2e/ui-page-audit/",
+  ].some((prefix) => requestUrl.pathname.startsWith(prefix));
+  if (!sourceModuleRequest) return next();
+
+  const sourceOrigin = process.env.A4N_UI_SOURCE_MODULE_ORIGIN;
+  if (!sourceOrigin) {
+    response.statusCode = 503;
+    response.end("UI audit source module server is not configured");
+    return;
+  }
+
+  const headers = {};
+  for (const name of ["accept", "if-none-match", "if-modified-since", "range"]) {
+    const value = request.headers[name];
+    if (typeof value === "string") headers[name] = value;
+  }
+  const upstream = httpRequest(new URL(requestUrl.pathname + requestUrl.search, sourceOrigin), {
+    method: request.method,
+    headers,
+  }, (upstreamResponse) => {
+    response.statusCode = upstreamResponse.statusCode ?? 502;
+    for (const name of ["content-type", "cache-control", "etag", "last-modified", "accept-ranges", "content-range", "content-length"]) {
+      const value = upstreamResponse.headers[name];
+      if (value) response.setHeader(name, value);
+    }
+    upstreamResponse.pipe(response);
+  });
+  upstream.on("error", (error) => {
+    response.statusCode = 502;
+    response.setHeader("Content-Type", "text/plain; charset=utf-8");
+    response.end(`UI audit source module request failed: ${error.message}`);
+  });
+  request.pipe(upstream);
+}
+
 const imageFixtures = {
   name: "ui-page-audit-image-fixtures",
   configureServer(server) {
-    server.middlewares.use((request, response, next) => {
-      const match = request.url?.match(/^\/e2e\/ui-page-audit\/media\/image-(\d+)\.svg(?:\?.*)?$/);
-      if (!match) return next();
-
-      const id = Number(match[1]);
-      response.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
-      response.setHeader("Cache-Control", "no-store");
-      response.end(imageSvg(id));
-    });
+    server.middlewares.use(serveFixtureDocument);
+    server.middlewares.use(serveImageFixture);
+  },
+  configurePreviewServer(server) {
+    server.middlewares.use(serveFixtureDocument);
+    server.middlewares.use(serveImageFixture);
+    server.middlewares.use(proxySourceModule);
   },
 };
 

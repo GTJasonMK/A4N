@@ -6,6 +6,7 @@ use super::super::json::{parse_manga_page_slots, required_array_field};
 use super::completion::complete_pipeline;
 use super::contracts::{MangaExtractionRun, MangaRunContext};
 use super::page_slots::{MangaPageSlotsRun, run_page_slots};
+use crate::manga::is_manga_visual_design_range;
 
 pub(super) async fn run_single_stage(
     context: &MangaRunContext<'_>,
@@ -31,6 +32,16 @@ pub(super) async fn run_single_stage(
             current: "page_content_is_user_editable".into(),
             operation: "重新生成页面内容请运行分页步骤".into(),
         }),
+        MangaPipelineArtifactStage::Storyboard
+            if is_manga_visual_design_range(Some(stage), context.stop_after) =>
+        {
+            let slots = required_page_slots(context).await?;
+            let preprocessing = required_preprocessing(context).await?;
+            let extraction = MangaExtractionRun {
+                extraction_summary: manga_preprocessing_summary(&preprocessing)?,
+            };
+            complete_pipeline(context, extraction, MangaPageSlotsRun { slots }).await
+        }
         MangaPipelineArtifactStage::PageAdaptation
         | MangaPipelineArtifactStage::Storyboard
         | MangaPipelineArtifactStage::ReferenceDiscovery

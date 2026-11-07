@@ -311,6 +311,20 @@ describe("video tab loading", () => {
     });
   });
 
+  it("uses the detail snapshot when a listed running workflow has just completed", async () => {
+    mocks.listWorkflowRuns.mockResolvedValue([
+      { id: 12, mode: "shared_segment_plan", status: "running", can_resume: false },
+    ]);
+    const detail = {
+      run: { id: 12, project_id: 19, chapter_id: 3, workflow_kind: "video_segment_plan", status: "completed", can_resume: false },
+      segments: [], recipes: [], completed_shot_count: 0, total_shot_count: 0,
+    };
+    mocks.loadVideoSegmentPlanDraftDetail.mockResolvedValue(detail);
+    await expect(loadVideoSegmentPlanDraft(19, 3, t)).resolves.toBeNull();
+    mocks.loadVideoSegmentPlanDraftDetail.mockResolvedValue({ ...detail, run: { ...detail.run, project_id: 20 } });
+    await expect(loadVideoSegmentPlanDraft(19, 3, t)).rejects.toThrow("与当前章节不一致");
+  });
+
   it("rejects damaged resume options instead of using current form defaults", async () => {
     mocks.listWorkflowRuns.mockResolvedValue([
       { id: 11, mode: "shared_segment_plan", status: "cancelled", can_resume: true },

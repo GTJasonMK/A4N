@@ -258,9 +258,20 @@ fn reports_truncated_json_explicitly() {
 #[test]
 fn user_prompt_is_json_contract_and_names_canonical_fields() {
     let prompt = build_object_discovery_manifest_user_prompt().expect("prompt should build");
-    assert!(prompt.contains("\"required_root_field\": \"objects\""));
-    assert!(prompt.contains("\"evidence_anchor_ids\""));
-    assert!(prompt.contains("\"object_type_values\""));
-    assert!(prompt.contains("profile_sync_source_context"));
-    assert!(!prompt.contains("\"existing_object_profiles\""));
+    let payload = a4n_prompt::request::json_user_message_payload(&prompt)
+        .and_then(|content| serde_json::from_str::<Value>(content).ok())
+        .expect("prompt should contain the canonical JSON payload");
+    assert_eq!(payload["output_contract"]["required_root_field"], "objects");
+    assert!(
+        payload["output_contract"]["object_fields"]
+            .as_array()
+            .is_some_and(|fields| fields.contains(&json!("evidence_anchor_ids")))
+    );
+    assert!(payload["output_contract"]["object_type_values"].is_array());
+    assert!(
+        payload["input"]["context_refs"]["source"]
+            .as_str()
+            .is_some_and(|source| source.contains("profile_sync_source_context"))
+    );
+    assert!(payload["input"].get("existing_object_profiles").is_none());
 }

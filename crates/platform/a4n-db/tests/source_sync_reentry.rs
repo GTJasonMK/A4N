@@ -30,6 +30,7 @@ fn keep(conflict_id: i64) -> PreparedSourceSyncDecisionRecordInput {
 #[tokio::test]
 async fn partial_sync_survives_recheck_and_kept_scenes_participate_in_later_updates() {
     let db = a4n_migration::test_support::connect_test_database().await;
+    a4n_test_support::database::ensure_test_user(&db, 1).await;
     let root = create_project_record(
         &db,
         CreateProjectRecordInput {
@@ -258,8 +259,20 @@ async fn partial_sync_survives_recheck_and_kept_scenes_participate_in_later_upda
         .await
         .unwrap()
         .unwrap();
+    let mut target_snapshot: novel_project::ActiveModel = after_completion.clone().into();
+    target_snapshot.source_snapshot_id = Set(Some(next.run.to_snapshot_id));
+    target_snapshot.update(&db).await.unwrap();
     let target_plan =
         authoring::adopt_historical_game_plan(&db, derived.id, &target_source_chapter).await;
+    let mut current_snapshot: novel_project::ActiveModel =
+        novel_project::Entity::find_by_id(derived.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .expect("derived project must remain available during preview")
+            .into();
+    current_snapshot.source_snapshot_id = Set(after_completion.source_snapshot_id);
+    current_snapshot.update(&db).await.unwrap();
     let regenerated = apply_prepared_source_sync_decisions_records_transaction(
         &db,
         next.run.id,

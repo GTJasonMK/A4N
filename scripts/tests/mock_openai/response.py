@@ -67,7 +67,7 @@ from mock_openai.fixtures.story import (
     guided_inspiration_response,
     part_outline_response,
 )
-from mock_openai.prompt_parsing import current_task_prompt_name
+from mock_openai.prompt_parsing import current_task_prompt_name, json_task_payload
 from mock_openai.protocol import UnhandledPromptError
 def response_for(body: dict[str, Any]) -> str:
     model = str(body.get("model", ""))
@@ -110,12 +110,18 @@ def response_for(body: dict[str, Any]) -> str:
             value["scene_lines"][0]["lines"][0]["text"] = "未经允许改写的剧情"
         elif fault == "galgame-visual" and "backgrounds" in value:
             value["backgrounds"][0]["scene_index"] = 999
-        elif fault == "manga-speech" and "dialogues" in value:
-            (value["dialogues"] or value["narrations"])[0]["beat_ref"]["beat_id"] = "missing-beat"
-        elif fault == "manga-visual" and "scenes" in value:
-            value["scenes"][0]["beat_refs"][0]["beat_id"] = "missing-beat"
-        elif fault == "manga-items" and "items" in value:
-            value["items"][0]["first_appearance_beat_ref"]["beat_id"] = "missing-beat"
+        elif fault == "manga-speech" and "visual_intent" in value and "第 2 页" in value["visual_intent"]:
+            value["beat_refs"][0]["beat_id"] = "missing-beat"
+        elif fault == "manga-visual" and "dominant_panel_number" in value:
+            value["beat_refs"][0]["beat_id"] = "missing-beat"
+        elif fault == "manga-items" and value.get("schema_version") == "manga_page_reference_discovery_v1":
+            value["references"] = [{
+                "target_kind": "object",
+                "target_name": "旧怀表",
+                "asset_kind": "generated_image",
+                "asset_id": 999999,
+                "usage": "沿用当前页面的怀表外观。",
+            }]
         elif fault == "manga-slots" and value.get("schema_version") == "manga_page_slots_v1":
             value["pages"][0]["content"]["beat_refs"][0]["beat_id"] = "missing-beat"
         elif fault == "manga-page-adaptation" and "visual_intent" in value:

@@ -159,19 +159,12 @@ mod tests {
                 if value == "legacy"
         ));
 
-        let mut invalid = project();
-        invalid.project_kind = "comic".to_string();
-        assert!(matches!(
-            ProjectProgressQuery::from_project(&invalid),
-            Err(ProjectProgressReadError::InvalidProjectSource {
-                project_id: 17,
-                source: ProjectSourceModeError::InvalidIdentity {
-                    project_kind: ProjectKind::Comic,
-                    root_project_id: None,
-                    source_snapshot_id: None,
-                },
-            })
-        ));
+        let mut standalone_comic = project();
+        standalone_comic.project_kind = "comic".to_string();
+        let standalone_comic = ProjectProgressQuery::from_project(&standalone_comic)
+            .expect("a standalone comic has a valid self-contained source identity");
+        assert_eq!(standalone_comic.project_kind, ProjectKind::Comic);
+        assert_eq!(standalone_comic.source_mode, ProjectSourceMode::Standalone);
 
         let mut invalid = project();
         invalid.current_chapter = -1;

@@ -60,9 +60,6 @@ pub(super) fn build_implicit_attribute_review(
     let mut chapters_seen = BTreeSet::new();
 
     for record in records {
-        if chapters_seen.len() >= window_chapters {
-            break;
-        }
         let Some(classification) = record
             .classification_results
             .as_object()
@@ -70,6 +67,10 @@ pub(super) fn build_implicit_attribute_review(
         else {
             continue;
         };
+        if !chapters_seen.contains(&record.chapter_number) && chapters_seen.len() >= window_chapters
+        {
+            break;
+        }
         chapters_seen.insert(record.chapter_number);
         let normalized = normalized_classification(classification).ok_or_else(|| {
             format!(

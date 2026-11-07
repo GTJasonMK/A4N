@@ -454,6 +454,20 @@ fn cloudflare_524_explains_first_byte_timeout_and_streaming_fix() {
 }
 
 #[test]
+fn provider_status_error_preserves_upstream_correlation_ids() {
+    let err = llm_api_status_error_with_context(
+        StatusCode::BAD_GATEWAY,
+        "error code: 502",
+        "cf-ray=abc-xyz, x-request-id=req-123",
+    );
+
+    let message = err.to_string();
+    assert!(message.contains("error code: 502"));
+    assert!(message.contains("cf-ray=abc-xyz"));
+    assert!(message.contains("x-request-id=req-123"));
+}
+
+#[test]
 fn extra_body_reject_reserved_keys() {
     let err = normalize_extra_body(Some(json!({
         "model": "override"

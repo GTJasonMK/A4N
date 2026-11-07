@@ -3,6 +3,12 @@ use a4n_db_models::models::{chapter::chapter, project::novel_project};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set, TransactionTrait};
 
+async fn setup_db() -> DatabaseConnection {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    a4n_test_support::database::ensure_test_user(&db, 1).await;
+    db
+}
+
 #[tokio::test]
 async fn empty_patch_set_returns_none_without_database_access() {
     let result = create_optimization_patch_set(
@@ -36,7 +42,7 @@ fn optimize_database_error_keeps_variant_and_message() {
 
 #[tokio::test]
 async fn turn_completion_and_analysis_retry_preserve_session_state() {
-    let db = a4n_migration::test_support::connect_test_database().await;
+    let db = setup_db().await;
     let project = crate::project::create_project_record(
         &db,
         crate::project::CreateProjectRecordInput {
@@ -180,7 +186,7 @@ async fn turn_completion_and_analysis_retry_preserve_session_state() {
 
 #[tokio::test]
 async fn optimization_session_creation_rejects_project_during_reset() {
-    let db = a4n_migration::test_support::connect_test_database().await;
+    let db = setup_db().await;
     let project = crate::project::create_project_record(
         &db,
         crate::project::CreateProjectRecordInput {

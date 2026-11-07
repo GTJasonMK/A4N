@@ -2,6 +2,8 @@
 
 > 评估日期：2026-10-05。工作树：`work/debug`，HEAD：`53b4520885cc`。以当前磁盘源码及默认 prompt 为依据，与 [LLM 输入/输出字段清单](llm-call-io-fields.zh.md) 配套阅读。本次只分析并新增文档，不修改业务行为。
 
+> 2026-11-07 收尾更新：C15 规范姓名、C17 统计窗口、C25 分镜来源输入已修复并通过定向回归，见[收尾记录](debug-closeout-20261107.zh.md)。其余调用保留原静态评估及证据边界，不将本次修复外推为全部上下文已最小化或真实模型质量已验收。
+
 ## 1. 结论与评估口径
 
 **当前上下文设计不能整体认定为“完成各调用功能所需的最小信息集合”。** 一部分调用已经按目标单元、来源片段和前序依赖裁剪；另一部分仍使用整份资料或累计历史。也存在反方向的问题：材料虽然更短，却未必包含完成当前判断所需的原文证据、相关实体状态或相邻边界。
@@ -12,7 +14,7 @@
 
 覆盖字段清单中当前存在的 **49 个生产聊天 LLM 静态调用点**。编号沿用原审查记录，已退役调用不再列出。一个调用点可能按章节、页面、镜头、阶段或 Agent 回合执行多次；恢复命中 checkpoint 时可能没有新请求。共用执行器不重复计数，阶段内部的重要输入差异单独展开。
 
-配置探测及图片/视频生成 provider 不计入该 52 条聊天调用；其模型输入边界在第 12 节补充。运行时重试若没有改变业务输入，不另算新的上下文设计。
+配置探测及图片/视频生成 provider 不计入该 49 个聊天调用；其模型输入边界在第 12 节补充。运行时重试若没有改变业务输入，不另算新的上下文设计。
 
 ### 1.2 如何理解“调用时可提供的所有信息”
 
@@ -189,10 +191,10 @@
 
 - **功能/时机/产物：** 用户指定角色及可选章节区间，比较档案、分章状态、属性事件和章节摘要，返回带 expected/actual 来源 ID 的矛盾项及严重度。
 - **可用：** A 有目标 profile（含规范名）、范围内 ChapterRecord、状态时间线、属性事件；因此正文在准备阶段已可取得。B 有范围外的前置状态及相关证据，但不得将范围外变化误当成范围内当时事实。C 是尚未执行的修复/重新同步结果。
-- **实际输入：** `{chapter_scope,character_profile:{source_id,base_attributes,current_state},chapter_context,character_state_timeline,attribute_events}`。章节只取摘要/关键事件/metadata，没有摘要的章被跳过；属性事件包含 evidence。总内容超过 24000 字符显式拒绝。
-- **结论：条件性缺口，优先补主体与证据。** `profile_name` 只写进 `source_refs_json`，没有作为独立字段进入模型消息；默认 system 也没有目标名。`base_attributes/current_state` 或章节摘要可能间接包含名字，因此准确结论是模型无法保证识别规范姓名及目标人物，不能断言每次都不知道目标。另一个边界是本功能只能审查摘要/状态已表达的冲突，不能据空结果断言正文无矛盾。当前最新 profile 与历史区间相比也应标明时间语义，避免把正常成长当冲突。
+- **实际输入：** `{character_name,chapter_scope,character_profile:{source_id,base_attributes,current_state},chapter_context,character_state_timeline,attribute_events}`。章节只取摘要/关键事件/metadata，没有摘要的章被跳过；属性事件包含 evidence。总内容超过 24000 字符显式拒绝。
+- **结论：主体身份缺口已修复，证据范围仍有边界。** 规范姓名现在进入稳定上下文和请求指纹，回归检查实际发送的模型消息，旧请求不能仅凭相同属性复用指纹。本功能仍只能审查摘要/状态已表达的冲突，不能据空结果断言正文无矛盾；当前最新 profile 与历史区间相比仍应注意时间语义，避免把正常成长当冲突。
 - **候选最小集：** 明确角色规范名/别名；检查范围和区间起点有效状态；范围内该角色相关的状态变更及带时间、source_id 的原文证据；只补必要章节背景。源码已经持有身份，不需要增加新检索就能提供。正文相关片段应覆盖待比对事实，不能把整章无关人物摘要一并当作目标角色行为。
-- **证据：** [已加载 profile 与实际 role_attr](../crates/host/a4n-orchestrator/src/character/conflict/execution.rs#L104)、[姓名只在 source refs，角色档案包使用 base/current 属性](../crates/host/a4n-orchestrator/src/character/conflict/request.rs#L78)、[摘要选择/跳过及来源粒度](../crates/host/a4n-orchestrator/src/character/conflict/context_rules.rs#L57)、[默认模板](../prompts/novel/07_protagonist/character_conflict_check.md#L5)。
+- **证据：** [已加载 profile 与实际 role_attr](../crates/host/a4n-orchestrator/src/character/conflict/execution.rs)、[规范姓名进入稳定上下文](../crates/host/a4n-orchestrator/src/character/conflict/request.rs)、[实际模型消息及指纹回归](../crates/host/a4n-orchestrator/src/character/conflict/tests.rs)、[摘要选择/跳过及来源粒度](../crates/host/a4n-orchestrator/src/character/conflict/context_rules.rs)。
 
 ### C16 角色档案同步五阶段
 
@@ -216,7 +218,7 @@
 - **功能/时机/产物：** 用户手动复审某属性，或同步复审中某属性的不符合行为达到阈值时，判断 keep/modify/delete，返回 reasoning、新值和支持行为 ID；后续流程处理建议及证据。
 - **可用：** A 有目标属性当前值、已分类行为记录、窗口/阈值、统计和受 evidence_limit 限制的证据列表。B 有列表外已读取行为和原文更大范围。C 是复审后的新状态与未来行为。
 - **实际输入：** 目标角色/属性、窗口参数、统计、选中 evidence 的描述/原文/标签/分类；没有全角色全部属性，也没有整个章节，范围基本聚焦。
-- **结论：混合，证据选择与统计完整性优先于继续压缩。** evidence 只取顺序前若干条，而统计可能覆盖更多行为；必须区分“统计总体”和“模型实际见到的证据”，不能要求模型为未见行为给出细节依据。另有直接可定位的窗口边界问题：共享统计 helper 在每条记录开始时检查 `chapters_seen.len() >= window_chapters` 并立即退出；当记录按章倒序、窗口最后一章有多条行为时，只处理该章第一条，后续同章行为也被跳过。例：窗口 2，排序后的章号 `[4,4,3,3]`，第二个第 3 章行为不会参与统计。此 helper 被手工复审摘要/请求和同步自动复审共用，所以这些路径都会受影响；是否改变具体决策取决于被跳过行为的分类。
+- **结论：统计窗口边界已修复，证据选择仍需与统计范围区分。** 共享 helper 仅在进入窗口之外的新章节时停止，窗口 2 的 `[4,4,3,3]` 四条相关行为现在都会参与统计；窗口最后一章的非法分类也不能被提前退出隐藏。手工与同步复审共用同一修复，证据数量上限不截断统计。evidence 仍只取顺序前若干条，不能要求模型为未见行为给出细节依据。
 - **候选最小集：** 目标属性及适用时间、明确覆盖范围的正确统计、足以支持或反驳变化的代表性正反行为原文和 ID；提供证据抽样/覆盖说明。对矛盾、反讽、被迫行为只在需要时补局部因果，不能仅凭分类计数断言人格改变。
 - **证据：** [自动阈值筛选](../crates/host/a4n-orchestrator/src/character/implicit_review/execution.rs#L157)、[手动复审也调用同一统计 helper](../crates/host/a4n-orchestrator/src/character/implicit_review/execution.rs#L244)、[统计窗口与 evidence 截取](../crates/host/a4n-orchestrator/src/character/implicit_review/stats.rs#L48)、[实际字段及只能引用已见证据](../crates/host/a4n-orchestrator/src/character/implicit_review/request.rs#L105)、[LLM 入口](../crates/host/a4n-orchestrator/src/character/implicit_review/execution.rs#L340)。
 
@@ -299,10 +301,10 @@
 
 - **功能/时机/产物：** C24 后生成当前页 `MangaPageV4`，含阅读顺序、画格、构图/动作、文字层及其位置；C27 将这些转成绘图 prompt。
 - **可用：** A 有页内容、页改编、节拍、邻页状态、本章 characters 和按参与者筛选的立绘文本。B 是相关正式资料/已有图；C 是该页图像，不能据它规划本次分镜。
-- **实际输入：** 页内容、页改编、相关节拍、邻页内容、完整 characters 对象和参与者对应的立绘文本；不传 speech、visual_anchors、items 或原文窗口。
-- **结论：混合，存在有条件的证据缺口。** 页面内容仅有 `dialogue_intent`，没有可核对的原句。模板禁止编造原文没有的对白，但不要求所有已选对白都上屏；当页面需要按特定原句安排文字层时，模型没有相应来源文本。场景/物品细节也不能仅凭来源 ID 核验。
+- **实际输入：** 页内容、页改编、相关节拍、邻页内容、characters 和立绘文本，以及 `source_context` 中按本页来源 ID 选取的原文、事件、对白与旁白；不整包传 visual_anchors 或 items。
+- **结论：原句输入缺口已修复。** 分镜执行、预览及阶段指纹复用同一本页来源投影，未知来源明确报错；模型可依据原文与 speech 选择文字层，不能用 `dialogue_intent` 自造台词。候选文字不要求全部上屏。定向回归证明原句到达模型且其他页内容不混入，不等于真实模型的文字还原质量已经验收。
 - **候选最小集：** 当前页剧情/视觉合同、相邻页出入状态、本页相关人物/素材；**当页面需要原句时，按 beat_ref 选入对应对白/旁白和必要来源原文**，以及当前画格要表现的场景/道具事实。来源标记和已选对白不能仅留在前序 trace 中。若改成允许模型新写台词，应明确改变业务合同，不能再按“只引用原文”评估。
-- **证据：** [实际调用及已持有 extraction_summary](../crates/host/a4n-orchestrator/src/manga/pipeline/run/page.rs#L714)、[只取 characters 的 payload](../crates/host/a4n-orchestrator/src/manga/pipeline/prompt/messages/page_pipeline.rs#L92)、[页面内容 schema 不含台词字段](../crates/platform/a4n-domain/src/manga/contracts/pipeline.rs#L410)、[改编节拍字段](../crates/platform/a4n-domain/src/media_authoring/contracts.rs#L57)、[不编造无原文台词的规则](../prompts/novel/06_manga/manga_page_storyboard.md#L53)。
+- **证据：** [本页来源投影](../crates/host/a4n-orchestrator/src/manga/pipeline/prompt/messages/inputs.rs)、[统一模型请求输入](../crates/host/a4n-orchestrator/src/manga/pipeline/prompt/messages/page_pipeline.rs)、[原句与页范围回归](../crates/host/a4n-orchestrator/src/manga/tests/messages.rs)、[文字层来源规则](../prompts/novel/06_manga/manga_page_storyboard.md)。
 
 ### C26 页面槽位/分页
 
@@ -331,9 +333,9 @@
 
 ### C29 单页参考图发现
 
-- **功能/时机/产物：** 分镜完成后，从可用图片描述中挑选与当前页相关的系统参考图；无合适候选时允许输出空列表。
-- **实际输入：** 当前页内容、改编、分镜、相关人物和候选图片描述；用户补充的图片从候选中排除，之后与系统发现结果分组传入绘图提示词。
-- **结论：近似合理。** 资产类型和 ID 必须来自候选，服务端会校验并补回权威路径/描述。这里传的是图片元数据文本，不能声称模型查看了图片像素。
+- **功能/时机/产物：** 分镜完成后独立识别本页要维持的视觉参考要求，再从可用图片描述中可选匹配系统参考图；无图片候选时仍输出需求，只有素材匹配列表为空。
+- **实际输入：** 当前页内容、改编、分镜、相关人物和候选图片描述；用户补充的图片从匹配候选中排除，文字需求与实际系统/用户图片随后分别传入绘图提示词。
+- **结论：** 语义需求识别与素材匹配分开。资产类型和 ID 必须来自候选，服务端会校验并补回权威路径/描述。图片元数据是文本，不能声称模型查看了图片像素。
 - **证据：** [调用和候选集](../crates/host/a4n-orchestrator/src/manga/pipeline/run/page.rs#L800)、[候选校验](../crates/host/a4n-orchestrator/src/manga/reference_assets/discovery.rs#L45)、[用户输入](../crates/host/a4n-orchestrator/src/manga/pipeline/prompt/messages/page_pipeline.rs#L165)、[提示词](../prompts/novel/06_manga/manga_page_reference_discovery.md#L1)。
 
 ## 6. 拍摄剧本
@@ -552,11 +554,11 @@ C41/C42 是两处静态渲染/恢复入口，按运行时 prompt family 展开�
 
 静态源码审查确认 49 个调用点中同时存在范围适当、可缩减和条件性缺口；“当前最小”没有一个适用于全部调用的答案。事实发现、原文改写、角色身份和来源引用需要足够证据，不能仅因 prompt 很长就删除。页面/镜头/工具阶段已有按单位和权限投影的，应以合同所需依赖为边界继续缩减。
 
-**最应先处理的明确上下文问题：**
+**本轮已核销的明确源码问题（2026-11-07）：**
 
-1. C15 角色冲突请求在准备阶段已取得规范姓名，但姓名没有作为独立字段进入模型消息，只在内部 source refs/trace；属性或章节摘要可能间接包含姓名，不能保证模型能识别目标角色。建议显式传规范名及必要别名。
-2. C25 漫画分镜只从预处理结果投影 characters，不传具体对白或原文片段。模板禁止编造原文没有的对白，但没有要求每条已选对白都必须上屏；页面需要按原句安排文字层时，输入缺少可核对的原句依据。
-3. C17 共享统计 helper 在达到不同章节数后于下一条记录开头立即退出；记录按章倒序时，窗口最后一章剩余行为会被跳过。该问题影响调用此 helper 的手动与同步复审统计，具体决策是否改变取决于被跳过行为的分类。
+1. C15 规范姓名进入模型稳定上下文及指纹，已有实际模型消息与身份变化的回归。
+2. C25 按本页来源提供对白、旁白与原文；预览和执行共用构建，已有页范围及未知来源回归。
+3. C17 完整统计窗口最后一章的相关行为；手工与自动复审共享修复，已有单章、多章和非法分类回归。
 
 **可由 builder 直接证明的重复/过宽候选：**
 
@@ -568,7 +570,7 @@ C41/C42 是两处静态渲染/恢复入口，按运行时 prompt family 展开�
 
 **需要按任务条件补信息的路径：**
 
-- C25 对需要上屏的对白/想法/旁白，应按 beat_ref 或 source_event_id 提供对应来源原句；当前合同禁止无原文依据地编造，但不要求所有预处理阶段选中的 speech 都必须呈现。
+- C25 已提供对应来源原句；文字层选取与真实模型还原质量仍需按任务评估，合同不要求所有候选 speech 都呈现。
 - C15 检查历史范围时需区分区间起点角色事实和当前最新状态，并将规范名/别名及可支持判断的证据纳入模型上下文。
 - C01/C16/C37/C39 的原文发现任务需保证范围召回；仅按最近资料、known names 或摘要选择，可能漏掉重现实体、别名或无对白行动。
 - C45/C51/C52 以及漫画/视频素材上下文中，文件路径、图像 ID 和旧 prompt 不是图像像素。要求像素级一致、判断图片缺陷或跨帧比较时，必须确认实际 vision/image attachment 与文本上下文在该次调用都到达 provider。

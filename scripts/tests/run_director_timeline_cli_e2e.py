@@ -248,6 +248,14 @@ def main():
             assert [segment["duration_secs"] for segment in segments] == [6, 4, 8]
             assert [segment["source_shot_id"] for segment in segments] == ["shot-1", "shot-2", "shot-3"]
             recipe = shared["metadata_json"]["segment_recipes"][0]
+            completed_run = call("list_workflow_runs", {"project_id": project_id, "chapter_id": chapter_id,
+                "workflow_kind": "video_segment_plan", "resumable_only": False, "limit": 1})[0]
+            draft_scope = {"project_id": project_id, "chapter_id": chapter_id, "workflow_run_id": completed_run["id"]}
+            completed_draft = call("load_video_segment_plan_draft", draft_scope)
+            assert completed_draft["run"]["status"] == "completed" and completed_draft["run"]["can_resume"] is False
+            call("update_video_segment_plan_draft_recipe", {**draft_scope, "source_shot_id": "shot-1",
+                "segment_index_in_shot": 1, "recipe": recipe}, failure="completed:更新片段规划草稿")
+            report["checks"].append("a just-completed shared plan remains readable while completed draft edits are rejected")
             assert set(recipe["reference_image_ids"]) == {image["id"], generated["id"]}
             assert recipe["workflow_mode"] == "first_frame_chain" and recipe["guidance_mode"] == "keyframes"
             assert recipe["guidance_reference_image_ids"] == recipe["reference_image_ids"]

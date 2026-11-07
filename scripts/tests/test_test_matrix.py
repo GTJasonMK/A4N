@@ -214,6 +214,53 @@ class TestMatrixTest(unittest.TestCase):
             command = spawn.call_args.args[0]
             self.assertEqual(command[-1], str(report / "creation-e2e"))
 
+    def test_browser_suites_bypass_proxies_for_local_webdriver(self) -> None:
+        class CompletedProcess:
+            pid = 1
+
+            def wait(self, timeout=None):
+                return 0
+
+            def poll(self):
+                return 0
+
+        proxy_values = {
+            "HTTP_PROXY": "http://proxy.invalid:8080",
+            "HTTPS_PROXY": "http://proxy.invalid:8080",
+            "ALL_PROXY": "http://proxy.invalid:8080",
+            "http_proxy": "http://proxy.invalid:8080",
+            "https_proxy": "http://proxy.invalid:8080",
+            "all_proxy": "http://proxy.invalid:8080",
+            "NODE_USE_ENV_PROXY": "1",
+            "NO_PROXY": "example.test",
+            "no_proxy": "example.test",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            with (
+                patch.dict(os.environ, proxy_values),
+                patch("run_test_matrix.subprocess.Popen", return_value=CompletedProcess()) as spawn,
+            ):
+                result = run_suite(
+                    "browser-video-mode",
+                    {"command": ["true"], "timeout_seconds": 1},
+                    Path(directory),
+                )
+
+        self.assertEqual(result["status"], "passed")
+        child_env = spawn.call_args.kwargs["env"]
+        for key in (
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+            "NODE_USE_ENV_PROXY",
+        ):
+            self.assertNotIn(key, child_env)
+        self.assertEqual(child_env["NO_PROXY"], "example.test,localhost,127.0.0.1,::1")
+        self.assertEqual(child_env["no_proxy"], child_env["NO_PROXY"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -11,12 +11,18 @@ use a4n_db_models::models::{
     character::foreshadowing_index,
 };
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, Set};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 use serde_json::json;
+
+async fn setup_db() -> DatabaseConnection {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    a4n_test_support::database::ensure_test_user(&db, 1).await;
+    db
+}
 
 #[tokio::test]
 async fn optimization_context_reads_outline_projection_without_contract_loss() {
-    let db = a4n_migration::test_support::connect_test_database().await;
+    let db = setup_db().await;
     let project = create_project_record(
         &db,
         CreateProjectRecordInput {
@@ -143,7 +149,7 @@ async fn optimization_context_reads_outline_projection_without_contract_loss() {
 
 #[tokio::test]
 async fn optimization_turn_events_for_turns_returns_grouped_ordered_rows() {
-    let db = a4n_migration::test_support::connect_test_database().await;
+    let db = setup_db().await;
     let project = create_project_record(
         &db,
         CreateProjectRecordInput {

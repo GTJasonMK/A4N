@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { captureBrowserDiagnostics } from "../full-project/user-flow.mjs";
+import {
+  callBrowserApiCommand,
+  persistBrowserAuth,
+  requestBrowserApiCommand,
+} from "../full-project/webApi.mjs";
 
 const username = process.env.A4N_BROWSER_E2E_USERNAME;
 const password = process.env.A4N_BROWSER_E2E_PASSWORD;
@@ -120,34 +126,22 @@ async function setHiddenPreference(packageId, hidden) {
   });
 }
 
-async function invokeFrontend(module, exportName, args = []) {
-  const result = await browser.executeAsync((moduleName, name, values, done) => {
-    import(moduleName)
-      .then((api) => {
-        const fn = api[name];
-        if (typeof fn !== "function") throw new Error(`前端模块没有导出 ${name}`);
-        return fn(...values);
-      })
-      .then((value) => done({ value }), (error) => done({ error: String(error) }));
-  }, module, exportName, args);
-  assert.equal(result.error, undefined, result.error);
-  return result.value;
-}
-
 async function packageOverview(packageId) {
-  const overview = await invokeFrontend("/src/api/package.ts", "getPackageOverview");
+  const overview = await callBrowserApiCommand("get_package_overview");
   const item = overview.find((candidate) => candidate.package_id === packageId);
   assert.ok(item, `包概览缺少 ${packageId}`);
   return item;
 }
 
 async function loginViaApi(loginUsername, loginPassword, expectedRole) {
-  const result = await invokeFrontend("/src/api/auth.ts", "loginUser", [
-    loginUsername,
-    loginPassword,
-  ]);
+  const result = await callBrowserApiCommand(
+    "login_user",
+    { input: { username: loginUsername, password: loginPassword } },
+    { authenticated: false },
+  );
   assert.equal(result.user.username, loginUsername);
   if (expectedRole) assert.equal(result.user.role, expectedRole);
+  await persistBrowserAuth(result);
   await browser.refresh();
 }
 
@@ -158,10 +152,9 @@ async function createSecondUser() {
     email: `package-e2e-${suffix}@example.com`,
     password: `Package-E2E-${randomUUID()}`,
   };
-  const user = await invokeFrontend("/src/api/admin/users.ts", "createAdminUser", [{
-    ...account,
-    role: "user",
-  }]);
+  const user = await callBrowserApiCommand("create_user", {
+    input: { ...account, role: "user" },
+  });
   assert.equal(user.username, account.username);
   assert.equal(user.role, "user");
   assert.equal(user.is_active, true);
@@ -186,33 +179,16 @@ async function openPersonalPackageSection() {
 }
 
 async function attemptLifecycleAsCurrentUser(input) {
-  return await browser.executeAsync((request, done) => {
-    import("/src/utils/runtimeMode.ts")
-      .then(({ apiBaseUrl }) => fetch(`${apiBaseUrl()}/commands/start_package_lifecycle`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("a4n:current_access_token") ?? ""}`,
-        },
-        body: JSON.stringify({ input: request }),
-      }))
-      .then(async (response) => ({
-        status: response.status,
-        body: await response.json().catch(() => null),
-      }))
-      .then((value) => done(value), (error) => done({ error: String(error) }));
-  }, input);
+  return await requestBrowserApiCommand("start_package_lifecycle", { input });
 }
 
 async function listPackageCommandAvailability(commands) {
-  const result = await browser.executeAsync((module, input, done) => {
-    import(module)
-      .then((api) => api.listPackageCommandAvailability(input))
-      .then((value) => done({ value }), (error) => done({ error: String(error) }));
-  }, "/src/api/package.ts", { commands });
-  assert.equal(result.error, undefined, result.error);
-  assert.ok(Array.isArray(result.value), "包准入查询没有返回数组");
-  return result.value;
+  const availability = await callBrowserApiCommand(
+    "list_package_command_availability",
+    { input: { commands } },
+  );
+  assert.ok(Array.isArray(availability), "包准入查询没有返回数组");
+  return availability;
 }
 
 function commandAvailability(items, command) {
@@ -342,6 +318,8 @@ describe("功能包客户端生命周期", () => {
     const secondUser = await createSecondUser();
 
     await loginViaApi(secondUser.username, secondUser.password, "user");
+    const inbox = await callBrowserApiCommand("list_creator_notifications");
+    assert.deepEqual(inbox, { items: [], unread_count: 0 });
     await browser.url("/settings#admin");
     await browser.waitUntil(async () => {
       const body = await browser.$("body").getText();
@@ -358,6 +336,8 @@ describe("功能包客户端生命周期", () => {
     );
 
     const nonAdminBefore = await packageOverview("manga");
+    const diagnostics = process.env.A4N_BROWSER_E2E_ARTIFACT_DIR;
+    assert.deepEqual(await captureBrowserDiagnostics(`${diagnostics}/before-package-denial`), []);
     for (const action of ["disable", "enable"]) {
       const denial = await attemptLifecycleAsCurrentUser({
         package_id: "manga",
@@ -371,6 +351,11 @@ describe("功能包客户端生命周期", () => {
       assert.equal(denial.body?.retryable, false);
       assert.equal(denial.body?.details?.command, "start_package_lifecycle");
       assert.equal(denial.body?.details?.reason_code, "host_admin_required");
+      const errors = await captureBrowserDiagnostics(`${diagnostics}/expected-package-${action}-denial`);
+      assert.ok(errors.every((error) =>
+        (error.status === 409 && error.url.endsWith("/api/commands/start_package_lifecycle"))
+        || (error.source === "network" && error.message.includes("/api/commands/start_package_lifecycle")
+          && error.message.includes("status of 409"))), JSON.stringify(errors));
     }
 
     await openPersonalPackageSection();
@@ -386,10 +371,7 @@ describe("功能包客户端生命周期", () => {
     );
 
     await setHiddenPreference("manga", true);
-    const personalPreferences = await invokeFrontend(
-      "/src/api/package.ts",
-      "getPackagePreferences",
-    );
+    const personalPreferences = await callBrowserApiCommand("get_package_preferences");
     assert.ok(personalPreferences.hidden_package_ids.includes("manga"));
 
     const afterPreference = await packageOverview("manga");

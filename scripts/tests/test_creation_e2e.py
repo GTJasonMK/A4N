@@ -9,7 +9,7 @@ from run_creation_e2e import (
     BROWSER_FEATURE_SPECS, FULL_GENERATION_SUITES, ROOT, RunnerError, STAGES, acceptance_passed,
     acceptance_result, build_cache_paths, files_fingerprint, frontend_fingerprint,
     full_generation_matrix_report, read_all_workflows_report, read_suite_report,
-    selected_browser_specs, snapshot_source,
+    selected_browser_specs, should_clean_build_target, snapshot_source,
     selected_suites, source_fingerprint, stop_owned_workers, stop_postgres,
 )
 from run_browser_full_project_e2e import secure_mkdir, stop_process, tail
@@ -53,6 +53,23 @@ class CreationAcceptanceTest(unittest.TestCase):
         browser = {"inspiration": {"status": "passed"}}
         self.assertEqual(acceptance_result({"inspiration"}, suites, browser)["inspiration"]["status"], "passed")
         self.assertNotIn("director", selected_suites({"inspiration"}))
+
+    def test_later_stages_require_the_actual_authoring_prefix(self):
+        authoring_stages = STAGES[:5]
+        suites = {name: {"success": True, "checks": ["verified"]} for name in selected_suites(set(STAGES))}
+        suites["authoring"].update(
+            checks=[{"stage": stage} for stage in authoring_stages],
+            stages={stage: {"status": "passed"} for stage in authoring_stages},
+        )
+        browser = {stage: {"status": "passed"} for stage in STAGES}
+        result = acceptance_result(set(STAGES), suites, browser)
+        self.assertTrue(all(row["status"] == "passed" for row in result.values()), result)
+        suites["authoring"]["stages"]["chapter"]["status"] = "failed"
+        result = acceptance_result({"director"}, suites, browser)
+        self.assertEqual(result["director"]["status"], "failed")
+        suites["authoring"]["stages"]["chapter"]["status"] = "passed"
+        suites["authoring"]["checks"].pop()
+        self.assertEqual(acceptance_result({"director"}, suites, browser)["director"]["status"], "failed")
 
     def test_full_run_selects_every_generation_suite_and_single_stage_does_not(self):
         selected = selected_suites(set(STAGES))
@@ -186,6 +203,20 @@ class CreationAcceptanceTest(unittest.TestCase):
                 build_cache_paths(),
                 (target.resolve(), ROOT / "target" / ".creation-e2e-build.lock"),
             )
+
+    def test_default_checkout_target_is_isolated_from_the_persistent_target_root(self):
+        with patch.dict(
+            "os.environ",
+            {"A4N_E2E_CARGO_TARGET_DIR": "", "CARGO_TARGET_DIR": ""},
+        ):
+            target, _ = build_cache_paths()
+        self.assertNotEqual(target, (ROOT / "target").resolve())
+        self.assertTrue(should_clean_build_target(target))
+
+    def test_shared_cargo_target_root_is_not_cleaned(self):
+        target = (ROOT / "target").resolve()
+        self.assertFalse(should_clean_build_target(target))
+        self.assertTrue(should_clean_build_target(target / "creation-e2e"))
 
     def test_build_cache_override_rejects_paths_outside_checkout(self):
         with patch.dict("os.environ", {"A4N_E2E_CARGO_TARGET_DIR": "/tmp/external-target"}):

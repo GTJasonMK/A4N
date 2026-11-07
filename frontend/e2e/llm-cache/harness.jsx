@@ -6,6 +6,7 @@ import { initializePortableStorage } from "../../src/utils/portableStorage";
 import { useAuthStore } from "../../src/store/auth";
 import { ToastContainer } from "../../src/components/feedback/Toast";
 import "../../src/index.css";
+import { installTauriEventMock } from "../tauriEventMock.js";
 
 window.__CACHE_E2E__ = { unknown: false, failure: false, calls: 0 };
 window.__TAURI_INTERNALS__ = {
@@ -40,6 +41,7 @@ window.__TAURI_INTERNALS__ = {
     };
   },
 };
+installTauriEventMock(window.__TAURI_INTERNALS__);
 await initializePortableStorage();
 useAuthStore.setState({ initialized: true, user: { id: 1, role: "admin", username: "cache-review" } });
 createRoot(document.getElementById("root")).render(

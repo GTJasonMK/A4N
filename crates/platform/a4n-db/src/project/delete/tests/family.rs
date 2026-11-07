@@ -151,15 +151,7 @@ async fn project_delete_removes_only_target_prompt_override_settings() {
 #[tokio::test]
 async fn project_delete_gate_rejects_text_root_with_derivatives_without_pending_operation() {
     let db = setup_db().await;
-    let owner = crate::auth::create_user(
-        &db,
-        "project_delete_gate_owner",
-        "project-delete-gate-owner@example.invalid",
-        "project-delete-gate-password",
-        "user",
-    )
-    .await
-    .unwrap();
+    let owner = a4n_test_support::database::ensure_test_user(&db, 1).await;
     assert_eq!(owner.id, 1);
     let (root, _derived) = root_with_video_derivative(&db).await;
 

@@ -20,6 +20,29 @@ use super::super::super::{MangaPipelineStage, OrchestratorContext};
 use super::super::state::{MANGA_PIPELINE_TOTAL_STEPS, manga_pipeline_stage_status};
 use crate::source_markers::SourceMarkerMap;
 
+pub(super) use crate::manga::record_errors::manga_stage_output_exists_error;
+
+pub(super) fn should_generate_manga_stage(
+    stage: MangaPipelineArtifactStage,
+    page_number: u32,
+    should_run: bool,
+    requested: bool,
+    has_output: bool,
+    output_is_current: bool,
+    resume_from_checkpoint: bool,
+) -> Result<bool, AppError> {
+    if !should_run {
+        return Ok(false);
+    }
+    if has_output {
+        if requested && resume_from_checkpoint && output_is_current {
+            return Ok(false);
+        }
+        return Err(manga_stage_output_exists_error(stage, Some(page_number)));
+    }
+    Ok(true)
+}
+
 #[derive(Clone)]
 pub(super) struct MangaRunContext<'a> {
     pub(super) service: &'a OrchestratorContext,
@@ -70,7 +93,7 @@ impl MangaRunContext<'_> {
         payload: Value,
     ) -> Result<(), AppError> {
         self.service
-            .upsert_manga_pipeline_artifact(MangaPipelineArtifactDraft {
+            .create_manga_pipeline_artifact(MangaPipelineArtifactDraft {
                 project_id: self.project_id,
                 chapter_id: self.chapter_id,
                 stage,

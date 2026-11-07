@@ -88,6 +88,10 @@ where
     ensure_image_chapter_belongs_to_projects_record(db, project_ids, chapter_id).await?;
     generated_image::Entity::find()
         .filter(generated_image::Column::ProjectId.is_in(project_ids.iter().copied()))
+        // Manga page outputs are downstream artifacts of the same workflow;
+        // treating them as new reference inputs changes the workflow
+        // fingerprint after the first page and invalidates checkpoint resume.
+        .filter(generated_image::Column::ImageType.ne("manga_page"))
         .filter(
             Condition::any()
                 .add(generated_image::Column::ChapterId.eq(chapter_id))

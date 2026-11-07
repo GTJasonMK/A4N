@@ -280,6 +280,17 @@ impl WorkerState {
                     .then_some(*chapter_id)
             })
             .collect::<Vec<_>>();
+        let (asset_project_id, root_project_id) =
+            a4n_db::project::project_or_derived_family_access_ids(
+                self.database.connection(),
+                project_id,
+            )
+            .await
+            .map_err(a4n_worker_db_adapter::map_project_family_db_error)?;
+        let mut asset_project_ids = vec![asset_project_id];
+        if let Some(root_project_id) = root_project_id {
+            asset_project_ids.push(root_project_id);
+        }
         let (sources, character_portraits) = tokio::try_join!(
             async {
                 a4n_db::project::chapter_manga_sources_by_ids(
@@ -353,10 +364,45 @@ impl WorkerState {
                 let source = sources_by_chapter
                     .get(chapter_id)
                     .ok_or_else(|| WorkerFailure::not_found(format!("章节不存在: {chapter_id}")))?;
-                let current_fingerprint = a4n_manga_core::manga_pipeline_fingerprint(
-                    &source.content,
-                    &character_portraits,
+                let available_reference_images =
+                    a4n_db::video::read_models::video_reference_candidate_image_records(
+                        self.database.connection(),
+                        &asset_project_ids,
+                        source.chapter_id,
+                    )
+                    .await
+                    .map_err(a4n_worker_db_adapter::map_database_error)?;
+                let available_reference_images = serde_json::json!(
+                    available_reference_images
+                        .iter()
+                        .map(|image| (
+                            image.id,
+                            &image.image_type,
+                            &image.file_path,
+                            &image.prompt,
+                            &image.metadata_json,
+                        ))
+                        .collect::<Vec<_>>()
                 );
+                let run_stage = run
+                    .input_fingerprint_json
+                    .as_ref()
+                    .and_then(|fingerprint| fingerprint.get("run_stage"))
+                    .map(|stage| serde_json::from_value(stage.clone()))
+                    .transpose()
+                    .map_err(|error| {
+                        WorkerFailure::invalid_request(format!(
+                            "漫画 workflow {} 的阶段指纹无效: {error}",
+                            run.id
+                        ))
+                    })?;
+                let current_fingerprint =
+                    a4n_manga_core::manga_pipeline_fingerprint_with_reference_images(
+                        &source.content,
+                        &character_portraits,
+                        available_reference_images,
+                        run_stage,
+                    );
                 summary.checkpoint_valid =
                     run.input_fingerprint_json.as_ref() == Some(&current_fingerprint);
             }

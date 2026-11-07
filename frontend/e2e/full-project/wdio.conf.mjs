@@ -14,7 +14,7 @@ mkdirSync(artifactDir, { recursive: true });
 mkdirSync(downloadDir, { recursive: true });
 
 const safeName = (value) => String(value ?? "browser-test")
-  .replace(/[^a-zA-Z0-9._-]+/g, "-")
+  .replace(/[^\p{L}\p{N}._-]+/gu, "-")
   .replace(/^-+|-+$/g, "")
   .slice(0, 120) || "browser-test";
 
@@ -46,7 +46,14 @@ export const config = {
   }],
   framework: "mocha",
   reporters: ["spec"],
-  mochaOpts: { timeout: 1_800_000 },
+  mochaOpts: {
+    timeout: 1_800_000,
+    rootHooks: {
+      afterEach: async function () {
+        await captureTestDiagnostics(this.currentTest);
+      },
+    },
+  },
   waitforTimeout: 30_000,
   connectionRetryTimeout: 120_000,
   connectionRetryCount: 2,
@@ -74,25 +81,27 @@ export const config = {
     });
     await browser.setWindowSize(1440, 1000);
   },
-  afterTest: async (test, _context, result) => {
-    const name = safeName(test?.title);
-    let diagnosticError;
-    try {
-      const errors = await captureBrowserDiagnostics(`${artifactDir}/${name}`);
-      if (errors.length) diagnosticError = new Error(`浏览器异常或服务端错误：${JSON.stringify(errors)}`);
-    } catch (error) {
-      diagnosticError = error;
-    }
-    if (!result.passed || diagnosticError) {
-      for (const capture of [
-        () => browser.saveScreenshot(`${artifactDir}/${name}.png`),
-        async () => writeFileSync(`${artifactDir}/${name}.html`, await browser.execute(() => document.documentElement.outerHTML), "utf8"),
-      ]) {
-        try { await capture(); } catch (error) {
-          process.stderr.write(`browser failure artifact capture failed: ${String(error)}\n`);
-        }
+};
+
+// WDIO afterTest 只记录 hook 异常；Mocha afterEach 才会把诊断失败计入退出码。
+async function captureTestDiagnostics(test) {
+  const name = safeName(test?.title);
+  let diagnosticError;
+  try {
+    const errors = await captureBrowserDiagnostics(`${artifactDir}/${name}`);
+    if (errors.length) diagnosticError = new Error(`浏览器异常或服务端错误：${JSON.stringify(errors)}`);
+  } catch (error) {
+    diagnosticError = error;
+  }
+  if (test?.state !== "passed" || diagnosticError) {
+    for (const capture of [
+      () => browser.saveScreenshot(`${artifactDir}/${name}.png`),
+      async () => writeFileSync(`${artifactDir}/${name}.html`, await browser.execute(() => document.documentElement.outerHTML), "utf8"),
+    ]) {
+      try { await capture(); } catch (error) {
+        process.stderr.write(`browser failure artifact capture failed: ${String(error)}\n`);
       }
     }
-    if (diagnosticError) throw diagnosticError;
-  },
-};
+  }
+  if (diagnosticError) throw diagnosticError;
+}

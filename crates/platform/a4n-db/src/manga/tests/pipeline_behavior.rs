@@ -536,6 +536,152 @@ async fn layout_update_preserves_concurrent_image_status() {
 }
 
 #[tokio::test]
+async fn stage_creation_preserves_the_concurrent_winner_until_explicit_deletion() {
+    let db = setup_db().await;
+    let (project_id, chapter_id) = project_and_chapter(&db, "漫画阶段单次写入").await;
+    for (stage, page_number) in [
+        (MangaPipelineArtifactStage::Preprocessing, None),
+        (MangaPipelineArtifactStage::Storyboard, Some(1)),
+    ] {
+        let draft = |value| MangaPipelineArtifactDraft {
+            project_id,
+            chapter_id,
+            stage,
+            page_number,
+            input_fingerprint: format!("input-{value}"),
+            payload: json!({"value": value}),
+            stale: false,
+        };
+        let (left, right) = tokio::join!(
+            crate::manga::create_manga_pipeline_artifact(&db, draft("left"), fixed_time(1)),
+            crate::manga::create_manga_pipeline_artifact(&db, draft("right"), fixed_time(1)),
+        );
+        let (winner, loser) = match (left, right) {
+            (Ok(winner), Err(loser)) | (Err(loser), Ok(winner)) => (winner, loser),
+            other => panic!("exactly one concurrent creation must succeed: {other:?}"),
+        };
+        assert!(matches!(loser, MangaPromptRecordError::Conflict(_)));
+        let stored = manga_pipeline_artifact(&db, project_id, chapter_id, stage, page_number)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(stored.payload, winner.payload);
+        assert_eq!(stored.output_fingerprint, winner.output_fingerprint);
+        assert!(matches!(
+            crate::manga::create_manga_pipeline_artifact(&db, draft("replacement"), fixed_time(2))
+                .await,
+            Err(MangaPromptRecordError::Conflict(_))
+        ));
+        delete_manga_pipeline_artifact(
+            &db,
+            project_id,
+            chapter_id,
+            stage,
+            page_number,
+            &[winner.id],
+            &[],
+        )
+        .await
+        .unwrap();
+        let regenerated =
+            crate::manga::create_manga_pipeline_artifact(&db, draft("replacement"), fixed_time(2))
+                .await
+                .unwrap();
+        assert_eq!(regenerated.payload, json!({"value": "replacement"}));
+        assert_ne!(regenerated.id, winner.id);
+    }
+}
+
+#[tokio::test]
+async fn page_image_completion_preserves_the_winner_and_reclaims_only_the_loser() {
+    let db = setup_db().await;
+    let (project_id, chapter_id) = project_and_chapter(&db, "漫画成图并发写入").await;
+    let (drafts, _) = planned_drafts(&db, project_id, chapter_id).await;
+    let rows =
+        sync_manga_page_prompts_by_chapter(&db, project_id, chapter_id, drafts, fixed_time(1))
+            .await
+            .unwrap();
+    let prompt_id = rows[0].id;
+    let mut images = Vec::new();
+    for label in ["left", "right"] {
+        images.push(
+            generated_image::ActiveModel {
+                project_id: Set(project_id),
+                chapter_id: Set(Some(chapter_id)),
+                image_type: Set("manga_page".into()),
+                prompt: Set(format!("page {} {label}", rows[0].page_number)),
+                model: Set("test".into()),
+                width: Set(768),
+                height: Set(1024),
+                is_favorite: Set(false),
+                file_path: Set(format!(
+                    "projects/{project_id}/images/manga-race-{label}.png"
+                )),
+                created_at: Set(fixed_time(1)),
+                ..Default::default()
+            }
+            .insert(&db)
+            .await
+            .unwrap(),
+        );
+    }
+    let (left, right) = tokio::join!(
+        crate::manga::mark_manga_page_prompt_image_completed_with_image(
+            &db,
+            prompt_id,
+            images[0].id,
+            fixed_time(1)
+        ),
+        crate::manga::mark_manga_page_prompt_image_completed_with_image(
+            &db,
+            prompt_id,
+            images[1].id,
+            fixed_time(1)
+        ),
+    );
+    let (winner, loser, loser_error) = match (left, right) {
+        (Ok(()), Err(error)) => (&images[0], &images[1], error),
+        (Err(error), Ok(())) => (&images[1], &images[0], error),
+        other => panic!("exactly one image completion must succeed: {other:?}"),
+    };
+    assert!(matches!(loser_error, MangaPromptRecordError::Conflict(_)));
+    crate::manga::mark_manga_page_prompt_image_completed_with_image(
+        &db,
+        prompt_id,
+        winner.id,
+        fixed_time(2),
+    )
+    .await
+    .expect("replaying the adopted image is idempotent");
+    crate::video::delete_generated_image_record_with_cleanup(&db, loser.id)
+        .await
+        .unwrap();
+    let stored = chapter_manga_prompt::Entity::find_by_id(prompt_id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(stored.generated_image_id, Some(winner.id));
+    assert!(
+        generated_image::Entity::find_by_id(winner.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    assert!(
+        generated_image::Entity::find_by_id(loser.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let cleanup = cleanup_outbox::Entity::find().all(&db).await.unwrap();
+    assert_eq!(cleanup.len(), 1);
+    assert_eq!(cleanup[0].payload_json["paths"], json!([loser.file_path]));
+}
+
+#[tokio::test]
 async fn stale_page_projection_rolls_back_the_stage_artifact_save() {
     let db = setup_db().await;
     let (project_id, chapter_id) = project_and_chapter(&db, "漫画阶段产物版本冲突").await;

@@ -89,12 +89,12 @@ class CliContractRunnerTest(unittest.TestCase):
             run_watch(cli, "task", {}, envelope)
 
     def test_fixture_failure_keeps_completed_operations_and_failure_record(self) -> None:
-        commands = ("create_project", "create_freeform_video_project")
+        commands = ("create_project", "create_canvas_project")
         state, records = {}, []
         with patch("run_all_workflows_e2e.invoke", side_effect=[
             {"ok": True, "classification": "business_success", "duration_ms": 1, "data": {"id": 12}},
             {"ok": False, "duration_ms": 1, "error": {"message": "write rejected"}},
-        ]), self.assertRaisesRegex(RunnerError, "create_freeform_video_project"):
+        ]), self.assertRaisesRegex(RunnerError, "create_canvas_project"):
             seed_fixtures(
                 object(), {name: {} for name in commands}, "audit", "http://127.0.0.1:1/v1",
                 state, records,
@@ -502,7 +502,8 @@ class CliContractRunnerTest(unittest.TestCase):
     def test_seed_records_keep_each_call_and_task_watch(self) -> None:
         command_names = [
             "create_project",
-            "create_freeform_video_project",
+            "create_canvas_project",
+            "get_blueprint",
             "import_project_text_upload",
             "accept_import_review",
             "preview_import_project_analysis_request",
@@ -553,6 +554,8 @@ class CliContractRunnerTest(unittest.TestCase):
             "get_galgame_script",
             "plan_galgame_assets",
             "run_galgame_asset_generation",
+            "generate_media_adaptation_plan",
+            "adopt_media_authoring_document",
             "start_manga_pipeline",
             "get_manga_pipeline_status",
             "list_manga_page_prompts",
@@ -584,7 +587,8 @@ class CliContractRunnerTest(unittest.TestCase):
         }
         ids = {
             "create_project": {"id": 1},
-            "create_freeform_video_project": {"id": 2},
+            "create_canvas_project": {"id": 2},
+            "get_blueprint": {"current_version": "fixture-v1"},
             "import_project_text_upload": [{"id": 30}],
             "accept_import_review": {"id": 30, "project_id": 1},
             "list_parts": [{"id": 3}],
@@ -615,6 +619,8 @@ class CliContractRunnerTest(unittest.TestCase):
             "plan_galgame_assets": {"backgrounds": [{"generation_spec_id": 21}], "portrait_expressions": [], "event_cgs": [], "summary": {}},
             "run_galgame_asset_generation": {},
             "start_manga_pipeline": {"task_id": "manga-task", "attempt": 1},
+            "generate_media_adaptation_plan": {"id": 29, "project_id": 18, "revision": 1},
+            "adopt_media_authoring_document": {"id": 29, "project_id": 18, "revision": 1},
             "get_manga_pipeline_status": {"pipeline_status": "completed", "total": 1, "completed": 1},
             "list_manga_page_prompts": [{"id": 22}],
             "list_videos_by_chapter": [{"id": 23}],
@@ -770,6 +776,7 @@ class CliContractRunnerTest(unittest.TestCase):
                 "create_project",
                 "import_project_text_upload",
                 "accept_import_review",
+                "get_blueprint",
                 "start_inspiration_generation",
                 "start_blueprint_generation",
                 "start_outline_generation",

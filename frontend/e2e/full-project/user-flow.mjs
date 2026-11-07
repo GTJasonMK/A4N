@@ -434,7 +434,7 @@ async function sectionContaining(text) {
 
 async function createProject() {
   await clickButton("创建项目");
-  await waitForBodyText("选择创作模式", 30_000);
+  await waitForBodyText("新建项目", 30_000);
   await clickButton("自由创作", await currentDialog());
   await waitForRoute(/\/novel\/\d+/);
   const match = (await browser.getUrl()).match(/\/novel\/(\d+)/);

@@ -12,12 +12,14 @@ name: part_outline_single
 
 根据提供的小说信息和前面已生成的部分，为当前部分生成详细的大纲。
 
+{% if optimization_direction is defined %}
 {% if optimization_direction %}
 ## 本次优化方向
 
 {{ optimization_direction }}
 
 请优先满足该方向，但不得违反正式资料、已有大纲、输出字段和章节范围约束。
+{% endif %}
 {% endif %}
 
 ---

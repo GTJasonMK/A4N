@@ -184,6 +184,7 @@ fn mixed_assembly_does_not_fall_back_when_timeline_exists_but_is_empty() {
 #[tokio::test]
 async fn mixed_assembly_initializes_timeline_without_opening_the_video_page() {
     let db = a4n_migration::test_support::connect_test_database().await;
+    a4n_test_support::database::ensure_test_user(&db, 1).await;
     let root = crate::video::insert_video_project(&db, "混合成片时间线初始化").await;
     let chapter = crate::video::insert_video_chapter_without_shooting_script(&db, root.id, 1).await;
     let (director, script) = crate::video::tests::insert_confirmed_visual_plan_and_shooting_script(

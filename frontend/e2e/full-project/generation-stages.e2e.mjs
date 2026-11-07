@@ -107,9 +107,8 @@ async function outline() {
   await waitForNoDialog();
   await refreshAndRead("用户修改分部", ["大纲", "分部大纲"]);
   await tab("章节大纲");
-  section = await sectionContaining("章节大纲");
-  await setField("本次追加章数", "3", "input", section);
-  await clickButton("生成章纲", section);
+  await setField("本次生成章数", "3", "input");
+  await clickButton("生成章纲");
   await waitAndCloseProgress("生成章节大纲");
   await waitForBodyText("雨夜来信");
   await (await visibleElements('[aria-label="更多章纲操作"]'))[0].click();
@@ -231,7 +230,7 @@ async function director() {
   await browser.keys("Home");
   await browser.keys("ArrowRight");
   assert.equal(await scrubber.getValue(), "1", "native keyboard input must update the playhead");
-  await clickButton("确认方案");
+  await clickButton("确认视觉编排");
   await waitForBodyText("方案已确认");
   await refreshAndRead("方案已确认");
 }

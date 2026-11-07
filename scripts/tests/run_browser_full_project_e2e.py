@@ -441,6 +441,7 @@ def run(args: argparse.Namespace) -> int:
         "HTTP_PROXY",
         "HTTPS_PROXY",
         "ALL_PROXY",
+        "NODE_USE_ENV_PROXY",
     ):
         browser_env.pop(key, None)
 

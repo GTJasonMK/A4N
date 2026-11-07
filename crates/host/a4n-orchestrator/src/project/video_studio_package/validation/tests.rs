@@ -17,7 +17,7 @@ use a4n_domain::{CanvasNodeRefKind, project::ProjectRecord};
 use crate::media::MEDIA_STATUS_COMPLETED;
 use crate::project::video_studio_package::{PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION};
 use crate::project::{
-    ImportMediaPayload, MediaFileEntry, PROJECT_KIND_VIDEO, SOURCE_SYNC_CURRENT,
+    ImportMediaPayload, MediaFileEntry, PROJECT_KIND_CANVAS, SOURCE_SYNC_CURRENT,
     VideoStudioProjectPackage, media_file_key, sha256_bytes,
 };
 
@@ -34,7 +34,7 @@ fn freeform_project() -> ProjectRecord {
         title: "自由视频".to_string(),
         description: String::new(),
         project_type: "script".to_string(),
-        project_kind: PROJECT_KIND_VIDEO.to_string(),
+        project_kind: PROJECT_KIND_CANVAS.to_string(),
         root_project_id: None,
         source_snapshot_id: None,
         source_sync_status: SOURCE_SYNC_CURRENT.to_string(),

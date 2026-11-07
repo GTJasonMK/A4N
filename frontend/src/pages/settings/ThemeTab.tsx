@@ -42,12 +42,6 @@ export const ThemeTab: React.FC = () => {
     undefined,
     () => !themeTab.operationInFlight,
   );
-  useDirty(
-    "settings-theme-operation",
-    themeTab.operationInFlight,
-    undefined,
-    () => !themeTab.operationInFlight && !themeTab.editorSaving,
-  );
 
   const confirmDiscardThemeDraft = async (action: string): Promise<boolean> => {
     if (!hasThemeDraft) return true;

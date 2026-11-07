@@ -113,6 +113,7 @@ fn manga_page_drawing_prompt_page_input_keeps_only_page_scope_and_refs() {
         &[],
         &[],
         &[],
+        &[],
     )
     .expect("page context should build");
     let context = &input["page_context"];
@@ -142,6 +143,7 @@ fn manga_page_drawing_context_rejects_malformed_reference_metadata() {
         &page_plan,
         &extraction_summary,
         &reference_assets,
+        &[],
         &[],
         &[],
         &[],

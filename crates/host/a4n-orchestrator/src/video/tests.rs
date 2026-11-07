@@ -15,7 +15,7 @@ use a4n_llm_provider_contract::provider::LlmProvider;
 use a4n_prompt::tera_engine::TeraPromptEngine;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    QueryOrder, QuerySelect, Set,
 };
 use serde_json::{Value, json};
 use std::path::Path;
@@ -47,7 +47,7 @@ mod shooting_script_source;
 
 async fn setup_db() -> DatabaseConnection {
     let db = a4n_migration::test_support::connect_test_database().await;
-    crate::test_support::create_test_user(&db).await;
+    a4n_test_support::database::ensure_test_user(&db, 1).await;
     db
 }
 

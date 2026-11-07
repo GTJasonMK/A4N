@@ -217,7 +217,7 @@ export const ComicProjectWorkspace: React.FC = () => {
             }}
             standalone={project.source_mode === "standalone"}
             onDirtyChange={setWorkspaceDirty}
-            snapshotChapters={chapters}
+            snapshotChapters={project.source_mode === "derived" ? chapters : undefined}
             assetProjectId={project.root_project_id ?? project.id}
             imageProjectIds={imageProjectIds}
           />

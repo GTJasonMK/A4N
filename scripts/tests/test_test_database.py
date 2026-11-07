@@ -18,10 +18,19 @@ from run_with_test_database import (
     container_command,
     main,
     remove_container_command,
+    wait_until_ready,
 )
 
 
 class TestDatabaseRunnerTest(unittest.TestCase):
+    def test_readiness_requires_tcp_instead_of_the_temporary_init_socket(self) -> None:
+        with patch("run_with_test_database.subprocess.run") as run:
+            run.return_value = subprocess.CompletedProcess([], 0)
+            wait_until_ready("test-postgres", StringIO(), 1)
+        command = run.call_args.args[0]
+        self.assertIn("-h", command)
+        self.assertEqual(command[command.index("-h") + 1], "127.0.0.1")
+
     def test_database_url_contains_only_the_redacted_host_path_shape(self) -> None:
         self.assertEqual(
             build_database_url(54321, "pass word"),
@@ -30,6 +39,7 @@ class TestDatabaseRunnerTest(unittest.TestCase):
 
     def test_container_command_uses_a_unique_host_port_and_fixed_test_identity(self) -> None:
         command = container_command("a4n-test", 54321, "postgres:16")
+        self.assertIn("--shm-size=256m", command)
         self.assertIn("127.0.0.1:54321:5432", command)
         self.assertIn("POSTGRES_PASSWORD", command)
         self.assertIn("POSTGRES_USER=a4n_test", command)

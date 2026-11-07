@@ -86,7 +86,7 @@ fn selected_export_without_binary_fails_sidecar_configuration() {
     })
     .expect_err("a selected sidecar without its binary must fail");
 
-    assert!(error.contains("需要可执行 sidecar 二进制"));
+    assert!(error.contains("需要可执行 sidecar launcher"));
     assert!(error.contains("a4n-export-service"));
     assert!(error.contains(SIDECAR_BIN_DIR_ENV));
 }

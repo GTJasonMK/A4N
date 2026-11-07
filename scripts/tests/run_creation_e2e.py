@@ -131,6 +131,7 @@ def build_binaries(report_dir: Path, supplied: Path | None, source: Path) -> Pat
             shutil.copy2(supplied / name, destination / name)
         return destination
     target_dir, build_lock = build_cache_paths()
+    clean_target = should_clean_build_target(target_dir)
     env = os.environ.copy()
     env.update(CARGO_TARGET_DIR=str(target_dir), CARGO_INCREMENTAL="0",
                CARGO_ARTIFACTS_DISABLED="1", CARGO_BUILD_JOBS="2",
@@ -149,8 +150,9 @@ def build_binaries(report_dir: Path, supplied: Path | None, source: Path) -> Pat
                 hashes[name] = hashlib.sha256((destination / name).read_bytes()).hexdigest()
             secure_json(destination / "source.json", {"source_sha256": fingerprint, "binaries": hashes})
         finally:
-            subprocess.run([str(ROOT / "scripts/cargo.sh"), "clean"], cwd=ROOT, env=env,
-                           stdout=log, stderr=subprocess.STDOUT, check=True)
+            if clean_target:
+                subprocess.run([str(ROOT / "scripts/cargo.sh"), "clean"], cwd=ROOT, env=env,
+                               stdout=log, stderr=subprocess.STDOUT, check=True)
     return destination
 
 
@@ -183,7 +185,11 @@ def build_cache_paths() -> tuple[Path, Path]:
     ).strip())
     work = common.parent / "work"
     if ROOT in (work / "debug", work / "integration"):
-        return target_dir or ROOT / "target", work / f".{ROOT.name}-build.lock"
+        if target_dir is not None:
+            return target_dir, work / f".{ROOT.name}-build.lock"
+        target_dir = ROOT / "target" / "creation-e2e"
+        target_dir.parent.mkdir(parents=True, exist_ok=True)
+        return target_dir, target_dir.parent / ".creation-e2e-build.lock"
     if ROOT.is_relative_to(work / "agent"):
         return target_dir or work / ".build/agent-target", work / ".agent-build.lock"
     if target_dir is not None:
@@ -194,11 +200,27 @@ def build_cache_paths() -> tuple[Path, Path]:
     )
 
 
+def should_clean_build_target(target_dir: Path) -> bool:
+    target_dir = target_dir.resolve()
+    checkout_target = (ROOT / "target").resolve()
+    if target_dir == checkout_target:
+        return False
+    if target_dir.is_relative_to(checkout_target):
+        return True
+    return target_dir.name == "agent-target" and target_dir.parent.name == ".build"
+
+
 def selected_suites(stages: set[str]) -> list[str]:
     unknown = stages - set(STAGES)
     if unknown or not stages:
         raise RunnerError(f"无效阶段：{sorted(unknown) if unknown else '空'}")
-    selected = [name for name, (_, covered) in SUITES.items() if stages & covered]
+    # The browser journey always starts at inspiration and walks through every
+    # stage up to the requested endpoint.  Run the corresponding CLI suites
+    # for that whole prefix so a later browser stage never inherits an
+    # unverified worker/runtime state from a skipped prerequisite.
+    last_stage = max(STAGES.index(stage) for stage in stages)
+    required_stages = set(STAGES[: last_stage + 1])
+    selected = [name for name, (_, covered) in SUITES.items() if required_stages & covered]
     if stages == set(STAGES):
         selected.extend(FULL_GENERATION_SUITES)
     return list(dict.fromkeys(selected))
@@ -271,8 +293,12 @@ def acceptance_result(stages: set[str], suites: dict, browser: dict) -> dict:
         for name in required:
             suite = suites.get(name, {})
             if name == "authoring":
-                checks[name] = suite.get("stages", {}).get(stage, {}).get("status") == "passed" and any(
-                    check.get("stage") == stage for check in suite.get("checks", []) if isinstance(check, dict)
+                prefix = set(STAGES[: STAGES.index(stage) + 1]) & SUITES[name][1]
+                checks[name] = all(
+                    suite.get("stages", {}).get(required_stage, {}).get("status") == "passed"
+                    and any(check.get("stage") == required_stage
+                            for check in suite.get("checks", []) if isinstance(check, dict))
+                    for required_stage in prefix
                 )
             else:
                 checks[name] = suite.get("success") is True and bool(suite.get("checks"))
@@ -411,7 +437,15 @@ def main() -> int:
         report["binaries"] = str(binaries)
         frontend = source / "frontend"
         env = {k: v for k, v in os.environ.items() if not k.startswith("A4N_") or k.startswith("A4N_WDIO_") or k == "A4N_ONNXRUNTIME_ROOT"}
-        for key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
+        for key in (
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "all_proxy",
+            "NODE_USE_ENV_PROXY",
+        ):
             env.pop(key, None)
         env["NO_PROXY"] = "localhost,127.0.0.1"
         env.update(NODE_ENV="production", VITE_A4N_API_TRANSPORT="web", VITE_A4N_API_BASE_URL="/api", VITE_A4N_BASE_PATH="/")
@@ -422,7 +456,7 @@ def main() -> int:
         data = secure_mkdir(report_dir / "data")
         pgdata = secure_mkdir(data / "postgres")
         with (report_dir / "postgres.log").open("w") as log:
-            subprocess.run(["docker", "run", "-d", "--name", container, "-e", "POSTGRES_PASSWORD", "-e", "POSTGRES_USER=a4n_e2e", "-e", "POSTGRES_DB=a4n_e2e",
+            subprocess.run(["docker", "run", "-d", "--name", container, "--shm-size=256m", "-e", "POSTGRES_PASSWORD", "-e", "POSTGRES_USER=a4n_e2e", "-e", "POSTGRES_DB=a4n_e2e",
                             "-p", "127.0.0.1::5432", "--mount", f"type=bind,src={pgdata},dst=/var/lib/postgresql/data", args.postgres_image,
                             "-c", "max_connections=300"],
                            env=pg_env, stdout=log, stderr=subprocess.STDOUT, check=True)
@@ -518,7 +552,9 @@ def main() -> int:
             if name in {"checkpoints", "facts", "scene_sync", "agent_delegation", "media_authoring"}:
                 command += ["--embedding-dimension", str(EMBEDDING_DIMENSION)]
             if name == "authoring":
-                command += ["--through-stage", max(stages & SUITES[name][1], key=STAGES.index)]
+                last_requested_stage = max(STAGES.index(stage) for stage in stages)
+                authoring_stages = set(STAGES[: last_requested_stage + 1]) & SUITES[name][1]
+                command += ["--through-stage", max(authoring_stages, key=STAGES.index)]
             with (report_dir / (name + ".log")).open("w") as log:
                 try:
                     exit_code = subprocess.run(command, cwd=source, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=1800).returncode
@@ -532,9 +568,27 @@ def main() -> int:
             write_report(report_dir / "report.json", report)
             print(json.dumps({"suite": name, "success": report["suites"][name]["success"]}), flush=True)
 
+        pre_browser_failed: str | None = None
         for name in suites:
-            if name not in POST_BROWSER_SUITES:
-                execute_suite(name)
+            if name in POST_BROWSER_SUITES:
+                continue
+            if pre_browser_failed is not None:
+                reason = f"上游测试组 {pre_browser_failed} 未通过；为避免共享运行时状态污染，后续测试组未执行"
+                report["suites"][name] = {
+                    "success": False,
+                    "exit_code": 1,
+                    "report": str(report_dir / f"{name}.json"),
+                    "checks": [],
+                    "stages": {},
+                    "blocked_by": pre_browser_failed,
+                    "error": reason,
+                }
+                report["failures"].append(f"测试组未执行({name})：{reason}")
+                write_report(report_dir / "report.json", report)
+                continue
+            execute_suite(name)
+            if report["suites"][name].get("success") is not True:
+                pre_browser_failed = name
         browser_tmp = Path(tempfile.mkdtemp(prefix="ce-", dir=ROOT.parent))
         browser_env = {**env, "TMPDIR": str(browser_tmp),
                        "A4N_BROWSER_E2E_USERNAME": username, "A4N_BROWSER_E2E_PASSWORD": password,
@@ -572,24 +626,30 @@ def main() -> int:
                 )
             return browser_exit
 
-        for index, spec in enumerate(browser_specs):
-            name = Path(spec).stem
-            browser_log_path = report_dir / ("browser.log" if index == 0 else f"browser-{name}.log")
-            run_browser(
-                spec,
-                ["npm", "run", "test:browser-full-project", "--", "--spec", spec],
-                frontend,
-                browser_env,
-                browser_log_path,
-            )
-            if index == 0 and browser_path.exists():
-                browser_checks = json.loads(browser_path.read_text())
-
-        additional_browser_flows = []
-
         def block_browser_flow(name: str, reason: str) -> None:
             report["failures"].append(f"浏览器功能用例未执行({name})：{reason}")
             browser_runs.append({"spec": name, "exit_code": 1, "blocked_by": reason})
+
+        if pre_browser_failed is not None:
+            block_browser_flow(
+                "generation-stages",
+                f"上游测试组 {pre_browser_failed} 未通过；浏览器阶段未执行",
+            )
+        else:
+            for index, spec in enumerate(browser_specs):
+                name = Path(spec).stem
+                browser_log_path = report_dir / ("browser.log" if index == 0 else f"browser-{name}.log")
+                run_browser(
+                    spec,
+                    ["npm", "run", "test:browser-full-project", "--", "--spec", spec],
+                    frontend,
+                    browser_env,
+                    browser_log_path,
+                )
+                if index == 0 and browser_path.exists():
+                    browser_checks = json.loads(browser_path.read_text())
+
+        additional_browser_flows = []
 
         if args.browser_feature_flows and "media_authoring" in suites:
             media_report = report["suites"].get("media_authoring", {})
@@ -670,7 +730,19 @@ def main() -> int:
         }
         for name in suites:
             if name in POST_BROWSER_SUITES:
-                execute_suite(name)
+                if pre_browser_failed is not None:
+                    reason = f"上游测试组 {pre_browser_failed} 未通过；为避免共享运行时状态污染，后续测试组未执行"
+                    report["suites"][name] = {
+                        "success": False,
+                        "exit_code": 1,
+                        "report": str(report_dir / f"{name}.json"),
+                        "checks": [],
+                        "blocked_by": pre_browser_failed,
+                        "error": reason,
+                    }
+                    report["failures"].append(f"测试组未执行({name})：{reason}")
+                else:
+                    execute_suite(name)
         report["stages"] = acceptance_result(stages, report["suites"], browser_checks)
         report["provider"] = provider_audit(request_log, required_paths={"/chat/completions"})
         if full_generation_run:

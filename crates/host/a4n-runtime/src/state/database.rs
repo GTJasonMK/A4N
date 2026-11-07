@@ -22,3 +22,31 @@ pub(super) fn validate_runtime_config(config: &AppConfig) -> Result<(), a4n_erro
     }
     Ok(())
 }
+
+pub(super) async fn preflight_update_migrations(
+    database_url: &str,
+    data_dir: &std::path::Path,
+    names: &[String],
+) -> anyhow::Result<a4n_api_contract::updates::UpdateMigrationPreflight> {
+    let preflight =
+        a4n_migration::migrator::preflight_update_migrations(database_url, data_dir, names).await?;
+    Ok(a4n_api_contract::updates::UpdateMigrationPreflight {
+        pending_schema_migrations: preflight.pending_schema_migrations,
+        pending_data_migrations: preflight.pending_data_migrations,
+        migrations: preflight
+            .migrations
+            .into_iter()
+            .map(
+                |migration| a4n_api_contract::updates::UpdateDataMigrationPreflight {
+                    name: migration.name,
+                    affected_projects: migration.affected_projects,
+                    media_files_to_copy: migration.media_files_to_copy,
+                },
+            )
+            .collect(),
+    })
+}
+
+pub(super) fn update_migration_requires_data_backup(name: &str) -> bool {
+    a4n_migration::migrator::migration_requires_data_backup(name)
+}

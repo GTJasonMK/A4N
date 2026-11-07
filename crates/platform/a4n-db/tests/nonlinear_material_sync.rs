@@ -56,6 +56,7 @@ use tokio::{
 };
 
 async fn create_project(db: &sea_orm::DatabaseConnection, title: &str) -> i64 {
+    a4n_test_support::database::ensure_test_user(db, 1).await;
     create_project_record(
         db,
         CreateProjectRecordInput {

@@ -1,16 +1,96 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_domain::manga::MangaPageV4;
+use a4n_domain::manga::{MangaPageContentV1, MangaPageV4};
 use a4n_domain::manga::{
-    MangaPageReferenceImageV1, MangaReferenceAssetKind, MangaReferenceBindingSummary,
+    MangaPageReferenceImageV1, MangaPageReferenceNeedV1, MangaReferenceAssetKind,
+    MangaReferenceBindingSummary,
 };
 use a4n_domain::media::GeneratedImageRecord;
+use a4n_domain::source_spans::SourceSpan;
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use super::super::page_context::{
     character_names_for_page, filter_characters, filter_reference_assets,
 };
+use super::super::validation::required_manga_string;
+use crate::source_markers::SourceMarkerMap;
+
+pub(in crate::manga) fn manga_page_storyboard_source_input(
+    content: &MangaPageContentV1,
+    extraction: &Value,
+    source_spans: &[SourceSpan],
+    chapter_content: &str,
+    source_markers: &SourceMarkerMap,
+) -> Result<Value, AppError> {
+    let selected_ids = content
+        .source_span_ids
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
+    let selected_spans = source_spans
+        .iter()
+        .filter(|span| selected_ids.contains(span.id.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
+    if selected_spans.len() != selected_ids.len() {
+        return Err(AppError::InvalidArgument(
+            "漫画分镜来源不在当前章节中".into(),
+        ));
+    }
+    let events = extraction
+        .pointer("/source_events/events")
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            AppError::InvalidArgument("漫画分镜上下文缺少 source_events.events 数组".into())
+        })?;
+    let mut selected_events = Vec::new();
+    let mut event_ids = HashSet::new();
+    for event in events {
+        let ids = event
+            .get("source_span_ids")
+            .and_then(Value::as_array)
+            .ok_or_else(|| {
+                AppError::InvalidArgument("漫画分镜原文事件缺少 source_span_ids 数组".into())
+            })?;
+        if ids
+            .iter()
+            .any(|id| id.as_str().is_some_and(|id| selected_ids.contains(id)))
+        {
+            event_ids.insert(required_manga_string(
+                event,
+                "event_id",
+                "漫画分镜原文事件",
+            )?);
+            selected_events.push(event);
+        }
+    }
+    let mut speech = serde_json::Map::new();
+    for kind in ["dialogues", "narrations"] {
+        let entries = extraction
+            .get("speech")
+            .and_then(|speech| speech.get(kind))
+            .and_then(Value::as_array)
+            .ok_or_else(|| {
+                AppError::InvalidArgument(format!("漫画分镜上下文缺少 speech.{kind} 数组"))
+            })?;
+        let mut selected = Vec::new();
+        for entry in entries {
+            let event_id =
+                required_manga_string(entry, "source_event_id", &format!("speech.{kind}"))?;
+            if event_ids.contains(&event_id) {
+                selected.push(entry);
+            }
+        }
+        speech.insert(kind.into(), json!(selected));
+    }
+    Ok(json!({
+        "source": source_markers.mark_excerpt(chapter_content, &selected_spans)?,
+        "source_events": {"events": selected_events},
+        "speech": speech,
+    }))
+}
+
 pub(in crate::manga) fn manga_page_slots_input(
     extraction_summary: Value,
     adaptation_plan: Value,
@@ -39,6 +119,7 @@ pub(in crate::manga) fn manga_page_drawing_prompt_page_input(
     extraction_summary: &Value,
     reference_assets: &Value,
     reference_bindings: &[MangaReferenceBindingSummary],
+    reference_requirements: &[MangaPageReferenceNeedV1],
     system_reference_images: &[MangaPageReferenceImageV1],
     available_reference_images: &[GeneratedImageRecord],
 ) -> Result<Value, AppError> {
@@ -62,6 +143,7 @@ pub(in crate::manga) fn manga_page_drawing_prompt_page_input(
             "characters": characters,
         },
         "reference_assets": reference_assets,
+        "reference_requirements": reference_requirements,
         "reference_images": reference_images,
     }))
 }

@@ -6,7 +6,7 @@ use super::super::super::adaptation_projection::manga_page_slots_source;
 use super::super::json::parse_manga_page_slots;
 use super::super::prompt::{MangaRenderTraceInput, manga_page_slots_user_message};
 use super::super::state::MangaPipelineStage;
-use super::contracts::MangaRunContext;
+use super::contracts::{MangaRunContext, manga_stage_output_exists_error};
 
 pub(super) struct MangaPageSlotsRun {
     pub(super) slots: MangaPageSlotsV1,
@@ -17,7 +17,6 @@ pub(super) async fn run_page_slots(
     extraction_summary: &serde_json::Value,
 ) -> Result<MangaPageSlotsRun, AppError> {
     context.check_cancelled()?;
-    context.advance_stage(MangaPipelineStage::PageSlots).await?;
     let user_content = manga_page_slots_user_message(
         extraction_summary.clone(),
         manga_page_slots_source(&context.adaptation),
@@ -27,6 +26,39 @@ pub(super) async fn run_page_slots(
     )?;
     let input_fingerprint =
         context.artifact_input_fingerprint(MangaPipelineArtifactStage::PageSlots, &user_content)?;
+    let existing = context
+        .service
+        .manga_pipeline_artifact(
+            context.project_id,
+            context.chapter_id,
+            MangaPipelineArtifactStage::PageSlots,
+            None,
+        )
+        .await?;
+    let explicitly_requested = context.run_stage == Some(MangaPipelineArtifactStage::PageSlots);
+    if let Some(artifact) = existing {
+        if artifact.stale || artifact.input_fingerprint != input_fingerprint {
+            return Err(manga_stage_output_exists_error(
+                MangaPipelineArtifactStage::PageSlots,
+                None,
+            ));
+        }
+        if explicitly_requested && !context.resume_from_checkpoint {
+            return Err(manga_stage_output_exists_error(
+                MangaPipelineArtifactStage::PageSlots,
+                None,
+            ));
+        }
+        let slots = parse_manga_page_slots(
+            &artifact.payload,
+            &context.adaptation,
+            &context.source_spans,
+            "manga_page_slots",
+        )?;
+        context.advance_stage(MangaPipelineStage::PageSlots).await?;
+        return Ok(MangaPageSlotsRun { slots });
+    }
+    context.advance_stage(MangaPipelineStage::PageSlots).await?;
     let (_, slots) = context
         .service
         .render_and_validate_manga_call_with_markers(

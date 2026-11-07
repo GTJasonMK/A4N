@@ -151,6 +151,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::galgame_scene_snapshot_scope::Migration),
             Box::new(crate::migrations::retire_stale_live_text_anchors::Migration),
             Box::new(crate::migrations::source_sync_local_target_retirement::Migration),
+            Box::new(crate::migrations::galgame_scene_backfill_conflict_guard::Migration),
             Box::new(crate::migrations::frozen_chapter_identity::Migration),
             Box::new(crate::migrations::shooting_script_timing_v2::Migration),
             Box::new(crate::migrations::workflow_chapter_identity::Migration),
@@ -185,6 +186,8 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::task_queue_pending_created_index::Migration),
             Box::new(crate::migrations::generation_run_workflow_created_index::Migration),
             Box::new(crate::migrations::project_content_revision::Migration),
+            Box::new(crate::migrations::manga_pipeline_artifact_project_fk_cascade::Migration),
+            Box::new(crate::migrations::creator_notification_table_names::Migration),
         ]
     }
 }
@@ -433,10 +436,12 @@ mod tests {
             "video_shot_source_identity",
             "body_fact_feedback",
             "fact_feedback_summary_history_index",
+            "fact_feedback_read_indexes",
             "galgame_scene_source_identity",
             "galgame_scene_snapshot_scope",
             "retire_stale_live_text_anchors",
             "source_sync_local_target_retirement",
+            "galgame_scene_backfill_conflict_guard",
             "frozen_chapter_identity",
             "shooting_script_timing_v2",
             "workflow_chapter_identity",
@@ -471,6 +476,7 @@ mod tests {
             "task_queue_pending_created_index",
             "generation_run_workflow_created_index",
             "project_content_revision",
+            "manga_pipeline_artifact_project_fk_cascade",
         ];
         let history_start = names
             .iter()

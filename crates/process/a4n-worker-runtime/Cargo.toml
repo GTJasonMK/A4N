@@ -5,7 +5,7 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
-a4n-worker-contract = { path = "../a4n-worker-contract" }
+a4n-worker-contract = { workspace = true }
 axum.workspace = true
 serde.workspace = true
 subtle.workspace = true

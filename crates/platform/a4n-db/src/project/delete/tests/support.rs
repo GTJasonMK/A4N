@@ -6,19 +6,13 @@ use chrono::Utc;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 
 pub(super) async fn setup_db() -> DatabaseConnection {
-    a4n_migration::test_support::connect_test_database().await
+    let db = a4n_migration::test_support::connect_test_database().await;
+    a4n_test_support::database::ensure_test_user(&db, 1).await;
+    db
 }
 
-pub(super) async fn insert_test_user(db: &impl crate::DbExecutor) -> user::Model {
-    crate::auth::create_user(
-        db,
-        "generation-cleanup-test",
-        "generation-cleanup-test@example.test",
-        "test-password",
-        "user",
-    )
-    .await
-    .expect("test owner must exist for lifecycle gate operations")
+pub(super) async fn insert_test_user(db: &DatabaseConnection) -> user::Model {
+    a4n_test_support::database::ensure_test_user(db, 1).await
 }
 
 pub(super) async fn set_project_gate(

@@ -8,6 +8,15 @@
   <body>
     <div id="root"></div>
     <div id="a4n-portal-root"></div>
+    <script>
+      window.__A4N_VIDEO_MODE_BOOT_ERRORS__ = [];
+      window.addEventListener("error", (event) => {
+        window.__A4N_VIDEO_MODE_BOOT_ERRORS__.push(`${event.message}\n${event.error?.stack ?? ""}`);
+      });
+      window.addEventListener("unhandledrejection", (event) => {
+        window.__A4N_VIDEO_MODE_BOOT_ERRORS__.push(String(event.reason));
+      });
+    </script>
     <script type="module" src="./harness.jsx"></script>
   </body>
 </html>

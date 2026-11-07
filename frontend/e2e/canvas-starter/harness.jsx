@@ -12,6 +12,7 @@ import { StatusBarProvider } from "../../src/components/ui/StatusBar";
 import { ProgressTaskProvider } from "../../src/hooks/useProgressTask";
 import { VideoStudioCanvas } from "../../src/pages/VideoStudioCanvas";
 import { initializePortableStorage } from "../../src/utils/portableStorage";
+import { installTauriEventMock } from "../tauriEventMock.js";
 import "../../src/index.css";
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -36,7 +37,7 @@ const project = {
   id: 1,
   title: "独立视频工作流",
   description: "",
-  project_kind: "video",
+  project_kind: "canvas",
   project_type: "script",
   lifecycle_gate: "active",
   collaboration_root_project_id: 1,
@@ -220,6 +221,7 @@ window.__TAURI_INTERNALS__ = {
   transformCallback: () => 1,
   unregisterCallback: () => undefined,
 };
+installTauriEventMock(window.__TAURI_INTERNALS__);
 window.__A4N_CANVAS_STARTER_E2E__ = {
   calls,
   getGraph: () => clone(graph),

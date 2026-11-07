@@ -1223,26 +1223,42 @@ async fn server_process_returns_canonical_temp_media_artifact_contract() {
         .timeout(PROCESS_TIMEOUT)
         .build()
         .unwrap();
-    let response = client
+    let upload = a4n_api_contract::temp_media::TempMediaUploadRequest {
+        owner_user_id: 7,
+        project_id: 11,
+        source_media_kind: "generated_image".to_string(),
+        source_media_id: 13,
+        file_name: "reference.png".to_string(),
+        mime_type: "image/png".to_string(),
+    };
+    let upload_body = reqwest::multipart::Form::new()
+        .text(
+            a4n_api_contract::temp_media::TEMP_MEDIA_METADATA_PART,
+            serde_json::to_string(&upload).unwrap(),
+        )
+        .part(
+            a4n_api_contract::temp_media::TEMP_MEDIA_FILE_PART,
+            reqwest::multipart::Part::bytes(bytes.clone())
+                .file_name(upload.file_name.clone())
+                .mime_str(&upload.mime_type)
+                .unwrap(),
+        );
+    let upload_response = client
         .post(format!("http://{addr}/api/temp-media"))
         .bearer_auth("temp-media-process-token")
-        .json(&json!({
-            "owner_user_id": 7,
-            "project_id": 11,
-            "source_media_kind": "generated_image",
-            "source_media_id": 13,
-            "file_name": "reference.png",
-            "mime_type": "image/png",
-            "data_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
-        }))
+        .multipart(upload_body)
         .send()
         .await
-        .unwrap()
-        .error_for_status()
-        .unwrap()
-        .json::<a4n_api_contract::temp_media::TempMediaUploadResponse>()
-        .await
         .unwrap();
+    let upload_status = upload_response.status();
+    let upload_body = upload_response.text().await.unwrap();
+    assert!(
+        upload_status.is_success(),
+        "temporary media upload returned {upload_status}: {upload_body}"
+    );
+    let response =
+        serde_json::from_str::<a4n_api_contract::temp_media::TempMediaUploadResponse>(&upload_body)
+            .unwrap();
 
     assert_eq!(response.owner_user_id, 7);
     assert_eq!(response.project_id, 11);
@@ -2585,7 +2601,9 @@ async fn server_process_reconnects_inspiration_sse_ten_times_without_losing_one_
     const EVENTS_PER_CONNECTION: usize = 1;
 
     let reply = "x".repeat(REPLY_BYTES);
-    let expected_raw_json = format!(r#"{{"reply":"{reply}","is_complete":false}}"#);
+    let expected_raw_json = format!(
+        r#"{{"ai_message":"{reply}","next_question":null,"progress_summary":null,"ui_control":{{"type":"info_display"}},"conversation_state":{{}},"is_complete":false}}"#
+    );
     let delta_frame = |content: &str| {
         format!(
             "data: {}\n\n",
@@ -2599,14 +2617,16 @@ async fn server_process_reconnects_inspiration_sse_ten_times_without_losing_one_
         )
     };
     let mut frames = Vec::with_capacity(REPLY_BYTES / PROVIDER_FRAME_BYTES + 5);
-    frames.push(delta_frame(r#"{"reply":""#));
+    frames.push(delta_frame(r#"{"ai_message":""#));
     frames.extend(
         reply
             .as_bytes()
             .chunks(PROVIDER_FRAME_BYTES)
             .map(|chunk| delta_frame(std::str::from_utf8(chunk).unwrap())),
     );
-    frames.push(delta_frame(r#"","is_complete":false}"#));
+    frames.push(delta_frame(
+        r#"","next_question":null,"progress_summary":null,"ui_control":{"type":"info_display"},"conversation_state":{},"is_complete":false}"#,
+    ));
     frames.push(format!(
         "data: {}\n\n",
         json!({
@@ -2796,7 +2816,10 @@ async fn server_process_reconnects_inspiration_sse_ten_times_without_losing_one_
     assert_eq!(terminal_events.len(), 1);
     let completed = terminal_events[0];
     assert_eq!(completed, events.last().unwrap());
-    assert_eq!(completed["event"]["kind"], "completed");
+    assert_eq!(
+        completed["event"]["kind"], "completed",
+        "unexpected terminal event: {completed}"
+    );
     assert_eq!(completed["event"]["data"]["finish_reason"], "stop");
     assert_eq!(completed["event"]["data"]["final_usage"]["total_tokens"], 7);
     assert_eq!(
@@ -2822,7 +2845,7 @@ async fn server_process_reconnects_inspiration_sse_ten_times_without_losing_one_
         .collect::<String>();
     assert_eq!(streamed_raw_json, expected_raw_json);
     let streamed_reply =
-        serde_json::from_str::<serde_json::Value>(&streamed_raw_json).unwrap()["reply"]
+        serde_json::from_str::<serde_json::Value>(&streamed_raw_json).unwrap()["ai_message"]
             .as_str()
             .unwrap()
             .to_string();
@@ -2859,7 +2882,7 @@ async fn server_process_reconnects_inspiration_sse_ten_times_without_losing_one_
     );
     assert_eq!(&summary["terminal_event"], completed);
 
-    let messages = a4n_db::inspiration::inspiration_messages(&db, project.id, 10)
+    let messages = a4n_db::inspiration::inspiration_messages(&db, project.id, Some(10))
         .await
         .unwrap();
     assert_eq!(messages.len(), 2);
@@ -3223,7 +3246,7 @@ async fn server_process_streams_inspiration_generation_failure_terminal() {
     assert_eq!(summary["result_ref"], serde_json::Value::Null);
     assert_eq!(&summary["terminal_event"], failed);
     assert!(
-        a4n_db::inspiration::inspiration_messages(&db, project.id, 80)
+        a4n_db::inspiration::inspiration_messages(&db, project.id, Some(80))
             .await
             .unwrap()
             .is_empty(),
@@ -3795,6 +3818,7 @@ fn server_command(
         .env_remove("A4N_CONTROL_PROCESS")
         .env_remove("A4N_AGENT_WORKER_PROCESS")
         .env("A4N_CONTROL_BINARY", executable("a4n-control"))
+        .env("A4N_EDGE_BINARY", executable("a4n-edge"))
         .env("A4N_AGENT_WORKER_BINARY", executable("a4n-agent-worker"))
         .env("A4N_AGENT_WORKER_TOKEN", "cleanup-process-worker-token")
         .env("A4N_DATABASE_URL", database_url)
@@ -3831,10 +3855,20 @@ fn server_command(
 }
 
 fn unused_local_addr() -> SocketAddr {
-    std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
+    loop {
+        let web_listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let web_addr = web_listener.local_addr().unwrap();
+        let control_addr = a4n_config::control_addr_from_web(web_addr);
+        match std::net::TcpListener::bind(control_addr) {
+            Ok(control_listener) => {
+                drop(control_listener);
+                drop(web_listener);
+                return web_addr;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AddrInUse => {}
+            Err(error) => panic!("reserve test Control address {control_addr} failed: {error}"),
+        }
+    }
 }
 
 async fn wait_for_listener(child: &mut TestServer, addr: SocketAddr) {
@@ -3849,7 +3883,10 @@ async fn wait_for_listener(child: &mut TestServer, addr: SocketAddr) {
         }
         if let Some(status) = child.try_wait().unwrap() {
             let stderr = child_stderr(child);
-            panic!("a4n-server exited before startup completed: {status}\n{stderr}");
+            let control_addr = a4n_config::control_addr_from_web(addr);
+            panic!(
+                "a4n-server exited before startup completed (web={addr}, control={control_addr}): {status}\n{stderr}"
+            );
         }
         if started.elapsed() >= PROCESS_TIMEOUT {
             stop_server_for_timeout(child);

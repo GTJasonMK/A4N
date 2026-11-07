@@ -183,7 +183,12 @@ def main():
             passed("blueprint", "refinement keeps full inspiration and untouched fields and creates a new version")
             author_marker = "作者蓝图约束：旧怀表不能离开林岚。"
             edit = {key: refined[key] for key in ("genre", "style", "tone", "target_audience", "one_sentence_summary", "full_synopsis")}
-            edit.update(project_id=project_id, total_chapters=6, full_synopsis=refined["full_synopsis"] + author_marker)
+            edit.update(
+                project_id=project_id,
+                expected_current_version=refined["current_version"],
+                total_chapters=6,
+                full_synopsis=refined["full_synopsis"] + author_marker,
+            )
             before = len(calls())
             call("save_blueprint", edit)
             saved = call("get_blueprint", {"projectId": project_id}, raw=True)
@@ -193,7 +198,7 @@ def main():
             call("restore_blueprint_version", {"project_id": project_id, "version": blueprint["current_version"]}, destructive=True)
             restored = call("get_blueprint", {"projectId": project_id}, raw=True)
             assert restored["full_synopsis"] == blueprint["full_synopsis"] and restored["world_setting"] == blueprint["world_setting"]
-            call("save_blueprint", edit)
+            call("save_blueprint", {**edit, "expected_current_version": restored["current_version"]})
             assert call("get_blueprint", {"projectId": project_id}, raw=True)["full_synopsis"] == edit["full_synopsis"]
             passed("blueprint", "restoring a version restores content, and subsequent manual edits remain writable")
             stage_done("blueprint")

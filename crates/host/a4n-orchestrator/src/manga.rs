@@ -85,6 +85,14 @@ pub(crate) fn validate_manga_page_scope(
     Ok(())
 }
 
+pub(crate) fn is_manga_visual_design_range(
+    run_stage: Option<a4n_domain::manga::MangaPipelineArtifactStage>,
+    stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+) -> bool {
+    run_stage == Some(a4n_domain::manga::MangaPipelineArtifactStage::Storyboard)
+        && stop_after == Some(a4n_api_contract::manga::MangaPipelineStopAfter::ReferenceDiscovery)
+}
+
 #[cfg(test)]
 mod tests;
 
@@ -117,36 +125,6 @@ impl OrchestratorContext {
         Ok(())
     }
 
-    async fn completed_manga_pipeline_stage_workflow(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-        fingerprint: &serde_json::Value,
-        stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
-        page_number: Option<u32>,
-    ) -> Result<Option<WorkflowRunSummary>, AppError> {
-        let next_stage_order = manga_stop_after_order(stop_after);
-        Ok(self
-            .latest_workflow_run_by_business_key(&manga_pipeline_business_key(
-                project_id, chapter_id,
-            ))
-            .await?
-            .filter(|run| {
-                run.status == WORKFLOW_STATUS_COMPLETED
-                    && run.input_fingerprint_json.as_ref() == Some(fingerprint)
-                    && run
-                        .current_step_key
-                        .as_deref()
-                        .and_then(manga_completed_stage_order)
-                        .is_some_and(|stage_order| {
-                            manga_completed_stage_can_continue(
-                                stage_order,
-                                next_stage_order,
-                                page_number.is_some(),
-                            )
-                        })
-            }))
-    }
     pub(crate) async fn resumable_manga_workflow_validated(
         &self,
         project_id: i64,
@@ -224,9 +202,7 @@ impl OrchestratorContext {
         available_reference_images: &[GeneratedImageRecord],
         task_id: String,
         resume_from_checkpoint: bool,
-        stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
         run_stage: Option<a4n_domain::manga::MangaPipelineArtifactStage>,
-        page_number: Option<u32>,
     ) -> Result<(WorkflowRunSummary, bool), AppError> {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
@@ -282,58 +258,8 @@ impl OrchestratorContext {
                 .await
                 .map(|run| (run, false));
         }
-        if let Some(previous) = self
-            .completed_manga_pipeline_stage_workflow(
-                project_id,
-                chapter_id,
-                &input_fingerprint,
-                stop_after,
-                page_number,
-            )
-            .await?
-        {
-            return self
-                .continue_completed_workflow_run_validated(previous.id, input)
-                .await
-                .map(|run| (run, true));
-        }
         self.begin_workflow_run_validated(input)
             .await
             .map(|run| (run, false))
     }
-}
-
-fn manga_stop_after_order(
-    stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
-) -> u8 {
-    use a4n_api_contract::manga::MangaPipelineStopAfter as StopAfter;
-    match stop_after {
-        Some(StopAfter::PageSlots) => 0,
-        Some(StopAfter::PageAdaptation) => 1,
-        Some(StopAfter::Storyboard) => 2,
-        Some(StopAfter::ReferenceDiscovery) => 3,
-        Some(StopAfter::DrawingPrompt) => 4,
-        Some(StopAfter::Image) | None => 5,
-    }
-}
-
-fn manga_completed_stage_order(stage: &str) -> Option<u8> {
-    match stage {
-        "page_content" => Some(0),
-        "adaptation" => Some(1),
-        "storyboard" => Some(2),
-        "reference_discovery" => Some(3),
-        "drawing_prompt" => Some(4),
-        "completed" => Some(5),
-        _ => None,
-    }
-}
-
-pub(crate) fn manga_completed_stage_can_continue(
-    completed_stage_order: u8,
-    next_stage_order: u8,
-    page_scoped: bool,
-) -> bool {
-    completed_stage_order < next_stage_order
-        || (page_scoped && completed_stage_order == next_stage_order)
 }

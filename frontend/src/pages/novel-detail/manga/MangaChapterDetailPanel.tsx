@@ -18,6 +18,8 @@ import type {
   MangaPipelineArtifactRecord,
   MangaPipelineArtifactStage,
   MangaPipelineStopAfter,
+  MangaReferenceAssetKind,
+  MangaPageReferenceTargetKind,
 } from "../../../api/generated/host";
 import {
   previewPageImageRequest,
@@ -52,6 +54,7 @@ import { isCancelledOperation } from "../../../utils/cancellation";
 import { EmptyHint, isChapterGenerating, type ChapterRow } from "../shared";
 import { MangaPagePromptList } from "./MangaPagePromptList";
 import { readFileAsBase64 } from "../../../utils/fileUpload";
+import { toMediaSrc } from "../../../utils/mediaSrc";
 import { MAX_UPLOAD_IMAGE_BYTES } from "../../../api/generated/config";
 import { isSupportedImageMime } from "../../../utils/imageUpload";
 import {
@@ -59,6 +62,7 @@ import {
   countStaleMangaPagePrompts,
   mangaDeletionDownstreamSummary,
   mangaPageImageBlockReason,
+  mangaPagePipelineStageHasOutput,
   mangaStageLabel,
   mangaImageStatusMatchesWorkspaceStage,
   mangaPageNumberForPipelineStage,
@@ -84,6 +88,8 @@ interface MangaChapterDetailPanelProps {
   selectedStatus: MangaPipelineStatusSummary | null | undefined;
   pagePrompts: MangaPagePromptSummary[];
   pageSlotsNeedsGeneration?: boolean;
+  pageSlotsArtifactStale?: boolean;
+  preprocessingArtifactStale?: boolean;
   paginationActions?: React.ReactNode;
   selectedPageNumber: number | null;
   onSelectedPageChange: (pageNumber: number | null) => void;
@@ -133,6 +139,13 @@ interface MangaChapterDetailPanelProps {
 
 type NoticeTone = "ok" | "warning" | "danger" | "muted";
 type InlineNoticeTone = "warning" | "muted" | "danger";
+type PipelineStageActionButton = {
+  runStage: MangaPipelineArtifactStage | null;
+  stopAfter: MangaPipelineStopAfter;
+  label: string;
+  prerequisiteLabel: string;
+  prerequisiteReady: boolean;
+};
 
 const noticeClass: Record<NoticeTone, string> = {
   ok: "border-success/40 text-success",
@@ -158,6 +171,8 @@ export function MangaChapterDetailPanel({
   selectedStatus,
   pagePrompts,
   pageSlotsNeedsGeneration = false,
+  pageSlotsArtifactStale = false,
+  preprocessingArtifactStale = false,
   paginationActions,
   selectedPageNumber,
   onSelectedPageChange,
@@ -367,11 +382,25 @@ export function MangaChapterDetailPanel({
   const selectedPagePrompt = pagePrompts.find(
     (prompt) => prompt.page_number === selectedPageNumber,
   );
+  const visualDesignRunStage = selectedPagePrompt?.page_plan != null
+    ? "reference_discovery"
+    : "storyboard";
+  const visualDesignPrerequisiteAction = mangaPipelineActionsForWorkspaceStage("visual_design")
+    .find((action) => action.runStage === visualDesignRunStage);
+  const visualDesignTargetAlreadyGenerated =
+    mangaPagePipelineStageHasOutput(selectedPagePrompt, "reference_discovery") ||
+    (visualDesignRunStage === "storyboard" &&
+      mangaPagePipelineStageHasOutput(selectedPagePrompt, "storyboard"));
+  const visualDesignPrerequisitesReady =
+    !pageSlotsNeedsGeneration &&
+    !pagePromptsLoading &&
+    pagePromptsError == null &&
+    selectedPagePrompt != null &&
+    !selectedPagePrompt.orphaned &&
+    visualDesignPrerequisiteAction != null &&
+    mangaPipelineActionIsReady(visualDesignPrerequisiteAction, selectedPagePrompt);
   const pipelineTarget = stageMode
     ? mangaPipelineTargetForWorkspaceStage(stageMode, selectedPagePrompt)
-    : null;
-  const pipelineRestartTarget = stageMode
-    ? mangaPipelineTargetForWorkspaceStage(stageMode, selectedPagePrompt, true)
     : null;
   const pipelineStopAfter = pipelineTarget?.stopAfter ?? null;
   const pipelineRunStage = pipelineTarget?.runStage ?? null;
@@ -395,8 +424,24 @@ export function MangaChapterDetailPanel({
     drawing_prompt: t("comic.prompt.generateDrawingPrompt"),
     image: t("comic.prompt.generatePageImage"),
   };
-  const pipelineStageActions = stageMode
-    ? mangaPipelineActionsForWorkspaceStage(stageMode).map((action) => ({
+  const pipelineStageActions: PipelineStageActionButton[] = stageMode === "visual_design"
+    ? visualDesignTargetAlreadyGenerated
+      ? []
+      : [{
+          runStage: visualDesignRunStage,
+          stopAfter: "reference_discovery",
+          label: visualDesignRunStage === "storyboard"
+            ? t("comic.prompt.generatePageVisualDesign")
+            : pipelineStageActionLabels.reference_discovery,
+          prerequisiteLabel: pageSlotsNeedsGeneration || !visualDesignPrerequisiteAction
+            ? t("comic.pipelineStages.pagePlanning")
+            : mangaStageLabel(visualDesignPrerequisiteAction.prerequisite, t),
+          prerequisiteReady: visualDesignPrerequisitesReady,
+        }]
+    : stageMode
+    ? mangaPipelineActionsForWorkspaceStage(stageMode)
+      .filter((action) => !mangaPagePipelineStageHasOutput(selectedPagePrompt, action.runStage))
+      .map((action) => ({
         ...action,
         label: pipelineStageActionLabels[action.runStage],
         prerequisiteLabel: mangaStageLabel(action.prerequisite, t),
@@ -509,6 +554,7 @@ export function MangaChapterDetailPanel({
       addToast(t("comic.prompt.notFound"), "error");
       return;
     }
+    if (pagePrompt.generated_image_id != null) return;
     const imageBlockReason = mangaPageImageBlockReason(pagePrompt, t);
     if (imageBlockReason) {
       addToast(imageBlockReason, "error");
@@ -629,6 +675,7 @@ export function MangaChapterDetailPanel({
 
   const handleBindReferenceImage = async (
     input: BindMangaReferenceImageInput,
+    sourceImage?: GeneratedImage,
   ) => {
     if (!ensurePagePromptsCurrent()) return;
     if (!canEditManga) {
@@ -660,7 +707,20 @@ export function MangaChapterDetailPanel({
         addToast(t("comic.prompt.notFound"), "error");
         return;
       }
-      const updatedPrompt = await bindMangaReferenceImage(input);
+      let bindingInput = input;
+      if (
+        input.action === "add_user_image" &&
+        input.asset_kind === "generated_image" &&
+        sourceImage?.id === input.asset_id &&
+        sourceImage.project_id !== projectId
+      ) {
+        const bindingKey = `${input.prompt_id}:${input.character_name}`;
+        setUploadingReferenceBindingKey(bindingKey);
+        const importedImage = await importReferenceImage(sourceImage);
+        if (!isCurrentAction(requestScope, actionSeq)) return;
+        bindingInput = { ...input, asset_id: importedImage.id };
+      }
+      const updatedPrompt = await bindMangaReferenceImage(bindingInput);
       if (!isCurrentAction(requestScope, actionSeq)) return;
       onPagePromptChanged(updatedPrompt);
       void onPagePromptsChanged();
@@ -678,6 +738,9 @@ export function MangaChapterDetailPanel({
         addToast(extractErrorMessage(err, t("comic.prompt.bindFailed")), "error");
       }
     } finally {
+      if (isCurrentAction(requestScope, actionSeq)) {
+        setUploadingReferenceBindingKey(null);
+      }
       finishAction(actionSeq);
     }
   };
@@ -966,6 +1029,158 @@ export function MangaChapterDetailPanel({
     }
   };
 
+  const importReferenceImage = async (sourceImage: GeneratedImage): Promise<GeneratedImage> => {
+    const isAvailableToMangaProject = projectImages.some(
+      (image) => image.id === sourceImage.id && image.project_id === sourceImage.project_id,
+    );
+    if (!isAvailableToMangaProject) {
+      throw new Error(t("comic.prompt.referenceImageOutsideLibrary"));
+    }
+    const reusableMaterial =
+      sourceImage.image_type === "scene_material" ||
+      sourceImage.image_type === "object_material";
+    if (
+      sourceImage.project_id === projectId &&
+      sourceImage.image_type !== "manga_page" &&
+      (sourceImage.chapter_id == null ||
+        sourceImage.chapter_id === selectedChapter?.id ||
+        reusableMaterial)
+    ) {
+      return sourceImage;
+    }
+    const existingCopy = projectImages.find((image) => {
+      if (image.project_id !== projectId) return false;
+      const metadata = image.metadata_json;
+      if (typeof metadata !== "object" || metadata === null || Array.isArray(metadata)) return false;
+      const source = metadata as Record<string, unknown>;
+      return source.source === "manga_reference_project_import" &&
+        source.source_project_id === sourceImage.project_id &&
+        source.source_image_id === sourceImage.id;
+    });
+    if (existingCopy) return existingCopy;
+    const mediaUrl = toMediaSrc(sourceImage.file_path);
+    if (!mediaUrl) throw new Error(t("comic.prompt.referenceImageUnavailable"));
+    let response: Response;
+    try {
+      response = await fetch(mediaUrl);
+    } catch {
+      throw new Error(t("comic.prompt.referenceImageReadUnavailable"));
+    }
+    if (!response.ok) {
+      throw new Error(t("comic.prompt.referenceImageReadFailed", { status: response.status }));
+    }
+    const contentLength = Number(response.headers.get("content-length"));
+    if (Number.isFinite(contentLength) && contentLength > MAX_UPLOAD_IMAGE_BYTES) {
+      throw new Error(t("characterDetail.portrait.fileTooLarge", { size: MAX_UPLOAD_IMAGE_BYTES / 1024 / 1024 }));
+    }
+    const blob = await response.blob();
+    if (blob.size > MAX_UPLOAD_IMAGE_BYTES) {
+      throw new Error(t("characterDetail.portrait.fileTooLarge", { size: MAX_UPLOAD_IMAGE_BYTES / 1024 / 1024 }));
+    }
+    const mimeType = blob.type.split(";")[0].trim().toLowerCase();
+    if (!isSupportedImageMime(mimeType)) throw new Error(t("characterDetail.portrait.invalidImage"));
+    const fileName = sourceImage.file_path.split(/[?#]/, 1)[0].split(/[\\/]/).pop() || `reference-${sourceImage.id}`;
+    const importedImage = await uploadImage(projectId, {
+      file_name: fileName,
+      mime_type: mimeType,
+      data_base64: await readFileAsBase64(new File([blob], fileName, { type: mimeType })),
+      image_type: "chapter_reference",
+      prompt: sourceImage.prompt.trim() || t("comic.prompt.projectImage"),
+      chapter_id: selectedChapter?.id ?? null,
+      panel_id: null,
+      metadata_json: {
+        source: "manga_reference_project_import",
+        source_project_id: sourceImage.project_id,
+        source_image_id: sourceImage.id,
+      },
+    });
+    onProjectImageImported(importedImage);
+    return importedImage;
+  };
+
+  const handleBindDiscoveredReference = async (
+    sourceImage: GeneratedImage,
+    target: { targetKind: MangaPageReferenceTargetKind; targetName: string },
+  ) => {
+    if (!ensurePagePromptsCurrent() || !canEditManga || !selectedChapter) return;
+    if (referenceUploadBusyRef.current || actionBusyRef.current) return;
+    const pagePrompt = pagePromptsRef.current.find((prompt) => prompt.page_number === selectedPageNumber);
+    if (!pagePrompt) {
+      addToast(t("comic.prompt.notFound"), "error");
+      return;
+    }
+    const requestScope = scopeKey;
+    referenceUploadBusyRef.current = true;
+    setUploadingReferenceBindingKey(`${pagePrompt.id}:manual-reference`);
+    try {
+      const discovery = pagePrompt.reference_discovery ?? {
+        schema_version: "manga_page_reference_discovery_v1",
+        requirements: [],
+        references: [],
+      };
+      const targetReferences = discovery.references.filter(
+        (reference) =>
+          reference.target_kind === target.targetKind &&
+          reference.target_name === target.targetName,
+      );
+      if (targetReferences.length >= 2) {
+        throw new Error(t("comic.prompt.referenceTargetLimitReached"));
+      }
+      const imported = await importReferenceImage(sourceImage);
+      if (!isCurrentScope(requestScope)) return;
+      const requirement = discovery.requirements.find(
+        (item) => item.target_kind === target.targetKind && item.target_name === target.targetName,
+      );
+      const payload = {
+        ...discovery,
+        requirements: discovery.requirements,
+        references: [
+          ...discovery.references.filter(
+            (reference) => reference.asset.asset_kind !== "generated_image" || reference.asset.asset_id !== imported.id,
+          ),
+          {
+            asset: { asset_kind: "generated_image" as const, asset_id: imported.id, image_path: imported.file_path },
+            target_kind: target.targetKind,
+            target_name: target.targetName,
+            description: requirement?.description ?? (imported.prompt.trim() || t("comic.prompt.projectImage")),
+            usage: requirement?.usage ?? t("comic.prompt.manualReferenceUsage"),
+          },
+        ],
+      };
+      await handleSaveStageArtifact("reference_discovery", pagePrompt.page_number, payload);
+    } catch (error) {
+      if (!isCurrentScope(requestScope)) return;
+      throw error;
+    } finally {
+      referenceUploadBusyRef.current = false;
+      if (isCurrentScope(requestScope)) setUploadingReferenceBindingKey(null);
+    }
+  };
+
+  const handleUnbindDiscoveredReference = async (
+    assetKind: MangaReferenceAssetKind,
+    assetId: number,
+  ) => {
+    if (!ensurePagePromptsCurrent() || !canEditManga || !selectedChapter) return;
+    const pagePrompt = pagePromptsRef.current.find(
+      (prompt) => prompt.page_number === selectedPageNumber,
+    );
+    if (!pagePrompt) {
+      addToast(t("comic.prompt.notFound"), "error");
+      return;
+    }
+    const discovery = pagePrompt.reference_discovery;
+    if (!discovery?.references.some(
+      (reference) => reference.asset.asset_kind === assetKind && reference.asset.asset_id === assetId,
+    )) return;
+    await handleSaveStageArtifact("reference_discovery", pagePrompt.page_number, {
+      ...discovery,
+      references: discovery.references.filter(
+        (reference) => reference.asset.asset_kind !== assetKind || reference.asset.asset_id !== assetId,
+      ),
+    });
+  };
+
   const handleDeleteStageArtifact = async (
     stage: MangaPipelineArtifactStage,
     pageNumber: number,
@@ -1037,6 +1252,10 @@ export function MangaChapterDetailPanel({
     stage: MangaPipelineArtifactStage,
     pageNumber: number,
   ) => {
+    const pagePrompt = pagePromptsRef.current.find(
+      (prompt) => prompt.page_number === pageNumber,
+    );
+    if (!pagePrompt || mangaPagePipelineStageHasOutput(pagePrompt, stage)) return;
     const stopAfter: Partial<Record<MangaPipelineArtifactStage, MangaPipelineStopAfter>> = {
       page_adaptation: "page_adaptation",
       storyboard: "storyboard",
@@ -1097,10 +1316,21 @@ export function MangaChapterDetailPanel({
         mangaPageStageNeedsGeneration(prompt, stageMode),
       );
   const mangaResultStale = stalePagePromptCount > 0;
+  const pagePlanningHasStaleOutput = pageSlotsArtifactStale || pipelineTargetPages.some(
+    (prompt) =>
+      (mangaPagePipelineStageHasOutput(prompt, "page_content") &&
+        prompt.stale_stages.includes("page_content")) ||
+      (mangaPagePipelineStageHasOutput(prompt, "page_adaptation") &&
+        prompt.stale_stages.includes("page_adaptation")),
+  );
+  const pipelineHasStaleOutput =
+    mangaResultStale || pageSlotsArtifactStale || preprocessingArtifactStale;
   const pipelineFailed =
     pipelineStoppedWithError && !pipelineCanResume;
   const showPipelineDirectAction =
-    !hasMangaResult || pipelineCanResume || pipelineFailed || mangaResultStale || hasIncompletePages;
+    stageMode !== "visual_design" &&
+    stageMode !== "image_creation" &&
+    (!hasMangaResult || pipelineCanResume || pipelineFailed || mangaResultStale || hasIncompletePages);
   const pipelineDirectVariant =
     mangaResultStale && !pipelineCanResume && !pipelineFailed
       ? "secondary"
@@ -1146,7 +1376,9 @@ export function MangaChapterDetailPanel({
     detailBusy ||
     !selectedChapterReady ||
     selectedChapterGenerating ||
-    (pageScopedStage && selectedPageNumber == null);
+    (pageScopedStage && selectedPageNumber == null) ||
+    (stageMode == null && pipelineHasStaleOutput) ||
+    (stageMode === "page_planning" && pagePlanningHasStaleOutput);
   const pipelineMenuItems: DropdownItem[] = [];
   if (canEditManga && selectedChapter && !pipelineRunning && stageMode == null) {
     if (showPipelineDirectAction) {
@@ -1161,35 +1393,6 @@ export function MangaChapterDetailPanel({
             pipelineStopAfter,
             pipelinePageNumber,
             pipelineRunStage,
-          ),
-      });
-    }
-    if (
-      pipelineCanResume ||
-      (hasMangaResult && !mangaResultStale && !pipelineFailed)
-    ) {
-      pipelineMenuItems.push({
-        label: t("comic.prompt.fromStart"),
-        icon: <Play size={12} />,
-        disabled: pipelineMainDisabled || pipelineStartBusy,
-        onClick: () =>
-          onRunPipeline(
-            "start",
-            pipelineRestartTarget?.stopAfter ?? pipelineStopAfter,
-            pipelinePageNumber,
-            pipelineRestartTarget?.runStage ?? pipelineRunStage,
-          ),
-      });
-      pipelineMenuItems.push({
-        label: t("comic.prompt.fromStartRequest"),
-        icon: <Eye size={12} />,
-        disabled: pipelineMainDisabled || pipelineStartBusy,
-        onClick: () =>
-          onPreviewPipeline(
-            "start",
-            pipelineRestartTarget?.stopAfter ?? pipelineStopAfter,
-            pipelinePageNumber,
-            pipelineRestartTarget?.runStage ?? pipelineRunStage,
           ),
       });
     }
@@ -1285,6 +1488,9 @@ export function MangaChapterDetailPanel({
                       </span>
                     ) : pipelineStageActions.length > 0 ? (
                       pipelineStageActions.map((action) => {
+                        const mode = stageMode === "visual_design"
+                          ? "start"
+                          : pipelineCanResume ? "resume" : "start";
                         const disabled =
                           pipelineMainDisabled ||
                           pipelineResumeBusy ||
@@ -1292,12 +1498,12 @@ export function MangaChapterDetailPanel({
                           !action.prerequisiteReady;
                         return (
                           <BookButton
-                            key={action.runStage}
+                            key={action.stopAfter}
                             size="sm"
                             variant={action.runStage === "image" ? "primary" : "secondary"}
                             onClick={() =>
                               onRunPipeline(
-                                pipelineCanResume ? "resume" : "start",
+                                mode,
                                 action.stopAfter,
                                 pipelinePageNumber,
                                 action.runStage,
@@ -1409,6 +1615,16 @@ export function MangaChapterDetailPanel({
                     : undefined
                 }
                 onBindReferenceImage={mangaStageAllowsReferenceBinding(stageMode) ? handleBindReferenceImage : undefined}
+                onBindDiscoveredReference={
+                  mangaStageAllowsReferenceBinding(stageMode)
+                    ? handleBindDiscoveredReference
+                    : undefined
+                }
+                onUnbindDiscoveredReference={
+                  mangaStageAllowsReferenceBinding(stageMode)
+                    ? handleUnbindDiscoveredReference
+                    : undefined
+                }
                 onUploadReferenceImage={
                   mangaStageAllowsReferenceBinding(stageMode)
                     ? handleUploadReferenceImage
@@ -1417,7 +1633,9 @@ export function MangaChapterDetailPanel({
                 uploadingReferenceBindingKey={uploadingReferenceBindingKey}
                 onUpdatePrompt={handleUpdatePrompt}
                 onSaveStageArtifact={handleSaveStageArtifact}
-                onGenerateStageArtifact={handleGenerateStageArtifact}
+                onGenerateStageArtifact={
+                  stageMode === "visual_design" ? undefined : handleGenerateStageArtifact
+                }
                 onDeleteStageArtifact={handleDeleteStageArtifact}
                 onDeleteOrphanedPage={handleDeleteOrphanedPage}
                 onOptimizePrompt={handleOptimizePrompt}

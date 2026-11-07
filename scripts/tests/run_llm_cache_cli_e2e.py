@@ -51,7 +51,7 @@ def main():
                 before = len(provider_log_entries(args.provider_log))
                 prior = call("get_generation_call_analytics", {"days": 1, "recent_limit": 200})
                 previous_id = max((row["id"] for row in prior["recent_llm_calls"]), default=0)
-                project = call("create_freeform_video_project", {"title": "cache " + protocol, "description": "isolated cache regression"})
+                project = call("create_canvas_project", {"title": "cache " + protocol, "description": "isolated cache regression"})
                 graph = call("save_canvas_graph", {"project_id": project["id"], "expected_version": None, "graph": {
                     "id": None, "name": "cache " + protocol, "graph_kind": "video_studio", "viewport_json": None,
                     "nodes": [

@@ -691,7 +691,7 @@ where
         ))
         .await?
         .ok_or_else(|| {
-            GenerationLifecycleGateError::NotFound(format!("project 不存在: {project_id}"))
+            GenerationLifecycleGateError::NotFound(format!("项目不存在: {project_id}"))
         })?;
     Ok(ProjectMetadata {
         user_id: row.try_get("", "user_id")?,
@@ -747,7 +747,7 @@ where
         ))
         .await?
         .ok_or_else(|| {
-            GenerationLifecycleGateError::NotFound(format!("project 不存在: {project_id}"))
+            GenerationLifecycleGateError::NotFound(format!("项目不存在: {project_id}"))
         })?;
     Ok(LockedProjectGate {
         user_id: row.try_get("", "user_id")?,

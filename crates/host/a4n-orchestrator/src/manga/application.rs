@@ -30,7 +30,7 @@ use super::pipeline::prompt::manga_pipeline_prompt_assembly_call_key;
 use super::{
     MangaGeneratePagePromptsInput, MangaPipelineRequestPreviewInput,
     MangaPipelineRequestPreviewStep, MangaPromptOptimizationInput, ensure_manga_source_can_write,
-    validate_manga_page_scope,
+    is_manga_visual_design_range, validate_manga_page_scope,
 };
 use crate::{OrchestratorContext, prompt_records::PromptRendererAdapter};
 use a4n_domain::collaboration::ProjectAccessRole;
@@ -87,6 +87,13 @@ fn manga_pipeline_prompts_for_run(
     stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
 ) -> Vec<&'static str> {
     use a4n_api_contract::manga::MangaPipelineStopAfter as StopAfter;
+    if is_manga_visual_design_range(run_stage, stop_after) {
+        return vec![
+            "manga_page_adaptation_plan",
+            "manga_page_storyboard",
+            "manga_page_reference_discovery",
+        ];
+    }
     if let Some(stage) = run_stage {
         return match stage {
             MangaPipelineArtifactStage::Preprocessing => vec!["manga_preprocessing"],
@@ -150,6 +157,18 @@ fn validate_manga_run_stage_scope(
     }
 }
 
+fn validate_manga_run_scope(
+    run_stage: Option<MangaPipelineArtifactStage>,
+    stop_after: Option<a4n_api_contract::manga::MangaPipelineStopAfter>,
+    page_number: Option<u32>,
+) -> Result<(), AppError> {
+    if is_manga_visual_design_range(run_stage, stop_after) {
+        Ok(())
+    } else {
+        validate_manga_run_stage_scope(run_stage, page_number)
+    }
+}
+
 fn validate_manga_storyboard_prompt_contract(prompt: &str) -> Result<(), AppError> {
     if prompt.contains("\"layer_index\"") && !prompt.contains("\"layer_number\"") {
         return Ok(());
@@ -170,7 +189,7 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<(), AppError> {
         validate_manga_page_scope(page_number, stop_after)?;
-        validate_manga_run_stage_scope(run_stage, page_number)?;
+        validate_manga_run_scope(run_stage, stop_after, page_number)?;
         let prompt_names = manga_pipeline_prompts_for_run(run_stage, stop_after);
         let source = self
             .chapter_manga_source_by_number(project_id, chapter_number, true)
@@ -269,6 +288,15 @@ impl OrchestratorContext {
         );
         let source = source_result?;
         ensure_manga_source_can_write(&source, "启动漫画流水线")?;
+        if !input.resume_from_checkpoint {
+            self.ensure_manga_requested_stage_output_absent(
+                input.project_id,
+                source.chapter_id,
+                input.run_stage,
+                input.page_number,
+            )
+            .await?;
+        }
         let character_portraits = character_portraits_result?;
         let asset_project_ids = self
             .manga_reference_asset_project_ids(input.project_id)
@@ -285,9 +313,7 @@ impl OrchestratorContext {
                 &available_reference_images,
                 input.task_id.to_string(),
                 input.resume_from_checkpoint,
-                input.stop_after,
                 input.run_stage,
-                input.page_number,
             )
             .await?;
         let result = self
@@ -320,8 +346,13 @@ impl OrchestratorContext {
         &self,
         input: MangaPipelinePreviewApplicationInput<'_>,
     ) -> Result<Vec<MangaPipelineRequestPreviewStep>, AppError> {
+        if is_manga_visual_design_range(input.run_stage, input.stop_after) {
+            return Err(AppError::InvalidArgument(
+                "分镜与参考图组合运行不支持请求预览".into(),
+            ));
+        }
         validate_manga_page_scope(input.page_number, input.stop_after)?;
-        validate_manga_run_stage_scope(input.run_stage, input.page_number)?;
+        validate_manga_run_scope(input.run_stage, input.stop_after, input.page_number)?;
         let (source_result, character_portraits_result) = futures::join!(
             self.chapter_manga_source_by_number(input.project_id, input.chapter_number, true),
             self.manga_character_portrait_refs(input.project_id),
@@ -352,15 +383,7 @@ impl OrchestratorContext {
                 .id,
             )
         } else {
-            self.completed_manga_pipeline_stage_workflow(
-                input.project_id,
-                source.chapter_id,
-                &workflow_fingerprint,
-                input.stop_after,
-                input.page_number,
-            )
-            .await?
-            .map(|run| run.id)
+            None
         };
         self.preview_generate_page_prompt_requests(MangaPipelineRequestPreviewInput {
             chapter_id: source.chapter_id,
@@ -828,6 +851,46 @@ impl a4n_api_contract::manga::MangaPipelineExecutionApplicationPort for Orchestr
 }
 
 impl OrchestratorContext {
+    async fn ensure_manga_requested_stage_output_absent(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        run_stage: Option<MangaPipelineArtifactStage>,
+        page_number: Option<u32>,
+    ) -> Result<(), AppError> {
+        let Some(stage) = run_stage else {
+            return Ok(());
+        };
+        if stage == MangaPipelineArtifactStage::ReferenceBindings {
+            return Ok(());
+        }
+        if self
+            .manga_pipeline_artifact(project_id, chapter_id, stage, page_number)
+            .await?
+            .is_some()
+        {
+            return Err(super::record_errors::manga_stage_output_exists_error(
+                stage,
+                page_number,
+            ));
+        }
+        if stage == MangaPipelineArtifactStage::Image {
+            let page = page_number
+                .ok_or_else(|| AppError::InvalidArgument("页级漫画步骤必须指定页码".into()))?;
+            if self
+                .manga_page_prompt_for_image_generation(project_id, chapter_id, page as i32)
+                .await?
+                .is_some_and(|prompt| prompt.generated_image_id.is_some())
+            {
+                return Err(AppError::InvalidState {
+                    current: "manga_page_image_exists".into(),
+                    operation: format!("第 {page} 页已有成图，请先删除后再生成"),
+                });
+            }
+        }
+        Ok(())
+    }
+
     pub async fn run_manga_pipeline_generation_task(
         &self,
         user_id: i64,

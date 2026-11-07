@@ -21,6 +21,7 @@ name: manga_page_drawing_prompt
 - 明确唯一 dominant panel 的位置、尺寸和视觉主次；其余格保持各自功能，不平均分割页面。
 - 逐条保留 `text_layers` 的 kind、speaker、原文 text、placement 和 avoid_covering；不得改写台词，不得新增文字。
 - 角色外观使用 `page_context.characters` 和 `reference_assets`，同一角色全页一致。
+- 使用 `reference_requirements` 作为文字视觉约束；这些需求不代表存在对应图片。没有匹配图片时仍遵守需求中的页面事实和连续性，但不得声称看过或引用了不存在的图片。
 - 必须读取 `reference_images`：如果列表非空，在 `image_prompt` 中加入清楚的“参考图用途”段落，按 `slot_label` 顺序逐张写明图片描述、对应目标和本页要保持的视觉信息；不要遗漏系统发现的素材，也不要把用户补充素材写成必需条件。
 - 如果 `reference_images` 为空，不要编造参考图、图片编号或参考用途。
 - 明确画格边框、gutter、阅读入口与出口，防止错序、合格、漏格和文字遮挡。

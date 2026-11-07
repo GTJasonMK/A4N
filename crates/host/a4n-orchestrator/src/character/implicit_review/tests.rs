@@ -81,6 +81,40 @@ fn review_respects_chapter_window() {
 }
 
 #[test]
+fn review_counts_every_behavior_in_the_last_chapter_without_expanding_evidence() {
+    let records = vec![
+        behavior(1, 5, json!({"乐观": "conform"})),
+        behavior(2, 4, json!({"谨慎": "non-conform"})),
+        behavior(3, 4, json!({"谨慎": "conform"})),
+        behavior(4, 3, json!({"谨慎": "non-conform"})),
+        behavior(5, 3, json!({"谨慎": "non-conform"})),
+        behavior(6, 2, json!({"谨慎": "non-conform"})),
+    ];
+    for (window, expected_non_conform) in [(1, 1), (2, 3)] {
+        let review =
+            build_implicit_attribute_review("谨慎", json!("遇事先观察"), &records, 3, window, 1)
+                .expect("all behaviors in the selected chapters must count");
+        assert_eq!(review.conform_count, 1);
+        assert_eq!(review.non_conform_count, expected_non_conform);
+        assert_eq!(review.threshold_reached, window == 2);
+        assert_eq!(review.evidence.len(), 1);
+        assert_eq!(review.evidence[0].behavior_id, 2);
+    }
+}
+
+#[test]
+fn review_rejects_invalid_classification_in_the_last_window_chapter() {
+    let records = vec![
+        behavior(1, 4, json!({"谨慎": "non-conform"})),
+        behavior(2, 3, json!({"谨慎": "conform"})),
+        behavior(3, 3, json!({"谨慎": true})),
+    ];
+    let error = build_implicit_attribute_review("谨慎", json!("遇事先观察"), &records, 3, 2, 1)
+        .expect_err("the last chapter must not hide invalid classifications");
+    assert!(error.contains("行为记录 3"));
+}
+
+#[test]
 fn review_summary_lists_threshold_reached_attributes() {
     let current_state = json!({
         "implicit_attributes": {

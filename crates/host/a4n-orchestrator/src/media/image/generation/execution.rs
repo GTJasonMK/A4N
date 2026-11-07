@@ -569,12 +569,22 @@ impl OrchestratorContext {
         let chapter_id = input.chapter_id.ok_or_else(|| {
             AppError::InvalidArgument("漫画页图片完成缺少 chapter_id".to_string())
         })?;
-        self.mark_manga_page_prompt_image_completed_with_image(
-            *page_prompt_id,
-            outcome.summary.id,
-            outcome.created_at,
-        )
-        .await?;
+        if let Err(error) = self
+            .mark_manga_page_prompt_image_completed_with_image(
+                *page_prompt_id,
+                outcome.summary.id,
+                outcome.created_at,
+            )
+            .await
+        {
+            self.delete_generated_image_record_with_cleanup(outcome.summary.id)
+                .await
+                .map_err(|cleanup_error| AppError::InvalidState {
+                    current: format!("{error}；未绑定漫画页图片回收登记失败：{cleanup_error}"),
+                    operation: "回收未绑定的漫画页图片".into(),
+                })?;
+            return Err(error);
+        }
         let old_paths = self
             .delete_manga_page_image_records(
                 input.project_id,

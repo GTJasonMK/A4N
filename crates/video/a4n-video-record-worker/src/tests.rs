@@ -30,6 +30,121 @@ fn required_project_scope_rejects_missing_and_mismatched_scope() {
 }
 
 #[tokio::test]
+async fn completed_segment_plan_draft_is_readable_but_cannot_be_edited() {
+    use a4n_db::workflow::{UpsertWorkflowRunInput, upsert_workflow_run_summary};
+    use a4n_video_record_worker_contract::{
+        LoadVideoSegmentPlanDraftInput, UpdateVideoSegmentPlanDraftRecipeInput,
+        VIDEO_PROMPT_DRAFT_LOAD_OPERATION, VIDEO_PROMPT_DRAFT_UPDATE_OPERATION,
+    };
+
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let owner = insert_user(&db).await;
+    let project = a4n_db::project::create_project_record(
+        &db,
+        a4n_db::project::CreateProjectRecordInput {
+            user_id: owner.id,
+            title: "已完成规划读取".into(),
+            description: String::new(),
+            project_type: "novel_long".into(),
+        },
+    )
+    .await
+    .unwrap();
+    let chapter = insert_chapter(&db, project.id).await;
+    let run = upsert_workflow_run_summary(&db, UpsertWorkflowRunInput {
+        business_key: "completed-shared-plan".into(), workflow_kind: "video_segment_plan".into(),
+        project_id: Some(project.id), root_project_id: None, source_snapshot_id: None,
+        scope_table: None, scope_id: None, chapter_id: Some(chapter.id),
+        mode: Some("shared_segment_plan".into()),
+        input_fingerprint_json: Some(json!({
+            "schema_version": 1, "workflow_kind": "video_segment_plan", "project_id": project.id,
+            "chapter_id": chapter.id, "workflow_mode": "shared_segment_plan", "options": {"style": "cinematic"},
+        })),
+        status: "completed".into(), current_step_key: None, active_task_id: None,
+        can_resume: false, resume_block_reason: None, error_message: None,
+    }).await.unwrap();
+    let state = VideoRecordWorker::new(db, VIDEO_RECORD_WORKER_ID, "test-token").state;
+    let input = LoadVideoSegmentPlanDraftInput {
+        project_id: project.id,
+        chapter_id: chapter.id,
+        workflow_run_id: run.id,
+    };
+    let summary = state
+        .load_video_segment_plan_draft(draft_request(
+            owner.id,
+            project.id,
+            VIDEO_PROMPT_DRAFT_LOAD_OPERATION,
+            input.clone(),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(summary.run.status, "completed");
+    assert!(!summary.run.can_resume);
+    assert!(summary.segments.is_empty());
+    let wrong_chapter = LoadVideoSegmentPlanDraftInput {
+        chapter_id: chapter.id + 1,
+        ..input
+    };
+    assert!(
+        state
+            .load_video_segment_plan_draft(draft_request(
+                owner.id,
+                project.id,
+                VIDEO_PROMPT_DRAFT_LOAD_OPERATION,
+                wrong_chapter
+            ))
+            .await
+            .is_err()
+    );
+    let segments = vec![segment(1)];
+    let recipe = default_video_segment_recipes(&segments, "cinematic", "zh_cn")
+        .unwrap()
+        .remove(0);
+    let failure = state
+        .update_video_segment_plan_draft_recipe(draft_request(
+            owner.id,
+            project.id,
+            VIDEO_PROMPT_DRAFT_UPDATE_OPERATION,
+            UpdateVideoSegmentPlanDraftRecipeInput {
+                project_id: project.id,
+                chapter_id: chapter.id,
+                workflow_run_id: run.id,
+                source_shot_id: "stable-shot".into(),
+                segment_index_in_shot: 1,
+                recipe,
+            },
+        ))
+        .await
+        .unwrap_err();
+    assert!(failure.message().contains("completed:更新片段规划草稿"));
+}
+
+fn draft_request<T>(
+    user_id: i64,
+    project_id: i64,
+    operation: &str,
+    payload: T,
+) -> WorkerEnvelope<T> {
+    WorkerEnvelope {
+        schema_version: WORKER_SCHEMA_VERSION,
+        request_id: "draft-read-test".into(),
+        trace_id: "draft-read-test".into(),
+        principal: WorkerPrincipal {
+            kind: WorkerPrincipalKind::User,
+            subject: user_id.to_string(),
+        },
+        operation_id: operation.into(),
+        idempotency_key: "draft-read-test".into(),
+        project_id: Some(project_id),
+        root_project_id: None,
+        target_revision: None,
+        runtime_config_snapshot_ref: None,
+        lease: WorkerLease::control_request(VIDEO_RECORD_WORKER_ID),
+        payload,
+    }
+}
+
+#[tokio::test]
 async fn select_segment_rejects_stale_or_corrupt_plan_without_adopting_video() {
     let db = a4n_migration::test_support::connect_test_database().await;
     let owner = insert_user(&db).await;

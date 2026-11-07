@@ -12,16 +12,21 @@ use a4n_domain::media::{
     UpdateGeneratedImageRecordInput,
 };
 use chrono::{Duration, Utc};
-use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, PaginatorTrait, Set};
+use sea_orm::{
+    ActiveModelTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryOrder, QuerySelect, Set,
+};
 use serde_json::json;
 
 use crate::video::{
     VideoDbError, create_generated_image_record, create_generated_video_record,
     delete_generated_image_record_with_cleanup, generated_image_ids_by_ids,
+    video_asset_project_ids_record,
 };
 
 async fn setup_db() -> DatabaseConnection {
-    a4n_migration::test_support::connect_test_database().await
+    let db = a4n_migration::test_support::connect_test_database().await;
+    a4n_test_support::database::ensure_test_user(&db, 1).await;
+    db
 }
 
 async fn text_project(db: &impl crate::DbExecutor, title: &str) -> novel_project::Model {
@@ -64,7 +69,7 @@ fn image_input(project_id: i64) -> CreateGeneratedImageRecordDraftInput {
     CreateGeneratedImageRecordDraftInput {
         project_id,
         image_type: "scene".to_string(),
-        file_path: "images/scene.png".to_string(),
+        file_path: format!("projects/{project_id}/images/scene.png"),
         prompt: "draw scene".to_string(),
         model: "test-model".to_string(),
         width: 512,
@@ -79,6 +84,20 @@ fn image_input(project_id: i64) -> CreateGeneratedImageRecordDraftInput {
 
 async fn image_count(db: &impl crate::DbExecutor) -> u64 {
     generated_image::Entity::find().count(db).await.unwrap()
+}
+
+async fn missing_project_id(db: &DatabaseConnection) -> i64 {
+    novel_project::Entity::find()
+        .select_only()
+        .column(novel_project::Column::Id)
+        .order_by_desc(novel_project::Column::Id)
+        .into_tuple::<i64>()
+        .one(db)
+        .await
+        .unwrap()
+        .unwrap_or_default()
+        .checked_add(1)
+        .expect("the test database project ID sequence must have capacity")
 }
 
 #[tokio::test]
@@ -99,6 +118,28 @@ async fn generated_image_ids_by_ids_returns_existing_only() {
             .await
             .unwrap()
             .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn canvas_generated_media_uses_its_own_project_scope() {
+    let db = setup_db().await;
+    let project = crate::project::create_canvas_project_record(
+        &db,
+        1,
+        crate::project::CreateCanvasProjectParams {
+            title: "画布媒体范围".to_string(),
+            description: String::new(),
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        video_asset_project_ids_record(&db, project.id)
+            .await
+            .unwrap(),
+        vec![project.id]
     );
 }
 
@@ -414,14 +455,16 @@ async fn create_boundary_frame_image_does_not_mutate_next_frame_references() {
 #[tokio::test]
 async fn create_rejects_missing_project_without_insert() {
     let db = setup_db().await;
+    let missing_project_id = missing_project_id(&db).await;
 
-    let error = create_generated_image_record(&db, image_input(404))
+    let error = create_generated_image_record(&db, image_input(missing_project_id))
         .await
         .expect_err("missing project must not create orphan image");
 
     assert!(matches!(
         error,
-        VideoDbError::NotFound(message) if message == "项目不存在: 404"
+        VideoDbError::NotFound(message)
+            if message == format!("项目不存在: {missing_project_id}")
     ));
     assert_eq!(image_count(&db).await, 0);
 }

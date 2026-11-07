@@ -196,6 +196,19 @@ impl MangaApplication {
         .map_err(manga_prompt_record_error)
     }
 
+    async fn create_manga_pipeline_artifact(
+        &self,
+        draft: MangaPipelineArtifactDraft,
+    ) -> Result<MangaPipelineArtifactRecord, AppError> {
+        a4n_db::manga::create_manga_pipeline_artifact(
+            self.database.executor(),
+            draft,
+            chrono::Utc::now().naive_utc(),
+        )
+        .await
+        .map_err(manga_prompt_record_error)
+    }
+
     async fn save_manga_pipeline_artifact_with_projection(
         &self,
         draft: MangaPipelineArtifactDraft,
@@ -375,6 +388,13 @@ impl OrchestratorContext {
         draft: MangaPipelineArtifactDraft,
     ) -> Result<MangaPipelineArtifactRecord, AppError> {
         self.manga.upsert_manga_pipeline_artifact(draft).await
+    }
+
+    pub(crate) async fn create_manga_pipeline_artifact(
+        &self,
+        draft: MangaPipelineArtifactDraft,
+    ) -> Result<MangaPipelineArtifactRecord, AppError> {
+        self.manga.create_manga_pipeline_artifact(draft).await
     }
 
     pub(crate) async fn save_manga_pipeline_artifact_with_projection(

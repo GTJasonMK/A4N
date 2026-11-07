@@ -41,6 +41,31 @@ fn validate_variables_reports_if_condition_variables() {
 }
 
 #[test]
+fn defined_guard_makes_only_its_branch_variable_optional() {
+    let engine = TeraPromptEngine::with_defaults(vec![make_entry(
+        "test",
+        "{% if optimization.direction is defined %}{% if optimization.direction %}{{ optimization.direction }}{% endif %}{% endif %} {{ required.value }}",
+    )])
+    .unwrap();
+    let provided = HashSet::new();
+
+    assert_eq!(
+        engine.validate_variables("test", &provided).unwrap(),
+        vec!["required"]
+    );
+    assert_eq!(
+        crate::variables::template_variable_access_paths(
+            engine.get("test").unwrap().content.as_str()
+        )
+        .unwrap(),
+        vec![
+            vec!["optimization".to_string(), "direction".to_string()],
+            vec!["required".to_string(), "value".to_string()]
+        ]
+    );
+}
+
+#[test]
 fn validate_variables_uses_for_loop_container_not_loop_local() {
     let engine = TeraPromptEngine::with_defaults(vec![make_entry(
         "test",

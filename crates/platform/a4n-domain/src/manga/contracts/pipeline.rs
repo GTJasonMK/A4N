@@ -12,6 +12,7 @@ pub const MANGA_PAGE_PIPELINE_STATE_V1: &str = "manga_page_pipeline_state_v1";
 pub const MANGA_PAGE_SLOT_LIMIT: usize = 100;
 pub const MANGA_PAGE_REFERENCE_DISCOVERY_V1: &str = "manga_page_reference_discovery_v1";
 pub const MANGA_PAGE_REFERENCE_IMAGE_LIMIT: usize = 12;
+pub const MANGA_PAGE_REFERENCE_REQUIREMENT_LIMIT: usize = 24;
 pub const MANGA_PREPROCESSING_V3: &str = "manga_preprocessing_v3";
 
 pub fn manga_preprocessing_input_fingerprint(
@@ -226,6 +227,14 @@ pub struct MangaPageSlotV1 {
 }
 
 impl MangaPageSlotsV1 {
+    /// A page starts in the state left by the previous page.
+    pub fn carry_forward_entry_states(&mut self) {
+        for index in 1..self.pages.len() {
+            let previous_exit_state = self.pages[index - 1].content.exit_state.clone();
+            self.pages[index].content.entry_state = previous_exit_state;
+        }
+    }
+
     pub fn validate(&self) -> Result<(), String> {
         if self.pages.is_empty() {
             return Err("pages 至少需要一页".into());
@@ -544,8 +553,20 @@ pub struct MangaPageReferenceImageV1 {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
+pub struct MangaPageReferenceNeedV1 {
+    pub target_kind: MangaPageReferenceTargetKind,
+    pub target_name: String,
+    pub description: String,
+    pub usage: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct MangaPageReferenceDiscoveryV1 {
     pub schema_version: String,
+    #[serde(default)]
+    pub requirements: Vec<MangaPageReferenceNeedV1>,
+    #[serde(default)]
     pub references: Vec<MangaPageReferenceImageV1>,
 }
 
@@ -560,6 +581,25 @@ impl MangaPageReferenceDiscoveryV1 {
             return Err(format!(
                 "references 不能超过 {MANGA_PAGE_REFERENCE_IMAGE_LIMIT} 项"
             ));
+        }
+        if self.requirements.len() > MANGA_PAGE_REFERENCE_REQUIREMENT_LIMIT {
+            return Err(format!(
+                "requirements 不能超过 {MANGA_PAGE_REFERENCE_REQUIREMENT_LIMIT} 项"
+            ));
+        }
+        for (index, requirement) in self.requirements.iter().enumerate() {
+            let target_name = requirement.target_name.trim();
+            if target_name.is_empty() || target_name.chars().count() > 100 {
+                return Err(format!("requirements[{index}].target_name 无效"));
+            }
+            let description = requirement.description.trim();
+            if description.is_empty() || description.chars().count() > 600 {
+                return Err(format!("requirements[{index}].description 无效"));
+            }
+            let usage = requirement.usage.trim();
+            if usage.is_empty() || usage.chars().count() > 400 {
+                return Err(format!("requirements[{index}].usage 无效"));
+            }
         }
         let mut assets = std::collections::HashSet::with_capacity(self.references.len());
         for (index, reference) in self.references.iter().enumerate() {

@@ -3,6 +3,8 @@ set -euo pipefail
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$project_root/target}"
+# Keep script-driven builds responsive; callers can override this limit.
+export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}"
 
 if [[ "${CARGO_ARTIFACTS_DISABLED:-0}" == "1" ]]; then
     exec cargo "$@"

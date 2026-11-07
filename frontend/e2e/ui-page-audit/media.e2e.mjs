@@ -36,7 +36,25 @@ async function ready() {
 async function openRoute(path) {
   await browser.url("/");
   await browser.switchToWindow(await browser.getWindowHandle());
-  await $(".a4n-home-content").waitForDisplayed();
+  try {
+    await $(".a4n-home-content").waitForDisplayed();
+  } catch (cause) {
+    const state = await browser.execute(() => ({
+      url: location.href,
+      readyState: document.readyState,
+      fixtureInstalled: Boolean(window.__uiAudit),
+      bodyText: document.body.innerText.slice(0, 1200),
+      html: document.documentElement.outerHTML.slice(0, 1200),
+      errors: window.__uiAudit?.errors ?? [],
+      requests: window.__uiAudit?.requests.slice(-12).map(({ command, body }) => ({ command, body })) ?? [],
+      nativeRuntime: "__TAURI_INTERNALS__" in window,
+      nativeStorageCalls: window.__uiAudit?.nativeStorage?.calls.map(({ command }) => command) ?? [],
+      modules: performance.getEntriesByType("resource")
+        .filter((entry) => /\/@vite\/client|\/src\/(main|App)\.tsx/.test(entry.name))
+        .map((entry) => ({ name: entry.name, responseStatus: entry.responseStatus, duration: entry.duration })),
+    }));
+    throw new Error(`首页未能打开，无法进入 ${path}：${JSON.stringify(state)}`, { cause });
+  }
   await browser.execute(() => {
     for (const key of Object.keys(localStorage)) {
       if (key.startsWith("a4n:video:") || key.startsWith("a4n:video-canvas:")) localStorage.removeItem(key);
@@ -216,8 +234,7 @@ async function configureTextAssetFixtures(assets = [textAsset], projectId = 2, v
 
 async function openComicTextMaterials(assets = [textAsset], beforeOpen = async () => {}, versions) {
   await browser.execute(() => localStorage.setItem("a4n:comic:2:stage", "materials"));
-  await browser.url("/comic-project/2");
-  await $(".a4n-page-header h1").waitForDisplayed();
+  await openRoute("/comic-project/2");
   await ready();
   await configureTextAssetFixtures(assets, 2, versions);
   await beforeOpen();
@@ -2076,7 +2093,6 @@ describe("Populated media pages and task dialogs", () => {
     await browser.setWindowSize(1440, 1000);
     await openComicTextMaterials([textAsset], async () => browser.execute(() => {
       window.__uiAudit.failNext.push(
-        { command: "list_canvas_text_assets", status: 503, message: "Injected initial text asset read failure" },
         { command: "list_canvas_text_assets", status: 503, message: "Injected initial text asset read failure" },
       );
     }));

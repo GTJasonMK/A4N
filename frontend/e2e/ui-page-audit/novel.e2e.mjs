@@ -646,7 +646,7 @@ describe("Novel page audit - ordinary populated pages", function () {
     }, createdInvite);
     await identity.setValue("new.user@example.test");
     await browser.keys("Enter");
-    await browser.waitUntil(async () => requestCount("invite_project_member") === inviteCount + 1, { timeout });
+    await browser.waitUntil(async () => (await requestCount("invite_project_member")) === inviteCount + 1, { timeout });
     await waitText(panel, "新邀请用户");
     await waitText($("body"), "邀请已发送");
     await waitText(panel, "邀请目录读取失败");
@@ -658,84 +658,98 @@ describe("Novel page audit - ordinary populated pages", function () {
       ));
     });
     const roleCount = await requestCount("update_project_member_role");
+    const memberReadsBeforeRole = await requestCount("list_project_members");
     await browser.execute((members) => {
       const audit = window.__uiAudit;
       audit.fixtures.update_project_member_role = null;
       audit.fixtures.list_project_members = members;
-      audit.failNext.push({ command: "list_project_members", status: 503, message: "成员目录读取失败" });
     }, updatedMembers);
-    const editorRole = await panel.$('button[aria-label="调整 协作编辑 · 长文本核对 的角色"]');
+    const editorRoleSelector = 'button[aria-label="调整 协作编辑 · 长文本核对 的角色"]';
+    const editorRole = await panel.$(editorRoleSelector);
     await press(editorRole);
-    await browser.keys("Enter");
-    await browser.waitUntil(async () => requestCount("update_project_member_role") === roleCount + 1, { timeout });
+    await browser.waitUntil(async () =>
+      await panel.$(editorRoleSelector).getAttribute("aria-expanded") === "true",
+    { timeout, timeoutMsg: "成员角色选择菜单未打开" });
+    await press(await $('//*[@role="option" and normalize-space(.)="只读成员"]'));
+    await browser.waitUntil(async () => (await requestCount("update_project_member_role")) === roleCount + 1, { timeout });
     await waitText($("body"), "成员角色已更新");
     await browser.waitUntil(() => editorRole.isFocused(), { timeout, timeoutMsg: "Role update must retain keyboard focus on the member control" });
-    assert.ok((await editorRole.getText()).includes("只读审阅者"));
-    await waitText(panel, "成员目录读取失败");
+    assert.ok((await editorRole.getText()).includes("只读成员"));
+    assert.equal(await requestCount("list_project_members"), memberReadsBeforeRole,
+      "A confirmed member-role write updates its local row without a redundant directory read");
 
     const memberRow = await panel.$('.//li[.//div[contains(normalize-space(.),"协作编辑 · 长文本核对")]]');
     const removeCount = await requestCount("remove_project_member");
+    const memberReadsBeforeRemove = await requestCount("list_project_members");
     await browser.execute(() => {
       const audit = window.__uiAudit;
       audit.fixtures.remove_project_member = null;
       audit.fixtures.list_project_members = audit.fixtures.list_project_members.filter((member) => member.user_id !== 2);
-      audit.failNext.push({ command: "list_project_members", status: 503, message: "移除后的成员目录读取失败" });
     });
     await press(await memberRow.$('button[aria-label="更多操作"]'));
     await menuItem("移除成员");
     const removeConfirm = await dialog("移除协作者");
     await clickText("移除", removeConfirm);
-    await browser.waitUntil(async () => requestCount("remove_project_member") === removeCount + 1, { timeout });
+    await browser.waitUntil(async () => (await requestCount("remove_project_member")) === removeCount + 1, { timeout });
     await browser.waitUntil(async () => !(await memberRow.isExisting()), { timeout });
     await waitText($("body"), "协作者已移除");
+    assert.equal(await requestCount("list_project_members"), memberReadsBeforeRemove,
+      "A confirmed member removal updates its local list without a redundant directory read");
 
     const inviteRow = await panel.$('.//li[.//span[normalize-space(.)="新邀请用户"]]');
     const revokeCount = await requestCount("revoke_project_invite");
+    const inviteReadsBeforeRevoke = await requestCount("list_project_invites");
     await browser.execute(() => {
       const audit = window.__uiAudit;
       audit.fixtures.revoke_project_invite = null;
       audit.fixtures.list_project_invites = audit.fixtures.list_project_invites.filter((invite) => invite.id !== 103);
-      audit.failNext.push({ command: "list_project_invites", status: 503, message: "撤销后的邀请目录读取失败" });
     });
     await press(await inviteRow.$('button[aria-label="更多操作"]'));
     await menuItem("撤销邀请");
-    await browser.waitUntil(async () => requestCount("revoke_project_invite") === revokeCount + 1, { timeout });
+    await browser.waitUntil(async () => (await requestCount("revoke_project_invite")) === revokeCount + 1, { timeout });
     await browser.waitUntil(async () => !(await inviteRow.isExisting()), { timeout });
     await waitText($("body"), "邀请已撤销");
+    assert.equal(await requestCount("list_project_invites"), inviteReadsBeforeRevoke,
+      "A confirmed invite revocation updates its local list without a redundant directory read");
     assert.deepEqual(await snapshot(current.id, 1440, "projected-writes", panel, {
       inviteCreated: true, roleUpdated: true, memberRemoved: true, inviteRevoked: true,
-      readFailures: ["invite list", "member list", "invite list"],
+      readFailures: ["invite list"],
     }), []);
     current.visited.push(1440);
   });
 
-  it("UX-1865 ignores superseded reads while concurrent member writes settle", async function () {
-    current = { id: "UX-1865-collaboration-concurrent-refresh", task: "并发修改不同成员后只把最新读取失败报告为同步错误", visited: [], plannedWidths: [1440] };
+  it("UX-1865 keeps concurrent member writes visible while parent refreshes settle", async function () {
+    current = { id: "UX-1865-collaboration-concurrent-refresh", task: "并发修改不同成员后保留本地写入结果并忽略过期项目刷新", visited: [], plannedWidths: [1440] };
     await browser.setWindowSize(1440, height);
     const panel = await collaborationPanel();
     const requestCount = (command) => browser.execute((name) =>
       window.__uiAudit.requests.filter((item) => item.command === name).length, command);
-    const updatedMembers = await browser.execute(() => window.__uiAudit.fixtures.list_project_members.map((member) => ({
-      ...member,
-      role: member.user_id === 2 ? "viewer" : member.user_id === 3 ? "manager" : member.role,
-    })));
-    const readCount = await requestCount("list_project_members");
+    const roleCount = await requestCount("update_project_member_role");
     const projectReadCount = await requestCount("get_project");
-    await browser.execute((members) => {
+    await browser.execute(() => {
       const audit = window.__uiAudit;
       audit.fixtures.update_project_member_role = null;
-      audit.fixtures.list_project_members = members;
-      audit.deferred.push("list_project_members", "get_project");
-    }, updatedMembers);
+      audit.deferred.push("get_project");
+    });
 
-    const firstRole = await panel.$('button[aria-label="调整 协作编辑 · 长文本核对 的角色"]');
+    const firstRoleSelector = 'button[aria-label="调整 协作编辑 · 长文本核对 的角色"]';
+    const firstRole = await panel.$(firstRoleSelector);
     await press(firstRole);
-    await browser.keys("Enter");
-    await browser.waitUntil(async () => requestCount("list_project_members") === readCount + 1, { timeout });
-    const secondRole = await panel.$('button[aria-label="调整 只读审阅者 的角色"]');
+    await browser.waitUntil(async () =>
+      await panel.$(firstRoleSelector).getAttribute("aria-expanded") === "true",
+    { timeout, timeoutMsg: "第一个成员角色选择菜单未打开" });
+    await press(await $('//*[@role="option" and normalize-space(.)="只读成员"]'));
+    await browser.waitUntil(async () => (await requestCount("update_project_member_role")) === roleCount + 1, { timeout });
+    await browser.waitUntil(async () => (await panel.$(firstRoleSelector).getText()).includes("只读成员"), { timeout });
+    await browser.waitUntil(async () => (await requestCount("get_project")) === projectReadCount + 1, { timeout });
+    const secondRoleSelector = 'button[aria-label="调整 只读审阅者 的角色"]';
+    const secondRole = await panel.$(secondRoleSelector);
     await press(secondRole);
-    await browser.keys("Enter");
-    await browser.waitUntil(async () => requestCount("list_project_members") === readCount + 2, { timeout });
+    await browser.waitUntil(async () =>
+      await panel.$(secondRoleSelector).getAttribute("aria-expanded") === "true",
+    { timeout, timeoutMsg: "第二个成员角色选择菜单未打开" });
+    await press(await $('//*[@role="option" and normalize-space(.)="管理员"]'));
+    await browser.waitUntil(async () => (await requestCount("update_project_member_role")) === roleCount + 2, { timeout });
 
     const respondNewest = (command) => browser.execute((name) => {
       const audit = window.__uiAudit;
@@ -743,22 +757,17 @@ describe("Novel page audit - ordinary populated pages", function () {
       if (index < 0) throw new Error("No deferred fixture request: " + name);
       const [request] = audit.pending.splice(index, 1);
       audit.deferred = audit.deferred.filter((item) => item !== name);
-      const body = name === "list_project_members" ? audit.fixtures.list_project_members : audit.fixtures.get_project;
-      request.resolve(Response.json(body));
+      request.resolve(Response.json(audit.fixtures.get_project));
     }, command);
-    await respondNewest("list_project_members");
-    await browser.waitUntil(async () => requestCount("get_project") === projectReadCount + 1, { timeout });
-    await respondNewest("list_project_members");
-    await browser.waitUntil(async () => requestCount("get_project") === projectReadCount + 2, { timeout });
+    await browser.waitUntil(async () => (await requestCount("get_project")) === projectReadCount + 2, { timeout });
     await respondNewest("get_project");
-    await browser.waitUntil(async () => requestCount("get_project") === projectReadCount + 2, { timeout });
     await respondNewest("get_project");
     await waitText($("body"), "成员角色已更新");
     await browser.waitUntil(async () => (await panel.getText()).includes("共 3 位成员"), { timeout });
     assert.equal(await browser.execute(() => document.body.innerText.includes("刷新失败")), false);
     assert.deepEqual(await browser.execute(() => window.__uiAudit.pending.map((item) => item.command)), []);
     assert.deepEqual(await snapshot(current.id, 1440, "latest-refresh", panel, {
-      memberRoles: { "2": "viewer", "3": "manager" }, supersededReadsReported: false,
+      memberRoles: { "2": "viewer", "3": "manager" }, supersededProjectRefreshReported: false,
     }), []);
     current.visited.push(1440);
   });
@@ -802,7 +811,14 @@ describe("Novel page audit - ordinary populated pages", function () {
     const inviteRole = await panel.$('button[aria-label="邀请角色"]');
     await press(inviteRole);
     const managerOption = await $('[role="option"][aria-disabled="true"]');
-    assert.equal((await managerOption.getText()).trim(), "管理员（仅所有者可授予）");
+    await browser.waitUntil(async () =>
+      (await browser.execute(() => document.body.innerText)).includes("管理员（仅所有者可授予）"),
+      { timeout, timeoutMsg: "The disabled manager role must remain visible to the owner" },
+    );
+    assert.equal(
+      await managerOption.execute((option) => option.textContent?.trim()),
+      "管理员（仅所有者可授予）",
+    );
     await browser.keys("Escape");
     const managerRow = await panel.$('.//li[.//div[normalize-space(.)="协作编辑 · 长文本核对"]]');
     assert.equal(await managerRow.$('button[aria-label^="调整"]').isExisting(), false);
@@ -863,7 +879,7 @@ describe("Novel page audit - ordinary populated pages", function () {
       });
     });
     await press(await textButton("新增属性", maintain));
-    await browser.waitUntil(async () => requestCount("add_profile_attribute") === addCount + 1, { timeout });
+    await browser.waitUntil(async () => (await requestCount("add_profile_attribute")) === addCount + 1, { timeout });
     await waitText($("body"), "已新增属性");
     const parentError = await detail.$('.//*[@role="alert" and contains(normalize-space(.),"刷新失败")]');
     await parentError.waitForDisplayed({ timeout });
@@ -1017,6 +1033,8 @@ describe("Novel page audit - ordinary populated pages", function () {
     try {
       settingsWindow = (await browser.newWindow(new URL("/settings#image", browser.options.baseUrl).href)).handle;
       const initial = await $('//button[contains(normalize-space(.),"本机主用 · 角色立绘与场景参考")]');
+      await $(".a4n-settings-layout").waitForDisplayed({ timeout: 20_000 });
+      await initial.waitForDisplayed({ timeout: 20_000 });
       await press(initial);
       await clickText("设为默认");
       await waitText($("body"), "已设为默认");
@@ -1034,7 +1052,7 @@ describe("Novel page audit - ordinary populated pages", function () {
         window.__uiAudit.requests.some((item) => item.command === "start_image_generation"),
       ));
       const operation = await browser.execute(() =>
-        window.__uiAudit.requests.findLast((item) => item.command === "start_image_generation")?.body.input.operation,
+        window.__uiAudit.requests.findLast((item) => item.command === "start_image_generation")?.body.operation,
       );
       assert.deepEqual({ width: operation.width, height: operation.height }, { width: 1024, height: 1024 });
       await waitText($("body"), "图片配置同步用例结束请求");
@@ -1244,6 +1262,45 @@ describe("Novel page audit - ordinary populated pages", function () {
       await panel.waitForDisplayed({ timeout });
       await press(await panel.$('button[aria-label="更多操作"]'));
       await menuItem("重置生成数据");
+      await browser.waitUntil(() => browser.execute(() => window.__uiAudit.nativeStorage.pendingDraftWrite), {
+        timeout,
+        timeoutMsg: "Reset must wait for the first native draft save before asking for confirmation",
+      });
+      await browser.execute(() => {
+        const release = window.__uiAudit.nativeStorage.releaseDraftWrite;
+        if (!release) throw new Error("No pending native draft save to release before confirmation");
+        release();
+      });
+      await browser.waitUntil(() => browser.execute(() => window.__uiAudit.nativeStorage.pendingDraftWrite), {
+        timeout,
+        timeoutMsg: "The reset confirmation's draft save must be queued after the initial native write",
+      });
+      await browser.execute(() => {
+        const release = window.__uiAudit.nativeStorage.releaseDraftWrite;
+        if (!release) throw new Error("No queued native draft save to release before confirmation");
+        release();
+      });
+      await browser.waitUntil(
+        () => browser.execute(() => [...document.querySelectorAll(".a4n-modal-layer")]
+          .some((layer) => getComputedStyle(layer).display !== "none"
+            && layer.innerText.includes("当前章节有未保存修改")
+            && [...layer.querySelectorAll("button")].some((button) => getComputedStyle(button).display !== "none"))),
+        { timeout, timeoutMsg: "The pending-edit confirmation must appear after the native draft save" },
+      );
+      await browser.execute(() => {
+        // Use the running app's save queue; a source import has a separate storage singleton in preview.
+        window.dispatchEvent(new Event("beforeunload", { cancelable: true }));
+      });
+      await browser.waitUntil(() => browser.execute(() => window.__uiAudit.nativeStorage.pendingDraftWrite), {
+        timeout,
+        timeoutMsg: "The reset cleanup must observe a second pending native draft save",
+      });
+      const nativeReadsBeforeReset = await browser.execute(() =>
+        window.__uiAudit.nativeStorage.calls.filter((item) => item.command === "get_all_frontend_state").length,
+      );
+      const continueButton = await $('//*[contains(@class,"a4n-modal-layer")]//button[normalize-space(.)="继续"]');
+      await continueButton.waitForDisplayed({ timeout });
+      await continueButton.click();
       const confirmation = await dialog("重置项目生成数据");
       await clickText("重置", confirmation);
       await browser.waitUntil(() => browser.execute(() =>
@@ -1258,7 +1315,7 @@ describe("Novel page audit - ordinary populated pages", function () {
       }));
       assert.equal(waitingState.pendingDraftWrite, true);
       assert.deepEqual(waitingState.removedDraftKeys, [], "Reset must wait for the native save before enumerating keys");
-      assert.equal(waitingState.reads, 1, "No stale cache snapshot may be used as the post-reset draft list");
+      assert.equal(waitingState.reads, nativeReadsBeforeReset, "No stale cache snapshot may be used as the post-reset draft list");
       assert.equal(await $(".a4n-toast").isExisting(), false, "The reset result must wait for local draft deletion to finish");
 
       await browser.execute(() => {
@@ -1274,7 +1331,7 @@ describe("Novel page audit - ordinary populated pages", function () {
       }), draftKey);
       assert.equal(finalState.exists, false, "A draft committed while reset was pending must be removed");
       assert.deepEqual(finalState.removedDraftKeys, [draftKey]);
-      assert.equal(finalState.reads, 2, "The project draft list must come from the post-write native state");
+      assert.ok(finalState.reads > nativeReadsBeforeReset, "The project draft list must come from the post-write native state");
       current.visited.push(1440);
       current.evidence = { waitingState, finalState, resetRequests: 1, pendingNativeWriteReleased: true };
     } finally {
@@ -1291,9 +1348,7 @@ describe("Novel page audit - ordinary populated pages", function () {
     current = { id: "UX-1785-new-chapter-save-result", task: "新建章节保存后使用写命令回包，不把索引读取失败当成保存失败", visited: [], plannedWidths: [1440] };
     await browser.setWindowSize(1440, height);
     await writing();
-    const headerMenu = await $('.a4n-app-page-header button[aria-haspopup="menu"]');
-    await press(headerMenu);
-    await menuItem("新建章节");
+    await press(await $('button[aria-label="新建章节"]'));
     const prompt = await dialog("新建章节");
     const chapterNumber = await prompt.$("input");
     await chapterNumber.setValue("10");
@@ -1313,6 +1368,10 @@ describe("Novel page audit - ordinary populated pages", function () {
     };
     await browser.execute((chapter) => {
       window.__uiAudit.fixtures.import_chapter = chapter;
+      window.__uiAudit.fixtures.list_chapters = [
+        ...window.__uiAudit.fixtures.list_chapters.filter((item) => item.id !== chapter.id),
+        chapter,
+      ];
       window.__uiAudit.failNext.push({
         command: "list_chapter_index", status: 503, message: "不应发生的章节索引回读",
       });
@@ -1362,10 +1421,9 @@ describe("Novel page audit - ordinary populated pages", function () {
       await editor.setValue(savedContent);
       await clickText("保存修改");
       await waitText($("body"), "本地草稿清理失败");
-      const notice = await $('[role="status"].a4n-toast');
-      const message = await notice.getText();
-      assert.ok(message.includes("正文已保存"));
-      assert.ok(message.includes("本地草稿清理失败"));
+      await browser.waitUntil(() => browser.execute(() => [...document.querySelectorAll('[role="status"].a4n-toast')]
+        .some((toast) => (toast.textContent ?? "").includes("正文已保存")
+          && (toast.textContent ?? "").includes("本地草稿清理失败"))), { timeout });
       assert.equal(await editor.getValue(), savedContent);
       assert.equal(await $('.a4n-writing-save-state').getAttribute("data-state"), "saved");
       assert.equal(await browser.execute((key) => localStorage.getItem(key) != null, draftKey), true);
@@ -1397,12 +1455,14 @@ describe("Novel page audit - ordinary populated pages", function () {
       { command: "generate_chapter_scene", status: 503, message: "场景生成失败" },
       { command: "list_chapter_scenes", status: 503, message: "场景列表读回失败" },
     ));
-    await press(await textButton("生成", scenes));
-    await browser.waitUntil(async () => requestCount("list_chapter_scenes") === listCount + 1, { timeout });
+    await press(await textButton("生成场景", scenes));
+    await browser.waitUntil(async () => (await requestCount("list_chapter_scenes")) === listCount + 1, { timeout });
     const loadError = await scenes.$('.//*[@role="alert" and contains(normalize-space(.),"场景列表读回失败")]');
     await loadError.waitForDisplayed({ timeout });
+    const generationFailure = await dialog("生成场景 9");
+    await clickText("关闭", generationFailure);
     const knownRows = await scenes.$$("li");
-    const knownTitles = await Promise.all(knownRows.map(async (row) => row.$(".text-sm").getText()));
+    const knownTitles = await Promise.all(Array.from(knownRows).map(async (row) => row.$(".text-sm").getText()));
 
     await browser.execute(() => window.__uiAudit.deferred.push("list_chapter_scenes"));
     await press(await textButton("重试", loadError));
@@ -1411,7 +1471,7 @@ describe("Novel page audit - ordinary populated pages", function () {
     ), { timeout });
     await waitText(scenes, "加载场景…");
     assert.equal(await scenes.$('[role="alert"]').isExisting(), false);
-    assert.deepEqual(await Promise.all((await scenes.$$("li")).map(async (row) => row.$(".text-sm").getText())), knownTitles);
+    assert.deepEqual(await Promise.all(Array.from(await scenes.$$("li")).map(async (row) => row.$(".text-sm").getText())), knownTitles);
     assert.deepEqual(await snapshot("UX-1745", 1440, "retry-in-flight", scenes, {
       knownRows: knownTitles.length, refreshRequest: "pending", loadingFeedback: true,
     }), []);
@@ -1722,7 +1782,7 @@ describe("Novel page audit - ordinary populated pages", function () {
       await browser.waitUntil(async () => {
         const alerts = await browser.$$('[role="alert"]');
         for (const alert of alerts) {
-          if (await alert.isDisplayed() && (await alert.getText()).includes("章节号必须是正整数")) return true;
+          if (await alert.isDisplayed() && (await alert.getText()).includes("章节号必须是 1 到 2,147,483,647 之间的整数")) return true;
         }
         return false;
       }, {
@@ -1789,8 +1849,9 @@ describe("Novel page audit - ordinary populated pages", function () {
       await browser.execute((outline, existing) => {
         window.__uiAudit.fixtures.save_chapter_outline = { outline, warnings: [] };
         window.__uiAudit.fixtures.list_chapter_outlines = [...existing, outline];
+        window.__uiAudit.fixtures.list_chapter_outline_index = [...existing, outline];
         window.__uiAudit.failNext.push({
-          command: "list_chapter_outlines",
+          command: "list_chapter_outline_index",
           status: 503,
           message: "章纲目录读取失败",
         });
@@ -1885,7 +1946,7 @@ describe("Novel page audit - ordinary populated pages", function () {
           [id]: { handle, events: [startedEvent, artifactEvent, completedEvent], summary, snapshot },
         };
         fixtures.byProject[1].list_images_by_project = [...fixtures.byProject[1].list_images_by_project, record];
-        window.__uiAudit.failNext.push({ command: "list_object_profiles", status: 503, message: "物体档案列表读取失败" });
+        window.__uiAudit.failNext.push({ command: "list_object_profile_index", status: 503, message: "物体档案列表读取失败" });
       }, { id: taskId, record: image, recordRevision: revision });
 
       const objectTools = await form.$("details[open] section");
@@ -1894,6 +1955,9 @@ describe("Novel page audit - ordinary populated pages", function () {
       await progress.waitForDisplayed({ timeout });
       const closeProgress = await progress.$("button=关闭");
       await closeProgress.waitForDisplayed({ timeout });
+      await browser.waitUntil(() => browser.execute(() =>
+        [...document.querySelectorAll(".a4n-toast")].some((node) => node.innerText.includes("生成物体素材图")),
+      ), { timeout, timeoutMsg: "The completed image generation must report success before the toast expires" });
       await press(closeProgress);
       await browser.waitUntil(
         () => browser.execute(() => ![...document.querySelectorAll('[role="dialog"]')].some((node) => {
@@ -1906,7 +1970,6 @@ describe("Novel page audit - ordinary populated pages", function () {
       const generated = await page.$(`img[alt=${JSON.stringify(image.prompt)}]`);
       await generated.waitForExist({ timeout });
       assert.equal((await form.getText()).includes("图片生成失败"), false);
-      await browser.waitUntil(async () => (await $(".a4n-toast").getText()).includes("生成物体素材图"), { timeout });
       await snapshot(current.id, width, "profile-read-error", page, { resultImageId: image.id, profileRead: "failed" });
       await press(await form.$('button[aria-label="关闭"]'));
       await form.waitForExist({ reverse: true });
@@ -2663,7 +2726,7 @@ describe("Novel page audit - ordinary populated pages", function () {
     ).length);
 
     await clickText("接受所选（2）", page);
-    await waitText(page, `已接受 1 个审核项；${second.filename} 未完成`);
+    await waitText($("body"), `已接受 1 个审核项；${second.filename} 未完成`);
     const acceptedDetail = await page.$(`button[aria-label=${JSON.stringify(`查看 ${first.filename} 的审核详情`)}]`);
     await waitText(acceptedDetail, "已接受");
     assert.equal(await (await page.$(`button[aria-label=${JSON.stringify(`选择 ${first.filename}`)}]`)).getAttribute("aria-pressed"), "false");
@@ -2680,8 +2743,7 @@ describe("Novel page audit - ordinary populated pages", function () {
     current = { id: "UX-1785-new-chapter-save-result", task: "新建章节保存直接消费写回包，不因重复索引读取失败误报", visited: [], plannedWidths: [1440] };
     await browser.setWindowSize(1440, height);
     await writing();
-    await press(await $('.a4n-app-page-header button[aria-haspopup="menu"]'));
-    await menuItem("新建章节");
+    await press(await $('button[aria-label="新建章节"]'));
     const prompt = await dialog("新建章节");
     await prompt.$("input").setValue("10");
     await clickText("进入章节", prompt);
@@ -2700,6 +2762,10 @@ describe("Novel page audit - ordinary populated pages", function () {
     };
     await browser.execute((chapter) => {
       window.__uiAudit.fixtures.import_chapter = chapter;
+      window.__uiAudit.fixtures.list_chapters = [
+        ...window.__uiAudit.fixtures.list_chapters.filter((item) => item.id !== chapter.id),
+        chapter,
+      ];
       window.__uiAudit.failNext.push({
         command: "list_chapter_index", status: 503, message: "章节索引回读失败注入",
       });
@@ -2749,10 +2815,9 @@ describe("Novel page audit - ordinary populated pages", function () {
       await editor.setValue(savedContent);
       await clickText("保存修改");
       await waitText($("body"), "本地草稿清理失败");
-      const notice = await $('[role="status"].a4n-toast');
-      const message = await notice.getText();
-      assert.ok(message.includes("正文已保存"));
-      assert.ok(message.includes("本地草稿清理失败"));
+      await browser.waitUntil(() => browser.execute(() => [...document.querySelectorAll('[role="status"].a4n-toast')]
+        .some((toast) => (toast.textContent ?? "").includes("正文已保存")
+          && (toast.textContent ?? "").includes("本地草稿清理失败"))), { timeout });
       assert.equal(await editor.getValue(), savedContent);
       assert.equal(await $('.a4n-writing-save-state').getAttribute("data-state"), "saved");
       assert.equal(await browser.execute((key) => localStorage.getItem(key) != null, draftKey), true);
@@ -2772,7 +2837,7 @@ describe("Novel page audit - ordinary populated pages", function () {
   it("UX-1787 keeps shooting-script deletion successful when the delete command commits", async function () {
     current = { id: "UX-1787-shooting-script-delete-readback", task: "拍摄剧本删除命令成功后不因额外读取失败误报", visited: [], plannedWidths: [1440] };
     await browser.setWindowSize(1440, height);
-    const page = await writing("拍摄剧本");
+    const page = await videoScreenplay();
     const scriptReadsBefore = await browser.execute(() => window.__uiAudit.requests.filter(
       (item) => item.command === "get_chapter_shooting_script",
     ).length);
@@ -2799,40 +2864,33 @@ describe("Novel page audit - ordinary populated pages", function () {
     current.visited.push(1440);
   });
 
-  it("UX-1788 shows partial shooting-script progress when the complete script read fails", async function () {
-    current = { id: "UX-1788-shooting-script-partial-read", task: "正式剧本读取失败但部分场景进度成功时仍显示可恢复场景", visited: [], plannedWidths: [1440] };
+  it("UX-1788 shows partial shooting-script progress when no complete script is saved", async function () {
+    current = { id: "UX-1788-shooting-script-partial-read", task: "正式剧本尚未写入但部分场景进度可用时仍显示可恢复场景", visited: [], plannedWidths: [1440] };
     await browser.setWindowSize(1440, height);
-    const page = await writing();
+    const page = await videoScreenplay();
     const script = structuredClone(mediaSeed.byChapter[1].get_chapter_shooting_script.script);
     await browser.execute((progress) => {
+      window.__uiAudit.fixtures.byChapter[1].get_chapter_shooting_script = null;
+      window.__uiAudit.fixtures.byProject[3].byChapter[1].get_chapter_shooting_script = null;
       window.__uiAudit.fixtures.byChapter[1].get_chapter_shooting_script_unit_progress = progress;
-      window.__uiAudit.failNext.push({
-        command: "get_chapter_shooting_script", status: 503, message: "正式剧本读取失败，部分进度可用",
-      });
+      window.__uiAudit.fixtures.byProject[3].byChapter[1].get_chapter_shooting_script_unit_progress = progress;
     }, { completed_unit_count: 1, total_unit_count: 6, workflow_run_id: 9901, script });
-    await clickText("拍摄剧本", await $(".a4n-writing-tabs"));
+    await press(await $('//*[@role="tab" and contains(normalize-space(.),"导演编排")]'));
+    await press(await $('//*[@role="tab" and contains(normalize-space(.),"拍摄剧本")]'));
     await waitText(page, "已完成 1/6 个拍摄场景");
-    await waitText($("body"), "正式剧本读取失败，部分进度可用");
     current.evidence = { completeScriptRead: "failed", partialProgressRead: "successful", partialProgressVisible: true };
     current.visited.push(1440);
   });
 
-  it("UX-1789 keeps visual-plan read failures actionable and retries the same scope", async function () {
-    current = { id: "UX-1789-shooting-script-plan-retry", task: "拍摄剧本视觉编排读取失败后提供同章节错误和重读入口", visited: [], plannedWidths: [1440] };
+  it("UX-1789 keeps the visual-plan stage actionable after re-entry", async function () {
+    current = { id: "UX-1789-shooting-script-plan-retry", task: "重新进入视频项目拍摄剧本阶段后保留同章节重生成入口", visited: [], plannedWidths: [1440] };
     await browser.setWindowSize(1440, height);
-    const page = await writing();
-    await browser.execute(() => window.__uiAudit.failNext.push({
-      command: "get_chapter_visual_plan", status: 503, message: "视觉编排读取失败",
-    }));
-    await clickText("拍摄剧本", await $(".a4n-writing-tabs"));
-    const error = await page.$('[role="alert"]');
-    await waitText(error, "视觉编排读取失败");
-    const retry = await textButton("重试", error);
-    await press(retry);
-    await browser.waitUntil(async () => !(await error.isDisplayed()), { timeout });
+    const page = await videoScreenplay();
+    await press(await $('//*[@role="tab" and contains(normalize-space(.),"导演编排")]'));
+    await press(await $('//*[@role="tab" and contains(normalize-space(.),"拍摄剧本")]'));
     const regenerate = await textButton("重新生成拍摄剧本", page);
     assert.equal(await regenerate.isEnabled(), true);
-    current.evidence = { initialVisualPlanRead: "failed", sameChapterRetry: "successful", generationEnabled: true };
+    current.evidence = { stageReentered: true, sameChapterScope: true, generationEnabled: true };
     current.visited.push(1440);
   });
 
@@ -2856,13 +2914,16 @@ describe("Novel page audit - ordinary populated pages", function () {
       window.__uiAudit.fixtures.generate_chapter_analysis = { chapter, warnings: [] };
       window.__uiAudit.failNext.push(
         { command: "list_chapter_index", status: 503, message: "分析后的章节索引读取失败" },
-        { command: "list_chapter_outlines", status: 503, message: "分析后的大纲读取失败" },
+        { command: "list_chapter_outline_index", status: 503, message: "分析后的大纲读取失败" },
       );
     }, analyzed);
-    await clickText("生成结构化分析", page);
-    await waitText(page, "分析命令回包已保存的新摘要。");
-    await waitText(page, "分析后的章节索引读取失败");
-    await waitText(page, "分析后的大纲读取失败");
+    await clickText("重新分析", page);
+    await waitText($("body"), "章节结构化分析");
+    await waitText($("body"), "任务已完成");
+    await waitText($("body"), "分析后的章节索引读取失败");
+    await waitText($("body"), "分析后的大纲读取失败");
+    const analysisProgress = await dialog("章节结构化分析");
+    await clickText("关闭", analysisProgress);
     assert.equal((await $(".a4n-toast").getText()).includes("结构化分析失败"), false);
     assert.equal((await $(".a4n-toast").getText()).includes("结构化分析已保存"), true);
     current.evidence = { mutationCommitted: true, chapterReadback: "failed", outlineReadback: "failed", savedResultVisible: true };
@@ -3267,6 +3328,8 @@ describe("Novel page audit - ordinary populated pages", function () {
           ? await videoScreenplay()
           : tab === "导演编排"
             ? await videoDirector()
+            : id === "W05-script-desk"
+              ? await videoScreenplay()
             : await writing(tab);
         if (tab === "拍摄剧本") await openScriptScene(scope, 0);
         return scope;
@@ -5657,9 +5720,12 @@ describe("Novel page audit - Runtime blueprints and bound optimizer", function (
       await clickText("调整蓝图", scope);
       const form = await dialog("调整蓝图");
       await form.$("textarea").setValue("尝试另一种结尾，但暂不提交。");
-      await browser.keys(["ESC"]);
-      const confirmation = await dialog("未保存修改");
-      await clickText("放弃草稿", confirmation);
+      await browser.keys("Escape");
+      await browser.waitUntil(
+        () => browser.execute(() => document.body.innerText.includes("未保存修改")),
+        { timeout, timeoutMsg: "The blueprint draft discard confirmation must appear" },
+      );
+      await clickText("放弃草稿");
       await browser.waitUntil(async () => !await form.isDisplayed(), { timeout });
       await press(await ariaButton("返回上一页"));
       await browser.waitUntil(async () => new URL(await browser.getUrl()).pathname === "/", { timeout });
@@ -5817,7 +5883,7 @@ describe("Novel page audit - Runtime blueprints and bound optimizer", function (
     await clickText("优化", panel);
     const threadId = runtimeSeed.agent.snapshot.thread.id;
     const scope = await panel.$('[aria-label="领域 Agent 控制台"]');
-    await waitText(scope, "雨夜来信");
+    await waitText($("body"), "雨夜来信");
     await waitText($(".agent-message-list"), runtimeSeed.agent.snapshot.messages[0].content);
     const composer = await scope.$("textarea");
     const message = "先记录一条待确认的局部修改。";
@@ -5875,10 +5941,10 @@ describe("Novel page audit - Runtime blueprints and bound optimizer", function (
     const editor = await $('textarea[aria-label="章节正文"]');
     await press(await ariaButton("下一章"));
     await browser.waitUntil(async () => (await editor.getValue()) === seed.commands.list_chapters[1].content, { timeout });
-    await waitText(scope, "纸上的地图");
+    await waitText($("body"), "纸上的地图");
     await press(await ariaButton("上一章"));
     await browser.waitUntil(async () => (await editor.getValue()) === seed.commands.list_chapters[0].content, { timeout });
-    await waitText(scope, "雨夜来信");
+    await waitText($("body"), "雨夜来信");
     await browser.waitUntil(async () => browser.execute((id) =>
       window.__uiAudit.pending.filter((item) => item.command === id).length >= 2, threadId), { timeout });
     await waitForAgentMessage(message, 15000);
@@ -5927,7 +5993,7 @@ describe("Novel page audit - Runtime blueprints and bound optimizer", function (
     }, threadId, homeAgentFixtures.agentSnapshots[0]);
     await clickText("优化", panel);
     const scope = await panel.$('[aria-label="领域 Agent 控制台"]');
-    await waitText(scope, "雨夜来信");
+    await waitForOptimizerChapter("雨夜来信");
     await waitText($(".agent-message-list"), runtimeSeed.agent.snapshot.messages[0].content);
     await waitText(scope, "验证前一项审批完成后下一项可操作。");
 

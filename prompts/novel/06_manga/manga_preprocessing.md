@@ -92,7 +92,7 @@ name: manga_preprocessing
 
 - 至少为每个影响剧情、人物状态或空间关系的原文事实建立一个 source event；不得合并成改编节拍。
 - `source_events.events[].event_id` 唯一，`type`、`description` 非空，`participants` 为角色名数组，`source_span_ids` 至少包含一个原文来源。
-- `characters` 只收录本章正文实际出现的角色。第一人称代词不直接作为角色名；只有上下文能确认时才沿用立绘规范名。立绘只辅助身份和外观，不证明角色在本章出现。
+- `characters` 只收录本章正文实际出现的角色。“叙述者”只表示文字叙述身份，不是角色名；不得仅因第一人称叙述创建 `characters.叙述者`。第一人称代词不直接作为角色名；只有上下文能确认时才沿用立绘规范名。若第一人称视角对应的人物实际出现在剧情或画面中，使用稳定身份键 `未具名主角`，外观仅记录原文明示的事实；纯画外叙述者不作为角色。不得补造身份或外观。立绘只辅助身份和外观，不证明角色在本章出现。
 - `characters.*.role` 使用 `protagonist`、`antagonist`、`supporting`、`minor` 或 `background`；`gender` 使用 `male`、`female` 或 `unknown`。外观和性格应能指导稳定绘制与表演。
 - 对白最多 24 条，旁白最多 8 条；只保留推动剧情、揭示信息、塑造角色或无法由画面表达的内容。对白单条不超过 30 字，旁白单条不超过 40 字。
 - `speech.dialogues[]` 和 `speech.narrations[]` 通过 `source_event_id` 关联原文事件，不使用 beat 引用。对白情绪应反映现场压力；旁白不要重复画面已经表达的动作。

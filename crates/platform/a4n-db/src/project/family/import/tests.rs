@@ -354,7 +354,7 @@ async fn project_family_media_write_failure_rolls_back_database_rows() {
         title: "媒体失败回滚".to_string(),
         description: String::new(),
         project_type: "novel_long".to_string(),
-        project_kind: crate::project::PROJECT_KIND_VIDEO.to_string(),
+        project_kind: "text".to_string(),
         root_project_id: None,
         source_snapshot_id: None,
         source_sync_status: "current".to_string(),
@@ -376,7 +376,7 @@ async fn project_family_media_write_failure_rolls_back_database_rows() {
         id: 10,
         project_id: project.id,
         root_project_id: project.id,
-        source_snapshot_id: None,
+        source_snapshot_id: Some(20),
         source_chapter_id: None,
         source_snapshot_chapter_id: None,
         media_kind: "image".to_string(),
@@ -394,9 +394,20 @@ async fn project_family_media_write_failure_rolls_back_database_rows() {
         created_at: now,
         updated_at: now,
     };
+    let source_snapshot = a4n_domain::project::ProjectFamilySourceSnapshotRecord {
+        id: 20,
+        root_project_id: project.id,
+        source_version_hash: "a".repeat(64),
+        blueprint_version_id: None,
+        chapter_scope_json: serde_json::json!({"start": 1, "end": 1}),
+        chapter_hashes_json: serde_json::json!([]),
+        profile_hashes_json: serde_json::json!([]),
+        created_at: now,
+    };
     let package = ProjectFamilyImportPackage {
         root_project_id: project.id,
         projects: vec![crate::project::project_record_from_model(project.clone())],
+        source_snapshots: vec![source_snapshot],
         media_assets: vec![package_record(asset)],
         ..Default::default()
     };

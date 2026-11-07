@@ -6,6 +6,7 @@ use sea_orm::{DatabaseConnection, EntityTrait, Set};
 
 pub(super) async fn setup_db() -> Arc<DatabaseConnection> {
     let db = a4n_migration::test_support::connect_test_database().await;
+    a4n_test_support::database::ensure_test_user(&db, 1).await;
     let packages = a4n_api_contract::package::package_catalog()
         .packages
         .into_iter()

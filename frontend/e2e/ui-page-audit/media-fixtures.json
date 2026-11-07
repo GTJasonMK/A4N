@@ -136,7 +136,7 @@
       {
         "id": 701,
         "name": "书店影像 · UI样本",
-        "backend": "openai",
+        "backend": "openai-compatible-image",
         "model": "ui-fixture-image",
         "base_url": "https://ui.invalid/v1",
         "has_api_key": true,
@@ -176,7 +176,7 @@
       {
         "id": 702,
         "name": "连续镜头 · UI样本",
-        "backend": "openai",
+        "backend": "openai-compatible-video",
         "model": "ui-fixture-video",
         "base_url": "https://ui.invalid/v1",
         "has_api_key": true,

@@ -192,6 +192,26 @@ def run_suite(name: str, suite: dict[str, Any], report_dir: Path) -> dict[str, A
         env = os.environ.copy()
         if name.startswith("browser-"):
             env["A4N_BROWSER_E2E_ARTIFACT_DIR"] = str(report_dir / "browser-artifacts" / name)
+            for key in (
+                "HTTP_PROXY",
+                "HTTPS_PROXY",
+                "ALL_PROXY",
+                "http_proxy",
+                "https_proxy",
+                "all_proxy",
+                "NODE_USE_ENV_PROXY",
+            ):
+                env.pop(key, None)
+            no_proxy = [
+                value.strip()
+                for key in ("NO_PROXY", "no_proxy")
+                for value in env.get(key, "").split(",")
+                if value.strip()
+            ]
+            no_proxy.extend(("localhost", "127.0.0.1", "::1"))
+            local_bypass = ",".join(dict.fromkeys(no_proxy))
+            env["NO_PROXY"] = local_bypass
+            env["no_proxy"] = local_bypass
         with private_file(log_path) as log:
             process = subprocess.Popen(
                 command,

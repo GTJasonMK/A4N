@@ -50,6 +50,7 @@ def container_command(container: str, port: int, image: str) -> list[str]:
         "--detach",
         "--name",
         container,
+        "--shm-size=256m",
         "--env",
         "POSTGRES_USER=a4n_test",
         "--env",
@@ -73,7 +74,7 @@ def wait_until_ready(container: str, log: object, timeout: float) -> None:
     while time.monotonic() < deadline:
         try:
             result = subprocess.run(
-                ["docker", "exec", container, "pg_isready", "-U", "a4n_test", "-d", "a4n_test"],
+                ["docker", "exec", container, "pg_isready", "-h", "127.0.0.1", "-U", "a4n_test", "-d", "a4n_test"],
                 stdout=log,
                 stderr=subprocess.STDOUT,
                 check=False,

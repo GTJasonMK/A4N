@@ -21,7 +21,9 @@ use std::time::Duration;
 mod provenance_context;
 
 async fn setup_db() -> DatabaseConnection {
-    a4n_migration::test_support::connect_test_database().await
+    let db = a4n_migration::test_support::connect_test_database().await;
+    a4n_test_support::database::ensure_test_user(&db, 1).await;
+    db
 }
 
 #[test]

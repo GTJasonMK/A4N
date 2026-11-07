@@ -2,6 +2,7 @@ import { useEffect, useId } from "react";
 import { useBeforeUnload, useBlocker } from "react-router-dom";
 import { useI18n } from "../../i18n";
 import { useDirty, useDirtyRegistry, useDirtyRegistryVersion } from "./dirtyRegistry";
+import { useBlockerProceed } from "./useBlockerProceed";
 import { Modal } from "../ui/Modal";
 import { BookButton } from "../ui/BookButton";
 
@@ -45,10 +46,11 @@ export const UnsavedNavigationGuard = ({
     if (!isDirty) return false;
     return !samePathAndHash || currentLocation.search !== nextLocation.search;
   });
+  const proceed = useBlockerProceed(blocker);
 
   useEffect(() => {
-    if (blocker.state === "blocked" && !isDirty) blocker.proceed();
-  }, [blocker, isDirty]);
+    if (blocker.state === "blocked" && !isDirty) proceed();
+  }, [blocker.state, isDirty, proceed]);
 
   if (blocker.state !== "blocked" || !isDirty) return null;
   return (
@@ -66,7 +68,7 @@ export const UnsavedNavigationGuard = ({
             disabled={!canDiscard}
             onClick={() => {
               void registry.discardDirty().then((discarded) => {
-                if (discarded) blocker.proceed();
+                if (discarded) proceed();
               });
             }}
           >

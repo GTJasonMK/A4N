@@ -37,6 +37,20 @@ pub fn manga_pipeline_fingerprint<P: MangaPortraitReference>(
     })
 }
 
+pub fn manga_pipeline_fingerprint_with_reference_images<P: MangaPortraitReference>(
+    content: &str,
+    character_portraits: &[P],
+    available_reference_images: Value,
+    run_stage: Option<MangaPipelineArtifactStage>,
+) -> Value {
+    let mut fingerprint = manga_pipeline_fingerprint(content, character_portraits);
+    fingerprint["available_reference_images"] = available_reference_images;
+    if let Some(stage) = run_stage {
+        fingerprint["run_stage"] = json!(stage);
+    }
+    fingerprint
+}
+
 pub fn manga_page_generation_layout(
     prompt_id: i64,
     page_number: i32,

@@ -21,10 +21,32 @@ async fn local_image_references_use_small_requests_and_reject_changed_files() {
     use a4n_test_support::process::SidecarProcessTestDir;
     use a4n_video_sidecar_contract::VideoMediaSource;
     use futures::FutureExt;
+    use image::{DynamicImage, ImageFormat, RgbaImage};
     use sha2::{Digest, Sha256};
+    use std::io::Cursor;
 
     let media_dir = SidecarProcessTestDir::new("video-media-input");
-    let image = vec![b'a'; 6 * 1024 * 1024 + 123];
+    let width = 1_400;
+    let height = 1_400;
+    let mut state = 0x1234_5678_u32;
+    let pixels = (0..width * height * 4)
+        .map(|_| {
+            state ^= state << 13;
+            state ^= state >> 17;
+            state ^= state << 5;
+            state as u8
+        })
+        .collect();
+    let rgba = RgbaImage::from_raw(width, height, pixels).expect("random RGBA fixture dimensions");
+    let mut encoded = Cursor::new(Vec::new());
+    DynamicImage::ImageRgba8(rgba)
+        .write_to(&mut encoded, ImageFormat::Png)
+        .expect("encode a valid large PNG fixture");
+    let image = encoded.into_inner();
+    assert!(
+        image.len() > 6 * 1024 * 1024,
+        "fixture must exceed JSON transport limit"
+    );
     let relative_path = "projects/11/images/reference.png";
     std::fs::create_dir_all(media_dir.path().join("projects/11/images")).unwrap();
     std::fs::write(media_dir.path().join(relative_path), &image).unwrap();
@@ -85,9 +107,18 @@ async fn local_image_references_use_small_requests_and_reject_changed_files() {
     assert_eq!(preview.status, ServiceStatus::Ok);
     assert!(serde_json::to_vec(&preview).unwrap().len() < 2048);
     let events = video_generation_events(&client, request.clone()).await;
+    let terminal_event = events
+        .last()
+        .expect("video task must emit a terminal event");
     assert_eq!(
-        events.last().unwrap().event_kind,
-        a4n_service_protocol::CapabilityTaskEventKind::Completed
+        terminal_event.event_kind,
+        a4n_service_protocol::CapabilityTaskEventKind::Completed,
+        "artifact-backed request failed: {}",
+        terminal_event
+            .error
+            .as_ref()
+            .map(|error| error.message.as_str())
+            .unwrap_or("no error details")
     );
     provider.stop().await;
 
@@ -108,6 +139,10 @@ async fn local_image_references_use_small_requests_and_reject_changed_files() {
 
 #[tokio::test]
 async fn video_media_requests_above_json_limit_reach_the_provider() {
+    use base64::Engine as _;
+    use image::{DynamicImage, ImageFormat, RgbaImage};
+    use std::io::Cursor;
+
     let addr = unused_local_addr();
     let (manager, _temp_dir) = sidecar_manager(
         "video",
@@ -132,8 +167,28 @@ async fn video_media_requests_above_json_limit_reach_the_provider() {
         "process-provider-secret",
         "first-frame video",
     );
-    // Media is opaque to the transport; this matches a 6 MiB inline image.
-    let image = format!("data:image/png;base64,{}", "A".repeat(8 * 1024 * 1024));
+    // Media is opaque to the transport; use a valid PNG larger than the JSON limit.
+    let width = 1_400;
+    let height = 1_400;
+    let mut state = 0x8765_4321_u32;
+    let pixels = (0..width * height * 4)
+        .map(|_| {
+            state ^= state << 13;
+            state ^= state >> 17;
+            state ^= state << 5;
+            state as u8
+        })
+        .collect();
+    let rgba = RgbaImage::from_raw(width, height, pixels).expect("valid PNG fixture dimensions");
+    let mut encoded = Cursor::new(Vec::new());
+    DynamicImage::ImageRgba8(rgba)
+        .write_to(&mut encoded, ImageFormat::Png)
+        .expect("encode valid PNG fixture");
+    let image = format!(
+        "data:image/png;base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(encoded.into_inner())
+    );
+    assert!(image.len() > 6 * 1024 * 1024);
     request.payload.request.duration_secs = 7;
     request.payload.request.media = VideoMediaInput::Frames {
         first: image.clone().into(),
@@ -153,7 +208,9 @@ async fn video_media_requests_above_json_limit_reach_the_provider() {
     let completed = events.last().expect("video terminal event");
     assert_eq!(
         completed.event_kind,
-        a4n_service_protocol::CapabilityTaskEventKind::Completed
+        a4n_service_protocol::CapabilityTaskEventKind::Completed,
+        "video provider request failed: {:?}",
+        completed.error,
     );
     assert_eq!(
         completed.payload.as_ref().expect("video payload")["provider_job_id"],

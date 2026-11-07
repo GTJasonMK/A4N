@@ -366,10 +366,13 @@ def galgame_visual_planning_response(combined: str) -> dict[str, Any]:
     }
 
 
-def manga_beat_ref(combined: str) -> dict[str, str]:
-    for value in reversed(embedded_json_objects(combined)):
-        if all(isinstance(value.get(field), str) and value[field] for field in ("unit_id", "beat_id")):
-            return {"unit_id": value["unit_id"], "beat_id": value["beat_id"]}
+def manga_beat_ref(adaptation: dict[str, Any]) -> dict[str, str]:
+    for unit in adaptation.get("units", []):
+        if not isinstance(unit, dict) or not isinstance(unit.get("id"), str) or not unit["id"]:
+            continue
+        for beat in unit.get("beats", []):
+            if isinstance(beat, dict) and isinstance(beat.get("id"), str) and beat["id"]:
+                return {"unit_id": unit["id"], "beat_id": beat["id"]}
     raise UnhandledPromptError("manga prompt contains no local adaptation beat")
 
 
@@ -433,19 +436,28 @@ def manga_preprocessing_response(combined: str) -> dict[str, Any]:
 
 def manga_page_reference_discovery_response(combined: str) -> dict[str, Any]:
     task = json_task_payload(combined)
-    payload = task.get("input")
-    if not isinstance(payload, dict):
-        raise UnhandledPromptError("manga reference discovery prompt contains no task input")
-    page_number = payload.get("page_number")
+    output_contract = task.get("output_contract")
+    page_number = output_contract.get("page_number") if isinstance(output_contract, dict) else None
     if (
         not isinstance(page_number, int)
         or isinstance(page_number, bool)
         or page_number <= 0
     ):
         raise UnhandledPromptError("manga reference discovery prompt contains no valid page number")
-    assets = payload.get("available_assets")
-    if not isinstance(assets, list):
+    asset_context = next(
+        (
+            value["input"]
+            for value in reversed(embedded_json_objects(combined))
+            if isinstance(value.get("input"), dict)
+            and "available_assets" in value["input"]
+        ),
+        None,
+    )
+    if asset_context is None:
         raise UnhandledPromptError("manga reference discovery prompt contains no available assets")
+    assets = asset_context["available_assets"]
+    if not isinstance(assets, list):
+        raise UnhandledPromptError("manga reference discovery prompt has invalid available assets")
     references = []
     for asset in assets:
         if not isinstance(asset, dict):
@@ -479,7 +491,7 @@ def manga_page_slots_response(combined: str) -> dict[str, Any]:
     expected_page_count = adaptation.get("page_count") if adaptation else None
     if expected_page_count != 2:
         raise UnhandledPromptError("manga page slots fixture expects a two-page adaptation plan")
-    beat_ref = manga_beat_ref(combined)
+    beat_ref = manga_beat_ref(adaptation)
     source_id = source_span_id(combined, "林岚")
     content = [
         {
@@ -545,6 +557,18 @@ def manga_page_storyboard_response(combined: str) -> dict[str, Any]:
     )
     if not isinstance(adaptation, dict):
         raise UnhandledPromptError("manga storyboard prompt contains no page_adaptation")
+    source = next(
+        (value["source_context"] for value in reversed(embedded_json_objects(combined))
+         if isinstance(value.get("source_context"), dict)),
+        None,
+    )
+    if (
+        not isinstance(source, dict)
+        or not isinstance(source.get("source"), str)
+        or not isinstance(source.get("speech"), dict)
+        or not all(isinstance(source["speech"].get(kind), list) for kind in ("dialogues", "narrations"))
+    ):
+        raise UnhandledPromptError("manga storyboard prompt contains no page source evidence")
     beat_refs = adaptation["beat_refs"]
     return {
         "page_number": page_number,

@@ -611,6 +611,15 @@ mod video_prompt_generation_tests {
 
     #[tokio::test]
     async fn workflow_binding_refreshes_live_session_before_cancel() {
+        let cancelled_error = || a4n_service_protocol::GenerationError {
+            code: a4n_service_protocol::GenerationErrorCode::registered("generation_interrupted")
+                .unwrap(),
+            message: "生成任务已取消".to_string(),
+            retryable: true,
+            stage_code: "test_cancellation".to_string(),
+            trace_id: None,
+            source_error: None,
+        };
         let database = Arc::new(a4n_migration::test_support::connect_test_database().await);
         a4n_db::package::ensure_host_package_states(
             database.as_ref(),
@@ -695,6 +704,24 @@ mod video_prompt_generation_tests {
         );
         assert_eq!(session.checkpoint_candidate().checkpoint_revision, 2);
 
+        let execution = context
+            .generation
+            .acquire_task_execution(&start.handle)
+            .await
+            .unwrap()
+            .unwrap();
+        let cancelled = context
+            .request_generation_cancel(user_id, &task_id, start.handle.attempt)
+            .await
+            .unwrap();
+        assert_eq!(cancelled.status, GenerationTaskStatus::Cancelling);
+        let _ = execution.fail(cancelled_error()).await;
+        assert_eq!(session.snapshot().status, GenerationTaskStatus::Cancelled);
+        context
+            .cancel_workflow_run_status_validated(workflow.id, "test cancellation")
+            .await
+            .unwrap();
+
         let resume_meta = GenerationStartRequestMeta {
             start_request_id: uuid::Uuid::new_v4().to_string(),
             retry_of_task_id: None,
@@ -776,7 +803,7 @@ mod video_prompt_generation_tests {
             .await
             .unwrap()
             .unwrap();
-        context
+        let resumed_cancelled = context
             .request_generation_cancel(
                 user_id,
                 &resume_start.handle.task_id,
@@ -784,19 +811,15 @@ mod video_prompt_generation_tests {
             )
             .await
             .unwrap();
-        drop(resumed_execution);
-
-        let execution = context
-            .generation
-            .acquire_task_execution(&start.handle)
-            .await
-            .unwrap()
-            .unwrap();
-        let cancelled = context
-            .request_generation_cancel(user_id, &task_id, start.handle.attempt)
+        let _ = resumed_execution.fail(cancelled_error()).await;
+        assert_eq!(resumed_cancelled.status, GenerationTaskStatus::Cancelling);
+        assert_eq!(
+            resumed_session.snapshot().status,
+            GenerationTaskStatus::Cancelled
+        );
+        context
+            .cancel_workflow_run_status_validated(resumable.id, "test cancellation")
             .await
             .unwrap();
-        assert_eq!(cancelled.status, GenerationTaskStatus::Cancelling);
-        drop(execution);
     }
 }

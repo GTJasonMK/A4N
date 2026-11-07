@@ -73,9 +73,14 @@ def main():
                 "target_audience": None, "one_sentence_summary": None,
                 "full_synopsis": planned_synopsis, "total_chapters": 30,
             })
-            typed("update_world_setting", {"project_id": project_id, "world_setting": {
-                "culture_and_society": {"calendar": "尚未确认"}, "factions": ["作者保留的议会"],
-            }})
+            typed("update_world_setting", {
+                "project_id": project_id,
+                "expected_current_version": blueprint()["current_version"],
+                "world_setting": {
+                    "culture_and_society": {"calendar": "尚未确认"},
+                    "factions": ["作者保留的议会"],
+                },
+            })
             call("update_project", {"projectId": project_id, "input": {"title": "作者修改后的项目名", "description": None}})
             original_versions = len(versions())
             baseline_calls = len(consolidation_calls())

@@ -110,7 +110,8 @@ def main():
                                 "social_attributes": {},
                             },
                         })
-                    profile_id = profile.get("profile_id", profile.get("id"))
+                        profile = profile.get("profile", profile)
+                    profile_id = profile.get("id")
                     if not isinstance(profile_id, int) or profile_id <= 0:
                         raise RunnerError(f"checkpoint manga fixture profile ID invalid: {character_name}")
                     call("upload_portrait", {
@@ -342,18 +343,18 @@ def main():
                 )
 
             early_faults = [
-                ("manga-speech", 2, "不存在的改编节拍"),
-                ("manga-visual", 3, "不存在的改编节拍"),
-                ("manga-items", 4, "不存在的改编节拍"),
-                ("manga-slots", 6, "不存在的改编节拍"),
+                ("manga-slots", 0, "不存在的改编节拍"),
+                # These prefixes count completed provider calls before each
+                # injected page fault in the current pipeline contract.
+                ("manga-speech", 5, "beat_refs 必须来自页面内容节拍"),
+                ("manga-visual", 4, "page.panels[0].beat_refs 无效"),
+                ("manga-storyboard", 0, "manga_page_storyboard page_number 必须等于"),
+                ("manga-items", 7, "引用了不可用素材"),
             ]
-            early_fault_names = {name for name, _, _ in early_faults}
             page_faults = [
-                ("manga-page-adaptation", "页面内容节拍"),
-                ("manga-storyboard", "page_number 必须等于"),
-                ("manga-drawing", "image_prompt"),
+                ("manga-drawing", "image_prompt 无效"),
             ]
-            for fault, prefix, expected in [*early_faults, *((name, 7, message) for name, message in page_faults)]:
+            for fault, prefix, expected in [*early_faults, *((name, 8, message) for name, message in page_faults)]:
                 manga_source, chapter_id, root_project_id = shooting_source(fault, 1)
                 shooting(manga_source)
                 manga_project = call("create_derived_project", {
@@ -367,6 +368,29 @@ def main():
                     "chapter_number": 1,
                     "image_size": {"width": 1024, "height": 1024},
                 }
+                preprocessing = call("start_manga_pipeline", {
+                    **value,
+                    "run_stage": "preprocessing",
+                    "meta": {"start_request_id": str(uuid.uuid4())},
+                })
+                manga_result(project_id, expected_task=preprocessing)
+                model()
+                adaptation = call("generate_media_adaptation_plan", {
+                    "project_id": project_id,
+                    "chapter_id": chapter_id,
+                    "task_id": str(uuid.uuid4()),
+                    "instruction": "保留原作因果，以漫画页节奏呈现改编内容",
+                    "video_reference": None,
+                    "clear_video_reference": False,
+                    "record_id": None,
+                    "expected_revision": None,
+                    "resume_from_checkpoint": True,
+                })
+                call("adopt_media_authoring_document", {
+                    "project_id": adaptation["project_id"],
+                    "record_id": adaptation["id"],
+                    "expected_revision": adaptation["revision"],
+                })
                 model(fault)
                 before = len(calls())
                 started = call("start_manga_pipeline", {
@@ -374,26 +398,58 @@ def main():
                 })
                 failed = manga_result(project_id, expected, expected_task=started)
                 start_calls = len(calls()) - before
-                if fault in early_fault_names:
+                if fault == "manga-slots":
                     assert start_calls == prefix + 1, (fault, start_calls)
                 else:
-                    assert start_calls > prefix, (fault, start_calls)
+                    # Page work is scheduled independently; whichever page
+                    # reaches the injected invalid response first is valid.
+                    assert start_calls > 0, (fault, start_calls)
                 pages_before_resume = call("list_manga_page_prompts", {"project_id": project_id, "chapter_id": chapter_id})
-                if fault in early_fault_names:
-                    expected_retry_calls = 7 + 3 * 2 - prefix
-                else:
-                    expected_retry_calls = sum(
-                        page.get("page_adaptation") is None
-                        for page in pages_before_resume
-                    ) + sum(page.get("page_plan") is None for page in pages_before_resume) + sum(
-                        page.get("drawing_prompt") is None for page in pages_before_resume
-                    )
+                if fault == "manga-slots":
+                    assert failed["can_resume"] is False, failed
+                    model()
+                    before = len(calls())
+                    restarted = call("start_manga_pipeline", {
+                        **value, "meta": {"start_request_id": str(uuid.uuid4())},
+                    })
+                    manga_result(project_id, previous=failed, expected_task=restarted)
+                    pages = call("list_manga_page_prompts", {"project_id": project_id, "chapter_id": chapter_id})
+                    restart_calls = len(calls()) - before
+                    assert pages and restart_calls == 1 + 4 * len(pages), (restart_calls, len(pages))
+                    assert all(page["page_adaptation"] and page["page_plan"] and page["drawing_prompt"] for page in pages)
+                    report["checks"].append({
+                        "fault": fault,
+                        "resume_available": False,
+                        "restart_calls": restart_calls,
+                    })
+                    continue
+                assert failed["can_resume"] is True, failed
+                saved_content = [artifact for artifact in call("list_manga_pipeline_artifacts", {
+                    "project_id": project_id, "chapter_id": chapter_id,
+                }) if artifact["stage"] == "page_content"]
+                expected_retry_calls = sum(
+                    page.get("page_adaptation") is None
+                    for page in pages_before_resume
+                ) + sum(
+                    page.get("page_plan") is None
+                    for page in pages_before_resume
+                ) + sum(
+                    page.get("reference_discovery") is None
+                    for page in pages_before_resume
+                ) + sum(
+                    page.get("drawing_prompt") is None
+                    for page in pages_before_resume
+                )
                 model()
                 before = len(calls())
                 resumed = call("resume_manga_pipeline", {
                     **value, "meta": {"start_request_id": str(uuid.uuid4())},
                 })
                 manga_result(project_id, previous=failed, expected_task=resumed)
+                resumed_content = [artifact for artifact in call("list_manga_pipeline_artifacts", {
+                    "project_id": project_id, "chapter_id": chapter_id,
+                }) if artifact["stage"] == "page_content"]
+                assert resumed_content == saved_content, "Resume must preserve saved page content and its revisions"
                 pages = call("list_manga_page_prompts", {"project_id": project_id, "chapter_id": chapter_id})
                 assert pages and len(calls()) - before == expected_retry_calls, (fault, len(calls()) - before, expected_retry_calls, len(pages))
                 assert all(page["page_adaptation"] and page["page_plan"] and page["drawing_prompt"] for page in pages)
@@ -403,7 +459,11 @@ def main():
             generated_image_id = page_before_optimization.get("generated_image_id")
             if not isinstance(generated_image_id, int) or generated_image_id <= 0:
                 raise RunnerError("checkpoint Manga optimization fixture has no generated image")
-            value = {"prompt_id": page_before_optimization["id"], "instruction": "增强画面构图", "downstream_strategy": "keep_downstream"}
+            value = {
+                "prompt_id": page_before_optimization["id"],
+                "instruction": "增强画面构图",
+                "expected_updated_at": page_before_optimization["updated_at"],
+            }
             model("manga-optimization")
             reject("optimize_manga_prompt", value, "image_prompt")
             model()
@@ -413,6 +473,32 @@ def main():
             assert optimized["run"]["status"] == "completed", optimized
             assert len(optimized["checkpoints"]) == 1 and optimized["checkpoints"][0]["status"] == "completed", optimized
             report["checks"].append({"fault": "manga-optimization", "saved_calls": 1})
+
+            deletion_input = {"project_id": project_id, "chapter_id": chapter_id, "stage": "storyboard", "page_number": 1}
+            deletion = call("preview_delete_manga_pipeline_artifact", deletion_input)
+            call("delete_manga_pipeline_artifact", {
+                **deletion_input,
+                "expected_artifact_ids": [entry["artifact_id"] for entry in [deletion["target"], *deletion["downstream"]]],
+            }, destructive=True)
+            staged_request = {
+                "project_id": project_id, "chapter_number": 1, "page_number": 1,
+                "run_stage": "storyboard", "stop_after": "reference_discovery",
+                "image_size": {"width": 1024, "height": 1024},
+            }
+            model("manga-items")
+            started = call("start_manga_pipeline", {
+                **staged_request, "meta": {"start_request_id": str(uuid.uuid4())},
+            })
+            failed = manga_result(project_id, "引用了不可用素材", expected_task=started)
+            assert failed["checkpoint_valid"] is True and failed["can_resume"] is True, failed
+            model()
+            before = len(calls())
+            resumed = call("resume_manga_pipeline", {
+                **staged_request, "meta": {"start_request_id": str(uuid.uuid4())},
+            })
+            manga_result(project_id, previous=failed, expected_task=resumed)
+            assert len(calls()) - before == 1, "The stage resume must reuse its completed storyboard"
+            report["checks"].append({"fault": "manga-staged-reference-discovery", "retry_calls": 1, "checkpoint_valid": True})
 
             permissions = {"read_project_detail": True, "read_blueprint": True, "read_outlines": True,
                 "read_character_profiles": True, "read_foreshadowing": True, "automatic_writeback": False}

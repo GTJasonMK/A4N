@@ -22,6 +22,7 @@ use sea_orm::{
 use serde_json::{Value, json};
 
 async fn project(db: &DatabaseConnection) -> i64 {
+    a4n_test_support::database::ensure_test_user(db, 1).await;
     create_project_record(
         db,
         CreateProjectRecordInput {

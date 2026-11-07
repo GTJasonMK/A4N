@@ -821,7 +821,20 @@ export function useVideoPromptGenerationActions({
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
       const message = extractErrorMessage(err, t("video.actions.failed", { operation: effectiveRegenerateExisting ? t("video.actions.regenerateTitle", { label }) : t("video.actions.generateTitle", { label }) }));
-      if (!isCancelledOperation(message)) addToast(message, "error");
+      if (isCancelledOperation(message)) {
+        try {
+          await refreshSegmentPlanDraft();
+        } catch (refreshError) {
+          if (isCurrentActionScope(requestScope)) {
+            addToast(
+              extractErrorMessage(refreshError, currentT()("video.chapter.loadSavedPlanFailed")),
+              "error",
+            );
+          }
+        }
+      } else {
+        addToast(message, "error");
+      }
     } finally {
       if (generated && isCurrentActionScope(requestScope)) {
         addToast(currentT()("video.actions.completed", { operation: effectiveRegenerateExisting ? currentT()("video.actions.regenerateTitle", { label }) : currentT()("video.actions.generateTitle", { label }) }), "success");

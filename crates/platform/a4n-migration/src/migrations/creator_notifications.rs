@@ -5,6 +5,7 @@ pub struct Migration;
 
 #[derive(DeriveIden)]
 enum Notification {
+    #[sea_orm(iden = "creator_notification")]
     Table,
     Id,
     Title,
@@ -15,6 +16,7 @@ enum Notification {
 
 #[derive(DeriveIden)]
 enum Recipient {
+    #[sea_orm(iden = "creator_notification_recipient")]
     Table,
     Id,
     NotificationId,

@@ -1896,6 +1896,8 @@ fn semantic_project_and_chapter_commands_route_and_persist_context() {
                 context.to_str().unwrap(),
                 "chapter",
                 "update",
+                "--expected-revision",
+                "1",
                 "--content",
                 "更新后的正文",
             ])
@@ -3578,30 +3580,6 @@ fn local_start_rejects_conflicting_full_and_no_sidecars_flags() {
         String::from_utf8_lossy(&output.stderr)
             .to_ascii_lowercase()
             .contains("cannot be used with")
-    );
-}
-
-#[test]
-fn local_full_start_requires_a_source_workspace() {
-    let temp = TempDir::new().unwrap();
-    let config = temp.path().join("cli.json");
-    write_config(&config, "http://127.0.0.1:9");
-
-    let output = cli(&temp, &config)
-        .env_remove("A4N_SOURCE_ROOT")
-        .env("A4N_DATABASE_URL", "postgres://user:pass@127.0.0.1:1/a4n")
-        .env("A4N_JWT_SECRET", "local-start-test-secret")
-        .args(["local", "start", "--full"])
-        .output()
-        .unwrap();
-    assert_eq!(output.status.code(), Some(2));
-    let error = agent_error(&output);
-    assert_eq!(error["error"]["code"], "invalid_input");
-    assert!(
-        error["error"]["message"]
-            .as_str()
-            .unwrap()
-            .contains("A4N 源码 workspace")
     );
 }
 

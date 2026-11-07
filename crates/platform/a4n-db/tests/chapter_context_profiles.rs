@@ -127,6 +127,7 @@ async fn occurrence(
 #[tokio::test]
 async fn chapter_context_uses_only_historical_evidence_and_occurrences() {
     let db = a4n_migration::test_support::connect_test_database().await;
+    a4n_test_support::database::ensure_test_user(&db, 1).await;
     let project = create_project_record(
         &db,
         CreateProjectRecordInput {

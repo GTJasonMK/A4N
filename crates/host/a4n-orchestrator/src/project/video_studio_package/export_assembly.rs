@@ -114,7 +114,7 @@ mod tests {
             title: "自由视频".to_string(),
             description: String::new(),
             project_type: "script".to_string(),
-            project_kind: "video".to_string(),
+            project_kind: "canvas".to_string(),
             root_project_id: None,
             source_snapshot_id: None,
             source_sync_status: "current".to_string(),

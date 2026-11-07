@@ -1,8 +1,14 @@
+import { startVite, stopProcess } from "../process.mjs";
 import { config as base } from "./wdio.conf.mjs";
+import { cleanUiFixtures } from "../ui-presentation/fixtures.mjs";
 import {
   cleanPageAuditMediaFixtures,
   preparePageAuditMediaFixtures,
 } from "./media-fixtures.mjs";
+
+process.env.A4N_UI_VITE_PREVIEW ??= "1";
+const sourceModulePort = Number(process.env.A4N_UI_SOURCE_MODULE_PORT ?? 4199);
+let sourceModuleServer;
 
 export const config = {
   ...base,
@@ -25,9 +31,21 @@ export const config = {
   onPrepare: async (...args) => {
     try {
       await preparePageAuditMediaFixtures();
+      if (process.env.A4N_UI_VITE_PREVIEW === "1") {
+        process.env.A4N_UI_SOURCE_MODULE_ORIGIN = `http://127.0.0.1:${sourceModulePort}`;
+        sourceModuleServer = await startVite(sourceModulePort);
+      }
       await base.onPrepare?.(...args);
     } catch (error) {
-      await cleanPageAuditMediaFixtures();
+      try {
+        await stopProcess(sourceModuleServer);
+      } finally {
+        try {
+          await cleanPageAuditMediaFixtures();
+        } finally {
+          await cleanUiFixtures();
+        }
+      }
       throw error;
     }
   },
@@ -35,7 +53,11 @@ export const config = {
     try {
       await base.onComplete?.(...args);
     } finally {
-      await cleanPageAuditMediaFixtures();
+      try {
+        await stopProcess(sourceModuleServer);
+      } finally {
+        await cleanPageAuditMediaFixtures();
+      }
     }
   },
 };

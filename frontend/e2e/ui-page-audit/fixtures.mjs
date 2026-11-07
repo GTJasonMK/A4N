@@ -53,7 +53,7 @@ export async function seedLocalModels(browser) {
   }, settings.localModels);
 }
 
-export async function buildPageFixtures(baseUrl) {
+export async function buildPageFixtures(baseUrl, { includePlaybackData = true } = {}) {
   const data = structuredClone({
     ...visualFixtures, ...settings.invoke, ...media.commands, ...novel.commands, ...runtime.commands,
     [runtime.generation.blueprint.start_command]: runtime.generation.blueprint.handle,
@@ -170,9 +170,11 @@ export async function buildPageFixtures(baseUrl) {
     ...media.byProject[6].list_videos_by_project,
   ].map((video) => [video.id, video.duration_secs]));
   data.playbackData = {};
-  for (const duration of [6, 8, 10, 12, 24]) {
-    const bytes = await readFile(new URL(`./media/clip-${duration}.mp4`, import.meta.url));
-    data.playbackData[duration] = { mime_type: "video/mp4", data_base64: bytes.toString("base64"), file_size: bytes.length, scrub_frames: null };
+  if (includePlaybackData) {
+    for (const duration of [6, 8, 10, 12, 24]) {
+      const bytes = await readFile(new URL(`./media/clip-${duration}.mp4`, import.meta.url));
+      data.playbackData[duration] = { mime_type: "video/mp4", data_base64: bytes.toString("base64"), file_size: bytes.length, scrub_frames: null };
+    }
   }
 
   const rewritten = JSON.parse(JSON.stringify(data), (_key, value) => {

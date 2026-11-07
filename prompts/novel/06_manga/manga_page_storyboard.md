@@ -51,10 +51,10 @@ name: manga_page_storyboard
 规则：
 
 - `page_number` 必须等于输入页码。页面 `beat_refs` 必须覆盖 `page_adaptation.beat_refs`；画格节拍只能来自页面 `beat_refs`。
-- `panels[].participants` 和 `text_layers[].speaker` 使用输入 `characters` 中的稳定角色名；不要把“我/我们/你/你们”等人称代词当作角色名。第一人称对白、想法或旁白应使用可确认的角色规范名；无法确认时复用 `characters` 中稳定的叙述者称呼。
+- `panels[].participants` 只列本画格里实际可见的人物，不列旁白声音、画外说话人或仅在文字层出现的身份。不得把“叙述者”当作画面角色名；第一人称主角实际出现在画面中时使用稳定身份键 `未具名主角`，其余无名人物沿用原文支持的身份描述。纯文字叙述身份不得塞进 `participants`。
 - 每页至少一个画格且只能有一个 `size=dominant`，并与 `dominant_panel_number` 一致。
 - `panel_number` 和每格 `text_layers[].layer_index` 都从 1 连续递增；文字层字段名必须是 `layer_index`，不要输出 `layer_number`。画格功能、大小、景别、角度、构图、动作、反应、空间关系和连续性都要具体。
-- 每条对白/想法/旁白/音效都放入 `text_layers`，不得编造原文没有的台词。
+- 每条对白/想法/旁白/音效都放入 `text_layers`，不得编造原文没有的台词。需要文字层时，从本页 `source_context.speech` 或 `source_context.source` 核对原句；`dialogue_intent` 只表示意图，不能代替原句。没有相关对白时允许不用对白，不要求把全部候选文字都放上页面。
 - 对话有现场听者时，要安排听者同框或可观察的反应。
 - `entry_state`、`exit_state` 原样复制 `page_content`。不要替换相邻页已经确定的动作结果。
 - `role`：`opening`、`setup`、`rising`、`climax`、`falling`、`resolution`、`transition`。
@@ -64,7 +64,7 @@ name: manga_page_storyboard
 - `size`：`dominant`、`large`、`medium`、`small`、`inset`。`shot_scale`：`extreme_wide`、`wide`、`medium`、`close_up`、`extreme_close_up`、`detail`。
 - `camera_angle`：`eye_level`、`high`、`low`、`top_down`、`dutch`、`over_shoulder`、`profile`。
 - `text_layers.kind`：`dialogue`、`thought`、`narration`、`sfx`。`placement`：`top_left`、`top_right`、`upper_center`、`center_left`、`center_right`、`bottom_left`、`bottom_right`、`lower_center`。
-- `text_layers[].speaker` 必须按 kind 填写：`dialogue` 或 `thought` 使用 `characters` 中的稳定角色名；`narration` 或 `sfx` 必须严格写 JSON `null`，不能填写角色名、空字符串或其他文本。
+- `text_layers[].speaker` 必须按 kind 填写：`dialogue` 或 `thought` 使用能够确认的角色稳定称呼；第一人称角色使用 `未具名主角`。无法确认说话角色的画外旁白使用 `narration` 且 speaker 严格为 JSON `null`。第一人称旁白不因此成为 `participants`；`narration` 或 `sfx` 的 speaker 必须严格写 JSON `null`，不能填写角色名、空字符串或其他文本。
 - `text_layers[].placement` 必须严格使用上面列出的 8 个规范值；`upper_left`、`upper_right`、`top_center`、`lower_left`、`lower_right`、`bottom_center` 等别名均无效。
 - 不输出 Markdown、解释或额外字段。
 

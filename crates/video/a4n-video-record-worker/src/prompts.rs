@@ -45,12 +45,6 @@ impl WorkerState {
                 input.workflow_run_id
             )));
         }
-        if !a4n_db::workflow::workflow_run_is_running_or_resumable(&run.status, run.can_resume) {
-            return Err(WorkerFailure::conflict(format!(
-                "{}:加载片段规划草稿执行方案",
-                run.status
-            )));
-        }
         let fingerprint = run
             .input_fingerprint_json
             .as_ref()
@@ -132,6 +126,15 @@ impl WorkerState {
             },
         };
         let summary = self.load_video_segment_plan_draft(load_request).await?;
+        if !a4n_db::workflow::workflow_run_is_running_or_resumable(
+            &summary.run.status,
+            summary.run.can_resume,
+        ) {
+            return Err(WorkerFailure::conflict(format!(
+                "{}:更新片段规划草稿执行方案",
+                summary.run.status
+            )));
+        }
         let style = summary
             .run
             .input_fingerprint_json

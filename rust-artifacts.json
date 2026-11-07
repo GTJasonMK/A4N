@@ -1,7 +1,7 @@
 {
   "version": 1,
   "incremental_budget_bytes": 25769803776,
-  "total_budget_bytes": 51539607552,
+  "total_budget_bytes": 343597383680,
   "min_age_seconds": 60,
-  "automatic": true
+  "automatic": false
 }

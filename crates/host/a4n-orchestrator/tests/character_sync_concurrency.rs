@@ -92,7 +92,8 @@ async fn concurrent_character_sync_for_the_same_profile_and_chapter_is_rejected(
         matches!(
             &error,
             WorkflowWriteError::StatusConflict { current, operation }
-                if current == WORKFLOW_STATUS_RUNNING && operation.contains("重复启动")
+                if current == "该项目的同类工作流正在运行"
+                    && operation == "再次启动该工作流"
         ),
         "实际错误: {error:?}"
     );

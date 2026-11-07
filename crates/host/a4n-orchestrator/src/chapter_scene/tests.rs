@@ -121,8 +121,15 @@ fn scene_generation_request_uses_manifest_context_contract() {
 fn manifest_user_prompt_uses_context_refs_and_stays_json() {
     let prompt = build_scene_generation_manifest_user_prompt(1, "写入城门")
         .expect("scene prompt should serialize");
-    assert!(prompt.contains(r#""scene_number": 1"#));
-    assert!(prompt.contains(r#""prompt": "写入城门""#));
+    let payload_text = prompt
+        .split_once("输入：\n")
+        .map(|(_, payload)| payload)
+        .expect("prompt should include json payload");
+    let payload: serde_json::Value =
+        serde_json::from_str(payload_text).expect("prompt payload should be json");
+    assert_eq!(payload["input"]["scene"]["scene_number"], 1);
+    assert_eq!(payload["input"]["scene"]["prompt"], "写入城门");
+    assert!(payload["input"]["context_refs"].is_object());
     assert!(prompt.contains(PACK_KIND_CHAPTER_SCENE_GENERATION_CONTEXT));
     assert!(!prompt.contains("## 场景引导"));
 }

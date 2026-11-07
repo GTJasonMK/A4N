@@ -62,16 +62,80 @@ const openFrameMenu = async (dialog) => {
   return { trigger, menu };
 };
 
+const openVideoWorkspace = async () => {
+  const desktopTab = () => $('button[role="tab"][id$="-tab-video"]');
+  const mobilePicker = () => $('button[role="combobox"][aria-label="视频工作区"]');
+  const workspaceControls = () => browser.execute(() => {
+    const visible = (element) => Boolean(element && element.getClientRects().length > 0
+      && getComputedStyle(element).visibility !== "hidden");
+    return {
+      desktop: visible(document.querySelector('button[role="tab"][id$="-tab-video"]')),
+      mobile: visible(document.querySelector('button[role="combobox"][aria-label="视频工作区"]')),
+    };
+  });
+  try {
+    await browser.waitUntil(async () => {
+      const controls = await workspaceControls();
+      return controls.desktop || controls.mobile;
+    });
+  } catch (cause) {
+    const state = await browser.execute(() => ({
+      url: location.href,
+      width: innerWidth,
+      bodyText: document.body.innerText.slice(0, 1200),
+      bootErrors: window.__A4N_VIDEO_MODE_BOOT_ERRORS__ ?? null,
+      harnessInstalled: Boolean(window.__A4N_VIDEO_MODE_E2E__),
+      moduleResources: performance.getEntriesByType("resource")
+        .filter((entry) => entry.name.includes("harness.jsx"))
+        .map((entry) => ({ name: entry.name, responseStatus: entry.responseStatus, duration: entry.duration })),
+      tabs: [...document.querySelectorAll('[role="tab"], [role="combobox"]')].map((node) => ({
+        id: node.id,
+        label: node.getAttribute("aria-label"),
+        text: node.textContent?.trim(),
+        display: getComputedStyle(node).display,
+      })),
+      calls: window.__A4N_VIDEO_MODE_E2E__?.calls.map((call) => call.command) ?? [],
+    }));
+    const browserLogs = await browser.getLogs("browser").catch((error) => [{ message: String(error) }]);
+    throw new Error(`视频工作区切换控件未加载：${JSON.stringify({ state, browserLogs })}`, { cause });
+  }
+  const controls = await workspaceControls();
+  if (controls.desktop) {
+    if ((await (await desktopTab()).getAttribute("aria-selected")) !== "true") {
+      await (await desktopTab()).click();
+      await browser.waitUntil(
+        async () => (await (await desktopTab()).getAttribute("aria-selected")) === "true",
+      );
+    }
+    return;
+  }
+
+  const picker = await mobilePicker();
+  if (!(await picker.getText()).includes("片段生成")) {
+    await picker.click();
+    const option = await $('//*[@role="option" and contains(normalize-space(), "片段生成")]');
+    await option.waitForDisplayed();
+    await option.click();
+    await browser.waitUntil(async () => (await picker.getText()).includes("片段生成"));
+  }
+};
+
+const openPlanningWorkspace = async () => {
+  const planningTab = () => $('button[role="tab"][id$="-tab-frames"]');
+  await browser.waitUntil(async () => (await planningTab()).isClickable());
+  if ((await (await planningTab()).getAttribute("aria-selected")) !== "true") {
+    await (await planningTab()).click();
+    await browser.waitUntil(
+      async () => (await (await planningTab()).getAttribute("aria-selected")) === "true",
+    );
+  }
+};
+
 const frameMenuItem = (menu, label) =>
   menu.$(`.//*[@role="menuitem" and normalize-space()=${JSON.stringify(label)}]`);
 
 const openSegmentConfig = async (segmentNumber) => {
-  const framesTab = () => $('button[role="tab"][id$="-tab-frames"]');
-  await browser.waitUntil(async () => (await framesTab()).isClickable());
-  if ((await (await framesTab()).getAttribute("aria-selected")) !== "true") {
-    await (await framesTab()).click();
-    await browser.waitUntil(async () => (await (await framesTab()).getAttribute("aria-selected")) === "true");
-  }
+  await openVideoWorkspace();
   const button = await pageSegmentButton(segmentNumber);
   await revealByWheel(button);
   await button.waitForClickable();
@@ -188,8 +252,16 @@ const assembleChapterVideoCalls = () =>
   );
 
 describe("video segment mode switching in Chromium", () => {
+  beforeEach(async () => {
+    // Each scenario owns its in-memory Tauri fixture state. Reusing the renderer
+    // across all scenarios eventually exhausts Chromium's renderer resources and
+    // turns later navigations into blank tabs.
+    await browser.reloadSession();
+  });
+
   it("persists only the clicked segment recipe", async () => {
     await browser.url("/e2e/video-mode-switch/");
+    await openVideoWorkspace();
 
     assert.equal(await $('[aria-label="片段 1 生成方案"]').isExisting(), false);
     const results = await $('//section[@aria-label="视频结果"]');
@@ -255,19 +327,27 @@ describe("video segment mode switching in Chromium", () => {
     const workspaceTabs = await $('[role="tablist"][aria-label="视频工作区"]');
     const director = await workspaceTabs.$('.//button[@role="tab" and .//span[normalize-space()="导演编排"]]');
     await director.click();
-    const discardDialog = await $('//div[@role="dialog" and .//h3[normalize-space()="未保存修改"]]');
-    await discardDialog.waitForDisplayed();
-    await discardDialog.$('.//button[normalize-space()="取消"]').click();
+    const discardDialog = () => $('//div[@role="dialog" and .//h3[normalize-space()="未保存修改"]]');
+    await discardDialog().waitForDisplayed();
+    await discardDialog().$('.//button[normalize-space()="取消"]').click();
+    await discardDialog().waitForExist({ reverse: true });
     await browser.waitUntil(async () => (await director.getAttribute("aria-selected")) === "false");
     assert.match(await segmentHeaderText(1), /Chat 生视频/);
 
     await director.click();
-    await discardDialog.waitForDisplayed();
-    await discardDialog.$('.//button[normalize-space()="放弃草稿"]').click();
+    try {
+      await discardDialog().waitForDisplayed();
+    } catch (cause) {
+      const state = await browser.execute(() => ({
+        activeTab: document.querySelector('[role="tab"][aria-selected="true"]')?.id ?? null,
+        bodyText: document.body.innerText,
+        commands: window.__A4N_VIDEO_MODE_E2E__?.calls.map((call) => call.command) ?? [],
+      }));
+      throw new Error(`Discard confirmation did not reopen: ${JSON.stringify(state)}`, { cause });
+    }
+    await discardDialog().$('.//button[normalize-space()="放弃草稿"]').click();
     await browser.waitUntil(async () => (await director.getAttribute("aria-selected")) === "true");
-    const frames = await workspaceTabs.$('.//button[@role="tab" and .//span[normalize-space()="片段规划"]]');
-    await frames.click();
-    await browser.waitUntil(async () => (await frames.getAttribute("aria-selected")) === "true");
+    await openVideoWorkspace();
     assert.match(await segmentHeaderText(1), /首尾帧生成/, "Discarding the failed draft must restore the persisted recipe");
     assert.equal((await recipeUpdates()).length, 1, "Changing workspace tabs must not retry the failed save");
   });
@@ -302,13 +382,13 @@ describe("video segment mode switching in Chromium", () => {
     const director = await workspaceTabs.$('.//button[@role="tab" and .//span[normalize-space()="导演编排"]]');
     await director.click();
     await browser.waitUntil(async () => (await $("body").getText()).includes("操作仍在进行"));
-    const frames = await workspaceTabs.$('.//button[@role="tab" and .//span[normalize-space()="片段规划"]]');
-    await browser.waitUntil(async () => (await frames.getAttribute("aria-selected")) === "true");
+    const videoWorkspace = await workspaceTabs.$('.//button[@role="tab" and .//span[normalize-space()="片段生成"]]');
+    await browser.waitUntil(async () => (await videoWorkspace.getAttribute("aria-selected")) === "true");
     assert.equal(await $('[role="dialog"]').isExisting(), false, "An in-flight save must block before the discard prompt");
 
     await browser.execute(() => window.__A4N_VIDEO_MODE_E2E__.releasePendingRecipeSave());
     await browser.waitUntil(async () => (await recipeUpdates()).length === 1);
-    await browser.waitUntil(async () => (await frames.getAttribute("aria-selected")) === "true");
+    await browser.waitUntil(async () => (await videoWorkspace.getAttribute("aria-selected")) === "true");
     await director.click();
     await browser.waitUntil(async () => (await director.getAttribute("aria-selected")) === "true");
   });
@@ -462,9 +542,18 @@ describe("video segment mode switching in Chromium", () => {
   it("shows generated storyboard assets after fingerprint verification", async () => {
     await browser.url("/e2e/video-mode-switch/?scenario=storyboard-assets");
     const { dialog } = await openSegmentConfig(2);
-    await browser.waitUntil(async () =>
-      (await dialog.getText()).includes("输入已就绪"),
-    );
+    try {
+      await browser.waitUntil(async () =>
+        (await dialog.getText()).includes("必需输入已填充，可以生成最终提示词。"),
+      );
+    } catch (cause) {
+      const state = await browser.execute(() => ({
+        dialogText: document.querySelector('[role="dialog"]')?.innerText ?? null,
+        alerts: [...document.querySelectorAll('[role="alert"]')].map((node) => node.textContent?.trim()),
+        commands: window.__A4N_VIDEO_MODE_E2E__?.calls.map((call) => call.command) ?? [],
+      }));
+      throw new Error(`Storyboard inputs did not become ready: ${JSON.stringify(state)}`, { cause });
+    }
     assert.doesNotMatch(await dialog.getText(), /请先准备当前片段的分镜提示词/);
     assert.match(
       await dialog.$('button[aria-label="配置分镜板"]').getText(),
@@ -579,21 +668,20 @@ describe("video segment mode switching in Chromium", () => {
     await optimizeDialog.waitForExist();
     await optimizeDialog.$("textarea").setValue("强化画面层次");
     await optimizeDialog.$('.//button[normalize-space()="开始优化"]').click();
-    const progressDialog = await $(
-      '//div[@role="dialog" and .//h3[normalize-space()="优化提示词"]]',
-    );
-    await progressDialog.waitForExist();
+    const progressDialog = () =>
+      $('//div[@role="dialog" and .//h3[normalize-space()="优化提示词"]]');
+    await progressDialog().waitForExist();
     await browser.waitUntil(async () =>
-      (await progressDialog.getText()).includes("正在调用模型并校验优化结果"),
+      (await progressDialog().getText()).includes("正在调用模型并校验优化结果"),
     );
     await browser.waitUntil(
       async () => (await framePromptMutations()).length === 2,
     );
     await browser.waitUntil(async () =>
-      (await progressDialog.getText()).includes("任务已完成"),
+      (await progressDialog().getText()).includes("任务已完成"),
     );
-    await progressDialog.$('.//button[normalize-space()="关闭"]').click();
-    await progressDialog.waitForExist({ reverse: true });
+    await progressDialog().$('.//button[normalize-space()="关闭"]').click();
+    await progressDialog().waitForExist({ reverse: true });
     assert.equal(
       (await framePromptMutations())[1].args.input.instruction,
       "强化画面层次",
@@ -651,6 +739,7 @@ describe("video segment mode switching in Chromium", () => {
     await browser.url(
       "/e2e/video-mode-switch/?scenario=reference-media-layout",
     );
+    await openVideoWorkspace();
 
     const pageResults = await $$('//section[@aria-label="视频结果"]');
     assert.equal(pageResults.length, 1);
@@ -678,6 +767,7 @@ describe("video segment mode switching in Chromium", () => {
     await browser.url(
       "/e2e/video-mode-switch/?scenario=reference-media-adopted-video",
     );
+    await openVideoWorkspace();
     const results = await $('//section[@aria-label="视频结果"]');
     await results.waitForExist();
     await browser.execute(() =>
@@ -719,6 +809,7 @@ describe("video segment mode switching in Chromium", () => {
 
   it("selects a segment first, follows its adopted video, and opens config on the second click", async () => {
     await browser.url("/e2e/video-mode-switch/?scenario=segment-selection");
+    await openVideoWorkspace();
 
     const results = await $('//section[@aria-label="视频结果"]');
     await results.waitForExist();
@@ -804,6 +895,7 @@ describe("video segment mode switching in Chromium", () => {
     await browser.setWindowSize(390, 844);
     try {
       await browser.url("/e2e/video-mode-switch/");
+      await openVideoWorkspace();
       const mobileTabs = await $('[aria-label="视频生成移动工作区"]');
       await mobileTabs.waitForExist();
       assert.match(await mobileTabs.getText(), /片段/);
@@ -842,6 +934,7 @@ describe("video segment mode switching in Chromium", () => {
 
   it("retains a saved segment after cancellation and resumes from the next shot", async () => {
     await browser.url("/e2e/video-mode-switch/?scenario=cancel-resume");
+    await openPlanningWorkspace();
 
     const planning = await $('section[aria-label="视频片段规划"]');
     await planning.waitForExist();
@@ -870,7 +963,7 @@ describe("video segment mode switching in Chromium", () => {
     assert.equal(await planning.$("ol > li p").getText(), "镜头 1 的已保存片段");
 
     const videoTab = await $(
-      '//button[@role="tab" and normalize-space()="片段生成"]',
+      '//button[@role="tab" and .//span[normalize-space()="片段生成"]]',
     );
     await videoTab.waitForClickable();
     await videoTab.click();
@@ -881,7 +974,7 @@ describe("video segment mode switching in Chromium", () => {
     assert.deepEqual(await draftRecipeUpdates(), []);
 
     const planningTab = await $(
-      '//button[@role="tab" and normalize-space()="片段规划"]',
+      '//button[@role="tab" and .//span[normalize-space()="片段规划"]]',
     );
     await planningTab.click();
     await browser.waitUntil(async () => (await planningTab.getAttribute("aria-selected")) === "true");
@@ -926,7 +1019,17 @@ describe("video segment mode switching in Chromium", () => {
     await closeResumed.waitForClickable();
     await closeResumed.click();
     resume = await $('//button[contains(normalize-space(), "继续生成")]');
-    await resume.waitForEnabled();
+    try {
+      await resume.waitForEnabled();
+    } catch (cause) {
+      const state = await browser.execute(() => ({
+        bodyText: document.body.innerText,
+        generationCommands: window.__A4N_VIDEO_MODE_E2E__?.calls
+          .filter((call) => ["start_video_generation", "cancel_generation_task", "list_workflow_runs", "load_video_segment_plan_draft"].includes(call.command))
+          .map((call) => call.command) ?? [],
+      }));
+      throw new Error(`Saved video plan did not become resumable: ${JSON.stringify(state)}`, { cause });
+    }
     assert.equal(await $('//*[normalize-space()="片段 1"]').isExisting(), true);
     assert.equal((await planning.$$("ol > li")).length, 1);
     assert.equal(await planning.$("ol > li p").getText(), "镜头 1 的已保存片段");
@@ -942,6 +1045,7 @@ describe("video segment mode switching in Chromium", () => {
     await browser.url(
       "/e2e/video-mode-switch/?scenario=planning-content-running",
     );
+    await openPlanningWorkspace();
 
     const planning = await $('section[aria-label="视频片段规划"]');
     await planning.waitForExist();
@@ -969,6 +1073,7 @@ describe("video segment mode switching in Chromium", () => {
 
   it("continues a boundary-frame segment with a later first-frame-chain segment", async () => {
     await browser.url("/e2e/video-mode-switch/?scenario=cross-mode-continuity");
+    await openVideoWorkspace();
 
     assert.match(await segmentHeaderText(1), /首尾帧生成/);
 
@@ -1147,7 +1252,7 @@ describe("video segment mode switching in Chromium", () => {
 
   it("assembles the valid prefix when a later adopted video is stale", async () => {
     await browser.url("/e2e/video-mode-switch/?scenario=mixed-assembly-gap");
-    const assemblyTab = await $('//button[@role="tab" and normalize-space()="成片合成"]');
+    const assemblyTab = await $('//button[@role="tab" and .//span[normalize-space()="成片合成"]]');
     await assemblyTab.waitForClickable();
     await assemblyTab.click();
     await browser.waitUntil(async () => (await assemblyTab.getAttribute("aria-selected")) === "true");
@@ -1180,7 +1285,7 @@ describe("video segment mode switching in Chromium", () => {
 
   it("assembles all valid videos when every current-plan segment is adopted", async () => {
     await browser.url("/e2e/video-mode-switch/?scenario=mixed-assembly-ready");
-    const assemblyTab = await $('//button[@role="tab" and normalize-space()="成片合成"]');
+    const assemblyTab = await $('//button[@role="tab" and .//span[normalize-space()="成片合成"]]');
     await assemblyTab.waitForClickable();
     await assemblyTab.click();
     await browser.waitUntil(async () => (await assemblyTab.getAttribute("aria-selected")) === "true");

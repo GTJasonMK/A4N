@@ -221,7 +221,7 @@ export function DirectorTimeline({ plan, record, selection, clock, editable, sce
     <Modal isOpen={timingOpen} title={t("visualPlan.timelineUi.timingTitle")} onClose={closeTiming} footer={<BookButton onClick={closeTiming}>{t("visualPlan.timelineUi.complete")}</BookButton>}>
       <div className="director-timing-fields">
         <label>{t("visualPlan.timelineUi.overallDuration")} <input className="book-control w-24 px-2 py-1" aria-label={`${t("visualPlan.timelineUi.overallDuration")} (${t("visualPlan.timelineUi.seconds")})`} type="number" min="0.001" step="0.001" value={duration} disabled={!editable}
-          onChange={(event) => setDuration(event.target.value)} onBlur={() => scaleTimeline(Math.round(Number(duration) * 1000))} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} /> {t("visualPlan.timelineUi.seconds")}</label>
+          onChange={(event) => setDuration(event.target.value)} onBlur={(event) => scaleTimeline(Math.round(Number(event.currentTarget.value) * 1000))} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} /> {t("visualPlan.timelineUi.seconds")}</label>
         <label className="director-scale-label">{t("visualPlan.timelineUi.scalePoints")} <input type="range" aria-label={t("visualPlan.timelineUi.scalePoints")} min={25} max={200} step={1} value={scale} disabled={!editable}
           onPointerDown={() => { scaleStart.current = total; }} onChange={(event) => { if (scale === 100) scaleStart.current = total; setScale(Number(event.target.value)); }}
           onPointerUp={scaleCommit} onKeyUp={(event) => { if (event.key.startsWith("Arrow") || event.key === "Home" || event.key === "End") scaleCommit(); }}

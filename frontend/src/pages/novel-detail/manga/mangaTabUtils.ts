@@ -168,6 +168,29 @@ export const mangaPageStageHasOutput = (
   }
 };
 
+export const mangaPagePipelineStageHasOutput = (
+  page: MangaPageStageOutputs | null | undefined,
+  stage: MangaPipelineArtifactStage,
+): boolean => {
+  if (!page) return false;
+  switch (stage) {
+    case "page_content":
+      return page.page_content != null;
+    case "page_adaptation":
+      return page.page_adaptation != null;
+    case "storyboard":
+      return page.page_plan != null;
+    case "reference_discovery":
+      return page.reference_discovery != null;
+    case "drawing_prompt":
+      return page.drawing_prompt != null;
+    case "image":
+      return page.generated_image_id != null;
+    default:
+      return false;
+  }
+};
+
 export const mangaPageStageNeedsGeneration = (
   page: MangaPageStageProgress,
   stage: MangaPageWorkspaceStage,

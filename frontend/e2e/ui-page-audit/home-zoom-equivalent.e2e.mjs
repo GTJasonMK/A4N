@@ -36,6 +36,21 @@ describe("Home page at a 702 x 393 CSS viewport", () => {
   });
 
   after(async () => {
+    if (report.home == null) {
+      try {
+        report.bootstrap = await browser.execute(() => ({
+          url: location.href,
+          text: document.body?.innerText,
+          hasAuth: localStorage.getItem("a4n:current_access_token") != null,
+          fixtureReady: window.__uiAudit != null,
+          errors: window.__uiAudit?.errors,
+          unexpected: window.__uiAudit?.unexpected,
+        }));
+        await browser.saveScreenshot(`${output}/bootstrap-failure.png`);
+      } catch (error) {
+        report.bootstrapError = String(error);
+      }
+    }
     await writeFile(`${output}/report.json`, JSON.stringify(report, null, 2));
   });
 

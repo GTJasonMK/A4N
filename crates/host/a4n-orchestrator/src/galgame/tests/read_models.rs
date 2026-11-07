@@ -133,7 +133,14 @@ fn pipeline_status_projects_only_the_canonical_wire_contract() {
     .with_mode("full")
     .with_input_fingerprint(json!({ "hidden": true }))
     .with_current_step("visual_plan")
-    .with_progress(json!({ "completed": 3, "total": 6 }))
+    .with_progress(json!({
+        "current": 3,
+        "total": 6,
+        "message": "生成中",
+        "percent": 50.0,
+        "meta": null,
+        "updated_at": updated_at.to_string()
+    }))
     .with_active_task("task-7")
     .with_resumability(true, Some("retry".to_string()))
     .with_error_message("provider failed")
@@ -168,7 +175,14 @@ fn pipeline_status_projects_only_the_canonical_wire_contract() {
                 "status": "failed",
                 "mode": "full",
                 "current_step_key": "visual_plan",
-                "progress_json": { "completed": 3, "total": 6 },
+                "progress_json": {
+                    "current": 3,
+                    "total": 6,
+                    "message": "生成中",
+                    "percent": 50.0,
+                    "meta": null,
+                    "updated_at": updated_at.to_string()
+                },
                 "active_task_id": "task-7",
                 "can_resume": true,
                 "resume_block_reason": "retry",

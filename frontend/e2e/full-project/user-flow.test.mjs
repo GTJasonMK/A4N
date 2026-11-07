@@ -2,7 +2,41 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
+import Mocha from "mocha";
 import { captureBrowserDiagnostics, visibleElements, waitAndCloseProgress } from "./user-flow.mjs";
+
+test("browser diagnostics fail the Mocha run even when the test body passes", async () => {
+  const directory = mkdtempSync(new URL("../../../data/browser-gate-", import.meta.url));
+  const previousArtifacts = process.env.A4N_BROWSER_E2E_ARTIFACT_DIR;
+  process.env.A4N_BROWSER_E2E_ARTIFACT_DIR = directory;
+  const originalFetch = globalThis.fetch;
+  globalThis.browser = {
+    sessionId: "test",
+    options: { protocol: "http", hostname: "localhost", port: 1, path: "/" },
+    saveScreenshot: async () => {},
+    execute: async () => "<html></html>",
+  };
+  globalThis.fetch = async (_url, options) => ({
+    ok: true,
+    json: async () => ({ value: JSON.parse(options.body).type === "browser"
+      ? [{ level: "SEVERE", message: "unexpected render failure" }]
+      : [] }),
+  });
+  try {
+    const { config } = await import("./wdio.conf.mjs");
+    const mocha = new Mocha({ ...config.mochaOpts, reporter: class {} });
+    mocha.suite.addTest(new Mocha.Test("浏览器诊断不能假成功", () => {}));
+    const failures = await new Promise((resolve) => mocha.run(resolve));
+    assert.equal(failures, 1, "a successful body must not hide failed diagnostics");
+    assert.match(readFileSync(join(directory, "浏览器诊断不能假成功-browser.json"), "utf8"), /unexpected render failure/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete globalThis.browser;
+    if (previousArtifacts === undefined) delete process.env.A4N_BROWSER_E2E_ARTIFACT_DIR;
+    else process.env.A4N_BROWSER_E2E_ARTIFACT_DIR = previousArtifacts;
+    rmSync(directory, { recursive: true });
+  }
+});
 
 test("element scans tolerate replaced nodes but propagate transport failures", async () => {
   try {

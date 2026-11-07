@@ -113,7 +113,7 @@ pub fn terminate_child(child: &mut std::process::Child) -> std::io::Result<()> {
 }
 
 #[cfg(target_os = "linux")]
-/// Deliver SIGTERM to a child process when its parent exits.
+/// Force-stop a child when its parent disappears; graceful shutdown is coordinated beforehand.
 pub fn configure_parent_death_signal(command: &mut std::process::Command) {
     unsafe {
         command.pre_exec(|| {
@@ -121,8 +121,8 @@ pub fn configure_parent_death_signal(command: &mut std::process::Command) {
                 fn prctl(option: i32, ...) -> i32;
             }
             const PR_SET_PDEATHSIG: i32 = 1;
-            const SIGTERM: i32 = 15;
-            if prctl(PR_SET_PDEATHSIG, SIGTERM) != 0 {
+            const SIGKILL: i32 = 9;
+            if prctl(PR_SET_PDEATHSIG, SIGKILL) != 0 {
                 return Err(std::io::Error::last_os_error());
             }
             Ok(())

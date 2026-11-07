@@ -246,7 +246,7 @@ export const loadVideoSegmentPlanDraft = async (
     resumeResult.status === "fulfilled" ? resumeResult.value : null,
     t,
   );
-  if (resumeResult.status === "rejected") draft.resumeTaskError = resumeResult.reason;
+  if (draft && resumeResult.status === "rejected") draft.resumeTaskError = resumeResult.reason;
   return draft;
 };
 
@@ -281,7 +281,7 @@ const loadedVideoSegmentPlanDraftFromDetail = (
   chapterId: number,
   resumeTaskId: string | null,
   t: MessageTranslator,
-): LoadedSegmentPlanDraft => {
+): LoadedSegmentPlanDraft | null => {
   const run = detail.run;
   if (
     run.project_id !== projectId ||
@@ -292,6 +292,7 @@ const loadedVideoSegmentPlanDraftFromDetail = (
       t("video.chapter.segmentPlanWrongChapter", { runId: detail.run.id }),
     );
   }
+  if (run.status !== "running" && !run.can_resume) return null;
   const resumeOptions = segmentPlanResumeOptions(run, projectId, chapterId, t);
   return {
     workflowRunId: run.id,

@@ -62,6 +62,10 @@ pub(super) fn spawn_server(
     }
     if let Some(url) = qdrant_url {
         command.env("A4N_QDRANT_URL", url);
+    } else {
+        command
+            .env_remove("A4N_QDRANT_URL")
+            .env_remove("A4N_QDRANT_COLLECTION");
     }
     if std::env::var_os(RELEASE_MANIFEST_ENV).is_none()
         && let Some(path) = bundled_release_manifest()

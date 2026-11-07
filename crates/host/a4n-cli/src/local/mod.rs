@@ -248,9 +248,7 @@ pub(crate) async fn start(
     let database_url = required_env("A4N_DATABASE_URL")?;
     required_env("A4N_JWT_SECRET")?;
     let source_root = source_root()?;
-    if options.full && source_root.is_none() {
-        bail!("local start --full 需要 A4N 源码 workspace；发布包请使用默认 sidecar profile");
-    }
+    validate_start_source_workspace(options.full, source_root.as_deref())?;
     run_migration(&database_url, source_root.as_deref())?;
 
     let server_binary = resolve_or_build_binary(
@@ -514,6 +512,13 @@ pub(crate) fn migrate() -> Result<Value> {
     Ok(json!({ "migrated": true }))
 }
 
+fn validate_start_source_workspace(full: bool, source_root: Option<&Path>) -> Result<()> {
+    if full && source_root.is_none() {
+        bail!("local start --full 需要 A4N 源码 workspace；发布包请使用默认 sidecar profile");
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -529,9 +534,20 @@ mod tests {
         configure_onnxruntime_environment, database_endpoint, endpoint_from_url,
         load_state_unlocked, log_stdio, non_empty_command_line, onnxruntime_library_name,
         qdrant_http_port, runtime_loader_path_var, server_endpoint, server_healthy, spawn_server,
-        stop, tail_lines,
+        stop, tail_lines, validate_start_source_workspace,
     };
     use crate::local::MANAGED_SIDECARS_ENV;
+
+    #[test]
+    fn full_local_start_requires_source_workspace() {
+        let error = validate_start_source_workspace(true, None).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "local start --full 需要 A4N 源码 workspace；发布包请使用默认 sidecar profile"
+        );
+        assert!(validate_start_source_workspace(false, None).is_ok());
+        assert!(validate_start_source_workspace(true, Some(Path::new("workspace"))).is_ok());
+    }
 
     #[test]
     fn local_endpoints_reject_remote_server_and_parse_postgres() {
@@ -807,7 +823,10 @@ mod tests {
             assert!(env.contains(&format!("{MANAGED_SIDECARS_ENV}={expected_managed}")));
             match qdrant_url {
                 Some(url) => assert!(env.contains(&format!("A4N_QDRANT_URL={url}"))),
-                None => assert!(!env.contains("A4N_QDRANT_URL=")),
+                None => {
+                    assert!(!env.contains("A4N_QDRANT_URL="));
+                    assert!(!env.contains("A4N_QDRANT_COLLECTION="));
+                }
             }
             if options.managed_sidecars || options.full {
                 assert!(env.contains("ORT_LIB_PATH="));

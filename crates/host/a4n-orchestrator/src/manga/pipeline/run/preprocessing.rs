@@ -19,6 +19,7 @@ use crate::{OrchestratorContext, source_markers::SourceMarkerMap};
 use super::super::prompt::{
     MangaRenderTraceInput, manga_preprocessing_user_message, validate_manga_preprocessing,
 };
+use super::contracts::manga_stage_output_exists_error;
 
 pub(super) struct MangaPreprocessingInput<'a> {
     pub project_id: i64,
@@ -56,6 +57,38 @@ pub(super) async fn run_manga_preprocessing(
         &source_markers,
         input.reference_assets,
     )?;
+    if let Some(artifact) = context
+        .manga_pipeline_artifact(
+            input.project_id,
+            input.chapter_id,
+            MangaPipelineArtifactStage::Preprocessing,
+            None,
+        )
+        .await?
+    {
+        if !input.resume_from_checkpoint
+            || artifact.stale
+            || artifact.input_fingerprint != input_fingerprint
+        {
+            return Err(manga_stage_output_exists_error(
+                MangaPipelineArtifactStage::Preprocessing,
+                None,
+            ));
+        }
+        let preprocessing: MangaPreprocessingV3 = serde_json::from_value(artifact.payload)
+            .map_err(|error| AppError::InvalidArgument(format!("漫画预处理产物无效: {error}")))?;
+        preprocessing
+            .validate()
+            .map_err(AppError::InvalidArgument)?;
+        context
+            .report_manga_preprocessing_completed(
+                input.workflow_run_id,
+                input.task_id,
+                input.progress_reporter,
+            )
+            .await?;
+        return Ok(preprocessing);
+    }
 
     context
         .record_manga_pipeline_progress_with_total(
@@ -106,7 +139,7 @@ pub(super) async fn run_manga_preprocessing(
         .await?;
 
     context
-        .upsert_manga_pipeline_artifact(MangaPipelineArtifactDraft {
+        .create_manga_pipeline_artifact(MangaPipelineArtifactDraft {
             project_id: input.project_id,
             chapter_id: input.chapter_id,
             stage: MangaPipelineArtifactStage::Preprocessing,

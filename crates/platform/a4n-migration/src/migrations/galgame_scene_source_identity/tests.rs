@@ -1,7 +1,7 @@
 use sea_orm::{ConnectionTrait, DbBackend, Statement, TransactionTrait};
 
 #[tokio::test]
-async fn legacy_scene_sources_require_one_complete_unchanged_frozen_cohort() {
+async fn historical_backfill_contract_is_preserved_and_followup_guard_clears_conflicted_ids() {
     let db = crate::test_support::connect_test_database().await;
     let tx = db.begin().await.unwrap();
     tx.execute_unprepared(r#"
@@ -33,10 +33,44 @@ async fn legacy_scene_sources_require_one_complete_unchanged_frozen_cohort() {
             (7,4,41,1,'main','unit:recorded'),(8,5,51,1,'main',NULL),(9,6,61,1,'main',NULL);
         INSERT INTO source_sync_conflict VALUES (5,'obsolete','regenerate_scene');
         DISCARD PLANS;
-        SELECT a4n_backfill_galgame_scene_sources(1);
+    "#)
+    .await
+    .unwrap();
+    tx.execute_unprepared(super::BACKFILL_FUNCTION_SQL)
+        .await
+        .unwrap();
+    tx.execute_unprepared(
+        r#"
+        SELECT a4n_backfill_galgame_scene_sources(1::bigint);
         SELECT a4n_backfill_galgame_scene_sources(NULL::bigint);
         SELECT a4n_backfill_galgame_scene_sources(NULL::bigint);
-    "#).await.unwrap();
+    "#,
+    )
+    .await
+    .unwrap();
+    let obsolete_identity = tx
+        .query_one(Statement::from_string(
+            DbBackend::Postgres,
+            "SELECT shooting_scene_identity FROM galgame_scene WHERE id = 8",
+        ))
+        .await
+        .unwrap()
+        .unwrap()
+        .try_get::<Option<String>>("", "shooting_scene_identity")
+        .unwrap();
+    assert_eq!(obsolete_identity.as_deref(), Some("unit:first"));
+    let current_backfill =
+        super::super::galgame_scene_backfill_conflict_guard::current_backfill_function_sql()
+            .unwrap();
+    tx.execute_unprepared(&current_backfill).await.unwrap();
+    tx.execute_unprepared(
+        super::super::galgame_scene_backfill_conflict_guard::CLEAR_CONFLICTED_IDENTITIES_SQL,
+    )
+    .await
+    .unwrap();
+    tx.execute_unprepared("SELECT a4n_backfill_galgame_scene_sources(NULL::bigint);")
+        .await
+        .unwrap();
     let rows = tx
         .query_all(Statement::from_string(
             DbBackend::Postgres,

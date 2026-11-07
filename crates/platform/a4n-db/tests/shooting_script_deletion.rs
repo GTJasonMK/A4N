@@ -12,6 +12,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, NotSet, QueryFilter, Q
 #[tokio::test]
 async fn deleting_script_is_revision_fenced_and_preserves_downstream_state() {
     let db = a4n_migration::test_support::connect_test_database().await;
+    a4n_test_support::database::ensure_test_user(&db, 1).await;
     let root = a4n_db::project::create_project_record(
         &db,
         a4n_db::project::CreateProjectRecordInput {
@@ -149,7 +150,7 @@ async fn deleting_script_is_revision_fenced_and_preserves_downstream_state() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(downstream_after.source_sync_status, "root_updated");
+    assert_eq!(downstream_after.source_sync_status, "current");
     let downstream_before = downstream_before.unwrap();
     downstream_after.source_sync_status = downstream_before.source_sync_status.clone();
     downstream_after.updated_at = downstream_before.updated_at;

@@ -57,7 +57,7 @@ fn source_snapshot_id_rejects_text_project() {
 
 #[test]
 fn source_snapshot_id_rejects_freeform_project() {
-    let err = source_snapshot_id_for_project(&project("video", None, None))
+    let err = source_snapshot_id_for_project(&project("canvas", None, None))
         .expect_err("freeform project should not expose source snapshot chapters");
 
     assert!(matches!(

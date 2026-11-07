@@ -24,7 +24,9 @@ use sea_orm::{
 use serde_json::json;
 
 async fn setup_db() -> DatabaseConnection {
-    a4n_migration::test_support::connect_test_database().await
+    let db = a4n_migration::test_support::connect_test_database().await;
+    a4n_test_support::database::ensure_test_user(&db, 1).await;
+    db
 }
 
 #[tokio::test]
@@ -311,6 +313,7 @@ async fn canvas_node_artifact_update_rejects_a_changed_graph_version() {
 #[tokio::test]
 async fn canvas_assembly_batch_write_preserves_segment_chain_bindings_and_clips() {
     let db = setup_db().await;
+    a4n_test_support::database::ensure_test_user(&db, 3).await;
     let project = crate::project::create_canvas_project_record(
         &db,
         3,

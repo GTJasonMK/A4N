@@ -825,6 +825,7 @@ async fn resume_binds_activity_task_to_workflow() {
 #[tokio::test]
 async fn cancelled_retry_inherits_completed_calls_without_reopening_cancelled_run() {
     let db = a4n_migration::test_support::connect_test_database().await;
+    a4n_test_support::database::ensure_test_user(&db, 1).await;
     let db_handle = a4n_db::DbHandle::new(std::sync::Arc::new(db.clone()));
     let key = format!("character-call-resume:{}", uuid::Uuid::new_v4());
     let mut input = workflow_input(&key, "same", WORKFLOW_STATUS_RUNNING);
@@ -922,11 +923,12 @@ async fn cancelled_retry_inherits_completed_calls_without_reopening_cancelled_ru
         ),
         "late responses must not write into the cancelled owner"
     );
+    input.active_task_id = Some("concurrent-attempt".to_string());
     assert!(
         matches!(
             resume_or_upsert_workflow_run(&db, input).await,
-            Err(WorkflowWriteError::StatusConflict { current, .. })
-                if current == WORKFLOW_STATUS_RUNNING
+            Err(WorkflowWriteError::StatusConflict { current, operation })
+                if current.contains("正在运行") && operation == "再次启动该工作流"
         ),
         "concurrent admission must remain fenced"
     );

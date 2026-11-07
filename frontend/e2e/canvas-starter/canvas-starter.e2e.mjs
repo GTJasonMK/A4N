@@ -53,8 +53,7 @@ describe("independent video canvas starter", () => {
     await browser.waitUntil(async () => !(await dialog.$('[role="alert"]').isExisting()));
     const title = await dialog.$("input");
     await title.setValue("短片脚本");
-    const textareas = await dialog.$$('textarea');
-    await textareas[1].setValue("第一场：主角走进雨中的车站。\n第二场：主角发现一封旧信。");
+    await dialog.$('label[for] textarea[required], label textarea[required]').setValue("第一场：主角走进雨中的车站。\n第二场：主角发现一封旧信。");
     await (await dialog.$('//button[normalize-space()="保存"]')).click();
     await browser.waitUntil(async () =>
       (await browser.execute(() => window.__A4N_CANVAS_STARTER_E2E__.getTextAssets().length)) === 1,

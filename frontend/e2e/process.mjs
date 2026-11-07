@@ -21,10 +21,11 @@ export async function stopProcess(child) {
   }
 }
 
-export async function startVite(port, path = "/", environment = {}) {
+export async function startVite(port, path = "/", environment = {}, { preview = false } = {}) {
   const baseUrl = `http://127.0.0.1:${port}`;
   const child = spawn(process.execPath, [
-    "node_modules/vite/bin/vite.js", "--host", "127.0.0.1", "--port", String(port), "--strictPort",
+    "node_modules/vite/bin/vite.js", ...(preview ? ["preview"] : []),
+    "--host", "127.0.0.1", "--port", String(port), "--strictPort",
     ...(process.env.A4N_UI_VITE_CONFIG ? ["--config", process.env.A4N_UI_VITE_CONFIG] : []),
   ], {
     cwd: frontendRoot,

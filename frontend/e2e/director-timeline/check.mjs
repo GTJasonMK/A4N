@@ -294,8 +294,8 @@ try {
   await browser.$('[aria-label="收起属性"]').click();
   await browser.$('[aria-label="调整整体时长"]').click();
   await browser.$('[role="dialog"]').waitForDisplayed();
-  await setInput('[aria-label="整体时长（秒）"]', "24");
-  await browser.$('[aria-label="整体时长（秒）"]').click();
+  await setInput('[aria-label^="整体时长"]', "24");
+  await browser.$('[aria-label^="整体时长"]').click();
   await browser.keys("Tab");
   await browser.waitUntil(async () => browser.execute(() => window.directorCommands.some((call) => call.command === "edit_chapter_visual_plan_draft" && call.input.operation.duration_ms === 24000)));
   await browser.waitUntil(async () => (await browser.$(".director-ruler").getText()).includes("24s"));
@@ -318,7 +318,7 @@ try {
   await setInput('[aria-label="播放位置"]', "3000");
   await browser.$('[aria-label="调整整体时长"]').click();
   await browser.$('[role="dialog"]').waitForDisplayed();
-  assert.equal(await browser.$('[aria-label="整体时长（秒）"]').getValue(), "24");
+  assert.equal(await browser.$('[aria-label^="整体时长"]').getValue(), "24");
   assert.ok((await browser.$('[aria-label="等比伸缩全部时间点"]').getSize()).height >= 44);
   const timeBeforeTimingKeys = await browser.$(".director-timecode").getText();
   await browser.keys("Home");
@@ -526,8 +526,8 @@ try {
   const completedEdits = await browser.execute(() => window.directorEditFinished ?? 0);
   await browser.$('[aria-label="调整整体时长"]').click();
   await browser.$('[role="dialog"]').waitForDisplayed();
-  await setInput('[aria-label="整体时长（秒）"]', "36");
-  await browser.$('[aria-label="整体时长（秒）"]').click();
+  await setInput('[aria-label^="整体时长"]', "36");
+  await browser.$('[aria-label^="整体时长"]').click();
   await browser.keys("Tab");
   await browser.waitUntil(async () => browser.execute(() => window.directorCommands.some((call) => call.command === "edit_chapter_visual_plan_draft" && call.input.operation.duration_ms === 36000)));
   await browser.execute(() => window.switchDirectorChapter(2));
