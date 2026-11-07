@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use serde_json::{Value, json};
 
+use a4n_domain::json_contract::positive_i64_array_schema;
 use a4n_error::AppError;
 use a4n_llm_context::{
     ContextAwareJsonLlmRequestInput, PACK_KIND_SCENE_PROFILE_SYNC_SOURCE_CONTEXT,
@@ -37,6 +38,9 @@ pub(in crate::scene_profile::application) async fn build_scene_profile_candidate
         json!({
             "format": "json_object",
             "required_root_field": "scenes",
+            "field_types": {
+                "evidence_anchor_ids": positive_i64_array_schema(true),
+            },
             "strict_rules": [
                 "只返回 scenes 数组，不要输出 occurrences、transitions 或 entity_states",
                 SCENE_CANDIDATE_ACTUAL_OCCURRENCE_RULE,

@@ -2,7 +2,7 @@ use super::parsing::{
     parse_scene_entity_states, parse_scene_occurrences, parse_scene_profiles,
     parse_scene_stage_response, parse_scene_transitions,
 };
-use super::stages::build_scene_profile_stage_request;
+use super::stages::{build_scene_profile_candidates_request, build_scene_profile_stage_request};
 use super::types::{
     SCENE_CANDIDATE_ACTUAL_OCCURRENCE_RULE, SCENE_OCCURRENCE_COVERAGE_RULE,
     SCENE_OCCURRENCE_PROMPT, SCENE_PROFILE_CANDIDATES_PROMPT, SCENE_TRANSITION_REFERENCE_RULE,
@@ -242,6 +242,27 @@ async fn scene_stages_share_one_chapter_prefix_without_merging_stage_instruction
     let occurrence_pack = &occurrences.context_manifest_json.as_ref().unwrap()["packs"][0];
     assert_eq!(scene_pack["config_hash"], occurrence_pack["config_hash"]);
     assert_eq!(scene_pack["variants"], occurrence_pack["variants"]);
+}
+
+#[tokio::test]
+async fn scene_candidates_request_declares_integer_evidence_ids() {
+    let request = build_scene_profile_candidates_request(
+        &SceneSessionPromptRenderer,
+        &context_for_test(),
+        None,
+    )
+    .await
+    .expect("candidate request");
+    let manifest = request.context_manifest_json.as_ref().expect("manifest");
+    let task = manifest["dynamic_user_content"].as_str().expect("task");
+    let payload = a4n_prompt::request::json_user_message_payload(task)
+        .and_then(|text| serde_json::from_str::<Value>(text).ok())
+        .expect("candidate output contract");
+    let evidence_type = &payload["output_contract"]["field_types"]["evidence_anchor_ids"];
+    assert_eq!(evidence_type["type"], "array");
+    assert_eq!(evidence_type["items"]["type"], "integer");
+    assert_eq!(evidence_type["items"]["minimum"], 1);
+    assert_eq!(evidence_type["minItems"], 1);
 }
 
 #[test]

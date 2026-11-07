@@ -65,3 +65,12 @@ pub fn positive_i64_array(
     }
     Ok(normalized)
 }
+
+pub fn positive_i64_array_schema(require_non_empty: bool) -> Value {
+    json!({
+        "type": "array",
+        "items": { "type": "integer", "minimum": 1, "maximum": i64::MAX },
+        "minItems": usize::from(require_non_empty),
+        "description": "ID 必须从输入候选中选择，使用十进制 JSON 正整数字面量，不加引号、不含小数点、指数、括号或其他标记。不要输出字符串、布尔值或对象。"
+    })
+}

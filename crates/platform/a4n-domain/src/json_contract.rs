@@ -12,7 +12,7 @@ pub fn is_empty_json_value(value: &serde_json::Value) -> bool {
     }
 }
 
-pub use arrays::{positive_i64_array, string_array, string_array_value};
+pub use arrays::{positive_i64_array, positive_i64_array_schema, string_array, string_array_value};
 pub use fields::{
     optional_positive_i64, optional_string, required_array, required_array_value,
     required_object_value, required_string,

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use a4n_domain::json_contract::positive_i64_array_schema;
 use a4n_domain::{
     chapter::ChapterRecord, object_profile::ObjectProfileRecord, text_anchor::TextAnchorRecord,
 };
@@ -100,6 +101,9 @@ fn object_discovery_payload(input: Value) -> Value {
             "object_type_values": ["prop", "tool", "weapon", "token", "vehicle", "clothing", "location_object", "environment_object", "other"],
             "importance_values": ["primary", "secondary", "minor"],
             "object_fields": ["name", "aliases", "object_type", "importance", "visual_description", "material_and_state", "story_usage", "visual_usage", "generation_usage", "location_context", "evidence_anchor_ids"],
+            "field_types": {
+                "evidence_anchor_ids": positive_i64_array_schema(true),
+            },
             "object_type_rules": [
                 "普通道具、线索物以外的一般物品用 prop，不要输出 item/object/thing",
                 "设备、仪器、工具用 tool",

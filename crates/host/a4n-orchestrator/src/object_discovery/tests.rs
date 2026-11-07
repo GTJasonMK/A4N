@@ -225,6 +225,34 @@ fn rejects_unknown_evidence_anchor_id() {
 }
 
 #[test]
+fn rejects_evidence_ids_that_are_not_json_integer_tokens() {
+    let chapters = vec![chapter_for_test()];
+    let anchors = anchors_for_test(&chapters);
+    let anchor_id = anchor_id_containing(&anchors, "一枚青铜钥匙");
+    for invalid in [
+        json!(anchor_id.to_string()),
+        json!(format!("⟦{anchor_id}⟧")),
+        json!(anchor_id as f64),
+        json!(true),
+        Value::Null,
+    ] {
+        let mut object = canonical_object(vec![anchor_id]);
+        object["evidence_anchor_ids"] = json!([invalid]);
+        let error = parse_and_validate_object_discovery_content(
+            &json!({"objects": [object]}).to_string(),
+            &BTreeSet::from([3]),
+            &chapters,
+            &anchors,
+        )
+        .expect_err("model evidence IDs must retain integer token types");
+        assert_eq!(
+            error,
+            "objects[0].evidence_anchor_ids[0] 必须是 JSON 整数数字"
+        );
+    }
+}
+
+#[test]
 fn rejects_duplicate_object_names() {
     let chapters = vec![chapter_for_test()];
     let anchors = anchors_for_test(&chapters);
@@ -268,6 +296,11 @@ fn user_prompt_is_json_contract_and_names_canonical_fields() {
             .is_some_and(|fields| fields.contains(&json!("evidence_anchor_ids")))
     );
     assert!(payload["output_contract"]["object_type_values"].is_array());
+    let evidence_type = &payload["output_contract"]["field_types"]["evidence_anchor_ids"];
+    assert_eq!(evidence_type["type"], "array");
+    assert_eq!(evidence_type["items"]["type"], "integer");
+    assert_eq!(evidence_type["items"]["minimum"], 1);
+    assert_eq!(evidence_type["minItems"], 1);
     assert!(
         payload["input"]["context_refs"]["source"]
             .as_str()
