@@ -105,5 +105,5 @@ export function usesLocalRuntimeSettings(): boolean {
 }
 
 export function canUseLocalDesktopEmbedding(): boolean {
-  return isTauriRuntime() && shouldUseHttpBackend();
+  return isDesktopTauriRuntime() && shouldUseHttpBackend();
 }

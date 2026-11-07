@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 import socket
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -14,6 +15,23 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class RunPreflightTest(unittest.TestCase):
+    def test_remote_desktop_requires_onnx_for_its_local_embedding_commands(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="a4n-desktop-onnx-") as directory:
+            missing_runtime = Path(directory) / "missing-runtime"
+            env = os.environ.copy()
+            env["A4N_ONNXRUNTIME_ROOT"] = str(missing_runtime)
+            result = subprocess.run(
+                [str(ROOT / "scripts/run.sh"), "--remote-api-url", "http://127.0.0.1:1/api", "--no-hot"],
+                cwd=ROOT, env=env, text=True, stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, timeout=10, check=False,
+            )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("缺少 ONNX Runtime", result.stdout)
+        self.assertIn(str(missing_runtime), result.stdout)
+        self.assertNotIn("PostgreSQL 预检失败", result.stdout)
+        self.assertNotIn("Finished `dev` profile", result.stdout)
+
     def test_occupied_vite_port_blocks_debug_build(self) -> None:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
             listener.bind(("127.0.0.1", 0))

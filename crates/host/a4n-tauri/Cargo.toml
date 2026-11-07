@@ -50,7 +50,8 @@ a4n-process-catalog = { workspace = true }
 a4n-worker-runtime = { workspace = true }
 a4n-worker-client = { workspace = true }
 a4n-worker-contract = { workspace = true }
-a4n-runtime = { workspace = true, default-features = false }
+# Desktop commands always expose on-device embedding, including HTTP-only shells.
+a4n-runtime = { workspace = true, default-features = false, features = ["local-embedding"] }
 a4n-service-protocol = { workspace = true }
 a4n-storage = { workspace = true }
 a4n-task-runtime = { workspace = true }

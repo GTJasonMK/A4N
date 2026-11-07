@@ -14,6 +14,8 @@ The full environment template is [`.env.example`](../../.env.example). Keep real
 | Video | Video provider settings; configure supported resolutions, durations and input modes |
 | RAG | Qdrant address and collection, with an Embedding identity matching the project's index |
 
+Desktop builds include on-device fastembed without `--full`. When the desktop connects to a local or remote Server, it manages and runs the device's embedding models; browsers, mobile clients and administrator server settings use server-side capabilities. Desktop source builds and execution require the project's pinned ONNX Runtime; see [First run](getting-started.en.md#2-install-runtime-dependencies-and-start).
+
 `A4N_PUBLIC_LLM_*`, `A4N_PUBLIC_IMAGE_*` and `A4N_PUBLIC_VIDEO_*` provide server-side public model defaults; see the template for fields. Personal keys and local overrides follow the scope shown in settings. Never put server credentials into `VITE_*` variables or public examples.
 
 Text, Embedding, image and video requests are handled by their respective providers. External services receive the required text, retrieval inputs or media. Costs, content handling and model licensing follow the service's terms. Local-first does not promise that every provider runs offline or keeps requests on your machine.

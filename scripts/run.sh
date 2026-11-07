@@ -424,10 +424,14 @@ preflight_runtime_dependencies() {
   ensure_frontend_dependencies
   log_ok "前端依赖已安装"
 
-  if ! $REMOTE_API && ($MANAGED_SIDECARS || $FULL_HOST); then
-    require_command curl
+  # Desktop commands run fastembed on this device even when the Server is remote.
+  if ! $SERVER || $MANAGED_SIDECARS || $FULL_HOST; then
     require_onnxruntime
     log_ok "ONNX Runtime $(onnxruntime_version) 已就绪"
+  fi
+
+  if ! $REMOTE_API && ($MANAGED_SIDECARS || $FULL_HOST); then
+    require_command curl
     sidecar_catalog_rows >/dev/null
     log_ok "Sidecar catalog 已通过校验"
     ensure_qdrant
