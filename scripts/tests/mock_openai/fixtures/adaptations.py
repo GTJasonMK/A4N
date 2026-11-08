@@ -475,6 +475,7 @@ def manga_page_reference_discovery_response(combined: str) -> dict[str, Any]:
     return {
         "schema_version": "manga_page_reference_discovery_v1",
         "page_number": page_number,
+        "requirements": [],
         "references": references,
     }
 

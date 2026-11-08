@@ -108,6 +108,18 @@ class ModelMockBoundaryTests(unittest.TestCase):
         self.assertEqual(output["target"],"galgame")
         self.assertEqual(output["units"][0]["source_span_ids"],["#1","#2"])
 
+    def test_reference_discovery_fixture_explicitly_returns_both_required_arrays(self):
+        contract={"name":"manga_page_reference_discovery","schema":{"type":"object","required":["schema_version","page_number","requirements","references"],"additionalProperties":False,"properties":{"schema_version":{"const":"manga_page_reference_discovery_v1"},"page_number":{"const":3},"requirements":{"type":"array"},"references":{"type":"array"}}}}
+        task={"task":{"prompt_name":"manga_page_reference_discovery"},"input":{"current_page":{"page_number":3}},"output_contract":{"page_number":3}}
+        body={"model":"a4n-virtual-text","response_format":{"type":"json_schema","json_schema":contract},"messages":[
+            {"role":"user","content":json.dumps({"input":{"available_assets":[]}})+"\n\n输入：\n"+json.dumps(task)},
+            {"role":"system","content":"[A4N_OUTPUT_CONTRACT]\n"+json.dumps(contract)+"\n[/A4N_OUTPUT_CONTRACT]"},
+        ]}
+        output=json.loads(self.post(body)["choices"][0]["message"]["content"])
+        self.assertEqual(output["page_number"],3)
+        self.assertEqual(output["requirements"],[])
+        self.assertEqual(output["references"],[])
+
 
 if __name__ == "__main__":
     unittest.main()

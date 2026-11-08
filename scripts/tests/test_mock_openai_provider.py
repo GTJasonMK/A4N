@@ -888,6 +888,7 @@ class MockOpenAIProviderTest(unittest.TestCase):
         }]}
         response = json.loads(response_for(body))
         self.assertEqual(response["page_number"], 3)
+        self.assertEqual(response["requirements"], [])
         self.assertEqual(response["references"][0]["asset_id"], 9)
 
         body["messages"][0]["content"] = request(3, [])
