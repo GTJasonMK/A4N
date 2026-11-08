@@ -229,7 +229,7 @@ fn character_profile_sync_stage_stable_context(input: &CharacterProfileSyncStage
 }
 
 pub(super) fn character_profile_sync_stage_contract(stage: CharacterProfileSyncStage) -> Value {
-    match stage {
+    let mut contract = match stage {
         CharacterProfileSyncStage::EvidenceEvents => json!({
             "format": "json_object",
             "required_root_field": "events",
@@ -346,19 +346,28 @@ pub(super) fn character_profile_sync_stage_contract(stage: CharacterProfileSyncS
                 "没有删除候选时输出 []"
             ]
         }),
-    }
+    };
+    let schema = a4n_domain::json_contract::array_output_contract_schema(&contract)
+        .expect("static character sync contract");
+    let root = contract["required_root_field"]
+        .as_str()
+        .expect("contract root");
+    let fields = schema["properties"][root]["items"]["properties"].clone();
+    contract["field_types"] = fields;
+    contract
 }
 
 #[cfg(test)]
 #[test]
 fn model_contract_matrix() {
     for stage in CharacterProfileSyncStage::ALL {
-        a4n_test_support::model_contract::emit_schema(
-            stage.prompt_name(),
-            a4n_domain::json_contract::array_output_contract_schema(
-                &character_profile_sync_stage_contract(stage),
-            )
-            .unwrap(),
+        let contract = character_profile_sync_stage_contract(stage);
+        let schema = a4n_domain::json_contract::array_output_contract_schema(&contract).unwrap();
+        let root = contract["required_root_field"].as_str().unwrap();
+        assert_eq!(
+            contract["field_types"],
+            schema["properties"][root]["items"]["properties"]
         );
+        a4n_test_support::model_contract::emit_schema(stage.prompt_name(), schema);
     }
 }
